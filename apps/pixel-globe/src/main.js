@@ -13603,7 +13603,6 @@ function opaqueWorldCoverIsActive() {
     gameOverReason ||
     dialogueState ||
     playerIntroModal ||
-    captainAlertModal ||
     captainMenu.isOpen ||
     optionsMenu.isOpen ||
     creditsMenu.isOpen ||
