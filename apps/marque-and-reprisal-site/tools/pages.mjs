@@ -14,7 +14,8 @@ import {
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
-const codeAssetVersion = "2026-07-24-qa-type";
+const codeAssetVersion = "2026-07-24-pirata";
+const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 
 export function homePage() {
   const featureRows = features.map((feature) => [
@@ -131,7 +132,7 @@ export function pressPage() {
     "<main class='press-main'>",
     "<header class='press-hero'>",
     "<img src='/assets/art/capsule-header.png' alt='Marque &amp; Reprisal sunset capsule art' width='920' height='430'>",
-    "<div><p class='eyebrow'>Press kit</p><h1>Marque &amp; Reprisal</h1>",
+    "<div><p class='eyebrow'>Press kit</p><h1>Marque ", displayAmpersand, " Reprisal</h1>",
     "<p>", escapeHtml(site.shortDescription), "</p>",
     "<a class='button button-primary' href='/downloads/marque-and-reprisal-press-kit.zip' download>Download complete press kit</a>",
     "</div>",
@@ -159,6 +160,11 @@ export function pressPage() {
     "<p>", escapeHtml(site.shortDescription), "</p>",
     "<button class='copy-button' type='button' data-copy-text='", escapeHtml(site.shortDescription), "'>Copy description</button>",
     "</section>",
+    "<section><p class='eyebrow'>Background material</p><h2>Developer Q", displayAmpersand, "A</h2>",
+    "<p>Ten questions about the game, its history, the world simulation, sailing, survival, and what changes from one run to the next.</p>",
+    "<div class='press-copy-actions'><a href='/qa/'>Read the Q&amp;A</a>",
+    "<a href='/assets/press/developer-qa.txt' download>Download as text</a></div>",
+    "</section>",
     "</article>",
     "</div>",
     "<section class='press-assets' id='screenshots' aria-labelledby='screenshots-title'>",
@@ -167,7 +173,7 @@ export function pressPage() {
     "<div class='press-asset-grid'>", screenshotCards, "</div>",
     "</section>",
     "<section class='press-assets' aria-labelledby='logos-title'>",
-    "<div class='asset-heading'><div><p class='eyebrow'>Identity</p><h2 id='logos-title'>Logos &amp; artwork</h2></div></div>",
+    "<div class='asset-heading'><div><p class='eyebrow'>Identity</p><h2 id='logos-title'>Logos ", displayAmpersand, " artwork</h2></div></div>",
     "<div class='logo-grid'>", logoCards, "</div>",
     "</section>",
     "<section class='press-assets localized-capsule-assets' id='localized-capsules' aria-labelledby='localized-capsules-title'>",
@@ -214,7 +220,7 @@ export function qAndAPage() {
     "<main class='qa-main'>",
     "<header class='qa-hero'>",
     "<p class='eyebrow'>Developer Q&amp;A</p>",
-    "<h1>Questions &amp; answers</h1>",
+    "<h1>Questions ", displayAmpersand, " answers</h1>",
     "<p>Garrett Petersen talks about the game, its history, and what happens when a voyage goes wrong.</p>",
     "</header>",
     "<section class='qa-list' aria-label='Questions and answers about Marque and Reprisal'>",
@@ -332,17 +338,28 @@ export function factSheetText() {
     "FEATURES",
     ...features.map((feature) => feature.title.toUpperCase() + "\n" + feature.copy),
     "",
-    "DEVELOPER Q&A",
-    ...qAndA.flatMap((entry) => [
-      "Q: " + entry.question,
-      ...entry.answer.map((paragraph) => "A: " + paragraph),
-      ""
-    ]),
     "TEXT LANGUAGES",
     languages.join(", "),
     "",
     "ASSET USE",
     "The included assets may be used for editorial coverage, reviews, videos, streams, and event listings concerning Marque & Reprisal.",
+    ""
+  ].join("\n");
+}
+
+export function qAndAText() {
+  return [
+    "MARQUE & REPRISAL DEVELOPER Q&A",
+    "================================",
+    "",
+    "Garrett Petersen talks about the game, its history, and what happens when a voyage goes wrong.",
+    "",
+    ...qAndA.flatMap((entry) => [
+      "Q: " + entry.question,
+      ...entry.answer.map((paragraph) => "A: " + paragraph),
+      ""
+    ]),
+    "Website: " + site.domain + "/qa/",
     ""
   ].join("\n");
 }
@@ -423,7 +440,7 @@ function layout({
 function navigation() {
   return [
     "<nav class='site-nav' aria-label='Primary navigation'>",
-    "<a class='wordmark' href='/' aria-label='Marque and Reprisal home'><span>M</span><i>&amp;</i><span>R</span></a>",
+    "<a class='wordmark' href='/' aria-label='Marque and Reprisal home'><span>M</span><i class='display-amp' aria-hidden='true'></i><span>R</span></a>",
     "<div class='nav-links'>",
     "<a href='/#voyage'>About</a>",
     "<a href='/qa/'>Q&amp;A</a>",
@@ -438,7 +455,7 @@ function navigation() {
 function footer() {
   return [
     "<footer class='site-footer'>",
-    "<div><strong>Marque &amp; Reprisal</strong><span>Explore. Trade. Fish. Pillage.</span></div>",
+    "<div><strong>Marque ", displayAmpersand, " Reprisal</strong><span>Explore. Trade. Fish. Pillage.</span></div>",
     "<div class='footer-links'><a href='/press/'>Press kit</a><a href='/privacy/'>Privacy</a>",
     externalTextLink(site.itchUrl, "Demo on itch.io"),
     externalTextLink(site.xUrl, site.xHandle),

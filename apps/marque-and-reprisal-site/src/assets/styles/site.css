@@ -1,6 +1,6 @@
 @font-face {
-  font-family: "Pixel Pirate";
-  src: url("/assets/fonts/pixel-pirate.ttf") format("truetype");
+  font-family: "Pirata One";
+  src: url("/assets/fonts/pirata-one.ttf") format("truetype");
   font-display: swap;
 }
 
@@ -25,7 +25,7 @@
   --ink: #241c29;
   --content: 1240px;
   --gutter: clamp(20px, 4vw, 64px);
-  --display: "Pixel Pirate", Georgia, serif;
+  --display: "Pirata One", Georgia, serif;
   --utility: "Silkscreen", ui-monospace, monospace;
   --body: "Avenir Next", Avenir, "Trebuchet MS", sans-serif;
 }
@@ -134,10 +134,18 @@ textarea {
 
 .wordmark i {
   color: var(--brass);
-  font-family: var(--body);
-  font-size: 13px;
   font-style: normal;
-  font-weight: 900;
+}
+
+.display-amp {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.94em;
+  margin: 0 0.02em;
+  background-color: currentColor;
+  vertical-align: -0.11em;
+  -webkit-mask: url("/assets/art/party-let-ampersand.png") center / contain no-repeat;
+  mask: url("/assets/art/party-let-ampersand.png") center / contain no-repeat;
 }
 
 .nav-links {
@@ -750,9 +758,12 @@ textarea {
 
 .press-hero > img {
   width: 100%;
+  height: auto;
+  aspect-ratio: 920 / 430;
   border: 5px solid var(--ink);
   box-shadow: 13px 13px 0 var(--brass);
   image-rendering: pixelated;
+  object-fit: contain;
 }
 
 .press-hero h1 {
@@ -867,6 +878,16 @@ textarea {
 .copy-button:hover {
   background: var(--ink);
   color: var(--foam);
+}
+
+.press-copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 26px;
+  margin-top: 25px;
+  font-family: var(--utility);
+  font-size: 10px;
+  text-transform: uppercase;
 }
 
 .press-assets {
@@ -1008,6 +1029,7 @@ textarea {
 }
 
 .localized-capsule-preview {
+  aspect-ratio: 1232 / 706;
   overflow: hidden;
   background: var(--night);
 }
@@ -1015,9 +1037,9 @@ textarea {
 .localized-capsule-preview img {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   aspect-ratio: 1232 / 706;
-  object-fit: cover;
+  object-fit: contain;
   image-rendering: pixelated;
   transition: transform 200ms steps(3, end);
 }
@@ -1097,6 +1119,8 @@ textarea {
 }
 
 .logo-preview img {
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 200px;
   object-fit: contain;

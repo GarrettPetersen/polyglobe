@@ -14,7 +14,7 @@ import {
   site,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
-import { homePage, pressPage, qAndAPage } from "../tools/pages.mjs";
+import { homePage, pressPage, qAndAPage, qAndAText } from "../tools/pages.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -71,6 +71,9 @@ test("developer Q&A publishes the approved interview with factual wording fixes"
   assert.doesNotMatch(copy, /Vasco de Gama|away form|a-historical|30\+ powers|export controls/);
   assert.equal((page.match(/class='qa-entry'/g) || []).length, qAndA.length);
   assert.match(homePage(), /href='\/qa\/'>Q&amp;A<\/a>/);
+  assert.match(pressPage(), /href='\/assets\/press\/developer-qa\.txt' download/);
+  assert.match(qAndAText(), /MARQUE & REPRISAL DEVELOPER Q&A/);
+  assert.match(qAndAText(), /Q: What kind of game is Marque & Reprisal\?/);
 });
 
 test("press kit publishes every localized capsule set and download", async () => {
@@ -197,6 +200,47 @@ test("gameplay screenshots retain their full landscape frame", async () => {
     assert.match(block[1], /height:\s*auto/);
     assert.match(block[1], /aspect-ratio:\s*16\s*\/\s*9/);
   }
+});
+
+test("display typography matches the capsule without redistributing Party LET", async () => {
+  const css = await readFile(
+    path.join(appRoot, "src/assets/styles/site.css"),
+    "utf8"
+  );
+  const page = pressPage() + qAndAPage();
+
+  assert.match(css, /font-family:\s*"Pirata One"/);
+  assert.match(css, /--display:\s*"Pirata One"/);
+  assert.match(css, /party-let-ampersand\.png/);
+  assert.doesNotMatch(css, /Pixel Pirate|pixel-pirate\.ttf/);
+  assert.ok((page.match(/class='display-amp'/g) || []).length >= 4);
+  await access(path.join(appRoot, "src/assets/fonts/pirata-one.ttf"));
+  await access(path.join(appRoot, "src/assets/fonts/pirata-one-OFL.txt"));
+  await access(path.join(appRoot, "src/assets/art/party-let-ampersand.png"));
+  await assert.rejects(access(path.join(appRoot, "src/assets/fonts/pixel-pirate.ttf")));
+});
+
+test("capsule artwork is always rendered at its native aspect ratio", async () => {
+  const css = await readFile(
+    path.join(appRoot, "src/assets/styles/site.css"),
+    "utf8"
+  );
+  const hero = css.match(/\.press-hero > img\s*\{([^}]*)\}/);
+  const localized = css.match(/\.localized-capsule-preview img\s*\{([^}]*)\}/);
+  const layers = css.match(/\.logo-preview img\s*\{([^}]*)\}/);
+
+  assert.ok(hero);
+  assert.match(hero[1], /width:\s*100%/);
+  assert.match(hero[1], /height:\s*auto/);
+  assert.match(hero[1], /aspect-ratio:\s*920\s*\/\s*430/);
+  assert.match(hero[1], /object-fit:\s*contain/);
+  assert.ok(localized);
+  assert.match(localized[1], /aspect-ratio:\s*1232\s*\/\s*706/);
+  assert.match(localized[1], /object-fit:\s*contain/);
+  assert.ok(layers);
+  assert.match(layers[1], /width:\s*auto/);
+  assert.match(layers[1], /height:\s*auto/);
+  assert.match(layers[1], /object-fit:\s*contain/);
 });
 
 test("feature videos serve as the visible section headings", () => {

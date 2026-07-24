@@ -6,6 +6,7 @@ Official press assets for Marque & Reprisal by Garrett Petersen.
 CONTENTS
 
 - factsheet.txt: Product facts and publication-ready descriptions.
+- developer-qa.txt: The complete developer Q&A in publication-ready text.
 - screenshots/: Eight full-resolution 1920x1080 gameplay screenshots.
 - logos/: Transparent title logo, store header, and square game icon.
 - capsule-art/: Complete capsule art, aligned transparent layers, composite

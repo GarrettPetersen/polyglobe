@@ -35,6 +35,12 @@ of producing a partial press kit.
 1200 × 630 for large social cards. Every page references it through Open Graph
 and X card metadata; the site tests verify both the PNG dimensions and tags.
 
+## Typography
+
+Display headings use the tracked SIL-licensed Pirata One font to match the
+capsule title. Display ampersands use a transparent Party LET glyph image
+rather than redistributing the proprietary font file.
+
 Deployment uses the ignored root `.env` credentials and maps
 `PRODUCTION_CLOUDFLARE_ACCOUNT_ID` and `PRODUCTION_CLOUDFLARE_API_TOKEN` to the
 environment variable names expected by Wrangler. No Cloudflare credential is

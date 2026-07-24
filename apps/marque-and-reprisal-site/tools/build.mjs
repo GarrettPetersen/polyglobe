@@ -24,6 +24,7 @@ import {
   pressPage,
   privacyPage,
   qAndAPage,
+  qAndAText,
   robotsText,
   sitemapXml
 } from "./pages.mjs";
@@ -47,6 +48,7 @@ await writePage("404.html", notFoundPage());
 await writePage("robots.txt", robotsText());
 await writePage("sitemap.xml", sitemapXml());
 await writePage("assets/press/factsheet.txt", factSheetText());
+await writePage("assets/press/developer-qa.txt", qAndAText());
 await buildLocalizedCapsuleDownloads();
 await buildPressKitArchive();
 await validateBuild();
@@ -150,6 +152,7 @@ async function buildPressKitArchive() {
     const entries = Object.freeze([
       ["assets/press/README.txt", "README.txt"],
       ["assets/press/factsheet.txt", "factsheet.txt"],
+      ["assets/press/developer-qa.txt", "developer-qa.txt"],
       ["assets/press/screenshots", "screenshots"],
       ["assets/press/logos", "logos"],
       ["assets/press/capsule-art", "capsule-art"],
@@ -190,6 +193,10 @@ async function validateBuild() {
     "downloads/marque-and-reprisal-press-kit.zip",
     "downloads/marque-and-reprisal-capsules-all-languages.zip",
     "assets/art/social-share.png",
+    "assets/art/party-let-ampersand.png",
+    "assets/fonts/pirata-one.ttf",
+    "assets/fonts/pirata-one-OFL.txt",
+    "assets/press/developer-qa.txt",
     "assets/press/capsule-art/capsule-source.aseprite",
     "assets/press/capsule-art/title-with-ship.png",
     ...localizedCapsules.flatMap((locale) => [
