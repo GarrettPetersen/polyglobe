@@ -74,13 +74,13 @@ export function validateCharacterPortraitManifest(manifest) {
   }
 }
 
-export function reconcileCharacterPortraitSexes(root, manifest) {
+export function reconcileCharacterPortraitMetadata(root, manifest) {
   if (!root || typeof root !== "object") {
-    throw new Error("Portrait sex reconciliation requires an object graph");
+    throw new Error("Portrait metadata reconciliation requires an object graph");
   }
   validateCharacterPortraitManifest(manifest);
-  const sourceSexById = new Map(
-    manifest.sourceCharacters.map((character) => [character.id, character.sex])
+  const sourceById = new Map(
+    manifest.sourceCharacters.map((character) => [character.id, character])
   );
   const visited = new WeakSet();
   let correctedCount = 0;
@@ -89,15 +89,23 @@ export function reconcileCharacterPortraitSexes(root, manifest) {
     if (!value || typeof value !== "object" || ArrayBuffer.isView(value) || visited.has(value)) return;
     visited.add(value);
     if (typeof value.sourceId === "string" && (value.sex === "female" || value.sex === "male")) {
-      const reviewedSex = sourceSexById.get(value.sourceId);
-      if (!reviewedSex) {
+      const source = sourceById.get(value.sourceId);
+      if (!source) {
         throw new Error("Character uses an unknown portrait source: " + value.sourceId);
       }
-      if (value.sex !== reviewedSex) {
+      const expressions = assignedExpressions(source);
+      const expressionsChanged = Array.isArray(value.expressions) && !sameExpressions(value.expressions, expressions);
+      if (value.sex !== source.sex || expressionsChanged) {
         if (Object.isFrozen(value)) {
           throw new Error("Cannot reconcile frozen character portrait metadata: " + value.sourceId);
         }
-        value.sex = reviewedSex;
+      }
+      if (value.sex !== source.sex) {
+        value.sex = source.sex;
+        correctedCount += 1;
+      }
+      if (expressionsChanged) {
+        value.expressions = expressions;
         correctedCount += 1;
       }
     }
@@ -595,14 +603,28 @@ function assignedCharacter(id, region, source, age) {
     minAge: source.minAge,
     maxAge: source.maxAge,
     age,
-    expressions: source.expressions.map((expression) => ({
-      id: expression.id,
-      label: expression.label,
-      src: expression.src,
-      width: expression.width,
-      height: expression.height
-    }))
+    expressions: assignedExpressions(source)
   };
+}
+
+function assignedExpressions(source) {
+  return source.expressions.map((expression) => ({
+    id: expression.id,
+    label: expression.label,
+    src: expression.src,
+    width: expression.width,
+    height: expression.height
+  }));
+}
+
+function sameExpressions(current, expected) {
+  return current.length === expected.length && current.every((expression, index) => (
+    expression?.id === expected[index].id &&
+    expression.label === expected[index].label &&
+    expression.src === expected[index].src &&
+    expression.width === expected[index].width &&
+    expression.height === expected[index].height
+  ));
 }
 
 function characterSourcesForPlayer(manifest, region) {

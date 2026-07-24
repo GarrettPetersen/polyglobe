@@ -164,7 +164,7 @@ import {
   generatePirateCaptiveFamilyMember,
   generateSpecialPortCharacter,
   loadCharacterPortraitManifest,
-  reconcileCharacterPortraitSexes
+  reconcileCharacterPortraitMetadata
 } from "./characterPortraits.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import { portraitBottomTransparentRows } from "./portraitFrameAlignment.js";
@@ -7737,12 +7737,12 @@ async function restoreSavedVoyage(payload) {
       restoredWorldClock.recoveredDebtClockMinutes
     );
   }
-  const correctedPortraitSexCount = reconcileCharacterPortraitSexes(
+  const correctedPortraitMetadataCount = reconcileCharacterPortraitMetadata(
     restoredGameState,
     characterPortraitManifest
   );
-  if (correctedPortraitSexCount > 0) {
-    console.info("[pixel-globe] corrected portrait sex metadata for saved characters:", correctedPortraitSexCount);
+  if (correctedPortraitMetadataCount > 0) {
+    console.info("[pixel-globe] corrected portrait metadata for saved characters:", correctedPortraitMetadataCount);
   }
   ensureWhalePopulation(restoredGameState);
   if (!Number.isInteger(savedShip.tileId) || !isShipBaseNavigableTile(savedShip.tileId)) {

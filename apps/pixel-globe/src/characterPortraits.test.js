@@ -20,7 +20,7 @@ import {
   generatePirateCaptiveCharacter,
   generatePirateCaptiveFamilyMember,
   generatePlayerCharacter,
-  reconcileCharacterPortraitSexes,
+  reconcileCharacterPortraitMetadata,
   validateCharacterPortraitManifest
 } from "./characterPortraits.js";
 
@@ -163,7 +163,7 @@ test("the black-haired woman is an expressive East Asian portrait", () => {
   assert.equal(source.expressions.find((expression) => expression.id === "neutral")?.index, 2);
 });
 
-test("saved characters inherit corrected sex metadata from their reviewed portrait", () => {
+test("saved characters inherit corrected metadata from their reviewed portrait", () => {
   const southAsianWoman = GENERATED_MANIFEST.sourceCharacters.find(
     (source) => source.label === "South Asian 11"
   );
@@ -188,18 +188,39 @@ test("saved characters inherit corrected sex metadata from their reviewed portra
   };
 
   assert.equal(
-    reconcileCharacterPortraitSexes(savedVoyage, GENERATED_MANIFEST),
+    reconcileCharacterPortraitMetadata(savedVoyage, GENERATED_MANIFEST),
     2
   );
   assert.equal(savedVoyage.playerCharacter.sex, "female");
   assert.equal(savedVoyage.people[0].sex, "male");
 });
 
-test("portrait sex reconciliation rejects unknown character sources", () => {
+test("portrait metadata reconciliation rejects unknown character sources", () => {
   assert.throws(
-    () => reconcileCharacterPortraitSexes({ sourceId: "missing-portrait", sex: "male" }, GENERATED_MANIFEST),
+    () => reconcileCharacterPortraitMetadata({ sourceId: "missing-portrait", sex: "male" }, GENERATED_MANIFEST),
     /unknown portrait source/
   );
+});
+
+test("saved characters inherit corrected neutral expression assignments", () => {
+  const strawHatWoman = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.id === "women-peasant-pack-by-captainskeleto-women-peasant"
+  );
+  const savedCharacter = {
+    sourceId: strawHatWoman.id,
+    sex: strawHatWoman.sex,
+    expressions: strawHatWoman.expressions.map((expression) => ({
+      id: expression.index === 1 ? "sad" : expression.index === 3 ? "neutral" : expression.id,
+      label: expression.index === 1 ? "Sad" : expression.index === 3 ? "Neutral" : expression.label,
+      src: expression.src,
+      width: expression.width,
+      height: expression.height
+    }))
+  };
+
+  assert.equal(reconcileCharacterPortraitMetadata(savedCharacter, GENERATED_MANIFEST), 1);
+  assert.match(characterExpression(savedCharacter).src, /Women%20Peasant_1\.png$/);
+  assert.match(characterExpression(savedCharacter, "sad").src, /Women%20Peasant_3\.png$/);
 });
 
 test("East Asian players use the authored Ming portrait group", () => {
@@ -370,7 +391,7 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", 4],
     ["ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait", 6],
     ["women-knight-portrait-pack-by-captainskeleto-women-knight-portrait", 12],
-    ["women-peasant-pack-by-captainskeleto-women-peasant", 3],
+    ["women-peasant-pack-by-captainskeleto-women-peasant", 1],
     ["ultimate-portrait-pack-v1-0-seamstress-women-portrait-women-seamstress-portrait", 1],
     ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", 6],
     ["warrior-with-beard-pack-by-captainskolot-warrior-with-beard", 1],

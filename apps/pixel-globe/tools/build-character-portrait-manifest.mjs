@@ -328,9 +328,9 @@ const expressionLabelOverrides = new Map([
     ["neutral", "Neutral"]
   ]),
   labels("Women Peasant Pack by Captainskeleto/Women Peasant", [
-    ["sad", "Sad"],
-    ["concerned", "Concerned"],
     ["neutral", "Neutral"],
+    ["concerned", "Concerned"],
+    ["sad", "Sad"],
     ["afraid", "Afraid"],
     ["attentive", "Attentive"],
     ["happy", "Happy"],

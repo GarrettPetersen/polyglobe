@@ -1955,6 +1955,49 @@ test("package job offers show the destination distance", () => {
   assert.doesNotMatch(offer.detail, /GREAT-CIRCLE/);
 });
 
+test("a rumor queued before an active delivery cannot trap Back in a quest self-loop", () => {
+  const istanbul = {
+    tileId: 23,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Ottoman Empire",
+    cityType: "mediterranean",
+    routeRegion: "mediterranean",
+    factionId: "ottoman",
+    population: 400000,
+    lat: 41.01,
+    lon: 28.98,
+    character: { name: "Leyla Celebi" }
+  };
+  const athens = {
+    ...istanbul,
+    tileId: 24,
+    city: "Athens",
+    displayCity: "Athens",
+    lat: 37.98,
+    lon: 23.73
+  };
+  const ports = [istanbul, athens];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  deliveryOfferForCity(gameState, istanbul, ports, { spawnChance: 1, simMinute: 0 });
+  acceptQuest(gameState, questStateForCity(gameState, istanbul, ports).quest);
+  const session = createPortDialogueSession(istanbul, {
+    initialNodeId: "greeting",
+    rumorText: "A pale spout was sighted beyond the Dardanelles.",
+    nextPortNodeId: "quest"
+  });
+
+  selectPortDialogueOption(session, istanbul, gameState, economy, ports, 0);
+  assert.equal(session.nodeId, "quest");
+  assert.equal(session.nextPortNodeId, null);
+  const warning = portDialogueView(session, istanbul, gameState, economy, ports);
+  assert.match(warning.text, /Do not let it vanish into another captain's hold/);
+  const backIndex = warning.options.findIndex((entry) => entry.label === "Back");
+  selectPortDialogueOption(session, istanbul, gameState, economy, ports, backIndex);
+  assert.equal(session.nodeId, "root");
+});
+
 test("shipyards show a full vessel presentation and enforce the asking price", () => {
   const city = {
     tileId: 10,

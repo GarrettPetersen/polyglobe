@@ -7319,8 +7319,8 @@
       "expressionCount": 12,
       "expressions": [
         {
-          "id": "sad",
-          "label": "Sad",
+          "id": "neutral",
+          "label": "Neutral",
           "index": 1,
           "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_1.png",
           "width": 64,
@@ -7335,8 +7335,8 @@
           "height": 64
         },
         {
-          "id": "neutral",
-          "label": "Neutral",
+          "id": "sad",
+          "label": "Sad",
           "index": 3,
           "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_3.png",
           "width": 64,

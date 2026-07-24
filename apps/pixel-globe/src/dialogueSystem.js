@@ -1062,6 +1062,13 @@ export function selectPortDialogueOption(
   }
   if (action.type === "close") return { closed: true };
   if (action.type === "node") {
+    const consumesRumorContinuation = session.nodeId === "greeting" &&
+      session.rumorText !== null &&
+      action.nodeId === (session.nextPortNodeId || "root");
+    if (consumesRumorContinuation) {
+      session.rumorText = null;
+      session.nextPortNodeId = null;
+    }
     if (action.nodeId === "buy") session.marketPurchases = {};
     if (action.nodeId === "sell") session.marketSales = 0;
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
