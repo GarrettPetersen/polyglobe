@@ -447,6 +447,26 @@ test("NPC route snapshots preserve planless pirates hidden at a hideout", () => 
   assert.equal(restored.currentPort.tileId, hideout.tileId);
 });
 
+test("saved routes retain generated fishing grounds that leave the current top set", () => {
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, fishState });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships.find((ship) => ship.plan?.destination?.isFishingGround);
+  assert.ok(saved, "expected a saved fisherman route to generated fishing grounds");
+  const savedGround = saved.plan.destination;
+  routes.fishingGrounds = routes.fishingGrounds.filter((ground) => ground.tileId !== savedGround.tileId);
+  assert.equal(routes.fishingGrounds.some((ground) => ground.tileId === savedGround.tileId), false);
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy, fishState });
+
+  const restoredGround = routes.fishingGrounds.find((ground) => ground.tileId === savedGround.tileId);
+  const restoredShip = routes.shipById.get(saved.id);
+  assert.ok(restoredGround);
+  assert.equal(restoredShip.plan.destination, restoredGround);
+  assert.deepEqual(restoredGround.habitat, savedGround.habitat);
+});
+
 test("NPC route snapshots reject planless ships outside pirate hideouts", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

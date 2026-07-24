@@ -694,10 +694,45 @@ function canonicalNpcRouteDestination(system, destination) {
     system.fishingGrounds.find((ground) => ground.tileId === destination.tileId) ||
     system.whalingGrounds.find((ground) => ground.tileId === destination.tileId);
   if (!canonical && isSavedEncounterPoint(destination)) return destination;
+  if (!canonical && destination.isFishingGround === true) {
+    return restoreSavedFishingGround(system, destination);
+  }
   if (!canonical) {
     throw new Error(`Saved NPC route destination is absent from the current world: ${destination.tileId}`);
   }
   return canonical;
+}
+
+function restoreSavedFishingGround(system, destination) {
+  if (!system.fishState) {
+    throw new Error(`Saved NPC fishing ground has no current fish ecology: ${destination.tileId}`);
+  }
+  if (!destination.habitat || destination.habitat.tileId !== destination.tileId ||
+      !["coastal", "open-ocean"].includes(destination.habitat.kind)) {
+    throw new Error(`Saved NPC fishing ground has invalid habitat: ${destination.tileId}`);
+  }
+  if (!Number.isFinite(destination.lat) || !Number.isFinite(destination.lon) ||
+      destination.lat < -70 || destination.lat > 70 ||
+      destination.lon < -180 || destination.lon > 180) {
+    throw new Error(`Saved NPC fishing ground has invalid position: ${destination.tileId}`);
+  }
+  const routeAnchors = anchorIdsForPort(destination);
+  if (routeAnchors.length === 0) {
+    throw new Error(`Saved NPC fishing ground has no current sea-lane anchors: ${destination.tileId}`);
+  }
+  const restored = {
+    ...destination,
+    factionId: NEUTRAL_FACTION_ID,
+    routeRegion: portRouteRegion(destination),
+    routeAnchors,
+    habitat: {
+      ...destination.habitat,
+      lat: destination.lat,
+      lon: destination.lon
+    }
+  };
+  system.fishingGrounds.push(restored);
+  return restored;
 }
 
 function isSavedEncounterPoint(destination) {
