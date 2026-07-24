@@ -15,8 +15,11 @@ import {
   MING_TRADE_POLICY_ID,
   MING_TRADE_RESTRICTION_END_MINUTE,
   SPANISH_INDIES_TRADE_POLICY_ID,
+  createPersonalTradePassMemory,
   createSovereignTradeGrantMemory,
   evaluateSovereignTradeAccess,
+  grantPersonalTradePass,
+  personalTradePassGranted,
   resolveSovereignIllicitMarketAttempt,
   sovereignTradeGrantedToFaction,
   sovereignTradePolicyForPort
@@ -68,6 +71,20 @@ test("default permissions preserve tribute and licensed regional traffic", () =>
   assert.equal(sovereignTradeGrantedToFaction(grants, JOSEON_TRADE_POLICY_ID, "england"), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "spain"), true);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "portugal"), false);
+});
+
+test("personal trade passes are named policy papers rather than national treaties", () => {
+  const passes = createPersonalTradePassMemory();
+
+  assert.equal(personalTradePassGranted(passes, MING_TRADE_POLICY_ID), false);
+  assert.equal(grantPersonalTradePass(passes, MING_TRADE_POLICY_ID, 720), true);
+  assert.equal(grantPersonalTradePass(passes, MING_TRADE_POLICY_ID, 900), false);
+  assert.equal(personalTradePassGranted(passes, MING_TRADE_POLICY_ID), true);
+  assert.deepEqual(passes[MING_TRADE_POLICY_ID], {
+    policyId: MING_TRADE_POLICY_ID,
+    issuerFactionId: "ming",
+    simMinute: 720
+  });
 });
 
 test("a closed commercial market still permits basic provisioning", () => {

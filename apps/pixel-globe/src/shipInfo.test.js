@@ -4,10 +4,12 @@ import assert from "node:assert/strict";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
+  TRADE_PASS_REPUTATION_REQUIRED,
   acceptQuest,
   adjustFactionReputation,
   createGameState,
-  grantLetterOfMarque
+  grantLetterOfMarque,
+  issuePersonalTradePass
 } from "./gameState.js";
 import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
@@ -25,6 +27,7 @@ import {
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { SPANISH_INDIES_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 
 test("ship information uses live hull, currency, stats, and cargo", () => {
   const stats = shipStatsForSlug("brigantine");
@@ -189,6 +192,42 @@ test("ship papers include active deliveries and letters of marque", () => {
   assert.equal(view.papers[3].title, "English letter of marque");
   assert.equal(view.papers[3].simMinute, 1440);
   assert.equal(shipPapersPage(view, 0).rows.length, 4);
+});
+
+test("ship papers include the captain's named sovereign trade permits", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    },
+    shipStats: stats
+  });
+  adjustFactionReputation(gameState, "spain", TRADE_PASS_REPUTATION_REQUIRED);
+  issuePersonalTradePass(gameState, {
+    tileId: 4,
+    city: "Seville",
+    displayCity: "Seville",
+    country: "Spain",
+    factionId: "spain",
+    isFactionCapital: true,
+    capitalOfFactionId: "spain"
+  }, SPANISH_INDIES_TRADE_POLICY_ID, { simMinute: 2880 });
+
+  const view = createShipInfoView({
+    typeSlug: "brigantine",
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints
+  }, gameState);
+  const permit = view.papers.find((paper) => paper.kind === "permit");
+
+  assert.equal(permit.title, "Indies trade licencia");
+  assert.equal(permit.issuer, "Spanish Monarchy");
+  assert.equal(permit.route, "Spanish American ports");
+  assert.match(permit.detail, /Royal license/);
+  assert.equal(permit.simMinute, 2880);
 });
 
 test("ship papers show an active passenger aboard", () => {

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   MAX_DAMAGE_RESISTANCE_CHANCE,
-  MAX_HULL_REPAIR_FRACTION_PER_DAY,
+  MAX_HULL_REPAIR_HIT_POINTS_PER_DAY,
   aggregatePerkSources,
   combinedDamageResistanceChance,
   damageResistanceRollSucceeds,
@@ -39,13 +39,13 @@ test("perk sources stack additive and multiplicative effects", () => {
   assert.equal(totals.tradeSaleMultiplier, 1.03 * 1.015);
 });
 
-test("passive hull repair stacks additively under a conservative cap", () => {
+test("passive hull repair points stack additively under a conservative cap", () => {
   const totals = aggregatePerkSources(Array.from({ length: 4 }, (_, index) => ({
     id: `shipwright-${index}`,
-    perks: { hullRepairFractionPerDay: 0.0075 }
+    perks: { hullRepairHitPointsPerDay: 22 }
   })));
 
-  assert.equal(totals.hullRepairFractionPerDay, MAX_HULL_REPAIR_FRACTION_PER_DAY);
+  assert.equal(totals.hullRepairHitPointsPerDay, MAX_HULL_REPAIR_HIT_POINTS_PER_DAY);
 });
 
 test("stacking chance and bargain perks respects their balance caps", () => {

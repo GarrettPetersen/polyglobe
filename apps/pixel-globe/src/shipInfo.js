@@ -21,6 +21,7 @@ import {
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 import { clampMenuIndex } from "./menuNavigation.js";
 import { effectivePlayerShipStats } from "./playerPerks.js";
+import { sovereignTradePolicyById } from "./sovereignTradeAccess.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
 export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
@@ -293,6 +294,7 @@ function shipPapers(gameState) {
   const activeQuest = gameState.memory.quests.active;
   if (activeQuest) papers.push(activeQuestPaper(activeQuest));
   papers.push(...shipItemPapers(shipItemRows(gameState)));
+  papers.push(...personalTradePassPapers(gameState.relations.personalTradePasses));
   papers.push(...letterOfMarquePapers(gameState.relations.lettersOfMarque));
   return papers;
 }
@@ -356,6 +358,23 @@ function letterOfMarquePapers(lettersOfMarque) {
         route: "Privateering authority",
         detail: "Valid against war enemies",
         simMinute: Number.isFinite(letter?.simMinute) ? letter.simMinute : null
+      };
+    })
+    .sort((a, b) => a.issuer.localeCompare(b.issuer));
+}
+
+function personalTradePassPapers(personalTradePasses) {
+  return Object.entries(personalTradePasses)
+    .map(([policyId, pass]) => {
+      const policy = sovereignTradePolicyById(policyId);
+      const issuer = factionById(policy.hostFactionId);
+      return {
+        kind: "permit",
+        title: policy.permitLabel,
+        issuer: issuer.name,
+        route: policy.appliesTo,
+        detail: policy.permitPaperDetail,
+        simMinute: pass.simMinute
       };
     })
     .sort((a, b) => a.issuer.localeCompare(b.issuer));

@@ -95,10 +95,17 @@ import {
 } from "./foreignSettlements.js";
 import {
   MING_TRADE_POLICY_ID,
+  createPersonalTradePassMemory,
   createSovereignTradeGrantMemory,
+  grantPersonalTradePass,
   grantSovereignTradeToFaction,
+  migratePersonalTradePassMemory,
   migrateSovereignTradeGrantMemory,
+  personalTradePassGranted,
+  sovereignTradePoliciesForHostFaction,
   sovereignTradeGrantedToFaction,
+  sovereignTradePolicyById,
+  validatePersonalTradePassMemory,
   validateSovereignTradeGrantMemory
 } from "./sovereignTradeAccess.js";
 import {
@@ -191,7 +198,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 43;
+export const GAME_STATE_VERSION = 44;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -236,6 +243,7 @@ export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
 export const PIRACY_REPUTATION_PENALTY = -3;
 export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
 export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
+export const TRADE_PASS_REPUTATION_REQUIRED = 50;
 export const HOSTILE_PORT_REPUTATION_THRESHOLD = -75;
 export const PORT_DISGUISE_SUCCESS_CHANCE = 0.6;
 export const PORT_DISGUISE_MAX_SUCCESS_CHANCE = 0.9;
@@ -364,6 +372,7 @@ export function createGameState({
       safePassageUntilMinute: {},
       safePassageRefusalUntilMinute: {},
       tradeAccessGrants: createSovereignTradeGrantMemory(),
+      personalTradePasses: createPersonalTradePassMemory(),
       portugueseCartaz: createPortugueseCartazMemory(),
       foreignSettlementExpulsions: createForeignSettlementExpulsionMemory(),
       diplomacy: createWorldDiplomacy({
@@ -434,7 +443,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -517,6 +526,9 @@ export function migrateGameState(state, shipStats) {
       tradeAccessGrants: migrateSovereignTradeGrantMemory(
         state.relations.tradeAccessGrants,
         legacyMingOpenTradeFactionIds
+      ),
+      personalTradePasses: migratePersonalTradePassMemory(
+        state.relations.personalTradePasses
       ),
       portugueseCartaz: migratePortugueseCartazMemory(state.relations.portugueseCartaz),
       foreignSettlementExpulsions: migrateForeignSettlementExpulsionMemory(
@@ -2388,6 +2400,81 @@ export function openSovereignTradeToFaction(state, policyId, factionId) {
   return opened;
 }
 
+export function hasPersonalTradePass(state, policyId) {
+  assertGameState(state);
+  return personalTradePassGranted(state.relations.personalTradePasses, policyId);
+}
+
+export function personalTradePassStatuses(state, city, simMinute = 0) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const capitalFactionId = currentSovereignCapitalFactionId(city);
+  if (!capitalFactionId) return [];
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const reputation = factionReputation(state, capitalFactionId);
+  return sovereignTradePoliciesForHostFaction(capitalFactionId, simMinute)
+    .map((policy) => {
+      const granted = personalTradePassGranted(
+        state.relations.personalTradePasses,
+        policy.id
+      );
+      const nationalAccess = sovereignTradeGrantedToFaction(
+        state.relations.tradeAccessGrants,
+        policy.id,
+        traderFactionId
+      );
+      const unnecessary = nationalAccess && !granted;
+      const missing = reputation < TRADE_PASS_REPUTATION_REQUIRED
+        ? [`standing ${formatSignedReputation(TRADE_PASS_REPUTATION_REQUIRED)}`]
+        : [];
+      return Object.freeze({
+        available: !unnecessary,
+        policyId: policy.id,
+        policy,
+        factionId: capitalFactionId,
+        traderFactionId,
+        granted,
+        nationalAccess,
+        eligible: !granted && !unnecessary && missing.length === 0,
+        missing,
+        reputation,
+        reputationRequired: TRADE_PASS_REPUTATION_REQUIRED
+      });
+    })
+    .filter((status) => status.available);
+}
+
+export function personalTradePassStatus(state, city, policyId, simMinute = 0) {
+  const policy = sovereignTradePolicyById(policyId);
+  const status = personalTradePassStatuses(state, city, simMinute)
+    .find((candidate) => candidate.policyId === policy.id);
+  if (status) return status;
+  return {
+    available: false,
+    policyId: policy.id,
+    policy,
+    reason: `A ${policy.permitLabel} can be requested only at the sovereign capital while its restrictions remain in force.`
+  };
+}
+
+export function issuePersonalTradePass(state, city, policyId, context = {}) {
+  const simMinute = context.simMinute ?? 0;
+  const status = personalTradePassStatus(state, city, policyId, simMinute);
+  if (!status.available) throw new Error(status.reason);
+  if (status.granted) return { ...status, grantedNow: false };
+  if (!status.eligible) {
+    throw new Error(`Trade pass requirements unmet: ${status.missing.join(", ")}`);
+  }
+  const grantedNow = grantPersonalTradePass(
+    state.relations.personalTradePasses,
+    policyId,
+    simMinute
+  );
+  if (!grantedNow) throw new Error(`Trade pass grant was not recorded: ${policyId}`);
+  recordDecision(state, `trade-pass.grant.${policyId}`, 1);
+  return { ...status, granted: true, grantedNow: true };
+}
+
 export function isEnvoyQuest(quest) {
   return Boolean(quest && ENVOY_QUEST_KINDS.has(quest.kind));
 }
@@ -2974,7 +3061,7 @@ export function playerTradeAccess(state, city, context = {}) {
   assertGameState(state);
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
-  return evaluateTradeAccess({
+  const access = evaluateTradeAccess({
     port: city,
     traderFactionId,
     relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
@@ -2984,10 +3071,17 @@ export function playerTradeAccess(state, city, context = {}) {
     foreignSettlementExpulsions: state.relations.foreignSettlementExpulsions,
     simMinute: context.simMinute ?? 0,
     tradeAccessGranted: (policyId, factionId) => (
-      sovereignTradeOpenToFaction(state, policyId, factionId)
+      sovereignTradeOpenToFaction(state, policyId, factionId) ||
+      personalTradePassGranted(state.relations.personalTradePasses, policyId)
     ),
     illicitAccessPolicyId: context.illicitTradeAccessPolicyId ?? null,
     disguisedEntry: context.disguisedEntry === true
+  });
+  const personalTradePass = access.policyId !== null &&
+    personalTradePassGranted(state.relations.personalTradePasses, access.policyId);
+  return Object.freeze({
+    ...access,
+    personalTradePass
   });
 }
 
@@ -4114,6 +4208,14 @@ function letterOfMarqueFactionId(city) {
   return id;
 }
 
+function currentSovereignCapitalFactionId(city) {
+  if (!city || typeof city !== "object" || city.isFactionCapital !== true) return null;
+  if (!city.capitalOfFactionId || city.capitalOfFactionId !== city.factionId) return null;
+  const id = assertFactionId(city.factionId);
+  if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return null;
+  return id;
+}
+
 function goodById(goodId) {
   return tradeGoodById(goodId);
 }
@@ -4267,6 +4369,7 @@ function assertGameState(state) {
   }
   assertFactionReputationTable(state.relations?.factionReputation);
   validateSovereignTradeGrantMemory(state.relations?.tradeAccessGrants);
+  validatePersonalTradePassMemory(state.relations?.personalTradePasses);
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);
   assertSafePassageTable(state.relations?.safePassageUntilMinute);
   assertSafePassageRefusalTable(state.relations?.safePassageRefusalUntilMinute);

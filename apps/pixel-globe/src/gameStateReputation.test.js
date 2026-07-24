@@ -16,6 +16,7 @@ import {
   PIRACY_REPUTATION_PENALTY,
   PIRATE_START_REPUTATION,
   SHIP_ATTACK_REPUTATION_PENALTY,
+  TRADE_PASS_REPUTATION_REQUIRED,
   TRADE_REPUTATION_GAIN,
   adjustFactionReputation,
   attemptPortDisguise,
@@ -29,14 +30,18 @@ import {
   factionSafePassageToll,
   grantLetterOfMarque,
   hasLetterOfMarqueFrom,
+  hasPersonalTradePass,
   hasPrivateeringAuthorityAgainst,
+  issuePersonalTradePass,
   letterOfMarqueStatus,
   migrateGameState,
   sovereignTradeOpenToFaction,
   pirateHideoutsVisibleToPlayer,
   playerPortDisguiseSuccessChance,
   playerShipIsWarship,
+  playerTradeAccess,
   playerTradeTerms,
+  personalTradePassStatus,
   portEntryStatus,
   purchaseFactionSafePassage,
   refuseFactionSafePassage,
@@ -198,6 +203,17 @@ test("version 10 game states gain the historically licensed trade defaults", () 
   assert.deepEqual(restored.relations.tradeAccessGrants[MING_TRADE_POLICY_ID], ["joseon"]);
   assert.deepEqual(restored.relations.tradeAccessGrants[JOSEON_TRADE_POLICY_ID], ["japan", "ming"]);
   assert.deepEqual(restored.relations.tradeAccessGrants[SPANISH_INDIES_TRADE_POLICY_ID], []);
+});
+
+test("version 43 voyages gain empty personal trade papers without losing their save", () => {
+  const saved = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  saved.version = 43;
+  delete saved.relations.personalTradePasses;
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.deepEqual(restored.relations.personalTradePasses, {});
 });
 
 test("version 11 voyages gain empty persistent port conquest state", () => {
@@ -387,6 +403,47 @@ test("a letter of marque authorizes privateering against the issuer's war enemie
 
   makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200 * 24 * 60);
   assert.equal(hasPrivateeringAuthorityAgainst(state, "france"), false);
+});
+
+test("trusted captains can obtain a personal Indies licencia without opening national trade", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const seville = {
+    ...port(3, "Seville", "Spain", "mediterranean", 70000, "spain"),
+    isFactionCapital: true,
+    capitalOfFactionId: "spain"
+  };
+  const havana = {
+    ...port(4, "Havana", "Cuba", "mesoamerican", 35000, "spain"),
+    lat: 23.11,
+    lon: -82.37
+  };
+  let status = personalTradePassStatus(
+    state,
+    seville,
+    SPANISH_INDIES_TRADE_POLICY_ID,
+    120
+  );
+  assert.equal(status.available, true);
+  assert.equal(status.eligible, false);
+  assert.ok(status.missing.some((item) => item.startsWith("standing")));
+
+  adjustFactionReputation(state, "spain", TRADE_PASS_REPUTATION_REQUIRED);
+  status = issuePersonalTradePass(
+    state,
+    seville,
+    SPANISH_INDIES_TRADE_POLICY_ID,
+    { simMinute: 120 }
+  );
+
+  assert.equal(status.grantedNow, true);
+  assert.equal(hasPersonalTradePass(state, SPANISH_INDIES_TRADE_POLICY_ID), true);
+  assert.equal(
+    sovereignTradeOpenToFaction(state, SPANISH_INDIES_TRADE_POLICY_ID, "england"),
+    false
+  );
+  const access = playerTradeAccess(state, havana, { simMinute: 120 });
+  assert.equal(access.allowed, true);
+  assert.equal(access.personalTradePass, true);
 });
 
 test("war and deeply hostile standing bar entry while other ports remain open", () => {

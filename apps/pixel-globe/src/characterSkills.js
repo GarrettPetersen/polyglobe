@@ -79,15 +79,15 @@ export const CHARACTER_SKILLS = Object.freeze([
     whalingChanceMultiplier: 1.18
   }),
   skill("carpenter", "Carpenter", "Patches leaks and works loose planks back into place during long passages.", {
-    hullRepairFractionPerDay: 0.0025
+    hullRepairHitPointsPerDay: 4
   }),
   skill("shipwright", "Shipwright", "Braces weak points and steadily restores a damaged hull underway.", {
     damageResistanceChance: 0.06,
-    hullRepairFractionPerDay: 0.005
+    hullRepairHitPointsPerDay: 10
   }),
   skill("master-shipwright", "Master Shipwright", "Can nurse even a badly battered vessel toward seaworthiness.", {
     damageResistanceChance: 0.09,
-    hullRepairFractionPerDay: 0.0075
+    hullRepairHitPointsPerDay: 22
   }),
   skill("ships-surgeon", "Ship's Surgeon", "Keeps wounds from becoming names in the logbook.", {
     crewCasualtyResistanceChance: 0.12

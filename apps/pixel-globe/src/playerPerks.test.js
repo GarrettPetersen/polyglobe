@@ -64,7 +64,7 @@ test("hull sheathing and a named shipwright share the resistance perk total", ()
   }, NAMED_CREW_ROLE_HISTORIAN);
 
   assert.equal(gameStatePerkTotals(state).damageResistanceChance, 0.2);
-  assert.equal(gameStatePerkTotals(state).hullRepairFractionPerDay, 0.005);
+  assert.equal(gameStatePerkTotals(state).hullRepairHitPointsPerDay, 10);
 });
 
 test("matchlocks and gunpowder aboard improve a marine assault together", () => {

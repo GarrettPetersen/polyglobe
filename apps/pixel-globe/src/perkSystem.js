@@ -6,7 +6,7 @@ const ADDITIVE_PERKS = new Set([
   "disguiseChanceBonus",
   "damageResistanceChance",
   "crewCasualtyResistanceChance",
-  "hullRepairFractionPerDay"
+  "hullRepairHitPointsPerDay"
 ]);
 
 const MULTIPLICATIVE_PERKS = new Set([
@@ -28,7 +28,7 @@ const MULTIPLICATIVE_PERKS = new Set([
 ]);
 
 export const MAX_DAMAGE_RESISTANCE_CHANCE = 0.8;
-export const MAX_HULL_REPAIR_FRACTION_PER_DAY = 0.015;
+export const MAX_HULL_REPAIR_HIT_POINTS_PER_DAY = 30;
 
 export const PERK_KEYS = Object.freeze([
   ...ADDITIVE_PERKS,
@@ -67,10 +67,10 @@ export function aggregatePerkSources(sources) {
   totals.tradeSaleMultiplier = clamp(totals.tradeSaleMultiplier, 1, 1.1);
   totals.animalEncounterChanceMultiplier = clamp(totals.animalEncounterChanceMultiplier, 1, 3);
   totals.cannonSpreadMultiplier = clamp(totals.cannonSpreadMultiplier, 0.55, 1);
-  totals.hullRepairFractionPerDay = clamp(
-    totals.hullRepairFractionPerDay,
+  totals.hullRepairHitPointsPerDay = clamp(
+    totals.hullRepairHitPointsPerDay,
     0,
-    MAX_HULL_REPAIR_FRACTION_PER_DAY
+    MAX_HULL_REPAIR_HIT_POINTS_PER_DAY
   );
   return Object.freeze(totals);
 }
@@ -165,9 +165,8 @@ export function perkEffectLabels(perks) {
   if (perks.crewCasualtyResistanceChance) {
     labels.push(`${Math.round(perks.crewCasualtyResistanceChance * 100)}% casualty resistance`);
   }
-  if (perks.hullRepairFractionPerDay) {
-    const dailyPercent = Math.round(perks.hullRepairFractionPerDay * 10000) / 100;
-    labels.push(`Repairs ${dailyPercent}% hull per day`);
+  if (perks.hullRepairHitPointsPerDay) {
+    labels.push(`Repairs ${perks.hullRepairHitPointsPerDay} hull per day`);
   }
   return Object.freeze(labels);
 }

@@ -36,6 +36,7 @@ import { dialogueOptionIconId } from "./gameIcons.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
+  TRADE_PASS_REPUTATION_REQUIRED,
   acceptQuest,
   adjustFactionReputation,
   attemptPortDisguise,
@@ -43,6 +44,7 @@ import {
   createGameState,
   deliveryOfferForCity,
   hasLetterOfMarqueFrom,
+  hasPersonalTradePass,
   initializeProvisionalShipLoadout,
   playerTradeTerms,
   portMemory,
@@ -54,6 +56,7 @@ import {
 import { DIPLOMACY_FRIENDLY, DIPLOMACY_NEUTRAL } from "./factions.js";
 import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
 import { colonizationTargetForCity } from "./colonialCities.js";
 import {
@@ -2792,6 +2795,53 @@ test("capital port dialogue can grant a letter of marque", () => {
   const alreadyHeld = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(alreadyHeld.text, /already carry King Henry VIII's authority/i);
   assert.equal(alreadyHeld.feedback, null);
+});
+
+test("a trusted captain can petition a capital for a historically named personal trade pass", () => {
+  const city = {
+    tileId: 81,
+    city: "Beijing",
+    displayCity: "Beijing",
+    country: "China",
+    cityType: "east-asian",
+    population: 700000,
+    factionId: "ming",
+    isFactionCapital: true,
+    capitalOfFactionId: "ming",
+    character: { name: "Wang Shouren" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  adjustFactionReputation(gameState, "ming", TRADE_PASS_REPUTATION_REQUIRED);
+  const session = createPortDialogueSession(city);
+  const context = { simMinute: 720 };
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const passIndex = root.options.findIndex((entry) => entry.action.type === "open-trade-pass");
+  assert.ok(passIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], passIndex, context);
+
+  const petition = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(petition.text, /Board of Rites/);
+  assert.match(petition.text, /memorial/);
+  const requestIndex = petition.options.findIndex((entry) => (
+    entry.action.type === "request-trade-pass"
+  ));
+  assert.equal(petition.options[requestIndex].disabled, false);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], requestIndex, context);
+  const issued = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(issued.text, /imperial trade seal/);
+  assert.match(issued.text, /maritime customs officers/);
+  assert.equal(hasPersonalTradePass(gameState, MING_TRADE_POLICY_ID), true);
 });
 
 function testSailingDistances(entries) {

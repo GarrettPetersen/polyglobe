@@ -31,6 +31,10 @@ export const SOVEREIGN_TRADE_ACCESS_POLICIES = Object.freeze([
     illicitMarketReputationPenalty: 8,
     closedMarketText: "The Ming maritime prohibition closes this market to unauthorized foreign cargo.",
     permitLabel: "Ming trade seal",
+    permitAuthority: "the Board of Rites",
+    permitPetition: "The Board of Rites will consider a memorial for a named foreign captain only when the court's officers know that captain to be trustworthy.",
+    permitGrant: "The Board of Rites has entered your name and issued an imperial trade seal. Present it to the maritime customs officers when entering a Ming market.",
+    permitPaperDetail: "Named foreign merchant under imperial seal",
     envoyPurpose: "lawful trade with the Ming Empire",
     envoyMemorial: "open Ming markets to our merchants",
     envoyRequest: "leave for our merchants to enter Ming ports under lawful seal, customs, and the emperor's peace",
@@ -46,6 +50,10 @@ export const SOVEREIGN_TRADE_ACCESS_POLICIES = Object.freeze([
     illicitMarketReputationPenalty: 9,
     closedMarketText: "Joseon's licensed-port rules close this market to unauthorized foreign cargo.",
     permitLabel: "Joseon trading license",
+    permitAuthority: "the royal court",
+    permitPetition: "The royal court admits foreign merchants only through appointed ports and licensed registers. A captain of trusted standing may petition to be entered by name.",
+    permitGrant: "The royal court has entered your name on the licensed-port register. Joseon's customs officers may now admit your lawful cargo.",
+    permitPaperDetail: "Named merchant on the licensed-port register",
     envoyPurpose: "licensed trade with Joseon",
     envoyMemorial: "admit our merchants under Joseon's licensed-port rules",
     envoyRequest: "a fixed allotment of lawful merchant calls under the court's customs officers",
@@ -62,7 +70,11 @@ export const SOVEREIGN_TRADE_ACCESS_POLICIES = Object.freeze([
     illicitMarketSuccessChance: 0.45,
     illicitMarketReputationPenalty: 8,
     closedMarketText: "The Crown's Indies monopoly closes this colonial market to unlicensed foreign cargo.",
-    permitLabel: "Indies trade license",
+    permitLabel: "Indies trade licencia",
+    permitAuthority: "the Casa de Contratación",
+    permitPetition: "The Casa de Contratación may petition the Crown for a royal licencia naming a trusted captain as an authorized trader in the Indies.",
+    permitGrant: "The Crown has granted you a royal licencia through the Casa de Contratación. Its seal authorizes your cargo at Spanish ports in the Indies.",
+    permitPaperDetail: "Royal license for trade in the Spanish Indies",
     envoyPurpose: "a license to trade in the Spanish Indies",
     envoyMemorial: "secure lawful access to Spain's American markets",
     envoyRequest: "a royal license for our merchants to trade at the Crown's ports in the Indies",
@@ -79,6 +91,15 @@ export function sovereignTradePolicyById(policyId) {
   const policy = POLICY_BY_ID.get(policyId);
   if (!policy) throw new Error(`Unknown sovereign trade policy: ${policyId}`);
   return policy;
+}
+
+export function sovereignTradePoliciesForHostFaction(factionId, simMinute = 0) {
+  const id = assertFactionId(factionId);
+  assertSimulationMinute(simMinute);
+  return SOVEREIGN_TRADE_ACCESS_POLICIES.filter((policy) => (
+    policy.hostFactionId === id &&
+    (policy.endMinute === null || simMinute < policy.endMinute)
+  ));
 }
 
 export function sovereignTradePolicyForPort(port, simMinute = 0) {
@@ -100,6 +121,69 @@ export function createSovereignTradeGrantMemory() {
     policy.id,
     [...policy.defaultGrantedFactionIds]
   ]));
+}
+
+export function createPersonalTradePassMemory() {
+  return {};
+}
+
+export function migratePersonalTradePassMemory(memory) {
+  if (memory === null || memory === undefined) return createPersonalTradePassMemory();
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    throw new Error("Personal trade pass memory must be an object");
+  }
+  const migrated = {};
+  for (const [policyId, pass] of Object.entries(memory)) {
+    const policy = sovereignTradePolicyById(policyId);
+    if (!pass || typeof pass !== "object" || Array.isArray(pass)) {
+      throw new Error(`Invalid personal trade pass: ${policyId}`);
+    }
+    migrated[policyId] = {
+      policyId,
+      issuerFactionId: policy.hostFactionId,
+      simMinute: pass.simMinute
+    };
+  }
+  validatePersonalTradePassMemory(migrated);
+  return migrated;
+}
+
+export function validatePersonalTradePassMemory(memory) {
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    throw new Error("Personal trade pass memory must be an object");
+  }
+  for (const [policyId, pass] of Object.entries(memory)) {
+    const policy = sovereignTradePolicyById(policyId);
+    if (!pass || typeof pass !== "object" || Array.isArray(pass)) {
+      throw new Error(`Invalid personal trade pass: ${policyId}`);
+    }
+    if (pass.policyId !== policyId) {
+      throw new Error(`Personal trade pass policy mismatch: ${policyId}`);
+    }
+    if (pass.issuerFactionId !== policy.hostFactionId) {
+      throw new Error(`Personal trade pass issuer mismatch: ${policyId}`);
+    }
+    assertSimulationMinute(pass.simMinute);
+  }
+}
+
+export function personalTradePassGranted(memory, policyId) {
+  validatePersonalTradePassMemory(memory);
+  sovereignTradePolicyById(policyId);
+  return Boolean(memory[policyId]);
+}
+
+export function grantPersonalTradePass(memory, policyId, simMinute) {
+  validatePersonalTradePassMemory(memory);
+  const policy = sovereignTradePolicyById(policyId);
+  assertSimulationMinute(simMinute);
+  if (memory[policyId]) return false;
+  memory[policyId] = {
+    policyId,
+    issuerFactionId: policy.hostFactionId,
+    simMinute
+  };
+  return true;
 }
 
 export function migrateSovereignTradeGrantMemory(memory, legacyMingFactionIds = null) {
@@ -243,6 +327,10 @@ function tradeAccessPolicy({
   illicitMarketReputationPenalty,
   closedMarketText,
   permitLabel,
+  permitAuthority,
+  permitPetition,
+  permitGrant,
+  permitPaperDetail,
   envoyPurpose,
   envoyMemorial,
   envoyRequest,
@@ -266,6 +354,17 @@ function tradeAccessPolicy({
   if (!Number.isInteger(illicitMarketReputationPenalty) || illicitMarketReputationPenalty <= 0) {
     throw new Error(`Invalid illicit market penalty for ${id}`);
   }
+  for (const [field, value] of Object.entries({
+    permitLabel,
+    permitAuthority,
+    permitPetition,
+    permitGrant,
+    permitPaperDetail
+  })) {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new Error(`Invalid ${field} for ${id}`);
+    }
+  }
   return Object.freeze({
     id,
     label,
@@ -280,6 +379,10 @@ function tradeAccessPolicy({
     illicitMarketReputationPenalty,
     closedMarketText,
     permitLabel,
+    permitAuthority,
+    permitPetition,
+    permitGrant,
+    permitPaperDetail,
     envoyPurpose,
     envoyMemorial,
     envoyRequest,

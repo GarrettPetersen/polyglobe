@@ -3,25 +3,29 @@ import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 export function repairShipHullOverTime(
   ship,
   elapsedMinutes,
-  repairFractionPerDay
+  repairHitPointsPerDay,
+  { paused = false } = {}
 ) {
   validateRepairShip(ship);
   if (!Number.isFinite(elapsedMinutes) || elapsedMinutes < 0) {
     throw new Error(`Invalid passive hull repair time: ${elapsedMinutes}`);
   }
-  if (!Number.isFinite(repairFractionPerDay) || repairFractionPerDay < 0) {
-    throw new Error(`Invalid passive hull repair rate: ${repairFractionPerDay}`);
+  if (!Number.isFinite(repairHitPointsPerDay) || repairHitPointsPerDay < 0) {
+    throw new Error(`Invalid passive hull repair rate: ${repairHitPointsPerDay}`);
+  }
+  if (typeof paused !== "boolean") {
+    throw new Error(`Invalid passive hull repair pause state: ${paused}`);
   }
   if (
+    paused ||
     elapsedMinutes === 0 ||
-    repairFractionPerDay === 0 ||
+    repairHitPointsPerDay === 0 ||
     ship.hitPoints === 0 ||
     ship.hitPoints === ship.maxHitPoints
   ) return 0;
 
   const missingHitPoints = ship.maxHitPoints - ship.hitPoints;
-  const requestedRepair = ship.maxHitPoints *
-    repairFractionPerDay *
+  const requestedRepair = repairHitPointsPerDay *
     elapsedMinutes /
     WEATHER_MINUTES_PER_DAY;
   const repaired = Math.min(missingHitPoints, requestedRepair);

@@ -20,6 +20,7 @@ import {
   deliverQuestCargo,
   enterSpecialEquipmentStore,
   grantLetterOfMarque,
+  issuePersonalTradePass,
   isEnvoyQuest,
   letterOfMarqueStatus,
   maybeGrantMissionPerkItem,
@@ -29,6 +30,8 @@ import {
   playerShipReplacementCargoUsed,
   playerCannonEquipment,
   playerFishingNet,
+  personalTradePassStatus,
+  personalTradePassStatuses,
   playerPortCustomsNotice,
   playerWhaleHarpoon,
   playerTradeAccess,
@@ -257,6 +260,8 @@ export function createPortDialogueSession(city, options = {}) {
     vikingLongshipArrival: options.vikingLongshipArrival === true,
     colonizationApprovalStep: 0,
     marqueGrantedFactionId: null,
+    tradePassPolicyId: null,
+    tradePassGrantedPolicyId: null,
     customsNoticeKey: null,
     selectedIndex: 0,
     feedback: null
@@ -944,6 +949,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
+  if (session.nodeId === "trade-pass") return tradePassView(session, city, gameState, context);
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
   if (session.nodeId === "custom-loadout") return customLoadoutView(session, city, gameState, context);
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
@@ -1082,6 +1088,10 @@ export function selectPortDialogueOption(
     if (session.nodeId === "ship-handover") session.shipHandover = null;
     if (session.nodeId === "marque" && action.nodeId !== "marque") {
       session.marqueGrantedFactionId = null;
+    }
+    if (session.nodeId === "trade-pass" && action.nodeId !== "trade-pass") {
+      session.tradePassPolicyId = null;
+      session.tradePassGrantedPolicyId = null;
     }
     if (action.nodeId === "equipment" && session.nodeId === "root") {
       const offer = enterSpecialEquipmentStore(gameState, economy, city);
@@ -1694,6 +1704,34 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     return { closed: false };
   }
+  if (action.type === "open-trade-pass") {
+    personalTradePassStatus(
+      gameState,
+      city,
+      action.policyId,
+      context.simMinute ?? 0
+    );
+    session.tradePassPolicyId = action.policyId;
+    session.tradePassGrantedPolicyId = null;
+    session.feedback = null;
+    session.nodeId = "trade-pass";
+    session.selectedIndex = 0;
+    return { closed: false };
+  }
+  if (action.type === "request-trade-pass") {
+    const result = issuePersonalTradePass(
+      gameState,
+      city,
+      action.policyId,
+      context
+    );
+    session.tradePassPolicyId = result.policyId;
+    session.tradePassGrantedPolicyId = result.grantedNow ? result.policyId : null;
+    session.feedback = null;
+    session.nodeId = "trade-pass";
+    session.selectedIndex = 0;
+    return { closed: false };
+  }
   throw new Error(`Unknown dialogue action: ${action.type}`);
 }
 
@@ -2101,6 +2139,22 @@ function rootView(session, city, gameState, economy, context) {
   if (!session.disguisedEntry && letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
     options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));
   }
+  if (!session.disguisedEntry) {
+    const tradePasses = personalTradePassStatuses(
+      gameState,
+      city,
+      context.simMinute ?? 0
+    );
+    for (const status of tradePasses) {
+      options.push(option(
+        tradePasses.length === 1 ? "Trade pass" : `Trade pass: ${status.policy.permitLabel}`,
+        {
+          type: "open-trade-pass",
+          policyId: status.policyId
+        }
+      ));
+    }
+  }
   if (!session.disguisedEntry && isPortugueseEstadoPort(city)) {
     const cartaz = portugueseCartazStatus(
       gameState,
@@ -2131,6 +2185,8 @@ function rootView(session, city, gameState, economy, context) {
       : "Wartime orders close this market and its harbor services."
     : tradeAccess.illicit
     ? `Keep your market business discreet. Market specie: ${market.specie} db.`
+    : tradeAccess.personalTradePass
+    ? `Your ${tradeAccess.policy.permitLabel} is in order. The customs officers admit your cargo. Market specie: ${market.specie} db.`
     : `What business brings you to port? Market specie: ${market.specie} db.`;
   return {
     speaker: speakerName(city),
@@ -3614,6 +3670,52 @@ function marqueView(session, city, gameState, context) {
       option("Request letter of marque", { type: "request-marque" }, {
         disabled: status.granted || !status.eligible,
         disabledReason: status.granted ? "Already granted." : disabledReason
+      }),
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function tradePassView(session, city, gameState, context) {
+  if (typeof session.tradePassPolicyId !== "string" || session.tradePassPolicyId === "") {
+    throw new Error("Trade pass dialogue requires a sovereign trade policy");
+  }
+  const status = personalTradePassStatus(
+    gameState,
+    city,
+    session.tradePassPolicyId,
+    context.simMinute ?? 0
+  );
+  if (!status.available) {
+    return {
+      speaker: speakerName(city),
+      expressionId: "stern",
+      text: status.reason,
+      feedback: null,
+      options: [option("Back", { type: "node", nodeId: "root" })]
+    };
+  }
+  const newlyGranted = session.tradePassGrantedPolicyId === status.policyId;
+  const text = newlyGranted
+    ? status.policy.permitGrant
+    : status.granted
+    ? `You already carry a ${status.policy.permitLabel} issued in your name by ${status.policy.permitAuthority}.`
+    : `${status.policy.permitPetition} Standing ${signedReputation(status.reputation)}/${signedReputation(status.reputationRequired)}.`;
+  const disabledReason = status.missing.length > 0
+    ? `Need ${status.missing.join(" and ")}.`
+    : null;
+  return {
+    speaker: speakerName(city),
+    expressionId: status.granted ? "pleased" : status.eligible ? "attentive" : "stern",
+    text,
+    feedback: null,
+    options: [
+      option(`Request ${status.policy.permitLabel}`, {
+        type: "request-trade-pass",
+        policyId: status.policyId
+      }, {
+        disabled: status.granted || !status.eligible,
+        disabledReason: status.granted ? "Already issued." : disabledReason
       }),
       option("Back", { type: "node", nodeId: "root" })
     ]

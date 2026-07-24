@@ -40,8 +40,8 @@ test("the fishing skill ramp improves both odds and haul", () => {
 
 test("the shipwright skill ramp steadily improves passive hull repair", () => {
   const ramp = ["carpenter", "shipwright", "master-shipwright"].map(characterSkillById);
-  assert.ok(ramp[0].perks.hullRepairFractionPerDay < ramp[1].perks.hullRepairFractionPerDay);
-  assert.ok(ramp[1].perks.hullRepairFractionPerDay < ramp[2].perks.hullRepairFractionPerDay);
+  assert.ok(ramp[0].perks.hullRepairHitPointsPerDay < ramp[1].perks.hullRepairHitPointsPerDay);
+  assert.ok(ramp[1].perks.hullRepairHitPointsPerDay < ramp[2].perks.hullRepairHitPointsPerDay);
   assert.equal(ramp[0].perks.damageResistanceChance, undefined);
   assert.ok(ramp[1].perks.damageResistanceChance < ramp[2].perks.damageResistanceChance);
 });

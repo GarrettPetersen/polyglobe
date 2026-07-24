@@ -16188,13 +16188,15 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
     resetSurvivalDamageTimers();
     return result.changed;
   }
-  const hullRepaired = playerHasCombatEngagement()
-    ? 0
-    : repairShipHullOverTime(
-        ship,
-        currentMinute - previousMinute,
-        perks.hullRepairFractionPerDay
-      );
+  const hullRepaired = repairShipHullOverTime(
+    ship,
+    currentMinute - previousMinute,
+    perks.hullRepairHitPointsPerDay,
+    {
+      paused: playerHasCombatEngagement() ||
+        playerStormIntensity() >= STORM_ACTIVE_INTENSITY
+    }
+  );
   if (result.freshWaterRefilled) showSurvivalNotice("FRESH WATER REFILLED", "good");
   if (result.changed) syncShipCargoFromGameState();
   queueWineCaptainDialogues(result);
@@ -22913,7 +22915,9 @@ function drawCompactShipPapers(panel, view) {
     const rect = shipInfoMenu.paperRowRects[index];
     const selected = shipInfoMenu.paperSelectionActive && shipInfoMenu.paperSelectedIndex === index;
     const hovered = drawShipPaperRowBackground(rect, index, selected);
-    drawOptionsText(paper.kind.toUpperCase(), rowLeft, y, { color: paper.kind === "marque" ? "#91db69" : "#fbb954" });
+    drawOptionsText(paper.kind.toUpperCase(), rowLeft, y, {
+      color: ["marque", "permit"].includes(paper.kind) ? "#91db69" : "#fbb954"
+    });
     drawOptionsText(shipLedgerDateLabel(paper.simMinute), right - 10, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
     drawOptionsText(">", right + (hovered ? 1 : 0), y + detailOffset, {
       align: "right",
@@ -23109,7 +23113,7 @@ function drawShipPapers(panel, view) {
     const rect = shipInfoMenu.paperRowRects[index];
     const selected = shipInfoMenu.paperSelectionActive && shipInfoMenu.paperSelectedIndex === index;
     const hovered = drawShipPaperRowBackground(rect, index, selected);
-    const typeColor = paper.kind === "marque"
+    const typeColor = ["marque", "permit"].includes(paper.kind)
       ? PIRATE_MENU_SUCCESS
       : paper.kind === "delivery"
         ? PIRATE_MENU_INK
