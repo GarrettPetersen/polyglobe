@@ -2899,7 +2899,7 @@ async function main() {
   centerTileId = ship.tileId;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
-  reframeWorldNorthUp("new game setup");
+  reframeWorldNorthUp("new game setup", { allowUncovered: true });
   setupThemeMusic();
   setupSoundEffects();
   if (PERFORMANCE_BENCHMARK) setupPerformanceBenchmark();
@@ -13616,10 +13616,13 @@ function opaqueWorldCoverIsActive() {
   );
 }
 
-function reframeWorldNorthUp(reason) {
+function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   if (lakeBattleMode || !ship || !camera || !chart || !localLayout) return false;
   if (typeof reason !== "string" || reason.length === 0) {
     throw new Error("North-up chart reframe requires a reason");
+  }
+  if (!allowUncovered && !opaqueWorldCoverIsActive()) {
+    throw new Error(`Refusing visible north-up chart reframe during live play: ${reason}`);
   }
 
   const driftBefore = measureCurrentChartNorthUpDrift();
@@ -19592,10 +19595,16 @@ function applyResponsiveViewport(width, height) {
       : captainAlertButtonRect();
     if (captainAlertModal.kind === "choice") captainAlertModal.choiceRects = captainAlertChoiceRects();
   }
-  if (ship && camera && chart && localLayout && !lakeBattleMode) {
-    reframeWorldNorthUp("viewport resize");
-  }
+  rebuildChartForViewportResize();
   dirty = true;
+}
+
+function rebuildChartForViewportResize() {
+  if (!ship || !camera || !chart || !localLayout || lakeBattleMode) return false;
+  chart = buildChart(camera);
+  chartNorthUpDrift = measureCurrentChartNorthUpDrift();
+  chartDriftMeasuredAtMs = lastFrameMs;
+  return true;
 }
 
 function syncCanvasAriaLabel() {
