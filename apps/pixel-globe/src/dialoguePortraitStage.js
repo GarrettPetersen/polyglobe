@@ -107,8 +107,8 @@ export function dialoguePortraitToneHex(r, g, b, tone) {
   if (tone === DIALOGUE_PORTRAIT_TONE_ACTIVE) return nearestResurrect64Hex(r, g, b);
 
   const gray = r * 0.299 + g * 0.587 + b * 0.114;
-  const saturation = tone === DIALOGUE_PORTRAIT_TONE_TRANSITION ? 0.62 : 0.3;
-  const brightness = tone === DIALOGUE_PORTRAIT_TONE_TRANSITION ? 0.82 : 0.62;
+  const saturation = tone === DIALOGUE_PORTRAIT_TONE_TRANSITION ? 0.62 : 0.38;
+  const brightness = tone === DIALOGUE_PORTRAIT_TONE_TRANSITION ? 0.82 : 0.68;
   return nearestResurrect64Hex(
     Math.round((gray + (r - gray) * saturation) * brightness),
     Math.round((gray + (g - gray) * saturation) * brightness),

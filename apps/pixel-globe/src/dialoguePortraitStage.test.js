@@ -124,6 +124,17 @@ test("listener palette states stay in Resurrect 64 and become darker and quieter
   assert.ok(chroma(listener) < chroma(active));
 });
 
+test("listener tone keeps warm portrait shading in one color family", () => {
+  const warmSkinRamp = ["9e4539", "cd683d", "e6904e", "fbb954"];
+  for (const source of warmSkinRamp) {
+    const [r, g, b] = channels(source);
+    const listener = dialoguePortraitToneHex(r, g, b, DIALOGUE_PORTRAIT_TONE_LISTENER);
+    const [listenerR, listenerG, listenerB] = channels(listener);
+    assert.ok(listenerR >= listenerG);
+    assert.ok(listenerR >= listenerB);
+  }
+});
+
 test("portrait staging rejects missing and duplicate participants", () => {
   const state = createDialoguePortraitStageState();
   assert.throws(() => synchronizeDialoguePortraitStage(state, {
