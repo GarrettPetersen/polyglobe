@@ -117,6 +117,10 @@ const RESEARCH = Object.freeze([
   research("ayutthaya", "later-traditional-ensign", "Plain red Siamese ensign", "Ayutthaya had no documented national flag in 1522. Plain red is the earliest recorded Siamese ensign, but the evidence begins under Narai in the later seventeenth century.", [
     source("Thai Fine Arts Department flag history", "https://www.finearts.go.th/storage/contents/2024/01/file/01sb4xTcSwsVGZ2fRvQiH76sPzDyOyZmmCdFB2yG.pdf")
   ]),
+  research("ternate", "reconstruction", "Traditional yellow Ternate standard", "No secure state flag survives from 1522. This reconstruction uses the later documented yellow Ternate standard with its white Jawi-inscribed disc, simplified for a 32x20 raster.", [
+    source("Flags of the Princely States of the Dutch East Indies", "https://www.fiav.org/wp-content/uploads/2021/06/ICV2514-Marcel-van-Westerhoven-The-Flags-of-Princely-States-of-the-Dutch-East-Indies.pdf"),
+    source("Portuguese fort at Ternate, 1522", "https://www.defesa.gov.pt/pt/defesa/organizacao/comissoes/cphm/rphm/edicoes/ano3/n.5/5")
+  ]),
   research("japan", "period-clan-heraldry", "Ashikaga futatsuhikiryo mon", "The two-bar roundel is the Ashikaga clan crest, used here as shogunal heraldry rather than a Japanese national flag.", [
     source("Ashikaga clan futatsuhikiryo", "https://www.paxhistoria.co/flags/6a77b848-9ef3-444f-b1be-7f3166b633e4")
   ]),
@@ -440,6 +444,18 @@ const DRAWERS = Object.freeze({
     return s;
   },
   ayutthaya: () => base(C.red),
+  ternate: () => {
+    const s = base(C.gold);
+    s.circle(16, 10, 7, C.white);
+    s.line(11, 7, 21, 7, C.purple);
+    s.line(10, 10, 19, 10, C.purple);
+    s.line(13, 13, 21, 13, C.purple);
+    s.rect(12, 6, 2, 3, C.purple);
+    s.rect(18, 9, 2, 3, C.purple);
+    s.pixel(11, 13, C.purple);
+    s.pixel(21, 12, C.purple);
+    return s;
+  },
   japan: () => {
     const s = base(C.cream);
     s.circle(16, 10, 7, C.black);

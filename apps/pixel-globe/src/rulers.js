@@ -98,6 +98,12 @@ const RAW_RULER_TIMELINES = Object.freeze({
     yearRuler(1546, "Yot Fa", "King"),
     yearRuler(1548, "Maha Chakkraphat", "King")
   ],
+  ternate: [
+    ruler(1522, 1, 1, "Abu Hayat", "Sultan"),
+    yearRuler(1529, "Dayal", "Sultan"),
+    yearRuler(1533, "Tabariji", "Sultan"),
+    yearRuler(1535, "Hairun Jamil", "Sultan")
+  ],
   japan: [
     ruler(1522, 1, 1, "Ashikaga Yoshiharu", "Shogun"),
     yearRuler(1546, "Ashikaga Yoshiteru", "Shogun")
@@ -117,7 +123,7 @@ const REGIONAL_GROUPS = Object.freeze([
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],
   ["vijayanagara", "gujarat", "bengal", "delhi", "portugal", "safavid"],
-  ["ayutthaya", "ming", "bengal", "portugal"],
+  ["ayutthaya", "ming", "bengal", "portugal", "ternate"],
   ["ming", "japan", "joseon", "ayutthaya"],
   ["inca", "spain", "portugal"]
 ]);

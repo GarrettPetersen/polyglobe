@@ -219,6 +219,22 @@ test("version 21 voyages retire Aztec faction references into Spanish Mexico", (
   assert.equal(JSON.stringify(restored).includes("aztec"), false);
 });
 
+test("version 39 voyages gain neutral standing with the new Ternate Sultanate", () => {
+  const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  saved.version = 39;
+  delete saved.relations.factionReputation.ternate;
+  saved.relations.safePassageRefusalUntilMinute.portugal = 12345;
+  saved.relations.mingOpenTradeFactionIds.push("england");
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.relations.factionReputation.ternate, 0);
+  assert.equal(restored.relations.safePassageRefusalUntilMinute.portugal, 12345);
+  assert.deepEqual(restored.relations.mingOpenTradeFactionIds, ["joseon", "england"]);
+  validateGameState(restored);
+});
+
 test("successful trade gives only a tiny faction reputation gain", () => {
   const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });

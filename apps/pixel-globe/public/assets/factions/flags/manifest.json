@@ -438,6 +438,26 @@
       ]
     },
     {
+      "id": "ternate",
+      "factionName": "Sultanate of Ternate",
+      "width": 32,
+      "height": 20,
+      "file": "ternate.png",
+      "evidence": "reconstruction",
+      "representation": "Traditional yellow Ternate standard",
+      "accuracyNote": "No secure state flag survives from 1522. This reconstruction uses the later documented yellow Ternate standard with its white Jawi-inscribed disc, simplified for a 32x20 raster.",
+      "sources": [
+        {
+          "label": "Flags of the Princely States of the Dutch East Indies",
+          "url": "https://www.fiav.org/wp-content/uploads/2021/06/ICV2514-Marcel-van-Westerhoven-The-Flags-of-Princely-States-of-the-Dutch-East-Indies.pdf"
+        },
+        {
+          "label": "Portuguese fort at Ternate, 1522",
+          "url": "https://www.defesa.gov.pt/pt/defesa/organizacao/comissoes/cphm/rphm/edicoes/ano3/n.5/5"
+        }
+      ]
+    },
+    {
       "id": "japan",
       "factionName": "Ashikaga Japan",
       "width": 32,

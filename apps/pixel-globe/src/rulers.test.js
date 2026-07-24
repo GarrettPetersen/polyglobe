@@ -35,6 +35,9 @@ test("ruler succession happens at its queued date", () => {
   const safavidChange = gameMinuteForDate(1524, 5, 23);
   assert.equal(rulerAtMinute("safavid", safavidChange - 1).name, "Ismail I");
   assert.equal(rulerAtMinute("safavid", safavidChange).name, "Tahmasp I");
+
+  assert.equal(rulerAtMinute("ternate", 0).name, "Abu Hayat");
+  assert.equal(rulerAtMinute("ternate", gameMinuteForDate(1529, 1, 1)).name, "Dayal");
 });
 
 test("ruler change queue is chronological and excludes its starting boundary", () => {

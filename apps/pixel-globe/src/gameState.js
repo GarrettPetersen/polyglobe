@@ -180,7 +180,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 39;
+export const GAME_STATE_VERSION = 40;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -422,7 +422,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -495,8 +495,12 @@ export function migrateGameState(state, shipStats) {
       safePassageUntilMinute: state.version === 8
         ? {}
         : migrateSafePassageTable(state.relations.safePassageUntilMinute),
-      safePassageRefusalUntilMinute: {},
-      mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
+      safePassageRefusalUntilMinute: migrateSafePassageTable(
+        state.relations.safePassageRefusalUntilMinute || {}
+      ),
+      mingOpenTradeFactionIds: migrateMingOpenTradeFactionIds(
+        state.relations.mingOpenTradeFactionIds
+      ),
       portugueseCartaz: migratePortugueseCartazMemory(state.relations.portugueseCartaz),
       diplomacy: migratedDiplomacy
     },
@@ -588,6 +592,15 @@ function migrateSafePassageTable(table) {
     migrated.spain = Math.max(migrated.spain || 0, table.aztec);
   }
   return migrated;
+}
+
+function migrateMingOpenTradeFactionIds(factionIds) {
+  if (!Array.isArray(factionIds)) return [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS];
+  return [...new Set(factionIds.map(migrateFactionIdTo1522))].filter((factionId) => (
+    factionId !== MING_FACTION_ID &&
+    factionId !== NEUTRAL_FACTION_ID &&
+    factionId !== PIRATE_FACTION_ID
+  ));
 }
 
 function createPortugueseCartazMemory() {

@@ -904,6 +904,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "Malacca lost a warehouse. I acquired excellent security.",
     "The warehouse was ours until the Portuguese took the city. It disappeared, but its bills crossed the sea intact."
   ),
+  ternate: debtOrigin(
+    "Cloves drew the Portuguese to your shore. Your family mistook their appetite for a guarantee.",
+    "We provisioned the alliance my father welcomed, then borrowed again when its promises soured. The cloves sold; our account did not."
+  ),
   japan: debtOrigin(
     "The Hosokawa changed sides. The terms of this note did not.",
     "Our house backed the wrong side at Funaokayama. The survivors changed allegiance; our creditors changed the seal."
@@ -940,6 +944,7 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   bengal: "Portuguese sails have reached Chittagong, bringing maps as uncertain as their intentions. We should know more than our visitors.",
   delhi: "Caravans describe oceans beyond Gujarat and Bengal, each story altered by ten merchants. I want one witness.",
   ayutthaya: "The Portuguese arrived after taking Malacca and now speak of seas beyond Africa. I would hear the world without their interpreter.",
+  ternate: "Portuguese stone rises beside our clove groves while Castilian sails favor Tidore. I want a Ternatan account of the world both crowns claim.",
   japan: "Ming merchants and island pilots carry fragments of distant coasts. I want them joined before rumor distorts them further.",
   joseon: "Our old world maps reach far beyond Joseon, but copied names are not witnessed places. A captain can test what scholars inherited."
 });
