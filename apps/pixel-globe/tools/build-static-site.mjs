@@ -148,11 +148,15 @@ function shouldCopyPublicPath(path) {
   if (normalized === "assets/fonts/born2bsporty-fs.otf") return false;
   if (normalized === "assets/ui/game-icons.json") return false;
   if (normalized.startsWith("assets/vehicles/sail-ship-16-headings")) return false;
-  if (normalized === "assets/vehicles/unity-ships/unity-ships-contact-sheet.png") return false;
+  if (normalized.endsWith("/contact-sheet.png") || normalized.endsWith("-contact-sheet.png")) {
+    return false;
+  }
   if (/-32-headings-(?:preview|lighting-preview)\.png$/.test(normalized)) return false;
 
   if (edition !== BUILD_EDITION_DEMO) return true;
   if (
+    normalized === "assets/social" ||
+    normalized.startsWith("assets/social/") ||
     normalized === "assets/ui/ship-icons" ||
     normalized.startsWith("assets/ui/ship-icons/") ||
     normalized === "assets/buildings/city-types/README.md" ||
@@ -247,6 +251,16 @@ function buildEditionModuleSource() {
   ].join("\n");
 }
 
+async function stripDemoSocialMetadata() {
+  const indexPath = join(distRoot, "index.html");
+  const source = await readFile(indexPath, "utf8");
+  const html = source
+    .split("\n")
+    .filter((line) => !/^\s*<meta (?:property="og:|name="twitter:)/.test(line))
+    .join("\n");
+  await writeFile(indexPath, html);
+}
+
 async function bundleDemoRuntime() {
   await build({
     entryPoints: [join(appRoot, "src/bootstrap.js")],
@@ -280,7 +294,10 @@ for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopy
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 
 await writeFile(join(distRoot, "src/buildEdition.js"), buildEditionModuleSource());
-if (edition === BUILD_EDITION_DEMO) await bundleDemoRuntime();
+if (edition === BUILD_EDITION_DEMO) {
+  await stripDemoSocialMetadata();
+  await bundleDemoRuntime();
+}
 if (demoCharacterManifest) {
   await writeFile(
     join(distRoot, CHARACTER_MANIFEST_PATH),
