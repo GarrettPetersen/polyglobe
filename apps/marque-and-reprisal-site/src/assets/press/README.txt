@@ -10,6 +10,8 @@ CONTENTS
 - logos/: Transparent title logo, store header, and square game icon.
 - capsule-art/: Complete capsule art, aligned transparent layers, composite
   lockups, and the original layered Aseprite file.
+- localized-capsules/: Thirteen full-resolution capsule, library, event,
+  social, itch.io, and press PNG exports for each of 11 languages.
 
 USAGE
 

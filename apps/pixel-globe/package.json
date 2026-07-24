@@ -55,7 +55,8 @@
     "render:land-roads": "node tools/build-land-roads.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
     "render:capsules": "node tools/generate-layered-capsule-art.mjs",
-    "render:capsule-title-comparison": "node tools/generate-capsule-title-comparison.mjs",
+    "render:platform-icons": "node tools/generate-layered-capsule-art.mjs --only=app_icon_512.png && node tools/build-platform-icons.mjs",
+    "render:capsule-title-comparison": "node tools/generate-layered-capsule-art.mjs",
     "test": "node --test src/*.test.js",
     "test:characters": "node --test src/characterPortraits.test.js",
     "test:music": "node --test src/musicPlayer.test.js"

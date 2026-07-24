@@ -14,6 +14,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  LOCALIZED_CAPSULE_ASSET_NAMES,
+  localizedCapsules
+} from "../content/site-content.mjs";
+import {
   factSheetText,
   homePage,
   notFoundPage,
@@ -26,6 +30,10 @@ import {
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = path.join(appRoot, "src");
 const distRoot = path.join(appRoot, "dist");
+const capsuleOutputRoot = path.resolve(
+  appRoot,
+  "../pixel-globe/capsule_art/generated"
+);
 
 await rm(distRoot, { recursive: true, force: true });
 await cp(sourceRoot, distRoot, { recursive: true });
@@ -37,6 +45,7 @@ await writePage("404.html", notFoundPage());
 await writePage("robots.txt", robotsText());
 await writePage("sitemap.xml", sitemapXml());
 await writePage("assets/press/factsheet.txt", factSheetText());
+await buildLocalizedCapsuleDownloads();
 await buildPressKitArchive();
 await validateBuild();
 
@@ -52,6 +61,82 @@ async function writePage(relativePath, contents) {
   await writeFile(outputPath, contents);
 }
 
+async function buildLocalizedCapsuleDownloads() {
+  const stagingRoot = await mkdtemp(path.join(tmpdir(), "marque-localized-capsules-"));
+  const publishedRoot = path.join(
+    distRoot,
+    "assets/press/localized-capsules"
+  );
+  const downloadsRoot = path.join(distRoot, "downloads");
+  const bundleNames = [];
+  try {
+    await mkdir(publishedRoot, { recursive: true });
+    await mkdir(downloadsRoot, { recursive: true });
+    for (const locale of localizedCapsules) {
+      const bundleName = locale.archiveFile.replace(/\.zip$/, "");
+      const bundleRoot = path.join(stagingRoot, bundleName);
+      const publishedLocaleRoot = path.join(publishedRoot, locale.steamCode);
+      const readme = localizedCapsuleReadme(locale);
+      bundleNames.push(bundleName);
+      await mkdir(bundleRoot, { recursive: true });
+      await mkdir(publishedLocaleRoot, { recursive: true });
+
+      for (const baseName of LOCALIZED_CAPSULE_ASSET_NAMES) {
+        const filename = `${baseName}_${locale.steamCode}.png`;
+        const sourcePath = path.join(capsuleOutputRoot, filename);
+        await access(sourcePath);
+        await Promise.all([
+          cp(sourcePath, path.join(bundleRoot, filename)),
+          cp(sourcePath, path.join(publishedLocaleRoot, filename))
+        ]);
+      }
+
+      await Promise.all([
+        writeFile(path.join(bundleRoot, "README.txt"), readme),
+        writeFile(path.join(publishedLocaleRoot, "README.txt"), readme)
+      ]);
+      createZip(
+        path.join(downloadsRoot, locale.archiveFile),
+        stagingRoot,
+        [bundleName]
+      );
+    }
+
+    createZip(
+      path.join(
+        downloadsRoot,
+        "marque-and-reprisal-capsules-all-languages.zip"
+      ),
+      stagingRoot,
+      bundleNames
+    );
+  } finally {
+    await rm(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+function localizedCapsuleReadme(locale) {
+  return [
+    "MARQUE & REPRISAL LOCALIZED CAPSULE ART",
+    "=======================================",
+    "",
+    `Language: ${locale.label}`,
+    `Localized title: ${locale.title}`,
+    `Steam language suffix: ${locale.steamCode}`,
+    "",
+    "CONTENTS",
+    "",
+    ...LOCALIZED_CAPSULE_ASSET_NAMES.map(
+      (baseName) => `- ${baseName}_${locale.steamCode}.png`
+    ),
+    "",
+    "These are full-resolution storefront, library, event, social, and",
+    "press-ready PNG exports. Preserve their aspect ratios and use",
+    "nearest-neighbour scaling to retain crisp pixel edges.",
+    ""
+  ].join("\n");
+}
+
 async function buildPressKitArchive() {
   const stagingRoot = await mkdtemp(path.join(tmpdir(), "marque-press-kit-"));
   const bundleName = "marque-and-reprisal-press-kit";
@@ -65,7 +150,8 @@ async function buildPressKitArchive() {
       ["assets/press/factsheet.txt", "factsheet.txt"],
       ["assets/press/screenshots", "screenshots"],
       ["assets/press/logos", "logos"],
-      ["assets/press/capsule-art", "capsule-art"]
+      ["assets/press/capsule-art", "capsule-art"],
+      ["assets/press/localized-capsules", "localized-capsules"]
     ]);
     for (const [source, target] of entries) {
       const targetPath = path.join(bundleRoot, target);
@@ -73,16 +159,22 @@ async function buildPressKitArchive() {
       await cp(path.join(distRoot, source), targetPath, { recursive: true });
     }
     await mkdir(downloadsRoot, { recursive: true });
-    const archive = spawnSync("zip", ["-q", "-r", outputPath, bundleName], {
-      cwd: stagingRoot,
-      encoding: "utf8"
-    });
-    if (archive.error) throw archive.error;
-    if (archive.status !== 0) {
-      throw new Error("zip failed: " + (archive.stderr || archive.stdout || "unknown error"));
-    }
+    createZip(outputPath, stagingRoot, [bundleName]);
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+function createZip(outputPath, cwd, entries) {
+  const archive = spawnSync("zip", ["-q", "-r", outputPath, ...entries], {
+    cwd,
+    encoding: "utf8"
+  });
+  if (archive.error) throw archive.error;
+  if (archive.status !== 0) {
+    throw new Error(
+      "zip failed: " + (archive.stderr || archive.stdout || "unknown error")
+    );
   }
 }
 
@@ -93,9 +185,14 @@ async function validateBuild() {
     "privacy/index.html",
     "404.html",
     "downloads/marque-and-reprisal-press-kit.zip",
+    "downloads/marque-and-reprisal-capsules-all-languages.zip",
     "assets/art/social-share.png",
     "assets/press/capsule-art/capsule-source.aseprite",
-    "assets/press/capsule-art/title-with-ship.png"
+    "assets/press/capsule-art/title-with-ship.png",
+    ...localizedCapsules.flatMap((locale) => [
+      `downloads/${locale.archiveFile}`,
+      `assets/press/localized-capsules/${locale.steamCode}/${locale.previewFile}`
+    ])
   ];
   for (const relativePath of requiredPaths) {
     await access(path.join(distRoot, relativePath));

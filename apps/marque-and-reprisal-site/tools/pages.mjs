@@ -1,6 +1,8 @@
 import {
   features,
   languages,
+  localizedCapsules,
+  LOCALIZED_CAPSULE_ASSET_NAMES,
   pressCapsuleArt,
   pressLogos,
   screenshots,
@@ -117,6 +119,7 @@ export function pressPage() {
   ].join("")).join("\n");
 
   const logoCards = pressLogos.map((asset) => graphicAssetCard(asset, "logos")).join("\n");
+  const localizedCapsuleCards = localizedCapsules.map(localizedCapsuleCard).join("\n");
   const capsuleCards = pressCapsuleArt.map((asset) => graphicAssetCard(
     asset,
     "capsule-art",
@@ -166,6 +169,12 @@ export function pressPage() {
     "<div class='asset-heading'><div><p class='eyebrow'>Identity</p><h2 id='logos-title'>Logos &amp; artwork</h2></div></div>",
     "<div class='logo-grid'>", logoCards, "</div>",
     "</section>",
+    "<section class='press-assets localized-capsule-assets' id='localized-capsules' aria-labelledby='localized-capsules-title'>",
+    "<div class='asset-heading'><div><p class='eyebrow'>Localized storefront art</p><h2 id='localized-capsules-title'>Capsules in ", String(localizedCapsules.length), " languages</h2></div>",
+    "<a href='/downloads/marque-and-reprisal-capsules-all-languages.zip' download>Download all languages</a></div>",
+    "<p class='asset-intro'>Each language ZIP contains ", String(LOCALIZED_CAPSULE_ASSET_NAMES.length), " full-resolution PNG exports for Steam capsules, library art, events, social sharing, itch.io, and press use.</p>",
+    "<div class='localized-capsule-grid'>", localizedCapsuleCards, "</div>",
+    "</section>",
     "<section class='press-assets capsule-assets' id='capsule-art' aria-labelledby='capsule-art-title'>",
     "<div class='asset-heading'><div><p class='eyebrow'>Build your own layout</p><h2 id='capsule-art-title'>Capsule art layers</h2></div>",
     "<div class='asset-heading-links'><a href='/assets/press/capsule-art/capsule-source.aseprite' download>Layered Aseprite source</a>",
@@ -194,6 +203,27 @@ function graphicAssetCard(asset, folder, previewClass = "") {
     "<h3>", escapeHtml(asset.title), "</h3>",
     "<p>", escapeHtml(asset.detail), "</p>",
     "<a href='/assets/press/", folder, "/", asset.file, "' download>Download PNG</a>",
+    "</article>"
+  ].join("");
+}
+
+function localizedCapsuleCard(locale) {
+  const previewPath = [
+    "/assets/press/localized-capsules/",
+    locale.steamCode,
+    "/",
+    locale.previewFile
+  ].join("");
+  return [
+    "<article class='localized-capsule-card'>",
+    "<div class='localized-capsule-preview'><img src='", previewPath, "' alt='",
+    escapeHtml(`${locale.label} main capsule art titled ${locale.title}.`),
+    "' loading='lazy' width='1232' height='706'></div>",
+    "<div class='localized-capsule-copy'><div>",
+    "<p class='localized-capsule-language'>", escapeHtml(locale.label), "</p>",
+    "<h3 lang='", escapeHtml(locale.appLocale), "'>", escapeHtml(locale.title), "</h3>",
+    "<p>", String(LOCALIZED_CAPSULE_ASSET_NAMES.length), " full-resolution PNG assets</p>",
+    "</div><a href='/downloads/", escapeHtml(locale.archiveFile), "' download>Download ZIP</a></div>",
     "</article>"
   ].join("");
 }

@@ -916,6 +916,75 @@ textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.localized-capsule-grid {
+  display: grid;
+  max-width: var(--content);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 26px;
+  margin: 0 auto;
+}
+
+.localized-capsule-card {
+  overflow: hidden;
+  border: 1px solid rgba(226, 173, 79, 0.32);
+  background: var(--night-soft);
+}
+
+.localized-capsule-preview {
+  overflow: hidden;
+  background: var(--night);
+}
+
+.localized-capsule-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1232 / 706;
+  object-fit: cover;
+  image-rendering: pixelated;
+  transition: transform 200ms steps(3, end);
+}
+
+.localized-capsule-card:hover .localized-capsule-preview img {
+  transform: scale(1.015);
+}
+
+.localized-capsule-copy {
+  display: flex;
+  min-height: 122px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+}
+
+.localized-capsule-copy h3 {
+  margin: 5px 0 8px;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 0.95;
+}
+
+.localized-capsule-copy p {
+  margin: 0;
+  color: rgba(248, 237, 207, 0.55);
+  font-family: var(--utility);
+  font-size: 8px;
+}
+
+.localized-capsule-copy .localized-capsule-language {
+  color: var(--brass);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.localized-capsule-copy > a {
+  flex: 0 0 auto;
+  font-family: var(--utility);
+  font-size: 9px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 .logo-card {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1140,7 +1209,8 @@ textarea {
     max-width: 620px;
   }
 
-  .logo-grid {
+  .logo-grid,
+  .localized-capsule-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1271,7 +1341,8 @@ textarea {
 
   .voyage-grid,
   .press-asset-grid,
-  .logo-grid {
+  .logo-grid,
+  .localized-capsule-grid {
     grid-template-columns: 1fr;
   }
 

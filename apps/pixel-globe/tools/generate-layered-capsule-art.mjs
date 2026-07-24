@@ -6,17 +6,85 @@ import { fileURLToPath } from "node:url";
 
 import {
   createCanvas,
-  loadImage
+  loadImage,
+  registerFont
 } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { SHIP_STATS, shipLabelForSlug } from "../src/shipStats.js";
+import { CAPSULE_TITLE_LOCALES } from "./capsule-title-locales.mjs";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const generatorOptions = parseGeneratorOptions(process.argv.slice(2));
 const sourceDir = resolve(appRoot, generatorOptions.sourceDir);
 const outputDir = resolve(appRoot, generatorOptions.outputDir);
+const ampersandPath = join(appRoot, "public/assets/capsule/ampersand.png");
 const CLIENT_ICON_SHIP_SLUG = "carrack";
 const CLIENT_ICON_HEADING_FRAME = 28;
 const CLIENT_ICON_BACKGROUND = "#3b7180";
+const ENGLISH_STEAM_CODE = "english";
+const DROP_CAP_OPTICAL_KERN = -5;
+const APP_ICON_CROP = Object.freeze({
+  focalX: 771 / 1232,
+  focalY: 270 / 706,
+  zoom: 2.2
+});
+
+const TITLE_FONTS = Object.freeze({
+  pirata: Object.freeze({
+    family: "Capsule Pirata One",
+    weight: "400",
+    path: join(appRoot, "tools/trailer/assets/PirataOne-Regular.ttf")
+  }),
+  yeseva: Object.freeze({
+    family: "Capsule Yeseva One",
+    weight: "400",
+    path: join(appRoot, "tools/capsule/fonts/YesevaOne-Regular.ttf")
+  }),
+  "ma-shan-zheng": Object.freeze({
+    family: "Capsule Ma Shan Zheng",
+    weight: "400",
+    path: join(appRoot, "tools/capsule/fonts/MaShanZheng-Regular.ttf")
+  }),
+  "yuji-boku": Object.freeze({
+    family: "Capsule Yuji Boku",
+    weight: "400",
+    path: join(appRoot, "tools/capsule/fonts/YujiBoku-Regular.ttf")
+  }),
+  masa: Object.freeze({
+    family: "Capsule MasaFont",
+    weight: "400",
+    path: join(appRoot, "tools/capsule/fonts/MasaFont-Regular.ttf")
+  }),
+  "nanum-brush": Object.freeze({
+    family: "Capsule Nanum Brush Script",
+    weight: "400",
+    path: join(appRoot, "tools/capsule/fonts/NanumBrushScript-Regular.ttf")
+  })
+});
+
+const TITLE_LAYOUT = Object.freeze({
+  upper: Object.freeze({
+    startX: 244,
+    maxWidth: 490,
+    touchShipRight: 710,
+    initialBottom: 393,
+    remainderBottom: 373,
+    maxInitialHeight: 192,
+    maxRemainderHeight: 124,
+    balancedBottom: 352,
+    maxBalancedHeight: 184
+  }),
+  lower: Object.freeze({
+    startX: 394,
+    maxWidth: 550,
+    initialBottom: 542,
+    remainderBottom: 493,
+    maxInitialHeight: 191,
+    maxRemainderHeight: 145,
+    balancedTop: 372,
+    maxBalancedHeight: 184
+  }),
+  ampersand: Object.freeze({ x: 763, y: 126, width: 187, height: 210 })
+});
 
 const LAYER_FILES = Object.freeze({
   background: "background.png",
@@ -36,44 +104,57 @@ const ARTWORK_LAYER_ORDER = Object.freeze(["background", "reflection", "ship"]);
 const TEXT_LAYER_ORDER = Object.freeze(["upperText", "lowerText"]);
 const LOCKUP_LAYER_ORDER = Object.freeze(["upperText", "ship", "lowerText"]);
 
-const OUTPUTS = Object.freeze([
-  capsule("capsule_header_en.png", 920, 430),
-  capsule("capsule_small_en.png", 462, 174, { focalY: 0.47 }),
-  capsule("capsule_main_en.png", 1232, 706),
-  sourceComposition("capsule_title_en.png", TEXT_LAYER_ORDER),
-  sourceComposition("capsule_title_with_ship_en.png", LOCKUP_LAYER_ORDER),
-  capsule("capsule_vertical_en.png", 748, 896, {
+const LOCALIZED_OUTPUT_TEMPLATES = Object.freeze([
+  capsuleTemplate("capsule_header", 920, 430),
+  capsuleTemplate("capsule_small", 462, 174, { focalY: 0.47 }),
+  capsuleTemplate("capsule_main", 1232, 706),
+  sourceCompositionTemplate("capsule_title", TEXT_LAYER_ORDER),
+  sourceCompositionTemplate("capsule_title_with_ship", LOCKUP_LAYER_ORDER),
+  capsuleTemplate("capsule_vertical", 748, 896, {
     layout: "fitted-lockup",
     lockupWidth: 0.92,
     centerLockupText: true
   }),
-  artwork("capsule_background.png", 1438, 810),
-  capsule("library_capsule_en.png", 600, 900, {
+  capsuleTemplate("library_capsule", 600, 900, {
     layout: "fitted-lockup",
     lockupWidth: 0.92,
     centerLockupText: true
   }),
-  capsule("library_header_en.png", 920, 430),
-  artwork("library_hero.png", 3840, 1240, { focalY: 0.36 }),
+  capsuleTemplate("library_header", 920, 430),
   Object.freeze({
-    name: "library_logo_en.png",
+    baseName: "library_logo",
     width: 1280,
     height: 720,
     kind: "text-only"
   }),
-  artwork("community_icon_184.png", 184, 184, { focalX: 0.63, focalY: 0.48 }),
-  Object.freeze({ name: "client_icon_32.png", width: 32, height: 32, kind: "client-icon" }),
-  artwork("shortcut_icon_256.png", 256, 256, { focalX: 0.63, focalY: 0.48 }),
-  capsule("event_cover_en.png", 800, 450),
-  capsule("event_header_en.png", 1920, 622, {
+  capsuleTemplate("event_cover", 800, 450),
+  capsuleTemplate("event_header", 1920, 622, {
     layout: "fitted-lockup",
     focalY: 0.38,
     lockupWidth: 0.52,
     lockupHeight: 0.55
   }),
-  capsule("social_share_en.png", 1200, 630),
-  capsule("itchio_cover_en.png", 630, 500, { focalX: 0.48, focalY: 0.5 })
+  capsuleTemplate("social_share", 1200, 630),
+  capsuleTemplate("itchio_cover", 630, 500, { focalX: 0.48, focalY: 0.5 })
 ]);
+
+const SHARED_OUTPUTS = Object.freeze([
+  artwork("capsule_background.png", 1438, 810),
+  artwork("library_hero.png", 3840, 1240, { focalY: 0.36 }),
+  artwork("community_icon_184.png", 184, 184, { focalX: 0.63, focalY: 0.48 }),
+  Object.freeze({ name: "client_icon_32.png", width: 32, height: 32, kind: "client-icon" }),
+  artwork("shortcut_icon_256.png", 256, 256, { focalX: 0.63, focalY: 0.48 }),
+  artwork("app_icon_512.png", 512, 512, APP_ICON_CROP)
+]);
+
+const OUTPUTS = Object.freeze([
+  ...CAPSULE_TITLE_LOCALES.flatMap((locale) => LOCALIZED_OUTPUT_TEMPLATES.map(
+    (template) => localizeOutput(template, locale)
+  )),
+  ...SHARED_OUTPUTS
+]);
+
+registerCapsuleFonts();
 
 function parseGeneratorOptions(args) {
   const options = {
@@ -115,9 +196,9 @@ function requiredOptionValue(value, optionName) {
   return value;
 }
 
-function capsule(name, width, height, options = {}) {
+function capsuleTemplate(baseName, width, height, options = {}) {
   return Object.freeze({
-    name,
+    baseName,
     width,
     height,
     kind: "capsule",
@@ -137,16 +218,382 @@ function artwork(name, width, height, options = {}) {
     height,
     kind: "artwork",
     focalX: options.focalX ?? 0.5,
-    focalY: options.focalY ?? 0.5
+    focalY: options.focalY ?? 0.5,
+    zoom: options.zoom ?? 1
   });
 }
 
-function sourceComposition(name, layerOrder) {
+function sourceCompositionTemplate(baseName, layerOrder) {
   return Object.freeze({
-    name,
+    baseName,
     kind: "source-composition",
     layerOrder
   });
+}
+
+function localizeOutput(template, locale) {
+  return Object.freeze({
+    ...template,
+    name: `${template.baseName}_${locale.steamCode}.png`,
+    locale
+  });
+}
+
+function registerCapsuleFonts() {
+  for (const font of Object.values(TITLE_FONTS)) {
+    registerFont(font.path, { family: font.family, weight: font.weight });
+  }
+}
+
+function localizedLayers(baseLayers, sourceSize, locale, ampersand) {
+  const { upperText, lowerText } = renderLocalizedTextLayers(
+    sourceSize,
+    locale,
+    ampersand,
+    baseLayers.ship
+  );
+  return Object.freeze({
+    ...baseLayers,
+    upperText,
+    lowerText
+  });
+}
+
+function buildTitleSet(sourceSize, layers) {
+  const textComposition = trimTransparentComposition(
+    composeLayers(sourceSize, layers, TEXT_LAYER_ORDER)
+  );
+  const lockupComposition = trimTransparentComposition(
+    composeLayers(sourceSize, layers, LOCKUP_LAYER_ORDER)
+  );
+  return {
+    layers,
+    textComposition,
+    lockupComposition,
+    composites: Object.freeze({
+      full: composeLayers(sourceSize, layers, FULL_LAYER_ORDER),
+      text: textComposition.image,
+      lockup: lockupComposition.image
+    }),
+    lockupShipAnchor: null,
+    lockupTextHorizontalBounds: null
+  };
+}
+
+function renderLocalizedTextLayers(sourceSize, locale, ampersand, ship) {
+  const upperText = createCanvas(sourceSize.width, sourceSize.height);
+  const lowerText = createCanvas(sourceSize.width, sourceSize.height);
+  const upperContext = titleContext(upperText);
+  const lowerContext = titleContext(lowerText);
+  const font = TITLE_FONTS[locale.font];
+  if (font === undefined) {
+    throw new Error(`Unknown capsule title font for ${locale.appLocale}: ${locale.font}`);
+  }
+
+  if (locale.composition === "alphabetic") {
+    drawAlphabeticWord(
+      upperContext,
+      locale.upperWord,
+      TITLE_LAYOUT.upper,
+      font,
+      locale.initialDropScale,
+      locale.upperStartX,
+      locale.upperTouchShipRight
+    );
+    drawAlphabeticWord(
+      lowerContext,
+      locale.lowerWord,
+      TITLE_LAYOUT.lower,
+      font,
+      locale.initialDropScale
+    );
+  } else if (locale.composition === "balanced") {
+    drawBalancedWord(
+      upperContext,
+      locale.upperWord,
+      TITLE_LAYOUT.upper,
+      font
+    );
+    drawBalancedWord(
+      lowerContext,
+      locale.lowerWord,
+      TITLE_LAYOUT.lower,
+      font
+    );
+  } else {
+    throw new Error(
+      `Unknown capsule title composition for ${locale.appLocale}: ${locale.composition}`
+    );
+  }
+
+  hardenWhiteAlpha(upperContext, upperText);
+  if (locale.upperKissesShip) {
+    moveLayerToFirstHorizontalOverlap(upperText, ship);
+  }
+  drawAmpersand(upperContext, ampersand);
+  hardenWhiteAlpha(upperContext, upperText);
+  hardenWhiteAlpha(lowerContext, lowerText);
+  if (locale.centerLowerUnderUpperVisible) {
+    centerVisibleLayerHorizontally(lowerText, upperText);
+  }
+  assertLocalizedTitleLayer(locale, "upper", upperText);
+  assertLocalizedTitleLayer(locale, "lower", lowerText);
+  return Object.freeze({ upperText, lowerText });
+}
+
+function titleContext(canvas) {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.fillStyle = "#ffffff";
+  context.textAlign = "left";
+  context.textBaseline = "alphabetic";
+  context.imageSmoothingEnabled = false;
+  return context;
+}
+
+function drawAlphabeticWord(
+  context,
+  word,
+  layout,
+  font,
+  initialDropScale,
+  startXOverride,
+  touchShipRightOverride
+) {
+  const [initial, ...remainingCharacters] = Array.from(word);
+  const remainder = remainingCharacters.join("");
+  if (initial === undefined || remainder === "") {
+    throw new Error(`Alphabetic capsule title word cannot be split: ${word}`);
+  }
+
+  let fitted = null;
+  for (let remainderSize = 190; remainderSize >= 48; remainderSize -= 2) {
+    const initialSize = Math.round(remainderSize * 1.52);
+    const initialMetrics = textMetrics(context, initial, initialSize, font);
+    const remainderMetrics = textMetrics(context, remainder, remainderSize, font);
+    const totalWidth =
+      initialMetrics.width +
+      DROP_CAP_OPTICAL_KERN +
+      remainderMetrics.width;
+    if (
+      totalWidth <= layout.maxWidth &&
+      initialMetrics.height <= layout.maxInitialHeight &&
+      remainderMetrics.height <= layout.maxRemainderHeight
+    ) {
+      fitted = Object.freeze({
+        initialSize,
+        remainderSize,
+        initialMetrics,
+        remainderMetrics
+      });
+      break;
+    }
+  }
+  if (fitted === null) {
+    throw new Error(`Capsule title word cannot fit its authored layout: ${word}`);
+  }
+  const fittedWidth =
+    fitted.initialMetrics.width +
+    DROP_CAP_OPTICAL_KERN +
+    fitted.remainderMetrics.width;
+  const minimumStartX = startXOverride ?? layout.startX;
+  const touchShipRight = touchShipRightOverride ?? layout.touchShipRight;
+  const startX = touchShipRight === undefined
+    ? minimumStartX
+    : Math.max(minimumStartX, touchShipRight - fittedWidth);
+  const initialBottom = Math.round(
+    layout.remainderBottom +
+    (layout.initialBottom - layout.remainderBottom) * initialDropScale
+  );
+
+  drawTextAtVisualBounds(
+    context,
+    initial,
+    startX,
+    initialBottom,
+    fitted.initialSize,
+    font,
+    fitted.initialMetrics
+  );
+  drawTextAtVisualBounds(
+    context,
+    remainder,
+    startX + fitted.initialMetrics.width + DROP_CAP_OPTICAL_KERN,
+    layout.remainderBottom,
+    fitted.remainderSize,
+    font,
+    fitted.remainderMetrics
+  );
+}
+
+function drawBalancedWord(context, word, layout, font) {
+  let fitted = null;
+  for (let size = 220; size >= 48; size -= 2) {
+    const metrics = textMetrics(context, word, size, font);
+    if (
+      metrics.width <= layout.maxWidth &&
+      metrics.height <= layout.maxBalancedHeight
+    ) {
+      fitted = Object.freeze({ size, metrics });
+      break;
+    }
+  }
+  if (fitted === null) {
+    throw new Error(`Capsule title word cannot fit its balanced layout: ${word}`);
+  }
+  const left = layout.touchShipRight === undefined
+    ? layout.startX + Math.round((layout.maxWidth - fitted.metrics.width) * 0.08)
+    : Math.max(layout.startX, layout.touchShipRight - fitted.metrics.width);
+  const visualBottom = layout.balancedTop === undefined
+    ? layout.balancedBottom
+    : layout.balancedTop + fitted.metrics.height;
+  if (!Number.isFinite(visualBottom)) {
+    throw new Error(`Balanced capsule title word has no vertical anchor: ${word}`);
+  }
+  drawTextAtVisualBounds(
+    context,
+    word,
+    left,
+    visualBottom,
+    fitted.size,
+    font,
+    fitted.metrics
+  );
+}
+
+function centerVisibleLayerHorizontally(layer, referenceLayer) {
+  const layerBounds = opaqueBounds(layer);
+  const referenceBounds = opaqueBounds(referenceLayer);
+  const offsetX = Math.round(
+    (
+      referenceBounds.minX +
+      referenceBounds.maxX -
+      layerBounds.minX -
+      layerBounds.maxX
+    ) / 2
+  );
+  if (
+    layerBounds.minX + offsetX < 0 ||
+    layerBounds.maxX + offsetX >= layer.width
+  ) {
+    throw new Error("Centered capsule title layer would be clipped");
+  }
+  shiftLayerHorizontally(layer, offsetX);
+}
+
+function moveLayerToFirstHorizontalOverlap(layer, obstacle) {
+  if (layer.width !== obstacle.width || layer.height !== obstacle.height) {
+    throw new Error("Capsule title and ship layers must share dimensions");
+  }
+  const layerPixels = pixelData(layer);
+  const obstaclePixels = pixelData(obstacle);
+  const bounds = opaqueBounds(layer);
+  const points = [];
+  for (let y = bounds.minY; y <= bounds.maxY; y++) {
+    for (let x = bounds.minX; x <= bounds.maxX; x++) {
+      if (layerPixels[(y * layer.width + x) * 4 + 3] > 0) points.push([x, y]);
+    }
+  }
+  const maxOffset = layer.width - bounds.maxX - 1;
+  for (let offsetX = 0; offsetX <= maxOffset; offsetX++) {
+    const overlaps = points.some(([x, y]) => (
+      obstaclePixels[(y * layer.width + x + offsetX) * 4 + 3] > 0
+    ));
+    if (!overlaps) continue;
+    shiftLayerHorizontally(layer, offsetX);
+    return;
+  }
+  throw new Error("Capsule upper title cannot reach the ship without clipping");
+}
+
+function pixelData(image) {
+  const source = createCanvas(image.width, image.height);
+  const context = source.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  return context.getImageData(0, 0, image.width, image.height).data;
+}
+
+function shiftLayerHorizontally(layer, offsetX) {
+  if (!Number.isInteger(offsetX)) {
+    throw new Error(`Capsule title shift must be an integer: ${offsetX}`);
+  }
+  if (offsetX === 0) return;
+  const copy = createCanvas(layer.width, layer.height);
+  copy.getContext("2d").drawImage(layer, 0, 0);
+  const context = layer.getContext("2d");
+  context.clearRect(0, 0, layer.width, layer.height);
+  context.drawImage(copy, offsetX, 0);
+}
+
+function textMetrics(context, text, size, font) {
+  context.font = capsuleFontStyle(size, font);
+  const measured = context.measureText(text);
+  const left = measured.actualBoundingBoxLeft;
+  const right = measured.actualBoundingBoxRight;
+  const ascent = measured.actualBoundingBoxAscent;
+  const descent = measured.actualBoundingBoxDescent;
+  const values = [left, right, ascent, descent];
+  if (values.some((value) => !Number.isFinite(value))) {
+    throw new Error(`Capsule font returned invalid bounds for "${text}" in ${font.family}`);
+  }
+  return Object.freeze({
+    left,
+    right,
+    ascent,
+    descent,
+    width: Math.ceil(left + right),
+    height: Math.ceil(ascent + descent)
+  });
+}
+
+function drawTextAtVisualBounds(
+  context,
+  text,
+  visualLeft,
+  visualBottom,
+  size,
+  font,
+  metrics
+) {
+  context.font = capsuleFontStyle(size, font);
+  context.fillText(
+    text,
+    visualLeft + metrics.left,
+    visualBottom - metrics.descent
+  );
+}
+
+function capsuleFontStyle(size, font) {
+  return `${font.weight} ${size}px "${font.family}"`;
+}
+
+function drawAmpersand(context, ampersand) {
+  const trimmed = trimTransparentImage(ampersand);
+  const target = TITLE_LAYOUT.ampersand;
+  context.drawImage(trimmed, target.x, target.y, target.width, target.height);
+}
+
+function hardenWhiteAlpha(context, canvas) {
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    const opaque = pixels[offset + 3] >= 96;
+    pixels[offset] = opaque ? 255 : 0;
+    pixels[offset + 1] = opaque ? 255 : 0;
+    pixels[offset + 2] = opaque ? 255 : 0;
+    pixels[offset + 3] = opaque ? 255 : 0;
+  }
+  context.putImageData(imageData, 0, 0);
+}
+
+function assertLocalizedTitleLayer(locale, layerName, layer) {
+  try {
+    opaqueBounds(layer);
+  } catch (error) {
+    throw new Error(
+      `${locale.label} ${layerName} capsule title contains no visible glyphs`,
+      { cause: error }
+    );
+  }
 }
 
 async function main() {
@@ -157,34 +604,36 @@ async function main() {
     throw new Error(`Unknown capsule output requested by --only: ${generatorOptions.onlyName}`);
   }
 
-  const layers = await loadSourceLayers();
-  const sourceSize = validateLayerDimensions(layers);
-  const textComposition = trimTransparentComposition(
-    composeLayers(sourceSize, layers, TEXT_LAYER_ORDER)
+  const englishLayers = await loadSourceLayers();
+  const sourceSize = validateLayerDimensions(englishLayers);
+  const ampersand = await loadImage(ampersandPath);
+  const titleSets = new Map(CAPSULE_TITLE_LOCALES.map((locale) => {
+    const layers = locale.steamCode === ENGLISH_STEAM_CODE
+      ? englishLayers
+      : localizedLayers(englishLayers, sourceSize, locale, ampersand);
+    return [locale.steamCode, buildTitleSet(sourceSize, layers)];
+  }));
+  const reflectionComposition = trimTransparentComposition(englishLayers.reflection);
+  const artworkComposition = composeLayers(
+    sourceSize,
+    englishLayers,
+    ARTWORK_LAYER_ORDER
   );
-  const lockupComposition = trimTransparentComposition(
-    composeLayers(sourceSize, layers, LOCKUP_LAYER_ORDER)
-  );
-  const reflectionComposition = trimTransparentComposition(layers.reflection);
-  const composites = Object.freeze({
-    full: composeLayers(sourceSize, layers, FULL_LAYER_ORDER),
-    artwork: composeLayers(sourceSize, layers, ARTWORK_LAYER_ORDER),
-    text: textComposition.image,
-    lockup: lockupComposition.image
-  });
-  const shipBounds = opaqueBounds(layers.ship);
+  const shipBounds = opaqueBounds(englishLayers.ship);
   const sourceShipAnchor = Object.freeze({
     x: (shipBounds.minX + shipBounds.maxX + 1) / 2,
     y: shipBounds.maxY + 1
   });
-  const lockupShipAnchor = Object.freeze({
-    x: sourceShipAnchor.x - lockupComposition.bounds.minX,
-    y: sourceShipAnchor.y - lockupComposition.bounds.minY
-  });
-  const lockupTextHorizontalBounds = Object.freeze({
-    minX: textComposition.bounds.minX - lockupComposition.bounds.minX,
-    maxX: textComposition.bounds.maxX - lockupComposition.bounds.minX
-  });
+  for (const titleSet of titleSets.values()) {
+    titleSet.lockupShipAnchor = Object.freeze({
+      x: sourceShipAnchor.x - titleSet.lockupComposition.bounds.minX,
+      y: sourceShipAnchor.y - titleSet.lockupComposition.bounds.minY
+    });
+    titleSet.lockupTextHorizontalBounds = Object.freeze({
+      minX: titleSet.textComposition.bounds.minX - titleSet.lockupComposition.bounds.minX,
+      maxX: titleSet.textComposition.bounds.maxX - titleSet.lockupComposition.bounds.minX
+    });
+  }
   const needsClientIcon = selectedOutputs.some((output) => output.kind === "client-icon");
   const clientIconWater = needsClientIcon
     ? await loadImage(join(
@@ -205,6 +654,12 @@ async function main() {
   await mkdir(outputDir, { recursive: true });
   const rendered = [];
   for (const output of selectedOutputs) {
+    const titleSet = output.locale === undefined
+      ? null
+      : titleSets.get(output.locale.steamCode);
+    if (output.locale !== undefined && titleSet === undefined) {
+      throw new Error(`Missing capsule title set for ${output.locale.steamCode}`);
+    }
     const width = output.width ?? sourceSize.width;
     const height = output.height ?? sourceSize.height;
     const canvas = createCanvas(width, height);
@@ -212,21 +667,32 @@ async function main() {
     context.imageSmoothingEnabled = false;
 
     if (output.kind === "source-composition") {
-      context.drawImage(composeLayers(sourceSize, layers, output.layerOrder), 0, 0);
+      context.drawImage(
+        composeLayers(sourceSize, titleSet.layers, output.layerOrder),
+        0,
+        0
+      );
     } else if (output.kind === "text-only") {
-      drawContained(context, canvas, composites.text, {
+      drawContained(context, canvas, titleSet.composites.text, {
         widthRatio: 0.9,
         heightRatio: 0.86
       });
     } else if (output.kind === "client-icon") {
       drawClientIcon(context, canvas, selectedClientIconShip.image, clientIconWater);
     } else if (output.kind === "artwork") {
-      drawCover(context, canvas, composites.artwork, output.focalX, output.focalY);
+      drawCover(
+        context,
+        canvas,
+        artworkComposition,
+        output.focalX,
+        output.focalY,
+        output.zoom
+      );
     } else if (output.layout === "fitted-lockup") {
       const backgroundTransform = drawCover(
         context,
         canvas,
-        layers.background,
+        englishLayers.background,
         output.focalX,
         output.focalY
       );
@@ -234,25 +700,36 @@ async function main() {
         backgroundTransform,
         sourceShipAnchor
       );
-      const lockupTransform = containedTransform(canvas, composites.lockup, {
+      const lockupTransform = containedTransform(canvas, titleSet.composites.lockup, {
         widthRatio: output.lockupWidth,
         heightRatio: output.lockupHeight,
-        imageAnchor: lockupShipAnchor,
+        imageAnchor: titleSet.lockupShipAnchor,
         targetAnchor: targetShipAnchor,
         centeredHorizontalBounds: output.centerLockupText
-          ? lockupTextHorizontalBounds
+          ? titleSet.lockupTextHorizontalBounds
           : undefined
       });
       drawSourceAlignedComposition(
         context,
         reflectionComposition,
-        lockupComposition.bounds,
+        titleSet.lockupComposition.bounds,
         lockupTransform
       );
-      drawWithTransform(context, composites.lockup, lockupTransform);
-      assertVerticalAnchorAlignment(output.name, lockupTransform, lockupShipAnchor, targetShipAnchor);
+      drawWithTransform(context, titleSet.composites.lockup, lockupTransform);
+      assertVerticalAnchorAlignment(
+        output.name,
+        lockupTransform,
+        titleSet.lockupShipAnchor,
+        targetShipAnchor
+      );
     } else {
-      drawCover(context, canvas, composites.full, output.focalX, output.focalY);
+      drawCover(
+        context,
+        canvas,
+        titleSet.composites.full,
+        output.focalX,
+        output.focalY
+      );
     }
 
     const path = join(outputDir, output.name);
@@ -261,7 +738,11 @@ async function main() {
     console.log(`Generated ${output.name} (${width}x${height})`);
   }
   if (generatorOptions.onlyName === null) {
-    await writeContactSheet(rendered);
+    await writeContactSheet(rendered.filter(
+      ({ output }) => output.locale === undefined ||
+        output.locale.steamCode === ENGLISH_STEAM_CODE
+    ));
+    await writeLocalizedCapsuleComparison(rendered);
     await writeClientIconShipComparison(clientIconShips, clientIconWater);
   }
 }
@@ -294,8 +775,14 @@ function composeLayers(size, layers, order) {
   return canvas;
 }
 
-function drawCover(context, canvas, image, focalX, focalY) {
-  const scale = Math.max(canvas.width / image.width, canvas.height / image.height);
+function drawCover(context, canvas, image, focalX, focalY, zoom = 1) {
+  if (!Number.isFinite(zoom) || zoom < 1) {
+    throw new Error(`Capsule cover zoom must be at least 1: ${zoom}`);
+  }
+  const scale = Math.max(
+    canvas.width / image.width,
+    canvas.height / image.height
+  ) * zoom;
   const sourceWidth = canvas.width / scale;
   const sourceHeight = canvas.height / scale;
   const sourceX = clamp(
@@ -331,15 +818,29 @@ function drawContained(context, canvas, image, options = {}) {
 function containedTransform(canvas, image, options = {}) {
   const widthRatio = options.widthRatio ?? 0.9;
   const heightRatio = options.heightRatio ?? 0.86;
-  const scale = Math.min(
+  const anchored = options.imageAnchor !== undefined && options.targetAnchor !== undefined;
+  let scale = Math.min(
     canvas.width * widthRatio / image.width,
     canvas.height * heightRatio / image.height
   );
+  if (anchored) {
+    const topExtent = options.imageAnchor.y;
+    const bottomExtent = image.height - options.imageAnchor.y;
+    const topScale = topExtent <= 0
+      ? Number.POSITIVE_INFINITY
+      : options.targetAnchor.y / topExtent;
+    const bottomScale = bottomExtent <= 0
+      ? Number.POSITIVE_INFINITY
+      : (canvas.height - options.targetAnchor.y) / bottomExtent;
+    scale = Math.min(scale, topScale, bottomScale);
+  }
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new Error("Capsule lockup cannot fit around its anchored waterline");
+  }
   const width = Math.max(1, Math.round(image.width * scale));
   const height = Math.max(1, Math.round(image.height * scale));
   const scaleX = width / image.width;
   const scaleY = height / image.height;
-  const anchored = options.imageAnchor !== undefined && options.targetAnchor !== undefined;
   let idealX;
   if (options.centeredHorizontalBounds !== undefined) {
     const left = options.centeredHorizontalBounds.minX * scaleX;
@@ -590,6 +1091,53 @@ async function writeContactSheet(rendered) {
   const path = join(outputDir, "contact-sheet.png");
   await writeFile(path, sheet.toBuffer("image/png"));
   console.log(`Generated contact-sheet.png (${sheet.width}x${sheet.height})`);
+}
+
+async function writeLocalizedCapsuleComparison(rendered) {
+  const localized = CAPSULE_TITLE_LOCALES.map((locale) => {
+    const match = rendered.find(({ output }) => (
+      output.baseName === "capsule_main" &&
+      output.locale?.steamCode === locale.steamCode
+    ));
+    if (match === undefined) {
+      throw new Error(`Localized comparison is missing ${locale.steamCode}`);
+    }
+    return Object.freeze({ locale, canvas: match.canvas });
+  });
+  const columns = 3;
+  const cellWidth = 410;
+  const cellHeight = 270;
+  const rows = Math.ceil(localized.length / columns);
+  const sheet = createCanvas(columns * cellWidth, rows * cellHeight);
+  const context = sheet.getContext("2d");
+  context.fillStyle = "#17130f";
+  context.fillRect(0, 0, sheet.width, sheet.height);
+  context.textBaseline = "top";
+  context.font = "18px sans-serif";
+
+  for (let index = 0; index < localized.length; index++) {
+    const { locale, canvas } = localized[index];
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const cellX = column * cellWidth;
+    const cellY = row * cellHeight;
+    const width = 378;
+    const height = Math.round(canvas.height * width / canvas.width);
+    context.imageSmoothingEnabled = false;
+    context.drawImage(canvas, cellX + 16, cellY + 14, width, height);
+    context.fillStyle = "#f0ddb1";
+    context.fillText(
+      `${locale.label}  (${locale.steamCode})`,
+      cellX + 16,
+      cellY + 14 + height + 10
+    );
+  }
+
+  const path = join(outputDir, "localized-capsule-main-comparison.png");
+  await writeFile(path, sheet.toBuffer("image/png"));
+  console.log(
+    `Generated localized-capsule-main-comparison.png (${sheet.width}x${sheet.height})`
+  );
 }
 
 function clamp(value, minimum, maximum) {

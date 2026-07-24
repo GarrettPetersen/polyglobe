@@ -20,6 +20,11 @@
 - Lee Minseo - "Galmuri11" (SIL Open Font License 1.1)
 - Pirata One - capsule title lettering
 - Party LET - capsule title ampersand
+- Jovanny Lemonad - "Yeseva One" (SIL Open Font License 1.1; Russian capsule title)
+- Liu Bingke - "Ma Shan Zheng" (SIL Open Font License 1.1; Simplified Chinese capsule title)
+- Yuji Kataoka - "Yuji Boku" (SIL Open Font License 1.1; Japanese capsule title)
+- max32002 and Aoyagi Kouzan - "MasaFont" / "Kouzan Gyousho" (SIL Open Font License 1.1; Traditional Chinese capsule title)
+- Sandoll Communications - "Nanum Brush Script" (SIL Open Font License 1.1; Korean capsule title)
 
 ## Capsule Art
 - Anonymous British School - "The Embarkation of Henry VIII at Dover" (circa 1520-1540, public domain; Royal Collection / Wikimedia Commons)

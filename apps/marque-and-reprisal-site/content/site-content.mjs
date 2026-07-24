@@ -1,3 +1,5 @@
+import { CAPSULE_TITLE_LOCALES } from "../../pixel-globe/tools/capsule-title-locales.mjs";
+
 // A subdivision-7 icosphere has 10 × 4⁷ + 2 dual cells.
 export const WORLD_MAP_CELL_COUNT = 163_842;
 
@@ -19,19 +21,35 @@ export const site = Object.freeze({
   aboutLead: "You are a sea captain in the year 1522, and the whole world is yours to discover in this roguelike sandbox historical sailing simulator."
 });
 
-export const languages = Object.freeze([
-  "English",
-  "Simplified Chinese",
-  "Traditional Chinese",
-  "Russian",
-  "Spanish (Spain)",
-  "Portuguese (Brazil)",
-  "Japanese",
-  "German",
-  "French",
-  "Polish",
-  "Korean"
+export const LOCALIZED_CAPSULE_ASSET_NAMES = Object.freeze([
+  "capsule_header",
+  "capsule_main",
+  "capsule_small",
+  "capsule_title",
+  "capsule_title_with_ship",
+  "capsule_vertical",
+  "event_cover",
+  "event_header",
+  "itchio_cover",
+  "library_capsule",
+  "library_header",
+  "library_logo",
+  "social_share"
 ]);
+
+export const localizedCapsules = Object.freeze(CAPSULE_TITLE_LOCALES.map((locale) => {
+  const label = locale.appLocale === "es" ? "Spanish (Spain)" : locale.label;
+  return Object.freeze({
+    appLocale: locale.appLocale,
+    steamCode: locale.steamCode,
+    label,
+    title: `${locale.upperWord} & ${locale.lowerWord}`,
+    previewFile: `capsule_main_${locale.steamCode}.png`,
+    archiveFile: `marque-and-reprisal-capsules-${locale.steamCode}.zip`
+  });
+}));
+
+export const languages = Object.freeze(localizedCapsules.map(({ label }) => label));
 
 export const features = Object.freeze([
   Object.freeze({

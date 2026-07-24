@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import {
   features,
   languages,
+  localizedCapsules,
+  LOCALIZED_CAPSULE_ASSET_NAMES,
   pressCapsuleArt,
   screenshots,
   site,
@@ -52,6 +54,53 @@ test("published links and localization claims are explicit", () => {
   assert.equal(site.steamStatus, "Page coming soon");
   assert.equal(languages.length, 11);
   assert.equal(new Set(languages).size, languages.length);
+});
+
+test("press kit publishes every localized capsule set and download", async () => {
+  assert.deepEqual(
+    localizedCapsules.map(({ steamCode }) => steamCode),
+    [
+      "english",
+      "schinese",
+      "russian",
+      "spanish",
+      "brazilian",
+      "japanese",
+      "german",
+      "french",
+      "polish",
+      "tchinese",
+      "koreana"
+    ]
+  );
+  assert.deepEqual(
+    localizedCapsules.map(({ label }) => label),
+    languages
+  );
+  assert.equal(
+    new Set(localizedCapsules.map(({ archiveFile }) => archiveFile)).size,
+    localizedCapsules.length
+  );
+  assert.equal(LOCALIZED_CAPSULE_ASSET_NAMES.length, 13);
+
+  const generatedRoot = path.resolve(
+    appRoot,
+    "../pixel-globe/capsule_art/generated"
+  );
+  const page = pressPage();
+  assert.match(
+    page,
+    /marque-and-reprisal-capsules-all-languages\.zip/
+  );
+  for (const locale of localizedCapsules) {
+    assert.match(page, new RegExp(locale.archiveFile.replaceAll(".", "\\.")));
+    for (const baseName of LOCALIZED_CAPSULE_ASSET_NAMES) {
+      await access(path.join(
+        generatedRoot,
+        `${baseName}_${locale.steamCode}.png`
+      ));
+    }
+  }
 });
 
 test("world copy uses the exact subdivision-7 map-cell count", async () => {

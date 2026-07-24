@@ -7,28 +7,66 @@ import {
   createCanvas,
   loadImage
 } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import { CAPSULE_TITLE_LOCALES } from "../tools/capsule-title-locales.mjs";
+import { SUPPORTED_LANGUAGES } from "./localization.js";
 
 const generatedRoot = new URL("../capsule_art/generated/", import.meta.url);
+const localizedOutputSizes = Object.freeze([
+  ["capsule_header", 920, 430],
+  ["capsule_small", 462, 174],
+  ["capsule_main", 1232, 706],
+  ["capsule_title", 1232, 706],
+  ["capsule_title_with_ship", 1232, 706],
+  ["capsule_vertical", 748, 896],
+  ["library_capsule", 600, 900],
+  ["library_header", 920, 430],
+  ["library_logo", 1280, 720],
+  ["event_cover", 800, 450],
+  ["event_header", 1920, 622],
+  ["social_share", 1200, 630],
+  ["itchio_cover", 630, 500]
+]);
 const expectedOutputs = Object.freeze(new Map([
-  ["capsule_header_en.png", [920, 430]],
-  ["capsule_small_en.png", [462, 174]],
-  ["capsule_main_en.png", [1232, 706]],
-  ["capsule_title_en.png", [1232, 706]],
-  ["capsule_title_with_ship_en.png", [1232, 706]],
-  ["capsule_vertical_en.png", [748, 896]],
+  ...CAPSULE_TITLE_LOCALES.flatMap(({ steamCode }) => (
+    localizedOutputSizes.map(([baseName, width, height]) => [
+      `${baseName}_${steamCode}.png`,
+      [width, height]
+    ])
+  )),
   ["capsule_background.png", [1438, 810]],
-  ["library_capsule_en.png", [600, 900]],
-  ["library_header_en.png", [920, 430]],
   ["library_hero.png", [3840, 1240]],
-  ["library_logo_en.png", [1280, 720]],
   ["community_icon_184.png", [184, 184]],
   ["client_icon_32.png", [32, 32]],
   ["shortcut_icon_256.png", [256, 256]],
-  ["event_cover_en.png", [800, 450]],
-  ["event_header_en.png", [1920, 622]],
-  ["social_share_en.png", [1200, 630]],
-  ["itchio_cover_en.png", [630, 500]]
+  ["app_icon_512.png", [512, 512]]
 ]));
+
+test("capsule titles cover every supported game language exactly once", () => {
+  const expectedSteamCodes = new Map([
+    ["en", "english"],
+    ["zh-Hans", "schinese"],
+    ["ru", "russian"],
+    ["es", "spanish"],
+    ["pt-BR", "brazilian"],
+    ["ja", "japanese"],
+    ["de", "german"],
+    ["fr", "french"],
+    ["pl", "polish"],
+    ["zh-Hant", "tchinese"],
+    ["ko", "koreana"]
+  ]);
+  assert.deepEqual(
+    CAPSULE_TITLE_LOCALES.map(({ appLocale }) => appLocale).sort(),
+    SUPPORTED_LANGUAGES.map(({ id }) => id).sort()
+  );
+  assert.equal(
+    new Set(CAPSULE_TITLE_LOCALES.map(({ steamCode }) => steamCode)).size,
+    CAPSULE_TITLE_LOCALES.length
+  );
+  for (const { appLocale, steamCode } of CAPSULE_TITLE_LOCALES) {
+    assert.equal(steamCode, expectedSteamCodes.get(appLocale), appLocale);
+  }
+});
 
 test("capsule generator produces the complete storefront image set", async () => {
   for (const [filename, [width, height]] of expectedOutputs) {
@@ -44,6 +82,14 @@ test("capsule generator produces the active ship client icon comparison", async 
   );
   assert.equal(image.width, 900);
   assert.equal(image.height, 780);
+});
+
+test("capsule generator produces the localized review sheet", async () => {
+  const image = await loadImage(
+    fileURLToPath(new URL("localized-capsule-main-comparison.png", generatedRoot))
+  );
+  assert.equal(image.width, 1230);
+  assert.equal(image.height, 1080);
 });
 
 test("capsule art documents and preserves its authored layer order", async () => {
@@ -62,7 +108,11 @@ test("capsule art documents and preserves its authored layer order", async () =>
   assert.match(generator, /assertVerticalAnchorAlignment/);
   assert.match(generator, /drawSourceAlignedComposition\([\s\S]*reflectionComposition/);
   assert.match(readme, /background\.png[\s\S]*reflection\.png[\s\S]*upper_text\.png[\s\S]*ship\.png[\s\S]*lower_text\.png/);
-  assert.match(readme, /library_logo_en\.png.*only the two text layers/);
+  assert.match(readme, /library_logo_\{language\}\.png.*only the two text layers/);
+  assert.match(readme, /私掠 & 报复/);
+  assert.match(readme, /Каперство & Возмездие/);
+  assert.match(generator, /DROP_CAP_OPTICAL_KERN/);
+  assert.match(generator, /touchShipRight/);
   assert.match(readme, /original waterline/);
   assert.match(
     credits,
@@ -86,7 +136,7 @@ test("main capsule is the exact authored five-layer composition", async () => {
     fileURLToPath(new URL(`../capsule_art/source/${name}.png`, import.meta.url))
   )));
   const generated = await loadImage(
-    fileURLToPath(new URL("capsule_main_en.png", generatedRoot))
+    fileURLToPath(new URL("capsule_main_english.png", generatedRoot))
   );
   for (const source of sourceImages) {
     assert.equal(source.width, generated.width);
@@ -106,8 +156,8 @@ test("main capsule is the exact authored five-layer composition", async () => {
 
 test("press title exports preserve the authored transparent layer order", async () => {
   const cases = Object.freeze([
-    ["capsule_title_en.png", ["upper_text", "lower_text"]],
-    ["capsule_title_with_ship_en.png", ["upper_text", "ship", "lower_text"]]
+    ["capsule_title_english.png", ["upper_text", "lower_text"]],
+    ["capsule_title_with_ship_english.png", ["upper_text", "ship", "lower_text"]]
   ]);
   for (const [filename, sourceNames] of cases) {
     const [generated, ...sourceImages] = await Promise.all([
@@ -131,7 +181,7 @@ test("press title exports preserve the authored transparent layer order", async 
 
 test("library logo is transparent text while artwork files contain no title", async () => {
   const [logo, artwork] = await Promise.all([
-    loadImage(fileURLToPath(new URL("library_logo_en.png", generatedRoot))),
+    loadImage(fileURLToPath(new URL("library_logo_english.png", generatedRoot))),
     loadImage(fileURLToPath(new URL("capsule_background.png", generatedRoot)))
   ]);
   const logoPixels = imagePixels(logo);
@@ -163,11 +213,108 @@ test("library logo is transparent text while artwork files contain no title", as
 });
 
 test("tall capsules give their opaque title equal left and right margins", async () => {
-  for (const filename of ["capsule_vertical_en.png", "library_capsule_en.png"]) {
-    const image = await loadImage(fileURLToPath(new URL(filename, generatedRoot)));
-    const bounds = whitePixelHorizontalBounds(image);
-    assert.equal(bounds.minX, image.width - bounds.maxX - 1, filename);
+  for (const { steamCode } of CAPSULE_TITLE_LOCALES) {
+    for (const baseName of ["capsule_vertical", "library_capsule"]) {
+      const filename = `${baseName}_${steamCode}.png`;
+      const image = await loadImage(fileURLToPath(new URL(filename, generatedRoot)));
+      const bounds = whitePixelHorizontalBounds(image);
+      assert.ok(
+        Math.abs(bounds.minX - (image.width - bounds.maxX - 1)) <= 1,
+        filename
+      );
+    }
   }
+});
+
+test("balanced Asian title lines preserve a transparent center gap", async () => {
+  const balancedLocales = CAPSULE_TITLE_LOCALES.filter(
+    ({ composition }) => composition === "balanced"
+  );
+  for (const { steamCode } of balancedLocales) {
+    const filename = `capsule_title_${steamCode}.png`;
+    const image = await loadImage(fileURLToPath(new URL(filename, generatedRoot)));
+    const pixels = imagePixels(image);
+    let lastOpaqueRow = -1;
+    for (let y = 0; y < image.height; y++) {
+      for (let x = 0; x < image.width; x++) {
+        if (pixels[(y * image.width + x) * 4 + 3] > 0) lastOpaqueRow = y;
+      }
+    }
+    assert.ok(lastOpaqueRow <= 555, `${filename} is clipped by the small-capsule crop`);
+    for (let y = 353; y < 372; y++) {
+      for (let x = 0; x < image.width; x++) {
+        assert.equal(
+          pixels[(y * image.width + x) * 4 + 3],
+          0,
+          `${filename} has an opaque pixel in title gap at ${x},${y}`
+        );
+      }
+    }
+  }
+});
+
+test("long European upper titles overlap the ship by less than half a final letter", async () => {
+  const ship = await loadImage(
+    fileURLToPath(new URL("../capsule_art/source/ship.png", import.meta.url))
+  );
+  const shipPixels = imagePixels(ship);
+  for (const steamCode of ["german", "russian", "polish"]) {
+    const title = await loadImage(
+      fileURLToPath(new URL(`capsule_title_${steamCode}.png`, generatedRoot))
+    );
+    const titlePixels = imagePixels(title);
+    let finalWordX = -1;
+    for (let y = 180; y < 353; y++) {
+      for (let x = 0; x < 760; x++) {
+        if (isOpaqueWhite(titlePixels, title.width, x, y)) {
+          finalWordX = Math.max(finalWordX, x);
+        }
+      }
+    }
+    assert.ok(finalWordX > 0, `${steamCode} upper title has no visible pixels`);
+
+    let titlePixelCount = 0;
+    let overlapPixelCount = 0;
+    for (let y = 180; y < 353; y++) {
+      for (let x = finalWordX - 47; x <= finalWordX; x++) {
+        if (!isOpaqueWhite(titlePixels, title.width, x, y)) continue;
+        titlePixelCount++;
+        if (shipPixels[(y * ship.width + x) * 4 + 3] > 0) overlapPixelCount++;
+      }
+    }
+    assert.ok(titlePixelCount > 0, `${steamCode} final-letter sample is empty`);
+    assert.ok(overlapPixelCount > 0, `${steamCode} upper title does not kiss the ship`);
+    assert.ok(
+      overlapPixelCount / titlePixelCount <= 0.5,
+      `${steamCode} ship hides more than half of its final upper-title letter`
+    );
+  }
+});
+
+test("Korean lower title centers under the upper title including its ampersand", async () => {
+  const image = await loadImage(
+    fileURLToPath(new URL("capsule_title_koreana.png", generatedRoot))
+  );
+  const upper = whitePixelHorizontalBoundsInRegion(
+    image,
+    0,
+    100,
+    image.width,
+    353
+  );
+  const lower = whitePixelHorizontalBoundsInRegion(
+    image,
+    0,
+    372,
+    image.width,
+    556
+  );
+  const upperCenter = (upper.minX + upper.maxX) / 2;
+  const lowerCenter = (lower.minX + lower.maxX) / 2;
+  assert.ok(
+    Math.abs(upperCenter - lowerCenter) <= 2,
+    `Korean visible title centers differ: ${upperCenter} versus ${lowerCenter}`
+  );
 });
 
 function imagePixels(image) {
@@ -177,12 +324,32 @@ function imagePixels(image) {
   return context.getImageData(0, 0, image.width, image.height).data;
 }
 
+function isOpaqueWhite(pixels, width, x, y) {
+  const offset = (y * width + x) * 4;
+  return (
+    pixels[offset] === 255 &&
+    pixels[offset + 1] === 255 &&
+    pixels[offset + 2] === 255 &&
+    pixels[offset + 3] === 255
+  );
+}
+
 function whitePixelHorizontalBounds(image) {
+  return whitePixelHorizontalBoundsInRegion(
+    image,
+    0,
+    0,
+    image.width,
+    image.height
+  );
+}
+
+function whitePixelHorizontalBoundsInRegion(image, minX, minY, maxX, maxY) {
   const pixels = imagePixels(image);
-  let minX = image.width;
-  let maxX = -1;
-  for (let y = 0; y < image.height; y++) {
-    for (let x = 0; x < image.width; x++) {
+  let foundMinX = maxX;
+  let foundMaxX = -1;
+  for (let y = minY; y < maxY; y++) {
+    for (let x = minX; x < maxX; x++) {
       const offset = (y * image.width + x) * 4;
       if (
         pixels[offset] !== 255 ||
@@ -190,10 +357,10 @@ function whitePixelHorizontalBounds(image) {
         pixels[offset + 2] !== 255 ||
         pixels[offset + 3] !== 255
       ) continue;
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
+      foundMinX = Math.min(foundMinX, x);
+      foundMaxX = Math.max(foundMaxX, x);
     }
   }
-  assert.ok(maxX >= minX, "expected opaque white title pixels");
-  return Object.freeze({ minX, maxX });
+  assert.ok(foundMaxX >= foundMinX, "expected opaque white title pixels");
+  return Object.freeze({ minX: foundMinX, maxX: foundMaxX });
 }

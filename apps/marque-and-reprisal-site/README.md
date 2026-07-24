@@ -20,7 +20,14 @@ npm run marque-site:deploy
 The build is written to `apps/marque-and-reprisal-site/dist`. The build also
 generates `downloads/marque-and-reprisal-press-kit.zip` from the fact sheet,
 logos, full-resolution screenshots, and the aligned capsule art layers and
-Aseprite source.
+Aseprite source. It also packages the canonical generated capsule artwork into
+11 language-specific ZIP downloads and one combined all-languages ZIP. Each
+language bundle contains 13 full-resolution storefront, library, event, social,
+itch.io, and press PNG exports.
+
+Localized capsule bundles are built directly from
+`../pixel-globe/capsule_art/generated`; missing exports stop the build instead
+of producing a partial press kit.
 
 ## Social sharing
 
