@@ -165,6 +165,7 @@ import {
   reconcileCharacterPortraitSexes
 } from "./characterPortraits.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
+import { portraitBottomTransparentRows } from "./portraitFrameAlignment.js";
 import {
   generatePlayerStartingProfile,
   playerStarterShipForFaction,
@@ -32345,6 +32346,33 @@ function grayscalePortraitCanvas(source) {
   return canvas;
 }
 
+function bottomAlignedPortraitFrame(source) {
+  const width = source.naturalWidth || source.width;
+  const height = source.naturalHeight || source.height;
+  const sample = document.createElement("canvas");
+  sample.width = width;
+  sample.height = height;
+  const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+  if (!sampleContext) throw new Error("Could not inspect portrait frame alignment");
+  sampleContext.imageSmoothingEnabled = false;
+  sampleContext.drawImage(source, 0, 0);
+  const transparentRows = portraitBottomTransparentRows(
+    sampleContext.getImageData(0, 0, width, height).data,
+    width,
+    height
+  );
+  if (transparentRows === 0) return source;
+
+  const aligned = document.createElement("canvas");
+  aligned.width = width;
+  aligned.height = height;
+  const alignedContext = aligned.getContext("2d");
+  if (!alignedContext) throw new Error("Could not align portrait frame");
+  alignedContext.imageSmoothingEnabled = false;
+  alignedContext.drawImage(source, 0, transparentRows);
+  return aligned;
+}
+
 function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_8) {
   dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
@@ -32571,7 +32599,7 @@ function dialoguePortraitImage(character, expression) {
     const sourceUrl = `${expression.src}?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
     const promise = loadAssetImage(sourceUrl, `portrait ${character.id}.${expression.id}`)
       .then((sourceImage) => {
-        portraitFrameStore.store(character.id, key, sourceImage);
+        portraitFrameStore.store(character.id, key, bottomAlignedPortraitFrame(sourceImage));
         dirty = true;
       })
       .catch((error) => {
