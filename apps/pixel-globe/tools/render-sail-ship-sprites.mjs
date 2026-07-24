@@ -16,13 +16,17 @@ import {
   JAPANESE_ATAKEBUNE_MODEL_CREDIT,
   JOSEON_PANOKSEON_MODEL_CREDIT,
   JOSEON_TURTLE_SHIP_MODEL_CREDIT,
+  KELULUS_MODEL_CREDIT,
+  LANCARAN_MODEL_CREDIT,
   MEDITERRANEAN_GALLEY_MODEL_CREDIT,
   MESOAMERICAN_CANOE_MODEL_CREDIT,
+  PENJAJAP_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
   NAO_VICTORIA_MODEL_CREDIT,
   NORTH_ATLANTIC_RIGHT_WHALE_MODEL_CREDIT,
   OTTOMAN_COASTAL_TRADER_MODEL_CREDIT,
   PORTUGUESE_CARRACK_MODEL_CREDIT,
+  ROYAL_LANCARAN_MODEL_CREDIT,
   SOUTHERN_MINKE_WHALE_MODEL_CREDIT,
   SPERM_WHALE_MODEL_CREDIT,
   UNITY_FLEET_MODEL_CREDIT,
@@ -85,6 +89,8 @@ const southernMinkeWhaleSourceRoot = join(shipSourceRoot, "sketchfab/southern-mi
 const spermWhaleSourceRoot = join(shipSourceRoot, "sketchfab/sperm-whale");
 const cartoonHorseSourceRoot = join(shipSourceRoot, "sketchfab/cartoon-horse-with-animations");
 const woodenCartSourceRoot = join(shipSourceRoot, "sketchfab/wooden-cart");
+const kelulusSourceRoot = join(shipSourceRoot, "procedural/kelulus");
+const proceduralShipSourceRoot = join(shipSourceRoot, "procedural");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const animalOutputRoot = join(appRoot, "public/assets/animals");
 const horseCartOutputRoot = join(outputRoot, "horse-cart");
@@ -92,6 +98,7 @@ const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
 const waterlineReviewOutputRoot = join(appRoot, "docs/ship-reference/waterlines");
+const kelulusReferenceOutputRoot = join(appRoot, "docs/ship-reference/kelulus");
 
 const frameSize = integerEnv("PIXEL_GLOBE_SHIP_FRAME_SIZE", SHIP_SPRITE_FRAME_SIZE);
 const headings = SHIP_SPRITE_HEADINGS;
@@ -2765,6 +2772,10 @@ function productionShipRenderConfigs() {
       "dhow",
       "galleon",
       "nusantaran-outrigger",
+      "kelulus",
+      "penjajap",
+      "lancaran",
+      "royal-lancaran",
       "ottoman-coastal-trader",
       "viking-longship"
     ].map((slug) => standaloneShipConfigForSlug(slug))
@@ -3332,6 +3343,46 @@ function evenBankPositions(min, max, count) {
 }
 
 function proceduralOarConfig(slug) {
+  if (slug === "penjajap") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.58, 0.55, 4),
+    pivotYOffset: 0.045,
+    pivotHalfBeam: 0.16,
+    shaftLength: 0.44,
+    bladeLength: 0.14,
+    shaftRadius: 0.036,
+    bladeRadius: 0.057
+  };
+  if (slug === "lancaran") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.68, 0.65, 5),
+    pivotYOffset: 0.05,
+    pivotHalfBeam: 0.20,
+    shaftLength: 0.48,
+    bladeLength: 0.15,
+    shaftRadius: 0.038,
+    bladeRadius: 0.06
+  };
+  if (slug === "royal-lancaran") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.76, 0.72, 6),
+    pivotYOffset: 0.055,
+    pivotHalfBeam: 0.24,
+    shaftLength: 0.52,
+    bladeLength: 0.16,
+    shaftRadius: 0.04,
+    bladeRadius: 0.063
+  };
+  if (slug === "kelulus") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.68, 0.66, 6),
+    pivotYOffset: 0.045,
+    pivotHalfBeam: 0.19,
+    shaftLength: 0.47,
+    bladeLength: 0.14,
+    shaftRadius: 0.03,
+    bladeRadius: 0.05
+  };
   if (slug === "mediterranean-galley") return {
     kind: "bank",
     bankPositions: evenBankPositions(-0.45, 0.45, 5),
@@ -3408,6 +3459,117 @@ function proceduralOarPivotPoints(slug, waterlineY) {
     return paddlePivotEntries(waterlineY, config).map((entry) => entry.pivot);
   }
   throw new Error(`Unknown procedural oar configuration kind for ${slug}: ${config.kind}`);
+}
+
+function kelulusConfig() {
+  const slug = "kelulus";
+  return {
+    slug,
+    label: "Kelulus",
+    category: "Malay oar-and-sail vessel",
+    assetLabel: "Procedural Kelulus",
+    identifiedType: "fifteenth- and early-sixteenth-century Malay kelulus",
+    identificationConfidence: "medium",
+    identificationNotes: "Independent low-poly reconstruction emphasizing a narrow double-ended hull, canted tanja sail, and palm-thatch shelter.",
+    ...KELULUS_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(kelulusSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 1.86,
+    sideViewTargetModelMaxDim: 1.68,
+    scaleMode: "small-malay-oar-sail-vessel",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    waterlineOffsetY: -0.02,
+    waterlineImmersionRatio: 0.34,
+    wakeWaterlineBand: 0.2,
+    animationFrameCount: SHIP_ROWING_FRAME_COUNT,
+    animationTrianglesForFrame: kelulusTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/kelulus/kelulus-rowing-frames.png"
+    ),
+    animationReviewHeading: 4
+  };
+}
+
+function kelulusTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("kelulus"))
+  ];
+}
+
+const MALAY_WARSHIP_RENDER_SPECS = Object.freeze({
+  penjajap: Object.freeze({
+    label: "Penjajap",
+    category: "Malay coastal raider",
+    assetLabel: "Procedural Penjajap",
+    identifiedType: "fifteenth- and early-sixteenth-century Malay penjajap",
+    identificationNotes: "Original one-masted reconstruction with a lean shallow hull, canted tanja sail, fighting platform, and animated oars.",
+    credit: PENJAJAP_MODEL_CREDIT,
+    targetModelMaxDim: 1.90,
+    sideViewTargetModelMaxDim: 1.74,
+    waterlineOffsetY: -0.02
+  }),
+  lancaran: Object.freeze({
+    label: "Lancaran",
+    category: "Malay fleet warship",
+    assetLabel: "Procedural Lancaran",
+    identifiedType: "fifteenth- and early-sixteenth-century Malay lancaran",
+    identificationNotes: "Original two-masted reconstruction emphasizing the long shallow hull, tanja sail plan, fighting platforms, and animated oar banks.",
+    credit: LANCARAN_MODEL_CREDIT,
+    targetModelMaxDim: 2.16,
+    sideViewTargetModelMaxDim: 1.74,
+    waterlineOffsetY: 0.04
+  }),
+  "royal-lancaran": Object.freeze({
+    label: "Royal Lancaran",
+    category: "Malay command warship",
+    assetLabel: "Procedural Royal Lancaran",
+    identifiedType: "large royal Malay lancaran",
+    identificationNotes: "Original three-masted command-ship reconstruction with dyed sails, gilt rails, a royal pavilion, fighting platforms, and animated oar banks.",
+    credit: ROYAL_LANCARAN_MODEL_CREDIT,
+    targetModelMaxDim: 2.42,
+    sideViewTargetModelMaxDim: 1.78,
+    waterlineOffsetY: 0.04
+  })
+});
+
+function malayWarshipConfig(slug) {
+  const spec = MALAY_WARSHIP_RENDER_SPECS[slug];
+  if (!spec) throw new Error(`Unsupported procedural Malay warship: ${slug}`);
+  return {
+    slug,
+    label: spec.label,
+    category: spec.category,
+    assetLabel: spec.assetLabel,
+    identifiedType: spec.identifiedType,
+    identificationConfidence: "medium",
+    identificationNotes: spec.identificationNotes,
+    ...spec.credit,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(proceduralShipSourceRoot, slug, "scene.gltf"),
+    targetModelMaxDim: spec.targetModelMaxDim,
+    sideViewTargetModelMaxDim: spec.sideViewTargetModelMaxDim,
+    scaleMode: "procedural-malay-oar-sail-vessel",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    waterlineOffsetY: spec.waterlineOffsetY,
+    waterlineImmersionRatio: 0.34,
+    wakeWaterlineBand: 0.2,
+    animationFrameCount: SHIP_ROWING_FRAME_COUNT,
+    animationTrianglesForFrame: (hullTriangles, frameIndex, waterlineY) => [
+      ...hullTriangles,
+      ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig(slug))
+    ],
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference",
+      slug,
+      `${slug}-rowing-frames.png`
+    ),
+    animationReviewHeading: 4
+  };
 }
 
 function vikingLongshipConfig() {
@@ -3723,6 +3885,8 @@ function standaloneShipConfigForSlug(slug) {
   if (slug === "dhow") return gogiartDhowConfig();
   if (slug === "galleon") return cyc3wGalleonConfig();
   if (slug === "nusantaran-outrigger") return nusantaranOutriggerConfig();
+  if (slug === "kelulus") return kelulusConfig();
+  if (MALAY_WARSHIP_RENDER_SPECS[slug]) return malayWarshipConfig(slug);
   if (slug === "ottoman-coastal-trader") return ottomanCoastalTraderConfig();
   if (slug === "viking-longship") return vikingLongshipConfig();
   throw new Error(`Unsupported standalone comparison ship: ${slug}`);
@@ -3815,6 +3979,135 @@ async function renderMediterraneanGalleyReference() {
   );
   await renderShipSpriteSet(config);
   console.log(config.animationContactSheetPath);
+}
+
+async function renderKelulusReference() {
+  const config = kelulusConfig();
+  config.outputDir = kelulusReferenceOutputRoot;
+  config.outputPrefix = `kelulus-reference-${SHIP_SPRITE_HEADING_SUFFIX}`;
+  rmSync(kelulusReferenceOutputRoot, { recursive: true, force: true });
+  mkdirSync(kelulusReferenceOutputRoot, { recursive: true });
+  const rendered = await renderShipSpriteSet(config);
+
+  const { canvas: sideView } = await renderShipSideViewCanvas(config, {
+    camera: makeSideViewCamera(),
+    modelYaw: Math.PI / 2
+  });
+  const sideViewPath = join(kelulusReferenceOutputRoot, "kelulus-side-view.png");
+  writeFileSync(sideViewPath, sideView.toBuffer("image/png"));
+
+  const reviewCamera = makeLevelSideViewCamera();
+  const { canvas: waterlineReview, waterlineY } = await renderShipSideViewCanvas(config, {
+    camera: reviewCamera,
+    modelYaw: Math.PI / 2
+  });
+  const waterlinePoint = new THREE.Vector3(0, waterlineY, 0).project(reviewCamera);
+  const waterlinePixelY = Math.round((1 - waterlinePoint.y) * 0.5 * sideViewHeight);
+  const pivotPixels = uniqueProjectedSideViewPixels(
+    proceduralOarPivotPoints("kelulus", waterlineY),
+    reviewCamera,
+    Math.PI / 2,
+    "kelulus"
+  );
+  const reviewCtx = waterlineReview.getContext("2d");
+  reviewCtx.fillStyle = waterlineReviewColor;
+  reviewCtx.fillRect(0, waterlinePixelY, sideViewWidth, 1);
+  reviewCtx.fillStyle = oarPivotReviewColor;
+  for (const pivot of pivotPixels) reviewCtx.fillRect(pivot.x - 1, pivot.y - 1, 3, 3);
+  const waterlinePath = join(kelulusReferenceOutputRoot, "kelulus-waterline.png");
+  writeFileSync(waterlinePath, waterlineReview.toBuffer("image/png"));
+
+  const manifestPath = join(kelulusReferenceOutputRoot, "manifest.json");
+  const comparisonPath = join(kelulusReferenceOutputRoot, "kelulus-scale-comparison.png");
+  writeFileSync(
+    comparisonPath,
+    (await makeKelulusScaleComparison(rendered.sheet)).toBuffer("image/png")
+  );
+  const { sheet, ...manifestEntry } = rendered;
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "npm run render:kelulus-reference",
+    purpose: "Reference review for the playable production Kelulus",
+    sideView: portablePath(sideViewPath),
+    waterlineReview: portablePath(waterlinePath),
+    scaleComparison: portablePath(comparisonPath),
+    oarPivotPixels: pivotPixels,
+    ship: manifestEntry
+  }, null, 2)}\n`);
+  console.log(rendered.files.preview);
+  console.log(config.animationContactSheetPath);
+  console.log(sideViewPath);
+  console.log(waterlinePath);
+  console.log(comparisonPath);
+  console.log(manifestPath);
+}
+
+async function renderKelulus() {
+  return renderStandaloneShip(kelulusConfig(), "kelulusGenerator", "--kelulus");
+}
+
+async function renderMalayWarships() {
+  for (const slug of Object.keys(MALAY_WARSHIP_RENDER_SPECS)) {
+    await renderStandaloneShip(
+      malayWarshipConfig(slug),
+      "malayWarshipGenerator",
+      "--malay-warships"
+    );
+  }
+}
+
+async function makeKelulusScaleComparison(kelulusSheet) {
+  const comparisonRows = [
+    { label: "KELULUS", sheet: kelulusSheet },
+    {
+      label: "NUSANTARAN OUTRIGGER",
+      sheet: await loadImage(join(unityFleetOutputRoot, `nusantaran-outrigger-${SHIP_SPRITE_HEADING_SUFFIX}.png`))
+    },
+    {
+      label: "MEDITERRANEAN GALLEY",
+      sheet: await loadImage(join(unityFleetOutputRoot, `mediterranean-galley-${SHIP_SPRITE_HEADING_SUFFIX}.png`))
+    },
+    {
+      label: "DHOW",
+      sheet: await loadImage(join(unityFleetOutputRoot, `dhow-${SHIP_SPRITE_HEADING_SUFFIX}.png`))
+    },
+    {
+      label: "SMALL JUNK",
+      sheet: await loadImage(join(unityFleetOutputRoot, `small-junk-${SHIP_SPRITE_HEADING_SUFFIX}.png`))
+    }
+  ];
+  const reviewHeadings = [0, 4, 8, 12];
+  const scale = 4;
+  const labelWidth = 190;
+  const cellSize = frameSize * scale;
+  const rowHeight = cellSize + 2;
+  const canvas = createCanvas(labelWidth + reviewHeadings.length * cellSize, comparisonRows.length * rowHeight);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#14151f";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "13px monospace";
+  ctx.textBaseline = "middle";
+  for (let rowIndex = 0; rowIndex < comparisonRows.length; rowIndex++) {
+    const row = comparisonRows[rowIndex];
+    const y = rowIndex * rowHeight;
+    ctx.fillStyle = "#f4ecd8";
+    ctx.fillText(row.label, 10, y + cellSize / 2);
+    for (let column = 0; column < reviewHeadings.length; column++) {
+      const source = sheetCell(reviewHeadings[column], frameSize);
+      ctx.drawImage(
+        row.sheet,
+        source.x,
+        source.y,
+        frameSize,
+        frameSize,
+        labelWidth + column * cellSize,
+        y,
+        cellSize,
+        cellSize
+      );
+    }
+  }
+  return canvas;
 }
 
 function nativeBoatConfigs() {
@@ -4082,7 +4375,10 @@ function renderAllProductionShips() {
     "--gogiart-dhow",
     "--cyc3w-galleon",
     "--nusantaran-outrigger",
-    "--ottoman-coastal-trader"
+    "--kelulus",
+    "--malay-warships",
+    "--ottoman-coastal-trader",
+    "--viking-longship"
   ];
   for (const stage of stages) {
     console.log(`production fleet stage ${stage}`);
@@ -4104,6 +4400,8 @@ async function renderRowingShips() {
   await renderJoseonTurtleShip();
   await renderJoseonPanokseon();
   await renderJapaneseAtakebune();
+  await renderKelulus();
+  await renderMalayWarships();
   await renderVikingLongship();
 }
 
@@ -4238,6 +4536,18 @@ async function main() {
   }
   if (args.has("--mediterranean-galley-reference")) {
     await renderMediterraneanGalleyReference();
+    return;
+  }
+  if (args.has("--kelulus-reference")) {
+    await renderKelulusReference();
+    return;
+  }
+  if (args.has("--kelulus")) {
+    await renderKelulus();
+    return;
+  }
+  if (args.has("--malay-warships")) {
+    await renderMalayWarships();
     return;
   }
   if (args.has("--mediterranean-galley")) {

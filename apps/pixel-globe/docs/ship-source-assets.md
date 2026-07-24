@@ -25,6 +25,33 @@ The directory is ignored by this public repository. The static-site builder copi
 `src/`, `index.html`, and `public/assets/`, so raw model files are never included in a
 Cloudflare deployment.
 
+Original scripted model sources also live in that private checkout. The playable
+Kelulus source is generated and baked with:
+
+```sh
+node apps/pixel-globe/source-models/procedural/kelulus/build-kelulus.mjs
+npm --prefix apps/pixel-globe run render:kelulus
+```
+
+Its production rasters are written to
+`apps/pixel-globe/public/assets/vehicles/unity-ships/`. Regenerate the visual
+review in `apps/pixel-globe/docs/ship-reference/kelulus/` with
+`npm --prefix apps/pixel-globe run render:kelulus-reference`.
+
+The related Penjajap, Lancaran, and Royal Lancaran share one original source
+builder and production command:
+
+```sh
+npm --prefix apps/pixel-globe run render:malay-warships
+```
+
+The source builder writes separate GLTF models beneath `procedural/`, then the
+normal ship pipeline produces all 32 headings, six rowing phases, lighting,
+shadows, sink depth, waterline footprints, wake anchors, flag anchors, side
+views, and menu icons. The designs use Deni Kaharudin's non-downloadable
+Malacca warship studies as a visual proportion reference; no source geometry
+was copied.
+
 The renderer accepts a different checkout through `PIXEL_GLOBE_SHIP_SOURCE_ROOT` and
 expects this layout:
 
@@ -51,6 +78,10 @@ sketchfab/southern-minke-whale/scene.gltf
 sketchfab/sperm-whale/source/model.fbx
 sketchfab/cartoon-horse-with-animations/scene.gltf
 sketchfab/wooden-cart/scene.gltf
+procedural/kelulus/scene.gltf
+procedural/penjajap/scene.gltf
+procedural/lancaran/scene.gltf
+procedural/royal-lancaran/scene.gltf
 blendswap/greek-trireme/trireme-bsw.blend
 ```
 
@@ -73,6 +104,8 @@ npm run render:portuguese-carrack
 npm run render:dhow
 npm run render:galleon
 npm run render:nusantaran-outrigger
+npm run render:kelulus
+npm run render:malay-warships
 npm run render:ottoman-coastal-trader
 npm run render:whales
 npm run render:horse-cart

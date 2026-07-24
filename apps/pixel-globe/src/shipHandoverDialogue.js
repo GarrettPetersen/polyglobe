@@ -59,6 +59,14 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a great paddled dugout like those Mesoamerican mariners used for fishing and coastal commerce long before European ships reached their shores",
   "nusantaran-outrigger":
     "an island Southeast Asian outrigger whose stabilizing float lets a narrow, swift hull carry sail safely through reef passages and open water",
+  kelulus:
+    "a swift Malay oar-and-sail vessel whose narrow double-ended hull, tanja sail, and shallow draft suit straits, coasts, and sudden attacks",
+  penjajap:
+    "a lean Malay raiding craft whose shallow hull, tanja sail, and bank of oars make it quick enough for scouting, pursuit, and sudden coastal attacks",
+  lancaran:
+    "a two-masted Malay fighting vessel built to maneuver under oars in confined straits while carrying enough sail and ordnance for longer patrols",
+  "royal-lancaran":
+    "a great three-masted command lancaran, richly finished but entirely practical, with the crew, guns, and oar power expected of a sultan's flagship",
   "ottoman-coastal-trader":
     "a workmanlike Ottoman coaster built for the busy short-haul trade linking the Aegean, the Levant, and the Black Sea"
 });

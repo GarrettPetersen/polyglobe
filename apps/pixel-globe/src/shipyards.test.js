@@ -181,11 +181,23 @@ test("Ottoman shipyards exclusively build the Ottoman coastal trader", () => {
   assert.equal(venetianHulls.has("ottoman-coastal-trader"), false);
 });
 
-test("Southeast Asian shipyards build Nusantaran outriggers", () => {
+test("Southeast Asian shipyards build the complete regional Malay fleet", () => {
   const system = createWorldShipyards({ ports: [MALACCA], startMinute: 0 });
   const hulls = generatedHulls(shipyardAtPort(system, MALACCA), 800);
 
-  assert.equal(hulls.has("nusantaran-outrigger"), true);
+  for (const slug of [
+    "nusantaran-outrigger",
+    "kelulus",
+    "penjajap",
+    "lancaran",
+    "royal-lancaran"
+  ]) {
+    assert.equal(hulls.has(slug), true, `Southeast Asian pool includes ${slug}`);
+  }
+  assert.equal(shipConstructionPrice("kelulus"), 4200);
+  assert.equal(shipConstructionPrice("penjajap"), 7000);
+  assert.equal(shipConstructionPrice("lancaran"), 18000);
+  assert.equal(shipConstructionPrice("royal-lancaran"), 42000);
 });
 
 test("every player start region offers an affordable second ship", () => {
@@ -210,6 +222,7 @@ test("starter replacements and first upgrades form an accessible price ladder", 
   assert.deepEqual(upgradePrices, [3000, 3400, 3600, 3800]);
   assert.equal(shipConstructionPrice("square-rigged-caravel"), 4000);
   assert.equal(shipConstructionPrice("nusantaran-outrigger"), 4000);
+  assert.equal(shipConstructionPrice("kelulus"), 4200);
 });
 
 test("ship prices put major hulls far beyond casual fishing income", () => {

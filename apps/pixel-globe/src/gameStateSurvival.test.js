@@ -876,6 +876,28 @@ test("a smaller custom loadout dumps excess hardtack and water without refunding
   assert.equal(state.doubloons, doubloonsBefore);
 });
 
+test("loadout restocking does not report floating-point ration residue as dumped cargo", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.cargo.hardtack = 5 / 12;
+  state.accounts.cargoCostBasis.hardtack = 5;
+  state.survival.freshWaterCapacity = 3;
+  state.survival.freshWater = 3;
+
+  const result = restockCustomShipLoadoutAtPort(state, LONDON, stats, {
+    crew: state.ship.crew,
+    cannons: state.ship.cannons,
+    foodUnits: 1,
+    waterUnits: 3
+  }, { simMinute: 240 });
+
+  assert.equal(state.cargo.hardtack, 1);
+  assert.equal(result.additions.food, 7 / 12);
+  assert.equal(result.removed.food, 0);
+  assert.equal(result.removed.water, 0);
+});
+
 test("port restocking never dumps water that the player cannot replace with food", () => {
   const stats = shipStatsForSlug("fishing-lugger");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });

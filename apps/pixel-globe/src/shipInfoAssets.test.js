@@ -56,6 +56,12 @@ const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const DHOW_SLUG = "dhow";
 const GALLEON_SLUG = "galleon";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
+const KELULUS_SLUG = "kelulus";
+const PROCEDURAL_MALAY_WARSHIP_SLUGS = Object.freeze([
+  "penjajap",
+  "lancaran",
+  "royal-lancaran"
+]);
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
 
 function headingAssetFile(slug, suffix = "") {
@@ -576,6 +582,20 @@ test("the new regional traders use their credited source models and complete bak
       sourcePattern: /borobudur-sriwijaya\/scene\.gltf$/
     },
     {
+      slug: KELULUS_SLUG,
+      creator: "Marque & Reprisal project",
+      sourceTitle: "Procedural Kelulus",
+      license: "Original project asset",
+      sourcePattern: /procedural\/kelulus\/scene\.gltf$/
+    },
+    ...PROCEDURAL_MALAY_WARSHIP_SLUGS.map((slug) => ({
+      slug,
+      creator: "Marque & Reprisal project",
+      sourceTitle: `Procedural ${slug.split("-").map(titlePart).join(" ")}`,
+      license: "Original project asset",
+      sourcePattern: new RegExp(`procedural/${slug}/scene\\.gltf$`)
+    })),
+    {
       slug: OTTOMAN_COASTAL_TRADER_SLUG,
       creator: "Polygora",
       sourceTitle: "Ottoman Coastal Trade Tall Ship 3D Model",
@@ -588,15 +608,23 @@ test("the new regional traders use their credited source models and complete bak
     assert.ok(entry, `${source.slug} manifest entry`);
     assert.equal(entry.creator, source.creator);
     assert.equal(entry.sourceTitle, source.sourceTitle);
-    assert.equal(entry.license, "CC BY 4.0");
+    assert.equal(entry.license, source.license ?? "CC BY 4.0");
     assert.match(entry.sourceModel, source.sourcePattern);
-    assert.equal(entry.files.rowingAnimation, undefined);
+    if (source.slug === KELULUS_SLUG || PROCEDURAL_MALAY_WARSHIP_SLUGS.includes(source.slug)) {
+      assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
+    } else {
+      assert.equal(entry.files.rowingAnimation, undefined);
+    }
     if (source.slug === NUSANTARAN_OUTRIGGER_SLUG) {
       assert.equal(entry.waterlineSlice.expectedHullCount, 1);
       assert.ok(entry.waterlineY < -0.25, "outrigger waterline must stay below its deck and rig");
     }
   }
 });
+
+function titlePart(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 test("the Nusantaran outrigger refracts only its lowest exterior hull pixels", async () => {
   const [sprite, sinkDepth] = await Promise.all([

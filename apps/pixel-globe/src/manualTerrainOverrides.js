@@ -7,13 +7,27 @@ export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
   ])
 });
 
-// The base terrain bake labels the Barents/White Sea route as permanent ice.
-// Weather already supplies seasonal sea ice for these ocean tiles, so retain
-// the winter closure while allowing the historical Kholmogory route to thaw.
+// The base terrain bake labels the northern Norway, Barents, and White Sea
+// coasts as permanent ice. This generated subdivision-7 band contains every
+// permanent-ice ocean tile within two graph edges of the coast from northern
+// Norway around the Kola Peninsula to the White Sea. Runtime weather then
+// decides which of them freeze instead of carving a straight permanent route.
+export const NORWAY_WHITE_SEA_SEASONAL_ICE_RULE = Object.freeze({
+  subdivisions: 7,
+  graphRadius: 2,
+  minLatitude: 65,
+  maxLatitude: 72,
+  minLongitude: 4,
+  maxLongitude: 43
+});
+
 export const MANUAL_SEASONAL_SEA_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze([
-    14116, 56276, 900, 56432, 14152, 56436, 3560, 56428, 14150,
-    56425, 901, 56335, 14129, 56339, 56338, 56352, 56353
+    55207, 13844, 55205, 56347, 56346, 14133, 56353, 56352,
+    56338, 56351, 56339, 14131, 56389, 56340, 14129, 56343,
+    56385, 56335, 14130, 56369, 56336, 901, 56368, 56454,
+    56425, 56426, 14150, 56429, 56428, 56427, 56472, 56479,
+    3560, 56465, 14159, 56466, 56468, 14145, 56404, 14116
   ])
 });
 

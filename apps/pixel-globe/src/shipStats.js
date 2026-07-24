@@ -46,6 +46,10 @@ const SHIP_LABELS = Object.freeze({
   "polynesian-voyaging-canoe": "Polynesian Voyaging Canoe",
   "mesoamerican-dugout-canoe": "Dugout Canoe",
   "nusantaran-outrigger": "Nusantaran Outrigger",
+  kelulus: "Kelulus",
+  penjajap: "Penjajap",
+  lancaran: "Lancaran",
+  "royal-lancaran": "Royal Lancaran",
   "ottoman-coastal-trader": "Ottoman Coastal Trader"
 });
 
@@ -103,6 +107,10 @@ const rawShipStats = [
     NAVAL_WEAPON_ARROW
   ),
   stats("nusantaran-outrigger", 0, 0.022, 0.035, 48, 2.50, 100, 130, 8, SHIP_PROPULSION_SAIL, NAVAL_WEAPON_ARROW),
+  stats("kelulus", 4, 0.027, 0.039, 46, 2.90, 95, 65, 6, SHIP_PROPULSION_OAR_SAIL),
+  stats("penjajap", 6, 0.028, 0.042, 44, 3.05, 115, 45, 6, SHIP_PROPULSION_OAR_SAIL),
+  stats("lancaran", 14, 0.024, 0.041, 48, 2.60, 195, 95, 7, SHIP_PROPULSION_OAR_SAIL),
+  stats("royal-lancaran", 24, 0.019, 0.040, 50, 2.20, 305, 160, 8, SHIP_PROPULSION_OAR_SAIL),
   stats("ottoman-coastal-trader", 8, 0.017, 0.035, 55, 1.90, 170, 240, 7)
 ];
 

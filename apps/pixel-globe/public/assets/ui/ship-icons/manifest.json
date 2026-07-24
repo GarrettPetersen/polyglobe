@@ -411,6 +411,62 @@
       "opaquePixels": 143
     },
     {
+      "slug": "kelulus",
+      "label": "Kelulus",
+      "source": "public/assets/vehicles/unity-ships/kelulus-32-headings.png",
+      "output": "public/assets/ui/ship-icons/kelulus.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 2,
+        "y": 8,
+        "w": 43,
+        "h": 31
+      },
+      "opaquePixels": 110
+    },
+    {
+      "slug": "penjajap",
+      "label": "Penjajap",
+      "source": "public/assets/vehicles/unity-ships/penjajap-32-headings.png",
+      "output": "public/assets/ui/ship-icons/penjajap.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 3,
+        "y": 9,
+        "w": 40,
+        "h": 29
+      },
+      "opaquePixels": 104
+    },
+    {
+      "slug": "lancaran",
+      "label": "Lancaran",
+      "source": "public/assets/vehicles/unity-ships/lancaran-32-headings.png",
+      "output": "public/assets/ui/ship-icons/lancaran.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 3,
+        "y": 9,
+        "w": 41,
+        "h": 29
+      },
+      "opaquePixels": 107
+    },
+    {
+      "slug": "royal-lancaran",
+      "label": "Royal Lancaran",
+      "source": "public/assets/vehicles/unity-ships/royal-lancaran-32-headings.png",
+      "output": "public/assets/ui/ship-icons/royal-lancaran.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 3,
+        "y": 9,
+        "w": 40,
+        "h": 29
+      },
+      "opaquePixels": 114
+    },
+    {
       "slug": "ottoman-coastal-trader",
       "label": "Ottoman Coastal Trader",
       "source": "public/assets/vehicles/unity-ships/ottoman-coastal-trader-32-headings.png",

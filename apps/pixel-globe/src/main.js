@@ -136,7 +136,10 @@ import {
   SHIP_SPRITE_HEADINGS,
   SHIP_SPRITE_SHEET_COLS
 } from "./shipSpriteLayout.js";
-import { SHIP_ROWING_FRAME_COUNT } from "./shipRowingAnimation.js";
+import {
+  SHIP_ROWING_ANIMATION_SPECS,
+  SHIP_ROWING_FRAME_COUNT
+} from "./shipRowingAnimation.js";
 import {
   SHIP_MINIMUM_POWERED_SPEED_RAD,
   sailingEfficiencyForAlignment,
@@ -1064,6 +1067,10 @@ import {
   findNearestRestoredShipPlacement,
   restoredShipPlacementPlan
 } from "./restoredShipNavigation.js";
+import {
+  polarNavigationCollision,
+  shipPositionWithinPolarNavigationLimit
+} from "./polarNavigation.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
@@ -1408,18 +1415,11 @@ const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-3";
-const VEHICLE_ASSET_VERSION = "model-flag-anchors-1";
+const VEHICLE_ASSET_VERSION = "malay-warships-1";
 const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_FLAG_ANCHORS_URL = `assets/vehicles/unity-ships/flag-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
-const ROWING_SHIP_ANIMATION_SPECS = new Map([
-  ["mediterranean-galley", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 125, volume: 0.14, playbackRate: 0.88 })],
-  ["joseon-turtle-ship", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 123, volume: 0.14, playbackRate: 0.92 })],
-  ["joseon-panokseon", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 125, volume: 0.14, playbackRate: 0.90 })],
-  ["japanese-atakebune", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 137, volume: 0.14, playbackRate: 0.84 })],
-  ["viking-longship", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 117, volume: 0.14, playbackRate: 0.96 })],
-  ["mesoamerican-dugout-canoe", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 110, volume: 0.11, playbackRate: 1.08 })]
-]);
+const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
@@ -7727,13 +7727,15 @@ async function restoreSavedVoyage(payload) {
   const savedPosition = normalize3(savedShip.position.slice());
   const positionTileId = findNearestTileId(graph, directionIndex, savedPosition);
   const frozenSavedTile = isShipBlockedByIceTile(savedShip.tileId);
-  const nearestOpenWaterTileId = frozenSavedTile
-    ? nearestTileMatching(savedShip.tileId, isShipOpenWaterTile)
+  const polarOutOfBounds = !shipPositionWithinPolarNavigationLimit(savedPosition);
+  const nearestOpenWaterTileId = frozenSavedTile || polarOutOfBounds
+    ? nearestTileMatching(savedShip.tileId, isPoleSafeShipOpenWaterTile)
     : undefined;
   const restorePlacement = restoredShipPlacementPlan({
     savedTileId: savedShip.tileId,
     positionTileId,
     frozen: frozenSavedTile,
+    polarOutOfBounds,
     nearestOpenWaterTileId
   });
   const position = restorePlacement.recenter
@@ -13656,12 +13658,12 @@ function createShip(latDeg, lonDeg, shipSlug, factionId) {
 
 function nearestShipStartTile(direction) {
   const startId = findNearestTileId(graph, directionIndex, direction);
-  if (isShipNavigableTile(startId)) return startId;
-  const oceanId = nearestTileMatching(startId, isShipOceanTile);
+  if (isPoleSafeShipNavigableTile(startId)) return startId;
+  const oceanId = nearestTileMatching(startId, isPoleSafeShipOceanTile);
   if (oceanId !== undefined) return oceanId;
-  const openWaterId = nearestTileMatching(startId, isShipOpenWaterTile);
+  const openWaterId = nearestTileMatching(startId, isPoleSafeShipOpenWaterTile);
   if (openWaterId !== undefined) return openWaterId;
-  const navigableId = nearestTileMatching(startId, isShipNavigableTile);
+  const navigableId = nearestTileMatching(startId, isPoleSafeShipNavigableTile);
   if (navigableId !== undefined) return navigableId;
   throw new Error("Could not find a navigable start tile for the ship");
 }
@@ -14494,6 +14496,13 @@ function attemptShipStep(fromPosition, fromTileId, step) {
       fromPosition[1] + step[1] * (i / segments),
       fromPosition[2] + step[2] * (i / segments)
     ]);
+    const polarCollision = polarNavigationCollision(fromPosition, position);
+    if (polarCollision) {
+      return {
+        ok: false,
+        normal: polarCollision.normal
+      };
+    }
     const localPoint = localCollisionPointForPosition(fromPosition, position);
     const collisionTile = localCollisionTileAtPoint(localPoint.x, localPoint.y);
     if (!collisionTile) return { ok: false };
@@ -14782,6 +14791,10 @@ function isShipNavigableTile(tileId) {
   return isShipOpenWaterTile(tileId) || shipTileHasRiver(tileId);
 }
 
+function isPoleSafeShipNavigableTile(tileId) {
+  return isShipNavigableTile(tileId) && shipPositionWithinPolarNavigationLimit(tileCenterVector(tileId));
+}
+
 function isShipBaseNavigableTile(tileId) {
   return isWaterSurfaceRow(earthById[tileId]) || shipTileHasRiver(tileId);
 }
@@ -14790,8 +14803,16 @@ function isShipOpenWaterTile(tileId) {
   return isWaterSurfaceRow(earthById[tileId]) && !isShipBlockedByIceTile(tileId);
 }
 
+function isPoleSafeShipOpenWaterTile(tileId) {
+  return isShipOpenWaterTile(tileId) && shipPositionWithinPolarNavigationLimit(tileCenterVector(tileId));
+}
+
 function isShipOceanTile(tileId) {
   return earthById[tileId]?.t === "water" && !isShipBlockedByIceTile(tileId);
+}
+
+function isPoleSafeShipOceanTile(tileId) {
+  return isShipOceanTile(tileId) && shipPositionWithinPolarNavigationLimit(tileCenterVector(tileId));
 }
 
 function isShipBlockedByIceTile(tileId) {
@@ -31340,10 +31361,7 @@ function drawDemoStatsScreen(state, elapsedMs) {
     align: "center"
   });
   if (elapsedMs >= 900) {
-    drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, SCREEN_H - 16, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "center"
-    });
+    drawGameOverReturnPrompt(SCREEN_H - 16);
   }
 }
 
@@ -31398,10 +31416,7 @@ function drawVictoryStatsScreen(state, elapsedMs) {
   });
   if (elapsedMs >= 900) {
     ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, SCREEN_H - 16, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "center"
-    });
+    drawGameOverReturnPrompt(SCREEN_H - 16);
   }
 }
 
@@ -31505,9 +31520,27 @@ function drawGameOverStatsScreen(state) {
   }
 
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, layout.promptY, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center"
+  drawGameOverReturnPrompt(layout.promptY);
+}
+
+function drawGameOverReturnPrompt(textY) {
+  const keyboardLabel = "PRESS ANY KEY TO RETURN TO START MENU";
+  if (!controllerPromptsVisible()) {
+    drawPixelText(keyboardLabel, SCREEN_W / 2, textY, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+    return;
+  }
+
+  const label = "RETURN TO START MENU";
+  const gap = 3;
+  const textWidth = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8);
+  const contentWidth = GAME_ICON_SIZE + gap + textWidth;
+  const contentX = Math.floor((SCREEN_W - contentWidth) / 2);
+  drawControllerActionGlyph("confirm", contentX, textY - 4);
+  drawPixelText(label, contentX + GAME_ICON_SIZE + gap, textY, {
+    font: PIXEL_FONT_SMALL_8
   });
 }
 

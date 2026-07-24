@@ -225,6 +225,44 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/joseon-turtle-ship-waterline.png"
     },
     {
+      "slug": "kelulus",
+      "label": "Kelulus",
+      "waterlineY": -0.4595204142564566,
+      "waterlineOffsetY": -0.02,
+      "sideViewWaterlineY": 73,
+      "lowestOpaquePixelY": 78,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 12,
+      "oarPivotPixels": [
+        {
+          "x": 65,
+          "y": 71
+        },
+        {
+          "x": 77,
+          "y": 71
+        },
+        {
+          "x": 89,
+          "y": 71
+        },
+        {
+          "x": 102,
+          "y": 71
+        },
+        {
+          "x": 114,
+          "y": 71
+        },
+        {
+          "x": 126,
+          "y": 71
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/kelulus-waterline.png"
+    },
+    {
       "slug": "ketch",
       "label": "Lateen Barque",
       "waterlineY": -0.5115140875905757,
@@ -236,6 +274,40 @@
       "oarPivotCount": 0,
       "oarPivotPixels": [],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/ketch-waterline.png"
+    },
+    {
+      "slug": "lancaran",
+      "label": "Lancaran",
+      "waterlineY": -0.36045856581135,
+      "waterlineOffsetY": 0.04,
+      "sideViewWaterlineY": 67,
+      "lowestOpaquePixelY": 70,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 10,
+      "oarPivotPixels": [
+        {
+          "x": 65,
+          "y": 65
+        },
+        {
+          "x": 80,
+          "y": 65
+        },
+        {
+          "x": 95,
+          "y": 65
+        },
+        {
+          "x": 110,
+          "y": 65
+        },
+        {
+          "x": 125,
+          "y": 65
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/lancaran-waterline.png"
     },
     {
       "slug": "large-junk",
@@ -346,6 +418,36 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/ottoman-coastal-trader-waterline.png"
     },
     {
+      "slug": "penjajap",
+      "label": "Penjajap",
+      "waterlineY": -0.38265876247761527,
+      "waterlineOffsetY": -0.02,
+      "sideViewWaterlineY": 70,
+      "lowestOpaquePixelY": 71,
+      "lowestOpaqueRelativeToWaterlinePx": 1,
+      "opaqueRowsBelowWaterline": 1,
+      "oarPivotCount": 8,
+      "oarPivotPixels": [
+        {
+          "x": 70,
+          "y": 68
+        },
+        {
+          "x": 87,
+          "y": 68
+        },
+        {
+          "x": 104,
+          "y": 68
+        },
+        {
+          "x": 121,
+          "y": 68
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/penjajap-waterline.png"
+    },
+    {
       "slug": "pirate-brig",
       "label": "Heavy Caravel",
       "waterlineY": -0.7496062855636385,
@@ -383,6 +485,44 @@
       "oarPivotCount": 0,
       "oarPivotPixels": [],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/portuguese-carrack-waterline.png"
+    },
+    {
+      "slug": "royal-lancaran",
+      "label": "Royal Lancaran",
+      "waterlineY": -0.39995338508428724,
+      "waterlineOffsetY": 0.04,
+      "sideViewWaterlineY": 68,
+      "lowestOpaquePixelY": 70,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
+      "oarPivotCount": 12,
+      "oarPivotPixels": [
+        {
+          "x": 62,
+          "y": 65
+        },
+        {
+          "x": 75,
+          "y": 65
+        },
+        {
+          "x": 88,
+          "y": 65
+        },
+        {
+          "x": 102,
+          "y": 65
+        },
+        {
+          "x": 115,
+          "y": 65
+        },
+        {
+          "x": 129,
+          "y": 65
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/royal-lancaran-waterline.png"
     },
     {
       "slug": "sampan",

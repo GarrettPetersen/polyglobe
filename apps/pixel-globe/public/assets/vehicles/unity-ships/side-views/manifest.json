@@ -424,6 +424,62 @@
       "creator": "Polygora",
       "license": "CC BY 4.0",
       "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model"
+    },
+    {
+      "slug": "kelulus",
+      "label": "Kelulus",
+      "sourceModel": "apps/pixel-globe/source-models/procedural/kelulus/scene.gltf",
+      "sourceMaxDim": 5.4404,
+      "targetModelMaxDim": 1.68,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/kelulus.png",
+      "creator": "Marque & Reprisal project",
+      "license": "Original project asset",
+      "sourceTitle": "Procedural Kelulus"
+    },
+    {
+      "slug": "penjajap",
+      "label": "Penjajap",
+      "sourceModel": "apps/pixel-globe/source-models/procedural/penjajap/scene.gltf",
+      "sourceMaxDim": 7.6844,
+      "targetModelMaxDim": 1.74,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/penjajap.png",
+      "creator": "Marque & Reprisal project",
+      "license": "Original project asset",
+      "sourceTitle": "Procedural Penjajap"
+    },
+    {
+      "slug": "lancaran",
+      "label": "Lancaran",
+      "sourceModel": "apps/pixel-globe/source-models/procedural/lancaran/scene.gltf",
+      "sourceMaxDim": 8.9162,
+      "targetModelMaxDim": 1.74,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/lancaran.png",
+      "creator": "Marque & Reprisal project",
+      "license": "Original project asset",
+      "sourceTitle": "Procedural Lancaran"
+    },
+    {
+      "slug": "royal-lancaran",
+      "label": "Royal Lancaran",
+      "sourceModel": "apps/pixel-globe/source-models/procedural/royal-lancaran/scene.gltf",
+      "sourceMaxDim": 10.0965,
+      "targetModelMaxDim": 1.78,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/royal-lancaran.png",
+      "creator": "Marque & Reprisal project",
+      "license": "Original project asset",
+      "sourceTitle": "Procedural Royal Lancaran"
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -438,5 +494,7 @@
   "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
   "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
   "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
-  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog"
+  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog",
+  "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
+  "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships"
 }

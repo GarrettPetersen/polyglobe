@@ -89,6 +89,7 @@ import {
 } from "./shipLoadouts.js";
 import { cannonReloadWorkRate } from "./navalWeapons.js";
 import { crewWorkMultiplier } from "./crewEffectiveness.js";
+import { formatDisplayQuantity } from "./displayNumber.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import { shipyardPurchaseTerms } from "./shipyards.js";
@@ -3297,8 +3298,8 @@ function customLoadoutView(session, city, gameState, context) {
 
 function loadoutRemovalSummary(removed) {
   const phrases = [];
-  if (removed.food > 0) phrases.push(`${removed.food} hardtack`);
-  if (removed.water > 0) phrases.push(`${removed.water} water`);
+  if (removed.food > 0) phrases.push(`${formatDisplayQuantity(removed.food)} hardtack`);
+  if (removed.water > 0) phrases.push(`${formatDisplayQuantity(removed.water)} water`);
   const dumped = phrases.length > 0 ? ` Dumped ${phrases.join(" and ")}.` : "";
   const reductions = [];
   if (removed.crew > 0) reductions.push(`${removed.crew} crew`);

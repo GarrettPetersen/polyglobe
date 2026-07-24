@@ -123,6 +123,10 @@ const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
+const KELULUS_SLUG = "kelulus";
+const PENJAJAP_SLUG = "penjajap";
+const LANCARAN_SLUG = "lancaran";
+const ROYAL_LANCARAN_SLUG = "royal-lancaran";
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
 const EAST_ASIAN_FACTION_WARSHIPS = Object.freeze({
   joseon: JOSEON_TURTLE_SHIP_SLUG,
@@ -269,9 +273,27 @@ const FLEET_PROFILES = Object.freeze([
     merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
     warships: ["small-junk", "medium-junk", "large-junk"]
   }, isEastAsiaPort, "regional"),
-  profile("indian-ocean", 34, {
+  profile("southeast-asia", 10, {
+    fishers: ["sampan", "dhow"],
+    merchants: [
+      KELULUS_SLUG,
+      KELULUS_SLUG,
+      PENJAJAP_SLUG,
+      NUSANTARAN_OUTRIGGER_SLUG,
+      "small-junk"
+    ],
+    warships: [
+      PENJAJAP_SLUG,
+      PENJAJAP_SLUG,
+      LANCARAN_SLUG,
+      LANCARAN_SLUG,
+      ROYAL_LANCARAN_SLUG,
+      "medium-junk"
+    ]
+  }, isSoutheastAsiaPort, "regional"),
+  profile("indian-ocean", 28, {
     fishers: ["dhow", "felucca", "felucca"],
-    merchants: ["dhow", "felucca", "dhow", "dhow", NUSANTARAN_OUTRIGGER_SLUG],
+    merchants: ["dhow", "felucca", "dhow", "dhow"],
     warships: ["xebec", "xebec", "xebec"]
   }, isIndianOceanPort, "regional"),
   profile("mediterranean", 28, {
@@ -2459,8 +2481,11 @@ function isEastAsiaPort(port) {
 
 function isIndianOceanPort(port) {
   return port.cityType === "south-asian" ||
-    port.cityType === "southeast-asian" ||
     (port.lon >= 38 && port.lon <= 86 && port.lat >= -12 && port.lat <= 28);
+}
+
+function isSoutheastAsiaPort(port) {
+  return port.cityType === "southeast-asian";
 }
 
 function isPolynesianPort(port) {

@@ -70,6 +70,30 @@ export const BOROBUDUR_SHIP_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const KELULUS_MODEL_CREDIT = Object.freeze({
+  creator: "Marque & Reprisal project",
+  sourceTitle: "Procedural Kelulus",
+  license: "Original project asset"
+});
+
+export const PENJAJAP_MODEL_CREDIT = Object.freeze({
+  creator: "Marque & Reprisal project",
+  sourceTitle: "Procedural Penjajap",
+  license: "Original project asset"
+});
+
+export const LANCARAN_MODEL_CREDIT = Object.freeze({
+  creator: "Marque & Reprisal project",
+  sourceTitle: "Procedural Lancaran",
+  license: "Original project asset"
+});
+
+export const ROYAL_LANCARAN_MODEL_CREDIT = Object.freeze({
+  creator: "Marque & Reprisal project",
+  sourceTitle: "Procedural Royal Lancaran",
+  license: "Original project asset"
+});
+
 export const OTTOMAN_COASTAL_TRADER_MODEL_CREDIT = Object.freeze({
   creator: "Polygora",
   sourceTitle: "Ottoman Coastal Trade Tall Ship 3D Model",
@@ -131,6 +155,10 @@ export const MODEL_CREDITS = Object.freeze([
   GOGIART_DHOW_MODEL_CREDIT,
   CYC3W_SAILING_SHIP_MODEL_CREDIT,
   BOROBUDUR_SHIP_MODEL_CREDIT,
+  KELULUS_MODEL_CREDIT,
+  PENJAJAP_MODEL_CREDIT,
+  LANCARAN_MODEL_CREDIT,
+  ROYAL_LANCARAN_MODEL_CREDIT,
   OTTOMAN_COASTAL_TRADER_MODEL_CREDIT,
   NORTH_ATLANTIC_RIGHT_WHALE_MODEL_CREDIT,
   BLUE_WHALE_MODEL_CREDIT,

@@ -43,6 +43,11 @@
 - gogiart - "Dhow" (CC BY 4.0)
 - cyc3w - "Sailing ship" (CC BY 4.0)
 - Nisa Nurul Azizah - "Low Poly Borobudur Ship of Sriwijaya" (CC BY 4.0)
+- Marque & Reprisal project - "Procedural Kelulus" (Original project asset)
+- Marque & Reprisal project - "Procedural Penjajap" (Original project asset)
+- Marque & Reprisal project - "Procedural Lancaran" (Original project asset)
+- Marque & Reprisal project - "Procedural Royal Lancaran" (Original project asset)
+- Deni Kaharudin's historical ship designs informed the silhouettes of the original Penjajap and Lancaran models; no source geometry was used.
 - Polygora - "Ottoman Coastal Trade Tall Ship 3D Model" (CC BY 4.0)
 - VoltVeigh - "North Atlantic right whale" (CC BY 4.0)
 - Erik - "Blue Whale" (CC BY 4.0)

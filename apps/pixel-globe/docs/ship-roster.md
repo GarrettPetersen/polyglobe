@@ -39,6 +39,10 @@ For development, `?startShip={slug}` starts a new voyage with any roster ship. T
 | Spanish Nao | `spanish-nao` | Nao Victoria Galleon Ship | early-16th-century Spanish nao / small carrack | High | Spain-specific exploration hull based on Nao Victoria. Its unusually dark texture receives a uniform brightness adjustment during baking. |
 | Portuguese Carrack | `portuguese-carrack` | Portuguese Carrack | early-16th-century Portuguese carrack | High | Portugal-specific armed ocean-going merchant retaining its cream-and-red sail treatment. |
 | Nusantaran Outrigger | `nusantaran-outrigger` | Low Poly Borobudur Ship of Sriwijaya | ocean-going double-outrigger trading vessel | High | An older Borobudur reconstruction used as a representative descendant of the Nusantaran outrigger tradition in 1522. |
+| Kelulus | `kelulus` | Procedural Kelulus | Malay oar-and-sail vessel | Medium | Original low-poly reconstruction based on period silhouettes: a narrow double-ended hull, canted tanja sail, shelter, and animated oars. |
+| Penjajap | `penjajap` | Procedural Penjajap | light Malay coastal raider | Medium | Original one-masted reconstruction with a lean shallow hull and four thick representative oar pairs for pixel clarity. |
+| Lancaran | `lancaran` | Procedural Lancaran | Malay fleet warship | Medium | Original two-masted reconstruction with fighting platforms and five representative oar pairs. |
+| Royal Lancaran | `royal-lancaran` | Procedural Royal Lancaran | large Malay command warship | Medium | Original three-masted flagship reconstruction with dyed sails, gilt rails, a royal pavilion, and six representative oar pairs. |
 | Ottoman Coastal Trader | `ottoman-coastal-trader` | Ottoman Coastal Trade Tall Ship 3D Model | armed Ottoman coastal merchant | Medium | Ottoman-specific regional merchant; the source does not establish a narrower historical class. |
 | Viking Longship | `viking-longship` | Viking Ship 1 | Norse-style clinker-built longship reconstruction | High | Special quest ship. Its bright striped sail is retained and its animated oars are procedurally baked. |
 
@@ -73,6 +77,10 @@ The source of truth for gameplay tuning is `apps/pixel-globe/src/shipStats.js`. 
 | Spanish Nao | `spanish-nao` | 8 | 0.017 | 0.034 | 54deg | 1.90 | 13 | 180 |
 | Portuguese Carrack | `portuguese-carrack` | 22 | 0.013 | 0.036 | 58deg | 1.45 | 31 | 440 |
 | Nusantaran Outrigger | `nusantaran-outrigger` | 0 (arrows) | 0.022 | 0.035 | 48deg | 2.50 | 10 | 130 |
+| Kelulus | `kelulus` | 4 | 0.027 | 0.039 | 46deg | 2.90 | 10 | 65 |
+| Penjajap | `penjajap` | 6 | 0.028 | 0.042 | 44deg | 3.05 | 12 | 45 |
+| Lancaran | `lancaran` | 14 | 0.024 | 0.041 | 48deg | 2.60 | 20 | 95 |
+| Royal Lancaran | `royal-lancaran` | 24 | 0.019 | 0.040 | 50deg | 2.20 | 31 | 160 |
 | Ottoman Coastal Trader | `ottoman-coastal-trader` | 8 | 0.017 | 0.035 | 55deg | 1.90 | 17 | 240 |
 | Viking Longship | `viking-longship` | 0 (arrows) | 0.030 | 0.043 | 55deg | 2.75 | 18 | 90 |
 

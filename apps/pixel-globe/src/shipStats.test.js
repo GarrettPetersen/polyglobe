@@ -191,6 +191,42 @@ test("the Nusantaran outrigger is a seaworthy regional arrow ship and trader", (
   assert.ok(outrigger.seaworthiness >= shipStatsForSlug("large-junk").seaworthiness);
 });
 
+test("the Kelulus is a fast compact Malay oar-and-sail raider", () => {
+  const kelulus = shipStatsForSlug("kelulus");
+  const smallJunk = shipStatsForSlug("small-junk");
+
+  assert.equal(shipLabelForSlug(kelulus.slug), "Kelulus");
+  assert.equal(kelulus.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(kelulus.cannons, 4);
+  assert.ok(kelulus.topSpeedRad > smallJunk.topSpeedRad);
+  assert.ok(kelulus.turnRateRad > smallJunk.turnRateRad);
+  assert.ok(kelulus.cargoCapacity < smallJunk.cargoCapacity);
+  assert.ok(kelulus.seaworthiness >= smallJunk.seaworthiness);
+});
+
+test("Malay warships form a distinct light-to-flagship progression", () => {
+  const penjajap = shipStatsForSlug("penjajap");
+  const lancaran = shipStatsForSlug("lancaran");
+  const royal = shipStatsForSlug("royal-lancaran");
+
+  assert.equal(shipLabelForSlug(penjajap.slug), "Penjajap");
+  assert.equal(shipLabelForSlug(lancaran.slug), "Lancaran");
+  assert.equal(shipLabelForSlug(royal.slug), "Royal Lancaran");
+  for (const ship of [penjajap, lancaran, royal]) {
+    assert.equal(ship.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  }
+  assert.ok(penjajap.topSpeedRad > lancaran.topSpeedRad);
+  assert.ok(lancaran.topSpeedRad > royal.topSpeedRad);
+  assert.ok(penjajap.turnRateRad > lancaran.turnRateRad);
+  assert.ok(lancaran.turnRateRad > royal.turnRateRad);
+  assert.ok(penjajap.cannons < lancaran.cannons);
+  assert.ok(lancaran.cannons < royal.cannons);
+  assert.ok(penjajap.mass < lancaran.mass);
+  assert.ok(lancaran.mass < royal.mass);
+  assert.ok(penjajap.cargoCapacity < lancaran.cargoCapacity);
+  assert.ok(lancaran.cargoCapacity < royal.cargoCapacity);
+});
+
 test("the Ottoman coastal trader is an armed regional merchant", () => {
   const trader = shipStatsForSlug("ottoman-coastal-trader");
 

@@ -73,6 +73,7 @@ const MESOAMERICAN_PORTS = Object.freeze([
 
 test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
+  assert.ok(NPC_SHIP_SLUGS.includes("kelulus"));
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
 });
 
@@ -307,6 +308,30 @@ test("Pacific villages get a small regional fishing and trading fleet", () => {
   assert.ok(routes.ports.filter((port) => port.routeRegion === "polynesia").length >= PACIFIC_PORTS.length);
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
+});
+
+test("Southeast Asian traffic includes the regional Malay fleet", () => {
+  const ports = [
+    ...PORTS,
+    port(10, "Aceh", "Indonesia", "southeast-asian", 5.55, 95.32, 35000, "neutral")
+  ];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  const regionalShips = routes.ships.filter((ship) => ship.profileId === "southeast-asia");
+
+  assert.ok(regionalShips.length > 0);
+  assert.ok(regionalShips.some((ship) => ship.slug === "kelulus"));
+  assert.ok(regionalShips.some((ship) => (
+    ship.slug === "penjajap" ||
+    ship.slug === "lancaran" ||
+    ship.slug === "royal-lancaran"
+  )));
+  assert.ok(regionalShips
+    .filter((ship) => ["kelulus", "penjajap", "lancaran", "royal-lancaran"].includes(ship.slug))
+    .every((ship) => ship.cultureType === "southeast-asian"));
+  assert.ok(routes.ships
+    .filter((ship) => ship.profileId === "indian-ocean")
+    .every((ship) => !["kelulus", "penjajap", "lancaran", "royal-lancaran"].includes(ship.slug)));
 });
 
 test("independent Mesoamerican villages get a sparse dugout-canoe fishing fleet", () => {

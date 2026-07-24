@@ -91,7 +91,7 @@ Build the looping feature banners for Steam's About This Game description from t
 make pixel-globe-steam-inline-videos
 ```
 
-[Steam's extra-asset guidance](https://partner.steamgames.com/doc/store/page/assets) recommends a width of `1170px`, accepts WebM, and limits animations to 12 seconds. The tracked plan produces eight silent, 8.5-second VP9 WebMs at `1170x270` with BT.709 metadata. Each video takes the native canvas's central `390x90` band and scales it exactly 3x, preserving the pixel grid while leaving its Pirata One feature heading fixed at the left. Outputs and their manifest are written to `apps/pixel-globe/.captures/steam-inline-videos/`.
+[Steam's extra-asset guidance](https://partner.steamgames.com/doc/store/page/assets) recommends a width of `1170px`, accepts WebM, and limits animations to 12 seconds. The tracked plan produces eight silent, 8.5-second VP9 WebMs at `1170x270` with BT.709 metadata for every supported Steam language. Each video takes the native canvas's central `390x90` band and scales it exactly 3x, preserving the pixel grid while leaving its localized feature heading fixed at the left. Latin headings use Pirata One; Russian and Asian headings use the corresponding storefront capsule font. Upload-ready files use Steam language suffixes such as `explore_english.webm`, `explore_schinese.webm`, and `explore_koreana.webm`. Outputs, a localized heading review sheet, and their manifest are written to `apps/pixel-globe/.captures/steam-inline-videos/`.
 
 ## 6. Build the Short
 

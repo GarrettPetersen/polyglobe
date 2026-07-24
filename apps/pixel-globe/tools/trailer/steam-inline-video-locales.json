@@ -1,0 +1,180 @@
+{
+  "locales": [
+    {
+      "appLocale": "en",
+      "steamCode": "english",
+      "label": "English",
+      "font": "pirata",
+      "headings": {
+        "explore": "Explore",
+        "trade": "Trade",
+        "fish": "Fish",
+        "whale": "Whale",
+        "colonize": "Colonize",
+        "fight": "Fight",
+        "pillage": "Pillage",
+        "survive": "Survive"
+      }
+    },
+    {
+      "appLocale": "zh-Hans",
+      "steamCode": "schinese",
+      "label": "Simplified Chinese",
+      "font": "ma-shan-zheng",
+      "headings": {
+        "explore": "探索",
+        "trade": "贸易",
+        "fish": "捕鱼",
+        "whale": "捕鲸",
+        "colonize": "殖民",
+        "fight": "战斗",
+        "pillage": "劫掠",
+        "survive": "生存"
+      }
+    },
+    {
+      "appLocale": "ru",
+      "steamCode": "russian",
+      "label": "Russian",
+      "font": "yeseva",
+      "headings": {
+        "explore": "Исследуй",
+        "trade": "Торгуй",
+        "fish": "Рыбачь",
+        "whale": "Охоться на китов",
+        "colonize": "Основывай колонии",
+        "fight": "Сражайся",
+        "pillage": "Грабь",
+        "survive": "Выживай"
+      }
+    },
+    {
+      "appLocale": "es",
+      "steamCode": "spanish",
+      "label": "Spanish",
+      "font": "pirata",
+      "headings": {
+        "explore": "Explora",
+        "trade": "Comercia",
+        "fish": "Pesca",
+        "whale": "Caza ballenas",
+        "colonize": "Coloniza",
+        "fight": "Lucha",
+        "pillage": "Saquea",
+        "survive": "Sobrevive"
+      }
+    },
+    {
+      "appLocale": "pt-BR",
+      "steamCode": "brazilian",
+      "label": "Portuguese (Brazil)",
+      "font": "pirata",
+      "headings": {
+        "explore": "Explore",
+        "trade": "Negocie",
+        "fish": "Pesque",
+        "whale": "Cace baleias",
+        "colonize": "Colonize",
+        "fight": "Lute",
+        "pillage": "Saqueie",
+        "survive": "Sobreviva"
+      }
+    },
+    {
+      "appLocale": "ja",
+      "steamCode": "japanese",
+      "label": "Japanese",
+      "font": "yuji-boku",
+      "headings": {
+        "explore": "探検",
+        "trade": "交易",
+        "fish": "漁業",
+        "whale": "捕鯨",
+        "colonize": "植民",
+        "fight": "戦闘",
+        "pillage": "略奪",
+        "survive": "生存"
+      }
+    },
+    {
+      "appLocale": "de",
+      "steamCode": "german",
+      "label": "German",
+      "font": "pirata",
+      "headings": {
+        "explore": "Erkunde",
+        "trade": "Handle",
+        "fish": "Fische",
+        "whale": "Jage Wale",
+        "colonize": "Kolonisiere",
+        "fight": "Kämpfe",
+        "pillage": "Plündere",
+        "survive": "Überlebe"
+      }
+    },
+    {
+      "appLocale": "fr",
+      "steamCode": "french",
+      "label": "French",
+      "font": "pirata",
+      "headings": {
+        "explore": "Explorez",
+        "trade": "Commercez",
+        "fish": "Pêchez",
+        "whale": "Chassez la baleine",
+        "colonize": "Colonisez",
+        "fight": "Combattez",
+        "pillage": "Pillez",
+        "survive": "Survivez"
+      }
+    },
+    {
+      "appLocale": "pl",
+      "steamCode": "polish",
+      "label": "Polish",
+      "font": "pirata",
+      "headings": {
+        "explore": "Odkrywaj",
+        "trade": "Handluj",
+        "fish": "Łów ryby",
+        "whale": "Poluj na wieloryby",
+        "colonize": "Zakładaj kolonie",
+        "fight": "Walcz",
+        "pillage": "Plądruj",
+        "survive": "Przetrwaj"
+      }
+    },
+    {
+      "appLocale": "zh-Hant",
+      "steamCode": "tchinese",
+      "label": "Traditional Chinese",
+      "font": "masa",
+      "headings": {
+        "explore": "探索",
+        "trade": "貿易",
+        "fish": "捕魚",
+        "whale": "捕鯨",
+        "colonize": "殖民",
+        "fight": "戰鬥",
+        "pillage": "劫掠",
+        "survive": "生存"
+      }
+    },
+    {
+      "appLocale": "ko",
+      "steamCode": "koreana",
+      "label": "Korean",
+      "font": "nanum-brush",
+      "headings": {
+        "explore": "탐험",
+        "trade": "무역",
+        "fish": "낚시",
+        "whale": "포경",
+        "colonize": "식민",
+        "fight": "전투",
+        "pillage": "약탈",
+        "survive": "생존"
+      }
+    }
+  ]
+}

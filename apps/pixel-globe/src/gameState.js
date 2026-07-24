@@ -131,6 +131,7 @@ import {
   occupiedCargoTicks,
   wholeCargoUnitsAvailable
 } from "./cargoSpace.js";
+import { formatDisplayQuantity } from "./displayNumber.js";
 import {
   createJapaneseMatchlockQuestMemory,
   validateJapaneseMatchlockQuestMemory
@@ -1388,7 +1389,7 @@ export function cargoQuantityLabel(good, quantity) {
   if (!Number.isInteger(quantity) || quantity < 0) {
     throw new Error(`Invalid ${good.id || "unknown"} cargo quantity: ${quantity}`);
   }
-  return `x${quantity}`;
+  return `x${formatDisplayQuantity(quantity)}`;
 }
 
 export function cargoSpaceLabel(space) {
@@ -1613,8 +1614,8 @@ function restockShipLoadoutPlanAtPort(state, city, plan, context) {
     removed: {
       crew: Math.max(0, before.crew - after.crew + additions.crew),
       cannons: Math.max(0, before.cannons - after.cannons + additions.cannons),
-      food: Math.max(0, before.food - after.food + additions.food),
-      water: Math.max(0, before.water - after.water + additions.water)
+      food: normalizeFoodCargoQuantity(Math.max(0, before.food - after.food + additions.food)),
+      water: normalizeFreshWater(Math.max(0, before.water - after.water + additions.water))
     },
     shortfalls: loadoutShortfalls(state, plan)
   };

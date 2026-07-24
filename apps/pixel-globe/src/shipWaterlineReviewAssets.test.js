@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import { SHIP_ROWING_ANIMATION_SPECS } from "./shipRowingAnimation.js";
 import { SHIP_STATS } from "./shipStats.js";
 import {
   SHIP_MIN_RASTER_WATERLINE_DEPTH,
@@ -11,16 +12,14 @@ import {
 } from "./shipWaterline.js";
 
 const reviewRoot = join(dirname(fileURLToPath(import.meta.url)), "../docs/ship-reference/waterlines");
-const PROCEDURAL_OAR_SHIPS = new Set([
-  "japanese-atakebune",
-  "joseon-panokseon",
-  "joseon-turtle-ship",
-  "mediterranean-galley",
-  "mesoamerican-dugout-canoe",
-  "viking-longship"
-]);
+const PROCEDURAL_OAR_SHIPS = new Set(SHIP_ROWING_ANIMATION_SPECS.keys());
 const MAX_OAR_PIVOT_HEIGHT_PX = 5;
 const TURTLE_SHIP_MAX_OAR_PIVOT_HEIGHT_PX = 2;
+const MALAY_WARSHIP_OAR_PIVOT_COUNTS = Object.freeze({
+  penjajap: 8,
+  lancaran: 10,
+  "royal-lancaran": 12
+});
 
 test("waterline review covers the production roster with an exact blue guide", async () => {
   const manifest = JSON.parse(await readFile(join(reviewRoot, "manifest.json"), "utf8"));
@@ -99,6 +98,13 @@ test("waterline review covers the production roster with an exact blue guide", a
     }
     if (entry.slug === "joseon-panokseon") {
       assert.equal(entry.lowestOpaqueRelativeToWaterlinePx, 3);
+    }
+    if (MALAY_WARSHIP_OAR_PIVOT_COUNTS[entry.slug]) {
+      assert.equal(
+        entry.oarPivotCount,
+        MALAY_WARSHIP_OAR_PIVOT_COUNTS[entry.slug],
+        `${entry.slug} keeps its simplified representative oar bank`
+      );
     }
   }
 });

@@ -7,10 +7,14 @@ import {
   MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS,
   MANUAL_SEASONAL_SEA_TILE_IDS_BY_SUBDIVISIONS,
   MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS,
+  NORWAY_WHITE_SEA_SEASONAL_ICE_RULE,
   applyManualTerrainOverrides,
   assertManualShallowWaterReachesOcean
 } from "./manualTerrainOverrides.js";
-import { isWaterSurfaceRow } from "./terrainSurface.js";
+import {
+  isPermanentSeaIceRow,
+  isWaterSurfaceRow
+} from "./terrainSurface.js";
 import {
   WEATHER_DAYS,
   decodePixelRuntimeWeatherBakeFile,
@@ -105,7 +109,7 @@ test("Cambay's corrected bay has a continuous water route to the Arabian Sea", a
   assert.equal(visited.has(GULF_OF_KHAMBHAT_OUTLET_TILE_ID), true);
 });
 
-test("the White Sea route uses seasonal water instead of permanent pack ice", async () => {
+test("the Norway-to-White-Sea coast uses weather-controlled water instead of permanent pack ice", async () => {
   const earth = JSON.parse(await readFile(
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
     "utf8"
@@ -113,7 +117,7 @@ test("the White Sea route uses seasonal water instead of permanent pack ice", as
   const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
   const seasonalTiles = MANUAL_SEASONAL_SEA_TILE_IDS_BY_SUBDIVISIONS[SUBDIVISIONS];
 
-  assert.equal(seasonalTiles.length, 17);
+  assert.equal(seasonalTiles.length, 40);
   for (const tileId of seasonalTiles) {
     assert.equal(earth.tiles[tileId].t, "ice");
     assert.equal(correctedRows[tileId].t, "water");
@@ -121,7 +125,63 @@ test("the White Sea route uses seasonal water instead of permanent pack ice", as
   }
 });
 
-test("every corrected White Sea tile freezes and thaws during the weather year", async () => {
+test("the Norway-to-White-Sea seasonal band exactly follows the two-edge coastal rule", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+  const rule = NORWAY_WHITE_SEA_SEASONAL_ICE_RULE;
+  const distanceFromCoast = new Int8Array(graph.tileCount);
+  distanceFromCoast.fill(-1);
+  const queue = [];
+
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    const latitude = graph.latDeg[tileId];
+    const longitude = graph.lonDeg[tileId];
+    const row = earth.tiles[tileId];
+    const isRegionalLand =
+      latitude >= rule.minLatitude &&
+      latitude <= rule.maxLatitude &&
+      longitude >= rule.minLongitude &&
+      longitude <= rule.maxLongitude &&
+      !isWaterSurfaceRow(row) &&
+      !isPermanentSeaIceRow(row);
+    if (!isRegionalLand) continue;
+    distanceFromCoast[tileId] = 0;
+    queue.push(tileId);
+  }
+
+  for (let head = 0; head < queue.length; head++) {
+    const tileId = queue[head];
+    const nextDistance = distanceFromCoast[tileId] + 1;
+    if (nextDistance > rule.graphRadius) continue;
+    for (const neighborId of graph.neighbors[tileId]) {
+      if (distanceFromCoast[neighborId] !== -1) continue;
+      distanceFromCoast[neighborId] = nextDistance;
+      queue.push(neighborId);
+    }
+  }
+
+  const expectedTileIds = [];
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if (
+      distanceFromCoast[tileId] > 0 &&
+      distanceFromCoast[tileId] <= rule.graphRadius &&
+      isPermanentSeaIceRow(earth.tiles[tileId])
+    ) expectedTileIds.push(tileId);
+  }
+  const actualTileIds = [
+    ...MANUAL_SEASONAL_SEA_TILE_IDS_BY_SUBDIVISIONS[SUBDIVISIONS]
+  ].sort((a, b) => a - b);
+
+  assert.equal(rule.subdivisions, SUBDIVISIONS);
+  assert.deepEqual(actualTileIds, expectedTileIds);
+  assert.equal(actualTileIds.includes(56432), false, "the old straight Barents Sea cut must remain closed");
+  assert.equal(actualTileIds.includes(56404), true, "the route must bend south along the Kola coast");
+});
+
+test("the corrected Norway-to-White-Sea band follows the weather year", async () => {
   const [earthSource, weatherSource] = await Promise.all([
     readFile(new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot), "utf8"),
     readFile(new URL("examples/globe-demo/public/globe-runtime-bake-7.bin", repoRoot))
@@ -147,10 +207,16 @@ test("every corrected White Sea tile freezes and thaws during the weather year",
       if (iceMask[tileId]) iceDaysByTile.set(tileId, iceDaysByTile.get(tileId) + 1);
     }
   }
+  const yearRoundOpenTiles = [];
   for (const [tileId, iceDays] of iceDaysByTile) {
-    assert.ok(iceDays > 0, `White Sea tile ${tileId} must freeze`);
-    assert.ok(iceDays < WEATHER_DAYS, `White Sea tile ${tileId} must thaw`);
+    if (iceDays === 0) yearRoundOpenTiles.push(tileId);
+    assert.ok(iceDays < WEATHER_DAYS, `Coastal sea tile ${tileId} must thaw`);
   }
+  assert.deepEqual(
+    yearRoundOpenTiles,
+    [55207, 13844, 55205, 56347],
+    "the North Atlantic Current should keep only the western end open year-round"
+  );
 });
 
 test("manual shallow-water validation rejects an isolated harbor", () => {

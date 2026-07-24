@@ -26,6 +26,10 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
   ketch: 3600,
   "small-junk": 3800,
   "nusantaran-outrigger": 4000,
+  kelulus: 4200,
+  penjajap: 7000,
+  lancaran: 18000,
+  "royal-lancaran": 42000,
   "square-rigged-caravel": 4000
 });
 
@@ -65,8 +69,9 @@ const REGION_SHIP_POOLS = Object.freeze({
     "large-junk", "caravel", "carrack"
   ]),
   "southeast-asian": Object.freeze([
-    "sampan", "dhow", "dhow", "dhow", "nusantaran-outrigger", "nusantaran-outrigger", "small-junk", "medium-junk", "large-junk",
-    "caravel", "carrack"
+    "sampan", "dhow", "dhow", "kelulus", "kelulus", "penjajap", "penjajap",
+    "nusantaran-outrigger", "nusantaran-outrigger", "small-junk", "lancaran", "lancaran",
+    "medium-junk", "royal-lancaran", "large-junk", "caravel", "carrack"
   ]),
   polynesian: Object.freeze(["polynesian-voyaging-canoe"]),
   mesoamerican: Object.freeze(["mesoamerican-dugout-canoe"]),

@@ -1346,6 +1346,36 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
   assert.match(session.feedback, /Dumped 4 hardtack and 4 water/);
 });
 
+test("custom loadout feedback never exposes scientific notation for fractional stores", () => {
+  const city = {
+    tileId: 9,
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60000,
+    character: { name: "Isabel Mendez" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  gameState.cargo.hardtack = 5 / 12;
+  gameState.accounts.cargoCostBasis.hardtack = 5;
+  gameState.survival.freshWaterCapacity = 3;
+  gameState.survival.freshWater = 3;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "loadout" });
+  const context = { shipStats: stats, simMinute: 120 };
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 4, context);
+  setPortCustomLoadoutValue(session, stats, "foodUnits", 1);
+  setPortCustomLoadoutValue(session, stats, "waterUnits", 3);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+
+  assert.doesNotMatch(session.feedback, /Dumped/);
+  assert.doesNotMatch(session.feedback, /\d[eE][+-]?\d/);
+});
+
 test("an already active banquet chef waits for a permanent berth before joining", () => {
   const city = {
     tileId: 44,

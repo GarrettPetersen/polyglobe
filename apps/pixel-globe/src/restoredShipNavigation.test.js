@@ -45,6 +45,21 @@ test("a restored ship on seasonal ice moves to open water", () => {
   });
 });
 
+test("a restored ship beyond the pole-safe camera limit moves to open water", () => {
+  assert.deepEqual(restoredShipPlacementPlan({
+    savedTileId: 12,
+    positionTileId: 12,
+    frozen: false,
+    polarOutOfBounds: true,
+    nearestOpenWaterTileId: 31
+  }), {
+    tileId: 31,
+    recenter: true,
+    stop: true,
+    reason: "polar navigation limit"
+  });
+});
+
 test("ice recovery fails loudly when no open water exists", () => {
   assert.throws(() => restoredShipPlacementPlan({
     savedTileId: 12,

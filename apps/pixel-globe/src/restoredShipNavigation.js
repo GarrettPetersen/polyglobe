@@ -2,19 +2,23 @@ export function restoredShipPlacementPlan({
   savedTileId,
   positionTileId,
   frozen,
+  polarOutOfBounds = false,
   nearestOpenWaterTileId
 }) {
   assertTileId(savedTileId, "saved ship");
   assertTileId(positionTileId, "saved position");
   if (typeof frozen !== "boolean") throw new Error("Restored ship ice state must be boolean");
+  if (typeof polarOutOfBounds !== "boolean") {
+    throw new Error("Restored ship polar navigation state must be boolean");
+  }
 
-  if (frozen) {
+  if (frozen || polarOutOfBounds) {
     assertTileId(nearestOpenWaterTileId, "nearest open-water");
     return Object.freeze({
       tileId: nearestOpenWaterTileId,
       recenter: true,
       stop: true,
-      reason: "surface ice"
+      reason: polarOutOfBounds ? "polar navigation limit" : "surface ice"
     });
   }
 
