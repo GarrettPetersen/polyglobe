@@ -14,7 +14,7 @@ import {
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
-const codeAssetVersion = "2026-07-24";
+const codeAssetVersion = "2026-07-24-qa-type";
 
 export function homePage() {
   const featureRows = features.map((feature) => [
