@@ -140,8 +140,9 @@ export function pressPage() {
     "<div class='press-layout'>",
     "<aside class='fact-sheet' aria-labelledby='facts-title'>",
     "<p class='eyebrow'>At a glance</p><h2 id='facts-title'>Fact sheet</h2>",
-    fact("Developer", externalTextLink(site.developerUrl, site.developer)),
+    fact("Developer", escapeHtml(site.developer)),
     fact("Publisher", escapeHtml(site.publisher)),
+    fact("Creator", externalTextLink(site.creatorUrl, site.creator)),
     fact("Release", escapeHtml(site.release)),
     fact("Platforms", escapeHtml(site.platforms)),
     fact("Genre", escapeHtml(site.genre)),
@@ -324,6 +325,7 @@ export function factSheetText() {
     "",
     "Developer: " + site.developer,
     "Publisher: " + site.publisher,
+    "Creator: " + site.creator,
     "Release: " + site.release,
     "Platforms: " + site.platforms,
     "Genre: " + site.genre,
@@ -455,12 +457,12 @@ function navigation() {
 function footer() {
   return [
     "<footer class='site-footer'>",
-    "<div><strong>Marque ", displayAmpersand, " Reprisal</strong><span>Explore. Trade. Fish. Pillage.</span></div>",
+    "<div><strong>Marque ", displayAmpersand, " Reprisal</strong><span>Developed &amp; published by ", escapeHtml(site.developer), ".</span></div>",
     "<div class='footer-links'><a href='/press/'>Press kit</a><a href='/privacy/'>Privacy</a>",
     externalTextLink(site.itchUrl, "Demo on itch.io"),
     externalTextLink(site.xUrl, site.xHandle),
     "</div>",
-    "<p>© <span data-current-year>2026</span> ", escapeHtml(site.developer), ".</p>",
+    "<p>© <span data-current-year>2026</span> ", escapeHtml(site.copyrightHolder), ".</p>",
     "</footer>"
   ].join("");
 }

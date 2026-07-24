@@ -53,6 +53,15 @@ test("published links and localization claims are explicit", () => {
   assert.equal(site.xUrl, "https://x.com/garrettpetersen");
   assert.equal(site.xHandle, "@garrettpetersen");
   assert.equal(site.steamStatus, "Page coming soon");
+  assert.equal(site.developer, "Iron Pagoda");
+  assert.equal(site.publisher, "Iron Pagoda");
+  assert.equal(site.creator, "Garrett Petersen");
+  assert.equal(site.copyrightHolder, "Garrett Petersen");
+  assert.match(pressPage(), /<dt>Developer<\/dt><dd>Iron Pagoda<\/dd>/);
+  assert.match(pressPage(), /<dt>Publisher<\/dt><dd>Iron Pagoda<\/dd>/);
+  assert.match(pressPage(), /<dt>Creator<\/dt><dd><a[^>]+>Garrett Petersen<\/a><\/dd>/);
+  assert.match(homePage(), /Developed &amp; published by Iron Pagoda\./);
+  assert.match(homePage(), /© <span data-current-year>2026<\/span> Garrett Petersen\./);
   assert.equal(languages.length, 11);
   assert.equal(new Set(languages).size, languages.length);
 });

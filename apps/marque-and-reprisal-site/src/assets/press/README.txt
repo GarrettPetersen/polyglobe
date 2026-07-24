@@ -1,7 +1,8 @@
 MARQUE & REPRISAL PRESS KIT
 ===========================
 
-Official press assets for Marque & Reprisal by Garrett Petersen.
+Official press assets for Marque & Reprisal, developed and published by
+Iron Pagoda. Created by Garrett Petersen.
 
 CONTENTS
 
