@@ -219,20 +219,21 @@ export function familyDebtPayoffProjection(goal, currentMinute, additionalDays =
     throw new Error("Debt payoff projection requires a family-debt goal");
   }
   assertSimulationMinute(currentMinute);
-  if (currentMinute < goal.lastAccruedMinute) {
-    throw new Error(`Campaign debt cannot project backwards: ${currentMinute} < ${goal.lastAccruedMinute}`);
-  }
   if (!Number.isFinite(additionalDays) || additionalDays < 0) {
     throw new Error(`Invalid family debt projection days: ${additionalDays}`);
   }
-  const elapsedDays = (currentMinute - goal.lastAccruedMinute) / MINUTES_PER_DAY + additionalDays;
+  const projectionMinute = Math.max(currentMinute, goal.lastAccruedMinute);
+  const recoveredClockMinutes = projectionMinute - currentMinute;
+  const elapsedDays = (projectionMinute - goal.lastAccruedMinute) / MINUTES_PER_DAY + additionalDays;
   const projectedBalance = goal.debtBalance * Math.pow(
     1 + goal.annualInterestRate / DAYS_PER_YEAR,
     elapsedDays
   );
   return {
     projectedBalance,
-    requiredDoubloons: Math.ceil(projectedBalance) + goal.protectedPurse
+    requiredDoubloons: Math.ceil(projectedBalance) + goal.protectedPurse,
+    projectionMinute,
+    recoveredClockMinutes
   };
 }
 
@@ -303,8 +304,9 @@ export function settleFamilyDebtHomecoming(goal, { currentMinute, doubloons }) {
   assertSimulationMinute(currentMinute);
   if (!Number.isInteger(doubloons) || doubloons < 0) throw new Error(`Invalid doubloon purse: ${doubloons}`);
   const previousBalance = goal.debtBalance;
-  goal.debtBalance = familyDebtPayoffProjection(goal, currentMinute).projectedBalance;
-  goal.lastAccruedMinute = currentMinute;
+  const projection = familyDebtPayoffProjection(goal, currentMinute);
+  goal.debtBalance = projection.projectedBalance;
+  goal.lastAccruedMinute = projection.projectionMinute;
   const accruedInterest = Math.max(0, goal.debtBalance - previousBalance);
   const availablePayment = Math.max(0, doubloons - goal.protectedPurse);
   const payment = Math.min(availablePayment, Math.ceil(goal.debtBalance));
@@ -320,7 +322,8 @@ export function settleFamilyDebtHomecoming(goal, { currentMinute, doubloons }) {
     remainingBalance: goal.debtBalance,
     protectedPurse: goal.protectedPurse,
     completed,
-    insufficientPurse: doubloons < goal.protectedPurse
+    insufficientPurse: doubloons < goal.protectedPurse,
+    recoveredClockMinutes: projection.recoveredClockMinutes
   };
 }
 

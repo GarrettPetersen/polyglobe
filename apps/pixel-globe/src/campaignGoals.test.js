@@ -10,6 +10,7 @@ import {
   CAMPAIGN_GOAL_FAMILY_DEBT,
   CAMPAIGN_GOAL_WHITE_WHALE,
   FAMILY_DEBT_PRINCIPAL,
+  FAMILY_DEBT_PROTECTED_PURSE,
   FAMILY_DEBT_RETURN_BUFFER_DAYS,
   campaignGoalDestination,
   campaignDialogueView,
@@ -288,6 +289,49 @@ test("family debt points home only with the debt, reserve, and one month of inte
     reason: "pay-family-debt",
     requiredDoubloons: payoff.requiredDoubloons
   });
+});
+
+test("family debt projection holds at its ledger checkpoint when the world clock is stale", () => {
+  const checkpointMinute = 120000.75;
+  const staleMinute = checkpointMinute - 46.5;
+  const goal = createCampaignGoal({
+    playerCharacter: CHARACTER,
+    startMinute: checkpointMinute,
+    type: CAMPAIGN_GOAL_FAMILY_DEBT
+  });
+  const payoff = familyDebtPayoffProjection(goal, staleMinute);
+  assert.equal(payoff.projectedBalance, FAMILY_DEBT_PRINCIPAL);
+  assert.equal(payoff.projectionMinute, checkpointMinute);
+  assert.equal(payoff.recoveredClockMinutes, 46.5);
+  assert.equal(goal.lastAccruedMinute, checkpointMinute);
+  assert.equal(campaignGoalDestination(goal, {
+    currentMinute: staleMinute,
+    doubloons: 0
+  }), null);
+});
+
+test("family debt settlement never moves its ledger checkpoint backward", () => {
+  const checkpointMinute = 120000.75;
+  const goal = createCampaignGoal({
+    playerCharacter: CHARACTER,
+    startMinute: checkpointMinute,
+    type: CAMPAIGN_GOAL_FAMILY_DEBT
+  });
+  const stale = settleFamilyDebtHomecoming(goal, {
+    currentMinute: checkpointMinute - 46.5,
+    doubloons: FAMILY_DEBT_PROTECTED_PURSE
+  });
+  assert.equal(stale.accruedInterest, 0);
+  assert.equal(stale.recoveredClockMinutes, 46.5);
+  assert.equal(goal.lastAccruedMinute, checkpointMinute);
+
+  const advanced = settleFamilyDebtHomecoming(goal, {
+    currentMinute: checkpointMinute + 24 * 60,
+    doubloons: FAMILY_DEBT_PROTECTED_PURSE
+  });
+  assert.ok(advanced.accruedInterest > 0);
+  assert.equal(advanced.recoveredClockMinutes, 0);
+  assert.equal(goal.lastAccruedMinute, checkpointMinute + 24 * 60);
 });
 
 test("family debt dialogue gives the creditor a concise recurring voice", () => {
