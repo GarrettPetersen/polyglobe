@@ -208,6 +208,12 @@ test("fresh water uses the period cask instead of modern bottled-water artwork",
   assert.equal(source.assetPath, "public/assets/misc/fresh-water-cask.png");
 });
 
+test("the custom loadout uses a native-size water symbol instead of the tiny cargo cask", () => {
+  const source = GAME_ICON_SOURCES["action:water-stores"];
+  assert.equal(source.packId, "nikoichu");
+  assert.equal(source.entry, "Sprites/Weather_Water_Droplet_Liquid_Rain_Element_Big.png");
+});
+
 test("every non-vendored pack icon has a checked-in source fallback", async () => {
   const manifest = JSON.parse(await readFile(fallbackManifestPath, "utf8"));
   const fallbackIds = new Set(manifest.icons.map((icon) => icon.id));

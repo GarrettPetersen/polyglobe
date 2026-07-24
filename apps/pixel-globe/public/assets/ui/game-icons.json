@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-34",
+  "version": "resurrect-icons-35",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 208,
@@ -2246,6 +2246,18 @@
       },
       "packId": "pirate",
       "assetPath": null
+    },
+    {
+      "id": "action:water-stores",
+      "rect": {
+        "x": 32,
+        "y": 192,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4d65b4"
     }
   ],
   "packs": {
