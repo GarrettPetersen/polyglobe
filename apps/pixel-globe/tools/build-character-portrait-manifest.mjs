@@ -144,18 +144,18 @@ const expressionLabelOverrides = new Map([
     ["angry", "Angry"]
   ]),
   labels("Blond Villager Women Portrait Pack by Captainskeleto/Blond Villager Women", [
-    ["sad", "Sad"],
-    ["concerned", "Concerned"],
-    ["worried", "Worried"],
-    ["afraid", "Afraid"],
-    ["pained", "Pained"],
-    ["neutral", "Neutral"],
-    ["soft-smile", "Soft Smile"],
     ["happy", "Happy"],
+    ["sad", "Sad"],
     ["wary", "Wary"],
+    ["soft-smile", "Soft Smile"],
+    ["worried", "Worried"],
+    ["overjoyed", "Overjoyed"],
+    ["attentive", "Attentive"],
+    ["embarrassed", "Embarrassed"],
+    ["neutral", "Neutral"],
     ["pleased", "Pleased"],
     ["angry", "Angry"],
-    ["serious", "Serious"]
+    ["surprised", "Surprised"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Herbalist women portrait/Herbalist Women Portrait", [
     ["sad", "Sad"],
@@ -328,18 +328,18 @@ const expressionLabelOverrides = new Map([
     ["neutral", "Neutral"]
   ]),
   labels("Women Peasant Pack by Captainskeleto/Women Peasant", [
-    ["neutral", "Neutral"],
-    ["concerned", "Concerned"],
-    ["sad", "Sad"],
-    ["afraid", "Afraid"],
-    ["attentive", "Attentive"],
     ["happy", "Happy"],
-    ["surprised", "Surprised"],
-    ["embarrassed", "Embarrassed"],
+    ["sad", "Sad"],
+    ["serious", "Serious"],
+    ["overjoyed", "Overjoyed"],
     ["worried", "Worried"],
+    ["soft-smile", "Soft Smile"],
     ["laughing", "Laughing"],
+    ["crying", "Crying"],
+    ["neutral", "Neutral"],
+    ["pleased", "Pleased"],
     ["angry", "Angry"],
-    ["pleased", "Pleased"]
+    ["embarrassed", "Embarrassed"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Seamstress Women Portrait/Women Seamstress Portrait", [
     ["neutral", "Neutral"],
@@ -367,9 +367,9 @@ const portraitAgeRanges = new Map([
   ["Curated Historical Portraits by CaptainSkolot/Old Scholar", ageRange(58, 78)],
   ["Curated Historical Portraits by CaptainSkolot/Young Warrior", ageRange(24, 38)],
   ["Ultimate Portrait Pack V1.0/Blacksmith/Blacksmith Portrait", ageRange(50, 70)],
-  ["Blond Villager Portrait Pack by Captainskeleto/Blond Villager Portrait", ageRange(28, 42)],
+  ["Blond Villager Portrait Pack by Captainskeleto/Blond Villager Portrait", ageRange(24, 36)],
   ["Blond Villager Women Portrait Pack by Captainskeleto/Blond Villager Women", ageRange(20, 34)],
-  ["Ultimate Portrait Pack V1.0/Herbalist women portrait/Herbalist Women Portrait", ageRange(35, 52)],
+  ["Ultimate Portrait Pack V1.0/Herbalist women portrait/Herbalist Women Portrait", ageRange(22, 34)],
   ["Ultimate Portrait Pack V1.0/Knight Commander/Knight Commander", ageRange(52, 68)],
   ["Knight Portrait Pack by Captainskeleto/Knight Portrait", ageRange(18, 30)],
   ["Little Girl Portrait pack by Captainskeleto/Little Girl Portrait", ageRange(8, 13)],
@@ -386,10 +386,10 @@ const portraitAgeRanges = new Map([
   ["Ultimate Portrait Pack V1.0/Young Peasant Girl/Villager Young Girl Portrait", ageRange(15, 21)],
   ["Warrior with Beard Pack by Captainskolot/Warrior With Beard", ageRange(35, 52)],
   ["Women Black Hair Portrait by Captainskolot/Women Black Hair Portrait", ageRange(20, 34)],
-  ["Ultimate Portrait Pack V1.0/Women Baker/Women Baker Portrait", ageRange(28, 44)],
+  ["Ultimate Portrait Pack V1.0/Women Baker/Women Baker Portrait", ageRange(22, 36)],
   ["Women Knight Portrait Pack by Captainskeleto/Women Knight Portrait", ageRange(18, 30)],
   ["Women Peasant Pack by Captainskeleto/Women Peasant", ageRange(18, 32)],
-  ["Ultimate Portrait Pack V1.0/Seamstress Women Portrait/Women Seamstress Portrait", ageRange(25, 42)],
+  ["Ultimate Portrait Pack V1.0/Seamstress Women Portrait/Women Seamstress Portrait", ageRange(22, 36)],
   ["Ultimate Portrait Pack V1.0/Young Peasant Boy/Young Peasant Boy Portrait", ageRange(14, 20)]
 ]);
 
@@ -436,7 +436,7 @@ const numberedPortraitAgeRanges = new Map([
   })],
   ["Native Americain Portrait Pack by Captainskeleto", numberedRanges({
     1: [22, 36], 2: [20, 34], 3: [20, 34], 4: [20, 34], 5: [40, 58], 6: [30, 45],
-    7: [25, 42], 8: [35, 52], 9: [20, 35], 10: [55, 75], 11: [18, 30], 12: [30, 45],
+    7: [45, 62], 8: [35, 52], 9: [30, 45], 10: [55, 75], 11: [18, 30], 12: [30, 45],
     13: [20, 34], 14: [25, 40], 15: [18, 30], 16: [16, 26]
   })],
   ["Pirates Portrait Pack by Captainskeleto/Pirates Portrait", numberedRanges({

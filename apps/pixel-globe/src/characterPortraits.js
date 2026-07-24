@@ -2,12 +2,15 @@ import {
   assignRegionalCharacterName,
   assignRegionalFamilyMemberName
 } from "./characterNames.js";
-import { characterWithBiography } from "./characterBiography.js";
+import {
+  characterWithBiography,
+  correctedCharacterPortraitAge
+} from "./characterBiography.js";
 import { characterSkillIdsForIdentity } from "./characterSkills.js";
 import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-11";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-12";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
@@ -95,7 +98,16 @@ export function reconcileCharacterPortraitMetadata(root, manifest) {
       }
       const expressions = assignedExpressions(source);
       const expressionsChanged = Array.isArray(value.expressions) && !sameExpressions(value.expressions, expressions);
-      if (value.sex !== source.sex || expressionsChanged) {
+      const hasAgeMetadata = Number.isInteger(value.age);
+      const correctedAge = hasAgeMetadata
+        ? Math.min(source.maxAge, Math.max(source.minAge, value.age))
+        : null;
+      const ageChanged = hasAgeMetadata && (
+        value.age !== correctedAge ||
+        value.minAge !== source.minAge ||
+        value.maxAge !== source.maxAge
+      );
+      if (value.sex !== source.sex || expressionsChanged || ageChanged) {
         if (Object.isFrozen(value)) {
           throw new Error("Cannot reconcile frozen character portrait metadata: " + value.sourceId);
         }
@@ -106,6 +118,13 @@ export function reconcileCharacterPortraitMetadata(root, manifest) {
       }
       if (expressionsChanged) {
         value.expressions = expressions;
+        correctedCount += 1;
+      }
+      if (ageChanged) {
+        Object.assign(value, correctedCharacterPortraitAge(value, correctedAge), {
+          minAge: source.minAge,
+          maxAge: source.maxAge
+        });
         correctedCount += 1;
       }
     }

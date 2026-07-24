@@ -114,8 +114,14 @@ test("every portrait identity has a visually authored age range", () => {
   )));
   const littleGirl = GENERATED_MANIFEST.sourceCharacters.find((source) => source.label === "Little Girl Portrait");
   const oldWarrior = GENERATED_MANIFEST.sourceCharacters.find((source) => source.label === "Old Warrior Grey Beard");
+  const herbalist = GENERATED_MANIFEST.sourceCharacters.find((source) => source.label === "Herbalist Women Portrait");
+  const nativeElder = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.label === "Native American Portrait 7"
+  );
   assert.deepEqual([littleGirl.minAge, littleGirl.maxAge], [8, 13]);
   assert.deepEqual([oldWarrior.minAge, oldWarrior.maxAge], [58, 75]);
+  assert.deepEqual([herbalist.minAge, herbalist.maxAge], [22, 34]);
+  assert.deepEqual([nativeElder.minAge, nativeElder.maxAge], [45, 62]);
 });
 
 test("every portrait identity has an explicit reviewed sex", () => {
@@ -219,8 +225,30 @@ test("saved characters inherit corrected neutral expression assignments", () => 
   };
 
   assert.equal(reconcileCharacterPortraitMetadata(savedCharacter, GENERATED_MANIFEST), 1);
-  assert.match(characterExpression(savedCharacter).src, /Women%20Peasant_1\.png$/);
-  assert.match(characterExpression(savedCharacter, "sad").src, /Women%20Peasant_3\.png$/);
+  assert.match(characterExpression(savedCharacter).src, /Women%20Peasant_9\.png$/);
+  assert.match(characterExpression(savedCharacter, "sad").src, /Women%20Peasant_2\.png$/);
+});
+
+test("saved characters inherit corrected visual ages and consistent birthdays", () => {
+  const herbalist = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.label === "Herbalist Women Portrait"
+  );
+  const savedCharacter = {
+    sourceId: herbalist.id,
+    sex: herbalist.sex,
+    minAge: 35,
+    maxAge: 52,
+    age: 51,
+    birthDate: { year: 1470, month: 6, day: 10 },
+    birthDateLabel: "10 June 1470"
+  };
+
+  assert.equal(reconcileCharacterPortraitMetadata(savedCharacter, GENERATED_MANIFEST), 1);
+  assert.equal(savedCharacter.age, 34);
+  assert.equal(savedCharacter.minAge, 22);
+  assert.equal(savedCharacter.maxAge, 34);
+  assert.deepEqual(savedCharacter.birthDate, { year: 1487, month: 6, day: 10 });
+  assert.equal(savedCharacter.birthDateLabel, "10 June 1487");
 });
 
 test("East Asian players use the authored Ming portrait group", () => {
@@ -373,7 +401,7 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["blacksmith-portrait-pack-by-captainskeleto-blacksmith-portrait", 1],
     ["ultimate-portrait-pack-v1-0-blacksmith-blacksmith-portrait", 2],
     ["blond-villager-portrait-pack-by-captainskeleto-blond-villager-portrait", 6],
-    ["blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women", 6],
+    ["blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women", 9],
     ["ultimate-portrait-pack-v1-0-herbalist-women-portrait-herbalist-women-portrait", 3],
     ["ultimate-portrait-pack-v1-0-knight-commander-knight-commander", 3],
     ["knight-portrait-pack-by-captainskeleto-knight-portrait", 2],
@@ -391,7 +419,7 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", 4],
     ["ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait", 6],
     ["women-knight-portrait-pack-by-captainskeleto-women-knight-portrait", 12],
-    ["women-peasant-pack-by-captainskeleto-women-peasant", 1],
+    ["women-peasant-pack-by-captainskeleto-women-peasant", 9],
     ["ultimate-portrait-pack-v1-0-seamstress-women-portrait-women-seamstress-portrait", 1],
     ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", 6],
     ["warrior-with-beard-pack-by-captainskolot-warrior-with-beard", 1],
@@ -407,6 +435,64 @@ test("visually reviewed expression packs use calm neutral frames", () => {
       `${source.label} neutral frame`
     );
   }
+});
+
+test("the blond villager portrait uses its visually reviewed expression frames", () => {
+  const source = GENERATED_MANIFEST.sourceCharacters.find(
+    (character) => character.id === "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women"
+  );
+  const expressionIndices = Object.fromEntries(
+    source.expressions.map((expression) => [expression.id, expression.index])
+  );
+
+  assert.deepEqual(expressionIndices, {
+    happy: 1,
+    sad: 2,
+    wary: 3,
+    "soft-smile": 4,
+    worried: 5,
+    overjoyed: 6,
+    attentive: 7,
+    embarrassed: 8,
+    neutral: 9,
+    pleased: 10,
+    angry: 11,
+    surprised: 12
+  });
+  assert.equal(characterExpression(source, "sad").index, 2);
+  assert.equal(characterExpression(source, "afraid").index, 5);
+  assert.equal(characterExpression(source, "happy").index, 1);
+  assert.equal(characterExpression(source, "overjoyed").index, 6);
+});
+
+test("the blond straw-hat peasant uses its visually reviewed expression frames", () => {
+  const source = GENERATED_MANIFEST.sourceCharacters.find(
+    (character) => character.id === "women-peasant-pack-by-captainskeleto-women-peasant"
+  );
+  const expressionIndices = Object.fromEntries(
+    source.expressions.map((expression) => [expression.id, expression.index])
+  );
+
+  assert.deepEqual(expressionIndices, {
+    happy: 1,
+    sad: 2,
+    serious: 3,
+    overjoyed: 4,
+    worried: 5,
+    "soft-smile": 6,
+    laughing: 7,
+    crying: 8,
+    neutral: 9,
+    pleased: 10,
+    angry: 11,
+    embarrassed: 12
+  });
+  assert.equal(characterExpression(source).index, 9);
+  assert.equal(characterExpression(source, "sad").index, 2);
+  assert.equal(characterExpression(source, "crying").index, 8);
+  assert.equal(characterExpression(source, "afraid").index, 5);
+  assert.equal(characterExpression(source, "happy").index, 1);
+  assert.equal(characterExpression(source, "overjoyed").index, 4);
 });
 
 test("women portrait grid entries are individual people, not expression sets", () => {

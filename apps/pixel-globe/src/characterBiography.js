@@ -92,6 +92,34 @@ export function characterWithBiography(character, {
   };
 }
 
+export function correctedCharacterPortraitAge(character, targetAge, {
+  referenceYear = CHARACTER_BIOGRAPHY_REFERENCE_YEAR,
+  referenceMonth = CHARACTER_BIOGRAPHY_REFERENCE_MONTH,
+  referenceDay = CHARACTER_BIOGRAPHY_REFERENCE_DAY
+} = {}) {
+  if (!character || typeof character !== "object") {
+    throw new Error("Portrait age correction requires a character");
+  }
+  if (!Number.isInteger(targetAge) || targetAge < 5 || targetAge > 90) {
+    throw new Error(`Invalid corrected portrait age: ${targetAge}`);
+  }
+  if (!character.birthDate) return { age: targetAge };
+  assertCalendarDate({ year: referenceYear, month: referenceMonth, day: referenceDay }, "portrait age reference");
+  const currentBirthDate = normalizeBirthDate(character.birthDate);
+  const birthdayPassed = referenceMonth > currentBirthDate.month ||
+    (referenceMonth === currentBirthDate.month && referenceDay >= currentBirthDate.day);
+  const birthDate = Object.freeze({
+    year: referenceYear - targetAge - (birthdayPassed ? 0 : 1),
+    month: currentBirthDate.month,
+    day: currentBirthDate.day
+  });
+  return {
+    age: targetAge,
+    birthDate,
+    birthDateLabel: formatCharacterBirthDate(birthDate)
+  };
+}
+
 export function characterAgeAtMinute(character, simMinute, longitudeDeg = 0) {
   return characterAgeOnDate(character, gameCalendarDateAtMinute(simMinute, longitudeDeg));
 }
