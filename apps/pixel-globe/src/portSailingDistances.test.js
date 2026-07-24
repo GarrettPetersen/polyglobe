@@ -29,6 +29,7 @@ test("port sailing distance bakes are strict, symmetric, and support unreachable
     version: PORT_SAILING_DISTANCE_VERSION,
     subdivisions: 7,
     earthCacheVersion: "test-earth",
+    referenceWeatherDay: 215,
     endpoints: [
       { tileId: 10, name: "Alpha", country: "A", kind: "port" },
       { tileId: 20, name: "Beta", country: "B", kind: "colony" }
@@ -45,6 +46,7 @@ test("port sailing distance bakes are strict, symmetric, and support unreachable
       version: PORT_SAILING_DISTANCE_VERSION,
       subdivisions: 7,
       earthCacheVersion: "test-earth",
+      referenceWeatherDay: 215,
       endpoints: [
         { tileId: 10, name: "Alpha", country: "A", kind: "port" },
         { tileId: 20, name: "Beta", country: "B", kind: "port" }

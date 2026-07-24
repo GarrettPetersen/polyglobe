@@ -20,22 +20,33 @@ import {
   portAccessTileIds,
   portCitiesOnWorld
 } from "../src/worldPortPlacement.js";
+import {
+  WEATHER_DAYS,
+  decodePixelRuntimeWeatherBakeFile,
+  fillIceMaskForDay
+} from "../src/weather.js";
 import { graphEdgeDistanceKm, MinDistanceHeap } from "../src/weightedGraphSearch.js";
 
 const SUBDIVISIONS = 7;
+// August 4 in the fixed 365-day weather cycle: northern shipping lanes are near
+// their annual maximum extent without combining incompatible ice states.
+const REFERENCE_WEATHER_DAY = 215;
+const SEASONAL_ICE_ROUTE_PENALTY = 4;
 const toolRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolRoot, "..");
 const repoRoot = resolve(appRoot, "../..");
 const sharedRoot = resolve(repoRoot, "examples/globe-demo/public");
 const earthPath = resolve(sharedRoot, `earth-globe-cache-${SUBDIVISIONS}.json`);
+const runtimeWeatherPath = resolve(sharedRoot, `globe-runtime-bake-${SUBDIVISIONS}.bin`);
 const cityPath = resolve(
   sharedRoot,
   "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
 );
 const outputPath = resolve(appRoot, "public/assets/data/port-sailing-distances.json");
 
-const [earthSource, cityCsv] = await Promise.all([
+const [earthSource, runtimeWeatherSource, cityCsv] = await Promise.all([
   readFile(earthPath, "utf8"),
+  readFile(runtimeWeatherPath),
   readFile(cityPath, "utf8")
 ]);
 const earthCache = JSON.parse(earthSource);
@@ -47,6 +58,18 @@ const graph = buildGeodesicGraph(SUBDIVISIONS);
 if (graph.tileCount !== earthCache.tileCount || graph.tileCount !== earthRows.length) {
   throw new Error(`Port route world mismatch: graph ${graph.tileCount}, cache ${earthCache.tileCount}, rows ${earthRows.length}`);
 }
+const runtimeWeather = decodePixelRuntimeWeatherBakeFile(
+  runtimeWeatherSource.buffer.slice(
+    runtimeWeatherSource.byteOffset,
+    runtimeWeatherSource.byteOffset + runtimeWeatherSource.byteLength
+  ),
+  earthCache.version,
+  SUBDIVISIONS,
+  earthCache.tileCount
+);
+const iceMask = new Uint8Array(graph.tileCount);
+fillIceMaskForDay(runtimeWeather.seaIceCycle, REFERENCE_WEATHER_DAY, iceMask);
+const annualIceFractions = buildAnnualIceFractions(runtimeWeather.seaIceCycle, graph.tileCount);
 const directionIndex = createDirectionIndex(graph);
 const navigation = buildWorldNavigationTopology({
   graph,
@@ -73,12 +96,14 @@ const endpoints = [
   ...portCities.map((city) => endpointRecord(city, "port", cityLabelText(city), placementOptions)),
   ...colonyTargets.map((colony) => endpointRecord(colony, "colony", colony.city, placementOptions))
 ].sort((a, b) => a.tileId - b.tileId);
-reportDisconnectedSailingEndpoints({ graph, earthRows, navigation, endpoints });
+reportDisconnectedSailingEndpoints({ graph, earthRows, navigation, iceMask, endpoints });
 
 const distancesKm = buildAllPairSailingDistances({
   graph,
   earthRows,
   navigation,
+  iceMask,
+  annualIceFractions,
   endpoints
 });
 const output = {
@@ -86,6 +111,7 @@ const output = {
   version: PORT_SAILING_DISTANCE_VERSION,
   subdivisions: SUBDIVISIONS,
   earthCacheVersion: String(earthCache.version),
+  referenceWeatherDay: REFERENCE_WEATHER_DAY,
   endpoints: endpoints.map(({ accessTileIds: _accessTileIds, ...endpoint }) => endpoint),
   distancesKm
 };
@@ -110,14 +136,21 @@ function endpointRecord(record, kind, name, placementOptions) {
   });
 }
 
-function reportDisconnectedSailingEndpoints({ graph, earthRows, navigation, endpoints }) {
+function reportDisconnectedSailingEndpoints({ graph, earthRows, navigation, iceMask, endpoints }) {
   const reachable = new Uint8Array(graph.tileCount);
-  const queue = [...endpoints[0].accessTileIds];
+  const queue = endpoints[0].accessTileIds.filter((tileId) => iceMask[tileId] !== 1);
+  if (queue.length === 0) {
+    throw new Error(`Reference weather day ${REFERENCE_WEATHER_DAY} freezes every approach to ${endpoints[0].name}`);
+  }
   for (const tileId of queue) reachable[tileId] = 1;
   for (let head = 0; head < queue.length; head++) {
     const tileId = queue[head];
     for (const neighborId of graph.neighbors[tileId]) {
-      if (reachable[neighborId] || navigation.reachableNavigationMask[neighborId] !== 1) continue;
+      if (
+        reachable[neighborId] ||
+        navigation.reachableNavigationMask[neighborId] !== 1 ||
+        iceMask[neighborId] === 1
+      ) continue;
       if (!canTraverseWorldNavigationEdge({
         graph,
         earthRows,
@@ -142,7 +175,14 @@ function reportDisconnectedSailingEndpoints({ graph, earthRows, navigation, endp
   }
 }
 
-function buildAllPairSailingDistances({ graph, earthRows, navigation, endpoints }) {
+function buildAllPairSailingDistances({
+  graph,
+  earthRows,
+  navigation,
+  iceMask,
+  annualIceFractions,
+  endpoints
+}) {
   const matrix = Array.from({ length: endpoints.length }, (_, rowIndex) => (
     Array.from({ length: endpoints.length }, (_, columnIndex) => rowIndex === columnIndex ? 0 : null)
   ));
@@ -159,6 +199,8 @@ function buildAllPairSailingDistances({ graph, earthRows, navigation, endpoints 
       graph,
       earthRows,
       navigation,
+      iceMask,
+      annualIceFractions,
       sourceTileIds: endpoints[originIndex].accessTileIds,
       targetIndicesByAccessTile,
       targetCount: endpoints.length - originIndex - 1
@@ -181,29 +223,37 @@ function dijkstraToPortTargets({
   graph,
   earthRows,
   navigation,
+  iceMask,
+  annualIceFractions,
   sourceTileIds,
   targetIndicesByAccessTile,
   targetCount
 }) {
-  const distances = new Float64Array(graph.tileCount);
-  distances.fill(Infinity);
+  const routeCosts = new Float64Array(graph.tileCount);
+  routeCosts.fill(Infinity);
+  const routeDistances = new Float64Array(graph.tileCount);
+  routeDistances.fill(Infinity);
   const heap = new MinDistanceHeap();
   for (const tileId of sourceTileIds) {
-    distances[tileId] = 0;
+    if (iceMask[tileId] === 1) continue;
+    routeCosts[tileId] = 0;
+    routeDistances[tileId] = 0;
     heap.push(tileId, 0);
   }
   const targetDistances = new Map();
   while (heap.size > 0 && targetDistances.size < targetCount) {
     const current = heap.pop();
-    if (current.distance !== distances[current.tileId]) continue;
+    if (current.distance !== routeCosts[current.tileId]) continue;
     const targetIndices = targetIndicesByAccessTile.get(current.tileId);
     if (targetIndices) {
       for (const targetIndex of targetIndices) {
-        if (!targetDistances.has(targetIndex)) targetDistances.set(targetIndex, current.distance);
+        if (!targetDistances.has(targetIndex)) {
+          targetDistances.set(targetIndex, routeDistances[current.tileId]);
+        }
       }
     }
     for (const neighborId of graph.neighbors[current.tileId]) {
-      if (navigation.reachableNavigationMask[neighborId] !== 1) continue;
+      if (navigation.reachableNavigationMask[neighborId] !== 1 || iceMask[neighborId] === 1) continue;
       if (!canTraverseWorldNavigationEdge({
         graph,
         earthRows,
@@ -212,11 +262,38 @@ function dijkstraToPortTargets({
         fromTileId: current.tileId,
         toTileId: neighborId
       })) continue;
-      const candidate = current.distance + graphEdgeDistanceKm(graph, current.tileId, neighborId);
-      if (candidate >= distances[neighborId]) continue;
-      distances[neighborId] = candidate;
-      heap.push(neighborId, candidate);
+      const edgeDistance = graphEdgeDistanceKm(graph, current.tileId, neighborId);
+      const annualIceFraction = Math.max(
+        annualIceFractions[current.tileId],
+        annualIceFractions[neighborId]
+      );
+      const candidateCost = current.distance + edgeDistance * (
+        1 + annualIceFraction * SEASONAL_ICE_ROUTE_PENALTY
+      );
+      const candidateDistance = routeDistances[current.tileId] + edgeDistance;
+      if (
+        candidateCost > routeCosts[neighborId] ||
+        (
+          candidateCost === routeCosts[neighborId] &&
+          candidateDistance >= routeDistances[neighborId]
+        )
+      ) continue;
+      routeCosts[neighborId] = candidateCost;
+      routeDistances[neighborId] = candidateDistance;
+      heap.push(neighborId, candidateCost);
     }
   }
   return targetDistances;
+}
+
+function buildAnnualIceFractions(cycle, tileCount) {
+  const iceDays = new Uint16Array(tileCount);
+  const dailyIceMask = new Uint8Array(tileCount);
+  for (let day = 0; day < WEATHER_DAYS; day++) {
+    fillIceMaskForDay(cycle, day, dailyIceMask);
+    for (let tileId = 0; tileId < tileCount; tileId++) {
+      iceDays[tileId] += dailyIceMask[tileId];
+    }
+  }
+  return Float32Array.from(iceDays, (days) => days / WEATHER_DAYS);
 }

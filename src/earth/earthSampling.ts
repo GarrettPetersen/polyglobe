@@ -372,7 +372,7 @@ export interface BuildTerrainFromRasterOptions {
   landElevation?: number;
   /** When temperatureC < this, water tiles become ice (frozen). °C. Default 1.5. */
   freezeThresholdC?: number;
-  /** Latitude (degrees) beyond which every tile is forced to ice (solid polar ice caps, no holes in Antarctica/Arctic). Uses tile extent (max of center and vertices). Default 70. */
+  /** Latitude (degrees) beyond which every tile is forced to ice (solid polar ice caps, no holes in Antarctica/Arctic). Uses tile extent (max of center and vertices). Default 74. */
   polarCapLat?: number;
   /** "center" = sample only tile center. "tile" = sample many points inside the hex/pentagon, majority land. Default "tile". */
   sampleMode?: TerrainSampleMode;
@@ -563,6 +563,8 @@ export interface LandWaterAssignment {
   oceanRegionId?: number;
 }
 
+export const DEFAULT_POLAR_CAP_LATITUDE_DEG = 74;
+
 const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   elevationScale: 0.00004,
   mountainThresholdM: 1200,
@@ -576,7 +578,7 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   lakeElevation: -0.04,
   landElevation: 0.1,
   freezeThresholdC: 1.5,
-  polarCapLat: 70,
+  polarCapLat: DEFAULT_POLAR_CAP_LATITUDE_DEG,
   sampleMode: "tile",
   sampleCount: 24,
   landSampler: undefined!,
@@ -774,12 +776,15 @@ function terrainFromSample(
       result.temperatureMonthlyC &&
       result.temperatureMonthlyC.length === 12
     ) {
-      let minM = Infinity;
+      // Static ice is perennial ice. Seasonal winter minima belong to the
+      // annual sea-ice cycle, so only freeze this terrain when even its
+      // warmest monthly mean remains below the threshold.
+      let maxM = -Infinity;
       for (let mi = 0; mi < 12; mi++) {
         const v = result.temperatureMonthlyC[mi]!;
-        if (Number.isFinite(v) && v < minM) minM = v;
+        if (Number.isFinite(v) && v > maxM) maxM = v;
       }
-      if (Number.isFinite(minM)) tFreeze = minM;
+      if (Number.isFinite(maxM)) tFreeze = maxM;
     }
     const frozen =
       tFreeze != null &&

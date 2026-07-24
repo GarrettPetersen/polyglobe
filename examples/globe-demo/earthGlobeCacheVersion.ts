@@ -27,7 +27,7 @@ export const EARTH_STRAIT_TILE_IDS_SUBDIVISION_6 = [
   40361, 24757, 4129, 25328,
 ] as const;
 
-export const EARTH_GLOBE_CACHE_VERSION = "v19";
+export const EARTH_GLOBE_CACHE_VERSION = "v20";
 
 /** Legacy cache JSON used version "6-v17" before per-subdivision filenames. */
 export const EARTH_GLOBE_CACHE_LEGACY_VERSIONS = ["6-v17"] as const;

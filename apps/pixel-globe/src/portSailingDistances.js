@@ -1,5 +1,5 @@
 export const PORT_SAILING_DISTANCE_FORMAT = "pixel-globe-port-sailing-distances";
-export const PORT_SAILING_DISTANCE_VERSION = 1;
+export const PORT_SAILING_DISTANCE_VERSION = 2;
 
 export function parsePortSailingDistances(raw, expected = {}) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -26,6 +26,9 @@ export function parsePortSailingDistances(raw, expected = {}) {
       `Port sailing distance Earth cache mismatch: bake ${raw.earthCacheVersion}, world ${expected.earthCacheVersion}. ` +
       "Run npm run render:port-sailing-distances."
     );
+  }
+  if (!Number.isInteger(raw.referenceWeatherDay) || raw.referenceWeatherDay < 0 || raw.referenceWeatherDay >= 365) {
+    throw new Error(`Port sailing distance bake has an invalid reference weather day: ${raw.referenceWeatherDay}`);
   }
   if (!Array.isArray(raw.endpoints) || raw.endpoints.length === 0) {
     throw new Error("Port sailing distance bake has no endpoints");
@@ -85,6 +88,7 @@ export function parsePortSailingDistances(raw, expected = {}) {
     version: raw.version,
     subdivisions: raw.subdivisions,
     earthCacheVersion: raw.earthCacheVersion,
+    referenceWeatherDay: raw.referenceWeatherDay,
     endpoints: Object.freeze(endpoints),
     distancesKm: Object.freeze(distancesKm),
     indexByTileId

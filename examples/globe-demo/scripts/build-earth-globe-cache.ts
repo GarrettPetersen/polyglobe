@@ -25,6 +25,7 @@ import * as THREE from "three";
 import {
   Globe,
   WaterSphere,
+  DEFAULT_POLAR_CAP_LATITUDE_DEG,
   buildTerrainFromEarthRaster,
   parseElevationBin,
   applyCoastalBeach,
@@ -507,6 +508,7 @@ async function buildCacheForSubdivisions(
     landElevation: SEA_LEVEL_LAND_ELEVATION,
     elevationScale: 0.00004,
     latitudeTerrain: true,
+    polarCapLat: DEFAULT_POLAR_CAP_LATITUDE_DEG,
     getRegionScores,
     resolveOptions: {
       cityClaimTileIdsByLandmass: cityAnchors.requiredTileIdsByLandmass,

@@ -67,6 +67,7 @@ export {
   latLonToDegrees,
   earthRasterFromImageData,
   sampleRasterAtLatLon,
+  DEFAULT_POLAR_CAP_LATITUDE_DEG,
   buildTerrainFromEarthRaster,
   buildTerrainFromSampler,
   applyCoastalBeach,
