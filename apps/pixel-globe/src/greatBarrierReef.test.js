@@ -14,7 +14,8 @@ import {
   GREAT_BARRIER_REEF_ALPHA,
   GREAT_BARRIER_REEF_SPRITE_KEYS,
   buildGreatBarrierReef,
-  distanceToReefRouteKm
+  distanceToReefRouteKm,
+  greatBarrierReefWaterMaskSpans
 } from "./greatBarrierReef.js";
 
 const SUBDIVISIONS = 7;
@@ -77,4 +78,56 @@ test("the reef corridor follows Queensland rather than filling the Coral Sea", (
   assert.ok(distanceToReefRouteKm(-22.7, 151.1) < 1);
   assert.ok(distanceToReefRouteKm(-20, 155) > 500);
   assert.ok(distanceToReefRouteKm(-30, 153) > 500);
+});
+
+test("reef sprite masks keep only water pixels and exclude beach connectors", () => {
+  const spans = greatBarrierReefWaterMaskSpans({
+    originX: 10,
+    originY: 20,
+    width: 5,
+    height: 2,
+    isWater: (x) => x >= 11,
+    isBeach: (x, y) => x === 13 && y === 20
+  });
+
+  assert.deepEqual(spans, [
+    { x: 1, y: 0, width: 2 },
+    { x: 4, y: 0, width: 1 },
+    { x: 1, y: 1, width: 4 }
+  ]);
+});
+
+test("reef sprite masks reject incomplete geometry and predicates", () => {
+  assert.throws(
+    () => greatBarrierReefWaterMaskSpans({
+      originX: 0.5,
+      originY: 0,
+      width: 5,
+      height: 2,
+      isWater: () => true,
+      isBeach: () => false
+    }),
+    /integer origin/
+  );
+  assert.throws(
+    () => greatBarrierReefWaterMaskSpans({
+      originX: 0,
+      originY: 0,
+      width: 0,
+      height: 2,
+      isWater: () => true,
+      isBeach: () => false
+    }),
+    /positive integer dimensions/
+  );
+  assert.throws(
+    () => greatBarrierReefWaterMaskSpans({
+      originX: 0,
+      originY: 0,
+      width: 5,
+      height: 2,
+      isWater: () => true
+    }),
+    /water and beach predicates/
+  );
 });

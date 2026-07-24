@@ -71,6 +71,42 @@ export function distanceToReefRouteKm(lat, lon) {
   return nearest;
 }
 
+export function greatBarrierReefWaterMaskSpans({
+  originX,
+  originY,
+  width,
+  height,
+  isWater,
+  isBeach
+}) {
+  if (!Number.isInteger(originX) || !Number.isInteger(originY)) {
+    throw new Error(`Great Barrier Reef water mask requires an integer origin: ${originX},${originY}`);
+  }
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw new Error(`Great Barrier Reef water mask requires positive integer dimensions: ${width}x${height}`);
+  }
+  if (typeof isWater !== "function" || typeof isBeach !== "function") {
+    throw new Error("Great Barrier Reef water mask requires water and beach predicates");
+  }
+
+  const spans = [];
+  for (let py = 0; py < height; py++) {
+    let runStart = -1;
+    for (let px = 0; px <= width; px++) {
+      const mapX = originX + px;
+      const mapY = originY + py;
+      const visible = px < width && isWater(mapX, mapY) && !isBeach(mapX, mapY);
+      if (visible && runStart < 0) {
+        runStart = px;
+      } else if (!visible && runStart >= 0) {
+        spans.push({ x: runStart, y: py, width: px - runStart });
+        runStart = -1;
+      }
+    }
+  }
+  return spans;
+}
+
 function sampleRoute(route, intervalDegrees) {
   const samples = [];
   for (let index = 0; index < route.length - 1; index++) {

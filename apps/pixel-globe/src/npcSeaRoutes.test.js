@@ -392,6 +392,27 @@ test("visual navigation cleanup tolerates a ship sunk earlier in the same frame"
   assert.equal(releaseNpcShipVisualNavigation(routes, lost.id, 1000, position), false);
 });
 
+test("visual navigation does not replace an NPC ship's strategic route target", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const ship = routes.ships.find((candidate) => (
+    candidate.plan?.segments.some((segment) => segment.kind === "sail")
+  ));
+  const segment = ship.plan.segments.find((candidate) => candidate.kind === "sail");
+  const effectiveMinute = (segment.startMinute + segment.endMinute) / 2;
+  const clockMinute = effectiveMinute - ship.clockOffsetMinutes;
+  const before = npcShipSnapshots(routes, clockMinute).find((snapshot) => snapshot.id === ship.id);
+  assert.ok(before);
+
+  const visualPosition = before.routeVector.map((coordinate) => -coordinate);
+  setNpcShipVisualNavigation(routes, ship.id, visualPosition, before.routeHeading);
+  const after = npcShipSnapshots(routes, clockMinute).find((snapshot) => snapshot.id === ship.id);
+
+  assert.deepEqual(after.routeVector, before.routeVector);
+  assert.deepEqual(after.routeHeading, before.routeHeading);
+  assert.notDeepEqual(after.routeVector, visualPosition);
+});
+
 test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

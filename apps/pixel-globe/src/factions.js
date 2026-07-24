@@ -241,6 +241,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Sukhothai", "Thailand", "ayutthaya"),
 
   cityRule("Ternate", "Indonesia", "ternate"),
+  cityRule("Hitu Village", "Indonesia", "ternate"),
   cityRule("Makian Village", "Indonesia", "ternate")
 ], "city faction overrides");
 

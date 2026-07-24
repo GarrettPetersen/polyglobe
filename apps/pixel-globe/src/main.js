@@ -470,7 +470,8 @@ import {
 import {
   GREAT_BARRIER_REEF_ALPHA,
   GREAT_BARRIER_REEF_SPRITE_KEYS,
-  buildGreatBarrierReef
+  buildGreatBarrierReef,
+  greatBarrierReefWaterMaskSpans
 } from "./greatBarrierReef.js";
 import { validateExplorerReportDialogueCatalog } from "./explorerDiscoveryDialogue.js";
 import {
@@ -1226,6 +1227,8 @@ const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
 const TILE_ART_HALF = TILE_ART_SIZE / 2;
+const UNDERWATER_WORLD_REFRACTION_PADDING_PX = 1;
+const UNDERWATER_WORLD_SPRITE_WIDTH = TILE_ART_SIZE + UNDERWATER_WORLD_REFRACTION_PADDING_PX * 2;
 const FACE_HALF_WIDTH = 9;
 const COAST_FACE_ENDPOINT_OVERLAP_PX = 2;
 const BEACH_SPECKLE_COUNT = 5;
@@ -2055,6 +2058,16 @@ shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
 const shipWaterlineLayerCache = new WeakMap();
 const selectableOutlineCache = new WeakMap();
+const greatBarrierReefWaterMaskCache = new WeakMap();
+const greatBarrierReefBeachPixelCache = new WeakMap();
+const underwaterWorldSpriteCanvas = document.createElement("canvas");
+underwaterWorldSpriteCanvas.width = UNDERWATER_WORLD_SPRITE_WIDTH;
+underwaterWorldSpriteCanvas.height = TILE_ART_SIZE;
+const underwaterWorldSpriteCtx = underwaterWorldSpriteCanvas.getContext("2d");
+if (!underwaterWorldSpriteCtx) {
+  throw new Error("Marque & Reprisal could not create its underwater world sprite context");
+}
+underwaterWorldSpriteCtx.imageSmoothingEnabled = false;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
 const pixelTextWidthCache = new Map();
@@ -2184,6 +2197,7 @@ const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
 const fishSpritePixelCache = new WeakMap();
 let fishIndividualFrameCache = null;
+let tileWeatherSamplingCache = null;
 let spriteColors;
 let waterLatitudeImages;
 let waterLatitudeSpriteColors;
@@ -12064,7 +12078,7 @@ function beginPlayerInitiatedCombat(npcShipId) {
   recordPlayerAttackConsequences(npcShipId);
   shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
   shipCombatEntryCollisionGrace.set(npcShipId, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
-  const cannons = shipStatsForSlug(state.slug).cannons;
+  const cannons = state.stats.cannons;
   startCombatMusicForThreat(cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   publishPlatformTimelineEvent({
     title: "Battle joined",
@@ -16408,18 +16422,9 @@ function updateNpcVisualShips(dt) {
     () => npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)
   );
   const snapshotIds = new Set();
+  const activeSnapshots = [];
   const offset = chartOffsetPixels(chart);
-  for (const snapshot of snapshots) {
-    const state = npcVisualShips.get(snapshot.id);
-    if (snapshot.hidden) {
-      if (state) releaseNpcVisualState(state);
-      continue;
-    }
-    if (state) syncNpcVisualStateFromSnapshot(state, snapshot);
-  }
-  let changed = measurePerformanceBenchmarkStage("npcShips.visual.combat", () => updateNpcCombat(dt));
-
-  const movementStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
+  let changed = false;
   for (const snapshot of snapshots) {
     if (!npcSeaRoutes.shipById.has(snapshot.id)) {
       const staleState = npcVisualShips.get(snapshot.id);
@@ -16430,7 +16435,21 @@ function updateNpcVisualShips(dt) {
       continue;
     }
     snapshotIds.add(snapshot.id);
-    if (snapshot.hidden) continue;
+    const state = npcVisualShips.get(snapshot.id);
+    if (snapshot.hidden) {
+      if (state) {
+        releaseNpcVisualState(state);
+        changed = true;
+      }
+      continue;
+    }
+    if (state) syncNpcVisualStateFromSnapshot(state, snapshot);
+    activeSnapshots.push(snapshot);
+  }
+  if (measurePerformanceBenchmarkStage("npcShips.visual.combat", () => updateNpcCombat(dt))) changed = true;
+
+  const movementStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
+  for (const snapshot of activeSnapshots) {
     const routePoint = localPointForGlobeVector(snapshot.routeVector);
     let state = npcVisualShips.get(snapshot.id);
     if (!routePoint) {
@@ -16455,8 +16474,8 @@ function updateNpcVisualShips(dt) {
       npcVisualShips.set(snapshot.id, state);
       changed = true;
     }
-    syncNpcVisualStateFromSnapshot(state, snapshot);
 
+    let visualNavigationChanged = false;
     let currentNavigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
     if (!currentNavigation.ok) {
       const placement = nearestNpcNavigableVisualPoint(
@@ -16475,11 +16494,19 @@ function updateNpcVisualShips(dt) {
         changed = true;
         continue;
       }
-      if (applyNpcVisualPlacement(state, placement)) changed = true;
+      if (applyNpcVisualPlacement(state, placement)) {
+        visualNavigationChanged = true;
+        changed = true;
+      }
       currentNavigation = { ok: true, kind: placement.navKind };
     }
-    if (advanceNpcVisualState(state, snapshot, routePoint, dt, currentNavigation)) changed = true;
-    setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
+    if (advanceNpcVisualState(state, snapshot, routePoint, dt, currentNavigation)) {
+      visualNavigationChanged = true;
+      changed = true;
+    }
+    if (visualNavigationChanged) {
+      setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
+    }
   }
   if (performanceBenchmarkState) {
     recordPerformanceBenchmarkStage(
@@ -16510,12 +16537,16 @@ function createNpcVisualState(snapshot, routePoint) {
   );
   if (!initial) return null;
   ensureNpcShipCaptain(snapshot.id);
+  const profile = npcVisualShipProfile(snapshot.id, snapshot.slug);
   const state = {
     id: snapshot.id,
     slug: snapshot.slug,
     factionId: snapshot.factionId,
     role: snapshot.role,
     fishingNetId: snapshot.fishingNetId,
+    stats: profile.stats,
+    navalWeapon: profile.navalWeapon,
+    spriteAsset: profile.spriteAsset,
     hitPoints: snapshot.hitPoints,
     maxHitPoints: snapshot.maxHitPoints,
     combatGrace: snapshot.combatGrace,
@@ -16553,6 +16584,12 @@ function createNpcVisualState(snapshot, routePoint) {
 }
 
 function syncNpcVisualStateFromSnapshot(state, snapshot) {
+  if (state.slug !== snapshot.slug) {
+    const profile = npcVisualShipProfile(snapshot.id, snapshot.slug);
+    state.stats = profile.stats;
+    state.navalWeapon = profile.navalWeapon;
+    state.spriteAsset = profile.spriteAsset;
+  }
   state.slug = snapshot.slug;
   state.factionId = snapshot.factionId;
   state.role = snapshot.role;
@@ -16560,6 +16597,23 @@ function syncNpcVisualStateFromSnapshot(state, snapshot) {
   state.hitPoints = snapshot.hitPoints;
   state.maxHitPoints = snapshot.maxHitPoints;
   state.combatGrace = snapshot.combatGrace;
+}
+
+function npcVisualShipProfile(shipId, slug) {
+  const routeShip = npcSeaRoutes?.shipById.get(shipId);
+  if (!routeShip) throw new Error(`Cannot profile missing visual NPC ship: ${shipId}`);
+  const stats = shipStatsForSlug(slug);
+  const spriteAsset = npcShipAssetsBySlug.get(slug);
+  if (!spriteAsset) throw new Error(`Missing NPC ship sprite asset for ${slug}`);
+  return Object.freeze({
+    stats,
+    spriteAsset,
+    navalWeapon: navalWeaponForShip({
+      cultureType: routeShip.cultureType || routeShip.currentPort?.cityType || null,
+      cannons: stats.cannons,
+      weaponKind: stats.navalWeaponKind || null
+    })
+  });
 }
 
 function updateNpcFishermenHarvest() {
@@ -16724,20 +16778,23 @@ function updateNpcCombat(dt) {
   changed ||= batteryCombat.changed;
 
   const intentsStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
+  const shoreBatteryIntents = shoreBatteryIntentsForNpcs();
   for (const state of npcVisualShips.values()) {
-    const stats = shipStatsForSlug(state.slug);
-    const weapon = npcNavalWeapon(state, stats);
-    state.weaponCooldown = navalWeaponUsesBroadside(weapon)
-      ? advanceCannonReload(state.weaponCooldown, dt, stats.crewCapacity, stats.cannons)
-      : Math.max(0, state.weaponCooldown - dt);
-    const intent = result.intents.get(state.id) || shoreBatteryIntentForNpc(state);
+    const stats = state.stats;
+    const weapon = npcNavalWeapon(state);
+    if (state.weaponCooldown > 0) {
+      state.weaponCooldown = navalWeaponUsesBroadside(weapon)
+        ? advanceCannonReload(state.weaponCooldown, dt, stats.crewCapacity, stats.cannons)
+        : Math.max(0, state.weaponCooldown - dt);
+    }
+    const intent = result.intents.get(state.id) || shoreBatteryIntents.get(state.id);
     const nextMode = intent?.mode || null;
     const nextTargetId = intent?.targetId || null;
     const nextEnemyIds = intent?.enemyIds || [];
     if (
       state.combatMode !== nextMode ||
       state.combatTargetId !== nextTargetId ||
-      state.combatEnemyIds.join("|") !== nextEnemyIds.join("|")
+      arrayContentsDiffer(state.combatEnemyIds, nextEnemyIds)
     ) changed = true;
     state.combatMode = nextMode;
     state.combatTargetId = nextTargetId;
@@ -16756,9 +16813,12 @@ function updateNpcCombat(dt) {
   }
 
   if (result.intents.has(PLAYER_COMBAT_ID) || playerHasShoreBatteryEngagement()) {
-    const hostileCannons = Math.max(0, ...[...npcVisualShips.values()]
-      .filter((state) => state.combatEnemyIds.includes(PLAYER_COMBAT_ID))
-      .map((state) => shipStatsForSlug(state.slug).cannons));
+    let hostileCannons = 0;
+    for (const state of npcVisualShips.values()) {
+      if (state.combatEnemyIds.includes(PLAYER_COMBAT_ID)) {
+        hostileCannons = Math.max(hostileCannons, state.stats.cannons);
+      }
+    }
     startCombatMusicForThreat(hostileCannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   }
   return changed;
@@ -17056,19 +17116,30 @@ function shoreBatteryPoint(batteryId) {
   return { x: call.x, y: call.y - 2 };
 }
 
-function shoreBatteryIntentForNpc(npc) {
-  let targetId = null;
-  let nearestDistance = Infinity;
+function shoreBatteryIntentsForNpcs() {
+  const nearestByNpcId = new Map();
   for (const battery of shoreBatteryStates.values()) {
-    if (!battery.engagedTargetIds.has(npc.id)) continue;
     const point = shoreBatteryPoint(battery.id);
     if (!point) continue;
-    const distance = Math.hypot(point.x - npc.x, point.y - npc.y);
-    if (distance >= nearestDistance) continue;
-    nearestDistance = distance;
-    targetId = battery.id;
+    for (const npcId of battery.engagedTargetIds) {
+      if (npcId === PLAYER_COMBAT_ID) continue;
+      const npc = npcVisualShips.get(npcId);
+      if (!npc) continue;
+      const distance = distance2(point.x, point.y, npc.x, npc.y);
+      const nearest = nearestByNpcId.get(npcId);
+      if (nearest && distance >= nearest.distance) continue;
+      nearestByNpcId.set(npcId, { targetId: battery.id, distance });
+    }
   }
-  return targetId ? { mode: COMBAT_MODE_ATTACK, targetId, enemyIds: [targetId] } : null;
+  const intents = new Map();
+  for (const [npcId, nearest] of nearestByNpcId) {
+    intents.set(npcId, {
+      mode: COMBAT_MODE_ATTACK,
+      targetId: nearest.targetId,
+      enemyIds: [nearest.targetId]
+    });
+  }
+  return intents;
 }
 
 function fireShoreBatteryAtNearestTarget(state) {
@@ -17145,6 +17216,14 @@ function setContentsDiffer(a, b) {
   return false;
 }
 
+function arrayContentsDiffer(a, b) {
+  if (a.length !== b.length) return true;
+  for (let index = 0; index < a.length; index++) {
+    if (a[index] !== b[index]) return true;
+  }
+  return false;
+}
+
 function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
   gameState,
   Math.floor(weatherClockMinutes)
@@ -17211,8 +17290,8 @@ function npcPirateMajorPortAvoidance(state) {
 }
 
 function npcCombatEntity(state) {
-  const stats = shipStatsForSlug(state.slug);
-  const weapon = npcNavalWeapon(state, stats);
+  const stats = state.stats;
+  const weapon = npcNavalWeapon(state);
   const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
   return {
     id: state.id,
@@ -17309,8 +17388,8 @@ function fireNpcWeaponAtTarget(state, targetId) {
   if (state.weaponCooldown > 0 || state.combatGrace) return false;
   const target = combatEntityAimPoint(targetId);
   if (!target) return false;
-  const stats = shipStatsForSlug(state.slug);
-  const weapon = npcNavalWeapon(state, stats);
+  const stats = state.stats;
+  const weapon = npcNavalWeapon(state);
   if (!weapon) return false;
   const dx = target.x - state.x;
   const dy = target.y - state.y;
@@ -17378,20 +17457,23 @@ function fireNpcWeaponAtTarget(state, targetId) {
   return true;
 }
 
-function npcNavalWeapon(state, stats = shipStatsForSlug(state.slug)) {
-  const routeShip = npcSeaRoutes?.shipById.get(state.id);
-  return navalWeaponForShip({
-    cultureType: routeShip?.cultureType || routeShip?.currentPort?.cityType || null,
-    cannons: stats.cannons,
-    weaponKind: stats.navalWeaponKind || null
-  });
+function npcNavalWeapon(state) {
+  if (!state || !Object.hasOwn(state, "navalWeapon")) {
+    throw new Error(`Visual NPC ship has no cached naval weapon: ${state?.id || "missing"}`);
+  }
+  return state.navalWeapon;
 }
 
 function updateNpcCombatProjectiles(dt) {
   let changed = false;
   const kept = [];
-  const cannonShipTargets = npcCombatProjectiles.some((ball) => ball.kind === NAVAL_WEAPON_CANNON)
-    ? npcCannonShipCollisionTargets()
+  const hasCannonProjectiles = npcCombatProjectiles.some((ball) => ball.kind === NAVAL_WEAPON_CANNON);
+  const cannonShipTargets = hasCannonProjectiles ? npcCannonShipCollisionTargets() : [];
+  const cannonBatteryTargets = hasCannonProjectiles
+    ? activeVisibleShoreBatteries().map((battery) => {
+        const point = shoreBatteryPoint(battery.id);
+        return { battery, id: battery.id, x: point.x, y: point.y, radius: 9 };
+      })
     : [];
   for (const ball of npcCombatProjectiles) {
     if (ball.ownerId !== PLAYER_COMBAT_ID &&
@@ -17403,7 +17485,7 @@ function updateNpcCombatProjectiles(dt) {
     const previousAge = ball.age;
     ball.age = Math.min(ball.duration, ball.age + dt);
     if (ball.kind === NAVAL_WEAPON_CANNON &&
-        resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets)) {
+        resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets, cannonBatteryTargets)) {
       changed = true;
       continue;
     }
@@ -17450,18 +17532,17 @@ function npcCannonShipCollisionTargets() {
   return targets;
 }
 
-function resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets) {
+function resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets, cannonBatteryTargets) {
   const targets = [];
   for (const target of cannonShipTargets) {
     if (target.id === ball.ownerId) continue;
     if (target.id !== PLAYER_COMBAT_ID && !npcSeaRoutes.shipById.has(target.id)) continue;
     targets.push(target);
   }
-  for (const battery of activeVisibleShoreBatteries()) {
-    if (battery.id === ball.ownerId) continue;
-    if (!combatEngagementIsActive(ball.ownerId, battery.id)) continue;
-    const point = shoreBatteryPoint(battery.id);
-    targets.push({ id: battery.id, x: point.x, y: point.y, radius: 9 });
+  for (const target of cannonBatteryTargets) {
+    if (target.id === ball.ownerId) continue;
+    if (!combatEngagementIsActive(ball.ownerId, target.id)) continue;
+    targets.push(target);
   }
   const hit = firstNavalProjectileHit(
     navalProjectilePoint(ball, previousAge),
@@ -17918,16 +17999,26 @@ function updateCombatShipCollisions(dt) {
   updateShipCombatEntryCollisionGrace(dt);
   if (!ship || gameOverReason || shipCombatState.engagements.size === 0) return false;
   const ids = [...combatParticipantIds()];
+  const bodies = new Map();
+  const bodyForId = (id) => {
+    if (!bodies.has(id)) bodies.set(id, combatCollisionBody(id));
+    return bodies.get(id);
+  };
+  const invalidateBodies = (aId, bId) => {
+    bodies.delete(aId);
+    bodies.delete(bId);
+  };
   let changed = false;
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
-      const a = combatCollisionBody(ids[i]);
-      const b = combatCollisionBody(ids[j]);
+      const a = bodyForId(ids[i]);
+      const b = bodyForId(ids[j]);
       if (!a || !b) continue;
       if (shipCombatEntryCollisionGrace.has(a.id) || shipCombatEntryCollisionGrace.has(b.id)) {
         const separation = separateTouchingShips(a, b, SHIP_COMBAT_ENTRY_SEPARATION_PX);
         if (separation) {
           applyCombatCollisionSeparation(a.id, b.id, separation);
+          invalidateBodies(a.id, b.id);
           changed = true;
         }
         continue;
@@ -17937,6 +18028,7 @@ function updateCombatShipCollisions(dt) {
       applyCombatCollisionSeparation(a.id, b.id, collision);
       applyCombatCollisionVelocity(a.id, collision.a.vx, collision.a.vy);
       applyCombatCollisionVelocity(b.id, collision.b.vx, collision.b.vy);
+      invalidateBodies(a.id, b.id);
       const key = engagementKey(a.id, b.id);
       if ((shipCollisionCooldowns.get(key) || 0) <= 0 && (collision.a.damage > 0 || collision.b.damage > 0)) {
         applyCombatCollisionDamage(a.id, collision.a.damage, b.id);
@@ -17985,7 +18077,7 @@ function combatCollisionBody(id) {
   }
   const state = npcVisualShips.get(id);
   if (!state || state.combatGrace) return null;
-  const stats = shipStatsForSlug(state.slug);
+  const stats = state.stats;
   const heading = npcShipScreenHeading(state.heading);
   const baseVelocity = npcCollisionBaseVelocity(state, heading);
   return {
@@ -18169,7 +18261,7 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
   if (stepDistance <= 1e-4) return collisionChanged;
 
   const routeDirection = { x: dx / distance, y: dy / distance };
-  const stats = shipStatsForSlug(state.slug);
+  const stats = state.stats;
   const strategicRiverDirection = startNav.ok && startNav.kind === "river" &&
     !stormNavigation && !portAvoidance && !combatNavigation
     ? tangentToScreenDirection(snapshot.routeHeading)
@@ -19509,30 +19601,101 @@ function drawGreatBarrierReef(activeChart, nowMs) {
       Math.round(call.drawSurfaceX - TILE_ART_HALF),
       Math.round(call.drawSurfaceY - TILE_ART_HALF),
       refractionTime,
-      coral.seed
+      coral.seed,
+      greatBarrierReefWaterMask(activeChart, coral.tileId, call)
     );
   }
 }
 
-function drawUnderwaterWorldSprite(image, x, y, nowMs, seed) {
-  ctx.save();
-  ctx.globalAlpha = GREAT_BARRIER_REEF_ALPHA;
+function drawUnderwaterWorldSprite(image, x, y, nowMs, seed, waterMask) {
+  underwaterWorldSpriteCtx.clearRect(
+    0,
+    0,
+    underwaterWorldSpriteCanvas.width,
+    underwaterWorldSpriteCanvas.height
+  );
+  underwaterWorldSpriteCtx.globalCompositeOperation = "source-over";
+  underwaterWorldSpriteCtx.globalAlpha = 1;
   for (let sourceY = 0; sourceY < TILE_ART_SIZE; sourceY += SHIP_REFRACTION_BAND_HEIGHT) {
     const bandHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, TILE_ART_SIZE - sourceY);
     const offsetX = liveShipRefractionOffset(sourceY, nowMs, seed);
-    ctx.drawImage(
+    if (Math.abs(offsetX) > UNDERWATER_WORLD_REFRACTION_PADDING_PX) {
+      throw new Error(`Underwater world sprite refraction exceeds its padding: ${offsetX}`);
+    }
+    underwaterWorldSpriteCtx.drawImage(
       image,
       0,
       sourceY,
       TILE_ART_SIZE,
       bandHeight,
-      x + offsetX,
-      y + sourceY,
+      UNDERWATER_WORLD_REFRACTION_PADDING_PX + offsetX,
+      sourceY,
       TILE_ART_SIZE,
       bandHeight
     );
   }
+  underwaterWorldSpriteCtx.globalCompositeOperation = "destination-in";
+  underwaterWorldSpriteCtx.drawImage(waterMask, 0, 0);
+  underwaterWorldSpriteCtx.globalCompositeOperation = "source-over";
+
+  ctx.save();
+  ctx.globalAlpha = GREAT_BARRIER_REEF_ALPHA;
+  ctx.drawImage(
+    underwaterWorldSpriteCanvas,
+    x - UNDERWATER_WORLD_REFRACTION_PADDING_PX,
+    y
+  );
   ctx.restore();
+}
+
+function greatBarrierReefWaterMask(activeChart, tileId, call) {
+  let chartMasks = greatBarrierReefWaterMaskCache.get(activeChart);
+  if (!chartMasks) {
+    chartMasks = new Map();
+    greatBarrierReefWaterMaskCache.set(activeChart, chartMasks);
+  }
+  const cached = chartMasks.get(tileId);
+  if (cached) return cached;
+
+  const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
+  const spriteY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  const originX = spriteX - UNDERWATER_WORLD_REFRACTION_PADDING_PX;
+  const beachPixels = greatBarrierReefBeachPixels(activeChart);
+  const spans = greatBarrierReefWaterMaskSpans({
+    originX,
+    originY: spriteY,
+    width: UNDERWATER_WORLD_SPRITE_WIDTH,
+    height: TILE_ART_SIZE,
+    isWater: (x, y) => wakeMapPointIsWater(x, y, activeChart),
+    isBeach: (x, y) => beachPixels.has(pixelMaskKey(x, y))
+  });
+  const mask = document.createElement("canvas");
+  mask.width = UNDERWATER_WORLD_SPRITE_WIDTH;
+  mask.height = TILE_ART_SIZE;
+  const maskCtx = mask.getContext("2d");
+  if (!maskCtx) throw new Error(`Could not create Great Barrier Reef water mask for tile ${tileId}`);
+  maskCtx.fillStyle = "#ffffff";
+  for (const span of spans) maskCtx.fillRect(span.x, span.y, span.width, 1);
+  chartMasks.set(tileId, mask);
+  return mask;
+}
+
+function greatBarrierReefBeachPixels(activeChart) {
+  const cached = greatBarrierReefBeachPixelCache.get(activeChart);
+  if (cached) return cached;
+
+  const pixels = new Set();
+  const layer = terrainConnectorLayer(activeChart.faceCalls, activeChart);
+  for (const entry of layer.entries) {
+    if (!isCoastFace(entry.call)) continue;
+    for (const span of entry.spans) {
+      for (let x = span.x; x < span.x + span.width; x++) {
+        pixels.add(pixelMaskKey(x, span.y));
+      }
+    }
+  }
+  greatBarrierReefBeachPixelCache.set(activeChart, pixels);
+  return pixels;
 }
 
 function drawSelectableInteractionOutlines(nowMs) {
@@ -28433,11 +28596,12 @@ function drawShipSinkPixel(pixel, drawOffset) {
 function drawShips(activeChart, playerLight, nowMs) {
   const drawCalls = [];
   const terrainForeground = shipForegroundTerrainDrawOrder(activeChart);
+  const npcDrawContext = createNpcShipDrawContext(activeChart);
   const playerCall = playerShipDrawCall(playerLight);
   if (playerCall) drawCalls.push(playerCall);
   if (npcSeaRoutes && npcShipAssetsBySlug && camera && directionIndex) {
     for (const state of npcVisualShips.values()) {
-      const call = npcShipDrawCall(state, activeChart);
+      const call = npcShipDrawCall(state, activeChart, npcDrawContext);
       if (call) drawCalls.push(call);
     }
   }
@@ -28735,14 +28899,22 @@ function playerShipDrawCall(light) {
   };
 }
 
-function npcShipDrawCall(state, activeChart) {
-  const offset = chartOffsetPixels(activeChart);
+function createNpcShipDrawContext(activeChart) {
+  return {
+    offset: chartOffsetPixels(activeChart),
+    playerInCombat: playerHasCombatEngagement(),
+    allegianceByFactionId: new Map()
+  };
+}
+
+function npcShipDrawCall(state, activeChart, drawContext = createNpcShipDrawContext(activeChart)) {
+  const offset = drawContext.offset;
   const point = { x: state.x + offset.x, y: state.y + offset.y };
   if (!pointNearScreen(point, SHIP_SHEET_FRAME_SIZE)) return null;
   if (!activeChart.visibleSet.has(state.tileId)) return null;
   const heading = npcShipScreenHeading(state.heading);
-  const asset = npcShipAssetsBySlug.get(state.slug);
-  if (!asset) throw new Error(`Missing NPC ship sprite asset for ${state.slug}`);
+  const asset = state.spriteAsset;
+  if (!asset) throw new Error(`Visual NPC ship ${state.id} is missing its cached sprite asset`);
   const frame = headingFrameForScreenHeading(heading);
   return {
     id: state.id,
@@ -28762,7 +28934,7 @@ function npcShipDrawCall(state, activeChart) {
     sortY: point.y + SHIP_SHEET_FRAME_SIZE / 2,
     stormAnchored: state.stormMode === "anchored",
     combatMode: state.combatMode,
-    combatAllegiance: npcCombatAllegiance(state.id, state.factionId),
+    combatAllegiance: npcCombatAllegiance(state.id, state.factionId, drawContext),
     hitPoints: state.hitPoints,
     maxHitPoints: state.maxHitPoints,
     flagSeed: state.id.length * 17
@@ -28887,7 +29059,7 @@ function playerShipIsRowing() {
 function npcShipIsRowing(state) {
   if (state.stormMode === "anchored" || state.fishingAction) return false;
   if (state.routeKey?.startsWith("held:")) return false;
-  return shipUsesOars(shipStatsForSlug(state.slug), state.heading, state.vector, state.tileId);
+  return shipUsesOars(state.stats, state.heading, state.vector, state.tileId);
 }
 
 function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
@@ -28918,14 +29090,20 @@ function stormBobbedShipCall(call, nowMs) {
   return { ...call, x, y, depthY: call.depthY + y - call.y };
 }
 
-function npcCombatAllegiance(npcShipId, factionId) {
+function npcCombatAllegiance(npcShipId, factionId, drawContext = null) {
   if (shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShipId))) return "enemy";
-  return playerCombatAllegiance(
+  const playerInCombat = drawContext?.playerInCombat ?? playerHasCombatEngagement();
+  if (!playerInCombat) return null;
+  const cached = drawContext?.allegianceByFactionId.get(factionId);
+  if (cached !== undefined) return cached;
+  const allegiance = playerCombatAllegiance(
     ship.factionId,
     factionId,
-    playerHasCombatEngagement(),
+    playerInCombat,
     currentDiplomacyBetween
   );
+  drawContext?.allegianceByFactionId.set(factionId, allegiance);
+  return allegiance;
 }
 
 function currentDiplomacyBetween(factionAId, factionBId) {
@@ -32666,21 +32844,26 @@ function terrainStatusLabel(row) {
 }
 
 function windForTile(tileId) {
-  return windAtCoordinates(
+  const cache = weatherSamplingCache(weatherClockMinutes);
+  if (cache.windByTile.has(tileId)) return cache.windByTile.get(tileId);
+  const wind = windAtCoordinates(
     graph.latDeg[tileId],
     graph.lonDeg[tileId],
     tileId
   );
+  cache.windByTile.set(tileId, wind);
+  return wind;
 }
 
 function windAtCoordinates(latDeg, lonDeg, stormTileId) {
+  const cache = weatherSamplingCache(weatherClockMinutes);
   const wind = windAtLatLonDeg(
     latDeg,
     lonDeg,
-    dateToSubsolarLatDeg(weatherParts.date),
+    cache.subsolarLatDeg,
     {
       seed: WEATHER_WIND_SEED,
-      simMinute: Math.floor(weatherClockMinutes)
+      simMinute: cache.wholeMinute
     }
   );
   const stormIntensity = stormIntensityForTile(stormTileId);
@@ -32715,7 +32898,33 @@ function windForShip() {
 
 function stormIntensityForTile(tileId, simMinute = weatherClockMinutes) {
   if (!stormSystem || !Number.isInteger(tileId)) return 0;
-  return stormIntensityAtTile(stormSystem, tileId, simMinute);
+  const cache = weatherSamplingCache(simMinute);
+  if (cache.stormByTile.has(tileId)) return cache.stormByTile.get(tileId);
+  const intensity = stormIntensityAtTile(stormSystem, tileId, simMinute);
+  cache.stormByTile.set(tileId, intensity);
+  return intensity;
+}
+
+function weatherSamplingCache(simMinute) {
+  if (!Number.isFinite(simMinute)) throw new Error(`Weather sampling requires a finite minute: ${simMinute}`);
+  const dateMs = weatherParts.date.getTime();
+  if (
+    !tileWeatherSamplingCache ||
+    tileWeatherSamplingCache.simMinute !== simMinute ||
+    tileWeatherSamplingCache.dateMs !== dateMs ||
+    tileWeatherSamplingCache.stormSystem !== stormSystem
+  ) {
+    tileWeatherSamplingCache = {
+      simMinute,
+      dateMs,
+      stormSystem,
+      wholeMinute: Math.floor(simMinute),
+      subsolarLatDeg: dateToSubsolarLatDeg(weatherParts.date),
+      windByTile: new Map(),
+      stormByTile: new Map()
+    };
+  }
+  return tileWeatherSamplingCache;
 }
 
 function playerStormIntensity() {

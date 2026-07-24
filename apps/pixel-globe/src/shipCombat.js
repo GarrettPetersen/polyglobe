@@ -45,7 +45,7 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
         (!engagement.playerInitiated && playerSafePassageApplies(a, b)) ||
         (!engagement.playerInitiated && relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) ||
         playerEnteredPortEndsEngagement(a, b) ||
-        distance(a, b) > combatDisengageRadius(a, b)) {
+        !withinDistance(a, b, combatDisengageRadius(a, b))) {
       state.engagements.delete(key);
       changed = true;
     }
@@ -55,7 +55,8 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     for (let j = i + 1; j < entities.length; j++) {
       const a = entities[i];
       const b = entities[j];
-      if (!validatedShipsTriggerCombat(a, b, relationBetween) || distance(a, b) > combatDetectionRadius(a, b)) continue;
+      if (!withinDistance(a, b, combatDetectionRadius(a, b)) ||
+          !validatedShipsTriggerCombat(a, b, relationBetween)) continue;
       const key = engagementKey(a.id, b.id);
       if (state.engagements.has(key)) continue;
       const engagement = { aId: a.id, bId: b.id };
@@ -78,9 +79,10 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
   for (const entity of entities) {
     const enemies = enemiesById.get(entity.id);
     if (!enemies || enemies.length === 0) continue;
-    const target = chooseTarget(entity, enemies);
+    const mode = combatMode(entity, enemies);
+    const target = chooseTarget(entity, enemies, mode);
     intents.set(entity.id, {
-      mode: combatMode(entity, enemies),
+      mode,
       targetId: target.id,
       enemyIds: enemies.map((enemy) => enemy.id)
     });
@@ -191,7 +193,7 @@ export function forceShipEngagement(state, aId, bId) {
 
 export function combatPower(entity) {
   validateEntity(entity);
-  return entity.hitPoints * 10 + entity.cannons * 9;
+  return validatedCombatPower(entity);
 }
 
 export function engagementKey(aId, bId) {
@@ -221,8 +223,8 @@ export function npcShouldOfferSurrender(npc, player) {
   if (!Number.isFinite(player.topSpeedRad) || player.topSpeedRad <= 0) {
     throw new Error(`Invalid top speed for threatening ship ${player.id}`);
   }
-  const npcPower = combatPower(npc);
-  const playerPower = combatPower(player);
+  const npcPower = validatedCombatPower(npc);
+  const playerPower = validatedCombatPower(player);
   const health = npc.hitPoints / npc.maxHitPoints;
   const badlyDamaged = health <= 0.3;
   const hopelesslyOutmatched = playerPower >= npcPower * 2.4;
@@ -240,19 +242,38 @@ function combatMode(entity, enemies) {
   ) return COMBAT_MODE_FLEE;
   const health = entity.hitPoints / entity.maxHitPoints;
   if (health <= 0.36) return COMBAT_MODE_FLEE;
-  const strongestEnemy = Math.max(...enemies.map(combatPower));
-  if (combatPower(entity) < strongestEnemy * 0.56) return COMBAT_MODE_FLEE;
+  let strongestEnemy = 0;
+  for (const enemy of enemies) {
+    strongestEnemy = Math.max(strongestEnemy, validatedCombatPower(enemy));
+  }
+  if (validatedCombatPower(entity) < strongestEnemy * 0.56) return COMBAT_MODE_FLEE;
   return COMBAT_MODE_ATTACK;
 }
 
-function chooseTarget(entity, enemies) {
-  if (combatMode(entity, enemies) === COMBAT_MODE_FLEE) {
-    return [...enemies].sort((a, b) => combatPower(b) - combatPower(a) || distance(entity, a) - distance(entity, b))[0];
+function chooseTarget(entity, enemies, mode) {
+  let target = enemies[0];
+  if (mode === COMBAT_MODE_FLEE) {
+    for (let index = 1; index < enemies.length; index++) {
+      const candidate = enemies[index];
+      const powerDifference = validatedCombatPower(candidate) - validatedCombatPower(target);
+      if (powerDifference > 0 ||
+          (powerDifference === 0 && distanceSquared(entity, candidate) < distanceSquared(entity, target))) {
+        target = candidate;
+      }
+    }
+    return target;
   }
-  return [...enemies].sort((a, b) => (
-    a.hitPoints / a.maxHitPoints - b.hitPoints / b.maxHitPoints ||
-    distance(entity, a) - distance(entity, b)
-  ))[0];
+  for (let index = 1; index < enemies.length; index++) {
+    const candidate = enemies[index];
+    const candidateHealth = candidate.hitPoints / candidate.maxHitPoints;
+    const targetHealth = target.hitPoints / target.maxHitPoints;
+    if (candidateHealth < targetHealth ||
+        (candidateHealth === targetHealth &&
+          distanceSquared(entity, candidate) < distanceSquared(entity, target))) {
+      target = candidate;
+    }
+  }
+  return target;
 }
 
 function validateEntity(entity) {
@@ -291,6 +312,16 @@ function assertRelationResolver(relationBetween) {
   if (typeof relationBetween !== "function") throw new Error("Ship combat requires a diplomacy resolver");
 }
 
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+function validatedCombatPower(entity) {
+  return entity.hitPoints * 10 + entity.cannons * 9;
+}
+
+function withinDistance(a, b, radius) {
+  return distanceSquared(a, b) <= radius * radius;
+}
+
+function distanceSquared(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
 }

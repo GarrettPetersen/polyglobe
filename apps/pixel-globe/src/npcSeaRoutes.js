@@ -95,6 +95,7 @@ const FISHING_GROUND_LONG_RANGE_COST_PER_KM = 0.018;
 const FISHING_GROUND_CATCH_RATIO = 0.72;
 const NPC_WHALING_COOLDOWN_MINUTES = 60 * WEATHER_MINUTES_PER_DAY;
 const NPC_WHALING_RANGE_RAD = 1200 / EARTH_RADIUS_KM;
+const routeSegmentVectorCache = new WeakMap();
 
 export const NPC_ROLE_MERCHANT = "merchant";
 export const NPC_ROLE_FISHERMAN = "fisherman";
@@ -2178,54 +2179,36 @@ function npcShipSnapshot(ship, clockMinutes) {
   const segment = plan.segments.find((item) => clockMinutes >= item.startMinute && clockMinutes < item.endMinute);
   if (!segment || segment.kind === "wait") {
     if (!ship.visualNavigation) return null;
-    const held = vectorToLatLon(ship.visualNavigation.vector);
     return {
       id: ship.id,
       slug: ship.slug,
-      lat: held.lat,
-      lon: held.lon,
-      vector: ship.visualNavigation.vector.slice(),
-      heading: ship.visualNavigation.heading.slice(),
       routeVector: ship.visualNavigation.vector.slice(),
       routeHeading: ship.visualNavigation.heading.slice(),
       routeKey: `held:${segment?.startMinute ?? plan.endMinute}`,
-      profileId: ship.profileId,
       factionId: ship.factionId,
       role: ship.role,
       hitPoints: ship.hitPoints,
       maxHitPoints: ship.maxHitPoints,
       fishingNetId: ship.fishingNetId,
-      combatGrace: ship.graceUntilPortVisit > ship.portVisits,
-      cargo: { ...ship.cargo },
-      specie: Math.floor(ship.specie)
+      combatGrace: ship.graceUntilPortVisit > ship.portVisits
     };
   }
   const t = clamp01((clockMinutes - segment.startMinute) / (segment.endMinute - segment.startMinute));
-  const position = slerpPoint(segment.from, segment.to, t);
-  const routeVector = latLonToVector(position.lat, position.lon);
-  const routeHeading = headingVectorAt(position, segment.from, segment.to);
-  const actualVector = ship.visualNavigation?.vector || routeVector;
-  const actualHeading = ship.visualNavigation?.heading || routeHeading;
-  const actual = vectorToLatLon(actualVector);
+  const vectors = vectorsForRouteSegment(segment);
+  const routeVector = slerpVector(vectors.from, vectors.to, t);
+  const routeHeading = headingVectorForVectors(routeVector, vectors.from, vectors.to);
   return {
     id: ship.id,
     slug: ship.slug,
-    lat: actual.lat,
-    lon: actual.lon,
-    vector: actualVector.slice(),
-    heading: actualHeading.slice(),
     routeVector,
     routeHeading,
     routeKey: `${segment.from.id}->${segment.to.id}@${segment.startMinute}`,
-    profileId: ship.profileId,
     factionId: ship.factionId,
     role: ship.role,
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
     fishingNetId: ship.fishingNetId,
-    combatGrace: ship.graceUntilPortVisit > ship.portVisits,
-    cargo: { ...ship.cargo },
-    specie: Math.floor(ship.specie)
+    combatGrace: ship.graceUntilPortVisit > ship.portVisits
   };
 }
 
@@ -2730,23 +2713,55 @@ function shortestLonDeltaDeg(a, b) {
 function slerpPoint(a, b, t) {
   const av = latLonToVector(a.lat, a.lon);
   const bv = latLonToVector(b.lat, b.lon);
-  const dot = clamp(av[0] * bv[0] + av[1] * bv[1] + av[2] * bv[2], -1, 1);
+  return vectorToLatLon(slerpVector(av, bv, t));
+}
+
+function vectorsForRouteSegment(segment) {
+  let vectors = routeSegmentVectorCache.get(segment);
+  if (vectors) return vectors;
+  vectors = Object.freeze({
+    from: Object.freeze(latLonToVector(segment.from.lat, segment.from.lon)),
+    to: Object.freeze(latLonToVector(segment.to.lat, segment.to.lon))
+  });
+  routeSegmentVectorCache.set(segment, vectors);
+  return vectors;
+}
+
+function slerpVector(av, bv, t) {
+  const dot = clamp(vectorDot(av, bv), -1, 1);
   const omega = Math.acos(dot);
   if (omega < 1e-6) {
-    return {
-      lat: a.lat + (b.lat - a.lat) * t,
-      lon: normalizeLonDeg(a.lon + shortestLonDeltaDeg(a.lon, b.lon) * t)
-    };
+    return normalizedVector([
+      av[0] + (bv[0] - av[0]) * t,
+      av[1] + (bv[1] - av[1]) * t,
+      av[2] + (bv[2] - av[2]) * t
+    ], "NPC route interpolation");
   }
   const sinOmega = Math.sin(omega);
   const s0 = Math.sin((1 - t) * omega) / sinOmega;
   const s1 = Math.sin(t * omega) / sinOmega;
-  const v = [
+  return normalizedVector([
     av[0] * s0 + bv[0] * s1,
     av[1] * s0 + bv[1] * s1,
     av[2] * s0 + bv[2] * s1
+  ], "NPC route interpolation");
+}
+
+function headingVectorForVectors(position, from, to) {
+  const radial = vectorDot(position, to);
+  const tangent = [
+    to[0] - position[0] * radial,
+    to[1] - position[1] * radial,
+    to[2] - position[2] * radial
   ];
-  return vectorToLatLon(v);
+  if (Math.hypot(tangent[0], tangent[1], tangent[2]) > 1e-8) {
+    return normalizedVector(tangent, "NPC route heading");
+  }
+  return normalizedVector([
+    position[1] * from[2] - position[2] * from[1],
+    position[2] * from[0] - position[0] * from[2],
+    position[0] * from[1] - position[1] * from[0]
+  ], "NPC route fallback heading");
 }
 
 function headingVectorAt(point, from, to) {

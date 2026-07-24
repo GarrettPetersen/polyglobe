@@ -109,6 +109,7 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Cairo", "Egypt", "ottoman"],
     ["Hafnarfjordur", "Iceland", "denmark-norway"],
     ["Ternate", "Indonesia", "ternate"],
+    ["Hitu Village", "Indonesia", "ternate"],
     ["Makian Village", "Indonesia", "ternate"]
   ];
   for (const [city, country, factionId] of cases) {
@@ -121,6 +122,7 @@ test("overseas possessions and uncertain small powers are handled explicitly", (
   assert.equal(factionIdForCity1522({ city: "Hormuz", country: "Iran" }), "portugal");
   assert.equal(factionIdForCity1522({ city: "Avignon", country: "France" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Chiang Mai", country: "Thailand" }), NEUTRAL_FACTION_ID);
+  assert.equal(factionIdForCity1522({ city: "Banda Village", country: "Indonesia" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Unknown", country: "Unknown" }), NEUTRAL_FACTION_ID);
 });
 
