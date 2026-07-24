@@ -23366,13 +23366,6 @@ function drawAboardCharacterDetail(roster, panel) {
       { color: PIRATE_MENU_INK }
     );
   });
-  drawOptionsText(
-    `BIRTHDAY ${characterBirthdayLabel(character)}`,
-    portraitFrame.x + portraitFrame.w / 2,
-    portraitFrame.y + portraitFrame.h + 5,
-    { align: "center", color: PIRATE_MENU_INK_MUTED }
-  );
-
   const goal = entry.goal;
   if (!goal) throw new Error(`Aboard character ${character.name} has no goal`);
   const goalLabelY = Math.max(
