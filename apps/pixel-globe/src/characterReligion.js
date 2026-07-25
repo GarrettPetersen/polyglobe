@@ -35,6 +35,26 @@ if (RELIGIONS_BY_ID.size !== RELIGION_CATALOG.length) {
 const EQUAL_WEIGHT_RELIGIONS = Object.freeze(
   RELIGION_CATALOG.map(({ id }) => Object.freeze({ id, weight: 1 }))
 );
+const PORTRAIT_RELIGION_FAMILIES = Object.freeze({
+  christian: new Set([
+    "roman-catholic",
+    "eastern-orthodox",
+    "ethiopian-orthodox",
+    "lutheran",
+    "reformed-protestant",
+    "quaker"
+  ]),
+  buddhist: new Set([
+    "theravada-buddhism",
+    "mahayana-buddhism",
+    "tibetan-buddhism",
+    "kami-buddhist"
+  ])
+});
+const PORTRAIT_RELIGION_DEFAULTS = Object.freeze({
+  christian: "roman-catholic",
+  buddhist: "mahayana-buddhism"
+});
 
 const CATHOLIC_FACTIONS = new Set([
   "england",
@@ -140,7 +160,14 @@ export function inferCharacterReligion({
   homePort,
   character = {}
 }) {
-  if (character.religionId != null) return religionById(character.religionId);
+  if (character.religionId != null) {
+    if (!portraitAllowsReligion(character.requiredReligionFamily, character.religionId)) {
+      throw new Error(
+        `Portrait religion ${character.religionId} violates its ${character.requiredReligionFamily} attire`
+      );
+    }
+    return religionById(character.religionId);
+  }
   if (typeof identityKey !== "string" || identityKey.trim() === "") {
     throw new Error("Character religion requires an identity key");
   }
@@ -153,7 +180,26 @@ export function religionCandidatesForCharacter(character, homePort = null) {
     throw new Error("Character religion candidates require a character");
   }
   if (character.role === "ship-panda") return EQUAL_WEIGHT_RELIGIONS;
-  return religionCandidatesForHome(religionContext(homePort, character));
+  const candidates = religionCandidatesForHome(religionContext(homePort, character));
+  if (character.requiredReligionFamily == null) return candidates;
+  assertPortraitReligionFamily(character.requiredReligionFamily);
+  const constrained = candidates.filter(({ id }) => (
+    portraitAllowsReligion(character.requiredReligionFamily, id)
+  ));
+  if (constrained.length > 0) return Object.freeze(constrained);
+  return choices([PORTRAIT_RELIGION_DEFAULTS[character.requiredReligionFamily], 1]);
+}
+
+export function portraitAllowsReligion(requiredReligionFamily, religionId) {
+  religionById(religionId);
+  if (requiredReligionFamily == null) return true;
+  assertPortraitReligionFamily(requiredReligionFamily);
+  return PORTRAIT_RELIGION_FAMILIES[requiredReligionFamily].has(religionId);
+}
+
+export function defaultReligionForPortraitFamily(requiredReligionFamily) {
+  assertPortraitReligionFamily(requiredReligionFamily);
+  return PORTRAIT_RELIGION_DEFAULTS[requiredReligionFamily];
 }
 
 export function religionCandidatesForHome(homePort) {
@@ -397,6 +443,12 @@ function choices(...entries) {
     }
     return Object.freeze({ id, weight });
   }));
+}
+
+function assertPortraitReligionFamily(requiredReligionFamily) {
+  if (!Object.hasOwn(PORTRAIT_RELIGION_FAMILIES, requiredReligionFamily)) {
+    throw new Error(`Unknown portrait religion family: ${requiredReligionFamily}`);
+  }
 }
 
 function religion(id, label, iconId) {

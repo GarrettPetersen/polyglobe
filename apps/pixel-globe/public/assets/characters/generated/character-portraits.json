@@ -48,6 +48,7 @@
       "regions": [
         "east-asia"
       ],
+      "requiredReligionFamily": "buddhist",
       "minAge": 25,
       "maxAge": 45,
       "expressionCount": 1,
@@ -2361,6 +2362,7 @@
         "northern-europe",
         "mediterranean"
       ],
+      "requiredReligionFamily": "christian",
       "minAge": 35,
       "maxAge": 55,
       "expressionCount": 6,

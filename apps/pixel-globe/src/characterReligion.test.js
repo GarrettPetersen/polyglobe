@@ -108,6 +108,49 @@ test("a character receives one deterministic affiliation that persists when supp
   }).id, first.id);
 });
 
+test("clerical attire constrains religion without moving Buddhist monks out of Asia", () => {
+  const christianInGoa = religionCandidatesForCharacter({
+    id: "western-monk",
+    requiredReligionFamily: "christian"
+  }, {
+    city: "Goa",
+    country: "India",
+    cityType: "south-asian",
+    factionId: "portugal"
+  });
+  assert.deepEqual(christianInGoa.map(({ id }) => id), ["roman-catholic"]);
+
+  const christianInJapan = religionCandidatesForCharacter({
+    id: "western-monk",
+    requiredReligionFamily: "christian"
+  }, {
+    city: "Kyoto",
+    country: "Japan",
+    cityType: "east-asian",
+    factionId: "japan"
+  });
+  assert.deepEqual(christianInJapan.map(({ id }) => id), ["roman-catholic"]);
+
+  const buddhistInBeijing = religionCandidatesForCharacter({
+    id: "buddhist-monk",
+    requiredReligionFamily: "buddhist"
+  }, {
+    city: "Beijing",
+    country: "China",
+    cityType: "east-asian",
+    factionId: "ming"
+  });
+  assert.deepEqual(buddhistInBeijing.map(({ id }) => id), ["mahayana-buddhism"]);
+
+  assert.throws(() => inferCharacterReligion({
+    identityKey: "western-monk|bad-save",
+    character: {
+      religionId: "sunni-islam",
+      requiredReligionFamily: "christian"
+    }
+  }), /violates its christian attire/);
+});
+
 test("the panda chooses from every religion with exactly equal weight", () => {
   const candidates = religionCandidatesForCharacter({
     id: "companion:panda",

@@ -169,6 +169,23 @@ test("the black-haired woman is an expressive East Asian portrait", () => {
   assert.equal(source.expressions.find((expression) => expression.id === "neutral")?.index, 2);
 });
 
+test("monastic portraits stay in their reviewed regions and faith families", () => {
+  const clergy = GENERATED_MANIFEST.sourceCharacters.filter((source) => (
+    source.roles.includes("clergy")
+  ));
+  const buddhistMonk = clergy.find((source) => source.label === "Bald Monk");
+  const christianMonk = clergy.find((source) => source.label === "Monk Portrait");
+
+  assert.equal(clergy.length, 2);
+  assert.deepEqual(buddhistMonk.regions, ["east-asia"]);
+  assert.equal(buddhistMonk.requiredReligionFamily, "buddhist");
+  assert.deepEqual(
+    christianMonk.regions,
+    ["global", "europe", "northern-europe", "mediterranean"]
+  );
+  assert.equal(christianMonk.requiredReligionFamily, "christian");
+});
+
 test("saved characters inherit corrected metadata from their reviewed portrait", () => {
   const southAsianWoman = GENERATED_MANIFEST.sourceCharacters.find(
     (source) => source.label === "South Asian 11"
@@ -199,6 +216,21 @@ test("saved characters inherit corrected metadata from their reviewed portrait",
   );
   assert.equal(savedVoyage.playerCharacter.sex, "female");
   assert.equal(savedVoyage.people[0].sex, "male");
+});
+
+test("saved clerical portraits inherit a compatible religion", () => {
+  const christianMonk = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.label === "Monk Portrait"
+  );
+  const savedCharacter = {
+    sourceId: christianMonk.id,
+    sex: christianMonk.sex,
+    religionId: "sunni-islam"
+  };
+
+  assert.equal(reconcileCharacterPortraitMetadata(savedCharacter, GENERATED_MANIFEST), 2);
+  assert.equal(savedCharacter.requiredReligionFamily, "christian");
+  assert.equal(savedCharacter.religionId, "roman-catholic");
 });
 
 test("portrait metadata reconciliation rejects unknown character sources", () => {

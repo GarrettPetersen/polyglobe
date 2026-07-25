@@ -6,11 +6,15 @@ import {
   characterWithBiography,
   correctedCharacterPortraitAge
 } from "./characterBiography.js";
+import {
+  defaultReligionForPortraitFamily,
+  portraitAllowsReligion
+} from "./characterReligion.js";
 import { characterSkillIdsForIdentity } from "./characterSkills.js";
 import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-12";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-13";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
@@ -59,6 +63,9 @@ export function validateCharacterPortraitManifest(manifest) {
     }
     validateTagList(character.roles, `${character.id}.roles`);
     validateTagList(character.regions, `${character.id}.regions`);
+    if (character.requiredReligionFamily != null) {
+      defaultReligionForPortraitFamily(character.requiredReligionFamily);
+    }
     validateAgeRange(character.minAge, character.maxAge, character.id);
     const expressionIds = new Set();
     for (const expression of character.expressions) {
@@ -107,7 +114,14 @@ export function reconcileCharacterPortraitMetadata(root, manifest) {
         value.minAge !== source.minAge ||
         value.maxAge !== source.maxAge
       );
-      if (value.sex !== source.sex || expressionsChanged || ageChanged) {
+      const requiredReligionFamily = source.requiredReligionFamily ?? null;
+      const religionFamilyChanged =
+        (value.requiredReligionFamily ?? null) !== requiredReligionFamily;
+      const religionChanged = requiredReligionFamily != null &&
+        value.religionId != null &&
+        !portraitAllowsReligion(requiredReligionFamily, value.religionId);
+      if (value.sex !== source.sex || expressionsChanged || ageChanged ||
+          religionFamilyChanged || religionChanged) {
         if (Object.isFrozen(value)) {
           throw new Error("Cannot reconcile frozen character portrait metadata: " + value.sourceId);
         }
@@ -125,6 +139,14 @@ export function reconcileCharacterPortraitMetadata(root, manifest) {
           minAge: source.minAge,
           maxAge: source.maxAge
         });
+        correctedCount += 1;
+      }
+      if (religionFamilyChanged) {
+        value.requiredReligionFamily = requiredReligionFamily;
+        correctedCount += 1;
+      }
+      if (religionChanged) {
+        value.religionId = defaultReligionForPortraitFamily(requiredReligionFamily);
         correctedCount += 1;
       }
     }
@@ -621,6 +643,7 @@ function assignedCharacter(id, region, source, age) {
     sex: source.sex,
     sourceRoles: source.roles,
     sourceRegions: source.regions,
+    requiredReligionFamily: source.requiredReligionFamily ?? null,
     minAge: source.minAge,
     maxAge: source.maxAge,
     age,

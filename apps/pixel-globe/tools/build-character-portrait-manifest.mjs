@@ -687,6 +687,9 @@ function normalizeExpressionGroup(group) {
     sex: portraitSex(group.labelSeed, group.relDir),
     roles: metadata.roles,
     regions: metadata.regions,
+    ...(metadata.requiredReligionFamily
+      ? { requiredReligionFamily: metadata.requiredReligionFamily }
+      : {}),
     minAge: ages.minAge,
     maxAge: ages.maxAge,
     expressionCount: expressions.length,
@@ -742,7 +745,13 @@ const portraitMetadataOverrides = new Map([
   }],
   ["Curated Historical Portraits by CaptainSkolot/Bald Monk", {
     roles: ["factor", "civilian", "clergy"],
-    regions: ["east-asia"]
+    regions: ["east-asia"],
+    requiredReligionFamily: "buddhist"
+  }],
+  ["Ultimate Portrait Pack V1.0/Monk/Monk Portrait", {
+    roles: ["factor", "clergy"],
+    regions: ["global", "europe", "northern-europe", "mediterranean"],
+    requiredReligionFamily: "christian"
   }],
   ["Women Black Hair Portrait by Captainskolot/Women Black Hair Portrait", {
     roles: ["factor", "civilian", "noble"],
