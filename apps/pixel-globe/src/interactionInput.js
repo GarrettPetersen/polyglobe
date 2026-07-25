@@ -1,4 +1,5 @@
 export const INTERACTION_INPUT = Object.freeze({
+  TELEMETRY_CONSENT: "telemetry-consent",
   OPTIONS: "options",
   CREDITS: "credits",
   PAST_VOYAGES: "past-voyages",
@@ -26,6 +27,7 @@ export const WORLD_POINTER_ACTION = Object.freeze({
 });
 
 const INPUT_PRIORITY = Object.freeze([
+  ["telemetryConsentActive", INTERACTION_INPUT.TELEMETRY_CONSENT],
   ["optionsActive", INTERACTION_INPUT.OPTIONS],
   ["creditsActive", INTERACTION_INPUT.CREDITS],
   ["pastVoyagesActive", INTERACTION_INPUT.PAST_VOYAGES],

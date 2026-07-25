@@ -9,6 +9,7 @@ import {
 } from "./interactionInput.js";
 
 const inactive = Object.freeze({
+  telemetryConsentActive: false,
   optionsActive: false,
   creditsActive: false,
   pastVoyagesActive: false,
@@ -34,6 +35,7 @@ function ownerFor(active) {
 
 test("input follows the complete top-to-bottom order of rendered overlays", () => {
   const priority = [
+    ["telemetryConsentActive", INTERACTION_INPUT.TELEMETRY_CONSENT],
     ["optionsActive", INTERACTION_INPUT.OPTIONS],
     ["creditsActive", INTERACTION_INPUT.CREDITS],
     ["pastVoyagesActive", INTERACTION_INPUT.PAST_VOYAGES],
@@ -70,7 +72,7 @@ test("world input is restored when no overlay or action owns it", () => {
 });
 
 test("interaction input state fails loudly when incomplete", () => {
-  assert.throws(() => interactionInputOwner({ dialogueActive: true }), /optionsActive must be boolean/);
+  assert.throws(() => interactionInputOwner({ dialogueActive: true }), /telemetryConsentActive must be boolean/);
 });
 
 test("clicking an engaged ship inside a cannon arc fires before its exact hail interaction", () => {

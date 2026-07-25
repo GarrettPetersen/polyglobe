@@ -207,6 +207,7 @@ import {
   consumePendingDiscoveryPortDialogue,
   createPortEntryStatusContext,
   createGameState,
+  GAME_STATE_VERSION,
   deliveryOfferForCity,
   discoveredEntries,
   diplomacyBetweenForState,
@@ -747,6 +748,12 @@ import {
 import { saveShareScreenshot } from "./screenshotExport.js";
 import { gameStorage } from "./gameStorage.js";
 import {
+  TELEMETRY_CONSENT_GRANTED,
+  TELEMETRY_CONSENT_UNKNOWN,
+  createGameTelemetry,
+  telemetryRuntimeChannel
+} from "./gameTelemetry.js";
+import {
   PLATFORM_CLIP_PRIORITY,
   PLATFORM_TIMELINE_MODE,
   addPlatformTimelineEvent,
@@ -1004,7 +1011,8 @@ import {
 } from "./demoVoyage.js";
 import {
   ACTIVE_PLAY_LIMIT_SECONDS,
-  BUILD_EDITION_ID
+  BUILD_EDITION_ID,
+  BUILD_REVISION
 } from "./buildEdition.js";
 import { COLONIZATION_TARGETS } from "./colonialCities.js";
 import {
@@ -1745,8 +1753,8 @@ let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 246;
-const OPTIONS_ROW_H = 24;
-const OPTIONS_ROW_COUNT = 8;
+const OPTIONS_ROW_H = 22;
+const OPTIONS_ROW_COUNT = 9;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
@@ -1754,7 +1762,10 @@ const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_LANGUAGE = 4;
 const OPTIONS_ROW_CONTROLLER_ICONS = 5;
 const OPTIONS_ROW_CONTROLS = 6;
-const OPTIONS_ROW_START_MENU = 7;
+const OPTIONS_ROW_TELEMETRY = 7;
+const OPTIONS_ROW_START_MENU = 8;
+const TELEMETRY_CONSENT_PANEL_W = 360;
+const TELEMETRY_CONSENT_PANEL_H = 188;
 const KEY_BINDINGS_PANEL_MAX_W = 410;
 const KEY_BINDINGS_PANEL_H = 246;
 const KEY_BINDINGS_ROW_H = 23;
@@ -2326,6 +2337,23 @@ let lakeBattleTerrainChart = null;
 let lakeBattleTerrainChartKey = "";
 const lakeBattleShipAssets = new Map();
 const lakeBattleShipAssetPromises = new Map();
+const telemetryMetadata = {
+  edition: BUILD_EDITION_ID,
+  revision: BUILD_REVISION,
+  channel: telemetryRuntimeChannel({
+    edition: BUILD_EDITION_ID,
+    platformId: steamPlatformBridge?.platformId || null,
+    location: window.location
+  }),
+  platform: steamPlatformBridge?.platformId || "browser",
+  locale: currentLanguage,
+  gameStateVersion: GAME_STATE_VERSION
+};
+const gameTelemetry = createGameTelemetry({
+  storage: gameStorage,
+  enabled: !CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK,
+  metadata: telemetryMetadata
+});
 let localSaveResult = { status: "empty", save: null, error: null };
 let voyageHistoryResult = { status: "ready", records: [], error: null };
 let achievementProfileResult = { status: "ready", profile: createAchievementProfile(), error: null };
@@ -2411,6 +2439,10 @@ let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
 const consumedLandedSeagullIds = new Set();
 const optionsMenu = createOptionsMenuState();
+let telemetryConsentModal = !CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK &&
+  gameTelemetry.consentStatus === TELEMETRY_CONSENT_UNKNOWN
+  ? createTelemetryConsentModalState()
+  : null;
 activeControllerFamily = controllerFamilyForGamepad(null, optionsMenu.controllerGlyphPreference);
 const creditsMenu = createCreditsMenuState();
 const pastVoyagesMenu = createPastVoyagesMenuState();
@@ -2423,14 +2455,29 @@ const aboardMenu = createAboardMenuState();
 const captainMenu = createCaptainMenuState();
 const cheatCodeInput = createCheatCodeInputState();
 
+gameTelemetry.start({
+  getActivePlaySeconds: () => gameState?.activePlaySeconds || 0
+});
 fitCanvasToDisplay();
 window.addEventListener("resize", fitCanvasToDisplay);
 window.visualViewport?.addEventListener("resize", fitCanvasToDisplay);
 document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
 screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
+window.addEventListener("pagehide", () => gameTelemetry.stop());
+window.addEventListener("error", (event) => {
+  if (event.error) gameTelemetry.captureCrash(event.error, telemetryCrashContext());
+});
+window.addEventListener("unhandledrejection", (event) => {
+  gameTelemetry.captureCrash(event.reason, telemetryCrashContext());
+});
 
 window.addEventListener("keydown", (event) => {
+  if (telemetryConsentModal) {
+    sailingTutorialInputMode = "keyboard";
+    handleTelemetryConsentKeyDown(event);
+    return;
+  }
   if (optionsMenu.isOpen && optionsMenu.bindingCapture) {
     sailingTutorialInputMode = "keyboard";
     ensureGameAudioStarted(true);
@@ -2520,6 +2567,7 @@ window.addEventListener("pointercancel", handlePointerUp);
 
 main().catch((err) => {
   console.error(err);
+  gameTelemetry.captureCrash(err, telemetryCrashContext("startup"));
   capsuleLoadingScreen.fail(err);
   drawFatalError(err);
 });
@@ -3887,6 +3935,7 @@ function loop(nowMs) {
     runFrame(nowMs);
   } catch (error) {
     console.error(error);
+    gameTelemetry.captureCrash(error, telemetryCrashContext());
     if (CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
       window.__PIXEL_GLOBE_CAPTURE_ERROR__ = error instanceof Error ? error.message : String(error);
     }
@@ -3904,6 +3953,29 @@ function loop(nowMs) {
       }
     }
   }
+}
+
+function telemetryCrashContext(screenOverride = null) {
+  const screen = screenOverride || (
+    lakeBattleMode ? `lake-battle:${lakeBattleMode.screen}` :
+      gameOverReason ? "voyage-ended" :
+        dialogueState ? `dialogue:${dialogueState.kind || "unknown"}` :
+          optionsMenu.isOpen ? `options:${optionsMenu.view}` :
+            shipInfoMenu.isOpen ? `ship-info:${shipInfoMenu.view}` :
+              politicsMenu.isOpen ? "politics" :
+                discoveriesMenu.isOpen ? "discoveries" :
+                  achievementsMenu.isOpen ? "achievements" :
+                    aboardMenu.isOpen ? "people-aboard" :
+                      captainMenu.isOpen ? "captain-chart" :
+                        startMenu ? "start-menu" :
+                          anchored ? "anchored" : "sailing"
+  );
+  return {
+    screen,
+    mainQuest: gameState?.memory?.campaignGoal?.type || "none",
+    ship: ship?.typeSlug || gameState?.ship?.slug || "none",
+    redact: [gameState?.playerCharacter?.name].filter(Boolean)
+  };
 }
 
 function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {}) {
@@ -4100,6 +4172,14 @@ function createOptionsMenuState() {
     bindingResetRect: null,
     bindingPreviousRect: null,
     bindingNextRect: null
+  };
+}
+
+function createTelemetryConsentModalState() {
+  return {
+    selectedIndex: 0,
+    declineRect: null,
+    acceptRect: null
   };
 }
 
@@ -5203,6 +5283,7 @@ function captainChildMenuIsOpen() {
 
 function currentInteractionInputOwner() {
   return interactionInputOwner({
+    telemetryConsentActive: Boolean(telemetryConsentModal),
     optionsActive: optionsMenu.isOpen,
     creditsActive: creditsMenu.isOpen,
     pastVoyagesActive: pastVoyagesMenu.isOpen,
@@ -5225,7 +5306,8 @@ function currentInteractionInputOwner() {
 
 function dispatchWorldOverlayKey(event) {
   const owner = currentInteractionInputOwner();
-  if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsKeyDown(event);
+  if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) handleTelemetryConsentKeyDown(event);
+  else if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsKeyDown(event);
   else if (owner === INTERACTION_INPUT.CREDITS) handleCreditsKeyDown(event);
   else if (owner === INTERACTION_INPUT.PAST_VOYAGES) handlePastVoyagesKeyDown(event);
   else if (owner === INTERACTION_INPUT.START_MENU) handleStartMenuKeyDown(event);
@@ -5254,7 +5336,8 @@ function dispatchWorldOverlayPointerDown(event, point) {
   if (owner !== INTERACTION_INPUT.FISHING && typeof canvas.setPointerCapture === "function") {
     canvas.setPointerCapture(event.pointerId);
   }
-  if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsPointerDown(point);
+  if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) handleTelemetryConsentPointerDown(point);
+  else if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsPointerDown(point);
   else if (owner === INTERACTION_INPUT.CREDITS) handleCreditsPointerDown(point);
   else if (owner === INTERACTION_INPUT.PAST_VOYAGES) handlePastVoyagesPointerDown(point);
   else if (owner === INTERACTION_INPUT.START_MENU) handleStartMenuPointerDown(point);
@@ -5282,7 +5365,10 @@ function dispatchWorldOverlayPointerDown(event, point) {
 function dispatchWorldOverlayPointerMove(event, point) {
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.WORLD) return false;
-  if (owner === INTERACTION_INPUT.OPTIONS) {
+  if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) {
+    updateTelemetryConsentSelectionFromPoint(point);
+    dirty = true;
+  } else if (owner === INTERACTION_INPUT.OPTIONS) {
     updateOptionsSelectionFromPoint(point);
     if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
     else dirty = true;
@@ -6209,6 +6295,7 @@ function setInterfaceLanguage(language, { persist = true } = {}) {
   PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageUsesTallPixelMetrics(normalized) ? 1 : 3;
   POLITICS_MATRIX_ROW_H = currentLanguageProfile.tableRowHeight;
   optionsMenu.language = normalized;
+  telemetryMetadata.locale = normalized;
   optionsMenu.fullscreenError = null;
   optionsMenu.returnError = null;
   document.documentElement.lang = normalized;
@@ -9268,6 +9355,8 @@ function handleOptionsKeyDown(event) {
         optionsMenu.controllerGlyphPreference,
         direction
       ));
+    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY) {
+      toggleAnonymousTelemetry();
     }
     return;
   }
@@ -9281,12 +9370,62 @@ function handleOptionsKeyDown(event) {
       setControllerGlyphPreference(nextControllerGlyphPreference(optionsMenu.controllerGlyphPreference));
     }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS) openKeyBindingsMenu();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY) toggleAnonymousTelemetry();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) returnToStartMenuFromOptions();
     return;
   }
   if (event.key === "m" || event.key === "M") {
     toggleAudioMuted();
   }
+}
+
+function handleTelemetryConsentKeyDown(event) {
+  event.preventDefault();
+  if (!telemetryConsentModal) return;
+  if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
+    telemetryConsentModal.selectedIndex = 0;
+    dirty = true;
+    return;
+  }
+  if (["ArrowRight", "ArrowDown"].includes(event.key)) {
+    telemetryConsentModal.selectedIndex = 1;
+    dirty = true;
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    resolveTelemetryConsent(telemetryConsentModal.selectedIndex === 1);
+    return;
+  }
+  if (event.key === "Escape") resolveTelemetryConsent(false);
+}
+
+function handleTelemetryConsentPointerDown(point) {
+  if (!telemetryConsentModal) return;
+  if (pointInRect(point, telemetryConsentModal.declineRect)) {
+    resolveTelemetryConsent(false);
+    return;
+  }
+  if (pointInRect(point, telemetryConsentModal.acceptRect)) resolveTelemetryConsent(true);
+}
+
+function updateTelemetryConsentSelectionFromPoint(point) {
+  if (!telemetryConsentModal) return;
+  if (pointInRect(point, telemetryConsentModal.declineRect)) {
+    telemetryConsentModal.selectedIndex = 0;
+  } else if (pointInRect(point, telemetryConsentModal.acceptRect)) {
+    telemetryConsentModal.selectedIndex = 1;
+  }
+}
+
+function resolveTelemetryConsent(granted) {
+  gameTelemetry.setConsent(granted);
+  telemetryConsentModal = null;
+  dirty = true;
+}
+
+function toggleAnonymousTelemetry() {
+  gameTelemetry.setConsent(gameTelemetry.consentStatus !== TELEMETRY_CONSENT_GRANTED);
+  dirty = true;
 }
 
 function handleKeyBindingsKeyDown(event) {
@@ -9868,6 +10007,11 @@ function handleOptionsPointerDown(point) {
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROLS])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_CONTROLS;
     openKeyBindingsMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_TELEMETRY])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_TELEMETRY;
+    toggleAnonymousTelemetry();
     return;
   }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_START_MENU])) {
@@ -17157,14 +17301,16 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   });
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs, sinkShip, outcomeType, victory);
-  storePastVoyage(createPastVoyageRecord({
+  const voyageRecord = createPastVoyageRecord({
     state: gameState,
     playerShip: snapshotPlayerShip(),
     startMinute: voyageStartClockMinutes,
     endMinute: gameOverState.endMinute,
     outcome: reason,
     outcomeType
-  }));
+  });
+  storePastVoyage(voyageRecord);
+  gameTelemetry.recordVoyage(voyageRecord, gameState);
   anchored = false;
   fishingAction = null;
   shoreScavengeAction = null;
@@ -20668,6 +20814,7 @@ function render(nowMs) {
   drawAchievementNotice(nowMs);
   drawSavePersistenceWarning();
   drawStormLightningFlash(nowMs);
+  if (telemetryConsentModal) drawTelemetryConsentModal();
 }
 
 function chartTileCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
@@ -26417,7 +26564,8 @@ function drawOptionsMenu() {
   const languageRow = { x: rowX, y: firstRowY + rowStep * 4, w: rowW, h: OPTIONS_ROW_H - 2 };
   const controllerIconsRow = { x: rowX, y: firstRowY + rowStep * 5, w: rowW, h: OPTIONS_ROW_H - 2 };
   const controlsRow = { x: rowX, y: firstRowY + rowStep * 6, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 7, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const telemetryRow = { x: rowX, y: firstRowY + rowStep * 7, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 8, w: rowW, h: OPTIONS_ROW_H - 2 };
   optionsMenu.rowRects = [
     fullscreenRow,
     musicRow,
@@ -26426,6 +26574,7 @@ function drawOptionsMenu() {
     languageRow,
     controllerIconsRow,
     controlsRow,
+    telemetryRow,
     startMenuRow
   ];
 
@@ -26439,7 +26588,81 @@ function drawOptionsMenu() {
     optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS
   );
   drawOptionsControlsRow(controlsRow, optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS);
+  drawOptionsTelemetryRow(telemetryRow, optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY);
   drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
+  ctx.restore();
+}
+
+function drawTelemetryConsentModal() {
+  if (!telemetryConsentModal) return;
+  const panelW = Math.min(TELEMETRY_CONSENT_PANEL_W, SCREEN_W - 12);
+  const panelH = Math.min(TELEMETRY_CONSENT_PANEL_H, SCREEN_H - 12);
+  const panel = {
+    x: Math.floor((SCREEN_W - panelW) / 2),
+    y: Math.floor((SCREEN_H - panelH) / 2),
+    w: panelW,
+    h: panelH
+  };
+  const buttonGap = 8;
+  const buttonW = Math.floor((panel.w - 28 - buttonGap) / 2);
+  const buttonY = panel.y + panel.h - 34;
+  telemetryConsentModal.declineRect = {
+    x: panel.x + 10,
+    y: buttonY,
+    w: buttonW,
+    h: 24
+  };
+  telemetryConsentModal.acceptRect = {
+    x: telemetryConsentModal.declineRect.x + buttonW + buttonGap,
+    y: buttonY,
+    w: buttonW,
+    h: 24
+  };
+
+  ctx.save();
+  ctx.fillStyle = "rgba(10, 16, 18, 0.72)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  drawPiratePaperModal(panel, 0.9);
+  drawOptionsText(uiText("telemetry.title"), panel.x + panel.w / 2, panel.y + 12, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  const bodyFont = PIXEL_FONT_SMALL_8;
+  const bodyLines = wrapPixelText(uiText("telemetry.body"), bodyFont, panel.w - 28, 8);
+  const bodyLineHeight = localizedLineHeight(11);
+  for (let index = 0; index < bodyLines.length; index++) {
+    drawOptionsText(bodyLines[index], panel.x + 14, panel.y + 38 + index * bodyLineHeight, {
+      font: bodyFont,
+      color: PIRATE_MENU_INK
+    });
+  }
+  drawOptionsText(
+    "MARQUE-AND-REPRISAL.COM/PRIVACY/",
+    panel.x + panel.w / 2,
+    buttonY - 12,
+    { font: PIXEL_FONT_LATIN_SMALL_8, align: "center", color: PIRATE_MENU_CHART_LINE }
+  );
+  drawPiratePaperInset(
+    telemetryConsentModal.declineRect,
+    telemetryConsentModal.selectedIndex === 0
+  );
+  drawPiratePaperInset(
+    telemetryConsentModal.acceptRect,
+    telemetryConsentModal.selectedIndex === 1
+  );
+  drawOptionsText(
+    fitPixelText(uiText("telemetry.decline"), PIXEL_FONT_SMALL_8, buttonW - 8),
+    telemetryConsentModal.declineRect.x + buttonW / 2,
+    controlTextY(telemetryConsentModal.declineRect, PIXEL_FONT_SMALL_8),
+    { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    fitPixelText(uiText("telemetry.accept"), PIXEL_FONT_SMALL_8, buttonW - 8),
+    telemetryConsentModal.acceptRect.x + buttonW / 2,
+    controlTextY(telemetryConsentModal.acceptRect, PIXEL_FONT_SMALL_8),
+    { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK }
+  );
   ctx.restore();
 }
 
@@ -26729,6 +26952,30 @@ function drawOptionsControlsRow(rowRect, highlighted) {
     align: "right",
     color: PIRATE_MENU_CHART_LINE
   });
+}
+
+function drawOptionsTelemetryRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  const font = PIXEL_FONT_SMALL_8;
+  const enabled = gameTelemetry.consentStatus === TELEMETRY_CONSENT_GRANTED;
+  const value = `< ${uiText(enabled ? "telemetry.on" : "telemetry.off")} >`;
+  const valueWidth = Math.min(58, Math.max(34, measurePixelTextWidth(value, font)));
+  drawOptionsText(
+    fitPixelText(uiText("telemetry.option"), font, rowRect.w - valueWidth - 22),
+    rowRect.x + 8,
+    controlTextY(rowRect, font),
+    { font, color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    fitPixelText(value, font, valueWidth),
+    rowRect.x + rowRect.w - 8,
+    controlTextY(rowRect, font),
+    {
+      font,
+      align: "right",
+      color: enabled ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED
+    }
+  );
 }
 
 function drawOptionsStartMenuRow(rowRect, highlighted) {

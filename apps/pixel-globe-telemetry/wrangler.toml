@@ -1,0 +1,16 @@
+name = "marque-and-reprisal-telemetry"
+main = "src/index.js"
+compatibility_date = "2026-07-25"
+workers_dev = true
+preview_urls = false
+
+[observability]
+enabled = false
+
+[[analytics_engine_datasets]]
+binding = "EVENTS"
+dataset = "marque_and_reprisal_game_events"
+
+[[routes]]
+pattern = "telemetry.marque-and-reprisal.com"
+custom_domain = true

@@ -1,11 +1,12 @@
 DEMO_DIR := examples/globe-demo
 RAILWAYS_DIR := apps/railways
 PIXEL_GLOBE_DIR := apps/pixel-globe
+PIXEL_GLOBE_TELEMETRY_DIR := apps/pixel-globe-telemetry
 PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-verify pixel-globe-telemetry-report
 
 help:
 	@echo "Targets:"
@@ -38,6 +39,10 @@ help:
 	@echo "  make pixel-globe-render-ship        Rebuild the default ship sprite lighting sheets"
 	@echo "  make pixel-globe-render-unity-ships Rebuild imported Unity ship sprite lighting sheets"
 	@echo "  make pixel-globe-render-capsules    Rebuild storefront and library capsule art"
+	@echo "  make pixel-globe-telemetry-check    Test the anonymous telemetry Worker"
+	@echo "  make pixel-globe-telemetry-deploy   Deploy the anonymous telemetry Worker"
+	@echo "  make pixel-globe-telemetry-verify   Verify live ingestion and reporting"
+	@echo "  make pixel-globe-telemetry-report   Print the 30-day telemetry report"
 
 demo-dev:
 	cd $(DEMO_DIR) && npm run dev
@@ -139,3 +144,15 @@ pixel-globe-render-unity-ships:
 
 pixel-globe-render-capsules:
 	npm --prefix $(PIXEL_GLOBE_DIR) run render:capsules
+
+pixel-globe-telemetry-check:
+	npm --prefix $(PIXEL_GLOBE_TELEMETRY_DIR) run check
+
+pixel-globe-telemetry-deploy:
+	npm --prefix $(PIXEL_GLOBE_TELEMETRY_DIR) run deploy
+
+pixel-globe-telemetry-verify:
+	npm --prefix $(PIXEL_GLOBE_TELEMETRY_DIR) run verify
+
+pixel-globe-telemetry-report:
+	npm --prefix $(PIXEL_GLOBE_TELEMETRY_DIR) run report

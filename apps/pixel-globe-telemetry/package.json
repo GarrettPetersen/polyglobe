@@ -1,0 +1,15 @@
+{
+  "name": "marque-and-reprisal-telemetry",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/index.js && node --test",
+    "deploy": "node tools/deploy.mjs",
+    "configure-secret": "node tools/configure-secret.mjs",
+    "verify": "node tools/verify-deployment.mjs",
+    "report": "node tools/report.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.27.0"
+  }
+}

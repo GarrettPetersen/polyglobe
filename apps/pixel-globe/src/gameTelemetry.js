@@ -1,0 +1,435 @@
+export const TELEMETRY_CONSENT_STORAGE_KEY = "marque-and-reprisal.telemetry-consent";
+export const TELEMETRY_INSTALLATION_STORAGE_KEY = "marque-and-reprisal.telemetry-installation";
+export const TELEMETRY_FIRST_SEEN_STORAGE_KEY = "marque-and-reprisal.telemetry-first-seen";
+export const TELEMETRY_LAST_SESSION_STORAGE_KEY = "marque-and-reprisal.telemetry-last-session";
+export const TELEMETRY_QUEUE_STORAGE_KEY = "marque-and-reprisal.telemetry-queue";
+
+export const TELEMETRY_CONSENT_UNKNOWN = "unknown";
+export const TELEMETRY_CONSENT_GRANTED = "granted";
+export const TELEMETRY_CONSENT_DENIED = "denied";
+export const TELEMETRY_ROUTINE_SAMPLE_RATE = 0.01;
+export const TELEMETRY_ROUTINE_SAMPLE_WEIGHT = 100;
+
+const TELEMETRY_SCHEMA_VERSION = 1;
+const TELEMETRY_ENDPOINT = "https://telemetry.marque-and-reprisal.com/v1/events";
+const TELEMETRY_CHECKPOINT_INTERVAL_MS = 15 * 60 * 1000;
+const TELEMETRY_REQUEST_TIMEOUT_MS = 2500;
+const TELEMETRY_QUEUE_LIMIT = 12;
+const TELEMETRY_BATCH_LIMIT = 8;
+const TELEMETRY_FEATURES = Object.freeze([
+  ["trade", (state, decisions) => hasDecisionPrefix(decisions, "trade.buy.") ||
+    hasDecisionPrefix(decisions, "trade.sell.")],
+  ["fish", (_state, decisions) => hasDecisionPrefix(decisions, "fish.catch.")],
+  ["scavenge", (_state, decisions) => hasDecisionPrefix(decisions, "scavenge.")],
+  ["combat", (state) => state.memory?.achievements?.defeatedShipCount > 0],
+  ["whale", (state) => state.memory?.achievements?.whalesKilled > 0],
+  ["colonize", (state) => state.memory?.achievements?.foundedCityIds?.length > 0],
+  ["piracy", (_state, decisions) => hasDecisionPrefix(decisions, "reputation.piracy.")],
+  ["diplomacy", (_state, decisions) => hasDecisionPrefix(decisions, "quest.envoy.") ||
+    hasDecisionPrefix(decisions, "diplomacy.")],
+  ["side-quests", (state) => Object.keys(state.memory?.quests?.completed || {}).length > 0],
+  ["animals", (state) => (state.memory?.animals?.encounterOrder?.length || 0) > 0],
+  ["panda", (state) => !["unmet", "declined", undefined].includes(state.memory?.panda?.status)]
+]);
+
+export function createGameTelemetry({
+  storage,
+  fetchImpl = globalThis.fetch?.bind(globalThis),
+  randomId = defaultRandomId,
+  now = () => Date.now(),
+  setIntervalImpl = globalThis.setInterval?.bind(globalThis),
+  clearIntervalImpl = globalThis.clearInterval?.bind(globalThis),
+  endpoint = TELEMETRY_ENDPOINT,
+  enabled = true,
+  metadata
+}) {
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" ||
+      typeof storage.removeItem !== "function") {
+    throw new Error("Game telemetry requires storage");
+  }
+  if (!metadata || typeof metadata !== "object") throw new Error("Game telemetry requires metadata");
+
+  let consent = readConsent(storage);
+  let installationId = consent === TELEMETRY_CONSENT_GRANTED
+    ? readOrCreateInstallationId(storage, randomId, now)
+    : null;
+  let sessionId = null;
+  let sampled = installationId ? installationIsSampled(installationId) : false;
+  let started = false;
+  let checkpointTimer = null;
+  let activePlayProvider = () => 0;
+  let lastReportedActivePlaySeconds = 0;
+  let requestInFlight = false;
+  let queue = consent === TELEMETRY_CONSENT_GRANTED ? readQueue(storage) : [];
+  const reportedCrashes = new Set();
+
+  function start({ getActivePlaySeconds = () => 0 } = {}) {
+    if (typeof getActivePlaySeconds !== "function") {
+      throw new Error("Telemetry active play provider must be a function");
+    }
+    activePlayProvider = getActivePlaySeconds;
+    lastReportedActivePlaySeconds = safeActivePlaySeconds(activePlayProvider());
+    started = true;
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED) return;
+    beginSession();
+  }
+
+  function beginSession() {
+    if (sessionId !== null) return;
+    sessionId = randomId();
+    sampled = installationIsSampled(installationId);
+    const retention = updateRetentionStorage(storage, now());
+    if (sampled) {
+      enqueueEvent("session_start", {
+        samplingWeight: TELEMETRY_ROUTINE_SAMPLE_WEIGHT,
+        installAgeDays: retention.installAgeDays,
+        daysSinceLastSession: retention.daysSinceLastSession
+      });
+    }
+    void flush();
+    if (setIntervalImpl) {
+      checkpointTimer = setIntervalImpl(
+        () => checkpoint(false),
+        TELEMETRY_CHECKPOINT_INTERVAL_MS
+      );
+    }
+  }
+
+  function setConsent(granted) {
+    const next = granted ? TELEMETRY_CONSENT_GRANTED : TELEMETRY_CONSENT_DENIED;
+    writeStorage(storage, TELEMETRY_CONSENT_STORAGE_KEY, next);
+    consent = next;
+    if (!granted) {
+      if (checkpointTimer !== null && clearIntervalImpl) clearIntervalImpl(checkpointTimer);
+      checkpointTimer = null;
+      installationId = null;
+      sessionId = null;
+      sampled = false;
+      queue = [];
+      removeStorage(storage, TELEMETRY_INSTALLATION_STORAGE_KEY);
+      removeStorage(storage, TELEMETRY_FIRST_SEEN_STORAGE_KEY);
+      removeStorage(storage, TELEMETRY_LAST_SESSION_STORAGE_KEY);
+      removeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
+      return consent;
+    }
+    installationId = readOrCreateInstallationId(storage, randomId, now);
+    sampled = installationIsSampled(installationId);
+    if (started) beginSession();
+    return consent;
+  }
+
+  function checkpoint(keepalive = false) {
+    if (!enabled || !sampled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
+      return false;
+    }
+    const current = safeActivePlaySeconds(activePlayProvider());
+    const delta = Math.max(0, current - lastReportedActivePlaySeconds);
+    lastReportedActivePlaySeconds = current;
+    if (delta <= 0) return false;
+    enqueueEvent("session_checkpoint", {
+      samplingWeight: TELEMETRY_ROUTINE_SAMPLE_WEIGHT,
+      activePlaySeconds: delta
+    });
+    void flush({ keepalive });
+    return true;
+  }
+
+  function recordVoyage(record, state) {
+    if (!enabled || !sampled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
+      return false;
+    }
+    let payload;
+    try {
+      payload = voyageTelemetryPayload(record, state);
+    } catch (error) {
+      console.warn("[pixel-globe] voyage telemetry was not recorded", error);
+      return false;
+    }
+    enqueueEvent("voyage_end", {
+      ...payload,
+      samplingWeight: TELEMETRY_ROUTINE_SAMPLE_WEIGHT
+    });
+    void flush();
+    return true;
+  }
+
+  function captureCrash(error, context = {}) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || installationId === null) return false;
+    const normalized = normalizeCrash(error, context);
+    const dedupeKey = `${normalized.errorName}|${normalized.message}|${normalized.stack.slice(0, 200)}`;
+    if (reportedCrashes.has(dedupeKey)) return false;
+    reportedCrashes.add(dedupeKey);
+    if (sessionId === null) sessionId = randomId();
+    enqueueEvent("crash", { ...normalized, samplingWeight: 1 });
+    void flush();
+    return true;
+  }
+
+  function enqueueEvent(type, payload) {
+    if (!installationId || !sessionId) return false;
+    queue.push({
+      schemaVersion: TELEMETRY_SCHEMA_VERSION,
+      eventId: randomId(),
+      type,
+      installationId,
+      sessionId,
+      occurredAt: new Date(now()).toISOString(),
+      metadata: { ...metadata },
+      payload
+    });
+    if (queue.length > TELEMETRY_QUEUE_LIMIT) queue.splice(0, queue.length - TELEMETRY_QUEUE_LIMIT);
+    persistQueue();
+    return true;
+  }
+
+  async function flush({ keepalive = false } = {}) {
+    if (!enabled || !fetchImpl || requestInFlight || consent !== TELEMETRY_CONSENT_GRANTED ||
+        queue.length === 0) {
+      return false;
+    }
+    requestInFlight = true;
+    const batch = queue.slice(0, TELEMETRY_BATCH_LIMIT);
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timeout = controller
+      ? setTimeout(() => controller.abort(), TELEMETRY_REQUEST_TIMEOUT_MS)
+      : null;
+    try {
+      const response = await fetchImpl(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ events: batch }),
+        keepalive,
+        signal: controller?.signal
+      });
+      if (!response?.ok) return false;
+      queue.splice(0, batch.length);
+      persistQueue();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (timeout !== null) clearTimeout(timeout);
+      requestInFlight = false;
+    }
+  }
+
+  function persistQueue() {
+    if (consent !== TELEMETRY_CONSENT_GRANTED || queue.length === 0) {
+      removeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
+      return;
+    }
+    writeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY, JSON.stringify(queue));
+  }
+
+  function stop() {
+    checkpoint(true);
+    if (checkpointTimer !== null && clearIntervalImpl) clearIntervalImpl(checkpointTimer);
+    checkpointTimer = null;
+  }
+
+  return Object.freeze({
+    get consentStatus() {
+      return consent;
+    },
+    get routineSampled() {
+      return sampled;
+    },
+    start,
+    stop,
+    setConsent,
+    checkpoint,
+    recordVoyage,
+    captureCrash,
+    flush
+  });
+}
+
+export function telemetryRuntimeChannel({ edition, platformId = null, location = null } = {}) {
+  if (platformId === "steam") return "steam";
+  const protocol = location?.protocol || "";
+  const hostname = location?.hostname || "";
+  if (edition === "demo") return protocol === "file:" ? "itch-local" : "itch-demo";
+  if (protocol === "file:" || hostname === "localhost" || hostname === "127.0.0.1") return "local";
+  return "web-prototype";
+}
+
+export function voyageTelemetryPayload(record, state) {
+  if (!record || typeof record !== "object") throw new Error("Voyage telemetry requires a record");
+  if (!state || typeof state !== "object") throw new Error("Voyage telemetry requires game state");
+  const achievements = state.memory?.achievements || {};
+  const decisions = state.memory?.decisions || {};
+  const features = TELEMETRY_FEATURES
+    .filter(([, used]) => used(state, decisions))
+    .map(([id]) => id);
+  return {
+    outcome: requiredShortString(record.outcomeType, "voyage outcome"),
+    mainQuest: requiredShortString(state.memory?.campaignGoal?.type || "none", "main quest"),
+    activePlaySeconds: nonNegativeNumber(state.activePlaySeconds, "active play seconds"),
+    daysAtSea: nonNegativeNumber(record.daysAtSea, "days at sea"),
+    endingDoubloons: finiteNumber(record.endingDoubloons, "ending doubloons"),
+    grossDoubloonsEarned: nonNegativeNumber(record.doubloonsEarned, "gross doubloons"),
+    mappedPercent: nonNegativeNumber(record.mappedPercent, "mapped percent"),
+    discoveries: nonNegativeNumber(record.discoveries, "discoveries"),
+    visitedPorts: nonNegativeNumber(record.visitedPorts, "visited ports"),
+    completedQuests: nonNegativeNumber(record.completedQuests, "completed quests"),
+    crewLost: nonNegativeNumber(record.crewLost, "crew lost"),
+    ship: requiredShortString(record.vessel, "vessel"),
+    features,
+    pandaStatus: requiredShortString(state.memory?.panda?.status || "unmet", "panda status"),
+    defeatedShips: nonNegativeNumber(achievements.defeatedShipCount || 0, "defeated ships"),
+    whalesKilled: nonNegativeNumber(achievements.whalesKilled || 0, "whales killed"),
+    coloniesFounded: Array.isArray(achievements.foundedCityIds) ? achievements.foundedCityIds.length : 0,
+    spicesSold: Array.isArray(achievements.soldSpiceGoodIds) ? achievements.soldSpiceGoodIds.length : 0
+  };
+}
+
+export function installationIsSampled(installationId) {
+  return stableHash32(requiredShortString(installationId, "installation id")) % 100 === 0;
+}
+
+function normalizeCrash(error, context) {
+  const resolved = error instanceof Error ? error : new Error(String(error));
+  const redactions = Array.isArray(context.redact)
+    ? context.redact.filter((entry) => typeof entry === "string" && entry.length >= 2)
+    : [];
+  return {
+    errorName: truncate(resolved.name || "Error", 80),
+    message: truncate(redactCrashText(resolved.message || String(error), redactions), 500),
+    stack: truncate(redactCrashText(resolved.stack || "", redactions), 6000),
+    screen: truncate(context.screen || "unknown", 80),
+    mainQuest: truncate(context.mainQuest || "none", 80),
+    ship: truncate(context.ship || "none", 80)
+  };
+}
+
+function readConsent(storage) {
+  const value = readStorage(storage, TELEMETRY_CONSENT_STORAGE_KEY);
+  if (value === TELEMETRY_CONSENT_GRANTED || value === TELEMETRY_CONSENT_DENIED) return value;
+  return TELEMETRY_CONSENT_UNKNOWN;
+}
+
+function readOrCreateInstallationId(storage, randomId, now) {
+  const existing = readStorage(storage, TELEMETRY_INSTALLATION_STORAGE_KEY);
+  if (existing) return requiredShortString(existing, "stored installation id");
+  const created = requiredShortString(randomId(), "generated installation id");
+  writeStorage(storage, TELEMETRY_INSTALLATION_STORAGE_KEY, created);
+  writeStorage(storage, TELEMETRY_FIRST_SEEN_STORAGE_KEY, String(now()));
+  return created;
+}
+
+function updateRetentionStorage(storage, currentTime) {
+  const firstSeen = validTimestamp(readStorage(storage, TELEMETRY_FIRST_SEEN_STORAGE_KEY)) ?? currentTime;
+  const lastSession = validTimestamp(readStorage(storage, TELEMETRY_LAST_SESSION_STORAGE_KEY));
+  writeStorage(storage, TELEMETRY_FIRST_SEEN_STORAGE_KEY, String(firstSeen));
+  writeStorage(storage, TELEMETRY_LAST_SESSION_STORAGE_KEY, String(currentTime));
+  return {
+    installAgeDays: Math.max(0, Math.floor((currentTime - firstSeen) / 86_400_000)),
+    daysSinceLastSession: lastSession === null
+      ? -1
+      : Math.max(0, Math.floor((currentTime - lastSession) / 86_400_000))
+  };
+}
+
+function readQueue(storage) {
+  const serialized = readStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
+  if (!serialized) return [];
+  try {
+    const parsed = JSON.parse(serialized);
+    return Array.isArray(parsed) ? parsed.slice(-TELEMETRY_QUEUE_LIMIT) : [];
+  } catch {
+    removeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
+    return [];
+  }
+}
+
+function readStorage(storage, key) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(storage, key, value) {
+  try {
+    storage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeStorage(storage, key) {
+  try {
+    storage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeActivePlaySeconds(value) {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function validTimestamp(value) {
+  if (value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function hasDecisionPrefix(decisions, prefix) {
+  return Object.entries(decisions).some(([key, value]) => key.startsWith(prefix) && value > 0);
+}
+
+function stableHash32(text) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+function defaultRandomId() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  if (typeof globalThis.crypto?.getRandomValues !== "function") {
+    throw new Error("This browser cannot create anonymous telemetry identifiers");
+  }
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function redactCrashText(value, redactions) {
+  let text = String(value)
+    .replace(/\/Users\/[^/\s):]+/g, "/Users/<redacted>")
+    .replace(/\/home\/[^/\s):]+/g, "/home/<redacted>")
+    .replace(/\\Users\\[^\\\s):]+/gi, "\\Users\\<redacted>");
+  for (const redaction of redactions) {
+    text = text.replaceAll(redaction, "<redacted>");
+  }
+  return text;
+}
+
+function requiredShortString(value, label) {
+  if (typeof value !== "string" || value.trim() === "" || value.length > 160) {
+    throw new Error(`Invalid ${label}`);
+  }
+  return value;
+}
+
+function finiteNumber(value, label) {
+  if (!Number.isFinite(value)) throw new Error(`Invalid ${label}: ${value}`);
+  return value;
+}
+
+function nonNegativeNumber(value, label) {
+  if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}: ${value}`);
+  return value;
+}
+
+function truncate(value, limit) {
+  return String(value).slice(0, limit);
+}

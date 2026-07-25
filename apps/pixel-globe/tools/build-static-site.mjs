@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { build } from "esbuild";
 
 import { DEMO_VOYAGE_LIMIT_SECONDS } from "../src/demoVoyage.js";
@@ -25,6 +27,7 @@ const DEMO_PREBUILT_ICON_SOURCES = new Set([
 const toolsRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolsRoot, "..");
 const repoRoot = resolve(appRoot, "../..");
+const execFileAsync = promisify(execFile);
 const publicRoot = join(appRoot, "public");
 const sharedDataRoot = join(repoRoot, "examples/globe-demo/public");
 const edition = buildEditionFromArgs(process.argv.slice(2));
@@ -34,12 +37,14 @@ const maxPagesFileBytes = 24 * 1024 * 1024;
 const appEntries = edition === BUILD_EDITION_DEMO
   ? [
       ["index.html", "index.html"],
+      ["privacy.html", "privacy.html"],
       ["src/styles.css", "src/styles.css"],
       ["src/loadingScreenWorker.js", "src/loadingScreenWorker.js"],
       ["src/loadingScreenMotion.js", "src/loadingScreenMotion.js"]
     ]
   : [
       ["index.html", "index.html"],
+      ["privacy.html", "privacy.html"],
       ["src", "src"]
     ];
 
@@ -67,6 +72,7 @@ const demoCharacterManifest = edition === BUILD_EDITION_DEMO
 const demoPortraitFiles = demoCharacterManifest
   ? portraitFilesForManifest(demoCharacterManifest)
   : null;
+const buildRevision = await resolveBuildRevision();
 
 async function mustExist(path) {
   try {
@@ -247,8 +253,23 @@ function buildEditionModuleSource() {
   return [
     `export const BUILD_EDITION_ID = ${JSON.stringify(edition)};`,
     `export const ACTIVE_PLAY_LIMIT_SECONDS = ${limit === null ? "null" : limit};`,
+    `export const BUILD_REVISION = ${JSON.stringify(buildRevision)};`,
     ""
   ].join("\n");
+}
+
+async function resolveBuildRevision() {
+  const configured = process.env.BUILD_REVISION?.trim();
+  if (configured) return configured.slice(0, 64);
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--short=12", "HEAD"], {
+      cwd: repoRoot
+    });
+    const revision = stdout.trim();
+    return revision || "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 async function stripDemoSocialMetadata() {
