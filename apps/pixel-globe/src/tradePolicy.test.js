@@ -92,6 +92,33 @@ test("personal standing nudges customs without overriding diplomacy", () => {
   assert.equal(notorious.customsRate, 0.13);
 });
 
+test("suzerain privileges are asymmetric while tributary commerce can be reciprocal", () => {
+  const portugueseInHormuz = tradeTerms({
+    port: { tileId: 8, city: "Hormuz", country: "Iran", factionId: "hormuz" },
+    traderFactionId: "portugal",
+    relation: DIPLOMACY_FRIENDLY,
+    suzeraintyPrivilege: {
+      customsRate: 0.02,
+      kind: "vassal",
+      traderIsSuzerain: true
+    },
+    goodId: "dates"
+  });
+  const hormuziInLisbon = tradeTerms({
+    port: LISBON,
+    traderFactionId: "hormuz",
+    relation: DIPLOMACY_FRIENDLY,
+    suzeraintyPrivilege: {
+      customsRate: 0.05,
+      kind: "vassal",
+      traderIsSuzerain: false
+    },
+    goodId: "wine"
+  });
+  assert.equal(portugueseInHormuz.customsRate, 0.02);
+  assert.equal(hormuziInLisbon.customsRate, 0.05);
+});
+
 test("negotiation perks make small improvements after duties and monopolies", () => {
   const ordinary = tradeTerms({
     port: GOA,
@@ -126,6 +153,13 @@ test("customs status can be explained without inventing a commodity transaction"
 test("Portuguese Estado ports levy crown-controlled spices without taxing independent ports", () => {
   assert.equal(isPortugueseEstadoPort(GOA), true);
   assert.equal(isPortugueseEstadoPort(LISBON), false);
+  assert.equal(isPortugueseEstadoPort({
+    tileId: 8,
+    city: "Hormuz",
+    country: "Iran",
+    factionId: "hormuz",
+    foreignSettlements: [foreignSettlementById("portuguese-hormuz")]
+  }), true);
   assert.deepEqual(PORTUGUESE_CROWN_SPICE_GOOD_IDS, ["pepper", "cinnamon", "cloves", "nutmeg"]);
 
   const crownPepper = tradeTerms({

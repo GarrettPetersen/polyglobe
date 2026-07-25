@@ -18,6 +18,7 @@ import {
   createPoliticsView,
   playerStandingForReputation,
   politicalPowers,
+  politicsPowerLabel,
   politicsRowsPage
 } from "./politics.js";
 
@@ -61,6 +62,27 @@ test("politics matrix reports diplomacy and player standing", () => {
   assert.equal(england.player.label, "Warm");
   assert.equal(france.player.label, "Angry");
   assert.equal(pirate.player.label, "Hostile");
+});
+
+test("politics keeps vassal status visibly separate from diplomatic stance", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const view = createPoliticsView(state);
+  const hormuz = view.rows.find((row) => row.faction.id === "hormuz");
+  assert.equal(hormuz.faction.suzerainFactionId, "portugal");
+  assert.equal(politicsPowerLabel(hormuz.faction, view.powers), "HORMUZ >PO");
+  assert.equal(
+    hormuz.stances.find((stance) => stance.factionId === "portugal").relation,
+    "friendly"
+  );
+});
+
+test("the Habsburg personal union is not presented as Spanish vassalage", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const view = createPoliticsView(state);
+  const spain = view.rows.find((row) => row.faction.id === "spain");
+  const habsburg = view.rows.find((row) => row.faction.id === "habsburg");
+  assert.equal(politicsPowerLabel(spain.faction, view.powers), "SPAIN =HB");
+  assert.equal(habsburg.faction.vassalFactionIds.includes("spain"), false);
 });
 
 test("politics matrix follows changing world diplomacy", () => {

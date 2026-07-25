@@ -185,6 +185,7 @@ export default {
   "politics.legendAlly": "A ALLIÉ",
   "politics.legendWar": "G GUERRE",
   "politics.legendNeutral": "- NEUTRE  . AUCUN CONTACT",
+  "politics.legendSuzerainty": "VASSAL >  UNION =",
   "politics.legendCompact": "- NEUT  . AUCUN",
   "politics.hostile": "HOSTILE",
   "politics.angry": "FURIEUX",

@@ -21,6 +21,22 @@ const DIPLOMACY_RELATIONS = new Set([
 
 const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   settlement({
+    id: "portuguese-hormuz",
+    city: "Hormuz",
+    country: "Iran",
+    factionId: "portugal",
+    label: "Portuguese fortress and factory",
+    factorText: "The Portuguese captain holds the fortress and customs house, while the Hormuzi court still governs the island kingdom."
+  }),
+  settlement({
+    id: "portuguese-muscat",
+    city: "Muscat",
+    country: "Oman",
+    factionId: "portugal",
+    label: "Portuguese fortress and factory",
+    factorText: "The Portuguese fortress guards its factory and anchorage under the Crown's compact with Hormuz."
+  }),
+  settlement({
     id: "portuguese-ternate",
     city: "Ternate",
     country: "Indonesia",

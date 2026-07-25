@@ -455,8 +455,13 @@ import {
   processCheatCodeKey
 } from "./cheatCodes.js";
 import {
+  dissolveFactionDiplomaticPersonalUnions,
+  dissolveFactionDiplomaticSuzerainties,
   diplomacyEventNotice,
   diplomacyPairKey,
+  establishDiplomaticSuzerainty,
+  foreignPolicyPrincipalForState,
+  makeDiplomaticPeace,
   recordDiplomaticPortCall,
   validateWorldDiplomacy
 } from "./worldDiplomacy.js";
@@ -915,9 +920,14 @@ import {
   expelHostileForeignSettlements
 } from "./foreignSettlements.js";
 import {
+  CAPITAL_PEACE_TERM_ANNEXATION,
+  CAPITAL_PEACE_TERM_CONCESSIONS,
+  CAPITAL_PEACE_TERM_VASSALAGE,
   PORT_CONQUEST_MIN_CREW,
   PORT_CONQUEST_NPC_LANDING_RANGE_PX,
   applyPortConquestOwnership,
+  capitalPeaceTreatyOptions,
+  chooseCapitalPeaceTerm,
   clearPlayerPortAssault,
   markPlayerPortAssault,
   npcPortConquestChance,
@@ -925,12 +935,14 @@ import {
   playerPortAssaultIsActive,
   portConquestStatus,
   recordPortCapture,
-  resolvePortConquest
+  resolvePortConquest,
+  settleCapitalPeaceTreaty
 } from "./portConquest.js";
 import { recentRegionalRulerChange } from "./rulers.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
+  politicsPowerLabel,
   politicsRowsPage
 } from "./politics.js";
 import {
@@ -4331,10 +4343,10 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
     throw new Error("Character alert requires a button label");
   }
   if (kind === "choice") {
-    if (!Array.isArray(choices) || choices.length !== 2 || choices.some((choice) => (
+    if (!Array.isArray(choices) || choices.length < 2 || choices.length > 3 || choices.some((choice) => (
       typeof choice?.label !== "string" || choice.label.trim() === "" || typeof choice.onSelect !== "function"
     ))) {
-      throw new Error("Character choice alert requires exactly two actionable choices");
+      throw new Error("Character choice alert requires two or three actionable choices");
     }
   } else if (choices !== null) {
     throw new Error(`Character alert kind ${kind} cannot have choices`);
@@ -4355,7 +4367,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
     buttonRect: captainAlertButtonRect(),
     choices: choices ? Object.freeze(choices.map((choice) => Object.freeze({ ...choice }))) : null,
     selectedChoiceIndex: 0,
-    choiceRects: choices ? captainAlertChoiceRects() : null
+    choiceRects: choices ? captainAlertChoiceRects(choices.length) : null
   };
 }
 
@@ -4402,15 +4414,21 @@ function captainAlertButtonRect() {
   };
 }
 
-function captainAlertChoiceRects() {
+function captainAlertChoiceRects(choiceCount = 2) {
+  if (!Number.isInteger(choiceCount) || choiceCount < 2 || choiceCount > 3) {
+    throw new Error(`Character alert choices must number two or three: ${choiceCount}`);
+  }
   const panel = captainAlertGeometry().panel;
   const gap = 6;
-  const width = Math.floor((panel.w - 28 - gap) / 2);
+  const padding = 11;
+  const width = Math.floor((panel.w - padding * 2 - gap * (choiceCount - 1)) / choiceCount);
   const y = panel.y + panel.h - CAPTAIN_ALERT_BUTTON_H - 11;
-  return Object.freeze([
-    Object.freeze({ x: panel.x + 11, y, w: width, h: CAPTAIN_ALERT_BUTTON_H }),
-    Object.freeze({ x: panel.x + 11 + width + gap, y, w: width, h: CAPTAIN_ALERT_BUTTON_H })
-  ]);
+  return Object.freeze(Array.from({ length: choiceCount }, (_, index) => Object.freeze({
+    x: panel.x + padding + index * (width + gap),
+    y,
+    w: width,
+    h: CAPTAIN_ALERT_BUTTON_H
+  })));
 }
 
 function captainAlertGeometry() {
@@ -11327,8 +11345,6 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     return false;
   }
 
-  const oldFaction = factionById(cityCall.factionId);
-  const newFaction = factionById(ship.factionId);
   const prize = receivePortConquestPrize(
     gameState,
     cityCall,
@@ -11342,40 +11358,160 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     Math.floor(weatherClockMinutes),
     "player"
   );
+  if (event.capitalCapturedFactionId) {
+    closeDialogue();
+    openPlayerCapitalPeaceTreaty(cityCall, event, prize);
+    return true;
+  }
+  completePlayerPortConquest(cityCall, event, prize, null);
+  return true;
+}
+
+function openPlayerCapitalPeaceTreaty(cityCall, event, prize) {
+  const options = capitalPeaceTreatyOptions(gameState.memory.conquest, portCities, event);
+  const loser = factionById(event.previousFactionId);
+  const choices = [
+    {
+      label: "VASSAL",
+      term: CAPITAL_PEACE_TERM_VASSALAGE
+    },
+    ...(options.concessionAvailable
+      ? [{ label: "TAKE PORT", term: CAPITAL_PEACE_TERM_CONCESSIONS }]
+      : []),
+    ...(options.annexationAllowed
+      ? [{ label: "ANNEX", term: CAPITAL_PEACE_TERM_ANNEXATION }]
+      : [])
+  ];
+  const opened = openCharacterChoiceAlertModal(
+    gameState.playerCharacter,
+    `${loser.name}'s capital has fallen. Choose the terms of peace.`,
+    choices.map((choice) => ({
+      label: choice.label,
+      onSelect: () => {
+        const treaty = settleCapitalCaptureDiplomacy(event, 0, choice.term);
+        completePlayerPortConquest(cityCall, event, prize, treaty);
+      }
+    })),
+    "stern"
+  );
+  if (!opened) throw new Error(`Could not open capital peace treaty for ${event.portId}`);
+}
+
+function completePlayerPortConquest(cityCall, event, prize, treaty) {
+  const newFaction = factionById(event.newFactionId);
   clearPlayerPortAssault(gameState.memory.flags, cityCall);
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
   clearCombatForShip(PLAYER_COMBAT_ID);
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
   const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
   if (!capturedCity) throw new Error(`Captured port disappeared: ${event.portId}`);
-  const needsLoadout = admitPlayerToPort(capturedCity);
-  dialogueState = createPortArrivalDialogueSession(capturedCity, { needsLoadout });
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
-  const collapseText = event.collapsedFactionId
-    ? ` ${oldFaction.name} has collapsed; its remaining ports and ships are now neutral.`
-    : "";
+  const playerRetainsPort = capturedCity.factionId === ship.factionId;
+  if (playerRetainsPort) {
+    const needsLoadout = admitPlayerToPort(capturedCity);
+    dialogueState = createPortArrivalDialogueSession(capturedCity, { needsLoadout });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+  } else {
+    closeDialogue();
+  }
+  const treatyText = treaty ? ` ${capitalPeaceTreatyDescription(treaty)}` : "";
   playCoinClinkSound();
-  showSurvivalNotice(`${cityLabelText(capturedCity).toUpperCase()} CAPTURED  +${prize.amount} DB`, "good");
+  showSurvivalNotice(
+    treaty
+      ? `PEACE AT ${cityLabelText(capturedCity).toUpperCase()}  +${prize.amount} DB`
+      : `${cityLabelText(capturedCity).toUpperCase()} CAPTURED  +${prize.amount} DB`,
+    "good"
+  );
   openCaptainAlertModal(
-    `${cityLabelText(capturedCity)} has surrendered and now flies the ${newFaction.adjective} flag. ` +
-      `The captured treasury yields ${prize.amount} doubloons.${collapseText}`,
+    `${cityLabelText(capturedCity)} has surrendered. The captured treasury yields ` +
+      `${prize.amount} doubloons.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}`,
     "happy"
   );
   publishPlatformTimelineEvent({
-    title: `${cityLabelText(capturedCity)} captured`,
-    description: event.collapsedFactionId
-      ? `${oldFaction.name} collapsed after its capital fell.`
+    title: treaty
+      ? `${cityLabelText(capturedCity)} peace treaty`
+      : `${cityLabelText(capturedCity)} captured`,
+    description: treaty
+      ? capitalPeaceTreatyDescription(treaty)
       : `${cityLabelText(capturedCity)} now flies the ${newFaction.adjective} flag.`,
     icon: "steam_flag",
-    priority: event.collapsedFactionId ? 1000 : 800,
+    priority: treaty ? 1000 : 800,
     durationSeconds: 0,
     clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
   });
   saveVoyageNow("port conquered");
   dirty = true;
-  return true;
+}
+
+function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
+  if (!event.capitalCapturedFactionId) return null;
+  const simMinute = Math.floor(weatherClockMinutes);
+  const term = forcedTerm || chooseCapitalPeaceTerm(gameState.memory.conquest, portCities, event, roll);
+  const treaty = settleCapitalPeaceTreaty(
+    gameState.memory.conquest,
+    portCities,
+    event,
+    term,
+    simMinute
+  );
+  if (term === CAPITAL_PEACE_TERM_ANNEXATION) {
+    dissolveFactionDiplomaticSuzerainties(
+      gameState.relations.diplomacy,
+      treaty.loserFactionId,
+      simMinute,
+      "annexation"
+    );
+  } else if (term === CAPITAL_PEACE_TERM_VASSALAGE) {
+    dissolveFactionDiplomaticPersonalUnions(
+      gameState.relations.diplomacy,
+      treaty.loserFactionId,
+      simMinute,
+      "forced-vassalage"
+    );
+    establishDiplomaticSuzerainty(gameState.relations.diplomacy, {
+      vassalFactionId: treaty.loserFactionId,
+      suzerainFactionId: foreignPolicyPrincipalForState(
+        gameState.relations.diplomacy,
+        treaty.winnerFactionId
+      ),
+      simMinute,
+      source: "capital-peace-treaty"
+    });
+  } else {
+    makeDiplomaticPeace(
+      gameState.relations.diplomacy,
+      treaty.winnerFactionId,
+      treaty.loserFactionId,
+      simMinute,
+      { eventReason: "capital-peace-treaty" }
+    );
+  }
+  return treaty;
+}
+
+function capitalPeaceTreatyDescription(treaty) {
+  const winner = factionById(treaty.winnerFactionId);
+  const loser = factionById(treaty.loserFactionId);
+  if (treaty.term === CAPITAL_PEACE_TERM_ANNEXATION) {
+    return `${loser.name} is annexed by ${winner.name}.`;
+  }
+  if (treaty.term === CAPITAL_PEACE_TERM_VASSALAGE) {
+    const principal = foreignPolicyPrincipalForState(
+      gameState.relations.diplomacy,
+      treaty.winnerFactionId
+    );
+    const concessionText = treaty.concessionPortIds.length > 0
+      ? ` It also cedes ${treaty.concessionPortIds.length} occupied port` +
+        `${treaty.concessionPortIds.length === 1 ? "" : "s"}.`
+      : "";
+    return `${loser.name} survives as a vassal of ${factionById(principal).name}.${concessionText}`;
+  }
+  if (treaty.term === CAPITAL_PEACE_TERM_CONCESSIONS) {
+    return `${loser.name} makes peace and cedes ${treaty.concessionPortIds.length} port` +
+      `${treaty.concessionPortIds.length === 1 ? "" : "s"} to ${winner.name}.`;
+  }
+  throw new Error(`Unknown capital peace term: ${treaty.term}`);
 }
 
 function applyAutomaticPortServices(cityCall) {
@@ -16584,13 +16720,13 @@ function attemptNpcPortConquest(battery, npcShipId) {
     Math.floor(weatherClockMinutes),
     `npc:${npcShipId}`
   );
+  const treaty = settleCapitalCaptureDiplomacy(event, Math.random());
   clearPlayerPortAssault(gameState.memory.flags, city);
   const conqueringFaction = factionById(strategic.factionId);
-  const defeatedFaction = factionById(event.previousFactionId);
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
-  const collapseText = event.collapsedFactionId ? `; ${defeatedFaction.name.toUpperCase()} COLLAPSES` : "";
+  const treatyText = treaty ? `; ${capitalPeaceTreatyDescription(treaty).toUpperCase()}` : "";
   showSurvivalNotice(
-    `${event.cityName.toUpperCase()} TAKEN BY ${conqueringFaction.adjective.toUpperCase()} FORCES${collapseText}`,
+    `${event.cityName.toUpperCase()} TAKEN BY ${conqueringFaction.adjective.toUpperCase()} FORCES${treatyText}`,
     "warn"
   );
   saveVoyageNow("npc conquered port");
@@ -20464,7 +20600,9 @@ function applyResponsiveViewport(width, height) {
     captainAlertModal.buttonRect = captainAlertModal.kind === "sailing-help"
       ? sailingHelpButtonRect()
       : captainAlertButtonRect();
-    if (captainAlertModal.kind === "choice") captainAlertModal.choiceRects = captainAlertChoiceRects();
+    if (captainAlertModal.kind === "choice") {
+      captainAlertModal.choiceRects = captainAlertChoiceRects(captainAlertModal.choices.length);
+    }
   }
   rebuildChartForViewportResize();
   dirty = true;
@@ -25240,6 +25378,9 @@ function drawPoliticsMenu() {
   drawOptionsText(uiText("politics.legendAlly"), panel.x + 12, legendY, { color: "#91db69" });
   drawOptionsText(uiText("politics.legendWar"), panel.x + 62, legendY, { color: "#f68181" });
   drawOptionsText(uiText("politics.legendNeutral"), panel.x + 108, legendY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText(uiText("politics.legendSuzerainty"), panel.x + 218, legendY, {
+    color: PIRATE_MENU_INK_MUTED
+  });
 
   const sectionY = header.sectionY;
   drawOptionsText(uiText("politics.stanceToward"), matrixX + matrixW / 2, sectionY, {
@@ -25265,7 +25406,7 @@ function drawPoliticsMenu() {
     ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 1, panel.w - 20, POLITICS_MATRIX_ROW_H);
     drawOptionsText(
-      fitPixelText(row.faction.shortName.toUpperCase(), PIXEL_FONT_SMALL_8, 104),
+      fitPixelText(politicsPowerLabel(row.faction, view.powers), PIXEL_FONT_SMALL_8, 104),
       rowLabelX,
       y,
       { color: politicsFactionColor(row.faction.id) }
@@ -25408,7 +25549,7 @@ function drawCompactPoliticsMenu() {
     ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 8, y - 1, panel.w - 16, POLITICS_MATRIX_ROW_H);
     drawOptionsText(
-      fitPixelText(row.faction.shortName.toUpperCase(), PIXEL_FONT_SMALL_8, 76),
+      fitPixelText(politicsPowerLabel(row.faction, view.powers), PIXEL_FONT_SMALL_8, 76),
       labelX,
       y,
       { color: politicsFactionColor(row.faction.id) }
@@ -32872,6 +33013,21 @@ function drawCaptainAlertModal(nowMs) {
   for (const line of pages[modal.page]) {
     drawPixelText(line, textX, y, { font: PIXEL_FONT_SMALL_8 });
     y += localizedLineHeight(10);
+  }
+
+  if (modal.kind === "choice") {
+    if (pages.length !== 1) throw new Error("Character choice alert text must fit on one page");
+    modal.choiceRects.forEach((rect, index) => {
+      drawPiratePaperInset(rect, index === modal.selectedChoiceIndex);
+      ctx.fillStyle = PIRATE_MENU_INK;
+      drawPixelText(
+        fitPixelText(modal.choices[index].label.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 6),
+        rect.x + rect.w / 2,
+        controlTextY(rect),
+        { font: PIXEL_FONT_SMALL_8, align: "center" }
+      );
+    });
+    return;
   }
 
   const button = modal.buttonRect;

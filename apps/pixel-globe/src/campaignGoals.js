@@ -910,6 +910,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "Goa enriched the Crown. Your missing carrack enriched my ledger.",
     "We fitted that carrack for the taking of Goa, then borrowed again when its cargo failed to return."
   ),
+  hormuz: debtOrigin(
+    "The Portuguese fortress remained after your island's revolt. So did every note your family signed to provision it.",
+    "We backed the men who tried to cast the Portuguese from Hormuz. Their rising failed, and the cost of surviving it became this debt."
+  ),
   habsburg: debtOrigin(
     "Imperial crowns are costly. Your father should have remembered that guarantors do not wear them.",
     "He guaranteed loans gathered to win that crown. The electors were paid; smaller guarantors were forgotten."
@@ -949,6 +953,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
   muscovy: debtOrigin(
     "Smolensk changed hands. This deed did not.",
     "We fitted wagons and horses for the long siege. The court's promise of payment proved less durable than the fortress."
+  ),
+  crimea: debtOrigin(
+    "The khan returned from Moscow with captives and glory. Your family's wagons returned empty.",
+    "We provisioned the great raid of 1521 on promises of a share. The court celebrated; its suppliers were left to their creditors."
   ),
   "poland-lithuania": debtOrigin(
     "The Prussian truce rested the cavalry. It did nothing for their guarantors.",
@@ -1014,6 +1022,7 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   france: "Breton and Norman fishermen return from western banks with coastlines no court map agrees upon. I want a true one.",
   spain: "Columbus found a western world, and Balboa another ocean beyond it. Court boasts are plentiful; reliable accounts are not.",
   portugal: "Our pilots have rounded Africa and reached India and Malacca, yet the Crown keeps each chart close. I want the world considered as one.",
+  hormuz: "Portuguese cannon commands our strait, but Hormuzi merchants still know every Gulf harbor worth naming. I want their knowledge carried beyond another empire's fortress.",
   habsburg: "The Emperor's realms now face oceans no single court understands. A private atlas may tell the truth ceremony conceals.",
   hungary: "Belgrade's fall has narrowed every gaze to the frontier. That is precisely when someone must remember the world is larger.",
   ottoman: "Piri Reis set western discoveries beside eastern charts. His map proves no court owns all useful knowledge.",
@@ -1024,6 +1033,7 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   inca: "The Sapa Inca's roads bind mountains beyond counting, yet every official map stops at the sea. Mine need not.",
   safavid: "Ottoman armies close one road and Portuguese cannon command another at Hormuz. Knowledge may reveal a third.",
   muscovy: "Novgorod's merchants know the Baltic by price and rumor. I want bearings that reach beyond their counting houses.",
+  crimea: "Ottoman galleys hold the southern coast while our riders know the northern steppe. I want a Crimean chart of the seas between and beyond them.",
   "poland-lithuania": "Danzig hears of western lands and eastern seas from a dozen tongues. I want one captain's measured account.",
   "denmark-norway": "Our sagas remember western shores, while the king's ships fight over Sweden. I would rather recover the horizon than another crown.",
   songhai: "Timbuktu gathers the world in books and Gao in caravans. I want the Atlantic to answer what neither can.",

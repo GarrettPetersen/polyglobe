@@ -23,6 +23,7 @@ export const FACTIONS = Object.freeze([
   faction("france", "Kingdom of France", "France", "French", "kingdom"),
   faction("spain", "Spanish Monarchy", "Spain", "Spanish", "monarchy"),
   faction("portugal", "Kingdom of Portugal", "Portugal", "Portuguese", "kingdom"),
+  faction("hormuz", "Kingdom of Hormuz", "Hormuz", "Hormuzi", "kingdom"),
   faction("habsburg", "Habsburg Monarchy", "Habsburg Monarchy", "Habsburg", "monarchy", "the"),
   faction("hungary", "Kingdom of Hungary", "Hungary", "Hungarian", "kingdom"),
   faction("ottoman", "Ottoman Empire", "Ottoman Empire", "Ottoman", "empire", "the"),
@@ -33,6 +34,7 @@ export const FACTIONS = Object.freeze([
   faction("inca", "Inca Empire", "Tawantinsuyu", "Inca", "empire"),
   faction("safavid", "Safavid Empire", "Safavid Persia", "Safavid", "empire"),
   faction("muscovy", "Grand Duchy of Muscovy", "Muscovy", "Muscovite", "duchy"),
+  faction("crimea", "Crimean Khanate", "Crimea", "Crimean", "khanate"),
   faction("poland-lithuania", "Polish-Lithuanian Union", "Poland-Lithuania", "Polish-Lithuanian", "union"),
   faction("denmark-norway", "Denmark-Norway", "Denmark-Norway", "Dano-Norwegian", "union"),
   faction("songhai", "Songhai Empire", "Songhai", "Songhai", "empire"),
@@ -62,6 +64,7 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("france", "Paris", "France"),
   capital("spain", "Seville", "Spain"),
   capital("portugal", "Lisbon", "Portugal"),
+  capital("hormuz", "Hormuz", "Iran"),
   capital("habsburg", "Gent", "Belgium"),
   capital("hungary", "Budapest", "Hungary"),
   capital("ottoman", "Istanbul", "Turkey"),
@@ -76,6 +79,7 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
     lon: 41.65,
     population: 7000
   }),
+  capital("crimea", "Bakhchiserai", "Ukraine"),
   capital("poland-lithuania", "Krakow", "Poland"),
   capital("denmark-norway", "Roskilde", "Denmark"),
   capital("songhai", "Gao", "Mali"),
@@ -109,6 +113,7 @@ const ALLIANCES_1522 = Object.freeze([
   ["france", "scotland"],
   ["france", "venice"],
   ["habsburg", "hungary"],
+  ["spain", "hungary"],
   ["habsburg", "papal-states"],
   ["spain", "papal-states"],
   ["ming", "joseon"]
@@ -117,9 +122,13 @@ const ALLIANCES_1522 = Object.freeze([
 const FRIENDSHIPS_1522 = Object.freeze([
   ["england", "portugal"],
   ["spain", "portugal"],
+  ["habsburg", "portugal"],
+  ["portugal", "hormuz"],
   ["france", "genoa"],
   ["habsburg", "denmark-norway"],
+  ["spain", "denmark-norway"],
   ["habsburg", "poland-lithuania"],
+  ["spain", "poland-lithuania"],
   ["hungary", "poland-lithuania"],
   ["hungary", "papal-states"],
   ["venice", "safavid"],
@@ -130,8 +139,10 @@ const FRIENDSHIPS_1522 = Object.freeze([
   ["portugal", "vijayanagara"],
   ["portugal", "ayutthaya"],
   ["ottoman", "gujarat"],
+  ["ottoman", "crimea"],
   ["ming", "ayutthaya"],
   ["spain", "tidore"],
+  ["habsburg", "tidore"],
   ["japan", "joseon"],
   ["bengal", "ayutthaya"]
 ]);
@@ -142,9 +153,11 @@ const HOSTILITIES_1522 = Object.freeze([
   ["ottoman", "papal-states"],
   ["venice", "genoa"],
   ["spain", "morocco"],
+  ["habsburg", "morocco"],
   ["ming", "japan"],
   ["bengal", "delhi"],
   ["ternate", "spain"],
+  ["ternate", "habsburg"],
   ["ternate", "tidore"],
   ["portugal", "tidore"]
 ]);
@@ -198,9 +211,9 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Iraklion", "Greece", "venice"),
 
   cityRule("Goa", "India", "portugal"),
-  cityRule("Hormuz", "Iran", "portugal"),
+  cityRule("Hormuz", "Iran", "hormuz"),
   cityRule("Malacca", "Malaysia", "portugal"),
-  cityRule("Muscat", "Oman", "portugal"),
+  cityRule("Muscat", "Oman", "hormuz"),
   cityRule("Sofala", "Mozambique", "portugal"),
   cityRule("Mozambique Island", "Mozambique", "portugal"),
 
@@ -224,6 +237,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Kazan", "Russian Federation", NEUTRAL_FACTION_ID),
   cityRule("Feodosia", "Russian Federation", "ottoman"),
   cityRule("Sudak", "Russian Federation", "ottoman"),
+  cityRule("Bakhchiserai", "Ukraine", "crimea"),
 
   cityRule("Visby", "Sweden", "denmark-norway"),
 

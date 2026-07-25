@@ -17,6 +17,7 @@ const RAW_RULER_TIMELINES = Object.freeze({
   france: [ruler(1522, 1, 1, "Francis I", "King"), ruler(1547, 3, 31, "Henry II", "King")],
   spain: [ruler(1522, 1, 1, "Charles I", "King"), ruler(1556, 1, 16, "Philip II", "King")],
   portugal: [ruler(1522, 1, 1, "John III", "King"), ruler(1557, 6, 11, "Sebastian I", "King")],
+  hormuz: [ruler(1522, 1, 1, "Turanshah IV", "King")],
   habsburg: [ruler(1522, 1, 1, "Charles V", "Emperor"), ruler(1556, 8, 27, "Ferdinand I", "Emperor")],
   hungary: [ruler(1522, 1, 1, "Louis II", "King"), ruler(1526, 8, 29, "Ferdinand I", "King")],
   ottoman: [ruler(1522, 1, 1, "Suleiman I", "Sultan"), ruler(1566, 9, 7, "Selim II", "Sultan")],
@@ -45,6 +46,11 @@ const RAW_RULER_TIMELINES = Object.freeze({
   ],
   safavid: [ruler(1522, 1, 1, "Ismail I", "Shah"), ruler(1524, 5, 23, "Tahmasp I", "Shah")],
   muscovy: [ruler(1522, 1, 1, "Vasili III", "Grand Prince"), ruler(1533, 12, 3, "Ivan IV", "Grand Prince")],
+  crimea: [
+    ruler(1522, 1, 1, "Mehmed I Giray", "Khan"),
+    ruler(1523, 1, 1, "Ghazi I Giray", "Khan"),
+    ruler(1524, 1, 1, "Saadet I Giray", "Khan")
+  ],
   "poland-lithuania": [
     ruler(1522, 1, 1, "Sigismund I", "King"),
     ruler(1548, 4, 1, "Sigismund II Augustus", "King")
@@ -122,8 +128,8 @@ const RAW_RULER_TIMELINES = Object.freeze({
 const REGIONAL_GROUPS = Object.freeze([
   ["england", "scotland", "france", "spain", "portugal", "habsburg", "denmark-norway"],
   ["habsburg", "hungary", "venice", "genoa", "papal-states", "ottoman", "poland-lithuania"],
-  ["ottoman", "venice", "genoa", "papal-states", "morocco", "safavid"],
-  ["muscovy", "poland-lithuania", "denmark-norway", "habsburg", "hungary"],
+  ["ottoman", "venice", "genoa", "papal-states", "morocco", "safavid", "hormuz"],
+  ["muscovy", "crimea", "poland-lithuania", "denmark-norway", "habsburg", "hungary", "ottoman"],
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],
   ["vijayanagara", "gujarat", "bengal", "delhi", "portugal", "safavid"],

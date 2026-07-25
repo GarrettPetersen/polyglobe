@@ -185,6 +185,7 @@ export default {
   "politics.legendAlly": "С СОЮЗ",
   "politics.legendWar": "В ВОЙНА",
   "politics.legendNeutral": "- НЕЙТРАЛ  . НЕТ КОНТАКТА",
+  "politics.legendSuzerainty": "ВАССАЛ >  УНИЯ =",
   "politics.legendCompact": "- НЕЙТР  . НЕТ",
   "politics.hostile": "ВРАЖДЕБНО",
   "politics.angry": "ГНЕВ",

@@ -26,7 +26,8 @@ import {
   recordDiplomaticPortCall,
   recentDiplomacyEvents,
   validateWorldDiplomacy,
-  worldDiplomacyBetween
+  worldDiplomacyBetween,
+  rawWorldDiplomacyBetween
 } from "./worldDiplomacy.js";
 
 const DAY = 24 * 60;
@@ -40,6 +41,38 @@ test("world diplomacy begins from the historical 1522 matrix", () => {
   assert.equal(worldDiplomacyBetween(state, "ottoman", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, PIRATE_FACTION_ID, "england"), DIPLOMACY_WAR);
   assert.ok(state.nextEventMinute >= 100 + DIPLOMACY_MIN_EVENT_DAYS * DAY);
+});
+
+test("vassals keep an internal stance while sharing their suzerain's foreign policy", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "vassal-policy" });
+  assert.equal(rawWorldDiplomacyBetween(state, "crimea", "ottoman"), DIPLOMACY_FRIENDLY);
+  assert.equal(worldDiplomacyBetween(state, "crimea", "portugal"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "ottoman", "portugal"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "hormuz", "crimea"), DIPLOMACY_WAR);
+});
+
+test("Charles V's crowns remain separate inside a shared dynastic foreign policy", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "habsburg-union" });
+  assert.equal(worldDiplomacyBetween(state, "spain", "habsburg"), DIPLOMACY_ALLY);
+  assert.equal(worldDiplomacyBetween(state, "spain", "hungary"), DIPLOMACY_ALLY);
+  assert.equal(worldDiplomacyBetween(state, "habsburg", "portugal"), DIPLOMACY_FRIENDLY);
+  assert.equal(recordDiplomaticPortCall(state, "spain", "habsburg", 20), null);
+
+  const events = declareDiplomaticWar(state, "spain", "habsburg", 200 * DAY);
+  assert.equal(events.some((event) => event.kind === "union-dissolved"), true);
+  assert.equal(state.suzerainties.byVassalId.spain, undefined);
+  assert.equal(worldDiplomacyBetween(state, "spain", "habsburg"), DIPLOMACY_WAR);
+});
+
+test("a hostile vassal can rebel and regain an independent foreign policy", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "vassal-rebellion" });
+  adjustDiplomaticStance(state, "crimea", "ottoman", "worsen", 200 * DAY);
+  adjustDiplomaticStance(state, "crimea", "ottoman", "worsen", 400 * DAY);
+  assert.equal(worldDiplomacyBetween(state, "crimea", "ottoman"), DIPLOMACY_HOSTILE);
+  const events = declareDiplomaticWar(state, "crimea", "ottoman", 600 * DAY);
+  assert.equal(events.some((event) => event.kind === "rebellion"), true);
+  assert.equal(state.suzerainties.byVassalId.crimea, undefined);
+  assert.equal(worldDiplomacyBetween(state, "crimea", "ottoman"), DIPLOMACY_WAR);
 });
 
 test("version 1 diplomacy migrates without changing its simulation state", () => {

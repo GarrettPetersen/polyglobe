@@ -18,6 +18,8 @@ test("the 1522 registry contains only historically active starting settlements",
   assert.deepEqual(
     FOREIGN_SETTLEMENTS_1522.map((entry) => entry.id),
     [
+      "portuguese-hormuz",
+      "portuguese-muscat",
       "portuguese-ternate",
       "portuguese-ayutthaya",
       "portuguese-patani",

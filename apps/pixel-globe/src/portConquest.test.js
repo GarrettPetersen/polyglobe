@@ -1,18 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CAPITAL_PEACE_TERM_ANNEXATION,
+  CAPITAL_PEACE_TERM_VASSALAGE,
   PORT_CONQUEST_MIN_CREW,
   applyPortConquestOwnership,
   createPortConquestMemory,
   effectivePortFactionId,
   clearPlayerPortAssault,
+  chooseCapitalPeaceTerm,
   markPlayerPortAssault,
   npcPortConquestChance,
   portConquestPrize,
   playerPortAssaultIsActive,
   portConquestStatus,
   recordPortCapture,
-  resolvePortConquest
+  resolvePortConquest,
+  settleCapitalPeaceTreaty
 } from "./portConquest.js";
 
 function city(overrides = {}) {
@@ -81,17 +85,50 @@ test("conquest pays a large population-scaled prize with a capital treasury bonu
   assert.equal(capitalPrize, 4300);
 });
 
-test("capturing a capital collapses its empire while preserving the conquered capital", () => {
+test("capturing a small-state capital permits annexation through a peace treaty", () => {
   const memory = createPortConquestMemory();
   const capital = city({ isFactionCapital: true, capitalOfFactionId: "portugal" });
   const porto = city({ tileId: 13, portId: "porto", city: "Porto" });
   const event = recordPortCapture(memory, capital, "england", 400, "player");
-  assert.equal(event.collapsedFactionId, "portugal");
+  assert.equal(event.capitalCapturedFactionId, "portugal");
+  assert.equal(event.collapsedFactionId, null);
+  assert.equal(chooseCapitalPeaceTerm(memory, [capital, porto], event), CAPITAL_PEACE_TERM_ANNEXATION);
+  const treaty = settleCapitalPeaceTreaty(
+    memory,
+    [capital, porto],
+    event,
+    CAPITAL_PEACE_TERM_ANNEXATION,
+    400
+  );
+  assert.equal(treaty.annexedFactionId, "portugal");
   assert.equal(effectivePortFactionId(memory, capital), "england");
-  assert.equal(effectivePortFactionId(memory, porto), "neutral");
+  assert.equal(effectivePortFactionId(memory, porto), "england");
   applyPortConquestOwnership(memory, [capital, porto]);
   assert.equal(capital.factionId, "england");
-  assert.equal(porto.factionId, "neutral");
+  assert.equal(porto.factionId, "england");
+});
+
+test("capturing a large-state capital restores it under a vassalage settlement", () => {
+  const memory = createPortConquestMemory();
+  const capital = city({ isFactionCapital: true, capitalOfFactionId: "portugal" });
+  const ports = [
+    capital,
+    city({ tileId: 13, portId: "porto", city: "Porto" }),
+    city({ tileId: 14, portId: "coimbra", city: "Coimbra" }),
+    city({ tileId: 15, portId: "faro", city: "Faro" })
+  ];
+  const event = recordPortCapture(memory, capital, "england", 400, "player");
+  assert.equal(chooseCapitalPeaceTerm(memory, ports, event), CAPITAL_PEACE_TERM_VASSALAGE);
+  const treaty = settleCapitalPeaceTreaty(
+    memory,
+    ports,
+    event,
+    CAPITAL_PEACE_TERM_VASSALAGE,
+    400
+  );
+  assert.equal(treaty.annexedFactionId, null);
+  assert.equal(effectivePortFactionId(memory, capital), "portugal");
+  assert.equal(memory.collapsedFactionIds.includes("portugal"), false);
 });
 
 test("capturing an ordinary port changes only that port", () => {

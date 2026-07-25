@@ -165,6 +165,7 @@ export function tradeTerms({
   goodId,
   reputation = 0,
   reputationForFaction = null,
+  suzeraintyPrivilege = null,
   purchaseDiscountMultiplier = 1,
   purchaseBargainMultiplier = 1,
   saleBargainMultiplier = 1
@@ -198,9 +199,11 @@ export function tradeTerms({
     relationToFaction,
     foreignSettlementExpulsions,
     reputation,
-    reputationForFaction
+    reputationForFaction,
+    suzeraintyPrivilege
   });
-  const crownMonopoly = isPortugueseEstadoPort(port) && isPortugueseCrownSpice(goodId);
+  const crownMonopoly = isPortugueseEstadoPort(port, foreignSettlementExpulsions) &&
+    isPortugueseCrownSpice(goodId);
   const monopolyPurchaseRate = crownMonopoly ? 0.25 : 0;
   const monopolySaleRate = crownMonopoly ? 0.1 : 0;
   const purchaseMultiplier = purchaseDiscountMultiplier * purchaseBargainMultiplier *
@@ -230,7 +233,8 @@ export function customsTerms({
   relationToFaction = null,
   foreignSettlementExpulsions = null,
   reputation = 0,
-  reputationForFaction = null
+  reputationForFaction = null,
+  suzeraintyPrivilege = null
 }) {
   assertTradePolicyPort(port);
   const traderId = assertFactionId(traderFactionId);
@@ -242,7 +246,8 @@ export function customsTerms({
     jurisdictionFactionId: portFactionId,
     relation,
     reputation,
-    foreignSettlement: null
+    foreignSettlement: null,
+    suzeraintyPrivilege
   });
   const settlementCandidates = activeForeignSettlements(
     port,
@@ -262,7 +267,8 @@ export function customsTerms({
       jurisdictionFactionId: foreignSettlement.factionId,
       relation: foreignRelation,
       reputation: foreignReputation,
-      foreignSettlement
+      foreignSettlement,
+      suzeraintyPrivilege: null
     });
   }).filter((candidate) => candidate.relation !== DIPLOMACY_WAR);
   const selected = [sovereign, ...settlementCandidates].reduce((best, candidate) => (
@@ -299,14 +305,23 @@ function customsCandidate({
   jurisdictionFactionId,
   relation,
   reputation,
-  foreignSettlement
+  foreignSettlement,
+  suzeraintyPrivilege
 }) {
   const domestic = traderId === jurisdictionFactionId &&
     jurisdictionFactionId !== NEUTRAL_FACTION_ID &&
     jurisdictionFactionId !== PIRATE_FACTION_ID;
   const pirateHome = traderId === PIRATE_FACTION_ID &&
     jurisdictionFactionId === PIRATE_FACTION_ID;
-  const baseCustomsRate = domestic || pirateHome ? 0 : customsRateForRelation(relation);
+  if (suzeraintyPrivilege !== null) {
+    if (!suzeraintyPrivilege || !Number.isFinite(suzeraintyPrivilege.customsRate) ||
+        suzeraintyPrivilege.customsRate < 0 || suzeraintyPrivilege.customsRate > 0.25) {
+      throw new Error("Invalid suzerainty customs privilege");
+    }
+  }
+  const baseCustomsRate = domestic || pirateHome
+    ? 0
+    : suzeraintyPrivilege?.customsRate ?? customsRateForRelation(relation);
   const reputationAdjustment = baseCustomsRate > 0
     ? clamp(-reputation * 0.0003, -0.03, 0.03)
     : 0;
@@ -316,7 +331,8 @@ function customsCandidate({
     customsRate: clamp(baseCustomsRate + reputationAdjustment, 0, 0.25),
     reputationAdjustment,
     jurisdictionFactionId,
-    foreignSettlement
+    foreignSettlement,
+    suzeraintyPrivilege
   });
 }
 
@@ -334,10 +350,12 @@ export function customsRateForRelation(relation) {
   return rate;
 }
 
-export function isPortugueseEstadoPort(port) {
+export function isPortugueseEstadoPort(port, foreignSettlementExpulsions = null) {
   assertTradePolicyPort(port);
-  return (port.factionId || NEUTRAL_FACTION_ID) === PORTUGUESE_FACTION_ID &&
-    PORTUGUESE_ESTADO_PORT_KEYS.has(portKey(portName(port), port.country));
+  if (!PORTUGUESE_ESTADO_PORT_KEYS.has(portKey(portName(port), port.country))) return false;
+  if ((port.factionId || NEUTRAL_FACTION_ID) === PORTUGUESE_FACTION_ID) return true;
+  return activeForeignSettlements(port, foreignSettlementExpulsions)
+    .some((entry) => entry.factionId === PORTUGUESE_FACTION_ID);
 }
 
 export function isPortugueseCrownSpice(goodId) {

@@ -185,6 +185,7 @@ export default {
   "politics.legendAlly": "A 동맹",
   "politics.legendWar": "W 전쟁",
   "politics.legendNeutral": "- 중립  . 접촉 없음",
+  "politics.legendSuzerainty": "봉신 >  동군연합 =",
   "politics.legendCompact": "- 중립  . 미접촉",
   "politics.hostile": "적대",
   "politics.angry": "분노",

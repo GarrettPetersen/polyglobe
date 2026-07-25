@@ -258,6 +258,9 @@ export function religionCandidatesForHome(homePort) {
     }
     return choices(["shia-islam", 6], ["sunni-islam", 2], ["zoroastrianism", 1]);
   }
+  if (factionId === "crimea") {
+    return choices(["sunni-islam", 4], ["eastern-orthodox", 1]);
+  }
   if (cityType === "islamic-desert") {
     return choices(["sunni-islam", 1]);
   }

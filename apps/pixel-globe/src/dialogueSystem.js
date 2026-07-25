@@ -2172,7 +2172,10 @@ function rootView(session, city, gameState, economy, context) {
       ));
     }
   }
-  if (!session.disguisedEntry && isPortugueseEstadoPort(city)) {
+  if (
+    !session.disguisedEntry &&
+    isPortugueseEstadoPort(city, gameState.relations.foreignSettlementExpulsions)
+  ) {
     const cartaz = portugueseCartazStatus(
       gameState,
       city,
@@ -2230,7 +2233,10 @@ function pendingCustomsNotice(session, city, gameState, tradeAccess) {
     return null;
   }
   session.customsNoticeKey = notice.key;
-  const crownLevy = isPortugueseEstadoPort(city)
+  const crownLevy = isPortugueseEstadoPort(
+    city,
+    gameState.relations.foreignSettlementExpulsions
+  )
     ? " Pepper, cinnamon, cloves, and nutmeg remain subject to the Crown levy."
     : "";
   if (notice.foreignSettlementPrivilege) {

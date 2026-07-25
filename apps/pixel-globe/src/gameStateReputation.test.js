@@ -225,6 +225,7 @@ test("version 11 voyages gain empty persistent port conquest state", () => {
   assert.deepEqual(restored.memory.conquest, {
     portFactionOverrides: {},
     collapsedFactionIds: [],
+    treaties: [],
     events: []
   });
 });

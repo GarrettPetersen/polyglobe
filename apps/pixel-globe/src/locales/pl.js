@@ -185,6 +185,7 @@ export default {
   "politics.legendAlly": "S SOJUSZ",
   "politics.legendWar": "W WOJNA",
   "politics.legendNeutral": "- NEUTRALNY  . BRAK KONTAKTU",
+  "politics.legendSuzerainty": "WASAL >  UNIA =",
   "politics.legendCompact": "- NEUTR  . BRAK",
   "politics.hostile": "WROGI",
   "politics.angry": "GNIEWNY",

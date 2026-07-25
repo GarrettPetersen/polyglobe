@@ -16,6 +16,11 @@ import {
 import { clampMenuIndex } from "./menuNavigation.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { diplomaticContactBetween } from "./worldDiplomacy.js";
+import {
+  SUZERAINTY_KIND_PERSONAL_UNION,
+  suzeraintyForVassal,
+  vassalsOf
+} from "./suzerainty.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
@@ -55,12 +60,30 @@ export function createPoliticsView(gameState) {
 
 export function politicalPowers(gameState = null) {
   const collapsed = new Set(gameState?.memory?.conquest?.collapsedFactionIds || []);
+  const suzerainties = gameState?.relations?.diplomacy?.suzerainties || null;
   return FACTIONS
     .filter((faction) => faction.id !== NEUTRAL_FACTION_ID && !collapsed.has(faction.id))
-    .map((faction) => ({
-      ...faction,
-      code: factionCode(faction)
-    }));
+    .map((faction) => {
+      const relationship = suzerainties
+        ? suzeraintyForVassal(suzerainties, faction.id)
+        : null;
+      return {
+        ...faction,
+        code: factionCode(faction),
+        suzerainFactionId: relationship?.suzerainFactionId || null,
+        suzeraintyKind: relationship?.kind || null,
+        vassalFactionIds: suzerainties ? vassalsOf(suzerainties, faction.id) : []
+      };
+    });
+}
+
+export function politicsPowerLabel(faction, powers) {
+  if (!faction || !Array.isArray(powers)) throw new Error("Politics power label requires a faction list");
+  if (!faction.suzerainFactionId) return faction.shortName.toUpperCase();
+  const suzerain = powers.find((entry) => entry.id === faction.suzerainFactionId);
+  if (!suzerain) throw new Error(`Politics view is missing suzerain ${faction.suzerainFactionId}`);
+  const separator = faction.suzeraintyKind === SUZERAINTY_KIND_PERSONAL_UNION ? "=" : ">";
+  return `${faction.shortName.toUpperCase()} ${separator}${suzerain.code}`;
 }
 
 export function politicsRowsPage(view, page, rowsPerPage) {

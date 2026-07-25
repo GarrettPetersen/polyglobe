@@ -88,6 +88,7 @@ import {
   validateWorldDiplomacy,
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
+import { suzeraintyCustomsPrivilege } from "./suzerainty.js";
 import {
   createForeignSettlementExpulsionMemory,
   expelHostileForeignSettlements,
@@ -204,7 +205,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 44;
+export const GAME_STATE_VERSION = 45;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
@@ -450,7 +451,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -730,10 +731,20 @@ function migrateQuestCharacterSkills(quests) {
 }
 
 function migrateConquestFactionReferences(memory) {
-  const migrated = migrateRetiredFactionReferences(memory);
-  migrated.collapsedFactionIds = memory.collapsedFactionIds.filter((factionId) => factionId !== "aztec");
-  migrated.events = memory.events.map((event) => ({
+  const source = {
+    ...createPortConquestMemory(),
+    ...memory
+  };
+  const migrated = migrateRetiredFactionReferences(source);
+  migrated.collapsedFactionIds = source.collapsedFactionIds.filter((factionId) => factionId !== "aztec");
+  migrated.treaties = (source.treaties || []).map(migrateRetiredFactionReferences);
+  migrated.events = source.events.map((event, index) => ({
     ...migrateRetiredFactionReferences(event),
+    id: event.id || `legacy-capture-${event.simMinute}-${event.portId || index}`,
+    capitalCapturedFactionId: event.capitalCapturedFactionId ||
+      event.collapsedFactionId ||
+      null,
+    peaceTreatyId: event.peaceTreatyId || null,
     collapsedFactionId: event.collapsedFactionId === "aztec" ? null : event.collapsedFactionId
   }));
   return migrated;
@@ -3269,6 +3280,11 @@ export function playerTradeTerms(state, city, goodId) {
     goodId,
     reputation,
     reputationForFaction: (factionId) => state.relations.factionReputation[factionId] || 0,
+    suzeraintyPrivilege: suzeraintyCustomsPrivilege(
+      state.relations.diplomacy.suzerainties,
+      traderFactionId,
+      portFactionId
+    ),
     purchaseDiscountMultiplier: portPurchasePriceMultiplier(city),
     purchaseBargainMultiplier: perks.tradePurchaseMultiplier,
     saleBargainMultiplier: perks.tradeSaleMultiplier
@@ -3288,7 +3304,12 @@ export function playerPortCustomsNotice(state, city) {
     ),
     foreignSettlementExpulsions: state.relations.foreignSettlementExpulsions,
     reputation: state.relations.factionReputation[portFactionId] || 0,
-    reputationForFaction: (factionId) => state.relations.factionReputation[factionId] || 0
+    reputationForFaction: (factionId) => state.relations.factionReputation[factionId] || 0,
+    suzeraintyPrivilege: suzeraintyCustomsPrivilege(
+      state.relations.diplomacy.suzerainties,
+      traderFactionId,
+      portFactionId
+    )
   });
   const displayedRate = Math.round(terms.customsRate * 100);
   const key = [
@@ -3320,7 +3341,7 @@ export function acknowledgePlayerPortCustomsNotice(state, city, key) {
 export function portugueseCartazStatus(state, city, simMinute, cargoCapacity = state.cargoCapacity) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
-  if (!isPortugueseEstadoPort(city)) {
+  if (!isPortugueseEstadoPort(city, state.relations.foreignSettlementExpulsions)) {
     throw new Error(`${cityLabel(city)} is not a Portuguese Estado da India port`);
   }
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;

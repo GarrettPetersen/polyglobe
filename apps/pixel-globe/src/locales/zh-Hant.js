@@ -185,6 +185,7 @@ export default {
   "politics.legendAlly": "A 同盟",
   "politics.legendWar": "W 戰爭",
   "politics.legendNeutral": "- 中立  . 未接觸",
+  "politics.legendSuzerainty": "藩屬 >  共主邦聯 =",
   "politics.legendCompact": "- 中立  . 未知",
   "politics.hostile": "敵視",
   "politics.angry": "憤怒",

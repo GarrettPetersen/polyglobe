@@ -2,17 +2,28 @@ import { NEUTRAL_FACTION_ID, assertFactionId } from "./factions.js";
 
 export const PORT_CONQUEST_MIN_CREW = 36;
 export const PORT_CONQUEST_NPC_LANDING_RANGE_PX = 28;
-export const PORT_CONQUEST_NPC_CHANCE = 0.12;
-export const PORT_CONQUEST_NPC_CAPITAL_CHANCE = 0.03;
+export const PORT_CONQUEST_NPC_CHANCE = 0.28;
+export const PORT_CONQUEST_NPC_CAPITAL_CHANCE = 0.08;
 export const PORT_CONQUEST_CAPITAL_TREASURY_BONUS = 2500;
+export const CAPITAL_PEACE_ANNEXATION_PORT_LIMIT = 3;
+export const CAPITAL_PEACE_TERM_ANNEXATION = "annexation";
+export const CAPITAL_PEACE_TERM_VASSALAGE = "vassalage";
+export const CAPITAL_PEACE_TERM_CONCESSIONS = "territorial-concessions";
 
 const PORT_CONQUEST_EVENT_LIMIT = 80;
+const PORT_CONQUEST_TREATY_LIMIT = 40;
+const CAPITAL_PEACE_TERMS = new Set([
+  CAPITAL_PEACE_TERM_ANNEXATION,
+  CAPITAL_PEACE_TERM_VASSALAGE,
+  CAPITAL_PEACE_TERM_CONCESSIONS
+]);
 const PLAYER_ASSAULT_FLAG_PREFIX = "playerPortAssaultUntil:";
 
 export function createPortConquestMemory() {
   return {
     portFactionOverrides: {},
     collapsedFactionIds: [],
+    treaties: [],
     events: []
   };
 }
@@ -39,6 +50,10 @@ export function validatePortConquestMemory(memory) {
     if (collapsed.has(factionId)) throw new Error(`Duplicate collapsed faction: ${factionId}`);
     collapsed.add(factionId);
   }
+  if (!Array.isArray(memory.treaties) || memory.treaties.length > PORT_CONQUEST_TREATY_LIMIT) {
+    throw new Error("Invalid conquest peace treaties");
+  }
+  for (const treaty of memory.treaties) validatePeaceTreaty(treaty);
   if (!Array.isArray(memory.events)) throw new Error("Port conquest events must be an array");
   return memory;
 }
@@ -136,18 +151,20 @@ export function recordPortCapture(memory, city, newFactionId, simMinute, source 
   if (previousFactionId === newFactionId) throw new Error(`${portId} is already owned by ${newFactionId}`);
 
   memory.portFactionOverrides[portId] = newFactionId;
-  const collapsedFactionId = city.isFactionCapital && city.capitalOfFactionId === previousFactionId &&
-    !memory.collapsedFactionIds.includes(previousFactionId)
+  const capitalCapturedFactionId = city.isFactionCapital &&
+    city.capitalOfFactionId === previousFactionId
     ? previousFactionId
     : null;
-  if (collapsedFactionId) memory.collapsedFactionIds.push(collapsedFactionId);
   memory.events.push({
+    id: `capture-${simMinute}-${portId}`,
     portId,
     cityTileId: city.tileId,
     cityName: city.displayCity || city.city,
     previousFactionId,
     newFactionId,
-    collapsedFactionId,
+    capitalCapturedFactionId,
+    collapsedFactionId: null,
+    peaceTreatyId: null,
     simMinute,
     source
   });
@@ -155,6 +172,118 @@ export function recordPortCapture(memory, city, newFactionId, simMinute, source 
     memory.events.splice(0, memory.events.length - PORT_CONQUEST_EVENT_LIMIT);
   }
   return memory.events[memory.events.length - 1];
+}
+
+export function capitalPeaceTreatyOptions(memory, ports, captureEvent) {
+  validatePortConquestMemory(memory);
+  assertPortList(ports);
+  assertCapitalCaptureEvent(captureEvent);
+  const controlledPorts = factionControlledPorts(
+    memory,
+    ports,
+    captureEvent.previousFactionId,
+    captureEvent.portId
+  );
+  const annexationAllowed = controlledPorts.length <= CAPITAL_PEACE_ANNEXATION_PORT_LIMIT;
+  const concessionCandidates = controlledPorts.filter((port) => (
+    portConquestPortId(port) !== captureEvent.portId && port.isFactionCapital !== true
+  ));
+  return Object.freeze({
+    annexationAllowed,
+    losingPortCount: controlledPorts.length,
+    concessionAvailable: concessionCandidates.length > 0,
+    terms: Object.freeze([
+      CAPITAL_PEACE_TERM_VASSALAGE,
+      ...(concessionCandidates.length > 0 ? [CAPITAL_PEACE_TERM_CONCESSIONS] : []),
+      ...(annexationAllowed ? [CAPITAL_PEACE_TERM_ANNEXATION] : [])
+    ])
+  });
+}
+
+export function chooseCapitalPeaceTerm(memory, ports, captureEvent, roll = 0.5) {
+  assertRoll(roll, "capital peace");
+  const options = capitalPeaceTreatyOptions(memory, ports, captureEvent);
+  if (captureEvent.source === "player") {
+    return options.annexationAllowed
+      ? CAPITAL_PEACE_TERM_ANNEXATION
+      : CAPITAL_PEACE_TERM_VASSALAGE;
+  }
+  if (options.annexationAllowed && roll < 0.35) return CAPITAL_PEACE_TERM_ANNEXATION;
+  if (roll < 0.72 || !options.concessionAvailable) return CAPITAL_PEACE_TERM_VASSALAGE;
+  return CAPITAL_PEACE_TERM_CONCESSIONS;
+}
+
+export function settleCapitalPeaceTreaty(memory, ports, captureEvent, term, simMinute) {
+  validatePortConquestMemory(memory);
+  assertPortList(ports);
+  assertCapitalCaptureEvent(captureEvent);
+  if (!CAPITAL_PEACE_TERMS.has(term)) throw new Error(`Invalid capital peace term: ${term}`);
+  if (!Number.isFinite(simMinute) || simMinute < captureEvent.simMinute) {
+    throw new Error(`Invalid capital peace minute: ${simMinute}`);
+  }
+  if (captureEvent.peaceTreatyId !== null) {
+    throw new Error(`Capital capture already has a peace treaty: ${captureEvent.id}`);
+  }
+  const options = capitalPeaceTreatyOptions(memory, ports, captureEvent);
+  if (term === CAPITAL_PEACE_TERM_ANNEXATION && !options.annexationAllowed) {
+    throw new Error(
+      `${captureEvent.previousFactionId} is too large to annex: ${options.losingPortCount} ports`
+    );
+  }
+  const loserFactionId = captureEvent.previousFactionId;
+  const winnerFactionId = captureEvent.newFactionId;
+  const capital = ports.find((port) => portConquestPortId(port) === captureEvent.portId);
+  if (!capital) throw new Error(`Captured capital is absent from the port list: ${captureEvent.portId}`);
+  const concessionPortIds = [];
+  let annexedFactionId = null;
+
+  if (term === CAPITAL_PEACE_TERM_ANNEXATION) {
+    for (const port of factionControlledPorts(memory, ports, loserFactionId, captureEvent.portId)) {
+      memory.portFactionOverrides[portConquestPortId(port)] = winnerFactionId;
+    }
+    if (!memory.collapsedFactionIds.includes(loserFactionId)) {
+      memory.collapsedFactionIds.push(loserFactionId);
+    }
+    annexedFactionId = loserFactionId;
+  } else {
+    memory.portFactionOverrides[captureEvent.portId] = loserFactionId;
+    const existingConcessions = ports.filter((port) => (
+      (port.foundingFactionId || port.factionId) === loserFactionId &&
+      portConquestPortId(port) !== captureEvent.portId &&
+      effectivePortFactionId(memory, port) === winnerFactionId
+    ));
+    concessionPortIds.push(...existingConcessions.map(portConquestPortId));
+    if (term === CAPITAL_PEACE_TERM_CONCESSIONS && concessionPortIds.length === 0) {
+      const concession = factionControlledPorts(memory, ports, loserFactionId, captureEvent.portId)
+        .filter((port) => portConquestPortId(port) !== captureEvent.portId && port.isFactionCapital !== true)
+        .sort(concessionPortOrder)[0];
+      if (!concession) {
+        throw new Error(`${loserFactionId} has no port available for a territorial concession`);
+      }
+      const concessionPortId = portConquestPortId(concession);
+      memory.portFactionOverrides[concessionPortId] = winnerFactionId;
+      concessionPortIds.push(concessionPortId);
+    }
+  }
+
+  const treaty = {
+    id: `treaty-${simMinute}-${captureEvent.portId}`,
+    capitalPortId: captureEvent.portId,
+    loserFactionId,
+    winnerFactionId,
+    term,
+    annexedFactionId,
+    concessionPortIds: [...new Set(concessionPortIds)].sort(),
+    simMinute,
+    source: captureEvent.source
+  };
+  captureEvent.peaceTreatyId = treaty.id;
+  captureEvent.collapsedFactionId = annexedFactionId;
+  memory.treaties.unshift(treaty);
+  if (memory.treaties.length > PORT_CONQUEST_TREATY_LIMIT) {
+    memory.treaties.length = PORT_CONQUEST_TREATY_LIMIT;
+  }
+  return treaty;
 }
 
 export function effectivePortFactionId(memory, city) {
@@ -220,6 +349,53 @@ function crewLossRange(crew, minRatio, maxRatio) {
 function assertCity(city) {
   if (!city || !Number.isInteger(city.tileId) || !city.factionId) {
     throw new Error("Port conquest requires a faction city");
+  }
+}
+
+function assertPortList(ports) {
+  if (!Array.isArray(ports) || ports.length === 0) {
+    throw new Error("Capital peace treaty requires ports");
+  }
+  for (const port of ports) assertCity(port);
+}
+
+function assertCapitalCaptureEvent(event) {
+  if (!event || typeof event !== "object" || !event.capitalCapturedFactionId ||
+      event.capitalCapturedFactionId !== event.previousFactionId) {
+    throw new Error("Capital peace treaty requires an unsettled capital capture");
+  }
+  assertFactionId(event.previousFactionId);
+  assertFactionId(event.newFactionId);
+}
+
+function factionControlledPorts(memory, ports, factionId, capturedCapitalPortId) {
+  return ports.filter((port) => {
+    const portId = portConquestPortId(port);
+    return portId === capturedCapitalPortId ||
+      effectivePortFactionId(memory, port) === factionId;
+  });
+}
+
+function concessionPortOrder(a, b) {
+  const populationDifference = Number(a.population || 0) - Number(b.population || 0);
+  return populationDifference || portConquestPortId(a).localeCompare(portConquestPortId(b));
+}
+
+function validatePeaceTreaty(treaty) {
+  if (!treaty || typeof treaty !== "object" || typeof treaty.id !== "string" || treaty.id === "") {
+    throw new Error("Invalid conquest peace treaty");
+  }
+  assertFactionId(treaty.loserFactionId);
+  assertFactionId(treaty.winnerFactionId);
+  if (!CAPITAL_PEACE_TERMS.has(treaty.term)) {
+    throw new Error(`Invalid conquest peace term: ${treaty.term}`);
+  }
+  if (!Array.isArray(treaty.concessionPortIds) ||
+      treaty.concessionPortIds.some((portId) => typeof portId !== "string" || portId === "")) {
+    throw new Error(`Invalid territorial concessions in treaty ${treaty.id}`);
+  }
+  if (!Number.isFinite(treaty.simMinute) || treaty.simMinute < 0) {
+    throw new Error(`Invalid conquest treaty minute: ${treaty.simMinute}`);
   }
 }
 

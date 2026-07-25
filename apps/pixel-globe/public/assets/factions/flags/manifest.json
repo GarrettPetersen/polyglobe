@@ -114,6 +114,22 @@
       ]
     },
     {
+      "id": "hormuz",
+      "factionName": "Kingdom of Hormuz",
+      "width": 32,
+      "height": 20,
+      "file": "hormuz.png",
+      "evidence": "reconstruction",
+      "representation": "Hormuzi royal maritime standard",
+      "accuracyNote": "No secure rectangular state flag survives from 1522. This red-and-gold maritime standard is a restrained reconstruction using the island kingdom's Islamic court and Persian Gulf setting rather than Portuguese arms.",
+      "sources": [
+        {
+          "label": "Kingdom of Hormuz",
+          "url": "https://www.iranicaonline.org/articles/hormuz-ii"
+        }
+      ]
+    },
+    {
       "id": "habsburg",
       "factionName": "Habsburg Monarchy",
       "width": 32,
@@ -270,6 +286,22 @@
         {
           "label": "Russian treaty seals",
           "url": "https://www.athensjournals.gr/history/2024-5981-AJHIS-ART-Ning-02.pdf"
+        }
+      ]
+    },
+    {
+      "id": "crimea",
+      "factionName": "Crimean Khanate",
+      "width": 32,
+      "height": 20,
+      "file": "crimea.png",
+      "evidence": "period-emblem",
+      "representation": "Giray tamga",
+      "accuracyNote": "The Giray dynasty's tarak tamga is the strongest period identifier for the Crimean Khanate. The blue field is a game-facing banner reconstruction.",
+      "sources": [
+        {
+          "label": "Crimean Tatar tamga",
+          "url": "https://en.wikipedia.org/wiki/Taraq_Tamga"
         }
       ]
     },

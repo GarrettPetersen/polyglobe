@@ -185,6 +185,7 @@ export default {
   "politics.legendAlly": "A ALIADO",
   "politics.legendWar": "G GUERRA",
   "politics.legendNeutral": "- NEUTRO  . SEM CONTATO",
+  "politics.legendSuzerainty": "VASSALO >  UNIÃO =",
   "politics.legendCompact": "- NEUT  . NENHUM",
   "politics.hostile": "HOSTIL",
   "politics.angry": "IRADO",

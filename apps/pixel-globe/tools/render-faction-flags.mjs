@@ -56,6 +56,9 @@ const RESEARCH = Object.freeze([
   research("portugal", "period-heraldry", "Royal arms of John III", "A white royal banner carrying the Portuguese shield. The tiny raster simplifies the quinas and castle border.", [
     source("Historical flags of Portugal", "https://en.wikipedia.org/wiki/Flag_of_Portugal#History")
   ]),
+  research("hormuz", "reconstruction", "Hormuzi royal maritime standard", "No secure rectangular state flag survives from 1522. This red-and-gold maritime standard is a restrained reconstruction using the island kingdom's Islamic court and Persian Gulf setting rather than Portuguese arms.", [
+    source("Kingdom of Hormuz", "https://www.iranicaonline.org/articles/hormuz-ii")
+  ]),
   research("habsburg", "period-banner", "Imperial banner of Charles V", "The black double-headed imperial eagle on gold, with a small Habsburg breast shield.", [
     source("The Eagle of the Holy Roman Empire", "https://www.flagheritagefoundation.org/web/wp-content/uploads/2018/08/DoubleEagle-Final-PDF-150dpi.pdf")
   ]),
@@ -85,6 +88,9 @@ const RESEARCH = Object.freeze([
   ]),
   research("muscovy", "period-emblem", "Seal of Ivan III", "The double-headed eagle entered Muscovite state seals under Ivan III; the banner field is a reconstruction around that contemporary emblem.", [
     source("Russian treaty seals", "https://www.athensjournals.gr/history/2024-5981-AJHIS-ART-Ning-02.pdf")
+  ]),
+  research("crimea", "period-emblem", "Giray tamga", "The Giray dynasty's tarak tamga is the strongest period identifier for the Crimean Khanate. The blue field is a game-facing banner reconstruction.", [
+    source("Crimean Tatar tamga", "https://en.wikipedia.org/wiki/Taraq_Tamga")
   ]),
   research("poland-lithuania", "period-heraldry", "White Eagle and Pahonia", "A paired heraldic banner for the Jagiellonian union, combining the Polish White Eagle and Lithuanian mounted Pursuer.", [
     source("Golden Age of the Jagiellonians", "https://zlotaepoka.ossolineum.pl/en/")
@@ -316,6 +322,14 @@ const DRAWERS = Object.freeze({
     for (const [x, y] of [[10, 5], [21, 5], [10, 14], [21, 14]]) s.rect(x, y, 2, 2, C.gold);
     return s;
   },
+  hormuz: () => {
+    const s = base(C.darkRed);
+    s.rect(0, 0, FLAG_W, 2, C.gold);
+    s.rect(0, FLAG_H - 2, FLAG_W, 2, C.gold);
+    crescent(s, 16, 10, C.gold, C.darkRed, 6);
+    s.pixel(23, 10, C.cream);
+    return s;
+  },
   habsburg: () => {
     const s = base(C.gold);
     doubleEagle(s, C.black);
@@ -382,6 +396,17 @@ const DRAWERS = Object.freeze({
     doubleEagle(s, C.gold);
     s.rect(14, 8, 4, 5, C.blue);
     s.line(14, 12, 18, 8, C.cream);
+    return s;
+  },
+  crimea: () => {
+    const s = base(C.darkBlue);
+    s.line(10, 4, 10, 14, C.gold, 2);
+    s.line(22, 4, 22, 14, C.gold, 2);
+    s.line(10, 5, 16, 9, C.gold, 2);
+    s.line(22, 5, 16, 9, C.gold, 2);
+    s.line(16, 8, 16, 17, C.gold, 2);
+    s.line(10, 14, 16, 17, C.gold, 2);
+    s.line(22, 14, 16, 17, C.gold, 2);
     return s;
   },
   "poland-lithuania": () => {
