@@ -695,9 +695,10 @@ import {
   captainChartSettlementMarkerSize
 } from "./captainChartMap.js";
 import {
-  politicsChartHeaderLayout,
-  politicsChartRowsPerPage
-} from "./politicsChartLayout.js";
+  politicsCardGridLayout,
+  politicsCardSegments,
+  politicsCardSegmentsPage
+} from "./politicsCardLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import {
   globeWaterHexWaveFrame,
@@ -942,9 +943,7 @@ import { recentRegionalRulerChange } from "./rulers.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
-  politicsPowerLabel,
-  politicsTradeCode,
-  politicsRowsPage
+  politicsTradeCode
 } from "./politics.js";
 import {
   BEAVER_PELTS_GOOD_ID,
@@ -1641,9 +1640,6 @@ const POLITICS_PANEL_X = 8;
 const POLITICS_PANEL_Y = 8;
 let POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
 let POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
-const POLITICS_ROWS_PER_PAGE = 18;
-const POLITICS_MATRIX_CELL_W = 8;
-let POLITICS_MATRIX_ROW_H = 11;
 const SHIP_INFO_SIDE_VIEW_W = 192;
 const SHIP_INFO_SIDE_VIEW_H = 104;
 const DIALOGUE_PORTRAIT_SIZE = 64;
@@ -1723,7 +1719,6 @@ let PIXEL_FONT_SMALL_8 = currentLanguageProfile.smallFont;
 let PIXEL_FONT_DIALOGUE_8 = currentLanguageProfile.dialogueFont;
 const PIXEL_FONT_TITLE_8 = "8px \"Pixel Pirate\", monospace";
 let PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageUsesTallPixelMetrics(currentLanguage) ? 1 : 3;
-POLITICS_MATRIX_ROW_H = currentLanguageProfile.tableRowHeight;
 document.documentElement.lang = currentLanguage;
 const PIXEL_TEXT_RASTER_CACHE_LIMIT = 2048;
 const PIRATE_MENU_PAPER = "#ead8b2";
@@ -6331,7 +6326,6 @@ function setInterfaceLanguage(language, { persist = true } = {}) {
   PIXEL_FONT_SMALL_8 = currentLanguageProfile.smallFont;
   PIXEL_FONT_DIALOGUE_8 = currentLanguageProfile.dialogueFont;
   PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageUsesTallPixelMetrics(normalized) ? 1 : 3;
-  POLITICS_MATRIX_ROW_H = currentLanguageProfile.tableRowHeight;
   optionsMenu.language = normalized;
   telemetryMetadata.locale = normalized;
   optionsMenu.fullscreenError = null;
@@ -10478,15 +10472,8 @@ function discoveriesPageSize() {
 
 function stepPoliticsPage(direction) {
   const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
-  if (SCREEN_W < 380) {
-    const pagination = compactPoliticsPagination(view);
-    politicsMenu.page = stepMenuIndex(politicsMenu.page, direction, pagination.pageCount);
-    dirty = true;
-    return;
-  }
-  const pagination = widePoliticsPagination(view);
-  const page = politicsRowsPage(view, politicsMenu.page + direction, pagination.rowsPerPage);
-  politicsMenu.page = page.page;
+  const pagination = politicsCardPagination(view);
+  politicsMenu.page = stepMenuIndex(politicsMenu.page, direction, pagination.page.pageCount);
   dirty = true;
 }
 
@@ -25350,10 +25337,6 @@ function achievementProgressLabel(entry, progress) {
 }
 
 function drawPoliticsMenu() {
-  if (SCREEN_W < 380) {
-    drawCompactPoliticsMenu();
-    return;
-  }
   const panel = {
     x: POLITICS_PANEL_X,
     y: POLITICS_PANEL_Y,
@@ -25361,203 +25344,11 @@ function drawPoliticsMenu() {
     h: POLITICS_PANEL_H
   };
   const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
-  const pagination = widePoliticsPagination(view);
-  const header = pagination.header;
-  const page = politicsRowsPage(
-    view,
-    politicsMenu.page,
-    pagination.rowsPerPage
-  );
-  politicsMenu.page = page.page;
+  const pagination = politicsCardPagination(view);
+  politicsMenu.page = pagination.page.page;
 
   ctx.save();
   drawPiratePaperModal(panel, 0.78);
-
-  const closeSize = UI_ICON_BUTTON_SIZE;
-  politicsMenu.closeButtonRect = {
-    x: panel.x + panel.w - closeSize - 6,
-    y: panel.y + 6,
-    w: closeSize,
-    h: closeSize
-  };
-  drawOptionsCloseButton(
-    politicsMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, politicsMenu.closeButtonRect)
-  );
-  drawOptionsText(uiText("politics.title"), panel.x + panel.w / 2, header.titleY, {
-    align: "center",
-    color: PIRATE_MENU_INK
-  });
-
-  const rowLabelX = panel.x + 12;
-  const matrixX = panel.x + 124;
-  const matrixW = view.powers.length * POLITICS_MATRIX_CELL_W;
-  const statusX = matrixX + matrixW + 8;
-  const statusW = panel.x + panel.w - statusX - 12;
-  const legendY = header.legendY;
-  const relationLegend = [
-    uiText("politics.legendAlly"),
-    uiText("politics.legendWar"),
-    uiText("politics.legendNeutral")
-  ].join("   ");
-  drawOptionsText(
-    fitPixelText(relationLegend, PIXEL_FONT_SMALL_8, panel.w - 32),
-    panel.x + panel.w / 2,
-    legendY,
-    { align: "center", color: PIRATE_MENU_INK_MUTED }
-  );
-  const systemLegendWidth = panel.w - 32;
-  const dependencyLegendWidth = Math.floor(systemLegendWidth * 0.44);
-  drawOptionsText(
-    fitPixelText(
-      uiText("politics.legendSuzerainty"),
-      PIXEL_FONT_SMALL_8,
-      dependencyLegendWidth
-    ),
-    panel.x + 12,
-    header.tradeLegendY,
-    {
-    color: PIRATE_MENU_INK_MUTED
-    }
-  );
-  drawOptionsText(
-    fitPixelText(
-      uiText("politics.legendTrade"),
-      PIXEL_FONT_SMALL_8,
-      systemLegendWidth - dependencyLegendWidth - 8
-    ),
-    panel.x + panel.w - 12,
-    header.tradeLegendY,
-    { align: "right", color: PIRATE_MENU_INK_MUTED }
-  );
-
-  const sectionY = header.sectionY;
-  drawOptionsText(uiText("politics.stanceToward"), matrixX + matrixW / 2, sectionY, {
-    align: "center",
-    color: PIRATE_MENU_INK_MUTED
-  });
-  drawOptionsText(uiText("politics.playerStanding"), panel.x + panel.w - 24, sectionY, {
-    align: "right",
-    color: PIRATE_MENU_INK
-  });
-
-  const matrixY = header.matrixY;
-  drawOptionsText(uiText("politics.power"), rowLabelX, header.headerY, { color: PIRATE_MENU_INK_MUTED });
-  drawOptionsText(uiText("politics.status"), statusX, header.headerY, { color: PIRATE_MENU_INK_MUTED });
-
-  view.powers.forEach((power, index) => {
-    const x = matrixX + index * POLITICS_MATRIX_CELL_W;
-    drawPoliticsColumnCode(power.code, x, header.columnCodeY, politicsFactionColor(power.id));
-  });
-
-  page.rows.forEach((row, rowIndex) => {
-    const y = matrixY + rowIndex * POLITICS_MATRIX_ROW_H;
-    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
-    ctx.fillRect(panel.x + 10, y - 1, panel.w - 20, POLITICS_MATRIX_ROW_H);
-    drawOptionsText(
-      fitPixelText(politicsPowerLabel(row.faction, view.powers), PIXEL_FONT_SMALL_8, 104),
-      rowLabelX,
-      y,
-      { color: politicsFactionColor(row.faction.id) }
-    );
-    row.stances.forEach((stance, index) => {
-      drawPoliticsMatrixCell(
-        matrixX + index * POLITICS_MATRIX_CELL_W,
-        y,
-        stance.relation,
-        row.faction.id === stance.factionId,
-        stance.contact
-      );
-    });
-    drawPoliticsStanding(row.player, statusX, y, statusW);
-  });
-
-  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
-  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
-  politicsMenu.nextPageRect = {
-    x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
-    y: pagerY,
-    w: UI_PAGER_BUTTON_W,
-    h: UI_PAGER_BUTTON_H
-  };
-  drawOptionsArrowButton(
-    politicsMenu.previousPageRect,
-    "<",
-    pointInRect(optionsMenu.hoverPoint, politicsMenu.previousPageRect)
-  );
-  drawOptionsArrowButton(
-    politicsMenu.nextPageRect,
-    ">",
-    pointInRect(optionsMenu.hoverPoint, politicsMenu.nextPageRect)
-  );
-  drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 3, {
-    align: "center",
-    color: PIRATE_MENU_INK_MUTED
-  });
-  drawPoliticsLatestNews(view, panel, pagerY);
-  ctx.restore();
-}
-
-function widePoliticsPagination(view) {
-  const header = politicsChartHeaderLayout({
-    panelY: POLITICS_PANEL_Y,
-    fontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
-  });
-  const rowsPerPage = politicsChartRowsPerPage({
-    panelHeight: POLITICS_PANEL_H,
-    matrixTopOffset: header.matrixTopOffset,
-    pagerHeight: UI_PAGER_BUTTON_H,
-    newsHeight: view.recentEvents.length > 0 ? 12 : 0,
-    rowHeight: POLITICS_MATRIX_ROW_H,
-    minRows: 6,
-    maxRows: POLITICS_ROWS_PER_PAGE
-  });
-  return { header, rowsPerPage };
-}
-
-function compactPoliticsPagination(view) {
-  const panelW = POLITICS_PANEL_W;
-  const panelH = POLITICS_PANEL_H;
-  const columnsPerPage = Math.max(5, Math.floor((panelW - 155) / POLITICS_MATRIX_CELL_W));
-  const newsHeight = view.recentEvents.length > 0 ? 12 : 0;
-  const rowsPerPage = Math.max(
-    6,
-    Math.min(20, Math.floor((panelH - 124 - newsHeight) / POLITICS_MATRIX_ROW_H))
-  );
-  const columnPageCount = Math.max(1, Math.ceil(view.powers.length / columnsPerPage));
-  const rowPageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
-  return {
-    columnsPerPage,
-    rowsPerPage,
-    columnPageCount,
-    rowPageCount,
-    pageCount: columnPageCount * rowPageCount
-  };
-}
-
-function drawCompactPoliticsMenu() {
-  const panel = {
-    x: POLITICS_PANEL_X,
-    y: POLITICS_PANEL_Y,
-    w: POLITICS_PANEL_W,
-    h: POLITICS_PANEL_H
-  };
-  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
-  const pagination = compactPoliticsPagination(view);
-  politicsMenu.page = clampMenuIndex(politicsMenu.page, pagination.pageCount);
-  const rowPage = Math.floor(politicsMenu.page / pagination.columnPageCount);
-  const columnPage = politicsMenu.page % pagination.columnPageCount;
-  const rows = view.rows.slice(
-    rowPage * pagination.rowsPerPage,
-    (rowPage + 1) * pagination.rowsPerPage
-  );
-  const powers = view.powers.slice(
-    columnPage * pagination.columnsPerPage,
-    (columnPage + 1) * pagination.columnsPerPage
-  );
-
-  ctx.save();
-  drawPiratePaperModal(panel, 0.82);
   politicsMenu.panelRect = panel;
   politicsMenu.closeButtonRect = {
     x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
@@ -25574,79 +25365,23 @@ function drawCompactPoliticsMenu() {
     color: PIRATE_MENU_INK
   });
   drawOptionsText(
-    fitPixelText(
-      [
-        uiText("politics.legendAlly"),
-        uiText("politics.legendWar"),
-        uiText("politics.legendCompact")
-      ].join("  "),
-      PIXEL_FONT_SMALL_8,
-      panel.w - 24
-    ),
+    fitPixelText(uiText("politics.legendTrade"), PIXEL_FONT_SMALL_8, panel.w - 32),
     panel.x + panel.w / 2,
-    panel.y + 27,
-    { align: "center", color: PIRATE_MENU_INK_MUTED }
-  );
-  drawOptionsText(
-    fitPixelText(uiText("politics.legendSuzerainty"), PIXEL_FONT_SMALL_8, panel.w - 24),
-    panel.x + panel.w / 2,
-    panel.y + 39,
-    { align: "center", color: PIRATE_MENU_INK_MUTED }
-  );
-  drawOptionsText(
-    fitPixelText(uiText("politics.legendTrade"), PIXEL_FONT_SMALL_8, panel.w - 24),
-    panel.x + panel.w / 2,
-    panel.y + 51,
+    panel.y + 25,
     { align: "center", color: PIRATE_MENU_INK_MUTED }
   );
 
-  const labelX = panel.x + 10;
-  const matrixX = panel.x + 91;
-  const statusX = panel.x + panel.w - 31;
-  const headerY = panel.y + 72;
-  const matrixY = panel.y + 94;
-  drawOptionsText(uiText("politics.power"), labelX, headerY, { color: PIRATE_MENU_INK_MUTED });
-  drawOptionsText(uiText("politics.you"), statusX, headerY, { color: PIRATE_MENU_INK });
-  powers.forEach((power, index) => {
-    drawPoliticsColumnCode(
-      power.code,
-      matrixX + index * POLITICS_MATRIX_CELL_W,
-      headerY + 16,
-      politicsFactionColor(power.id)
-    );
-  });
-
-  rows.forEach((row, rowIndex) => {
-    const y = matrixY + rowIndex * POLITICS_MATRIX_ROW_H;
-    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
-    ctx.fillRect(panel.x + 8, y - 1, panel.w - 16, POLITICS_MATRIX_ROW_H);
-    drawOptionsText(
-      fitPixelText(politicsPowerLabel(row.faction, view.powers), PIXEL_FONT_SMALL_8, 76),
-      labelX,
-      y,
-      { color: politicsFactionColor(row.faction.id) }
-    );
-    const stanceByFaction = new Map(row.stances.map((stance) => [stance.factionId, stance]));
-    powers.forEach((power, index) => {
-      const stance = stanceByFaction.get(power.id);
-      if (!stance) return;
-      drawPoliticsMatrixCell(
-        matrixX + index * POLITICS_MATRIX_CELL_W,
-        y,
-        stance.relation,
-        row.faction.id === power.id,
-        stance.contact
-      );
-    });
-    drawOptionsText(
-      `${row.player.scoreLabel} ${politicsTradeCode(row.player.trade)}`,
-      statusX + 21,
-      y,
-      {
-      align: "right",
-      color: politicsStandingColor(row.player.reputation)
-      }
-    );
+  pagination.page.segments.forEach((segment, index) => {
+    const column = index % pagination.layout.columns;
+    const row = Math.floor(index / pagination.layout.columns);
+    drawPoliticsCountryCard(segment, view, {
+      x: panel.x + pagination.layout.panelPadX +
+        column * (pagination.layout.cardWidth + pagination.layout.cardGap),
+      y: panel.y + pagination.layout.contentTop +
+        row * (pagination.layout.cardHeight + pagination.layout.cardGap),
+      w: pagination.layout.cardWidth,
+      h: pagination.layout.cardHeight
+    }, pagination.layout);
   });
 
   const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
@@ -25668,7 +25403,7 @@ function drawCompactPoliticsMenu() {
     pointInRect(optionsMenu.hoverPoint, politicsMenu.nextPageRect)
   );
   drawOptionsText(
-    `PAGE ${politicsMenu.page + 1}/${pagination.pageCount}`,
+    `${uiText("common.page")} ${pagination.page.page + 1}/${pagination.page.pageCount}`,
     panel.x + panel.w / 2,
     pagerY + 3,
     { align: "center", color: PIRATE_MENU_INK_MUTED }
@@ -25677,51 +25412,135 @@ function drawCompactPoliticsMenu() {
   ctx.restore();
 }
 
+function politicsCardPagination(view) {
+  const newsHeight = 12;
+  const layout = politicsCardGridLayout({
+    panelWidth: POLITICS_PANEL_W,
+    panelHeight: POLITICS_PANEL_H,
+    lineHeight: currentLanguageProfile.tableRowHeight,
+    pagerHeight: UI_PAGER_BUTTON_H,
+    newsHeight
+  });
+  const segments = politicsCardSegments(view.cards, {
+    tokensPerLine: layout.tokensPerLine,
+    maxRelationLines: layout.maxRelationLines,
+    powerCount: view.powers.length
+  });
+  return {
+    layout,
+    page: politicsCardSegmentsPage(segments, politicsMenu.page, layout.cardsPerPage)
+  };
+}
+
 function drawPoliticsLatestNews(view, panel, pagerY) {
   const latest = view.recentEvents[0];
   if (!latest) return;
   drawOptionsText(
-    fitPixelText(`LATEST ${diplomacyEventNotice(latest)}`, PIXEL_FONT_SMALL_8, panel.w - 120),
+    fitPixelText(
+      `${uiText("politics.latest")} ${diplomacyEventNotice(latest)}`,
+      PIXEL_FONT_SMALL_8,
+      panel.w - 120
+    ),
     panel.x + panel.w / 2,
     pagerY - 11,
     { align: "center", color: latest.kind === "peace" ? "#91db69" : "#f68181" }
   );
 }
 
-function drawPoliticsColumnCode(code, x, y, color) {
-  ctx.save();
-  ctx.translate(x + 1, y);
-  ctx.rotate(-Math.PI / 2);
-  drawOptionsText(code, 0, 0, { color });
-  ctx.restore();
-}
+function drawPoliticsCountryCard(segment, view, rect, layout) {
+  drawPiratePaperInset(rect);
+  const card = segment.card;
+  const headerY = rect.y + 3;
+  drawPoliticsFlag(card.faction.id, rect.x + 4, rect.y + 3, 20, 13);
+  const status = `${uiText("politics.you")} ${card.player.scoreLabel} ${politicsTradeCode(card.player.trade)}` +
+    (card.player.hasLetterOfMarque ? " M" : "");
+  const statusWidth = Math.min(76, Math.floor(rect.w * 0.39));
+  const titleSuffix = segment.segmentCount > 1
+    ? ` ${segment.segmentIndex + 1}/${segment.segmentCount}`
+    : "";
+  drawOptionsText(
+    fitPixelText(
+      `${card.faction.shortName.toUpperCase()}${titleSuffix}`,
+      PIXEL_FONT_SMALL_8,
+      rect.w - 32 - statusWidth
+    ),
+    rect.x + 28,
+    headerY,
+    { color: politicsFactionColor(card.faction.id) }
+  );
+  drawOptionsText(
+    fitPixelText(status, PIXEL_FONT_SMALL_8, statusWidth),
+    rect.x + rect.w - 4,
+    headerY,
+    { align: "right", color: politicsStandingColor(card.player.reputation) }
+  );
 
-function drawPoliticsMatrixCell(x, y, relation, self, contact) {
-  const glyph = politicsRelationGlyph(relation, self, contact);
-  ctx.fillStyle = self ? PIRATE_MENU_PAPER_INSET_ALT : "rgba(113, 80, 51, 0.12)";
-  ctx.fillRect(x, y, POLITICS_MATRIX_CELL_W - 1, POLITICS_MATRIX_ROW_H - 1);
-  drawOptionsText(glyph, x + 1, y, {
-    color: self ? PIRATE_MENU_INK : politicsRelationColor(relation)
+  segment.lines.forEach((line, lineIndex) => {
+    const y = rect.y + layout.headerHeight + lineIndex * layout.relationLineHeight;
+    const label = politicsCardLineLabel(line);
+    const color = line.type === "relationship"
+      ? politicsRelationColor(line.relation)
+      : PIRATE_MENU_CHART_LINE;
+    drawOptionsText(
+      fitPixelText(label, PIXEL_FONT_SMALL_8, layout.relationLabelWidth - 4),
+      rect.x + 4,
+      y,
+      { color }
+    );
+    const tokensX = rect.x + layout.relationLabelWidth;
+    if (line.allPowers) {
+      drawOptionsText(uiText("politics.allPowers"), tokensX, y, { color });
+      return;
+    }
+    line.factionIds.forEach((factionId, index) => {
+      const power = view.powers.find((entry) => entry.id === factionId);
+      if (!power) throw new Error(`Politics card is missing related faction ${factionId}`);
+      drawPoliticsRelationToken(
+        power,
+        tokensX + index * layout.relationTokenWidth,
+        y,
+        layout.relationLineHeight
+      );
+    });
   });
 }
 
-function drawPoliticsStanding(player, x, y, width) {
-  drawOptionsText(
-    `${player.scoreLabel} ${politicsTradeCode(player.trade)}${player.hasLetterOfMarque ? " M" : ""}`,
-    x + width,
-    y,
-    { align: "right", color: politicsStandingColor(player.reputation) }
-  );
+function drawPoliticsRelationToken(power, x, y, lineHeight) {
+  const flagY = y + Math.max(0, Math.floor((lineHeight - 6) / 2));
+  drawPoliticsFlag(power.id, x, flagY, 10, 6);
+  drawOptionsText(power.code, x + 11, y + Math.max(0, Math.floor((lineHeight - 8) / 2)), {
+    color: politicsFactionColor(power.id),
+    font: PIXEL_FONT_LATIN_SMALL_8
+  });
 }
 
-function politicsRelationGlyph(relation, self, contact) {
-  if (self) return "A";
-  if (relation === DIPLOMACY_ALLY) return "A";
-  if (relation === DIPLOMACY_FRIENDLY) return "+";
-  if (relation === DIPLOMACY_WAR) return "W";
-  if (relation === DIPLOMACY_HOSTILE) return "!";
-  if (relation === DIPLOMACY_NEUTRAL) return contact ? "-" : ".";
-  throw new Error(`Unknown political relation: ${relation}`);
+function drawPoliticsFlag(factionId, x, y, width, height) {
+  if (!factionHasFlag(factionId)) throw new Error(`Politics card faction has no flag: ${factionId}`);
+  const image = factionFlagImages?.get(factionId);
+  if (!image) throw new Error(`Missing politics faction flag image: ${factionId}`);
+  ctx.drawImage(image, Math.round(x), Math.round(y), width, height);
+}
+
+function politicsCardLineLabel(line) {
+  if (line.type === "relationship") {
+    const key = {
+      [DIPLOMACY_ALLY]: "politics.ally",
+      [DIPLOMACY_FRIENDLY]: "politics.friendly",
+      [DIPLOMACY_HOSTILE]: "politics.hostile",
+      [DIPLOMACY_WAR]: "politics.war"
+    }[line.relation];
+    if (!key) throw new Error(`Unknown politics card relation: ${line.relation}`);
+    return uiText(key);
+  }
+  if (line.type !== "dependency") throw new Error(`Unknown politics card line type: ${line.type}`);
+  if (line.kind === "personal-union") return uiText("politics.unionWith");
+  if (line.kind === "tributary") {
+    return uiText(line.role === "subject" ? "politics.tributaryTo" : "politics.tributeFrom");
+  }
+  if (line.kind === "vassal") {
+    return uiText(line.role === "subject" ? "politics.vassalOf" : "politics.suzerainOf");
+  }
+  throw new Error(`Unknown politics dependency kind: ${line.kind}`);
 }
 
 function politicsRelationColor(relation) {

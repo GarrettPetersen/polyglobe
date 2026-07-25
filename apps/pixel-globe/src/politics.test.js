@@ -22,9 +22,6 @@ import {
   createPoliticsView,
   playerStandingForReputation,
   politicalPowers,
-  politicsDependencyGlyph,
-  politicsPowerLabel,
-  politicsRowsPage,
   politicsTradeCode
 } from "./politics.js";
 
@@ -34,7 +31,7 @@ const PLAYER = {
   expressions: ["neutral", "happy"]
 };
 
-test("politics view covers every non-neutral power including pirates", () => {
+test("politics cards cover every non-neutral power including pirates", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
   const expectedIds = FACTIONS
@@ -42,29 +39,33 @@ test("politics view covers every non-neutral power including pirates", () => {
     .map((faction) => faction.id);
 
   assert.deepEqual(view.powers.map((faction) => faction.id), expectedIds);
-  assert.equal(view.rows.length, expectedIds.length);
-  assert.ok(view.rows.every((row) => row.stances.length === expectedIds.length));
+  assert.equal(view.cards.length, expectedIds.length);
+  assert.equal(view.cards[0].faction.id, PLAYER.nationalityId);
+  assert.equal(view.cards.at(-1).faction.id, "pirate");
 });
 
-test("collapsed empires leave the active politics matrix", () => {
+test("collapsed empires leave the active politics cards", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.memory.conquest.collapsedFactionIds.push("france");
   const view = createPoliticsView(state);
   assert.equal(view.powers.some((faction) => faction.id === "france"), false);
-  assert.equal(view.rows.some((row) => row.faction.id === "france"), false);
-  assert.ok(view.rows.every((row) => row.stances.every((stance) => stance.factionId !== "france")));
+  assert.equal(view.cards.some((card) => card.faction.id === "france"), false);
+  assert.ok(view.cards.every((card) =>
+    card.dependencies.every((dependency) => dependency.factionId !== "france") &&
+    card.relationships.every((group) => !group.factionIds.includes("france"))
+  ));
 });
 
-test("politics matrix reports diplomacy and player standing", () => {
+test("politics cards report meaningful diplomacy and player standing", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   recordTradeWithFaction(state, "england");
   recordPiracyAgainstFaction(state, "france");
   const view = createPoliticsView(state);
-  const england = view.rows.find((row) => row.faction.id === "england");
-  const france = view.rows.find((row) => row.faction.id === "france");
-  const pirate = view.rows.find((row) => row.faction.id === "pirate");
+  const england = politicsCard(view, "england");
+  const france = politicsCard(view, "france");
+  const pirate = politicsCard(view, "pirate");
 
-  assert.equal(england.stances.find((stance) => stance.factionId === "france").relation, "war");
+  assert.ok(relationshipFactionIds(england, "war").includes("france"));
   assert.equal(england.player.label, "Warm");
   assert.equal(france.player.label, "Angry");
   assert.equal(pirate.player.label, "Hostile");
@@ -73,33 +74,47 @@ test("politics matrix reports diplomacy and player standing", () => {
 test("politics keeps vassal status visibly separate from diplomatic stance", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
-  const hormuz = view.rows.find((row) => row.faction.id === "hormuz");
-  assert.equal(hormuz.faction.suzerainFactionId, "portugal");
-  assert.equal(politicsPowerLabel(hormuz.faction, view.powers), "HORMUZ >PO");
-  assert.equal(
-    hormuz.stances.find((stance) => stance.factionId === "portugal").relation,
-    "friendly"
-  );
+  const hormuz = politicsCard(view, "hormuz");
+  assert.deepEqual(hormuz.dependencies, [{
+    kind: "vassal",
+    role: "subject",
+    factionId: "portugal"
+  }]);
+  assert.equal(relationshipFactionIds(hormuz, "friendly").includes("portugal"), false);
 });
 
 test("the Habsburg personal union is not presented as Spanish vassalage", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
-  const spain = view.rows.find((row) => row.faction.id === "spain");
-  const habsburg = view.rows.find((row) => row.faction.id === "habsburg");
-  assert.equal(politicsPowerLabel(spain.faction, view.powers), "SPAIN =HB");
-  assert.equal(habsburg.faction.vassalFactionIds.includes("spain"), false);
+  const spain = politicsCard(view, "spain");
+  const habsburg = politicsCard(view, "habsburg");
+  assert.deepEqual(spain.dependencies, [{
+    kind: "personal-union",
+    role: "member",
+    factionId: "habsburg"
+  }]);
+  assert.deepEqual(habsburg.dependencies, [{
+    kind: "personal-union",
+    role: "member",
+    factionId: "spain"
+  }]);
 });
 
-test("the politics chart distinguishes tributaries from vassals and unions", () => {
+test("the politics cards distinguish tributaries from vassals and unions", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
-  const joseon = view.rows.find((row) => row.faction.id === "joseon");
-
-  assert.equal(politicsPowerLabel(joseon.faction, view.powers), "JOSEON ~MI");
-  assert.equal(politicsDependencyGlyph("vassal"), ">");
-  assert.equal(politicsDependencyGlyph("tributary"), "~");
-  assert.equal(politicsDependencyGlyph("personal-union"), "=");
+  const joseon = politicsCard(view, "joseon");
+  const ming = politicsCard(view, "ming");
+  assert.deepEqual(joseon.dependencies, [{
+    kind: "tributary",
+    role: "subject",
+    factionId: "ming"
+  }]);
+  assert.deepEqual(ming.dependencies, [{
+    kind: "tributary",
+    role: "suzerain",
+    factionId: "joseon"
+  }]);
 });
 
 test("politics trade codes expose duties and protected-market access", () => {
@@ -108,7 +123,7 @@ test("politics trade codes expose duties and protected-market access", () => {
     playerCharacter: { ...PLAYER, nationalityId: "habsburg" }
   });
   const habsburgView = createPoliticsView(habsburgState);
-  const spain = habsburgView.rows.find((row) => row.faction.id === "spain");
+  const spain = politicsCard(habsburgView, "spain");
   assert.equal(spain.player.trade.dutyPercent, 2);
   assert.equal(spain.player.trade.access, "closed");
   assert.equal(politicsTradeCode(spain.player.trade), "2%X");
@@ -117,8 +132,7 @@ test("politics trade codes expose duties and protected-market access", () => {
     SPANISH_INDIES_TRADE_POLICY_ID,
     0
   );
-  const licensedSpain = createPoliticsView(habsburgState).rows
-    .find((row) => row.faction.id === "spain");
+  const licensedSpain = politicsCard(createPoliticsView(habsburgState), "spain");
   assert.equal(licensedSpain.player.trade.access, "pass");
   assert.equal(politicsTradeCode(licensedSpain.player.trade), "2%P");
 
@@ -127,7 +141,7 @@ test("politics trade codes expose duties and protected-market access", () => {
     playerCharacter: { ...PLAYER, nationalityId: "portugal" }
   });
   const portugalView = createPoliticsView(portugalState);
-  const hormuz = portugalView.rows.find((row) => row.faction.id === "hormuz");
+  const hormuz = politicsCard(portugalView, "hormuz");
   assert.equal(hormuz.player.trade.dutyPercent, 2);
   assert.equal(hormuz.player.trade.access, "ordinary");
   assert.equal(politicsTradeCode(hormuz.player.trade), "2%");
@@ -137,32 +151,32 @@ test("politics trade codes expose duties and protected-market access", () => {
     playerCharacter: { ...PLAYER, nationalityId: "joseon" }
   });
   const joseonView = createPoliticsView(joseonState);
-  const ming = joseonView.rows.find((row) => row.faction.id === "ming");
+  const ming = politicsCard(joseonView, "ming");
   assert.equal(ming.player.trade.dutyPercent, 2);
   assert.equal(ming.player.trade.access, "open");
   assert.equal(politicsTradeCode(ming.player.trade), "2%O");
 });
 
-test("politics matrix follows changing world diplomacy", () => {
+test("politics cards follow changing world diplomacy", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200 * 24 * 60);
   const view = createPoliticsView(state);
-  const england = view.rows.find((row) => row.faction.id === "england");
+  const england = politicsCard(view, "england");
 
   assert.equal(diplomacyBetweenForState(state, "england", "france"), "hostile");
-  assert.equal(england.stances.find((stance) => stance.factionId === "france").relation, "hostile");
+  assert.ok(relationshipFactionIds(england, "hostile").includes("france"));
   assert.equal(view.recentEvents[0].kind, "peace");
 });
 
-test("politics distinguishes contacted neutral powers from powers with no interaction", () => {
+test("politics cards omit neutral relationships even after contact", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const venice = { tileId: 9, city: "Venice", country: "Italy", factionId: "venice" };
   visitPort(state, venice, 100);
   const view = createPoliticsView(state);
-  const england = view.rows.find((row) => row.faction.id === "england");
+  const england = politicsCard(view, "england");
 
-  assert.equal(england.stances.find((stance) => stance.factionId === "venice").contact.portCalls, 1);
-  assert.equal(england.stances.find((stance) => stance.factionId === "inca").contact, null);
+  assert.ok(england.relationships.every((group) => !group.factionIds.includes("venice")));
+  assert.ok(england.relationships.every((group) => !group.factionIds.includes("inca")));
 });
 
 test("politics view marks factions that granted letters of marque", () => {
@@ -180,21 +194,11 @@ test("politics view marks factions that granted letters of marque", () => {
   grantLetterOfMarque(state, london, LETTER_OF_MARQUE_POWER_REQUIRED);
   const view = createPoliticsView(state);
 
-  assert.equal(view.rows.find((row) => row.faction.id === "england").player.hasLetterOfMarque, true);
-  assert.equal(view.rows.find((row) => row.faction.id === "france").player.hasLetterOfMarque, false);
+  assert.equal(politicsCard(view, "england").player.hasLetterOfMarque, true);
+  assert.equal(politicsCard(view, "france").player.hasLetterOfMarque, false);
 });
 
-test("politics rows stop at the last page", () => {
-  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const view = createPoliticsView(state);
-  const first = politicsRowsPage(view, 0, 12);
-  const last = politicsRowsPage(view, first.pageCount, 12);
-
-  assert.equal(first.rows.length, 12);
-  assert.equal(last.page, first.pageCount - 1);
-});
-
-test("political power codes are compact for matrix headers", () => {
+test("political power codes are compact for card relationship tokens", () => {
   assert.ok(politicalPowers().every((faction) => faction.code.length <= 2));
   assert.equal(politicalPowers().find((faction) => faction.id === "pirate").code, "PX");
 });
@@ -205,3 +209,13 @@ test("player standing labels summarize reputation ranges", () => {
   assert.equal(playerStandingForReputation(-8).label, "Cold");
   assert.equal(playerStandingForReputation(-100).label, "Hostile");
 });
+
+function politicsCard(view, factionId) {
+  const card = view.cards.find((entry) => entry.faction.id === factionId);
+  if (!card) throw new Error(`Missing politics card for ${factionId}`);
+  return card;
+}
+
+function relationshipFactionIds(card, relation) {
+  return card.relationships.find((group) => group.relation === relation)?.factionIds || [];
+}

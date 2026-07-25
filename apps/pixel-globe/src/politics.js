@@ -15,18 +15,16 @@ import {
   recentGameDiplomacyEvents,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
-import { clampMenuIndex } from "./menuNavigation.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { sovereignTradePoliciesForHostFaction } from "./sovereignTradeAccess.js";
 import { customsTerms } from "./tradePolicy.js";
-import { diplomaticContactBetween } from "./worldDiplomacy.js";
 import {
   SUZERAINTY_KIND_PERSONAL_UNION,
   SUZERAINTY_KIND_TRIBUTARY,
   SUZERAINTY_KIND_VASSAL,
+  dependentsOf,
   suzeraintyTradePrivilege,
-  suzeraintyForVassal,
-  vassalsOf
+  suzeraintyForVassal
 } from "./suzerainty.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
@@ -43,29 +41,13 @@ export function createPoliticsView(gameState, simMinute = gameState?.survival?.l
     throw new Error(`Politics view requires a valid simulation minute: ${simMinute}`);
   }
   const powers = politicalPowers(gameState);
+  const powerById = new Map(powers.map((power) => [power.id, power]));
+  const cards = powers.map((faction) => politicsCard(gameState, faction, powers, powerById, simMinute));
+  const playerFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   return {
     powers,
     recentEvents: recentGameDiplomacyEvents(gameState, 3),
-    rows: powers.map((faction) => ({
-      faction,
-      player: {
-        ...playerStandingForReputation(factionReputation(gameState, faction.id)),
-        hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id),
-        trade: playerTradeStanding(gameState, faction, simMinute)
-      },
-      stances: powers.map((other) => {
-        const relation = diplomacyBetweenForState(gameState, faction.id, other.id);
-        const contact = faction.id === other.id
-          ? null
-          : diplomaticContactBetween(gameState.relations.diplomacy, faction.id, other.id);
-        return {
-          factionId: other.id,
-          relation,
-          label: POLITICS_RELATION_LABELS[relation],
-          contact
-        };
-      })
-    }))
+    cards: orderPoliticsCards(cards, playerFactionId)
   };
 }
 
@@ -83,25 +65,14 @@ export function politicalPowers(gameState = null) {
         code: factionCode(faction),
         suzerainFactionId: relationship?.suzerainFactionId || null,
         suzeraintyKind: relationship?.kind || null,
-        vassalFactionIds: suzerainties ? vassalsOf(suzerainties, faction.id) : []
+        dependentRelationships: suzerainties
+          ? dependentsOf(suzerainties, faction.id).map((entry) => Object.freeze({
+            factionId: entry.vassalFactionId,
+            kind: entry.kind
+          }))
+          : []
       };
     });
-}
-
-export function politicsPowerLabel(faction, powers) {
-  if (!faction || !Array.isArray(powers)) throw new Error("Politics power label requires a faction list");
-  if (!faction.suzerainFactionId) return faction.shortName.toUpperCase();
-  const suzerain = powers.find((entry) => entry.id === faction.suzerainFactionId);
-  if (!suzerain) throw new Error(`Politics view is missing suzerain ${faction.suzerainFactionId}`);
-  const separator = politicsDependencyGlyph(faction.suzeraintyKind);
-  return `${faction.shortName.toUpperCase()} ${separator}${suzerain.code}`;
-}
-
-export function politicsDependencyGlyph(kind) {
-  if (kind === SUZERAINTY_KIND_VASSAL) return ">";
-  if (kind === SUZERAINTY_KIND_TRIBUTARY) return "~";
-  if (kind === SUZERAINTY_KIND_PERSONAL_UNION) return "=";
-  throw new Error(`Unknown politics dependency kind: ${kind}`);
 }
 
 export function politicsTradeCode(trade) {
@@ -118,20 +89,6 @@ export function politicsTradeCode(trade) {
   }[trade.access];
   if (marker === undefined) throw new Error(`Unknown politics trade access: ${trade.access}`);
   return `${trade.dutyPercent}%${marker}`;
-}
-
-export function politicsRowsPage(view, page, rowsPerPage) {
-  if (!view || !Array.isArray(view.rows)) throw new Error("Invalid politics view");
-  if (!Number.isInteger(page)) throw new Error(`Invalid politics page: ${page}`);
-  if (!Number.isInteger(rowsPerPage) || rowsPerPage <= 0) throw new Error(`Invalid politics rows per page: ${rowsPerPage}`);
-  const pageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
-  const normalizedPage = clampMenuIndex(page, pageCount);
-  const start = normalizedPage * rowsPerPage;
-  return {
-    page: normalizedPage,
-    pageCount,
-    rows: view.rows.slice(start, start + rowsPerPage)
-  };
 }
 
 export function playerStandingForReputation(reputation) {
@@ -151,6 +108,68 @@ function standing(reputation, label) {
     label,
     scoreLabel: formatSignedReputation(reputation)
   };
+}
+
+function politicsCard(gameState, faction, powers, powerById, simMinute) {
+  const dependencies = politicsDependencies(faction, powerById);
+  const dependencyFactionIds = new Set(dependencies.map((dependency) => dependency.factionId));
+  const relationships = [
+    DIPLOMACY_WAR,
+    DIPLOMACY_HOSTILE,
+    DIPLOMACY_ALLY,
+    DIPLOMACY_FRIENDLY
+  ].map((relation) => Object.freeze({
+    relation,
+    label: POLITICS_RELATION_LABELS[relation],
+    factionIds: powers
+      .filter((other) => other.id !== faction.id && !dependencyFactionIds.has(other.id))
+      .filter((other) => diplomacyBetweenForState(gameState, faction.id, other.id) === relation)
+      .map((other) => other.id)
+  })).filter((group) => group.factionIds.length > 0);
+  return Object.freeze({
+    faction,
+    player: Object.freeze({
+      ...playerStandingForReputation(factionReputation(gameState, faction.id)),
+      hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id),
+      trade: playerTradeStanding(gameState, faction, simMinute)
+    }),
+    dependencies: Object.freeze(dependencies),
+    relationships: Object.freeze(relationships)
+  });
+}
+
+function politicsDependencies(faction, powerById) {
+  const dependencies = [];
+  if (faction.suzerainFactionId) {
+    if (!powerById.has(faction.suzerainFactionId)) {
+      throw new Error(`Politics view is missing suzerain ${faction.suzerainFactionId}`);
+    }
+    dependencies.push(Object.freeze({
+      kind: faction.suzeraintyKind,
+      role: faction.suzeraintyKind === SUZERAINTY_KIND_PERSONAL_UNION ? "member" : "subject",
+      factionId: faction.suzerainFactionId
+    }));
+  }
+  for (const dependent of faction.dependentRelationships) {
+    const subject = powerById.get(dependent.factionId);
+    if (!subject) throw new Error(`Politics view is missing subject ${dependent.factionId}`);
+    dependencies.push(Object.freeze({
+      kind: dependent.kind,
+      role: dependent.kind === SUZERAINTY_KIND_PERSONAL_UNION ? "member" : "suzerain",
+      factionId: dependent.factionId
+    }));
+  }
+  return dependencies;
+}
+
+function orderPoliticsCards(cards, playerFactionId) {
+  return Object.freeze([...cards].sort((left, right) => {
+    if (left.faction.id === playerFactionId) return right.faction.id === playerFactionId ? 0 : -1;
+    if (right.faction.id === playerFactionId) return 1;
+    if (left.faction.id === "pirate") return right.faction.id === "pirate" ? 0 : 1;
+    if (right.faction.id === "pirate") return -1;
+    return left.faction.shortName.localeCompare(right.faction.shortName);
+  }));
 }
 
 function playerTradeStanding(gameState, faction, simMinute) {
