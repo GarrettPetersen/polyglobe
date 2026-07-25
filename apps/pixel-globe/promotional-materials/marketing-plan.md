@@ -28,6 +28,10 @@
 
 ## Streamer outreach
 
+- [ ] Add **Marque & Reprisal** to IGDB so it receives a Twitch game category.
+  - Verify the category appears on Twitch after the IGDB submission is approved.
+  - Use the category to monitor for new streams and notify Garrett.
+
 - [ ] Set up a proper campaign sender at `marque-and-reprisal.com`, including SPF, DKIM and DMARC.
 
 - [ ] Send full-build Steam keys to streamers.
