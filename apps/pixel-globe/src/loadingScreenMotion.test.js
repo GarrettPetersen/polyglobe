@@ -7,6 +7,7 @@ import {
   LOADING_CAPSULE_WIDTH,
   loadingLayerMotion,
   loadingScreenCoverCrop,
+  loadingScreenForegroundLayout,
   loadingScreenRenderSize,
   loadingWaveAmplitude,
   loadingWaveOffset
@@ -22,6 +23,42 @@ test("loading screen cover crop fills landscape and portrait viewports without s
   assert.equal(portrait.height, LOADING_CAPSULE_HEIGHT);
   assert.ok(portrait.width < LOADING_CAPSULE_WIDTH);
   assert.equal(portrait.y, 0);
+});
+
+test("loading foreground fits narrow screens while remaining anchored to the covered horizon", () => {
+  const viewportWidth = 390;
+  const viewportHeight = 844;
+  const crop = loadingScreenCoverCrop(viewportWidth, viewportHeight);
+  const foreground = loadingScreenForegroundLayout(viewportWidth, viewportHeight);
+  const coveredHorizonY =
+    (LOADING_CAPSULE_HORIZON_Y - crop.y) *
+    viewportHeight /
+    crop.height;
+
+  assert.equal(foreground.x, 0);
+  assert.equal(foreground.width, viewportWidth);
+  assert.ok(foreground.y > 0);
+  assert.ok(foreground.y + foreground.height < viewportHeight);
+  assert.equal(foreground.horizonY, coveredHorizonY);
+  assert.equal(
+    foreground.y +
+      LOADING_CAPSULE_HORIZON_Y * foreground.width / LOADING_CAPSULE_WIDTH,
+    foreground.horizonY
+  );
+});
+
+test("loading foreground retains the existing cover alignment on landscape screens", () => {
+  const viewportWidth = 1920;
+  const viewportHeight = 1080;
+  const crop = loadingScreenCoverCrop(viewportWidth, viewportHeight);
+  const foreground = loadingScreenForegroundLayout(viewportWidth, viewportHeight);
+  const scale = viewportWidth / LOADING_CAPSULE_WIDTH;
+
+  assert.equal(crop.x, 0);
+  assert.equal(foreground.x, 0);
+  assert.ok(Math.abs(foreground.y + crop.y * scale) < 1e-9);
+  assert.equal(foreground.width, viewportWidth);
+  assert.equal(foreground.height, LOADING_CAPSULE_HEIGHT * scale);
 });
 
 test("loading screen renders at the full viewport resolution", () => {

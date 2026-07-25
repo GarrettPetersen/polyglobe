@@ -46,6 +46,40 @@ export function loadingScreenCoverCrop(
   });
 }
 
+export function loadingScreenForegroundLayout(
+  viewportWidth,
+  viewportHeight,
+  sourceWidth = LOADING_CAPSULE_WIDTH,
+  sourceHeight = LOADING_CAPSULE_HEIGHT,
+  sourceHorizonY = LOADING_CAPSULE_HORIZON_Y
+) {
+  assertPositiveDimension(viewportWidth, "viewport width");
+  assertPositiveDimension(viewportHeight, "viewport height");
+  assertPositiveDimension(sourceWidth, "source width");
+  assertPositiveDimension(sourceHeight, "source height");
+  if (!Number.isFinite(sourceHorizonY) || sourceHorizonY < 0 || sourceHorizonY > sourceHeight) {
+    throw new Error(`Loading screen source horizon is outside the artwork: ${sourceHorizonY}`);
+  }
+  const environmentCrop = loadingScreenCoverCrop(
+    viewportWidth,
+    viewportHeight,
+    sourceWidth,
+    sourceHeight
+  );
+  const horizonY =
+    (sourceHorizonY - environmentCrop.y) *
+    viewportHeight /
+    environmentCrop.height;
+  const scale = viewportWidth / sourceWidth;
+  return Object.freeze({
+    x: 0,
+    y: horizonY - sourceHorizonY * scale,
+    width: viewportWidth,
+    height: sourceHeight * scale,
+    horizonY
+  });
+}
+
 export function loadingWaveAmplitude(sourceY) {
   if (!Number.isFinite(sourceY)) throw new Error(`Loading wave row must be finite, got ${sourceY}`);
   if (sourceY < LOADING_CAPSULE_HORIZON_Y) return 0;

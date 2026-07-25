@@ -4,6 +4,7 @@ import {
   LOADING_CAPSULE_WIDTH,
   loadingLayerMotion,
   loadingScreenCoverCrop,
+  loadingScreenForegroundLayout,
   loadingWaveOffset
 } from "./loadingScreenMotion.js";
 
@@ -20,6 +21,8 @@ let displayCanvas = null;
 let displayContext = null;
 let sceneCanvas = null;
 let sceneContext = null;
+let foregroundCanvas = null;
+let foregroundContext = null;
 let images = null;
 let reducedMotion = false;
 let animationStartedAtMs = 0;
@@ -57,8 +60,17 @@ async function start(message) {
   );
   sceneContext = sceneCanvas.getContext("2d");
   if (!sceneContext) throw new Error("Capsule loading worker could not create its scene context");
+  foregroundCanvas = new OffscreenCanvas(
+    LOADING_CAPSULE_WIDTH * SCENE_SCALE,
+    LOADING_CAPSULE_HEIGHT * SCENE_SCALE
+  );
+  foregroundContext = foregroundCanvas.getContext("2d");
+  if (!foregroundContext) {
+    throw new Error("Capsule loading worker could not create its foreground context");
+  }
   displayContext.imageSmoothingEnabled = false;
   sceneContext.imageSmoothingEnabled = false;
+  foregroundContext.imageSmoothingEnabled = false;
   reducedMotion = message.reducedMotion === true;
   resize(message.width, message.height);
   images = await loadCapsuleLayers();
@@ -98,15 +110,16 @@ function drawLoadingScene(elapsedMs) {
     sceneCanvas.width,
     LOADING_CAPSULE_HORIZON_Y * SCENE_SCALE
   );
-  drawRippleRows(images.background, elapsedMs);
-  drawRippleRows(images.reflection, elapsedMs);
+  drawRippleRows(sceneContext, images.background, elapsedMs);
+  foregroundContext.clearRect(0, 0, foregroundCanvas.width, foregroundCanvas.height);
+  drawRippleRows(foregroundContext, images.reflection, elapsedMs);
   const motion = loadingLayerMotion(elapsedMs, reducedMotion);
-  drawScaledLayer(images.upperText, motion.upperTextY);
-  drawScaledLayer(images.ship, motion.shipY);
-  drawScaledLayer(images.lowerText, motion.lowerTextY);
+  drawScaledLayer(foregroundContext, images.upperText, motion.upperTextY);
+  drawScaledLayer(foregroundContext, images.ship, motion.shipY);
+  drawScaledLayer(foregroundContext, images.lowerText, motion.lowerTextY);
 }
 
-function drawRippleRows(image, elapsedMs) {
+function drawRippleRows(context, image, elapsedMs) {
   let bandY = LOADING_CAPSULE_HORIZON_Y;
   let bandOffset = rippleOffsetAtRow(bandY, elapsedMs);
   for (let y = LOADING_CAPSULE_HORIZON_Y + 1; y <= LOADING_CAPSULE_HEIGHT; y++) {
@@ -114,7 +127,7 @@ function drawRippleRows(image, elapsedMs) {
       ? Number.NaN
       : rippleOffsetAtRow(y, elapsedMs);
     if (offset === bandOffset) continue;
-    drawWrappedBand(image, bandY, y - bandY, bandOffset);
+    drawWrappedBand(context, image, bandY, y - bandY, bandOffset);
     bandY = y;
     bandOffset = offset;
   }
@@ -124,10 +137,10 @@ function rippleOffsetAtRow(y, elapsedMs) {
   return reducedMotion ? 0 : Math.round(loadingWaveOffset(y, elapsedMs) * SCENE_SCALE);
 }
 
-function drawWrappedBand(image, y, height, offset) {
+function drawWrappedBand(context, image, y, height, offset) {
   const scaledY = y * SCENE_SCALE;
   const scaledHeight = height * SCENE_SCALE;
-  sceneContext.drawImage(
+  context.drawImage(
     image,
     0,
     y,
@@ -140,7 +153,7 @@ function drawWrappedBand(image, y, height, offset) {
   );
   if (offset > 0) {
     const sourceWidth = offset / SCENE_SCALE;
-    sceneContext.drawImage(
+    context.drawImage(
       image,
       LOADING_CAPSULE_WIDTH - sourceWidth,
       y,
@@ -153,13 +166,13 @@ function drawWrappedBand(image, y, height, offset) {
     );
   } else if (offset < 0) {
     const sourceWidth = -offset / SCENE_SCALE;
-    sceneContext.drawImage(
+    context.drawImage(
       image,
       0,
       y,
       sourceWidth,
       height,
-      sceneCanvas.width + offset,
+      context.canvas.width + offset,
       scaledY,
       -offset,
       scaledHeight
@@ -167,8 +180,8 @@ function drawWrappedBand(image, y, height, offset) {
   }
 }
 
-function drawScaledLayer(image, yOffset) {
-  sceneContext.drawImage(
+function drawScaledLayer(context, image, yOffset) {
+  context.drawImage(
     image,
     0,
     0,
@@ -176,13 +189,14 @@ function drawScaledLayer(image, yOffset) {
     LOADING_CAPSULE_HEIGHT,
     0,
     Math.round(yOffset * SCENE_SCALE),
-    sceneCanvas.width,
-    sceneCanvas.height
+    context.canvas.width,
+    context.canvas.height
   );
 }
 
 function drawSceneCover() {
   const crop = loadingScreenCoverCrop(displayCanvas.width, displayCanvas.height);
+  const foreground = loadingScreenForegroundLayout(displayCanvas.width, displayCanvas.height);
   displayContext.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
   displayContext.drawImage(
     sceneCanvas,
@@ -194,6 +208,17 @@ function drawSceneCover() {
     0,
     displayCanvas.width,
     displayCanvas.height
+  );
+  displayContext.drawImage(
+    foregroundCanvas,
+    0,
+    0,
+    foregroundCanvas.width,
+    foregroundCanvas.height,
+    foreground.x,
+    foreground.y,
+    foreground.width,
+    foreground.height
   );
 }
 
