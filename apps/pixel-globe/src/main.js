@@ -822,6 +822,12 @@ import {
   DEBUG_WEATHER_CONTROL,
   debugWeatherControlForKey
 } from "./debugWeatherControls.js";
+import {
+  createFrameRateMeter,
+  isFrameRateToggleKey,
+  resetFrameRateMeter,
+  sampleFrameRate
+} from "./frameRateMeter.js";
 import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { questJournalWindow, steppedQuestJournalScroll } from "./questJournalLayout.js";
 import {
@@ -2417,6 +2423,8 @@ let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
+let frameRateOverlayEnabled = false;
+const frameRateMeter = createFrameRateMeter();
 let performanceBenchmarkState = null;
 let worldRenderCount = 0;
 let lastStatusMs = 0;
@@ -2496,6 +2504,11 @@ window.addEventListener("keydown", (event) => {
           showSurvivalNotice("SCREENSHOT FAILED", "warn");
         });
     }
+    return;
+  }
+  if (!cheatCodeInput.active && isFrameRateToggleKey(event)) {
+    event.preventDefault();
+    if (!event.repeat) toggleFrameRateOverlay();
     return;
   }
   if (handleCheatCodeKeyDown(event)) return;
@@ -3979,6 +3992,7 @@ function telemetryCrashContext(screenOverride = null) {
 }
 
 function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {}) {
+  if (frameRateOverlayEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   lastFrameMs = nowMs;
@@ -20815,6 +20829,7 @@ function render(nowMs) {
   drawSavePersistenceWarning();
   drawStormLightningFlash(nowMs);
   if (telemetryConsentModal) drawTelemetryConsentModal();
+  if (frameRateOverlayEnabled) drawFrameRateOverlay();
 }
 
 function chartTileCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
@@ -34425,6 +34440,28 @@ function dialoguePortraitImage(character, expression) {
     portraitPromiseCache.set(key, promise);
   }
   return displayFrame;
+}
+
+function toggleFrameRateOverlay() {
+  frameRateOverlayEnabled = !frameRateOverlayEnabled;
+  resetFrameRateMeter(frameRateMeter);
+  dirty = true;
+}
+
+function drawFrameRateOverlay() {
+  const value = frameRateMeter.framesPerSecond === null
+    ? "--"
+    : String(Math.round(frameRateMeter.framesPerSecond));
+  const label = `FPS ${value}`;
+  const font = PIXEL_FONT_LATIN_SMALL_8;
+  const width = measurePixelTextWidth(label, font) + 8;
+  const y = SCREEN_H - (DEBUG_STATUS_ENABLED ? 36 : 14);
+  ctx.save();
+  ctx.fillStyle = "rgba(15, 18, 14, 0.72)";
+  ctx.fillRect(4, y, width, 10);
+  ctx.fillStyle = "#d7d9bf";
+  drawPixelText(label, 8, y + 1, { font });
+  ctx.restore();
 }
 
 function drawTinyStatus(nowMs) {
