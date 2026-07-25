@@ -395,7 +395,8 @@ export function createShipDialogueSession(
     attackReason = null,
     rumorText = null,
     cartazInspection = null,
-    listenerReligionId = null
+    listenerReligionId = null,
+    pirateTreasureName = null
   } = {}
 ) {
   if (attackReason !== null && (typeof attackReason !== "string" || attackReason.trim() === "")) {
@@ -412,6 +413,10 @@ export function createShipDialogueSession(
     throw new Error("Ship cartaz inspection requires valid enforcement terms");
   }
   if (listenerReligionId !== null) religionById(listenerReligionId);
+  if (pirateTreasureName !== null &&
+      (typeof pirateTreasureName !== "string" || pirateTreasureName.trim() === "")) {
+    throw new Error("Pirate treasure dialogue requires a captain name");
+  }
   return {
     kind: "ship",
     npcShipId: ship.id,
@@ -422,7 +427,8 @@ export function createShipDialogueSession(
     pendingPiracyAction: null,
     rumorText,
     cartazInspection,
-    listenerReligionId
+    listenerReligionId,
+    pirateTreasureName
   };
 }
 
@@ -681,7 +687,10 @@ export function shipDialogueView(session, ship) {
     };
   }
   const greeting = role === "Pirate"
-    ? "Heave to and keep your hands where I can see them."
+    ? session.pirateTreasureName
+      ? `So the tales are true: Captain ${session.pirateTreasureName}'s treasure is aboard. ` +
+        "Heave to. We will take the hoard and leave your crew their lives."
+      : "Heave to and keep your hands where I can see them."
     : role === "Warship"
       ? "Keep clear. We are on patrol."
       : ship.character?.religionId && session.listenerReligionId

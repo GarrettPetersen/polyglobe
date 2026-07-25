@@ -8,6 +8,7 @@ import {
   CAMPAIGN_GOAL_COMPLETE,
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE,
   FAMILY_DEBT_PRINCIPAL,
   FAMILY_DEBT_PROTECTED_PURSE,
@@ -63,26 +64,31 @@ test("every campaign goal exposes a persistent journal and character objective",
   const presentations = [
     CAMPAIGN_GOAL_EXPLORER,
     CAMPAIGN_GOAL_FAMILY_DEBT,
-    CAMPAIGN_GOAL_WHITE_WHALE
+    CAMPAIGN_GOAL_WHITE_WHALE,
+    CAMPAIGN_GOAL_TREASURE
   ].map((type) => campaignGoalPresentation(createCampaignGoal({ playerCharacter: CHARACTER, type })));
 
   assert.deepEqual(presentations.map((entry) => entry.label), [
     "Explorer",
     "Family Debt",
-    "The White Whale"
+    "The White Whale",
+    "Captain's Treasure"
   ]);
   assert.match(presentations[0].objective, /discover every wonder/i);
   assert.match(presentations[1].objective, /pay off the family debt/i);
   assert.match(presentations[2].objective, /kill the white whale/i);
+  assert.match(presentations[3].objective, /treasure map/i);
 });
 
 test("drunk homecomings open with role-specific captain banter", () => {
   const explorer = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
   const debt = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
   const whale = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_WHITE_WHALE });
+  const treasure = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_TREASURE });
   assert.match(drunkenCampaignHomecomingSteps(explorer, CHARACTER)[1].text, /atlas/i);
   assert.match(drunkenCampaignHomecomingSteps(debt, CHARACTER)[1].text, /purse/i);
   assert.match(drunkenCampaignHomecomingSteps(whale, CHARACTER)[1].text, /whales/i);
+  assert.match(drunkenCampaignHomecomingSteps(treasure, CHARACTER)[1].text, /treasure account/i);
   assert.equal(drunkenCampaignHomecomingSteps(explorer, CHARACTER)[0].speaker, "player");
 });
 

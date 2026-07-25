@@ -316,7 +316,7 @@ export function generateCampaignContactCharacter({
   if (!homePort || typeof homePort !== "object") {
     throw new Error("Campaign contact generation requires a home port");
   }
-  if (!["explorer", "family-debt", "white-whale-revenge"].includes(goalType)) {
+  if (!["explorer", "family-debt", "white-whale-revenge", "pirate-treasure"].includes(goalType)) {
     throw new Error(`Unknown campaign contact goal type: ${goalType}`);
   }
   if (typeof excludedSourceId !== "string" || excludedSourceId === "") {
@@ -329,7 +329,9 @@ export function generateCampaignContactCharacter({
     excludedSourceIds: [excludedSourceId, ...excludedSourceIds],
     role: goalType === "explorer"
       ? "patron"
-      : goalType === "family-debt" ? "creditor" : "old-whaler",
+      : goalType === "family-debt"
+        ? "creditor"
+        : goalType === "white-whale-revenge" ? "old-whaler" : "old-buccaneer",
     manifest,
     usedNames: reservedNames
   });

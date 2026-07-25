@@ -262,6 +262,15 @@ test("the player can force an engagement regardless of diplomacy", () => {
   assert.equal(state.engagements.get("friendly|player").playerInitiated, true);
 });
 
+test("carrying the recovered pirate treasure draws attacks from farther-away pirates", () => {
+  const player = ship("player", "merchant", "portugal", 0, 0, 30, 8);
+  const pirate = ship("pirate", "pirate", "pirate", 90, 0, 25, 8);
+
+  assert.equal(updateShipCombatState(createShipCombatState(), [player, pirate]).engagementCount, 0);
+  player.carriesPirateTreasure = true;
+  assert.equal(updateShipCombatState(createShipCombatState(), [player, pirate]).engagementCount, 1);
+});
+
 test("a player attack takes ownership of an NPC-initiated engagement", () => {
   const state = createShipCombatState();
   const player = ship("player", "pirate", "netherlands", 0, 0, 30, 14);
@@ -296,6 +305,7 @@ function ship(id, role, factionId, x, y, hitPoints, cannons, maxHitPoints = hitP
     cannons,
     combatGrace: false,
     npcAttackProtected: false,
+    carriesPirateTreasure: id === "player" ? false : undefined,
     safePassageFactionIds: id === "player" ? [] : undefined
   };
 }

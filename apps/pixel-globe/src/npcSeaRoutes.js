@@ -509,6 +509,56 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
   return ship;
 }
 
+export function configureNpcRouteEncounter(system, spec, clockMinutes) {
+  assertSaveableNpcRouteSystem(system);
+  if (!spec || typeof spec !== "object") throw new Error("NPC route encounter specification is required");
+  if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid NPC route encounter clock: ${clockMinutes}`);
+  if (typeof spec.id !== "string" || spec.id.trim() === "") {
+    throw new Error("NPC route encounter requires an id");
+  }
+  if (system.shipById.has(spec.id)) throw new Error(`NPC route encounter id already exists: ${spec.id}`);
+  if (!Number.isInteger(spec.originPortId)) {
+    throw new Error(`NPC route encounter requires an origin port: ${spec.id}`);
+  }
+  assertFactionId(spec.factionId);
+  if (!NPC_ROLE_SET.has(spec.role)) throw new Error(`Unknown NPC route encounter role: ${spec.role}`);
+  if (spec.encounter !== undefined && (!spec.encounter || typeof spec.encounter !== "object")) {
+    throw new Error(`Invalid NPC route encounter metadata: ${spec.id}`);
+  }
+  if (spec.hiddenAtOrigin !== undefined && typeof spec.hiddenAtOrigin !== "boolean") {
+    throw new Error(`Invalid NPC route encounter hideout state: ${spec.id}`);
+  }
+  const origin = system.ports.find((port) => port.tileId === spec.originPortId);
+  if (!origin) throw new Error(`NPC route encounter origin is missing: ${spec.originPortId}`);
+  const profileSpec = Object.freeze({
+    id: spec.profileId || "wide-world",
+    mode: spec.mode || "interregional"
+  });
+  const ship = createNpcShipRecord({
+    id: spec.id,
+    factionId: spec.factionId,
+    role: spec.role,
+    profileSpec,
+    slugs: [spec.shipSlug],
+    slug: spec.shipSlug,
+    seed: hashString32(`${system.seedKey}|${spec.id}|route-encounter`),
+    origin
+  });
+  ship.encounter = spec.encounter ? cloneJsonData(spec.encounter) : null;
+  ship.replaceOnSink = spec.replaceOnSink !== false;
+  if (spec.specie !== undefined) {
+    if (!Number.isFinite(spec.specie) || spec.specie < 0) {
+      throw new Error(`Invalid NPC route encounter specie: ${spec.id}`);
+    }
+    ship.specie = Math.floor(spec.specie);
+  }
+  if (spec.hiddenAtOrigin) enterPirateHideout(ship, clockMinutes);
+  else seedNpcShipOnRoute(system, ship, clockMinutes);
+  system.ships.push(ship);
+  system.shipById.set(ship.id, ship);
+  return ship;
+}
+
 function capturePoint(lat, lon, label, { routeRegion = "wide-world", cityType = "northern-european" } = {}) {
   if (!Number.isFinite(lat) || lat < -89.999 || lat > 89.999) {
     throw new Error(`Invalid capture encounter latitude: ${lat}`);

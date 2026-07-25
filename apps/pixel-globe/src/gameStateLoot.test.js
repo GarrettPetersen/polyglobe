@@ -12,6 +12,7 @@ import {
   migrateGameState,
   recordDiscovery,
   receiveDiscoveryCargo,
+  receiveTreasureCargo,
   receiveFishCatch,
   receivePortConquestPrize,
   receiveSurrenderedLoot
@@ -191,4 +192,31 @@ test("El Dorado fills the remaining hold with zero-basis trade gold exactly once
   assert.equal(duplicate.alreadyReceived, true);
   assert.equal(state.accounts.ledger.at(-1).kind, "discovery");
   assert.equal(state.accounts.ledger.at(-1).description, "Treasure from El Dorado: Gold x3");
+});
+
+test("campaign treasure fills the remaining hold with zero-basis gold exactly once", () => {
+  const state = createGameState({ cargoCapacity: 5, startMinute: 100 });
+  state.cargo.fish = 2;
+  state.accounts.cargoCostBasis.fish = 0;
+
+  const received = receiveTreasureCargo(state, {
+    rewardId: "campaign.treasure.test",
+    sourceName: "Captain Flint's island",
+    goodId: "gold",
+    context: { simMinute: 140 }
+  });
+  const duplicate = receiveTreasureCargo(state, {
+    rewardId: "campaign.treasure.test",
+    sourceName: "Captain Flint's island",
+    goodId: "gold",
+    context: { simMinute: 141 }
+  });
+
+  assert.equal(received.quantity, 3);
+  assert.equal(state.cargo.gold, 3);
+  assert.equal(state.accounts.cargoCostBasis.gold, 0);
+  assert.equal(cargoUsed(state), state.cargoCapacity);
+  assert.equal(duplicate.quantity, 0);
+  assert.equal(duplicate.alreadyReceived, true);
+  assert.equal(state.accounts.ledger.at(-1).kind, "campaign");
 });

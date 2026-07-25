@@ -3,11 +3,21 @@ import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDistance.js";
 import { WHITE_WHALE_ID } from "./whaleSpecies.js";
 import { campaignRomanceEpilogue, validateCampaignVictoryRomance } from "./campaignRomance.js";
+import {
+  TREASURE_MAP_PIECE_COUNT,
+  createTreasureCampaignFields,
+  treasureAmbushComplete,
+  treasureCampaignObjective,
+  treasureCampaignPhase,
+  treasurePirateHints,
+  validateTreasureCampaignFields
+} from "./treasureCampaign.js";
 
 export const CAMPAIGN_GOAL_VERSION = 1;
 export const CAMPAIGN_GOAL_EXPLORER = "explorer";
 export const CAMPAIGN_GOAL_FAMILY_DEBT = "family-debt";
 export const CAMPAIGN_GOAL_WHITE_WHALE = "white-whale-revenge";
+export const CAMPAIGN_GOAL_TREASURE = "pirate-treasure";
 export const CAMPAIGN_GOAL_ACTIVE = "active";
 export const CAMPAIGN_GOAL_COMPLETE = "complete";
 export const EXPLORER_DISCOVERY_REWARD_MIN = 100;
@@ -20,6 +30,8 @@ export const FAMILY_DEBT_RETURN_BUFFER_DAYS = 30;
 export const CAMPAIGN_DESTINATION_DISCOVERY = "discovery";
 export const CAMPAIGN_DESTINATION_HOME = "home";
 export const CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING = "white-whale-sighting";
+export const CAMPAIGN_DESTINATION_TREASURE_PIRATE = "treasure-pirate";
+export const CAMPAIGN_DESTINATION_TREASURE_ISLAND = "treasure-island";
 
 const MINUTES_PER_DAY = 24 * 60;
 const DAYS_PER_YEAR = 365.25;
@@ -59,6 +71,12 @@ const CAMPAIGN_GOAL_DEFINITIONS = Object.freeze({
       checkedInteractionIds: []
     }),
     validate: validateWhiteWhaleGoal
+  }),
+  [CAMPAIGN_GOAL_TREASURE]: Object.freeze({
+    label: "Captain's Treasure",
+    objective: treasureCampaignObjective,
+    createFields: (_startMinute, playerCharacter) => createTreasureCampaignFields(playerCharacter.id),
+    validate: validateTreasureCampaignFields
   })
 });
 const CAMPAIGN_GOAL_TYPES = new Set(Object.keys(CAMPAIGN_GOAL_DEFINITIONS));
@@ -82,7 +100,7 @@ export function createCampaignGoal({ playerCharacter, startMinute = 0, type = nu
     introSeen: false,
     endingVariant: hashString32(`${playerCharacter.id}|campaign-ending`) % 4
   };
-  const goal = { ...base, ...definition.createFields(startMinute) };
+  const goal = { ...base, ...definition.createFields(startMinute, playerCharacter) };
   return validateCampaignGoal(goal);
 }
 
@@ -158,14 +176,22 @@ export function campaignGoalDestination(goal, {
   currentMinute = null,
   doubloons = null
 } = {}) {
+  return campaignGoalDestinations(goal, { discoveredIds, currentMinute, doubloons })[0] || null;
+}
+
+export function campaignGoalDestinations(goal, {
+  discoveredIds = null,
+  currentMinute = null,
+  doubloons = null
+} = {}) {
   validateCampaignGoal(goal);
-  if (goal.status !== CAMPAIGN_GOAL_ACTIVE) return null;
+  if (goal.status !== CAMPAIGN_GOAL_ACTIVE) return [];
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
     if (!(discoveredIds instanceof Set)) {
       throw new Error("Explorer destination requires discovered ids");
     }
-    if (goal.currentLeadDiscoveryId === null) return null;
-    return discoveredIds.has(goal.currentLeadDiscoveryId)
+    if (goal.currentLeadDiscoveryId === null) return [];
+    return [discoveredIds.has(goal.currentLeadDiscoveryId)
       ? {
           kind: CAMPAIGN_DESTINATION_HOME,
           homePortTileId: goal.homePortTileId,
@@ -174,24 +200,53 @@ export function campaignGoalDestination(goal, {
       : {
           kind: CAMPAIGN_DESTINATION_DISCOVERY,
           discoveryId: goal.currentLeadDiscoveryId
-        };
+        }];
   }
 
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) {
     if (goal.whiteWhaleKilled) {
-      return {
+      return [{
         kind: CAMPAIGN_DESTINATION_HOME,
         homePortTileId: goal.homePortTileId,
         reason: "return-after-white-whale"
-      };
+      }];
     }
-    if (!goal.sighting || goal.sighting.reached) return null;
-    return {
+    if (!goal.sighting || goal.sighting.reached) return [];
+    return [{
       kind: CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
       latitudeDeg: goal.sighting.latitudeDeg,
       longitudeDeg: goal.sighting.longitudeDeg,
       reason: "white-whale-last-seen"
-    };
+    }];
+  }
+
+  if (goal.type === CAMPAIGN_GOAL_TREASURE) {
+    const phase = treasureCampaignPhase(goal);
+    if (phase === "map-hunt") {
+      return treasurePirateHints(goal).map((hint) => ({
+        kind: CAMPAIGN_DESTINATION_TREASURE_PIRATE,
+        pirateId: hint.pirateId,
+        pirateName: hint.pirateName,
+        latitudeDeg: hint.latitudeDeg,
+        longitudeDeg: hint.longitudeDeg,
+        reason: "treasure-map-pirate"
+      }));
+    }
+    if (phase === "find-treasure") {
+      if (!Number.isInteger(goal.treasureTileId)) {
+        throw new Error("Completed treasure map has no island destination");
+      }
+      return [{
+        kind: CAMPAIGN_DESTINATION_TREASURE_ISLAND,
+        tileId: goal.treasureTileId,
+        reason: "captains-treasure"
+      }];
+    }
+    return [{
+      kind: CAMPAIGN_DESTINATION_HOME,
+      homePortTileId: goal.homePortTileId,
+      reason: treasureAmbushComplete(goal) ? "return-with-treasure" : "treasure-home-ambush"
+    }];
   }
 
   assertSimulationMinute(currentMinute);
@@ -204,13 +259,13 @@ export function campaignGoalDestination(goal, {
     FAMILY_DEBT_RETURN_BUFFER_DAYS
   );
   return doubloons >= payoff.requiredDoubloons
-    ? {
+    ? [{
         kind: CAMPAIGN_DESTINATION_HOME,
         homePortTileId: goal.homePortTileId,
         reason: "pay-family-debt",
         requiredDoubloons: payoff.requiredDoubloons
-      }
-    : null;
+      }]
+    : [];
 }
 
 export function familyDebtPayoffProjection(goal, currentMinute, additionalDays = 0) {
@@ -451,6 +506,14 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
       step("player", "determined", "Let the chart be blank and the ocean without end. I know the mark I hunt. Towards that white shape I roll, though all the waves of the world lie between us.")
     ];
   }
+  if (goal.type === CAMPAIGN_GOAL_TREASURE) {
+    return [
+      step("contact", "attentive", `Captain ${goal.treasureCaptainName} left a treasure no honest chart records. Before the old rogue died, the crew tore the map into ${TREASURE_MAP_PIECE_COUNT} pieces, one for each hand who feared the rest.`),
+      step("player", "thoughtful", "A dozen pirates, a dozen scraps, and one island somewhere beyond the lamps of any harbor. It sounds like the beginning of a hanging, not a fortune."),
+      step("contact", "pleased", "Perhaps. But every piece is still aboard a pirate ship, and frightened sailors remember names and bearings. Ask in ports. Hail ships. Follow no more than three rumors at once, or the whole world will become an X on your chart."),
+      step("player", "determined", `Then I will take the pieces from Captain ${goal.treasureCaptainName}'s old crew and read the map whole. Let them keep their black spots and mutiny talk. I mean to come home with the gold.`)
+    ];
+  }
   const debtOrigin = familyDebtOriginExchange(playerCharacter);
   return [
     step("contact", "stern", `${playerCharacter.name}, your family's signature is here, beneath a debt of ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons. The estate secures every coin. At ten percent interest, time now works for me. ${debtOrigin.creditor}`),
@@ -484,6 +547,14 @@ export function campaignHomecomingSteps(goal, outcome, playerCharacter, discover
     return explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById);
   }
   if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) return debtHomecomingSteps(goal, outcome, playerCharacter);
+  if (goal.type === CAMPAIGN_GOAL_TREASURE) {
+    return [
+      step("contact", "attentive", `Twelve sails followed you toward home, and twelve are gone. Tell me Captain ${goal.treasureCaptainName}'s treasure was worth the broadside.`),
+      step("player", "thoughtful", "The island was where the joined map promised. The gold was real, and so was every old grudge that came hunting it. I have had my fill of both."),
+      step("contact", "pleased", "Then come ashore while you still know the difference between treasure and a curse. The sea has had enough chances to spend you."),
+      step("player", "happy", "Aye. The chart can hang over a quiet hearth now. I have seen what lies beneath the red X, and I prefer the road home.")
+    ];
+  }
   return [
     step("contact", "attentive", "Your ship has returned, but the old fury is gone from your face. Is it finished?"),
     step("player", "thoughtful", "The white whale is dead. I thought the sea would change when it sank. It did not. The waves closed over it, and for the first time they were only waves."),
@@ -505,6 +576,12 @@ export function drunkenCampaignHomecomingSteps(goal, playerCharacter) {
     return [
       step("player", "happy", "I have returned with discoveries. Some of them are currently moving, but I wrote them down while they were still."),
       step("contact", "concerned", "Sit down, captain. I shall separate geography from wine before adding either to the atlas.")
+    ];
+  }
+  if (goal.type === CAMPAIGN_GOAL_TREASURE) {
+    return [
+      step("player", "happy", "The map said X marked the spot. I found three Xs, two of them moving, and one demanding another bottle."),
+      step("contact", "concerned", "Give me the treasure account after breakfast. For now, try not to bury yourself.")
     ];
   }
   return [
@@ -533,6 +610,13 @@ export function campaignVictorySummary(goal, playerCharacter, { romance = null }
       title: "THE WHITE WHALE",
       reason: "Hunted the white whale across the world and returned home alive.",
       legacy: `${playerCharacter.name} came home with the white whale's story and no need to embellish it. The chase became legend; the captain, having survived the thing that consumed so many dreams, finally learned to live beyond it. ${personal}${romanceEnding}`
+    };
+  }
+  if (goal.type === CAMPAIGN_GOAL_TREASURE) {
+    return {
+      title: "CAPTAIN'S TREASURE",
+      reason: `Recovered all ${TREASURE_MAP_PIECE_COUNT} pieces of Captain ${goal.treasureCaptainName}'s map, found the island, and fought the old crew home.`,
+      legacy: `${playerCharacter.name} returned with Captain ${goal.treasureCaptainName}'s treasure and a tale in which every impossible part was true. The map was locked away, the gold spent more wisely than pirates would have liked, and no black sail ever again made the captain mistake fear for destiny. ${personal}${romanceEnding}`
     };
   }
   return {
@@ -599,9 +683,11 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
     ? "captain"
     : entry.speaker === "companion"
       ? "crewmate"
-    : session.phase.startsWith("family-debt")
+      : session.phase.startsWith("family-debt")
       ? "creditor"
-      : session.phase.startsWith("white-whale") ? "old whaler" : "patron";
+      : session.phase.startsWith("white-whale")
+        ? "old whaler"
+        : session.phase.startsWith("pirate-treasure") ? "old buccaneer" : "patron";
   return {
     speaker: `${speakerCharacter.name}, ${role}`,
     expressionId: entry.expressionId,
@@ -1010,8 +1096,9 @@ function seededGoalType(identityKey) {
   return [
     CAMPAIGN_GOAL_EXPLORER,
     CAMPAIGN_GOAL_FAMILY_DEBT,
-    CAMPAIGN_GOAL_WHITE_WHALE
-  ][hashString32(`${identityKey}|campaign-goal`) % 3];
+    CAMPAIGN_GOAL_WHITE_WHALE,
+    CAMPAIGN_GOAL_TREASURE
+  ][hashString32(`${identityKey}|campaign-goal`) % 4];
 }
 
 function validateExplorerGoal(goal) {

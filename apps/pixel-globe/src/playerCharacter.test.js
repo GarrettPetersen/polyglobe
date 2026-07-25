@@ -68,6 +68,17 @@ test("whaling campaigns receive the cheapest regionally plausible blue-water hul
   }
 });
 
+test("treasure campaigns receive a small regionally plausible armed hull", () => {
+  for (const factionId of ["england", "ottoman", "ming", "vijayanagara"]) {
+    const armed = shipStatsForSlug(playerStarterShipForFaction(factionId, { armed: true }));
+    assert.ok(armed.cannons > 0, `${factionId}: ${armed.slug}`);
+  }
+  assert.throws(
+    () => playerStarterShipForFaction("england", { armed: true, whaling: true }),
+    /cannot request separate whaling and armed campaigns/i
+  );
+});
+
 test("Ming captains always receive Chinese starter vessels", () => {
   const profile = generatePlayerStartingProfile({
     identityKey: "ming-starter-regression",

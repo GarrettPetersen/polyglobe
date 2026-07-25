@@ -26,6 +26,13 @@ export const PLAYER_WHALING_STARTER_SHIPS = Object.freeze({
   india: "ketch"
 });
 
+export const PLAYER_ARMED_STARTER_SHIPS = Object.freeze({
+  europe: "small-cog",
+  ottoman: "ketch",
+  "east-asia": "small-junk",
+  india: "ketch"
+});
+
 const EUROPEAN_FACTIONS = new Set([
   "england",
   "scotland",
@@ -53,15 +60,21 @@ export function playerStartRegionForFaction(factionId) {
   throw new Error(`Faction cannot provide a player starter ship: ${factionId}`);
 }
 
-export function playerStarterShipForFaction(factionId, { whaling = false } = {}) {
+export function playerStarterShipForFaction(factionId, { whaling = false, armed = false } = {}) {
   if (typeof whaling !== "boolean") throw new Error(`Invalid whaling starter flag: ${whaling}`);
+  if (typeof armed !== "boolean") throw new Error(`Invalid armed starter flag: ${armed}`);
+  if (whaling && armed) throw new Error("Starter ship cannot request separate whaling and armed campaigns");
   const region = playerStartRegionForFaction(factionId);
-  const slug = (whaling ? PLAYER_WHALING_STARTER_SHIPS : PLAYER_STARTER_SHIPS)[region];
-  if (!slug) throw new Error(`No ${whaling ? "whaling " : ""}starter ship for ${factionId}`);
+  const roster = whaling
+    ? PLAYER_WHALING_STARTER_SHIPS
+    : armed ? PLAYER_ARMED_STARTER_SHIPS : PLAYER_STARTER_SHIPS;
+  const slug = roster[region];
+  if (!slug) throw new Error(`No ${whaling ? "whaling " : armed ? "armed " : ""}starter ship for ${factionId}`);
   const stats = shipStatsForSlug(slug);
   if (whaling && stats.seaworthiness < 5) {
     throw new Error(`Whaling starter is not seaworthy: ${slug}`);
   }
+  if (armed && stats.cannons <= 0) throw new Error(`Armed starter has no cannons: ${slug}`);
   return slug;
 }
 

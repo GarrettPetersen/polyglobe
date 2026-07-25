@@ -18,6 +18,7 @@ export const PLAYER_COMBAT_ID = "player";
 export const COMBAT_DETECTION_RADIUS_PX = 92;
 export const COMBAT_DISENGAGE_RADIUS_PX = 148;
 export const PIRATE_PLAYER_DETECTION_RADIUS_PX = 68;
+export const PIRATE_TREASURE_DETECTION_RADIUS_PX = 112;
 export const WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX = 138;
 export const WARSHIP_PIRATE_DISENGAGE_RADIUS_PX = 190;
 export const PLAYER_NPC_ATTACK_GRACE_SECONDS = 60;
@@ -146,7 +147,12 @@ export function npcPrizeRecipientId(winnerId, npcShips, shoreBatteries) {
 
 function combatDetectionRadius(a, b) {
   if (isNpcWarshipPiratePair(a, b)) return WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX;
-  if (isPlayerPiratePair(a, b)) return PIRATE_PLAYER_DETECTION_RADIUS_PX;
+  if (isPlayerPiratePair(a, b)) {
+    const player = a.id === PLAYER_COMBAT_ID ? a : b;
+    return player.carriesPirateTreasure
+      ? PIRATE_TREASURE_DETECTION_RADIUS_PX
+      : PIRATE_PLAYER_DETECTION_RADIUS_PX;
+  }
   return COMBAT_DETECTION_RADIUS_PX;
 }
 
@@ -303,6 +309,9 @@ function validateEntity(entity) {
     if (!Array.isArray(entity.safePassageFactionIds) ||
         entity.safePassageFactionIds.some((factionId) => typeof factionId !== "string" || factionId === "")) {
       throw new Error("Player combat entity requires safe passage faction ids");
+    }
+    if (typeof entity.carriesPirateTreasure !== "boolean") {
+      throw new Error("Player combat entity requires pirate treasure state");
     }
   }
   return entity;

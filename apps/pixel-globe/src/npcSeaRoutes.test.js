@@ -17,6 +17,7 @@ import {
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
   configureNpcEncounter,
+  configureNpcRouteEncounter,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
@@ -879,6 +880,35 @@ test("temporary quest encounters persist in saves but never enter the replacemen
   assert.equal(removed.replacement, null);
   assert.equal(routes.shipById.has(encounter.id), false);
   assert.equal(routes.replacementQueue.length, replacementCount);
+});
+
+test("routed quest pirates can respawn concealed at their hideout", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const encounter = configureNpcRouteEncounter(routes, {
+    id: "treasure-pirate:test",
+    originPortId: PORTS[0].tileId,
+    factionId: PIRATE_FACTION_ID,
+    role: NPC_ROLE_PIRATE,
+    shipSlug: "pirate-brig",
+    hiddenAtOrigin: true,
+    replaceOnSink: false,
+    encounter: { kind: "treasure-map-pirate", pirateId: "test" }
+  }, 1000);
+
+  assert.equal(encounter.currentPort.tileId, PORTS[0].tileId);
+  assert.equal(encounter.hiddenAtHideout, true);
+  assert.equal(encounter.plan, null);
+  assert.ok(encounter.hiddenUntilMinute > 1000);
+  assert.deepEqual(
+    npcShipSnapshots(routes, 1000).find((ship) => ship.id === encounter.id),
+    {
+      id: encounter.id,
+      hidden: true,
+      role: NPC_ROLE_PIRATE,
+      factionId: PIRATE_FACTION_ID
+    }
+  );
 });
 
 test("pirate hideouts are a deterministic invisible subset of coastal ports", () => {

@@ -337,6 +337,12 @@ test("warship and pirate captains identify their role and allegiance", () => {
   assert.equal(pirateView.speaker, "Anne Flint, pirate captain");
   assert.match(pirateView.text, /^Heave to/);
   assert.equal(pirateView.expressionId, "stern");
+
+  const treasureView = shipDialogueView(createShipDialogueSession(pirate, {
+    pirateTreasureName: "Israel Flint"
+  }), pirate);
+  assert.match(treasureView.text, /Captain Israel Flint's treasure is aboard/i);
+  assert.match(treasureView.text, /take the hoard/i);
 });
 
 test("an attacking captain hails with a reason before combat", () => {

@@ -128,6 +128,7 @@ import { createPortConquestMemory, validatePortConquestMemory } from "./portConq
 import {
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE,
   campaignGoalTypeForCharacter,
   createCampaignGoal,
@@ -136,6 +137,10 @@ import {
   settleWhiteWhaleHomecoming,
   validateCampaignGoal
 } from "./campaignGoals.js";
+import {
+  TREASURE_MAP_PIECE_COUNT,
+  settleTreasureHomecoming
+} from "./treasureCampaign.js";
 import {
   COLONIZATION_SETTLER_COUNT,
   COLONIZATION_STAGE_OUTBOUND,
@@ -872,7 +877,10 @@ export function settleCampaignGoalAtHome(state, city, {
     : goal.type === CAMPAIGN_GOAL_FAMILY_DEBT ? settleFamilyDebtHomecoming(goal, {
         currentMinute,
         doubloons: state.doubloons
-      }) : settleWhiteWhaleHomecoming(goal);
+      })
+      : goal.type === CAMPAIGN_GOAL_WHITE_WHALE
+        ? settleWhiteWhaleHomecoming(goal)
+        : settleTreasureHomecoming(goal);
   const amount = goal.type === CAMPAIGN_GOAL_EXPLORER
     ? outcome.reward
     : goal.type === CAMPAIGN_GOAL_FAMILY_DEBT ? -outcome.payment : 0;
@@ -919,8 +927,34 @@ export function receiveDiscoveryCargo(state, discovery, goodId, context = {}) {
   if (!state.memory.discoveries[discovery.id]) {
     throw new Error(`Cannot receive cargo for undiscovered site: ${discovery.displayName}`);
   }
+  return receiveTreasureCargo(state, {
+    rewardId: `discovery.cargo.${discovery.id}.${goodId}`,
+    sourceName: discovery.displayName,
+    goodId,
+    ledgerKind: "discovery",
+    context
+  });
+}
+
+export function receiveTreasureCargo(state, {
+  rewardId,
+  sourceName,
+  goodId,
+  ledgerKind = "campaign",
+  context = {}
+}) {
+  assertGameState(state);
+  if (typeof rewardId !== "string" || rewardId.trim() === "") {
+    throw new Error("Treasure cargo requires a reward id");
+  }
+  if (typeof sourceName !== "string" || sourceName.trim() === "") {
+    throw new Error("Treasure cargo requires a source name");
+  }
+  if (typeof ledgerKind !== "string" || ledgerKind.trim() === "") {
+    throw new Error("Treasure cargo requires a ledger kind");
+  }
   const good = goodById(goodId);
-  const rewardKey = `discovery.cargo.${discovery.id}.${good.id}`;
+  const rewardKey = rewardId;
   if (Object.prototype.hasOwnProperty.call(state.memory.decisions, rewardKey)) {
     return { good, quantity: 0, alreadyReceived: true };
   }
@@ -932,8 +966,8 @@ export function receiveDiscoveryCargo(state, discovery, goodId, context = {}) {
   state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
   state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
   recordLedgerEntry(state, null, context, {
-    kind: "discovery",
-    description: `Treasure from ${discovery.displayName}: ${good.label} x${quantity}`,
+    kind: ledgerKind,
+    description: `Treasure from ${sourceName}: ${good.label} x${quantity}`,
     goodId: good.id,
     quantity,
     amount: 0,
@@ -2059,7 +2093,7 @@ export function deliverQuestCargo(state, city, goodId, quantity, questId, contex
 
 export function shipItemRows(state) {
   assertGameState(state);
-  return SHIP_ITEM_CATALOG
+  const rows = SHIP_ITEM_CATALOG
     .map((item) => {
       if (item.id === SHIP_ITEM_FISHING_NET) return fishingNetItemRow(state);
       if (item.id === SHIP_ITEM_CANNON_EQUIPMENT) return cannonEquipmentItemRow(state);
@@ -2067,6 +2101,26 @@ export function shipItemRows(state) {
       return { ...item, quantity: state.inventory.items[item.id] || 0 };
     })
     .filter((item) => item.quantity > 0);
+  const goal = state.memory.campaignGoal;
+  if (goal?.type === CAMPAIGN_GOAL_TREASURE && goal.acquiredMapPiecePirateIds.length > 0) {
+    rows.push({
+      id: "captains-treasure-map",
+      label: `Captain ${goal.treasureCaptainName}'s map`,
+      detail: `${goal.acquiredMapPiecePirateIds.length} of ${TREASURE_MAP_PIECE_COUNT} pieces recovered`,
+      quantity: 1
+    });
+  }
+  if (goal?.type === CAMPAIGN_GOAL_TREASURE && goal.treasureRecovered) {
+    rows.push({
+      id: "captains-treasure",
+      label: `Captain ${goal.treasureCaptainName}'s treasure`,
+      detail: "A notorious hoard that draws every pirate's eye",
+      quantity: 1,
+      questItem: true,
+      discardable: false
+    });
+  }
+  return rows;
 }
 
 export function hasShipItem(state, itemId) {

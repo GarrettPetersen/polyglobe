@@ -240,6 +240,7 @@ import {
   refillFreshWaterFromShore,
   repairPlayerCargoOverflow,
   receiveDiscoveryCargo,
+  receiveTreasureCargo,
   receiveEmergencyShipAid,
   receiveFishCatch,
   receiveQuestPayment,
@@ -413,13 +414,16 @@ import {
 import {
   CAMPAIGN_DESTINATION_DISCOVERY,
   CAMPAIGN_DESTINATION_HOME,
+  CAMPAIGN_DESTINATION_TREASURE_ISLAND,
+  CAMPAIGN_DESTINATION_TREASURE_PIRATE,
   CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
   CAMPAIGN_GOAL_COMPLETE,
+  CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE,
   campaignGoalTypeForCharacter,
-  campaignGoalDestination,
+  campaignGoalDestinations,
   campaignDialogueCharacter,
   campaignDialogueView,
   campaignGoalIntroSteps,
@@ -508,11 +512,13 @@ import {
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
   NPC_SHIP_SLUGS,
+  PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
   configureCaptureEncounter,
   configureNpcEncounter,
+  configureNpcRouteEncounter,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
@@ -530,6 +536,24 @@ import {
   updateNpcPirateHideoutPlayerThreat,
   updateNpcSeaRouteSystem
 } from "./npcSeaRoutes.js";
+import {
+  TREASURE_MAP_PIECE_COUNT,
+  TREASURE_PIRATE_ENCOUNTER_KIND,
+  TREASURE_PIRATE_HINT_LIMIT,
+  TREASURE_PIRATE_STAGE_AMBUSH,
+  TREASURE_PIRATE_STAGE_HUNT,
+  acquireTreasureMapPiece,
+  bindTreasurePirateCaptainName,
+  initializeTreasureCampaign,
+  recordTreasureAmbushDefeat,
+  recordTreasurePirateRumor,
+  recoverTreasure,
+  treasureAmbushComplete,
+  treasureCampaignPhase,
+  treasureCampaignPirate,
+  treasureCampaignPirateForShip,
+  unrevealedTreasurePirates
+} from "./treasureCampaign.js";
 import {
   SAILING_WIND_CONTEXT_DESERT,
   SAILING_WIND_CONTEXT_GENERAL,
@@ -2136,7 +2160,7 @@ let whaleHarpoonProjectile = null;
 let whaleBlowBursts = [];
 let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
-let elDoradoTreasureSequence = null;
+let goldTreasureSequence = null;
 let survivalNotice = null;
 let savePersistenceWarning = null;
 let lastLocalSaveMode = LOCAL_SAVE_MODE_FULL;
@@ -2418,7 +2442,7 @@ window.addEventListener("keydown", (event) => {
     handleLakeBattleKeyDown(event, keyAction);
     return;
   }
-  if (elDoradoTreasureSequence) {
+  if (goldTreasureSequence) {
     event.preventDefault();
     return;
   }
@@ -2749,7 +2773,10 @@ async function main() {
   const campaignGoalType = campaignGoalTypeForCharacter(playerCharacter);
   const playerShipSlug = START_SHIP_SLUG_OVERRIDE || playerStarterShipForFaction(
     playerCharacter.nationalityId,
-    { whaling: campaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE }
+    {
+      whaling: campaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE,
+      armed: campaignGoalType === CAMPAIGN_GOAL_TREASURE
+    }
   );
   const playerStartPosition = START_POSITION_OVERRIDE || {
     lat: playerProfile.homePort.lat,
@@ -2864,6 +2891,10 @@ async function main() {
     ),
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
+  if (!CAPTURE_SCENARIO) {
+    initializeTreasureCampaignWorld();
+    ensureTreasureCampaignEncounters({ assignCaptains: false });
+  }
   if (CAPTURE_SCENARIO) {
     for (const encounter of CAPTURE_SCENARIO.encounters) {
       configureCaptureEncounter(npcSeaRoutes, encounter, weatherClockMinutes);
@@ -2889,6 +2920,7 @@ async function main() {
     usedCharacterNames,
     { excludedSourceIds: playerPortraitSourceExclusions(playerCharacter) }
   );
+  if (!CAPTURE_SCENARIO) synchronizeTreasurePirateCaptains();
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
   console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
   console.info(`[pixel-globe] named characters: ${usedCharacterNames.size} unique people`);
@@ -3873,7 +3905,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     return;
   }
   if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal &&
-      !gameOverReason && !elDoradoTreasureSequence) {
+      !gameOverReason && !goldTreasureSequence) {
     advanceActivePlayTime(gameState, dt);
     if (updatePlayerWind(dt)) dirty = true;
     if (updateDemoVoyageLimit()) {
@@ -4474,7 +4506,9 @@ function openCampaignGoalIntroDialogue() {
     steps,
     phase: goal.type === CAMPAIGN_GOAL_FAMILY_DEBT
       ? "family-debt-intro"
-      : goal.type === CAMPAIGN_GOAL_WHITE_WHALE ? "white-whale-intro" : "intro"
+      : goal.type === CAMPAIGN_GOAL_WHITE_WHALE
+        ? "white-whale-intro"
+        : goal.type === CAMPAIGN_GOAL_TREASURE ? "pirate-treasure-intro" : "intro"
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -4493,9 +4527,13 @@ function campaignGoalHomeCity() {
 }
 
 function activeCampaignGoalDestination() {
+  return activeCampaignGoalDestinations()[0] || null;
+}
+
+function activeCampaignGoalDestinations() {
   const goal = gameState?.memory?.campaignGoal;
-  if (!goal) return null;
-  return campaignGoalDestination(goal, {
+  if (!goal) return [];
+  return campaignGoalDestinations(goal, {
     discoveredIds: new Set(gameState.memory.discoveryOrder),
     currentMinute: weatherClockMinutes,
     doubloons: gameState.doubloons
@@ -4574,6 +4612,185 @@ function updateColonizationQuest() {
     ? `${targetName} colony failed`
     : `departed ${targetName} colony`);
   return true;
+}
+
+function activeTreasureCampaignGoal() {
+  const goal = gameState?.memory?.campaignGoal;
+  return goal?.type === CAMPAIGN_GOAL_TREASURE ? goal : null;
+}
+
+function initializeTreasureCampaignWorld() {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal) return false;
+  initializeTreasureCampaign(goal, {
+    graph,
+    earthRows: earthById,
+    navigationMask: oceanReachableNavigationMask,
+    occupiedTileIds: [
+      ...cityByTileId.keys(),
+      ...colonizationTargetPlacements.map((target) => target.tileId)
+    ],
+    pirateHideouts: npcSeaRoutes.pirateHideouts,
+    pirateShipSlugs: PIRATE_SHIP_SLUGS,
+    identityKey: gameState.voyageSeed
+  });
+  return true;
+}
+
+function ensureTreasureCampaignEncounters({
+  assignCaptains = true,
+  respawnAtHideouts = false
+} = {}) {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal || !npcSeaRoutes || goal.mapPirates.length === 0) return [];
+  const added = [];
+  if (goal.treasureRecovered) {
+    const defeated = new Set(goal.ambushDefeatedPirateIds);
+    const points = treasureAmbushSpawnPoints(goal.mapPirates.length);
+    for (const [index, pirate] of goal.mapPirates.entries()) {
+      if (defeated.has(pirate.id)) continue;
+      const existing = npcSeaRoutes.shipById.get(pirate.shipId);
+      if (existing?.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND &&
+          existing.encounter.stage === TREASURE_PIRATE_STAGE_AMBUSH) {
+        continue;
+      }
+      if (existing) removeTreasurePirateShip(existing.id);
+      const point = points[index];
+      const home = campaignGoalHomeCity();
+      added.push(configureNpcEncounter(npcSeaRoutes, {
+        id: pirate.shipId,
+        factionId: PIRATE_FACTION_ID,
+        role: NPC_ROLE_PIRATE,
+        shipSlug: pirate.shipSlug,
+        cultureType: home.cityType,
+        routeRegion: home.routeRegion || "wide-world",
+        lat: point.lat,
+        lon: point.lon,
+        headingDeg: point.headingDeg,
+        durationDays: 36500,
+        replaceOnSink: false,
+        encounter: {
+          kind: TREASURE_PIRATE_ENCOUNTER_KIND,
+          pirateId: pirate.id,
+          stage: TREASURE_PIRATE_STAGE_AMBUSH,
+          forceAttack: true,
+          challenge: `Captain ${pirate.captainName || "of the old crew"} claims a share of the treasure.`
+        }
+      }, weatherClockMinutes));
+    }
+  } else if (treasureCampaignPhase(goal) === "map-hunt") {
+    const acquired = new Set(goal.acquiredMapPiecePirateIds);
+    for (const pirate of goal.mapPirates) {
+      if (acquired.has(pirate.id) || npcSeaRoutes.shipById.has(pirate.shipId)) continue;
+      added.push(configureNpcRouteEncounter(npcSeaRoutes, {
+        id: pirate.shipId,
+        originPortId: pirate.hideoutTileId,
+        factionId: PIRATE_FACTION_ID,
+        role: NPC_ROLE_PIRATE,
+        shipSlug: pirate.shipSlug,
+        replaceOnSink: false,
+        hiddenAtOrigin: respawnAtHideouts,
+        encounter: {
+          kind: TREASURE_PIRATE_ENCOUNTER_KIND,
+          pirateId: pirate.id,
+          stage: TREASURE_PIRATE_STAGE_HUNT
+        }
+      }, weatherClockMinutes));
+    }
+  }
+  if (assignCaptains && added.length > 0) {
+    for (const strategic of added) ensureNpcShipCaptain(strategic.id);
+    synchronizeTreasurePirateCaptains();
+  }
+  return added;
+}
+
+function synchronizeTreasurePirateCaptains() {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal || goal.mapPirates.length === 0) return false;
+  let changed = false;
+  for (const pirate of goal.mapPirates) {
+    const captain = npcShipCaptains.get(pirate.shipId);
+    if (!captain) {
+      if (npcSeaRoutes.shipById.has(pirate.shipId)) {
+        throw new Error(`Treasure pirate has no assigned captain: ${pirate.shipId}`);
+      }
+      continue;
+    }
+    if (pirate.captainName === null) {
+      bindTreasurePirateCaptainName(goal, pirate.id, captain.name);
+      changed = true;
+    } else if (captain.name !== pirate.captainName) {
+      npcShipCaptains.set(pirate.shipId, { ...captain, name: pirate.captainName });
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function removeTreasurePirateShip(shipId) {
+  if (!npcSeaRoutes.shipById.has(shipId)) return false;
+  sinkNpcShip(npcSeaRoutes, shipId, Math.floor(weatherClockMinutes));
+  clearCombatForShip(shipId);
+  npcVisualShips.delete(shipId);
+  shipCombatEntryCollisionGrace.delete(shipId);
+  npcCombatProjectiles = npcCombatProjectiles.filter(
+    (ball) => ball.ownerId !== shipId && ball.targetId !== shipId
+  );
+  return true;
+}
+
+function retireResolvedTreasurePirate(shipId) {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal) return false;
+  const pirate = treasureCampaignPirateForShip(goal, shipId);
+  if (!pirate) return false;
+  const resolved = goal.acquiredMapPiecePirateIds.includes(pirate.id) ||
+    goal.ambushDefeatedPirateIds.includes(pirate.id);
+  if (!resolved || !npcSeaRoutes.shipById.has(shipId)) return false;
+  removeTreasurePirateShip(shipId);
+  saveVoyageNow("retired defeated treasure pirate");
+  return true;
+}
+
+function treasureAmbushSpawnPoints(count) {
+  const home = campaignGoalHomeCity();
+  const candidates = [];
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if (oceanReachableNavigationMask[tileId] !== 1) continue;
+    const distanceKm = EARTH_RADIUS_KM *
+      vectorArcDistance(tileCenterVector(home.tileId), tileCenterVector(tileId));
+    if (distanceKm < 90 || distanceKm > 340) continue;
+    candidates.push(tileId);
+  }
+  if (candidates.length < count) {
+    throw new Error(`Home port has only ${candidates.length} navigable pirate ambush positions`);
+  }
+  candidates.sort((a, b) => {
+    const bearingA = bearingDeg(home.lat, home.lon, graph.latDeg[a], graph.lonDeg[a]);
+    const bearingB = bearingDeg(home.lat, home.lon, graph.latDeg[b], graph.lonDeg[b]);
+    return bearingA - bearingB || a - b;
+  });
+  const rotation = spriteKeyHash(`${gameState.voyageSeed}|treasure-ambush`) % candidates.length;
+  return Array.from({ length: count }, (_, index) => {
+    const candidateIndex = (rotation + Math.floor(index * candidates.length / count)) % candidates.length;
+    const tileId = candidates[candidateIndex];
+    return {
+      lat: graph.latDeg[tileId],
+      lon: graph.lonDeg[tileId],
+      headingDeg: bearingDeg(graph.latDeg[tileId], graph.lonDeg[tileId], home.lat, home.lon)
+    };
+  });
+}
+
+function bearingDeg(fromLatDeg, fromLonDeg, toLatDeg, toLonDeg) {
+  const fromLat = fromLatDeg * DEG_TO_RAD;
+  const toLat = toLatDeg * DEG_TO_RAD;
+  const deltaLon = (toLonDeg - fromLonDeg) * DEG_TO_RAD;
+  const y = Math.sin(deltaLon) * Math.cos(toLat);
+  const x = Math.cos(fromLat) * Math.sin(toLat) -
+    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLon);
+  return (Math.atan2(y, x) * RAD_TO_DEG + 360) % 360;
 }
 
 function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
@@ -7774,6 +7991,7 @@ async function restoreSavedVoyage(payload) {
   const recoveredDerivedSystems = restoreSavedDerivedWorld(payload, restoredGameState);
 
   ensureColonizationDefenseEncounter({ assignCaptains: false });
+  ensureTreasureCampaignEncounters({ assignCaptains: false });
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
   initializeFetchQuestReadiness();
@@ -7854,7 +8072,7 @@ async function restoreSavedVoyage(payload) {
   whaleBlowBursts = [];
   whaleKillEffects = [];
   itemAcquisitionEffects = [];
-  elDoradoTreasureSequence = null;
+  goldTreasureSequence = null;
   shoreScavengeAction = null;
   portWaitState = null;
   portWaitButtonRect = null;
@@ -7890,6 +8108,7 @@ async function restoreSavedVoyage(payload) {
     usedCharacterNames,
     { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
   );
+  synchronizeTreasurePirateCaptains();
   await ensureCharacterPortraitLoaded(gameState.playerCharacter, characterExpression(gameState.playerCharacter));
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
@@ -9256,7 +9475,7 @@ function handlePointerDown(event) {
     handleLakeBattlePointerDown(event.pointerId, point);
     return;
   }
-  if (elDoradoTreasureSequence) {
+  if (goldTreasureSequence) {
     event.preventDefault();
     return;
   }
@@ -10327,6 +10546,29 @@ function openPortDialogue(cityCall) {
     dirty = true;
     return;
   }
+  const treasureGoal = activeTreasureCampaignGoal();
+  if (treasureGoal &&
+      cityCall.tileId === treasureGoal.homePortTileId &&
+      treasureGoal.treasureRecovered &&
+      !treasureAmbushComplete(treasureGoal)) {
+    const remaining = TREASURE_MAP_PIECE_COUNT - treasureGoal.ambushDefeatedPirateIds.length;
+    dialogueState = createCampaignDialogueSession({
+      cityTileId: cityCall.tileId,
+      phase: "pirate-treasure-blockade",
+      steps: [{
+        speaker: "player",
+        expressionId: "stern",
+        text: `${remaining} of Captain ${treasureGoal.treasureCaptainName}'s old crew still block the harbor. ` +
+          "They mean to have the treasure before they let us reach the quay."
+      }]
+    });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow("treasure pirates blockaded home");
+    dirty = true;
+    return;
+  }
 
   const arrivedDrunk = captainIsDrunkAtPort(gameState);
   if (arrivedDrunk) syncAchievementsFromGameState({ type: "arrived-in-port-drunk" });
@@ -10491,7 +10733,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       chefQuestApproach: true
     });
   }
-  const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
+  const rumor = maybeCampaignRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
   if (rumor) {
     const nextPortNodeId = needsLoadout
       ? "loadout"
@@ -10736,6 +10978,7 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
   const goal = gameState.memory.campaignGoal;
   if (!goal || cityCall.tileId !== goal.homePortTileId) return null;
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
+  if (goal.type === CAMPAIGN_GOAL_TREASURE && !treasureAmbushComplete(goal)) return null;
   const doubloonsBefore = gameState.doubloons;
   const lead = goal.type === CAMPAIGN_GOAL_EXPLORER
     ? retainedOrNearestExplorerLead(cityCall, goal)
@@ -10987,13 +11230,21 @@ function continuePortDialogueAfterCampaign() {
 
 function openShipDialogue(shipCall, options = {}) {
   if (!shipCall.character) throw new Error(`Cannot hail NPC ship without a captain: ${shipCall.id}`);
+  const strategicShip = npcSeaRoutes?.shipById?.get(shipCall.id);
+  const treasureGoal = activeTreasureCampaignGoal();
+  const pirateTreasureName = treasureGoal?.treasureRecovered &&
+    strategicShip?.role === NPC_ROLE_PIRATE &&
+    strategicShip.encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND
+    ? treasureGoal.treasureCaptainName
+    : null;
   const rumor = options.attackReason || options.cartazInspection
     ? null
-    : maybeWhiteWhaleRumor(`ship:${shipCall.id}`);
+    : maybeCampaignRumor(`ship:${shipCall.id}`);
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
     rumorText: options.attackReason || options.cartazInspection ? null : rumor?.text || null,
-    listenerReligionId: gameState.playerCharacter?.religionId || null
+    listenerReligionId: gameState.playerCharacter?.religionId || null,
+    pirateTreasureName
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -11025,6 +11276,54 @@ function maybeWhiteWhaleRumor(interactionKey) {
   return rumor;
 }
 
+function maybeCampaignRumor(interactionKey) {
+  const goal = gameState?.memory?.campaignGoal;
+  if (!goal) return null;
+  if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) return maybeWhiteWhaleRumor(interactionKey);
+  if (goal.type === CAMPAIGN_GOAL_TREASURE) return maybeTreasurePirateRumor(interactionKey);
+  return null;
+}
+
+function maybeTreasurePirateRumor(interactionKey, { force = false, preferredPirateId = null } = {}) {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal || treasureCampaignPhase(goal) !== "map-hunt" ||
+      goal.pirateHints.length >= TREASURE_PIRATE_HINT_LIMIT) {
+    return null;
+  }
+  const candidates = unrevealedTreasurePirates(goal);
+  if (candidates.length === 0) return null;
+  const pirate = preferredPirateId
+    ? candidates.find((entry) => entry.id === preferredPirateId)
+    : candidates[spriteKeyHash(`${interactionKey}|treasure-pirate-choice`) % candidates.length];
+  if (!pirate) return null;
+  const snapshot = npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)
+    .find((entry) => entry.id === pirate.shipId);
+  const strategic = npcSeaRoutes.shipById.get(pirate.shipId);
+  if (!strategic) throw new Error(`Treasure pirate is absent from world traffic: ${pirate.shipId}`);
+  const piratePosition = snapshot?.routeVector || tileCenterVector(pirate.hideoutTileId);
+  const pirateLocation = vectorLatLon(piratePosition);
+  const referenceCity = nearestCityToPosition(piratePosition);
+  const reportedLocation = approximateOceanRumorLocation(
+    piratePosition,
+    interactionKey,
+    "treasure-pirate-search-area"
+  );
+  const rumor = recordTreasurePirateRumor(goal, {
+    interactionKey,
+    pirateId: pirate.id,
+    pirateLatitudeDeg: pirateLocation.latitudeDeg,
+    pirateLongitudeDeg: pirateLocation.longitudeDeg,
+    reportedLatitudeDeg: reportedLocation.latitudeDeg,
+    reportedLongitudeDeg: reportedLocation.longitudeDeg,
+    referenceCityName: cityLabelText(referenceCity),
+    referenceCityLatitudeDeg: referenceCity.lat,
+    referenceCityLongitudeDeg: referenceCity.lon,
+    force
+  });
+  saveVoyageNow(rumor ? "heard treasure pirate rumor" : "checked treasure pirate rumor");
+  return rumor;
+}
+
 function nearestCityToPosition(position) {
   if (!(cityByTileId instanceof Map) || cityByTileId.size === 0) {
     throw new Error("White whale rumor requires the placed city catalog");
@@ -11045,9 +11344,14 @@ function nearestCityToPosition(position) {
 }
 
 function approximateWhiteWhaleSightingLocation(position, interactionKey) {
+  return approximateOceanRumorLocation(position, interactionKey, "white-whale-search-area");
+}
+
+function approximateOceanRumorLocation(position, interactionKey, salt) {
+  if (typeof salt !== "string" || salt === "") throw new Error("Ocean rumor approximation requires a salt");
   const north = normalizeTangentOrFallback(WORLD_NORTH, position, [1, 0, 0]);
   const east = normalizeTangentOrFallback(cross3(north, position), position, [1, 0, 0]);
-  const seed = spriteKeyHash(`${interactionKey}|white-whale-search-area`);
+  const seed = spriteKeyHash(`${interactionKey}|${salt}`);
   for (let index = 0; index < 24; index++) {
     const bearing = ((seed % 360) + index * 137.508) * Math.PI / 180;
     const distanceKm = 180 + ((seed >>> 9) + index * 47) % 181;
@@ -11066,7 +11370,7 @@ function approximateWhiteWhaleSightingLocation(position, interactionKey) {
     if (!isWhaleSwimmableOceanRow(earthById[tileId])) continue;
     return vectorLatLon(tileCenterVector(tileId));
   }
-  throw new Error("White whale rumor could not place an approximate ocean search area");
+  throw new Error(`Ocean rumor could not place an approximate search area: ${salt}`);
 }
 
 function stopShipForDialogue() {
@@ -11133,8 +11437,44 @@ function toggleAnchor() {
   if (!canAnchorAtCurrentShore()) return false;
   anchored = true;
   stopShipMotion();
-  saveVoyageNow("dropped anchor");
+  if (!maybeRecoverCampaignTreasureAtAnchor()) saveVoyageNow("dropped anchor");
   dirty = true;
+  return true;
+}
+
+function maybeRecoverCampaignTreasureAtAnchor() {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal || treasureCampaignPhase(goal) !== "find-treasure") return false;
+  const shoreCall = nearestScavengeShoreCall();
+  if (!shoreCall || shoreCall.id !== goal.treasureTileId) return false;
+
+  recoverTreasure(goal, Math.floor(weatherClockMinutes));
+  const cargoReward = receiveTreasureCargo(gameState, {
+    rewardId: `campaign.pirate-treasure.${goal.treasureCaptainName}`,
+    sourceName: `Captain ${goal.treasureCaptainName}'s island`,
+    goodId: "gold",
+    context: { simMinute: Math.floor(weatherClockMinutes) }
+  });
+  syncShipCargoFromGameState();
+  ensureTreasureCampaignEncounters();
+  const chartOffset = chartOffsetPixels(chart);
+  const captainMessage = cargoReward.quantity > 0
+    ? `The twelve scraps were true. Captain ${goal.treasureCaptainName}'s hoard is ours: ` +
+      `${cargoReward.quantity} units of gold, and the old treasure itself. Now every pirate afloat will smell it on the wind. Home lies beyond their guns.`
+    : `The twelve scraps were true, but our hold cannot take another coin. We still have Captain ` +
+      `${goal.treasureCaptainName}'s treasure, and every pirate afloat will come hunting it. Home lies beyond their guns.`;
+  startGoldTreasureSequence({
+    sourcePoint: {
+      x: shoreCall.x + chartOffset.x,
+      y: shoreCall.y + chartOffset.y
+    },
+    cargoReward,
+    captainMessage,
+    nowMs: lastFrameMs
+  });
+  playDiscoverySuccessSound();
+  showSurvivalNotice("CAPTAIN'S TREASURE RECOVERED", "good");
+  saveVoyageNow("recovered captain's treasure");
   return true;
 }
 
@@ -11816,6 +12156,7 @@ function chooseDialogueOption(optionIndex) {
     return;
   }
   if (result.closed) {
+    if (dialogueNpcShipId) retireResolvedTreasurePirate(dialogueNpcShipId);
     if (dialogueState.kind === "rescued-traveler" && dialogueState.surrenderPrize) {
       const { npcShipId, lootSummary } = dialogueState.surrenderPrize;
       dialogueState = null;
@@ -11939,11 +12280,11 @@ function updateItemAcquisitionEffects(nowMs) {
   }
   itemAcquisitionEffects = activeEffects;
 
-  if (elDoradoTreasureSequence && nowMs >= elDoradoTreasureSequence.completeAtMs) {
-    const { captainMessage } = elDoradoTreasureSequence;
-    elDoradoTreasureSequence = null;
+  if (goldTreasureSequence && nowMs >= goldTreasureSequence.completeAtMs) {
+    const { captainMessage } = goldTreasureSequence;
+    goldTreasureSequence = null;
     if (captainMessage && !openCaptainAlertModal(captainMessage, "happy")) {
-      throw new Error("El Dorado treasure sequence could not open its captain dialogue");
+      throw new Error("Gold treasure sequence could not open its captain dialogue");
     }
     changed = true;
   }
@@ -17384,7 +17725,20 @@ function attemptEnvoyIntercession(factionId) {
 function npcCombatAttackReason(state) {
   const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
   if (encounter?.kind === "colonization-defense") return encounter.challenge;
+  if (encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND && encounter.challenge) {
+    return encounter.challenge;
+  }
   if (state.role === NPC_ROLE_PIRATE) {
+    const treasureGoal = activeTreasureCampaignGoal();
+    if (treasureGoal?.treasureRecovered) {
+      const variants = [
+        `Captain ${treasureGoal.treasureCaptainName}'s treasure belongs to the Brotherhood of the Coast. Strike your colors!`,
+        "We know what lies in your hold. Give us the captain's hoard, or we will prise it from the wreck!",
+        "Gold can change hands without blood, captain. Heave to and surrender the treasure!",
+        `Every black sail has heard of ${treasureGoal.treasureCaptainName}'s fortune. Today it is ours.`
+      ];
+      return variants[spriteKeyHash(`${state.id}|pirate-treasure-challenge`) % variants.length];
+    }
     return "Your cargo and coin are ours. Heave to, or we open fire!";
   }
   if (
@@ -17666,6 +18020,7 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
     npcAttackProtected: playerNpcAttackGraceIsActive(gameState.activePlaySeconds),
     portProtected: playerShipIsInvulnerable(),
     majorPortProtected: playerHasMajorPortProtection(),
+    carriesPirateTreasure: activeTreasureCampaignGoal()?.treasureRecovered === true,
     safePassageFactionIds: activeFactionSafePassageIds(
       gameState,
       portEntryContext.simMinute,
@@ -18098,7 +18453,11 @@ function addNpcCombatSplash(ball) {
 }
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
-  const loserWasPirate = npcSeaRoutes.shipById.get(loserId)?.role === NPC_ROLE_PIRATE;
+  const strategicBeforeSurrender = npcSeaRoutes.shipById.get(loserId);
+  const loserWasPirate = strategicBeforeSurrender?.role === NPC_ROLE_PIRATE;
+  const treasureEncounter = strategicBeforeSurrender?.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
+    ? { ...strategicBeforeSurrender.encounter }
+    : null;
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
   if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
     surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
@@ -18165,6 +18524,12 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   }
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
   if (playerPrizeSummary) {
+    if (treasureEncounter && resolveTreasurePiratePlayerDefeat(loserId, treasureEncounter, {
+      sunk: false,
+      onComplete: () => openSurrenderPrizeDecision(loserId, playerPrizeSummary)
+    })) {
+      return;
+    }
     const captiveOpened = loserWasPirate && maybeOpenPirateCaptiveQuest(loserId, {
       npcShipId: loserId,
       lootSummary: playerPrizeSummary
@@ -18197,6 +18562,9 @@ function handleNpcSinking(loserId, winnerId) {
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
   const loserWasPirate = strategic.role === NPC_ROLE_PIRATE;
+  const treasureEncounter = strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
+    ? { ...strategic.encounter }
+    : null;
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
   const visualState = npcVisualShips.get(loserId);
   if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
@@ -18219,7 +18587,106 @@ function handleNpcSinking(loserId, winnerId) {
     text: sinkingNotice,
     expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
   };
+  if (treasureEncounter) {
+    if (winnerId === PLAYER_COMBAT_ID) {
+      resolveTreasurePiratePlayerDefeat(loserId, treasureEncounter, { sunk: true });
+    } else {
+      ensureTreasureCampaignEncounters({ respawnAtHideouts: true });
+      saveVoyageNow("treasure pirate escaped destruction");
+    }
+    return true;
+  }
   if (winnerId === PLAYER_COMBAT_ID && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
+  return true;
+}
+
+function resolveTreasurePiratePlayerDefeat(loserId, encounter, {
+  sunk,
+  onComplete = null
+} = {}) {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal || encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND) return false;
+  const pirate = treasureCampaignPirate(goal, encounter.pirateId);
+  if (!pirate || pirate.shipId !== loserId) {
+    throw new Error(`Treasure encounter does not match pirate roster: ${loserId}/${encounter.pirateId}`);
+  }
+  const defeatedCaptain = npcShipCaptains.get(loserId);
+  if (!defeatedCaptain) throw new Error(`Defeated treasure pirate has no captain: ${loserId}`);
+  const steps = [];
+  if (encounter.stage === TREASURE_PIRATE_STAGE_HUNT) {
+    const result = acquireTreasureMapPiece(goal, pirate.id, Math.floor(weatherClockMinutes));
+    if (!result.acquired) return false;
+    if (sunk) {
+      steps.push({
+        character: gameState.playerCharacter,
+        expressionId: "attentive",
+        message: `Among Captain ${pirate.captainName}'s floating wreckage we found a waxed scrap of chart. ` +
+          `That makes ${result.count} of ${TREASURE_MAP_PIECE_COUNT} pieces.`
+      });
+    } else {
+      steps.push({
+        character: defeatedCaptain,
+        expressionId: "sad",
+        message: `Take the map scrap and be done with it. Captain ${goal.treasureCaptainName}'s gold has ` +
+          "brought nothing but black spots, mutiny, and the creak of a rope in every dream."
+      });
+      steps.push({
+        character: gameState.playerCharacter,
+        expressionId: "attentive",
+        message: `Piece ${result.count} of ${TREASURE_MAP_PIECE_COUNT}. The torn coastlines are beginning to agree.`
+      });
+    }
+    if (!result.complete &&
+        goal.pirateHints.length < TREASURE_PIRATE_HINT_LIMIT &&
+        spriteKeyHash(`${pirate.id}|treasure-confession`) % 2 === 0) {
+      const rumor = maybeTreasurePirateRumor(
+        `defeated:${pirate.id}:${result.count}`,
+        { force: true }
+      );
+      if (rumor) {
+        steps.push({
+          character: sunk ? gameState.playerCharacter : defeatedCaptain,
+          expressionId: sunk ? "thoughtful" : "concerned",
+          message: sunk
+            ? `A note in the captain's log names Captain ${rumor.pirate.captainName}, last heard of ` +
+              `${rumor.hint.direction} of ${rumor.hint.referenceCityName}. I have marked it.`
+            : `You want another? Captain ${rumor.pirate.captainName} was last heard of ` +
+              `${rumor.hint.direction} of ${rumor.hint.referenceCityName}. Mark it, and may you both sink.`
+        });
+      }
+    }
+    if (result.complete) {
+      steps.push({
+        character: gameState.playerCharacter,
+        expressionId: "happy",
+        message: `All ${TREASURE_MAP_PIECE_COUNT} pieces fit. The ink makes one island, one anchorage, ` +
+          `and one red X. Captain ${goal.treasureCaptainName}'s treasure finally has a bearing.`
+      });
+    }
+    showSurvivalNotice(`TREASURE MAP  ${result.count}/${TREASURE_MAP_PIECE_COUNT}`, "good");
+    playCollectionDingSound();
+  } else if (encounter.stage === TREASURE_PIRATE_STAGE_AMBUSH) {
+    if (!recordTreasureAmbushDefeat(goal, pirate.id)) return false;
+    const remaining = TREASURE_MAP_PIECE_COUNT - goal.ambushDefeatedPirateIds.length;
+    steps.push({
+      character: gameState.playerCharacter,
+      expressionId: remaining === 0 ? "happy" : "stern",
+      message: remaining === 0
+        ? "That was the last of the old crew. No black sails remain between us and home."
+        : `${pirate.captainName} is beaten. ${remaining} of the old crew still hunt the treasure.`
+    });
+    showSurvivalNotice(
+      remaining === 0 ? "THE OLD CREW IS DEFEATED" : `${remaining} TREASURE PIRATES REMAIN`,
+      "good"
+    );
+  } else {
+    throw new Error(`Unknown treasure pirate encounter stage: ${encounter.stage}`);
+  }
+  saveVoyageNow(encounter.stage === TREASURE_PIRATE_STAGE_HUNT
+    ? "recovered treasure map piece"
+    : "defeated treasure pirate ambusher");
+  const opened = startCharacterAlertSequence(steps, onComplete);
+  if (!opened) throw new Error(`Treasure pirate defeat dialogue could not open: ${loserId}`);
   return true;
 }
 
@@ -20456,20 +20923,46 @@ function queueDiscovery(discovery, nowMs) {
 
 function startElDoradoTreasureSequence(discovery, cargoReward, nowMs) {
   if (discovery.id !== EL_DORADO_DISCOVERY_ID || !cargoReward || cargoReward.quantity <= 0) return false;
-  if (!Number.isInteger(cargoReward.quantity)) {
-    throw new Error(`El Dorado awarded a fractional gold quantity: ${cargoReward.quantity}`);
-  }
-  if (elDoradoTreasureSequence) throw new Error("El Dorado treasure sequence is already active");
   if (!chart) throw new Error("El Dorado treasure sequence requires an active chart");
   const sourcePoint = worldDiscoveryLocalPoint(discovery, chart);
   if (!sourcePoint) throw new Error("El Dorado treasure sequence cannot find the landmark on screen");
   const chartOffset = chartOffsetPixels(chart);
+  return startGoldTreasureSequence({
+    sourcePoint: {
+      x: sourcePoint.x + chartOffset.x,
+      y: sourcePoint.y + chartOffset.y
+    },
+    cargoReward,
+    captainMessage: discoveryCaptainDialogueMessage(discovery, cargoReward),
+    nowMs
+  });
+}
+
+function startGoldTreasureSequence({
+  sourcePoint,
+  cargoReward,
+  captainMessage,
+  nowMs
+}) {
+  if (!cargoReward?.good || !Number.isInteger(cargoReward.quantity) || cargoReward.quantity < 0) {
+    throw new Error(`Gold treasure awarded an invalid quantity: ${cargoReward?.quantity}`);
+  }
+  if (!Number.isFinite(sourcePoint?.x) || !Number.isFinite(sourcePoint?.y)) {
+    throw new Error("Gold treasure sequence requires a screen source point");
+  }
+  if (goldTreasureSequence) throw new Error("Gold treasure sequence is already active");
+  if (cargoReward.quantity === 0) {
+    if (captainMessage && !openCaptainAlertModal(captainMessage, "happy")) {
+      throw new Error("Gold treasure sequence could not open its captain dialogue");
+    }
+    return true;
+  }
   const shipOrigin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
   const effects = createItemAcquisitionBurst({
     iconId: tradeGoodIconId(cargoReward.good.id),
     count: cargoReward.quantity,
-    startCenterX: sourcePoint.x + chartOffset.x,
-    startCenterY: sourcePoint.y + chartOffset.y,
+    startCenterX: sourcePoint.x,
+    startCenterY: sourcePoint.y,
     targetCenterX: shipOrigin.x + SHIP_SHEET_FRAME_SIZE / 2,
     targetCenterY: shipOrigin.y + SHIP_SHEET_FRAME_SIZE / 2,
     startedAtMs: nowMs,
@@ -20477,9 +20970,9 @@ function startElDoradoTreasureSequence(discovery, cargoReward, nowMs) {
     arrivalSoundId: ITEM_ARRIVAL_SOUND_COIN_CLINK
   });
   itemAcquisitionEffects.push(...effects);
-  elDoradoTreasureSequence = {
+  goldTreasureSequence = {
     completeAtMs: itemAcquisitionEffectEndMs(effects.at(-1)),
-    captainMessage: discoveryCaptainDialogueMessage(discovery, cargoReward)
+    captainMessage
   };
   stopShipForDialogue();
   dirty = true;
@@ -22206,8 +22699,9 @@ function navigationMenuEntries() {
     });
   }
 
-  const campaignDestination = activeCampaignGoalDestination();
-  if (campaignDestination) entries.push(campaignNavigationMenuEntry(campaignDestination));
+  for (const campaignDestination of activeCampaignGoalDestinations()) {
+    entries.push(campaignNavigationMenuEntry(campaignDestination));
+  }
 
   const naturalistDestination = activeNaturalistReportDestination();
   if (naturalistDestination) {
@@ -22337,6 +22831,30 @@ function campaignNavigationMenuEntry(destination) {
       optionalWaypointId: null
     };
   }
+  if (destination.kind === CAMPAIGN_DESTINATION_TREASURE_PIRATE) {
+    return {
+      id: `campaign:treasure-pirate:${destination.pirateId}`,
+      destinationName: `Captain ${destination.pirateName}`,
+      reason: "TREASURE MAP PIECE",
+      style: CAMPAIGN_NAVIGATION_STYLE,
+      targetVector: latLonToDirection(destination.latitudeDeg, destination.longitudeDeg),
+      optionalWaypointId: null
+    };
+  }
+  if (destination.kind === CAMPAIGN_DESTINATION_TREASURE_ISLAND) {
+    const goal = activeTreasureCampaignGoal();
+    if (!goal || goal.treasureTileId !== destination.tileId) {
+      throw new Error(`Treasure island navigation mismatch: ${destination.tileId}`);
+    }
+    return {
+      id: `campaign:treasure-island:${destination.tileId}`,
+      destinationName: `Captain ${goal.treasureCaptainName}'s island`,
+      reason: "FOLLOW THE COMPLETED MAP",
+      style: CAMPAIGN_NAVIGATION_STYLE,
+      targetVector: tileCenterVector(destination.tileId),
+      optionalWaypointId: null
+    };
+  }
   if (destination.kind !== CAMPAIGN_DESTINATION_HOME) {
     throw new Error(`Unknown campaign navigation destination: ${destination.kind}`);
   }
@@ -22347,6 +22865,10 @@ function campaignNavigationMenuEntry(destination) {
       ? "PAY THE FAMILY DEBT"
       : destination.reason === "return-after-white-whale"
         ? "RETURN HOME VICTORIOUS"
+        : destination.reason === "treasure-home-ambush"
+          ? "BREAK THE PIRATE BLOCKADE"
+          : destination.reason === "return-with-treasure"
+            ? "BRING THE TREASURE HOME"
         : "RETURN HOME";
   return {
     id: `campaign:home:${home.tileId}`,
@@ -29783,8 +30305,12 @@ function drawQuestDestinationArrow(nowMs) {
 
 function drawCampaignGoalDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout) return;
-  const destination = activeCampaignGoalDestination();
-  if (!destination) return;
+  for (const destination of activeCampaignGoalDestinations()) {
+    drawOneCampaignGoalDestinationArrow(destination, nowMs);
+  }
+}
+
+function drawOneCampaignGoalDestinationArrow(destination, nowMs) {
   const style = CAMPAIGN_NAVIGATION_STYLE;
 
   if (destination.kind === CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING) {
@@ -29794,6 +30320,39 @@ function drawCampaignGoalDestinationArrow(nowMs) {
       label: "White whale last seen",
       targetVector,
       localPoint: localPointForGlobeVector(targetVector),
+      localYOffset: -10,
+      nowMs,
+      style
+    });
+    return;
+  }
+
+  if (destination.kind === CAMPAIGN_DESTINATION_TREASURE_PIRATE) {
+    const targetVector = latLonToDirection(destination.latitudeDeg, destination.longitudeDeg);
+    drawWorldTargetArrow({
+      id: `campaign:treasure-pirate:${destination.pirateId}`,
+      label: `Captain ${destination.pirateName}`,
+      targetVector,
+      localPoint: localPointForGlobeVector(targetVector),
+      localYOffset: -10,
+      nowMs,
+      style
+    });
+    return;
+  }
+
+  if (destination.kind === CAMPAIGN_DESTINATION_TREASURE_ISLAND) {
+    const goal = activeTreasureCampaignGoal();
+    if (!goal || goal.treasureTileId !== destination.tileId) {
+      throw new Error(`Treasure island arrow mismatch: ${destination.tileId}`);
+    }
+    const targetVector = tileCenterVector(destination.tileId);
+    const visibleTile = chart.tileCalls.find((call) => call.id === destination.tileId);
+    drawWorldTargetArrow({
+      id: `campaign:treasure-island:${destination.tileId}`,
+      label: `Captain ${goal.treasureCaptainName}'s island`,
+      targetVector,
+      localPoint: visibleTile || localPointForGlobeVector(targetVector),
       localYOffset: -10,
       nowMs,
       style
