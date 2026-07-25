@@ -1,10 +1,9 @@
-import { cloudflareEnvironment } from "./cloudflareEnvironment.mjs";
+import {
+  ANALYTICS_ENGINE_DATASET,
+  queryAnalyticsEngine
+} from "./analyticsEngine.mjs";
 
-const environment = await cloudflareEnvironment();
-const accountId = environment.CLOUDFLARE_ACCOUNT_ID;
-const apiToken = environment.CLOUDFLARE_API_TOKEN;
-const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/analytics_engine/sql`;
-const dataset = "marque_and_reprisal_game_events";
+const dataset = ANALYTICS_ENGINE_DATASET;
 const windowDays = integerArgument(process.argv.slice(2), "--days", 30);
 
 const sections = [
@@ -100,36 +99,10 @@ const sections = [
 
 console.log(`Marque & Reprisal telemetry, last ${windowDays} days`);
 for (const [title, sql] of sections) {
-  const rows = await queryAnalytics(sql);
+  const rows = await queryAnalyticsEngine(sql);
   console.log(`\n${title}`);
   if (rows.length === 0) console.log("(no data)");
   else console.table(rows);
-}
-
-async function queryAnalytics(sql) {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiToken}`,
-      "content-type": "text/plain"
-    },
-    body: sql.trim()
-  });
-  const responseText = await response.text();
-  let body;
-  try {
-    body = JSON.parse(responseText);
-  } catch {
-    throw new Error(`Cloudflare Analytics Engine query failed (${response.status}): ${
-      responseText.slice(0, 500) || "unknown error"
-    }`);
-  }
-  if (!response.ok || body.success === false) {
-    throw new Error(`Cloudflare Analytics Engine query failed (${response.status}): ${
-      body.errors?.map((entry) => entry.message).join("; ") || "unknown error"
-    }`);
-  }
-  return Array.isArray(body.data) ? body.data : Array.isArray(body.result) ? body.result : [];
 }
 
 function integerArgument(args, name, fallback) {

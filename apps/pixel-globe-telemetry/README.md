@@ -27,6 +27,8 @@ npm run deploy
 npm run configure-secret
 npm run verify
 npm run report
+npm run crashes -- --hours 24
+npm run crashes -- --days 7 --format json
 ```
 
 Run `configure-secret` once after the first deployment, and again only when rotating
@@ -36,3 +38,14 @@ stores it.
 The report command prints 30-day sessions, active playtime, voyage outcomes, broad
 feature engagement, and grouped crashes. Cloudflare credentials are read from the
 root `.env` without being printed.
+
+The crash command retrieves every grouped crash context in a bounded lookback window,
+including the build revision, channel, platform, screen, redacted stack, report count,
+affected-installation count, and first/last observation times. It defaults to 24 hours.
+Use `--format json` for scheduled diagnosis or another machine-readable workflow:
+
+From the repository root:
+
+```sh
+npm run --silent pixel-globe-telemetry:crashes -- --hours 48 --format json
+```

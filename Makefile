@@ -6,7 +6,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-verify pixel-globe-telemetry-report
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
 
 help:
 	@echo "Targets:"
@@ -43,6 +43,7 @@ help:
 	@echo "  make pixel-globe-telemetry-deploy   Deploy the anonymous telemetry Worker"
 	@echo "  make pixel-globe-telemetry-verify   Verify live ingestion and reporting"
 	@echo "  make pixel-globe-telemetry-report   Print the 30-day telemetry report"
+	@echo "  make pixel-globe-telemetry-crashes  Print crash reports from the last 24 hours"
 
 demo-dev:
 	cd $(DEMO_DIR) && npm run dev
@@ -156,3 +157,6 @@ pixel-globe-telemetry-verify:
 
 pixel-globe-telemetry-report:
 	npm --prefix $(PIXEL_GLOBE_TELEMETRY_DIR) run report
+
+pixel-globe-telemetry-crashes:
+	npm --prefix $(PIXEL_GLOBE_TELEMETRY_DIR) run crashes

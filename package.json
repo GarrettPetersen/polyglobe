@@ -35,6 +35,7 @@
     "pixel-globe-telemetry:deploy": "npm --prefix apps/pixel-globe-telemetry run deploy",
     "pixel-globe-telemetry:verify": "npm --prefix apps/pixel-globe-telemetry run verify",
     "pixel-globe-telemetry:report": "npm --prefix apps/pixel-globe-telemetry run report",
+    "pixel-globe-telemetry:crashes": "npm --prefix apps/pixel-globe-telemetry run crashes --",
     "marque-site:dev": "npm --prefix apps/marque-and-reprisal-site run dev",
     "marque-site:build": "npm --prefix apps/marque-and-reprisal-site run build",
     "marque-site:check": "npm --prefix apps/marque-and-reprisal-site run check",
