@@ -10,14 +10,21 @@ import {
 import {
   diplomacyBetweenForState,
   factionReputation,
+  hasPersonalTradePass,
   hasLetterOfMarqueFrom,
-  recentGameDiplomacyEvents
+  recentGameDiplomacyEvents,
+  sovereignTradeOpenToFaction
 } from "./gameState.js";
 import { clampMenuIndex } from "./menuNavigation.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
+import { sovereignTradePoliciesForHostFaction } from "./sovereignTradeAccess.js";
+import { customsTerms } from "./tradePolicy.js";
 import { diplomaticContactBetween } from "./worldDiplomacy.js";
 import {
   SUZERAINTY_KIND_PERSONAL_UNION,
+  SUZERAINTY_KIND_TRIBUTARY,
+  SUZERAINTY_KIND_VASSAL,
+  suzeraintyTradePrivilege,
   suzeraintyForVassal,
   vassalsOf
 } from "./suzerainty.js";
@@ -30,8 +37,11 @@ export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_WAR]: "War"
 });
 
-export function createPoliticsView(gameState) {
+export function createPoliticsView(gameState, simMinute = gameState?.survival?.lastMinute ?? 0) {
   if (!gameState || typeof gameState !== "object") throw new Error("Politics view requires game state");
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Politics view requires a valid simulation minute: ${simMinute}`);
+  }
   const powers = politicalPowers(gameState);
   return {
     powers,
@@ -40,7 +50,8 @@ export function createPoliticsView(gameState) {
       faction,
       player: {
         ...playerStandingForReputation(factionReputation(gameState, faction.id)),
-        hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id)
+        hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id),
+        trade: playerTradeStanding(gameState, faction, simMinute)
       },
       stances: powers.map((other) => {
         const relation = diplomacyBetweenForState(gameState, faction.id, other.id);
@@ -82,8 +93,31 @@ export function politicsPowerLabel(faction, powers) {
   if (!faction.suzerainFactionId) return faction.shortName.toUpperCase();
   const suzerain = powers.find((entry) => entry.id === faction.suzerainFactionId);
   if (!suzerain) throw new Error(`Politics view is missing suzerain ${faction.suzerainFactionId}`);
-  const separator = faction.suzeraintyKind === SUZERAINTY_KIND_PERSONAL_UNION ? "=" : ">";
+  const separator = politicsDependencyGlyph(faction.suzeraintyKind);
   return `${faction.shortName.toUpperCase()} ${separator}${suzerain.code}`;
+}
+
+export function politicsDependencyGlyph(kind) {
+  if (kind === SUZERAINTY_KIND_VASSAL) return ">";
+  if (kind === SUZERAINTY_KIND_TRIBUTARY) return "~";
+  if (kind === SUZERAINTY_KIND_PERSONAL_UNION) return "=";
+  throw new Error(`Unknown politics dependency kind: ${kind}`);
+}
+
+export function politicsTradeCode(trade) {
+  if (!trade || !Number.isInteger(trade.dutyPercent) ||
+      trade.dutyPercent < 0 || trade.dutyPercent > 25) {
+    throw new Error("Invalid politics trade standing");
+  }
+  const marker = {
+    ordinary: "",
+    open: "O",
+    pass: "P",
+    closed: "X",
+    war: "W"
+  }[trade.access];
+  if (marker === undefined) throw new Error(`Unknown politics trade access: ${trade.access}`);
+  return `${trade.dutyPercent}%${marker}`;
 }
 
 export function politicsRowsPage(view, page, rowsPerPage) {
@@ -117,6 +151,54 @@ function standing(reputation, label) {
     label,
     scoreLabel: formatSignedReputation(reputation)
   };
+}
+
+function playerTradeStanding(gameState, faction, simMinute) {
+  const traderFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const relation = diplomacyBetweenForState(gameState, traderFactionId, faction.id);
+  const suzeraintyPrivilege = suzeraintyTradePrivilege(
+    gameState.relations.diplomacy.suzerainties,
+    traderFactionId,
+    faction.id
+  );
+  const customs = customsTerms({
+    port: {
+      city: faction.shortName,
+      country: faction.shortName,
+      factionId: faction.id
+    },
+    traderFactionId,
+    relation,
+    reputation: factionReputation(gameState, faction.id),
+    suzeraintyPrivilege
+  });
+  const policies = sovereignTradePoliciesForHostFaction(faction.id, simMinute)
+    .map((policy) => {
+      const nationalAccess = sovereignTradeOpenToFaction(gameState, policy.id, traderFactionId);
+      const personalPass = hasPersonalTradePass(gameState, policy.id);
+      return Object.freeze({
+        id: policy.id,
+        label: policy.label,
+        nationalAccess,
+        personalPass,
+        allowed: nationalAccess || personalPass
+      });
+    });
+  const access = relation === DIPLOMACY_WAR
+    ? "war"
+    : policies.some((policy) => !policy.allowed)
+      ? "closed"
+      : policies.some((policy) => policy.personalPass && !policy.nationalAccess)
+        ? "pass"
+        : policies.length > 0
+          ? "open"
+          : "ordinary";
+  return Object.freeze({
+    dutyPercent: Math.round(customs.customsRate * 100),
+    access,
+    policies,
+    suzeraintyPrivilege
+  });
 }
 
 function factionCode(faction) {

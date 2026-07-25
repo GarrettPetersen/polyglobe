@@ -943,6 +943,7 @@ import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
   politicsPowerLabel,
+  politicsTradeCode,
   politicsRowsPage
 } from "./politics.js";
 import {
@@ -10476,7 +10477,7 @@ function discoveriesPageSize() {
 }
 
 function stepPoliticsPage(direction) {
-  const view = createPoliticsView(gameState);
+  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
   if (SCREEN_W < 380) {
     const pagination = compactPoliticsPagination(view);
     politicsMenu.page = stepMenuIndex(politicsMenu.page, direction, pagination.pageCount);
@@ -25359,7 +25360,7 @@ function drawPoliticsMenu() {
     w: POLITICS_PANEL_W,
     h: POLITICS_PANEL_H
   };
-  const view = createPoliticsView(gameState);
+  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
   const pagination = widePoliticsPagination(view);
   const header = pagination.header;
   const page = politicsRowsPage(
@@ -25394,12 +25395,41 @@ function drawPoliticsMenu() {
   const statusX = matrixX + matrixW + 8;
   const statusW = panel.x + panel.w - statusX - 12;
   const legendY = header.legendY;
-  drawOptionsText(uiText("politics.legendAlly"), panel.x + 12, legendY, { color: "#91db69" });
-  drawOptionsText(uiText("politics.legendWar"), panel.x + 62, legendY, { color: "#f68181" });
-  drawOptionsText(uiText("politics.legendNeutral"), panel.x + 108, legendY, { color: PIRATE_MENU_INK_MUTED });
-  drawOptionsText(uiText("politics.legendSuzerainty"), panel.x + 218, legendY, {
+  const relationLegend = [
+    uiText("politics.legendAlly"),
+    uiText("politics.legendWar"),
+    uiText("politics.legendNeutral")
+  ].join("   ");
+  drawOptionsText(
+    fitPixelText(relationLegend, PIXEL_FONT_SMALL_8, panel.w - 32),
+    panel.x + panel.w / 2,
+    legendY,
+    { align: "center", color: PIRATE_MENU_INK_MUTED }
+  );
+  const systemLegendWidth = panel.w - 32;
+  const dependencyLegendWidth = Math.floor(systemLegendWidth * 0.44);
+  drawOptionsText(
+    fitPixelText(
+      uiText("politics.legendSuzerainty"),
+      PIXEL_FONT_SMALL_8,
+      dependencyLegendWidth
+    ),
+    panel.x + 12,
+    header.tradeLegendY,
+    {
     color: PIRATE_MENU_INK_MUTED
-  });
+    }
+  );
+  drawOptionsText(
+    fitPixelText(
+      uiText("politics.legendTrade"),
+      PIXEL_FONT_SMALL_8,
+      systemLegendWidth - dependencyLegendWidth - 8
+    ),
+    panel.x + panel.w - 12,
+    header.tradeLegendY,
+    { align: "right", color: PIRATE_MENU_INK_MUTED }
+  );
 
   const sectionY = header.sectionY;
   drawOptionsText(uiText("politics.stanceToward"), matrixX + matrixW / 2, sectionY, {
@@ -25488,11 +25518,11 @@ function widePoliticsPagination(view) {
 function compactPoliticsPagination(view) {
   const panelW = POLITICS_PANEL_W;
   const panelH = POLITICS_PANEL_H;
-  const columnsPerPage = Math.max(5, Math.floor((panelW - 130) / POLITICS_MATRIX_CELL_W));
+  const columnsPerPage = Math.max(5, Math.floor((panelW - 155) / POLITICS_MATRIX_CELL_W));
   const newsHeight = view.recentEvents.length > 0 ? 12 : 0;
   const rowsPerPage = Math.max(
     6,
-    Math.min(20, Math.floor((panelH - 100 - newsHeight) / POLITICS_MATRIX_ROW_H))
+    Math.min(20, Math.floor((panelH - 124 - newsHeight) / POLITICS_MATRIX_ROW_H))
   );
   const columnPageCount = Math.max(1, Math.ceil(view.powers.length / columnsPerPage));
   const rowPageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
@@ -25512,7 +25542,7 @@ function drawCompactPoliticsMenu() {
     w: POLITICS_PANEL_W,
     h: POLITICS_PANEL_H
   };
-  const view = createPoliticsView(gameState);
+  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
   const pagination = compactPoliticsPagination(view);
   politicsMenu.page = clampMenuIndex(politicsMenu.page, pagination.pageCount);
   const rowPage = Math.floor(politicsMenu.page / pagination.columnPageCount);
@@ -25543,15 +25573,38 @@ function drawCompactPoliticsMenu() {
     align: "center",
     color: PIRATE_MENU_INK
   });
-  drawOptionsText(uiText("politics.legendAlly"), panel.x + 10, panel.y + 27, { color: "#91db69" });
-  drawOptionsText(uiText("politics.legendWar"), panel.x + 58, panel.y + 27, { color: "#f68181" });
-  drawOptionsText(uiText("politics.legendCompact"), panel.x + 104, panel.y + 27, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText(
+    fitPixelText(
+      [
+        uiText("politics.legendAlly"),
+        uiText("politics.legendWar"),
+        uiText("politics.legendCompact")
+      ].join("  "),
+      PIXEL_FONT_SMALL_8,
+      panel.w - 24
+    ),
+    panel.x + panel.w / 2,
+    panel.y + 27,
+    { align: "center", color: PIRATE_MENU_INK_MUTED }
+  );
+  drawOptionsText(
+    fitPixelText(uiText("politics.legendSuzerainty"), PIXEL_FONT_SMALL_8, panel.w - 24),
+    panel.x + panel.w / 2,
+    panel.y + 39,
+    { align: "center", color: PIRATE_MENU_INK_MUTED }
+  );
+  drawOptionsText(
+    fitPixelText(uiText("politics.legendTrade"), PIXEL_FONT_SMALL_8, panel.w - 24),
+    panel.x + panel.w / 2,
+    panel.y + 51,
+    { align: "center", color: PIRATE_MENU_INK_MUTED }
+  );
 
   const labelX = panel.x + 10;
   const matrixX = panel.x + 91;
   const statusX = panel.x + panel.w - 31;
-  const headerY = panel.y + 48;
-  const matrixY = panel.y + 70;
+  const headerY = panel.y + 72;
+  const matrixY = panel.y + 94;
   drawOptionsText(uiText("politics.power"), labelX, headerY, { color: PIRATE_MENU_INK_MUTED });
   drawOptionsText(uiText("politics.you"), statusX, headerY, { color: PIRATE_MENU_INK });
   powers.forEach((power, index) => {
@@ -25585,10 +25638,15 @@ function drawCompactPoliticsMenu() {
         stance.contact
       );
     });
-    drawOptionsText(row.player.scoreLabel, statusX + 21, y, {
+    drawOptionsText(
+      `${row.player.scoreLabel} ${politicsTradeCode(row.player.trade)}`,
+      statusX + 21,
+      y,
+      {
       align: "right",
       color: politicsStandingColor(row.player.reputation)
-    });
+      }
+    );
   });
 
   const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
@@ -25648,19 +25706,11 @@ function drawPoliticsMatrixCell(x, y, relation, self, contact) {
 }
 
 function drawPoliticsStanding(player, x, y, width) {
-  const scoreW = 25;
-  drawOptionsText(player.scoreLabel, x, y, {
-    color: politicsStandingColor(player.reputation)
-  });
   drawOptionsText(
-    fitPixelText(
-      player.hasLetterOfMarque ? `${player.label.toUpperCase()} MARQUE` : player.label.toUpperCase(),
-      PIXEL_FONT_SMALL_8,
-      Math.max(0, width - scoreW)
-    ),
-    x + scoreW,
+    `${player.scoreLabel} ${politicsTradeCode(player.trade)}${player.hasLetterOfMarque ? " M" : ""}`,
+    x + width,
     y,
-    { color: PIRATE_MENU_INK }
+    { align: "right", color: politicsStandingColor(player.reputation) }
   );
 }
 

@@ -15,11 +15,17 @@ import {
 } from "./gameState.js";
 import { makeDiplomaticPeace } from "./worldDiplomacy.js";
 import {
+  SPANISH_INDIES_TRADE_POLICY_ID,
+  grantPersonalTradePass
+} from "./sovereignTradeAccess.js";
+import {
   createPoliticsView,
   playerStandingForReputation,
   politicalPowers,
+  politicsDependencyGlyph,
   politicsPowerLabel,
-  politicsRowsPage
+  politicsRowsPage,
+  politicsTradeCode
 } from "./politics.js";
 
 const PLAYER = {
@@ -83,6 +89,58 @@ test("the Habsburg personal union is not presented as Spanish vassalage", () => 
   const habsburg = view.rows.find((row) => row.faction.id === "habsburg");
   assert.equal(politicsPowerLabel(spain.faction, view.powers), "SPAIN =HB");
   assert.equal(habsburg.faction.vassalFactionIds.includes("spain"), false);
+});
+
+test("the politics chart distinguishes tributaries from vassals and unions", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const view = createPoliticsView(state);
+  const joseon = view.rows.find((row) => row.faction.id === "joseon");
+
+  assert.equal(politicsPowerLabel(joseon.faction, view.powers), "JOSEON ~MI");
+  assert.equal(politicsDependencyGlyph("vassal"), ">");
+  assert.equal(politicsDependencyGlyph("tributary"), "~");
+  assert.equal(politicsDependencyGlyph("personal-union"), "=");
+});
+
+test("politics trade codes expose duties and protected-market access", () => {
+  const habsburgState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { ...PLAYER, nationalityId: "habsburg" }
+  });
+  const habsburgView = createPoliticsView(habsburgState);
+  const spain = habsburgView.rows.find((row) => row.faction.id === "spain");
+  assert.equal(spain.player.trade.dutyPercent, 2);
+  assert.equal(spain.player.trade.access, "closed");
+  assert.equal(politicsTradeCode(spain.player.trade), "2%X");
+  grantPersonalTradePass(
+    habsburgState.relations.personalTradePasses,
+    SPANISH_INDIES_TRADE_POLICY_ID,
+    0
+  );
+  const licensedSpain = createPoliticsView(habsburgState).rows
+    .find((row) => row.faction.id === "spain");
+  assert.equal(licensedSpain.player.trade.access, "pass");
+  assert.equal(politicsTradeCode(licensedSpain.player.trade), "2%P");
+
+  const portugalState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { ...PLAYER, nationalityId: "portugal" }
+  });
+  const portugalView = createPoliticsView(portugalState);
+  const hormuz = portugalView.rows.find((row) => row.faction.id === "hormuz");
+  assert.equal(hormuz.player.trade.dutyPercent, 2);
+  assert.equal(hormuz.player.trade.access, "ordinary");
+  assert.equal(politicsTradeCode(hormuz.player.trade), "2%");
+
+  const joseonState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { ...PLAYER, nationalityId: "joseon" }
+  });
+  const joseonView = createPoliticsView(joseonState);
+  const ming = joseonView.rows.find((row) => row.faction.id === "ming");
+  assert.equal(ming.player.trade.dutyPercent, 2);
+  assert.equal(ming.player.trade.access, "open");
+  assert.equal(politicsTradeCode(ming.player.trade), "2%O");
 });
 
 test("politics matrix follows changing world diplomacy", () => {

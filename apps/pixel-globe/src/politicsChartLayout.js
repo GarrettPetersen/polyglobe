@@ -1,5 +1,6 @@
 const TITLE_TOP = 9;
 const LEGEND_TOP = 27;
+const LEGEND_GAP = 2;
 const BAND_GAP = 4;
 const HEADER_GAP = 3;
 const MATRIX_GAP = 8;
@@ -12,13 +13,15 @@ export function politicsChartHeaderLayout({ panelY, fontSize }) {
 
   const titleY = panelY + TITLE_TOP;
   const legendY = panelY + LEGEND_TOP;
-  const sectionY = legendY + fontSize + BAND_GAP;
+  const tradeLegendY = legendY + fontSize + LEGEND_GAP;
+  const sectionY = tradeLegendY + fontSize + BAND_GAP;
   const headerY = sectionY + fontSize + HEADER_GAP;
   const columnCodeY = headerY + fontSize + BAND_GAP;
   const matrixY = headerY + fontSize + MATRIX_GAP;
   return Object.freeze({
     titleY,
     legendY,
+    tradeLegendY,
     sectionY,
     headerY,
     columnCodeY,

@@ -11,23 +11,26 @@ test("politics chart gives every English header band its own row", () => {
   assert.deepEqual(layout, {
     titleY: 17,
     legendY: 35,
-    sectionY: 47,
-    headerY: 58,
-    columnCodeY: 70,
-    matrixY: 74,
-    matrixTopOffset: 66
+    tradeLegendY: 45,
+    sectionY: 57,
+    headerY: 68,
+    columnCodeY: 80,
+    matrixY: 84,
+    matrixTopOffset: 76
   });
-  assert.ok(layout.sectionY >= layout.legendY + 8 + 4);
+  assert.ok(layout.tradeLegendY >= layout.legendY + 8 + 2);
+  assert.ok(layout.sectionY >= layout.tradeLegendY + 8 + 4);
   assert.ok(layout.headerY >= layout.sectionY + 8 + 3);
 });
 
 test("tall localized politics fonts move labels and matrix together", () => {
   const layout = politicsChartHeaderLayout({ panelY: 8, fontSize: 12 });
   assert.equal(layout.legendY, 35);
-  assert.equal(layout.sectionY, 51);
-  assert.equal(layout.headerY, 66);
-  assert.equal(layout.matrixY, 86);
-  assert.equal(layout.matrixTopOffset, 78);
+  assert.equal(layout.tradeLegendY, 49);
+  assert.equal(layout.sectionY, 65);
+  assert.equal(layout.headerY, 80);
+  assert.equal(layout.matrixY, 100);
+  assert.equal(layout.matrixTopOffset, 92);
 });
 
 test("politics chart rejects malformed font geometry", () => {
@@ -40,13 +43,13 @@ test("politics chart rejects malformed font geometry", () => {
 test("politics chart pagination matches the rows that fit beneath its header", () => {
   assert.equal(politicsChartRowsPerPage({
     panelHeight: 240,
-    matrixTopOffset: 66,
+    matrixTopOffset: 76,
     pagerHeight: 24,
     newsHeight: 12,
     rowHeight: 11,
     minRows: 6,
     maxRows: 18
-  }), 11);
+  }), 10);
 });
 
 test("politics chart row pagination rejects impossible limits", () => {
