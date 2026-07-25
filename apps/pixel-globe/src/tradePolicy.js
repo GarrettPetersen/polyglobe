@@ -109,7 +109,14 @@ export function evaluateTradeAccess({
       allowed: false,
       provisioningAllowed: false,
       restricted: true,
+      lawful: false,
       illicit: false,
+      domesticAccess: false,
+      lawfulExemption: false,
+      policyId: null,
+      policy: null,
+      portFactionId: port.factionId || NEUTRAL_FACTION_ID,
+      traderFactionId: traderId,
       reason: "war"
     });
   }

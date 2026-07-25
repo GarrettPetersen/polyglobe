@@ -31,6 +31,7 @@ const KYOTO = port(10, "Kyoto", "Japan", "japan");
 const SEVILLE = port(11, "Seville", "Spain", "spain");
 const HAVANA = port(12, "Havana", "Cuba", "spain");
 const ISTANBUL = port(14, "Istanbul", "Turkey", "ottoman");
+const LISBON = port(15, "Lisbon", "Portugal", "portugal");
 const CONQUERED_BRAZILIAN_COLONY = Object.freeze({
   ...port(13, "Porto Seguro", "Brazil", "spain"),
   lat: -16.44,
@@ -159,6 +160,24 @@ test("player commodity transactions cannot bypass sovereign trade access", () =>
   assert.equal(openSovereignTradeToFaction(state, MING_TRADE_POLICY_ID, "england"), true);
   assert.equal(sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, "england"), true);
   assert.equal(playerTradeAccess(state, GUANGZHOU, { simMinute: 0 }).allowed, true);
+});
+
+test("wartime entry at an unrestricted port does not invent a sovereign policy", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Yusuf al-Marrakushi",
+      nationalityId: "morocco",
+      expressions: ["neutral", "happy"]
+    }
+  });
+
+  const access = playerTradeAccess(state, LISBON, { simMinute: 0 });
+  assert.equal(access.allowed, false);
+  assert.equal(access.reason, "war");
+  assert.equal(access.policyId, null);
+  assert.equal(access.policy, null);
+  assert.equal(access.personalTradePass, false);
 });
 
 function port(tileId, city, country, factionId) {

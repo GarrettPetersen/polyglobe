@@ -157,6 +157,11 @@ test("war blocks ordinary commerce while a successful disguise remains an explic
   });
   assert.equal(blocked.allowed, false);
   assert.equal(blocked.reason, "war");
+  assert.equal(blocked.policyId, null);
+  assert.equal(blocked.policy, null);
+  assert.equal(blocked.lawful, false);
+  assert.equal(blocked.portFactionId, "portugal");
+  assert.equal(blocked.traderFactionId, "morocco");
 
   const disguised = evaluateTradeAccess({
     port: LISBON,
