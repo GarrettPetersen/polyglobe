@@ -1114,6 +1114,10 @@ import {
   restoredShipPlacementPlan
 } from "./restoredShipNavigation.js";
 import {
+  drawnNavigationTransitionAllowed,
+  resolveDrawnSurfaceNavigation
+} from "./drawnShipNavigation.js";
+import {
   measureChartNorthUpDrift,
   northUpProjectionIsStable
 } from "./chartReframe.js";
@@ -8277,16 +8281,20 @@ function nearestValidRestoredShipPlacement() {
     const position = globePositionForLocalPoint(collisionTile.tileId, x, y);
     const navigation = shipNavigabilityAtLocalPoint(x, y, collisionTile.tileId, position);
     if (!navigation.ok) return null;
-    const heading = normalizeTangentOrFallback(ship.heading, position, WORLD_NORTH);
+    const navigationTileId = navigation.tileId;
+    const navigationPosition = navigationTileId === collisionTile.tileId
+      ? position
+      : globePositionForLocalPoint(navigationTileId, x, y);
+    const heading = normalizeTangentOrFallback(ship.heading, navigationPosition, WORLD_NORTH);
     const occupancy = vesselOccupancyAtPosition(
-      position,
-      collisionTile.tileId,
+      navigationPosition,
+      navigationTileId,
       { x, y },
       navigation,
       heading
     );
     if (!occupancy.ok) return null;
-    return { tileId: collisionTile.tileId, position };
+    return { tileId: navigationTileId, position: navigationPosition };
   });
 }
 
@@ -14996,9 +15004,15 @@ function recoverPlayerFromNavigationEdge(inputHeading, blockedNormal, motionScal
       const localPoint = localCollisionPointForPosition(ship.position, candidatePosition);
       const collisionTile = localCollisionTileAtPoint(localPoint.x, localPoint.y);
       if (!collisionTile) continue;
-      const tileId = collisionTile.tileId;
-      const nav = shipNavigabilityAtLocalPoint(localPoint.x, localPoint.y, tileId, candidatePosition);
+      const collisionTileId = collisionTile.tileId;
+      const nav = shipNavigabilityAtLocalPoint(
+        localPoint.x,
+        localPoint.y,
+        collisionTileId,
+        candidatePosition
+      );
       if (!nav.ok) continue;
+      const tileId = nav.tileId;
       const recoveryHeading = normalizeTangentOrFallback(inputHeading, candidatePosition, ship.heading);
       const occupancy = vesselOccupancyAtPosition(candidatePosition, tileId, localPoint, nav, recoveryHeading);
       if (!occupancy.ok) continue;
@@ -15231,7 +15245,7 @@ function attemptShipStep(fromPosition, fromTileId, step) {
   const movementDirection = normalizeOrNull(step);
   const startNav = shipNavigabilityAtLocalPoint(localLayout.viewX, localLayout.viewY, fromTileId, fromPosition);
   let previousNavKind = startNav?.kind || null;
-  let previousTileId = fromTileId;
+  let previousTileId = startNav?.ok ? startNav.tileId : fromTileId;
   let position = fromPosition;
 
   for (let i = 1; i <= segments; i++) {
@@ -15243,8 +15257,13 @@ function attemptShipStep(fromPosition, fromTileId, step) {
     const localPoint = localCollisionPointForPosition(fromPosition, position);
     const collisionTile = localCollisionTileAtPoint(localPoint.x, localPoint.y);
     if (!collisionTile) return { ok: false };
-    const tileId = collisionTile.tileId;
-    const centerNav = shipNavigabilityAtLocalPoint(localPoint.x, localPoint.y, tileId, position);
+    const collisionTileId = collisionTile.tileId;
+    const centerNav = shipNavigabilityAtLocalPoint(
+      localPoint.x,
+      localPoint.y,
+      collisionTileId,
+      position
+    );
     if (!centerNav.ok) {
       return {
         ok: false,
@@ -15252,6 +15271,7 @@ function attemptShipStep(fromPosition, fromTileId, step) {
         normal: centerNav.normal
       };
     }
+    const tileId = centerNav.tileId;
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, centerNav.kind, movementDirection)) {
       return { ok: false, blockedTileId: tileId };
     }
@@ -15271,8 +15291,11 @@ function attemptShipStep(fromPosition, fromTileId, step) {
 }
 
 function movementCanUseDrawnNavigation(fromTileId, toTileId, fromNavKind, toNavKind, movementDirection) {
-  if (fromNavKind === "river" || toNavKind === "river") return true;
-  return canShipMoveBetween(fromTileId, toTileId, movementDirection);
+  return drawnNavigationTransitionAllowed(
+    fromNavKind,
+    toNavKind,
+    () => canShipMoveBetween(fromTileId, toTileId, movementDirection)
+  );
 }
 
 function vesselOccupancyAtPosition(position, tileId, localPoint, centerNav, heading) {
@@ -15303,21 +15326,51 @@ function localShipCollisionSamplePoint(sampleVector, distancePx, localPoint) {
 }
 
 function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
-  if (isPlayerUsableSurfaceWaterTile(tileId)) {
-    return { ok: true, kind: "openWater" };
+  const riverInfo = riverWaterInfoAtLocalPoint(x, y, chart);
+  if (riverInfo?.ok) {
+    return {
+      ok: true,
+      kind: "river",
+      tileId: riverInfo.tileId,
+      riverTileId: riverInfo.tileId
+    };
   }
 
-  const riverInfo = riverWaterInfoAtLocalPoint(x, y, chart);
-  if (riverInfo?.ok) return { ok: true, kind: "river", riverTileId: riverInfo.tileId };
+  const surface = drawnSurfaceNavigationAtLocalPoint(x, y);
+  if (surface?.water) {
+    return { ok: true, kind: "openWater", tileId: surface.tileId };
+  }
 
   const normal = riverInfo?.normal
     ? localNormalToTangent(riverInfo.normal, position)
-    : localCollisionNormalForTile(tileId, position);
+    : localCollisionNormalForTile(surface?.tileId ?? tileId, position);
   return {
     ok: false,
-    blockedTileId: riverInfo?.tileId ?? tileId,
+    blockedTileId: riverInfo?.tileId ?? surface?.tileId ?? tileId,
     normal
   };
+}
+
+function drawnSurfaceNavigationAtLocalPoint(x, y) {
+  return drawnSurfaceNavigationAtPoint(
+    x,
+    y,
+    chart,
+    isPlayerUsableSurfaceWaterTile
+  );
+}
+
+function drawnSurfaceNavigationAtPoint(x, y, activeChart, isUsableWaterTile) {
+  if (!activeChart?.waterIndex) throw new Error("Cannot resolve drawn navigation without a water index");
+  return resolveDrawnSurfaceNavigation({
+    candidates: wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex),
+    x,
+    y,
+    maxDistancePx: SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX,
+    isWaterTile: (candidateTileId) => isWaterSurfaceRow(earthById[candidateTileId]),
+    isUsableWaterTile,
+    isTileOpaqueAtPoint: tileTerrainSpriteOpaqueAtMapPoint
+  });
 }
 
 function localCollisionPointForPosition(fromPosition, position) {
@@ -15412,13 +15465,35 @@ function applyShipMove(position, tileId) {
   const dy = dot3(delta, camera.up);
 
   moveLocalView(dx, dy);
-  const drawnTileId = localCollisionTileIdAtPoint(localLayout.viewX, localLayout.viewY, "ship center after move");
-  const drawnNav = shipNavigabilityAtLocalPoint(localLayout.viewX, localLayout.viewY, drawnTileId, position);
+  const collisionTileId = localCollisionTileIdAtPoint(
+    localLayout.viewX,
+    localLayout.viewY,
+    "ship center after move"
+  );
+  const drawnNav = shipNavigabilityAtLocalPoint(
+    localLayout.viewX,
+    localLayout.viewY,
+    collisionTileId,
+    position
+  );
   if (!drawnNav.ok) {
-    throw new Error(`Ship local movement resolved outside drawn navigation: ${tileId} -> ${drawnTileId}`);
+    throw new Error(`Ship local movement resolved outside drawn navigation: ${tileId} -> ${collisionTileId}`);
   }
+  const drawnTileId = drawnNav.tileId;
   if (drawnTileId !== tileId && drawnNav.kind !== "river" && !canShipMoveBetween(tileId, drawnTileId, ship.heading)) {
-    throw new Error(`Ship local movement resolved to an unexpected tile: ${tileId} -> ${drawnTileId}`);
+    const priorNav = shipNavigabilityAtLocalPoint(
+      localLayout.viewX - dx * PIXELS_PER_RADIAN,
+      localLayout.viewY + dy * PIXELS_PER_RADIAN,
+      tileId,
+      previousPosition
+    );
+    if (!drawnNavigationTransitionAllowed(
+      priorNav.kind,
+      drawnNav.kind,
+      () => canShipMoveBetween(tileId, drawnTileId, ship.heading)
+    )) {
+      throw new Error(`Ship local movement resolved to an unexpected tile: ${tileId} -> ${drawnTileId}`);
+    }
   }
 
   ship.tileId = drawnTileId;
@@ -19418,16 +19493,20 @@ function moveNpcAlongRiverRail(state, desiredDirection, distance, dt) {
 function npcRiverRailPlacement(state, x, y, movementDirection) {
   const nearest = nearestLocalCollisionTileAtPoint(x, y);
   if (!nearest || nearest.distancePx > SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX) return null;
-  const vector = globePositionForLocalPoint(nearest.tileId, x, y);
-  const nav = shipNavigabilityAtLocalPoint(x, y, nearest.tileId, vector);
+  const nearestVector = globePositionForLocalPoint(nearest.tileId, x, y);
+  const nav = shipNavigabilityAtLocalPoint(x, y, nearest.tileId, nearestVector);
   if (!nav.ok || (nav.kind !== "river" && nav.kind !== "openWater")) return null;
+  const tileId = nav.tileId;
+  const vector = tileId === nearest.tileId
+    ? nearestVector
+    : globePositionForLocalPoint(tileId, x, y);
   const movementHeading = screenDirectionToTangent(movementDirection, state.vector, state.heading);
   const localHeading = normalizeTangentOrFallback(movementHeading, vector, state.heading);
   return {
     ok: true,
     x,
     y,
-    tileId: nearest.tileId,
+    tileId,
     vector,
     heading: localHeading
   };
@@ -19598,7 +19677,7 @@ function attemptNpcVisualStep(state, direction, distance, heading) {
   const movementHeading = screenDirectionToTangent(direction, state.vector, heading);
   const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
   if (!startNav.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
-  let previousTileId = state.tileId;
+  let previousTileId = startNav.tileId;
   let previousNavKind = startNav.kind;
   let result = null;
 
@@ -19607,11 +19686,15 @@ function attemptNpcVisualStep(state, direction, distance, heading) {
     const y = state.y + direction.y * distance * (i / segments);
     const collisionTile = localCollisionTileAtPoint(x, y);
     if (!collisionTile) return { ok: false };
-    const tileId = collisionTile.tileId;
-    const vector = globePositionForLocalPoint(tileId, x, y);
-    const localHeading = normalizeTangentOrFallback(heading, vector, movementHeading);
-    const nav = shipNavigabilityAtLocalPoint(x, y, tileId, vector);
+    const collisionTileId = collisionTile.tileId;
+    const collisionVector = globePositionForLocalPoint(collisionTileId, x, y);
+    const nav = shipNavigabilityAtLocalPoint(x, y, collisionTileId, collisionVector);
     if (!nav.ok) return { ok: false };
+    const tileId = nav.tileId;
+    const vector = tileId === collisionTileId
+      ? collisionVector
+      : globePositionForLocalPoint(tileId, x, y);
+    const localHeading = normalizeTangentOrFallback(heading, vector, movementHeading);
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, nav.kind, movementHeading)) {
       return { ok: false };
     }
@@ -19716,11 +19799,14 @@ function nearestNpcVisualPointOfKind(routePoint, heading, kind, searchRadiusPx, 
 function npcNavigableVisualPoint(x, y, heading, slug) {
   const nearest = nearestLocalCollisionTileAtPoint(x, y);
   if (!nearest || nearest.distancePx > SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX) return null;
-  const tileId = nearest.tileId;
-  const vector = globePositionForLocalPoint(tileId, x, y);
-  const localHeading = normalizeTangentOrFallback(heading, vector, WORLD_NORTH);
-  const nav = shipNavigabilityAtLocalPoint(x, y, tileId, vector);
+  const nearestVector = globePositionForLocalPoint(nearest.tileId, x, y);
+  const nav = shipNavigabilityAtLocalPoint(x, y, nearest.tileId, nearestVector);
   if (!nav.ok) return null;
+  const tileId = nav.tileId;
+  const vector = tileId === nearest.tileId
+    ? nearestVector
+    : globePositionForLocalPoint(tileId, x, y);
+  const localHeading = normalizeTangentOrFallback(heading, vector, WORLD_NORTH);
   if (nav.kind !== "river") {
     const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
     if (!occupancy.ok) return null;
@@ -21324,9 +21410,10 @@ function riverPixelsForCityPlacement(tileCall, activeChart) {
 function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
   const buckets = new Map();
   const tileRows = new Map();
-  for (const call of tileCalls) {
+  for (const [drawOrder, call] of tileCalls.entries()) {
     addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
       kind: "tile",
+      drawOrder,
       call
     });
     addWakeWaterTileIndexCall(tileRows, call.drawSurfaceX, call.drawSurfaceY, call);
@@ -28453,25 +28540,13 @@ function wakeMapPointIsWater(x, y, activeChart) {
     pointCache.set(pixelKey, true);
     return true;
   }
-  if (wakePointIsBlockedByDryTileSprite(roundedX, roundedY, candidates, activeChart)) {
-    pointCache.set(pixelKey, false);
-    return false;
-  }
-
-  let nearestTile = null;
-  let nearestD2 = WAKE_WATER_SEARCH_RADIUS_PX * WAKE_WATER_SEARCH_RADIUS_PX;
-  for (const entry of candidates) {
-    if (entry.kind !== "tile") continue;
-    if (!isWaterSurfaceRow(entry.call.row)) continue;
-    const dx = entry.call.drawSurfaceX - roundedX;
-    const dy = entry.call.drawSurfaceY - roundedY;
-    const d2 = dx * dx + dy * dy;
-    if (d2 >= nearestD2) continue;
-    nearestD2 = d2;
-    nearestTile = entry.call;
-  }
-
-  const result = nearestTile !== null;
+  const surface = drawnSurfaceNavigationAtPoint(
+    roundedX,
+    roundedY,
+    activeChart,
+    (tileId) => !tileHasSurfaceIce(tileId)
+  );
+  const result = surface?.water === true;
   pointCache.set(pixelKey, result);
   return result;
 }
@@ -28691,17 +28766,6 @@ function wakePointIsOnAnyRiverTile(x, y, candidates, activeChart) {
     if (entry.kind !== "tile") continue;
     if ((riverMasks?.[entry.call.id] || 0) === 0) continue;
     if (wakePointIsOnRiverTile(x, y, entry.call, activeChart)) return true;
-  }
-  return false;
-}
-
-function wakePointIsBlockedByDryTileSprite(x, y, candidates, activeChart) {
-  for (const entry of candidates) {
-    if (entry.kind !== "tile") continue;
-    if (isWaterSurfaceRow(entry.call.row)) continue;
-    if (!tileTerrainSpriteOpaqueAtMapPoint(entry.call, x, y)) continue;
-    if ((riverMasks?.[entry.call.id] || 0) !== 0 && wakePointIsOnRiverTile(x, y, entry.call, activeChart)) continue;
-    return true;
   }
   return false;
 }

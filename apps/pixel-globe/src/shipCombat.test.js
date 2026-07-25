@@ -81,6 +81,22 @@ test("pirates cannot ambush the player inside protected major-port waters", () =
   assert.equal(result.engagementCount, 0);
 });
 
+test("forced treasure attackers begin the final battle inside major-port waters", () => {
+  const player = ship("player", "pirate", "portugal", 0, 0, 30, 4);
+  player.majorPortProtected = true;
+  const treasurePirate = ship("treasure-pirate", "pirate", "pirate", 20, 0, 130, 12);
+  treasurePirate.forceAttack = true;
+
+  const result = updateShipCombatState(createShipCombatState(), [
+    player,
+    treasurePirate
+  ]);
+
+  assert.equal(result.engagementCount, 1);
+  assert.equal(result.intents.get(treasurePirate.id).mode, COMBAT_MODE_ATTACK);
+  assert.equal(result.intents.get(treasurePirate.id).targetId, player.id);
+});
+
 test("major-port protection does not end an existing pirate attack", () => {
   const state = createShipCombatState();
   const player = ship("player", "pirate", "portugal", 0, 0, 30, 4);

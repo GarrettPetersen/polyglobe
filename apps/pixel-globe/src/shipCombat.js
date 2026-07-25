@@ -107,7 +107,11 @@ function validatedShipsTriggerCombat(a, b, relationBetween) {
     if (playerSafePassageApplies(player, npc)) return false;
     if (player.npcAttackProtected) return false;
     if (player.portProtected) return false;
-    if (npc.role === NPC_ROLE_PIRATE && player.majorPortProtected) return false;
+    if (npc.role === NPC_ROLE_PIRATE &&
+        player.majorPortProtected &&
+        npc.forceAttack !== true) {
+      return false;
+    }
     return npc.role === NPC_ROLE_PIRATE || npc.role === NPC_ROLE_WARSHIP;
   }
   return a.role === NPC_ROLE_PIRATE ||
