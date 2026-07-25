@@ -55,6 +55,11 @@ import {
   tradeTerms
 } from "./tradePolicy.js";
 import { validateForeignSettlementExpulsionMemory } from "./foreignSettlements.js";
+import {
+  createSuzeraintyMemory,
+  suzeraintyTradePrivilege,
+  validateSuzeraintyMemory
+} from "./suzerainty.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -343,6 +348,7 @@ export function createNpcSeaRouteSystem({
   relationBetween = diplomacyBetween,
   foreignSettlementExpulsions = null,
   sovereignTradeOpenToFaction = defaultSovereignTradeOpenToFaction,
+  suzeraintyMemory = createSuzeraintyMemory(startMinute),
   onForeignPortCall = null
 }) {
   if (!Number.isFinite(startMinute) || startMinute < 0) {
@@ -358,6 +364,7 @@ export function createNpcSeaRouteSystem({
   if (typeof sovereignTradeOpenToFaction !== "function") {
     throw new Error("NPC sea routes require a sovereign trade-access resolver");
   }
+  validateSuzeraintyMemory(suzeraintyMemory);
   if (onForeignPortCall !== null && typeof onForeignPortCall !== "function") {
     throw new Error("NPC sea routes foreign port contact handler must be a function");
   }
@@ -382,6 +389,7 @@ export function createNpcSeaRouteSystem({
     relationBetween,
     foreignSettlementExpulsions,
     sovereignTradeOpenToFaction,
+    suzeraintyMemory,
     onForeignPortCall,
     contactStartMinute: startMinute,
     fishState,
@@ -605,7 +613,8 @@ export function restoreNpcSeaRouteSystem(
     relationBetween = system?.relationBetween || diplomacyBetween,
     foreignSettlementExpulsions = system?.foreignSettlementExpulsions ?? null,
     sovereignTradeOpenToFaction = system?.sovereignTradeOpenToFaction ||
-      defaultSovereignTradeOpenToFaction
+      defaultSovereignTradeOpenToFaction,
+    suzeraintyMemory = system?.suzeraintyMemory
   } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
@@ -659,9 +668,11 @@ export function restoreNpcSeaRouteSystem(
   if (typeof sovereignTradeOpenToFaction !== "function") {
     throw new Error("NPC sea routes require a sovereign trade-access resolver");
   }
+  validateSuzeraintyMemory(suzeraintyMemory);
   system.relationBetween = relationBetween;
   system.foreignSettlementExpulsions = foreignSettlementExpulsions;
   system.sovereignTradeOpenToFaction = sovereignTradeOpenToFaction;
+  system.suzeraintyMemory = suzeraintyMemory;
   canonicalizeSavedNpcRoutePorts(system, ships);
   const replannedRoutes = replanNpcRoutesWithRemovedLaneEdges(system, ships);
   if (replannedRoutes > 0) {
@@ -1794,6 +1805,11 @@ function npcMerchantCanTradeAtPort(system, ship, port) {
     simMinute: system.economy.lastMinute,
     tradeAccessGranted: (policyId, factionId) => (
       system.sovereignTradeOpenToFaction(policyId, factionId)
+    ),
+    suzeraintyPrivilege: suzeraintyTradePrivilege(
+      system.suzeraintyMemory,
+      ship.factionId,
+      port.factionId
     )
   }).allowed;
 }
@@ -1931,6 +1947,11 @@ function npcTradeTerms(system, ship, port, goodId) {
     relation: system.relationBetween(ship.factionId, port.factionId),
     relationToFaction: (factionId) => system.relationBetween(ship.factionId, factionId),
     foreignSettlementExpulsions: system.foreignSettlementExpulsions,
+    suzeraintyPrivilege: suzeraintyTradePrivilege(
+      system.suzeraintyMemory,
+      ship.factionId,
+      port.factionId
+    ),
     goodId
   });
 }
@@ -2958,6 +2979,7 @@ function assertSaveableNpcRouteSystem(system) {
   if (system.foreignSettlementExpulsions !== null) {
     validateForeignSettlementExpulsionMemory(system.foreignSettlementExpulsions);
   }
+  validateSuzeraintyMemory(system.suzeraintyMemory);
 }
 
 function npcSeedKey(system, value) {

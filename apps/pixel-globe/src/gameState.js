@@ -88,7 +88,7 @@ import {
   validateWorldDiplomacy,
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
-import { suzeraintyCustomsPrivilege } from "./suzerainty.js";
+import { suzeraintyTradePrivilege } from "./suzerainty.js";
 import {
   createForeignSettlementExpulsionMemory,
   expelHostileForeignSettlements,
@@ -2555,7 +2555,15 @@ export function factionReputation(state, factionId) {
 
 export function sovereignTradeOpenToFaction(state, policyId, factionId) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
-  return sovereignTradeGrantedToFaction(state.relations?.tradeAccessGrants, policyId, factionId);
+  const id = assertFactionId(factionId);
+  const policy = sovereignTradePolicyById(policyId);
+  const privilege = suzeraintyTradePrivilege(
+    state.relations?.diplomacy?.suzerainties,
+    id,
+    policy.hostFactionId
+  );
+  return sovereignTradeGrantedToFaction(state.relations?.tradeAccessGrants, policyId, id) ||
+    privilege?.sovereignMarketAccess === true;
 }
 
 export function openSovereignTradeToFaction(state, policyId, factionId) {
@@ -3227,6 +3235,11 @@ export function playerTradeAccess(state, city, context = {}) {
   assertGameState(state);
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
+  const suzeraintyPrivilege = suzeraintyTradePrivilege(
+    state.relations.diplomacy.suzerainties,
+    traderFactionId,
+    portFactionId
+  );
   const access = evaluateTradeAccess({
     port: city,
     traderFactionId,
@@ -3240,6 +3253,7 @@ export function playerTradeAccess(state, city, context = {}) {
       sovereignTradeOpenToFaction(state, policyId, factionId) ||
       personalTradePassGranted(state.relations.personalTradePasses, policyId)
     ),
+    suzeraintyPrivilege,
     illicitAccessPolicyId: context.illicitTradeAccessPolicyId ?? null,
     disguisedEntry: context.disguisedEntry === true
   });
@@ -3280,7 +3294,7 @@ export function playerTradeTerms(state, city, goodId) {
     goodId,
     reputation,
     reputationForFaction: (factionId) => state.relations.factionReputation[factionId] || 0,
-    suzeraintyPrivilege: suzeraintyCustomsPrivilege(
+    suzeraintyPrivilege: suzeraintyTradePrivilege(
       state.relations.diplomacy.suzerainties,
       traderFactionId,
       portFactionId
@@ -3305,7 +3319,7 @@ export function playerPortCustomsNotice(state, city) {
     foreignSettlementExpulsions: state.relations.foreignSettlementExpulsions,
     reputation: state.relations.factionReputation[portFactionId] || 0,
     reputationForFaction: (factionId) => state.relations.factionReputation[factionId] || 0,
-    suzeraintyPrivilege: suzeraintyCustomsPrivilege(
+    suzeraintyPrivilege: suzeraintyTradePrivilege(
       state.relations.diplomacy.suzerainties,
       traderFactionId,
       portFactionId

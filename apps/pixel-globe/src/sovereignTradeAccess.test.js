@@ -24,6 +24,10 @@ import {
   sovereignTradeGrantedToFaction,
   sovereignTradePolicyForPort
 } from "./sovereignTradeAccess.js";
+import {
+  dissolveFactionDiplomaticPersonalUnions,
+  establishDiplomaticSuzerainty
+} from "./worldDiplomacy.js";
 
 const GUANGZHOU = port(8, "Guangzhou", "China", "ming");
 const SEOUL = port(9, "Seoul", "South Korea", "joseon");
@@ -71,7 +75,64 @@ test("default permissions preserve tribute and licensed regional traffic", () =>
   assert.equal(sovereignTradeGrantedToFaction(grants, JOSEON_TRADE_POLICY_ID, "japan"), true);
   assert.equal(sovereignTradeGrantedToFaction(grants, JOSEON_TRADE_POLICY_ID, "england"), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "spain"), true);
+  assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "habsburg"), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "portugal"), false);
+});
+
+test("Charles V's dynastic union does not open the Castilian Indies monopoly", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Nikolaus Adler",
+      nationalityId: "habsburg",
+      expressions: ["neutral", "happy"]
+    }
+  });
+
+  const blocked = playerTradeAccess(state, HAVANA, { simMinute: 0 });
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.suzeraintyPrivilege.kind, "personal-union");
+  assert.equal(blocked.suzeraintyPrivilege.sovereignMarketAccess, false);
+
+  assert.equal(openSovereignTradeToFaction(
+    state,
+    SPANISH_INDIES_TRADE_POLICY_ID,
+    "habsburg"
+  ), true);
+  assert.equal(playerTradeAccess(state, HAVANA, { simMinute: 0 }).allowed, true);
+});
+
+test("an ordinary suzerain can trade in a vassal's protected markets", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  dissolveFactionDiplomaticPersonalUnions(
+    state.relations.diplomacy,
+    "spain",
+    0,
+    "test-treaty"
+  );
+  establishDiplomaticSuzerainty(state.relations.diplomacy, {
+    vassalFactionId: "spain",
+    suzerainFactionId: "england",
+    simMinute: 0,
+    source: "test-treaty"
+  });
+
+  const access = playerTradeAccess(state, HAVANA, { simMinute: 0 });
+  assert.equal(access.allowed, true);
+  assert.equal(access.lawful, true);
+  assert.equal(access.suzeraintyPrivilege.sovereignMarketAccess, true);
+  assert.equal(sovereignTradeOpenToFaction(
+    state,
+    SPANISH_INDIES_TRADE_POLICY_ID,
+    "england"
+  ), true);
 });
 
 test("personal trade passes are named policy papers rather than national treaties", () => {

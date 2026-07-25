@@ -219,7 +219,7 @@ export function releaseFactionPersonalUnions(memory, factionId, simMinute, sourc
   return released.filter(Boolean);
 }
 
-export function suzeraintyCustomsPrivilege(memory, traderFactionId, portFactionId) {
+export function suzeraintyTradePrivilege(memory, traderFactionId, portFactionId) {
   assertSuzeraintyMemoryShape(memory);
   assertFactionId(traderFactionId);
   assertFactionId(portFactionId);
@@ -232,6 +232,8 @@ export function suzeraintyCustomsPrivilege(memory, traderFactionId, portFactionI
   ].includes(direct.kind);
   return Object.freeze({
     customsRate: reciprocalPrivilege || traderIsSuzerain ? 0.02 : 0.05,
+    // Shared dynasties and tribute did not merge crown monopolies; a ruling suzerain could compel access.
+    sovereignMarketAccess: direct.kind === SUZERAINTY_KIND_VASSAL && traderIsSuzerain,
     kind: direct.kind,
     traderIsSuzerain,
     vassalFactionId: direct.vassalFactionId,

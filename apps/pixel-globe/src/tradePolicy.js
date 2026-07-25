@@ -91,6 +91,7 @@ export function evaluateTradeAccess({
   foreignSettlementExpulsions = null,
   simMinute = 0,
   tradeAccessGranted = () => false,
+  suzeraintyPrivilege = null,
   illicitAccessPolicyId = null,
   disguisedEntry = false
 }) {
@@ -100,6 +101,7 @@ export function evaluateTradeAccess({
   if (typeof tradeAccessGranted !== "function") {
     throw new Error("Trade access evaluation requires a sovereign permission resolver");
   }
+  assertSuzeraintyTradePrivilege(suzeraintyPrivilege);
   const wartimeBlocked = relation === DIPLOMACY_WAR &&
     port.isPirateHideout !== true &&
     illicitAccessPolicyId === null &&
@@ -115,19 +117,26 @@ export function evaluateTradeAccess({
       lawfulExemption: false,
       policyId: null,
       policy: null,
+      suzeraintyPrivilege,
       portFactionId: port.factionId || NEUTRAL_FACTION_ID,
       traderFactionId: traderId,
       reason: "war"
     });
   }
   const policy = sovereignTradePolicyForPort(port, simMinute);
-  const sovereign = evaluateSovereignTradeAccess({
-    port,
-    traderFactionId: traderId,
-    simMinute,
-    granted: policy ? tradeAccessGranted(policy.id, traderId) : false,
-    illicitAccessPolicyId,
-    disguisedEntry
+  const sovereign = Object.freeze({
+    ...evaluateSovereignTradeAccess({
+      port,
+      traderFactionId: traderId,
+      simMinute,
+      granted: policy
+        ? tradeAccessGranted(policy.id, traderId) ||
+          suzeraintyPrivilege?.sovereignMarketAccess === true
+        : false,
+      illicitAccessPolicyId,
+      disguisedEntry
+    }),
+    suzeraintyPrivilege
   });
   const settlementAccess = bestForeignSettlementAccess({
     port,
@@ -142,6 +151,7 @@ export function evaluateTradeAccess({
       restricted: true,
       illicit: false,
       reason: "foreign-settlement",
+      suzeraintyPrivilege,
       foreignSettlement: settlementAccess,
       foreignSettlementFactionId: settlementAccess.factionId
     });
@@ -151,6 +161,7 @@ export function evaluateTradeAccess({
     allowed: true,
     restricted: sovereign.restricted,
     illicit: sovereign.illicit,
+    suzeraintyPrivilege,
     foreignSettlement: settlementAccess,
     foreignSettlementFactionId: settlementAccess?.factionId || null
   });
@@ -313,12 +324,7 @@ function customsCandidate({
     jurisdictionFactionId !== PIRATE_FACTION_ID;
   const pirateHome = traderId === PIRATE_FACTION_ID &&
     jurisdictionFactionId === PIRATE_FACTION_ID;
-  if (suzeraintyPrivilege !== null) {
-    if (!suzeraintyPrivilege || !Number.isFinite(suzeraintyPrivilege.customsRate) ||
-        suzeraintyPrivilege.customsRate < 0 || suzeraintyPrivilege.customsRate > 0.25) {
-      throw new Error("Invalid suzerainty customs privilege");
-    }
-  }
+  assertSuzeraintyTradePrivilege(suzeraintyPrivilege);
   const baseCustomsRate = domestic || pirateHome
     ? 0
     : suzeraintyPrivilege?.customsRate ?? customsRateForRelation(relation);
@@ -334,6 +340,15 @@ function customsCandidate({
     foreignSettlement,
     suzeraintyPrivilege
   });
+}
+
+function assertSuzeraintyTradePrivilege(privilege) {
+  if (privilege === null) return;
+  if (!privilege || !Number.isFinite(privilege.customsRate) ||
+      privilege.customsRate < 0 || privilege.customsRate > 0.25 ||
+      typeof privilege.sovereignMarketAccess !== "boolean") {
+    throw new Error("Invalid suzerainty trade privilege");
+  }
 }
 
 function assertTradeReputation(reputation) {

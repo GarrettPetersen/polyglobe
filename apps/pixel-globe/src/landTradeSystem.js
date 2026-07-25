@@ -7,8 +7,14 @@ import {
   tradeGoodById
 } from "./economy.js";
 import { NEUTRAL_FACTION_ID, diplomacyBetween } from "./factions.js";
-import { tradeTerms } from "./tradePolicy.js";
+import { evaluateTradeAccess, tradeTerms } from "./tradePolicy.js";
 import { validateForeignSettlementExpulsionMemory } from "./foreignSettlements.js";
+import { defaultSovereignTradeGrantedToFaction } from "./sovereignTradeAccess.js";
+import {
+  createSuzeraintyMemory,
+  suzeraintyTradePrivilege,
+  validateSuzeraintyMemory
+} from "./suzerainty.js";
 
 export const LAND_CART_CARGO_CAPACITY = 4;
 export const LAND_CART_SPEED_KM_PER_DAY = 120;
@@ -34,7 +40,9 @@ export function createLandTradeSystem({
   startMinute,
   seedKey = null,
   relationBetween = diplomacyBetween,
-  foreignSettlementExpulsions = null
+  foreignSettlementExpulsions = null,
+  sovereignTradeOpenToFaction = defaultSovereignTradeGrantedToFaction,
+  suzeraintyMemory = createSuzeraintyMemory(startMinute)
 }) {
   assertSystemInputs({
     roads,
@@ -43,7 +51,9 @@ export function createLandTradeSystem({
     startMinute,
     seedKey,
     relationBetween,
-    foreignSettlementExpulsions
+    foreignSettlementExpulsions,
+    sovereignTradeOpenToFaction,
+    suzeraintyMemory
   });
   const cityByTileId = new Map(cities.map((city) => [city.tileId, city]));
   const activeRoutes = roads.routes.filter((route) => (
@@ -63,6 +73,8 @@ export function createLandTradeSystem({
     economy,
     relationBetween,
     foreignSettlementExpulsions,
+    sovereignTradeOpenToFaction,
+    suzeraintyMemory,
     cityByTileId,
     activeRoutes,
     carts: []
@@ -203,13 +215,24 @@ export function snapshotLandTradeSystem(system) {
   };
 }
 
-export function restoreLandTradeSystem(system, snapshot, { seedKey = system?.seedKey } = {}) {
+export function restoreLandTradeSystem(system, snapshot, {
+  seedKey = system?.seedKey,
+  relationBetween = system?.relationBetween,
+  foreignSettlementExpulsions = system?.foreignSettlementExpulsions ?? null,
+  sovereignTradeOpenToFaction = system?.sovereignTradeOpenToFaction,
+  suzeraintyMemory = system?.suzeraintyMemory
+} = {}) {
   assertLandTradeSystem(system);
   validateOptionalSeedKey(seedKey);
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.carts)) {
     throw new Error("Unsupported land trade save data");
   }
   system.seedKey = seedKey;
+  system.relationBetween = relationBetween;
+  system.foreignSettlementExpulsions = foreignSettlementExpulsions;
+  system.sovereignTradeOpenToFaction = sovereignTradeOpenToFaction;
+  system.suzeraintyMemory = suzeraintyMemory;
+  assertLandTradeSystem(system);
   const seededCarts = system.carts;
   const seededById = new Map(seededCarts.map((cart) => [cart.id, cart]));
   const ids = new Set();
@@ -274,6 +297,14 @@ function chooseNextRoute(system, cart, originTileId) {
   const ranked = routes.map((route) => {
     const destinationTileId = otherRouteEndpoint(route, originTileId);
     const destination = system.cityByTileId.get(destinationTileId);
+    const tradeAllowed = cartTradeAccess(system, origin, destination).allowed;
+    if (!tradeAllowed) {
+      return {
+        route,
+        traffic: routeTraffic.get(route.id) || 0,
+        score: Number.NEGATIVE_INFINITY
+      };
+    }
     const plan = planNpcTrade(system.economy, origin, destination, {
       cargoCapacity: Math.max(0, cart.cargoCapacity - cartCargoUse(cart)),
       specie: cart.specie,
@@ -318,6 +349,7 @@ function buyCartCargo(system, cart) {
   const origin = system.cityByTileId.get(cart.originTileId);
   const destination = system.cityByTileId.get(cart.destinationTileId);
   if (!origin || !destination) throw new Error(`Land cart ${cart.id} has an unknown trade endpoint`);
+  if (!cartTradeAccess(system, origin, destination).allowed) return;
   const availableCapacity = cart.cargoCapacity - cartCargoUse(cart);
   if (availableCapacity <= 0) return;
   const plan = planNpcTrade(system.economy, origin, destination, {
@@ -345,6 +377,7 @@ function sellCartCargo(system, cart, destination) {
   if (!destination) throw new Error(`Land cart ${cart.id} reached an unknown city`);
   const origin = system.cityByTileId.get(cart.originTileId);
   if (!origin) throw new Error(`Land cart ${cart.id} left an unknown city`);
+  if (!cartTradeAccess(system, origin, destination).allowed) return;
   for (const [goodId, held] of Object.entries(cart.cargo)) {
     const saleMultiplier = cartSaleMultiplier(system, origin, destination)(goodId);
     const quantity = maximumPortPurchaseQuantity(
@@ -393,7 +426,31 @@ function cartTradeTerms(system, origin, port, goodId) {
     relation: system.relationBetween(traderFactionId, portFactionId),
     relationToFaction: (factionId) => system.relationBetween(traderFactionId, factionId),
     foreignSettlementExpulsions: system.foreignSettlementExpulsions,
+    suzeraintyPrivilege: suzeraintyTradePrivilege(
+      system.suzeraintyMemory,
+      traderFactionId,
+      portFactionId
+    ),
     goodId
+  });
+}
+
+function cartTradeAccess(system, origin, port) {
+  const traderFactionId = origin.factionId || NEUTRAL_FACTION_ID;
+  const portFactionId = port.factionId || NEUTRAL_FACTION_ID;
+  return evaluateTradeAccess({
+    port: { ...port, factionId: portFactionId },
+    traderFactionId,
+    relation: system.relationBetween(traderFactionId, portFactionId),
+    relationToFaction: (factionId) => system.relationBetween(traderFactionId, factionId),
+    foreignSettlementExpulsions: system.foreignSettlementExpulsions,
+    simMinute: system.economy.lastMinute,
+    tradeAccessGranted: system.sovereignTradeOpenToFaction,
+    suzeraintyPrivilege: suzeraintyTradePrivilege(
+      system.suzeraintyMemory,
+      traderFactionId,
+      portFactionId
+    )
   });
 }
 
@@ -460,13 +517,19 @@ function assertSystemInputs({
   startMinute,
   seedKey,
   relationBetween,
-  foreignSettlementExpulsions
+  foreignSettlementExpulsions,
+  sovereignTradeOpenToFaction,
+  suzeraintyMemory
 }) {
   if (!roads?.routeById || !roads.neighborRoutesByCityTileId) throw new Error("Land trade requires parsed roads");
   if (!economy?.portStates) throw new Error("Land trade requires a world economy");
   if (!Array.isArray(cities) || cities.length === 0) throw new Error("Land trade requires cities");
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid land trade start minute: ${startMinute}`);
   if (typeof relationBetween !== "function") throw new Error("Land trade requires a diplomacy resolver");
+  if (typeof sovereignTradeOpenToFaction !== "function") {
+    throw new Error("Land trade requires a sovereign trade-access resolver");
+  }
+  validateSuzeraintyMemory(suzeraintyMemory);
   if (foreignSettlementExpulsions !== null) {
     validateForeignSettlementExpulsionMemory(foreignSettlementExpulsions);
   }
@@ -477,12 +540,14 @@ function assertLandTradeSystem(system) {
   if (!system || system.version !== 1 || !system.roads?.routeById || !system.economy?.portStates ||
       !(system.cityByTileId instanceof Map) || !Array.isArray(system.carts) ||
       typeof system.relationBetween !== "function" ||
+      typeof system.sovereignTradeOpenToFaction !== "function" ||
       (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === ""))) {
     throw new Error("Invalid land trade system");
   }
   if (system.foreignSettlementExpulsions !== null) {
     validateForeignSettlementExpulsionMemory(system.foreignSettlementExpulsions);
   }
+  validateSuzeraintyMemory(system.suzeraintyMemory);
 }
 
 function landTradeSeedKey(seedKey, value) {

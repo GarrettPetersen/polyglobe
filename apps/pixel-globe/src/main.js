@@ -2954,6 +2954,10 @@ async function main() {
   });
   landTradeSystem.foreignSettlementExpulsions =
     gameState.relations.foreignSettlementExpulsions;
+  landTradeSystem.suzeraintyMemory = gameState.relations.diplomacy.suzerainties;
+  landTradeSystem.sovereignTradeOpenToFaction = (policyId, factionId) => (
+    sovereignTradeOpenToFaction(gameState, policyId, factionId)
+  );
   ensureNaturalistCharacter(gameState);
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
@@ -2981,6 +2985,7 @@ async function main() {
     sovereignTradeOpenToFaction: (policyId, factionId) => (
       sovereignTradeOpenToFaction(gameState, policyId, factionId)
     ),
+    suzeraintyMemory: gameState.relations.diplomacy.suzerainties,
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
   if (!CAPTURE_SCENARIO) {
@@ -8322,7 +8327,11 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     startMinute: simulationMinute,
     seedKey,
     relationBetween: currentDiplomacyBetween,
-    foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions
+    foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+    sovereignTradeOpenToFaction: (policyId, factionId) => (
+      sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+    ),
+    suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
   });
   landTradeSystem.economy = worldEconomy;
   if (payload.landTrade) {
@@ -8330,7 +8339,15 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
       label: "land trade",
       current: landTradeSystem,
       recreate: createLandTrade,
-      restore: (candidate) => restoreLandTradeSystem(candidate, payload.landTrade, { seedKey })
+      restore: (candidate) => restoreLandTradeSystem(candidate, payload.landTrade, {
+        seedKey,
+        relationBetween: currentDiplomacyBetween,
+        foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+        sovereignTradeOpenToFaction: (policyId, factionId) => (
+          sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+        ),
+        suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
+      })
     });
     landTradeSystem = landTradeResult.value;
     recordDerivedSaveRecovery(recovered, "land trade", landTradeResult.error);
@@ -8356,7 +8373,8 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
       foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
       sovereignTradeOpenToFaction: (policyId, factionId) => (
         sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
-      )
+      ),
+      suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
     })
   });
   npcSeaRoutes = npcRoutesResult.value;
@@ -8388,6 +8406,7 @@ function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
     sovereignTradeOpenToFaction: (policyId, factionId) => (
       sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
     ),
+    suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
 }

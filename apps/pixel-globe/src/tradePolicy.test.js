@@ -99,6 +99,7 @@ test("suzerain privileges are asymmetric while tributary commerce can be recipro
     relation: DIPLOMACY_FRIENDLY,
     suzeraintyPrivilege: {
       customsRate: 0.02,
+      sovereignMarketAccess: true,
       kind: "vassal",
       traderIsSuzerain: true
     },
@@ -110,6 +111,7 @@ test("suzerain privileges are asymmetric while tributary commerce can be recipro
     relation: DIPLOMACY_FRIENDLY,
     suzeraintyPrivilege: {
       customsRate: 0.05,
+      sovereignMarketAccess: false,
       kind: "vassal",
       traderIsSuzerain: false
     },

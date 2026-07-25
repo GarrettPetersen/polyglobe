@@ -12,7 +12,7 @@ import {
   releaseFactionPersonalUnions,
   releaseVassal,
   suzerainForFaction,
-  suzeraintyCustomsPrivilege,
+  suzeraintyTradePrivilege,
   validateSuzeraintyMemory,
   vassalsOf
 } from "./suzerainty.js";
@@ -37,13 +37,33 @@ test("the 1522 world begins with historically grounded suzerainties", () => {
 
 test("vassal customs favor the suzerain while tribute trade is reciprocal", () => {
   const memory = createSuzeraintyMemory(0);
-  assert.equal(suzeraintyCustomsPrivilege(memory, "portugal", "hormuz").customsRate, 0.02);
-  assert.equal(suzeraintyCustomsPrivilege(memory, "hormuz", "portugal").customsRate, 0.05);
-  assert.equal(suzeraintyCustomsPrivilege(memory, "ming", "joseon").customsRate, 0.02);
-  assert.equal(suzeraintyCustomsPrivilege(memory, "joseon", "ming").customsRate, 0.02);
-  assert.equal(suzeraintyCustomsPrivilege(memory, "spain", "habsburg").customsRate, 0.02);
-  assert.equal(suzeraintyCustomsPrivilege(memory, "habsburg", "spain").customsRate, 0.02);
-  assert.equal(suzeraintyCustomsPrivilege(memory, "england", "hormuz"), null);
+  assert.equal(suzeraintyTradePrivilege(memory, "portugal", "hormuz").customsRate, 0.02);
+  assert.equal(suzeraintyTradePrivilege(memory, "hormuz", "portugal").customsRate, 0.05);
+  assert.equal(suzeraintyTradePrivilege(memory, "ming", "joseon").customsRate, 0.02);
+  assert.equal(suzeraintyTradePrivilege(memory, "joseon", "ming").customsRate, 0.02);
+  assert.equal(suzeraintyTradePrivilege(memory, "spain", "habsburg").customsRate, 0.02);
+  assert.equal(suzeraintyTradePrivilege(memory, "habsburg", "spain").customsRate, 0.02);
+  assert.equal(suzeraintyTradePrivilege(memory, "england", "hormuz"), null);
+});
+
+test("only an ordinary suzerain inherits access to a vassal's protected market", () => {
+  const memory = createSuzeraintyMemory(0);
+  assert.equal(
+    suzeraintyTradePrivilege(memory, "portugal", "hormuz").sovereignMarketAccess,
+    true
+  );
+  assert.equal(
+    suzeraintyTradePrivilege(memory, "hormuz", "portugal").sovereignMarketAccess,
+    false
+  );
+  assert.equal(
+    suzeraintyTradePrivilege(memory, "ming", "joseon").sovereignMarketAccess,
+    false
+  );
+  assert.equal(
+    suzeraintyTradePrivilege(memory, "habsburg", "spain").sovereignMarketAccess,
+    false
+  );
 });
 
 test("new vassals can rebel and annexed suzerains release their dependents", () => {
