@@ -93,6 +93,14 @@ Research checked **July 24, 2026**, using the [How To Market A Game festival dir
 
 These are free, accept unreleased games and provide a plausible audience for Marque & Reprisal.
 
+- [ ] **Anime Game Festival, 3rd Edition — apply by July 30**
+  - Event: Early September 2026.
+  - Why: The eligibility rules accept games that have Japanese anime/manga-style visual design, even if they do not meet the event's other anime-culture or narrative criteria. The character portraits give us an honest visual fit.
+  - Pitch: A historical sailing roguelike with anime-influenced character art.
+  - Prepare: Promotional images that prominently feature the characters, plus the Steam page, demo and press-kit assets.
+  - Do not add an Anime Steam tag solely for this application.
+  - Application: https://docs.google.com/forms/d/e/1FAIpQLScljMrlt5fnKW7k3l9SNiY_Par1qKdlwCl9F_-vJHZpda_Ssg/viewform
+
 - [ ] **Fall Epic RPG Adventure Festival — apply by July 31**
   - Why: The game has RPG characters, quests, goals and progression, and the application explicitly accepts genre-bending RPGs.
   - Effort: Very low; it only asks for the game name, Steam App ID, store link, engine and contact information.
@@ -144,8 +152,9 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 - **Choose Wisely Festival:** It prioritizes branching narrative games whose story changes permanently with player choices. Marque & Reprisal has player choice, but that is not its central narrative structure.
 - **Creative Sandbox Festival:** It is for games where players build or design their own worlds, not sandbox games in the broader open-ended sense.
 - **EVA Play:** The directory describes a worldwide virtual option, but the official event page describes the playable selection as games from Argentina and Latin America. Do not spend time on it unless the organizer confirms that a Canadian game is eligible for remote showcasing.
+- **AI Game Festival:** It publicly frames participants as games generated with AI, even when AI was only used for programming, testing, localization or marketing. AI is not the player-facing identity or selling point of Marque & Reprisal, so the likely reputational anti-signal outweighs the prospective exposure.
 - **The remaining official 2026 Steam themed festivals:** None cleanly fit the game. Do not distort the store tags to enter an unrelated event.
-- **Regional, horror, NSFW, anime, cozy and other theme-specific events:** Not eligible or not a credible audience fit.
+- **Regional, horror, NSFW, cozy and other theme-specific events:** Not eligible or not a credible audience fit.
 
 ### Reusable festival application kit
 
