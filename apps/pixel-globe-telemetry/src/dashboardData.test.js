@@ -13,6 +13,12 @@ test("dashboard windows are deliberately bounded", () => {
   assert.match(dashboardQueries(7).daily, /INTERVAL '7' DAY/);
 });
 
+test("dashboard queries count every consenting event without cohort estimates", () => {
+  const sql = Object.values(dashboardQueries(7)).join("\n");
+  assert.doesNotMatch(sql, /\bdouble1\b/);
+  assert.doesNotMatch(sql, /DISTINCT index1\) \* 100/);
+});
+
 test("dashboard snapshots normalize aggregate query rows", () => {
   const snapshot = buildDashboardSnapshot(30, {
     totals: [{ sessions: 400, active_hours: 25, voyages: 100, crashes: 2 }],

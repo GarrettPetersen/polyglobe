@@ -9,7 +9,7 @@ const windowDays = integerArgument(process.argv.slice(2), "--days", 30);
 const sections = [
   ["ACTIVITY", `
     SELECT blob4 AS channel, blob1 AS event_type,
-      round(SUM(_sample_interval * double1)) AS estimated_events,
+      round(SUM(_sample_interval)) AS events,
       count() AS stored_rows
     FROM ${dataset}
     WHERE timestamp > NOW() - INTERVAL '${windowDays}' DAY
@@ -19,24 +19,24 @@ const sections = [
   `],
   ["ACTIVE PLAYTIME", `
     SELECT blob4 AS channel,
-      round(SUM(_sample_interval * double1 * double2) / 3600, 1) AS estimated_hours
+      round(SUM(_sample_interval * double2) / 3600, 1) AS active_hours
     FROM ${dataset}
     WHERE blob1 = 'session_checkpoint'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${windowDays}' DAY
     GROUP BY channel
-    ORDER BY estimated_hours DESC
+    ORDER BY active_hours DESC
   `],
   ["UNIQUE PLAYERS", `
     SELECT blob4 AS channel,
-      count(DISTINCT index1) * 100 AS estimated_unique_installations,
-      round(SUM(_sample_interval * double1)) AS estimated_sessions
+      count(DISTINCT index1) AS unique_installations,
+      round(SUM(_sample_interval)) AS sessions
     FROM ${dataset}
     WHERE blob1 = 'session_start'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${windowDays}' DAY
     GROUP BY channel
-    ORDER BY estimated_unique_installations DESC
+    ORDER BY unique_installations DESC
   `],
   ["RETENTION SIGNAL", `
     SELECT blob4 AS channel,
@@ -44,7 +44,7 @@ const sections = [
         if(double16 = 0, 'same day',
           if(double16 = 1, 'next day',
             if(double16 <= 7, '2-7 days', '8+ days')))) AS return_window,
-      round(SUM(_sample_interval * double1)) AS estimated_sessions
+      round(SUM(_sample_interval)) AS sessions
     FROM ${dataset}
     WHERE blob1 = 'session_start'
       AND blob4 != 'deployment-check'
@@ -54,11 +54,11 @@ const sections = [
   `],
   ["VOYAGE OUTCOMES", `
     SELECT blob8 AS main_quest, blob9 AS outcome,
-      round(SUM(_sample_interval * double1)) AS estimated_voyages,
-      round(SUM(_sample_interval * double1 * double2) /
-        SUM(_sample_interval * double1)) AS average_active_seconds,
-      round(SUM(_sample_interval * double1 * double6) /
-        SUM(_sample_interval * double1), 2) AS average_mapped_percent
+      round(SUM(_sample_interval)) AS voyages,
+      round(SUM(_sample_interval * double2) /
+        SUM(_sample_interval)) AS average_active_seconds,
+      round(SUM(_sample_interval * double6) /
+        SUM(_sample_interval), 2) AS average_mapped_percent
     FROM ${dataset}
     WHERE blob1 = 'voyage_end'
       AND blob4 != 'deployment-check'
@@ -68,20 +68,20 @@ const sections = [
   `],
   ["FEATURE ENGAGEMENT", `
     SELECT
-      round(SUM(_sample_interval * double1)) AS estimated_voyages,
-      round(SUM(_sample_interval * double1 * if(position('trade' IN blob11) > 0, 1, 0))) AS traded,
-      round(SUM(_sample_interval * double1 * if(position('fish' IN blob11) > 0, 1, 0))) AS fished,
-      round(SUM(_sample_interval * double1 * if(position('whale' IN blob11) > 0, 1, 0))) AS whaled,
-      round(SUM(_sample_interval * double1 * if(position('combat' IN blob11) > 0, 1, 0))) AS fought,
-      round(SUM(_sample_interval * double1 * if(position('colonize' IN blob11) > 0, 1, 0))) AS colonized,
-      round(SUM(_sample_interval * double1 * if(position('side-quests' IN blob11) > 0, 1, 0))) AS side_quests,
-      round(SUM(_sample_interval * double1 * if(position('animals' IN blob11) > 0, 1, 0))) AS animals,
-      round(SUM(_sample_interval * double1 * if(position('panda' IN blob11) > 0, 1, 0))) AS panda
+      round(SUM(_sample_interval)) AS voyages,
+      round(SUM(_sample_interval * if(position('trade' IN blob11) > 0, 1, 0))) AS traded,
+      round(SUM(_sample_interval * if(position('fish' IN blob11) > 0, 1, 0))) AS fished,
+      round(SUM(_sample_interval * if(position('whale' IN blob11) > 0, 1, 0))) AS whaled,
+      round(SUM(_sample_interval * if(position('combat' IN blob11) > 0, 1, 0))) AS fought,
+      round(SUM(_sample_interval * if(position('colonize' IN blob11) > 0, 1, 0))) AS colonized,
+      round(SUM(_sample_interval * if(position('side-quests' IN blob11) > 0, 1, 0))) AS side_quests,
+      round(SUM(_sample_interval * if(position('animals' IN blob11) > 0, 1, 0))) AS animals,
+      round(SUM(_sample_interval * if(position('panda' IN blob11) > 0, 1, 0))) AS panda
     FROM ${dataset}
     WHERE blob1 = 'voyage_end'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${windowDays}' DAY
-    HAVING estimated_voyages > 0
+    HAVING voyages > 0
   `],
   ["CRASH GROUPS", `
     SELECT blob13 AS fingerprint, blob3 AS revision, blob17 AS screen,

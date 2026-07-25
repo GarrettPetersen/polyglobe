@@ -8,7 +8,6 @@ import {
   TELEMETRY_INSTALLATION_STORAGE_KEY,
   TELEMETRY_QUEUE_STORAGE_KEY,
   createGameTelemetry,
-  installationIsSampled,
   telemetryRuntimeChannel,
   voyageTelemetryPayload
 } from "./gameTelemetry.js";
@@ -21,14 +20,6 @@ function memoryStorage(entries = {}) {
     removeItem: (key) => values.delete(key),
     values
   };
-}
-
-function sampledId() {
-  for (let index = 0; index < 10_000; index++) {
-    const candidate = `installation-${index}`;
-    if (installationIsSampled(candidate)) return candidate;
-  }
-  throw new Error("Could not find deterministic sampled installation");
 }
 
 test("telemetry remains completely inert before consent and after refusal", async () => {
@@ -55,11 +46,10 @@ test("telemetry remains completely inert before consent and after refusal", asyn
   assert.equal(requests.length, 0);
 });
 
-test("routine sessions use the deterministic one-percent cohort", async () => {
-  const installationId = sampledId();
+test("every consenting installation submits routine sessions at unit weight", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
-    [TELEMETRY_INSTALLATION_STORAGE_KEY]: installationId
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "any-consenting-installation"
   });
   const bodies = [];
   const telemetry = createGameTelemetry({
@@ -79,10 +69,9 @@ test("routine sessions use the deterministic one-percent cohort", async () => {
   });
   telemetry.start();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(telemetry.routineSampled, true);
   assert.equal(bodies.length, 1);
   assert.equal(bodies[0].events[0].type, "session_start");
-  assert.equal(bodies[0].events[0].payload.samplingWeight, 100);
+  assert.equal(bodies[0].events[0].payload.samplingWeight, 1);
 });
 
 test("crashes queue safely when the network is unavailable", async () => {
@@ -107,9 +96,9 @@ test("crashes queue safely when the network is unavailable", async () => {
   assert.equal(telemetry.captureCrash(new Error("boom"), { screen: "sailing" }), true);
   await new Promise((resolve) => setTimeout(resolve, 0));
   const queue = JSON.parse(storage.values.get(TELEMETRY_QUEUE_STORAGE_KEY));
-  assert.equal(queue.length, 1);
-  assert.equal(queue[0].type, "crash");
-  assert.equal(queue[0].payload.message, "boom");
+  assert.equal(queue.length, 2);
+  const crash = queue.find((entry) => entry.type === "crash");
+  assert.equal(crash.payload.message, "boom");
 });
 
 test("the same crash is reported only once per page session", async () => {
@@ -141,7 +130,7 @@ test("the same crash is reported only once per page session", async () => {
   assert.equal(requests[0].events.length, 1);
 });
 
-test("an unsampled installation retries an offline crash on its next session", async () => {
+test("a consenting installation retries an offline crash alongside its next routine session", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
     [TELEMETRY_INSTALLATION_STORAGE_KEY]: "not-in-routine-cohort",
@@ -161,9 +150,9 @@ test("an unsampled installation retries an offline crash on its next session", a
   });
   telemetry.start();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(telemetry.routineSampled, false);
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].events[0].type, "crash");
+  assert.deepEqual(requests[0].events.map((entry) => entry.type), ["crash", "session_start"]);
+  assert.equal(requests[0].events[1].payload.samplingWeight, 1);
 });
 
 test("voyage summaries expose bounded feature engagement without names or save data", () => {

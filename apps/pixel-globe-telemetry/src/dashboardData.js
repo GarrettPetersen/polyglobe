@@ -26,23 +26,23 @@ export function dashboardQueries(windowDays) {
   return Object.freeze({
     totals: `
       SELECT
-        round(SUM(_sample_interval * if(blob1 = 'session_start', double1, 0.0))) AS sessions,
-        round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double1 * double2, 0.0)) / 3600, 1) AS active_hours,
-        round(SUM(_sample_interval * if(blob1 = 'voyage_end', double1, 0.0))) AS voyages,
+        round(SUM(_sample_interval * if(blob1 = 'session_start', 1, 0))) AS sessions,
+        round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double2, 0.0)) / 3600, 1) AS active_hours,
+        round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
       FROM ${DATASET}
       WHERE ${where}
     `,
     players: `
-      SELECT count(DISTINCT index1) * 100 AS players
+      SELECT count(DISTINCT index1) AS players
       FROM ${DATASET}
       WHERE blob1 = 'session_start' AND ${where}
     `,
     daily: `
       SELECT toDate(timestamp) AS day,
-        round(SUM(_sample_interval * if(blob1 = 'session_start', double1, 0.0))) AS sessions,
-        round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double1 * double2, 0.0)) / 3600, 1) AS active_hours,
-        round(SUM(_sample_interval * if(blob1 = 'voyage_end', double1, 0.0))) AS voyages,
+        round(SUM(_sample_interval * if(blob1 = 'session_start', 1, 0))) AS sessions,
+        round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double2, 0.0)) / 3600, 1) AS active_hours,
+        round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
       FROM ${DATASET}
       WHERE ${where}
@@ -51,8 +51,8 @@ export function dashboardQueries(windowDays) {
     `,
     channels: `
       SELECT blob4 AS channel,
-        count(DISTINCT index1) * 100 AS players,
-        round(SUM(_sample_interval * double1)) AS sessions
+        count(DISTINCT index1) AS players,
+        round(SUM(_sample_interval)) AS sessions
       FROM ${DATASET}
       WHERE blob1 = 'session_start' AND ${where}
       GROUP BY channel
@@ -64,7 +64,7 @@ export function dashboardQueries(windowDays) {
           if(double16 = 0, 'same-day',
             if(double16 = 1, 'next-day',
               if(double16 <= 7, '2-7-days', '8+-days')))) AS return_window,
-        round(SUM(_sample_interval * double1)) AS sessions
+        round(SUM(_sample_interval)) AS sessions
       FROM ${DATASET}
       WHERE blob1 = 'session_start' AND ${where}
       GROUP BY channel, return_window
@@ -72,11 +72,11 @@ export function dashboardQueries(windowDays) {
     `,
     outcomes: `
       SELECT blob8 AS main_quest, blob9 AS outcome,
-        round(SUM(_sample_interval * double1)) AS voyages,
-        round(SUM(_sample_interval * double1 * double2) /
-          SUM(_sample_interval * double1)) AS average_active_seconds,
-        round(SUM(_sample_interval * double1 * double6) /
-          SUM(_sample_interval * double1), 2) AS average_mapped_percent
+        round(SUM(_sample_interval)) AS voyages,
+        round(SUM(_sample_interval * double2) /
+          SUM(_sample_interval)) AS average_active_seconds,
+        round(SUM(_sample_interval * double6) /
+          SUM(_sample_interval), 2) AS average_mapped_percent
       FROM ${DATASET}
       WHERE blob1 = 'voyage_end' AND ${where}
       GROUP BY main_quest, outcome
@@ -84,24 +84,24 @@ export function dashboardQueries(windowDays) {
     `,
     features: `
       SELECT
-        round(SUM(_sample_interval * double1)) AS voyages,
-        round(SUM(_sample_interval * double1 * if(position('trade' IN blob11) > 0, 1, 0))) AS trade,
-        round(SUM(_sample_interval * double1 * if(position('fish' IN blob11) > 0, 1, 0))) AS fish,
-        round(SUM(_sample_interval * double1 * if(position('scavenge' IN blob11) > 0, 1, 0))) AS scavenge,
-        round(SUM(_sample_interval * double1 * if(position('combat' IN blob11) > 0, 1, 0))) AS combat,
-        round(SUM(_sample_interval * double1 * if(position('whale' IN blob11) > 0, 1, 0))) AS whale,
-        round(SUM(_sample_interval * double1 * if(position('colonize' IN blob11) > 0, 1, 0))) AS colonize,
-        round(SUM(_sample_interval * double1 * if(position('piracy' IN blob11) > 0, 1, 0))) AS piracy,
-        round(SUM(_sample_interval * double1 * if(position('diplomacy' IN blob11) > 0, 1, 0))) AS diplomacy,
-        round(SUM(_sample_interval * double1 * if(position('side-quests' IN blob11) > 0, 1, 0))) AS side_quests,
-        round(SUM(_sample_interval * double1 * if(position('animals' IN blob11) > 0, 1, 0))) AS animals,
-        round(SUM(_sample_interval * double1 * if(position('panda' IN blob11) > 0, 1, 0))) AS panda
+        round(SUM(_sample_interval)) AS voyages,
+        round(SUM(_sample_interval * if(position('trade' IN blob11) > 0, 1, 0))) AS trade,
+        round(SUM(_sample_interval * if(position('fish' IN blob11) > 0, 1, 0))) AS fish,
+        round(SUM(_sample_interval * if(position('scavenge' IN blob11) > 0, 1, 0))) AS scavenge,
+        round(SUM(_sample_interval * if(position('combat' IN blob11) > 0, 1, 0))) AS combat,
+        round(SUM(_sample_interval * if(position('whale' IN blob11) > 0, 1, 0))) AS whale,
+        round(SUM(_sample_interval * if(position('colonize' IN blob11) > 0, 1, 0))) AS colonize,
+        round(SUM(_sample_interval * if(position('piracy' IN blob11) > 0, 1, 0))) AS piracy,
+        round(SUM(_sample_interval * if(position('diplomacy' IN blob11) > 0, 1, 0))) AS diplomacy,
+        round(SUM(_sample_interval * if(position('side-quests' IN blob11) > 0, 1, 0))) AS side_quests,
+        round(SUM(_sample_interval * if(position('animals' IN blob11) > 0, 1, 0))) AS animals,
+        round(SUM(_sample_interval * if(position('panda' IN blob11) > 0, 1, 0))) AS panda
       FROM ${DATASET}
       WHERE blob1 = 'voyage_end' AND ${where}
     `,
     environments: `
       SELECT blob5 AS platform, blob6 AS locale, blob3 AS revision,
-        round(SUM(_sample_interval * double1)) AS sessions
+        round(SUM(_sample_interval)) AS sessions
       FROM ${DATASET}
       WHERE blob1 = 'session_start' AND ${where}
       GROUP BY platform, locale, revision

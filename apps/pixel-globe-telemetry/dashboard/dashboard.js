@@ -30,7 +30,7 @@ async function loadDashboard() {
     if (!response.ok) throw new Error(`Dashboard request failed (${response.status})`);
     const data = await response.json();
     renderDashboard(data);
-    setStatus(`Showing ${data.windowDays === 1 ? "24 hours" : `${data.windowDays} days`} of sampled telemetry`);
+    setStatus(`Showing ${data.windowDays === 1 ? "24 hours" : `${data.windowDays} days`} of consenting telemetry`);
   } catch (error) {
     setStatus(error.message, true);
   } finally {

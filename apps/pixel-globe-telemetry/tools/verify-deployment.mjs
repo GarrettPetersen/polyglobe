@@ -40,7 +40,7 @@ const ingestion = await jsonFetch(`${endpoint}/v1/events`, {
         gameStateVersion: 1
       },
       payload: {
-        samplingWeight: 100,
+        samplingWeight: 1,
         installAgeDays: 0,
         daysSinceLastSession: -1
       }

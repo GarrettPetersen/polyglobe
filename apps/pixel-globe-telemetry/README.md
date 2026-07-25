@@ -4,9 +4,9 @@ This Cloudflare Worker accepts the game's optional pseudonymous telemetry and wr
 to Workers Analytics Engine. It stores no cookies, save files, account IDs, IP
 addresses, or advertising identifiers.
 
-Routine play analytics use a deterministic 1% installation cohort and carry a
-sampling weight of 100. Consented crash reports use weight 1 and are sent for all
-installations. Analytics Engine automatically removes data after three months.
+Routine play analytics and crash reports use unit event weights and are sent for
+all consenting installations. Analytics Engine automatically removes data after
+three months.
 
 ## Operations
 

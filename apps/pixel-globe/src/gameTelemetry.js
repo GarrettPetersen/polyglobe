@@ -7,10 +7,9 @@ export const TELEMETRY_QUEUE_STORAGE_KEY = "marque-and-reprisal.telemetry-queue"
 export const TELEMETRY_CONSENT_UNKNOWN = "unknown";
 export const TELEMETRY_CONSENT_GRANTED = "granted";
 export const TELEMETRY_CONSENT_DENIED = "denied";
-export const TELEMETRY_ROUTINE_SAMPLE_RATE = 0.01;
-export const TELEMETRY_ROUTINE_SAMPLE_WEIGHT = 100;
 
 const TELEMETRY_SCHEMA_VERSION = 1;
+const TELEMETRY_EVENT_WEIGHT = 1;
 const TELEMETRY_ENDPOINT = "https://telemetry.marque-and-reprisal.com/v1/events";
 const TELEMETRY_CHECKPOINT_INTERVAL_MS = 15 * 60 * 1000;
 const TELEMETRY_REQUEST_TIMEOUT_MS = 2500;
@@ -54,7 +53,6 @@ export function createGameTelemetry({
     ? readOrCreateInstallationId(storage, randomId, now)
     : null;
   let sessionId = null;
-  let sampled = installationId ? installationIsSampled(installationId) : false;
   let started = false;
   let checkpointTimer = null;
   let activePlayProvider = () => 0;
@@ -77,15 +75,12 @@ export function createGameTelemetry({
   function beginSession() {
     if (sessionId !== null) return;
     sessionId = randomId();
-    sampled = installationIsSampled(installationId);
     const retention = updateRetentionStorage(storage, now());
-    if (sampled) {
-      enqueueEvent("session_start", {
-        samplingWeight: TELEMETRY_ROUTINE_SAMPLE_WEIGHT,
-        installAgeDays: retention.installAgeDays,
-        daysSinceLastSession: retention.daysSinceLastSession
-      });
-    }
+    enqueueEvent("session_start", {
+      samplingWeight: TELEMETRY_EVENT_WEIGHT,
+      installAgeDays: retention.installAgeDays,
+      daysSinceLastSession: retention.daysSinceLastSession
+    });
     void flush();
     if (setIntervalImpl) {
       checkpointTimer = setIntervalImpl(
@@ -104,7 +99,6 @@ export function createGameTelemetry({
       checkpointTimer = null;
       installationId = null;
       sessionId = null;
-      sampled = false;
       queue = [];
       removeStorage(storage, TELEMETRY_INSTALLATION_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_FIRST_SEEN_STORAGE_KEY);
@@ -113,13 +107,12 @@ export function createGameTelemetry({
       return consent;
     }
     installationId = readOrCreateInstallationId(storage, randomId, now);
-    sampled = installationIsSampled(installationId);
     if (started) beginSession();
     return consent;
   }
 
   function checkpoint(keepalive = false) {
-    if (!enabled || !sampled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
       return false;
     }
     const current = safeActivePlaySeconds(activePlayProvider());
@@ -127,7 +120,7 @@ export function createGameTelemetry({
     lastReportedActivePlaySeconds = current;
     if (delta <= 0) return false;
     enqueueEvent("session_checkpoint", {
-      samplingWeight: TELEMETRY_ROUTINE_SAMPLE_WEIGHT,
+      samplingWeight: TELEMETRY_EVENT_WEIGHT,
       activePlaySeconds: delta
     });
     void flush({ keepalive });
@@ -135,7 +128,7 @@ export function createGameTelemetry({
   }
 
   function recordVoyage(record, state) {
-    if (!enabled || !sampled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
       return false;
     }
     let payload;
@@ -147,7 +140,7 @@ export function createGameTelemetry({
     }
     enqueueEvent("voyage_end", {
       ...payload,
-      samplingWeight: TELEMETRY_ROUTINE_SAMPLE_WEIGHT
+      samplingWeight: TELEMETRY_EVENT_WEIGHT
     });
     void flush();
     return true;
@@ -160,7 +153,7 @@ export function createGameTelemetry({
     if (reportedCrashes.has(dedupeKey)) return false;
     reportedCrashes.add(dedupeKey);
     if (sessionId === null) sessionId = randomId();
-    enqueueEvent("crash", { ...normalized, samplingWeight: 1 });
+    enqueueEvent("crash", { ...normalized, samplingWeight: TELEMETRY_EVENT_WEIGHT });
     void flush();
     return true;
   }
@@ -231,9 +224,6 @@ export function createGameTelemetry({
     get consentStatus() {
       return consent;
     },
-    get routineSampled() {
-      return sampled;
-    },
     start,
     stop,
     setConsent,
@@ -281,10 +271,6 @@ export function voyageTelemetryPayload(record, state) {
     coloniesFounded: Array.isArray(achievements.foundedCityIds) ? achievements.foundedCityIds.length : 0,
     spicesSold: Array.isArray(achievements.soldSpiceGoodIds) ? achievements.soldSpiceGoodIds.length : 0
   };
-}
-
-export function installationIsSampled(installationId) {
-  return stableHash32(requiredShortString(installationId, "installation id")) % 100 === 0;
 }
 
 function normalizeCrash(error, context) {
@@ -380,15 +366,6 @@ function validTimestamp(value) {
 
 function hasDecisionPrefix(decisions, prefix) {
   return Object.entries(decisions).some(([key, value]) => key.startsWith(prefix) && value > 0);
-}
-
-function stableHash32(text) {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < text.length; index++) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
 }
 
 function defaultRandomId() {

@@ -145,26 +145,23 @@ function validateMetadata(metadata) {
 
 function validatePayload(type, payload) {
   if (!plainObject(payload)) throw new TelemetryRequestError("invalid_payload", 400);
-  const expectedWeight = ROUTINE_EVENT_TYPES.has(type) ? 100 : 1;
-  if (payload.samplingWeight !== expectedWeight) {
-    throw new TelemetryRequestError("invalid_sampling_weight", 400);
-  }
+  const samplingWeight = normalizedSamplingWeight(type, payload.samplingWeight);
   if (type === "session_start") {
     return {
-      samplingWeight: expectedWeight,
+      samplingWeight,
       installAgeDays: numberInRange(payload.installAgeDays, 0, 100_000),
       daysSinceLastSession: numberInRange(payload.daysSinceLastSession, -1, 100_000)
     };
   }
   if (type === "session_checkpoint") {
     return {
-      samplingWeight: expectedWeight,
+      samplingWeight,
       activePlaySeconds: numberInRange(payload.activePlaySeconds, 0, 86_400)
     };
   }
   if (type === "crash") {
     return {
-      samplingWeight: expectedWeight,
+      samplingWeight,
       errorName: shortString(payload.errorName, 80),
       message: stringAtMost(payload.message, 500),
       stack: stringAtMost(payload.stack, 6000),
@@ -173,18 +170,30 @@ function validatePayload(type, payload) {
       ship: shortString(payload.ship, 80)
     };
   }
-  if (type === "voyage_end") return validateVoyagePayload(payload);
+  if (type === "voyage_end") return validateVoyagePayload(payload, samplingWeight);
   throw new TelemetryRequestError("invalid_event_type", 400);
 }
 
-function validateVoyagePayload(payload) {
+function normalizedSamplingWeight(type, samplingWeight) {
+  if (!ROUTINE_EVENT_TYPES.has(type)) {
+    if (samplingWeight !== 1) throw new TelemetryRequestError("invalid_sampling_weight", 400);
+    return 1;
+  }
+  // Normalize events queued by browser tabs opened before full collection launched.
+  if (samplingWeight !== 1 && samplingWeight !== 100) {
+    throw new TelemetryRequestError("invalid_sampling_weight", 400);
+  }
+  return 1;
+}
+
+function validateVoyagePayload(payload, samplingWeight) {
   if (!Array.isArray(payload.features) || payload.features.length > FEATURE_IDS.size ||
       new Set(payload.features).size !== payload.features.length ||
       payload.features.some((entry) => !FEATURE_IDS.has(entry))) {
     throw new TelemetryRequestError("invalid_features", 400);
   }
   return {
-    samplingWeight: 100,
+    samplingWeight,
     outcome: shortString(payload.outcome, 40),
     mainQuest: shortString(payload.mainQuest, 80),
     activePlaySeconds: numberInRange(payload.activePlaySeconds, 0, 100_000_000),

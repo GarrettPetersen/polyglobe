@@ -40,32 +40,44 @@ test("valid crash reports are hashed and written without network identity", asyn
   assert.equal(points[0].blobs[14], "Boom");
 });
 
-test("routine sampling weights and batch sizes are enforced", async () => {
+test("full-collection weights and batch sizes are enforced", async () => {
   const points = [];
-  const badWeight = await worker.fetch(requestFor([event("session_start", {
+  const accepted = await worker.fetch(requestFor([event("session_start", {
     samplingWeight: 1,
     installAgeDays: 0,
     daysSinceLastSession: -1
   })]), environment(points));
-  assert.equal(badWeight.status, 400);
-  assert.equal(points.length, 0);
+  assert.equal(accepted.status, 202);
+  assert.equal(points.length, 1);
+  assert.equal(points[0].doubles[0], 1);
 
   const tooMany = Array.from({ length: 9 }, () => event("session_checkpoint", {
-    samplingWeight: 100,
+    samplingWeight: 1,
     activePlaySeconds: 60
   }));
   const badBatch = await worker.fetch(requestFor(tooMany), environment(points));
   assert.equal(badBatch.status, 400);
 });
 
+test("routine events queued by old tabs are normalized to unit weight", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("session_checkpoint", {
+    samplingWeight: 100,
+    activePlaySeconds: 60
+  })]), environment(points));
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+  assert.equal(points[0].doubles[0], 1);
+});
+
 test("an invalid event prevents the entire batch from being written", async () => {
   const points = [];
   const valid = event("session_checkpoint", {
-    samplingWeight: 100,
+    samplingWeight: 1,
     activePlaySeconds: 60
   });
   const invalid = event("session_checkpoint", {
-    samplingWeight: 1,
+    samplingWeight: 17,
     activePlaySeconds: 60
   });
   invalid.eventId = "event-2";
