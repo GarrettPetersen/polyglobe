@@ -1,3 +1,8 @@
+import {
+  handleDashboardRequest,
+  isDashboardRequest
+} from "./dashboard.js";
+
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_EVENTS_PER_REQUEST = 8;
 const EVENT_TYPES = new Set(["session_start", "session_checkpoint", "voyage_end", "crash"]);
@@ -28,8 +33,8 @@ const COMMON_HEADERS = Object.freeze({
 
 export default {
   async fetch(request, env) {
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: COMMON_HEADERS });
     const url = new URL(request.url);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: COMMON_HEADERS });
     if (request.method === "GET" && url.pathname === "/health") {
       const configured = telemetryEnvironmentIsConfigured(env);
       return jsonResponse({
@@ -37,6 +42,9 @@ export default {
         service: "marque-and-reprisal-telemetry",
         schemaVersion: 1
       }, configured ? 200 : 503);
+    }
+    if (isDashboardRequest(url) && url.pathname !== "/v1/events") {
+      return handleDashboardRequest(request, env);
     }
     if (request.method !== "POST" || url.pathname !== "/v1/events") {
       return jsonResponse({ error: "not_found" }, 404);

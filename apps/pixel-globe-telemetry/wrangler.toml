@@ -14,3 +14,12 @@ dataset = "marque_and_reprisal_game_events"
 [[routes]]
 pattern = "telemetry.marque-and-reprisal.com"
 custom_domain = true
+
+[[routes]]
+pattern = "dashboard.marque-and-reprisal.com"
+custom_domain = true
+
+[assets]
+directory = "./dashboard"
+binding = "DASHBOARD_ASSETS"
+run_worker_first = true

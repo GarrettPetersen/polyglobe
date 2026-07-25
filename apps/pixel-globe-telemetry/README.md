@@ -25,6 +25,8 @@ npm install
 npm run check
 npm run deploy
 npm run configure-secret
+npm run configure-dashboard
+npm run verify-dashboard
 npm run verify
 npm run report
 npm run crashes -- --hours 24
@@ -49,3 +51,20 @@ From the repository root:
 ```sh
 npm run --silent pixel-globe-telemetry:crashes -- --hours 48 --format json
 ```
+
+## Dashboard
+
+The same Worker serves the aggregate operations dashboard at:
+
+```text
+https://dashboard.marque-and-reprisal.com
+```
+
+Run `npm run configure-dashboard` after the first dashboard deployment. It configures
+the Analytics Engine account and read token as encrypted Worker secrets. The browser
+receives only aggregated query results; Cloudflare credentials, installation hashes,
+event IDs, and raw stacks never leave the Worker.
+
+The dashboard supports 24-hour, 7-day, 30-day, and 90-day views. Analytics responses
+are cached at the Worker edge for five minutes to keep the dashboard inexpensive.
+Run `npm run verify-dashboard` after deploying or rotating its secrets.

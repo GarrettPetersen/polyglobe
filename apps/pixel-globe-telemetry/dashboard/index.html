@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Private Marque & Reprisal telemetry dashboard.">
+  <title>Telemetry Logbook | Marque & Reprisal</title>
+  <link rel="stylesheet" href="/dashboard.css">
+  <script src="/dashboard.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="kicker">Marque &amp; Reprisal</p>
+      <h1>Telemetry Logbook</h1>
+    </div>
+    <div class="topbar-actions">
+      <div class="range-picker" role="group" aria-label="Reporting period">
+        <button type="button" data-days="1">24H</button>
+        <button type="button" data-days="7">7D</button>
+        <button type="button" data-days="30" class="selected">30D</button>
+        <button type="button" data-days="90">90D</button>
+      </div>
+      <button type="button" class="refresh-button" id="refresh">Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="status-line" aria-live="polite">
+      <span id="status">Loading telemetry</span>
+      <span id="updated"></span>
+    </section>
+
+    <section class="metrics" aria-label="Headline statistics">
+      <article><span>Estimated players</span><strong id="metric-players">-</strong></article>
+      <article><span>Sessions</span><strong id="metric-sessions">-</strong></article>
+      <article><span>Active playtime</span><strong id="metric-hours">-</strong></article>
+      <article><span>Avg. session</span><strong id="metric-session-length">-</strong></article>
+      <article><span>Voyages ended</span><strong id="metric-voyages">-</strong></article>
+      <article class="crash-metric"><span>Crashes / 1K sessions</span><strong id="metric-crashes">-</strong></article>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel activity-panel">
+        <header><div><p class="eyebrow">Traffic</p><h2>Daily activity</h2></div><p class="legend"><i class="sessions"></i> Sessions <i class="playtime"></i> Hours</p></header>
+        <div class="activity-chart" id="activity-chart"></div>
+      </article>
+
+      <article class="panel retention-panel">
+        <header><div><p class="eyebrow">Return signal</p><h2>Session retention</h2></div></header>
+        <div id="retention-chart" class="retention-chart"></div>
+      </article>
+
+      <article class="panel features-panel">
+        <header><div><p class="eyebrow">Voyage systems</p><h2>Feature engagement</h2></div><p>Share of ended voyages</p></header>
+        <div id="feature-chart" class="feature-chart"></div>
+      </article>
+
+      <article class="panel outcomes-panel">
+        <header><div><p class="eyebrow">Captain's fate</p><h2>Voyage outcomes</h2></div></header>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Quest</th><th>Outcome</th><th>Voyages</th><th>Avg. play</th><th>Mapped</th></tr></thead>
+            <tbody id="outcomes-body"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel channels-panel">
+        <header><div><p class="eyebrow">Distribution</p><h2>Channels &amp; builds</h2></div></header>
+        <div class="two-column-tables">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Channel</th><th>Players</th><th>Sessions</th></tr></thead>
+              <tbody id="channels-body"></tbody>
+            </table>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Platform / locale</th><th>Revision</th><th>Sessions</th></tr></thead>
+              <tbody id="environments-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel crashes-panel">
+        <header><div><p class="eyebrow">Reliability</p><h2>Recent crash groups</h2></div><p id="crash-summary"></p></header>
+        <div id="crash-list" class="crash-list"></div>
+      </article>
+    </section>
+  </main>
+
+</body>
+</html>

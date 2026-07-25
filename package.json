@@ -33,6 +33,8 @@
     "pixel-globe:check": "npm --prefix apps/pixel-globe run check",
     "pixel-globe-telemetry:check": "npm --prefix apps/pixel-globe-telemetry run check",
     "pixel-globe-telemetry:deploy": "npm --prefix apps/pixel-globe-telemetry run deploy",
+    "pixel-globe-telemetry:dashboard:configure": "npm --prefix apps/pixel-globe-telemetry run configure-dashboard",
+    "pixel-globe-telemetry:dashboard:verify": "npm --prefix apps/pixel-globe-telemetry run verify-dashboard",
     "pixel-globe-telemetry:verify": "npm --prefix apps/pixel-globe-telemetry run verify",
     "pixel-globe-telemetry:report": "npm --prefix apps/pixel-globe-telemetry run report",
     "pixel-globe-telemetry:crashes": "npm --prefix apps/pixel-globe-telemetry run crashes --",
