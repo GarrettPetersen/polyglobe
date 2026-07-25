@@ -2124,12 +2124,37 @@ export function shipItemRows(state) {
 }
 
 export function hasShipItem(state, itemId) {
-  assertGameState(state);
   if (typeof itemId !== "string" || itemId.trim() === "") throw new Error(`Invalid ship item id: ${itemId}`);
-  if (itemId === SHIP_ITEM_FISHING_NET) return Boolean(state.inventory.fishingNetId);
-  if (itemId === SHIP_ITEM_CANNON_EQUIPMENT) return Boolean(state.inventory.cannonEquipmentId);
-  if (itemId === SHIP_ITEM_WHALE_HARPOON) return Boolean(state.inventory.whaleHarpoonId);
-  return (state.inventory.items[itemId] || 0) > 0;
+  const inventory = shipEquipmentInventory(state);
+  if (itemId === SHIP_ITEM_FISHING_NET) {
+    fishingNetById(inventory.fishingNetId);
+    return true;
+  }
+  if (itemId === SHIP_ITEM_CANNON_EQUIPMENT) {
+    cannonEquipmentById(inventory.cannonEquipmentId);
+    return true;
+  }
+  if (itemId === SHIP_ITEM_WHALE_HARPOON) {
+    if (inventory.whaleHarpoonId === null) return false;
+    whaleHarpoonById(inventory.whaleHarpoonId);
+    return true;
+  }
+  if (!inventory.items || typeof inventory.items !== "object" || Array.isArray(inventory.items)) {
+    throw new Error("Ship item lookup requires a valid perk item inventory");
+  }
+  perkItemById(itemId);
+  const quantity = inventory.items[itemId] ?? 0;
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 1) {
+    throw new Error(`Invalid ship item quantity for ${itemId}: ${quantity}`);
+  }
+  return quantity > 0;
+}
+
+function shipEquipmentInventory(state) {
+  if (!state || typeof state !== "object" || !state.inventory || typeof state.inventory !== "object") {
+    throw new Error("Ship equipment query requires a valid inventory");
+  }
+  return state.inventory;
 }
 
 export function playerPerkItemRows(state) {
@@ -2337,8 +2362,7 @@ export function refreshPlayerPerkCargoCapacity(state) {
 }
 
 export function playerFishingNet(state) {
-  assertGameState(state);
-  return fishingNetById(state.inventory.fishingNetId);
+  return fishingNetById(shipEquipmentInventory(state).fishingNetId);
 }
 
 export function purchaseFishingNet(state, economy, city, netId, context = {}) {
@@ -2369,15 +2393,14 @@ export function purchaseFishingNet(state, economy, city, netId, context = {}) {
 }
 
 export function playerCannonEquipment(state) {
-  assertGameState(state);
-  return cannonEquipmentById(state.inventory.cannonEquipmentId);
+  return cannonEquipmentById(shipEquipmentInventory(state).cannonEquipmentId);
 }
 
 export function playerWhaleHarpoon(state) {
-  assertGameState(state);
-  return state.inventory.whaleHarpoonId === null
+  const inventory = shipEquipmentInventory(state);
+  return inventory.whaleHarpoonId === null
     ? null
-    : whaleHarpoonById(state.inventory.whaleHarpoonId);
+    : whaleHarpoonById(inventory.whaleHarpoonId);
 }
 
 export function purchaseWhaleHarpoon(state, economy, city, harpoonId, context = {}) {

@@ -1405,6 +1405,7 @@ const NPC_HAIL_RADIUS_PX = 28;
 const NPC_HAIL_CLICK_PAD_PX = 4;
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
+const DRAWN_SURFACE_NAVIGATION_CACHE_LIMIT = 65536;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
 const CANNON_MUZZLE_SIDE_OFFSET_PX = 8;
 const CANNON_MUZZLE_FORE_AFT_SPAN_PX = 13;
@@ -1435,6 +1436,7 @@ const RIVER_HIGHLIGHT_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
 const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 250;
+const WEATHER_SIMULATION_INTERVAL_SECONDS = 0.1;
 const PRECIP_PARTICLE_REDRAW_MS = 80;
 const RAIN_PARTICLE_LIMIT = 340;
 const SNOW_PARTICLE_LIMIT = 300;
@@ -1973,6 +1975,7 @@ const SFX_UNDERWAY_FADE_PER_SECOND = 0.018;
 const SFX_FIRE_FADE_PER_SECOND = 0.55;
 const SFX_WHALE_SONG_FADE_PER_SECOND = 0.035;
 const SFX_WIND_TERRAIN_RADIUS_PX = 150;
+const AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS = 0.1;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
 const STORM_DAMAGE_NOTICE_MS = 3600;
@@ -1990,6 +1993,9 @@ const WHALE_BLOW_DURATION_MS = WHALE_BLOW_DURATION_SECONDS * 1000;
 const WHALE_SUBMERGED_ALPHA = 0.34;
 const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
+const WHALE_SIMULATION_INTERVAL_SECONDS = 0.1;
+const WHALE_HUNT_SIMULATION_INTERVAL_SECONDS = 1 / 30;
+const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
@@ -2213,6 +2219,14 @@ let cannonSmokeBursts = [];
 let hullSplinterBursts = [];
 let npcVisualUpdateAccumulator = 0;
 let shoreBatteryUpdateAccumulator = 0;
+let whaleSimulationAccumulator = 0;
+let ambientAudioUpdateAccumulator = 0;
+let weatherSimulationAccumulator = 0;
+let npcStrategicUpdateClockMinutes = null;
+let lastPlatformActivityUpdateMs = -Infinity;
+let localChartCullWidth = 0;
+let localChartCullHeight = 0;
+let localChartCullMinimumDot = -1;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
 let portCityCharacters;
@@ -2243,6 +2257,7 @@ const shipTerrainRiverBankCache = new WeakMap();
 const landRoadLayerCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
+const drawnSurfaceNavigationCache = new WeakMap();
 const npcOffshoreClearanceCache = new Map();
 let npcOffshoreClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
@@ -3972,7 +3987,9 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
 }
 
 function updatePlatformActivity() {
-  if (!steamPlatformBridge) return;
+  if (!steamPlatformBridge ||
+      lastFrameMs - lastPlatformActivityUpdateMs < PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS) return;
+  lastPlatformActivityUpdateMs = lastFrameMs;
   const activity = currentPlatformActivity();
   void platformActivityPublisher.publish(activity).catch((error) => {
     console.error("[steam] could not update activity", error);
@@ -5599,7 +5616,6 @@ function ensureAmbientPlaylistStarted(playlist, nowMs) {
 
 function applyThemeAudioSettings() {
   const musicVolume = CAPTURE_SCENARIO ? 0 : clamp(optionsMenu.musicVolume, 0, 1);
-  const sfxVolume = clamp(optionsMenu.sfxVolume, 0, 1);
   if (themeMusic) themeMusic.setOutput(musicVolume, optionsMenu.muted);
   if (soundEffects) {
     for (const audio of [
@@ -5624,17 +5640,23 @@ function applyThemeAudioSettings() {
     ]) {
       audio.muted = optionsMenu.muted;
     }
-    for (const loop of ambientSoundLoops()) {
-      loop.audio.muted = optionsMenu.muted;
-      loop.audio.volume = optionsMenu.muted ? 0 : sfxVolume * loop.currentVolume;
-    }
-    for (const playlist of ambientSoundPlaylists()) {
-      for (const track of playlist.tracks) {
-        track.muted = optionsMenu.muted;
-        track.volume = optionsMenu.muted || track !== playlist.currentTrack
-          ? 0
-          : sfxVolume * playlist.currentVolume;
-      }
+    applyAmbientAudioSettings();
+  }
+}
+
+function applyAmbientAudioSettings() {
+  if (!soundEffects) return;
+  const sfxVolume = clamp(optionsMenu.sfxVolume, 0, 1);
+  for (const loop of ambientSoundLoops()) {
+    loop.audio.muted = optionsMenu.muted;
+    loop.audio.volume = optionsMenu.muted ? 0 : sfxVolume * loop.currentVolume;
+  }
+  for (const playlist of ambientSoundPlaylists()) {
+    for (const track of playlist.tracks) {
+      track.muted = optionsMenu.muted;
+      track.volume = optionsMenu.muted || track !== playlist.currentTrack
+        ? 0
+        : sfxVolume * playlist.currentVolume;
     }
   }
 }
@@ -5796,48 +5818,56 @@ function playAchievementDingSound() {
 
 function updateAmbientAudio(dt) {
   if (!soundEffects) return;
-  const shore = shoreProximity();
-  const sailing = sailingAmbientTargets(dt);
-  updateRowingStrokeAudio(dt, sailing.rowing);
+  ambientAudioUpdateAccumulator = Math.min(
+    AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS * 2,
+    ambientAudioUpdateAccumulator + dt
+  );
+  if (ambientAudioUpdateAccumulator < AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS) return;
+  const elapsed = ambientAudioUpdateAccumulator;
+  ambientAudioUpdateAccumulator = 0;
+  const nearestLand = nearestLandForAmbientContext();
+  const shore = shoreProximity(nearestLand);
+  const sailing = sailingAmbientTargets(elapsed, nearestLand);
+  updateRowingStrokeAudio(elapsed, sailing.rowing);
   let changed = false;
   changed = updateAmbientLoop(
     soundEffects.harbour,
     dialogueState ? SFX_HARBOUR_MAX_VOLUME : 0,
     SFX_HARBOUR_MAX_VOLUME,
-    dt
+    elapsed
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.seagulls,
     seagullAmbientPresence() * SFX_SEAGULLS_MAX_VOLUME,
     SFX_SEAGULLS_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_SEAGULL_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.shoreWaves,
     shore * SFX_SHORE_WAVES_MAX_VOLUME,
     SFX_SHORE_WAVES_MAX_VOLUME,
-    dt
+    elapsed
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.harshWind,
     sailing.harshWind * SFX_HARSH_WIND_MAX_VOLUME,
     SFX_HARSH_WIND_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_WIND_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.winterWind,
     sailing.winterWind * SFX_WINTER_WIND_MAX_VOLUME,
     SFX_WINTER_WIND_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_WIND_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.desertWind,
     sailing.desertWind * SFX_DESERT_WIND_MAX_VOLUME,
     SFX_DESERT_WIND_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_WIND_FADE_PER_SECOND
   ) || changed;
   const stormIntensity = playerStormIntensity();
@@ -5845,39 +5875,39 @@ function updateAmbientAudio(dt) {
     soundEffects.storm,
     stormIntensity * SFX_STORM_MAX_VOLUME,
     SFX_STORM_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_STORM_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.sailFlap,
     sailing.sailFlap * SFX_SAIL_FLAP_MAX_VOLUME,
     SFX_SAIL_FLAP_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_SAIL_FLAP_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.underway,
     sailing.underway * SFX_UNDERWAY_MAX_VOLUME,
     SFX_UNDERWAY_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_UNDERWAY_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.fire,
     visibleFireSoundPresence() * SFX_FIRE_MAX_VOLUME,
     SFX_FIRE_MAX_VOLUME,
-    dt,
+    elapsed,
     SFX_FIRE_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientPlaylist(
     soundEffects.whaleSongs,
     visibleUnderwaterWhaleSongPresence() * SFX_WHALE_SONG_MAX_VOLUME,
     SFX_WHALE_SONG_MAX_VOLUME,
-    dt,
+    elapsed,
     lastFrameMs,
     SFX_WHALE_SONG_FADE_PER_SECOND
   ) || changed;
-  if (changed) applyThemeAudioSettings();
+  if (changed) applyAmbientAudioSettings();
 }
 
 function updateRowingStrokeAudio(dt, active) {
@@ -6006,7 +6036,7 @@ function visibleFireSoundPresence() {
     : 0;
 }
 
-function sailingAmbientTargets(dt) {
+function sailingAmbientTargets(dt, nearestLand) {
   if (!ship || !graph) {
     throw new Error("Cannot update sailing ambience before the ship and globe are initialized");
   }
@@ -6021,7 +6051,7 @@ function sailingAmbientTargets(dt) {
     speedPx: vectorLength(ship.velocity) * PIXELS_PER_RADIAN,
     isRiver: shipIsInRiverWater(),
     windStrength: wind.strength,
-    windContext: sailingWindContext(),
+    windContext: sailingWindContext(nearestLand),
     angleFromWindRad,
     stallAngleRad: currentPlayerEffectiveShipStats().upwindStallAngleRad
   });
@@ -6043,14 +6073,17 @@ function sailingAmbientTargets(dt) {
   };
 }
 
-function sailingWindContext() {
+function sailingWindContext(nearestLand) {
   const tileId = ship.tileId;
   const flags = weatherFlagsForTile(tileId);
   if (seaIceMask?.[tileId] || freshwaterIceMask?.[tileId] || (flags & TILE_DAY_SNOW_FALL) !== 0) {
     return SAILING_WIND_CONTEXT_WINTER;
   }
 
-  const nearbyLand = nearestLandForWindContext();
+  const nearbyLand = nearestLand?.distanceSquared <=
+    SFX_WIND_TERRAIN_RADIUS_PX * SFX_WIND_TERRAIN_RADIUS_PX
+    ? nearestLand.call
+    : null;
   if (nearbyLand) {
     const terrain = nearbyLand.row.t || "";
     if (snowGroundMask?.[nearbyLand.id] || terrain.includes("ice") || terrain.includes("snow") || terrain.includes("tundra") || terrain.includes("cold")) {
@@ -6062,21 +6095,6 @@ function sailingWindContext() {
   }
   if (Math.abs(graph.latDeg[tileId]) >= 58) return SAILING_WIND_CONTEXT_WINTER;
   return SAILING_WIND_CONTEXT_GENERAL;
-}
-
-function nearestLandForWindContext() {
-  if (!chart || !localLayout) return null;
-  const maxDistance = SFX_WIND_TERRAIN_RADIUS_PX * SFX_WIND_TERRAIN_RADIUS_PX;
-  let nearest = null;
-  let nearestDistance = Infinity;
-  for (const call of chart.tileCalls) {
-    if (isWaterSurfaceRow(call.row)) continue;
-    const distance = distance2(localLayout.viewX, localLayout.viewY, call.x, call.y);
-    if (distance > maxDistance || distance >= nearestDistance) continue;
-    nearest = call;
-    nearestDistance = distance;
-  }
-  return nearest;
 }
 
 function seagullAmbientPresence() {
@@ -6095,15 +6113,10 @@ function seagullAmbientPresence() {
   });
 }
 
-function shoreProximity() {
+function shoreProximity(nearestLand) {
   if (!chart || !localLayout || !ship) return 0;
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
-  let nearest = Infinity;
-
-  for (const call of chart.tileCalls) {
-    if (isWaterSurfaceRow(call.row)) continue;
-    nearest = Math.min(nearest, distance2(origin.x, origin.y, call.x, call.y));
-  }
+  let nearest = nearestLand?.distanceSquared ?? Infinity;
   for (const call of chart.cityCalls || []) {
     nearest = Math.min(nearest, distance2(origin.x, origin.y, call.x, call.y) * 0.72);
   }
@@ -6114,6 +6127,37 @@ function shoreProximity() {
   if (distance >= SFX_HARBOUR_FAR_PX) return 0;
   const t = (distance - SFX_HARBOUR_NEAR_PX) / (SFX_HARBOUR_FAR_PX - SFX_HARBOUR_NEAR_PX);
   return 1 - easeInOut(t);
+}
+
+function nearestLandForAmbientContext() {
+  if (!chart?.waterIndex?.tileRows || !localLayout) return null;
+  const maxDistanceSquared = SFX_HARBOUR_FAR_PX * SFX_HARBOUR_FAR_PX;
+  const bx = Math.floor(localLayout.viewX / WAKE_WATER_BUCKET_PX);
+  const by = Math.floor(localLayout.viewY / WAKE_WATER_BUCKET_PX);
+  const range = Math.ceil(SFX_HARBOUR_FAR_PX / WAKE_WATER_BUCKET_PX);
+  let nearest = null;
+  let nearestDistanceSquared = maxDistanceSquared;
+  for (let yy = by - range; yy <= by + range; yy++) {
+    const row = chart.waterIndex.tileRows.get(yy);
+    if (!row) continue;
+    for (let xx = bx - range; xx <= bx + range; xx++) {
+      const calls = row.get(xx);
+      if (!calls) continue;
+      for (const call of calls) {
+        if (isWaterSurfaceRow(call.row)) continue;
+        const candidateDistanceSquared = distance2(
+          localLayout.viewX,
+          localLayout.viewY,
+          call.x,
+          call.y
+        );
+        if (candidateDistanceSquared >= nearestDistanceSquared) continue;
+        nearest = call;
+        nearestDistanceSquared = candidateDistanceSquared;
+      }
+    }
+  }
+  return nearest ? { call: nearest, distanceSquared: nearestDistanceSquared } : null;
 }
 
 function distance2(ax, ay, bx, by) {
@@ -8089,7 +8133,12 @@ async function restoreSavedVoyage(payload) {
   gameOverState = null;
   npcVisualShips.clear();
   shoreBatteryStates.clear();
+  npcVisualUpdateAccumulator = 0;
   shoreBatteryUpdateAccumulator = 0;
+  whaleSimulationAccumulator = 0;
+  ambientAudioUpdateAccumulator = 0;
+  weatherSimulationAccumulator = 0;
+  npcStrategicUpdateClockMinutes = null;
   npcCombatProjectiles = [];
   npcCombatSplashes = [];
   pendingNpcCombatHailId = null;
@@ -13075,12 +13124,21 @@ function cycleControllerInteractionTarget() {
 
 function updateWhales(dt, nowMs) {
   if (!gameState?.memory?.whales || !chart || !localLayout) return false;
-  const events = advanceWhaleMemory(
-    gameState.memory.whales,
-    dt,
-    whaleNavigationAtPosition,
-    weatherClockMinutes
+  const simulationInterval = gameState.memory.whales.activeHunt
+    ? WHALE_HUNT_SIMULATION_INTERVAL_SECONDS
+    : WHALE_SIMULATION_INTERVAL_SECONDS;
+  whaleSimulationAccumulator = Math.min(
+    simulationInterval * 2,
+    whaleSimulationAccumulator + dt
   );
+  const events = whaleSimulationAccumulator >= simulationInterval
+    ? advanceWhaleMemory(
+        gameState.memory.whales,
+        takeWhaleSimulationElapsed(),
+        whaleNavigationAtPosition,
+        weatherClockMinutes
+      )
+    : [];
   let changed;
   try {
     changed = constrainActiveWhaleTether();
@@ -13130,6 +13188,12 @@ function updateWhales(dt, nowMs) {
     whaleBlowBursts.length !== previousBurstCount ||
     whaleKillEffects.length > 0 ||
     whaleKillEffects.length !== previousKillEffectCount;
+}
+
+function takeWhaleSimulationElapsed() {
+  const elapsed = whaleSimulationAccumulator;
+  whaleSimulationAccumulator = 0;
+  return elapsed;
 }
 
 function snapFailedWhaleTether(error) {
@@ -13190,6 +13254,7 @@ function harpoonableWhaleCalls() {
 
 function whaleInteractionCall(whale) {
   if (!chart || !camera || !localLayout) return null;
+  if (!globeVectorMayIntersectLocalChart(whale.position)) return null;
   const localPoint = localPointForGlobeVector(whale.position);
   if (!localPoint || !chart.visibleSet.has(localPoint.tileId)) return null;
   const offset = chartOffsetPixels(chart);
@@ -13204,6 +13269,19 @@ function whaleInteractionCall(whale) {
     frame: headingFrameForScreenHeading(heading),
     scale: whaleLifeStageScale(whale)
   };
+}
+
+function globeVectorMayIntersectLocalChart(vector) {
+  if (localChartCullWidth !== SCREEN_W || localChartCullHeight !== SCREEN_H) {
+    localChartCullWidth = SCREEN_W;
+    localChartCullHeight = SCREEN_H;
+    const chartRadiusPx = Math.hypot(
+      SCREEN_W / 2 + CHART_MARGIN,
+      SCREEN_H / 2 + CHART_MARGIN
+    ) + TILE_ART_SIZE;
+    localChartCullMinimumDot = Math.cos(chartRadiusPx / PIXELS_PER_RADIAN);
+  }
+  return dot3(vector, camera.center) >= localChartCullMinimumDot;
 }
 
 function whaleBlowOriginPosition(whale) {
@@ -15362,15 +15440,45 @@ function drawnSurfaceNavigationAtLocalPoint(x, y) {
 
 function drawnSurfaceNavigationAtPoint(x, y, activeChart, isUsableWaterTile) {
   if (!activeChart?.waterIndex) throw new Error("Cannot resolve drawn navigation without a water index");
-  return resolveDrawnSurfaceNavigation({
-    candidates: wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex),
-    x,
-    y,
-    maxDistancePx: SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX,
-    isWaterTile: (candidateTileId) => isWaterSurfaceRow(earthById[candidateTileId]),
-    isUsableWaterTile,
-    isTileOpaqueAtPoint: tileTerrainSpriteOpaqueAtMapPoint
-  });
+  if (typeof isUsableWaterTile !== "function") {
+    throw new Error("Drawn navigation requires a usable-water predicate");
+  }
+  const roundedX = Math.round(x);
+  const roundedY = Math.round(y);
+  const pixelKey = pixelMaskKey(roundedX, roundedY);
+  let cache = drawnSurfaceNavigationCache.get(activeChart);
+  if (!cache || cache.weatherMaskDayIndex !== weatherMaskDayIndex) {
+    cache = {
+      weatherMaskDayIndex,
+      resolutions: new Map()
+    };
+    drawnSurfaceNavigationCache.set(activeChart, cache);
+  }
+
+  let resolution;
+  if (cache.resolutions.has(pixelKey)) {
+    resolution = cache.resolutions.get(pixelKey);
+  } else {
+    resolution = resolveDrawnSurfaceNavigation({
+      candidates: wakeWaterCandidatesForPoint(roundedX, roundedY, activeChart.waterIndex),
+      x: roundedX,
+      y: roundedY,
+      maxDistancePx: SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX,
+      isWaterTile: (candidateTileId) => isWaterSurfaceRow(earthById[candidateTileId]),
+      isUsableWaterTile: () => true,
+      isTileOpaqueAtPoint: tileTerrainSpriteOpaqueAtMapPoint
+    });
+    if (cache.resolutions.size >= DRAWN_SURFACE_NAVIGATION_CACHE_LIMIT) {
+      cache.resolutions.clear();
+    }
+    cache.resolutions.set(pixelKey, resolution);
+  }
+  if (!resolution) return null;
+  return {
+    tileId: resolution.tileId,
+    water: resolution.water && isUsableWaterTile(resolution.tileId),
+    source: resolution.source
+  };
 }
 
 function localCollisionPointForPosition(fromPosition, position) {
@@ -16569,6 +16677,13 @@ function updateFishAnimation(nowMs) {
 
 function updateWeather(dt, nowMs) {
   if (!runtimeWeather || !weatherBake) return false;
+  weatherSimulationAccumulator = Math.min(
+    WEATHER_SIMULATION_INTERVAL_SECONDS * 2,
+    weatherSimulationAccumulator + dt
+  );
+  if (weatherSimulationAccumulator < WEATHER_SIMULATION_INTERVAL_SECONDS) return false;
+  dt = weatherSimulationAccumulator;
+  weatherSimulationAccumulator = 0;
   let stormDamageChanged = false;
   let survivalChanged = false;
   let stormCaptainChanged = false;
@@ -17220,20 +17335,25 @@ function restartAfterGameOver() {
 
 function updateNpcShips(dt) {
   if (!npcSeaRoutes) return false;
-  const economyChanged = measurePerformanceBenchmarkStage(
+  const strategicUpdateDue = npcStrategicUpdateClockMinutes !== weatherClockMinutes;
+  if (strategicUpdateDue) npcStrategicUpdateClockMinutes = weatherClockMinutes;
+  const economyChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
     "npcShips.economy",
     () => advanceWorldEconomy(worldEconomy, weatherClockMinutes)
   );
-  const landTradeChanged = measurePerformanceBenchmarkStage(
+  const landTradeChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
     "npcShips.landTrade",
     () => updateLandTradeSystem(landTradeSystem, weatherClockMinutes)
   );
-  const hideoutDangerChanged = measurePerformanceBenchmarkStage("npcShips.hideouts", () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
-    lat: latitudeDegForDirection(ship.position),
-    lon: longitudeDegForDirection(ship.position),
-    clockMinutes: weatherClockMinutes
-  }));
-  const strategicChanged = measurePerformanceBenchmarkStage(
+  const hideoutDangerChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
+    "npcShips.hideouts",
+    () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
+      lat: latitudeDegForDirection(ship.position),
+      lon: longitudeDegForDirection(ship.position),
+      clockMinutes: weatherClockMinutes
+    })
+  );
+  const strategicChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
     "npcShips.strategic",
     () => updateNpcSeaRouteSystem(npcSeaRoutes, weatherClockMinutes)
   );
@@ -19365,14 +19485,14 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   if (state.escapeDirection && state.escapeRemainingPx > 0) {
     const traveledPx = NPC_VISUAL_ESCAPE_COMMIT_PX - state.escapeRemainingPx;
     const routeClearPx = traveledPx >= NPC_VISUAL_ESCAPE_REJOIN_AFTER_PX
-      ? npcEscapeClearDistance(state, direction, heading)
+      ? npcEscapeClearDistance(state, direction, heading, startNav)
       : 0;
     if (routeClearPx >= NPC_VISUAL_ESCAPE_REJOIN_CLEAR_PX) {
       clearNpcEscapeManeuver(state);
     }
   }
   if (state.escapeDirection && state.escapeRemainingPx > 0) {
-    const escapeMove = attemptNpcVisualStep(state, state.escapeDirection, distance, heading);
+    const escapeMove = attemptNpcVisualStep(state, state.escapeDirection, distance, heading, startNav);
     if (escapeMove.ok) {
       state.escapeRemainingPx = Math.max(0, state.escapeRemainingPx - distance);
       if (state.escapeRemainingPx === 0) state.escapeDirection = null;
@@ -19393,13 +19513,14 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   const tried = new Set();
 
   for (const baseDirection of baseDirections) {
-    const result = attemptNpcVisualStep(state, baseDirection, distance, heading);
+    const result = attemptNpcVisualStep(state, baseDirection, distance, heading, startNav);
     if (result.ok) return result;
   }
 
   const slideDirections = [];
   for (const baseDirection of baseDirections) {
-    for (const angle of SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD.slice(1)) {
+    for (let angleIndex = 1; angleIndex < SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD.length; angleIndex++) {
+      const angle = SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD[angleIndex];
       const candidateDirection = rotate2(baseDirection, angle);
       const key = `${Math.round(candidateDirection.x * 1000)},${Math.round(candidateDirection.y * 1000)}`;
       if (tried.has(key)) continue;
@@ -19416,12 +19537,14 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
         desiredDirection: direction,
         currentDirection: tangentToScreenDirection(state.heading) || direction,
         candidateDirections: slideDirections,
-        clearDistanceFor: (candidateDirection) => npcEscapeClearDistance(state, candidateDirection, heading),
+        clearDistanceFor: (candidateDirection) => (
+          npcEscapeClearDistance(state, candidateDirection, heading, startNav)
+        ),
         preferredSide: state.escapeSide
       })
     : null;
   if (slide) {
-    const slideMove = attemptNpcVisualStep(state, slide.direction, distance, heading);
+    const slideMove = attemptNpcVisualStep(state, slide.direction, distance, heading, startNav);
     if (slideMove.ok) {
       commitNpcEscapeManeuver(state, slide.direction, slide.side, distance);
       return slideMove;
@@ -19431,12 +19554,14 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   const escape = chooseNpcObstacleAvoidanceDirection({
     desiredDirection: direction,
     currentDirection: tangentToScreenDirection(state.heading) || direction,
-    clearDistanceFor: (candidateDirection) => npcEscapeClearDistance(state, candidateDirection, heading),
+    clearDistanceFor: (candidateDirection) => (
+      npcEscapeClearDistance(state, candidateDirection, heading, startNav)
+    ),
     preferredSide: state.escapeSide
   });
   if (!escape) return null;
 
-  const escapeMove = attemptNpcVisualStep(state, escape.direction, distance, heading);
+  const escapeMove = attemptNpcVisualStep(state, escape.direction, distance, heading, startNav);
   if (!escapeMove.ok) return null;
   commitNpcEscapeManeuver(state, escape.direction, escape.side, distance);
   return escapeMove;
@@ -19518,14 +19643,14 @@ function clearNpcRiverRail(state) {
   state.riverRailCompletedPathKeys = [];
 }
 
-function npcEscapeClearDistance(state, direction, heading) {
-  let clearDistance = 0;
-  for (const distance of NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX) {
-    const probe = attemptNpcVisualStep(state, direction, distance, heading);
-    if (!probe.ok) break;
-    clearDistance = distance;
+function npcEscapeClearDistance(state, direction, heading, startNav = null) {
+  const maximumDistance = NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX.at(-1);
+  const trace = traceNpcVisualStep(state, direction, maximumDistance, heading, startNav);
+  for (let index = NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX.length - 1; index >= 0; index--) {
+    const distance = NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX[index];
+    if (trace.clearDistance + 1e-6 >= distance) return distance;
   }
-  return clearDistance;
+  return 0;
 }
 
 function commitNpcEscapeManeuver(state, direction, side, distance) {
@@ -19672,10 +19797,16 @@ function npcRiverNavigationDirection(state, desiredDirection, currentKind) {
   });
 }
 
-function attemptNpcVisualStep(state, direction, distance, heading) {
+function attemptNpcVisualStep(state, direction, distance, heading, knownStartNav = null) {
+  const trace = traceNpcVisualStep(state, direction, distance, heading, knownStartNav);
+  return trace.complete ? trace.placement : { ok: false };
+}
+
+function traceNpcVisualStep(state, direction, distance, heading, knownStartNav = null) {
   const segments = Math.max(1, Math.ceil(distance / SHIP_COLLISION_SAMPLE_STEP_PX));
   const movementHeading = screenDirectionToTangent(direction, state.vector, heading);
-  const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+  const startNav = knownStartNav ||
+    shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
   if (!startNav.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
   let previousTileId = startNav.tileId;
   let previousNavKind = startNav.kind;
@@ -19685,28 +19816,37 @@ function attemptNpcVisualStep(state, direction, distance, heading) {
     const x = state.x + direction.x * distance * (i / segments);
     const y = state.y + direction.y * distance * (i / segments);
     const collisionTile = localCollisionTileAtPoint(x, y);
-    if (!collisionTile) return { ok: false };
+    if (!collisionTile) return incompleteNpcVisualTrace(result, distance, i, segments);
     const collisionTileId = collisionTile.tileId;
     const collisionVector = globePositionForLocalPoint(collisionTileId, x, y);
     const nav = shipNavigabilityAtLocalPoint(x, y, collisionTileId, collisionVector);
-    if (!nav.ok) return { ok: false };
+    if (!nav.ok) return incompleteNpcVisualTrace(result, distance, i, segments);
     const tileId = nav.tileId;
     const vector = tileId === collisionTileId
       ? collisionVector
       : globePositionForLocalPoint(tileId, x, y);
     const localHeading = normalizeTangentOrFallback(heading, vector, movementHeading);
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, nav.kind, movementHeading)) {
-      return { ok: false };
+      return incompleteNpcVisualTrace(result, distance, i, segments);
     }
     if (!npcTileHasOffshoreHullClearance(tileId)) {
       const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
-      if (!occupancy.ok) return { ok: false };
+      if (!occupancy.ok) return incompleteNpcVisualTrace(result, distance, i, segments);
     }
     result = { ok: true, x, y, tileId, vector, heading: localHeading };
     previousTileId = tileId;
     previousNavKind = nav.kind;
   }
-  return result || { ok: false };
+  if (!result) throw new Error(`NPC ship ${state.id} produced an empty visual movement trace`);
+  return { complete: true, placement: result, clearDistance: distance };
+}
+
+function incompleteNpcVisualTrace(placement, distance, failedSegment, segmentCount) {
+  return {
+    complete: false,
+    placement,
+    clearDistance: distance * Math.max(0, failedSegment - 1) / segmentCount
+  };
 }
 
 function npcTileHasOffshoreHullClearance(tileId) {
@@ -20422,7 +20562,15 @@ function render(nowMs) {
   ctx.save();
   ctx.translate(offset.x, offset.y);
   measurePerformanceBenchmarkStage("render.terrain", () => {
-    drawTerrainConnectorFaces(chart.faceCalls, chart, { visibleDetailCalls: renderFaceCalls });
+    drawTerrainConnectorFaces(chart.faceCalls, chart, {
+      visibleDetailCalls: renderFaceCalls,
+      viewportBounds: {
+        minX: -offset.x,
+        minY: -offset.y,
+        maxX: SCREEN_W - offset.x,
+        maxY: SCREEN_H - offset.y
+      }
+    });
     for (const call of renderTileCalls) {
       drawTile(call, chart);
       drawIceSurface(call);
@@ -26828,11 +26976,66 @@ const terrainConnectorLayerCache = new WeakMap();
 
 function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
   const layer = terrainConnectorLayer(faceCalls, activeChart);
-  ctx.drawImage(layer.canvas, layer.x, layer.y);
-  for (const entry of layer.entries) {
-    if (options.visibleDetailCalls && !options.visibleDetailCalls.has(entry.call)) continue;
-    drawTerrainConnectorDetails(entry, options);
+  drawTerrainConnectorLayer(layer, options.viewportBounds);
+  if (options.visibleDetailCalls) {
+    for (const call of options.visibleDetailCalls) {
+      const entry = layer.entryByCall.get(call);
+      if (entry) drawTerrainConnectorDynamicDetails(entry, options);
+    }
+    return;
   }
+  for (const entry of layer.entries) {
+    drawTerrainConnectorDynamicDetails(entry, options);
+  }
+}
+
+function drawTerrainConnectorDynamicDetails(entry, options) {
+  if (!isCoastFace(entry.call)) return;
+  const { call, geometry } = entry;
+  const { ax, ay, bx, by, mx, my, nx, ny, width } = geometry;
+  drawBeachWave(ctx, call, ax, ay, mx, my, bx, by, nx, ny, width, options.waveClockMs);
+}
+
+function drawTerrainConnectorLayer(layer, viewportBounds = null) {
+  if (!viewportBounds) {
+    ctx.drawImage(layer.canvas, layer.x, layer.y);
+    return;
+  }
+  const margin = 2;
+  const sourceX = clamp(
+    Math.floor(viewportBounds.minX - layer.x) - margin,
+    0,
+    layer.canvas.width
+  );
+  const sourceY = clamp(
+    Math.floor(viewportBounds.minY - layer.y) - margin,
+    0,
+    layer.canvas.height
+  );
+  const sourceRight = clamp(
+    Math.ceil(viewportBounds.maxX - layer.x) + margin,
+    0,
+    layer.canvas.width
+  );
+  const sourceBottom = clamp(
+    Math.ceil(viewportBounds.maxY - layer.y) + margin,
+    0,
+    layer.canvas.height
+  );
+  const width = sourceRight - sourceX;
+  const height = sourceBottom - sourceY;
+  if (width <= 0 || height <= 0) return;
+  ctx.drawImage(
+    layer.canvas,
+    sourceX,
+    sourceY,
+    width,
+    height,
+    layer.x + sourceX,
+    layer.y + sourceY,
+    width,
+    height
+  );
 }
 
 function terrainConnectorLayer(faceCalls, activeChart) {
@@ -26866,6 +27069,11 @@ function terrainConnectorLayer(faceCalls, activeChart) {
     });
   }
   if (entries.length === 0) throw new Error("Terrain connector layer has no drawable faces");
+  const detailPadding = 3;
+  minX -= detailPadding;
+  minY -= detailPadding;
+  maxX += detailPadding;
+  maxY += detailPadding;
 
   const canvas = document.createElement("canvas");
   canvas.width = maxX - minX + 1;
@@ -26879,8 +27087,20 @@ function terrainConnectorLayer(faceCalls, activeChart) {
       layerCtx.fillRect(span.x - minX, span.y - minY, span.width, 1);
     }
   }
+  layerCtx.save();
+  layerCtx.translate(-minX, -minY);
+  for (const entry of entries) drawTerrainConnectorStaticDetails(layerCtx, entry);
+  layerCtx.restore();
 
-  const layer = { dayKey, faceCalls, entries, canvas, x: minX, y: minY };
+  const layer = {
+    dayKey,
+    faceCalls,
+    entries,
+    entryByCall: new Map(entries.map((entry) => [entry.call, entry])),
+    canvas,
+    x: minX,
+    y: minY
+  };
   terrainConnectorLayerCache.set(activeChart, layer);
   return layer;
 }
@@ -26932,12 +27152,11 @@ function terrainConnectorGeometry(call, activeChart) {
   };
 }
 
-function drawTerrainConnectorDetails(entry, options) {
+function drawTerrainConnectorStaticDetails(targetCtx, entry) {
   const { call, geometry } = entry;
   const { ax, ay, bx, by, mx, my, nx, ny, width } = geometry;
-
   if (isCoastFace(call)) {
-    drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, options.waveClockMs);
+    drawBeachStaticDetails(targetCtx, call, ax, ay, bx, by, nx, ny, width);
   } else if (
     !terrainRowsFormFrozenWaterBoundary(call.row, call.nrow) &&
     terrainConnectorNeedsSlopeDetail(call.level, call.nlevel)
@@ -26949,28 +27168,26 @@ function drawTerrainConnectorDetails(entry, options) {
     const middleY = Math.round(my + ny * (width + 1));
     const endX = Math.round(bx + nx * width);
     const endY = Math.round(by + ny * width);
-    drawPixelLine(startX, startY, middleX, middleY, slopeColor);
-    drawPixelLine(middleX, middleY, endX, endY, slopeColor);
+    drawPixelLineOnContext(targetCtx, startX, startY, middleX, middleY, slopeColor);
+    drawPixelLineOnContext(targetCtx, middleX, middleY, endX, endY, slopeColor);
   }
 }
 
-function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs) {
+function drawBeachStaticDetails(targetCtx, call, ax, ay, bx, by, nx, ny, width) {
   const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
-  drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed);
+  drawBeachLandEdgeJags(targetCtx, call, ax, ay, bx, by, nx, ny, width, seed);
   for (let i = 0; i < BEACH_SPECKLE_COUNT; i++) {
     const h = hashInt(seed ^ Math.imul(i + 1, 0x85ebca6b));
     const along = 0.24 + ((h & 0xff) / 255) * 0.52;
     const side = (((h >>> 8) & 0xff) / 255 - 0.5) * (width * 1.35);
     const x = ax + (bx - ax) * along + nx * side;
     const y = ay + (by - ay) * along + ny * side;
-    ctx.fillStyle = (h & 1) === 0 ? BEACH_LIGHT_SPECKLE_COLOR : BEACH_DARK_SPECKLE_COLOR;
-    ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+    targetCtx.fillStyle = (h & 1) === 0 ? BEACH_LIGHT_SPECKLE_COLOR : BEACH_DARK_SPECKLE_COLOR;
+    targetCtx.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
-
-  drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs);
 }
 
-function drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed) {
+function drawBeachLandEdgeJags(targetCtx, call, ax, ay, bx, by, nx, ny, width, seed) {
   const waterIsA = isWaterSurfaceRow(call.row);
   const landRow = waterIsA ? call.nrow : call.row;
   const landId = waterIsA ? call.b : call.a;
@@ -26997,20 +27214,20 @@ function drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed) {
     const y = edgeY + ny * side;
 
     if ((h & 0x1000) === 0) {
-      drawBeachJagPixelRun(x, y, ux, uy, depth, length, beachColor);
+      drawBeachJagPixelRun(targetCtx, x, y, ux, uy, depth, length, beachColor);
     } else {
-      drawBeachJagPixelRun(x, y, -ux, -uy, depth, length, landEdgeColor);
+      drawBeachJagPixelRun(targetCtx, x, y, -ux, -uy, depth, length, landEdgeColor);
     }
   }
 }
 
-function drawBeachJagPixelRun(x, y, dx, dy, depth, length, color) {
-  ctx.fillStyle = color;
+function drawBeachJagPixelRun(targetCtx, x, y, dx, dy, depth, length, color) {
+  targetCtx.fillStyle = color;
   const sideX = -dy;
   const sideY = dx;
   for (let d = 0; d < depth; d++) {
     for (let l = 0; l < length; l++) {
-      ctx.fillRect(
+      targetCtx.fillRect(
         Math.round(x + dx * d + sideX * l),
         Math.round(y + dy * d + sideY * l),
         1,
@@ -27020,14 +27237,42 @@ function drawBeachJagPixelRun(x, y, dx, dy, depth, length, color) {
   }
 }
 
-function drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs) {
+function drawBeachWave(targetCtx, call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs) {
   const waterIsA = isWaterSurfaceRow(call.row);
   const wave = beachWaveState(call, waveClockMs);
   const fromT = waterIsA ? 0 : 1;
   const toT = waterIsA ? wave.reach : 1 - wave.reach;
   const foamT = waterIsA ? wave.foamReach : 1 - wave.foamReach;
-  drawBeachWaveWater(ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, beachWaterColor(call));
-  drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, fromT, foamT, wave.foamAlpha);
+  drawBeachWaveWater(
+    targetCtx,
+    ax,
+    ay,
+    mx,
+    my,
+    bx,
+    by,
+    nx,
+    ny,
+    width,
+    fromT,
+    toT,
+    beachWaterColor(call)
+  );
+  drawBeachFoamLine(
+    targetCtx,
+    ax,
+    ay,
+    mx,
+    my,
+    bx,
+    by,
+    nx,
+    ny,
+    width,
+    fromT,
+    foamT,
+    wave.foamAlpha
+  );
 }
 
 function beachWaveState(call, clockMs = waterAnimationClockMs) {
@@ -27060,17 +27305,24 @@ function beachWaveState(call, clockMs = waterAnimationClockMs) {
   };
 }
 
-function drawBeachWaveWater(ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, color) {
+function drawBeachWaveWater(targetCtx, ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, color) {
   const lineHalfWidth = Math.max(2, Math.round(width));
   for (let side = -lineHalfWidth; side <= lineHalfWidth; side++) {
     const a = beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, fromT, side);
     const roundedT = roundedBeachWaveT(fromT, toT, side, lineHalfWidth);
     const b = beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, roundedT, side);
-    drawPixelLine(Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y), color);
+    drawPixelLineOnContext(
+      targetCtx,
+      Math.round(a.x),
+      Math.round(a.y),
+      Math.round(b.x),
+      Math.round(b.y),
+      color
+    );
   }
 }
 
-function drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, fromT, t, alpha) {
+function drawBeachFoamLine(targetCtx, ax, ay, mx, my, bx, by, nx, ny, width, fromT, t, alpha) {
   if (alpha <= 0.01) return;
   const lineHalfWidth = Math.max(2, width - 1);
   const color = `rgba(255, 253, 231, ${alpha.toFixed(3)})`;
@@ -27080,10 +27332,10 @@ function drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, fromT, t, alph
     const p = beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, roundedT, side);
     const x = Math.round(p.x);
     const y = Math.round(p.y);
-    if (previous) drawPixelLine(previous.x, previous.y, x, y, color);
+    if (previous) drawPixelLineOnContext(targetCtx, previous.x, previous.y, x, y, color);
     else {
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, 1, 1);
+      targetCtx.fillStyle = color;
+      targetCtx.fillRect(x, y, 1, 1);
     }
     previous = { x, y };
   }
@@ -29005,9 +29257,11 @@ function drawFishIndividuals(activeChart, nowMs, renderTileCalls = null) {
 }
 
 function fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls = null) {
+  const animationNowMs = Math.floor(nowMs / FISH_ANIMATION_REDRAW_MS) *
+    FISH_ANIMATION_REDRAW_MS;
   if (
     fishIndividualFrameCache?.chart === activeChart &&
-    fishIndividualFrameCache.nowMs === nowMs
+    fishIndividualFrameCache.nowMs === animationNowMs
   ) {
     return fishIndividualFrameCache.calls;
   }
@@ -29027,10 +29281,15 @@ function fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls = null) {
     if (calls.length >= FISH_VISIBLE_MAX_INDIVIDUALS) break;
     const fishery = fisheryForTileCall(tileCall);
     if (!fishery) continue;
-    calls.push(...fishIndividualCallsForFishery(tileCall, fishery, nowMs, FISH_VISIBLE_MAX_INDIVIDUALS - calls.length));
+    calls.push(...fishIndividualCallsForFishery(
+      tileCall,
+      fishery,
+      animationNowMs,
+      FISH_VISIBLE_MAX_INDIVIDUALS - calls.length
+    ));
   }
   const sortedCalls = calls.sort((a, b) => a.sortY - b.sortY || a.sortId - b.sortId);
-  fishIndividualFrameCache = { chart: activeChart, nowMs, calls: sortedCalls };
+  fishIndividualFrameCache = { chart: activeChart, nowMs: animationNowMs, calls: sortedCalls };
   return sortedCalls;
 }
 
@@ -29561,6 +29820,8 @@ function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
   );
   const abovePointSet = new Set();
   let bottomOpaqueY = -1;
+  let submergedMinY = SHIP_SHEET_FRAME_SIZE;
+  let submergedMaxY = -1;
   for (const pixel of pixels) {
     bottomOpaqueY = Math.max(bottomOpaqueY, pixel.y);
     const key = pixel.y * SHIP_SHEET_FRAME_SIZE + pixel.x;
@@ -29568,7 +29829,12 @@ function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
     targetCtx.globalAlpha = pixel.alpha;
     targetCtx.fillStyle = pixel.color;
     targetCtx.fillRect(pixel.x, pixel.y, 1, 1);
-    if (targetCtx === aboveCtx) abovePointSet.add(pixel.x | (pixel.y << 8));
+    if (targetCtx === aboveCtx) {
+      abovePointSet.add(pixel.x | (pixel.y << 8));
+    } else {
+      submergedMinY = Math.min(submergedMinY, pixel.y);
+      submergedMaxY = Math.max(submergedMaxY, pixel.y);
+    }
   }
   aboveCtx.globalAlpha = 1;
   submergedCtx.globalAlpha = 1;
@@ -29577,7 +29843,9 @@ function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
     aboveCanvas,
     submergedCanvas,
     abovePointSet,
-    bottomOpaqueY
+    bottomOpaqueY,
+    submergedMinY,
+    submergedMaxY
   });
   frames.set(cacheKey, layers);
   return layers;
@@ -29587,7 +29855,13 @@ function drawFloatingShipSprite(call, layers, nowMs) {
   const refractionTime = reducedMotionPreferred ? 0 : nowMs;
   ctx.save();
   ctx.globalAlpha = SHIP_SUBMERGED_ALPHA;
-  for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y += SHIP_REFRACTION_BAND_HEIGHT) {
+  const firstBandY = Math.floor(layers.submergedMinY / SHIP_REFRACTION_BAND_HEIGHT) *
+    SHIP_REFRACTION_BAND_HEIGHT;
+  for (
+    let y = firstBandY;
+    y <= layers.submergedMaxY;
+    y += SHIP_REFRACTION_BAND_HEIGHT
+  ) {
     const bandHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, SHIP_SHEET_FRAME_SIZE - y);
     const offset = liveShipRefractionOffset(y, refractionTime, call.bobSeed);
     ctx.drawImage(
