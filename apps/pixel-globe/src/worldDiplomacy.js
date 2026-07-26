@@ -338,6 +338,23 @@ export function makeDiplomaticPeace(state, factionAId, factionBId, simMinute, in
   return events;
 }
 
+export function makeFactionPeaceWithAllEnemies(state, factionId, simMinute, influence = {}) {
+  validateWorldDiplomacy(state);
+  assertFactionId(factionId);
+  assertMinute(simMinute, "general peace treaty minute");
+  if (factionId === NEUTRAL_FACTION_ID || factionId === PIRATE_FACTION_ID) {
+    throw new Error(`General peace requires a sovereign faction: ${factionId}`);
+  }
+
+  const events = [];
+  for (const faction of SOVEREIGN_FACTIONS) {
+    if (faction.id === factionId) continue;
+    if (worldDiplomacyBetween(state, factionId, faction.id) !== DIPLOMACY_WAR) continue;
+    events.push(...makeDiplomaticPeace(state, factionId, faction.id, simMinute, influence));
+  }
+  return events;
+}
+
 export function adjustDiplomaticStance(
   state,
   factionAId,

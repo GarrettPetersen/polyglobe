@@ -119,6 +119,71 @@ test("controller icon preferences use localized mode and platform labels", () =>
   }
 });
 
+test("controller layout labels, actions, and feedback are localized everywhere", () => {
+  const keys = [
+    "options.keyMapping",
+    "options.keyMapping.pressKey",
+    "options.keyMapping.rebind",
+    "options.keyMapping.clear",
+    "options.keyMapping.defaults",
+    "options.keyMapping.rebindHint",
+    "options.keyMapping.defaultsRestored",
+    "options.keyMapping.movedFrom",
+    "options.keyMapping.assigned",
+    "options.keyMapping.bindingCleared",
+    "options.keyMapping.bindingCancelled",
+    "options.keyMapping.action.steer-left",
+    "options.keyMapping.action.steer-right",
+    "options.keyMapping.action.steer-up",
+    "options.keyMapping.action.steer-down",
+    "options.keyMapping.action.fire-port",
+    "options.keyMapping.action.fire-starboard",
+    "options.keyMapping.action.interact",
+    "options.keyMapping.action.captain-menu",
+    "options.keyMapping.action.ship-info",
+    "options.keyMapping.action.politics",
+    "options.keyMapping.action.screenshot"
+  ];
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    for (const key of keys) {
+      const value = translate(id, key, { action: "ACTION", key: "K" });
+      assert.ok(value.length > 0, `${id} has an empty ${key}`);
+      if (id !== LANGUAGE_ENGLISH) {
+        assert.notEqual(value, translate(LANGUAGE_ENGLISH, key, {
+          action: "ACTION",
+          key: "K"
+        }), `${id} retained English for ${key}`);
+      }
+    }
+  }
+});
+
+test("audited canvas headings are localized everywhere", () => {
+  const keys = [
+    "common.target",
+    "aboard.goal",
+    "aboard.skill",
+    "ledger.captainAccount",
+    "demo.voyageComplete",
+    "demo.thanks",
+    "demo.fullVersion",
+    "outcome.lostAtSea",
+    "outcome.neverSeenAgain",
+    "outcome.voyageEnded",
+    "loadout.title",
+    "loadout.holdPlan"
+  ];
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    for (const key of keys) {
+      const value = translate(id, key);
+      assert.ok(value.length > 0, `${id} has an empty ${key}`);
+      if (id !== LANGUAGE_ENGLISH) {
+        assert.notEqual(value, translate(LANGUAGE_ENGLISH, key), `${id} retained English for ${key}`);
+      }
+    }
+  }
+});
+
 test("the start-menu title is translated in every supported language with a complete pixel font", () => {
   const expectedTitles = new Map([
     [LANGUAGE_ENGLISH, "MARQUE & REPRISAL"],

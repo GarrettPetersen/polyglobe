@@ -239,11 +239,15 @@ export const DELIVERY_REPUTATION_GAIN = 2;
 export const DELIVERY_SPAWN_CHANCE = 0.32;
 export const DELIVERY_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
 export const CAPTURE_PORT_MISSION_KIND = "capture-port";
+export const CAPTURE_CAPITAL_MISSION_KIND = "capture-capital";
 export const CAPTURE_PORT_MISSION_MIN_CANNONS = 8;
 export const CAPTURE_PORT_MISSION_REPUTATION_GAIN = 10;
+export const CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN = 30;
 export const CAPTURE_PORT_MISSION_SPAWN_CHANCE = 0.35;
 export const CAPTURE_PORT_MISSION_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
 export const CAPTURE_PORT_MISSION_MAX_DISTANCE_KM = 6000;
+export const CAPTURE_CAPITAL_MISSION_MAX_DISTANCE_KM = 10000;
+export const CAPTURE_CAPITAL_MISSION_MAX_REMAINING_PORTS = 2;
 export const ONBOARDING_DELIVERY_COUNT = 4;
 export const ONBOARDING_DELIVERY_SCENARIOS = Object.freeze([
   Object.freeze({
@@ -3804,6 +3808,14 @@ export function isCapturePortQuest(quest) {
   return quest?.kind === CAPTURE_PORT_MISSION_KIND;
 }
 
+export function isCaptureCapitalQuest(quest) {
+  return quest?.kind === CAPTURE_CAPITAL_MISSION_KIND;
+}
+
+export function isCaptureCommissionQuest(quest) {
+  return isCapturePortQuest(quest) || isCaptureCapitalQuest(quest);
+}
+
 export function capturePortMissionEligibility(state) {
   assertGameState(state);
   const ship = state.ship;
@@ -3840,7 +3852,8 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
     state,
     city,
     portCities,
-    context.sailingDistanceKm
+    context.sailingDistanceKm,
+    issuerFactionId
   );
   if (!candidate) return null;
 
@@ -3852,7 +3865,7 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
   const spawnChance = capturePortMissionSpawnChance(context.spawnChance);
   const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
   if (spawnChance < 1 &&
-      seededFraction(`${state.voyageSeed}|${identityKey}|${rollKey}|capture-port`) >= spawnChance) {
+      seededFraction(`${state.voyageSeed}|${identityKey}|${rollKey}|capture-commission`) >= spawnChance) {
     return null;
   }
 
@@ -3860,10 +3873,10 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
   const enemy = factionById(candidate.port.factionId);
   const ruler = rulerAtMinute(issuerFactionId, simMinute);
   if (!ruler) throw new Error(`Capture-port commission has no ruler for ${issuerFactionId}`);
-  const reward = capturePortMissionReward(candidate.port, candidate.distanceKm);
+  const reward = capturePortMissionReward(candidate.port, candidate.distanceKm, candidate.kind);
   const offer = {
-    id: `capture-port-${issuerFactionId}-${city.tileId}-${candidate.port.tileId}-${offerPeriod}`,
-    kind: CAPTURE_PORT_MISSION_KIND,
+    id: `${candidate.kind}-${issuerFactionId}-${city.tileId}-${candidate.port.tileId}-${offerPeriod}`,
+    kind: candidate.kind,
     stage: "capture",
     originKey: cityKey(city),
     originTileId: city.tileId,
@@ -3886,6 +3899,9 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
     destinationName: cityLabel(candidate.port),
     destinationCountry: candidate.port.country || "",
     distanceKm: Math.round(candidate.distanceKm),
+    originalEnemyPortCount: candidate.originalPortCount,
+    remainingEnemyPortCount: candidate.remainingPortCount,
+    enemyPortsLost: candidate.lostOriginalPortCount,
     reward,
     offerPeriod
   };
@@ -3912,7 +3928,7 @@ export function commissionedPortCaptureFactionId(state, city) {
     throw new Error("Commissioned port capture requires a target city");
   }
   const quest = questMemory(state).active;
-  if (!isCapturePortQuest(quest) || quest.stage !== "capture" ||
+  if (!isCaptureCommissionQuest(quest) || quest.stage !== "capture" ||
       quest.targetTileId !== city.tileId) return null;
   return assertFactionId(quest.originFactionId);
 }
@@ -3921,7 +3937,7 @@ export function advanceCapturePortMissionAfterConquest(state, city, event, simMi
   assertGameState(state);
   assertSimulationMinute(simMinute);
   const quest = questMemory(state).active;
-  if (!isCapturePortQuest(quest)) return null;
+  if (!isCaptureCommissionQuest(quest)) return null;
   if (quest.stage !== "capture" || quest.targetTileId !== city?.tileId) {
     throw new Error(`Capture-port commission does not target ${cityLabel(city)}`);
   }
@@ -3937,39 +3953,97 @@ export function advanceCapturePortMissionAfterConquest(state, city, event, simMi
   quest.destinationTileId = quest.originTileId;
   quest.destinationName = quest.originName;
   quest.destinationCountry = quest.originCountry;
-  recordDecision(state, `quest.capture-port.captured.${quest.id}`, 1);
+  recordDecision(state, `quest.${quest.kind}.captured.${quest.id}`, 1);
   return quest;
 }
 
-function capturePortMissionTarget(state, origin, portCities, sailingDistanceKm) {
-  const candidates = portCities
+function capturePortMissionTarget(state, origin, portCities, sailingDistanceKm, issuerFactionId) {
+  const eligiblePorts = portCities
     .filter((port) => (
       port.tileId !== origin.tileId &&
-      port.isFactionCapital !== true &&
       port.isPirateHideout !== true &&
       port.colonizationQuestSite !== true &&
       port.factionId !== NEUTRAL_FACTION_ID &&
       port.factionId !== PIRATE_FACTION_ID &&
-      port.factionId !== origin.factionId &&
-      diplomacyBetweenForState(state, origin.factionId, port.factionId) === DIPLOMACY_WAR
+      port.factionId !== issuerFactionId &&
+      diplomacyBetweenForState(state, issuerFactionId, port.factionId) === DIPLOMACY_WAR
     ))
-    .map((port) => ({ port, distanceKm: sailingDistanceKm(origin, port) }))
-    .filter(({ distanceKm }) => (
+    .map((port) => ({ port, distanceKm: sailingDistanceKm(origin, port) }));
+  const capitalCandidates = eligiblePorts
+    .filter(({ port, distanceKm }) => (
+      port.isFactionCapital === true &&
+      port.capitalOfFactionId === port.factionId &&
       Number.isFinite(distanceKm) &&
       distanceKm > 0 &&
-      distanceKm <= CAPTURE_PORT_MISSION_MAX_DISTANCE_KM
+      distanceKm <= CAPTURE_CAPITAL_MISSION_MAX_DISTANCE_KM
     ))
+    .map((candidate) => ({
+      ...candidate,
+      ...captureCapitalDefeatStatus(portCities, candidate.port.factionId),
+      kind: CAPTURE_CAPITAL_MISSION_KIND
+    }))
+    .filter((candidate) => candidate.mostlyDefeated)
     .sort((a, b) => (
       a.distanceKm - b.distanceKm ||
       cityKey(a.port).localeCompare(cityKey(b.port))
     ));
-  return candidates[0] || null;
+  if (capitalCandidates.length > 0) return capitalCandidates[0];
+
+  const portCandidates = eligiblePorts
+    .filter(({ port, distanceKm }) => (
+      port.isFactionCapital !== true &&
+      Number.isFinite(distanceKm) &&
+      distanceKm > 0 &&
+      distanceKm <= CAPTURE_PORT_MISSION_MAX_DISTANCE_KM
+    ))
+    .map((candidate) => ({
+      ...candidate,
+      kind: CAPTURE_PORT_MISSION_KIND,
+      originalPortCount: null,
+      remainingPortCount: null,
+      lostOriginalPortCount: null
+    }))
+    .sort((a, b) => (
+      a.distanceKm - b.distanceKm ||
+      cityKey(a.port).localeCompare(cityKey(b.port))
+    ));
+  return portCandidates[0] || null;
 }
 
-function capturePortMissionReward(target, distanceKm) {
+function captureCapitalDefeatStatus(portCities, factionId) {
+  const originalPorts = portCities.filter((port) => (
+    (port.foundingFactionId || port.factionId) === factionId &&
+    port.isPirateHideout !== true &&
+    port.colonizationQuestSite !== true
+  ));
+  const currentPorts = portCities.filter((port) => (
+    port.factionId === factionId &&
+    port.isPirateHideout !== true &&
+    port.colonizationQuestSite !== true
+  ));
+  const lostOriginalPortCount = originalPorts.filter((port) => port.factionId !== factionId).length;
+  return {
+    originalPortCount: originalPorts.length,
+    remainingPortCount: currentPorts.length,
+    lostOriginalPortCount,
+    mostlyDefeated: originalPorts.length > 0 &&
+      currentPorts.length <= CAPTURE_CAPITAL_MISSION_MAX_REMAINING_PORTS &&
+      (lostOriginalPortCount > 0 || originalPorts.length === 1)
+  };
+}
+
+function capturePortMissionReward(target, distanceKm, kind) {
   const population = Math.max(1000, Number(target.population || 1000));
   if (!Number.isFinite(population)) {
     throw new Error(`Invalid capture-port target population: ${target.population}`);
+  }
+  if (kind === CAPTURE_CAPITAL_MISSION_KIND) {
+    const distanceReward = Math.min(8000, distanceKm * 1.2);
+    const capitalReward = Math.min(4000, population / 50);
+    return Math.round((12000 + distanceReward + capitalReward) / 500) * 500;
+  }
+  if (kind !== CAPTURE_PORT_MISSION_KIND) {
+    throw new Error(`Invalid capture commission kind: ${kind}`);
   }
   const distanceReward = Math.min(4000, distanceKm * 0.8);
   const garrisonReward = Math.min(1500, population / 100);
@@ -4038,7 +4112,7 @@ export function reconcileQuestPortTiles(state, portCities) {
     updates += reconcileQuestEndpoint(quest, "origin", portCities);
     updates += reconcileQuestEndpoint(quest, "destination", portCities);
     if (isEnvoyQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
-    if (isCapturePortQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
+    if (isCaptureCommissionQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
   };
 
   reconcile(quests.active);
@@ -4062,7 +4136,7 @@ export function questStateForCity(state, city, portCities) {
   const quests = questMemory(state);
   const active = quests.active;
   if (active) {
-    if (isCapturePortQuest(active)) {
+    if (isCaptureCommissionQuest(active)) {
       if (active.stage === "return" && active.originTileId === city.tileId) {
         return { kind: "ready-to-complete", quest: active };
       }
@@ -4099,7 +4173,7 @@ export function acceptQuest(state, quest) {
     delete quests.passengerOffers[quest.originKey];
   }
   if (quest.kind === "delivery" && quest.originKey) delete quests.deliveryOffers[quest.originKey];
-  if (isCapturePortQuest(quest) && quest.originKey) delete quests.capturePortOffers[quest.originKey];
+  if (isCaptureCommissionQuest(quest) && quest.originKey) delete quests.capturePortOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
 }
 
@@ -4114,7 +4188,7 @@ export function completeQuest(state, city, context = {}) {
   if (isEnvoyQuest(active) && active.stage !== "return") {
     throw new Error(`Envoy must complete negotiations before returning home: ${active.id}`);
   }
-  if (isCapturePortQuest(active) && active.stage !== "return") {
+  if (isCaptureCommissionQuest(active) && active.stage !== "return") {
     throw new Error(`Capture-port commission must be won before reporting home: ${active.id}`);
   }
   state.doubloons += active.reward;
@@ -4135,9 +4209,12 @@ export function completeQuest(state, city, context = {}) {
     adjustFactionReputation(state, active.originFactionId, ENVOY_HOME_REPUTATION);
     recordDecision(state, `reputation.envoy.${active.originFactionId}`, 1);
   }
-  if (isCapturePortQuest(active)) {
-    adjustFactionReputation(state, active.originFactionId, CAPTURE_PORT_MISSION_REPUTATION_GAIN);
-    recordDecision(state, `reputation.capture-port.${active.originFactionId}`, 1);
+  if (isCaptureCommissionQuest(active)) {
+    const reputationGain = isCaptureCapitalQuest(active)
+      ? CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN
+      : CAPTURE_PORT_MISSION_REPUTATION_GAIN;
+    adjustFactionReputation(state, active.originFactionId, reputationGain);
+    recordDecision(state, `reputation.${active.kind}.${active.originFactionId}`, 1);
   }
   recordLedgerEntry(state, city, context, {
     kind: "income",
@@ -4145,7 +4222,7 @@ export function completeQuest(state, city, context = {}) {
       ? "Passenger fare"
       : isEnvoyQuest(active)
         ? "Diplomatic mission"
-        : isCapturePortQuest(active)
+        : isCaptureCommissionQuest(active)
           ? `Crown commission: captured ${active.targetName}`
           : "Delivery reward",
     goodId: null,

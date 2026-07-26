@@ -20,6 +20,7 @@ import {
   declareDiplomaticWar,
   diplomaticContactBetween,
   diplomacyEventNotice,
+  makeFactionPeaceWithAllEnemies,
   makeDiplomaticPeace,
   migrateWorldDiplomacy,
   playerDiplomacyBias,
@@ -177,6 +178,25 @@ test("wars can end in peace and later relation changes obey pair cooldowns", () 
   assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_HOSTILE);
   assert.match(diplomacyEventNotice(events[0]), /^PEACE:/);
   validateWorldDiplomacy(JSON.parse(JSON.stringify(state)));
+});
+
+test("a defeated capital settlement ends every war involving that power", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "general-peace" });
+
+  assert.equal(worldDiplomacyBetween(state, "france", "england"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "france", "spain"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "france", "habsburg"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "habsburg", "venice"), DIPLOMACY_WAR);
+
+  const events = makeFactionPeaceWithAllEnemies(state, "france", 200 * DAY, {
+    eventReason: "capital-peace-treaty"
+  });
+
+  assert.ok(events.length >= 3);
+  assert.equal(worldDiplomacyBetween(state, "france", "england"), DIPLOMACY_HOSTILE);
+  assert.equal(worldDiplomacyBetween(state, "france", "spain"), DIPLOMACY_HOSTILE);
+  assert.equal(worldDiplomacyBetween(state, "france", "habsburg"), DIPLOMACY_HOSTILE);
+  assert.equal(worldDiplomacyBetween(state, "habsburg", "venice"), DIPLOMACY_WAR);
 });
 
 test("diplomacy notices use country nouns rather than nationality adjectives", () => {

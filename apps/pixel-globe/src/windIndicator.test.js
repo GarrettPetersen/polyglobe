@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  WIND_INDICATOR_BASE_HEX,
   windVArmLengthPx,
   windVFlowDirectionForScreenVector,
   windVGeometry,
   windVOpacity
 } from "./windIndicator.js";
+import {
+  RESURRECT_64_HEX,
+  isWaterBaseResurrectHex
+} from "./waterLatitudePalette.js";
+
+test("the wind V uses a Resurrect blue that no ocean uses as its base", () => {
+  assert.equal(RESURRECT_64_HEX.includes(WIND_INDICATOR_BASE_HEX), true);
+  assert.equal(isWaterBaseResurrectHex(WIND_INDICATOR_BASE_HEX), false);
+});
 
 test("wind V boundaries match the ship dead-zone angle", () => {
   const deadZoneHalfAngleRad = 40 * Math.PI / 180;

@@ -228,7 +228,8 @@ import {
   hasDiscovery,
   initializeProvisionalShipLoadout,
   sovereignTradeOpenToFaction,
-  isCapturePortQuest,
+  isCaptureCapitalQuest,
+  isCaptureCommissionQuest,
   isEnvoyQuest,
   loseFoodRations,
   loseCrew,
@@ -476,7 +477,7 @@ import {
   diplomacyPairKey,
   establishDiplomaticSuzerainty,
   foreignPolicyPrincipalForState,
-  makeDiplomaticPeace,
+  makeFactionPeaceWithAllEnemies,
   recordDiplomaticPortCall,
   validateWorldDiplomacy
 } from "./worldDiplomacy.js";
@@ -870,6 +871,7 @@ import { gameOverStatsLayout } from "./gameOverLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import { shipFlagLayout } from "./shipFlagLayout.js";
 import {
+  WIND_INDICATOR_BASE_RGB,
   windVFlowDirectionForScreenVector,
   windVGeometry,
   windVOpacity
@@ -9732,7 +9734,7 @@ function startKeyBindingCapture(actionIndex, slotIndex) {
   optionsMenu.bindingSelectedIndex = actionIndex;
   optionsMenu.bindingSelectedSlot = slotIndex;
   optionsMenu.bindingCapture = { actionId: definition.id, slotIndex };
-  optionsMenu.bindingFeedback = "PRESS ANY KEY";
+  optionsMenu.bindingFeedback = uiText("options.keyMapping.pressKey");
   keys.clear();
   dirty = true;
 }
@@ -9746,9 +9748,13 @@ function assignCapturedKeyBinding(event) {
   optionsMenu.bindingCapture = null;
   if (result.displaced) {
     const displaced = keyActionDefinition(result.displaced.actionId);
-    optionsMenu.bindingFeedback = `MOVED FROM ${displaced.label}`;
+    optionsMenu.bindingFeedback = uiText("options.keyMapping.movedFrom", {
+      action: uiText(`options.keyMapping.action.${displaced.id}`)
+    });
   } else {
-    optionsMenu.bindingFeedback = `${keyBindingLabel(token, navigator.platform)} ASSIGNED`;
+    optionsMenu.bindingFeedback = uiText("options.keyMapping.assigned", {
+      key: keyBindingLabel(token, navigator.platform)
+    });
   }
   dirty = true;
 }
@@ -9758,7 +9764,7 @@ function clearSelectedKeyBinding() {
   if (!definition) throw new Error("Cannot clear an unknown key action");
   const next = clearKeyBinding(keyBindings, definition.id, optionsMenu.bindingSelectedSlot);
   persistKeyBindings(next);
-  optionsMenu.bindingFeedback = "BINDING CLEARED";
+  optionsMenu.bindingFeedback = uiText("options.keyMapping.bindingCleared");
   keys.clear();
   dirty = true;
 }
@@ -9766,7 +9772,7 @@ function clearSelectedKeyBinding() {
 function resetAllKeyBindings() {
   persistKeyBindings(createDefaultKeyBindings());
   optionsMenu.bindingCapture = null;
-  optionsMenu.bindingFeedback = "DEFAULTS RESTORED";
+  optionsMenu.bindingFeedback = uiText("options.keyMapping.defaultsRestored");
   keys.clear();
   dirty = true;
 }
@@ -11658,14 +11664,14 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     : null;
   if (event.capitalCapturedFactionId) {
     closeDialogue();
-    openPlayerCapitalPeaceTreaty(cityCall, event, prize);
+    openPlayerCapitalPeaceTreaty(cityCall, event, prize, captureMission);
     return true;
   }
   completePlayerPortConquest(cityCall, event, prize, null, captureMission);
   return true;
 }
 
-function openPlayerCapitalPeaceTreaty(cityCall, event, prize) {
+function openPlayerCapitalPeaceTreaty(cityCall, event, prize, captureMission = null) {
   const papalContext = capitalPeacePapalContext(event);
   const options = capitalPeaceTreatyOptions(
     gameState.memory.conquest,
@@ -11707,7 +11713,7 @@ function openPlayerCapitalPeaceTreaty(cityCall, event, prize) {
       label: choice.label,
       onSelect: () => {
         const treaty = settleCapitalCaptureDiplomacy(event, 0, choice.term);
-        completePlayerPortConquest(cityCall, event, prize, treaty);
+        completePlayerPortConquest(cityCall, event, prize, treaty, captureMission);
       }
     })),
     "stern"
@@ -11786,6 +11792,12 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
     simMinute,
     papalContext
   );
+  makeFactionPeaceWithAllEnemies(
+    gameState.relations.diplomacy,
+    treaty.loserFactionId,
+    simMinute,
+    { eventReason: "capital-peace-treaty" }
+  );
   if (term === CAPITAL_PEACE_TERM_ANNEXATION) {
     dissolveFactionDiplomaticSuzerainties(
       gameState.relations.diplomacy,
@@ -11809,14 +11821,6 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
       simMinute,
       source: "capital-peace-treaty"
     });
-  } else {
-    makeDiplomaticPeace(
-      gameState.relations.diplomacy,
-      treaty.winnerFactionId,
-      treaty.loserFactionId,
-      simMinute,
-      { eventReason: "capital-peace-treaty" }
-    );
   }
   if (term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR ||
       term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
@@ -15664,7 +15668,7 @@ function dispatchControllerKey(key, keyAction = null) {
 function cancelControllerKeyBindingCapture() {
   if (!optionsMenu.bindingCapture) return false;
   optionsMenu.bindingCapture = null;
-  optionsMenu.bindingFeedback = "BINDING CANCELLED";
+  optionsMenu.bindingFeedback = uiText("options.keyMapping.bindingCancelled");
   dirty = true;
   return true;
 }
@@ -23124,7 +23128,7 @@ function questJournalEntries() {
     entries.push({
       id: `travel:${activeQuest.id}`,
       title: uiText(titleKey),
-      nextStep: isCapturePortQuest(activeQuest)
+      nextStep: isCaptureCommissionQuest(activeQuest)
         ? activeQuest.stage === "return"
           ? `REPORT THE CAPTURE AT ${activeQuest.originName.toUpperCase()}`
           : `CAPTURE ${activeQuest.targetName.toUpperCase()} FOR ` +
@@ -23850,8 +23854,9 @@ function colonizationNavigationReason(objective) {
 
 function navigationQuestReason(quest) {
   if (isEnvoyQuest(quest)) return "DIPLOMATIC MISSION";
-  if (isCapturePortQuest(quest)) {
-    return quest.stage === "return" ? "REPORT CAPTURE" : "CAPTURE PORT";
+  if (isCaptureCommissionQuest(quest)) {
+    if (quest.stage === "return") return "REPORT CAPTURE";
+    return isCaptureCapitalQuest(quest) ? "CAPTURE CAPITAL" : "CAPTURE PORT";
   }
   if (quest.kind === "passenger") return "PASSENGER MISSION";
   if (quest.kind === "delivery") return "DELIVERY MISSION";
@@ -25223,7 +25228,7 @@ function drawDiscoveryDetail(panel) {
   const separatorY = spriteY + 37;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(left, separatorY, right - left, 1);
-  drawOptionsText("CAPTAIN'S ACCOUNT", left, separatorY + 7, {
+  drawOptionsText(uiText("ledger.captainAccount"), left, separatorY + 7, {
     color: PIRATE_MENU_CHART_LINE
   });
 
@@ -25740,7 +25745,9 @@ function drawAboardCharacterDetail(roster, panel) {
     portraitFrame.y + portraitFrame.h + 19,
     contentY + detailRows.length * rowStep + 5
   );
-  drawOptionsText("GOAL", panel.x + 14, goalLabelY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText(uiText("aboard.goal"), panel.x + 14, goalLabelY, {
+    color: PIRATE_MENU_INK_MUTED
+  });
   const goalLines = wrapPixelText(
     goal.text.toUpperCase(),
     PIXEL_FONT_SMALL_8,
@@ -27444,7 +27451,7 @@ function drawKeyBindingsMenu() {
     optionsMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect)
   );
-  drawOptionsText("KEY MAPPING", panelX + panelW / 2, panelY + 9, {
+  drawOptionsText(uiText("options.keyMapping"), panelX + panelW / 2, panelY + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
@@ -27482,10 +27489,14 @@ function drawKeyBindingsMenu() {
       ctx.fillRect(rowX, rowY, rowW, rowH - 1);
     }
     drawOptionsText(
-      fitPixelText(definition.label, PIXEL_FONT_LATIN_SMALL_8, actionW - 6),
+      fitPixelText(
+        uiText(`options.keyMapping.action.${definition.id}`),
+        PIXEL_FONT_SMALL_8,
+        actionW - 6
+      ),
       rowX + 3,
       rowY + Math.floor((rowH - 8) / 2),
-      { font: PIXEL_FONT_LATIN_SMALL_8, color: PIRATE_MENU_INK }
+      { font: PIXEL_FONT_SMALL_8, color: PIRATE_MENU_INK }
     );
     for (let slotIndex = 0; slotIndex < KEY_BINDING_SLOT_COUNT; slotIndex += 1) {
       const rect = {
@@ -27499,13 +27510,16 @@ function drawKeyBindingsMenu() {
       const capturing = selected && optionsMenu.bindingCapture !== null;
       drawPiratePaperInset(rect, selected);
       const token = keyBindings.actions[definition.id][slotIndex];
-      const label = capturing ? "PRESS KEY..." : keyBindingLabel(token, navigator.platform);
+      const label = capturing
+        ? uiText("options.keyMapping.pressKey")
+        : keyBindingLabel(token, navigator.platform);
+      const labelFont = capturing ? PIXEL_FONT_SMALL_8 : PIXEL_FONT_LATIN_SMALL_8;
       drawOptionsText(
-        fitPixelText(label, PIXEL_FONT_LATIN_SMALL_8, rect.w - 6),
+        fitPixelText(label, labelFont, rect.w - 6),
         rect.x + rect.w / 2,
         rect.y + Math.floor((rect.h - 8) / 2),
         {
-          font: PIXEL_FONT_LATIN_SMALL_8,
+          font: labelFont,
           align: "center",
           color: token === null && !capturing ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK
         }
@@ -27515,17 +27529,37 @@ function drawKeyBindingsMenu() {
   }
 
   if (controllerPromptsVisible() && !optionsMenu.bindingFeedback) {
-    drawControllerBindingHint("confirm", "REBIND", panelX + 18, feedbackY - 4);
-    drawControllerBindingHint("anchor", "CLEAR", panelX + Math.floor(panelW / 2) - 34, feedbackY - 4);
-    drawControllerBindingHint("secondary", "DEFAULTS", panelX + panelW - 84, feedbackY - 4);
+    const hintX = panelX + 8;
+    const hintW = Math.floor((panelW - 16) / 3);
+    drawControllerBindingHint(
+      "confirm",
+      uiText("options.keyMapping.rebind"),
+      hintX,
+      feedbackY - 4,
+      hintW
+    );
+    drawControllerBindingHint(
+      "anchor",
+      uiText("options.keyMapping.clear"),
+      hintX + hintW,
+      feedbackY - 4,
+      hintW
+    );
+    drawControllerBindingHint(
+      "secondary",
+      uiText("options.keyMapping.defaults"),
+      hintX + hintW * 2,
+      feedbackY - 4,
+      panelW - 16 - hintW * 2
+    );
   } else {
-    const feedback = optionsMenu.bindingFeedback || "ENTER OR CLICK TO REBIND  DEL CLEARS";
+    const feedback = optionsMenu.bindingFeedback || uiText("options.keyMapping.rebindHint");
     drawOptionsText(
-      fitPixelText(feedback, PIXEL_FONT_LATIN_SMALL_8, rowW),
+      fitPixelText(feedback, PIXEL_FONT_SMALL_8, rowW),
       panelX + panelW / 2,
       feedbackY,
       {
-        font: PIXEL_FONT_LATIN_SMALL_8,
+        font: PIXEL_FONT_SMALL_8,
         align: "center",
         color: optionsMenu.bindingCapture ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
       }
@@ -27538,12 +27572,12 @@ function drawKeyBindingsMenu() {
   optionsMenu.bindingNextRect = { x: panelX + panelW - 36, y: buttonY, w: 28, h: 24 };
   drawOptionsArrowButton(
     optionsMenu.bindingBackRect,
-    "BACK",
+    uiText("common.back"),
     pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingBackRect)
   );
   drawOptionsArrowButton(
     optionsMenu.bindingResetRect,
-    "DEFAULTS",
+    uiText("options.keyMapping.defaults"),
     pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingResetRect)
   );
   drawOptionsArrowButton(
@@ -27560,17 +27594,25 @@ function drawKeyBindingsMenu() {
     `PAGE ${optionsMenu.bindingPage + 1}/${keyBindingsPageCount()}`,
     panelX + panelW - 108,
     buttonY + 8,
-    { font: PIXEL_FONT_LATIN_SMALL_8, align: "right", color: PIRATE_MENU_INK_MUTED }
+    { font: PIXEL_FONT_SMALL_8, align: "right", color: PIRATE_MENU_INK_MUTED }
   );
   ctx.restore();
 }
 
-function drawControllerBindingHint(action, label, x, y) {
+function drawControllerBindingHint(action, label, x, y, maxWidth) {
+  if (!Number.isInteger(maxWidth) || maxWidth <= GAME_ICON_SIZE + 2) {
+    throw new Error(`Controller binding hint width is invalid: ${maxWidth}`);
+  }
   drawControllerActionGlyph(action, x, y);
-  drawOptionsText(label, x + GAME_ICON_SIZE + 2, y + 4, {
-    font: PIXEL_FONT_LATIN_SMALL_8,
+  drawOptionsText(
+    fitPixelText(label, PIXEL_FONT_SMALL_8, maxWidth - GAME_ICON_SIZE - 2),
+    x + GAME_ICON_SIZE + 2,
+    y + 4,
+    {
+    font: PIXEL_FONT_SMALL_8,
     color: PIRATE_MENU_INK_MUTED
-  });
+    }
+  );
 }
 
 function drawOptionsFullscreenRow(rowRect, highlighted) {
@@ -27712,7 +27754,7 @@ function drawOptionsControllerIconsRow(rowRect, highlighted) {
 
 function drawOptionsControlsRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText("KEY MAPPING", rowRect.x + 8, controlTextY(rowRect), {
+  drawOptionsText(uiText("options.keyMapping"), rowRect.x + 8, controlTextY(rowRect), {
     font: PIXEL_FONT_DIALOGUE_8,
     color: PIRATE_MENU_INK
   });
@@ -31633,9 +31675,12 @@ function drawShipWindV({
   };
   const warningMix = clampedWarning * (0.28 + pulse * 0.72);
   const alpha = windVOpacity(clampedStrength, clampedWarning, pulse);
-  const color = `rgba(${Math.round(158 + (warningColor.r - 158) * warningMix)}, ` +
-    `${Math.round(226 + (warningColor.g - 226) * warningMix)}, ` +
-    `${Math.round(211 + (warningColor.b - 211) * warningMix)}, ` +
+  const color = `rgba(${Math.round(WIND_INDICATOR_BASE_RGB.r +
+      (warningColor.r - WIND_INDICATOR_BASE_RGB.r) * warningMix)}, ` +
+    `${Math.round(WIND_INDICATOR_BASE_RGB.g +
+      (warningColor.g - WIND_INDICATOR_BASE_RGB.g) * warningMix)}, ` +
+    `${Math.round(WIND_INDICATOR_BASE_RGB.b +
+      (warningColor.b - WIND_INDICATOR_BASE_RGB.b) * warningMix)}, ` +
     `${alpha.toFixed(3)})`;
   drawPixelLine(geometry.apex.x, geometry.apex.y, geometry.port.x, geometry.port.y, color);
   drawPixelLine(geometry.apex.x, geometry.apex.y, geometry.starboard.x, geometry.starboard.y, color);
@@ -32682,7 +32727,7 @@ function drawInteractionButton() {
     ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
     ctx.strokeRect(hintRect.x + 0.5, hintRect.y + 0.5, hintRect.w - 1, hintRect.h - 1);
     drawControllerActionGlyph("cycleTarget", hintRect.x + 1, hintRect.y);
-    drawOptionsText("TARGET", hintRect.x + 20, hintRect.y + 4, {
+    drawOptionsText(uiText("common.target"), hintRect.x + 20, hintRect.y + 4, {
       font: PIXEL_FONT_SMALL_8,
       color: PIRATE_MENU_INK
     });
@@ -33565,7 +33610,7 @@ function drawCharacterSkillBadge(character, x, y, width) {
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText("SKILL", rect.x + rect.w / 2, rect.y + 3, {
+  drawPixelText(uiText("aboard.skill"), rect.x + rect.w / 2, rect.y + 3, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
@@ -33979,12 +34024,12 @@ function drawGameOverOverlay(nowMs) {
 function drawDemoStatsScreen(state, elapsedMs) {
   drawPiratePaperPanel({ x: 0, y: 0, w: SCREEN_W, h: SCREEN_H });
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("DEMO VOYAGE COMPLETE", SCREEN_W / 2, 16, {
+  drawPixelText(uiText("demo.voyageComplete"), SCREEN_W / 2, 16, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
   ctx.fillStyle = PIRATE_MENU_CHART_LINE;
-  drawPixelText("THANKS FOR PLAYING", SCREEN_W / 2, 32, {
+  drawPixelText(uiText("demo.thanks"), SCREEN_W / 2, 32, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
@@ -34011,7 +34056,7 @@ function drawDemoStatsScreen(state, elapsedMs) {
   });
 
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("BUY THE FULL VERSION ON STEAM FOR MORE", SCREEN_W / 2, SCREEN_H - 31, {
+  drawPixelText(uiText("demo.fullVersion"), SCREEN_W / 2, SCREEN_H - 31, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
@@ -34085,7 +34130,7 @@ function drawGameOverMemorial(state, fade) {
   drawPiratePaperModal(panel, 0.78);
 
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("LOST AT SEA", SCREEN_W / 2, panel.y + 11, {
+  drawPixelText(uiText("outcome.lostAtSea"), SCREEN_W / 2, panel.y + 11, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
@@ -34108,7 +34153,9 @@ function drawGameOverMemorial(state, fade) {
     { font: PIXEL_FONT_SMALL_8 }
   );
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText("WAS NEVER SEEN AGAIN.", textX, panel.y + 55, { font: PIXEL_FONT_SMALL_8 });
+  drawPixelText(uiText("outcome.neverSeenAgain"), textX, panel.y + 55, {
+    font: PIXEL_FONT_SMALL_8
+  });
 
   const rows = [
     ["BORN", state.character?.birthDateLabel || "--"],
@@ -34145,7 +34192,7 @@ function drawGameOverStatsScreen(state) {
     measureText: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
   });
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("VOYAGE ENDED", SCREEN_W / 2, 22, {
+  drawPixelText(uiText("outcome.voyageEnded"), SCREEN_W / 2, 22, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
@@ -34394,7 +34441,7 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
   const rowValueWidth = compactWidth ? 70 : 82;
 
   drawPiratePaperModal(panel, 0.86);
-  drawOptionsText("CUSTOM LOADOUT", panel.x + panel.w / 2, titleY, {
+  drawOptionsText(uiText("loadout.title"), panel.x + panel.w / 2, titleY, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
@@ -34479,7 +34526,7 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
 
   const usedSpace = presentation.plan.totalSpace;
   const holdCapacity = usedSpace + presentation.plan.reserveSpace;
-  drawOptionsText("HOLD PLAN", left, summaryY, {
+  drawOptionsText(uiText("loadout.holdPlan"), left, summaryY, {
     font: PIXEL_FONT_SMALL_8,
     color: PIRATE_MENU_INK
   });

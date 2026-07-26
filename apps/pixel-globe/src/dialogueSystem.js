@@ -21,7 +21,8 @@ import {
   enterSpecialEquipmentStore,
   grantLetterOfMarque,
   issuePersonalTradePass,
-  isCapturePortQuest,
+  isCaptureCapitalQuest,
+  isCaptureCommissionQuest,
   isEnvoyQuest,
   letterOfMarqueStatus,
   maybeGrantMissionPerkItem,
@@ -51,6 +52,7 @@ import {
   restockShipLoadoutAtPort,
   sellGood
 } from "./gameState.js";
+import { captureCapitalPoliticalContext } from "./captureCommissionDialogue.js";
 import {
   FRESH_WATER_GOOD_ID,
   GINGER_GOOD_ID,
@@ -368,7 +370,7 @@ export function createPortArrivalDialogueSession(city, options = {}) {
 
 export function deliveryMissionShouldOpenOnArrival(gameState, city, portCities) {
   const state = questStateForCity(gameState, city, portCities);
-  if (isCapturePortQuest(state.quest)) {
+  if (isCaptureCommissionQuest(state.quest)) {
     return state.kind === "available" || state.kind === "ready-to-complete";
   }
   return state.quest?.kind === "delivery" &&
@@ -1711,8 +1713,10 @@ export function selectPortDialogueOption(
   }
   if (action.type === "accept-quest") {
     acceptQuest(gameState, action.quest);
-    session.feedback = isCapturePortQuest(action.quest)
-      ? `Commission accepted. Capture ${action.quest.targetName} for ${action.quest.originFactionName}.`
+    session.feedback = isCaptureCommissionQuest(action.quest)
+      ? isCaptureCapitalQuest(action.quest)
+        ? `Final commission accepted. Capture ${action.quest.targetName} and compel a general peace.`
+        : `Commission accepted. Capture ${action.quest.targetName} for ${action.quest.originFactionName}.`
       : action.quest.kind === "passenger"
         ? `Accepted passage to ${action.quest.destinationName}.`
         : `Accepted delivery to ${action.quest.destinationName}.`;
@@ -1729,8 +1733,10 @@ export function selectPortDialogueOption(
       random: context.missionGiftRandom || neverGrantMissionItem,
       context
     });
-    session.feedback = isCapturePortQuest(quest)
-      ? `Commission fulfilled. Earned ${quest.reward} db. Standing greatly improved.`
+    session.feedback = isCaptureCommissionQuest(quest)
+      ? isCaptureCapitalQuest(quest)
+        ? `War-ending commission fulfilled. Earned ${quest.reward} db. Standing transformed.`
+        : `Commission fulfilled. Earned ${quest.reward} db. Standing greatly improved.`
       : quest.kind === "passenger"
         ? `${passengerName(quest)} went ashore. Earned ${quest.reward} db. Standing improved.`
         : `Delivered. Earned ${quest.reward} db. Standing improved.`;
@@ -3596,8 +3602,8 @@ function cargoView(session, city, gameState) {
 function questView(session, city, gameState, portCities) {
   const returnNodeId = session.nextPortNodeId || "root";
   const questState = questStateForCity(gameState, city, portCities);
-  if (isCapturePortQuest(questState.quest)) {
-    return capturePortQuestView(session, questState, returnNodeId);
+  if (isCaptureCommissionQuest(questState.quest)) {
+    return captureCommissionQuestView(session, questState, returnNodeId);
   }
   if (questState.kind === "ready-to-complete") {
     if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
@@ -3702,6 +3708,12 @@ function questView(session, city, gameState, portCities) {
   };
 }
 
+function captureCommissionQuestView(session, questState, returnNodeId) {
+  return isCaptureCapitalQuest(questState.quest)
+    ? captureCapitalQuestView(session, questState, returnNodeId)
+    : capturePortQuestView(session, questState, returnNodeId);
+}
+
 function capturePortQuestView(session, questState, returnNodeId) {
   const quest = questState.quest;
   const back = option("Back", { type: "node", nodeId: returnNodeId });
@@ -3759,6 +3771,70 @@ function capturePortQuestView(session, questState, returnNodeId) {
     text: quest.stage === "return"
       ? `${quest.targetName} is taken. Carry the victory dispatches back to ${quest.originName}; the crown's debt must be settled there.`
       : `Your commission is to seize ${quest.targetName} from ${quest.targetFactionNoun}. Other business must wait upon that service.`,
+    feedback: session.feedback,
+    options: [back]
+  };
+}
+
+function captureCapitalQuestView(session, questState, returnNodeId) {
+  const quest = questState.quest;
+  const back = option("Back", { type: "node", nodeId: returnNodeId });
+  const politicalContext = captureCapitalPoliticalContext(
+    quest.originFactionId,
+    quest.targetFactionId
+  );
+  if (questState.kind === "available") {
+    return {
+      speaker: `${quest.originRulerName}'s war secretary`,
+      expressionId: "stern",
+      text: `The war against ${quest.targetFactionNoun} is nearly won. ${politicalContext} ` +
+        `Take ${quest.targetName}, compel peace on every remaining front, and accept the capital's ` +
+        `concessions in ${quest.originRulerName}'s name. The customary spoils are yours; the treasury ` +
+        `will add ${quest.reward.toLocaleString("en-US")} doubloons when you return.`,
+      feedback: session.feedback,
+      options: [
+        option(`Accept final commission: capture ${quest.targetName}`, {
+          type: "accept-quest",
+          quest
+        }, {
+          detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
+        }),
+        back
+      ]
+    };
+  }
+  if (questState.kind === "ready-to-complete") {
+    return {
+      speaker: `${quest.originRulerName}'s war secretary`,
+      expressionId: "pleased",
+      text: `${quest.targetName} has fallen. Its court has accepted concessions and made peace with ` +
+        `every power still fighting it. You brought the war to its end; the treasury will now honor ` +
+        `${quest.originRulerName}'s extraordinary commission.`,
+      feedback: session.feedback,
+      options: [
+        option(`Report final victory  ${quest.reward.toLocaleString("en-US")} db`, {
+          type: "complete-quest"
+        }),
+        back
+      ]
+    };
+  }
+  if (questState.kind === "in-progress-here") {
+    return {
+      speaker: `${quest.originRulerName}'s war secretary`,
+      expressionId: "stern",
+      text: `This is the final stroke. Break ${quest.targetName}'s batteries, land your marines, and ` +
+        `take the enemy court. Its remaining wars can end only when the capital submits.`,
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+  return {
+    speaker: `${quest.originRulerName}'s war secretary`,
+    expressionId: "stern",
+    text: quest.stage === "return"
+      ? `${quest.targetName} has submitted and peace is signed. Carry the final dispatches to ${quest.originName}.`
+      : `The enemy is nearly spent. Your final commission is to take ${quest.targetName} and end the war.`,
     feedback: session.feedback,
     options: [back]
   };

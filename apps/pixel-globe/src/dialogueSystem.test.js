@@ -3008,6 +3008,74 @@ test("a crown capture commission names the enemy port, spoils, and return reward
   assert.ok(view.options.some((entry) => entry.action.type === "accept-quest"));
 });
 
+test("a final capital commission explains the war's grievance and general peace", () => {
+  const london = {
+    tileId: 811,
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 90000,
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
+  const paris = {
+    tileId: 812,
+    city: "Paris",
+    displayCity: "Paris",
+    country: "France",
+    cityType: "northern-european",
+    population: 180000,
+    factionId: "france",
+    isFactionCapital: true,
+    capitalOfFactionId: "france",
+    character: { name: "Guillaume Morel" }
+  };
+  const capturedFrenchPorts = ["Calais", "Rouen", "Bordeaux", "Marseille"].map((name, index) => ({
+    tileId: 813 + index,
+    city: name,
+    displayCity: name,
+    country: "France",
+    cityType: "northern-european",
+    population: 20000,
+    factionId: "england",
+    foundingFactionId: "france"
+  }));
+  const stats = shipStatsForSlug("large-junk");
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    },
+    shipStats: stats
+  });
+  gameState.ship.crew = 36;
+  gameState.ship.cannons = 8;
+  gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const ports = [london, paris, ...capturedFrenchPorts];
+  const offer = capturePortMissionOfferForCity(gameState, london, ports, {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 520
+  });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const session = createPortDialogueSession(london, { initialNodeId: "quest" });
+  const view = portDialogueView(session, london, gameState, economy, ports);
+
+  assert.equal(offer.kind, "capture-capital");
+  assert.match(view.text, /old claims across the Channel/i);
+  assert.match(view.text, /peace on every remaining front/i);
+  assert.match(view.text, /capital's concessions/i);
+  assert.match(view.text, new RegExp(`${offer.reward.toLocaleString("en-US")} doubloons`));
+  assert.ok(view.options.some((entry) => (
+    entry.action.type === "accept-quest" && /final commission/i.test(entry.label)
+  )));
+});
+
 test("letter of marque dialogue shows fractional standing until the requirement is truly met", () => {
   const city = {
     tileId: 1,

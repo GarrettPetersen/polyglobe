@@ -58,6 +58,10 @@ const COLD_BASE_HEX = Object.freeze([
   "323353"
 ]);
 
+export const WATER_BASE_RESURRECT_HEX = Object.freeze([
+  ...new Set([...TROPICAL_BASE_HEX, ...TEMPERATE_BASE_HEX, ...COLD_BASE_HEX])
+]);
+
 const SOURCE_BASE = SOURCE_BASE_HEX.map(parseHex);
 const TROPICAL_BASE = TROPICAL_BASE_HEX.map(parseHex);
 const TEMPERATE_BASE = TEMPERATE_BASE_HEX.map(parseHex);
@@ -135,6 +139,10 @@ export function nearestResurrect64Hex(r, g, b) {
 
 export function isWaterResurrectHex(hex) {
   return WATER_PALETTE_SET.has(normalizeHex(hex));
+}
+
+export function isWaterBaseResurrectHex(hex) {
+  return WATER_BASE_RESURRECT_HEX.includes(normalizeHex(hex));
 }
 
 function targetBaseForBand(band, depthIndex) {

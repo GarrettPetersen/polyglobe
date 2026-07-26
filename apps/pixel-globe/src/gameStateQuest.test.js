@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN,
   DELIVERY_ROLL_PERIOD_MINUTES,
   DELIVERY_REPUTATION_GAIN,
   CAPTURE_PORT_MISSION_REPUTATION_GAIN,
@@ -17,6 +18,7 @@ import {
   deliveryOfferForCity,
   deliveryQuestForCity,
   factionReputation,
+  isCaptureCapitalQuest,
   questStateForCity,
   reconcileQuestPortTiles
 } from "./gameState.js";
@@ -210,6 +212,117 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
     reputationBefore + CAPTURE_PORT_MISSION_REPUTATION_GAIN
   );
   assert.equal(state.memory.quests.active, null);
+});
+
+test("a mostly defeated enemy can trigger a distinct war-ending capital commission", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const rouen = {
+    ...port(13, "Rouen", "France", "northern-european", "england", 49.44, 1.1),
+    foundingFactionId: "france"
+  };
+  const bordeaux = {
+    ...port(14, "Bordeaux", "France", "northern-european", "england", 44.84, -0.58),
+    foundingFactionId: "france"
+  };
+  const marseille = {
+    ...port(15, "Marseille", "France", "mediterranean", "england", 43.3, 5.37),
+    foundingFactionId: "france"
+  };
+  const capturedCalais = {
+    ...CALAIS,
+    factionId: "england",
+    foundingFactionId: "france"
+  };
+  const ports = [LONDON, PARIS, capturedCalais, rouen, bordeaux, marseille];
+  const offer = capturePortMissionOfferForCity(state, LONDON, ports, {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: (origin, destination) => {
+      assert.equal(origin.tileId, LONDON.tileId);
+      assert.equal(destination.tileId, PARIS.tileId);
+      return 520;
+    }
+  });
+
+  assert.equal(isCaptureCapitalQuest(offer), true);
+  assert.equal(offer.targetTileId, PARIS.tileId);
+  assert.equal(offer.originalEnemyPortCount, 5);
+  assert.equal(offer.remainingEnemyPortCount, 1);
+  assert.equal(offer.enemyPortsLost, 4);
+  assert.ok(offer.reward >= 12000);
+
+  acceptQuest(state, offer);
+  const event = {
+    portId: "paris",
+    cityTileId: PARIS.tileId,
+    newFactionId: "england",
+    source: "player"
+  };
+  advanceCapturePortMissionAfterConquest(state, PARIS, event, 600);
+  const reputationBefore = factionReputation(state, "england");
+  completeQuest(state, LONDON, { simMinute: 800 });
+
+  assert.equal(
+    factionReputation(state, "england"),
+    reputationBefore + CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN
+  );
+});
+
+test("losing one port makes a two-port power eligible for a final capital commission", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const capturedCalais = {
+    ...CALAIS,
+    factionId: "england",
+    foundingFactionId: "france"
+  };
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, PARIS, capturedCalais], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 520
+  });
+
+  assert.equal(offer.kind, "capture-capital");
+  assert.equal(offer.originalEnemyPortCount, 2);
+  assert.equal(offer.remainingEnemyPortCount, 1);
+  assert.equal(offer.enemyPortsLost, 1);
+});
+
+test("a capital-only power can receive the only possible capture commission", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, PARIS], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 520
+  });
+
+  assert.equal(offer.kind, "capture-capital");
+  assert.equal(offer.originalEnemyPortCount, 1);
+  assert.equal(offer.remainingEnemyPortCount, 1);
+  assert.equal(offer.enemyPortsLost, 0);
 });
 
 test("capture commissions require guns, a full landing company, and a letter of marque", () => {

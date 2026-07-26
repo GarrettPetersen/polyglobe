@@ -4,6 +4,13 @@ const MAX_ARM_LENGTH_PX = 35;
 const ARM_LENGTH_CURVE_EXPONENT = 1.5;
 const APEX_ARM_OFFSET_RATIO = 0.7;
 
+export const WIND_INDICATOR_BASE_HEX = "4d9be6";
+export const WIND_INDICATOR_BASE_RGB = Object.freeze({
+  r: 77,
+  g: 155,
+  b: 230
+});
+
 export function windVOpacity(windStrength, stallWarning = 0, pulse = 0) {
   for (const [label, value] of Object.entries({ windStrength, stallWarning, pulse })) {
     if (!Number.isFinite(value)) throw new Error(`Invalid wind V ${label}: ${value}`);
