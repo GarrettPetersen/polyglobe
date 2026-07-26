@@ -1,5 +1,5 @@
 import {
-  assignRegionalCharacterName,
+  assignRegionalCharacterIdentity,
   assignRegionalFamilyMemberName
 } from "./characterNames.js";
 import {
@@ -193,10 +193,10 @@ export function assignPortCityCharacters(
     const character = assignCharacterSprite(key, region, sourcePool, used);
     assignments.set(city.tileId, {
       ...character,
-      ...assignRegionalCharacterName({
+      ...assignRegionalCharacterIdentity({
         identityKey: key,
         city,
-        sex: character.sex,
+        character,
         usedNames
       }),
       cityKey: key,
@@ -227,10 +227,10 @@ export function assignPortCityCharacterFromSource(
   const character = assignCharacterSprite(key, region, [source], new Set());
   return {
     ...character,
-    ...assignRegionalCharacterName({
+    ...assignRegionalCharacterIdentity({
       identityKey: key,
       city,
-      sex: character.sex,
+      character,
       usedNames
     }),
     cityKey: key,
@@ -267,10 +267,10 @@ export function assignNpcShipCaptains(
     const character = assignCharacterSprite(identityKey, region, sourcePool, used);
     assignments.set(ship.id, {
       ...character,
-      ...assignRegionalCharacterName({
+      ...assignRegionalCharacterIdentity({
         identityKey,
         ship,
-        sex: character.sex,
+        character,
         usedNames
       }),
       npcShipId: ship.id,
@@ -307,10 +307,10 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
   const region = portraitRegionForCity(homePort);
   const sourcePool = characterSourcesForPlayer(manifest, region);
   const character = assignCharacterSprite(`player|${identityKey}`, region, sourcePool, new Set());
-  const name = assignRegionalCharacterName({
+  const name = assignRegionalCharacterIdentity({
     identityKey: `player|${identityKey}`,
     city: homePort,
-    sex: character.sex,
+    character,
     usedNames
   });
   return Object.freeze(characterWithBiography({
@@ -384,15 +384,15 @@ export function generateSpecialPortCharacter({
   const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
   return Object.freeze(characterWithBiography({
     ...character,
-    ...assignRegionalCharacterName({
+    ...assignRegionalCharacterIdentity({
       identityKey,
       city: port,
-      sex: character.sex,
+      character,
+      religionId,
       usedNames
     }),
     skillIds: characterSkillIdsForIdentity(identityKey, { traveler: true }),
     role,
-    religionId,
     homePortTileId: port.tileId
   }, portBiographyOptions(identityKey, port)));
 }
@@ -424,10 +424,10 @@ export function generatePassengerCharacter({
   const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
   const key = `passenger|${identityKey}`;
   const character = assignCharacterSprite(key, region, sourcePool, new Set());
-  const name = assignRegionalCharacterName({
+  const name = assignRegionalCharacterIdentity({
     identityKey: key,
     city: namePort,
-    sex: character.sex,
+    character,
     usedNames
   });
   return Object.freeze(characterWithBiography({
@@ -497,10 +497,10 @@ function generateRescuedTravelerCharacter({
   const sourcePool = expressiveCivilianSources(manifest, excludedSourceIds);
   const key = `${rescueType}|${identityKey}`;
   const character = assignCharacterSprite(key, region, sourcePool, new Set());
-  const name = assignRegionalCharacterName({
+  const name = assignRegionalCharacterIdentity({
     identityKey: key,
     city: homePort,
-    sex: character.sex,
+    character,
     usedNames
   });
   return Object.freeze(characterWithBiography({

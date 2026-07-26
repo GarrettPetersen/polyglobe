@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assignRegionalCharacterIdentity,
   assignRegionalCharacterName,
   nameCultureCandidatesForSubject,
   nameCultureForSubject
@@ -89,8 +90,8 @@ test("border and colonial cities mix local and ruling name cultures", () => {
     cityType: "mediterranean",
     factionId: "ottoman"
   };
-  assert.equal(nameCultureForSubject(sudak), "slavic");
-  assert.deepEqual(nameCultureCandidatesForSubject(sudak), ["slavic", "ottoman"]);
+  assert.equal(nameCultureForSubject(sudak), "russian");
+  assert.deepEqual(nameCultureCandidatesForSubject(sudak), ["russian", "ottoman"]);
 
   const seen = new Set();
   for (let i = 0; i < 48; i++) {
@@ -101,6 +102,69 @@ test("border and colonial cities mix local and ruling name cultures", () => {
       usedNames: new Set()
     }).nameCulture);
   }
-  assert.ok(seen.has("slavic"));
+  assert.ok(seen.has("russian"));
   assert.ok(seen.has("ottoman"));
+});
+
+test("eastern European home countries use precise local naming pools", () => {
+  const cases = [
+    ["Warsaw", "Poland", "polish"],
+    ["Vilnius", "Lithuania", "lithuanian"],
+    ["Moscow", "Russian Federation", "russian"],
+    ["Kyiv", "Ukraine", "ruthenian"],
+    ["Buda", "Hungary", "hungarian"],
+    ["Durres", "Albania", "albanian"],
+    ["Sofia", "Bulgaria", "bulgarian"],
+    ["Bucharest", "Romania", "romanian"],
+    ["Belgrade", "Serbia", "serbian"]
+  ];
+  for (const [city, country, expected] of cases) {
+    assert.equal(nameCultureForSubject({ city, country, factionId: "neutral" }), expected);
+  }
+});
+
+test("Belgrade identities couple religion, local culture, and portrait attire", () => {
+  const belgrade = {
+    city: "Belgrade",
+    country: "Serbia",
+    cityType: "mediterranean",
+    factionId: "ottoman"
+  };
+  const culturesByReligion = new Map();
+  let orthodoxCount = 0;
+  let sunniCount = 0;
+  let mehmedCount = 0;
+  for (let index = 0; index < 256; index++) {
+    const identity = assignRegionalCharacterIdentity({
+      identityKey: `belgrade-captain-${index}`,
+      city: belgrade,
+      character: { id: `portrait-${index}`, sex: "male" },
+      usedNames: new Set()
+    });
+    culturesByReligion.set(identity.religionId, identity.nameCulture);
+    if (identity.religionId === "eastern-orthodox") orthodoxCount += 1;
+    if (identity.religionId === "sunni-islam") {
+      sunniCount += 1;
+      if (identity.givenName === "Mehmed") mehmedCount += 1;
+    }
+    assert.notEqual(identity.familyName, "Kowalski");
+  }
+  assert.equal(culturesByReligion.get("eastern-orthodox"), "serbian");
+  assert.equal(culturesByReligion.get("sunni-islam"), "ottoman");
+  assert.ok(orthodoxCount > sunniCount * 2);
+  assert.ok(sunniCount > 0);
+  assert.ok(mehmedCount >= Math.floor(sunniCount / 8));
+
+  const priest = assignRegionalCharacterIdentity({
+    identityKey: "belgrade-priest",
+    city: belgrade,
+    character: {
+      id: "belgrade-priest-portrait",
+      sex: "male",
+      requiredReligionFamily: "christian"
+    },
+    usedNames: new Set()
+  });
+  assert.equal(priest.religionId, "eastern-orthodox");
+  assert.equal(priest.nameCulture, "serbian");
 });

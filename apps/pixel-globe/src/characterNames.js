@@ -1,3 +1,5 @@
+import { inferCharacterReligion, religionById } from "./characterReligion.js";
+
 const CULTURES = Object.freeze({
   english: culture(
     ["John", "William", "Thomas", "Richard", "Robert", "Edward", "Henry", "George", "Nicholas", "Christopher", "Francis", "Martin"],
@@ -43,6 +45,52 @@ const CULTURES = Object.freeze({
     ["Aleksander", "Andrei", "Bogdan", "Dmitri", "Grigori", "Ivan", "Jan", "Kazimierz", "Mikhail", "Nikolai", "Pavel", "Stefan"],
     ["Agata", "Aleksandra", "Anna", "Barbara", "Elena", "Irina", "Jadwiga", "Katarzyna", "Maria", "Natalia", "Sofia", "Zofia"],
     ["Bielski", "Kowalski", "Mikhailov", "Nowak", "Orlov", "Petrov", "Romanov", "Sokolov", "Volkov", "Voronin", "Wisniewski", "Zielinski"]
+  ),
+  polish: culture(
+    ["Andrzej", "Jan", "Jakub", "Kazimierz", "Krzysztof", "Maciej", "Marcin", "Mikolaj", "Pawel", "Piotr", "Stanislaw", "Wojciech"],
+    ["Agnieszka", "Anna", "Barbara", "Dorota", "Elzbieta", "Helena", "Jadwiga", "Katarzyna", "Malgorzata", "Regina", "Urszula", "Zofia"],
+    ["Bielski", "Dabrowski", "Kaminski", "Kowalski", "Mazur", "Nowak", "Szymanski", "Wisniewski", "Wojcik", "Wroblewski", "Zalewski", "Zielinski"]
+  ),
+  lithuanian: culture(
+    ["Albertas", "Andrius", "Augustinas", "Baltramiejus", "Benediktas", "Jokubas", "Jonas", "Jurgis", "Kazimieras", "Martynas", "Mikalojus", "Stanislovas"],
+    ["Agota", "Barbora", "Birute", "Domicela", "Elzbieta", "Jadvyga", "Kotryna", "Marija", "Morta", "Ona", "Radvile", "Sofija"],
+    ["Astikas", "Butrimas", "Daukantas", "Gedgaudas", "Giedraitis", "Gostautas", "Kezgaila", "Mantvydas", "Narbutas", "Radvila", "Sapega", "Vainius"]
+  ),
+  russian: culture(
+    ["Aleksei", "Andrei", "Boris", "Dmitri", "Fyodor", "Grigori", "Ivan", "Mikhail", "Nikolai", "Semyon", "Vasili", "Yuri"],
+    ["Anastasia", "Anna", "Daria", "Elena", "Evdokia", "Feodora", "Irina", "Ksenia", "Maria", "Natalia", "Olga", "Sofia"],
+    ["Alekseev", "Borisov", "Fedorov", "Ivanov", "Mikhailov", "Morozov", "Orlov", "Petrov", "Romanov", "Sokolov", "Vasiliev", "Volkov"]
+  ),
+  ruthenian: culture(
+    ["Andrii", "Bohdan", "Danylo", "Fedko", "Hryhorii", "Ivan", "Levko", "Mykhailo", "Ostap", "Petro", "Semen", "Vasyl"],
+    ["Anna", "Hanna", "Iryna", "Kateryna", "Khrystyna", "Marfa", "Maria", "Nadiia", "Olena", "Paraska", "Solomiia", "Tetiana"],
+    ["Andrusko", "Bohdanovych", "Danilovych", "Hryhorovych", "Ivashko", "Khmara", "Koval", "Levchenko", "Petrenko", "Romanovych", "Vasylenko", "Zubko"]
+  ),
+  hungarian: culture(
+    ["Andras", "Balint", "Ferenc", "Gaspar", "Gyorgy", "Istvan", "Janos", "Laszlo", "Matyas", "Miklos", "Pal", "Tamas"],
+    ["Anna", "Borbala", "Dorottya", "Erzsebet", "Ilona", "Judit", "Katalin", "Klara", "Margit", "Orsolya", "Rebeka", "Zsuzsanna"],
+    ["Balassi", "Bathory", "Bocskai", "Csaky", "Esterhazy", "Forgach", "Hunyadi", "Kinizsi", "Nadasdy", "Rakoczi", "Szapolyai", "Zrinyi"],
+    "family-first"
+  ),
+  albanian: culture(
+    ["Aleks", "Andrea", "Dhimiter", "Gjin", "Gjon", "Kole", "Leke", "Mark", "Nikolle", "Pal", "Pjeter", "Progon"],
+    ["Ana", "Angjelina", "Donika", "Jelena", "Katarina", "Komnena", "Lucia", "Mara", "Maria", "Teodora", "Vojsava", "Zana"],
+    ["Arianiti", "Bua", "Dukagjini", "Gropa", "Kastrioti", "Muzaka", "Shpata", "Spani", "Thopia", "Topia", "Zaharia", "Zenebishi"]
+  ),
+  bulgarian: culture(
+    ["Bogdan", "Dimitar", "Dragomir", "Georgi", "Ivan", "Nikola", "Petar", "Radoslav", "Stefan", "Stoyan", "Todor", "Vasil"],
+    ["Anna", "Desislava", "Elena", "Irina", "Kalina", "Katerina", "Maria", "Milena", "Nadezhda", "Rada", "Teodora", "Yana"],
+    ["Bogdanov", "Dimitrov", "Georgiev", "Ivanov", "Nikolov", "Petrov", "Radev", "Stoyanov", "Todorov", "Vasilev", "Vladislavov", "Zlatev"]
+  ),
+  romanian: culture(
+    ["Alexandru", "Andrei", "Bogdan", "Dan", "Dragos", "Ion", "Mihail", "Mircea", "Nicolae", "Petru", "Radu", "Stefan"],
+    ["Ana", "Anca", "Caterina", "Elena", "Ilinca", "Irina", "Maria", "Marina", "Ruxandra", "Stanca", "Teodora", "Voica"],
+    ["Albu", "Basarab", "Brancoveanu", "Craiovescu", "Danescu", "Dragomir", "Florescu", "Ionescu", "Movila", "Popescu", "Rosetti", "Vladislav"]
+  ),
+  serbian: culture(
+    ["Bogdan", "Djordje", "Jovan", "Lazar", "Marko", "Mihailo", "Nikola", "Pavle", "Petar", "Radovan", "Stefan", "Vuk"],
+    ["Ana", "Danica", "Dragana", "Jelena", "Katarina", "Mara", "Marija", "Milica", "Rada", "Sofija", "Teodora", "Vukosava"],
+    ["Bogdanovic", "Djuric", "Jovanovic", "Lazarevic", "Markovic", "Nikolic", "Pavlovic", "Petrovic", "Popovic", "Radovic", "Stefanovic", "Vukovic"]
   ),
   greek: culture(
     ["Alexios", "Andreas", "Demetrios", "Georgios", "Ioannis", "Konstantinos", "Manuel", "Markos", "Michael", "Nikolaos", "Petros", "Theodoros"],
@@ -128,10 +176,10 @@ const COUNTRY_CULTURES = new Map([
   ["France", "french"], ["Spain", "spanish"], ["Portugal", "portuguese"],
   ["Italy", "italian"], ["Austria", "germanic"], ["Belgium", "germanic"],
   ["Germany", "germanic"], ["Netherlands", "germanic"], ["Denmark", "nordic"],
-  ["Norway", "nordic"], ["Sweden", "nordic"], ["Iceland", "nordic"], ["Poland", "slavic"],
-  ["Lithuania", "slavic"], ["Russian Federation", "slavic"], ["Ukraine", "slavic"],
-  ["Hungary", "slavic"], ["Albania", "slavic"], ["Bulgaria", "slavic"],
-  ["Romania", "slavic"], ["Serbia", "slavic"], ["Greece", "greek"],
+  ["Norway", "nordic"], ["Sweden", "nordic"], ["Iceland", "nordic"], ["Poland", "polish"],
+  ["Lithuania", "lithuanian"], ["Russian Federation", "russian"], ["Ukraine", "ruthenian"],
+  ["Hungary", "hungarian"], ["Albania", "albanian"], ["Bulgaria", "bulgarian"],
+  ["Romania", "romanian"], ["Serbia", "serbian"], ["Greece", "greek"],
   ["Cyprus", "greek"], ["Ireland", "english"], ["Turkey", "ottoman"],
   ["Egypt", "arabic"], ["Iraq", "arabic"], ["Lebanon", "arabic"],
   ["Israel", "arabic"], ["Morocco", "arabic"], ["Algeria", "arabic"],
@@ -166,7 +214,7 @@ const FACTION_CULTURES = new Map([
   ["spain", "spanish"],
   ["portugal", "portuguese"],
   ["habsburg", "germanic"],
-  ["hungary", "slavic"],
+  ["hungary", "hungarian"],
   ["ottoman", "ottoman"],
   ["venice", "italian"],
   ["genoa", "italian"],
@@ -174,8 +222,8 @@ const FACTION_CULTURES = new Map([
   ["ming", "chinese"],
   ["inca", "andean"],
   ["safavid", "persian"],
-  ["muscovy", "slavic"],
-  ["poland-lithuania", "slavic"],
+  ["muscovy", "russian"],
+  ["poland-lithuania", "polish"],
   ["denmark-norway", "nordic"],
   ["songhai", "westAfrican"],
   ["morocco", "arabic"],
@@ -189,18 +237,94 @@ const FACTION_CULTURES = new Map([
   ["joseon", "korean"]
 ]);
 
-export function assignRegionalCharacterName({ identityKey, city, ship, sex, usedNames }) {
+const ISLAMIC_RELIGIONS = new Set(["sunni-islam", "shia-islam", "ibadi-islam"]);
+const OTTOMAN_BALKAN_CULTURES = new Set([
+  "albanian",
+  "bulgarian",
+  "greek",
+  "hungarian",
+  "romanian",
+  "ruthenian",
+  "russian",
+  "serbian",
+  "slavic"
+]);
+const MUHAMMAD_NAME_BY_CULTURE = Object.freeze({
+  arabic: "Muhammad",
+  eastAfrican: "Muhammad",
+  ottoman: "Mehmed",
+  persian: "Muhammad",
+  southAsian: "Muhammad",
+  southeastAsian: "Muhammad",
+  westAfrican: "Mamadou"
+});
+
+export function assignRegionalCharacterIdentity({
+  identityKey,
+  city,
+  ship,
+  character,
+  religionId = character?.religionId ?? null,
+  usedNames
+}) {
+  if (!character || typeof character !== "object") {
+    throw new Error("Regional character identity requires a portrait character");
+  }
+  const subject = city || shipPort(ship);
+  const religion = inferCharacterReligion({
+    identityKey,
+    homePort: subject,
+    character: {
+      ...character,
+      religionId
+    }
+  });
+  return {
+    ...assignRegionalCharacterName({
+      identityKey,
+      city,
+      ship,
+      sex: character.sex,
+      religionId: religion.id,
+      usedNames
+    }),
+    religionId: religion.id
+  };
+}
+
+export function assignRegionalCharacterName({
+  identityKey,
+  city,
+  ship,
+  sex,
+  religionId = null,
+  usedNames
+}) {
   if (typeof identityKey !== "string" || identityKey === "") throw new Error("Character name requires an identity key");
   if (!(usedNames instanceof Set)) throw new Error("Character name assignment requires a shared used-name Set");
   if (sex !== "female" && sex !== "male") throw new Error(`Character name requires an explicit sex: ${sex}`);
+  if (religionId !== null) religionById(religionId);
   const subject = city || shipPort(ship);
-  const cultureId = chooseNameCultureForSubject(subject, identityKey);
+  const cultureId = chooseNameCultureForSubject(subject, identityKey, religionId);
   const nameCulture = CULTURES[cultureId];
   if (!nameCulture) throw new Error(`Unknown character name culture: ${cultureId}`);
   const gender = sex;
   const givenNames = gender === "female" ? nameCulture.female : nameCulture.male;
   const capacity = givenNames.length * nameCulture.family.length;
-  const startIndex = hashString32(`${identityKey}|${cultureId}|${gender}|name`) % capacity;
+  const normalStartIndex = hashString32(`${identityKey}|${cultureId}|${gender}|name`) % capacity;
+  const preferredGivenName = preferredMuhammadName({
+    identityKey,
+    cultureId,
+    gender,
+    religionId,
+    givenNames
+  });
+  const startIndex = preferredGivenName === null
+    ? normalStartIndex
+    : (
+        Math.floor(normalStartIndex / givenNames.length) * givenNames.length +
+        givenNames.indexOf(preferredGivenName)
+      );
 
   for (let attempt = 0; attempt < capacity; attempt++) {
     const index = (startIndex + attempt) % capacity;
@@ -268,10 +392,25 @@ export function nameCultureCandidatesForSubject(subject) {
   return Object.freeze(candidates);
 }
 
-function chooseNameCultureForSubject(subject, identityKey) {
+function chooseNameCultureForSubject(subject, identityKey, religionId) {
   const candidates = nameCultureCandidatesForSubject(subject);
+  if (
+    religionId !== null &&
+    candidates.length > 1 &&
+    candidates[1] === "ottoman" &&
+    OTTOMAN_BALKAN_CULTURES.has(candidates[0])
+  ) {
+    return ISLAMIC_RELIGIONS.has(religionId) ? "ottoman" : candidates[0];
+  }
   const weighted = candidates.length === 1 ? candidates : [candidates[0], candidates[0], candidates[0], candidates[1]];
   return weighted[hashString32(`${identityKey}|name-culture`) % weighted.length];
+}
+
+function preferredMuhammadName({ identityKey, cultureId, gender, religionId, givenNames }) {
+  if (gender !== "male" || !ISLAMIC_RELIGIONS.has(religionId)) return null;
+  const preferred = MUHAMMAD_NAME_BY_CULTURE[cultureId];
+  if (!preferred || !givenNames.includes(preferred)) return null;
+  return (hashString32(`${identityKey}|muhammad-name`) >>> 16) % 4 === 0 ? preferred : null;
 }
 
 function localNameCultureForSubject(subject) {

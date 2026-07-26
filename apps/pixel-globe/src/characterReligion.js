@@ -347,7 +347,23 @@ export function religionCandidatesForHome(homePort) {
   if (nameCulture === "westAfrican" || nameCulture === "eastAfrican") {
     return choices(["african-traditional", 1]);
   }
-  if (nameCulture === "slavic" || nameCulture === "greek") return choices(["eastern-orthodox", 1]);
+  if ([
+    "slavic",
+    "russian",
+    "ruthenian",
+    "bulgarian",
+    "romanian",
+    "serbian",
+    "greek"
+  ].includes(nameCulture)) {
+    return choices(["eastern-orthodox", 1]);
+  }
+  if (["polish", "lithuanian", "hungarian"].includes(nameCulture)) {
+    return choices(["roman-catholic", 1]);
+  }
+  if (nameCulture === "albanian") {
+    return choices(["eastern-orthodox", 2], ["roman-catholic", 1]);
+  }
   if (nameCulture === "ottoman" || nameCulture === "arabic") return choices(["sunni-islam", 1]);
   if (nameCulture === "persian") return choices(["shia-islam", 3], ["sunni-islam", 1]);
   if ([
