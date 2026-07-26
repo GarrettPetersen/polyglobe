@@ -29,10 +29,6 @@ export function terrainSpriteReceivesShipShadow(spriteKey) {
   return !terrainSpriteOccludesShips(spriteKey);
 }
 
-export function terrainSpriteHasElevatedCloudShadowReceiver(spriteKey) {
-  return terrainSpriteDrawLayer(spriteKey) >= TERRAIN_DRAW_LAYER_HILL;
-}
-
 export function terrainBaseSpriteKey(spriteKey) {
   if (typeof spriteKey !== "string" || spriteKey === "") {
     throw new Error("Terrain base composition requires a sprite key");

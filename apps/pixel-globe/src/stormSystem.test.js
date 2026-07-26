@@ -72,6 +72,15 @@ test("one storm cell affects a contiguous area and weakens at its edge", () => {
   assert.equal(outside, 0);
 });
 
+test("storm bounds preserve wrapped and high-latitude cells", () => {
+  const dateline = [{ latDeg: 5, lonDeg: 179, radiusDeg: 12, strength: 0.9 }];
+  const highLatitude = [{ latDeg: 70, lonDeg: 20, radiusDeg: 16, strength: 0.9 }];
+
+  assert.ok(stormIntensityAtPosition(dateline, 5, -179) > 0);
+  assert.ok(stormIntensityAtPosition(highLatitude, 70, 50) > 0);
+  assert.equal(stormIntensityAtPosition(highLatitude, 45, 20), 0);
+});
+
 test("storms amplify local wind without exceeding the safety cap", () => {
   assert.equal(stormWindStrength(0.8, 0), 0.8);
   assert.ok(stormWindStrength(0.8, 0.8) > 1.5);

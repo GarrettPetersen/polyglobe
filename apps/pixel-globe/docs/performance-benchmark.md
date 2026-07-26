@@ -16,8 +16,8 @@ npm --prefix apps/pixel-globe run benchmark:combat
 ```
 
 The cloud-cover benchmark fixes the date and camera over the northern Aegean,
-where overlapping 64-pixel cloud banks exercise the projected shadow compositor
-and its ocean, land, and elevated receiver masks:
+where overlapping translucent 64-pixel cloud banks exercise cloud preparation,
+wind sampling, lifecycle animation, and sprite overdraw:
 
 ```sh
 npm --prefix apps/pixel-globe run benchmark:clouds

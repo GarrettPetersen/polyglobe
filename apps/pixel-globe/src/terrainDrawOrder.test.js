@@ -5,7 +5,6 @@ import {
   terrainBaseSpriteKey,
   terrainConnectorNeedsSlopeDetail,
   terrainSpriteDrawLayer,
-  terrainSpriteHasElevatedCloudShadowReceiver,
   terrainSpriteOccludesShips,
   terrainSpriteReceivesShipShadow
 } from "./terrainDrawOrder.js";
@@ -97,28 +96,4 @@ test("flat terrain stays below ships and receives their shadows", () => {
   }
   assert.throws(() => terrainSpriteOccludesShips(""), /requires a sprite key/);
   assert.throws(() => terrainSpriteReceivesShipShadow(""), /requires a sprite key/);
-});
-
-test("cloud shadows distinguish flat ground from raised terrain art", () => {
-  for (const spriteKey of [
-    "grass_01",
-    "sand_03",
-    "snow_01",
-    "mud_02",
-    "earth_rocky",
-    "earth_stone"
-  ]) {
-    assert.equal(terrainSpriteHasElevatedCloudShadowReceiver(spriteKey), false, spriteKey);
-  }
-  for (const spriteKey of [
-    "grassy_hill",
-    "forest_broadleaf_01",
-    "pine_forest_01",
-    "jungle_dense_02",
-    "mountain_stone_01",
-    "mountain_snowy_02"
-  ]) {
-    assert.equal(terrainSpriteHasElevatedCloudShadowReceiver(spriteKey), true, spriteKey);
-  }
-  assert.throws(() => terrainSpriteHasElevatedCloudShadowReceiver(""), /requires a sprite key/);
 });

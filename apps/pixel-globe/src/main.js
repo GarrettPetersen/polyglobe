@@ -182,16 +182,9 @@ import {
   CLOUD_SPRITE_SHEET_PATH,
   CLOUD_SPRITE_SHEET_WIDTH,
   CLOUD_SPRITE_VARIANT_COUNT,
+  cloudLifecycleAlpha,
   cloudSpriteFrameIndex
 } from "./cloudSpriteAssets.js";
-import {
-  CLOUD_RECEIVER_ELEVATED,
-  CLOUD_RECEIVER_LAND,
-  CLOUD_RECEIVER_OCEAN,
-  CLOUD_RECEIVER_TIER_COUNT,
-  cloudLifecycleAlpha,
-  cloudShadowOffset
-} from "./cloudShadow.js";
 import {
   generatePlayerStartingProfile,
   playerStarterShipForFaction,
@@ -701,7 +694,6 @@ import {
   terrainConnectorNeedsSlopeDetail,
   TERRAIN_MOUNTAIN_LEVEL,
   terrainSpriteDrawLayer,
-  terrainSpriteHasElevatedCloudShadowReceiver,
   terrainSpriteOccludesShips,
   terrainSpriteReceivesShipShadow
 } from "./terrainDrawOrder.js";
@@ -1035,13 +1027,7 @@ import {
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
-import {
-  RESURRECT_SHADOW_GRADE_STRENGTH,
-  applyDayNightPaletteGrade,
-  applyResurrectShadowPaletteGrade,
-  resurrectShadowPaletteLutTexture
-} from "./dayNightPalette.js";
-import { createPaletteShadowRenderer } from "./paletteShadowRenderer.js";
+import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
 import {
   SHIP_PAPER_ROW_CONTENT_INSET,
   createShipComparisonView,
@@ -1574,9 +1560,8 @@ const CLOUD_FADE_RATIO = 0.22;
 const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const CLOUD_VISUAL_ALTITUDE_RATIO = 0.72;
-const CLOUD_SHADOW_MASK_ALPHA = 0.82;
-const CLOUD_SHADOW_BOUNDS_PADDING_PX = 1;
-const CLOUD_SHADOW_RECEIVER_CLASS_RED = Object.freeze([48, 128, 224]);
+const CLOUD_VIEWPORT_MARGIN_PX =
+  CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-3";
 const VEHICLE_ASSET_VERSION = "malay-warships-1";
@@ -2207,7 +2192,6 @@ const screenCtx = canvas.getContext("2d", { alpha: false, willReadFrequently: tr
 if (!screenCtx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
 screenCtx.imageSmoothingEnabled = false;
 let ctx = screenCtx;
-let cloudPaletteShadowRenderer = null;
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
@@ -2220,41 +2204,6 @@ shipCompositeCanvas.height = SHIP_SHEET_FRAME_SIZE + SHIP_COMPOSITE_MARGIN_PX * 
 const shipCompositeCtx = shipCompositeCanvas.getContext("2d");
 if (!shipCompositeCtx) throw new Error("Marque & Reprisal could not create its ship composite context");
 shipCompositeCtx.imageSmoothingEnabled = false;
-const cloudShadowCompositeCanvas = document.createElement("canvas");
-const cloudShadowCompositeCtx = cloudShadowCompositeCanvas.getContext("2d", { willReadFrequently: true });
-if (!cloudShadowCompositeCtx) {
-  throw new Error("Marque & Reprisal could not create its cloud shadow composite context");
-}
-const cloudShadowTierCanvas = document.createElement("canvas");
-const cloudShadowTierCtx = cloudShadowTierCanvas.getContext("2d");
-if (!cloudShadowTierCtx) {
-  throw new Error("Marque & Reprisal could not create its cloud shadow tier context");
-}
-const cloudShadowReceiverCanvas = document.createElement("canvas");
-const cloudShadowReceiverCtx = cloudShadowReceiverCanvas.getContext("2d");
-if (!cloudShadowReceiverCtx) {
-  throw new Error("Marque & Reprisal could not create its cloud shadow receiver context");
-}
-const cloudShadowDynamicReceiverCanvas = document.createElement("canvas");
-const cloudShadowDynamicReceiverCtx = cloudShadowDynamicReceiverCanvas.getContext("2d");
-if (!cloudShadowDynamicReceiverCtx) {
-  throw new Error("Marque & Reprisal could not create its dynamic cloud shadow receiver context");
-}
-for (const shadowCtx of [
-  cloudShadowCompositeCtx,
-  cloudShadowTierCtx,
-  cloudShadowReceiverCtx,
-  cloudShadowDynamicReceiverCtx
-]) {
-  shadowCtx.imageSmoothingEnabled = false;
-}
-resizeCloudShadowBuffers(SCREEN_W, SCREEN_H);
-cloudPaletteShadowRenderer = createPaletteShadowRenderer({
-  width: SCREEN_W,
-  height: SCREEN_H,
-  lut: resurrectShadowPaletteLutTexture(),
-  strength: RESURRECT_SHADOW_GRADE_STRENGTH
-});
 const shipSinkSampleCanvas = document.createElement("canvas");
 shipSinkSampleCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipSinkSampleCanvas.height = SHIP_SHEET_FRAME_SIZE;
@@ -2408,8 +2357,6 @@ const landRoadLayerCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
-let cloudShadowStaticReceiverCache = null;
-const cloudShadowClassSpriteCache = new WeakMap();
 const npcOffshoreClearanceCache = new Map();
 let npcOffshoreClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
@@ -2438,7 +2385,11 @@ let seaIceMask;
 let freshwaterIceMask;
 let snowGroundMask;
 let cloudSpriteSheet;
-let cloudShadowDynamicReceiverActive = false;
+let cloudDrawCallCache = null;
+let cloudWindCacheDayIndex = -1;
+let cloudWindSubsolarLatDeg = 0;
+const cloudWindCache = new Map();
+let renderedCloudSpriteCount = 0;
 let weatherClockMinutes = START_WEATHER.clockMinutes;
 let voyageStartClockMinutes = START_WEATHER.clockMinutes;
 let weatherTimeScale = START_WEATHER.timeScale;
@@ -6730,6 +6681,7 @@ function performanceBenchmarkSceneSnapshot(state) {
     ),
     chartFaces: chart.faceCalls.length,
     visibleCities: chart.cityCalls.length,
+    cloudSprites: renderedCloudSpriteCount,
     precipitationParticles: precipParticles.length,
     flyingSeagulls: seagulls.length,
     wakeParticles: ship.wakeParticles.length,
@@ -21264,7 +21216,6 @@ function applyResponsiveViewport(width, height) {
   lakeBattleTerrainChartKey = "";
   canvas.width = width;
   canvas.height = height;
-  resizeCloudShadowBuffers(width, height);
   syncCanvasAriaLabel();
   ctx.imageSmoothingEnabled = false;
 
@@ -21318,27 +21269,6 @@ function applyResponsiveViewport(width, height) {
   }
   rebuildChartForViewportResize();
   dirty = true;
-}
-
-function resizeCloudShadowBuffers(width, height) {
-  for (const shadowCanvas of [
-    cloudShadowCompositeCanvas,
-    cloudShadowTierCanvas,
-    cloudShadowReceiverCanvas,
-    cloudShadowDynamicReceiverCanvas
-  ]) {
-    shadowCanvas.width = width;
-    shadowCanvas.height = height;
-  }
-  for (const shadowCtx of [
-    cloudShadowCompositeCtx,
-    cloudShadowTierCtx,
-    cloudShadowReceiverCtx,
-    cloudShadowDynamicReceiverCtx
-  ]) {
-    shadowCtx.imageSmoothingEnabled = false;
-  }
-  cloudPaletteShadowRenderer?.resize(width, height);
 }
 
 function rebuildChartForViewportResize() {
@@ -21615,8 +21545,11 @@ function render(nowMs) {
     for (const call of renderRiverConnectorCalls) drawRiverConnector(call, chart);
   });
   const shipLight = shipSunLightState();
-  const cloudCalls = cloudDrawCalls(chart);
-  prepareCloudShadowDynamicReceivers(cloudCalls.length > 0 && shipLight.shadow > 0.01);
+  const cloudCalls = measurePerformanceBenchmarkStage(
+    "render.cloudPrepare",
+    () => cloudDrawCalls(chart, offset)
+  );
+  renderedCloudSpriteCount = cloudCalls.length;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawGreatBarrierReef(chart, nowMs);
     const fishCalls = drawFishIndividuals(chart, nowMs, renderTileCalls);
@@ -21645,12 +21578,9 @@ function render(nowMs) {
   drawHullSplinterBursts(hullSplinterBursts);
   drawCitySpritesAboveShip(chart, offset, nowMs);
   ctx.restore();
-  measurePerformanceBenchmarkStage("render.cloudShadows", () => {
-    drawCloudShadows(chart, offset, cloudCalls, shipLight);
-  });
   ctx.save();
   ctx.translate(offset.x, offset.y);
-  drawCloudLayer(cloudCalls);
+  measurePerformanceBenchmarkStage("render.clouds", () => drawCloudLayer(cloudCalls));
   drawCityLabels(chart.cityCalls, chart);
   ctx.restore();
   measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
@@ -29529,18 +29459,44 @@ function precipParticleKey(kind, tileId) {
   return `${kind}:${tileId}`;
 }
 
-function cloudDrawCalls(activeChart) {
+function cloudDrawCalls(activeChart, offset) {
   if (!runtimeWeather || !cloudSpriteSheet) return [];
+  const viewportColumn = Math.floor(-offset.x / TILE_ART_SIZE);
+  const viewportRow = Math.floor(-offset.y / TILE_ART_SIZE);
+  if (
+    cloudDrawCallCache?.chart === activeChart &&
+    cloudDrawCallCache.runtimeWeather === runtimeWeather &&
+    cloudDrawCallCache.dayIndex === weatherParts.dayIndex &&
+    cloudDrawCallCache.weatherDrawTick === weatherDrawTick &&
+    cloudDrawCallCache.viewportColumn === viewportColumn &&
+    cloudDrawCallCache.viewportRow === viewportRow
+  ) {
+    return cloudDrawCallCache.calls;
+  }
+  const candidateTileCalls = activeChart.tileCalls.filter(
+    (call) => chartTileCallNearViewport(call, offset, CLOUD_VIEWPORT_MARGIN_PX)
+  );
+  const candidateTileIds = new Set(candidateTileCalls.map((call) => call.id));
   const calls = [];
-  appendAnnualCloudDrawCalls(activeChart, calls);
-  appendLocalWeatherCloudDrawCalls(activeChart, calls);
+  appendAnnualCloudDrawCalls(activeChart, candidateTileIds, calls);
+  appendLocalWeatherCloudDrawCalls(candidateTileCalls, calls);
+  cloudDrawCallCache = {
+    chart: activeChart,
+    runtimeWeather,
+    dayIndex: weatherParts.dayIndex,
+    weatherDrawTick,
+    viewportColumn,
+    viewportRow,
+    calls
+  };
   return calls;
 }
 
-function appendAnnualCloudDrawCalls(activeChart, out) {
+function appendAnnualCloudDrawCalls(activeChart, candidateTileIds, out) {
   for (let slot = 0; slot < runtimeWeather.maxCloudSlots; slot++) {
     const rec = slot * WEATHER_DAYS + weatherParts.dayIndex;
     const tileId = runtimeWeather.cloudSpawnTileIds[rec];
+    if (!candidateTileIds.has(tileId)) continue;
     const call = activeChart.tileById.get(tileId);
     if (!call) continue;
     const seed = hashInt(tileId ^ Math.imul(slot + 1, 0x9e3779b1));
@@ -29555,19 +29511,23 @@ function appendAnnualCloudDrawCalls(activeChart, out) {
   }
 }
 
-function appendLocalWeatherCloudDrawCalls(activeChart, out) {
+function appendLocalWeatherCloudDrawCalls(candidateTileCalls, out) {
   let drawn = 0;
-  for (const call of activeChart.tileCalls) {
+  for (const call of candidateTileCalls) {
     if (drawn >= MAX_LOCAL_WEATHER_CLOUDS) break;
     const flags = weatherFlagsForTile(call.id);
-    const stormIntensity = stormIntensityForTile(call.id);
-    const storm = stormIntensity >= STORM_ACTIVE_INTENSITY * 0.65;
-    const precip = storm || (flags & (TILE_DAY_RAIN | TILE_DAY_SNOW_FALL)) !== 0;
+    const annualPrecip = (flags & (TILE_DAY_RAIN | TILE_DAY_SNOW_FALL)) !== 0;
     const ground = (flags & (TILE_DAY_WET_SOIL | TILE_DAY_SNOW_GROUND)) !== 0;
-    if (!precip && !ground) continue;
     const h = hashInt(call.id ^ Math.imul(weatherParts.dayIndex + 1, 0x7f4a7c15));
-    if (!precip && (h & 7) !== 0) continue;
-    if (precip && !storm && (h & 3) === 0) continue;
+    const selectedByAnnualWeather =
+      (annualPrecip && (h & 3) !== 0) ||
+      (!annualPrecip && ground && (h & 7) === 0);
+    if (
+      !selectedByAnnualWeather &&
+      stormIntensityForTile(call.id) < STORM_ACTIVE_INTENSITY * 0.65
+    ) {
+      continue;
+    }
     const wind = cloudWindForTile(call.id, h);
     const drawCall = makeCloudDrawCall(call, {
       seed: h,
@@ -29581,16 +29541,30 @@ function appendLocalWeatherCloudDrawCalls(activeChart, out) {
 }
 
 function cloudWindForTile(tileId, seed) {
-  return windAtLatLonDeg(
+  if (cloudWindCacheDayIndex !== weatherParts.dayIndex) {
+    cloudWindCacheDayIndex = weatherParts.dayIndex;
+    cloudWindSubsolarLatDeg = dateToSubsolarLatDeg(weatherParts.date);
+    cloudWindCache.clear();
+  }
+  let tileCache = cloudWindCache.get(tileId);
+  if (!tileCache) {
+    tileCache = new Map();
+    cloudWindCache.set(tileId, tileCache);
+  }
+  const cached = tileCache.get(seed);
+  if (cached) return cached;
+  const wind = windAtLatLonDeg(
     graph.latDeg[tileId],
     graph.lonDeg[tileId],
-    dateToSubsolarLatDeg(weatherParts.date),
+    cloudWindSubsolarLatDeg,
     {
       seed: WEATHER_WIND_SEED,
       simMinute: weatherParts.dayIndex * WEATHER_MINUTES_PER_DAY +
         (hashInt(seed ^ 0x57494e44) % WEATHER_MINUTES_PER_DAY)
     }
   );
+  tileCache.set(seed, wind);
+  return wind;
 }
 
 function makeCloudDrawCall(call, spec) {
@@ -29605,7 +29579,7 @@ function makeCloudDrawCall(call, spec) {
   const anchor = cloudAnchorOffset(spec.seed);
   const anchorX = call.drawSurfaceX + anchor.x + Math.cos(flowDir) * drift;
   const anchorY = call.drawSurfaceY + anchor.y - Math.sin(flowDir) * drift;
-  return Object.freeze({
+  return {
     seed: spec.seed,
     frameIndex: cloudSpriteFrameIndex(spec.templateIndex),
     alpha,
@@ -29613,7 +29587,7 @@ function makeCloudDrawCall(call, spec) {
     anchorY,
     x: Math.round(anchorX - CLOUD_SPRITE_FRAME_SIZE / 2),
     y: Math.round(anchorY - CLOUD_SPRITE_FRAME_SIZE * CLOUD_VISUAL_ALTITUDE_RATIO)
-  });
+  };
 }
 
 function drawCloudLayer(calls) {
@@ -29650,269 +29624,6 @@ function cloudAnchorOffset(seed) {
     x: (((h & 0xff) / 255) * 2 - 1) * CLOUD_ANCHOR_JITTER_PX,
     y: ((((h >>> 8) & 0xff) / 255) * 2 - 1) * CLOUD_ANCHOR_JITTER_PX
   };
-}
-
-function prepareCloudShadowDynamicReceivers(active) {
-  cloudShadowDynamicReceiverActive = active;
-  cloudShadowDynamicReceiverCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
-}
-
-function drawCloudShadows(activeChart, offset, cloudCalls, light) {
-  if (
-    cloudCalls.length === 0 ||
-    !cloudSpriteSheet ||
-    !light ||
-    light.shadow <= 0.01
-  ) {
-    return;
-  }
-  const awayFromSun = cityShadowDirection() || { x: 0, y: 1 };
-  const receivers = staticCloudShadowReceivers(activeChart);
-  const bounds = emptyCloudShadowBounds();
-  cloudShadowCompositeCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
-
-  for (let tier = 0; tier < CLOUD_RECEIVER_TIER_COUNT; tier++) {
-    prepareCloudShadowReceiverTier(receivers, offset, tier);
-    cloudShadowTierCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
-    cloudShadowTierCtx.globalCompositeOperation = "source-over";
-    const projection = cloudShadowOffset({
-      sunAltitude: light.sunAltitude,
-      awayFromSun,
-      receiverTier: tier
-    });
-    for (const call of cloudCalls) {
-      const x = Math.round(
-        call.anchorX + offset.x - CLOUD_SPRITE_FRAME_SIZE / 2 + projection.x
-      );
-      const y = Math.round(
-        call.anchorY + offset.y - CLOUD_SPRITE_FRAME_SIZE / 2 + projection.y
-      );
-      cloudShadowTierCtx.globalAlpha = call.alpha * light.shadow * CLOUD_SHADOW_MASK_ALPHA;
-      drawCloudSheetFrame(cloudShadowTierCtx, call.frameIndex, x, y);
-      includeCloudShadowBounds(bounds, x, y, CLOUD_SPRITE_FRAME_SIZE, CLOUD_SPRITE_FRAME_SIZE);
-    }
-    cloudShadowTierCtx.globalAlpha = 1;
-    cloudShadowTierCtx.globalCompositeOperation = "destination-in";
-    cloudShadowTierCtx.drawImage(cloudShadowReceiverCanvas, 0, 0);
-    cloudShadowTierCtx.globalCompositeOperation = "source-over";
-    cloudShadowCompositeCtx.drawImage(cloudShadowTierCanvas, 0, 0);
-  }
-
-  applyCloudShadowComposite(bounds);
-}
-
-function prepareCloudShadowReceiverTier(receivers, offset, tier) {
-  cloudShadowReceiverCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
-  cloudShadowReceiverCtx.globalCompositeOperation = "source-over";
-  cloudShadowReceiverCtx.drawImage(
-    receivers.masks[tier],
-    receivers.originX + offset.x,
-    receivers.originY + offset.y
-  );
-  if (tier === CLOUD_RECEIVER_ELEVATED) {
-    cloudShadowReceiverCtx.drawImage(cloudShadowDynamicReceiverCanvas, 0, 0);
-    return;
-  }
-  cloudShadowReceiverCtx.globalCompositeOperation = "destination-out";
-  cloudShadowReceiverCtx.drawImage(cloudShadowDynamicReceiverCanvas, 0, 0);
-  cloudShadowReceiverCtx.globalCompositeOperation = "source-over";
-}
-
-function staticCloudShadowReceivers(activeChart) {
-  if (cloudShadowStaticReceiverCache?.chart === activeChart) {
-    return cloudShadowStaticReceiverCache.receivers;
-  }
-  if (!activeChart?.tileCalls?.length) {
-    throw new Error("Cloud shadows require chart terrain");
-  }
-  const bounds = cloudShadowChartBounds(activeChart);
-  const classCanvas = document.createElement("canvas");
-  classCanvas.width = bounds.width;
-  classCanvas.height = bounds.height;
-  const classCtx = classCanvas.getContext("2d", { willReadFrequently: true });
-  if (!classCtx) throw new Error("Could not create cloud shadow receiver classes");
-  classCtx.imageSmoothingEnabled = false;
-  classCtx.fillStyle = cloudShadowReceiverClassColor(CLOUD_RECEIVER_OCEAN);
-  classCtx.fillRect(0, 0, bounds.width, bounds.height);
-
-  for (const call of activeChart.tileCalls) {
-    const x = Math.round(call.drawSurfaceX - TILE_ART_HALF) - bounds.originX;
-    const y = Math.round(call.drawSurfaceY - TILE_ART_HALF) - bounds.originY;
-    for (const layer of terrainLayerSpecsForTile(call.row, call.id)) {
-      const tier = isWaterSurfaceRow(call.row)
-        ? CLOUD_RECEIVER_OCEAN
-        : (
-            terrainSpriteHasElevatedCloudShadowReceiver(layer.spriteKey)
-              ? CLOUD_RECEIVER_ELEVATED
-              : CLOUD_RECEIVER_LAND
-          );
-      classCtx.drawImage(cloudShadowClassSprite(layer.image, tier), x, y);
-    }
-  }
-  for (const call of activeChart.cityCalls || []) {
-    if (call.hiddenSettlement) continue;
-    classCtx.drawImage(
-      cloudShadowClassSprite(cityImageForCity(call), CLOUD_RECEIVER_ELEVATED),
-      call.spriteX - bounds.originX,
-      call.spriteY - bounds.originY
-    );
-  }
-
-  const classPixels = classCtx.getImageData(0, 0, bounds.width, bounds.height).data;
-  const masks = Array.from({ length: CLOUD_RECEIVER_TIER_COUNT }, () => {
-    const mask = document.createElement("canvas");
-    mask.width = bounds.width;
-    mask.height = bounds.height;
-    return mask;
-  });
-  const maskData = masks.map((mask) => {
-    const maskCtx = mask.getContext("2d");
-    if (!maskCtx) throw new Error("Could not create cloud shadow receiver mask");
-    maskCtx.imageSmoothingEnabled = false;
-    return {
-      context: maskCtx,
-      image: maskCtx.createImageData(bounds.width, bounds.height)
-    };
-  });
-  for (let offset = 0; offset < classPixels.length; offset += 4) {
-    const tier = nearestCloudShadowReceiverTier(classPixels[offset]);
-    const target = maskData[tier].image.data;
-    target[offset] = 255;
-    target[offset + 1] = 255;
-    target[offset + 2] = 255;
-    target[offset + 3] = 255;
-  }
-  for (const entry of maskData) entry.context.putImageData(entry.image, 0, 0);
-
-  const receivers = Object.freeze({
-    originX: bounds.originX,
-    originY: bounds.originY,
-    masks: Object.freeze(masks)
-  });
-  cloudShadowStaticReceiverCache = { chart: activeChart, receivers };
-  return receivers;
-}
-
-function cloudShadowChartBounds(activeChart) {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const call of activeChart.tileCalls) {
-    const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
-    const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x + TILE_ART_SIZE);
-    maxY = Math.max(maxY, y + TILE_ART_SIZE);
-  }
-  for (const call of activeChart.cityCalls || []) {
-    minX = Math.min(minX, call.spriteX);
-    minY = Math.min(minY, call.spriteY);
-    maxX = Math.max(maxX, call.spriteX + CITY_SPRITE_W);
-    maxY = Math.max(maxY, call.spriteY + CITY_SPRITE_H);
-  }
-  if (![minX, minY, maxX, maxY].every(Number.isFinite)) {
-    throw new Error("Cloud shadow chart bounds are invalid");
-  }
-  const originX = Math.floor(minX);
-  const originY = Math.floor(minY);
-  return Object.freeze({
-    originX,
-    originY,
-    width: Math.max(1, Math.ceil(maxX) - originX),
-    height: Math.max(1, Math.ceil(maxY) - originY)
-  });
-}
-
-function cloudShadowClassSprite(image, tier) {
-  let tiers = cloudShadowClassSpriteCache.get(image);
-  if (!tiers) {
-    tiers = new Map();
-    cloudShadowClassSpriteCache.set(image, tiers);
-  }
-  const cached = tiers.get(tier);
-  if (cached) return cached;
-  const width = image.naturalWidth || image.width;
-  const height = image.naturalHeight || image.height;
-  const sprite = document.createElement("canvas");
-  sprite.width = width;
-  sprite.height = height;
-  const spriteCtx = sprite.getContext("2d");
-  if (!spriteCtx) throw new Error("Could not create cloud shadow class sprite");
-  spriteCtx.imageSmoothingEnabled = false;
-  spriteCtx.drawImage(image, 0, 0);
-  spriteCtx.globalCompositeOperation = "source-in";
-  spriteCtx.fillStyle = cloudShadowReceiverClassColor(tier);
-  spriteCtx.fillRect(0, 0, width, height);
-  spriteCtx.globalCompositeOperation = "source-over";
-  tiers.set(tier, sprite);
-  return sprite;
-}
-
-function cloudShadowReceiverClassColor(tier) {
-  const red = CLOUD_SHADOW_RECEIVER_CLASS_RED[tier];
-  if (!Number.isInteger(red)) throw new Error(`Unknown cloud shadow receiver class: ${tier}`);
-  return `rgb(${red}, 0, 0)`;
-}
-
-function nearestCloudShadowReceiverTier(red) {
-  let nearestTier = 0;
-  let nearestDistance = Infinity;
-  for (let tier = 0; tier < CLOUD_SHADOW_RECEIVER_CLASS_RED.length; tier++) {
-    const distance = Math.abs(red - CLOUD_SHADOW_RECEIVER_CLASS_RED[tier]);
-    if (distance >= nearestDistance) continue;
-    nearestDistance = distance;
-    nearestTier = tier;
-  }
-  return nearestTier;
-}
-
-function emptyCloudShadowBounds() {
-  return { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-}
-
-function includeCloudShadowBounds(bounds, x, y, width, height) {
-  bounds.minX = Math.min(bounds.minX, x);
-  bounds.minY = Math.min(bounds.minY, y);
-  bounds.maxX = Math.max(bounds.maxX, x + width);
-  bounds.maxY = Math.max(bounds.maxY, y + height);
-}
-
-function applyCloudShadowComposite(bounds) {
-  if (![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].every(Number.isFinite)) return;
-  if (cloudPaletteShadowRenderer) {
-    const graded = cloudPaletteShadowRenderer.render(canvas, cloudShadowCompositeCanvas);
-    ctx.drawImage(graded, 0, 0, SCREEN_W, SCREEN_H);
-    return;
-  }
-  const x = clamp(
-    Math.floor(bounds.minX) - CLOUD_SHADOW_BOUNDS_PADDING_PX,
-    0,
-    SCREEN_W
-  );
-  const y = clamp(
-    Math.floor(bounds.minY) - CLOUD_SHADOW_BOUNDS_PADDING_PX,
-    0,
-    SCREEN_H
-  );
-  const right = clamp(
-    Math.ceil(bounds.maxX) + CLOUD_SHADOW_BOUNDS_PADDING_PX,
-    0,
-    SCREEN_W
-  );
-  const bottom = clamp(
-    Math.ceil(bounds.maxY) + CLOUD_SHADOW_BOUNDS_PADDING_PX,
-    0,
-    SCREEN_H
-  );
-  const width = right - x;
-  const height = bottom - y;
-  if (width <= 0 || height <= 0) return;
-  const shadowMask = cloudShadowCompositeCtx.getImageData(x, y, width, height);
-  const scene = ctx.getImageData(x, y, width, height);
-  applyResurrectShadowPaletteGrade(scene.data, width, height, shadowMask.data);
-  ctx.putImageData(scene, x, y);
 }
 
 function riverSpriteForTile(call, activeChart, mask) {
@@ -32026,13 +31737,6 @@ function drawShipCall(call, nowMs, terrainForeground) {
     shipCompositeCtx.restore();
   }
   ctx.drawImage(shipCompositeCanvas, compositeBounds.x, compositeBounds.y);
-  if (cloudShadowDynamicReceiverActive) {
-    cloudShadowDynamicReceiverCtx.drawImage(
-      shipCompositeCanvas,
-      compositeBounds.x,
-      compositeBounds.y
-    );
-  }
   if (drawCall.kind === "player" && shipHullIsDamaged(drawCall.hitPoints, drawCall.maxHitPoints)) {
     drawShipHullBar(drawCall, "#e83b3b");
   }

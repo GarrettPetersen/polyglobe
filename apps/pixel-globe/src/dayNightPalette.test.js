@@ -5,9 +5,7 @@ import {
   NIGHT_GRADE_HEX,
   SUNSET_GRADE_HEX,
   applyDayNightPaletteGrade,
-  applyResurrectShadowPaletteGrade,
   nightPaletteHexForSourceHex,
-  resurrectShadowPaletteLutTexture,
   sunsetPaletteHexForSourceHex
 } from "./dayNightPalette.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
@@ -104,58 +102,6 @@ test("an evening ramp stage changes matching pixels in unison without spatial gr
   for (let offset = 0; offset < pixels.length; offset += 4) colors.add(rgbHex(pixels, offset));
   assert.equal(colors.size, 1);
   assert.equal(RESURRECT_64_HEX.includes([...colors][0]), true);
-});
-
-test("a cloud shadow palette-shifts only masked pixels within Resurrect 64", () => {
-  const sourceHex = "f9c22b";
-  const pixels = new Uint8ClampedArray([
-    ...rgba(sourceHex),
-    ...rgba(sourceHex),
-    ...rgba(sourceHex)
-  ]);
-  const mask = new Uint8ClampedArray([
-    255, 255, 255, 0,
-    255, 255, 255, 128,
-    255, 255, 255, 255
-  ]);
-  applyResurrectShadowPaletteGrade(pixels, 3, 1, mask);
-
-  assert.equal(rgbHex(pixels, 0), sourceHex);
-  assert.equal(RESURRECT_64_HEX.includes(rgbHex(pixels, 4)), true);
-  assert.equal(RESURRECT_64_HEX.includes(rgbHex(pixels, 8)), true);
-  assert.ok(oklabLightness(rgbHex(pixels, 4)) < oklabLightness(sourceHex));
-  assert.ok(oklabLightness(rgbHex(pixels, 8)) <= oklabLightness(rgbHex(pixels, 4)));
-});
-
-test("cloud shadow grading validates mask geometry and strength", () => {
-  const pixels = new Uint8ClampedArray(rgba("f9c22b"));
-  assert.throws(
-    () => applyResurrectShadowPaletteGrade(pixels, 1, 1, new Uint8ClampedArray(3)),
-    /matching clamped RGBA/
-  );
-  assert.throws(
-    () => applyResurrectShadowPaletteGrade(pixels, 1, 1, new Uint8ClampedArray(4), 2),
-    /between zero and one/
-  );
-});
-
-test("the GPU cloud-shadow lookup contains every RGB bucket at every ramp stage", () => {
-  const lut = resurrectShadowPaletteLutTexture();
-  assert.equal(lut.width, 1024);
-  assert.equal(lut.height, 544);
-  assert.equal(lut.data.length, lut.width * lut.height * 4);
-  assert.equal(resurrectShadowPaletteLutTexture(), lut);
-
-  const source = parseHex("f9c22b");
-  const rgbIndex =
-    Math.round(source.r * 31 / 255) * 1024 +
-    Math.round(source.g * 31 / 255) * 32 +
-    Math.round(source.b * 31 / 255);
-  const finalStageOffset = (16 * 32768 + rgbIndex) * 4;
-  assert.equal(
-    rgbHex(lut.data, finalStageOffset),
-    nightPaletteHexForSourceHex("f9c22b")
-  );
 });
 
 function perceptualBrightness(hex) {

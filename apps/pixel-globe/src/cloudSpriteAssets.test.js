@@ -5,11 +5,13 @@ import test from "node:test";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 import {
+  CLOUD_MAX_ALPHA,
   CLOUD_SPRITE_FRAME_SIZE,
   CLOUD_SPRITE_SHEET_HEIGHT,
   CLOUD_SPRITE_SHEET_PATH,
   CLOUD_SPRITE_SHEET_WIDTH,
   CLOUD_SPRITE_VARIANT_COUNT,
+  cloudLifecycleAlpha,
   cloudSpriteFrameIndex,
   cloudSpriteSourceRect
 } from "./cloudSpriteAssets.js";
@@ -58,4 +60,17 @@ test("cloud frame selection wraps across all five variants", () => {
     height: CLOUD_SPRITE_FRAME_SIZE
   });
   assert.throws(() => cloudSpriteFrameIndex(1.5), /integer/);
+});
+
+test("clouds fade without ever becoming fully opaque", () => {
+  assert.equal(cloudLifecycleAlpha(0), 0);
+  assert.ok(cloudLifecycleAlpha(0.1) > 0);
+  assert.ok(cloudLifecycleAlpha(0.1) < CLOUD_MAX_ALPHA);
+  assert.equal(cloudLifecycleAlpha(0.22), CLOUD_MAX_ALPHA);
+  assert.equal(cloudLifecycleAlpha(0.5), CLOUD_MAX_ALPHA);
+  assert.equal(cloudLifecycleAlpha(0.78), CLOUD_MAX_ALPHA);
+  assert.ok(cloudLifecycleAlpha(0.9) > 0);
+  assert.ok(cloudLifecycleAlpha(0.9) < CLOUD_MAX_ALPHA);
+  assert.equal(cloudLifecycleAlpha(1), 0);
+  assert.throws(() => cloudLifecycleAlpha(NaN), /finite/);
 });

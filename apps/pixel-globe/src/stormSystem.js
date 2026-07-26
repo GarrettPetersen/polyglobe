@@ -180,11 +180,14 @@ export function stormCellsAtMinute(simMinute, seed = 0x53544f52) {
       const startLon = -180 + unit(stormSeed, 4) * 360;
       const driftLatPerHour = (unit(stormSeed, 5) - 0.5) * 0.12;
       const driftLonPerHour = (unit(stormSeed, 6) - 0.5) * 0.7;
+      const latDeg = clamp(startLat + driftLatPerHour * hours, -70, 70);
+      const radiusDeg = 7 + unit(stormSeed, 7) * 9;
       cells.push({
         id: `${interval}:${slot}`,
-        latDeg: clamp(startLat + driftLatPerHour * hours, -70, 70),
+        latDeg,
         lonDeg: wrapLongitude(startLon + driftLonPerHour * hours),
-        radiusDeg: 7 + unit(stormSeed, 7) * 9,
+        radiusDeg,
+        longitudeRadiusDeg: stormLongitudeRadiusDeg(latDeg, radiusDeg),
         strength: (0.72 + unit(stormSeed, 8) * 0.28) * life
       });
     }
@@ -200,12 +203,24 @@ export function stormIntensityAtPosition(cells, latDeg, lonDeg) {
   let strongest = 0;
   for (const cell of cells) {
     if (cell.strength <= strongest) continue;
+    if (Math.abs(latDeg - cell.latDeg) >= cell.radiusDeg) continue;
+    const longitudeDelta = Math.abs(wrapLongitude(lonDeg - cell.lonDeg));
+    const longitudeRadius = cell.longitudeRadiusDeg ??
+      stormLongitudeRadiusDeg(cell.latDeg, cell.radiusDeg);
+    if (longitudeDelta >= longitudeRadius) continue;
     const distanceDeg = angularDistanceDeg(latDeg, lonDeg, cell.latDeg, cell.lonDeg);
     if (distanceDeg >= cell.radiusDeg) continue;
     const edge = smoothstep((distanceDeg / cell.radiusDeg - 0.38) / 0.62);
     strongest = Math.max(strongest, cell.strength * (1 - edge));
   }
   return clamp(strongest, 0, 1);
+}
+
+function stormLongitudeRadiusDeg(latDeg, radiusDeg) {
+  const toRad = Math.PI / 180;
+  const ratio = Math.sin(radiusDeg * toRad) / Math.cos(latDeg * toRad);
+  if (ratio >= 1) return 180;
+  return Math.asin(ratio) / toRad;
 }
 
 export function stormWindStrength(baseStrength, stormIntensity) {
