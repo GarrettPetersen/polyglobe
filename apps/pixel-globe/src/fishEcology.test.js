@@ -8,6 +8,7 @@ import {
   harvestFishery,
   visibleFishCountForDensity
 } from "./fishEcology.js";
+import { RIVER_BASIN_ID } from "./riverBasins.js";
 
 const MINUTE = 1440;
 
@@ -59,19 +60,45 @@ test("resident freshwater fish give rivers distinct regional fisheries", () => {
     ["african-catfish", 8, 30],
     ["tigerfish", -12, 25],
     ["mahseer", 25, 82],
-    ["mekong-giant-catfish", 16, 103],
+    ["mekong-giant-catfish", 16, 103, RIVER_BASIN_ID.MEKONG],
     ["grass-carp", 30, 115],
     ["arapaima", -4, -62],
     ["piranha", -8, -58],
     ["murray-cod", -34, 145]
   ];
 
-  for (const [speciesId, lat, lon] of regions) {
+  for (const [speciesId, lat, lon, riverBasinId] of regions) {
     const state = createGameState({ cargoCapacity: 20 });
-    const fishery = findFishery(state, "river", lat, lon, minute, speciesId);
+    const fishery = findFishery(state, "river", lat, lon, minute, speciesId, { riverBasinId });
     assert.equal(fishery.speciesId, speciesId);
     assert.equal(fishery.habitatKind, "river");
   }
+});
+
+test("Mekong giant catfish cannot leak into nearby Yangtze river tiles", () => {
+  const minute = 140 * MINUTE;
+  const mekongState = createGameState({ cargoCapacity: 20 });
+  const yangtzeState = createGameState({ cargoCapacity: 20 });
+
+  const fishery = findFishery(
+    mekongState,
+    "river",
+    25,
+    100,
+    minute,
+    "mekong-giant-catfish",
+    { riverBasinId: RIVER_BASIN_ID.MEKONG }
+  );
+  assert.equal(fishery.speciesId, "mekong-giant-catfish");
+  assertNoSpecies(
+    yangtzeState,
+    "river",
+    25,
+    102,
+    minute,
+    "mekong-giant-catfish",
+    { riverBasinId: RIVER_BASIN_ID.NONE }
+  );
 });
 
 test("resident river fish remain available outside a seasonal run", () => {
@@ -238,23 +265,23 @@ test("visible schools never depict more whole fish than remain", () => {
   assert.equal(sparseFishery.visibleIndividualCount, 1);
 });
 
-function findFishery(state, kind, lat, lon, simMinute, speciesId = null) {
-  const habitat = findHabitatWithFishery(state, kind, lat, lon, simMinute, speciesId);
+function findFishery(state, kind, lat, lon, simMinute, speciesId = null, habitatOptions = {}) {
+  const habitat = findHabitatWithFishery(state, kind, lat, lon, simMinute, speciesId, habitatOptions);
   return fisheryForHabitat(state, habitat, simMinute);
 }
 
-function findHabitatWithFishery(state, kind, lat, lon, simMinute, speciesId = null) {
+function findHabitatWithFishery(state, kind, lat, lon, simMinute, speciesId = null, habitatOptions = {}) {
   for (let tileId = 1; tileId < 8000; tileId++) {
-    const habitat = { tileId, kind, lat, lon };
+    const habitat = { tileId, kind, lat, lon, ...habitatOptions };
     const fishery = fisheryForHabitat(state, habitat, simMinute);
     if (fishery && (!speciesId || fishery.speciesId === speciesId)) return habitat;
   }
   throw new Error(`Could not find ${speciesId || "any"} ${kind} fishery for test`);
 }
 
-function assertNoSpecies(state, kind, lat, lon, simMinute, speciesId) {
+function assertNoSpecies(state, kind, lat, lon, simMinute, speciesId, habitatOptions = {}) {
   for (let tileId = 1; tileId < 8000; tileId++) {
-    const fishery = fisheryForHabitat(state, { tileId, kind, lat, lon }, simMinute);
+    const fishery = fisheryForHabitat(state, { tileId, kind, lat, lon, ...habitatOptions }, simMinute);
     assert.notEqual(fishery?.speciesId, speciesId);
   }
 }

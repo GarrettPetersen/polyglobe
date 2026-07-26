@@ -4,6 +4,7 @@ import {
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   removeBlockedRiverEdgesFromMasks
 } from "./manualRiverHexChains.js";
+import { buildNamedRiverBasinIds } from "./riverBasins.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 export function buildWorldNavigationTopology({ graph, earthRows, earthCache, subdivisions }) {
@@ -16,6 +17,11 @@ export function buildWorldNavigationTopology({ graph, earthRows, earthCache, sub
     riverMasks: riverData.riverMasks,
     riverToWaterMasks: riverData.riverToWaterMasks
   });
+  const riverBasinIds = buildNamedRiverBasinIds({
+    graph,
+    riverMasks: riverData.riverMasks,
+    subdivisions
+  });
   const navigableTileCount = countNavigableTiles(
     earthRows,
     riverData.riverMasks,
@@ -24,6 +30,7 @@ export function buildWorldNavigationTopology({ graph, earthRows, earthCache, sub
   return Object.freeze({
     riverMasks: riverData.riverMasks,
     riverToWaterMasks: riverData.riverToWaterMasks,
+    riverBasinIds,
     reachableNavigationMask,
     stats: Object.freeze({
       riverTileCount: countRiverTiles(riverData.riverMasks),

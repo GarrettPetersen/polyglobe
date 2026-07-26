@@ -1,4 +1,5 @@
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
+import { RIVER_BASIN_ID } from "./riverBasins.js";
 
 export const FISH_MIN_CATCHABLE_POPULATION = 1;
 
@@ -204,6 +205,10 @@ const RESIDENT_RIVER_SPECIES_RANGES = Object.freeze({
   "murray-cod": Object.freeze([
     riverRange(-38, -24, 137, 153, 0.88)
   ])
+});
+
+const RESIDENT_RIVER_SPECIES_BASINS = Object.freeze({
+  "mekong-giant-catfish": RIVER_BASIN_ID.MEKONG
 });
 
 const FISH_SPECIES_BY_ID = new Map(FISH_SPECIES.map((item) => [item.id, item]));
@@ -554,6 +559,8 @@ function residentRiverSpeciesHabitatScore(speciesId, habitat) {
   if (habitat.kind !== "river" && habitat.kind !== "river-mouth") return 0;
   const ranges = RESIDENT_RIVER_SPECIES_RANGES[speciesId];
   if (!ranges) return 0;
+  const requiredBasinId = RESIDENT_RIVER_SPECIES_BASINS[speciesId];
+  if (requiredBasinId !== undefined && habitat.riverBasinId !== requiredBasinId) return 0;
   let score = 0;
   for (const range of ranges) {
     if (
@@ -612,7 +619,11 @@ function normalizeHabitat(habitat) {
   if (!["open-ocean", "coastal", "river", "river-mouth", "lake"].includes(habitat.kind)) {
     throw new Error(`Invalid fish habitat kind: ${habitat.kind}`);
   }
-  return habitat;
+  const riverBasinId = habitat.riverBasinId ?? RIVER_BASIN_ID.NONE;
+  if (!Number.isInteger(riverBasinId) || riverBasinId < RIVER_BASIN_ID.NONE) {
+    throw new Error(`Invalid fish habitat river basin: ${habitat.riverBasinId}`);
+  }
+  return riverBasinId === habitat.riverBasinId ? habitat : { ...habitat, riverBasinId };
 }
 
 function species(id, label, body, highlight, shadow, options) {

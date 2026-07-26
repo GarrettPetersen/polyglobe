@@ -2395,6 +2395,7 @@ let snowySpriteColors;
 let riverColors;
 let riverMasks;
 let riverToWaterMasks;
+let riverBasinIds;
 let oceanReachableNavigationMask;
 let freshWaterSurfaceMask;
 let stormSystem;
@@ -2861,6 +2862,7 @@ async function main() {
   });
   riverMasks = navigationTopology.riverMasks;
   riverToWaterMasks = navigationTopology.riverToWaterMasks;
+  riverBasinIds = navigationTopology.riverBasinIds;
   oceanReachableNavigationMask = navigationTopology.reachableNavigationMask;
   const navigationStats = navigationTopology.stats;
   console.info(
@@ -31237,7 +31239,8 @@ function fishHabitatForTileCall(tileCall) {
     tileId: tileCall.id,
     kind,
     lat: latitudeDegForDirection(center),
-    lon: longitudeDegForDirection(center)
+    lon: longitudeDegForDirection(center),
+    riverBasinId: riverBasinIds[tileCall.id]
   };
 }
 
