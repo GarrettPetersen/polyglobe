@@ -60,3 +60,32 @@ test("cargo crates provide nonblank filled and empty 6px Resurrect frames", asyn
   }
   assert.ok(opaqueByFrame.every((count) => count > 0), `blank crate frame: ${opaqueByFrame}`);
 });
+
+test("animal companion HUD icons keep their native pixel dimensions", async () => {
+  const palette = new Set(RESURRECT_64_HEX);
+  const expectedDimensions = new Map([
+    ["panda", [5, 9]],
+    ["penguin", [3, 6]]
+  ]);
+  for (const [name, [width, height]] of expectedDimensions) {
+    const image = await loadImage(join(miscRoot, `${name}.png`));
+    assert.equal(image.width, width, `${name} width`);
+    assert.equal(image.height, height, `${name} height`);
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    let opaquePixels = 0;
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      const alpha = pixels[offset + 3];
+      assert.ok(alpha === 0 || alpha === 255, `${name} has partially transparent pixels`);
+      if (alpha === 0) continue;
+      const hex = [pixels[offset], pixels[offset + 1], pixels[offset + 2]]
+        .map((value) => value.toString(16).padStart(2, "0"))
+        .join("");
+      assert.ok(palette.has(hex), `${name} contains non-Resurrect color #${hex}`);
+      opaquePixels += 1;
+    }
+    assert.ok(opaquePixels > 0, `${name} is blank`);
+  }
+});

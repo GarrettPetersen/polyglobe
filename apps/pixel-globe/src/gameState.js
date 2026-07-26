@@ -25,11 +25,12 @@ import {
   validateAnimalEncounterMemory
 } from "./animalEncounters.js";
 import {
-  createPandaCompanionMemory,
-  migratePandaCompanionMemory,
-  pandaCompanionConsumption,
-  validatePandaCompanionMemory
-} from "./pandaCompanion.js";
+  animalCompanionConsumption,
+  animalCompanionState,
+  createAnimalCompanionMemory,
+  migrateAnimalCompanionMemory,
+  validateAnimalCompanionMemory
+} from "./animalCompanions.js";
 import {
   createNaturalistQuestMemory,
   validateNaturalistQuestMemory
@@ -222,7 +223,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 46;
+export const GAME_STATE_VERSION = 47;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
@@ -427,7 +428,7 @@ export function createGameState({
       discoveries: {},
       discoveryOrder: [],
       animals: createAnimalEncounterMemory(),
-      panda: createPandaCompanionMemory(),
+      animalCompanions: createAnimalCompanionMemory(),
       pendingDiscoveryPortDialogueIds: [],
       namedCrewDeathNotices: [],
       birthdays: createBirthdayMemory(),
@@ -485,7 +486,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -525,6 +526,11 @@ export function migrateGameState(state, shipStats) {
   });
   const legacyPortHeading = state.memory?.navigation?.portHeading || null;
   const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
+  const {
+    panda: legacyPandaCompanion,
+    animalCompanions: savedAnimalCompanions,
+    ...migratedMemoryBase
+  } = state.memory || {};
   const {
     mingOpenTradeFactionIds: legacyMingOpenTradeFactionIds,
     ...migratedRelationBase
@@ -584,13 +590,15 @@ export function migrateGameState(state, shipStats) {
       papacy: migratedPapacy
     },
     memory: {
-      ...state.memory,
+      ...migratedMemoryBase,
       visitedPorts: migrateVisitedPortMemories(state.memory?.visitedPorts),
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
       birthdays: state.memory?.birthdays || createBirthdayMemory(),
       specialEquipmentOffers: state.memory?.specialEquipmentOffers || createSpecialEquipmentOfferMemory(),
       animals: state.memory?.animals || createAnimalEncounterMemory(),
-      panda: migratePandaCompanionMemory(state.memory?.panda),
+      animalCompanions: migrateAnimalCompanionMemory(savedAnimalCompanions, {
+        legacyPanda: legacyPandaCompanion
+      }),
       quests: {
         ...migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
           migrateRetiredFactionReferences(state.memory?.quests)
@@ -1894,22 +1902,37 @@ export function shipConsumption(state) {
 
 function shipConsumptionForValidatedState(state) {
   if (!state.ship) {
-    return { crew: 0, passengers: 0, livestock: 0, pandas: 0, foodConsumers: 1, waterConsumers: 1 };
+    return {
+      crew: 0,
+      passengers: 0,
+      livestock: 0,
+      animalCompanionIds: [],
+      restrictedAnimalFood: [],
+      foodConsumers: 1,
+      waterConsumers: 1
+    };
   }
   const quest = state.memory.quests?.active || null;
   const passengers = travelerManifestCount(shipTravelerManifestForValidatedState(state));
   const livestock = Math.max(0, Number(quest?.livestockCount || quest?.livestock?.count || 0));
   const baseConsumers = state.ship.crew + passengers;
-  const panda = pandaCompanionConsumption(state.memory.panda);
+  const animalCompanions = animalCompanionConsumption(state.memory.animalCompanions);
   const questFood = Math.max(0, Number(quest?.consumption?.food || 0));
   const questWater = Math.max(0, Number(quest?.consumption?.water || 0));
   return {
     crew: state.ship.crew,
     passengers,
     livestock,
-    pandas: panda.pandas,
-    foodConsumers: Math.max(1, baseConsumers + livestock * 2 + questFood + panda.foodConsumers),
-    waterConsumers: Math.max(1, baseConsumers + livestock * 2 + questWater + panda.waterConsumers)
+    animalCompanionIds: animalCompanions.companionIds,
+    restrictedAnimalFood: animalCompanions.restrictedFood,
+    foodConsumers: Math.max(
+      1,
+      baseConsumers + livestock * 2 + questFood + animalCompanions.foodConsumers
+    ),
+    waterConsumers: Math.max(
+      1,
+      baseConsumers + livestock * 2 + questWater + animalCompanions.waterConsumers
+    )
   };
 }
 
@@ -2132,6 +2155,12 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     result.changed = resetWineOnlySurvivalState(state) || result.changed;
   }
 
+  result.changed = consumeRestrictedAnimalFood(
+    state,
+    consumption.restrictedAnimalFood,
+    elapsedDays,
+    result.foodConsumed
+  ) || result.changed;
   state.survival.foodRationDebt += elapsedDays * consumption.foodConsumers / foodDurationMultiplier;
   while (state.survival.foodRationDebt >= 1) {
     const consumed = consumeCheapestFoodRation(state);
@@ -4478,7 +4507,17 @@ function consumeCheapestFoodRation(state) {
     .sort(compareFoodConsumptionCandidates);
   const row = candidates[0];
   if (!row) return null;
+  return consumeFoodRationFromRow(state, row);
+}
 
+function consumeFoodRationByGoodId(state, goodId) {
+  const good = tradeGoodById(goodId);
+  if (good.category !== "food") throw new Error(`${good.label} is not edible companion food`);
+  const quantity = state.cargo[goodId] || 0;
+  return quantity > 0 ? consumeFoodRationFromRow(state, { good, quantity }) : null;
+}
+
+function consumeFoodRationFromRow(state, row) {
   const held = state.cargo[row.good.id] || 0;
   const basis = cargoCostBasis(state, row.good.id);
   const rationQuantity = 1 / FOOD_RATIONS_PER_HOLD_UNIT;
@@ -4500,6 +4539,31 @@ function consumeCheapestFoodRation(state) {
     rations: 1,
     costBasis: consumedCost
   };
+}
+
+function consumeRestrictedAnimalFood(state, requirements, elapsedDays, consumedEntries) {
+  if (!Array.isArray(requirements) || !Array.isArray(consumedEntries)) {
+    throw new Error("Restricted animal feeding requires arrays");
+  }
+  let changed = false;
+  for (const requirement of requirements) {
+    const companion = animalCompanionState(
+      state.memory.animalCompanions,
+      requirement.companionId
+    );
+    companion.restrictedFoodRationDebt += elapsedDays * requirement.rationsPerDay;
+    const rationCount = Math.floor(companion.restrictedFoodRationDebt);
+    companion.restrictedFoodRationDebt = foodRationDebtRemainder(
+      companion.restrictedFoodRationDebt - rationCount
+    );
+    if (elapsedDays > 0) changed = true;
+    for (let ration = 0; ration < rationCount; ration += 1) {
+      const consumed = consumeFoodRationByGoodId(state, requirement.goodId);
+      if (consumed) consumedEntries.push(consumed);
+      // A companion without its preferred cargo catches its own food offscreen.
+    }
+  }
+  return changed;
 }
 
 export function loseFoodRations(state, requestedRations) {
@@ -5022,7 +5086,7 @@ function assertGameState(state) {
   validateVoyageAchievementProgress(state.memory.achievements);
   validateWhaleMemory(state.memory.whales);
   validateAnimalEncounterMemory(state.memory.animals);
-  validatePandaCompanionMemory(state.memory.panda);
+  validateAnimalCompanionMemory(state.memory.animalCompanions);
   if (state.memory.campaignGoal === null) {
     if (playerCharacterSupportsCampaignGoal(state.playerCharacter)) {
       throw new Error("Persistent player character requires a campaign goal");

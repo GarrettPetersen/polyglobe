@@ -28,7 +28,8 @@ const TELEMETRY_FEATURES = Object.freeze([
     hasDecisionPrefix(decisions, "diplomacy.")],
   ["side-quests", (state) => Object.keys(state.memory?.quests?.completed || {}).length > 0],
   ["animals", (state) => (state.memory?.animals?.encounterOrder?.length || 0) > 0],
-  ["panda", (state) => !["unmet", "declined", undefined].includes(state.memory?.panda?.status)]
+  ["panda", (state) => animalCompanionWasEngaged(state, "panda")],
+  ["penguin", (state) => animalCompanionWasEngaged(state, "penguin")]
 ]);
 
 export function createGameTelemetry({
@@ -265,12 +266,31 @@ export function voyageTelemetryPayload(record, state) {
     crewLost: nonNegativeNumber(record.crewLost, "crew lost"),
     ship: requiredShortString(record.vessel, "vessel"),
     features,
-    pandaStatus: requiredShortString(state.memory?.panda?.status || "unmet", "panda status"),
+    companionStatuses: requiredShortString(
+      animalCompanionTelemetryStatuses(state),
+      "animal companion statuses"
+    ),
     defeatedShips: nonNegativeNumber(achievements.defeatedShipCount || 0, "defeated ships"),
     whalesKilled: nonNegativeNumber(achievements.whalesKilled || 0, "whales killed"),
     coloniesFounded: Array.isArray(achievements.foundedCityIds) ? achievements.foundedCityIds.length : 0,
     spicesSold: Array.isArray(achievements.soldSpiceGoodIds) ? achievements.soldSpiceGoodIds.length : 0
   };
+}
+
+function animalCompanionWasEngaged(state, companionId) {
+  const status = state.memory?.animalCompanions?.byId?.[companionId]?.status;
+  return !["unmet", "declined", undefined].includes(status);
+}
+
+function animalCompanionTelemetryStatuses(state) {
+  const byId = state.memory?.animalCompanions?.byId;
+  if (!byId || typeof byId !== "object" || Array.isArray(byId)) {
+    throw new Error("Voyage telemetry requires animal companion memory");
+  }
+  return Object.entries(byId)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, memory]) => `${id}:${memory?.status || "unmet"}`)
+    .join(",");
 }
 
 function normalizeCrash(error, context) {

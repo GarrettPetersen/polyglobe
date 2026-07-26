@@ -70,6 +70,26 @@ test("routine events queued by old tabs are normalized to unit weight", async ()
   assert.equal(points[0].doubles[0], 1);
 });
 
+test("voyage events record every animal companion while accepting old panda payloads", async () => {
+  const points = [];
+  const current = event("voyage_end", voyagePayload({
+    features: ["animals", "panda", "penguin"],
+    companionStatuses: "panda:aboard,penguin:with-naturalist"
+  }));
+  const legacy = event("voyage_end", voyagePayload({
+    features: ["animals", "panda"],
+    pandaStatus: "aboard"
+  }));
+  legacy.eventId = "event-2";
+  const response = await worker.fetch(requestFor([current, legacy]), environment(points));
+
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 2);
+  assert.equal(points[0].blobs[10], "animals,panda,penguin");
+  assert.equal(points[0].blobs[11], "panda:aboard,penguin:with-naturalist");
+  assert.equal(points[1].blobs[11], "panda:aboard");
+});
+
 test("an invalid event prevents the entire batch from being written", async () => {
   const points = [];
   const valid = event("session_checkpoint", {
@@ -122,5 +142,29 @@ function event(type, payload) {
       gameStateVersion: 44
     },
     payload
+  };
+}
+
+function voyagePayload(overrides) {
+  return {
+    samplingWeight: 1,
+    activePlaySeconds: 120,
+    mainQuest: "explorer",
+    outcome: "victory",
+    daysAtSea: 3,
+    endingDoubloons: 500,
+    grossDoubloonsEarned: 200,
+    mappedPercent: 1,
+    discoveries: 1,
+    visitedPorts: 2,
+    completedQuests: 1,
+    crewLost: 0,
+    ship: "Caravel",
+    features: [],
+    defeatedShips: 0,
+    whalesKilled: 0,
+    coloniesFounded: 0,
+    spicesSold: 0,
+    ...overrides
   };
 }

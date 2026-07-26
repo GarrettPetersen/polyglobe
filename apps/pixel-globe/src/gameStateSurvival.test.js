@@ -75,9 +75,9 @@ import {
   markCastawayEmergencyAidReceived
 } from "./castawayQuest.js";
 import {
-  acceptPandaCompanion,
-  beginPandaRecruitment
-} from "./pandaCompanion.js";
+  acceptAnimalCompanion,
+  beginAnimalCompanionRecruitment
+} from "./animalCompanions.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "england");
 
@@ -161,23 +161,19 @@ test("version 32 port visits gain explicit drunken-arrival memory", () => {
 test("version 35 saves gain persistent panda companion memory", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.version = 35;
-  delete state.memory.panda;
+  delete state.memory.animalCompanions;
 
   const migrated = migrateGameState(state);
 
-  assert.deepEqual(migrated.memory.panda, {
-    version: 2,
-    status: "unmet",
-    joinedMinute: null,
-    naturalistOffer: "unresolved",
-    npcReactionKeys: []
-  });
+  assert.equal(migrated.memory.animalCompanions.byId.panda.status, "unmet");
+  assert.equal(migrated.memory.animalCompanions.byId.penguin.status, "unmet");
   assert.equal(validateGameState(migrated), migrated);
 });
 
 test("version 36 saves preserve an aboard panda and gain the naturalist offer", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.version = 36;
+  delete state.memory.animalCompanions;
   state.memory.panda = {
     version: 1,
     status: "aboard",
@@ -187,13 +183,15 @@ test("version 36 saves preserve an aboard panda and gain the naturalist offer", 
 
   const migrated = migrateGameState(state);
 
-  assert.deepEqual(migrated.memory.panda, {
-    version: 2,
+  assert.deepEqual(migrated.memory.animalCompanions.byId.panda, {
     status: "aboard",
     joinedMinute: 123,
     naturalistOffer: "unresolved",
-    npcReactionKeys: []
+    npcReactionKeys: [],
+    restrictedFoodRationDebt: 0
   });
+  assert.equal(migrated.memory.panda, undefined);
+  assert.equal(migrated.memory.animalCompanions.byId.penguin.status, "unmet");
   assert.equal(validateGameState(migrated), migrated);
 });
 
@@ -1012,15 +1010,56 @@ test("an aboard panda eats for three but drinks for one without joining the crew
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
   const before = shipConsumption(state);
-  beginPandaRecruitment(state.memory.panda);
-  acceptPandaCompanion(state.memory.panda, 20);
+  beginAnimalCompanionRecruitment(state.memory.animalCompanions, "panda");
+  acceptAnimalCompanion(state.memory.animalCompanions, "panda", 20);
   const after = shipConsumption(state);
 
   assert.equal(after.crew, before.crew);
-  assert.equal(after.pandas, 1);
+  assert.deepEqual(after.animalCompanionIds, ["panda"]);
   assert.equal(after.foodConsumers, before.foodConsumers + 3);
   assert.equal(after.waterConsumers, before.waterConsumers + 1);
   validateGameState(state);
+});
+
+test("an aboard penguin eats two fish rations per day before ordinary provisions", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.cargo.fish = 2 / 12;
+  state.accounts.cargoCostBasis.fish = 10;
+  beginAnimalCompanionRecruitment(state.memory.animalCompanions, "penguin");
+  acceptAnimalCompanion(state.memory.animalCompanions, "penguin", 20);
+
+  const beforeHardtack = state.cargo.hardtack;
+  const result = updateSurvival(state, 0, 24 * 60, { safePort: false });
+
+  assert.equal(state.cargo.fish, undefined);
+  assert.equal(
+    result.foodConsumed.filter((entry) => entry.goodId === "fish").length,
+    2
+  );
+  assert.ok(state.cargo.hardtack < beforeHardtack);
+  assert.equal(result.starved, false);
+  validateGameState(state);
+});
+
+test("a penguin without stored fish catches its own and never harms the crew", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const baseline = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const withPenguin = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(baseline, stats);
+  initializeProvisionalShipLoadout(withPenguin, stats);
+  beginAnimalCompanionRecruitment(withPenguin.memory.animalCompanions, "penguin");
+  acceptAnimalCompanion(withPenguin.memory.animalCompanions, "penguin", 20);
+
+  const baselineResult = updateSurvival(baseline, 0, 24 * 60, { safePort: false });
+  const penguinResult = updateSurvival(withPenguin, 0, 24 * 60, { safePort: false });
+
+  assert.equal(withPenguin.cargo.hardtack, baseline.cargo.hardtack);
+  assert.equal(penguinResult.foodConsumed.length, baselineResult.foodConsumed.length);
+  assert.equal(penguinResult.starved, false);
+  assert.equal(withPenguin.ship.crew, baseline.ship.crew);
+  validateGameState(withPenguin);
 });
 
 test("shore scavenging fills available cask space and stows edible food", () => {

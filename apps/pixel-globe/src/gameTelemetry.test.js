@@ -174,7 +174,12 @@ test("voyage summaries expose bounded feature engagement without names or save d
       decisions: { "trade.sell.lisbon.cloves": 2, "fish.catch.cod": 1 },
       quests: { completed: { delivery: true } },
       animals: { encounterOrder: ["otter"] },
-      panda: { status: "aboard" },
+      animalCompanions: {
+        byId: {
+          panda: { status: "aboard" },
+          penguin: { status: "aboard" }
+        }
+      },
       achievements: {
         defeatedShipCount: 2,
         whalesKilled: 0,
@@ -183,8 +188,18 @@ test("voyage summaries expose bounded feature engagement without names or save d
       }
     }
   });
-  assert.deepEqual(payload.features, ["trade", "fish", "combat", "colonize", "side-quests", "animals", "panda"]);
+  assert.deepEqual(payload.features, [
+    "trade",
+    "fish",
+    "combat",
+    "colonize",
+    "side-quests",
+    "animals",
+    "panda",
+    "penguin"
+  ]);
   assert.equal(payload.mainQuest, "explorer");
+  assert.equal(payload.companionStatuses, "panda:aboard,penguin:aboard");
   assert.equal(JSON.stringify(payload).includes("captain"), false);
 });
 

@@ -41,8 +41,8 @@ test("the naturalist approaches on first meeting and whenever reports are waitin
   assert.equal(naturalistShouldApproach(quest, animals, 10), true);
   assert.equal(naturalistShouldApproach(quest, animals, 20), false);
   reportAnimalsToNaturalist(quest, animals);
-  assert.equal(naturalistShouldApproach(quest, animals, 10, { pandaOfferAvailable: true }), true);
-  assert.equal(naturalistShouldApproach(quest, animals, 20, { pandaOfferAvailable: true }), false);
+  assert.equal(naturalistShouldApproach(quest, animals, 10, { companionOfferAvailable: true }), true);
+  assert.equal(naturalistShouldApproach(quest, animals, 20, { companionOfferAvailable: true }), false);
 });
 
 test("a panda remains an animal report independently of its companion disposition", () => {

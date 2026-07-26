@@ -181,7 +181,7 @@ export function religionCandidatesForCharacter(character, homePort = null) {
   if (!character || typeof character !== "object") {
     throw new Error("Character religion candidates require a character");
   }
-  if (character.role === "ship-panda") return EQUAL_WEIGHT_RELIGIONS;
+  if (character.role === "ship-animal-companion") return EQUAL_WEIGHT_RELIGIONS;
   const candidates = religionCandidatesForHome(religionContext(homePort, character));
   if (character.requiredReligionFamily == null) return candidates;
   assertPortraitReligionFamily(character.requiredReligionFamily);

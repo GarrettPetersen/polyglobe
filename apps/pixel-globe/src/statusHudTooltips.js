@@ -1,4 +1,5 @@
 import { LANGUAGE_ENGLISH, translate } from "./localization.js";
+import { ANIMAL_COMPANION_BY_ID } from "./animalCompanions.js";
 
 export const STATUS_HUD_TOOLTIP_DATE = "date";
 export const STATUS_HUD_TOOLTIP_DOUBLOONS = "doubloons";
@@ -53,26 +54,34 @@ export function statusHudTooltipText(language = LANGUAGE_ENGLISH, id, values) {
   if (id === STATUS_HUD_TOOLTIP_CREW) {
     const crew = normalizedWholeCount(values.crew, "crew");
     const passengers = normalizedWholeCount(values.passengers, "passengers");
-    const pandas = normalizedWholeCount(values.pandas ?? 0, "pandas");
-    if (pandas > 1) throw new Error(`Invalid status HUD panda count: ${pandas}`);
+    const animalCompanionIds = normalizedAnimalCompanionIds(values.animalCompanionIds);
     const crewLabel = translate(language, `hud.tooltip.crewCount${crew === 1 ? "One" : "Many"}`, { count: crew });
-    if (passengers === 0 && pandas === 0) {
+    if (passengers === 0 && animalCompanionIds.length === 0) {
       return translate(language, "hud.tooltip.aboardCrew", { crew: crewLabel });
     }
-    if (passengers === 0) {
-      return translate(language, "hud.tooltip.aboardCrewPanda", { crew: crewLabel });
+    const passengerLabel = passengers > 0
+      ? translate(
+          language,
+          `hud.tooltip.passengerCount${passengers === 1 ? "One" : "Many"}`,
+          { count: passengers }
+        )
+      : null;
+    if (animalCompanionIds.length === 0) {
+      return translate(language, "hud.tooltip.aboardCrewPassengers", {
+        crew: crewLabel,
+        passengers: passengerLabel
+      });
     }
-    const passengerLabel = translate(
+    const animals = animalCompanionIds.map((companionId) => (
+      translate(language, `hud.tooltip.animalCompanion.${companionId}`)
+    )).join(" + ");
+    return translate(
       language,
-      `hud.tooltip.passengerCount${passengers === 1 ? "One" : "Many"}`,
-      { count: passengers }
+      passengers > 0
+        ? "hud.tooltip.aboardCrewPassengersAnimals"
+        : "hud.tooltip.aboardCrewAnimals",
+      { crew: crewLabel, passengers: passengerLabel, animals }
     );
-    return translate(language, pandas === 0
-      ? "hud.tooltip.aboardCrewPassengers"
-      : "hud.tooltip.aboardCrewPassengersPanda", {
-      crew: crewLabel,
-      passengers: passengerLabel
-    });
   }
   if (id === STATUS_HUD_TOOLTIP_CARGO) {
     const used = normalizedWholeCount(values.used, "cargo used");
@@ -90,4 +99,13 @@ function target(id, x, y, w, h) {
 function normalizedWholeCount(value, label) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid status HUD ${label}: ${value}`);
   return Math.round(value);
+}
+
+function normalizedAnimalCompanionIds(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((id) => !ANIMAL_COMPANION_BY_ID.has(id)) ||
+      new Set(value).size !== value.length) {
+    throw new Error("Invalid status HUD animal companions");
+  }
+  return value;
 }

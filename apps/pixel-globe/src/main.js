@@ -295,19 +295,24 @@ import {
   rollAnchoredAnimalEncounter
 } from "./animalEncounters.js";
 import {
-  acceptPandaCompanion,
-  beginPandaRecruitment,
-  declinePandaCompanion,
-  declinePandaNaturalistOffer,
-  PANDA_NATURALIST_PAYMENT,
-  pandaCompanionCharacter,
-  pandaCompanionIsAboard,
-  pandaNaturalistOfferIsAvailable,
-  pandaNpcReaction,
-  pandaRecruitmentIsPending,
-  placePandaWithNaturalist,
-  recordPandaNpcReaction
-} from "./pandaCompanion.js";
+  ANIMAL_COMPANION_CATALOG,
+  ANIMAL_COMPANION_BY_ID,
+  aboardAnimalCompanionIds,
+  acceptAnimalCompanion,
+  animalCompanionCharacter,
+  animalCompanionRecruitmentIsPending,
+  animalNaturalistOfferIsAvailable,
+  availableAnimalNaturalistOfferIds,
+  beginAnimalCompanionRecruitment,
+  declineAnimalCompanion,
+  declineAnimalNaturalistOffer,
+  firstAnimalCompanionNpcReaction,
+  pendingAnimalCompanionIntroduction,
+  pendingAnimalCompanionRecruitmentId,
+  placeAnimalWithNaturalist,
+  recordAnimalCompanionIntroduction,
+  recordAnimalCompanionNpcReaction
+} from "./animalCompanions.js";
 import {
   assignNaturalistPort,
   meetNaturalist,
@@ -1536,9 +1541,8 @@ const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
-const STATUS_HUD_ASSET_VERSION = "water-drop-2";
+const STATUS_HUD_ASSET_VERSION = "animal-companions-1";
 const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
-const STATUS_HUD_PANDA_URL = "assets/misc/panda.png";
 const STATUS_HUD_DOUBLOON_URL = "assets/misc/dubloon.png";
 const STATUS_HUD_WATER_URL = "assets/misc/water.png";
 const STATUS_HUD_FOOD_URL = "assets/misc/food.png";
@@ -3526,25 +3530,48 @@ async function loadFireEffectImage() {
 }
 
 async function loadStatusHudImages() {
-  const [crew, panda, doubloon, water, food, fish, wine, crates] = await Promise.all([
+  const [crew, doubloon, water, food, fish, wine, crates, animalCompanionEntries] = await Promise.all([
     loadAssetImage(`${STATUS_HUD_CREW_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "crew status icon"),
-    loadAssetImage(`${STATUS_HUD_PANDA_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "panda status icon"),
     loadAssetImage(`${STATUS_HUD_DOUBLOON_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "doubloon status icon"),
     loadAssetImage(`${STATUS_HUD_WATER_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "water status icon"),
     loadAssetImage(`${STATUS_HUD_FOOD_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "food status icon"),
     loadAssetImage(`${STATUS_HUD_FISH_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "fish status icon"),
     loadAssetImage(`${STATUS_HUD_WINE_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "wine status icon"),
-    loadAssetImage(`${STATUS_HUD_CRATE_SHEET_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "cargo crate status sheet")
+    loadAssetImage(`${STATUS_HUD_CRATE_SHEET_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "cargo crate status sheet"),
+    Promise.all(ANIMAL_COMPANION_CATALOG.map(async ({ id, statusIcon }) => [
+      id,
+      await loadAssetImage(
+        `${statusIcon.src}?v=${STATUS_HUD_ASSET_VERSION}`,
+        `${id} status icon`
+      )
+    ]))
   ]);
   validateImageDimensions(crew, "crew status icon", CREW_STATUS_ICON_WIDTH, CREW_STATUS_ICON_HEIGHT);
-  validateImageDimensions(panda, "panda status icon", 5, 9);
+  const animalCompanions = Object.fromEntries(animalCompanionEntries);
+  for (const { id, statusIcon } of ANIMAL_COMPANION_CATALOG) {
+    validateImageDimensions(
+      animalCompanions[id],
+      `${id} status icon`,
+      statusIcon.width,
+      statusIcon.height
+    );
+  }
   validateImageDimensions(doubloon, "doubloon status icon", 6, 6);
   validateImageDimensions(water, "water status icon", 6, 6);
   validateImageDimensions(food, "food status icon", 6, 6);
   validateImageDimensions(fish, "fish status icon", 6, 6);
   validateImageDimensions(wine, "wine status icon", 6, 6);
   validateImageDimensions(crates, "cargo crate status sheet", SURVIVAL_CRATE_SIZE * 2, SURVIVAL_CRATE_SIZE);
-  return Object.freeze({ crew, panda, doubloon, water, food, fish, wine, crates });
+  return Object.freeze({
+    crew,
+    animalCompanions: Object.freeze(animalCompanions),
+    doubloon,
+    water,
+    food,
+    fish,
+    wine,
+    crates
+  });
 }
 
 function createStatusPersonImages(crewImage) {
@@ -11064,11 +11091,11 @@ function openPortDialogue(cityCall) {
   ensureDialoguePortraitLoaded();
   if (!rescuedTravelerSession && !campaignSession) {
     const openedNaturalist = maybeOpenNaturalistPortDialogue(cityCall);
-    const openedPandaReaction = !openedNaturalist && maybeOpenPandaNpcReaction(
+    const openedAnimalReaction = !openedNaturalist && maybeOpenAnimalCompanionNpcReaction(
       `port:${cityCall.tileId}`,
       cityCall.character
     );
-    if (!openedNaturalist && !openedPandaReaction) openPendingDiscoveryPortDialogue();
+    if (!openedNaturalist && !openedAnimalReaction) openPendingDiscoveryPortDialogue();
   }
   saveVoyageNow("port arrival");
   dirty = true;
@@ -11243,9 +11270,9 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
 
 function maybeOpenNaturalistPortDialogue(cityCall) {
   const memory = gameState?.memory?.quests?.naturalist;
-  const pandaOfferAvailable = pandaNaturalistOfferIsAvailable(gameState.memory.panda);
+  const companionOfferIds = availableAnimalNaturalistOfferIds(gameState.memory.animalCompanions);
   if (!memory || !naturalistShouldApproach(memory, gameState.memory.animals, cityCall.tileId, {
-    pandaOfferAvailable
+    companionOfferAvailable: companionOfferIds.length > 0
   })) return false;
   const naturalist = ensureNaturalistCharacter(gameState);
   const before = naturalistQuestView(memory, gameState.memory.animals);
@@ -11288,39 +11315,14 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
       message: `${after.reportedCount} of ${after.totalCount} creatures now have a place in my book. Keep watch whenever you make landfall.`
     });
   }
-  if (pandaOfferAvailable) {
-    const panda = pandaCompanionCharacter();
-    steps.push(
-      {
-        character: naturalist,
-        leftCharacter: naturalist,
-        rightCharacter: panda,
-        expressionId: "attentive",
-        message: "And this is the panda from your account? Aristotle never prepared me for a bear that eats all day and refuses every useful occupation."
-      },
-      {
-        character: panda,
-        leftCharacter: naturalist,
-        rightCharacter: panda,
-        expressionId: "amused",
-        message: "Hrrmph.",
-        animalSoundKind: "bleat"
-      },
-      {
-        character: naturalist,
-        leftCharacter: naturalist,
-        rightCharacter: panda,
-        expressionId: "happy",
-        message: `A decisive rebuttal! Leave the panda in my care and I shall pay you ${PANDA_NATURALIST_PAYMENT.toLocaleString("en-US")} doubloons. Imagine the observations!`
-      }
-    );
-  }
+  const offeredCompanionId = companionOfferIds[0] || null;
+  if (offeredCompanionId) steps.push(...naturalistCompanionOfferSteps(naturalist, offeredCompanionId));
   if (steps.length === 0) return false;
   startCharacterAlertSequence(steps, () => {
     syncAchievementsFromGameState();
     saveVoyageNow("reported animals to naturalist");
-    if (pandaOfferAvailable) {
-      openPandaNaturalistOfferChoice(naturalist, cityCall);
+    if (offeredCompanionId) {
+      openAnimalNaturalistOfferChoice(naturalist, cityCall, offeredCompanionId);
       return;
     }
     dirty = true;
@@ -11328,66 +11330,114 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
   return true;
 }
 
-function openPandaNaturalistOfferChoice(naturalist, cityCall) {
-  if (!pandaNaturalistOfferIsAvailable(gameState.memory.panda)) {
-    throw new Error("Naturalist panda offer became unavailable before the decision");
+function naturalistCompanionOfferSteps(naturalist, companionId) {
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  if (!entry) throw new Error(`Naturalist offer names an unknown companion: ${companionId}`);
+  const animal = animalCompanionCharacter(companionId);
+  return [
+    {
+      character: naturalist,
+      leftCharacter: naturalist,
+      rightCharacter: animal,
+      expressionId: "attentive",
+      message: entry.naturalistIntro
+    },
+    {
+      character: animal,
+      leftCharacter: naturalist,
+      rightCharacter: animal,
+      expressionId: "amused",
+      message: entry.naturalistReply,
+      animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
+    },
+    {
+      character: naturalist,
+      leftCharacter: naturalist,
+      rightCharacter: animal,
+      expressionId: "happy",
+      message: entry.naturalistOffer.replace(
+        "{payment}",
+        entry.naturalistPayment.toLocaleString("en-US")
+      )
+    }
+  ];
+}
+
+function openAnimalNaturalistOfferChoice(naturalist, cityCall, companionId) {
+  if (!animalNaturalistOfferIsAvailable(gameState.memory.animalCompanions, companionId)) {
+    throw new Error(`Naturalist ${companionId} offer became unavailable before the decision`);
   }
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  const animal = animalCompanionCharacter(companionId);
   const opened = openCharacterChoiceAlertModal(
     naturalist,
-    "Will you leave the panda with me?",
+    `Will you leave the ${entry.name.toLowerCase()} with me?`,
     [
-      { label: "LEAVE THE PANDA", onSelect: () => acceptPandaNaturalistOffer(naturalist, cityCall) },
-      { label: "TOO ATTACHED", onSelect: () => rejectPandaNaturalistOffer(naturalist) }
+      {
+        label: `LEAVE THE ${entry.name.toUpperCase()}`,
+        onSelect: () => acceptAnimalNaturalistOffer(naturalist, cityCall, companionId)
+      },
+      {
+        label: "TOO ATTACHED",
+        onSelect: () => rejectAnimalNaturalistOffer(naturalist, cityCall, companionId)
+      }
     ],
     "happy",
-    { leftCharacter: naturalist, rightCharacter: pandaCompanionCharacter() }
+    { leftCharacter: naturalist, rightCharacter: animal }
   );
-  if (!opened) throw new Error("Naturalist panda offer could not open its decision");
+  if (!opened) throw new Error(`Naturalist ${companionId} offer could not open its decision`);
   return true;
 }
 
-function acceptPandaNaturalistOffer(naturalist, cityCall) {
-  placePandaWithNaturalist(gameState.memory.panda);
+function acceptAnimalNaturalistOffer(naturalist, cityCall, companionId) {
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  const animal = animalCompanionCharacter(companionId);
+  placeAnimalWithNaturalist(gameState.memory.animalCompanions, companionId);
   receiveQuestPayment(
     gameState,
     cityCall,
-    PANDA_NATURALIST_PAYMENT,
-    "Placed the panda in the naturalist's care",
+    entry.naturalistPayment,
+    `Placed the ${entry.name.toLowerCase()} in the naturalist's care`,
     portDialogueContext()
   );
   playCoinClinkSound();
-  saveVoyageNow("placed panda with naturalist");
+  saveVoyageNow(`placed ${companionId} with naturalist`);
   startCharacterAlertSequence([
     {
       character: naturalist,
       leftCharacter: naturalist,
-      rightCharacter: pandaCompanionCharacter(),
+      rightCharacter: animal,
       expressionId: "happy",
-      message: "Splendid! I shall provide bamboo, patience, and absolutely no employment. It should feel perfectly at home."
+      message: entry.naturalistAccept
     },
     {
-      character: pandaCompanionCharacter(),
+      character: animal,
       leftCharacter: naturalist,
-      rightCharacter: pandaCompanionCharacter(),
+      rightCharacter: animal,
       expressionId: "happy",
-      message: "Meee-eh!",
-      animalSoundKind: "bleat"
+      message: entry.callTexts[0],
+      animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
     },
     {
       character: gameState.playerCharacter,
       leftCharacter: gameState.playerCharacter,
       rightCharacter: naturalist,
       expressionId: "neutral",
-      message: "Take good care of it. It was a useless sailor, but a remarkably memorable one."
+      message: entry.naturalistFarewell
     }
-  ]);
-  showSurvivalNotice(`PANDA ADOPTED: +${PANDA_NATURALIST_PAYMENT.toLocaleString("en-US")} DB`, "good");
+  ], () => continueAnimalNaturalistOffers(naturalist, cityCall));
+  showSurvivalNotice(
+    `${entry.name.toUpperCase()} ADOPTED: +${entry.naturalistPayment.toLocaleString("en-US")} DB`,
+    "good"
+  );
   dirty = true;
 }
 
-function rejectPandaNaturalistOffer(naturalist) {
-  declinePandaNaturalistOffer(gameState.memory.panda);
-  saveVoyageNow("kept panda aboard");
+function rejectAnimalNaturalistOffer(naturalist, cityCall, companionId) {
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  const animal = animalCompanionCharacter(companionId);
+  declineAnimalNaturalistOffer(gameState.memory.animalCompanions, companionId);
+  saveVoyageNow(`kept ${companionId} aboard`);
   startCharacterAlertSequence([
     {
       character: gameState.playerCharacter,
@@ -11404,15 +11454,28 @@ function rejectPandaNaturalistOffer(naturalist) {
       message: "A lamentable failure of scholarly detachment. I confess I understand completely."
     },
     {
-      character: pandaCompanionCharacter(),
+      character: animal,
       leftCharacter: naturalist,
-      rightCharacter: pandaCompanionCharacter(),
+      rightCharacter: animal,
       expressionId: "happy",
-      message: "Hrrmph.",
-      animalSoundKind: "bleat"
+      message: entry.naturalistRejectAnimalText,
+      animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
     }
-  ]);
+  ], () => continueAnimalNaturalistOffers(naturalist, cityCall));
   dirty = true;
+}
+
+function continueAnimalNaturalistOffers(naturalist, cityCall) {
+  const companionId = availableAnimalNaturalistOfferIds(gameState.memory.animalCompanions)[0];
+  if (!companionId) {
+    dirty = true;
+    return;
+  }
+  const opened = startCharacterAlertSequence(
+    naturalistCompanionOfferSteps(naturalist, companionId),
+    () => openAnimalNaturalistOfferChoice(naturalist, cityCall, companionId)
+  );
+  if (!opened) throw new Error(`Naturalist could not continue to the ${companionId} offer`);
 }
 
 function naturalistAnimalList(names) {
@@ -11422,32 +11485,41 @@ function naturalistAnimalList(names) {
   return `${names.slice(0, -1).map((name) => `the ${name}`).join(", ")}, and the ${names.at(-1)}`;
 }
 
-function maybeOpenPandaNpcReaction(interactionKey, npcCharacter) {
-  const reaction = pandaNpcReaction(gameState.memory.panda, interactionKey, npcCharacter);
+function maybeOpenAnimalCompanionNpcReaction(interactionKey, npcCharacter) {
+  const reaction = firstAnimalCompanionNpcReaction(
+    gameState.memory.animalCompanions,
+    interactionKey,
+    npcCharacter
+  );
   if (!reaction) return false;
-  recordPandaNpcReaction(gameState.memory.panda, reaction.key);
-  const panda = pandaCompanionCharacter();
+  recordAnimalCompanionNpcReaction(
+    gameState.memory.animalCompanions,
+    reaction.companionId,
+    reaction.key
+  );
+  const animal = animalCompanionCharacter(reaction.companionId);
+  const animalEntry = ANIMAL_CATALOG_BY_ID.get(reaction.companionId);
   const opened = startCharacterAlertSequence([
     {
       character: npcCharacter,
       leftCharacter: npcCharacter,
-      rightCharacter: panda,
+      rightCharacter: animal,
       expressionId: "neutral",
       message: reaction.npcText
     },
     {
-      character: panda,
+      character: animal,
       leftCharacter: npcCharacter,
-      rightCharacter: panda,
+      rightCharacter: animal,
       expressionId: reaction.familiar ? "happy" : "amused",
-      message: reaction.pandaText,
-      animalSoundKind: "bleat"
+      message: reaction.animalText,
+      animalSoundKind: animalEntry.soundKind
     }
   ], () => {
-    saveVoyageNow("heard a comment about the panda");
+    saveVoyageNow(`heard a comment about the ${reaction.companionId}`);
     dirty = true;
   });
-  if (!opened) throw new Error("Panda NPC reaction could not open its dialogue");
+  if (!opened) throw new Error(`${reaction.companionId} NPC reaction could not open its dialogue`);
   return true;
 }
 
@@ -11923,7 +11995,7 @@ function openShipDialogue(shipCall, options = {}) {
   pauseShipForOverlay();
   ensureDialoguePortraitLoaded();
   if (!options.attackReason && !options.cartazInspection) {
-    maybeOpenPandaNpcReaction(`ship:${shipCall.id}`, shipCall.character);
+    maybeOpenAnimalCompanionNpcReaction(`ship:${shipCall.id}`, shipCall.character);
   }
   dirty = true;
 }
@@ -12234,8 +12306,11 @@ function updateAnchoredAnimalEncounter() {
       portWaitState || gameOverReason) {
     return false;
   }
-  if (pandaRecruitmentIsPending(gameState.memory.panda)) {
-    return openPandaRecruitmentChoice();
+  const pendingCompanionId = pendingAnimalCompanionRecruitmentId(
+    gameState.memory.animalCompanions
+  );
+  if (pendingCompanionId) {
+    return openAnimalCompanionRecruitmentChoice(pendingCompanionId);
   }
   if (!nearestScavengeShoreCall()) return false;
   const site = currentShoreScavengeSite();
@@ -12260,7 +12335,10 @@ function updateAnchoredAnimalEncounter() {
   if (!recordAnimalEncounter(gameState.memory.animals, animalEntry.id)) {
     throw new Error(`Animal encounter repeated within a voyage: ${animalEntry.id}`);
   }
-  if (animalEntry.id === "panda") beginPandaRecruitment(gameState.memory.panda);
+  const companionEncounter = ANIMAL_COMPANION_BY_ID.has(animalEntry.id);
+  if (companionEncounter) {
+    beginAnimalCompanionRecruitment(gameState.memory.animalCompanions, animalEntry.id);
+  }
 
   const animalCharacter = animalDialogueCharacter(animalEntry);
   const speaker = animalEncounterSpeaker();
@@ -12294,8 +12372,8 @@ function updateAnchoredAnimalEncounter() {
       message: animalEntry.reaction.text
     });
   }
-  startCharacterAlertSequence(steps, animalEntry.id === "panda"
-    ? openPandaRecruitmentChoice
+  startCharacterAlertSequence(steps, companionEncounter
+    ? () => openAnimalCompanionRecruitmentChoice(animalEntry.id)
     : () => {
         dirty = true;
       });
@@ -12304,55 +12382,85 @@ function updateAnchoredAnimalEncounter() {
   return true;
 }
 
-function openPandaRecruitmentChoice() {
-  if (!pandaRecruitmentIsPending(gameState.memory.panda)) return false;
+function openAnimalCompanionRecruitmentChoice(companionId) {
+  if (!animalCompanionRecruitmentIsPending(gameState.memory.animalCompanions, companionId)) {
+    return false;
+  }
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
   return openCharacterChoiceAlertModal(
     gameState.playerCharacter,
-    "The panda climbs into our boat and refuses to leave. Let it stay aboard?",
+    entry.recruitPrompt,
     [
-      { label: "LET IT STAY", onSelect: acceptPandaAboard },
-      { label: "SEND IT ASHORE", onSelect: rejectPandaAboard }
+      { label: "LET IT STAY", onSelect: () => acceptAnimalCompanionAboard(companionId) },
+      { label: "SEND IT ASHORE", onSelect: () => rejectAnimalCompanionAboard(companionId) }
     ],
     "amused"
   );
 }
 
-function acceptPandaAboard() {
-  acceptPandaCompanion(gameState.memory.panda, weatherClockMinutes);
-  const panda = pandaCompanionCharacter();
-  saveVoyageNow("welcomed panda aboard");
-  startCharacterAlertSequence([
+function acceptAnimalCompanionAboard(companionId) {
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  acceptAnimalCompanion(gameState.memory.animalCompanions, companionId, weatherClockMinutes);
+  const animal = animalCompanionCharacter(companionId);
+  const steps = [
     {
-      character: panda,
+      character: animal,
       expressionId: "happy",
-      message: "Meee-eh!",
-      animalSoundKind: "bleat"
+      message: entry.callTexts[0],
+      animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
     },
     {
       character: gameState.playerCharacter,
       expressionId: "amused",
-      message: "Very well. But I am not listing it as an able seaman."
+      message: entry.acceptedCaptainText
     }
-  ]);
-  showSurvivalNotice("PANDA ABOARD", "good");
+  ];
+  const introduction = pendingAnimalCompanionIntroduction(gameState.memory.animalCompanions);
+  if (introduction) {
+    recordAnimalCompanionIntroduction(gameState.memory.animalCompanions, introduction.key);
+    const [leftId, rightId] = introduction.key.split("|");
+    const leftAnimal = animalCompanionCharacter(leftId);
+    const rightAnimal = animalCompanionCharacter(rightId);
+    for (const introStep of introduction.steps) {
+      const speaker = animalCompanionCharacter(introStep.companionId);
+      const speakerEntry = ANIMAL_COMPANION_BY_ID.get(introStep.companionId);
+      steps.push({
+        character: speaker,
+        leftCharacter: leftAnimal,
+        rightCharacter: rightAnimal,
+        expressionId: introStep.expressionId,
+        message: introStep.message,
+        animalSoundKind: ANIMAL_CATALOG_BY_ID.get(speakerEntry.animalId).soundKind
+      });
+    }
+    steps.push({
+      character: gameState.playerCharacter,
+      expressionId: "amused",
+      message: "Excellent. Neither of you can work, but at least now you can ignore each other professionally."
+    });
+  }
+  saveVoyageNow(`welcomed ${companionId} aboard`);
+  startCharacterAlertSequence(steps);
+  showSurvivalNotice(`${entry.name.toUpperCase()} ABOARD`, "good");
   dirty = true;
 }
 
-function rejectPandaAboard() {
-  declinePandaCompanion(gameState.memory.panda);
-  const panda = pandaCompanionCharacter();
-  saveVoyageNow("sent panda ashore");
+function rejectAnimalCompanionAboard(companionId) {
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  declineAnimalCompanion(gameState.memory.animalCompanions, companionId);
+  const animal = animalCompanionCharacter(companionId);
+  saveVoyageNow(`sent ${companionId} ashore`);
   startCharacterAlertSequence([
     {
-      character: panda,
+      character: animal,
       expressionId: "sad",
-      message: "Meee-eh...",
-      animalSoundKind: "bleat"
+      message: `${entry.callTexts[0]}...`,
+      animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
     },
     {
       character: gameState.playerCharacter,
       expressionId: "neutral",
-      message: "Back to the bamboo hills with you. A ship is no place for a bear."
+      message: entry.rejectedCaptainText
     }
   ]);
   dirty = true;
@@ -25296,9 +25404,10 @@ function currentAboardRoster() {
       character: aboardCharacterWithBiography(traveler.character)
     })),
     colonyLeader: colonyLeader ? aboardCharacterWithBiography(colonyLeader) : null,
-    animalCompanions: pandaCompanionIsAboard(gameState.memory.panda)
-      ? [aboardCharacterWithBiography(pandaCompanionCharacter())]
-      : []
+    animalCompanions: aboardAnimalCompanionIds(gameState.memory.animalCompanions)
+      .map((companionId) => aboardCharacterWithBiography(
+        animalCompanionCharacter(companionId)
+      ))
   });
   const historianHomePort = portCities.find(isVikingLongshipQuestPort);
   if (!historianHomePort) throw new Error("Aboard roster cannot resolve the Viking historian's home port");
@@ -25368,7 +25477,7 @@ function aboardCharacterWithBiography(character) {
     ...character,
     homePortCountry: character.homePortCountry || homePort?.country || null
   }, {
-    identityKey: character.role === "ship-panda"
+    identityKey: character.role === "ship-animal-companion"
       ? `${character.id || character.name}|${gameState.voyageSeed}`
       : character.id || character.name,
     nationalityId: character.nationalityId ?? nationality?.id ?? null,
@@ -32888,7 +32997,7 @@ function drawSurvivalHudTooltip() {
       : remainingSupplyDayCount(status.foodDays),
     crew: gameState.ship.crew,
     passengers,
-    pandas: pandaCompanionIsAboard(gameState.memory.panda) ? 1 : 0
+    animalCompanionIds: aboardAnimalCompanionIds(gameState.memory.animalCompanions)
   });
   const maxTextWidth = SCREEN_W - 18;
   const lines = wrapPixelText(text, PIXEL_FONT_SMALL_8, maxTextWidth, 2);
@@ -32939,9 +33048,10 @@ function drawSurvivalCrewRow(x, y, panelWidth) {
     if (!image) throw new Error(`Missing ${entry.kind} crew status image variant ${entry.variant}`);
     ctx.drawImage(image, entry.x, entry.y);
   }
-  if (layout.panda) {
-    if (!statusHudImages?.panda) throw new Error("Panda status icon is not loaded");
-    ctx.drawImage(statusHudImages.panda, layout.panda.x, layout.panda.y);
+  for (const companion of layout.animalCompanions) {
+    const image = statusHudImages?.animalCompanions?.[companion.id];
+    if (!image) throw new Error(`${companion.id} status icon is not loaded`);
+    ctx.drawImage(image, companion.x, companion.y);
   }
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(`${layout.count}`, x + panelWidth - 5, y + SURVIVAL_CREW_ROW_Y - 1, {
@@ -32961,25 +33071,36 @@ function survivalCrewStatusLayout(
   const rowX = panelX + SURVIVAL_CREW_ROW_PAD_X;
   const valueRight = panelX + panelWidth - 5;
   const valueLeft = valueRight - measurePixelTextWidth(`${peopleAboard}`, PIXEL_FONT_LATIN_SMALL_8);
-  const hasPanda = pandaCompanionIsAboard(gameState.memory.panda);
-  const pandaSpace = hasPanda ? statusHudImages.panda.width + 1 : 0;
+  const companionIds = aboardAnimalCompanionIds(gameState.memory.animalCompanions);
+  const companionSpace = companionIds.reduce((total, companionId, index) => {
+    const image = statusHudImages?.animalCompanions?.[companionId];
+    if (!image) throw new Error(`${companionId} status icon is not loaded`);
+    return total + image.width + (index > 0 ? 1 : 0);
+  }, 0);
   const layout = crewStatusLayout({
     crewCount,
     travelerGroups,
     x: rowX,
     y: panelY + SURVIVAL_CREW_ROW_Y,
-    width: valueLeft - rowX - 4 - pandaSpace
+    width: valueLeft - rowX - 4 - (companionSpace > 0 ? companionSpace + 1 : 0)
   });
-  if (!hasPanda) return layout;
-  const humanEnd = layout.entries.length > 0
+  let companionX = layout.entries.length > 0
     ? layout.entries.at(-1).x + CREW_STATUS_ICON_WIDTH
     : rowX;
+  const animalCompanions = companionIds.map((companionId) => {
+    const image = statusHudImages.animalCompanions[companionId];
+    companionX += 1;
+    const positioned = Object.freeze({
+      id: companionId,
+      x: companionX,
+      y: panelY + SURVIVAL_CREW_ROW_Y + CREW_STATUS_ICON_HEIGHT - image.height
+    });
+    companionX += image.width;
+    return positioned;
+  });
   return Object.freeze({
     ...layout,
-    panda: Object.freeze({
-      x: humanEnd + 1,
-      y: panelY + SURVIVAL_CREW_ROW_Y + CREW_STATUS_ICON_HEIGHT - statusHudImages.panda.height
-    })
+    animalCompanions: Object.freeze(animalCompanions)
   });
 }
 

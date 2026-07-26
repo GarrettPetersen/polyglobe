@@ -50,8 +50,13 @@ export const ANIMAL_CATALOG = Object.freeze([
       reactionExpression: "mischievous",
       reactionText: "Crunch. Crunch."
     }),
-  animal("penguin", "Penguin", "A flightless seabird of the southern ice.", "bray", "penguin.png", penguinRange,
-    ["A bird dressed for court, marching over ice where no court has ever sat."], "Honk-hraaa!"),
+  animalWithExpressions("penguin", "Penguin", "A flightless seabird of the southern ice.", "bray", penguinRange,
+    ["A bird dressed for court, marching over ice where no court has ever sat."], "Honk-hraaa!", {
+      neutral: 1, happy: 2, surprised: 4, sad: 13, angry: 8, amused: 15, confused: 10
+    }, {
+      reactionExpression: "amused",
+      reactionText: "The penguin gives a formal bow, then inspects our fish as though conducting an audit."
+    }),
 ]);
 
 export const ANIMAL_CATALOG_BY_ID = new Map(ANIMAL_CATALOG.map((animalEntry) => [animalEntry.id, animalEntry]));

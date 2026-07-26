@@ -65,13 +65,14 @@ export function naturalistQuestView(memory, animalMemory) {
 }
 
 export function naturalistShouldApproach(memory, animalMemory, cityTileId, {
-  pandaOfferAvailable = false
+  companionOfferAvailable = false
 } = {}) {
-  if (typeof pandaOfferAvailable !== "boolean") {
-    throw new Error("Naturalist panda offer availability must be boolean");
+  if (typeof companionOfferAvailable !== "boolean") {
+    throw new Error("Naturalist companion offer availability must be boolean");
   }
   const view = naturalistQuestView(memory, animalMemory);
-  return view.portTileId === cityTileId && (!view.met || view.hasUnreportedAnimals || pandaOfferAvailable);
+  return view.portTileId === cityTileId &&
+    (!view.met || view.hasUnreportedAnimals || companionOfferAvailable);
 }
 
 export function meetNaturalist(memory) {

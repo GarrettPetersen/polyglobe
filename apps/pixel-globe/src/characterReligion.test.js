@@ -151,23 +151,25 @@ test("clerical attire constrains religion without moving Buddhist monks out of A
   }), /violates its christian attire/);
 });
 
-test("the panda chooses from every religion with exactly equal weight", () => {
-  const candidates = religionCandidatesForCharacter({
-    id: "companion:panda",
-    role: "ship-panda"
-  });
-  assert.deepEqual(
-    candidates.map(({ id }) => id),
-    RELIGION_CATALOG.map(({ id }) => id)
-  );
-  assert.ok(candidates.every(({ weight }) => weight === 1));
+test("animal companions choose from every religion with exactly equal weight", () => {
+  for (const companionId of ["panda", "penguin"]) {
+    const candidates = religionCandidatesForCharacter({
+      id: `companion:${companionId}`,
+      role: "ship-animal-companion"
+    });
+    assert.deepEqual(
+      candidates.map(({ id }) => id),
+      RELIGION_CATALOG.map(({ id }) => id)
+    );
+    assert.ok(candidates.every(({ weight }) => weight === 1));
 
-  const first = inferCharacterReligion({
-    identityKey: "companion:panda|voyage-17",
-    character: { role: "ship-panda" }
-  });
-  assert.equal(inferCharacterReligion({
-    identityKey: "companion:panda|voyage-17",
-    character: { role: "ship-panda", religionId: first.id }
-  }).id, first.id);
+    const first = inferCharacterReligion({
+      identityKey: `companion:${companionId}|voyage-17`,
+      character: { role: "ship-animal-companion" }
+    });
+    assert.equal(inferCharacterReligion({
+      identityKey: `companion:${companionId}|voyage-17`,
+      character: { role: "ship-animal-companion", religionId: first.id }
+    }).id, first.id);
+  }
 });

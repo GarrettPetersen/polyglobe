@@ -18,7 +18,8 @@ const FEATURE_IDS = new Set([
   "diplomacy",
   "side-quests",
   "animals",
-  "panda"
+  "panda",
+  "penguin"
 ]);
 const COMMON_HEADERS = Object.freeze({
   "access-control-allow-origin": "*",
@@ -207,7 +208,10 @@ function validateVoyagePayload(payload, samplingWeight) {
     crewLost: numberInRange(payload.crewLost, 0, 100_000),
     ship: shortString(payload.ship, 160),
     features: payload.features,
-    pandaStatus: shortString(payload.pandaStatus, 40),
+    companionStatuses: shortString(
+      payload.companionStatuses || legacyCompanionStatuses(payload.pandaStatus),
+      120
+    ),
     defeatedShips: numberInRange(payload.defeatedShips, 0, 1_000_000),
     whalesKilled: numberInRange(payload.whalesKilled, 0, 1_000_000),
     coloniesFounded: numberInRange(payload.coloniesFounded, 0, 100_000),
@@ -231,7 +235,7 @@ function toDataPoint(event, installationHash, crashFingerprint) {
       payload.outcome || "",
       payload.ship || "",
       payload.features?.join(",") || "",
-      payload.pandaStatus || "",
+      payload.companionStatuses || "",
       crashFingerprint,
       payload.errorName || "",
       payload.message || "",
@@ -260,6 +264,13 @@ function toDataPoint(event, installationHash, crashFingerprint) {
       payload.daysSinceLastSession ?? -1
     ]
   };
+}
+
+function legacyCompanionStatuses(pandaStatus) {
+  const status = typeof pandaStatus === "string" && pandaStatus !== ""
+    ? pandaStatus
+    : "unmet";
+  return `panda:${status}`;
 }
 
 async function sha256Hex(value) {

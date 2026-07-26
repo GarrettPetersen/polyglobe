@@ -38,6 +38,8 @@ test("animal catalog is unique and every portrait is expression-ready", () => {
     }
   }
   assert.equal(ANIMAL_CATALOG_BY_ID.get("panda").reaction.expressionId, "happy");
+  assert.equal(ANIMAL_CATALOG_BY_ID.get("penguin").reaction.expressionId, "amused");
+  assert.ok(ANIMAL_CATALOG_BY_ID.get("penguin").expressions.some(({ id }) => id === "sad"));
   assert.equal(ANIMAL_CATALOG_BY_ID.get("raccoon").reaction.expressionId, "mischievous");
 });
 
