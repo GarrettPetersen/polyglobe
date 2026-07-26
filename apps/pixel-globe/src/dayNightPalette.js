@@ -1,6 +1,10 @@
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const COLOR_RAMP_STEPS = 16;
+const RGB_LUT_SIZE = 32 * 32 * 32;
+const SHADOW_LUT_TEXTURE_WIDTH = 1024;
+const SHADOW_LUT_TEXTURE_HEIGHT = (COLOR_RAMP_STEPS + 1) * RGB_LUT_SIZE /
+  SHADOW_LUT_TEXTURE_WIDTH;
 const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
 
 export const NIGHT_GRADE_HEX = Object.freeze([
@@ -53,6 +57,8 @@ const SUNSET_PALETTE_MAP = RESURRECT_COLORS.map((source) => sunsetTargetFor(sour
 const SOURCE_PALETTE_LUT = buildSourcePaletteLut();
 const NIGHT_RGB_RAMP = buildRgbGradeRamp(NIGHT_PALETTE_MAP);
 const SUNSET_RGB_RAMP = buildRgbGradeRamp(SUNSET_PALETTE_MAP);
+export const RESURRECT_SHADOW_GRADE_STRENGTH = 0.62;
+let resurrectShadowLutTextureCache = null;
 
 export function applyDayNightPaletteGrade(data, width, height, light) {
   if (!(data instanceof Uint8ClampedArray)) throw new Error("Day/night grade requires clamped RGBA data");
@@ -75,6 +81,74 @@ export function applyDayNightPaletteGrade(data, width, height, light) {
   applyPackedGrade(pixels, SUNSET_RGB_RAMP[sunsetStage]);
   applyPackedGrade(pixels, NIGHT_RGB_RAMP[nightStage]);
   return data;
+}
+
+export function applyResurrectShadowPaletteGrade(
+  data,
+  width,
+  height,
+  shadowMask,
+  strength = RESURRECT_SHADOW_GRADE_STRENGTH
+) {
+  validatePixelBuffer(data, width, height, "Shadow grade");
+  if (!(shadowMask instanceof Uint8ClampedArray) || shadowMask.length !== data.length) {
+    throw new Error("Shadow grade mask must be matching clamped RGBA data");
+  }
+  if (!Number.isFinite(strength) || strength < 0 || strength > 1) {
+    throw new Error(`Shadow grade strength must be between zero and one: ${strength}`);
+  }
+  if (strength === 0) return data;
+
+  if (!LITTLE_ENDIAN || data.byteOffset % 4 !== 0 || shadowMask.byteOffset % 4 !== 0) {
+    applyByteShadowGrade(data, shadowMask, strength);
+    return data;
+  }
+
+  const pixels = new Uint32Array(data.buffer, data.byteOffset, width * height);
+  const maskPixels = new Uint32Array(shadowMask.buffer, shadowMask.byteOffset, width * height);
+  for (let index = 0; index < pixels.length; index++) {
+    const maskAlpha = maskPixels[index] >>> 24;
+    if (maskAlpha === 0 || (pixels[index] & 0xff000000) === 0) continue;
+    const stage = Math.min(
+      COLOR_RAMP_STEPS,
+      Math.round(maskAlpha / 255 * strength * COLOR_RAMP_STEPS)
+    );
+    const lut = NIGHT_RGB_RAMP[stage];
+    if (!lut) continue;
+    const pixel = pixels[index];
+    pixels[index] = (pixel & 0xff000000) | lut[packedRgbLutIndex(pixel)];
+  }
+  return data;
+}
+
+export function resurrectShadowPaletteLutTexture() {
+  if (resurrectShadowLutTextureCache) return resurrectShadowLutTextureCache;
+  const data = new Uint8Array(
+    SHADOW_LUT_TEXTURE_WIDTH * SHADOW_LUT_TEXTURE_HEIGHT * 4
+  );
+  for (let stage = 1; stage <= COLOR_RAMP_STEPS; stage++) {
+    const lut = NIGHT_RGB_RAMP[stage];
+    for (let index = 0; index < RGB_LUT_SIZE; index++) {
+      const packed = lut[index];
+      const offset = (stage * RGB_LUT_SIZE + index) * 4;
+      if (LITTLE_ENDIAN) {
+        data[offset] = packed & 0xff;
+        data[offset + 1] = (packed >>> 8) & 0xff;
+        data[offset + 2] = (packed >>> 16) & 0xff;
+      } else {
+        data[offset] = (packed >>> 16) & 0xff;
+        data[offset + 1] = (packed >>> 8) & 0xff;
+        data[offset + 2] = packed & 0xff;
+      }
+      data[offset + 3] = 255;
+    }
+  }
+  resurrectShadowLutTextureCache = Object.freeze({
+    width: SHADOW_LUT_TEXTURE_WIDTH,
+    height: SHADOW_LUT_TEXTURE_HEIGHT,
+    data
+  });
+  return resurrectShadowLutTextureCache;
 }
 
 export function nightPaletteHexForSourceHex(sourceHex) {
@@ -187,6 +261,30 @@ function applyByteGrade(data, lut) {
   for (let offset = 0; offset < data.length; offset += 4) {
     if (data[offset + 3] === 0) continue;
     writePackedRgb(data, offset, lut[rgbLutIndex(data[offset], data[offset + 1], data[offset + 2])]);
+  }
+}
+
+function applyByteShadowGrade(data, shadowMask, strength) {
+  for (let offset = 0; offset < data.length; offset += 4) {
+    const maskAlpha = shadowMask[offset + 3];
+    if (maskAlpha === 0 || data[offset + 3] === 0) continue;
+    const stage = Math.min(
+      COLOR_RAMP_STEPS,
+      Math.round(maskAlpha / 255 * strength * COLOR_RAMP_STEPS)
+    );
+    const lut = NIGHT_RGB_RAMP[stage];
+    if (!lut) continue;
+    writePackedRgb(data, offset, lut[rgbLutIndex(data[offset], data[offset + 1], data[offset + 2])]);
+  }
+}
+
+function validatePixelBuffer(data, width, height, label) {
+  if (!(data instanceof Uint8ClampedArray)) throw new Error(`${label} requires clamped RGBA data`);
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw new Error(`Invalid ${label.toLowerCase()} dimensions: ${width}x${height}`);
+  }
+  if (data.length !== width * height * 4) {
+    throw new Error(`${label} data length does not match dimensions`);
   }
 }
 

@@ -144,6 +144,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: busyWorldBenchmarkEncounters()
   }),
+  "benchmark-cloud-cover": scenario({
+    id: "benchmark-cloud-cover",
+    title: "Cloud Cover Performance Benchmark",
+    seed: "benchmark-cloud-cover-v1",
+    player: {
+      factionId: "ottoman",
+      shipSlug: "mediterranean-galley",
+      lat: 39.3,
+      lon: 25.2,
+      headingDeg: 180,
+      activePlaySeconds: 90
+    },
+    world: { day: 83, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
   "benchmark-combat-hotspot": scenario({
     id: "benchmark-combat-hotspot",
     title: "Eastern Mediterranean Combat Performance Benchmark",

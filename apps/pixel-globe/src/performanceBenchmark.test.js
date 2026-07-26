@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   BUSY_WORLD_CAPTURE_SCENARIO_ID,
+  CLOUD_COVER_CAPTURE_SCENARIO_ID,
   COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   createPerformanceBenchmarkState,
@@ -37,6 +38,16 @@ test("combat-hotspot benchmark selects the eastern Mediterranean combat scene", 
   assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=combat-hotspot"), {
     id: "combat-hotspot",
     captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 2
+  });
+});
+
+test("cloud-cover benchmark selects the deterministic northern Aegean weather scene", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=cloud-cover"), {
+    id: "cloud-cover",
+    captureScenarioId: CLOUD_COVER_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
     targetLandCarts: 2

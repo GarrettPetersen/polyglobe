@@ -9,9 +9,16 @@ import { DEMO_VOYAGE_LIMIT_SECONDS } from "../src/demoVoyage.js";
 
 const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
-const DEMO_PORTRAIT_EXPRESSION_LIMIT = 4;
+const DEMO_PORTRAIT_EXPRESSION_LIMIT = 3;
 const CHARACTER_MANIFEST_PATH = "assets/characters/generated/character-portraits.json";
 const SOURCE_ONLY_EXTENSIONS = new Set([".ase", ".aseprite"]);
+const SOURCE_ONLY_PUBLIC_FILES = new Set([
+  "assets/clouds/README.md",
+  "assets/misc/barrel.png",
+  "assets/misc/crate.png",
+  "assets/misc/crate_empty.png",
+  "assets/misc/hull.png"
+]);
 const DEMO_TERRAIN_VARIANT = "resurrect-64";
 const DEMO_PREBUILT_ICON_SOURCES = new Set([
   "assets/ui/anchor.png",
@@ -57,10 +64,15 @@ const sharedEntries = [
   ["mountains.json", "shared/mountains.json"],
   ["discrete-weather-bake-7.bin", "shared/discrete-weather-bake-7.bin"],
   ["globe-runtime-bake-7.bin", "shared/globe-runtime-bake-7.bin"],
-  [
-    "datasets/urbanization-dominance-pruned",
-    "shared/datasets/urbanization-dominance-pruned"
-  ]
+  edition === BUILD_EDITION_DEMO
+    ? [
+        "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
+        "shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
+      ]
+    : [
+        "datasets/urbanization-dominance-pruned",
+        "shared/datasets/urbanization-dominance-pruned"
+      ]
 ];
 
 const fullCharacterManifest = JSON.parse(
@@ -148,7 +160,13 @@ function shouldCopyPublicPath(path) {
   const normalized = normalizePath(path);
   const fileName = basename(normalized);
   const extension = extname(fileName).toLowerCase();
-  if (fileName === ".DS_Store" || SOURCE_ONLY_EXTENSIONS.has(extension)) return false;
+  if (
+    fileName === ".DS_Store" ||
+    SOURCE_ONLY_EXTENSIONS.has(extension) ||
+    SOURCE_ONLY_PUBLIC_FILES.has(normalized)
+  ) {
+    return false;
+  }
   if (normalized.startsWith("assets/capsule/")) return false;
   if (normalized === "assets/social/gameplay-source.png") return false;
   if (normalized === "assets/fonts/born2bsporty-fs.otf") return false;

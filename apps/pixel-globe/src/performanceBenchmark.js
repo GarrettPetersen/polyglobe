@@ -1,6 +1,8 @@
 export const PERFORMANCE_BENCHMARK_QUERY_PARAM = "benchmark";
 export const BUSY_WORLD_BENCHMARK_ID = "busy-world";
 export const BUSY_WORLD_CAPTURE_SCENARIO_ID = "benchmark-busy-world";
+export const CLOUD_COVER_BENCHMARK_ID = "cloud-cover";
+export const CLOUD_COVER_CAPTURE_SCENARIO_ID = "benchmark-cloud-cover";
 export const COMBAT_HOTSPOT_BENCHMARK_ID = "combat-hotspot";
 export const COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-combat-hotspot";
 export const NANJING_HOTSPOT_BENCHMARK_ID = "nanjing-hotspot";
@@ -10,6 +12,10 @@ const BENCHMARKS = Object.freeze({
   [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
     targetLandCarts: 14
+  }),
+  [CLOUD_COVER_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: CLOUD_COVER_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2
   }),
   [COMBAT_HOTSPOT_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,

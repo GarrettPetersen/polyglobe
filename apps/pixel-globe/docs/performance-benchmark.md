@@ -15,6 +15,14 @@ and sinking are active:
 npm --prefix apps/pixel-globe run benchmark:combat
 ```
 
+The cloud-cover benchmark fixes the date and camera over the northern Aegean,
+where overlapping 64-pixel cloud banks exercise the projected shadow compositor
+and its ocean, land, and elevated receiver masks:
+
+```sh
+npm --prefix apps/pixel-globe run benchmark:clouds
+```
+
 Run the desktop baseline from the repository root:
 
 ```sh
