@@ -26,6 +26,7 @@ import {
   quadraticBezierTangent
 } from "./pixelBezier.js";
 import { projectedRiverEdgeDirection } from "./riverEdgeProjection.js";
+import { approximateOceanRumorTileId } from "./oceanRumorSearch.js";
 import {
   CREW_STATUS_ICON_HEIGHT,
   CREW_STATUS_ICON_WIDTH,
@@ -12222,28 +12223,17 @@ function approximateWhiteWhaleSightingLocation(position, interactionKey) {
 
 function approximateOceanRumorLocation(position, interactionKey, salt) {
   if (typeof salt !== "string" || salt === "") throw new Error("Ocean rumor approximation requires a salt");
-  const north = normalizeTangentOrFallback(WORLD_NORTH, position, [1, 0, 0]);
-  const east = normalizeTangentOrFallback(cross3(north, position), position, [1, 0, 0]);
   const seed = spriteKeyHash(`${interactionKey}|${salt}`);
-  for (let index = 0; index < 24; index++) {
-    const bearing = ((seed % 360) + index * 137.508) * Math.PI / 180;
-    const distanceKm = 180 + ((seed >>> 9) + index * 47) % 181;
-    const distanceRad = distanceKm / EARTH_RADIUS_KM;
-    const tangent = [
-      north[0] * Math.cos(bearing) + east[0] * Math.sin(bearing),
-      north[1] * Math.cos(bearing) + east[1] * Math.sin(bearing),
-      north[2] * Math.cos(bearing) + east[2] * Math.sin(bearing)
-    ];
-    const candidate = normalize3([
-      position[0] * Math.cos(distanceRad) + tangent[0] * Math.sin(distanceRad),
-      position[1] * Math.cos(distanceRad) + tangent[1] * Math.sin(distanceRad),
-      position[2] * Math.cos(distanceRad) + tangent[2] * Math.sin(distanceRad)
-    ]);
-    const tileId = findNearestTileId(graph, directionIndex, candidate);
-    if (!isWhaleSwimmableOceanRow(earthById[tileId])) continue;
-    return vectorLatLon(tileCenterVector(tileId));
-  }
-  throw new Error(`Ocean rumor could not place an approximate search area: ${salt}`);
+  const tileId = approximateOceanRumorTileId({
+    graph,
+    directionIndex,
+    earthRows: earthById,
+    navigationMask: oceanReachableNavigationMask,
+    originPosition: position,
+    seed,
+    earthRadiusKm: EARTH_RADIUS_KM
+  });
+  return vectorLatLon(tileCenterVector(tileId));
 }
 
 function stopShipForDialogue() {
