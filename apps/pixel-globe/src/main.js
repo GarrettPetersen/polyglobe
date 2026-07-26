@@ -190,7 +190,7 @@ import {
   SURVIVAL_STARVATION_INTERVAL_MINUTES,
   activeFactionSafePassageIds,
   grantEnvoySafePassage,
-  advanceGameDiplomacy,
+  advanceGamePolitics,
   advanceActivePlayTime,
   applySurvivalDeprivation,
   attemptPortDisguise,
@@ -224,6 +224,7 @@ import {
   loseFoodRations,
   loseCrew,
   migrateGameState,
+  nextGamePoliticsMinute,
   playerAssaultCargoBonus,
   playerFishingNet,
   playerWhaleHarpoon,
@@ -923,6 +924,8 @@ import {
 import {
   CAPITAL_PEACE_TERM_ANNEXATION,
   CAPITAL_PEACE_TERM_CONCESSIONS,
+  CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION,
+  CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
   CAPITAL_PEACE_TERM_VASSALAGE,
   PORT_CONQUEST_MIN_CREW,
   PORT_CONQUEST_NPC_LANDING_RANGE_PX,
@@ -940,6 +943,14 @@ import {
   settleCapitalPeaceTreaty
 } from "./portConquest.js";
 import { recentRegionalRulerChange } from "./rulers.js";
+import {
+  PAPAL_ACTION_EXCOMMUNICATION,
+  PAPAL_ACTION_FAVOUR,
+  convertEnglishCatholicCharacter,
+  imposePapalAction,
+  papalActionNotice,
+  papalExcommunicationTargetCandidates
+} from "./papalPolitics.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
@@ -8280,6 +8291,7 @@ async function restoreSavedVoyage(payload) {
     usedCharacterNames,
     { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
   );
+  reconcileEnglishReformationCharacters();
   synchronizeTreasurePirateCaptains();
   await ensureCharacterPortraitLoaded(gameState.playerCharacter, characterExpression(gameState.playerCharacter));
   syncShipCargoFromGameState();
@@ -11375,23 +11387,43 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
 }
 
 function openPlayerCapitalPeaceTreaty(cityCall, event, prize) {
-  const options = capitalPeaceTreatyOptions(gameState.memory.conquest, portCities, event);
+  const papalContext = capitalPeacePapalContext(event);
+  const options = capitalPeaceTreatyOptions(
+    gameState.memory.conquest,
+    portCities,
+    event,
+    papalContext
+  );
   const loser = factionById(event.previousFactionId);
-  const choices = [
-    {
-      label: "VASSAL",
-      term: CAPITAL_PEACE_TERM_VASSALAGE
-    },
-    ...(options.concessionAvailable
-      ? [{ label: "TAKE PORT", term: CAPITAL_PEACE_TERM_CONCESSIONS }]
-      : []),
-    ...(options.annexationAllowed
-      ? [{ label: "ANNEX", term: CAPITAL_PEACE_TERM_ANNEXATION }]
-      : [])
-  ];
+  const choices = options.papalSettlement
+    ? [
+        { label: "PAPAL FAVOUR", term: CAPITAL_PEACE_TERM_PAPAL_FAVOUR },
+        ...(papalContext.papalExcommunicationTargetFactionId
+          ? [{
+              label: `EXCOMMUNICATE ${
+                factionById(papalContext.papalExcommunicationTargetFactionId).shortName.toUpperCase()
+              }`,
+              term: CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
+            }]
+          : [])
+      ]
+    : [
+        {
+          label: "VASSAL",
+          term: CAPITAL_PEACE_TERM_VASSALAGE
+        },
+        ...(options.concessionAvailable
+          ? [{ label: "TAKE PORT", term: CAPITAL_PEACE_TERM_CONCESSIONS }]
+          : []),
+        ...(options.annexationAllowed
+          ? [{ label: "ANNEX", term: CAPITAL_PEACE_TERM_ANNEXATION }]
+          : [])
+      ];
   const opened = openCharacterChoiceAlertModal(
     gameState.playerCharacter,
-    `${loser.name}'s capital has fallen. Choose the terms of peace.`,
+    options.papalSettlement
+      ? "Rome has fallen, but Christendom will not accept its annexation. Compel the Pope to act."
+      : `${loser.name}'s capital has fallen. Choose the terms of peace.`,
     choices.map((choice) => ({
       label: choice.label,
       onSelect: () => {
@@ -11454,13 +11486,21 @@ function completePlayerPortConquest(cityCall, event, prize, treaty) {
 function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
   if (!event.capitalCapturedFactionId) return null;
   const simMinute = Math.floor(weatherClockMinutes);
-  const term = forcedTerm || chooseCapitalPeaceTerm(gameState.memory.conquest, portCities, event, roll);
+  const papalContext = capitalPeacePapalContext(event);
+  const term = forcedTerm || chooseCapitalPeaceTerm(
+    gameState.memory.conquest,
+    portCities,
+    event,
+    roll,
+    papalContext
+  );
   const treaty = settleCapitalPeaceTreaty(
     gameState.memory.conquest,
     portCities,
     event,
     term,
-    simMinute
+    simMinute,
+    papalContext
   );
   if (term === CAPITAL_PEACE_TERM_ANNEXATION) {
     dissolveFactionDiplomaticSuzerainties(
@@ -11494,7 +11534,30 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
       { eventReason: "capital-peace-treaty" }
     );
   }
+  if (term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR ||
+      term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
+    imposePapalAction(gameState.relations.papacy, gameState.relations.diplomacy, {
+      kind: term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR
+        ? PAPAL_ACTION_FAVOUR
+        : PAPAL_ACTION_EXCOMMUNICATION,
+      targetFactionId: treaty.papalActionTargetFactionId,
+      simMinute,
+      source: "rome-peace-treaty"
+    });
+  }
   return treaty;
+}
+
+function capitalPeacePapalContext(event) {
+  if (event.previousFactionId !== "papal-states") {
+    return { papalExcommunicationTargetFactionId: null };
+  }
+  const targets = papalExcommunicationTargetCandidates(
+    gameState.relations.diplomacy,
+    event.newFactionId,
+    Math.floor(weatherClockMinutes)
+  );
+  return { papalExcommunicationTargetFactionId: targets[0] || null };
 }
 
 function capitalPeaceTreatyDescription(treaty) {
@@ -11517,6 +11580,13 @@ function capitalPeaceTreatyDescription(treaty) {
   if (treaty.term === CAPITAL_PEACE_TERM_CONCESSIONS) {
     return `${loser.name} makes peace and cedes ${treaty.concessionPortIds.length} port` +
       `${treaty.concessionPortIds.length === 1 ? "" : "s"} to ${winner.name}.`;
+  }
+  if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR) {
+    return `Rome remains independent, and the Pope issues a bull in favour of ${winner.name}.`;
+  }
+  if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
+    return `Rome remains independent, and the Pope excommunicates the ruler of ` +
+      `${factionById(treaty.papalActionTargetFactionId).name}.`;
   }
   throw new Error(`Unknown capital peace term: ${treaty.term}`);
 }
@@ -17048,17 +17118,61 @@ function birthdayDialogueOpportunity() {
 
 function updateWorldDiplomacy() {
   const diplomacy = gameState?.relations?.diplomacy;
-  if (!diplomacy || weatherClockMinutes < diplomacy.nextEventMinute) return false;
-  const events = advanceGameDiplomacy(gameState, weatherClockMinutes);
+  if (!diplomacy || weatherClockMinutes < nextGamePoliticsMinute(gameState)) return false;
+  const result = advanceGamePolitics(gameState, weatherClockMinutes);
+  if (result.englishReformation) reconcileEnglishReformationCharacters();
   const expulsions = reconcileForeignSettlementPolitics();
-  if (events.length === 0 && expulsions.length === 0) return false;
+  if (result.englishReformation) {
+    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn");
+    dirty = true;
+    return true;
+  }
+  if (result.papalActions.length > 0) {
+    showSurvivalNotice(
+      papalActionNotice(result.papalActions[result.papalActions.length - 1]),
+      "warn"
+    );
+    dirty = true;
+    return true;
+  }
+  if (result.diplomacyEvents.length === 0 && expulsions.length === 0) return false;
   if (expulsions.length > 0) {
     showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn");
     return true;
   }
-  const latest = events[events.length - 1];
+  const latest = result.diplomacyEvents[result.diplomacyEvents.length - 1];
   showSurvivalNotice(diplomacyEventNotice(latest), latest.kind === "peace" ? "good" : "warn");
   return true;
+}
+
+function reconcileEnglishReformationCharacters() {
+  if (!gameState?.relations?.papacy?.englishReformationApplied) return 0;
+  let converted = 0;
+  const convertMap = (characters) => {
+    if (!(characters instanceof Map)) return;
+    for (const [key, character] of characters) {
+      const updated = convertEnglishCatholicCharacter(character);
+      if (updated === character) continue;
+      characters.set(key, updated);
+      converted += 1;
+    }
+  };
+  convertMap(portCityCharacters);
+  convertMap(npcShipCaptains);
+  convertMap(pirateHideoutCharacters);
+  const convertSingle = (character) => {
+    const updated = convertEnglishCatholicCharacter(character);
+    if (updated !== character) converted += 1;
+    return updated;
+  };
+  vikingLongshipPortFactor = convertSingle(vikingLongshipPortFactor);
+  campaignGoalContact = convertSingle(campaignGoalContact);
+  colonizationOrganizer = convertSingle(colonizationOrganizer);
+  japaneseMatchlockGunsmith = convertSingle(japaneseMatchlockGunsmith);
+  caribbeanGingerPlanter = convertSingle(caribbeanGingerPlanter);
+  banquetChef = convertSingle(banquetChef);
+  naturalistCharacter = convertSingle(naturalistCharacter);
+  return converted;
 }
 
 function reconcileForeignSettlementPolitics({ notify = false } = {}) {
@@ -25433,17 +25547,27 @@ function politicsCardPagination(view) {
 }
 
 function drawPoliticsLatestNews(view, panel, pagerY) {
-  const latest = view.recentEvents[0];
-  if (!latest) return;
+  const latestDiplomacy = view.recentEvents[0] || null;
+  const latestPapal = view.recentPapalActions[0] || null;
+  if (!latestDiplomacy && !latestPapal) return;
+  const papalIsLatest = latestPapal && (
+    !latestDiplomacy || latestPapal.simMinute >= latestDiplomacy.simMinute
+  );
+  const latestText = papalIsLatest
+    ? papalActionNotice(latestPapal)
+    : diplomacyEventNotice(latestDiplomacy);
   drawOptionsText(
     fitPixelText(
-      `${uiText("politics.latest")} ${diplomacyEventNotice(latest)}`,
+      `${uiText("politics.latest")} ${latestText}`,
       PIXEL_FONT_SMALL_8,
       panel.w - 120
     ),
     panel.x + panel.w / 2,
     pagerY - 11,
-    { align: "center", color: latest.kind === "peace" ? "#91db69" : "#f68181" }
+    {
+      align: "center",
+      color: !papalIsLatest && latestDiplomacy.kind === "peace" ? "#91db69" : "#f68181"
+    }
   );
 }
 

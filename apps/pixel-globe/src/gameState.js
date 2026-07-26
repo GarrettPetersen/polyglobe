@@ -88,6 +88,15 @@ import {
   validateWorldDiplomacy,
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
+import { initialReligiousFactionReputation } from "./religiousAttitudes.js";
+import {
+  advancePapalPolitics,
+  convertEnglishCatholicCharacter,
+  createPapalPolitics,
+  migratePapalPolitics,
+  nextPapalPoliticsMinute,
+  validatePapalPolitics
+} from "./papalPolitics.js";
 import { suzeraintyTradePrivilege } from "./suzerainty.js";
 import {
   createForeignSettlementExpulsionMemory,
@@ -205,7 +214,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 45;
+export const GAME_STATE_VERSION = 46;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
@@ -375,7 +384,12 @@ export function createGameState({
       }]
     },
     relations: {
-      factionReputation: initialFactionReputation(playerFactionId),
+      factionReputation: initialFactionReputation(
+        playerFactionId,
+        normalizedPlayerCharacter?.religionId || null,
+        startMinute,
+        resolvedVoyageSeed
+      ),
       lettersOfMarque: {},
       safePassageUntilMinute: {},
       safePassageRefusalUntilMinute: {},
@@ -384,6 +398,10 @@ export function createGameState({
       portugueseCartaz: createPortugueseCartazMemory(),
       foreignSettlementExpulsions: createForeignSettlementExpulsionMemory(),
       diplomacy: createWorldDiplomacy({
+        startMinute,
+        seedKey: resolvedVoyageSeed
+      }),
+      papacy: createPapalPolitics({
         startMinute,
         seedKey: resolvedVoyageSeed
       })
@@ -451,7 +469,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -485,6 +503,10 @@ export function migrateGameState(state, shipStats) {
         startMinute: savedGameStartMinute(state),
         seedKey: migrationVoyageSeed
       });
+  const migratedPapacy = migratePapalPolitics(state.relations.papacy, {
+    startMinute: savedGameStartMinute(state),
+    seedKey: migrationVoyageSeed
+  });
   const legacyPortHeading = state.memory?.navigation?.portHeading || null;
   const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
   const {
@@ -542,7 +564,8 @@ export function migrateGameState(state, shipStats) {
       foreignSettlementExpulsions: migrateForeignSettlementExpulsionMemory(
         state.relations.foreignSettlementExpulsions
       ),
-      diplomacy: migratedDiplomacy
+      diplomacy: migratedDiplomacy,
+      papacy: migratedPapacy
     },
     memory: {
       ...state.memory,
@@ -819,9 +842,64 @@ export function advanceGameDiplomacy(state, currentMinute) {
   });
 }
 
+export function nextGamePoliticsMinute(state) {
+  if (!state?.relations?.diplomacy || !state?.relations?.papacy) {
+    throw new Error("Game state has no scheduled politics");
+  }
+  return Math.min(
+    state.relations.diplomacy.nextEventMinute,
+    nextPapalPoliticsMinute(state.relations.papacy)
+  );
+}
+
+export function advanceGamePolitics(state, currentMinute) {
+  assertGameState(state);
+  assertSimulationMinute(currentMinute);
+  const papal = advancePapalPolitics(state.relations.papacy, state.relations.diplomacy, currentMinute, {
+    papalStatesActive: !state.memory.conquest.collapsedFactionIds.includes("papal-states")
+  });
+  const diplomacyEvents = advanceWorldDiplomacy(state.relations.diplomacy, currentMinute, {
+    homeFactionId: state.playerCharacter?.nationalityId || null,
+    reputation: state.relations.factionReputation,
+    decisions: state.memory.decisions
+  });
+  let englishReformationConversions = 0;
+  if (papal.englishReformation) {
+    const convertedPlayer = convertEnglishCatholicCharacter(state.playerCharacter);
+    if (convertedPlayer !== state.playerCharacter) {
+      state.playerCharacter = convertedPlayer;
+      englishReformationConversions += 1;
+    }
+    state.namedCrew = state.namedCrew.map((member) => {
+      const converted = convertEnglishCatholicCharacter(member);
+      if (converted !== member) englishReformationConversions += 1;
+      return converted;
+    });
+    const questConversion = convertEnglishCatholicsInTree(state.memory.quests);
+    if (questConversion.changed) {
+      state.memory.quests = questConversion.value;
+      englishReformationConversions += questConversion.count;
+    }
+  }
+  return Object.freeze({
+    diplomacyEvents: Object.freeze([...diplomacyEvents, ...papal.diplomacyEvents]),
+    papalActions: papal.actions,
+    englishReformation: papal.englishReformation,
+    englishReformationConversions
+  });
+}
+
 export function recentGameDiplomacyEvents(state, limit = 3) {
   assertGameState(state);
   return recentDiplomacyEvents(state.relations.diplomacy, limit);
+}
+
+export function recentGamePapalActions(state, limit = 3) {
+  assertGameState(state);
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`Invalid papal action history limit: ${limit}`);
+  }
+  return Object.freeze(state.relations.papacy.history.slice(0, limit));
 }
 
 export function recordDiscovery(state, discovery) {
@@ -4325,11 +4403,21 @@ function marketRow(economy, city, goodId) {
   return row;
 }
 
-function initialFactionReputation(playerFactionId) {
+function initialFactionReputation(playerFactionId, playerReligionId, startMinute, voyageSeed) {
   const homeFactionId = playerFactionId === null ? null : assertFactionId(playerFactionId);
   return Object.fromEntries(FACTIONS.map((faction) => {
     if (faction.id === PIRATE_FACTION_ID) return [faction.id, PIRATE_START_REPUTATION];
     if (homeFactionId === null) return [faction.id, 0];
+    if (faction.id === NEUTRAL_FACTION_ID) return [faction.id, 0];
+    if (playerReligionId) {
+      return [faction.id, initialReligiousFactionReputation({
+        playerFactionId: homeFactionId,
+        playerReligionId,
+        targetFactionId: faction.id,
+        simMinute: startMinute,
+        seedKey: voyageSeed
+      })];
+    }
     if (faction.id === homeFactionId) return [faction.id, HOME_FACTION_START_REPUTATION];
     if (diplomacyBetween(homeFactionId, faction.id) === DIPLOMACY_WAR) {
       return [faction.id, ENEMY_FACTION_START_REPUTATION];
@@ -4339,6 +4427,29 @@ function initialFactionReputation(playerFactionId) {
     }
     return [faction.id, 0];
   }));
+}
+
+function convertEnglishCatholicsInTree(value, seen = new WeakMap()) {
+  if (value === null || typeof value !== "object") {
+    return { value, changed: false, count: 0 };
+  }
+  if (seen.has(value)) return seen.get(value);
+  const convertedCharacter = convertEnglishCatholicCharacter(value);
+  if (convertedCharacter !== value) {
+    return { value: convertedCharacter, changed: true, count: 1 };
+  }
+  const output = Array.isArray(value) ? [...value] : { ...value };
+  const result = { value, changed: false, count: 0 };
+  seen.set(value, result);
+  for (const [key, child] of Object.entries(value)) {
+    const converted = convertEnglishCatholicsInTree(child, seen);
+    if (!converted.changed) continue;
+    output[key] = converted.value;
+    result.changed = true;
+    result.count += converted.count;
+  }
+  if (result.changed) result.value = output;
+  return result;
 }
 
 function tradeReputationFactionId(city) {
@@ -4893,6 +5004,8 @@ function assertWorldDiplomacyState(state) {
   }
   if (!state.relations.diplomacy) throw new Error("Game state requires world diplomacy");
   validateWorldDiplomacy(state.relations.diplomacy);
+  if (!state.relations.papacy) throw new Error("Game state requires papal politics");
+  validatePapalPolitics(state.relations.papacy);
 }
 
 function savedGameStartMinute(state) {

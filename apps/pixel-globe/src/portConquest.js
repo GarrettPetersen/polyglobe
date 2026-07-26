@@ -1,4 +1,6 @@
 import { NEUTRAL_FACTION_ID, assertFactionId } from "./factions.js";
+import { rulerAtMinute } from "./rulers.js";
+import { isChristianReligion } from "./religiousAttitudes.js";
 
 export const PORT_CONQUEST_MIN_CREW = 36;
 export const PORT_CONQUEST_NPC_LANDING_RANGE_PX = 28;
@@ -9,13 +11,17 @@ export const CAPITAL_PEACE_ANNEXATION_PORT_LIMIT = 3;
 export const CAPITAL_PEACE_TERM_ANNEXATION = "annexation";
 export const CAPITAL_PEACE_TERM_VASSALAGE = "vassalage";
 export const CAPITAL_PEACE_TERM_CONCESSIONS = "territorial-concessions";
+export const CAPITAL_PEACE_TERM_PAPAL_FAVOUR = "papal-favour";
+export const CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION = "papal-excommunication";
 
 const PORT_CONQUEST_EVENT_LIMIT = 80;
 const PORT_CONQUEST_TREATY_LIMIT = 40;
 const CAPITAL_PEACE_TERMS = new Set([
   CAPITAL_PEACE_TERM_ANNEXATION,
   CAPITAL_PEACE_TERM_VASSALAGE,
-  CAPITAL_PEACE_TERM_CONCESSIONS
+  CAPITAL_PEACE_TERM_CONCESSIONS,
+  CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
+  CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
 ]);
 const PLAYER_ASSAULT_FLAG_PREFIX = "playerPortAssaultUntil:";
 
@@ -174,7 +180,9 @@ export function recordPortCapture(memory, city, newFactionId, simMinute, source 
   return memory.events[memory.events.length - 1];
 }
 
-export function capitalPeaceTreatyOptions(memory, ports, captureEvent) {
+export function capitalPeaceTreatyOptions(memory, ports, captureEvent, {
+  papalExcommunicationTargetFactionId = null
+} = {}) {
   validatePortConquestMemory(memory);
   assertPortList(ports);
   assertCapitalCaptureEvent(captureEvent);
@@ -188,10 +196,29 @@ export function capitalPeaceTreatyOptions(memory, ports, captureEvent) {
   const concessionCandidates = controlledPorts.filter((port) => (
     portConquestPortId(port) !== captureEvent.portId && port.isFactionCapital !== true
   ));
+  const papalSettlement = isChristianCaptureOfPapacy(captureEvent);
+  if (papalSettlement) {
+    if (papalExcommunicationTargetFactionId !== null) {
+      assertFactionId(papalExcommunicationTargetFactionId);
+    }
+    return Object.freeze({
+      annexationAllowed: false,
+      losingPortCount: controlledPorts.length,
+      concessionAvailable: false,
+      papalSettlement: true,
+      terms: Object.freeze([
+        CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
+        ...(papalExcommunicationTargetFactionId
+          ? [CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION]
+          : [])
+      ])
+    });
+  }
   return Object.freeze({
     annexationAllowed,
     losingPortCount: controlledPorts.length,
     concessionAvailable: concessionCandidates.length > 0,
+    papalSettlement: false,
     terms: Object.freeze([
       CAPITAL_PEACE_TERM_VASSALAGE,
       ...(concessionCandidates.length > 0 ? [CAPITAL_PEACE_TERM_CONCESSIONS] : []),
@@ -200,9 +227,14 @@ export function capitalPeaceTreatyOptions(memory, ports, captureEvent) {
   });
 }
 
-export function chooseCapitalPeaceTerm(memory, ports, captureEvent, roll = 0.5) {
+export function chooseCapitalPeaceTerm(memory, ports, captureEvent, roll = 0.5, context = {}) {
   assertRoll(roll, "capital peace");
-  const options = capitalPeaceTreatyOptions(memory, ports, captureEvent);
+  const options = capitalPeaceTreatyOptions(memory, ports, captureEvent, context);
+  if (options.papalSettlement) {
+    return options.terms.includes(CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) && roll < 0.38
+      ? CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
+      : CAPITAL_PEACE_TERM_PAPAL_FAVOUR;
+  }
   if (captureEvent.source === "player") {
     return options.annexationAllowed
       ? CAPITAL_PEACE_TERM_ANNEXATION
@@ -213,7 +245,14 @@ export function chooseCapitalPeaceTerm(memory, ports, captureEvent, roll = 0.5) 
   return CAPITAL_PEACE_TERM_CONCESSIONS;
 }
 
-export function settleCapitalPeaceTreaty(memory, ports, captureEvent, term, simMinute) {
+export function settleCapitalPeaceTreaty(
+  memory,
+  ports,
+  captureEvent,
+  term,
+  simMinute,
+  context = {}
+) {
   validatePortConquestMemory(memory);
   assertPortList(ports);
   assertCapitalCaptureEvent(captureEvent);
@@ -224,7 +263,10 @@ export function settleCapitalPeaceTreaty(memory, ports, captureEvent, term, simM
   if (captureEvent.peaceTreatyId !== null) {
     throw new Error(`Capital capture already has a peace treaty: ${captureEvent.id}`);
   }
-  const options = capitalPeaceTreatyOptions(memory, ports, captureEvent);
+  const options = capitalPeaceTreatyOptions(memory, ports, captureEvent, context);
+  if (!options.terms.includes(term)) {
+    throw new Error(`Capital peace term is unavailable: ${term}`);
+  }
   if (term === CAPITAL_PEACE_TERM_ANNEXATION && !options.annexationAllowed) {
     throw new Error(
       `${captureEvent.previousFactionId} is too large to annex: ${options.losingPortCount} ports`
@@ -236,6 +278,15 @@ export function settleCapitalPeaceTreaty(memory, ports, captureEvent, term, simM
   if (!capital) throw new Error(`Captured capital is absent from the port list: ${captureEvent.portId}`);
   const concessionPortIds = [];
   let annexedFactionId = null;
+  const papalActionTargetFactionId = term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
+    ? context.papalExcommunicationTargetFactionId
+    : term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR
+      ? winnerFactionId
+      : null;
+  if (term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION &&
+      !papalActionTargetFactionId) {
+    throw new Error("Papal excommunication peace requires a target faction");
+  }
 
   if (term === CAPITAL_PEACE_TERM_ANNEXATION) {
     for (const port of factionControlledPorts(memory, ports, loserFactionId, captureEvent.portId)) {
@@ -274,6 +325,7 @@ export function settleCapitalPeaceTreaty(memory, ports, captureEvent, term, simM
     term,
     annexedFactionId,
     concessionPortIds: [...new Set(concessionPortIds)].sort(),
+    papalActionTargetFactionId,
     simMinute,
     source: captureEvent.source
   };
@@ -376,6 +428,12 @@ function factionControlledPorts(memory, ports, factionId, capturedCapitalPortId)
   });
 }
 
+function isChristianCaptureOfPapacy(captureEvent) {
+  if (captureEvent.previousFactionId !== "papal-states") return false;
+  const ruler = rulerAtMinute(captureEvent.newFactionId, captureEvent.simMinute);
+  return ruler !== null && isChristianReligion(ruler.religionId);
+}
+
 function concessionPortOrder(a, b) {
   const populationDifference = Number(a.population || 0) - Number(b.population || 0);
   return populationDifference || portConquestPortId(a).localeCompare(portConquestPortId(b));
@@ -393,6 +451,21 @@ function validatePeaceTreaty(treaty) {
   if (!Array.isArray(treaty.concessionPortIds) ||
       treaty.concessionPortIds.some((portId) => typeof portId !== "string" || portId === "")) {
     throw new Error(`Invalid territorial concessions in treaty ${treaty.id}`);
+  }
+  if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR) {
+    if (treaty.loserFactionId !== "papal-states" ||
+        treaty.papalActionTargetFactionId !== treaty.winnerFactionId) {
+      throw new Error(`Invalid papal favour treaty ${treaty.id}`);
+    }
+  } else if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
+    if (treaty.loserFactionId !== "papal-states" ||
+        typeof treaty.papalActionTargetFactionId !== "string") {
+      throw new Error(`Invalid papal excommunication treaty ${treaty.id}`);
+    }
+    assertFactionId(treaty.papalActionTargetFactionId);
+  } else if (treaty.papalActionTargetFactionId !== undefined &&
+      treaty.papalActionTargetFactionId !== null) {
+    throw new Error(`Ordinary treaty has a papal action target: ${treaty.id}`);
   }
   if (!Number.isFinite(treaty.simMinute) || treaty.simMinute < 0) {
     throw new Error(`Invalid conquest treaty minute: ${treaty.simMinute}`);

@@ -4,6 +4,7 @@ export const RELIGION_CATALOG = Object.freeze([
   religion("ethiopian-orthodox", "Ethiopian Orthodox", "religion:orthodox"),
   religion("lutheran", "Lutheran", "religion:christian"),
   religion("reformed-protestant", "Reformed Protestant", "religion:christian"),
+  religion("anglican", "Anglican", "religion:christian"),
   religion("quaker", "Quaker", "religion:christian"),
   religion("sunni-islam", "Sunni Muslim", "religion:islam"),
   religion("shia-islam", "Twelver Shia", "religion:islam"),
@@ -42,6 +43,7 @@ const PORTRAIT_RELIGION_FAMILIES = Object.freeze({
     "ethiopian-orthodox",
     "lutheran",
     "reformed-protestant",
+    "anglican",
     "quaker"
   ]),
   buddhist: new Set([

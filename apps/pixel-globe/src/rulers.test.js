@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import {
+  ENGLISH_REFORMATION_MINUTE,
   RULER_TIMELINES,
   gameMinuteForDate,
   recentRegionalRulerChange,
@@ -22,9 +23,25 @@ test("every sovereign faction has a named ruler in 1522", () => {
     assert.ok(current.name.length > 0, factionId);
     assert.ok(current.title.length > 0, factionId);
     assert.match(current.displayName, new RegExp(current.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.equal(typeof current.religionId, "string");
+    assert.ok(current.piety >= 0 && current.piety <= 1);
   }
   assert.equal(rulerAtMinute(NEUTRAL_FACTION_ID, 0), null);
   assert.equal(rulerAtMinute(PIRATE_FACTION_ID, 0), null);
+});
+
+test("dated confessional changes alter rulers without inventing a succession", () => {
+  assert.equal(
+    rulerAtMinute("england", ENGLISH_REFORMATION_MINUTE - 1).religionId,
+    "roman-catholic"
+  );
+  assert.equal(rulerAtMinute("england", ENGLISH_REFORMATION_MINUTE).religionId, "anglican");
+  assert.equal(rulerAtMinute("denmark-norway", gameMinuteForDate(1534, 7, 4)).religionId, "lutheran");
+  assert.equal(
+    rulerChangesBetween(ENGLISH_REFORMATION_MINUTE - 1, ENGLISH_REFORMATION_MINUTE + 1)
+      .some((event) => event.factionId === "england"),
+    false
+  );
 });
 
 test("ruler succession happens at its queued date", () => {

@@ -13,8 +13,11 @@ import {
   hasPersonalTradePass,
   hasLetterOfMarqueFrom,
   recentGameDiplomacyEvents,
+  recentGamePapalActions,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
+import { rulerAtMinute } from "./rulers.js";
+import { religionById } from "./characterReligion.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { sovereignTradePoliciesForHostFaction } from "./sovereignTradeAccess.js";
 import { customsTerms } from "./tradePolicy.js";
@@ -47,6 +50,7 @@ export function createPoliticsView(gameState, simMinute = gameState?.survival?.l
   return {
     powers,
     recentEvents: recentGameDiplomacyEvents(gameState, 3),
+    recentPapalActions: recentGamePapalActions(gameState, 3),
     cards: orderPoliticsCards(cards, playerFactionId)
   };
 }
@@ -111,6 +115,7 @@ function standing(reputation, label) {
 }
 
 function politicsCard(gameState, faction, powers, powerById, simMinute) {
+  const ruler = rulerAtMinute(faction.id, simMinute);
   const dependencies = politicsDependencies(faction, powerById);
   const dependencyFactionIds = new Set(dependencies.map((dependency) => dependency.factionId));
   const relationships = [
@@ -128,6 +133,13 @@ function politicsCard(gameState, faction, powers, powerById, simMinute) {
   })).filter((group) => group.factionIds.length > 0);
   return Object.freeze({
     faction,
+    ruler: ruler === null
+      ? null
+      : Object.freeze({
+          ...ruler,
+          faithLabel: religionById(ruler.religionId).label,
+          pietyPercent: Math.round(ruler.piety * 100)
+        }),
     player: Object.freeze({
       ...playerStandingForReputation(factionReputation(gameState, faction.id)),
       hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id),

@@ -80,6 +80,37 @@ test("player reputation starts from nationality, wars, and pirates", () => {
   assert.equal(factionReputation(state, "pirate"), PIRATE_START_REPUTATION);
 });
 
+test("new voyages combine national standing, ruler faith, piety, and a seeded personal impression", () => {
+  const state = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: { ...PLAYER, religionId: "roman-catholic" },
+    voyageSeed: "religious-reputation"
+  });
+  const repeated = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: { ...PLAYER, religionId: "roman-catholic" },
+    voyageSeed: "religious-reputation"
+  });
+  assert.deepEqual(state.relations.factionReputation, repeated.relations.factionReputation);
+  assert.equal(factionReputation(state, "england"), HOME_FACTION_START_REPUTATION);
+  assert.ok(factionReputation(state, "spain") > factionReputation(state, "japan"));
+  assert.ok(factionReputation(state, "ottoman") < factionReputation(state, "japan"));
+});
+
+test("version 45 voyages gain papal politics without recalculating established reputations", () => {
+  const saved = JSON.parse(JSON.stringify(createGameState({
+    cargoCapacity: 10,
+    playerCharacter: { ...PLAYER, religionId: "roman-catholic" },
+    voyageSeed: "papal-migration"
+  })));
+  saved.version = 45;
+  saved.relations.factionReputation.france = 37;
+  delete saved.relations.papacy;
+  const restored = migrateGameState(saved, null);
+  assert.equal(restored.relations.factionReputation.france, 37);
+  assert.equal(restored.relations.papacy.version, 1);
+});
+
 test("port entry evaluation context can be reused across an armed-port combat tick", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
   const simMinute = 100;

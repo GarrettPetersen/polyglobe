@@ -4,15 +4,21 @@ import {
   PIRATE_FACTION_ID,
   factionById
 } from "./factions.js";
+import { religionById } from "./characterReligion.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
 export const RULER_START_YEAR = 1522;
 export const RULER_GOSSIP_DAYS = 180;
 
 const MONTH_LENGTHS = Object.freeze([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
+export const ENGLISH_REFORMATION_MINUTE = gameMinuteForDate(1534, 11, 3);
 
 const RAW_RULER_TIMELINES = Object.freeze({
-  england: [ruler(1522, 1, 1, "Henry VIII", "King"), ruler(1547, 1, 28, "Edward VI", "King")],
+  england: [
+    ruler(1522, 1, 1, "Henry VIII", "King"),
+    ruler(1534, 11, 3, "Henry VIII", "King"),
+    ruler(1547, 1, 28, "Edward VI", "King")
+  ],
   scotland: [ruler(1522, 1, 1, "James V", "King"), ruler(1542, 12, 14, "Mary", "Queen")],
   france: [ruler(1522, 1, 1, "Francis I", "King"), ruler(1547, 3, 31, "Henry II", "King")],
   spain: [ruler(1522, 1, 1, "Charles I", "King"), ruler(1556, 1, 16, "Philip II", "King")],
@@ -125,6 +131,46 @@ const RAW_RULER_TIMELINES = Object.freeze({
   ]
 });
 
+const RULER_FAITH_DEFAULTS = Object.freeze({
+  england: faith("roman-catholic", 0.82),
+  scotland: faith("roman-catholic", 0.86),
+  france: faith("roman-catholic", 0.82),
+  spain: faith("roman-catholic", 0.94),
+  portugal: faith("roman-catholic", 0.91),
+  hormuz: faith("sunni-islam", 0.66),
+  habsburg: faith("roman-catholic", 0.92),
+  hungary: faith("roman-catholic", 0.82),
+  ottoman: faith("sunni-islam", 0.9),
+  venice: faith("roman-catholic", 0.67),
+  genoa: faith("roman-catholic", 0.62),
+  "papal-states": faith("roman-catholic", 1),
+  ming: faith("chinese-traditional", 0.74),
+  inca: faith("andean-traditional", 0.94),
+  safavid: faith("shia-islam", 1),
+  muscovy: faith("eastern-orthodox", 0.94),
+  crimea: faith("sunni-islam", 0.78),
+  "poland-lithuania": faith("roman-catholic", 0.79),
+  "denmark-norway": faith("roman-catholic", 0.68),
+  songhai: faith("sunni-islam", 0.86),
+  morocco: faith("sunni-islam", 0.83),
+  ethiopia: faith("ethiopian-orthodox", 0.95),
+  vijayanagara: faith("hinduism", 0.9),
+  gujarat: faith("sunni-islam", 0.78),
+  bengal: faith("sunni-islam", 0.78),
+  delhi: faith("sunni-islam", 0.82),
+  ayutthaya: faith("theravada-buddhism", 0.89),
+  ternate: faith("sunni-islam", 0.82),
+  tidore: faith("sunni-islam", 0.82),
+  japan: faith("kami-buddhist", 0.73),
+  joseon: faith("korean-traditional", 0.84)
+});
+
+const RULER_FAITH_OVERRIDES = Object.freeze({
+  "england|Henry VIII|1534-11-3": faith("anglican", 0.72),
+  "england|Edward VI|1547-1-28": faith("anglican", 0.9),
+  "denmark-norway|Christian III|1534-7-4": faith("lutheran", 0.88)
+});
+
 const REGIONAL_GROUPS = Object.freeze([
   ["england", "scotland", "france", "spain", "portugal", "habsburg", "denmark-norway"],
   ["habsburg", "hungary", "venice", "genoa", "papal-states", "ottoman", "poland-lithuania"],
@@ -207,22 +253,27 @@ function yearRuler(year, name, title) {
 function freezeTimelines(rawTimelines) {
   return Object.freeze(Object.fromEntries(Object.entries(rawTimelines).map(([factionId, timeline]) => [
     factionId,
-    Object.freeze(timeline.map((entry) => Object.freeze({
-      ...entry,
-      factionId,
-      factionName: factionById(factionId).name,
-      displayName: `${entry.title} ${entry.name}`,
-      fromMinute: gameMinuteForDate(entry.year, entry.month, entry.day)
-    })))
+    Object.freeze(timeline.map((entry) => {
+      const rulerFaith = faithForRuler(factionId, entry);
+      return Object.freeze({
+        ...entry,
+        ...rulerFaith,
+        factionId,
+        factionName: factionById(factionId).name,
+        displayName: `${entry.title} ${entry.name}`,
+        fromMinute: gameMinuteForDate(entry.year, entry.month, entry.day)
+      });
+    }))
   ])));
 }
 
 function buildRulerChanges(timelines) {
   return Object.values(timelines)
-    .flatMap((timeline) => timeline.slice(1).map((next, index) => Object.freeze({
-      ...next,
-      previousRuler: timeline[index]
-    })))
+    .flatMap((timeline) => timeline.slice(1).flatMap((next, index) => {
+      const previousRuler = timeline[index];
+      if (next.name === previousRuler.name && next.title === previousRuler.title) return [];
+      return [Object.freeze({ ...next, previousRuler })];
+    }))
     .sort((left, right) => left.fromMinute - right.fromMinute || left.factionId.localeCompare(right.factionId));
 }
 
@@ -260,7 +311,28 @@ function validateRulerRegistry() {
         throw new Error(`Ruler timeline for ${factionId} is not strictly chronological`);
       }
     }
+    for (const entry of timeline) {
+      religionById(entry.religionId);
+      if (!Number.isFinite(entry.piety) || entry.piety < 0 || entry.piety > 1) {
+        throw new Error(`Invalid ruler piety for ${entry.displayName}: ${entry.piety}`);
+      }
+    }
   }
+}
+
+function faithForRuler(factionId, entry) {
+  const overrideKey = `${factionId}|${entry.name}|${entry.year}-${entry.month}-${entry.day}`;
+  const profile = RULER_FAITH_OVERRIDES[overrideKey] || RULER_FAITH_DEFAULTS[factionId];
+  if (!profile) throw new Error(`Missing ruler faith for ${factionId}`);
+  return profile;
+}
+
+function faith(religionId, piety) {
+  religionById(religionId);
+  if (!Number.isFinite(piety) || piety < 0 || piety > 1) {
+    throw new Error(`Invalid ruler faith piety: ${religionId}=${piety}`);
+  }
+  return Object.freeze({ religionId, piety });
 }
 
 function assertSimMinute(simMinute) {

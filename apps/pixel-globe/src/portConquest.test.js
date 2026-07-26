@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CAPITAL_PEACE_TERM_ANNEXATION,
+  CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
   CAPITAL_PEACE_TERM_VASSALAGE,
   PORT_CONQUEST_MIN_CREW,
   applyPortConquestOwnership,
@@ -129,6 +130,42 @@ test("capturing a large-state capital restores it under a vassalage settlement",
   assert.equal(treaty.annexedFactionId, null);
   assert.equal(effectivePortFactionId(memory, capital), "portugal");
   assert.equal(memory.collapsedFactionIds.includes("portugal"), false);
+});
+
+test("a Christian conqueror can dictate papal policy but cannot annex Rome", () => {
+  const memory = createPortConquestMemory();
+  const rome = city({
+    tileId: 40,
+    portId: "rome",
+    city: "Rome",
+    factionId: "papal-states",
+    isFactionCapital: true,
+    capitalOfFactionId: "papal-states"
+  });
+  const event = recordPortCapture(memory, rome, "england", 400, "player");
+  assert.equal(
+    chooseCapitalPeaceTerm(memory, [rome], event),
+    CAPITAL_PEACE_TERM_PAPAL_FAVOUR
+  );
+  assert.throws(
+    () => settleCapitalPeaceTreaty(
+      memory,
+      [rome],
+      event,
+      CAPITAL_PEACE_TERM_ANNEXATION,
+      400
+    ),
+    /unavailable/
+  );
+  const treaty = settleCapitalPeaceTreaty(
+    memory,
+    [rome],
+    event,
+    CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
+    400
+  );
+  assert.equal(treaty.papalActionTargetFactionId, "england");
+  assert.equal(effectivePortFactionId(memory, rome), "papal-states");
 });
 
 test("capturing an ordinary port changes only that port", () => {

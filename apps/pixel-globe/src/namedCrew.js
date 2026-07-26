@@ -1,4 +1,5 @@
 import { validateCharacterSkillIds } from "./characterSkills.js";
+import { convertEnglishCatholicCharacter } from "./papalPolitics.js";
 
 export const NAMED_CREW_ROLE_CREWMATE = "crewmate";
 export const NAMED_CREW_ROLE_CHEF = "chef";
@@ -84,7 +85,10 @@ export function addNamedCrewMember(
   if (members.some((member) => member.id === character.id)) {
     throw new Error(`${character.name} is already a named crewmate`);
   }
-  const entry = Object.freeze({ ...character, role, joinedCrew: true });
+  const historicallyCurrentCharacter = state.relations?.papacy?.englishReformationApplied
+    ? convertEnglishCatholicCharacter(character)
+    : character;
+  const entry = Object.freeze({ ...historicallyCurrentCharacter, role, joinedCrew: true });
   if (canAddNamedCrewMember(state)) {
     state.ship.crew += 1;
   } else if (!replaceGenericWhenFull || genericCrewCount(state) <= 0) {

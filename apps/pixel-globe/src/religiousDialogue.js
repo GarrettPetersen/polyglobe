@@ -6,11 +6,13 @@ const CHRISTIAN_RELIGIONS = new Set([
   "ethiopian-orthodox",
   "lutheran",
   "reformed-protestant",
+  "anglican",
   "quaker"
 ]);
 const PROTESTANT_RELIGIONS = new Set([
   "lutheran",
   "reformed-protestant",
+  "anglican",
   "quaker"
 ]);
 const MUSLIM_RELIGIONS = new Set([
@@ -28,6 +30,7 @@ const SHARED_GREETING_LINES = Object.freeze({
   "roman-catholic": "Christ be with you, captain. It is good to meet another child of the old Church so far from home.",
   lutheran: "God's grace and a fair wind to you. It is good to meet another who trusts the Word above distant decrees.",
   "reformed-protestant": "God's peace to you. A shared confession is welcome company in a foreign harbor.",
+  anglican: "God's peace attend you, captain. It is good to meet another subject of the English Church.",
   quaker: "Peace be with you, friend. It is a rare comfort to meet another who listens for the Inner Light.",
   "eastern-orthodox": "Christ be with you, captain. It is good to hear the old prayers spoken beneath another sky.",
   "ethiopian-orthodox": "Christ be with you, captain. It is good to meet another keeper of the ancient faith.",
@@ -52,6 +55,7 @@ const SPEAKER_BLESSINGS = Object.freeze({
   "roman-catholic": "Christ and the saints keep your ship, captain.",
   lutheran: "God's grace and a fair wind to you, captain.",
   "reformed-protestant": "God's peace attend your voyage, captain.",
+  anglican: "God's peace attend your voyage, captain.",
   quaker: "Peace be with you, friend.",
   "eastern-orthodox": "Christ keep you upon the waters, captain.",
   "ethiopian-orthodox": "May God guard your road upon the sea, captain.",
