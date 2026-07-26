@@ -60,6 +60,7 @@
     "render:steam-config": "npm run render:steam-achievements && npm run render:steam-stats",
     "render:port-sailing-distances": "node tools/build-port-sailing-distances.mjs",
     "render:land-roads": "node tools/build-land-roads.mjs",
+    "audit:landlocked-cities": "node tools/audit-landlocked-cities.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
     "render:capsules": "node tools/generate-layered-capsule-art.mjs",
     "render:platform-icons": "node tools/generate-layered-capsule-art.mjs --only=app_icon_512.png && node tools/build-platform-icons.mjs",

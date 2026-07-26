@@ -26,7 +26,35 @@ const MANUAL_CITY_RIVER_CONNECTIONS = Object.freeze([
   { city: "Changsha", lat: 28.196111, lon: 112.972222, tileId: 15508 },
   { city: "Wroclaw", lat: 51.116667, lon: 17.033333, tileId: 98257 },
   { city: "Bremen", lat: 53.07516, lon: 8.80777, tileId: 98128 },
-  { city: "Glasgow", lat: 55.86515, lon: -4.25763, tileId: 71858 }
+  { city: "Glasgow", lat: 55.86515, lon: -4.25763, tileId: 71858 },
+  { city: "Hamburg", lat: 53.57532, lon: 10.01534, tileId: 98427 },
+  { city: "Magdeburg", lat: 52.130808, lon: 11.628878, tileId: 98280 },
+  { city: "Prague", lat: 50.08804, lon: 14.42076, tileId: 98296 },
+  { city: "Lyon", lat: 45.74846, lon: 4.84671, tileId: 161095 },
+  { city: "Toulouse", lat: 43.60426, lon: 1.44367, tileId: 10151 },
+  { city: "Cordoba", lat: 38.046133, lon: -4.893564, tileId: 162135 },
+  { city: "Zaragoza", lat: 41.648792, lon: -0.889581, tileId: 162350 },
+  { city: "Vilnius", lat: 54.683333, lon: 25.283333, tileId: 99518 },
+  { city: "Novgorod", lat: 58.525569, lon: 31.274192, tileId: 24836 },
+  { city: "Kiev", lat: 50.45466, lon: 30.5238, tileId: 99609 },
+  { city: "Smolensk", lat: 54.7818, lon: 32.0401, tileId: 99530 },
+  { city: "Lahore", lat: 31.54972, lon: 74.34361, tileId: 24284 },
+  { city: "Diyarbakir", lat: 37.914411, lon: 40.230628, tileId: 102394 },
+  { city: "Edirne", lat: 41.681808, lon: 26.562269, tileId: 98639 },
+  { city: "Plovdiv", lat: 42.15, lon: 24.75, tileId: 98850 },
+  { city: "Chiang Mai", lat: 18.790978, lon: 98.960775, tileId: 93453 }
+]);
+
+const INTENTIONALLY_INLAND_WATER_SETTLEMENTS = Object.freeze([
+  { city: "Milan", tileId: 161043 },
+  { city: "Moscow", tileId: 99089 },
+  { city: "Nizhniy Novgorod", tileId: 99208 },
+  { city: "Kazan", tileId: 24823 },
+  { city: "Pskov", tileId: 6206 },
+  { city: "Srinagar", tileId: 96806 },
+  { city: "Mexico City", tileId: 19938 },
+  { city: "Tzintzuntzan", tileId: 79272 },
+  { city: "Toledo", tileId: 162273 }
 ]);
 
 test("Grand Canal gives Ming Beijing water access", async () => {
@@ -60,6 +88,38 @@ test("manual city river corridors give their mapped city tiles ocean access", as
       riverMasks: masks,
       tileId
     }), true, `${city} must be dockable at its mapped tile`);
+  }
+});
+
+test("the Elbe corridor does not turn Leipzig into a river port", async () => {
+  const { earth, graph, directionIndex, masks, reachable } = await buildManualRiverFixture();
+  const leipzigTileId = findNearestTileId(
+    graph,
+    directionIndex,
+    latLonToDirection(51.33962, 12.37129)
+  );
+
+  assert.equal(leipzigTileId, 98284);
+  assert.equal(cityHasPortAccess({
+    graph,
+    earthRows: earth.tiles,
+    reachableNavigationMask: reachable,
+    riverMasks: masks,
+    tileId: leipzigTileId
+  }), false);
+});
+
+test("closed-basin and post-1522 waterways remain inland", async () => {
+  const { earth, graph, masks, reachable } = await buildManualRiverFixture();
+
+  for (const { city, tileId } of INTENTIONALLY_INLAND_WATER_SETTLEMENTS) {
+    assert.equal(cityHasPortAccess({
+      graph,
+      earthRows: earth.tiles,
+      reachableNavigationMask: reachable,
+      riverMasks: masks,
+      tileId
+    }), false, `${city} must not gain an ahistorical open-sea route`);
   }
 });
 
