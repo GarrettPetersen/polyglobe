@@ -10,9 +10,7 @@ export function isRemoteCastawayShore({
   minimumDistance = CASTAWAY_REMOTE_MIN_HEX_DISTANCE
 }) {
   validateInputs({ graph, earthRows, settlementTileIds, shoreTileId, minimumDistance });
-  if (isWaterSurfaceRow(earthRows[shoreTileId])) {
-    throw new Error(`Castaway shore tile is water: ${shoreTileId}`);
-  }
+  if (isWaterSurfaceRow(earthRows[shoreTileId])) return false;
   const settlements = settlementTileIds instanceof Set
     ? settlementTileIds
     : new Set(settlementTileIds);

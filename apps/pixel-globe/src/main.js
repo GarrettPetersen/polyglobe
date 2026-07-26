@@ -1179,6 +1179,7 @@ import {
   measureChartNorthUpDrift,
   northUpProjectionIsStable
 } from "./chartReframe.js";
+import { partitionVisualStateReprojections } from "./visualStateReprojection.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
@@ -12118,7 +12119,10 @@ function departureControlAttention(kind, nowMs) {
   );
 }
 
-function toggleAnchor() {
+function toggleAnchor({ findCastaway = true } = {}) {
+  if (typeof findCastaway !== "boolean") {
+    throw new Error("Anchor control requires a boolean castaway policy");
+  }
   if (!ship || gameOverReason || shoreScavengeAction) return false;
   if (anchored) {
     const departureShore = nearestScavengeShoreCall();
@@ -12127,7 +12131,9 @@ function toggleAnchor() {
     keys.clear();
     clearPointerSteering();
     playSailDeploySound();
-    if (!departureShore || !maybeOpenCastawayQuest(departureShore)) saveVoyageNow("weighed anchor");
+    if (!findCastaway || !departureShore || !maybeOpenCastawayQuest(departureShore)) {
+      saveVoyageNow("weighed anchor");
+    }
     dirty = true;
     return true;
   }
@@ -13883,7 +13889,15 @@ function activeWhaleCall() {
 }
 
 function harpoonableWhaleCalls() {
-  if (!gameState || !localLayout || whaleHarpoonProjectile || gameState.memory.whales.activeHunt) return [];
+  if (
+    !gameState ||
+    !localLayout ||
+    shoreScavengeAction ||
+    whaleHarpoonProjectile ||
+    gameState.memory.whales.activeHunt
+  ) {
+    return [];
+  }
   const harpoon = playerWhaleHarpoon(gameState);
   if (!harpoon) return [];
   const calls = [];
@@ -13951,7 +13965,7 @@ function startWhaleHarpoon(call) {
   if (!whaleCanBeHarpooned(call.whale)) return false;
   const distancePx = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
   if (distancePx > harpoon.rangePx) return false;
-  if (anchored && !toggleAnchor()) throw new Error("Could not weigh anchor for a whale hunt");
+  if (anchored && !toggleAnchor({ findCastaway: false })) return false;
   whaleHarpoonProjectile = {
     whaleId: call.id,
     harpoonId: harpoon.id,
@@ -14796,11 +14810,12 @@ function commitPlayerPositionFromReframedChart() {
 }
 
 function reprojectNpcVisualPositions(states) {
-  for (const state of states) {
-    const point = localPointForGlobeVector(state.vector);
-    if (!point) {
-      throw new Error(`North-up chart could not reproject visual NPC ship ${state.id}`);
-    }
+  const reprojections = partitionVisualStateReprojections(
+    states,
+    (state) => localPointForGlobeVector(state.vector)
+  );
+  for (const state of reprojections.outside) releaseNpcVisualState(state);
+  for (const { state, point } of reprojections.projected) {
     state.x = point.x;
     state.y = point.y;
     state.tileId = point.tileId;

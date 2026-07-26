@@ -57,3 +57,12 @@ test("a settlement on the shore itself is never remote", () => {
     shoreTileId: 0
   }), false);
 });
+
+test("frozen water anchorages are not castaway shores", () => {
+  const world = lineWorld(3, [0]);
+  assert.equal(isRemoteCastawayShore({
+    ...world,
+    settlementTileIds: [2],
+    shoreTileId: 0
+  }), false);
+});
