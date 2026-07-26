@@ -194,6 +194,29 @@ test("ship papers include active deliveries and letters of marque", () => {
   assert.equal(shipPapersPage(view, 0).rows.length, 4);
 });
 
+test("special item details expose the same canonical perk effect shown when acquired", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    shipStats: stats
+  });
+  gameState.inventory.items["bronze-fish-hooks"] = 1;
+
+  const view = createShipInfoView({
+    typeSlug: "brigantine",
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints
+  }, gameState);
+  const hooks = view.papers.find((paper) => paper.title === "Bronze Fish Hooks");
+
+  assert.equal(hooks.detail, "A case of strong hooks improves both line fishing and net work.");
+  assert.equal(hooks.effect, "Fishing odds +8% / Fishing haul +10%");
+  assert.equal(
+    view.papers.find((paper) => paper.title === "Basic cast net").effect,
+    null
+  );
+});
+
 test("ship papers include the captain's named sovereign trade permits", () => {
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({

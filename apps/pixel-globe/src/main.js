@@ -24514,6 +24514,7 @@ function drawShipPaperDetail(panel, view) {
     ["ISSUER", paper.issuer],
     ["ROUTE", paper.route],
     ["DETAIL", paper.detail],
+    ...(paper.effect ? [["EFFECT", paper.effect]] : []),
     ["DATE", shipLedgerDateLabel(paper.simMinute)]
   ].map(([label, value]) => ({
     label,
@@ -24553,7 +24554,7 @@ function drawShipPaperDetail(panel, view) {
     drawOptionsText(field.label, left, y, { color: PIRATE_MENU_INK_MUTED });
     field.lines.forEach((line, lineIndex) => {
       drawOptionsText(line, valueX, y + lineIndex * lineHeight, {
-        color: field.label === "DETAIL" ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK
+        color: ["DETAIL", "EFFECT"].includes(field.label) ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK
       });
     });
     y += Math.max(1, field.lines.length) * lineHeight + 5;

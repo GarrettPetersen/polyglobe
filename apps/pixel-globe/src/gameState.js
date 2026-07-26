@@ -182,7 +182,8 @@ import {
   PERK_ITEMS,
   highValueMissionGiftItem,
   missionGiftItem,
-  perkItemById
+  perkItemById,
+  perkItemSummary
 } from "./perkItems.js";
 import {
   createPirateCaptiveQuestMemory,
@@ -2187,7 +2188,12 @@ export function shipItemRows(state) {
       if (item.id === SHIP_ITEM_FISHING_NET) return fishingNetItemRow(state);
       if (item.id === SHIP_ITEM_CANNON_EQUIPMENT) return cannonEquipmentItemRow(state);
       if (item.id === SHIP_ITEM_WHALE_HARPOON) return whaleHarpoonItemRow(state);
-      return { ...item, quantity: state.inventory.items[item.id] || 0 };
+      const summary = perkItemSummary(item.id);
+      return {
+        ...item,
+        effect: summary.effectLabels.join(" / "),
+        quantity: state.inventory.items[item.id] || 0
+      };
     })
     .filter((item) => item.quantity > 0);
   const goal = state.memory.campaignGoal;

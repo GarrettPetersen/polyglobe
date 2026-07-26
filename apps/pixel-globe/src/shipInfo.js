@@ -306,6 +306,7 @@ function shipItemPapers(items) {
     issuer: "Ship stores",
     route: "Equipment",
     detail: item.quantity > 1 ? `${item.detail} x${item.quantity}` : item.detail,
+    effect: item.effect || null,
     simMinute: null
   }));
 }
