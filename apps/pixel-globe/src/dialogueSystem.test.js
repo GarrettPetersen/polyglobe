@@ -97,6 +97,7 @@ test("hailing an NPC ship identifies the captain by name", () => {
 
   assert.equal(session.kind, "ship");
   assert.equal(view.speaker, "Marco Doria, merchant captain");
+  assert.equal(view.topic, "VESSEL: XEBEC");
   assert.equal(view.text, "Fair winds, captain. Running in ballast.");
   assert.deepEqual(view.options.map((option) => option.label), ["Demand surrender", "Leave"]);
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
@@ -136,6 +137,7 @@ test("a white-whale rumor is delivered through an ordinary ship hail", () => {
 test("Portuguese patrols present explicit cartaz enforcement choices", () => {
   const ship = {
     id: "portuguese-patrol-4",
+    label: "Portuguese Carrack",
     roleLabel: "Warship",
     faction: { adjective: "Portuguese" },
     character: { name: "Ines Vaz" }
@@ -168,6 +170,7 @@ test("Portuguese patrols present explicit cartaz enforcement choices", () => {
 test("a non-enemy ship offers emergency provisions once the player is depleted", () => {
   const ship = {
     id: "relief-ship",
+    label: "Caravel",
     character: { name: "Marco Doria" },
     canOfferEmergencyAid: true
   };
@@ -318,6 +321,7 @@ test("whalers identify their profession and blubber cargo", () => {
 test("warship and pirate captains identify their role and allegiance", () => {
   const warship = {
     id: "warship",
+    label: "Portuguese Carrack",
     roleLabel: "Warship",
     faction: { adjective: "Portuguese" },
     character: { name: "Ines Vaz" }
@@ -329,6 +333,7 @@ test("warship and pirate captains identify their role and allegiance", () => {
 
   const pirate = {
     id: "pirate",
+    label: "Pirate Brig",
     roleLabel: "Pirate",
     faction: { adjective: "Pirate" },
     character: { name: "Anne Flint" }
@@ -348,6 +353,7 @@ test("warship and pirate captains identify their role and allegiance", () => {
 test("an attacking captain hails with a reason before combat", () => {
   const attacker = {
     id: "portuguese-warship",
+    label: "Portuguese Carrack",
     roleLabel: "Warship",
     faction: { adjective: "Portuguese" },
     character: { name: "Ines Vaz" }
@@ -358,6 +364,7 @@ test("an attacking captain hails with a reason before combat", () => {
   const view = shipDialogueView(session, attacker);
 
   assert.equal(view.expressionId, "angry");
+  assert.equal(view.topic, "VESSEL: PORTUGUESE CARRACK");
   assert.equal(view.text, "You sail under outlaw colors. Strike them, or we open fire!");
   assert.deepEqual(view.options.map((option) => option.label), ["To arms"]);
 });
@@ -365,6 +372,7 @@ test("an attacking captain hails with a reason before combat", () => {
 test("a combat challenge is withdrawn if its attacker surrenders during the hail", () => {
   const attacker = {
     id: "pirate-challenger",
+    label: "Pirate Brig",
     roleLabel: "Pirate",
     faction: { adjective: "Pirate" },
     character: { name: "Anne Flint" },
@@ -386,6 +394,7 @@ test("a combat challenge is withdrawn if its attacker surrenders during the hail
 test("a combat challenge cannot remain actionable after its engagement ends", () => {
   const attacker = {
     id: "warship-challenger",
+    label: "Portuguese Carrack",
     roleLabel: "Warship",
     faction: { adjective: "Portuguese" },
     character: { name: "Ines Vaz" },
@@ -526,6 +535,7 @@ test("a surrender prize accepts fractional cargo use from daily provisions", () 
 test("a protected surrendered ship cannot be threatened again", () => {
   const ship = {
     id: "protected",
+    label: "Caravel",
     character: { name: "Marco Doria" },
     combatGrace: true
   };
@@ -536,6 +546,7 @@ test("a protected surrendered ship cannot be threatened again", () => {
 test("piracy warning lets the player back out before a hostile demand", () => {
   const ship = {
     id: "merchant",
+    label: "Caravel",
     roleLabel: "Merchant",
     faction: { adjective: "French" },
     character: { name: "Claude Martin" },
@@ -579,6 +590,7 @@ test("piracy warning lets the player back out before a hostile demand", () => {
 test("a capable ship defies the threat but can still be attacked", () => {
   const ship = {
     id: "capable",
+    label: "Portuguese Carrack",
     roleLabel: "Warship",
     faction: { adjective: "Portuguese" },
     character: { name: "Ines Vaz" },

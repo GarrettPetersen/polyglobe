@@ -559,6 +559,17 @@ export function selectShoreBatteryDialogueOption(session, city, optionIndex = se
 
 export function shipDialogueView(session, ship) {
   assertShipDialogueSubject(session, ship);
+  const view = shipDialogueContentView(session, ship);
+  if (view.topic !== undefined) {
+    throw new Error(`Ship dialogue already defines a topic: ${ship.id}`);
+  }
+  return {
+    ...view,
+    topic: `VESSEL: ${shipDialogueVesselLabel(ship).toUpperCase()}`
+  };
+}
+
+function shipDialogueContentView(session, ship) {
   const manifest = shipCargoManifest(ship.cargo);
   const storm = ship.stormStatus ? ` ${ship.stormStatus}` : "";
   const voyage = ship.destinationName ? ` Bound for ${ship.destinationName}.` : "";
@@ -722,6 +733,14 @@ export function shipDialogueView(session, ship) {
       option("Leave", { type: "close" })
     ]
   };
+}
+
+function shipDialogueVesselLabel(ship) {
+  if (typeof ship.label === "string" && ship.label.trim() !== "") return ship.label.trim();
+  if (typeof ship.slug === "string" && ship.slug.trim() !== "") {
+    return shipLabelForSlug(ship.slug);
+  }
+  throw new Error(`Ship dialogue requires a vessel type: ${ship.id}`);
 }
 
 function portugueseCartazInspectionView(session, speaker) {
