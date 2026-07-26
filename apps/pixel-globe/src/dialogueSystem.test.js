@@ -41,6 +41,7 @@ import {
   adjustFactionReputation,
   attemptPortDisguise,
   cargoUsed,
+  capturePortMissionOfferForCity,
   createGameState,
   deliveryOfferForCity,
   factionReputation,
@@ -2951,6 +2952,60 @@ test("capital port dialogue can grant a letter of marque", () => {
   const alreadyHeld = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(alreadyHeld.text, /already carry King Henry VIII's authority/i);
   assert.equal(alreadyHeld.feedback, null);
+});
+
+test("a crown capture commission names the enemy port, spoils, and return reward", () => {
+  const london = {
+    tileId: 801,
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 90000,
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
+  const calais = {
+    tileId: 802,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    population: 18000,
+    factionId: "france",
+    character: { name: "Guillaume Morel" }
+  };
+  const stats = shipStatsForSlug("large-junk");
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    },
+    shipStats: stats
+  });
+  gameState.ship.crew = 36;
+  gameState.ship.cannons = 8;
+  gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const ports = [london, calais];
+  const offer = capturePortMissionOfferForCity(gameState, london, ports, {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 180
+  });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const session = createPortDialogueSession(london, { initialNodeId: "quest" });
+  const view = portDialogueView(session, london, gameState, economy, ports);
+
+  assert.equal(deliveryMissionShouldOpenOnArrival(gameState, london, ports), true);
+  assert.match(view.speaker, /war secretary/i);
+  assert.match(view.text, /customary spoils are yours/i);
+  assert.match(view.text, /Calais/);
+  assert.match(view.text, new RegExp(`${offer.reward.toLocaleString("en-US")} doubloons`));
+  assert.ok(view.options.some((entry) => entry.action.type === "accept-quest"));
 });
 
 test("letter of marque dialogue shows fractional standing until the requirement is truly met", () => {

@@ -4,9 +4,14 @@ import test from "node:test";
 import {
   DELIVERY_ROLL_PERIOD_MINUTES,
   DELIVERY_REPUTATION_GAIN,
+  CAPTURE_PORT_MISSION_REPUTATION_GAIN,
   ONBOARDING_DELIVERY_COUNT,
   ONBOARDING_DELIVERY_SCENARIOS,
   acceptQuest,
+  advanceCapturePortMissionAfterConquest,
+  capturePortMissionEligibility,
+  capturePortMissionOfferForCity,
+  commissionedPortCaptureFactionId,
   completeQuest,
   createGameState,
   deliveryOfferForCity,
@@ -15,6 +20,7 @@ import {
   questStateForCity,
   reconcileQuestPortTiles
 } from "./gameState.js";
+import { shipStatsForSlug } from "./shipStats.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -27,6 +33,17 @@ const PORTO = port(2, "Porto", "Portugal", "mediterranean", "portugal", 41.15, -
 const GOA = port(3, "Goa", "India", "south-asian", "portugal", 15.5, 73.83);
 const CADIZ = port(4, "Cadiz", "Spain", "mediterranean", "spain", 36.53, -6.29);
 const DOVER = port(5, "Dover", "United Kingdom", "northern-european", "england", 51.13, 1.31);
+const LONDON = {
+  ...port(10, "London", "United Kingdom", "northern-european", "england", 51.51, -0.13),
+  isFactionCapital: true,
+  capitalOfFactionId: "england"
+};
+const CALAIS = port(11, "Calais", "France", "northern-european", "france", 50.95, 1.85);
+const PARIS = {
+  ...port(12, "Paris", "France", "northern-european", "france", 48.86, 2.35),
+  isFactionCapital: true,
+  capitalOfFactionId: "france"
+};
 
 test("delivery quests stay inside the same faction and region", () => {
   const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO, GOA, CADIZ]);
@@ -137,6 +154,116 @@ test("saved jobs rebind to corrected coastal port tiles", () => {
 
   completeQuest(state, PORTO, { simMinute: 100 });
   assert.equal(state.memory.quests.active, null);
+});
+
+test("a capable letter-of-marque captain can receive and complete a nearby capture commission", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const ports = [LONDON, CALAIS, PARIS];
+  const sailingDistanceKm = (origin, destination) => {
+    if (origin.tileId === LONDON.tileId && destination.tileId === CALAIS.tileId) return 180;
+    if (origin.tileId === LONDON.tileId && destination.tileId === PARIS.tileId) return 400;
+    throw new Error(`Unexpected sailing-distance pair: ${origin.tileId}/${destination.tileId}`);
+  };
+
+  assert.equal(capturePortMissionEligibility(state).eligible, true);
+  const offer = capturePortMissionOfferForCity(state, LONDON, ports, {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm
+  });
+
+  assert.equal(offer.kind, "capture-port");
+  assert.equal(offer.targetTileId, CALAIS.tileId);
+  assert.equal(offer.originFactionId, "england");
+  assert.equal(offer.reward % 250, 0);
+  assert.equal(questStateForCity(state, LONDON, ports).quest, offer);
+
+  acceptQuest(state, offer);
+  assert.equal(commissionedPortCaptureFactionId(state, CALAIS), "england");
+  assert.equal(questStateForCity(state, CALAIS, ports).kind, "in-progress-here");
+
+  const event = {
+    portId: "calais",
+    cityTileId: CALAIS.tileId,
+    newFactionId: "england",
+    source: "player"
+  };
+  advanceCapturePortMissionAfterConquest(state, CALAIS, event, 600);
+  assert.equal(state.memory.quests.active.stage, "return");
+  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
+  assert.equal(questStateForCity(state, LONDON, ports).kind, "ready-to-complete");
+
+  const doubloonsBefore = state.doubloons;
+  const reputationBefore = factionReputation(state, "england");
+  completeQuest(state, LONDON, { simMinute: 800 });
+  assert.equal(state.doubloons, doubloonsBefore + offer.reward);
+  assert.equal(
+    factionReputation(state, "england"),
+    reputationBefore + CAPTURE_PORT_MISSION_REPUTATION_GAIN
+  );
+  assert.equal(state.memory.quests.active, null);
+});
+
+test("capture commissions require guns, a full landing company, and a letter of marque", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  const context = {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 180
+  };
+
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), null);
+
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  state.ship.cannons = 7;
+  assert.equal(capturePortMissionEligibility(state).eligible, false);
+  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), null);
+
+  state.ship.cannons = 8;
+  state.ship.crew = 35;
+  assert.equal(capturePortMissionEligibility(state).eligible, false);
+  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), null);
+});
+
+test("ordinary passenger work improves standing with the commissioning port", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const quest = {
+    id: "passenger-standing-test",
+    kind: "passenger",
+    originKey: `London|United Kingdom|${LONDON.tileId}`,
+    originTileId: LONDON.tileId,
+    originName: "London",
+    originCountry: "United Kingdom",
+    originFactionId: "england",
+    destinationKey: `Dover|United Kingdom|${DOVER.tileId}`,
+    destinationTileId: DOVER.tileId,
+    destinationName: "Dover",
+    destinationCountry: "United Kingdom",
+    distanceKm: 120,
+    reward: 100,
+    passenger: { name: "Thomas Hale" }
+  };
+  const before = factionReputation(state, "england");
+
+  acceptQuest(state, quest);
+  completeQuest(state, DOVER, { simMinute: 100 });
+
+  assert.equal(factionReputation(state, "england"), before + DELIVERY_REPUTATION_GAIN);
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {

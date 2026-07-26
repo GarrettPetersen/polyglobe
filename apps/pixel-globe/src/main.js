@@ -205,6 +205,9 @@ import {
   clearPortNavigationWaypointsAt,
   consumeNamedCrewDeathNotice,
   consumePendingDiscoveryPortDialogue,
+  commissionedPortCaptureFactionId,
+  advanceCapturePortMissionAfterConquest,
+  capturePortMissionOfferForCity,
   createPortEntryStatusContext,
   createGameState,
   GAME_STATE_VERSION,
@@ -220,6 +223,7 @@ import {
   hasDiscovery,
   initializeProvisionalShipLoadout,
   sovereignTradeOpenToFaction,
+  isCapturePortQuest,
   isEnvoyQuest,
   loseFoodRations,
   loseCrew,
@@ -11091,6 +11095,10 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     });
   }
   const simMinute = Math.floor(weatherClockMinutes);
+  capturePortMissionOfferForCity(gameState, cityCall, portCities, {
+    simMinute,
+    sailingDistanceKm: sailingDistanceBetweenPorts
+  });
   deliveryOfferForCity(gameState, cityCall, portCities, { simMinute });
   const openDeliveryMission = !needsLoadout &&
     deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities);
@@ -11530,25 +11538,30 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     return false;
   }
 
+  const simMinute = Math.floor(weatherClockMinutes);
   const prize = receivePortConquestPrize(
     gameState,
     cityCall,
     portConquestPrize(cityCall),
-    { simMinute: Math.floor(weatherClockMinutes) }
+    { simMinute }
   );
+  const commissionedFactionId = commissionedPortCaptureFactionId(gameState, cityCall);
   const event = recordPortCapture(
     gameState.memory.conquest,
     cityCall,
-    ship.factionId,
-    Math.floor(weatherClockMinutes),
+    commissionedFactionId || ship.factionId,
+    simMinute,
     "player"
   );
+  const captureMission = commissionedFactionId
+    ? advanceCapturePortMissionAfterConquest(gameState, cityCall, event, simMinute)
+    : null;
   if (event.capitalCapturedFactionId) {
     closeDialogue();
     openPlayerCapitalPeaceTreaty(cityCall, event, prize);
     return true;
   }
-  completePlayerPortConquest(cityCall, event, prize, null);
+  completePlayerPortConquest(cityCall, event, prize, null, captureMission);
   return true;
 }
 
@@ -11602,7 +11615,7 @@ function openPlayerCapitalPeaceTreaty(cityCall, event, prize) {
   if (!opened) throw new Error(`Could not open capital peace treaty for ${event.portId}`);
 }
 
-function completePlayerPortConquest(cityCall, event, prize, treaty) {
+function completePlayerPortConquest(cityCall, event, prize, treaty, captureMission = null) {
   const newFaction = factionById(event.newFactionId);
   clearPlayerPortAssault(gameState.memory.flags, cityCall);
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
@@ -11621,6 +11634,10 @@ function completePlayerPortConquest(cityCall, event, prize, treaty) {
     closeDialogue();
   }
   const treatyText = treaty ? ` ${capitalPeaceTreatyDescription(treaty)}` : "";
+  const commissionText = captureMission
+    ? ` Return to ${captureMission.originName}; ${captureMission.originRulerName}'s treasury owes you ` +
+      `${captureMission.reward.toLocaleString("en-US")} doubloons.`
+    : "";
   playCoinClinkSound();
   showSurvivalNotice(
     treaty
@@ -11630,7 +11647,8 @@ function completePlayerPortConquest(cityCall, event, prize, treaty) {
   );
   openCaptainAlertModal(
     `${cityLabelText(capturedCity)} has surrendered. The captured treasury yields ` +
-      `${prize.amount} doubloons.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}`,
+      `${prize.amount} doubloons.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}` +
+      commissionText,
     "happy"
   );
   publishPlatformTimelineEvent({
@@ -22943,11 +22961,18 @@ function questJournalEntries() {
       ? "quest.passenger"
       : activeQuest.kind === "delivery"
         ? "quest.delivery"
-        : isEnvoyQuest(activeQuest) ? "quest.diplomacy" : "quest.mission";
+        : isEnvoyQuest(activeQuest)
+          ? "quest.diplomacy"
+          : "quest.mission";
     entries.push({
       id: `travel:${activeQuest.id}`,
       title: uiText(titleKey),
-      nextStep: uiText("quest.sailTo", { city: cityLabelText(activeDestination) }),
+      nextStep: isCapturePortQuest(activeQuest)
+        ? activeQuest.stage === "return"
+          ? `REPORT THE CAPTURE AT ${activeQuest.originName.toUpperCase()}`
+          : `CAPTURE ${activeQuest.targetName.toUpperCase()} FOR ` +
+            activeQuest.originFactionName.toUpperCase()
+        : uiText("quest.sailTo", { city: cityLabelText(activeDestination) }),
       style: QUEST_NAVIGATION_STYLE
     });
   }
@@ -23668,6 +23693,9 @@ function colonizationNavigationReason(objective) {
 
 function navigationQuestReason(quest) {
   if (isEnvoyQuest(quest)) return "DIPLOMATIC MISSION";
+  if (isCapturePortQuest(quest)) {
+    return quest.stage === "return" ? "REPORT CAPTURE" : "CAPTURE PORT";
+  }
   if (quest.kind === "passenger") return "PASSENGER MISSION";
   if (quest.kind === "delivery") return "DELIVERY MISSION";
   return "ACTIVE MISSION";

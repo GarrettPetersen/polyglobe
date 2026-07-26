@@ -21,6 +21,7 @@ import {
   enterSpecialEquipmentStore,
   grantLetterOfMarque,
   issuePersonalTradePass,
+  isCapturePortQuest,
   isEnvoyQuest,
   letterOfMarqueStatus,
   maybeGrantMissionPerkItem,
@@ -367,6 +368,9 @@ export function createPortArrivalDialogueSession(city, options = {}) {
 
 export function deliveryMissionShouldOpenOnArrival(gameState, city, portCities) {
   const state = questStateForCity(gameState, city, portCities);
+  if (isCapturePortQuest(state.quest)) {
+    return state.kind === "available" || state.kind === "ready-to-complete";
+  }
   return state.quest?.kind === "delivery" &&
     (state.kind === "ready-to-complete" || state.kind === "in-progress-here" ||
       (state.kind === "available" && state.quest.onboarding === true));
@@ -1707,9 +1711,11 @@ export function selectPortDialogueOption(
   }
   if (action.type === "accept-quest") {
     acceptQuest(gameState, action.quest);
-    session.feedback = action.quest.kind === "passenger"
-      ? `Accepted passage to ${action.quest.destinationName}.`
-      : `Accepted delivery to ${action.quest.destinationName}.`;
+    session.feedback = isCapturePortQuest(action.quest)
+      ? `Commission accepted. Capture ${action.quest.targetName} for ${action.quest.originFactionName}.`
+      : action.quest.kind === "passenger"
+        ? `Accepted passage to ${action.quest.destinationName}.`
+        : `Accepted delivery to ${action.quest.destinationName}.`;
     session.nodeId = "quest";
     session.selectedIndex = 0;
     return { closed: false };
@@ -1723,9 +1729,11 @@ export function selectPortDialogueOption(
       random: context.missionGiftRandom || neverGrantMissionItem,
       context
     });
-    session.feedback = quest.kind === "passenger"
-      ? `${passengerName(quest)} went ashore. Earned ${quest.reward} db.`
-      : `Delivered. Earned ${quest.reward} db. Standing improved.`;
+    session.feedback = isCapturePortQuest(quest)
+      ? `Commission fulfilled. Earned ${quest.reward} db. Standing greatly improved.`
+      : quest.kind === "passenger"
+        ? `${passengerName(quest)} went ashore. Earned ${quest.reward} db. Standing improved.`
+        : `Delivered. Earned ${quest.reward} db. Standing improved.`;
     if (missionItemGift) session.feedback += ` Gift: ${missionItemGift.item.label}.`;
     session.nodeId = session.nextPortNodeId || "root";
     session.nextPortNodeId = null;
@@ -3588,6 +3596,9 @@ function cargoView(session, city, gameState) {
 function questView(session, city, gameState, portCities) {
   const returnNodeId = session.nextPortNodeId || "root";
   const questState = questStateForCity(gameState, city, portCities);
+  if (isCapturePortQuest(questState.quest)) {
+    return capturePortQuestView(session, questState, returnNodeId);
+  }
   if (questState.kind === "ready-to-complete") {
     if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
       const envoy = isEnvoyQuest(questState.quest);
@@ -3688,6 +3699,68 @@ function questView(session, city, gameState, portCities) {
     options: [
       option("Back", { type: "node", nodeId: returnNodeId })
     ]
+  };
+}
+
+function capturePortQuestView(session, questState, returnNodeId) {
+  const quest = questState.quest;
+  const back = option("Back", { type: "node", nodeId: returnNodeId });
+  if (questState.kind === "available") {
+    return {
+      speaker: `${quest.originRulerName}'s war secretary`,
+      expressionId: "stern",
+      text: `By ${quest.originRulerName}'s warrant, this court entrusts you with more than prizes at sea. ` +
+        `${quest.targetName}, held by ${quest.targetFactionNoun}, commands waters too near our own. ` +
+        `Silence its batteries, put your company ashore, and raise ${quest.originFactionAdjective} colors ` +
+        `over the harbor. The customary spoils are yours. Return here afterward, and the treasury will pay ` +
+        `${quest.reward.toLocaleString("en-US")} doubloons.`,
+      feedback: session.feedback,
+      options: [
+        option(`Accept commission: capture ${quest.targetName}`, {
+          type: "accept-quest",
+          quest
+        }, {
+          detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
+        }),
+        back
+      ]
+    };
+  }
+  if (questState.kind === "ready-to-complete") {
+    return {
+      speaker: `${quest.originRulerName}'s war secretary`,
+      expressionId: "pleased",
+      text: `The dispatches reached us before your sails crossed the roadstead. ${quest.targetName} now ` +
+        `answers to ${quest.originRulerName}. You broke its guns, carried the walls, and kept faith with ` +
+        `your commission. The treasury stands ready to honor the crown's word.`,
+      feedback: session.feedback,
+      options: [
+        option(`Report victory  ${quest.reward.toLocaleString("en-US")} db`, {
+          type: "complete-quest"
+        }),
+        back
+      ]
+    };
+  }
+  if (questState.kind === "in-progress-here") {
+    return {
+      speaker: `${quest.originRulerName}'s war secretary`,
+      expressionId: "stern",
+      text: `The commission stands. Break the harbor batteries at ${quest.targetName}, land no fewer ` +
+        `than a full company of marines, and leave the ${quest.originFactionAdjective} colors above the quay. ` +
+        `Return only when the port is secured.`,
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+  return {
+    speaker: `${quest.originRulerName}'s war secretary`,
+    expressionId: "stern",
+    text: quest.stage === "return"
+      ? `${quest.targetName} is taken. Carry the victory dispatches back to ${quest.originName}; the crown's debt must be settled there.`
+      : `Your commission is to seize ${quest.targetName} from ${quest.targetFactionNoun}. Other business must wait upon that service.`,
+    feedback: session.feedback,
+    options: [back]
   };
 }
 

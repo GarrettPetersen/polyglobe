@@ -400,6 +400,7 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period) 
     originTileId: origin.tileId,
     originName: cityLabel(origin),
     originCountry: origin.country || "",
+    originFactionId: origin.factionId,
     destinationKey,
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
