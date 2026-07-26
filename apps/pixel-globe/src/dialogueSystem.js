@@ -3162,6 +3162,15 @@ function marketBuyGoodIds(session, market) {
 function tradeTipView(session, city) {
   const tip = session.tradeTip;
   if (!tip) throw new Error("Trade-tip dialogue requires a computed route");
+  if (tip.localMarket) {
+    return {
+      speaker: speakerName(city),
+      expressionId: "attentive",
+      text: `You won't find a better price for ${tip.goodLabel} around this area.`,
+      feedback: null,
+      options: [option("Continue", { type: "node", nodeId: tip.nextNodeId })]
+    };
+  }
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
@@ -3187,7 +3196,8 @@ export function bestPurchasedTradeRoute({
   economy,
   portCities,
   simMinute = 0,
-  sailingDistanceKm
+  sailingDistanceKm,
+  includeLocalMarket = false
 }) {
   if (!purchases || typeof purchases !== "object" || Array.isArray(purchases)) {
     throw new Error("Trade-route advice requires a purchase record");
@@ -3199,6 +3209,9 @@ export function bestPurchasedTradeRoute({
   if (typeof sailingDistanceKm !== "function") {
     throw new Error("Trade-route advice requires the precomputed sailing-distance resolver");
   }
+  if (typeof includeLocalMarket !== "boolean") {
+    throw new Error(`Trade-route local-market flag must be boolean: ${includeLocalMarket}`);
+  }
 
   let best = null;
   for (const purchase of Object.values(purchases)) {
@@ -3209,8 +3222,9 @@ export function bestPurchasedTradeRoute({
       throw new Error("Trade-route purchase cost must be non-negative");
     }
     const good = tradeGoodById(purchase.goodId);
+    const candidates = [];
     for (const destination of portCities) {
-      if (destination.tileId === originCity.tileId) continue;
+      if (!includeLocalMarket && destination.tileId === originCity.tileId) continue;
       if (!destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
       const terms = playerTradeTerms(gameState, destination, good.id);
       if (maximumPortPurchaseQuantity(
@@ -3228,12 +3242,13 @@ export function bestPurchasedTradeRoute({
         terms.saleMultiplier
       );
       const pnl = revenue - purchase.cost;
-      const distanceKm = sailingDistanceKm(originCity, destination);
+      const localMarket = destination.tileId === originCity.tileId;
+      const distanceKm = localMarket ? 0 : sailingDistanceKm(originCity, destination);
       if (distanceKm === null) continue;
       if (!Number.isInteger(distanceKm) || distanceKm < 0) {
         throw new Error(`Trade-route sailing distance is invalid: ${distanceKm}`);
       }
-      const candidate = {
+      candidates.push({
         goodId: good.id,
         goodLabel: good.label,
         destinationTileId: destination.tileId,
@@ -3241,8 +3256,18 @@ export function bestPurchasedTradeRoute({
         quantity: purchase.quantity,
         expectedPnl: pnl,
         distanceKm,
-        recommendationScore: distanceAdjustedTradeProfit(pnl, distanceKm)
-      };
+        recommendationScore: distanceAdjustedTradeProfit(pnl, distanceKm),
+        localMarket
+      });
+    }
+    const localCandidate = candidates.find((candidate) => candidate.localMarket) || null;
+    const localIsBestInArea = localCandidate !== null && candidates.every((candidate) => (
+      candidate.localMarket ||
+      candidate.distanceKm > TRADE_TIP_DISTANCE_SCALE_KM ||
+      candidate.expectedPnl <= localCandidate.expectedPnl
+    ));
+    for (const candidate of candidates) {
+      if (candidate.localMarket && !localIsBestInArea) continue;
       if (betterTradeTip(candidate, best)) best = candidate;
     }
   }
@@ -3285,7 +3310,8 @@ function bestHeldCargoTradeRoute({
     economy,
     portCities,
     simMinute,
-    sailingDistanceKm
+    sailingDistanceKm,
+    includeLocalMarket: true
   });
 }
 

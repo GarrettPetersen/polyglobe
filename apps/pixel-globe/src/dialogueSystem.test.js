@@ -1259,6 +1259,100 @@ test("leaving the sell screen without a sale recommends a market for held trade 
   );
 });
 
+test("trade advice praises the current port when its cargo price leads the local area", () => {
+  const istanbul = {
+    tileId: 107,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Ottoman Empire",
+    cityType: "islamic-desert",
+    lat: 41.01,
+    lon: 28.98,
+    population: 180000,
+    factionId: "neutral",
+    character: { name: "Kemal Reis" }
+  };
+  const bursa = {
+    tileId: 108,
+    city: "Bursa",
+    displayCity: "Bursa",
+    country: "Ottoman Empire",
+    cityType: "islamic-desert",
+    lat: 40.19,
+    lon: 29.06,
+    population: 70000,
+    factionId: "neutral"
+  };
+  const ports = [istanbul, bursa];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const istanbulFish = economy.portStates.get(istanbul.tileId).goods.get("fish");
+  const bursaFish = economy.portStates.get(bursa.tileId).goods.get("fish");
+  istanbulFish.stock = 0;
+  bursaFish.stock = bursaFish.targetStock * 100;
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.fish = 2;
+  gameState.accounts.cargoCostBasis.fish = 0;
+  const session = createPortDialogueSession(istanbul, { initialNodeId: "sell" });
+  const sailingDistanceKm = testSailingDistances([[istanbul, bursa, 140]]);
+  const market = portDialogueView(session, istanbul, gameState, economy, ports);
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+
+  assert.ok(
+    quotePortPurchase(economy, istanbul, "fish", 2) >
+      quotePortPurchase(economy, bursa, "fish", 2)
+  );
+  const result = selectPortDialogueOption(
+    session,
+    istanbul,
+    gameState,
+    economy,
+    ports,
+    backIndex,
+    { sailingDistanceKm }
+  );
+
+  assert.equal(result.tradeTip.localMarket, true);
+  assert.equal(result.tradeTip.destinationName, "Istanbul");
+  const advice = portDialogueView(session, istanbul, gameState, economy, ports);
+  assert.equal(advice.text, "You won't find a better price for Fish around this area.");
+  assert.deepEqual(advice.options.map((entry) => entry.label), ["Continue"]);
+
+  istanbulFish.stock = istanbulFish.targetStock * 100;
+  bursaFish.stock = 0;
+  const destinationSession = createPortDialogueSession(istanbul, { initialNodeId: "sell" });
+  const destinationMarket = portDialogueView(
+    destinationSession,
+    istanbul,
+    gameState,
+    economy,
+    ports
+  );
+  const destinationBackIndex = destinationMarket.options.findIndex(
+    (entry) => entry.action.type === "leave-sell"
+  );
+  const destinationResult = selectPortDialogueOption(
+    destinationSession,
+    istanbul,
+    gameState,
+    economy,
+    ports,
+    destinationBackIndex,
+    { sailingDistanceKm }
+  );
+
+  assert.equal(destinationResult.tradeTip.localMarket, false);
+  assert.equal(destinationResult.tradeTip.destinationName, "Bursa");
+  const destinationAdvice = portDialogueView(
+    destinationSession,
+    istanbul,
+    gameState,
+    economy,
+    ports
+  );
+  assert.equal(destinationAdvice.text, "I heard Bursa pays a good price for Fish.");
+  assert.equal(destinationAdvice.options[0].label, "Set a heading for Bursa");
+});
+
 test("leaving the sell screen with no sellable cargo returns directly to port business", () => {
   const city = {
     tileId: 109,
