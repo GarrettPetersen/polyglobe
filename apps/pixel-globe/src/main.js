@@ -951,6 +951,11 @@ import {
   papalActionNotice,
   papalExcommunicationTargetCandidates
 } from "./papalPolitics.js";
+import {
+  papalGossipDialogueLine,
+  recentPapalGossipForCharacter,
+  recentPapalGossipForPort
+} from "./papalGossip.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
@@ -11665,12 +11670,22 @@ function openShipDialogue(shipCall, options = {}) {
     strategicShip.encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND
     ? treasureGoal.treasureCaptainName
     : null;
-  const rumor = options.attackReason || options.cartazInspection
+  const campaignRumor = options.attackReason || options.cartazInspection
     ? null
     : maybeCampaignRumor(`ship:${shipCall.id}`);
+  const papalGossip = options.attackReason || options.cartazInspection || campaignRumor
+    ? null
+    : recentPapalGossipForCharacter(
+        gameState.relations.papacy,
+        shipCall.character,
+        Math.floor(weatherClockMinutes),
+        { interactionKey: `ship:${shipCall.id}` }
+      );
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
-    rumorText: options.attackReason || options.cartazInspection ? null : rumor?.text || null,
+    rumorText: options.attackReason || options.cartazInspection
+      ? null
+      : campaignRumor?.text || (papalGossip ? papalGossipDialogueLine(papalGossip) : null),
     listenerReligionId: gameState.playerCharacter?.religionId || null,
     pirateTreasureName
   });
@@ -13137,7 +13152,10 @@ function portDialogueContext() {
     playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
     rivalTerms: portPoliticalRivalTerms(city),
     rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
-    historicalGossip: city ? recentHistoricalGossipForPort(city, simMinute) : null,
+    historicalGossip: city
+      ? recentPapalGossipForPort(gameState.relations.papacy, city, simMinute) ||
+        recentHistoricalGossipForPort(city, simMinute)
+      : null,
     shipyard,
     sailingDistanceKm: sailingDistanceBetweenPorts,
     nearestShipyardListing: city && !questOnlyColony
