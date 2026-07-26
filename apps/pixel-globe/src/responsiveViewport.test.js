@@ -1,6 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { responsiveLogicalViewport } from "./responsiveViewport.js";
+import {
+  resolveBrowserViewportDimensions,
+  responsiveLogicalViewport
+} from "./responsiveViewport.js";
+
+test("browser viewport resolution ignores transient zero-sized iframe measurements", () => {
+  assert.deepEqual(resolveBrowserViewportDimensions({
+    shellWidth: 455,
+    shellHeight: 0,
+    windowWidth: 455,
+    windowHeight: 256,
+    visualViewportWidth: 455,
+    visualViewportHeight: 0
+  }), { width: 455, height: 256 });
+});
+
+test("browser viewport resolution defers layout when every height is zero", () => {
+  assert.equal(resolveBrowserViewportDimensions({
+    shellWidth: 455,
+    shellHeight: 0,
+    windowWidth: 455,
+    windowHeight: 0,
+    visualViewportWidth: 455,
+    visualViewportHeight: 0
+  }), null);
+});
 
 test("responsive viewport preserves the original landscape frame", () => {
   assert.deepEqual(

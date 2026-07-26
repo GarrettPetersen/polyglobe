@@ -2,6 +2,19 @@ const DEFAULT_WIDTH = 455;
 const DEFAULT_HEIGHT = 256;
 const DEFAULT_MAXIMUM_EXTENDED_DIMENSION = 910;
 
+export function resolveBrowserViewportDimensions({
+  shellWidth,
+  shellHeight,
+  windowWidth,
+  windowHeight,
+  visualViewportWidth,
+  visualViewportHeight
+}) {
+  const width = smallestPositiveDimension(shellWidth, windowWidth, visualViewportWidth);
+  const height = smallestPositiveDimension(shellHeight, windowHeight, visualViewportHeight);
+  return width == null || height == null ? null : { width, height };
+}
+
 export function responsiveLogicalViewport({
   viewportWidth,
   viewportHeight,
@@ -46,4 +59,9 @@ export function responsiveLogicalViewport({
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function smallestPositiveDimension(...values) {
+  const usable = values.filter((value) => Number.isFinite(value) && value > 0);
+  return usable.length === 0 ? null : Math.min(...usable);
 }

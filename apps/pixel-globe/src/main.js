@@ -767,7 +767,10 @@ import {
   startMenuIconId,
   tradeGoodIconId
 } from "./gameIcons.js";
-import { responsiveLogicalViewport } from "./responsiveViewport.js";
+import {
+  resolveBrowserViewportDimensions,
+  responsiveLogicalViewport
+} from "./responsiveViewport.js";
 import {
   CAPTURE_MAX_SECONDS,
   captureScenarioFromSearch,
@@ -21454,8 +21457,16 @@ function fillSnowGroundMaskForDay(dayIndex, outMask) {
 
 function fitCanvasToDisplay() {
   const viewport = window.visualViewport;
-  const viewportWidth = Math.min(shell.clientWidth || window.innerWidth, viewport?.width || window.innerWidth);
-  const viewportHeight = Math.min(shell.clientHeight || window.innerHeight, viewport?.height || window.innerHeight);
+  const dimensions = resolveBrowserViewportDimensions({
+    shellWidth: shell.clientWidth,
+    shellHeight: shell.clientHeight,
+    windowWidth: window.innerWidth,
+    windowHeight: window.innerHeight,
+    visualViewportWidth: viewport?.width,
+    visualViewportHeight: viewport?.height
+  });
+  if (!dimensions) return;
+  const { width: viewportWidth, height: viewportHeight } = dimensions;
   const logical = CAPTURE_SCENARIO
     ? CAPTURE_VIEWPORT
     : responsiveLogicalViewport({ viewportWidth, viewportHeight });
