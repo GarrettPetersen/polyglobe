@@ -1201,9 +1201,11 @@ import {
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
 import {
-  findNearestRestoredShipPlacement,
-  restoredShipPlacementPlan
-} from "./restoredShipNavigation.js";
+  createPlayerShipRecoveryState,
+  findNearestShipPlacement,
+  restoredShipPlacementPlan,
+  updatePlayerShipRecoveryState
+} from "./shipNavigationRecovery.js";
 import {
   drawnNavigationTransitionAllowed,
   resolveDrawnSurfaceNavigation
@@ -1445,6 +1447,14 @@ const SHIP_HAUL_RECOVERY_AFTER_SECONDS = 0.3;
 const SHIP_HAUL_RECOVERY_MAX_RADIUS_PX = 8;
 const SHIP_RESTORE_RECOVERY_MAX_RADIUS_PX = 8;
 const SHIP_HAUL_RECOVERY_SPEED_RAD = 0.0045;
+const SHIP_STUCK_RECOVERY_AFTER_SECONDS = 1.25;
+const SHIP_STUCK_RECOVERY_MAX_RADIUS_PX = 32;
+const SHIP_STUCK_RECOVERY_MIN_RADIUS_PX = 6;
+const SHIP_STUCK_RECOVERY_MOVEMENT_THRESHOLD_PX = 0.08;
+const SHIP_STUCK_ESCAPE_PROBE_PX = 2;
+const SHIP_STUCK_ESCAPE_DIRECTION_COUNT = 16;
+const SHIP_STUCK_RECOVERY_CLEARANCE_RADIUS_PX = SHIP_COLLISION_RADIUS_PX + 2;
+const SHIP_STUCK_RECOVERY_CLEARANCE_SAMPLES = 8;
 const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
 const SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX = 48;
 const SHIP_RIVER_HEADING_ALIGN_DOT = Math.cos(Math.PI / 3);
@@ -2414,6 +2424,7 @@ let playerSteeringHoldSeconds = 0;
 let playerHaulBlockedSeconds = 0;
 let playerBoundaryAssistContact = null;
 let playerBoundaryProbeCache = null;
+let playerNavigationRecoveryState = createPlayerShipRecoveryState();
 let camera;
 let chart;
 let localLayout;
@@ -8321,6 +8332,7 @@ function startNewVoyage() {
   sailingTutorialState = createSailingTutorialState();
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
+  playerNavigationRecoveryState = createPlayerShipRecoveryState();
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   reframeWorldNorthUp("new voyage");
   hasStartedVoyage = true;
@@ -8525,6 +8537,7 @@ async function restoreSavedVoyage(payload) {
   playerHaulBlockedSeconds = 0;
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
+  playerNavigationRecoveryState = createPlayerShipRecoveryState();
   keys.clear();
   clearPointerSteering();
 
@@ -8684,7 +8697,7 @@ function reconcileRestoredShipDrawnNavigation(initialReason = null) {
     if (openWaterTileId === undefined) {
       throw new Error(`Could not recover restored ship from blocked navigation at tile ${previousTileId}`);
     }
-    placeRestoredShipAtTileCenter(openWaterTileId);
+    placeShipAtTileCenterForRecovery(openWaterTileId);
     reason = reason || "blocked rendered hull";
     recovery = nearestValidRestoredShipPlacement();
     if (!recovery) {
@@ -8711,10 +8724,13 @@ function reconcileRestoredShipDrawnNavigation(initialReason = null) {
       `[pixel-globe] recovered restored ship from ${reason}; placed on tile ${ship.tileId}`
     );
   }
+  if (!playerShipHasLocalEscape() && !recoverPlayerToNearestOpenWater("restored ship had no local escape")) {
+    throw new Error(`Could not recover restored ship from a blocked channel at tile ${ship.tileId}`);
+  }
 }
 
 function nearestValidRestoredShipPlacement() {
-  return findNearestRestoredShipPlacement(SHIP_RESTORE_RECOVERY_MAX_RADIUS_PX, (offsetX, offsetY) => {
+  return findNearestShipPlacement(SHIP_RESTORE_RECOVERY_MAX_RADIUS_PX, (offsetX, offsetY) => {
     const x = localLayout.viewX + offsetX;
     const y = localLayout.viewY + offsetY;
     const collisionTile = localCollisionTileAtPoint(x, y);
@@ -8739,7 +8755,7 @@ function nearestValidRestoredShipPlacement() {
   });
 }
 
-function placeRestoredShipAtTileCenter(tileId) {
+function placeShipAtTileCenterForRecovery(tileId) {
   ship.tileId = tileId;
   ship.position = tileCenterVector(tileId);
   ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
@@ -15519,10 +15535,24 @@ function updateSailing(dt) {
   const blockedWhileHauling = haulMotionScale > 0 && inputHeading &&
     moveResult.collided && movedPx < 0.08;
   playerHaulBlockedSeconds = blockedWhileHauling ? playerHaulBlockedSeconds + dt : 0;
-  const recovered = blockedWhileHauling && playerHaulBlockedSeconds >= SHIP_HAUL_RECOVERY_AFTER_SECONDS
+  const fullRecoveryDue = updatePlayerShipRecoveryState(playerNavigationRecoveryState, {
+    dt,
+    steering: Boolean(inputHeading),
+    collided: moveResult.collided,
+    movedPx,
+    triggerSeconds: SHIP_STUCK_RECOVERY_AFTER_SECONDS,
+    movementThresholdPx: SHIP_STUCK_RECOVERY_MOVEMENT_THRESHOLD_PX
+  });
+  let recovered = blockedWhileHauling && playerHaulBlockedSeconds >= SHIP_HAUL_RECOVERY_AFTER_SECONDS
     ? recoverPlayerFromNavigationEdge(inputHeading, moveResult.normal, haulMotionScale)
     : false;
-  if (recovered) playerHaulBlockedSeconds = 0;
+  if (!recovered && fullRecoveryDue && !playerShipHasLocalEscape()) {
+    recovered = recoverPlayerToNearestOpenWater("sustained blocked steering");
+  }
+  if (recovered) {
+    playerHaulBlockedSeconds = 0;
+    playerNavigationRecoveryState = createPlayerShipRecoveryState();
+  }
   const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
   const tutorialChanged = updateSailingTutorials(dt, inRiver, movedPx);
@@ -16131,6 +16161,102 @@ function recoverPlayerFromNavigationEdge(inputHeading, blockedNormal, motionScal
     }
   }
   return false;
+}
+
+function playerShipHasLocalEscape() {
+  if (!ship || !localLayout || !chart || !camera) return false;
+  for (let index = 0; index < SHIP_STUCK_ESCAPE_DIRECTION_COUNT; index++) {
+    const direction = rotateTangentDirection(
+      ship.heading,
+      ship.position,
+      index * Math.PI * 2 / SHIP_STUCK_ESCAPE_DIRECTION_COUNT
+    );
+    const step = scaleVector(direction, SHIP_STUCK_ESCAPE_PROBE_PX / PIXELS_PER_RADIAN);
+    if (attemptShipStep(ship.position, ship.tileId, step).ok) return true;
+  }
+  return false;
+}
+
+function recoverPlayerToNearestOpenWater(reason) {
+  if (!ship || !localLayout || !chart || !camera) return false;
+  let recovery = nearestClearOpenWaterPlacement(
+    SHIP_STUCK_RECOVERY_MAX_RADIUS_PX,
+    SHIP_STUCK_RECOVERY_MIN_RADIUS_PX
+  );
+  if (!recovery) {
+    const previousTileId = ship.tileId;
+    const oceanTileId = nearestTileMatching(previousTileId, (tileId) => (
+      tileId !== previousTileId &&
+      isShipOceanTile(tileId) &&
+      tileHasOffshoreHullClearance(tileId)
+    ));
+    if (oceanTileId === undefined) {
+      throw new Error(`Could not find open ocean to recover player ship from tile ${previousTileId}`);
+    }
+    placeShipAtTileCenterForRecovery(oceanTileId);
+    recovery = nearestClearOpenWaterPlacement(SHIP_STUCK_RECOVERY_MAX_RADIUS_PX, 0);
+    if (!recovery) {
+      throw new Error(`Open-ocean recovery tile ${oceanTileId} has no clear rendered placement`);
+    }
+  }
+
+  applyPlayerShipRecoveryPlacement(recovery);
+  console.info(
+    `[pixel-globe] recovered player ship from ${reason}; placed on open water tile ${ship.tileId}`
+  );
+  return true;
+}
+
+function nearestClearOpenWaterPlacement(maxRadiusPx, minimumRadiusPx) {
+  return findNearestShipPlacement(maxRadiusPx, (offsetX, offsetY) => {
+    const x = localLayout.viewX + offsetX;
+    const y = localLayout.viewY + offsetY;
+    const collisionTile = localCollisionTileAtPoint(x, y);
+    if (!collisionTile) return null;
+    const position = globePositionForLocalPoint(collisionTile.tileId, x, y);
+    const navigation = shipNavigabilityAtLocalPoint(x, y, collisionTile.tileId, position);
+    if (!navigation.ok || navigation.kind !== "openWater") return null;
+    if (!openWaterPlacementHasClearance(x, y)) return null;
+    const navigationPosition = navigation.tileId === collisionTile.tileId
+      ? position
+      : globePositionForLocalPoint(navigation.tileId, x, y);
+    return { tileId: navigation.tileId, position: navigationPosition };
+  }, minimumRadiusPx);
+}
+
+function openWaterPlacementHasClearance(x, y) {
+  for (let index = 0; index < SHIP_STUCK_RECOVERY_CLEARANCE_SAMPLES; index++) {
+    const angle = index * Math.PI * 2 / SHIP_STUCK_RECOVERY_CLEARANCE_SAMPLES;
+    const sampleX = x + Math.cos(angle) * SHIP_STUCK_RECOVERY_CLEARANCE_RADIUS_PX;
+    const sampleY = y + Math.sin(angle) * SHIP_STUCK_RECOVERY_CLEARANCE_RADIUS_PX;
+    const collisionTile = localCollisionTileAtPoint(sampleX, sampleY);
+    if (!collisionTile) return false;
+    const samplePosition = globePositionForLocalPoint(collisionTile.tileId, sampleX, sampleY);
+    const navigation = shipNavigabilityAtLocalPoint(
+      sampleX,
+      sampleY,
+      collisionTile.tileId,
+      samplePosition
+    );
+    if (!navigation.ok || navigation.kind !== "openWater") return false;
+  }
+  return true;
+}
+
+function applyPlayerShipRecoveryPlacement({ x, y, candidate }) {
+  localLayout.viewX += x;
+  localLayout.viewY += y;
+  ship.tileId = candidate.tileId;
+  ship.position = candidate.position;
+  ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
+  ship.targetHeading = ship.heading.slice();
+  ship.velocity = [0, 0, 0];
+  ship.wakeParticles = [];
+  ship.lastWakeEmit = null;
+  camera = northUpCamera(ship.position, camera.right);
+  centerTileId = ship.tileId;
+  playerBoundaryAssistContact = null;
+  playerBoundaryProbeCache = null;
 }
 
 function playerHaulRecoveryDirections(inputHeading, blockedNormal) {

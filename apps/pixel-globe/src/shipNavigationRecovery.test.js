@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  findNearestRestoredShipPlacement,
-  restoredShipPlacementPlan
-} from "./restoredShipNavigation.js";
+  createPlayerShipRecoveryState,
+  findNearestShipPlacement,
+  restoredShipPlacementPlan,
+  updatePlayerShipRecoveryState
+} from "./shipNavigationRecovery.js";
 
 test("an ordinary restored ship keeps its exact position", () => {
   assert.deepEqual(restoredShipPlacementPlan({
@@ -69,7 +71,7 @@ test("ice recovery fails loudly when no open water exists", () => {
 
 test("rendered navigation recovery chooses the closest valid pixel", () => {
   const tested = [];
-  const result = findNearestRestoredShipPlacement(4, (x, y) => {
+  const result = findNearestShipPlacement(4, (x, y) => {
     tested.push([x, y]);
     return x === 2 && y === 0 ? { tileId: 19 } : null;
   });
@@ -80,4 +82,47 @@ test("rendered navigation recovery chooses the closest valid pixel", () => {
     candidate: { tileId: 19 }
   });
   assert.equal(tested.some(([x, y]) => x * x + y * y > 4), false);
+});
+
+test("large recovery searches evaluate each in-radius pixel at most once", () => {
+  const tested = new Set();
+  const result = findNearestShipPlacement(48, (x, y) => {
+    const key = `${x},${y}`;
+    assert.equal(tested.has(key), false);
+    tested.add(key);
+    return x === 36 && y === 0 ? { tileId: 27 } : null;
+  }, 6);
+
+  assert.deepEqual(result, {
+    x: 36,
+    y: 0,
+    candidate: { tileId: 27 }
+  });
+  assert.ok(tested.size < Math.PI * 48 * 48);
+  assert.equal([...tested].some((key) => {
+    const [x, y] = key.split(",").map(Number);
+    return x * x + y * y < 36;
+  }), false);
+});
+
+test("live recovery triggers only after sustained steering into a collision", () => {
+  const state = createPlayerShipRecoveryState();
+  const update = (overrides = {}) => updatePlayerShipRecoveryState(state, {
+    dt: 0.25,
+    steering: true,
+    collided: true,
+    movedPx: 0,
+    triggerSeconds: 1,
+    movementThresholdPx: 0.08,
+    ...overrides
+  });
+
+  assert.equal(update(), false);
+  assert.equal(update(), false);
+  assert.equal(update(), false);
+  assert.equal(update(), true);
+  assert.equal(state.blockedSeconds, 0);
+  assert.equal(update({ collided: false }), false);
+  assert.equal(update({ movedPx: 1 }), false);
+  assert.equal(update({ steering: false }), false);
 });
