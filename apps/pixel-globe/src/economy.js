@@ -153,7 +153,7 @@ if (TRADE_GOODS_BY_ID.size !== TRADE_GOODS.length) throw new Error("Trade goods 
 
 const REGION_PRODUCTION = Object.freeze({
   "northern-european": rates({ hardtack: 0.75, fish: 0.38, timber: 0.42, wool: 0.3, flax: 0.22, iron: 0.12, gunpowder: 0.04 }),
-  mediterranean: rates({ hardtack: 0.7, grain: 0.32, fish: 0.35, wine: 0.34, "olive-oil": 0.28, salt: 0.2, gunpowder: 0.06 }),
+  mediterranean: rates({ hardtack: 0.7, grain: 0.7, fish: 0.35, wine: 0.34, "olive-oil": 0.28, salt: 0.2, gunpowder: 0.06 }),
   "islamic-desert": rates({ hardtack: 0.55, cotton: 0.38, "cotton-cloth": 0.16, carpets: 0.14, perfume: 0.1, gunpowder: 0.05 }),
   "east-asian": rates({ hardtack: 0.55, grain: 0.7 }),
   "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 0.48, "cotton-cloth": 0.2, ginger: 0.12, dyes: 0.16, sugar: 0.12, gunpowder: 0.03 }),
@@ -979,6 +979,7 @@ function createPortState(port, seedKey) {
       .slice(0, VILLAGE_MARKET_GOOD_LIMIT)
       .map(([goodId]) => goodId))
     : null);
+  assertSustainableNativeExport(port, goods, marketGoodIds);
   const targetSpecie = settlementType === "village"
     ? Math.round(700 + populationScale * 1800)
     : Math.round(8000 + populationScale * 38000);
@@ -999,6 +1000,20 @@ function createPortState(port, seedKey) {
     marketIntegrationOffsets: new Map(TRADE_GOODS.map((good) => [good.id, 0])),
     goods
   };
+}
+
+function assertSustainableNativeExport(port, goods, marketGoodIds) {
+  const sustainable = TRADE_GOODS.some((good) => {
+    if (good.alwaysAvailable || good.sellable === false || PRODUCTION_INPUTS[good.id]) return false;
+    if (marketGoodIds && !marketGoodIds.has(good.id)) return false;
+    const state = goods.get(good.id);
+    return state.productionPerDay > state.consumptionPerDay;
+  });
+  if (!sustainable) {
+    throw new Error(
+      `${port.displayCity || port.city} has no sustainable native market good`
+    );
+  }
 }
 
 function advancePortEconomy(port, elapsedDays) {

@@ -383,6 +383,43 @@ test("regional production creates comparative advantage and profitable merchant 
   assert.ok(plan.cargoUnits <= 100);
 });
 
+test("every 1522 city has a sustainable native export without merchant traffic", () => {
+  const cities = CITY_CATALOG.map((city, index) => ({ ...city, tileId: index + 1000 }));
+  const economy = createWorldEconomy({
+    ports: cities,
+    shipyardPorts: [cities[0]],
+    startMinute: 0,
+    seedKey: "native-export-audit"
+  });
+
+  for (const city of cities) {
+    const sustainable = portMarket(economy, city).filter((row) => (
+      row.good.sellable !== false &&
+      row.listedForSale &&
+      row.productionPerDay > row.consumptionPerDay
+    ));
+    assert.ok(
+      sustainable.length > 0,
+      `${city.displayCity || city.city} has no sustainable native export`
+    );
+  }
+});
+
+test("an isolated Mediterranean city replenishes native grain after its market is emptied", () => {
+  const thessaloniki = port(119, "Thessaloniki", "Greece", "mediterranean", 50000);
+  const economy = createWorldEconomy({ ports: [thessaloniki], startMinute: 0 });
+  for (const good of TRADE_GOODS) {
+    if (!good.alwaysAvailable) destroyPortGoodStock(economy, thessaloniki, good.id);
+  }
+
+  advanceWorldEconomy(economy, 30 * 24 * 60);
+
+  const grain = marketByGood(economy, thessaloniki).get("grain");
+  assert.ok(grain.productionPerDay > grain.consumptionPerDay);
+  assert.ok(grain.stock > 0);
+  assert.equal(grain.listedForSale, true);
+});
+
 test("Baltic ports offer distinct, moderate-value regional trade loops", () => {
   const gdansk = port(120, "Gdansk", "Poland", "northern-european", 50000);
   const lubeck = port(121, "Lubeck", "Germany", "northern-european", 50000);
