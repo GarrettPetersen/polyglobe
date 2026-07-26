@@ -513,6 +513,11 @@ import {
   shipDialogueView
 } from "./dialogueSystem.js";
 import {
+  pauseDialogueShipMotion,
+  resumeDialogueShipMotion,
+  worldSimulationIsPaused
+} from "./dialogueMotion.js";
+import {
   NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
@@ -2360,6 +2365,7 @@ let playerPerkTotalsCache = null;
 let playerEffectiveShipStatsCache = null;
 let playerNavalWeaponCache = null;
 let dialogueState = null;
+let dialogueShipMotionPause = null;
 let dialogueLayout = createDialogueLayoutState();
 let startMenu = null;
 let lakeBattleMode = null;
@@ -4038,8 +4044,16 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (scheduleNextFrame) requestAnimationFrame(loop);
     return;
   }
-  if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal &&
-      !gameOverReason && !goldTreasureSequence) {
+  const simulationPaused = worldSimulationIsPaused({
+    capturePlaybackPaused: Boolean(capturePlaybackPaused),
+    menusOpen: menusAreOpen(),
+    dialogueActive: Boolean(dialogueState),
+    characterAlertActive: Boolean(captainAlertModal),
+    playerIntroActive: Boolean(playerIntroModal),
+    gameOver: Boolean(gameOverReason),
+    goldTreasureActive: Boolean(goldTreasureSequence)
+  });
+  if (!simulationPaused) {
     advanceActivePlayTime(gameState, dt);
     if (updatePlayerWind(dt)) dirty = true;
     if (updateDemoVoyageLimit()) {
@@ -4082,7 +4096,8 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     saveVoyageNow("periodic autosave");
   }
   if (updateWorldSpriteAnimation(nowMs)) dirty = true;
-  if (forceRender || dirty || menusAreOpen() || dialogueState || gameOverReason || nowMs - lastStatusMs > 1000) {
+  if (forceRender || dirty || menusAreOpen() || dialogueState || captainAlertModal ||
+      gameOverReason || nowMs - lastStatusMs > 1000) {
     measurePerformanceBenchmarkStage("render", () => render(nowMs));
     dirty = false;
     lastStatusMs = nowMs;
@@ -4487,7 +4502,7 @@ function openCharacterAlertModal(character, message, expressionId = "neutral", o
   if (!character || captainAlertModal || gameOverReason) return false;
   if (options.kind !== "sequence") characterAlertPortraitStage = createDialoguePortraitStageState();
   captainAlertModal = createCharacterAlertModal(character, message, expressionId, options);
-  stopShipForDialogue();
+  pauseShipForOverlay();
   for (const participant of [captainAlertModal.leftCharacter, captainAlertModal.rightCharacter].filter(Boolean)) {
     const participantExpression = characterExpression(
       participant,
@@ -4517,7 +4532,7 @@ function openSailingHelpModal(inputMode) {
   if (PERFORMANCE_BENCHMARK) return false;
   if (!gameState?.playerCharacter || captainAlertModal || gameOverReason) return false;
   captainAlertModal = createSailingHelpModal(inputMode);
-  stopShipForDialogue();
+  pauseShipForOverlay();
   dirty = true;
   return true;
 }
@@ -4602,6 +4617,7 @@ function activateCaptainAlertChoice() {
   keys.clear();
   clearPointerSteering();
   choice.onSelect();
+  resumeShipAfterOverlayIfReady();
   dirty = true;
 }
 
@@ -5159,6 +5175,7 @@ function closeCaptainAlertModal() {
   }
   if (presentPendingNamedCrewDeathNotice()) return;
   if (presentPendingBirthdayDialogue()) return;
+  resumeShipAfterOverlayIfReady();
   dirty = true;
 }
 
@@ -6181,7 +6198,7 @@ function sailingAmbientTargets(dt, nearestLand) {
   const angleFromWindRad = Math.acos(clamp(-alignment, -1, 1));
   const targets = updateSailingAudioState(sailingAudioState, {
     dt,
-    paused: Boolean(dialogueState || menusAreOpen() || gameOverReason),
+    paused: Boolean(dialogueState || captainAlertModal || menusAreOpen() || gameOverReason),
     heading: ship.heading,
     speedPx: vectorLength(ship.velocity) * PIXELS_PER_RADIAN,
     isRiver: shipIsInRiverWater(),
@@ -6190,7 +6207,7 @@ function sailingAmbientTargets(dt, nearestLand) {
     angleFromWindRad,
     stallAngleRad: currentPlayerEffectiveShipStats().upwindStallAngleRad
   });
-  const paused = Boolean(dialogueState || menusAreOpen() || gameOverReason);
+  const paused = Boolean(dialogueState || captainAlertModal || menusAreOpen() || gameOverReason);
   const rowing = !paused && playerShipIsRowing();
   if (!anchored) {
     return {
@@ -6427,6 +6444,7 @@ function setupPerformanceBenchmark() {
   playerIntroModal = null;
   captainAlertModal = null;
   dialogueState = null;
+  dialogueShipMotionPause = null;
   lastFrameMs = performance.now();
   performanceBenchmarkState = createPerformanceBenchmarkState(PERFORMANCE_BENCHMARK, lastFrameMs);
   performanceBenchmarkState.stagedCartCount = stagedCartCount;
@@ -6805,6 +6823,7 @@ function updateCaptureFight(sequence) {
       dialogueState = null;
       dialogueLayout = createDialogueLayoutState();
       captainAlertModal = null;
+      resumeShipAfterOverlayIfReady();
       dirty = true;
     }
   }
@@ -8249,6 +8268,7 @@ async function restoreSavedVoyage(payload) {
     : null;
   captainAlertModal = null;
   dialogueState = null;
+  dialogueShipMotionPause = null;
   dialogueLayout = createDialogueLayoutState();
   fishingAction = null;
   whaleHarpoonProjectile = null;
@@ -11690,7 +11710,7 @@ function openShipDialogue(shipCall, options = {}) {
     pirateTreasureName
   });
   dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
+  pauseShipForOverlay();
   ensureDialoguePortraitLoaded();
   if (!options.attackReason && !options.cartazInspection) {
     maybeOpenPandaNpcReaction(`ship:${shipCall.id}`, shipCall.character);
@@ -11817,8 +11837,33 @@ function approximateOceanRumorLocation(position, interactionKey, salt) {
 }
 
 function stopShipForDialogue() {
+  dialogueShipMotionPause = null;
   fishingAction = null;
   stopShipMotion();
+}
+
+function pauseShipForOverlay() {
+  fishingAction = null;
+  if (!ship) return;
+  const canResume = !anchored && !portWaitState && !gameOverReason && !playerShipIsInvulnerable();
+  if (!canResume) {
+    stopShipForDialogue();
+    return;
+  }
+  dialogueShipMotionPause = pauseDialogueShipMotion(ship, dialogueShipMotionPause);
+  clearPointerSteering();
+  keys.clear();
+}
+
+function resumeShipAfterOverlayIfReady() {
+  if (!dialogueShipMotionPause) return false;
+  if (dialogueState || captainAlertModal || playerIntroModal || goldTreasureSequence) return false;
+  const snapshot = dialogueShipMotionPause;
+  dialogueShipMotionPause = null;
+  if (!ship || anchored || portWaitState || gameOverReason) return false;
+  resumeDialogueShipMotion(ship, snapshot);
+  dirty = true;
+  return true;
 }
 
 function stopShipMotion() {
@@ -12307,6 +12352,7 @@ function startWaitingInPort(city) {
   departureControlFeedback = null;
   resetSurvivalDamageTimers();
   dialogueState = null;
+  dialogueShipMotionPause = null;
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   clearCombatForShip(PLAYER_COMBAT_ID);
@@ -12383,6 +12429,7 @@ function closeDialogue() {
     playSailDeploySound();
     saveVoyageNow("left port dialogue");
   }
+  resumeShipAfterOverlayIfReady();
   dirty = true;
 }
 
@@ -12729,6 +12776,7 @@ function updateItemAcquisitionEffects(nowMs) {
     if (captainMessage && !openCaptainAlertModal(captainMessage, "happy")) {
       throw new Error("Gold treasure sequence could not open its captain dialogue");
     }
+    if (!captainMessage) resumeShipAfterOverlayIfReady();
     changed = true;
   }
   return itemAcquisitionEffects.length > 0 || changed;
@@ -17606,6 +17654,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   portWaitState = null;
   portWaitButtonRect = null;
   dialogueState = null;
+  dialogueShipMotionPause = null;
   dialogueLayout = createDialogueLayoutState();
   pendingNpcCombatHailId = null;
   closeMenusForGameOver();
@@ -18502,7 +18551,7 @@ function openShoreBatteryCombatHail(city, state) {
     simMinute: Math.floor(weatherClockMinutes)
   });
   dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
+  pauseShipForOverlay();
   ensureDialoguePortraitLoaded();
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
   dirty = true;
@@ -19364,7 +19413,7 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
     surrenderPrize
   });
   dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
+  pauseShipForOverlay();
   ensureDialoguePortraitLoaded();
   saveVoyageNow("pirate captive rescued from defeated ship");
   dirty = true;
@@ -19508,6 +19557,7 @@ function resolveColonizationDefenseAttacker(loserId, noticeText) {
   if (dialogueState?.kind === "ship" && dialogueState.npcShipId === loserId) {
     dialogueState = null;
     dialogueLayout = createDialogueLayoutState();
+    resumeShipAfterOverlayIfReady();
   }
   shipCombatEntryCollisionGrace.delete(loserId);
   npcCombatProjectiles = npcCombatProjectiles.filter(
@@ -21647,7 +21697,7 @@ function startGoldTreasureSequence({
     completeAtMs: itemAcquisitionEffectEndMs(effects.at(-1)),
     captainMessage
   };
-  stopShipForDialogue();
+  pauseShipForOverlay();
   dirty = true;
   return true;
 }
