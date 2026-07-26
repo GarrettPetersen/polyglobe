@@ -828,6 +828,14 @@ import {
   saveKeyBindings
 } from "./keyBindings.js";
 import {
+  CONTROL_SCHEME_ABSOLUTE,
+  CONTROL_SCHEME_RELATIVE,
+  nextControlScheme,
+  normalizeControlScheme,
+  relativeHeadingAngle,
+  steeringIntentForScheme
+} from "./controlScheme.js";
+import {
   MINIMAP_LONGITUDE_BIN_COUNT,
   exploredMinimapViewport,
   minimapLandWeight,
@@ -1780,6 +1788,7 @@ let GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
 const LANGUAGE_STORAGE_KEY = "pixel_globe_language";
 const CONTROLLER_GLYPH_STORAGE_KEY = "pixel_globe_controller_glyphs";
+const CONTROL_SCHEME_STORAGE_KEY = "pixel_globe_control_scheme";
 let currentLanguage = normalizeLanguage(
   new URLSearchParams(window.location.search).get("lang") ||
   readLocalStorage(LANGUAGE_STORAGE_KEY) ||
@@ -1839,18 +1848,21 @@ const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 230;
+const OPTIONS_PANEL_H = 234;
 const OPTIONS_ROW_H = 22;
-const OPTIONS_ROW_COUNT = 9;
+const OPTIONS_ROW_COUNT = 10;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_LANGUAGE = 4;
-const OPTIONS_ROW_CONTROLLER_ICONS = 5;
-const OPTIONS_ROW_CONTROLS = 6;
-const OPTIONS_ROW_TELEMETRY = 7;
-const OPTIONS_ROW_START_MENU = 8;
+const OPTIONS_ROW_CONTROL_SCHEME = 5;
+const OPTIONS_ROW_CONTROLLER_ICONS = 6;
+const OPTIONS_ROW_CONTROLS = 7;
+const OPTIONS_ROW_TELEMETRY = 8;
+const OPTIONS_ROW_START_MENU = 9;
+const CONTROL_SCHEME_PANEL_W = 342;
+const CONTROL_SCHEME_PANEL_H = 218;
 const TELEMETRY_CONSENT_PANEL_W = 360;
 const TELEMETRY_CONSENT_PANEL_H = 188;
 const KEY_BINDINGS_PANEL_MAX_W = 410;
@@ -4393,6 +4405,7 @@ function createOptionsMenuState() {
     controllerGlyphPreference: normalizeControllerGlyphPreference(
       readLocalStorage(CONTROLLER_GLYPH_STORAGE_KEY) || CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC
     ),
+    controlScheme: loadStoredControlScheme(),
     fullscreenError: null,
     returnError: null,
     selectedIndex: 0,
@@ -4414,7 +4427,10 @@ function createOptionsMenuState() {
     bindingBackRect: null,
     bindingResetRect: null,
     bindingPreviousRect: null,
-    bindingNextRect: null
+    bindingNextRect: null,
+    controlSchemeSelectedIndex: 0,
+    controlSchemeOptionRects: [],
+    controlSchemeBackRect: null
   };
 }
 
@@ -6523,6 +6539,16 @@ function loadStoredAudioMuted() {
   return readLocalStorage(AUDIO_MUTED_STORAGE_KEY) === "true";
 }
 
+function loadStoredControlScheme() {
+  const raw = readLocalStorage(CONTROL_SCHEME_STORAGE_KEY);
+  try {
+    return normalizeControlScheme(raw);
+  } catch (error) {
+    console.warn("[pixel-globe] discarded invalid stored control scheme", error);
+    return CONTROL_SCHEME_ABSOLUTE;
+  }
+}
+
 function readLocalStorage(key) {
   return gameStorage.getItem(key);
 }
@@ -7467,6 +7493,14 @@ function setControllerGlyphPreference(value) {
   dirty = true;
 }
 
+function setControlScheme(value) {
+  const normalized = normalizeControlScheme(value);
+  optionsMenu.controlScheme = normalized;
+  optionsMenu.controlSchemeSelectedIndex = normalized === CONTROL_SCHEME_RELATIVE ? 1 : 0;
+  writeLocalStorage(CONTROL_SCHEME_STORAGE_KEY, normalized);
+  dirty = true;
+}
+
 function setAudioMuted(muted) {
   optionsMenu.muted = !!muted;
   writeLocalStorage(AUDIO_MUTED_STORAGE_KEY, String(optionsMenu.muted));
@@ -7996,27 +8030,26 @@ function startLakeBattleSinkSequence(battle, nowMs) {
 function lakeBattleInputHeading() {
   const battle = lakeBattleMode?.battle;
   if (!battle) return null;
-  let dx = 0;
-  let dy = 0;
-  if (keys.has(KEY_ACTION.STEER_LEFT)) dx -= 1;
-  if (keys.has(KEY_ACTION.STEER_RIGHT)) dx += 1;
-  if (keys.has(KEY_ACTION.STEER_UP)) dy -= 1;
-  if (keys.has(KEY_ACTION.STEER_DOWN)) dy += 1;
   if (pointerSteering.active && pointerSteering.point) {
     const px = pointerSteering.point.x - battle.player.x;
     const py = pointerSteering.point.y - battle.player.y;
     const length = Math.hypot(px, py);
-    if (length >= POINTER_STEERING_DEADZONE_PX) {
-      dx += px / length;
-      dy += py / length;
-    }
+    if (length >= POINTER_STEERING_DEADZONE_PX) return Math.atan2(py, px);
   }
-  if (controllerSteering) {
-    dx += controllerSteering.dx * controllerSteering.strength;
-    dy -= controllerSteering.dy * controllerSteering.strength;
+  const intent = steeringIntentForScheme({
+    scheme: optionsMenu.controlScheme,
+    left: keys.has(KEY_ACTION.STEER_LEFT),
+    right: keys.has(KEY_ACTION.STEER_RIGHT),
+    up: keys.has(KEY_ACTION.STEER_UP),
+    down: keys.has(KEY_ACTION.STEER_DOWN),
+    controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
+    controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
+  });
+  if (intent.relativeTurn !== 0) {
+    return relativeHeadingAngle(battle.player.headingRad, intent.relativeTurn);
   }
-  if (dx === 0 && dy === 0) return null;
-  return Math.atan2(dy, dx);
+  if (intent.absoluteX === 0 && intent.absoluteY === 0) return null;
+  return Math.atan2(-intent.absoluteY, intent.absoluteX);
 }
 
 function fireLakeBattlePlayerBroadside(sideName) {
@@ -9354,6 +9387,8 @@ function closeOptionsMenu() {
   optionsMenu.bindingResetRect = null;
   optionsMenu.bindingPreviousRect = null;
   optionsMenu.bindingNextRect = null;
+  optionsMenu.controlSchemeOptionRects = [];
+  optionsMenu.controlSchemeBackRect = null;
   optionsMenu.returnError = null;
   dirty = true;
 }
@@ -9627,6 +9662,10 @@ function handleOptionsKeyDown(event) {
     handleKeyBindingsKeyDown(event);
     return;
   }
+  if (optionsMenu.view === "control-scheme") {
+    handleControlSchemeKeyDown(event);
+    return;
+  }
   if (event.key === "Escape") {
     closeOptionsMenu();
     return;
@@ -9645,6 +9684,8 @@ function handleOptionsKeyDown(event) {
       setSfxVolume(optionsMenu.sfxVolume + direction * 0.05);
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
       setInterfaceLanguage(nextLanguage(currentLanguage, direction));
+    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROL_SCHEME) {
+      setControlScheme(nextControlScheme(optionsMenu.controlScheme, direction));
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS) {
       setControllerGlyphPreference(nextControllerGlyphPreference(
         optionsMenu.controllerGlyphPreference,
@@ -9661,6 +9702,7 @@ function handleOptionsKeyDown(event) {
     if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
       setInterfaceLanguage(nextLanguage(currentLanguage));
     }
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROL_SCHEME) openControlSchemeMenu();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS) {
       setControllerGlyphPreference(nextControllerGlyphPreference(optionsMenu.controllerGlyphPreference));
     }
@@ -9765,6 +9807,40 @@ function openKeyBindingsMenu() {
   optionsMenu.activeSliderKey = null;
   keys.clear();
   dirty = true;
+}
+
+function openControlSchemeMenu() {
+  optionsMenu.view = "control-scheme";
+  optionsMenu.controlSchemeSelectedIndex =
+    optionsMenu.controlScheme === CONTROL_SCHEME_RELATIVE ? 1 : 0;
+  optionsMenu.controlSchemeOptionRects = [];
+  optionsMenu.controlSchemeBackRect = null;
+  optionsMenu.activeSliderKey = null;
+  keys.clear();
+  dirty = true;
+}
+
+function closeControlSchemeMenu() {
+  optionsMenu.view = "settings";
+  optionsMenu.controlSchemeOptionRects = [];
+  optionsMenu.controlSchemeBackRect = null;
+  dirty = true;
+}
+
+function handleControlSchemeKeyDown(event) {
+  if (event.key === "Escape") {
+    closeControlSchemeMenu();
+    return;
+  }
+  if (["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
+    const direction = ["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1;
+    const scheme = nextControlScheme(optionsMenu.controlScheme, direction);
+    setControlScheme(scheme);
+    return;
+  }
+  if (event.key === "Enter" || event.key === " " || event.key === "Backspace") {
+    closeControlSchemeMenu();
+  }
 }
 
 function closeKeyBindingsMenu() {
@@ -10237,6 +10313,10 @@ function handleOptionsPointerDown(point) {
     handleKeyBindingsPointerDown(point);
     return;
   }
+  if (optionsMenu.view === "control-scheme") {
+    handleControlSchemePointerDown(point);
+    return;
+  }
   updateOptionsSelectionFromPoint(point);
   if (pointInRect(point, optionsMenu.closeButtonRect)) {
     closeOptionsMenu();
@@ -10263,6 +10343,11 @@ function handleOptionsPointerDown(point) {
     setInterfaceLanguage(nextLanguage(currentLanguage));
     return;
   }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROL_SCHEME])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_CONTROL_SCHEME;
+    openControlSchemeMenu();
+    return;
+  }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROLLER_ICONS])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_CONTROLLER_ICONS;
     setControllerGlyphPreference(nextControllerGlyphPreference(optionsMenu.controllerGlyphPreference));
@@ -10281,6 +10366,22 @@ function handleOptionsPointerDown(point) {
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_START_MENU])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_START_MENU;
     returnToStartMenuFromOptions();
+  }
+}
+
+function handleControlSchemePointerDown(point) {
+  if (pointInRect(point, optionsMenu.closeButtonRect)) {
+    closeOptionsMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.controlSchemeBackRect)) {
+    closeControlSchemeMenu();
+    return;
+  }
+  for (const entry of optionsMenu.controlSchemeOptionRects) {
+    if (!pointInRect(point, entry.rect)) continue;
+    setControlScheme(entry.scheme);
+    return;
   }
 }
 
@@ -10804,6 +10905,16 @@ function updateOptionsSelectionFromPoint(point) {
       if (!pointInRect(point, entry.rect)) continue;
       optionsMenu.bindingSelectedIndex = entry.actionIndex;
       optionsMenu.bindingSelectedSlot = entry.slotIndex;
+      dirty = true;
+      return;
+    }
+    return;
+  }
+  if (optionsMenu.view === "control-scheme") {
+    for (const entry of optionsMenu.controlSchemeOptionRects) {
+      if (!pointInRect(point, entry.rect)) continue;
+      optionsMenu.controlSchemeSelectedIndex =
+        entry.scheme === CONTROL_SCHEME_RELATIVE ? 1 : 0;
       dirty = true;
       return;
     }
@@ -15510,23 +15621,31 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
 function inputHeadingForShip() {
   const captureHeading = captureAutopilotHeading();
   if (captureHeading) return captureHeading;
-  let dx = 0;
-  let dy = 0;
-  if (keys.has(KEY_ACTION.STEER_LEFT)) dx -= 1;
-  if (keys.has(KEY_ACTION.STEER_RIGHT)) dx += 1;
-  if (keys.has(KEY_ACTION.STEER_UP)) dy += 1;
-  if (keys.has(KEY_ACTION.STEER_DOWN)) dy -= 1;
   const pointerVector = pointerSteeringInputVector();
   if (pointerVector) {
-    dx += pointerVector.dx;
-    dy += pointerVector.dy;
+    return cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy);
   }
-  if (controllerSteering) {
-    dx += controllerSteering.dx * controllerSteering.strength;
-    dy += controllerSteering.dy * controllerSteering.strength;
+  const intent = steeringIntentForScheme({
+    scheme: optionsMenu.controlScheme,
+    left: keys.has(KEY_ACTION.STEER_LEFT),
+    right: keys.has(KEY_ACTION.STEER_RIGHT),
+    up: keys.has(KEY_ACTION.STEER_UP),
+    down: keys.has(KEY_ACTION.STEER_DOWN),
+    controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
+    controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
+  });
+  if (intent.relativeTurn !== 0) {
+    return rotateTangentDirection(
+      ship.heading,
+      ship.position,
+      -intent.relativeTurn * Math.PI / 2
+    );
   }
-  if (dx === 0 && dy === 0) return null;
+  if (intent.absoluteX === 0 && intent.absoluteY === 0) return null;
+  return cameraSpaceHeadingForShip(intent.absoluteX, intent.absoluteY);
+}
 
+function cameraSpaceHeadingForShip(dx, dy) {
   return normalizeTangentOrFallback([
     camera.right[0] * dx + camera.up[0] * dy,
     camera.right[1] * dx + camera.up[1] * dy,
@@ -27394,6 +27513,10 @@ function drawOptionsMenu() {
     drawKeyBindingsMenu();
     return;
   }
+  if (optionsMenu.view === "control-scheme") {
+    drawControlSchemeMenu();
+    return;
+  }
   const panelX = Math.floor((SCREEN_W - OPTIONS_PANEL_W) / 2);
   const panelH = Math.min(OPTIONS_PANEL_H, SCREEN_H - 20);
   const panelY = Math.floor((SCREEN_H - panelH) / 2);
@@ -27438,6 +27561,7 @@ function drawOptionsMenu() {
     sfxRow,
     muteRow,
     languageRow,
+    controlSchemeRow,
     controllerIconsRow,
     controlsRow,
     telemetryRow,
@@ -27449,6 +27573,7 @@ function drawOptionsMenu() {
     sfxRow,
     muteRow,
     languageRow,
+    controlSchemeRow,
     controllerIconsRow,
     controlsRow,
     telemetryRow,
@@ -27460,6 +27585,10 @@ function drawOptionsMenu() {
   drawOptionsVolumeRow(sfxRow, uiText("options.sfx"), "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
   drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
   drawOptionsLanguageRow(languageRow, optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE);
+  drawOptionsControlSchemeRow(
+    controlSchemeRow,
+    optionsMenu.selectedIndex === OPTIONS_ROW_CONTROL_SCHEME
+  );
   drawOptionsControllerIconsRow(
     controllerIconsRow,
     optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS
@@ -27468,6 +27597,163 @@ function drawOptionsMenu() {
   drawOptionsTelemetryRow(telemetryRow, optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY);
   drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
   ctx.restore();
+}
+
+function drawControlSchemeMenu() {
+  const panelW = Math.min(CONTROL_SCHEME_PANEL_W, SCREEN_W - 12);
+  const panelH = Math.min(CONTROL_SCHEME_PANEL_H, SCREEN_H - 12);
+  const panelX = Math.floor((SCREEN_W - panelW) / 2);
+  const panelY = Math.floor((SCREEN_H - panelH) / 2);
+  const panel = { x: panelX, y: panelY, w: panelW, h: panelH };
+  optionsMenu.panelRect = panel;
+
+  ctx.save();
+  drawPiratePaperModal(panel, 0.82);
+  optionsMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
+  drawOptionsCloseButton(
+    optionsMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect)
+  );
+  drawOptionsText(uiText("options.controlScheme.title"), panel.x + panel.w / 2, panel.y + 10, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+
+  const gap = 8;
+  const cardY = panel.y + 36;
+  const cardH = panel.h - 78;
+  const cardW = Math.floor((panel.w - 28 - gap) / 2);
+  const schemes = [CONTROL_SCHEME_ABSOLUTE, CONTROL_SCHEME_RELATIVE];
+  optionsMenu.controlSchemeOptionRects = schemes.map((scheme, index) => ({
+    scheme,
+    rect: {
+      x: panel.x + 10 + index * (cardW + gap),
+      y: cardY,
+      w: cardW,
+      h: cardH
+    }
+  }));
+  for (let index = 0; index < optionsMenu.controlSchemeOptionRects.length; index += 1) {
+    const entry = optionsMenu.controlSchemeOptionRects[index];
+    drawControlSchemeCard(
+      entry,
+      index === optionsMenu.controlSchemeSelectedIndex,
+      entry.scheme === optionsMenu.controlScheme
+    );
+  }
+
+  const note = fitPixelText(
+    uiText("options.controlScheme.pointerNote"),
+    PIXEL_FONT_SMALL_8,
+    panel.w - 92
+  );
+  drawOptionsText(note, panel.x + 10, panel.y + panel.h - 25, {
+    font: PIXEL_FONT_SMALL_8,
+    color: PIRATE_MENU_INK_MUTED
+  });
+  optionsMenu.controlSchemeBackRect = {
+    x: panel.x + panel.w - 74,
+    y: panel.y + panel.h - 32,
+    w: 64,
+    h: 24
+  };
+  drawPiratePaperInset(
+    optionsMenu.controlSchemeBackRect,
+    pointInRect(optionsMenu.hoverPoint, optionsMenu.controlSchemeBackRect)
+  );
+  drawOptionsText(
+    uiText("common.back"),
+    optionsMenu.controlSchemeBackRect.x + optionsMenu.controlSchemeBackRect.w / 2,
+    controlTextY(optionsMenu.controlSchemeBackRect),
+    { font: PIXEL_FONT_DIALOGUE_8, align: "center", color: PIRATE_MENU_INK }
+  );
+  ctx.restore();
+}
+
+function drawControlSchemeCard(entry, focused, active) {
+  const { rect, scheme } = entry;
+  drawPiratePaperInset(rect, focused);
+  if (active) {
+    ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+    ctx.fillRect(rect.x, rect.y, 3, rect.h);
+    ctx.fillRect(rect.x + 6, rect.y + 6, 3, 3);
+  }
+  const labelKey = scheme === CONTROL_SCHEME_RELATIVE
+    ? "options.controlScheme.relative"
+    : "options.controlScheme.absolute";
+  const detailKey = scheme === CONTROL_SCHEME_RELATIVE
+    ? "options.controlScheme.relativeDetail"
+    : "options.controlScheme.absoluteDetail";
+  drawOptionsText(uiText(labelKey), rect.x + rect.w / 2, rect.y + 7, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  const diagram = {
+    x: rect.x + Math.floor((rect.w - 72) / 2),
+    y: rect.y + 24,
+    w: 72,
+    h: 58
+  };
+  drawControlSchemeDiagram(diagram, scheme);
+  const lines = wrapPixelText(uiText(detailKey), PIXEL_FONT_SMALL_8, rect.w - 14, 3);
+  const lineHeight = localizedLineHeight(10);
+  for (let index = 0; index < lines.length; index += 1) {
+    drawOptionsText(lines[index], rect.x + rect.w / 2, rect.y + 89 + index * lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center",
+      color: PIRATE_MENU_INK_MUTED
+    });
+  }
+}
+
+function drawControlSchemeDiagram(rect, scheme) {
+  ctx.fillStyle = "#3b5dc9";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.fillStyle = "#41a6f6";
+  for (let x = rect.x + 4; x < rect.x + rect.w - 3; x += 11) {
+    ctx.fillRect(x, rect.y + 8 + ((x - rect.x) % 3), 3, 1);
+    ctx.fillRect(x + 4, rect.y + rect.h - 9, 2, 1);
+  }
+  const centerX = rect.x + Math.floor(rect.w / 2);
+  const centerY = rect.y + Math.floor(rect.h / 2);
+  drawGameIcon("menu:ship", centerX - 8, centerY - 8, { contrastOutline: true });
+  ctx.fillStyle = "#f9c22b";
+  if (scheme === CONTROL_SCHEME_ABSOLUTE) {
+    drawPixelDirectionArrow(centerX, rect.y + 4, 0, -1);
+    drawPixelDirectionArrow(rect.x + rect.w - 5, centerY, 1, 0);
+    drawPixelDirectionArrow(centerX, rect.y + rect.h - 5, 0, 1);
+    drawPixelDirectionArrow(rect.x + 4, centerY, -1, 0);
+    return;
+  }
+  drawPixelTurnArrow(centerX - 11, centerY, -1);
+  drawPixelTurnArrow(centerX + 11, centerY, 1);
+}
+
+function drawPixelDirectionArrow(tipX, tipY, dx, dy) {
+  for (let step = 3; step <= 9; step += 1) {
+    ctx.fillRect(tipX - dx * step, tipY - dy * step, 1, 1);
+  }
+  ctx.fillRect(tipX - dx * 2 - dy * 2, tipY - dy * 2 - dx * 2, 1, 1);
+  ctx.fillRect(tipX - dx * 2 + dy * 2, tipY - dy * 2 + dx * 2, 1, 1);
+}
+
+function drawPixelTurnArrow(centerX, centerY, direction) {
+  const outerX = centerX + direction * 9;
+  for (let y = centerY - 10; y <= centerY + 6; y += 1) {
+    ctx.fillRect(outerX, y, 1, 1);
+  }
+  for (let x = Math.min(centerX, outerX); x <= Math.max(centerX, outerX); x += 1) {
+    ctx.fillRect(x, centerY - 10, 1, 1);
+  }
+  ctx.fillRect(outerX - direction * 2, centerY + 4, 1, 1);
+  ctx.fillRect(outerX - direction * 3, centerY + 3, 1, 1);
 }
 
 function drawTelemetryConsentModal() {
@@ -27846,6 +28132,29 @@ function drawOptionsLanguageRow(rowRect, highlighted) {
     align: "right",
     color: PIRATE_MENU_CHART_LINE
   });
+}
+
+function drawOptionsControlSchemeRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  const font = PIXEL_FONT_SMALL_8;
+  const label = uiText("options.controlScheme");
+  const valueKey = optionsMenu.controlScheme === CONTROL_SCHEME_RELATIVE
+    ? "options.controlScheme.relative"
+    : "options.controlScheme.absolute";
+  const value = `${uiText(valueKey)} >`;
+  const valueWidth = Math.min(74, Math.max(42, measurePixelTextWidth(value, font)));
+  drawOptionsText(
+    fitPixelText(label, font, rowRect.w - valueWidth - 22),
+    rowRect.x + 8,
+    controlTextY(rowRect, font),
+    { font, color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    fitPixelText(value, font, valueWidth),
+    rowRect.x + rowRect.w - 8,
+    controlTextY(rowRect, font),
+    { font, align: "right", color: PIRATE_MENU_CHART_LINE }
+  );
 }
 
 function drawOptionsControllerIconsRow(rowRect, highlighted) {

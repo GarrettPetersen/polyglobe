@@ -20,20 +20,21 @@ test("start menu compacts rows while retaining visible separation", () => {
   assert.ok(layout.rows.at(-1).y + layout.rows.at(-1).h <= 234);
 });
 
-test("options menu preserves full-height controls by tightening only the gaps", () => {
+test("options menu fits all ten controls inside the native 256px canvas", () => {
   const layout = fittedStackedMenuRows({
-    startY: 47,
-    endY: 235,
-    rowCount: 9,
+    startY: 45,
+    endY: 237,
+    rowCount: 10,
     preferredRowHeight: 20,
     minimumRowHeight: 18,
     preferredGap: 2,
     minimumGap: 1
   });
 
-  assert.equal(layout.rowHeight, 20);
+  assert.equal(layout.rowHeight, 18);
   assert.equal(layout.gap, 1);
-  assert.deepEqual(layout.rows.at(-1), { y: 215, h: 20 });
+  assert.deepEqual(layout.rows.at(-1), { y: 216, h: 18 });
+  assert.ok(layout.rows.at(-1).y + layout.rows.at(-1).h <= 237);
 });
 
 test("key binding rows compact above a fixed footer without overlapping it", () => {
