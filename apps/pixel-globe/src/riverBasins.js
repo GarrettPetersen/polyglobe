@@ -1,6 +1,21 @@
 export const RIVER_BASIN_ID = Object.freeze({
   NONE: 0,
-  MEKONG: 1
+  MEKONG: 1,
+  AMAZON: 2,
+  MURRAY_DARLING: 3,
+  EAST_CHINA_NETWORK: 4,
+  AMUR: 5,
+  PEARL: 6,
+  RHINE: 7,
+  DANUBE_BLACK_SEA_NETWORK: 8,
+  VOLGA_CASPIAN_NETWORK: 9,
+  ELBE_ODER_NETWORK: 10,
+  VISTULA_BALTIC_NETWORK: 11,
+  ORINOCO: 12,
+  PARANA: 13,
+  INDUS: 14,
+  GANGES_BRAHMAPUTRA: 15,
+  IRRAWADDY: 16
 });
 
 const NAMED_RIVER_BASINS = Object.freeze([
@@ -10,8 +25,33 @@ const NAMED_RIVER_BASINS = Object.freeze([
     anchorTileBySubdivisions: Object.freeze({
       7: 93216
     })
-  })
+  }),
+  basin(RIVER_BASIN_ID.AMAZON, "Amazon", 138275),
+  basin(RIVER_BASIN_ID.MURRAY_DARLING, "Murray-Darling", 150752),
+  basin(RIVER_BASIN_ID.EAST_CHINA_NETWORK, "Yangtze-Yellow river network", 61636),
+  basin(RIVER_BASIN_ID.AMUR, "Amur", 15074),
+  basin(RIVER_BASIN_ID.PEARL, "Pearl", 61752),
+  basin(RIVER_BASIN_ID.RHINE, "Rhine", 161056),
+  basin(RIVER_BASIN_ID.DANUBE_BLACK_SEA_NETWORK, "Danube-Black Sea river network", 24784),
+  basin(RIVER_BASIN_ID.VOLGA_CASPIAN_NETWORK, "Volga-Caspian river network", 24872),
+  basin(RIVER_BASIN_ID.ELBE_ODER_NETWORK, "Elbe-Oder river network", 98242),
+  basin(RIVER_BASIN_ID.VISTULA_BALTIC_NETWORK, "Vistula-Baltic river network", 98230),
+  basin(RIVER_BASIN_ID.ORINOCO, "Orinoco", 138903),
+  basin(RIVER_BASIN_ID.PARANA, "Parana", 106954),
+  basin(RIVER_BASIN_ID.INDUS, "Indus", 97492),
+  basin(RIVER_BASIN_ID.GANGES_BRAHMAPUTRA, "Ganges-Brahmaputra", 155083),
+  basin(RIVER_BASIN_ID.IRRAWADDY, "Irrawaddy", 93194)
 ]);
+
+function basin(id, name, subdivisionSevenAnchorTileId) {
+  return Object.freeze({
+    id,
+    name,
+    anchorTileBySubdivisions: Object.freeze({
+      7: subdivisionSevenAnchorTileId
+    })
+  });
+}
 
 export function buildNamedRiverBasinIds({ graph, riverMasks, subdivisions }) {
   if (!graph || !Number.isInteger(graph.tileCount) || !Array.isArray(graph.edgeNeighbors)) {

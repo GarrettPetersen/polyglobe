@@ -7,6 +7,12 @@ const FISH_MEMORY_VERSION = 2;
 const SALMON_RIVER_RUN_START_DAY = 245;
 const SALMON_RIVER_RUN_END_DAY = 335;
 const SALMON_APPROACH_DAYS = 30;
+const SALMON_NATIVE_NAMED_BASINS = basinRoster(
+  RIVER_BASIN_ID.AMUR,
+  RIVER_BASIN_ID.RHINE,
+  RIVER_BASIN_ID.ELBE_ODER_NETWORK,
+  RIVER_BASIN_ID.VISTULA_BALTIC_NETWORK
+);
 
 export const FISH_SPECIES = Object.freeze([
   species("salmon", "Salmon", "#db6b4f", "#f0b28c", "#743f39", {
@@ -170,7 +176,8 @@ const GREAT_LAKES_SPECIES_SCORES = Object.freeze({
 
 const RESIDENT_RIVER_SPECIES_RANGES = Object.freeze({
   "northern-pike": Object.freeze([
-    riverRange(42, 68, -170, -50, 0.78),
+    riverRange(55, 68, -170, -50, 0.78),
+    riverRange(42, 55, -115, -50, 0.78),
     riverRange(42, 68, -10, 150, 0.78)
   ]),
   "wels-catfish": Object.freeze([
@@ -200,15 +207,41 @@ const RESIDENT_RIVER_SPECIES_RANGES = Object.freeze({
     riverRange(-18, 8, -80, -45, 0.62)
   ]),
   piranha: Object.freeze([
-    riverRange(-20, 5, -80, -45, 0.94)
+    riverRange(-35, 12, -80, -45, 0.94)
   ]),
   "murray-cod": Object.freeze([
     riverRange(-38, -24, 137, 153, 0.88)
   ])
 });
 
+// Exact taxa use connected watersheds; broad regional groups remain range-based.
 const RESIDENT_RIVER_SPECIES_BASINS = Object.freeze({
-  "mekong-giant-catfish": RIVER_BASIN_ID.MEKONG
+  "wels-catfish": basinRoster(
+    RIVER_BASIN_ID.RHINE,
+    RIVER_BASIN_ID.DANUBE_BLACK_SEA_NETWORK,
+    RIVER_BASIN_ID.VOLGA_CASPIAN_NETWORK,
+    RIVER_BASIN_ID.ELBE_ODER_NETWORK,
+    RIVER_BASIN_ID.VISTULA_BALTIC_NETWORK
+  ),
+  mahseer: basinRoster(
+    RIVER_BASIN_ID.INDUS,
+    RIVER_BASIN_ID.GANGES_BRAHMAPUTRA,
+    RIVER_BASIN_ID.IRRAWADDY,
+    RIVER_BASIN_ID.MEKONG
+  ),
+  "mekong-giant-catfish": basinRoster(RIVER_BASIN_ID.MEKONG),
+  "grass-carp": basinRoster(
+    RIVER_BASIN_ID.EAST_CHINA_NETWORK,
+    RIVER_BASIN_ID.AMUR,
+    RIVER_BASIN_ID.PEARL
+  ),
+  arapaima: basinRoster(RIVER_BASIN_ID.AMAZON),
+  piranha: basinRoster(
+    RIVER_BASIN_ID.AMAZON,
+    RIVER_BASIN_ID.ORINOCO,
+    RIVER_BASIN_ID.PARANA
+  ),
+  "murray-cod": basinRoster(RIVER_BASIN_ID.MURRAY_DARLING)
 });
 
 const FISH_SPECIES_BY_ID = new Map(FISH_SPECIES.map((item) => [item.id, item]));
@@ -549,6 +582,14 @@ function salmonApproachActive(dayOfYear) {
 
 function salmonNativeRange(habitat) {
   if (habitat.lat < 30 || habitat.lat > 68) return false;
+  if (
+    (habitat.kind === "river" || habitat.kind === "river-mouth") &&
+    Number.isInteger(habitat.riverBasinId) &&
+    habitat.riverBasinId !== RIVER_BASIN_ID.NONE &&
+    !SALMON_NATIVE_NAMED_BASINS.includes(habitat.riverBasinId)
+  ) {
+    return false;
+  }
   const northPacific = habitat.lon <= -105 || habitat.lon >= 120;
   const openNorthAtlantic = habitat.lat >= 38 && habitat.lon >= -85 && habitat.lon <= -5;
   const northernEuropeanAtlantic = habitat.lat >= 48 && habitat.lon > -5 && habitat.lon <= 30;
@@ -559,8 +600,8 @@ function residentRiverSpeciesHabitatScore(speciesId, habitat) {
   if (habitat.kind !== "river" && habitat.kind !== "river-mouth") return 0;
   const ranges = RESIDENT_RIVER_SPECIES_RANGES[speciesId];
   if (!ranges) return 0;
-  const requiredBasinId = RESIDENT_RIVER_SPECIES_BASINS[speciesId];
-  if (requiredBasinId !== undefined && habitat.riverBasinId !== requiredBasinId) return 0;
+  const allowedBasinIds = RESIDENT_RIVER_SPECIES_BASINS[speciesId];
+  if (allowedBasinIds && !allowedBasinIds.includes(habitat.riverBasinId)) return 0;
   let score = 0;
   for (const range of ranges) {
     if (
@@ -640,6 +681,15 @@ function riverRange(minLat, maxLat, minLon, maxLon, score) {
     throw new Error(`Invalid resident river fish range: ${minLat},${maxLat},${minLon},${maxLon},${score}`);
   }
   return Object.freeze({ minLat, maxLat, minLon, maxLon, score });
+}
+
+function basinRoster(...basinIds) {
+  if (basinIds.length === 0 || basinIds.some((basinId) => (
+    !Number.isInteger(basinId) || basinId === RIVER_BASIN_ID.NONE
+  ))) {
+    throw new Error(`Invalid resident river fish basin roster: ${basinIds.join(",")}`);
+  }
+  return Object.freeze(basinIds);
 }
 
 function speciesCandidates(speciesIds) {

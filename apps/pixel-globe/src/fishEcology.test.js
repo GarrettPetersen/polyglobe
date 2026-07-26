@@ -49,22 +49,52 @@ test("salmon remain in their native Northern Hemisphere range in 1522", () => {
 
   assertNoSpecies(state, "river", -48, -73, 280 * MINUTE, "salmon");
   assertNoSpecies(state, "coastal", -48, -73, 140 * MINUTE, "salmon");
+  assertNoSpecies(
+    state,
+    "river",
+    48,
+    20,
+    280 * MINUTE,
+    "salmon",
+    { riverBasinId: RIVER_BASIN_ID.DANUBE_BLACK_SEA_NETWORK }
+  );
+});
+
+test("northern pike do not leak into Pacific coastal watersheds", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+
+  assertNoSpecies(state, "river", 48, -123, 140 * MINUTE, "northern-pike");
+});
+
+test("salmon runs remain available in native named watersheds", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const fishery = findFishery(
+    state,
+    "river",
+    50,
+    130,
+    280 * MINUTE,
+    "salmon",
+    { riverBasinId: RIVER_BASIN_ID.AMUR }
+  );
+
+  assert.equal(fishery.speciesId, "salmon");
 });
 
 test("resident freshwater fish give rivers distinct regional fisheries", () => {
   const minute = 140 * MINUTE;
   const regions = [
     ["northern-pike", 50, -95],
-    ["wels-catfish", 48, 20],
+    ["wels-catfish", 48, 20, RIVER_BASIN_ID.DANUBE_BLACK_SEA_NETWORK],
     ["channel-catfish", 36, -90],
     ["african-catfish", 8, 30],
     ["tigerfish", -12, 25],
-    ["mahseer", 25, 82],
+    ["mahseer", 25, 82, RIVER_BASIN_ID.GANGES_BRAHMAPUTRA],
     ["mekong-giant-catfish", 16, 103, RIVER_BASIN_ID.MEKONG],
-    ["grass-carp", 30, 115],
-    ["arapaima", -4, -62],
-    ["piranha", -8, -58],
-    ["murray-cod", -34, 145]
+    ["grass-carp", 30, 115, RIVER_BASIN_ID.EAST_CHINA_NETWORK],
+    ["arapaima", -4, -62, RIVER_BASIN_ID.AMAZON],
+    ["piranha", -8, -58, RIVER_BASIN_ID.AMAZON],
+    ["murray-cod", -34, 145, RIVER_BASIN_ID.MURRAY_DARLING]
   ];
 
   for (const [speciesId, lat, lon, riverBasinId] of regions) {
@@ -72,6 +102,78 @@ test("resident freshwater fish give rivers distinct regional fisheries", () => {
     const fishery = findFishery(state, "river", lat, lon, minute, speciesId, { riverBasinId });
     assert.equal(fishery.speciesId, speciesId);
     assert.equal(fishery.habitatKind, "river");
+  }
+});
+
+test("narrow resident freshwater fish require their native watershed", () => {
+  const minute = 140 * MINUTE;
+  const cases = [
+    ["wels-catfish", 48, 20],
+    ["mahseer", 25, 82],
+    ["mekong-giant-catfish", 16, 103],
+    ["grass-carp", 30, 115],
+    ["arapaima", -4, -62],
+    ["piranha", -8, -58],
+    ["murray-cod", -34, 145]
+  ];
+
+  for (const [speciesId, lat, lon] of cases) {
+    const state = createGameState({ cargoCapacity: 20 });
+    assertNoSpecies(
+      state,
+      "river",
+      lat,
+      lon,
+      minute,
+      speciesId,
+      { riverBasinId: RIVER_BASIN_ID.NONE }
+    );
+  }
+});
+
+test("piranhas occupy represented native basins beyond the Amazon", () => {
+  const minute = 140 * MINUTE;
+  const basins = [
+    [8, -63, RIVER_BASIN_ID.ORINOCO],
+    [-28, -58, RIVER_BASIN_ID.PARANA]
+  ];
+
+  for (const [lat, lon, riverBasinId] of basins) {
+    const state = createGameState({ cargoCapacity: 20 });
+    const fishery = findFishery(
+      state,
+      "river",
+      lat,
+      lon,
+      minute,
+      "piranha",
+      { riverBasinId }
+    );
+    assert.equal(fishery.speciesId, "piranha");
+  }
+});
+
+test("mahseer occupy represented South and Southeast Asian watersheds", () => {
+  const minute = 140 * MINUTE;
+  const basins = [
+    [25, 72, RIVER_BASIN_ID.INDUS],
+    [25, 82, RIVER_BASIN_ID.GANGES_BRAHMAPUTRA],
+    [17, 96, RIVER_BASIN_ID.IRRAWADDY],
+    [18, 99, RIVER_BASIN_ID.MEKONG]
+  ];
+
+  for (const [lat, lon, riverBasinId] of basins) {
+    const state = createGameState({ cargoCapacity: 20 });
+    const fishery = findFishery(
+      state,
+      "river",
+      lat,
+      lon,
+      minute,
+      "mahseer",
+      { riverBasinId }
+    );
+    assert.equal(fishery.speciesId, "mahseer");
   }
 });
 
@@ -97,14 +199,22 @@ test("Mekong giant catfish cannot leak into nearby Yangtze river tiles", () => {
     102,
     minute,
     "mekong-giant-catfish",
-    { riverBasinId: RIVER_BASIN_ID.NONE }
+    { riverBasinId: RIVER_BASIN_ID.EAST_CHINA_NETWORK }
   );
 });
 
 test("resident river fish remain available outside a seasonal run", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const springMinute = 80 * MINUTE;
-  const habitat = findHabitatWithFishery(state, "river", -4, -62, springMinute, "arapaima");
+  const habitat = findHabitatWithFishery(
+    state,
+    "river",
+    -4,
+    -62,
+    springMinute,
+    "arapaima",
+    { riverBasinId: RIVER_BASIN_ID.AMAZON }
+  );
   const springFishery = fisheryForHabitat(state, habitat, springMinute);
   const winterFishery = fisheryForHabitat(state, habitat, 320 * MINUTE);
 
