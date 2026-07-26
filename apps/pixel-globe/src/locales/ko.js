@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "절대",
   "options.controlScheme.relative": "상대",
   "options.controlScheme.absoluteDetail": "방향 입력으로 뱃머리를 향합니다",
-  "options.controlScheme.relativeDetail": "좌우 입력으로 뱃머리를 돌립니다",
+  "options.controlScheme.relativeDetail": "앞으로 끌기; 좌우로 조타",
   "options.controlScheme.pointerNote": "포인터와 터치는 항상 절대 조종",
   "options.keyMapping": "컨트롤러 배치",
   "options.keyMapping.pressKey": "키를 누르세요…",

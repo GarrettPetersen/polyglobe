@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "АБСОЛЮТНАЯ",
   "options.controlScheme.relative": "ОТНОСИТЕЛЬНАЯ",
   "options.controlScheme.absoluteDetail": "НАПРАВЛЕНИЯ ЗАДАЮТ КУРС",
-  "options.controlScheme.relativeDetail": "ВЛЕВО/ВПРАВО ПОВОРАЧИВАЮТ",
+  "options.controlScheme.relativeDetail": "ВПЕРЕД ТЯНЕТ; ВЛЕВО/ВПРАВО РУЛИТ",
   "options.controlScheme.pointerNote": "УКАЗАТЕЛЬ И КАСАНИЕ АБСОЛЮТНЫ",
   "options.keyMapping": "РАСКЛАДКА ГЕЙМПАДА",
   "options.keyMapping.pressKey": "НАЖМИТЕ КЛАВИШУ...",

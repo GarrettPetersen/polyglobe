@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "ABSOLUTO",
   "options.controlScheme.relative": "RELATIVO",
   "options.controlScheme.absoluteDetail": "LAS DIRECCIONES ORIENTAN LA PROA",
-  "options.controlScheme.relativeDetail": "IZQ./DER. GIRAN LA PROA",
+  "options.controlScheme.relativeDetail": "ARRIBA REMOLCA; IZQ./DER. GIRAN",
   "options.controlScheme.pointerNote": "PUNTERO Y TÁCTIL SIGUEN ABSOLUTOS",
   "options.keyMapping": "CONFIGURACIÓN DEL MANDO",
   "options.keyMapping.pressKey": "PULSA UNA TECLA...",

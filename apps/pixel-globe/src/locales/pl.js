@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "BEZWZGLĘDNE",
   "options.controlScheme.relative": "WZGLĘDNE",
   "options.controlScheme.absoluteDetail": "KIERUNKI USTAWIAJĄ DZIOB",
-  "options.controlScheme.relativeDetail": "LEWO/PRAWO OBRACA DZIOB",
+  "options.controlScheme.relativeDetail": "GORA CIAGNIE; LEWO/PRAWO SKRECA",
   "options.controlScheme.pointerNote": "WSKAŹNIK I DOTYK SĄ BEZWZGLĘDNE",
   "options.keyMapping": "UKŁAD KONTROLERA",
   "options.keyMapping.pressKey": "NACIŚNIJ KLAWISZ...",

@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "ABSOLUT",
   "options.controlScheme.relative": "RELATIV",
   "options.controlScheme.absoluteDetail": "RICHTUNGEN RICHTEN DEN BUG",
-  "options.controlScheme.relativeDetail": "LINKS/RECHTS DREHEN DEN BUG",
+  "options.controlScheme.relativeDetail": "VOR ZIEHT; LINKS/RECHTS DREHEN",
   "options.controlScheme.pointerNote": "ZEIGER & TOUCH BLEIBEN ABSOLUT",
   "options.keyMapping": "CONTROLLER-BELEGUNG",
   "options.keyMapping.pressKey": "TASTE DRÜCKEN...",

@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "ABSOLUTO",
   "options.controlScheme.relative": "RELATIVO",
   "options.controlScheme.absoluteDetail": "DIREÇÕES APONTAM A PROA",
-  "options.controlScheme.relativeDetail": "ESQ./DIR. GIRAM A PROA",
+  "options.controlScheme.relativeDetail": "CIMA REBOCA; ESQ./DIR. GIRAM",
   "options.controlScheme.pointerNote": "PONTEIRO E TOQUE SEMPRE ABSOLUTOS",
   "options.keyMapping": "CONFIGURAÇÃO DO CONTROLE",
   "options.keyMapping.pressKey": "PRESSIONE UMA TECLA...",

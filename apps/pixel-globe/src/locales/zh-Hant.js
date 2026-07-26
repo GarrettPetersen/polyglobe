@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "絕對",
   "options.controlScheme.relative": "相對",
   "options.controlScheme.absoluteDetail": "方向鍵指定船頭方向",
-  "options.controlScheme.relativeDetail": "左右鍵轉動船頭",
+  "options.controlScheme.relativeDetail": "向前拖船，左右鍵轉向",
   "options.controlScheme.pointerNote": "游標與觸控始終使用絕對操控",
   "options.keyMapping": "控制器配置",
   "options.keyMapping.pressKey": "請按鍵……",

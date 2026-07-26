@@ -23,7 +23,7 @@ export default {
   "options.controlScheme.absolute": "ABSOLU",
   "options.controlScheme.relative": "RELATIF",
   "options.controlScheme.absoluteDetail": "LES DIRECTIONS ORIENTENT LA PROUE",
-  "options.controlScheme.relativeDetail": "GAUCHE/DROITE FONT VIRER LA PROUE",
+  "options.controlScheme.relativeDetail": "AVANT HALE; GAUCHE/DROITE VIRENT",
   "options.controlScheme.pointerNote": "POINTEUR ET TACTILE RESTENT ABSOLUS",
   "options.keyMapping": "CONFIGURATION MANETTE",
   "options.keyMapping.pressKey": "APPUYEZ SUR UNE TOUCHE...",

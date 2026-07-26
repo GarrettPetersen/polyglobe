@@ -8048,6 +8048,7 @@ function lakeBattleInputHeading() {
   if (intent.relativeTurn !== 0) {
     return relativeHeadingAngle(battle.player.headingRad, intent.relativeTurn);
   }
+  if (intent.relativeForward) return battle.player.headingRad;
   if (intent.absoluteX === 0 && intent.absoluteY === 0) return null;
   return Math.atan2(-intent.absoluteY, intent.absoluteX);
 }
@@ -15641,6 +15642,7 @@ function inputHeadingForShip() {
       -intent.relativeTurn * Math.PI / 2
     );
   }
+  if (intent.relativeForward) return ship.heading;
   if (intent.absoluteX === 0 && intent.absoluteY === 0) return null;
   return cameraSpaceHeadingForShip(intent.absoluteX, intent.absoluteY);
 }
@@ -27732,6 +27734,7 @@ function drawControlSchemeDiagram(rect, scheme) {
     drawPixelDirectionArrow(rect.x + 4, centerY, -1, 0);
     return;
   }
+  drawPixelDirectionArrow(centerX, rect.y + 4, 0, -1);
   drawPixelTurnArrow(centerX - 11, centerY, -1);
   drawPixelTurnArrow(centerX + 11, centerY, 1);
 }
