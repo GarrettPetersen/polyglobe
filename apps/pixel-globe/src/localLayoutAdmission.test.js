@@ -30,7 +30,8 @@ test("new tiles use their exact projected shape in the retained chart frame", ()
     positions,
     projectedById,
     pendingIds: [1, 2],
-    anchorId: 0
+    anchorId: 0,
+    ...admissionTopology(4, [[0, 1], [0, 2], [2, 3]])
   });
 
   assert.deepEqual(positions.get(0), { x: 0, y: 0 });
@@ -53,7 +54,8 @@ test("layout translation does not alter the projected shape with one retained ti
     positions,
     projectedById,
     pendingIds: [1, 2],
-    anchorId: 0
+    anchorId: 0,
+    ...admissionTopology(3, [[0, 1], [1, 2]])
   });
 
   assert.equal(admitted, 2);
@@ -86,7 +88,8 @@ test("high-latitude tangent frame rotation cannot tear adjacent tiles apart", ()
     positions: retainedChartPoints,
     projectedById,
     pendingIds: [4],
-    anchorId: 0
+    anchorId: 0,
+    ...admissionTopology(5, [[0, 1], [0, 2], [0, 3], [1, 4]])
   });
 
   assert.deepEqual(retainedChartPoints.get(4), { x: 48, y: 0 });
@@ -97,6 +100,32 @@ test("high-latitude tangent frame rotation cannot tear adjacent tiles apart", ()
     ),
     24
   );
+});
+
+test("uniform ocean admits a subpixel-safe north-up correction", () => {
+  const points = rotatedAdmissionPoints(2);
+  admitProjectedTiles({
+    positions: points.positions,
+    projectedById: points.projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    ...admissionTopology(3, [[0, 1], [1, 2]], 0)
+  });
+
+  assert.deepEqual(points.positions.get(2), { x: 48, y: 1 });
+});
+
+test("the same correction keeps protected geography rigidly attached", () => {
+  const points = rotatedAdmissionPoints(2);
+  admitProjectedTiles({
+    positions: points.positions,
+    projectedById: points.projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    ...admissionTopology(3, [[0, 1], [1, 2]], 255)
+  });
+
+  assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
 });
 
 test("successive high-latitude chart rebuilds keep newly entering neighbors attached", () => {
@@ -121,9 +150,29 @@ test("successive high-latitude chart rebuilds keep newly entering neighbors atta
   );
 });
 
+test("one hundred high-latitude circuits keep admission drift bounded", () => {
+  const result = simulateRepeatedCircuit({
+    centerRowForPhase: () => 0,
+    frameRotationForPhase: (phase) => phase * Math.sin(62 * Math.PI / 180)
+  });
+
+  assertRepeatedCircuitIsStable(result, "62-degree latitude circuit");
+});
+
+test("one hundred oblique great-circle circuits keep admission drift bounded", () => {
+  const result = simulateRepeatedCircuit({
+    centerRowForPhase: (phase) => Math.round(Math.sin(phase) * 18),
+    frameRotationForPhase: (phase) => Math.sin(phase) * 0.75 + Math.sin(phase * 2) * 0.2
+  });
+
+  assertRepeatedCircuitIsStable(result, "52-degree oblique circuit");
+});
+
 function simulateHighLatitudeTraversal(admitTiles) {
   const graph = buildGeodesicGraph(5);
   const directionIndex = createDirectionIndex(graph);
+  const protectionById = new Uint8Array(graph.tileCount);
+  protectionById.fill(255);
   const positions = new Map();
   let viewX = 0;
   let viewY = 0;
@@ -162,7 +211,9 @@ function simulateHighLatitudeTraversal(admitTiles) {
       positions,
       projectedById,
       pendingIds,
-      anchorId: centerId
+      anchorId: centerId,
+      neighborsById: graph.neighbors,
+      protectionById
     });
     const visibleIds = new Set(projectedById.keys());
     for (const id of positions.keys()) {
@@ -196,6 +247,222 @@ function simulateHighLatitudeTraversal(admitTiles) {
   return { admittedTotal, maxNeighborDistance, maxNeighborStretch };
 }
 
+function simulateRepeatedCircuit({ centerRowForPhase, frameRotationForPhase }) {
+  const columns = 360;
+  const rows = 48;
+  const tileSpacingX = 24;
+  const tileSpacingY = 21;
+  const tileCount = columns * rows;
+  const neighborsById = torusGridNeighbors(columns, rows);
+  const protectionById = new Uint8Array(tileCount);
+  for (let row = 0; row < rows; row++) {
+    for (const protectedColumn of [0, 90, 180, 270]) {
+      for (let offset = -1; offset <= 1; offset++) {
+        protectionById[gridTileId(protectedColumn + offset, row, columns, rows)] = 255;
+      }
+    }
+  }
+
+  const positions = new Map();
+  const stepsPerCircuit = columns;
+  const totalSteps = stepsPerCircuit * 100;
+  let admittedTotal = 0;
+  let maxRotationDeg = 0;
+  let maxRotationStep = 0;
+  let maxRmsError = 0;
+  let maxProtectedEdgeStretch = 0;
+  let protectedEdgeSamples = 0;
+  let anchorSeeds = 0;
+  const circuitMetrics = Array.from({ length: 100 }, () => ({
+    maxRotationDeg: 0,
+    maxRmsError: 0,
+    maxProtectedEdgeStretch: 0
+  }));
+
+  for (let step = 0; step < totalSteps; step++) {
+    const phase = step * Math.PI * 2 / stepsPerCircuit;
+    const centerColumn = step;
+    const centerRow = centerRowForPhase(phase);
+    const centerId = gridTileId(centerColumn, centerRow, columns, rows);
+    const frameRotation = frameRotationForPhase(phase);
+    const cos = Math.cos(frameRotation);
+    const sin = Math.sin(frameRotation);
+    const projectedById = new Map();
+    for (let rowOffset = -3; rowOffset <= 3; rowOffset++) {
+      for (let columnOffset = -4; columnOffset <= 4; columnOffset++) {
+        const id = gridTileId(
+          centerColumn + columnOffset,
+          centerRow + rowOffset,
+          columns,
+          rows
+        );
+        const x = columnOffset * tileSpacingX;
+        const y = rowOffset * tileSpacingY;
+        projectedById.set(id, {
+          x: Math.round(x * cos - y * sin),
+          y: Math.round(x * sin + y * cos)
+        });
+      }
+    }
+    const pendingIds = [...projectedById.keys()].filter((id) => !positions.has(id));
+    if (!positions.has(centerId)) {
+      anchorSeeds++;
+      positions.set(centerId, {
+        x: centerColumn * tileSpacingX,
+        y: centerRow * tileSpacingY
+      });
+      const pendingIndex = pendingIds.indexOf(centerId);
+      if (pendingIndex >= 0) pendingIds.splice(pendingIndex, 1);
+    }
+
+    admittedTotal += admitProjectedTiles({
+      positions,
+      projectedById,
+      pendingIds,
+      anchorId: centerId,
+      neighborsById,
+      protectionById
+    });
+    const visibleIds = new Set(projectedById.keys());
+    for (const id of positions.keys()) {
+      if (!visibleIds.has(id)) positions.delete(id);
+    }
+
+    const frameError = measureVisibleFrameError(positions, projectedById, centerId);
+    const circuitMetric = circuitMetrics[Math.floor(step / stepsPerCircuit)];
+    circuitMetric.maxRotationDeg = Math.max(
+      circuitMetric.maxRotationDeg,
+      Math.abs(frameError.rotationDeg)
+    );
+    circuitMetric.maxRmsError = Math.max(circuitMetric.maxRmsError, frameError.rmsError);
+    if (Math.abs(frameError.rotationDeg) > maxRotationDeg) {
+      maxRotationDeg = Math.abs(frameError.rotationDeg);
+      maxRotationStep = step;
+    }
+    maxRmsError = Math.max(maxRmsError, frameError.rmsError);
+    for (const [id, position] of positions.entries()) {
+      for (const neighborId of neighborsById[id]) {
+        if (neighborId <= id || !protectionById[id] || !protectionById[neighborId]) continue;
+        const neighbor = positions.get(neighborId);
+        const projected = projectedById.get(id);
+        const projectedNeighbor = projectedById.get(neighborId);
+        if (!neighbor || !projected || !projectedNeighbor) continue;
+        const visualDistance = Math.hypot(neighbor.x - position.x, neighbor.y - position.y);
+        const projectedDistance = Math.hypot(
+          projectedNeighbor.x - projected.x,
+          projectedNeighbor.y - projected.y
+        );
+        maxProtectedEdgeStretch = Math.max(
+          maxProtectedEdgeStretch,
+          Math.abs(visualDistance / projectedDistance - 1)
+        );
+        circuitMetric.maxProtectedEdgeStretch = Math.max(
+          circuitMetric.maxProtectedEdgeStretch,
+          Math.abs(visualDistance / projectedDistance - 1)
+        );
+        protectedEdgeSamples++;
+      }
+    }
+  }
+
+  return {
+    admittedTotal,
+    maxRotationDeg,
+    maxRotationStep,
+    maxRmsError,
+    maxProtectedEdgeStretch,
+    protectedEdgeSamples,
+    anchorSeeds,
+    circuitMetrics
+  };
+}
+
+function torusGridNeighbors(columns, rows) {
+  const neighbors = Array.from({ length: columns * rows }, () => []);
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      const id = gridTileId(column, row, columns, rows);
+      neighbors[id].push(
+        gridTileId(column - 1, row, columns, rows),
+        gridTileId(column + 1, row, columns, rows),
+        gridTileId(column, row - 1, columns, rows),
+        gridTileId(column, row + 1, columns, rows)
+      );
+    }
+  }
+  return neighbors;
+}
+
+function gridTileId(column, row, columns, rows) {
+  return modulo(row, rows) * columns + modulo(column, columns);
+}
+
+function measureVisibleFrameError(positions, projectedById, anchorId) {
+  const anchorPosition = positions.get(anchorId);
+  const anchorProjected = projectedById.get(anchorId);
+  let dotSum = 0;
+  let crossSum = 0;
+  const samples = [];
+  for (const [id, position] of positions.entries()) {
+    if (id === anchorId) continue;
+    const projected = projectedById.get(id);
+    if (!projected) continue;
+    const projectedVector = {
+      x: projected.x - anchorProjected.x,
+      y: projected.y - anchorProjected.y
+    };
+    const layoutVector = {
+      x: position.x - anchorPosition.x,
+      y: position.y - anchorPosition.y
+    };
+    dotSum += projectedVector.x * layoutVector.x + projectedVector.y * layoutVector.y;
+    crossSum += projectedVector.x * layoutVector.y - projectedVector.y * layoutVector.x;
+    samples.push({ projectedVector, layoutVector });
+  }
+  const rotation = Math.atan2(crossSum, dotSum);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  let squaredError = 0;
+  for (const { projectedVector, layoutVector } of samples) {
+    const expectedX = projectedVector.x * cos - projectedVector.y * sin;
+    const expectedY = projectedVector.x * sin + projectedVector.y * cos;
+    squaredError += (layoutVector.x - expectedX) ** 2 + (layoutVector.y - expectedY) ** 2;
+  }
+  return {
+    rotationDeg: rotation * 180 / Math.PI,
+    rmsError: samples.length > 0 ? Math.sqrt(squaredError / samples.length) : 0
+  };
+}
+
+function assertRepeatedCircuitIsStable(result, label) {
+  const settledCircuit = result.circuitMetrics[9];
+  const lastCircuit = result.circuitMetrics.at(-1);
+  assert.ok(
+    result.admittedTotal > 10000,
+    `${label} did not repeatedly readmit tiles (${result.admittedTotal} admissions)`
+  );
+  assert.ok(
+    lastCircuit.maxRotationDeg <= settledCircuit.maxRotationDeg + 2,
+    `${label} rotation grew from ${settledCircuit.maxRotationDeg.toFixed(2)} to ` +
+      `${lastCircuit.maxRotationDeg.toFixed(2)} degrees after 100 circuits; samples ` +
+      `${[0, 9, 24, 49, 74, 99].map((index) => (
+        result.circuitMetrics[index].maxRotationDeg.toFixed(1)
+      )).join("/")}`
+  );
+  assert.ok(
+    lastCircuit.maxRmsError <= settledCircuit.maxRmsError + 1,
+    `${label} RMS distortion grew from ${settledCircuit.maxRmsError.toFixed(2)}px to ` +
+      `${lastCircuit.maxRmsError.toFixed(2)}px after 100 circuits`
+  );
+  assert.ok(result.protectedEdgeSamples > 100, `${label} did not cross protected landmarks`);
+  assert.ok(
+    lastCircuit.maxProtectedEdgeStretch <= settledCircuit.maxProtectedEdgeStretch + 0.03,
+    `${label} protected-edge stretch grew from ` +
+      `${(settledCircuit.maxProtectedEdgeStretch * 100).toFixed(2)}% to ` +
+      `${(lastCircuit.maxProtectedEdgeStretch * 100).toFixed(2)}% after 100 circuits`
+  );
+}
+
 function admitWithTranslationOnly({ positions, projectedById, pendingIds, anchorId }) {
   const anchorPosition = positions.get(anchorId);
   const anchorProjected = projectedById.get(anchorId);
@@ -226,7 +493,8 @@ test("projection registration never changes scale or shear", () => {
     positions,
     projectedById,
     pendingIds: [2, 3],
-    anchorId: 0
+    anchorId: 0,
+    ...admissionTopology(4, [[0, 1], [1, 2], [1, 3]])
   });
 
   assert.deepEqual(positions.get(2), { x: 10, y: 100 });
@@ -241,7 +509,8 @@ test("admission fails when its projected anchor is missing", () => {
       positions: new Map([[0, { x: 0, y: 0 }]]),
       projectedById: new Map([[1, { x: 20, y: 10 }]]),
       pendingIds: [1],
-      anchorId: 0
+      anchorId: 0,
+      ...admissionTopology(2, [[0, 1]])
     }),
     /Projected anchor position/
   );
@@ -317,4 +586,38 @@ function dot3(a, b) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function rotatedAdmissionPoints(angleDeg) {
+  const angle = angleDeg * Math.PI / 180;
+  const rotate = ({ x, y }) => ({
+    x: x * Math.cos(angle) - y * Math.sin(angle),
+    y: x * Math.sin(angle) + y * Math.cos(angle)
+  });
+  return {
+    positions: new Map([
+      [0, { x: 0, y: 0 }],
+      [1, { x: 24, y: 0 }]
+    ]),
+    projectedById: new Map([
+      [0, rotate({ x: 0, y: 0 })],
+      [1, rotate({ x: 24, y: 0 })],
+      [2, rotate({ x: 48, y: 0 })]
+    ])
+  };
+}
+
+function admissionTopology(tileCount, edges, protection = 255) {
+  const neighborsById = Array.from({ length: tileCount }, () => []);
+  for (const [a, b] of edges) {
+    neighborsById[a].push(b);
+    neighborsById[b].push(a);
+  }
+  const protectionById = new Uint8Array(tileCount);
+  protectionById.fill(protection);
+  return { neighborsById, protectionById };
+}
+
+function modulo(value, divisor) {
+  return ((value % divisor) + divisor) % divisor;
 }

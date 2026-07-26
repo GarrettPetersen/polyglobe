@@ -10,6 +10,10 @@ import {
 } from "./geodesic.js";
 import { admitProjectedTiles } from "./localLayoutAdmission.js";
 import {
+  buildChartTileProtection,
+  chartProtectionStats
+} from "./chartTileProtection.js";
+import {
   alphaMaskContainsMapPoint,
   forEachPixelBrushPoint,
   pixelMaskKey
@@ -2210,6 +2214,7 @@ let graph;
 let directionIndex;
 let earthRows;
 let earthById;
+let chartTileProtection;
 let mountainLandmarks;
 let worldDiscoveries = [];
 let greatBarrierReef = [];
@@ -2848,6 +2853,16 @@ async function main() {
   ];
   validateExplorerReportDialogueCatalog(explorerWonderCatalog(discoveryCatalog));
   discoveryCatalogById = new Map(discoveryCatalog.map((discovery) => [discovery.id, discovery]));
+  chartTileProtection = buildChartTileProtection({
+    graph,
+    terrainClassForTile: chartProtectionTerrainClass,
+    featureTileIds: chartProtectionFeatureTileIds()
+  });
+  const protectionStats = chartProtectionStats(chartTileProtection);
+  console.info(
+    `[pixel-globe] chart protection: ${protectionStats.direct} direct, ` +
+    `${protectionStats.buffered} buffered, ${protectionStats.elastic} elastic tiles`
+  );
   console.info(
     `[pixel-globe] mountains: ${mountainLandmarks.all.length} named peaks, ` +
     `${mountainLandmarks.peakTileIds.size} peak tiles, ` +
@@ -3894,6 +3909,41 @@ function colorBrightness(color) {
 
 function edgeIndexTowardNeighbor(tileId, neighborId) {
   return worldEdgeIndexTowardNeighbor(graph, tileId, neighborId);
+}
+
+function chartProtectionTerrainClass(tileId) {
+  const row = earthById?.[tileId];
+  if (!row) throw new Error(`Chart protection is missing terrain for tile ${tileId}`);
+  const surface = isWaterSurfaceRow(row) ? "water" : "land";
+  return `${surface}:${row.t || "land"}:${terrainLevel(row, tileId)}`;
+}
+
+function chartProtectionFeatureTileIds() {
+  if (
+    !graph ||
+    !cityByTileId ||
+    !landRoadNetwork ||
+    !riverMasks ||
+    !riverToWaterMasks ||
+    !mountainLandmarks
+  ) {
+    throw new Error("Chart protection features require initialized world geography");
+  }
+  const protectedIds = new Set(cityByTileId.keys());
+  for (const target of colonizationTargetPlacements) protectedIds.add(target.tileId);
+  for (const tileId of landRoadNetwork.segmentsByTileId.keys()) protectedIds.add(tileId);
+  for (const tileId of mountainLandmarks.peakTileIds) protectedIds.add(tileId);
+  for (const coral of greatBarrierReef) protectedIds.add(coral.tileId);
+  for (const discovery of discoveryCatalog) {
+    if (Number.isInteger(discovery.tileId)) protectedIds.add(discovery.tileId);
+    if (Number.isInteger(discovery.spriteTileId)) protectedIds.add(discovery.spriteTileId);
+  }
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if ((riverMasks[tileId] || 0) !== 0 || (riverToWaterMasks[tileId] || 0) !== 0) {
+      protectedIds.add(tileId);
+    }
+  }
+  return protectedIds;
 }
 
 function buildWaterDepthBands() {
@@ -21950,7 +22000,9 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     positions: localLayout.positions,
     projectedById,
     pendingIds: pending,
-    anchorId: chartCenterTileId
+    anchorId: chartCenterTileId,
+    neighborsById: graph.neighbors,
+    protectionById: chartTileProtection
   });
 }
 

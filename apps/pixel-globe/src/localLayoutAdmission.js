@@ -4,6 +4,8 @@ function assertFinitePoint(point, label) {
   }
 }
 
+const MAX_ELASTIC_FRAME_CORRECTION_PX = 2.5;
+
 function registeredProjectionFrame(positions, projectedById, anchorId) {
   const anchorPosition = positions.get(anchorId);
   const anchorProjected = projectedById.get(anchorId);
@@ -50,8 +52,70 @@ function registeredPoint(projected, frame) {
   const x = projected.x - frame.anchorProjected.x;
   const y = projected.y - frame.anchorProjected.y;
   return {
-    x: Math.round(frame.anchorPosition.x + x * frame.cos - y * frame.sin),
-    y: Math.round(frame.anchorPosition.y + x * frame.sin + y * frame.cos)
+    x: roundPixel(frame.anchorPosition.x + x * frame.cos - y * frame.sin),
+    y: roundPixel(frame.anchorPosition.y + x * frame.sin + y * frame.cos)
+  };
+}
+
+function roundPixel(value) {
+  const rounded = Math.round(value);
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+function boundaryFittedFrame({
+  positions,
+  projectedById,
+  pending,
+  neighborsById,
+  protectionById,
+  rotation,
+  fallbackFrame
+}) {
+  const pendingSet = new Set(pending);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  let translationX = 0;
+  let translationY = 0;
+  let totalWeight = 0;
+  for (const id of pending) {
+    for (const neighborId of neighborsById[id]) {
+      const neighborPosition = positions.get(neighborId);
+      const neighborProjected = projectedById.get(neighborId);
+      if (pendingSet.has(neighborId) || !neighborPosition || !neighborProjected) continue;
+      const protection = Math.max(protectionById[id], protectionById[neighborId]) / 255;
+      const weight = 1 + protection * 63;
+      const rotatedX = neighborProjected.x * cos - neighborProjected.y * sin;
+      const rotatedY = neighborProjected.x * sin + neighborProjected.y * cos;
+      translationX += (neighborPosition.x - rotatedX) * weight;
+      translationY += (neighborPosition.y - rotatedY) * weight;
+      totalWeight += weight;
+    }
+  }
+  if (totalWeight === 0) return fallbackFrame;
+  return {
+    anchorPosition: {
+      x: translationX / totalWeight,
+      y: translationY / totalWeight
+    },
+    anchorProjected: { x: 0, y: 0 },
+    cos,
+    sin
+  };
+}
+
+function admissionPointBetweenFrames(projected, registeredFrame, translatedFrame, protection) {
+  const registered = registeredPoint(projected, registeredFrame);
+  const translated = registeredPoint(projected, translatedFrame);
+  const correctionX = translated.x - registered.x;
+  const correctionY = translated.y - registered.y;
+  const correctionLength = Math.hypot(correctionX, correctionY);
+  const correctionLimit = MAX_ELASTIC_FRAME_CORRECTION_PX * (1 - protection / 255);
+  if (correctionLength <= correctionLimit) return translated;
+  if (correctionLimit <= 0 || correctionLength <= 1e-9) return registered;
+  const scale = correctionLimit / correctionLength;
+  return {
+    x: roundPixel(registered.x + correctionX * scale),
+    y: roundPixel(registered.y + correctionY * scale)
   };
 }
 
@@ -59,18 +123,58 @@ export function admitProjectedTiles({
   positions,
   projectedById,
   pendingIds,
-  anchorId
+  anchorId,
+  neighborsById,
+  protectionById
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
-  const frame = registeredProjectionFrame(positions, projectedById, anchorId);
-
+  if (!Array.isArray(neighborsById) || neighborsById.length === 0) {
+    throw new Error("Local layout admission requires tile neighbors");
+  }
+  if (!(protectionById instanceof Uint8Array) || protectionById.length !== neighborsById.length) {
+    throw new Error("Local layout admission requires complete chart protection");
+  }
+  const pending = [...pendingIds];
+  if (new Set(pending).size !== pending.length) {
+    throw new Error("Local layout admission received duplicate pending tiles");
+  }
+  const retainedFrame = registeredProjectionFrame(positions, projectedById, anchorId);
+  const boundaryArgs = {
+    positions,
+    projectedById,
+    pending,
+    neighborsById,
+    protectionById
+  };
+  const registeredRotation = Math.atan2(retainedFrame.sin, retainedFrame.cos);
+  const registeredFrame = boundaryFittedFrame({
+    ...boundaryArgs,
+    rotation: registeredRotation,
+    fallbackFrame: retainedFrame
+  });
+  const translatedFrame = boundaryFittedFrame({
+    ...boundaryArgs,
+    rotation: 0,
+    fallbackFrame: retainedFrame
+  });
   let admitted = 0;
-  for (const id of pendingIds) {
+  for (const id of pending) {
     if (positions.has(id)) throw new Error(`Pending local layout tile ${id} already has a position`);
+    if (!Array.isArray(neighborsById[id])) {
+      throw new Error(`Local layout admission is missing neighbors for tile ${id}`);
+    }
     const projected = projectedById.get(id);
     assertFinitePoint(projected, `Projected position for pending tile ${id}`);
-    positions.set(id, registeredPoint(projected, frame));
+    positions.set(
+      id,
+      admissionPointBetweenFrames(
+        projected,
+        registeredFrame,
+        translatedFrame,
+        protectionById[id]
+      )
+    );
     admitted++;
   }
 
