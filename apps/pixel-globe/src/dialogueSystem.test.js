@@ -448,7 +448,8 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
     cargoUsed: 8
   }, {
     specie: 75,
-    cargoQuantity: 3
+    cargo: { cinnamon: 3 },
+    remainingCargo: { cinnamon: 5 }
   });
   const struckColors = shipDialogueView(acceptingSession, ship);
   assert.equal(struckColors.speaker, "Teresa de la Vega, Spanish merchant captain");
@@ -465,11 +466,13 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
   assert.equal(prize.presentation.candidateShipSlug, "small-cog");
   assert.equal(prize.presentation.candidateHitPoints, prize.presentation.candidateMaxHitPoints);
   assert.equal(prize.presentation.currentShipSlug, "fishing-lugger");
-  assert.match(prize.text, /75 doubloons and 3 cargo/);
+  assert.match(prize.text, /75 doubloons and Cinnamon x3/);
+  assert.match(prize.text, /Cinnamon x5 remains aboard/);
   assert.deepEqual(prize.options.map((option) => option.label), [
     "Take Small Cog",
     "Keep Fishing Barque"
   ]);
+  assert.equal(prize.options[1].detail, "LEAVE PRIZE AND REMAINING CARGO");
 
   assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
     closed: false,
@@ -478,6 +481,7 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
   const confirmation = shipDialogueView(acceptingSession, ship);
   assert.match(confirmation.text, /repaired to full hull strength/);
   assert.match(confirmation.text, /permanently replace your current Fishing Barque/);
+  assert.match(confirmation.text, /Cinnamon x5 still aboard/);
   assert.equal(confirmation.options[0].detail, "CURRENT SHIP WILL BE REPLACED");
   assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
     closed: false,

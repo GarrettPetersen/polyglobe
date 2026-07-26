@@ -1,10 +1,16 @@
+import {
+  CONTROL_SCHEME_ABSOLUTE,
+  CONTROL_SCHEME_RELATIVE,
+  normalizeControlScheme
+} from "./controlScheme.js";
+
 export const STALL_TUTORIAL_TRIGGER_SECONDS = 5;
 export const EARLY_SAILING_HELP_TRIGGER_SECONDS = 10;
 export const EARLY_SAILING_HELP_WINDOW_SECONDS = 90;
 export const EARLY_SAILING_HELP_MOVEMENT_PX_PER_SECOND = 1;
 
 const SAILING_HELP_INPUT_MODES = new Set(["touch", "mouse", "keyboard", "controller"]);
-const SAILING_HELP_DIAGRAMS = new Set(["steer", "tack", "haul"]);
+const SAILING_HELP_DIAGRAMS = new Set(["steer", "tack", "row", "haul"]);
 
 export function sailingTutorialTerrainKind(diagram, normalizedX, normalizedY) {
   if (!SAILING_HELP_DIAGRAMS.has(diagram)) {
@@ -101,10 +107,11 @@ export function earlySailingHelpWindowIsActive(state) {
   return state.earlyWindowSeconds < EARLY_SAILING_HELP_WINDOW_SECONDS;
 }
 
-export function sailingHelpPages(inputMode) {
+export function sailingHelpPages(inputMode, controlScheme = CONTROL_SCHEME_ABSOLUTE) {
   if (!SAILING_HELP_INPUT_MODES.has(inputMode)) {
     throw new Error(`Unknown sailing help input mode: ${inputMode}`);
   }
+  const normalizedControlScheme = normalizeControlScheme(controlScheme);
   const steeringCopy = {
     touch: "Touch and hold anywhere around your ship. The bow turns toward your finger. Keep holding while it sails.",
     mouse: "Click and hold anywhere around your ship. The bow turns toward the pointer. Keep holding while it sails.",
@@ -129,11 +136,37 @@ export function sailingHelpPages(inputMode) {
       body: "Most sailing ships cannot point straight into the wind. Aim to either side, then cross back and forth. This zigzag is called tacking."
     },
     {
+      title: "ROWING",
+      diagram: "row",
+      body: rowingTutorialMessage(inputMode, normalizedControlScheme)
+    },
+    {
       title: "ESCAPE THE SHORE",
       diagram: "haul",
       body: haulingCopy[inputMode]
     }
   ];
+}
+
+export function rowingTutorialMessage(inputMode, controlScheme = CONTROL_SCHEME_ABSOLUTE) {
+  if (!SAILING_HELP_INPUT_MODES.has(inputMode)) {
+    throw new Error(`Unknown sailing help input mode: ${inputMode}`);
+  }
+  const normalizedControlScheme = normalizeControlScheme(controlScheme);
+  if (inputMode === "touch") {
+    return "On an oared ship, touch and hold a direction to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
+  }
+  if (inputMode === "mouse") {
+    return "On an oared ship, click and hold a direction to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
+  }
+  if (inputMode === "keyboard") {
+    return normalizedControlScheme === CONTROL_SCHEME_RELATIVE
+      ? "On an oared ship, hold the forward key to row. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster."
+      : "On an oared ship, hold a direction key to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
+  }
+  return normalizedControlScheme === CONTROL_SCHEME_RELATIVE
+    ? "On an oared ship, hold the left stick forward to row. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster."
+    : "On an oared ship, hold the left stick in a direction to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
 }
 
 function assertEarlySailingHelpState(state) {

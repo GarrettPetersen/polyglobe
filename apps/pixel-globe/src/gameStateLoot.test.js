@@ -15,7 +15,8 @@ import {
   receiveTreasureCargo,
   receiveFishCatch,
   receivePortConquestPrize,
-  receiveSurrenderedLoot
+  receiveSurrenderedLoot,
+  setCargoCapacity
 } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -30,7 +31,29 @@ test("surrendered loot credits money and accepts only cargo that fits", () => {
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
   assert.equal(received.specie, 75);
   assert.ok(Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0) > 0);
+  assert.deepEqual(received.remainingCargo, { grain: 2, wine: 2 });
   assert.ok(state.accounts.ledger.some((entry) => entry.description === "Surrendered prize money"));
+});
+
+test("surrendered cargo left by a full hold can transfer after taking a larger prize", () => {
+  const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
+  const firstTransfer = receiveSurrenderedLoot(state, {
+    specie: 0,
+    cargo: { cinnamon: 6 }
+  }, { simMinute: 140 });
+
+  assert.deepEqual(firstTransfer.cargo, { cinnamon: 3 });
+  assert.deepEqual(firstTransfer.remainingCargo, { cinnamon: 3 });
+
+  setCargoCapacity(state, 6);
+  const prizeTransfer = receiveSurrenderedLoot(state, {
+    specie: 0,
+    cargo: firstTransfer.remainingCargo
+  }, { simMinute: 141 });
+
+  assert.deepEqual(prizeTransfer.cargo, { cinnamon: 3 });
+  assert.deepEqual(prizeTransfer.remainingCargo, {});
+  assert.equal(state.cargo.cinnamon, 6);
 });
 
 test("port conquest pays prize money and records the captured treasury", () => {

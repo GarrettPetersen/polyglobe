@@ -1444,28 +1444,32 @@ export function receiveSurrenderedLoot(state, loot, context = {}) {
   }
 
   const receivedCargo = {};
+  const remainingCargo = {};
   let freeTicks = cargoFreeTicks(state);
   for (const [goodId, available] of Object.entries(loot.cargo)) {
     const good = goodById(goodId);
     assertQuantity(available, `loot.${goodId}`);
     const goodTicks = good.unitSize * CARGO_SPACE_TICKS_PER_UNIT;
     const quantity = Math.min(available, Math.floor(freeTicks / goodTicks));
-    if (quantity <= 0) continue;
-    state.cargo[goodId] = (state.cargo[goodId] || 0) + quantity;
-    state.accounts.cargoCostBasis[goodId] = state.accounts.cargoCostBasis[goodId] || 0;
-    receivedCargo[goodId] = quantity;
-    freeTicks -= quantity * goodTicks;
-    recordLedgerEntry(state, null, context, {
-      kind: "prize",
-      description: `Prize cargo ${good.label} x${quantity}`,
-      goodId,
-      quantity,
-      amount: 0,
-      costBasis: 0,
-      pnl: null
-    });
+    if (quantity > 0) {
+      state.cargo[goodId] = (state.cargo[goodId] || 0) + quantity;
+      state.accounts.cargoCostBasis[goodId] = state.accounts.cargoCostBasis[goodId] || 0;
+      receivedCargo[goodId] = quantity;
+      freeTicks -= quantity * goodTicks;
+      recordLedgerEntry(state, null, context, {
+        kind: "prize",
+        description: `Prize cargo ${good.label} x${quantity}`,
+        goodId,
+        quantity,
+        amount: 0,
+        costBasis: 0,
+        pnl: null
+      });
+    }
+    const remaining = available - quantity;
+    if (remaining > 0) remainingCargo[goodId] = remaining;
   }
-  return { specie: loot.specie, cargo: receivedCargo };
+  return { specie: loot.specie, cargo: receivedCargo, remainingCargo };
 }
 
 export function receivePortConquestPrize(state, city, amount, context = {}) {
@@ -2083,6 +2087,10 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   if (!Number.isFinite(foodDurationMultiplier) || foodDurationMultiplier <= 0) {
     throw new Error(`Invalid food duration multiplier: ${foodDurationMultiplier}`);
   }
+  const foodActivityMultiplier = options.foodActivityMultiplier ?? 1;
+  if (!Number.isFinite(foodActivityMultiplier) || foodActivityMultiplier < 1) {
+    throw new Error(`Invalid food activity multiplier: ${foodActivityMultiplier}`);
+  }
   const result = {
     changed: false,
     freshWaterRefilled: false,
@@ -2165,7 +2173,8 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     elapsedDays,
     result.foodConsumed
   ) || result.changed;
-  state.survival.foodRationDebt += elapsedDays * consumption.foodConsumers / foodDurationMultiplier;
+  state.survival.foodRationDebt += elapsedDays * consumption.foodConsumers *
+    foodActivityMultiplier / foodDurationMultiplier;
   while (state.survival.foodRationDebt >= 1) {
     const consumed = consumeCheapestFoodRation(state);
     if (!consumed) {

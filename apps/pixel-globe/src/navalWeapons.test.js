@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
+  accurateBroadsideShotIndex,
   advanceCannonReload,
   cannonReloadWorkRate,
   isPreGunpowderCulture,
@@ -14,6 +15,20 @@ import {
   navalWeaponUsesBroadside,
   navalWeaponSpec
 } from "./navalWeapons.js";
+
+test("every cannon broadside designates exactly one true shot", () => {
+  for (let count = 1; count <= 20; count++) {
+    const trueShotIndex = accurateBroadsideShotIndex(count);
+    assert.ok(trueShotIndex >= 0 && trueShotIndex < count);
+    assert.equal(
+      Array.from({ length: count }, (_, index) => index === trueShotIndex)
+        .filter(Boolean).length,
+      1
+    );
+  }
+  assert.equal(accurateBroadsideShotIndex(1), 0);
+  assert.throws(() => accurateBroadsideShotIndex(0), /projectile count/);
+});
 
 test("cannon reload work scales with active crew per installed gun", () => {
   assert.equal(cannonReloadWorkRate(10, 10), 1);

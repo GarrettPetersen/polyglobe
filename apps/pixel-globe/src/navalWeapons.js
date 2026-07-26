@@ -60,6 +60,13 @@ export function navalWeaponFiresAtWill(weapon) {
   return weapon?.fireMode === NAVAL_FIRE_MODE_AT_WILL;
 }
 
+export function accurateBroadsideShotIndex(projectileCount) {
+  if (!Number.isInteger(projectileCount) || projectileCount <= 0) {
+    throw new Error(`Invalid broadside projectile count: ${projectileCount}`);
+  }
+  return Math.floor(projectileCount / 2);
+}
+
 export function navalArrowVolleyCount(crewCapacity) {
   if (!Number.isInteger(crewCapacity) || crewCapacity <= 0) {
     throw new Error(`Invalid arrow ship crew capacity: ${crewCapacity}`);

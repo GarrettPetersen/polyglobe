@@ -1,4 +1,5 @@
 import {
+  accurateBroadsideShotIndex,
   advanceCannonReload,
   navalArrowVolleyCount,
   navalWeaponFiresAtWill,
@@ -24,6 +25,7 @@ import {
 } from "./shipFootprint.js";
 import {
   SHIP_MINIMUM_POWERED_SPEED_RAD,
+  rowingCrewRatio,
   sailingEfficiencyForAlignment,
   shipDragFactor,
   shipPropulsionPerformance
@@ -198,9 +200,15 @@ export function updateLakeBattle(state, dt, input = {}) {
   if (playerDesiredHeading !== null && !Number.isFinite(playerDesiredHeading)) {
     throw new Error(`Invalid player lake battle heading: ${input.desiredHeadingRad}`);
   }
+  const playerRowingRequested = input.rowingRequested ?? (
+    input.desiredHeadingRad !== null && input.desiredHeadingRad !== undefined
+  );
+  if (typeof playerRowingRequested !== "boolean") {
+    throw new Error(`Invalid player lake battle rowing request: ${input.rowingRequested}`);
+  }
 
-  updateBattleShipMotion(state, state.player, playerDesiredHeading, dt);
-  updateBattleShipMotion(state, state.enemy, enemyDesiredHeading(state, dt), dt);
+  updateBattleShipMotion(state, state.player, playerDesiredHeading, playerRowingRequested, dt);
+  updateBattleShipMotion(state, state.enemy, enemyDesiredHeading(state, dt), true, dt);
   resolveBattleShipCollision(state);
 
   if (input.firePort) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "port");
@@ -273,20 +281,24 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
   const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
   const range = lakeBattleWeaponRange(ship);
   const aimed = targetDistance <= range * 1.08 && dot2(side, toTarget) >= Math.cos(BROADSIDE_HALF_ANGLE_RAD);
+  const trueShotIndex = accurateBroadsideShotIndex(count);
 
   for (let index = 0; index < count; index++) {
     const random = nextBattleRandom(state);
+    const rangeRandom = nextBattleRandom(state);
+    const trueShot = index === trueShotIndex;
     const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
     const heading = lakeBattleHeadingVector(ship);
     const startX = sourcePoint.x + heading.x * lineT * 13 + side.x * 8;
     const startY = sourcePoint.y + heading.y * lineT * 13 + side.y * 8;
-    const spread = (random - 0.5) * 2 * CANNON_SPREAD_RAD;
+    const spread = trueShot ? 0 : (random - 0.5) * 2 * CANNON_SPREAD_RAD;
     const aim = rotate2(aimed ? toTarget : side, spread);
     const projectileRange = aimed
-      ? targetDistance + (nextBattleRandom(state) - 0.5) * 7
-      : range * (0.82 + nextBattleRandom(state) * 0.28);
-    const targetX = startX + aim.x * projectileRange;
-    const targetY = startY + aim.y * projectileRange;
+      ? targetDistance + (rangeRandom - 0.5) * 7
+      : range * (0.82 + rangeRandom * 0.28);
+    const targetX = aimed && trueShot ? targetPoint.x : startX + aim.x * projectileRange;
+    const targetY = aimed && trueShot ? targetPoint.y : startY + aim.y * projectileRange;
+    const actualRange = Math.hypot(targetX - startX, targetY - startY);
     addLakeBattleProjectile(state, ship, {
       id: state.projectileSerial++,
       ownerId: ship.id,
@@ -297,7 +309,7 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
       targetX,
       targetY,
       age: 0,
-      duration: Math.max(0.12, projectileRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
+      duration: Math.max(0.12, actualRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
       arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * ship.weapon.arcHeightScale,
       damage: ship.weapon.damage,
       seed: Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0
@@ -531,7 +543,7 @@ function relocateShipToNavigableMapCell(state, ship) {
   ship.speedPx = 0;
 }
 
-function updateBattleShipMotion(state, ship, desiredHeadingRad, dt) {
+function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingRequested, dt) {
   if (ship.kind === "city") return;
   if (desiredHeadingRad !== null) {
     const turnRate = shipTurnRate({
@@ -550,7 +562,8 @@ function updateBattleShipMotion(state, ship, desiredHeadingRad, dt) {
     windStrength: state.wind.strength,
     sailEfficiency,
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
-    rowerRatio: 1
+    rowerRatio: rowingCrewRatio(ship.crew, ship.stats.crewCapacity),
+    rowingRequested
   });
   ship.rowing = propulsion.rowing;
   ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN * propulsion.accelerationFactor * dt;

@@ -152,7 +152,10 @@ import {
 } from "./shipRowingAnimation.js";
 import {
   SHIP_MINIMUM_POWERED_SPEED_RAD,
+  ROWING_FOOD_CONSUMPTION_MULTIPLIER,
+  rowingCrewRatio,
   sailingEfficiencyForAlignment,
+  shipCanUseOars,
   shipDragFactor,
   shipHasWindDeadZone,
   shipPropulsionPerformance
@@ -608,6 +611,7 @@ import {
   EARLY_SAILING_HELP_WINDOW_SECONDS,
   createSailingTutorialState,
   earlySailingHelpWindowIsActive,
+  rowingTutorialMessage,
   sailingHelpPages,
   sailingTutorialTerrainKind,
   updateEarlySailingHelpState,
@@ -1244,6 +1248,7 @@ import {
   pointInBroadsideArc
 } from "./broadsideControls.js";
 import {
+  accurateBroadsideShotIndex,
   advanceCannonReload,
   navalArrowVolleyCount,
   navalWeaponFiresAtWill,
@@ -4557,7 +4562,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
 }
 
 function createSailingHelpModal(inputMode) {
-  const pages = sailingHelpPages(inputMode);
+  const pages = sailingHelpPages(inputMode, optionsMenu.controlScheme);
   return {
     kind: "sailing-help",
     inputMode,
@@ -7950,7 +7955,7 @@ function updateLakeBattleModeFrame(dt, nowMs) {
   if (lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
   const battle = lakeBattleMode.battle;
   if (!battle) throw new Error("Active lake battle screen has no battle state");
-  updateLakeBattle(battle, dt, { desiredHeadingRad: lakeBattleInputHeading() });
+  updateLakeBattle(battle, dt, lakeBattleInputCommand());
   processLakeBattleEvents(battle);
   if (battle.phase !== LAKE_BATTLE_PHASE_ACTIVE) {
     startLakeBattleSinkSequence(battle, nowMs);
@@ -7980,14 +7985,16 @@ function startLakeBattleSinkSequence(battle, nowMs) {
   lakeBattleMode.screen = LAKE_BATTLE_SCREEN_SINKING;
 }
 
-function lakeBattleInputHeading() {
+function lakeBattleInputCommand() {
   const battle = lakeBattleMode?.battle;
-  if (!battle) return null;
+  if (!battle) return { desiredHeadingRad: null, rowingRequested: false };
   if (pointerSteering.active && pointerSteering.point) {
     const px = pointerSteering.point.x - battle.player.x;
     const py = pointerSteering.point.y - battle.player.y;
     const length = Math.hypot(px, py);
-    if (length >= POINTER_STEERING_DEADZONE_PX) return Math.atan2(py, px);
+    if (length >= POINTER_STEERING_DEADZONE_PX) {
+      return { desiredHeadingRad: Math.atan2(py, px), rowingRequested: true };
+    }
   }
   const intent = steeringIntentForScheme({
     scheme: optionsMenu.controlScheme,
@@ -7999,11 +8006,21 @@ function lakeBattleInputHeading() {
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
   if (intent.relativeTurn !== 0) {
-    return relativeHeadingAngle(battle.player.headingRad, intent.relativeTurn);
+    return {
+      desiredHeadingRad: relativeHeadingAngle(battle.player.headingRad, intent.relativeTurn),
+      rowingRequested: intent.relativeForward
+    };
   }
-  if (intent.relativeForward) return battle.player.headingRad;
-  if (intent.absoluteX === 0 && intent.absoluteY === 0) return null;
-  return Math.atan2(-intent.absoluteY, intent.absoluteX);
+  if (intent.relativeForward) {
+    return { desiredHeadingRad: battle.player.headingRad, rowingRequested: true };
+  }
+  if (intent.absoluteX === 0 && intent.absoluteY === 0) {
+    return { desiredHeadingRad: null, rowingRequested: false };
+  }
+  return {
+    desiredHeadingRad: Math.atan2(-intent.absoluteY, intent.absoluteX),
+    rowingRequested: true
+  };
 }
 
 function fireLakeBattlePlayerBroadside(sideName) {
@@ -13429,11 +13446,24 @@ async function captureSurrenderedShip(npcShipId) {
     );
     applyPlayerShipType(candidateSlug, stats, assets, { stateAlreadyUpdated: true });
     ship.hitPoints = stats.hitPoints;
+    const deferredLoot = receiveSurrenderedLoot(gameState, {
+      specie: 0,
+      cargo: session.prize.remainingCargo
+    }, { simMinute: Math.floor(weatherClockMinutes) });
+    const recoveredCargoQuantity = Object.values(deferredLoot.cargo)
+      .reduce((sum, quantity) => sum + quantity, 0);
+    const abandonedCargoQuantity = Object.values(deferredLoot.remainingCargo)
+      .reduce((sum, quantity) => sum + quantity, 0);
     captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
     npcVisualShips.delete(npcShipId);
     shipCombatEntryCollisionGrace.delete(npcShipId);
     syncShipCargoFromGameState();
-    showSurvivalNotice(`CAPTURED ${shipLabelForSlug(candidateSlug).toUpperCase()}`, "good");
+    showSurvivalNotice(
+      `CAPTURED ${shipLabelForSlug(candidateSlug).toUpperCase()}` +
+        (recoveredCargoQuantity > 0 ? `  +${recoveredCargoQuantity} CARGO` : "") +
+        (abandonedCargoQuantity > 0 ? `  ${abandonedCargoQuantity} CARGO LEFT` : ""),
+      abandonedCargoQuantity > 0 ? "warn" : "good"
+    );
     saveVoyageNow("captured surrendered ship");
     closeDialogue();
   } catch (error) {
@@ -15369,7 +15399,8 @@ function createShip(latDeg, lonDeg, shipSlug, factionId) {
       port: 0,
       starboard: 0
     },
-    arrowCooldown: 0
+    arrowCooldown: 0,
+    rowing: false
   };
 }
 
@@ -15396,7 +15427,8 @@ function initialShipHeading(position) {
 function updateSailing(dt) {
   if (!ship || !camera) return false;
   const effectiveStats = currentPlayerEffectiveShipStats();
-  const inputHeading = inputHeadingForShip();
+  const input = inputCommandForShip();
+  const inputHeading = input.heading;
   const inRiver = shipIsInRiverWater();
   playerSteeringHoldSeconds = inputHeading ? playerSteeringHoldSeconds + dt : 0;
   if (!inputHeading) playerHaulBlockedSeconds = 0;
@@ -15429,7 +15461,7 @@ function updateSailing(dt) {
     ship.targetHeading = ship.heading;
   }
 
-  applyWindAcceleration(dt, effectiveStats);
+  applyWindAcceleration(dt, effectiveStats, input.rowingRequested);
   applyWhaleTowAcceleration(dt);
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
   applyHeldShipHaulAcceleration(dt, inputHeading, haulMotionScale);
@@ -15519,6 +15551,20 @@ function applyPlayerBoundaryPushOff(inputHeading, boundaryContact) {
 
 function updateSailingTutorials(dt, inRiver, movedPx) {
   const flags = gameState?.memory?.flags;
+  if (
+    flags &&
+    shipCanUseOars(ship.stats) &&
+    flags.oarTutorialShown !== true &&
+    !anchored &&
+    !playerHasCombatEngagement()
+  ) {
+    const opened = openCaptainAlertModal(
+      rowingTutorialMessage(sailingTutorialInputMode, optionsMenu.controlScheme),
+      "neutral"
+    );
+    if (opened) flags.oarTutorialShown = true;
+    return opened;
+  }
   const basicsAlreadyShown = flags?.sailingBasicsTutorialShown === true;
   const shouldOpenBasics = updateEarlySailingHelpState(sailingTutorialState, {
     dt,
@@ -15543,12 +15589,17 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
     windStrength: wind.strength,
     sailEfficiency: sailingEfficiency(ship.heading, windFlow),
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
-    rowerRatio: playerRowerRatio()
+    rowerRatio: playerRowerRatio(),
+    rowingRequested: false
   });
   const shouldPrompt = updateSailingTutorialState(sailingTutorialState, {
     dt,
     alreadyShown: gameState?.memory?.flags?.tackingTutorialShown === true,
-    eligible: !waitingForBasics && !inRiver && !anchored && !playerHasCombatEngagement(),
+    eligible: shipHasWindDeadZone(ship.stats) &&
+      !waitingForBasics &&
+      !inRiver &&
+      !anchored &&
+      !playerHasCombatEngagement(),
     stalled: propulsion.stalled
   });
   if (!shouldPrompt) return false;
@@ -15561,12 +15612,15 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
   return opened;
 }
 
-function inputHeadingForShip() {
+function inputCommandForShip() {
   const captureHeading = captureAutopilotHeading();
-  if (captureHeading) return captureHeading;
+  if (captureHeading) return { heading: captureHeading, rowingRequested: true };
   const pointerVector = pointerSteeringInputVector();
   if (pointerVector) {
-    return cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy);
+    return {
+      heading: cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy),
+      rowingRequested: true
+    };
   }
   const intent = steeringIntentForScheme({
     scheme: optionsMenu.controlScheme,
@@ -15578,15 +15632,23 @@ function inputHeadingForShip() {
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
   if (intent.relativeTurn !== 0) {
-    return rotateTangentDirection(
-      ship.heading,
-      ship.position,
-      -intent.relativeTurn * Math.PI / 2
-    );
+    return {
+      heading: rotateTangentDirection(
+        ship.heading,
+        ship.position,
+        -intent.relativeTurn * Math.PI / 2
+      ),
+      rowingRequested: intent.relativeForward
+    };
   }
-  if (intent.relativeForward) return ship.heading;
-  if (intent.absoluteX === 0 && intent.absoluteY === 0) return null;
-  return cameraSpaceHeadingForShip(intent.absoluteX, intent.absoluteY);
+  if (intent.relativeForward) return { heading: ship.heading, rowingRequested: true };
+  if (intent.absoluteX === 0 && intent.absoluteY === 0) {
+    return { heading: null, rowingRequested: false };
+  }
+  return {
+    heading: cameraSpaceHeadingForShip(intent.absoluteX, intent.absoluteY),
+    rowingRequested: true
+  };
 }
 
 function cameraSpaceHeadingForShip(dx, dy) {
@@ -15831,7 +15893,11 @@ function pointerSteeringInputVector() {
   };
 }
 
-function applyWindAcceleration(dt, effectiveStats = currentPlayerEffectiveShipStats()) {
+function applyWindAcceleration(
+  dt,
+  effectiveStats = currentPlayerEffectiveShipStats(),
+  rowingRequested = false
+) {
   const wind = windForShip();
   const windFlow = windFlowVectorAtShip(wind);
   const efficiency = sailingEfficiencyForStats(effectiveStats, ship.heading, windFlow);
@@ -15839,8 +15905,10 @@ function applyWindAcceleration(dt, effectiveStats = currentPlayerEffectiveShipSt
     windStrength: wind.strength,
     sailEfficiency: efficiency,
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
-    rowerRatio: playerRowerRatio()
+    rowerRatio: playerRowerRatio(),
+    rowingRequested
   });
+  ship.rowing = propulsion.rowing;
   const propulsionAccel = effectiveStats.accelerationRad * propulsion.accelerationFactor;
 
   ship.velocity = [
@@ -16835,16 +16903,18 @@ function fireBroadside(sideName) {
   const muzzleSpan = cannonMuzzleForeAftSpan(broadsideCount);
   const aimSpreadRad = CANNON_AIM_SPREAD_RAD *
     currentPlayerPerkTotals().cannonSpreadMultiplier;
+  const trueShotIndex = accurateBroadsideShotIndex(broadsideCount);
 
   for (let i = 0; i < broadsideCount; i++) {
     const lineT = broadsideCount === 1
       ? 0
       : i / (broadsideCount - 1) - 0.5;
     const seed = cannonSeed(sequenceBase, i, sideSalt, origin);
-    const spread = (cannonUnit(seed, 1) * 2 - 1) * aimSpreadRad;
+    const trueShot = i === trueShotIndex;
+    const spread = trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * aimSpreadRad;
     const range = (CANNON_RANGE_PX + (cannonUnit(seed, 2) * 2 - 1) * CANNON_RANGE_JITTER_PX) *
       weapon.rangeScale;
-    const sideJitter = (cannonUnit(seed, 3) * 2 - 1) * 0.75;
+    const sideJitter = trueShot ? 0 : (cannonUnit(seed, 3) * 2 - 1) * 0.75;
     const aim = rotate2(side, spread);
     const startX = origin.x +
       heading.x * lineT * muzzleSpan +
@@ -17747,7 +17817,10 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
     freshwater: shipIsInFreshWater(),
     rainfall: playerRainfallStrength(),
     safePort,
-    foodDurationMultiplier: perks.foodDurationMultiplier
+    foodDurationMultiplier: perks.foodDurationMultiplier,
+    foodActivityMultiplier: playerShipIsRowing()
+      ? ROWING_FOOD_CONSUMPTION_MULTIPLIER
+      : 1
   });
   if (safePort) {
     resetSurvivalDamageTimers();
@@ -19089,11 +19162,15 @@ function fireShoreBatteryAtNearestTarget(state) {
   armShoreBatteryReload(state);
   playNavalAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
+  const trueShotIndex = weapon.kind === NAVAL_WEAPON_CANNON
+    ? accurateBroadsideShotIndex(state.gunCount)
+    : -1;
   for (let index = 0; index < state.gunCount; index++) {
     const seed = cannonSeed(state.shotSequence, index, state.cityTileId * 0x51a7, origin);
     const jitter = weapon.kind === NAVAL_WEAPON_ARROW ? 2.5 : 5;
-    const targetX = target.x + (cannonUnit(seed, 1) * 2 - 1) * jitter;
-    const targetY = target.y + (cannonUnit(seed, 2) * 2 - 1) * jitter;
+    const trueShot = index === trueShotIndex;
+    const targetX = target.x + (trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * jitter);
+    const targetY = target.y + (trueShot ? 0 : (cannonUnit(seed, 2) * 2 - 1) * jitter);
     const range = Math.hypot(targetX - origin.x, targetY - origin.y);
     const projectile = {
       kind: weapon.kind,
@@ -19342,12 +19419,16 @@ function fireNpcWeaponAtTarget(state, targetId) {
     distanceFromPlayerPoint(state)
   );
   startCombatMusicForThreat(stats.cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  const trueShotIndex = navalWeaponUsesBroadside(weapon)
+    ? accurateBroadsideShotIndex(volleyCount)
+    : -1;
 
   for (let index = 0; index < volleyCount; index++) {
     const seed = cannonSeed(state.weaponSequence, index, state.id.length * 0x51a7, state);
     const jitterScale = weapon.kind === NAVAL_WEAPON_ARROW ? 3.5 : 7;
-    const jitterX = (cannonUnit(seed, 1) * 2 - 1) * jitterScale;
-    const jitterY = (cannonUnit(seed, 2) * 2 - 1) * jitterScale;
+    const trueShot = index === trueShotIndex;
+    const jitterX = trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * jitterScale;
+    const jitterY = trueShot ? 0 : (cannonUnit(seed, 2) * 2 - 1) * jitterScale;
     const targetX = target.x + jitterX;
     const targetY = target.y + jitterY;
     const lineT = volleyCount === 1 ? 0 : index / (volleyCount - 1) - 0.5;
@@ -19631,7 +19712,8 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     };
     playerPrizeSummary = {
       specie: received.specie,
-      cargoQuantity
+      cargo: received.cargo,
+      remainingCargo: received.remainingCargo
     };
   } else if (wonByShoreBattery) {
     const battery = shoreBatteryStates.get(winnerId);
@@ -31766,14 +31848,7 @@ function rowingShipFrameAsset(call, nowMs) {
 
 function playerShipIsRowing() {
   if (!ship || anchored || portWaitState) return false;
-  if (vectorLength(ship.velocity) <= SHIP_MIN_SLIDE_SPEED_RAD) return false;
-  return shipUsesOars(
-    currentPlayerEffectiveShipStats(),
-    ship.heading,
-    ship.position,
-    ship.tileId,
-    playerRowerRatio()
-  );
+  return ship.rowing === true;
 }
 
 function npcShipIsRowing(state) {
@@ -31797,7 +31872,7 @@ function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
 function playerRowerRatio() {
   if (!ship?.stats) return 0;
   const crew = gameState?.ship?.crew ?? ship.stats.crewCapacity;
-  return clamp(crew / ship.stats.crewCapacity, 0, 1);
+  return rowingCrewRatio(crew, ship.stats.crewCapacity);
 }
 
 function stormBobbedShipCall(call, nowMs) {
@@ -34077,7 +34152,9 @@ function drawSailingHelpModal(modal) {
     align: "right"
   });
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText(page.title, panel.x + 12, panel.y + 29, { font: PIXEL_FONT_SMALL_8 });
+  drawPixelText(renderedUiText(page.title), panel.x + 12, panel.y + 29, {
+    font: PIXEL_FONT_SMALL_8
+  });
 
   const diagram = {
     x: panel.x + 12,
@@ -34115,6 +34192,7 @@ function drawSailingHelpDiagram(kind, rect, inputMode) {
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   if (kind === "steer") drawSailingSteeringDiagram(rect, inputMode);
   else if (kind === "tack") drawSailingTackingDiagram(rect);
+  else if (kind === "row") drawSailingRowingDiagram(rect, inputMode);
   else if (kind === "haul") drawSailingHaulingDiagram(rect);
   else throw new Error(`Unknown sailing tutorial diagram: ${kind}`);
 }
@@ -34269,6 +34347,23 @@ function drawSailingTackingDiagram(rect) {
     y: tackPoints[1].y - shipY
   });
   drawTutorialLabel("TACK", rect.x + rect.w - 39, rect.y + rect.h - 14);
+}
+
+function drawSailingRowingDiagram(rect, inputMode) {
+  const shipX = rect.x + Math.round(rect.w * 0.48);
+  const shipY = rect.y + Math.round(rect.h * 0.55);
+  const oarColor = "#5d3a1a";
+  for (const xOffset of [-6, 0, 6]) {
+    drawPixelLine(shipX + xOffset, shipY - 3, shipX + xOffset - 5, shipY - 15, oarColor);
+    drawPixelLine(shipX + xOffset, shipY + 3, shipX + xOffset - 5, shipY + 15, oarColor);
+  }
+  drawTutorialShip(shipX, shipY, { x: 1, y: 0 });
+  drawTutorialArrow(shipX + 9, shipY, rect.x + Math.round(rect.w * 0.78), shipY, "#f9c22b");
+  drawTutorialLabel(uiText("tutorial.holdRow"), rect.x + 7, rect.y + 6);
+  drawTutorialLabel(uiText("tutorial.releaseRest"), rect.x + 7, rect.y + rect.h - 14);
+  if (inputMode === "controller") {
+    drawControllerActionGlyph("navigate", rect.x + 7, rect.y + 17);
+  }
 }
 
 function drawSailingHaulingDiagram(rect) {

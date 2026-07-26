@@ -4,12 +4,16 @@ import test from "node:test";
 import { shipStatsForSlug } from "./shipStats.js";
 import {
   HYBRID_ROWING_SPEED_RATIO,
+  MAX_EFFECTIVE_ROWERS,
+  ROWING_FOOD_CONSUMPTION_MULTIPLIER,
   SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD,
   SAIL_CLOSE_HAULED_EFFICIENCY,
   SHIP_DRAG_PER_SECOND,
   SHIP_MINIMUM_POWERED_SPEED_RAD,
   SHIP_STALLED_DRAG_MULTIPLIER,
+  rowingCrewRatio,
   sailingEfficiencyForAlignment,
+  shipCanUseOars,
   shipDragFactor,
   shipHasWindDeadZone,
   shipPropulsionPerformance
@@ -85,6 +89,28 @@ test("oar-sail ships row slowly when their sails cannot make progress", () => {
   assert.ok(sailing.maxSpeedRad > rowing.maxSpeedRad * 2);
 });
 
+test("oars stop producing power when directional input is released", () => {
+  const canoe = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const galley = shipStatsForSlug("mediterranean-galley");
+  const canoeCoasting = shipPropulsionPerformance(canoe, {
+    windStrength: 0.8,
+    sailEfficiency: 0,
+    rowingRequested: false
+  });
+  const galleySailing = shipPropulsionPerformance(galley, {
+    windStrength: 0.8,
+    sailEfficiency: 0.4,
+    rowingRequested: false
+  });
+
+  assert.equal(canoeCoasting.rowing, false);
+  assert.equal(canoeCoasting.accelerationFactor, 0);
+  assert.equal(canoeCoasting.maxSpeedRad, 0);
+  assert.equal(canoeCoasting.stalled, true);
+  assert.equal(galleySailing.rowing, false);
+  assert.ok(galleySailing.maxSpeedRad > 0);
+});
+
 test("oar-sail ships row whenever weak wind would be slower than their oars", () => {
   const galley = shipStatsForSlug("mediterranean-galley");
   const performance = shipPropulsionPerformance(galley, {
@@ -140,6 +166,22 @@ test("rowing power falls gracefully as an oar crew is depleted", () => {
   assert.equal(quarterCrew.rowing, true);
   assert.equal(quarterCrew.maxSpeedRad, fullCrew.maxSpeedRad * 0.5);
   assert.equal(quarterCrew.accelerationFactor, fullCrew.accelerationFactor * 0.5);
+});
+
+test("rowing crew power rises to a capped twenty-rower complement", () => {
+  assert.equal(MAX_EFFECTIVE_ROWERS, 20);
+  assert.equal(rowingCrewRatio(0, 40), 0);
+  assert.equal(rowingCrewRatio(5, 40), 0.25);
+  assert.equal(rowingCrewRatio(20, 40), 1);
+  assert.equal(rowingCrewRatio(40, 40), 1);
+  assert.equal(rowingCrewRatio(3, 3), 1);
+  assert.equal(ROWING_FOOD_CONSUMPTION_MULTIPLIER, 1.15);
+});
+
+test("oar capability is explicit for pure and hybrid craft", () => {
+  assert.equal(shipCanUseOars(shipStatsForSlug("mesoamerican-dugout-canoe")), true);
+  assert.equal(shipCanUseOars(shipStatsForSlug("mediterranean-galley")), true);
+  assert.equal(shipCanUseOars(shipStatsForSlug("brigantine")), false);
 });
 
 test("a depleted hybrid crew still uses its sails when they are stronger", () => {

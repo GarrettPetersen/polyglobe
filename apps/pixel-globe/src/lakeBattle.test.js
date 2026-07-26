@@ -25,6 +25,7 @@ import {
   SHORE_BATTERY_HIT_POINTS_PER_GUN,
   SHORE_BATTERY_RELOAD_SECONDS
 } from "./shoreBatteries.js";
+import { accurateBroadsideShotIndex } from "./navalWeapons.js";
 import {
   shipFootprintCenter,
   shipFootprintFrame,
@@ -304,6 +305,38 @@ test("broadside fire follows the selected side and emits combat events", () => {
   );
 });
 
+test("a one-ball broadside fires its sole cannonball exactly at the target", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "ocean-dhow",
+    enemySlug: "caravel"
+  });
+  battle.player.x = 200;
+  battle.player.y = 120;
+  battle.player.headingRad = 0;
+  battle.enemy.x = 200;
+  battle.enemy.y = 78;
+  battle.enemy.headingRad = 0;
+
+  const targetCenter = shipFootprintCenter(shipFootprintFrame(
+    TEST_SHIP_FOOTPRINTS.get(battle.enemy.slug),
+    lakeBattleHeadingVector(battle.enemy)
+  ));
+  const expectedTarget = {
+    x: battle.enemy.x + targetCenter.x,
+    y: battle.enemy.y + targetCenter.y
+  };
+
+  assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), true);
+  assert.equal(battle.projectiles.length, 1);
+  const trueShot = battle.projectiles[accurateBroadsideShotIndex(battle.projectiles.length)];
+  assert.deepEqual(
+    { x: trueShot.targetX, y: trueShot.targetY },
+    expectedTarget
+  );
+});
+
 test("a cannonball damages the first ship crossed before its endpoint", () => {
   const battle = createLakeBattle({
     width: 455,
@@ -434,6 +467,30 @@ test("releasing steering stops turning while the ship continues under sail", () 
 
   assert.equal(battle.player.headingRad, releasedHeading);
   assert.ok(Math.hypot(battle.player.x - releasedPosition.x, battle.player.y - releasedPosition.y) > 0);
+});
+
+test("releasing directional input rests player rowers in lake combat", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "mesoamerican-dugout-canoe",
+    enemySlug: "brigantine"
+  });
+
+  updateLakeBattle(battle, 0.1, {
+    desiredHeadingRad: battle.player.headingRad,
+    rowingRequested: true
+  });
+  const poweredSpeed = battle.player.speedPx;
+  assert.equal(battle.player.rowing, true);
+  assert.ok(poweredSpeed > 0);
+
+  updateLakeBattle(battle, 0.1, {
+    desiredHeadingRad: null,
+    rowingRequested: false
+  });
+  assert.equal(battle.player.rowing, false);
+  assert.ok(battle.player.speedPx < poweredSpeed);
 });
 
 test("lake battle rudder authority falls while stalled without reaching zero", () => {

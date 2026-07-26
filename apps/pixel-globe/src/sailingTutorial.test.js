@@ -12,6 +12,10 @@ import {
   updateEarlySailingHelpState,
   updateSailingTutorialState
 } from "./sailingTutorial.js";
+import {
+  CONTROL_SCHEME_ABSOLUTE,
+  CONTROL_SCHEME_RELATIVE
+} from "./controlScheme.js";
 
 function update(state, overrides = {}) {
   return updateSailingTutorialState(state, {
@@ -112,19 +116,34 @@ test("sailing help uses the active device's control language", () => {
   const keyboard = sailingHelpPages("keyboard");
   const controller = sailingHelpPages("controller");
 
-  assert.equal(touch.length, 3);
+  assert.equal(touch.length, 4);
   assert.match(touch[0].body, /Touch and hold/);
   assert.match(mouse[0].body, /Click and hold/);
   assert.match(keyboard[0].body, /WASD or an arrow key/);
   assert.match(controller[0].body, /left stick/);
   assert.match(mouse[1].body, /zigzag.*tacking/i);
-  assert.match(keyboard[2].body, /wind pins you/i);
-  assert.match(keyboard[2].body, /haul along the shore/i);
+  assert.match(keyboard[2].body, /direction key to row/i);
+  assert.match(keyboard[2].body, /food faster/i);
+  assert.match(keyboard[3].body, /wind pins you/i);
+  assert.match(keyboard[3].body, /haul along the shore/i);
+});
+
+test("relative rowing uses forward while pointer rowing remains directional", () => {
+  const keyboard = sailingHelpPages("keyboard", CONTROL_SCHEME_RELATIVE);
+  const controller = sailingHelpPages("controller", CONTROL_SCHEME_RELATIVE);
+  const touch = sailingHelpPages("touch", CONTROL_SCHEME_RELATIVE);
+  const absoluteKeyboard = sailingHelpPages("keyboard", CONTROL_SCHEME_ABSOLUTE);
+
+  assert.match(keyboard[2].body, /forward key/i);
+  assert.match(controller[2].body, /stick forward/i);
+  assert.match(touch[2].body, /a direction/i);
+  assert.match(absoluteKeyboard[2].body, /direction key/i);
 });
 
 test("ordinary sailing diagrams remain open water", () => {
   assert.equal(sailingTutorialTerrainKind("steer", 0.1, 0.1), "deep-water");
   assert.equal(sailingTutorialTerrainKind("tack", 0.9, 0.9), "deep-water");
+  assert.equal(sailingTutorialTerrainKind("row", 0.5, 0.5), "deep-water");
 });
 
 test("the hauling diagram traps the ship inside a widening cove", () => {

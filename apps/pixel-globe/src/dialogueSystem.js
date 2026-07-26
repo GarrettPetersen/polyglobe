@@ -467,10 +467,11 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
     throw new Error(`Surrender prize requires current cargo use: ${currentShip?.cargoUsed}`);
   }
   const specie = loot.specie ?? 0;
-  const cargoQuantity = loot.cargoQuantity ?? 0;
-  if (!Number.isInteger(specie) || specie < 0 || !Number.isInteger(cargoQuantity) || cargoQuantity < 0) {
+  if (!Number.isInteger(specie) || specie < 0) {
     throw new Error("Surrender prize requires a valid loot summary");
   }
+  const cargo = surrenderPrizeCargo(loot.cargo ?? {}, "secured");
+  const remainingCargo = surrenderPrizeCargo(loot.remainingCargo ?? {}, "remaining");
   target.nodeId = "surrendered";
   target.selectedIndex = 0;
   target.feedback = null;
@@ -483,7 +484,8 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
     currentMaxHitPoints: currentShip.maxHitPoints,
     cargoUsed: currentShip.cargoUsed,
     specie,
-    cargoQuantity
+    cargo,
+    remainingCargo
   });
   return target;
 }
@@ -792,11 +794,15 @@ function surrenderPrizeView(session, ship) {
       `${shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity}-unit hold.`
     : null;
   if (session.nodeId === "capture-confirm") {
+    const remainingCargo = shipCargoManifest(presentation.remainingCargo);
     return {
       speaker: `${candidate}, surrendered prize`,
       expressionId: "afraid",
       text: `The prize will be repaired to full hull strength before transfer. ` +
-        `Taking it will permanently replace your current ${current}.`,
+        `Taking it will permanently replace your current ${current}.` +
+        (remainingCargo
+          ? ` The ${remainingCargo} still aboard will be stowed after your current hold is transferred, space permitting.`
+          : ""),
       feedback: session.feedback,
       presentation,
       options: [
@@ -810,13 +816,18 @@ function surrenderPrizeView(session, ship) {
     };
   }
   const lootParts = [];
+  const securedCargo = shipCargoManifest(presentation.cargo);
+  const remainingCargo = shipCargoManifest(presentation.remainingCargo);
   if (presentation.specie > 0) lootParts.push(`${presentation.specie} doubloons`);
-  if (presentation.cargoQuantity > 0) lootParts.push(`${presentation.cargoQuantity} cargo`);
+  if (securedCargo) lootParts.push(securedCargo);
   const lootSummary = lootParts.length > 0 ? ` You have already secured ${lootParts.join(" and ")}.` : "";
+  const remainingSummary = remainingCargo
+    ? ` ${remainingCargo} remains aboard and can transfer with the prize if its hold has room.`
+    : "";
   return {
     speaker: `${candidate}, surrendered prize`,
     expressionId: "afraid",
-    text: `The surrendered vessel is ready for inspection.${lootSummary}`,
+    text: `The surrendered vessel is ready for inspection.${lootSummary}${remainingSummary}`,
     feedback: session.feedback,
     presentation,
     options: [
@@ -825,7 +836,9 @@ function surrenderPrizeView(session, ship) {
         disabled: Boolean(disabledReason),
         disabledReason
       }),
-      option(`Keep ${current}`, { type: "close" })
+      option(`Keep ${current}`, { type: "close" }, {
+        detail: remainingCargo ? "LEAVE PRIZE AND REMAINING CARGO" : null
+      })
     ]
   };
 }
@@ -4030,6 +4043,21 @@ function shipCargoManifest(cargo) {
   if (rows.length === 0) return "";
   if (rows.length <= 2) return rows.join(" and ");
   return `${rows.slice(0, 2).join(", ")}, and other goods`;
+}
+
+function surrenderPrizeCargo(cargo, label) {
+  if (!cargo || typeof cargo !== "object" || Array.isArray(cargo)) {
+    throw new Error(`Surrender prize requires a valid ${label} cargo manifest`);
+  }
+  const manifest = {};
+  for (const [goodId, quantity] of Object.entries(cargo)) {
+    tradeGoodById(goodId);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error(`Surrender prize has invalid ${label} cargo: ${goodId} ${quantity}`);
+    }
+    manifest[goodId] = quantity;
+  }
+  return Object.freeze(manifest);
 }
 
 function speakerName(city) {

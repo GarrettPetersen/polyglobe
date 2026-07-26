@@ -80,6 +80,15 @@ test("every campaign goal exposes a persistent journal and character objective",
   assert.match(presentations[3].objective, /treasure map/i);
 });
 
+test("treasure dialogue keeps the three-rumor cap as an invisible backend constraint", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_TREASURE });
+  const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
+  const text = intro.map((entry) => entry.text).join(" ");
+
+  assert.match(text, /Ask in ports\. Hail ships\./);
+  assert.doesNotMatch(text, /three rumors|no more than three/i);
+});
+
 test("drunk homecomings open with role-specific captain banter", () => {
   const explorer = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
   const debt = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });

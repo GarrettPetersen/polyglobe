@@ -510,7 +510,7 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
     return [
       step("contact", "attentive", `Captain ${goal.treasureCaptainName} left a treasure no honest chart records. Before the old rogue died, the crew tore the map into ${TREASURE_MAP_PIECE_COUNT} pieces, one for each hand who feared the rest.`),
       step("player", "thoughtful", "A dozen pirates, a dozen scraps, and one island somewhere beyond the lamps of any harbor. It sounds like the beginning of a hanging, not a fortune."),
-      step("contact", "pleased", "Perhaps. But every piece is still aboard a pirate ship, and frightened sailors remember names and bearings. Ask in ports. Hail ships. Follow no more than three rumors at once, or the whole world will become an X on your chart."),
+      step("contact", "pleased", "Perhaps. But every piece is still aboard a pirate ship, and frightened sailors remember names and bearings. Ask in ports. Hail ships. Mark every reliable report; sooner or later, one of those old rogues will show his sail."),
       step("player", "determined", `Then I will take the pieces from Captain ${goal.treasureCaptainName}'s old crew and read the map whole. Let them keep their black spots and mutiny talk. I mean to come home with the gold.`)
     ];
   }

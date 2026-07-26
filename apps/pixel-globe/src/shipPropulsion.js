@@ -7,6 +7,8 @@ import {
 export const HYBRID_ROWING_SPEED_RATIO = 0.36;
 export const HYBRID_ROWING_ACCELERATION_RATIO = 0.42;
 export const HYBRID_ROUTE_PROGRESS_FLOOR = 0.34;
+export const MAX_EFFECTIVE_ROWERS = 20;
+export const ROWING_FOOD_CONSUMPTION_MULTIPLIER = 1.15;
 export const SHIP_DRAG_PER_SECOND = 0.62;
 export const SHIP_STALLED_DRAG_MULTIPLIER = 1.35;
 export const SHIP_MINIMUM_POWERED_SPEED_RAD = 0.006;
@@ -53,7 +55,8 @@ export function shipPropulsionPerformance(stats, {
   windStrength,
   sailEfficiency,
   minimumSailSpeed = 0,
-  rowerRatio = 1
+  rowerRatio = 1,
+  rowingRequested = true
 }) {
   if (!stats || !Number.isFinite(stats.topSpeedRad) || !Number.isFinite(stats.accelerationRad)) {
     throw new Error("Ship propulsion requires valid ship stats");
@@ -70,8 +73,11 @@ export function shipPropulsionPerformance(stats, {
   if (!Number.isFinite(rowerRatio) || rowerRatio < 0 || rowerRatio > 1) {
     throw new Error(`Invalid rower ratio: ${rowerRatio}`);
   }
+  if (typeof rowingRequested !== "boolean") {
+    throw new Error(`Invalid rowing request: ${rowingRequested}`);
+  }
 
-  const rowingPower = Math.sqrt(rowerRatio);
+  const rowingPower = rowingRequested ? Math.sqrt(rowerRatio) : 0;
 
   if (stats.propulsion === SHIP_PROPULSION_OAR) {
     return Object.freeze({
@@ -118,6 +124,23 @@ export function shipPropulsionPerformance(stats, {
 export function shipHasWindDeadZone(stats) {
   if (!stats || typeof stats !== "object") throw new Error("Ship propulsion requires ship stats");
   return stats.propulsion === SHIP_PROPULSION_SAIL;
+}
+
+export function shipCanUseOars(stats) {
+  if (!stats || typeof stats !== "object") throw new Error("Ship propulsion requires ship stats");
+  return stats.propulsion === SHIP_PROPULSION_OAR ||
+    stats.propulsion === SHIP_PROPULSION_OAR_SAIL;
+}
+
+export function rowingCrewRatio(activeCrew, shipCrewCapacity) {
+  if (!Number.isInteger(activeCrew) || activeCrew < 0) {
+    throw new Error(`Invalid active rowing crew: ${activeCrew}`);
+  }
+  if (!Number.isInteger(shipCrewCapacity) || shipCrewCapacity <= 0) {
+    throw new Error(`Invalid rowing crew capacity: ${shipCrewCapacity}`);
+  }
+  const effectiveCeiling = Math.min(shipCrewCapacity, MAX_EFFECTIVE_ROWERS);
+  return clamp(activeCrew / effectiveCeiling, 0, 1);
 }
 
 function smoothstep(value) {

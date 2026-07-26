@@ -320,6 +320,38 @@ test("the crew eats low-base-price hardtack before zero-cost caught fish", () =>
   assert.equal(state.cargo.fish, 1);
 });
 
+test("active rowing modestly increases food consumption", () => {
+  const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const baseline = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const rowing = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  for (const state of [baseline, rowing]) {
+    initializeProvisionalShipLoadout(state, stats);
+    state.ship.crew = 1;
+    state.cargo = { hardtack: 5 };
+    state.accounts.cargoCostBasis = { hardtack: 10 };
+  }
+
+  updateSurvival(baseline, 0, 4 * 24 * 60, {
+    freshwater: true,
+    foodActivityMultiplier: 1
+  });
+  updateSurvival(rowing, 0, 4 * 24 * 60, {
+    freshwater: true,
+    foodActivityMultiplier: 1.15
+  });
+
+  assert.equal(baseline.cargo.hardtack, 5 - 4 / 12);
+  assert.equal(rowing.cargo.hardtack, 5 - 4 / 12);
+  assert.equal(baseline.survival.foodRationDebt, 0);
+  assert.ok(Math.abs(rowing.survival.foodRationDebt - 0.6) < 1e-9);
+  assert.throws(
+    () => updateSurvival(rowing, 4 * 24 * 60, 4 * 24 * 60 + 1, {
+      foodActivityMultiplier: 0.9
+    }),
+    /Invalid food activity multiplier/
+  );
+});
+
 test("the crew finishes an opened fish stack before eating unopened provisions", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.cargo.hardtack = 1;
