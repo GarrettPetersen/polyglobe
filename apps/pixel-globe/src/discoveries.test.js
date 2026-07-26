@@ -32,6 +32,7 @@ import {
 } from "./discoveries.js";
 import {
   AUTHORED_WORLD_REPORT_IDS,
+  explorerJournalDescriptionForDiscovery,
   explorerReportDialogueForDiscovery,
   validateExplorerReportDialogueCatalog
 } from "./explorerDiscoveryDialogue.js";
@@ -204,6 +205,12 @@ test("world discovery registry is unique, complete, and explicit about historici
   );
   assert.match(canalReport.player, /gates raise and lower the water/i);
   assert.match(canalReport.patron, /empire fed by an engineered river/i);
+  assert.equal(
+    explorerJournalDescriptionForDiscovery(
+      WORLD_DISCOVERY_SPECS.find((item) => item.id === GRAND_CANAL_DISCOVERY_ID)
+    ),
+    canalReport.player
+  );
   const circumnavigationReport = explorerReportDialogueForDiscovery(CIRCUMNAVIGATION_DISCOVERY);
   assert.match(circumnavigationReport.player, /world joined behind us/i);
   assert.match(circumnavigationReport.patron, /scholar's conjecture/i);

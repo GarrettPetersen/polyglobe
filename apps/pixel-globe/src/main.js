@@ -492,7 +492,10 @@ import {
   buildGreatBarrierReef,
   greatBarrierReefWaterMaskSpans
 } from "./greatBarrierReef.js";
-import { validateExplorerReportDialogueCatalog } from "./explorerDiscoveryDialogue.js";
+import {
+  explorerJournalDescriptionForDiscovery,
+  validateExplorerReportDialogueCatalog
+} from "./explorerDiscoveryDialogue.js";
 import {
   beginShipHandoverDialogue,
   createPassengerDialogueSession,
@@ -5260,12 +5263,21 @@ function createDiscoveriesMenuState() {
     isOpen: false,
     tab: "wonders",
     page: 0,
+    wonderSelectedIndex: 0,
+    wonderSelectionActive: false,
+    detailDiscoveryId: null,
+    detailScrollY: 0,
+    detailMaxScrollY: 0,
     buttonRect: null,
     panelRect: null,
     closeButtonRect: null,
     previousPageRect: null,
     nextPageRect: null,
-    tabRects: []
+    tabRects: [],
+    wonderRowRects: [],
+    detailBackRect: null,
+    detailUpRect: null,
+    detailDownRect: null
   };
 }
 
@@ -8921,6 +8933,9 @@ function openDiscoveriesMenu() {
   discoveriesMenu.isOpen = true;
   discoveriesMenu.tab = discoveriesMenu.tab || "wonders";
   discoveriesMenu.page = 0;
+  discoveriesMenu.wonderSelectedIndex = 0;
+  discoveriesMenu.wonderSelectionActive = false;
+  closeDiscoveryDetail();
   keys.clear();
   clearPointerSteering();
   dirty = true;
@@ -8953,11 +8968,13 @@ function closeAchievementsMenu() {
 
 function closeDiscoveriesMenu() {
   discoveriesMenu.isOpen = false;
+  closeDiscoveryDetail();
   discoveriesMenu.panelRect = null;
   discoveriesMenu.closeButtonRect = null;
   discoveriesMenu.previousPageRect = null;
   discoveriesMenu.nextPageRect = null;
   discoveriesMenu.tabRects = [];
+  discoveriesMenu.wonderRowRects = [];
   dirty = true;
 }
 
@@ -9027,15 +9044,29 @@ function handlePoliticsKeyDown(event) {
 
 function handleDiscoveriesKeyDown(event) {
   event.preventDefault();
+  if (discoveriesMenu.detailDiscoveryId !== null) {
+    if (event.key === "Escape") closeDiscoveryDetail();
+    else if (["ArrowUp", "PageUp"].includes(event.key)) scrollDiscoveryDetail(-1);
+    else if (["ArrowDown", "PageDown"].includes(event.key)) scrollDiscoveryDetail(1);
+    return;
+  }
   if (event.key === "Escape") {
     closeDiscoveriesMenu();
     return;
   }
   if (["ArrowLeft", "ArrowRight", "Tab"].includes(event.key)) {
     switchDiscoveriesTab(discoveriesMenu.tab === "wonders" ? "animals" : "wonders");
-  } else if (["ArrowUp", "PageUp"].includes(event.key)) {
+  } else if (discoveriesMenu.tab === "wonders" && event.key === "ArrowUp") {
+    stepDiscoveryWonderSelection(-1);
+  } else if (discoveriesMenu.tab === "wonders" && event.key === "ArrowDown") {
+    stepDiscoveryWonderSelection(1);
+  } else if (discoveriesMenu.tab === "wonders" && ["Enter", " "].includes(event.key)) {
+    openSelectedDiscoveryDetail();
+  } else if (event.key === "PageUp" || (discoveriesMenu.tab === "animals" && event.key === "ArrowUp")) {
     stepDiscoveriesPage(-1);
-  } else if (["ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+  } else if (event.key === "PageDown" || (
+    discoveriesMenu.tab === "animals" && ["ArrowDown", "Enter", " "].includes(event.key)
+  )) {
     stepDiscoveriesPage(1);
   }
 }
@@ -9858,7 +9889,9 @@ function handlePointerMove(event) {
   statusHudHoverPoint = event.pointerType === "touch" ? null : point;
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
-  canvas.style.cursor = event.pointerType !== "touch" && shipInfoPointerIsActionable(point)
+  canvas.style.cursor = event.pointerType !== "touch" && (
+    shipInfoPointerIsActionable(point) || discoveriesPointerIsActionable(point)
+  )
     ? "pointer"
     : "default";
   if (lakeBattleMode && optionsMenu.isOpen) {
@@ -10250,11 +10283,30 @@ function handleDiscoveriesPointerDown(point) {
     closeDiscoveriesMenu();
     return;
   }
+  if (discoveriesMenu.detailDiscoveryId !== null) {
+    if (pointInRect(point, discoveriesMenu.detailBackRect)) {
+      closeDiscoveryDetail();
+      return;
+    }
+    if (pointInRect(point, discoveriesMenu.detailUpRect)) {
+      scrollDiscoveryDetail(-1);
+      return;
+    }
+    if (pointInRect(point, discoveriesMenu.detailDownRect)) scrollDiscoveryDetail(1);
+    return;
+  }
   for (const tab of discoveriesMenu.tabRects) {
     if (pointInRect(point, tab.rect)) {
       switchDiscoveriesTab(tab.id);
       return;
     }
+  }
+  for (let index = 0; index < discoveriesMenu.wonderRowRects.length; index++) {
+    if (!pointInRect(point, discoveriesMenu.wonderRowRects[index])) continue;
+    discoveriesMenu.wonderSelectedIndex = index;
+    discoveriesMenu.wonderSelectionActive = false;
+    openSelectedDiscoveryDetail();
+    return;
   }
   if (pointInRect(point, discoveriesMenu.previousPageRect)) {
     stepDiscoveriesPage(-1);
@@ -10431,6 +10483,21 @@ function shipInfoPointerIsActionable(point) {
   return controls.some((rect) => rect && pointInRect(point, rect));
 }
 
+function discoveriesPointerIsActionable(point) {
+  if (!discoveriesMenu.isOpen) return false;
+  const controls = [
+    discoveriesMenu.closeButtonRect,
+    discoveriesMenu.previousPageRect,
+    discoveriesMenu.nextPageRect,
+    discoveriesMenu.detailBackRect,
+    discoveriesMenu.detailUpRect,
+    discoveriesMenu.detailDownRect,
+    ...discoveriesMenu.tabRects.map((entry) => entry.rect),
+    ...discoveriesMenu.wonderRowRects
+  ];
+  return controls.some((rect) => rect && pointInRect(point, rect));
+}
+
 function handleShipInfoPointerDown(point) {
   if (pointInRect(point, shipInfoMenu.closeButtonRect)) {
     closeShipInfoMenu();
@@ -10487,13 +10554,82 @@ function stepDiscoveriesPage(direction) {
     : discoveredEntries(gameState).length;
   const pageCount = Math.max(1, Math.ceil(count / discoveriesPageSize()));
   discoveriesMenu.page = stepMenuIndex(discoveriesMenu.page, direction, pageCount);
+  discoveriesMenu.wonderSelectedIndex = 0;
+  discoveriesMenu.wonderSelectionActive = false;
   dirty = true;
 }
 
 function switchDiscoveriesTab(tab) {
   if (!["wonders", "animals"].includes(tab)) throw new Error(`Unknown discoveries tab: ${tab}`);
+  closeDiscoveryDetail();
   discoveriesMenu.tab = tab;
   discoveriesMenu.page = 0;
+  discoveriesMenu.wonderSelectedIndex = 0;
+  discoveriesMenu.wonderSelectionActive = false;
+  dirty = true;
+}
+
+function stepDiscoveryWonderSelection(direction) {
+  if (!Number.isInteger(direction) || direction === 0) {
+    throw new Error(`Invalid wonder selection direction: ${direction}`);
+  }
+  const entries = discoveredEntries(gameState);
+  if (entries.length === 0) return;
+  const pageSize = discoveriesPageSize();
+  const pageStart = discoveriesMenu.page * pageSize;
+  const pageLength = Math.min(pageSize, entries.length - pageStart);
+  const current = Math.min(
+    entries.length - 1,
+    pageStart + clamp(discoveriesMenu.wonderSelectedIndex, 0, Math.max(0, pageLength - 1))
+  );
+  const next = discoveriesMenu.wonderSelectionActive
+    ? clamp(current + Math.sign(direction), 0, entries.length - 1)
+    : direction > 0 ? pageStart : pageStart + pageLength - 1;
+  discoveriesMenu.page = Math.floor(next / pageSize);
+  discoveriesMenu.wonderSelectedIndex = next % pageSize;
+  discoveriesMenu.wonderSelectionActive = true;
+  dirty = true;
+}
+
+function openSelectedDiscoveryDetail() {
+  if (discoveriesMenu.tab !== "wonders") return false;
+  const entries = discoveredEntries(gameState);
+  if (entries.length === 0) return false;
+  const index = discoveriesMenu.page * discoveriesPageSize() + discoveriesMenu.wonderSelectedIndex;
+  const entry = entries[index];
+  if (!entry) throw new Error(`Selected wonder does not exist: ${index}`);
+  const discovery = discoveryCatalogById.get(entry.id);
+  if (!discovery) throw new Error(`Selected wonder is missing from the catalog: ${entry.id}`);
+  explorerJournalDescriptionForDiscovery(discovery);
+  discoveriesMenu.detailDiscoveryId = discovery.id;
+  discoveriesMenu.detailScrollY = 0;
+  discoveriesMenu.detailMaxScrollY = 0;
+  discoveriesMenu.wonderRowRects = [];
+  dirty = true;
+  return true;
+}
+
+function closeDiscoveryDetail() {
+  discoveriesMenu.detailDiscoveryId = null;
+  discoveriesMenu.detailScrollY = 0;
+  discoveriesMenu.detailMaxScrollY = 0;
+  discoveriesMenu.detailBackRect = null;
+  discoveriesMenu.detailUpRect = null;
+  discoveriesMenu.detailDownRect = null;
+  dirty = true;
+}
+
+function scrollDiscoveryDetail(direction) {
+  if (!Number.isInteger(direction) || direction === 0) {
+    throw new Error(`Invalid wonder detail scroll direction: ${direction}`);
+  }
+  const next = clamp(
+    discoveriesMenu.detailScrollY + Math.sign(direction) * localizedLineHeight(18),
+    0,
+    discoveriesMenu.detailMaxScrollY
+  );
+  if (next === discoveriesMenu.detailScrollY) return;
+  discoveriesMenu.detailScrollY = next;
   dirty = true;
 }
 
@@ -10736,6 +10872,11 @@ function handleCanvasWheel(event) {
   if (owner === INTERACTION_INPUT.SHIP_INFO && shipInfoMenu.paperDetailIndex !== null) {
     event.preventDefault();
     scrollShipPaperDetail(event.deltaY > 0 ? 1 : -1);
+    return;
+  }
+  if (owner === INTERACTION_INPUT.DISCOVERIES && discoveriesMenu.detailDiscoveryId !== null) {
+    event.preventDefault();
+    scrollDiscoveryDetail(event.deltaY > 0 ? 1 : -1);
     return;
   }
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
@@ -24662,6 +24803,10 @@ function drawDiscoveriesMenu() {
   const panelX = Math.floor((SCREEN_W - DISCOVERIES_PANEL_W) / 2);
   const panelY = Math.floor((SCREEN_H - DISCOVERIES_PANEL_H) / 2);
   discoveriesMenu.panelRect = { x: panelX, y: panelY, w: DISCOVERIES_PANEL_W, h: DISCOVERIES_PANEL_H };
+  discoveriesMenu.wonderRowRects = [];
+  discoveriesMenu.detailBackRect = null;
+  discoveriesMenu.detailUpRect = null;
+  discoveriesMenu.detailDownRect = null;
 
   ctx.save();
   drawPiratePaperModal(discoveriesMenu.panelRect, 0.78);
@@ -24681,6 +24826,12 @@ function drawDiscoveriesMenu() {
     align: "center",
     color: PIRATE_MENU_INK
   });
+
+  if (discoveriesMenu.detailDiscoveryId !== null) {
+    drawDiscoveryDetail(discoveriesMenu.panelRect);
+    ctx.restore();
+    return;
+  }
 
   const tabY = panelY + 27;
   const tabW = Math.floor((DISCOVERIES_PANEL_W - 27) / 2);
@@ -24742,13 +24893,32 @@ function drawDiscoveriesMenu() {
   discoveriesMenu.page = clamp(discoveriesMenu.page, 0, pageCount - 1);
   const pageStart = discoveriesMenu.page * pageSize;
   const pageEntries = entries.slice(pageStart, pageStart + pageSize);
+  discoveriesMenu.wonderSelectedIndex = clamp(
+    discoveriesMenu.wonderSelectedIndex,
+    0,
+    Math.max(0, pageEntries.length - 1)
+  );
   const listX = panelX + 13;
   const listY = panelY + 91;
+  if (discoveriesMenu.tab === "wonders") {
+    discoveriesMenu.wonderRowRects = pageEntries.map((_, index) => ({
+      x: panelX + 10,
+      y: listY - 2 + index * 36,
+      w: DISCOVERIES_PANEL_W - 20,
+      h: 34
+    }));
+  }
   if (pageEntries.length === 0) {
     drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: PIRATE_MENU_INK_MUTED });
   } else {
     pageEntries.forEach((entry, index) => {
       const y = listY + index * 36;
+      const rowRect = discoveriesMenu.wonderRowRects[index] || null;
+      if (rowRect) {
+        const selected = discoveriesMenu.wonderSelectionActive &&
+          discoveriesMenu.wonderSelectedIndex === index;
+        drawDiscoveryWonderRowBackground(rowRect, index, selected);
+      }
       const sprite = discoveriesMenu.tab === "animals"
         ? animalDiscoveryPortrait(entry)
         : discoverySpriteImage(entry);
@@ -24762,7 +24932,7 @@ function drawDiscoveriesMenu() {
         ctx.fillRect(listX + 17, y + 16, 2, 2);
       }
       const textX = listX + 42;
-      const textWidth = DISCOVERIES_PANEL_W - 67;
+      const textWidth = DISCOVERIES_PANEL_W - 82;
       const localizedName = renderedUiText(entry.displayName).toUpperCase();
       drawOptionsText(
         fitPixelText(localizedName, PIXEL_FONT_SMALL_8, textWidth),
@@ -24773,6 +24943,13 @@ function drawDiscoveriesMenu() {
       const detail = fitPixelText(renderedUiText(entry.detail).toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
       ctx.fillStyle = PIRATE_MENU_INK_MUTED;
       drawPixelText(detail, textX, y + 20, { font: PIXEL_FONT_SMALL_8 });
+      if (rowRect) {
+        const hovered = pointInRect(optionsMenu.hoverPoint, rowRect);
+        drawOptionsText(">", panelX + DISCOVERIES_PANEL_W - 15 + (hovered ? 1 : 0), y + 13, {
+          align: "right",
+          color: hovered ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE
+        });
+      }
     });
   }
 
@@ -24799,6 +24976,147 @@ function drawDiscoveriesMenu() {
     color: PIRATE_MENU_INK_MUTED
   });
   ctx.restore();
+}
+
+function drawDiscoveryWonderRowBackground(rect, index, selected) {
+  const hovered = pointInRect(optionsMenu.hoverPoint, rect);
+  ctx.fillStyle = selected || hovered
+    ? PIRATE_MENU_PAPER_SELECTED
+    : index % 2 === 0
+      ? "rgba(113, 80, 51, 0.13)"
+      : "rgba(113, 80, 51, 0.05)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  if (!selected && !hovered) return;
+  ctx.strokeStyle = hovered ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(rect.x + 1, rect.y + 1, hovered ? 3 : 2, rect.h - 2);
+}
+
+function drawDiscoveryDetail(panel) {
+  const discovery = discoveryCatalogById.get(discoveriesMenu.detailDiscoveryId);
+  if (!discovery) {
+    throw new Error(`Expanded wonder is missing from the catalog: ${discoveriesMenu.detailDiscoveryId}`);
+  }
+  if (!hasDiscovery(gameState, discovery.id)) {
+    throw new Error(`Cannot expand an undiscovered wonder: ${discovery.id}`);
+  }
+  discoveriesMenu.tabRects = [];
+  discoveriesMenu.previousPageRect = null;
+  discoveriesMenu.nextPageRect = null;
+
+  const left = panel.x + 13;
+  const right = panel.x + panel.w - 13;
+  const spriteY = panel.y + 34;
+  const sprite = discoverySpriteImage(discovery);
+  if (sprite) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sprite, left, spriteY, 32, 32);
+  } else {
+    ctx.fillStyle = discoveryKindColor(discovery.kind);
+    ctx.fillRect(left + 13, spriteY + 13, 6, 6);
+    ctx.fillStyle = PIRATE_MENU_INK;
+    ctx.fillRect(left + 15, spriteY + 15, 2, 2);
+  }
+
+  const headingX = left + 40;
+  const headingW = Math.max(40, right - headingX);
+  const headingLines = wrapPixelTextAll(
+    renderedUiText(discovery.displayName).toUpperCase(),
+    PIXEL_FONT_DIALOGUE_8,
+    headingW
+  ).slice(0, 2);
+  headingLines.forEach((line, index) => {
+    drawOptionsText(line, headingX, spriteY + 2 + index * localizedLineHeight(10), {
+      font: PIXEL_FONT_DIALOGUE_8,
+      color: PIRATE_MENU_INK
+    });
+  });
+  drawOptionsText(
+    fitPixelText(renderedUiText(discovery.detail || "").toUpperCase(), PIXEL_FONT_SMALL_8, headingW),
+    headingX,
+    spriteY + 23,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+
+  const separatorY = spriteY + 37;
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  ctx.fillRect(left, separatorY, right - left, 1);
+  drawOptionsText("CAPTAIN'S ACCOUNT", left, separatorY + 7, {
+    color: PIRATE_MENU_CHART_LINE
+  });
+
+  const controlsW = UI_ICON_BUTTON_SIZE + 4;
+  const bodyX = left;
+  const bodyY = separatorY + 20;
+  const footerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
+  const bodyW = right - left - controlsW;
+  const bodyH = Math.max(20, footerY - bodyY - 5);
+  const lineHeight = localizedLineHeight(10);
+  const descriptionLines = wrapPixelTextAll(
+    explorerJournalDescriptionForDiscovery(discovery).toUpperCase(),
+    PIXEL_FONT_DIALOGUE_8,
+    bodyW
+  );
+  const contentHeight = descriptionLines.length * lineHeight;
+  discoveriesMenu.detailMaxScrollY = Math.max(0, contentHeight - bodyH);
+  discoveriesMenu.detailScrollY = clamp(
+    discoveriesMenu.detailScrollY,
+    0,
+    discoveriesMenu.detailMaxScrollY
+  );
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bodyX, bodyY, bodyW, bodyH);
+  ctx.clip();
+  descriptionLines.forEach((line, index) => {
+    drawOptionsText(
+      line,
+      bodyX,
+      bodyY + index * lineHeight - discoveriesMenu.detailScrollY,
+      { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
+    );
+  });
+  ctx.restore();
+
+  const controlsX = panel.x + panel.w - UI_ICON_BUTTON_SIZE - 7;
+  if (discoveriesMenu.detailMaxScrollY > 0) {
+    discoveriesMenu.detailUpRect = {
+      x: controlsX,
+      y: bodyY,
+      w: UI_ICON_BUTTON_SIZE,
+      h: UI_ICON_BUTTON_SIZE
+    };
+    discoveriesMenu.detailDownRect = {
+      x: controlsX,
+      y: bodyY + bodyH - UI_ICON_BUTTON_SIZE,
+      w: UI_ICON_BUTTON_SIZE,
+      h: UI_ICON_BUTTON_SIZE
+    };
+    drawShipInfoArrowButton(
+      discoveriesMenu.detailUpRect,
+      "^",
+      pointInRect(optionsMenu.hoverPoint, discoveriesMenu.detailUpRect)
+    );
+    drawShipInfoArrowButton(
+      discoveriesMenu.detailDownRect,
+      "v",
+      pointInRect(optionsMenu.hoverPoint, discoveriesMenu.detailDownRect)
+    );
+  }
+
+  discoveriesMenu.detailBackRect = {
+    x: panel.x + 12,
+    y: footerY,
+    w: 92,
+    h: UI_PAGER_BUTTON_H
+  };
+  drawShipInfoArrowButton(
+    discoveriesMenu.detailBackRect,
+    "< BACK",
+    pointInRect(optionsMenu.hoverPoint, discoveriesMenu.detailBackRect)
+  );
 }
 
 function animalDiscoveryPortrait(entry) {

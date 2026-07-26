@@ -228,6 +228,10 @@ export function explorerReportDialogueForDiscovery(discovery) {
   return report;
 }
 
+export function explorerJournalDescriptionForDiscovery(discovery) {
+  return explorerReportDialogueForDiscovery(discovery).player;
+}
+
 export function validateExplorerReportDialogueCatalog(discoveries) {
   if (!Array.isArray(discoveries) || discoveries.length === 0) {
     throw new Error("Explorer report dialogue catalog must be a non-empty array");
