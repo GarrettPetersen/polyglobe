@@ -13,6 +13,7 @@ import {
 import { characterSkillIdsForIdentity } from "./characterSkills.js";
 import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
+import { fetchStaticAsset } from "./staticAssetFetch.js";
 
 export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-13";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
@@ -33,7 +34,9 @@ const EXPRESSION_FALLBACK_IDS = Object.freeze({
 });
 
 export async function loadCharacterPortraitManifest() {
-  const res = await fetch(CHARACTER_PORTRAIT_MANIFEST_URL);
+  const res = await fetchStaticAsset(CHARACTER_PORTRAIT_MANIFEST_URL, {
+    label: "character portrait manifest"
+  });
   if (!res.ok) throw new Error(`Failed to load character portrait manifest: HTTP ${res.status}`);
   const manifest = await res.json();
   validateCharacterPortraitManifest(manifest);

@@ -7,6 +7,7 @@ import {
   loadingScreenForegroundLayout,
   loadingWaveOffset
 } from "./loadingScreenMotion.js";
+import { fetchStaticAsset } from "./staticAssetFetch.js";
 
 const SCENE_SCALE = 2;
 const LAYER_URLS = Object.freeze({
@@ -224,7 +225,9 @@ function drawSceneCover() {
 
 async function loadCapsuleLayers() {
   const entries = await Promise.all(Object.entries(LAYER_URLS).map(async ([key, url]) => {
-    const response = await fetch(url);
+    const response = await fetchStaticAsset(url, {
+      label: `capsule ${key} layer`
+    });
     if (!response.ok) throw new Error(`Failed to load capsule ${key} layer: HTTP ${response.status} at ${url}`);
     const image = await createImageBitmap(await response.blob());
     return [key, image];

@@ -1212,7 +1212,11 @@ import {
   measureChartNorthUpDrift,
   northUpProjectionIsStable
 } from "./chartReframe.js";
-import { partitionVisualStateReprojections } from "./visualStateReprojection.js";
+import {
+  partitionVisualStateCommits,
+  partitionVisualStateReprojections
+} from "./visualStateReprojection.js";
+import { fetchStaticAsset } from "./staticAssetFetch.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
@@ -3147,13 +3151,15 @@ async function main() {
 }
 
 async function fetchEarthCache() {
-  const res = await fetch("shared/earth-globe-cache-7.json");
+  const res = await fetchStaticAsset("shared/earth-globe-cache-7.json", {
+    label: "Earth cache"
+  });
   if (!res.ok) throw new Error(`Failed to load Earth cache: HTTP ${res.status}`);
   return res.json();
 }
 
 async function fetchJson(path, label) {
-  const response = await fetch(path);
+  const response = await fetchStaticAsset(path, { label });
   if (!response.ok) throw new Error(`Failed to load ${label}: HTTP ${response.status}`);
   try {
     return await response.json();
@@ -3166,14 +3172,16 @@ async function fetchBinary(path, label) {
   const chunked = await fetchChunkedBinary(path, label);
   if (chunked) return chunked;
 
-  const res = await fetch(path);
+  const res = await fetchStaticAsset(path, { label });
   if (!res.ok) throw new Error(`Failed to load ${label}: HTTP ${res.status}`);
   return res.arrayBuffer();
 }
 
 async function fetchChunkedBinary(path, label) {
   const manifestPath = `${path}.chunks.json`;
-  const manifestRes = await fetch(manifestPath);
+  const manifestRes = await fetchStaticAsset(manifestPath, {
+    label: `${label} chunk manifest`
+  });
   if (manifestRes.status === 404) return null;
   if (!manifestRes.ok) {
     throw new Error(`Failed to load ${label} chunk manifest: HTTP ${manifestRes.status}`);
@@ -3197,7 +3205,9 @@ async function fetchChunkedBinary(path, label) {
       throw new Error(`Malformed ${label} chunk manifest entry ${i}`);
     }
     const chunkUrl = new URL(chunkSpec.path, new URL(manifestPath, window.location.href)).toString();
-    const chunkRes = await fetch(chunkUrl);
+    const chunkRes = await fetchStaticAsset(chunkUrl, {
+      label: `${label} chunk ${i}`
+    });
     if (!chunkRes.ok) throw new Error(`Failed to load ${label} chunk ${i}: HTTP ${chunkRes.status}`);
     const chunk = new Uint8Array(await chunkRes.arrayBuffer());
     if (chunk.byteLength !== chunkSpec.byteLength) {
@@ -3216,7 +3226,7 @@ async function fetchChunkedBinary(path, label) {
 }
 
 async function fetchText(path, label) {
-  const res = await fetch(path);
+  const res = await fetchStaticAsset(path, { label });
   if (!res.ok) throw new Error(`Failed to load ${label}: HTTP ${res.status}`);
   return res.text();
 }
@@ -15017,12 +15027,18 @@ function commitPlayerVisualPositionToGlobe() {
 
 function commitNpcVisualPositionsToGlobe() {
   const states = [...npcVisualShips.values()];
-  for (const state of states) {
+  const resolutions = partitionVisualStateCommits(
+    states,
+    (x, y) => localCollisionTileAtPoint(x, y)
+  );
+  for (const state of resolutions.outside) releaseNpcVisualState(state);
+  for (const { state, point } of resolutions.projected) {
+    state.tileId = point.tileId;
     state.vector = globePositionForLocalPoint(state.tileId, state.x, state.y);
     state.heading = normalizeTangentOrFallback(state.heading, state.vector, WORLD_NORTH);
     setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   }
-  return states;
+  return resolutions.projected.map(({ state }) => state);
 }
 
 function createNorthUpLocalLayout(tileId, focusPosition, frame) {

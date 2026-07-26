@@ -1,3 +1,5 @@
+import { fetchStaticAsset } from "./staticAssetFetch.js";
+
 const DEFAULT_CROSSFADE_SECONDS = 1.6;
 const DEFAULT_INITIAL_FADE_SECONDS = 0.35;
 const DEFAULT_SCHEDULE_LEAD_SECONDS = 0.05;
@@ -234,7 +236,7 @@ export class SeamlessMusicPlayer {
   }
 
   async loadAudioBuffer(url, label) {
-    const response = await fetch(url);
+    const response = await fetchStaticAsset(url, { label });
     if (!response.ok) throw new Error(`Failed to load ${label}: HTTP ${response.status}`);
     try {
       return await this.context.decodeAudioData(await response.arrayBuffer());

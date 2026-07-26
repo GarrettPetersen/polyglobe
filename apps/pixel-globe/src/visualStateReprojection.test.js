@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { partitionVisualStateReprojections } from "./visualStateReprojection.js";
+import {
+  partitionVisualStateCommits,
+  partitionVisualStateReprojections
+} from "./visualStateReprojection.js";
 
 test("visual states outside a rebuilt chart are separated for deactivation", () => {
   const states = [
@@ -28,4 +31,20 @@ test("visual state reprojection rejects malformed projected points", () => {
     ),
     /invalid point/
   );
+});
+
+test("visual state commit resolves the tile beneath the current pixel instead of a stale tile id", () => {
+  const state = {
+    id: "visible",
+    x: 24,
+    y: 18,
+    tileId: 98897
+  };
+  const result = partitionVisualStateCommits(
+    [state],
+    (x, y) => x === 24 && y === 18 ? { tileId: 42 } : null
+  );
+
+  assert.equal(result.projected[0].point.tileId, 42);
+  assert.deepEqual(result.outside, []);
 });

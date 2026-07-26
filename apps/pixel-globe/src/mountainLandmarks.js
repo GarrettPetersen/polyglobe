@@ -1,4 +1,5 @@
 import { findNearestTileId } from "./geodesic.js";
+import { fetchStaticAsset } from "./staticAssetFetch.js";
 
 export const NAMED_MOUNTAINS_URL = "shared/mountains.json";
 
@@ -45,7 +46,9 @@ const DISPLAY_NAME_OVERRIDES = new Map([
 ]);
 
 export async function loadNamedMountains() {
-  const response = await fetch(NAMED_MOUNTAINS_URL);
+  const response = await fetchStaticAsset(NAMED_MOUNTAINS_URL, {
+    label: "named mountains"
+  });
   if (!response.ok) throw new Error(`Failed to load named mountains: HTTP ${response.status}`);
   const mountains = await response.json();
   validateNamedMountains(mountains);
