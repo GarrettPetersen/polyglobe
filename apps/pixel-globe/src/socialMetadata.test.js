@@ -9,10 +9,18 @@ const appRoot = new URL("..", import.meta.url);
 test("prototype page uses the Marque & Reprisal title and social metadata", () => {
   const html = readFileSync(new URL("index.html", appRoot), "utf8");
   assert.match(html, /<title>Marque &amp; Reprisal \| Online Prototype<\/title>/);
+  assert.match(html, /rel="canonical" href="https:\/\/pirates-of-the-pixel-globe\.pages\.dev\/"/);
   assert.match(html, /property="og:title" content="Marque &amp; Reprisal"/);
-  assert.match(html, /property="og:image" content="assets\/social\/marque-and-reprisal-og\.png"/);
+  assert.match(html, /property="og:url" content="https:\/\/pirates-of-the-pixel-globe\.pages\.dev\/"/);
+  assert.match(
+    html,
+    /property="og:image" content="https:\/\/pirates-of-the-pixel-globe\.pages\.dev\/assets\/social\/marque-and-reprisal-og\.png"/
+  );
   assert.match(html, /name="twitter:card" content="summary_large_image"/);
-  assert.match(html, /name="twitter:image" content="assets\/social\/marque-and-reprisal-twitter\.png"/);
+  assert.match(
+    html,
+    /name="twitter:image" content="https:\/\/pirates-of-the-pixel-globe\.pages\.dev\/assets\/social\/marque-and-reprisal-twitter\.png"/
+  );
   assert.doesNotMatch(html, /(?:src|href|content)="\/(?:assets|src)\//);
   assert.doesNotMatch(html, /Pirates of the Pixel Globe/i);
 });
