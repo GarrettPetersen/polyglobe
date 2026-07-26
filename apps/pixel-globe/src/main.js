@@ -15639,11 +15639,11 @@ function shipIsInFreshWater() {
     ship.tileId,
     ship.position
   );
-  const riverTileId = navigation.riverTileId ?? ship.tileId;
+  const waterTileId = navigation.riverTileId ?? navigation.tileId ?? ship.tileId;
   return shipCanRefillFreshWater({
     navigationKind: navigation.kind,
-    riverTileId,
-    frozen: Boolean(freshwaterIceMask?.[riverTileId]),
+    waterTileId,
+    frozen: Boolean(freshwaterIceMask?.[waterTileId]),
     saltwaterPassageTileIds: SALTWATER_PASSAGE_TILE_IDS
   });
 }
@@ -16062,7 +16062,12 @@ function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
 
   const surface = drawnSurfaceNavigationAtLocalPoint(x, y);
   if (surface?.water) {
-    return { ok: true, kind: "openWater", tileId: surface.tileId };
+    const terrain = earthById[surface.tileId]?.t || "";
+    return {
+      ok: true,
+      kind: terrain === "lake" ? "lake" : "openWater",
+      tileId: surface.tileId
+    };
   }
 
   const normal = riverInfo?.normal

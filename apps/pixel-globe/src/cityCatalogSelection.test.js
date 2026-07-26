@@ -23,6 +23,7 @@ import {
   CITY_OBSERVATION_RELEVANCE_YEARS,
   MANUAL_CITY_RECORDS_1522,
   cityCatalogSelectionScore,
+  cityDatasetRecordAllowedIn1522,
   cityPopulationObservationAtYear,
   cityRequiresPortAccess,
   selectCityCatalogRecords
@@ -114,6 +115,11 @@ test("distant future rows cannot revive an ancient city or backfill a new one", 
   ], 1522).sourceYear, 1594);
 });
 
+test("modern Cincinnati is not substituted for its pre-contact archaeological record", () => {
+  assert.equal(cityDatasetRecordAllowedIn1522("Cincinnati", "United States of America"), false);
+  assert.equal(cityDatasetRecordAllowedIn1522("Chillicothe", "United States of America"), true);
+});
+
 test("1522 city selection keeps enough British Isles ports and Inca access", async () => {
   const [earth, csv] = await Promise.all([
     readJson(new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot)),
@@ -132,7 +138,8 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     ["Troy", "Turkey"],
     ["Hattusa", "Turkey"],
     ["Mycenae", "Greece"],
-    ["Teotihuacan", "Mexico"]
+    ["Teotihuacan", "Mexico"],
+    ["Cincinnati", "United States of America"]
   ]) {
     assert.equal(cityRecords.has(cityKey(city, country)), false, `${city} should not survive into 1522`);
   }
@@ -168,6 +175,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     city.manualRegion === "spice-islands" && city.settlementType === "village"
   );
   const northwestCoastVillages = ports.filter((city) => city.manualRegion === "northwest-coast");
+  const greatLakesVillages = ports.filter((city) => city.manualRegion === "great-lakes");
   const mesoamericanVillages = ports.filter((city) => city.manualRegion === "mesoamerican-villages");
   const manualPortFailures = MANUAL_CITY_RECORDS_1522
     .filter((manualSpec) => !ports.some((city) =>
@@ -205,6 +213,14 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(edo.settlementType, "village");
   assert.equal(edo.factionId, "japan");
   assert.deepEqual(edo.marketGoods, ["fish", "grain", "timber"]);
+  assert.equal(greatLakesVillages.length, 1, "the Great Lakes should have one dockable Wendat village");
+  assert.equal(greatLakesVillages[0].city, "Wendat Village");
+  assert.equal(greatLakesVillages[0].settlementType, "village");
+  assert.deepEqual(greatLakesVillages[0].marketGoods, ["beaver-pelts", "fish", "grain"]);
+  assert.ok(
+    graph.neighbors[greatLakesVillages[0].tileId].some((tileId) => earth.tiles[tileId].t === "lake"),
+    "the Wendat village should sit directly beside Great Lakes freshwater"
+  );
   assert.ok(kilwa, "Kilwa should be a dockable Swahili-coast island port");
   assert.equal(kilwa.lon, 39.51);
   assert.ok(
@@ -397,6 +413,7 @@ function buildCityRecords1522(csv) {
     const year = Number.parseInt(row[indexes.year], 10);
     const population = Number(row[indexes.population]);
     if (!city || !country || population <= 0) continue;
+    if (!cityDatasetRecordAllowedIn1522(city, country)) continue;
 
     const cityId = cityKey(city, country);
     const observations = observationsByCity.get(cityId) || [];

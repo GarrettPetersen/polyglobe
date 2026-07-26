@@ -5,6 +5,24 @@ export const CITY_WATER_ACCESS_SCORE_BONUS = 45000;
 export const CITY_OBSERVATION_RELEVANCE_YEARS = 100;
 export const CITY_COASTAL_REPLACEMENT_RADIUS_KM = 50;
 
+const EXCLUDED_DATASET_CITIES_1522 = new Set([
+  // Chandler uses a modern city label for evidence of a pre-contact Ohio
+  // settlement. Cincinnati itself was not founded or named until 1788.
+  "cincinnati|united states of america"
+]);
+
+export function cityDatasetRecordAllowedIn1522(city, country) {
+  if (typeof city !== "string" || city.trim() === "") {
+    throw new Error("City dataset eligibility requires a city name");
+  }
+  if (typeof country !== "string" || country.trim() === "") {
+    throw new Error("City dataset eligibility requires a country");
+  }
+  return !EXCLUDED_DATASET_CITIES_1522.has(
+    `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`
+  );
+}
+
 export function cityPopulationObservationAtYear(observations, targetYear, options = {}) {
   if (!Array.isArray(observations)) throw new Error("City population observations must be an array");
   if (!Number.isInteger(targetYear)) throw new Error(`Invalid city catalog year: ${targetYear}`);
@@ -260,6 +278,14 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "northwest-coast",
     npcInterregionalTradeExcluded: true,
     marketGoods: ["beaver-pelts", "fish", "timber"]
+  }),
+  manualVillage1522("Wendat Village", "Canada", 44.75, -79.88, 1800, {
+    cityType: "mesoamerican",
+    manualRegion: "great-lakes",
+    coastalIntent: false,
+    lakeIntent: true,
+    npcInterregionalTradeExcluded: true,
+    marketGoods: ["beaver-pelts", "fish", "grain"]
   }),
   manualVillage1522("Guanahani Village", "Bahamas", 24.059, -74.474, 1200, {
     cityType: "mesoamerican",

@@ -1,6 +1,7 @@
 import { withColonialFounding } from "./colonialCities.js";
 import {
   MANUAL_CITY_RECORDS_1522,
+  cityDatasetRecordAllowedIn1522,
   cityPopulationObservationAtYear,
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
@@ -103,6 +104,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
     const coastalIntent = optionalCsvBoolean(row, coastalIntentIndex);
     const lakeIntent = optionalCsvBoolean(row, lakeIntentIndex);
     if (population <= 0) continue;
+    if (!cityDatasetRecordAllowedIn1522(city, country)) continue;
 
     const cityId = normalizeCityKey(city, country);
     const observations = observationsByCity.get(cityId) || [];

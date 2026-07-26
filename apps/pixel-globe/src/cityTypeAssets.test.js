@@ -14,8 +14,8 @@ test("the shared village placeholder is a nonblank transparent 36px sprite", asy
 test("substantial northern Native American settlements use their own city art", async () => {
   assert.ok(CITY_IMAGE_KEYS.includes("native-american"));
   assert.equal(cityArtKeyForCity({
-    city: "Cincinnati",
-    country: "United States of America",
+    city: "Wendat Town",
+    country: "Canada",
     cityType: "mesoamerican",
     population: 10000,
     settlementType: "city"
