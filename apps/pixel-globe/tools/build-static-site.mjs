@@ -45,9 +45,7 @@ const appEntries = edition === BUILD_EDITION_DEMO
   ? [
       ["index.html", "index.html"],
       ["privacy.html", "privacy.html"],
-      ["src/styles.css", "src/styles.css"],
-      ["src/loadingScreenWorker.js", "src/loadingScreenWorker.js"],
-      ["src/loadingScreenMotion.js", "src/loadingScreenMotion.js"]
+      ["src/styles.css", "src/styles.css"]
     ]
   : [
       ["index.html", "index.html"],
@@ -302,9 +300,13 @@ async function stripDemoSocialMetadata() {
 
 async function bundleDemoRuntime() {
   await build({
-    entryPoints: [join(appRoot, "src/bootstrap.js")],
-    outfile: join(distRoot, "src/bootstrap.js"),
+    entryPoints: {
+      bootstrap: join(appRoot, "src/bootstrap.js"),
+      loadingScreenWorker: join(appRoot, "src/loadingScreenWorker.js")
+    },
+    outdir: join(distRoot, "src"),
     bundle: true,
+    entryNames: "[name]",
     format: "esm",
     platform: "browser",
     target: "es2022",
@@ -323,6 +325,20 @@ async function bundleDemoRuntime() {
       }
     }]
   });
+  await assertStandaloneDemoWorker();
+}
+
+async function assertStandaloneDemoWorker() {
+  const workerPath = join(distRoot, "src/loadingScreenWorker.js");
+  const source = await readFile(workerPath, "utf8");
+  const relativeImports = [
+    ...source.matchAll(/\b(?:from|import)\s*(?:\(\s*)?["'](\.[^"']+)["']/g)
+  ].map((match) => match[1]);
+  if (relativeImports.length > 0) {
+    throw new Error(
+      `Demo loading worker contains unresolved relative imports: ${relativeImports.join(", ")}`
+    );
+  }
 }
 
 await rm(distRoot, { recursive: true, force: true });
