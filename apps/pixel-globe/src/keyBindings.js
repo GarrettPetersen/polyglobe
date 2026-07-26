@@ -201,6 +201,11 @@ export function keyboardBindingToken(event) {
 
 export function keyActionForEvent(bindings, event) {
   const current = validateKeyBindings(bindings);
+  if (!event || typeof event !== "object") throw new Error("Key action lookup requires an event");
+  // Virtual keyboards, IMEs, and some accessibility tools legitimately emit
+  // KeyboardEvents without a physical code. They cannot match a physical-key
+  // binding, so leave them to the text/menu handlers that use event.key.
+  if (typeof event.code !== "string" || event.code.length === 0) return null;
   const token = keyboardBindingToken(event);
   const exact = keyActionForToken(current, token);
   if (exact) return exact;

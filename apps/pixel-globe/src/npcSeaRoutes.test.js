@@ -813,6 +813,25 @@ test("NPC turtle ships can reject damage with their intrinsic armor", () => {
   assert.equal(turtleShip.hitPoints, turtleShip.maxHitPoints - 1);
 });
 
+test("temporary fisherman encounters receive valid fishing equipment", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const fisherman = configureNpcEncounter(routes, {
+    id: "benchmark-fisherman-test",
+    factionId: "ming",
+    role: NPC_ROLE_FISHERMAN,
+    shipSlug: "sampan",
+    lat: 32,
+    lon: 119,
+    headingDeg: 90,
+    cultureType: "east-asian",
+    routeRegion: "east-asia",
+    replaceOnSink: false
+  }, 1000);
+
+  assert.equal(fishingNetById(fisherman.fishingNetId).id, fisherman.fishingNetId);
+});
+
 test("sunk NPC ships are replaced after a rare shipyard delay", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

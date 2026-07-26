@@ -1283,6 +1283,10 @@ function replacePlayerShipAndRecord(state, city, stats, context, ledger, beforeL
 
 export function cargoUsedTicks(state) {
   assertGameState(state);
+  return cargoUsedTicksForValidatedState(state);
+}
+
+function cargoUsedTicksForValidatedState(state) {
   let usedTicks = 0;
   for (const [goodId, quantity] of Object.entries(state.cargo)) {
     const good = goodById(goodId);
@@ -1306,7 +1310,7 @@ export function cargoUsed(state) {
 function physicalCargoFreeTicks(state) {
   return Math.max(
     0,
-    state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT - cargoUsedTicks(state)
+    state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT - cargoUsedTicksForValidatedState(state)
   );
 }
 
@@ -1509,13 +1513,18 @@ export function receiveQuestPayment(state, city, amount, description, context = 
 }
 
 export function cargoFreeTicks(state) {
+  assertGameState(state);
+  return cargoFreeTicksForValidatedState(state);
+}
+
+function cargoFreeTicksForValidatedState(state) {
   const reservation = loadoutProvisionReservation(state);
   const capacityTicks = state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT;
   const reservedProvisionTicks = occupiedCargoTicks(
     reservation.missingFood + reservation.missingWater,
     "reserved provision cargo space"
   );
-  return capacityTicks - cargoUsedTicks(state) - reservedProvisionTicks;
+  return capacityTicks - cargoUsedTicksForValidatedState(state) - reservedProvisionTicks;
 }
 
 export function cargoFree(state) {
@@ -1524,9 +1533,13 @@ export function cargoFree(state) {
 
 export function cargoHoldStatus(state) {
   assertGameState(state);
+  return cargoHoldStatusForValidatedState(state);
+}
+
+function cargoHoldStatusForValidatedState(state) {
   const capacityTicks = state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT;
-  const physicalUsedTicks = cargoUsedTicks(state);
-  const freeForTradeTicks = Math.max(0, cargoFreeTicks(state));
+  const physicalUsedTicks = cargoUsedTicksForValidatedState(state);
+  const freeForTradeTicks = Math.max(0, cargoFreeTicksForValidatedState(state));
   const committedUsedTicks = capacityTicks - freeForTradeTicks;
   const freeWholeUnits = Math.floor(freeForTradeTicks / CARGO_SPACE_TICKS_PER_UNIT);
   const physicalWholeUnits = Math.ceil(
@@ -1620,6 +1633,15 @@ export function cargoSpaceLabel(space) {
 export function survivalStatus(state) {
   assertGameState(state);
   return survivalStatusForValidatedState(state);
+}
+
+export function shipHudStatus(state) {
+  assertGameState(state);
+  return Object.freeze({
+    survival: survivalStatusForValidatedState(state),
+    cargo: cargoHoldStatusForValidatedState(state),
+    travelerManifest: shipTravelerManifestForValidatedState(state)
+  });
 }
 
 export function castawayEmergencyAidNeed(state) {
@@ -4466,7 +4488,9 @@ function loadoutProvisionAllocation(state, plan) {
   }
   const actualProvisionSpace = provisionFoodUnits(state) + freshWaterHoldUnits(state.survival.freshWater);
   const provisionSpaceAlreadyAboard = Math.min(actualProvisionSpace, plan.storesSpace);
-  const nonProvisionSpace = cargoUsed(state) - provisionSpaceAlreadyAboard;
+  const nonProvisionSpace = cargoUnitsFromTicks(
+    cargoUsedTicksForValidatedState(state)
+  ) - provisionSpaceAlreadyAboard;
   const availableSpaceRaw = Math.max(
     0,
     Math.min(plan.storesSpace, state.cargoCapacity - nonProvisionSpace)

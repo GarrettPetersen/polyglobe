@@ -42,6 +42,7 @@ const WHITE_WHALE_MIGRATION_LATITUDE_MIN_DEG = 16;
 const WHITE_WHALE_MIGRATION_LATITUDE_SPREAD_DEG = 34;
 const WHALE_TETHER_HAUL_START_PROGRESS = 0.65;
 const WHALE_TETHER_FINAL_LENGTH_SCALE = 0.36;
+const whaleAdvanceValidationCache = new WeakMap();
 
 const PHASES = new Set([
   WHALE_PHASE_SUBMERGED,
@@ -160,7 +161,7 @@ export function validateWhaleMemory(memory) {
 }
 
 export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinute) {
-  validateWhaleMemory(memory);
+  validateWhaleMemoryForAdvance(memory);
   if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid whale simulation step: ${dt}`);
   if (typeof navigationAtPosition !== "function") {
     throw new Error("Whale simulation requires an ocean navigation resolver");
@@ -202,6 +203,32 @@ export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinu
     }
   }
   return events;
+}
+
+function validateWhaleMemoryForAdvance(memory) {
+  if (!memory || typeof memory !== "object") {
+    validateWhaleMemory(memory);
+    return;
+  }
+  const signature = whaleAdvanceValidationCache.get(memory);
+  if (
+    signature?.version === memory.version &&
+    signature?.nextId === memory.nextId &&
+    signature?.individuals === memory.individuals &&
+    signature?.individualCount === memory.individuals?.length &&
+    signature?.activeHunt === memory.activeHunt
+  ) {
+    if (memory.lastEcologyMinute !== null) assertSimulationMinute(memory.lastEcologyMinute);
+    return;
+  }
+  validateWhaleMemory(memory);
+  whaleAdvanceValidationCache.set(memory, {
+    version: memory.version,
+    nextId: memory.nextId,
+    individuals: memory.individuals,
+    individualCount: memory.individuals.length,
+    activeHunt: memory.activeHunt
+  });
 }
 
 export function exhaustTetheredWhale(memory) {

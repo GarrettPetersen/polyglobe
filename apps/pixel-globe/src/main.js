@@ -239,7 +239,6 @@ import {
   futurePermanentCrewFloor,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
-  hasDiscovery,
   initializeProvisionalShipLoadout,
   sovereignTradeOpenToFaction,
   isCaptureCapitalQuest,
@@ -292,6 +291,7 @@ import {
   purchaseFactionSafePassage,
   setPlayerShipStats,
   shipEmergencyAidNeed,
+  shipHudStatus,
   shipTravelerManifest,
   settleCampaignGoalAtHome,
   removeOptionalNavigationWaypoint,
@@ -2364,15 +2364,17 @@ const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
 const landRoadLayerCache = new WeakMap();
+const terrainTileLayerCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
-const npcOffshoreClearanceCache = new Map();
-let npcOffshoreClearanceCacheDay = -1;
+const offshoreHullClearanceCache = new Map();
+let offshoreHullClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
 const fishSpritePixelCache = new WeakMap();
 let fishIndividualFrameCache = null;
+let fishSpriteLayerCache = null;
 let tileWeatherSamplingCache = null;
 let spriteColors;
 let waterLatitudeImages;
@@ -2411,6 +2413,7 @@ let ship;
 let playerSteeringHoldSeconds = 0;
 let playerHaulBlockedSeconds = 0;
 let playerBoundaryAssistContact = null;
+let playerBoundaryProbeCache = null;
 let camera;
 let chart;
 let localLayout;
@@ -2665,6 +2668,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("keyup", (event) => {
+  if (typeof event.code !== "string" || event.code.length === 0) return;
   if (keys.release(event.code)) {
     event.preventDefault();
   }
@@ -5977,17 +5981,26 @@ function applyAmbientAudioSettings() {
   if (!soundEffects) return;
   const sfxVolume = clamp(optionsMenu.sfxVolume, 0, 1);
   for (const loop of ambientSoundLoops()) {
-    loop.audio.muted = optionsMenu.muted;
-    loop.audio.volume = optionsMenu.muted ? 0 : sfxVolume * loop.currentVolume;
+    setAudioElementMuted(loop.audio, optionsMenu.muted);
+    setAudioElementVolume(loop.audio, optionsMenu.muted ? 0 : sfxVolume * loop.currentVolume);
   }
   for (const playlist of ambientSoundPlaylists()) {
     for (const track of playlist.tracks) {
-      track.muted = optionsMenu.muted;
-      track.volume = optionsMenu.muted || track !== playlist.currentTrack
+      setAudioElementMuted(track, optionsMenu.muted);
+      setAudioElementVolume(track, optionsMenu.muted || track !== playlist.currentTrack
         ? 0
-        : sfxVolume * playlist.currentVolume;
+        : sfxVolume * playlist.currentVolume);
     }
   }
+}
+
+function setAudioElementMuted(audio, muted) {
+  if (audio.muted !== muted) audio.muted = muted;
+}
+
+function setAudioElementVolume(audio, volume) {
+  const nextVolume = clamp(volume, 0, 1);
+  if (Math.abs(audio.volume - nextVolume) > 0.0005) audio.volume = nextVolume;
 }
 
 function playSoundEffect(pool, volume, playbackRate = 1) {
@@ -8307,6 +8320,7 @@ function startNewVoyage() {
   }
   sailingTutorialState = createSailingTutorialState();
   playerBoundaryAssistContact = null;
+  playerBoundaryProbeCache = null;
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   reframeWorldNorthUp("new voyage");
   hasStartedVoyage = true;
@@ -8510,6 +8524,7 @@ async function restoreSavedVoyage(payload) {
   playerSteeringHoldSeconds = 0;
   playerHaulBlockedSeconds = 0;
   playerBoundaryAssistContact = null;
+  playerBoundaryProbeCache = null;
   keys.clear();
   clearPointerSteering();
 
@@ -9882,6 +9897,7 @@ function startKeyBindingCapture(actionIndex, slotIndex) {
 function assignCapturedKeyBinding(event) {
   const capture = optionsMenu.bindingCapture;
   if (!capture) throw new Error("Cannot assign a key without an active binding capture");
+  if (typeof event?.code !== "string" || event.code.length === 0) return;
   const token = keyboardBindingToken(event);
   const result = rebindKey(keyBindings, capture.actionId, capture.slotIndex, token);
   persistKeyBindings(result.bindings);
@@ -15164,6 +15180,7 @@ function clearLocalChartTransientEffects() {
   worldShipSinkEffects = [];
   whaleKillEffects = [];
   fishIndividualFrameCache = null;
+  fishSpriteLayerCache = null;
   if (whaleHarpoonProjectile) {
     whaleHarpoonProjectile.startX = SCREEN_W / 2;
     whaleHarpoonProjectile.startY = SCREEN_H / 2;
@@ -15520,6 +15537,24 @@ function normalizeBoundaryContactNormal(normal) {
 function playerShipBoundaryContact(inputHeading) {
   const desired = normalizeOrNull(projectTangentVector(inputHeading, ship.position));
   if (!desired) return null;
+  if (playerBoundaryProbeCache) {
+    const movedPx = Math.hypot(
+      localLayout.viewX - playerBoundaryProbeCache.viewX,
+      localLayout.viewY - playerBoundaryProbeCache.viewY
+    );
+    if (
+      playerBoundaryProbeCache.tileId === ship.tileId &&
+      movedPx < 1.25 &&
+      dot3(desired, playerBoundaryProbeCache.desired) > 0.996
+    ) {
+      const cachedNormal = playerBoundaryProbeCache.contact?.normal
+        ? normalizeOrNull(projectTangentVector(playerBoundaryProbeCache.contact.normal, ship.position))
+        : null;
+      return playerBoundaryProbeCache.contact
+        ? { ...playerBoundaryProbeCache.contact, normal: cachedNormal }
+        : null;
+    }
+  }
   const right = normalizeOrNull(cross3(ship.position, desired));
   if (!right) return null;
   const directions = [
@@ -15550,6 +15585,18 @@ function playerShipBoundaryContact(inputHeading) {
       contact = { normal: normalized, escapeAlignment };
     }
   }
+  playerBoundaryProbeCache = {
+    tileId: ship.tileId,
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY,
+    desired: desired.slice(),
+    contact: contact
+      ? {
+          ...contact,
+          normal: contact.normal?.slice() || null
+        }
+      : null
+  };
   return contact;
 }
 
@@ -16385,7 +16432,9 @@ function localShipCollisionSamplePoint(sampleVector, distancePx, localPoint) {
 }
 
 function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
-  const riverInfo = riverWaterInfoAtLocalPoint(x, y, chart);
+  const riverInfo = tileHasOffshoreHullClearance(tileId)
+    ? null
+    : riverWaterInfoAtLocalPoint(x, y, chart);
   if (riverInfo?.ok) {
     return {
       ok: true,
@@ -18311,7 +18360,7 @@ function createVoyageStatsForState(state, startMinute, endMinute, position) {
     lettersOfMarque: Object.keys(state.relations.lettersOfMarque).length,
     crewLost: Math.max(0, decisions["crew.lost"] || 0),
     piracyActs: Math.max(0, piracyActs),
-    circumnavigated: hasDiscovery(state, CIRCUMNAVIGATION_DISCOVERY.id),
+    circumnavigated: gameStateHasDiscovery(state, CIRCUMNAVIGATION_DISCOVERY.id),
     mappedPercent: mappedPercentForState(state),
     latitude: latitudeDegForDirection(safePosition),
     longitude: longitudeDegForDirection(safePosition)
@@ -20876,7 +20925,7 @@ function traceNpcVisualStep(state, direction, distance, heading, knownStartNav =
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, nav.kind, movementHeading)) {
       return incompleteNpcVisualTrace(result, distance, i, segments);
     }
-    if (!npcTileHasOffshoreHullClearance(tileId)) {
+    if (!tileHasOffshoreHullClearance(tileId)) {
       const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
       if (!occupancy.ok) return incompleteNpcVisualTrace(result, distance, i, segments);
     }
@@ -20896,12 +20945,12 @@ function incompleteNpcVisualTrace(placement, distance, failedSegment, segmentCou
   };
 }
 
-function npcTileHasOffshoreHullClearance(tileId) {
-  if (npcOffshoreClearanceCacheDay !== weatherMaskDayIndex) {
-    npcOffshoreClearanceCache.clear();
-    npcOffshoreClearanceCacheDay = weatherMaskDayIndex;
+function tileHasOffshoreHullClearance(tileId) {
+  if (offshoreHullClearanceCacheDay !== weatherMaskDayIndex) {
+    offshoreHullClearanceCache.clear();
+    offshoreHullClearanceCacheDay = weatherMaskDayIndex;
   }
-  const cached = npcOffshoreClearanceCache.get(tileId);
+  const cached = offshoreHullClearanceCache.get(tileId);
   if (cached !== undefined) return cached;
   const visited = new Set([tileId]);
   let frontier = [tileId];
@@ -20922,7 +20971,7 @@ function npcTileHasOffshoreHullClearance(tileId) {
     }
     frontier = next;
   }
-  npcOffshoreClearanceCache.set(tileId, clear);
+  offshoreHullClearanceCache.set(tileId, clear);
   return clear;
 }
 
@@ -21620,10 +21669,7 @@ function render(nowMs) {
         maxY: SCREEN_H - offset.y
       }
     });
-    for (const call of renderTileCalls) {
-      drawTile(call, chart);
-      drawIceSurface(call);
-    }
+    drawTerrainTileLayer(terrainTileLayer(chart, offset));
   });
 
   measurePerformanceBenchmarkStage("render.surfaceDetails", () => {
@@ -22131,6 +22177,16 @@ function ensureChart() {
   }
 }
 
+function gameStateHasDiscovery(state, discoveryId) {
+  if (!state?.memory?.discoveries || typeof state.memory.discoveries !== "object") {
+    throw new Error("Discovery lookup requires game-state discovery memory");
+  }
+  if (typeof discoveryId !== "string" || discoveryId.length === 0) {
+    throw new Error(`Discovery lookup requires an id: ${discoveryId}`);
+  }
+  return Boolean(state.memory.discoveries[discoveryId]);
+}
+
 function updateDiscoveries(nowMs) {
   if (!gameState || !ship || !graph) return false;
   let changed = updateDiscoveryNotice(nowMs);
@@ -22143,7 +22199,7 @@ function updateDiscoveries(nowMs) {
   for (const discovery of discoveryCatalog) {
     if (
       discovery.kind === "achievement" ||
-      hasDiscovery(gameState, discovery.id) ||
+      gameStateHasDiscovery(gameState, discovery.id) ||
       captureDiscoveryIsDeferred(discovery)
     ) continue;
     const distancePx = discoveryDistancePx(discovery, ship.position);
@@ -22893,7 +22949,7 @@ function ensureMinimapMarkerTile(tileId) {
 }
 
 function refreshMinimapViewport() {
-  const forceFullMap = Boolean(gameState && hasDiscovery(gameState, CIRCUMNAVIGATION_DISCOVERY.id));
+  const forceFullMap = Boolean(gameState && gameStateHasDiscovery(gameState, CIRCUMNAVIGATION_DISCOVERY.id));
   if (!minimap.viewportDirty && minimap.fullMapForced === forceFullMap) return;
   const viewport = exploredMinimapViewport({
     longitudeBinCounts: minimap.longitudeBinCounts,
@@ -25436,7 +25492,7 @@ function drawDiscoveryDetail(panel) {
   if (!discovery) {
     throw new Error(`Expanded wonder is missing from the catalog: ${discoveriesMenu.detailDiscoveryId}`);
   }
-  if (!hasDiscovery(gameState, discovery.id)) {
+  if (!gameStateHasDiscovery(gameState, discovery.id)) {
     throw new Error(`Cannot expand an undiscovered wonder: ${discovery.id}`);
   }
   discoveriesMenu.tabRects = [];
@@ -26620,7 +26676,7 @@ function drawLakeBattleTerrain(terrainChart) {
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   drawTerrainConnectorFaces(terrainChart.faceCalls, terrainChart);
-  for (const tile of terrainChart.tileCalls) drawTile(tile, terrainChart);
+  for (const tile of terrainChart.tileCalls) drawTile(ctx, tile, terrainChart);
 }
 
 function drawLakeBattleSetup() {
@@ -28474,27 +28530,68 @@ function projectDirectionFor(v, view, snap) {
 }
 
 const terrainConnectorLayerCache = new WeakMap();
+const terrainConnectorDynamicLayerCache = new WeakMap();
 
 function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
   const layer = terrainConnectorLayer(faceCalls, activeChart);
   drawTerrainConnectorLayer(layer, options.viewportBounds);
+  if (options.waveClockMs === undefined) {
+    drawTerrainConnectorLayer(
+      terrainConnectorDynamicLayer(layer, activeChart),
+      options.viewportBounds
+    );
+    return;
+  }
   if (options.visibleDetailCalls) {
     for (const call of options.visibleDetailCalls) {
       const entry = layer.entryByCall.get(call);
-      if (entry) drawTerrainConnectorDynamicDetails(entry, options);
+      if (entry) drawTerrainConnectorDynamicDetails(ctx, entry, options.waveClockMs);
     }
     return;
   }
-  for (const entry of layer.entries) {
-    drawTerrainConnectorDynamicDetails(entry, options);
-  }
+  for (const entry of layer.entries) drawTerrainConnectorDynamicDetails(ctx, entry, options.waveClockMs);
 }
 
-function drawTerrainConnectorDynamicDetails(entry, options) {
+function drawTerrainConnectorDynamicDetails(targetCtx, entry, waveClockMs) {
   if (!isCoastFace(entry.call)) return;
   const { call, geometry } = entry;
   const { ax, ay, bx, by, mx, my, nx, ny, width } = geometry;
-  drawBeachWave(ctx, call, ax, ay, mx, my, bx, by, nx, ny, width, options.waveClockMs);
+  drawBeachWave(targetCtx, call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs);
+}
+
+function terrainConnectorDynamicLayer(baseLayer, activeChart) {
+  const cached = terrainConnectorDynamicLayerCache.get(activeChart);
+  if (
+    cached?.baseLayer === baseLayer &&
+    cached.waterTick === waterAnimationDrawTick
+  ) return cached.layer;
+
+  const reusable = cached?.baseLayer === baseLayer ? cached.layer : null;
+  const canvas = reusable?.canvas || document.createElement("canvas");
+  if (!reusable) {
+    canvas.width = baseLayer.canvas.width;
+    canvas.height = baseLayer.canvas.height;
+  }
+  const layerCtx = canvas.getContext("2d");
+  if (!layerCtx) throw new Error("Could not create terrain connector wave layer");
+  layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+  layerCtx.clearRect(0, 0, canvas.width, canvas.height);
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.translate(-baseLayer.x, -baseLayer.y);
+  for (const entry of baseLayer.entries) {
+    drawTerrainConnectorDynamicDetails(layerCtx, entry, waterAnimationClockMs);
+  }
+  const layer = reusable || Object.freeze({
+    canvas,
+    x: baseLayer.x,
+    y: baseLayer.y
+  });
+  terrainConnectorDynamicLayerCache.set(activeChart, {
+    baseLayer,
+    waterTick: waterAnimationDrawTick,
+    layer
+  });
+  return layer;
 }
 
 function drawTerrainConnectorLayer(layer, viewportBounds = null) {
@@ -29123,21 +29220,106 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
   };
 }
 
-function drawTile(call, activeChart) {
+const TERRAIN_TILE_LAYER_MARGIN_PX = TILE_ART_SIZE * 2;
+
+function terrainTileLayer(activeChart, offset) {
+  if (!activeChart || !Array.isArray(activeChart.tileCalls)) {
+    throw new Error("Terrain tile layer requires an active chart");
+  }
+  const cached = terrainTileLayerCache.get(activeChart);
+  if (
+    cached &&
+    cached.waterTick === waterAnimationDrawTick &&
+    cached.weatherDayIndex === weatherMaskDayIndex &&
+    cached.tileCallCount === activeChart.tileCalls.length &&
+    cached.screenWidth === SCREEN_W &&
+    cached.screenHeight === SCREEN_H &&
+    terrainTileLayerContainsViewport(cached, offset)
+  ) {
+    return cached;
+  }
+
+  const x = Math.floor(-offset.x - TERRAIN_TILE_LAYER_MARGIN_PX);
+  const y = Math.floor(-offset.y - TERRAIN_TILE_LAYER_MARGIN_PX);
+  const width = SCREEN_W + TERRAIN_TILE_LAYER_MARGIN_PX * 2;
+  const height = SCREEN_H + TERRAIN_TILE_LAYER_MARGIN_PX * 2;
+  const reusable = cached &&
+    cached.screenWidth === SCREEN_W &&
+    cached.screenHeight === SCREEN_H &&
+    cached.tileCallCount === activeChart.tileCalls.length &&
+    terrainTileLayerContainsViewport(cached, offset)
+    ? cached
+    : null;
+  const layerX = reusable?.x ?? x;
+  const layerY = reusable?.y ?? y;
+  const canvas = reusable?.canvas || document.createElement("canvas");
+  if (!reusable) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const layerCtx = canvas.getContext("2d");
+  if (!layerCtx) throw new Error("Could not create terrain tile layer");
+  layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+  layerCtx.clearRect(0, 0, canvas.width, canvas.height);
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.translate(-layerX, -layerY);
+  const calls = activeChart.tileCalls.filter((call) => {
+    const localX = call.drawSurfaceX - layerX;
+    const localY = call.drawSurfaceY - layerY;
+    return localX >= -TILE_ART_SIZE &&
+      localX <= canvas.width + TILE_ART_SIZE &&
+      localY >= -TILE_ART_SIZE &&
+      localY <= canvas.height + TILE_ART_SIZE;
+  });
+  for (const call of calls) {
+    drawTile(layerCtx, call, activeChart);
+    drawIceSurface(call, layerCtx);
+  }
+  const layer = Object.freeze({
+    canvas,
+    x: layerX,
+    y: layerY,
+    width: canvas.width,
+    height: canvas.height,
+    waterTick: waterAnimationDrawTick,
+    weatherDayIndex: weatherMaskDayIndex,
+    tileCallCount: activeChart.tileCalls.length,
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H
+  });
+  terrainTileLayerCache.set(activeChart, layer);
+  return layer;
+}
+
+function terrainTileLayerContainsViewport(layer, offset) {
+  const guard = TILE_ART_SIZE;
+  const left = -offset.x;
+  const top = -offset.y;
+  return left >= layer.x + guard &&
+    top >= layer.y + guard &&
+    left + SCREEN_W <= layer.x + layer.width - guard &&
+    top + SCREEN_H <= layer.y + layer.height - guard;
+}
+
+function drawTerrainTileLayer(layer) {
+  ctx.drawImage(layer.canvas, layer.x, layer.y);
+}
+
+function drawTile(targetCtx, call, activeChart) {
   const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const waveFrame = waterHexWaveFrameForTile(call, activeChart);
   if (waveFrame !== null) {
-    ctx.drawImage(prebakedWaterHexWaveFrame(baseImage, waveFrame), x, y);
+    targetCtx.drawImage(prebakedWaterHexWaveFrame(baseImage, waveFrame), x, y);
   } else {
-    ctx.drawImage(baseImage, x, y);
+    targetCtx.drawImage(baseImage, x, y);
   }
-  for (const image of overlayImages) ctx.drawImage(image, x, y);
+  for (const image of overlayImages) targetCtx.drawImage(image, x, y);
 
   if (graph.isPentagon[call.id]) {
-    ctx.fillStyle = "rgba(31, 35, 26, 0.35)";
-    ctx.fillRect(
+    targetCtx.fillStyle = "rgba(31, 35, 26, 0.35)";
+    targetCtx.fillRect(
       Math.round(call.drawSurfaceX) - 1,
       Math.round(call.drawSurfaceY) - 1,
       3,
@@ -29224,15 +29406,15 @@ function drawWeatherSurface(call) {
   }
 }
 
-function drawIceSurface(call) {
+function drawIceSurface(call, targetCtx = ctx) {
   const isPermanentIce = isPermanentSeaIceRow(call.row);
   const isSeasonalIce = isWaterSurfaceRow(call.row) && tileHasSurfaceIce(call.id);
   if (!isPermanentIce && !isSeasonalIce) return;
-  drawWeatherSpeckles(call, "rgba(155, 171, 178, 0.68)", 7, 0x494345, 10, 6);
+  drawWeatherSpeckles(call, "rgba(155, 171, 178, 0.68)", 7, 0x494345, 10, 6, targetCtx);
 }
 
-function drawWeatherSpeckles(call, color, count, salt, radiusX, radiusY) {
-  ctx.fillStyle = color;
+function drawWeatherSpeckles(call, color, count, salt, radiusX, radiusY, targetCtx = ctx) {
+  targetCtx.fillStyle = color;
   for (let i = 0; i < count; i++) {
     const h = hashInt(call.id ^ salt ^ Math.imul(i + 1, 0x9e3779b1));
     const dx = (((h & 0xff) / 255) * 2 - 1) * radiusX;
@@ -29240,7 +29422,7 @@ function drawWeatherSpeckles(call, color, count, salt, radiusX, radiusY) {
     if ((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY) > 1) continue;
     const x = Math.round(call.drawSurfaceX + dx);
     const y = Math.round(call.drawSurfaceY + dy);
-    ctx.fillRect(x, y, (h >>> 20) & 1 ? 2 : 1, 1);
+    targetCtx.fillRect(x, y, (h >>> 20) & 1 ? 2 : 1, 1);
   }
 }
 
@@ -30749,7 +30931,7 @@ function drawNpcFishingNetAnimations(nowMs) {
 function drawFishIndividuals(activeChart, nowMs, renderTileCalls = null) {
   if (!animalImages?.fish || !gameState) return [];
   const calls = fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls);
-  drawFishSprites(calls);
+  drawFishSpriteLayer(calls);
   return calls;
 }
 
@@ -30933,7 +31115,36 @@ function fishHabitatForTileCall(tileCall) {
   };
 }
 
-function drawFishSprites(calls) {
+function drawFishSpriteLayer(calls) {
+  if (calls.length === 0) return;
+  if (fishSpriteLayerCache?.calls !== calls) {
+    fishSpriteLayerCache = createFishSpriteLayer(calls);
+  }
+  ctx.drawImage(
+    fishSpriteLayerCache.canvas,
+    fishSpriteLayerCache.x,
+    fishSpriteLayerCache.y
+  );
+}
+
+function createFishSpriteLayer(calls) {
+  const padding = 1;
+  const minX = Math.floor(Math.min(...calls.map((call) => call.x))) - padding;
+  const minY = Math.floor(Math.min(...calls.map((call) => call.y))) - padding;
+  const maxX = Math.ceil(Math.max(...calls.map((call) => call.x + FISH_SPRITE_SIZE))) + padding;
+  const maxY = Math.ceil(Math.max(...calls.map((call) => call.y + FISH_SPRITE_SIZE))) + padding;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, maxX - minX);
+  canvas.height = Math.max(1, maxY - minY);
+  const layerCtx = canvas.getContext("2d");
+  if (!layerCtx) throw new Error("Could not create fish animation layer");
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.translate(-minX, -minY);
+  paintFishSprites(layerCtx, calls);
+  return Object.freeze({ calls, canvas, x: minX, y: minY });
+}
+
+function paintFishSprites(targetCtx, calls) {
   const batches = new Map();
   for (const call of calls) {
     const groups = tintedFishSpritePixelGroups(tintedFishSprite(call.colors));
@@ -30957,18 +31168,18 @@ function drawFishSprites(calls) {
     }
   }
 
-  ctx.save();
+  targetCtx.save();
   for (const batch of batches.values()) {
     if (batch.points.length === 0) continue;
-    ctx.globalAlpha = batch.alpha;
-    ctx.fillStyle = batch.color;
-    ctx.beginPath();
+    targetCtx.globalAlpha = batch.alpha;
+    targetCtx.fillStyle = batch.color;
+    targetCtx.beginPath();
     for (const point of batch.points) {
-      ctx.rect((point & 0xffff) - 32768, ((point >>> 16) & 0xffff) - 32768, 1, 1);
+      targetCtx.rect((point & 0xffff) - 32768, ((point >>> 16) & 0xffff) - 32768, 1, 1);
     }
-    ctx.fill();
+    targetCtx.fill();
   }
-  ctx.restore();
+  targetCtx.restore();
 }
 
 function tintedFishSpritePixelGroups(sprite) {
@@ -32418,7 +32629,7 @@ function nearestUndiscoveredExplorerWonder(origin) {
   const originDirection = latLonToDirection(origin.lat, origin.lon);
   return explorerWonderCatalog(discoveryCatalog)
     .filter(isExplorerLeadAssignable)
-    .filter((discovery) => !hasDiscovery(gameState, discovery.id))
+    .filter((discovery) => !gameStateHasDiscovery(gameState, discovery.id))
     .map((discovery) => ({ discovery, distance: discoveryDistancePx(discovery, originDirection) }))
     .sort((a, b) => a.distance - b.distance || a.discovery.id.localeCompare(b.discovery.id))[0]?.discovery || null;
 }
@@ -32432,7 +32643,7 @@ function retainedOrNearestExplorerLead(origin, goal) {
     if (!isExplorerLeadAssignable(assignedLead)) {
       throw new Error(`Explorer goal points to non-location objective: ${goal.currentLeadDiscoveryId}`);
     }
-    if (!hasDiscovery(gameState, assignedLead.id)) return assignedLead;
+    if (!gameStateHasDiscovery(gameState, assignedLead.id)) return assignedLead;
   }
   return nearestUndiscoveredExplorerWonder(origin);
 }
@@ -33347,7 +33558,8 @@ function drawStormStatus(nowMs) {
 
 function drawSurvivalMeters() {
   if (!gameState || !ship || gameOverReason) return;
-  const status = survivalStatus(gameState);
+  const snapshot = shipHudStatus(gameState);
+  const status = snapshot.survival;
   const foodIconCount = remainingSupplyDayCount(status.foodDays);
   const fishRations = foodRationsForCargoQuantity(gameState.cargo[FISH_CARGO_GOOD_ID] || 0);
   const fishIconCount = specialStatusIconCount(
@@ -33361,7 +33573,7 @@ function drawSurvivalMeters() {
     status.wineDays,
     status.drinkDays
   );
-  const hud = survivalHudLayout();
+  const hud = survivalHudLayout(snapshot.cargo);
   const { x, y, width, height } = hud.panel;
   drawPirateHudPanel({ x, y, w: width, h: height });
   ctx.fillStyle = PIRATE_MENU_INK;
@@ -33386,20 +33598,20 @@ function drawSurvivalMeters() {
     y + 23,
     width
   );
-  drawSurvivalCrewRow(x, y, width);
+  drawSurvivalCrewRow(x, y, width, snapshot.travelerManifest);
   drawCargoCrateRows(hud);
 }
 
-function survivalHudLayout() {
+function survivalHudLayout(hold = null) {
   if (!gameState) throw new Error("Ship status HUD requires game state");
-  const hold = cargoHoldStatus(gameState);
-  const capacity = hold.capacity;
+  const resolvedHold = hold || cargoHoldStatus(gameState);
+  const capacity = resolvedHold.capacity;
   const maximumPanelWidth = Math.max(
     SURVIVAL_PANEL_MIN_W,
     Math.min(SURVIVAL_PANEL_MAX_W, OPTIONS_BUTTON_X - SURVIVAL_PANEL_X - 3)
   );
   return cargoCrateStatusLayout({
-    used: hold.physicalUsed,
+    used: resolvedHold.physicalUsed,
     capacity,
     panelX: SURVIVAL_PANEL_X,
     panelY: SURVIVAL_PANEL_Y,
@@ -33458,6 +33670,7 @@ function statusHudTooltipTargetForPoint(point) {
 
 function drawSurvivalHudTooltip() {
   if (!statusHudTooltipsAvailable()) return;
+  if (!statusHudHoverPoint && !selectedStatusHudTooltipId) return;
   const geometry = statusHudTooltipGeometry();
   const hovered = statusHudTooltipTargetAtPoint(statusHudHoverPoint, geometry);
   const selected = selectedStatusHudTooltipId
@@ -33466,9 +33679,10 @@ function drawSurvivalHudTooltip() {
   const target = hovered || selected;
   if (!target?.rect) return;
 
-  const hud = survivalHudLayout();
-  const status = survivalStatus(gameState);
-  const passengers = shipTravelerManifest(gameState).reduce((total, group) => total + group.count, 0);
+  const snapshot = shipHudStatus(gameState);
+  const hud = survivalHudLayout(snapshot.cargo);
+  const status = snapshot.survival;
+  const passengers = snapshot.travelerManifest.reduce((total, group) => total + group.count, 0);
   const text = statusHudTooltipText(currentLanguage, target.id, {
     date: shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]),
     doubloons: gameState.doubloons.toLocaleString(currentLanguage),
@@ -33522,8 +33736,14 @@ function drawSurvivalPanelTitle(x, y, panelWidth) {
   drawPixelText(amount, right, textY, { font: PIXEL_FONT_LATIN_SMALL_8, align: "right" });
 }
 
-function drawSurvivalCrewRow(x, y, panelWidth) {
-  const layout = survivalCrewStatusLayout(gameState.ship.crew, x, y, panelWidth);
+function drawSurvivalCrewRow(x, y, panelWidth, travelerGroups = shipTravelerManifest(gameState)) {
+  const layout = survivalCrewStatusLayout(
+    gameState.ship.crew,
+    x,
+    y,
+    panelWidth,
+    travelerGroups
+  );
   for (const entry of layout.entries) {
     const variants = statusPersonImages?.get(entry.kind);
     const image = variants?.[entry.variant];
@@ -33546,9 +33766,9 @@ function survivalCrewStatusLayout(
   crewCount,
   panelX = SURVIVAL_PANEL_X,
   panelY = SURVIVAL_PANEL_Y,
-  panelWidth = survivalHudLayout().panel.width
+  panelWidth = survivalHudLayout().panel.width,
+  travelerGroups = shipTravelerManifest(gameState)
 ) {
-  const travelerGroups = shipTravelerManifest(gameState);
   const peopleAboard = crewStatusCount({ crewCount, travelerGroups });
   const rowX = panelX + SURVIVAL_CREW_ROW_PAD_X;
   const valueRight = panelX + panelWidth - 5;

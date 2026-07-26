@@ -39,6 +39,13 @@ test("plain movement bindings keep working while an unrelated modifier is held",
   assert.equal(keyActionForEvent(bindings, event("KeyW", { shiftKey: true })), KEY_ACTION.STEER_UP);
 });
 
+test("browser keyboard events without a physical code do not enter the binding system", () => {
+  const bindings = createDefaultKeyBindings();
+  assert.equal(keyActionForEvent(bindings, event("")), null);
+  assert.equal(keyActionForEvent(bindings, { key: "Unidentified" }), null);
+  assert.throws(() => keyboardBindingToken(event("")), /physical key code/);
+});
+
 test("rebinding moves a key away from its previous action", () => {
   const original = createDefaultKeyBindings();
   const result = rebindKey(original, KEY_ACTION.FIRE_PORT, 1, "KeyA");

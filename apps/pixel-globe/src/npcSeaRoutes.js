@@ -472,6 +472,7 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
   const endMinute = clockMinutes + (spec.durationDays ?? 30) * WEATHER_MINUTES_PER_DAY;
   const vector = latLonToVector(origin.lat, origin.lon);
   const heading = headingVectorAt(origin, origin, destinationNode);
+  const seed = hashString32(`${spec.id}|capture`);
   const ship = {
     id: spec.id,
     factionId: spec.factionId,
@@ -481,11 +482,13 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
     cultureType: spec.cultureType || null,
     slugs: [spec.shipSlug],
     slug: spec.shipSlug,
-    seed: hashString32(`${spec.id}|capture`),
+    seed,
     hitPoints: spec.hitPoints ?? stats.hitPoints,
     maxHitPoints: stats.hitPoints,
     cargoCapacity: stats.cargoCapacity,
-    fishingNetId: null,
+    fishingNetId: spec.role === NPC_ROLE_FISHERMAN
+      ? npcFishingNetForSeed(seed, stats.cargoCapacity).id
+      : null,
     cargo: {},
     cargoCost: {},
     specie: spec.specie === undefined
