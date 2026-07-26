@@ -6,6 +6,8 @@ const LOADING_WAVE_MIN_AMPLITUDE_PX = 0.65;
 const LOADING_WAVE_MAX_AMPLITUDE_PX = 8;
 const LOADING_WAVE_ROW_FREQUENCY = 0.24;
 const LOADING_WAVE_TIME_FREQUENCY = 0.00135;
+const LOADING_SHIP_BASE_Y_PX = 2;
+const LOADING_SHIP_BOB_AMPLITUDE_PX = 2.5;
 
 export function loadingScreenRenderSize(viewportWidth, viewportHeight) {
   assertPositiveDimension(viewportWidth, "viewport width");
@@ -102,14 +104,15 @@ export function loadingWaveOffset(sourceY, elapsedMs) {
 export function loadingLayerMotion(elapsedMs, reducedMotion = false) {
   if (!Number.isFinite(elapsedMs)) throw new Error(`Loading animation time must be finite, got ${elapsedMs}`);
   if (reducedMotion) {
-    return Object.freeze({ upperTextY: 0, lowerTextY: 0, shipY: 0 });
+    return Object.freeze({ upperTextY: 0, lowerTextY: 0, shipY: LOADING_SHIP_BASE_Y_PX });
   }
   const upperProgress = easeOutCubic((elapsedMs - 90) / 720);
   const lowerProgress = easeOutCubic((elapsedMs - 250) / 760);
   return Object.freeze({
     upperTextY: upperProgress === 1 ? 0 : -250 * (1 - upperProgress),
     lowerTextY: lowerProgress === 1 ? 0 : 270 * (1 - lowerProgress),
-    shipY: Math.sin(elapsedMs * Math.PI * 2 / 3400) * 2.5
+    shipY: LOADING_SHIP_BASE_Y_PX +
+      Math.sin(elapsedMs * Math.PI * 2 / 3400) * LOADING_SHIP_BOB_AMPLITUDE_PX
   });
 }
 

@@ -405,6 +405,19 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/nusantaran-outrigger-waterline.png"
     },
     {
+      "slug": "ocean-dhow",
+      "label": "Ocean Dhow",
+      "waterlineY": -0.7941406249999998,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 87,
+      "lowestOpaquePixelY": 92,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/ocean-dhow-waterline.png"
+    },
+    {
       "slug": "ottoman-coastal-trader",
       "label": "Ottoman Coastal Trader",
       "waterlineY": -0.7898186179309307,

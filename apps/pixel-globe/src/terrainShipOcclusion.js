@@ -151,6 +151,33 @@ export function shipOcclusionDepthY(spriteY, bottomOpaqueY, clearancePixels) {
   return spriteY + bottomOpaqueY + clearancePixels;
 }
 
+export function eraseTerrainOccludersFromShipLayer(context, occluders) {
+  if (!context || typeof context.save !== "function" || typeof context.restore !== "function" ||
+    typeof context.drawImage !== "function") {
+    throw new Error("Ship terrain masking requires a canvas context");
+  }
+  if (!Array.isArray(occluders)) {
+    throw new Error("Ship terrain masking requires an occluder list");
+  }
+  context.save();
+  try {
+    context.globalCompositeOperation = "destination-out";
+    for (const occluder of occluders) {
+      validateOccluder(occluder);
+      if (!occluder.drawLayer.image) {
+        occluder.drawLayer.image = occluder.drawLayer.create();
+        occluder.drawLayer.create = null;
+      }
+      if (!occluder.drawLayer.image) {
+        throw new Error(`Terrain foreground layer at ${occluder.x},${occluder.y} has no image`);
+      }
+      context.drawImage(occluder.drawLayer.image, occluder.x, occluder.y);
+    }
+  } finally {
+    context.restore();
+  }
+}
+
 function validateBounds(bounds) {
   if (!bounds || !Number.isInteger(bounds.x) || !Number.isInteger(bounds.y) ||
     !Number.isInteger(bounds.w) || !Number.isInteger(bounds.h) || bounds.w <= 0 || bounds.h <= 0) {

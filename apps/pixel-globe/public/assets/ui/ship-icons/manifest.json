@@ -47,6 +47,20 @@
       "opaquePixels": 98
     },
     {
+      "slug": "ocean-dhow",
+      "label": "Ocean Dhow",
+      "source": "public/assets/vehicles/unity-ships/ocean-dhow-32-headings.png",
+      "output": "public/assets/ui/ship-icons/ocean-dhow.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 14,
+        "y": 7,
+        "w": 19,
+        "h": 33
+      },
+      "opaquePixels": 78
+    },
+    {
       "slug": "sampan",
       "label": "Sampan",
       "source": "public/assets/vehicles/unity-ships/sampan-32-headings.png",
@@ -278,11 +292,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 5,
-        "y": 6,
+        "y": 5,
         "w": 37,
-        "h": 34
+        "h": 37
       },
-      "opaquePixels": 134
+      "opaquePixels": 133
     },
     {
       "slug": "joseon-turtle-ship",
@@ -291,12 +305,12 @@
       "output": "public/assets/ui/ship-icons/joseon-turtle-ship.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 7,
-        "y": 8,
-        "w": 32,
-        "h": 31
+        "x": 5,
+        "y": 6,
+        "w": 36,
+        "h": 34
       },
-      "opaquePixels": 160
+      "opaquePixels": 127
     },
     {
       "slug": "joseon-panokseon",
@@ -307,10 +321,10 @@
       "sourceBounds": {
         "x": 8,
         "y": 7,
-        "w": 31,
+        "w": 30,
         "h": 32
       },
-      "opaquePixels": 152
+      "opaquePixels": 151
     },
     {
       "slug": "japanese-atakebune",
@@ -319,12 +333,12 @@
       "output": "public/assets/ui/ship-icons/japanese-atakebune.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 8,
+        "x": 9,
         "y": 9,
-        "w": 31,
+        "w": 29,
         "h": 28
       },
-      "opaquePixels": 138
+      "opaquePixels": 148
     },
     {
       "slug": "spanish-nao",
@@ -361,12 +375,12 @@
       "output": "public/assets/ui/ship-icons/viking-longship.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 4,
-        "y": 7,
-        "w": 39,
-        "h": 32
+        "x": 3,
+        "y": 5,
+        "w": 40,
+        "h": 37
       },
-      "opaquePixels": 120
+      "opaquePixels": 129
     },
     {
       "slug": "polynesian-voyaging-canoe",
@@ -389,12 +403,12 @@
       "output": "public/assets/ui/ship-icons/mesoamerican-dugout-canoe.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 12,
+        "x": 11,
         "y": 13,
-        "w": 23,
+        "w": 24,
         "h": 21
       },
-      "opaquePixels": 87
+      "opaquePixels": 82
     },
     {
       "slug": "nusantaran-outrigger",
@@ -418,11 +432,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 2,
-        "y": 8,
-        "w": 43,
-        "h": 31
+        "y": 5,
+        "w": 42,
+        "h": 37
       },
-      "opaquePixels": 110
+      "opaquePixels": 112
     },
     {
       "slug": "penjajap",
@@ -432,11 +446,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 3,
-        "y": 9,
+        "y": 7,
         "w": 40,
-        "h": 29
+        "h": 33
       },
-      "opaquePixels": 104
+      "opaquePixels": 93
     },
     {
       "slug": "lancaran",
@@ -446,11 +460,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 3,
-        "y": 9,
-        "w": 41,
-        "h": 29
+        "y": 7,
+        "w": 40,
+        "h": 32
       },
-      "opaquePixels": 107
+      "opaquePixels": 108
     },
     {
       "slug": "royal-lancaran",
@@ -460,11 +474,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 3,
-        "y": 9,
-        "w": 40,
-        "h": 29
+        "y": 6,
+        "w": 41,
+        "h": 34
       },
-      "opaquePixels": 114
+      "opaquePixels": 108
     },
     {
       "slug": "ottoman-coastal-trader",

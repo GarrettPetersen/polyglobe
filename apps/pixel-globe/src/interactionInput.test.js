@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   INTERACTION_INPUT,
   WORLD_POINTER_ACTION,
+  dispatchSailingPointerAction,
   interactionInputOwner,
   worldPointerAction
 } from "./interactionInput.js";
@@ -115,4 +116,31 @@ test("world pointer priority rejects a broadside assigned to a non-ship target",
     interactionCandidate: { target: { kind: "port" }, exact: true },
     combatShipBroadside: "port"
   }), /requires a clicked ship/);
+});
+
+test("a broadside pointer action fires without ever beginning steering", () => {
+  const calls = [];
+  const dispatched = dispatchSailingPointerAction({
+    type: WORLD_POINTER_ACTION.BROADSIDE,
+    sideName: "port"
+  }, {
+    fireBroadside: (sideName) => calls.push(`fire:${sideName}`),
+    beginSteering: () => calls.push("steer")
+  });
+
+  assert.equal(dispatched, WORLD_POINTER_ACTION.BROADSIDE);
+  assert.deepEqual(calls, ["fire:port"]);
+});
+
+test("an ordinary sailing pointer action begins steering without firing", () => {
+  const calls = [];
+  const dispatched = dispatchSailingPointerAction({
+    type: WORLD_POINTER_ACTION.STEER
+  }, {
+    fireBroadside: (sideName) => calls.push(`fire:${sideName}`),
+    beginSteering: () => calls.push("steer")
+  });
+
+  assert.equal(dispatched, WORLD_POINTER_ACTION.STEER);
+  assert.deepEqual(calls, ["steer"]);
 });

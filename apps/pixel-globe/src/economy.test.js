@@ -122,7 +122,7 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   assert.equal(ids.size, TRADE_GOODS.length);
 });
 
-test("Southeast Asia exports ginger and Caribbean colonies export indigo", () => {
+test("Southeast Asia exports ginger while Caribbean colonies begin with sugar and indigo", () => {
   const economy = createWorldEconomy({
     ports: [MALACCA, TERNATE, HAVANA, SANTO_DOMINGO, LONDON],
     startMinute: 0
@@ -138,7 +138,80 @@ test("Southeast Asia exports ginger and Caribbean colonies export indigo", () =>
   assert.ok(malacca.get(GINGER_GOOD_ID).buyPrice < london.get(GINGER_GOOD_ID).sellPrice);
   assert.ok(havana.get(INDIGO_GOOD_ID).productionPerDay > 0);
   assert.ok(santoDomingo.get(INDIGO_GOOD_ID).productionPerDay > 0);
+  assert.ok(havana.get("sugar").productionPerDay > 0);
+  assert.ok(santoDomingo.get("sugar").productionPerDay > 0);
+  assert.equal(havana.get(GINGER_GOOD_ID).productionPerDay, 0);
+  assert.equal(santoDomingo.get(GINGER_GOOD_ID).productionPerDay, 0);
   assert.ok(havana.get(INDIGO_GOOD_ID).listedForSale);
+});
+
+test("New World production follows geography instead of city sprite style", () => {
+  const cityNames = [
+    "Yuquot Village",
+    "Ozette Village",
+    "Wendat Village",
+    "Chillicothe",
+    "Guanahani Village",
+    "Havana",
+    "Santo Domingo",
+    "Coroa Vermelha Village",
+    "Chanchan",
+    "Mexico City"
+  ];
+  const ports = cityNames.map((cityName, index) => {
+    const city = CITY_CATALOG.find((candidate) =>
+      candidate.city === cityName || candidate.displayCity === cityName
+    );
+    assert.ok(city, `missing city catalog record for ${cityName}`);
+    return { ...city, tileId: 15000 + index };
+  });
+  const byName = new Map(ports.map((city) => [city.city, city]));
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+
+  for (const cityName of ["Yuquot Village", "Ozette Village", "Wendat Village", "Chillicothe"]) {
+    const market = marketByGood(economy, byName.get(cityName));
+    assert.equal(byName.get(cityName).economyRegion, "native-north-american");
+    assert.equal(market.get("cacao").productionPerDay, 0, cityName);
+    assert.equal(market.get("sugar").productionPerDay, 0, cityName);
+    assert.equal(market.get(INDIGO_GOOD_ID).productionPerDay, 0, cityName);
+    assert.ok(market.get("fish").productionPerDay > 0, cityName);
+    assert.ok(market.get("timber").productionPerDay > 0, cityName);
+  }
+
+  const guanahani = marketByGood(economy, byName.get("Guanahani Village"));
+  assert.equal(byName.get("Guanahani Village").economyRegion, "caribbean-indigenous");
+  assert.ok(guanahani.get("fish").productionPerDay > 0);
+  assert.ok(guanahani.get("cotton").productionPerDay > 0);
+  assert.equal(guanahani.get("sugar").productionPerDay, 0);
+  assert.equal(guanahani.get(INDIGO_GOOD_ID).productionPerDay, 0);
+
+  for (const cityName of ["Havana", "Santo Domingo"]) {
+    const market = marketByGood(economy, byName.get(cityName));
+    assert.equal(byName.get(cityName).economyRegion, "caribbean");
+    assert.ok(market.get("sugar").productionPerDay > 0, cityName);
+    assert.ok(market.get(INDIGO_GOOD_ID).productionPerDay > 0, cityName);
+    assert.equal(market.get(GINGER_GOOD_ID).productionPerDay, 0, cityName);
+    assert.equal(market.get("wine").productionPerDay, 0, cityName);
+    assert.equal(market.get("olive-oil").productionPerDay, 0, cityName);
+  }
+
+  const brazil = marketByGood(economy, byName.get("Coroa Vermelha Village"));
+  assert.equal(byName.get("Coroa Vermelha Village").economyRegion, "brazilian-coast");
+  assert.ok(brazil.get("fish").productionPerDay > 0);
+  assert.ok(brazil.get("timber").productionPerDay > 0);
+  assert.ok(brazil.get("dyes").productionPerDay > 0);
+  assert.equal(brazil.get("cacao").productionPerDay, 0);
+  assert.equal(brazil.get("sugar").productionPerDay, 0);
+
+  const chanchan = marketByGood(economy, byName.get("Chanchan"));
+  assert.equal(byName.get("Chanchan").economyRegion, "andean-coast");
+  assert.ok(chanchan.get("fish").productionPerDay > 0);
+  assert.ok(chanchan.get("cotton").productionPerDay > 0);
+
+  const mexicoCity = marketByGood(economy, byName.get("Mexico City"));
+  assert.equal(byName.get("Mexico City").economyRegion, "mesoamerican");
+  assert.ok(mexicoCity.get("cacao").productionPerDay > 0);
+  assert.equal(mexicoCity.get("sugar").productionPerDay, 0);
 });
 
 test("1522 bullion exports come from named American and African gateways", () => {

@@ -104,6 +104,20 @@ test("the coastal Dhow is a tiny unarmed solo craft", () => {
   assert.ok(dhow.turnRateRad > fishingBarque.turnRateRad);
 });
 
+test("the Ocean Dhow fills the medium Indian Ocean merchant niche", () => {
+  const coastalDhow = shipStatsForSlug("dhow");
+  const oceanDhow = shipStatsForSlug("ocean-dhow");
+  const mediumJunk = shipStatsForSlug("medium-junk");
+
+  assert.equal(shipLabelForSlug(oceanDhow.slug), "Ocean Dhow");
+  assert.equal(oceanDhow.cannons, 2);
+  assert.equal(oceanDhow.crewCapacity, 10);
+  assert.ok(oceanDhow.mass > coastalDhow.mass);
+  assert.ok(oceanDhow.cargoCapacity > coastalDhow.cargoCapacity);
+  assert.ok(oceanDhow.cargoCapacity < mediumJunk.cargoCapacity);
+  assert.ok(oceanDhow.seaworthiness > coastalDhow.seaworthiness);
+});
+
 test("the Mediterranean galley is a period hybrid warship", () => {
   const galley = shipStatsForSlug("mediterranean-galley");
 

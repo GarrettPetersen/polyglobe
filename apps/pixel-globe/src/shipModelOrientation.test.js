@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createShipModelBasisOrientation,
   orientNegativeXForwardYUpToZForward,
   orientPositiveXForwardToZForward,
   orientPositiveXForwardZUpToZForward,
@@ -44,5 +45,23 @@ test("source presentation yaw can be removed without changing height", () => {
   assert.throws(
     () => rotateY({ x: 0, y: 0, z: 1 }, Number.NaN),
     /finite coordinates and angle/
+  );
+});
+
+test("a measured source basis maps its bow, deck, and starboard axes canonically", () => {
+  const orient = createShipModelBasisOrientation({
+    right: { x: 0, y: 0, z: 1 },
+    up: { x: 0, y: 1, z: 0 },
+    forward: { x: -1, y: 0, z: 0 }
+  }, "review ship");
+
+  assert.deepEqual(orient({ x: -4, y: 3, z: 2 }), { x: 2, y: 3, z: 4 });
+  assert.throws(
+    () => createShipModelBasisOrientation({
+      right: { x: 1, y: 0, z: 0 },
+      up: { x: 1, y: 0, z: 0 },
+      forward: { x: 0, y: 0, z: 1 }
+    }),
+    /not perpendicular/
   );
 });

@@ -19,7 +19,7 @@
     "Models/ships small/ship small 1.fbx (redundant with the more distinctive Xebec)",
     "Models/ships small/ship small 4.fbx (redundant with the credited gogiart Dhow model)",
     "Models/ships small/ship small 6.fbx (redundant with the Small Cog and Caravel)",
-    "Models/ships small/ship small 7.fbx (redundant with the Felucca and credited gogiart Dhow models)",
+    "Models/ships small/ship small 7.fbx (alternate two-sail dhow-like craft retained behind the dedicated Ocean Dhow)",
     "Models/viking ships/viking ship 1.fbx (rendered by the dedicated animated-oar Viking Longship bake)",
     "Models/viking ships/viking ship 2.fbx (alternate sail color)",
     "Models/viking ships/viking ship 3.fbx (alternate sail color)",
@@ -2546,6 +2546,87 @@
           "apps/pixel-globe/public/assets/vehicles/unity-ships/royal-lancaran-rowing-5-32-headings-sink-depth.png"
         ]
       }
+    },
+    {
+      "slug": "ocean-dhow",
+      "label": "Ocean Dhow",
+      "category": "Indian Ocean merchant",
+      "assetLabel": "Low Poly Ancient Dhow Ship",
+      "identifiedType": "medium western Indian Ocean lateen trader",
+      "identificationConfidence": "high",
+      "identificationNotes": "A broad-beamed, two-masted cargo dhow scaled between small coastal lateen craft and large ocean warships.",
+      "creator": "Nisa Nurul Azizah",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Low Poly Ancient Dhow Ship",
+      "sourceOrientation": {
+        "rawUpAxis": "+Z",
+        "rawForwardAxis": "+X",
+        "importedSceneForward": [
+          -0.764302178,
+          0.059440944,
+          0.642112883
+        ],
+        "evidence": "high stern at raw -X; low bow and foredeck extend toward raw +X"
+      },
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/low-poly-ancient-dhow-ship/scene.gltf",
+      "sourceTexture": null,
+      "sourceMaxDim": 5.2234,
+      "targetModelMaxDim": 1.9,
+      "frameScale": 0.62,
+      "scaleMode": "standalone-source-relative",
+      "waterlineY": -0.838671875,
+      "waterlineOffsetY": 0,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 2,
+        "dominantLengthRatio": 0.9763,
+        "hullIntervalMinY": -0.912891,
+        "hullIntervalMaxY": -0.705078
+      },
+      "encodedWaterlineY": -0.838672,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.903318,
+      "sinkHeightMax": 0.94926,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSourceMesh": "Cube007_worn_wood_dhow_0",
+      "flagAnchorModelPoint": {
+        "x": -0.018527,
+        "y": 0.95,
+        "z": -0.439994
+      },
+      "stats": {
+        "slug": "ocean-dhow",
+        "cannons": 2,
+        "accelerationRad": 0.022,
+        "topSpeedRad": 0.028900000000000002,
+        "upwindStallAngleDeg": 32,
+        "upwindStallAngleRad": 0.5585053606381855,
+        "turnRateRad": 2.55,
+        "mass": 105,
+        "crewCapacity": 10,
+        "hitPoints": 11,
+        "cargoCapacity": 125,
+        "seaworthiness": 7,
+        "armor": 0,
+        "propulsion": "sail",
+        "navalWeaponKind": null
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-lighting-preview.png"
+      }
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -2562,5 +2643,6 @@
   "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
   "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog",
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
-  "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships"
+  "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
+  "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow"
 }

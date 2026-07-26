@@ -223,6 +223,7 @@ test("starter replacements and first upgrades form an accessible price ladder", 
   assert.equal(shipConstructionPrice("square-rigged-caravel"), 4000);
   assert.equal(shipConstructionPrice("nusantaran-outrigger"), 4000);
   assert.equal(shipConstructionPrice("kelulus"), 4200);
+  assert.equal(shipConstructionPrice("ocean-dhow"), 4800);
 });
 
 test("ship prices put major hulls far beyond casual fishing income", () => {

@@ -20,6 +20,7 @@ import {
   LANCARAN_MODEL_CREDIT,
   MEDITERRANEAN_GALLEY_MODEL_CREDIT,
   MESOAMERICAN_CANOE_MODEL_CREDIT,
+  OCEAN_DHOW_MODEL_CREDIT,
   PENJAJAP_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
   NAO_VICTORIA_MODEL_CREDIT,
@@ -45,6 +46,7 @@ import {
 } from "../src/shipWaterline.js";
 import { estimateShipWaterlineY } from "../src/shipWaterlineSlice.js";
 import {
+  createShipModelBasisOrientation,
   orientNegativeXForwardYUpToZForward,
   orientPositiveXForwardToZForward,
   orientPositiveXForwardZUpToZForward,
@@ -79,6 +81,7 @@ const japaneseAtakebuneSourceRoot = join(shipSourceRoot, "sketchfab/atakebune-ja
 const naoVictoriaSourceRoot = join(shipSourceRoot, "sketchfab/nao-victoria");
 const portugueseCarrackSourceRoot = join(shipSourceRoot, "sketchfab/portuguese-carrack");
 const gogiartDhowSourceRoot = join(shipSourceRoot, "sketchfab/dhow-gogiart");
+const ancientDhowSourceRoot = join(shipSourceRoot, "sketchfab/low-poly-ancient-dhow-ship");
 const cyc3wSailingShipSourceRoot = join(shipSourceRoot, "sketchfab/cyc3w-sailing-ship");
 const borobudurShipSourceRoot = join(shipSourceRoot, "sketchfab/borobudur-sriwijaya");
 const ottomanCoastalTraderSourceRoot = join(shipSourceRoot, "sketchfab/ottoman-coastal-trader");
@@ -136,6 +139,14 @@ const horseCartWalkFrameCount = 6;
 const horseCartMaxDrawPixels = 31;
 const horseCartColorExposure = 2.2;
 const horseCartColorLift = 6;
+const orientationReviewScale = 6;
+const ancientDhowOrientation = createShipModelBasisOrientation({
+  // Measured after the glTF scene transforms are applied. Raw mesh +X is the
+  // bow, +Y is starboard, and +Z is deck-up.
+  right: { x: 0.643250264, y: 0.000000027, z: 0.765655992 },
+  up: { x: 0.045511298, y: 0.998231824, z: -0.038235424 },
+  forward: { x: -0.764302178, y: 0.059440944, z: 0.642112883 }
+}, "Ocean Dhow");
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 const mediterraneanGalleyMeshNames = new Set([
   "Object_9",  // stern windows
@@ -177,7 +188,7 @@ const unityFleetExcludedModels = new Map([
   ["ships small/ship small 1.fbx", "redundant with the more distinctive Xebec"],
   ["ships small/ship small 4.fbx", "redundant with the credited gogiart Dhow model"],
   ["ships small/ship small 6.fbx", "redundant with the Small Cog and Caravel"],
-  ["ships small/ship small 7.fbx", "redundant with the Felucca and credited gogiart Dhow models"],
+  ["ships small/ship small 7.fbx", "alternate two-sail dhow-like craft retained behind the dedicated Ocean Dhow"],
   ["viking ships/viking ship 1.fbx", "rendered by the dedicated animated-oar Viking Longship bake"],
   ["viking ships/viking ship 2.fbx", "alternate sail color"],
   ["viking ships/viking ship 3.fbx", "alternate sail color"],
@@ -532,7 +543,8 @@ function collectTriangles(scene, options = {}) {
         points,
         uvs,
         color: materialColor(material),
-        textureSampler: options.materialTextureSamplers?.get(material?.name) || null
+        textureSampler: options.materialTextureSamplers?.get(material?.name) || null,
+        sourceMeshName: node.name
       });
     }
   });
@@ -947,7 +959,12 @@ function makeFrame(rendered, bounds, scale) {
   };
 }
 
-function makeFlagAnchors(modelPoint, frames, camera) {
+function makeFlagAnchors(
+  modelPoint,
+  frames,
+  camera,
+  maxSnapDistancePx = flagAnchorMaxSnapDistancePx
+) {
   return frames.map((frame, headingIndex) => {
     const modelYaw = modelYawForScreenHeading(headingIndex, camera);
     const rotation = new THREE.Matrix4().makeRotationY(modelYaw);
@@ -966,7 +983,7 @@ function makeFlagAnchors(modelPoint, frames, camera) {
     );
     const anchor = nearestOpaqueFlagAnchor(frame, preferredX, preferredY);
     const snapDistance = Math.hypot(anchor.x - preferredX, anchor.y - preferredY);
-    if (snapDistance > flagAnchorMaxSnapDistancePx) {
+    if (snapDistance > maxSnapDistancePx) {
       throw new Error(
         `Ship flag anchor heading ${headingIndex} is ${snapDistance.toFixed(2)}px from its model point projection`
       );
@@ -1759,7 +1776,17 @@ async function renderShipSpriteSet(config) {
     ...config.collectOptions
   });
   const hullTriangles = model.triangles;
-  const flagAnchorModelPoint = selectShipFlagAnchorPoint(hullTriangles);
+  const flagAnchorTriangles = config.flagAnchorMeshName
+    ? hullTriangles.filter((triangle) => triangle.sourceMeshName === config.flagAnchorMeshName)
+    : hullTriangles;
+  if (flagAnchorTriangles.length === 0) {
+    const availableMeshes = [...new Set(hullTriangles.map((triangle) => triangle.sourceMeshName))];
+    throw new Error(
+      `${config.slug} flag anchor source mesh is absent: ${config.flagAnchorMeshName}; ` +
+      `available meshes: ${availableMeshes.join(", ")}`
+    );
+  }
+  const flagAnchorModelPoint = selectShipFlagAnchorPoint(flagAnchorTriangles);
   const waterline = estimateWaterlineForConfig(hullTriangles, config);
   const waterlineY = waterline.y;
   const triangles = config.animationTrianglesForFrame
@@ -1781,7 +1808,12 @@ async function renderShipSpriteSet(config) {
   const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
   const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
   const frames = renderedHeadings.map((rendered, i) => makeFrame(rendered, boundsByHeading[i], frameScale));
-  const baseFlagAnchors = makeFlagAnchors(flagAnchorModelPoint, frames, camera);
+  const baseFlagAnchors = makeFlagAnchors(
+    flagAnchorModelPoint,
+    frames,
+    camera,
+    config.flagAnchorMaxSnapDistancePx
+  );
   const footprintFrames = config.animationTrianglesForFrame
     ? Array.from({ length: headings }, (_, i) => {
         const rendered = renderHeading(hullTriangles, i, camera, renderOptions);
@@ -1852,6 +1884,7 @@ async function renderShipSpriteSet(config) {
     ...(config.creator ? { creator: config.creator } : {}),
     ...(config.license ? { license: config.license } : {}),
     ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {}),
+    ...(config.sourceOrientation ? { sourceOrientation: config.sourceOrientation } : {}),
     sourceModel: portablePath(config.modelPath),
     sourceTexture: config.texturePath ? portablePath(config.texturePath) : null,
     sourceMaxDim: Number(model.sourceMaxDim.toFixed(4)),
@@ -1881,6 +1914,7 @@ async function renderShipSpriteSet(config) {
     wakeAnchors,
     hullFootprints,
     flagAnchorSelection: "highest-model-point-aftmost-tiebreak",
+    ...(config.flagAnchorMeshName ? { flagAnchorSourceMesh: config.flagAnchorMeshName } : {}),
     flagAnchorModelPoint: Object.fromEntries(
       Object.entries(flagAnchorModelPoint).map(([axis, value]) => [axis, Number(value.toFixed(6))])
     ),
@@ -1942,7 +1976,12 @@ async function renderShipAnimationSheets({
       }
       animationSheets.push(sheet);
       animationFrames.push(frames);
-      animationFlagAnchors.push(makeFlagAnchors(flagAnchorModelPoint, frames, camera));
+      animationFlagAnchors.push(makeFlagAnchors(
+        flagAnchorModelPoint,
+        frames,
+        camera,
+        config.flagAnchorMaxSnapDistancePx
+      ));
     }
     if (!frames) throw new Error(`Missing ship animation geometry for frame ${frameIndex}`);
     const spritePath = join(
@@ -2770,6 +2809,7 @@ function productionShipRenderConfigs() {
       "spanish-nao",
       "portuguese-carrack",
       "dhow",
+      "ocean-dhow",
       "galleon",
       "nusantaran-outrigger",
       "kelulus",
@@ -3129,6 +3169,46 @@ function gogiartDhowConfig() {
   };
 }
 
+function oceanDhowConfig() {
+  const slug = "ocean-dhow";
+  return {
+    slug,
+    label: "Ocean Dhow",
+    category: "Indian Ocean merchant",
+    assetLabel: "Low Poly Ancient Dhow Ship",
+    identifiedType: "medium western Indian Ocean lateen trader",
+    identificationConfidence: "high",
+    identificationNotes:
+      "A broad-beamed, two-masted cargo dhow scaled between small coastal lateen craft and large ocean warships.",
+    ...OCEAN_DHOW_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(ancientDhowSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 1.9,
+    frameScale: 0.62,
+    sideViewTargetModelMaxDim: 1.72,
+    scaleMode: "standalone-source-relative",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    waterlineOffsetY: 0,
+    wakeWaterlineBand: 0.2,
+    flagAnchorMeshName: "Cube007_worn_wood_dhow_0",
+    flagAnchorMaxSnapDistancePx: 5,
+    sourceOrientation: {
+      rawUpAxis: "+Z",
+      rawForwardAxis: "+X",
+      importedSceneForward: [-0.764302178, 0.059440944, 0.642112883],
+      evidence: "high stern at raw -X; low bow and foredeck extend toward raw +X"
+    },
+    orientationReviewPath: join(
+      appRoot,
+      "docs/ship-reference/ocean-dhow-orientation-review.png"
+    ),
+    collectOptions: {
+      transformPoint: orientAncientDhowPoint
+    }
+  };
+}
+
 function cyc3wGalleonConfig() {
   const slug = "galleon";
   return {
@@ -3245,6 +3325,10 @@ function orientPortugueseCarrackPoint(point) {
 
 function orientGogiartDhowPoint(point) {
   return vectorFromCoordinates(orientNegativeXForwardYUpToZForward(point));
+}
+
+function orientAncientDhowPoint(point) {
+  return vectorFromCoordinates(ancientDhowOrientation(point));
 }
 
 function orientCyc3wSailingShipPoint(point) {
@@ -3750,6 +3834,12 @@ async function renderGogiartDhow() {
   console.log(result.entry.files.sheet);
 }
 
+async function renderOceanDhow() {
+  const config = oceanDhowConfig();
+  const result = await renderStandaloneShip(config, "oceanDhowGenerator", "--ocean-dhow");
+  console.log(result.entry.files.sheet);
+}
+
 async function renderCyc3wGalleon() {
   const config = cyc3wGalleonConfig();
   const result = await renderStandaloneShip(config, "cyc3wGalleonGenerator", "--cyc3w-galleon");
@@ -3883,6 +3973,7 @@ function standaloneShipConfigForSlug(slug) {
   if (slug === "spanish-nao") return spanishNaoConfig();
   if (slug === "portuguese-carrack") return portugueseCarrackConfig();
   if (slug === "dhow") return gogiartDhowConfig();
+  if (slug === "ocean-dhow") return oceanDhowConfig();
   if (slug === "galleon") return cyc3wGalleonConfig();
   if (slug === "nusantaran-outrigger") return nusantaranOutriggerConfig();
   if (slug === "kelulus") return kelulusConfig();
@@ -3914,6 +4005,12 @@ async function renderStandaloneShip(config, generatorKey, generatorFlag) {
 
   console.log(`render ${config.slug}`);
   const rendered = await renderShipSpriteSet(config);
+  if (config.orientationReviewPath) {
+    writeShipOrientationReview(rendered.sheet, {
+      label: config.label,
+      outputPath: config.orientationReviewPath
+    });
+  }
   const manifestPath = join(unityFleetOutputRoot, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const { sheet, wakeAnchors, hullFootprints, flagAnchors, ...entry } = rendered;
@@ -3950,6 +4047,63 @@ async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   sideViewManifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
   writeFileSync(sideViewPath, `${JSON.stringify(sideViewManifest, null, 2)}\n`);
   return { entry, wakeAnchors, hullFootprints, sideView };
+}
+
+function writeShipOrientationReview(sheet, { label, outputPath }) {
+  if (!sheet || !Number.isInteger(sheet.width) || !Number.isInteger(sheet.height)) {
+    throw new Error(`${label} orientation review requires a sprite sheet`);
+  }
+  if (typeof outputPath !== "string" || outputPath === "") {
+    throw new Error(`${label} orientation review requires an output path`);
+  }
+  const directions = [
+    { label: "RIGHT", frame: 0 },
+    { label: "LEFT", frame: headings / 2 },
+    { label: "TOWARD US", frame: headings * 3 / 4 },
+    { label: "AWAY", frame: headings / 4 }
+  ];
+  if (directions.some(({ frame }) => !Number.isInteger(frame))) {
+    throw new Error(`Orientation review requires cardinal frames for ${headings} headings`);
+  }
+  const scaledFrame = frameSize * orientationReviewScale;
+  const labelHeight = 34;
+  const cellWidth = scaledFrame;
+  const cellHeight = labelHeight + scaledFrame;
+  const review = createCanvas(cellWidth * 2, cellHeight * 2);
+  const ctx = review.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#172038";
+  ctx.fillRect(0, 0, review.width, review.height);
+  ctx.font = "bold 20px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  directions.forEach(({ label: directionLabel, frame }, index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    const x = col * cellWidth;
+    const y = row * cellHeight;
+    const sourceX = (frame % sheetCols) * frameSize;
+    const sourceY = Math.floor(frame / sheetCols) * frameSize;
+    ctx.strokeStyle = "#566c86";
+    ctx.strokeRect(x + 0.5, y + 0.5, cellWidth - 1, cellHeight - 1);
+    ctx.fillStyle = "#f4f4f4";
+    ctx.fillText(`${directionLabel}  [${frame}]`, x + cellWidth / 2, y + labelHeight / 2);
+    ctx.drawImage(
+      sheet,
+      sourceX,
+      sourceY,
+      frameSize,
+      frameSize,
+      x,
+      y + labelHeight,
+      scaledFrame,
+      scaledFrame
+    );
+  });
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, review.toBuffer("image/png"));
+  console.log(outputPath);
 }
 
 async function renderUnityShip(slug) {
@@ -4373,6 +4527,7 @@ function renderAllProductionShips() {
     "--spanish-nao",
     "--portuguese-carrack",
     "--gogiart-dhow",
+    "--ocean-dhow",
     "--cyc3w-galleon",
     "--nusantaran-outrigger",
     "--kelulus",
@@ -4447,7 +4602,7 @@ async function renderUnityFleetReferences() {
     references.push(entry);
     console.log(`  ${entry.files.referenceSheet}`);
   }
-  for (const config of [gogiartDhowConfig(), cyc3wGalleonConfig()]) {
+  for (const config of [gogiartDhowConfig(), oceanDhowConfig(), cyc3wGalleonConfig()]) {
     config.sourceMaxDim = await measureSourceMaxDim(config.modelPath);
     config.outputDir = unityFleetReferenceOutputRoot;
     config.outputPrefix = `${config.slug}-reference-${SHIP_SPRITE_HEADING_SUFFIX}`;
@@ -4580,6 +4735,10 @@ async function main() {
   }
   if (args.has("--gogiart-dhow")) {
     await renderGogiartDhow();
+    return;
+  }
+  if (args.has("--ocean-dhow")) {
+    await renderOceanDhow();
     return;
   }
   if (args.has("--cyc3w-galleon")) {

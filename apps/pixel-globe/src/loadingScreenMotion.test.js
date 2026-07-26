@@ -89,6 +89,10 @@ test("title layers fly in once while the ship keeps a bounded bob", () => {
   const settled = loadingLayerMotion(1400);
   assert.equal(settled.upperTextY, 0);
   assert.equal(settled.lowerTextY, 0);
-  assert.ok(Math.abs(settled.shipY) <= 2.5);
-  assert.deepEqual(loadingLayerMotion(500, true), { upperTextY: 0, lowerTextY: 0, shipY: 0 });
+  const bobSamples = Array.from({ length: 341 }, (_, frame) => (
+    loadingLayerMotion(frame * 10).shipY
+  ));
+  assert.ok(Math.min(...bobSamples) >= -0.5);
+  assert.ok(Math.max(...bobSamples) <= 4.5);
+  assert.deepEqual(loadingLayerMotion(500, true), { upperTextY: 0, lowerTextY: 0, shipY: 2 });
 });

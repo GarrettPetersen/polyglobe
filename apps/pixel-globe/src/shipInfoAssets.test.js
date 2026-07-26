@@ -54,6 +54,7 @@ const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const DHOW_SLUG = "dhow";
+const OCEAN_DHOW_SLUG = "ocean-dhow";
 const GALLEON_SLUG = "galleon";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
 const KELULUS_SLUG = "kelulus";
@@ -527,6 +528,31 @@ test("the Dhow uses the credited purpose-built source model", async () => {
   }
   assert.ok(dimensions[DHOW_SLUG] <= dimensions["fishing-lugger"]);
   assert.ok(dimensions[DHOW_SLUG] < dimensions.xebec);
+});
+
+test("the Ocean Dhow bake records and follows its reviewed cardinal orientation", async () => {
+  const [manifest, wakeBake, orientationReview] = await Promise.all([
+    readFile(join(shipAssetRoot, "manifest.json"), "utf8").then(JSON.parse),
+    readFile(join(shipAssetRoot, "wake-anchors.json"), "utf8").then(JSON.parse),
+    loadImage(join(
+      dirname(fileURLToPath(import.meta.url)),
+      "../docs/ship-reference/ocean-dhow-orientation-review.png"
+    ))
+  ]);
+  const entry = manifest.ships.find((ship) => ship.slug === OCEAN_DHOW_SLUG);
+  const wakes = wakeBake.ships[OCEAN_DHOW_SLUG];
+
+  assert.ok(entry, "Ocean Dhow manifest entry");
+  assert.equal(entry.sourceOrientation.rawUpAxis, "+Z");
+  assert.equal(entry.sourceOrientation.rawForwardAxis, "+X");
+  assert.equal(entry.sourceOrientation.importedSceneForward.length, 3);
+  assert.equal(orientationReview.width, SHIP_SPRITE_FRAME_SIZE * 6 * 2);
+  assert.equal(orientationReview.height, (SHIP_SPRITE_FRAME_SIZE * 6 + 34) * 2);
+  assert.equal(wakes.length, SHIP_SPRITE_HEADINGS);
+  assert.ok(wakes[0].stern.x < 0, "right-facing ship keeps its stern on the left");
+  assert.ok(wakes[8].stern.y > wakes[8].positiveShoulder.y, "away-facing ship trails downward");
+  assert.ok(wakes[16].stern.x > 0, "left-facing ship keeps its stern on the right");
+  assert.ok(wakes[24].stern.y < wakes[24].positiveShoulder.y, "toward-facing ship trails upward");
 });
 
 test("the Small Cog reads as a roundship rather than a rowboat", async () => {

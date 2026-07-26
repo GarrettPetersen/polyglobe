@@ -50,6 +50,59 @@ test("salmon remain in their native Northern Hemisphere range in 1522", () => {
   assertNoSpecies(state, "coastal", -48, -73, 140 * MINUTE, "salmon");
 });
 
+test("resident freshwater fish give rivers distinct regional fisheries", () => {
+  const minute = 140 * MINUTE;
+  const regions = [
+    ["northern-pike", 50, -95],
+    ["wels-catfish", 48, 20],
+    ["channel-catfish", 36, -90],
+    ["african-catfish", 8, 30],
+    ["tigerfish", -12, 25],
+    ["mahseer", 25, 82],
+    ["mekong-giant-catfish", 16, 103],
+    ["grass-carp", 30, 115],
+    ["arapaima", -4, -62],
+    ["piranha", -8, -58],
+    ["murray-cod", -34, 145]
+  ];
+
+  for (const [speciesId, lat, lon] of regions) {
+    const state = createGameState({ cargoCapacity: 20 });
+    const fishery = findFishery(state, "river", lat, lon, minute, speciesId);
+    assert.equal(fishery.speciesId, speciesId);
+    assert.equal(fishery.habitatKind, "river");
+  }
+});
+
+test("resident river fish remain available outside a seasonal run", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const springMinute = 80 * MINUTE;
+  const habitat = findHabitatWithFishery(state, "river", -4, -62, springMinute, "arapaima");
+  const springFishery = fisheryForHabitat(state, habitat, springMinute);
+  const winterFishery = fisheryForHabitat(state, habitat, 320 * MINUTE);
+
+  assert.equal(springFishery.speciesId, "arapaima");
+  assert.equal(winterFishery.speciesId, "arapaima");
+});
+
+test("resident freshwater fish stay inside their regional river ranges", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 140 * MINUTE;
+
+  assertNoSpecies(state, "river", 30, 115, minute, "arapaima");
+  assertNoSpecies(state, "river", -8, -58, minute, "grass-carp");
+  assertNoSpecies(state, "river", 50, 20, minute, "murray-cod");
+});
+
+test("river mouths can support resident fish without putting them in the open ocean", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 140 * MINUTE;
+  const mouthFishery = findFishery(state, "river-mouth", 36, -90, minute, "channel-catfish");
+
+  assert.equal(mouthFishery.speciesId, "channel-catfish");
+  assertNoSpecies(state, "open-ocean", 36, -90, minute, "channel-catfish");
+});
+
 test("Lake Victoria has only native 1522 freshwater fisheries", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const minute = 140 * MINUTE;

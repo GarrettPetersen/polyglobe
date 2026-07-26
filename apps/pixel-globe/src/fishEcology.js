@@ -85,6 +85,72 @@ export const FISH_SPECIES = Object.freeze([
     growthPerDay: 0.006,
     minVisibleDensity: 0.18,
     schoolScale: 1.42
+  }),
+  species("northern-pike", "Northern pike", "#547e64", "#a2a947", "#313638", {
+    baseCapacity: 28,
+    growthPerDay: 0.016,
+    minVisibleDensity: 0.16,
+    schoolScale: 1.26
+  }),
+  species("wels-catfish", "Wels catfish", "#484a77", "#9babb2", "#323353", {
+    baseCapacity: 20,
+    growthPerDay: 0.011,
+    minVisibleDensity: 0.18,
+    schoolScale: 1.42
+  }),
+  species("channel-catfish", "Channel catfish", "#625565", "#a2a947", "#313638", {
+    baseCapacity: 38,
+    growthPerDay: 0.024,
+    minVisibleDensity: 0.14,
+    schoolScale: 1.12
+  }),
+  species("african-catfish", "African catfish", "#596156", "#a2a947", "#313638", {
+    baseCapacity: 40,
+    growthPerDay: 0.028,
+    minVisibleDensity: 0.13,
+    schoolScale: 1.16
+  }),
+  species("tigerfish", "Tigerfish", "#9e4539", "#fbb954", "#4c3e24", {
+    baseCapacity: 31,
+    growthPerDay: 0.019,
+    minVisibleDensity: 0.15,
+    schoolScale: 1.2
+  }),
+  species("mahseer", "Mahseer", "#d68f3a", "#ffe082", "#743f39", {
+    baseCapacity: 30,
+    growthPerDay: 0.017,
+    minVisibleDensity: 0.16,
+    schoolScale: 1.24
+  }),
+  species("mekong-giant-catfish", "Mekong giant catfish", "#8aa9b8", "#d8edf2", "#484a77", {
+    baseCapacity: 14,
+    growthPerDay: 0.005,
+    minVisibleDensity: 0.2,
+    schoolScale: 1.58
+  }),
+  species("grass-carp", "Grass carp", "#92a984", "#c7dcd0", "#374e4a", {
+    baseCapacity: 42,
+    growthPerDay: 0.026,
+    minVisibleDensity: 0.13,
+    schoolScale: 1.14
+  }),
+  species("arapaima", "Arapaima", "#625565", "#db6b4f", "#323353", {
+    baseCapacity: 15,
+    growthPerDay: 0.007,
+    minVisibleDensity: 0.19,
+    schoolScale: 1.56
+  }),
+  species("piranha", "Piranha", "#9e4539", "#f0b28c", "#4c3e24", {
+    baseCapacity: 60,
+    growthPerDay: 0.04,
+    minVisibleDensity: 0.11,
+    schoolScale: 0.84
+  }),
+  species("murray-cod", "Murray cod", "#547e64", "#c7dcd0", "#313638", {
+    baseCapacity: 24,
+    growthPerDay: 0.012,
+    minVisibleDensity: 0.17,
+    schoolScale: 1.36
   })
 ]);
 
@@ -101,7 +167,59 @@ const GREAT_LAKES_SPECIES_SCORES = Object.freeze({
   "lake-sturgeon": 0.22
 });
 
+const RESIDENT_RIVER_SPECIES_RANGES = Object.freeze({
+  "northern-pike": Object.freeze([
+    riverRange(42, 68, -170, -50, 0.78),
+    riverRange(42, 68, -10, 150, 0.78)
+  ]),
+  "wels-catfish": Object.freeze([
+    riverRange(36, 62, 0, 80, 0.74)
+  ]),
+  "channel-catfish": Object.freeze([
+    riverRange(24, 55, -105, -72, 0.88)
+  ]),
+  "african-catfish": Object.freeze([
+    riverRange(-35, 32, -18, 45, 0.92),
+    riverRange(30, 38, 32, 42, 0.48)
+  ]),
+  tigerfish: Object.freeze([
+    riverRange(-35, 15, 10, 42, 0.76)
+  ]),
+  mahseer: Object.freeze([
+    riverRange(5, 34, 65, 100, 0.9)
+  ]),
+  "mekong-giant-catfish": Object.freeze([
+    riverRange(8, 28, 96, 106, 0.34)
+  ]),
+  "grass-carp": Object.freeze([
+    riverRange(20, 44, 100, 124, 0.88),
+    riverRange(44, 55, 100, 135, 0.62)
+  ]),
+  arapaima: Object.freeze([
+    riverRange(-18, 8, -80, -45, 0.62)
+  ]),
+  piranha: Object.freeze([
+    riverRange(-20, 5, -80, -45, 0.94)
+  ]),
+  "murray-cod": Object.freeze([
+    riverRange(-38, -24, 137, 153, 0.88)
+  ])
+});
+
 const FISH_SPECIES_BY_ID = new Map(FISH_SPECIES.map((item) => [item.id, item]));
+const FISH_SPECIES_CANDIDATES = Object.freeze({
+  "open-ocean": speciesCandidates(["salmon", "herring", "cod", "sardine", "tuna", "reef"]),
+  coastal: speciesCandidates(["salmon", "herring", "cod", "sardine", "tuna", "reef"]),
+  river: speciesCandidates(["salmon", ...Object.keys(RESIDENT_RIVER_SPECIES_RANGES)]),
+  "river-mouth": speciesCandidates([
+    "salmon",
+    "herring",
+    "sardine",
+    ...Object.keys(RESIDENT_RIVER_SPECIES_RANGES)
+  ]),
+  "lake-victoria": speciesCandidates(Object.keys(LAKE_VICTORIA_SPECIES_SCORES)),
+  "great-lakes": speciesCandidates(Object.keys(GREAT_LAKES_SPECIES_SCORES))
+});
 
 export function fishSpeciesById(speciesId) {
   const speciesDef = FISH_SPECIES_BY_ID.get(speciesId);
@@ -278,7 +396,7 @@ function fisheryStockIsVisible(stock, speciesDef) {
 }
 
 function chooseSpeciesForHabitat(habitat, dayOfYear, voyageSeed) {
-  const scored = FISH_SPECIES
+  const scored = fishSpeciesCandidatesForHabitat(habitat)
     .map((speciesDef) => ({
       speciesDef,
       score: speciesHabitatScore(speciesDef.id, habitat, dayOfYear)
@@ -304,6 +422,16 @@ function chooseSpeciesForHabitat(habitat, dayOfYear, voyageSeed) {
   return scored[scored.length - 1].speciesDef;
 }
 
+function fishSpeciesCandidatesForHabitat(habitat) {
+  if (habitat.kind === "lake") {
+    const region = lakeFishRegion(habitat);
+    return FISH_SPECIES_CANDIDATES[region] || [];
+  }
+  const candidates = FISH_SPECIES_CANDIDATES[habitat.kind];
+  if (!candidates) throw new Error(`Fish habitat has no species candidate roster: ${habitat.kind}`);
+  return candidates;
+}
+
 function fisheryExists(speciesDef, habitat, dayOfYear, voyageSeed) {
   const base = fisheryPresenceChance(speciesDef.id, habitat, dayOfYear);
   return seededFraction(hashString32(
@@ -323,6 +451,8 @@ function fishSeedKey(voyageSeed, value) {
 
 function speciesHabitatScore(speciesId, habitat, dayOfYear) {
   if (habitat.kind === "lake") return lakeSpeciesHabitatScore(speciesId, habitat);
+  const residentRiverScore = residentRiverSpeciesHabitatScore(speciesId, habitat);
+  if (residentRiverScore > 0) return residentRiverScore;
   const absLat = Math.abs(habitat.lat);
   const tropical = absLat < 28;
   const cold = absLat >= 42;
@@ -356,6 +486,11 @@ function fisheryPresenceChance(speciesId, habitat, dayOfYear) {
   if (speciesId === "salmon") {
     return salmonMigrationProfile(habitat, dayOfYear)?.presenceChance || 0;
   }
+  if (RESIDENT_RIVER_SPECIES_RANGES[speciesId]) {
+    if (habitat.kind === "river") return 0.48;
+    if (habitat.kind === "river-mouth") return 0.24;
+    return 0;
+  }
   if (habitat.kind === "lake") {
     const region = lakeFishRegion(habitat);
     if (region === "lake-victoria") return 0.74;
@@ -370,6 +505,7 @@ function fisheryPresenceChance(speciesId, habitat, dayOfYear) {
 
 function habitatCapacityMultiplier(speciesDef, habitat) {
   if (speciesDef.id === "salmon" && habitat.kind === "river") return 1.35;
+  if (RESIDENT_RIVER_SPECIES_RANGES[speciesDef.id] && habitat.kind === "river") return 0.82;
   if (habitat.kind === "river-mouth") return 1.15;
   if (habitat.kind === "coastal") return 1.0;
   if (habitat.kind === "lake") return 0.72;
@@ -412,6 +548,24 @@ function salmonNativeRange(habitat) {
   const openNorthAtlantic = habitat.lat >= 38 && habitat.lon >= -85 && habitat.lon <= -5;
   const northernEuropeanAtlantic = habitat.lat >= 48 && habitat.lon > -5 && habitat.lon <= 30;
   return northPacific || openNorthAtlantic || northernEuropeanAtlantic;
+}
+
+function residentRiverSpeciesHabitatScore(speciesId, habitat) {
+  if (habitat.kind !== "river" && habitat.kind !== "river-mouth") return 0;
+  const ranges = RESIDENT_RIVER_SPECIES_RANGES[speciesId];
+  if (!ranges) return 0;
+  let score = 0;
+  for (const range of ranges) {
+    if (
+      habitat.lat >= range.minLat &&
+      habitat.lat <= range.maxLat &&
+      habitat.lon >= range.minLon &&
+      habitat.lon <= range.maxLon
+    ) {
+      score = Math.max(score, range.score);
+    }
+  }
+  return habitat.kind === "river-mouth" ? score * 0.52 : score;
 }
 
 function lakeSpeciesHabitatScore(speciesId, habitat) {
@@ -468,6 +622,21 @@ function species(id, label, body, highlight, shadow, options) {
     colors: Object.freeze({ body, highlight, shadow }),
     ...options
   });
+}
+
+function riverRange(minLat, maxLat, minLon, maxLon, score) {
+  if (!(minLat < maxLat) || !(minLon < maxLon) || !(score > 0)) {
+    throw new Error(`Invalid resident river fish range: ${minLat},${maxLat},${minLon},${maxLon},${score}`);
+  }
+  return Object.freeze({ minLat, maxLat, minLon, maxLon, score });
+}
+
+function speciesCandidates(speciesIds) {
+  return Object.freeze(speciesIds.map((speciesId) => {
+    const speciesDef = FISH_SPECIES_BY_ID.get(speciesId);
+    if (!speciesDef) throw new Error(`Fish candidate roster references unknown species: ${speciesId}`);
+    return speciesDef;
+  }));
 }
 
 function positiveModulo(value, modulus) {

@@ -300,7 +300,7 @@ const FLEET_PROFILES = Object.freeze([
   }, isSoutheastAsiaPort, "regional"),
   profile("indian-ocean", 28, {
     fishers: ["dhow", "felucca", "felucca"],
-    merchants: ["dhow", "felucca", "dhow", "dhow"],
+    merchants: ["dhow", "felucca", "ocean-dhow", "ocean-dhow", "ocean-dhow"],
     warships: ["xebec", "xebec", "xebec"]
   }, isIndianOceanPort, "regional"),
   profile("mediterranean", 28, {
@@ -315,7 +315,9 @@ const FLEET_PROFILES = Object.freeze([
   }, isAtlanticPort, "regional"),
   profile("cape-trade", 44, {
     fishers: ["fishing-lugger", "cutter", "dhow"],
-    merchants: ["small-cog", "caravel", "caravel", "brigantine", "carrack", "fluyt", "galleon"],
+    merchants: [
+      "small-cog", "ocean-dhow", "caravel", "caravel", "brigantine", "carrack", "fluyt", "galleon"
+    ],
     warships: ["caravel", "brigantine", "pirate-brig", "galleon", "ship-of-the-line"]
   }, isLongRangePort, "interregional"),
   profile("wide-world", 24, {

@@ -16,6 +16,7 @@ const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
 const ACCESSIBLE_SHIP_PRICES = Object.freeze({
   dhow: 1400,
+  "ocean-dhow": 4800,
   "mesoamerican-dugout-canoe": 1400,
   "fishing-lugger": 1800,
   felucca: 1800,
@@ -60,13 +61,13 @@ const REGION_SHIP_POOLS = Object.freeze({
     "square-rigged-caravel", "caravel", "caravel", "brigantine", "carrack", "galleon", "ship-of-the-line"
   ]),
   "islamic-desert": Object.freeze([
-    "felucca", "dhow", "dhow", "felucca", "dhow", "ketch", "ketch", "xebec", "xebec",
-    "caravel", "carrack", "galleon"
+    "felucca", "dhow", "dhow", "felucca", "dhow", "ocean-dhow", "ocean-dhow",
+    "ocean-dhow", "ketch", "ketch", "xebec", "xebec", "caravel", "carrack", "galleon"
   ]),
   "east-asian": Object.freeze(["sampan", "small-junk", "medium-junk", "large-junk"]),
   "south-asian": Object.freeze([
-    "felucca", "dhow", "dhow", "felucca", "dhow", "ketch", "small-junk", "medium-junk",
-    "large-junk", "caravel", "carrack"
+    "felucca", "dhow", "dhow", "felucca", "dhow", "ocean-dhow", "ocean-dhow",
+    "ocean-dhow", "ketch", "small-junk", "medium-junk", "large-junk", "caravel", "carrack"
   ]),
   "southeast-asian": Object.freeze([
     "sampan", "dhow", "dhow", "kelulus", "kelulus", "penjajap", "penjajap",
@@ -77,8 +78,8 @@ const REGION_SHIP_POOLS = Object.freeze({
   mesoamerican: Object.freeze(["mesoamerican-dugout-canoe"]),
   andean: Object.freeze(["mesoamerican-dugout-canoe"]),
   "sub-saharan": Object.freeze([
-    "fishing-lugger", "felucca", "dhow", "dhow", "felucca", "dhow", "ketch", "caravel",
-    "caravel", "carrack"
+    "fishing-lugger", "felucca", "dhow", "dhow", "felucca", "dhow", "ocean-dhow",
+    "ocean-dhow", "ketch", "caravel", "caravel", "carrack"
   ])
 });
 

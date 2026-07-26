@@ -64,6 +64,7 @@ import {
   observeAboardBirthdays,
   pendingBirthdayDialogueLine
 } from "./birthdayEvents.js";
+import { discoveriesMenuHeaderLayout } from "./discoveriesMenuLayout.js";
 import {
   minimapSettlementColor,
   minimapSettlementMarkers
@@ -735,6 +736,7 @@ import {
   stepMenuIndex,
   toggleBinaryConfirmationIndex
 } from "./menuNavigation.js";
+import { fittedStackedMenuRows } from "./stackedMenuLayout.js";
 import {
   GAME_ICON_ASSET_VERSION,
   GAME_ICON_SIZE,
@@ -843,6 +845,7 @@ import { controlTextLayout } from "./controlTextLayout.js";
 import {
   INTERACTION_INPUT,
   WORLD_POINTER_ACTION,
+  dispatchSailingPointerAction,
   interactionInputOwner,
   worldPointerAction
 } from "./interactionInput.js";
@@ -1188,6 +1191,7 @@ import { partitionVisualStateReprojections } from "./visualStateReprojection.js"
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
+  eraseTerrainOccludersFromShipLayer,
   RIVER_BANK_LOWER,
   RIVER_BANK_UPPER,
   shipOcclusionDepthY,
@@ -1198,7 +1202,10 @@ import {
   fisheryTileCallsNearestFirst,
   nearestWaterMaskedPoint
 } from "./fishWaterMask.js";
-import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
+import {
+  buildFreshWaterSurfaceMask,
+  shipCanRefillFreshWater
+} from "./freshWaterAccess.js";
 import { gamepadControlFrame, gamepadMenuNavigationFrame } from "./controllerInput.js";
 import {
   CONTROLLER_FAMILY,
@@ -1378,6 +1385,7 @@ const SHIP_SHEET_FRAME_SIZE = SHIP_SPRITE_FRAME_SIZE;
 const SHIP_SHEET_COLS = SHIP_SPRITE_SHEET_COLS;
 const SHIP_HEADING_COUNT = SHIP_SPRITE_HEADINGS;
 const SHIP_TERRAIN_OCCLUSION_CLEARANCE_PX = 2;
+const SHIP_COMPOSITE_MARGIN_PX = 8;
 const SHIP_LIGHT_AZIMUTH_BINS = 16;
 const SHIP_LIGHT_ELEVATION_BINS = 2;
 const SHIP_LIGHT_BIN_COUNT = SHIP_LIGHT_AZIMUTH_BINS * SHIP_LIGHT_ELEVATION_BINS;
@@ -1663,7 +1671,7 @@ const SURVIVAL_DEHYDRATION_CREW_LOSS = 1;
 const SURVIVAL_STARVATION_CREW_LOSS = 1;
 const DISCOVERIES_BUTTON_SIZE = 24;
 let DISCOVERIES_PANEL_W = 300;
-let DISCOVERIES_PANEL_H = 214;
+let DISCOVERIES_PANEL_H = 220;
 let ACHIEVEMENTS_PANEL_W = 338;
 let ACHIEVEMENTS_PANEL_H = 238;
 const ACHIEVEMENTS_PAGE_SIZE = 4;
@@ -1740,8 +1748,6 @@ const GAME_OVER_PANEL_H = 178;
 let GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
 let GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
-const POINTER_TAP_ACTION_MAX_MS = 220;
-const POINTER_TAP_ACTION_MAX_TRAVEL_PX = 5;
 const LANGUAGE_STORAGE_KEY = "pixel_globe_language";
 const CONTROLLER_GLYPH_STORAGE_KEY = "pixel_globe_controller_glyphs";
 let currentLanguage = normalizeLanguage(
@@ -1803,7 +1809,7 @@ const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 246;
+const OPTIONS_PANEL_H = 230;
 const OPTIONS_ROW_H = 22;
 const OPTIONS_ROW_COUNT = 9;
 const OPTIONS_ROW_FULLSCREEN = 0;
@@ -2155,15 +2161,22 @@ const shell = document.querySelector(".shell");
 if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
   throw new Error("Marque & Reprisal requires its shell and responsive canvas");
 }
-const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
-if (!ctx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
-ctx.imageSmoothingEnabled = false;
+const screenCtx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+if (!screenCtx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
+screenCtx.imageSmoothingEnabled = false;
+let ctx = screenCtx;
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
 const shipOutlineCtx = shipOutlineCanvas.getContext("2d");
 if (!shipOutlineCtx) throw new Error("Marque & Reprisal could not create its ship outline context");
 shipOutlineCtx.imageSmoothingEnabled = false;
+const shipCompositeCanvas = document.createElement("canvas");
+shipCompositeCanvas.width = SHIP_SHEET_FRAME_SIZE + SHIP_COMPOSITE_MARGIN_PX * 2;
+shipCompositeCanvas.height = SHIP_SHEET_FRAME_SIZE + SHIP_COMPOSITE_MARGIN_PX * 2;
+const shipCompositeCtx = shipCompositeCanvas.getContext("2d");
+if (!shipCompositeCtx) throw new Error("Marque & Reprisal could not create its ship composite context");
+shipCompositeCtx.imageSmoothingEnabled = false;
 const shipSinkSampleCanvas = document.createElement("canvas");
 shipSinkSampleCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipSinkSampleCanvas.height = SHIP_SHEET_FRAME_SIZE;
@@ -2201,11 +2214,7 @@ const keys = createHeldKeyActions();
 const pointerSteering = {
   active: false,
   pointerId: null,
-  point: null,
-  startPoint: null,
-  startedAtMs: null,
-  maxTravelPx: 0,
-  tapAction: null
+  point: null
 };
 let controllerSteering = null;
 let controllerButtons = [];
@@ -2338,6 +2347,7 @@ let riverColors;
 let riverMasks;
 let riverToWaterMasks;
 let oceanReachableNavigationMask;
+let freshWaterSurfaceMask;
 let stormSystem;
 const stormPassageState = createStormPassageState();
 let riverSpriteCache = new Map();
@@ -2770,6 +2780,11 @@ async function main() {
   );
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
+  freshWaterSurfaceMask = buildFreshWaterSurfaceMask({
+    graph,
+    earthRows,
+    saltwaterPassageTileIds: SALTWATER_PASSAGE_TILE_IDS
+  });
   mountainLandmarks = buildMountainLandmarks(loadedNamedMountains, graph, directionIndex, earth.peaks);
   spriteColors = buildSpriteDominantColors(images);
   waterLatitudeImages = new Map();
@@ -7985,14 +8000,13 @@ function handleLakeBattlePointerDown(pointerId, point) {
       return;
     }
     const broadside = lakeBattleBroadsideSideAtPoint(point);
-    if (broadside) {
-      beginPointerSteering(pointerId, point, {
-        type: "lake-broadside",
-        sideName: broadside
-      });
-      return;
-    }
-    beginPointerSteering(pointerId, point);
+    dispatchSailingPointerAction({
+      type: broadside ? WORLD_POINTER_ACTION.BROADSIDE : WORLD_POINTER_ACTION.STEER,
+      sideName: broadside || undefined
+    }, {
+      fireBroadside: fireLakeBattlePlayerBroadside,
+      beginSteering: () => beginPointerSteering(pointerId, point)
+    });
     return;
   }
   const actions = lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED
@@ -9939,20 +9953,14 @@ function handlePointerDown(event) {
     activatePointerWorldInteraction(event, pointerAction.target);
     return;
   }
-  if (pointerAction.type === WORLD_POINTER_ACTION.BROADSIDE) {
-    event.preventDefault();
-    beginPointerSteering(event.pointerId, point, {
-      type: "world-broadside",
-      sideName: pointerAction.sideName
-    });
-    return;
-  }
-  if (pointerAction.type !== WORLD_POINTER_ACTION.STEER) {
-    throw new Error(`Unknown world pointer action: ${pointerAction.type}`);
-  }
   event.preventDefault();
-  if (signalBlockedDepartureControl()) return;
-  beginPointerSteering(event.pointerId, point);
+  dispatchSailingPointerAction(pointerAction, {
+    fireBroadside,
+    beginSteering: () => {
+      if (signalBlockedDepartureControl()) return;
+      beginPointerSteering(event.pointerId, point);
+    }
+  });
 }
 
 function activatePointerWorldInteraction(event, target) {
@@ -10011,8 +10019,7 @@ function handlePointerUp(event) {
       // Ignore pointer capture releases from other targets.
     }
   }
-  const tapAction = endPointerSteering(event?.pointerId);
-  if (tapAction) activatePointerTapAction(tapAction);
+  endPointerSteering(event?.pointerId);
   if (captainMenu.mapDragPointerId === event?.pointerId) {
     captainMenu.mapDragPointerId = null;
     captainMenu.mapDragStartPoint = null;
@@ -10109,60 +10116,30 @@ function updateCaptainMenuSelectionFromPoint(point) {
   }
 }
 
-function beginPointerSteering(pointerId, point, tapAction = null) {
+function beginPointerSteering(pointerId, point) {
   pointerSteering.active = true;
   pointerSteering.pointerId = pointerId;
   pointerSteering.point = point;
-  pointerSteering.startPoint = point;
-  pointerSteering.startedAtMs = performance.now();
-  pointerSteering.maxTravelPx = 0;
-  pointerSteering.tapAction = tapAction;
   if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(pointerId);
   dirty = true;
 }
 
 function updatePointerSteering(point) {
   pointerSteering.point = point;
-  pointerSteering.maxTravelPx = Math.max(
-    pointerSteering.maxTravelPx,
-    Math.hypot(point.x - pointerSteering.startPoint.x, point.y - pointerSteering.startPoint.y)
-  );
   dirty = true;
 }
 
 function endPointerSteering(pointerId) {
-  if (!pointerSteering.active) return null;
-  if (pointerId !== undefined && pointerSteering.pointerId !== pointerId) return null;
-  const heldMs = performance.now() - pointerSteering.startedAtMs;
-  const tapAction = pointerSteering.tapAction &&
-    heldMs <= POINTER_TAP_ACTION_MAX_MS &&
-    pointerSteering.maxTravelPx <= POINTER_TAP_ACTION_MAX_TRAVEL_PX
-    ? pointerSteering.tapAction
-    : null;
+  if (!pointerSteering.active) return false;
+  if (pointerId !== undefined && pointerSteering.pointerId !== pointerId) return false;
   clearPointerSteering();
-  return tapAction;
-}
-
-function activatePointerTapAction(action) {
-  if (action.type === "world-broadside") {
-    fireBroadside(action.sideName);
-    return;
-  }
-  if (action.type === "lake-broadside") {
-    fireLakeBattlePlayerBroadside(action.sideName);
-    return;
-  }
-  throw new Error(`Unknown pointer tap action: ${action.type}`);
+  return true;
 }
 
 function clearPointerSteering() {
   pointerSteering.active = false;
   pointerSteering.pointerId = null;
   pointerSteering.point = null;
-  pointerSteering.startPoint = null;
-  pointerSteering.startedAtMs = null;
-  pointerSteering.maxTravelPx = 0;
-  pointerSteering.tapAction = null;
   dirty = true;
 }
 
@@ -15767,6 +15744,7 @@ function shipIsInFreshWater() {
     navigationKind: navigation.kind,
     waterTileId,
     frozen: Boolean(freshwaterIceMask?.[waterTileId]),
+    freshwaterSurface: Boolean(freshWaterSurfaceMask?.[waterTileId]),
     saltwaterPassageTileIds: SALTWATER_PASSAGE_TILE_IDS
   });
 }
@@ -16185,10 +16163,9 @@ function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
 
   const surface = drawnSurfaceNavigationAtLocalPoint(x, y);
   if (surface?.water) {
-    const terrain = earthById[surface.tileId]?.t || "";
     return {
       ok: true,
-      kind: terrain === "lake" ? "lake" : "openWater",
+      kind: freshWaterSurfaceMask?.[surface.tileId] ? "lake" : "openWater",
       tileId: surface.tileId
     };
   }
@@ -21088,7 +21065,7 @@ function applyResponsiveViewport(width, height) {
   ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
   MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
   DISCOVERIES_PANEL_W = Math.min(300, SCREEN_W - 12);
-  DISCOVERIES_PANEL_H = Math.min(214, SCREEN_H - 12);
+  DISCOVERIES_PANEL_H = Math.min(220, SCREEN_H - 12);
   ACHIEVEMENTS_PANEL_W = Math.min(338, SCREEN_W - 12);
   ACHIEVEMENTS_PANEL_H = Math.min(238, SCREEN_H - 12);
   SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
@@ -25020,12 +24997,12 @@ function drawDiscoveriesMenu() {
   drawPiratePaperModal(discoveriesMenu.panelRect, 0.78);
 
   const closeSize = UI_ICON_BUTTON_SIZE;
-  discoveriesMenu.closeButtonRect = {
-    x: panelX + DISCOVERIES_PANEL_W - closeSize - 6,
-    y: panelY + 6,
-    w: closeSize,
-    h: closeSize
-  };
+  const headerLayout = discoveriesMenuHeaderLayout({
+    panelRect: discoveriesMenu.panelRect,
+    closeButtonSize: closeSize,
+    tabHeight: UI_TAB_H
+  });
+  discoveriesMenu.closeButtonRect = headerLayout.closeButtonRect;
   drawOptionsCloseButton(
     discoveriesMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, discoveriesMenu.closeButtonRect)
@@ -25041,12 +25018,8 @@ function drawDiscoveriesMenu() {
     return;
   }
 
-  const tabY = panelY + 27;
-  const tabW = Math.floor((DISCOVERIES_PANEL_W - 27) / 2);
-  discoveriesMenu.tabRects = [
-    { id: "wonders", rect: { x: panelX + 12, y: tabY, w: tabW, h: UI_TAB_H } },
-    { id: "animals", rect: { x: panelX + 15 + tabW, y: tabY, w: tabW, h: UI_TAB_H } }
-  ];
+  discoveriesMenu.tabRects = headerLayout.tabRects;
+  const bodyOffsetY = headerLayout.bodyOffsetY;
   for (const tab of discoveriesMenu.tabRects) {
     drawShipInfoTab(
       tab.rect,
@@ -25065,7 +25038,7 @@ function drawDiscoveriesMenu() {
   const progressWidth = DISCOVERIES_PANEL_W - 24;
   drawDiscoveryProgressRow(
     panelX + 12,
-    panelY + 53,
+    panelY + 53 + bodyOffsetY,
     discoveriesMenu.tab === "animals" ? "SEEN" : "FOUND",
     `${entries.length}/${total}`,
     foundFraction,
@@ -25076,7 +25049,7 @@ function drawDiscoveriesMenu() {
   if (discoveriesMenu.tab === "wonders") {
     drawDiscoveryProgressRow(
       panelX + 12,
-      panelY + 70,
+      panelY + 70 + bodyOffsetY,
       "GLOBE MAPPED",
       `${(mappedFraction * 100).toFixed(2)}%`,
       mappedFraction,
@@ -25091,7 +25064,7 @@ function drawDiscoveriesMenu() {
         ? `BESTIARY REPORTED ${naturalist.reportedCount}/${naturalist.totalCount}`
         : "A NATURAL PHILOSOPHER MAY VALUE THESE NOTES",
       panelX + 12,
-      panelY + 72,
+      panelY + 72 + bodyOffsetY,
       { color: PIRATE_MENU_INK_MUTED, font: PIXEL_FONT_SMALL_8 }
     );
   }
@@ -25107,7 +25080,7 @@ function drawDiscoveriesMenu() {
     Math.max(0, pageEntries.length - 1)
   );
   const listX = panelX + 13;
-  const listY = panelY + 91;
+  const listY = panelY + 91 + bodyOffsetY;
   if (discoveriesMenu.tab === "wonders") {
     discoveriesMenu.wonderRowRects = pageEntries.map((_, index) => ({
       x: panelX + 10,
@@ -26779,9 +26752,10 @@ function drawLakeBattleActionOverlay(title, actions) {
 function drawStartMenu(nowMs) {
   const actions = startMenuActions();
   const denseActions = actions.length >= 5;
-  const panelHeight = denseActions
-    ? Math.min(244, SCREEN_H - 12)
+  const desiredPanelHeight = denseActions
+    ? START_MENU_PANEL_H
     : (actions.length >= 4 ? START_MENU_PANEL_H : (startMenu.message ? 212 : 196));
+  const panelHeight = Math.min(desiredPanelHeight, SCREEN_H - 20);
   const panel = {
     x: START_MENU_PANEL_X,
     y: Math.floor((SCREEN_H - panelHeight) / 2),
@@ -26823,19 +26797,21 @@ function drawStartMenu(nowMs) {
 
   const labels = actions.map((action) => action.label);
   const firstButtonY = panel.y + (denseActions ? 68 : 76);
-  const buttonGap = denseActions ? (actions.length >= 7 ? 2 : 3) : START_MENU_BUTTON_GAP;
-  const availableButtonHeight = panel.y + panel.h - 8 - firstButtonY - buttonGap * (actions.length - 1);
-  const buttonHeight = denseActions
-    ? Math.min(24, Math.floor(availableButtonHeight / actions.length))
-    : START_MENU_BUTTON_H;
-  if (buttonHeight < GAME_ICON_SIZE + 2) {
-    throw new Error(`Start menu cannot fit ${actions.length} actions at ${SCREEN_W}x${SCREEN_H}`);
-  }
-  startMenu.buttonRects = labels.map((_, index) => ({
+  const buttonAreaBottom = panel.y + panel.h - 10 - (startMenu.message ? 16 : 0);
+  const buttonLayout = fittedStackedMenuRows({
+    startY: firstButtonY,
+    endY: buttonAreaBottom,
+    rowCount: actions.length,
+    preferredRowHeight: denseActions ? 24 : START_MENU_BUTTON_H,
+    minimumRowHeight: GAME_ICON_SIZE + 2,
+    preferredGap: denseActions ? 3 : START_MENU_BUTTON_GAP,
+    minimumGap: 1
+  });
+  startMenu.buttonRects = buttonLayout.rows.map((row) => ({
     x: panel.x + Math.floor((panel.w - START_MENU_BUTTON_W) / 2),
-    y: firstButtonY + index * (buttonHeight + buttonGap),
+    y: row.y,
     w: START_MENU_BUTTON_W,
-    h: buttonHeight
+    h: row.h
   }));
 
   for (let i = 0; i < labels.length; i++) {
@@ -27299,8 +27275,9 @@ function drawOptionsMenu() {
     return;
   }
   const panelX = Math.floor((SCREEN_W - OPTIONS_PANEL_W) / 2);
-  const panelY = Math.floor((SCREEN_H - OPTIONS_PANEL_H) / 2);
-  optionsMenu.panelRect = { x: panelX, y: panelY, w: OPTIONS_PANEL_W, h: OPTIONS_PANEL_H };
+  const panelH = Math.min(OPTIONS_PANEL_H, SCREEN_H - 20);
+  const panelY = Math.floor((SCREEN_H - panelH) / 2);
+  optionsMenu.panelRect = { x: panelX, y: panelY, w: OPTIONS_PANEL_W, h: panelH };
 
   ctx.save();
   drawPiratePaperModal(optionsMenu.panelRect, 0.78);
@@ -27320,16 +27297,32 @@ function drawOptionsMenu() {
   const rowX = panelX + 10;
   const rowW = OPTIONS_PANEL_W - 20;
   const firstRowY = panelY + 34;
-  const rowStep = OPTIONS_ROW_H + 2;
-  const fullscreenRow = { x: rowX, y: firstRowY, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const musicRow = { x: rowX, y: firstRowY + rowStep, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const sfxRow = { x: rowX, y: firstRowY + rowStep * 2, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const muteRow = { x: rowX, y: firstRowY + rowStep * 3, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const languageRow = { x: rowX, y: firstRowY + rowStep * 4, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const controllerIconsRow = { x: rowX, y: firstRowY + rowStep * 5, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const controlsRow = { x: rowX, y: firstRowY + rowStep * 6, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const telemetryRow = { x: rowX, y: firstRowY + rowStep * 7, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 8, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const rowLayout = fittedStackedMenuRows({
+    startY: firstRowY,
+    endY: panelY + panelH - 8,
+    rowCount: OPTIONS_ROW_COUNT,
+    preferredRowHeight: OPTIONS_ROW_H - 2,
+    minimumRowHeight: GAME_ICON_SIZE + 2,
+    preferredGap: 2,
+    minimumGap: 1
+  });
+  const rowRects = rowLayout.rows.map((row) => ({
+    x: rowX,
+    y: row.y,
+    w: rowW,
+    h: row.h
+  }));
+  const [
+    fullscreenRow,
+    musicRow,
+    sfxRow,
+    muteRow,
+    languageRow,
+    controllerIconsRow,
+    controlsRow,
+    telemetryRow,
+    startMenuRow
+  ] = rowRects;
   optionsMenu.rowRects = [
     fullscreenRow,
     musicRow,
@@ -27432,9 +27425,10 @@ function drawTelemetryConsentModal() {
 
 function drawKeyBindingsMenu() {
   const panelW = Math.min(KEY_BINDINGS_PANEL_MAX_W, SCREEN_W - 8);
+  const panelH = Math.min(KEY_BINDINGS_PANEL_H, SCREEN_H - 20);
   const panelX = Math.floor((SCREEN_W - panelW) / 2);
-  const panelY = Math.floor((SCREEN_H - KEY_BINDINGS_PANEL_H) / 2);
-  optionsMenu.panelRect = { x: panelX, y: panelY, w: panelW, h: KEY_BINDINGS_PANEL_H };
+  const panelY = Math.floor((SCREEN_H - panelH) / 2);
+  optionsMenu.panelRect = { x: panelX, y: panelY, w: panelW, h: panelH };
 
   ctx.save();
   drawPiratePaperModal(optionsMenu.panelRect, 0.78);
@@ -27462,6 +27456,17 @@ function drawKeyBindingsMenu() {
   const slotGap = 4;
   const slotW = Math.floor((rowW - actionW - slotGap * 2) / 2);
   const firstRowY = panelY + 35;
+  const buttonY = panelY + panelH - 31;
+  const feedbackY = buttonY - 14;
+  const bindingRowLayout = fittedStackedMenuRows({
+    startY: firstRowY,
+    endY: feedbackY - 8,
+    rowCount: KEY_BINDINGS_PAGE_SIZE,
+    preferredRowHeight: KEY_BINDINGS_ROW_H,
+    minimumRowHeight: GAME_ICON_SIZE + 2,
+    preferredGap: 1,
+    minimumGap: 0
+  });
   const firstIndex = optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE;
   const definitions = KEY_ACTION_DEFINITIONS.slice(firstIndex, firstIndex + KEY_BINDINGS_PAGE_SIZE);
   optionsMenu.bindingSlotRects = [];
@@ -27469,15 +27474,17 @@ function drawKeyBindingsMenu() {
   for (let pageIndex = 0; pageIndex < definitions.length; pageIndex += 1) {
     const actionIndex = firstIndex + pageIndex;
     const definition = definitions[pageIndex];
-    const rowY = firstRowY + pageIndex * KEY_BINDINGS_ROW_H;
+    const row = bindingRowLayout.rows[pageIndex];
+    const rowY = row.y;
+    const rowH = row.h;
     if (pageIndex % 2 === 1) {
       ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
-      ctx.fillRect(rowX, rowY, rowW, KEY_BINDINGS_ROW_H - 1);
+      ctx.fillRect(rowX, rowY, rowW, rowH - 1);
     }
     drawOptionsText(
       fitPixelText(definition.label, PIXEL_FONT_LATIN_SMALL_8, actionW - 6),
       rowX + 3,
-      rowY + Math.floor((KEY_BINDINGS_ROW_H - 8) / 2),
+      rowY + Math.floor((rowH - 8) / 2),
       { font: PIXEL_FONT_LATIN_SMALL_8, color: PIRATE_MENU_INK }
     );
     for (let slotIndex = 0; slotIndex < KEY_BINDING_SLOT_COUNT; slotIndex += 1) {
@@ -27485,7 +27492,7 @@ function drawKeyBindingsMenu() {
         x: rowX + actionW + slotGap + slotIndex * (slotW + slotGap),
         y: rowY + 2,
         w: slotW,
-        h: KEY_BINDINGS_ROW_H - 5
+        h: rowH - 5
       };
       const selected = actionIndex === optionsMenu.bindingSelectedIndex &&
         slotIndex === optionsMenu.bindingSelectedSlot;
@@ -27507,7 +27514,6 @@ function drawKeyBindingsMenu() {
     }
   }
 
-  const feedbackY = panelY + 199;
   if (controllerPromptsVisible() && !optionsMenu.bindingFeedback) {
     drawControllerBindingHint("confirm", "REBIND", panelX + 18, feedbackY - 4);
     drawControllerBindingHint("anchor", "CLEAR", panelX + Math.floor(panelW / 2) - 34, feedbackY - 4);
@@ -27526,7 +27532,6 @@ function drawKeyBindingsMenu() {
     );
   }
 
-  const buttonY = panelY + KEY_BINDINGS_PANEL_H - 31;
   optionsMenu.bindingBackRect = { x: panelX + 8, y: buttonY, w: 68, h: 24 };
   optionsMenu.bindingResetRect = { x: panelX + 82, y: buttonY, w: 82, h: 24 };
   optionsMenu.bindingPreviousRect = { x: panelX + panelW - 72, y: buttonY, w: 28, h: 24 };
@@ -31308,17 +31313,37 @@ function drawShipCall(call, nowMs, terrainForeground) {
     drawCall.frame,
     drawCall.slug
   );
-  ctx.save();
-  if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
-  drawFloatingShipSprite(drawCall, layers, nowMs);
-  if (drawCall.kind === "player") {
-    drawShipLighting(drawCall.frame, drawCall.x, drawCall.y, drawCall.light, layers.abovePointSet);
+  const compositeBounds = {
+    x: drawCall.x - SHIP_COMPOSITE_MARGIN_PX,
+    y: drawCall.y - SHIP_COMPOSITE_MARGIN_PX,
+    w: shipCompositeCanvas.width,
+    h: shipCompositeCanvas.height
+  };
+  shipCompositeCtx.clearRect(0, 0, shipCompositeCanvas.width, shipCompositeCanvas.height);
+  shipCompositeCtx.save();
+  shipCompositeCtx.translate(-compositeBounds.x, -compositeBounds.y);
+  const previousCtx = ctx;
+  ctx = shipCompositeCtx;
+  try {
+    ctx.save();
+    try {
+      if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
+      drawFloatingShipSprite(drawCall, layers, nowMs);
+      if (drawCall.kind === "player") {
+        drawShipLighting(drawCall.frame, drawCall.x, drawCall.y, drawCall.light, layers.abovePointSet);
+      }
+      if (drawCall.kind === "npc") {
+        drawNpcShipFlag(drawCall, nowMs);
+      }
+    } finally {
+      ctx.restore();
+    }
+    maskShipWithTerrainForeground(drawCall, layers, terrainForeground, compositeBounds);
+  } finally {
+    ctx = previousCtx;
+    shipCompositeCtx.restore();
   }
-  if (drawCall.kind === "npc") {
-    drawNpcShipFlag(drawCall, nowMs);
-  }
-  ctx.restore();
-  drawTerrainForegroundOverShip(drawCall, layers, terrainForeground);
+  ctx.drawImage(shipCompositeCanvas, compositeBounds.x, compositeBounds.y);
   if (drawCall.kind === "player" && shipHullIsDamaged(drawCall.hitPoints, drawCall.maxHitPoints)) {
     drawShipHullBar(drawCall, "#e83b3b");
   }
@@ -31326,38 +31351,18 @@ function drawShipCall(call, nowMs, terrainForeground) {
   if (drawCall.kind === "npc" && drawCall.combatMode) drawNpcCombatHull(drawCall);
 }
 
-function drawTerrainForegroundOverShip(call, layers, terrainForeground) {
+function maskShipWithTerrainForeground(call, layers, terrainForeground, shipBounds) {
   if (!Number.isFinite(call.depthY)) throw new Error(`Ship ${call.id} is missing its terrain depth`);
   const terrainDepthY = shipOcclusionDepthY(
     call.y,
     layers.bottomOpaqueY,
     SHIP_TERRAIN_OCCLUSION_CLEARANCE_PX
   );
-  const shipBounds = {
-    x: call.x - 1,
-    y: call.y - 1,
-    w: SHIP_SHEET_FRAME_SIZE + 2,
-    h: SHIP_SHEET_FRAME_SIZE + 2
-  };
   const foreground = terrainForeground.occludersForBounds(shipBounds)
     .filter((entry) => entry.depthY > terrainDepthY)
     .sort((a, b) => a.depthY - b.depthY || a.y - b.y || a.x - b.x);
   if (foreground.length === 0) return;
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(shipBounds.x, shipBounds.y, shipBounds.w, shipBounds.h);
-  ctx.clip();
-  for (const entry of foreground) {
-    if (!entry.drawLayer?.image) {
-      if (typeof entry.drawLayer?.create !== "function") {
-        throw new Error(`Terrain foreground layer at ${entry.x},${entry.y} has no image factory`);
-      }
-      entry.drawLayer.image = entry.drawLayer.create();
-      entry.drawLayer.create = null;
-    }
-    ctx.drawImage(entry.drawLayer.image, entry.x, entry.y);
-  }
-  ctx.restore();
+  eraseTerrainOccludersFromShipLayer(ctx, foreground);
 }
 
 function rowingShipFrameAsset(call, nowMs) {

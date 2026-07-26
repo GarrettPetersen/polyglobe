@@ -480,6 +480,20 @@
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
       "sourceTitle": "Procedural Royal Lancaran"
+    },
+    {
+      "slug": "ocean-dhow",
+      "label": "Ocean Dhow",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/low-poly-ancient-dhow-ship/scene.gltf",
+      "sourceMaxDim": 5.2234,
+      "targetModelMaxDim": 1.72,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/ocean-dhow.png",
+      "creator": "Nisa Nurul Azizah",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Low Poly Ancient Dhow Ship"
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -496,5 +510,6 @@
   "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
   "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog",
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
-  "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships"
+  "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
+  "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow"
 }

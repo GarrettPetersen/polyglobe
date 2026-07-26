@@ -12,6 +12,7 @@ import {
   factionIdForCity1522
 } from "./factions.js";
 import { withForeignSettlements1522 } from "./foreignSettlements.js";
+import { economyRegionForCity } from "./economyRegions.js";
 
 export const CITY_DATA_YEAR = 1522;
 export const CITY_MAX_COUNT = 480;
@@ -119,10 +120,14 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
       allowStaleObservation: Boolean(capitalSpec)
     });
     if (!observation) continue;
-    const cityRecord = withColonialFounding({
+    const baseCityRecord = {
       ...observation,
       displayCity: cityDisplayName(observation.city, observation.country, targetYear),
       cityType: cityTypeForCity(observation.country, observation.lat, observation.lon)
+    };
+    const cityRecord = withColonialFounding({
+      ...baseCityRecord,
+      economyRegion: economyRegionForCity(baseCityRecord)
     });
     bestByCity.set(cityId, withForeignSettlements1522({
       ...cityRecord,
@@ -144,7 +149,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
   for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
     if (manualSpec.year > targetYear) continue;
     const cityId = normalizeCityKey(manualSpec.city, manualSpec.country);
-    const cityRecord = withColonialFounding({
+    const baseCityRecord = {
       cityId,
       city: manualSpec.city,
       displayCity: manualSpec.displayCity || cityDisplayName(manualSpec.city, manualSpec.country, targetYear),
@@ -162,6 +167,13 @@ function ensureManualCityRecords(bestByCity, targetYear) {
       settlementType: manualSpec.settlementType || "city",
       marketGoods: manualSpec.marketGoods || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
+    };
+    const cityRecord = withColonialFounding({
+      ...baseCityRecord,
+      economyRegion: economyRegionForCity({
+        ...baseCityRecord,
+        economyRegion: manualSpec.economyRegion || null
+      })
     });
     const capitalSpec = factionCapitalForCity(cityRecord);
     bestByCity.set(cityId, withForeignSettlements1522({
@@ -176,7 +188,7 @@ function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
   for (const capitalSpec of factionCapitalCityRecords1522()) {
     const cityId = normalizeCityKey(capitalSpec.city, capitalSpec.country);
     if (bestByCity.has(cityId)) continue;
-    const cityRecord = withColonialFounding({
+    const baseCityRecord = {
       cityId,
       city: capitalSpec.city,
       displayCity: cityDisplayName(capitalSpec.city, capitalSpec.country, targetYear),
@@ -188,6 +200,10 @@ function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
       population: capitalSpec.population,
       coastalIntent: true,
       lakeIntent: false
+    };
+    const cityRecord = withColonialFounding({
+      ...baseCityRecord,
+      economyRegion: economyRegionForCity(baseCityRecord)
     });
     bestByCity.set(cityId, withForeignSettlements1522({
       ...cityRecord,

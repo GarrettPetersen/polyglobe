@@ -7,6 +7,8 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a round-bellied descendant of the medieval North Sea cog, with high sides and a simple square rig built for cargo rather than haste",
   dhow:
     "a lateen-rigged Indian Ocean trader, shaped by generations of mariners who timed their voyages to the reversing monsoon winds",
+  "ocean-dhow":
+    "a broad-beamed, two-masted monsoon trader built to carry useful cargo between Arabia, East Africa, and western India",
   sampan:
     "a light East Asian river and coastal craft, shallow enough for creeks and crowded harbors where a deeper ocean ship could never work",
   "large-junk":

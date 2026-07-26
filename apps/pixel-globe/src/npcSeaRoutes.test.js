@@ -333,6 +333,7 @@ test("Southeast Asian traffic includes the regional Malay fleet", () => {
   assert.ok(routes.ships
     .filter((ship) => ship.profileId === "indian-ocean")
     .every((ship) => !["kelulus", "penjajap", "lancaran", "royal-lancaran"].includes(ship.slug)));
+  assert.ok(NPC_SHIP_SLUGS.includes("ocean-dhow"));
 });
 
 test("independent Mesoamerican villages get a sparse dugout-canoe fishing fleet", () => {

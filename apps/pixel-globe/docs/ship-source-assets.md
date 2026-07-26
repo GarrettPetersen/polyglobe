@@ -52,6 +52,21 @@ views, and menu icons. The designs use Deni Kaharudin's non-downloadable
 Malacca warship studies as a visual proportion reference; no source geometry
 was copied.
 
+The medium Ocean Dhow uses Nisa Nurul Azizah's CC BY 4.0
+[Low Poly Ancient Dhow Ship](https://sketchfab.com/3d-models/low-poly-ancient-dhow-ship-f25b4552dce24d379833160dd217db84).
+The complete downloaded glTF package and license are kept in the private source
+repository. Bake it with:
+
+```sh
+npm --prefix apps/pixel-globe run render:ocean-dhow
+```
+
+It is treated as a generic broad-beamed, two-masted Indian Ocean merchant
+rather than a later, narrowly named regional subtype. Its raw mesh is Z-up with
+the bow on positive X, while the imported scene adds a presentation yaw and
+slight pitch. The bake uses a measured right/up/forward basis and writes a
+labelled cardinal orientation review beside the ship reference documentation.
+
 The renderer accepts a different checkout through `PIXEL_GLOBE_SHIP_SOURCE_ROOT` and
 expects this layout:
 
@@ -79,6 +94,7 @@ sketchfab/sperm-whale/source/model.fbx
 sketchfab/cartoon-horse-with-animations/scene.gltf
 sketchfab/wooden-cart/scene.gltf
 procedural/kelulus/scene.gltf
+sketchfab/low-poly-ancient-dhow-ship/scene.gltf
 procedural/penjajap/scene.gltf
 procedural/lancaran/scene.gltf
 procedural/royal-lancaran/scene.gltf
@@ -102,6 +118,7 @@ npm run render:japanese-atakebune
 npm run render:spanish-nao
 npm run render:portuguese-carrack
 npm run render:dhow
+npm run render:ocean-dhow
 npm run render:galleon
 npm run render:nusantaran-outrigger
 npm run render:kelulus

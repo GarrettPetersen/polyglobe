@@ -89,6 +89,25 @@ export function worldPointerAction({
   return { type: WORLD_POINTER_ACTION.STEER };
 }
 
+export function dispatchSailingPointerAction(action, handlers) {
+  if (!action || typeof action !== "object") {
+    throw new Error("Sailing pointer action is required");
+  }
+  if (typeof handlers?.fireBroadside !== "function" || typeof handlers?.beginSteering !== "function") {
+    throw new Error("Sailing pointer action requires broadside and steering handlers");
+  }
+  if (action.type === WORLD_POINTER_ACTION.BROADSIDE) {
+    assertBroadsideSide(action.sideName, "pointer action");
+    handlers.fireBroadside(action.sideName);
+    return WORLD_POINTER_ACTION.BROADSIDE;
+  }
+  if (action.type === WORLD_POINTER_ACTION.STEER) {
+    handlers.beginSteering();
+    return WORLD_POINTER_ACTION.STEER;
+  }
+  throw new Error(`Cannot dispatch sailing pointer action: ${action.type}`);
+}
+
 function assertBroadsideSide(sideName, label) {
   if (sideName !== null && sideName !== "port" && sideName !== "starboard") {
     throw new Error(`Unknown ${label} broadside: ${sideName}`);

@@ -11,6 +11,7 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Dhow | 5 | 69 | 74 | -0.244 |
 | Kelulus | 5 | 73 | 78 | -0.020 |
 | Nusantaran Outrigger | 5 | 81 | 86 | -0.012 |
+| Ocean Dhow | 5 | 87 | 92 | 0.000 |
 | Ottoman Coastal Trader | 5 | 88 | 93 | -0.883 |
 | Polynesian Voyaging Canoe | 5 | 86 | 91 | -0.995 |
 | Square-Rigged Caravel | 5 | 85 | 90 | 0.000 |

@@ -26,3 +26,59 @@ export function rotateY({ x, y, z }, angleRad) {
     z: -x * sin + z * cos
   };
 }
+
+export function createShipModelBasisOrientation({ right, up, forward }, label = "ship model") {
+  const basis = {
+    right: requiredUnitVector(right, `${label} right axis`),
+    up: requiredUnitVector(up, `${label} up axis`),
+    forward: requiredUnitVector(forward, `${label} forward axis`)
+  };
+  for (const [firstName, secondName] of [
+    ["right", "up"],
+    ["right", "forward"],
+    ["up", "forward"]
+  ]) {
+    const alignment = dot(basis[firstName], basis[secondName]);
+    if (Math.abs(alignment) > 1e-5) {
+      throw new Error(`${label} ${firstName} and ${secondName} axes are not perpendicular`);
+    }
+  }
+  const handedness = dot(cross(basis.right, basis.up), basis.forward);
+  if (handedness < 1 - 1e-5) {
+    throw new Error(`${label} orientation basis is not right-handed`);
+  }
+  return (point) => {
+    const value = requiredFiniteVector(point, `${label} point`);
+    return {
+      x: dot(value, basis.right),
+      y: dot(value, basis.up),
+      z: dot(value, basis.forward)
+    };
+  };
+}
+
+function requiredUnitVector(value, label) {
+  const vector = requiredFiniteVector(value, label);
+  const length = Math.hypot(vector.x, vector.y, vector.z);
+  if (Math.abs(length - 1) > 1e-5) throw new Error(`${label} must be normalized`);
+  return vector;
+}
+
+function requiredFiniteVector(value, label) {
+  if (!value || ![value.x, value.y, value.z].every(Number.isFinite)) {
+    throw new Error(`${label} requires finite coordinates`);
+  }
+  return { x: value.x, y: value.y, z: value.z };
+}
+
+function dot(a, b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+function cross(a, b) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+  };
+}

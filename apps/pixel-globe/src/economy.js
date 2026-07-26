@@ -6,6 +6,7 @@ import {
   snapshotWorldShipyards
 } from "./shipyards.js";
 import { beaverSettlementProductionRate } from "./beaverEcology.js";
+import { economyRegionForCity } from "./economyRegions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const ECONOMY_STEP_MINUTES = 6 * 60;
@@ -159,8 +160,58 @@ const REGION_PRODUCTION = Object.freeze({
   "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 0.48, "cotton-cloth": 0.2, ginger: 0.12, dyes: 0.16, sugar: 0.12, gunpowder: 0.03 }),
   "southeast-asian": rates({ hardtack: 0.55, fish: 0.5, timber: 0.4, sugar: 0.22, ginger: 0.18, dyes: 0.1, indigo: 0.08, gunpowder: 0.02 }),
   polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
-  mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55 }),
+  mesoamerican: rates({
+    hardtack: 0.45,
+    grain: 0.85,
+    fish: 0.22,
+    salt: 0.16,
+    cotton: 0.42,
+    dyes: 0.38
+  }),
+  "native-north-american": rates({
+    hardtack: 0.38,
+    grain: 0.72,
+    fish: 0.68,
+    timber: 0.72,
+    furs: 0.34
+  }),
+  "caribbean-indigenous": rates({
+    hardtack: 0.4,
+    grain: 0.62,
+    fish: 0.86,
+    salt: 0.3,
+    timber: 0.28,
+    cotton: 0.52,
+    artwork: 0.18
+  }),
+  caribbean: rates({
+    hardtack: 0.5,
+    grain: 0.58,
+    fish: 0.58,
+    salt: 0.18,
+    sugar: 0.48,
+    timber: 0.24,
+    cotton: 0.32,
+    indigo: 0.28
+  }),
+  "brazilian-coast": rates({
+    hardtack: 0.42,
+    grain: 0.5,
+    fish: 0.7,
+    timber: 0.9,
+    cotton: 0.18,
+    dyes: 0.72
+  }),
   andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, dyes: 0.2 }),
+  "andean-coast": rates({
+    hardtack: 0.42,
+    grain: 0.5,
+    fish: 0.88,
+    salt: 0.16,
+    cotton: 0.68,
+    copper: 0.24,
+    dyes: 0.24
+  }),
   "sub-saharan": rates({ hardtack: 0.45, grain: 0.45, timber: 0.45, ivory: 0.8, dyes: 0.35, salt: 0.3 })
 });
 
@@ -173,7 +224,52 @@ const REGION_DEMAND = Object.freeze({
   "southeast-asian": rates({ pepper: 0.12, cinnamon: 0.16, cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16, gunpowder: 0.12, matchlocks: 0.22 }),
   polynesian: rates({ iron: 0.65, arms: 0.45, matchlocks: 0.4, gunpowder: 0.35, "cotton-cloth": 0.45, glassware: 0.35, salt: 0.25 }),
   mesoamerican: rates({ iron: 0.7, arms: 0.55, matchlocks: 0.5, gunpowder: 0.4, "cotton-cloth": 0.3, glassware: 0.3, wine: 0.2 }),
+  "native-north-american": rates({
+    iron: 0.7,
+    arms: 0.52,
+    matchlocks: 0.42,
+    gunpowder: 0.34,
+    "wool-cloth": 0.34,
+    "cotton-cloth": 0.34,
+    glassware: 0.3,
+    salt: 0.22
+  }),
+  "caribbean-indigenous": rates({
+    iron: 0.7,
+    arms: 0.48,
+    matchlocks: 0.42,
+    gunpowder: 0.34,
+    "cotton-cloth": 0.3,
+    glassware: 0.32,
+    wine: 0.2
+  }),
+  caribbean: rates({
+    iron: 0.42,
+    arms: 0.3,
+    "linen-cloth": 0.28,
+    "wool-cloth": 0.24,
+    wine: 0.24,
+    "olive-oil": 0.2,
+    timber: 0.18
+  }),
+  "brazilian-coast": rates({
+    iron: 0.62,
+    arms: 0.4,
+    "linen-cloth": 0.35,
+    "cotton-cloth": 0.34,
+    glassware: 0.28,
+    salt: 0.3
+  }),
   andean: rates({ iron: 0.55, arms: 0.5, matchlocks: 0.45, gunpowder: 0.4, "cotton-cloth": 0.3, wine: 0.2, salt: 0.2 }),
+  "andean-coast": rates({
+    iron: 0.55,
+    arms: 0.5,
+    matchlocks: 0.45,
+    gunpowder: 0.4,
+    "wool-cloth": 0.26,
+    glassware: 0.24,
+    wine: 0.18
+  }),
   "sub-saharan": rates({ "cotton-cloth": 0.5, iron: 0.45, arms: 0.35, matchlocks: 0.3, gunpowder: 0.25, salt: 0.35, glassware: 0.3 })
 });
 
@@ -226,7 +322,66 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
   "southeast-asian": rates({ pepper: 0.5, cinnamon: 0.65, cloves: 0.48, nutmeg: 0.48, ginger: 0.42, silver: 1.5, gold: 1.15, arms: 1.25, gunpowder: 1.2, matchlocks: 1.45, glassware: 1.25, "cotton-cloth": 1.15 }),
   polynesian: rates({ iron: 1.4, arms: 1.35, gunpowder: 1.4, matchlocks: 1.65, glassware: 1.35, "cotton-cloth": 1.3, salt: 1.2 }),
   mesoamerican: rates({ arms: 1.35, gunpowder: 1.45, matchlocks: 1.7, iron: 1.25, glassware: 1.25, "cotton-cloth": 1.2, wine: 1.15 }),
+  "native-north-american": rates({
+    "beaver-pelts": 0.55,
+    furs: 0.68,
+    fish: 0.72,
+    timber: 0.76,
+    arms: 1.4,
+    gunpowder: 1.48,
+    matchlocks: 1.7,
+    iron: 1.32,
+    glassware: 1.3,
+    "wool-cloth": 1.25,
+    "cotton-cloth": 1.25,
+    salt: 1.16
+  }),
+  "caribbean-indigenous": rates({
+    fish: 0.7,
+    salt: 0.74,
+    cotton: 0.7,
+    artwork: 0.78,
+    arms: 1.42,
+    gunpowder: 1.48,
+    matchlocks: 1.72,
+    iron: 1.34,
+    glassware: 1.3,
+    wine: 1.2
+  }),
+  caribbean: rates({
+    sugar: 0.7,
+    indigo: 0.72,
+    cotton: 0.82,
+    arms: 1.2,
+    iron: 1.18,
+    wine: 1.16,
+    "olive-oil": 1.14,
+    "linen-cloth": 1.14,
+    "wool-cloth": 1.16
+  }),
+  "brazilian-coast": rates({
+    timber: 0.68,
+    dyes: 0.62,
+    cotton: 0.84,
+    arms: 1.32,
+    iron: 1.28,
+    glassware: 1.24,
+    "linen-cloth": 1.22,
+    "cotton-cloth": 1.2,
+    salt: 1.18
+  }),
   andean: rates({ arms: 1.35, gunpowder: 1.4, matchlocks: 1.65, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
+  "andean-coast": rates({
+    fish: 0.72,
+    cotton: 0.68,
+    arms: 1.35,
+    gunpowder: 1.4,
+    matchlocks: 1.65,
+    iron: 1.25,
+    glassware: 1.2,
+    "wool-cloth": 1.18,
+    wine: 1.15
+  }),
   "sub-saharan": rates({ arms: 1.25, gunpowder: 1.3, matchlocks: 1.5, iron: 1.2, glassware: 1.2, "cotton-cloth": 1.2, salt: 1.15 })
 });
 
@@ -310,7 +465,19 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Kagoshima", [SULFUR_GOOD_ID]),
   specialty("Nagasaki", ["silver"]),
   specialty("Mexico City", ["cacao", "gold"]),
-  specialty("Cuzco", ["silver", "gold"]),
+  specialty("Texcoco", ["grain", "salt"]),
+  specialty("Cholula", ["cotton", "dyes"]),
+  specialty("Tzintzuntzan", ["copper"]),
+  specialty("Merida", ["cotton", "salt"]),
+  specialty("Zempoala", ["cotton"]),
+  specialty("Guatemala City", ["cacao", "cotton", "dyes"]),
+  specialty("Gumarcaj", ["cacao", "cotton", "dyes"]),
+  specialty("Bogota", ["gold", "salt", "cotton"]),
+  specialty("Quito", ["cotton", "dyes"]),
+  specialty("Riobamba", ["grain", "wool"]),
+  specialty("Chanchan", ["fish", "cotton"]),
+  specialty("Arequipa", ["wool", "copper"]),
+  specialty("Cuzco", ["wool", "silver", "gold"]),
   specialty("Gao", ["gold", "salt"]),
   specialty("Tombouctou", ["gold", "salt"]),
   specialty("Fez", ["carpets", "dyes"]),
@@ -911,15 +1078,18 @@ function createPortState(port, seedKey) {
   const declaredMarketGoodIds = Array.isArray(port.marketGoods)
     ? declaredPortMarketGoodIds(port.marketGoods, port.displayCity || port.city)
     : null;
-  const productionProfile = REGION_PRODUCTION[port.cityType];
-  const demandProfile = REGION_DEMAND[port.cityType];
-  if (!productionProfile || !demandProfile) throw new Error(`No economy profile for city type: ${port.cityType}`);
+  const economyRegion = economyRegionForCity(port);
+  const productionProfile = REGION_PRODUCTION[economyRegion];
+  const demandProfile = REGION_DEMAND[economyRegion];
+  if (!productionProfile || !demandProfile) {
+    throw new Error(`No economy profile for region: ${economyRegion}`);
+  }
   const specialties = CITY_SPECIALTIES.get(normalizeName(port.city)) || [];
   const cityDemandProfile = CITY_DEMANDS.get(normalizeName(port.city)) || {};
   const localSpiceSourceIds = new Set(TRADE_GOODS
     .filter((good) => good.category === "spice" && (
       specialties.includes(good.id) ||
-      (good.id === GINGER_GOOD_ID && ["south-asian", "southeast-asian"].includes(port.cityType))
+      (good.id === GINGER_GOOD_ID && ["south-asian", "southeast-asian"].includes(economyRegion))
     ))
     .map((good) => good.id));
   const beaverPeltProduction = beaverSettlementProductionRate(port);
@@ -990,6 +1160,7 @@ function createPortState(port, seedKey) {
     id: requiredPortId(port),
     name: port.displayCity || port.city,
     cityType: port.cityType,
+    economyRegion,
     settlementType,
     populationScale,
     marketPriceDepth,
@@ -1148,7 +1319,8 @@ function rawMarketMultiplier(port, good, stock) {
     0.72
   );
   const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
-  const regionalTradePriceMultiplier = REGION_TRADE_PRICE_MULTIPLIER[port.cityType]?.[good.id] || 1;
+  const regionalTradePriceMultiplier =
+    REGION_TRADE_PRICE_MULTIPLIER[port.economyRegion]?.[good.id] || 1;
   const ordinaryMultiplier = clamp(
     comparativeAdvantage * scarcity * localVariation * regionalTradePriceMultiplier,
     MIN_PRICE_MULTIPLIER * Math.min(1, regionalTradePriceMultiplier),

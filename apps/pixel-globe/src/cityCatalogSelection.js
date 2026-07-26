@@ -210,6 +210,7 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   }),
   manualCity1522("Chanchan", "Peru", -8.106, -79.074536, 25000, {
     cityType: "andean",
+    economyRegion: "andean-coast",
     manualRegion: "inca-coast"
   }),
   manualVillage1522("Fiji Village", "Fiji", -18.1416, 178.4419, 3500, {

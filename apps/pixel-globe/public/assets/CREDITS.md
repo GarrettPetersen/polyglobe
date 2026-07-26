@@ -41,6 +41,7 @@
 - Javier López Cuadrado - "Nao Victoria Galleon Ship" (CC BY 4.0)
 - gogiart - "Portuguese Carrack" (CC BY 4.0)
 - gogiart - "Dhow" (CC BY 4.0)
+- Nisa Nurul Azizah - "Low Poly Ancient Dhow Ship" (CC BY 4.0)
 - cyc3w - "Sailing ship" (CC BY 4.0)
 - Nisa Nurul Azizah - "Low Poly Borobudur Ship of Sriwijaya" (CC BY 4.0)
 - Marque & Reprisal project - "Procedural Kelulus" (Original project asset)

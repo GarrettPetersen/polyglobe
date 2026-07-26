@@ -58,6 +58,12 @@ export const GOGIART_DHOW_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const OCEAN_DHOW_MODEL_CREDIT = Object.freeze({
+  creator: "Nisa Nurul Azizah",
+  sourceTitle: "Low Poly Ancient Dhow Ship",
+  license: "CC BY 4.0"
+});
+
 export const CYC3W_SAILING_SHIP_MODEL_CREDIT = Object.freeze({
   creator: "cyc3w",
   sourceTitle: "Sailing ship",
@@ -153,6 +159,7 @@ export const MODEL_CREDITS = Object.freeze([
   NAO_VICTORIA_MODEL_CREDIT,
   PORTUGUESE_CARRACK_MODEL_CREDIT,
   GOGIART_DHOW_MODEL_CREDIT,
+  OCEAN_DHOW_MODEL_CREDIT,
   CYC3W_SAILING_SHIP_MODEL_CREDIT,
   BOROBUDUR_SHIP_MODEL_CREDIT,
   KELULUS_MODEL_CREDIT,
