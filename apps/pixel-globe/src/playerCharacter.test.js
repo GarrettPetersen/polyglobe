@@ -6,7 +6,8 @@ import {
   PLAYER_STARTER_SHIPS,
   generatePlayerStartingProfile,
   playerStarterShipForFaction,
-  playerStartRegionForPort,
+  playerStartAreaForPort,
+  playerHomePortPools,
   resolvePlayerCharacterIdentityKey,
   selectPlayerHomePort
 } from "./playerCharacter.js";
@@ -50,6 +51,7 @@ test("starting profiles are deterministic and internally consistent", () => {
   assert.equal(profile.character.homePortRealmName, profile.nationality.name);
   assert.equal(profile.character.startRegion, profile.startRegion);
   assert.equal(profile.character.starterShipSlug, PLAYER_STARTER_SHIPS[profile.startRegion]);
+  assert.equal(profile.startArea, playerStartAreaForPort(profile.homePort));
   assert.equal(profile.character.homePortName, profile.homePort.displayCity);
   assert.ok(profile.character.expressions.length >= 1);
   assert.ok(profile.character.age >= profile.character.minAge);
@@ -118,18 +120,26 @@ test("player identity seeds use explicit query values or fresh generated values"
   );
 });
 
-test("home selection balances the four allowed regions and excludes implausible starts", () => {
-  const seenRegions = new Set();
+test("home selection balances four geographic areas and excludes implausible starts", () => {
+  const seenAreas = new Set();
   const seenCities = new Set();
   for (let i = 0; i < 200; i++) {
     const selection = selectPlayerHomePort(`captain-${i}`, PORTS);
-    seenRegions.add(selection.startRegion);
+    seenAreas.add(selection.startArea);
     seenCities.add(selection.homePort.city);
     assert.ok(!["Kilwa", "Mexico City", "Goa", "Veracruz"].includes(selection.homePort.city));
   }
 
-  assert.deepEqual([...seenRegions].sort(), ["east-asia", "europe", "india", "ottoman"]);
+  assert.deepEqual([...seenAreas].sort(), ["east-asia", "india", "mediterranean", "northern-europe"]);
   assert.ok(seenCities.size >= 8);
+});
+
+test("Ottoman and European Mediterranean ports share one start-area draw", () => {
+  const mediterraneanPorts = playerHomePortPools(PORTS).get("mediterranean");
+  assert.deepEqual(
+    mediterraneanPorts.map((port) => port.city).sort(),
+    ["Alexandria", "Cadiz", "Constantinople"]
+  );
 });
 
 test("regional starter ships are the smallest unarmed local vessels", () => {
@@ -146,15 +156,16 @@ test("regional starter ships are the smallest unarmed local vessels", () => {
   }
 });
 
-test("port classification accepts only the intended cultures", () => {
-  assert.equal(playerStartRegionForPort(PORTS[0]), "europe");
-  assert.equal(playerStartRegionForPort(PORTS[2]), "ottoman");
-  assert.equal(playerStartRegionForPort(PORTS[4]), "east-asia");
-  assert.equal(playerStartRegionForPort(PORTS[6]), "india");
-  assert.equal(playerStartRegionForPort(PORTS[8]), null);
-  assert.equal(playerStartRegionForPort(PORTS[9]), null);
-  assert.equal(playerStartRegionForPort(PORTS[10]), null);
-  assert.equal(playerStartRegionForPort(PORTS[11]), null);
+test("port classification accepts only the intended geographic areas", () => {
+  assert.equal(playerStartAreaForPort(PORTS[0]), "mediterranean");
+  assert.equal(playerStartAreaForPort(PORTS[1]), "northern-europe");
+  assert.equal(playerStartAreaForPort(PORTS[2]), "mediterranean");
+  assert.equal(playerStartAreaForPort(PORTS[4]), "east-asia");
+  assert.equal(playerStartAreaForPort(PORTS[6]), "india");
+  assert.equal(playerStartAreaForPort(PORTS[8]), null);
+  assert.equal(playerStartAreaForPort(PORTS[9]), null);
+  assert.equal(playerStartAreaForPort(PORTS[10]), null);
+  assert.equal(playerStartAreaForPort(PORTS[11]), null);
 });
 
 test("player-facing home labels use the 1522 realm instead of the modern country", () => {

@@ -5,9 +5,9 @@ import { shipStatsForSlug } from "./shipStats.js";
 
 export const PLAYER_START_YEAR = 1522;
 
-export const PLAYER_START_REGIONS = Object.freeze([
-  "europe",
-  "ottoman",
+export const PLAYER_START_AREAS = Object.freeze([
+  "northern-europe",
+  "mediterranean",
   "east-asia",
   "india"
 ]);
@@ -94,12 +94,13 @@ export function generatePlayerStartingProfile({
   }
   if (!Number.isInteger(startYear)) throw new Error(`Invalid player start year: ${startYear}`);
 
-  const { homePort, startRegion } = selectPlayerHomePort(identityKey, ports);
+  const { homePort, startArea } = selectPlayerHomePort(identityKey, ports);
   const nationality = factionById(homePort.factionId);
-  const factionStartRegion = playerStartRegionForFaction(nationality.id);
-  if (factionStartRegion !== startRegion) {
+  const startRegion = playerStartRegionForFaction(nationality.id);
+  const portStartArea = playerStartAreaForPort(homePort);
+  if (portStartArea !== startArea) {
     throw new Error(
-      `Player start region disagrees with ${nationality.id} allegiance: ${startRegion} != ${factionStartRegion}`
+      `Player start area disagrees with ${homePort.displayCity || homePort.city}: ${startArea} != ${portStartArea}`
     );
   }
   const starterShipSlug = playerStarterShipForFaction(nationality.id);
@@ -129,7 +130,7 @@ export function generatePlayerStartingProfile({
     nationalityAdjective: nationality.adjective
   }));
 
-  return Object.freeze({ character, homePort, nationality, startRegion, starterShipSlug });
+  return Object.freeze({ character, homePort, nationality, startArea, startRegion, starterShipSlug });
 }
 
 export function resolvePlayerCharacterIdentityKey({ querySeed = null, generatedSeed }) {
@@ -150,35 +151,33 @@ export function selectPlayerHomePort(identityKey, ports) {
     throw new Error("Player home selection requires port cities");
   }
   const pools = playerHomePortPools(ports);
-  const availableRegions = PLAYER_START_REGIONS.filter((region) => pools.get(region)?.length > 0);
-  if (availableRegions.length === 0) {
-    throw new Error("No eligible European, Ottoman, East Asian, or Indian home ports");
+  const availableAreas = PLAYER_START_AREAS.filter((area) => pools.get(area)?.length > 0);
+  if (availableAreas.length === 0) {
+    throw new Error("No eligible Northern European, Mediterranean, East Asian, or Indian home ports");
   }
-  const startRegion = chooseSeeded(availableRegions, `${identityKey}|home-region`);
-  const homePort = chooseSeeded(pools.get(startRegion), `${identityKey}|home-city|${startRegion}`);
-  return Object.freeze({ homePort, startRegion });
+  const startArea = chooseSeeded(availableAreas, `${identityKey}|home-area`);
+  const homePort = chooseSeeded(pools.get(startArea), `${identityKey}|home-city|${startArea}`);
+  return Object.freeze({ homePort, startArea });
 }
 
-export function playerStartRegionForPort(port) {
+export function playerStartAreaForPort(port) {
   if (!port || typeof port !== "object") return null;
   if (port.playerHomeExcluded) return null;
-  if (port.factionId === "ottoman") return "ottoman";
+  if (port.factionId === "ottoman") return "mediterranean";
   if (port.cityType === "east-asian" && EAST_ASIAN_FACTIONS.has(port.factionId)) return "east-asia";
   if (port.cityType === "south-asian" && INDIAN_FACTIONS.has(port.factionId)) return "india";
-  if (
-    (port.cityType === "northern-european" || port.cityType === "mediterranean") &&
-    EUROPEAN_FACTIONS.has(port.factionId)
-  ) {
-    return "europe";
+  if (port.cityType === "northern-european" && EUROPEAN_FACTIONS.has(port.factionId)) {
+    return "northern-europe";
   }
+  if (port.cityType === "mediterranean" && EUROPEAN_FACTIONS.has(port.factionId)) return "mediterranean";
   return null;
 }
 
 export function playerHomePortPools(ports) {
-  const pools = new Map(PLAYER_START_REGIONS.map((region) => [region, []]));
+  const pools = new Map(PLAYER_START_AREAS.map((area) => [area, []]));
   for (const port of ports) {
-    const region = playerStartRegionForPort(port);
-    if (region) pools.get(region).push(port);
+    const area = playerStartAreaForPort(port);
+    if (area) pools.get(area).push(port);
   }
   for (const portsInRegion of pools.values()) {
     portsInRegion.sort((a, b) => stablePortKey(a).localeCompare(stablePortKey(b)));
