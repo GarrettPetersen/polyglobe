@@ -226,6 +226,22 @@
       ]
     },
     {
+      "id": "hospitallers",
+      "factionName": "Knights Hospitaller",
+      "width": 32,
+      "height": 20,
+      "file": "hospitallers.png",
+      "evidence": "period-banner",
+      "representation": "Hospitaller state and naval flag",
+      "accuracyNote": "The Order's state and naval flag carried a white Latin cross extending to the edges of a red field.",
+      "sources": [
+        {
+          "label": "Flag and coat of arms of the Sovereign Military Order of Malta",
+          "url": "https://en.wikipedia.org/wiki/Flag_and_coat_of_arms_of_the_Sovereign_Military_Order_of_Malta"
+        }
+      ]
+    },
+    {
       "id": "ming",
       "factionName": "Ming Empire",
       "width": 32,

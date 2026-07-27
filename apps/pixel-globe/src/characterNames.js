@@ -219,6 +219,7 @@ const FACTION_CULTURES = new Map([
   ["venice", "italian"],
   ["genoa", "italian"],
   ["papal-states", "italian"],
+  ["hospitallers", "italian"],
   ["ming", "chinese"],
   ["inca", "andean"],
   ["safavid", "persian"],

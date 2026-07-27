@@ -938,6 +938,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "His Holiness's treasury forgot its wagons. Mine remembers every creditor.",
     "We supplied the army sent against Urbino. Rome exhausted its treasury before it settled our account."
   ),
+  hospitallers: debtOrigin(
+    "The Grand Master's walls may withstand Suleiman. Your mortgage has no such confidence.",
+    "We pledged the estate to provision Rhodes before the siege. Powder, grain, and timber reached the harbor; repayment did not."
+  ),
   ming: debtOrigin(
     "The court struck your uncle from the rebels' roll. It did not strike your family seal from this note.",
     "His name appeared among the Prince of Ning's papers. Proving his innocence cost the family nearly everything."
@@ -1029,6 +1033,7 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   venice: "The Portuguese ocean road drains spice from our galleys. I would learn the routes reshaping Venice before they finish doing so.",
   genoa: "A Genoese sailor crossed the western ocean beneath Castile's flag. The next great account should not leave our harbor under another name.",
   "papal-states": "Reports from lands beyond the Atlantic reach Rome mixed with conversion, gold, and boasting. I want an account concerned first with truth.",
+  hospitallers: "Rhodes hears every rumor passing between Christendom and the Levant. I want the Order to possess knowledge no siege can consume.",
   ming: "The court lets Admiral Zheng's sea roads fade because no treasure fleet now follows them. I do not share that lack of curiosity.",
   inca: "The Sapa Inca's roads bind mountains beyond counting, yet every official map stops at the sea. Mine need not.",
   safavid: "Ottoman armies close one road and Portuguese cannon command another at Hormuz. Knowledge may reveal a third.",

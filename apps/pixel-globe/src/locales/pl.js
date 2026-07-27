@@ -254,6 +254,7 @@ export default {
   "faction.venice": "WENECKI",
   "faction.genoa": "GENUEŃSKI",
   "faction.papalStates": "PAPIESKI",
+  "faction.hospitallers": "JOANNITA",
   "faction.ming": "MING",
   "faction.inca": "INKASKI",
   "faction.safavid": "SAFAWIDZKI",

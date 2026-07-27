@@ -28,6 +28,8 @@ test("every sovereign faction has a named ruler in 1522", () => {
   }
   assert.equal(rulerAtMinute(NEUTRAL_FACTION_ID, 0), null);
   assert.equal(rulerAtMinute(PIRATE_FACTION_ID, 0), null);
+  assert.equal(rulerAtMinute("hospitallers", 0).displayName, "Grand Master Philippe Villiers de L'Isle-Adam");
+  assert.equal(rulerAtMinute("hospitallers", 0).religionId, "roman-catholic");
 });
 
 test("dated confessional changes alter rulers without inventing a succession", () => {

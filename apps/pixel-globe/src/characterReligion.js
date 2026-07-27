@@ -69,6 +69,7 @@ const CATHOLIC_FACTIONS = new Set([
   "venice",
   "genoa",
   "papal-states",
+  "hospitallers",
   "poland-lithuania",
   "denmark-norway"
 ]);
@@ -315,6 +316,9 @@ export function religionCandidatesForHome(homePort) {
 
   if (country === "Albania") {
     return choices(["sunni-islam", 2], ["eastern-orthodox", 2], ["roman-catholic", 1]);
+  }
+  if (factionId === "hospitallers") {
+    return choices(["roman-catholic", 3], ["eastern-orthodox", 2]);
   }
   if (country === "Cyprus") {
     return choices(["eastern-orthodox", 3], ["roman-catholic", 1]);

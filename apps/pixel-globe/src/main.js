@@ -1613,7 +1613,7 @@ const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
 const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
 const STATUS_PERSON_PARTICLE_LIMIT = 320;
 const COLONY_DEPARTURE_DISTANCE_PX = 90;
-const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-2";
+const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-3";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
 const CITY_FLAG_W = 14;
@@ -13747,7 +13747,7 @@ function portDialogueContext() {
     rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
     historicalGossip: city
       ? recentPapalGossipForPort(gameState.relations.papacy, city, simMinute) ||
-        recentHistoricalGossipForPort(city, simMinute)
+        recentHistoricalGossipForPort(city, simMinute, portCities)
       : null,
     shipyard,
     sailingDistanceKm: sailingDistanceBetweenPorts,

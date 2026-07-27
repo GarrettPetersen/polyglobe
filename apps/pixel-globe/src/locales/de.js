@@ -254,6 +254,7 @@ export default {
   "faction.venice": "VENEZIANISCH",
   "faction.genoa": "GENUESISCH",
   "faction.papalStates": "PÄPSTLICH",
+  "faction.hospitallers": "JOHANNITER",
   "faction.ming": "MING",
   "faction.inca": "INKAISCH",
   "faction.safavid": "SAFAWIDISCH",

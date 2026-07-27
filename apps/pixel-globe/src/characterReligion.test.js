@@ -44,6 +44,7 @@ test("religion follows the home city rather than merely the ruling faction", () 
 test("distinctive 1522 religious contexts remain explicit", () => {
   const cases = [
     [{ city: "Rome", country: "Italy", cityType: "mediterranean", factionId: "papal-states" }, "roman-catholic"],
+    [{ city: "Rhodes", country: "Greece", cityType: "mediterranean", factionId: "hospitallers" }, "roman-catholic"],
     [{ city: "Moscow", country: "Russian Federation", cityType: "northern-european", factionId: "muscovy" }, "eastern-orthodox"],
     [{ city: "Tabriz", country: "Iran", cityType: "islamic-desert", factionId: "safavid" }, "shia-islam"],
     [{ city: "Muscat", country: "Oman", cityType: "islamic-desert", factionId: "portugal" }, "ibadi-islam"],
@@ -55,6 +56,15 @@ test("distinctive 1522 religious contexts remain explicit", () => {
   for (const [homePort, expected] of cases) {
     assert.equal(religionCandidatesForHome(homePort)[0].id, expected, homePort.city);
   }
+  assert.deepEqual(
+    religionCandidatesForHome({
+      city: "Rhodes",
+      country: "Greece",
+      cityType: "mediterranean",
+      factionId: "hospitallers"
+    }).map(({ id }) => id),
+    ["roman-catholic", "eastern-orthodox"]
+  );
 });
 
 test("new minority affiliations stay confined to plausible 1522 regions", () => {

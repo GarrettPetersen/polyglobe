@@ -254,6 +254,7 @@ export default {
   "faction.venice": "威尼斯",
   "faction.genoa": "熱那亞",
   "faction.papalStates": "教宗國",
+  "faction.hospitallers": "醫院騎士團",
   "faction.ming": "明朝",
   "faction.inca": "印加",
   "faction.safavid": "薩法維",

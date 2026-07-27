@@ -72,12 +72,13 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
   }),
   historicalEvent({
     id: "fall-of-rhodes",
-    date: [1522, 12, 22],
+    date: [1522, 1, 1],
     gossipUntil: [1524, 1, 1],
     countries: ["Turkey", "Greece", "Italy", "Cyprus"],
-    factionIds: ["ottoman", "venice", "genoa", "papal-states", "hungary"],
+    factionIds: ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "hungary"],
+    requiredCityController: cityController("Rhodes", "Greece", "ottoman"),
     place: "Rhodes",
-    report: "the Knights of Saint John have surrendered Rhodes after Suleiman's long siege",
+    report: "the Knights of Saint John have surrendered Rhodes to Suleiman after a hard siege",
     tradeImpact: "Captains are recalculating every passage through the eastern Mediterranean.",
     reflection: "Even an island fortress must bargain when food and powder run low."
   }),
@@ -206,7 +207,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
 
 validateHistoricalGossipEvents();
 
-export function recentHistoricalGossipForPort(city, simMinute) {
+export function recentHistoricalGossipForPort(city, simMinute, worldCities) {
   if (!city || typeof city !== "object") throw new Error("Historical gossip requires a port city");
   if (typeof city.country !== "string" || city.country.trim() === "") {
     throw new Error("Historical gossip requires the port's country");
@@ -218,9 +219,11 @@ export function recentHistoricalGossipForPort(city, simMinute) {
   if (!Number.isFinite(simMinute) || simMinute < 0) {
     throw new Error(`Invalid historical gossip minute: ${simMinute}`);
   }
+  if (!Array.isArray(worldCities)) throw new Error("Historical gossip requires the live city catalog");
   for (let index = HISTORICAL_GOSSIP_EVENTS.length - 1; index >= 0; index -= 1) {
     const event = HISTORICAL_GOSSIP_EVENTS[index];
     if (simMinute < event.fromMinute || simMinute >= event.untilMinute) continue;
+    if (!cityControllerRequirementMet(event.requiredCityController, worldCities)) continue;
     if (event.countries.includes(city.country) || event.factionIds.includes(city.factionId)) return event;
   }
   return null;
@@ -232,6 +235,7 @@ function historicalEvent({
   gossipUntil,
   countries = [],
   factionIds = [],
+  requiredCityController = null,
   place,
   report,
   tradeImpact,
@@ -242,6 +246,7 @@ function historicalEvent({
     throw new Error(`Historical gossip event ${id} has no regional audience`);
   }
   for (const factionId of factionIds) factionById(factionId);
+  if (requiredCityController !== null) validateCityController(requiredCityController);
   for (const [label, value] of Object.entries({ place, report, tradeImpact, reflection })) {
     if (typeof value !== "string" || value.trim() === "") throw new Error(`Historical gossip event ${id} has no ${label}`);
   }
@@ -255,11 +260,43 @@ function historicalEvent({
     untilMinute,
     countries: Object.freeze([...new Set(countries)]),
     factionIds: Object.freeze([...new Set(factionIds)]),
+    requiredCityController,
     place,
     report,
     tradeImpact,
     reflection
   });
+}
+
+function cityController(city, country, factionId) {
+  const requirement = Object.freeze({ city, country, factionId });
+  validateCityController(requirement);
+  return requirement;
+}
+
+function validateCityController(requirement) {
+  if (!requirement || typeof requirement !== "object") {
+    throw new Error("Historical gossip city controller must be an object");
+  }
+  for (const key of ["city", "country"]) {
+    if (typeof requirement[key] !== "string" || requirement[key].trim() === "") {
+      throw new Error(`Historical gossip city controller requires ${key}`);
+    }
+  }
+  factionById(requirement.factionId);
+}
+
+function cityControllerRequirementMet(requirement, worldCities) {
+  if (requirement === null) return true;
+  const matches = worldCities.filter((city) => (
+    city?.city === requirement.city && city?.country === requirement.country
+  ));
+  if (matches.length !== 1) {
+    throw new Error(
+      `Historical gossip requires exactly one ${requirement.city}, ${requirement.country}; found ${matches.length}`
+    );
+  }
+  return matches[0].factionId === requirement.factionId;
 }
 
 function historicalMinuteForDate(date, label) {

@@ -254,6 +254,7 @@ export default {
   "faction.venice": "ВЕНЕЦИАНСКАЯ",
   "faction.genoa": "ГЕНУЭЗСКАЯ",
   "faction.papalStates": "ПАПСКАЯ",
+  "faction.hospitallers": "ГОСПИТАЛЬЕР",
   "faction.ming": "МИНСКАЯ",
   "faction.inca": "ИНКСКАЯ",
   "faction.safavid": "СЕФЕВИДСКАЯ",

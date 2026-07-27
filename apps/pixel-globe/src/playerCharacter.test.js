@@ -94,6 +94,11 @@ test("Ming captains always receive Chinese starter vessels", () => {
   assert.notEqual(playerStarterShipForFaction("ming", { whaling: true }), "ketch");
 });
 
+test("a Hospitaller captain receives the European regional starter roster", () => {
+  assert.equal(playerStarterShipForFaction("hospitallers"), "fishing-lugger");
+  assert.equal(playerStarterShipForFaction("hospitallers", { armed: true }), "small-cog");
+});
+
 test("player identity seeds use explicit query values or fresh generated values", () => {
   assert.equal(
     resolvePlayerCharacterIdentityKey({ querySeed: "debug-captain", generatedSeed: "random-captain" }),

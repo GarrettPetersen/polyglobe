@@ -254,6 +254,7 @@ export default {
   "faction.venice": "VENECIANO",
   "faction.genoa": "GENOVÉS",
   "faction.papalStates": "PONTIFICIO",
+  "faction.hospitallers": "HOSPITALARIO",
   "faction.ming": "MING",
   "faction.inca": "INCA",
   "faction.safavid": "SAFÁVIDA",

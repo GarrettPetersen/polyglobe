@@ -77,6 +77,9 @@ const RESEARCH = Object.freeze([
   research("papal-states", "near-period-heraldry", "Crossed Keys of Saint Peter", "The crossed gold and silver keys are period papal heraldry; the dark red field is a game-facing banner reconstruction rather than the later yellow-white state flag.", [
     source("Papal States in the 16th century", "https://commons.wikimedia.org/wiki/Category:Papal_States_in_the_16th_century")
   ]),
+  research("hospitallers", "period-banner", "Hospitaller state and naval flag", "The Order's state and naval flag carried a white Latin cross extending to the edges of a red field.", [
+    source("Flag and coat of arms of the Sovereign Military Order of Malta", "https://en.wikipedia.org/wiki/Flag_and_coat_of_arms_of_the_Sovereign_Military_Order_of_Malta")
+  ]),
   research("ming", "period-ceremonial-reconstruction", "Ming imperial dragon identifier", "Ming records separately enumerate dragon flags and yellow ceremonial standards. Combining them here creates a legible imperial identifier, not a documented exact flag or a national flag.", [
     source("History of Ming, Ceremonial Guards", "https://ctext.org/wiki.pl?chapter=429783&if=en&remap=gb")
   ]),
@@ -369,6 +372,12 @@ const DRAWERS = Object.freeze({
     key(s, 22, 15, 9, 4, C.cream);
     s.rect(12, 3, 8, 2, C.gold);
     s.rect(14, 1, 4, 2, C.cream);
+    return s;
+  },
+  hospitallers: () => {
+    const s = base(C.red);
+    s.rect(13, 0, 6, FLAG_H, C.white);
+    s.rect(0, 7, FLAG_W, 6, C.white);
     return s;
   },
   ming: () => {

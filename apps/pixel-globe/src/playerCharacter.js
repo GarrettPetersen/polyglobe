@@ -44,6 +44,7 @@ const EUROPEAN_FACTIONS = new Set([
   "venice",
   "genoa",
   "papal-states",
+  "hospitallers",
   "muscovy",
   "poland-lithuania",
   "denmark-norway"

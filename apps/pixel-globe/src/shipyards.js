@@ -39,7 +39,8 @@ const FACTION_SHIPS = Object.freeze({
   japan: Object.freeze([JAPANESE_ATAKEBUNE_SLUG]),
   spain: Object.freeze([SPANISH_NAO_SLUG]),
   portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),
-  ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG])
+  ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG]),
+  hospitallers: Object.freeze(["mediterranean-galley"])
 });
 
 export const FAMOUS_SHIPBUILDING_TOWNS = Object.freeze([

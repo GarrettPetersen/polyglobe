@@ -43,6 +43,9 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1534, 10, 13, "Paul III", "Pope"),
     ruler(1550, 2, 7, "Julius III", "Pope")
   ],
+  hospitallers: [
+    ruler(1522, 1, 1, "Philippe Villiers de L'Isle-Adam", "Grand Master")
+  ],
   ming: [ruler(1522, 1, 1, "Jiajing", "Emperor"), ruler(1567, 2, 4, "Longqing", "Emperor")],
   inca: [
     ruler(1522, 1, 1, "Huayna Capac", "Sapa Inca"),
@@ -144,6 +147,7 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
   venice: faith("roman-catholic", 0.67),
   genoa: faith("roman-catholic", 0.62),
   "papal-states": faith("roman-catholic", 1),
+  hospitallers: faith("roman-catholic", 0.98),
   ming: faith("chinese-traditional", 0.74),
   inca: faith("andean-traditional", 0.94),
   safavid: faith("shia-islam", 1),
@@ -173,8 +177,8 @@ const RULER_FAITH_OVERRIDES = Object.freeze({
 
 const REGIONAL_GROUPS = Object.freeze([
   ["england", "scotland", "france", "spain", "portugal", "habsburg", "denmark-norway"],
-  ["habsburg", "hungary", "venice", "genoa", "papal-states", "ottoman", "poland-lithuania"],
-  ["ottoman", "venice", "genoa", "papal-states", "morocco", "safavid", "hormuz"],
+  ["habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania"],
+  ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "morocco", "safavid", "hormuz"],
   ["muscovy", "crimea", "poland-lithuania", "denmark-norway", "habsburg", "hungary", "ottoman"],
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],

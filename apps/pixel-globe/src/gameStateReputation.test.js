@@ -296,11 +296,12 @@ test("version 21 voyages retire Aztec faction references into Spanish Mexico", (
   assert.equal(JSON.stringify(restored).includes("aztec"), false);
 });
 
-test("older voyages gain neutral standing with newly added sultanates", () => {
+test("older voyages gain neutral standing with newly added sovereigns", () => {
   const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   saved.version = 40;
   delete saved.relations.factionReputation.ternate;
   delete saved.relations.factionReputation.tidore;
+  delete saved.relations.factionReputation.hospitallers;
   saved.relations.safePassageRefusalUntilMinute.portugal = 12345;
   delete saved.relations.tradeAccessGrants;
   saved.relations.mingOpenTradeFactionIds = ["joseon", "england"];
@@ -310,6 +311,7 @@ test("older voyages gain neutral standing with newly added sultanates", () => {
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.equal(restored.relations.factionReputation.ternate, 0);
   assert.equal(restored.relations.factionReputation.tidore, 0);
+  assert.equal(restored.relations.factionReputation.hospitallers, 0);
   assert.equal(restored.relations.safePassageRefusalUntilMinute.portugal, 12345);
   assert.deepEqual(
     restored.relations.tradeAccessGrants[MING_TRADE_POLICY_ID],

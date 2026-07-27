@@ -108,6 +108,11 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "south-asian",
     manualRegion: "ceylon"
   }),
+  manualCity1522("Rhodes", "Greece", 36.434, 28.217, 12000, {
+    cityType: "mediterranean",
+    manualRegion: "eastern-mediterranean",
+    marketGoods: ["wine", "olive-oil", "naval-stores"]
+  }),
   manualVillage1522("Edo", "Japan", 35.6896, 139.692, 1500, {
     cityType: "east-asian",
     manualRegion: "edo-bay",

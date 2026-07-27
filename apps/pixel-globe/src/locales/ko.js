@@ -254,6 +254,7 @@ export default {
   "faction.venice": "베네치아",
   "faction.genoa": "제노바",
   "faction.papalStates": "교황령",
+  "faction.hospitallers": "구호기사단",
   "faction.ming": "명",
   "faction.inca": "잉카",
   "faction.safavid": "사파비",
