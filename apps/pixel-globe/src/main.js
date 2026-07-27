@@ -1073,7 +1073,10 @@ import {
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
 import { visibleRiverBankPixelSet } from "./riverBankOutline.js";
-import { dayNightPaletteVariant } from "./dayNightPalette.js";
+import {
+  dayNightPaletteVariant,
+  prepareDayNightPalette
+} from "./dayNightPalette.js";
 import { createDayNightPaletteRenderer } from "./dayNightPaletteRenderer.js";
 import {
   SHIP_PAPER_ROW_CONTENT_INSET,
@@ -1266,6 +1269,7 @@ import {
   partitionVisualStateCommits,
   partitionVisualStateReprojections
 } from "./visualStateReprojection.js";
+import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
@@ -2272,6 +2276,12 @@ worldCanvas.height = canvas.height;
 const worldCtx = worldCanvas.getContext("2d", { alpha: false });
 if (!worldCtx) throw new Error("Marque & Reprisal could not create its world canvas context");
 worldCtx.imageSmoothingEnabled = false;
+const underLandEffectCanvas = document.createElement("canvas");
+underLandEffectCanvas.width = canvas.width;
+underLandEffectCanvas.height = canvas.height;
+const underLandEffectCtx = underLandEffectCanvas.getContext("2d");
+if (!underLandEffectCtx) throw new Error("Marque & Reprisal could not create its under-land effect context");
+underLandEffectCtx.imageSmoothingEnabled = false;
 const dayNightPaletteRenderer = createDayNightPaletteRenderer();
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
@@ -2455,6 +2465,10 @@ const terrainImagePixelCache = new WeakMap();
 const visibleRiverBankCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
+const underLandTerrainOccluderCache = new WeakMap();
+const underLandFaceOccluderCache = new WeakMap();
+const underLandFaceEntriesByTileCache = new WeakMap();
+const underLandRiverConnectorByPairCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
 const riverGatewayDirectionCache = new WeakMap();
 const RIVER_GATEWAY_DIRECTION_CACHE_LIMIT = 4096;
@@ -2785,38 +2799,9 @@ main().catch((err) => {
 });
 
 async function main() {
-  await Promise.all([loadPixelFonts(), capsuleLoadingScreen.ready]);
-  drawLoading();
+  const shellReady = Promise.all([loadPixelFonts(), capsuleLoadingScreen.ready]);
   const shipSpriteKey = vehicleSpriteKeyForShipSlug(START_SHIP_SLUG);
-  const [
-    loadedImages,
-    loadedShipSpriteAsset,
-    loadedShipWakeAnchors,
-    loadedShipFootprints,
-    loadedShipFlagAnchors,
-    loadedShipLighting,
-    loadedNpcShipAssets,
-    loadedRowingShipAssets,
-    loadedGameIconAtlas,
-    loadedCloudSpriteSheet,
-    loadedWorldDiscoveryImages,
-    loadedCityImages,
-    loadedFactionFlagImages,
-    loadedAnimalImages,
-    loadedHorseCartAssets,
-    loadedStormShipStrikeImage,
-    loadedFireEffectImage,
-    loadedStatusHudImages,
-    loadedCityCatalog,
-    loadedCharacterPortraitManifest,
-    loadedNamedMountains,
-    loadedCreditsMarkdown,
-    loadedPortSailingDistanceData,
-    loadedLandRoadData,
-    earth,
-    discreteWeatherBuffer,
-    runtimeWeatherBuffer
-  ] = await Promise.all([
+  const startupAssets = Promise.all([
     loadTerrainImages(),
     START_SHIP_SLUG_OVERRIDE
       ? loadShipSpriteAsset(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}`, `Player ship: ${START_SHIP_SLUG}`)
@@ -2849,6 +2834,40 @@ async function main() {
     fetchBinary("shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
+  const initializationReady = Promise.all([shellReady, startupAssets]);
+  await shellReady;
+  drawLoading();
+  prepareDayNightPalette();
+  const [, loadedStartupAssets] = await initializationReady;
+  const [
+    loadedImages,
+    loadedShipSpriteAsset,
+    loadedShipWakeAnchors,
+    loadedShipFootprints,
+    loadedShipFlagAnchors,
+    loadedShipLighting,
+    loadedNpcShipAssets,
+    loadedRowingShipAssets,
+    loadedGameIconAtlas,
+    loadedCloudSpriteSheet,
+    loadedWorldDiscoveryImages,
+    loadedCityImages,
+    loadedFactionFlagImages,
+    loadedAnimalImages,
+    loadedHorseCartAssets,
+    loadedStormShipStrikeImage,
+    loadedFireEffectImage,
+    loadedStatusHudImages,
+    loadedCityCatalog,
+    loadedCharacterPortraitManifest,
+    loadedNamedMountains,
+    loadedCreditsMarkdown,
+    loadedPortSailingDistanceData,
+    loadedLandRoadData,
+    earth,
+    discreteWeatherBuffer,
+    runtimeWeatherBuffer
+  ] = loadedStartupAssets;
   images = loadedImages;
   shipImage = loadedShipSpriteAsset?.image || null;
   shipSinkDepthImage = loadedShipSpriteAsset?.sinkDepthImage || null;
@@ -3280,54 +3299,6 @@ async function fetchBinary(path, label) {
   const res = await fetchStaticAsset(path, { label });
   if (!res.ok) throw new Error(`Failed to load ${label}: HTTP ${res.status}`);
   return res.arrayBuffer();
-}
-
-async function fetchChunkedBinary(path, label) {
-  const manifestPath = `${path}.chunks.json`;
-  const manifestRes = await fetchStaticAsset(manifestPath, {
-    label: `${label} chunk manifest`
-  });
-  if (manifestRes.status === 404) return null;
-  if (!manifestRes.ok) {
-    throw new Error(`Failed to load ${label} chunk manifest: HTTP ${manifestRes.status}`);
-  }
-  const manifestContentType = manifestRes.headers.get("content-type") || "";
-  if (!manifestContentType.toLowerCase().includes("json")) return null;
-
-  const manifest = await manifestRes.json();
-  if (!Number.isSafeInteger(manifest.byteLength) || manifest.byteLength < 0) {
-    throw new Error(`Malformed ${label} chunk manifest: invalid byteLength`);
-  }
-  if (!Array.isArray(manifest.chunks) || manifest.chunks.length === 0) {
-    throw new Error(`Malformed ${label} chunk manifest: missing chunks`);
-  }
-
-  const out = new Uint8Array(manifest.byteLength);
-  let offset = 0;
-  for (let i = 0; i < manifest.chunks.length; i++) {
-    const chunkSpec = manifest.chunks[i];
-    if (!chunkSpec || typeof chunkSpec.path !== "string" || !Number.isSafeInteger(chunkSpec.byteLength)) {
-      throw new Error(`Malformed ${label} chunk manifest entry ${i}`);
-    }
-    const chunkUrl = new URL(chunkSpec.path, new URL(manifestPath, window.location.href)).toString();
-    const chunkRes = await fetchStaticAsset(chunkUrl, {
-      label: `${label} chunk ${i}`
-    });
-    if (!chunkRes.ok) throw new Error(`Failed to load ${label} chunk ${i}: HTTP ${chunkRes.status}`);
-    const chunk = new Uint8Array(await chunkRes.arrayBuffer());
-    if (chunk.byteLength !== chunkSpec.byteLength) {
-      throw new Error(`Malformed ${label} chunk ${i}: expected ${chunkSpec.byteLength} bytes, got ${chunk.byteLength}`);
-    }
-    if (offset + chunk.byteLength > out.byteLength) {
-      throw new Error(`Malformed ${label} chunks: total bytes exceed manifest byteLength`);
-    }
-    out.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  if (offset !== out.byteLength) {
-    throw new Error(`Malformed ${label} chunks: expected ${out.byteLength} bytes, got ${offset}`);
-  }
-  return out.buffer;
 }
 
 async function fetchText(path, label) {
@@ -22031,9 +22002,12 @@ function applyResponsiveViewport(width, height) {
   canvas.height = height;
   worldCanvas.width = width;
   worldCanvas.height = height;
+  underLandEffectCanvas.width = width;
+  underLandEffectCanvas.height = height;
   syncCanvasAriaLabel();
   screenCtx.imageSmoothingEnabled = false;
   worldCtx.imageSmoothingEnabled = false;
+  underLandEffectCtx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
   INTERACTION_BUTTON_Y = SCREEN_H - INTERACTION_BUTTON_H - 5;
@@ -22365,10 +22339,8 @@ function render(nowMs) {
   renderedCloudSpriteCount = cloudCalls.length;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawGreatBarrierReef(chart, nowMs);
-    const fishCalls = drawFishSchools(chart, nowMs, renderTileCalls);
-    drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
+    drawUnderLandWaterEffects(chart, nowMs, offset, renderTileCalls);
     drawPrecipitation(chart, nowMs, offset);
-    drawShipWake(chart);
     drawNavalEffects(chart);
     drawCityShadows(chart, shipLight);
     drawSeagulls(chart, nowMs);
@@ -22659,6 +22631,203 @@ function drawWorldDiscoverySprites(activeChart) {
       Math.round(point.y - TILE_ART_HALF)
     );
   }
+}
+
+function drawUnderLandWaterEffects(activeChart, nowMs, offset, renderTileCalls) {
+  const targetCtx = ctx;
+  underLandEffectCtx.setTransform(1, 0, 0, 1, 0, 0);
+  underLandEffectCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+  underLandEffectCtx.imageSmoothingEnabled = false;
+  underLandEffectCtx.save();
+  underLandEffectCtx.translate(offset.x, offset.y);
+  ctx = underLandEffectCtx;
+  try {
+    const fishCalls = drawFishSchools(activeChart, nowMs, renderTileCalls);
+    drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
+    drawShipWake();
+    eraseLandFromUnderLandEffects(activeChart, fishCalls);
+  } finally {
+    underLandEffectCtx.restore();
+    ctx = targetCtx;
+  }
+  targetCtx.drawImage(underLandEffectCanvas, -offset.x, -offset.y);
+}
+
+function eraseLandFromUnderLandEffects(activeChart, fishCalls) {
+  const candidateCalls = underLandEffectTerrainCandidates(activeChart, fishCalls);
+  if (candidateCalls.size === 0) return;
+  const faceEntriesByTile = underLandFaceEntriesByTile(activeChart);
+  const faceEntries = new Set();
+
+  ctx.save();
+  try {
+    ctx.globalCompositeOperation = "destination-out";
+    for (const call of candidateCalls.values()) {
+      const occluder = underLandTerrainOccluder(call, activeChart);
+      if (occluder) {
+        ctx.drawImage(
+          occluder,
+          Math.round(call.drawSurfaceX - TILE_ART_HALF),
+          Math.round(call.drawSurfaceY - TILE_ART_HALF)
+        );
+      }
+      for (const entry of faceEntriesByTile.get(call.id) || []) faceEntries.add(entry);
+    }
+    for (const entry of faceEntries) {
+      const occluder = underLandFaceOccluder(entry, activeChart);
+      if (occluder) ctx.drawImage(occluder.canvas, occluder.x, occluder.y);
+    }
+  } finally {
+    ctx.restore();
+  }
+}
+
+function underLandEffectTerrainCandidates(activeChart, fishCalls) {
+  const calls = new Map();
+  const addCall = (call) => {
+    if (call) calls.set(call.id, call);
+  };
+  const addPoint = (x, y) => {
+    for (const entry of wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex)) {
+      if (entry.kind === "tile") addCall(entry.call);
+    }
+  };
+  const addTileNeighborhood = (tileId) => {
+    addCall(activeChart.tileById.get(tileId));
+    for (const neighborId of graph.neighbors[tileId] || []) {
+      addCall(activeChart.tileById.get(neighborId));
+    }
+  };
+
+  for (const call of fishCalls) {
+    addTileNeighborhood(call.tileId);
+    addPoint(call.x, call.y);
+    addPoint(call.x + call.sprite.width, call.y);
+    addPoint(call.x, call.y + call.sprite.height);
+    addPoint(call.x + call.sprite.width, call.y + call.sprite.height);
+  }
+  if (ship?.wakeParticles?.length) {
+    addTileNeighborhood(ship.tileId);
+    for (const particle of ship.wakeParticles) {
+      addPoint(particle.x, particle.y);
+    }
+  }
+  return calls;
+}
+
+function underLandTerrainOccluder(call, activeChart) {
+  const frozenWater = isPermanentSeaIceRow(call.row) ||
+    (isWaterSurfaceRow(call.row) && tileHasSurfaceIce(call.id));
+  if (isWaterSurfaceRow(call.row) && !frozenWater) return null;
+
+  let cache = underLandTerrainOccluderCache.get(activeChart);
+  if (!cache || cache.weatherDayIndex !== weatherMaskDayIndex) {
+    cache = { weatherDayIndex: weatherMaskDayIndex, images: new Map() };
+    underLandTerrainOccluderCache.set(activeChart, cache);
+  }
+  const cached = cache.images.get(call.id);
+  if (cached) return cached;
+
+  const occluder = document.createElement("canvas");
+  occluder.width = TILE_ART_SIZE;
+  occluder.height = TILE_ART_SIZE;
+  const occluderCtx = occluder.getContext("2d");
+  if (!occluderCtx) throw new Error(`Could not create under-land terrain mask for tile ${call.id}`);
+  occluderCtx.imageSmoothingEnabled = false;
+  for (const image of terrainLayerImagesForTile(call.row, call.id)) {
+    occluderCtx.drawImage(image, 0, 0);
+  }
+
+  const riverMask = riverMasks?.[call.id] || 0;
+  if (riverMask !== 0 && !isWaterSurfaceRow(call.row)) {
+    const riverSprite = riverSpriteForTile(call, activeChart, riverMask);
+    if (!riverSprite) throw new Error(`Could not mask river from under-land effects on tile ${call.id}`);
+    occluderCtx.globalCompositeOperation = "destination-out";
+    occluderCtx.drawImage(riverSprite, 0, 0);
+    occluderCtx.globalCompositeOperation = "source-over";
+  }
+  cache.images.set(call.id, occluder);
+  return occluder;
+}
+
+function underLandFaceEntriesByTile(activeChart) {
+  const layer = terrainConnectorLayer(activeChart.faceCalls, activeChart);
+  const cached = underLandFaceEntriesByTileCache.get(activeChart);
+  if (cached?.layer === layer) return cached.entriesByTile;
+  const entriesByTile = new Map();
+  for (const entry of layer.entries) {
+    for (const tileId of [entry.call.a, entry.call.b]) {
+      const entries = entriesByTile.get(tileId);
+      if (entries) entries.push(entry);
+      else entriesByTile.set(tileId, [entry]);
+    }
+  }
+  underLandFaceEntriesByTileCache.set(activeChart, { layer, entriesByTile });
+  return entriesByTile;
+}
+
+function underLandFaceOccluder(entry, activeChart) {
+  if (isWaterSurfaceRow(entry.call.row) && isWaterSurfaceRow(entry.call.nrow)) return null;
+  let chartCache = underLandFaceOccluderCache.get(activeChart);
+  if (!chartCache) {
+    chartCache = new Map();
+    underLandFaceOccluderCache.set(activeChart, chartCache);
+  }
+  if (chartCache.has(entry)) return chartCache.get(entry);
+
+  const minX = Math.min(...entry.spans.map((span) => span.x));
+  const minY = Math.min(...entry.spans.map((span) => span.y));
+  const maxX = Math.max(...entry.spans.map((span) => span.x + span.width - 1));
+  const maxY = Math.max(...entry.spans.map((span) => span.y));
+  const canvas = document.createElement("canvas");
+  canvas.width = maxX - minX + 1;
+  canvas.height = maxY - minY + 1;
+  const faceCtx = canvas.getContext("2d");
+  if (!faceCtx) throw new Error(`Could not create under-land connector mask for ${entry.call.a}/${entry.call.b}`);
+  faceCtx.fillStyle = "#ffffff";
+  for (const span of entry.spans) {
+    faceCtx.fillRect(span.x - minX, span.y - minY, span.width, 1);
+  }
+
+  const riverConnector = underLandRiverConnectorForPair(
+    activeChart,
+    entry.call.a,
+    entry.call.b
+  );
+  if (riverConnector) {
+    const geometry = riverConnectorGeometry(riverConnector, activeChart);
+    if (!geometry) {
+      throw new Error(`Could not resolve under-land river connector ${riverConnector.a}/${riverConnector.b}`);
+    }
+    faceCtx.globalCompositeOperation = "destination-out";
+    for (const key of riverConnectorWaterPixels(riverConnector, geometry)) {
+      const comma = key.indexOf(",");
+      const x = Number(key.slice(0, comma));
+      const y = Number(key.slice(comma + 1));
+      faceCtx.fillRect(x - minX, y - minY, 1, 1);
+    }
+    faceCtx.globalCompositeOperation = "source-over";
+  }
+
+  const result = Object.freeze({ canvas, x: minX, y: minY });
+  chartCache.set(entry, result);
+  return result;
+}
+
+function underLandRiverConnectorForPair(activeChart, tileA, tileB) {
+  let pairMap = underLandRiverConnectorByPairCache.get(activeChart);
+  if (!pairMap) {
+    pairMap = new Map();
+    for (const call of activeChart.riverConnectorCalls) {
+      pairMap.set(underLandTilePairKey(call.a, call.b), call);
+    }
+    underLandRiverConnectorByPairCache.set(activeChart, pairMap);
+  }
+  return pairMap.get(underLandTilePairKey(tileA, tileB)) || null;
+}
+
+function underLandTilePairKey(tileA, tileB) {
+  return tileA < tileB ? `${tileA}:${tileB}` : `${tileB}:${tileA}`;
 }
 
 function drawGreatBarrierReef(activeChart, nowMs) {
@@ -31405,7 +31574,7 @@ function spriteKeyHash(key) {
   return hash >>> 0;
 }
 
-function drawShipWake(activeChart) {
+function drawShipWake() {
   if (!ship?.wakeParticles?.length) return;
   for (const particle of ship.wakeParticles) {
     const life = clamp(particle.age / particle.ttl, 0, 1);
@@ -31415,17 +31584,16 @@ function drawShipWake(activeChart) {
     const x = Math.round(particle.x);
     const y = Math.round(particle.y);
     const len = Math.hypot(particle.vx, particle.vy);
-    if (!wakeMapPointIsWater(x, y, activeChart)) continue;
 
     if (particle.kind === "stern" || len <= 0.001) {
-      drawWakeFoamDot(particle, x, y, color, activeChart);
+      drawWakeFoamDot(particle, x, y, color);
       continue;
     }
 
     const ux = particle.vx / len;
     const uy = particle.vy / len;
     const markLength = clamp(Math.round(2 + life * 4), 2, 5);
-    drawWakeFoamMark(particle, ux, uy, markLength, color, activeChart, life);
+    drawWakeFoamMark(particle, ux, uy, markLength, color, life);
   }
 }
 
@@ -31435,18 +31603,18 @@ function wakeParticleAlphaBase(kind) {
   throw new Error(`Unknown wake particle kind: ${kind}`);
 }
 
-function drawWakeFoamDot(particle, x, y, color, activeChart) {
+function drawWakeFoamDot(particle, x, y, color) {
   ctx.fillStyle = color;
-  drawWakeFoamPixel(x, y, activeChart);
+  drawWakeFoamPixel(x, y);
   const h = wakeFoamHash(particle.seed, 0);
   if (wakeFoamUnit(h) < SHIP_WAKE_FOAM_EXTRA_CHANCE) {
     const ox = ((h >>> 11) & 1) === 0 ? -1 : 1;
     const oy = ((h >>> 12) & 1) === 0 ? 0 : (((h >>> 13) & 1) === 0 ? -1 : 1);
-    drawWakeFoamPixel(x + ox, y + oy, activeChart);
+    drawWakeFoamPixel(x + ox, y + oy);
   }
 }
 
-function drawWakeFoamMark(particle, ux, uy, markLength, color, activeChart, life) {
+function drawWakeFoamMark(particle, ux, uy, markLength, color, life) {
   const px = -uy;
   const py = ux;
   const keepChance = SHIP_WAKE_FOAM_KEEP_YOUNG + (SHIP_WAKE_FOAM_KEEP_OLD - SHIP_WAKE_FOAM_KEEP_YOUNG) * life;
@@ -31461,22 +31629,21 @@ function drawWakeFoamMark(particle, ux, uy, markLength, color, activeChart, life
     const sideJitter = wakeFoamSideJitter(h);
     const x = Math.round(particle.x + ux * i + px * sideJitter);
     const y = Math.round(particle.y + uy * i + py * sideJitter);
-    drawn = drawWakeFoamPixel(x, y, activeChart) || drawn;
+    drawn = drawWakeFoamPixel(x, y) || drawn;
 
     const extraHash = wakeFoamHash(h, i);
     if (wakeFoamUnit(extraHash) < SHIP_WAKE_FOAM_EXTRA_CHANCE * (1 - life * 0.55)) {
       const extraSide = sideJitter === 0 ? (((extraHash >>> 9) & 1) === 0 ? -1 : 1) : -sideJitter;
       const extraX = Math.round(particle.x + ux * i + px * extraSide);
       const extraY = Math.round(particle.y + uy * i + py * extraSide);
-      drawn = drawWakeFoamPixel(extraX, extraY, activeChart) || drawn;
+      drawn = drawWakeFoamPixel(extraX, extraY) || drawn;
     }
   }
 
-  if (!drawn) drawWakeFoamPixel(Math.round(particle.x), Math.round(particle.y), activeChart);
+  if (!drawn) drawWakeFoamPixel(Math.round(particle.x), Math.round(particle.y));
 }
 
-function drawWakeFoamPixel(x, y, activeChart) {
-  if (!wakeMapPointIsWater(x, y, activeChart)) return false;
+function drawWakeFoamPixel(x, y) {
   ctx.fillRect(x, y, 1, 1);
   return true;
 }
@@ -32266,9 +32433,7 @@ function paintFishSprites(targetCtx, calls) {
         const sourceY = point >> 8;
         const mapX = call.x + (call.flip ? call.sprite.width - 1 - sourceX : sourceX);
         const mapY = call.y + sourceY;
-        if (wakeMapPointIsWater(mapX, mapY, chart)) {
-          batch.points.push(((mapX + 32768) & 0xffff) | ((mapY + 32768) << 16));
-        }
+        batch.points.push(((mapX + 32768) & 0xffff) | ((mapY + 32768) << 16));
       }
     }
   }

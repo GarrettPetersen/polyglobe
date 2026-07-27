@@ -278,7 +278,10 @@ function buildRulerChanges(timelines) {
       if (next.name === previousRuler.name && next.title === previousRuler.title) return [];
       return [Object.freeze({ ...next, previousRuler })];
     }))
-    .sort((left, right) => left.fromMinute - right.fromMinute || left.factionId.localeCompare(right.factionId));
+    .sort((left, right) => (
+      left.fromMinute - right.fromMinute ||
+      (left.factionId < right.factionId ? -1 : left.factionId > right.factionId ? 1 : 0)
+    ));
 }
 
 function buildRegionalFactionIds() {

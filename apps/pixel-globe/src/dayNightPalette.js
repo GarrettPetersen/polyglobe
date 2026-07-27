@@ -72,10 +72,20 @@ const SUNSET_TERRAIN_SEPARATION = new Map([
 ]);
 const NIGHT_PALETTE_MAP = RESURRECT_COLORS.map((source) => nightTargetFor(source));
 const SUNSET_PALETTE_MAP = RESURRECT_COLORS.map((source) => sunsetTargetFor(source));
-const SOURCE_PALETTE_LUT = buildSourcePaletteLut();
-const NIGHT_RGB_RAMP = buildRgbGradeRamp(NIGHT_PALETTE_MAP);
-const SUNSET_RGB_RAMP = buildRgbGradeRamp(SUNSET_PALETTE_MAP);
+let sourcePaletteLut = null;
+let nightRgbRamp = null;
+let sunsetRgbRamp = null;
 const DAY_NIGHT_VARIANT_CACHE = new Map();
+
+export function prepareDayNightPalette() {
+  if (sourcePaletteLut && nightRgbRamp && sunsetRgbRamp) return;
+  const preparedSourcePaletteLut = buildSourcePaletteLut();
+  const preparedNightRgbRamp = buildRgbGradeRamp(NIGHT_PALETTE_MAP, preparedSourcePaletteLut);
+  const preparedSunsetRgbRamp = buildRgbGradeRamp(SUNSET_PALETTE_MAP, preparedSourcePaletteLut);
+  sourcePaletteLut = preparedSourcePaletteLut;
+  nightRgbRamp = preparedNightRgbRamp;
+  sunsetRgbRamp = preparedSunsetRgbRamp;
+}
 
 export function applyDayNightPaletteGrade(data, width, height, light) {
   if (!(data instanceof Uint8ClampedArray)) throw new Error("Day/night grade requires clamped RGBA data");
@@ -87,16 +97,17 @@ export function applyDayNightPaletteGrade(data, width, height, light) {
   const sunsetStage = colorRampStage(light?.sunset);
   const nightStage = colorRampStage(light?.night);
   if (sunsetStage === 0 && nightStage === 0) return data;
+  prepareDayNightPalette();
 
   if (!LITTLE_ENDIAN || data.byteOffset % 4 !== 0) {
-    applyByteGrade(data, SUNSET_RGB_RAMP[sunsetStage]);
-    applyByteGrade(data, NIGHT_RGB_RAMP[nightStage]);
+    applyByteGrade(data, sunsetRgbRamp[sunsetStage]);
+    applyByteGrade(data, nightRgbRamp[nightStage]);
     return data;
   }
 
   const pixels = new Uint32Array(data.buffer, data.byteOffset, width * height);
-  applyPackedGrade(pixels, SUNSET_RGB_RAMP[sunsetStage]);
-  applyPackedGrade(pixels, NIGHT_RGB_RAMP[nightStage]);
+  applyPackedGrade(pixels, sunsetRgbRamp[sunsetStage]);
+  applyPackedGrade(pixels, nightRgbRamp[nightStage]);
   return data;
 }
 
@@ -179,10 +190,10 @@ function buildSourcePaletteLut() {
   return lut;
 }
 
-function buildRgbGradeLut(paletteMap) {
-  const lut = new Uint32Array(SOURCE_PALETTE_LUT.length);
+function buildRgbGradeLut(paletteMap, preparedSourcePaletteLut) {
+  const lut = new Uint32Array(preparedSourcePaletteLut.length);
   for (let i = 0; i < lut.length; i++) {
-    const color = paletteMap[SOURCE_PALETTE_LUT[i]];
+    const color = paletteMap[preparedSourcePaletteLut[i]];
     lut[i] = LITTLE_ENDIAN
       ? color.r | (color.g << 8) | (color.b << 16)
       : color.packed;
@@ -190,7 +201,7 @@ function buildRgbGradeLut(paletteMap) {
   return lut;
 }
 
-function buildRgbGradeRamp(targetMap) {
+function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
   const ramp = [];
   for (let stage = 0; stage <= COLOR_RAMP_STEPS; stage++) {
     if (stage === 0) {
@@ -205,7 +216,7 @@ function buildRgbGradeRamp(targetMap) {
       ? [...targetMap]
       : desiredMap.map((desired) => nearestLabColor(desired, RESURRECT_COLORS));
     separateDominantTerrainColors(stageMap, desiredMap);
-    ramp.push(buildRgbGradeLut(stageMap));
+    ramp.push(buildRgbGradeLut(stageMap, preparedSourcePaletteLut));
   }
   return Object.freeze(ramp);
 }
