@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DAY_NIGHT_VARIANT_STEPS,
   NIGHT_GRADE_HEX,
   SUNSET_GRADE_HEX,
   SUNSET_LAND_GRADE_HEX,
   SUNSET_WATER_GRADE_HEX,
   applyDayNightPaletteGrade,
+  dayNightPaletteVariant,
   nightPaletteHexForSourceHex,
   sunsetPaletteHexForSourceHex
 } from "./dayNightPalette.js";
@@ -137,6 +139,18 @@ test("palette grading leaves day pixels untouched and fully maps night pixels", 
   applyDayNightPaletteGrade(day, 2, 1, { sunset: 0, night: 1 });
   assert.equal(`#${rgbHex(day, 0)}`, `#${nightPaletteHexForSourceHex("4d9be6")}`);
   assert.equal(`#${rgbHex(day, 4)}`, `#${nightPaletteHexForSourceHex("f9c22b")}`);
+});
+
+test("day and night lighting use five cached palette variants", () => {
+  assert.equal(DAY_NIGHT_VARIANT_STEPS, 4);
+  assert.equal(dayNightPaletteVariant({ sunset: 0, night: 0 }), null);
+  const first = dayNightPaletteVariant({ sunset: 0.51, night: 0 });
+  const second = dayNightPaletteVariant({ sunset: 0.56, night: 0 });
+  assert.equal(first, second);
+  assert.equal(first.key, "2:0");
+  assert.equal(first.width, 1024);
+  assert.equal(first.height, 32);
+  assert.equal(first.pixels.length, 1024 * 32 * 4);
 });
 
 test("an evening ramp stage changes matching pixels in unison without spatial grain", () => {

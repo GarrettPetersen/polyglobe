@@ -1059,7 +1059,8 @@ import {
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
 import { visibleRiverBankPixelSet } from "./riverBankOutline.js";
-import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
+import { dayNightPaletteVariant } from "./dayNightPalette.js";
+import { createDayNightPaletteRenderer } from "./dayNightPaletteRenderer.js";
 import {
   SHIP_PAPER_ROW_CONTENT_INSET,
   compactShipMeterLayout,
@@ -1509,6 +1510,7 @@ const SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD = [
 const SHIP_COLLISION_SLIDE_OUTWARD_BIASES = [0.18, 0.36, 0.58];
 const NPC_VISUAL_AUTHORITY_MARGIN_PX = 96;
 const NPC_VISUAL_RELEASE_MARGIN_PX = 132;
+const NPC_VISUAL_SIMULATION_MARGIN_PX = SHIP_SHEET_FRAME_SIZE + 12;
 const NPC_VISUAL_ACTIVATION_SEARCH_PX = 48;
 const NPC_VISUAL_RECOVERY_SEARCH_PX = 96;
 const NPC_VISUAL_ACTIVATION_ANGLE_COUNT = 16;
@@ -2150,8 +2152,11 @@ const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 8;
 const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
+const FISH_SCHOOL_SPRITE_WIDTH = 28;
+const FISH_SCHOOL_SPRITE_HEIGHT = 18;
+const FISH_SCHOOL_ANIMATION_FRAMES = 4;
+const FISH_VISIBLE_MAX_SCHOOLS = 12;
 const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
-const FISH_VISIBLE_MAX_INDIVIDUALS = 28;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
 const FISH_SWIM_PERIOD_MIN_MS = 4200;
@@ -2245,10 +2250,17 @@ const shell = document.querySelector(".shell");
 if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
   throw new Error("Marque & Reprisal requires its shell and responsive canvas");
 }
-const screenCtx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+const screenCtx = canvas.getContext("2d", { alpha: false });
 if (!screenCtx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
 screenCtx.imageSmoothingEnabled = false;
 let ctx = screenCtx;
+const worldCanvas = document.createElement("canvas");
+worldCanvas.width = canvas.width;
+worldCanvas.height = canvas.height;
+const worldCtx = worldCanvas.getContext("2d", { alpha: false });
+if (!worldCtx) throw new Error("Marque & Reprisal could not create its world canvas context");
+worldCtx.imageSmoothingEnabled = false;
+const dayNightPaletteRenderer = createDayNightPaletteRenderer();
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
@@ -2441,7 +2453,8 @@ let offshoreHullClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
 const fishSpritePixelCache = new WeakMap();
-let fishIndividualFrameCache = null;
+const fishSchoolSpriteCache = new Map();
+let fishSchoolFrameCache = null;
 let fishSpriteLayerCache = null;
 let tileWeatherSamplingCache = null;
 let spriteColors;
@@ -14851,7 +14864,7 @@ function nearestFishCallNearPoint(x, y, radiusPx) {
   let best = null;
   let bestDistance = Infinity;
   const maxDistance = radiusPx * radiusPx;
-  for (const call of fishIndividualDrawCalls(chart, lastFrameMs)) {
+  for (const call of fishSchoolDrawCalls(chart, lastFrameMs)) {
     const distance = distance2(x, y, call.centerX, call.centerY);
     if (distance > maxDistance || distance >= bestDistance) continue;
     best = fishInteractionCall(call);
@@ -15026,7 +15039,7 @@ function worldInteractionTargetAtPoint(point) {
   }
 
   if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
-    for (const call of fishIndividualDrawCalls(chart, lastFrameMs)) {
+    for (const call of fishSchoolDrawCalls(chart, lastFrameMs)) {
       const interaction = fishInteractionCall(call);
       if (!fishInteractionCallIsUsable(interaction)) continue;
       const drawX = call.x + offset.x;
@@ -15034,15 +15047,20 @@ function worldInteractionTargetAtPoint(point) {
       const rect = expandedRect({
         x: drawX,
         y: drawY,
-        w: FISH_SPRITE_SIZE,
-        h: FISH_SPRITE_SIZE
+        w: call.sprite.width,
+        h: call.sprite.height
       }, FISH_CLICK_PAD_PX);
       if (!pointInRect(point, rect)) continue;
       const exact = pointHitsOpaqueSpritePixel({
         point,
-        mask: spriteAlphaMask(tintedFishSprite(call.colors)),
-        sourceRect: { x: 0, y: 0, w: FISH_SPRITE_SIZE, h: FISH_SPRITE_SIZE },
-        destinationRect: { x: drawX, y: drawY, w: FISH_SPRITE_SIZE, h: FISH_SPRITE_SIZE },
+        mask: spriteAlphaMask(call.sprite),
+        sourceRect: { x: 0, y: 0, w: call.sprite.width, h: call.sprite.height },
+        destinationRect: {
+          x: drawX,
+          y: drawY,
+          w: call.sprite.width,
+          h: call.sprite.height
+        },
         flipX: call.flip
       }) && wakeMapPointIsWater(
         Math.floor(point.x - offset.x),
@@ -15266,7 +15284,7 @@ function resolveFishingAction(action) {
     Math.floor(weatherClockMinutes),
     { actor: "player" }
   );
-  fishIndividualFrameCache = null;
+  fishSchoolFrameCache = null;
   if (result.quantity <= 0) {
     playFishingFailureSound();
     showFishCatchNotice("FISHERY DEPLETED", "warn");
@@ -15590,7 +15608,7 @@ function clearLocalChartTransientEffects() {
   seagullNextSpawnMs = lastFrameMs + SEAGULL_SPAWN_CHECK_MS;
   worldShipSinkEffects = [];
   whaleKillEffects = [];
-  fishIndividualFrameCache = null;
+  fishSchoolFrameCache = null;
   fishSpriteLayerCache = null;
   if (whaleHarpoonProjectile) {
     whaleHarpoonProjectile.startX = SCREEN_W / 2;
@@ -19067,14 +19085,21 @@ function updateNpcVisualShips(dt) {
     }
 
     const routeScreen = { x: routePoint.x + offset.x, y: routePoint.y + offset.y };
-    if (state && npcVisualStateIsOutside(state, offset, NPC_VISUAL_RELEASE_MARGIN_PX) &&
-        !pointNearScreen(routeScreen, NPC_VISUAL_AUTHORITY_MARGIN_PX)) {
+    const persistentLocalPhysics = state && npcVisualStateRequiresLocalPhysics(state);
+    const stateReleaseMargin = persistentLocalPhysics
+      ? NPC_VISUAL_RELEASE_MARGIN_PX
+      : NPC_VISUAL_SIMULATION_MARGIN_PX;
+    const routeReleaseMargin = persistentLocalPhysics
+      ? NPC_VISUAL_AUTHORITY_MARGIN_PX
+      : NPC_VISUAL_SIMULATION_MARGIN_PX;
+    if (state && npcVisualStateIsOutside(state, offset, stateReleaseMargin) &&
+        !pointNearScreen(routeScreen, routeReleaseMargin)) {
       releaseNpcVisualState(state);
       state = null;
       changed = true;
     }
     if (!state) {
-      if (!pointNearScreen(routeScreen, NPC_VISUAL_AUTHORITY_MARGIN_PX)) continue;
+      if (!pointNearScreen(routeScreen, NPC_VISUAL_SIMULATION_MARGIN_PX)) continue;
       state = createNpcVisualState(snapshot, routePoint);
       if (!state) continue;
       npcVisualShips.set(snapshot.id, state);
@@ -19207,6 +19232,18 @@ function npcVisualMovementBucketForId(id) {
   return (hash >>> 0) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
 }
 
+function npcVisualStateRequiresLocalPhysics(state) {
+  return Boolean(
+    state.combatMode ||
+    state.combatTargetId ||
+    state.combatEnemyIds.length > 0 ||
+    state.stormMode ||
+    state.fishingAction ||
+    Math.abs(state.collisionVelocityX) > 1e-4 ||
+    Math.abs(state.collisionVelocityY) > 1e-4
+  );
+}
+
 function syncNpcVisualStateFromSnapshot(state, snapshot) {
   if (state.slug !== snapshot.slug) {
     const profile = npcVisualShipProfile(snapshot.id, snapshot.slug);
@@ -19277,7 +19314,7 @@ function updateNpcFishermenHarvest() {
         nowMinute,
         { actor: "npc" }
       );
-      fishIndividualFrameCache = null;
+      fishSchoolFrameCache = null;
       if (result.quantity > 0) {
         const stored = storeNpcCargo(npcShip, FISH_CARGO_GOOD_ID, result.quantity, 0, "onscreen fishing");
         if (stored !== result.quantity) {
@@ -21983,8 +22020,11 @@ function applyResponsiveViewport(width, height) {
   lakeBattleTerrainChartKey = "";
   canvas.width = width;
   canvas.height = height;
+  worldCanvas.width = width;
+  worldCanvas.height = height;
   syncCanvasAriaLabel();
-  ctx.imageSmoothingEnabled = false;
+  screenCtx.imageSmoothingEnabled = false;
+  worldCtx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
   INTERACTION_BUTTON_Y = SCREEN_H - INTERACTION_BUTTON_H - 5;
@@ -22186,13 +22226,14 @@ function normalizeOrNull(v) {
   return [v[0] / length, v[1] / length, v[2] / length];
 }
 
-function drawDayNightPaletteGrade() {
-  if (!ship) return;
+function drawDayNightWorld() {
+  if (!ship) throw new Error("Cannot present the world before the player ship exists");
   const light = localDayNightLight();
-  if (light.sunset <= 0.01 && light.night <= 0.01) return;
-  const imageData = ctx.getImageData(0, 0, SCREEN_W, SCREEN_H);
-  applyDayNightPaletteGrade(imageData.data, SCREEN_W, SCREEN_H, light);
-  ctx.putImageData(imageData, 0, 0);
+  const variant = dayNightPaletteVariant(light);
+  const source = variant
+    ? dayNightPaletteRenderer.render(worldCanvas, variant)
+    : worldCanvas;
+  screenCtx.drawImage(source, 0, 0);
 }
 
 function localDayNightLight() {
@@ -22267,10 +22308,12 @@ function smoothstep(edge0, edge1, x) {
 function render(nowMs) {
   worldRenderCount++;
   if (lakeBattleMode) {
+    ctx = screenCtx;
     drawLakeBattleMode(nowMs);
     if (optionsMenu.isOpen) drawOptionsMenu();
     return;
   }
+  ctx = worldCtx;
   prepareNorthUpWorldBehindCover();
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
@@ -22313,7 +22356,7 @@ function render(nowMs) {
   renderedCloudSpriteCount = cloudCalls.length;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawGreatBarrierReef(chart, nowMs);
-    const fishCalls = drawFishIndividuals(chart, nowMs, renderTileCalls);
+    const fishCalls = drawFishSchools(chart, nowMs, renderTileCalls);
     drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
     drawPrecipitation(chart, nowMs, offset);
     drawShipWake(chart);
@@ -22344,8 +22387,9 @@ function render(nowMs) {
   measurePerformanceBenchmarkStage("render.clouds", () => drawCloudLayer(cloudCalls));
   drawCityLabels(chart.cityCalls, chart);
   ctx.restore();
+  ctx = screenCtx;
   measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
-    drawDayNightPaletteGrade();
+    drawDayNightWorld();
     drawStormScreenPrecipitation(nowMs);
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
@@ -22781,11 +22825,11 @@ function drawUnderwaterFishSelectionOutlines(nowMs, fishCalls) {
     const interaction = fishInteractionCall(call);
     if (!fishInteractionCallIsUsable(interaction)) continue;
     drawSelectableSpriteOutline({
-      image: tintedFishSprite(call.colors),
+      image: call.sprite,
       sourceX: 0,
       sourceY: 0,
-      sourceW: FISH_SPRITE_SIZE,
-      sourceH: FISH_SPRITE_SIZE,
+      sourceW: call.sprite.width,
+      sourceH: call.sprite.height,
       x: Math.round(call.x),
       y: Math.round(call.y),
       flip: call.flip,
@@ -31929,21 +31973,21 @@ function drawNpcFishingNetAnimations(nowMs) {
   }
 }
 
-function drawFishIndividuals(activeChart, nowMs, renderTileCalls = null) {
+function drawFishSchools(activeChart, nowMs, renderTileCalls = null) {
   if (!animalImages?.fish || !gameState) return [];
-  const calls = fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls);
+  const calls = fishSchoolDrawCalls(activeChart, nowMs, renderTileCalls);
   drawFishSpriteLayer(calls);
   return calls;
 }
 
-function fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls = null) {
+function fishSchoolDrawCalls(activeChart, nowMs, renderTileCalls = null) {
   const animationNowMs = Math.floor(nowMs / FISH_ANIMATION_REDRAW_MS) *
     FISH_ANIMATION_REDRAW_MS;
   if (
-    fishIndividualFrameCache?.chart === activeChart &&
-    fishIndividualFrameCache.nowMs === animationNowMs
+    fishSchoolFrameCache?.chart === activeChart &&
+    fishSchoolFrameCache.nowMs === animationNowMs
   ) {
-    return fishIndividualFrameCache.calls;
+    return fishSchoolFrameCache.calls;
   }
   const calls = [];
   const offset = chartOffsetPixels(activeChart);
@@ -31951,74 +31995,74 @@ function fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls = null) {
   const visibleTileCalls = candidateTileCalls.filter((tileCall) => pointNearScreen({
     x: tileCall.drawSurfaceX + offset.x,
     y: tileCall.drawSurfaceY + offset.y
-  }, FISH_SPRITE_SIZE + 6));
+  }, FISH_SCHOOL_SPRITE_WIDTH));
   const nearestFirstTileCalls = fisheryTileCallsNearestFirst(
     visibleTileCalls,
     localLayout.viewX,
     localLayout.viewY
   );
   for (const tileCall of nearestFirstTileCalls) {
-    if (calls.length >= FISH_VISIBLE_MAX_INDIVIDUALS) break;
+    if (calls.length >= FISH_VISIBLE_MAX_SCHOOLS) break;
     const fishery = fisheryForTileCall(tileCall);
     if (!fishery) continue;
-    calls.push(...fishIndividualCallsForFishery(
-      tileCall,
-      fishery,
-      animationNowMs,
-      FISH_VISIBLE_MAX_INDIVIDUALS - calls.length
-    ));
+    const call = fishSchoolCallForFishery(tileCall, fishery, animationNowMs);
+    if (call) calls.push(call);
   }
   const sortedCalls = calls.sort((a, b) => a.sortY - b.sortY || a.sortId - b.sortId);
-  fishIndividualFrameCache = { chart: activeChart, nowMs: animationNowMs, calls: sortedCalls };
+  fishSchoolFrameCache = { chart: activeChart, nowMs: animationNowMs, calls: sortedCalls };
   return sortedCalls;
 }
 
-function fishIndividualCallsForFishery(tileCall, fishery, nowMs, maxCount = Infinity) {
-  const calls = [];
+function fishSchoolCallForFishery(tileCall, fishery, nowMs) {
+  if (fishery.visibleIndividualCount <= 0) return null;
   const seed = hashInt(tileCall.id ^ 0x46495348);
-  const count = Math.min(maxCount, fishery.visibleIndividualCount);
-  for (let i = 0; i < count; i++) {
-    const fishSeed = hashInt(seed ^ Math.imul(i + 1, 0x9e3779b1));
-    const motion = fishIndividualSwimMotion(tileCall, fishery, fishSeed, i, nowMs);
-    if (!motion) continue;
-    const x = Math.round(motion.x);
-    const y = Math.round(motion.y);
-    calls.push({
-      id: `fish-${fishery.stockKey}-${i}`,
-      sortId: tileCall.id * 8 + i,
-      tileId: tileCall.id,
-      centerX: x,
-      centerY: y,
-      x: x - Math.floor(FISH_SPRITE_SIZE / 2),
-      y: y - Math.floor(FISH_SPRITE_SIZE / 2),
-      sortY: y,
-      fishery,
-      colors: fishery.colors,
-      alpha: fishery.overfished ? 0.26 : 0.42,
-      flip: motion.vx < 0,
-      scale: fishery.schoolScale
-    });
-  }
-  return calls;
+  const motion = fishSchoolSwimMotion(tileCall, fishery, seed, nowMs);
+  if (!motion) return null;
+  const centerX = Math.round(motion.x);
+  const centerY = Math.round(motion.y);
+  const frame = (
+    Math.floor(nowMs / FISH_ANIMATION_REDRAW_MS) +
+    (seed >>> 12)
+  ) % FISH_SCHOOL_ANIMATION_FRAMES;
+  const density = fishSchoolDensityLevel(fishery.visibleIndividualCount);
+  const sprite = fishSchoolSprite(fishery.colors, density, frame);
+  return {
+    id: `fish-school-${fishery.stockKey}-${tileCall.id}`,
+    sortId: tileCall.id,
+    tileId: tileCall.id,
+    centerX,
+    centerY,
+    x: centerX - Math.floor(sprite.width / 2),
+    y: centerY - Math.floor(sprite.height / 2),
+    sortY: centerY,
+    fishery,
+    sprite,
+    alpha: fishery.overfished ? 0.26 : 0.42,
+    flip: motion.vx < 0
+  };
 }
 
-function fishIndividualSwimMotion(tileCall, fishery, fishSeed, index, nowMs) {
+function fishSchoolSwimMotion(tileCall, fishery, fishSeed, nowMs) {
   const radius = fisherySwimRadius(fishery);
   const axis = fisherySwimAxis(tileCall, fishery, fishSeed);
   const cross = { x: -axis.y, y: axis.x };
   const periodMs = FISH_SWIM_PERIOD_MIN_MS + ((fishSeed >>> 7) % FISH_SWIM_PERIOD_SPREAD_MS);
   const phase = ((nowMs + (fishSeed & 0xffff)) % periodMs) / periodMs * Math.PI * 2;
-  const schoolingPhase = phase + index * 0.42;
-  const home = fishIndividualHomeOffset(fishSeed, index, radius);
-  const forward = Math.sin(schoolingPhase) * radius.x + Math.sin(schoolingPhase * 0.47 + fishSeed) * radius.x * 0.22;
-  const side = Math.sin(schoolingPhase * 1.8 + (fishSeed >>> 5)) * radius.y;
+  const home = {
+    x: ((((fishSeed >>> 4) & 15) - 7.5) / 7.5) * radius.x * 0.3,
+    y: ((((fishSeed >>> 12) & 15) - 7.5) / 7.5) * radius.y * 0.45
+  };
+  const forward = Math.sin(phase) * radius.x +
+    Math.sin(phase * 0.47 + fishSeed) * radius.x * 0.22;
+  const side = Math.sin(phase * 1.8 + (fishSeed >>> 5)) * radius.y;
   const tailWag = Math.sin((nowMs + fishSeed) / 180) * 0.55;
   let x = tileCall.drawSurfaceX + home.x + axis.x * forward + cross.x * (side + tailWag);
   let y = tileCall.drawSurfaceY + home.y + axis.y * forward + cross.y * (side + tailWag);
   const scatter = fishScatterOffset(x, y);
   x += scatter.x;
   y += scatter.y;
-  const vx = axis.x * Math.cos(schoolingPhase) * radius.x + cross.x * Math.cos(schoolingPhase * 1.8) * radius.y + scatter.x;
+  const vx = axis.x * Math.cos(phase) * radius.x +
+    cross.x * Math.cos(phase * 1.8) * radius.y + scatter.x;
   const waterPoint = fishWaterMaskedPoint(tileCall, fishery, x, y, axis);
   return waterPoint ? { ...waterPoint, vx } : null;
 }
@@ -32072,13 +32116,6 @@ function fishRiverAxis(tileCall) {
   return normalizeScreenVector({ x: dx, y: dy });
 }
 
-function fishIndividualHomeOffset(fishSeed, index, radius) {
-  return {
-    x: ((((fishSeed >>> 4) & 15) - 7.5) / 7.5) * radius.x * 0.42 + (index - 2) * 0.8,
-    y: ((((fishSeed >>> 12) & 15) - 7.5) / 7.5) * radius.y * 0.62
-  };
-}
-
 function fishScatterOffset(x, y) {
   if (!localLayout || !ship) return { x: 0, y: 0 };
   const dx = x - localLayout.viewX;
@@ -32117,6 +32154,58 @@ function fishHabitatForTileCall(tileCall) {
   };
 }
 
+function fishSchoolDensityLevel(visibleIndividualCount) {
+  if (!Number.isFinite(visibleIndividualCount) || visibleIndividualCount <= 0) {
+    throw new Error(`Invalid visible fish count for school: ${visibleIndividualCount}`);
+  }
+  if (visibleIndividualCount <= 1) return 1;
+  if (visibleIndividualCount <= 3) return 2;
+  if (visibleIndividualCount <= 6) return 3;
+  return 4;
+}
+
+function fishSchoolSprite(colors, density, frame) {
+  if (!Number.isInteger(density) || density < 1 || density > 4) {
+    throw new Error(`Invalid fish school density: ${density}`);
+  }
+  if (!Number.isInteger(frame) || frame < 0 || frame >= FISH_SCHOOL_ANIMATION_FRAMES) {
+    throw new Error(`Invalid fish school frame: ${frame}`);
+  }
+  const key = `${colors.body}|${colors.highlight}|${colors.shadow}|${density}|${frame}`;
+  const cached = fishSchoolSpriteCache.get(key);
+  if (cached) return cached;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = FISH_SCHOOL_SPRITE_WIDTH;
+  canvas.height = FISH_SCHOOL_SPRITE_HEIGHT;
+  const schoolCtx = canvas.getContext("2d");
+  if (!schoolCtx) throw new Error("Could not create fish school sprite canvas");
+  schoolCtx.imageSmoothingEnabled = false;
+  const fish = tintedFishSprite(colors);
+  const layout = [
+    { x: 9, y: 4, phase: 0 },
+    { x: 2, y: 1, phase: 1 },
+    { x: 17, y: 0, phase: 3 },
+    { x: 13, y: 8, phase: 2 },
+    { x: 0, y: 8, phase: 0 },
+    { x: 19, y: 7, phase: 1 }
+  ];
+  const count = [0, 1, 2, 4, 6][density];
+  const cycleOffsets = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 }
+  ];
+  for (let index = 0; index < count; index++) {
+    const position = layout[index];
+    const offset = cycleOffsets[(frame + position.phase) % cycleOffsets.length];
+    schoolCtx.drawImage(fish, position.x + offset.x, position.y + offset.y);
+  }
+  fishSchoolSpriteCache.set(key, canvas);
+  return canvas;
+}
+
 function drawFishSpriteLayer(calls) {
   if (calls.length === 0) return;
   if (fishSpriteLayerCache?.calls !== calls) {
@@ -32133,8 +32222,8 @@ function createFishSpriteLayer(calls) {
   const padding = 1;
   const minX = Math.floor(Math.min(...calls.map((call) => call.x))) - padding;
   const minY = Math.floor(Math.min(...calls.map((call) => call.y))) - padding;
-  const maxX = Math.ceil(Math.max(...calls.map((call) => call.x + FISH_SPRITE_SIZE))) + padding;
-  const maxY = Math.ceil(Math.max(...calls.map((call) => call.y + FISH_SPRITE_SIZE))) + padding;
+  const maxX = Math.ceil(Math.max(...calls.map((call) => call.x + call.sprite.width))) + padding;
+  const maxY = Math.ceil(Math.max(...calls.map((call) => call.y + call.sprite.height))) + padding;
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, maxX - minX);
   canvas.height = Math.max(1, maxY - minY);
@@ -32149,7 +32238,7 @@ function createFishSpriteLayer(calls) {
 function paintFishSprites(targetCtx, calls) {
   const batches = new Map();
   for (const call of calls) {
-    const groups = tintedFishSpritePixelGroups(tintedFishSprite(call.colors));
+    const groups = fishSpritePixelGroups(call.sprite);
     for (const group of groups) {
       const alpha = call.alpha * group.alpha;
       const key = `${group.color}|${alpha}`;
@@ -32161,7 +32250,7 @@ function paintFishSprites(targetCtx, calls) {
       for (const point of group.points) {
         const sourceX = point & 0xff;
         const sourceY = point >> 8;
-        const mapX = call.x + (call.flip ? FISH_SPRITE_SIZE - 1 - sourceX : sourceX);
+        const mapX = call.x + (call.flip ? call.sprite.width - 1 - sourceX : sourceX);
         const mapY = call.y + sourceY;
         if (wakeMapPointIsWater(mapX, mapY, chart)) {
           batch.points.push(((mapX + 32768) & 0xffff) | ((mapY + 32768) << 16));
@@ -32184,17 +32273,17 @@ function paintFishSprites(targetCtx, calls) {
   targetCtx.restore();
 }
 
-function tintedFishSpritePixelGroups(sprite) {
+function fishSpritePixelGroups(sprite) {
   const cached = fishSpritePixelCache.get(sprite);
   if (cached) return cached;
-  if (!(sprite instanceof HTMLCanvasElement)) throw new Error("Tinted fish sprite must be a canvas");
+  if (!(sprite instanceof HTMLCanvasElement)) throw new Error("Fish sprite must be a canvas");
   const spriteCtx = sprite.getContext("2d", { willReadFrequently: true });
-  if (!spriteCtx) throw new Error("Could not read tinted fish sprite pixels");
-  const data = spriteCtx.getImageData(0, 0, FISH_SPRITE_SIZE, FISH_SPRITE_SIZE).data;
+  if (!spriteCtx) throw new Error("Could not read fish sprite pixels");
+  const data = spriteCtx.getImageData(0, 0, sprite.width, sprite.height).data;
   const groupsByKey = new Map();
-  for (let y = 0; y < FISH_SPRITE_SIZE; y++) {
-    for (let x = 0; x < FISH_SPRITE_SIZE; x++) {
-      const index = (x + y * FISH_SPRITE_SIZE) * 4;
+  for (let y = 0; y < sprite.height; y++) {
+    for (let x = 0; x < sprite.width; x++) {
+      const index = (x + y * sprite.width) * 4;
       const alphaByte = data[index + 3];
       if (alphaByte === 0) continue;
       const color = `rgb(${data[index]}, ${data[index + 1]}, ${data[index + 2]})`;
@@ -32208,7 +32297,7 @@ function tintedFishSpritePixelGroups(sprite) {
     }
   }
   const groups = [...groupsByKey.values()];
-  if (groups.length === 0) throw new Error("Tinted fish sprite contains no opaque pixels");
+  if (groups.length === 0) throw new Error("Fish sprite contains no opaque pixels");
   fishSpritePixelCache.set(sprite, groups);
   return groups;
 }

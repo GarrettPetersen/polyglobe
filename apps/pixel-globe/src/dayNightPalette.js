@@ -1,7 +1,10 @@
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
-const COLOR_RAMP_STEPS = 16;
+export const DAY_NIGHT_VARIANT_STEPS = 4;
+const COLOR_RAMP_STEPS = DAY_NIGHT_VARIANT_STEPS;
 const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
+const PALETTE_TEXTURE_WIDTH = 1024;
+const PALETTE_TEXTURE_HEIGHT = 32;
 
 export const NIGHT_GRADE_HEX = Object.freeze([
   "2e222f", "3e3546", "45293f", "323353", "484a77", "625565",
@@ -72,6 +75,7 @@ const SUNSET_PALETTE_MAP = RESURRECT_COLORS.map((source) => sunsetTargetFor(sour
 const SOURCE_PALETTE_LUT = buildSourcePaletteLut();
 const NIGHT_RGB_RAMP = buildRgbGradeRamp(NIGHT_PALETTE_MAP);
 const SUNSET_RGB_RAMP = buildRgbGradeRamp(SUNSET_PALETTE_MAP);
+const DAY_NIGHT_VARIANT_CACHE = new Map();
 
 export function applyDayNightPaletteGrade(data, width, height, light) {
   if (!(data instanceof Uint8ClampedArray)) throw new Error("Day/night grade requires clamped RGBA data");
@@ -94,6 +98,36 @@ export function applyDayNightPaletteGrade(data, width, height, light) {
   applyPackedGrade(pixels, SUNSET_RGB_RAMP[sunsetStage]);
   applyPackedGrade(pixels, NIGHT_RGB_RAMP[nightStage]);
   return data;
+}
+
+export function dayNightPaletteVariant(light) {
+  const sunsetStage = colorRampStage(light?.sunset);
+  const nightStage = colorRampStage(light?.night);
+  if (sunsetStage === 0 && nightStage === 0) return null;
+  const key = `${sunsetStage}:${nightStage}`;
+  const cached = DAY_NIGHT_VARIANT_CACHE.get(key);
+  if (cached) return cached;
+
+  const pixels = new Uint8ClampedArray(PALETTE_TEXTURE_WIDTH * PALETTE_TEXTURE_HEIGHT * 4);
+  for (let index = 0; index < PALETTE_TEXTURE_WIDTH * PALETTE_TEXTURE_HEIGHT; index++) {
+    const offset = index * 4;
+    pixels[offset] = ((index >>> 10) & 31) << 3;
+    pixels[offset + 1] = ((index >>> 5) & 31) << 3;
+    pixels[offset + 2] = (index & 31) << 3;
+    pixels[offset + 3] = 255;
+  }
+  applyDayNightPaletteGrade(pixels, PALETTE_TEXTURE_WIDTH, PALETTE_TEXTURE_HEIGHT, {
+    sunset: sunsetStage / COLOR_RAMP_STEPS,
+    night: nightStage / COLOR_RAMP_STEPS
+  });
+  const variant = Object.freeze({
+    key,
+    width: PALETTE_TEXTURE_WIDTH,
+    height: PALETTE_TEXTURE_HEIGHT,
+    pixels
+  });
+  DAY_NIGHT_VARIANT_CACHE.set(key, variant);
+  return variant;
 }
 
 export function nightPaletteHexForSourceHex(sourceHex) {
