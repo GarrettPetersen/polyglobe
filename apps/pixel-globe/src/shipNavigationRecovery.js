@@ -1,12 +1,27 @@
 export function restoredShipPlacementPlan({
   savedTileId,
   positionTileId,
+  savedTileNavigable = true,
+  nearestNavigableTileId,
   frozen,
   nearestOpenWaterTileId
 }) {
   assertTileId(savedTileId, "saved ship");
   assertTileId(positionTileId, "saved position");
+  if (typeof savedTileNavigable !== "boolean") {
+    throw new Error("Restored ship navigability state must be boolean");
+  }
   if (typeof frozen !== "boolean") throw new Error("Restored ship ice state must be boolean");
+
+  if (!savedTileNavigable) {
+    assertTileId(nearestNavigableTileId, "nearest navigable");
+    return Object.freeze({
+      tileId: nearestNavigableTileId,
+      recenter: true,
+      stop: true,
+      reason: "saved tile no longer navigable"
+    });
+  }
 
   if (frozen) {
     assertTileId(nearestOpenWaterTileId, "nearest open-water");

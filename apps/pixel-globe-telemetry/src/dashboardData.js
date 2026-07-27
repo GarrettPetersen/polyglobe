@@ -118,7 +118,7 @@ export function dashboardQueries(windowDays) {
       FROM ${DATASET}
       WHERE blob1 = 'crash' AND ${where}
       GROUP BY fingerprint, revision, channel, platform, screen, error_name, message
-      ORDER BY reports DESC, last_seen DESC
+      ORDER BY last_seen DESC, reports DESC
       LIMIT 40
     `
   });

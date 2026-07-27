@@ -47,6 +47,31 @@ test("a restored ship on seasonal ice moves to open water", () => {
   });
 });
 
+test("a restored ship whose saved tile changed to land moves to nearby navigable water", () => {
+  assert.deepEqual(restoredShipPlacementPlan({
+    savedTileId: 12,
+    positionTileId: 12,
+    savedTileNavigable: false,
+    nearestNavigableTileId: 13,
+    frozen: false
+  }), {
+    tileId: 13,
+    recenter: true,
+    stop: true,
+    reason: "saved tile no longer navigable"
+  });
+});
+
+test("changed-world recovery fails loudly when no navigable tile was found", () => {
+  assert.throws(() => restoredShipPlacementPlan({
+    savedTileId: 12,
+    positionTileId: 12,
+    savedTileNavigable: false,
+    nearestNavigableTileId: undefined,
+    frozen: false
+  }), /nearest navigable/);
+});
+
 test("a restored ship may remain at navigable polar latitudes", () => {
   assert.deepEqual(restoredShipPlacementPlan({
     savedTileId: 12,

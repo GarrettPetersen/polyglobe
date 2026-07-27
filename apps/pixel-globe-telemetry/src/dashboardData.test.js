@@ -19,6 +19,13 @@ test("dashboard queries count every consenting event without cohort estimates", 
   assert.doesNotMatch(sql, /DISTINCT index1\) \* 100/);
 });
 
+test("dashboard crash reports are newest first", () => {
+  assert.match(
+    dashboardQueries(7).crashes,
+    /ORDER BY last_seen DESC, reports DESC/
+  );
+});
+
 test("dashboard snapshots normalize aggregate query rows", () => {
   const snapshot = buildDashboardSnapshot(30, {
     totals: [{ sessions: 400, active_hours: 25, voyages: 100, crashes: 2 }],

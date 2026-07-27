@@ -454,6 +454,7 @@ import {
   CAMPAIGN_DESTINATION_TREASURE_ISLAND,
   CAMPAIGN_DESTINATION_TREASURE_PIRATE,
   CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
+  CAMPAIGN_GOAL_ACTIVE,
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
   CAMPAIGN_GOAL_COMPLETE,
@@ -8537,9 +8538,6 @@ async function restoreSavedVoyage(payload) {
     console.info("[pixel-globe] corrected portrait metadata for saved characters:", correctedPortraitMetadataCount);
   }
   ensureWhalePopulation(restoredGameState);
-  if (!Number.isInteger(savedShip.tileId) || !isShipBaseNavigableTile(savedShip.tileId)) {
-    throw new Error(`Saved ship tile is not navigable: ${savedShip.tileId}`);
-  }
   gameState = restoredGameState;
   syncColonizationWorldState(restoredGameState, {
     startMinute: Number.isFinite(payload.economy?.lastMinute)
@@ -8579,16 +8577,34 @@ async function restoreSavedVoyage(payload) {
 
   const savedPosition = normalize3(savedShip.position.slice());
   const positionTileId = findNearestTileId(graph, directionIndex, savedPosition);
-  const frozenSavedTile = isShipBlockedByIceTile(savedShip.tileId);
+  const savedTileExists = Number.isInteger(savedShip.tileId) &&
+    savedShip.tileId >= 0 &&
+    savedShip.tileId < graph.tileCount;
+  const savedTileNavigable = savedTileExists && isShipBaseNavigableTile(savedShip.tileId);
+  const recoverySearchTileId = savedTileExists ? savedShip.tileId : positionTileId;
+  const nearestNavigableTileId = savedTileNavigable
+    ? undefined
+    : (
+      isShipBaseNavigableTile(positionTileId) && !isShipBlockedByIceTile(positionTileId)
+        ? positionTileId
+        : nearestTileMatching(
+          recoverySearchTileId,
+          (tileId) => isShipBaseNavigableTile(tileId) && !isShipBlockedByIceTile(tileId)
+        )
+    );
+  const frozenSavedTile = savedTileNavigable && isShipBlockedByIceTile(savedShip.tileId);
   const nearestOpenWaterTileId = frozenSavedTile
     ? nearestTileMatching(savedShip.tileId, isShipOpenWaterTile)
     : undefined;
   const restorePlacement = restoredShipPlacementPlan({
-    savedTileId: savedShip.tileId,
+    savedTileId: savedTileExists ? savedShip.tileId : positionTileId,
     positionTileId,
+    savedTileNavigable,
+    nearestNavigableTileId,
     frozen: frozenSavedTile,
     nearestOpenWaterTileId
   });
+  if (!savedTileNavigable) recoveredDerivedSystems.push("ship placement");
   const position = restorePlacement.recenter
     ? tileCenterVector(restorePlacement.tileId)
     : savedPosition;
