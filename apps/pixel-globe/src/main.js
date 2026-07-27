@@ -2801,6 +2801,7 @@ async function main() {
     : readLocalSave();
   if (localSaveResult.status === "invalid") {
     console.warn("[pixel-globe] local save is unavailable", localSaveResult.error);
+    gameTelemetry.captureCrash(localSaveResult.error, telemetryCrashContext("save-read"));
   }
   voyageHistoryResult = CAPTURE_SCENARIO
     ? { status: "ready", records: [], error: null }
@@ -8388,6 +8389,7 @@ async function continueSavedVoyage() {
     }
   } catch (error) {
     console.warn("[pixel-globe] could not continue the local save", error);
+    gameTelemetry.captureCrash(error, telemetryCrashContext("save-restore"));
     localSaveResult = { status: "invalid", save: null, error };
     if (startMenu === menu) {
       menu.isLoading = false;
@@ -8830,6 +8832,7 @@ function saveVoyageNow(reason) {
     return true;
   } catch (error) {
     console.warn(`[pixel-globe] local save failed (${reason})`, error);
+    gameTelemetry.captureCrash(error, telemetryCrashContext("save-write"));
     lastAutosaveMs = performance.now();
     savePersistenceWarning = {
       text: "SAVE FAILED - RETRYING",
