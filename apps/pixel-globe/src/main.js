@@ -9019,20 +9019,18 @@ function queueAchievementPlatformSync(statValues = null) {
 
 function applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions = false } = {}) {
   if (!gameState?.memory?.conquest) throw new Error("Cannot apply port ownership without conquest state");
-  applyPortConquestOwnership(gameState.memory.conquest, portCities);
-  const factionByTileId = new Map(portCities.map((city) => [city.tileId, city.factionId]));
-  for (const [tileId, factionId] of factionByTileId) {
-    const catalogCity = cityByTileId.get(tileId);
-    if (catalogCity) factionSyncCity(catalogCity, factionId);
-  }
+  const allCities = [...cityByTileId.values()];
+  applyPortConquestOwnership(gameState.memory.conquest, allCities);
+  const factionByTileId = new Map(allCities.map((city) => [city.tileId, city.factionId]));
   for (const city of chart?.cityCalls || []) {
     const factionId = factionByTileId.get(city.tileId);
     if (factionId) factionSyncCity(city, factionId);
   }
   if (npcSeaRoutes) {
+    const portFactionByTileId = new Map(portCities.map((city) => [city.tileId, city.factionId]));
     applyNpcConquestOwnership(
       npcSeaRoutes,
-      factionByTileId,
+      portFactionByTileId,
       new Set(gameState.memory.conquest.collapsedFactionIds)
     );
     for (const state of npcVisualShips.values()) {
@@ -11885,11 +11883,12 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
 
 function openPlayerCapitalPeaceTreaty(cityCall, event, prize, captureMission = null) {
   const papalContext = capitalPeacePapalContext(event);
+  const treatyContext = capitalPeaceTreatyContext(event, papalContext);
   const options = capitalPeaceTreatyOptions(
     gameState.memory.conquest,
     portCities,
     event,
-    papalContext
+    treatyContext
   );
   const loser = factionById(event.previousFactionId);
   const choices = options.papalSettlement
@@ -11910,7 +11909,7 @@ function openPlayerCapitalPeaceTreaty(cityCall, event, prize, captureMission = n
           term: CAPITAL_PEACE_TERM_VASSALAGE
         },
         ...(options.concessionAvailable
-          ? [{ label: "TAKE PORT", term: CAPITAL_PEACE_TERM_CONCESSIONS }]
+          ? [{ label: "TAKE TERRITORY", term: CAPITAL_PEACE_TERM_CONCESSIONS }]
           : []),
         ...(options.annexationAllowed
           ? [{ label: "ANNEX", term: CAPITAL_PEACE_TERM_ANNEXATION }]
@@ -11989,12 +11988,13 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
   if (!event.capitalCapturedFactionId) return null;
   const simMinute = Math.floor(weatherClockMinutes);
   const papalContext = capitalPeacePapalContext(event);
+  const treatyContext = capitalPeaceTreatyContext(event, papalContext);
   const term = forcedTerm || chooseCapitalPeaceTerm(
     gameState.memory.conquest,
     portCities,
     event,
     roll,
-    papalContext
+    treatyContext
   );
   const treaty = settleCapitalPeaceTreaty(
     gameState.memory.conquest,
@@ -12002,7 +12002,7 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
     event,
     term,
     simMinute,
-    papalContext
+    treatyContext
   );
   makeFactionPeaceWithAllEnemies(
     gameState.relations.diplomacy,
@@ -12060,6 +12060,16 @@ function capitalPeacePapalContext(event) {
   return { papalExcommunicationTargetFactionId: targets[0] || null };
 }
 
+function capitalPeaceTreatyContext(event, papalContext = capitalPeacePapalContext(event)) {
+  if (!(cityByTileId instanceof Map) || cityByTileId.size === 0) {
+    throw new Error("Capital peace treaty requires the placed city catalog");
+  }
+  return {
+    ...papalContext,
+    cities: [...cityByTileId.values()]
+  };
+}
+
 function capitalPeaceTreatyDescription(treaty) {
   const winner = factionById(treaty.winnerFactionId);
   const loser = factionById(treaty.loserFactionId);
@@ -12071,15 +12081,14 @@ function capitalPeaceTreatyDescription(treaty) {
       gameState.relations.diplomacy,
       treaty.winnerFactionId
     );
-    const concessionText = treaty.concessionPortIds.length > 0
-      ? ` It also cedes ${treaty.concessionPortIds.length} occupied port` +
-        `${treaty.concessionPortIds.length === 1 ? "" : "s"}.`
+    const concessionCount = treatyConcessionCityIds(treaty).length;
+    const concessionText = concessionCount > 0
+      ? ` It also cedes ${treatyConcessionLabel(treaty)}.`
       : "";
     return `${loser.name} survives as a vassal of ${factionById(principal).name}.${concessionText}`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_CONCESSIONS) {
-    return `${loser.name} makes peace and cedes ${treaty.concessionPortIds.length} port` +
-      `${treaty.concessionPortIds.length === 1 ? "" : "s"} to ${winner.name}.`;
+    return `${loser.name} makes peace and cedes ${treatyConcessionLabel(treaty)} to ${winner.name}.`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR) {
     return `Rome remains independent, and the Pope issues a bull in favour of ${winner.name}.`;
@@ -12089,6 +12098,22 @@ function capitalPeaceTreatyDescription(treaty) {
       `${factionById(treaty.papalActionTargetFactionId).name}.`;
   }
   throw new Error(`Unknown capital peace term: ${treaty.term}`);
+}
+
+function treatyConcessionCityIds(treaty) {
+  return treaty.concessionCityIds || treaty.concessionPortIds;
+}
+
+function treatyConcessionLabel(treaty) {
+  const cityIds = treatyConcessionCityIds(treaty);
+  if (cityIds.length === 0) throw new Error(`Treaty has no territorial concessions: ${treaty.id}`);
+  const names = treaty.concessionCityNames;
+  if (!Array.isArray(names) || names.length !== cityIds.length) {
+    return `${cityIds.length} territor${cityIds.length === 1 ? "y" : "ies"}`;
+  }
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function applyAutomaticPortServices(cityCall) {
