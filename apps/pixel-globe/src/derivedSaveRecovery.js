@@ -17,3 +17,19 @@ export function restoreOrRecreateDerivedSaveState({ label, current, recreate, re
     return Object.freeze({ value: recreate(), recovered: true, error });
   }
 }
+
+export function addDerivedSaveRecoveryLabel(recoveredLabels, label) {
+  if (
+    !Array.isArray(recoveredLabels) ||
+    recoveredLabels.some((item) => typeof item !== "string" || item.trim() === "")
+  ) {
+    throw new Error("Derived save recovery labels must be an array of non-empty strings");
+  }
+  if (typeof label !== "string" || label.trim() === "") {
+    throw new Error("Derived save recovery label must be a non-empty string");
+  }
+  if (recoveredLabels.includes(label)) {
+    throw new Error(`Derived save recovery label was recorded twice: ${label}`);
+  }
+  return Object.freeze([...recoveredLabels, label]);
+}

@@ -1090,7 +1090,10 @@ import {
   migrateSavedVoyageCore,
   recoverSavedVoyageWorldClock
 } from "./saveCompatibility.js";
-import { restoreOrRecreateDerivedSaveState } from "./derivedSaveRecovery.js";
+import {
+  addDerivedSaveRecoveryLabel,
+  restoreOrRecreateDerivedSaveState
+} from "./derivedSaveRecovery.js";
 import {
   appendVoyageRecord,
   grossDoubloonsEarned,
@@ -8546,7 +8549,7 @@ async function restoreSavedVoyage(payload) {
   });
   applyCurrentPortConquestOwnership();
   const assets = await loadShipAssetSet(savedShip.typeSlug);
-  const recoveredDerivedSystems = restoreSavedDerivedWorld(payload, restoredGameState);
+  let recoveredDerivedSystems = restoreSavedDerivedWorld(payload, restoredGameState);
 
   ensureColonizationDefenseEncounter({ assignCaptains: false });
   ensureTreasureCampaignEncounters({ assignCaptains: false });
@@ -8604,7 +8607,12 @@ async function restoreSavedVoyage(payload) {
     frozen: frozenSavedTile,
     nearestOpenWaterTileId
   });
-  if (!savedTileNavigable) recoveredDerivedSystems.push("ship placement");
+  if (!savedTileNavigable) {
+    recoveredDerivedSystems = addDerivedSaveRecoveryLabel(
+      recoveredDerivedSystems,
+      "ship placement"
+    );
+  }
   const position = restorePlacement.recenter
     ? tileCenterVector(restorePlacement.tileId)
     : savedPosition;

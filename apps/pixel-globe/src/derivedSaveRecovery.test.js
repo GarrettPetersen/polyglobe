@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { restoreOrRecreateDerivedSaveState } from "./derivedSaveRecovery.js";
+import {
+  addDerivedSaveRecoveryLabel,
+  restoreOrRecreateDerivedSaveState
+} from "./derivedSaveRecovery.js";
 
 test("compatible derived save data restores without rebuilding", () => {
   let recreations = 0;
@@ -59,4 +62,28 @@ test("derived recovery never hides a failure to create current state", () => {
       throw new Error("old route topology");
     }
   }), /current route generation failed/);
+});
+
+test("save restoration can add a placement recovery to frozen derived labels", () => {
+  const derivedLabels = Object.freeze(["NPC sea routes"]);
+  const recoveredLabels = addDerivedSaveRecoveryLabel(derivedLabels, "ship placement");
+
+  assert.deepEqual(derivedLabels, ["NPC sea routes"]);
+  assert.deepEqual(recoveredLabels, ["NPC sea routes", "ship placement"]);
+  assert.equal(Object.isFrozen(recoveredLabels), true);
+});
+
+test("save recovery labels reject malformed and duplicate entries", () => {
+  assert.throws(
+    () => addDerivedSaveRecoveryLabel(Object.freeze(["ship placement"]), "ship placement"),
+    /recorded twice/
+  );
+  assert.throws(
+    () => addDerivedSaveRecoveryLabel(Object.freeze([""]), "ship placement"),
+    /array of non-empty strings/
+  );
+  assert.throws(
+    () => addDerivedSaveRecoveryLabel(Object.freeze([]), ""),
+    /must be a non-empty string/
+  );
 });
