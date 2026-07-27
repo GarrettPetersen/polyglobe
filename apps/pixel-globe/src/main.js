@@ -15570,11 +15570,7 @@ function reprojectNpcVisualPositions(states) {
         point.tileId,
         state.vector
       );
-      if (!navigation.ok) {
-        throw new Error(
-          `NPC ship ${state.id} has a navigable global position that does not project onto drawn water after chart reframe`
-        );
-      }
+      if (!navigation.ok) return null;
       return { x: point.x, y: point.y, tileId: point.tileId };
     }
   );
@@ -19233,11 +19229,7 @@ function createNpcVisualState(snapshot, routePoint) {
     routePoint.tileId,
     snapshot.routeVector
   );
-  if (!routeNavigation.ok) {
-    throw new Error(
-      `NPC ship ${snapshot.id} has a navigable global route position that does not project onto drawn water`
-    );
-  }
+  if (!routeNavigation.ok) return null;
   const initialHeading = normalizeTangentOrFallback(
     snapshot.routeHeading,
     snapshot.routeVector,
