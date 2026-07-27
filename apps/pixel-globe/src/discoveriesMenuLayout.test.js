@@ -30,6 +30,20 @@ test("discoveries tabs remain inside a narrow responsive panel", () => {
   assert.equal(rectsOverlap(layout.closeButtonRect, animalsRect), false);
 });
 
+test("notebook discoveries reclaim the close-button row", () => {
+  const panelRect = { x: 146, y: 6, w: 303, h: 244 };
+  const layout = discoveriesMenuHeaderLayout({
+    panelRect,
+    closeButtonSize: 24,
+    tabHeight: 24,
+    reserveCloseButton: false
+  });
+
+  assert.equal(layout.closeButtonRect, null);
+  assert.equal(layout.bodyOffsetY, 0);
+  assert.equal(layout.tabRects[0].rect.y, panelRect.y + 27);
+});
+
 function rectsOverlap(a, b) {
   return a.x < b.x + b.w &&
     a.x + a.w > b.x &&

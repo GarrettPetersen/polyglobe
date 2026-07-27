@@ -733,7 +733,7 @@ import {
 import { localizePlaceNames } from "./placeNameLocalization.js";
 import {
   captainChartHeaderLayout,
-  captainNotebookLayout
+  captainNotebookFrameLayout
 } from "./captainChartLayout.js";
 import {
   captainChartHexPixelSpan,
@@ -4618,12 +4618,12 @@ function createSailingHelpModal(inputMode) {
 function sailingHelpPanelRect() {
   const w = Math.min(SAILING_HELP_PANEL_MAX_W, SCREEN_W - 12);
   const h = Math.min(SAILING_HELP_PANEL_MAX_H, SCREEN_H - 12);
-  return {
+  return captainNotebookPagePanel({
     x: Math.floor((SCREEN_W - w) / 2),
     y: Math.floor((SCREEN_H - h) / 2),
     w,
     h
-  };
+  });
 }
 
 function sailingHelpButtonRect() {
@@ -5644,6 +5644,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
   if (owner !== INTERACTION_INPUT.FISHING && typeof canvas.setPointerCapture === "function") {
     canvas.setPointerCapture(event.pointerId);
   }
+  if (captainMenu.isOpen && handleCaptainNotebookChromePointerDown(point)) return true;
   if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) handleTelemetryConsentPointerDown(point);
   else if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsPointerDown(point);
   else if (owner === INTERACTION_INPUT.CREDITS) handleCreditsPointerDown(point);
@@ -9499,6 +9500,75 @@ function resetCaptainChartView() {
   recenterCaptainChartMap();
 }
 
+function captainNotebookFrame() {
+  const desiredRailWidth = Math.max(
+    92,
+    ...CAPTAIN_MENU_ACTIONS.map((action) => (
+      measurePixelTextWidth(captainMenuActionLabel(action), PIXEL_FONT_SMALL_8) +
+      GAME_ICON_SIZE + 24
+    ))
+  );
+  return captainNotebookFrameLayout({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    actionCount: CAPTAIN_MENU_ACTIONS.length,
+    desiredRailWidth,
+    desiredPanelWidth: CAPTAIN_MENU_PANEL_W,
+    desiredPanelHeight: CAPTAIN_MENU_PANEL_H,
+    closeButtonSize: UI_ICON_BUTTON_SIZE
+  });
+}
+
+function captainNotebookPagePanel(fallbackPanel) {
+  if (!captainMenu.isOpen) return fallbackPanel;
+  const page = captainNotebookFrame().notebook.page;
+  return { ...page };
+}
+
+function pageCloseButtonRect(panel) {
+  if (captainMenu.isOpen) return null;
+  return {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
+}
+
+function drawPageCloseButton(rect, hoverPoint) {
+  if (!rect) return;
+  drawOptionsCloseButton(rect, pointInRect(hoverPoint, rect));
+}
+
+function captainNotebookActiveActionId() {
+  if (!captainMenu.isOpen) return null;
+  if (optionsMenu.isOpen) return "options";
+  if (discoveriesMenu.isOpen) return "discoveries";
+  if (achievementsMenu.isOpen) return "achievements";
+  if (shipInfoMenu.isOpen) return "ship";
+  if (politicsMenu.isOpen) return "politics";
+  if (navigationMenu.isOpen) return "navigation";
+  if (aboardMenu.isOpen) return "aboard";
+  if (captainAlertModal?.kind === "sailing-help") return "sailing-basics";
+  return "map";
+}
+
+function closeCaptainNotebookPages() {
+  closeOptionsMenu();
+  closeDiscoveriesMenu();
+  closeAchievementsMenu();
+  closeShipInfoMenu();
+  closePoliticsMenu();
+  closeNavigationMenu();
+  closeAboardMenu();
+  if (captainAlertModal?.kind === "sailing-help") closeCaptainAlertModal();
+}
+
+function closeCaptainNotebook() {
+  closeCaptainNotebookPages();
+  closeCaptainMenu();
+}
+
 function recenterCaptainChartMap() {
   if (!minimap || !Number.isInteger(centerTileId)) return false;
   captainMenu.mapCenterX = minimap.tileProjectedX[centerTileId];
@@ -9713,6 +9783,8 @@ function panCaptainChartMap(directionX, directionY, fraction = CAPTAIN_MAP_PAN_F
 function activateCaptainMenuSelection(index) {
   const action = CAPTAIN_MENU_ACTIONS[index];
   if (!action) throw new Error(`Unknown captain menu item: ${index}`);
+  closeCaptainNotebookPages();
+  captainMenu.selectedIndex = index;
   if (action.id === "map") dirty = true;
   else if (action.id === "ship") openShipInfoMenu();
   else if (action.id === "aboard") openAboardMenu();
@@ -9721,7 +9793,6 @@ function activateCaptainMenuSelection(index) {
   else if (action.id === "achievements") openAchievementsMenu();
   else if (action.id === "navigation") openNavigationMenu();
   else if (action.id === "sailing-basics") {
-    closeCaptainMenu();
     if (!openSailingHelpModal(sailingTutorialInputMode)) {
       throw new Error("Could not open Sailing Basics from the captain menu");
     }
@@ -10306,10 +10377,6 @@ function handlePointerUp(event) {
 }
 
 function handleCaptainMenuPointerDown(event, point) {
-  if (pointInRect(point, captainMenu.closeButtonRect)) {
-    closeCaptainMenu();
-    return;
-  }
   if (captainMenu.mapZoomOutRect && pointInRect(point, expandedRect(captainMenu.mapZoomOutRect, 3))) {
     stepCaptainChartZoom(-1);
     return;
@@ -10354,6 +10421,19 @@ function handleCaptainMenuPointerDown(event, point) {
     activateCaptainMenuSelection(index);
     return;
   }
+}
+
+function handleCaptainNotebookChromePointerDown(point) {
+  if (pointInRect(point, captainMenu.closeButtonRect)) {
+    closeCaptainNotebook();
+    return true;
+  }
+  for (let index = 0; index < captainMenu.itemRects.length; index++) {
+    if (!pointInRect(point, captainMenu.itemRects[index])) continue;
+    activateCaptainMenuSelection(index);
+    return true;
+  }
+  return false;
 }
 
 function updateCaptainChartMapDrag(point) {
@@ -15982,12 +16062,23 @@ function handleControllerAction(action) {
       }
       return;
     }
-    if (shipInfoMenu.isOpen) {
-      stepShipInfoView(action === "firePort" ? -1 : 1);
+    if (captainMenu.isOpen) {
+      const activeIndex = CAPTAIN_MENU_ACTIONS.findIndex(
+        (entry) => entry.id === captainNotebookActiveActionId()
+      );
+      if (activeIndex < 0) {
+        throw new Error(`Captain notebook has no active tab: ${captainNotebookActiveActionId()}`);
+      }
+      activateCaptainMenuSelection(stepMenuIndex(
+        activeIndex,
+        action === "firePort" ? -1 : 1,
+        CAPTAIN_MENU_ACTIONS.length
+      ));
+      sailingTutorialInputMode = "controller";
       return;
     }
-    if (captainMenu.isOpen) {
-      stepCaptainChartZoom(action === "firePort" ? -1 : 1);
+    if (shipInfoMenu.isOpen) {
+      stepShipInfoView(action === "firePort" ? -1 : 1);
       return;
     }
     if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
@@ -16033,6 +16124,10 @@ function handleControllerAction(action) {
         "Escape",
         lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE ? KEY_ACTION.CAPTAIN_MENU : null
       );
+      return;
+    }
+    if (captainMenu.isOpen) {
+      closeCaptainNotebook();
       return;
     }
     if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) openCaptainMenu();
@@ -22040,6 +22135,7 @@ function render(nowMs) {
   if (achievementsMenu.isOpen) drawAchievementsMenu();
   if (creditsMenu.isOpen) drawCreditsMenu();
   if (optionsMenu.isOpen) drawOptionsMenu();
+  if (captainMenu.isOpen) drawCaptainNotebookChrome();
   drawItemAcquisitionEffects(nowMs);
   drawAchievementNotice(nowMs);
   drawSavePersistenceWarning();
@@ -23506,7 +23602,14 @@ function getOptionsButtonRect() {
 }
 
 function drawCaptainMenuButton() {
-  if (startMenu || gameOverReason || playerIntroModal || captainAlertModal || dialogueState) return;
+  if (
+    startMenu ||
+    gameOverReason ||
+    playerIntroModal ||
+    captainAlertModal ||
+    dialogueState ||
+    captainMenu.isOpen
+  ) return;
   const rect = getCaptainMenuButtonRect();
   captainMenu.buttonRect = rect;
   const hovered = !menusAreOpen() && pointInRect(captainMenu.hoverPoint, expandedRect(rect, 3));
@@ -23531,47 +23634,19 @@ function drawCaptainMenuButton() {
 }
 
 function drawCaptainMenu(nowMs) {
-  const panelWidth = Math.min(CAPTAIN_MENU_PANEL_W, SCREEN_W - 12);
-  const panelHeight = Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12);
-  const panel = {
-    x: Math.floor((SCREEN_W - panelWidth) / 2),
-    y: Math.floor((SCREEN_H - panelHeight) / 2),
-    w: panelWidth,
-    h: panelHeight
-  };
-  const desiredRailWidth = Math.max(
-    92,
-    ...CAPTAIN_MENU_ACTIONS.map((action) => (
-      measurePixelTextWidth(captainMenuActionLabel(action), PIXEL_FONT_SMALL_8) +
-      GAME_ICON_SIZE + 24
-    ))
-  );
-  const notebook = captainNotebookLayout({
-    panel,
-    actionCount: CAPTAIN_MENU_ACTIONS.length,
-    desiredRailWidth
-  });
+  const frame = captainNotebookFrame();
+  const panel = frame.notebook.page;
   captainMenu.panelRect = panel;
-  captainMenu.closeButtonRect = {
-    x: notebook.page.x + notebook.page.w - UI_ICON_BUTTON_SIZE - 6,
-    y: notebook.page.y + 6,
-    w: UI_ICON_BUTTON_SIZE,
-    h: UI_ICON_BUTTON_SIZE
-  };
 
   ctx.save();
   drawPiratePaperModal(panel, 0.82);
-  drawOptionsCloseButton(
-    captainMenu.closeButtonRect,
-    pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
-  );
   const panelHeader = captainChartHeaderLayout({
-    panelY: notebook.page.y,
+    panelY: panel.y,
     dialogueFontSize: pixelFontSizePx(PIXEL_FONT_DIALOGUE_8),
     smallFontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
   });
-  const titleLeft = notebook.page.x + 10;
-  const titleRight = captainMenu.closeButtonRect.x - 4;
+  const titleLeft = panel.x + 10;
+  const titleRight = panel.x + panel.w - 10;
   const titleWidth = titleRight - titleLeft;
   const chartTitle = uiText("captain.chart");
   const titleFont = measurePixelTextWidth(chartTitle, PIXEL_FONT_DIALOGUE_8) <= titleWidth
@@ -23588,8 +23663,7 @@ function drawCaptainMenu(nowMs) {
     }
   );
 
-  drawCaptainChart(notebook.page, nowMs);
-  drawCaptainNotebookTabs(notebook);
+  drawCaptainChart(panel, nowMs);
   ctx.restore();
 }
 
@@ -23598,20 +23672,43 @@ function captainMenuActionLabel(action) {
   return uiText(action.labelKey);
 }
 
+function drawCaptainNotebookChrome() {
+  const frame = captainNotebookFrame();
+  captainMenu.panelRect = frame.notebook.page;
+  captainMenu.closeButtonRect = { ...frame.closeButtonRect };
+  ctx.save();
+  drawCaptainNotebookTabs(frame.notebook);
+  drawOptionsCloseButton(
+    captainMenu.closeButtonRect,
+    pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
+  );
+  ctx.restore();
+}
+
 function drawCaptainNotebookTabs(notebook) {
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(notebook.page.x + 0.5, notebook.page.y + 4);
-  ctx.lineTo(notebook.page.x + 0.5, notebook.page.y + notebook.page.h - 4);
+  if (notebook.placement === "side") {
+    ctx.moveTo(notebook.page.x + 0.5, notebook.page.y + 4);
+    ctx.lineTo(notebook.page.x + 0.5, notebook.page.y + notebook.page.h - 4);
+  } else if (notebook.placement === "bottom") {
+    ctx.moveTo(notebook.rail.x + 4, notebook.rail.y + 0.5);
+    ctx.lineTo(notebook.rail.x + notebook.rail.w - 4, notebook.rail.y + 0.5);
+  } else {
+    throw new Error(`Unknown captain notebook tab placement: ${notebook.placement}`);
+  }
   ctx.stroke();
 
   captainMenu.itemRects = notebook.tabs.map((rect) => ({ ...rect }));
+  let hoveredIndex = -1;
+  const activeActionId = captainNotebookActiveActionId();
   captainMenu.itemRects.forEach((rect, index) => {
     const action = CAPTAIN_MENU_ACTIONS[index];
-    const activePage = action.id === "map";
+    const activePage = action.id === activeActionId;
     const focused = index === captainMenu.selectedIndex;
     const hovered = pointInRect(captainMenu.hoverPoint, rect);
+    if (hovered) hoveredIndex = index;
     ctx.fillStyle = activePage
       ? PIRATE_MENU_PAPER
       : focused || hovered
@@ -23620,15 +23717,23 @@ function drawCaptainNotebookTabs(notebook) {
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     ctx.strokeStyle = focused || hovered ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
     ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-    if (activePage) {
+    if (activePage && notebook.placement === "side") {
       ctx.fillStyle = PIRATE_MENU_PAPER;
       ctx.fillRect(notebook.page.x - 1, rect.y + 1, 3, rect.h - 2);
       ctx.fillStyle = PIRATE_MENU_CHART_LINE;
       ctx.fillRect(rect.x + 2, rect.y + 2, 2, rect.h - 4);
+    } else if (activePage && notebook.placement === "bottom") {
+      ctx.fillStyle = PIRATE_MENU_PAPER;
+      ctx.fillRect(rect.x + 1, notebook.page.y + notebook.page.h - 1, rect.w - 2, 3);
+      ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+      ctx.fillRect(rect.x + 2, rect.y + rect.h - 3, rect.w - 4, 2);
     }
-    const iconX = rect.x + 7;
+    const iconX = notebook.placement === "bottom"
+      ? rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2)
+      : rect.x + 7;
     const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
     drawCaptainMenuItemIcon(index, iconX, iconY, activePage || focused || hovered);
+    if (notebook.placement === "bottom") return;
     const textX = iconX + GAME_ICON_SIZE + 5;
     const textWidth = rect.x + rect.w - textX - 5;
     drawOptionsText(
@@ -23640,6 +23745,39 @@ function drawCaptainNotebookTabs(notebook) {
         color: PIRATE_MENU_INK
       }
     );
+  });
+
+  if (notebook.placement === "bottom") {
+    drawCaptainBottomTabLabel(notebook, hoveredIndex);
+  }
+}
+
+function drawCaptainBottomTabLabel(notebook, hoveredIndex) {
+  const labelIndex = hoveredIndex >= 0
+    ? hoveredIndex
+    : sailingTutorialInputMode === "keyboard" || sailingTutorialInputMode === "controller"
+      ? captainMenu.selectedIndex
+      : -1;
+  if (labelIndex < 0) return;
+  const action = CAPTAIN_MENU_ACTIONS[labelIndex];
+  if (!action) throw new Error(`Captain bottom tab label has no action: ${labelIndex}`);
+  const label = fitPixelText(
+    captainMenuActionLabel(action),
+    PIXEL_FONT_SMALL_8,
+    notebook.page.w - 18
+  );
+  const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 8;
+  const height = pixelFontSizePx(PIXEL_FONT_SMALL_8) + 2;
+  const x = notebook.page.x + Math.floor((notebook.page.w - width) / 2);
+  const y = notebook.rail.y + notebook.tabHeight + 1;
+  ctx.fillStyle = PIRATE_MENU_PAPER;
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+  drawOptionsText(label, x + Math.floor(width / 2), y + 1, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "center",
+    color: PIRATE_MENU_INK
   });
 }
 
@@ -24585,19 +24723,14 @@ function removeSelectedNavigationWaypoint() {
 }
 
 function drawNavigationMenu() {
-  const panel = {
+  const panel = captainNotebookPagePanel({
     x: Math.floor((SCREEN_W - Math.min(NAVIGATION_MENU_PANEL_W, SCREEN_W - 12)) / 2),
     y: Math.floor((SCREEN_H - Math.min(NAVIGATION_MENU_PANEL_H, SCREEN_H - 12)) / 2),
     w: Math.min(NAVIGATION_MENU_PANEL_W, SCREEN_W - 12),
     h: Math.min(NAVIGATION_MENU_PANEL_H, SCREEN_H - 12)
-  };
+  });
   navigationMenu.panelRect = panel;
-  navigationMenu.closeButtonRect = {
-    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
-    y: panel.y + 6,
-    w: UI_ICON_BUTTON_SIZE,
-    h: UI_ICON_BUTTON_SIZE
-  };
+  navigationMenu.closeButtonRect = pageCloseButtonRect(panel);
   const page = navigationMenuPage();
   const listX = panel.x + 10;
   const listY = panel.y + 38;
@@ -24605,10 +24738,7 @@ function drawNavigationMenu() {
 
   ctx.save();
   drawPiratePaperModal(panel, 0.86);
-  drawOptionsCloseButton(
-    navigationMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, navigationMenu.closeButtonRect)
-  );
+  drawPageCloseButton(navigationMenu.closeButtonRect, optionsMenu.hoverPoint);
   drawOptionsText(uiText("captain.navigation"), panel.x + panel.w / 2, panel.y + 10, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
@@ -24804,12 +24934,12 @@ function drawOptionsButton() {
 }
 
 function drawShipInfoMenu() {
-  const panel = {
+  const panel = captainNotebookPagePanel({
     x: SHIP_INFO_PANEL_X,
     y: SHIP_INFO_PANEL_Y,
     w: SHIP_INFO_PANEL_W,
     h: SHIP_INFO_PANEL_H
-  };
+  });
   const view = createShipInfoView(ship, gameState);
   const cargoPage = shipInfoCargoPage(view, shipInfoMenu.cargoPage);
   shipInfoMenu.cargoPage = cargoPage.page;
@@ -24821,19 +24951,11 @@ function drawShipInfoMenu() {
   ctx.save();
   drawPiratePaperModal(panel, 0.9);
 
-  shipInfoMenu.closeButtonRect = {
-    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
-    y: panel.y + 6,
-    w: UI_ICON_BUTTON_SIZE,
-    h: UI_ICON_BUTTON_SIZE
-  };
-  drawShipInfoCloseButton(
-    shipInfoMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, shipInfoMenu.closeButtonRect)
-  );
+  shipInfoMenu.closeButtonRect = pageCloseButtonRect(panel);
+  drawPageCloseButton(shipInfoMenu.closeButtonRect, optionsMenu.hoverPoint);
   drawShipInfoTabs(panel);
   const vesselTitle = view.captainName ? `${view.captainName} / ${view.label}` : view.label;
-  if (SCREEN_W < 400) {
+  if (panel.w < 400) {
     const compactTitle = shipInfoMenu.view === "ledger"
       ? "CAPTAIN'S LEDGER"
       : shipInfoMenu.view === "papers"
@@ -24850,6 +24972,7 @@ function drawShipInfoMenu() {
       if (shipInfoMenu.paperDetailIndex !== null) drawShipPaperDetail(panel, view);
       else drawCompactShipPapers(panel, view);
     }
+    else if (panel.h < 300) drawNotebookShipVessel(panel, view, cargoPage);
     else drawCompactShipVessel(panel, view, cargoPage);
     ctx.restore();
     return;
@@ -24860,7 +24983,9 @@ function drawShipInfoMenu() {
       ? "SHIP'S INVENTORY"
       : vesselTitle.toUpperCase();
   const titleLeft = shipInfoMenu.papersTabRect.x + shipInfoMenu.papersTabRect.w + 7;
-  const titleRight = shipInfoMenu.closeButtonRect.x - 7;
+  const titleRight = shipInfoMenu.closeButtonRect
+    ? shipInfoMenu.closeButtonRect.x - 7
+    : panel.x + panel.w - 10;
   drawOptionsText(
     fitPixelText(title, PIXEL_FONT_SMALL_8, titleRight - titleLeft),
     (titleLeft + titleRight) / 2,
@@ -24989,6 +25114,109 @@ function drawShipInfoMenu() {
     shipInfoMenu.nextPageRect = null;
   }
   ctx.restore();
+}
+
+function drawNotebookShipVessel(panel, view, cargoPage) {
+  const artW = Math.floor(SHIP_INFO_SIDE_VIEW_W / 2);
+  const artH = Math.floor(SHIP_INFO_SIDE_VIEW_H / 2);
+  const artX = panel.x + 12;
+  const artY = panel.y + 48;
+  ctx.fillStyle = "#323353";
+  ctx.fillRect(artX, artY, artW, artH);
+  ctx.strokeStyle = "#7f708a";
+  ctx.strokeRect(artX + 0.5, artY + 0.5, artW - 1, artH - 1);
+  const sideView = shipInfoImages.get(view.slug);
+  if (sideView) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sideView, artX, artY, artW, artH);
+  } else {
+    drawOptionsText(shipInfoMenu.error || "LOADING SHIP...", artX + artW / 2, artY + 22, {
+      align: "center",
+      color: shipInfoMenu.error ? "#f68181" : "#9babb2"
+    });
+  }
+
+  const leftValueX = artX + artW;
+  drawOptionsText(`DRINK ${remainingSupplyDayCount(view.survival.drinkDays)}D`, artX, artY + artH + 7, {
+    color: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
+  });
+  drawOptionsText(`FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`, leftValueX, artY + artH + 7, {
+    align: "right",
+    color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+  });
+  drawOptionsText(`HOLD ${view.cargoUsedLabel}/${view.cargoCapacity}`, artX, artY + artH + 20, {
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText(`${view.doubloons} DB`, leftValueX, artY + artH + 20, {
+    align: "right",
+    color: PIRATE_MENU_INK
+  });
+
+  const statsX = artX + artW + 12;
+  const valueX = panel.x + panel.w - 12;
+  let statsY = artY;
+  drawShipInfoValueRow(
+    `${renderedUiText("HULL")} / ${renderedUiText("ARMOR")}`,
+    `${view.hull}/${view.maxHull}  ${view.armor}%`,
+    statsX,
+    valueX,
+    statsY
+  );
+  drawShipInfoBar(statsX, statsY + 10, valueX - statsX, view.hull / view.maxHull, "#91db69");
+  statsY += 18;
+  drawShipInfoValueRow(
+    `${renderedUiText("CREW")} / ${renderedUiText(view.armamentLabel)}`,
+    `${view.crew}/${view.crewCapacity}  ${view.armamentSummary}`,
+    statsX,
+    valueX,
+    statsY
+  );
+  statsY += 12;
+  drawShipInfoValueRow("PROPULSION", view.propulsionSummary, statsX, valueX, statsY);
+  statsY += 13;
+  const ratings = [
+    ["SPEED", view.ratings.speed],
+    ["ACCEL", view.ratings.acceleration],
+    ["TURNING", view.ratings.turning],
+    ["WINDWARD", view.ratings.windward],
+    ["SEAWORTHY", view.seaworthiness]
+  ];
+  for (const [label, rating] of ratings) {
+    drawNotebookShipRating(label, rating, statsX, valueX, statsY);
+    statsY += 11;
+  }
+
+  const cargoY = panel.y + 152;
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  ctx.fillRect(panel.x + 10, cargoY, panel.w - 20, 1);
+  drawOptionsText("CARGO MANIFEST", panel.x + 12, cargoY + 6, { color: PIRATE_MENU_INK });
+  const maxRows = 3;
+  cargoPage.rows.slice(0, maxRows).forEach((row, index) => {
+    const rowY = cargoY + 23 + index * 17;
+    drawGameIcon(tradeGoodIconId(row.id), panel.x + 12, rowY - 4);
+    drawOptionsText(
+      fitPixelText(`${row.label} ${row.quantityLabel}`, PIXEL_FONT_SMALL_8, panel.w - 108),
+      panel.x + 12 + GAME_ICON_SIZE + 4,
+      rowY,
+      { color: PIRATE_MENU_INK }
+    );
+    const basis = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
+    drawOptionsText(basis, valueX, rowY, { align: "right", color: PIRATE_MENU_INK_MUTED });
+  });
+  if (cargoPage.rows.length === 0) {
+    drawOptionsText("THE HOLD IS EMPTY", panel.x + 12, cargoY + 23, { color: PIRATE_MENU_INK_MUTED });
+  }
+  drawCompactShipPager(panel, cargoPage.page, cargoPage.pageCount, "MANIFEST");
+}
+
+function drawNotebookShipRating(label, rating, x, valueX, y) {
+  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
+  const meterX = x + 51;
+  for (let index = 0; index < 10; index++) {
+    ctx.fillStyle = index < rating ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
+    ctx.fillRect(meterX + index * 5, y + 2, 4, 5);
+  }
+  drawOptionsText(String(rating), valueX, y, { align: "right", color: PIRATE_MENU_INK });
 }
 
 function drawCompactShipVessel(panel, view, cargoPage) {
@@ -25591,9 +25819,15 @@ function drawShipInfoArrowButton(rect, label, hovered) {
 }
 
 function drawDiscoveriesMenu() {
-  const panelX = Math.floor((SCREEN_W - DISCOVERIES_PANEL_W) / 2);
-  const panelY = Math.floor((SCREEN_H - DISCOVERIES_PANEL_H) / 2);
-  discoveriesMenu.panelRect = { x: panelX, y: panelY, w: DISCOVERIES_PANEL_W, h: DISCOVERIES_PANEL_H };
+  const panel = captainNotebookPagePanel({
+    x: Math.floor((SCREEN_W - DISCOVERIES_PANEL_W) / 2),
+    y: Math.floor((SCREEN_H - DISCOVERIES_PANEL_H) / 2),
+    w: DISCOVERIES_PANEL_W,
+    h: DISCOVERIES_PANEL_H
+  });
+  const panelX = panel.x;
+  const panelY = panel.y;
+  discoveriesMenu.panelRect = panel;
   discoveriesMenu.wonderRowRects = [];
   discoveriesMenu.detailBackRect = null;
   discoveriesMenu.detailUpRect = null;
@@ -25606,14 +25840,12 @@ function drawDiscoveriesMenu() {
   const headerLayout = discoveriesMenuHeaderLayout({
     panelRect: discoveriesMenu.panelRect,
     closeButtonSize: closeSize,
-    tabHeight: UI_TAB_H
+    tabHeight: UI_TAB_H,
+    reserveCloseButton: !captainMenu.isOpen
   });
   discoveriesMenu.closeButtonRect = headerLayout.closeButtonRect;
-  drawOptionsCloseButton(
-    discoveriesMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, discoveriesMenu.closeButtonRect)
-  );
-  drawOptionsText("DISCOVERIES", panelX + DISCOVERIES_PANEL_W / 2, panelY + 9, {
+  drawPageCloseButton(discoveriesMenu.closeButtonRect, optionsMenu.hoverPoint);
+  drawOptionsText("DISCOVERIES", panelX + panel.w / 2, panelY + 9, {
     align: "center",
     color: PIRATE_MENU_INK
   });
@@ -25641,7 +25873,7 @@ function drawDiscoveriesMenu() {
   const total = discoveriesMenu.tab === "animals" ? ANIMAL_CATALOG.length : discoveryCatalog.length;
   const foundFraction = total > 0 ? entries.length / total : 0;
   const mappedFraction = minimap ? minimap.seenTileCount / graph.tileCount : 0;
-  const progressWidth = DISCOVERIES_PANEL_W - 24;
+  const progressWidth = panel.w - 24;
   drawDiscoveryProgressRow(
     panelX + 12,
     panelY + 53 + bodyOffsetY,
@@ -25691,7 +25923,7 @@ function drawDiscoveriesMenu() {
     discoveriesMenu.wonderRowRects = pageEntries.map((_, index) => ({
       x: panelX + 10,
       y: listY - 2 + index * 36,
-      w: DISCOVERIES_PANEL_W - 20,
+      w: panel.w - 20,
       h: 34
     }));
   }
@@ -25719,7 +25951,7 @@ function drawDiscoveriesMenu() {
         ctx.fillRect(listX + 17, y + 16, 2, 2);
       }
       const textX = listX + 42;
-      const textWidth = DISCOVERIES_PANEL_W - 82;
+      const textWidth = panel.w - 82;
       const localizedName = renderedUiText(entry.displayName).toUpperCase();
       drawOptionsText(
         fitPixelText(localizedName, PIXEL_FONT_SMALL_8, textWidth),
@@ -25732,7 +25964,7 @@ function drawDiscoveriesMenu() {
       drawPixelText(detail, textX, y + 20, { font: PIXEL_FONT_SMALL_8 });
       if (rowRect) {
         const hovered = pointInRect(optionsMenu.hoverPoint, rowRect);
-        drawOptionsText(">", panelX + DISCOVERIES_PANEL_W - 15 + (hovered ? 1 : 0), y + 13, {
+        drawOptionsText(">", panelX + panel.w - 15 + (hovered ? 1 : 0), y + 13, {
           align: "right",
           color: hovered ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE
         });
@@ -25740,10 +25972,10 @@ function drawDiscoveriesMenu() {
     });
   }
 
-  const pagerY = panelY + DISCOVERIES_PANEL_H - UI_PAGER_BUTTON_H - 5;
+  const pagerY = panelY + panel.h - UI_PAGER_BUTTON_H - 5;
   discoveriesMenu.previousPageRect = { x: panelX + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
   discoveriesMenu.nextPageRect = {
-    x: panelX + DISCOVERIES_PANEL_W - 12 - UI_PAGER_BUTTON_W,
+    x: panelX + panel.w - 12 - UI_PAGER_BUTTON_W,
     y: pagerY,
     w: UI_PAGER_BUTTON_W,
     h: UI_PAGER_BUTTON_H
@@ -25758,7 +25990,7 @@ function drawDiscoveriesMenu() {
     ">",
     pointInRect(optionsMenu.hoverPoint, discoveriesMenu.nextPageRect)
   );
-  drawOptionsText(`PAGE ${discoveriesMenu.page + 1}/${pageCount}`, panelX + DISCOVERIES_PANEL_W / 2, pagerY + 3, {
+  drawOptionsText(`PAGE ${discoveriesMenu.page + 1}/${pageCount}`, panelX + panel.w / 2, pagerY + 3, {
     align: "center",
     color: PIRATE_MENU_INK_MUTED
   });
@@ -26070,12 +26302,12 @@ function drawAboardMenu() {
   const roster = currentAboardRoster();
   const panelW = Math.min(ABOARD_MENU_PANEL_W, SCREEN_W - 12);
   const panelH = Math.min(ABOARD_MENU_PANEL_H, SCREEN_H - 12);
-  const panel = {
+  const panel = captainNotebookPagePanel({
     x: Math.floor((SCREEN_W - panelW) / 2),
     y: Math.floor((SCREEN_H - panelH) / 2),
     w: panelW,
     h: panelH
-  };
+  });
   const body = {
     x: panel.x + 10,
     y: panel.y + 37,
@@ -26087,12 +26319,7 @@ function drawAboardMenu() {
   aboardMenu.viewportHeight = body.h;
   aboardMenu.maxScrollY = Math.max(0, layout.height - body.h);
   aboardMenu.scrollY = clamp(aboardMenu.scrollY, 0, aboardMenu.maxScrollY);
-  aboardMenu.closeButtonRect = {
-    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
-    y: panel.y + 6,
-    w: UI_ICON_BUTTON_SIZE,
-    h: UI_ICON_BUTTON_SIZE
-  };
+  aboardMenu.closeButtonRect = pageCloseButtonRect(panel);
   if (aboardMenu.selectedNamedId) {
     drawAboardCharacterDetail(roster, panel);
     return;
@@ -26100,10 +26327,7 @@ function drawAboardMenu() {
 
   ctx.save();
   drawPiratePaperModal(panel, 0.84);
-  drawOptionsCloseButton(
-    aboardMenu.closeButtonRect,
-    pointInRect(captainMenu.hoverPoint, aboardMenu.closeButtonRect)
-  );
+  drawPageCloseButton(aboardMenu.closeButtonRect, captainMenu.hoverPoint);
   drawOptionsText(
     fitPixelText(uiText("aboard.title"), PIXEL_FONT_DIALOGUE_8, panel.w - 86),
     panel.x + panel.w / 2,
@@ -26289,10 +26513,7 @@ function drawAboardCharacterDetail(roster, panel) {
     "<",
     pointInRect(optionsMenu.hoverPoint, aboardMenu.backButtonRect)
   );
-  drawOptionsCloseButton(
-    aboardMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, aboardMenu.closeButtonRect)
-  );
+  drawPageCloseButton(aboardMenu.closeButtonRect, optionsMenu.hoverPoint);
   drawOptionsText(
     fitPixelText(character.name.toUpperCase(), PIXEL_FONT_DIALOGUE_8, panel.w - 92),
     panel.x + panel.w / 2,
@@ -26465,23 +26686,18 @@ function aboardRoleColor(role) {
 }
 
 function drawAchievementsMenu() {
-  const panelX = Math.floor((SCREEN_W - ACHIEVEMENTS_PANEL_W) / 2);
-  const panelY = Math.floor((SCREEN_H - ACHIEVEMENTS_PANEL_H) / 2);
-  const panel = { x: panelX, y: panelY, w: ACHIEVEMENTS_PANEL_W, h: ACHIEVEMENTS_PANEL_H };
+  const panel = captainNotebookPagePanel({
+    x: Math.floor((SCREEN_W - ACHIEVEMENTS_PANEL_W) / 2),
+    y: Math.floor((SCREEN_H - ACHIEVEMENTS_PANEL_H) / 2),
+    w: ACHIEVEMENTS_PANEL_W,
+    h: ACHIEVEMENTS_PANEL_H
+  });
   achievementsMenu.panelRect = panel;
 
   ctx.save();
   drawPiratePaperModal(panel, 0.82);
-  achievementsMenu.closeButtonRect = {
-    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
-    y: panel.y + 6,
-    w: UI_ICON_BUTTON_SIZE,
-    h: UI_ICON_BUTTON_SIZE
-  };
-  drawOptionsCloseButton(
-    achievementsMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, achievementsMenu.closeButtonRect)
-  );
+  achievementsMenu.closeButtonRect = pageCloseButtonRect(panel);
+  drawPageCloseButton(achievementsMenu.closeButtonRect, optionsMenu.hoverPoint);
   drawOptionsText("ACHIEVEMENTS", panel.x + panel.w / 2, panel.y + 9, {
     align: "center",
     color: PIRATE_MENU_INK
@@ -26628,29 +26844,21 @@ function achievementProgressLabel(entry, progress) {
 }
 
 function drawPoliticsMenu() {
-  const panel = {
+  const panel = captainNotebookPagePanel({
     x: POLITICS_PANEL_X,
     y: POLITICS_PANEL_Y,
     w: POLITICS_PANEL_W,
     h: POLITICS_PANEL_H
-  };
+  });
   const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
-  const pagination = politicsCardPagination(view);
+  const pagination = politicsCardPagination(view, panel);
   politicsMenu.page = pagination.page.page;
 
   ctx.save();
   drawPiratePaperModal(panel, 0.78);
   politicsMenu.panelRect = panel;
-  politicsMenu.closeButtonRect = {
-    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
-    y: panel.y + 6,
-    w: UI_ICON_BUTTON_SIZE,
-    h: UI_ICON_BUTTON_SIZE
-  };
-  drawOptionsCloseButton(
-    politicsMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, politicsMenu.closeButtonRect)
-  );
+  politicsMenu.closeButtonRect = pageCloseButtonRect(panel);
+  drawPageCloseButton(politicsMenu.closeButtonRect, optionsMenu.hoverPoint);
   drawOptionsText(uiText("politics.title"), panel.x + panel.w / 2, panel.y + 9, {
     align: "center",
     color: PIRATE_MENU_INK
@@ -26703,11 +26911,16 @@ function drawPoliticsMenu() {
   ctx.restore();
 }
 
-function politicsCardPagination(view) {
+function politicsCardPagination(view, panel = captainNotebookPagePanel({
+  x: POLITICS_PANEL_X,
+  y: POLITICS_PANEL_Y,
+  w: POLITICS_PANEL_W,
+  h: POLITICS_PANEL_H
+})) {
   const newsHeight = 12;
   const layout = politicsCardGridLayout({
-    panelWidth: POLITICS_PANEL_W,
-    panelHeight: POLITICS_PANEL_H,
+    panelWidth: panel.w,
+    panelHeight: panel.h,
     lineHeight: currentLanguageProfile.tableRowHeight,
     pagerHeight: UI_PAGER_BUTTON_H,
     newsHeight
@@ -27886,32 +28099,35 @@ function drawOptionsMenu() {
     drawControlSchemeMenu();
     return;
   }
-  const panelX = Math.floor((SCREEN_W - OPTIONS_PANEL_W) / 2);
   const panelH = Math.min(OPTIONS_PANEL_H, SCREEN_H - 20);
-  const panelY = Math.floor((SCREEN_H - panelH) / 2);
-  optionsMenu.panelRect = { x: panelX, y: panelY, w: OPTIONS_PANEL_W, h: panelH };
+  const panel = captainNotebookPagePanel({
+    x: Math.floor((SCREEN_W - OPTIONS_PANEL_W) / 2),
+    y: Math.floor((SCREEN_H - panelH) / 2),
+    w: OPTIONS_PANEL_W,
+    h: panelH
+  });
+  const panelX = panel.x;
+  const panelY = panel.y;
+  optionsMenu.panelRect = panel;
 
   ctx.save();
   drawPiratePaperModal(optionsMenu.panelRect, 0.78);
 
-  const closeSize = UI_ICON_BUTTON_SIZE;
-  const closeX = panelX + OPTIONS_PANEL_W - closeSize - 6;
-  const closeY = panelY + 6;
-  optionsMenu.closeButtonRect = { x: closeX, y: closeY, w: closeSize, h: closeSize };
-  drawOptionsCloseButton(optionsMenu.closeButtonRect, pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect));
+  optionsMenu.closeButtonRect = pageCloseButtonRect(panel);
+  drawPageCloseButton(optionsMenu.closeButtonRect, optionsMenu.hoverPoint);
 
-  drawOptionsText(uiText("options.title"), panelX + OPTIONS_PANEL_W / 2, panelY + 9, {
+  drawOptionsText(uiText("options.title"), panelX + panel.w / 2, panelY + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
   });
 
   const rowX = panelX + 10;
-  const rowW = OPTIONS_PANEL_W - 20;
+  const rowW = panel.w - 20;
   const firstRowY = panelY + 34;
   const rowLayout = fittedStackedMenuRows({
     startY: firstRowY,
-    endY: panelY + panelH - 8,
+    endY: panelY + panel.h - 8,
     rowCount: OPTIONS_ROW_COUNT,
     preferredRowHeight: OPTIONS_ROW_H - 2,
     minimumRowHeight: GAME_ICON_SIZE + 2,
@@ -27973,21 +28189,13 @@ function drawControlSchemeMenu() {
   const panelH = Math.min(CONTROL_SCHEME_PANEL_H, SCREEN_H - 12);
   const panelX = Math.floor((SCREEN_W - panelW) / 2);
   const panelY = Math.floor((SCREEN_H - panelH) / 2);
-  const panel = { x: panelX, y: panelY, w: panelW, h: panelH };
+  const panel = captainNotebookPagePanel({ x: panelX, y: panelY, w: panelW, h: panelH });
   optionsMenu.panelRect = panel;
 
   ctx.save();
   drawPiratePaperModal(panel, 0.82);
-  optionsMenu.closeButtonRect = {
-    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
-    y: panel.y + 6,
-    w: UI_ICON_BUTTON_SIZE,
-    h: UI_ICON_BUTTON_SIZE
-  };
-  drawOptionsCloseButton(
-    optionsMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect)
-  );
+  optionsMenu.closeButtonRect = pageCloseButtonRect(panel);
+  drawPageCloseButton(optionsMenu.closeButtonRect, optionsMenu.hoverPoint);
   drawOptionsText(uiText("options.controlScheme.title"), panel.x + panel.w / 2, panel.y + 10, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
@@ -28204,35 +28412,27 @@ function drawKeyBindingsMenu() {
   const panelH = Math.min(KEY_BINDINGS_PANEL_H, SCREEN_H - 20);
   const panelX = Math.floor((SCREEN_W - panelW) / 2);
   const panelY = Math.floor((SCREEN_H - panelH) / 2);
-  optionsMenu.panelRect = { x: panelX, y: panelY, w: panelW, h: panelH };
+  const panel = captainNotebookPagePanel({ x: panelX, y: panelY, w: panelW, h: panelH });
+  optionsMenu.panelRect = panel;
 
   ctx.save();
   drawPiratePaperModal(optionsMenu.panelRect, 0.78);
 
-  const closeSize = UI_ICON_BUTTON_SIZE;
-  optionsMenu.closeButtonRect = {
-    x: panelX + panelW - closeSize - 6,
-    y: panelY + 6,
-    w: closeSize,
-    h: closeSize
-  };
-  drawOptionsCloseButton(
-    optionsMenu.closeButtonRect,
-    pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect)
-  );
-  drawOptionsText(uiText("options.keyMapping"), panelX + panelW / 2, panelY + 9, {
+  optionsMenu.closeButtonRect = pageCloseButtonRect(panel);
+  drawPageCloseButton(optionsMenu.closeButtonRect, optionsMenu.hoverPoint);
+  drawOptionsText(uiText("options.keyMapping"), panel.x + panel.w / 2, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
   });
 
-  const rowX = panelX + 8;
-  const rowW = panelW - 16;
+  const rowX = panel.x + 8;
+  const rowW = panel.w - 16;
   const actionW = Math.min(132, Math.max(100, Math.floor(rowW * 0.35)));
   const slotGap = 4;
   const slotW = Math.floor((rowW - actionW - slotGap * 2) / 2);
-  const firstRowY = panelY + 35;
-  const buttonY = panelY + panelH - 31;
+  const firstRowY = panel.y + 35;
+  const buttonY = panel.y + panel.h - 31;
   const feedbackY = buttonY - 14;
   const bindingRowLayout = fittedStackedMenuRows({
     startY: firstRowY,
@@ -28298,8 +28498,8 @@ function drawKeyBindingsMenu() {
   }
 
   if (controllerPromptsVisible() && !optionsMenu.bindingFeedback) {
-    const hintX = panelX + 8;
-    const hintW = Math.floor((panelW - 16) / 3);
+    const hintX = panel.x + 8;
+    const hintW = Math.floor((panel.w - 16) / 3);
     drawControllerBindingHint(
       "confirm",
       uiText("options.keyMapping.rebind"),
@@ -28319,13 +28519,13 @@ function drawKeyBindingsMenu() {
       uiText("options.keyMapping.defaults"),
       hintX + hintW * 2,
       feedbackY - 4,
-      panelW - 16 - hintW * 2
+      panel.w - 16 - hintW * 2
     );
   } else {
     const feedback = optionsMenu.bindingFeedback || uiText("options.keyMapping.rebindHint");
     drawOptionsText(
       fitPixelText(feedback, PIXEL_FONT_SMALL_8, rowW),
-      panelX + panelW / 2,
+      panel.x + panel.w / 2,
       feedbackY,
       {
         font: PIXEL_FONT_SMALL_8,
@@ -28335,10 +28535,10 @@ function drawKeyBindingsMenu() {
     );
   }
 
-  optionsMenu.bindingBackRect = { x: panelX + 8, y: buttonY, w: 68, h: 24 };
-  optionsMenu.bindingResetRect = { x: panelX + 82, y: buttonY, w: 82, h: 24 };
-  optionsMenu.bindingPreviousRect = { x: panelX + panelW - 72, y: buttonY, w: 28, h: 24 };
-  optionsMenu.bindingNextRect = { x: panelX + panelW - 36, y: buttonY, w: 28, h: 24 };
+  optionsMenu.bindingBackRect = { x: panel.x + 8, y: buttonY, w: 68, h: 24 };
+  optionsMenu.bindingResetRect = { x: panel.x + 82, y: buttonY, w: 82, h: 24 };
+  optionsMenu.bindingPreviousRect = { x: panel.x + panel.w - 72, y: buttonY, w: 28, h: 24 };
+  optionsMenu.bindingNextRect = { x: panel.x + panel.w - 36, y: buttonY, w: 28, h: 24 };
   drawOptionsArrowButton(
     optionsMenu.bindingBackRect,
     uiText("common.back"),
@@ -28361,7 +28561,7 @@ function drawKeyBindingsMenu() {
   );
   drawOptionsText(
     `PAGE ${optionsMenu.bindingPage + 1}/${keyBindingsPageCount()}`,
-    panelX + panelW - 108,
+    panel.x + panel.w - 108,
     buttonY + 8,
     { font: PIXEL_FONT_SMALL_8, align: "right", color: PIRATE_MENU_INK_MUTED }
   );

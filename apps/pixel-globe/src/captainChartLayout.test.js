@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   captainChartHeaderLayout,
+  captainNotebookFrameLayout,
   captainNotebookLayout
 } from "./captainChartLayout.js";
 
@@ -32,6 +33,7 @@ test("captain notebook gives nine labeled tabs a side rail on the landscape canv
     actionCount: 9,
     desiredRailWidth: 112
   });
+  assert.equal(layout.placement, "side");
   assert.deepEqual(layout.rail, { x: 12, y: 6, w: 112, h: 244 });
   assert.deepEqual(layout.page, { x: 124, y: 6, w: 318, h: 244 });
   assert.equal(layout.tabs.length, 9);
@@ -40,16 +42,52 @@ test("captain notebook gives nine labeled tabs a side rail on the landscape canv
   assert.deepEqual(layout.tabs[8], { x: 16, y: 212, w: 109, h: 24 });
 });
 
-test("captain notebook keeps a useful map page on a narrow portrait canvas", () => {
+test("captain notebook gives a narrow portrait canvas an icon-only bottom row", () => {
   const layout = captainNotebookLayout({
     panel: { x: 6, y: 18, w: 244, h: 420 },
     actionCount: 9,
     desiredRailWidth: 112
   });
-  assert.equal(layout.rail.w, 112);
-  assert.equal(layout.page.w, 132);
-  assert.equal(layout.tabs[0].h, 44);
-  assert.ok(layout.page.w >= 104);
+  assert.equal(layout.placement, "bottom");
+  assert.deepEqual(layout.rail, { x: 6, y: 402, w: 244, h: 36 });
+  assert.deepEqual(layout.page, { x: 6, y: 18, w: 244, h: 384 });
+  assert.deepEqual(layout.tabs[0], { x: 16, y: 402, w: 24, h: 24 });
+  assert.deepEqual(layout.tabs[8], { x: 216, y: 402, w: 24, h: 24 });
+});
+
+test("captain notebook frame reserves a floating close button beside a landscape notebook", () => {
+  const frame = captainNotebookFrameLayout({
+    screenWidth: 455,
+    screenHeight: 256,
+    actionCount: 9,
+    desiredRailWidth: 112,
+    desiredPanelWidth: 430,
+    desiredPanelHeight: 420,
+    closeButtonSize: 24
+  });
+  assert.equal(frame.portrait, false);
+  assert.deepEqual(frame.closeButtonRect, { x: 5, y: 5, w: 24, h: 24 });
+  assert.deepEqual(frame.panel, { x: 34, y: 6, w: 415, h: 244 });
+  assert.equal(frame.notebook.placement, "side");
+  assert.deepEqual(frame.notebook.page, { x: 146, y: 6, w: 303, h: 244 });
+});
+
+test("captain notebook frame reserves its top corner and attaches tabs below a portrait page", () => {
+  const frame = captainNotebookFrameLayout({
+    screenWidth: 256,
+    screenHeight: 460,
+    actionCount: 9,
+    desiredRailWidth: 112,
+    desiredPanelWidth: 430,
+    desiredPanelHeight: 420,
+    closeButtonSize: 24
+  });
+  assert.equal(frame.portrait, true);
+  assert.deepEqual(frame.closeButtonRect, { x: 5, y: 5, w: 24, h: 24 });
+  assert.deepEqual(frame.panel, { x: 6, y: 34, w: 244, h: 420 });
+  assert.equal(frame.notebook.placement, "bottom");
+  assert.deepEqual(frame.notebook.page, { x: 6, y: 34, w: 244, h: 384 });
+  assert.equal(frame.notebook.tabs[0].y, frame.notebook.page.y + frame.notebook.page.h);
 });
 
 test("captain notebook rejects canvases that cannot fit readable tabs", () => {

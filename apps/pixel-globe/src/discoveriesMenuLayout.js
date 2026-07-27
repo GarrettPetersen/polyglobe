@@ -7,19 +7,27 @@ const ORIGINAL_TAB_OFFSET_Y = 27;
 export function discoveriesMenuHeaderLayout({
   panelRect,
   closeButtonSize,
-  tabHeight
+  tabHeight,
+  reserveCloseButton = true
 }) {
   assertRect(panelRect, "panel");
   assertPositiveInteger(closeButtonSize, "close button size");
   assertPositiveInteger(tabHeight, "tab height");
+  if (typeof reserveCloseButton !== "boolean") {
+    throw new Error(`Discoveries reserve-close mode must be boolean: ${reserveCloseButton}`);
+  }
 
-  const closeButtonRect = Object.freeze({
-    x: panelRect.x + panelRect.w - closeButtonSize - CLOSE_PAD,
-    y: panelRect.y + CLOSE_PAD,
-    w: closeButtonSize,
-    h: closeButtonSize
-  });
-  const tabY = closeButtonRect.y + closeButtonRect.h + TAB_GAP_BELOW_CLOSE;
+  const closeButtonRect = reserveCloseButton
+    ? Object.freeze({
+        x: panelRect.x + panelRect.w - closeButtonSize - CLOSE_PAD,
+        y: panelRect.y + CLOSE_PAD,
+        w: closeButtonSize,
+        h: closeButtonSize
+      })
+    : null;
+  const tabY = closeButtonRect
+    ? closeButtonRect.y + closeButtonRect.h + TAB_GAP_BELOW_CLOSE
+    : panelRect.y + ORIGINAL_TAB_OFFSET_Y;
   const tabWidth = Math.floor((panelRect.w - TAB_PAD_X * 2 - TAB_GAP) / 2);
   if (tabWidth <= 0) {
     throw new Error(`Discoveries tabs do not fit panel width: ${panelRect.w}`);
