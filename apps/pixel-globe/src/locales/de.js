@@ -269,6 +269,7 @@ export default {
   "faction.safavid": "SAFAWIDISCH",
   "faction.muscovy": "MOSKAUISCH",
   "faction.polandLithuania": "POLNISCH-LITAUISCH",
+  "faction.sweden": "SCHWEDISCH",
   "faction.denmarkNorway": "DÄNISCH-NORWEGISCH",
   "faction.songhai": "SONGHAI",
   "faction.morocco": "MAROKKANISCH",

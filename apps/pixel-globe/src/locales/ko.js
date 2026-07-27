@@ -269,6 +269,7 @@ export default {
   "faction.safavid": "사파비",
   "faction.muscovy": "모스크바",
   "faction.polandLithuania": "폴란드-리투아니아",
+  "faction.sweden": "스웨덴",
   "faction.denmarkNorway": "덴마크-노르웨이",
   "faction.songhai": "송가이",
   "faction.morocco": "모로코",

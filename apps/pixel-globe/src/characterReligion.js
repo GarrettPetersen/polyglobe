@@ -71,6 +71,7 @@ const CATHOLIC_FACTIONS = new Set([
   "papal-states",
   "hospitallers",
   "poland-lithuania",
+  "sweden",
   "denmark-norway"
 ]);
 const ORTHODOX_COUNTRIES = new Set([

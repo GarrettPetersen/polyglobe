@@ -966,6 +966,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "The Prussian truce rested the cavalry. It did nothing for their guarantors.",
     "We raised that cavalry on a royal warrant. Peace came before the treasury found our name."
   ),
+  sweden: debtOrigin(
+    "The regent has found credit in Lubeck. Your family found it here, at a less patriotic rate.",
+    "We pledged our iron and timber to provision the rising. The Danish bailiff took the cargo; the note survived him."
+  ),
   "denmark-norway": debtOrigin(
     "Stockholm yielded more readily than your royal paymaster.",
     "We mortgaged the farm to outfit the king's ships. The payment vanished into court quarrels."
@@ -1040,6 +1044,7 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   muscovy: "Novgorod's merchants know the Baltic by price and rumor. I want bearings that reach beyond their counting houses.",
   crimea: "Ottoman galleys hold the southern coast while our riders know the northern steppe. I want a Crimean chart of the seas between and beyond them.",
   "poland-lithuania": "Danzig hears of western lands and eastern seas from a dozen tongues. I want one captain's measured account.",
+  sweden: "Gustav Eriksson buys ships to break the Union, but a free kingdom will need charts as much as cannon. I would have Sweden look beyond this war.",
   "denmark-norway": "Our sagas remember western shores, while the king's ships fight over Sweden. I would rather recover the horizon than another crown.",
   songhai: "Timbuktu gathers the world in books and Gao in caravans. I want the Atlantic to answer what neither can.",
   morocco: "Portuguese forts advance along our coast as if the ocean belongs to them. A true chart is one way to dispute that claim.",

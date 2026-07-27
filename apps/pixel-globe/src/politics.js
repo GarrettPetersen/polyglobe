@@ -16,6 +16,7 @@ import {
   recentGamePapalActions,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
+import { papalActionNotice } from "./papalPolitics.js";
 import { rulerAtMinute } from "./rulers.js";
 import { religionById } from "./characterReligion.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
@@ -29,6 +30,7 @@ import {
   suzeraintyTradePrivilege,
   suzeraintyForVassal
 } from "./suzerainty.js";
+import { diplomacyEventNotice } from "./worldDiplomacy.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
@@ -47,12 +49,38 @@ export function createPoliticsView(gameState, simMinute = gameState?.survival?.l
   const powerById = new Map(powers.map((power) => [power.id, power]));
   const cards = powers.map((faction) => politicsCard(gameState, faction, powers, powerById, simMinute));
   const playerFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const recentEvents = recentGameDiplomacyEvents(gameState, 3);
+  const recentPapalActions = recentGamePapalActions(gameState, 3);
   return {
     powers,
-    recentEvents: recentGameDiplomacyEvents(gameState, 3),
-    recentPapalActions: recentGamePapalActions(gameState, 3),
+    recentEvents,
+    recentPapalActions,
+    latestNews: latestPoliticsNews({ recentEvents, recentPapalActions }),
     cards: orderPoliticsCards(cards, playerFactionId)
   };
+}
+
+export function latestPoliticsNews(view) {
+  if (!view || !Array.isArray(view.recentEvents) || !Array.isArray(view.recentPapalActions)) {
+    throw new Error("Latest politics news requires diplomacy and papal histories");
+  }
+  const diplomacy = view.recentEvents[0] || null;
+  const papal = view.recentPapalActions[0] || null;
+  if (!diplomacy && !papal) return null;
+  if (papal && (!diplomacy || papal.simMinute >= diplomacy.simMinute)) {
+    return Object.freeze({
+      source: "papal",
+      simMinute: papal.simMinute,
+      tone: "warn",
+      text: papalActionNotice(papal)
+    });
+  }
+  return Object.freeze({
+    source: "diplomacy",
+    simMinute: diplomacy.simMinute,
+    tone: diplomacy.kind === "peace" ? "good" : "warn",
+    text: diplomacyEventNotice(diplomacy)
+  });
 }
 
 export function politicalPowers(gameState = null) {

@@ -59,6 +59,12 @@ test("ruler succession happens at its queued date", () => {
   assert.equal(rulerAtMinute("ternate", gameMinuteForDate(1529, 1, 1)).name, "Dayal");
   assert.equal(rulerAtMinute("tidore", 0).name, "Al-Mansur");
   assert.equal(rulerAtMinute("tidore", gameMinuteForDate(1526, 1, 1)).name, "Mir");
+
+  assert.equal(rulerAtMinute("sweden", 0).displayName, "Regent Gustav Eriksson");
+  const swedishKingship = gameMinuteForDate(1523, 6, 6);
+  assert.equal(rulerAtMinute("sweden", swedishKingship - 1).title, "Regent");
+  assert.equal(rulerAtMinute("sweden", swedishKingship).displayName, "King Gustav I");
+  assert.equal(rulerAtMinute("sweden", gameMinuteForDate(1527, 6, 18)).religionId, "lutheran");
 });
 
 test("ruler change queue is chronological and excludes its starting boundary", () => {

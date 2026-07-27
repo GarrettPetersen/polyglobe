@@ -51,6 +51,7 @@ const EUROPEAN_FACTIONS = new Set([
   "hospitallers",
   "muscovy",
   "poland-lithuania",
+  "sweden",
   "denmark-norway"
 ]);
 const EAST_ASIAN_FACTIONS = new Set(["ming", "japan", "joseon"]);

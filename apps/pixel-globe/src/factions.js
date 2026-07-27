@@ -37,6 +37,7 @@ export const FACTIONS = Object.freeze([
   faction("muscovy", "Grand Duchy of Muscovy", "Muscovy", "Muscovite", "duchy"),
   faction("crimea", "Crimean Khanate", "Crimea", "Crimean", "khanate"),
   faction("poland-lithuania", "Polish-Lithuanian Union", "Poland-Lithuania", "Polish-Lithuanian", "union"),
+  faction("sweden", "Kingdom of Sweden", "Sweden", "Swedish", "kingdom"),
   faction("denmark-norway", "Denmark-Norway", "Denmark-Norway", "Dano-Norwegian", "union"),
   faction("songhai", "Songhai Empire", "Songhai", "Songhai", "empire"),
   faction("morocco", "Wattasid Morocco", "Morocco", "Moroccan", "sultanate"),
@@ -83,6 +84,7 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   }),
   capital("crimea", "Bakhchiserai", "Ukraine"),
   capital("poland-lithuania", "Krakow", "Poland"),
+  capital("sweden", "Soderkoping", "Sweden"),
   capital("denmark-norway", "Roskilde", "Denmark"),
   capital("songhai", "Gao", "Mali"),
   capital("morocco", "Azemmour", "Morocco"),
@@ -159,6 +161,7 @@ const HOSTILITIES_1522 = Object.freeze([
   ["venice", "genoa"],
   ["spain", "morocco"],
   ["habsburg", "morocco"],
+  ["sweden", "habsburg"],
   ["ming", "japan"],
   ["bengal", "delhi"],
   ["ternate", "spain"],
@@ -182,7 +185,8 @@ const WARS_1522 = Object.freeze([
   ["portugal", "ming"],
   ["portugal", "gujarat"],
   ["portugal", "morocco"],
-  ["muscovy", "poland-lithuania"]
+  ["muscovy", "poland-lithuania"],
+  ["sweden", "denmark-norway"]
 ]);
 
 export const DIPLOMACY_MATRIX_1522 = buildDiplomacyMatrix();
@@ -246,7 +250,10 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Sudak", "Russian Federation", "ottoman"),
   cityRule("Bakhchiserai", "Ukraine", "crimea"),
 
+  cityRule("Stockholm", "Sweden", "denmark-norway"),
+  cityRule("Kalmar", "Sweden", "denmark-norway"),
   cityRule("Visby", "Sweden", "denmark-norway"),
+  cityRule("Turku", "Finland", "denmark-norway"),
 
   ...cityRulesForCountry("India", [
     "Vijayanagar", "Manyakheta", "Thanjavur", "Badami", "Chittoor", "Kanchipuram",
@@ -299,6 +306,7 @@ const COUNTRY_FACTIONS = uniqueMap([
   ["Russian Federation", "muscovy"],
   ["Poland", "poland-lithuania"],
   ["Lithuania", "poland-lithuania"],
+  ["Sweden", "sweden"],
   ["Denmark", "denmark-norway"],
   ["Norway", "denmark-norway"],
   ["Iceland", "denmark-norway"],

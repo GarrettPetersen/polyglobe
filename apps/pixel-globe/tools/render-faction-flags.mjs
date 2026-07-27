@@ -98,6 +98,9 @@ const RESEARCH = Object.freeze([
   research("poland-lithuania", "period-heraldry", "White Eagle and Pahonia", "A paired heraldic banner for the Jagiellonian union, combining the Polish White Eagle and Lithuanian mounted Pursuer.", [
     source("Golden Age of the Jagiellonians", "https://zlotaepoka.ossolineum.pl/en/")
   ]),
+  research("sweden", "period-banner", "Three Crowns", "Three gold crowns on blue had represented the Swedish kingdom continuously since the later Middle Ages. It is more securely contemporary to 1522 than the later standardized cross flag.", [
+    source("Swedish National Archives: Three Crowns", "https://riksarkivet.se/arkivera-och-forvalta/heraldik-och-statssymboler/lilla-riksvapnet")
+  ]),
   research("denmark-norway", "period-banner", "Dannebrog", "The white Scandinavian cross on red was already the Danish royal banner in the early sixteenth century.", [
     source("Dannebrog history", "https://lex.dk/Dannebrog")
   ]),
@@ -425,6 +428,13 @@ const DRAWERS = Object.freeze({
     horseman(s, 24, 11, C.cream);
     return s;
   },
+  sweden: () => {
+    const s = base(C.blue);
+    smallCrown(s, 10, 6, C.gold);
+    smallCrown(s, 22, 6, C.gold);
+    smallCrown(s, 16, 14, C.gold);
+    return s;
+  },
   "denmark-norway": () => {
     const s = base(C.red);
     s.rect(9, 0, 4, FLAG_H, C.white);
@@ -542,6 +552,16 @@ function fleur(s, x, y, color, scale = 1) {
   s.rect(x - scale * 2, y + scale, scale, scale, color);
   s.rect(x + scale * 2, y + scale, scale, scale, color);
   s.rect(x - scale * 2, y + scale * 3, scale * 5, scale, color);
+}
+
+function smallCrown(s, cx, cy, color) {
+  s.rect(cx - 4, cy, 9, 3, color);
+  s.rect(cx - 3, cy - 2, 2, 2, color);
+  s.rect(cx - 1, cy - 3, 2, 3, color);
+  s.rect(cx + 2, cy - 2, 2, 2, color);
+  s.rect(cx - 4, cy - 2, 1, 2, color);
+  s.rect(cx + 4, cy - 2, 1, 2, color);
+  s.rect(cx - 3, cy + 3, 7, 1, color);
 }
 
 function lionDash(s, x, y, color) {

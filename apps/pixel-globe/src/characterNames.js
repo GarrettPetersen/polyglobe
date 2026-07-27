@@ -225,6 +225,7 @@ const FACTION_CULTURES = new Map([
   ["safavid", "persian"],
   ["muscovy", "russian"],
   ["poland-lithuania", "polish"],
+  ["sweden", "nordic"],
   ["denmark-norway", "nordic"],
   ["songhai", "westAfrican"],
   ["morocco", "arabic"],

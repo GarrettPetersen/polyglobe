@@ -3,7 +3,8 @@ import { perkEffectLabels, validatePerkSource } from "./perkSystem.js";
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "habsburg", "hungary",
-  "venice", "genoa", "papal-states", "muscovy", "poland-lithuania", "denmark-norway"
+  "venice", "genoa", "papal-states", "muscovy", "poland-lithuania", "sweden",
+  "denmark-norway"
 ]);
 const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi"]);
 

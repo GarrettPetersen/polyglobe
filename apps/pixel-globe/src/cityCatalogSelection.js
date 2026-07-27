@@ -86,6 +86,39 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "northern-european",
     manualRegion: "british-isles"
   }),
+  manualCity1522("Gavle", "Sweden", 60.6749, 17.1413, 2500, {
+    displayCity: "Gävle",
+    cityType: "northern-european",
+    manualRegion: "baltic",
+    marketGoods: ["fish", "timber", "naval-stores"]
+  }),
+  manualCity1522("Nykoping", "Sweden", 58.753, 17.009, 3500, {
+    displayCity: "Nyköping",
+    cityType: "northern-european",
+    manualRegion: "baltic",
+    marketGoods: ["iron", "timber", "naval-stores"]
+  }),
+  manualCity1522("Soderkoping", "Sweden", 58.4806, 16.3222, 4000, {
+    displayCity: "Söderköping",
+    cityType: "northern-european",
+    manualRegion: "baltic",
+    marketGoods: ["iron", "copper", "naval-stores"]
+  }),
+  manualCity1522("Kalmar", "Sweden", 56.6634, 16.3568, 6000, {
+    cityType: "northern-european",
+    manualRegion: "baltic",
+    marketGoods: ["grain", "fish", "naval-stores"]
+  }),
+  manualCity1522("Visby", "Sweden", 57.6348, 18.2948, 4500, {
+    cityType: "northern-european",
+    manualRegion: "baltic",
+    marketGoods: ["grain", "wool", "fish"]
+  }),
+  manualCity1522("Turku", "Finland", 60.4518, 22.2666, 4000, {
+    cityType: "northern-european",
+    manualRegion: "baltic",
+    marketGoods: ["fish", "timber", "furs"]
+  }),
   manualCity1522("Malacca", "Malaysia", 2.1896, 102.2501, 90000, {
     manualRegion: "strait-of-malacca"
   }),

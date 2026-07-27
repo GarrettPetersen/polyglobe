@@ -1136,6 +1136,7 @@ import {
   writeAchievementProfile
 } from "./achievements.js";
 import { NOTICE_DURATION_MS } from "./notificationTiming.js";
+import { fullNoticeTextLayout } from "./noticeTextLayout.js";
 import { steamStatValues } from "./steamStats.js";
 import {
   DEMO_LIMIT_MESSAGE,
@@ -1666,7 +1667,7 @@ const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
 const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
 const STATUS_PERSON_PARTICLE_LIMIT = 320;
 const COLONY_DEPARTURE_DISTANCE_PX = 90;
-const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-3";
+const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-4";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
 const CITY_FLAG_W = 14;
@@ -5645,9 +5646,16 @@ function createPoliticsMenuState() {
   return {
     isOpen: false,
     page: 0,
+    newsDetailOpen: false,
+    newsDetailScrollY: 0,
+    newsDetailMaxScrollY: 0,
     buttonRect: null,
     panelRect: null,
     closeButtonRect: null,
+    newsRect: null,
+    newsDetailBackRect: null,
+    newsDetailUpRect: null,
+    newsDetailDownRect: null,
     previousPageRect: null,
     nextPageRect: null
   };
@@ -9414,6 +9422,7 @@ function openPoliticsMenu() {
   closeNavigationMenu();
   politicsMenu.isOpen = true;
   politicsMenu.page = 0;
+  closePoliticsNewsDetail();
   keys.clear();
   clearPointerSteering();
   dirty = true;
@@ -9423,6 +9432,13 @@ function closePoliticsMenu() {
   politicsMenu.isOpen = false;
   politicsMenu.panelRect = null;
   politicsMenu.closeButtonRect = null;
+  politicsMenu.newsRect = null;
+  politicsMenu.newsDetailOpen = false;
+  politicsMenu.newsDetailScrollY = 0;
+  politicsMenu.newsDetailMaxScrollY = 0;
+  politicsMenu.newsDetailBackRect = null;
+  politicsMenu.newsDetailUpRect = null;
+  politicsMenu.newsDetailDownRect = null;
   politicsMenu.previousPageRect = null;
   politicsMenu.nextPageRect = null;
   dirty = true;
@@ -9458,13 +9474,24 @@ function closeNavigationMenu() {
 
 function handlePoliticsKeyDown(event) {
   event.preventDefault();
-  if (event.key === "Escape" || event.key === "p" || event.key === "P") {
+  if (event.key === "p" || event.key === "P") {
     closePoliticsMenu();
     return;
   }
+  if (politicsMenu.newsDetailOpen) {
+    if (event.key === "Escape") closePoliticsNewsDetail();
+    else if (["ArrowUp", "PageUp"].includes(event.key)) scrollPoliticsNewsDetail(-1);
+    else if (["ArrowDown", "PageDown"].includes(event.key)) scrollPoliticsNewsDetail(1);
+    return;
+  }
+  if (event.key === "Escape") {
+    closePoliticsMenu();
+    return;
+  }
+  if (["Enter", " "].includes(event.key) && openPoliticsNewsDetail()) return;
   if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
     stepPoliticsPage(-1);
-  } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+  } else if (["ArrowRight", "ArrowDown", "PageDown"].includes(event.key)) {
     stepPoliticsPage(1);
   }
 }
@@ -10447,6 +10474,7 @@ function handlePointerMove(event) {
   canvas.style.cursor = event.pointerType !== "touch" && (
     shipInfoPointerIsActionable(point) ||
     discoveriesPointerIsActionable(point) ||
+    politicsPointerIsActionable(point) ||
     (
       captainMenu.isOpen &&
       (
@@ -11032,11 +11060,34 @@ function handlePoliticsPointerDown(point) {
     closePoliticsMenu();
     return;
   }
+  if (politicsMenu.newsDetailOpen) {
+    if (pointInRect(point, politicsMenu.newsDetailBackRect)) closePoliticsNewsDetail();
+    else if (pointInRect(point, politicsMenu.newsDetailUpRect)) scrollPoliticsNewsDetail(-1);
+    else if (pointInRect(point, politicsMenu.newsDetailDownRect)) scrollPoliticsNewsDetail(1);
+    return;
+  }
+  if (pointInRect(point, politicsMenu.newsRect)) {
+    openPoliticsNewsDetail();
+    return;
+  }
   if (pointInRect(point, politicsMenu.previousPageRect)) {
     stepPoliticsPage(-1);
     return;
   }
   if (pointInRect(point, politicsMenu.nextPageRect)) stepPoliticsPage(1);
+}
+
+function politicsPointerIsActionable(point) {
+  if (!politicsMenu.isOpen) return false;
+  return [
+    politicsMenu.closeButtonRect,
+    politicsMenu.newsRect,
+    politicsMenu.newsDetailBackRect,
+    politicsMenu.newsDetailUpRect,
+    politicsMenu.newsDetailDownRect,
+    politicsMenu.previousPageRect,
+    politicsMenu.nextPageRect
+  ].some((rect) => pointInRect(point, rect));
 }
 
 function shipInfoPointerIsActionable(point) {
@@ -11240,6 +11291,41 @@ function discoveriesListLayoutForPanel(panel, headerLayout = discoveriesHeaderLa
     bodyOffsetY: headerLayout.bodyOffsetY,
     pagerHeight: UI_PAGER_BUTTON_H
   });
+}
+
+function openPoliticsNewsDetail() {
+  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
+  if (!view.latestNews) return false;
+  politicsMenu.newsDetailOpen = true;
+  politicsMenu.newsDetailScrollY = 0;
+  politicsMenu.newsDetailMaxScrollY = 0;
+  politicsMenu.newsRect = null;
+  dirty = true;
+  return true;
+}
+
+function closePoliticsNewsDetail() {
+  politicsMenu.newsDetailOpen = false;
+  politicsMenu.newsDetailScrollY = 0;
+  politicsMenu.newsDetailMaxScrollY = 0;
+  politicsMenu.newsDetailBackRect = null;
+  politicsMenu.newsDetailUpRect = null;
+  politicsMenu.newsDetailDownRect = null;
+  dirty = true;
+}
+
+function scrollPoliticsNewsDetail(direction) {
+  if (!Number.isInteger(direction) || direction === 0) {
+    throw new Error(`Invalid politics news scroll direction: ${direction}`);
+  }
+  const next = clamp(
+    politicsMenu.newsDetailScrollY + Math.sign(direction) * localizedLineHeight(18),
+    0,
+    politicsMenu.newsDetailMaxScrollY
+  );
+  if (next === politicsMenu.newsDetailScrollY) return;
+  politicsMenu.newsDetailScrollY = next;
+  dirty = true;
 }
 
 function stepPoliticsPage(direction) {
@@ -15296,10 +15382,14 @@ function showFishCatchNotice(text, tone) {
   dirty = true;
 }
 
-function showSurvivalNotice(text, tone) {
+function showSurvivalNotice(text, tone, { fullText = false } = {}) {
+  if (typeof fullText !== "boolean") {
+    throw new Error(`Survival notice full-text flag must be boolean: ${fullText}`);
+  }
   survivalNotice = {
     text,
     tone,
+    fullText,
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.survival
   };
   dirty = true;
@@ -18329,25 +18419,30 @@ function updateWorldDiplomacy() {
   if (result.englishReformation) reconcileEnglishReformationCharacters();
   const expulsions = reconcileForeignSettlementPolitics();
   if (result.englishReformation) {
-    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn");
+    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn", { fullText: true });
     dirty = true;
     return true;
   }
   if (result.papalActions.length > 0) {
     showSurvivalNotice(
       papalActionNotice(result.papalActions[result.papalActions.length - 1]),
-      "warn"
+      "warn",
+      { fullText: true }
     );
     dirty = true;
     return true;
   }
   if (result.diplomacyEvents.length === 0 && expulsions.length === 0) return false;
   if (expulsions.length > 0) {
-    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn");
+    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn", { fullText: true });
     return true;
   }
   const latest = result.diplomacyEvents[result.diplomacyEvents.length - 1];
-  showSurvivalNotice(diplomacyEventNotice(latest), latest.kind === "peace" ? "good" : "warn");
+  showSurvivalNotice(
+    diplomacyEventNotice(latest),
+    latest.kind === "peace" ? "good" : "warn",
+    { fullText: true }
+  );
   return true;
 }
 
@@ -18390,7 +18485,9 @@ function reconcileForeignSettlementPolitics({ notify = false } = {}) {
     simMinute: Math.max(0, Math.floor(weatherClockMinutes))
   });
   if (events.length === 0) return events;
-  if (notify) showSurvivalNotice(foreignSettlementExpulsionNotice(events), "warn");
+  if (notify) {
+    showSurvivalNotice(foreignSettlementExpulsionNotice(events), "warn", { fullText: true });
+  }
   dirty = true;
   return events;
 }
@@ -27442,8 +27539,6 @@ function drawPoliticsMenu() {
     h: POLITICS_PANEL_H
   });
   const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
-  const pagination = politicsCardPagination(view, panel);
-  politicsMenu.page = pagination.page.page;
 
   ctx.save();
   drawPiratePaperModal(panel, 0.78);
@@ -27454,6 +27549,17 @@ function drawPoliticsMenu() {
     align: "center",
     color: PIRATE_MENU_INK
   });
+  if (politicsMenu.newsDetailOpen) {
+    drawPoliticsNewsDetail(view, panel);
+    ctx.restore();
+    return;
+  }
+
+  politicsMenu.newsDetailBackRect = null;
+  politicsMenu.newsDetailUpRect = null;
+  politicsMenu.newsDetailDownRect = null;
+  const pagination = politicsCardPagination(view, panel);
+  politicsMenu.page = pagination.page.page;
   drawOptionsText(
     fitPixelText(uiText("politics.legendTrade"), PIXEL_FONT_SMALL_8, panel.w - 32),
     panel.x + panel.w / 2,
@@ -27528,27 +27634,149 @@ function politicsCardPagination(view, panel = captainNotebookPagePanel({
 }
 
 function drawPoliticsLatestNews(view, panel, pagerY) {
-  const latestDiplomacy = view.recentEvents[0] || null;
-  const latestPapal = view.recentPapalActions[0] || null;
-  if (!latestDiplomacy && !latestPapal) return;
-  const papalIsLatest = latestPapal && (
-    !latestDiplomacy || latestPapal.simMinute >= latestDiplomacy.simMinute
+  const latest = view.latestNews;
+  if (!latest) {
+    politicsMenu.newsRect = null;
+    return;
+  }
+  politicsMenu.newsRect = {
+    x: panel.x + 60,
+    y: pagerY - 13,
+    w: panel.w - 120,
+    h: 11
+  };
+  const hovered = pointInRect(optionsMenu.hoverPoint, politicsMenu.newsRect);
+  ctx.fillStyle = hovered ? PIRATE_MENU_PAPER_SELECTED : "rgba(113, 80, 51, 0.1)";
+  ctx.fillRect(
+    politicsMenu.newsRect.x,
+    politicsMenu.newsRect.y,
+    politicsMenu.newsRect.w,
+    politicsMenu.newsRect.h
   );
-  const latestText = papalIsLatest
-    ? papalActionNotice(latestPapal)
-    : diplomacyEventNotice(latestDiplomacy);
+  ctx.strokeStyle = hovered ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(
+    politicsMenu.newsRect.x + 0.5,
+    politicsMenu.newsRect.y + 0.5,
+    politicsMenu.newsRect.w - 1,
+    politicsMenu.newsRect.h - 1
+  );
+  drawOptionsText(">", politicsMenu.newsRect.x + 3, politicsMenu.newsRect.y + 2, {
+    color: PIRATE_MENU_CHART_LINE
+  });
   drawOptionsText(
     fitPixelText(
-      `${uiText("politics.latest")} ${latestText}`,
+      `${uiText("politics.latest")} ${latest.text}`,
       PIXEL_FONT_SMALL_8,
-      panel.w - 120
+      politicsMenu.newsRect.w - 14
     ),
-    panel.x + panel.w / 2,
-    pagerY - 11,
+    politicsMenu.newsRect.x + 11,
+    politicsMenu.newsRect.y + 2,
     {
-      align: "center",
-      color: !papalIsLatest && latestDiplomacy.kind === "peace" ? "#91db69" : "#f68181"
+      color: latest.tone === "good" ? "#165a4c" : "#6e2727"
     }
+  );
+}
+
+function drawPoliticsNewsDetail(view, panel) {
+  const latest = view.latestNews;
+  if (!latest) throw new Error("Politics news detail opened without a news item");
+  politicsMenu.newsRect = null;
+  politicsMenu.previousPageRect = null;
+  politicsMenu.nextPageRect = null;
+
+  const left = panel.x + 13;
+  const right = panel.x + panel.w - 13;
+  const footerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
+  drawOptionsText(uiText("politics.latest"), left, panel.y + 29, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText(shipLedgerDateLabel(latest.simMinute), right, panel.y + 30, {
+    align: "right",
+    color: PIRATE_MENU_INK_MUTED
+  });
+
+  const inset = {
+    x: left,
+    y: panel.y + 43,
+    w: right - left,
+    h: footerY - panel.y - 50
+  };
+  drawPiratePaperInset(inset);
+  const controlsW = UI_ICON_BUTTON_SIZE + 4;
+  const bodyX = inset.x + 7;
+  const bodyY = inset.y + 7;
+  const bodyW = inset.w - 14 - controlsW;
+  const bodyH = inset.h - 14;
+  const lineHeight = localizedLineHeight(11);
+  const lines = wrapPixelTextAll(
+    latest.text.toUpperCase(),
+    PIXEL_FONT_DIALOGUE_8,
+    bodyW
+  );
+  politicsMenu.newsDetailMaxScrollY = Math.max(0, lines.length * lineHeight - bodyH);
+  politicsMenu.newsDetailScrollY = clamp(
+    politicsMenu.newsDetailScrollY,
+    0,
+    politicsMenu.newsDetailMaxScrollY
+  );
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bodyX, bodyY, bodyW, bodyH);
+  ctx.clip();
+  lines.forEach((line, index) => {
+    drawOptionsText(
+      line,
+      bodyX,
+      bodyY + index * lineHeight - politicsMenu.newsDetailScrollY,
+      {
+        font: PIXEL_FONT_DIALOGUE_8,
+        color: latest.tone === "good" ? "#165a4c" : PIRATE_MENU_INK
+      }
+    );
+  });
+  ctx.restore();
+
+  const controlsX = panel.x + panel.w - UI_ICON_BUTTON_SIZE - 7;
+  if (politicsMenu.newsDetailMaxScrollY > 0) {
+    politicsMenu.newsDetailUpRect = {
+      x: controlsX,
+      y: bodyY,
+      w: UI_ICON_BUTTON_SIZE,
+      h: UI_ICON_BUTTON_SIZE
+    };
+    politicsMenu.newsDetailDownRect = {
+      x: controlsX,
+      y: bodyY + bodyH - UI_ICON_BUTTON_SIZE,
+      w: UI_ICON_BUTTON_SIZE,
+      h: UI_ICON_BUTTON_SIZE
+    };
+    drawShipInfoArrowButton(
+      politicsMenu.newsDetailUpRect,
+      "^",
+      pointInRect(optionsMenu.hoverPoint, politicsMenu.newsDetailUpRect)
+    );
+    drawShipInfoArrowButton(
+      politicsMenu.newsDetailDownRect,
+      "v",
+      pointInRect(optionsMenu.hoverPoint, politicsMenu.newsDetailDownRect)
+    );
+  } else {
+    politicsMenu.newsDetailUpRect = null;
+    politicsMenu.newsDetailDownRect = null;
+  }
+
+  politicsMenu.newsDetailBackRect = {
+    x: panel.x + 12,
+    y: footerY,
+    w: 92,
+    h: UI_PAGER_BUTTON_H
+  };
+  drawShipInfoArrowButton(
+    politicsMenu.newsDetailBackRect,
+    `< ${uiText("common.back")}`,
+    pointInRect(optionsMenu.hoverPoint, politicsMenu.newsDetailBackRect)
   );
 }
 
@@ -35414,7 +35642,20 @@ function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
 
 function drawSurvivalNotice(nowMs) {
   if (!survivalNotice || nowMs >= survivalNotice.expiresAtMs) return;
-  const width = Math.min(240, measurePixelTextWidth(survivalNotice.text, PIXEL_FONT_SMALL_8) + 12);
+  const layout = survivalNotice.fullText
+    ? fullNoticeTextLayout(survivalNotice.text, {
+        screenWidth: SCREEN_W,
+        maximumWidth: 360,
+        lineHeight: localizedLineHeight(9),
+        measureText: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
+      })
+    : {
+        width: Math.min(240, measurePixelTextWidth(survivalNotice.text, PIXEL_FONT_SMALL_8) + 12),
+        height: 13,
+        lineHeight: localizedLineHeight(9),
+        lines: [fitPixelText(survivalNotice.text, PIXEL_FONT_SMALL_8, 230)]
+      };
+  const width = layout.width;
   const x = Math.round((SCREEN_W - width) / 2);
   const combatLayout = combatNoticeLayout(nowMs);
   const fishY = fishCatchNoticeY(nowMs);
@@ -35425,13 +35666,15 @@ function drawSurvivalNotice(nowMs) {
   );
   const warn = survivalNotice.tone === "warn";
   ctx.fillStyle = warn ? "rgba(80, 61, 42, 0.94)" : "rgba(31, 67, 70, 0.92)";
-  ctx.fillRect(x, y, width, 13);
+  ctx.fillRect(x, y, width, layout.height);
   ctx.strokeStyle = warn ? "#e3a857" : "#8ac0b4";
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, layout.height - 1);
   ctx.fillStyle = warn ? "#ffe6a6" : "#d6f2e8";
-  drawPixelText(fitPixelText(survivalNotice.text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center"
+  layout.lines.forEach((line, index) => {
+    drawPixelText(line, x + width / 2, y + 3 + index * layout.lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
   });
 }
 

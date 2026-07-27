@@ -13,6 +13,10 @@ import {
   recordPiracyAgainstFaction,
   recordTradeWithFaction
 } from "./gameState.js";
+import {
+  PAPAL_ACTION_CRUSADE,
+  imposePapalAction
+} from "./papalPolitics.js";
 import { makeDiplomaticPeace } from "./worldDiplomacy.js";
 import {
   SPANISH_INDIES_TRADE_POLICY_ID,
@@ -166,6 +170,24 @@ test("politics cards follow changing world diplomacy", () => {
   assert.equal(diplomacyBetweenForState(state, "england", "france"), "hostile");
   assert.ok(relationshipFactionIds(england, "hostile").includes("france"));
   assert.equal(view.recentEvents[0].kind, "peace");
+  assert.equal(view.latestNews.text, "PEACE: ENGLAND / FRANCE");
+  assert.equal(view.latestNews.source, "diplomacy");
+});
+
+test("the politics view preserves the complete newest papal headline", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  imposePapalAction(state.relations.papacy, state.relations.diplomacy, {
+    kind: PAPAL_ACTION_CRUSADE,
+    targetFactionId: "ottoman",
+    simMinute: 500,
+    source: "test"
+  });
+
+  const view = createPoliticsView(state, 500);
+
+  assert.equal(view.latestNews.source, "papal");
+  assert.match(view.latestNews.text, /PROCLAIMS A CRUSADE AGAINST OTTOMAN/);
+  assert.equal(view.latestNews.text.endsWith("..."), false);
 });
 
 test("politics cards omit neutral relationships even after contact", () => {

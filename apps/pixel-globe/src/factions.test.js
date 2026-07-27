@@ -90,6 +90,8 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("ming", "japan"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("portugal", "ming"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("ottoman", "hospitallers"), DIPLOMACY_WAR);
+  assert.equal(diplomacyBetween("sweden", "denmark-norway"), DIPLOMACY_WAR);
+  assert.equal(diplomacyBetween("sweden", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("papal-states", "hospitallers"), DIPLOMACY_FRIENDLY);
   assert.equal(diplomacyBetween("venice", "genoa"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ternate", "spain"), DIPLOMACY_HOSTILE);
@@ -120,6 +122,13 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Cuzco", "Peru", "inca"],
     ["Cairo", "Egypt", "ottoman"],
     ["Hafnarfjordur", "Iceland", "denmark-norway"],
+    ["Gavle", "Sweden", "sweden"],
+    ["Nykoping", "Sweden", "sweden"],
+    ["Soderkoping", "Sweden", "sweden"],
+    ["Stockholm", "Sweden", "denmark-norway"],
+    ["Kalmar", "Sweden", "denmark-norway"],
+    ["Visby", "Sweden", "denmark-norway"],
+    ["Turku", "Finland", "denmark-norway"],
     ["Ternate", "Indonesia", "ternate"],
     ["Hitu Village", "Indonesia", "ternate"],
     ["Buru Village", "Indonesia", "ternate"],
@@ -172,6 +181,7 @@ test("every sovereign faction has one declared water-accessible capital", () => 
   }
   assert.equal(factionCapitalForId("ming").city, "Beijing");
   assert.equal(factionCapitalForId("scotland").city, "Edinburgh");
+  assert.equal(factionCapitalForId("sweden").city, "Soderkoping");
   assert.equal(factionCapitalForId("ternate").city, "Ternate");
   assert.equal(factionCapitalForId("tidore").city, "Tidore");
   assert.equal(factionCapitalForId("hospitallers").city, "Rhodes");

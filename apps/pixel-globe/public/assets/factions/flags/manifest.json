@@ -338,6 +338,22 @@
       ]
     },
     {
+      "id": "sweden",
+      "factionName": "Kingdom of Sweden",
+      "width": 32,
+      "height": 20,
+      "file": "sweden.png",
+      "evidence": "period-banner",
+      "representation": "Three Crowns",
+      "accuracyNote": "Three gold crowns on blue had represented the Swedish kingdom continuously since the later Middle Ages. It is more securely contemporary to 1522 than the later standardized cross flag.",
+      "sources": [
+        {
+          "label": "Swedish National Archives: Three Crowns",
+          "url": "https://riksarkivet.se/arkivera-och-forvalta/heraldik-och-statssymboler/lilla-riksvapnet"
+        }
+      ]
+    },
+    {
       "id": "denmark-norway",
       "factionName": "Denmark-Norway",
       "width": 32,

@@ -177,6 +177,27 @@ test("version 42 game states gain persistent foreign-settlement expulsion memory
   });
 });
 
+test("version 48 game states gain neutral Swedish reputation without changing existing standings", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const saved = JSON.parse(JSON.stringify(createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    startMinute: 500,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  })));
+  saved.version = 48;
+  delete saved.relations.factionReputation.sweden;
+  saved.relations.factionReputation.england = 37;
+  saved.relations.factionReputation["denmark-norway"] = -12;
+
+  const restored = migrateGameState(saved, stats);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.relations.factionReputation.sweden, 0);
+  assert.equal(restored.relations.factionReputation.england, 37);
+  assert.equal(restored.relations.factionReputation["denmark-norway"], -12);
+});
+
 test("version 8 game states retain version 1 diplomacy history during migration", () => {
   const stats = shipStatsForSlug("brigantine");
   const saved = JSON.parse(JSON.stringify(createGameState({

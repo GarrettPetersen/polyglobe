@@ -68,6 +68,11 @@ test("Icelandic characters use the Nordic name pool", () => {
     country: "Iceland",
     factionId: "denmark-norway"
   }), "nordic");
+  assert.equal(nameCultureForSubject({
+    city: "Soderkoping",
+    country: "Sweden",
+    factionId: "sweden"
+  }), "nordic");
 });
 
 test("Pacific island villages use the Polynesian naming culture", () => {

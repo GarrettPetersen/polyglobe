@@ -64,6 +64,12 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1522, 1, 1, "Sigismund I", "King"),
     ruler(1548, 4, 1, "Sigismund II Augustus", "King")
   ],
+  sweden: [
+    ruler(1522, 1, 1, "Gustav Eriksson", "Regent"),
+    ruler(1523, 6, 6, "Gustav I", "King"),
+    ruler(1527, 6, 18, "Gustav I", "King"),
+    ruler(1560, 9, 29, "Eric XIV", "King")
+  ],
   "denmark-norway": [
     ruler(1522, 1, 1, "Christian II", "King"),
     ruler(1523, 1, 20, "Frederick I", "King"),
@@ -154,6 +160,7 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
   muscovy: faith("eastern-orthodox", 0.94),
   crimea: faith("sunni-islam", 0.78),
   "poland-lithuania": faith("roman-catholic", 0.79),
+  sweden: faith("roman-catholic", 0.72),
   "denmark-norway": faith("roman-catholic", 0.68),
   songhai: faith("sunni-islam", 0.86),
   morocco: faith("sunni-islam", 0.83),
@@ -172,14 +179,15 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
 const RULER_FAITH_OVERRIDES = Object.freeze({
   "england|Henry VIII|1534-11-3": faith("anglican", 0.72),
   "england|Edward VI|1547-1-28": faith("anglican", 0.9),
+  "sweden|Gustav I|1527-6-18": faith("lutheran", 0.62),
   "denmark-norway|Christian III|1534-7-4": faith("lutheran", 0.88)
 });
 
 const REGIONAL_GROUPS = Object.freeze([
-  ["england", "scotland", "france", "spain", "portugal", "habsburg", "denmark-norway"],
+  ["england", "scotland", "france", "spain", "portugal", "habsburg", "sweden", "denmark-norway"],
   ["habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania"],
   ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "morocco", "safavid", "hormuz"],
-  ["muscovy", "crimea", "poland-lithuania", "denmark-norway", "habsburg", "hungary", "ottoman"],
+  ["muscovy", "crimea", "poland-lithuania", "sweden", "denmark-norway", "habsburg", "hungary", "ottoman"],
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],
   ["vijayanagara", "gujarat", "bengal", "delhi", "portugal", "safavid"],
