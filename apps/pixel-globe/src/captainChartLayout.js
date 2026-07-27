@@ -123,7 +123,7 @@ export function captainNotebookFrameLayout({
   }
   const portrait = screenHeight > screenWidth;
   const closeButtonRect = Object.freeze({
-    x: NOTEBOOK_CLOSE_MARGIN,
+    x: screenWidth - NOTEBOOK_CLOSE_MARGIN - closeButtonSize,
     y: NOTEBOOK_CLOSE_MARGIN,
     w: closeButtonSize,
     h: closeButtonSize
@@ -138,11 +138,9 @@ export function captainNotebookFrameLayout({
         ) - NOTEBOOK_SCREEN_MARGIN
       }
     : {
-        x: closeButtonRect.x + closeButtonRect.w + NOTEBOOK_CLOSE_GAP,
+        x: NOTEBOOK_SCREEN_MARGIN,
         y: NOTEBOOK_SCREEN_MARGIN,
-        w: screenWidth - (
-          closeButtonRect.x + closeButtonRect.w + NOTEBOOK_CLOSE_GAP
-        ) - NOTEBOOK_SCREEN_MARGIN,
+        w: closeButtonRect.x - NOTEBOOK_CLOSE_GAP - NOTEBOOK_SCREEN_MARGIN,
         h: screenHeight - NOTEBOOK_SCREEN_MARGIN * 2
       };
   if (available.w <= 0 || available.h <= 0) {

@@ -55,7 +55,7 @@ test("captain notebook gives a narrow portrait canvas an icon-only bottom row", 
   assert.deepEqual(layout.tabs[8], { x: 216, y: 402, w: 24, h: 24 });
 });
 
-test("captain notebook frame reserves a floating close button beside a landscape notebook", () => {
+test("captain notebook frame reserves a top-right close button beside a landscape notebook", () => {
   const frame = captainNotebookFrameLayout({
     screenWidth: 455,
     screenHeight: 256,
@@ -66,10 +66,10 @@ test("captain notebook frame reserves a floating close button beside a landscape
     closeButtonSize: 24
   });
   assert.equal(frame.portrait, false);
-  assert.deepEqual(frame.closeButtonRect, { x: 5, y: 5, w: 24, h: 24 });
-  assert.deepEqual(frame.panel, { x: 34, y: 6, w: 415, h: 244 });
+  assert.deepEqual(frame.closeButtonRect, { x: 426, y: 5, w: 24, h: 24 });
+  assert.deepEqual(frame.panel, { x: 6, y: 6, w: 415, h: 244 });
   assert.equal(frame.notebook.placement, "side");
-  assert.deepEqual(frame.notebook.page, { x: 146, y: 6, w: 303, h: 244 });
+  assert.deepEqual(frame.notebook.page, { x: 118, y: 6, w: 303, h: 244 });
 });
 
 test("captain notebook frame reserves its top corner and attaches tabs below a portrait page", () => {
@@ -83,7 +83,7 @@ test("captain notebook frame reserves its top corner and attaches tabs below a p
     closeButtonSize: 24
   });
   assert.equal(frame.portrait, true);
-  assert.deepEqual(frame.closeButtonRect, { x: 5, y: 5, w: 24, h: 24 });
+  assert.deepEqual(frame.closeButtonRect, { x: 227, y: 5, w: 24, h: 24 });
   assert.deepEqual(frame.panel, { x: 6, y: 34, w: 244, h: 420 });
   assert.equal(frame.notebook.placement, "bottom");
   assert.deepEqual(frame.notebook.page, { x: 6, y: 34, w: 244, h: 384 });
