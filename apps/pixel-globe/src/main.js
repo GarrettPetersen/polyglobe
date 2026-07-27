@@ -2067,6 +2067,8 @@ const SFX_LIGHTNING_VOLUME = 0.72;
 const SFX_CREW_DEATH_VOLUME = 0.52;
 const SFX_WHALE_BLOW_VOLUME = 0.7;
 const SFX_WHALE_KILL_VOLUME = 0.86;
+const WHALE_EXHAUSTED_MESSAGE = "The whale is exhausted! Time to land the killing blow!";
+const WHALE_EXHAUSTED_EXPRESSION_ID = "stern";
 const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
@@ -7004,7 +7006,7 @@ function updateCaptureWhale(sequence) {
   }
   if (captureCue("exhaust-whale", 2.2)) {
     const whale = exhaustTetheredWhale(gameState.memory.whales);
-    openCaptainAlertModal("The whale is exhausted! Time to land the killing blow!", "happy");
+    openCaptainAlertModal(WHALE_EXHAUSTED_MESSAGE, WHALE_EXHAUSTED_EXPRESSION_ID);
     emitCaptureEvent("capture-beat", { action: "exhaust-whale", speciesId: whale.speciesId });
   }
   if (captureCue("dismiss-exhausted", 3.2) && captainAlertModal) closeCaptainAlertModal();
@@ -14139,7 +14141,7 @@ function updateWhales(dt, nowMs) {
       }
       changed = true;
     } else if (event.type === "exhausted") {
-      openCaptainAlertModal("The whale is exhausted! Time to land the killing blow!", "happy");
+      openCaptainAlertModal(WHALE_EXHAUSTED_MESSAGE, WHALE_EXHAUSTED_EXPRESSION_ID);
       changed = true;
     } else if (event.type === "ice-line-break") {
       showSurvivalNotice("SEA ICE PARTED THE HARPOON LINE", "warn");
