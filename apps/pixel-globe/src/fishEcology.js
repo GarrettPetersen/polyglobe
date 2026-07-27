@@ -259,6 +259,14 @@ const FISH_SPECIES_CANDIDATES = Object.freeze({
   "great-lakes": speciesCandidates(Object.keys(GREAT_LAKES_SPECIES_SCORES))
 });
 
+const MARINE_PRESSURE_PROFILE = Object.freeze({
+  EUROPEAN: marinePressureProfileDefinition(0.66, 0.26, 0.48, 0.78),
+  EAST_ASIAN: marinePressureProfileDefinition(0.78, 0.32, 0.55, 0.84),
+  INDIAN_OCEAN: marinePressureProfileDefinition(0.84, 0.35, 0.58, 0.86),
+  MARITIME_SOUTHEAST_ASIAN: marinePressureProfileDefinition(0.9, 0.38, 0.63, 0.88),
+  ORDINARY: marinePressureProfileDefinition(1, 0.4, 0.68, 0.9)
+});
+
 // These are productive grounds, not modern stock boundaries. Their broad ellipses
 // make historically famous fisheries legible at the game's hex scale.
 const HISTORIC_MARINE_FISHING_GROUNDS = Object.freeze([
@@ -339,6 +347,56 @@ const HISTORIC_MARINE_FISHING_GROUNDS = Object.freeze([
     initialDensityMin: 0.36,
     initialDensityMax: 0.56,
     visualAbundanceMultiplier: 0.95
+  }),
+  marineFishingGround("maldives-tuna-grounds", 3.5, 73.2, 6, 5.5, {
+    tuna: 6
+  }, {
+    presenceChance: 0.58,
+    capacityMultiplier: 2,
+    initialDensityMin: 0.62,
+    initialDensityMax: 0.84,
+    visualAbundanceMultiplier: 1.25
+  }),
+  marineFishingGround("seto-inland-sea", 34.4, 133.3, 2.5, 3.5, {
+    sardine: 3.2,
+    tuna: 1.2
+  }, {
+    presenceChance: 0.34,
+    capacityMultiplier: 1.25,
+    initialDensityMin: 0.4,
+    initialDensityMax: 0.62,
+    visualAbundanceMultiplier: 1
+  }),
+  marineFishingGround("tsushima-korea-seas", 34.5, 129.2, 4, 3.5, {
+    herring: 2.4,
+    sardine: 2,
+    tuna: 1.3
+  }, {
+    presenceChance: 0.38,
+    capacityMultiplier: 1.32,
+    initialDensityMin: 0.42,
+    initialDensityMax: 0.65,
+    visualAbundanceMultiplier: 1
+  }),
+  marineFishingGround("yellow-sea", 36, 124, 5.5, 4, {
+    herring: 3.5,
+    sardine: 1.5
+  }, {
+    presenceChance: 0.36,
+    capacityMultiplier: 1.3,
+    initialDensityMin: 0.4,
+    initialDensityMax: 0.64,
+    visualAbundanceMultiplier: 1
+  }),
+  marineFishingGround("coral-triangle", 1, 125, 14, 20, {
+    reef: 3,
+    tuna: 1.5
+  }, {
+    presenceChance: 0.3,
+    capacityMultiplier: 1.3,
+    initialDensityMin: 0.48,
+    initialDensityMax: 0.72,
+    visualAbundanceMultiplier: 1.05
   })
 ]);
 
@@ -679,30 +737,34 @@ function initialFisheryDensityRange(habitat, historicGround) {
       max: historicGround.initialDensityMax
     };
   }
-  if (isMarineHabitat(habitat)) {
-    return isLongExploitedOldWorldMarineWater(habitat)
-      ? { min: 0.26, max: 0.48 }
-      : { min: 0.4, max: 0.68 };
-  }
+  if (isMarineHabitat(habitat)) return marinePressureProfile(habitat).initialDensity;
   return { min: 0.34, max: 0.68 };
 }
 
 function ordinaryMarineVisualAbundance(habitat) {
   if (!isMarineHabitat(habitat)) return 1;
-  return isLongExploitedOldWorldMarineWater(habitat) ? 0.78 : 0.9;
+  return marinePressureProfile(habitat).visualAbundanceMultiplier;
 }
 
 function historicMarinePressureMultiplier(habitat) {
-  return isLongExploitedOldWorldMarineWater(habitat) ? 0.66 : 1;
+  return marinePressureProfile(habitat).presenceAndCapacityMultiplier;
 }
 
-function isLongExploitedOldWorldMarineWater(habitat) {
-  if (!isMarineHabitat(habitat)) return false;
+function marinePressureProfile(habitat) {
+  if (!isMarineHabitat(habitat)) {
+    throw new Error(`Marine pressure requires a marine habitat: ${habitat.kind}`);
+  }
   const lat = habitat.lat;
   const lon = habitat.lon;
   const easternAtlanticAndMediterranean = lat >= -40 && lat <= 72 && lon >= -30 && lon <= 45;
-  const indianAndWesternPacific = lat >= -42 && lat <= 60 && lon > 45 && lon <= 160;
-  return easternAtlanticAndMediterranean || indianAndWesternPacific;
+  if (easternAtlanticAndMediterranean) return MARINE_PRESSURE_PROFILE.EUROPEAN;
+  const eastAsianCommercialCoast = lat >= 18 && lat <= 50 && lon >= 105 && lon <= 150;
+  if (eastAsianCommercialCoast) return MARINE_PRESSURE_PROFILE.EAST_ASIAN;
+  const indianOceanCommercialCoast = lat >= -5 && lat <= 32 && lon > 45 && lon < 105;
+  if (indianOceanCommercialCoast) return MARINE_PRESSURE_PROFILE.INDIAN_OCEAN;
+  const maritimeSoutheastAsia = lat >= -15 && lat < 18 && lon >= 95 && lon <= 150;
+  if (maritimeSoutheastAsia) return MARINE_PRESSURE_PROFILE.MARITIME_SOUTHEAST_ASIAN;
+  return MARINE_PRESSURE_PROFILE.ORDINARY;
 }
 
 function isMarineHabitat(habitat) {
@@ -936,6 +998,33 @@ function marineFishingGround(id, centerLat, centerLon, latRadius, lonRadius, spe
     capacityMultiplier,
     initialDensityMin,
     initialDensityMax,
+    visualAbundanceMultiplier
+  });
+}
+
+function marinePressureProfileDefinition(
+  presenceAndCapacityMultiplier,
+  initialDensityMin,
+  initialDensityMax,
+  visualAbundanceMultiplier
+) {
+  if (
+    !Number.isFinite(presenceAndCapacityMultiplier) ||
+    presenceAndCapacityMultiplier <= 0 ||
+    presenceAndCapacityMultiplier > 1 ||
+    !Number.isFinite(initialDensityMin) ||
+    initialDensityMin <= 0 ||
+    !Number.isFinite(initialDensityMax) ||
+    initialDensityMax < initialDensityMin ||
+    initialDensityMax > 1 ||
+    !Number.isFinite(visualAbundanceMultiplier) ||
+    visualAbundanceMultiplier <= 0
+  ) {
+    throw new Error("Invalid marine pressure profile");
+  }
+  return Object.freeze({
+    presenceAndCapacityMultiplier,
+    initialDensity: Object.freeze({ min: initialDensityMin, max: initialDensityMax }),
     visualAbundanceMultiplier
   });
 }

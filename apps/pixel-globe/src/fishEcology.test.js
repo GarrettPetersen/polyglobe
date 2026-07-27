@@ -293,6 +293,23 @@ test("Newfoundland fisheries dwarf ordinary Old World coastal stocks", () => {
   assert.ok(grandBanks.meanVisibleFish > mediterranean.meanVisibleFish * 2);
 });
 
+test("ordinary Asian fisheries retain regional pressure without a blanket European penalty", () => {
+  const minute = 140 * MINUTE;
+  const mediterranean = surveyMarineFisheries("coastal", 38, 15, minute);
+  const eastChina = surveyMarineFisheries("coastal", 25, 115, minute);
+  const indianOcean = surveyMarineFisheries("coastal", 15, 75, minute);
+  const maritimeSoutheastAsia = surveyMarineFisheries("coastal", 10, 105, minute);
+  const remotePacific = surveyMarineFisheries("coastal", 20, 175, minute);
+
+  for (const asianFishery of [eastChina, indianOcean, maritimeSoutheastAsia]) {
+    assert.ok(mediterranean.visibleRate < asianFishery.visibleRate);
+    assert.ok(asianFishery.visibleRate < remotePacific.visibleRate);
+  }
+  assert.ok(eastChina.meanVisibleFish < indianOcean.meanVisibleFish);
+  assert.ok(indianOcean.meanVisibleFish < maritimeSoutheastAsia.meanVisibleFish);
+  assert.ok(maritimeSoutheastAsia.meanVisibleFish < remotePacific.meanVisibleFish);
+});
+
 test("historically prominent 1522 fishing grounds retain regional abundance", () => {
   const minute = 140 * MINUTE;
   const grounds = [
@@ -303,7 +320,12 @@ test("historically prominent 1522 fishing grounds retain regional abundance", ()
     ["north-sea", "herring", "open-ocean", 56, 3],
     ["irish-celtic-seas", "herring", "open-ocean", 53, -10],
     ["galician-sardine-grounds", "sardine", "coastal", 42, -9],
-    ["scania-baltic", "herring", "open-ocean", 56, 14]
+    ["scania-baltic", "herring", "open-ocean", 56, 14],
+    ["maldives-tuna-grounds", "tuna", "open-ocean", 3.5, 73.2],
+    ["seto-inland-sea", "sardine", "coastal", 34.4, 133.3],
+    ["tsushima-korea-seas", "herring", "coastal", 34.5, 129.2],
+    ["yellow-sea", "herring", "coastal", 36, 124],
+    ["coral-triangle", "reef", "coastal", 1, 125]
   ];
 
   for (const [groundId, speciesId, kind, lat, lon] of grounds) {
