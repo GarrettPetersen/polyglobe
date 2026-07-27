@@ -1527,7 +1527,7 @@ const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
 const NPC_VISUAL_UPDATE_INTERVAL_SECONDS = 1 / 30;
-const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 1 / 5;
+const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
 const NPC_MAJOR_PORT_AVOID_RADIUS_PX = 132;
@@ -2125,6 +2125,8 @@ const SFX_FIRE_FADE_PER_SECOND = 0.55;
 const SFX_WHALE_SONG_FADE_PER_SECOND = 0.035;
 const SFX_WIND_TERRAIN_RADIUS_PX = 150;
 const AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS = 0.1;
+const AMBIENT_AUDIO_CONTEXT_INTERVAL_SECONDS = 0.25;
+const AMBIENT_AUDIO_WILDLIFE_INTERVAL_SECONDS = 2;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
 const SEAGULL_FLIGHT_URL = "assets/animals/seagull-Sheet.png";
@@ -2141,7 +2143,7 @@ const WHALE_BLOW_DURATION_MS = WHALE_BLOW_DURATION_SECONDS * 1000;
 const WHALE_SUBMERGED_ALPHA = 0.34;
 const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
-const WHALE_SIMULATION_INTERVAL_SECONDS = 0.1;
+const WHALE_SIMULATION_INTERVAL_SECONDS = 0.25;
 const WHALE_HUNT_SIMULATION_INTERVAL_SECONDS = 1 / 30;
 const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
@@ -2374,6 +2376,10 @@ let npcVisualUpdateAccumulator = 0;
 let shoreBatteryUpdateAccumulator = 0;
 let whaleSimulationAccumulator = 0;
 let ambientAudioUpdateAccumulator = 0;
+let ambientAudioContextAccumulator = 0;
+let ambientAudioWildlifeAccumulator = 0;
+let ambientAudioContext = null;
+let ambientAudioWildlife = null;
 let weatherSimulationAccumulator = 0;
 let npcStrategicUpdateClockMinutes = null;
 let lastPlatformActivityUpdateMs = -Infinity;
@@ -2407,6 +2413,7 @@ const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
+const wavingFactionFlagFrameCache = new Map();
 const landRoadLayerCache = new WeakMap();
 const terrainTileLayerCache = new WeakMap();
 const terrainImagePixelCache = new WeakMap();
@@ -2819,6 +2826,7 @@ async function main() {
   worldDiscoveryImages = loadedWorldDiscoveryImages;
   cityImages = loadedCityImages;
   factionFlagImages = loadedFactionFlagImages;
+  wavingFactionFlagFrameCache.clear();
   animalImages = loadedAnimalImages;
   horseCartAssets = loadedHorseCartAssets;
   stormShipStrikeImage = loadedStormShipStrikeImage;
@@ -6304,9 +6312,35 @@ function updateAmbientAudio(dt) {
   if (ambientAudioUpdateAccumulator < AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS) return;
   const elapsed = ambientAudioUpdateAccumulator;
   ambientAudioUpdateAccumulator = 0;
-  const nearestLand = nearestLandForAmbientContext();
-  const shore = shoreProximity(nearestLand);
-  const sailing = sailingAmbientTargets(elapsed, nearestLand);
+  ambientAudioContextAccumulator = Math.min(
+    AMBIENT_AUDIO_CONTEXT_INTERVAL_SECONDS * 2,
+    ambientAudioContextAccumulator + elapsed
+  );
+  if (!ambientAudioContext ||
+      ambientAudioContextAccumulator >= AMBIENT_AUDIO_CONTEXT_INTERVAL_SECONDS) {
+    const contextElapsed = ambientAudioContextAccumulator;
+    ambientAudioContextAccumulator = 0;
+    const nearestLand = nearestLandForAmbientContext();
+    ambientAudioContext = Object.freeze({
+      shore: shoreProximity(nearestLand),
+      sailing: sailingAmbientTargets(contextElapsed, nearestLand),
+      storm: playerStormIntensity(),
+      fire: visibleFireSoundPresence()
+    });
+  }
+  ambientAudioWildlifeAccumulator = Math.min(
+    AMBIENT_AUDIO_WILDLIFE_INTERVAL_SECONDS * 2,
+    ambientAudioWildlifeAccumulator + elapsed
+  );
+  if (!ambientAudioWildlife ||
+      ambientAudioWildlifeAccumulator >= AMBIENT_AUDIO_WILDLIFE_INTERVAL_SECONDS) {
+    ambientAudioWildlifeAccumulator = 0;
+    ambientAudioWildlife = Object.freeze({
+      seagulls: seagullAmbientPresence(),
+      whales: visibleUnderwaterWhaleSongPresence()
+    });
+  }
+  const { shore, sailing, storm, fire } = ambientAudioContext;
   updateRowingStrokeAudio(elapsed, sailing.rowing);
   let changed = false;
   changed = updateAmbientLoop(
@@ -6317,7 +6351,7 @@ function updateAmbientAudio(dt) {
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.seagulls,
-    seagullAmbientPresence() * SFX_SEAGULLS_MAX_VOLUME,
+    ambientAudioWildlife.seagulls * SFX_SEAGULLS_MAX_VOLUME,
     SFX_SEAGULLS_MAX_VOLUME,
     elapsed,
     SFX_SEAGULL_FADE_PER_SECOND
@@ -6349,10 +6383,9 @@ function updateAmbientAudio(dt) {
     elapsed,
     SFX_WIND_FADE_PER_SECOND
   ) || changed;
-  const stormIntensity = playerStormIntensity();
   changed = updateAmbientLoop(
     soundEffects.storm,
-    stormIntensity * SFX_STORM_MAX_VOLUME,
+    storm * SFX_STORM_MAX_VOLUME,
     SFX_STORM_MAX_VOLUME,
     elapsed,
     SFX_STORM_FADE_PER_SECOND
@@ -6373,14 +6406,14 @@ function updateAmbientAudio(dt) {
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.fire,
-    visibleFireSoundPresence() * SFX_FIRE_MAX_VOLUME,
+    fire * SFX_FIRE_MAX_VOLUME,
     SFX_FIRE_MAX_VOLUME,
     elapsed,
     SFX_FIRE_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientPlaylist(
     soundEffects.whaleSongs,
-    visibleUnderwaterWhaleSongPresence() * SFX_WHALE_SONG_MAX_VOLUME,
+    ambientAudioWildlife.whales * SFX_WHALE_SONG_MAX_VOLUME,
     SFX_WHALE_SONG_MAX_VOLUME,
     elapsed,
     lastFrameMs,
@@ -6483,22 +6516,18 @@ function randomWhaleSongGapMs() {
 
 function visibleUnderwaterWhaleSongPresence() {
   if (!gameState?.memory?.whales || !chart || !localLayout || !ship) return 0;
-  let presence = 0;
   for (const whale of gameState.memory.whales.individuals) {
     const call = whaleInteractionCall(whale);
     if (!call) continue;
     const distancePx = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
-    presence = Math.max(
-      presence,
-      underwaterWhaleSongPresence(
-        whale,
-        distancePx,
-        SFX_WHALE_SONG_NEAR_PX,
-        SFX_WHALE_SONG_FAR_PX
-      )
-    );
+    if (underwaterWhaleSongPresence(
+      whale,
+      distancePx,
+      SFX_WHALE_SONG_NEAR_PX,
+      SFX_WHALE_SONG_FAR_PX
+    ) > 0) return 1;
   }
-  return presence;
+  return 0;
 }
 
 function visibleFireSoundPresence() {
@@ -6589,7 +6618,7 @@ function seagullAmbientPresence() {
     spriteSize: SEAGULL_FRAME_SIZE,
     fadeMargin: SEAGULL_AUDIO_FADE_MARGIN_PX,
     fullPresenceCount: SEAGULL_AUDIO_FULL_PRESENCE_COUNT
-  });
+  }) > 0 ? 1 : 0;
 }
 
 function shoreProximity(nearestLand) {
@@ -8676,6 +8705,10 @@ async function restoreSavedVoyage(payload) {
   shoreBatteryUpdateAccumulator = 0;
   whaleSimulationAccumulator = 0;
   ambientAudioUpdateAccumulator = 0;
+  ambientAudioContextAccumulator = 0;
+  ambientAudioWildlifeAccumulator = 0;
+  ambientAudioContext = null;
+  ambientAudioWildlife = null;
   weatherSimulationAccumulator = 0;
   npcStrategicUpdateClockMinutes = null;
   npcCombatProjectiles = [];
@@ -32778,31 +32811,29 @@ function drawShipCall(call, nowMs, terrainForeground) {
     w: shipCompositeCanvas.width,
     h: shipCompositeCanvas.height
   };
-  shipCompositeCtx.clearRect(0, 0, shipCompositeCanvas.width, shipCompositeCanvas.height);
-  shipCompositeCtx.save();
-  shipCompositeCtx.translate(-compositeBounds.x, -compositeBounds.y);
-  const previousCtx = ctx;
-  ctx = shipCompositeCtx;
-  try {
-    ctx.save();
+  const foreground = shipTerrainForegroundForDrawCall(
+    drawCall,
+    layers,
+    terrainForeground,
+    compositeBounds
+  );
+  if (foreground.length === 0) {
+    drawShipVisual(drawCall, layers, nowMs);
+  } else {
+    shipCompositeCtx.clearRect(0, 0, shipCompositeCanvas.width, shipCompositeCanvas.height);
+    shipCompositeCtx.save();
+    shipCompositeCtx.translate(-compositeBounds.x, -compositeBounds.y);
+    const previousCtx = ctx;
+    ctx = shipCompositeCtx;
     try {
-      if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
-      drawFloatingShipSprite(drawCall, layers, nowMs);
-      if (drawCall.kind === "player") {
-        drawShipLighting(drawCall.frame, drawCall.x, drawCall.y, drawCall.light, layers.abovePointSet);
-      }
-      if (drawCall.kind === "npc") {
-        drawNpcShipFlag(drawCall, nowMs);
-      }
+      drawShipVisual(drawCall, layers, nowMs);
+      eraseTerrainOccludersFromShipLayer(ctx, foreground);
     } finally {
-      ctx.restore();
+      ctx = previousCtx;
+      shipCompositeCtx.restore();
     }
-    maskShipWithTerrainForeground(drawCall, layers, terrainForeground, compositeBounds);
-  } finally {
-    ctx = previousCtx;
-    shipCompositeCtx.restore();
+    ctx.drawImage(shipCompositeCanvas, compositeBounds.x, compositeBounds.y);
   }
-  ctx.drawImage(shipCompositeCanvas, compositeBounds.x, compositeBounds.y);
   if (drawCall.kind === "player" && shipHullIsDamaged(drawCall.hitPoints, drawCall.maxHitPoints)) {
     drawShipHullBar(drawCall, "#e83b3b");
   }
@@ -32810,7 +32841,21 @@ function drawShipCall(call, nowMs, terrainForeground) {
   if (drawCall.kind === "npc" && drawCall.combatMode) drawNpcCombatHull(drawCall);
 }
 
-function maskShipWithTerrainForeground(call, layers, terrainForeground, shipBounds) {
+function drawShipVisual(drawCall, layers, nowMs) {
+  ctx.save();
+  try {
+    if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
+    drawFloatingShipSprite(drawCall, layers, nowMs);
+    if (drawCall.kind === "player") {
+      drawShipLighting(drawCall.frame, drawCall.x, drawCall.y, drawCall.light, layers.abovePointSet);
+    }
+    if (drawCall.kind === "npc") drawNpcShipFlag(drawCall, nowMs);
+  } finally {
+    ctx.restore();
+  }
+}
+
+function shipTerrainForegroundForDrawCall(call, layers, terrainForeground, shipBounds) {
   if (!Number.isFinite(call.depthY)) throw new Error(`Ship ${call.id} is missing its terrain depth`);
   const terrainDepthY = shipOcclusionDepthY(
     call.y,
@@ -32820,8 +32865,7 @@ function maskShipWithTerrainForeground(call, layers, terrainForeground, shipBoun
   const foreground = terrainForeground.occludersForBounds(shipBounds)
     .filter((entry) => entry.depthY > terrainDepthY)
     .sort((a, b) => a.depthY - b.depthY || a.y - b.y || a.x - b.x);
-  if (foreground.length === 0) return;
-  eraseTerrainOccludersFromShipLayer(ctx, foreground);
+  return foreground;
 }
 
 function rowingShipFrameAsset(call, nowMs) {
@@ -33856,13 +33900,42 @@ function drawWavingFactionFlag(
   const image = factionFlagImages?.get(factionId);
   if (!image) throw new Error(`Missing faction flag image: ${factionId}`);
   const offsets = flagWaveColumnOffsets(width, phaseRad, 1);
+  const frame = wavingFactionFlagFrame(
+    factionId,
+    image,
+    width,
+    height,
+    offsets,
+    outlineColor
+  );
+  ctx.drawImage(frame, Math.round(x), Math.round(y) - 2);
+}
+
+function wavingFactionFlagFrame(factionId, image, width, height, offsets, outlineColor) {
+  const verticalPadding = 2;
+  const cacheKey = [
+    factionId,
+    width,
+    height,
+    outlineColor || "",
+    offsets.join(",")
+  ].join("|");
+  const cached = wavingFactionFlagFrameCache.get(cacheKey);
+  if (cached) return cached;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width + (outlineColor === null ? 0 : 1);
+  canvas.height = height + verticalPadding * 2;
+  const frameCtx = canvas.getContext("2d");
+  if (!frameCtx) throw new Error(`Could not create animated flag frame for ${factionId}`);
+  frameCtx.imageSmoothingEnabled = false;
   if (outlineColor !== null) {
-    ctx.fillStyle = outlineColor;
+    frameCtx.fillStyle = outlineColor;
     for (const [dx, dy] of [[0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) {
       for (let column = 0; column < width; column++) {
-        ctx.fillRect(
-          Math.round(x + column + dx),
-          Math.round(y + offsets[column] + dy),
+        frameCtx.fillRect(
+          column + dx,
+          verticalPadding + offsets[column] + dy,
           1,
           height
         );
@@ -33872,18 +33945,20 @@ function drawWavingFactionFlag(
   for (let column = 0; column < width; column++) {
     const sourceX = Math.floor(column * image.width / width);
     const sourceEndX = Math.floor((column + 1) * image.width / width);
-    ctx.drawImage(
+    frameCtx.drawImage(
       image,
       sourceX,
       0,
       Math.max(1, sourceEndX - sourceX),
       image.height,
-      Math.round(x + column),
-      Math.round(y + offsets[column]),
+      column,
+      verticalPadding + offsets[column],
       1,
       height
     );
   }
+  wavingFactionFlagFrameCache.set(cacheKey, canvas);
+  return canvas;
 }
 
 function citySpriteShouldDrawAboveShip(call, offset) {

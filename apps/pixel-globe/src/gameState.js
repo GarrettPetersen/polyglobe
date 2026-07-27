@@ -855,7 +855,10 @@ export function clearPortNavigationWaypointsAt(state, portTileId) {
 }
 
 export function advanceActivePlayTime(state, elapsedSeconds) {
-  assertGameState(state);
+  if (!state || typeof state !== "object" ||
+      !Number.isFinite(state.activePlaySeconds) || state.activePlaySeconds < 0) {
+    throw new Error(`Invalid active play time: ${state?.activePlaySeconds}`);
+  }
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
     throw new Error(`Invalid active play duration: ${elapsedSeconds}`);
   }
@@ -2727,9 +2730,15 @@ export function realizedTradePnl(state) {
 }
 
 export function factionReputation(state, factionId) {
-  assertGameState(state);
   const id = assertFactionId(factionId);
-  return state.relations.factionReputation[id];
+  const reputation = state?.relations?.factionReputation;
+  if (!reputation || typeof reputation !== "object" ||
+      !Object.prototype.hasOwnProperty.call(reputation, id)) {
+    throw new Error(`Missing faction reputation: ${id}`);
+  }
+  const value = reputation[id];
+  assertReputationValue(value, `reputation.${id}`);
+  return value;
 }
 
 export function sovereignTradeOpenToFaction(state, policyId, factionId) {

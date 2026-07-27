@@ -37,7 +37,12 @@ export function createShipCombatState() {
 export function updateShipCombatState(state, entities, relationBetween = diplomacyBetween) {
   if (!state?.engagements) throw new Error("Missing ship combat state");
   assertRelationResolver(relationBetween);
-  const byId = new Map(entities.map(validateEntity).map((entity) => [entity.id, entity]));
+  if (!Array.isArray(entities)) throw new Error("Ship combat requires an entity list");
+  const byId = new Map();
+  for (const entity of entities) {
+    validateEntity(entity);
+    byId.set(entity.id, entity);
+  }
   if (byId.size !== entities.length) throw new Error("Combat entities contain duplicate ids");
   let changed = false;
   const startedEngagements = [];

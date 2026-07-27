@@ -26,7 +26,7 @@ process.exitCode = exitCode;
 
 async function runSupervisedTests(args, timeoutMs) {
   // A dedicated process group lets one timeout clean up Node's per-file test workers too.
-  const child = spawn(process.execPath, ["--test", ...args], {
+  const child = spawn(process.execPath, ["--test", "--test-force-exit", ...args], {
     cwd: process.cwd(),
     detached: process.platform !== "win32",
     stdio: "inherit"
