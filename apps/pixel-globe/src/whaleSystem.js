@@ -43,6 +43,7 @@ const WHITE_WHALE_MIGRATION_LATITUDE_SPREAD_DEG = 34;
 const WHALE_TETHER_HAUL_START_PROGRESS = 0.65;
 const WHALE_TETHER_FINAL_LENGTH_SCALE = 0.36;
 const whaleAdvanceValidationCache = new WeakMap();
+const whaleMovementDebtSeconds = new WeakMap();
 
 const PHASES = new Set([
   WHALE_PHASE_SUBMERGED,
@@ -160,26 +161,37 @@ export function validateWhaleMemory(memory) {
   return memory;
 }
 
-export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinute) {
+export function advanceWhaleMemory(
+  memory,
+  dt,
+  navigationAtPosition,
+  currentMinute,
+  movementSchedule = null
+) {
   validateWhaleMemoryForAdvance(memory);
   if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid whale simulation step: ${dt}`);
   if (typeof navigationAtPosition !== "function") {
     throw new Error("Whale simulation requires an ocean navigation resolver");
   }
   assertSimulationMinute(currentMinute);
+  const schedule = validateWhaleMovementSchedule(movementSchedule);
   const events = advanceWhaleEcology(memory, currentMinute);
   const individualsById = new Map(memory.individuals.map((whale) => [whale.id, whale]));
   for (const whale of memory.individuals) {
     if (whale.phase === WHALE_PHASE_DEAD || whale.phase === WHALE_PHASE_EXHAUSTED) continue;
-    whale.lifeSeconds += dt;
-    whale.phaseElapsedSeconds += dt;
+    const movementDebt = (whaleMovementDebtSeconds.get(whale) || 0) + dt;
+    whaleMovementDebtSeconds.set(whale, movementDebt);
+    if (!whaleMovementIsDue(whale, schedule)) continue;
+    whaleMovementDebtSeconds.set(whale, 0);
+    whale.lifeSeconds += movementDebt;
+    whale.phaseElapsedSeconds += movementDebt;
     if (whale.phase === WHALE_PHASE_TETHERED) {
       const currentNavigation = requireWhaleNavigation(navigationAtPosition(whale.position));
       if (!currentNavigation.canSurface) breakWhaleTetherUnderIce(memory, whale, events);
     }
     const navigation = advanceWhaleMovement(
       whale,
-      dt,
+      movementDebt,
       navigationAtPosition,
       individualsById,
       currentMinute
@@ -203,6 +215,29 @@ export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinu
     }
   }
   return events;
+}
+
+function validateWhaleMovementSchedule(schedule) {
+  if (schedule === null) return { bucket: 0, bucketCount: 1, isActive: null };
+  if (!schedule || typeof schedule !== "object") {
+    throw new Error("Whale movement schedule must be an object");
+  }
+  const { bucket, bucketCount, isActive = null } = schedule;
+  if (!Number.isInteger(bucketCount) || bucketCount <= 0) {
+    throw new Error(`Invalid whale movement bucket count: ${bucketCount}`);
+  }
+  if (!Number.isInteger(bucket) || bucket < 0 || bucket >= bucketCount) {
+    throw new Error(`Invalid whale movement bucket: ${bucket}/${bucketCount}`);
+  }
+  if (isActive !== null && typeof isActive !== "function") {
+    throw new Error("Whale movement active resolver must be a function");
+  }
+  return { bucket, bucketCount, isActive };
+}
+
+function whaleMovementIsDue(whale, schedule) {
+  if (schedule.isActive?.(whale)) return true;
+  return (whale.seed >>> 0) % schedule.bucketCount === schedule.bucket;
 }
 
 function validateWhaleMemoryForAdvance(memory) {

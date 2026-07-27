@@ -91,6 +91,33 @@ test("whales seed as stable individual entities and surface cyclically", () => {
   validateWhaleMemory(memory);
 });
 
+test("background whale movement is staggered while active whales remain responsive", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(100), 20);
+  const whale = memory.individuals.find((entry) => (entry.seed >>> 0) % 8 !== 0);
+  assert.ok(whale);
+  const initialLifeSeconds = whale.lifeSeconds;
+
+  advanceWhaleMemory(memory, 0.25, () => whaleNavigation(1), 1, {
+    bucket: 0,
+    bucketCount: 8
+  });
+  assert.equal(whale.lifeSeconds, initialLifeSeconds);
+
+  advanceWhaleMemory(memory, 0.25, () => whaleNavigation(1), 1, {
+    bucket: (whale.seed >>> 0) % 8,
+    bucketCount: 8
+  });
+  assert.equal(whale.lifeSeconds, initialLifeSeconds + 0.5);
+
+  advanceWhaleMemory(memory, 0.25, () => whaleNavigation(1), 1, {
+    bucket: ((whale.seed >>> 0) + 1) % 8,
+    bucketCount: 8,
+    isActive: (entry) => entry.id === whale.id
+  });
+  assert.equal(whale.lifeSeconds, initialLifeSeconds + 0.75);
+});
+
 test("submerged whales swim beneath ice and wait for open water before rising", () => {
   const memory = createWhaleMemory();
   seedWhalePopulation(memory, candidates(), 6);

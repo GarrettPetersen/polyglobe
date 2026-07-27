@@ -1527,6 +1527,7 @@ const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
 const NPC_VISUAL_UPDATE_INTERVAL_SECONDS = 1 / 30;
+const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 2;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
@@ -1578,7 +1579,7 @@ const WIND_INDICATOR_STRENGTH_LERP_PER_SECOND = 2.4;
 const WIND_INDICATOR_WARNING_LERP_PER_SECOND = 8;
 const WIND_INDICATOR_STALL_PULSE_MS = 900;
 const RIVER_HIGHLIGHT_FRAME_MS = 2000;
-const WATER_REDRAW_MS = 250;
+const WATER_REDRAW_MS = 500;
 const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 250;
 const WEATHER_SIMULATION_INTERVAL_SECONDS = 0.1;
@@ -2124,9 +2125,9 @@ const SFX_UNDERWAY_FADE_PER_SECOND = 0.018;
 const SFX_FIRE_FADE_PER_SECOND = 0.55;
 const SFX_WHALE_SONG_FADE_PER_SECOND = 0.035;
 const SFX_WIND_TERRAIN_RADIUS_PX = 150;
-const AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS = 0.1;
-const AMBIENT_AUDIO_CONTEXT_INTERVAL_SECONDS = 0.25;
-const AMBIENT_AUDIO_WILDLIFE_INTERVAL_SECONDS = 2;
+const AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS = 0.25;
+const AMBIENT_AUDIO_CONTEXT_INTERVAL_SECONDS = 2;
+const AMBIENT_AUDIO_WILDLIFE_INTERVAL_SECONDS = 3;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
 const SEAGULL_FLIGHT_URL = "assets/animals/seagull-Sheet.png";
@@ -2145,18 +2146,20 @@ const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const WHALE_SIMULATION_INTERVAL_SECONDS = 0.25;
 const WHALE_HUNT_SIMULATION_INTERVAL_SECONDS = 1 / 30;
+const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 8;
 const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
-const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
+const FISH_VISIBLE_MAX_INDIVIDUALS = 28;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
 const FISH_SWIM_PERIOD_MIN_MS = 4200;
 const FISH_SWIM_PERIOD_SPREAD_MS = 5200;
 const FISH_SCATTER_RADIUS_PX = 30;
 const FISH_SCATTER_PUSH_PX = 5;
-const FISH_ANIMATION_REDRAW_MS = 120;
+const FISH_ANIMATION_REDRAW_MS = 400;
+const FISH_NPC_SEARCH_RETRY_MINUTES = 30;
 const SEAGULL_FLIGHT_FRAMES = 6;
 const SEAGULL_MAX_FLYING = 14;
 const SEAGULL_AUDIO_FULL_PRESENCE_COUNT = 4;
@@ -2269,9 +2272,14 @@ if (!shipSinkSampleCtx) throw new Error("Marque & Reprisal could not create its 
 shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
 const shipWaterlineLayerCache = new WeakMap();
+const floatingShipFrameCache = new WeakMap();
+const FLOATING_SHIP_FRAME_CACHE_LIMIT = 48;
 const selectableOutlineCache = new WeakMap();
 const greatBarrierReefWaterMaskCache = new WeakMap();
 const greatBarrierReefBeachPixelCache = new WeakMap();
+const surfaceDetailLayerCache = new WeakMap();
+const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
+const SURFACE_DETAIL_REDRAW_MS = 500;
 const underwaterWorldSpriteCanvas = document.createElement("canvas");
 underwaterWorldSpriteCanvas.width = UNDERWATER_WORLD_SPRITE_WIDTH;
 underwaterWorldSpriteCanvas.height = TILE_ART_SIZE;
@@ -2283,6 +2291,10 @@ underwaterWorldSpriteCtx.imageSmoothingEnabled = false;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
 const pixelTextWidthCache = new Map();
+const cityLabelRasterCache = new Map();
+let survivalHudRasterCache = null;
+const renderCallWindowCache = new WeakMap();
+const RENDER_CALL_WINDOW_STEP_PX = 64;
 let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
@@ -2373,8 +2385,10 @@ let npcCombatSplashes = [];
 let cannonSmokeBursts = [];
 let hullSplinterBursts = [];
 let npcVisualUpdateAccumulator = 0;
+let npcVisualMovementBucket = 0;
 let shoreBatteryUpdateAccumulator = 0;
 let whaleSimulationAccumulator = 0;
+let whaleBackgroundMovementBucket = 0;
 let ambientAudioUpdateAccumulator = 0;
 let ambientAudioContextAccumulator = 0;
 let ambientAudioWildlifeAccumulator = 0;
@@ -2383,9 +2397,6 @@ let ambientAudioWildlife = null;
 let weatherSimulationAccumulator = 0;
 let npcStrategicUpdateClockMinutes = null;
 let lastPlatformActivityUpdateMs = -Infinity;
-let localChartCullWidth = 0;
-let localChartCullHeight = 0;
-let localChartCullMinimumDot = -1;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
 let portCityCharacters;
@@ -2421,6 +2432,10 @@ const visibleRiverBankCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
+const riverGatewayDirectionCache = new WeakMap();
+const RIVER_GATEWAY_DIRECTION_CACHE_LIMIT = 4096;
+const RIVER_GATEWAY_CACHE_POSITION_PX = 3;
+const RIVER_GATEWAY_CACHE_DIRECTION_COUNT = 16;
 const offshoreHullClearanceCache = new Map();
 let offshoreHullClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
@@ -8702,8 +8717,10 @@ async function restoreSavedVoyage(payload) {
   npcVisualShips.clear();
   shoreBatteryStates.clear();
   npcVisualUpdateAccumulator = 0;
+  npcVisualMovementBucket = 0;
   shoreBatteryUpdateAccumulator = 0;
   whaleSimulationAccumulator = 0;
+  whaleBackgroundMovementBucket = 0;
   ambientAudioUpdateAccumulator = 0;
   ambientAudioContextAccumulator = 0;
   ambientAudioWildlifeAccumulator = 0;
@@ -14450,14 +14467,24 @@ function updateWhales(dt, nowMs) {
     simulationInterval * 2,
     whaleSimulationAccumulator + dt
   );
-  const events = whaleSimulationAccumulator >= simulationInterval
+  const simulationDue = whaleSimulationAccumulator >= simulationInterval;
+  const events = simulationDue
     ? advanceWhaleMemory(
         gameState.memory.whales,
         takeWhaleSimulationElapsed(),
         whaleNavigationAtPosition,
-        weatherClockMinutes
+        weatherClockMinutes,
+        {
+          bucket: whaleBackgroundMovementBucket,
+          bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
+          isActive: whaleMovementRequiresResponsiveSimulation
+        }
       )
     : [];
+  if (simulationDue) {
+    whaleBackgroundMovementBucket =
+      (whaleBackgroundMovementBucket + 1) % WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT;
+  }
   let changed;
   try {
     changed = constrainActiveWhaleTether();
@@ -14507,6 +14534,18 @@ function updateWhales(dt, nowMs) {
     whaleBlowBursts.length !== previousBurstCount ||
     whaleKillEffects.length > 0 ||
     whaleKillEffects.length !== previousKillEffectCount;
+}
+
+function whaleMovementRequiresResponsiveSimulation(whale) {
+  const activeWhaleId = gameState?.memory?.whales?.activeHunt?.whaleId;
+  if (whale.id === activeWhaleId) return true;
+  const point = localLayout.positions.get(whale.tileId);
+  if (!point) return false;
+  const offset = chartOffsetPixels(chart);
+  return pointNearScreen(
+    { x: point.x + offset.x, y: point.y + offset.y },
+    SHIP_SHEET_FRAME_SIZE
+  );
 }
 
 function takeWhaleSimulationElapsed() {
@@ -14581,9 +14620,9 @@ function harpoonableWhaleCalls() {
 
 function whaleInteractionCall(whale) {
   if (!chart || !camera || !localLayout) return null;
-  if (!globeVectorMayIntersectLocalChart(whale.position)) return null;
-  const localPoint = localPointForGlobeVector(whale.position);
-  if (!localPoint || !chart.visibleSet.has(localPoint.tileId)) return null;
+  if (!chart.visibleSet.has(whale.tileId)) return null;
+  const localPoint = localPointForKnownTileVector(whale.position, whale.tileId);
+  if (!localPoint) return null;
   const offset = chartOffsetPixels(chart);
   const heading = tangentToScreenDirection(whale.heading) || { x: 1, y: 0 };
   return {
@@ -14596,19 +14635,6 @@ function whaleInteractionCall(whale) {
     frame: headingFrameForScreenHeading(heading),
     scale: whaleLifeStageScale(whale)
   };
-}
-
-function globeVectorMayIntersectLocalChart(vector) {
-  if (localChartCullWidth !== SCREEN_W || localChartCullHeight !== SCREEN_H) {
-    localChartCullWidth = SCREEN_W;
-    localChartCullHeight = SCREEN_H;
-    const chartRadiusPx = Math.hypot(
-      SCREEN_W / 2 + CHART_MARGIN,
-      SCREEN_H / 2 + CHART_MARGIN
-    ) + TILE_ART_SIZE;
-    localChartCullMinimumDot = Math.cos(chartRadiusPx / PIXELS_PER_RADIAN);
-  }
-  return dot3(vector, camera.center) >= localChartCullMinimumDot;
 }
 
 function whaleBlowOriginPosition(whale) {
@@ -15936,6 +15962,10 @@ function normalizeBoundaryContactNormal(normal) {
 function playerShipBoundaryContact(inputHeading) {
   const desired = normalizeOrNull(projectTangentVector(inputHeading, ship.position));
   if (!desired) return null;
+  if (tileHasOffshoreHullClearance(ship.tileId)) {
+    playerBoundaryProbeCache = null;
+    return null;
+  }
   if (playerBoundaryProbeCache) {
     const movedPx = Math.hypot(
       localLayout.viewX - playerBoundaryProbeCache.viewX,
@@ -16667,6 +16697,7 @@ function addPlayerHaulRecoveryDirection(candidates, direction) {
 function playerRiverGatewayVelocities(inputHeading) {
   const speed = vectorLength(ship.velocity);
   if (speed < SHIP_MIN_SLIDE_SPEED_RAD || !localLayout || !chart || !camera) return [];
+  if (tileHasOffshoreHullClearance(ship.tileId)) return [];
   const travelDirection = tangentToScreenDirection(ship.velocity);
   const intentDirection = tangentToScreenDirection(inputHeading || ship.heading);
   if (!travelDirection || !intentDirection) return [];
@@ -16891,13 +16922,15 @@ function attemptShipStep(fromPosition, fromTileId, step) {
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, centerNav.kind, movementDirection)) {
       return { ok: false, blockedTileId: tileId };
     }
-    const occupancy = vesselOccupancyAtPosition(position, tileId, localPoint, centerNav, ship.heading);
-    if (!occupancy.ok) {
-      return {
-        ok: false,
-        blockedTileId: occupancy.blockedTileId,
-        normal: occupancy.normal
-      };
+    if (!tileHasOffshoreHullClearance(tileId)) {
+      const occupancy = vesselOccupancyAtPosition(position, tileId, localPoint, centerNav, ship.heading);
+      if (!occupancy.ok) {
+        return {
+          ok: false,
+          blockedTileId: occupancy.blockedTileId,
+          normal: occupancy.normal
+        };
+      }
     }
     previousTileId = tileId;
     previousNavKind = centerNav.kind;
@@ -18983,6 +19016,8 @@ function updateNpcShips(dt) {
     "npcShips.visual",
     () => updateNpcVisualShips(visualDt)
   );
+  npcVisualMovementBucket =
+    (npcVisualMovementBucket + 1) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
   return strategicChanged || economyChanged || landTradeChanged || hideoutDangerChanged || visualChanged;
 }
 
@@ -19046,6 +19081,12 @@ function updateNpcVisualShips(dt) {
       changed = true;
     }
 
+    state.visualMovementDebtSeconds += dt;
+    if (
+      state.visualMovementBucket !== npcVisualMovementBucket
+    ) continue;
+    const movementDt = state.visualMovementDebtSeconds;
+    state.visualMovementDebtSeconds = 0;
     let visualNavigationChanged = false;
     let currentNavigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
     if (!currentNavigation.ok) {
@@ -19071,7 +19112,7 @@ function updateNpcVisualShips(dt) {
       }
       currentNavigation = { ok: true, kind: placement.navKind };
     }
-    if (advanceNpcVisualState(state, snapshot, routePoint, dt, currentNavigation)) {
+    if (advanceNpcVisualState(state, snapshot, routePoint, movementDt, currentNavigation)) {
       visualNavigationChanged = true;
       changed = true;
     }
@@ -19148,10 +19189,22 @@ function createNpcVisualState(snapshot, routePoint) {
     stormReferenceTileId: null,
     stormAnchorUntilMinute: 0,
     fishHarvestUntilMinute: 0,
+    fishSearchAfterMinute: 0,
+    visualMovementBucket: npcVisualMovementBucketForId(snapshot.id),
+    visualMovementDebtSeconds: 0,
     fishingAction: null
   };
   setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   return state;
+}
+
+function npcVisualMovementBucketForId(id) {
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index++) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
 }
 
 function syncNpcVisualStateFromSnapshot(state, snapshot) {
@@ -19236,12 +19289,17 @@ function updateNpcFishermenHarvest() {
     }
     if (state.combatMode || state.stormMode) continue;
     if ((state.fishHarvestUntilMinute || 0) > nowMinute) continue;
+    if ((state.fishSearchAfterMinute || 0) > nowMinute) continue;
     const npcShip = npcSeaRoutes.shipById.get(state.id);
     if (!npcShip) continue;
     const free = npcCargoAvailableQuantity(npcShip, FISH_CARGO_GOOD_ID);
     if (free <= 0) continue;
     const call = nearestFishCallNearPoint(state.x, state.y, FISH_NPC_HARVEST_RADIUS_PX);
-    if (!call) continue;
+    if (!call) {
+      state.fishSearchAfterMinute = nowMinute + FISH_NPC_SEARCH_RETRY_MINUTES;
+      continue;
+    }
+    state.fishSearchAfterMinute = 0;
     state.fishingAction = {
       startMs: lastFrameMs,
       fishery: call.fishery,
@@ -21367,6 +21425,7 @@ function npcStormShelterRoutePoint(state) {
 
 function npcVisualStateIsNearShore(state) {
   if (!chart) return false;
+  if (tileHasOffshoreHullClearance(state.tileId)) return false;
   const maxDistance2 = ANCHOR_SHORE_MAX_PX * ANCHOR_SHORE_MAX_PX;
   for (const call of chart.tileCalls) {
     if (isWaterSurfaceRow(call.row)) continue;
@@ -21392,6 +21451,7 @@ function clearNpcStormManeuver(state) {
 }
 
 function npcRiverNavigationDirection(state, desiredDirection, currentKind) {
+  if (currentKind !== "river" && tileHasOffshoreHullClearance(state.tileId)) return null;
   const gateway = riverGatewayDirectionAtLocalPoint(state.x, state.y, currentKind, desiredDirection);
   if (gateway) return gateway;
   if (currentKind !== "river") return null;
@@ -21585,6 +21645,13 @@ function npcNavigableVisualPoint(x, y, heading, slug) {
 
 function localPointForGlobeVector(vector) {
   const tileId = findNearestTileId(graph, directionIndex, vector);
+  return localPointForKnownTileVector(vector, tileId);
+}
+
+function localPointForKnownTileVector(vector, tileId) {
+  if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
+    throw new Error(`Cannot project vector from invalid tile: ${tileId}`);
+  }
   const layout = localLayout.positions.get(tileId);
   if (!layout) return null;
   const center = tileCenterVector(tileId);
@@ -21619,13 +21686,35 @@ function tangentToScreenDirection(direction) {
 function riverGatewayDirectionAtLocalPoint(x, y, currentKind, desiredDirection) {
   if (currentKind === "openWater" && !localPointIsNearDrawnRiver(x, y)) return null;
   if (currentKind === "river" && !localPointIsNearOpenWater(x, y)) return null;
-  return findRiverGatewayDirection({
+  const directionAngle = Math.atan2(desiredDirection.y, desiredDirection.x);
+  const directionIndex = (
+    Math.round(directionAngle / (Math.PI * 2) * RIVER_GATEWAY_CACHE_DIRECTION_COUNT) %
+      RIVER_GATEWAY_CACHE_DIRECTION_COUNT +
+    RIVER_GATEWAY_CACHE_DIRECTION_COUNT
+  ) % RIVER_GATEWAY_CACHE_DIRECTION_COUNT;
+  const key = [
+    weatherMaskDayIndex,
+    currentKind,
+    Math.round(x / RIVER_GATEWAY_CACHE_POSITION_PX),
+    Math.round(y / RIVER_GATEWAY_CACHE_POSITION_PX),
+    directionIndex
+  ].join(":");
+  let cache = riverGatewayDirectionCache.get(chart);
+  if (!cache) {
+    cache = new Map();
+    riverGatewayDirectionCache.set(chart, cache);
+  }
+  if (cache.has(key)) return cache.get(key);
+  const gateway = findRiverGatewayDirection({
     x,
     y,
     currentKind,
     desiredDirection,
     sampleKindAt: localNavigationKindAtPoint
   });
+  if (cache.size >= RIVER_GATEWAY_DIRECTION_CACHE_LIMIT) cache.clear();
+  cache.set(key, gateway);
+  return gateway;
 }
 
 function localPointIsNearOpenWater(x, y) {
@@ -22188,15 +22277,15 @@ function render(nowMs) {
 
   ensureChart();
   const offset = chartOffsetPixels(chart);
-  const renderTileCalls = chart.tileCalls.filter((call) => chartTileCallNearViewport(call, offset));
-  const renderTileIds = new Set(renderTileCalls.map((call) => call.id));
-  const renderFaceCalls = new Set(
-    chart.faceCalls.filter((call) => chartEdgeCallNearViewport(call, offset))
+  const renderWindow = renderCallWindow(chart, offset);
+  const renderTileCalls = renderWindow.tileCalls;
+  const renderTileIds = renderWindow.tileIds;
+  const renderFaceCalls = renderWindow.faceCalls;
+  revealMinimapFromChart(
+    chart,
+    offset,
+    renderTileCalls.filter((call) => chartTileCallNearViewport(call, offset))
   );
-  const renderRiverConnectorCalls = chart.riverConnectorCalls.filter(
-    (call) => chartEdgeCallNearViewport(call, offset)
-  );
-  revealMinimapFromChart(chart, offset);
 
   ctx.save();
   ctx.translate(offset.x, offset.y);
@@ -22214,11 +22303,7 @@ function render(nowMs) {
   });
 
   measurePerformanceBenchmarkStage("render.surfaceDetails", () => {
-    for (const call of renderTileCalls) drawWeatherSurface(call);
-    drawVisibleRiverBanks(chart);
-    drawLandRoads(chart, renderTileIds);
-    for (const call of renderTileCalls) drawRiver(call, chart);
-    for (const call of renderRiverConnectorCalls) drawRiverConnector(call, chart);
+    drawSurfaceDetailLayer(surfaceDetailLayer(chart, offset));
   });
   const shipLight = shipSunLightState();
   const cloudCalls = measurePerformanceBenchmarkStage(
@@ -22332,6 +22417,106 @@ function chartEdgeCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
     call.by + offset.y,
     margin
   );
+}
+
+function renderCallWindow(activeChart, offset) {
+  const cellX = Math.floor(-offset.x / RENDER_CALL_WINDOW_STEP_PX);
+  const cellY = Math.floor(-offset.y / RENDER_CALL_WINDOW_STEP_PX);
+  const cached = renderCallWindowCache.get(activeChart);
+  if (
+    cached?.cellX === cellX &&
+    cached.cellY === cellY &&
+    cached.screenWidth === SCREEN_W &&
+    cached.screenHeight === SCREEN_H
+  ) return cached;
+
+  const originX = cellX * RENDER_CALL_WINDOW_STEP_PX;
+  const originY = cellY * RENDER_CALL_WINDOW_STEP_PX;
+  const windowOffset = { x: -originX, y: -originY };
+  const margin = TILE_ART_SIZE + RENDER_CALL_WINDOW_STEP_PX;
+  const tileCalls = activeChart.tileCalls.filter(
+    (call) => chartTileCallNearViewport(call, windowOffset, margin)
+  );
+  const result = {
+    cellX,
+    cellY,
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    tileCalls,
+    tileIds: new Set(tileCalls.map((call) => call.id)),
+    faceCalls: new Set(activeChart.faceCalls.filter(
+      (call) => chartEdgeCallNearViewport(call, windowOffset, margin)
+    ))
+  };
+  renderCallWindowCache.set(activeChart, result);
+  return result;
+}
+
+function surfaceDetailLayer(activeChart, offset) {
+  const viewport = {
+    minX: -offset.x,
+    minY: -offset.y,
+    maxX: SCREEN_W - offset.x,
+    maxY: SCREEN_H - offset.y
+  };
+  const redrawTick = Math.floor(waterAnimationClockMs / SURFACE_DETAIL_REDRAW_MS);
+  const cached = surfaceDetailLayerCache.get(activeChart);
+  if (
+    cached?.weatherDayIndex === weatherMaskDayIndex &&
+    cached.redrawTick === redrawTick &&
+    viewport.minX - TILE_ART_SIZE >= cached.x &&
+    viewport.minY - TILE_ART_SIZE >= cached.y &&
+    viewport.maxX + TILE_ART_SIZE <= cached.x + cached.canvas.width &&
+    viewport.maxY + TILE_ART_SIZE <= cached.y + cached.canvas.height
+  ) {
+    return cached;
+  }
+
+  const x = Math.floor(viewport.minX - SURFACE_DETAIL_LAYER_MARGIN_PX - TILE_ART_SIZE);
+  const y = Math.floor(viewport.minY - SURFACE_DETAIL_LAYER_MARGIN_PX - TILE_ART_SIZE);
+  const width = SCREEN_W + (SURFACE_DETAIL_LAYER_MARGIN_PX + TILE_ART_SIZE) * 2;
+  const height = SCREEN_H + (SURFACE_DETAIL_LAYER_MARGIN_PX + TILE_ART_SIZE) * 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const layerCtx = canvas.getContext("2d");
+  if (!layerCtx) throw new Error("Could not create cached world surface layer");
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.translate(-x, -y);
+
+  const layerOffset = { x: -x, y: -y };
+  const tileCalls = activeChart.tileCalls.filter(
+    (call) => chartTileCallNearViewport(call, layerOffset)
+  );
+  const tileIds = new Set(tileCalls.map((call) => call.id));
+  const riverConnectorCalls = activeChart.riverConnectorCalls.filter(
+    (call) => chartEdgeCallNearViewport(call, layerOffset)
+  );
+  const previousCtx = ctx;
+  ctx = layerCtx;
+  try {
+    for (const call of tileCalls) drawWeatherSurface(call);
+    drawVisibleRiverBanks(activeChart);
+    drawLandRoads(activeChart, tileIds);
+    for (const call of tileCalls) drawRiver(call, activeChart);
+    for (const call of riverConnectorCalls) drawRiverConnector(call, activeChart);
+  } finally {
+    ctx = previousCtx;
+  }
+
+  const layer = {
+    canvas,
+    x,
+    y,
+    redrawTick,
+    weatherDayIndex: weatherMaskDayIndex
+  };
+  surfaceDetailLayerCache.set(activeChart, layer);
+  return layer;
+}
+
+function drawSurfaceDetailLayer(layer) {
+  ctx.drawImage(layer.canvas, layer.x, layer.y);
 }
 
 function drawStormShipStrike(nowMs) {
@@ -23429,9 +23614,9 @@ function voyageCartographyIsActive() {
   return hasStartedVoyage && startMenu === null;
 }
 
-function revealMinimapFromChart(activeChart, offset) {
+function revealMinimapFromChart(activeChart, offset, candidateCalls = activeChart.tileCalls) {
   if (!minimap || !voyageCartographyIsActive()) return;
-  for (const call of activeChart.tileCalls) {
+  for (const call of candidateCalls) {
     if (!tileCallNearViewport(call, offset, TILE_ART_HALF)) continue;
     revealMinimapTile(call.id);
   }
@@ -23475,12 +23660,16 @@ function revealMinimapTile(tileId) {
     return true;
   }
   const sampledPixels = minimap.sampledPixelsByTile.get(tileId);
-  if (!sampledPixels) return true;
+  if (!sampledPixels) {
+    minimap.sourceRevision = minimap.rasterRevision;
+    return true;
+  }
   for (const pixel of sampledPixels) {
     if (minimap.revealedPixels[pixel] !== 0) continue;
     minimap.revealedPixels[pixel] = 1;
     paintMinimapPixel(minimap, pixel);
   }
+  minimap.sourceRevision = minimap.rasterRevision;
   return true;
 }
 
@@ -31251,11 +31440,15 @@ function wakeMapPointIsWater(x, y, activeChart) {
   const roundedX = Math.round(x);
   const roundedY = Math.round(y);
   const pixelKey = pixelMaskKey(roundedX, roundedY);
-  let pointCache = wakeWaterPointCache.get(activeChart);
-  if (!pointCache) {
-    pointCache = new Map();
-    wakeWaterPointCache.set(activeChart, pointCache);
+  let cache = wakeWaterPointCache.get(activeChart);
+  if (!cache || cache.weatherMaskDayIndex !== weatherMaskDayIndex) {
+    cache = {
+      weatherMaskDayIndex,
+      points: new Map()
+    };
+    wakeWaterPointCache.set(activeChart, cache);
   }
+  const pointCache = cache.points;
   if (pointCache.has(pixelKey)) return pointCache.get(pixelKey);
 
   const candidates = wakeWaterCandidatesForPoint(roundedX, roundedY, activeChart.waterIndex);
@@ -31264,6 +31457,15 @@ function wakeMapPointIsWater(x, y, activeChart) {
       pointCache.set(pixelKey, true);
       return true;
     }
+  }
+
+  const offshoreTile = candidates.find((entry) => (
+    entry.kind === "tile" &&
+    tileHasOffshoreHullClearance(entry.call.id)
+  ));
+  if (offshoreTile) {
+    pointCache.set(pixelKey, true);
+    return true;
   }
 
   if (wakePointIsOnAnyRiverTile(roundedX, roundedY, candidates, activeChart)) {
@@ -32361,31 +32563,68 @@ function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
 
 function drawFloatingShipSprite(call, layers, nowMs) {
   const refractionTime = reducedMotionPreferred ? 0 : nowMs;
-  ctx.save();
-  ctx.globalAlpha = SHIP_SUBMERGED_ALPHA;
   const firstBandY = Math.floor(layers.submergedMinY / SHIP_REFRACTION_BAND_HEIGHT) *
     SHIP_REFRACTION_BAND_HEIGHT;
+  const bands = [];
   for (
     let y = firstBandY;
     y <= layers.submergedMaxY;
     y += SHIP_REFRACTION_BAND_HEIGHT
   ) {
-    const bandHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, SHIP_SHEET_FRAME_SIZE - y);
-    const offset = liveShipRefractionOffset(y, refractionTime, call.bobSeed);
-    ctx.drawImage(
+    bands.push({
+      y,
+      height: Math.min(SHIP_REFRACTION_BAND_HEIGHT, SHIP_SHEET_FRAME_SIZE - y),
+      offset: liveShipRefractionOffset(y, refractionTime, call.bobSeed)
+    });
+  }
+  const frame = cachedFloatingShipFrame(layers, bands);
+  ctx.drawImage(frame, call.x - 1, call.y);
+}
+
+function cachedFloatingShipFrame(layers, bands) {
+  let frames = floatingShipFrameCache.get(layers);
+  if (!frames) {
+    frames = new Map();
+    floatingShipFrameCache.set(layers, frames);
+  }
+  const key = bands.map((band) => band.offset).join(",");
+  const cached = frames.get(key);
+  if (cached) {
+    frames.delete(key);
+    frames.set(key, cached);
+    return cached;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = SHIP_SHEET_FRAME_SIZE + 2;
+  canvas.height = SHIP_SHEET_FRAME_SIZE;
+  const frameCtx = canvas.getContext("2d");
+  if (!frameCtx) throw new Error("Could not create cached floating ship frame");
+  frameCtx.imageSmoothingEnabled = false;
+  frameCtx.globalAlpha = SHIP_SUBMERGED_ALPHA;
+  for (const band of bands) {
+    frameCtx.drawImage(
       layers.submergedCanvas,
       0,
-      y,
+      band.y,
       SHIP_SHEET_FRAME_SIZE,
-      bandHeight,
-      call.x + offset,
-      call.y + y,
+      band.height,
+      1 + band.offset,
+      band.y,
       SHIP_SHEET_FRAME_SIZE,
-      bandHeight
+      band.height
     );
   }
-  ctx.restore();
-  ctx.drawImage(layers.aboveCanvas, call.x, call.y);
+  frameCtx.globalAlpha = 1;
+  frameCtx.drawImage(layers.aboveCanvas, 1, 0);
+
+  if (frames.size >= FLOATING_SHIP_FRAME_CACHE_LIMIT) {
+    const oldestKey = frames.keys().next().value;
+    if (oldestKey === undefined) throw new Error("Floating ship frame cache eviction failed");
+    frames.delete(oldestKey);
+  }
+  frames.set(key, canvas);
+  return canvas;
 }
 
 function drawWorldShipSinkEffect(entry, activeChart, nowMs) {
@@ -33994,13 +34233,34 @@ function shipScreenSortY() {
 
 function drawCityLabels(cityCalls, activeChart) {
   for (const { label, box } of cityLabelBoxes(cityCalls, activeChart)) {
-    ctx.fillStyle = "rgba(19, 15, 12, 0.72)";
-    ctx.fillRect(box.x, box.y, box.w, box.h);
-    ctx.fillStyle = "#f3dfb0";
-    drawPixelText(label, box.x + CITY_LABEL_PAD_X, box.y + CITY_LABEL_PAD_Y, {
-      font: PIXEL_FONT_SMALL_8
-    });
+    ctx.drawImage(cityLabelRaster(label), box.x, box.y);
   }
+}
+
+function cityLabelRaster(label) {
+  const cacheKey = `${currentLanguage}:${label}`;
+  const cached = cityLabelRasterCache.get(cacheKey);
+  if (cached) return cached;
+  const textWidth = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8);
+  const width = textWidth + CITY_LABEL_PAD_X * 2;
+  const height = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const labelCtx = canvas.getContext("2d");
+  if (!labelCtx) throw new Error(`Could not create city label raster: ${label}`);
+  labelCtx.imageSmoothingEnabled = false;
+  labelCtx.fillStyle = "rgba(19, 15, 12, 0.72)";
+  labelCtx.fillRect(0, 0, width, height);
+  const renderedLabel = renderedUiText(label);
+  const font = resolvedPixelFont(PIXEL_FONT_SMALL_8, renderedLabel);
+  labelCtx.drawImage(
+    pixelTextRaster(renderedLabel, font, "#f3dfb0", textWidth),
+    CITY_LABEL_PAD_X,
+    CITY_LABEL_PAD_Y
+  );
+  cityLabelRasterCache.set(cacheKey, canvas);
+  return canvas;
 }
 
 function cityLabelBoxes(cityCalls, activeChart) {
@@ -34450,34 +34710,120 @@ function drawSurvivalMeters() {
   );
   const hud = survivalHudLayout(snapshot.cargo);
   const { x, y, width, height } = hud.panel;
-  drawPirateHudPanel({ x, y, w: width, h: height });
-  ctx.fillStyle = PIRATE_MENU_INK;
-  drawSurvivalPanelTitle(x, y, width);
-  drawSurvivalMeterRow(
-    [
-      { icon: statusHudImages.water, count: drinkIconCount - wineIconCount },
-      { icon: statusHudImages.wine, count: wineIconCount }
-    ],
-    `${drinkIconCount}`,
-    x + 5,
-    y + 13,
-    width
-  );
-  drawSurvivalMeterRow(
-    [
-      { icon: statusHudImages.food, count: foodIconCount - fishIconCount },
-      { icon: statusHudImages.fish, count: fishIconCount }
-    ],
-    `${foodIconCount}`,
-    x + 5,
-    y + 23,
-    width
-  );
-  drawSurvivalCrewRow(x, y, width, snapshot.travelerManifest);
-  drawCargoCrateRows(hud);
+  const key = survivalHudRasterKey({
+    snapshot,
+    hud,
+    width,
+    height,
+    drinkIconCount,
+    wineIconCount,
+    foodIconCount,
+    fishIconCount
+  });
+  if (survivalHudRasterCache?.key !== key) {
+    survivalHudRasterCache = createSurvivalHudRaster({
+      key,
+      snapshot,
+      width,
+      height,
+      drinkIconCount,
+      wineIconCount,
+      foodIconCount,
+      fishIconCount
+    });
+  }
+  ctx.drawImage(survivalHudRasterCache.canvas, x, y);
 }
 
-function survivalHudLayout(hold = null) {
+function survivalHudRasterKey({
+  snapshot,
+  hud,
+  width,
+  height,
+  drinkIconCount,
+  wineIconCount,
+  foodIconCount,
+  fishIconCount
+}) {
+  const travelers = snapshot.travelerManifest.map((entry) => [
+    entry.kind,
+    entry.count,
+    entry.variant ?? null
+  ]);
+  return JSON.stringify([
+    currentLanguage,
+    shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]),
+    gameState.doubloons,
+    gameState.ship.crew,
+    aboardAnimalCompanionIds(gameState.memory.animalCompanions),
+    travelers,
+    hud.occupiedCount,
+    snapshot.cargo.capacity,
+    drinkIconCount,
+    wineIconCount,
+    foodIconCount,
+    fishIconCount,
+    width,
+    height
+  ]);
+}
+
+function createSurvivalHudRaster({
+  key,
+  snapshot,
+  width,
+  height,
+  drinkIconCount,
+  wineIconCount,
+  foodIconCount,
+  fishIconCount
+}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const hudCtx = canvas.getContext("2d");
+  if (!hudCtx) throw new Error("Could not create ship status HUD raster");
+  hudCtx.imageSmoothingEnabled = false;
+  const previousCtx = ctx;
+  ctx = hudCtx;
+  try {
+    const hud = survivalHudLayout(snapshot.cargo, 0, 0);
+    drawPirateHudPanel({ x: 0, y: 0, w: width, h: height });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawSurvivalPanelTitle(0, 0, width);
+    drawSurvivalMeterRow(
+      [
+        { icon: statusHudImages.water, count: drinkIconCount - wineIconCount },
+        { icon: statusHudImages.wine, count: wineIconCount }
+      ],
+      `${drinkIconCount}`,
+      5,
+      13,
+      width
+    );
+    drawSurvivalMeterRow(
+      [
+        { icon: statusHudImages.food, count: foodIconCount - fishIconCount },
+        { icon: statusHudImages.fish, count: fishIconCount }
+      ],
+      `${foodIconCount}`,
+      5,
+      23,
+      width
+    );
+    drawSurvivalCrewRow(0, 0, width, snapshot.travelerManifest);
+    drawCargoCrateRows(hud);
+  } finally {
+    ctx = previousCtx;
+  }
+  return { key, canvas };
+}
+
+function survivalHudLayout(
+  hold = null,
+  panelX = SURVIVAL_PANEL_X,
+  panelY = SURVIVAL_PANEL_Y
+) {
   if (!gameState) throw new Error("Ship status HUD requires game state");
   const resolvedHold = hold || cargoHoldStatus(gameState);
   const capacity = resolvedHold.capacity;
@@ -34488,8 +34834,8 @@ function survivalHudLayout(hold = null) {
   return cargoCrateStatusLayout({
     used: resolvedHold.physicalUsed,
     capacity,
-    panelX: SURVIVAL_PANEL_X,
-    panelY: SURVIVAL_PANEL_Y,
+    panelX,
+    panelY,
     minimumPanelWidth: SURVIVAL_PANEL_MIN_W,
     maximumPanelWidth,
     iconSize: SURVIVAL_CRATE_SIZE,
