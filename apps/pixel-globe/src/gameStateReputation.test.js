@@ -7,13 +7,17 @@ import {
   FACTION_SAFE_PASSAGE_DAYS,
   GAME_STATE_VERSION,
   HOME_FACTION_START_REPUTATION,
+  HOSTILE_PORT_REPUTATION_THRESHOLD,
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   PORT_DISGUISE_LOCK_DAYS,
   FACTION_SAFE_PASSAGE_REFUSAL_DAYS,
+  PIRACY_ALLY_REPUTATION_PENALTY,
+  PIRACY_FRIENDLY_REPUTATION_PENALTY,
+  PIRACY_HOME_ENEMY_REPUTATION_PENALTY,
+  PIRACY_HOME_REPUTATION_PENALTY,
   PIRATE_HIDEOUT_REPUTATION_REQUIRED,
   PIRATE_REPUTATION_GAIN_PER_PIRACY,
-  PIRACY_REPUTATION_PENALTY,
   PIRATE_START_REPUTATION,
   SHIP_ATTACK_REPUTATION_PENALTY,
   TRADE_PASS_REPUTATION_REQUIRED,
@@ -367,28 +371,89 @@ test("attacking a nation's ships makes that faction hate the player", () => {
 
   recordAttackAgainstFaction(state, "france");
 
-  assert.equal(factionReputation(state, "france"), frenchBefore + SHIP_ATTACK_REPUTATION_PENALTY);
+  assert.equal(
+    factionReputation(state, "france"),
+    Math.min(frenchBefore + SHIP_ATTACK_REPUTATION_PENALTY, HOSTILE_PORT_REPUTATION_THRESHOLD)
+  );
   assert.equal(factionReputation(state, "england"), englishBefore);
   assert.equal(factionReputation(state, "pirate"), pirateBefore);
 });
 
-test("piracy badly hurts the victim faction and lightly hurts other powers", () => {
+test("a first deliberate attack makes a neutral victim treat the captain as an outlaw", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  assert.equal(diplomacyBetweenForState(state, "england", "ming"), "neutral");
+
+  recordAttackAgainstFaction(state, "ming");
+
+  assert.equal(factionReputation(state, "ming"), HOSTILE_PORT_REPUTATION_THRESHOLD);
+  assert.equal(portEntryStatus(state, {
+    tileId: 88,
+    city: "Guangzhou",
+    displayCity: "Guangzhou",
+    country: "China",
+    factionId: "ming"
+  }, 0).hostileByStanding, true);
+});
+
+test("piracy hurts the victim, its partners, and the captain's crown without global omniscience", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
   const englishBefore = factionReputation(state, "england");
   const frenchBefore = factionReputation(state, "france");
+  const scottishBefore = factionReputation(state, "scotland");
+  const genoeseBefore = factionReputation(state, "genoa");
   const spanishBefore = factionReputation(state, "spain");
+  const mingBefore = factionReputation(state, "ming");
   const pirateBefore = factionReputation(state, "pirate");
 
   recordPiracyAgainstFaction(state, "france");
 
-  assert.equal(factionReputation(state, "england"), englishBefore + PIRACY_REPUTATION_PENALTY);
-  assert.equal(factionReputation(state, "france"), frenchBefore + SHIP_ATTACK_REPUTATION_PENALTY);
-  assert.equal(factionReputation(state, "spain"), spanishBefore + PIRACY_REPUTATION_PENALTY);
+  assert.equal(
+    factionReputation(state, "england"),
+    englishBefore + PIRACY_HOME_ENEMY_REPUTATION_PENALTY
+  );
+  assert.equal(
+    factionReputation(state, "france"),
+    Math.min(frenchBefore + SHIP_ATTACK_REPUTATION_PENALTY, HOSTILE_PORT_REPUTATION_THRESHOLD)
+  );
+  assert.equal(
+    factionReputation(state, "scotland"),
+    scottishBefore + PIRACY_ALLY_REPUTATION_PENALTY
+  );
+  assert.equal(
+    factionReputation(state, "genoa"),
+    genoeseBefore + PIRACY_FRIENDLY_REPUTATION_PENALTY
+  );
+  assert.equal(factionReputation(state, "spain"), spanishBefore);
+  assert.equal(factionReputation(state, "ming"), mingBefore);
   assert.equal(factionReputation(state, "pirate"), pirateBefore + PIRATE_REPUTATION_GAIN_PER_PIRACY);
 
   const pirateAfterPiracy = factionReputation(state, "pirate");
   recordPiracyAgainstFaction(state, "pirate");
   assert.equal(factionReputation(state, "pirate"), pirateAfterPiracy);
+});
+
+test("a captain's own sovereign objects strongly to piracy against an unrelated neutral power", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const englishBefore = factionReputation(state, "england");
+
+  recordPiracyAgainstFaction(state, "ming");
+
+  assert.equal(
+    factionReputation(state, "england"),
+    englishBefore + PIRACY_HOME_REPUTATION_PENALTY
+  );
+});
+
+test("piracy against a vassal also alienates its foreign-policy principal", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const portugalBefore = factionReputation(state, "portugal");
+
+  recordPiracyAgainstFaction(state, "hormuz");
+
+  assert.equal(
+    factionReputation(state, "portugal"),
+    portugalBefore + PIRACY_ALLY_REPUTATION_PENALTY
+  );
 });
 
 test("sustained piracy eventually reveals the pirate hideout network", () => {
@@ -421,8 +486,14 @@ test("piracy notoriety can be recorded without double-counting the attacked vict
   recordAttackAgainstFaction(state, "france");
   recordPiracyAgainstFaction(state, "france", { includeVictim: false });
 
-  assert.equal(factionReputation(state, "france"), frenchBefore + SHIP_ATTACK_REPUTATION_PENALTY);
-  assert.equal(factionReputation(state, "england"), englishBefore + PIRACY_REPUTATION_PENALTY);
+  assert.equal(
+    factionReputation(state, "france"),
+    Math.min(frenchBefore + SHIP_ATTACK_REPUTATION_PENALTY, HOSTILE_PORT_REPUTATION_THRESHOLD)
+  );
+  assert.equal(
+    factionReputation(state, "england"),
+    englishBefore + PIRACY_HOME_ENEMY_REPUTATION_PENALTY
+  );
 });
 
 test("letters of marque require capital standing and ship strength", () => {
@@ -453,6 +524,17 @@ test("a letter of marque authorizes privateering against the issuer's war enemie
 
   makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200 * 24 * 60);
   assert.equal(hasPrivateeringAuthorityAgainst(state, "france"), false);
+});
+
+test("attacking the power that issued a letter of marque revokes it", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  adjustFactionReputation(state, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  grantLetterOfMarque(state, LONDON_CAPITAL, LETTER_OF_MARQUE_POWER_REQUIRED);
+
+  recordAttackAgainstFaction(state, "england");
+
+  assert.equal(hasLetterOfMarqueFrom(state, "england"), false);
+  assert.equal(state.memory.decisions["letter-of-marque.revoked.england"], 1);
 });
 
 test("trusted captains can obtain a personal Indies licencia without opening national trade", () => {

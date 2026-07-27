@@ -234,6 +234,7 @@ import {
   discoveredEntries,
   diplomacyBetweenForState,
   factionReputation,
+  HOSTILE_PORT_REPUTATION_THRESHOLD,
   factionSafePassageToll,
   foodRationsForCargoQuantity,
   futurePermanentCrewFloor,
@@ -472,6 +473,11 @@ import {
   recordWhiteWhaleSighting,
   selectCampaignDialogueOption
 } from "./campaignGoals.js";
+import {
+  campaignGoalDepartureReminder,
+  dueCampaignGoalReminderInterval,
+  markCampaignGoalReminderDelivered
+} from "./campaignGoalReminders.js";
 import {
   campaignRomanceDialogueSteps,
   createCampaignVictoryRomance
@@ -725,7 +731,10 @@ import {
   translate
 } from "./localization.js";
 import { localizePlaceNames } from "./placeNameLocalization.js";
-import { captainChartHeaderLayout } from "./captainChartLayout.js";
+import {
+  captainChartHeaderLayout,
+  captainNotebookLayout
+} from "./captainChartLayout.js";
 import {
   captainChartHexPixelSpan,
   captainChartHousePixels,
@@ -954,6 +963,7 @@ import {
   validateShipFootprintBake
 } from "./shipFootprint.js";
 import { validateShipFlagAnchorBake } from "./shipFlagAnchors.js";
+import { shipFlagDiplomacyOutlineColor } from "./shipFlagDiplomacy.js";
 import {
   DIPLOMACY_ALLY,
   DIPLOMACY_FRIENDLY,
@@ -1076,6 +1086,7 @@ import {
 } from "./voyageHistory.js";
 import {
   ACHIEVEMENT_CATALOG,
+  achievementCatalogPageForId,
   achievementPlatformAdapter,
   achievementPresentation,
   achievementProgress,
@@ -1088,6 +1099,7 @@ import {
   synchronizeAchievements,
   writeAchievementProfile
 } from "./achievements.js";
+import { NOTICE_DURATION_MS } from "./notificationTiming.js";
 import { steamStatValues } from "./steamStats.js";
 import {
   DEMO_LIMIT_MESSAGE,
@@ -1399,8 +1411,8 @@ const BEACH_WAVE_EDGE_RECESS = 0.2;
 const RIVER_ARM_LENGTH_PX = 15;
 const RIVER_MOUTH_ARM_LENGTH_PX = 17;
 const RIVER_CURVE_BEND_PX = 4;
-const RIVER_BODY_RADIUS_PX = 2;
-const RIVER_CONNECTOR_RADIUS_PX = 3;
+const RIVER_BODY_RADIUS_PX = 3;
+const RIVER_CONNECTOR_RADIUS_PX = 4;
 const RIVER_MOUTH_RADIUS_PX = 7;
 const RIVER_MOUTH_FLARE_START = 0.18;
 const RIVER_JOIN_MIN_LENGTH_PX = 5;
@@ -1697,7 +1709,6 @@ const NATURALIST_NAVIGATION_STYLE = Object.freeze({
   shadow: "rgba(24, 47, 37, 0.78)"
 });
 const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
-const MOUNTAIN_DISCOVERY_NOTICE_MS = 4600;
 const MOUNTAIN_DISCOVERY_PANEL_W = 230;
 const MOUNTAIN_DISCOVERY_PANEL_H = 24;
 let MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
@@ -1710,8 +1721,6 @@ const SURVIVAL_CREW_ROW_Y = 34;
 const SURVIVAL_CREW_ROW_PAD_X = 5;
 const SURVIVAL_CRATE_ROW_Y = 43;
 const SURVIVAL_CRATE_SIZE = 6;
-const SURVIVAL_NOTICE_MS = 2400;
-const ACHIEVEMENT_NOTICE_MS = 3800;
 const ACHIEVEMENT_NOTICE_BATCH_THRESHOLD = 4;
 const SURVIVAL_DEHYDRATION_CREW_LOSS = 1;
 const SURVIVAL_STARVATION_CREW_LOSS = 1;
@@ -1886,16 +1895,17 @@ const SHIP_INFO_DESKTOP_HEADER_Y = 52;
 const SHIP_INFO_DESKTOP_FIRST_ROW_Y = 66;
 const SHIP_INFO_PAPER_ROW_H = 21;
 const CAPTAIN_MENU_ACTIONS = Object.freeze([
-  Object.freeze({ id: "ship", label: "SHIP & LEDGER", iconId: "menu:ship" }),
-  Object.freeze({ id: "aboard", labelKey: "captain.aboard", iconId: "menu:captain" }),
-  Object.freeze({ id: "politics", label: "POLITICS", iconId: "menu:politics" }),
-  Object.freeze({ id: "discoveries", label: "DISCOVERIES", iconId: "menu:discoveries" }),
-  Object.freeze({ id: "achievements", label: "ACHIEVEMENTS", iconId: "menu:achievements" }),
-  Object.freeze({ id: "navigation", labelKey: "captain.navigation", iconId: "action:navigation" }),
-  Object.freeze({ id: "sailing-basics", label: "SAILING BASICS", iconId: "action:quest" }),
-  Object.freeze({ id: "options", label: "OPTIONS", iconId: "menu:options" })
+  Object.freeze({ id: "map", labelKey: "captain.tab.map", iconId: "menu:map" }),
+  Object.freeze({ id: "ship", labelKey: "captain.tab.ship", iconId: "menu:ship" }),
+  Object.freeze({ id: "aboard", labelKey: "captain.tab.crew", iconId: "menu:captain" }),
+  Object.freeze({ id: "politics", labelKey: "captain.tab.politics", iconId: "menu:politics" }),
+  Object.freeze({ id: "discoveries", labelKey: "captain.tab.discoveries", iconId: "menu:discoveries" }),
+  Object.freeze({ id: "achievements", labelKey: "captain.tab.achievements", iconId: "menu:achievements" }),
+  Object.freeze({ id: "navigation", labelKey: "captain.tab.navigation", iconId: "action:navigation" }),
+  Object.freeze({ id: "sailing-basics", labelKey: "captain.tab.sailing", iconId: "action:quest" }),
+  Object.freeze({ id: "options", labelKey: "captain.tab.options", iconId: "menu:options" })
 ]);
-const CAPTAIN_MENU_PANEL_W = 300;
+const CAPTAIN_MENU_PANEL_W = 430;
 const CAPTAIN_MENU_PANEL_H = 420;
 const ABOARD_MENU_PANEL_W = 420;
 const ABOARD_MENU_PANEL_H = 420;
@@ -1996,7 +2006,6 @@ const CITY_TYPE_MUSIC_TRACK_KEYS = Object.freeze({
 });
 const COMBAT_MUSIC_HOLD_MS = 18000;
 const COMBAT_BIG_BROADSIDE_MIN_CANNONS = 10;
-const COMBAT_NOTICE_MS = 4200;
 const SFX_CANNON_URL = "assets/sfx/universfield-cannon-shot-352459.ogg";
 const SFX_BOW_FIRE_URL = "assets/sfx/bow-fire.ogg";
 const SFX_ARROW_HIT_URL = "assets/sfx/arrow-hit.ogg";
@@ -2098,7 +2107,6 @@ const SFX_WIND_TERRAIN_RADIUS_PX = 150;
 const AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS = 0.1;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
-const STORM_DAMAGE_NOTICE_MS = 3600;
 const SEAGULL_FLIGHT_URL = "assets/animals/seagull-Sheet.png";
 const SEAGULL_STANDING_URL = "assets/animals/seagull_standing.png";
 const FISH_SPRITE_URL = "assets/animals/fish.png";
@@ -2122,7 +2130,6 @@ const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
 const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
-const FISH_NOTICE_MS = 2400;
 const FISH_SWIM_PERIOD_MIN_MS = 4200;
 const FISH_SWIM_PERIOD_SPREAD_MS = 5200;
 const FISH_SCATTER_RADIUS_PX = 30;
@@ -2299,6 +2306,8 @@ let survivalNotice = null;
 let savePersistenceWarning = null;
 let lastLocalSaveMode = LOCAL_SAVE_MODE_FULL;
 let achievementNotice = null;
+let achievementNoticeRect = null;
+let achievementNoticeHoverPoint = null;
 const achievementNoticeQueue = [];
 let images;
 let shipImage;
@@ -4920,6 +4929,39 @@ function updateCampaignGoalReturnReminder() {
   return true;
 }
 
+function maybeOpenCampaignGoalDepartureReminder(departureCity) {
+  const goal = gameState?.memory?.campaignGoal;
+  if (!goal || goal.status !== CAMPAIGN_GOAL_ACTIVE) return false;
+  if (!departureCity || !Number.isInteger(departureCity.tileId)) {
+    throw new Error("Campaign goal departure reminder requires a placed port");
+  }
+  const interval = dueCampaignGoalReminderInterval({
+    decisions: gameState.memory.decisions,
+    currentMinute: weatherClockMinutes,
+    voyageStartMinute: voyageStartClockMinutes
+  });
+  if (interval === null) return false;
+
+  if (departureCity.tileId === goal.homePortTileId) {
+    markCampaignGoalReminderDelivered(gameState.memory.decisions, interval);
+    return false;
+  }
+  const reminder = campaignGoalDepartureReminder(goal, {
+    currentMinute: weatherClockMinutes,
+    doubloons: gameState.doubloons,
+    discoveredIds: new Set(gameState.memory.discoveryOrder),
+    wonderCatalog: discoveryCatalog,
+    homePortName: cityLabelText(campaignGoalHomeCity()),
+    contactName: campaignGoalContactCharacter().name,
+    reminderInterval: interval
+  });
+  if (!reminder) return false;
+  const opened = openCaptainAlertModal(reminder.text, reminder.expressionId);
+  if (!opened) return false;
+  markCampaignGoalReminderDelivered(gameState.memory.decisions, interval);
+  return true;
+}
+
 function updateWhiteWhaleSightingObjective() {
   const goal = gameState?.memory?.campaignGoal;
   if (!goal || goal.type !== CAMPAIGN_GOAL_WHITE_WHALE || !goal.sighting || goal.sighting.reached) return false;
@@ -7120,7 +7162,7 @@ function updateCaptureSurvival(sequence) {
       stormDamageNotice = {
         damage,
         intensity: 0.96,
-        expiresAtMs: lastFrameMs + STORM_DAMAGE_NOTICE_MS
+        expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.stormDamage
       };
       emitCaptureEvent("storm-damage", {
         damage,
@@ -8525,6 +8567,8 @@ async function restoreSavedVoyage(payload) {
   discoveryNoticeQueue.length = 0;
   fishCatchNotice = null;
   achievementNotice = null;
+  achievementNoticeRect = null;
+  achievementNoticeHoverPoint = null;
   achievementNoticeQueue.length = 0;
   gameOverReason = null;
   gameOverState = null;
@@ -8969,14 +9013,16 @@ function queueAchievementNotices(entries) {
     achievementNoticeQueue.push({
       heading: `${entries.length} ACHIEVEMENTS UNLOCKED`,
       title: "CHECK THE ACHIEVEMENT LIST",
-      iconId: "menu:achievements"
+      iconId: "menu:achievements",
+      achievementId: null
     });
   } else {
     for (const entry of entries) {
       achievementNoticeQueue.push({
         heading: "ACHIEVEMENT UNLOCKED",
         title: entry.title.toUpperCase(),
-        iconId: entry.iconId
+        iconId: entry.iconId,
+        achievementId: entry.id
       });
     }
   }
@@ -8992,7 +9038,7 @@ function updateAchievementNotice(nowMs) {
   achievementNotice = {
     ...next,
     startedAtMs: nowMs,
-    expiresAtMs: nowMs + ACHIEVEMENT_NOTICE_MS
+    expiresAtMs: nowMs + NOTICE_DURATION_MS.achievement
   };
   playAchievementDingSound();
   return achievementNotice;
@@ -9175,7 +9221,7 @@ function openDiscoveriesMenu() {
   dirty = true;
 }
 
-function openAchievementsMenu() {
+function openAchievementsMenu(achievementId = null) {
   closeOptionsMenu();
   closeCreditsMenu();
   closePastVoyagesMenu();
@@ -9184,8 +9230,14 @@ function openAchievementsMenu() {
   closePoliticsMenu();
   closeNavigationMenu();
   achievementsMenu.isOpen = true;
-  achievementsMenu.page = 0;
   if (gameState && achievementProfile) syncAchievementsFromGameState();
+  achievementsMenu.page = achievementId === null
+    ? 0
+    : achievementCatalogPageForId(
+      achievementProfile,
+      achievementId,
+      ACHIEVEMENTS_PAGE_SIZE
+    );
   keys.clear();
   clearPointerSteering();
   dirty = true;
@@ -9661,7 +9713,8 @@ function panCaptainChartMap(directionX, directionY, fraction = CAPTAIN_MAP_PAN_F
 function activateCaptainMenuSelection(index) {
   const action = CAPTAIN_MENU_ACTIONS[index];
   if (!action) throw new Error(`Unknown captain menu item: ${index}`);
-  if (action.id === "ship") openShipInfoMenu();
+  if (action.id === "map") dirty = true;
+  else if (action.id === "ship") openShipInfoMenu();
   else if (action.id === "aboard") openAboardMenu();
   else if (action.id === "politics") openPoliticsMenu();
   else if (action.id === "discoveries") openDiscoveriesMenu();
@@ -10071,6 +10124,20 @@ function handlePointerDown(event) {
     event.preventDefault();
     return;
   }
+  if (
+    !telemetryConsentModal &&
+    achievementNotice &&
+    lastFrameMs < achievementNotice.expiresAtMs &&
+    pointInRect(point, achievementNoticeRect)
+  ) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    const achievementId = achievementNotice.achievementId;
+    achievementNotice = null;
+    achievementNoticeRect = null;
+    openAchievementsMenu(achievementId);
+    return;
+  }
   if (dispatchWorldOverlayPointerDown(event, point)) return;
   const statusTarget = statusHudTooltipTargetForPoint(point);
   if (statusTarget) {
@@ -10163,10 +10230,25 @@ function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
   statusHudHoverPoint = event.pointerType === "touch" ? null : point;
+  achievementNoticeHoverPoint = event.pointerType === "touch" ? null : point;
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
   canvas.style.cursor = event.pointerType !== "touch" && (
-    shipInfoPointerIsActionable(point) || discoveriesPointerIsActionable(point)
+    shipInfoPointerIsActionable(point) ||
+    discoveriesPointerIsActionable(point) ||
+    (
+      captainMenu.isOpen &&
+      (
+        pointInRect(point, captainMenu.closeButtonRect) ||
+        captainMenu.itemRects.some((rect) => pointInRect(point, rect))
+      )
+    ) ||
+    (
+      !telemetryConsentModal &&
+      achievementNotice &&
+      lastFrameMs < achievementNotice.expiresAtMs &&
+      pointInRect(point, achievementNoticeRect)
+    )
   )
     ? "pointer"
     : "default";
@@ -10193,6 +10275,7 @@ function handlePointerLeave(event) {
   if (event.pointerType === "touch") return;
   waypointArrowHoverPoint = null;
   statusHudHoverPoint = null;
+  achievementNoticeHoverPoint = null;
   canvas.style.cursor = "default";
   dirty = true;
 }
@@ -12962,6 +13045,7 @@ function closeDialogue() {
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack("ship", { force: true });
     playSailDeploySound();
+    if (departureCity) maybeOpenCampaignGoalDepartureReminder(departureCity);
     saveVoyageNow("left port dialogue");
   }
   resumeShipAfterOverlayIfReady();
@@ -13457,7 +13541,11 @@ function applyShipDialogueAction(npcShipId, action) {
     return;
   }
   if (action.type === "receive-aid") {
-    const granted = receiveEmergencyShipAid(gameState, npcShipId);
+    const npcShip = npcSeaRoutes?.shipById?.get(npcShipId);
+    if (!npcShip) throw new Error(`Emergency aid ship no longer exists: ${npcShipId}`);
+    const granted = receiveEmergencyShipAid(gameState, npcShipId, {
+      allied: playerTreatsFactionAsGreenAlly(npcShip.factionId)
+    });
     if (!dialogueState || dialogueState.kind !== "ship" || dialogueState.npcShipId !== npcShipId) {
       throw new Error(`Emergency aid dialogue closed before transfer: ${npcShipId}`);
     }
@@ -13857,9 +13945,13 @@ function dialogueShipForId(npcShipId) {
   const combatGrace = npcShip.graceUntilPortVisit > npcShip.portVisits;
   const encounter = npcShip.encounter?.kind === "colonization-defense" ? npcShip.encounter : null;
   const inCombatWithPlayer = shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShip.id));
-  const enemy = inCombatWithPlayer || npcShip.role === NPC_ROLE_PIRATE ||
+  const enemy = inCombatWithPlayer ||
+    factionReputation(gameState, npcShip.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD ||
     currentDiplomacyBetween(ship.factionId, npcShip.factionId) === DIPLOMACY_WAR;
-  const emergencyAid = shipEmergencyAidNeed(gameState, npcShip.id);
+  const alliedToPlayer = playerTreatsFactionAsGreenAlly(npcShip.factionId);
+  const emergencyAid = shipEmergencyAidNeed(gameState, npcShip.id, {
+    allied: alliedToPlayer
+  });
   const playerAttackIsPiracy = !encounter && npcShip.factionId !== PIRATE_FACTION_ID &&
     !hasPrivateeringAuthorityAgainst(gameState, npcShip.factionId);
   const stormStatus = visualState?.stormMode === "anchored"
@@ -13889,11 +13981,17 @@ function dialogueShipForId(npcShipId) {
     stormStatus,
     combatGrace,
     inCombatWithPlayer,
+    alliedToPlayer,
     canOfferEmergencyAid: !enemy && emergencyAid.available,
     playerAttackIsPiracy,
     willOfferSurrender: npcShouldOfferSurrender(npcCombatEntity(visualState), playerCombatEntity()),
     character
   };
+}
+
+function playerTreatsFactionAsGreenAlly(factionId) {
+  return currentDiplomacyBetween(ship.factionId, factionId) === DIPLOMACY_ALLY &&
+    factionReputation(gameState, factionId) > HOSTILE_PORT_REPUTATION_THRESHOLD;
 }
 
 function currentDialogueSubject() {
@@ -14933,7 +15031,7 @@ function showFishCatchNotice(text, tone) {
   fishCatchNotice = {
     text,
     tone,
-    expiresAtMs: lastFrameMs + FISH_NOTICE_MS
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.fishing
   };
   dirty = true;
 }
@@ -14942,7 +15040,7 @@ function showSurvivalNotice(text, tone) {
   survivalNotice = {
     text,
     tone,
-    expiresAtMs: lastFrameMs + SURVIVAL_NOTICE_MS
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.survival
   };
   dirty = true;
 }
@@ -17583,7 +17681,7 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   ));
   combatNotice = {
     text: shoreBatteryDisabledNotice(battery),
-    expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
   };
   saveVoyageNow("shore battery disabled");
 }
@@ -18340,7 +18438,7 @@ function updateStormDamage(previousMinute, currentMinute) {
   stormDamageNotice = {
     damage: totalDamage,
     intensity: strongestIntensity,
-    expiresAtMs: lastFrameMs + STORM_DAMAGE_NOTICE_MS
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.stormDamage
   };
   if (ship.hitPoints <= 0) sinkPlayerShip("Your ship foundered in the storm.");
   else syncAchievementsFromGameState({ type: "survived-lightning-strike" });
@@ -19467,6 +19565,12 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
     portProtected: playerShipIsInvulnerable(),
     majorPortProtected: playerHasMajorPortProtection(),
     carriesPirateTreasure: activeTreasureCampaignGoal()?.treasureRecovered === true,
+    hostileFactionIds: FACTIONS
+      .filter((faction) => (
+        faction.id !== NEUTRAL_FACTION_ID &&
+        factionReputation(gameState, faction.id) <= HOSTILE_PORT_REPUTATION_THRESHOLD
+      ))
+      .map((faction) => faction.id),
     safePassageFactionIds: activeFactionSafePassageIds(
       gameState,
       portEntryContext.simMinute,
@@ -19934,7 +20038,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     const cargoQuantity = Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0);
     combatNotice = {
       text: `SHIP SURRENDERED  +${received.specie} DB${cargoQuantity > 0 ? `  +${cargoQuantity} CARGO` : ""}`,
-      expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+      expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
     };
     playerPrizeSummary = {
       specie: received.specie,
@@ -19959,7 +20063,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     if (noticeText) {
       combatNotice = {
         text: noticeText,
-        expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+        expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
       };
     }
   }
@@ -20036,7 +20140,7 @@ function handleNpcSinking(loserId, winnerId) {
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
   combatNotice = {
     text: sinkingNotice,
-    expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
   };
   if (treasureEncounter) {
     if (winnerId === PLAYER_COMBAT_ID) {
@@ -20345,7 +20449,7 @@ function resolveColonizationDefenseAttacker(loserId, noticeText) {
   const defenseComplete = quest.stage === COLONIZATION_STAGE_REPORT_DEFENSE;
   combatNotice = {
     text: noticeText,
-    expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
   };
   showSurvivalNotice(
     defenseComplete
@@ -20531,7 +20635,7 @@ function applyCombatCollisionDamage(id, amount, otherId) {
     applyCrewCasualtiesFromHullDamage(damage, "The last of the crew died after a collision.");
     combatNotice = {
       text: `COLLISION  -${formatCombatDamage(damage)} HULL`,
-      expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+      expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
     };
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in a collision.");
     return;
@@ -22538,7 +22642,7 @@ function updateDiscoveryNotice(nowMs) {
   if (!discoveryNotice && discoveryNoticeQueue.length > 0) {
     discoveryNotice = {
       discovery: discoveryNoticeQueue.shift(),
-      expiresAtMs: nowMs + MOUNTAIN_DISCOVERY_NOTICE_MS
+      expiresAtMs: nowMs + NOTICE_DURATION_MS.discovery
     };
     changed = true;
   }
@@ -23428,26 +23532,29 @@ function drawCaptainMenuButton() {
 
 function drawCaptainMenu(nowMs) {
   const panelWidth = Math.min(CAPTAIN_MENU_PANEL_W, SCREEN_W - 12);
-  const naturalMapHeight = Math.floor((panelWidth - 24) * MINIMAP_H / MINIMAP_W);
-  const journalLines = questJournalDisplayLines(questJournalEntries(), panelWidth - 43);
-  const journalLineCount = Math.min(5, journalLines.length) + 1;
-  const header = captainChartHeaderLayout({
-    panelY: 0,
-    dialogueFontSize: pixelFontSizePx(PIXEL_FONT_DIALOGUE_8),
-    smallFontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
-  });
-  const contentHeight = 86 + header.mapTopOffset + naturalMapHeight +
-    journalLineCount * localizedLineHeight(10);
+  const panelHeight = Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12);
   const panel = {
     x: Math.floor((SCREEN_W - panelWidth) / 2),
-    y: Math.floor((SCREEN_H - Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12, contentHeight)) / 2),
+    y: Math.floor((SCREEN_H - panelHeight) / 2),
     w: panelWidth,
-    h: Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12, contentHeight)
+    h: panelHeight
   };
+  const desiredRailWidth = Math.max(
+    92,
+    ...CAPTAIN_MENU_ACTIONS.map((action) => (
+      measurePixelTextWidth(captainMenuActionLabel(action), PIXEL_FONT_SMALL_8) +
+      GAME_ICON_SIZE + 24
+    ))
+  );
+  const notebook = captainNotebookLayout({
+    panel,
+    actionCount: CAPTAIN_MENU_ACTIONS.length,
+    desiredRailWidth
+  });
   captainMenu.panelRect = panel;
   captainMenu.closeButtonRect = {
-    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
-    y: panel.y + 6,
+    x: notebook.page.x + notebook.page.w - UI_ICON_BUTTON_SIZE - 6,
+    y: notebook.page.y + 6,
     w: UI_ICON_BUTTON_SIZE,
     h: UI_ICON_BUTTON_SIZE
   };
@@ -23459,18 +23566,81 @@ function drawCaptainMenu(nowMs) {
     pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
   );
   const panelHeader = captainChartHeaderLayout({
-    panelY: panel.y,
+    panelY: notebook.page.y,
     dialogueFontSize: pixelFontSizePx(PIXEL_FONT_DIALOGUE_8),
     smallFontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
   });
-  drawOptionsText(uiText("captain.chart"), panel.x + panel.w / 2, panelHeader.titleY, {
-    font: PIXEL_FONT_DIALOGUE_8,
-    align: "center",
-    color: PIRATE_MENU_INK
-  });
+  const titleLeft = notebook.page.x + 10;
+  const titleRight = captainMenu.closeButtonRect.x - 4;
+  const titleWidth = titleRight - titleLeft;
+  const chartTitle = uiText("captain.chart");
+  const titleFont = measurePixelTextWidth(chartTitle, PIXEL_FONT_DIALOGUE_8) <= titleWidth
+    ? PIXEL_FONT_DIALOGUE_8
+    : PIXEL_FONT_SMALL_8;
+  drawOptionsText(
+    fitPixelText(chartTitle, titleFont, titleWidth),
+    titleLeft + Math.floor((titleRight - titleLeft) / 2),
+    panelHeader.titleY,
+    {
+      font: titleFont,
+      align: "center",
+      color: PIRATE_MENU_INK
+    }
+  );
 
-  drawCaptainChart(panel, nowMs);
+  drawCaptainChart(notebook.page, nowMs);
+  drawCaptainNotebookTabs(notebook);
   ctx.restore();
+}
+
+function captainMenuActionLabel(action) {
+  if (!action?.labelKey) throw new Error(`Captain menu action has no localized label: ${action?.id}`);
+  return uiText(action.labelKey);
+}
+
+function drawCaptainNotebookTabs(notebook) {
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(notebook.page.x + 0.5, notebook.page.y + 4);
+  ctx.lineTo(notebook.page.x + 0.5, notebook.page.y + notebook.page.h - 4);
+  ctx.stroke();
+
+  captainMenu.itemRects = notebook.tabs.map((rect) => ({ ...rect }));
+  captainMenu.itemRects.forEach((rect, index) => {
+    const action = CAPTAIN_MENU_ACTIONS[index];
+    const activePage = action.id === "map";
+    const focused = index === captainMenu.selectedIndex;
+    const hovered = pointInRect(captainMenu.hoverPoint, rect);
+    ctx.fillStyle = activePage
+      ? PIRATE_MENU_PAPER
+      : focused || hovered
+        ? PIRATE_MENU_PAPER_SELECTED
+        : PIRATE_MENU_PAPER_INSET;
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.strokeStyle = focused || hovered ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    if (activePage) {
+      ctx.fillStyle = PIRATE_MENU_PAPER;
+      ctx.fillRect(notebook.page.x - 1, rect.y + 1, 3, rect.h - 2);
+      ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+      ctx.fillRect(rect.x + 2, rect.y + 2, 2, rect.h - 4);
+    }
+    const iconX = rect.x + 7;
+    const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
+    drawCaptainMenuItemIcon(index, iconX, iconY, activePage || focused || hovered);
+    const textX = iconX + GAME_ICON_SIZE + 5;
+    const textWidth = rect.x + rect.w - textX - 5;
+    drawOptionsText(
+      fitPixelText(captainMenuActionLabel(action), PIXEL_FONT_SMALL_8, textWidth),
+      textX,
+      controlTextY(rect, PIXEL_FONT_SMALL_8),
+      {
+        font: PIXEL_FONT_SMALL_8,
+        color: PIRATE_MENU_INK
+      }
+    );
+  });
 }
 
 function drawCaptainMenuItemIcon(index, x, y, active) {
@@ -23850,10 +24020,9 @@ function drawCaptainChart(panel, nowMs) {
     smallFontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
   });
   const mapY = header.mapY;
-  const navY = captainChartNavigationY(panel);
   const journalLineHeight = localizedLineHeight(10);
   const journalHeight = journalLineHeight * (Math.min(5, journalLines.length) + 1);
-  const journalBottom = navY - localizedLineHeight(20);
+  const journalBottom = panel.y + panel.h - 10;
   const mapHeightLimit = Math.max(34, journalBottom - journalHeight - mapY - localizedLineHeight(10));
   const mapH = Math.min(Math.floor(mapW * MINIMAP_H / MINIMAP_W), mapHeightLimit);
   captainMenu.mapRect = { x: mapX, y: mapY, w: mapW, h: mapH };
@@ -23897,7 +24066,6 @@ function drawCaptainChart(panel, nowMs) {
   drawCaptainChartMapControls(captainMenu.mapRect);
 
   drawQuestJournal(panel, journalLines, mapY + mapH + localizedLineHeight(10));
-  drawCaptainChartNavigation(panel);
 }
 
 function questJournalDisplayLines(entries, textWidth) {
@@ -23926,7 +24094,7 @@ function drawQuestJournal(panel, lines, y) {
   drawOptionsText(uiText("quest.journal"), x, y, { color: PIRATE_MENU_INK });
   const scrollGutterWidth = 10;
   const contentY = y + lineHeight;
-  const contentBottom = captainChartNavigationY(panel) - localizedLineHeight(20);
+  const contentBottom = panel.y + panel.h - 10;
   const visibleLineCount = Math.max(1, Math.floor((contentBottom - contentY) / lineHeight));
   const viewportHeight = visibleLineCount * lineHeight;
   const journalWindow = questJournalWindow({
@@ -24008,50 +24176,6 @@ function drawQuestJournalScrollChevron(rect, direction, enabled, hovered) {
   ctx.fillRect(centerX - 2, centerY - direction, 5, 1);
   ctx.fillRect(centerX - 1, centerY, 3, 1);
   ctx.fillRect(centerX, centerY + direction, 1, 1);
-}
-
-function captainChartNavigationY(panel) {
-  return panel.y + panel.h - 36 - 8;
-}
-
-function drawCaptainChartNavigation(panel) {
-  const gap = 4;
-  const navH = 36;
-  const availableW = panel.w - 24;
-  const itemW = Math.floor((availableW - gap * (CAPTAIN_MENU_ACTIONS.length - 1)) / CAPTAIN_MENU_ACTIONS.length);
-  const totalW = itemW * CAPTAIN_MENU_ACTIONS.length + gap * (CAPTAIN_MENU_ACTIONS.length - 1);
-  const startX = panel.x + Math.floor((panel.w - totalW) / 2);
-  const y = captainChartNavigationY(panel);
-  captainMenu.itemRects = CAPTAIN_MENU_ACTIONS.map((_, index) => ({
-    x: startX + index * (itemW + gap),
-    y,
-    w: itemW,
-    h: navH
-  }));
-
-  let hoveredIndex = -1;
-  captainMenu.itemRects.forEach((rect, index) => {
-    const selected = index === captainMenu.selectedIndex;
-    const hovered = pointInRect(captainMenu.hoverPoint, rect);
-    if (hovered) hoveredIndex = index;
-    drawPiratePaperInset(rect, selected || hovered);
-    drawCaptainMenuItemIcon(
-      index,
-      rect.x + Math.floor((rect.w - 13) / 2),
-      rect.y + Math.floor((rect.h - 13) / 2),
-      selected || hovered
-    );
-  });
-
-  const labelIndex = hoveredIndex >= 0 ? hoveredIndex : captainMenu.selectedIndex;
-  const action = CAPTAIN_MENU_ACTIONS[labelIndex];
-  const label = action?.labelKey ? uiText(action.labelKey) : action?.label;
-  if (!label) throw new Error(`Captain menu label is missing: ${labelIndex}`);
-  drawOptionsText(label, panel.x + panel.w / 2, y - 13, {
-    font: PIXEL_FONT_DIALOGUE_8,
-    align: "center",
-    color: PIRATE_MENU_INK
-  });
 }
 
 function drawCaptainChartMapControls(mapRect) {
@@ -32336,7 +32460,19 @@ function drawNpcShipFlag(call, nowMs) {
     layout.flag.y,
     layout.flag.w,
     layout.flag.h,
-    flagWavePhase(nowMs, call.flagSeed)
+    flagWavePhase(nowMs, call.flagSeed),
+    {
+      outlineColor: shipFlagDiplomacyOutlineColor(
+        currentDiplomacyBetween(ship.factionId, call.factionId),
+        {
+          hostileToPlayer: factionReputation(gameState, call.factionId) <=
+            HOSTILE_PORT_REPUTATION_THRESHOLD,
+          inCombatWithPlayer: shipCombatState.engagements.has(
+            engagementKey(PLAYER_COMBAT_ID, call.id)
+          )
+        }
+      )
+    }
   );
 }
 
@@ -33232,13 +33368,34 @@ function flagWavePhase(nowMs, seed = 0) {
   return nowMs * CITY_FLAG_WAVE_SPEED_RAD_PER_MS + seed * 0.37;
 }
 
-function drawWavingFactionFlag(factionId, x, y, width, height, phaseRad) {
+function drawWavingFactionFlag(
+  factionId,
+  x,
+  y,
+  width,
+  height,
+  phaseRad,
+  { outlineColor = null } = {}
+) {
   if (!factionHasFlag(factionId)) {
     throw new Error(`Neutral faction cannot be drawn as a flag`);
   }
   const image = factionFlagImages?.get(factionId);
   if (!image) throw new Error(`Missing faction flag image: ${factionId}`);
   const offsets = flagWaveColumnOffsets(width, phaseRad, 1);
+  if (outlineColor !== null) {
+    ctx.fillStyle = outlineColor;
+    for (const [dx, dy] of [[0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) {
+      for (let column = 0; column < width; column++) {
+        ctx.fillRect(
+          Math.round(x + column + dx),
+          Math.round(y + offsets[column] + dy),
+          1,
+          height
+        );
+      }
+    }
+  }
   for (let column = 0; column < width; column++) {
     const sourceX = Math.floor(column * image.width / width);
     const sourceEndX = Math.floor((column + 1) * image.width / width);
@@ -34134,8 +34291,15 @@ function drawSavePersistenceWarning() {
 }
 
 function drawAchievementNotice(nowMs) {
+  if (achievementsMenu.isOpen) {
+    achievementNoticeRect = null;
+    return;
+  }
   const notice = updateAchievementNotice(nowMs);
-  if (!notice) return;
+  if (!notice) {
+    achievementNoticeRect = null;
+    return;
+  }
   const width = Math.min(260, SCREEN_W - 12);
   const height = 38;
   const x = Math.round((SCREEN_W - width) / 2);
@@ -34147,11 +34311,17 @@ function drawAchievementNotice(nowMs) {
   const alpha = Math.min(fadeIn, fadeOut);
   const offsetY = Math.round((1 - fadeIn) * -6);
   const textX = x + 31;
+  achievementNoticeRect = { x, y: y + offsetY, w: width, h: height };
+  const hovered = pointInRect(achievementNoticeHoverPoint, achievementNoticeRect);
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(0, offsetY);
   drawPirateHudPanel({ x, y, w: width, h: height });
+  if (hovered) {
+    ctx.strokeStyle = PIRATE_MENU_PAPER_SELECTED;
+    ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+  }
   drawGameIcon(notice.iconId, x + 8, y + 11);
   drawOptionsText(
     fitPixelText(notice.heading, PIXEL_FONT_SMALL_8, width - 40),

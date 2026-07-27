@@ -4,7 +4,7 @@ export const CLOUD_SPRITE_VARIANT_COUNT = 5;
 export const CLOUD_SPRITE_SHEET_PATH = "assets/clouds/clouds-Sheet.png";
 export const CLOUD_SPRITE_SHEET_WIDTH = CLOUD_SPRITE_FRAME_SIZE * CLOUD_SPRITE_VARIANT_COUNT;
 export const CLOUD_SPRITE_SHEET_HEIGHT = CLOUD_SPRITE_FRAME_SIZE;
-export const CLOUD_MAX_ALPHA = 0.84;
+export const CLOUD_MAX_ALPHA = 0.6;
 
 export function cloudSpriteFrameIndex(templateIndex) {
   if (!Number.isInteger(templateIndex)) {

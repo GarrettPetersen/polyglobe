@@ -37,6 +37,8 @@ import {
 } from "./naturalistQuest.js";
 import { createBirthdayMemory, validateBirthdayMemory } from "./birthdayEvents.js";
 import {
+  DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
   DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
@@ -100,7 +102,7 @@ import {
   nextPapalPoliticsMinute,
   validatePapalPolitics
 } from "./papalPolitics.js";
-import { suzeraintyTradePrivilege } from "./suzerainty.js";
+import { foreignPolicyPrincipal, suzeraintyTradePrivilege } from "./suzerainty.js";
 import {
   createForeignSettlementExpulsionMemory,
   expelHostileForeignSettlements,
@@ -276,7 +278,10 @@ export const ONBOARDING_DELIVERY_SCENARIOS = Object.freeze([
   })
 ]);
 export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
-export const PIRACY_REPUTATION_PENALTY = -3;
+export const PIRACY_ALLY_REPUTATION_PENALTY = -10;
+export const PIRACY_FRIENDLY_REPUTATION_PENALTY = -5;
+export const PIRACY_HOME_REPUTATION_PENALTY = -8;
+export const PIRACY_HOME_ENEMY_REPUTATION_PENALTY = -3;
 export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
 export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
 export const TRADE_PASS_REPUTATION_REQUIRED = 50;
@@ -298,6 +303,7 @@ export const WINE_PERSON_DAYS_PER_UNIT = WATER_PERSON_DAYS_PER_UNIT;
 export const FOOD_TARGET_DAYS = 21;
 export const STARTING_HARDTACK_RATIONS = 10;
 export const EMERGENCY_SHIP_AID_UNITS = 3;
+export const ALLIED_SHIP_AID_THRESHOLD_DAYS = 2;
 export const ENVOY_SAFE_PASSAGE_DAYS = 7;
 export const ENVOY_TARGET_FRIENDLY_REPUTATION = 5;
 export const ENVOY_TARGET_HOSTILE_REPUTATION = -8;
@@ -1715,33 +1721,41 @@ function survivalStatusForValidatedState(state) {
   };
 }
 
-export function shipEmergencyAidNeed(state, npcShipId) {
+export function shipEmergencyAidNeed(state, npcShipId, { allied = false } = {}) {
   assertGameState(state);
   assertNpcShipId(npcShipId);
+  if (typeof allied !== "boolean") {
+    throw new Error(`Invalid allied ship aid status: ${allied}`);
+  }
   const status = survivalStatus(state);
-  const needsFood = status.foodRations <= 0;
-  const needsWater = status.drinkDays <= 0;
+  const needsFood = allied
+    ? status.foodDays <= ALLIED_SHIP_AID_THRESHOLD_DAYS
+    : status.foodRations <= 0;
+  const needsWater = status.drinkDays <= (allied ? ALLIED_SHIP_AID_THRESHOLD_DAYS : 0);
   const alreadyReceived = (state.memory.decisions[emergencyShipAidKey(npcShipId)] || 0) > 0;
   return {
     needsFood,
     needsWater,
     alreadyReceived,
-    available: (needsFood || needsWater) && !alreadyReceived && (
-      provisionCargoFree(state, "food") >= 1 / FOOD_RATIONS_PER_HOLD_UNIT ||
-      provisionCargoFree(state, "water") >= 1
+    available: !alreadyReceived && (
+      (needsFood && provisionCargoFree(state, "food") >= 1 / FOOD_RATIONS_PER_HOLD_UNIT) ||
+      (needsWater && provisionCargoFree(state, "water") >= 1)
     )
   };
 }
 
-export function receiveEmergencyShipAid(state, npcShipId) {
-  const need = shipEmergencyAidNeed(state, npcShipId);
+export function receiveEmergencyShipAid(state, npcShipId, options = {}) {
+  const need = shipEmergencyAidNeed(state, npcShipId, options);
   if (need.alreadyReceived) throw new Error(`Emergency aid already received from ship: ${npcShipId}`);
   if (!need.needsFood && !need.needsWater) {
-    throw new Error("Emergency ship aid requires depleted food or water");
+    throw new Error("Emergency ship aid requires critically low food or water");
   }
   if (!need.available) throw new Error("Emergency ship aid requires free hold space");
 
-  const desired = { food: EMERGENCY_SHIP_AID_UNITS, water: EMERGENCY_SHIP_AID_UNITS };
+  const desired = {
+    food: need.needsFood ? EMERGENCY_SHIP_AID_UNITS : 0,
+    water: need.needsWater ? EMERGENCY_SHIP_AID_UNITS : 0
+  };
   const granted = { food: 0, water: 0 };
   const order = ["water", "food"];
   while (granted.food < desired.food || granted.water < desired.water) {
@@ -3208,8 +3222,12 @@ export function recordAttackAgainstFaction(state, factionId) {
   assertGameState(state);
   const id = assertFactionId(factionId);
   if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return factionReputation(state, id);
+  if (state.relations.lettersOfMarque[id]) {
+    delete state.relations.lettersOfMarque[id];
+    recordDecision(state, `letter-of-marque.revoked.${id}`, 1);
+  }
   const before = factionReputation(state, id);
-  const after = adjustFactionReputation(state, id, SHIP_ATTACK_REPUTATION_PENALTY);
+  const after = applyAttackReputationPenalty(state, id);
   if (after !== before) recordDecision(state, `reputation.attack.${id}`, 1);
   return after;
 }
@@ -3222,11 +3240,14 @@ export function recordPiracyAgainstFaction(state, victimFactionId, options = {})
 
   const changes = {};
   for (const faction of FACTIONS) {
-    if (faction.id === PIRATE_FACTION_ID) continue;
+    if (faction.id === NEUTRAL_FACTION_ID || faction.id === PIRATE_FACTION_ID) continue;
     if (faction.id === victimId && !includeVictim) continue;
+    const penalty = piracyReputationPenalty(state, faction.id, victimId);
+    if (penalty === 0) continue;
     const before = factionReputation(state, faction.id);
-    const penalty = faction.id === victimId ? SHIP_ATTACK_REPUTATION_PENALTY : PIRACY_REPUTATION_PENALTY;
-    const after = adjustFactionReputation(state, faction.id, penalty);
+    const after = faction.id === victimId
+      ? applyAttackReputationPenalty(state, faction.id)
+      : adjustFactionReputation(state, faction.id, penalty);
     if (after !== before) changes[faction.id] = { before, after };
   }
   const pirateBefore = factionReputation(state, PIRATE_FACTION_ID);
@@ -3236,6 +3257,37 @@ export function recordPiracyAgainstFaction(state, victimFactionId, options = {})
   }
   if (Object.keys(changes).length > 0) recordDecision(state, `reputation.piracy.${victimId}`, 1);
   return changes;
+}
+
+function piracyReputationPenalty(state, observerFactionId, victimFactionId) {
+  if (observerFactionId === victimFactionId) return SHIP_ATTACK_REPUTATION_PENALTY;
+
+  const diplomacy = state.relations.diplomacy;
+  const observerPrincipalId = foreignPolicyPrincipal(diplomacy.suzerainties, observerFactionId);
+  const victimPrincipalId = foreignPolicyPrincipal(diplomacy.suzerainties, victimFactionId);
+  if (observerPrincipalId === victimPrincipalId) return PIRACY_ALLY_REPUTATION_PENALTY;
+
+  const relation = worldDiplomacyBetween(diplomacy, observerFactionId, victimFactionId);
+  let penalty = relation === DIPLOMACY_ALLY
+    ? PIRACY_ALLY_REPUTATION_PENALTY
+    : relation === DIPLOMACY_FRIENDLY
+      ? PIRACY_FRIENDLY_REPUTATION_PENALTY
+      : 0;
+
+  if (observerFactionId === state.playerCharacter?.nationalityId) {
+    const homePenalty = relation === DIPLOMACY_HOSTILE || relation === DIPLOMACY_WAR
+      ? PIRACY_HOME_ENEMY_REPUTATION_PENALTY
+      : PIRACY_HOME_REPUTATION_PENALTY;
+    penalty = Math.min(penalty, homePenalty);
+  }
+  return penalty;
+}
+
+function applyAttackReputationPenalty(state, factionId) {
+  const penalized = adjustFactionReputation(state, factionId, SHIP_ATTACK_REPUTATION_PENALTY);
+  const hostile = Math.min(penalized, HOSTILE_PORT_REPUTATION_THRESHOLD);
+  state.relations.factionReputation[factionId] = hostile;
+  return hostile;
 }
 
 export function pirateHideoutsVisibleToPlayer(state) {

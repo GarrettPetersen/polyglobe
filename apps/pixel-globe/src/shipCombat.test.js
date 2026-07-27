@@ -5,6 +5,8 @@ import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
   PLAYER_COMBAT_ID,
+  PLAYER_ALLY_REINFORCEMENT_RADIUS_PX,
+  PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX,
   PLAYER_NPC_ATTACK_GRACE_SECONDS,
   PIRATE_PLAYER_DETECTION_RADIUS_PX,
   WARSHIP_PIRATE_DISENGAGE_RADIUS_PX,
@@ -68,6 +70,87 @@ test("warships intercept pirates before pirates can close with the player", () =
 
   assert.equal(warshipRange.engagementCount, 1);
   assert.equal(playerRange.engagementCount, 0);
+});
+
+test("a nearby armed ally joins the player's fight against a shared enemy", () => {
+  const player = ship("player", "merchant", "england", 0, 0, 40, 2);
+  const enemy = ship("enemy", "warship", "france", 30, 0, 80, 12);
+  const ally = ship(
+    "ally",
+    "warship",
+    "portugal",
+    PLAYER_ALLY_REINFORCEMENT_RADIUS_PX - 1,
+    0,
+    90,
+    10
+  );
+  const result = updateShipCombatState(
+    createShipCombatState(),
+    [player, enemy, ally],
+    threePowerWar
+  );
+
+  assert.equal(result.engagementCount, 2);
+  assert.equal(result.intents.get(ally.id).mode, COMBAT_MODE_ATTACK);
+  assert.equal(result.intents.get(ally.id).targetId, enemy.id);
+  assert.equal(
+    result.startedEngagements.some((engagement) => engagement.alliedReinforcement === true),
+    true
+  );
+});
+
+test("an armed allied merchant fights when reinforcing the player", () => {
+  const player = ship("player", "merchant", "england", 0, 0, 40, 2);
+  const enemy = ship("enemy", "warship", "france", 30, 0, 80, 12);
+  const ally = ship("ally", "merchant", "portugal", -120, 0, 70, 4);
+  const result = updateShipCombatState(
+    createShipCombatState(),
+    [player, enemy, ally],
+    threePowerWar
+  );
+
+  assert.equal(result.intents.get(ally.id).mode, COMBAT_MODE_ATTACK);
+  assert.equal(result.intents.get(ally.id).targetId, enemy.id);
+});
+
+test("friendly, unarmed, and diplomatically uninvolved ships do not reinforce the player", () => {
+  const player = ship("player", "merchant", "england", 0, 0, 40, 2);
+  const enemy = ship("enemy", "warship", "france", 30, 0, 80, 12);
+  const friendly = ship("friendly", "warship", "venice", -100, 0, 90, 10);
+  const unarmedAlly = ship("unarmed", "merchant", "portugal", -110, 0, 70, 0);
+  const uninvolvedAlly = ship("uninvolved", "warship", "spain", -120, 0, 90, 10);
+  const relationBetween = (a, b) => {
+    const pair = new Set([a, b]);
+    if (pair.has("england") && pair.has("france")) return "war";
+    if (pair.has("england") && pair.has("portugal")) return "ally";
+    if (pair.has("england") && pair.has("spain")) return "ally";
+    if (pair.has("england") && pair.has("venice")) return "friendly";
+    if (pair.has("portugal") && pair.has("france")) return "war";
+    return "neutral";
+  };
+  const result = updateShipCombatState(
+    createShipCombatState(),
+    [player, enemy, friendly, unarmedAlly, uninvolvedAlly],
+    relationBetween
+  );
+
+  assert.equal(result.engagementCount, 1);
+  assert.equal(result.intents.has(friendly.id), false);
+  assert.equal(result.intents.has(unarmedAlly.id), false);
+  assert.equal(result.intents.has(uninvolvedAlly.id), false);
+});
+
+test("allied reinforcement remains engaged across its wider response area", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "merchant", "england", 0, 0, 40, 2);
+  const enemy = ship("enemy", "warship", "france", 30, 0, 80, 12);
+  const ally = ship("ally", "warship", "portugal", 150, 0, 90, 10);
+  updateShipCombatState(state, [player, enemy, ally], threePowerWar);
+
+  ally.x = enemy.x + PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX - 1;
+  assert.equal(updateShipCombatState(state, [player, enemy, ally], threePowerWar).engagementCount, 2);
+  ally.x = enemy.x + PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX + 1;
+  assert.equal(updateShipCombatState(state, [player, enemy, ally], threePowerWar).engagementCount, 1);
 });
 
 test("pirates cannot ambush the player inside protected major-port waters", () => {
@@ -170,6 +253,19 @@ test("warring warships fight but unescorted merchants do not initiate", () => {
     ship("french", "merchant", "france", 40, 0, 110, 8)
   ]);
   assert.equal(tradeResult.engagementCount, 0);
+});
+
+test("a home-nation warship engages a player outlawed by personal reputation", () => {
+  const player = ship("player", "merchant", "england", 0, 0, 30, 4);
+  player.hostileFactionIds.push("england");
+  player.safePassageFactionIds.push("england");
+  const result = updateShipCombatState(createShipCombatState(), [
+    player,
+    ship("home-warship", "warship", "england", 30, 0, 80, 10)
+  ]);
+
+  assert.equal(result.engagementCount, 1);
+  assert.equal(result.intents.get("home-warship").targetId, "player");
 });
 
 test("a new war starts combat and a later peace ends it", () => {
@@ -322,7 +418,8 @@ function ship(id, role, factionId, x, y, hitPoints, cannons, maxHitPoints = hitP
     combatGrace: false,
     npcAttackProtected: false,
     carriesPirateTreasure: id === "player" ? false : undefined,
-    safePassageFactionIds: id === "player" ? [] : undefined
+    safePassageFactionIds: id === "player" ? [] : undefined,
+    hostileFactionIds: id === "player" ? [] : undefined
   };
 }
 
@@ -331,4 +428,11 @@ function threatShip(id, hitPoints, cannons, topSpeedRad, maxHitPoints = hitPoint
     ...ship(id, "warship", id === "player" ? "pirate" : "portugal", 0, 0, hitPoints, cannons, maxHitPoints),
     topSpeedRad
   };
+}
+
+function threePowerWar(a, b) {
+  const pair = new Set([a, b]);
+  if (pair.has("england") && pair.has("portugal")) return "ally";
+  if (pair.has("france") && (pair.has("england") || pair.has("portugal"))) return "war";
+  return a === b ? "ally" : "neutral";
 }

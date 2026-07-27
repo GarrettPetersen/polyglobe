@@ -63,6 +63,7 @@ test("cloud frame selection wraps across all five variants", () => {
 });
 
 test("clouds fade without ever becoming fully opaque", () => {
+  assert.ok(CLOUD_MAX_ALPHA <= 0.6, "clouds must leave terrain legible in darkness");
   assert.equal(cloudLifecycleAlpha(0), 0);
   assert.ok(cloudLifecycleAlpha(0.1) > 0);
   assert.ok(cloudLifecycleAlpha(0.1) < CLOUD_MAX_ALPHA);

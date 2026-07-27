@@ -21,6 +21,9 @@ export const PIRATE_PLAYER_DETECTION_RADIUS_PX = 68;
 export const PIRATE_TREASURE_DETECTION_RADIUS_PX = 112;
 export const WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX = 138;
 export const WARSHIP_PIRATE_DISENGAGE_RADIUS_PX = 190;
+export const PLAYER_ALLY_REINFORCEMENT_RADIUS_PX = 170;
+export const PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX = 220;
+export const PLAYER_ALLY_MIN_REINFORCEMENT_CANNONS = 4;
 export const PLAYER_NPC_ATTACK_GRACE_SECONDS = 60;
 export const COMBAT_MODE_ATTACK = "attack";
 export const COMBAT_MODE_FLEE = "flee";
@@ -43,10 +46,11 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
     if (!a || !b || a.combatGrace || b.combatGrace ||
-        (!engagement.playerInitiated && playerSafePassageApplies(a, b)) ||
-        (!engagement.playerInitiated && relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) ||
+        (!engagement.playerInitiated && playerSafePassageApplies(a, b) &&
+          !playerPersonalHostilityApplies(a, b)) ||
+        (!engagement.playerInitiated && !entitiesAreEnemies(a, b, relationBetween)) ||
         playerEnteredPortEndsEngagement(a, b) ||
-        !withinDistance(a, b, combatDisengageRadius(a, b))) {
+        !withinDistance(a, b, engagementDisengageRadius(engagement, a, b))) {
       state.engagements.delete(key);
       changed = true;
     }
@@ -67,20 +71,35 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     }
   }
 
+  const reinforcements = addPlayerAllyReinforcements(
+    state,
+    entities,
+    byId,
+    relationBetween
+  );
+  if (reinforcements.length > 0) {
+    startedEngagements.push(...reinforcements);
+    changed = true;
+  }
+
   const enemiesById = new Map(entities.map((entity) => [entity.id, []]));
+  const playerReinforcementIds = new Set();
   for (const engagement of state.engagements.values()) {
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
     if (!a || !b) continue;
     enemiesById.get(a.id).push(b);
     enemiesById.get(b.id).push(a);
+    if (engagement.alliedReinforcement === true) {
+      playerReinforcementIds.add(a.id);
+    }
   }
 
   const intents = new Map();
   for (const entity of entities) {
     const enemies = enemiesById.get(entity.id);
     if (!enemies || enemies.length === 0) continue;
-    const mode = combatMode(entity, enemies);
+    const mode = combatMode(entity, enemies, playerReinforcementIds.has(entity.id));
     const target = chooseTarget(entity, enemies, mode);
     intents.set(entity.id, {
       mode,
@@ -99,12 +118,14 @@ export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {
 }
 
 function validatedShipsTriggerCombat(a, b, relationBetween) {
-  if (a.id === b.id || a.combatGrace || b.combatGrace || a.factionId === b.factionId) return false;
-  if (relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) return false;
+  if (a.id === b.id || a.combatGrace || b.combatGrace) return false;
+  if (!entitiesAreEnemies(a, b, relationBetween)) return false;
   if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {
     const player = a.id === PLAYER_COMBAT_ID ? a : b;
     const npc = a.id === PLAYER_COMBAT_ID ? b : a;
-    if (playerSafePassageApplies(player, npc)) return false;
+    if (playerSafePassageApplies(player, npc) && !playerPersonalHostilityApplies(player, npc)) {
+      return false;
+    }
     if (player.npcAttackProtected) return false;
     if (player.portProtected) return false;
     if (npc.role === NPC_ROLE_PIRATE &&
@@ -120,6 +141,19 @@ function validatedShipsTriggerCombat(a, b, relationBetween) {
     b.factionId === PIRATE_FACTION_ID ||
     a.role === NPC_ROLE_WARSHIP ||
     b.role === NPC_ROLE_WARSHIP;
+}
+
+function entitiesAreEnemies(a, b, relationBetween) {
+  return playerPersonalHostilityApplies(a, b) ||
+    (a.factionId !== b.factionId &&
+      relationBetween(a.factionId, b.factionId) === DIPLOMACY_WAR);
+}
+
+function playerPersonalHostilityApplies(a, b) {
+  if (a.id !== PLAYER_COMBAT_ID && b.id !== PLAYER_COMBAT_ID) return false;
+  const player = a.id === PLAYER_COMBAT_ID ? a : b;
+  const npc = a.id === PLAYER_COMBAT_ID ? b : a;
+  return player.hostileFactionIds.includes(npc.factionId);
 }
 
 function playerSafePassageApplies(a, b) {
@@ -164,6 +198,63 @@ function combatDisengageRadius(a, b) {
   return isNpcWarshipPiratePair(a, b)
     ? WARSHIP_PIRATE_DISENGAGE_RADIUS_PX
     : COMBAT_DISENGAGE_RADIUS_PX;
+}
+
+function engagementDisengageRadius(engagement, a, b) {
+  return engagement.alliedReinforcement === true
+    ? PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX
+    : combatDisengageRadius(a, b);
+}
+
+function addPlayerAllyReinforcements(state, entities, byId, relationBetween) {
+  const player = byId.get(PLAYER_COMBAT_ID);
+  if (!player || player.portProtected) return [];
+
+  const playerEnemyIds = new Set();
+  for (const engagement of state.engagements.values()) {
+    if (engagement.aId === PLAYER_COMBAT_ID) playerEnemyIds.add(engagement.bId);
+    else if (engagement.bId === PLAYER_COMBAT_ID) playerEnemyIds.add(engagement.aId);
+  }
+  if (playerEnemyIds.size === 0) return [];
+
+  const reinforcements = [];
+  for (const ally of entities) {
+    if (!shipCanReinforcePlayer(ally, player, relationBetween)) continue;
+    for (const enemyId of playerEnemyIds) {
+      const enemy = byId.get(enemyId);
+      if (!enemy ||
+          !entitiesAreEnemies(ally, enemy, relationBetween) ||
+          !withinDistance(ally, enemy, PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX)) {
+        continue;
+      }
+      const key = engagementKey(ally.id, enemy.id);
+      if (state.engagements.has(key)) continue;
+      const engagement = {
+        aId: ally.id,
+        bId: enemy.id,
+        alliedReinforcement: true
+      };
+      state.engagements.set(key, engagement);
+      reinforcements.push(engagement);
+    }
+  }
+  return reinforcements;
+}
+
+function shipCanReinforcePlayer(ally, player, relationBetween) {
+  if (
+    ally.id === PLAYER_COMBAT_ID ||
+    ally.combatGrace ||
+    player.hostileFactionIds.includes(ally.factionId) ||
+    relationBetween(player.factionId, ally.factionId) !== DIPLOMACY_ALLY ||
+    !withinDistance(player, ally, PLAYER_ALLY_REINFORCEMENT_RADIUS_PX) ||
+    ally.hitPoints / ally.maxHitPoints <= 0.36
+  ) {
+    return false;
+  }
+  return ally.role === NPC_ROLE_WARSHIP ||
+    ally.role === NPC_ROLE_PIRATE ||
+    ally.cannons >= PLAYER_ALLY_MIN_REINFORCEMENT_CANNONS;
 }
 
 function isNpcWarshipPiratePair(a, b) {
@@ -243,15 +334,16 @@ export function npcShouldOfferSurrender(npc, player) {
   return badlyDamaged || hopelesslyOutmatched || (outmatched && cannotOutrunPlayer);
 }
 
-function combatMode(entity, enemies) {
+function combatMode(entity, enemies, reinforcingPlayer = false) {
   if (entity.forceAttack === true) return COMBAT_MODE_ATTACK;
+  const health = entity.hitPoints / entity.maxHitPoints;
+  if (health <= 0.36) return COMBAT_MODE_FLEE;
+  if (reinforcingPlayer) return COMBAT_MODE_ATTACK;
   if (
     entity.role === NPC_ROLE_MERCHANT ||
     entity.role === NPC_ROLE_FISHERMAN ||
     entity.role === NPC_ROLE_WHALER
   ) return COMBAT_MODE_FLEE;
-  const health = entity.hitPoints / entity.maxHitPoints;
-  if (health <= 0.36) return COMBAT_MODE_FLEE;
   let strongestEnemy = 0;
   for (const enemy of enemies) {
     strongestEnemy = Math.max(strongestEnemy, validatedCombatPower(enemy));
@@ -313,6 +405,10 @@ function validateEntity(entity) {
     if (!Array.isArray(entity.safePassageFactionIds) ||
         entity.safePassageFactionIds.some((factionId) => typeof factionId !== "string" || factionId === "")) {
       throw new Error("Player combat entity requires safe passage faction ids");
+    }
+    if (!Array.isArray(entity.hostileFactionIds) ||
+        entity.hostileFactionIds.some((factionId) => typeof factionId !== "string" || factionId === "")) {
+      throw new Error("Player combat entity requires personally hostile faction ids");
     }
     if (typeof entity.carriesPirateTreasure !== "boolean") {
       throw new Error("Player combat entity requires pirate treasure state");

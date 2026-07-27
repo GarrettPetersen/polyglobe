@@ -711,6 +711,39 @@ test("a friendly ship can give one emergency ration of food and water", () => {
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
 });
 
+test("an allied ship offers targeted aid before provisions are completely depleted", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.survival.freshWater = 1;
+  state.cargo.hardtack = 12 / 12;
+
+  assert.equal(shipEmergencyAidNeed(state, "neutral-ship").available, false);
+  const alliedNeed = shipEmergencyAidNeed(state, "allied-ship", { allied: true });
+  assert.equal(alliedNeed.needsFood, true);
+  assert.equal(alliedNeed.needsWater, true);
+  assert.equal(alliedNeed.available, true);
+  assert.deepEqual(
+    receiveEmergencyShipAid(state, "allied-ship", { allied: true }),
+    { food: 3, water: 3 }
+  );
+});
+
+test("allied emergency aid only transfers the provision that is critically low", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.survival.freshWater = 1;
+
+  const need = shipEmergencyAidNeed(state, "water-relief", { allied: true });
+  assert.equal(need.needsFood, false);
+  assert.equal(need.needsWater, true);
+  assert.deepEqual(
+    receiveEmergencyShipAid(state, "water-relief", { allied: true }),
+    { food: 0, water: 3 }
+  );
+});
+
 test("emergency ship aid respects the remaining hold capacity", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });

@@ -5,6 +5,7 @@ import {
   ACHIEVEMENT_CATALOG,
   ACHIEVEMENT_IDS,
   ACHIEVEMENT_PROFILE_STORAGE_KEY,
+  achievementCatalogPageForId,
   achievementPlatformAdapter,
   achievementPresentation,
   achievementProgress,
@@ -90,6 +91,23 @@ test("completed achievements appear first while preserving catalog order", () =>
     ACHIEVEMENT_CATALOG
       .filter((entry) => !profile.unlocked[entry.id])
       .map((entry) => entry.id)
+  );
+});
+
+test("achievement notices can open the exact page containing their unlocked entry", () => {
+  const profile = createAchievementProfile();
+  profile.unlocked[ACHIEVEMENT_IDS.MAGELLAN] = { unlockedAt: 4000 };
+  profile.unlocked[ACHIEVEMENT_IDS.SPICE_TRADER] = { unlockedAt: 5000 };
+
+  assert.equal(achievementCatalogPageForId(profile, ACHIEVEMENT_IDS.MAGELLAN, 4), 0);
+  assert.equal(achievementCatalogPageForId(profile, ACHIEVEMENT_IDS.SPICE_TRADER, 1), 1);
+  assert.throws(
+    () => achievementCatalogPageForId(profile, "not-an-achievement", 4),
+    /Unknown achievement id/
+  );
+  assert.throws(
+    () => achievementCatalogPageForId(profile, ACHIEVEMENT_IDS.MAGELLAN, 0),
+    /Invalid achievement page size/
   );
 });
 

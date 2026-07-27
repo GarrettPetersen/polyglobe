@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-36";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-37";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -138,6 +138,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "menu:achievements": nikoichu("Sports_Winner_Award_Cup_Achievement_Trophy.png", ICON_COLOR.gold),
   "menu:options": nikoichu("Software_Options_Settings_Sliders_Knobs_Audio.png", ICON_COLOR.purple),
   "menu:credits": nikoichu("Software_Text_Document_Credits_Roll_Attributions.png", ICON_COLOR.dialogue),
+  "menu:map": nikoichu("Map_Markers_Travel_Map_Folded.png", ICON_COLOR.navigation),
   "menu:captain": nikoichu("Travel_Person_Player_Character_Single.png", ICON_COLOR.warm),
   "menu:ship": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_COLOR.sea),
   "menu:politics": nikoichu("Map_Markers_Flagpole_Triangle_Minesweeper.png", ICON_COLOR.gold),

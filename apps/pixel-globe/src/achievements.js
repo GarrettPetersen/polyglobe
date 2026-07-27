@@ -322,6 +322,18 @@ export function orderedAchievementCatalog(profile) {
   return Object.freeze([...completed, ...incomplete]);
 }
 
+export function achievementCatalogPageForId(profile, achievementId, pageSize) {
+  if (!Number.isInteger(pageSize) || pageSize <= 0) {
+    throw new Error(`Invalid achievement page size: ${pageSize}`);
+  }
+  assertAchievementId(achievementId);
+  const index = orderedAchievementCatalog(profile).findIndex(
+    (achievement) => achievement.id === achievementId
+  );
+  if (index < 0) throw new Error(`Achievement is absent from the catalog: ${achievementId}`);
+  return Math.floor(index / pageSize);
+}
+
 export function recordVoyageAchievementEvent(progress, event) {
   validateVoyageAchievementProgress(progress);
   if (!event || typeof event !== "object" || typeof event.type !== "string") {
