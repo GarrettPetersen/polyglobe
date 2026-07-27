@@ -180,13 +180,15 @@ import {
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import { portraitBottomTransparentRows } from "./portraitFrameAlignment.js";
 import {
+  CLOUD_ASSEMBLY_STAGE_COUNT,
   CLOUD_SPRITE_ASSET_VERSION,
   CLOUD_SPRITE_FRAME_SIZE,
   CLOUD_SPRITE_SHEET_HEIGHT,
   CLOUD_SPRITE_SHEET_PATH,
   CLOUD_SPRITE_SHEET_WIDTH,
   CLOUD_SPRITE_VARIANT_COUNT,
-  cloudLifecycleAlpha,
+  cloudLifecycleVisualState,
+  cloudParticleAssembly,
   cloudSpriteFrameIndex
 } from "./cloudSpriteAssets.js";
 import {
@@ -743,7 +745,9 @@ import {
   captainChartSettlementMarkerSize
 } from "./captainChartMap.js";
 import {
+  POLITICS_DEPENDENCY_TEXT_COLOR,
   politicsCardGridLayout,
+  politicsRelationTextColor,
   politicsCardSegments,
   politicsCardSegmentsPage
 } from "./politicsCardLayout.js";
@@ -1041,13 +1045,19 @@ import {
   worldEconomyHasPort
 } from "./economy.js";
 import {
+  darkerResurrect64Hex,
   waterDepthIndexForSpriteKey,
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
+import {
+  riverBankOutlineMask,
+  riverBankOutlinePixelSet
+} from "./riverBankOutline.js";
 import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
 import {
   SHIP_PAPER_ROW_CONTENT_INSET,
+  compactShipMeterLayout,
   createShipComparisonView,
   createShipInfoView,
   createShipyardShipView,
@@ -2415,6 +2425,8 @@ let freshWaterSurfaceMask;
 let stormSystem;
 const stormPassageState = createStormPassageState();
 let riverSpriteCache = new Map();
+const riverBankSpriteCache = new WeakMap();
+const riverConnectorBankCache = new WeakMap();
 let waterDepthBands;
 let weatherBake;
 let runtimeWeather;
@@ -2422,6 +2434,7 @@ let seaIceMask;
 let freshwaterIceMask;
 let snowGroundMask;
 let cloudSpriteSheet;
+let cloudAssemblyFrames;
 let cloudDrawCallCache = null;
 let cloudWindCacheDayIndex = -1;
 let cloudWindSubsolarLatDeg = 0;
@@ -2792,6 +2805,7 @@ async function main() {
   gameIconAtlasImage = loadedGameIconAtlas;
   gameIconOutlineAtlasImage = createGameIconOutlineAtlas(loadedGameIconAtlas);
   cloudSpriteSheet = loadedCloudSpriteSheet;
+  cloudAssemblyFrames = createCloudAssemblyFrames(loadedCloudSpriteSheet);
   worldDiscoveryImages = loadedWorldDiscoveryImages;
   cityImages = loadedCityImages;
   factionFlagImages = loadedFactionFlagImages;
@@ -3366,6 +3380,57 @@ async function loadCloudSpriteSheet() {
     CLOUD_SPRITE_SHEET_HEIGHT
   );
   return image;
+}
+
+function createCloudAssemblyFrames(sheet) {
+  const sampleCanvas = document.createElement("canvas");
+  sampleCanvas.width = CLOUD_SPRITE_SHEET_WIDTH;
+  sampleCanvas.height = CLOUD_SPRITE_SHEET_HEIGHT;
+  const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sampleCtx) throw new Error("Could not create cloud assembly sample canvas");
+  sampleCtx.imageSmoothingEnabled = false;
+  sampleCtx.drawImage(sheet, 0, 0);
+  const source = sampleCtx.getImageData(
+    0,
+    0,
+    CLOUD_SPRITE_SHEET_WIDTH,
+    CLOUD_SPRITE_SHEET_HEIGHT
+  ).data;
+
+  return Object.freeze(Array.from({ length: CLOUD_SPRITE_VARIANT_COUNT }, (_, frameIndex) => {
+    return Object.freeze(Array.from({ length: CLOUD_ASSEMBLY_STAGE_COUNT }, (_, stageIndex) => {
+      const visibility = (stageIndex + 1) / CLOUD_ASSEMBLY_STAGE_COUNT;
+      const canvas = document.createElement("canvas");
+      canvas.width = CLOUD_SPRITE_FRAME_SIZE;
+      canvas.height = CLOUD_SPRITE_FRAME_SIZE;
+      const frameCtx = canvas.getContext("2d");
+      if (!frameCtx) throw new Error(`Could not create cloud assembly frame ${frameIndex}:${stageIndex}`);
+      frameCtx.imageSmoothingEnabled = false;
+      const output = frameCtx.createImageData(CLOUD_SPRITE_FRAME_SIZE, CLOUD_SPRITE_FRAME_SIZE);
+      for (let y = 0; y < CLOUD_SPRITE_FRAME_SIZE; y++) {
+        for (let x = 0; x < CLOUD_SPRITE_FRAME_SIZE; x++) {
+          const sourceIndex = (
+            frameIndex * CLOUD_SPRITE_FRAME_SIZE +
+            x +
+            y * CLOUD_SPRITE_SHEET_WIDTH
+          ) * 4;
+          const sourceAlpha = source[sourceIndex + 3];
+          if (sourceAlpha === 0) continue;
+          const particle = cloudParticleAssembly(frameIndex, x, y, visibility);
+          if (!particle.visible) continue;
+          const outputIndex = (particle.x + particle.y * CLOUD_SPRITE_FRAME_SIZE) * 4;
+          const alpha = Math.round(sourceAlpha * particle.alpha);
+          if (alpha <= output.data[outputIndex + 3]) continue;
+          output.data[outputIndex] = source[sourceIndex];
+          output.data[outputIndex + 1] = source[sourceIndex + 1];
+          output.data[outputIndex + 2] = source[sourceIndex + 2];
+          output.data[outputIndex + 3] = alpha;
+        }
+      }
+      frameCtx.putImageData(output, 0, 0);
+      return canvas;
+    }));
+  }));
 }
 
 function loadImage(key) {
@@ -25240,14 +25305,22 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   const labelX = panel.x + 12;
   const valueX = panel.x + panel.w - 12;
   let y = artY + SHIP_INFO_SIDE_VIEW_H + 10;
+  const hullLabel = `${renderedUiText("HULL")} / ${renderedUiText("ARMOR")}`;
+  const hullValue = `${view.hull}/${view.maxHull}  ${view.armor}%`;
   drawShipInfoValueRow(
-    `${renderedUiText("HULL")} / ${renderedUiText("ARMOR")}`,
-    `${view.hull}/${view.maxHull}  ${view.armor}%`,
+    hullLabel,
+    hullValue,
     labelX,
     valueX,
     y
   );
-  drawShipInfoBar(labelX + 62, y + 1, Math.max(30, panel.w - 112), view.hull / view.maxHull, "#91db69");
+  const hullMeter = compactShipMeterLayout({
+    labelX,
+    valueX,
+    labelWidth: measurePixelTextWidth(hullLabel, PIXEL_FONT_SMALL_8),
+    valueWidth: measurePixelTextWidth(hullValue, PIXEL_FONT_SMALL_8)
+  });
+  drawShipInfoBar(hullMeter.x, y + 1, hullMeter.width, view.hull / view.maxHull, "#91db69");
   y += 13;
   drawShipInfoValueRow(
     `${renderedUiText("CREW")} / ${renderedUiText(view.armamentLabel)}`,
@@ -26993,8 +27066,8 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
     const y = rect.y + layout.headerHeight + lineIndex * layout.relationLineHeight;
     const label = politicsCardLineLabel(line);
     const color = line.type === "relationship"
-      ? politicsRelationColor(line.relation)
-      : PIRATE_MENU_CHART_LINE;
+      ? politicsRelationTextColor(line.relation)
+      : POLITICS_DEPENDENCY_TEXT_COLOR;
     drawOptionsText(
       fitPixelText(label, PIXEL_FONT_SMALL_8, layout.relationLabelWidth - 4),
       rect.x + 4,
@@ -27055,15 +27128,6 @@ function politicsCardLineLabel(line) {
     return uiText(line.role === "subject" ? "politics.vassalOf" : "politics.suzerainOf");
   }
   throw new Error(`Unknown politics dependency kind: ${line.kind}`);
-}
-
-function politicsRelationColor(relation) {
-  if (relation === DIPLOMACY_ALLY) return "#91db69";
-  if (relation === DIPLOMACY_FRIENDLY) return "#c8d45d";
-  if (relation === DIPLOMACY_WAR) return "#f68181";
-  if (relation === DIPLOMACY_HOSTILE) return "#e6a15c";
-  if (relation === DIPLOMACY_NEUTRAL) return PIRATE_MENU_INK_MUTED;
-  throw new Error(`Unknown political relation: ${relation}`);
 }
 
 function politicsStandingColor(reputation) {
@@ -29631,6 +29695,7 @@ function drawRiverConnector(call, activeChart) {
   const colors = riverPaletteForTile(frameId, frame);
   const mainColor = colors.base;
 
+  drawRiverConnectorBank(call, geometry, activeChart);
   drawPixelBezierStroke(ctx, path, mainColor, RIVER_CONNECTOR_RADIUS_PX);
   drawRiverConnectorMouthFlare(ctx, call, path, mainColor);
   drawPixelBrush(ctx, a.x, a.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
@@ -29659,6 +29724,84 @@ function riverConnectorWaterPixels(call, geometry) {
   if (call.aMouth && call.bWater) addBrush(b.x, b.y, RIVER_MOUTH_RADIUS_PX);
   if (call.bMouth && call.aWater) addBrush(a.x, a.y, RIVER_MOUTH_RADIUS_PX);
   return pixels;
+}
+
+function drawRiverConnectorBank(call, geometry, activeChart) {
+  let currentColor = null;
+  for (const pixel of riverConnectorBankPixels(call, geometry, activeChart)) {
+    if (pixel.color !== currentColor) {
+      currentColor = pixel.color;
+      ctx.fillStyle = currentColor;
+    }
+    ctx.fillRect(pixel.x, pixel.y, 1, 1);
+  }
+}
+
+function riverConnectorBankPixels(call, geometry, activeChart) {
+  let chartCache = riverConnectorBankCache.get(activeChart);
+  if (!chartCache) {
+    chartCache = new WeakMap();
+    riverConnectorBankCache.set(activeChart, chartCache);
+  }
+  const cached = chartCache.get(call);
+  if (cached) return cached;
+
+  const waterPixels = riverConnectorWaterPixels(call, geometry);
+  const candidates = [];
+  for (const key of riverBankOutlinePixelSet(waterPixels)) {
+    const comma = key.indexOf(",");
+    const x = Number(key.slice(0, comma));
+    const y = Number(key.slice(comma + 1));
+    candidates.push({ x, y });
+  }
+
+  const landEndpoints = [];
+  if (!call.aWater) {
+    landEndpoints.push({
+      x: geometry.a.x,
+      y: geometry.a.y,
+      color: darkerResurrect64Hex(terrainColorForTile(call.row, call.a), 2)
+    });
+  }
+  if (!call.bWater) {
+    landEndpoints.push({
+      x: geometry.b.x,
+      y: geometry.b.y,
+      color: darkerResurrect64Hex(terrainColorForTile(call.nrow, call.b), 2)
+    });
+  }
+  if (landEndpoints.length === 0) {
+    throw new Error(`River connector ${call.a}-${call.b} has no land endpoint`);
+  }
+
+  const pixels = [];
+  for (const candidate of candidates) {
+    const surface = drawnSurfaceNavigationAtPoint(
+      candidate.x,
+      candidate.y,
+      activeChart,
+      () => true
+    );
+    if (!surface || surface.water) continue;
+    let nearest = landEndpoints[0];
+    let nearestDistance = Infinity;
+    for (const endpoint of landEndpoints) {
+      const dx = candidate.x - endpoint.x;
+      const dy = candidate.y - endpoint.y;
+      const distance = dx * dx + dy * dy;
+      if (distance >= nearestDistance) continue;
+      nearestDistance = distance;
+      nearest = endpoint;
+    }
+    pixels.push(Object.freeze({
+      x: candidate.x,
+      y: candidate.y,
+      color: `#${nearest.color}`
+    }));
+  }
+  const frozen = Object.freeze(pixels);
+  chartCache.set(call, frozen);
+  return frozen;
 }
 
 function riverConnectorGeometry(call, activeChart) {
@@ -29927,6 +30070,8 @@ function drawRiver(call, activeChart) {
   if (!sprite) return;
   const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const spriteY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  const bankSprite = riverBankSpriteForTile(call, sprite);
+  ctx.drawImage(bankSprite, spriteX, spriteY);
   ctx.drawImage(sprite, spriteX, spriteY);
 }
 
@@ -30334,8 +30479,8 @@ function makeCloudDrawCall(call, spec) {
   const lifeOffset = hashInt(spec.seed ^ Math.imul(weatherParts.dayIndex + 1, 0x27d4eb2d)) % CLOUD_LIFESPAN_MINUTES;
   const age = (weatherParts.minuteOfDay + lifeOffset) % CLOUD_LIFESPAN_MINUTES;
   const lifeU = age / CLOUD_LIFESPAN_MINUTES;
-  const alpha = cloudLifecycleAlpha(lifeU, CLOUD_FADE_RATIO);
-  if (alpha <= 0.01) return null;
+  const visualState = cloudLifecycleVisualState(lifeU, CLOUD_FADE_RATIO);
+  if (visualState.alpha <= 0.01) return null;
 
   const drift = cloudLifecycleDrift(lifeU) * CLOUD_DRIFT_PX * clamp(spec.windStrength, 0.2, 1.2);
   const flowDir = spec.windDirectionRad + Math.PI;
@@ -30345,7 +30490,9 @@ function makeCloudDrawCall(call, spec) {
   return {
     seed: spec.seed,
     frameIndex: cloudSpriteFrameIndex(spec.templateIndex),
-    alpha,
+    alpha: visualState.alpha,
+    phase: visualState.phase,
+    assemblyStageIndex: visualState.stageIndex,
     anchorX,
     anchorY,
     x: Math.round(anchorX - CLOUD_SPRITE_FRAME_SIZE / 2),
@@ -30354,11 +30501,21 @@ function makeCloudDrawCall(call, spec) {
 }
 
 function drawCloudLayer(calls) {
-  if (!cloudSpriteSheet || calls.length === 0) return;
+  if (!cloudSpriteSheet || !cloudAssemblyFrames || calls.length === 0) return;
   ctx.save();
   for (const call of calls) {
     ctx.globalAlpha = call.alpha;
-    drawCloudSheetFrame(ctx, call.frameIndex, call.x, call.y);
+    if (call.phase === "stable" || reducedMotionPreferred) {
+      drawCloudSheetFrame(ctx, call.frameIndex, call.x, call.y);
+      continue;
+    }
+    const frame = cloudAssemblyFrames[call.frameIndex]?.[call.assemblyStageIndex];
+    if (!frame) {
+      throw new Error(
+        `Missing cloud assembly frame: ${call.frameIndex}:${call.assemblyStageIndex}`
+      );
+    }
+    ctx.drawImage(frame, call.x, call.y);
   }
   ctx.restore();
 }
@@ -30404,6 +30561,59 @@ function riverSpriteForTile(call, activeChart, mask) {
   const sprite = generateRiverSprite(endpoints, frame, variant, latitudeBand);
   riverSpriteCache.set(key, sprite);
   return sprite;
+}
+
+function riverBankSpriteForTile(call, riverSprite) {
+  let terrainCache = riverBankSpriteCache.get(riverSprite);
+  if (!terrainCache) {
+    terrainCache = new WeakMap();
+    riverBankSpriteCache.set(riverSprite, terrainCache);
+  }
+  const terrain = terrainImageForTile(call.row, call.id);
+  const cached = terrainCache.get(terrain);
+  if (cached) return cached;
+
+  const terrainCanvas = document.createElement("canvas");
+  terrainCanvas.width = TILE_ART_SIZE;
+  terrainCanvas.height = TILE_ART_SIZE;
+  const terrainCtx = terrainCanvas.getContext("2d", { willReadFrequently: true });
+  if (!terrainCtx) throw new Error(`Could not sample riverbank terrain for tile ${call.id}`);
+  terrainCtx.imageSmoothingEnabled = false;
+  terrainCtx.drawImage(terrain, 0, 0);
+  const terrainPixels = terrainCtx.getImageData(0, 0, TILE_ART_SIZE, TILE_ART_SIZE).data;
+  const waterMask = spriteAlphaMask(riverSprite);
+  const outlineMask = riverBankOutlineMask(waterMask.alpha, waterMask.width, waterMask.height);
+  const bankCanvas = document.createElement("canvas");
+  bankCanvas.width = TILE_ART_SIZE;
+  bankCanvas.height = TILE_ART_SIZE;
+  const bankCtx = bankCanvas.getContext("2d");
+  if (!bankCtx) throw new Error(`Could not create riverbank sprite for tile ${call.id}`);
+  bankCtx.imageSmoothingEnabled = false;
+  const output = bankCtx.createImageData(TILE_ART_SIZE, TILE_ART_SIZE);
+  const shadeCache = new Map();
+  for (let pixel = 0; pixel < outlineMask.length; pixel++) {
+    if (outlineMask[pixel] === 0) continue;
+    const offset = pixel * 4;
+    const alpha = terrainPixels[offset + 3];
+    if (alpha === 0) continue;
+    const sourceHex = rgbToHex(
+      terrainPixels[offset],
+      terrainPixels[offset + 1],
+      terrainPixels[offset + 2]
+    );
+    let shade = shadeCache.get(sourceHex);
+    if (!shade) {
+      shade = parseHexColor(darkerResurrect64Hex(sourceHex, 2));
+      shadeCache.set(sourceHex, shade);
+    }
+    output.data[offset] = shade.r;
+    output.data[offset + 1] = shade.g;
+    output.data[offset + 2] = shade.b;
+    output.data[offset + 3] = alpha;
+  }
+  bankCtx.putImageData(output, 0, 0);
+  terrainCache.set(terrain, bankCanvas);
+  return bankCanvas;
 }
 
 function riverEndpointsForTile(call, activeChart, mask) {

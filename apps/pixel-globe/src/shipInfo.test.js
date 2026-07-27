@@ -15,6 +15,7 @@ import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
   SHIP_PAPER_ROW_CONTENT_INSET,
   SHIP_PAPERS_ROWS_PER_PAGE,
+  compactShipMeterLayout,
   createShipComparisonView,
   createShipInfoView,
   createShipyardShipView,
@@ -345,4 +346,30 @@ test("cargo capacity disagreement fails loudly", () => {
     hitPoints: stats.hitPoints,
     maxHitPoints: stats.hitPoints
   }, gameState), /cargo capacity mismatch/);
+});
+
+test("compact ship meter reserves the measured label and value text", () => {
+  const layout = compactShipMeterLayout({
+    labelX: 20,
+    valueX: 280,
+    labelWidth: 63,
+    valueWidth: 39
+  });
+
+  assert.deepEqual(layout, {
+    x: 87,
+    width: 150,
+    valueLeft: 241
+  });
+  assert.ok(layout.x > 20 + 63);
+  assert.ok(layout.x + layout.width < layout.valueLeft);
+});
+
+test("compact ship meter fails loudly when localized text leaves no room", () => {
+  assert.throws(() => compactShipMeterLayout({
+    labelX: 20,
+    valueX: 120,
+    labelWidth: 70,
+    valueWidth: 24
+  }), /cannot fit between label and value/);
 });

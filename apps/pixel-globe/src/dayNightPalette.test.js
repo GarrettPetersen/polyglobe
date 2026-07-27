@@ -10,7 +10,10 @@ import {
   nightPaletteHexForSourceHex,
   sunsetPaletteHexForSourceHex
 } from "./dayNightPalette.js";
-import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
+import {
+  RESURRECT_64_HEX,
+  darkerResurrect64Hex
+} from "./waterLatitudePalette.js";
 
 test("day and night mappings stay inside their Resurrect ramps", () => {
   const night = new Set(NIGHT_GRADE_HEX);
@@ -66,6 +69,25 @@ test("dominant sunset land favors the capsule's coral and brick colors", () => {
   assert.equal(sunsetPaletteHexForSourceHex("a2a947"), "ea4f36");
   assert.equal(sunsetPaletteHexForSourceHex("91db69"), "f57d4a");
   assert.equal(sunsetPaletteHexForSourceHex("f9c22b"), "e6904e");
+});
+
+test("riverbank shades remain darker than adjacent land after sunset and night grading", () => {
+  for (const land of ["a2a947", "239063", "f9c22b", "625565", "c7dcd0"]) {
+    const bank = darkerResurrect64Hex(land, 2);
+    for (const mode of ["sunset", "night"]) {
+      for (let stage = 1; stage <= 16; stage++) {
+        const pixels = new Uint8ClampedArray([...rgba(bank), ...rgba(land)]);
+        applyDayNightPaletteGrade(pixels, 2, 1, {
+          sunset: mode === "sunset" ? stage / 16 : 0,
+          night: mode === "night" ? stage / 16 : 0
+        });
+        assert.ok(
+          perceptualBrightness(rgbHex(pixels, 0)) < perceptualBrightness(rgbHex(pixels, 4)),
+          `${bank}/${land} ${mode} stage ${stage}`
+        );
+      }
+    }
+  }
 });
 
 test("dominant water and land colors stay distinct at sunset and night", () => {

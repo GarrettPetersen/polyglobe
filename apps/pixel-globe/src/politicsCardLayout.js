@@ -6,8 +6,23 @@ const CONTENT_TOP = 39;
 const CARD_MIN_WIDTH = 188;
 const CARD_MAX_COLUMNS = 4;
 const CARD_LABEL_WIDTH = 70;
-const CARD_TOKEN_WIDTH = 20;
+const CARD_TOKEN_WIDTH = 24;
 const CARD_RELATION_LINES = 5;
+const RELATION_TEXT_COLORS = Object.freeze({
+  ally: "#165a4c",
+  friendly: "#4c3e24",
+  hostile: "#7a3045",
+  war: "#6e2727",
+  neutral: "#3e3546"
+});
+
+export const POLITICS_DEPENDENCY_TEXT_COLOR = "#2e222f";
+
+export function politicsRelationTextColor(relation) {
+  const color = RELATION_TEXT_COLORS[relation];
+  if (!color) throw new Error(`Unknown political relation: ${relation}`);
+  return color;
+}
 
 export function politicsCardGridLayout({
   panelWidth,

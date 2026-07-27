@@ -5,13 +5,16 @@ import test from "node:test";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 import {
+  CLOUD_ASSEMBLY_STAGE_COUNT,
   CLOUD_MAX_ALPHA,
+  CLOUD_PARTICLE_DRIFT_PX,
   CLOUD_SPRITE_FRAME_SIZE,
   CLOUD_SPRITE_SHEET_HEIGHT,
   CLOUD_SPRITE_SHEET_PATH,
   CLOUD_SPRITE_SHEET_WIDTH,
   CLOUD_SPRITE_VARIANT_COUNT,
-  cloudLifecycleAlpha,
+  cloudLifecycleVisualState,
+  cloudParticleAssembly,
   cloudSpriteFrameIndex,
   cloudSpriteSourceRect
 } from "./cloudSpriteAssets.js";
@@ -62,16 +65,55 @@ test("cloud frame selection wraps across all five variants", () => {
   assert.throws(() => cloudSpriteFrameIndex(1.5), /integer/);
 });
 
-test("clouds fade without ever becoming fully opaque", () => {
-  assert.ok(CLOUD_MAX_ALPHA <= 0.6, "clouds must leave terrain legible in darkness");
-  assert.equal(cloudLifecycleAlpha(0), 0);
-  assert.ok(cloudLifecycleAlpha(0.1) > 0);
-  assert.ok(cloudLifecycleAlpha(0.1) < CLOUD_MAX_ALPHA);
-  assert.equal(cloudLifecycleAlpha(0.22), CLOUD_MAX_ALPHA);
-  assert.equal(cloudLifecycleAlpha(0.5), CLOUD_MAX_ALPHA);
-  assert.equal(cloudLifecycleAlpha(0.78), CLOUD_MAX_ALPHA);
-  assert.ok(cloudLifecycleAlpha(0.9) > 0);
-  assert.ok(cloudLifecycleAlpha(0.9) < CLOUD_MAX_ALPHA);
-  assert.equal(cloudLifecycleAlpha(1), 0);
-  assert.throws(() => cloudLifecycleAlpha(NaN), /finite/);
+test("overlapping clouds remain translucent throughout their lifecycle", () => {
+  const alpha = (lifecycleU) => cloudLifecycleVisualState(lifecycleU).alpha;
+  assert.equal(CLOUD_MAX_ALPHA, 0.3);
+  assert.equal(alpha(0), 0);
+  assert.ok(alpha(0.1) > 0);
+  assert.ok(alpha(0.1) < CLOUD_MAX_ALPHA);
+  assert.equal(alpha(0.22), CLOUD_MAX_ALPHA);
+  assert.equal(alpha(0.5), CLOUD_MAX_ALPHA);
+  assert.equal(alpha(0.78), CLOUD_MAX_ALPHA);
+  assert.ok(alpha(0.9) > 0);
+  assert.ok(alpha(0.9) < CLOUD_MAX_ALPHA);
+  assert.equal(alpha(1), 0);
+  assert.throws(() => alpha(NaN), /finite/);
+});
+
+test("cloud lifecycle selects slow hard-pixel assembly and dispersal stages", () => {
+  assert.deepEqual(cloudLifecycleVisualState(0), {
+    phase: "forming",
+    visibility: 0,
+    alpha: 0,
+    stageIndex: -1
+  });
+  const forming = cloudLifecycleVisualState(0.1);
+  const stable = cloudLifecycleVisualState(0.5);
+  const dispersing = cloudLifecycleVisualState(0.9);
+  assert.equal(forming.phase, "forming");
+  assert.ok(forming.stageIndex >= 0 && forming.stageIndex < CLOUD_ASSEMBLY_STAGE_COUNT);
+  assert.equal(stable.phase, "stable");
+  assert.equal(stable.visibility, 1);
+  assert.equal(stable.stageIndex, CLOUD_ASSEMBLY_STAGE_COUNT - 1);
+  assert.equal(dispersing.phase, "dispersing");
+  assert.ok(dispersing.stageIndex >= 0 && dispersing.stageIndex < CLOUD_ASSEMBLY_STAGE_COUNT);
+  assert.ok(dispersing.visibility < 1);
+});
+
+test("unsettled cloud particles drift only a couple pixels from their final place", () => {
+  let unsettled = null;
+  for (let y = 0; y < CLOUD_SPRITE_FRAME_SIZE && !unsettled; y++) {
+    for (let x = 0; x < CLOUD_SPRITE_FRAME_SIZE; x++) {
+      const state = cloudParticleAssembly(2, x, y, 0.5);
+      if (state.visible && !state.settled) {
+        unsettled = { sourceX: x, sourceY: y, ...state };
+        break;
+      }
+    }
+  }
+  assert.ok(unsettled, "expected a drifting cloud-edge particle");
+  assert.ok(Math.abs(unsettled.x - unsettled.sourceX) <= CLOUD_PARTICLE_DRIFT_PX);
+  assert.ok(Math.abs(unsettled.y - unsettled.sourceY) <= CLOUD_PARTICLE_DRIFT_PX);
+  assert.ok(unsettled.alpha > 0 && unsettled.alpha < 1);
+  assert.throws(() => cloudParticleAssembly(0, 0, 0, 0), /visibility/);
 });

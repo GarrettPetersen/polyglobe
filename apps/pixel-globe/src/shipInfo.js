@@ -28,6 +28,35 @@ export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
 export const SHIP_PAPERS_ROWS_PER_PAGE = 7;
 export const SHIP_PAPER_ROW_CONTENT_INSET = 6;
 
+export function compactShipMeterLayout({
+  labelX,
+  valueX,
+  labelWidth,
+  valueWidth,
+  gap = 4,
+  minWidth = 20
+}) {
+  for (const [name, value] of Object.entries({
+    labelX,
+    valueX,
+    labelWidth,
+    valueWidth,
+    gap,
+    minWidth
+  })) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Compact ship meter ${name} must be a non-negative number: ${value}`);
+    }
+  }
+  const x = Math.ceil(labelX + labelWidth + gap);
+  const valueLeft = Math.floor(valueX - valueWidth);
+  const width = valueLeft - gap - x;
+  if (width < minWidth) {
+    throw new Error(`Compact ship meter cannot fit between label and value: ${width} < ${minWidth}`);
+  }
+  return Object.freeze({ x, width, valueLeft });
+}
+
 const LEDGER_START_YEAR = 1522;
 const LEDGER_MONTHS = Object.freeze(["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]);
 

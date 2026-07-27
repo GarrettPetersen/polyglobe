@@ -21,6 +21,10 @@ const WATER_RESURRECT_HEX = Object.freeze([
 
 const WATER_PALETTE = WATER_RESURRECT_HEX.map(parseHex);
 const WATER_PALETTE_SET = new Set(WATER_RESURRECT_HEX);
+const RESURRECT_PALETTE = RESURRECT_64_HEX.map((hex) => {
+  const rgb = parseHex(hex);
+  return Object.freeze({ ...rgb, oklab: rgbToOklab(rgb) });
+});
 
 const SOURCE_BASE_HEX = Object.freeze([
   "9babb2",
@@ -137,6 +141,36 @@ export function nearestResurrect64Hex(r, g, b) {
   return best;
 }
 
+export function darkerResurrect64Hex(sourceHex, shadeSteps = 1) {
+  if (!Number.isInteger(shadeSteps) || shadeSteps <= 0 || shadeSteps > 3) {
+    throw new Error(`Invalid Resurrect shade step count: ${shadeSteps}`);
+  }
+  const sourceRgb = parseHex(sourceHex);
+  const source = {
+    ...sourceRgb,
+    oklab: rgbToOklab(sourceRgb)
+  };
+  const targetLightness = Math.max(0, source.oklab.l - shadeSteps * 0.09);
+  const darker = RESURRECT_PALETTE.filter(
+    (candidate) => candidate.oklab.l < source.oklab.l - 0.018
+  );
+  if (darker.length === 0) return nearestResurrect64Hex(source.r, source.g, source.b);
+
+  let best = darker[0];
+  let bestScore = Infinity;
+  for (const candidate of darker) {
+    const lightnessError = candidate.oklab.l - targetLightness;
+    const da = candidate.oklab.a - source.oklab.a;
+    const db = candidate.oklab.b - source.oklab.b;
+    const chromaError = da * da + db * db;
+    const score = lightnessError * lightnessError * 2.8 + chromaError;
+    if (score >= bestScore) continue;
+    bestScore = score;
+    best = candidate;
+  }
+  return best.hex;
+}
+
 export function isWaterResurrectHex(hex) {
   return WATER_PALETTE_SET.has(normalizeHex(hex));
 }
@@ -177,6 +211,26 @@ function parseHex(value) {
     g: Number.parseInt(hex.slice(2, 4), 16),
     b: Number.parseInt(hex.slice(4, 6), 16)
   };
+}
+
+function rgbToOklab({ r, g, b }) {
+  const lr = srgbChannelToLinear(r / 255);
+  const lg = srgbChannelToLinear(g / 255);
+  const lb = srgbChannelToLinear(b / 255);
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  return {
+    l: 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    a: 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    b: 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
+  };
+}
+
+function srgbChannelToLinear(value) {
+  return value <= 0.04045
+    ? value / 12.92
+    : ((value + 0.055) / 1.055) ** 2.4;
 }
 
 function normalizeHex(value) {
