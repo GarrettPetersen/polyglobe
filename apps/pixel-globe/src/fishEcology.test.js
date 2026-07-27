@@ -276,10 +276,41 @@ test("marine fish do not populate freshwater lakes", () => {
 });
 
 test("larger fishery populations draw visibly larger schools", () => {
-  assert.equal(visibleFishCountForDensity(0.12), 2);
-  assert.equal(visibleFishCountForDensity(0.5), 5);
-  assert.equal(visibleFishCountForDensity(1), 8);
-  assert.equal(visibleFishCountForDensity(4), 8);
+  assert.equal(visibleFishCountForDensity(0.12), 1);
+  assert.equal(visibleFishCountForDensity(0.5), 3);
+  assert.equal(visibleFishCountForDensity(1), 5);
+  assert.equal(visibleFishCountForDensity(1, 1.65), 8);
+  assert.equal(visibleFishCountForDensity(4, 1.65), 8);
+});
+
+test("Newfoundland fisheries dwarf ordinary Old World coastal stocks", () => {
+  const minute = 140 * MINUTE;
+  const grandBanks = surveyMarineFisheries("open-ocean", 46.5, -49.5, minute);
+  const mediterranean = surveyMarineFisheries("coastal", 38, 15, minute);
+
+  assert.ok(grandBanks.visibleRate > mediterranean.visibleRate * 6);
+  assert.ok(grandBanks.meanCapacity > mediterranean.meanCapacity * 3.5);
+  assert.ok(grandBanks.meanVisibleFish > mediterranean.meanVisibleFish * 2);
+});
+
+test("historically prominent 1522 fishing grounds retain regional abundance", () => {
+  const minute = 140 * MINUTE;
+  const grounds = [
+    ["grand-banks", "cod", "open-ocean", 46.5, -49.5],
+    ["newfoundland-labrador", "cod", "open-ocean", 55, -56],
+    ["iceland-faroes", "cod", "open-ocean", 63.5, -15],
+    ["lofoten", "cod", "open-ocean", 68, 14],
+    ["north-sea", "herring", "open-ocean", 56, 3],
+    ["irish-celtic-seas", "herring", "open-ocean", 53, -10],
+    ["galician-sardine-grounds", "sardine", "coastal", 42, -9],
+    ["scania-baltic", "herring", "open-ocean", 56, 14]
+  ];
+
+  for (const [groundId, speciesId, kind, lat, lon] of grounds) {
+    const state = createGameState({ cargoCapacity: 20 });
+    const fishery = findFishery(state, kind, lat, lon, minute, speciesId);
+    assert.equal(fishery.historicGroundId, groundId);
+  }
 });
 
 test("repeated fish catches continue reducing persistent local stock", () => {
@@ -394,4 +425,24 @@ function assertNoSpecies(state, kind, lat, lon, simMinute, speciesId, habitatOpt
     const fishery = fisheryForHabitat(state, { tileId, kind, lat, lon, ...habitatOptions }, simMinute);
     assert.notEqual(fishery?.speciesId, speciesId);
   }
+}
+
+function surveyMarineFisheries(kind, lat, lon, simMinute, sampleCount = 2000) {
+  const state = createGameState({ cargoCapacity: 20 });
+  let visible = 0;
+  let totalCapacity = 0;
+  let totalVisibleFish = 0;
+  for (let tileId = 1; tileId <= sampleCount; tileId++) {
+    const fishery = fisheryForHabitat(state, { tileId, kind, lat, lon }, simMinute);
+    if (!fishery) continue;
+    visible += 1;
+    totalCapacity += fishery.capacity;
+    totalVisibleFish += fishery.visibleIndividualCount;
+  }
+  if (visible === 0) throw new Error(`Marine fishery survey found no stocks at ${lat},${lon}`);
+  return {
+    visibleRate: visible / sampleCount,
+    meanCapacity: totalCapacity / visible,
+    meanVisibleFish: totalVisibleFish / visible
+  };
 }

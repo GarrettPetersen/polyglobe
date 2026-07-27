@@ -259,6 +259,89 @@ const FISH_SPECIES_CANDIDATES = Object.freeze({
   "great-lakes": speciesCandidates(Object.keys(GREAT_LAKES_SPECIES_SCORES))
 });
 
+// These are productive grounds, not modern stock boundaries. Their broad ellipses
+// make historically famous fisheries legible at the game's hex scale.
+const HISTORIC_MARINE_FISHING_GROUNDS = Object.freeze([
+  marineFishingGround("grand-banks", 46.5, -49.5, 7.5, 12, {
+    cod: 6,
+    herring: 1.5
+  }, {
+    presenceChance: 0.9,
+    capacityMultiplier: 3.8,
+    initialDensityMin: 0.84,
+    initialDensityMax: 0.98,
+    visualAbundanceMultiplier: 1.65
+  }),
+  marineFishingGround("newfoundland-labrador", 52, -56, 10, 9, {
+    cod: 4,
+    herring: 2
+  }, {
+    presenceChance: 0.68,
+    capacityMultiplier: 2.45,
+    initialDensityMin: 0.72,
+    initialDensityMax: 0.92,
+    visualAbundanceMultiplier: 1.4
+  }),
+  marineFishingGround("iceland-faroes", 63.5, -15, 7, 15, {
+    cod: 4,
+    herring: 1.4
+  }, {
+    presenceChance: 0.52,
+    capacityMultiplier: 1.9,
+    initialDensityMin: 0.52,
+    initialDensityMax: 0.76,
+    visualAbundanceMultiplier: 1.15
+  }),
+  marineFishingGround("lofoten", 68, 14, 4.5, 9, {
+    cod: 5
+  }, {
+    presenceChance: 0.62,
+    capacityMultiplier: 2.1,
+    initialDensityMin: 0.6,
+    initialDensityMax: 0.82,
+    visualAbundanceMultiplier: 1.3
+  }),
+  marineFishingGround("north-sea", 56, 3, 7, 8, {
+    herring: 4,
+    cod: 1.4
+  }, {
+    presenceChance: 0.44,
+    capacityMultiplier: 1.45,
+    initialDensityMin: 0.42,
+    initialDensityMax: 0.65,
+    visualAbundanceMultiplier: 1.05
+  }),
+  marineFishingGround("irish-celtic-seas", 53, -10, 5.5, 8, {
+    herring: 2.5,
+    cod: 2
+  }, {
+    presenceChance: 0.38,
+    capacityMultiplier: 1.28,
+    initialDensityMin: 0.4,
+    initialDensityMax: 0.61,
+    visualAbundanceMultiplier: 1
+  }),
+  marineFishingGround("galician-sardine-grounds", 42, -9, 6, 6, {
+    sardine: 4,
+    tuna: 1.2
+  }, {
+    presenceChance: 0.4,
+    capacityMultiplier: 1.35,
+    initialDensityMin: 0.4,
+    initialDensityMax: 0.62,
+    visualAbundanceMultiplier: 1
+  }),
+  marineFishingGround("scania-baltic", 56, 14, 5, 8, {
+    herring: 2.6
+  }, {
+    presenceChance: 0.34,
+    capacityMultiplier: 1.2,
+    initialDensityMin: 0.36,
+    initialDensityMax: 0.56,
+    visualAbundanceMultiplier: 0.95
+  })
+]);
+
 export function fishSpeciesById(speciesId) {
   const speciesDef = FISH_SPECIES_BY_ID.get(speciesId);
   if (!speciesDef) throw new Error(`Unknown fish species: ${speciesId}`);
@@ -277,11 +360,21 @@ export function fisheryForHabitat(gameState, habitat, simMinute) {
   const voyageSeed = fishVoyageSeed(gameState);
   const speciesDef = chooseSpeciesForHabitat(normalHabitat, dayOfYear, voyageSeed);
   if (!speciesDef) return null;
-  if (!fisheryExists(speciesDef, normalHabitat, dayOfYear, voyageSeed)) return null;
-  const stock = fisheryStockForHabitat(memory, normalHabitat, speciesDef, simMinute, voyageSeed);
+  const historicGround = historicMarineGroundForSpecies(speciesDef.id, normalHabitat);
+  if (!fisheryExists(speciesDef, normalHabitat, dayOfYear, voyageSeed, historicGround)) return null;
+  const stock = fisheryStockForHabitat(
+    memory,
+    normalHabitat,
+    speciesDef,
+    simMinute,
+    voyageSeed,
+    historicGround
+  );
   const density = stock.population / stock.capacity;
   if (!fisheryStockIsVisible(stock, speciesDef)) return null;
   const catchablePopulation = Math.floor(stock.population);
+  const visualAbundanceMultiplier = historicGround?.visualAbundanceMultiplier ??
+    ordinaryMarineVisualAbundance(normalHabitat);
   return {
     kind: "fishery",
     id: stock.key,
@@ -294,12 +387,16 @@ export function fisheryForHabitat(gameState, habitat, simMinute) {
     density,
     population: Math.floor(stock.population),
     capacity: stock.capacity,
-    visibleIndividualCount: Math.min(catchablePopulation, visibleFishCountForDensity(density)),
-    areaRadiusPx: fisheryAreaRadiusPx(normalHabitat.kind, speciesDef),
+    visibleIndividualCount: Math.min(
+      catchablePopulation,
+      visibleFishCountForDensity(density, visualAbundanceMultiplier)
+    ),
+    areaRadiusPx: fisheryAreaRadiusPx(normalHabitat.kind, speciesDef, visualAbundanceMultiplier),
     overfished: density < 0.28,
     colors: speciesDef.colors,
     schoolScale: speciesDef.schoolScale,
-    pulseSeed: stock.seed
+    pulseSeed: stock.seed,
+    historicGroundId: historicGround?.id ?? null
   };
 }
 
@@ -372,13 +469,21 @@ function ensureFishMemory(gameState, simMinute) {
   return memory;
 }
 
-function fisheryStockForHabitat(memory, habitat, speciesDef, simMinute, voyageSeed) {
+function fisheryStockForHabitat(
+  memory,
+  habitat,
+  speciesDef,
+  simMinute,
+  voyageSeed,
+  historicGround
+) {
   const key = `${habitat.tileId}:${speciesDef.id}`;
   if (!memory.fisheries[key]) {
     const seed = hashString32(fishSeedKey(voyageSeed, `${key}|stock`));
-    const capacity = Math.max(8, Math.round(
-      speciesDef.baseCapacity * habitatCapacityMultiplier(speciesDef, habitat) * (0.74 + seededFraction(seed) * 0.52)
-    ));
+    const capacity = fisheryCapacity(speciesDef, habitat, seed, historicGround);
+    const densityRange = initialFisheryDensityRange(habitat, historicGround);
+    const initialDensity = densityRange.min +
+      seededFraction(seed ^ 0x7f4a7c15) * (densityRange.max - densityRange.min);
     memory.fisheries[key] = {
       key,
       id: key,
@@ -386,7 +491,7 @@ function fisheryStockForHabitat(memory, habitat, speciesDef, simMinute, voyageSe
       tileId: habitat.tileId,
       kind: habitat.kind,
       capacity,
-      population: Math.max(1, Math.round(capacity * (0.34 + seededFraction(seed ^ 0x7f4a7c15) * 0.44))),
+      population: Math.max(1, Math.round(capacity * initialDensity)),
       seed,
       harvested: 0,
       lastMinute: Math.floor(simMinute)
@@ -397,14 +502,18 @@ function fisheryStockForHabitat(memory, habitat, speciesDef, simMinute, voyageSe
   return stock;
 }
 
-export function visibleFishCountForDensity(density) {
+export function visibleFishCountForDensity(density, abundanceMultiplier = 1) {
   if (!Number.isFinite(density) || density < 0) {
     throw new Error(`Invalid fishery density: ${density}`);
   }
-  return Math.max(1, Math.min(8, Math.round(1 + Math.min(1, density) * 7)));
+  if (!Number.isFinite(abundanceMultiplier) || abundanceMultiplier <= 0) {
+    throw new Error(`Invalid fishery visual abundance: ${abundanceMultiplier}`);
+  }
+  const ordinarySchool = 0.5 + Math.min(1, density) * 4.5;
+  return Math.max(1, Math.min(8, Math.round(ordinarySchool * abundanceMultiplier)));
 }
 
-function fisheryAreaRadiusPx(habitatKind, speciesDef) {
+function fisheryAreaRadiusPx(habitatKind, speciesDef, abundanceMultiplier) {
   const base = habitatKind === "river"
     ? 6
     : habitatKind === "river-mouth"
@@ -414,7 +523,7 @@ function fisheryAreaRadiusPx(habitatKind, speciesDef) {
         : habitatKind === "coastal"
           ? 11
           : 13;
-  return Math.round(base * speciesDef.schoolScale);
+  return Math.round(base * speciesDef.schoolScale * Math.min(1.25, abundanceMultiplier));
 }
 
 function advanceFishStock(stock, speciesDef, simMinute) {
@@ -437,7 +546,8 @@ function chooseSpeciesForHabitat(habitat, dayOfYear, voyageSeed) {
   const scored = fishSpeciesCandidatesForHabitat(habitat)
     .map((speciesDef) => ({
       speciesDef,
-      score: speciesHabitatScore(speciesDef.id, habitat, dayOfYear)
+      score: speciesHabitatScore(speciesDef.id, habitat, dayOfYear) *
+        (historicMarineGroundForSpecies(speciesDef.id, habitat)?.speciesMultipliers[speciesDef.id] ?? 1)
     }))
     .filter((item) => item.score > 0);
   if (scored.length === 0) return null;
@@ -470,8 +580,8 @@ function fishSpeciesCandidatesForHabitat(habitat) {
   return candidates;
 }
 
-function fisheryExists(speciesDef, habitat, dayOfYear, voyageSeed) {
-  const base = fisheryPresenceChance(speciesDef.id, habitat, dayOfYear);
+function fisheryExists(speciesDef, habitat, dayOfYear, voyageSeed, historicGround) {
+  const base = fisheryPresenceChance(speciesDef.id, habitat, dayOfYear, historicGround);
   return seededFraction(hashString32(
     fishSeedKey(voyageSeed, `${habitat.tileId}|${speciesDef.id}|presence`)
   )) < base;
@@ -520,35 +630,104 @@ function speciesHabitatScore(speciesId, habitat, dayOfYear) {
   return 0;
 }
 
-function fisheryPresenceChance(speciesId, habitat, dayOfYear) {
+function fisheryPresenceChance(speciesId, habitat, dayOfYear, historicGround) {
   if (speciesId === "salmon") {
     return salmonMigrationProfile(habitat, dayOfYear)?.presenceChance || 0;
   }
   if (RESIDENT_RIVER_SPECIES_RANGES[speciesId]) {
-    if (habitat.kind === "river") return 0.48;
-    if (habitat.kind === "river-mouth") return 0.24;
+    if (habitat.kind === "river") return 0.36;
+    if (habitat.kind === "river-mouth") return 0.18;
     return 0;
   }
   if (habitat.kind === "lake") {
     const region = lakeFishRegion(habitat);
-    if (region === "lake-victoria") return 0.74;
-    if (region === "great-lakes") return 0.68;
+    if (region === "lake-victoria") return 0.58;
+    if (region === "great-lakes") return 0.54;
     return 0;
   }
-  if (habitat.kind === "river") return 0.12;
-  if (habitat.kind === "river-mouth") return 0.36;
-  if (habitat.kind === "coastal") return 0.28;
-  return speciesId === "tuna" || speciesId === "cod" ? 0.12 : 0.08;
+  if (historicGround) return historicGround.presenceChance;
+  if (habitat.kind === "river") return 0.1;
+  const pressure = historicMarinePressureMultiplier(habitat);
+  if (habitat.kind === "river-mouth") return 0.22 * pressure;
+  if (habitat.kind === "coastal") return 0.14 * pressure;
+  return (speciesId === "tuna" || speciesId === "cod" ? 0.055 : 0.035) * pressure;
 }
 
-function habitatCapacityMultiplier(speciesDef, habitat) {
+function habitatCapacityMultiplier(speciesDef, habitat, historicGround) {
   if (speciesDef.id === "salmon" && habitat.kind === "river") return 1.35;
   if (RESIDENT_RIVER_SPECIES_RANGES[speciesDef.id] && habitat.kind === "river") return 0.82;
   if (habitat.kind === "river-mouth") return 1.15;
-  if (habitat.kind === "coastal") return 1.0;
+  if (historicGround) return historicGround.capacityMultiplier;
+  if (habitat.kind === "coastal") return historicMarinePressureMultiplier(habitat);
   if (habitat.kind === "lake") return 0.72;
-  if (habitat.kind === "open-ocean") return 0.82;
+  if (habitat.kind === "open-ocean") return 0.82 * historicMarinePressureMultiplier(habitat);
   return 0.62;
+}
+
+function fisheryCapacity(speciesDef, habitat, seed, historicGround) {
+  return Math.max(8, Math.round(
+    speciesDef.baseCapacity *
+    habitatCapacityMultiplier(speciesDef, habitat, historicGround) *
+    (0.74 + seededFraction(seed) * 0.52)
+  ));
+}
+
+function initialFisheryDensityRange(habitat, historicGround) {
+  if (historicGround) {
+    return {
+      min: historicGround.initialDensityMin,
+      max: historicGround.initialDensityMax
+    };
+  }
+  if (isMarineHabitat(habitat)) {
+    return isLongExploitedOldWorldMarineWater(habitat)
+      ? { min: 0.26, max: 0.48 }
+      : { min: 0.4, max: 0.68 };
+  }
+  return { min: 0.34, max: 0.68 };
+}
+
+function ordinaryMarineVisualAbundance(habitat) {
+  if (!isMarineHabitat(habitat)) return 1;
+  return isLongExploitedOldWorldMarineWater(habitat) ? 0.78 : 0.9;
+}
+
+function historicMarinePressureMultiplier(habitat) {
+  return isLongExploitedOldWorldMarineWater(habitat) ? 0.66 : 1;
+}
+
+function isLongExploitedOldWorldMarineWater(habitat) {
+  if (!isMarineHabitat(habitat)) return false;
+  const lat = habitat.lat;
+  const lon = habitat.lon;
+  const easternAtlanticAndMediterranean = lat >= -40 && lat <= 72 && lon >= -30 && lon <= 45;
+  const indianAndWesternPacific = lat >= -42 && lat <= 60 && lon > 45 && lon <= 160;
+  return easternAtlanticAndMediterranean || indianAndWesternPacific;
+}
+
+function isMarineHabitat(habitat) {
+  return habitat.kind === "open-ocean" ||
+    habitat.kind === "coastal" ||
+    habitat.kind === "river-mouth";
+}
+
+function historicMarineGroundForSpecies(speciesId, habitat) {
+  if (habitat.kind !== "open-ocean" && habitat.kind !== "coastal") return null;
+  for (const ground of HISTORIC_MARINE_FISHING_GROUNDS) {
+    if (!ground.speciesMultipliers[speciesId]) continue;
+    if (pointInsideMarineGround(habitat.lat, habitat.lon, ground)) return ground;
+  }
+  return null;
+}
+
+function pointInsideMarineGround(lat, lon, ground) {
+  const latOffset = (lat - ground.centerLat) / ground.latRadius;
+  const lonOffset = wrappedLongitudeDelta(lon, ground.centerLon) / ground.lonRadius;
+  return latOffset * latOffset + lonOffset * lonOffset <= 1;
+}
+
+function wrappedLongitudeDelta(lon, centerLon) {
+  return positiveModulo(lon - centerLon + 180, 360) - 180;
 }
 
 function salmonRunActive(lat, dayOfYear) {
@@ -698,6 +877,67 @@ function speciesCandidates(speciesIds) {
     if (!speciesDef) throw new Error(`Fish candidate roster references unknown species: ${speciesId}`);
     return speciesDef;
   }));
+}
+
+function marineFishingGround(id, centerLat, centerLon, latRadius, lonRadius, speciesMultipliers, options) {
+  if (
+    typeof id !== "string" ||
+    !Number.isFinite(centerLat) ||
+    !Number.isFinite(centerLon) ||
+    !Number.isFinite(latRadius) ||
+    latRadius <= 0 ||
+    !Number.isFinite(lonRadius) ||
+    lonRadius <= 0
+  ) {
+    throw new Error(`Invalid historic marine fishing ground: ${id}`);
+  }
+  const speciesEntries = Object.entries(speciesMultipliers || {});
+  if (
+    speciesEntries.length === 0 ||
+    speciesEntries.some(([speciesId, multiplier]) => (
+      !FISH_SPECIES_BY_ID.has(speciesId) ||
+      !Number.isFinite(multiplier) ||
+      multiplier <= 0
+    ))
+  ) {
+    throw new Error(`Invalid species roster for historic marine fishing ground: ${id}`);
+  }
+  const {
+    presenceChance,
+    capacityMultiplier,
+    initialDensityMin,
+    initialDensityMax,
+    visualAbundanceMultiplier
+  } = options || {};
+  if (
+    !Number.isFinite(presenceChance) ||
+    presenceChance <= 0 ||
+    presenceChance > 1 ||
+    !Number.isFinite(capacityMultiplier) ||
+    capacityMultiplier <= 0 ||
+    !Number.isFinite(initialDensityMin) ||
+    initialDensityMin <= 0 ||
+    !Number.isFinite(initialDensityMax) ||
+    initialDensityMax < initialDensityMin ||
+    initialDensityMax > 1 ||
+    !Number.isFinite(visualAbundanceMultiplier) ||
+    visualAbundanceMultiplier <= 0
+  ) {
+    throw new Error(`Invalid abundance profile for historic marine fishing ground: ${id}`);
+  }
+  return Object.freeze({
+    id,
+    centerLat,
+    centerLon,
+    latRadius,
+    lonRadius,
+    speciesMultipliers: Object.freeze({ ...speciesMultipliers }),
+    presenceChance,
+    capacityMultiplier,
+    initialDensityMin,
+    initialDensityMax,
+    visualAbundanceMultiplier
+  });
 }
 
 function positiveModulo(value, modulus) {
