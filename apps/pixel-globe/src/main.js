@@ -3540,9 +3540,7 @@ function validateShipSpriteSheet(img, label) {
 }
 
 async function loadShipWakeAnchors() {
-  const res = await fetch(SHIP_WAKE_ANCHORS_URL);
-  if (!res.ok) throw new Error(`Failed to load ship wake anchors: HTTP ${res.status}`);
-  const bake = await res.json();
+  const bake = await fetchJson(SHIP_WAKE_ANCHORS_URL, "ship wake anchors");
   if (!bake || bake.frameSize !== SHIP_SHEET_FRAME_SIZE || bake.headings !== SHIP_HEADING_COUNT) {
     throw new Error("Ship wake anchor bake has incompatible dimensions");
   }
@@ -3562,9 +3560,7 @@ async function loadShipWakeAnchors() {
 }
 
 async function loadShipFootprints() {
-  const res = await fetch(SHIP_HULL_FOOTPRINTS_URL);
-  if (!res.ok) throw new Error(`Failed to load ship hull footprints: HTTP ${res.status}`);
-  const bake = await res.json();
+  const bake = await fetchJson(SHIP_HULL_FOOTPRINTS_URL, "ship hull footprints");
   return validateShipFootprintBake(bake, SHIP_SHEET_FRAME_SIZE, SHIP_HEADING_COUNT, SHIP_MENU_SLUGS);
 }
 
