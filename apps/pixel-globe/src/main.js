@@ -10,6 +10,11 @@ import {
 } from "./geodesic.js";
 import { admitProjectedTiles } from "./localLayoutAdmission.js";
 import {
+  createSurfaceDetailLayerBounds,
+  surfaceDetailCallsForLayer,
+  surfaceDetailLayerCoversViewport
+} from "./surfaceDetailCache.js";
+import {
   buildChartTileProtection,
   chartProtectionStats
 } from "./chartTileProtection.js";
@@ -22508,18 +22513,24 @@ function surfaceDetailLayer(activeChart, offset) {
   if (
     cached?.weatherDayIndex === weatherMaskDayIndex &&
     cached.redrawTick === redrawTick &&
-    viewport.minX - TILE_ART_SIZE >= cached.x &&
-    viewport.minY - TILE_ART_SIZE >= cached.y &&
-    viewport.maxX + TILE_ART_SIZE <= cached.x + cached.canvas.width &&
-    viewport.maxY + TILE_ART_SIZE <= cached.y + cached.canvas.height
+    surfaceDetailLayerCoversViewport({
+      x: cached.x,
+      y: cached.y,
+      width: cached.canvas.width,
+      height: cached.canvas.height
+    }, viewport, TILE_ART_SIZE)
   ) {
     return cached;
   }
 
-  const x = Math.floor(viewport.minX - SURFACE_DETAIL_LAYER_MARGIN_PX - TILE_ART_SIZE);
-  const y = Math.floor(viewport.minY - SURFACE_DETAIL_LAYER_MARGIN_PX - TILE_ART_SIZE);
-  const width = SCREEN_W + (SURFACE_DETAIL_LAYER_MARGIN_PX + TILE_ART_SIZE) * 2;
-  const height = SCREEN_H + (SURFACE_DETAIL_LAYER_MARGIN_PX + TILE_ART_SIZE) * 2;
+  const layerBounds = createSurfaceDetailLayerBounds({
+    viewport,
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    layerMargin: SURFACE_DETAIL_LAYER_MARGIN_PX,
+    tileMargin: TILE_ART_SIZE
+  });
+  const { x, y, width, height } = layerBounds;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -22528,14 +22539,16 @@ function surfaceDetailLayer(activeChart, offset) {
   layerCtx.imageSmoothingEnabled = false;
   layerCtx.translate(-x, -y);
 
-  const layerOffset = { x: -x, y: -y };
-  const tileCalls = activeChart.tileCalls.filter(
-    (call) => chartTileCallNearViewport(call, layerOffset)
-  );
+  const {
+    tileCalls,
+    riverConnectorCalls
+  } = surfaceDetailCallsForLayer({
+    tileCalls: activeChart.tileCalls,
+    riverConnectorCalls: activeChart.riverConnectorCalls,
+    layer: layerBounds,
+    margin: TILE_ART_SIZE
+  });
   const tileIds = new Set(tileCalls.map((call) => call.id));
-  const riverConnectorCalls = activeChart.riverConnectorCalls.filter(
-    (call) => chartEdgeCallNearViewport(call, layerOffset)
-  );
   const previousCtx = ctx;
   ctx = layerCtx;
   try {
