@@ -320,6 +320,22 @@ test("older voyages gain neutral standing with newly added sovereigns", () => {
   validateGameState(restored);
 });
 
+test("version 47 voyages from before Rhodes recover without losing their save", () => {
+  const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  saved.version = 47;
+  delete saved.relations.factionReputation.hospitallers;
+  saved.doubloons = 43210;
+  saved.memory.navigation.cumulativeLongitudeDeg = 187.5;
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.relations.factionReputation.hospitallers, 0);
+  assert.equal(restored.doubloons, 43210);
+  assert.equal(restored.memory.navigation.cumulativeLongitudeDeg, 187.5);
+  validateGameState(restored);
+});
+
 test("successful trade gives only a tiny faction reputation gain", () => {
   const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
