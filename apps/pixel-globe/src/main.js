@@ -771,6 +771,14 @@ import {
   waterHexWaveBandsForFrame
 } from "./waterHexWave.js";
 import {
+  FISH_SCHOOL_ANIMATION_FRAME_COUNT,
+  FISH_SCHOOL_MAX_FISH,
+  fishSchoolAnimationFrame,
+  fishSchoolAnimationTick,
+  fishSchoolAnimationTime,
+  fishSchoolFishOffset
+} from "./fishSchoolAnimation.js";
+import {
   BINARY_CONFIRM_NO_INDEX,
   BINARY_CONFIRM_YES_INDEX,
   clampMenuIndex,
@@ -2157,9 +2165,8 @@ const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 8;
 const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
-const FISH_SCHOOL_SPRITE_WIDTH = 28;
-const FISH_SCHOOL_SPRITE_HEIGHT = 18;
-const FISH_SCHOOL_ANIMATION_FRAMES = 4;
+const FISH_SCHOOL_SPRITE_WIDTH = 30;
+const FISH_SCHOOL_SPRITE_HEIGHT = 20;
 const FISH_VISIBLE_MAX_SCHOOLS = 12;
 const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
@@ -2168,7 +2175,6 @@ const FISH_SWIM_PERIOD_MIN_MS = 4200;
 const FISH_SWIM_PERIOD_SPREAD_MS = 5200;
 const FISH_SCATTER_RADIUS_PX = 30;
 const FISH_SCATTER_PUSH_PX = 5;
-const FISH_ANIMATION_REDRAW_MS = 400;
 const FISH_NPC_SEARCH_RETRY_MINUTES = 30;
 const SEAGULL_FLIGHT_FRAMES = 6;
 const SEAGULL_MAX_FLYING = 14;
@@ -18271,7 +18277,7 @@ function updateWaterAnimation(nowMs) {
 
 function updateFishAnimation(nowMs) {
   if (!chart || !gameState || !animalImages?.fish) return false;
-  const tick = Math.floor(nowMs / FISH_ANIMATION_REDRAW_MS);
+  const tick = fishSchoolAnimationTick(nowMs);
   if (tick === fishAnimationDrawTick) return false;
   fishAnimationDrawTick = tick;
   return true;
@@ -31994,8 +32000,7 @@ function drawFishSchools(activeChart, nowMs, renderTileCalls = null) {
 }
 
 function fishSchoolDrawCalls(activeChart, nowMs, renderTileCalls = null) {
-  const animationNowMs = Math.floor(nowMs / FISH_ANIMATION_REDRAW_MS) *
-    FISH_ANIMATION_REDRAW_MS;
+  const animationNowMs = fishSchoolAnimationTime(nowMs);
   if (
     fishSchoolFrameCache?.chart === activeChart &&
     fishSchoolFrameCache.nowMs === animationNowMs
@@ -32033,10 +32038,7 @@ function fishSchoolCallForFishery(tileCall, fishery, nowMs) {
   if (!motion) return null;
   const centerX = Math.round(motion.x);
   const centerY = Math.round(motion.y);
-  const frame = (
-    Math.floor(nowMs / FISH_ANIMATION_REDRAW_MS) +
-    (seed >>> 12)
-  ) % FISH_SCHOOL_ANIMATION_FRAMES;
+  const frame = fishSchoolAnimationFrame(nowMs, seed >>> 12);
   const density = fishSchoolDensityLevel(fishery.visibleIndividualCount);
   const sprite = fishSchoolSprite(fishery.colors, density, frame);
   return {
@@ -32181,7 +32183,11 @@ function fishSchoolSprite(colors, density, frame) {
   if (!Number.isInteger(density) || density < 1 || density > 4) {
     throw new Error(`Invalid fish school density: ${density}`);
   }
-  if (!Number.isInteger(frame) || frame < 0 || frame >= FISH_SCHOOL_ANIMATION_FRAMES) {
+  if (
+    !Number.isInteger(frame) ||
+    frame < 0 ||
+    frame >= FISH_SCHOOL_ANIMATION_FRAME_COUNT
+  ) {
     throw new Error(`Invalid fish school frame: ${frame}`);
   }
   const key = `${colors.body}|${colors.highlight}|${colors.shadow}|${density}|${frame}`;
@@ -32196,23 +32202,20 @@ function fishSchoolSprite(colors, density, frame) {
   schoolCtx.imageSmoothingEnabled = false;
   const fish = tintedFishSprite(colors);
   const layout = [
-    { x: 9, y: 4, phase: 0 },
-    { x: 2, y: 1, phase: 1 },
-    { x: 17, y: 0, phase: 3 },
-    { x: 13, y: 8, phase: 2 },
-    { x: 0, y: 8, phase: 0 },
-    { x: 19, y: 7, phase: 1 }
+    { x: 10, y: 5 },
+    { x: 3, y: 2 },
+    { x: 18, y: 1 },
+    { x: 14, y: 9 },
+    { x: 1, y: 9 },
+    { x: 18, y: 8 }
   ];
+  if (layout.length !== FISH_SCHOOL_MAX_FISH) {
+    throw new Error("Fish school layout must match the animation's visible fish count");
+  }
   const count = [0, 1, 2, 4, 6][density];
-  const cycleOffsets = [
-    { x: 0, y: 0 },
-    { x: 1, y: 0 },
-    { x: 1, y: 1 },
-    { x: 0, y: 1 }
-  ];
   for (let index = 0; index < count; index++) {
     const position = layout[index];
-    const offset = cycleOffsets[(frame + position.phase) % cycleOffsets.length];
+    const offset = fishSchoolFishOffset(frame, index);
     schoolCtx.drawImage(fish, position.x + offset.x, position.y + offset.y);
   }
   fishSchoolSpriteCache.set(key, canvas);
