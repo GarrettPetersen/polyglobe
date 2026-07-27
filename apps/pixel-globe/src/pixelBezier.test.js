@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  bezierPathLength,
+  closestPointOnQuadraticBezier,
   forEachPixelOnBezier,
   forEachTwoPixelBezierPoint,
   quadraticBezierPoint,
@@ -46,11 +48,32 @@ test("a two-pixel Bezier stroke stays contiguous and wider than its centerline",
   }
 });
 
+test("Bezier probes reuse stable sampled geometry for length and nearest points", () => {
+  const length = bezierPathLength(CURVED_PATH);
+  const closest = closestPointOnQuadraticBezier(CURVED_PATH, 8, 8);
+
+  assert.ok(length > 12);
+  assert.ok(length < 18);
+  assert.ok(Math.abs(closest.x - 8) < 0.01);
+  assert.ok(Math.abs(closest.y - 6) < 0.01);
+  assert.ok(Math.abs(closest.distance - 2) < 0.01);
+  assert.ok(Math.abs(closest.pathT - 0.5) < 0.01);
+  assert.ok(Math.abs(Math.hypot(closest.tangent.x, closest.tangent.y) - 1) < 1e-9);
+});
+
+test("cached Bezier geometry rejects in-place path mutation", () => {
+  const path = { x0: 0, y0: 0, cx: 5, cy: 3, x1: 10, y1: 0 };
+  bezierPathLength(path);
+  path.cx = 6;
+  assert.throws(() => bezierPathLength(path), /mutated after its geometry was cached/);
+});
+
 test("Bezier geometry rejects malformed paths and positions", () => {
   assert.throws(() => quadraticBezierPoint(null, 0), /finite endpoints/);
   assert.throws(
     () => quadraticBezierPoint({ x0: 0, y0: 0, cx: 1, cy: 1, x1: 0, y1: 0 }, 0.5),
     /distinct endpoints/
   );
+  assert.throws(() => closestPointOnQuadraticBezier(CURVED_PATH, NaN, 2), /finite point/);
   assert.throws(() => quadraticBezierTangent(CURVED_PATH, 2), /Invalid Bezier position/);
 });

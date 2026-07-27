@@ -1,3 +1,8 @@
+import {
+  bezierPathLength,
+  quadraticBezierPoint
+} from "./pixelBezier.js";
+
 export const RIVER_GATEWAY_SEARCH_RADIUS_PX = 34;
 export const RIVER_GATEWAY_SAMPLE_STEP_PX = 2;
 export const RIVER_GATEWAY_SAMPLE_DIRECTIONS = 32;
@@ -164,7 +169,6 @@ export function steerAlongRiverCenterline({
 }
 
 export function advanceRiverCenterline(path, pathT, distancePx, directionSign) {
-  validateRiverPath(path);
   if (!Number.isFinite(pathT)) throw new Error(`Invalid river path position: ${pathT}`);
   if (!Number.isFinite(distancePx) || distancePx < 0) {
     throw new Error(`Invalid river rail distance: ${distancePx}`);
@@ -173,9 +177,9 @@ export function advanceRiverCenterline(path, pathT, distancePx, directionSign) {
     throw new Error(`Invalid river rail direction: ${directionSign}`);
   }
 
-  const pathLength = approximateRiverPathLength(path);
+  const pathLength = bezierPathLength(path);
   const nextT = clamp(pathT + directionSign * distancePx / pathLength, 0, 1);
-  const point = pointOnRiverPath(path, nextT);
+  const point = quadraticBezierPoint(path, nextT);
   return {
     ...point,
     pathT: nextT,
@@ -278,32 +282,6 @@ function riverRailProbeIsBetter(candidate, current, desired) {
   const currentAlignment = Math.abs(dot2(current.tangent, desired));
   if (candidateAlignment !== currentAlignment) return candidateAlignment > currentAlignment;
   return candidate.centerlineDistance < current.centerlineDistance;
-}
-
-function validateRiverPath(path) {
-  if (!path || !["x0", "y0", "cx", "cy", "x1", "y1"].every((key) => Number.isFinite(path[key]))) {
-    throw new Error("River rail requires a finite Bezier path");
-  }
-}
-
-function approximateRiverPathLength(path) {
-  let length = 0;
-  let previous = pointOnRiverPath(path, 0);
-  for (let index = 1; index <= 20; index++) {
-    const point = pointOnRiverPath(path, index / 20);
-    length += Math.hypot(point.x - previous.x, point.y - previous.y);
-    previous = point;
-  }
-  if (length <= 1e-6) throw new Error("River rail path has no length");
-  return length;
-}
-
-function pointOnRiverPath(path, t) {
-  const omt = 1 - t;
-  return {
-    x: omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1,
-    y: omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1
-  };
 }
 
 function normalize2(value) {

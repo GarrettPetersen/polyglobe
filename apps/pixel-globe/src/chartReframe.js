@@ -3,6 +3,29 @@ export const CHART_REFRAME_ROTATION_THRESHOLD_DEG = 1.5;
 export const CHART_REFRAME_RMS_DISTORTION_THRESHOLD_PX = 1.5;
 export const CHART_REFRAME_MAX_DISTORTION_THRESHOLD_PX = 4;
 
+export function captureChartReframePosition(position, subject = "vessel") {
+  const validated = validatedUnitVector(position, `${subject} chart reframe position`);
+  return Object.freeze({
+    subject,
+    position: Object.freeze(validated.slice())
+  });
+}
+
+export function assertChartReframePositionPreserved(captured, position) {
+  if (
+    !captured ||
+    typeof captured.subject !== "string" ||
+    captured.subject.length === 0 ||
+    !Array.isArray(captured.position)
+  ) {
+    throw new Error("Chart reframe requires a captured global position");
+  }
+  const validated = validatedUnitVector(position, `${captured.subject} reframed position`);
+  if (validated.some((value, index) => Math.abs(value - captured.position[index]) > 1e-12)) {
+    throw new Error(`Chart reframe changed ${captured.subject}'s global position`);
+  }
+}
+
 export function northUpProjectionIsStable(position) {
   const normalized = validatedUnitVector(position, "north-up camera position");
   return Math.hypot(normalized[0], normalized[2]) >= NORTH_UP_POLE_TANGENT_EPSILON;

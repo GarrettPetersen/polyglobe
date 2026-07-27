@@ -25,6 +25,7 @@ import {
 } from "./pixelWaterMask.js";
 import {
   bezierPathLength,
+  closestPointOnQuadraticBezier,
   forEachPixelOnBezier,
   forEachTwoPixelBezierPoint,
   quadraticBezierPoint,
@@ -1263,11 +1264,12 @@ import {
   resolveDrawnSurfaceNavigation
 } from "./drawnShipNavigation.js";
 import {
+  assertChartReframePositionPreserved,
+  captureChartReframePosition,
   measureChartNorthUpDrift,
   northUpProjectionIsStable
 } from "./chartReframe.js";
 import {
-  partitionVisualStateCommits,
   partitionVisualStateReprojections
 } from "./visualStateReprojection.js";
 import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
@@ -1530,7 +1532,6 @@ const SHIP_COLLISION_SLIDE_OUTWARD_BIASES = [0.18, 0.36, 0.58];
 const NPC_VISUAL_AUTHORITY_MARGIN_PX = 96;
 const NPC_VISUAL_RELEASE_MARGIN_PX = 132;
 const NPC_VISUAL_SIMULATION_MARGIN_PX = SHIP_SHEET_FRAME_SIZE + 12;
-const NPC_VISUAL_ACTIVATION_SEARCH_PX = 48;
 const NPC_VISUAL_RECOVERY_SEARCH_PX = 96;
 const NPC_VISUAL_ACTIVATION_ANGLE_COUNT = 16;
 const NPC_VISUAL_CATCHUP_SPEED_PX = 4;
@@ -1757,8 +1758,8 @@ let MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL
 const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
-const SURVIVAL_PANEL_MIN_W = 120;
-const SURVIVAL_PANEL_MAX_W = 320;
+const SURVIVAL_PANEL_W = 120;
+const SURVIVAL_PANEL_MAX_H = 70;
 const SURVIVAL_CREW_ROW_Y = 34;
 const SURVIVAL_CREW_ROW_PAD_X = 5;
 const SURVIVAL_CRATE_ROW_Y = 43;
@@ -2277,12 +2278,6 @@ worldCanvas.height = canvas.height;
 const worldCtx = worldCanvas.getContext("2d", { alpha: false });
 if (!worldCtx) throw new Error("Marque & Reprisal could not create its world canvas context");
 worldCtx.imageSmoothingEnabled = false;
-const underLandEffectCanvas = document.createElement("canvas");
-underLandEffectCanvas.width = canvas.width;
-underLandEffectCanvas.height = canvas.height;
-const underLandEffectCtx = underLandEffectCanvas.getContext("2d");
-if (!underLandEffectCtx) throw new Error("Marque & Reprisal could not create its under-land effect context");
-underLandEffectCtx.imageSmoothingEnabled = false;
 const dayNightPaletteRenderer = createDayNightPaletteRenderer();
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
@@ -2466,10 +2461,8 @@ const terrainImagePixelCache = new WeakMap();
 const visibleRiverBankCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
-const underLandTerrainOccluderCache = new WeakMap();
-const underLandFaceOccluderCache = new WeakMap();
-const underLandFaceEntriesByTileCache = new WeakMap();
-const underLandRiverConnectorByPairCache = new WeakMap();
+const waterEffectForegroundLayerCache = new WeakMap();
+const waterEffectRiverConnectorByPairCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
 const riverGatewayDirectionCache = new WeakMap();
 const RIVER_GATEWAY_DIRECTION_CACHE_LIMIT = 4096;
@@ -2479,10 +2472,8 @@ const offshoreHullClearanceCache = new Map();
 let offshoreHullClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
-const fishSpritePixelCache = new WeakMap();
 const fishSchoolSpriteCache = new Map();
 let fishSchoolFrameCache = null;
-let fishSpriteLayerCache = null;
 let tileWeatherSamplingCache = null;
 let spriteColors;
 let waterLatitudeImages;
@@ -8926,7 +8917,13 @@ function reconcileRestoredShipDrawnNavigation(initialReason = null) {
       `[pixel-globe] recovered restored ship from ${reason}; placed on tile ${ship.tileId}`
     );
   }
-  if (!playerShipHasLocalEscape() && !recoverPlayerToNearestOpenWater("restored ship had no local escape")) {
+  if (
+    !playerShipHasLocalEscape() &&
+    !recoverPlayerToNearbyNavigableWater(
+      "restored ship had no local escape",
+      { allowGlobalFallback: true }
+    )
+  ) {
     throw new Error(`Could not recover restored ship from a blocked channel at tile ${ship.tileId}`);
   }
 }
@@ -15497,8 +15494,13 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   }
 
   const driftBefore = measureCurrentChartNorthUpDrift();
-  commitPlayerVisualPositionToGlobe();
-  const npcStates = commitNpcVisualPositionsToGlobe();
+  const playerTileId = ship.tileId;
+  const playerPosition = captureChartReframePosition(ship.position, "player");
+  const npcStates = [...npcVisualShips.values()];
+  const npcPositions = new Map(npcStates.map((state) => [
+    state.id,
+    captureChartReframePosition(state.vector, `NPC ship ${state.id}`)
+  ]));
   const playerProjectilePositions = captureProjectileGlobePositions(ship.navalProjectiles);
   const npcProjectilePositions = captureProjectileGlobePositions(npcCombatProjectiles);
 
@@ -15506,8 +15508,14 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   centerTileId = ship.tileId;
   localLayout = createNorthUpLocalLayout(centerTileId, ship.position, camera);
   chart = buildChart(camera);
-  commitPlayerPositionFromReframedChart();
+  if (ship.tileId !== playerTileId) {
+    throw new Error(`Chart reframe changed the player's tile from ${playerTileId} to ${ship.tileId}`);
+  }
+  assertChartReframePositionPreserved(playerPosition, ship.position);
   reprojectNpcVisualPositions(npcStates);
+  for (const state of npcStates) {
+    assertChartReframePositionPreserved(npcPositions.get(state.id), state.vector);
+  }
   reprojectProjectileGlobePositions(playerProjectilePositions);
   reprojectProjectileGlobePositions(npcProjectilePositions);
   clearLocalChartTransientEffects();
@@ -15524,36 +15532,6 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   );
   dirty = true;
   return true;
-}
-
-function commitPlayerVisualPositionToGlobe() {
-  const visualTile = localCollisionTileAtPoint(localLayout.viewX, localLayout.viewY);
-  if (!visualTile) throw new Error("Cannot commit player visual position during chart reframe");
-  ship.tileId = visualTile.tileId;
-  ship.position = globePositionForLocalPoint(
-    ship.tileId,
-    localLayout.viewX,
-    localLayout.viewY
-  );
-  ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
-  ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
-  ship.velocity = projectTangentVector(ship.velocity, ship.position);
-}
-
-function commitNpcVisualPositionsToGlobe() {
-  const states = [...npcVisualShips.values()];
-  const resolutions = partitionVisualStateCommits(
-    states,
-    (x, y) => localCollisionTileAtPoint(x, y)
-  );
-  for (const state of resolutions.outside) releaseNpcVisualState(state);
-  for (const { state, point } of resolutions.projected) {
-    state.tileId = point.tileId;
-    state.vector = globePositionForLocalPoint(state.tileId, state.x, state.y);
-    state.heading = normalizeTangentOrFallback(state.heading, state.vector, WORLD_NORTH);
-    setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
-  }
-  return resolutions.projected.map(({ state }) => state);
 }
 
 function createNorthUpLocalLayout(tileId, focusPosition, frame) {
@@ -15580,33 +15558,31 @@ function createNorthUpLocalLayout(tileId, focusPosition, frame) {
   };
 }
 
-function commitPlayerPositionFromReframedChart() {
-  const visualTile = localCollisionTileAtPoint(localLayout.viewX, localLayout.viewY);
-  if (!visualTile) throw new Error("North-up chart has no tile under the player");
-  ship.tileId = visualTile.tileId;
-  ship.position = globePositionForLocalPoint(
-    ship.tileId,
-    localLayout.viewX,
-    localLayout.viewY
-  );
-  ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
-  ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
-  ship.velocity = projectTangentVector(ship.velocity, ship.position);
-  camera = northUpCamera(ship.position, camera.right);
-  centerTileId = ship.tileId;
-}
-
 function reprojectNpcVisualPositions(states) {
   const reprojections = partitionVisualStateReprojections(
     states,
-    (state) => localPointForGlobeVector(state.vector)
+    (state) => {
+      const point = localPointForGlobeVector(state.vector);
+      if (!point) return null;
+      const navigation = shipNavigabilityAtLocalPoint(
+        point.x,
+        point.y,
+        point.tileId,
+        state.vector
+      );
+      if (!navigation.ok) {
+        throw new Error(
+          `NPC ship ${state.id} has a navigable global position that does not project onto drawn water after chart reframe`
+        );
+      }
+      return { x: point.x, y: point.y, tileId: point.tileId };
+    }
   );
   for (const state of reprojections.outside) releaseNpcVisualState(state);
   for (const { state, point } of reprojections.projected) {
     state.x = point.x;
     state.y = point.y;
     state.tileId = point.tileId;
-    state.vector = globePositionForLocalPoint(state.tileId, state.x, state.y);
     state.heading = normalizeTangentOrFallback(state.heading, state.vector, WORLD_NORTH);
     state.collisionVelocityX = 0;
     state.collisionVelocityY = 0;
@@ -15666,6 +15642,10 @@ function globeDirectionToChartPoint(direction) {
 }
 
 function clearLocalChartTransientEffects() {
+  playerNavigationRecoveryState = createPlayerShipRecoveryState();
+  playerHaulBlockedSeconds = 0;
+  playerBoundaryAssistContact = null;
+  playerBoundaryProbeCache = null;
   ship.wakeParticles = [];
   ship.lastWakeEmit = null;
   ship.cannonSplashes = [];
@@ -15679,7 +15659,6 @@ function clearLocalChartTransientEffects() {
   worldShipSinkEffects = [];
   whaleKillEffects = [];
   fishSchoolFrameCache = null;
-  fishSpriteLayerCache = null;
   if (whaleHarpoonProjectile) {
     whaleHarpoonProjectile.startX = SCREEN_W / 2;
     whaleHarpoonProjectile.startY = SCREEN_H / 2;
@@ -16030,7 +16009,7 @@ function updateSailing(dt) {
     ? recoverPlayerFromNavigationEdge(inputHeading, moveResult.normal, haulMotionScale)
     : false;
   if (!recovered && fullRecoveryDue && !playerShipHasLocalEscape()) {
-    recovered = recoverPlayerToNearestOpenWater("sustained blocked steering");
+    recovered = recoverPlayerToNearbyNavigableWater("sustained blocked steering");
   }
   if (recovered) {
     playerHaulBlockedSeconds = 0;
@@ -16679,13 +16658,16 @@ function playerShipHasLocalEscape() {
   return false;
 }
 
-function recoverPlayerToNearestOpenWater(reason) {
+function recoverPlayerToNearbyNavigableWater(
+  reason,
+  { allowGlobalFallback = false } = {}
+) {
   if (!ship || !localLayout || !chart || !camera) return false;
-  let recovery = nearestClearOpenWaterPlacement(
+  let recovery = nearestClearNavigableWaterPlacement(
     SHIP_STUCK_RECOVERY_MAX_RADIUS_PX,
     SHIP_STUCK_RECOVERY_MIN_RADIUS_PX
   );
-  if (!recovery) {
+  if (!recovery && allowGlobalFallback) {
     const previousTileId = ship.tileId;
     const oceanTileId = nearestTileMatching(previousTileId, (tileId) => (
       tileId !== previousTileId &&
@@ -16696,20 +16678,21 @@ function recoverPlayerToNearestOpenWater(reason) {
       throw new Error(`Could not find open ocean to recover player ship from tile ${previousTileId}`);
     }
     placeShipAtTileCenterForRecovery(oceanTileId);
-    recovery = nearestClearOpenWaterPlacement(SHIP_STUCK_RECOVERY_MAX_RADIUS_PX, 0);
+    recovery = nearestClearNavigableWaterPlacement(SHIP_STUCK_RECOVERY_MAX_RADIUS_PX, 0);
     if (!recovery) {
       throw new Error(`Open-ocean recovery tile ${oceanTileId} has no clear rendered placement`);
     }
   }
+  if (!recovery) return false;
 
   applyPlayerShipRecoveryPlacement(recovery);
   console.info(
-    `[pixel-globe] recovered player ship from ${reason}; placed on open water tile ${ship.tileId}`
+    `[pixel-globe] recovered player ship from ${reason}; placed on nearby drawn water tile ${ship.tileId}`
   );
   return true;
 }
 
-function nearestClearOpenWaterPlacement(maxRadiusPx, minimumRadiusPx) {
+function nearestClearNavigableWaterPlacement(maxRadiusPx, minimumRadiusPx) {
   return findNearestShipPlacement(maxRadiusPx, (offsetX, offsetY) => {
     const x = localLayout.viewX + offsetX;
     const y = localLayout.viewY + offsetY;
@@ -16717,8 +16700,9 @@ function nearestClearOpenWaterPlacement(maxRadiusPx, minimumRadiusPx) {
     if (!collisionTile) return null;
     const position = globePositionForLocalPoint(collisionTile.tileId, x, y);
     const navigation = shipNavigabilityAtLocalPoint(x, y, collisionTile.tileId, position);
-    if (!navigation.ok || navigation.kind !== "openWater") return null;
-    if (!openWaterPlacementHasClearance(x, y)) return null;
+    if (!navigation.ok) return null;
+    if (navigation.kind === "openWater" && !openWaterPlacementHasClearance(x, y)) return null;
+    if (navigation.kind !== "openWater" && navigation.kind !== "river") return null;
     const navigationPosition = navigation.tileId === collisionTile.tileId
       ? position
       : globePositionForLocalPoint(navigation.tileId, x, y);
@@ -19243,13 +19227,22 @@ function updateNpcVisualShips(dt) {
 }
 
 function createNpcVisualState(snapshot, routePoint) {
-  const initial = nearestNpcNavigableVisualPoint(
-    routePoint,
-    snapshot.routeHeading,
-    NPC_VISUAL_ACTIVATION_SEARCH_PX,
-    snapshot.slug
+  const routeNavigation = shipNavigabilityAtLocalPoint(
+    routePoint.x,
+    routePoint.y,
+    routePoint.tileId,
+    snapshot.routeVector
   );
-  if (!initial) return null;
+  if (!routeNavigation.ok) {
+    throw new Error(
+      `NPC ship ${snapshot.id} has a navigable global route position that does not project onto drawn water`
+    );
+  }
+  const initialHeading = normalizeTangentOrFallback(
+    snapshot.routeHeading,
+    snapshot.routeVector,
+    WORLD_NORTH
+  );
   ensureNpcShipCaptain(snapshot.id);
   const profile = npcVisualShipProfile(snapshot.id, snapshot.slug);
   const state = {
@@ -19264,11 +19257,11 @@ function createNpcVisualState(snapshot, routePoint) {
     hitPoints: snapshot.hitPoints,
     maxHitPoints: snapshot.maxHitPoints,
     combatGrace: snapshot.combatGrace,
-    x: initial.x,
-    y: initial.y,
-    tileId: initial.tileId,
-    vector: initial.vector,
-    heading: initial.heading,
+    x: routePoint.x,
+    y: routePoint.y,
+    tileId: routePoint.tileId,
+    vector: snapshot.routeVector.slice(),
+    heading: initialHeading,
     routeKey: snapshot.routeKey,
     lastRouteVector: snapshot.routeVector.slice(),
     escapeDirection: null,
@@ -22099,12 +22092,9 @@ function applyResponsiveViewport(width, height) {
   canvas.height = height;
   worldCanvas.width = width;
   worldCanvas.height = height;
-  underLandEffectCanvas.width = width;
-  underLandEffectCanvas.height = height;
   syncCanvasAriaLabel();
   screenCtx.imageSmoothingEnabled = false;
   worldCtx.imageSmoothingEnabled = false;
-  underLandEffectCtx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
   INTERACTION_BUTTON_Y = SCREEN_H - INTERACTION_BUTTON_H - 5;
@@ -22436,7 +22426,7 @@ function render(nowMs) {
   renderedCloudSpriteCount = cloudCalls.length;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawGreatBarrierReef(chart, nowMs);
-    drawUnderLandWaterEffects(chart, nowMs, offset, renderTileCalls);
+    drawWaterEffectsBelowTerrain(chart, nowMs, renderTileCalls, offset);
     drawPrecipitation(chart, nowMs, offset);
     drawNavalEffects(chart);
     drawCityShadows(chart, shipLight);
@@ -22730,200 +22720,146 @@ function drawWorldDiscoverySprites(activeChart) {
   }
 }
 
-function drawUnderLandWaterEffects(activeChart, nowMs, offset, renderTileCalls) {
-  const targetCtx = ctx;
-  underLandEffectCtx.setTransform(1, 0, 0, 1, 0, 0);
-  underLandEffectCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
-  underLandEffectCtx.imageSmoothingEnabled = false;
-  underLandEffectCtx.save();
-  underLandEffectCtx.translate(offset.x, offset.y);
-  ctx = underLandEffectCtx;
-  try {
-    const fishCalls = drawFishSchools(activeChart, nowMs, renderTileCalls);
-    drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
-    drawShipWake();
-    eraseLandFromUnderLandEffects(activeChart, fishCalls);
-  } finally {
-    underLandEffectCtx.restore();
-    ctx = targetCtx;
-  }
-  targetCtx.drawImage(underLandEffectCanvas, -offset.x, -offset.y);
+function drawWaterEffectsBelowTerrain(activeChart, nowMs, renderTileCalls, offset) {
+  const fishCalls = drawFishSchools(activeChart, nowMs, renderTileCalls);
+  drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
+  drawShipWake();
+  drawWaterEffectForegroundLayer(waterEffectForegroundLayer(activeChart, offset));
 }
 
-function eraseLandFromUnderLandEffects(activeChart, fishCalls) {
-  const candidateCalls = underLandEffectTerrainCandidates(activeChart, fishCalls);
-  if (candidateCalls.size === 0) return;
-  const faceEntriesByTile = underLandFaceEntriesByTile(activeChart);
-  const faceEntries = new Set();
-
-  ctx.save();
-  try {
-    ctx.globalCompositeOperation = "destination-out";
-    for (const call of candidateCalls.values()) {
-      const occluder = underLandTerrainOccluder(call, activeChart);
-      if (occluder) {
-        ctx.drawImage(
-          occluder,
-          Math.round(call.drawSurfaceX - TILE_ART_HALF),
-          Math.round(call.drawSurfaceY - TILE_ART_HALF)
-        );
-      }
-      for (const entry of faceEntriesByTile.get(call.id) || []) faceEntries.add(entry);
-    }
-    for (const entry of faceEntries) {
-      const occluder = underLandFaceOccluder(entry, activeChart);
-      if (occluder) ctx.drawImage(occluder.canvas, occluder.x, occluder.y);
-    }
-  } finally {
-    ctx.restore();
-  }
-}
-
-function underLandEffectTerrainCandidates(activeChart, fishCalls) {
-  const calls = new Map();
-  const addCall = (call) => {
-    if (call) calls.set(call.id, call);
+function waterEffectForegroundLayer(activeChart, offset) {
+  const viewport = {
+    minX: -offset.x,
+    minY: -offset.y,
+    maxX: SCREEN_W - offset.x,
+    maxY: SCREEN_H - offset.y
   };
-  const addPoint = (x, y) => {
-    for (const entry of wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex)) {
-      if (entry.kind === "tile") addCall(entry.call);
-    }
-  };
-  const addTileNeighborhood = (tileId) => {
-    addCall(activeChart.tileById.get(tileId));
-    for (const neighborId of graph.neighbors[tileId] || []) {
-      addCall(activeChart.tileById.get(neighborId));
-    }
-  };
-
-  for (const call of fishCalls) {
-    addTileNeighborhood(call.tileId);
-    addPoint(call.x, call.y);
-    addPoint(call.x + call.sprite.width, call.y);
-    addPoint(call.x, call.y + call.sprite.height);
-    addPoint(call.x + call.sprite.width, call.y + call.sprite.height);
-  }
-  if (ship?.wakeParticles?.length) {
-    addTileNeighborhood(ship.tileId);
-    for (const particle of ship.wakeParticles) {
-      addPoint(particle.x, particle.y);
-    }
-  }
-  return calls;
-}
-
-function underLandTerrainOccluder(call, activeChart) {
-  const frozenWater = isPermanentSeaIceRow(call.row) ||
-    (isWaterSurfaceRow(call.row) && tileHasSurfaceIce(call.id));
-  if (isWaterSurfaceRow(call.row) && !frozenWater) return null;
-
-  let cache = underLandTerrainOccluderCache.get(activeChart);
-  if (!cache || cache.weatherDayIndex !== weatherMaskDayIndex) {
-    cache = { weatherDayIndex: weatherMaskDayIndex, images: new Map() };
-    underLandTerrainOccluderCache.set(activeChart, cache);
-  }
-  const cached = cache.images.get(call.id);
-  if (cached) return cached;
-
-  const occluder = document.createElement("canvas");
-  occluder.width = TILE_ART_SIZE;
-  occluder.height = TILE_ART_SIZE;
-  const occluderCtx = occluder.getContext("2d");
-  if (!occluderCtx) throw new Error(`Could not create under-land terrain mask for tile ${call.id}`);
-  occluderCtx.imageSmoothingEnabled = false;
-  for (const image of terrainLayerImagesForTile(call.row, call.id)) {
-    occluderCtx.drawImage(image, 0, 0);
+  const connectorLayer = terrainConnectorLayer(activeChart.faceCalls, activeChart);
+  const cached = waterEffectForegroundLayerCache.get(activeChart);
+  if (
+    cached?.connectorLayer === connectorLayer &&
+    cached.weatherDayIndex === weatherMaskDayIndex &&
+    surfaceDetailLayerCoversViewport(cached, viewport, TILE_ART_SIZE)
+  ) {
+    return cached;
   }
 
-  const riverMask = riverMasks?.[call.id] || 0;
-  if (riverMask !== 0 && !isWaterSurfaceRow(call.row)) {
-    const riverSprite = riverSpriteForTile(call, activeChart, riverMask);
-    if (!riverSprite) throw new Error(`Could not mask river from under-land effects on tile ${call.id}`);
-    occluderCtx.globalCompositeOperation = "destination-out";
-    occluderCtx.drawImage(riverSprite, 0, 0);
-    occluderCtx.globalCompositeOperation = "source-over";
-  }
-  cache.images.set(call.id, occluder);
-  return occluder;
-}
-
-function underLandFaceEntriesByTile(activeChart) {
-  const layer = terrainConnectorLayer(activeChart.faceCalls, activeChart);
-  const cached = underLandFaceEntriesByTileCache.get(activeChart);
-  if (cached?.layer === layer) return cached.entriesByTile;
-  const entriesByTile = new Map();
-  for (const entry of layer.entries) {
-    for (const tileId of [entry.call.a, entry.call.b]) {
-      const entries = entriesByTile.get(tileId);
-      if (entries) entries.push(entry);
-      else entriesByTile.set(tileId, [entry]);
-    }
-  }
-  underLandFaceEntriesByTileCache.set(activeChart, { layer, entriesByTile });
-  return entriesByTile;
-}
-
-function underLandFaceOccluder(entry, activeChart) {
-  if (isWaterSurfaceRow(entry.call.row) && isWaterSurfaceRow(entry.call.nrow)) return null;
-  let chartCache = underLandFaceOccluderCache.get(activeChart);
-  if (!chartCache) {
-    chartCache = new Map();
-    underLandFaceOccluderCache.set(activeChart, chartCache);
-  }
-  if (chartCache.has(entry)) return chartCache.get(entry);
-
-  const minX = Math.min(...entry.spans.map((span) => span.x));
-  const minY = Math.min(...entry.spans.map((span) => span.y));
-  const maxX = Math.max(...entry.spans.map((span) => span.x + span.width - 1));
-  const maxY = Math.max(...entry.spans.map((span) => span.y));
+  const bounds = createSurfaceDetailLayerBounds({
+    viewport,
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    layerMargin: SURFACE_DETAIL_LAYER_MARGIN_PX,
+    tileMargin: TILE_ART_SIZE
+  });
   const canvas = document.createElement("canvas");
-  canvas.width = maxX - minX + 1;
-  canvas.height = maxY - minY + 1;
-  const faceCtx = canvas.getContext("2d");
-  if (!faceCtx) throw new Error(`Could not create under-land connector mask for ${entry.call.a}/${entry.call.b}`);
-  faceCtx.fillStyle = "#ffffff";
-  for (const span of entry.spans) {
-    faceCtx.fillRect(span.x - minX, span.y - minY, span.width, 1);
+  canvas.width = bounds.width;
+  canvas.height = bounds.height;
+  const layerCtx = canvas.getContext("2d");
+  if (!layerCtx) throw new Error("Could not create water-effect terrain foreground layer");
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.translate(-bounds.x, -bounds.y);
+
+  for (const entry of connectorLayer.entries) {
+    if (
+      isWaterSurfaceRow(entry.call.row) &&
+      isWaterSurfaceRow(entry.call.nrow)
+    ) continue;
+    layerCtx.fillStyle = entry.color;
+    for (const span of entry.spans) {
+      layerCtx.fillRect(span.x, span.y, span.width, 1);
+    }
+    drawTerrainConnectorStaticDetails(layerCtx, entry);
   }
 
-  const riverConnector = underLandRiverConnectorForPair(
-    activeChart,
-    entry.call.a,
-    entry.call.b
-  );
-  if (riverConnector) {
+  const tileCalls = activeChart.tileCalls.filter((call) => {
+    const frozenWater = isPermanentSeaIceRow(call.row) || tileHasSurfaceIce(call.id);
+    if (isWaterSurfaceRow(call.row) && !frozenWater) return false;
+    return call.drawSurfaceX >= bounds.x - TILE_ART_SIZE &&
+      call.drawSurfaceX <= bounds.x + bounds.width + TILE_ART_SIZE &&
+      call.drawSurfaceY >= bounds.y - TILE_ART_SIZE &&
+      call.drawSurfaceY <= bounds.y + bounds.height + TILE_ART_SIZE;
+  });
+  for (const call of tileCalls) {
+    drawTile(layerCtx, call, activeChart);
+    drawWeatherSurface(call, layerCtx);
+    drawIceSurface(call, layerCtx);
+  }
+
+  layerCtx.globalCompositeOperation = "destination-out";
+  for (const call of tileCalls) {
+    if (isWaterSurfaceRow(call.row)) continue;
+    const riverMask = riverMasks?.[call.id] || 0;
+    if (riverMask === 0) continue;
+    const riverSprite = riverSpriteForTile(call, activeChart, riverMask);
+    if (!riverSprite) {
+      throw new Error(`Could not expose river through water-effect foreground on tile ${call.id}`);
+    }
+    layerCtx.drawImage(
+      riverSprite,
+      Math.round(call.drawSurfaceX - TILE_ART_HALF),
+      Math.round(call.drawSurfaceY - TILE_ART_HALF)
+    );
+  }
+  for (const entry of connectorLayer.entries) {
+    const riverConnector = waterEffectRiverConnectorForPair(
+      activeChart,
+      entry.call.a,
+      entry.call.b
+    );
+    if (!riverConnector) continue;
     const geometry = riverConnectorGeometry(riverConnector, activeChart);
     if (!geometry) {
-      throw new Error(`Could not resolve under-land river connector ${riverConnector.a}/${riverConnector.b}`);
+      throw new Error(`Could not resolve water-effect river connector ${riverConnector.a}/${riverConnector.b}`);
     }
-    faceCtx.globalCompositeOperation = "destination-out";
     for (const key of riverConnectorWaterPixels(riverConnector, geometry)) {
       const comma = key.indexOf(",");
-      const x = Number(key.slice(0, comma));
-      const y = Number(key.slice(comma + 1));
-      faceCtx.fillRect(x - minX, y - minY, 1, 1);
+      layerCtx.fillRect(
+        Number(key.slice(0, comma)),
+        Number(key.slice(comma + 1)),
+        1,
+        1
+      );
     }
-    faceCtx.globalCompositeOperation = "source-over";
+  }
+  layerCtx.globalCompositeOperation = "source-over";
+
+  const previousCtx = ctx;
+  ctx = layerCtx;
+  try {
+    const tileIds = new Set(tileCalls.map((call) => call.id));
+    drawVisibleRiverBanks(activeChart);
+    drawLandRoads(activeChart, tileIds);
+  } finally {
+    ctx = previousCtx;
   }
 
-  const result = Object.freeze({ canvas, x: minX, y: minY });
-  chartCache.set(entry, result);
+  const result = {
+    ...bounds,
+    canvas,
+    connectorLayer,
+    weatherDayIndex: weatherMaskDayIndex
+  };
+  waterEffectForegroundLayerCache.set(activeChart, result);
   return result;
 }
 
-function underLandRiverConnectorForPair(activeChart, tileA, tileB) {
-  let pairMap = underLandRiverConnectorByPairCache.get(activeChart);
+function drawWaterEffectForegroundLayer(layer) {
+  ctx.drawImage(layer.canvas, layer.x, layer.y);
+}
+
+function waterEffectRiverConnectorForPair(activeChart, tileA, tileB) {
+  let pairMap = waterEffectRiverConnectorByPairCache.get(activeChart);
   if (!pairMap) {
     pairMap = new Map();
     for (const call of activeChart.riverConnectorCalls) {
-      pairMap.set(underLandTilePairKey(call.a, call.b), call);
+      pairMap.set(waterEffectTilePairKey(call.a, call.b), call);
     }
-    underLandRiverConnectorByPairCache.set(activeChart, pairMap);
+    waterEffectRiverConnectorByPairCache.set(activeChart, pairMap);
   }
-  return pairMap.get(underLandTilePairKey(tileA, tileB)) || null;
+  return pairMap.get(waterEffectTilePairKey(tileA, tileB)) || null;
 }
 
-function underLandTilePairKey(tileA, tileB) {
+function waterEffectTilePairKey(tileA, tileB) {
   return tileA < tileB ? `${tileA}:${tileB}` : `${tileB}:${tileA}`;
 }
 
@@ -30832,11 +30768,11 @@ function cityImageForArtKey(imageKey) {
   return img;
 }
 
-function drawWeatherSurface(call) {
+function drawWeatherSurface(call, targetCtx = ctx) {
   if (isWaterSurfaceRow(call.row)) return;
   const flags = weatherFlagsForTile(call.id);
   if ((flags & TILE_DAY_WET_SOIL) !== 0) {
-    drawWeatherSpeckles(call, "rgba(53, 64, 75, 0.42)", 14, 0x57544554, 9, 6);
+    drawWeatherSpeckles(call, "rgba(53, 64, 75, 0.42)", 14, 0x57544554, 9, 6, targetCtx);
   }
 }
 
@@ -32086,7 +32022,7 @@ function riverNavigationPathsForTile(call, activeChart, mask) {
 }
 
 function riverPathWaterProbe(px, py, path, radius, tileId) {
-  const closest = closestPointOnBezierPath(px, py, path);
+  const closest = closestPointOnQuadraticBezier(path, px, py);
   return {
     clearance: closest.distance - radius,
     centerlineDistance: closest.distance,
@@ -32203,41 +32139,7 @@ function wakePointIsOnRiverTile(x, y, call, activeChart) {
 }
 
 function pointDistanceToBezierPath(px, py, path) {
-  return closestPointOnBezierPath(px, py, path).distance;
-}
-
-function closestPointOnBezierPath(px, py, path) {
-  let best = Infinity;
-  let bestPoint = { x: path.x0, y: path.y0 };
-  let bestPathT = 0;
-  let bestTangent = null;
-  let prev = { x: path.x0, y: path.y0 };
-  for (let i = 1; i <= 14; i++) {
-    const t = i / 14;
-    const omt = 1 - t;
-    const point = {
-      x: omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1,
-      y: omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1
-    };
-    const closest = closestPointOnSegment(px, py, prev.x, prev.y, point.x, point.y);
-    if (closest.distance < best) {
-      best = closest.distance;
-      bestPoint = { x: closest.x, y: closest.y };
-      bestPathT = ((i - 1) + closest.t) / 14;
-      const dx = point.x - prev.x;
-      const dy = point.y - prev.y;
-      const length = Math.hypot(dx, dy);
-      bestTangent = length > 1e-8 ? { x: dx / length, y: dy / length } : bestTangent;
-    }
-    prev = point;
-  }
-  return {
-    x: bestPoint.x,
-    y: bestPoint.y,
-    distance: best,
-    pathT: bestPathT,
-    tangent: bestTangent
-  };
+  return closestPointOnQuadraticBezier(path, px, py).distance;
 }
 
 function pointDistanceToSegment(px, py, ax, ay, bx, by) {
@@ -32617,96 +32519,21 @@ function fishSchoolSprite(colors, density, frame) {
 
 function drawFishSpriteLayer(calls) {
   if (calls.length === 0) return;
-  if (fishSpriteLayerCache?.calls !== calls) {
-    fishSpriteLayerCache = createFishSpriteLayer(calls);
-  }
-  ctx.drawImage(
-    fishSpriteLayerCache.canvas,
-    fishSpriteLayerCache.x,
-    fishSpriteLayerCache.y
-  );
-}
-
-function createFishSpriteLayer(calls) {
-  const padding = 1;
-  const minX = Math.floor(Math.min(...calls.map((call) => call.x))) - padding;
-  const minY = Math.floor(Math.min(...calls.map((call) => call.y))) - padding;
-  const maxX = Math.ceil(Math.max(...calls.map((call) => call.x + call.sprite.width))) + padding;
-  const maxY = Math.ceil(Math.max(...calls.map((call) => call.y + call.sprite.height))) + padding;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, maxX - minX);
-  canvas.height = Math.max(1, maxY - minY);
-  const layerCtx = canvas.getContext("2d");
-  if (!layerCtx) throw new Error("Could not create fish animation layer");
-  layerCtx.imageSmoothingEnabled = false;
-  layerCtx.translate(-minX, -minY);
-  paintFishSprites(layerCtx, calls);
-  return Object.freeze({ calls, canvas, x: minX, y: minY });
-}
-
-function paintFishSprites(targetCtx, calls) {
-  const batches = new Map();
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
   for (const call of calls) {
-    const groups = fishSpritePixelGroups(call.sprite);
-    for (const group of groups) {
-      const alpha = call.alpha * group.alpha;
-      const key = `${group.color}|${alpha}`;
-      let batch = batches.get(key);
-      if (!batch) {
-        batch = { color: group.color, alpha, points: [] };
-        batches.set(key, batch);
-      }
-      for (const point of group.points) {
-        const sourceX = point & 0xff;
-        const sourceY = point >> 8;
-        const mapX = call.x + (call.flip ? call.sprite.width - 1 - sourceX : sourceX);
-        const mapY = call.y + sourceY;
-        batch.points.push(((mapX + 32768) & 0xffff) | ((mapY + 32768) << 16));
-      }
+    ctx.globalAlpha = call.alpha;
+    if (call.flip) {
+      ctx.save();
+      ctx.translate(call.x + call.sprite.width, call.y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(call.sprite, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.drawImage(call.sprite, call.x, call.y);
     }
   }
-
-  targetCtx.save();
-  for (const batch of batches.values()) {
-    if (batch.points.length === 0) continue;
-    targetCtx.globalAlpha = batch.alpha;
-    targetCtx.fillStyle = batch.color;
-    targetCtx.beginPath();
-    for (const point of batch.points) {
-      targetCtx.rect((point & 0xffff) - 32768, ((point >>> 16) & 0xffff) - 32768, 1, 1);
-    }
-    targetCtx.fill();
-  }
-  targetCtx.restore();
-}
-
-function fishSpritePixelGroups(sprite) {
-  const cached = fishSpritePixelCache.get(sprite);
-  if (cached) return cached;
-  if (!(sprite instanceof HTMLCanvasElement)) throw new Error("Fish sprite must be a canvas");
-  const spriteCtx = sprite.getContext("2d", { willReadFrequently: true });
-  if (!spriteCtx) throw new Error("Could not read fish sprite pixels");
-  const data = spriteCtx.getImageData(0, 0, sprite.width, sprite.height).data;
-  const groupsByKey = new Map();
-  for (let y = 0; y < sprite.height; y++) {
-    for (let x = 0; x < sprite.width; x++) {
-      const index = (x + y * sprite.width) * 4;
-      const alphaByte = data[index + 3];
-      if (alphaByte === 0) continue;
-      const color = `rgb(${data[index]}, ${data[index + 1]}, ${data[index + 2]})`;
-      const key = `${color}|${alphaByte}`;
-      let group = groupsByKey.get(key);
-      if (!group) {
-        group = { color, alpha: alphaByte / 255, points: [] };
-        groupsByKey.set(key, group);
-      }
-      group.points.push(x | (y << 8));
-    }
-  }
-  const groups = [...groupsByKey.values()];
-  if (groups.length === 0) throw new Error("Fish sprite contains no opaque pixels");
-  fishSpritePixelCache.set(sprite, groups);
-  return groups;
+  ctx.restore();
 }
 
 function tintedFishSprite(colors) {
@@ -35323,17 +35150,13 @@ function survivalHudLayout(
   if (!gameState) throw new Error("Ship status HUD requires game state");
   const resolvedHold = hold || cargoHoldStatus(gameState);
   const capacity = resolvedHold.capacity;
-  const maximumPanelWidth = Math.max(
-    SURVIVAL_PANEL_MIN_W,
-    Math.min(SURVIVAL_PANEL_MAX_W, OPTIONS_BUTTON_X - SURVIVAL_PANEL_X - 3)
-  );
   return cargoCrateStatusLayout({
     used: resolvedHold.physicalUsed,
     capacity,
     panelX,
     panelY,
-    minimumPanelWidth: SURVIVAL_PANEL_MIN_W,
-    maximumPanelWidth,
+    panelWidth: SURVIVAL_PANEL_W,
+    maximumPanelHeight: SURVIVAL_PANEL_MAX_H,
     iconSize: SURVIVAL_CRATE_SIZE,
     crateTop: SURVIVAL_CRATE_ROW_Y,
     valueWidth: measurePixelTextWidth(`${capacity}/${capacity}`, PIXEL_FONT_LATIN_SMALL_8)

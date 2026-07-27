@@ -29,15 +29,3 @@ export function partitionVisualStateReprojections(states, projectState) {
   }
   return { projected, outside };
 }
-
-export function partitionVisualStateCommits(states, resolveTileAtPoint) {
-  if (typeof resolveTileAtPoint !== "function") {
-    throw new Error("Visual state commit requires a tile resolver");
-  }
-  return partitionVisualStateReprojections(states, (state) => {
-    const tile = resolveTileAtPoint(state.x, state.y);
-    return tile === null
-      ? null
-      : { x: state.x, y: state.y, tileId: tile.tileId };
-  });
-}

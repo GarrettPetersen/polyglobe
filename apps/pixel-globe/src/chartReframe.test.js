@@ -2,10 +2,31 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assertChartReframePositionPreserved,
+  captureChartReframePosition,
   chartNorthUpDriftExceedsThreshold,
   measureChartNorthUpDrift,
   northUpProjectionIsStable
 } from "./chartReframe.js";
+
+test("chart reframing preserves exact player and NPC globe positions", () => {
+  const position = directionAt(31.2, 121.5);
+  const player = captureChartReframePosition(position, "player");
+  const npc = captureChartReframePosition(directionAt(30.8, 121.2), "NPC ship test-1");
+
+  assert.doesNotThrow(() => assertChartReframePositionPreserved(player, position));
+  assert.doesNotThrow(
+    () => assertChartReframePositionPreserved(npc, directionAt(30.8, 121.2))
+  );
+  assert.throws(
+    () => assertChartReframePositionPreserved(player, directionAt(31.3, 121.5)),
+    /changed player's global position/
+  );
+  assert.throws(
+    () => assertChartReframePositionPreserved(npc, directionAt(30.9, 121.2)),
+    /changed NPC ship test-1's global position/
+  );
+});
 
 test("ordinary and very high latitudes retain a true north-up projection", () => {
   assert.equal(northUpProjectionIsStable(directionAt(0, 0)), true);
