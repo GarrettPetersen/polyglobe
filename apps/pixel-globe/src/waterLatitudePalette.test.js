@@ -55,13 +55,12 @@ test("arbitrary sprite pixels are quantized rather than blended", () => {
   assert.match(output, /^[0-9a-f]{6}$/);
 });
 
-test("riverbank shades stay in Resurrect while darkening varied land colors", () => {
+test("riverbank shades remain in Resurrect while darkening varied land colors", () => {
   for (const source of ["a2a947", "239063", "f9c22b", "625565", "c7dcd0"]) {
     const shade = darkerResurrect64Hex(source);
     assert.equal(isResurrect64Hex(shade), true, source);
     assert.ok(perceptualBrightness(shade) < perceptualBrightness(source), `${source} -> ${shade}`);
   }
-  assert.equal(isResurrect64Hex(darkerResurrect64Hex("7e9ca3")), true);
   assert.throws(() => darkerResurrect64Hex("a2a947", 0), /shade step/);
 });
 

@@ -680,11 +680,15 @@ import {
   stormWindStrength
 } from "./stormSystem.js";
 import {
+  FIRST_STORM_DIALOGUE_CLEARANCE,
+  FIRST_STORM_DIALOGUE_WARNING,
   STORM_PASSAGE_CLEARED,
   createStormPassageState,
   fillStormEdgeFogPixels,
+  firstStormDialogueKind,
   markStormClearanceDelivered,
   markStormWarningDelivered,
+  resetStormPassageState,
   stormFogStrength,
   updateStormPassage
 } from "./stormPresentation.js";
@@ -1053,10 +1057,7 @@ import {
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
-import {
-  riverBankOutlineMask,
-  riverBankOutlinePixelSet
-} from "./riverBankOutline.js";
+import { visibleRiverBankPixelSet } from "./riverBankOutline.js";
 import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
 import {
   SHIP_PAPER_ROW_CONTENT_INSET,
@@ -1598,6 +1599,8 @@ const STORM_SHIP_BOB_MAX_Y_PX = 3;
 const STORM_CAPTAIN_ALERT_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_CAPTAIN_ALERT_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.58;
 const STORM_CAPTAIN_CLEARANCE_DELAY_MS = 10000;
+const FIRST_STORM_WARNING_SHOWN_FLAG = "firstStormWarningDialogueShown";
+const FIRST_STORM_CLEARANCE_SHOWN_FLAG = "firstStormClearanceDialogueShown";
 const DAY_NIGHT_DAY_ALT = 0.34;
 const DAY_NIGHT_NIGHT_ALT = -0.34;
 const DAY_NIGHT_SUNSET_START_ALT = -0.3;
@@ -2402,6 +2405,8 @@ const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
 const landRoadLayerCache = new WeakMap();
 const terrainTileLayerCache = new WeakMap();
+const terrainImagePixelCache = new WeakMap();
+const visibleRiverBankCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
@@ -2428,8 +2433,6 @@ let freshWaterSurfaceMask;
 let stormSystem;
 const stormPassageState = createStormPassageState();
 let riverSpriteCache = new Map();
-const riverBankSpriteCache = new WeakMap();
-const riverConnectorBankCache = new WeakMap();
 let waterDepthBands;
 let weatherBake;
 let runtimeWeather;
@@ -8449,6 +8452,7 @@ function startNewVoyage() {
     return;
   }
   sailingTutorialState = createSailingTutorialState();
+  resetStormPassageState(stormPassageState);
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
   playerNavigationRecoveryState = createPlayerShipRecoveryState();
@@ -8512,6 +8516,7 @@ async function continueSavedVoyage() {
 }
 
 async function restoreSavedVoyage(payload) {
+  resetStormPassageState(stormPassageState);
   const {
     savedShip,
     shipStats: stats,
@@ -18472,9 +18477,21 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   if (transition === STORM_PASSAGE_CLEARED) {
     showSurvivalNotice("STORM PASSED - SAFE TO SAIL", "good");
   }
+  const dialogueKind = firstStormDialogueKind(stormPassageState, {
+    warningShown: gameState.memory.flags[FIRST_STORM_WARNING_SHOWN_FLAG] === true,
+    clearanceShown: gameState.memory.flags[FIRST_STORM_CLEARANCE_SHOWN_FLAG] === true
+  });
   if (stormPassageState.clearancePending) {
+    if (dialogueKind !== FIRST_STORM_DIALOGUE_CLEARANCE) {
+      markStormClearanceDelivered(stormPassageState);
+      return true;
+    }
     const opened = openCrewAlertModal(stormClearanceMessage(), "happy");
-    if (opened) markStormClearanceDelivered(stormPassageState);
+    if (opened) {
+      markStormClearanceDelivered(stormPassageState);
+      gameState.memory.flags[FIRST_STORM_CLEARANCE_SHOWN_FLAG] = true;
+      saveVoyageNow("showed first storm clearance");
+    }
     return changed || opened;
   }
   if (intensity < STORM_CAPTAIN_ALERT_EXIT_INTENSITY) {
@@ -18482,9 +18499,17 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   }
   if (portWaitState || intensity < STORM_CAPTAIN_ALERT_ENTER_INTENSITY) return changed;
   if (!stormPassageState.warningPending) return changed;
+  if (dialogueKind !== FIRST_STORM_DIALOGUE_WARNING) {
+    markStormWarningDelivered(stormPassageState);
+    return true;
+  }
 
   const opened = openCrewAlertModal(stormCaptainAlertMessage(intensity), "concerned");
-  if (opened) markStormWarningDelivered(stormPassageState);
+  if (opened) {
+    markStormWarningDelivered(stormPassageState);
+    gameState.memory.flags[FIRST_STORM_WARNING_SHOWN_FLAG] = true;
+    saveVoyageNow("showed first storm warning");
+  }
   return changed || opened;
 }
 
@@ -18613,10 +18638,7 @@ function updateStormDamage(previousMinute, currentMinute) {
     durationSeconds: 0,
     clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
   });
-  if (playerHullDamageWasResisted("LIGHTNING", { includeHullArmor: false })) {
-    syncAchievementsFromGameState({ type: "survived-lightning-strike" });
-    return true;
-  }
+  // Seaworthiness is the storm defense; hull armor and equipment cannot turn lightning aside.
   ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
   emitCaptureEvent("storm-damage", {
     damage: totalDamage,
@@ -22136,6 +22158,7 @@ function render(nowMs) {
 
   measurePerformanceBenchmarkStage("render.surfaceDetails", () => {
     for (const call of renderTileCalls) drawWeatherSurface(call);
+    drawVisibleRiverBanks(chart);
     drawLandRoads(chart, renderTileIds);
     for (const call of renderTileCalls) drawRiver(call, chart);
     for (const call of renderRiverConnectorCalls) drawRiverConnector(call, chart);
@@ -29714,7 +29737,6 @@ function drawRiverConnector(call, activeChart) {
   const colors = riverPaletteForTile(frameId, frame);
   const mainColor = colors.base;
 
-  drawRiverConnectorBank(call, geometry, activeChart);
   drawPixelBezierStroke(ctx, path, mainColor, RIVER_CONNECTOR_RADIUS_PX);
   drawRiverConnectorMouthFlare(ctx, call, path, mainColor);
   drawPixelBrush(ctx, a.x, a.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
@@ -29745,9 +29767,9 @@ function riverConnectorWaterPixels(call, geometry) {
   return pixels;
 }
 
-function drawRiverConnectorBank(call, geometry, activeChart) {
+function drawVisibleRiverBanks(activeChart) {
   let currentColor = null;
-  for (const pixel of riverConnectorBankPixels(call, geometry, activeChart)) {
+  for (const pixel of visibleRiverBankDrawPixels(activeChart)) {
     if (pixel.color !== currentColor) {
       currentColor = pixel.color;
       ctx.fillStyle = currentColor;
@@ -29756,71 +29778,124 @@ function drawRiverConnectorBank(call, geometry, activeChart) {
   }
 }
 
-function riverConnectorBankPixels(call, geometry, activeChart) {
-  let chartCache = riverConnectorBankCache.get(activeChart);
-  if (!chartCache) {
-    chartCache = new WeakMap();
-    riverConnectorBankCache.set(activeChart, chartCache);
-  }
-  const cached = chartCache.get(call);
-  if (cached) return cached;
+function visibleRiverBankDrawPixels(activeChart) {
+  const cached = visibleRiverBankCache.get(activeChart);
+  if (cached?.weatherMaskDayIndex === weatherMaskDayIndex) return cached.pixels;
 
-  const waterPixels = riverConnectorWaterPixels(call, geometry);
-  const candidates = [];
-  for (const key of riverBankOutlinePixelSet(waterPixels)) {
+  const waterPixelGroups = [];
+  for (const call of activeChart.tileCalls) {
+    const mask = riverMasks?.[call.id] || 0;
+    if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
+    waterPixelGroups.push(riverTileSolidWaterPixels(call, activeChart, mask));
+  }
+  for (const call of activeChart.riverConnectorCalls) {
+    const geometry = riverConnectorGeometry(call, activeChart);
+    if (geometry) waterPixelGroups.push(riverConnectorWaterPixels(call, geometry));
+  }
+
+  const shadeCache = new Map();
+  const pixels = [];
+  for (const key of visibleRiverBankPixelSet(waterPixelGroups)) {
     const comma = key.indexOf(",");
     const x = Number(key.slice(0, comma));
     const y = Number(key.slice(comma + 1));
-    candidates.push({ x, y });
-  }
-
-  const landEndpoints = [];
-  if (!call.aWater) {
-    landEndpoints.push({
-      x: geometry.a.x,
-      y: geometry.a.y,
-      color: darkerResurrect64Hex(terrainColorForTile(call.row, call.a), 2)
-    });
-  }
-  if (!call.bWater) {
-    landEndpoints.push({
-      x: geometry.b.x,
-      y: geometry.b.y,
-      color: darkerResurrect64Hex(terrainColorForTile(call.nrow, call.b), 2)
-    });
-  }
-  if (landEndpoints.length === 0) {
-    throw new Error(`River connector ${call.a}-${call.b} has no land endpoint`);
-  }
-
-  const pixels = [];
-  for (const candidate of candidates) {
-    const surface = drawnSurfaceNavigationAtPoint(
-      candidate.x,
-      candidate.y,
-      activeChart,
-      () => true
-    );
-    if (!surface || surface.water) continue;
-    let nearest = landEndpoints[0];
-    let nearestDistance = Infinity;
-    for (const endpoint of landEndpoints) {
-      const dx = candidate.x - endpoint.x;
-      const dy = candidate.y - endpoint.y;
-      const distance = dx * dx + dy * dy;
-      if (distance >= nearestDistance) continue;
-      nearestDistance = distance;
-      nearest = endpoint;
+    const terrainCall = topmostLandTerrainCallAtPoint(x, y, activeChart);
+    if (!terrainCall) continue;
+    const sourceHex = terrainPixelHexAtMapPoint(terrainCall, x, y);
+    if (!sourceHex) continue;
+    let shade = shadeCache.get(sourceHex);
+    if (!shade) {
+      shade = `#${darkerResurrect64Hex(sourceHex, 2)}`;
+      shadeCache.set(sourceHex, shade);
     }
-    pixels.push(Object.freeze({
-      x: candidate.x,
-      y: candidate.y,
-      color: `#${nearest.color}`
-    }));
+    pixels.push(Object.freeze({ x, y, color: shade }));
   }
-  const frozen = Object.freeze(pixels);
-  chartCache.set(call, frozen);
-  return frozen;
+
+  const result = Object.freeze(pixels);
+  visibleRiverBankCache.set(activeChart, {
+    weatherMaskDayIndex,
+    pixels: result
+  });
+  return result;
+}
+
+function riverTileSolidWaterPixels(call, activeChart, mask) {
+  const geometry = riverNavigationPathsForTile(call, activeChart, mask);
+  const { endpoints, paths, pathOffsetX, pathOffsetY } = geometry;
+  const pixels = new Set();
+  const addBrush = (x, y, radius) => {
+    forEachPixelBrushPoint(
+      x + pathOffsetX,
+      y + pathOffsetY,
+      radius,
+      (px, py) => pixels.add(pixelMaskKey(px, py))
+    );
+  };
+
+  for (const path of paths) {
+    forEachPixelOnBezier(path, (x, y) => addBrush(x, y, RIVER_BODY_RADIUS_PX));
+  }
+  forEachRiverTileMouthFlare(paths, endpoints, (path, wideAtStart) => {
+    forEachRiverMouthFlareSample(path, wideAtStart, (x, y, radius) => {
+      addBrush(x, y, Math.round(radius));
+    }, RIVER_BODY_RADIUS_PX);
+  });
+  if (endpoints.length !== 2) {
+    addBrush(TILE_ART_HALF, TILE_ART_HALF, RIVER_CONNECTOR_RADIUS_PX);
+  }
+  for (const endpoint of endpoints) {
+    addBrush(
+      endpoint.x,
+      endpoint.y,
+      endpoint.mouth ? RIVER_MOUTH_RADIUS_PX : RIVER_CONNECTOR_RADIUS_PX
+    );
+  }
+  return pixels;
+}
+
+function topmostLandTerrainCallAtPoint(x, y, activeChart) {
+  let topmost = null;
+  for (const entry of wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex)) {
+    if (entry.kind !== "tile" || isWaterSurfaceRow(entry.call.row)) continue;
+    if (!tileTerrainSpriteOpaqueAtMapPoint(entry.call, x, y)) continue;
+    if (!topmost || compareTerrainDrawCalls(topmost, entry.call) < 0) {
+      topmost = entry.call;
+    }
+  }
+  return topmost;
+}
+
+function terrainPixelHexAtMapPoint(call, x, y) {
+  const image = terrainImageForTile(call.row, call.id);
+  let pixels = terrainImagePixelCache.get(image);
+  if (!pixels) {
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = width;
+    sampleCanvas.height = height;
+    const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+    if (!sampleCtx) throw new Error(`Could not sample riverbank terrain for tile ${call.id}`);
+    sampleCtx.imageSmoothingEnabled = false;
+    sampleCtx.drawImage(image, 0, 0);
+    pixels = {
+      width,
+      height,
+      data: sampleCtx.getImageData(0, 0, width, height).data
+    };
+    terrainImagePixelCache.set(image, pixels);
+  }
+
+  const px = Math.round(x - (call.drawSurfaceX - TILE_ART_HALF));
+  const py = Math.round(y - (call.drawSurfaceY - TILE_ART_HALF));
+  if (px < 0 || py < 0 || px >= pixels.width || py >= pixels.height) return null;
+  const offset = (px + py * pixels.width) * 4;
+  if (pixels.data[offset + 3] === 0) return null;
+  return rgbToHex(
+    pixels.data[offset],
+    pixels.data[offset + 1],
+    pixels.data[offset + 2]
+  );
 }
 
 function riverConnectorGeometry(call, activeChart) {
@@ -30089,8 +30164,6 @@ function drawRiver(call, activeChart) {
   if (!sprite) return;
   const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const spriteY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
-  const bankSprite = riverBankSpriteForTile(call, sprite);
-  ctx.drawImage(bankSprite, spriteX, spriteY);
   ctx.drawImage(sprite, spriteX, spriteY);
 }
 
@@ -30580,59 +30653,6 @@ function riverSpriteForTile(call, activeChart, mask) {
   const sprite = generateRiverSprite(endpoints, frame, variant, latitudeBand);
   riverSpriteCache.set(key, sprite);
   return sprite;
-}
-
-function riverBankSpriteForTile(call, riverSprite) {
-  let terrainCache = riverBankSpriteCache.get(riverSprite);
-  if (!terrainCache) {
-    terrainCache = new WeakMap();
-    riverBankSpriteCache.set(riverSprite, terrainCache);
-  }
-  const terrain = terrainImageForTile(call.row, call.id);
-  const cached = terrainCache.get(terrain);
-  if (cached) return cached;
-
-  const terrainCanvas = document.createElement("canvas");
-  terrainCanvas.width = TILE_ART_SIZE;
-  terrainCanvas.height = TILE_ART_SIZE;
-  const terrainCtx = terrainCanvas.getContext("2d", { willReadFrequently: true });
-  if (!terrainCtx) throw new Error(`Could not sample riverbank terrain for tile ${call.id}`);
-  terrainCtx.imageSmoothingEnabled = false;
-  terrainCtx.drawImage(terrain, 0, 0);
-  const terrainPixels = terrainCtx.getImageData(0, 0, TILE_ART_SIZE, TILE_ART_SIZE).data;
-  const waterMask = spriteAlphaMask(riverSprite);
-  const outlineMask = riverBankOutlineMask(waterMask.alpha, waterMask.width, waterMask.height);
-  const bankCanvas = document.createElement("canvas");
-  bankCanvas.width = TILE_ART_SIZE;
-  bankCanvas.height = TILE_ART_SIZE;
-  const bankCtx = bankCanvas.getContext("2d");
-  if (!bankCtx) throw new Error(`Could not create riverbank sprite for tile ${call.id}`);
-  bankCtx.imageSmoothingEnabled = false;
-  const output = bankCtx.createImageData(TILE_ART_SIZE, TILE_ART_SIZE);
-  const shadeCache = new Map();
-  for (let pixel = 0; pixel < outlineMask.length; pixel++) {
-    if (outlineMask[pixel] === 0) continue;
-    const offset = pixel * 4;
-    const alpha = terrainPixels[offset + 3];
-    if (alpha === 0) continue;
-    const sourceHex = rgbToHex(
-      terrainPixels[offset],
-      terrainPixels[offset + 1],
-      terrainPixels[offset + 2]
-    );
-    let shade = shadeCache.get(sourceHex);
-    if (!shade) {
-      shade = parseHexColor(darkerResurrect64Hex(sourceHex, 2));
-      shadeCache.set(sourceHex, shade);
-    }
-    output.data[offset] = shade.r;
-    output.data[offset + 1] = shade.g;
-    output.data[offset + 2] = shade.b;
-    output.data[offset + 3] = alpha;
-  }
-  bankCtx.putImageData(output, 0, 0);
-  terrainCache.set(terrain, bankCanvas);
-  return bankCanvas;
 }
 
 function riverEndpointsForTile(call, activeChart, mask) {

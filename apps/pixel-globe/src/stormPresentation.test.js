@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  FIRST_STORM_DIALOGUE_CLEARANCE,
+  FIRST_STORM_DIALOGUE_WARNING,
   STORM_PASSAGE_CLEARED,
   STORM_PASSAGE_ENTERED,
   createStormPassageState,
   fillStormEdgeFogPixels,
+  firstStormDialogueKind,
   markStormClearanceDelivered,
   markStormWarningDelivered,
+  resetStormPassageState,
   stormFogStrength,
   updateStormPassage
 } from "./stormPresentation.js";
@@ -67,6 +71,42 @@ test("a new storm cancels a stale undelivered clearance comment", () => {
   assert.equal(updateStormPassage(state, 0.5, THRESHOLDS, 11000), STORM_PASSAGE_ENTERED);
   assert.equal(state.warningPending, true);
   assert.equal(state.clearancePending, false);
+});
+
+test("only the first storm passage requests warning and clearance dialogue", () => {
+  const state = createStormPassageState();
+  assert.equal(updateStormPassage(state, 0.5, THRESHOLDS, 0), STORM_PASSAGE_ENTERED);
+  assert.equal(firstStormDialogueKind(state), FIRST_STORM_DIALOGUE_WARNING);
+  markStormWarningDelivered(state);
+
+  assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 1000), null);
+  assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 11000), STORM_PASSAGE_CLEARED);
+  assert.equal(firstStormDialogueKind(state, {
+    warningShown: true,
+    clearanceShown: false
+  }), FIRST_STORM_DIALOGUE_CLEARANCE);
+  markStormClearanceDelivered(state);
+
+  assert.equal(updateStormPassage(state, 0.5, THRESHOLDS, 12000), STORM_PASSAGE_ENTERED);
+  assert.equal(firstStormDialogueKind(state, {
+    warningShown: true,
+    clearanceShown: true
+  }), null);
+});
+
+test("an all-clear is silent when the first warning could not be shown", () => {
+  const state = createStormPassageState(true);
+  assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 0), null);
+  assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 10000), STORM_PASSAGE_CLEARED);
+  assert.equal(firstStormDialogueKind(state), null);
+});
+
+test("storm passage state resets between voyages", () => {
+  const state = createStormPassageState(true);
+  state.warningPending = true;
+  state.belowExitSinceMs = 100;
+  assert.equal(resetStormPassageState(state), state);
+  assert.deepEqual(state, createStormPassageState());
 });
 
 test("storm fog fades in smoothly and reaches full strength", () => {

@@ -71,7 +71,7 @@ test("dominant sunset land favors the capsule's coral and brick colors", () => {
   assert.equal(sunsetPaletteHexForSourceHex("f9c22b"), "e6904e");
 });
 
-test("riverbank shades remain darker than adjacent land after sunset and night grading", () => {
+test("riverbank shades remain darker than adjacent land throughout palette grading", () => {
   for (const land of ["a2a947", "239063", "f9c22b", "625565", "c7dcd0"]) {
     const bank = darkerResurrect64Hex(land, 2);
     for (const mode of ["sunset", "night"]) {

@@ -1,5 +1,7 @@
 export const STORM_PASSAGE_ENTERED = "entered";
 export const STORM_PASSAGE_CLEARED = "cleared";
+export const FIRST_STORM_DIALOGUE_WARNING = "warning";
+export const FIRST_STORM_DIALOGUE_CLEARANCE = "clearance";
 
 const FOG_COLORS = Object.freeze([
   Object.freeze([137, 153, 157]),
@@ -15,6 +17,33 @@ export function createStormPassageState(active = false) {
     clearancePending: false,
     belowExitSinceMs: null
   };
+}
+
+export function resetStormPassageState(state, active = false) {
+  validateStormPassageState(state);
+  if (typeof active !== "boolean") throw new Error(`Storm passage active state must be boolean: ${active}`);
+  state.active = active;
+  state.warningPending = false;
+  state.clearancePending = false;
+  state.belowExitSinceMs = null;
+  return state;
+}
+
+export function firstStormDialogueKind(
+  state,
+  { warningShown = false, clearanceShown = false } = {}
+) {
+  validateStormPassageState(state);
+  if (typeof warningShown !== "boolean" || typeof clearanceShown !== "boolean") {
+    throw new Error("First storm dialogue history must use boolean values");
+  }
+  if (state.clearancePending) {
+    return warningShown && !clearanceShown ? FIRST_STORM_DIALOGUE_CLEARANCE : null;
+  }
+  if (state.warningPending) {
+    return warningShown ? null : FIRST_STORM_DIALOGUE_WARNING;
+  }
+  return null;
 }
 
 export function updateStormPassage(
