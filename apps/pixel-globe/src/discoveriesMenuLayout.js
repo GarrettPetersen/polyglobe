@@ -3,6 +3,12 @@ const TAB_PAD_X = 12;
 const TAB_GAP = 3;
 const TAB_GAP_BELOW_CLOSE = 3;
 const ORIGINAL_TAB_OFFSET_Y = 27;
+const LIST_OFFSET_Y = 91;
+const ROW_TOP_OFFSET = -2;
+const ROW_HEIGHT = 34;
+const ROW_STRIDE = 36;
+const PAGER_BOTTOM_PAD = 5;
+const LIST_PAGER_GAP = 4;
 
 export function discoveriesMenuHeaderLayout({
   panelRect,
@@ -57,6 +63,39 @@ export function discoveriesMenuHeaderLayout({
     closeButtonRect,
     tabRects,
     bodyOffsetY: tabY - panelRect.y - ORIGINAL_TAB_OFFSET_Y
+  });
+}
+
+export function discoveriesMenuListLayout({
+  panelRect,
+  bodyOffsetY,
+  pagerHeight
+}) {
+  assertRect(panelRect, "panel");
+  if (!Number.isInteger(bodyOffsetY) || bodyOffsetY < 0) {
+    throw new Error(`Discoveries body offset must be a non-negative integer: ${bodyOffsetY}`);
+  }
+  assertPositiveInteger(pagerHeight, "pager height");
+
+  const listY = panelRect.y + LIST_OFFSET_Y + bodyOffsetY;
+  const firstRowTop = listY + ROW_TOP_OFFSET;
+  const pagerY = panelRect.y + panelRect.h - pagerHeight - PAGER_BOTTOM_PAD;
+  const listBottom = pagerY - LIST_PAGER_GAP;
+  const availableHeight = listBottom - firstRowTop;
+  const pageSize = Math.floor((availableHeight + (ROW_STRIDE - ROW_HEIGHT)) / ROW_STRIDE);
+  if (pageSize <= 0) {
+    throw new Error(
+      `Discoveries list cannot fit between header and pager: ${availableHeight}px`
+    );
+  }
+
+  return Object.freeze({
+    listY,
+    pagerY,
+    pageSize,
+    rowTopOffset: ROW_TOP_OFFSET,
+    rowHeight: ROW_HEIGHT,
+    rowStride: ROW_STRIDE
   });
 }
 

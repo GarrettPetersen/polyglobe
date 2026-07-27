@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { discoveriesMenuHeaderLayout } from "./discoveriesMenuLayout.js";
+import {
+  discoveriesMenuHeaderLayout,
+  discoveriesMenuListLayout
+} from "./discoveriesMenuLayout.js";
 
 test("discoveries tabs sit below the close button without overlap", () => {
   const layout = discoveriesMenuHeaderLayout({
@@ -42,6 +45,45 @@ test("notebook discoveries reclaim the close-button row", () => {
   assert.equal(layout.closeButtonRect, null);
   assert.equal(layout.bodyOffsetY, 0);
   assert.equal(layout.tabRects[0].rect.y, panelRect.y + 27);
+});
+
+test("standalone discoveries retain two rows in the original compact modal", () => {
+  const layout = discoveriesMenuListLayout({
+    panelRect: { x: 6, y: 6, w: 244, h: 220 },
+    bodyOffsetY: 6,
+    pagerHeight: 24
+  });
+
+  assert.equal(layout.pageSize, 2);
+  assert.ok(
+    layout.listY + layout.rowTopOffset +
+    (layout.pageSize - 1) * layout.rowStride + layout.rowHeight <
+    layout.pagerY
+  );
+});
+
+test("notebook and tall portrait discoveries fill their available height", () => {
+  const notebook = discoveriesMenuListLayout({
+    panelRect: { x: 146, y: 6, w: 303, h: 244 },
+    bodyOffsetY: 0,
+    pagerHeight: 24
+  });
+  const portrait = discoveriesMenuListLayout({
+    panelRect: { x: 6, y: 6, w: 244, h: 500 },
+    bodyOffsetY: 6,
+    pagerHeight: 24
+  });
+
+  assert.equal(notebook.pageSize, 3);
+  assert.equal(portrait.pageSize, 10);
+});
+
+test("discoveries list fails loudly when no complete row fits", () => {
+  assert.throws(() => discoveriesMenuListLayout({
+    panelRect: { x: 6, y: 6, w: 244, h: 130 },
+    bodyOffsetY: 6,
+    pagerHeight: 24
+  }), /cannot fit/);
 });
 
 function rectsOverlap(a, b) {

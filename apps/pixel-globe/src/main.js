@@ -65,7 +65,10 @@ import {
   observeAboardBirthdays,
   pendingBirthdayDialogueLine
 } from "./birthdayEvents.js";
-import { discoveriesMenuHeaderLayout } from "./discoveriesMenuLayout.js";
+import {
+  discoveriesMenuHeaderLayout,
+  discoveriesMenuListLayout
+} from "./discoveriesMenuLayout.js";
 import {
   minimapSettlementColor,
   minimapSettlementMarkers
@@ -11138,7 +11141,33 @@ function stepAchievementsPage(direction) {
 }
 
 function discoveriesPageSize() {
-  return 2;
+  return discoveriesListLayoutForPanel(discoveriesPanelRect()).pageSize;
+}
+
+function discoveriesPanelRect() {
+  return captainNotebookPagePanel({
+    x: Math.floor((SCREEN_W - DISCOVERIES_PANEL_W) / 2),
+    y: Math.floor((SCREEN_H - DISCOVERIES_PANEL_H) / 2),
+    w: DISCOVERIES_PANEL_W,
+    h: DISCOVERIES_PANEL_H
+  });
+}
+
+function discoveriesHeaderLayoutForPanel(panel) {
+  return discoveriesMenuHeaderLayout({
+    panelRect: panel,
+    closeButtonSize: UI_ICON_BUTTON_SIZE,
+    tabHeight: UI_TAB_H,
+    reserveCloseButton: !captainMenu.isOpen
+  });
+}
+
+function discoveriesListLayoutForPanel(panel, headerLayout = discoveriesHeaderLayoutForPanel(panel)) {
+  return discoveriesMenuListLayout({
+    panelRect: panel,
+    bodyOffsetY: headerLayout.bodyOffsetY,
+    pagerHeight: UI_PAGER_BUTTON_H
+  });
 }
 
 function stepPoliticsPage(direction) {
@@ -25892,12 +25921,7 @@ function drawShipInfoArrowButton(rect, label, hovered) {
 }
 
 function drawDiscoveriesMenu() {
-  const panel = captainNotebookPagePanel({
-    x: Math.floor((SCREEN_W - DISCOVERIES_PANEL_W) / 2),
-    y: Math.floor((SCREEN_H - DISCOVERIES_PANEL_H) / 2),
-    w: DISCOVERIES_PANEL_W,
-    h: DISCOVERIES_PANEL_H
-  });
+  const panel = discoveriesPanelRect();
   const panelX = panel.x;
   const panelY = panel.y;
   discoveriesMenu.panelRect = panel;
@@ -25909,13 +25933,7 @@ function drawDiscoveriesMenu() {
   ctx.save();
   drawPiratePaperModal(discoveriesMenu.panelRect, 0.78);
 
-  const closeSize = UI_ICON_BUTTON_SIZE;
-  const headerLayout = discoveriesMenuHeaderLayout({
-    panelRect: discoveriesMenu.panelRect,
-    closeButtonSize: closeSize,
-    tabHeight: UI_TAB_H,
-    reserveCloseButton: !captainMenu.isOpen
-  });
+  const headerLayout = discoveriesHeaderLayoutForPanel(discoveriesMenu.panelRect);
   discoveriesMenu.closeButtonRect = headerLayout.closeButtonRect;
   drawPageCloseButton(discoveriesMenu.closeButtonRect, optionsMenu.hoverPoint);
   drawOptionsText("DISCOVERIES", panelX + panel.w / 2, panelY + 9, {
@@ -25931,6 +25949,7 @@ function drawDiscoveriesMenu() {
 
   discoveriesMenu.tabRects = headerLayout.tabRects;
   const bodyOffsetY = headerLayout.bodyOffsetY;
+  const listLayout = discoveriesListLayoutForPanel(panel, headerLayout);
   for (const tab of discoveriesMenu.tabRects) {
     drawShipInfoTab(
       tab.rect,
@@ -25980,7 +25999,7 @@ function drawDiscoveriesMenu() {
     );
   }
 
-  const pageSize = discoveriesPageSize();
+  const pageSize = listLayout.pageSize;
   const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
   discoveriesMenu.page = clamp(discoveriesMenu.page, 0, pageCount - 1);
   const pageStart = discoveriesMenu.page * pageSize;
@@ -25991,20 +26010,20 @@ function drawDiscoveriesMenu() {
     Math.max(0, pageEntries.length - 1)
   );
   const listX = panelX + 13;
-  const listY = panelY + 91 + bodyOffsetY;
+  const listY = listLayout.listY;
   if (discoveriesMenu.tab === "wonders") {
     discoveriesMenu.wonderRowRects = pageEntries.map((_, index) => ({
       x: panelX + 10,
-      y: listY - 2 + index * 36,
+      y: listY + listLayout.rowTopOffset + index * listLayout.rowStride,
       w: panel.w - 20,
-      h: 34
+      h: listLayout.rowHeight
     }));
   }
   if (pageEntries.length === 0) {
     drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: PIRATE_MENU_INK_MUTED });
   } else {
     pageEntries.forEach((entry, index) => {
-      const y = listY + index * 36;
+      const y = listY + index * listLayout.rowStride;
       const rowRect = discoveriesMenu.wonderRowRects[index] || null;
       if (rowRect) {
         const selected = discoveriesMenu.wonderSelectionActive &&
@@ -26045,7 +26064,7 @@ function drawDiscoveriesMenu() {
     });
   }
 
-  const pagerY = panelY + panel.h - UI_PAGER_BUTTON_H - 5;
+  const pagerY = listLayout.pagerY;
   discoveriesMenu.previousPageRect = { x: panelX + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
   discoveriesMenu.nextPageRect = {
     x: panelX + panel.w - 12 - UI_PAGER_BUTTON_W,
