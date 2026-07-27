@@ -9,28 +9,32 @@ export const PLAYER_START_AREAS = Object.freeze([
   "northern-europe",
   "mediterranean",
   "east-asia",
-  "india"
+  "india",
+  "southeast-asia"
 ]);
 
 export const PLAYER_STARTER_SHIPS = Object.freeze({
   europe: "fishing-lugger",
   ottoman: "felucca",
   "east-asia": "sampan",
-  india: "dhow"
+  india: "dhow",
+  "southeast-asia": "kelulus"
 });
 
 export const PLAYER_WHALING_STARTER_SHIPS = Object.freeze({
   europe: "small-cog",
   ottoman: "ketch",
   "east-asia": "small-junk",
-  india: "ketch"
+  india: "ketch",
+  "southeast-asia": "kelulus"
 });
 
 export const PLAYER_ARMED_STARTER_SHIPS = Object.freeze({
   europe: "small-cog",
   ottoman: "ketch",
   "east-asia": "small-junk",
-  india: "ketch"
+  india: "ketch",
+  "southeast-asia": "penjajap"
 });
 
 const EUROPEAN_FACTIONS = new Set([
@@ -51,12 +55,14 @@ const EUROPEAN_FACTIONS = new Set([
 ]);
 const EAST_ASIAN_FACTIONS = new Set(["ming", "japan", "joseon"]);
 const INDIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi"]);
+const SOUTHEAST_ASIAN_FACTIONS = new Set(["ayutthaya", "ternate", "tidore"]);
 
 export function playerStartRegionForFaction(factionId) {
   factionById(factionId);
   if (factionId === "ottoman") return "ottoman";
   if (EAST_ASIAN_FACTIONS.has(factionId)) return "east-asia";
   if (INDIAN_FACTIONS.has(factionId)) return "india";
+  if (SOUTHEAST_ASIAN_FACTIONS.has(factionId)) return "southeast-asia";
   if (EUROPEAN_FACTIONS.has(factionId)) return "europe";
   throw new Error(`Faction cannot provide a player starter ship: ${factionId}`);
 }
@@ -153,7 +159,9 @@ export function selectPlayerHomePort(identityKey, ports) {
   const pools = playerHomePortPools(ports);
   const availableAreas = PLAYER_START_AREAS.filter((area) => pools.get(area)?.length > 0);
   if (availableAreas.length === 0) {
-    throw new Error("No eligible Northern European, Mediterranean, East Asian, or Indian home ports");
+    throw new Error(
+      "No eligible Northern European, Mediterranean, East Asian, Indian, or Southeast Asian home ports"
+    );
   }
   const startArea = chooseSeeded(availableAreas, `${identityKey}|home-area`);
   const homePort = chooseSeeded(pools.get(startArea), `${identityKey}|home-city|${startArea}`);
@@ -166,6 +174,12 @@ export function playerStartAreaForPort(port) {
   if (port.factionId === "ottoman") return "mediterranean";
   if (port.cityType === "east-asian" && EAST_ASIAN_FACTIONS.has(port.factionId)) return "east-asia";
   if (port.cityType === "south-asian" && INDIAN_FACTIONS.has(port.factionId)) return "india";
+  if (
+    port.cityType === "southeast-asian" &&
+    SOUTHEAST_ASIAN_FACTIONS.has(port.factionId)
+  ) {
+    return "southeast-asia";
+  }
   if (port.cityType === "northern-european" && EUROPEAN_FACTIONS.has(port.factionId)) {
     return "northern-europe";
   }

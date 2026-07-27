@@ -33,7 +33,12 @@ const PORTS = [
   {
     ...port(12, "Veracruz", "Mexico", "mediterranean", "spain", 19.17, -96.13),
     playerHomeExcluded: true
-  }
+  },
+  port(13, "Ternate", "Indonesia", "southeast-asian", "ternate", 0.79, 127.38),
+  port(14, "Tidore", "Indonesia", "southeast-asian", "tidore", 0.67, 127.45),
+  port(15, "Ayutthaya", "Thailand", "southeast-asian", "ayutthaya", 14.36, 100.57),
+  port(16, "Banda Village", "Indonesia", "southeast-asian", "neutral", -4.52, 129.9),
+  port(17, "Malacca", "Malaysia", "southeast-asian", "portugal", 2.19, 102.25)
 ];
 
 test("starting profiles are deterministic and internally consistent", () => {
@@ -62,7 +67,7 @@ test("starting profiles are deterministic and internally consistent", () => {
 });
 
 test("whaling campaigns receive the cheapest regionally plausible blue-water hull", () => {
-  for (const factionId of ["england", "ottoman", "ming", "vijayanagara"]) {
+  for (const factionId of ["england", "ottoman", "ming", "vijayanagara", "ternate"]) {
     const starter = shipStatsForSlug(playerStarterShipForFaction(factionId));
     const whaler = shipStatsForSlug(playerStarterShipForFaction(factionId, { whaling: true }));
     assert.ok(whaler.seaworthiness >= 5, `${factionId}: ${whaler.slug}`);
@@ -71,7 +76,7 @@ test("whaling campaigns receive the cheapest regionally plausible blue-water hul
 });
 
 test("treasure campaigns receive a small regionally plausible armed hull", () => {
-  for (const factionId of ["england", "ottoman", "ming", "vijayanagara"]) {
+  for (const factionId of ["england", "ottoman", "ming", "vijayanagara", "ternate"]) {
     const armed = shipStatsForSlug(playerStarterShipForFaction(factionId, { armed: true }));
     assert.ok(armed.cannons > 0, `${factionId}: ${armed.slug}`);
   }
@@ -120,18 +125,24 @@ test("player identity seeds use explicit query values or fresh generated values"
   );
 });
 
-test("home selection balances four geographic areas and excludes implausible starts", () => {
+test("home selection balances five geographic areas and excludes implausible starts", () => {
   const seenAreas = new Set();
   const seenCities = new Set();
   for (let i = 0; i < 200; i++) {
     const selection = selectPlayerHomePort(`captain-${i}`, PORTS);
     seenAreas.add(selection.startArea);
     seenCities.add(selection.homePort.city);
-    assert.ok(!["Kilwa", "Mexico City", "Goa", "Veracruz"].includes(selection.homePort.city));
+    assert.ok(
+      !["Kilwa", "Mexico City", "Goa", "Veracruz", "Banda Village", "Malacca"]
+        .includes(selection.homePort.city)
+    );
   }
 
-  assert.deepEqual([...seenAreas].sort(), ["east-asia", "india", "mediterranean", "northern-europe"]);
-  assert.ok(seenCities.size >= 8);
+  assert.deepEqual(
+    [...seenAreas].sort(),
+    ["east-asia", "india", "mediterranean", "northern-europe", "southeast-asia"]
+  );
+  assert.ok(seenCities.size >= 11);
 });
 
 test("Ottoman and European Mediterranean ports share one start-area draw", () => {
@@ -142,17 +153,33 @@ test("Ottoman and European Mediterranean ports share one start-area draw", () =>
   );
 });
 
-test("regional starter ships are the smallest unarmed local vessels", () => {
+test("Spice Island captains receive the local Southeast Asian roster", () => {
+  const profile = generatePlayerStartingProfile({
+    identityKey: "ternate-starter-regression",
+    ports: [PORTS[12]],
+    manifest: MANIFEST,
+    usedNames: new Set()
+  });
+  assert.equal(profile.startArea, "southeast-asia");
+  assert.equal(profile.character.startRegion, "southeast-asia");
+  assert.equal(profile.character.nationalityId, "ternate");
+  assert.equal(profile.character.starterShipSlug, "kelulus");
+  assert.equal(playerStarterShipForFaction("ternate", { whaling: true }), "kelulus");
+  assert.equal(playerStarterShipForFaction("ternate", { armed: true }), "penjajap");
+});
+
+test("regional starter ships are unarmed local vessels", () => {
   assert.deepEqual(PLAYER_STARTER_SHIPS, {
     europe: "fishing-lugger",
     ottoman: "felucca",
     "east-asia": "sampan",
-    india: "dhow"
+    india: "dhow",
+    "southeast-asia": "kelulus"
   });
   for (const slug of Object.values(PLAYER_STARTER_SHIPS)) {
     const stats = shipStatsForSlug(slug);
     assert.equal(stats.cannons, 0);
-    assert.ok(stats.hitPoints <= 4);
+    assert.ok(stats.hitPoints <= 10);
   }
 });
 
@@ -162,10 +189,15 @@ test("port classification accepts only the intended geographic areas", () => {
   assert.equal(playerStartAreaForPort(PORTS[2]), "mediterranean");
   assert.equal(playerStartAreaForPort(PORTS[4]), "east-asia");
   assert.equal(playerStartAreaForPort(PORTS[6]), "india");
+  assert.equal(playerStartAreaForPort(PORTS[12]), "southeast-asia");
+  assert.equal(playerStartAreaForPort(PORTS[13]), "southeast-asia");
+  assert.equal(playerStartAreaForPort(PORTS[14]), "southeast-asia");
   assert.equal(playerStartAreaForPort(PORTS[8]), null);
   assert.equal(playerStartAreaForPort(PORTS[9]), null);
   assert.equal(playerStartAreaForPort(PORTS[10]), null);
   assert.equal(playerStartAreaForPort(PORTS[11]), null);
+  assert.equal(playerStartAreaForPort(PORTS[15]), null);
+  assert.equal(playerStartAreaForPort(PORTS[16]), null);
 });
 
 test("player-facing home labels use the 1522 realm instead of the modern country", () => {
