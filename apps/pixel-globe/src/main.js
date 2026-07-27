@@ -583,6 +583,7 @@ import {
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
+  npcFleetOriginWeightsForPorts,
   npcPortHasMajorProtection,
   npcRoleLabel,
   npcSeaRouteHasPort,
@@ -3064,6 +3065,7 @@ async function main() {
   const playerProfile = generatePlayerStartingProfile({
     identityKey: voyageSeed,
     ports: portCities,
+    portWeights: npcFleetOriginWeightsForPorts(portCities),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });

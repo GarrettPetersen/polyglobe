@@ -11,6 +11,7 @@ import {
   resolvePlayerCharacterIdentityKey,
   selectPlayerHomePort
 } from "./playerCharacter.js";
+import { npcFleetOriginWeightsForPorts } from "./npcSeaRoutes.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 const MANIFEST = JSON.parse(readFileSync(
@@ -40,11 +41,13 @@ const PORTS = [
   port(16, "Banda Village", "Indonesia", "southeast-asian", "neutral", -4.52, 129.9),
   port(17, "Malacca", "Malaysia", "southeast-asian", "portugal", 2.19, 102.25)
 ];
+const PORT_WEIGHTS = npcFleetOriginWeightsForPorts(PORTS);
 
 test("starting profiles are deterministic and internally consistent", () => {
   const generate = () => generatePlayerStartingProfile({
     identityKey: "profile-seed",
     ports: PORTS,
+    portWeights: PORT_WEIGHTS,
     manifest: MANIFEST,
     usedNames: new Set()
   });
@@ -90,6 +93,7 @@ test("Ming captains always receive Chinese starter vessels", () => {
   const profile = generatePlayerStartingProfile({
     identityKey: "ming-starter-regression",
     ports: [PORTS[4]],
+    portWeights: npcFleetOriginWeightsForPorts([PORTS[4]]),
     manifest: MANIFEST,
     usedNames: new Set()
   });
@@ -125,15 +129,15 @@ test("player identity seeds use explicit query values or fresh generated values"
   );
 });
 
-test("home selection balances five geographic areas and excludes implausible starts", () => {
+test("home selection balances five geographic areas and includes Portuguese Asian ports", () => {
   const seenAreas = new Set();
   const seenCities = new Set();
-  for (let i = 0; i < 200; i++) {
-    const selection = selectPlayerHomePort(`captain-${i}`, PORTS);
+  for (let i = 0; i < 1000; i++) {
+    const selection = selectPlayerHomePort(`captain-${i}`, PORTS, PORT_WEIGHTS);
     seenAreas.add(selection.startArea);
     seenCities.add(selection.homePort.city);
     assert.ok(
-      !["Kilwa", "Mexico City", "Goa", "Veracruz", "Banda Village", "Malacca"]
+      !["Kilwa", "Mexico City", "Veracruz", "Banda Village"]
         .includes(selection.homePort.city)
     );
   }
@@ -142,7 +146,25 @@ test("home selection balances five geographic areas and excludes implausible sta
     [...seenAreas].sort(),
     ["east-asia", "india", "mediterranean", "northern-europe", "southeast-asia"]
   );
-  assert.ok(seenCities.size >= 11);
+  assert.ok(seenCities.has("Goa"));
+  assert.ok(seenCities.has("Malacca"));
+});
+
+test("maritime fleet weighting favors busy ports without removing quiet homes", () => {
+  const london = port(101, "London", "United Kingdom", "northern-european", "england", 51.51, -0.13);
+  const buda = port(102, "Buda", "Hungary", "northern-european", "hungary", 47.5, 19.04);
+  const ports = [london, buda];
+  const weights = new Map([
+    [london.tileId, 9],
+    [buda.tileId, 1]
+  ]);
+  const starts = { London: 0, Buda: 0 };
+  for (let i = 0; i < 1000; i++) {
+    starts[selectPlayerHomePort(`weighted-captain-${i}`, ports, weights).homePort.city]++;
+  }
+
+  assert.ok(starts.London > starts.Buda * 4, JSON.stringify(starts));
+  assert.ok(starts.Buda > 0, JSON.stringify(starts));
 });
 
 test("Ottoman and European Mediterranean ports share one start-area draw", () => {
@@ -157,6 +179,7 @@ test("Spice Island captains receive the local Southeast Asian roster", () => {
   const profile = generatePlayerStartingProfile({
     identityKey: "ternate-starter-regression",
     ports: [PORTS[12]],
+    portWeights: npcFleetOriginWeightsForPorts([PORTS[12]]),
     manifest: MANIFEST,
     usedNames: new Set()
   });
@@ -194,16 +217,35 @@ test("port classification accepts only the intended geographic areas", () => {
   assert.equal(playerStartAreaForPort(PORTS[14]), "southeast-asia");
   assert.equal(playerStartAreaForPort(PORTS[8]), null);
   assert.equal(playerStartAreaForPort(PORTS[9]), null);
-  assert.equal(playerStartAreaForPort(PORTS[10]), null);
+  assert.equal(playerStartAreaForPort(PORTS[10]), "india");
   assert.equal(playerStartAreaForPort(PORTS[11]), null);
   assert.equal(playerStartAreaForPort(PORTS[15]), null);
-  assert.equal(playerStartAreaForPort(PORTS[16]), null);
+  assert.equal(playerStartAreaForPort(PORTS[16]), "southeast-asia");
+});
+
+test("Portuguese Asian home ports produce Portuguese captains", () => {
+  for (const homePort of [PORTS[10], PORTS[16]]) {
+    const profile = generatePlayerStartingProfile({
+      identityKey: `portuguese-${homePort.city}`,
+      ports: [homePort],
+      portWeights: npcFleetOriginWeightsForPorts([homePort]),
+      manifest: MANIFEST,
+      usedNames: new Set()
+    });
+    assert.equal(profile.homePort.city, homePort.city);
+    assert.equal(profile.character.nationalityId, "portugal");
+    assert.equal(profile.startArea, playerStartAreaForPort(homePort));
+  }
 });
 
 test("player-facing home labels use the 1522 realm instead of the modern country", () => {
+  const ports = [
+    port(112, "Sudak", "Russian Federation", "mediterranean", "ottoman", 44.85, 34.97)
+  ];
   const profile = generatePlayerStartingProfile({
     identityKey: "sudak-profile",
-    ports: [port(12, "Sudak", "Russian Federation", "mediterranean", "ottoman", 44.85, 34.97)],
+    ports,
+    portWeights: npcFleetOriginWeightsForPorts(ports),
     manifest: MANIFEST,
     usedNames: new Set()
   });
@@ -216,5 +258,15 @@ test("player-facing home labels use the 1522 realm instead of the modern country
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {
-  return { tileId, city, displayCity: city, country, cityType, factionId, lat, lon };
+  return {
+    tileId,
+    city,
+    displayCity: city,
+    country,
+    cityType,
+    factionId,
+    lat,
+    lon,
+    population: 10000
+  };
 }

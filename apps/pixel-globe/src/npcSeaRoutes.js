@@ -113,6 +113,43 @@ export function npcPortHasMajorProtection(port) {
   return Boolean(port?.isFactionCapital) || Number(port?.population || 0) >= MAJOR_PORT_PROTECTION_POPULATION;
 }
 
+export function npcFleetOriginWeightsForPorts(ports) {
+  if (!Array.isArray(ports) || ports.length === 0) {
+    throw new Error("NPC fleet origin weights require ports");
+  }
+  const weights = new Map();
+  for (const port of ports) {
+    if (!Number.isInteger(port?.tileId) || port.tileId < 0) {
+      throw new Error(`NPC fleet origin weight port has invalid tile id: ${port?.tileId}`);
+    }
+    if (weights.has(port.tileId)) {
+      throw new Error(`NPC fleet origin weights received duplicate port tile: ${port.tileId}`);
+    }
+    // Every eligible home remains possible even if it is outside the active fleet's busiest pools.
+    weights.set(port.tileId, 1);
+  }
+
+  const usablePorts = ports
+    .filter(isAnyUsablePort)
+    .map(normalizeNpcRoutePort)
+    .filter((port) => port.routeAnchors.length > 0);
+  let remainingFleet = NPC_FLEET_TARGET;
+  for (const profileSpec of FLEET_PROFILES) {
+    if (remainingFleet <= 0) break;
+    const pool = rankedProfilePorts(usablePorts, profileSpec);
+    if (pool.length < 2) continue;
+    const shipCount = Math.min(profileSpec.count, pool.length * 2, remainingFleet);
+    addExpectedFleetOrigins(weights, pool, shipCount);
+    remainingFleet -= shipCount;
+  }
+  for (const profileSpec of WHALER_PROFILES) {
+    const pool = rankedProfilePorts(usablePorts, profileSpec);
+    if (pool.length < profileSpec.minimumPorts) continue;
+    addExpectedFleetOrigins(weights, pool, profileSpec.count);
+  }
+  return weights;
+}
+
 const NPC_ROLE_SET = new Set([
   NPC_ROLE_MERCHANT,
   NPC_ROLE_FISHERMAN,
@@ -2562,6 +2599,20 @@ function rankedProfilePorts(ports, profileSpec) {
     .filter(profileSpec.portPredicate)
     .sort((a, b) => b.population - a.population || portName(a).localeCompare(portName(b)))
     .slice(0, profileSpec.mode === "regional" ? 34 : 54);
+}
+
+function addExpectedFleetOrigins(weights, pool, shipCount) {
+  if (!Number.isInteger(shipCount) || shipCount <= 0) {
+    throw new Error(`NPC fleet origin weights received invalid ship count: ${shipCount}`);
+  }
+  const expectedOriginsPerPort = shipCount / pool.length;
+  for (const port of pool) {
+    const current = weights.get(port.tileId);
+    if (!Number.isFinite(current) || current <= 0) {
+      throw new Error(`NPC fleet origin weights are missing port ${port.tileId}`);
+    }
+    weights.set(port.tileId, current + expectedOriginsPerPort);
+  }
 }
 
 function destinationRank(origin, candidate, seed) {

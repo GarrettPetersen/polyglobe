@@ -11,6 +11,7 @@ import {
 } from "./campaignGoals.js";
 import {
   CAMPAIGN_GOAL_REMINDER_DECISION_KEY,
+  CAMPAIGN_GOAL_REMINDER_INTERVAL_DAYS,
   campaignGoalDepartureReminder,
   dueCampaignGoalReminderInterval,
   markCampaignGoalReminderDelivered
@@ -44,16 +45,18 @@ const WONDERS = Object.freeze([
   })
 ]);
 
-test("campaign reminders become due once per elapsed two-week interval", () => {
+test("campaign reminders become due once per elapsed two-month interval", () => {
   const decisions = {};
+  const intervalMinutes = CAMPAIGN_GOAL_REMINDER_INTERVAL_DAYS * 24 * 60;
+  assert.equal(CAMPAIGN_GOAL_REMINDER_INTERVAL_DAYS, 60);
   assert.equal(dueCampaignGoalReminderInterval({
     decisions,
-    currentMinute: 14 * 24 * 60 - 1,
+    currentMinute: intervalMinutes - 1,
     voyageStartMinute: 0
   }), null);
   assert.equal(dueCampaignGoalReminderInterval({
     decisions,
-    currentMinute: 14 * 24 * 60,
+    currentMinute: intervalMinutes,
     voyageStartMinute: 0
   }), 1);
 
@@ -61,12 +64,12 @@ test("campaign reminders become due once per elapsed two-week interval", () => {
   assert.equal(decisions[CAMPAIGN_GOAL_REMINDER_DECISION_KEY], 1);
   assert.equal(dueCampaignGoalReminderInterval({
     decisions,
-    currentMinute: 27 * 24 * 60,
+    currentMinute: intervalMinutes * 2 - 1,
     voyageStartMinute: 0
   }), null);
   assert.equal(dueCampaignGoalReminderInterval({
     decisions,
-    currentMinute: 43 * 24 * 60,
+    currentMinute: intervalMinutes * 3,
     voyageStartMinute: 0
   }), 3);
 });

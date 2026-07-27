@@ -14,8 +14,8 @@ import {
   treasureCampaignPhase
 } from "./treasureCampaign.js";
 
-export const CAMPAIGN_GOAL_REMINDER_DECISION_KEY = "campaign.goal-reminder.interval";
-export const CAMPAIGN_GOAL_REMINDER_INTERVAL_DAYS = 14;
+export const CAMPAIGN_GOAL_REMINDER_DECISION_KEY = "campaign.goal-reminder.two-month-interval";
+export const CAMPAIGN_GOAL_REMINDER_INTERVAL_DAYS = 60;
 
 const MINUTES_PER_DAY = 24 * 60;
 const CAMPAIGN_GOAL_REMINDER_INTERVAL_MINUTES =

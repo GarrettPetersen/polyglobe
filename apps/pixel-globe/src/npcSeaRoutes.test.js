@@ -21,6 +21,7 @@ import {
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
+  npcFleetOriginWeightsForPorts,
   npcPortHasMajorProtection,
   reconcileNpcCargoCapacity,
   routeBetweenPorts,
@@ -76,6 +77,18 @@ test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
   assert.ok(NPC_SHIP_SLUGS.includes("kelulus"));
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
+});
+
+test("fleet-origin weights preserve every port while favoring active sailing origins", () => {
+  const weights = npcFleetOriginWeightsForPorts(PORTS);
+  assert.equal(weights.size, PORTS.length);
+  assert.ok([...weights.values()].every((weight) => Number.isFinite(weight) && weight >= 1));
+  assert.ok([...weights.values()].some((weight) => weight > 1));
+
+  assert.throws(
+    () => npcFleetOriginWeightsForPorts([PORTS[0], { ...PORTS[1], tileId: PORTS[0].tileId }]),
+    /duplicate port tile/i
+  );
 });
 
 test("voyage seeds vary NPC traffic while remaining deterministic", () => {
