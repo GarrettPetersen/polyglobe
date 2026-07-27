@@ -8,10 +8,18 @@ export const NIGHT_GRADE_HEX = Object.freeze([
   "6b3e75", "4d65b4", "7f708a", "905ea9", "a884f3", "9babb2"
 ]);
 
+export const SUNSET_WATER_GRADE_HEX = Object.freeze([
+  "2e222f", "45293f", "7a3045", "9e4539", "cd683d"
+]);
+
+export const SUNSET_LAND_GRADE_HEX = Object.freeze([
+  "6e2727", "b33831", "ea4f36", "f57d4a", "e6904e", "fb6b1d",
+  "f79617", "f9c22b", "fbb954", "fbff86", "fdcbb0"
+]);
+
 export const SUNSET_GRADE_HEX = Object.freeze([
-  "2e222f", "45293f", "6e2727", "7a3045", "9e4539", "b33831",
-  "cd683d", "ea4f36", "f57d4a", "e6904e", "fb6b1d", "f79617",
-  "f9c22b", "fbb954", "fbff86", "fdcbb0"
+  ...SUNSET_WATER_GRADE_HEX,
+  ...SUNSET_LAND_GRADE_HEX
 ]);
 
 const RESURRECT_COLORS = RESURRECT_64_HEX.map(parsePaletteColor);
@@ -36,18 +44,29 @@ const NIGHT_TERRAIN_SEPARATION = paletteOverrideMap({
   "1ebc73": "6b3e75",
   "91db69": "905ea9"
 }, NIGHT_CANDIDATES, "night terrain separation");
-const SUNSET_TERRAIN_SEPARATION = paletteOverrideMap({
-  "323353": "45293f",
+const SUNSET_WATER_TERRAIN_SEPARATION = paletteOverrideMap({
+  "323353": "2e222f",
+  "9babb2": "9e4539",
+  "0b8a8f": "7a3045",
+  "0b5e65": "45293f",
+  "0eaf9b": "9e4539",
+  "30e1b9": "cd683d"
+}, paletteSubset(SUNSET_WATER_GRADE_HEX), "sunset water terrain");
+const SUNSET_LAND_TERRAIN_SEPARATION = paletteOverrideMap({
   "4c3e24": "6e2727",
   "676633": "b33831",
-  "a2a947": "f79617",
-  "d5e04b": "fbff86",
+  "a2a947": "ea4f36",
+  "d5e04b": "fbb954",
   "165a4c": "6e2727",
   "239063": "ea4f36",
   "1ebc73": "f57d4a",
-  "91db69": "f79617",
-  "f9c22b": "fbff86"
-}, SUNSET_CANDIDATES, "sunset terrain separation");
+  "91db69": "f57d4a",
+  "f9c22b": "e6904e"
+}, paletteSubset(SUNSET_LAND_GRADE_HEX), "sunset land terrain");
+const SUNSET_TERRAIN_SEPARATION = new Map([
+  ...SUNSET_WATER_TERRAIN_SEPARATION,
+  ...SUNSET_LAND_TERRAIN_SEPARATION
+]);
 const NIGHT_PALETTE_MAP = RESURRECT_COLORS.map((source) => nightTargetFor(source));
 const SUNSET_PALETTE_MAP = RESURRECT_COLORS.map((source) => sunsetTargetFor(source));
 const SOURCE_PALETTE_LUT = buildSourcePaletteLut();

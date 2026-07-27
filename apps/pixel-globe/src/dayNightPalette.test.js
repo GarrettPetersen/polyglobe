@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   NIGHT_GRADE_HEX,
   SUNSET_GRADE_HEX,
+  SUNSET_LAND_GRADE_HEX,
+  SUNSET_WATER_GRADE_HEX,
   applyDayNightPaletteGrade,
   nightPaletteHexForSourceHex,
   sunsetPaletteHexForSourceHex
@@ -38,6 +40,32 @@ test("sunset mapping pushes the whole palette toward red and gold", () => {
 
   assert.ok(sunsetWarmth > sourceWarmth + 70);
   assert.ok(new Set(mapped).size >= 8);
+});
+
+test("sunset water and land use disjoint ramps", () => {
+  const waterRamp = new Set(SUNSET_WATER_GRADE_HEX);
+  const landRamp = new Set(SUNSET_LAND_GRADE_HEX);
+  assert.equal([...waterRamp].some((hex) => landRamp.has(hex)), false);
+
+  const terrainPairs = [
+    ["323353", "4c3e24"],
+    ["9babb2", "a2a947"],
+    ["0b8a8f", "676633"],
+    ["0b5e65", "165a4c"],
+    ["0eaf9b", "239063"],
+    ["30e1b9", "f9c22b"]
+  ];
+  for (const [water, land] of terrainPairs) {
+    assert.equal(waterRamp.has(sunsetPaletteHexForSourceHex(water)), true, water);
+    assert.equal(landRamp.has(sunsetPaletteHexForSourceHex(land)), true, land);
+  }
+});
+
+test("dominant sunset land favors the capsule's coral and brick colors", () => {
+  assert.equal(sunsetPaletteHexForSourceHex("676633"), "b33831");
+  assert.equal(sunsetPaletteHexForSourceHex("a2a947"), "ea4f36");
+  assert.equal(sunsetPaletteHexForSourceHex("91db69"), "f57d4a");
+  assert.equal(sunsetPaletteHexForSourceHex("f9c22b"), "e6904e");
 });
 
 test("dominant water and land colors stay distinct at sunset and night", () => {
