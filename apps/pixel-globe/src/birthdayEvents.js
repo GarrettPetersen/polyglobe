@@ -57,9 +57,12 @@ export function pendingBirthdayDialogueLine(memory, characters) {
       event.lineIndex += 1;
       continue;
     }
+    const participants = birthdayDialogueParticipants(event, line, charactersById);
     return Object.freeze({
       eventId: event.id,
       character,
+      leftCharacter: participants.leftCharacter,
+      rightCharacter: participants.rightCharacter,
       message: line.message,
       expressionId: line.expressionId
     });
@@ -184,6 +187,38 @@ function completeFirstEvent(memory) {
   if (memory.celebratedEventIds.length > CELEBRATED_EVENT_LIMIT) {
     memory.celebratedEventIds.splice(0, memory.celebratedEventIds.length - CELEBRATED_EVENT_LIMIT);
   }
+}
+
+function birthdayDialogueParticipants(event, line, charactersById) {
+  const speaker = charactersById.get(line.speakerId);
+  if (!speaker) throw new Error(`Birthday dialogue speaker is no longer aboard: ${line.speakerId}`);
+  const livingCelebrants = event.celebrantIds
+    .map((id) => charactersById.get(id))
+    .filter(Boolean);
+  const wisher = event.lines
+    .map((entry) => charactersById.get(entry.speakerId))
+    .find((character) => character && !event.celebrantIds.includes(character.id)) || null;
+  const counterpart = event.celebrantIds.includes(speaker.id)
+    ? wisher ||
+      livingCelebrants.find((character) => character.id !== speaker.id) ||
+      [...charactersById.values()].find((character) => character.id !== speaker.id) ||
+      null
+    : livingCelebrants[0] ||
+      [...charactersById.values()].find((character) => character.id !== speaker.id) ||
+      null;
+  if (!counterpart) {
+    return { leftCharacter: speaker, rightCharacter: null };
+  }
+  const leftCharacter = wisher
+    ? wisher
+    : event.celebrantIds
+      .map((id) => charactersById.get(id))
+      .find((character) => character && [speaker.id, counterpart.id].includes(character.id));
+  if (!leftCharacter) throw new Error(`Birthday event cannot stage its speakers: ${event.id}`);
+  return {
+    leftCharacter,
+    rightCharacter: leftCharacter.id === speaker.id ? counterpart : speaker
+  };
 }
 
 function validateBirthdayEvent(event) {

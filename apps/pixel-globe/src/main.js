@@ -18632,7 +18632,11 @@ function presentPendingBirthdayDialogue() {
     .map((entry) => entry.character);
   const line = pendingBirthdayDialogueLine(gameState.memory.birthdays, characters);
   if (!line) return false;
-  return openCharacterAlertModal(line.character, line.message, line.expressionId, { kind: "birthday" });
+  return openCharacterAlertModal(line.character, line.message, line.expressionId, {
+    kind: "birthday",
+    leftCharacter: line.leftCharacter,
+    rightCharacter: line.rightCharacter
+  });
 }
 
 function birthdayDialogueOpportunity() {

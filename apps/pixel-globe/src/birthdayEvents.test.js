@@ -44,10 +44,14 @@ test("a birthday queues one exchange and is not repeated when the date is observ
 
   const first = pendingBirthdayDialogueLine(memory, aboard);
   assert.equal(first.character.id, "mate");
+  assert.equal(first.leftCharacter.id, "mate");
+  assert.equal(first.rightCharacter.id, "captain");
   assert.match(first.message, /birthday/i);
   consumeBirthdayDialogueLine(memory);
   const reply = pendingBirthdayDialogueLine(memory, aboard);
   assert.equal(reply.character.id, "captain");
+  assert.equal(reply.leftCharacter.id, "mate");
+  assert.equal(reply.rightCharacter.id, "captain");
   consumeBirthdayDialogueLine(memory);
   assert.equal(pendingBirthdayDialogueLine(memory, aboard), null);
   assert.equal(memory.celebratedEventIds.length, 1);
@@ -62,13 +66,41 @@ test("shared birthdays create one event in which every celebrant comments", () =
     character("chef", "Marta Bell", 4, 3)
   ];
   observeAboardBirthdays(memory, aboard, { year: 1522, month: 7, day: 10 });
-  const speakers = [];
+  const lines = [];
   for (let line = pendingBirthdayDialogueLine(memory, aboard); line; line = pendingBirthdayDialogueLine(memory, aboard)) {
-    speakers.push(line.character.id);
+    lines.push({
+      speaker: line.character.id,
+      left: line.leftCharacter.id,
+      right: line.rightCharacter.id
+    });
     consumeBirthdayDialogueLine(memory);
   }
-  assert.deepEqual(speakers, ["chef", "captain", "mate"]);
+  assert.deepEqual(lines, [
+    { speaker: "chef", left: "chef", right: "captain" },
+    { speaker: "captain", left: "chef", right: "captain" },
+    { speaker: "mate", left: "chef", right: "mate" }
+  ]);
   assert.equal(memory.celebratedEventIds.length, 1);
+});
+
+test("a shared birthday without a separate wisher still stages two celebrants face to face", () => {
+  const memory = createBirthdayMemory();
+  const aboard = [
+    character("captain", "Ana Costa", 7, 10),
+    character("mate", "Leif North", 7, 10)
+  ];
+  observeAboardBirthdays(memory, aboard, { year: 1522, month: 7, day: 10 });
+
+  const first = pendingBirthdayDialogueLine(memory, aboard);
+  assert.equal(first.character.id, "captain");
+  assert.equal(first.leftCharacter.id, "captain");
+  assert.equal(first.rightCharacter.id, "mate");
+  consumeBirthdayDialogueLine(memory);
+
+  const second = pendingBirthdayDialogueLine(memory, aboard);
+  assert.equal(second.character.id, "mate");
+  assert.equal(second.leftCharacter.id, "captain");
+  assert.equal(second.rightCharacter.id, "mate");
 });
 
 test("the captain alone does not throw a birthday party for themself", () => {
