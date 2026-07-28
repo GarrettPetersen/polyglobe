@@ -1115,6 +1115,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipComparisonDifferenceLabel,
   shipLocalDateLabel,
   shipLedgerDateLabel,
   shipLedgerPage,
@@ -38125,11 +38126,24 @@ function drawCompactShipCaptureStats(panel, comparison, presentation, artY) {
 }
 
 function drawShipComparison(comparison, columns, x, valueX, y) {
-  const candidateX = valueX - 72;
-  drawOptionsText(columns.candidateHeading, candidateX, y, {
+  const currentColumn = { right: valueX, width: 60 };
+  const differenceColumn = {
+    right: currentColumn.right - currentColumn.width - 3,
+    width: 34
+  };
+  const candidateColumn = {
+    right: differenceColumn.right - differenceColumn.width - 3,
+    width: 52
+  };
+  drawOptionsText(columns.candidateHeading, candidateColumn.right, y, {
     font: PIXEL_FONT_SMALL_8,
     align: "right",
     color: PIRATE_MENU_INK
+  });
+  drawOptionsText("+/-", differenceColumn.right, y, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "right",
+    color: PIRATE_MENU_INK_MUTED
   });
   drawOptionsText(columns.currentHeading, valueX, y, {
     font: PIXEL_FONT_SMALL_8,
@@ -38146,8 +38160,9 @@ function drawShipComparison(comparison, columns, x, valueX, y) {
     columns.currentHull,
     hullMetric.difference,
     x,
-    candidateX,
-    valueX,
+    candidateColumn,
+    differenceColumn,
+    currentColumn,
     y
   );
   y += 12;
@@ -38155,12 +38170,13 @@ function drawShipComparison(comparison, columns, x, valueX, y) {
   const armamentDifference = comparison.candidate.maxCannons - comparison.current.maxCannons;
   drawShipComparisonRow(
     "ARMAMENT",
-    `${comparison.candidate.armamentLabel} ${comparison.candidate.armamentSummary}`,
-    `${comparison.current.armamentLabel} ${comparison.current.armamentSummary}`,
+    shipArmamentDisplayText(comparison.candidate),
+    shipArmamentDisplayText(comparison.current),
     armamentDifference,
     x,
-    candidateX,
-    valueX,
+    candidateColumn,
+    differenceColumn,
+    currentColumn,
     y
   );
   y += 12;
@@ -38172,12 +38188,17 @@ function drawShipComparison(comparison, columns, x, valueX, y) {
       String(metric.current),
       metric.difference,
       x,
-      candidateX,
-      valueX,
+      candidateColumn,
+      differenceColumn,
+      currentColumn,
       y
     );
     y += 12;
   }
+}
+
+function shipArmamentDisplayText(shipView) {
+  return [shipView.armamentLabel, shipView.armamentSummary].filter(Boolean).join(" ");
 }
 
 function shipComparisonHeight(comparison) {
@@ -38187,20 +38208,41 @@ function shipComparisonHeight(comparison) {
   return (comparison.metrics.length + 2) * 12;
 }
 
-function drawShipComparisonRow(label, candidate, current, difference, x, candidateX, currentX, y) {
+function drawShipComparisonRow(
+  label,
+  candidate,
+  current,
+  difference,
+  x,
+  candidateColumn,
+  differenceColumn,
+  currentColumn,
+  y
+) {
   drawOptionsText(label, x, y, {
     font: PIXEL_FONT_SMALL_8,
     color: PIRATE_MENU_INK
   });
-  const candidateText = difference === 0
-    ? candidate
-    : `${candidate} ${difference > 0 ? "+" : ""}${difference}`;
-  drawOptionsText(fitPixelText(candidateText, PIXEL_FONT_SMALL_8, 88), candidateX, y, {
+  drawOptionsText(fitPixelText(candidate, PIXEL_FONT_SMALL_8, candidateColumn.width), candidateColumn.right, y, {
     font: PIXEL_FONT_SMALL_8,
     align: "right",
-    color: shipComparisonDifferenceColor(difference)
+    color: PIRATE_MENU_INK
   });
-  drawOptionsText(fitPixelText(current, PIXEL_FONT_SMALL_8, 65), currentX, y, {
+  drawOptionsText(
+    fitPixelText(
+      shipComparisonDifferenceLabel(difference),
+      PIXEL_FONT_SMALL_8,
+      differenceColumn.width
+    ),
+    differenceColumn.right,
+    y,
+    {
+      font: PIXEL_FONT_SMALL_8,
+      align: "right",
+      color: shipComparisonDifferenceColor(difference)
+    }
+  );
+  drawOptionsText(fitPixelText(current, PIXEL_FONT_SMALL_8, currentColumn.width), currentColumn.right, y, {
     font: PIXEL_FONT_SMALL_8,
     align: "right",
     color: PIRATE_MENU_INK_MUTED

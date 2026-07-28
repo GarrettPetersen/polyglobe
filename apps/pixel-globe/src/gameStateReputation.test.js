@@ -519,6 +519,8 @@ test("piracy notoriety can be recorded without double-counting the attacked vict
 
 test("letters of marque require capital standing and ship strength", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const longship = shipStatsForSlug("viking-longship");
+  assert.equal(LETTER_OF_MARQUE_POWER_REQUIRED, longship.hitPoints + longship.cannons);
   let status = letterOfMarqueStatus(state, LONDON_CAPITAL, LETTER_OF_MARQUE_POWER_REQUIRED);
   assert.equal(status.available, true);
   assert.equal(status.eligible, false);

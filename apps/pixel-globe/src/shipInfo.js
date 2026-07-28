@@ -195,6 +195,13 @@ export function createShipComparisonView(currentSlug, candidateSlug) {
   });
 }
 
+export function shipComparisonDifferenceLabel(difference) {
+  if (!Number.isFinite(difference)) {
+    throw new Error(`Invalid ship comparison difference: ${difference}`);
+  }
+  return difference > 0 ? `+${difference}` : String(difference);
+}
+
 function comparisonMetric(id, label, current, candidate) {
   return Object.freeze({
     id,
@@ -208,7 +215,7 @@ function comparisonMetric(id, label, current, candidate) {
 export function shipArmamentSummary(stats, activeCannons) {
   if (!stats || typeof stats !== "object") throw new Error("Ship armament summary requires ship stats");
   if (stats.navalWeaponKind === NAVAL_WEAPON_ARROW) {
-    return Object.freeze({ label: "ARROWS", summary: "AT WILL" });
+    return Object.freeze({ label: "ARROWS", summary: "" });
   }
   if (!Number.isInteger(activeCannons) || activeCannons < 0 || activeCannons > stats.cannons) {
     throw new Error(`Invalid active cannon count for ${stats.slug}: ${activeCannons}`);

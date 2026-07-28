@@ -20,6 +20,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipComparisonDifferenceLabel,
   shipLocalDateLabel,
   shipLedgerDateLabel,
   shipLedgerPage,
@@ -91,6 +92,13 @@ test("ship comparisons expose signed differences from the current vessel", () =>
   assert.equal(metrics.armor.difference, 0);
 });
 
+test("ship comparison differences occupy a dedicated signed column", () => {
+  assert.equal(shipComparisonDifferenceLabel(52), "+52");
+  assert.equal(shipComparisonDifferenceLabel(0), "0");
+  assert.equal(shipComparisonDifferenceLabel(-3), "-3");
+  assert.throws(() => shipComparisonDifferenceLabel(Number.NaN), /Invalid ship comparison difference/);
+});
+
 test("ship comparisons expose the turtle ship's exceptional armor", () => {
   const comparison = createShipComparisonView("joseon-panokseon", "joseon-turtle-ship");
   const armor = comparison.metrics.find((metric) => metric.id === "armor");
@@ -114,7 +122,7 @@ test("ship specifications explain oar and combined propulsion", () => {
   assert.equal(galley.propulsionSummary, "OAR + SAIL / ROW TO BOOST");
   assert.equal(longship.propulsionSummary, "OAR + SAIL / ROW TO BOOST");
   assert.equal(longship.armamentLabel, "ARROWS");
-  assert.equal(longship.armamentSummary, "AT WILL");
+  assert.equal(longship.armamentSummary, "");
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {

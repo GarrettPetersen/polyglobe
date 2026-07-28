@@ -2534,8 +2534,7 @@ function vikingLongshipView(session, city, gameState, context) {
           disabled: Boolean(disabledReason),
           disabledReason
         }),
-        option("Keep current ship", { type: "decline-viking-longship-reward" }),
-        back
+        option("Keep current ship", { type: "decline-viking-longship-reward" })
       ]
     };
   }

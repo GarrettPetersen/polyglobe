@@ -2476,6 +2476,8 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   );
   assert.match(reward.text, /accepting will replace your Brigantine/i);
   assert.ok(reward.options.some((entry) => entry.action.type === "accept-viking-longship-reward"));
+  assert.equal(reward.options.some((entry) => entry.label === "Back"), false);
+  assert.equal(reward.options.length, 2);
   const declineIndex = reward.options.findIndex((entry) => entry.action.type === "decline-viking-longship-reward");
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], declineIndex, context),
