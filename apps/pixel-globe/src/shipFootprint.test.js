@@ -6,6 +6,7 @@ import {
   pointInShipFootprint,
   shipFootprintCollision,
   shipFootprintFrame,
+  shipFootprintPerimeterSamples,
   translatedShipFootprint,
   validateShipFootprintBake
 } from "./shipFootprint.js";
@@ -48,6 +49,21 @@ test("ship overlap uses polygon geometry rather than center radii", () => {
   assert.ok(shipFootprintCollision(a, overlap));
   assert.equal(pointInShipFootprint({ x: 9, y: 1 }, a), true);
   assert.equal(pointInShipFootprint({ x: 9, y: 3 }, a), false);
+});
+
+test("placement samples each edge of the baked hull perimeter", () => {
+  const samples = shipFootprintPerimeterSamples(horizontal, 4);
+
+  for (const corner of horizontal.polygon) {
+    assert.ok(samples.some((point) => point.x === corner.x && point.y === corner.y));
+  }
+  assert.ok(samples.length >= 12);
+  assert.ok(samples.every((point) => (
+    point.x === -10 ||
+    point.x === 10 ||
+    point.y === -2 ||
+    point.y === 2
+  )));
 });
 
 test("footprint bakes fail loudly when a roster ship is absent", () => {

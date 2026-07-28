@@ -1,3 +1,5 @@
+const perimeterSamplesByFrame = new WeakMap();
+
 export function validateShipFootprintBake(bake, expectedFrameSize, expectedHeadings, requiredSlugs) {
   if (!bake || bake.frameSize !== expectedFrameSize || bake.headings !== expectedHeadings) {
     throw new Error("Ship hull footprint bake has incompatible dimensions");
@@ -34,6 +36,36 @@ export function translatedShipFootprint(frame, x, y) {
   validateFrame(frame);
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Ship footprint translation must be finite");
   return frame.polygon.map((point) => ({ x: x + point.x, y: y + point.y }));
+}
+
+export function shipFootprintPerimeterSamples(frame, maximumStep = 2) {
+  validateFrame(frame);
+  if (!Number.isFinite(maximumStep) || maximumStep <= 0) {
+    throw new Error(`Invalid ship footprint perimeter step: ${maximumStep}`);
+  }
+  let samplesByStep = perimeterSamplesByFrame.get(frame);
+  if (!samplesByStep) {
+    samplesByStep = new Map();
+    perimeterSamplesByFrame.set(frame, samplesByStep);
+  }
+  const cached = samplesByStep.get(maximumStep);
+  if (cached) return cached;
+  const samples = [];
+  for (let index = 0; index < frame.polygon.length; index++) {
+    const start = frame.polygon[index];
+    const end = frame.polygon[(index + 1) % frame.polygon.length];
+    const steps = Math.max(1, Math.ceil(Math.hypot(end.x - start.x, end.y - start.y) / maximumStep));
+    for (let step = 0; step < steps; step++) {
+      const t = step / steps;
+      samples.push({
+        x: start.x + (end.x - start.x) * t,
+        y: start.y + (end.y - start.y) * t
+      });
+    }
+  }
+  const result = Object.freeze(uniquePoints(samples));
+  samplesByStep.set(maximumStep, result);
+  return result;
 }
 
 export function shipFootprintCollision(a, b, padding = 0) {

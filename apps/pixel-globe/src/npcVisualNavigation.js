@@ -109,11 +109,70 @@ export function chooseNpcSailingDirection({
   };
 }
 
+export function findNpcVisualPlacement({
+  origin,
+  preferredPoints = [],
+  searchRadiusPx,
+  radialStepPx,
+  angleCount,
+  evaluate,
+  accept = () => true,
+  includeOrigin = true
+}) {
+  validatePoint(origin, "origin");
+  if (!Array.isArray(preferredPoints)) {
+    throw new Error("NPC visual placement requires preferred points");
+  }
+  for (const point of preferredPoints) validatePoint(point, "preferred point");
+  if (!Number.isFinite(searchRadiusPx) || searchRadiusPx < 0) {
+    throw new Error(`Invalid NPC visual placement radius: ${searchRadiusPx}`);
+  }
+  if (!Number.isFinite(radialStepPx) || radialStepPx <= 0) {
+    throw new Error(`Invalid NPC visual placement step: ${radialStepPx}`);
+  }
+  if (!Number.isInteger(angleCount) || angleCount <= 0) {
+    throw new Error(`Invalid NPC visual placement angle count: ${angleCount}`);
+  }
+  if (typeof evaluate !== "function" || typeof accept !== "function") {
+    throw new Error("NPC visual placement requires candidate predicates");
+  }
+
+  const evaluatePoint = (point) => {
+    const candidate = evaluate(point.x, point.y);
+    return candidate && accept(candidate) ? candidate : null;
+  };
+  if (includeOrigin) {
+    const direct = evaluatePoint(origin);
+    if (direct) return direct;
+  }
+  for (const point of preferredPoints) {
+    const preferred = evaluatePoint(point);
+    if (preferred) return preferred;
+  }
+  for (let radius = radialStepPx; radius <= searchRadiusPx; radius += radialStepPx) {
+    for (let index = 0; index < angleCount; index++) {
+      const angle = index / angleCount * Math.PI * 2;
+      const candidate = evaluatePoint({
+        x: origin.x + Math.cos(angle) * radius,
+        y: origin.y + Math.sin(angle) * radius
+      });
+      if (candidate) return candidate;
+    }
+  }
+  return null;
+}
+
 function normalize2(value) {
   if (!value || !Number.isFinite(value.x) || !Number.isFinite(value.y)) return null;
   const length = Math.hypot(value.x, value.y);
   if (length <= 1e-8) return null;
   return { x: value.x / length, y: value.y / length };
+}
+
+function validatePoint(point, label) {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    throw new Error(`NPC visual placement has an invalid ${label}`);
+  }
 }
 
 function dot2(a, b) {

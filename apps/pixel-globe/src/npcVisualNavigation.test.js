@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   chooseNpcEscapeDirection,
   chooseNpcObstacleAvoidanceDirection,
-  chooseNpcSailingDirection
+  chooseNpcSailingDirection,
+  findNpcVisualPlacement
 } from "./npcVisualNavigation.js";
 
 test("NPC escape navigation reverses out of a concave corner", () => {
@@ -136,4 +137,51 @@ test("NPC sailing honors a committed tack side", () => {
   assert.equal(sailing.tacking, true);
   assert.equal(sailing.tackSide, 1);
   assert.ok(sailing.direction.y < 0);
+});
+
+test("NPC visual activation moves a hull-clearance failure to nearby drawn water", () => {
+  const visited = [];
+  const placement = findNpcVisualPlacement({
+    origin: { x: 10, y: 20 },
+    preferredPoints: [{ x: 14, y: 20 }],
+    searchRadiusPx: 12,
+    radialStepPx: 2,
+    angleCount: 8,
+    evaluate: (x, y) => {
+      visited.push([x, y]);
+      return x >= 14 ? { x, y, navKind: "openWater" } : null;
+    }
+  });
+
+  assert.deepEqual(placement, { x: 14, y: 20, navKind: "openWater" });
+  assert.deepEqual(visited, [[10, 20], [14, 20]]);
+});
+
+test("NPC visual placement can restrict a river-first search by navigation kind", () => {
+  const placement = findNpcVisualPlacement({
+    origin: { x: 0, y: 0 },
+    searchRadiusPx: 4,
+    radialStepPx: 2,
+    angleCount: 4,
+    includeOrigin: false,
+    evaluate: (x, y) => ({
+      x,
+      y,
+      navKind: x > 0 ? "openWater" : "river"
+    }),
+    accept: (candidate) => candidate.navKind === "river"
+  });
+
+  assert.equal(placement.navKind, "river");
+  assert.ok(placement.x <= 0);
+});
+
+test("NPC visual placement returns null when no full-hull candidate is clear", () => {
+  assert.equal(findNpcVisualPlacement({
+    origin: { x: 0, y: 0 },
+    searchRadiusPx: 4,
+    radialStepPx: 2,
+    angleCount: 4,
+    evaluate: () => null
+  }), null);
 });

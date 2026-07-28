@@ -656,7 +656,8 @@ import {
 import {
   chooseNpcEscapeDirection,
   chooseNpcObstacleAvoidanceDirection,
-  chooseNpcSailingDirection
+  chooseNpcSailingDirection,
+  findNpcVisualPlacement
 } from "./npcVisualNavigation.js";
 import { compareShipDrawCalls } from "./shipDrawOrder.js";
 import {
@@ -990,6 +991,7 @@ import {
   pointInShipFootprint,
   shipFootprintPolygonCenter,
   shipFootprintFrame,
+  shipFootprintPerimeterSamples,
   translatedShipFootprint,
   validateShipFootprintBake
 } from "./shipFootprint.js";
@@ -19629,6 +19631,18 @@ function updateNpcVisualShips(dt) {
     state.visualMovementDebtSeconds = 0;
     let visualNavigationChanged = false;
     let currentNavigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+    if (
+      currentNavigation.ok &&
+      !npcHullFitsDrawnNavigation(
+        state.x,
+        state.y,
+        state.heading,
+        state.slug,
+        currentNavigation
+      )
+    ) {
+      currentNavigation = { ok: false, blockedTileId: currentNavigation.tileId };
+    }
     if (!currentNavigation.ok) {
       const placement = nearestNpcNavigableVisualPoint(
         { x: state.x, y: state.y },
@@ -19682,13 +19696,6 @@ function updateNpcVisualShips(dt) {
 }
 
 function createNpcVisualState(snapshot, routePoint) {
-  const routeNavigation = shipNavigabilityAtLocalPoint(
-    routePoint.x,
-    routePoint.y,
-    routePoint.tileId,
-    snapshot.routeVector
-  );
-  if (!routeNavigation.ok) return null;
   const initialHeading = normalizeTangentOrFallback(
     snapshot.routeHeading,
     snapshot.routeVector,
@@ -19697,6 +19704,13 @@ function createNpcVisualState(snapshot, routePoint) {
   ensureNpcShipCaptain(snapshot.id);
   const profile = npcVisualShipProfile(snapshot.id, snapshot.slug);
   if (!profile) return null;
+  const placement = nearestNpcNavigableVisualPoint(
+    routePoint,
+    initialHeading,
+    NPC_VISUAL_RECOVERY_SEARCH_PX,
+    snapshot.slug
+  );
+  if (!placement) return null;
   const state = {
     id: snapshot.id,
     slug: snapshot.slug,
@@ -19709,11 +19723,11 @@ function createNpcVisualState(snapshot, routePoint) {
     hitPoints: snapshot.hitPoints,
     maxHitPoints: snapshot.maxHitPoints,
     combatGrace: snapshot.combatGrace,
-    x: routePoint.x,
-    y: routePoint.y,
-    tileId: routePoint.tileId,
-    vector: snapshot.routeVector.slice(),
-    heading: initialHeading,
+    x: placement.x,
+    y: placement.y,
+    tileId: placement.tileId,
+    vector: placement.vector,
+    heading: placement.heading,
     routeKey: snapshot.routeKey,
     lastRouteVector: snapshot.routeVector.slice(),
     escapeDirection: null,
@@ -22131,7 +22145,10 @@ function traceNpcVisualStep(state, direction, distance, heading, knownStartNav =
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, nav.kind, movementHeading)) {
       return incompleteNpcVisualTrace(result, distance, i, segments);
     }
-    if (!tileHasOffshoreHullClearance(tileId)) {
+    if (!npcHullFitsDrawnNavigation(x, y, localHeading, state.slug, nav)) {
+      return incompleteNpcVisualTrace(result, distance, i, segments);
+    }
+    if (nav.kind !== "openWater" && !tileHasOffshoreHullClearance(tileId)) {
       const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
       if (!occupancy.ok) return incompleteNpcVisualTrace(result, distance, i, segments);
     }
@@ -22189,7 +22206,15 @@ function nearestNpcNavigableVisualPoint(routePoint, heading, searchRadiusPx, slu
   const routeTile = nearestLocalCollisionTileAtPoint(routePoint.x, routePoint.y);
   if (routeTile && routeTile.distancePx <= SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX &&
       shipTileHasRiver(routeTile.tileId) && !isShipOpenWaterTile(routeTile.tileId)) {
-    const riverPlacement = nearestNpcVisualPointOfKind(routePoint, heading, "river", searchRadiusPx, slug);
+    const riverPlacement = findNpcVisualPlacement({
+      origin: routePoint,
+      searchRadiusPx,
+      radialStepPx: SHIP_COLLISION_SAMPLE_STEP_PX,
+      angleCount: NPC_VISUAL_ACTIVATION_ANGLE_COUNT,
+      includeOrigin: false,
+      evaluate: (x, y) => npcNavigableVisualPoint(x, y, heading, slug),
+      accept: (candidate) => candidate.navKind === "river"
+    });
     if (riverPlacement) return riverPlacement;
   }
 
@@ -22202,40 +22227,15 @@ function nearestNpcNavigableVisualPoint(routePoint, heading, searchRadiusPx, slu
     }))
     .filter((entry) => entry.distance <= searchRadiusPx)
     .sort((a, b) => a.distance - b.distance);
-  for (const point of nearbyWater) {
-    const candidate = npcNavigableVisualPoint(point.x, point.y, heading, slug);
-    if (candidate) return candidate;
-  }
-
-  for (let radius = SHIP_COLLISION_SAMPLE_STEP_PX; radius <= searchRadiusPx; radius += SHIP_COLLISION_SAMPLE_STEP_PX) {
-    for (let i = 0; i < NPC_VISUAL_ACTIVATION_ANGLE_COUNT; i++) {
-      const angle = i / NPC_VISUAL_ACTIVATION_ANGLE_COUNT * Math.PI * 2;
-      const candidate = npcNavigableVisualPoint(
-        routePoint.x + Math.cos(angle) * radius,
-        routePoint.y + Math.sin(angle) * radius,
-        heading,
-        slug
-      );
-      if (candidate) return candidate;
-    }
-  }
-  return null;
-}
-
-function nearestNpcVisualPointOfKind(routePoint, heading, kind, searchRadiusPx, slug) {
-  for (let radius = SHIP_COLLISION_SAMPLE_STEP_PX; radius <= searchRadiusPx; radius += SHIP_COLLISION_SAMPLE_STEP_PX) {
-    for (let i = 0; i < NPC_VISUAL_ACTIVATION_ANGLE_COUNT; i++) {
-      const angle = i / NPC_VISUAL_ACTIVATION_ANGLE_COUNT * Math.PI * 2;
-      const candidate = npcNavigableVisualPoint(
-        routePoint.x + Math.cos(angle) * radius,
-        routePoint.y + Math.sin(angle) * radius,
-        heading,
-        slug
-      );
-      if (candidate?.navKind === kind) return candidate;
-    }
-  }
-  return null;
+  return findNpcVisualPlacement({
+    origin: routePoint,
+    preferredPoints: nearbyWater,
+    searchRadiusPx,
+    radialStepPx: SHIP_COLLISION_SAMPLE_STEP_PX,
+    angleCount: NPC_VISUAL_ACTIVATION_ANGLE_COUNT,
+    includeOrigin: false,
+    evaluate: (x, y) => npcNavigableVisualPoint(x, y, heading, slug)
+  });
 }
 
 function npcNavigableVisualPoint(x, y, heading, slug) {
@@ -22249,11 +22249,24 @@ function npcNavigableVisualPoint(x, y, heading, slug) {
     ? nearestVector
     : globePositionForLocalPoint(tileId, x, y);
   const localHeading = normalizeTangentOrFallback(heading, vector, WORLD_NORTH);
-  if (nav.kind !== "river") {
+  if (!npcHullFitsDrawnNavigation(x, y, localHeading, slug, nav)) return null;
+  if (nav.kind !== "openWater" && nav.kind !== "river") {
     const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
     if (!occupancy.ok) return null;
   }
   return { x, y, tileId, vector, heading: localHeading, navKind: nav.kind };
+}
+
+function npcHullFitsDrawnNavigation(x, y, heading, slug, navigation) {
+  if (
+    navigation.kind !== "openWater" ||
+    tileHasOffshoreHullClearance(navigation.tileId)
+  ) return true;
+  const frame = shipFootprintFrame(requiredShipFootprints(slug), npcShipScreenHeading(heading));
+  return shipFootprintPerimeterSamples(frame, SHIP_COLLISION_SAMPLE_STEP_PX).every((sample) => {
+    const surface = drawnSurfaceNavigationAtLocalPoint(x + sample.x, y + sample.y);
+    return surface?.water === true;
+  });
 }
 
 function localPointForGlobeVector(vector) {
