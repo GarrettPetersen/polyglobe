@@ -29,3 +29,13 @@ export function partitionVisualStateReprojections(states, projectState) {
   }
   return { projected, outside };
 }
+
+export function resolveVisualStateReprojection({
+  projectedPoint,
+  navigablePoint,
+  preserveProjectedPoint
+}) {
+  if (navigablePoint !== null) return navigablePoint;
+  if (preserveProjectedPoint && projectedPoint !== null) return projectedPoint;
+  return null;
+}

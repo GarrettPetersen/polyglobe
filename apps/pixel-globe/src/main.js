@@ -1283,7 +1283,8 @@ import {
   selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
 import {
-  partitionVisualStateReprojections
+  partitionVisualStateReprojections,
+  resolveVisualStateReprojection
 } from "./visualStateReprojection.js";
 import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
@@ -15790,19 +15791,25 @@ function createNorthUpLocalLayout(tileId, focusPosition, frame) {
 }
 
 function reprojectNpcVisualPositions(states) {
+  const dialogueNpcShipId = dialogueState?.kind === "ship"
+    ? dialogueState.npcShipId
+    : null;
   const reprojections = partitionVisualStateReprojections(
     states,
     (state) => {
-      const point = localPointForGlobeVector(state.vector);
-      if (!point) return null;
-      const navigation = shipNavigabilityAtLocalPoint(
-        point.x,
-        point.y,
-        point.tileId,
-        state.vector
+      const projectedPoint = localPointForGlobeVector(state.vector);
+      if (!projectedPoint) return null;
+      const navigablePoint = nearestNpcNavigableVisualPoint(
+        projectedPoint,
+        state.heading,
+        NPC_VISUAL_RECOVERY_SEARCH_PX,
+        state.slug
       );
-      if (!navigation.ok) return null;
-      return { x: point.x, y: point.y, tileId: point.tileId };
+      return resolveVisualStateReprojection({
+        projectedPoint,
+        navigablePoint,
+        preserveProjectedPoint: state.id === dialogueNpcShipId
+      });
     }
   );
   for (const state of reprojections.outside) releaseNpcVisualState(state);
