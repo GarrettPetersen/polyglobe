@@ -431,7 +431,7 @@ export function colonizationQuestView(
   }
   const selectedTarget = colonizationSelectedTarget(memory);
   const history = selectedTarget ? colonizationHistoryForTarget(selectedTarget) : null;
-  const fetchStage = memory.stage === COLONIZATION_STAGE_FETCH
+  const fetchStage = selectedTarget && memory.stage === COLONIZATION_STAGE_FETCH
     ? (history?.fetchStages || COLONIZATION_FETCH_STAGES)[memory.fetchStageIndex]
     : null;
   const held = fetchStage ? state.cargo?.[fetchStage.goodId] || 0 : 0;

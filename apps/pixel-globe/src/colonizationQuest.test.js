@@ -53,6 +53,18 @@ const PORT_ROYAL = Object.freeze({
   tileId: 123
 });
 
+test("an unspawned colonization quest has no target-specific cargo progress", () => {
+  const view = colonizationQuestView(questViewState(createColonizationQuestMemory()));
+
+  assert.equal(view.target, null);
+  assert.equal(view.history, null);
+  assert.equal(view.fetchStage, null);
+  assert.equal(view.fetchDelivered, 0);
+  assert.equal(view.fetchRemaining, 0);
+  assert.equal(view.fetchDeliverable, 0);
+  assert.equal(view.canDeliverFetch, false);
+});
+
 test("a colonization expedition requires three ordered paid material stages", () => {
   const memory = createColonizationQuestMemory();
   assignColonizationQuest(memory, { target: PORT_ROYAL, origin: BORDEAUX });
