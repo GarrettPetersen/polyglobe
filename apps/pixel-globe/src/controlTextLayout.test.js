@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { controlTextLayout } from "./controlTextLayout.js";
+import { controlTextLayout, equalWidthControlRects } from "./controlTextLayout.js";
 
 const primaryWidth = (text) => text.length * 7;
 const compactWidth = (text) => text.length * 5;
@@ -67,4 +67,30 @@ test("control text rejects invalid layout inputs", () => {
     measurePrimary: primaryWidth,
     measureCompact: compactWidth
   }), /positive width/);
+});
+
+test("equal-width controls consume the full row without overlapping", () => {
+  assert.deepEqual(equalWidthControlRects({
+    x: 8,
+    y: 6,
+    width: 346,
+    height: 18,
+    count: 3,
+    gap: 3
+  }), [
+    { x: 8, y: 6, w: 113, h: 18 },
+    { x: 124, y: 6, w: 113, h: 18 },
+    { x: 240, y: 6, w: 114, h: 18 }
+  ]);
+});
+
+test("equal-width controls reject impossible rows", () => {
+  assert.throws(() => equalWidthControlRects({
+    x: 0,
+    y: 0,
+    width: 4,
+    height: 18,
+    count: 3,
+    gap: 2
+  }), /cannot fit/);
 });

@@ -1,4 +1,10 @@
 import { loadingScreenRenderSize } from "./loadingScreenMotion.js";
+import { gameStorage } from "./gameStorage.js";
+import {
+  INTERFACE_LANGUAGE_STORAGE_KEY,
+  initialInterfaceLanguage,
+  loadingCapsuleTitleAtlasFile
+} from "./loadingScreenLocale.js";
 
 const MINIMUM_DISPLAY_MS = 1100;
 const EXIT_DURATION_MS = 420;
@@ -16,6 +22,11 @@ export function startCapsuleLoadingScreen() {
   }
 
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  const language = initialInterfaceLanguage(
+    new URLSearchParams(window.location.search).get("lang"),
+    gameStorage.getItem(INTERFACE_LANGUAGE_STORAGE_KEY)
+  );
+  const titleAtlasFile = loadingCapsuleTitleAtlasFile(language);
   const startedAtMs = performance.now();
   const offscreenCanvas = displayCanvas.transferControlToOffscreen();
   const worker = new Worker(new URL("./loadingScreenWorker.js", import.meta.url), { type: "module" });
@@ -30,6 +41,7 @@ export function startCapsuleLoadingScreen() {
   });
 
   shell.setAttribute("aria-busy", "true");
+  document.documentElement.lang = language;
   root.hidden = false;
   root.dataset.state = "loading";
 
@@ -45,7 +57,8 @@ export function startCapsuleLoadingScreen() {
     canvas: offscreenCanvas,
     width: initialSize.width,
     height: initialSize.height,
-    reducedMotion
+    reducedMotion,
+    titleAtlasFile
   }, [offscreenCanvas]);
 
   return Object.freeze({ ready, finish, fail });

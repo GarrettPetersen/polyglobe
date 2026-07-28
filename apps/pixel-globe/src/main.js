@@ -927,7 +927,7 @@ import {
   synchronizeDialoguePortraitStage,
   validateCharacterAlertSequence
 } from "./dialoguePortraitStage.js";
-import { controlTextLayout } from "./controlTextLayout.js";
+import { controlTextLayout, equalWidthControlRects } from "./controlTextLayout.js";
 import {
   INTERACTION_INPUT,
   WORLD_POINTER_ACTION,
@@ -1450,6 +1450,10 @@ import {
   shoreScavengeNarrative
 } from "./shoreScavenge.js";
 import { startCapsuleLoadingScreen } from "./loadingScreen.js";
+import {
+  INTERFACE_LANGUAGE_STORAGE_KEY,
+  initialInterfaceLanguage
+} from "./loadingScreenLocale.js";
 
 const capsuleLoadingScreen = startCapsuleLoadingScreen();
 const BASE_SCREEN_W = 455;
@@ -1888,13 +1892,11 @@ const GAME_OVER_PANEL_H = 178;
 let GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
 let GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
-const LANGUAGE_STORAGE_KEY = "pixel_globe_language";
 const CONTROLLER_GLYPH_STORAGE_KEY = "pixel_globe_controller_glyphs";
 const CONTROL_SCHEME_STORAGE_KEY = "pixel_globe_control_scheme";
-let currentLanguage = normalizeLanguage(
-  new URLSearchParams(window.location.search).get("lang") ||
-  readLocalStorage(LANGUAGE_STORAGE_KEY) ||
-  LANGUAGE_ENGLISH
+let currentLanguage = initialInterfaceLanguage(
+  new URLSearchParams(window.location.search).get("lang"),
+  readLocalStorage(INTERFACE_LANGUAGE_STORAGE_KEY)
 );
 let currentLanguageProfile = languageFontProfile(currentLanguage);
 const PIXEL_FONT_LATIN_SMALL_8 = "8px \"Silkscreen\", monospace";
@@ -6980,7 +6982,7 @@ function setInterfaceLanguage(language, { persist = true } = {}) {
   optionsMenu.fullscreenError = null;
   optionsMenu.returnError = null;
   document.documentElement.lang = normalized;
-  if (persist) writeLocalStorage(LANGUAGE_STORAGE_KEY, normalized);
+  if (persist) writeLocalStorage(INTERFACE_LANGUAGE_STORAGE_KEY, normalized);
   pixelTextRasterCache.clear();
   pixelTextWidthCache.clear();
   syncCanvasAriaLabel();
@@ -26616,17 +26618,20 @@ function drawShipInfoMenu() {
     panel.y + 53
   );
   drawShipInfoValueRow("PROPULSION", view.propulsionSummary, statsX, valueX, panel.y + 65);
-  drawShipInfoRating("SPEED", view.ratings.speed, statsX, panel.y + 80);
-  drawShipInfoRating("ACCEL", view.ratings.acceleration, statsX, panel.y + 93);
-  drawShipInfoRating("TURNING", view.ratings.turning, statsX, panel.y + 106);
-  drawShipInfoRating("WINDWARD", view.ratings.windward, statsX, panel.y + 119);
-  drawShipInfoRating("SEAWORTHY", view.seaworthiness, statsX, panel.y + 132);
+  drawShipInfoRating("SPEED", view.ratings.speed, statsX, valueX, panel.y + 80);
+  drawShipInfoRating("ACCEL", view.ratings.acceleration, statsX, valueX, panel.y + 93);
+  drawShipInfoRating("TURNING", view.ratings.turning, statsX, valueX, panel.y + 106);
+  drawShipInfoRating("WINDWARD", view.ratings.windward, statsX, valueX, panel.y + 119);
+  drawShipInfoRating("SEAWORTHY", view.seaworthiness, statsX, valueX, panel.y + 132);
   const provisionY = artY + SHIP_INFO_SIDE_VIEW_H + 2;
-  drawOptionsText(`DRINK ${remainingSupplyDayCount(view.survival.drinkDays)}D`, artX, provisionY, {
-    color: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
-  });
-  drawOptionsText(`FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`, artX + 91, provisionY, {
-    color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+  drawSplitShipInfoTextRow({
+    leftText: `WATER ${remainingSupplyDayCount(view.survival.drinkDays)}D`,
+    rightText: `FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`,
+    leftX: artX,
+    rightX: artX + SHIP_INFO_SIDE_VIEW_W,
+    y: provisionY,
+    leftColor: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
+    rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
 
   const cargoY = panel.y + 155;
@@ -26709,23 +26714,31 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
   }
 
   const leftValueX = artX + artW;
-  drawOptionsText(`DRINK ${remainingSupplyDayCount(view.survival.drinkDays)}D`, artX, artY + artH + 7, {
-    color: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
+  const supplyY = artY + artH + 7;
+  const compactLineHeight = localizedLineHeight(13);
+  drawSplitShipInfoTextRow({
+    leftText: `WATER ${remainingSupplyDayCount(view.survival.drinkDays)}D`,
+    rightText: `FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`,
+    leftX: artX,
+    rightX: leftValueX,
+    y: supplyY,
+    leftColor: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
+    rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
-  drawOptionsText(`FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`, leftValueX, artY + artH + 7, {
-    align: "right",
-    color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
-  });
-  drawOptionsText(`HOLD ${view.cargoUsedLabel}/${view.cargoCapacity}`, artX, artY + artH + 20, {
-    color: PIRATE_MENU_INK
-  });
-  drawOptionsText(`${view.doubloons} DB`, leftValueX, artY + artH + 20, {
-    align: "right",
-    color: PIRATE_MENU_INK
+  const holdY = supplyY + compactLineHeight;
+  drawSplitShipInfoTextRow({
+    leftText: `${uiText("ship.cargoHold")} ${view.cargoUsedLabel}/${view.cargoCapacity}`,
+    rightText: `${view.doubloons} DB`,
+    leftX: artX,
+    rightX: leftValueX,
+    y: holdY,
+    leftColor: PIRATE_MENU_INK,
+    rightColor: PIRATE_MENU_INK
   });
 
   const statsX = artX + artW + 12;
   const valueX = panel.x + panel.w - 12;
+  const statLineHeight = localizedLineHeight(11);
   let statsY = artY;
   drawShipInfoValueRow(
     `${renderedUiText("HULL")} / ${renderedUiText("ARMOR")}`,
@@ -26735,7 +26748,7 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
     statsY
   );
   drawShipInfoBar(statsX, statsY + 10, valueX - statsX, view.hull / view.maxHull, "#91db69");
-  statsY += 18;
+  statsY += Math.max(18, statLineHeight + 6);
   drawShipInfoValueRow(
     `${renderedUiText("CREW")} / ${renderedUiText(view.armamentLabel)}`,
     `${view.crew}/${view.crewCapacity}  ${view.armamentSummary}`,
@@ -26743,9 +26756,9 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
     valueX,
     statsY
   );
-  statsY += 12;
+  statsY += statLineHeight;
   drawShipInfoValueRow("PROPULSION", view.propulsionSummary, statsX, valueX, statsY);
-  statsY += 13;
+  statsY += statLineHeight + 1;
   const ratings = [
     ["SPEED", view.ratings.speed],
     ["ACCEL", view.ratings.acceleration],
@@ -26755,10 +26768,10 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
   ];
   for (const [label, rating] of ratings) {
     drawNotebookShipRating(label, rating, statsX, valueX, statsY);
-    statsY += 11;
+    statsY += statLineHeight;
   }
 
-  const cargoY = panel.y + 152;
+  const cargoY = Math.max(panel.y + 152, statsY + 4, holdY + compactLineHeight + 2);
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, cargoY, panel.w - 20, 1);
   drawOptionsText("CARGO MANIFEST", panel.x + 12, cargoY + 6, { color: PIRATE_MENU_INK });
@@ -26782,13 +26795,11 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
 }
 
 function drawNotebookShipRating(label, rating, x, valueX, y) {
-  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
-  const meterX = x + 51;
-  for (let index = 0; index < 10; index++) {
-    ctx.fillStyle = index < rating ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
-    ctx.fillRect(meterX + index * 5, y + 2, 4, 5);
-  }
-  drawOptionsText(String(rating), valueX, y, { align: "right", color: PIRATE_MENU_INK });
+  drawResponsiveShipRating(label, rating, x, valueX, y, {
+    preferredLabelWidth: 51,
+    preferredPitch: 5,
+    preferredCellWidth: 4
+  });
 }
 
 function drawCompactShipVessel(panel, view, cargoPage) {
@@ -26811,6 +26822,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
 
   const labelX = panel.x + 12;
   const valueX = panel.x + panel.w - 12;
+  const statLineHeight = localizedLineHeight(12);
   let y = artY + SHIP_INFO_SIDE_VIEW_H + 10;
   const hullLabel = `${renderedUiText("HULL")} / ${renderedUiText("ARMOR")}`;
   const hullValue = `${view.hull}/${view.maxHull}  ${view.armor}%`;
@@ -26828,7 +26840,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     valueWidth: measurePixelTextWidth(hullValue, PIXEL_FONT_SMALL_8)
   });
   drawShipInfoBar(hullMeter.x, y + 1, hullMeter.width, view.hull / view.maxHull, "#91db69");
-  y += 13;
+  y += statLineHeight + 1;
   drawShipInfoValueRow(
     `${renderedUiText("CREW")} / ${renderedUiText(view.armamentLabel)}`,
     `${view.crew}/${view.crewCapacity}  ${view.armamentSummary}`,
@@ -26836,9 +26848,9 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     valueX,
     y
   );
-  y += 12;
+  y += statLineHeight;
   drawShipInfoValueRow("PROPULSION", view.propulsionSummary, labelX, valueX, y);
-  y += 13;
+  y += statLineHeight + 1;
   const ratings = [
     ["SPEED", view.ratings.speed],
     ["ACCEL", view.ratings.acceleration],
@@ -26848,14 +26860,16 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   ];
   for (const [label, rating] of ratings) {
     drawCompactShipRating(label, rating, labelX, valueX, y);
-    y += 12;
+    y += statLineHeight;
   }
-  drawOptionsText(`DRINK ${remainingSupplyDayCount(view.survival.drinkDays)}D`, labelX, y + 1, {
-    color: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
-  });
-  drawOptionsText(`FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`, valueX, y + 1, {
-    align: "right",
-    color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+  drawSplitShipInfoTextRow({
+    leftText: `WATER ${remainingSupplyDayCount(view.survival.drinkDays)}D`,
+    rightText: `FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`,
+    leftX: labelX,
+    rightX: valueX,
+    y: y + 1,
+    leftColor: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
+    rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
   y += 17;
 
@@ -26889,13 +26903,83 @@ function drawCompactShipVessel(panel, view, cargoPage) {
 }
 
 function drawCompactShipRating(label, rating, x, valueX, y) {
-  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
-  const meterX = x + 80;
+  drawResponsiveShipRating(label, rating, x, valueX, y, {
+    preferredLabelWidth: 80,
+    preferredPitch: 7,
+    preferredCellWidth: 5
+  });
+}
+
+function drawResponsiveShipRating(label, rating, x, valueX, y, {
+  preferredLabelWidth,
+  preferredPitch,
+  preferredCellWidth
+}) {
+  const value = String(rating);
+  const valueWidth = measurePixelTextWidth(value, PIXEL_FONT_SMALL_8);
+  const availableWidth = valueX - x;
+  const maximumLabelWidth = Math.max(20, availableWidth - valueWidth - 10 * 2 - 8);
+  const measuredLabelWidth = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8);
+  const labelColumnWidth = Math.min(
+    Math.max(preferredLabelWidth, measuredLabelWidth),
+    maximumLabelWidth
+  );
+  const meterX = x + labelColumnWidth + 4;
+  const meterRight = valueX - valueWidth - 4;
+  const meterWidth = Math.max(10, meterRight - meterX);
+  const pitch = Math.max(1, Math.min(preferredPitch, Math.floor(meterWidth / 10)));
+  const cellWidth = Math.max(1, Math.min(preferredCellWidth, pitch - 1));
+  drawOptionsText(
+    fitPixelText(label, PIXEL_FONT_SMALL_8, labelColumnWidth),
+    x,
+    y,
+    { color: PIRATE_MENU_INK }
+  );
   for (let index = 0; index < 10; index++) {
     ctx.fillStyle = index < rating ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
-    ctx.fillRect(meterX + index * 7, y + 2, 5, 5);
+    ctx.fillRect(meterX + index * pitch, y + 2, cellWidth, 5);
   }
-  drawOptionsText(String(rating), valueX, y, { align: "right", color: PIRATE_MENU_INK });
+  drawOptionsText(value, valueX, y, { align: "right", color: PIRATE_MENU_INK });
+}
+
+function drawSplitShipInfoTextRow({
+  leftText,
+  rightText,
+  leftX,
+  rightX,
+  y,
+  leftColor,
+  rightColor,
+  gap = 4
+}) {
+  const availableWidth = rightX - leftX - gap;
+  if (availableWidth <= 0) {
+    throw new Error(`Ship information split row has no text width: ${availableWidth}`);
+  }
+  const naturalLeftWidth = measurePixelTextWidth(leftText, PIXEL_FONT_SMALL_8);
+  const naturalRightWidth = measurePixelTextWidth(rightText, PIXEL_FONT_SMALL_8);
+  let leftBudget = naturalLeftWidth;
+  let rightBudget = naturalRightWidth;
+  if (leftBudget + rightBudget > availableWidth) {
+    rightBudget = Math.min(naturalRightWidth, Math.floor(availableWidth / 2));
+    leftBudget = availableWidth - rightBudget;
+    if (naturalLeftWidth < leftBudget) {
+      leftBudget = naturalLeftWidth;
+      rightBudget = availableWidth - leftBudget;
+    }
+  }
+  drawOptionsText(
+    fitPixelText(leftText, PIXEL_FONT_SMALL_8, Math.max(1, leftBudget)),
+    leftX,
+    y,
+    { color: leftColor }
+  );
+  drawOptionsText(
+    fitPixelText(rightText, PIXEL_FONT_SMALL_8, Math.max(1, rightBudget)),
+    rightX,
+    y,
+    { align: "right", color: rightColor }
+  );
 }
 
 function drawCompactShipLedger(panel, view) {
@@ -27007,9 +27091,25 @@ function drawCompactShipPager(panel, page, pageCount, label) {
 }
 
 function drawShipInfoTabs(panel) {
-  shipInfoMenu.vesselTabRect = { x: panel.x + 8, y: panel.y + 6, w: 48, h: UI_TAB_H };
-  shipInfoMenu.ledgerTabRect = { x: panel.x + 59, y: panel.y + 6, w: 51, h: UI_TAB_H };
-  shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 66, h: UI_TAB_H };
+  if (panel.w < 400) {
+    const gap = 3;
+    [
+      shipInfoMenu.vesselTabRect,
+      shipInfoMenu.ledgerTabRect,
+      shipInfoMenu.papersTabRect
+    ] = equalWidthControlRects({
+      x: panel.x + 8,
+      y: panel.y + 6,
+      width: panel.w - 16,
+      height: UI_TAB_H,
+      count: 3,
+      gap
+    });
+  } else {
+    shipInfoMenu.vesselTabRect = { x: panel.x + 8, y: panel.y + 6, w: 48, h: UI_TAB_H };
+    shipInfoMenu.ledgerTabRect = { x: panel.x + 59, y: panel.y + 6, w: 51, h: UI_TAB_H };
+    shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 66, h: UI_TAB_H };
+  }
   drawShipInfoTab(
     shipInfoMenu.vesselTabRect,
     uiText("ship.vessel"),
@@ -27032,7 +27132,7 @@ function drawShipInfoTabs(panel) {
 
 function drawShipInfoTab(rect, label, selected, hovered) {
   drawPiratePaperInset(rect, selected || hovered);
-  drawOptionsText(label, rect.x + rect.w / 2, controlTextY(rect, PIXEL_FONT_SMALL_8), {
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, rect.w - 8), rect.x + rect.w / 2, controlTextY(rect, PIXEL_FONT_SMALL_8), {
     align: "center",
     color: PIRATE_MENU_INK
   });
@@ -27356,18 +27456,21 @@ function ledgerPnlColor(value) {
 }
 
 function drawShipInfoValueRow(label, value, x, valueX, y) {
-  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
-  drawOptionsText(value, valueX, y, { align: "right", color: PIRATE_MENU_INK });
+  const availableWidth = valueX - x;
+  const maxValueWidth = Math.max(24, Math.floor(availableWidth * 0.52));
+  const fittedValue = fitPixelText(value, PIXEL_FONT_SMALL_8, maxValueWidth);
+  const valueWidth = measurePixelTextWidth(fittedValue, PIXEL_FONT_SMALL_8);
+  const labelWidth = Math.max(8, availableWidth - valueWidth - 5);
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, labelWidth), x, y, { color: PIRATE_MENU_INK });
+  drawOptionsText(fittedValue, valueX, y, { align: "right", color: PIRATE_MENU_INK });
 }
 
-function drawShipInfoRating(label, rating, x, y) {
-  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
-  const meterX = x + 78;
-  for (let index = 0; index < 10; index++) {
-    ctx.fillStyle = index < rating ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
-    ctx.fillRect(meterX + index * 8, y + 2, 6, 5);
-  }
-  drawOptionsText(String(rating), meterX + 89, y, { align: "right", color: PIRATE_MENU_INK });
+function drawShipInfoRating(label, rating, x, valueX, y) {
+  drawResponsiveShipRating(label, rating, x, valueX, y, {
+    preferredLabelWidth: 78,
+    preferredPitch: 8,
+    preferredCellWidth: 6
+  });
 }
 
 function drawShipInfoBar(x, y, width, fraction, color) {
@@ -29357,6 +29460,7 @@ function drawStartMenu(nowMs) {
   });
 
   const labels = actions.map((action) => action.label);
+  const buttonWidth = startMenuButtonWidth(actions, panel.w);
   const firstButtonY = panel.y + (denseActions ? 68 : 76);
   const buttonAreaBottom = panel.y + panel.h - 10 - (startMenu.message ? 16 : 0);
   const buttonLayout = fittedStackedMenuRows({
@@ -29369,9 +29473,9 @@ function drawStartMenu(nowMs) {
     minimumGap: 1
   });
   startMenu.buttonRects = buttonLayout.rows.map((row) => ({
-    x: panel.x + Math.floor((panel.w - START_MENU_BUTTON_W) / 2),
+    x: panel.x + Math.floor((panel.w - buttonWidth) / 2),
     y: row.y,
-    w: START_MENU_BUTTON_W,
+    w: buttonWidth,
     h: row.h
   }));
 
@@ -29461,6 +29565,23 @@ function drawNewGameConfirmation() {
   ctx.restore();
 }
 
+function startMenuButtonWidth(actions, panelWidth) {
+  if (!Array.isArray(actions) || actions.length === 0) {
+    throw new Error("Start menu button width requires actions");
+  }
+  const contentWidth = Math.max(...actions.map((action) => {
+    const label = renderedUiText(action.label);
+    const iconWidth = startMenuIconId(action.id) ? GAME_ICON_SIZE + 6 : 0;
+    return iconWidth + measureRenderedPixelTextWidth(label, PIXEL_FONT_DIALOGUE_8);
+  }));
+  const horizontalAllowance = 24 + (controllerPromptsVisible() ? GAME_ICON_SIZE + 3 : 0);
+  return clamp(
+    Math.ceil(contentWidth + horizontalAllowance),
+    START_MENU_BUTTON_W,
+    panelWidth - 24
+  );
+}
+
 function drawStartMenuButton(rect, label, highlighted, iconId = null) {
   ctx.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER_BUTTON;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
@@ -29473,20 +29594,30 @@ function drawStartMenuButton(rect, label, highlighted, iconId = null) {
     if (!controllerPromptsVisible()) ctx.fillRect(rect.x + rect.w - 7, markerY, 3, 3);
   }
   ctx.fillStyle = PIRATE_MENU_INK;
+  const controllerAllowance = highlighted && controllerPromptsVisible()
+    ? GAME_ICON_SIZE + 6
+    : 0;
   if (iconId) {
-    const textWidth = measurePixelTextWidth(label, PIXEL_FONT_DIALOGUE_8);
+    const maxTextWidth = rect.w - GAME_ICON_SIZE - 18 - controllerAllowance;
+    const fittedLabel = fitPixelText(label, PIXEL_FONT_DIALOGUE_8, maxTextWidth);
+    const textWidth = measurePixelTextWidth(fittedLabel, PIXEL_FONT_DIALOGUE_8);
     const contentWidth = GAME_ICON_SIZE + 6 + textWidth;
     const iconX = Math.floor(rect.x + (rect.w - contentWidth) / 2);
     const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
     drawGameIcon(iconId, iconX, iconY);
-    drawPixelText(label, iconX + GAME_ICON_SIZE + 6, controlTextY(rect), {
+    drawPixelText(fittedLabel, iconX + GAME_ICON_SIZE + 6, controlTextY(rect), {
       font: PIXEL_FONT_DIALOGUE_8
     });
   } else {
-    drawPixelText(label, rect.x + rect.w / 2, controlTextY(rect), {
-      font: PIXEL_FONT_DIALOGUE_8,
-      align: "center"
-    });
+    drawPixelText(
+      fitPixelText(label, PIXEL_FONT_DIALOGUE_8, rect.w - 16 - controllerAllowance),
+      rect.x + rect.w / 2,
+      controlTextY(rect),
+      {
+        font: PIXEL_FONT_DIALOGUE_8,
+        align: "center"
+      }
+    );
   }
   if (highlighted) {
     drawControllerActionGlyph("confirm", rect.x + rect.w - GAME_ICON_SIZE - 3, rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));

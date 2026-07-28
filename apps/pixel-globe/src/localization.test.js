@@ -319,7 +319,11 @@ test("the longest dense-menu translations fit their conservative pixel budgets",
     ["navigation.none", 260],
     ["voyages.winDeathQuitDemo", 302],
     ["politics.playerStanding", 112],
-    ["ship.itemsDocuments", 170]
+    ["ship.itemsDocuments", 170],
+    ["start.pastVoyages", 176],
+    ["ship.vessel", 105],
+    ["ship.ledger", 105],
+    ["ship.inventory", 105]
   ];
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     for (const [key, maxWidth] of cases) {

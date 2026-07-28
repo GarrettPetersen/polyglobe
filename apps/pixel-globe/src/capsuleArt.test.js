@@ -9,6 +9,7 @@ import {
 } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { CAPSULE_TITLE_LOCALES } from "../tools/capsule-title-locales.mjs";
 import { SUPPORTED_LANGUAGES } from "./localization.js";
+import { SHIP_STATS } from "./shipStats.js";
 
 const generatedRoot = new URL("../capsule_art/generated/", import.meta.url);
 const localizedOutputSizes = Object.freeze([
@@ -81,7 +82,7 @@ test("capsule generator produces the active ship client icon comparison", async 
     fileURLToPath(new URL("client-icon-ship-comparison.png", generatedRoot))
   );
   assert.equal(image.width, 900);
-  assert.equal(image.height, 780);
+  assert.equal(image.height, Math.ceil(SHIP_STATS.length / 5) * 130);
 });
 
 test("capsule generator produces the localized review sheet", async () => {
@@ -120,13 +121,61 @@ test("capsule art documents and preserves its authored layer order", async () =>
   );
 });
 
-test("loading screen layers are exact public copies of the authored capsule layers", async () => {
-  for (const filename of ["background.png", "reflection.png", "upper_text.png", "ship.png", "lower_text.png"]) {
+test("loading screen artwork layers are exact public copies of the authored capsule layers", async () => {
+  for (const filename of ["background.png", "reflection.png", "ship.png"]) {
     const [source, runtime] = await Promise.all([
       readFile(new URL(`../capsule_art/source/${filename}`, import.meta.url)),
       readFile(new URL(`../public/assets/loading/${filename}`, import.meta.url))
     ]);
     assert.deepEqual(runtime, source, filename);
+  }
+});
+
+test("loading screen publishes the exact localized upper and lower title layers", async () => {
+  for (const { steamCode } of CAPSULE_TITLE_LOCALES) {
+    const [atlas, title] = await Promise.all([
+      loadImage(fileURLToPath(new URL(
+        `../public/assets/loading/title_${steamCode}.png`,
+        import.meta.url
+      ))),
+      loadImage(fileURLToPath(new URL(
+        `capsule_title_${steamCode}.png`,
+        generatedRoot
+      )))
+    ]);
+    assert.equal(atlas.width, title.width, `${steamCode} loading title width`);
+    assert.equal(atlas.height, title.height * 2, `${steamCode} loading title height`);
+    const composed = createCanvas(title.width, title.height);
+    const context = composed.getContext("2d");
+    context.drawImage(
+      atlas,
+      0,
+      0,
+      title.width,
+      title.height,
+      0,
+      0,
+      title.width,
+      title.height
+    );
+    context.drawImage(
+      atlas,
+      0,
+      title.height,
+      title.width,
+      title.height,
+      0,
+      0,
+      title.width,
+      title.height
+    );
+    const expected = createCanvas(title.width, title.height);
+    expected.getContext("2d").drawImage(title, 0, 0);
+    assert.deepEqual(
+      composed.toBuffer("image/png"),
+      expected.toBuffer("image/png"),
+      `${steamCode} loading title`
+    );
   }
 });
 

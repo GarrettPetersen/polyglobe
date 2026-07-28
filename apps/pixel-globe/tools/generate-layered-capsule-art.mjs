@@ -16,6 +16,9 @@ const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const generatorOptions = parseGeneratorOptions(process.argv.slice(2));
 const sourceDir = resolve(appRoot, generatorOptions.sourceDir);
 const outputDir = resolve(appRoot, generatorOptions.outputDir);
+const canonicalSourceDir = join(appRoot, "capsule_art/source");
+const canonicalOutputDir = join(appRoot, "capsule_art/generated");
+const loadingTitleOutputDir = join(appRoot, "public/assets/loading");
 const ampersandPath = join(appRoot, "public/assets/capsule/ampersand.png");
 const CLIENT_ICON_SHIP_SLUG = "carrack";
 const CLIENT_ICON_HEADING_FRAME = 28;
@@ -744,6 +747,30 @@ async function main() {
     ));
     await writeLocalizedCapsuleComparison(rendered);
     await writeClientIconShipComparison(clientIconShips, clientIconWater);
+  }
+  if (sourceDir === canonicalSourceDir && outputDir === canonicalOutputDir) {
+    await writeLoadingTitleAtlases(titleSets, sourceSize);
+  }
+}
+
+async function writeLoadingTitleAtlases(titleSets, sourceSize) {
+  await mkdir(loadingTitleOutputDir, { recursive: true });
+  for (const locale of CAPSULE_TITLE_LOCALES) {
+    const titleSet = titleSets.get(locale.steamCode);
+    if (titleSet === undefined) {
+      throw new Error(`Cannot publish missing loading title layers: ${locale.steamCode}`);
+    }
+    const atlas = createCanvas(sourceSize.width, sourceSize.height * 2);
+    const context = atlas.getContext("2d");
+    context.imageSmoothingEnabled = false;
+    context.drawImage(titleSet.layers.upperText, 0, 0);
+    context.drawImage(titleSet.layers.lowerText, 0, sourceSize.height);
+    const filename = `title_${locale.steamCode}.png`;
+    await writeFile(
+      join(loadingTitleOutputDir, filename),
+      atlas.toBuffer("image/png")
+    );
+    console.log(`Published loading title ${filename}`);
   }
 }
 

@@ -10,12 +10,10 @@ import {
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
 const SCENE_SCALE = 2;
-const LAYER_URLS = Object.freeze({
+const BASE_LAYER_URLS = Object.freeze({
   background: new URL("../assets/loading/background.png", import.meta.url).toString(),
   reflection: new URL("../assets/loading/reflection.png", import.meta.url).toString(),
-  upperText: new URL("../assets/loading/upper_text.png", import.meta.url).toString(),
-  ship: new URL("../assets/loading/ship.png", import.meta.url).toString(),
-  lowerText: new URL("../assets/loading/lower_text.png", import.meta.url).toString()
+  ship: new URL("../assets/loading/ship.png", import.meta.url).toString()
 });
 
 let displayCanvas = null;
@@ -74,7 +72,7 @@ async function start(message) {
   foregroundContext.imageSmoothingEnabled = false;
   reducedMotion = message.reducedMotion === true;
   resize(message.width, message.height);
-  images = await loadCapsuleLayers();
+  images = await loadCapsuleLayers(message.titleAtlasFile);
   validateLayerDimensions(images);
   animationStartedAtMs = performance.now();
   render(animationStartedAtMs);
@@ -115,9 +113,14 @@ function drawLoadingScene(elapsedMs) {
   foregroundContext.clearRect(0, 0, foregroundCanvas.width, foregroundCanvas.height);
   drawRippleRows(foregroundContext, images.reflection, elapsedMs);
   const motion = loadingLayerMotion(elapsedMs, reducedMotion);
-  drawScaledLayer(foregroundContext, images.upperText, motion.upperTextY);
+  drawScaledTitleAtlasLayer(foregroundContext, images.title, 0, motion.upperTextY);
   drawScaledLayer(foregroundContext, images.ship, motion.shipY);
-  drawScaledLayer(foregroundContext, images.lowerText, motion.lowerTextY);
+  drawScaledTitleAtlasLayer(
+    foregroundContext,
+    images.title,
+    LOADING_CAPSULE_HEIGHT,
+    motion.lowerTextY
+  );
 }
 
 function drawRippleRows(context, image, elapsedMs) {
@@ -195,6 +198,20 @@ function drawScaledLayer(context, image, yOffset) {
   );
 }
 
+function drawScaledTitleAtlasLayer(context, image, sourceY, yOffset) {
+  context.drawImage(
+    image,
+    0,
+    sourceY,
+    LOADING_CAPSULE_WIDTH,
+    LOADING_CAPSULE_HEIGHT,
+    0,
+    Math.round(yOffset * SCENE_SCALE),
+    context.canvas.width,
+    context.canvas.height
+  );
+}
+
 function drawSceneCover() {
   const crop = loadingScreenCoverCrop(displayCanvas.width, displayCanvas.height);
   const foreground = loadingScreenForegroundLayout(displayCanvas.width, displayCanvas.height);
@@ -223,8 +240,15 @@ function drawSceneCover() {
   );
 }
 
-async function loadCapsuleLayers() {
-  const entries = await Promise.all(Object.entries(LAYER_URLS).map(async ([key, url]) => {
+async function loadCapsuleLayers(titleAtlasFile) {
+  if (typeof titleAtlasFile !== "string" || !/^title_[a-z]+\.png$/.test(titleAtlasFile)) {
+    throw new Error(`Capsule loading worker received an invalid title atlas: ${titleAtlasFile}`);
+  }
+  const layerUrls = {
+    ...BASE_LAYER_URLS,
+    title: new URL(`../assets/loading/${titleAtlasFile}`, import.meta.url).toString()
+  };
+  const entries = await Promise.all(Object.entries(layerUrls).map(async ([key, url]) => {
     const response = await fetchStaticAsset(url, {
       label: `capsule ${key} layer`
     });
@@ -237,9 +261,12 @@ async function loadCapsuleLayers() {
 
 function validateLayerDimensions(loadedImages) {
   for (const [name, image] of Object.entries(loadedImages)) {
-    if (image.width !== LOADING_CAPSULE_WIDTH || image.height !== LOADING_CAPSULE_HEIGHT) {
+    const expectedHeight = name === "title"
+      ? LOADING_CAPSULE_HEIGHT * 2
+      : LOADING_CAPSULE_HEIGHT;
+    if (image.width !== LOADING_CAPSULE_WIDTH || image.height !== expectedHeight) {
       throw new Error(
-        `Capsule ${name} layer must be ${LOADING_CAPSULE_WIDTH}x${LOADING_CAPSULE_HEIGHT}, ` +
+        `Capsule ${name} layer must be ${LOADING_CAPSULE_WIDTH}x${expectedHeight}, ` +
         `got ${image.width}x${image.height}`
       );
     }
