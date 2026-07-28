@@ -103,7 +103,10 @@ import { formatDisplayQuantity } from "./displayNumber.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
-import { shipyardPurchaseTerms } from "./shipyards.js";
+import {
+  shipReplacementTermsWithoutTradeIn,
+  shipyardPurchaseTerms
+} from "./shipyards.js";
 import { FISHING_NETS } from "./fishingNets.js";
 import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
@@ -2396,13 +2399,15 @@ function vikingLongshipView(session, city, gameState, context) {
   }
 
   const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
-  const alreadyOwned = context.shipStats?.slug === VIKING_LONGSHIP_SLUG;
+  const currentShipSlug = context.shipStats?.slug;
+  if (!currentShipSlug) {
+    throw new Error("Viking longship reward requires the current ship type");
+  }
+  const alreadyOwned = currentShipSlug === VIKING_LONGSHIP_SLUG;
   const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
   const shipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
   if (quest.rewardDisposition === VIKING_LONGSHIP_REWARD_PENDING) {
-    const currentShipLabel = context.shipStats?.slug
-      ? shipLabelForSlug(context.shipStats.slug)
-      : "current ship";
+    const currentShipLabel = shipLabelForSlug(currentShipSlug);
     const disabledReason = alreadyOwned
       ? "You already command a Viking Longship."
       : cargoDoesNotFit
@@ -2420,7 +2425,9 @@ function vikingLongshipView(session, city, gameState, context) {
           shipSlug: VIKING_LONGSHIP_SLUG,
           shipLabel,
           price: 0
-        }
+        },
+        currentShipSlug,
+        purchaseTerms: shipReplacementTermsWithoutTradeIn(0)
       },
       options: [
         option(`Accept ${shipLabel}`, {
@@ -2470,7 +2477,9 @@ function vikingLongshipView(session, city, gameState, context) {
         shipSlug: VIKING_LONGSHIP_SLUG,
         shipLabel,
         price: VIKING_LONGSHIP_PRICE
-      }
+      },
+      currentShipSlug,
+      purchaseTerms: shipReplacementTermsWithoutTradeIn(VIKING_LONGSHIP_PRICE)
     },
     options: [
       option(`Buy ${shipLabel}  ${VIKING_LONGSHIP_PRICE} db`, {

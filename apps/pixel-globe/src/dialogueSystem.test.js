@@ -58,6 +58,7 @@ import {
 import { DIPLOMACY_FRIENDLY, DIPLOMACY_NEUTRAL } from "./factions.js";
 import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { createShipComparisonView } from "./shipInfo.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
 import { colonizationTargetForCity } from "./colonialCities.js";
@@ -2373,6 +2374,19 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   assert.equal(reward.presentation.kind, "shipyard");
   assert.equal(reward.presentation.listing.shipSlug, "viking-longship");
   assert.equal(reward.presentation.listing.price, 0);
+  assert.equal(reward.presentation.currentShipSlug, "brigantine");
+  assert.deepEqual(reward.presentation.purchaseTerms, {
+    listingPrice: 0,
+    tradeInValue: 0,
+    netPrice: 0
+  });
+  assert.equal(
+    createShipComparisonView(
+      reward.presentation.currentShipSlug,
+      reward.presentation.listing.shipSlug
+    ).candidate.slug,
+    "viking-longship"
+  );
   assert.match(reward.text, /accepting will replace your Brigantine/i);
   assert.ok(reward.options.some((entry) => entry.action.type === "accept-viking-longship-reward"));
   const declineIndex = reward.options.findIndex((entry) => entry.action.type === "decline-viking-longship-reward");
@@ -2384,6 +2398,12 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   gameState.doubloons = 50000;
   const availableForPurchase = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(availableForPurchase.text, /part with her for 42000 doubloons/i);
+  assert.equal(availableForPurchase.presentation.currentShipSlug, "brigantine");
+  assert.deepEqual(availableForPurchase.presentation.purchaseTerms, {
+    listingPrice: 42000,
+    tradeInValue: 0,
+    netPrice: 42000
+  });
   const purchaseIndex = availableForPurchase.options.findIndex(
     (entry) => entry.action.type === "purchase-viking-longship"
   );

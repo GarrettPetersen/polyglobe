@@ -10,6 +10,7 @@ import {
   nearestShipyardListingForPort,
   restoreWorldShipyards,
   shipConstructionPrice,
+  shipReplacementTermsWithoutTradeIn,
   shipTradeInValue,
   shipyardAtPort,
   shipyardPurchaseTerms,
@@ -52,6 +53,23 @@ test("shipyard purchase terms apply half the standard value of the current hull"
     tradeInValue: 900,
     netPrice: 34100
   });
+});
+
+test("special replacement ships can explicitly omit trade-in value", () => {
+  assert.deepEqual(shipReplacementTermsWithoutTradeIn(0), {
+    listingPrice: 0,
+    tradeInValue: 0,
+    netPrice: 0
+  });
+  assert.deepEqual(shipReplacementTermsWithoutTradeIn(42000), {
+    listingPrice: 42000,
+    tradeInValue: 0,
+    netPrice: 42000
+  });
+  assert.throws(
+    () => shipReplacementTermsWithoutTradeIn(-1),
+    /Invalid replacement ship price/
+  );
 });
 
 test("a newly founded port receives a normal regional shipyard", () => {

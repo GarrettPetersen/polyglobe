@@ -1120,6 +1120,7 @@ import {
 import {
   claimShipyardListing,
   nearestShipyardListingForPort,
+  shipReplacementTermsWithoutTradeIn,
   shipyardAtPort,
   shipyardPurchaseTerms,
   shipyardRumorForPort
@@ -14168,10 +14169,13 @@ async function acquireVikingLongship(action) {
       );
       acceptVikingLongshipReward(gameState);
     } else {
-      purchasePlayerShip(gameState, city, stats, {
-        listingPrice: VIKING_LONGSHIP_PRICE,
-        tradeInValue: 0
-      }, transactionContext);
+      purchasePlayerShip(
+        gameState,
+        city,
+        stats,
+        shipReplacementTermsWithoutTradeIn(VIKING_LONGSHIP_PRICE),
+        transactionContext
+      );
       markVikingLongshipPurchased(gameState);
     }
     addNamedCrewMember(gameState, city.character, NAMED_CREW_ROLE_HISTORIAN, {

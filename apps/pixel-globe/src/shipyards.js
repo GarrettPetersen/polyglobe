@@ -340,6 +340,17 @@ export function shipyardPurchaseTerms(listingPrice, currentShipSlug) {
   });
 }
 
+export function shipReplacementTermsWithoutTradeIn(listingPrice) {
+  if (!Number.isInteger(listingPrice) || listingPrice < 0) {
+    throw new Error(`Invalid replacement ship price: ${listingPrice}`);
+  }
+  return Object.freeze({
+    listingPrice,
+    tradeInValue: 0,
+    netPrice: listingPrice
+  });
+}
+
 export function shipyardQualityBudget(yard) {
   const famousBonus = yard.famous ? 26000 : 0;
   return 7000 + yard.wealthScale * 22000 + famousBonus;
