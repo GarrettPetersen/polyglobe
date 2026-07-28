@@ -99,12 +99,11 @@ export function shipPropulsionPerformance(stats, {
 
   if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) {
     const rowingMaxSpeed = stats.topSpeedRad * HYBRID_ROWING_SPEED_RATIO * rowingPower;
-    const rowing = rowingPower > 0 && rowingMaxSpeed >= sailMaxSpeed;
+    const rowingAcceleration = HYBRID_ROWING_ACCELERATION_RATIO * rowingPower;
+    const rowing = rowingPower > 0;
     return Object.freeze({
-      accelerationFactor: rowing
-        ? HYBRID_ROWING_ACCELERATION_RATIO * rowingPower
-        : sailAcceleration,
-      maxSpeedRad: Math.max(sailMaxSpeed, rowingMaxSpeed),
+      accelerationFactor: sailAcceleration + rowingAcceleration,
+      maxSpeedRad: sailMaxSpeed + rowingMaxSpeed,
       stalled: sailMaxSpeed <= 0 && rowingMaxSpeed <= 0,
       rowing
     });

@@ -207,7 +207,7 @@ export default {
   "ship.arrows": "弓箭",
   "ship.atWill": "隨時可用",
   "ship.oarNoDeadZone": "船槳／無迎風死角",
-  "ship.oarSailAdaptive": "槳帆並用／划槳較快時使用",
+  "ship.oarSailAdaptive": "槳帆並用／划槳加速",
   "ship.item": "物品",
   "ship.equipment": "裝備",
   "ship.delivery": "遞送",

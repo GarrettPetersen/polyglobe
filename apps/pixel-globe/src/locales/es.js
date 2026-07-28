@@ -207,7 +207,7 @@ export default {
   "ship.arrows": "FLECHAS",
   "ship.atWill": "A VOLUNTAD",
   "ship.oarNoDeadZone": "REMO / SIN ZONA MUERTA",
-  "ship.oarSailAdaptive": "REMO + VELA / REMA SI ES MÁS RÁPIDO",
+  "ship.oarSailAdaptive": "REMO + VELA / REMA PARA ACELERAR",
   "ship.item": "OBJETO",
   "ship.equipment": "EQUIPO",
   "ship.delivery": "ENTREGA",

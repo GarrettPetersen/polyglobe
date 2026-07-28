@@ -229,7 +229,7 @@ export function shipPerformanceRating(stats, ratingName) {
 export function shipPropulsionSummary(stats) {
   if (!stats || typeof stats !== "object") throw new Error("Ship propulsion summary requires ship stats");
   if (stats.propulsion === SHIP_PROPULSION_OAR) return "OAR / NO DEAD ZONE";
-  if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) return "OAR + SAIL / OARS WHEN FASTER";
+  if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) return "OAR + SAIL / ROW TO BOOST";
   return `SAIL / ${stats.upwindStallAngleDeg} DEG`;
 }
 

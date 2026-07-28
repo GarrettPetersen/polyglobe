@@ -207,7 +207,7 @@ export default {
   "ship.arrows": "FLÈCHES",
   "ship.atWill": "À VOLONTÉ",
   "ship.oarNoDeadZone": "RAME / AUCUN ANGLE MORT",
-  "ship.oarSailAdaptive": "RAMES + VOILE / RAMES SI PLUS RAPIDES",
+  "ship.oarSailAdaptive": "RAMES + VOILE / RAMEZ POUR ACCÉLÉRER",
   "ship.item": "OBJET",
   "ship.equipment": "ÉQUIPEMENT",
   "ship.delivery": "LIVRAISON",

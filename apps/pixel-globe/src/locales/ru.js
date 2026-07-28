@@ -207,7 +207,7 @@ export default {
   "ship.arrows": "СТРЕЛЫ",
   "ship.atWill": "БЕЗ ОЖИДАНИЯ",
   "ship.oarNoDeadZone": "ВЁСЛА / НЕТ МЁРТВОЙ ЗОНЫ",
-  "ship.oarSailAdaptive": "ВЁСЛА + ПАРУС / ГРЕСТИ, ЕСЛИ БЫСТРЕЕ",
+  "ship.oarSailAdaptive": "ВЁСЛА + ПАРУС / ГРЕСТИ ДЛЯ УСКОРЕНИЯ",
   "ship.item": "ПРЕДМЕТ",
   "ship.equipment": "СНАРЯЖЕНИЕ",
   "ship.delivery": "ДОСТАВКА",

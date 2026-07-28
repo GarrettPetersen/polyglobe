@@ -5,8 +5,9 @@ import {
 } from "./dashboardData.js";
 
 const DASHBOARD_HOST = "dashboard.marque-and-reprisal.com";
+export const DASHBOARD_CACHE_SECONDS = 60;
 const JSON_HEADERS = Object.freeze({
-  "cache-control": "public, max-age=300",
+  "cache-control": `public, max-age=${DASHBOARD_CACHE_SECONDS}`,
   "content-type": "application/json; charset=utf-8",
   "referrer-policy": "no-referrer",
   "x-content-type-options": "nosniff",
@@ -61,7 +62,7 @@ async function cachedDashboardSnapshot(env, windowDays, fetchSnapshot) {
   if (cached) return cached.json();
   const snapshot = await fetchSnapshot(env, windowDays);
   const response = jsonResponse(snapshot, 200, {
-    "cache-control": "public, max-age=300"
+    "cache-control": `public, max-age=${DASHBOARD_CACHE_SECONDS}`
   });
   await cache.put(cacheKey, response);
   return snapshot;

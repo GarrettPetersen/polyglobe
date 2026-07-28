@@ -126,8 +126,12 @@ test("the same crash is reported only once per page session", async () => {
   assert.equal(telemetry.captureCrash(crash, { screen: "sailing" }), true);
   assert.equal(telemetry.captureCrash(crash, { screen: "sailing" }), false);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].events.length, 1);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(requests.length, 2);
+  assert.equal(
+    requests.flatMap((request) => request.events).filter((entry) => entry.type === "crash").length,
+    1
+  );
 });
 
 test("a consenting installation retries an offline crash alongside its next routine session", async () => {
@@ -153,6 +157,46 @@ test("a consenting installation retries an offline crash alongside its next rout
   assert.equal(requests.length, 1);
   assert.deepEqual(requests[0].events.map((entry) => entry.type), ["crash", "session_start"]);
   assert.equal(requests[0].events[1].payload.samplingWeight, 1);
+});
+
+test("a voyage ending during an active request flushes as soon as that request completes", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "voyage-during-request"
+  });
+  const bodies = [];
+  let releaseFirstRequest;
+  const firstRequestPending = new Promise((resolve) => {
+    releaseFirstRequest = resolve;
+  });
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      if (bodies.length === 1) await firstRequestPending;
+      return { ok: true };
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+
+  telemetry.start();
+  await nextTask();
+  assert.equal(bodies.length, 1);
+  assert.equal(telemetry.recordVoyage(voyageRecord(), voyageState("white-whale-revenge")), true);
+  releaseFirstRequest();
+  await nextTask();
+  await nextTask();
+
+  assert.equal(bodies.length, 2);
+  assert.deepEqual(bodies[1].events.map((entry) => entry.type), ["voyage_end"]);
+  assert.equal(bodies[1].events[0].payload.mainQuest, "white-whale-revenge");
+  assert.equal(storage.values.has(TELEMETRY_QUEUE_STORAGE_KEY), false);
 });
 
 test("voyage summaries expose bounded feature engagement without names or save data", () => {
@@ -232,6 +276,44 @@ function metadata() {
     locale: "en",
     gameStateVersion: 44
   };
+}
+
+function voyageRecord() {
+  return {
+    outcomeType: "death",
+    daysAtSea: 10,
+    endingDoubloons: 500,
+    doubloonsEarned: 200,
+    mappedPercent: 2,
+    discoveries: 1,
+    visitedPorts: 3,
+    completedQuests: 0,
+    crewLost: 2,
+    vessel: "Kelulus"
+  };
+}
+
+function voyageState(mainQuest) {
+  return {
+    activePlaySeconds: 600,
+    memory: {
+      campaignGoal: { type: mainQuest },
+      decisions: {},
+      quests: { completed: {} },
+      animals: { encounterOrder: [] },
+      animalCompanions: {
+        byId: {
+          panda: { status: "unmet" },
+          penguin: { status: "unmet" }
+        }
+      },
+      achievements: {}
+    }
+  };
+}
+
+function nextTask() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function queuedCrash() {

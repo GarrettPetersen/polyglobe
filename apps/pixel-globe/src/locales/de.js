@@ -207,7 +207,7 @@ export default {
   "ship.arrows": "PFEILE",
   "ship.atWill": "NACH BELIEBEN",
   "ship.oarNoDeadZone": "RUDER / KEIN TOTWINKEL",
-  "ship.oarSailAdaptive": "RUDER + SEGEL / RUDERN WENN SCHNELLER",
+  "ship.oarSailAdaptive": "RUDER + SEGEL / RUDERN BESCHLEUNIGT",
   "ship.item": "GEGENSTAND",
   "ship.equipment": "AUSRÜSTUNG",
   "ship.delivery": "LIEFERUNG",

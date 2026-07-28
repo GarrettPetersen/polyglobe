@@ -85,8 +85,30 @@ test("oar-sail ships row slowly when their sails cannot make progress", () => {
   assert.equal(rowing.stalled, false);
   assert.equal(rowing.rowing, true);
   assert.equal(rowing.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
-  assert.equal(sailing.rowing, false);
+  assert.equal(sailing.rowing, true);
   assert.ok(sailing.maxSpeedRad > rowing.maxSpeedRad * 2);
+});
+
+test("hybrid oars add speed and acceleration without cancelling stronger sails", () => {
+  const galley = shipStatsForSlug("mediterranean-galley");
+  const sailingOnly = shipPropulsionPerformance(galley, {
+    windStrength: 1,
+    sailEfficiency: 1,
+    rowingRequested: false
+  });
+  const sailingAndRowing = shipPropulsionPerformance(galley, {
+    windStrength: 1,
+    sailEfficiency: 1,
+    rowingRequested: true
+  });
+
+  assert.equal(sailingOnly.rowing, false);
+  assert.equal(sailingAndRowing.rowing, true);
+  assert.equal(
+    sailingAndRowing.maxSpeedRad,
+    sailingOnly.maxSpeedRad + galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO
+  );
+  assert.ok(sailingAndRowing.accelerationFactor > sailingOnly.accelerationFactor);
 });
 
 test("oars stop producing power when directional input is released", () => {
@@ -111,7 +133,7 @@ test("oars stop producing power when directional input is released", () => {
   assert.ok(galleySailing.maxSpeedRad > 0);
 });
 
-test("oar-sail ships row whenever weak wind would be slower than their oars", () => {
+test("oar-sail ships combine weak wind with their oars", () => {
   const galley = shipStatsForSlug("mediterranean-galley");
   const performance = shipPropulsionPerformance(galley, {
     windStrength: 0.025,
@@ -121,20 +143,26 @@ test("oar-sail ships row whenever weak wind would be slower than their oars", ()
 
   assert.equal(performance.rowing, true);
   assert.equal(performance.stalled, false);
-  assert.equal(performance.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
+  assert.ok(performance.maxSpeedRad > galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
 });
 
-test("oar-sail ships row on inefficient non-stalled headings when rowing is faster", () => {
+test("oar-sail ships combine oars with inefficient non-stalled sails", () => {
   const galley = shipStatsForSlug("mediterranean-galley");
-  const performance = shipPropulsionPerformance(galley, {
+  const sailingOnly = shipPropulsionPerformance(galley, {
+    windStrength: 0.8,
+    sailEfficiency: 0.4,
+    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
+    rowingRequested: false
+  });
+  const combined = shipPropulsionPerformance(galley, {
     windStrength: 0.8,
     sailEfficiency: 0.4,
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD
   });
 
-  assert.equal(performance.rowing, true);
-  assert.equal(performance.stalled, false);
-  assert.equal(performance.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
+  assert.equal(combined.rowing, true);
+  assert.equal(combined.stalled, false);
+  assert.ok(combined.maxSpeedRad > sailingOnly.maxSpeedRad);
 });
 
 test("the minimum powered speed remains available to sail-only ships", () => {
@@ -184,17 +212,23 @@ test("oar capability is explicit for pure and hybrid craft", () => {
   assert.equal(shipCanUseOars(shipStatsForSlug("brigantine")), false);
 });
 
-test("a depleted hybrid crew still uses its sails when they are stronger", () => {
+test("a depleted hybrid crew still adds its remaining oar power to stronger sails", () => {
   const galley = shipStatsForSlug("mediterranean-galley");
-  const performance = shipPropulsionPerformance(galley, {
+  const sailingOnly = shipPropulsionPerformance(galley, {
+    windStrength: 1,
+    sailEfficiency: 0.45,
+    rowerRatio: 0.1,
+    rowingRequested: false
+  });
+  const combined = shipPropulsionPerformance(galley, {
     windStrength: 1,
     sailEfficiency: 0.45,
     rowerRatio: 0.1
   });
 
-  assert.equal(performance.rowing, false);
-  assert.equal(performance.stalled, false);
-  assert.ok(performance.maxSpeedRad > 0);
+  assert.equal(combined.rowing, true);
+  assert.equal(combined.stalled, false);
+  assert.ok(combined.maxSpeedRad > sailingOnly.maxSpeedRad);
 });
 
 test("an oar craft with no living crew cannot propel itself", () => {

@@ -187,6 +187,7 @@ export function createGameTelemetry({
     const timeout = controller
       ? setTimeout(() => controller.abort(), TELEMETRY_REQUEST_TIMEOUT_MS)
       : null;
+    let accepted = false;
     try {
       const response = await fetchImpl(endpoint, {
         method: "POST",
@@ -198,13 +199,17 @@ export function createGameTelemetry({
       if (!response?.ok) return false;
       queue.splice(0, batch.length);
       persistQueue();
-      return true;
+      accepted = true;
     } catch {
       return false;
     } finally {
       if (timeout !== null) clearTimeout(timeout);
       requestInFlight = false;
     }
+    // An event can be queued while this request is in flight. Drain it now
+    // instead of waiting for another checkpoint or a later page load.
+    if (accepted && queue.length > 0) void flush({ keepalive });
+    return accepted;
   }
 
   function persistQueue() {

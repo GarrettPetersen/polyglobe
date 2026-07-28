@@ -111,8 +111,8 @@ test("ship specifications explain oar and combined propulsion", () => {
   const longship = createShipyardShipView("viking-longship");
 
   assert.equal(canoe.propulsionSummary, "OAR / NO DEAD ZONE");
-  assert.equal(galley.propulsionSummary, "OAR + SAIL / OARS WHEN FASTER");
-  assert.equal(longship.propulsionSummary, "OAR + SAIL / OARS WHEN FASTER");
+  assert.equal(galley.propulsionSummary, "OAR + SAIL / ROW TO BOOST");
+  assert.equal(longship.propulsionSummary, "OAR + SAIL / ROW TO BOOST");
   assert.equal(longship.armamentLabel, "ARROWS");
   assert.equal(longship.armamentSummary, "AT WILL");
 });

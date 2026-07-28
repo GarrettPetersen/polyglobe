@@ -207,7 +207,7 @@ export default {
   "ship.arrows": "STRZAŁY",
   "ship.atWill": "BEZ OGRANICZEŃ",
   "ship.oarNoDeadZone": "WIOSŁA / BRAK MARTWEJ STREFY",
-  "ship.oarSailAdaptive": "WIOSŁA + ŻAGLE / WIOSŁA, GDY SZYBSZE",
+  "ship.oarSailAdaptive": "WIOSŁA + ŻAGLE / WIOSŁUJ, BY PRZYSPIESZYĆ",
   "ship.item": "PRZEDMIOT",
   "ship.equipment": "WYPOSAŻENIE",
   "ship.delivery": "DOSTAWA",

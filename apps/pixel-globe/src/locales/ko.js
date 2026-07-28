@@ -207,7 +207,7 @@ export default {
   "ship.arrows": "화살",
   "ship.atWill": "자유 사격",
   "ship.oarNoDeadZone": "노 / 맞바람 사각 없음",
-  "ship.oarSailAdaptive": "노 + 돛 / 노가 더 빠르면 사용",
+  "ship.oarSailAdaptive": "노 + 돛 / 노를 저어 가속",
   "ship.item": "물품",
   "ship.equipment": "장비",
   "ship.delivery": "배달품",
