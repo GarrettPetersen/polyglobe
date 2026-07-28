@@ -774,6 +774,11 @@ export function advanceWorldEconomy(economy, clockMinute) {
   return true;
 }
 
+export function nextWorldEconomyEventMinute(economy) {
+  assertEconomy(economy);
+  return economy.lastMinute + ECONOMY_STEP_MINUTES;
+}
+
 export function portMarket(economy, city) {
   const port = requiredPortState(economy, city);
   return TRADE_GOODS.map((good) => marketRow(port, good));

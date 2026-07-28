@@ -23,6 +23,10 @@ import {
   forEachPixelBrushPoint,
   pixelMaskKey
 } from "./pixelWaterMask.js";
+import { createSpatialHash } from "./spatialHash.js";
+import { createFixedRateScheduler } from "./fixedRateScheduler.js";
+import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
+import { renderWorldLayerStack } from "./worldLayerOrder.js";
 import {
   bezierPathLength,
   closestPointOnQuadraticBezier,
@@ -596,7 +600,8 @@ import {
   storeNpcCargo,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
-  updateNpcSeaRouteSystem
+  npcSeaRouteEventSchedule,
+  updateNpcSeaRouteEvents
 } from "./npcSeaRoutes.js";
 import {
   TREASURE_MAP_PIECE_COUNT,
@@ -1061,6 +1066,7 @@ import {
   createWorldEconomy,
   destroyPortGoodStock,
   establishPortIndustry,
+  nextWorldEconomyEventMinute,
   restoreWorldEconomy,
   snapshotWorldEconomy,
   tradeGoodById,
@@ -1175,10 +1181,11 @@ import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_WALK_FRAME_COUNT,
   createLandTradeSystem,
+  landTradeEventSchedule,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
   stageVisibleLandCartTraffic,
-  updateLandTradeSystem,
+  updateLandTradeEvents,
   visibleLandCartSnapshots
 } from "./landTradeSystem.js";
 import {
@@ -1548,7 +1555,19 @@ const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
-const NPC_VISUAL_UPDATE_INTERVAL_SECONDS = 1 / 30;
+const NPC_VISUAL_UPDATE_HZ = 20;
+const NPC_COMBAT_TARGETING_HZ = 8;
+const NPC_PROJECTILE_UPDATE_HZ = 60;
+const NPC_WILDLIFE_UPDATE_HZ = 2;
+const NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES = 30;
+const WORLD_SPATIAL_KIND = Object.freeze({
+  PLAYER: "player",
+  NPC_SHIP: "npc-ship",
+  PORT: "port",
+  SHORE_BATTERY: "shore-battery",
+  FISH_SCHOOL: "fish-school",
+  WHALE: "whale"
+});
 const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 2;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
@@ -1568,7 +1587,6 @@ const NPC_COLLISION_VELOCITY_MIN_PX = 0.12;
 const NPC_SHIP_FLAG_W = 10;
 const NPC_SHIP_FLAG_H = 6;
 const NPC_SHIP_FLAG_POLE_H = 10;
-const NPC_VISUAL_MAX_ACCUMULATED_SECONDS = 0.15;
 const NPC_HAIL_RADIUS_PX = 28;
 const NPC_HAIL_CLICK_PAD_PX = 4;
 const WAKE_WATER_BUCKET_PX = 24;
@@ -2389,8 +2407,6 @@ let worldDiscoveryImages;
 let cityImages;
 let factionFlagImages;
 let animalImages;
-let stormShipStrikeImage;
-let fireEffectImage;
 let statusHudImages;
 let statusDoubloonImages;
 let statusPersonImages;
@@ -2402,7 +2418,9 @@ let shipLightingAssetStore;
 let rowingShipAssetStore;
 let whaleAssetStore;
 let horseCartAssetStore;
+let worldAnimationAssetStore;
 let pendingWorldAssetError = null;
+let pendingWorldSimulationError = null;
 const observedWorldAssetPromises = new WeakSet();
 let npcSeaRoutes;
 let worldEconomy;
@@ -2419,7 +2437,6 @@ let npcCombatProjectiles = [];
 let npcCombatSplashes = [];
 let cannonSmokeBursts = [];
 let hullSplinterBursts = [];
-let npcVisualUpdateAccumulator = 0;
 let npcVisualMovementBucket = 0;
 let shoreBatteryUpdateAccumulator = 0;
 let whaleSimulationAccumulator = 0;
@@ -2430,7 +2447,12 @@ let ambientAudioWildlifeAccumulator = 0;
 let ambientAudioContext = null;
 let ambientAudioWildlife = null;
 let weatherSimulationAccumulator = 0;
-let npcStrategicUpdateClockMinutes = null;
+let worldSimulationScheduler = createWorldSimulationScheduler();
+let distantWorldWorkerClient = null;
+const pendingDistantWorldEvents = [];
+const worldSpatialIndex = createSpatialHash({ cellSize: 32 });
+let worldSpatialChart = null;
+let worldSpatialWildlifeChart = null;
 let lastPlatformActivityUpdateMs = -Infinity;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
@@ -2795,6 +2817,7 @@ main().catch((err) => {
 
 async function main() {
   initializeWorldAssetStores();
+  initializeDistantWorldWorker();
   const shellReady = Promise.all([loadPixelFonts(), capsuleLoadingScreen.ready]);
   const startupAssets = Promise.all([
     loadTerrainImages(),
@@ -2806,9 +2829,7 @@ async function main() {
     loadWorldDiscoveryImages(),
     loadCityImages(),
     loadFactionFlagImages(),
-    loadAnimalImages(),
-    loadStormShipStrikeImage(),
-    loadFireEffectImage(),
+    loadAlwaysVisibleAnimalImages(),
     loadStatusHudImages(),
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
@@ -2836,8 +2857,6 @@ async function main() {
     loadedCityImages,
     loadedFactionFlagImages,
     loadedAnimalImages,
-    loadedStormShipStrikeImage,
-    loadedFireEffectImage,
     loadedStatusHudImages,
     loadedCityCatalog,
     loadedCharacterPortraitManifest,
@@ -2866,8 +2885,6 @@ async function main() {
   factionFlagImages = loadedFactionFlagImages;
   wavingFactionFlagFrameCache.clear();
   animalImages = loadedAnimalImages;
-  stormShipStrikeImage = loadedStormShipStrikeImage;
-  fireEffectImage = loadedFireEffectImage;
   statusHudImages = loadedStatusHudImages;
   statusDoubloonImages = createStatusDoubloonImages(statusHudImages.doubloon);
   statusPersonImages = createStatusPersonImages(statusHudImages.crew);
@@ -3203,6 +3220,7 @@ async function main() {
       configureCaptureEncounter(npcSeaRoutes, encounter, weatherClockMinutes);
     }
   }
+  resetDistantWorldWorkerSchedule();
   const playerPirateHideoutPorts = buildPlayerPirateHideoutPorts(npcSeaRoutes.pirateHideouts);
   pirateHideoutPortsByTileId = new Map(playerPirateHideoutPorts.map((port) => [port.tileId, port]));
   const pirateHideoutHosts = playerPirateHideoutPorts.map((port) => ({
@@ -3504,9 +3522,16 @@ async function loadShipSpriteAsset(spriteKey, label) {
   return Object.freeze({ image, sinkDepthImage });
 }
 
+const WORLD_ANIMATION_ASSET = Object.freeze({
+  SEAGULLS: "seagulls",
+  FISHING_NET: "fishing-net",
+  STORM_STRIKE: "storm-strike",
+  FIRE: "fire"
+});
+
 function initializeWorldAssetStores() {
   if (shipSpriteAssetStore || shipLightingAssetStore || rowingShipAssetStore ||
-      whaleAssetStore || horseCartAssetStore) {
+      whaleAssetStore || horseCartAssetStore || worldAnimationAssetStore) {
     throw new Error("World asset stores are already initialized");
   }
   shipSpriteAssetStore = createOnDemandAssetStore({
@@ -3532,6 +3557,48 @@ function initializeWorldAssetStores() {
       return loadHorseCartAssets();
     }
   });
+  worldAnimationAssetStore = createOnDemandAssetStore({
+    label: "world animation",
+    load: loadWorldAnimationAsset
+  });
+}
+
+async function loadWorldAnimationAsset(key) {
+  if (key === WORLD_ANIMATION_ASSET.SEAGULLS) {
+    const [flight, standing] = await Promise.all([
+      loadAssetImage(`${SEAGULL_FLIGHT_URL}?v=${ANIMAL_ASSET_VERSION}`, "seagull flight sheet"),
+      loadAssetImage(`${SEAGULL_STANDING_URL}?v=${ANIMAL_ASSET_VERSION}`, "standing seagull image")
+    ]);
+    validateImageDimensions(
+      flight,
+      "seagull flight sheet",
+      SEAGULL_FRAME_SIZE * SEAGULL_FLIGHT_FRAMES,
+      SEAGULL_FRAME_SIZE
+    );
+    validateImageDimensions(
+      standing,
+      "standing seagull image",
+      SEAGULL_FRAME_SIZE,
+      SEAGULL_FRAME_SIZE
+    );
+    return Object.freeze({ flight, standing });
+  }
+  if (key === WORLD_ANIMATION_ASSET.FISHING_NET) {
+    const image = await loadAssetImage(
+      `${FISHING_NET_SHEET_URL}?v=${ANIMAL_ASSET_VERSION}`,
+      "fishing net sheet"
+    );
+    validateImageDimensions(
+      image,
+      "fishing net sheet",
+      FISHING_NET_FRAME_SIZE * FISHING_NET_FRAME_COUNT,
+      FISHING_NET_FRAME_SIZE
+    );
+    return image;
+  }
+  if (key === WORLD_ANIMATION_ASSET.STORM_STRIKE) return loadStormShipStrikeImage();
+  if (key === WORLD_ANIMATION_ASSET.FIRE) return loadFireEffectImage();
+  throw new Error(`Unknown world animation asset key: ${key}`);
 }
 
 async function loadShipSpriteAssetsForSlug(slug) {
@@ -3637,6 +3704,19 @@ function queueHorseCartAssets(context) {
   if (!horseCartAssetStore) throw new Error("Horse-cart asset store is not initialized");
   const promise = horseCartAssetStore.request("horse-cart");
   observeWorldAssetRequest(promise, `${context} horse-cart assets`);
+}
+
+function residentWorldAnimationAsset(key) {
+  if (!worldAnimationAssetStore) throw new Error("World animation asset store is not initialized");
+  return worldAnimationAssetStore.peek(key);
+}
+
+function queueWorldAnimationAsset(key, context) {
+  if (!worldAnimationAssetStore) throw new Error("World animation asset store is not initialized");
+  observeWorldAssetRequest(
+    worldAnimationAssetStore.request(key),
+    `${context} ${key} animation`
+  );
 }
 
 function validateShipSpriteSheet(img, label) {
@@ -3774,28 +3854,13 @@ function createGameIconOutlineAtlas(image) {
   return outlineCanvas;
 }
 
-async function loadAnimalImages() {
-  const [seagullFlight, seagullStanding, fish, fishingNet] = await Promise.all([
-    loadAssetImage(`${SEAGULL_FLIGHT_URL}?v=${ANIMAL_ASSET_VERSION}`, "seagull flight sheet"),
-    loadAssetImage(`${SEAGULL_STANDING_URL}?v=${ANIMAL_ASSET_VERSION}`, "standing seagull image"),
-    loadAssetImage(`${FISH_SPRITE_URL}?v=${ANIMAL_ASSET_VERSION}`, "fish image"),
-    loadAssetImage(`${FISHING_NET_SHEET_URL}?v=${ANIMAL_ASSET_VERSION}`, "fishing net sheet")
-  ]);
-  validateImageDimensions(
-    seagullFlight,
-    "seagull flight sheet",
-    SEAGULL_FRAME_SIZE * SEAGULL_FLIGHT_FRAMES,
-    SEAGULL_FRAME_SIZE
+async function loadAlwaysVisibleAnimalImages() {
+  const fish = await loadAssetImage(
+    `${FISH_SPRITE_URL}?v=${ANIMAL_ASSET_VERSION}`,
+    "fish image"
   );
-  validateImageDimensions(seagullStanding, "standing seagull image", SEAGULL_FRAME_SIZE, SEAGULL_FRAME_SIZE);
   validateImageDimensions(fish, "fish image", FISH_SPRITE_SIZE, FISH_SPRITE_SIZE);
-  validateImageDimensions(
-    fishingNet,
-    "fishing net sheet",
-    FISHING_NET_FRAME_SIZE * FISHING_NET_FRAME_COUNT,
-    FISHING_NET_FRAME_SIZE
-  );
-  return Object.freeze({ seagullFlight, seagullStanding, fish, fishingNet });
+  return Object.freeze({ fish });
 }
 
 async function loadHorseCartAssets() {
@@ -4438,6 +4503,11 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (pendingWorldAssetError) {
     const error = pendingWorldAssetError;
     pendingWorldAssetError = null;
+    throw error;
+  }
+  if (pendingWorldSimulationError) {
+    const error = pendingWorldSimulationError;
+    pendingWorldSimulationError = null;
     throw error;
   }
   if (frameRateOverlayEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
@@ -6657,7 +6727,13 @@ function randomWhaleSongGapMs() {
 
 function visibleUnderwaterWhaleSongPresence() {
   if (!gameState?.memory?.whales || !chart || !localLayout || !ship) return 0;
-  for (const whale of gameState.memory.whales.individuals) {
+  for (const match of worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    SFX_WHALE_SONG_FAR_PX,
+    [WORLD_SPATIAL_KIND.WHALE]
+  )) {
+    const whale = match.entry.value;
     const call = whaleInteractionCall(whale);
     if (!call) continue;
     const distancePx = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
@@ -8839,7 +8915,6 @@ async function restoreSavedVoyage(payload) {
   gameOverState = null;
   npcVisualShips.clear();
   shoreBatteryStates.clear();
-  npcVisualUpdateAccumulator = 0;
   npcVisualMovementBucket = 0;
   shoreBatteryUpdateAccumulator = 0;
   whaleSimulationAccumulator = 0;
@@ -8850,7 +8925,11 @@ async function restoreSavedVoyage(payload) {
   ambientAudioContext = null;
   ambientAudioWildlife = null;
   weatherSimulationAccumulator = 0;
-  npcStrategicUpdateClockMinutes = null;
+  worldSimulationScheduler = createWorldSimulationScheduler();
+  pendingDistantWorldEvents.length = 0;
+  worldSpatialIndex.clear();
+  worldSpatialChart = null;
+  worldSpatialWildlifeChart = null;
   npcCombatProjectiles = [];
   npcCombatSplashes = [];
   pendingNpcCombatHailId = null;
@@ -8886,6 +8965,7 @@ async function restoreSavedVoyage(payload) {
   reconcileRestoredShipDrawnNavigation(restorePlacement.reason);
   reframeWorldNorthUp("continued voyage");
   await loadInitialNearbyWorldAssets();
+  resetDistantWorldWorkerSchedule();
   resetPlayerWindState();
   windIndicatorState = null;
   setBackgroundMusicTrack("ship", { force: true });
@@ -14325,9 +14405,16 @@ function nearbyPortTraffic(city) {
   if (!city || !chart) return counts;
   const portCall = chart.cityCalls?.find((call) => call.tileId === city.tileId);
   if (!portCall) return counts;
-  const radius2 = PORT_DIALOGUE_TRAFFIC_RADIUS_PX * PORT_DIALOGUE_TRAFFIC_RADIUS_PX;
-  for (const state of npcVisualShips.values()) {
-    if (distance2(portCall.x, portCall.y, state.x, state.y) > radius2) continue;
+  for (const match of worldSpatialMatches(
+    portCall.x,
+    portCall.y,
+    PORT_DIALOGUE_TRAFFIC_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )) {
+    if (match.distanceSquared > PORT_DIALOGUE_TRAFFIC_RADIUS_PX * PORT_DIALOGUE_TRAFFIC_RADIUS_PX) {
+      continue;
+    }
+    const state = match.entry.value;
     if (state.role === NPC_ROLE_PIRATE) counts.pirates += 1;
     else if (state.role === NPC_ROLE_WARSHIP) counts.warships += 1;
     else if (state.role === NPC_ROLE_FISHERMAN) counts.fishermen += 1;
@@ -14815,7 +14902,13 @@ function harpoonableWhaleCalls() {
   const harpoon = playerWhaleHarpoon(gameState);
   if (!harpoon) return [];
   const calls = [];
-  for (const whale of gameState.memory.whales.individuals) {
+  for (const match of worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    harpoon.rangePx,
+    [WORLD_SPATIAL_KIND.WHALE]
+  )) {
+    const whale = match.entry.value;
     if (!whaleCanBeHarpooned(whale)) continue;
     const call = whaleInteractionCall(whale);
     if (!call) continue;
@@ -15039,15 +15132,14 @@ function activePortCalls() {
 
 function activeNpcShipCalls() {
   if (!localLayout || !npcShipCaptains) return [];
-  const calls = [];
-  for (const state of npcVisualShips.values()) {
-    const distance = distance2(localLayout.viewX, localLayout.viewY, state.x, state.y);
-    if (distance > NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX) continue;
-    calls.push({ call: npcShipInteractionCall(state), distance });
-  }
-  return calls
-    .sort((a, b) => a.distance - b.distance || a.call.id.localeCompare(b.call.id))
-    .map((entry) => entry.call);
+  return worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    NPC_HAIL_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )
+    .filter((match) => match.distanceSquared <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX)
+    .map((match) => npcShipInteractionCall(match.entry.value));
 }
 
 function activeFishCall() {
@@ -15056,16 +15148,13 @@ function activeFishCall() {
 }
 
 function nearestFishCallNearPoint(x, y, radiusPx) {
-  let best = null;
-  let bestDistance = Infinity;
-  const maxDistance = radiusPx * radiusPx;
-  for (const call of fishSchoolDrawCalls(chart, lastFrameMs)) {
-    const distance = distance2(x, y, call.centerX, call.centerY);
-    if (distance > maxDistance || distance >= bestDistance) continue;
-    best = fishInteractionCall(call);
-    bestDistance = distance;
-  }
-  return best;
+  const match = worldSpatialMatches(
+    x,
+    y,
+    radiusPx,
+    [WORLD_SPATIAL_KIND.FISH_SCHOOL]
+  ).find((candidate) => candidate.distanceSquared <= radiusPx * radiusPx);
+  return match ? fishInteractionCall(match.entry.value) : null;
 }
 
 function fishInteractionCall(call) {
@@ -17967,17 +18056,27 @@ function navalBroadsideSideForPoint(point, weapon, padding) {
 
 function navalArcHasEnemy(arc) {
   const offset = chartOffsetPixels(chart);
-  for (const state of npcVisualShips.values()) {
-    if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, state.id))) continue;
-    const point = { x: state.x + offset.x, y: state.y + offset.y };
-    if (pointInBroadsideArc(point, arc, 7)) return true;
-  }
-
-  for (const battery of activeVisibleShoreBatteries()) {
-    if (!battery.engagedTargetIds.has(PLAYER_COMBAT_ID)) continue;
-    const localPoint = shoreBatteryPoint(battery.id);
-    const point = { x: localPoint.x + offset.x, y: localPoint.y + offset.y };
-    if (pointInBroadsideArc(point, arc, 9)) return true;
+  for (const match of worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    arc.outerRadius + 9,
+    [WORLD_SPATIAL_KIND.NPC_SHIP, WORLD_SPATIAL_KIND.SHORE_BATTERY]
+  )) {
+    const entry = match.entry;
+    if (entry.kind === WORLD_SPATIAL_KIND.NPC_SHIP) {
+      const state = entry.value;
+      if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, state.id))) continue;
+      if (pointInBroadsideArc({ x: entry.x + offset.x, y: entry.y + offset.y }, arc, 7)) {
+        return true;
+      }
+      continue;
+    }
+    const battery = entry.value;
+    if (!battery.engagedTargetIds.has(PLAYER_COMBAT_ID) ||
+        shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes))) continue;
+    if (pointInBroadsideArc({ x: entry.x + offset.x, y: entry.y + offset.y }, arc, 9)) {
+      return true;
+    }
   }
   return false;
 }
@@ -18083,21 +18182,37 @@ function updateNavalWeapons(dt) {
 }
 
 function resolvePlayerCannonPathHit(ball, previousAge) {
-  const targets = [...npcVisualShips.values()]
-    .filter((state) => state.hitPoints > 0 && !state.combatGrace)
-    .map((state) => ({
-      id: state.id,
-      x: state.x,
-      y: state.y,
-      footprint: combatShipFootprint(state.id)
-    }));
-  for (const battery of activeVisibleShoreBatteries()) {
-    const point = shoreBatteryPoint(battery.id);
-    targets.push({ id: battery.id, x: point.x, y: point.y, radius: 9 });
+  if (worldSpatialChart !== chart) refreshWorldSpatialFastEntries();
+  const previousPoint = navalProjectilePoint(ball, previousAge);
+  const currentPoint = navalProjectilePoint(ball);
+  const margin = SHIP_SHEET_FRAME_SIZE / 2;
+  const nearby = worldSpatialIndex.queryAabb({
+    minX: Math.min(previousPoint.x, currentPoint.x) - margin,
+    minY: Math.min(previousPoint.y, currentPoint.y) - margin,
+    maxX: Math.max(previousPoint.x, currentPoint.x) + margin,
+    maxY: Math.max(previousPoint.y, currentPoint.y) + margin,
+    kinds: [WORLD_SPATIAL_KIND.NPC_SHIP, WORLD_SPATIAL_KIND.SHORE_BATTERY]
+  });
+  const targets = [];
+  for (const entry of nearby) {
+    if (entry.kind === WORLD_SPATIAL_KIND.NPC_SHIP) {
+      const state = entry.value;
+      if (state.hitPoints <= 0 || state.combatGrace) continue;
+      targets.push({
+        id: state.id,
+        x: state.x,
+        y: state.y,
+        footprint: combatShipFootprint(state.id)
+      });
+      continue;
+    }
+    const battery = entry.value;
+    if (shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes))) continue;
+    targets.push({ id: battery.id, x: entry.x, y: entry.y, radius: 9 });
   }
   const hit = firstNavalProjectileHit(
-    navalProjectilePoint(ball, previousAge),
-    navalProjectilePoint(ball),
+    previousPoint,
+    currentPoint,
     targets
   );
   if (!hit) return false;
@@ -19191,46 +19306,250 @@ function restartAfterGameOver() {
   window.location.reload();
 }
 
+function createWorldSimulationScheduler() {
+  return createFixedRateScheduler([
+    {
+      id: "visible-npcs",
+      hz: NPC_VISUAL_UPDATE_HZ,
+      maxStepsPerAdvance: 1,
+      maxAccumulatedSteps: 2,
+      update: updateNpcVisualShips
+    },
+    {
+      id: "combat-targeting",
+      hz: NPC_COMBAT_TARGETING_HZ,
+      maxStepsPerAdvance: 1,
+      maxAccumulatedSteps: 1,
+      update: updateNpcCombat
+    },
+    {
+      id: "projectiles",
+      hz: NPC_PROJECTILE_UPDATE_HZ,
+      maxStepsPerAdvance: 3,
+      maxAccumulatedSteps: 3,
+      update: updateNpcCombatProjectiles
+    },
+    {
+      id: "wildlife-work",
+      hz: NPC_WILDLIFE_UPDATE_HZ,
+      maxStepsPerAdvance: 1,
+      maxAccumulatedSteps: 1,
+      update: () => {
+        refreshWorldSpatialWildlifeEntries(lastFrameMs);
+        return updateNpcFishermenHarvest();
+      }
+    }
+  ]);
+}
+
+function initializeDistantWorldWorker() {
+  if (distantWorldWorkerClient) {
+    throw new Error("Distant-world worker was initialized more than once");
+  }
+  distantWorldWorkerClient = createDistantWorldWorkerClient({
+    workerUrl: new URL("./distantWorldWorker.js", import.meta.url),
+    onDue: (result) => {
+      pendingDistantWorldEvents.push(result);
+      dirty = true;
+    },
+    onError: (error) => {
+      if (!pendingWorldSimulationError) pendingWorldSimulationError = error;
+      dirty = true;
+    }
+  });
+}
+
+function resetDistantWorldWorkerSchedule() {
+  if (!distantWorldWorkerClient) {
+    throw new Error("Cannot schedule the distant world before its worker is initialized");
+  }
+  if (!worldEconomy || !landTradeSystem || !npcSeaRoutes) {
+    throw new Error("Cannot schedule the distant world before its systems exist");
+  }
+  pendingDistantWorldEvents.length = 0;
+  distantWorldWorkerClient.reset({
+    economyMinute: nextWorldEconomyEventMinute(worldEconomy),
+    maintenanceMinute: nextDistantWorldMaintenanceMinute(weatherClockMinutes),
+    ships: npcSeaRouteEventSchedule(npcSeaRoutes),
+    carts: landTradeEventSchedule(landTradeSystem)
+  }, weatherClockMinutes);
+}
+
+function nextDistantWorldMaintenanceMinute(clockMinute) {
+  if (!Number.isFinite(clockMinute) || clockMinute < 0) {
+    throw new Error(`Invalid distant-world maintenance clock: ${clockMinute}`);
+  }
+  return (
+    Math.floor(clockMinute / NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES) + 1
+  ) * NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES;
+}
+
+function refreshWorldSpatialFastEntries() {
+  if (!chart || !localLayout) {
+    worldSpatialIndex.clear();
+    worldSpatialChart = null;
+    worldSpatialWildlifeChart = null;
+    return;
+  }
+  if (worldSpatialChart !== chart) refreshWorldSpatialStaticEntries();
+  worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.PLAYER, ship ? [{
+    id: "player",
+    x: localLayout.viewX,
+    y: localLayout.viewY,
+    radius: SHIP_COLLISION_RADIUS_PX,
+    value: ship
+  }] : []);
+  worldSpatialIndex.replaceKind(
+    WORLD_SPATIAL_KIND.NPC_SHIP,
+    [...npcVisualShips.values()].map((state) => ({
+      id: `npc:${state.id}`,
+      x: state.x,
+      y: state.y,
+      radius: SHIP_COLLISION_RADIUS_PX,
+      value: state
+    }))
+  );
+  const batteryEntries = [];
+  for (const state of shoreBatteryStates.values()) {
+    const point = shoreBatteryPoint(state.id);
+    if (!point) continue;
+    batteryEntries.push({
+      id: `battery:${state.id}`,
+      x: point.x,
+      y: point.y,
+      radius: 9,
+      value: state
+    });
+  }
+  worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.SHORE_BATTERY, batteryEntries);
+}
+
+function refreshWorldSpatialStaticEntries() {
+  if (!chart) {
+    worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.PORT, []);
+    worldSpatialChart = null;
+    worldSpatialWildlifeChart = null;
+    return;
+  }
+  worldSpatialIndex.replaceKind(
+    WORLD_SPATIAL_KIND.PORT,
+    (chart.cityCalls || [])
+      .filter((call) => Number.isFinite(call.x) && Number.isFinite(call.y))
+      .map((call) => ({
+        id: `port:${call.portId ?? call.tileId}`,
+        x: call.x,
+        y: call.y,
+        radius: 0,
+        value: call
+      }))
+  );
+  worldSpatialChart = chart;
+  worldSpatialWildlifeChart = null;
+}
+
+function refreshWorldSpatialWildlifeEntries(nowMs) {
+  if (!chart || !localLayout || !gameState) {
+    worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.FISH_SCHOOL, []);
+    worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.WHALE, []);
+    worldSpatialWildlifeChart = null;
+    return;
+  }
+  if (worldSpatialChart !== chart) refreshWorldSpatialStaticEntries();
+  const fishCalls = animalImages?.fish ? fishSchoolDrawCalls(chart, nowMs) : [];
+  worldSpatialIndex.replaceKind(
+    WORLD_SPATIAL_KIND.FISH_SCHOOL,
+    fishCalls.map((call) => ({
+      id: `fish:${call.id}`,
+      x: call.centerX,
+      y: call.centerY,
+      radius: Math.max(call.sprite.width, call.sprite.height) / 2,
+      value: call
+    }))
+  );
+  const whaleEntries = [];
+  for (const whale of gameState.memory.whales?.individuals || []) {
+    if (whale.phase === WHALE_PHASE_DEAD || !chart.visibleSet.has(whale.tileId)) continue;
+    const point = localPointForKnownTileVector(whale.position, whale.tileId);
+    if (!point) continue;
+    whaleEntries.push({
+      id: `whale:${whale.id}`,
+      x: point.x,
+      y: point.y,
+      radius: SHIP_SHEET_FRAME_SIZE * whaleLifeStageScale(whale) / 2,
+      value: whale
+    });
+  }
+  worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.WHALE, whaleEntries);
+  worldSpatialWildlifeChart = chart;
+}
+
+function worldSpatialMatches(x, y, radius, kinds) {
+  if (!chart || !localLayout) return [];
+  if (worldSpatialChart !== chart) refreshWorldSpatialFastEntries();
+  const needsWildlife = kinds.some((kind) => (
+    kind === WORLD_SPATIAL_KIND.FISH_SCHOOL || kind === WORLD_SPATIAL_KIND.WHALE
+  ));
+  if (needsWildlife && worldSpatialWildlifeChart !== chart) {
+    refreshWorldSpatialWildlifeEntries(lastFrameMs);
+  }
+  return worldSpatialIndex.queryCircle({ x, y, radius, kinds });
+}
+
 function updateNpcShips(dt) {
   if (!npcSeaRoutes) return false;
-  const strategicUpdateDue = npcStrategicUpdateClockMinutes !== weatherClockMinutes;
-  if (strategicUpdateDue) npcStrategicUpdateClockMinutes = weatherClockMinutes;
-  const economyChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
-    "npcShips.economy",
-    () => advanceWorldEconomy(worldEconomy, weatherClockMinutes)
-  );
-  const landTradeChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
-    "npcShips.landTrade",
-    () => updateLandTradeSystem(landTradeSystem, weatherClockMinutes)
-  );
-  const hideoutDangerChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
-    "npcShips.hideouts",
-    () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
-      lat: latitudeDegForDirection(ship.position),
-      lon: longitudeDegForDirection(ship.position),
-      clockMinutes: weatherClockMinutes
-    })
-  );
-  const strategicChanged = strategicUpdateDue && measurePerformanceBenchmarkStage(
-    "npcShips.strategic",
-    () => updateNpcSeaRouteSystem(npcSeaRoutes, weatherClockMinutes)
-  );
-  npcVisualUpdateAccumulator = Math.min(
-    NPC_VISUAL_MAX_ACCUMULATED_SECONDS,
-    npcVisualUpdateAccumulator + dt
-  );
-  if (npcVisualUpdateAccumulator < NPC_VISUAL_UPDATE_INTERVAL_SECONDS) {
-    return strategicChanged || economyChanged || landTradeChanged || hideoutDangerChanged;
+  if (!distantWorldWorkerClient) {
+    throw new Error("NPC simulation requires the distant-world worker");
   }
-  const visualDt = npcVisualUpdateAccumulator;
-  npcVisualUpdateAccumulator = 0;
-  const visualChanged = measurePerformanceBenchmarkStage(
-    "npcShips.visual",
-    () => updateNpcVisualShips(visualDt)
+  distantWorldWorkerClient.requestAdvance(weatherClockMinutes);
+  let strategicChanged = false;
+  let economyChanged = false;
+  let landTradeChanged = false;
+  let hideoutDangerChanged = false;
+  while (pendingDistantWorldEvents.length > 0) {
+    const event = pendingDistantWorldEvents.shift();
+    if (event.economy) {
+      economyChanged ||= measurePerformanceBenchmarkStage(
+        "npcShips.economy",
+        () => advanceWorldEconomy(worldEconomy, weatherClockMinutes)
+      );
+    }
+    if (event.cartIds.length > 0) {
+      landTradeChanged ||= measurePerformanceBenchmarkStage(
+        "npcShips.landTrade",
+        () => updateLandTradeEvents(landTradeSystem, weatherClockMinutes, event.cartIds)
+      );
+    }
+    if (event.maintenance) {
+      hideoutDangerChanged ||= measurePerformanceBenchmarkStage(
+        "npcShips.hideouts",
+        () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
+          lat: latitudeDegForDirection(ship.position),
+          lon: longitudeDegForDirection(ship.position),
+          clockMinutes: weatherClockMinutes
+        })
+      );
+    }
+    if (event.maintenance || event.shipIds.length > 0) {
+      strategicChanged ||= measurePerformanceBenchmarkStage(
+        "npcShips.strategic",
+        () => updateNpcSeaRouteEvents(
+          npcSeaRoutes,
+          weatherClockMinutes,
+          event.shipIds,
+          { maintenance: event.maintenance }
+        )
+      );
+    }
+    resetDistantWorldWorkerSchedule();
+  }
+  const scheduled = measurePerformanceBenchmarkStage(
+    "npcShips.scheduled",
+    () => worldSimulationScheduler.advance(dt)
   );
-  npcVisualMovementBucket =
-    (npcVisualMovementBucket + 1) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
-  return strategicChanged || economyChanged || landTradeChanged || hideoutDangerChanged || visualChanged;
+  let scheduledChanged = false;
+  for (const result of scheduled.values()) scheduledChanged ||= result.changed;
+  return strategicChanged || economyChanged || landTradeChanged || hideoutDangerChanged ||
+    scheduledChanged;
 }
 
 function updateNpcVisualShips(dt) {
@@ -19267,8 +19586,6 @@ function updateNpcVisualShips(dt) {
     }
     activeSnapshots.push(snapshot);
   }
-  if (measurePerformanceBenchmarkStage("npcShips.visual.combat", () => updateNpcCombat(dt))) changed = true;
-
   const movementStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
   for (const snapshot of activeSnapshots) {
     const routePoint = localPointForGlobeVector(snapshot.routeVector);
@@ -19356,9 +19673,10 @@ function updateNpcVisualShips(dt) {
     releaseNpcVisualState(state);
     changed = true;
   }
+  refreshWorldSpatialFastEntries();
   if (measurePerformanceBenchmarkStage("npcShips.visual.collisions", () => updateCombatShipCollisions(dt))) changed = true;
-  if (measurePerformanceBenchmarkStage("npcShips.visual.projectiles", () => updateNpcCombatProjectiles(dt))) changed = true;
-  if (measurePerformanceBenchmarkStage("npcShips.visual.fishing", () => updateNpcFishermenHarvest())) changed = true;
+  npcVisualMovementBucket =
+    (npcVisualMovementBucket + 1) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
   return changed;
 }
 
@@ -19707,17 +20025,22 @@ function maybeOpenPortugueseCartazInspection(simMinute) {
     return false;
   }
   const playerLocation = vectorLatLon(ship.position);
-  const inspectors = [...npcVisualShips.values()]
-    .filter((state) => (
+  const inspectors = worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    NPC_HAIL_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )
+    .map((match) => ({
+      state: match.entry.value,
+      distance: Math.sqrt(match.distanceSquared)
+    }))
+    .filter(({ state, distance }) => (
       state.factionId === PORTUGUESE_FACTION_ID &&
       state.role === NPC_ROLE_WARSHIP &&
-      !state.combatGrace
+      !state.combatGrace &&
+      distance <= NPC_HAIL_RADIUS_PX
     ))
-    .map((state) => ({
-      state,
-      distance: Math.hypot(state.x - localLayout.viewX, state.y - localLayout.viewY)
-    }))
-    .filter((entry) => entry.distance <= NPC_HAIL_RADIUS_PX)
     .sort((a, b) => a.distance - b.distance || a.state.id.localeCompare(b.state.id));
   for (const { state } of inspectors) {
     const inspection = portugueseCartazInspectionStatus(gameState, {
@@ -19745,11 +20068,17 @@ function forceColonizationDefenseEngagements(playerWasInCombat) {
   if (!memory || memory.stage !== COLONIZATION_STAGE_DEFEND || dialogueState || menusAreOpen()) return null;
   const defeated = new Set(memory.defenseDefeatedShipIds || []);
   let initiator = null;
-  for (const state of npcVisualShips.values()) {
+  for (const match of worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    COMBAT_DETECTION_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )) {
+    const state = match.entry.value;
     if (defeated.has(state.id)) continue;
     const encounter = npcSeaRoutes.shipById.get(state.id)?.encounter;
     if (encounter?.kind !== "colonization-defense" || encounter.forceAttack !== true) continue;
-    if (Math.hypot(state.x - localLayout.viewX, state.y - localLayout.viewY) > COMBAT_DETECTION_RADIUS_PX) continue;
+    if (match.distanceSquared > COMBAT_DETECTION_RADIUS_PX * COMBAT_DETECTION_RADIUS_PX) continue;
     if (!forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, state.id)) continue;
     shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
     shipCombatEntryCollisionGrace.set(state.id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
@@ -19879,9 +20208,6 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
   let changed = false;
   let hailOpened = false;
   const visibleIds = new Set();
-  const targetableNpcs = [...npcVisualShips.values()].filter((npc) => (
-    !npc.combatGrace && npc.hitPoints > 0
-  ));
   const hostilityByFactionPair = new Map();
 
   for (const city of chart.cityCalls || []) {
@@ -19929,8 +20255,15 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
     }
 
     measurePerformanceBenchmarkStage("npcShips.visual.combat.batteries.targetScan", () => {
-      for (const npc of targetableNpcs) {
-        if (Math.hypot(point.x - npc.x, point.y - npc.y) > range) continue;
+      for (const match of worldSpatialMatches(
+        point.x,
+        point.y,
+        range,
+        [WORLD_SPATIAL_KIND.NPC_SHIP]
+      )) {
+        if (match.distanceSquared > range * range) continue;
+        const npc = match.entry.value;
+        if (npc.combatGrace || npc.hitPoints <= 0) continue;
         if (shoreBatteryHostileToFaction(city, npc.factionId, hostilityByFactionPair)) {
           nextTargets.add(npc.id);
         }
@@ -20152,9 +20485,14 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
 
 function playerHasMajorPortProtection() {
   if (!chart || !localLayout) return false;
-  return (chart.cityCalls || []).some((city) => (
-    npcPortHasMajorProtection(city) &&
-    Math.hypot(city.x - localLayout.viewX, city.y - localLayout.viewY) <= NPC_MAJOR_PORT_AVOID_RADIUS_PX
+  return worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    NPC_MAJOR_PORT_AVOID_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.PORT]
+  ).some((match) => (
+    match.distanceSquared <= NPC_MAJOR_PORT_AVOID_RADIUS_PX * NPC_MAJOR_PORT_AVOID_RADIUS_PX &&
+    npcPortHasMajorProtection(match.entry.value)
   ));
 }
 
@@ -20162,9 +20500,15 @@ function npcPirateMajorPortAvoidance(state) {
   if (state.role !== NPC_ROLE_PIRATE || !chart) return null;
   let nearest = null;
   let nearestDistance = Infinity;
-  for (const city of chart.cityCalls || []) {
+  for (const match of worldSpatialMatches(
+    state.x,
+    state.y,
+    NPC_MAJOR_PORT_AVOID_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.PORT]
+  )) {
+    const city = match.entry.value;
     if (!npcPortHasMajorProtection(city)) continue;
-    const distance = Math.hypot(state.x - city.x, state.y - city.y);
+    const distance = Math.sqrt(match.distanceSquared);
     if (distance >= NPC_MAJOR_PORT_AVOID_RADIUS_PX || distance >= nearestDistance) continue;
     nearest = city;
     nearestDistance = distance;
@@ -20369,14 +20713,6 @@ function npcNavalWeapon(state) {
 function updateNpcCombatProjectiles(dt) {
   let changed = false;
   const kept = [];
-  const hasCannonProjectiles = npcCombatProjectiles.some((ball) => ball.kind === NAVAL_WEAPON_CANNON);
-  const cannonShipTargets = hasCannonProjectiles ? npcCannonShipCollisionTargets() : [];
-  const cannonBatteryTargets = hasCannonProjectiles
-    ? activeVisibleShoreBatteries().map((battery) => {
-        const point = shoreBatteryPoint(battery.id);
-        return { battery, id: battery.id, x: point.x, y: point.y, radius: 9 };
-      })
-    : [];
   for (const ball of npcCombatProjectiles) {
     if (ball.ownerId !== PLAYER_COMBAT_ID &&
         !shoreBatteryStates.has(ball.ownerId) &&
@@ -20387,7 +20723,7 @@ function updateNpcCombatProjectiles(dt) {
     const previousAge = ball.age;
     ball.age = Math.min(ball.duration, ball.age + dt);
     if (ball.kind === NAVAL_WEAPON_CANNON &&
-        resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets, cannonBatteryTargets)) {
+        resolveNpcCannonPathHit(ball, previousAge)) {
       changed = true;
       continue;
     }
@@ -20412,43 +20748,59 @@ function updateNpcCombatProjectiles(dt) {
   return changed;
 }
 
-function npcCannonShipCollisionTargets() {
+function resolveNpcCannonPathHit(ball, previousAge) {
+  if (worldSpatialChart !== chart) refreshWorldSpatialFastEntries();
+  const previousPoint = navalProjectilePoint(ball, previousAge);
+  const currentPoint = navalProjectilePoint(ball);
+  const margin = SHIP_SHEET_FRAME_SIZE / 2;
+  const nearby = worldSpatialIndex.queryAabb({
+    minX: Math.min(previousPoint.x, currentPoint.x) - margin,
+    minY: Math.min(previousPoint.y, currentPoint.y) - margin,
+    maxX: Math.max(previousPoint.x, currentPoint.x) + margin,
+    maxY: Math.max(previousPoint.y, currentPoint.y) + margin,
+    kinds: [
+      WORLD_SPATIAL_KIND.PLAYER,
+      WORLD_SPATIAL_KIND.NPC_SHIP,
+      WORLD_SPATIAL_KIND.SHORE_BATTERY
+    ]
+  });
   const targets = [];
-  if (ship && ship.hitPoints > 0) {
+  for (const entry of nearby) {
+    if (entry.kind === WORLD_SPATIAL_KIND.SHORE_BATTERY) {
+      const battery = entry.value;
+      if (battery.id === ball.ownerId || !combatEngagementIsActive(ball.ownerId, battery.id)) continue;
+      targets.push({
+        battery,
+        id: battery.id,
+        x: entry.x,
+        y: entry.y,
+        radius: entry.radius
+      });
+      continue;
+    }
+    const id = entry.kind === WORLD_SPATIAL_KIND.PLAYER
+      ? PLAYER_COMBAT_ID
+      : entry.value.id;
+    if (id === ball.ownerId) continue;
+    if (id === PLAYER_COMBAT_ID) {
+      if (!ship || ship.hitPoints <= 0) continue;
+    } else if (
+      entry.value.hitPoints <= 0 ||
+      entry.value.combatGrace ||
+      !npcSeaRoutes.shipById.has(id)
+    ) {
+      continue;
+    }
     targets.push({
-      id: PLAYER_COMBAT_ID,
-      x: localLayout.viewX,
-      y: localLayout.viewY,
-      footprint: combatShipFootprint(PLAYER_COMBAT_ID)
+      id,
+      x: entry.x,
+      y: entry.y,
+      footprint: combatShipFootprint(id)
     });
-  }
-  for (const state of npcVisualShips.values()) {
-    if (state.hitPoints <= 0 || state.combatGrace) continue;
-    targets.push({
-      id: state.id,
-      x: state.x,
-      y: state.y,
-      footprint: combatShipFootprint(state.id)
-    });
-  }
-  return targets;
-}
-
-function resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets, cannonBatteryTargets) {
-  const targets = [];
-  for (const target of cannonShipTargets) {
-    if (target.id === ball.ownerId) continue;
-    if (target.id !== PLAYER_COMBAT_ID && !npcSeaRoutes.shipById.has(target.id)) continue;
-    targets.push(target);
-  }
-  for (const target of cannonBatteryTargets) {
-    if (target.id === ball.ownerId) continue;
-    if (!combatEngagementIsActive(ball.ownerId, target.id)) continue;
-    targets.push(target);
   }
   const hit = firstNavalProjectileHit(
-    navalProjectilePoint(ball, previousAge),
-    navalProjectilePoint(ball),
+    previousPoint,
+    currentPoint,
     targets
   );
   if (!hit) return false;
@@ -21045,7 +21397,7 @@ function updateCombatShipCollisions(dt) {
   updateShipCollisionCooldowns(dt);
   updateShipCombatEntryCollisionGrace(dt);
   if (!ship || gameOverReason || shipCombatState.engagements.size === 0) return false;
-  const ids = [...combatParticipantIds()];
+  const ids = combatParticipantIds();
   const bodies = new Map();
   const bodyForId = (id) => {
     if (!bodies.has(id)) bodies.set(id, combatCollisionBody(id));
@@ -21056,10 +21408,26 @@ function updateCombatShipCollisions(dt) {
     bodies.delete(bId);
   };
   let changed = false;
-  for (let i = 0; i < ids.length; i++) {
-    for (let j = i + 1; j < ids.length; j++) {
-      const a = bodyForId(ids[i]);
-      const b = bodyForId(ids[j]);
+  const checkedPairs = new Set();
+  for (const aId of ids) {
+    const point = combatEntityPoint(aId);
+    if (!point) continue;
+    const neighbors = worldSpatialMatches(
+      point.x,
+      point.y,
+      SHIP_SHEET_FRAME_SIZE,
+      [WORLD_SPATIAL_KIND.PLAYER, WORLD_SPATIAL_KIND.NPC_SHIP]
+    );
+    for (const match of neighbors) {
+      const bId = match.entry.kind === WORLD_SPATIAL_KIND.PLAYER
+        ? PLAYER_COMBAT_ID
+        : match.entry.value.id;
+      if (aId === bId || !ids.has(bId)) continue;
+      const pair = engagementKey(aId, bId);
+      if (checkedPairs.has(pair)) continue;
+      checkedPairs.add(pair);
+      const a = bodyForId(aId);
+      const b = bodyForId(bId);
       if (!a || !b) continue;
       if (shipCombatEntryCollisionGrace.has(a.id) || shipCombatEntryCollisionGrace.has(b.id)) {
         const separation = separateTouchingShips(a, b, SHIP_COMBAT_ENTRY_SEPARATION_PX);
@@ -21076,11 +21444,10 @@ function updateCombatShipCollisions(dt) {
       applyCombatCollisionVelocity(a.id, collision.a.vx, collision.a.vy);
       applyCombatCollisionVelocity(b.id, collision.b.vx, collision.b.vy);
       invalidateBodies(a.id, b.id);
-      const key = engagementKey(a.id, b.id);
-      if ((shipCollisionCooldowns.get(key) || 0) <= 0 && (collision.a.damage > 0 || collision.b.damage > 0)) {
+      if ((shipCollisionCooldowns.get(pair) || 0) <= 0 && (collision.a.damage > 0 || collision.b.damage > 0)) {
         applyCombatCollisionDamage(a.id, collision.a.damage, b.id);
         applyCombatCollisionDamage(b.id, collision.b.damage, a.id);
-        shipCollisionCooldowns.set(key, SHIP_COLLISION_DAMAGE_COOLDOWN_SECONDS);
+        shipCollisionCooldowns.set(pair, SHIP_COLLISION_DAMAGE_COOLDOWN_SECONDS);
         playCannonImpactSound(0);
       }
       changed = true;
@@ -22448,29 +22815,57 @@ function drawDayNightWorld(layers, nowMs) {
     paletteVariant: variant,
     timeMs: nowMs
   });
-  drawCachedWorldLayer("terrain-connectors", layers.connectors, layers.offset, layers.connectors.dayKey);
-  drawCachedWorldLayer(
-    "terrain-connector-waves",
-    layers.connectorWaves,
-    layers.offset,
-    waterAnimationDrawTick
-  );
-  drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset);
-  drawCachedWorldLayer(
-    "surface-details",
-    layers.surface,
-    layers.offset,
-    `${layers.surface.redrawTick}:${layers.surface.weatherDayIndex}`
-  );
-  worldRenderer.drawChunk({
-    key: "dynamic-world-overlay",
-    source: worldCanvas,
-    revision: worldRenderCount,
-    destinationRect: {
-      x: 0,
-      y: 0,
-      width: SCREEN_W,
-      height: SCREEN_H
+  renderWorldLayerStack({
+    connectorBase: () => {
+      drawCachedWorldLayer(
+        "terrain-connectors",
+        layers.connectors,
+        layers.offset,
+        layers.connectors.dayKey
+      );
+    },
+    terrainTiles: () => {
+      drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset);
+    },
+    tidalWater: () => {
+      drawCachedWorldLayer(
+        "terrain-connector-waves",
+        layers.connectorWaves,
+        layers.offset,
+        waterAnimationDrawTick
+      );
+    },
+    surfaceDetails: () => {
+      drawCachedWorldLayer(
+        "surface-details",
+        layers.surface,
+        layers.offset,
+        `${layers.surface.redrawTick}:${layers.surface.weatherDayIndex}`
+      );
+    },
+    waterEffects: () => {
+      drawWorldWaterEffects(layers.waterEffects, layers.offset, nowMs);
+    },
+    waterForeground: () => {
+      drawCachedWorldLayer(
+        "water-effect-foreground",
+        layers.waterForeground,
+        layers.offset,
+        layers.waterForeground.weatherDayIndex
+      );
+    },
+    dynamicWorld: () => {
+      worldRenderer.drawChunk({
+        key: "dynamic-world-overlay",
+        source: worldCanvas,
+        revision: worldRenderCount,
+        destinationRect: {
+          x: 0,
+          y: 0,
+          width: SCREEN_W,
+          height: SCREEN_H
+        }
+      });
     }
   });
   screenCtx.drawImage(worldRenderer.endFrame(), 0, 0);
@@ -22617,7 +23012,12 @@ function render(nowMs) {
       connectors,
       connectorWaves: terrainConnectorDynamicLayer(connectors, chart),
       terrainCalls: renderTileCalls,
-      surface: surfaceDetailLayer(chart, offset)
+      surface: surfaceDetailLayer(chart, offset),
+      waterEffects: {
+        fishCalls: fishSchoolDrawCalls(chart, nowMs, renderTileCalls),
+        wakeCalls: shipWakeDrawCalls(chart)
+      },
+      waterForeground: waterEffectForegroundLayer(chart, offset)
     };
   });
 
@@ -22631,7 +23031,6 @@ function render(nowMs) {
   renderedCloudSpriteCount = cloudCalls.length;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawGreatBarrierReef(chart, nowMs);
-    drawWaterEffectsBelowTerrain(chart, nowMs, renderTileCalls, offset);
     drawPrecipitation(chart, nowMs, offset);
     drawNavalEffects(chart);
     drawCityShadows(chart, shipLight);
@@ -22851,7 +23250,11 @@ function drawSurfaceDetailLayer(layer) {
 function drawStormShipStrike(nowMs) {
   const frame = stormShipStrikeFrame(stormShipStrikeState, nowMs);
   if (!frame || frame.index === STORM_SHIP_STRIKE_FLASH_FRAME) return;
-  if (!stormShipStrikeImage) throw new Error("Storm ship lightning sheet is not loaded");
+  const stormShipStrikeImage = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.STORM_STRIKE);
+  if (!stormShipStrikeImage) {
+    queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.STORM_STRIKE, "active storm strike");
+    return;
+  }
   if (!ship) throw new Error("Storm ship lightning cannot draw without the player ship");
 
   const origin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
@@ -22929,11 +23332,78 @@ function drawWorldDiscoverySprites(activeChart) {
   }
 }
 
-function drawWaterEffectsBelowTerrain(activeChart, nowMs, renderTileCalls, offset) {
-  const fishCalls = drawFishSchools(activeChart, nowMs, renderTileCalls);
-  drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
-  drawShipWake();
-  drawWaterEffectForegroundLayer(waterEffectForegroundLayer(activeChart, offset));
+function drawWorldWaterEffects(effects, offset, nowMs) {
+  if (!effects || !Array.isArray(effects.fishCalls) || !Array.isArray(effects.wakeCalls)) {
+    throw new Error("World water effects require fish and wake draw calls");
+  }
+  drawFishSchoolsWebGL(effects.fishCalls, offset);
+  drawFishSelectionOutlinesWebGL(effects.fishCalls, offset, nowMs);
+  for (const call of effects.wakeCalls) {
+    worldRenderer.drawSolidRect({
+      destinationRect: {
+        x: call.x + offset.x,
+        y: call.y + offset.y,
+        width: 1,
+        height: 1
+      },
+      color: [1, 253 / 255, 231 / 255, call.alpha]
+    });
+  }
+}
+
+function drawFishSchoolsWebGL(calls, offset) {
+  for (const call of calls) {
+    worldRenderer.drawAtlasSprite({
+      source: call.sprite,
+      destinationRect: {
+        x: call.x + offset.x,
+        y: call.y + offset.y,
+        width: call.sprite.width,
+        height: call.sprite.height
+      },
+      alpha: call.alpha,
+      flipX: call.flip,
+      refractionPx: 0.45
+    });
+  }
+}
+
+function drawFishSelectionOutlinesWebGL(fishCalls, offset, nowMs) {
+  if (!selectableInteractionOutlinesShouldDraw() ||
+      !gameState || !hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) return;
+  const primary = activeInteractionTarget();
+  const primaryId = primary?.kind === "fish" ? primary.call.id : null;
+  const pulseBright = reducedMotionPreferred || Math.floor(nowMs / 420) % 2 === 0;
+  const fishingDisabled = !canStartFishing(playerFishCatchCapacity());
+  for (const call of fishCalls) {
+    const interaction = fishInteractionCall(call);
+    if (!fishInteractionCallIsUsable(interaction)) continue;
+    const color = fishingDisabled
+      ? "#756c62"
+      : primaryId === call.id && pulseBright
+        ? "#fff4a8"
+        : "#f9c22b";
+    const outline = selectableSpriteOutlineCanvas(
+      call.sprite,
+      0,
+      0,
+      call.sprite.width,
+      call.sprite.height,
+      call.flip,
+      color
+    );
+    worldRenderer.drawAtlasSprite({
+      source: outline,
+      destinationRect: {
+        x: call.x - 1 + offset.x,
+        y: call.y - 1 + offset.y,
+        width: outline.width,
+        height: outline.height
+      },
+      alpha: FISH_SELECTION_OUTLINE_ALPHA,
+      refractionPx: 0.45
+    });
+  }
 }
 
 function waterEffectForegroundLayer(activeChart, offset) {
@@ -22970,6 +23440,7 @@ function waterEffectForegroundLayer(activeChart, offset) {
 
   for (const entry of connectorLayer.entries) {
     if (
+      isCoastFace(entry.call) ||
       isWaterSurfaceRow(entry.call.row) &&
       isWaterSurfaceRow(entry.call.nrow)
     ) continue;
@@ -22994,20 +23465,14 @@ function waterEffectForegroundLayer(activeChart, offset) {
     drawIceSurface(call, layerCtx);
   }
 
-  layerCtx.globalCompositeOperation = "destination-out";
+  const foregroundWaterPixels = new Set();
   for (const call of tileCalls) {
     if (isWaterSurfaceRow(call.row)) continue;
     const riverMask = riverMasks?.[call.id] || 0;
     if (riverMask === 0) continue;
-    const riverSprite = riverSpriteForTile(call, activeChart, riverMask);
-    if (!riverSprite) {
-      throw new Error(`Could not expose river through water-effect foreground on tile ${call.id}`);
+    for (const key of riverTileSolidWaterPixels(call, activeChart, riverMask)) {
+      foregroundWaterPixels.add(key);
     }
-    layerCtx.drawImage(
-      riverSprite,
-      Math.round(call.drawSurfaceX - TILE_ART_HALF),
-      Math.round(call.drawSurfaceY - TILE_ART_HALF)
-    );
   }
   for (const entry of connectorLayer.entries) {
     const riverConnector = waterEffectRiverConnectorForPair(
@@ -23021,16 +23486,18 @@ function waterEffectForegroundLayer(activeChart, offset) {
       throw new Error(`Could not resolve water-effect river connector ${riverConnector.a}/${riverConnector.b}`);
     }
     for (const key of riverConnectorWaterPixels(riverConnector, geometry)) {
-      const comma = key.indexOf(",");
-      layerCtx.fillRect(
-        Number(key.slice(0, comma)),
-        Number(key.slice(comma + 1)),
-        1,
-        1
-      );
+      foregroundWaterPixels.add(key);
     }
   }
-  layerCtx.globalCompositeOperation = "source-over";
+  for (const key of foregroundWaterPixels) {
+    const comma = key.indexOf(",");
+    layerCtx.clearRect(
+      Number(key.slice(0, comma)),
+      Number(key.slice(comma + 1)),
+      1,
+      1
+    );
+  }
 
   const previousCtx = ctx;
   ctx = layerCtx;
@@ -23050,10 +23517,6 @@ function waterEffectForegroundLayer(activeChart, offset) {
   };
   waterEffectForegroundLayerCache.set(activeChart, result);
   return result;
-}
-
-function drawWaterEffectForegroundLayer(layer) {
-  ctx.drawImage(layer.canvas, layer.x, layer.y);
 }
 
 function waterEffectRiverConnectorForPair(activeChart, tileA, tileB) {
@@ -23241,37 +23704,6 @@ function drawSelectableInteractionOutlines(nowMs) {
     });
   }
 
-}
-
-function drawUnderwaterFishSelectionOutlines(nowMs, fishCalls) {
-  if (!selectableInteractionOutlinesShouldDraw() ||
-      !gameState || !hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) return;
-  if (!Array.isArray(fishCalls)) throw new Error("Fish selection outlines require visible fish calls");
-  const primary = activeInteractionTarget();
-  const primaryId = primary?.kind === "fish" ? primary.call.id : null;
-  const pulseBright = reducedMotionPreferred || Math.floor(nowMs / 420) % 2 === 0;
-  const fishingDisabled = !canStartFishing(playerFishCatchCapacity());
-
-  ctx.save();
-  ctx.globalAlpha = FISH_SELECTION_OUTLINE_ALPHA;
-  for (const call of fishCalls) {
-    const interaction = fishInteractionCall(call);
-    if (!fishInteractionCallIsUsable(interaction)) continue;
-    drawSelectableSpriteOutline({
-      image: call.sprite,
-      sourceX: 0,
-      sourceY: 0,
-      sourceW: call.sprite.width,
-      sourceH: call.sprite.height,
-      x: Math.round(call.x),
-      y: Math.round(call.y),
-      flip: call.flip,
-      primary: primaryId === call.id,
-      pulseBright,
-      disabled: fishingDisabled
-    });
-  }
-  ctx.restore();
 }
 
 function selectableInteractionOutlinesShouldDraw() {
@@ -31877,27 +32309,28 @@ function spriteKeyHash(key) {
   return hash >>> 0;
 }
 
-function drawShipWake() {
-  if (!ship?.wakeParticles?.length) return;
+function shipWakeDrawCalls(activeChart) {
+  if (!ship?.wakeParticles?.length) return [];
+  const calls = [];
   for (const particle of ship.wakeParticles) {
     const life = clamp(particle.age / particle.ttl, 0, 1);
     const alphaBase = wakeParticleAlphaBase(particle.kind);
-    const alpha = (alphaBase * Math.pow(1 - life, 1.35)).toFixed(3);
-    const color = `rgba(255, 253, 231, ${alpha})`;
+    const alpha = Number((alphaBase * Math.pow(1 - life, 1.35)).toFixed(3));
     const x = Math.round(particle.x);
     const y = Math.round(particle.y);
     const len = Math.hypot(particle.vx, particle.vy);
 
     if (particle.kind === "stern" || len <= 0.001) {
-      drawWakeFoamDot(particle, x, y, color);
+      appendWakeFoamDot(calls, activeChart, particle, x, y, alpha);
       continue;
     }
 
     const ux = particle.vx / len;
     const uy = particle.vy / len;
     const markLength = clamp(Math.round(2 + life * 4), 2, 5);
-    drawWakeFoamMark(particle, ux, uy, markLength, color, life);
+    appendWakeFoamMark(calls, activeChart, particle, ux, uy, markLength, alpha, life);
   }
+  return calls;
 }
 
 function wakeParticleAlphaBase(kind) {
@@ -31906,23 +32339,21 @@ function wakeParticleAlphaBase(kind) {
   throw new Error(`Unknown wake particle kind: ${kind}`);
 }
 
-function drawWakeFoamDot(particle, x, y, color) {
-  ctx.fillStyle = color;
-  drawWakeFoamPixel(x, y);
+function appendWakeFoamDot(calls, activeChart, particle, x, y, alpha) {
+  appendWakeFoamPixel(calls, activeChart, x, y, alpha);
   const h = wakeFoamHash(particle.seed, 0);
   if (wakeFoamUnit(h) < SHIP_WAKE_FOAM_EXTRA_CHANCE) {
     const ox = ((h >>> 11) & 1) === 0 ? -1 : 1;
     const oy = ((h >>> 12) & 1) === 0 ? 0 : (((h >>> 13) & 1) === 0 ? -1 : 1);
-    drawWakeFoamPixel(x + ox, y + oy);
+    appendWakeFoamPixel(calls, activeChart, x + ox, y + oy, alpha);
   }
 }
 
-function drawWakeFoamMark(particle, ux, uy, markLength, color, life) {
+function appendWakeFoamMark(calls, activeChart, particle, ux, uy, markLength, alpha, life) {
   const px = -uy;
   const py = ux;
   const keepChance = SHIP_WAKE_FOAM_KEEP_YOUNG + (SHIP_WAKE_FOAM_KEEP_OLD - SHIP_WAKE_FOAM_KEEP_YOUNG) * life;
   let drawn = false;
-  ctx.fillStyle = color;
 
   for (let i = -markLength; i <= 1; i++) {
     const h = wakeFoamHash(particle.seed, i + markLength);
@@ -31932,22 +32363,31 @@ function drawWakeFoamMark(particle, ux, uy, markLength, color, life) {
     const sideJitter = wakeFoamSideJitter(h);
     const x = Math.round(particle.x + ux * i + px * sideJitter);
     const y = Math.round(particle.y + uy * i + py * sideJitter);
-    drawn = drawWakeFoamPixel(x, y) || drawn;
+    drawn = appendWakeFoamPixel(calls, activeChart, x, y, alpha) || drawn;
 
     const extraHash = wakeFoamHash(h, i);
     if (wakeFoamUnit(extraHash) < SHIP_WAKE_FOAM_EXTRA_CHANCE * (1 - life * 0.55)) {
       const extraSide = sideJitter === 0 ? (((extraHash >>> 9) & 1) === 0 ? -1 : 1) : -sideJitter;
       const extraX = Math.round(particle.x + ux * i + px * extraSide);
       const extraY = Math.round(particle.y + uy * i + py * extraSide);
-      drawn = drawWakeFoamPixel(extraX, extraY) || drawn;
+      drawn = appendWakeFoamPixel(calls, activeChart, extraX, extraY, alpha) || drawn;
     }
   }
 
-  if (!drawn) drawWakeFoamPixel(Math.round(particle.x), Math.round(particle.y));
+  if (!drawn) {
+    appendWakeFoamPixel(
+      calls,
+      activeChart,
+      Math.round(particle.x),
+      Math.round(particle.y),
+      alpha
+    );
+  }
 }
 
-function drawWakeFoamPixel(x, y) {
-  ctx.fillRect(x, y, 1, 1);
+function appendWakeFoamPixel(calls, activeChart, x, y, alpha) {
+  if (!wakeMapPointIsWater(x, y, activeChart)) return false;
+  calls.push({ x, y, alpha });
   return true;
 }
 
@@ -32346,7 +32786,12 @@ function shipShadowPointHasSurface(x, y, activeChart) {
 }
 
 function drawFishingNetAnimation(nowMs) {
-  if (!fishingAction || !animalImages?.fishingNet) return;
+  if (!fishingAction) return;
+  const fishingNet = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.FISHING_NET);
+  if (!fishingNet) {
+    queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.FISHING_NET, "player fishing");
+    return;
+  }
   const animation = fishingAnimationState(fishingAction.startMs, nowMs);
   if (animation.complete) return;
   const sx = animation.frameIndex * FISHING_NET_FRAME_SIZE;
@@ -32356,7 +32801,7 @@ function drawFishingNetAnimation(nowMs) {
     ctx.translate(Math.round(SCREEN_W / 2), 0);
     ctx.scale(-1, 1);
     ctx.drawImage(
-      animalImages.fishingNet,
+      fishingNet,
       sx,
       0,
       FISHING_NET_FRAME_SIZE,
@@ -32368,7 +32813,7 @@ function drawFishingNetAnimation(nowMs) {
     );
   } else {
     ctx.drawImage(
-      animalImages.fishingNet,
+      fishingNet,
       sx,
       0,
       FISHING_NET_FRAME_SIZE,
@@ -32383,9 +32828,16 @@ function drawFishingNetAnimation(nowMs) {
 }
 
 function drawNpcFishingNetAnimations(nowMs) {
-  if (!animalImages?.fishingNet || !chart) return;
+  if (!chart) return;
+  const activeStates = [...npcVisualShips.values()].filter((state) => state.fishingAction);
+  if (activeStates.length === 0) return;
+  const fishingNet = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.FISHING_NET);
+  if (!fishingNet) {
+    queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.FISHING_NET, "visible NPC fishing");
+    return;
+  }
   const offset = chartOffsetPixels(chart);
-  for (const state of npcVisualShips.values()) {
+  for (const state of activeStates) {
     const action = state.fishingAction;
     if (!action) continue;
     const animation = fishingAnimationState(action.startMs, nowMs);
@@ -32399,7 +32851,7 @@ function drawNpcFishingNetAnimations(nowMs) {
       ctx.translate(shipX, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(
-        animalImages.fishingNet,
+        fishingNet,
         sx,
         0,
         FISHING_NET_FRAME_SIZE,
@@ -32411,7 +32863,7 @@ function drawNpcFishingNetAnimations(nowMs) {
       );
     } else {
       ctx.drawImage(
-        animalImages.fishingNet,
+        fishingNet,
         sx,
         0,
         FISHING_NET_FRAME_SIZE,
@@ -32426,14 +32878,8 @@ function drawNpcFishingNetAnimations(nowMs) {
   }
 }
 
-function drawFishSchools(activeChart, nowMs, renderTileCalls = null) {
-  if (!animalImages?.fish || !gameState) return [];
-  const calls = fishSchoolDrawCalls(activeChart, nowMs, renderTileCalls);
-  drawFishSpriteLayer(calls);
-  return calls;
-}
-
 function fishSchoolDrawCalls(activeChart, nowMs, renderTileCalls = null) {
+  if (!animalImages?.fish || !gameState) return [];
   const animationNowMs = fishSchoolAnimationTime(nowMs);
   if (
     fishSchoolFrameCache?.chart === activeChart &&
@@ -32656,25 +33102,6 @@ function fishSchoolSprite(colors, density, frame) {
   return canvas;
 }
 
-function drawFishSpriteLayer(calls) {
-  if (calls.length === 0) return;
-  ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  for (const call of calls) {
-    ctx.globalAlpha = call.alpha;
-    if (call.flip) {
-      ctx.save();
-      ctx.translate(call.x + call.sprite.width, call.y);
-      ctx.scale(-1, 1);
-      ctx.drawImage(call.sprite, 0, 0);
-      ctx.restore();
-    } else {
-      ctx.drawImage(call.sprite, call.x, call.y);
-    }
-  }
-  ctx.restore();
-}
-
 function tintedFishSprite(colors) {
   const key = `${colors.body}|${colors.highlight}|${colors.shadow}`;
   const cached = fishSpriteTintCache.get(key);
@@ -32716,18 +33143,24 @@ function hexToRgb(hex) {
 }
 
 function drawSeagulls(activeChart, nowMs) {
-  if (!animalImages) return;
-  for (const call of seagullDrawCalls(activeChart, nowMs)) drawSeagullSprite(call);
+  const untexturedCalls = seagullDrawCalls(activeChart, nowMs, null);
+  if (untexturedCalls.length === 0) return;
+  const assets = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS);
+  if (!assets) {
+    queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS, "visible seagulls");
+    return;
+  }
+  for (const call of seagullDrawCalls(activeChart, nowMs, assets)) drawSeagullSprite(call);
 }
 
-function seagullDrawCalls(activeChart, nowMs) {
+function seagullDrawCalls(activeChart, nowMs, assets) {
   return [
-    ...landedSeagullCalls(activeChart),
-    ...flyingSeagullCalls(nowMs)
+    ...landedSeagullCalls(activeChart, assets),
+    ...flyingSeagullCalls(nowMs, assets)
   ].sort((a, b) => a.sortY - b.sortY || a.id - b.id);
 }
 
-function landedSeagullCalls(activeChart) {
+function landedSeagullCalls(activeChart, assets = null) {
   const calls = [];
   const offset = chartOffsetPixels(activeChart);
   for (const call of activeChart.tileCalls) {
@@ -32747,7 +33180,7 @@ function landedSeagullCalls(activeChart) {
       const y = Math.round(call.drawSurfaceY - 9 + (((birdSeed >>> 9) & 7) - 3));
       calls.push({
         id: birdId,
-        img: animalImages?.seagullStanding || null,
+        img: assets?.standing || null,
         frame: 0,
         x,
         y,
@@ -32759,7 +33192,7 @@ function landedSeagullCalls(activeChart) {
   return calls;
 }
 
-function flyingSeagullCalls(nowMs) {
+function flyingSeagullCalls(nowMs, assets = null) {
   const calls = [];
   for (const gull of seagulls) {
     const bob = Math.round(Math.sin((nowMs + gull.phaseMs) / 540) * 1.2);
@@ -32767,7 +33200,7 @@ function flyingSeagullCalls(nowMs) {
     const y = Math.round(gull.y - SEAGULL_FRAME_SIZE / 2 + bob);
     calls.push({
       id: 100000 + gull.id,
-      img: animalImages.seagullFlight,
+      img: assets?.flight || null,
       frame: seagullFlightFrame(gull, nowMs),
       x,
       y,
@@ -34565,7 +34998,11 @@ function fireSourceForCity(call, batteryDisabled) {
 }
 
 function drawOnFire(source, nowMs) {
-  if (!fireEffectImage) throw new Error(`Fire source ${source.id} cannot draw before the fire animation loads`);
+  const fireEffectImage = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.FIRE);
+  if (!fireEffectImage) {
+    queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.FIRE, `visible fire source ${source.id}`);
+    return;
+  }
   const frame = fireAnimationFrame(nowMs, source.phaseSeed);
   ctx.drawImage(
     fireEffectImage,
@@ -37651,7 +38088,12 @@ function dialoguePortraitImage(character, expression) {
       })
       .catch((error) => {
         portraitPromiseCache.delete(key);
-        console.error(error);
+        if (!pendingWorldAssetError) {
+          pendingWorldAssetError = new Error(`Streaming portrait ${character.id}.${expression.id} failed`, {
+            cause: error instanceof Error ? error : new Error(String(error))
+          });
+        }
+        dirty = true;
       });
     portraitPromiseCache.set(key, promise);
   }

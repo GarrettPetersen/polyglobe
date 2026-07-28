@@ -83,6 +83,9 @@ void main() {
 `;
 
 const FLOATS_PER_VERTEX = 10;
+const VERTICES_PER_QUAD = 6;
+const FLOATS_PER_QUAD = FLOATS_PER_VERTEX * VERTICES_PER_QUAD;
+const INITIAL_ATLAS_QUAD_CAPACITY = 1024;
 const DEFAULT_ATLAS_SIZE = 4096;
 const DEFAULT_CHUNK_CACHE_LIMIT = 24;
 
@@ -151,7 +154,8 @@ export function quadVertices({
   destinationRect,
   color = [1, 1, 1, 1],
   refractionPx = 0,
-  alphaThreshold = 0
+  alphaThreshold = 0,
+  flipX = false
 }) {
   validateRect(sourceRect, "source");
   validateRect(destinationRect, "destination");
@@ -171,10 +175,11 @@ export function quadVertices({
   const y0 = destinationRect.y;
   const x1 = x0 + destinationRect.width;
   const y1 = y0 + destinationRect.height;
-  const u0 = sourceRect.x / textureWidth;
+  let u0 = sourceRect.x / textureWidth;
   const v0 = sourceRect.y / textureHeight;
-  const u1 = (sourceRect.x + sourceRect.width) / textureWidth;
+  let u1 = (sourceRect.x + sourceRect.width) / textureWidth;
   const v1 = (sourceRect.y + sourceRect.height) / textureHeight;
+  if (flipX) [u0, u1] = [u1, u0];
   const points = [
     [x0, y0, u0, v0],
     [x1, y0, u1, v0],
@@ -274,7 +279,8 @@ export function createWorldWebGL2Renderer({
   );
   const atlasAllocator = new TextureAtlasAllocator(atlasSize, atlasSize);
   const atlasEntries = new WeakMap();
-  const atlasBatch = [];
+  let atlasVertices = new Float32Array(FLOATS_PER_QUAD * INITIAL_ATLAS_QUAD_CAPACITY);
+  let atlasFloatCount = 0;
   const chunkTextures = new Map();
   const chunkLru = new LruChunkKeys(chunkCacheLimit);
   const sceneTexture = createNearestTexture(gl);
@@ -289,6 +295,13 @@ export function createWorldWebGL2Renderer({
   let atlasSourceCount = 0;
   let drawCalls = 0;
   let uploadedChunks = 0;
+  const solidPixel = document.createElement("canvas");
+  solidPixel.width = 1;
+  solidPixel.height = 1;
+  const solidPixelContext = solidPixel.getContext("2d");
+  if (!solidPixelContext) throw new Error("Could not create world renderer solid pixel");
+  solidPixelContext.fillStyle = "#ffffff";
+  solidPixelContext.fillRect(0, 0, 1, 1);
 
   configureSceneAttributes();
   configurePresentationAttributes();
@@ -364,7 +377,7 @@ export function createWorldWebGL2Renderer({
     resize(width, height);
     validateColor(clearColor, "World renderer clear color");
     if (!Number.isFinite(timeMs)) throw new Error(`Invalid world renderer time: ${timeMs}`);
-    atlasBatch.length = 0;
+    atlasFloatCount = 0;
     drawCalls = 0;
     uploadedChunks = 0;
     frameTimeMs = timeMs;
@@ -494,7 +507,8 @@ export function createWorldWebGL2Renderer({
     alpha = 1,
     tint = [1, 1, 1],
     refractionPx = 0,
-    alphaThreshold = 0
+    alphaThreshold = 0,
+    flipX = false
   }) {
     const entry = registerAtlasSource(source);
     const local = sourceRect || { x: 0, y: 0, width: entry.width, height: entry.height };
@@ -507,7 +521,11 @@ export function createWorldWebGL2Renderer({
         tint.some((channel) => !Number.isFinite(channel))) {
       throw new Error("Atlas sprite tint requires three finite channels");
     }
-    atlasBatch.push(quadVertices({
+    validateRect(destinationRect, "atlas destination");
+    if (!Number.isFinite(refractionPx) || !Number.isFinite(alphaThreshold)) {
+      throw new Error("Atlas sprite effects must be finite");
+    }
+    appendAtlasQuad({
       sourceRect: {
         x: entry.x + local.x,
         y: entry.y + local.y,
@@ -519,21 +537,80 @@ export function createWorldWebGL2Renderer({
       destinationRect,
       color: [tint[0], tint[1], tint[2], alpha],
       refractionPx,
-      alphaThreshold
-    }));
+      alphaThreshold,
+      flipX
+    });
+  }
+
+  function drawSolidRect({ destinationRect, color }) {
+    validateRect(destinationRect, "solid destination");
+    if (!Array.isArray(color) || color.length !== 4) {
+      throw new Error("World solid color requires four channels");
+    }
+    for (const channel of color) validateUnitInterval(channel, "world solid color channel");
+    drawAtlasSprite({
+      source: solidPixel,
+      destinationRect,
+      alpha: color[3],
+      tint: color.slice(0, 3)
+    });
   }
 
   function flushAtlasBatch() {
-    if (atlasBatch.length === 0) return;
-    const totalLength = atlasBatch.reduce((sum, vertices) => sum + vertices.length, 0);
-    const vertices = new Float32Array(totalLength);
-    let offset = 0;
-    for (const part of atlasBatch) {
-      vertices.set(part, offset);
-      offset += part.length;
-    }
-    atlasBatch.length = 0;
+    if (atlasFloatCount === 0) return;
+    const vertices = atlasVertices.subarray(0, atlasFloatCount);
+    atlasFloatCount = 0;
     drawVertices(atlasTexture, atlasSize, atlasSize, vertices);
+  }
+
+  function appendAtlasQuad({
+    sourceRect,
+    textureWidth,
+    textureHeight,
+    destinationRect,
+    color,
+    refractionPx,
+    alphaThreshold,
+    flipX
+  }) {
+    ensureAtlasVertexCapacity(atlasFloatCount + FLOATS_PER_QUAD);
+    const x0 = destinationRect.x;
+    const y0 = destinationRect.y;
+    const x1 = x0 + destinationRect.width;
+    const y1 = y0 + destinationRect.height;
+    let u0 = sourceRect.x / textureWidth;
+    const v0 = sourceRect.y / textureHeight;
+    let u1 = (sourceRect.x + sourceRect.width) / textureWidth;
+    const v1 = (sourceRect.y + sourceRect.height) / textureHeight;
+    if (flipX) [u0, u1] = [u1, u0];
+    appendAtlasVertex(x0, y0, u0, v0, color, refractionPx, alphaThreshold);
+    appendAtlasVertex(x1, y0, u1, v0, color, refractionPx, alphaThreshold);
+    appendAtlasVertex(x0, y1, u0, v1, color, refractionPx, alphaThreshold);
+    appendAtlasVertex(x0, y1, u0, v1, color, refractionPx, alphaThreshold);
+    appendAtlasVertex(x1, y0, u1, v0, color, refractionPx, alphaThreshold);
+    appendAtlasVertex(x1, y1, u1, v1, color, refractionPx, alphaThreshold);
+  }
+
+  function ensureAtlasVertexCapacity(requiredLength) {
+    if (requiredLength <= atlasVertices.length) return;
+    let nextLength = atlasVertices.length;
+    while (nextLength < requiredLength) nextLength *= 2;
+    const next = new Float32Array(nextLength);
+    next.set(atlasVertices.subarray(0, atlasFloatCount));
+    atlasVertices = next;
+  }
+
+  function appendAtlasVertex(x, y, u, v, color, refractionPx, alphaThreshold) {
+    atlasVertices[atlasFloatCount++] = x;
+    atlasVertices[atlasFloatCount++] = y;
+    atlasVertices[atlasFloatCount++] = u;
+    atlasVertices[atlasFloatCount++] = v;
+    atlasVertices[atlasFloatCount++] = color[0];
+    atlasVertices[atlasFloatCount++] = color[1];
+    atlasVertices[atlasFloatCount++] = color[2];
+    atlasVertices[atlasFloatCount++] = color[3];
+    atlasVertices[atlasFloatCount++] = refractionPx;
+    atlasVertices[atlasFloatCount++] = alphaThreshold;
   }
 
   function drawTextureQuad(texture, textureWidth, textureHeight, sourceRect, destinationRect, alpha) {
@@ -588,6 +665,7 @@ export function createWorldWebGL2Renderer({
     beginFrame,
     drawChunk,
     drawAtlasSprite,
+    drawSolidRect,
     endFrame,
     stats: () => Object.freeze({
       residentChunks: chunkTextures.size,

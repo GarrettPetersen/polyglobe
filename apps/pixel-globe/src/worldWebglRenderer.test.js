@@ -39,6 +39,20 @@ test("batched quad vertices preserve painter geometry and exact UV bounds", () =
   ]);
 });
 
+test("batched quad vertices can mirror a sprite without changing its geometry", () => {
+  const vertices = quadVertices({
+    sourceRect: { x: 4, y: 2, width: 8, height: 4 },
+    textureWidth: 16,
+    textureHeight: 8,
+    destinationRect: { x: 10, y: 20, width: 8, height: 4 },
+    flipX: true
+  });
+  assert.equal(vertices[2], 0.75);
+  assert.equal(vertices[12], 0.25);
+  assert.equal(vertices[0], 10);
+  assert.equal(vertices[10], 18);
+});
+
 test("chunk LRU evicts only after the configured resident limit", () => {
   const lru = new LruChunkKeys(2);
   assert.equal(lru.touch("a"), null);

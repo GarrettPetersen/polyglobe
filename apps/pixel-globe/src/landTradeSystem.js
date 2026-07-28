@@ -96,8 +96,35 @@ export function createLandTradeSystem({
 export function updateLandTradeSystem(system, simMinute) {
   assertLandTradeSystem(system);
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid land trade minute: ${simMinute}`);
+  return updateLandTradeEvents(
+    system,
+    simMinute,
+    system.carts.map((cart) => cart.id)
+  );
+}
+
+export function landTradeEventSchedule(system) {
+  assertLandTradeSystem(system);
+  return system.carts.map((cart) => Object.freeze({
+    id: cart.id,
+    minute: cart.arrivalMinute
+  }));
+}
+
+export function updateLandTradeEvents(system, simMinute, cartIds) {
+  assertLandTradeSystem(system);
+  if (!Number.isFinite(simMinute)) throw new Error(`Invalid land trade minute: ${simMinute}`);
+  if (!Array.isArray(cartIds)) throw new Error("Land trade events require cart ids");
+  const cartById = new Map(system.carts.map((cart) => [cart.id, cart]));
+  const seen = new Set();
   let changed = false;
-  for (const cart of system.carts) {
+  for (const cartId of cartIds) {
+    if (typeof cartId !== "string" || cartId.length === 0 || seen.has(cartId)) {
+      throw new Error(`Invalid scheduled land cart id: ${cartId}`);
+    }
+    seen.add(cartId);
+    const cart = cartById.get(cartId);
+    if (!cart) throw new Error(`Scheduled land cart is missing: ${cartId}`);
     let arrivals = 0;
     while (simMinute >= cart.arrivalMinute) {
       arriveAndDepartCart(system, cart, cart.arrivalMinute);

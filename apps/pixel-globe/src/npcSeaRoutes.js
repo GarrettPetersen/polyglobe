@@ -982,12 +982,71 @@ function fishingGroundLabel(point, speciesLabel) {
 }
 
 export function updateNpcSeaRouteSystem(system, clockMinutes) {
+  assertSaveableNpcRouteSystem(system);
   refreshPirateHideoutWarshipDanger(system, clockMinutes);
   let changed = reconcileNpcFleetCargo(system, "route update");
   if (rerouteHostileNpcTradePlans(system, clockMinutes)) changed = true;
   if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
   for (const ship of system.ships) {
     if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 12)) changed = true;
+  }
+  return changed;
+}
+
+export function npcSeaRouteEventSchedule(system) {
+  assertSaveableNpcRouteSystem(system);
+  const events = [];
+  for (const ship of system.ships) {
+    if (!ship.plan || !Number.isFinite(ship.plan.endMinute)) {
+      throw new Error(`NPC ship has no schedulable route plan: ${ship.id}`);
+    }
+    events.push(Object.freeze({
+      id: ship.id,
+      minute: ship.plan.endMinute
+    }));
+  }
+  for (const replacement of system.replacementQueue) {
+    events.push(Object.freeze({
+      id: `replacement:${replacement.shipId}`,
+      minute: replacement.readyMinute
+    }));
+  }
+  return events;
+}
+
+export function updateNpcSeaRouteEvents(
+  system,
+  clockMinutes,
+  shipIds,
+  { maintenance = false } = {}
+) {
+  assertSaveableNpcRouteSystem(system);
+  if (!Number.isFinite(clockMinutes)) {
+    throw new Error(`Invalid NPC sea-route event minute: ${clockMinutes}`);
+  }
+  if (!Array.isArray(shipIds)) throw new Error("NPC sea-route events require ship ids");
+  if (typeof maintenance !== "boolean") {
+    throw new Error(`Invalid NPC sea-route maintenance flag: ${maintenance}`);
+  }
+  let changed = false;
+  if (maintenance) {
+    refreshPirateHideoutWarshipDanger(system, clockMinutes);
+    if (reconcileNpcFleetCargo(system, "route update")) changed = true;
+    if (rerouteHostileNpcTradePlans(system, clockMinutes)) changed = true;
+    if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
+  }
+  const seen = new Set();
+  for (const shipId of shipIds) {
+    if (typeof shipId !== "string" || shipId.length === 0 || seen.has(shipId)) {
+      throw new Error(`Invalid scheduled NPC ship id: ${shipId}`);
+    }
+    seen.add(shipId);
+    if (shipId.startsWith("replacement:")) continue;
+    const ship = system.shipById.get(shipId);
+    if (!ship) continue;
+    if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 12)) {
+      changed = true;
+    }
   }
   return changed;
 }

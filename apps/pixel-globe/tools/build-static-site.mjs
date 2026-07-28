@@ -302,7 +302,8 @@ async function bundleDemoRuntime() {
   await build({
     entryPoints: {
       bootstrap: join(appRoot, "src/bootstrap.js"),
-      loadingScreenWorker: join(appRoot, "src/loadingScreenWorker.js")
+      loadingScreenWorker: join(appRoot, "src/loadingScreenWorker.js"),
+      distantWorldWorker: join(appRoot, "src/distantWorldWorker.js")
     },
     outdir: join(distRoot, "src"),
     bundle: true,
@@ -325,19 +326,21 @@ async function bundleDemoRuntime() {
       }
     }]
   });
-  await assertStandaloneDemoWorker();
+  await assertStandaloneDemoWorkers();
 }
 
-async function assertStandaloneDemoWorker() {
-  const workerPath = join(distRoot, "src/loadingScreenWorker.js");
-  const source = await readFile(workerPath, "utf8");
-  const relativeImports = [
-    ...source.matchAll(/\b(?:from|import)\s*(?:\(\s*)?["'](\.[^"']+)["']/g)
-  ].map((match) => match[1]);
-  if (relativeImports.length > 0) {
-    throw new Error(
-      `Demo loading worker contains unresolved relative imports: ${relativeImports.join(", ")}`
-    );
+async function assertStandaloneDemoWorkers() {
+  for (const fileName of ["loadingScreenWorker.js", "distantWorldWorker.js"]) {
+    const workerPath = join(distRoot, "src", fileName);
+    const source = await readFile(workerPath, "utf8");
+    const relativeImports = [
+      ...source.matchAll(/\b(?:from|import)\s*(?:\(\s*)?["'](\.[^"']+)["']/g)
+    ].map((match) => match[1]);
+    if (relativeImports.length > 0) {
+      throw new Error(
+        `Demo ${fileName} contains unresolved relative imports: ${relativeImports.join(", ")}`
+      );
+    }
   }
 }
 
