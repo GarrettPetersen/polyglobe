@@ -362,6 +362,11 @@ import {
   reportAnimalsToNaturalist
 } from "./naturalistQuest.js";
 import {
+  naturalistJournalDescriptionForAnimal,
+  naturalistReportDialogueForAnimal,
+  validateNaturalistReportDialogueCatalog
+} from "./naturalistAnimalDialogue.js";
+import {
   characterSkillIdsForIdentity,
   characterSkillSummary,
   characterSkills
@@ -3060,6 +3065,7 @@ async function main() {
     CIRCUMNAVIGATION_DISCOVERY
   ];
   validateExplorerReportDialogueCatalog(explorerWonderCatalog(discoveryCatalog));
+  validateNaturalistReportDialogueCatalog(ANIMAL_CATALOG);
   discoveryCatalogById = new Map(discoveryCatalog.map((discovery) => [discovery.id, discovery]));
   chartTileProtection = buildChartTileProtection({
     graph,
@@ -5807,9 +5813,9 @@ function createDiscoveriesMenuState() {
     isOpen: false,
     tab: "wonders",
     page: 0,
-    wonderSelectedIndex: 0,
-    wonderSelectionActive: false,
-    detailDiscoveryId: null,
+    entrySelectedIndex: 0,
+    entrySelectionActive: false,
+    detailEntryId: null,
     detailScrollY: 0,
     detailMaxScrollY: 0,
     buttonRect: null,
@@ -5818,7 +5824,7 @@ function createDiscoveriesMenuState() {
     previousPageRect: null,
     nextPageRect: null,
     tabRects: [],
-    wonderRowRects: [],
+    entryRowRects: [],
     detailBackRect: null,
     detailUpRect: null,
     detailDownRect: null
@@ -9602,8 +9608,8 @@ function openDiscoveriesMenu() {
   discoveriesMenu.isOpen = true;
   discoveriesMenu.tab = discoveriesMenu.tab || "wonders";
   discoveriesMenu.page = 0;
-  discoveriesMenu.wonderSelectedIndex = 0;
-  discoveriesMenu.wonderSelectionActive = false;
+  discoveriesMenu.entrySelectedIndex = 0;
+  discoveriesMenu.entrySelectionActive = false;
   closeDiscoveryDetail();
   keys.clear();
   clearPointerSteering();
@@ -9649,7 +9655,7 @@ function closeDiscoveriesMenu() {
   discoveriesMenu.previousPageRect = null;
   discoveriesMenu.nextPageRect = null;
   discoveriesMenu.tabRects = [];
-  discoveriesMenu.wonderRowRects = [];
+  discoveriesMenu.entryRowRects = [];
   dirty = true;
 }
 
@@ -9738,7 +9744,7 @@ function handlePoliticsKeyDown(event) {
 
 function handleDiscoveriesKeyDown(event) {
   event.preventDefault();
-  if (discoveriesMenu.detailDiscoveryId !== null) {
+  if (discoveriesMenu.detailEntryId !== null) {
     if (event.key === "Escape") closeDiscoveryDetail();
     else if (["ArrowUp", "PageUp"].includes(event.key)) scrollDiscoveryDetail(-1);
     else if (["ArrowDown", "PageDown"].includes(event.key)) scrollDiscoveryDetail(1);
@@ -9750,17 +9756,15 @@ function handleDiscoveriesKeyDown(event) {
   }
   if (["ArrowLeft", "ArrowRight", "Tab"].includes(event.key)) {
     switchDiscoveriesTab(discoveriesMenu.tab === "wonders" ? "animals" : "wonders");
-  } else if (discoveriesMenu.tab === "wonders" && event.key === "ArrowUp") {
-    stepDiscoveryWonderSelection(-1);
-  } else if (discoveriesMenu.tab === "wonders" && event.key === "ArrowDown") {
-    stepDiscoveryWonderSelection(1);
-  } else if (discoveriesMenu.tab === "wonders" && ["Enter", " "].includes(event.key)) {
+  } else if (event.key === "ArrowUp") {
+    stepDiscoveryEntrySelection(-1);
+  } else if (event.key === "ArrowDown") {
+    stepDiscoveryEntrySelection(1);
+  } else if (["Enter", " "].includes(event.key)) {
     openSelectedDiscoveryDetail();
-  } else if (event.key === "PageUp" || (discoveriesMenu.tab === "animals" && event.key === "ArrowUp")) {
+  } else if (event.key === "PageUp") {
     stepDiscoveriesPage(-1);
-  } else if (event.key === "PageDown" || (
-    discoveriesMenu.tab === "animals" && ["ArrowDown", "Enter", " "].includes(event.key)
-  )) {
+  } else if (event.key === "PageDown") {
     stepDiscoveriesPage(1);
   }
 }
@@ -11124,7 +11128,7 @@ function handleDiscoveriesPointerDown(point) {
     closeDiscoveriesMenu();
     return;
   }
-  if (discoveriesMenu.detailDiscoveryId !== null) {
+  if (discoveriesMenu.detailEntryId !== null) {
     if (pointInRect(point, discoveriesMenu.detailBackRect)) {
       closeDiscoveryDetail();
       return;
@@ -11142,10 +11146,10 @@ function handleDiscoveriesPointerDown(point) {
       return;
     }
   }
-  for (let index = 0; index < discoveriesMenu.wonderRowRects.length; index++) {
-    if (!pointInRect(point, discoveriesMenu.wonderRowRects[index])) continue;
-    discoveriesMenu.wonderSelectedIndex = index;
-    discoveriesMenu.wonderSelectionActive = false;
+  for (let index = 0; index < discoveriesMenu.entryRowRects.length; index++) {
+    if (!pointInRect(point, discoveriesMenu.entryRowRects[index])) continue;
+    discoveriesMenu.entrySelectedIndex = index;
+    discoveriesMenu.entrySelectionActive = false;
     openSelectedDiscoveryDetail();
     return;
   }
@@ -11357,7 +11361,7 @@ function discoveriesPointerIsActionable(point) {
     discoveriesMenu.detailUpRect,
     discoveriesMenu.detailDownRect,
     ...discoveriesMenu.tabRects.map((entry) => entry.rect),
-    ...discoveriesMenu.wonderRowRects
+    ...discoveriesMenu.entryRowRects
   ];
   return controls.some((rect) => rect && pointInRect(point, rect));
 }
@@ -11413,13 +11417,11 @@ function handleShipInfoPointerDown(point) {
 }
 
 function stepDiscoveriesPage(direction) {
-  const count = discoveriesMenu.tab === "animals"
-    ? encounteredAnimalEntries(gameState.memory.animals).length
-    : discoveredEntries(gameState).length;
+  const count = currentDiscoveryEntries().length;
   const pageCount = Math.max(1, Math.ceil(count / discoveriesPageSize()));
   discoveriesMenu.page = stepMenuIndex(discoveriesMenu.page, direction, pageCount);
-  discoveriesMenu.wonderSelectedIndex = 0;
-  discoveriesMenu.wonderSelectionActive = false;
+  discoveriesMenu.entrySelectedIndex = 0;
+  discoveriesMenu.entrySelectionActive = false;
   dirty = true;
 }
 
@@ -11428,53 +11430,63 @@ function switchDiscoveriesTab(tab) {
   closeDiscoveryDetail();
   discoveriesMenu.tab = tab;
   discoveriesMenu.page = 0;
-  discoveriesMenu.wonderSelectedIndex = 0;
-  discoveriesMenu.wonderSelectionActive = false;
+  discoveriesMenu.entrySelectedIndex = 0;
+  discoveriesMenu.entrySelectionActive = false;
   dirty = true;
 }
 
-function stepDiscoveryWonderSelection(direction) {
+function currentDiscoveryEntries() {
+  if (!gameState) throw new Error("Discoveries require an active voyage");
+  return discoveriesMenu.tab === "animals"
+    ? encounteredAnimalEntries(gameState.memory.animals)
+    : discoveredEntries(gameState);
+}
+
+function stepDiscoveryEntrySelection(direction) {
   if (!Number.isInteger(direction) || direction === 0) {
-    throw new Error(`Invalid wonder selection direction: ${direction}`);
+    throw new Error(`Invalid discovery selection direction: ${direction}`);
   }
-  const entries = discoveredEntries(gameState);
+  const entries = currentDiscoveryEntries();
   if (entries.length === 0) return;
   const pageSize = discoveriesPageSize();
   const pageStart = discoveriesMenu.page * pageSize;
   const pageLength = Math.min(pageSize, entries.length - pageStart);
   const current = Math.min(
     entries.length - 1,
-    pageStart + clamp(discoveriesMenu.wonderSelectedIndex, 0, Math.max(0, pageLength - 1))
+    pageStart + clamp(discoveriesMenu.entrySelectedIndex, 0, Math.max(0, pageLength - 1))
   );
-  const next = discoveriesMenu.wonderSelectionActive
+  const next = discoveriesMenu.entrySelectionActive
     ? clamp(current + Math.sign(direction), 0, entries.length - 1)
     : direction > 0 ? pageStart : pageStart + pageLength - 1;
   discoveriesMenu.page = Math.floor(next / pageSize);
-  discoveriesMenu.wonderSelectedIndex = next % pageSize;
-  discoveriesMenu.wonderSelectionActive = true;
+  discoveriesMenu.entrySelectedIndex = next % pageSize;
+  discoveriesMenu.entrySelectionActive = true;
   dirty = true;
 }
 
 function openSelectedDiscoveryDetail() {
-  if (discoveriesMenu.tab !== "wonders") return false;
-  const entries = discoveredEntries(gameState);
+  const entries = currentDiscoveryEntries();
   if (entries.length === 0) return false;
-  const index = discoveriesMenu.page * discoveriesPageSize() + discoveriesMenu.wonderSelectedIndex;
+  const index = discoveriesMenu.page * discoveriesPageSize() + discoveriesMenu.entrySelectedIndex;
   const entry = entries[index];
-  if (!entry) throw new Error(`Selected wonder does not exist: ${index}`);
-  const discovery = discoveryCatalogById.get(entry.id);
-  if (!discovery) throw new Error(`Selected wonder is missing from the catalog: ${entry.id}`);
-  explorerJournalDescriptionForDiscovery(discovery);
-  discoveriesMenu.detailDiscoveryId = discovery.id;
+  if (!entry) throw new Error(`Selected discovery entry does not exist: ${index}`);
+  if (discoveriesMenu.tab === "wonders") {
+    const discovery = discoveryCatalogById.get(entry.id);
+    if (!discovery) throw new Error(`Selected wonder is missing from the catalog: ${entry.id}`);
+    explorerJournalDescriptionForDiscovery(discovery);
+  } else if (!ANIMAL_CATALOG_BY_ID.has(entry.id)) {
+    throw new Error(`Selected animal is missing from the catalog: ${entry.id}`);
+  }
+  discoveriesMenu.detailEntryId = entry.id;
   discoveriesMenu.detailScrollY = 0;
   discoveriesMenu.detailMaxScrollY = 0;
-  discoveriesMenu.wonderRowRects = [];
+  discoveriesMenu.entryRowRects = [];
   dirty = true;
   return true;
 }
 
 function closeDiscoveryDetail() {
-  discoveriesMenu.detailDiscoveryId = null;
+  discoveriesMenu.detailEntryId = null;
   discoveriesMenu.detailScrollY = 0;
   discoveriesMenu.detailMaxScrollY = 0;
   discoveriesMenu.detailBackRect = null;
@@ -11485,7 +11497,7 @@ function closeDiscoveryDetail() {
 
 function scrollDiscoveryDetail(direction) {
   if (!Number.isInteger(direction) || direction === 0) {
-    throw new Error(`Invalid wonder detail scroll direction: ${direction}`);
+    throw new Error(`Invalid discovery detail scroll direction: ${direction}`);
   }
   const next = clamp(
     discoveriesMenu.detailScrollY + Math.sign(direction) * localizedLineHeight(18),
@@ -11809,7 +11821,7 @@ function handleCanvasWheel(event) {
     scrollShipPaperDetail(event.deltaY > 0 ? 1 : -1);
     return;
   }
-  if (owner === INTERACTION_INPUT.DISCOVERIES && discoveriesMenu.detailDiscoveryId !== null) {
+  if (owner === INTERACTION_INPUT.DISCOVERIES && discoveriesMenu.detailEntryId !== null) {
     event.preventDefault();
     scrollDiscoveryDetail(event.deltaY > 0 ? 1 : -1);
     return;
@@ -12135,6 +12147,13 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     expressionId,
     message
   });
+  const playerLine = (expressionId, message) => pairedCharacterAlertStep({
+    leftCharacter: gameState.playerCharacter,
+    rightCharacter: naturalist,
+    speakerCharacter: gameState.playerCharacter,
+    expressionId,
+    message
+  });
   const before = naturalistQuestView(memory, gameState.memory.animals);
   const steps = [];
   if (!before.met) {
@@ -12146,7 +12165,12 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
   }
   const report = reportAnimalsToNaturalist(memory, gameState.memory.animals);
   if (report.animalIds.length > 0) {
-    const names = report.animalIds.map((id) => ANIMAL_CATALOG_BY_ID.get(id).displayName);
+    const animals = report.animalIds.map((id) => {
+      const animal = ANIMAL_CATALOG_BY_ID.get(id);
+      if (!animal) throw new Error(`Naturalist report names an unknown animal: ${id}`);
+      return animal;
+    });
+    const names = animals.map((animal) => animal.displayName);
     receiveQuestPayment(
       gameState,
       cityCall,
@@ -12154,9 +12178,14 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
       report.completedNow ? "Completed the great bestiary" : `Natural history reports: ${names.join(", ")}`,
       portDialogueContext()
     );
+    for (const animal of animals) {
+      const dialogue = naturalistReportDialogueForAnimal(animal);
+      steps.push(playerLine("attentive", dialogue.player));
+      steps.push(naturalistLine("pleased", dialogue.naturalist));
+    }
     steps.push(naturalistLine(
       "attentive",
-      `You documented ${naturalistAnimalList(names)}. These observations are worth ${report.reward.toLocaleString("en-US")} doubloons to my work.`
+      `Your accounts of ${naturalistAnimalList(names)} are worth ${report.reward.toLocaleString("en-US")} doubloons to my work.`
     ));
   }
   if (report.completedNow) {
@@ -27374,7 +27403,7 @@ function drawDiscoveriesMenu() {
   const panelX = panel.x;
   const panelY = panel.y;
   discoveriesMenu.panelRect = panel;
-  discoveriesMenu.wonderRowRects = [];
+  discoveriesMenu.entryRowRects = [];
   discoveriesMenu.detailBackRect = null;
   discoveriesMenu.detailUpRect = null;
   discoveriesMenu.detailDownRect = null;
@@ -27390,7 +27419,7 @@ function drawDiscoveriesMenu() {
     color: PIRATE_MENU_INK
   });
 
-  if (discoveriesMenu.detailDiscoveryId !== null) {
+  if (discoveriesMenu.detailEntryId !== null) {
     drawDiscoveryDetail(discoveriesMenu.panelRect);
     ctx.restore();
     return;
@@ -27438,14 +27467,21 @@ function drawDiscoveriesMenu() {
     );
   } else {
     const naturalist = naturalistQuestView(gameState.memory.quests.naturalist, gameState.memory.animals);
-    drawOptionsText(
+    const naturalistLines = wrapPixelTextAll(
       naturalist.met
         ? `BESTIARY REPORTED ${naturalist.reportedCount}/${naturalist.totalCount}`
         : "A NATURAL PHILOSOPHER MAY VALUE THESE NOTES",
-      panelX + 12,
-      panelY + 72 + bodyOffsetY,
-      { color: PIRATE_MENU_INK_MUTED, font: PIXEL_FONT_SMALL_8 }
-    );
+      PIXEL_FONT_SMALL_8,
+      panel.w - 24
+    ).slice(0, 2);
+    naturalistLines.forEach((line, index) => {
+      drawOptionsText(
+        line,
+        panelX + 12,
+        panelY + 70 + bodyOffsetY + index * localizedLineHeight(8),
+        { color: PIRATE_MENU_INK_MUTED, font: PIXEL_FONT_SMALL_8 }
+      );
+    });
   }
 
   const pageSize = listLayout.pageSize;
@@ -27453,31 +27489,29 @@ function drawDiscoveriesMenu() {
   discoveriesMenu.page = clamp(discoveriesMenu.page, 0, pageCount - 1);
   const pageStart = discoveriesMenu.page * pageSize;
   const pageEntries = entries.slice(pageStart, pageStart + pageSize);
-  discoveriesMenu.wonderSelectedIndex = clamp(
-    discoveriesMenu.wonderSelectedIndex,
+  discoveriesMenu.entrySelectedIndex = clamp(
+    discoveriesMenu.entrySelectedIndex,
     0,
     Math.max(0, pageEntries.length - 1)
   );
   const listX = panelX + 13;
   const listY = listLayout.listY;
-  if (discoveriesMenu.tab === "wonders") {
-    discoveriesMenu.wonderRowRects = pageEntries.map((_, index) => ({
-      x: panelX + 10,
-      y: listY + listLayout.rowTopOffset + index * listLayout.rowStride,
-      w: panel.w - 20,
-      h: listLayout.rowHeight
-    }));
-  }
+  discoveriesMenu.entryRowRects = pageEntries.map((_, index) => ({
+    x: panelX + 10,
+    y: listY + listLayout.rowTopOffset + index * listLayout.rowStride,
+    w: panel.w - 20,
+    h: listLayout.rowHeight
+  }));
   if (pageEntries.length === 0) {
     drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: PIRATE_MENU_INK_MUTED });
   } else {
     pageEntries.forEach((entry, index) => {
       const y = listY + index * listLayout.rowStride;
-      const rowRect = discoveriesMenu.wonderRowRects[index] || null;
+      const rowRect = discoveriesMenu.entryRowRects[index] || null;
       if (rowRect) {
-        const selected = discoveriesMenu.wonderSelectionActive &&
-          discoveriesMenu.wonderSelectedIndex === index;
-        drawDiscoveryWonderRowBackground(rowRect, index, selected);
+        const selected = discoveriesMenu.entrySelectionActive &&
+          discoveriesMenu.entrySelectedIndex === index;
+        drawDiscoveryEntryRowBackground(rowRect, index, selected);
       }
       const sprite = discoveriesMenu.tab === "animals"
         ? animalDiscoveryPortrait(entry)
@@ -27497,12 +27531,22 @@ function drawDiscoveriesMenu() {
       drawOptionsText(
         fitPixelText(localizedName, PIXEL_FONT_SMALL_8, textWidth),
         textX,
-        y + 7,
+        y + 4,
         { color: PIRATE_MENU_INK }
       );
-      const detail = fitPixelText(renderedUiText(entry.detail).toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
-      ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-      drawPixelText(detail, textX, y + 20, { font: PIXEL_FONT_SMALL_8 });
+      const detailLines = wrapPixelTextAll(
+        renderedUiText(entry.detail).toUpperCase(),
+        PIXEL_FONT_SMALL_8,
+        textWidth
+      ).slice(0, 2);
+      detailLines.forEach((line, lineIndex) => {
+        drawOptionsText(
+          line,
+          textX,
+          y + 15 + lineIndex * localizedLineHeight(8),
+          { color: PIRATE_MENU_INK_MUTED, font: PIXEL_FONT_SMALL_8 }
+        );
+      });
       if (rowRect) {
         const hovered = pointInRect(optionsMenu.hoverPoint, rowRect);
         drawOptionsText(">", panelX + panel.w - 15 + (hovered ? 1 : 0), y + 13, {
@@ -27538,7 +27582,7 @@ function drawDiscoveriesMenu() {
   ctx.restore();
 }
 
-function drawDiscoveryWonderRowBackground(rect, index, selected) {
+function drawDiscoveryEntryRowBackground(rect, index, selected) {
   const hovered = pointInRect(optionsMenu.hoverPoint, rect);
   ctx.fillStyle = selected || hovered
     ? PIRATE_MENU_PAPER_SELECTED
@@ -27554,13 +27598,7 @@ function drawDiscoveryWonderRowBackground(rect, index, selected) {
 }
 
 function drawDiscoveryDetail(panel) {
-  const discovery = discoveryCatalogById.get(discoveriesMenu.detailDiscoveryId);
-  if (!discovery) {
-    throw new Error(`Expanded wonder is missing from the catalog: ${discoveriesMenu.detailDiscoveryId}`);
-  }
-  if (!gameStateHasDiscovery(gameState, discovery.id)) {
-    throw new Error(`Cannot expand an undiscovered wonder: ${discovery.id}`);
-  }
+  const view = currentDiscoveryDetailView();
   discoveriesMenu.tabRects = [];
   discoveriesMenu.previousPageRect = null;
   discoveriesMenu.nextPageRect = null;
@@ -27568,38 +27606,47 @@ function drawDiscoveryDetail(panel) {
   const left = panel.x + 13;
   const right = panel.x + panel.w - 13;
   const spriteY = panel.y + 34;
-  const sprite = discoverySpriteImage(discovery);
-  if (sprite) {
+  if (view.sprite) {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(sprite, left, spriteY, 32, 32);
+    ctx.drawImage(view.sprite, left, spriteY, view.spriteSize, view.spriteSize);
   } else {
-    ctx.fillStyle = discoveryKindColor(discovery.kind);
-    ctx.fillRect(left + 13, spriteY + 13, 6, 6);
+    ctx.fillStyle = view.placeholderColor;
+    const placeholderOffset = Math.floor((view.spriteSize - 6) / 2);
+    ctx.fillRect(left + placeholderOffset, spriteY + placeholderOffset, 6, 6);
     ctx.fillStyle = PIRATE_MENU_INK;
-    ctx.fillRect(left + 15, spriteY + 15, 2, 2);
+    ctx.fillRect(left + placeholderOffset + 2, spriteY + placeholderOffset + 2, 2, 2);
   }
 
-  const headingX = left + 40;
+  const headingX = left + view.spriteSize + 8;
   const headingW = Math.max(40, right - headingX);
   const headingLines = wrapPixelTextAll(
-    renderedUiText(discovery.displayName).toUpperCase(),
+    renderedUiText(view.displayName).toUpperCase(),
     PIXEL_FONT_DIALOGUE_8,
     headingW
   ).slice(0, 2);
+  const headingLineHeight = localizedLineHeight(10);
   headingLines.forEach((line, index) => {
-    drawOptionsText(line, headingX, spriteY + 2 + index * localizedLineHeight(10), {
+    drawOptionsText(line, headingX, spriteY + 2 + index * headingLineHeight, {
       font: PIXEL_FONT_DIALOGUE_8,
       color: PIRATE_MENU_INK
     });
   });
-  drawOptionsText(
-    fitPixelText(renderedUiText(discovery.detail || "").toUpperCase(), PIXEL_FONT_SMALL_8, headingW),
-    headingX,
-    spriteY + 23,
-    { color: PIRATE_MENU_INK_MUTED }
-  );
+  const summaryY = spriteY + 4 + headingLines.length * headingLineHeight;
+  const summaryLineHeight = localizedLineHeight(8);
+  const summaryLines = wrapPixelTextAll(
+    renderedUiText(view.summary).toUpperCase(),
+    PIXEL_FONT_SMALL_8,
+    headingW
+  ).slice(0, 3);
+  summaryLines.forEach((line, index) => {
+    drawOptionsText(line, headingX, summaryY + index * summaryLineHeight, {
+      color: PIRATE_MENU_INK_MUTED,
+      font: PIXEL_FONT_SMALL_8
+    });
+  });
 
-  const separatorY = spriteY + 37;
+  const textHeaderHeight = summaryY - spriteY + summaryLines.length * summaryLineHeight;
+  const separatorY = spriteY + Math.max(view.spriteSize, textHeaderHeight) + 4;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(left, separatorY, right - left, 1);
   drawOptionsText(uiText("ledger.captainAccount"), left, separatorY + 7, {
@@ -27614,7 +27661,7 @@ function drawDiscoveryDetail(panel) {
   const bodyH = Math.max(20, footerY - bodyY - 5);
   const lineHeight = localizedLineHeight(10);
   const descriptionLines = wrapPixelTextAll(
-    explorerJournalDescriptionForDiscovery(discovery).toUpperCase(),
+    renderedUiText(view.account).toUpperCase(),
     PIXEL_FONT_DIALOGUE_8,
     bodyW
   );
@@ -27677,6 +27724,44 @@ function drawDiscoveryDetail(panel) {
     "< BACK",
     pointInRect(optionsMenu.hoverPoint, discoveriesMenu.detailBackRect)
   );
+}
+
+function currentDiscoveryDetailView() {
+  const id = discoveriesMenu.detailEntryId;
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error(`Expanded discovery entry has invalid id: ${id}`);
+  }
+  if (discoveriesMenu.tab === "wonders") {
+    const discovery = discoveryCatalogById.get(id);
+    if (!discovery) throw new Error(`Expanded wonder is missing from the catalog: ${id}`);
+    if (!gameStateHasDiscovery(gameState, discovery.id)) {
+      throw new Error(`Cannot expand an undiscovered wonder: ${discovery.id}`);
+    }
+    return {
+      displayName: discovery.displayName,
+      summary: discovery.detail || "",
+      account: explorerJournalDescriptionForDiscovery(discovery),
+      sprite: discoverySpriteImage(discovery),
+      spriteSize: 32,
+      placeholderColor: discoveryKindColor(discovery.kind)
+    };
+  }
+  if (discoveriesMenu.tab !== "animals") {
+    throw new Error(`Expanded discovery entry has unknown tab: ${discoveriesMenu.tab}`);
+  }
+  const animal = ANIMAL_CATALOG_BY_ID.get(id);
+  if (!animal) throw new Error(`Expanded animal is missing from the catalog: ${id}`);
+  if (gameState.memory.animals.encountered[id] !== true) {
+    throw new Error(`Cannot expand an unencountered animal: ${id}`);
+  }
+  return {
+    displayName: animal.displayName,
+    summary: animal.detail,
+    account: naturalistJournalDescriptionForAnimal(animal),
+    sprite: animalDiscoveryPortrait(animal),
+    spriteSize: 64,
+    placeholderColor: PIRATE_MENU_CHART_LINE
+  };
 }
 
 function animalDiscoveryPortrait(entry) {

@@ -12,6 +12,12 @@ import {
   recordAnimalEncounter,
   rollAnchoredAnimalEncounter
 } from "./animalEncounters.js";
+import {
+  AUTHORED_ANIMAL_REPORT_IDS,
+  naturalistJournalDescriptionForAnimal,
+  naturalistReportDialogueForAnimal,
+  validateNaturalistReportDialogueCatalog
+} from "./naturalistAnimalDialogue.js";
 
 function habitat(overrides = {}) {
   return {
@@ -56,6 +62,20 @@ test("animal catalog is unique and every portrait is expression-ready", () => {
     ANIMAL_CATALOG_BY_ID.get("raccoon").expressions.find(({ id }) => id === "angry").src,
     "assets/animals/portraits/raccoon-15.png"
   );
+});
+
+test("every animal has unique naturalist dialogue reusable as its journal entry", () => {
+  assert.equal(validateNaturalistReportDialogueCatalog(ANIMAL_CATALOG), ANIMAL_CATALOG.length);
+  assert.deepEqual(
+    [...AUTHORED_ANIMAL_REPORT_IDS].sort(),
+    ANIMAL_CATALOG.map(({ id }) => id).sort()
+  );
+  for (const animal of ANIMAL_CATALOG) {
+    const dialogue = naturalistReportDialogueForAnimal(animal);
+    assert.equal(naturalistJournalDescriptionForAnimal(animal), dialogue.player);
+    assert.match(dialogue.player, /[.!?]$/);
+    assert.match(dialogue.naturalist, /[.!?]$/);
+  }
 });
 
 test("animals occur only in plausible native habitats", () => {
