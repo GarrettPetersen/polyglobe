@@ -2632,6 +2632,7 @@ let anchorButtonRect = null;
 let scavengeButtonRect = null;
 let shoreScavengeAction = null;
 let anchored = false;
+let initialAnimalEncounterRollPending = false;
 let portWaitState = null;
 let portWaitButtonRect = null;
 let departureControlFeedback = null;
@@ -8896,6 +8897,7 @@ async function restoreSavedVoyage(payload) {
   hullSplinterBursts = [];
 
   anchored = payload.anchored;
+  initialAnimalEncounterRollPending = false;
   survivalDeprivationTimers.waterNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.waterNextMinute);
   survivalDeprivationTimers.foodNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.foodNextMinute);
   playerIntroModal = gameState.memory.campaignGoal?.introSeen === false
@@ -13074,6 +13076,7 @@ function toggleAnchor({ findCastaway = true } = {}) {
   if (anchored) {
     const departureShore = nearestScavengeShoreCall();
     anchored = false;
+    initialAnimalEncounterRollPending = false;
     departureControlFeedback = null;
     keys.clear();
     clearPointerSteering();
@@ -13086,6 +13089,7 @@ function toggleAnchor({ findCastaway = true } = {}) {
   }
   if (!canAnchorAtCurrentShore()) return false;
   anchored = true;
+  initialAnimalEncounterRollPending = true;
   stopShipMotion();
   if (!maybeRecoverCampaignTreasureAtAnchor()) saveVoyageNow("dropped anchor");
   dirty = true;
@@ -13204,8 +13208,10 @@ function updateAnchoredAnimalEncounter() {
     },
     weatherClockMinutes,
     Math.random,
-    currentPlayerPerkTotals().animalEncounterChanceMultiplier
+    currentPlayerPerkTotals().animalEncounterChanceMultiplier,
+    initialAnimalEncounterRollPending
   );
+  initialAnimalEncounterRollPending = false;
   if (!animalEntry) return false;
   if (!recordAnimalEncounter(gameState.memory.animals, animalEntry.id)) {
     throw new Error(`Animal encounter repeated within a voyage: ${animalEntry.id}`);
@@ -19209,6 +19215,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   storePastVoyage(voyageRecord);
   gameTelemetry.recordVoyage(voyageRecord, gameState);
   anchored = false;
+  initialAnimalEncounterRollPending = false;
   fishingAction = null;
   shoreScavengeAction = null;
   portWaitState = null;

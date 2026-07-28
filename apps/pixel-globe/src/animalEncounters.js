@@ -1,11 +1,13 @@
 export const ANIMAL_ENCOUNTER_MEMORY_VERSION = 1;
 export const ANIMAL_ENCOUNTER_ROLL_INTERVAL_MINUTES = 6 * 60;
 export const ANIMAL_ENCOUNTER_CHANCE = 0.035;
+export const ANIMAL_INITIAL_ANCHOR_ENCOUNTER_CHANCE = 0.12;
+export const ANIMAL_COMPANION_ENCOUNTER_WEIGHT = 3;
 
 const PORTRAIT_ROOT = "assets/animals/portraits";
 
 export const ANIMAL_CATALOG = Object.freeze([
-  animal("tiger", "Tiger", "A striped forest cat of Asia.", "roar", "tiger.png", asiaWarmForest,
+  animal("tiger", "Tiger", "A striped forest cat of Asia.", "roar", "tiger.png", tigerRange,
     ["A tiger. It is magnificent, provided it continues looking at us from over there."], "Rrrrraow!"),
   animal("brown-bear", "Brown Bear", "A powerful bear of northern forests and mountains.", "growl", "brown-bear.png", northernWilds,
     ["That bear has the confident walk of a creature that has never paid a harbor toll."], "Hrrrroooof!"),
@@ -39,6 +41,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     ["It has eaten every bamboo shoot in sight and appears to regard this as a full day's labor."], "Meee-eh!", {
       neutral: 8, happy: 5, surprised: 4, sad: 13, angry: 15, amused: 16
     }, {
+      encounterWeight: ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
       reactionExpression: "happy",
       reactionText: "The panda rolls onto its back, hugs the bamboo closer, and resumes chewing."
     }),
@@ -46,6 +49,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     ["That little masked thief is aboard! Count the biscuits."], "Chrrr-chrrr-chrrr!", {
       neutral: 4, happy: 5, surprised: 13, sad: 1, angry: 15, amused: 8, mischievous: 9
     }, {
+      encounterWeight: ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
       effect: "steal-food",
       reactionExpression: "mischievous",
       reactionText: "Crunch. Crunch."
@@ -54,6 +58,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     ["A bird dressed for court, marching over ice where no court has ever sat."], "Honk-hraaa!", {
       neutral: 1, happy: 2, surprised: 4, sad: 13, angry: 8, amused: 15, confused: 10
     }, {
+      encounterWeight: ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
       reactionExpression: "amused",
       reactionText: "The penguin gives a formal bow, then inspects our fish as though conducting an audit."
     }),
@@ -127,7 +132,8 @@ export function rollAnchoredAnimalEncounter(
   habitat,
   currentMinute,
   random = Math.random,
-  chanceMultiplier = 1
+  chanceMultiplier = 1,
+  initialAnchorRoll = false
 ) {
   validateAnimalEncounterMemory(memory);
   validateHabitat(habitat);
@@ -137,15 +143,27 @@ export function rollAnchoredAnimalEncounter(
   if (!Number.isFinite(chanceMultiplier) || chanceMultiplier <= 0) {
     throw new Error(`Invalid animal encounter chance multiplier: ${chanceMultiplier}`);
   }
-  if (currentMinute < memory.nextRollMinute) return null;
+  if (typeof initialAnchorRoll !== "boolean") {
+    throw new Error("Initial animal anchor roll flag must be boolean");
+  }
+  if (!initialAnchorRoll && currentMinute < memory.nextRollMinute) return null;
   memory.nextRollMinute = currentMinute + ANIMAL_ENCOUNTER_ROLL_INTERVAL_MINUTES;
   const chanceRoll = checkedRandom(random, "animal encounter chance");
-  const encounterChance = Math.min(0.95, ANIMAL_ENCOUNTER_CHANCE * chanceMultiplier);
+  const baseChance = initialAnchorRoll
+    ? ANIMAL_INITIAL_ANCHOR_ENCOUNTER_CHANCE
+    : ANIMAL_ENCOUNTER_CHANCE;
+  const encounterChance = Math.min(0.95, baseChance * chanceMultiplier);
   if (chanceRoll >= encounterChance) return null;
   const eligible = eligibleAnimalEncounters(memory, habitat);
   if (eligible.length === 0) return null;
   const choiceRoll = checkedRandom(random, "animal encounter choice");
-  return eligible[Math.min(eligible.length - 1, Math.floor(choiceRoll * eligible.length))];
+  const totalWeight = eligible.reduce((sum, entry) => sum + entry.encounterWeight, 0);
+  let weightedChoice = choiceRoll * totalWeight;
+  for (const entry of eligible) {
+    weightedChoice -= entry.encounterWeight;
+    if (weightedChoice < 0) return entry;
+  }
+  throw new Error(`Animal encounter weighting failed at choice ${choiceRoll}`);
 }
 
 export function animalDialogueCharacter(animalEntry) {
@@ -163,7 +181,7 @@ export function animalDialogueCharacter(animalEntry) {
 function animal(id, displayName, detail, soundKind, portraitFile, matches, commentary, callText, effect = null) {
   return animalRecord(id, displayName, detail, soundKind, matches, commentary, callText, effect, {
     neutral: portraitFile
-  }, null);
+  }, null, 1);
 }
 
 function animalWithExpressions(
@@ -175,7 +193,7 @@ function animalWithExpressions(
   commentary,
   callText,
   expressionNumbers,
-  { effect = null, reactionExpression = null, reactionText = null } = {}
+  { encounterWeight = 1, effect = null, reactionExpression = null, reactionText = null } = {}
 ) {
   const files = Object.fromEntries(Object.entries(expressionNumbers).map(([expressionId, number]) => [
     expressionId,
@@ -184,10 +202,37 @@ function animalWithExpressions(
   const reaction = reactionExpression && reactionText
     ? Object.freeze({ expressionId: reactionExpression, text: reactionText })
     : null;
-  return animalRecord(id, displayName, detail, soundKind, matches, commentary, callText, effect, files, reaction);
+  return animalRecord(
+    id,
+    displayName,
+    detail,
+    soundKind,
+    matches,
+    commentary,
+    callText,
+    effect,
+    files,
+    reaction,
+    encounterWeight
+  );
 }
 
-function animalRecord(id, displayName, detail, soundKind, matches, commentary, callText, effect, expressionFiles, reaction) {
+function animalRecord(
+  id,
+  displayName,
+  detail,
+  soundKind,
+  matches,
+  commentary,
+  callText,
+  effect,
+  expressionFiles,
+  reaction,
+  encounterWeight
+) {
+  if (!Number.isFinite(encounterWeight) || encounterWeight <= 0) {
+    throw new Error(`Invalid animal encounter weight for ${id}: ${encounterWeight}`);
+  }
   const expressions = Object.freeze(Object.entries(expressionFiles).map(([expressionId, file]) => Object.freeze({
     id: expressionId,
     src: `${PORTRAIT_ROOT}/${file}`
@@ -202,7 +247,8 @@ function animalRecord(id, displayName, detail, soundKind, matches, commentary, c
     callText,
     effect,
     expressions,
-    reaction
+    reaction,
+    encounterWeight
   });
 }
 
@@ -231,9 +277,14 @@ function longitudeIn(h, west, east) {
   return h.longitudeDeg >= west && h.longitudeDeg <= east;
 }
 
-function asiaWarmForest(h) {
-  return h.latitudeDeg >= -10 && h.latitudeDeg <= 50 && longitudeIn(h, 60, 150) &&
-    terrainIncludes(h, "forest", "jungle", "grass");
+function tigerRange(h) {
+  const caspian = h.latitudeDeg >= 30 && h.latitudeDeg <= 48 && longitudeIn(h, 45, 75);
+  const mainland = h.latitudeDeg >= 5 && h.latitudeDeg <= 50 && longitudeIn(h, 65, 135) &&
+    !tigerlessEastAsianIsland(h);
+  const sumatra = h.latitudeDeg >= -6 && h.latitudeDeg <= 6 && longitudeIn(h, 95, 106);
+  const javaAndBali = h.latitudeDeg >= -9 && h.latitudeDeg <= -5 && longitudeIn(h, 105, 116);
+  return (caspian || mainland || sumatra || javaAndBali) &&
+    terrainIncludes(h, "forest", "jungle", "grass", "wet");
 }
 
 function northernWilds(h) {
@@ -243,7 +294,10 @@ function northernWilds(h) {
 
 function elephantRange(h) {
   const africa = h.latitudeDeg >= -35 && h.latitudeDeg <= 20 && longitudeIn(h, -20, 55);
-  const asia = h.latitudeDeg >= -10 && h.latitudeDeg <= 32 && longitudeIn(h, 65, 140);
+  const indianSubcontinent = h.latitudeDeg >= 5 && h.latitudeDeg <= 32 && longitudeIn(h, 65, 100);
+  const southeastAsianMainland = h.latitudeDeg >= 0 && h.latitudeDeg <= 28 && longitudeIn(h, 95, 110);
+  const sunda = h.latitudeDeg >= -8 && h.latitudeDeg <= 8 && longitudeIn(h, 95, 119);
+  const asia = indianSubcontinent || southeastAsianMainland || sunda;
   return (africa || asia) && terrainIncludes(h, "grass", "forest", "jungle");
 }
 
@@ -269,6 +323,7 @@ function giraffeRange(h) {
 
 function temperateOpenHabitat(h) {
   return h.latitudeDeg >= -50 && h.latitudeDeg <= 68 && !h.isSurfaceIce &&
+    !australasia(h) &&
     terrainIncludes(h, "forest", "grass", "tundra", "mountain", "rock");
 }
 
@@ -283,8 +338,8 @@ function tropicalForest(h) {
 
 function lionRange(h) {
   const africa = h.latitudeDeg >= -35 && h.latitudeDeg <= 22 && longitudeIn(h, -20, 52);
-  const india = h.latitudeDeg >= 15 && h.latitudeDeg <= 30 && longitudeIn(h, 65, 82);
-  return (africa || india) && terrainIncludes(h, "grass", "savanna", "desert");
+  const southwestAsia = h.latitudeDeg >= 12 && h.latitudeDeg <= 38 && longitudeIn(h, 30, 82);
+  return (africa || southwestAsia) && terrainIncludes(h, "grass", "savanna", "desert", "forest");
 }
 
 function eagleRange(h) {
@@ -292,7 +347,10 @@ function eagleRange(h) {
 }
 
 function farNorthForest(h) {
-  return h.latitudeDeg >= 45 && h.latitudeDeg <= 72 &&
+  const northAmerica = h.latitudeDeg >= 45 && h.latitudeDeg <= 72 && longitudeIn(h, -170, -50);
+  const scandinavia = h.latitudeDeg >= 55 && h.latitudeDeg <= 72 && longitudeIn(h, 5, 32);
+  const easternEurasia = h.latitudeDeg >= 48 && h.latitudeDeg <= 72 && longitudeIn(h, 20, 180);
+  return (northAmerica || scandinavia || easternEurasia) &&
     terrainIncludes(h, "forest", "tundra", "wet", "grass");
 }
 
@@ -312,10 +370,44 @@ function pandaRange(h) {
 }
 
 function raccoonRange(h) {
-  return h.latitudeDeg >= 5 && h.latitudeDeg <= 60 && longitudeIn(h, -170, -50) &&
-    terrainIncludes(h, "forest", "grass", "wet", "river");
+  return h.latitudeDeg >= 7 && h.latitudeDeg <= 58 && longitudeIn(h, -130, -50) &&
+    (h.isRiver || h.isLake || terrainIncludes(h, "forest", "grass", "wet", "river"));
 }
 
 function penguinRange(h) {
-  return h.latitudeDeg <= -45 && (h.isSurfaceIce || h.isCoast);
+  if (!h.isSurfaceIce && !h.isCoast) return false;
+  const antarcticAndSubantarctic = h.latitudeDeg <= -45;
+  const pacificSouthAmerica = h.latitudeDeg >= -45 && h.latitudeDeg <= 2 &&
+    longitudeIn(h, -92, -68);
+  const atlanticSouthAmerica = h.latitudeDeg >= -56 && h.latitudeDeg <= -38 &&
+    longitudeIn(h, -76, -50);
+  const southernAfrica = h.latitudeDeg >= -38 && h.latitudeDeg <= -22 &&
+    longitudeIn(h, 12, 34);
+  return antarcticAndSubantarctic || pacificSouthAmerica || atlanticSouthAmerica ||
+    southernAfrica || southernAustralasia(h);
+}
+
+function tigerlessEastAsianIsland(h) {
+  const borneo = h.latitudeDeg >= -7 && h.latitudeDeg <= 8 && longitudeIn(h, 108, 120);
+  const philippines = h.latitudeDeg >= 5 && h.latitudeDeg <= 21 && longitudeIn(h, 116, 127);
+  const taiwan = h.latitudeDeg >= 21 && h.latitudeDeg <= 26 && longitudeIn(h, 119, 123);
+  const japan = h.latitudeDeg >= 30 && h.latitudeDeg <= 46 && longitudeIn(h, 129, 146);
+  return borneo || philippines || taiwan || japan;
+}
+
+function australasia(h) {
+  const australia = h.latitudeDeg >= -45 && h.latitudeDeg <= -10 && longitudeIn(h, 110, 155);
+  const newZealandEast = h.latitudeDeg >= -50 && h.latitudeDeg <= -30 && longitudeIn(h, 165, 180);
+  const newZealandWest = h.latitudeDeg >= -50 && h.latitudeDeg <= -30 && longitudeIn(h, -180, -165);
+  return australia || newZealandEast || newZealandWest;
+}
+
+function southernAustralasia(h) {
+  const southernAustralia = h.latitudeDeg >= -45 && h.latitudeDeg <= -32 &&
+    longitudeIn(h, 110, 155);
+  const newZealandEast = h.latitudeDeg >= -50 && h.latitudeDeg <= -30 &&
+    longitudeIn(h, 165, 180);
+  const newZealandWest = h.latitudeDeg >= -50 && h.latitudeDeg <= -30 &&
+    longitudeIn(h, -180, -165);
+  return southernAustralia || newZealandEast || newZealandWest;
 }
