@@ -15,6 +15,7 @@ export function cargoCrateStatusLayout({
   maximumPanelHeight = DEFAULT_MAXIMUM_PANEL_HEIGHT,
   iconSize = DEFAULT_ICON_SIZE,
   panelPadding = DEFAULT_PANEL_PADDING,
+  valueRightPadding = panelPadding,
   crateTop = DEFAULT_CRATE_TOP,
   panelBottomPadding = DEFAULT_PANEL_BOTTOM_PADDING,
   valueWidth,
@@ -28,6 +29,7 @@ export function cargoCrateStatusLayout({
     maximumPanelHeight,
     iconSize,
     panelPadding,
+    valueRightPadding,
     crateTop,
     panelBottomPadding,
     valueWidth,
@@ -40,7 +42,8 @@ export function cargoCrateStatusLayout({
   if (used < 0 || used > capacity + 1e-8) {
     throw new Error(`Cargo crate used space is outside the hold: ${used}/${capacity}`);
   }
-  if (iconSize <= 0 || panelPadding < 0 || crateTop < 0 || panelBottomPadding < 0 ||
+  if (iconSize <= 0 || panelPadding < 0 || valueRightPadding < 0 ||
+      crateTop < 0 || panelBottomPadding < 0 ||
       valueWidth <= 0 || valueGap < 0) {
     throw new Error("Cargo crate dimensions must be non-negative with a positive icon size");
   }
@@ -49,23 +52,25 @@ export function cargoCrateStatusLayout({
     throw new Error(`Cargo crate panel height is invalid: ${maximumPanelHeight}`);
   }
   const valueReserve = valueGap + valueWidth;
-  const minimumContentWidth = panelPadding * 2 + iconSize + valueReserve;
+  const minimumContentWidth = panelPadding + valueRightPadding + iconSize + valueReserve;
   if (panelWidth < minimumContentWidth) {
     throw new Error(`Cargo crate panel width is invalid: ${panelWidth}`);
   }
 
-  const maximumSlotsPerRow = panelWidth - panelPadding * 2 - valueReserve - iconSize + 1;
+  const maximumSlotsPerRow = panelWidth - panelPadding - valueRightPadding -
+    valueReserve - iconSize + 1;
   if (maximumSlotsPerRow <= 0) {
     throw new Error(`Cargo crate value column leaves no room for crates: ${panelWidth}px`);
   }
   const rowCount = Math.ceil(capacity / maximumSlotsPerRow);
   const rowCapacity = Math.ceil(capacity / rowCount);
-  const minimumPackedWidth = panelPadding * 2 + valueReserve + iconSize + rowCapacity - 1;
+  const minimumPackedWidth = panelPadding + valueRightPadding +
+    valueReserve + iconSize + rowCapacity - 1;
   if (minimumPackedWidth > panelWidth) {
     throw new Error(`Cargo crate rows cannot fit ${capacity} units inside ${panelWidth}px`);
   }
 
-  const innerWidth = panelWidth - panelPadding * 2 - valueReserve;
+  const innerWidth = panelWidth - panelPadding - valueRightPadding - valueReserve;
   const pitch = rowCapacity <= 1
     ? iconSize + 1
     : Math.min(iconSize + 1, Math.floor((innerWidth - iconSize) / (rowCapacity - 1)));
@@ -106,7 +111,7 @@ export function cargoCrateStatusLayout({
   return Object.freeze({
     panel: Object.freeze({ x: panelX, y: panelY, width: panelWidth, height: panelHeight }),
     value: Object.freeze({
-      right: panelX + panelWidth - panelPadding,
+      right: panelX + panelWidth - valueRightPadding,
       y: panelY + crateTop - 1,
       width: valueWidth,
       text: `${occupiedCount}/${capacity}`

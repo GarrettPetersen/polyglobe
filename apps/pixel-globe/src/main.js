@@ -1776,8 +1776,9 @@ let MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL
 const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
-const SURVIVAL_PANEL_W = 120;
+const SURVIVAL_PANEL_W = 123;
 const SURVIVAL_PANEL_MAX_H = 70;
+const SURVIVAL_VALUE_RIGHT_PAD = 8;
 const SURVIVAL_CREW_ROW_Y = 34;
 const SURVIVAL_CREW_ROW_PAD_X = 5;
 const SURVIVAL_CRATE_ROW_Y = 43;
@@ -35743,6 +35744,7 @@ function survivalHudLayout(
     panelWidth: SURVIVAL_PANEL_W,
     maximumPanelHeight: SURVIVAL_PANEL_MAX_H,
     iconSize: SURVIVAL_CRATE_SIZE,
+    valueRightPadding: SURVIVAL_VALUE_RIGHT_PAD,
     crateTop: SURVIVAL_CRATE_ROW_Y,
     valueWidth: measurePixelTextWidth(`${capacity}/${capacity}`, PIXEL_FONT_LATIN_SMALL_8)
   });
@@ -35848,7 +35850,7 @@ function drawSurvivalPanelTitle(x, y, panelWidth) {
   const title = shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]);
   const textY = y + 3;
   const titleX = x + 5;
-  const right = x + panelWidth - 5;
+  const right = x + panelWidth - SURVIVAL_VALUE_RIGHT_PAD;
   const amount = formatCompactNumber(gameState.doubloons);
   const amountWidth = measurePixelTextWidth(amount, PIXEL_FONT_LATIN_SMALL_8);
   const iconX = right - amountWidth - 2 - statusHudImages.doubloon.width;
@@ -35881,10 +35883,15 @@ function drawSurvivalCrewRow(x, y, panelWidth, travelerGroups = shipTravelerMani
     ctx.drawImage(image, companion.x, companion.y);
   }
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText(`${layout.count}`, x + panelWidth - 5, y + SURVIVAL_CREW_ROW_Y - 1, {
-    font: PIXEL_FONT_LATIN_SMALL_8,
-    align: "right"
-  });
+  drawPixelText(
+    `${layout.count}`,
+    x + panelWidth - SURVIVAL_VALUE_RIGHT_PAD,
+    y + SURVIVAL_CREW_ROW_Y - 1,
+    {
+      font: PIXEL_FONT_LATIN_SMALL_8,
+      align: "right"
+    }
+  );
 }
 
 function survivalCrewStatusLayout(
@@ -35896,7 +35903,7 @@ function survivalCrewStatusLayout(
 ) {
   const peopleAboard = crewStatusCount({ crewCount, travelerGroups });
   const rowX = panelX + SURVIVAL_CREW_ROW_PAD_X;
-  const valueRight = panelX + panelWidth - 5;
+  const valueRight = panelX + panelWidth - SURVIVAL_VALUE_RIGHT_PAD;
   const valueLeft = valueRight - measurePixelTextWidth(`${peopleAboard}`, PIXEL_FONT_LATIN_SMALL_8);
   const companionIds = aboardAnimalCompanionIds(gameState.memory.animalCompanions);
   const companionSpace = companionIds.reduce((total, companionId, index) => {
@@ -36020,7 +36027,7 @@ function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
   if (segments.some((segment) => segment.icon.width !== iconWidth)) {
     throw new Error("Survival meter row icons must share a width");
   }
-  const valueRight = SURVIVAL_PANEL_X + panelWidth - 5;
+  const valueRight = SURVIVAL_PANEL_X + panelWidth - SURVIVAL_VALUE_RIGHT_PAD;
   const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_LATIN_SMALL_8);
   const layout = statusIconRowLayout({
     count,

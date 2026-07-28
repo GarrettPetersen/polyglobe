@@ -63,6 +63,23 @@ test("inventory amount changes fill ordering without changing panel geometry", (
   assert.equal(nearlyFull.occupiedCount, 520);
 });
 
+test("the value column can gain right breathing room without shifting crate rows", () => {
+  const ordinary = crateLayout({ used: 4, capacity: 10 });
+  const inset = crateLayout({
+    used: 4,
+    capacity: 10,
+    panelWidth: 123,
+    valueRightPadding: 8
+  });
+
+  assert.equal(inset.panel.width, 123);
+  assert.equal(inset.value.right, ordinary.value.right);
+  assert.deepEqual(
+    inset.entries.map(({ x, y }) => [x, y]),
+    ordinary.entries.map(({ x, y }) => [x, y])
+  );
+});
+
 test("crate layout rejects impossible or inconsistent holds", () => {
   assert.throws(() => crateLayout({ used: 11, capacity: 10 }), /outside the hold/);
   assert.throws(() => crateLayout({ used: 0, capacity: 0 }), /must be positive/);
