@@ -172,7 +172,10 @@ test("a voyage ending during an active request flushes as soon as that request c
   const telemetry = createGameTelemetry({
     storage,
     fetchImpl: async (_url, options) => {
-      bodies.push(JSON.parse(options.body));
+      bodies.push({
+        ...JSON.parse(options.body),
+        keepalive: options.keepalive
+      });
       if (bodies.length === 1) await firstRequestPending;
       return { ok: true };
     },
@@ -196,6 +199,55 @@ test("a voyage ending during an active request flushes as soon as that request c
   assert.equal(bodies.length, 2);
   assert.deepEqual(bodies[1].events.map((entry) => entry.type), ["voyage_end"]);
   assert.equal(bodies[1].events[0].payload.mainQuest, "white-whale-revenge");
+  assert.equal(bodies[1].keepalive, true);
+  assert.equal(storage.values.has(TELEMETRY_QUEUE_STORAGE_KEY), false);
+});
+
+test("an urgent voyage retries immediately when the older active request fails", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "voyage-after-failed-request"
+  });
+  const bodies = [];
+  let releaseFirstRequest;
+  const firstRequestPending = new Promise((resolve) => {
+    releaseFirstRequest = resolve;
+  });
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      bodies.push({
+        ...JSON.parse(options.body),
+        keepalive: options.keepalive
+      });
+      if (bodies.length === 1) {
+        await firstRequestPending;
+        return { ok: false };
+      }
+      return { ok: true };
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+
+  telemetry.start();
+  await nextTask();
+  assert.equal(telemetry.recordVoyage(voyageRecord(), voyageState("treasure-hunt")), true);
+  releaseFirstRequest();
+  await nextTask();
+  await nextTask();
+
+  assert.equal(bodies.length, 2);
+  assert.deepEqual(
+    bodies[1].events.map((entry) => entry.type),
+    ["session_start", "voyage_end"]
+  );
+  assert.equal(bodies[1].keepalive, true);
   assert.equal(storage.values.has(TELEMETRY_QUEUE_STORAGE_KEY), false);
 });
 

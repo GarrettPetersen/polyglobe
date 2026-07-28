@@ -60,6 +60,7 @@ export function createGameTelemetry({
   let activePlayProvider = () => 0;
   let lastReportedActivePlaySeconds = 0;
   let requestInFlight = false;
+  let keepaliveFlushPending = false;
   let queue = consent === TELEMETRY_CONSENT_GRANTED ? readQueue(storage) : [];
   const reportedCrashes = new Set();
 
@@ -102,6 +103,7 @@ export function createGameTelemetry({
       installationId = null;
       sessionId = null;
       queue = [];
+      keepaliveFlushPending = false;
       removeStorage(storage, TELEMETRY_INSTALLATION_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_FIRST_SEEN_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_LAST_SESSION_STORAGE_KEY);
@@ -144,7 +146,7 @@ export function createGameTelemetry({
       ...payload,
       samplingWeight: TELEMETRY_EVENT_WEIGHT
     });
-    void flush();
+    void flush({ keepalive: true });
     return true;
   }
 
@@ -178,8 +180,11 @@ export function createGameTelemetry({
   }
 
   async function flush({ keepalive = false } = {}) {
-    if (!enabled || !fetchImpl || requestInFlight || consent !== TELEMETRY_CONSENT_GRANTED ||
-        queue.length === 0) {
+    if (!enabled || !fetchImpl || consent !== TELEMETRY_CONSENT_GRANTED || queue.length === 0) {
+      return false;
+    }
+    if (requestInFlight) {
+      keepaliveFlushPending ||= keepalive;
       return false;
     }
     requestInFlight = true;
@@ -197,19 +202,24 @@ export function createGameTelemetry({
         keepalive,
         signal: controller?.signal
       });
-      if (!response?.ok) return false;
-      queue.splice(0, batch.length);
-      persistQueue();
-      accepted = true;
+      if (response?.ok) {
+        queue.splice(0, batch.length);
+        persistQueue();
+        accepted = true;
+      }
     } catch {
-      return false;
+      accepted = false;
     } finally {
       if (timeout !== null) clearTimeout(timeout);
       requestInFlight = false;
     }
-    // An event can be queued while this request is in flight. Drain it now
-    // instead of waiting for another checkpoint or a later page load.
-    if (accepted && queue.length > 0) void flush({ keepalive });
+    const pendingKeepalive = keepaliveFlushPending;
+    keepaliveFlushPending = false;
+    // An urgent event can arrive during an ordinary request. Retry that event
+    // immediately with navigation-safe delivery even if the older request failed.
+    if (queue.length > 0 && (accepted || pendingKeepalive)) {
+      void flush({ keepalive: keepalive || pendingKeepalive });
+    }
     return accepted;
   }
 
@@ -223,6 +233,7 @@ export function createGameTelemetry({
 
   function stop() {
     checkpoint(true);
+    void flush({ keepalive: true });
     if (checkpointTimer !== null && clearIntervalImpl) clearIntervalImpl(checkpointTimer);
     checkpointTimer = null;
   }
