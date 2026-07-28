@@ -58,6 +58,22 @@ test("scheduler reset discards accumulated partial time", () => {
   assert.equal(calls, 0);
 });
 
+test("phase offsets keep independent systems from becoming due together", () => {
+  const calls = [];
+  const scheduler = createFixedRateScheduler([
+    { id: "first", hz: 2, update: () => calls.push("first") },
+    { id: "second", hz: 2, phaseSeconds: 0.25, update: () => calls.push("second") }
+  ]);
+
+  scheduler.advance(0.5);
+  assert.deepEqual(calls, ["first"]);
+  scheduler.advance(0.25);
+  assert.deepEqual(calls, ["first", "second"]);
+  scheduler.reset();
+  scheduler.advance(0.5);
+  assert.deepEqual(calls, ["first", "second", "first"]);
+});
+
 test("scheduler rejects malformed systems and frame deltas", () => {
   assert.throws(
     () => createFixedRateScheduler([{ id: "bad", hz: 0, update() {} }]),
@@ -65,4 +81,8 @@ test("scheduler rejects malformed systems and frame deltas", () => {
   );
   const scheduler = createFixedRateScheduler([{ id: "ok", hz: 1, update() {} }]);
   assert.throws(() => scheduler.advance(-1), /invalid delta/);
+  assert.throws(
+    () => createFixedRateScheduler([{ id: "bad-phase", hz: 2, phaseSeconds: 0.5, update() {} }]),
+    /invalid phase/
+  );
 });

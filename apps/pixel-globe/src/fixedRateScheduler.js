@@ -38,10 +38,10 @@ export function createFixedRateScheduler(systemSpecs) {
     if (id !== null) {
       const system = systems.get(id);
       if (!system) throw new Error(`Cannot reset unknown scheduled system: ${id}`);
-      system.accumulator = 0;
+      system.accumulator = -system.phaseSeconds;
       return;
     }
-    for (const system of systems.values()) system.accumulator = 0;
+    for (const system of systems.values()) system.accumulator = -system.phaseSeconds;
   }
 
   return Object.freeze({
@@ -72,6 +72,7 @@ function validatedSystem(spec) {
   }
   const maxStepsPerAdvance = spec.maxStepsPerAdvance ?? 1;
   const maxAccumulatedSteps = spec.maxAccumulatedSteps ?? maxStepsPerAdvance;
+  const phaseSeconds = spec.phaseSeconds ?? 0;
   if (!Number.isInteger(maxStepsPerAdvance) || maxStepsPerAdvance <= 0) {
     throw new Error(`Scheduled system ${spec.id} has invalid step limit: ${maxStepsPerAdvance}`);
   }
@@ -80,12 +81,16 @@ function validatedSystem(spec) {
       `Scheduled system ${spec.id} has invalid accumulated-step limit: ${maxAccumulatedSteps}`
     );
   }
+  if (!Number.isFinite(phaseSeconds) || phaseSeconds < 0 || phaseSeconds >= intervalSeconds) {
+    throw new Error(`Scheduled system ${spec.id} has invalid phase: ${phaseSeconds}`);
+  }
   return {
     id: spec.id,
     intervalSeconds,
     maxStepsPerAdvance,
     maxAccumulatedSteps,
+    phaseSeconds,
     update: spec.update,
-    accumulator: 0
+    accumulator: -phaseSeconds
   };
 }

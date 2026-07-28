@@ -26,6 +26,10 @@ import {
 import { createSpatialHash } from "./spatialHash.js";
 import { createFixedRateScheduler } from "./fixedRateScheduler.js";
 import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
+import {
+  DISTANT_WORLD_WORK_KIND,
+  createDistantWorldWorkPlan
+} from "./distantWorldWorkPlan.js";
 import { renderWorldLayerStack } from "./worldLayerOrder.js";
 import {
   bezierPathLength,
@@ -1572,6 +1576,8 @@ const NPC_COMBAT_TARGETING_HZ = 8;
 const NPC_PROJECTILE_UPDATE_HZ = 60;
 const NPC_WILDLIFE_UPDATE_HZ = 2;
 const NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES = 30;
+const DISTANT_WORLD_SHIP_BATCH_SIZE = 8;
+const DISTANT_WORLD_CART_BATCH_SIZE = 12;
 const WORLD_SPATIAL_KIND = Object.freeze({
   PLAYER: "player",
   NPC_SHIP: "npc-ship",
@@ -1634,7 +1640,6 @@ const RIVER_HIGHLIGHT_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 125;
 const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 250;
-const WEATHER_SIMULATION_INTERVAL_SECONDS = 0.1;
 const PRECIP_PARTICLE_REDRAW_MS = 80;
 const RAIN_PARTICLE_LIMIT = 340;
 const SNOW_PARTICLE_LIMIT = 300;
@@ -2199,7 +2204,7 @@ const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const WHALE_SIMULATION_INTERVAL_SECONDS = 0.25;
 const WHALE_HUNT_SIMULATION_INTERVAL_SECONDS = 1 / 30;
-const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 8;
+const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 32;
 const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
@@ -2459,10 +2464,13 @@ let ambientAudioContextAccumulator = 0;
 let ambientAudioWildlifeAccumulator = 0;
 let ambientAudioContext = null;
 let ambientAudioWildlife = null;
-let weatherSimulationAccumulator = 0;
+let worldClockFrameSlice = 0;
+let worldClockProcessedMinutes = null;
 let worldSimulationScheduler = createWorldSimulationScheduler();
 let distantWorldWorkerClient = null;
 const pendingDistantWorldEvents = [];
+const pendingDistantWorldWork = [];
+let distantWorldWorkDeferredFrames = 0;
 const worldSpatialIndex = createSpatialHash({ cellSize: 32 });
 let worldSpatialChart = null;
 let worldSpatialWildlifeChart = null;
@@ -2547,6 +2555,8 @@ let weatherTimeScale = START_WEATHER.timeScale;
 let pausedWeatherTimeScale = START_WEATHER.timeScale || WEATHER_DEFAULT_TIME_SCALE;
 let weatherParts = weatherClockParts(weatherClockMinutes);
 let weatherMaskDayIndex = -1;
+let pendingWeatherMaskRefresh = null;
+let weatherMaskScratch = null;
 let weatherDrawTick = -1;
 let ship;
 let playerSteeringHoldSeconds = 0;
@@ -3170,6 +3180,11 @@ async function main() {
   seaIceMask = new Uint8Array(graph.tileCount);
   freshwaterIceMask = new Uint8Array(graph.tileCount);
   snowGroundMask = new Uint8Array(graph.tileCount);
+  weatherMaskScratch = {
+    sea: new Uint8Array(graph.tileCount),
+    freshwater: new Uint8Array(graph.tileCount),
+    snow: new Uint8Array(graph.tileCount)
+  };
   refreshWeatherState(true);
   minimap = buildMinimap();
   captainChartMinimap = null;
@@ -4561,6 +4576,10 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateNavalWeapons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateFishAnimation(nowMs)) dirty = true;
+    if (measurePerformanceBenchmarkStage(
+      "weather.masks",
+      advancePendingWeatherMaskRefresh
+    )) dirty = true;
     if (measurePerformanceBenchmarkStage("weather", () => updateWeather(dt, nowMs))) dirty = true;
     if (updateCampaignGoalReturnReminder()) dirty = true;
     if (updateWhiteWhaleSightingObjective()) dirty = true;
@@ -8932,9 +8951,12 @@ async function restoreSavedVoyage(payload) {
   ambientAudioWildlifeAccumulator = 0;
   ambientAudioContext = null;
   ambientAudioWildlife = null;
-  weatherSimulationAccumulator = 0;
+  resetWorldClockFrameSlices();
+  pendingWeatherMaskRefresh = null;
   worldSimulationScheduler = createWorldSimulationScheduler();
   pendingDistantWorldEvents.length = 0;
+  pendingDistantWorldWork.length = 0;
+  distantWorldWorkDeferredFrames = 0;
   worldSpatialIndex.clear();
   worldSpatialChart = null;
   worldSpatialWildlifeChart = null;
@@ -18637,41 +18659,57 @@ function updateFishAnimation(nowMs) {
 
 function updateWeather(dt, nowMs) {
   if (!runtimeWeather || !weatherBake) return false;
-  weatherSimulationAccumulator = Math.min(
-    WEATHER_SIMULATION_INTERVAL_SECONDS * 2,
-    weatherSimulationAccumulator + dt
-  );
-  if (weatherSimulationAccumulator < WEATHER_SIMULATION_INTERVAL_SECONDS) return false;
-  dt = weatherSimulationAccumulator;
-  weatherSimulationAccumulator = 0;
-  let stormDamageChanged = false;
-  let survivalChanged = false;
-  let stormCaptainChanged = false;
-  let diplomacyChanged = false;
   if (weatherTimeScale > 0) {
-    const previousClockMinutes = weatherClockMinutes;
     weatherClockMinutes += dt * weatherTimeScale / 60;
-    stormDamageChanged = updateStormDamage(previousClockMinutes, weatherClockMinutes);
-    survivalChanged = updatePlayerSurvival(previousClockMinutes, weatherClockMinutes);
-    stormCaptainChanged = updateStormCaptainAlert(previousClockMinutes, weatherClockMinutes, nowMs);
-    diplomacyChanged = updateWorldDiplomacy();
   }
-  const fetchReadinessChanged = updateFetchQuestReadinessAlerts();
-  const fetchCaptainChanged = presentPendingFetchQuestCaptainDialogue();
-  const wineCaptainChanged = presentPendingWineCaptainDialogue();
-  const birthdayChanged = updateAboardBirthdayEvents();
-  const birthdayPresented = presentPendingBirthdayDialogue();
-
-  const dayChanged = refreshWeatherState(false);
+  weatherParts = weatherClockParts(weatherClockMinutes);
+  scheduleWeatherMaskRefresh(weatherParts.dayIndex);
+  const sliceChanged = advanceWorldClockFrameSlice(nowMs);
   const tick = Math.floor(nowMs / WEATHER_REDRAW_MS);
   if (tick !== weatherDrawTick) {
     weatherDrawTick = tick;
-    return weatherTimeScale > 0 || dayChanged || stormDamageChanged || survivalChanged ||
-      stormCaptainChanged || diplomacyChanged || fetchReadinessChanged || fetchCaptainChanged ||
-      wineCaptainChanged || birthdayChanged || birthdayPresented;
+    return weatherTimeScale > 0 || sliceChanged;
   }
-  return dayChanged || stormDamageChanged || survivalChanged || stormCaptainChanged || diplomacyChanged ||
-    fetchReadinessChanged || fetchCaptainChanged || wineCaptainChanged || birthdayChanged || birthdayPresented;
+  return sliceChanged;
+}
+
+function resetWorldClockFrameSlices() {
+  worldClockFrameSlice = 0;
+  worldClockProcessedMinutes = {
+    stormDamage: weatherClockMinutes,
+    survival: weatherClockMinutes,
+    stormCaptain: weatherClockMinutes
+  };
+}
+
+function advanceWorldClockFrameSlice(nowMs) {
+  if (!worldClockProcessedMinutes) resetWorldClockFrameSlices();
+  const slice = worldClockFrameSlice;
+  worldClockFrameSlice = (worldClockFrameSlice + 1) % 6;
+  if (slice === 0) {
+    const previousMinute = worldClockProcessedMinutes.stormDamage;
+    worldClockProcessedMinutes.stormDamage = weatherClockMinutes;
+    return updateStormDamage(previousMinute, weatherClockMinutes);
+  }
+  if (slice === 1) {
+    const previousMinute = worldClockProcessedMinutes.survival;
+    worldClockProcessedMinutes.survival = weatherClockMinutes;
+    return updatePlayerSurvival(previousMinute, weatherClockMinutes);
+  }
+  if (slice === 2) {
+    const previousMinute = worldClockProcessedMinutes.stormCaptain;
+    worldClockProcessedMinutes.stormCaptain = weatherClockMinutes;
+    return updateStormCaptainAlert(previousMinute, weatherClockMinutes, nowMs);
+  }
+  if (slice === 3) {
+    return updateFetchQuestReadinessAlerts() ||
+      presentPendingFetchQuestCaptainDialogue() ||
+      presentPendingWineCaptainDialogue();
+  }
+  if (slice === 4) {
+    return updateAboardBirthdayEvents() || presentPendingBirthdayDialogue();
+  }
+  return updateWorldDiplomacy();
 }
 
 function updateAboardBirthdayEvents() {
@@ -19384,6 +19422,7 @@ function createWorldSimulationScheduler() {
     {
       id: "combat-targeting",
       hz: NPC_COMBAT_TARGETING_HZ,
+      phaseSeconds: 0.0125,
       maxStepsPerAdvance: 1,
       maxAccumulatedSteps: 1,
       update: updateNpcCombat
@@ -19398,6 +19437,7 @@ function createWorldSimulationScheduler() {
     {
       id: "wildlife-work",
       hz: NPC_WILDLIFE_UPDATE_HZ,
+      phaseSeconds: 0.225,
       maxStepsPerAdvance: 1,
       maxAccumulatedSteps: 1,
       update: () => {
@@ -19433,6 +19473,8 @@ function resetDistantWorldWorkerSchedule() {
     throw new Error("Cannot schedule the distant world before its systems exist");
   }
   pendingDistantWorldEvents.length = 0;
+  pendingDistantWorldWork.length = 0;
+  distantWorldWorkDeferredFrames = 0;
   distantWorldWorkerClient.reset({
     economyMinute: nextWorldEconomyEventMinute(worldEconomy),
     maintenanceMinute: nextDistantWorldMaintenanceMinute(weatherClockMinutes),
@@ -19567,46 +19609,12 @@ function updateNpcShips(dt) {
     throw new Error("NPC simulation requires the distant-world worker");
   }
   distantWorldWorkerClient.requestAdvance(weatherClockMinutes);
-  let strategicChanged = false;
-  let economyChanged = false;
-  let landTradeChanged = false;
-  let hideoutDangerChanged = false;
-  while (pendingDistantWorldEvents.length > 0) {
+  if (pendingDistantWorldWork.length === 0 && pendingDistantWorldEvents.length > 0) {
     const event = pendingDistantWorldEvents.shift();
-    if (event.economy) {
-      economyChanged ||= measurePerformanceBenchmarkStage(
-        "npcShips.economy",
-        () => advanceWorldEconomy(worldEconomy, weatherClockMinutes)
-      );
-    }
-    if (event.cartIds.length > 0) {
-      landTradeChanged ||= measurePerformanceBenchmarkStage(
-        "npcShips.landTrade",
-        () => updateLandTradeEvents(landTradeSystem, weatherClockMinutes, event.cartIds)
-      );
-    }
-    if (event.maintenance) {
-      hideoutDangerChanged ||= measurePerformanceBenchmarkStage(
-        "npcShips.hideouts",
-        () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
-          lat: latitudeDegForDirection(ship.position),
-          lon: longitudeDegForDirection(ship.position),
-          clockMinutes: weatherClockMinutes
-        })
-      );
-    }
-    if (event.maintenance || event.shipIds.length > 0) {
-      strategicChanged ||= measurePerformanceBenchmarkStage(
-        "npcShips.strategic",
-        () => updateNpcSeaRouteEvents(
-          npcSeaRoutes,
-          weatherClockMinutes,
-          event.shipIds,
-          { maintenance: event.maintenance }
-        )
-      );
-    }
-    resetDistantWorldWorkerSchedule();
+    pendingDistantWorldWork.push(...createDistantWorldWorkPlan(event, {
+      shipBatchSize: DISTANT_WORLD_SHIP_BATCH_SIZE,
+      cartBatchSize: DISTANT_WORLD_CART_BATCH_SIZE
+    }));
   }
   const scheduled = measurePerformanceBenchmarkStage(
     "npcShips.scheduled",
@@ -19614,8 +19622,77 @@ function updateNpcShips(dt) {
   );
   let scheduledChanged = false;
   for (const result of scheduled.values()) scheduledChanged ||= result.changed;
-  return strategicChanged || economyChanged || landTradeChanged || hideoutDangerChanged ||
-    scheduledChanged;
+  const scheduledBackgroundWork = ["visible-npcs", "combat-targeting", "wildlife-work"]
+    .some((id) => scheduled.get(id).steps > 0);
+  let distantChanged = false;
+  if (pendingDistantWorldWork.length > 0) {
+    if (scheduledBackgroundWork && distantWorldWorkDeferredFrames < 3) {
+      distantWorldWorkDeferredFrames += 1;
+    } else {
+      distantWorldWorkDeferredFrames = 0;
+      distantChanged = processNextDistantWorldWork();
+    }
+  } else {
+    distantWorldWorkDeferredFrames = 0;
+  }
+  return distantChanged || scheduledChanged;
+}
+
+function processNextDistantWorldWork() {
+  const work = pendingDistantWorldWork.shift();
+  if (!work) return false;
+  if (work.kind === DISTANT_WORLD_WORK_KIND.ECONOMY) {
+    return measurePerformanceBenchmarkStage(
+      "npcShips.economy",
+      () => advanceWorldEconomy(worldEconomy, weatherClockMinutes)
+    );
+  }
+  if (work.kind === DISTANT_WORLD_WORK_KIND.CARTS) {
+    return measurePerformanceBenchmarkStage(
+      "npcShips.landTrade",
+      () => updateLandTradeEvents(landTradeSystem, weatherClockMinutes, work.cartIds)
+    );
+  }
+  if (work.kind === DISTANT_WORLD_WORK_KIND.HIDEOUTS) {
+    return measurePerformanceBenchmarkStage(
+      "npcShips.hideouts",
+      () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
+        lat: latitudeDegForDirection(ship.position),
+        lon: longitudeDegForDirection(ship.position),
+        clockMinutes: weatherClockMinutes
+      })
+    );
+  }
+  if (work.kind === DISTANT_WORLD_WORK_KIND.MAINTENANCE) {
+    return measurePerformanceBenchmarkStage(
+      "npcShips.maintenance",
+      () => updateNpcSeaRouteEvents(
+        npcSeaRoutes,
+        weatherClockMinutes,
+        [],
+        { maintenance: true }
+      )
+    );
+  }
+  if (work.kind === DISTANT_WORLD_WORK_KIND.SHIPS) {
+    return measurePerformanceBenchmarkStage(
+      "npcShips.strategic",
+      () => updateNpcSeaRouteEvents(
+        npcSeaRoutes,
+        weatherClockMinutes,
+        work.shipIds,
+        { maintenance: false }
+      )
+    );
+  }
+  if (work.kind === DISTANT_WORLD_WORK_KIND.RESCHEDULE) {
+    if (pendingDistantWorldWork.length > 0) {
+      throw new Error("Distant-world reschedule was not the final work item");
+    }
+    resetDistantWorldWorkerSchedule();
+    return false;
+  }
+  throw new Error(`Unknown distant-world work kind: ${work.kind}`);
 }
 
 function updateNpcVisualShips(dt) {
@@ -22625,11 +22702,76 @@ function updatePrecipitationAnimation(nowMs) {
 function refreshWeatherState(force) {
   weatherParts = weatherClockParts(weatherClockMinutes);
   if (!runtimeWeather || !seaIceMask || !freshwaterIceMask || !snowGroundMask) return false;
-  if (!force && weatherParts.dayIndex === weatherMaskDayIndex) return false;
+  if (!force) {
+    scheduleWeatherMaskRefresh(weatherParts.dayIndex);
+    return false;
+  }
+  pendingWeatherMaskRefresh = null;
   weatherMaskDayIndex = weatherParts.dayIndex;
   fillIceMaskForDay(runtimeWeather.seaIceCycle, weatherParts.dayIndex, seaIceMask);
   fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, weatherParts.dayIndex, freshwaterIceMask);
   fillSnowGroundMaskForDay(weatherParts.dayIndex, snowGroundMask);
+  return true;
+}
+
+function scheduleWeatherMaskRefresh(dayIndex) {
+  if (!Number.isInteger(dayIndex)) {
+    throw new Error(`Cannot schedule weather masks for invalid day: ${dayIndex}`);
+  }
+  if (dayIndex === weatherMaskDayIndex || pendingWeatherMaskRefresh?.dayIndex === dayIndex) return;
+  const tileCount = weatherBake?.tileCount;
+  if (!Number.isInteger(tileCount) || tileCount <= 0) {
+    throw new Error(`Cannot schedule weather masks for invalid tile count: ${tileCount}`);
+  }
+  if (!weatherMaskScratch ||
+      weatherMaskScratch.sea.length !== tileCount ||
+      weatherMaskScratch.freshwater.length !== tileCount ||
+      weatherMaskScratch.snow.length !== tileCount) {
+    weatherMaskScratch = {
+      sea: new Uint8Array(tileCount),
+      freshwater: new Uint8Array(tileCount),
+      snow: new Uint8Array(tileCount)
+    };
+  }
+  pendingWeatherMaskRefresh = { dayIndex, stage: 0 };
+}
+
+function advancePendingWeatherMaskRefresh() {
+  const refresh = pendingWeatherMaskRefresh;
+  if (!refresh) return false;
+  if (!weatherMaskScratch) {
+    throw new Error("Pending weather mask refresh has no scratch buffers");
+  }
+  if (refresh.stage === 0) {
+    fillIceMaskForDay(runtimeWeather.seaIceCycle, refresh.dayIndex, weatherMaskScratch.sea);
+    refresh.stage = 1;
+    return false;
+  }
+  if (refresh.stage === 1) {
+    fillIceMaskForDay(
+      runtimeWeather.freshwaterIceCycle,
+      refresh.dayIndex,
+      weatherMaskScratch.freshwater
+    );
+    refresh.stage = 2;
+    return false;
+  }
+  if (refresh.stage === 2) {
+    fillSnowGroundMaskForDay(refresh.dayIndex, weatherMaskScratch.snow);
+    refresh.stage = 3;
+    return false;
+  }
+  if (refresh.stage !== 3) {
+    throw new Error(`Invalid pending weather mask stage: ${refresh.stage}`);
+  }
+  [seaIceMask, weatherMaskScratch.sea] = [weatherMaskScratch.sea, seaIceMask];
+  [freshwaterIceMask, weatherMaskScratch.freshwater] = [
+    weatherMaskScratch.freshwater,
+    freshwaterIceMask
+  ];
+  [snowGroundMask, weatherMaskScratch.snow] = [weatherMaskScratch.snow, snowGroundMask];
+  weatherMaskDayIndex = refresh.dayIndex;
+  pendingWeatherMaskRefresh = null;
   return true;
 }
 
@@ -38603,6 +38745,7 @@ function handleDebugWeatherControl(control) {
 
 function adjustWeatherClock(deltaMinutes) {
   weatherClockMinutes += deltaMinutes;
+  resetWorldClockFrameSlices();
   refreshWeatherState(true);
   dirty = true;
 }
