@@ -7,7 +7,12 @@ import {
   graphCenter,
   normalize3
 } from "./geodesic.js";
-import { admitProjectedTiles } from "./localLayoutAdmission.js";
+import {
+  admitProjectedTiles,
+  discardOffscreenElasticLayoutTiles,
+  projectedViewportTileIds,
+  viewportContainsOnlyElasticTiles
+} from "./localLayoutAdmission.js";
 
 const TRAVERSAL_SCREEN_W = 455;
 const TRAVERSAL_SCREEN_H = 256;
@@ -126,6 +131,111 @@ test("the same correction keeps protected geography rigidly attached", () => {
   });
 
   assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
+});
+
+test("buffer protection permits a partial north-up correction", () => {
+  const elastic = rotatedAdmissionPoints(10);
+  const buffered = rotatedAdmissionPoints(10);
+  const rigid = rotatedAdmissionPoints(10);
+  const elasticTopology = admissionTopology(3, [[0, 1], [1, 2]], 0);
+  const bufferedTopology = admissionTopology(3, [[0, 1], [1, 2]], 0);
+  bufferedTopology.protectionById[2] = 128;
+  const rigidTopology = admissionTopology(3, [[0, 1], [1, 2]], 255);
+
+  for (const [points, topology] of [
+    [elastic, elasticTopology],
+    [buffered, bufferedTopology],
+    [rigid, rigidTopology]
+  ]) {
+    admitProjectedTiles({
+      positions: points.positions,
+      projectedById: points.projectedById,
+      pendingIds: [2],
+      anchorId: 0,
+      ...topology
+    });
+  }
+
+  assert.ok(buffered.positions.get(2).y > rigid.positions.get(2).y);
+  assert.ok(buffered.positions.get(2).y < elastic.positions.get(2).y);
+});
+
+test("an ocean-only viewport fully resets north-up over one screen of movement", () => {
+  const result = simulateOceanViewportTurnover({ protectedViewport: false });
+
+  assert.ok(
+    Math.abs(result.initialRotationDeg) >= 7,
+    `Ocean reset regression did not begin rotated (${result.initialRotationDeg.toFixed(2)} degrees)`
+  );
+  assert.ok(
+    Math.abs(result.finalRotationDeg) <= 1,
+    `Ocean viewport retained ${result.finalRotationDeg.toFixed(2)} degrees after a full turnover`
+  );
+  assert.ok(
+    result.finalRmsError <= 6,
+    `Ocean viewport retained ${result.finalRmsError.toFixed(2)}px RMS distortion`
+  );
+});
+
+test("protected geography does not use the full ocean north-up reset", () => {
+  const result = simulateOceanViewportTurnover({ protectedViewport: true });
+
+  assert.ok(
+    Math.abs(result.finalRotationDeg) >= 6,
+    `Protected viewport unexpectedly reset to ${result.finalRotationDeg.toFixed(2)} degrees`
+  );
+});
+
+test("only protection overlapping the screen blocks an elastic ocean reset", () => {
+  const protectionById = new Uint8Array(3);
+  protectionById[2] = 255;
+  const projectedTiles = [
+    { id: 0, x: 20, y: 20 },
+    { id: 1, x: 80, y: 40 },
+    { id: 2, x: 140, y: 40 }
+  ];
+
+  assert.equal(viewportContainsOnlyElasticTiles({
+    projectedTiles,
+    protectionById,
+    viewportWidth: 100,
+    viewportHeight: 60,
+    tileVisualRadius: 10
+  }), true);
+
+  projectedTiles[2].x = 109;
+  assert.equal(viewportContainsOnlyElasticTiles({
+    projectedTiles,
+    protectionById,
+    viewportWidth: 100,
+    viewportHeight: 60,
+    tileVisualRadius: 10
+  }), false);
+});
+
+test("the offscreen preload margin cannot steer the visible frame fit", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 200, y: 100 }]
+  ]);
+  const projectedById = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 240, y: 0 }],
+    [3, { x: 48, y: 0 }]
+  ]);
+
+  admitProjectedTiles({
+    positions,
+    projectedById,
+    pendingIds: [3],
+    anchorId: 0,
+    registrationIds: new Set([0, 1]),
+    ...admissionTopology(4, [[0, 1], [0, 2], [1, 3]])
+  });
+
+  assert.deepEqual(positions.get(3), { x: 48, y: 0 });
 });
 
 test("successive high-latitude chart rebuilds keep newly entering neighbors attached", () => {
@@ -374,6 +484,95 @@ function simulateRepeatedCircuit({ centerRowForPhase, frameRotationForPhase }) {
     protectedEdgeSamples,
     anchorSeeds,
     circuitMetrics
+  };
+}
+
+function simulateOceanViewportTurnover({ protectedViewport }) {
+  const columns = 50;
+  const rows = 7;
+  const tileSpacingX = 24;
+  const tileSpacingY = 21;
+  const viewportWidth = 240;
+  const viewportHeight = 126;
+  const tileVisualRadius = 12;
+  const viewportHalfColumns = 5;
+  const preloadHalfColumns = 11;
+  const neighborsById = torusGridNeighbors(columns, rows);
+  const protectionById = new Uint8Array(columns * rows);
+  if (protectedViewport) protectionById.fill(255);
+  const positions = new Map();
+  const rotation = 8 * Math.PI / 180;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+
+  const projectedWindow = (centerColumn) => {
+    const projectedById = new Map();
+    for (let row = 0; row < rows; row++) {
+      for (let columnOffset = -preloadHalfColumns; columnOffset <= preloadHalfColumns; columnOffset++) {
+        const column = centerColumn + columnOffset;
+        const id = gridTileId(column, row, columns, rows);
+        projectedById.set(id, {
+          x: viewportWidth / 2 + columnOffset * tileSpacingX,
+          y: viewportHeight / 2 + (row - 3) * tileSpacingY
+        });
+      }
+    }
+    return projectedById;
+  };
+
+  let projectedById = projectedWindow(5);
+  for (const [id, projected] of projectedById.entries()) {
+    positions.set(id, {
+      x: Math.round(projected.x * cos - projected.y * sin),
+      y: Math.round(projected.x * sin + projected.y * cos)
+    });
+  }
+  let anchorId = gridTileId(5, 3, columns, rows);
+  const initial = measureVisibleFrameError(positions, projectedById, anchorId);
+  if (!protectedViewport) {
+    discardOffscreenElasticLayoutTiles({
+      positions,
+      projectedTiles: [...projectedById.entries()].map(([id, point]) => ({ id, ...point })),
+      protectionById,
+      viewportWidth,
+      viewportHeight,
+      tileVisualRadius,
+      anchorId
+    });
+  }
+
+  const finalCenterColumn = 5 + viewportHalfColumns * 2 + 2;
+  for (let centerColumn = 6; centerColumn <= finalCenterColumn; centerColumn++) {
+    projectedById = projectedWindow(centerColumn);
+    anchorId = gridTileId(centerColumn, 3, columns, rows);
+    const pendingIds = [...projectedById.keys()].filter((id) => !positions.has(id));
+    admitProjectedTiles({
+      positions,
+      projectedById,
+      pendingIds,
+      anchorId,
+      neighborsById,
+      protectionById,
+      registrationIds: projectedViewportTileIds({
+        projectedTiles: [...projectedById.entries()].map(([id, point]) => ({ id, ...point })),
+        protectionById,
+        viewportWidth,
+        viewportHeight,
+        tileVisualRadius
+      }),
+      resetElasticTilesNorthUp: !protectedViewport
+    });
+    const visibleIds = new Set(projectedById.keys());
+    for (const id of positions.keys()) {
+      if (!visibleIds.has(id)) positions.delete(id);
+    }
+  }
+
+  const final = measureVisibleFrameError(positions, projectedById, anchorId);
+  return {
+    initialRotationDeg: initial.rotationDeg,
+    finalRotationDeg: final.rotationDeg,
+    finalRmsError: final.rmsError
   };
 }
 

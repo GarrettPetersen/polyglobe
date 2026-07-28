@@ -4,9 +4,10 @@ function assertFinitePoint(point, label) {
   }
 }
 
-const MAX_ELASTIC_FRAME_CORRECTION_PX = 2.5;
+const MAX_ELASTIC_FRAME_CORRECTION_PX = 6;
+const MAX_OPEN_OCEAN_ROTATION_CORRECTION_RAD = 8 * Math.PI / 180;
 
-function registeredProjectionFrame(positions, projectedById, anchorId) {
+function registeredProjectionFrame(positions, projectedById, anchorId, registrationIds) {
   const anchorPosition = positions.get(anchorId);
   const anchorProjected = projectedById.get(anchorId);
   assertFinitePoint(anchorPosition, `Local layout anchor position for tile ${anchorId}`);
@@ -17,6 +18,7 @@ function registeredProjectionFrame(positions, projectedById, anchorId) {
   let support = 0;
   for (const [id, position] of positions.entries()) {
     if (id === anchorId) continue;
+    if (registrationIds && !registrationIds.has(id)) continue;
     const projected = projectedById.get(id);
     if (!projected) continue;
     assertFinitePoint(position, `Local layout position for tile ${id}`);
@@ -103,9 +105,16 @@ function boundaryFittedFrame({
   };
 }
 
-function admissionPointBetweenFrames(projected, registeredFrame, translatedFrame, protection) {
+function admissionPointBetweenFrames(
+  projected,
+  registeredFrame,
+  translatedFrame,
+  protection,
+  resetElasticTilesNorthUp
+) {
   const registered = registeredPoint(projected, registeredFrame);
   const translated = registeredPoint(projected, translatedFrame);
+  if (resetElasticTilesNorthUp && protection === 0) return translated;
   const correctionX = translated.x - registered.x;
   const correctionY = translated.y - registered.y;
   const correctionLength = Math.hypot(correctionX, correctionY);
@@ -125,7 +134,9 @@ export function admitProjectedTiles({
   pendingIds,
   anchorId,
   neighborsById,
-  protectionById
+  protectionById,
+  registrationIds = null,
+  resetElasticTilesNorthUp = false
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
@@ -135,11 +146,22 @@ export function admitProjectedTiles({
   if (!(protectionById instanceof Uint8Array) || protectionById.length !== neighborsById.length) {
     throw new Error("Local layout admission requires complete chart protection");
   }
+  if (registrationIds !== null && !(registrationIds instanceof Set)) {
+    throw new Error("Local layout admission registration ids must be a set");
+  }
+  if (typeof resetElasticTilesNorthUp !== "boolean") {
+    throw new Error("Local layout north-up reset flag must be boolean");
+  }
   const pending = [...pendingIds];
   if (new Set(pending).size !== pending.length) {
     throw new Error("Local layout admission received duplicate pending tiles");
   }
-  const retainedFrame = registeredProjectionFrame(positions, projectedById, anchorId);
+  const retainedFrame = registeredProjectionFrame(
+    positions,
+    projectedById,
+    anchorId,
+    registrationIds
+  );
   const boundaryArgs = {
     positions,
     projectedById,
@@ -153,9 +175,15 @@ export function admitProjectedTiles({
     rotation: registeredRotation,
     fallbackFrame: retainedFrame
   });
+  const correctionRotation = resetElasticTilesNorthUp
+    ? registeredRotation - clampMagnitude(
+      registeredRotation,
+      MAX_OPEN_OCEAN_ROTATION_CORRECTION_RAD
+    )
+    : 0;
   const translatedFrame = boundaryFittedFrame({
     ...boundaryArgs,
-    rotation: 0,
+    rotation: correctionRotation,
     fallbackFrame: retainedFrame
   });
   let admitted = 0;
@@ -172,11 +200,124 @@ export function admitProjectedTiles({
         projected,
         registeredFrame,
         translatedFrame,
-        protectionById[id]
+        protectionById[id],
+        resetElasticTilesNorthUp
       )
     );
     admitted++;
   }
 
   return admitted;
+}
+
+function clampMagnitude(value, maximumMagnitude) {
+  return Math.max(-maximumMagnitude, Math.min(maximumMagnitude, value));
+}
+
+export function viewportContainsOnlyElasticTiles({
+  projectedTiles,
+  protectionById,
+  viewportWidth,
+  viewportHeight,
+  tileVisualRadius
+}) {
+  const ids = projectedViewportTileIds({
+    projectedTiles,
+    protectionById,
+    viewportWidth,
+    viewportHeight,
+    tileVisualRadius
+  });
+  if (ids.size === 0) return false;
+  for (const id of ids) {
+    if (protectionById[id] !== 0) return false;
+  }
+  return true;
+}
+
+export function projectedViewportTileIds({
+  projectedTiles,
+  protectionById,
+  viewportWidth,
+  viewportHeight,
+  tileVisualRadius
+}) {
+  if (!Array.isArray(projectedTiles)) {
+    throw new Error("Elastic viewport detection requires projected tiles");
+  }
+  if (!(protectionById instanceof Uint8Array)) {
+    throw new Error("Elastic viewport detection requires chart protection");
+  }
+  for (const [label, value] of [
+    ["width", viewportWidth],
+    ["height", viewportHeight],
+    ["tile visual radius", tileVisualRadius]
+  ]) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Elastic viewport ${label} must be positive`);
+    }
+  }
+
+  const ids = new Set();
+  for (const tile of projectedTiles) {
+    assertFinitePoint(tile, `Projected viewport tile ${tile?.id}`);
+    if (!Number.isInteger(tile.id) || tile.id < 0 || tile.id >= protectionById.length) {
+      throw new Error(`Projected viewport tile has invalid id: ${tile.id}`);
+    }
+    if (!projectedTileOverlapsViewport(
+      tile,
+      viewportWidth,
+      viewportHeight,
+      tileVisualRadius
+    )) continue;
+    ids.add(tile.id);
+  }
+  return ids;
+}
+
+export function discardOffscreenElasticLayoutTiles({
+  positions,
+  projectedTiles,
+  protectionById,
+  viewportWidth,
+  viewportHeight,
+  tileVisualRadius,
+  anchorId
+}) {
+  if (!(positions instanceof Map)) {
+    throw new Error("Elastic north-up reset requires a positions map");
+  }
+  if (!Number.isInteger(anchorId) || !positions.has(anchorId)) {
+    throw new Error(`Elastic north-up reset requires a retained anchor: ${anchorId}`);
+  }
+  // Validate every projected tile before mutating the retained layout.
+  projectedViewportTileIds({
+    projectedTiles,
+    protectionById,
+    viewportWidth,
+    viewportHeight,
+    tileVisualRadius
+  });
+
+  let discarded = 0;
+  for (const tile of projectedTiles) {
+    if (
+      tile.id === anchorId ||
+      protectionById[tile.id] !== 0 ||
+      projectedTileOverlapsViewport(tile, viewportWidth, viewportHeight, tileVisualRadius)
+    ) {
+      continue;
+    }
+    if (positions.delete(tile.id)) discarded++;
+  }
+  return discarded;
+}
+
+function projectedTileOverlapsViewport(tile, viewportWidth, viewportHeight, tileVisualRadius) {
+  return !(
+    tile.x + tileVisualRadius < 0 ||
+    tile.x - tileVisualRadius > viewportWidth ||
+    tile.y + tileVisualRadius < 0 ||
+    tile.y - tileVisualRadius > viewportHeight
+  );
 }

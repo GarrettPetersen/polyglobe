@@ -8,7 +8,11 @@ import {
   graphCenter,
   normalize3
 } from "./geodesic.js";
-import { admitProjectedTiles } from "./localLayoutAdmission.js";
+import {
+  admitProjectedTiles,
+  discardOffscreenElasticLayoutTiles,
+  projectedViewportTileIds
+} from "./localLayoutAdmission.js";
 import {
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
@@ -15768,6 +15772,7 @@ function createLocalLayout(centerId) {
   return {
     viewX: 0,
     viewY: 0,
+    elasticNorthUpResetActive: false,
     positions: new Map([[centerId, { x: 0, y: 0 }]])
   };
 }
@@ -15893,6 +15898,7 @@ function createNorthUpLocalLayout(tileId, focusPosition, frame) {
   return {
     viewX: 0,
     viewY: 0,
+    elasticNorthUpResetActive: false,
     positions: new Map([[
       tileId,
       {
@@ -24334,6 +24340,28 @@ function chartProjectionOffsetPixels(activeChart) {
 }
 
 function syncLocalLayout(projectedVisible, chartCenterTileId) {
+  const viewportTileIds = projectedViewportTileIds({
+    projectedTiles: projectedVisible,
+    protectionById: chartTileProtection,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    tileVisualRadius: TILE_ART_HALF
+  });
+  const resetElasticTilesNorthUp = viewportTileIds.size > 0 &&
+    [...viewportTileIds].every((id) => chartTileProtection[id] === 0);
+  if (resetElasticTilesNorthUp && !localLayout.elasticNorthUpResetActive) {
+    discardOffscreenElasticLayoutTiles({
+      positions: localLayout.positions,
+      projectedTiles: projectedVisible,
+      protectionById: chartTileProtection,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H,
+      tileVisualRadius: TILE_ART_HALF,
+      anchorId: chartCenterTileId
+    });
+  }
+  localLayout.elasticNorthUpResetActive = resetElasticTilesNorthUp;
+
   const projectedById = new Map();
   const pending = new Set();
   for (const item of projectedVisible) {
@@ -24355,7 +24383,9 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     pendingIds: pending,
     anchorId: chartCenterTileId,
     neighborsById: graph.neighbors,
-    protectionById: chartTileProtection
+    protectionById: chartTileProtection,
+    registrationIds: viewportTileIds,
+    resetElasticTilesNorthUp
   });
 }
 
