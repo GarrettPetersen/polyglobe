@@ -80,6 +80,10 @@ import {
   discoveriesMenuListLayout
 } from "./discoveriesMenuLayout.js";
 import {
+  discoveryEntryPlaceholderColor,
+  discoveryKindColor
+} from "./discoveryPresentation.js";
+import {
   minimapSettlementColor,
   minimapSettlementMarkers
 } from "./minimapSettlements.js";
@@ -27238,7 +27242,7 @@ function drawDiscoveriesMenu() {
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(sprite, listX, y, 32, 32);
       } else {
-        ctx.fillStyle = discoveryKindColor(entry.kind);
+        ctx.fillStyle = discoveryEntryPlaceholderColor(discoveriesMenu.tab, entry.kind);
         ctx.fillRect(listX + 15, y + 14, 6, 6);
         ctx.fillStyle = PIRATE_MENU_INK;
         ctx.fillRect(listX + 17, y + 16, 2, 2);
@@ -27463,14 +27467,6 @@ function drawDiscoveryProgressRow(x, y, label, value, fraction, color, available
     ctx.fillStyle = color;
     ctx.fillRect(barX + 1, barY + 1, fillW, barH - 2);
   }
-}
-
-function discoveryKindColor(kind) {
-  if (kind === "mountain") return "#aaa3b8";
-  if (kind === "landmark") return "#d6a84f";
-  if (kind === "legend") return "#f04f78";
-  if (kind === "achievement") return "#6aa6a1";
-  throw new Error(`Unknown discovery kind: ${kind}`);
 }
 
 function currentAboardRoster() {
