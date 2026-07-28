@@ -18,6 +18,7 @@ import {
   campaignGoalIntroSteps,
   campaignGoalPresentation,
   campaignHomecomingSteps,
+  campaignRetirementReturnSteps,
   campaignVictorySummary,
   createCampaignDialogueSession,
   createCampaignGoal,
@@ -498,7 +499,7 @@ test("explorer homecoming labels every exchange in a multi-wonder report", () =>
   assert.equal(campaignDialogueView(session, CHARACTER, CONTACT).topic, "REPORT 1/2: The Great Pyramid");
 });
 
-test("the final homecoming dialogue closes into the campaign victory action", () => {
+test("the final homecoming dialogue lets the captain retire or keep sailing", () => {
   const session = createCampaignDialogueSession({
     cityTileId: CHARACTER.homePortTileId,
     phase: "explorer-victory",
@@ -506,14 +507,73 @@ test("the final homecoming dialogue closes into the campaign victory action", ()
       { speaker: "contact", expressionId: "happy", text: "The atlas is complete." },
       { speaker: "player", expressionId: "thoughtful", text: "Then I am going home." }
     ],
-    victoryOnClose: true
+    retirementChoiceOnClose: true
   });
 
   assert.deepEqual(selectCampaignDialogueOption(session), { closed: false, action: null });
-  assert.deepEqual(selectCampaignDialogueOption(session), {
+  assert.deepEqual(
+    campaignDialogueView(session, CHARACTER, CONTACT).options.map((option) => option.label),
+    ["End voyage", "Keep sailing"]
+  );
+  assert.deepEqual(selectCampaignDialogueOption(session, 1), {
+    closed: true,
+    action: { type: "campaign-keep-sailing" }
+  });
+});
+
+test("choosing retirement starts the victory ending while legacy dialogue still closes into victory", () => {
+  const choiceSession = createCampaignDialogueSession({
+    cityTileId: CHARACTER.homePortTileId,
+    phase: "explorer-retirement-choice",
+    steps: [{ speaker: "contact", expressionId: "happy", text: "The atlas is complete." }],
+    retirementChoiceOnClose: true
+  });
+  assert.deepEqual(selectCampaignDialogueOption(choiceSession, 0), {
+    closed: true,
+    action: { type: "campaign-retire" }
+  });
+
+  const legacySession = createCampaignDialogueSession({
+    cityTileId: CHARACTER.homePortTileId,
+    phase: "explorer-retirement",
+    steps: [{ speaker: "player", expressionId: "happy", text: "Now I shall retire." }],
+    victoryOnClose: true
+  });
+  assert.deepEqual(selectCampaignDialogueOption(legacySession), {
     closed: true,
     action: { type: "campaign-victory" }
   });
+});
+
+test("completed goals provide a fresh retirement choice on every later homecoming", () => {
+  const goalTypes = [
+    CAMPAIGN_GOAL_EXPLORER,
+    CAMPAIGN_GOAL_FAMILY_DEBT,
+    CAMPAIGN_GOAL_WHITE_WHALE,
+    CAMPAIGN_GOAL_TREASURE
+  ];
+
+  for (const type of goalTypes) {
+    const goal = createCampaignGoal({ playerCharacter: CHARACTER, type });
+    goal.status = CAMPAIGN_GOAL_COMPLETE;
+    const steps = campaignRetirementReturnSteps(goal, CHARACTER);
+    const firstVisit = createCampaignDialogueSession({
+      cityTileId: CHARACTER.homePortTileId,
+      phase: `${type}-retirement-choice`,
+      steps,
+      retirementChoiceOnClose: true
+    });
+    const laterVisit = createCampaignDialogueSession({
+      cityTileId: CHARACTER.homePortTileId,
+      phase: `${type}-retirement-choice`,
+      steps: campaignRetirementReturnSteps(goal, CHARACTER),
+      retirementChoiceOnClose: true
+    });
+
+    assert.equal(selectCampaignDialogueOption(firstVisit, 1).action.type, "campaign-keep-sailing");
+    assert.equal(goal.status, CAMPAIGN_GOAL_COMPLETE);
+    assert.equal(selectCampaignDialogueOption(laterVisit, 0).action.type, "campaign-retire");
+  }
 });
 
 test("white-whale rumors point to a sighting until the captain reaches it", () => {

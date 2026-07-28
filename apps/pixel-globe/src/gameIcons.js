@@ -377,6 +377,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "envoy-negotiated": "action:letter",
   "finish-envoy-negotiation": "action:letter",
   "continue-campaign": "action:talk",
+  "campaign-retire": "action:leave",
+  "campaign-keep-sailing": "action:resume",
   "buy-net": "action:fish",
   "buy-cannon-equipment": "action:attack",
   "buy-whale-harpoon": "action:harpoon",

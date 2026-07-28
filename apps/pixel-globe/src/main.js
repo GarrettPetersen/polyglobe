@@ -482,6 +482,7 @@ import {
   campaignGoalLabel,
   campaignGoalPresentation,
   campaignHomecomingSteps,
+  campaignRetirementReturnSteps,
   campaignVictorySummary,
   createCampaignDialogueSession,
   drunkenCampaignHomecomingSteps,
@@ -12359,6 +12360,18 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
   if (!goal || cityCall.tileId !== goal.homePortTileId) return null;
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
   if (goal.type === CAMPAIGN_GOAL_TREASURE && !treasureAmbushComplete(goal)) return null;
+  if (goal.status === CAMPAIGN_GOAL_COMPLETE) {
+    const session = createCampaignDialogueSession({
+      cityTileId: cityCall.tileId,
+      steps: campaignRetirementReturnSteps(goal, gameState.playerCharacter),
+      phase: `${goal.type}-retirement-choice`,
+      continueToPortOnClose: true,
+      nextPortNodeId: needsLoadout ? "loadout" : "greeting",
+      retirementChoiceOnClose: true
+    });
+    session.needsLoadout = needsLoadout;
+    return session;
+  }
   const doubloonsBefore = gameState.doubloons;
   const lead = goal.type === CAMPAIGN_GOAL_EXPLORER
     ? retainedOrNearestExplorerLead(cityCall, goal)
@@ -12375,33 +12388,20 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
     gameState.playerCharacter,
     discoveryCatalogById
   );
-  const romance = outcome.completed
-    ? createCampaignVictoryRomance({
-        captain: gameState.playerCharacter,
-        namedCrew: namedCrewMembers(gameState),
-        currentMinute: weatherClockMinutes,
-        homeLongitudeDeg: cityCall.lon
-      })
-    : null;
-  const homecomingSteps = arrivedDrunk
+  const steps = arrivedDrunk
     ? [...drunkenCampaignHomecomingSteps(goal, gameState.playerCharacter), ...ordinarySteps]
     : ordinarySteps;
-  const steps = romance
-    ? [...homecomingSteps, ...campaignRomanceDialogueSteps(romance)]
-    : homecomingSteps;
   const session = createCampaignDialogueSession({
     cityTileId: cityCall.tileId,
     steps,
     phase: outcome.completed
       ? `${goal.type}-victory`
       : goal.type,
-    continueToPortOnClose: !outcome.completed,
+    continueToPortOnClose: true,
     nextPortNodeId: needsLoadout ? "loadout" : "greeting",
-    victoryOnClose: outcome.completed,
-    companionCharacter: romance?.companion || null
+    retirementChoiceOnClose: outcome.completed
   });
   session.needsLoadout = needsLoadout;
-  session.victoryRomance = romance;
   return session;
 }
 
@@ -12816,6 +12816,36 @@ function continuePortDialogueAfterCampaign() {
   ensureDialoguePortraitLoaded();
   openPendingDiscoveryPortDialogue();
   saveVoyageNow("campaign homecoming complete");
+  dirty = true;
+}
+
+function beginCampaignRetirement() {
+  const goal = gameState?.memory?.campaignGoal;
+  if (!goal || goal.status !== CAMPAIGN_GOAL_COMPLETE) {
+    throw new Error("Campaign retirement requires a completed campaign goal");
+  }
+  const city = currentDialogueCity();
+  const romance = createCampaignVictoryRomance({
+    captain: gameState.playerCharacter,
+    namedCrew: namedCrewMembers(gameState),
+    currentMinute: weatherClockMinutes,
+    homeLongitudeDeg: city.lon
+  });
+  if (!romance) {
+    completeCampaignVoyage();
+    return;
+  }
+  dialogueState = createCampaignDialogueSession({
+    cityTileId: city.tileId,
+    steps: campaignRomanceDialogueSteps(romance),
+    phase: `${goal.type}-retirement`,
+    victoryOnClose: true,
+    companionCharacter: romance.companion
+  });
+  dialogueState.victoryRomance = romance;
+  dialogueLayout = createDialogueLayoutState();
+  ensureDialoguePortraitLoaded();
+  saveVoyageNow("chose campaign retirement");
   dirty = true;
 }
 
@@ -13810,6 +13840,14 @@ function chooseDialogueOption(optionIndex) {
     markCampaignGoalIntroSeen(gameState.memory.campaignGoal);
     saveVoyageNow("campaign goal introduced");
   }
+  if (result.action?.type === "campaign-retire") {
+    beginCampaignRetirement();
+    return;
+  }
+  if (result.action?.type === "campaign-keep-sailing") {
+    continuePortDialogueAfterCampaign();
+    return;
+  }
   if (result.action?.type === "campaign-victory") {
     completeCampaignVoyage();
     return;
@@ -13832,6 +13870,17 @@ function chooseDialogueOption(optionIndex) {
       });
       if (nextHomecoming) {
         dialogueState = nextHomecoming;
+        dialogueLayout = createDialogueLayoutState();
+        ensureDialoguePortraitLoaded();
+        dirty = true;
+        return;
+      }
+      const campaignSession = createCampaignHomecomingSession(
+        city,
+        dialogueState.nextPortNodeId === "loadout"
+      );
+      if (campaignSession) {
+        dialogueState = campaignSession;
         dialogueLayout = createDialogueLayoutState();
         ensureDialoguePortraitLoaded();
         dirty = true;

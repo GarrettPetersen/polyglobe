@@ -563,6 +563,32 @@ export function campaignHomecomingSteps(goal, outcome, playerCharacter, discover
   ];
 }
 
+export function campaignRetirementReturnSteps(goal, playerCharacter) {
+  validateCampaignGoal(goal);
+  assertCharacter(playerCharacter);
+  if (goal.status !== CAMPAIGN_GOAL_COMPLETE) {
+    throw new Error("Campaign retirement requires a completed goal");
+  }
+  if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
+    return [
+      step("contact", "attentive", "The atlas is complete, captain. Will you close this voyage and take your place in history, or answer the sea once more?")
+    ];
+  }
+  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) {
+    return [
+      step("contact", "stern", "Your account remains paid in full. You may retire with the estate secure, or keep sailing now that every mile is your own.")
+    ];
+  }
+  if (goal.type === CAMPAIGN_GOAL_TREASURE) {
+    return [
+      step("contact", "attentive", `Captain ${goal.treasureCaptainName}'s treasure is home and the old crew are beaten. Will you retire with the prize, or tempt the sea again?`)
+    ];
+  }
+  return [
+    step("contact", "attentive", "The white whale is dead and your vengeance is finished. Will you end the voyage here, or choose another horizon?")
+  ];
+}
+
 export function drunkenCampaignHomecomingSteps(goal, playerCharacter) {
   validateCampaignGoal(goal);
   assertCharacter(playerCharacter);
@@ -651,11 +677,15 @@ export function createCampaignDialogueSession({
   continueToPortOnClose = false,
   nextPortNodeId = null,
   victoryOnClose = false,
+  retirementChoiceOnClose = false,
   companionCharacter = null
 }) {
   if (!Number.isInteger(cityTileId) || cityTileId < 0) throw new Error(`Invalid campaign dialogue city: ${cityTileId}`);
   if (!Array.isArray(steps) || steps.length === 0) throw new Error("Campaign dialogue requires at least one step");
   if (typeof phase !== "string" || phase === "") throw new Error("Campaign dialogue requires a phase");
+  if (victoryOnClose && retirementChoiceOnClose) {
+    throw new Error("Campaign dialogue cannot both choose retirement and close into victory");
+  }
   if (companionCharacter !== null) assertPerson(companionCharacter);
   for (const entry of steps) validateDialogueStep(entry, companionCharacter);
   return {
@@ -669,6 +699,7 @@ export function createCampaignDialogueSession({
     continueToPortOnClose,
     nextPortNodeId,
     victoryOnClose,
+    retirementChoiceOnClose,
     companionCharacter
   };
 }
@@ -694,12 +725,23 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
     topic: entry.topic || null,
     text: entry.text,
     feedback: null,
-    options: [{
-      label: session.stepIndex === session.steps.length - 1
-        ? session.victoryOnClose ? "See my legacy" : session.continueToPortOnClose ? "Continue into port" : "Begin voyage"
-        : "Continue",
-      action: { type: "continue-campaign" }
-    }]
+    options: session.stepIndex === session.steps.length - 1 && session.retirementChoiceOnClose
+      ? [
+          {
+            label: "End voyage",
+            action: { type: "campaign-retire" }
+          },
+          {
+            label: "Keep sailing",
+            action: { type: "campaign-keep-sailing" }
+          }
+        ]
+      : [{
+          label: session.stepIndex === session.steps.length - 1
+            ? session.victoryOnClose ? "See my legacy" : session.continueToPortOnClose ? "Continue into port" : "Begin voyage"
+            : "Continue",
+          action: { type: "continue-campaign" }
+        }]
   };
 }
 
@@ -711,12 +753,24 @@ export function campaignDialogueCharacter(session, playerCharacter, contactChara
 
 export function selectCampaignDialogueOption(session, optionIndex = session.selectedIndex) {
   assertCampaignDialogueSession(session);
-  if (optionIndex !== 0) throw new Error(`Invalid campaign dialogue option index: ${optionIndex}`);
   if (session.stepIndex < session.steps.length - 1) {
+    if (optionIndex !== 0) throw new Error(`Invalid campaign dialogue option index: ${optionIndex}`);
     session.stepIndex += 1;
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
+  if (session.retirementChoiceOnClose) {
+    if (optionIndex !== 0 && optionIndex !== 1) {
+      throw new Error(`Invalid campaign retirement option index: ${optionIndex}`);
+    }
+    return {
+      closed: true,
+      action: {
+        type: optionIndex === 0 ? "campaign-retire" : "campaign-keep-sailing"
+      }
+    };
+  }
+  if (optionIndex !== 0) throw new Error(`Invalid campaign dialogue option index: ${optionIndex}`);
   return {
     closed: true,
     action: session.victoryOnClose
