@@ -184,6 +184,42 @@ test("monastic portraits stay in their reviewed regions and faith families", () 
     ["global", "europe", "northern-europe", "mediterranean"]
   );
   assert.equal(christianMonk.requiredReligionFamily, "christian");
+  assert.equal(buddhistMonk.selectionWeight, 2);
+  assert.equal(christianMonk.selectionWeight, 2);
+});
+
+test("authored portrait weights provide extra slots without a separate religion roll", () => {
+  const monk = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.label === "Bald Monk"
+  );
+  const layperson = GENERATED_MANIFEST.sourceCharacters.find((source) => (
+    source.regions.includes("east-asia") &&
+    source.roles.includes("factor") &&
+    !source.roles.includes("clergy")
+  ));
+  assert.ok(monk);
+  assert.ok(layperson);
+
+  const manifest = {
+    ...GENERATED_MANIFEST,
+    sourceCharacters: [monk, layperson]
+  };
+  const cities = [1, 2, 3].map((tileId) => ({
+    tileId,
+    city: `Test Port ${tileId}`,
+    displayCity: `Test Port ${tileId}`,
+    country: "China",
+    factionId: "ming",
+    cityType: "east-asian"
+  }));
+  const assignments = assignPortCityCharacters(cities, manifest, new Set());
+  const sourceCounts = [...assignments.values()].reduce((counts, character) => {
+    counts.set(character.sourceId, (counts.get(character.sourceId) || 0) + 1);
+    return counts;
+  }, new Map());
+
+  assert.equal(sourceCounts.get(monk.id), 2);
+  assert.equal(sourceCounts.get(layperson.id), 1);
 });
 
 test("saved characters inherit corrected metadata from their reviewed portrait", () => {

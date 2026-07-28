@@ -15,7 +15,7 @@ import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-13";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-14";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
@@ -66,6 +66,14 @@ export function validateCharacterPortraitManifest(manifest) {
     }
     validateTagList(character.roles, `${character.id}.roles`);
     validateTagList(character.regions, `${character.id}.regions`);
+    if (
+      character.selectionWeight != null &&
+      (!Number.isInteger(character.selectionWeight) || character.selectionWeight < 1)
+    ) {
+      throw new Error(
+        `Source character ${character.id} has invalid selection weight: ${character.selectionWeight}`
+      );
+    }
     if (character.requiredReligionFamily != null) {
       defaultReligionForPortraitFamily(character.requiredReligionFamily);
     }
@@ -618,18 +626,28 @@ function assertUsedNames(usedNames) {
 
 function assignCharacterSprite(key, region, sourcePool, used) {
   if (sourcePool.length === 0) throw new Error(`No character portrait sources available for ${key}`);
-  const startSourceIndex = hashString32(`${key}|source`) % sourcePool.length;
-  let source = null;
-  for (let attempt = 0; attempt < sourcePool.length; attempt++) {
-    const candidate = sourcePool[(startSourceIndex + attempt) % sourcePool.length];
-    if (used.has(candidate.id)) continue;
-    source = candidate;
-    used.add(candidate.id);
-    break;
+  const unusedTickets = portraitSourceTickets(sourcePool).filter(({ ticketId }) => (
+    !used.has(ticketId)
+  ));
+  const tickets = unusedTickets.length > 0 ? unusedTickets : portraitSourceTickets(sourcePool);
+  const ticket = tickets[hashString32(`${key}|source`) % tickets.length];
+  if (!ticket) {
+    throw new Error(`No weighted character portrait tickets available for ${key}`);
   }
-  source ||= sourcePool[startSourceIndex];
+  used.add(ticket.ticketId);
+  const source = ticket.source;
   const identitySuffix = hashString32(key).toString(16).padStart(8, "0");
   return assignedCharacter(`${source.id}-${identitySuffix}`, region, source, ageForSource(key, source));
+}
+
+function portraitSourceTickets(sourcePool) {
+  return sourcePool.flatMap((source) => {
+    const weight = source.selectionWeight ?? 1;
+    return Array.from({ length: weight }, (_, index) => ({
+      source,
+      ticketId: weight === 1 ? source.id : `${source.id}|weight-${index + 1}`
+    }));
+  });
 }
 
 function ageForSource(key, source) {

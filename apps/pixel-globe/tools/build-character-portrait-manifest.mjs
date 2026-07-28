@@ -687,6 +687,9 @@ function normalizeExpressionGroup(group) {
     sex: portraitSex(group.labelSeed, group.relDir),
     roles: metadata.roles,
     regions: metadata.regions,
+    ...(metadata.selectionWeight
+      ? { selectionWeight: metadata.selectionWeight }
+      : {}),
     ...(metadata.requiredReligionFamily
       ? { requiredReligionFamily: metadata.requiredReligionFamily }
       : {}),
@@ -746,11 +749,13 @@ const portraitMetadataOverrides = new Map([
   ["Curated Historical Portraits by CaptainSkolot/Bald Monk", {
     roles: ["factor", "civilian", "clergy"],
     regions: ["east-asia"],
+    selectionWeight: 2,
     requiredReligionFamily: "buddhist"
   }],
   ["Ultimate Portrait Pack V1.0/Monk/Monk Portrait", {
     roles: ["factor", "clergy"],
     regions: ["global", "europe", "northern-europe", "mediterranean"],
+    selectionWeight: 2,
     requiredReligionFamily: "christian"
   }],
   ["Women Black Hair Portrait by Captainskolot/Women Black Hair Portrait", {
@@ -865,7 +870,7 @@ function main() {
   if (sourceCharacters.length === 0) throw new Error(`No ${portraitSize}x${portraitSize} portrait expressions found in ${characterRoot}`);
   const expressionCount = sourceCharacters.reduce((total, character) => total + character.expressions.length, 0);
   const manifest = {
-    version: 5,
+    version: 6,
     generatedBy: "tools/build-character-portrait-manifest.mjs",
     portraitSize,
     sourceRoot: "assets/characters",

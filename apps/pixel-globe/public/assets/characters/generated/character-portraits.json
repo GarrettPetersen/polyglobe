@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "generatedBy": "tools/build-character-portrait-manifest.mjs",
   "portraitSize": 64,
   "sourceRoot": "assets/characters",
@@ -48,6 +48,7 @@
       "regions": [
         "east-asia"
       ],
+      "selectionWeight": 2,
       "requiredReligionFamily": "buddhist",
       "minAge": 25,
       "maxAge": 45,
@@ -2362,6 +2363,7 @@
         "northern-europe",
         "mediterranean"
       ],
+      "selectionWeight": 2,
       "requiredReligionFamily": "christian",
       "minAge": 35,
       "maxAge": 55,
