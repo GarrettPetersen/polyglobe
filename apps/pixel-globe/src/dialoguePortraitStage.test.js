@@ -8,14 +8,89 @@ import {
   DIALOGUE_PORTRAIT_TONE_TRANSITION,
   DIALOGUE_PORTRAIT_TRANSITION_MS,
   createDialoguePortraitStageState,
+  dialoguePortraitPair,
   dialoguePortraitStageFrames,
   dialoguePortraitToneHex,
-  synchronizeDialoguePortraitStage
+  pairedCharacterAlertStep,
+  synchronizeDialoguePortraitStage,
+  validateCharacterAlertSequence
 } from "./dialoguePortraitStage.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const CAPTAIN = Object.freeze({ id: "captain" });
 const FACTOR = Object.freeze({ id: "factor" });
+const ANIMAL = Object.freeze({ id: "animal" });
+
+test("paired animal alerts keep the animal and human staged together", () => {
+  const soundKind = "chitter";
+  const animalLine = pairedCharacterAlertStep({
+    leftCharacter: CAPTAIN,
+    rightCharacter: ANIMAL,
+    speakerCharacter: ANIMAL,
+    expressionId: "amused",
+    message: "Chrrrk!",
+    animalSoundKind: soundKind
+  });
+  const captainLine = pairedCharacterAlertStep({
+    leftCharacter: CAPTAIN,
+    rightCharacter: ANIMAL,
+    speakerCharacter: CAPTAIN,
+    expressionId: "happy",
+    message: "You may stay."
+  });
+
+  assert.deepEqual(
+    [animalLine, captainLine].map((line) => ({
+      speaker: line.character.id,
+      left: line.leftCharacter.id,
+      right: line.rightCharacter.id
+    })),
+    [
+      { speaker: ANIMAL.id, left: CAPTAIN.id, right: ANIMAL.id },
+      { speaker: CAPTAIN.id, left: CAPTAIN.id, right: ANIMAL.id }
+    ]
+  );
+  assert.equal(animalLine.animalSoundKind, soundKind);
+  assert.equal("animalSoundKind" in captainLine, false);
+});
+
+test("dialogue portrait pairs reject a speaker outside the conversation", () => {
+  assert.throws(
+    () => dialoguePortraitPair(CAPTAIN, ANIMAL, FACTOR),
+    /outside the staged pair/
+  );
+});
+
+test("mixed-speaker alert sequences require staged counterparts on every line", () => {
+  assert.throws(
+    () => validateCharacterAlertSequence([
+      { character: CAPTAIN, message: "Who goes there?" },
+      { character: FACTOR, message: "A friend." }
+    ]),
+    /unstaged dialogue: captain, factor/
+  );
+  assert.doesNotThrow(() => validateCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: CAPTAIN,
+      rightCharacter: FACTOR,
+      speakerCharacter: CAPTAIN,
+      message: "Who goes there?"
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: CAPTAIN,
+      rightCharacter: FACTOR,
+      speakerCharacter: FACTOR,
+      message: "A friend."
+    })
+  ]));
+});
+
+test("single-speaker announcements may use one portrait", () => {
+  assert.doesNotThrow(() => validateCharacterAlertSequence([
+    { character: CAPTAIN, message: "Land ahead." },
+    { character: CAPTAIN, message: "And weather astern." }
+  ]));
+});
 
 test("dialogue portraits keep stable sides while speaker emphasis changes", () => {
   const state = createDialoguePortraitStageState();

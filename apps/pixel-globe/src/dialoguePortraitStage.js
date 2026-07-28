@@ -18,6 +18,88 @@ export function createDialoguePortraitStageState() {
   };
 }
 
+export function dialoguePortraitPair(leftCharacter, rightCharacter, speakerCharacter) {
+  assertCharacter(speakerCharacter, "speaker");
+  if (!leftCharacter) {
+    return {
+      leftCharacter: speakerCharacter,
+      rightCharacter: null,
+      speakerCharacter
+    };
+  }
+  assertCharacter(leftCharacter, "left");
+  if (!rightCharacter || rightCharacter.id === leftCharacter.id) {
+    if (speakerCharacter.id !== leftCharacter.id) {
+      throw new Error(`Dialogue speaker ${speakerCharacter.id} has no staged counterpart`);
+    }
+    return {
+      leftCharacter,
+      rightCharacter: null,
+      speakerCharacter
+    };
+  }
+  assertCharacter(rightCharacter, "right");
+  if (![leftCharacter.id, rightCharacter.id].includes(speakerCharacter.id)) {
+    throw new Error(`Dialogue speaker ${speakerCharacter.id} is outside the staged pair`);
+  }
+  return {
+    leftCharacter,
+    rightCharacter,
+    speakerCharacter
+  };
+}
+
+export function pairedCharacterAlertStep({
+  leftCharacter,
+  rightCharacter,
+  speakerCharacter,
+  message,
+  expressionId = "neutral",
+  animalSoundKind = null
+}) {
+  const participants = dialoguePortraitPair(leftCharacter, rightCharacter, speakerCharacter);
+  if (typeof message !== "string" || message.trim() === "") {
+    throw new Error("Paired character alert requires dialogue text");
+  }
+  return {
+    character: participants.speakerCharacter,
+    leftCharacter: participants.leftCharacter,
+    rightCharacter: participants.rightCharacter,
+    expressionId,
+    message,
+    ...(animalSoundKind ? { animalSoundKind } : {})
+  };
+}
+
+export function validateCharacterAlertSequence(steps) {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    throw new Error("Character alert sequence requires steps");
+  }
+  const speakerIds = new Set();
+  const unpairedSpeakerIds = new Set();
+  for (const step of steps) {
+    if (!step?.character || typeof step.message !== "string" || step.message.trim() === "") {
+      throw new Error("Character alert sequence contains an invalid step");
+    }
+    assertCharacter(step.character, "speaker");
+    speakerIds.add(step.character.id);
+    if (step.leftCharacter) {
+      dialoguePortraitPair(step.leftCharacter, step.rightCharacter || null, step.character);
+    } else {
+      if (step.rightCharacter) {
+        throw new Error("Character alert sequence cannot stage a right portrait without a left portrait");
+      }
+      unpairedSpeakerIds.add(step.character.id);
+    }
+  }
+  if (speakerIds.size > 1 && unpairedSpeakerIds.size > 0) {
+    throw new Error(
+      `Multi-speaker character alert sequence contains unstaged dialogue: ${[...unpairedSpeakerIds].join(", ")}`
+    );
+  }
+  return steps;
+}
+
 export function synchronizeDialoguePortraitStage(state, {
   leftCharacter,
   rightCharacter = null,

@@ -910,9 +910,12 @@ import {
 import {
   DIALOGUE_PORTRAIT_TONE_ACTIVE,
   createDialoguePortraitStageState,
+  dialoguePortraitPair,
   dialoguePortraitStageFrames,
   dialoguePortraitToneHex,
-  synchronizeDialoguePortraitStage
+  pairedCharacterAlertStep,
+  synchronizeDialoguePortraitStage,
+  validateCharacterAlertSequence
 } from "./dialoguePortraitStage.js";
 import { controlTextLayout } from "./controlTextLayout.js";
 import {
@@ -4881,9 +4884,12 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
   } else if (choices !== null) {
     throw new Error(`Character alert kind ${kind} cannot have choices`);
   }
+  const captain = gameState?.playerCharacter || null;
   const participants = leftCharacter
     ? dialoguePortraitPair(leftCharacter, rightCharacter, character)
-    : dialoguePortraitPair(character, null, character);
+    : captain && captain.id !== character.id
+      ? dialoguePortraitPair(captain, character, character)
+      : dialoguePortraitPair(character, null, character);
   return {
     kind,
     character,
@@ -5711,21 +5717,11 @@ function closeCaptainAlertModal() {
 }
 
 function startCharacterAlertSequence(steps, onComplete = null) {
-  if (!Array.isArray(steps) || steps.length === 0) throw new Error("Character alert sequence requires steps");
+  validateCharacterAlertSequence(steps);
   if (queuedCharacterAlertSteps.length > 0 || characterAlertSequenceCompletion) {
     throw new Error("A character alert sequence is already pending");
   }
-  queuedCharacterAlertSteps = steps.map((step) => {
-    if (!step?.character || typeof step.message !== "string" || step.message.trim() === "") {
-      throw new Error("Character alert sequence contains an invalid step");
-    }
-    if (step.leftCharacter) {
-      dialoguePortraitPair(step.leftCharacter, step.rightCharacter || null, step.character);
-    } else if (step.rightCharacter) {
-      throw new Error("Character alert sequence cannot stage a right portrait without a left portrait");
-    }
-    return { ...step };
-  });
+  queuedCharacterAlertSteps = steps.map((step) => ({ ...step }));
   characterAlertPortraitStage = createDialoguePortraitStageState();
   characterAlertSequenceCompletion = onComplete;
   return presentNextCharacterAlertSequenceStep();
@@ -12109,15 +12105,21 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     companionOfferAvailable: companionOfferIds.length > 0
   })) return false;
   const naturalist = ensureNaturalistCharacter(gameState);
+  const naturalistLine = (expressionId, message) => pairedCharacterAlertStep({
+    leftCharacter: gameState.playerCharacter,
+    rightCharacter: naturalist,
+    speakerCharacter: naturalist,
+    expressionId,
+    message
+  });
   const before = naturalistQuestView(memory, gameState.memory.animals);
   const steps = [];
   if (!before.met) {
     meetNaturalist(memory);
-    steps.push({
-      character: naturalist,
-      expressionId: "happy",
-      message: "I am compiling a book of living creatures. Aristotle and Pliny wrote much, but sailors have seen what scholars have not. Bring me honest accounts of exotic beasts, and I shall pay 100 doubloons for each."
-    });
+    steps.push(naturalistLine(
+      "happy",
+      "I am compiling a book of living creatures. Aristotle and Pliny wrote much, but sailors have seen what scholars have not. Bring me honest accounts of exotic beasts, and I shall pay 100 doubloons for each."
+    ));
   }
   const report = reportAnimalsToNaturalist(memory, gameState.memory.animals);
   if (report.animalIds.length > 0) {
@@ -12129,25 +12131,22 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
       report.completedNow ? "Completed the great bestiary" : `Natural history reports: ${names.join(", ")}`,
       portDialogueContext()
     );
-    steps.push({
-      character: naturalist,
-      expressionId: "attentive",
-      message: `You documented ${naturalistAnimalList(names)}. These observations are worth ${report.reward.toLocaleString("en-US")} doubloons to my work.`
-    });
+    steps.push(naturalistLine(
+      "attentive",
+      `You documented ${naturalistAnimalList(names)}. These observations are worth ${report.reward.toLocaleString("en-US")} doubloons to my work.`
+    ));
   }
   if (report.completedNow) {
-    steps.push({
-      character: naturalist,
-      expressionId: "happy",
-      message: "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary founded upon witnesses. Your name shall stand beside mine on its first page."
-    });
+    steps.push(naturalistLine(
+      "happy",
+      "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary founded upon witnesses. Your name shall stand beside mine on its first page."
+    ));
   } else {
     const after = naturalistQuestView(memory, gameState.memory.animals);
-    steps.push({
-      character: naturalist,
-      expressionId: "neutral",
-      message: `${after.reportedCount} of ${after.totalCount} creatures now have a place in my book. Keep watch whenever you make landfall.`
-    });
+    steps.push(naturalistLine(
+      "neutral",
+      `${after.reportedCount} of ${after.totalCount} creatures now have a place in my book. Keep watch whenever you make landfall.`
+    ));
   }
   const offeredCompanionId = companionOfferIds[0] || null;
   if (offeredCompanionId) steps.push(...naturalistCompanionOfferSteps(naturalist, offeredCompanionId));
@@ -12169,31 +12168,31 @@ function naturalistCompanionOfferSteps(naturalist, companionId) {
   if (!entry) throw new Error(`Naturalist offer names an unknown companion: ${companionId}`);
   const animal = animalCompanionCharacter(companionId);
   return [
-    {
-      character: naturalist,
+    pairedCharacterAlertStep({
       leftCharacter: naturalist,
       rightCharacter: animal,
+      speakerCharacter: naturalist,
       expressionId: "attentive",
       message: entry.naturalistIntro
-    },
-    {
-      character: animal,
+    }),
+    pairedCharacterAlertStep({
       leftCharacter: naturalist,
       rightCharacter: animal,
+      speakerCharacter: animal,
       expressionId: "amused",
       message: entry.naturalistReply,
       animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
-    },
-    {
-      character: naturalist,
+    }),
+    pairedCharacterAlertStep({
       leftCharacter: naturalist,
       rightCharacter: animal,
+      speakerCharacter: naturalist,
       expressionId: "happy",
       message: entry.naturalistOffer.replace(
         "{payment}",
         entry.naturalistPayment.toLocaleString("en-US")
       )
-    }
+    })
   ];
 }
 
@@ -12237,28 +12236,28 @@ function acceptAnimalNaturalistOffer(naturalist, cityCall, companionId) {
   playCoinClinkSound();
   saveVoyageNow(`placed ${companionId} with naturalist`);
   startCharacterAlertSequence([
-    {
-      character: naturalist,
+    pairedCharacterAlertStep({
       leftCharacter: naturalist,
       rightCharacter: animal,
+      speakerCharacter: naturalist,
       expressionId: "happy",
       message: entry.naturalistAccept
-    },
-    {
-      character: animal,
+    }),
+    pairedCharacterAlertStep({
       leftCharacter: naturalist,
       rightCharacter: animal,
+      speakerCharacter: animal,
       expressionId: "happy",
       message: entry.callTexts[0],
       animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
-    },
-    {
-      character: gameState.playerCharacter,
+    }),
+    pairedCharacterAlertStep({
       leftCharacter: gameState.playerCharacter,
       rightCharacter: naturalist,
+      speakerCharacter: gameState.playerCharacter,
       expressionId: "neutral",
       message: entry.naturalistFarewell
-    }
+    })
   ], () => continueAnimalNaturalistOffers(naturalist, cityCall));
   showSurvivalNotice(
     `${entry.name.toUpperCase()} ADOPTED: +${entry.naturalistPayment.toLocaleString("en-US")} DB`,
@@ -12273,28 +12272,28 @@ function rejectAnimalNaturalistOffer(naturalist, cityCall, companionId) {
   declineAnimalNaturalistOffer(gameState.memory.animalCompanions, companionId);
   saveVoyageNow(`kept ${companionId} aboard`);
   startCharacterAlertSequence([
-    {
-      character: gameState.playerCharacter,
+    pairedCharacterAlertStep({
       leftCharacter: gameState.playerCharacter,
       rightCharacter: naturalist,
+      speakerCharacter: gameState.playerCharacter,
       expressionId: "amused",
       message: "No bargain. Against all reason, we have grown too attached to the creature."
-    },
-    {
-      character: naturalist,
+    }),
+    pairedCharacterAlertStep({
       leftCharacter: gameState.playerCharacter,
       rightCharacter: naturalist,
+      speakerCharacter: naturalist,
       expressionId: "attentive",
       message: "A lamentable failure of scholarly detachment. I confess I understand completely."
-    },
-    {
-      character: animal,
+    }),
+    pairedCharacterAlertStep({
       leftCharacter: naturalist,
       rightCharacter: animal,
+      speakerCharacter: animal,
       expressionId: "happy",
       message: entry.naturalistRejectAnimalText,
       animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
-    }
+    })
   ], () => continueAnimalNaturalistOffers(naturalist, cityCall));
   dirty = true;
 }
@@ -12334,21 +12333,21 @@ function maybeOpenAnimalCompanionNpcReaction(interactionKey, npcCharacter) {
   const animal = animalCompanionCharacter(reaction.companionId);
   const animalEntry = ANIMAL_CATALOG_BY_ID.get(reaction.companionId);
   const opened = startCharacterAlertSequence([
-    {
-      character: npcCharacter,
+    pairedCharacterAlertStep({
       leftCharacter: npcCharacter,
       rightCharacter: animal,
+      speakerCharacter: npcCharacter,
       expressionId: "neutral",
       message: reaction.npcText
-    },
-    {
-      character: animal,
+    }),
+    pairedCharacterAlertStep({
       leftCharacter: npcCharacter,
       rightCharacter: animal,
+      speakerCharacter: animal,
       expressionId: reaction.familiar ? "happy" : "amused",
       message: reaction.animalText,
       animalSoundKind: animalEntry.soundKind
-    }
+    })
   ], () => {
     saveVoyageNow(`heard a comment about the ${reaction.companionId}`);
     dirty = true;
@@ -13234,24 +13233,30 @@ function updateAnchoredAnimalEncounter() {
   syncAchievementsFromGameState();
   saveVoyageNow(`encountered ${animalEntry.displayName}`);
   const steps = [
-    {
-      character: animalCharacter,
+    pairedCharacterAlertStep({
+      leftCharacter: speaker,
+      rightCharacter: animalCharacter,
+      speakerCharacter: animalCharacter,
       expressionId: "neutral",
       message: animalEntry.callText,
       animalSoundKind: animalEntry.soundKind
-    },
-    {
-      character: speaker,
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: speaker,
+      rightCharacter: animalCharacter,
+      speakerCharacter: speaker,
       expressionId: "amused",
       message: commentary
-    }
+    })
   ];
   if (animalEntry.reaction) {
-    steps.push({
-      character: animalCharacter,
+    steps.push(pairedCharacterAlertStep({
+      leftCharacter: speaker,
+      rightCharacter: animalCharacter,
+      speakerCharacter: animalCharacter,
       expressionId: animalEntry.reaction.expressionId,
       message: animalEntry.reaction.text
-    });
+    }));
   }
   startCharacterAlertSequence(steps, companionEncounter
     ? () => openAnimalCompanionRecruitmentChoice(animalEntry.id)
@@ -13268,6 +13273,7 @@ function openAnimalCompanionRecruitmentChoice(companionId) {
     return false;
   }
   const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  const animal = animalCompanionCharacter(companionId);
   return openCharacterChoiceAlertModal(
     gameState.playerCharacter,
     entry.recruitPrompt,
@@ -13275,7 +13281,8 @@ function openAnimalCompanionRecruitmentChoice(companionId) {
       { label: "LET IT STAY", onSelect: () => acceptAnimalCompanionAboard(companionId) },
       { label: "SEND IT ASHORE", onSelect: () => rejectAnimalCompanionAboard(companionId) }
     ],
-    "amused"
+    "amused",
+    { leftCharacter: gameState.playerCharacter, rightCharacter: animal }
   );
 }
 
@@ -13284,17 +13291,21 @@ function acceptAnimalCompanionAboard(companionId) {
   acceptAnimalCompanion(gameState.memory.animalCompanions, companionId, weatherClockMinutes);
   const animal = animalCompanionCharacter(companionId);
   const steps = [
-    {
-      character: animal,
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: animal,
+      speakerCharacter: animal,
       expressionId: "happy",
       message: entry.callTexts[0],
       animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
-    },
-    {
-      character: gameState.playerCharacter,
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: animal,
+      speakerCharacter: gameState.playerCharacter,
       expressionId: "amused",
       message: entry.acceptedCaptainText
-    }
+    })
   ];
   const introduction = pendingAnimalCompanionIntroduction(gameState.memory.animalCompanions);
   if (introduction) {
@@ -13309,22 +13320,24 @@ function acceptAnimalCompanionAboard(companionId) {
       const speaker = animalCompanionCharacter(introStep.companionId);
       const listener = animalCompanionCharacter(listenerId);
       const speakerEntry = ANIMAL_COMPANION_BY_ID.get(introStep.companionId);
-      steps.push({
-        character: speaker,
+      steps.push(pairedCharacterAlertStep({
         leftCharacter: speaker,
         rightCharacter: listener,
+        speakerCharacter: speaker,
         expressionId: introStep.expressionId,
         message: introStep.message,
         animalSoundKind: ANIMAL_CATALOG_BY_ID.get(speakerEntry.animalId).soundKind
-      });
+      }));
     }
-    steps.push({
-      character: gameState.playerCharacter,
+    steps.push(pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: animal,
+      speakerCharacter: gameState.playerCharacter,
       expressionId: "amused",
       message: participantIds.length > 2
         ? "Excellent. I now command three animals, no useful labor, and a larder under organized attack."
         : "Excellent. Neither of you can work, but at least now you can ignore each other professionally."
-    });
+    }));
   }
   saveVoyageNow(`welcomed ${companionId} aboard`);
   startCharacterAlertSequence(steps);
@@ -13338,17 +13351,21 @@ function rejectAnimalCompanionAboard(companionId) {
   const animal = animalCompanionCharacter(companionId);
   saveVoyageNow(`sent ${companionId} ashore`);
   startCharacterAlertSequence([
-    {
-      character: animal,
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: animal,
+      speakerCharacter: animal,
       expressionId: "sad",
       message: `${entry.callTexts[0]}...`,
       animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
-    },
-    {
-      character: gameState.playerCharacter,
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: animal,
+      speakerCharacter: gameState.playerCharacter,
       expressionId: "neutral",
       message: entry.rejectedCaptainText
-    }
+    })
   ]);
   dirty = true;
 }
@@ -14705,35 +14722,6 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
   }
 
   return dialoguePortraitPair(captain, speakerCharacter, speakerCharacter);
-}
-
-function dialoguePortraitPair(leftCharacter, rightCharacter, speakerCharacter) {
-  if (!speakerCharacter?.id) throw new Error("Dialogue portrait pair requires a speaker");
-  if (!leftCharacter?.id) {
-    return {
-      leftCharacter: speakerCharacter,
-      rightCharacter: null,
-      speakerCharacter
-    };
-  }
-  if (!rightCharacter?.id || rightCharacter.id === leftCharacter.id) {
-    if (speakerCharacter.id !== leftCharacter.id) {
-      throw new Error(`Dialogue speaker ${speakerCharacter.id} has no staged counterpart`);
-    }
-    return {
-      leftCharacter,
-      rightCharacter: null,
-      speakerCharacter
-    };
-  }
-  if (![leftCharacter.id, rightCharacter.id].includes(speakerCharacter.id)) {
-    throw new Error(`Dialogue speaker ${speakerCharacter.id} is outside the staged pair`);
-  }
-  return {
-    leftCharacter,
-    rightCharacter,
-    speakerCharacter
-  };
 }
 
 function synchronizeCurrentDialoguePortraitStage(nowMs, view = currentDialogueView()) {
@@ -20215,7 +20203,7 @@ function openNpcCombatHail(npcShipId) {
       !shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShipId))) {
     return false;
   }
-  if (attemptEnvoyIntercession(state.factionId)) return true;
+  if (attemptEnvoyIntercession(state.factionId, character)) return true;
   openShipDialogue({ id: npcShipId, character }, { attackReason: npcCombatAttackReason(state) });
   return true;
 }
@@ -20239,14 +20227,18 @@ function ensureNpcShipCaptain(npcShipId) {
   return character;
 }
 
-function attemptEnvoyIntercession(factionId) {
+function attemptEnvoyIntercession(factionId, counterpart) {
   const passage = grantEnvoySafePassage(gameState, factionId, Math.floor(weatherClockMinutes));
   if (!passage) return false;
   const envoy = passage.quest.passenger;
   if (!envoy) throw new Error(`Envoy mission has no character: ${passage.quest.id}`);
+  if (!counterpart) throw new Error(`Envoy intercession has no ${factionId} listener`);
   clearCombatForShip(PLAYER_COMBAT_ID);
   for (const battery of shoreBatteryStates.values()) battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
-  openCharacterAlertModal(envoy, passage.message, "stern");
+  openCharacterAlertModal(envoy, passage.message, "stern", {
+    leftCharacter: envoy,
+    rightCharacter: counterpart
+  });
   showSurvivalNotice(`${factionById(factionId).adjective.toUpperCase()} DIPLOMATIC PASSAGE  ${passage.days} DAYS`, "good");
   saveVoyageNow("envoy claimed diplomatic passage");
   return true;
@@ -20333,7 +20325,9 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
       });
       if (playerResponse.shouldHail) {
         if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
-          if (!attemptEnvoyIntercession(city.factionId)) openShoreBatteryCombatHail(city, state);
+          if (!attemptEnvoyIntercession(city.factionId, city.character)) {
+            openShoreBatteryCombatHail(city, state);
+          }
           hailOpened = true;
           changed = true;
         }
@@ -21180,29 +21174,39 @@ function resolveTreasurePiratePlayerDefeat(loserId, encounter, {
   }
   const defeatedCaptain = npcShipCaptains.get(loserId);
   if (!defeatedCaptain) throw new Error(`Defeated treasure pirate has no captain: ${loserId}`);
+  const player = gameState.playerCharacter;
+  const dialogueStep = (character, expressionId, message) => sunk
+    ? { character, expressionId, message }
+    : pairedCharacterAlertStep({
+        leftCharacter: player,
+        rightCharacter: defeatedCaptain,
+        speakerCharacter: character,
+        expressionId,
+        message
+      });
   const steps = [];
   if (encounter.stage === TREASURE_PIRATE_STAGE_HUNT) {
     const result = acquireTreasureMapPiece(goal, pirate.id, Math.floor(weatherClockMinutes));
     if (!result.acquired) return false;
     if (sunk) {
-      steps.push({
-        character: gameState.playerCharacter,
-        expressionId: "attentive",
-        message: `Among Captain ${pirate.captainName}'s floating wreckage we found a waxed scrap of chart. ` +
+      steps.push(dialogueStep(
+        player,
+        "attentive",
+        `Among Captain ${pirate.captainName}'s floating wreckage we found a waxed scrap of chart. ` +
           `That makes ${result.count} of ${TREASURE_MAP_PIECE_COUNT} pieces.`
-      });
+      ));
     } else {
-      steps.push({
-        character: defeatedCaptain,
-        expressionId: "sad",
-        message: `Take the map scrap and be done with it. Captain ${goal.treasureCaptainName}'s gold has ` +
+      steps.push(dialogueStep(
+        defeatedCaptain,
+        "sad",
+        `Take the map scrap and be done with it. Captain ${goal.treasureCaptainName}'s gold has ` +
           "brought nothing but black spots, mutiny, and the creak of a rope in every dream."
-      });
-      steps.push({
-        character: gameState.playerCharacter,
-        expressionId: "attentive",
-        message: `Piece ${result.count} of ${TREASURE_MAP_PIECE_COUNT}. The torn coastlines are beginning to agree.`
-      });
+      ));
+      steps.push(dialogueStep(
+        player,
+        "attentive",
+        `Piece ${result.count} of ${TREASURE_MAP_PIECE_COUNT}. The torn coastlines are beginning to agree.`
+      ));
     }
     if (!result.complete &&
         goal.pirateHints.length < TREASURE_PIRATE_HINT_LIMIT &&
@@ -21212,37 +21216,37 @@ function resolveTreasurePiratePlayerDefeat(loserId, encounter, {
         { force: true }
       );
       if (rumor) {
-        steps.push({
-          character: sunk ? gameState.playerCharacter : defeatedCaptain,
-          expressionId: sunk ? "thoughtful" : "concerned",
-          message: sunk
+        steps.push(dialogueStep(
+          sunk ? player : defeatedCaptain,
+          sunk ? "thoughtful" : "concerned",
+          sunk
             ? `A note in the captain's log names Captain ${rumor.pirate.captainName}, last heard of ` +
               `${rumor.hint.direction} of ${rumor.hint.referenceCityName}. I have marked it.`
             : `You want another? Captain ${rumor.pirate.captainName} was last heard of ` +
               `${rumor.hint.direction} of ${rumor.hint.referenceCityName}. Mark it, and may you both sink.`
-        });
+        ));
       }
     }
     if (result.complete) {
-      steps.push({
-        character: gameState.playerCharacter,
-        expressionId: "happy",
-        message: `All ${TREASURE_MAP_PIECE_COUNT} pieces fit. The ink makes one island, one anchorage, ` +
+      steps.push(dialogueStep(
+        player,
+        "happy",
+        `All ${TREASURE_MAP_PIECE_COUNT} pieces fit. The ink makes one island, one anchorage, ` +
           `and one red X. Captain ${goal.treasureCaptainName}'s treasure finally has a bearing.`
-      });
+      ));
     }
     showSurvivalNotice(`TREASURE MAP  ${result.count}/${TREASURE_MAP_PIECE_COUNT}`, "good");
     playCollectionDingSound();
   } else if (encounter.stage === TREASURE_PIRATE_STAGE_AMBUSH) {
     if (!recordTreasureAmbushDefeat(goal, pirate.id)) return false;
     const remaining = TREASURE_MAP_PIECE_COUNT - goal.ambushDefeatedPirateIds.length;
-    steps.push({
-      character: gameState.playerCharacter,
-      expressionId: remaining === 0 ? "happy" : "stern",
-      message: remaining === 0
+    steps.push(dialogueStep(
+      player,
+      remaining === 0 ? "happy" : "stern",
+      remaining === 0
         ? "That was the last of the old crew. No black sails remain between us and home."
         : `${pirate.captainName} is beaten. ${remaining} of the old crew still hunt the treasure.`
-    });
+    ));
     showSurvivalNotice(
       remaining === 0 ? "THE OLD CREW IS DEFEATED" : `${remaining} TREASURE PIRATES REMAIN`,
       "good"
