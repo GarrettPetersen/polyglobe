@@ -6,7 +6,8 @@ import {
   captureChartReframePosition,
   chartNorthUpDriftExceedsThreshold,
   measureChartNorthUpDrift,
-  northUpProjectionIsStable
+  northUpProjectionIsStable,
+  selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
 
 test("chart reframing preserves exact player and NPC globe positions", () => {
@@ -54,6 +55,52 @@ test("chart drift separates rotation from residual distortion", () => {
   assert.ok(metrics.rmsDistortionPx < 1e-9);
   assert.ok(metrics.maxDistortionPx < 1e-9);
   assert.equal(metrics.needsReframe, true);
+});
+
+test("two separated samples are enough to measure north-up rotation", () => {
+  const radians = -4 * Math.PI / 180;
+  const metrics = measureChartNorthUpDrift([
+    rotatedSample(-80, 0, radians),
+    rotatedSample(80, 0, radians)
+  ]);
+
+  assert.ok(Math.abs(metrics.rotationDeg + 4) < 1e-9);
+  assert.ok(metrics.rmsDistortionPx < 1e-9);
+  assert.equal(metrics.needsReframe, true);
+});
+
+test("chart drift sampling selects at most four visible spatial extrema", () => {
+  const calls = [
+    { id: 1, x: -80, y: 0 },
+    { id: 2, x: 75, y: 2 },
+    { id: 3, x: 0, y: -60 },
+    { id: 4, x: 1, y: 55 },
+    { id: 5, x: 5, y: 5 },
+    { id: 6, x: 400, y: 0 }
+  ];
+  const selected = selectRepresentativeChartDriftCalls(calls, {
+    viewX: 0,
+    viewY: 0,
+    halfWidth: 100,
+    halfHeight: 80
+  });
+
+  assert.deepEqual(selected.map((call) => call.id), [2, 1, 4, 3]);
+  assert.equal(selected.length, 4);
+  assert.ok(!selected.some((call) => call.id === 5 || call.id === 6));
+});
+
+test("chart drift sampling deduplicates extrema on a tiny chart", () => {
+  const onlyCall = { id: 7, x: 0, y: 0 };
+  assert.deepEqual(
+    selectRepresentativeChartDriftCalls([onlyCall], {
+      viewX: 0,
+      viewY: 0,
+      halfWidth: 10,
+      halfHeight: 10
+    }),
+    [onlyCall]
+  );
 });
 
 test("organic local distortion marks a chart for reframing", () => {

@@ -1275,7 +1275,8 @@ import {
   assertChartReframePositionPreserved,
   captureChartReframePosition,
   measureChartNorthUpDrift,
-  northUpProjectionIsStable
+  northUpProjectionIsStable,
+  selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
 import {
   partitionVisualStateReprojections
@@ -4557,7 +4558,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     measurePerformanceBenchmarkStage("chart", () => ensureChart());
-    measureChartDriftAtInterval(nowMs);
+    measurePerformanceBenchmarkStage("chart.drift", () => measureChartDriftAtInterval(nowMs));
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
@@ -15665,13 +15666,10 @@ function measureCurrentChartNorthUpDrift() {
     return chartNorthUpDrift;
   }
   const northUp = northUpCamera(ship.position, camera.right);
-  const halfWidth = SCREEN_W / 2 + VIEW_MARGIN;
-  const halfHeight = SCREEN_H / 2 + VIEW_MARGIN;
   const samples = [];
-  for (const call of chart.tileCalls) {
+  for (const call of chart.driftSampleCalls) {
     const localX = call.x - localLayout.viewX;
     const localY = call.y - localLayout.viewY;
-    if (Math.abs(localX) > halfWidth || Math.abs(localY) > halfHeight) continue;
     const projected = projectDirectionFor(tileCenterVector(call.id), northUp, false);
     if (!projected) continue;
     samples.push({
@@ -24174,6 +24172,12 @@ function buildChart(anchorCamera) {
   faceCalls.sort(compareTerrainConnectorDrawOrder);
   riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
   tileCalls.sort(compareTerrainDrawCalls);
+  const driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY,
+    halfWidth: SCREEN_W / 2 + VIEW_MARGIN,
+    halfHeight: SCREEN_H / 2 + VIEW_MARGIN
+  });
   const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, { tileById });
   const placementChart = {
     tileById,
@@ -24200,6 +24204,7 @@ function buildChart(anchorCamera) {
     faceCalls,
     riverConnectorCalls,
     tileCalls,
+    driftSampleCalls,
     cityCalls,
     cityCallByPortId
   };

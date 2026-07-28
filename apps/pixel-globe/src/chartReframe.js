@@ -3,6 +3,46 @@ export const CHART_REFRAME_ROTATION_THRESHOLD_DEG = 1.5;
 export const CHART_REFRAME_RMS_DISTORTION_THRESHOLD_PX = 1.5;
 export const CHART_REFRAME_MAX_DISTORTION_THRESHOLD_PX = 4;
 
+export function selectRepresentativeChartDriftCalls(calls, viewport) {
+  if (!Array.isArray(calls)) throw new Error("Chart drift calls must be an array");
+  const { viewX, viewY, halfWidth, halfHeight } = viewport || {};
+  for (const [key, value] of Object.entries({ viewX, viewY, halfWidth, halfHeight })) {
+    if (!Number.isFinite(value) || ((key === "halfWidth" || key === "halfHeight") && value <= 0)) {
+      throw new Error(`Chart drift viewport has invalid ${key}`);
+    }
+  }
+
+  const extrema = [
+    { score: -Infinity, call: null },
+    { score: -Infinity, call: null },
+    { score: -Infinity, call: null },
+    { score: -Infinity, call: null }
+  ];
+  for (const call of calls) {
+    if (!Number.isInteger(call?.id) || !Number.isFinite(call.x) || !Number.isFinite(call.y)) {
+      throw new Error("Chart drift call requires a tile id and finite position");
+    }
+    const localX = call.x - viewX;
+    const localY = call.y - viewY;
+    if (Math.abs(localX) > halfWidth || Math.abs(localY) > halfHeight) continue;
+    const scores = [localX, -localX, localY, -localY];
+    for (let index = 0; index < extrema.length; index++) {
+      if (scores[index] > extrema[index].score) {
+        extrema[index] = { score: scores[index], call };
+      }
+    }
+  }
+
+  const selected = [];
+  const selectedIds = new Set();
+  for (const { call } of extrema) {
+    if (!call || selectedIds.has(call.id)) continue;
+    selectedIds.add(call.id);
+    selected.push(call);
+  }
+  return selected;
+}
+
 export function captureChartReframePosition(position, subject = "vessel") {
   const validated = validatedUnitVector(position, `${subject} chart reframe position`);
   return Object.freeze({
