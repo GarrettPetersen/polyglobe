@@ -573,7 +573,6 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
-  NPC_SHIP_SLUGS,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
   applyNpcConquestOwnership,
@@ -1274,6 +1273,7 @@ import {
 } from "./visualStateReprojection.js";
 import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
+import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
@@ -2156,7 +2156,7 @@ const SEAGULL_FLIGHT_URL = "assets/animals/seagull-Sheet.png";
 const SEAGULL_STANDING_URL = "assets/animals/seagull_standing.png";
 const FISH_SPRITE_URL = "assets/animals/fish.png";
 const FISHING_NET_SHEET_URL = "assets/misc/fishing-net-Sheet.png";
-const WHALE_ASSET_SLUGS = Object.freeze([
+const WHALE_ASSET_SLUG_SET = new Set([
   ...WHALE_SPECIES.map((species) => species.assetSlug),
   "white-sperm-whale"
 ]);
@@ -2397,8 +2397,13 @@ let statusPersonImages;
 let statusPersonOpaquePixels;
 let cityCatalog;
 let cityByTileId;
-let npcShipAssetsBySlug;
-let rowingShipAssetsBySlug;
+let shipSpriteAssetStore;
+let shipLightingAssetStore;
+let rowingShipAssetStore;
+let whaleAssetStore;
+let horseCartAssetStore;
+let pendingWorldAssetError = null;
+const observedWorldAssetPromises = new WeakSet();
 let npcSeaRoutes;
 let worldEconomy;
 let npcShipCaptains;
@@ -2445,7 +2450,6 @@ let colonizationTargetPlacements = [];
 let portSailingDistances;
 let landRoadNetwork;
 let landTradeSystem;
-let horseCartAssets;
 let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
@@ -2791,28 +2795,19 @@ main().catch((err) => {
 });
 
 async function main() {
+  initializeWorldAssetStores();
   const shellReady = Promise.all([loadPixelFonts(), capsuleLoadingScreen.ready]);
-  const shipSpriteKey = vehicleSpriteKeyForShipSlug(START_SHIP_SLUG);
   const startupAssets = Promise.all([
     loadTerrainImages(),
-    START_SHIP_SLUG_OVERRIDE
-      ? loadShipSpriteAsset(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}`, `Player ship: ${START_SHIP_SLUG}`)
-      : Promise.resolve(null),
     loadShipWakeAnchors(),
     loadShipFootprints(),
     loadShipFlagAnchors(),
-    START_SHIP_SLUG_OVERRIDE
-      ? loadShipLightingBake(shipSpriteKey)
-      : Promise.resolve(null),
-    loadNpcShipAssets(),
-    loadRowingShipAssets(),
     loadGameIconAtlas(),
     loadCloudSpriteSheet(),
     loadWorldDiscoveryImages(),
     loadCityImages(),
     loadFactionFlagImages(),
     loadAnimalImages(),
-    loadHorseCartAssets(),
     loadStormShipStrikeImage(),
     loadFireEffectImage(),
     loadStatusHudImages(),
@@ -2833,20 +2828,15 @@ async function main() {
   const [, loadedStartupAssets] = await initializationReady;
   const [
     loadedImages,
-    loadedShipSpriteAsset,
     loadedShipWakeAnchors,
     loadedShipFootprints,
     loadedShipFlagAnchors,
-    loadedShipLighting,
-    loadedNpcShipAssets,
-    loadedRowingShipAssets,
     loadedGameIconAtlas,
     loadedCloudSpriteSheet,
     loadedWorldDiscoveryImages,
     loadedCityImages,
     loadedFactionFlagImages,
     loadedAnimalImages,
-    loadedHorseCartAssets,
     loadedStormShipStrikeImage,
     loadedFireEffectImage,
     loadedStatusHudImages,
@@ -2861,15 +2851,13 @@ async function main() {
     runtimeWeatherBuffer
   ] = loadedStartupAssets;
   images = loadedImages;
-  shipImage = loadedShipSpriteAsset?.image || null;
-  shipSinkDepthImage = loadedShipSpriteAsset?.sinkDepthImage || null;
+  shipImage = null;
+  shipSinkDepthImage = null;
   shipWakeAnchorsBySlug = loadedShipWakeAnchors;
   shipWakeAnchors = requiredShipWakeAnchors(START_SHIP_SLUG);
   shipFootprintsBySlug = loadedShipFootprints;
   shipFlagAnchorsBySlug = loadedShipFlagAnchors;
-  shipLighting = loadedShipLighting;
-  npcShipAssetsBySlug = loadedNpcShipAssets;
-  rowingShipAssetsBySlug = loadedRowingShipAssets;
+  shipLighting = null;
   gameIconAtlasImage = loadedGameIconAtlas;
   gameIconOutlineAtlasImage = createGameIconOutlineAtlas(loadedGameIconAtlas);
   cloudSpriteSheet = loadedCloudSpriteSheet;
@@ -2879,7 +2867,6 @@ async function main() {
   factionFlagImages = loadedFactionFlagImages;
   wavingFactionFlagFrameCache.clear();
   animalImages = loadedAnimalImages;
-  horseCartAssets = loadedHorseCartAssets;
   stormShipStrikeImage = loadedStormShipStrikeImage;
   fireEffectImage = loadedFireEffectImage;
   statusHudImages = loadedStatusHudImages;
@@ -3251,6 +3238,7 @@ async function main() {
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   reframeWorldNorthUp("new game setup", { allowUncovered: true });
+  await loadInitialNearbyWorldAssets();
   setupThemeMusic();
   setupSoundEffects();
   if (PERFORMANCE_BENCHMARK) setupPerformanceBenchmark();
@@ -3264,6 +3252,47 @@ async function main() {
     capsuleLoadingScreen.finish();
   }
   ensureGameAudioStarted();
+}
+
+async function loadInitialNearbyWorldAssets() {
+  if (!chart || !localLayout || !npcSeaRoutes || !gameState?.memory?.whales) {
+    throw new Error("Nearby world assets require an initialized chart and world simulation");
+  }
+  const requests = [];
+  const shipSlugs = new Set();
+  const offset = chartOffsetPixels(chart);
+  for (const snapshot of npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)) {
+    if (snapshot.hidden) continue;
+    const point = localPointForGlobeVector(snapshot.routeVector);
+    if (!point) continue;
+    const screenPoint = { x: point.x + offset.x, y: point.y + offset.y };
+    if (pointNearScreen(screenPoint, NPC_VISUAL_SIMULATION_MARGIN_PX)) {
+      shipSlugs.add(snapshot.slug);
+    }
+  }
+  for (const slug of shipSlugs) requests.push(requestShipVisualAssets(slug));
+
+  const whaleSlugs = new Set();
+  for (const whale of gameState.memory.whales.individuals) {
+    if (whale.phase === WHALE_PHASE_DEAD) continue;
+    const call = whaleInteractionCall(whale);
+    if (!call || !pointNearScreen(call, SHIP_SHEET_FRAME_SIZE)) continue;
+    whaleSlugs.add(whaleAssetSlug(whale));
+  }
+  for (const slug of whaleSlugs) requests.push(whaleAssetStore.request(slug));
+
+  const visibleCarts = visibleLandCartSnapshots(
+    landTradeSystem,
+    weatherClockMinutes,
+    chart.visibleSet
+  );
+  if (visibleCarts.length > 0) requests.push(horseCartAssetStore.request("horse-cart"));
+
+  await Promise.all(requests);
+  console.info(
+    `[pixel-globe] initial resident world assets: ${shipSlugs.size} nearby ship hulls, ` +
+    `${whaleSlugs.size} nearby whale species, ${visibleCarts.length > 0 ? "horse carts" : "no carts"}`
+  );
 }
 
 async function fetchEarthCache() {
@@ -3476,23 +3505,139 @@ async function loadShipSpriteAsset(spriteKey, label) {
   return Object.freeze({ image, sinkDepthImage });
 }
 
-async function loadNpcShipAssets() {
-  const entries = await Promise.all(NPC_SHIP_SLUGS.map(async (slug) => {
-    const key = `${vehicleSpriteKeyForShipSlug(slug)}-${SHIP_SPRITE_HEADING_SUFFIX}`;
-    return [slug, await loadShipSpriteAsset(key, `NPC ship: ${slug}`)];
-  }));
-  return new Map(entries);
+function initializeWorldAssetStores() {
+  if (shipSpriteAssetStore || shipLightingAssetStore || rowingShipAssetStore ||
+      whaleAssetStore || horseCartAssetStore) {
+    throw new Error("World asset stores are already initialized");
+  }
+  shipSpriteAssetStore = createOnDemandAssetStore({
+    label: "ship sprite",
+    load: loadShipSpriteAssetsForSlug
+  });
+  shipLightingAssetStore = createOnDemandAssetStore({
+    label: "ship lighting",
+    load: loadShipLightingForSlug
+  });
+  rowingShipAssetStore = createOnDemandAssetStore({
+    label: "rowing animation",
+    load: loadRowingShipAssetsForSlug
+  });
+  whaleAssetStore = createOnDemandAssetStore({
+    label: "whale sprite",
+    load: loadWhaleAssetsForSlug
+  });
+  horseCartAssetStore = createOnDemandAssetStore({
+    label: "horse-cart animation",
+    load: async (key) => {
+      if (key !== "horse-cart") throw new Error(`Unknown horse-cart asset key: ${key}`);
+      return loadHorseCartAssets();
+    }
+  });
 }
 
-async function loadRowingShipAssets() {
-  const entries = await Promise.all([...ROWING_SHIP_ANIMATION_SPECS].map(async ([slug, spec]) => {
-    const assets = await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
-      const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
-      return loadShipSpriteAsset(key, `Rowing ship: ${slug} frame ${frameIndex}`);
-    }));
-    return [slug, assets];
-  }));
-  return new Map(entries);
+async function loadShipSpriteAssetsForSlug(slug) {
+  shipStatsForSlug(slug);
+  const key = `${vehicleSpriteKeyForShipSlug(slug)}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+  return loadShipSpriteAsset(key, `Ship: ${slug}`);
+}
+
+async function loadShipLightingForSlug(slug) {
+  shipStatsForSlug(slug);
+  return loadShipLightingBake(vehicleSpriteKeyForShipSlug(slug));
+}
+
+async function loadRowingShipAssetsForSlug(slug) {
+  shipStatsForSlug(slug);
+  const spec = ROWING_SHIP_ANIMATION_SPECS.get(slug);
+  if (!spec) throw new Error(`Ship has no rowing animation specification: ${slug}`);
+  return Object.freeze(await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
+    const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+    return loadShipSpriteAsset(key, `Rowing ship: ${slug} frame ${frameIndex}`);
+  })));
+}
+
+async function loadWhaleAssetsForSlug(slug) {
+  if (!WHALE_ASSET_SLUG_SET.has(slug)) throw new Error(`Unknown whale asset slug: ${slug}`);
+  const [image, sinkDepthImage] = await Promise.all([
+    loadAssetImage(
+      `assets/animals/${slug}-32-headings.png?v=${ANIMAL_ASSET_VERSION}`,
+      `${slug} sprite sheet`
+    ),
+    loadAssetImage(
+      `assets/animals/${slug}-32-headings-sink-depth.png?v=${ANIMAL_ASSET_VERSION}`,
+      `${slug} sink-depth sheet`
+    )
+  ]);
+  validateShipSpriteSheet(image, `${slug} sprite sheet`);
+  validateShipSpriteSheet(sinkDepthImage, `${slug} sink-depth sheet`);
+  return Object.freeze({ image, sinkDepthImage });
+}
+
+function requestShipVisualAssets(slug) {
+  if (!shipSpriteAssetStore || !rowingShipAssetStore) {
+    throw new Error("Ship asset stores are not initialized");
+  }
+  const spritePromise = shipSpriteAssetStore.request(slug);
+  const rowingPromise = ROWING_SHIP_ANIMATION_SPECS.has(slug)
+    ? rowingShipAssetStore.request(slug)
+    : Promise.resolve(null);
+  return Promise.all([spritePromise, rowingPromise]).then(([spriteAsset]) => spriteAsset);
+}
+
+function residentShipVisualAsset(slug) {
+  if (!shipSpriteAssetStore || !rowingShipAssetStore) return null;
+  const spriteAsset = shipSpriteAssetStore.peek(slug);
+  if (!spriteAsset) return null;
+  if (ROWING_SHIP_ANIMATION_SPECS.has(slug) && !rowingShipAssetStore.peek(slug)) return null;
+  return spriteAsset;
+}
+
+function observeWorldAssetRequest(promise, context) {
+  if (!(promise instanceof Promise)) throw new Error(`World asset request is not a Promise: ${context}`);
+  if (observedWorldAssetPromises.has(promise)) return;
+  observedWorldAssetPromises.add(promise);
+  promise.then(
+    () => {
+      dirty = true;
+    },
+    (error) => {
+      if (!pendingWorldAssetError) {
+        pendingWorldAssetError = new Error(`Streaming ${context} failed`, {
+          cause: error instanceof Error ? error : new Error(String(error))
+        });
+      }
+      dirty = true;
+    }
+  );
+}
+
+function queueShipVisualAssets(slug, context) {
+  if (!shipSpriteAssetStore || !rowingShipAssetStore) {
+    throw new Error("Ship asset stores are not initialized");
+  }
+  observeWorldAssetRequest(
+    shipSpriteAssetStore.request(slug),
+    `${context} ship sprite for ${slug}`
+  );
+  if (ROWING_SHIP_ANIMATION_SPECS.has(slug)) {
+    observeWorldAssetRequest(
+      rowingShipAssetStore.request(slug),
+      `${context} rowing animation for ${slug}`
+    );
+  }
+}
+
+function queueWhaleAssets(whale, context) {
+  if (!whaleAssetStore) throw new Error("Whale asset store is not initialized");
+  const slug = whaleAssetSlug(whale);
+  const promise = whaleAssetStore.request(slug);
+  observeWorldAssetRequest(promise, `${context} whale assets for ${slug}`);
+}
+
+function queueHorseCartAssets(context) {
+  if (!horseCartAssetStore) throw new Error("Horse-cart asset store is not initialized");
+  const promise = horseCartAssetStore.request("horse-cart");
+  observeWorldAssetRequest(promise, `${context} horse-cart assets`);
 }
 
 function validateShipSpriteSheet(img, label) {
@@ -3631,26 +3776,11 @@ function createGameIconOutlineAtlas(image) {
 }
 
 async function loadAnimalImages() {
-  const [seagullFlight, seagullStanding, fish, fishingNet, whaleEntries] = await Promise.all([
+  const [seagullFlight, seagullStanding, fish, fishingNet] = await Promise.all([
     loadAssetImage(`${SEAGULL_FLIGHT_URL}?v=${ANIMAL_ASSET_VERSION}`, "seagull flight sheet"),
     loadAssetImage(`${SEAGULL_STANDING_URL}?v=${ANIMAL_ASSET_VERSION}`, "standing seagull image"),
     loadAssetImage(`${FISH_SPRITE_URL}?v=${ANIMAL_ASSET_VERSION}`, "fish image"),
-    loadAssetImage(`${FISHING_NET_SHEET_URL}?v=${ANIMAL_ASSET_VERSION}`, "fishing net sheet"),
-    Promise.all(WHALE_ASSET_SLUGS.map(async (slug) => {
-      const [image, sinkDepthImage] = await Promise.all([
-        loadAssetImage(
-          `assets/animals/${slug}-32-headings.png?v=${ANIMAL_ASSET_VERSION}`,
-          `${slug} sprite sheet`
-        ),
-        loadAssetImage(
-          `assets/animals/${slug}-32-headings-sink-depth.png?v=${ANIMAL_ASSET_VERSION}`,
-          `${slug} sink-depth sheet`
-        )
-      ]);
-      validateShipSpriteSheet(image, `${slug} sprite sheet`);
-      validateShipSpriteSheet(sinkDepthImage, `${slug} sink-depth sheet`);
-      return [slug, Object.freeze({ image, sinkDepthImage })];
-    }))
+    loadAssetImage(`${FISHING_NET_SHEET_URL}?v=${ANIMAL_ASSET_VERSION}`, "fishing net sheet")
   ]);
   validateImageDimensions(
     seagullFlight,
@@ -3666,7 +3796,7 @@ async function loadAnimalImages() {
     FISHING_NET_FRAME_SIZE * FISHING_NET_FRAME_COUNT,
     FISHING_NET_FRAME_SIZE
   );
-  return { seagullFlight, seagullStanding, fish, fishingNet, whales: new Map(whaleEntries) };
+  return Object.freeze({ seagullFlight, seagullStanding, fish, fishingNet });
 }
 
 async function loadHorseCartAssets() {
@@ -4306,6 +4436,11 @@ function telemetryCrashContext(screenOverride = null) {
 }
 
 function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {}) {
+  if (pendingWorldAssetError) {
+    const error = pendingWorldAssetError;
+    pendingWorldAssetError = null;
+    throw error;
+  }
   if (frameRateOverlayEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
@@ -7668,15 +7803,15 @@ function toggleAudioMuted() {
 }
 
 async function loadShipAssetSet(slug) {
-  const shipSpriteKey = vehicleSpriteKeyForShipSlug(slug);
+  if (!shipLightingAssetStore) throw new Error("Ship lighting asset store is not initialized");
   const [spriteAsset, loadedShipLighting] = await Promise.all([
-    loadShipSpriteAsset(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}`, `Player ship: ${slug}`),
-    loadShipLightingBake(shipSpriteKey)
+    requestShipVisualAssets(slug),
+    shipLightingAssetStore.request(slug)
   ]);
-  return {
+  return Object.freeze({
     ...spriteAsset,
     lighting: loadedShipLighting
-  };
+  });
 }
 
 function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false } = {}) {
@@ -8024,17 +8159,14 @@ function preloadLakeBattleShipAsset(slug) {
 async function ensureLakeBattleShipAsset(slug) {
   if (lakeBattleCombatantIsCity(slug)) throw new Error("A lake battle city does not use a ship asset");
   if (lakeBattleShipAssets.has(slug)) return lakeBattleShipAssets.get(slug);
-  const npcAsset = npcShipAssetsBySlug?.get(slug);
-  if (npcAsset) {
-    lakeBattleShipAssets.set(slug, npcAsset);
-    return npcAsset;
+  const residentAsset = residentShipVisualAsset(slug);
+  if (residentAsset) {
+    lakeBattleShipAssets.set(slug, residentAsset);
+    return residentAsset;
   }
   const pending = lakeBattleShipAssetPromises.get(slug);
   if (pending) return pending;
-  const promise = loadShipSpriteAsset(
-    `${vehicleSpriteKeyForShipSlug(slug)}-${SHIP_SPRITE_HEADING_SUFFIX}`,
-    `Lake battle ship: ${slug}`
-  )
+  const promise = requestShipVisualAssets(slug)
     .then((asset) => {
       lakeBattleShipAssets.set(slug, asset);
       lakeBattleShipAssetPromises.delete(slug);
@@ -8754,6 +8886,7 @@ async function restoreSavedVoyage(payload) {
   chart = buildChart(camera);
   reconcileRestoredShipDrawnNavigation(restorePlacement.reason);
   reframeWorldNorthUp("continued voyage");
+  await loadInitialNearbyWorldAssets();
   resetPlayerWindState();
   windIndicatorState = null;
   setBackgroundMusicTrack("ship", { force: true });
@@ -15190,9 +15323,14 @@ function pointHitsRenderedShipPixel(point, call, nowMs) {
 }
 
 function pointHitsRenderedWhalePixel(point, call, nowMs) {
+  const images = residentWhaleImageSet(call.whale);
+  if (!images) {
+    queueWhaleAssets(call.whale, `whale hit test ${call.id}`);
+    return false;
+  }
   const pixelX = Math.floor(point.x);
   const pixelY = Math.floor(point.y);
-  return whaleRenderedPixels(call, nowMs).some((pixel) => (
+  return whaleRenderedPixels(call, nowMs, images).some((pixel) => (
     pixel.alpha > 0 && pixel.x === pixelX && pixel.y === pixelY
   ));
 }
@@ -19124,7 +19262,10 @@ function updateNpcVisualShips(dt) {
       }
       continue;
     }
-    if (state) syncNpcVisualStateFromSnapshot(state, snapshot);
+    if (state && !syncNpcVisualStateFromSnapshot(state, snapshot)) {
+      releaseNpcVisualState(state);
+      changed = true;
+    }
     activeSnapshots.push(snapshot);
   }
   if (measurePerformanceBenchmarkStage("npcShips.visual.combat", () => updateNpcCombat(dt))) changed = true;
@@ -19237,6 +19378,7 @@ function createNpcVisualState(snapshot, routePoint) {
   );
   ensureNpcShipCaptain(snapshot.id);
   const profile = npcVisualShipProfile(snapshot.id, snapshot.slug);
+  if (!profile) return null;
   const state = {
     id: snapshot.id,
     slug: snapshot.slug,
@@ -19309,6 +19451,7 @@ function npcVisualStateRequiresLocalPhysics(state) {
 function syncNpcVisualStateFromSnapshot(state, snapshot) {
   if (state.slug !== snapshot.slug) {
     const profile = npcVisualShipProfile(snapshot.id, snapshot.slug);
+    if (!profile) return false;
     state.stats = profile.stats;
     state.navalWeapon = profile.navalWeapon;
     state.spriteAsset = profile.spriteAsset;
@@ -19320,14 +19463,18 @@ function syncNpcVisualStateFromSnapshot(state, snapshot) {
   state.hitPoints = snapshot.hitPoints;
   state.maxHitPoints = snapshot.maxHitPoints;
   state.combatGrace = snapshot.combatGrace;
+  return true;
 }
 
 function npcVisualShipProfile(shipId, slug) {
   const routeShip = npcSeaRoutes?.shipById.get(shipId);
   if (!routeShip) throw new Error(`Cannot profile missing visual NPC ship: ${shipId}`);
   const stats = shipStatsForSlug(slug);
-  const spriteAsset = npcShipAssetsBySlug.get(slug);
-  if (!spriteAsset) throw new Error(`Missing NPC ship sprite asset for ${slug}`);
+  const spriteAsset = residentShipVisualAsset(slug);
+  if (!spriteAsset) {
+    queueShipVisualAssets(slug, `nearby NPC ${shipId}`);
+    return null;
+  }
   return Object.freeze({
     stats,
     spriteAsset,
@@ -23005,8 +23152,13 @@ function drawSelectableInteractionOutlines(nowMs) {
   }
 
   for (const call of harpoonableWhaleCalls()) {
+    const images = residentWhaleImageSet(call.whale);
+    if (!images) {
+      queueWhaleAssets(call.whale, `harpoonable whale ${call.id}`);
+      continue;
+    }
     drawSelectableSpriteOutline({
-      image: whaleImageSet(call.whale).image,
+      image: images.image,
       sourceX: (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
       sourceY: Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
       sourceW: SHIP_SHEET_FRAME_SIZE,
@@ -27991,7 +28143,7 @@ function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
   if (lakeBattleCombatantIsCity(slug)) {
     ctx.drawImage(cityImageForType("mediterranean"), rect.x + 31, rect.y + 9);
   } else {
-    const asset = lakeBattleShipAssets.get(slug) || npcShipAssetsBySlug?.get(slug);
+    const asset = lakeBattleShipAssets.get(slug) || residentShipVisualAsset(slug);
     if (asset) drawLakeBattleSpriteFrame(asset.image, 0, rect.x + 31, rect.y + 9);
     else drawOptionsText("...", rect.x + 49, rect.y + 23, { align: "center", color: PIRATE_MENU_INK_MUTED });
   }
@@ -28102,7 +28254,7 @@ function drawLakeBattleCity(cityState) {
 }
 
 function lakeBattleShipSpriteCall(shipState, nowMs) {
-  const baseAsset = lakeBattleShipAssets.get(shipState.slug) || npcShipAssetsBySlug?.get(shipState.slug);
+  const baseAsset = lakeBattleShipAssets.get(shipState.slug) || residentShipVisualAsset(shipState.slug);
   if (!baseAsset) throw new Error(`Missing loaded lake battle ship asset: ${shipState.slug}`);
   const baseCall = {
     id: shipState.id,
@@ -30273,15 +30425,22 @@ function drawLandRoadSegment(targetCtx, path, segmentId) {
 
 function drawLandCarts(activeChart, nowMs, light, visibleTileIds = activeChart.visibleSet) {
   if (!landTradeSystem) throw new Error("Land trade system is not initialized");
-  if (!Array.isArray(horseCartAssets) || horseCartAssets.length !== LAND_CART_WALK_FRAME_COUNT) {
-    throw new Error("Horse-cart walk and lighting assets are not initialized");
-  }
   if (!light) throw new Error("Horse-cart lighting requires the current sun state");
-  for (const cart of visibleLandCartSnapshots(
+  const visibleCarts = visibleLandCartSnapshots(
     landTradeSystem,
     weatherClockMinutes,
     visibleTileIds
-  )) {
+  );
+  if (visibleCarts.length === 0) return;
+  const horseCartAssets = horseCartAssetStore?.peek("horse-cart");
+  if (!horseCartAssets) {
+    queueHorseCartAssets("visible land traffic");
+    return;
+  }
+  if (horseCartAssets.length !== LAND_CART_WALK_FRAME_COUNT) {
+    throw new Error("Horse-cart animation has an invalid resident frame count");
+  }
+  for (const cart of visibleCarts) {
     const a = activeChart.tileById.get(cart.tileA);
     const b = activeChart.tileById.get(cart.tileB);
     if (!a || !b) continue;
@@ -32982,7 +33141,7 @@ function drawShips(activeChart, playerLight, nowMs) {
   const npcDrawContext = createNpcShipDrawContext(activeChart);
   const playerCall = playerShipDrawCall(playerLight);
   if (playerCall) drawCalls.push(playerCall);
-  if (npcSeaRoutes && npcShipAssetsBySlug && camera && directionIndex) {
+  if (npcSeaRoutes && shipSpriteAssetStore && camera && directionIndex) {
     for (const state of npcVisualShips.values()) {
       const call = npcShipDrawCall(state, activeChart, npcDrawContext);
       if (call) drawCalls.push(call);
@@ -33122,24 +33281,34 @@ function createTerrainForegroundRiverBankImage(call, image, activeChart, bank, b
 }
 
 function drawWhales(nowMs) {
-  if (!gameState?.memory?.whales || !animalImages?.whales) return;
+  if (!gameState?.memory?.whales || !whaleAssetStore) return;
   for (const whale of gameState.memory.whales.individuals) {
     if (whale.phase === WHALE_PHASE_DEAD) continue;
     const call = whaleInteractionCall(whale);
     if (!call || !pointNearScreen(call, SHIP_SHEET_FRAME_SIZE)) continue;
-    drawWhaleSprite(call, nowMs);
+    const images = residentWhaleImageSet(whale);
+    if (!images) {
+      queueWhaleAssets(whale, `visible whale ${whale.id}`);
+      continue;
+    }
+    drawWhaleSprite(call, nowMs, images);
   }
+}
+
+function residentWhaleImageSet(whale) {
+  if (!whaleAssetStore) return null;
+  return whaleAssetStore.peek(whaleAssetSlug(whale));
 }
 
 function whaleImageSet(whale) {
   const slug = whaleAssetSlug(whale);
-  const images = animalImages?.whales?.get(slug);
-  if (!images) throw new Error(`Missing whale raster assets: ${slug}`);
-  return images;
+  if (!whaleAssetStore) throw new Error("Whale asset store is not initialized");
+  return whaleAssetStore.require(slug);
 }
 
-function drawWhaleSprite(call, nowMs) {
-  const pixels = whaleRenderedPixels(call, nowMs);
+function drawWhaleSprite(call, nowMs, images) {
+  if (!images) throw new Error(`Whale ${call.id} cannot draw without resident assets`);
+  const pixels = whaleRenderedPixels(call, nowMs, images);
   ctx.save();
   for (const pixel of pixels) {
     ctx.globalAlpha = pixel.alpha;
@@ -33149,9 +33318,8 @@ function drawWhaleSprite(call, nowMs) {
   ctx.restore();
 }
 
-function whaleRenderedPixels(call, nowMs) {
+function whaleRenderedPixels(call, nowMs, images = whaleImageSet(call.whale)) {
   const exposure = whaleSurfaceExposure(call.whale);
-  const images = whaleImageSet(call.whale);
   const pixels = shipSpriteFramePixels(images.image, images.sinkDepthImage, call.frame);
   const halfFrame = SHIP_SHEET_FRAME_SIZE / 2;
   const originY = Math.round(call.y + (1 - exposure) * 3);
@@ -33427,7 +33595,7 @@ function rowingShipFrameAsset(call, nowMs) {
   if (!call.rowing) {
     return { image: call.img, sinkDepthImage: call.sinkDepthImg, rowingFrameIndex: null };
   }
-  const frames = rowingShipAssetsBySlug?.get(call.slug);
+  const frames = rowingShipAssetStore?.peek(call.slug);
   if (!frames || frames.length === 0) throw new Error(`Rowing ship ${call.slug} has no animation assets`);
   const spec = ROWING_SHIP_ANIMATION_SPECS.get(call.slug);
   if (!spec) throw new Error(`Rowing ship ${call.slug} has no animation specification`);
@@ -33450,7 +33618,7 @@ function npcShipIsRowing(state) {
 }
 
 function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
-  if (!rowingShipAssetsBySlug?.has(stats.slug)) return false;
+  if (!ROWING_SHIP_ANIMATION_SPECS.has(stats.slug)) return false;
   const wind = windForTile(tileId);
   const windFlow = windFlowVectorAtPosition(wind, position, heading);
   return shipPropulsionPerformance(stats, {
