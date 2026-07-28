@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { cloudflareEnvironment } from "./cloudflareEnvironment.mjs";
+import { queryAnalyticsEngine } from "./analyticsEngine.mjs";
 
 const endpoint = "https://telemetry.marque-and-reprisal.com";
 const eventId = `deployment-${randomUUID()}`;
-const environment = await cloudflareEnvironment();
 
 const health = await jsonFetch(`${endpoint}/health`);
 if (!health.ok || health.schemaVersion !== 1) {
@@ -27,7 +26,7 @@ const ingestion = await jsonFetch(`${endpoint}/v1/events`, {
     events: [{
       schemaVersion: 1,
       eventId,
-      type: "session_start",
+      type: "voyage_end",
       installationId: `deployment-${randomUUID()}`,
       sessionId: `deployment-${randomUUID()}`,
       occurredAt: new Date().toISOString(),
@@ -41,47 +40,54 @@ const ingestion = await jsonFetch(`${endpoint}/v1/events`, {
       },
       payload: {
         samplingWeight: 1,
-        installAgeDays: 0,
-        daysSinceLastSession: -1
+        outcome: "quit",
+        mainQuest: "explorer",
+        activePlaySeconds: 60,
+        daysAtSea: 1,
+        endingDoubloons: 100,
+        grossDoubloonsEarned: 0,
+        mappedPercent: 0,
+        discoveries: 0,
+        visitedPorts: 0,
+        completedQuests: 0,
+        crewLost: 0,
+        ship: "deployment-check",
+        features: ["animals", "raccoon"],
+        companionStatuses: "panda:unmet,penguin:unmet,raccoon:aboard",
+        defeatedShips: 0,
+        whalesKilled: 0,
+        coloniesFounded: 0,
+        spicesSold: 0
       }
     }]
   })
 });
 if (ingestion.accepted !== 1) throw new Error("Telemetry ingestion check was not accepted");
 
-const accountId = environment.CLOUDFLARE_ACCOUNT_ID;
-const apiToken = environment.CLOUDFLARE_API_TOKEN;
-const sqlEndpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/analytics_engine/sql`;
 const sql = `
   SELECT count() AS rows
   FROM marque_and_reprisal_game_events
-  WHERE blob4 = 'deployment-check' AND blob19 = '${eventId}'
+  WHERE blob1 = 'voyage_end'
+    AND blob4 = 'deployment-check'
+    AND blob11 = 'animals,raccoon'
+    AND blob12 = 'panda:unmet,penguin:unmet,raccoon:aboard'
+    AND blob19 = '${eventId}'
     AND timestamp > NOW() - INTERVAL '1' DAY
 `;
 
 let storedRows = 0;
-for (let attempt = 0; attempt < 12 && storedRows < 1; attempt++) {
+for (let attempt = 0; attempt < 24 && storedRows < 1; attempt++) {
   if (attempt > 0) await delay(5000);
-  const response = await fetch(sqlEndpoint, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiToken}`,
-      "content-type": "text/plain"
-    },
-    body: sql.trim()
-  });
-  const body = await response.json();
-  if (!response.ok || body.success === false) {
-    throw new Error(`Analytics Engine verification query failed (${response.status}): ${
-      body.errors?.map((entry) => entry.message).join("; ") || "unknown error"
-    }`);
-  }
-  const rows = Array.isArray(body.data) ? body.data : Array.isArray(body.result) ? body.result : [];
+  const rows = await queryAnalyticsEngine(sql);
   storedRows = Number(rows[0]?.rows || 0);
 }
-if (storedRows < 1) throw new Error("Telemetry event was accepted but did not become queryable");
+if (storedRows < 1) {
+  throw new Error("Raccoon acquisition event was accepted but did not become queryable");
+}
 
-console.log("Telemetry deployment verified: health, CORS, ingestion, and Analytics Engine query.");
+console.log(
+  "Telemetry deployment verified: health, CORS, raccoon acquisition ingestion, and Analytics Engine query."
+);
 
 async function jsonFetch(url, options) {
   const response = await fetch(url, options);
