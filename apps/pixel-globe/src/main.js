@@ -1077,7 +1077,7 @@ import {
   dayNightPaletteVariant,
   prepareDayNightPalette
 } from "./dayNightPalette.js";
-import { createDayNightPaletteRenderer } from "./dayNightPaletteRenderer.js";
+import { createWorldWebGL2Renderer } from "./worldWebglRenderer.js";
 import {
   SHIP_PAPER_ROW_CONTENT_INSET,
   compactShipMeterLayout,
@@ -2275,10 +2275,10 @@ let ctx = screenCtx;
 const worldCanvas = document.createElement("canvas");
 worldCanvas.width = canvas.width;
 worldCanvas.height = canvas.height;
-const worldCtx = worldCanvas.getContext("2d", { alpha: false });
+const worldCtx = worldCanvas.getContext("2d", { alpha: true });
 if (!worldCtx) throw new Error("Marque & Reprisal could not create its world canvas context");
 worldCtx.imageSmoothingEnabled = false;
-const dayNightPaletteRenderer = createDayNightPaletteRenderer();
+const worldRenderer = createWorldWebGL2Renderer();
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
@@ -2460,7 +2460,6 @@ const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
 const wavingFactionFlagFrameCache = new Map();
 const landRoadLayerCache = new WeakMap();
-const terrainTileLayerCache = new WeakMap();
 const terrainImagePixelCache = new WeakMap();
 const visibleRiverBankCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
@@ -22435,14 +22434,86 @@ function normalizeOrNull(v) {
   return [v[0] / length, v[1] / length, v[2] / length];
 }
 
-function drawDayNightWorld() {
+function drawDayNightWorld(layers, nowMs) {
   if (!ship) throw new Error("Cannot present the world before the player ship exists");
+  if (!layers || !Number.isFinite(nowMs)) {
+    throw new Error("Cannot present the world without cached layers and a frame time");
+  }
   const light = localDayNightLight();
   const variant = dayNightPaletteVariant(light);
-  const source = variant
-    ? dayNightPaletteRenderer.render(worldCanvas, variant)
-    : worldCanvas;
-  screenCtx.drawImage(source, 0, 0);
+  worldRenderer.beginFrame({
+    width: SCREEN_W,
+    height: SCREEN_H,
+    clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
+    paletteVariant: variant,
+    timeMs: nowMs
+  });
+  drawCachedWorldLayer("terrain-connectors", layers.connectors, layers.offset, layers.connectors.dayKey);
+  drawCachedWorldLayer(
+    "terrain-connector-waves",
+    layers.connectorWaves,
+    layers.offset,
+    waterAnimationDrawTick
+  );
+  drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset);
+  drawCachedWorldLayer(
+    "surface-details",
+    layers.surface,
+    layers.offset,
+    `${layers.surface.redrawTick}:${layers.surface.weatherDayIndex}`
+  );
+  worldRenderer.drawChunk({
+    key: "dynamic-world-overlay",
+    source: worldCanvas,
+    revision: worldRenderCount,
+    destinationRect: {
+      x: 0,
+      y: 0,
+      width: SCREEN_W,
+      height: SCREEN_H
+    }
+  });
+  screenCtx.drawImage(worldRenderer.endFrame(), 0, 0);
+}
+
+function drawCachedWorldLayer(key, layer, offset, revision) {
+  if (!layer?.canvas || !Number.isFinite(layer.x) || !Number.isFinite(layer.y)) {
+    throw new Error(`Cannot draw malformed cached world layer: ${key}`);
+  }
+  worldRenderer.drawChunk({
+    key,
+    source: layer.canvas,
+    revision,
+    destinationRect: {
+      x: layer.x + offset.x,
+      y: layer.y + offset.y,
+      width: layer.canvas.width,
+      height: layer.canvas.height
+    }
+  });
+}
+
+function drawTerrainAtlasTiles(tileCalls, activeChart, offset) {
+  if (!Array.isArray(tileCalls) || !activeChart) {
+    throw new Error("Terrain atlas rendering requires tile calls and an active chart");
+  }
+  for (const call of tileCalls) {
+    const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
+    const waveFrame = waterHexWaveFrameForTile(call, activeChart);
+    const imagesToDraw = [
+      waveFrame === null ? baseImage : prebakedWaterHexWaveFrame(baseImage, waveFrame),
+      ...overlayImages
+    ];
+    const destinationRect = {
+      x: Math.round(call.drawSurfaceX - TILE_ART_HALF + offset.x),
+      y: Math.round(call.drawSurfaceY - TILE_ART_HALF + offset.y),
+      width: TILE_ART_SIZE,
+      height: TILE_ART_SIZE
+    };
+    for (const image of imagesToDraw) {
+      worldRenderer.drawAtlasSprite({ source: image, destinationRect });
+    }
+  }
 }
 
 function localDayNightLight() {
@@ -22524,39 +22595,34 @@ function render(nowMs) {
   }
   ctx = worldCtx;
   prepareNorthUpWorldBehindCover();
-  ctx.fillStyle = "#1f3650";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
 
   ensureChart();
   const offset = chartOffsetPixels(chart);
   const renderWindow = renderCallWindow(chart, offset);
   const renderTileCalls = renderWindow.tileCalls;
   const renderTileIds = renderWindow.tileIds;
-  const renderFaceCalls = renderWindow.faceCalls;
   revealMinimapFromChart(
     chart,
     offset,
     renderTileCalls.filter((call) => chartTileCallNearViewport(call, offset))
   );
 
-  ctx.save();
-  ctx.translate(offset.x, offset.y);
-  measurePerformanceBenchmarkStage("render.terrain", () => {
-    drawTerrainConnectorFaces(chart.faceCalls, chart, {
-      visibleDetailCalls: renderFaceCalls,
-      viewportBounds: {
-        minX: -offset.x,
-        minY: -offset.y,
-        maxX: SCREEN_W - offset.x,
-        maxY: SCREEN_H - offset.y
-      }
-    });
-    drawTerrainTileLayer(terrainTileLayer(chart, offset));
+  const cachedWorldLayers = measurePerformanceBenchmarkStage("render.terrain", () => {
+    const connectors = terrainConnectorLayer(chart.faceCalls, chart);
+    return {
+      offset,
+      activeChart: chart,
+      connectors,
+      connectorWaves: terrainConnectorDynamicLayer(connectors, chart),
+      terrainCalls: renderTileCalls,
+      surface: surfaceDetailLayer(chart, offset)
+    };
   });
 
-  measurePerformanceBenchmarkStage("render.surfaceDetails", () => {
-    drawSurfaceDetailLayer(surfaceDetailLayer(chart, offset));
-  });
+  ctx.save();
+  ctx.translate(offset.x, offset.y);
   const shipLight = shipSunLightState();
   const cloudCalls = measurePerformanceBenchmarkStage(
     "render.cloudPrepare",
@@ -22596,7 +22662,7 @@ function render(nowMs) {
   ctx.restore();
   ctx = screenCtx;
   measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
-    drawDayNightWorld();
+    drawDayNightWorld(cachedWorldLayers, nowMs);
     drawStormScreenPrecipitation(nowMs);
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
@@ -22754,7 +22820,11 @@ function surfaceDetailLayer(activeChart, offset) {
   const previousCtx = ctx;
   ctx = layerCtx;
   try {
-    for (const call of tileCalls) drawWeatherSurface(call);
+    for (const call of tileCalls) {
+      drawTerrainPentagonMarker(call, layerCtx);
+      drawIceSurface(call, layerCtx);
+      drawWeatherSurface(call);
+    }
     drawVisibleRiverBanks(activeChart);
     drawLandRoads(activeChart, tileIds);
     for (const call of tileCalls) drawRiver(call, activeChart);
@@ -30741,91 +30811,6 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
   };
 }
 
-const TERRAIN_TILE_LAYER_MARGIN_PX = TILE_ART_SIZE * 2;
-
-function terrainTileLayer(activeChart, offset) {
-  if (!activeChart || !Array.isArray(activeChart.tileCalls)) {
-    throw new Error("Terrain tile layer requires an active chart");
-  }
-  const cached = terrainTileLayerCache.get(activeChart);
-  if (
-    cached &&
-    cached.waterTick === waterAnimationDrawTick &&
-    cached.weatherDayIndex === weatherMaskDayIndex &&
-    cached.tileCallCount === activeChart.tileCalls.length &&
-    cached.screenWidth === SCREEN_W &&
-    cached.screenHeight === SCREEN_H &&
-    terrainTileLayerContainsViewport(cached, offset)
-  ) {
-    return cached;
-  }
-
-  const x = Math.floor(-offset.x - TERRAIN_TILE_LAYER_MARGIN_PX);
-  const y = Math.floor(-offset.y - TERRAIN_TILE_LAYER_MARGIN_PX);
-  const width = SCREEN_W + TERRAIN_TILE_LAYER_MARGIN_PX * 2;
-  const height = SCREEN_H + TERRAIN_TILE_LAYER_MARGIN_PX * 2;
-  const reusable = cached &&
-    cached.screenWidth === SCREEN_W &&
-    cached.screenHeight === SCREEN_H &&
-    cached.tileCallCount === activeChart.tileCalls.length &&
-    terrainTileLayerContainsViewport(cached, offset)
-    ? cached
-    : null;
-  const layerX = reusable?.x ?? x;
-  const layerY = reusable?.y ?? y;
-  const canvas = reusable?.canvas || document.createElement("canvas");
-  if (!reusable) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-  const layerCtx = canvas.getContext("2d");
-  if (!layerCtx) throw new Error("Could not create terrain tile layer");
-  layerCtx.setTransform(1, 0, 0, 1, 0, 0);
-  layerCtx.clearRect(0, 0, canvas.width, canvas.height);
-  layerCtx.imageSmoothingEnabled = false;
-  layerCtx.translate(-layerX, -layerY);
-  const calls = activeChart.tileCalls.filter((call) => {
-    const localX = call.drawSurfaceX - layerX;
-    const localY = call.drawSurfaceY - layerY;
-    return localX >= -TILE_ART_SIZE &&
-      localX <= canvas.width + TILE_ART_SIZE &&
-      localY >= -TILE_ART_SIZE &&
-      localY <= canvas.height + TILE_ART_SIZE;
-  });
-  for (const call of calls) {
-    drawTile(layerCtx, call, activeChart);
-    drawIceSurface(call, layerCtx);
-  }
-  const layer = Object.freeze({
-    canvas,
-    x: layerX,
-    y: layerY,
-    width: canvas.width,
-    height: canvas.height,
-    waterTick: waterAnimationDrawTick,
-    weatherDayIndex: weatherMaskDayIndex,
-    tileCallCount: activeChart.tileCalls.length,
-    screenWidth: SCREEN_W,
-    screenHeight: SCREEN_H
-  });
-  terrainTileLayerCache.set(activeChart, layer);
-  return layer;
-}
-
-function terrainTileLayerContainsViewport(layer, offset) {
-  const guard = TILE_ART_SIZE;
-  const left = -offset.x;
-  const top = -offset.y;
-  return left >= layer.x + guard &&
-    top >= layer.y + guard &&
-    left + SCREEN_W <= layer.x + layer.width - guard &&
-    top + SCREEN_H <= layer.y + layer.height - guard;
-}
-
-function drawTerrainTileLayer(layer) {
-  ctx.drawImage(layer.canvas, layer.x, layer.y);
-}
-
 function drawTile(targetCtx, call, activeChart) {
   const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
@@ -30838,15 +30823,18 @@ function drawTile(targetCtx, call, activeChart) {
   }
   for (const image of overlayImages) targetCtx.drawImage(image, x, y);
 
-  if (graph.isPentagon[call.id]) {
-    targetCtx.fillStyle = "rgba(31, 35, 26, 0.35)";
-    targetCtx.fillRect(
-      Math.round(call.drawSurfaceX) - 1,
-      Math.round(call.drawSurfaceY) - 1,
-      3,
-      3
-    );
-  }
+  drawTerrainPentagonMarker(call, targetCtx);
+}
+
+function drawTerrainPentagonMarker(call, targetCtx) {
+  if (!graph.isPentagon[call.id]) return;
+  targetCtx.fillStyle = "rgba(31, 35, 26, 0.35)";
+  targetCtx.fillRect(
+    Math.round(call.drawSurfaceX) - 1,
+    Math.round(call.drawSurfaceY) - 1,
+    3,
+    3
+  );
 }
 
 function prebakedWaterHexWaveFrame(img, frame) {
