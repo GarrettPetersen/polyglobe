@@ -118,6 +118,49 @@ test("every oar-capable hull and only those hulls have rowing animation", async 
   assert.deepEqual(animated, expected);
 });
 
+test("rowing power strokes put oar blades into the refracted water layer", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const animated = manifest.ships.filter((entry) => Array.isArray(entry.files?.rowingAnimation));
+
+  for (const entry of animated) {
+    const submergedByAnimationFrame = [];
+    for (let animationFrame = 0; animationFrame < SHIP_ROWING_FRAME_COUNT; animationFrame++) {
+      const [sprite, sinkDepth] = await Promise.all([
+        loadImage(join(shipAssetRoot, basename(entry.files.rowingAnimation[animationFrame]))),
+        loadImage(join(shipAssetRoot, basename(entry.files.rowingSinkDepth[animationFrame])))
+      ]);
+      const spritePixels = imagePixels(sprite);
+      const sinkPixels = imagePixels(sinkDepth);
+      let submergedPixels = 0;
+      for (let heading = 0; heading < SHIP_SPRITE_HEADINGS; heading++) {
+        const originX = heading % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+        const originY = Math.floor(heading / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+        const pixels = [];
+        for (let y = 0; y < SHIP_SPRITE_FRAME_SIZE; y++) {
+          for (let x = 0; x < SHIP_SPRITE_FRAME_SIZE; x++) {
+            const offset = ((originX + x) + (originY + y) * sprite.width) * 4;
+            if (spritePixels[offset + 3] === 0) continue;
+            pixels.push({ x, y, sinkHeight: sinkPixels[offset] / 255 });
+          }
+        }
+        submergedPixels += floatingShipSubmergedPixelKeys(
+          pixels,
+          SHIP_SPRITE_FRAME_SIZE
+        ).size;
+      }
+      submergedByAnimationFrame.push(submergedPixels);
+    }
+
+    const raisedRecovery = submergedByAnimationFrame[0] + submergedByAnimationFrame[5];
+    const submergedPower = submergedByAnimationFrame[2] + submergedByAnimationFrame[3];
+    assert.ok(
+      submergedPower > raisedRecovery,
+      `${entry.slug} power stroke must refract more oar pixels than its raised recovery: ` +
+      `${submergedByAnimationFrame.join(",")}`
+    );
+  }
+});
+
 test("every roster ship has a hull footprint for every sprite heading", async () => {
   const bake = JSON.parse(await readFile(join(shipAssetRoot, "hull-footprints.json"), "utf8"));
   const footprints = validateShipFootprintBake(

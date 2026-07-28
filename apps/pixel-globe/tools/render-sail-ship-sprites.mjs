@@ -1789,9 +1789,6 @@ async function renderShipSpriteSet(config) {
   const flagAnchorModelPoint = selectShipFlagAnchorPoint(flagAnchorTriangles);
   const waterline = estimateWaterlineForConfig(hullTriangles, config);
   const waterlineY = waterline.y;
-  const triangles = config.animationTrianglesForFrame
-    ? config.animationTrianglesForFrame(hullTriangles, 0, waterlineY)
-    : hullTriangles;
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
   const sheetCtx = sheet.getContext("2d");
@@ -1804,10 +1801,38 @@ async function renderShipSpriteSet(config) {
     waterlineY,
     collectCasters: !config.skipSelfShadowMaps
   };
-  const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera, renderOptions));
-  const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
+  const renderedAnimationHeadings = config.animationTrianglesForFrame
+    ? Array.from({ length: config.animationFrameCount }, (_, frameIndex) => {
+        const triangles = config.animationTrianglesForFrame(hullTriangles, frameIndex, waterlineY);
+        return Array.from(
+          { length: headings },
+          (_, headingIndex) => renderHeading(triangles, headingIndex, camera, renderOptions)
+        );
+      })
+    : null;
+  const renderedHeadings = renderedAnimationHeadings?.[0] ?? Array.from(
+    { length: headings },
+    (_, headingIndex) => renderHeading(hullTriangles, headingIndex, camera, renderOptions)
+  );
+  // Moving oars change the silhouette. One crop per heading keeps the static hull
+  // registered to the same output pixels throughout the complete stroke.
+  const boundsByHeading = renderedAnimationHeadings
+    ? Array.from({ length: headings }, (_, headingIndex) => (
+        unionAlphaBounds(renderedAnimationHeadings.map((frames) => (
+          alphaBounds(frames[headingIndex].canvas)
+        )))
+      ))
+    : renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
   const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
-  const frames = renderedHeadings.map((rendered, i) => makeFrame(rendered, boundsByHeading[i], frameScale));
+  const animationFrames = renderedAnimationHeadings?.map((renderedFrames) => (
+    renderedFrames.map((rendered, headingIndex) => (
+      makeFrame(rendered, boundsByHeading[headingIndex], frameScale)
+    ))
+  )) ?? null;
+  const frames = animationFrames?.[0] ?? renderedHeadings.map(
+    (rendered, headingIndex) => makeFrame(rendered, boundsByHeading[headingIndex], frameScale)
+  );
+  if (animationFrames) validateStableAnimationFraming(config.slug, animationFrames);
   const baseFlagAnchors = makeFlagAnchors(
     flagAnchorModelPoint,
     frames,
@@ -1852,18 +1877,14 @@ async function renderShipSpriteSet(config) {
   writeFileSync(shadowPath, shadowMask.toBuffer("image/png"));
   writeFileSync(previewPath, preview.toBuffer("image/png"));
   writeFileSync(lightingPreviewPath, lightingPreview.toBuffer("image/png"));
-  const animationFiles = config.animationFrameCount
-    ? await renderShipAnimationSheets({
+  const animationFiles = animationFrames
+    ? renderShipAnimationSheets({
       config,
-      hullTriangles,
       flagAnchorModelPoint,
       waterlineY,
       camera,
-      renderOptions,
-      frameScale,
       firstSheet: sheet,
-      firstFrames: frames,
-      firstFlagAnchors: baseFlagAnchors
+      animationFrames
     })
     : null;
   const flagAnchors = {
@@ -1937,52 +1958,35 @@ async function renderShipSpriteSet(config) {
   };
 }
 
-async function renderShipAnimationSheets({
+function renderShipAnimationSheets({
   config,
-  hullTriangles,
   flagAnchorModelPoint,
   waterlineY,
   camera,
-  renderOptions,
-  frameScale,
   firstSheet,
-  firstFrames,
-  firstFlagAnchors
+  animationFrames
 }) {
-  const animationSheets = [firstSheet];
-  const animationFrames = [firstFrames];
-  const animationFlagAnchors = [firstFlagAnchors];
+  if (animationFrames.length !== config.animationFrameCount) {
+    throw new Error(
+      `${config.slug} rendered ${animationFrames.length} animation frames; ` +
+      `expected ${config.animationFrameCount}`
+    );
+  }
+  const animationSheets = animationFrames.map((frames, frameIndex) => (
+    frameIndex === 0 ? firstSheet : makeShipHeadingSheet(frames)
+  ));
+  const animationFlagAnchors = animationFrames.map((frames) => makeFlagAnchors(
+    flagAnchorModelPoint,
+    frames,
+    camera,
+    config.flagAnchorMaxSnapDistancePx
+  ));
   const spritePaths = [];
   const sinkDepthPaths = [];
   const basePrefix = stripShipHeadingSuffix(config.outputPrefix);
   for (let frameIndex = 0; frameIndex < config.animationFrameCount; frameIndex++) {
-    let sheet = animationSheets[frameIndex];
-    let frames = animationFrames[frameIndex];
-    if (!sheet) {
-      const triangles = config.animationTrianglesForFrame(hullTriangles, frameIndex, waterlineY);
-      const renderedHeadings = Array.from(
-        { length: headings },
-        (_, headingIndex) => renderHeading(triangles, headingIndex, camera, renderOptions)
-      );
-      const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
-      frames = renderedHeadings.map((rendered, headingIndex) => (
-        makeFrame(rendered, boundsByHeading[headingIndex], frameScale)
-      ));
-      sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
-      const sheetCtx = sheet.getContext("2d");
-      sheetCtx.imageSmoothingEnabled = false;
-      for (let headingIndex = 0; headingIndex < headings; headingIndex++) {
-        copyFrameToSheet(frames[headingIndex], sheetCtx, headingIndex);
-      }
-      animationSheets.push(sheet);
-      animationFrames.push(frames);
-      animationFlagAnchors.push(makeFlagAnchors(
-        flagAnchorModelPoint,
-        frames,
-        camera,
-        config.flagAnchorMaxSnapDistancePx
-      ));
-    }
+    const sheet = animationSheets[frameIndex];
+    const frames = animationFrames[frameIndex];
     if (!frames) throw new Error(`Missing ship animation geometry for frame ${frameIndex}`);
     const spritePath = join(
       config.outputDir,
@@ -2008,6 +2012,51 @@ async function renderShipAnimationSheets({
     writeFileSync(config.animationContactSheetPath, contactSheet.toBuffer("image/png"));
   }
   return { spritePaths, sinkDepthPaths, flagAnchors: animationFlagAnchors };
+}
+
+function makeShipHeadingSheet(frames) {
+  if (!Array.isArray(frames) || frames.length !== headings) {
+    throw new Error(`Ship heading sheet requires ${headings} frames`);
+  }
+  const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
+  const sheetCtx = sheet.getContext("2d");
+  sheetCtx.imageSmoothingEnabled = false;
+  for (let headingIndex = 0; headingIndex < headings; headingIndex++) {
+    copyFrameToSheet(frames[headingIndex], sheetCtx, headingIndex);
+  }
+  return sheet;
+}
+
+function validateStableAnimationFraming(slug, framesByAnimation) {
+  if (!Array.isArray(framesByAnimation) || framesByAnimation.length < 2) {
+    throw new Error(`${slug} animated framing requires at least two frames`);
+  }
+  for (let headingIndex = 0; headingIndex < headings; headingIndex++) {
+    const first = framesByAnimation[0][headingIndex];
+    const expected = frameRegistration(first);
+    for (let frameIndex = 1; frameIndex < framesByAnimation.length; frameIndex++) {
+      const actual = frameRegistration(framesByAnimation[frameIndex][headingIndex]);
+      if (actual !== expected) {
+        throw new Error(
+          `${slug} heading ${headingIndex} shifts between animation frames 0 and ${frameIndex}: ` +
+          `${expected} != ${actual}`
+        );
+      }
+    }
+  }
+}
+
+function frameRegistration(frame) {
+  return [
+    frame.bounds.minX,
+    frame.bounds.minY,
+    frame.bounds.width,
+    frame.bounds.height,
+    frame.drawX,
+    frame.drawY,
+    frame.drawW,
+    frame.drawH
+  ].join(",");
 }
 
 function makeRowingAnimationContactSheet(animationSheets, requestedScale = 6, reviewHeading = 2) {
@@ -3379,9 +3428,9 @@ function makeOarBankTriangles(frameIndex, waterlineY, config) {
   return triangles;
 }
 
-function validateProceduralOarStroke(config) {
+function validateProceduralOarStroke(config, poseOptions = {}) {
   const bladeTipOffsets = Array.from({ length: SHIP_ROWING_FRAME_COUNT }, (_, frameIndex) => {
-    const { lift } = rowingOarPose(frameIndex);
+    const { lift } = rowingOarPose(frameIndex, poseOptions);
     return config.pivotYOffset + lift * 1.35;
   });
   if (Math.min(...bladeTipOffsets) >= 0 || Math.max(...bladeTipOffsets) <= 0) {
@@ -3700,7 +3749,9 @@ function mesoamericanCanoeTrianglesForFrame(hullTriangles, frameIndex, waterline
 }
 
 function makeCanoePaddleTriangles(frameIndex, waterlineY, config) {
-  const { sweep, lift } = rowingOarPose(frameIndex, { sweepScale: 0.5, liftScale: 0.06 });
+  const poseOptions = { sweepScale: 0.5, liftScale: 0.1 };
+  validateProceduralOarStroke(config, poseOptions);
+  const { sweep, lift } = rowingOarPose(frameIndex, poseOptions);
   const shaftColor = { r: 140, g: 86, b: 48 };
   const bladeColor = { r: 111, g: 68, b: 44 };
   const triangles = [];
