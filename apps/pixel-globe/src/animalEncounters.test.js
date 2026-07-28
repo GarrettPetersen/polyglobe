@@ -41,6 +41,14 @@ test("animal catalog is unique and every portrait is expression-ready", () => {
   assert.equal(ANIMAL_CATALOG_BY_ID.get("penguin").reaction.expressionId, "amused");
   assert.ok(ANIMAL_CATALOG_BY_ID.get("penguin").expressions.some(({ id }) => id === "sad"));
   assert.equal(ANIMAL_CATALOG_BY_ID.get("raccoon").reaction.expressionId, "mischievous");
+  assert.equal(
+    ANIMAL_CATALOG_BY_ID.get("raccoon").expressions.find(({ id }) => id === "sad").src,
+    "assets/animals/portraits/raccoon-1.png"
+  );
+  assert.equal(
+    ANIMAL_CATALOG_BY_ID.get("raccoon").expressions.find(({ id }) => id === "angry").src,
+    "assets/animals/portraits/raccoon-15.png"
+  );
 });
 
 test("animals occur only in plausible native habitats", () => {

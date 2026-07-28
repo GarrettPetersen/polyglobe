@@ -44,7 +44,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     }),
   animalWithExpressions("raccoon", "Raccoon", "A nimble masked forager of the Americas.", "chitter", raccoonRange,
     ["That little masked thief is aboard! Count the biscuits."], "Chrrr-chrrr-chrrr!", {
-      neutral: 1, happy: 9, surprised: 6, angry: 4, amused: 13, mischievous: 16
+      neutral: 4, happy: 5, surprised: 13, sad: 1, angry: 15, amused: 8, mischievous: 9
     }, {
       effect: "steal-food",
       reactionExpression: "mischievous",

@@ -18,6 +18,7 @@ const PANDA_FAMILIAR_CULTURES = new Set([
   "southAsian",
   "southeastAsian"
 ]);
+const RACCOON_FAMILIAR_CULTURES = new Set(["nahua"]);
 
 export const ANIMAL_COMPANION_CATALOG = Object.freeze([
   companion({
@@ -29,6 +30,7 @@ export const ANIMAL_COMPANION_CATALOG = Object.freeze([
     nationalityAdjective: "Chinese",
     nameCulture: "chinese",
     goal: "Eat bamboo, avoid all work, and remain aboard",
+    skillId: "panda-passenger",
     statusIcon: { src: "assets/misc/panda.png", width: 5, height: 9 },
     foodConsumers: 3,
     waterConsumers: 1,
@@ -56,6 +58,43 @@ export const ANIMAL_COMPANION_CATALOG = Object.freeze([
     naturalistRejectAnimalText: "Hrrmph."
   }),
   companion({
+    id: "raccoon",
+    name: "Raccoon",
+    sex: "male",
+    age: 4,
+    homePortName: "Eastern Woodlands",
+    nationalityAdjective: "North American",
+    nameCulture: "nahua",
+    goal: "Inspect every barrel, steal one biscuit, and deny everything",
+    skillId: "raccoon-passenger",
+    statusIcon: { src: "assets/misc/raccoon.png", width: 3, height: 6 },
+    foodConsumers: 1,
+    waterConsumers: 1,
+    naturalistPayment: 1000,
+    familiarCultures: RACCOON_FAMILIAR_CULTURES,
+    familiarNpcLines: [
+      "A raccoon aboard? I know its kind, captain. Count every ration again after dark.",
+      "That masked forager followed you onto a ship? Lock the meal chest and check the knots.",
+      "I recognize the animal. I am less certain it recognizes your claim to the provisions."
+    ],
+    unfamiliarNpcLines: [
+      "Captain, why is that masked little thief testing the latch on my strongbox?",
+      "Your smallest passenger has washed a biscuit in my ink and appears pleased with the result.",
+      "Is that creature part of the crew, or merely the most successful pirate aboard?",
+      "Captain, that animal has emptied one pocket and is now examining the next."
+    ],
+    callTexts: ["Chrrr-chrrr!", "Krrrk!", "Chitter-chitter!"],
+    recruitPrompt: "The raccoon scampers aboard with a biscuit in both paws, curls up behind the barrels, and refuses to leave. Let him stay aboard?",
+    acceptedCaptainText: "Very well. Lock the larder, count the spoons, and do not call him an able seaman.",
+    rejectedCaptainText: "Back ashore with you, masked rogue. We already have enough thieves at sea.",
+    naturalistIntro: "So this is the masked forager from your account? Aristotle catalogued many thieves in nature, but none with hands so well suited to opening a biscuit chest.",
+    naturalistReply: "Chrrr?",
+    naturalistOffer: "A most dexterous subject. Leave the raccoon in my care and I shall pay you {payment} doubloons. I shall begin by purchasing stronger locks.",
+    naturalistAccept: "Splendid! I shall observe its habits scientifically, beginning with where it hid my purse.",
+    naturalistFarewell: "Take care of him. He contributed no labor, but he did keep every cupboard under inspection.",
+    naturalistRejectAnimalText: "Krrrk!"
+  }),
+  companion({
     id: "penguin",
     name: "Penguin",
     sex: "male",
@@ -64,6 +103,7 @@ export const ANIMAL_COMPANION_CATALOG = Object.freeze([
     nationalityAdjective: "Antarctic",
     nameCulture: "maritime",
     goal: "Eat the fish, inspect the deck, and go wherever the ship goes",
+    skillId: "penguin-passenger",
     statusIcon: { src: "assets/misc/penguin.png", width: 3, height: 6 },
     foodConsumers: 0,
     waterConsumers: 1,
@@ -99,13 +139,141 @@ if (ANIMAL_COMPANION_BY_ID.size !== ANIMAL_COMPANION_CATALOG.length) {
 }
 
 const COMPANION_INTRODUCTIONS = new Map([
+  ["panda|penguin|raccoon", Object.freeze([
+    Object.freeze({
+      companionId: "raccoon",
+      listenerCompanionId: "panda",
+      expressionId: "mischievous",
+      message: "Chrrr?"
+    }),
+    Object.freeze({
+      companionId: "panda",
+      listenerCompanionId: "raccoon",
+      expressionId: "angry",
+      message: "Hrrmph!"
+    }),
+    Object.freeze({
+      companionId: "raccoon",
+      listenerCompanionId: "penguin",
+      expressionId: "surprised",
+      message: "Chrr?"
+    }),
+    Object.freeze({
+      companionId: "penguin",
+      listenerCompanionId: "raccoon",
+      expressionId: "angry",
+      message: "HONK!"
+    }),
+    Object.freeze({
+      companionId: "panda",
+      listenerCompanionId: "penguin",
+      expressionId: "amused",
+      message: "Hrrmph."
+    }),
+    Object.freeze({
+      companionId: "penguin",
+      listenerCompanionId: "panda",
+      expressionId: "amused",
+      message: "Honk."
+    })
+  ])],
   ["panda|penguin", Object.freeze([
-    Object.freeze({ companionId: "panda", expressionId: "surprised", message: "Meee-eh?" }),
-    Object.freeze({ companionId: "penguin", expressionId: "surprised", message: "HONK!" }),
-    Object.freeze({ companionId: "panda", expressionId: "amused", message: "Hrrmph." }),
-    Object.freeze({ companionId: "penguin", expressionId: "amused", message: "Honk." })
+    Object.freeze({
+      companionId: "panda",
+      listenerCompanionId: "penguin",
+      expressionId: "surprised",
+      message: "Meee-eh?"
+    }),
+    Object.freeze({
+      companionId: "penguin",
+      listenerCompanionId: "panda",
+      expressionId: "surprised",
+      message: "HONK!"
+    }),
+    Object.freeze({
+      companionId: "panda",
+      listenerCompanionId: "penguin",
+      expressionId: "amused",
+      message: "Hrrmph."
+    }),
+    Object.freeze({
+      companionId: "penguin",
+      listenerCompanionId: "panda",
+      expressionId: "amused",
+      message: "Honk."
+    })
+  ])],
+  ["panda|raccoon", Object.freeze([
+    Object.freeze({
+      companionId: "raccoon",
+      listenerCompanionId: "panda",
+      expressionId: "mischievous",
+      message: "Chrrr-chrrr?"
+    }),
+    Object.freeze({
+      companionId: "panda",
+      listenerCompanionId: "raccoon",
+      expressionId: "angry",
+      message: "Hrrmph!"
+    }),
+    Object.freeze({
+      companionId: "raccoon",
+      listenerCompanionId: "panda",
+      expressionId: "amused",
+      message: "Krrrk."
+    }),
+    Object.freeze({
+      companionId: "panda",
+      listenerCompanionId: "raccoon",
+      expressionId: "amused",
+      message: "Hrrmph."
+    })
+  ])],
+  ["penguin|raccoon", Object.freeze([
+    Object.freeze({
+      companionId: "raccoon",
+      listenerCompanionId: "penguin",
+      expressionId: "mischievous",
+      message: "Chrrr?"
+    }),
+    Object.freeze({
+      companionId: "penguin",
+      listenerCompanionId: "raccoon",
+      expressionId: "angry",
+      message: "HONK!"
+    }),
+    Object.freeze({
+      companionId: "raccoon",
+      listenerCompanionId: "penguin",
+      expressionId: "surprised",
+      message: "Krrrk?"
+    }),
+    Object.freeze({
+      companionId: "penguin",
+      listenerCompanionId: "raccoon",
+      expressionId: "amused",
+      message: "Honk."
+    })
   ])]
 ]);
+for (const [key, steps] of COMPANION_INTRODUCTIONS) {
+  const participantIds = key.split("|");
+  if (participantIds.length < 2 || new Set(participantIds).size !== participantIds.length ||
+      participantIds.some((id) => !ANIMAL_COMPANION_BY_ID.has(id))) {
+    throw new Error(`Animal companion introduction has invalid participants: ${key}`);
+  }
+  for (const step of steps) {
+    if (!participantIds.includes(step.companionId) ||
+        !participantIds.includes(step.listenerCompanionId) ||
+        step.companionId === step.listenerCompanionId) {
+      throw new Error(`Animal companion introduction has an invalid exchange: ${key}`);
+    }
+    const expressions = ANIMAL_CATALOG_BY_ID.get(step.companionId).expressions;
+    if (!expressions.some(({ id }) => id === step.expressionId)) {
+      throw new Error(`Animal introduction requests missing ${step.companionId} expression: ${step.expressionId}`);
+    }
+  }
+}
 
 export function createAnimalCompanionMemory() {
   return {
@@ -270,7 +438,7 @@ export function animalCompanionCharacter(companionId) {
     nameCulture: entry.nameCulture,
     nationalityAdjective: entry.nationalityAdjective,
     homePortName: entry.homePortName,
-    skillIds: Object.freeze(["useless"]),
+    skillIds: Object.freeze([entry.skillId]),
     goal: Object.freeze({ text: entry.goal }),
     expressions: animal.expressions
   });
@@ -340,7 +508,13 @@ export function recordAnimalCompanionIntroduction(memory, key) {
   if (memory.introductionKeys.includes(key)) {
     throw new Error(`Animal companion introduction was already recorded: ${key}`);
   }
-  memory.introductionKeys.push(key);
+  const introducedIds = new Set(key.split("|"));
+  for (const knownKey of COMPANION_INTRODUCTIONS.keys()) {
+    if (memory.introductionKeys.includes(knownKey)) continue;
+    if (knownKey.split("|").every((id) => introducedIds.has(id))) {
+      memory.introductionKeys.push(knownKey);
+    }
+  }
   return validateAnimalCompanionMemory(memory);
 }
 
@@ -358,6 +532,7 @@ function companion(options) {
     nationalityAdjective,
     nameCulture,
     goal,
+    skillId,
     statusIcon,
     foodConsumers,
     waterConsumers,
@@ -379,6 +554,9 @@ function companion(options) {
     naturalistRejectAnimalText
   } = options;
   if (!ANIMAL_CATALOG_BY_ID.has(id)) throw new Error(`Animal companion has no animal entry: ${id}`);
+  if (typeof skillId !== "string" || skillId.trim() === "") {
+    throw new Error(`Animal companion has no character skill: ${id}`);
+  }
   if (!statusIcon || typeof statusIcon.src !== "string" ||
       !Number.isInteger(statusIcon.width) || statusIcon.width <= 0 ||
       !Number.isInteger(statusIcon.height) || statusIcon.height <= 0) {
@@ -394,6 +572,7 @@ function companion(options) {
     nationalityAdjective,
     nameCulture,
     goal,
+    skillId,
     statusIcon: Object.freeze(statusIcon),
     foodConsumers,
     waterConsumers,

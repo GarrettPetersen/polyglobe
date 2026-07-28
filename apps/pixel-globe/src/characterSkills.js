@@ -99,12 +99,26 @@ export const CHARACTER_SKILLS = Object.freeze([
   skill("natural-philosopher", "Natural Philosopher", "Notices tracks, calls, and other signs of unfamiliar animals.", {
     animalEncounterChanceMultiplier: 1.5
   }),
-  skill("useless", "Useless", "Eats enthusiastically and contributes nothing to the work of the ship.", {
+  skill("panda-passenger", "Useless", "Eats as much as three people, drinks as much as one, and contributes nothing to shipboard work.", {
     cargoCapacityFlat: 0
   }, {
     travelerEligible: false,
     assignable: false,
-    effectLabels: ["No crew work"]
+    effectLabels: ["Food: 3 shares / day", "Water: 1 share / day", "No crew work"]
+  }),
+  skill("penguin-passenger", "Useless", "Eats two fish rations each day and contributes nothing to shipboard work. If there is no fish aboard, he catches his own.", {
+    cargoCapacityFlat: 0
+  }, {
+    travelerEligible: false,
+    assignable: false,
+    effectLabels: ["Fish: 2 rations / day", "Water: 1 share / day", "No crew work"]
+  }),
+  skill("raccoon-passenger", "Useless", "Eats and drinks as much as one person while contributing nothing to shipboard work.", {
+    cargoCapacityFlat: 0
+  }, {
+    travelerEligible: false,
+    assignable: false,
+    effectLabels: ["Food: 1 share / day", "Water: 1 share / day", "No crew work"]
   })
 ]);
 

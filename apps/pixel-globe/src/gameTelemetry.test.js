@@ -221,7 +221,8 @@ test("voyage summaries expose bounded feature engagement without names or save d
       animalCompanions: {
         byId: {
           panda: { status: "aboard" },
-          penguin: { status: "aboard" }
+          penguin: { status: "aboard" },
+          raccoon: { status: "aboard" }
         }
       },
       achievements: {
@@ -240,10 +241,11 @@ test("voyage summaries expose bounded feature engagement without names or save d
     "side-quests",
     "animals",
     "panda",
-    "penguin"
+    "penguin",
+    "raccoon"
   ]);
   assert.equal(payload.mainQuest, "explorer");
-  assert.equal(payload.companionStatuses, "panda:aboard,penguin:aboard");
+  assert.equal(payload.companionStatuses, "panda:aboard,penguin:aboard,raccoon:aboard");
   assert.equal(JSON.stringify(payload).includes("captain"), false);
 });
 
@@ -304,7 +306,8 @@ function voyageState(mainQuest) {
       animalCompanions: {
         byId: {
           panda: { status: "unmet" },
-          penguin: { status: "unmet" }
+          penguin: { status: "unmet" },
+          raccoon: { status: "unmet" }
         }
       },
       achievements: {}

@@ -65,7 +65,8 @@ test("animal companion HUD icons keep their native pixel dimensions", async () =
   const palette = new Set(RESURRECT_64_HEX);
   const expectedDimensions = new Map([
     ["panda", [5, 9]],
-    ["penguin", [3, 6]]
+    ["penguin", [3, 6]],
+    ["raccoon", [3, 6]]
   ]);
   for (const [name, [width, height]] of expectedDimensions) {
     const image = await loadImage(join(miscRoot, `${name}.png`));

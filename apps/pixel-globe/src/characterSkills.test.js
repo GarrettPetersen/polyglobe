@@ -22,11 +22,14 @@ test("travelers cannot grant temporary cargo capacity", () => {
   }
 });
 
-test("the panda's useless skill is registered but never randomly assigned", () => {
-  assert.equal(characterSkillById("useless").assignable, false);
+test("animal companion skills are registered but never randomly assigned", () => {
+  const animalSkillIds = ["panda-passenger", "penguin-passenger", "raccoon-passenger"];
+  assert.ok(animalSkillIds.every((id) => characterSkillById(id).assignable === false));
   for (let index = 0; index < 500; index++) {
-    assert.notEqual(characterSkillIdsForIdentity(`ordinary-${index}`)[0], "useless");
-    assert.notEqual(characterSkillIdsForIdentity(`traveler-${index}`, { traveler: true })[0], "useless");
+    assert.ok(!animalSkillIds.includes(characterSkillIdsForIdentity(`ordinary-${index}`)[0]));
+    assert.ok(!animalSkillIds.includes(
+      characterSkillIdsForIdentity(`traveler-${index}`, { traveler: true })[0]
+    ));
   }
 });
 

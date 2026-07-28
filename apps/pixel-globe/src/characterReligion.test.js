@@ -162,7 +162,7 @@ test("clerical attire constrains religion without moving Buddhist monks out of A
 });
 
 test("animal companions choose from every religion with exactly equal weight", () => {
-  for (const companionId of ["panda", "penguin"]) {
+  for (const companionId of ["panda", "penguin", "raccoon"]) {
     const candidates = religionCandidatesForCharacter({
       id: `companion:${companionId}`,
       role: "ship-animal-companion"

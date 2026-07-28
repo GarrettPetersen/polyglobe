@@ -420,6 +420,7 @@ export default {
   "hud.tooltip.aboardCrewPassengers": "Na pokładzie: {crew} + {passengers}",
   "hud.tooltip.animalCompanion.panda": "1 panda",
   "hud.tooltip.animalCompanion.penguin": "1 pingwin",
+  "hud.tooltip.animalCompanion.raccoon": "1 szop",
   "hud.tooltip.aboardCrewAnimals": "Na pokładzie: {crew} + {animals}",
   "hud.tooltip.aboardCrewPassengersAnimals": "Na pokładzie: {crew} + {passengers} + {animals}",
   "discovery.greatBarrierReef.name": "Wielka Rafa Koralowa",

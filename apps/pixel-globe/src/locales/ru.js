@@ -420,6 +420,7 @@ export default {
   "hud.tooltip.aboardCrewPassengers": "На борту: {crew} + {passengers}",
   "hud.tooltip.animalCompanion.panda": "1 панда",
   "hud.tooltip.animalCompanion.penguin": "1 пингвин",
+  "hud.tooltip.animalCompanion.raccoon": "1 енот",
   "hud.tooltip.aboardCrewAnimals": "На борту: {crew} + {animals}",
   "hud.tooltip.aboardCrewPassengersAnimals": "На борту: {crew} + {passengers} + {animals}",
   "discovery.greatBarrierReef.name": "Большой Барьерный риф",

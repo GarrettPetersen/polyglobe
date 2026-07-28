@@ -420,6 +420,7 @@ export default {
   "hud.tooltip.aboardCrewPassengers": "船上：{crew}＋{passengers}",
   "hud.tooltip.animalCompanion.panda": "1隻熊貓",
   "hud.tooltip.animalCompanion.penguin": "1隻企鵝",
+  "hud.tooltip.animalCompanion.raccoon": "1隻浣熊",
   "hud.tooltip.aboardCrewAnimals": "船上：{crew}＋{animals}",
   "hud.tooltip.aboardCrewPassengersAnimals": "船上：{crew}＋{passengers}＋{animals}",
   "discovery.greatBarrierReef.name": "大堡礁",

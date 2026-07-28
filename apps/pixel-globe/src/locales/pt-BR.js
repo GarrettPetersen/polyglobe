@@ -420,6 +420,7 @@ export default {
   "hud.tooltip.aboardCrewPassengers": "{crew} + {passengers} a bordo",
   "hud.tooltip.animalCompanion.panda": "1 panda",
   "hud.tooltip.animalCompanion.penguin": "1 pinguim",
+  "hud.tooltip.animalCompanion.raccoon": "1 guaxinim",
   "hud.tooltip.aboardCrewAnimals": "{crew} + {animals} a bordo",
   "hud.tooltip.aboardCrewPassengersAnimals": "{crew} + {passengers} + {animals} a bordo",
   "discovery.greatBarrierReef.name": "Grande Barreira de Corais",

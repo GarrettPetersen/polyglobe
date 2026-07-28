@@ -29,7 +29,8 @@ const TELEMETRY_FEATURES = Object.freeze([
   ["side-quests", (state) => Object.keys(state.memory?.quests?.completed || {}).length > 0],
   ["animals", (state) => (state.memory?.animals?.encounterOrder?.length || 0) > 0],
   ["panda", (state) => animalCompanionWasEngaged(state, "panda")],
-  ["penguin", (state) => animalCompanionWasEngaged(state, "penguin")]
+  ["penguin", (state) => animalCompanionWasEngaged(state, "penguin")],
+  ["raccoon", (state) => animalCompanionWasEngaged(state, "raccoon")]
 ]);
 
 export function createGameTelemetry({

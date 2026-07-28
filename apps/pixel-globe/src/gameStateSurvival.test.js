@@ -167,6 +167,7 @@ test("version 35 saves gain persistent panda companion memory", () => {
 
   assert.equal(migrated.memory.animalCompanions.byId.panda.status, "unmet");
   assert.equal(migrated.memory.animalCompanions.byId.penguin.status, "unmet");
+  assert.equal(migrated.memory.animalCompanions.byId.raccoon.status, "unmet");
   assert.equal(validateGameState(migrated), migrated);
 });
 
@@ -192,6 +193,21 @@ test("version 36 saves preserve an aboard panda and gain the naturalist offer", 
   });
   assert.equal(migrated.memory.panda, undefined);
   assert.equal(migrated.memory.animalCompanions.byId.penguin.status, "unmet");
+  assert.equal(migrated.memory.animalCompanions.byId.raccoon.status, "unmet");
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 49 saves gain an unmet raccoon without changing existing companions", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 49;
+  state.memory.animalCompanions.byId.panda.status = "declined";
+  delete state.memory.animalCompanions.byId.raccoon;
+
+  const migrated = migrateGameState(state);
+
+  assert.equal(migrated.memory.animalCompanions.byId.panda.status, "declined");
+  assert.equal(migrated.memory.animalCompanions.byId.penguin.status, "unmet");
+  assert.equal(migrated.memory.animalCompanions.byId.raccoon.status, "unmet");
   assert.equal(validateGameState(migrated), migrated);
 });
 
@@ -1083,6 +1099,23 @@ test("an aboard panda eats for three but drinks for one without joining the crew
   assert.deepEqual(after.animalCompanionIds, ["panda"]);
   assert.equal(after.foodConsumers, before.foodConsumers + 3);
   assert.equal(after.waterConsumers, before.waterConsumers + 1);
+  validateGameState(state);
+});
+
+test("an aboard raccoon eats and drinks like one passenger without helping the crew", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const before = shipConsumption(state);
+  beginAnimalCompanionRecruitment(state.memory.animalCompanions, "raccoon");
+  acceptAnimalCompanion(state.memory.animalCompanions, "raccoon", 20);
+  const after = shipConsumption(state);
+
+  assert.equal(after.crew, before.crew);
+  assert.deepEqual(after.animalCompanionIds, ["raccoon"]);
+  assert.equal(after.foodConsumers, before.foodConsumers + 1);
+  assert.equal(after.waterConsumers, before.waterConsumers + 1);
+  assert.deepEqual(after.restrictedAnimalFood, []);
   validateGameState(state);
 });
 

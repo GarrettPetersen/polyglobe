@@ -420,6 +420,7 @@ export default {
   "hud.tooltip.aboardCrewPassengers": "승선: {crew} + {passengers}",
   "hud.tooltip.animalCompanion.panda": "판다 1마리",
   "hud.tooltip.animalCompanion.penguin": "펭귄 1마리",
+  "hud.tooltip.animalCompanion.raccoon": "라쿤 1마리",
   "hud.tooltip.aboardCrewAnimals": "승선: {crew} + {animals}",
   "hud.tooltip.aboardCrewPassengersAnimals": "승선: {crew} + {passengers} + {animals}",
   "discovery.greatBarrierReef.name": "그레이트 배리어 리프",

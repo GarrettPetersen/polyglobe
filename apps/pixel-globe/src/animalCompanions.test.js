@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ANIMAL_COMPANION_ABOARD,
+  ANIMAL_COMPANION_BY_ID,
   ANIMAL_COMPANION_DECLINED,
   ANIMAL_COMPANION_PENDING,
   ANIMAL_COMPANION_WITH_NATURALIST,
@@ -36,19 +37,21 @@ test("animal companion recruitment persists independent accept and decline decis
   beginAnimalCompanionRecruitment(memory, "penguin");
   declineAnimalCompanion(memory, "penguin");
   assert.equal(memory.byId.penguin.status, ANIMAL_COMPANION_DECLINED);
-  assert.deepEqual(aboardAnimalCompanionIds(memory), ["panda"]);
+  beginAnimalCompanionRecruitment(memory, "raccoon");
+  acceptAnimalCompanion(memory, "raccoon", 124);
+  assert.deepEqual(aboardAnimalCompanionIds(memory), ["panda", "raccoon"]);
 });
 
 test("companion consumption distinguishes ordinary and fish-only diets", () => {
   const memory = createAnimalCompanionMemory();
-  for (const id of ["panda", "penguin"]) {
+  for (const id of ["panda", "raccoon", "penguin"]) {
     beginAnimalCompanionRecruitment(memory, id);
     acceptAnimalCompanion(memory, id, 20);
   }
   assert.deepEqual(animalCompanionConsumption(memory), {
-    companionIds: ["panda", "penguin"],
-    foodConsumers: 3,
-    waterConsumers: 2,
+    companionIds: ["panda", "raccoon", "penguin"],
+    foodConsumers: 4,
+    waterConsumers: 3,
     restrictedFood: [{
       companionId: "penguin",
       goodId: "fish",
@@ -59,10 +62,15 @@ test("companion consumption distinguishes ordinary and fish-only diets", () => {
 
 test("animal companions have biography-ready useless identities and expression portraits", () => {
   const panda = animalCompanionCharacter("panda");
+  const raccoon = animalCompanionCharacter("raccoon");
   const penguin = animalCompanionCharacter("penguin");
   assert.equal(panda.homePortName, "Sichuan");
+  assert.equal(raccoon.homePortName, "Eastern Woodlands");
   assert.equal(penguin.homePortName, "Southern Ice");
-  assert.deepEqual(penguin.skillIds, ["useless"]);
+  assert.deepEqual(raccoon.skillIds, ["raccoon-passenger"]);
+  assert.match(raccoon.goal.text, /barrel|biscuit/i);
+  assert.ok(raccoon.expressions.some((entry) => entry.id === "mischievous"));
+  assert.deepEqual(penguin.skillIds, ["penguin-passenger"]);
   assert.match(penguin.goal.text, /fish/i);
   assert.ok(penguin.expressions.some((entry) => entry.id === "surprised"));
   assert.ok(penguin.expressions.some((entry) => entry.id === "sad"));
@@ -90,7 +98,7 @@ test("NPC reactions are species-specific and never repeat for one interaction", 
 
 test("naturalist offers are resolved independently for every companion", () => {
   const memory = createAnimalCompanionMemory();
-  for (const id of ["panda", "penguin"]) {
+  for (const id of ["panda", "raccoon", "penguin"]) {
     beginAnimalCompanionRecruitment(memory, id);
     acceptAnimalCompanion(memory, id, 10);
   }
@@ -98,21 +106,53 @@ test("naturalist offers are resolved independently for every companion", () => {
   assert.equal(memory.byId.panda.naturalistOffer, ANIMAL_NATURALIST_OFFER_DECLINED);
   assert.equal(animalNaturalistOfferIsAvailable(memory, "panda"), false);
   assert.equal(animalNaturalistOfferIsAvailable(memory, "penguin"), true);
-  placeAnimalWithNaturalist(memory, "penguin");
-  assert.equal(memory.byId.penguin.status, ANIMAL_COMPANION_WITH_NATURALIST);
-  assert.deepEqual(aboardAnimalCompanionIds(memory), ["panda"]);
+  assert.equal(animalNaturalistOfferIsAvailable(memory, "raccoon"), true);
+  assert.equal(ANIMAL_COMPANION_BY_ID.get("raccoon").naturalistPayment, 1000);
+  placeAnimalWithNaturalist(memory, "raccoon");
+  assert.equal(memory.byId.raccoon.status, ANIMAL_COMPANION_WITH_NATURALIST);
+  assert.deepEqual(aboardAnimalCompanionIds(memory), ["panda", "penguin"]);
 });
 
-test("the panda and penguin exchange plays once when both are aboard", () => {
+test("every pair of animal companions has a one-time introduction", () => {
+  for (const ids of [
+    ["panda", "penguin"],
+    ["panda", "raccoon"],
+    ["penguin", "raccoon"]
+  ]) {
+    const memory = createAnimalCompanionMemory();
+    for (const id of ids) {
+      beginAnimalCompanionRecruitment(memory, id);
+      acceptAnimalCompanion(memory, id, 10);
+    }
+    const introduction = pendingAnimalCompanionIntroduction(memory);
+    assert.equal(introduction.key, ids.join("|"));
+    assert.deepEqual(
+      new Set(introduction.steps.flatMap((entry) => [
+        entry.companionId,
+        entry.listenerCompanionId
+      ])),
+      new Set(ids)
+    );
+    recordAnimalCompanionIntroduction(memory, introduction.key);
+    assert.equal(pendingAnimalCompanionIntroduction(memory), null);
+  }
+});
+
+test("all three companions share a group exchange instead of replaying pair scenes", () => {
   const memory = createAnimalCompanionMemory();
-  for (const id of ["panda", "penguin"]) {
+  for (const id of ["panda", "raccoon", "penguin"]) {
     beginAnimalCompanionRecruitment(memory, id);
     acceptAnimalCompanion(memory, id, 10);
   }
   const introduction = pendingAnimalCompanionIntroduction(memory);
-  assert.equal(introduction.key, "panda|penguin");
-  assert.ok(introduction.steps.some((entry) => entry.companionId === "panda"));
-  assert.ok(introduction.steps.some((entry) => entry.companionId === "penguin"));
+  assert.equal(introduction.key, "panda|penguin|raccoon");
+  assert.deepEqual(
+    new Set(introduction.steps.flatMap((entry) => [
+      entry.companionId,
+      entry.listenerCompanionId
+    ])),
+    new Set(["panda", "penguin", "raccoon"])
+  );
   recordAnimalCompanionIntroduction(memory, introduction.key);
   assert.equal(pendingAnimalCompanionIntroduction(memory), null);
 });
@@ -129,4 +169,5 @@ test("legacy panda memories migrate into the companion table", () => {
   assert.equal(migrated.byId.panda.status, ANIMAL_COMPANION_ABOARD);
   assert.equal(animalNaturalistOfferIsAvailable(migrated, "panda"), true);
   assert.equal(migrated.byId.penguin.status, "unmet");
+  assert.equal(migrated.byId.raccoon.status, "unmet");
 });

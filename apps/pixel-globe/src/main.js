@@ -13293,16 +13293,20 @@ function acceptAnimalCompanionAboard(companionId) {
   const introduction = pendingAnimalCompanionIntroduction(gameState.memory.animalCompanions);
   if (introduction) {
     recordAnimalCompanionIntroduction(gameState.memory.animalCompanions, introduction.key);
-    const [leftId, rightId] = introduction.key.split("|");
-    const leftAnimal = animalCompanionCharacter(leftId);
-    const rightAnimal = animalCompanionCharacter(rightId);
+    const participantIds = introduction.key.split("|");
     for (const introStep of introduction.steps) {
+      const listenerId = introStep.listenerCompanionId ||
+        participantIds.find((id) => id !== introStep.companionId);
+      if (!listenerId) {
+        throw new Error(`Animal introduction step has no listener: ${introduction.key}`);
+      }
       const speaker = animalCompanionCharacter(introStep.companionId);
+      const listener = animalCompanionCharacter(listenerId);
       const speakerEntry = ANIMAL_COMPANION_BY_ID.get(introStep.companionId);
       steps.push({
         character: speaker,
-        leftCharacter: leftAnimal,
-        rightCharacter: rightAnimal,
+        leftCharacter: speaker,
+        rightCharacter: listener,
         expressionId: introStep.expressionId,
         message: introStep.message,
         animalSoundKind: ANIMAL_CATALOG_BY_ID.get(speakerEntry.animalId).soundKind
@@ -13311,7 +13315,9 @@ function acceptAnimalCompanionAboard(companionId) {
     steps.push({
       character: gameState.playerCharacter,
       expressionId: "amused",
-      message: "Excellent. Neither of you can work, but at least now you can ignore each other professionally."
+      message: participantIds.length > 2
+        ? "Excellent. I now command three animals, no useful labor, and a larder under organized attack."
+        : "Excellent. Neither of you can work, but at least now you can ignore each other professionally."
     });
   }
   saveVoyageNow(`welcomed ${companionId} aboard`);

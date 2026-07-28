@@ -58,9 +58,9 @@ test("status HUD tooltip copy is fully localized", () => {
     statusHudTooltipText(LANGUAGE_ENGLISH, STATUS_HUD_TOOLTIP_CREW, {
       crew: 9,
       passengers: 1,
-      animalCompanionIds: ["panda", "penguin"]
+      animalCompanionIds: ["panda", "penguin", "raccoon"]
     }),
-    "9 crew + 1 passenger + 1 panda + 1 penguin aboard"
+    "9 crew + 1 passenger + 1 panda + 1 penguin + 1 raccoon aboard"
   );
   assert.equal(
     statusHudTooltipText(LANGUAGE_CHINESE_SIMPLIFIED, STATUS_HUD_TOOLTIP_CREW, { crew: 6, passengers: 1 }),
