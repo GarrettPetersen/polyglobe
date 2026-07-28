@@ -3172,6 +3172,7 @@ function buyView(session, city, gameState, economy, context) {
       ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`
       : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
+    feedbackLineReserve: 2,
     optionHeight: 30,
     options: rows
   };

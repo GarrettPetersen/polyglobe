@@ -654,6 +654,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   session.nodeId = "root";
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(market.feedbackLineReserve, 2);
   assert.equal(market.optionHeight, 30);
   assert.ok(market.options.some((option) => /\d+ db/.test(option.label)));
   assert.ok(market.options.some((option) => /WORLD/.test(option.detail || "")));
