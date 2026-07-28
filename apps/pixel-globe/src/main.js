@@ -272,6 +272,7 @@ import {
   loseCrew,
   migrateGameState,
   nextGamePoliticsMinute,
+  playerVesselLossOutcome,
   playerAssaultCargoBonus,
   playerFishingNet,
   playerWhaleHarpoon,
@@ -12503,7 +12504,10 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     closeDialogue();
     showSurvivalNotice(`${lost} MARINES LOST`, "warn");
     if (gameState.ship.crew <= 0) {
-      sinkPlayerShip(`The landing force was destroyed during the assault on ${cityLabelText(cityCall)}.`);
+      endPlayerVoyage(
+        `The landing force was destroyed during the assault on ${cityLabelText(cityCall)}.`,
+        { sinkShip: false, outcomeType: "death" }
+      );
     } else if (!namedDeathPresented) {
       openCaptainAlertModal(
         `${cityLabelText(cityCall)} repelled the landing. We lost ${lost} crew in the fighting.`,
@@ -13557,7 +13561,10 @@ function resolveOrdinaryShoreScavenge(outcome, context) {
     syncShipCargoFromGameState();
     showSurvivalNotice(`${lost} CREW LOST ASHORE`, "warn");
     if (gameState.ship.crew <= 0) {
-      sinkPlayerShip("The last of the crew died while scavenging ashore.");
+      endPlayerVoyage(
+        "The last of the crew died while scavenging ashore.",
+        { sinkShip: false, outcomeType: "death" }
+      );
     } else if (!namedDeathPresented) {
       openCrewAlertModal(narrative, "sad");
     }
@@ -19165,14 +19172,17 @@ function updateStormDamage(previousMinute, currentMinute) {
     intensity: strongestIntensity,
     remainingHitPoints: ship.hitPoints
   });
-  applyCrewCasualtiesFromHullDamage(totalDamage, "The last of the crew was lost in the storm.");
+  applyCrewCasualtiesFromHullDamage(totalDamage);
   stormDamageNotice = {
     damage: totalDamage,
     intensity: strongestIntensity,
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.stormDamage
   };
-  if (ship.hitPoints <= 0) sinkPlayerShip("Your ship foundered in the storm.");
-  else syncAchievementsFromGameState({ type: "survived-lightning-strike" });
+  const lossOutcome = resolvePlayerDamageLoss({
+    sinkingReason: "Your ship foundered in the storm.",
+    crewLossReason: "The last of the crew was lost in the storm."
+  });
+  if (!lossOutcome) syncAchievementsFromGameState({ type: "survived-lightning-strike" });
   return true;
 }
 
@@ -21044,9 +21054,12 @@ function applyNpcCombatHit(ball, targetId, point) {
       resisted: false,
       remainingHitPoints: ship.hitPoints
     });
-    applyCrewCasualtiesFromHullDamage(damage, "The last of the crew fell in battle.");
-    if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
-    else addHullSplinterBurst(ball, point);
+    applyCrewCasualtiesFromHullDamage(damage);
+    const lossOutcome = resolvePlayerDamageLoss({
+      sinkingReason: "Your ship was sunk in battle.",
+      crewLossReason: "The last of the crew fell in battle."
+    });
+    if (!lossOutcome) addHullSplinterBurst(ball, point);
     return;
   }
 
@@ -21741,12 +21754,15 @@ function applyCombatCollisionDamage(id, amount, otherId) {
     if (playerHullDamageWasResisted("COLLISION")) return;
     const damage = amount;
     ship.hitPoints = Math.max(0, ship.hitPoints - damage);
-    applyCrewCasualtiesFromHullDamage(damage, "The last of the crew died after a collision.");
+    applyCrewCasualtiesFromHullDamage(damage);
     combatNotice = {
       text: `COLLISION  -${formatCombatDamage(damage)} HULL`,
       expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
     };
-    if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in a collision.");
+    resolvePlayerDamageLoss({
+      sinkingReason: "Your ship was sunk in a collision.",
+      crewLossReason: "The last of the crew died after a collision."
+    });
     return;
   }
   const damage = damageNpcShip(npcSeaRoutes, id, amount);
@@ -21767,7 +21783,7 @@ function formatCombatDamage(damage) {
   return Number.isInteger(damage) ? String(damage) : damage.toFixed(1);
 }
 
-function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of the crew was lost at sea.") {
+function applyCrewCasualtiesFromHullDamage(damage) {
   if (!gameState || damage <= 0 || playerShipIsInvulnerable()) return 0;
   if (Math.random() < currentPlayerPerkTotals().crewCasualtyResistanceChance) {
     showSurvivalNotice("CREW PROTECTED", "good");
@@ -21779,8 +21795,21 @@ function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of
   presentPendingNamedCrewDeathNotice();
   syncShipCargoFromGameState();
   showSurvivalNotice(`${lost} CREW LOST`, "warn");
-  if (gameState.ship.crew <= 0) sinkPlayerShip(crewLossReason);
   return lost;
+}
+
+function resolvePlayerDamageLoss({ sinkingReason, crewLossReason }) {
+  if (!gameState?.ship || !ship) throw new Error("Player damage resolution requires an active ship");
+  const outcome = playerVesselLossOutcome({
+    crew: gameState.ship.crew,
+    hitPoints: ship.hitPoints
+  });
+  if (outcome === "sunk") {
+    sinkPlayerShip(sinkingReason);
+  } else if (outcome === "crew-depleted") {
+    endPlayerVoyage(crewLossReason, { sinkShip: false, outcomeType: "death" });
+  }
+  return outcome;
 }
 
 function playerHullDamageWasResisted(

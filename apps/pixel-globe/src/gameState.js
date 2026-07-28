@@ -1942,6 +1942,16 @@ export function rollCrewCasualtiesForDamage(state, damage, random = Math.random)
   return loseCrew(state, 1 + Math.floor(random() * maximumLoss), random);
 }
 
+export function playerVesselLossOutcome({ crew, hitPoints }) {
+  if (!Number.isInteger(crew) || crew < 0) throw new Error(`Invalid player crew: ${crew}`);
+  if (!Number.isFinite(hitPoints) || hitPoints < 0) {
+    throw new Error(`Invalid player hull points: ${hitPoints}`);
+  }
+  if (hitPoints <= 0) return "sunk";
+  if (crew <= 0) return "crew-depleted";
+  return null;
+}
+
 export function shipConsumption(state) {
   assertGameState(state);
   return shipConsumptionForValidatedState(state);

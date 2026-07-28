@@ -32,6 +32,7 @@ import {
   initializeShipProvisions,
   loseCrew,
   migrateGameState,
+  playerVesselLossOutcome,
   purchasePlayerShip,
   receiveEmergencyShipAid,
   receiveCastawayShoreAid,
@@ -1247,6 +1248,21 @@ test("dehydration and starvation kill crew without damaging the hull", () => {
   assert.throws(
     () => applySurvivalDeprivation(state, { dehydration: 0.5, starvation: 0 }),
     /Invalid dehydration severity/
+  );
+});
+
+test("player vessel loss distinguishes an intact unmanned ship from a sinking hull", () => {
+  assert.equal(playerVesselLossOutcome({ crew: 0, hitPoints: 3 }), "crew-depleted");
+  assert.equal(playerVesselLossOutcome({ crew: 4, hitPoints: 0 }), "sunk");
+  assert.equal(playerVesselLossOutcome({ crew: 0, hitPoints: 0 }), "sunk");
+  assert.equal(playerVesselLossOutcome({ crew: 1, hitPoints: 1 }), null);
+  assert.throws(
+    () => playerVesselLossOutcome({ crew: -1, hitPoints: 1 }),
+    /Invalid player crew/
+  );
+  assert.throws(
+    () => playerVesselLossOutcome({ crew: 1, hitPoints: Number.NaN }),
+    /Invalid player hull points/
   );
 });
 
