@@ -96,7 +96,8 @@ export function dashboardQueries(windowDays) {
         round(SUM(_sample_interval * if(position('side-quests' IN blob11) > 0, 1, 0))) AS side_quests,
         round(SUM(_sample_interval * if(position('animals' IN blob11) > 0, 1, 0))) AS animals,
         round(SUM(_sample_interval * if(position('panda' IN blob11) > 0, 1, 0))) AS panda,
-        round(SUM(_sample_interval * if(position('penguin' IN blob11) > 0, 1, 0))) AS penguin
+        round(SUM(_sample_interval * if(position('penguin' IN blob11) > 0, 1, 0))) AS penguin,
+        round(SUM(_sample_interval * if(position('raccoon' IN blob11) > 0, 1, 0))) AS raccoon
       FROM ${DATASET}
       WHERE blob1 = 'voyage_end' AND ${where}
     `,
@@ -148,7 +149,7 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
   const featureVoyages = nonnegativeNumber(featureRow.voyages);
   const featureNames = [
     "trade", "fish", "scavenge", "combat", "whale", "colonize",
-    "piracy", "diplomacy", "side_quests", "animals", "panda", "penguin"
+    "piracy", "diplomacy", "side_quests", "animals", "panda", "penguin", "raccoon"
   ];
   return {
     schemaVersion: 1,

@@ -73,8 +73,8 @@ test("routine events queued by old tabs are normalized to unit weight", async ()
 test("voyage events record every animal companion while accepting old panda payloads", async () => {
   const points = [];
   const current = event("voyage_end", voyagePayload({
-    features: ["animals", "panda", "penguin"],
-    companionStatuses: "panda:aboard,penguin:with-naturalist"
+    features: ["animals", "panda", "penguin", "raccoon"],
+    companionStatuses: "panda:aboard,penguin:with-naturalist,raccoon:aboard"
   }));
   const legacy = event("voyage_end", voyagePayload({
     features: ["animals", "panda"],
@@ -85,8 +85,8 @@ test("voyage events record every animal companion while accepting old panda payl
 
   assert.equal(response.status, 202);
   assert.equal(points.length, 2);
-  assert.equal(points[0].blobs[10], "animals,panda,penguin");
-  assert.equal(points[0].blobs[11], "panda:aboard,penguin:with-naturalist");
+  assert.equal(points[0].blobs[10], "animals,panda,penguin,raccoon");
+  assert.equal(points[0].blobs[11], "panda:aboard,penguin:with-naturalist,raccoon:aboard");
   assert.equal(points[1].blobs[11], "panda:aboard");
 });
 

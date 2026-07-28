@@ -19,7 +19,8 @@ const FEATURE_IDS = new Set([
   "side-quests",
   "animals",
   "panda",
-  "penguin"
+  "penguin",
+  "raccoon"
 ]);
 const COMMON_HEADERS = Object.freeze({
   "access-control-allow-origin": "*",

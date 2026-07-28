@@ -77,7 +77,8 @@ const sections = [
       round(SUM(_sample_interval * if(position('side-quests' IN blob11) > 0, 1, 0))) AS side_quests,
       round(SUM(_sample_interval * if(position('animals' IN blob11) > 0, 1, 0))) AS animals,
       round(SUM(_sample_interval * if(position('panda' IN blob11) > 0, 1, 0))) AS panda,
-      round(SUM(_sample_interval * if(position('penguin' IN blob11) > 0, 1, 0))) AS penguin
+      round(SUM(_sample_interval * if(position('penguin' IN blob11) > 0, 1, 0))) AS penguin,
+      round(SUM(_sample_interval * if(position('raccoon' IN blob11) > 0, 1, 0))) AS raccoon
     FROM ${dataset}
     WHERE blob1 = 'voyage_end'
       AND blob4 != 'deployment-check'

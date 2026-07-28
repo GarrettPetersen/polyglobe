@@ -249,6 +249,21 @@ test("voyage summaries expose bounded feature engagement without names or save d
   assert.equal(JSON.stringify(payload).includes("captain"), false);
 });
 
+test("raccoon telemetry records acquisition rather than a recruitment prompt", () => {
+  for (const status of ["unmet", "pending", "declined"]) {
+    const state = voyageState("explorer");
+    state.memory.animalCompanions.byId.raccoon.status = status;
+    assert.ok(!voyageTelemetryPayload(voyageRecord(), state).features.includes("raccoon"));
+  }
+  for (const status of ["aboard", "with-naturalist"]) {
+    const state = voyageState("explorer");
+    state.memory.animalCompanions.byId.raccoon.status = status;
+    const payload = voyageTelemetryPayload(voyageRecord(), state);
+    assert.ok(payload.features.includes("raccoon"));
+    assert.match(payload.companionStatuses, new RegExp(`raccoon:${status}`));
+  }
+});
+
 test("runtime channels keep web, itch, local, and Steam reports separate", () => {
   assert.equal(telemetryRuntimeChannel({
     edition: "full",

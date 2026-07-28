@@ -28,9 +28,9 @@ const TELEMETRY_FEATURES = Object.freeze([
     hasDecisionPrefix(decisions, "diplomacy.")],
   ["side-quests", (state) => Object.keys(state.memory?.quests?.completed || {}).length > 0],
   ["animals", (state) => (state.memory?.animals?.encounterOrder?.length || 0) > 0],
-  ["panda", (state) => animalCompanionWasEngaged(state, "panda")],
-  ["penguin", (state) => animalCompanionWasEngaged(state, "penguin")],
-  ["raccoon", (state) => animalCompanionWasEngaged(state, "raccoon")]
+  ["panda", (state) => animalCompanionWasAcquired(state, "panda")],
+  ["penguin", (state) => animalCompanionWasAcquired(state, "penguin")],
+  ["raccoon", (state) => animalCompanionWasAcquired(state, "raccoon")]
 ]);
 
 export function createGameTelemetry({
@@ -283,9 +283,9 @@ export function voyageTelemetryPayload(record, state) {
   };
 }
 
-function animalCompanionWasEngaged(state, companionId) {
+function animalCompanionWasAcquired(state, companionId) {
   const status = state.memory?.animalCompanions?.byId?.[companionId]?.status;
-  return !["unmet", "declined", undefined].includes(status);
+  return status === "aboard" || status === "with-naturalist";
 }
 
 function animalCompanionTelemetryStatuses(state) {

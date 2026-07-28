@@ -53,7 +53,8 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       side_quests: 70,
       animals: 15,
       panda: 2,
-      penguin: 1
+      penguin: 1,
+      raccoon: 3
     }],
     environments: [{
       platform: "browser",
@@ -86,5 +87,10 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     id: "penguin",
     voyages: 1,
     percent: 1
+  });
+  assert.deepEqual(snapshot.features.find((entry) => entry.id === "raccoon"), {
+    id: "raccoon",
+    voyages: 3,
+    percent: 3
   });
 });
