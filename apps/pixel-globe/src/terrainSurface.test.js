@@ -59,9 +59,23 @@ test("a ship may leave only the seasonal ice tile it already occupies", () => {
   );
 });
 
-test("ordinary shores receive beaches in either row order", () => {
-  assert.equal(terrainRowsNeedBeach({ t: "water" }, { t: "land" }), true);
-  assert.equal(terrainRowsNeedBeach({ t: "land" }, { t: "beach" }), true);
+test("every ordinary water-to-land connector is beach in either row order", () => {
+  const waterTerrains = ["water", "lake", "beach"];
+  const landTerrains = ["land", "grass", "forest", "jungle", "desert", "mountain"];
+  for (const water of waterTerrains) {
+    for (const land of landTerrains) {
+      assert.equal(
+        terrainRowsNeedBeach({ t: water }, { t: land }),
+        true,
+        `${water} to ${land}`
+      );
+      assert.equal(
+        terrainRowsNeedBeach({ t: land }, { t: water }),
+        true,
+        `${land} to ${water}`
+      );
+    }
+  }
   assert.equal(terrainRowsNeedBeach({ t: "water" }, { t: "lake" }), false);
   assert.equal(terrainRowsNeedBeach({ t: "land" }, { t: "forest" }), false);
 });

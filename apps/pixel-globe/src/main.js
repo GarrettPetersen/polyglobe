@@ -1619,7 +1619,7 @@ const WIND_INDICATOR_STRENGTH_LERP_PER_SECOND = 2.4;
 const WIND_INDICATOR_WARNING_LERP_PER_SECOND = 8;
 const WIND_INDICATOR_STALL_PULSE_MS = 900;
 const RIVER_HIGHLIGHT_FRAME_MS = 2000;
-const WATER_REDRAW_MS = 500;
+const WATER_REDRAW_MS = 125;
 const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 250;
 const WEATHER_SIMULATION_INTERVAL_SECONDS = 0.1;
@@ -22824,9 +22824,6 @@ function drawDayNightWorld(layers, nowMs) {
         layers.connectors.dayKey
       );
     },
-    terrainTiles: () => {
-      drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset);
-    },
     tidalWater: () => {
       drawCachedWorldLayer(
         "terrain-connector-waves",
@@ -22834,6 +22831,9 @@ function drawDayNightWorld(layers, nowMs) {
         layers.offset,
         waterAnimationDrawTick
       );
+    },
+    terrainTiles: () => {
+      drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset);
     },
     surfaceDetails: () => {
       drawCachedWorldLayer(

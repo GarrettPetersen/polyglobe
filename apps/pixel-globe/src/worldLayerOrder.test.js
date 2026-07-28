@@ -5,7 +5,7 @@ import {
   WORLD_LAYER_ORDER
 } from "./worldLayerOrder.js";
 
-test("beach connectors stay below terrain while tidal water advances over it", () => {
+test("the priority beach connector and its tide both remain beneath terrain tiles", () => {
   const drawn = [];
   const drawers = Object.fromEntries(
     WORLD_LAYER_ORDER.map((layer) => [layer, () => drawn.push(layer)])
@@ -15,8 +15,8 @@ test("beach connectors stay below terrain while tidal water advances over it", (
 
   assert.deepEqual(drawn, [
     "connectorBase",
-    "terrainTiles",
     "tidalWater",
+    "terrainTiles",
     "surfaceDetails",
     "waterEffects",
     "waterForeground",

@@ -1,7 +1,7 @@
 export const WORLD_LAYER_ORDER = Object.freeze([
   "connectorBase",
-  "terrainTiles",
   "tidalWater",
+  "terrainTiles",
   "surfaceDetails",
   "waterEffects",
   "waterForeground",

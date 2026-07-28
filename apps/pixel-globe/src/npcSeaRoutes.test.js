@@ -25,6 +25,7 @@ import {
   npcPortHasMajorProtection,
   reconcileNpcCargoCapacity,
   routeBetweenPorts,
+  npcSeaRouteEventSchedule,
   npcShipHasCombatGrace,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
@@ -460,6 +461,10 @@ test("NPC route snapshots preserve planless pirates hidden at a hideout", () => 
   assert.equal(restored.hiddenAtHideout, true);
   assert.equal(restored.plan, null);
   assert.equal(restored.currentPort.tileId, hideout.tileId);
+  assert.deepEqual(
+    npcSeaRouteEventSchedule(routes).find((event) => event.id === restored.id),
+    { id: restored.id, minute: restored.hiddenUntilMinute }
+  );
 });
 
 test("saved routes retain generated fishing grounds that leave the current top set", () => {

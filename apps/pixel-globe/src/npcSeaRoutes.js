@@ -997,6 +997,18 @@ export function npcSeaRouteEventSchedule(system) {
   assertSaveableNpcRouteSystem(system);
   const events = [];
   for (const ship of system.ships) {
+    if (ship.hiddenAtHideout) {
+      if (ship.plan !== null) {
+        throw new Error(`Hidden NPC pirate unexpectedly has a route plan: ${ship.id}`);
+      }
+      const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
+      const minute = Math.max(ship.hiddenUntilMinute, dangerUntil);
+      if (!Number.isFinite(minute) || minute < 0) {
+        throw new Error(`NPC pirate has an invalid hideout release minute: ${ship.id}`);
+      }
+      events.push(Object.freeze({ id: ship.id, minute }));
+      continue;
+    }
     if (!ship.plan || !Number.isFinite(ship.plan.endMinute)) {
       throw new Error(`NPC ship has no schedulable route plan: ${ship.id}`);
     }
