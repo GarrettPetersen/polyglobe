@@ -165,6 +165,7 @@ import {
   COLONIZATION_SETTLER_COUNT,
   COLONIZATION_STAGE_OUTBOUND,
   createColonizationQuestMemory,
+  migrateColonizationQuestMemory,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
 import {
@@ -223,9 +224,15 @@ import {
   validateNamedCrew,
   validateNamedCrewDeathNotices
 } from "./namedCrew.js";
+import {
+  createQuestCargoDeliveryMemory,
+  questCargoDeliverableQuantity,
+  recordQuestCargoDelivery,
+  validateQuestCargoDeliveryMemory
+} from "./questCargoDeliveries.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 50;
+export const GAME_STATE_VERSION = 51;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
@@ -459,6 +466,7 @@ export function createGameState({
         passengerOffers: {},
         passengerRolls: {},
         vikingLongshipRolls: {},
+        cargoDeliveries: createQuestCargoDeliveryMemory(),
         japaneseMatchlocks: createJapaneseMatchlockQuestMemory(),
         caribbeanGinger: createCaribbeanGingerQuestMemory(),
         chef: createChefQuestMemory(),
@@ -496,7 +504,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -613,6 +621,8 @@ export function migrateGameState(state, shipStats) {
         ...migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
           migrateRetiredFactionReferences(state.memory?.quests)
         )),
+        cargoDeliveries: state.memory?.quests?.cargoDeliveries ||
+          createQuestCargoDeliveryMemory(),
         capturePortOffers: state.memory?.quests?.capturePortOffers || {},
         capturePortRolls: state.memory?.quests?.capturePortRolls || {},
         japaneseMatchlocks: state.memory?.quests?.japaneseMatchlocks ||
@@ -635,7 +645,7 @@ export function migrateGameState(state, shipStats) {
       },
       cargoReservations: state.memory?.cargoReservations || {},
       missionItemGifts: state.memory?.missionItemGifts || {},
-      colonization: state.memory?.colonization || createColonizationQuestMemory(),
+      colonization: migrateColonizationQuestMemory(state.memory?.colonization),
       conquest: migrateConquestFactionReferences(state.memory?.conquest || createPortConquestMemory()),
       achievements: migrateVoyageAchievementProgress(state.memory?.achievements),
       whales: state.memory?.whales?.version === 2 ? state.memory.whales : createWhaleMemory(),
@@ -2287,6 +2297,41 @@ export function deliverQuestCargo(state, city, goodId, quantity, questId, contex
     pnl: null
   });
   return { good, quantity, costBasis: deliveredCost };
+}
+
+export function deliverQuestCargoRequirement(
+  state,
+  city,
+  goodId,
+  requiredQuantity,
+  requirementId,
+  context = {}
+) {
+  assertGameState(state);
+  const deliverableQuantity = questCargoDeliverableQuantity(
+    state,
+    requirementId,
+    requiredQuantity,
+    state.cargo[goodId] || 0
+  );
+  if (deliverableQuantity <= 0) {
+    throw new Error(`No ${goodById(goodId).label} is available for ${requirementId}`);
+  }
+  const delivery = deliverQuestCargo(
+    state,
+    city,
+    goodId,
+    deliverableQuantity,
+    requirementId,
+    context
+  );
+  const progress = recordQuestCargoDelivery(
+    state,
+    requirementId,
+    deliverableQuantity,
+    requiredQuantity
+  );
+  return Object.freeze({ ...delivery, ...progress });
 }
 
 export function shipItemRows(state) {
@@ -5256,6 +5301,7 @@ function assertGameState(state) {
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
   assertCargoReservations(state.memory.cargoReservations);
   assertMissionItemGifts(state.memory.missionItemGifts);
+  validateQuestCargoDeliveryMemory(state.memory.quests?.cargoDeliveries);
   validateJapaneseMatchlockQuestMemory(state.memory.quests?.japaneseMatchlocks);
   validateCaribbeanGingerQuestMemory(state.memory.quests?.caribbeanGinger);
   validateChefQuestMemory(state.memory.quests?.chef);

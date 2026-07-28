@@ -4,6 +4,10 @@ import {
   MATCHLOCKS_GOOD_ID,
   tradeGoodById
 } from "./economy.js";
+import {
+  questCargoDeliverableQuantity,
+  questCargoDeliveryProgress
+} from "./questCargoDeliveries.js";
 
 export const JAPANESE_MATCHLOCK_QUEST_VERSION = 1;
 export const JAPANESE_MATCHLOCK_WORKSHOP_CITY = "Kyoto";
@@ -152,12 +156,30 @@ export function japaneseMatchlockQuestState(state, city) {
     ? JAPANESE_MATCHLOCK_FETCH_STAGES[memory.fetchStageIndex]
     : null;
   const held = fetchStage ? state.cargo?.[fetchStage.goodId] || 0 : 0;
+  const progress = fetchStage
+    ? questCargoDeliveryProgress(
+        state,
+        japaneseMatchlockRequirementId(fetchStage),
+        fetchStage.quantity
+      )
+    : null;
+  const deliverable = fetchStage
+    ? questCargoDeliverableQuantity(
+        state,
+        japaneseMatchlockRequirementId(fetchStage),
+        fetchStage.quantity,
+        held
+      )
+    : 0;
   return Object.freeze({
     stage: memory.stage,
     fetchStageIndex: memory.fetchStageIndex,
     fetchStage,
     held,
-    canDeliver: Boolean(fetchStage && held >= fetchStage.quantity),
+    delivered: progress?.deliveredQuantity || 0,
+    remaining: progress?.remainingQuantity || 0,
+    deliverable,
+    canDeliver: deliverable > 0,
     completed: memory.stage === JAPANESE_MATCHLOCK_STAGE_COMPLETED,
     offerSeen: memory.offerSeen,
     workshop: Object.freeze({
@@ -185,7 +207,7 @@ export function markJapaneseMatchlockOfferSeen(state) {
 export function assertJapaneseMatchlockDelivery(state, city, stageId) {
   const quest = activeQuestStage(state, city, stageId);
   if (!quest.canDeliver) {
-    throw new Error(`Not enough ${quest.fetchStage.goodLabel} for the Japanese matchlock workshop`);
+    throw new Error(`No ${quest.fetchStage.goodLabel} is aboard for the Japanese matchlock workshop`);
   }
   return quest.fetchStage;
 }
@@ -218,6 +240,11 @@ function fetchStage(id, goodId, quantity, purpose) {
     throw new Error(`Invalid Japanese matchlock fetch quantity: ${id}`);
   }
   return Object.freeze({ id, goodId, goodLabel: good.label, quantity, purpose });
+}
+
+export function japaneseMatchlockRequirementId(stage) {
+  if (!stage?.id) throw new Error("Japanese matchlock cargo requirement needs a stage");
+  return `japanese-matchlocks.${stage.id}`;
 }
 
 function activeQuestStage(state, city, stageId) {

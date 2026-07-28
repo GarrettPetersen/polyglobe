@@ -1,5 +1,9 @@
-import { deliverQuestCargo } from "./gameState.js";
+import { deliverQuestCargoRequirement } from "./gameState.js";
 import { hasPermanentCrewBerth } from "./namedCrew.js";
+import {
+  questCargoDeliverableQuantity,
+  questCargoDeliveryProgress
+} from "./questCargoDeliveries.js";
 
 export const VIKING_LONGSHIP_SLUG = "viking-longship";
 export const VIKING_LONGSHIP_PORT_CITY = "Hafnarfjordur";
@@ -81,11 +85,25 @@ export function vikingLongshipQuestState(state, city) {
   }
   const stage = VIKING_LONGSHIP_FETCH_STAGES[stageIndex] || null;
   const held = stage ? state.cargo?.[stage.goodId] || 0 : 0;
+  const progress = stage
+    ? questCargoDeliveryProgress(state, vikingLongshipRequirementId(stage), stage.quantity)
+    : null;
+  const deliverable = stage
+    ? questCargoDeliverableQuantity(
+        state,
+        vikingLongshipRequirementId(stage),
+        stage.quantity,
+        held
+      )
+    : 0;
   return Object.freeze({
     stageIndex,
     stage,
     held,
-    canDeliver: Boolean(stage && held >= stage.quantity),
+    delivered: progress?.deliveredQuantity || 0,
+    remaining: progress?.remainingQuantity || 0,
+    deliverable,
+    canDeliver: deliverable > 0,
     unlocked: stage === null,
     rewardDisposition: stage === null ? vikingLongshipRewardDisposition(state) : null
   });
@@ -98,18 +116,19 @@ export function deliverVikingLongshipQuestCargo(state, city, stageId, context = 
   if (quest.stage.id !== stageId) {
     throw new Error(`Unexpected Viking longship material stage: ${stageId}`);
   }
-  const delivery = deliverQuestCargo(
+  const delivery = deliverQuestCargoRequirement(
     state,
     city,
     quest.stage.goodId,
     quest.stage.quantity,
-    `viking-longship.${quest.stage.id}`,
+    vikingLongshipRequirementId(quest.stage),
     context
   );
-  state.memory.flags[QUEST_STAGE_FLAG] = quest.stageIndex + 1;
+  if (delivery.complete) state.memory.flags[QUEST_STAGE_FLAG] = quest.stageIndex + 1;
   return {
     ...delivery,
-    completedStage: quest.stage,
+    completedStage: delivery.complete ? quest.stage : null,
+    activeStage: quest.stage,
     quest: vikingLongshipQuestState(state, city)
   };
 }
@@ -169,6 +188,11 @@ function setVikingLongshipRewardDisposition(state, expected, disposition) {
 
 function fetchStage(id, goodId, goodLabel, quantity, purpose) {
   return Object.freeze({ id, goodId, goodLabel, quantity, purpose });
+}
+
+export function vikingLongshipRequirementId(stage) {
+  if (!stage?.id) throw new Error("Viking longship cargo requirement needs a stage");
+  return `viking-longship.${stage.id}`;
 }
 
 function vikingQuestMemory(state) {

@@ -5,7 +5,9 @@ export function fetchQuestRequirements({
   caribbeanGinger = null,
   caribbeanGingerPort = null,
   viking = null,
-  vikingPort = null
+  vikingPort = null,
+  chef = null,
+  chefPort = null
 } = {}) {
   const requirements = [];
 
@@ -17,17 +19,20 @@ export function fetchQuestRequirements({
         stageId: colonization.fetchStage.id,
         good: colonization.fetchStage,
         held: colonization.held,
+        delivered: colonization.fetchDelivered,
         destination: colonization.origin
       }));
     } else if (colonization.stage === "outbound" && colonization.approval &&
         colonization.approvalGranted !== true) {
       for (const cargo of colonization.approvalCargo) {
+        if (cargo.complete) continue;
         requirements.push(requirement({
           id: `colonization:approval:${cargo.goodId}`,
           questId: "colonization",
           stageId: "approval",
           good: cargo,
           held: cargo.held,
+          delivered: cargo.delivered,
           destination: colonization.approval,
           routeReady: colonization.approvalCargoReady
         }));
@@ -39,6 +44,7 @@ export function fetchQuestRequirements({
         stageId: "resupply",
         good: colonization.resupply,
         held: colonization.resupplyHeld,
+        delivered: colonization.resupply.delivered,
         destination: colonization.target
       }));
     }
@@ -51,6 +57,7 @@ export function fetchQuestRequirements({
       stageId: viking.stage.id,
       good: viking.stage,
       held: viking.held,
+      delivered: viking.delivered,
       destination: vikingPort
     }));
   }
@@ -62,6 +69,7 @@ export function fetchQuestRequirements({
       stageId: japaneseMatchlocks.fetchStage.id,
       good: japaneseMatchlocks.fetchStage,
       held: japaneseMatchlocks.held,
+      delivered: japaneseMatchlocks.delivered,
       destination: japaneseMatchlockPort
     }));
   }
@@ -73,8 +81,28 @@ export function fetchQuestRequirements({
       stageId: caribbeanGinger.fetchStage.id,
       good: caribbeanGinger.fetchStage,
       held: caribbeanGinger.held,
+      delivered: caribbeanGinger.delivered,
       destination: caribbeanGingerPort
     }));
+  }
+
+  if (chef?.stage === "gathering" && chefPort) {
+    for (const ingredient of chef.ingredients) {
+      if (ingredient.ready) continue;
+      requirements.push(requirement({
+        id: ingredient.requirementId,
+        questId: "banquet-chef",
+        stageId: ingredient.goodId,
+        good: {
+          goodId: ingredient.goodId,
+          goodLabel: ingredient.label,
+          quantity: 1
+        },
+        held: ingredient.held,
+        delivered: ingredient.delivered,
+        destination: chefPort
+      }));
+    }
   }
 
   return Object.freeze(requirements);
@@ -117,23 +145,38 @@ export function advanceFetchQuestReadiness(previous, requirements) {
   return Object.freeze({ next, newlyReady: Object.freeze(newlyReady) });
 }
 
-function requirement({ id, questId, stageId, good, held, destination, routeReady = null }) {
+function requirement({
+  id,
+  questId,
+  stageId,
+  good,
+  held,
+  delivered = 0,
+  destination,
+  routeReady = null
+}) {
   if (!good || typeof good.goodId !== "string" || typeof good.goodLabel !== "string" ||
       !Number.isInteger(good.quantity) || good.quantity <= 0) {
     throw new Error(`Invalid fetch quest good: ${id}`);
   }
   if (!Number.isFinite(held) || held < 0) throw new Error(`Invalid fetch quest cargo held: ${id}`);
+  if (!Number.isInteger(delivered) || delivered < 0 || delivered > good.quantity) {
+    throw new Error(`Invalid fetch quest cargo delivered: ${id}`);
+  }
   if (!destination || !Number.isInteger(destination.tileId) || typeof destination.city !== "string") {
     throw new Error(`Invalid fetch quest destination: ${id}`);
   }
-  const ready = held >= good.quantity;
+  const remaining = good.quantity - delivered;
+  const ready = held >= remaining;
   return Object.freeze({
     id,
     questId,
     stageId,
     goodId: good.goodId,
     goodLabel: good.goodLabel,
-    quantity: good.quantity,
+    quantity: remaining,
+    totalQuantity: good.quantity,
+    delivered,
     held,
     ready,
     routeReady: routeReady === null ? ready : Boolean(routeReady),

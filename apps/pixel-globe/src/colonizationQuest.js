@@ -8,6 +8,10 @@ import { greatCircleDistanceKm } from "./worldDistance.js";
 import { tradeGoodById } from "./economy.js";
 import { colonizationHistoryForTarget } from "./colonizationHistory.js";
 import { foreignSettlementsByIds } from "./foreignSettlements.js";
+import {
+  questCargoDeliverableQuantity,
+  questCargoDeliveryProgress
+} from "./questCargoDeliveries.js";
 
 export const COLONIZATION_QUEST_VERSION = 1;
 export const COLONIZATION_ORIGIN_CITY = "Bordeaux";
@@ -21,6 +25,7 @@ export const COLONIZATION_SETTLER_COUNT = 12;
 export const COLONIZATION_MIN_CARGO_CAPACITY = 90;
 export const COLONIZATION_MIN_SEAWORTHINESS = 7;
 export const COLONIZATION_RESUPPLY_DAYS = 365;
+export const COLONIZATION_RESUPPLY_EXTENSION_DAYS_PER_UNIT = 30;
 export const COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER = 0.85;
 export const COLONIZATION_ORGANIZER_APPROACHED_FLAG = "colonizationOrganizerApproached";
 export const COLONIZATION_SPAWN_CHANCE = 0.035;
@@ -68,6 +73,7 @@ export function createColonizationQuestMemory() {
     targetTileId: null,
     foundedMinute: null,
     resupplyDeadlineMinute: null,
+    resupplyExtensionMinutes: 0,
     leftSinceFounding: false,
     failedMinute: null,
     establishedMinute: null,
@@ -152,6 +158,13 @@ export function validateColonizationQuestMemory(memory) {
   if (typeof memory.leftSinceFounding !== "boolean") {
     throw new Error("Colonization quest requires a departure flag");
   }
+  if (!Number.isInteger(memory.resupplyExtensionMinutes) ||
+      memory.resupplyExtensionMinutes < 0 ||
+      memory.resupplyExtensionMinutes % (
+        COLONIZATION_RESUPPLY_EXTENSION_DAYS_PER_UNIT * MINUTES_PER_DAY
+      ) !== 0) {
+    throw new Error(`Invalid colonization resupply extension: ${memory.resupplyExtensionMinutes}`);
+  }
   for (const key of [
     "foundedMinute",
     "resupplyDeadlineMinute",
@@ -182,7 +195,9 @@ export function validateColonizationQuestMemory(memory) {
     throw new Error(`Colonization founding timestamps do not match stage: ${memory.stage}`);
   }
   if (founded && memory.resupplyDeadlineMinute !==
-      memory.foundedMinute + COLONIZATION_RESUPPLY_DAYS * MINUTES_PER_DAY) {
+      memory.foundedMinute +
+        COLONIZATION_RESUPPLY_DAYS * MINUTES_PER_DAY +
+        memory.resupplyExtensionMinutes) {
     throw new Error("Colonization resupply deadline is not one year after founding");
   }
   if ((memory.stage === COLONIZATION_STAGE_FAILED) !== (memory.failedMinute !== null)) {
@@ -218,6 +233,16 @@ export function validateColonizationQuestMemory(memory) {
 export function colonizationQuestMemory(state) {
   const memory = state?.memory?.colonization;
   return validateColonizationQuestMemory(memory);
+}
+
+export function migrateColonizationQuestMemory(memory) {
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    return createColonizationQuestMemory();
+  }
+  return validateColonizationQuestMemory({
+    ...memory,
+    resupplyExtensionMinutes: memory.resupplyExtensionMinutes ?? 0
+  });
 }
 
 export function assignColonizationQuest(memory, { target, origin, approvalPort = null }) {
@@ -410,6 +435,21 @@ export function colonizationQuestView(
     ? (history?.fetchStages || COLONIZATION_FETCH_STAGES)[memory.fetchStageIndex]
     : null;
   const held = fetchStage ? state.cargo?.[fetchStage.goodId] || 0 : 0;
+  const fetchProgress = fetchStage
+    ? questCargoDeliveryProgress(
+        state,
+        colonizationFetchRequirementId(selectedTarget, fetchStage),
+        fetchStage.quantity
+      )
+    : null;
+  const fetchDeliverable = fetchStage
+    ? questCargoDeliverableQuantity(
+        state,
+        colonizationFetchRequirementId(selectedTarget, fetchStage),
+        fetchStage.quantity,
+        held
+      )
+    : 0;
   const shipEligibility = shipStats
     ? colonizationShipEligibility(shipStats, freeCargoUnits)
     : null;
@@ -423,11 +463,20 @@ export function colonizationQuestView(
     approval: colonizationApprovalIdentity(memory),
     approvalCargo,
     approvalCargoReady: approvalCargo.every((requirement) => requirement.missing === 0),
+    approvalCargoDelivered: approvalCargo.every((requirement) => requirement.complete),
+    approvalCargoDeliverable: approvalCargo.some((requirement) => requirement.deliverable > 0),
     fetchStage,
     held,
-    canDeliverFetch: Boolean(fetchStage && held >= fetchStage.quantity),
+    fetchDelivered: fetchProgress?.deliveredQuantity || 0,
+    fetchRemaining: fetchProgress?.remainingQuantity || 0,
+    fetchDeliverable,
+    canDeliverFetch: fetchDeliverable > 0,
     shipEligibility,
-    resupply: history?.resupply || COLONIZATION_RESUPPLY,
+    resupply: colonizationResupplyView(
+      state,
+      selectedTarget,
+      history?.resupply || COLONIZATION_RESUPPLY
+    ),
     defense: history?.defense || null,
     defenseRemaining: Math.max(
       0,
@@ -519,6 +568,7 @@ export function landColonists(memory, currentMinute) {
   memory.stage = COLONIZATION_STAGE_AWAITING_RESUPPLY;
   memory.foundedMinute = currentMinute;
   memory.resupplyDeadlineMinute = currentMinute + COLONIZATION_RESUPPLY_DAYS * MINUTES_PER_DAY;
+  memory.resupplyExtensionMinutes = 0;
   memory.leftSinceFounding = false;
   validateColonizationQuestMemory(memory);
   return memory;
@@ -551,6 +601,22 @@ export function assertColonizationResupplyDelivery(memory, currentMinute) {
   if (!memory.leftSinceFounding) throw new Error("The ship must leave the colony before returning with resupply");
   if (currentMinute > memory.resupplyDeadlineMinute) throw new Error("The colony resupply deadline has passed");
   return colonizationHistoryForTarget(requiredSelectedTarget(memory)).resupply;
+}
+
+export function extendColonizationResupplyDeadline(memory, deliveredQuantity) {
+  validateColonizationQuestMemory(memory);
+  if (memory.stage !== COLONIZATION_STAGE_AWAITING_RESUPPLY) {
+    throw new Error(`Colonization resupply cannot extend the deadline during ${memory.stage}`);
+  }
+  if (!Number.isInteger(deliveredQuantity) || deliveredQuantity <= 0) {
+    throw new Error(`Invalid partial colony resupply quantity: ${deliveredQuantity}`);
+  }
+  const extensionMinutes =
+    deliveredQuantity * COLONIZATION_RESUPPLY_EXTENSION_DAYS_PER_UNIT * MINUTES_PER_DAY;
+  memory.resupplyExtensionMinutes += extensionMinutes;
+  memory.resupplyDeadlineMinute += extensionMinutes;
+  validateColonizationQuestMemory(memory);
+  return extensionMinutes;
 }
 
 export function establishColony(memory, currentMinute) {
@@ -786,13 +852,68 @@ function colonizationApprovalCargoView(state, target) {
   return Object.freeze(target.approvalCargo.map((requirement) => {
     const good = tradeGoodById(requirement.goodId);
     const held = state.cargo?.[good.id] || 0;
+    const requirementId = colonizationApprovalRequirementId(target, requirement);
+    const progress = questCargoDeliveryProgress(state, requirementId, requirement.quantity);
+    const deliverable = questCargoDeliverableQuantity(
+      state,
+      requirementId,
+      requirement.quantity,
+      held
+    );
     return Object.freeze({
       ...requirement,
       goodLabel: good.label,
       held,
-      missing: Math.max(0, requirement.quantity - held)
+      requirementId,
+      delivered: progress.deliveredQuantity,
+      remaining: progress.remainingQuantity,
+      deliverable,
+      complete: progress.complete,
+      missing: Math.max(0, progress.remainingQuantity - held)
     });
   }));
+}
+
+function colonizationResupplyView(state, target, resupply) {
+  if (!target) return resupply;
+  const requirementId = colonizationResupplyRequirementId(target, resupply);
+  const held = state.cargo?.[resupply.goodId] || 0;
+  const progress = questCargoDeliveryProgress(state, requirementId, resupply.quantity);
+  return Object.freeze({
+    ...resupply,
+    requirementId,
+    delivered: progress.deliveredQuantity,
+    remaining: progress.remainingQuantity,
+    deliverable: questCargoDeliverableQuantity(
+      state,
+      requirementId,
+      resupply.quantity,
+      held
+    ),
+    complete: progress.complete
+  });
+}
+
+export function colonizationFetchRequirementId(target, stage) {
+  if (!stage?.id) throw new Error("Colonization fetch requirement needs a stage");
+  return `${colonizationRequirementPrefix(target)}.fetch.${stage.id}`;
+}
+
+export function colonizationApprovalRequirementId(target, requirement) {
+  if (!requirement?.goodId) throw new Error("Colonization approval requirement needs a good");
+  return `${colonizationRequirementPrefix(target)}.approval.${requirement.goodId}`;
+}
+
+export function colonizationResupplyRequirementId(target, resupply) {
+  if (!resupply?.goodId) throw new Error("Colonization resupply requirement needs a good");
+  return `${colonizationRequirementPrefix(target)}.resupply.${resupply.goodId}`;
+}
+
+function colonizationRequirementPrefix(target) {
+  if (!target?.city || !target?.country) {
+    throw new Error("Colonization cargo requirement needs a selected target");
+  }
+  return `colonization.${target.city}.${target.country}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
 function validateQuestOrigin(origin) {

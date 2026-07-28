@@ -1,5 +1,9 @@
 import { tradeGoodById } from "./economy.js";
 import { hasPermanentCrewBerth } from "./namedCrew.js";
+import {
+  questCargoDeliverableQuantity,
+  questCargoDeliveryProgress
+} from "./questCargoDeliveries.js";
 
 export const CHEF_QUEST_VERSION = 1;
 export const CHEF_QUEST_STAGE_LOCKED = "locked";
@@ -118,12 +122,26 @@ export function chefQuestState(state, city) {
   const ingredients = memory.ingredientGoodIds.map((goodId) => {
     const good = tradeGoodById(goodId);
     const held = state.cargo?.[goodId] || 0;
-    return Object.freeze({ goodId, label: good.label, held, ready: held >= 1 });
+    const requirementId = chefIngredientRequirementId(memory, goodId);
+    const progress = questCargoDeliveryProgress(state, requirementId, 1);
+    return Object.freeze({
+      goodId,
+      label: good.label,
+      held,
+      requirementId,
+      delivered: progress.deliveredQuantity,
+      remaining: progress.remainingQuantity,
+      deliverable: questCargoDeliverableQuantity(state, requirementId, 1, held),
+      ready: progress.complete
+    });
   });
   return Object.freeze({
     stage: memory.stage,
     ingredients: Object.freeze(ingredients),
-    canDeliver: memory.stage === CHEF_QUEST_STAGE_GATHERING && ingredients.every((entry) => entry.ready),
+    canDeliver: memory.stage === CHEF_QUEST_STAGE_GATHERING &&
+      ingredients.some((entry) => entry.deliverable > 0),
+    complete: memory.stage === CHEF_QUEST_STAGE_GATHERING &&
+      ingredients.every((entry) => entry.ready),
     offerSeen: memory.offerSeen,
     event: chefEventProfile(memory.eventProfileId),
     port: Object.freeze({ tileId: memory.portTileId, city: memory.portCity, country: memory.portCountry })
@@ -143,29 +161,25 @@ export function markChefQuestOfferSeen(state) {
 
 export function completeChefBanquet(state, city, currentMinute) {
   const quest = chefQuestState(state, city);
-  if (!quest || quest.stage !== CHEF_QUEST_STAGE_GATHERING || !quest.canDeliver) {
+  if (!quest || quest.stage !== CHEF_QUEST_STAGE_GATHERING || !quest.complete) {
     throw new Error("Chef banquet ingredients are not ready");
   }
   if (!Number.isFinite(currentMinute) || currentMinute < 0) {
     throw new Error(`Invalid chef banquet completion minute: ${currentMinute}`);
-  }
-  for (const ingredient of quest.ingredients) {
-    const held = state.cargo[ingredient.goodId] || 0;
-    if (held < 1) throw new Error(`Chef banquet lost its ${ingredient.label}`);
-    if (held === 1) delete state.cargo[ingredient.goodId];
-    else state.cargo[ingredient.goodId] = held - 1;
-    const basis = state.accounts.cargoCostBasis[ingredient.goodId];
-    if (basis !== undefined) {
-      const remainingBasis = basis * Math.max(0, held - 1) / held;
-      if (remainingBasis > 0) state.accounts.cargoCostBasis[ingredient.goodId] = remainingBasis;
-      else delete state.accounts.cargoCostBasis[ingredient.goodId];
-    }
   }
   const memory = chefQuestMemory(state);
   memory.stage = CHEF_QUEST_STAGE_RECRUITMENT;
   memory.completedMinute = currentMinute;
   validateChefQuestMemory(memory);
   return chefQuestState(state, city);
+}
+
+export function chefIngredientRequirementId(memory, goodId) {
+  if (!Number.isInteger(memory?.portTileId) || memory.portTileId < 0) {
+    throw new Error("Chef ingredient requirement needs an origin port");
+  }
+  validateIngredientGoodId(goodId);
+  return `chef.${memory.portTileId}.${goodId}`;
 }
 
 export function recruitChef(state, city) {

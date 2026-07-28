@@ -1,4 +1,8 @@
 import { GINGER_GOOD_ID, tradeGoodById } from "./economy.js";
+import {
+  questCargoDeliverableQuantity,
+  questCargoDeliveryProgress
+} from "./questCargoDeliveries.js";
 
 export const CARIBBEAN_GINGER_QUEST_VERSION = 1;
 export const CARIBBEAN_GINGER_PRODUCTION_PER_DAY = 1.25;
@@ -113,14 +117,32 @@ export function caribbeanGingerQuestState(state, city) {
   if (city?.tileId !== memory.cultivationTileId) return null;
   assertCultivationPort(memory, city);
   const held = state.cargo?.[GINGER_GOOD_ID] || 0;
+  const requirementId = caribbeanGingerRequirementId();
+  const progress = memory.stage === CARIBBEAN_GINGER_STAGE_ACTIVE
+    ? questCargoDeliveryProgress(
+        state,
+        requirementId,
+        CARIBBEAN_GINGER_FETCH_STAGE.quantity
+      )
+    : null;
+  const deliverable = progress
+    ? questCargoDeliverableQuantity(
+        state,
+        requirementId,
+        CARIBBEAN_GINGER_FETCH_STAGE.quantity,
+        held
+      )
+    : 0;
   return Object.freeze({
     stage: memory.stage,
     fetchStage: memory.stage === CARIBBEAN_GINGER_STAGE_ACTIVE
       ? CARIBBEAN_GINGER_FETCH_STAGE
       : null,
     held,
-    canDeliver: memory.stage === CARIBBEAN_GINGER_STAGE_ACTIVE &&
-      held >= CARIBBEAN_GINGER_FETCH_STAGE.quantity,
+    delivered: progress?.deliveredQuantity || 0,
+    remaining: progress?.remainingQuantity || 0,
+    deliverable,
+    canDeliver: deliverable > 0,
     completed: memory.stage === CARIBBEAN_GINGER_STAGE_COMPLETED,
     offerSeen: memory.offerSeen,
     cultivationPort: Object.freeze({
@@ -158,7 +180,7 @@ export function assertCaribbeanGingerDelivery(state, city) {
   const quest = caribbeanGingerQuestState(state, city);
   if (!quest?.fetchStage) throw new Error("Caribbean ginger cultivation has no active request");
   if (!quest.canDeliver) {
-    throw new Error(`Not enough ${quest.fetchStage.goodLabel} for Caribbean cultivation`);
+    throw new Error(`No ${quest.fetchStage.goodLabel} is aboard for Caribbean cultivation`);
   }
   return quest.fetchStage;
 }
@@ -186,6 +208,10 @@ function fetchStage(id, goodId, quantity, purpose) {
     throw new Error(`Invalid Caribbean ginger fetch quantity: ${id}`);
   }
   return Object.freeze({ id, goodId, goodLabel: good.label, quantity, purpose });
+}
+
+export function caribbeanGingerRequirementId() {
+  return `caribbean-ginger.${CARIBBEAN_GINGER_FETCH_STAGE.id}`;
 }
 
 function assertCultivationPort(memory, city) {

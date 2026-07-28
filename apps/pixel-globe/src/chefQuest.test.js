@@ -10,7 +10,7 @@ import {
   maybeSpawnChefQuest,
   recruitChef
 } from "./chefQuest.js";
-import { createGameState } from "./gameState.js";
+import { createGameState, deliverQuestCargoRequirement } from "./gameState.js";
 import { NAMED_CREW_ROLE_CHEF, addNamedCrewMember } from "./namedCrew.js";
 
 const stats = { slug: "test", cargoCapacity: 40, crewCapacity: 8, cannons: 0, mass: 10, navalWeaponKind: null };
@@ -32,8 +32,20 @@ test("a regional chef requests one complete edible ingredient list", () => {
 test("delivering every ingredient advances to a persistent recruitment", () => {
   const state = game();
   const quest = maybeSpawnChefQuest(state, city, { simMinute: 0, spawnChance: 1 });
-  for (const ingredient of quest.ingredients) state.cargo[ingredient.goodId] = 1;
-  assert.equal(chefQuestState(state, city).canDeliver, true);
+  for (const [index, ingredient] of quest.ingredients.entries()) {
+    state.cargo[ingredient.goodId] = 1;
+    deliverQuestCargoRequirement(
+      state,
+      city,
+      ingredient.goodId,
+      1,
+      ingredient.requirementId
+    );
+    const progress = chefQuestState(state, city);
+    assert.equal(progress.ingredients[index].ready, true);
+    assert.equal(progress.complete, index === quest.ingredients.length - 1);
+  }
+  assert.equal(chefQuestState(state, city).complete, true);
   assert.equal(completeChefBanquet(state, city, 100).stage, CHEF_QUEST_STAGE_RECRUITMENT);
   assert.deepEqual(state.cargo, {});
   assert.equal(recruitChef(state, city).stage, CHEF_QUEST_STAGE_RECRUITED);

@@ -43,6 +43,7 @@ import {
   cargoUsed,
   capturePortMissionOfferForCity,
   createGameState,
+  deliverQuestCargoRequirement,
   deliveryOfferForCity,
   factionReputation,
   hasLetterOfMarqueFrom,
@@ -60,7 +61,10 @@ import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
-import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
+import {
+  maybeSpawnVikingLongshipQuest,
+  vikingLongshipQuestState
+} from "./vikingLongshipQuest.js";
 import { colonizationTargetForCity } from "./colonialCities.js";
 import {
   expelHostileForeignSettlements,
@@ -87,6 +91,7 @@ import {
   maybeSpawnCaribbeanGingerQuest
 } from "./caribbeanGingerQuest.js";
 import {
+  CHEF_QUEST_REWARD,
   completeChefBanquet,
   maybeSpawnChefQuest
 } from "./chefQuest.js";
@@ -1581,6 +1586,15 @@ test("an already active banquet chef waits for a permanent berth before joining"
     skillIds: ["able-seaman"]
   }, NAMED_CREW_ROLE_CHEF, { replaceGenericWhenFull: true });
   for (const ingredient of quest.ingredients) gameState.cargo[ingredient.goodId] = 1;
+  for (const ingredient of quest.ingredients) {
+    deliverQuestCargoRequirement(
+      gameState,
+      city,
+      ingredient.goodId,
+      1,
+      ingredient.requirementId
+    );
+  }
   completeChefBanquet(gameState, city, 100);
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortDialogueSession(city, { initialNodeId: "chef-quest" });
@@ -1588,6 +1602,63 @@ test("an already active banquet chef waits for a permanent berth before joining"
   const recruit = view.options.find((entry) => entry.action.type === "recruit-chef");
   assert.equal(recruit.disabled, true);
   assert.match(recruit.disabledReason, /no berth/);
+});
+
+test("the banquet chef accepts ingredients across separate visits", () => {
+  const city = {
+    tileId: 45,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Ottoman Empire",
+    cityType: "islamic-desert",
+    population: 100000,
+    character: { name: "Kemal Aydin" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const quest = maybeSpawnChefQuest(gameState, city, { simMinute: 0, spawnChance: 1 });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const startingDoubloons = gameState.doubloons;
+  const firstIngredient = quest.ingredients[0];
+  gameState.cargo[firstIngredient.goodId] = 1;
+
+  let session = createPortDialogueSession(city, { initialNodeId: "chef-quest" });
+  let view = portDialogueView(session, city, gameState, economy, [city]);
+  let deliveryIndex = view.options.findIndex(
+    (entry) => entry.action.type === "deliver-chef-ingredients"
+  );
+  const partial = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    deliveryIndex,
+    { simMinute: 100 }
+  );
+  assert.equal(partial.chefIngredientDeliveries.length, 1);
+  assert.equal(partial.chefBanquetCompleted, undefined);
+  assert.equal(gameState.doubloons, startingDoubloons);
+
+  for (const ingredient of quest.ingredients.slice(1)) {
+    gameState.cargo[ingredient.goodId] = 1;
+  }
+  session = createPortDialogueSession(city, { initialNodeId: "chef-quest" });
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  deliveryIndex = view.options.findIndex(
+    (entry) => entry.action.type === "deliver-chef-ingredients"
+  );
+  const completed = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    deliveryIndex,
+    { simMinute: 200 }
+  );
+  assert.ok(completed.chefBanquetCompleted);
+  assert.equal(gameState.doubloons, startingDoubloons + CHEF_QUEST_REWARD);
 });
 
 test("enemy port guards bar resupply and offer one risky disguise route", () => {
@@ -2357,11 +2428,27 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   assert.doesNotMatch(firstView.text, /bring me 8 wool\.?$/i);
   assert.equal(firstView.options.find((entry) => entry.action.type === "deliver-viking-material").disabled, true);
 
-  gameState.cargo = { wool: 8, timber: 6, iron: 3 };
+  gameState.cargo = { wool: 3, timber: 6, iron: 3 };
   gameState.accounts.cargoCostBasis = { wool: 144, timber: 84, iron: 78 };
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  let deliveryIndex = view.options.findIndex((entry) => entry.action.type === "deliver-viking-material");
+  assert.match(view.options[deliveryIndex].label, /Wool x3/);
+  const partialWool = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    deliveryIndex,
+    { ...context, simMinute: 500 }
+  );
+  assert.equal(partialWool.vikingLongshipDelivery.complete, false);
+  assert.equal(partialWool.vikingLongshipDelivery.remainingQuantity, 5);
+  assert.equal(vikingLongshipQuestState(gameState, city).stageIndex, 0);
+  gameState.cargo.wool = 5;
   for (const expectedGood of ["Wool", "Timber", "Iron"]) {
-    const view = portDialogueView(session, city, gameState, economy, [city], context);
-    const deliveryIndex = view.options.findIndex((entry) => entry.action.type === "deliver-viking-material");
+    view = portDialogueView(session, city, gameState, economy, [city], context);
+    deliveryIndex = view.options.findIndex((entry) => entry.action.type === "deliver-viking-material");
     assert.match(view.options[deliveryIndex].label, new RegExp(expectedGood));
     const result = selectPortDialogueOption(session, city, gameState, economy, [city], deliveryIndex, {
       ...context,
@@ -2443,6 +2530,24 @@ test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki 
     stage.goodId,
     stage.quantity * 10
   ]));
+  const firstStage = JAPANESE_MATCHLOCK_FETCH_STAGES[0];
+  gameState.cargo[firstStage.goodId] = 1;
+  let partialView = portDialogueView(session, city, gameState, economy, [city]);
+  let partialIndex = partialView.options.findIndex(
+    (entry) => entry.action.type === "deliver-japanese-matchlock-material"
+  );
+  const partial = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    partialIndex,
+    { simMinute: 400 }
+  );
+  assert.equal(partial.japaneseMatchlockDelivery.complete, false);
+  assert.equal(gameState.doubloons, startingDoubloons);
+  gameState.cargo[firstStage.goodId] = 1;
   for (const stage of JAPANESE_MATCHLOCK_FETCH_STAGES) {
     const view = portDialogueView(session, city, gameState, economy, [city]);
     const deliveryIndex = view.options.findIndex(
@@ -2497,15 +2602,26 @@ test("a Caribbean planter pays for ginger roots and establishes local production
   assert.match(portDialogueView(arrival, city, gameState, economy, [city]).text, /Southeast Asia/);
 
   const session = createPortDialogueSession(city, { initialNodeId: "caribbean-ginger" });
-  gameState.cargo[GINGER_GOOD_ID] = CARIBBEAN_GINGER_FETCH_STAGE.quantity;
+  gameState.cargo[GINGER_GOOD_ID] = 2;
   gameState.accounts.cargoCostBasis[GINGER_GOOD_ID] = 60;
-  const view = portDialogueView(session, city, gameState, economy, [city]);
-  const deliveryIndex = view.options.findIndex(
+  let view = portDialogueView(session, city, gameState, economy, [city]);
+  let deliveryIndex = view.options.findIndex(
     (entry) => entry.action.type === "deliver-caribbean-ginger"
   );
   assert.equal(dialogueOptionIconId(view.options[deliveryIndex]), `good:${GINGER_GOOD_ID}`);
-  selectPortDialogueOption(session, city, gameState, economy, [city], deliveryIndex, {
+  const partial = selectPortDialogueOption(session, city, gameState, economy, [city], deliveryIndex, {
     simMinute: 500
+  });
+  assert.equal(partial.caribbeanGingerDelivery.complete, false);
+  assert.equal(partial.caribbeanGingerIndustry, null);
+  assert.equal(gameState.doubloons, startingDoubloons);
+  gameState.cargo[GINGER_GOOD_ID] = 4;
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  deliveryIndex = view.options.findIndex(
+    (entry) => entry.action.type === "deliver-caribbean-ginger"
+  );
+  selectPortDialogueOption(session, city, gameState, economy, [city], deliveryIndex, {
+    simMinute: 600
   });
 
   const completed = portDialogueView(session, city, gameState, economy, [city]);

@@ -210,7 +210,11 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
 
   const state = {
     playerCharacter: { identityKey: "nagasaki-route-test" },
-    memory: { colonization: createColonizationQuestMemory(), flags: {} }
+    memory: {
+      colonization: createColonizationQuestMemory(),
+      flags: {},
+      quests: { cargoDeliveries: {} }
+    }
   };
   const offer = colonizationOfferForCity(state, lisbon, [lisbon, kyoto], [nagasaki], {
     simMinute: 14 * DAY,
@@ -277,10 +281,10 @@ test("Dutch West India Company expeditions originate in the Netherlands, not Lub
   savedQuest.originTileId = lubeck.tileId;
   savedQuest.originCity = lubeck.city;
   savedQuest.originCountry = lubeck.country;
-  completeColonizationFetchStage(savedQuest, colonizationQuestView({
-    memory: { colonization: savedQuest },
-    cargo: {}
-  }).history.fetchStages[0].id);
+  completeColonizationFetchStage(
+    savedQuest,
+    colonizationQuestView(questViewState(savedQuest)).history.fetchStages[0].id
+  );
 
   relocateColonizationQuestOrigin(savedQuest, { target: newAmsterdam, origin: utrecht });
   assert.equal(savedQuest.originCity, "Utrecht");
@@ -361,7 +365,7 @@ test("establishing Nagasaki creates a Japanese port with a Portuguese settlement
   };
   const memory = createColonizationQuestMemory();
   assignColonizationQuest(memory, { target, origin, approvalPort });
-  for (const stage of colonizationQuestView({ memory: { colonization: memory }, cargo: {} }).history.fetchStages) {
+  for (const stage of colonizationQuestView(questViewState(memory)).history.fetchStages) {
     completeColonizationFetchStage(memory, stage.id);
   }
   beginColonizationExpedition(memory);
@@ -390,7 +394,7 @@ test("historically attacked colonies upgrade, survive a canoe defense, and await
   };
   const memory = createColonizationQuestMemory();
   assignColonizationQuest(memory, { target, origin });
-  for (const stage of colonizationQuestView({ memory: { colonization: memory }, cargo: {} }).history.fetchStages) {
+  for (const stage of colonizationQuestView(questViewState(memory)).history.fetchStages) {
     completeColonizationFetchStage(memory, stage.id);
   }
   beginColonizationExpedition(memory);
@@ -421,6 +425,16 @@ test("historically attacked colonies upgrade, survive a canoe defense, and await
   assert.equal(memory.stage, COLONIZATION_STAGE_ESTABLISHED);
   assert.equal(colonizationObjective(memory), null);
 });
+
+function questViewState(memory, cargo = {}) {
+  return {
+    memory: {
+      colonization: memory,
+      quests: { cargoDeliveries: {} }
+    },
+    cargo
+  };
+}
 
 test("late resupply leaves a burning dead village", () => {
   const memory = awaitingResupplyMemory();

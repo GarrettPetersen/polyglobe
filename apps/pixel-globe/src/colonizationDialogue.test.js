@@ -5,6 +5,7 @@ import { COLONIZATION_TARGETS, colonizationTargetForCity } from "./colonialCitie
 import {
   COLONIZATION_FETCH_STAGES,
   COLONIZATION_RESUPPLY,
+  COLONIZATION_RESUPPLY_EXTENSION_DAYS_PER_UNIT,
   COLONIZATION_STAGE_DEFEND,
   COLONIZATION_STAGE_ESTABLISHED,
   COLONIZATION_STAGE_REPORT_DEFENSE,
@@ -130,8 +131,27 @@ test("the colonial organizer runs the paid expedition through a permanent founde
   const context = { simMinute: 1000, shipStats };
   const originSession = createPortDialogueSession(BORDEAUX, { initialNodeId: "colonization" });
 
-  for (const stage of COLONIZATION_FETCH_STAGES) {
-    gameState.cargo[stage.goodId] = stage.quantity;
+  for (const [stageIndex, stage] of COLONIZATION_FETCH_STAGES.entries()) {
+    if (stageIndex === 0) {
+      gameState.cargo[stage.goodId] = 1;
+      gameState.accounts.cargoCostBasis[stage.goodId] = 0;
+      const partial = chooseAction(
+        originSession,
+        BORDEAUX,
+        gameState,
+        economy,
+        ports,
+        context,
+        "deliver-colonization-material"
+      );
+      assert.equal(partial.colonizationDelivery.complete, false);
+      assert.equal(partial.colonizationDelivery.remainingQuantity, stage.quantity - 1);
+      assert.equal(partial.colonizationPayment, null);
+      assert.equal(gameState.memory.colonization.fetchStageIndex, 0);
+      gameState.cargo[stage.goodId] = stage.quantity - 1;
+    } else {
+      gameState.cargo[stage.goodId] = stage.quantity;
+    }
     gameState.accounts.cargoCostBasis[stage.goodId] = 0;
     chooseAction(originSession, BORDEAUX, gameState, economy, ports, context, "deliver-colonization-material");
   }
@@ -146,7 +166,37 @@ test("the colonial organizer runs the paid expedition through a permanent founde
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 0);
 
   advanceColonizationQuest(gameState.memory.colonization, 1001, { awayFromColony: true });
-  gameState.cargo[COLONIZATION_RESUPPLY.goodId] = COLONIZATION_RESUPPLY.quantity;
+  const originalDeadline = gameState.memory.colonization.resupplyDeadlineMinute;
+  gameState.cargo[COLONIZATION_RESUPPLY.goodId] = 1;
+  gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 0;
+  const partialResupply = chooseAction(
+    siteSession,
+    site,
+    gameState,
+    economy,
+    ports,
+    { ...context, simMinute: originalDeadline - 1 },
+    "deliver-colony-resupply"
+  );
+  assert.equal(partialResupply.colonyEstablished, false);
+  assert.equal(partialResupply.colonizationDelivery.remainingQuantity, COLONIZATION_RESUPPLY.quantity - 1);
+  assert.equal(
+    gameState.memory.colonization.resupplyDeadlineMinute,
+    originalDeadline + COLONIZATION_RESUPPLY_EXTENSION_DAYS_PER_UNIT * 24 * 60
+  );
+  assert.match(
+    portDialogueView(siteSession, site, gameState, economy, ports, {
+      ...context,
+      simMinute: originalDeadline + 1
+    }).text,
+    new RegExp(`already delivered 1 of ${COLONIZATION_RESUPPLY.quantity}`, "i")
+  );
+  advanceColonizationQuest(gameState.memory.colonization, originalDeadline + 1, {
+    awayFromColony: true
+  });
+  assert.equal(gameState.memory.colonization.stage, "awaiting-resupply");
+
+  gameState.cargo[COLONIZATION_RESUPPLY.goodId] = COLONIZATION_RESUPPLY.quantity - 1;
   gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 0;
   const result = chooseAction(
     siteSession,
@@ -154,7 +204,7 @@ test("the colonial organizer runs the paid expedition through a permanent founde
     gameState,
     economy,
     ports,
-    { ...context, simMinute: 1100 },
+    { ...context, simMinute: originalDeadline + 1 },
     "deliver-colony-resupply"
   );
 

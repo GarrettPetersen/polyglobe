@@ -17,7 +17,7 @@ import {
   cargoUsed,
   cityLabel,
   completeQuest,
-  deliverQuestCargo,
+  deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
   grantLetterOfMarque,
   issuePersonalTradePass,
@@ -155,9 +155,11 @@ import {
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
   colonizationQuestView,
+  colonizationFetchRequirementId,
   completeColonizationDefense,
   completeColonizationFetchStage,
   establishColony,
+  extendColonizationResupplyDeadline,
   grantColonizationApproval,
   isColonizationQuestApproval,
   isColonizationQuestOrigin,
@@ -172,6 +174,7 @@ import {
   assertJapaneseMatchlockDelivery,
   completeJapaneseMatchlockFetchStage,
   japaneseMatchlockQuestState,
+  japaneseMatchlockRequirementId,
   markJapaneseMatchlockOfferSeen
 } from "./japaneseMatchlockQuest.js";
 import {
@@ -179,6 +182,7 @@ import {
   CARIBBEAN_GINGER_INITIAL_STOCK,
   CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
   assertCaribbeanGingerDelivery,
+  caribbeanGingerRequirementId,
   caribbeanGingerQuestState,
   completeCaribbeanGingerQuest,
   markCaribbeanGingerOfferSeen
@@ -1299,7 +1303,11 @@ export function selectPortDialogueOption(
   }
   if (action.type === "deliver-viking-material") {
     const result = deliverVikingLongshipQuestCargo(gameState, city, action.stageId, context);
-    session.feedback = `Delivered ${result.completedStage.goodLabel} x${result.completedStage.quantity}.`;
+    session.feedback = result.complete
+      ? `Delivered the last ${result.quantity} ${result.activeStage.goodLabel.toLowerCase()}. ` +
+        `${result.activeStage.goodLabel} requirement complete.`
+      : `Delivered ${result.activeStage.goodLabel} x${result.quantity}. ` +
+        `${result.remainingQuantity} still needed.`;
     const missionItemGift = result.quest.unlocked
       ? maybeGrantMissionPerkItem(gameState, city, {
         missionId: "viking-longship-complete",
@@ -1314,6 +1322,32 @@ export function selectPortDialogueOption(
     return { closed: false, vikingLongshipDelivery: result, missionItemGift };
   }
   if (action.type === "deliver-chef-ingredients") {
+    const quest = chefQuestState(gameState, city);
+    if (!quest || quest.stage !== CHEF_QUEST_STAGE_GATHERING) {
+      throw new Error("Chef banquet has no active ingredient request");
+    }
+    const deliveries = quest.ingredients
+      .filter((ingredient) => ingredient.deliverable > 0)
+      .map((ingredient) => deliverQuestCargoRequirement(
+        gameState,
+        city,
+        ingredient.goodId,
+        1,
+        ingredient.requirementId,
+        context
+      ));
+    if (deliveries.length === 0) throw new Error("No requested chef ingredients are aboard");
+    const updated = chefQuestState(gameState, city);
+    if (!updated.complete) {
+      const missing = updated.ingredients
+        .filter((ingredient) => !ingredient.ready)
+        .map((ingredient) => ingredient.label)
+        .join(", ");
+      session.feedback = `Delivered ${deliveries.map((entry) => entry.good.label).join(", ")}. ` +
+        `Still need: ${missing}.`;
+      session.selectedIndex = 0;
+      return { closed: false, chefIngredientDeliveries: deliveries };
+    }
     const result = completeChefBanquet(gameState, city, context.simMinute ?? 0);
     const payment = receiveQuestPayment(
       gameState,
@@ -1324,27 +1358,29 @@ export function selectPortDialogueOption(
     );
     session.feedback = `${result.event.successText} The household paid ${payment.amount} db.`;
     session.selectedIndex = 0;
-    return { closed: false, chefBanquetCompleted: result, payment };
+    return { closed: false, chefBanquetCompleted: result, chefIngredientDeliveries: deliveries, payment };
   }
   if (action.type === "recruit-chef") {
     return { closed: false, action, chefRecruitmentRequested: true };
   }
   if (action.type === "deliver-japanese-matchlock-material") {
     const stage = assertJapaneseMatchlockDelivery(gameState, city, action.stageId);
-    const delivery = deliverQuestCargo(
+    const delivery = deliverQuestCargoRequirement(
       gameState,
       city,
       stage.goodId,
       stage.quantity,
-      `japanese-matchlocks.${stage.id}`,
+      japaneseMatchlockRequirementId(stage),
       context
     );
-    const result = completeJapaneseMatchlockFetchStage(
-      gameState,
-      city,
-      action.stageId,
-      context.simMinute ?? 0
-    );
+    const result = delivery.complete
+      ? completeJapaneseMatchlockFetchStage(
+          gameState,
+          city,
+          action.stageId,
+          context.simMinute ?? 0
+        )
+      : { completedStage: null, quest: japaneseMatchlockQuestState(gameState, city) };
     let industry = null;
     let payment = null;
     if (result.quest.completed) {
@@ -1364,7 +1400,10 @@ export function selectPortDialogueOption(
       );
       session.feedback = `The Kyoto workshop is producing matchlocks. Paid ${payment.amount} db.`;
     } else {
-      session.feedback = `Delivered ${stage.goodLabel} x${stage.quantity}.`;
+      session.feedback = delivery.complete
+        ? `Delivered the last ${delivery.quantity} ${stage.goodLabel.toLowerCase()}.`
+        : `Delivered ${stage.goodLabel} x${delivery.quantity}. ` +
+          `${delivery.remainingQuantity} still needed.`;
     }
     const missionItemGift = result.quest.completed
       ? maybeGrantMissionPerkItem(gameState, city, {
@@ -1387,42 +1426,49 @@ export function selectPortDialogueOption(
   }
   if (action.type === "deliver-caribbean-ginger") {
     const stage = assertCaribbeanGingerDelivery(gameState, city);
-    const delivery = deliverQuestCargo(
+    const delivery = deliverQuestCargoRequirement(
       gameState,
       city,
       stage.goodId,
       stage.quantity,
-      `caribbean-ginger.${stage.id}`,
+      caribbeanGingerRequirementId(),
       context
     );
-    const quest = completeCaribbeanGingerQuest(
-      gameState,
-      city,
-      context.simMinute ?? 0
-    );
-    const industry = establishPortIndustry(
-      economy,
-      city,
-      GINGER_GOOD_ID,
-      CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
-      { initialStock: CARIBBEAN_GINGER_INITIAL_STOCK }
-    );
-    const payment = receiveQuestPayment(
-      gameState,
-      city,
-      CARIBBEAN_GINGER_COMPLETION_REWARD,
-      "Caribbean ginger cultivation",
-      context
-    );
-    session.feedback = `The first ginger beds have taken. Paid ${payment.amount} db.`;
-    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
-      missionId: "caribbean-ginger-industry-complete",
-      distanceKm: 7000,
-      reward: CARIBBEAN_GINGER_COMPLETION_REWARD,
-      random: context.missionGiftRandom || neverGrantMissionItem,
-      context
-    });
-    if (missionItemGift) session.feedback += ` The planter adds ${missionItemGift.item.label} to your reward.`;
+    let quest = caribbeanGingerQuestState(gameState, city);
+    let industry = null;
+    let payment = null;
+    let missionItemGift = null;
+    if (delivery.complete) {
+      quest = completeCaribbeanGingerQuest(gameState, city, context.simMinute ?? 0);
+      industry = establishPortIndustry(
+        economy,
+        city,
+        GINGER_GOOD_ID,
+        CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
+        { initialStock: CARIBBEAN_GINGER_INITIAL_STOCK }
+      );
+      payment = receiveQuestPayment(
+        gameState,
+        city,
+        CARIBBEAN_GINGER_COMPLETION_REWARD,
+        "Caribbean ginger cultivation",
+        context
+      );
+      session.feedback = `The first ginger beds have taken. Paid ${payment.amount} db.`;
+      missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
+        missionId: "caribbean-ginger-industry-complete",
+        distanceKm: 7000,
+        reward: CARIBBEAN_GINGER_COMPLETION_REWARD,
+        random: context.missionGiftRandom || neverGrantMissionItem,
+        context
+      });
+      if (missionItemGift) {
+        session.feedback += ` The planter adds ${missionItemGift.item.label} to your reward.`;
+      }
+    } else {
+      session.feedback = `Delivered ${stage.goodLabel} x${delivery.quantity}. ` +
+        `${delivery.remainingQuantity} still needed.`;
+    }
     session.selectedIndex = 0;
     return {
       closed: false,
@@ -1437,26 +1483,38 @@ export function selectPortDialogueOption(
     const quest = colonizationQuestView(gameState, { currentMinute: context.simMinute ?? 0 });
     const targetName = quest.target.city;
     const stage = assertColonizationFetchDelivery(gameState.memory.colonization, action.stageId);
-    if (!quest.canDeliverFetch) throw new Error(`Not enough ${stage.goodLabel} for the colony expedition`);
-    const delivery = deliverQuestCargo(
+    if (!quest.canDeliverFetch) throw new Error(`No ${stage.goodLabel} is aboard for the colony expedition`);
+    const delivery = deliverQuestCargoRequirement(
       gameState,
       city,
       stage.goodId,
       stage.quantity,
-      `${colonizationLedgerKey(quest.target)}.${stage.id}`,
+      colonizationFetchRequirementId(quest.target, stage),
       context
     );
-    completeColonizationFetchStage(gameState.memory.colonization, stage.id);
-    const payment = receiveQuestPayment(
-      gameState,
-      city,
-      stage.reward,
-      `${targetName} expedition: ${stage.goodLabel}`,
-      context
-    );
-    session.feedback = `Delivered ${stage.goodLabel} x${stage.quantity}. Paid ${payment.amount} db.`;
+    let payment = null;
+    if (delivery.complete) {
+      completeColonizationFetchStage(gameState.memory.colonization, stage.id);
+      payment = receiveQuestPayment(
+        gameState,
+        city,
+        stage.reward,
+        `${targetName} expedition: ${stage.goodLabel}`,
+        context
+      );
+      session.feedback = `Delivered the last ${delivery.quantity} ` +
+        `${stage.goodLabel.toLowerCase()}. Paid ${payment.amount} db.`;
+    } else {
+      session.feedback = `Delivered ${stage.goodLabel} x${delivery.quantity}. ` +
+        `${delivery.remainingQuantity} still needed.`;
+    }
     session.selectedIndex = 0;
-    return { closed: false, colonizationChanged: true, colonizationDelivery: delivery };
+    return {
+      closed: false,
+      colonizationChanged: true,
+      colonizationDelivery: delivery,
+      colonizationPayment: payment
+    };
   }
   if (action.type === "advance-colony-negotiation") {
     if (session.colonizationApprovalStep !== 0) {
@@ -1472,17 +1530,34 @@ export function selectPortDialogueOption(
       throw new Error(`Colonization permission cannot be granted from step ${session.colonizationApprovalStep}`);
     }
     const quest = colonizationQuestView(gameState, { currentMinute: context.simMinute ?? 0 });
-    if (!quest.approvalCargoReady) {
-      throw new Error(`Missing ${quest.approval.city} demonstration cargo: ${colonizationMissingApprovalCargo(quest.approvalCargo)}`);
+    const deliveries = quest.approvalCargo
+      .filter((requirement) => requirement.deliverable > 0)
+      .map((requirement) => deliverQuestCargoRequirement(
+        gameState,
+        city,
+        requirement.goodId,
+        requirement.quantity,
+        requirement.requirementId,
+        context
+      ));
+    if (deliveries.length === 0) {
+      throw new Error(`No ${quest.approval.city} demonstration cargo is aboard`);
     }
-    const deliveries = quest.approvalCargo.map((requirement) => deliverQuestCargo(
-      gameState,
-      city,
-      requirement.goodId,
-      requirement.quantity,
-      `${colonizationLedgerKey(quest.target)}.approval-${requirement.goodId}`,
-      context
-    ));
+    const updatedQuest = colonizationQuestView(gameState, {
+      currentMinute: context.simMinute ?? 0
+    });
+    if (!updatedQuest.approvalCargoDelivered) {
+      session.feedback = `Cargo received. Still need ` +
+        `${colonizationMissingApprovalCargo(updatedQuest.approvalCargo)}.`;
+      session.selectedIndex = 0;
+      return {
+        closed: false,
+        colonizationChanged: true,
+        colonizationApprovalGranted: false,
+        colonizationApprovalDeliveries: deliveries,
+        colonizationDiplomacyEvents: []
+      };
+    }
     grantColonizationApproval(gameState.memory.colonization, { approvalCargoDelivered: true });
     const diplomacyEvents = improveColonizationSponsorRelations(
       gameState,
@@ -1553,17 +1628,36 @@ export function selectPortDialogueOption(
     const quest = colonizationQuestView(gameState, { currentMinute: minute });
     const resupply = assertColonizationResupplyDelivery(gameState.memory.colonization, minute);
     const held = gameState.cargo?.[resupply.goodId] || 0;
-    if (held < resupply.quantity) {
-      throw new Error(`Not enough ${resupply.goodLabel} for ${quest.target.city}: ${held}/${resupply.quantity}`);
+    if (quest.resupply.deliverable <= 0) {
+      throw new Error(`No ${resupply.goodLabel} is aboard for ${quest.target.city}: ${held}`);
     }
-    const delivery = deliverQuestCargo(
+    const delivery = deliverQuestCargoRequirement(
       gameState,
       city,
       resupply.goodId,
       resupply.quantity,
-      `${colonizationLedgerKey(quest.target)}.first-year-resupply`,
+      quest.resupply.requirementId,
       context
     );
+    if (!delivery.complete) {
+      const extensionMinutes = extendColonizationResupplyDeadline(
+        gameState.memory.colonization,
+        delivery.quantity
+      );
+      const extensionDays = Math.round(extensionMinutes / (24 * 60));
+      session.feedback = `Delivered ${resupply.goodLabel} x${delivery.quantity}. ` +
+        `${delivery.remainingQuantity} still needed; these stores buy the colony ` +
+        `${extensionDays} more days.`;
+      session.selectedIndex = 0;
+      return {
+        closed: false,
+        colonizationChanged: true,
+        colonyEstablished: false,
+        colonizationDefenseStarted: false,
+        colonizationDelivery: delivery,
+        missionItemGift: null
+      };
+    }
     establishColony(gameState.memory.colonization, minute);
     const defenseStarted = gameState.memory.colonization.stage === COLONIZATION_STAGE_DEFEND;
     const payment = receiveQuestPayment(
@@ -2383,15 +2477,18 @@ function vikingLongshipView(session, city, gameState, context) {
     return {
       speaker,
       expressionId: quest.canDeliver ? "pleased" : "attentive",
-      text: requests[quest.stageIndex],
+      text: `${requests[quest.stageIndex]}${quest.delivered > 0
+        ? ` You have already delivered ${quest.delivered} of ${stage.quantity}.`
+        : ""}`,
       feedback: session.feedback,
       options: [
-        option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+        option(deliveryOptionLabel(stage.goodLabel, quest.deliverable), {
           type: "deliver-viking-material",
           stageId: stage.id
         }, {
           disabled: !quest.canDeliver,
-          disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
+          disabledReason: `Still need ${quest.remaining} ${stage.goodLabel.toLowerCase()}; ` +
+            `hold has ${quest.held}.`
         }),
         back
       ]
@@ -2510,10 +2607,17 @@ function chefQuestView(session, city, gameState) {
     return {
       speaker,
       expressionId: quest.canDeliver ? "pleased" : "attentive",
-      text: `I have been entrusted with ${quest.event.eventLabel}, and ordinary fare will not do. I need one each of ${list}. Bring me the whole list and I can make a table worthy of the occasion.`,
+      text: `I have been entrusted with ${quest.event.eventLabel}, and ordinary fare will not do. ` +
+        `I need one each of ${list}. Bring them as you find them and I can make a table worthy ` +
+        `of the occasion.${quest.ingredients.some((ingredient) => ingredient.ready)
+          ? ` Already delivered: ${quest.ingredients
+              .filter((ingredient) => ingredient.ready)
+              .map((ingredient) => ingredient.label)
+              .join(", ")}.`
+          : ""}`,
       feedback: session.feedback,
       options: [
-        option("Deliver all ingredients", { type: "deliver-chef-ingredients" }, {
+        option("Deliver available ingredients", { type: "deliver-chef-ingredients" }, {
           disabled: !quest.canDeliver,
           disabledReason: missing ? `Still need: ${missing}.` : "The ingredients are not ready."
         }),
@@ -2576,16 +2680,19 @@ function japaneseMatchlockView(session, city, gameState) {
   return {
     speaker,
     expressionId: quest.canDeliver ? "pleased" : "attentive",
-    text: requests[quest.fetchStageIndex],
+    text: `${requests[quest.fetchStageIndex]}${quest.delivered > 0
+      ? ` You have already delivered ${quest.delivered} of ${stage.quantity}.`
+      : ""}`,
     feedback: session.feedback,
     options: [
-      option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+      option(deliveryOptionLabel(stage.goodLabel, quest.deliverable), {
         type: "deliver-japanese-matchlock-material",
         stageId: stage.id,
         goodId: stage.goodId
       }, {
         disabled: !quest.canDeliver,
-        disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
+        disabledReason: `Still need ${quest.remaining} ${stage.goodLabel.toLowerCase()}; ` +
+          `hold has ${quest.held}.`
       }),
       back
     ]
@@ -2613,16 +2720,21 @@ function caribbeanGingerView(session, city, gameState) {
   return {
     speaker,
     expressionId: quest.canDeliver ? "pleased" : "attentive",
-    text: "Feel this soil: warm, damp, and rich. I am certain ginger would thrive here, but sound planting roots must come from the ports of Southeast Asia. Bring me six, and I will pay well for the risk of carrying them across the world.",
+    text: "Feel this soil: warm, damp, and rich. I am certain ginger would thrive here, but " +
+      "sound planting roots must come from the ports of Southeast Asia. Bring me six, and I " +
+      `will pay well for the risk of carrying them across the world.${quest.delivered > 0
+        ? ` You have already delivered ${quest.delivered} of ${stage.quantity}.`
+        : ""}`,
     feedback: session.feedback,
     options: [
-      option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+      option(deliveryOptionLabel(stage.goodLabel, quest.deliverable), {
         type: "deliver-caribbean-ginger",
         stageId: stage.id,
         goodId: stage.goodId
       }, {
         disabled: !quest.canDeliver,
-        disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
+        disabledReason: `Still need ${quest.remaining} ${stage.goodLabel.toLowerCase()}; ` +
+          `hold has ${quest.held}.`
       }),
       back
     ]
@@ -2679,7 +2791,7 @@ function colonizationView(session, city, gameState, context) {
       feedback: session.feedback,
       options: [
         option(history.approval.actionLabel, { type: "grant-colony-permission" }, {
-          disabled: !quest.approvalCargoReady,
+          disabled: !quest.approvalCargoDeliverable,
           disabledReason: missingCargo ? `Still need ${missingCargo}.` : null
         }),
         back
@@ -2718,15 +2830,20 @@ function colonizationView(session, city, gameState, context) {
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: quest.canDeliverFetch ? "pleased" : "attentive",
-      text: `${introduction} ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}. I will pay ${stage.reward} doubloons for this delivery.`,
+      text: `${introduction} ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ` +
+        `${stage.purpose}. I will pay ${stage.reward} doubloons when the order is complete.` +
+        `${quest.fetchDelivered > 0
+          ? ` You have already delivered ${quest.fetchDelivered} of ${stage.quantity}.`
+          : ""}`,
       feedback: session.feedback,
       options: [
-        option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+        option(deliveryOptionLabel(stage.goodLabel, quest.fetchDeliverable), {
           type: "deliver-colonization-material",
           stageId: stage.id
         }, {
           disabled: !quest.canDeliverFetch,
-          disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
+          disabledReason: `Still need ${quest.fetchRemaining} ${stage.goodLabel.toLowerCase()}; ` +
+            `hold has ${quest.held}.`
         }),
         back
       ]
@@ -2807,23 +2924,31 @@ function colonizationView(session, city, gameState, context) {
         options: [back]
       };
     }
-    const canDeliver = quest.leftSinceFounding && quest.resupplyHeld >= quest.resupply.quantity && !quest.deadlineExpired;
+    const canDeliver = quest.leftSinceFounding &&
+      quest.resupply.deliverable > 0 &&
+      !quest.deadlineExpired;
     const deadlineText = quest.leftSinceFounding
       ? history.resupply.returned
       : `${history.resupply.waiting} Sail away, find ${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()}, and return before one year has passed.`;
     return {
       speaker: `${organizer}, ${history.settlementLeaderRole}`,
       expressionId: canDeliver ? "happy" : "concerned",
-      text: `${deadlineText} A timely resupply earns ${quest.resupply.reward} doubloons and gives ${targetName} the stores it needs to become a permanent city.`,
+      text: `${deadlineText} A timely resupply earns ${quest.resupply.reward} doubloons and ` +
+        `gives ${targetName} the stores it needs to become a permanent city.` +
+        `${quest.resupply.delivered > 0
+          ? ` You have already delivered ${quest.resupply.delivered} of ` +
+            `${quest.resupply.quantity}.`
+          : ""}`,
       feedback: session.feedback,
       options: [
-        option(`Deliver ${quest.resupply.goodLabel} x${quest.resupply.quantity}`, {
+        option(deliveryOptionLabel(quest.resupply.goodLabel, quest.resupply.deliverable), {
           type: "deliver-colony-resupply"
         }, {
           disabled: !canDeliver,
           disabledReason: !quest.leftSinceFounding
             ? "You must first leave the colony and return."
-            : `Need ${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()}; hold has ${quest.resupplyHeld}.`
+            : `Still need ${quest.resupply.remaining} ` +
+              `${quest.resupply.goodLabel.toLowerCase()}; hold has ${quest.resupplyHeld}.`
         }),
         back
       ]
@@ -3970,6 +4095,18 @@ function option(label, action, details = {}) {
     disabled: !!details.disabled,
     disabledReason: details.disabledReason || null
   };
+}
+
+function deliveryOptionLabel(goodLabel, deliverableQuantity) {
+  if (typeof goodLabel !== "string" || goodLabel.trim() === "") {
+    throw new Error("Quest delivery option requires a good label");
+  }
+  if (!Number.isInteger(deliverableQuantity) || deliverableQuantity < 0) {
+    throw new Error(`Invalid quest delivery option quantity: ${deliverableQuantity}`);
+  }
+  return deliverableQuantity > 0
+    ? `Deliver ${goodLabel} x${deliverableQuantity}`
+    : `Deliver ${goodLabel}`;
 }
 
 function signedDoubloons(value) {

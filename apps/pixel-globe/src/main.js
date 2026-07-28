@@ -25434,6 +25434,7 @@ function currentFetchQuestRequirements() {
   const vikingPort = vikingLongshipQuestPort();
   const japaneseMatchlockPort = japaneseMatchlockWorkshopPort();
   const caribbeanGingerPort = currentCaribbeanGingerPort(gameState);
+  const chefPort = chefQuestJournalPort(gameState);
   return fetchQuestRequirements({
     colonization: colonizationQuestView(gameState, {
       currentMinute: Math.max(0, weatherClockMinutes)
@@ -25447,7 +25448,9 @@ function currentFetchQuestRequirements() {
     caribbeanGinger: caribbeanGingerPort
       ? caribbeanGingerQuestState(gameState, caribbeanGingerPort)
       : null,
-    caribbeanGingerPort
+    caribbeanGingerPort,
+    chef: chefPort ? chefQuestState(gameState, chefPort) : null,
+    chefPort
   });
 }
 
@@ -25574,7 +25577,7 @@ function colonizationJournalEntry(quest) {
   if (quest.stage === "fetch" && quest.fetchStage) {
     nextStep = fetchQuestJournalStep({
       held: quest.held,
-      quantity: quest.fetchStage.quantity,
+      quantity: quest.fetchRemaining,
       goodLabel: quest.fetchStage.goodLabel,
       destination: quest.origin
     });
@@ -25586,7 +25589,7 @@ function colonizationJournalEntry(quest) {
       nextStep = missing
         ? fetchQuestJournalStep({
             held: missing.held,
-            quantity: missing.quantity,
+            quantity: missing.remaining,
             goodLabel: missing.goodLabel,
             destination: quest.approval
           })
@@ -25604,7 +25607,7 @@ function colonizationJournalEntry(quest) {
     nextStep = quest.leftSinceFounding
       ? fetchQuestJournalStep({
           held: quest.resupplyHeld,
-          quantity: quest.resupply.quantity,
+          quantity: quest.resupply.remaining,
           goodLabel: quest.resupply.goodLabel,
           destination: quest.target
         })
@@ -25636,7 +25639,7 @@ function vikingLongshipJournalEntry(quest, port) {
   if (quest.stage) {
     nextStep = fetchQuestJournalStep({
       held: quest.held,
-      quantity: quest.stage.quantity,
+      quantity: quest.remaining,
       goodLabel: quest.stage.goodLabel,
       destination: port
     });
@@ -25690,7 +25693,7 @@ function japaneseMatchlockJournalEntry(quest, port) {
     title: uiText("quest.matchlockIndustry"),
     nextStep: fetchQuestJournalStep({
       held: quest.held,
-      quantity: quest.fetchStage.quantity,
+      quantity: quest.remaining,
       goodLabel: quest.fetchStage.goodLabel,
       destination: port
     }),
@@ -25705,7 +25708,7 @@ function caribbeanGingerJournalEntry(quest, port) {
     title: uiText("quest.caribbeanGinger"),
     nextStep: fetchQuestJournalStep({
       held: quest.held,
-      quantity: quest.fetchStage.quantity,
+      quantity: quest.remaining,
       goodLabel: quest.fetchStage.goodLabel,
       destination: port
     }),
@@ -26113,6 +26116,9 @@ function fetchQuestNavigationReason(fetchTarget) {
   if (fetchTarget.questId === "caribbean-ginger") {
     return uiText("navigation.deliverGingerRoots");
   }
+  if (fetchTarget.questId === "banquet-chef") {
+    return uiText("navigation.deliveryMission");
+  }
   throw new Error(`Unknown fetch quest navigation reason: ${fetchTarget.questId}`);
 }
 
@@ -26121,8 +26127,8 @@ function activeColonizationObjective() {
     currentMinute: Math.max(0, weatherClockMinutes)
   });
   const objective = colonizationObjective(gameState.memory.colonization);
-  if (objective?.kind === "negotiate-colony" && !quest.approvalCargoReady) return null;
-  if (objective?.kind === "resupply-colony" && quest.resupplyHeld < quest.resupply.quantity) return null;
+  if (objective?.kind === "negotiate-colony" && !quest.approvalCargoDeliverable) return null;
+  if (objective?.kind === "resupply-colony" && quest.resupply.deliverable <= 0) return null;
   if (objective) return objective;
   if (quest.stage === "fetch" && quest.canDeliverFetch) {
     return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
