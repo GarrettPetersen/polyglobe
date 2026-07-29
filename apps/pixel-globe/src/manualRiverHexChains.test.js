@@ -139,6 +139,22 @@ test("Mekong and Yangtze remain separate river systems", async () => {
   assert.equal(riverTilesConnected(graph, masks, 93216, 61636), false);
 });
 
+test("both Yukon delta branches open into the Bering Sea", async () => {
+  const { earth, graph, masks, reachable } = await buildManualRiverFixture();
+  const branches = [
+    { riverTileId: 47511, edge: 3, coastalTileId: 47529 },
+    { riverTileId: 47521, edge: 2, coastalTileId: 11910 },
+  ];
+
+  assert.equal(riverTilesConnected(graph, masks, branches[0].riverTileId, branches[1].riverTileId), true);
+  for (const { riverTileId, edge, coastalTileId } of branches) {
+    assert.equal(graph.edgeNeighbors[riverTileId][edge], coastalTileId);
+    assert.equal(isWaterSurfaceRow(earth.tiles[coastalTileId]), true);
+    assert.equal(riverEdgeSet(masks, riverTileId, edge), true);
+    assert.equal(reachable[riverTileId], 1);
+  }
+});
+
 async function buildManualRiverFixture() {
   const earth = JSON.parse(await readFile(
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),

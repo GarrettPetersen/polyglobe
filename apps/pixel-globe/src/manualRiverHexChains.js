@@ -129,6 +129,9 @@ export const MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS = {
 export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
   7: [
     { tile: 25502, edge: 0 },
+    // Yukon delta branches into the Bering Sea.
+    { tile: 47511, edge: 3 },
+    { tile: 47521, edge: 2 },
   ],
 };
 
