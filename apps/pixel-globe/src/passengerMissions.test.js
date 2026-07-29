@@ -20,6 +20,7 @@ import { diplomacyBetween } from "./factions.js";
 import {
   PASSENGER_MAX_DISTANCE_KM,
   PASSENGER_MIN_DISTANCE_KM,
+  activeNamedTravelMission,
   envoyOfferForCapital,
   markPassengerOfferSeen,
   passengerOfferForCity,
@@ -34,6 +35,13 @@ import {
   activeForeignSettlements,
   withForeignSettlements1522
 } from "./foreignSettlements.js";
+import {
+  createBirthdayMemory,
+  observeAboardBirthdays,
+  pendingBirthdayDialogueLine
+} from "./birthdayEvents.js";
+import { characterWithBiography } from "./characterBiography.js";
+import { gameStatePerkTotals } from "./playerPerks.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -119,11 +127,25 @@ test("accepting and completing passenger passage pays fare and clears pending of
 
 test("one passenger and one package delivery can travel aboard together", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const passengerCharacter = characterWithBiography({
+    id: "passenger-hana-sato",
+    name: "Hana Sato",
+    givenName: "Hana",
+    sex: "female",
+    age: 28,
+    nameCulture: "japanese",
+    religionId: "kami-buddhist",
+    birthDate: { year: 1494, month: 2, day: 2 },
+    portraitId: "east-asian-woman-black-hair",
+    portraitSrc: "portraits/east-asian-woman-black-hair.png",
+    expressions: [{ id: "neutral" }, { id: "happy" }],
+    skillIds: ["master-chef"]
+  });
   const passenger = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], {
     spawnChance: 1,
     simMinute: 0,
     destinationTileId: LONDON.tileId,
-    createCharacter: () => ({ name: "Hana Sato" })
+    createCharacter: () => passengerCharacter
   });
   acceptQuest(state, passenger);
 
@@ -135,6 +157,39 @@ test("one passenger and one package delivery can travel aboard together", () => 
   acceptQuest(state, delivery);
   assert.equal(state.memory.quests.passengerActive.id, passenger.id);
   assert.equal(state.memory.quests.active.id, delivery.id);
+  assert.deepEqual(activeNamedTravelMission(state), {
+    quest: state.memory.quests.passengerActive,
+    kind: "passenger",
+    character: state.memory.quests.passengerActive.passenger
+  });
+  assert.equal(activeNamedTravelMission(state).character.name, "Hana Sato");
+  assert.equal(
+    activeNamedTravelMission(state).character.portraitId,
+    "east-asian-woman-black-hair"
+  );
+  assert.deepEqual(activeNamedTravelMission(state).character.skillIds, ["master-chef"]);
+  assert.equal(gameStatePerkTotals(state).foodDurationMultiplier, 1.6);
+
+  const captain = characterWithBiography({
+    id: "captain-joan-alden",
+    name: "Joan Alden",
+    givenName: "Joan",
+    sex: "female",
+    age: 29,
+    nameCulture: "english",
+    religionId: "roman-catholic",
+    birthDate: { year: 1492, month: 7, day: 10 }
+  });
+  const birthdays = createBirthdayMemory();
+  observeAboardBirthdays(
+    birthdays,
+    [captain, activeNamedTravelMission(state).character],
+    { year: 1522, month: 7, day: 10 }
+  );
+  assert.equal(pendingBirthdayDialogueLine(
+    birthdays,
+    [captain, activeNamedTravelMission(state).character]
+  ).character.id, passengerCharacter.id);
 
   completeQuest(state, LONDON, { simMinute: 240, questId: passenger.id });
   assert.equal(state.memory.quests.passengerActive, null);

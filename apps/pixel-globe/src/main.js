@@ -1256,6 +1256,7 @@ import {
   waypointArrowMaxY
 } from "./waypointArrowUi.js";
 import {
+  activeNamedTravelMission,
   activeTravelMissionQuest,
   markPassengerOfferSeen,
   passengerQuestById,
@@ -28084,16 +28085,16 @@ function currentAboardRoster() {
     throw new Error("Cannot build the aboard roster before the player ship is ready");
   }
   const travelerGroups = shipTravelerManifest(gameState);
-  const activeQuest = gameState.memory.quests?.active || null;
-  const namedTravelerKind = activeQuest?.kind === "passenger"
-    ? "passenger"
-    : isEnvoyQuest(activeQuest) ? "envoy" : null;
-  const namedTraveler = namedTravelerKind && activeQuest?.passenger
-    ? { kind: namedTravelerKind, character: activeQuest.passenger }
-    : null;
+  const namedTravelMission = activeNamedTravelMission(gameState);
+  const activeQuest = namedTravelMission?.quest || null;
   const rescuedTravelers = activeRescuedTravelers();
   const namedTravelers = [];
-  if (namedTraveler) namedTravelers.push(namedTraveler);
+  if (namedTravelMission) {
+    namedTravelers.push({
+      kind: namedTravelMission.kind,
+      character: namedTravelMission.character
+    });
+  }
   for (const traveler of rescuedTravelers) {
     if (traveler.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
       namedTravelers.push({ kind: "passenger", character: traveler.character });

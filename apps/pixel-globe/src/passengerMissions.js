@@ -171,6 +171,16 @@ export function activeTravelMissionQuest(state) {
   return isEnvoyQuest(quests.active) ? quests.active : (quests.passengerActive || null);
 }
 
+export function activeNamedTravelMission(state) {
+  const quest = activeTravelMissionQuest(state);
+  if (!quest?.passenger) return null;
+  const kind = quest.kind === "passenger"
+    ? "passenger"
+    : isEnvoyQuest(quest) ? "envoy" : null;
+  if (!kind) throw new Error(`Named travel mission has unsupported kind: ${quest.kind}`);
+  return Object.freeze({ quest, kind, character: quest.passenger });
+}
+
 export function passengerQuestById(state, questId) {
   const quests = questMemory(state);
   if (quests.active?.id === questId) return quests.active;
