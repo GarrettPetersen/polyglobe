@@ -703,6 +703,25 @@ test("civilian tolls grant one month of empire-wide safe passage", () => {
   assert.equal(portEntryStatus(state, alexandria, passage.untilMinute).allowed, false);
 });
 
+test("attacking a faction immediately revokes its purchased safe passage", () => {
+  const habsburgPlayer = { ...PLAYER, nationalityId: "habsburg" };
+  const fishingBarque = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({
+    cargoCapacity: fishingBarque.cargoCapacity,
+    playerCharacter: habsburgPlayer,
+    shipStats: fishingBarque
+  });
+  const istanbul = port(8, "Istanbul", "Turkey", "mediterranean", 180000, "ottoman");
+  purchaseFactionSafePassage(state, istanbul, 100);
+  assert.equal(factionSafePassageStatus(state, "ottoman", 101).active, true);
+
+  recordAttackAgainstFaction(state, "ottoman");
+
+  assert.equal(factionSafePassageStatus(state, "ottoman", 101).active, false);
+  assert.equal(portEntryStatus(state, istanbul, 101).hostile, true);
+  assert.equal(state.memory.decisions["safe-passage.revoked.attack.ottoman"], 1);
+});
+
 test("paid safe passage remains valid if personal standing later becomes hostile", () => {
   const habsburgPlayer = { ...PLAYER, nationalityId: "habsburg" };
   const fishingBarque = shipStatsForSlug("fishing-lugger");

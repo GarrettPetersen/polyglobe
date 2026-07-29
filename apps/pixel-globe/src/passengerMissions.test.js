@@ -10,6 +10,7 @@ import {
   grantEnvoySafePassage,
   ledgerEntries,
   openSovereignTradeToFaction,
+  recordAttackAgainstFaction,
   sovereignTradeOpenToFaction,
   negotiateEnvoyQuest
 } from "./gameState.js";
@@ -352,6 +353,9 @@ test("an envoy can claim seven days of passage from either participating nation"
   assert.match(foreignPassage.message, /diplomatic|envoy|official/i);
   assert.deepEqual(activeFactionSafePassageIds(state, 201).sort(), ["england", "portugal"]);
   assert.equal(grantEnvoySafePassage(state, "france", 201), null);
+  recordAttackAgainstFaction(state, "england");
+  assert.deepEqual(activeFactionSafePassageIds(state, 202), ["portugal"]);
+  assert.equal(state.memory.decisions["safe-passage.revoked.attack.england"], 1);
   assert.deepEqual(activeFactionSafePassageIds(state, 200 + 7 * 24 * 60), []);
 });
 

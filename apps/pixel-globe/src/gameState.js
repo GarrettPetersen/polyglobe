@@ -3302,6 +3302,7 @@ export function recordAttackAgainstFaction(state, factionId) {
   assertGameState(state);
   const id = assertFactionId(factionId);
   if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return factionReputation(state, id);
+  revokeSafePassageAfterAttack(state, id);
   if (state.relations.lettersOfMarque[id]) {
     delete state.relations.lettersOfMarque[id];
     recordDecision(state, `letter-of-marque.revoked.${id}`, 1);
@@ -3310,6 +3311,23 @@ export function recordAttackAgainstFaction(state, factionId) {
   const after = applyAttackReputationPenalty(state, id);
   if (after !== before) recordDecision(state, `reputation.attack.${id}`, 1);
   return after;
+}
+
+function revokeSafePassageAfterAttack(state, factionId) {
+  let revoked = false;
+  if (Object.hasOwn(state.relations.safePassageUntilMinute, factionId)) {
+    delete state.relations.safePassageUntilMinute[factionId];
+    revoked = true;
+  }
+  const activeQuest = questMemory(state).active;
+  const envoyPassage = isEnvoyQuest(activeQuest)
+    ? activeQuest.envoySafePassageUntilMinute
+    : null;
+  if (envoyPassage && Object.hasOwn(envoyPassage, factionId)) {
+    delete envoyPassage[factionId];
+    revoked = true;
+  }
+  if (revoked) recordDecision(state, `safe-passage.revoked.attack.${factionId}`, 1);
 }
 
 export function recordPiracyAgainstFaction(state, victimFactionId, options = {}) {
