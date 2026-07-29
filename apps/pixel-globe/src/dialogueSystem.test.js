@@ -2744,7 +2744,9 @@ test("a Caribbean planter pays for ginger roots and establishes local production
   maybeSpawnCaribbeanGingerQuest(gameState, city, { spawnChance: 1, simMinute: 0 });
   const arrival = createPortArrivalDialogueSession(city, { caribbeanGingerApproach: true });
   assert.equal(arrival.nodeId, "caribbean-ginger");
-  assert.match(portDialogueView(arrival, city, gameState, economy, [city]).text, /Southeast Asia/);
+  const arrivalView = portDialogueView(arrival, city, gameState, economy, [city]);
+  assert.match(arrivalView.text, /Southeast Asia/);
+  assert.ok(arrivalView.text.length <= 150);
 
   const session = createPortDialogueSession(city, { initialNodeId: "caribbean-ginger" });
   gameState.cargo[GINGER_GOOD_ID] = 2;
@@ -2762,6 +2764,8 @@ test("a Caribbean planter pays for ginger roots and establishes local production
   assert.equal(gameState.doubloons, startingDoubloons);
   gameState.cargo[GINGER_GOOD_ID] = 4;
   view = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(view.text, /Delivered: 2\/6/);
+  assert.ok(view.text.length <= 170);
   deliveryIndex = view.options.findIndex(
     (entry) => entry.action.type === "deliver-caribbean-ginger"
   );
@@ -2771,6 +2775,7 @@ test("a Caribbean planter pays for ginger roots and establishes local production
 
   const completed = portDialogueView(session, city, gameState, economy, [city]);
   assert.match(completed.text, /ginger has taken beautifully/i);
+  assert.ok(completed.text.length <= 130);
   assert.equal(gameState.doubloons, startingDoubloons + CARIBBEAN_GINGER_COMPLETION_REWARD);
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
   assert.equal(market.get(GINGER_GOOD_ID).productionPerDay, 1.25);

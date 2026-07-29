@@ -2729,7 +2729,7 @@ function caribbeanGingerView(session, city, gameState) {
     return {
       speaker,
       expressionId: "pleased",
-      text: `The ginger has taken beautifully. These islands now grow a spice that once had to cross half the world, and ${cityLabel(city)} has a new crop for every eastbound hold.`,
+      text: `The ginger has taken beautifully. ${cityLabel(city)} now grows a valuable spice once carried halfway around the world.`,
       feedback: session.feedback,
       options: [back]
     };
@@ -2739,10 +2739,9 @@ function caribbeanGingerView(session, city, gameState) {
   return {
     speaker,
     expressionId: quest.canDeliver ? "pleased" : "attentive",
-    text: "Feel this soil: warm, damp, and rich. I am certain ginger would thrive here, but " +
-      "sound planting roots must come from the ports of Southeast Asia. Bring me six, and I " +
-      `will pay well for the risk of carrying them across the world.${quest.delivered > 0
-        ? ` You have already delivered ${quest.delivered} of ${stage.quantity}.`
+    text: "This soil is warm, damp, and rich: perfect for ginger. Bring me six sound roots " +
+      `from Southeast Asia, and I will pay well for the voyage.${quest.delivered > 0
+        ? ` Delivered: ${quest.delivered}/${stage.quantity}.`
         : ""}`,
     feedback: session.feedback,
     options: [
