@@ -8,6 +8,7 @@ import {
   createGameState,
   migrateGameState,
   portNavigationReasonLabel,
+  reconcileQuestPortTiles,
   removeOptionalNavigationWaypoint
 } from "./gameState.js";
 
@@ -39,6 +40,30 @@ test("optional port waypoints persist independently until removed or reached", (
   }]);
   assert.equal(clearPortNavigationWaypointsAt(state, 42), true);
   assert.deepEqual(state.memory.navigation.optionalWaypoints, []);
+});
+
+test("saved optional waypoints follow a port moved onto its real island", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  addPortNavigationWaypoint(state, {
+    destinationTileId: 21837,
+    destinationName: "Tarawa Village",
+    reason: "NEW SHIP FOR SALE"
+  });
+
+  const updates = reconcileQuestPortTiles(state, [{
+    tileId: 67709,
+    city: "Tarawa Village",
+    displayCity: "Tarawa Village",
+    country: "Kiribati"
+  }]);
+
+  assert.equal(updates, 1);
+  assert.deepEqual(state.memory.navigation.optionalWaypoints, [{
+    id: "port:67709",
+    destinationTileId: 67709,
+    destinationName: "Tarawa Village",
+    reason: "NEW SHIP FOR SALE"
+  }]);
 });
 
 test("version 18 voyages gain an empty optional waypoint list during migration", () => {

@@ -19,9 +19,19 @@ export function placeCityCatalogOnWorld(options) {
       latLonToDirection(city.lat, city.lon)
     );
     const predicate = cityPlacementPredicate(options, city);
+    if (city.islandSettlement && !predicate(startId)) {
+      throw new Error(
+        `Island settlement has no dockable land at its real coordinates: ${city.city}, ${city.country}`
+      );
+    }
     let tileId = predicate(startId) ? startId : nearestTileMatching(options.graph, startId, predicate);
     if (tileId === undefined) throw new Error(`Could not place city on drawable land tile: ${city.city}, ${city.country}`);
     if (placed.has(tileId)) {
+      if (city.islandSettlement) {
+        throw new Error(
+          `Island settlement tile is already occupied at its real coordinates: ${city.city}, ${city.country}`
+        );
+      }
       if (!cityRequiresPortAccess(city)) continue;
       tileId = nearestTileMatching(options.graph, tileId, (id) => predicate(id) && !placed.has(id));
       if (tileId === undefined) {

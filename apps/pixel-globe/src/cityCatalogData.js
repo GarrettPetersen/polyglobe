@@ -165,6 +165,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
       manualRegion: manualSpec.manualRegion || null,
       npcInterregionalTradeExcluded: Boolean(manualSpec.npcInterregionalTradeExcluded),
       settlementType: manualSpec.settlementType || "city",
+      islandSettlement: Boolean(manualSpec.islandSettlement),
       marketGoods: manualSpec.marketGoods || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
     };

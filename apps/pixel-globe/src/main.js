@@ -26189,7 +26189,7 @@ function navigationMenuEntries() {
       destinationName: cityLabelText(questDestination),
       reason: navigationQuestReason(quest),
       style: QUEST_NAVIGATION_STYLE,
-      targetVector: latLonToDirection(questDestination.lat, questDestination.lon),
+      targetVector: placedCityTargetVector(questDestination),
       optionalWaypointId: null
     });
   }
@@ -26207,7 +26207,7 @@ function navigationMenuEntries() {
       destinationName: traveler.homePortName,
       reason: `RETURN ${rescuedTravelerLabel(traveler)} HOME`,
       style: QUEST_NAVIGATION_STYLE,
-      targetVector: latLonToDirection(destination.lat, destination.lon),
+      targetVector: placedCityTargetVector(destination),
       optionalWaypointId: null
     });
   }
@@ -26234,7 +26234,7 @@ function navigationMenuEntries() {
       destinationName: cityLabelText(destination),
       reason: fetchQuestNavigationReason(fetchTarget),
       style: QUEST_NAVIGATION_STYLE,
-      targetVector: latLonToDirection(destination.lat, destination.lon),
+      targetVector: placedCityTargetVector(destination),
       optionalWaypointId: null
     });
   }
@@ -26250,7 +26250,7 @@ function navigationMenuEntries() {
       destinationName: cityLabelText(naturalistDestination),
       reason: "REPORT ANIMAL SIGHTINGS",
       style: NATURALIST_NAVIGATION_STYLE,
-      targetVector: latLonToDirection(naturalistDestination.lat, naturalistDestination.lon),
+      targetVector: placedCityTargetVector(naturalistDestination),
       optionalWaypointId: null
     });
   }
@@ -26262,7 +26262,7 @@ function navigationMenuEntries() {
       destinationName: waypoint.destinationName,
       reason: portNavigationReasonLabel(waypoint.reason),
       style: OPTIONAL_NAVIGATION_STYLE,
-      targetVector: latLonToDirection(destination.lat, destination.lon),
+      targetVector: placedCityTargetVector(destination),
       optionalWaypointId: waypoint.id
     });
   }
@@ -26429,6 +26429,13 @@ function portWaypointDestination(waypoint) {
     throw new Error(`Port waypoint destination has no coordinates: ${waypoint.destinationName}`);
   }
   return destination;
+}
+
+function placedCityTargetVector(city) {
+  if (!Number.isInteger(city?.tileId)) {
+    throw new Error(`Placed city target requires a tile id: ${cityLabelText(city)}`);
+  }
+  return tileCenterVector(city.tileId);
 }
 
 function navigationMenuPage() {
@@ -34969,7 +34976,7 @@ function drawShipWindV({
 function drawQuestDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout) return;
   for (const { quest, destination } of activeQuestDestinations()) {
-    const destinationVector = latLonToDirection(destination.lat, destination.lon);
+    const destinationVector = placedCityTargetVector(destination);
     const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
     drawWorldTargetArrow({
       id: `quest:${quest.id}`,
@@ -35062,7 +35069,7 @@ function drawOneCampaignGoalDestinationArrow(destination, nowMs) {
   if (homeCity.tileId !== destination.homePortTileId) {
     throw new Error(`Campaign destination home port mismatch: ${destination.homePortTileId}`);
   }
-  const targetVector = latLonToDirection(homeCity.lat, homeCity.lon);
+  const targetVector = placedCityTargetVector(homeCity);
   const visibleCity = chart.cityCalls?.find((call) => call.tileId === homeCity.tileId);
   drawWorldTargetArrow({
     id: `campaign:home:${homeCity.tileId}`,
@@ -35079,7 +35086,7 @@ function drawPortNavigationHeadingArrow(nowMs) {
   if (!ship || !chart || !localLayout || !gameState) return;
   for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
     const destination = portWaypointDestination(waypoint);
-    const targetVector = latLonToDirection(destination.lat, destination.lon);
+    const targetVector = placedCityTargetVector(destination);
     const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
     drawWorldTargetArrow({
       id: waypoint.id,
@@ -35097,7 +35104,7 @@ function drawNaturalistDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout) return;
   const destination = activeNaturalistReportDestination();
   if (!destination) return;
-  const targetVector = latLonToDirection(destination.lat, destination.lon);
+  const targetVector = placedCityTargetVector(destination);
   const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
   drawWorldTargetArrow({
     id: `naturalist:${destination.tileId}`,
@@ -35134,7 +35141,7 @@ function drawFetchQuestDestinationArrows(nowMs) {
   for (const fetchTarget of currentReadyFetchQuestDestinations()) {
     if (fetchTarget.questId === "colonization") continue;
     const destination = fetchQuestWorldDestination(fetchTarget);
-    const targetVector = latLonToDirection(destination.lat, destination.lon);
+    const targetVector = placedCityTargetVector(destination);
     const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
     drawWorldTargetArrow({
       id: `fetch:${fetchTarget.id}`,

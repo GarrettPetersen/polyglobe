@@ -4409,6 +4409,80 @@ export function reconcileQuestPortTiles(state, portCities) {
     offers[offer?.originKey || storedKey] = offer;
   }
   quests.passengerOffers = offers;
+
+  const reconciledWaypoints = [];
+  for (const waypoint of state.memory.navigation.optionalWaypoints) {
+    const destination = reconciledPortReference(portCities, {
+      tileId: waypoint.destinationTileId,
+      name: waypoint.destinationName
+    });
+    if (destination && destination.tileId !== waypoint.destinationTileId) {
+      waypoint.destinationTileId = destination.tileId;
+      waypoint.id = `port:${destination.tileId}`;
+      updates += 1;
+    }
+    const existingIndex = reconciledWaypoints.findIndex((entry) => entry.id === waypoint.id);
+    if (existingIndex >= 0) reconciledWaypoints[existingIndex] = waypoint;
+    else reconciledWaypoints.push(waypoint);
+  }
+  state.memory.navigation.optionalWaypoints = reconciledWaypoints;
+
+  const playerHome = reconciledPortReference(portCities, {
+    tileId: state.playerCharacter?.homePortTileId,
+    name: state.playerCharacter?.homePortName,
+    country: state.playerCharacter?.homePortCountry
+  });
+  if (playerHome && playerHome.tileId !== state.playerCharacter.homePortTileId) {
+    state.playerCharacter.homePortTileId = playerHome.tileId;
+    if (state.memory.campaignGoal) state.memory.campaignGoal.homePortTileId = playerHome.tileId;
+    updates += 1;
+  }
+
+  for (const memoryKey of ["pirateCaptive", "castaway"]) {
+    const traveler = quests[memoryKey]?.active;
+    const home = reconciledPortReference(portCities, {
+      tileId: traveler?.homePortTileId,
+      name: traveler?.homePortName,
+      country: traveler?.homePortCountry
+    });
+    if (home && home.tileId !== traveler.homePortTileId) {
+      traveler.homePortTileId = home.tileId;
+      updates += 1;
+    }
+  }
+
+  const chef = quests.chef;
+  const chefPort = reconciledPortReference(portCities, {
+    tileId: chef?.portTileId,
+    name: chef?.portCity,
+    country: chef?.portCountry
+  });
+  if (chefPort && chefPort.tileId !== chef.portTileId) {
+    chef.portTileId = chefPort.tileId;
+    updates += 1;
+  }
+
+  const colonization = state.memory.colonization;
+  for (const endpoint of ["origin", "approval"]) {
+    const port = reconciledPortReference(portCities, {
+      tileId: colonization?.[`${endpoint}TileId`],
+      name: colonization?.[`${endpoint}City`],
+      country: colonization?.[`${endpoint}Country`]
+    });
+    if (port && port.tileId !== colonization[`${endpoint}TileId`]) {
+      colonization[`${endpoint}TileId`] = port.tileId;
+      updates += 1;
+    }
+  }
+
+  const naturalist = quests.naturalist;
+  if (Number.isInteger(naturalist?.portTileId) &&
+      !portCities.some((port) => port.tileId === naturalist.portTileId)) {
+    naturalist.portTileId = null;
+    updates += 1;
+  }
+
+  assertGameState(state);
   return updates;
 }
 
@@ -5174,6 +5248,17 @@ function reconcileQuestEndpoint(quest, endpoint, portCities) {
   if (candidates.length !== 1) return 0;
   updateQuestEndpointIdentity(quest, endpoint, candidates[0]);
   return 1;
+}
+
+function reconciledPortReference(portCities, { tileId, name, country = "" }) {
+  if (typeof name !== "string" || name.trim() === "") return null;
+  const current = portCities.find((port) => (
+    port.tileId === tileId && cityLabel(port) === name
+  ));
+  if (current) return current;
+  let candidates = portCities.filter((port) => cityLabel(port) === name);
+  if (country) candidates = candidates.filter((port) => port.country === country);
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function updateQuestEndpointIdentity(quest, endpoint, port) {

@@ -171,6 +171,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const kilwa = ports.find((city) => city.city === "Kilwa" && city.country === "Tanzania");
   const pacificVillages = ports.filter((city) => city.manualRegion === "pacific-islands");
   const encounterVillages = ports.filter((city) => city.manualRegion === "explorer-encounters");
+  const islandVillages = ports.filter((city) => city.islandSettlement);
   const spiceIslandVillages = ports.filter((city) =>
     city.manualRegion === "spice-islands" && city.settlementType === "village"
   );
@@ -267,6 +268,35 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   assert.ok(pacificVillages.every((city) => city.cityType === "polynesian"));
   assert.ok(pacificVillages.every((city) => city.settlementType === "village"));
+  assert.equal(islandVillages.length, 21);
+  for (const city of islandVillages) {
+    const intendedTileId = findNearestTileId(
+      graph,
+      directionIndex,
+      latLonToDirection(city.lat, city.lon)
+    );
+    assert.equal(
+      city.tileId,
+      intendedTileId,
+      `${city.city} must remain on the island at its real coordinates`
+    );
+    assert.equal(
+      isCityDrawableTile(earth.tiles, city.tileId),
+      true,
+      `${city.city} must be drawn on land`
+    );
+    assert.equal(
+      cityHasPortAccess({
+        graph,
+        earthRows: earth.tiles,
+        reachableNavigationMask: reachable,
+        riverMasks: masks,
+        tileId: city.tileId
+      }),
+      true,
+      `${city.city} must remain dockable`
+    );
+  }
   assert.deepEqual(
     encounterVillages.map((city) => city.city).sort(),
     [
@@ -466,6 +496,7 @@ function buildCityRecords1522(csv) {
       requiredTradePort: Boolean(manualSpec.requiredTradePort),
       manualRegion: manualSpec.manualRegion || null,
       settlementType: manualSpec.settlementType || "city",
+      islandSettlement: Boolean(manualSpec.islandSettlement),
       marketGoods: manualSpec.marketGoods || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
     });

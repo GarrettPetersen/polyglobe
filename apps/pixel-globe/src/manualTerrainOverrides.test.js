@@ -26,13 +26,17 @@ test("Italy's Salento heel is restored as connected Mediterranean land", async (
   const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
   const graph = buildGeodesicGraph(SUBDIVISIONS);
 
-  assert.deepEqual(MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[SUBDIVISIONS], [{
+  assert.deepEqual(
+    MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[SUBDIVISIONS]
+      .find((override) => override.tileId === ITALY_SALENTO_TILE_ID),
+    {
     tileId: ITALY_SALENTO_TILE_ID,
     sourceTerrain: "beach",
     terrainType: "mediterranean_hot",
     elevation: -0.03629907425729602,
     landmassId: 57
-  }]);
+    }
+  );
   assert.equal(earth.tiles[ITALY_SALENTO_TILE_ID].t, "beach");
   assert.deepEqual(correctedRows[ITALY_SALENTO_TILE_ID], {
     id: ITALY_SALENTO_TILE_ID,
@@ -45,6 +49,41 @@ test("Italy's Salento heel is restored as connected Mediterranean land", async (
   assert.equal(correctedRows[ITALY_ADJOINING_LAND_TILE_ID].m, 57);
   assert.ok(Math.abs(graph.latDeg[ITALY_SALENTO_TILE_ID] - 40.586) < 0.01);
   assert.ok(Math.abs(graph.lonDeg[ITALY_SALENTO_TILE_ID] - 17.61) < 0.01);
+});
+
+test("missing small islands are restored as distinct dockable landforms", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+  const islandOverrides = MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[SUBDIVISIONS]
+    .filter((override) => override.landmassId >= 1270);
+
+  assert.deepEqual(
+    islandOverrides.map((override) => override.tileId).sort((a, b) => a - b),
+    [
+      16050, 34610, 67709, 85318, 89746, 90267, 90803, 91677,
+      91681, 91683, 91735, 91800, 136831, 141773, 142904, 143938
+    ]
+  );
+  assert.equal(
+    new Set(islandOverrides.map((override) => override.landmassId)).size,
+    islandOverrides.length
+  );
+
+  for (const override of islandOverrides) {
+    assert.equal(earth.tiles[override.tileId].t, override.sourceTerrain);
+    assert.equal(correctedRows[override.tileId].t, override.terrainType);
+    assert.equal(correctedRows[override.tileId].m, override.landmassId);
+    assert.equal(isWaterSurfaceRow(correctedRows[override.tileId]), false);
+    assert.ok(
+      graph.neighbors[override.tileId]
+        .some((neighborId) => isWaterSurfaceRow(correctedRows[neighborId])),
+      `restored island ${override.tileId} must remain dockable`
+    );
+  }
 });
 
 test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", async () => {
