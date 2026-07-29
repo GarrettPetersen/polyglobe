@@ -14,10 +14,10 @@
       "setBy": "Client",
       "incrementOnly": true,
       "minValue": 0,
-      "maxValue": 10,
+      "maxValue": 1000,
       "defaultValue": 0,
       "aggregated": false,
-      "sourceAchievementId": "chart-maker"
+      "sourceAchievementId": "great-explorer"
     },
     {
       "apiName": "MAX_VOYAGE_SPICES_SOLD",

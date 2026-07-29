@@ -1,7 +1,7 @@
 import { gameStorage } from "./gameStorage.js";
 
 export const ACHIEVEMENT_PROFILE_STORAGE_KEY = "marque-and-reprisal.achievements";
-export const ACHIEVEMENT_PROFILE_VERSION = 2;
+export const ACHIEVEMENT_PROFILE_VERSION = 3;
 export const VOYAGE_ACHIEVEMENT_PROGRESS_VERSION = 2;
 
 export const ACHIEVEMENT_IDS = Object.freeze({
@@ -186,7 +186,11 @@ export function createAchievementProfile() {
   return {
     version: ACHIEVEMENT_PROFILE_VERSION,
     unlocked: {},
-    lifetime: { sailedShipSlugs: [], seenAnimalIds: [] },
+    lifetime: {
+      sailedShipSlugs: [],
+      seenAnimalIds: [],
+      maxVoyageDiscoveryCount: 0
+    },
     platformUnlocks: {}
   };
 }
@@ -260,17 +264,27 @@ export function readAchievementProfile({ storage = defaultStorage() } = {}) {
 
 export function migrateAchievementProfile(profile) {
   if (profile?.version === ACHIEVEMENT_PROFILE_VERSION) return profile;
-  if (profile?.version !== 1) {
-    throw new Error(`Unsupported achievement profile: ${profile?.version ?? "missing"}`);
+  if (profile?.version === 1) {
+    return migrateAchievementProfile({
+      ...profile,
+      version: 2,
+      lifetime: {
+        ...profile.lifetime,
+        seenAnimalIds: []
+      }
+    });
   }
-  return {
-    ...profile,
-    version: ACHIEVEMENT_PROFILE_VERSION,
-    lifetime: {
-      ...profile.lifetime,
-      seenAnimalIds: []
-    }
-  };
+  if (profile?.version === 2) {
+    return {
+      ...profile,
+      version: ACHIEVEMENT_PROFILE_VERSION,
+      lifetime: {
+        ...profile.lifetime,
+        maxVoyageDiscoveryCount: 0
+      }
+    };
+  }
+  throw new Error(`Unsupported achievement profile: ${profile?.version ?? "missing"}`);
 }
 
 export function writeAchievementProfile(profile, { storage = defaultStorage() } = {}) {
@@ -297,6 +311,13 @@ export function validateAchievementProfile(profile) {
   }
   validateUniqueStringList(profile.lifetime.sailedShipSlugs, "lifetime sailed ships");
   validateUniqueStringList(profile.lifetime.seenAnimalIds, "lifetime animal sightings");
+  if (!Number.isInteger(profile.lifetime.maxVoyageDiscoveryCount) ||
+      profile.lifetime.maxVoyageDiscoveryCount < 0) {
+    throw new Error(
+      `Invalid lifetime voyage discovery high-water mark: ` +
+      `${profile.lifetime.maxVoyageDiscoveryCount}`
+    );
+  }
   if (!profile.platformUnlocks || typeof profile.platformUnlocks !== "object" ||
       Array.isArray(profile.platformUnlocks)) {
     throw new Error("Achievement platform unlocks must be an object");
@@ -376,6 +397,11 @@ export function synchronizeAchievements(profile, progress, snapshot, { unlockedA
   changed = addAll(progress.sailedShipSlugs, snapshot.sailedShipSlugs) || changed;
   changed = addAll(profile.lifetime.sailedShipSlugs, snapshot.sailedShipSlugs) || changed;
   changed = addAll(profile.lifetime.seenAnimalIds, snapshot.animalIds) || changed;
+  const voyageDiscoveryCount = currentVoyageDiscoveryCount(snapshot);
+  if (voyageDiscoveryCount > profile.lifetime.maxVoyageDiscoveryCount) {
+    profile.lifetime.maxVoyageDiscoveryCount = voyageDiscoveryCount;
+    changed = true;
+  }
   if (snapshot.grossDoubloonsEarned > progress.grossDoubloonsEarned) {
     progress.grossDoubloonsEarned = snapshot.grossDoubloonsEarned;
     changed = true;
@@ -465,8 +491,7 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
   let value = unlocked ? 1 : 0;
   let target = 1;
   if (achievementId === ACHIEVEMENT_IDS.GREAT_EXPLORER) {
-    const found = new Set(snapshot.discoveryIds);
-    value = snapshot.discoveryCatalogIds.filter((id) => found.has(id)).length;
+    value = currentVoyageDiscoveryCount(snapshot);
     target = snapshot.discoveryCatalogIds.length;
   } else if (achievementId === ACHIEVEMENT_IDS.SPICE_TRADER) {
     value = progress.soldSpiceGoodIds.length;
@@ -578,6 +603,11 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
     target = snapshot.animalCatalogIds.length;
   }
   return Object.freeze({ unlocked, value: Math.min(value, target), target });
+}
+
+function currentVoyageDiscoveryCount(snapshot) {
+  const found = new Set(snapshot.discoveryIds);
+  return snapshot.discoveryCatalogIds.filter((id) => found.has(id)).length;
 }
 
 export function achievementPresentation(entry, unlocked) {

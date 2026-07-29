@@ -27,6 +27,11 @@ test("Steam stats are unique bounded client-side high-water integers", () => {
     assert.equal(entry.minValue, 0);
     assert.ok(entry.maxValue > 0);
   }
+  const discoveryStat = STEAM_STAT_CATALOG.find(
+    (entry) => entry.apiName === "MAX_VOYAGE_DISCOVERIES"
+  );
+  assert.equal(discoveryStat.sourceAchievementId, ACHIEVEMENT_IDS.GREAT_EXPLORER);
+  assert.equal(discoveryStat.maxValue, 1_000);
 });
 
 test("fixed multi-step achievements have valid Steam progress bindings", () => {
@@ -66,6 +71,19 @@ test("Steam stat values use current progress and locally unlocked achievement fl
   assert.equal(values.MAX_VOYAGE_DISCOVERIES, 3);
   assert.equal(values.MAX_VOYAGE_GOODS_SOLD, 2);
   assert.equal(values.MAX_VOYAGE_MAP_PERCENT, 50);
+});
+
+test("Steam discovery stats retain the local best voyage after that voyage ends", () => {
+  const profile = createAchievementProfile();
+  profile.lifetime.maxVoyageDiscoveryCount = 27;
+
+  const values = steamStatValues(
+    profile,
+    createVoyageAchievementProgress(),
+    snapshot()
+  );
+
+  assert.equal(values.MAX_VOYAGE_DISCOVERIES, 27);
 });
 
 function snapshot(overrides = {}) {

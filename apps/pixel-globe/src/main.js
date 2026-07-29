@@ -28735,7 +28735,11 @@ function drawAchievementsMenu() {
 }
 
 function achievementProgressLabel(entry, progress) {
-  if (progress.unlocked) return "";
+  const showActiveGreatExplorerProgress = (
+    hasStartedVoyage &&
+    entry.id === ACHIEVEMENT_IDS.GREAT_EXPLORER
+  );
+  if (progress.unlocked && !showActiveGreatExplorerProgress) return "";
   if (["merchant-adventurer", "merchant-prince", "millionaire"].includes(entry.id)) {
     return `${formatCompactNumber(progress.value)}/${formatCompactNumber(progress.target)}`;
   }

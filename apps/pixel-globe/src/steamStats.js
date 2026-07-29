@@ -5,7 +5,7 @@ import {
 
 export const STEAM_STAT_CATALOG = Object.freeze([
   stat("MAX_VOYAGE_DISCOVERIES", "Most discoveries in one voyage",
-    ACHIEVEMENT_IDS.CHART_MAKER, 10),
+    ACHIEVEMENT_IDS.GREAT_EXPLORER, 1_000),
   stat("MAX_VOYAGE_SPICES_SOLD", "Most distinct spices sold in one voyage",
     ACHIEVEMENT_IDS.SPICE_TRADER, 5),
   stat("MAX_VOYAGE_EARNINGS", "Most doubloons earned in one voyage",
@@ -94,7 +94,13 @@ export function steamStatValues(profile, voyageProgress, snapshot) {
           ? Math.max(highest, binding.unlockValue)
           : highest
       ), 0);
-    return [entry.apiName, Math.min(entry.maxValue, Math.max(current, unlockedFloor))];
+    const localHighWater = entry.apiName === "MAX_VOYAGE_DISCOVERIES"
+      ? profile.lifetime.maxVoyageDiscoveryCount
+      : 0;
+    return [
+      entry.apiName,
+      Math.min(entry.maxValue, Math.max(current, unlockedFloor, localHighWater))
+    ];
   }));
   return Object.freeze(values);
 }

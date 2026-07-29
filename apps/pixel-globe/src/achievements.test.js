@@ -11,6 +11,7 @@ import {
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
+  migrateAchievementProfile,
   migrateVoyageAchievementProgress,
   orderedAchievementCatalog,
   readAchievementProfile,
@@ -74,6 +75,29 @@ test("achievement profile persists independently from a voyage save", () => {
   writeAchievementProfile(profile, { storage });
   assert.ok(storage.getItem(ACHIEVEMENT_PROFILE_STORAGE_KEY));
   assert.deepEqual(readAchievementProfile({ storage }).profile, profile);
+});
+
+test("achievement profiles migrate discovery high-water tracking forward", () => {
+  const migrated = migrateAchievementProfile({
+    version: 2,
+    unlocked: {},
+    lifetime: {
+      sailedShipSlugs: ["caravel"],
+      seenAnimalIds: ["penguin"]
+    },
+    platformUnlocks: {}
+  });
+
+  assert.deepEqual(migrated, {
+    version: 3,
+    unlocked: {},
+    lifetime: {
+      sailedShipSlugs: ["caravel"],
+      seenAnimalIds: ["penguin"],
+      maxVoyageDiscoveryCount: 0
+    },
+    platformUnlocks: {}
+  });
 });
 
 test("completed achievements appear first while preserving catalog order", () => {
@@ -358,6 +382,33 @@ test("achievement progress reports partial requirements", () => {
     achievementProgress(profile, progress, snapshot(), ACHIEVEMENT_IDS.SPICE_TRADER),
     { unlocked: false, value: 2, target: 5 }
   );
+});
+
+test("Great Explorer tracks the current voyage and retains the best voyage total", () => {
+  const profile = createAchievementProfile();
+  const firstVoyage = createVoyageAchievementProgress();
+  const firstSnapshot = snapshot({
+    discoveryIds: ["one", "legend-el-dorado"]
+  });
+
+  synchronizeAchievements(profile, firstVoyage, firstSnapshot);
+  assert.deepEqual(
+    achievementProgress(
+      profile,
+      firstVoyage,
+      firstSnapshot,
+      ACHIEVEMENT_IDS.GREAT_EXPLORER
+    ),
+    { unlocked: false, value: 2, target: 3 }
+  );
+  assert.equal(profile.lifetime.maxVoyageDiscoveryCount, 2);
+
+  synchronizeAchievements(
+    profile,
+    createVoyageAchievementProgress(),
+    snapshot({ discoveryIds: ["one"] })
+  );
+  assert.equal(profile.lifetime.maxVoyageDiscoveryCount, 2);
 });
 
 test("platform adapter sync uses stable Steam ids once", async () => {
