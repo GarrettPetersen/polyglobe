@@ -351,6 +351,8 @@ test("an envoy can claim seven days of passage from either participating nation"
   assert.equal(homePassage.days, 7);
   assert.equal(foreignPassage.days, 7);
   assert.match(foreignPassage.message, /diplomatic|envoy|official/i);
+  assert.match(foreignPassage.warning, /do not attack English ships or ports/i);
+  assert.match(foreignPassage.warning, /safe passage would be forfeit/i);
   assert.deepEqual(activeFactionSafePassageIds(state, 201).sort(), ["england", "portugal"]);
   assert.equal(grantEnvoySafePassage(state, "france", 201), null);
   recordAttackAgainstFaction(state, "england");

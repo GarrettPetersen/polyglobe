@@ -19,6 +19,7 @@ import {
   markVikingLongshipPurchased,
   markVikingLongshipOfferSeen,
   maybeSpawnVikingLongshipQuest,
+  vikingLongshipEnthusiastAtPort,
   vikingLongshipOfferShouldApproach,
   vikingLongshipQuestState,
   vikingLongshipRewardDisposition,
@@ -75,8 +76,10 @@ test("the completed longship reward records one durable choice", () => {
   for (const stage of VIKING_LONGSHIP_FETCH_STAGES) {
     deliverVikingLongshipQuestCargo(accepted, HAFNARFJORDUR, stage.id);
   }
+  assert.equal(vikingLongshipEnthusiastAtPort(accepted, HAFNARFJORDUR), true);
   assert.equal(acceptVikingLongshipReward(accepted), VIKING_LONGSHIP_REWARD_ACCEPTED);
   assert.equal(vikingLongshipRewardDisposition(accepted), VIKING_LONGSHIP_REWARD_ACCEPTED);
+  assert.equal(vikingLongshipEnthusiastAtPort(accepted, HAFNARFJORDUR), false);
   assert.throws(() => declineVikingLongshipReward(accepted), /is accepted; expected pending/);
 
   const declined = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -88,9 +91,11 @@ test("the completed longship reward records one durable choice", () => {
   }
   assert.equal(declineVikingLongshipReward(declined), VIKING_LONGSHIP_REWARD_DECLINED);
   assert.equal(vikingLongshipRewardDisposition(declined), VIKING_LONGSHIP_REWARD_DECLINED);
+  assert.equal(vikingLongshipEnthusiastAtPort(declined, HAFNARFJORDUR), true);
   assert.throws(() => acceptVikingLongshipReward(declined), /is declined; expected pending/);
   assert.equal(markVikingLongshipPurchased(declined), VIKING_LONGSHIP_REWARD_PURCHASED);
   assert.equal(vikingLongshipRewardDisposition(declined), VIKING_LONGSHIP_REWARD_PURCHASED);
+  assert.equal(vikingLongshipEnthusiastAtPort(declined, HAFNARFJORDUR), false);
   assert.throws(() => markVikingLongshipPurchased(declined), /is purchased; expected declined/);
 });
 

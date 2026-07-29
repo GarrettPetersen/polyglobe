@@ -20365,10 +20365,22 @@ function attemptEnvoyIntercession(factionId, counterpart) {
   if (!counterpart) throw new Error(`Envoy intercession has no ${factionId} listener`);
   clearCombatForShip(PLAYER_COMBAT_ID);
   for (const battery of shoreBatteryStates.values()) battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
-  openCharacterAlertModal(envoy, passage.message, "stern", {
-    leftCharacter: envoy,
-    rightCharacter: counterpart
-  });
+  startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: envoy,
+      rightCharacter: counterpart,
+      speakerCharacter: envoy,
+      expressionId: "stern",
+      message: passage.message
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: envoy,
+      rightCharacter: gameState.playerCharacter,
+      speakerCharacter: envoy,
+      expressionId: "stern",
+      message: passage.warning
+    })
+  ]);
   showSurvivalNotice(`${factionById(factionId).adjective.toUpperCase()} DIPLOMATIC PASSAGE  ${passage.days} DAYS`, "good");
   saveVoyageNow("envoy claimed diplomatic passage");
   return true;

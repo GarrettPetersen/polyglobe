@@ -2987,13 +2987,16 @@ export function grantEnvoySafePassage(state, factionId, simMinute) {
   const untilMinute = Math.max(previousUntilMinute, simMinute + ENVOY_SAFE_PASSAGE_MINUTES);
   active.envoySafePassageUntilMinute[id] = untilMinute;
   recordDecision(state, `quest.envoy.safe-passage.${active.id}.${id}`, 1);
+  const faction = factionById(id);
   return {
     quest: active,
     factionId: id,
     untilMinute,
     days: ENVOY_SAFE_PASSAGE_DAYS,
     message: active.dialogue?.intercession ||
-      "Hold your fire! This vessel carries an accredited envoy on a diplomatic mission."
+      "Hold your fire! This vessel carries an accredited envoy on a diplomatic mission.",
+    warning: `Captain, do not attack ${faction.adjective} ships or ports while we travel under ` +
+      "this protection. Our safe passage would be forfeit."
   };
 }
 

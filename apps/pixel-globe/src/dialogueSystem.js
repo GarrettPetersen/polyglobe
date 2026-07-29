@@ -139,6 +139,7 @@ import {
   declineVikingLongshipReward,
   deliverVikingLongshipQuestCargo,
   markVikingLongshipOfferSeen,
+  vikingLongshipEnthusiastAtPort,
   vikingLongshipQuestState
 } from "./vikingLongshipQuest.js";
 import {
@@ -2259,7 +2260,7 @@ function rootView(session, city, gameState, economy, context) {
       })]
       : [])
   ];
-  if (vikingLongshipQuestState(gameState, city) && !session.disguisedEntry) {
+  if (vikingLongshipEnthusiastAtPort(gameState, city) && !session.disguisedEntry) {
     options.splice(4, 0, option("Speak with the historical enthusiast", {
       type: "node",
       nodeId: "viking-longship"

@@ -151,6 +151,13 @@ export function vikingLongshipRewardDisposition(state) {
   return disposition;
 }
 
+export function vikingLongshipEnthusiastAtPort(state, city) {
+  const quest = vikingLongshipQuestState(state, city);
+  if (!quest) return false;
+  return quest.rewardDisposition !== VIKING_LONGSHIP_REWARD_ACCEPTED &&
+    quest.rewardDisposition !== VIKING_LONGSHIP_REWARD_PURCHASED;
+}
+
 export function acceptVikingLongshipReward(state) {
   setVikingLongshipRewardDisposition(
     state,

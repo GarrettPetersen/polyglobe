@@ -62,6 +62,7 @@ import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 import {
+  markVikingLongshipPurchased,
   maybeSpawnVikingLongshipQuest,
   vikingLongshipQuestState
 } from "./vikingLongshipQuest.js";
@@ -2539,6 +2540,19 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], purchaseIndex, context),
     { closed: false, action: { type: "purchase-viking-longship", shipSlug: "viking-longship" } }
+  );
+  markVikingLongshipPurchased(gameState);
+  const postPurchaseRoot = portDialogueView(
+    createPortDialogueSession(city, { initialNodeId: "root" }),
+    city,
+    gameState,
+    economy,
+    [city],
+    context
+  );
+  assert.equal(
+    postPurchaseRoot.options.some((entry) => entry.action.nodeId === "viking-longship"),
+    false
   );
 });
 
