@@ -8997,6 +8997,9 @@ async function restoreSavedVoyage(payload) {
   clearPointerSteering();
 
   assignPortCharactersForPlayer(gameState.playerCharacter, namedCrewMembers(gameState));
+  // Regenerating factors clears special quest characters. Rebind the colony
+  // organizer before the restored chart creates its interactive city calls.
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   ensureNaturalistCharacter(gameState);
   for (const character of pirateHideoutCharacters.values()) usedCharacterNames.add(character.name);
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
