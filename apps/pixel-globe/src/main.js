@@ -1076,6 +1076,7 @@ import {
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
+  politicsMarqueMarker,
   politicsTradeCode
 } from "./politics.js";
 import {
@@ -28859,19 +28860,26 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
   const card = segment.card;
   const headerY = rect.y + 3;
   drawPoliticsFlag(card.faction.id, rect.x + 4, rect.y + 3, 20, 13);
-  const status = `${uiText("politics.you")} ${card.player.scoreLabel} ${politicsTradeCode(card.player.trade)}` +
-    (card.player.hasLetterOfMarque ? " M" : "");
+  const status = `${uiText("politics.you")} ${card.player.scoreLabel} ${politicsTradeCode(card.player.trade)}`;
   const statusWidth = Math.min(76, Math.floor(rect.w * 0.39));
+  const marqueMarker = politicsMarqueMarker(card.player);
+  const marqueWidth = marqueMarker ? 9 : 0;
+  const titleX = rect.x + 28 + marqueWidth;
   const titleSuffix = segment.segmentCount > 1
     ? ` ${segment.segmentIndex + 1}/${segment.segmentCount}`
     : "";
+  if (marqueMarker) {
+    drawOptionsText(marqueMarker, rect.x + 28, headerY, {
+      color: PIRATE_MENU_INK
+    });
+  }
   drawOptionsText(
     fitPixelText(
       `${card.faction.shortName.toUpperCase()}${titleSuffix}`,
       PIXEL_FONT_SMALL_8,
-      rect.w - 32 - statusWidth
+      rect.w - 32 - statusWidth - marqueWidth
     ),
-    rect.x + 28,
+    titleX,
     headerY,
     { color: politicsFactionColor(card.faction.id) }
   );

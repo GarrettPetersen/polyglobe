@@ -1210,7 +1210,12 @@ export function playerShipReplacementCargoUsed(state, stats) {
   assertGameState(state);
   if (!state.ship) throw new Error("Cannot preview a ship change without player ship state");
   const crewFloor = permanentCrewFloor(state);
-  if (stats.crewCapacity < futurePermanentCrewFloor(state)) return Infinity;
+  const committedCrew = futurePermanentCrewFloor(state);
+  if (stats.crewCapacity < committedCrew) {
+    throw new Error(
+      `Cannot preview a ${stats.crewCapacity}-berth ship with ${committedCrew} permanent crew commitments`
+    );
+  }
   const plan = selectedShipLoadoutPlan(state, stats);
   let usedTicks = 0;
   for (const [goodId, heldQuantity] of Object.entries(state.cargo)) {

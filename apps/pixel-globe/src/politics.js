@@ -123,6 +123,13 @@ export function politicsTradeCode(trade) {
   return `${trade.dutyPercent}%${marker}`;
 }
 
+export function politicsMarqueMarker(player) {
+  if (!player || typeof player.hasLetterOfMarque !== "boolean") {
+    throw new Error("Politics marque marker requires player standing");
+  }
+  return player.hasLetterOfMarque ? "M" : "";
+}
+
 export function playerStandingForReputation(reputation) {
   if (!Number.isFinite(reputation)) throw new Error(`Invalid player reputation: ${reputation}`);
   if (reputation <= -75) return standing(reputation, "Hostile");

@@ -19,6 +19,7 @@ import {
   completeQuest,
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
+  futurePermanentCrewFloor,
   grantLetterOfMarque,
   issuePersonalTradePass,
   isCaptureCapitalQuest,
@@ -3218,12 +3219,18 @@ function shipyardView(session, city, gameState, context) {
   const currentShipSlug = context.shipStats?.slug;
   if (!currentShipSlug) throw new Error("Shipyard purchase requires the current ship type");
   const purchaseTerms = shipyardPurchaseTerms(listing.price, currentShipSlug);
-  const transferredCargoUsed = playerShipReplacementCargoUsed(gameState, stats);
-  const cargoDoesNotFit = transferredCargoUsed > stats.cargoCapacity;
+  const committedCrew = futurePermanentCrewFloor(gameState);
+  const permanentCrewDoesNotFit = committedCrew > stats.crewCapacity;
+  const transferredCargoUsed = permanentCrewDoesNotFit
+    ? null
+    : playerShipReplacementCargoUsed(gameState, stats);
+  const cargoDoesNotFit = transferredCargoUsed !== null && transferredCargoUsed > stats.cargoCapacity;
   const alreadyOwned = currentShipSlug === listing.shipSlug;
   const cannotAfford = gameState.doubloons < purchaseTerms.netPrice;
   const disabledReason = alreadyOwned
     ? "You already command this type of vessel."
+    : permanentCrewDoesNotFit
+      ? `Your permanent crew require ${committedCrew} berths; this vessel has only ${stats.crewCapacity}.`
     : cargoDoesNotFit
       ? `Your transferred cargo uses ${cargoSpaceLabel(transferredCargoUsed)} units and will not fit its ` +
         `${stats.cargoCapacity}-unit hold.`

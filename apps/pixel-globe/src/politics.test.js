@@ -8,6 +8,7 @@ import {
   adjustFactionReputation,
   createGameState,
   diplomacyBetweenForState,
+  factionReputation,
   grantLetterOfMarque,
   visitPort,
   recordPiracyAgainstFaction,
@@ -26,6 +27,7 @@ import {
   createPoliticsView,
   playerStandingForReputation,
   politicalPowers,
+  politicsMarqueMarker,
   politicsTradeCode
 } from "./politics.js";
 
@@ -201,7 +203,7 @@ test("politics cards omit neutral relationships even after contact", () => {
   assert.ok(england.relationships.every((group) => !group.factionIds.includes("inca")));
 });
 
-test("politics view marks factions that granted letters of marque", () => {
+test("politics view independently marks every faction that granted a letter of marque", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const london = {
     tileId: 1,
@@ -212,12 +214,31 @@ test("politics view marks factions that granted letters of marque", () => {
     isFactionCapital: true,
     capitalOfFactionId: "england"
   };
-  adjustFactionReputation(state, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
-  grantLetterOfMarque(state, london, LETTER_OF_MARQUE_POWER_REQUIRED);
+  const paris = {
+    tileId: 2,
+    city: "Paris",
+    displayCity: "Paris",
+    country: "France",
+    factionId: "france",
+    isFactionCapital: true,
+    capitalOfFactionId: "france"
+  };
+  for (const capital of [london, paris]) {
+    adjustFactionReputation(
+      state,
+      capital.factionId,
+      LETTER_OF_MARQUE_REPUTATION_REQUIRED - factionReputation(state, capital.factionId)
+    );
+    grantLetterOfMarque(state, capital, LETTER_OF_MARQUE_POWER_REQUIRED);
+  }
   const view = createPoliticsView(state);
+  const england = politicsCard(view, "england");
+  const france = politicsCard(view, "france");
+  const portugal = politicsCard(view, "portugal");
 
-  assert.equal(politicsCard(view, "england").player.hasLetterOfMarque, true);
-  assert.equal(politicsCard(view, "france").player.hasLetterOfMarque, false);
+  assert.equal(politicsMarqueMarker(england.player), "M");
+  assert.equal(politicsMarqueMarker(france.player), "M");
+  assert.equal(politicsMarqueMarker(portugal.player), "");
 });
 
 test("political power codes are compact for card relationship tokens", () => {

@@ -2305,6 +2305,45 @@ test("shipyards still block a smaller ship when transferred trade cargo cannot f
   assert.match(purchase.disabledReason, /transferred cargo uses/);
 });
 
+test("shipyards explain when permanent crew cannot berth instead of formatting infinite cargo", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const currentStats = shipStatsForSlug("galleon");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  gameState.ship.crew = 2;
+  addNamedCrewMember(gameState, {
+    id: "shipyard-berth-test",
+    name: "Permanent Sailor",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, undefined, { replaceGenericWhenFull: true });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const listing = {
+    id: "shipyard-10-no-berths",
+    shipSlug: "dhow",
+    shipLabel: "Dhow",
+    price: 1000
+  };
+  const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+
+  assert.equal(purchase.disabled, true);
+  assert.equal(
+    purchase.disabledReason,
+    "Your permanent crew require 2 berths; this vessel has only 1."
+  );
+});
+
 test("empty shipyards direct captains to the nearest listed vessel", () => {
   const city = {
     tileId: 10,
