@@ -6,7 +6,8 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "Marque",
     "Reprisal",
     "alphabetic",
-    "pirata"
+    "pirata",
+    "DEMO"
   ),
   titleLocale(
     "zh-Hans",
@@ -15,7 +16,8 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "私掠",
     "报复",
     "balanced",
-    "ma-shan-zheng"
+    "ma-shan-zheng",
+    "试玩版"
   ),
   titleLocale(
     "ru",
@@ -25,6 +27,7 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "Возмездие",
     "alphabetic",
     "yeseva",
+    "ДЕМО",
     {
       initialDropScale: 0.5,
       upperStartX: 180,
@@ -32,7 +35,16 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
       upperKissesShip: true
     }
   ),
-  titleLocale("es", "spanish", "Spanish", "Corso", "Represalia", "alphabetic", "pirata"),
+  titleLocale(
+    "es",
+    "spanish",
+    "Spanish",
+    "Corso",
+    "Represalia",
+    "alphabetic",
+    "pirata",
+    "DEMO"
+  ),
   titleLocale(
     "pt-BR",
     "brazilian",
@@ -40,9 +52,19 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "Corso",
     "Represália",
     "alphabetic",
-    "pirata"
+    "pirata",
+    "DEMO"
   ),
-  titleLocale("ja", "japanese", "Japanese", "私掠", "報復", "balanced", "yuji-boku"),
+  titleLocale(
+    "ja",
+    "japanese",
+    "Japanese",
+    "私掠",
+    "報復",
+    "balanced",
+    "yuji-boku",
+    "体験版"
+  ),
   titleLocale(
     "de",
     "german",
@@ -51,6 +73,7 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "Vergeltung",
     "alphabetic",
     "pirata",
+    "DEMO",
     {
       upperStartX: 180,
       upperTouchShipRight: 660,
@@ -64,7 +87,8 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "Marque",
     "Représailles",
     "alphabetic",
-    "pirata"
+    "pirata",
+    "DÉMO"
   ),
   titleLocale(
     "pl",
@@ -74,6 +98,7 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "Odwet",
     "alphabetic",
     "pirata",
+    "DEMO",
     {
       upperStartX: 180,
       upperTouchShipRight: 660,
@@ -87,7 +112,8 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "私掠",
     "報復",
     "balanced",
-    "masa"
+    "masa",
+    "試玩版"
   ),
   titleLocale(
     "ko",
@@ -97,6 +123,7 @@ export const CAPSULE_TITLE_LOCALES = Object.freeze([
     "보복",
     "balanced",
     "nanum-brush",
+    "체험판",
     { centerLowerUnderUpperVisible: true }
   )
 ]);
@@ -109,6 +136,7 @@ function titleLocale(
   lowerWord,
   composition,
   font,
+  demoLabel,
   options = {}
 ) {
   return Object.freeze({
@@ -119,6 +147,8 @@ function titleLocale(
     lowerWord,
     composition,
     font,
+    demoLabel,
+    demoFont: options.demoFont ?? font,
     initialDropScale: options.initialDropScale ?? 1,
     centerLowerUnderUpperVisible: options.centerLowerUnderUpperVisible ?? false,
     upperKissesShip: options.upperKissesShip ?? false,

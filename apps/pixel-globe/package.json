@@ -67,6 +67,7 @@
     "audit:landlocked-cities": "node tools/audit-landlocked-cities.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
     "render:capsules": "node tools/generate-layered-capsule-art.mjs",
+    "render:capsules:demo": "node tools/generate-layered-capsule-art.mjs --edition=demo",
     "render:platform-icons": "node tools/generate-layered-capsule-art.mjs --only=app_icon_512.png && node tools/build-platform-icons.mjs",
     "render:capsule-title-comparison": "node tools/generate-layered-capsule-art.mjs",
     "test": "node tools/run-node-tests.mjs --discover=src",

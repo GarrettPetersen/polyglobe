@@ -12,6 +12,7 @@ import { SUPPORTED_LANGUAGES } from "./localization.js";
 import { SHIP_STATS } from "./shipStats.js";
 
 const generatedRoot = new URL("../capsule_art/generated/", import.meta.url);
+const generatedDemoRoot = new URL("../capsule_art/generated/demo/", import.meta.url);
 const localizedOutputSizes = Object.freeze([
   ["capsule_header", 920, 430],
   ["capsule_small", 462, 174],
@@ -41,6 +42,14 @@ const expectedOutputs = Object.freeze(new Map([
   ["shortcut_icon_256.png", [256, 256]],
   ["app_icon_512.png", [512, 512]]
 ]));
+const expectedDemoOutputs = Object.freeze(new Map(
+  CAPSULE_TITLE_LOCALES.flatMap(({ steamCode }) => (
+    localizedOutputSizes.map(([baseName, width, height]) => [
+      `${baseName}_${steamCode}.png`,
+      [width, height]
+    ])
+  ))
+));
 
 test("capsule titles cover every supported game language exactly once", () => {
   const expectedSteamCodes = new Map([
@@ -64,8 +73,10 @@ test("capsule titles cover every supported game language exactly once", () => {
     new Set(CAPSULE_TITLE_LOCALES.map(({ steamCode }) => steamCode)).size,
     CAPSULE_TITLE_LOCALES.length
   );
-  for (const { appLocale, steamCode } of CAPSULE_TITLE_LOCALES) {
+  for (const { appLocale, steamCode, demoLabel, demoFont } of CAPSULE_TITLE_LOCALES) {
     assert.equal(steamCode, expectedSteamCodes.get(appLocale), appLocale);
+    assert.ok(demoLabel.length > 0, `${appLocale} demo label`);
+    assert.ok(demoFont.length > 0, `${appLocale} demo font`);
   }
 });
 
@@ -74,6 +85,46 @@ test("capsule generator produces the complete storefront image set", async () =>
     const image = await loadImage(fileURLToPath(new URL(filename, generatedRoot)));
     assert.equal(image.width, width, `${filename} width`);
     assert.equal(image.height, height, `${filename} height`);
+  }
+});
+
+test("capsule generator produces flat-gold localized demo variants", async () => {
+  const demoRgb = [251, 185, 84];
+  for (const [filename, [width, height]] of expectedDemoOutputs) {
+    const [fullImage, demoImage] = await Promise.all([
+      loadImage(fileURLToPath(new URL(filename, generatedRoot))),
+      loadImage(fileURLToPath(new URL(filename, generatedDemoRoot)))
+    ]);
+    assert.equal(demoImage.width, width, `${filename} demo width`);
+    assert.equal(demoImage.height, height, `${filename} demo height`);
+    const fullPixels = imagePixels(fullImage);
+    const demoPixels = imagePixels(demoImage);
+    let changedPixels = 0;
+    let demoMinY = demoImage.height;
+    let demoMaxY = -1;
+    for (let offset = 0; offset < demoPixels.length; offset += 4) {
+      const changed = (
+        fullPixels[offset] !== demoPixels[offset] ||
+        fullPixels[offset + 1] !== demoPixels[offset + 1] ||
+        fullPixels[offset + 2] !== demoPixels[offset + 2] ||
+        fullPixels[offset + 3] !== demoPixels[offset + 3]
+      );
+      if (!changed) continue;
+      changedPixels++;
+      const pixelY = Math.floor(offset / 4 / demoImage.width);
+      demoMinY = Math.min(demoMinY, pixelY);
+      demoMaxY = Math.max(demoMaxY, pixelY);
+      assert.deepEqual(
+        Array.from(demoPixels.slice(offset, offset + 4)),
+        [...demoRgb, 255],
+        `${filename} demo mark pixel`
+      );
+    }
+    assert.ok(changedPixels > 0, `${filename} has no demo mark`);
+    assert.ok(
+      demoMaxY - demoMinY + 1 >= Math.max(20, Math.round(Math.min(width, height) * 0.075)),
+      `${filename} demo mark is too small`
+    );
   }
 });
 

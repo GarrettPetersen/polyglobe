@@ -13,9 +13,17 @@ import { SHIP_STATS, shipLabelForSlug } from "../src/shipStats.js";
 import { CAPSULE_TITLE_LOCALES } from "./capsule-title-locales.mjs";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const EDITIONS = Object.freeze(new Set(["full", "demo"]));
 const generatorOptions = parseGeneratorOptions(process.argv.slice(2));
 const sourceDir = resolve(appRoot, generatorOptions.sourceDir);
-const outputDir = resolve(appRoot, generatorOptions.outputDir);
+const outputDir = resolve(
+  appRoot,
+  generatorOptions.outputDir ?? (
+    generatorOptions.edition === "demo"
+      ? "capsule_art/generated/demo"
+      : "capsule_art/generated"
+  )
+);
 const canonicalSourceDir = join(appRoot, "capsule_art/source");
 const canonicalOutputDir = join(appRoot, "capsule_art/generated");
 const loadingTitleOutputDir = join(appRoot, "public/assets/loading");
@@ -25,6 +33,7 @@ const CLIENT_ICON_HEADING_FRAME = 28;
 const CLIENT_ICON_BACKGROUND = "#3b7180";
 const ENGLISH_STEAM_CODE = "english";
 const DROP_CAP_OPTICAL_KERN = -5;
+const DEMO_MARK_COLOR = "#fbb954";
 const APP_ICON_CROP = Object.freeze({
   focalX: 771 / 1232,
   focalY: 270 / 706,
@@ -150,10 +159,13 @@ const SHARED_OUTPUTS = Object.freeze([
   artwork("app_icon_512.png", 512, 512, APP_ICON_CROP)
 ]);
 
-const OUTPUTS = Object.freeze([
-  ...CAPSULE_TITLE_LOCALES.flatMap((locale) => LOCALIZED_OUTPUT_TEMPLATES.map(
+const LOCALIZED_OUTPUTS = Object.freeze(
+  CAPSULE_TITLE_LOCALES.flatMap((locale) => LOCALIZED_OUTPUT_TEMPLATES.map(
     (template) => localizeOutput(template, locale)
-  )),
+  ))
+);
+const OUTPUTS = Object.freeze([
+  ...LOCALIZED_OUTPUTS,
   ...SHARED_OUTPUTS
 ]);
 
@@ -162,7 +174,8 @@ registerCapsuleFonts();
 function parseGeneratorOptions(args) {
   const options = {
     sourceDir: "capsule_art/source",
-    outputDir: "capsule_art/generated",
+    outputDir: null,
+    edition: "full",
     onlyName: null
   };
   for (let index = 0; index < args.length; index++) {
@@ -181,6 +194,13 @@ function parseGeneratorOptions(args) {
         argument.slice("--output-dir=".length),
         "--output-dir"
       );
+    } else if (argument === "--edition") {
+      options.edition = requiredOptionValue(args[++index], "--edition");
+    } else if (argument.startsWith("--edition=")) {
+      options.edition = requiredOptionValue(
+        argument.slice("--edition=".length),
+        "--edition"
+      );
     } else if (argument === "--only") {
       options.onlyName = requiredOptionValue(args[++index], "--only");
     } else if (argument.startsWith("--only=")) {
@@ -188,6 +208,9 @@ function parseGeneratorOptions(args) {
     } else {
       throw new Error(`Unknown capsule generator argument: ${argument}`);
     }
+  }
+  if (!EDITIONS.has(options.edition)) {
+    throw new Error(`Unknown capsule edition: ${options.edition}`);
   }
   return Object.freeze(options);
 }
@@ -576,13 +599,17 @@ function drawAmpersand(context, ampersand) {
 }
 
 function hardenWhiteAlpha(context, canvas) {
+  hardenSolidAlpha(context, canvas, [255, 255, 255]);
+}
+
+function hardenSolidAlpha(context, canvas, [red, green, blue]) {
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const pixels = imageData.data;
   for (let offset = 0; offset < pixels.length; offset += 4) {
     const opaque = pixels[offset + 3] >= 96;
-    pixels[offset] = opaque ? 255 : 0;
-    pixels[offset + 1] = opaque ? 255 : 0;
-    pixels[offset + 2] = opaque ? 255 : 0;
+    pixels[offset] = opaque ? red : 0;
+    pixels[offset + 1] = opaque ? green : 0;
+    pixels[offset + 2] = opaque ? blue : 0;
     pixels[offset + 3] = opaque ? 255 : 0;
   }
   context.putImageData(imageData, 0, 0);
@@ -600,9 +627,12 @@ function assertLocalizedTitleLayer(locale, layerName, layer) {
 }
 
 async function main() {
+  const availableOutputs = generatorOptions.edition === "demo"
+    ? LOCALIZED_OUTPUTS
+    : OUTPUTS;
   const selectedOutputs = generatorOptions.onlyName === null
-    ? OUTPUTS
-    : OUTPUTS.filter((output) => output.name === generatorOptions.onlyName);
+    ? availableOutputs
+    : availableOutputs.filter((output) => output.name === generatorOptions.onlyName);
   if (selectedOutputs.length === 0) {
     throw new Error(`Unknown capsule output requested by --only: ${generatorOptions.onlyName}`);
   }
@@ -734,6 +764,9 @@ async function main() {
         output.focalY
       );
     }
+    if (generatorOptions.edition === "demo") {
+      drawDemoEditionMark(context, canvas, output);
+    }
 
     const path = join(outputDir, output.name);
     await writeFile(path, canvas.toBuffer("image/png"));
@@ -746,11 +779,85 @@ async function main() {
         output.locale.steamCode === ENGLISH_STEAM_CODE
     ));
     await writeLocalizedCapsuleComparison(rendered);
-    await writeClientIconShipComparison(clientIconShips, clientIconWater);
+    if (needsClientIcon) {
+      await writeClientIconShipComparison(clientIconShips, clientIconWater);
+    }
   }
   if (sourceDir === canonicalSourceDir && outputDir === canonicalOutputDir) {
     await writeLoadingTitleAtlases(titleSets, sourceSize);
   }
+}
+
+function drawDemoEditionMark(context, canvas, output) {
+  const locale = output.locale;
+  if (locale === undefined) {
+    throw new Error(`Demo capsule output has no locale: ${output.name}`);
+  }
+  const font = TITLE_FONTS[locale.demoFont];
+  if (font === undefined) {
+    throw new Error(`Unknown demo label font for ${locale.appLocale}: ${locale.demoFont}`);
+  }
+  const minimumDimension = Math.min(canvas.width, canvas.height);
+  const maximumWidth = Math.round(canvas.width * 0.32);
+  const maximumHeight = Math.max(24, Math.round(minimumDimension * 0.105));
+  const measuringCanvas = createCanvas(1, 1);
+  const measuringContext = titleContext(measuringCanvas);
+  let fitted = null;
+  for (
+    let size = Math.max(32, Math.round(minimumDimension * 0.2));
+    size >= 8;
+    size--
+  ) {
+    const metrics = textMetrics(measuringContext, locale.demoLabel, size, font);
+    if (metrics.width <= maximumWidth && metrics.height <= maximumHeight) {
+      fitted = Object.freeze({ size, metrics });
+      break;
+    }
+  }
+  if (fitted === null) {
+    throw new Error(`Demo label cannot fit ${output.name}: ${locale.demoLabel}`);
+  }
+
+  const layer = createCanvas(canvas.width, canvas.height);
+  const layerContext = titleContext(layer);
+  layerContext.fillStyle = DEMO_MARK_COLOR;
+  const margin = Math.max(4, Math.round(minimumDimension * 0.035));
+  const gap = Math.max(2, Math.round(minimumDimension * 0.012));
+  const transparentComposition = (
+    output.kind === "source-composition" ||
+    output.kind === "text-only"
+  );
+  const existingBounds = transparentComposition ? opaqueBounds(canvas) : null;
+  const right = existingBounds === null
+    ? canvas.width - margin
+    : Math.min(canvas.width - margin, existingBounds.maxX + 1);
+  const maximumTop = canvas.height - margin - fitted.metrics.height;
+  const top = existingBounds === null
+    ? maximumTop
+    : Math.min(maximumTop, existingBounds.maxY + 1 + gap);
+  const left = Math.max(margin, right - fitted.metrics.width);
+  drawTextAtVisualBounds(
+    layerContext,
+    locale.demoLabel,
+    left,
+    top + fitted.metrics.height,
+    fitted.size,
+    font,
+    fitted.metrics
+  );
+  hardenSolidAlpha(layerContext, layer, resurrect64Rgb(DEMO_MARK_COLOR));
+  context.drawImage(layer, 0, 0);
+}
+
+function resurrect64Rgb(hex) {
+  if (!/^#[0-9a-f]{6}$/iu.test(hex)) {
+    throw new Error(`Invalid Resurrect64 color: ${hex}`);
+  }
+  return [
+    Number.parseInt(hex.slice(1, 3), 16),
+    Number.parseInt(hex.slice(3, 5), 16),
+    Number.parseInt(hex.slice(5, 7), 16)
+  ];
 }
 
 async function writeLoadingTitleAtlases(titleSets, sourceSize) {
@@ -1109,7 +1216,7 @@ async function writeContactSheet(rendered) {
     context.drawImage(canvas, x, y, width, height);
     context.fillStyle = "#f0ddb1";
     context.fillText(
-      `${output.name}  ${output.width}x${output.height}`,
+      `${output.name}  ${canvas.width}x${canvas.height}`,
       cellX + 16,
       cellY + cellHeight - 34
     );

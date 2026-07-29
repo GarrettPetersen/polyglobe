@@ -2,6 +2,7 @@ const { existsSync, readFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 
 const FULL_GAME_APP_ID = 4516500;
+const DEMO_APP_ID = 5029880;
 const VALID_EDITIONS = new Set(["full", "demo"]);
 
 function resolveDesktopConfig({
@@ -19,7 +20,7 @@ function resolveDesktopConfig({
     env.MARQUE_STEAM_APP_ID ||
       env.SteamAppId ||
       manifest.appId ||
-      (edition === "full" ? FULL_GAME_APP_ID : null),
+      (edition === "full" ? FULL_GAME_APP_ID : DEMO_APP_ID),
     edition
   );
   const gameRoot = env.MARQUE_STEAM_GAME_ROOT
@@ -86,6 +87,7 @@ function requiredRelativeDirectory(value, label) {
 }
 
 module.exports = {
+  DEMO_APP_ID,
   FULL_GAME_APP_ID,
   resolveDesktopConfig
 };

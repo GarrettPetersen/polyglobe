@@ -6,7 +6,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-steam-windows pixel-globe-steam-mac pixel-globe-steam-desktop pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-steam-windows pixel-globe-steam-mac pixel-globe-steam-desktop pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-render-demo-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
 
 help:
 	@echo "Targets:"
@@ -42,6 +42,7 @@ help:
 	@echo "  make pixel-globe-render-ship        Rebuild the default ship sprite lighting sheets"
 	@echo "  make pixel-globe-render-unity-ships Rebuild imported Unity ship sprite lighting sheets"
 	@echo "  make pixel-globe-render-capsules    Rebuild storefront and library capsule art"
+	@echo "  make pixel-globe-render-demo-capsules Rebuild localized demo capsule art"
 	@echo "  make pixel-globe-telemetry-check    Test the anonymous telemetry Worker"
 	@echo "  make pixel-globe-telemetry-deploy   Deploy the anonymous telemetry Worker"
 	@echo "  make pixel-globe-telemetry-dashboard-configure  Configure private dashboard secrets"
@@ -160,6 +161,9 @@ pixel-globe-render-unity-ships:
 
 pixel-globe-render-capsules:
 	npm --prefix $(PIXEL_GLOBE_DIR) run render:capsules
+
+pixel-globe-render-demo-capsules:
+	npm --prefix $(PIXEL_GLOBE_DIR) run render:capsules:demo
 
 pixel-globe-telemetry-check:
 	npm --prefix $(PIXEL_GLOBE_TELEMETRY_DIR) run check

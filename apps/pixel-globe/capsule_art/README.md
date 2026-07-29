@@ -6,6 +6,12 @@ Run:
 npm --prefix apps/pixel-globe run render:capsules
 ```
 
+Generate the localized demo editions with:
+
+```sh
+npm --prefix apps/pixel-globe run render:capsules:demo
+```
+
 Generate the macOS ICNS and zipped Linux PNG icon set with:
 
 ```sh
@@ -20,7 +26,9 @@ The generator combines the five aligned 1232x706 source layers in this order:
 4. `capsule_art/source/ship.png`
 5. `capsule_art/source/lower_text.png`
 
-Generated files are written to `capsule_art/generated/`.
+Generated files are written to `capsule_art/generated/`. Demo editions are
+written to `capsule_art/generated/demo/` with the same filenames and dimensions,
+making the folder a drop-in Steam demo upload set.
 
 English uses the hand-authored text layers above. Every other supported language
 is generated from `tools/capsule-title-locales.mjs`. Alphabetic titles use
@@ -48,6 +56,9 @@ All resizing uses nearest-neighbor sampling to keep the pixel art crisp. Standar
 formats crop the aligned source canvas as one composition. Tall and exceptionally
 wide formats fit the foreground lockup over a separately cropped background so
 none of the title is lost, while anchoring the ship to its original waterline.
+Demo editions add a flat, pixel-hardened Resurrect64 gold label at lower right.
+Latin-script labels use Pirata One. Languages whose scripts Pirata One does not
+cover use the same vetted display face as their localized title.
 
 ## Layer Modes
 
@@ -63,8 +74,9 @@ none of the title is lost, while anchoring the ship to its original waterline.
   the background or reflection.
 - `client_icon_32.png` remains the purpose-built in-game ship icon.
 
-Use `--only=filename.png` to render one registered output, or `--source-dir`
-and `--output-dir` to work from alternate directories.
+Use `--edition=demo` for demo art, `--only=filename.png` to render one
+registered output, or `--source-dir` and `--output-dir` to work from alternate
+directories.
 
 ## Output Sizes
 
@@ -93,19 +105,19 @@ Localized files use Steam language codes as suffixes. For example,
 | `social_share_{language}.png` | 1200x630 |
 | `itchio_cover_{language}.png` | 630x500 |
 
-| App locale | Steam suffix | Capsule title |
-| --- | --- | --- |
-| `en` | `english` | Marque & Reprisal |
-| `zh-Hans` | `schinese` | 私掠 & 报复 |
-| `ru` | `russian` | Каперство & Возмездие |
-| `es` | `spanish` | Corso & Represalia |
-| `pt-BR` | `brazilian` | Corso & Represália |
-| `ja` | `japanese` | 私掠 & 報復 |
-| `de` | `german` | Kaperbrief & Vergeltung |
-| `fr` | `french` | Marque & Représailles |
-| `pl` | `polish` | Kaperstwo & Odwet |
-| `zh-Hant` | `tchinese` | 私掠 & 報復 |
-| `ko` | `koreana` | 사략 & 보복 |
+| App locale | Steam suffix | Capsule title | Demo label |
+| --- | --- | --- | --- |
+| `en` | `english` | Marque & Reprisal | DEMO |
+| `zh-Hans` | `schinese` | 私掠 & 报复 | 试玩版 |
+| `ru` | `russian` | Каперство & Возмездие | ДЕМО |
+| `es` | `spanish` | Corso & Represalia | DEMO |
+| `pt-BR` | `brazilian` | Corso & Represália | DEMO |
+| `ja` | `japanese` | 私掠 & 報復 | 体験版 |
+| `de` | `german` | Kaperbrief & Vergeltung | DEMO |
+| `fr` | `french` | Marque & Représailles | DÉMO |
+| `pl` | `polish` | Kaperstwo & Odwet | DEMO |
+| `zh-Hant` | `tchinese` | 私掠 & 報復 | 試玩版 |
+| `ko` | `koreana` | 사략 & 보복 | 체험판 |
 
 Three review sheets are also generated:
 

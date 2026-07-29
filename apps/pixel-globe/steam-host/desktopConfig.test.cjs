@@ -4,7 +4,11 @@ const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { test } = require("node:test");
 
-const { FULL_GAME_APP_ID, resolveDesktopConfig } = require("./desktopConfig.cjs");
+const {
+  DEMO_APP_ID,
+  FULL_GAME_APP_ID,
+  resolveDesktopConfig
+} = require("./desktopConfig.cjs");
 
 test("development defaults to the full game", () => {
   const appRoot = join(tmpdir(), "marque-development");
@@ -36,17 +40,15 @@ test("packaged demo uses Steam's launch App ID", (context) => {
   assert.equal(config.inputManifest, join(resourcesPath, "steam-input/game_actions.vdf"));
 });
 
-test("demo fails clearly when it has no App ID", (context) => {
+test("packaged demo defaults to its assigned App ID", (context) => {
   const resourcesPath = temporaryResources(context);
   writeFileSync(
     join(resourcesPath, "steam-build.json"),
     JSON.stringify({ edition: "demo", gameDirectory: "dist-demo" })
   );
 
-  assert.throws(
-    () => resolveDesktopConfig({ env: {}, isPackaged: true, resourcesPath }),
-    /Launch through Steam or set MARQUE_STEAM_APP_ID/
-  );
+  const config = resolveDesktopConfig({ env: {}, isPackaged: true, resourcesPath });
+  assert.equal(config.appId, DEMO_APP_ID);
 });
 
 function temporaryResources(context) {

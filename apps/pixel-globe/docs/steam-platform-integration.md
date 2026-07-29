@@ -19,10 +19,10 @@ Build the full game and launch it through the host:
 npm run steam:start
 ```
 
-The host defaults to full-game App ID `4516500`. Override it for the future
-Steam demo or Spacewar testing with `MARQUE_STEAM_APP_ID`. Shipping launchers
-should set `MARQUE_STEAM_REQUIRE_RELAUNCH=1`; local development deliberately
-does not force a relaunch through Steam.
+The host defaults to full-game App ID `4516500`; the packaged demo uses App ID
+`5029880`. Override either with `MARQUE_STEAM_APP_ID` for Spacewar or diagnostic
+testing. Shipping launchers should set `MARQUE_STEAM_REQUIRE_RELAUNCH=1`; local
+development deliberately does not force a relaunch through Steam.
 
 Create verified, unpacked SteamPipe-ready application folders for both the
 full game and demo:
@@ -32,9 +32,8 @@ npm run steam:package
 ```
 
 Packages are written to `build/steam/<edition>/<platform>-<arch>/`. The demo
-reads `SteamAppId` from the Steam client at launch until its separate App ID is
-recorded; set `MARQUE_STEAM_DEMO_APP_ID` while packaging to embed that ID once
-it has been assigned. `npm run steam:package:windows` and
+embeds its assigned App ID `5029880`; `MARQUE_STEAM_DEMO_APP_ID` remains
+available as a packaging override. `npm run steam:package:windows` and
 `npm run steam:package:mac` create the current release targets. Cross-packaging
 does not replace a smoke test on the target OS, and macOS packages must be
 signed and notarized with the release certificate before upload.

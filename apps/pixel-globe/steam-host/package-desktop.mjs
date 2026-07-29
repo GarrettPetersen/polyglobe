@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
 const { packager: packageElectron } = require("@electron/packager");
+const { DEMO_APP_ID, FULL_GAME_APP_ID } = require("./desktopConfig.cjs");
 const hostRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(hostRoot, "..");
 const outputRoot = join(appRoot, "build/steam");
@@ -39,8 +40,8 @@ async function packageEdition(edition) {
   const gameDirectory = isDemo ? "dist-demo" : "dist";
   const gameRoot = join(appRoot, gameDirectory);
   const appId = isDemo
-    ? optionalAppId(process.env.MARQUE_STEAM_DEMO_APP_ID)
-    : optionalAppId(process.env.MARQUE_STEAM_APP_ID) || 4516500;
+    ? optionalAppId(process.env.MARQUE_STEAM_DEMO_APP_ID) || DEMO_APP_ID
+    : optionalAppId(process.env.MARQUE_STEAM_APP_ID) || FULL_GAME_APP_ID;
   const temporaryRoot = await mkdtemp(join(tmpdir(), `marque-steam-${edition}-`));
   const manifestPath = join(temporaryRoot, "steam-build.json");
   const targetRoot = join(outputRoot, edition, `${args.platform}-${args.arch}`);

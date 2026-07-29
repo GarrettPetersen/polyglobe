@@ -83,9 +83,10 @@ save-on-one-machine/load-on-another test.
 
 ## Demo application
 
-The Steam demo will have a separate App ID. Once Valve assigns it, configure
-the demo's Shared Cloud App ID as 4516500 so its versioned save/profile files
-can transfer to the full game. Do not set a shared App ID on the full game.
+Steam demo App `5029880` is linked to full-game App `4516500`. Once the full
+game is released, configure the demo's Shared Cloud App ID as `4516500` so its
+versioned save/profile files can transfer to the full game. Do not set a shared
+App ID on the full game.
 
 The demo should not maintain a second, duplicate achievement catalog. It tracks
 progress in the shared local profile, and the full game reports any already
