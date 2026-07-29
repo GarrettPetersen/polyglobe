@@ -6,7 +6,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-steam-windows pixel-globe-steam-mac pixel-globe-steam-desktop pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
 
 help:
 	@echo "Targets:"
@@ -32,6 +32,9 @@ help:
 	@echo "  make pixel-globe-steam-trailer-clips Record all scripted 16:9 Steam trailer clips"
 	@echo "  make pixel-globe-steam-trailer Build the 16:9 Steam trailer from captured clips"
 	@echo "  make pixel-globe-steam-inline-videos Build About This Game feature videos"
+	@echo "  make pixel-globe-steam-windows Build Windows full-game and demo desktop packages"
+	@echo "  make pixel-globe-steam-mac     Build macOS full-game and demo desktop packages"
+	@echo "  make pixel-globe-steam-desktop Build all Windows and macOS desktop packages"
 	@echo "  make pixel-globe-shorts-setup Install the local Whisper environment"
 	@echo "  make pixel-globe-transcribe AUDIO=... OUT=... Transcribe narration"
 	@echo "  make pixel-globe-short VIDEO=... EVENTS=... NARRATION=... TRANSCRIPT=... OUTPUT=..."
@@ -113,6 +116,16 @@ pixel-globe-steam-trailer:
 
 pixel-globe-steam-inline-videos:
 	npm --prefix $(PIXEL_GLOBE_DIR) run build:steam-inline-videos
+
+pixel-globe-steam-windows:
+	npm --prefix $(PIXEL_GLOBE_DIR) run steam:package:windows
+
+pixel-globe-steam-mac:
+	npm --prefix $(PIXEL_GLOBE_DIR) run steam:package:mac
+
+pixel-globe-steam-desktop:
+	$(MAKE) pixel-globe-steam-windows
+	$(MAKE) pixel-globe-steam-mac
 
 pixel-globe-shorts-setup:
 	python3 -m venv $(PIXEL_GLOBE_DIR)/.venv-shorts
