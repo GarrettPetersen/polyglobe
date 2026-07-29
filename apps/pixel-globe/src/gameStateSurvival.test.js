@@ -559,10 +559,11 @@ test("the ship traveler manifest distinguishes passengers, envoys, and settlers"
   initializeProvisionalShipLoadout(state, stats);
   const crewAndCaptain = state.ship.crew;
 
-  state.memory.quests.active = { kind: "passenger" };
+  state.memory.quests.passengerActive = { kind: "passenger" };
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "passenger", count: 1 }]);
   assert.equal(shipPeopleAboard(state), crewAndCaptain + 1);
 
+  state.memory.quests.passengerActive = null;
   state.memory.quests.active = { kind: "friendly-envoy" };
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "envoy", count: 1 }]);
 
@@ -1083,7 +1084,7 @@ test("crew, passengers, and livestock all increase food and water burn", () => {
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
   const crewOnly = shipConsumption(state);
-  state.memory.quests.active = { kind: "passenger", livestockCount: 2 };
+  state.memory.quests.passengerActive = { kind: "passenger", livestockCount: 2 };
   const voyage = shipConsumption(state);
 
   assert.equal(voyage.passengers, 1);

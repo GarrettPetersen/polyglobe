@@ -32,7 +32,7 @@ export const PASSENGER_SCENARIOS = Object.freeze([
 
 export function passengerOfferForCity(state, city, portCities, context = {}) {
   const quests = questMemory(state);
-  if (quests.active) return null;
+  if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
   const existing = pendingPassengerOfferForCity(state, city);
   if (existing) return existing;
 
@@ -63,10 +63,12 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
 }
 
 export function travelMissionOfferForCity(state, city, portCities, context = {}) {
+  const quests = questMemory(state);
   const existing = pendingPassengerOfferForCity(state, city);
-  if (existing || questMemory(state).active) return existing;
+  if (existing || quests.passengerActive) return existing;
+  if (quests.active && quests.active.kind !== "delivery") return null;
   if (city?.isFactionCapital) {
-    const envoy = envoyOfferForCapital(state, city, portCities, context);
+    const envoy = quests.active ? null : envoyOfferForCapital(state, city, portCities, context);
     if (envoy) return envoy;
   }
   return passengerOfferForCity(state, city, portCities, context);
@@ -74,7 +76,7 @@ export function travelMissionOfferForCity(state, city, portCities, context = {})
 
 export function envoyOfferForCapital(state, city, portCities, context = {}) {
   const quests = questMemory(state);
-  if (quests.active) return null;
+  if (quests.active || quests.passengerActive) return null;
   const existing = pendingPassengerOfferForCity(state, city);
   if (existing) return existing;
   if (!city?.isFactionCapital || city.capitalOfFactionId !== city.factionId) return null;
@@ -161,18 +163,18 @@ export function pendingPassengerOfferForCity(state, city) {
 }
 
 export function activePassengerQuest(state) {
-  const active = questMemory(state).active;
-  return active?.kind === "passenger" ? active : null;
+  return questMemory(state).passengerActive || null;
 }
 
 export function activeTravelMissionQuest(state) {
-  const active = questMemory(state).active;
-  return active?.kind === "passenger" || isEnvoyQuest(active) ? active : null;
+  const quests = questMemory(state);
+  return isEnvoyQuest(quests.active) ? quests.active : (quests.passengerActive || null);
 }
 
 export function passengerQuestById(state, questId) {
   const quests = questMemory(state);
   if (quests.active?.id === questId) return quests.active;
+  if (quests.passengerActive?.id === questId) return quests.passengerActive;
   for (const offer of Object.values(quests.passengerOffers)) {
     if (offer?.id === questId && !quests.completed[offer.id]) return offer;
   }
@@ -391,7 +393,7 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period) 
   const originKey = cityKey(origin);
   const destinationKey = cityKey(destination);
   const seed = `${originKey}|${destinationKey}|${scenario.id}|${period}`;
-  const reward = 90 + Math.round(distanceKm / 45) + (hashString32(`${seed}|reward`) % 76);
+  const reward = 150 + Math.round(distanceKm / 18) + (hashString32(`${seed}|reward`) % 101);
   const id = `passenger-${origin.tileId}-${destination.tileId}-${hashString32(seed).toString(36)}`;
   return {
     id,
@@ -544,9 +546,10 @@ function seededFraction(value) {
 function questMemory(state) {
   if (!state?.memory || typeof state.memory !== "object") throw new Error("Passenger missions require game state memory");
   if (!state.memory.quests || typeof state.memory.quests !== "object") {
-    state.memory.quests = { active: null, completed: {} };
+    state.memory.quests = { active: null, passengerActive: null, completed: {} };
   }
   const quests = state.memory.quests;
+  if (quests.passengerActive === undefined) quests.passengerActive = null;
   if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
   if (!quests.passengerOffers || typeof quests.passengerOffers !== "object") quests.passengerOffers = {};
   if (!quests.passengerRolls || typeof quests.passengerRolls !== "object") quests.passengerRolls = {};

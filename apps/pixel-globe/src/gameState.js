@@ -232,7 +232,7 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 51;
+export const GAME_STATE_VERSION = 52;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
@@ -457,6 +457,7 @@ export function createGameState({
       },
       quests: {
         active: null,
+        passengerActive: null,
         completed: {},
         onboardingDeliveriesCompleted: 0,
         deliveryOffers: {},
@@ -504,7 +505,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -619,7 +620,7 @@ export function migrateGameState(state, shipStats) {
       }),
       quests: {
         ...migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
-          migrateRetiredFactionReferences(state.memory?.quests)
+          migrateConcurrentQuestMemory(migrateRetiredFactionReferences(state.memory?.quests))
         )),
         cargoDeliveries: state.memory?.quests?.cargoDeliveries ||
           createQuestCargoDeliveryMemory(),
@@ -773,8 +774,22 @@ function migrateSovereignTradeQuestReferences(quests) {
   return {
     ...quests,
     active: migrateQuest(quests.active),
+    passengerActive: migrateQuest(quests.passengerActive),
     passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
       .map(([key, quest]) => [key, migrateQuest(quest)]))
+  };
+}
+
+function migrateConcurrentQuestMemory(quests) {
+  if (!quests || typeof quests !== "object") return quests;
+  const legacyPassenger = quests.active?.kind === "passenger" ? quests.active : null;
+  if (legacyPassenger && quests.passengerActive) {
+    throw new Error("Saved voyage has both legacy and concurrent passenger missions");
+  }
+  return {
+    ...quests,
+    active: legacyPassenger ? null : (quests.active || null),
+    passengerActive: quests.passengerActive || legacyPassenger
   };
 }
 
@@ -794,6 +809,7 @@ function migrateQuestCharacterSkills(quests) {
   return {
     ...quests,
     active: migrateQuest(quests.active, "active"),
+    passengerActive: migrateQuest(quests.passengerActive, "passenger-active"),
     passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
       .map(([key, quest]) => [key, migrateQuest(quest, key)]))
   };
@@ -2035,13 +2051,22 @@ function shipConsumptionForValidatedState(state) {
       waterConsumers: 1
     };
   }
-  const quest = state.memory.quests?.active || null;
+  const activeQuests = [
+    state.memory.quests?.active || null,
+    state.memory.quests?.passengerActive || null
+  ].filter(Boolean);
   const passengers = travelerManifestCount(shipTravelerManifestForValidatedState(state));
-  const livestock = Math.max(0, Number(quest?.livestockCount || quest?.livestock?.count || 0));
+  const livestock = activeQuests.reduce((total, quest) => (
+    total + Math.max(0, Number(quest.livestockCount || quest.livestock?.count || 0))
+  ), 0);
   const baseConsumers = state.ship.crew + passengers;
   const animalCompanions = animalCompanionConsumption(state.memory.animalCompanions);
-  const questFood = Math.max(0, Number(quest?.consumption?.food || 0));
-  const questWater = Math.max(0, Number(quest?.consumption?.water || 0));
+  const questFood = activeQuests.reduce((total, quest) => (
+    total + Math.max(0, Number(quest.consumption?.food || 0))
+  ), 0);
+  const questWater = activeQuests.reduce((total, quest) => (
+    total + Math.max(0, Number(quest.consumption?.water || 0))
+  ), 0);
   return {
     crew: state.ship.crew,
     passengers,
@@ -2068,6 +2093,8 @@ function shipTravelerManifestForValidatedState(state) {
   const groups = [];
   const questGroup = activeQuestTravelerGroup(state.memory.quests?.active || null);
   if (questGroup) groups.push(questGroup);
+  const passengerGroup = activeQuestTravelerGroup(state.memory.quests?.passengerActive || null);
+  if (passengerGroup) groups.push(passengerGroup);
   const pirateCaptive = state.memory.quests?.pirateCaptive?.active || null;
   if (pirateCaptive && pirateCaptive.stage === "aboard") {
     groups.push(Object.freeze({ kind: "passenger", count: 1 }));
@@ -4073,7 +4100,7 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
   if (!Array.isArray(portCities)) throw new Error("Capture-port missions require a port list");
   const quests = questMemory(state);
   const existing = pendingCapturePortMissionOfferForCity(state, city);
-  if (existing || quests.active) return existing;
+  if (existing || quests.active || quests.passengerActive) return existing;
 
   const issuerFactionId = currentSovereignCapitalFactionId(city);
   if (!issuerFactionId || !hasLetterOfMarqueFrom(state, issuerFactionId)) return null;
@@ -4351,6 +4378,7 @@ export function reconcileQuestPortTiles(state, portCities) {
   };
 
   reconcile(quests.active);
+  reconcile(quests.passengerActive);
   const deliveryOffers = {};
   for (const [storedKey, offer] of Object.entries(quests.deliveryOffers)) {
     reconcile(offer);
@@ -4394,8 +4422,21 @@ export function questStateForCity(state, city, portCities) {
 export function acceptQuest(state, quest) {
   assertGameState(state);
   const quests = questMemory(state);
-  if (quests.active) throw new Error("Cannot accept a quest while another quest is active");
   if (quests.completed[quest.id]) throw new Error(`Quest already completed: ${quest.id}`);
+  const passengerSlot = quest.kind === "passenger";
+  if (passengerSlot) {
+    if (quests.passengerActive) {
+      throw new Error("Cannot accept a passenger while another passenger is aboard");
+    }
+    if (quests.active && quests.active.kind !== "delivery") {
+      throw new Error(`Cannot accept a passenger during ${quests.active.kind}`);
+    }
+  } else {
+    if (quests.active) throw new Error("Cannot accept a quest while another quest is active");
+    if (quests.passengerActive && quest.kind !== "delivery") {
+      throw new Error(`Cannot accept ${quest.kind} while a passenger is aboard`);
+    }
+  }
   const passenger = quest.passenger ? {
     ...quest.passenger,
     skillIds: quest.passenger.skillIds || characterSkillIdsForIdentity(
@@ -4403,7 +4444,7 @@ export function acceptQuest(state, quest) {
       { traveler: true }
     )
   } : quest.passenger;
-  quests.active = { ...quest, passenger };
+  quests[passengerSlot ? "passengerActive" : "active"] = { ...quest, passenger };
   if ((quest.kind === "passenger" || isEnvoyQuest(quest)) && quest.originKey) {
     delete quests.passengerOffers[quest.originKey];
   }
@@ -4415,7 +4456,17 @@ export function acceptQuest(state, quest) {
 export function completeQuest(state, city, context = {}) {
   assertGameState(state);
   const quests = questMemory(state);
-  const active = quests.active;
+  const requestedQuestId = context.questId ?? null;
+  const passengerMatches = quests.passengerActive &&
+    (!requestedQuestId || quests.passengerActive.id === requestedQuestId);
+  const primaryMatches = quests.active &&
+    (!requestedQuestId || quests.active.id === requestedQuestId);
+  const activeSlot = primaryMatches
+    ? "active"
+    : passengerMatches
+      ? "passengerActive"
+      : null;
+  const active = activeSlot ? quests[activeSlot] : null;
   if (!active) throw new Error("No active quest to complete");
   if (active.destinationTileId !== city.tileId) {
     throw new Error(`Quest destination is ${active.destinationName}, not ${cityLabel(city)}`);
@@ -4428,7 +4479,7 @@ export function completeQuest(state, city, context = {}) {
   }
   state.doubloons += active.reward;
   quests.completed[active.id] = true;
-  quests.active = null;
+  quests[activeSlot] = null;
   if (active.kind === "delivery" && active.onboarding === true) {
     quests.onboardingDeliveriesCompleted = Math.min(
       ONBOARDING_DELIVERY_COUNT,
@@ -5548,9 +5599,10 @@ function assertPortugueseCartazMemory(memory) {
 
 function questMemory(state) {
   if (!state.memory.quests || typeof state.memory.quests !== "object") {
-    state.memory.quests = { active: null, completed: {} };
+    state.memory.quests = { active: null, passengerActive: null, completed: {} };
   }
   const quests = state.memory.quests;
+  if (quests.passengerActive === undefined) quests.passengerActive = null;
   if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
   if (!Number.isInteger(quests.onboardingDeliveriesCompleted) || quests.onboardingDeliveriesCompleted < 0) {
     quests.onboardingDeliveriesCompleted = inferredOnboardingDeliveryProgress(state, quests);

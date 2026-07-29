@@ -329,6 +329,8 @@ function shipPapers(gameState) {
   const papers = [];
   const activeQuest = gameState.memory.quests.active;
   if (activeQuest) papers.push(activeQuestPaper(activeQuest));
+  const activePassenger = gameState.memory.quests.passengerActive;
+  if (activePassenger) papers.push(activeQuestPaper(activePassenger));
   papers.push(...shipItemPapers(shipItemRows(gameState)));
   papers.push(...personalTradePassPapers(gameState.relations.personalTradePasses));
   papers.push(...letterOfMarquePapers(gameState.relations.lettersOfMarque));

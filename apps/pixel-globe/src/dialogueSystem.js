@@ -294,7 +294,11 @@ export function createPortArrivalDialogueSession(city, options = {}) {
     if (options.questCharacterSession.cityTileId !== city.tileId) {
       throw new Error("Port-arrival quest character does not belong to this city");
     }
-    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    const nextPortNodeId = options.openDeliveryMission === true
+      ? "quest"
+      : needsLoadout
+        ? "loadout"
+        : "greeting";
     return {
       ...options.questCharacterSession,
       admittedToPort: true,
@@ -1901,7 +1905,15 @@ export function selectPortDialogueOption(
 
 export function passengerDialogueView(session, city, quest, gameState) {
   assertPassengerDialogueSubject(session, city, quest);
-  const active = gameState?.memory?.quests?.active || null;
+  const questMemory = gameState?.memory?.quests || {};
+  const active = isEnvoyQuest(quest)
+    ? questMemory.active || null
+    : questMemory.passengerActive || null;
+  const blockingQuest = isEnvoyQuest(quest)
+    ? questMemory.active || questMemory.passengerActive || null
+    : questMemory.passengerActive ||
+      (questMemory.active?.kind === "delivery" ? null : questMemory.active) ||
+      null;
   const speaker = `${passengerName(quest)}, ${isEnvoyQuest(quest) ? "envoy" : "passenger"}`;
   const expressionId = questExpressionId(quest);
   if (session.envoyNegotiationResult) {
@@ -1962,11 +1974,11 @@ export function passengerDialogueView(session, city, quest, gameState) {
       ]
     };
   }
-  if (active && active.id !== quest.id) {
+  if (blockingQuest && blockingQuest.id !== quest.id) {
     return {
       speaker,
       expressionId: "concerned",
-      text: `Your ship is already pledged to ${active.destinationName}. I will wait here if you return.`,
+      text: `Your ship is already pledged to ${blockingQuest.destinationName}. I will wait here if you return.`,
       feedback: session.feedback,
       options: [
         option("Leave", { type: "close" })
@@ -2018,7 +2030,10 @@ export function selectPassengerDialogueOption(
     return { closed: true, action: null };
   }
   if (action.type === "complete-passenger") {
-    const completed = completeQuest(gameState, city, context);
+    const completed = completeQuest(gameState, city, {
+      ...context,
+      questId: quest.id
+    });
     const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
       missionId: completed.id,
       distanceKm: completed.distanceKm || 0,

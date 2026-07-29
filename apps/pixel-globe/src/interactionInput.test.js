@@ -111,6 +111,21 @@ test("ordinary broadside controls and padded world interactions retain their pri
   });
 });
 
+test("only visible fish pixels trigger fishing while padded fish clicks steer", () => {
+  const target = { kind: "fish", call: { fisheryId: "north-sea-herring" } };
+  assert.deepEqual(worldPointerAction({
+    interactionCandidate: { target, exact: true }
+  }), {
+    type: WORLD_POINTER_ACTION.INTERACTION,
+    target
+  });
+  assert.deepEqual(worldPointerAction({
+    interactionCandidate: { target, exact: false }
+  }), {
+    type: WORLD_POINTER_ACTION.STEER
+  });
+});
+
 test("world pointer priority rejects a broadside assigned to a non-ship target", () => {
   assert.throws(() => worldPointerAction({
     interactionCandidate: { target: { kind: "port" }, exact: true },

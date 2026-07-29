@@ -83,6 +83,9 @@ export function worldPointerAction({
   if (pointBroadside) {
     return { type: WORLD_POINTER_ACTION.BROADSIDE, sideName: pointBroadside };
   }
+  if (interactionCandidate?.target.kind === "fish") {
+    return { type: WORLD_POINTER_ACTION.STEER };
+  }
   if (interactionCandidate) {
     return { type: WORLD_POINTER_ACTION.INTERACTION, target: interactionCandidate.target };
   }

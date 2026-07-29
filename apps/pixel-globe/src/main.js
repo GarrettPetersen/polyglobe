@@ -668,7 +668,6 @@ import {
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
-  heldShipHaulStrength,
   playerRiverGatewayAssistEligible,
   rememberCompletedRiverRailPath,
   selectRiverRailPath,
@@ -2581,7 +2580,6 @@ let pendingWeatherMaskRefresh = null;
 let weatherMaskScratch = null;
 let weatherDrawTick = -1;
 let ship;
-let playerSteeringHoldSeconds = 0;
 let playerHaulBlockedSeconds = 0;
 let playerBoundaryAssistContact = null;
 let playerBoundaryProbeCache = null;
@@ -9024,7 +9022,6 @@ async function restoreSavedVoyage(payload) {
   shipCombatState.engagements.clear();
   shipCollisionCooldowns.clear();
   shipCombatEntryCollisionGrace.clear();
-  playerSteeringHoldSeconds = 0;
   playerHaulBlockedSeconds = 0;
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
@@ -15443,8 +15440,11 @@ function playerPerkTotalsSignature(state, additionalCharacters) {
   if (!items || typeof items !== "object" || Array.isArray(items)) {
     throw new Error("Player perks require inventory items");
   }
-  const traveler = state.memory?.quests?.active?.passenger || null;
-  const characters = [state.playerCharacter, ...state.namedCrew, traveler, ...additionalCharacters]
+  const travelers = [
+    state.memory?.quests?.active?.passenger || null,
+    state.memory?.quests?.passengerActive?.passenger || null
+  ].filter(Boolean);
+  const characters = [state.playerCharacter, ...state.namedCrew, ...travelers, ...additionalCharacters]
     .filter(Boolean)
     .map((character) => {
       if (!Array.isArray(character.skillIds)) {
@@ -16397,7 +16397,6 @@ function updateSailing(dt) {
   const input = inputCommandForShip();
   const inputHeading = input.heading;
   const inRiver = shipIsInRiverWater();
-  playerSteeringHoldSeconds = inputHeading ? playerSteeringHoldSeconds + dt : 0;
   if (!inputHeading) playerHaulBlockedSeconds = 0;
 
   const probedBoundaryContact = inputHeading ? playerShipBoundaryContact(inputHeading) : null;
@@ -16431,7 +16430,7 @@ function updateSailing(dt) {
   applyWindAcceleration(dt, effectiveStats, input.rowingRequested);
   applyWhaleTowAcceleration(dt);
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
-  applyHeldShipHaulAcceleration(dt, inputHeading, haulMotionScale);
+  applyShipHaulAcceleration(dt, inputHeading, haulMotionScale);
   const previousPosition = ship.position;
   const moveResult = moveShipWithCollision(dt, inputHeading);
   const movedPx = vectorLength([
@@ -16951,19 +16950,17 @@ function applyWindAcceleration(
   limitShipSpeed(propulsion.maxSpeedRad);
 }
 
-function applyHeldShipHaulAcceleration(dt, inputHeading, motionScale) {
+function applyShipHaulAcceleration(dt, inputHeading, motionScale) {
   if (!inputHeading || motionScale <= 0) return;
-  const strength = heldShipHaulStrength(playerSteeringHoldSeconds);
-  if (strength <= 0) return;
   const direction = normalizeOrNull(projectTangentVector(inputHeading, ship.position));
   if (!direction) return;
 
   const currentSpeedTowardInput = dot3(ship.velocity, direction);
-  const maxSpeed = SHIP_RIVER_HAUL_MAX_SPEED_RAD * motionScale * strength;
+  const maxSpeed = SHIP_RIVER_HAUL_MAX_SPEED_RAD * motionScale;
   if (currentSpeedTowardInput >= maxSpeed) return;
 
   const addSpeed = Math.min(
-    SHIP_RIVER_HAUL_ACCEL_RAD * motionScale * strength * dt,
+    SHIP_RIVER_HAUL_ACCEL_RAD * motionScale * dt,
     maxSpeed - currentSpeedTowardInput
   );
   ship.velocity = projectTangentVector([
@@ -25629,9 +25626,7 @@ function questJournalEntries() {
     });
   }
 
-  const activeQuest = gameState.memory.quests.active;
-  const activeDestination = activeQuestDestinationPort();
-  if (activeQuest && activeDestination) {
+  for (const { quest: activeQuest, destination: activeDestination } of activeQuestDestinations()) {
     const titleKey = activeQuest.kind === "passenger"
       ? "quest.passenger"
       : activeQuest.kind === "delivery"
@@ -26159,12 +26154,9 @@ function nativeCaptainChartMinimap(width, height, viewport) {
 function navigationMenuEntries() {
   if (!gameState) throw new Error("Navigation menu requires an active game state");
   const entries = [];
-  const questDestination = activeQuestDestinationPort();
-  if (questDestination) {
-    const quest = gameState.memory.quests.active;
-    if (!quest) throw new Error("Quest navigation destination has no active quest");
+  for (const { quest, destination: questDestination } of activeQuestDestinations()) {
     entries.push({
-      id: `quest:${questDestination.tileId}`,
+      id: `quest:${quest.id}`,
       destinationName: cityLabelText(questDestination),
       reason: navigationQuestReason(quest),
       style: QUEST_NAVIGATION_STYLE,
@@ -34932,19 +34924,20 @@ function drawShipWindV({
 }
 
 function drawQuestDestinationArrow(nowMs) {
-  const destination = activeQuestDestinationPort();
-  if (!destination || !ship || !chart || !localLayout) return;
-  const destinationVector = latLonToDirection(destination.lat, destination.lon);
-  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
-  drawWorldTargetArrow({
-    id: `quest:${destination.tileId}`,
-    label: cityLabelText(destination),
-    targetVector: destinationVector,
-    localPoint: visibleCity || localPointForGlobeVector(destinationVector),
-    localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
-    nowMs,
-    style: QUEST_NAVIGATION_STYLE
-  });
+  if (!ship || !chart || !localLayout) return;
+  for (const { quest, destination } of activeQuestDestinations()) {
+    const destinationVector = latLonToDirection(destination.lat, destination.lon);
+    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    drawWorldTargetArrow({
+      id: `quest:${quest.id}`,
+      label: cityLabelText(destination),
+      targetVector: destinationVector,
+      localPoint: visibleCity || localPointForGlobeVector(destinationVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
 }
 
 function drawCampaignGoalDestinationArrow(nowMs) {
@@ -35259,8 +35252,18 @@ function nearestDiscoveryDirection(discovery, position) {
   ), directions[0]);
 }
 
-function activeQuestDestinationPort() {
-  const quest = gameState?.memory?.quests?.active;
+function activeQuestDestinations() {
+  if (!gameState) return [];
+  return [
+    gameState.memory.quests.active,
+    gameState.memory.quests.passengerActive
+  ].filter(Boolean).map((quest) => ({
+    quest,
+    destination: destinationPortForQuest(quest)
+  })).filter((entry) => entry.destination);
+}
+
+function destinationPortForQuest(quest) {
   if (!quest?.destinationTileId) return null;
   const destination = portCitiesByTileId?.get(quest.destinationTileId) || cityByTileId?.get(quest.destinationTileId);
   if (!destination || !Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) return null;

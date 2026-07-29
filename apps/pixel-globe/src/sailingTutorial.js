@@ -119,10 +119,10 @@ export function sailingHelpPages(inputMode, controlScheme = CONTROL_SCHEME_ABSOL
     controller: "Tilt and hold the left stick. The bow turns toward that direction. Keep holding while it sails."
   };
   const haulingCopy = {
-    touch: "If wind pins you against a riverbank or coast, touch and hold toward open water. Your crew will haul along the shore, very slowly.",
-    mouse: "If wind pins you against a riverbank or coast, click and hold toward open water. Your crew will haul along the shore, very slowly.",
-    keyboard: "If wind pins you against a riverbank or coast, hold a direction key toward open water. Your crew will haul along the shore, very slowly.",
-    controller: "If wind pins you against a riverbank or coast, hold the left stick toward open water. Your crew will haul along the shore, very slowly."
+    touch: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
+    mouse: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
+    keyboard: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
+    controller: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly."
   };
   return [
     {

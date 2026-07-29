@@ -6,7 +6,6 @@ import {
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
-  heldShipHaulStrength,
   playerRiverGatewayAssistEligible,
   rememberCompletedRiverRailPath,
   selectRiverRailPath,
@@ -14,16 +13,7 @@ import {
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
 
-test("ship hauling starts only after deliberate held input and ramps smoothly", () => {
-  assert.equal(heldShipHaulStrength(0), 0);
-  assert.equal(heldShipHaulStrength(0.18), 0);
-  assert.ok(heldShipHaulStrength(0.43) > 0);
-  assert.ok(heldShipHaulStrength(0.43) < 1);
-  assert.equal(heldShipHaulStrength(0.68), 1);
-  assert.equal(heldShipHaulStrength(3), 1);
-});
-
-test("coastal hauling is available only near shore and is much slower than river hauling", () => {
+test("hauling is immediately available near shore and is strongest in rivers", () => {
   assert.equal(shipHaulMotionScale({ inRiver: true, nearShore: true }), 1);
   assert.equal(shipHaulMotionScale({ inRiver: false, nearShore: true }), COASTAL_HAUL_MOTION_SCALE);
   assert.equal(shipHaulMotionScale({ inRiver: false, nearShore: false }), 0);

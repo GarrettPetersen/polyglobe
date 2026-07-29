@@ -10,26 +10,7 @@ export const RIVER_GATEWAY_MIN_FORWARD_DOT = Math.cos(Math.PI / 3);
 export const PLAYER_RIVER_GATEWAY_MIN_INTENT_DOT = Math.cos(Math.PI / 4);
 export const PLAYER_RIVER_GATEWAY_MIN_TRAVEL_DOT = 0.15;
 export const RIVER_RAIL_RECENT_PATH_LIMIT = 6;
-export const SHIP_HAUL_HOLD_DELAY_SECONDS = 0.18;
-export const SHIP_HAUL_RAMP_SECONDS = 0.5;
 export const COASTAL_HAUL_MOTION_SCALE = 0.24;
-
-export function heldShipHaulStrength(
-  heldSeconds,
-  holdDelaySeconds = SHIP_HAUL_HOLD_DELAY_SECONDS,
-  rampSeconds = SHIP_HAUL_RAMP_SECONDS
-) {
-  if (!Number.isFinite(heldSeconds) || heldSeconds < 0) {
-    throw new Error("Ship haul duration must be a finite non-negative number");
-  }
-  if (!Number.isFinite(holdDelaySeconds) || holdDelaySeconds < 0) {
-    throw new Error("Ship haul delay must be a finite non-negative number");
-  }
-  if (!Number.isFinite(rampSeconds) || rampSeconds <= 0) {
-    throw new Error("Ship haul ramp must be a finite positive number");
-  }
-  return smoothstep((heldSeconds - holdDelaySeconds) / rampSeconds);
-}
 
 export function shipHaulMotionScale({ inRiver, nearShore }) {
   if (inRiver) return 1;
@@ -301,9 +282,4 @@ function cross2(a, b) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
-}
-
-function smoothstep(value) {
-  const t = clamp(value, 0, 1);
-  return t * t * (3 - 2 * t);
 }

@@ -2849,13 +2849,14 @@ test("passenger dialogue can be declined and accepted later", () => {
     action: { type: "open-port" }
   });
   assert.equal(gameState.memory.quests.active, null);
+  assert.equal(gameState.memory.quests.passengerActive, null);
 
   const acceptSession = createPassengerDialogueSession(origin, quest);
   assert.deepEqual(selectPassengerDialogueOption(acceptSession, origin, quest, gameState, 0), {
     closed: true,
     action: null
   });
-  assert.equal(gameState.memory.quests.active.id, quest.id);
+  assert.equal(gameState.memory.quests.passengerActive.id, quest.id);
   assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
 });
 
@@ -3002,6 +3003,14 @@ test("a quest character precedes the loadout and factor during port arrival", ()
   assert.equal(ordinaryPort.kind, "passenger");
   assert.equal(ordinaryPort.admittedToPort, true);
   assert.equal(ordinaryPort.nextPortNodeId, "greeting");
+
+  const deliveryPort = createPortArrivalDialogueSession(city, {
+    questCharacterSession: passengerSession,
+    openDeliveryMission: true
+  });
+  assert.equal(deliveryPort.kind, "passenger");
+  assert.equal(deliveryPort.admittedToPort, true);
+  assert.equal(deliveryPort.nextPortNodeId, "quest");
 
   const noPassenger = createPortArrivalDialogueSession(city, { needsLoadout: true });
   assert.equal(noPassenger.kind, "port");

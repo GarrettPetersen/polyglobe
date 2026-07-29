@@ -7,8 +7,11 @@ export function gameStatePerkTotals(state, { additionalCharacters = [] } = {}) {
   if (!state || typeof state !== "object") throw new Error("Player perks require game state");
   if (!Array.isArray(additionalCharacters)) throw new Error("Additional perk characters must be an array");
   const characters = [state.playerCharacter, ...namedCrewMembers(state)];
-  const traveler = state.memory?.quests?.active?.passenger || null;
-  if (traveler) characters.push(traveler);
+  const travelers = [
+    state.memory?.quests?.active?.passenger || null,
+    state.memory?.quests?.passengerActive?.passenger || null
+  ].filter(Boolean);
+  characters.push(...travelers);
   characters.push(...additionalCharacters);
 
   const sources = [];

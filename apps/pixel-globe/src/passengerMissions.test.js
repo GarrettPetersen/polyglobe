@@ -6,9 +6,11 @@ import {
   activeFactionSafePassageIds,
   completeQuest,
   createGameState,
+  deliveryOfferForCity,
   factionReputation,
   grantEnvoySafePassage,
   ledgerEntries,
+  migrateGameState,
   openSovereignTradeToFaction,
   recordAttackAgainstFaction,
   sovereignTradeOpenToFaction,
@@ -111,7 +113,35 @@ test("accepting and completing passenger passage pays fare and clears pending of
   assert.equal(completed.id, offer.id);
   assert.equal(state.doubloons, before + offer.reward);
   assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.passengerActive, null);
   assert.equal(ledgerEntries(state).at(-1).description, "Passenger fare");
+});
+
+test("one passenger and one package delivery can travel aboard together", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const passenger = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], {
+    spawnChance: 1,
+    simMinute: 0,
+    destinationTileId: LONDON.tileId,
+    createCharacter: () => ({ name: "Hana Sato" })
+  });
+  acceptQuest(state, passenger);
+
+  const delivery = deliveryOfferForCity(state, LISBON, [LISBON, PORTO], {
+    simMinute: 0,
+    spawnChance: 1
+  });
+  assert.ok(delivery);
+  acceptQuest(state, delivery);
+  assert.equal(state.memory.quests.passengerActive.id, passenger.id);
+  assert.equal(state.memory.quests.active.id, delivery.id);
+
+  completeQuest(state, LONDON, { simMinute: 240, questId: passenger.id });
+  assert.equal(state.memory.quests.passengerActive, null);
+  assert.equal(state.memory.quests.active.id, delivery.id);
+
+  completeQuest(state, PORTO, { simMinute: 480 });
+  assert.equal(state.memory.quests.active, null);
 });
 
 test("passenger destinations reject local hops and intercontinental extremes", () => {
@@ -139,7 +169,7 @@ test("old unaccepted long-distance offers expire but active passengers remain un
     originKey,
     distanceKm: 9000
   };
-  state.memory.quests.active = {
+  state.memory.quests.passengerActive = {
     id: "passenger-already-aboard",
     kind: "passenger",
     originKey: "elsewhere",
@@ -148,7 +178,25 @@ test("old unaccepted long-distance offers expire but active passengers remain un
 
   assert.equal(pendingPassengerOfferForCity(state, LISBON), null);
   assert.equal(state.memory.quests.passengerOffers[originKey], undefined);
-  assert.equal(state.memory.quests.active.id, "passenger-already-aboard");
+  assert.equal(state.memory.quests.passengerActive.id, "passenger-already-aboard");
+});
+
+test("version 51 saves move an active passenger into the concurrent mission slot", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.version = 51;
+  delete state.memory.quests.passengerActive;
+  state.memory.quests.active = {
+    id: "passenger-legacy-active",
+    kind: "passenger",
+    originTileId: LISBON.tileId,
+    destinationTileId: LONDON.tileId,
+    passenger: { id: "legacy-passenger", name: "Hana Sato" }
+  };
+
+  const restored = migrateGameState(state, null);
+  assert.equal(restored.memory.quests.active, null);
+  assert.equal(restored.memory.quests.passengerActive.id, "passenger-legacy-active");
+  assert.deepEqual(restored.memory.quests.passengerActive.passenger.skillIds.length > 0, true);
 });
 
 test("a friendly envoy negotiates abroad and is paid only after returning home", () => {
