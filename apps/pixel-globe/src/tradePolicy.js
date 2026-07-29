@@ -230,6 +230,7 @@ export function tradeTerms({
     crownMonopoly,
     monopolyPurchaseRate,
     monopolySaleRate,
+    purchaseDiscountMultiplier,
     purchaseBargainMultiplier,
     saleBargainMultiplier,
     purchaseMultiplier,

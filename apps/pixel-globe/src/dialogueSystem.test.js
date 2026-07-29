@@ -987,6 +987,37 @@ test("market comparisons use pixel-font-safe directional wording", () => {
   );
 });
 
+test("founded colonies state and display their 15% goods discount", () => {
+  const city = {
+    tileId: 109,
+    city: "Port Royal",
+    displayCity: "Port Royal",
+    country: "Canada",
+    factionId: "neutral",
+    cityType: "northern-european",
+    population: 2400,
+    lat: 44.741944,
+    lon: -65.515556,
+    playerFoundedColony: true,
+    purchaseDiscountMultiplier: 0.85,
+    character: { name: "Jeanne Hebert", personalityId: "warm" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.doubloons = 10000;
+
+  const greetingSession = createPortDialogueSession(city, { initialNodeId: "greeting" });
+  const greeting = portDialogueView(greetingSession, city, gameState, economy, [city]);
+  assert.match(greeting.text, /15% off goods you buy/);
+
+  const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const buy = portDialogueView(buySession, city, gameState, economy, [city]);
+  const marketRows = buy.options.filter((entry) => entry.action.type === "buy");
+  assert.ok(marketRows.length > 0);
+  assert.ok(marketRows.every((entry) => entry.detail.includes("FOUNDER -15%")));
+  assert.equal(playerTradeTerms(gameState, city, marketRows[0].action.goodId).purchaseDiscountMultiplier, 0.85);
+});
+
 test("leaving the buy screen recommends the strongest distance-adjusted trade route", () => {
   const ternate = {
     tileId: 101,

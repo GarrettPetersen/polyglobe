@@ -2062,12 +2062,13 @@ function greetingView(session, city, gameState, context) {
   }
   if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
   if (city.playerFoundedColony) {
+    const discountPercent = founderPurchaseDiscountPercent(city);
     return {
       speaker: `${characterName(city.character)}, governor of ${cityLabel(city)}`,
       expressionId: "happy",
       text: memory.visits > 1
-        ? "Welcome home, founder. Your berth is kept clear, and every factor knows to charge you the founder's price."
-        : `You have returned to the city you saved. ${cityLabel(city)}'s warehouses, shipyard, and market are open to you at the founder's price.`,
+        ? `Welcome home, founder. Every factor here gives you ${discountPercent}% off goods you buy.`
+        : `You have returned to the city you saved. As its founder, you receive ${discountPercent}% off goods you buy in ${cityLabel(city)}.`,
       feedback: null,
       options: [option("Continue", { type: "node", nodeId: "root" })]
     };
@@ -2996,10 +2997,11 @@ function colonizationView(session, city, gameState, context) {
   }
 
   if (quest.stage === COLONIZATION_STAGE_ESTABLISHED) {
+    const discountPercent = founderPurchaseDiscountPercent(city);
     return {
       speaker: `${organizer}, ${history.settlementLeaderRole}`,
       expressionId: "happy",
-      text: `${history.established} Your name is known in every warehouse here, and our factors will always sell to you at the founder's price.`,
+      text: `${history.established} Your name is known in every warehouse here, and our factors will always give you ${discountPercent}% off goods you buy.`,
       feedback: session.feedback,
       options: [back]
     };
@@ -3509,7 +3511,12 @@ function destinationAcceptsPlayerTrade(city, gameState, simMinute) {
 }
 
 function tradeTermsDetail(terms, side) {
-  const parts = [`DUTY ${Math.round(terms.customsRate * 100)}%`];
+  const parts = [];
+  if (side === "buy" && terms.purchaseDiscountMultiplier !== 1) {
+    const change = Math.round((1 - terms.purchaseDiscountMultiplier) * 100);
+    parts.push(`FOUNDER -${change}%`);
+  }
+  parts.push(`DUTY ${Math.round(terms.customsRate * 100)}%`);
   if (terms.crownMonopoly) {
     const rate = side === "buy" ? terms.monopolyPurchaseRate : terms.monopolySaleRate;
     parts.push(`CROWN ${side === "buy" ? "+" : "-"}${Math.round(rate * 100)}%`);
@@ -3522,6 +3529,14 @@ function tradeTermsDetail(terms, side) {
     parts.push(`BARGAIN ${side === "buy" ? "-" : "+"}${change}%`);
   }
   return parts.join("  ");
+}
+
+function founderPurchaseDiscountPercent(city) {
+  const multiplier = city?.purchaseDiscountMultiplier;
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier >= 1) {
+    throw new Error(`${cityLabel(city)} has no valid founder purchase discount`);
+  }
+  return Math.round((1 - multiplier) * 100);
 }
 
 function betterTradeTip(candidate, current) {
