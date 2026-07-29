@@ -11,7 +11,8 @@ import {
 import {
   admitProjectedTiles,
   discardOffscreenElasticLayoutTiles,
-  projectedViewportTileIds
+  projectedViewportTileIds,
+  retainLocalLayoutAnchor
 } from "./localLayoutAdmission.js";
 import {
   createSurfaceDetailLayerBounds,
@@ -24415,6 +24416,12 @@ function chartProjectionOffsetPixels(activeChart) {
 }
 
 function syncLocalLayout(projectedVisible, chartCenterTileId) {
+  retainLocalLayoutAnchor({
+    positions: localLayout.positions,
+    anchorId: chartCenterTileId,
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY
+  });
   const viewportTileIds = projectedViewportTileIds({
     projectedTiles: projectedVisible,
     protectionById: chartTileProtection,
@@ -24444,13 +24451,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     if (!localLayout.positions.has(item.id)) pending.add(item.id);
   }
 
-  if (!localLayout.positions.has(chartCenterTileId)) {
-    localLayout.positions.set(chartCenterTileId, {
-      x: Math.round(localLayout.viewX),
-      y: Math.round(localLayout.viewY)
-    });
-    pending.delete(chartCenterTileId);
-  }
+  pending.delete(chartCenterTileId);
 
   admitProjectedTiles({
     positions: localLayout.positions,

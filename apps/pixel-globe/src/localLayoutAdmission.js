@@ -275,6 +275,27 @@ export function projectedViewportTileIds({
   return ids;
 }
 
+export function retainLocalLayoutAnchor({
+  positions,
+  anchorId,
+  viewX,
+  viewY
+}) {
+  if (!(positions instanceof Map)) {
+    throw new Error("Local layout anchor retention requires a positions map");
+  }
+  if (!Number.isInteger(anchorId) || anchorId < 0) {
+    throw new Error(`Local layout anchor retention requires a tile id: ${anchorId}`);
+  }
+  assertFinitePoint({ x: viewX, y: viewY }, "Local layout view position");
+  if (positions.has(anchorId)) return false;
+  positions.set(anchorId, {
+    x: roundPixel(viewX),
+    y: roundPixel(viewY)
+  });
+  return true;
+}
+
 export function discardOffscreenElasticLayoutTiles({
   positions,
   projectedTiles,

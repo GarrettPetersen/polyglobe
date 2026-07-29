@@ -11,6 +11,7 @@ import {
   admitProjectedTiles,
   discardOffscreenElasticLayoutTiles,
   projectedViewportTileIds,
+  retainLocalLayoutAnchor,
   viewportContainsOnlyElasticTiles
 } from "./localLayoutAdmission.js";
 
@@ -211,6 +212,33 @@ test("only protection overlapping the screen blocks an elastic ocean reset", () 
     viewportHeight: 60,
     tileVisualRadius: 10
   }), false);
+});
+
+test("a newly centered tile is retained before an elastic north-up reset", () => {
+  const positions = new Map([[1, { x: -40, y: 0 }]]);
+  const projectedTiles = [
+    { id: 1, x: -80, y: 50 },
+    { id: 2, x: 50, y: 50 }
+  ];
+  const protectionById = new Uint8Array(3);
+
+  assert.equal(retainLocalLayoutAnchor({
+    positions,
+    anchorId: 2,
+    viewX: 50.4,
+    viewY: 49.6
+  }), true);
+  assert.deepEqual(positions.get(2), { x: 50, y: 50 });
+  assert.doesNotThrow(() => discardOffscreenElasticLayoutTiles({
+    positions,
+    projectedTiles,
+    protectionById,
+    viewportWidth: 100,
+    viewportHeight: 100,
+    tileVisualRadius: 18,
+    anchorId: 2
+  }));
+  assert.deepEqual(positions.get(2), { x: 50, y: 50 });
 });
 
 test("the offscreen preload margin cannot steer the visible frame fit", () => {
