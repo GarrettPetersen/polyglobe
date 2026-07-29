@@ -1284,21 +1284,9 @@ export function purchasePlayerShip(state, city, stats, payment, context = {}) {
   }
   const netPrice = listingPrice - tradeInValue;
   if (state.doubloons < netPrice) throw new Error(`Not enough doubloons to buy ${shipLabelForSlug(stats.slug)}`);
-  const departures = namedCrewDepartures(state, context.departingNamedCrewIds);
-  playerShipReplacementCargoUsed(state, stats, {
-    departingNamedCrewIds: departures.map((entry) => entry.member.id)
-  });
   const label = shipLabelForSlug(stats.slug);
-  const namedCrewBefore = state.namedCrew;
-  const crewBefore = state.ship.crew;
-  if (departures.length > 0) {
-    const departingIds = new Set(departures.map((entry) => entry.member.id));
-    state.namedCrew = namedCrewBefore.filter((member) => !departingIds.has(member.id));
-    state.ship.crew -= departures.length;
-    validateNamedCrew(state.namedCrew);
-  }
-  try {
-    const plan = replacePlayerShipAndRecord(state, city, stats, context, {
+  const replacement = replacePlayerShipWithNamedCrewDepartures(state, stats, context, () => (
+    replacePlayerShipAndRecord(state, city, stats, context, {
       description: tradeInValue > 0
         ? `Purchase ${label}; ${tradeInValue} doubloon vessel trade-in`
         : `Purchase ${label}`,
@@ -1307,21 +1295,17 @@ export function purchasePlayerShip(state, city, stats, payment, context = {}) {
     }, () => {
       state.doubloons -= netPrice;
       recordDecision(state, `ship.purchase.${cityKey(city)}.${stats.slug}`, 1);
-    });
-    return {
-      slug: stats.slug,
-      label,
-      listingPrice,
-      tradeInValue,
-      netPrice,
-      plan,
-      departedNamedCrew: departures.map((entry) => entry.member)
-    };
-  } catch (error) {
-    state.namedCrew = namedCrewBefore;
-    state.ship.crew = crewBefore;
-    throw error;
-  }
+    })
+  ));
+  return {
+    slug: stats.slug,
+    label,
+    listingPrice,
+    tradeInValue,
+    netPrice,
+    plan: replacement.value,
+    departedNamedCrew: replacement.departedNamedCrew
+  };
 }
 
 export function awardPlayerShip(state, city, stats, description, context = {}) {
@@ -1331,12 +1315,46 @@ export function awardPlayerShip(state, city, stats, description, context = {}) {
     throw new Error("Ship award requires a ledger description");
   }
   const label = shipLabelForSlug(stats.slug);
-  const plan = replacePlayerShipAndRecord(state, city, stats, context, {
-    description,
-    amount: 0,
-    costBasis: 0
+  const replacement = replacePlayerShipWithNamedCrewDepartures(state, stats, context, () => (
+    replacePlayerShipAndRecord(state, city, stats, context, {
+      description,
+      amount: 0,
+      costBasis: 0
+    })
+  ));
+  return {
+    slug: stats.slug,
+    label,
+    price: 0,
+    plan: replacement.value,
+    departedNamedCrew: replacement.departedNamedCrew
+  };
+}
+
+function replacePlayerShipWithNamedCrewDepartures(state, stats, context, replace) {
+  if (typeof replace !== "function") throw new Error("Ship replacement requires an operation");
+  const departures = namedCrewDepartures(state, context.departingNamedCrewIds);
+  playerShipReplacementCargoUsed(state, stats, {
+    departingNamedCrewIds: departures.map((entry) => entry.member.id)
   });
-  return { slug: stats.slug, label, price: 0, plan };
+  const namedCrewBefore = state.namedCrew;
+  const crewBefore = state.ship.crew;
+  if (departures.length > 0) {
+    const departingIds = new Set(departures.map((entry) => entry.member.id));
+    state.namedCrew = namedCrewBefore.filter((member) => !departingIds.has(member.id));
+    state.ship.crew -= departures.length;
+    validateNamedCrew(state.namedCrew);
+  }
+  try {
+    return {
+      value: replace(),
+      departedNamedCrew: departures.map((entry) => entry.member)
+    };
+  } catch (error) {
+    state.namedCrew = namedCrewBefore;
+    state.ship.crew = crewBefore;
+    throw error;
+  }
 }
 
 function replacePlayerShipAndRecord(state, city, stats, context, ledger, beforeLedger = null) {

@@ -1363,6 +1363,35 @@ test("a ship trade-in can disembark a named crewmate before fitting the replacem
   assert.equal(state.ship.slug, "dhow");
 });
 
+test("a surrendered ship award can disembark a named crewmate with the replaced vessel", () => {
+  const longship = shipStatsForSlug("viking-longship");
+  const dhow = shipStatsForSlug("dhow");
+  const state = createGameState({ cargoCapacity: longship.cargoCapacity, shipStats: longship });
+  initializeProvisionalShipLoadout(state, longship);
+  const historian = addNamedCrewMember(state, {
+    id: "prize-historian",
+    name: "Leif Eriksen",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, NAMED_CREW_ROLE_HISTORIAN);
+
+  const result = awardPlayerShip(
+    state,
+    null,
+    dhow,
+    "Captured Dhow as a surrendered prize",
+    {
+      simMinute: 240,
+      departingNamedCrewIds: [historian.id]
+    }
+  );
+
+  assert.deepEqual(result.departedNamedCrew, [historian]);
+  assert.deepEqual(namedCrewMembers(state), []);
+  assert.equal(state.ship.crew, 1);
+  assert.equal(state.ship.slug, "dhow");
+});
+
 test("a more valuable trade-in pays the difference without hiding the credit", () => {
   const carrack = shipStatsForSlug("carrack");
   const felucca = shipStatsForSlug("felucca");

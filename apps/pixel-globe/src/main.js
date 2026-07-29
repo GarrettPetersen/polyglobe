@@ -14388,13 +14388,27 @@ async function captureSurrenderedShip(npcShipId) {
     const stats = shipStatsForSlug(candidateSlug);
     const assets = await loadShipAssetSet(candidateSlug);
     if (dialogueState !== session || session.nodeId !== "capture-loading") return;
-    awardPlayerShip(
+    const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
+    const replacement = awardPlayerShip(
       gameState,
       null,
       stats,
       `Captured ${shipLabelForSlug(candidateSlug)} as a surrendered prize`,
-      { simMinute: Math.floor(weatherClockMinutes) }
+      {
+        simMinute: Math.floor(weatherClockMinutes),
+        departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
+      }
     );
+    const returnedHistorian = vikingTradeIn
+      ? replacement.departedNamedCrew.find((member) => member.id === vikingTradeIn.historian.id)
+      : null;
+    if (vikingTradeIn && !returnedHistorian) {
+      throw new Error("Viking longship prize replacement did not disembark its historical enthusiast");
+    }
+    if (returnedHistorian) {
+      markVikingLongshipReturnedToIceland(gameState, returnedHistorian);
+      placeVikingLongshipEnthusiastAtPort(returnedHistorian);
+    }
     applyPlayerShipType(candidateSlug, stats, assets, { stateAlreadyUpdated: true });
     ship.hitPoints = stats.hitPoints;
     const deferredLoot = receiveSurrenderedLoot(gameState, {
@@ -14416,7 +14430,20 @@ async function captureSurrenderedShip(npcShipId) {
       abandonedCargoQuantity > 0 ? "warn" : "good"
     );
     saveVoyageNow("captured surrendered ship");
-    closeDialogue();
+    if (returnedHistorian) {
+      const opened = startCharacterAlertSequence([
+        pairedCharacterAlertStep({
+          leftCharacter: returnedHistorian,
+          rightCharacter: gameState.playerCharacter,
+          speakerCharacter: returnedHistorian,
+          expressionId: "pleased",
+          message: vikingLongshipTradeInFarewell()
+        })
+      ], closeDialogue);
+      if (!opened) throw new Error("Could not open the Viking longship prize farewell");
+    } else {
+      closeDialogue();
+    }
   } catch (error) {
     console.error(new Error(`Failed to capture surrendered ship ${npcShipId}`, { cause: error }));
     if (dialogueState === session) {
