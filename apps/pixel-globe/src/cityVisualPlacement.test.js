@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CITY_VISUAL_MAX_OFFSET_PX,
   cityBankPreferenceVector,
+  cityInteractionPoint,
   cityVisualPlacementCandidates,
   selectCityVisualOffset
 } from "./cityVisualPlacement.js";
@@ -48,4 +49,15 @@ test("moving a city center into open water is strongly discouraged", () => {
     centerOnOpenWater: x !== 0 || y !== 0
   }));
   assert.deepEqual(offset, { x: 0, y: 0 });
+});
+
+test("city interaction remains on the logical tile when its art is shifted", () => {
+  const tileCall = { drawSurfaceX: 104.4, drawSurfaceY: 77.6 };
+  const visualOffset = { x: CITY_VISUAL_MAX_OFFSET_PX, y: -CITY_VISUAL_MAX_OFFSET_PX };
+
+  assert.deepEqual(cityInteractionPoint(tileCall), { x: 104, y: 78 });
+  assert.notDeepEqual(cityInteractionPoint(tileCall), {
+    x: Math.round(tileCall.drawSurfaceX + visualOffset.x),
+    y: Math.round(tileCall.drawSurfaceY + visualOffset.y)
+  });
 });

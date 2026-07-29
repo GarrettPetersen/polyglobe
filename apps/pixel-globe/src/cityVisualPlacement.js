@@ -84,3 +84,13 @@ export function selectCityVisualOffset(evaluate, preferredDirection = null) {
   if (!best) throw new Error("City visual placement produced no candidate");
   return best;
 }
+
+export function cityInteractionPoint(tileCall) {
+  if (!Number.isFinite(tileCall?.drawSurfaceX) || !Number.isFinite(tileCall?.drawSurfaceY)) {
+    throw new Error("City interaction point requires finite logical tile coordinates");
+  }
+  return Object.freeze({
+    x: Math.round(tileCall.drawSurfaceX),
+    y: Math.round(tileCall.drawSurfaceY)
+  });
+}

@@ -757,6 +757,20 @@ export function colonizationObjective(memory) {
   return null;
 }
 
+export function colonizationNavigationObjective(
+  state,
+  { currentMinute = 0 } = {}
+) {
+  const quest = colonizationQuestView(state, { currentMinute });
+  const objective = colonizationObjective(state.memory.colonization);
+  if (objective?.kind === "negotiate-colony" && !quest.approvalCargoDeliverable) return null;
+  if (objective) return objective;
+  if (quest.stage === COLONIZATION_STAGE_FETCH && quest.canDeliverFetch) {
+    return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
+  }
+  return null;
+}
+
 function assertMinute(value) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid colonization minute: ${value}`);
 }

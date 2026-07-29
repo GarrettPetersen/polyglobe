@@ -72,6 +72,43 @@ test("quest delivery only transfers whole goods and never exceeds the remainder"
   });
 });
 
+test("partly eaten quest food remains aboard and does not consume delivery progress", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  state.cargo.grain = 11.75;
+  state.accounts.cargoCostBasis.grain = 117.5;
+
+  const first = deliverQuestCargoRequirement(
+    state,
+    CITY,
+    "grain",
+    12,
+    "test.colony-grain"
+  );
+  assert.equal(first.quantity, 11);
+  assert.equal(first.remainingQuantity, 1);
+  assert.equal(state.cargo.grain, 0.75);
+  assert.equal(questCargoDeliverableQuantity(state, "test.colony-grain", 12, 0.75), 0);
+  assert.deepEqual(questCargoDeliveryProgress(state, "test.colony-grain", 12), {
+    requirementId: "test.colony-grain",
+    requiredQuantity: 12,
+    deliveredQuantity: 11,
+    remainingQuantity: 1,
+    complete: false
+  });
+
+  state.cargo.grain += 1;
+  const second = deliverQuestCargoRequirement(
+    state,
+    CITY,
+    "grain",
+    12,
+    "test.colony-grain"
+  );
+  assert.equal(second.quantity, 1);
+  assert.equal(second.complete, true);
+  assert.equal(state.cargo.grain, 0.75);
+});
+
 test("partial quest deliveries survive a save and restore", () => {
   const state = createGameState({ cargoCapacity: 20 });
   state.cargo.timber = 1;

@@ -116,6 +116,7 @@ import {
 import {
   CITY_VISUAL_MAX_OFFSET_PX,
   cityBankPreferenceVector,
+  cityInteractionPoint,
   selectCityVisualOffset
 } from "./cityVisualPlacement.js";
 import {
@@ -1229,8 +1230,8 @@ import {
   advanceColonizationQuest,
   assignColonizationQuest,
   beginColonizationExpedition,
-  colonizationObjective,
   colonizationDefenseShipIds,
+  colonizationNavigationObjective,
   colonizationOfferForCity,
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
@@ -15301,8 +15302,8 @@ function activePortCalls() {
   const nearbyCalls = (chart.cityCalls || [])
     .filter((call) => call.tileId !== currentTileId && portCallInInteractionRange(call))
     .sort((a, b) => (
-      distance2(localLayout.viewX, localLayout.viewY, a.x, a.y) -
-        distance2(localLayout.viewX, localLayout.viewY, b.x, b.y) ||
+      distance2(localLayout.viewX, localLayout.viewY, a.interactionX, a.interactionY) -
+        distance2(localLayout.viewX, localLayout.viewY, b.interactionX, b.interactionY) ||
       a.tileId - b.tileId
     ));
   return [...currentPortCalls, ...nearbyCalls];
@@ -15620,13 +15621,23 @@ function npcShipInHailRange(state) {
 }
 
 function portCallInInteractionRange(call) {
-  if (!call?.character || !Number.isFinite(call.x) || !Number.isFinite(call.y)) return false;
-  return distance2(localLayout.viewX, localLayout.viewY, call.x, call.y) <= PORT_INTERACTION_RADIUS_PX * PORT_INTERACTION_RADIUS_PX;
+  if (!call?.character) return false;
+  if (!Number.isFinite(call.interactionX) || !Number.isFinite(call.interactionY)) {
+    throw new Error(`Port interaction point is missing for ${call.portId || call.tileId}`);
+  }
+  return distance2(
+    localLayout.viewX,
+    localLayout.viewY,
+    call.interactionX,
+    call.interactionY
+  ) <= PORT_INTERACTION_RADIUS_PX * PORT_INTERACTION_RADIUS_PX;
 }
 
 function portInteractionCallIsUsable(call) {
   if (!call?.character) return false;
-  if (!Number.isFinite(call.x) || !Number.isFinite(call.y)) return true;
+  if (!Number.isFinite(call.interactionX) || !Number.isFinite(call.interactionY)) {
+    throw new Error(`Port interaction point is missing for ${call.portId || call.tileId}`);
+  }
   if (!localLayout) return false;
   return portCallInInteractionRange(call);
 }
@@ -24597,6 +24608,7 @@ function makeCityCall(city, tileCall, activeChart) {
     : cityVisualOffset(city, tileCall, activeChart);
   const offsetX = visualOffset.x;
   const offsetY = visualOffset.y;
+  const interactionPoint = cityInteractionPoint(tileCall);
   const x = Math.round(tileCall.drawSurfaceX + offsetX);
   const y = Math.round(tileCall.drawSurfaceY + offsetY);
   const spriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF + offsetX);
@@ -24611,6 +24623,8 @@ function makeCityCall(city, tileCall, activeChart) {
     character,
     portrait: character ? characterExpression(character) : null,
     visualOffset,
+    interactionX: interactionPoint.x,
+    interactionY: interactionPoint.y,
     x,
     y,
     spriteX,
@@ -26217,17 +26231,9 @@ function fetchQuestNavigationReason(fetchTarget) {
 }
 
 function activeColonizationObjective() {
-  const quest = colonizationQuestView(gameState, {
+  return colonizationNavigationObjective(gameState, {
     currentMinute: Math.max(0, weatherClockMinutes)
   });
-  const objective = colonizationObjective(gameState.memory.colonization);
-  if (objective?.kind === "negotiate-colony" && !quest.approvalCargoDeliverable) return null;
-  if (objective?.kind === "resupply-colony" && quest.resupply.deliverable <= 0) return null;
-  if (objective) return objective;
-  if (quest.stage === "fetch" && quest.canDeliverFetch) {
-    return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
-  }
-  return null;
 }
 
 function fetchQuestWorldDestination(fetchTarget) {

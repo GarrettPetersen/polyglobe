@@ -22,6 +22,7 @@ import {
   colonizationOfferForCity,
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
+  colonizationNavigationObjective,
   colonizationQuestView,
   colonizationShipEligibility,
   colonizationWorldRecord,
@@ -352,6 +353,19 @@ test("timely resupply creates a discounted French city", () => {
   assert.equal(city.playerFoundedColony, true);
   assert.ok(city.purchaseDiscountMultiplier < 1);
   assert.equal(colonizationObjective(memory), null);
+});
+
+test("the colony remains a navigation destination with only fractional resupply cargo", () => {
+  const memory = awaitingResupplyMemory();
+  const state = questViewState(memory, {
+    [COLONIZATION_RESUPPLY.goodId]: 0.75
+  });
+
+  assert.equal(colonizationQuestView(state).resupply.deliverable, 0);
+  assert.deepEqual(colonizationNavigationObjective(state), {
+    tileId: PORT_ROYAL.tileId,
+    kind: "resupply-colony"
+  });
 });
 
 test("establishing Nagasaki creates a Japanese port with a Portuguese settlement", () => {
