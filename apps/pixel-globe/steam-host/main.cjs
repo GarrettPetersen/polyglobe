@@ -1,15 +1,17 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
-const { join, resolve } = require("node:path");
+const { join } = require("node:path");
 const steamworks = require("steamworks.js");
 
 const { startStaticServer } = require("./staticServer.cjs");
 const { createSteamNativeApi } = require("./steamNativeApi.cjs");
 const { createSteamInputService } = require("./steamInput.cjs");
 const { updateHighWaterStats } = require("./steamStats.cjs");
+const { resolveDesktopConfig } = require("./desktopConfig.cjs");
 
-const APP_ID = requiredAppId(process.env.MARQUE_STEAM_APP_ID || "4516500");
-const GAME_ROOT = resolve(__dirname, process.env.MARQUE_STEAM_GAME_ROOT || "../dist");
-const INPUT_MANIFEST = resolve(__dirname, "../steam-input/game_actions.vdf");
+const desktopConfig = resolveDesktopConfig({ isPackaged: app.isPackaged });
+const APP_ID = desktopConfig.appId;
+const GAME_ROOT = desktopConfig.gameRoot;
+const INPUT_MANIFEST = desktopConfig.inputManifest;
 const PRESENCE_KEYS = Object.freeze(["steam_display", "status", "place", "ship"]);
 const CAPABILITIES = Object.freeze({
   achievements: true,
@@ -149,10 +151,4 @@ function requiredCloudFileName(value) {
 function requiredString(value, label) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`Missing ${label}`);
   return value;
-}
-
-function requiredAppId(value) {
-  const appId = Number(value);
-  if (!Number.isInteger(appId) || appId <= 0) throw new Error(`Invalid Steam App ID: ${value}`);
-  return appId;
 }

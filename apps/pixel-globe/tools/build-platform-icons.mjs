@@ -3,12 +3,11 @@
 import { execFile } from "node:child_process";
 import {
   mkdir,
-  mkdtemp,
   readFile,
   rm,
+  utimes,
   writeFile
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -23,23 +22,24 @@ const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const generatedRoot = join(appRoot, "capsule_art/generated");
 const sourcePath = join(generatedRoot, "app_icon_512.png");
 const macOutputPath = join(generatedRoot, "marque-and-reprisal.icns");
+const windowsOutputPath = join(generatedRoot, "marque-and-reprisal.ico");
 const linuxOutputPath = join(
   generatedRoot,
   "marque-and-reprisal-linux-icons.zip"
 );
 const linuxIconRoot = join(generatedRoot, "platform-icons/linux");
 const LINUX_SIZES = Object.freeze([16, 24, 32, 48, 64, 96, 128, 256, 512]);
+const WINDOWS_SIZES = Object.freeze([16, 24, 32, 48, 64, 128, 256]);
 const MAC_REPRESENTATIONS = Object.freeze([
-  ["icon_16x16.png", 16],
-  ["icon_16x16@2x.png", 32],
-  ["icon_32x32.png", 32],
-  ["icon_32x32@2x.png", 64],
-  ["icon_128x128.png", 128],
-  ["icon_128x128@2x.png", 256],
-  ["icon_256x256.png", 256],
-  ["icon_256x256@2x.png", 512],
-  ["icon_512x512.png", 512]
+  ["icp4", 16],
+  ["icp5", 32],
+  ["icp6", 64],
+  ["ic07", 128],
+  ["ic08", 256],
+  ["ic09", 512],
+  ["ic10", 1024]
 ]);
+const GENERATED_MTIME = new Date("2000-01-01T00:00:00Z");
 
 async function main() {
   const source = await loadImage(sourcePath);
@@ -57,45 +57,26 @@ async function main() {
       `marque-and-reprisal-${size}x${size}.png`
     );
     await writeFile(path, renderPlatformIcon(source, size));
+    await utimes(path, GENERATED_MTIME, GENERATED_MTIME);
     linuxPaths.push(path);
   }
 
   await rm(linuxOutputPath, { force: true });
   await run("zip", [
+    "-X",
     "-j",
     "-q",
     linuxOutputPath,
     ...linuxPaths
   ]);
   await assertZipContains(linuxOutputPath, linuxPaths);
-
-  const temporaryRoot = await mkdtemp(join(tmpdir(), "marque-platform-icons-"));
-  try {
-    const iconsetPath = join(
-      temporaryRoot,
-      "marque-and-reprisal.iconset"
-    );
-    await mkdir(iconsetPath);
-    for (const [filename, size] of MAC_REPRESENTATIONS) {
-      await writeFile(
-        join(iconsetPath, filename),
-        renderPlatformIcon(source, size)
-      );
-    }
-    await run("iconutil", [
-      "-c",
-      "icns",
-      iconsetPath,
-      "-o",
-      macOutputPath
-    ]);
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
+  await writeFile(windowsOutputPath, renderWindowsIcon(source));
+  await writeFile(macOutputPath, renderMacIcon(source));
 
   await assertIcns(macOutputPath);
   console.log(`Generated ${macOutputPath}`);
   console.log(`Generated ${linuxOutputPath}`);
+  console.log(`Generated ${windowsOutputPath}`);
 }
 
 function renderPlatformIcon(source, size) {
@@ -104,6 +85,58 @@ function renderPlatformIcon(source, size) {
   context.imageSmoothingEnabled = false;
   context.drawImage(source, 0, 0, size, size);
   return canvas.toBuffer("image/png");
+}
+
+function renderWindowsIcon(source) {
+  const images = WINDOWS_SIZES.map((size) => renderPlatformIcon(source, size));
+  const headerSize = 6;
+  const entrySize = 16;
+  const entriesSize = entrySize * images.length;
+  const totalSize = headerSize + entriesSize +
+    images.reduce((sum, image) => sum + image.length, 0);
+  const icon = Buffer.alloc(totalSize);
+  icon.writeUInt16LE(0, 0);
+  icon.writeUInt16LE(1, 2);
+  icon.writeUInt16LE(images.length, 4);
+
+  let imageOffset = headerSize + entriesSize;
+  for (let index = 0; index < images.length; index += 1) {
+    const size = WINDOWS_SIZES[index];
+    const image = images[index];
+    const entryOffset = headerSize + index * entrySize;
+    icon.writeUInt8(size === 256 ? 0 : size, entryOffset);
+    icon.writeUInt8(size === 256 ? 0 : size, entryOffset + 1);
+    icon.writeUInt8(0, entryOffset + 2);
+    icon.writeUInt8(0, entryOffset + 3);
+    icon.writeUInt16LE(1, entryOffset + 4);
+    icon.writeUInt16LE(32, entryOffset + 6);
+    icon.writeUInt32LE(image.length, entryOffset + 8);
+    icon.writeUInt32LE(imageOffset, entryOffset + 12);
+    image.copy(icon, imageOffset);
+    imageOffset += image.length;
+  }
+  return icon;
+}
+
+function renderMacIcon(source) {
+  const elements = MAC_REPRESENTATIONS.map(([type, size]) => {
+    const image = renderPlatformIcon(source, size);
+    const element = Buffer.alloc(8 + image.length);
+    element.write(type, 0, 4, "ascii");
+    element.writeUInt32BE(element.length, 4);
+    image.copy(element, 8);
+    return element;
+  });
+  const totalSize = 8 + elements.reduce((sum, element) => sum + element.length, 0);
+  const icon = Buffer.alloc(totalSize);
+  icon.write("icns", 0, 4, "ascii");
+  icon.writeUInt32BE(totalSize, 4);
+  let offset = 8;
+  for (const element of elements) {
+    element.copy(icon, offset);
+    offset += element.length;
+  }
+  return icon;
 }
 
 async function assertZipContains(path, expectedPaths) {
