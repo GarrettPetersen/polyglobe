@@ -1598,7 +1598,7 @@ const NPC_VISUAL_UPDATE_HZ = 20;
 const NPC_COMBAT_TARGETING_HZ = 8;
 const NPC_PROJECTILE_UPDATE_HZ = 60;
 const NPC_WILDLIFE_UPDATE_HZ = 2;
-const NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES = 30;
+const NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES = 3 * 60;
 const DISTANT_WORLD_SHIP_BATCH_SIZE = 8;
 const DISTANT_WORLD_CART_BATCH_SIZE = 12;
 const WORLD_SPATIAL_KIND = Object.freeze({
@@ -2204,7 +2204,7 @@ const SFX_UNDERWAY_FADE_PER_SECOND = 0.018;
 const SFX_FIRE_FADE_PER_SECOND = 0.55;
 const SFX_WHALE_SONG_FADE_PER_SECOND = 0.035;
 const SFX_WIND_TERRAIN_RADIUS_PX = 150;
-const AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS = 0.25;
+const AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS = 0.5;
 const AMBIENT_AUDIO_CONTEXT_INTERVAL_SECONDS = 2;
 const AMBIENT_AUDIO_WILDLIFE_INTERVAL_SECONDS = 3;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
@@ -2495,6 +2495,7 @@ let distantWorldWorkDeferredFrames = 0;
 const worldSpatialIndex = createSpatialHash({ cellSize: 32 });
 let worldSpatialChart = null;
 let worldSpatialWildlifeChart = null;
+let responsiveWhaleIds = new Set();
 let lastPlatformActivityUpdateMs = -Infinity;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
@@ -9016,6 +9017,7 @@ async function restoreSavedVoyage(payload) {
   worldSpatialIndex.clear();
   worldSpatialChart = null;
   worldSpatialWildlifeChart = null;
+  responsiveWhaleIds = new Set();
   npcCombatProjectiles = [];
   npcCombatSplashes = [];
   pendingNpcCombatHailId = null;
@@ -15015,7 +15017,7 @@ function updateWhales(dt, nowMs) {
         {
           bucket: whaleBackgroundMovementBucket,
           bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
-          isActive: whaleMovementRequiresResponsiveSimulation
+          activeWhaleIds: responsiveWhaleMovementIds()
         }
       )
     : [];
@@ -15074,16 +15076,11 @@ function updateWhales(dt, nowMs) {
     whaleKillEffects.length !== previousKillEffectCount;
 }
 
-function whaleMovementRequiresResponsiveSimulation(whale) {
+function responsiveWhaleMovementIds() {
+  const ids = new Set(responsiveWhaleIds);
   const activeWhaleId = gameState?.memory?.whales?.activeHunt?.whaleId;
-  if (whale.id === activeWhaleId) return true;
-  const point = localLayout.positions.get(whale.tileId);
-  if (!point) return false;
-  const offset = chartOffsetPixels(chart);
-  return pointNearScreen(
-    { x: point.x + offset.x, y: point.y + offset.y },
-    SHIP_SHEET_FRAME_SIZE
-  );
+  if (activeWhaleId) ids.add(activeWhaleId);
+  return [...ids];
 }
 
 function takeWhaleSimulationElapsed() {
@@ -19675,6 +19672,7 @@ function refreshWorldSpatialFastEntries() {
     worldSpatialIndex.clear();
     worldSpatialChart = null;
     worldSpatialWildlifeChart = null;
+    responsiveWhaleIds = new Set();
     return;
   }
   if (worldSpatialChart !== chart) refreshWorldSpatialStaticEntries();
@@ -19715,6 +19713,7 @@ function refreshWorldSpatialStaticEntries() {
     worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.PORT, []);
     worldSpatialChart = null;
     worldSpatialWildlifeChart = null;
+    responsiveWhaleIds = new Set();
     return;
   }
   worldSpatialIndex.replaceKind(
@@ -19731,6 +19730,7 @@ function refreshWorldSpatialStaticEntries() {
   );
   worldSpatialChart = chart;
   worldSpatialWildlifeChart = null;
+  responsiveWhaleIds = new Set();
 }
 
 function refreshWorldSpatialWildlifeEntries(nowMs) {
@@ -19738,6 +19738,7 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
     worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.FISH_SCHOOL, []);
     worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.WHALE, []);
     worldSpatialWildlifeChart = null;
+    responsiveWhaleIds = new Set();
     return;
   }
   if (worldSpatialChart !== chart) refreshWorldSpatialStaticEntries();
@@ -19766,6 +19767,7 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
     });
   }
   worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.WHALE, whaleEntries);
+  responsiveWhaleIds = new Set(whaleEntries.map((entry) => entry.value.id));
   worldSpatialWildlifeChart = chart;
 }
 
@@ -34033,6 +34035,12 @@ function shipSpriteFramePixels(image, sinkDepthImage, frame) {
         x,
         y,
         color: `rgb(${data[index]}, ${data[index + 1]}, ${data[index + 2]})`,
+        rgba: (
+          (data[index] << 24) |
+          (data[index + 1] << 16) |
+          (data[index + 2] << 8) |
+          alpha
+        ) >>> 0,
         alpha: alpha / 255,
         sinkHeight: sinkDepth / 255
       }));
@@ -34071,6 +34079,11 @@ function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
   if (!aboveCtx || !submergedCtx) throw new Error("Could not create ship waterline layer canvases");
   aboveCtx.imageSmoothingEnabled = false;
   submergedCtx.imageSmoothingEnabled = false;
+  const aboveImageData = aboveCtx.createImageData(SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
+  const submergedImageData = submergedCtx.createImageData(
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
 
   const pixels = shipSpriteFramePixels(image, sinkDepthImage, frame);
   const submergedPointSet = floatingShipSubmergedPixelKeys(
@@ -34085,19 +34098,22 @@ function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
   for (const pixel of pixels) {
     bottomOpaqueY = Math.max(bottomOpaqueY, pixel.y);
     const key = pixel.y * SHIP_SHEET_FRAME_SIZE + pixel.x;
-    const targetCtx = submergedPointSet.has(key) ? submergedCtx : aboveCtx;
-    targetCtx.globalAlpha = pixel.alpha;
-    targetCtx.fillStyle = pixel.color;
-    targetCtx.fillRect(pixel.x, pixel.y, 1, 1);
-    if (targetCtx === aboveCtx) {
+    const submerged = submergedPointSet.has(key);
+    const targetData = submerged ? submergedImageData.data : aboveImageData.data;
+    const dataOffset = key * 4;
+    targetData[dataOffset] = pixel.rgba >>> 24;
+    targetData[dataOffset + 1] = (pixel.rgba >>> 16) & 0xff;
+    targetData[dataOffset + 2] = (pixel.rgba >>> 8) & 0xff;
+    targetData[dataOffset + 3] = pixel.rgba & 0xff;
+    if (!submerged) {
       abovePointSet.add(pixel.x | (pixel.y << 8));
     } else {
       submergedMinY = Math.min(submergedMinY, pixel.y);
       submergedMaxY = Math.max(submergedMaxY, pixel.y);
     }
   }
-  aboveCtx.globalAlpha = 1;
-  submergedCtx.globalAlpha = 1;
+  aboveCtx.putImageData(aboveImageData, 0, 0);
+  submergedCtx.putImageData(submergedImageData, 0, 0);
 
   const layers = Object.freeze({
     aboveCanvas,

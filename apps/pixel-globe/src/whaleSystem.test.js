@@ -113,7 +113,7 @@ test("background whale movement is staggered while active whales remain responsi
   advanceWhaleMemory(memory, 0.25, () => whaleNavigation(1), 1, {
     bucket: ((whale.seed >>> 0) + 1) % 8,
     bucketCount: 8,
-    isActive: (entry) => entry.id === whale.id
+    activeWhaleIds: [whale.id]
   });
   assert.equal(whale.lifeSeconds, initialLifeSeconds + 0.75);
 });
@@ -356,9 +356,9 @@ test("adult whales mate and produce a persisted calf that remains with its mothe
   male.position = female.position.slice();
   male.tileId = female.tileId;
   female.nextMatingMinute = 0;
-  advanceWhaleMemory(memory, 0, () => whaleNavigation(female.tileId), 1);
+  advanceWhaleMemory(memory, 0, () => whaleNavigation(female.tileId), 6 * 60);
   assert.equal(female.mateId, male.id);
-  assert.ok(female.pregnancyDueMinute > 1);
+  assert.ok(female.pregnancyDueMinute > 6 * 60);
 
   const dueMinute = female.pregnancyDueMinute;
   const events = advanceWhaleMemory(memory, 0, () => whaleNavigation(female.tileId), dueMinute);

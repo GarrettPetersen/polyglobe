@@ -1173,7 +1173,7 @@ function createPortState(port, seedKey) {
   const marketPriceDepth = populationScale * (settlementType === "village"
     ? VILLAGE_MARKET_PRICE_DEPTH_PER_POPULATION_SCALE
     : CITY_MARKET_PRICE_DEPTH_PER_POPULATION_SCALE);
-  return {
+  const portState = {
     id: requiredPortId(port),
     name: port.displayCity || port.city,
     cityType: port.cityType,
@@ -1188,6 +1188,8 @@ function createPortState(port, seedKey) {
     marketIntegrationOffsets: new Map(TRADE_GOODS.map((good) => [good.id, 0])),
     goods
   };
+  for (const good of TRADE_GOODS) refreshPortGoodPriceFactors(portState, good);
+  return portState;
 }
 
 function assertSustainableNativeExport(port, goods, marketGoodIds) {
@@ -1206,6 +1208,7 @@ function assertSustainableNativeExport(port, goods, marketGoodIds) {
 
 function advancePortEconomy(port, elapsedDays) {
   let localCashFlow = 0;
+  const currentSpeciePriceMultiplier = speciePriceMultiplier(port);
   for (const good of TRADE_GOODS) {
     if (good.alwaysAvailable) continue;
     const state = port.goods.get(good.id);
@@ -1223,7 +1226,7 @@ function advancePortEconomy(port, elapsedDays) {
     state.stock += produced;
     const consumed = Math.min(state.stock, state.householdConsumptionPerDay * elapsedDays);
     state.stock -= consumed;
-    const price = marketPrice(port, good, state.stock).midPrice;
+    const price = marketPrice(port, good, state.stock, currentSpeciePriceMultiplier).midPrice;
     localCashFlow += consumed * price * 0.38;
     localCashFlow -= produced * price * 0.32;
   }
@@ -1277,8 +1280,7 @@ function marketRow(port, good) {
   };
 }
 
-function marketPrice(port, good, stock) {
-  const specieMultiplier = speciePriceMultiplier(port);
+function marketPrice(port, good, stock, specieMultiplier = speciePriceMultiplier(port)) {
   if (Number.isFinite(good.fixedBuyPrice)) {
     const midPrice = Math.max(1, good.fixedBuyPrice * specieMultiplier);
     return {
@@ -1327,26 +1329,40 @@ function speciePriceMultiplier(port) {
 
 function rawMarketMultiplier(port, good, stock) {
   const state = port.goods.get(good.id);
-  const balance = (state.consumptionPerDay - state.productionPerDay) /
-    (state.consumptionPerDay + state.productionPerDay + 0.2);
-  const comparativeAdvantage = Math.exp(balance * 0.52);
+  if (!Number.isFinite(state.comparativeAdvantage) ||
+      !Number.isFinite(state.localPriceVariation) ||
+      !Number.isFinite(state.regionalTradePriceMultiplier) ||
+      !Number.isFinite(state.minimumOrdinaryPriceMultiplier)) {
+    throw new Error(`${port.name} has invalid cached price factors for ${good.label}`);
+  }
   const scarcity = Math.pow(
     (state.targetStock + port.marketPriceDepth) /
       (Math.max(0, stock) + port.marketPriceDepth),
     0.72
   );
-  const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
-  const regionalTradePriceMultiplier =
-    REGION_TRADE_PRICE_MULTIPLIER[port.economyRegion]?.[good.id] || 1;
   const ordinaryMultiplier = clamp(
-    comparativeAdvantage * scarcity * localVariation * regionalTradePriceMultiplier,
-    MIN_PRICE_MULTIPLIER * Math.min(1, regionalTradePriceMultiplier),
+    state.comparativeAdvantage * scarcity *
+      state.localPriceVariation * state.regionalTradePriceMultiplier,
+    state.minimumOrdinaryPriceMultiplier,
     MAX_PRICE_MULTIPLIER
   );
   return Math.max(
     ordinaryMultiplier,
     criticalStockPriceMultiplier(good, state, stock)
   );
+}
+
+function refreshPortGoodPriceFactors(port, good) {
+  const state = port.goods.get(good.id);
+  if (!state) throw new Error(`${port.name} has no economy state for ${good.label}`);
+  const balance = (state.consumptionPerDay - state.productionPerDay) /
+    (state.consumptionPerDay + state.productionPerDay + 0.2);
+  state.comparativeAdvantage = Math.exp(balance * 0.52);
+  state.localPriceVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
+  state.regionalTradePriceMultiplier =
+    REGION_TRADE_PRICE_MULTIPLIER[port.economyRegion]?.[good.id] || 1;
+  state.minimumOrdinaryPriceMultiplier =
+    MIN_PRICE_MULTIPLIER * Math.min(1, state.regionalTradePriceMultiplier);
 }
 
 function criticalStockPriceMultiplier(good, state, stock) {
@@ -1569,10 +1585,12 @@ function establishIndustryAtPort(port, goodId, productionPerDay, initialStock) {
   state.industryProductionPerDay = productionPerDay;
   state.productionPerDay += productionPerDay;
   state.targetStock = targetStockForState(state);
+  refreshPortGoodPriceFactors(port, good);
   for (const [inputGoodId, unitsPerOutput] of Object.entries(PRODUCTION_INPUTS[goodId] || {})) {
     const inputState = port.goods.get(inputGoodId);
     inputState.consumptionPerDay += productionPerDay * unitsPerOutput;
     inputState.targetStock = targetStockForState(inputState);
+    refreshPortGoodPriceFactors(port, tradeGoodById(inputGoodId));
   }
   state.stock += initialStock;
   return Object.freeze({

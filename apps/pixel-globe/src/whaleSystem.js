@@ -42,8 +42,11 @@ const WHITE_WHALE_MIGRATION_LATITUDE_MIN_DEG = 16;
 const WHITE_WHALE_MIGRATION_LATITUDE_SPREAD_DEG = 34;
 const WHALE_TETHER_HAUL_START_PROGRESS = 0.65;
 const WHALE_TETHER_FINAL_LENGTH_SCALE = 0.36;
+const WHALE_ECOLOGY_INTERVAL_MINUTES = 6 * 60;
 const whaleAdvanceValidationCache = new WeakMap();
-const whaleMovementDebtSeconds = new WeakMap();
+const whaleIndexCache = new WeakMap();
+const whaleMovementBucketCache = new WeakMap();
+const whaleSimulationClockCache = new WeakMap();
 
 const PHASES = new Set([
   WHALE_PHASE_SUBMERGED,
@@ -176,13 +179,26 @@ export function advanceWhaleMemory(
   assertSimulationMinute(currentMinute);
   const schedule = validateWhaleMovementSchedule(movementSchedule);
   const events = advanceWhaleEcology(memory, currentMinute);
-  const individualsById = new Map(memory.individuals.map((whale) => [whale.id, whale]));
-  for (const whale of memory.individuals) {
+  const individualsById = whaleIndex(memory);
+  const movementClock = whaleSimulationClock(memory);
+  movementClock.elapsedSeconds += dt;
+  const dueWhales = new Map(
+    whaleMovementBucket(memory, schedule.bucketCount, schedule.bucket)
+      .map((whale) => [whale.id, whale])
+  );
+  for (const whaleId of schedule.activeWhaleIds) {
+    const whale = individualsById.get(whaleId);
+    if (!whale) throw new Error(`Active whale movement references missing individual: ${whaleId}`);
+    dueWhales.set(whale.id, whale);
+  }
+  for (const whale of dueWhales.values()) {
     if (whale.phase === WHALE_PHASE_DEAD || whale.phase === WHALE_PHASE_EXHAUSTED) continue;
-    const movementDebt = (whaleMovementDebtSeconds.get(whale) || 0) + dt;
-    whaleMovementDebtSeconds.set(whale, movementDebt);
-    if (!whaleMovementIsDue(whale, schedule)) continue;
-    whaleMovementDebtSeconds.set(whale, 0);
+    const lastMovementSeconds = movementClock.lastMovementSeconds.get(whale.id);
+    if (!Number.isFinite(lastMovementSeconds)) {
+      throw new Error(`Whale movement clock is missing individual: ${whale.id}`);
+    }
+    const movementDebt = movementClock.elapsedSeconds - lastMovementSeconds;
+    movementClock.lastMovementSeconds.set(whale.id, movementClock.elapsedSeconds);
     whale.lifeSeconds += movementDebt;
     whale.phaseElapsedSeconds += movementDebt;
     if (whale.phase === WHALE_PHASE_TETHERED) {
@@ -218,26 +234,99 @@ export function advanceWhaleMemory(
 }
 
 function validateWhaleMovementSchedule(schedule) {
-  if (schedule === null) return { bucket: 0, bucketCount: 1, isActive: null };
+  if (schedule === null) return { bucket: 0, bucketCount: 1, activeWhaleIds: [] };
   if (!schedule || typeof schedule !== "object") {
     throw new Error("Whale movement schedule must be an object");
   }
-  const { bucket, bucketCount, isActive = null } = schedule;
+  const { bucket, bucketCount, activeWhaleIds = [] } = schedule;
   if (!Number.isInteger(bucketCount) || bucketCount <= 0) {
     throw new Error(`Invalid whale movement bucket count: ${bucketCount}`);
   }
   if (!Number.isInteger(bucket) || bucket < 0 || bucket >= bucketCount) {
     throw new Error(`Invalid whale movement bucket: ${bucket}/${bucketCount}`);
   }
-  if (isActive !== null && typeof isActive !== "function") {
-    throw new Error("Whale movement active resolver must be a function");
+  if (!Array.isArray(activeWhaleIds) ||
+      new Set(activeWhaleIds).size !== activeWhaleIds.length ||
+      activeWhaleIds.some((id) => typeof id !== "string" || id.length === 0)) {
+    throw new Error("Whale movement active ids must be unique non-empty strings");
   }
-  return { bucket, bucketCount, isActive };
+  return { bucket, bucketCount, activeWhaleIds };
 }
 
-function whaleMovementIsDue(whale, schedule) {
-  if (schedule.isActive?.(whale)) return true;
-  return (whale.seed >>> 0) % schedule.bucketCount === schedule.bucket;
+function whaleIndex(memory) {
+  const cached = whaleIndexCache.get(memory);
+  if (cached &&
+      cached.individuals === memory.individuals &&
+      cached.individualCount === memory.individuals.length &&
+      cached.nextId === memory.nextId) {
+    return cached.byId;
+  }
+  const byId = new Map();
+  for (const whale of memory.individuals) {
+    if (byId.has(whale.id)) throw new Error(`Duplicate whale id: ${whale.id}`);
+    byId.set(whale.id, whale);
+  }
+  whaleIndexCache.set(memory, {
+    individuals: memory.individuals,
+    individualCount: memory.individuals.length,
+    nextId: memory.nextId,
+    byId
+  });
+  return byId;
+}
+
+function whaleMovementBucket(memory, bucketCount, bucket) {
+  let cacheByBucketCount = whaleMovementBucketCache.get(memory);
+  if (!cacheByBucketCount) {
+    cacheByBucketCount = new Map();
+    whaleMovementBucketCache.set(memory, cacheByBucketCount);
+  }
+  let cached = cacheByBucketCount.get(bucketCount);
+  if (!cached ||
+      cached.individuals !== memory.individuals ||
+      cached.individualCount !== memory.individuals.length ||
+      cached.nextId !== memory.nextId) {
+    const buckets = Array.from({ length: bucketCount }, () => []);
+    for (const whale of memory.individuals) {
+      buckets[(whale.seed >>> 0) % bucketCount].push(whale);
+    }
+    cached = {
+      individuals: memory.individuals,
+      individualCount: memory.individuals.length,
+      nextId: memory.nextId,
+      buckets
+    };
+    cacheByBucketCount.set(bucketCount, cached);
+  }
+  return cached.buckets[bucket];
+}
+
+function whaleSimulationClock(memory) {
+  let clock = whaleSimulationClockCache.get(memory);
+  if (!clock) {
+    clock = {
+      elapsedSeconds: 0,
+      individuals: memory.individuals,
+      individualCount: memory.individuals.length,
+      nextId: memory.nextId,
+      lastMovementSeconds: new Map(memory.individuals.map((whale) => [whale.id, 0]))
+    };
+    whaleSimulationClockCache.set(memory, clock);
+  } else if (
+    clock.individuals !== memory.individuals ||
+    clock.individualCount !== memory.individuals.length ||
+    clock.nextId !== memory.nextId
+  ) {
+    for (const whale of memory.individuals) {
+      if (!clock.lastMovementSeconds.has(whale.id)) {
+        clock.lastMovementSeconds.set(whale.id, clock.elapsedSeconds);
+      }
+    }
+    clock.individuals = memory.individuals;
+    clock.individualCount = memory.individuals.length;
+    clock.nextId = memory.nextId;
+  }
+  return clock;
 }
 
 function validateWhaleMemoryForAdvance(memory) {
@@ -416,7 +505,7 @@ export function harvestWhaleForNpc(memory, position, {
 }
 
 export function whaleById(memory, whaleId) {
-  const whale = memory.individuals.find((candidate) => candidate.id === whaleId);
+  const whale = whaleIndex(memory).get(whaleId);
   if (!whale) throw new Error(`Unknown whale: ${whaleId}`);
   return whale;
 }
@@ -659,7 +748,7 @@ function advanceWhaleEcology(memory, currentMinute) {
   if (currentMinute < memory.lastEcologyMinute) {
     throw new Error(`Whale ecology cannot move backwards: ${currentMinute} < ${memory.lastEcologyMinute}`);
   }
-  if (currentMinute === memory.lastEcologyMinute) return [];
+  if (currentMinute < memory.lastEcologyMinute + WHALE_ECOLOGY_INTERVAL_MINUTES) return [];
   const events = [];
   updateLifeStages(memory, currentMinute);
   const adults = memory.individuals.filter((whale) => (
