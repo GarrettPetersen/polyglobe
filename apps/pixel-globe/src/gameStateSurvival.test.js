@@ -79,6 +79,11 @@ import {
   acceptAnimalCompanion,
   beginAnimalCompanionRecruitment
 } from "./animalCompanions.js";
+import {
+  NAMED_CREW_ROLE_HISTORIAN,
+  addNamedCrewMember,
+  namedCrewMembers
+} from "./namedCrew.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "england");
 
@@ -1328,6 +1333,33 @@ test("trading in a ship charges only the net price", () => {
   assert.equal(state.doubloons, 10000);
   assert.equal(state.accounts.ledger.at(-1).amount, -40000);
   assert.match(state.accounts.ledger.at(-1).description, /10000 doubloon vessel trade-in/);
+});
+
+test("a ship trade-in can disembark a named crewmate before fitting the replacement", () => {
+  const longship = shipStatsForSlug("viking-longship");
+  const dhow = shipStatsForSlug("dhow");
+  const state = createGameState({ cargoCapacity: longship.cargoCapacity, shipStats: longship });
+  initializeProvisionalShipLoadout(state, longship);
+  state.doubloons = 5000;
+  const historian = addNamedCrewMember(state, {
+    id: "icelandic-historian",
+    name: "Leif Eriksen",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, NAMED_CREW_ROLE_HISTORIAN);
+
+  const result = purchasePlayerShip(state, LONDON, dhow, {
+    listingPrice: 1000,
+    tradeInValue: 0
+  }, {
+    simMinute: 240,
+    departingNamedCrewIds: [historian.id]
+  });
+
+  assert.deepEqual(result.departedNamedCrew, [historian]);
+  assert.deepEqual(namedCrewMembers(state), []);
+  assert.equal(state.ship.crew, 1);
+  assert.equal(state.ship.slug, "dhow");
 });
 
 test("a more valuable trade-in pays the difference without hiding the credit", () => {

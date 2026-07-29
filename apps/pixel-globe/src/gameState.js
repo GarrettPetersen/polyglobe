@@ -1142,15 +1142,15 @@ export function setCargoCapacity(state, cargoCapacity) {
   state.cargoCapacity = cargoCapacity;
 }
 
-function selectedShipLoadoutPlan(state, stats) {
+function selectedShipLoadoutPlan(state, stats, { minimumCrew = permanentCrewFloor(state) } = {}) {
   const effectiveStats = effectivePlayerShipStats(state, stats);
   const loadoutId = state.ship?.loadoutId || "short-haul";
   if (loadoutId !== CUSTOM_LOADOUT_ID) {
-    return shipLoadoutPlan(effectiveStats, loadoutId, { minimumCrew: permanentCrewFloor(state) });
+    return shipLoadoutPlan(effectiveStats, loadoutId, { minimumCrew });
   }
   if (!state.ship.loadoutTargets) throw new Error("Custom ship loadout has no saved targets");
   return fitShipCustomLoadoutPlan(effectiveStats, state.ship.loadoutTargets, {
-    minimumCrew: permanentCrewFloor(state)
+    minimumCrew
   });
 }
 
@@ -1206,17 +1206,21 @@ export function setPlayerShipStats(state, stats) {
   return plan;
 }
 
-export function playerShipReplacementCargoUsed(state, stats) {
+export function playerShipReplacementCargoUsed(state, stats, context = {}) {
   assertGameState(state);
   if (!state.ship) throw new Error("Cannot preview a ship change without player ship state");
-  const crewFloor = permanentCrewFloor(state);
-  const committedCrew = futurePermanentCrewFloor(state);
+  const departures = namedCrewDepartures(state, context.departingNamedCrewIds);
+  const crewFloor = permanentCrewFloor(state) - departures.length;
+  const committedCrew = futurePermanentCrewFloor(state, {
+    departingNamedCrewIds: departures.map((entry) => entry.member.id)
+  });
   if (stats.crewCapacity < committedCrew) {
     throw new Error(
       `Cannot preview a ${stats.crewCapacity}-berth ship with ${committedCrew} permanent crew commitments`
     );
   }
-  const plan = selectedShipLoadoutPlan(state, stats);
+  const plan = selectedShipLoadoutPlan(state, stats, { minimumCrew: crewFloor });
+  const crewAfterDepartures = state.ship.crew - departures.length;
   let usedTicks = 0;
   for (const [goodId, heldQuantity] of Object.entries(state.cargo)) {
     const good = goodById(goodId);
@@ -1225,7 +1229,9 @@ export function playerShipReplacementCargoUsed(state, stats) {
       : heldQuantity;
     usedTicks += occupiedCargoTicks(good.unitSize * quantity, `cargo.${goodId} space`);
   }
-  usedTicks += crewHoldSpace(Math.max(crewFloor, Math.min(state.ship.crew, plan.crew))) * CARGO_SPACE_TICKS_PER_UNIT;
+  usedTicks += crewHoldSpace(
+    Math.max(crewFloor, Math.min(crewAfterDepartures, plan.crew))
+  ) * CARGO_SPACE_TICKS_PER_UNIT;
   usedTicks += Math.min(state.ship.cannons, plan.cannons) * CARGO_SPACE_TICKS_PER_UNIT;
   usedTicks += freshWaterHoldUnits(
     Math.min(state.survival.freshWater, plan.waterUnits)
@@ -1236,8 +1242,9 @@ export function playerShipReplacementCargoUsed(state, stats) {
   return cargoUnitsFromTicks(usedTicks);
 }
 
-export function futurePermanentCrewFloor(state) {
-  const current = permanentCrewFloor(state);
+export function futurePermanentCrewFloor(state, context = {}) {
+  const departures = namedCrewDepartures(state, context.departingNamedCrewIds);
+  const current = permanentCrewFloor(state) - departures.length;
   const futureRecruits = [
     state.memory?.quests?.pirateCaptive?.active,
     state.memory?.quests?.castaway?.active
@@ -1261,18 +1268,44 @@ export function purchasePlayerShip(state, city, stats, payment, context = {}) {
   }
   const netPrice = listingPrice - tradeInValue;
   if (state.doubloons < netPrice) throw new Error(`Not enough doubloons to buy ${shipLabelForSlug(stats.slug)}`);
-  const label = shipLabelForSlug(stats.slug);
-  const plan = replacePlayerShipAndRecord(state, city, stats, context, {
-    description: tradeInValue > 0
-      ? `Purchase ${label}; ${tradeInValue} doubloon vessel trade-in`
-      : `Purchase ${label}`,
-    amount: -netPrice,
-    costBasis: Math.max(0, netPrice)
-  }, () => {
-    state.doubloons -= netPrice;
-    recordDecision(state, `ship.purchase.${cityKey(city)}.${stats.slug}`, 1);
+  const departures = namedCrewDepartures(state, context.departingNamedCrewIds);
+  playerShipReplacementCargoUsed(state, stats, {
+    departingNamedCrewIds: departures.map((entry) => entry.member.id)
   });
-  return { slug: stats.slug, label, listingPrice, tradeInValue, netPrice, plan };
+  const label = shipLabelForSlug(stats.slug);
+  const namedCrewBefore = state.namedCrew;
+  const crewBefore = state.ship.crew;
+  if (departures.length > 0) {
+    const departingIds = new Set(departures.map((entry) => entry.member.id));
+    state.namedCrew = namedCrewBefore.filter((member) => !departingIds.has(member.id));
+    state.ship.crew -= departures.length;
+    validateNamedCrew(state.namedCrew);
+  }
+  try {
+    const plan = replacePlayerShipAndRecord(state, city, stats, context, {
+      description: tradeInValue > 0
+        ? `Purchase ${label}; ${tradeInValue} doubloon vessel trade-in`
+        : `Purchase ${label}`,
+      amount: -netPrice,
+      costBasis: Math.max(0, netPrice)
+    }, () => {
+      state.doubloons -= netPrice;
+      recordDecision(state, `ship.purchase.${cityKey(city)}.${stats.slug}`, 1);
+    });
+    return {
+      slug: stats.slug,
+      label,
+      listingPrice,
+      tradeInValue,
+      netPrice,
+      plan,
+      departedNamedCrew: departures.map((entry) => entry.member)
+    };
+  } catch (error) {
+    state.namedCrew = namedCrewBefore;
+    state.ship.crew = crewBefore;
+    throw error;
+  }
 }
 
 export function awardPlayerShip(state, city, stats, description, context = {}) {
@@ -1303,6 +1336,24 @@ function replacePlayerShipAndRecord(state, city, stats, context, ledger, beforeL
     pnl: null
   });
   return plan;
+}
+
+function namedCrewDepartures(state, memberIds = []) {
+  if (memberIds === undefined) return [];
+  if (!Array.isArray(memberIds)) throw new Error("Ship replacement crew departures must be an array");
+  const uniqueIds = new Set(memberIds);
+  if (uniqueIds.size !== memberIds.length) {
+    throw new Error("Ship replacement crew departures contain duplicate crewmates");
+  }
+  const members = namedCrewMembers(state);
+  return memberIds.map((memberId) => {
+    if (typeof memberId !== "string" || memberId.trim() === "") {
+      throw new Error("Ship replacement crew departure requires a crewmate id");
+    }
+    const index = members.findIndex((member) => member.id === memberId);
+    if (index < 0) throw new Error(`Ship replacement cannot disembark unknown crewmate: ${memberId}`);
+    return { index, member: members[index] };
+  });
 }
 
 export function cargoUsedTicks(state) {

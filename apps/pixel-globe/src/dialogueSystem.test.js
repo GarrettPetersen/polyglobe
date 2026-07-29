@@ -62,6 +62,10 @@ import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 import {
+  VIKING_LONGSHIP_FETCH_STAGES,
+  VIKING_LONGSHIP_PORT_CITY,
+  acceptVikingLongshipReward,
+  deliverVikingLongshipQuestCargo,
   markVikingLongshipPurchased,
   maybeSpawnVikingLongshipQuest,
   vikingLongshipQuestState
@@ -96,7 +100,11 @@ import {
   completeChefBanquet,
   maybeSpawnChefQuest
 } from "./chefQuest.js";
-import { NAMED_CREW_ROLE_CHEF, addNamedCrewMember } from "./namedCrew.js";
+import {
+  NAMED_CREW_ROLE_CHEF,
+  NAMED_CREW_ROLE_HISTORIAN,
+  addNamedCrewMember
+} from "./namedCrew.js";
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
@@ -2343,6 +2351,57 @@ test("shipyards explain when permanent crew cannot berth instead of formatting i
     purchase.disabledReason,
     "Your permanent crew require 2 berths; this vessel has only 1."
   );
+});
+
+test("shipyards account for the historian leaving with a traded-in Viking longship", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const hafnarfjordur = {
+    tileId: 64,
+    city: VIKING_LONGSHIP_PORT_CITY,
+    country: "Iceland",
+    portId: "city-64"
+  };
+  const currentStats = shipStatsForSlug("viking-longship");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  maybeSpawnVikingLongshipQuest(gameState, hafnarfjordur, { spawnChance: 1, simMinute: 0 });
+  gameState.cargo = { wool: 8, timber: 6, iron: 3 };
+  gameState.accounts.cargoCostBasis = { wool: 80, timber: 60, iron: 30 };
+  for (const stage of VIKING_LONGSHIP_FETCH_STAGES) {
+    deliverVikingLongshipQuestCargo(gameState, hafnarfjordur, stage.id);
+  }
+  acceptVikingLongshipReward(gameState);
+  gameState.ship.crew = 1;
+  addNamedCrewMember(gameState, {
+    id: "icelandic-historian",
+    name: "Leif Eriksen",
+    homePortName: VIKING_LONGSHIP_PORT_CITY,
+    homePortCountry: "Iceland",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, NAMED_CREW_ROLE_HISTORIAN, { replaceGenericWhenFull: true });
+  gameState.doubloons = 50000;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const listing = {
+    id: "shipyard-10-dhow",
+    shipSlug: "dhow",
+    shipLabel: "Dhow",
+    price: 1000
+  };
+  const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+
+  assert.equal(purchase.disabled, false);
 });
 
 test("empty shipyards direct captains to the nearest listed vessel", () => {

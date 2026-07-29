@@ -585,6 +585,7 @@ import {
   shoreBatteryDialogueView,
   shipDialogueView
 } from "./dialogueSystem.js";
+import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import {
   pauseDialogueShipMotion,
   resumeDialogueShipMotion,
@@ -1400,12 +1401,15 @@ import {
   VIKING_LONGSHIP_SLUG,
   acceptVikingLongshipReward,
   isVikingLongshipQuestPort,
+  markVikingLongshipReturnedToIceland,
   markVikingLongshipOfferSeen,
   markVikingLongshipPurchased,
   maybeSpawnVikingLongshipQuest,
   vikingLongshipOfferShouldApproach,
   vikingLongshipQuestState,
   vikingLongshipRewardDisposition,
+  vikingLongshipTradeInFarewell,
+  vikingLongshipTradeInPlan,
   vikingLongshipUnlocked
 } from "./vikingLongshipQuest.js";
 import {
@@ -14115,18 +14119,56 @@ async function purchaseShipyardShip(action) {
     const assets = await loadShipAssetSet(listing.shipSlug);
     if (dialogueState !== session || session.nodeId !== "shipyard") return;
     const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
-    purchasePlayerShip(gameState, city, stats, purchaseTerms, { simMinute: Math.floor(weatherClockMinutes) });
+    const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
+    const purchase = purchasePlayerShip(gameState, city, stats, purchaseTerms, {
+      simMinute: Math.floor(weatherClockMinutes),
+      departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
+    });
+    const returnedHistorian = vikingTradeIn
+      ? purchase.departedNamedCrew.find((member) => member.id === vikingTradeIn.historian.id)
+      : null;
+    if (vikingTradeIn && !returnedHistorian) {
+      throw new Error("Viking longship trade-in did not disembark its historical enthusiast");
+    }
+    if (returnedHistorian) {
+      markVikingLongshipReturnedToIceland(gameState, returnedHistorian);
+      placeVikingLongshipEnthusiastAtPort(returnedHistorian);
+    }
     claimShipyardListing(worldEconomy.shipyards, city, listing.id);
     applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     playCoinClinkSound();
-    beginShipHandoverDialogue(session, {
-      shipSlug: listing.shipSlug,
-      transactionText: purchaseTerms.netPrice >= 0
-        ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
-        : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`,
-      sellerTitle: city.isPirateHideout ? "hidden-yard broker" : "shipwright"
-    });
+    const transactionText = purchaseTerms.netPrice >= 0
+      ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
+      : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`;
+    if (returnedHistorian) {
+      session.nodeId = "root";
+      session.selectedIndex = 0;
+      session.feedback = null;
+      const opened = startCharacterAlertSequence([
+        pairedCharacterAlertStep({
+          leftCharacter: returnedHistorian,
+          rightCharacter: gameState.playerCharacter,
+          speakerCharacter: returnedHistorian,
+          expressionId: "pleased",
+          message: vikingLongshipTradeInFarewell()
+        }),
+        pairedCharacterAlertStep({
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: city.character,
+          speakerCharacter: city.character,
+          expressionId: "pleased",
+          message: `${transactionText} ${shipHandoverHistoryForSlug(listing.shipSlug)}`
+        })
+      ]);
+      if (!opened) throw new Error("Could not open the Viking longship trade-in farewell");
+    } else {
+      beginShipHandoverDialogue(session, {
+        shipSlug: listing.shipSlug,
+        transactionText,
+        sellerTitle: city.isPirateHideout ? "hidden-yard broker" : "shipwright"
+      });
+    }
     dialogueLayout.scrollOffset = 0;
     saveVoyageNow("ship purchase");
   } catch (error) {
@@ -14136,6 +14178,14 @@ async function purchaseShipyardShip(action) {
     shipyardPurchaseListingId = null;
     dirty = true;
   }
+}
+
+function placeVikingLongshipEnthusiastAtPort(historian) {
+  const port = vikingLongshipQuestPort();
+  if (!port) throw new Error("Cannot return the Viking longship to missing Hafnarfjordur");
+  portCityCharacters.set(port.tileId, historian);
+  usedCharacterNames.add(historian.name);
+  if (vikingLongshipPortFactor) usedCharacterNames.delete(vikingLongshipPortFactor.name);
 }
 
 async function acquireVikingLongship(action) {

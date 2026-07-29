@@ -1,5 +1,9 @@
 import { deliverQuestCargoRequirement } from "./gameState.js";
-import { hasPermanentCrewBerth } from "./namedCrew.js";
+import {
+  NAMED_CREW_ROLE_HISTORIAN,
+  hasPermanentCrewBerth,
+  namedCrewMembers
+} from "./namedCrew.js";
 import {
   questCargoDeliverableQuantity,
   questCargoDeliveryProgress
@@ -158,6 +162,40 @@ export function vikingLongshipEnthusiastAtPort(state, city) {
     quest.rewardDisposition !== VIKING_LONGSHIP_REWARD_PURCHASED;
 }
 
+export function vikingLongshipTradeInPlan(state) {
+  if (state?.ship?.slug !== VIKING_LONGSHIP_SLUG) return null;
+  const candidates = namedCrewMembers(state).filter(isVikingLongshipEnthusiast);
+  if (candidates.length === 0) return null;
+  if (candidates.length > 1) {
+    throw new Error("The Viking longship has multiple historical enthusiasts aboard");
+  }
+  const disposition = vikingLongshipRewardDisposition(state);
+  if (![VIKING_LONGSHIP_REWARD_ACCEPTED, VIKING_LONGSHIP_REWARD_PURCHASED].includes(disposition)) {
+    throw new Error(`Cannot return a Viking longship whose reward is ${disposition}`);
+  }
+  return Object.freeze({
+    historian: candidates[0],
+    departingNamedCrewIds: Object.freeze([candidates[0].id])
+  });
+}
+
+export function markVikingLongshipReturnedToIceland(state, historian) {
+  if (!isVikingLongshipEnthusiast(historian)) {
+    throw new Error("Viking longship return requires its historical enthusiast");
+  }
+  const disposition = vikingLongshipRewardDisposition(state);
+  if (![VIKING_LONGSHIP_REWARD_ACCEPTED, VIKING_LONGSHIP_REWARD_PURCHASED].includes(disposition)) {
+    throw new Error(`Cannot return a Viking longship whose reward is ${disposition}`);
+  }
+  vikingQuestMemory(state).flags[QUEST_REWARD_FLAG] = VIKING_LONGSHIP_REWARD_DECLINED;
+  return VIKING_LONGSHIP_REWARD_DECLINED;
+}
+
+export function vikingLongshipTradeInFarewell() {
+  return "I'll take the longship off your hands and sail her home to Iceland. " +
+    "If you ever want her back, you will find us in Hafnarfjordur.";
+}
+
 export function acceptVikingLongshipReward(state) {
   setVikingLongshipRewardDisposition(
     state,
@@ -165,6 +203,12 @@ export function acceptVikingLongshipReward(state) {
     VIKING_LONGSHIP_REWARD_ACCEPTED
   );
   return VIKING_LONGSHIP_REWARD_ACCEPTED;
+}
+
+function isVikingLongshipEnthusiast(character) {
+  return character?.role === NAMED_CREW_ROLE_HISTORIAN &&
+    character.homePortName === VIKING_LONGSHIP_PORT_CITY &&
+    character.homePortCountry === VIKING_LONGSHIP_PORT_COUNTRY;
 }
 
 export function declineVikingLongshipReward(state) {

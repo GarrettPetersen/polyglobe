@@ -17,12 +17,15 @@ import {
   deliverVikingLongshipQuestCargo,
   isVikingLongshipQuestPort,
   markVikingLongshipPurchased,
+  markVikingLongshipReturnedToIceland,
   markVikingLongshipOfferSeen,
   maybeSpawnVikingLongshipQuest,
   vikingLongshipEnthusiastAtPort,
   vikingLongshipOfferShouldApproach,
   vikingLongshipQuestState,
   vikingLongshipRewardDisposition,
+  vikingLongshipTradeInFarewell,
+  vikingLongshipTradeInPlan,
   vikingLongshipUnlocked
 } from "./vikingLongshipQuest.js";
 
@@ -97,6 +100,41 @@ test("the completed longship reward records one durable choice", () => {
   assert.equal(vikingLongshipRewardDisposition(declined), VIKING_LONGSHIP_REWARD_PURCHASED);
   assert.equal(vikingLongshipEnthusiastAtPort(declined, HAFNARFJORDUR), false);
   assert.throws(() => markVikingLongshipPurchased(declined), /is purchased; expected declined/);
+});
+
+test("trading in the longship sends its enthusiast and vessel back to Iceland", () => {
+  const stats = shipStatsForSlug("viking-longship");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  maybeSpawnVikingLongshipQuest(state, HAFNARFJORDUR, { spawnChance: 1, simMinute: 0 });
+  state.cargo = { wool: 8, timber: 6, iron: 3 };
+  state.accounts.cargoCostBasis = { wool: 80, timber: 60, iron: 30 };
+  for (const stage of VIKING_LONGSHIP_FETCH_STAGES) {
+    deliverVikingLongshipQuestCargo(state, HAFNARFJORDUR, stage.id);
+  }
+  acceptVikingLongshipReward(state);
+  state.ship.crew = 1;
+  const historian = addNamedCrewMember(state, {
+    id: "icelandic-historian",
+    name: "Leif Eriksen",
+    homePortName: VIKING_LONGSHIP_PORT_CITY,
+    homePortCountry: "Iceland",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, NAMED_CREW_ROLE_HISTORIAN, { replaceGenericWhenFull: true });
+
+  assert.deepEqual(vikingLongshipTradeInPlan(state), {
+    historian,
+    departingNamedCrewIds: [historian.id]
+  });
+  assert.equal(
+    markVikingLongshipReturnedToIceland(state, historian),
+    VIKING_LONGSHIP_REWARD_DECLINED
+  );
+  assert.equal(vikingLongshipRewardDisposition(state), VIKING_LONGSHIP_REWARD_DECLINED);
+  assert.equal(vikingLongshipEnthusiastAtPort(state, HAFNARFJORDUR), true);
+  assert.match(vikingLongshipTradeInFarewell(), /take the longship off your hands/i);
+  assert.match(vikingLongshipTradeInFarewell(), /home to Iceland/i);
+  assert.match(vikingLongshipTradeInFarewell(), /Hafnarfjordur/i);
 });
 
 test("longship materials cannot be delivered at another port", () => {

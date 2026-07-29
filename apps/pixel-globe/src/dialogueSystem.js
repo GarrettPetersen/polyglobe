@@ -140,7 +140,8 @@ import {
   deliverVikingLongshipQuestCargo,
   markVikingLongshipOfferSeen,
   vikingLongshipEnthusiastAtPort,
-  vikingLongshipQuestState
+  vikingLongshipQuestState,
+  vikingLongshipTradeInPlan
 } from "./vikingLongshipQuest.js";
 import {
   COLONIZATION_CARGO_RESERVATION_ID,
@@ -3220,11 +3221,15 @@ function shipyardView(session, city, gameState, context) {
   const currentShipSlug = context.shipStats?.slug;
   if (!currentShipSlug) throw new Error("Shipyard purchase requires the current ship type");
   const purchaseTerms = shipyardPurchaseTerms(listing.price, currentShipSlug);
-  const committedCrew = futurePermanentCrewFloor(gameState);
+  const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
+  const replacementContext = {
+    departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
+  };
+  const committedCrew = futurePermanentCrewFloor(gameState, replacementContext);
   const permanentCrewDoesNotFit = committedCrew > stats.crewCapacity;
   const transferredCargoUsed = permanentCrewDoesNotFit
     ? null
-    : playerShipReplacementCargoUsed(gameState, stats);
+    : playerShipReplacementCargoUsed(gameState, stats, replacementContext);
   const cargoDoesNotFit = transferredCargoUsed !== null && transferredCargoUsed > stats.cargoCapacity;
   const alreadyOwned = currentShipSlug === listing.shipSlug;
   const cannotAfford = gameState.doubloons < purchaseTerms.netPrice;
