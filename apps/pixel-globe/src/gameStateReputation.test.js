@@ -703,6 +703,50 @@ test("civilian tolls grant one month of empire-wide safe passage", () => {
   assert.equal(portEntryStatus(state, alexandria, passage.untilMinute).allowed, false);
 });
 
+test("paid safe passage remains valid if personal standing later becomes hostile", () => {
+  const habsburgPlayer = { ...PLAYER, nationalityId: "habsburg" };
+  const fishingBarque = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({
+    cargoCapacity: fishingBarque.cargoCapacity,
+    playerCharacter: habsburgPlayer,
+    shipStats: fishingBarque
+  });
+  const istanbul = port(8, "Istanbul", "Turkey", "mediterranean", 180000, "ottoman");
+  const passage = purchaseFactionSafePassage(state, istanbul, 100);
+  state.relations.factionReputation.ottoman = HOSTILE_PORT_REPUTATION_THRESHOLD;
+  const duringPassage = portEntryStatus(state, istanbul, 101);
+  assert.equal(duringPassage.safePassage, true);
+  assert.equal(duringPassage.hostileByStanding, true);
+  assert.equal(duringPassage.canPurchaseSafePassage, false);
+  assert.equal(duringPassage.hostile, false);
+  assert.equal(duringPassage.allowed, true);
+
+  const afterPassage = portEntryStatus(state, istanbul, passage.untilMinute);
+  assert.equal(afterPassage.safePassage, false);
+  assert.equal(afterPassage.hostile, true);
+  assert.equal(afterPassage.allowed, false);
+});
+
+test("a faction refuses to sell safe passage to a captain it personally hates", () => {
+  const habsburgPlayer = { ...PLAYER, nationalityId: "habsburg" };
+  const fishingBarque = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({
+    cargoCapacity: fishingBarque.cargoCapacity,
+    playerCharacter: habsburgPlayer,
+    shipStats: fishingBarque
+  });
+  const istanbul = port(8, "Istanbul", "Turkey", "mediterranean", 180000, "ottoman");
+  state.relations.factionReputation.ottoman = HOSTILE_PORT_REPUTATION_THRESHOLD;
+
+  const status = portEntryStatus(state, istanbul, 100);
+  assert.equal(status.hostileByStanding, true);
+  assert.equal(status.canPurchaseSafePassage, false);
+  assert.throws(
+    () => purchaseFactionSafePassage(state, istanbul, 100),
+    /refuses to sell safe passage to a hated captain/
+  );
+});
+
 test("refusing a civilian toll suppresses that faction for two days", () => {
   const habsburgPlayer = { ...PLAYER, nationalityId: "habsburg" };
   const fishingBarque = shipStatsForSlug("fishing-lugger");

@@ -20449,7 +20449,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
         hostileByWar: entryStatus.hostileByWar,
         withinWeaponRange: true,
         withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
-        tollDemandEligible: shoreBatteryMayDemandToll(city),
+        tollDemandEligible: entryStatus.canPurchaseSafePassage && shoreBatteryMayDemandToll(city),
         playerHailed: state.playerHailed,
         passageRefusalActive
       });

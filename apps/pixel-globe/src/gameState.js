@@ -3062,6 +3062,7 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
       hostileByStance: false,
       hostileByStanding: false,
       safePassage: false,
+      canPurchaseSafePassage: false,
       passageRefusalActive: false,
       locked: false,
       lockUntilMinute: null,
@@ -3085,7 +3086,11 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   );
   const passageRefusalActive = state.relations.safePassageRefusalUntilMinute[factionId] > simMinute;
   const hostileByStanding = state.relations.factionReputation[factionId] <= HOSTILE_PORT_REPUTATION_THRESHOLD;
-  const hostile = ((hostileByWar || hostileByStance) && !safePassage) || hostileByStanding;
+  const canPurchaseSafePassage = !evaluation.playerWarship &&
+    !safePassage &&
+    !hostileByStanding &&
+    (hostileByWar || hostileByStance);
+  const hostile = (hostileByWar || hostileByStance || hostileByStanding) && !safePassage;
   const memory = requiredPortMemory(state, city);
   const storedLock = Number.isFinite(memory.disguiseLockUntilMinute)
     ? memory.disguiseLockUntilMinute
@@ -3099,6 +3104,7 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
     hostileByStance,
     hostileByStanding,
     safePassage,
+    canPurchaseSafePassage,
     passageRefusalActive,
     locked,
     lockUntilMinute: locked ? storedLock : null,
@@ -3197,10 +3203,15 @@ export function purchaseFactionSafePassage(state, city, simMinute) {
     throw new Error(`Faction does not issue safe passage: ${factionId}`);
   }
   if (playerShipIsWarship(state)) throw new Error("Warships cannot purchase civilian safe passage");
-  const playerFactionId = state.playerCharacter?.nationalityId || null;
-  const relation = playerFactionId ? diplomacyBetweenForState(state, playerFactionId, factionId) : null;
-  if (relation !== DIPLOMACY_HOSTILE && relation !== DIPLOMACY_WAR) {
+  const entryStatus = portEntryStatus(state, city, simMinute);
+  if (entryStatus.hostileByStanding) {
+    throw new Error(`${cityLabel(city)} refuses to sell safe passage to a hated captain`);
+  }
+  if (!entryStatus.hostileByWar && !entryStatus.hostileByStance) {
     throw new Error(`${cityLabel(city)} has no reason to demand a passage toll`);
+  }
+  if (!entryStatus.canPurchaseSafePassage) {
+    throw new Error(`${cityLabel(city)} cannot sell safe passage`);
   }
   const toll = factionSafePassageToll(state);
   if (state.doubloons < toll) throw new Error(`Not enough doubloons for ${factionId} safe passage`);
