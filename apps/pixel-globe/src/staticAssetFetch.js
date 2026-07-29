@@ -1,5 +1,5 @@
-const DEFAULT_ATTEMPTS = 3;
-const DEFAULT_RETRY_DELAY_MS = 150;
+const DEFAULT_ATTEMPTS = 5;
+const DEFAULT_RETRY_DELAY_MS = 200;
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429]);
 
 export async function fetchStaticAsset(resource, {

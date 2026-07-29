@@ -146,6 +146,7 @@ import {
 import {
   COLONIZATION_CARGO_RESERVATION_ID,
   COLONIZATION_EXPEDITION_CARGO_UNITS,
+  COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER,
   COLONIZATION_STAGE_AWAITING_RESUPPLY,
   COLONIZATION_STAGE_DEFEND,
   COLONIZATION_STAGE_ESTABLISHED,
@@ -2997,7 +2998,7 @@ function colonizationView(session, city, gameState, context) {
   }
 
   if (quest.stage === COLONIZATION_STAGE_ESTABLISHED) {
-    const discountPercent = founderPurchaseDiscountPercent(city);
+    const discountPercent = founderPurchaseDiscountPercent();
     return {
       speaker: `${organizer}, ${history.settlementLeaderRole}`,
       expressionId: "happy",
@@ -3531,10 +3532,10 @@ function tradeTermsDetail(terms, side) {
   return parts.join("  ");
 }
 
-function founderPurchaseDiscountPercent(city) {
-  const multiplier = city?.purchaseDiscountMultiplier;
+function founderPurchaseDiscountPercent() {
+  const multiplier = COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER;
   if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier >= 1) {
-    throw new Error(`${cityLabel(city)} has no valid founder purchase discount`);
+    throw new Error(`Colonization founder purchase discount is invalid: ${multiplier}`);
   }
   return Math.round((1 - multiplier) * 100);
 }

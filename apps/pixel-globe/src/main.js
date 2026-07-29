@@ -969,6 +969,7 @@ import {
   windVOpacity
 } from "./windIndicator.js";
 import { loadImageWithRetry } from "./assetImageLoader.js";
+import { loadFontFaceAsset } from "./fontAssetLoader.js";
 import { DEFAULT_GAME_TIME_SCALE } from "./gamePacing.js";
 import {
   COMBAT_MODE_ATTACK,
@@ -3403,20 +3404,55 @@ async function loadPixelFonts() {
 
   const sample = "PIXEL 1522 gy";
   const requiredFonts = [
-    { label: "Silkscreen", font: "8px \"Silkscreen\"", sample },
-    { label: "Dogica", font: "8px \"Dogica\"", sample },
-    { label: "Pixel Pirate", font: PIXEL_FONT_TITLE_8, sample: "MARQUE & REPRISAL" },
-    { label: "zpix", font: '12px "zpix"', sample: "简体中文 繁體中文 日本語 Русский Polski 1522" },
-    { label: "Galmuri11", font: '11px "Galmuri11"', sample: "한국어 조선 항해 1522" }
+    {
+      label: "Silkscreen",
+      family: "Silkscreen",
+      src: "assets/fonts/Silkscreen-Regular.ttf?v=startup-1",
+      font: "8px \"Silkscreen\"",
+      sample
+    },
+    {
+      label: "Dogica",
+      family: "Dogica",
+      src: "assets/fonts/dogicapixel.ttf?v=startup-1",
+      font: "8px \"Dogica\"",
+      sample
+    },
+    {
+      label: "Pixel Pirate",
+      family: "Pixel Pirate",
+      src: "assets/fonts/pixel_pirate.woff2?v=r-kern-2",
+      font: PIXEL_FONT_TITLE_8,
+      sample: "MARQUE & REPRISAL"
+    },
+    {
+      label: "zpix",
+      family: "zpix",
+      src: "assets/fonts/zpix.woff2?v=web-1",
+      font: '12px "zpix"',
+      sample: "简体中文 繁體中文 日本語 Русский Polski 1522"
+    },
+    {
+      label: "Galmuri11",
+      family: "Galmuri11",
+      src: "assets/fonts/Galmuri11.woff2?v=startup-1",
+      font: '11px "Galmuri11"',
+      sample: "한국어 조선 항해 1522"
+    }
   ];
-  const loadedFaces = await Promise.all(
-    requiredFonts.map(({ font, sample: fontSample }) => document.fonts.load(font, fontSample))
-  );
+  const loadedFaces = await Promise.all(requiredFonts.map(({ family, src, label }) => {
+    return loadFontFaceAsset({
+      family,
+      src,
+      label,
+      fontFaceSet: document.fonts
+    });
+  }));
   await document.fonts.ready;
 
   for (let index = 0; index < requiredFonts.length; index++) {
     const { label, font, sample: fontSample } = requiredFonts[index];
-    if (loadedFaces[index].length === 0 || !document.fonts.check(font, fontSample)) {
+    if (loadedFaces[index]?.status !== "loaded") {
       throw new Error(`Pixel font failed to load: ${label}`);
     }
     await waitForPixelFontRaster(label, font, fontSample);
