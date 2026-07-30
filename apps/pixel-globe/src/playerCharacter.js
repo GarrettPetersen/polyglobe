@@ -1,6 +1,10 @@
 import { generatePlayerCharacter } from "./characterPortraits.js";
 import { characterWithBiography } from "./characterBiography.js";
-import { factionById } from "./factions.js";
+import {
+  NEUTRAL_FACTION_ID,
+  PIRATE_FACTION_ID,
+  factionById
+} from "./factions.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 export const PLAYER_START_YEAR = 1522;
@@ -55,12 +59,21 @@ const EUROPEAN_FACTIONS = new Set([
   "denmark-norway"
 ]);
 const EAST_ASIAN_FACTIONS = new Set(["ming", "japan", "joseon"]);
-const INDIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi"]);
+const INDIAN_FACTIONS = new Set([
+  "hormuz",
+  "safavid",
+  "vijayanagara",
+  "gujarat",
+  "bengal",
+  "delhi"
+]);
 const SOUTHEAST_ASIAN_FACTIONS = new Set(["ayutthaya", "ternate", "tidore"]);
+const ISLAMIC_MEDITERRANEAN_FACTIONS = new Set(["ottoman", "morocco", "crimea"]);
+const PLAYER_HOME_EXCLUDED_CITY_TYPES = new Set(["mesoamerican", "andean", "sub-saharan"]);
 
 export function playerStartRegionForFaction(factionId) {
   factionById(factionId);
-  if (factionId === "ottoman") return "ottoman";
+  if (ISLAMIC_MEDITERRANEAN_FACTIONS.has(factionId)) return "ottoman";
   if (EAST_ASIAN_FACTIONS.has(factionId)) return "east-asia";
   if (INDIAN_FACTIONS.has(factionId)) return "india";
   if (SOUTHEAST_ASIAN_FACTIONS.has(factionId)) return "southeast-asia";
@@ -180,24 +193,23 @@ export function selectPlayerHomePort(identityKey, ports, portWeights) {
 export function playerStartAreaForPort(port) {
   if (!port || typeof port !== "object") return null;
   if (port.playerHomeExcluded) return null;
-  if (port.factionId === "ottoman") return "mediterranean";
-  if (port.cityType === "east-asian" && EAST_ASIAN_FACTIONS.has(port.factionId)) return "east-asia";
-  if (
-    port.cityType === "south-asian" &&
-    (INDIAN_FACTIONS.has(port.factionId) || port.factionId === "portugal")
-  ) {
-    return "india";
+  if (port.settlementType === "village") return null;
+  const faction = factionById(port.factionId);
+  if ([NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(faction.id)) return null;
+  if (PLAYER_HOME_EXCLUDED_CITY_TYPES.has(port.cityType)) return null;
+  if (port.cityType === "northern-european") return "northern-europe";
+  if (port.cityType === "mediterranean") return "mediterranean";
+  if (port.cityType === "east-asian") return "east-asia";
+  if (port.cityType === "south-asian") return "india";
+  if (port.cityType === "southeast-asian") return "southeast-asia";
+  if (port.cityType === "islamic-desert") {
+    if (ISLAMIC_MEDITERRANEAN_FACTIONS.has(faction.id)) return "mediterranean";
+    if (INDIAN_FACTIONS.has(faction.id)) return "india";
+    throw new Error(
+      `Sovereign Islamic-desert port has no player start area: ` +
+      `${port.displayCity || port.city} (${faction.id})`
+    );
   }
-  if (
-    port.cityType === "southeast-asian" &&
-    (SOUTHEAST_ASIAN_FACTIONS.has(port.factionId) || port.factionId === "portugal")
-  ) {
-    return "southeast-asia";
-  }
-  if (port.cityType === "northern-european" && EUROPEAN_FACTIONS.has(port.factionId)) {
-    return "northern-europe";
-  }
-  if (port.cityType === "mediterranean" && EUROPEAN_FACTIONS.has(port.factionId)) return "mediterranean";
   return null;
 }
 

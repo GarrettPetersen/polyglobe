@@ -39,7 +39,11 @@ const PORTS = [
   port(14, "Tidore", "Indonesia", "southeast-asian", "tidore", 0.67, 127.45),
   port(15, "Ayutthaya", "Thailand", "southeast-asian", "ayutthaya", 14.36, 100.57),
   port(16, "Banda Village", "Indonesia", "southeast-asian", "neutral", -4.52, 129.9),
-  port(17, "Malacca", "Malaysia", "southeast-asian", "portugal", 2.19, 102.25)
+  port(17, "Malacca", "Malaysia", "southeast-asian", "portugal", 2.19, 102.25),
+  port(18, "Hormuz", "Iran", "islamic-desert", "hormuz", 27.1, 56.45),
+  port(19, "Siraf", "Iran", "islamic-desert", "safavid", 27.67, 52.34),
+  port(20, "Azemmour", "Morocco", "islamic-desert", "morocco", 33.29, -8.34),
+  port(21, "Bakhchiserai", "Ukraine", "mediterranean", "crimea", 44.76, 33.87)
 ];
 const PORT_WEIGHTS = npcFleetOriginWeightsForPorts(PORTS);
 
@@ -110,6 +114,17 @@ test("a Hospitaller captain receives the European regional starter roster", () =
   assert.equal(playerStarterShipForFaction("hospitallers", { armed: true }), "small-cog");
 });
 
+test("previously omitted Old World powers receive regional starter vessels", () => {
+  for (const factionId of ["hormuz", "safavid"]) {
+    assert.equal(playerStarterShipForFaction(factionId), "dhow");
+    assert.equal(playerStarterShipForFaction(factionId, { armed: true }), "ketch");
+  }
+  for (const factionId of ["morocco", "crimea"]) {
+    assert.equal(playerStarterShipForFaction(factionId), "felucca");
+    assert.equal(playerStarterShipForFaction(factionId, { armed: true }), "ketch");
+  }
+});
+
 test("player identity seeds use explicit query values or fresh generated values", () => {
   assert.equal(
     resolvePlayerCharacterIdentityKey({ querySeed: "debug-captain", generatedSeed: "random-captain" }),
@@ -129,7 +144,7 @@ test("player identity seeds use explicit query values or fresh generated values"
   );
 });
 
-test("home selection balances five geographic areas and includes Portuguese Asian ports", () => {
+test("home selection balances five geographic areas and includes all sovereign Old World ports", () => {
   const seenAreas = new Set();
   const seenCities = new Set();
   for (let i = 0; i < 1000; i++) {
@@ -148,6 +163,9 @@ test("home selection balances five geographic areas and includes Portuguese Asia
   );
   assert.ok(seenCities.has("Goa"));
   assert.ok(seenCities.has("Malacca"));
+  for (const city of ["Hormuz", "Siraf", "Azemmour", "Bakhchiserai"]) {
+    assert.ok(seenCities.has(city), `${city} must be available as a home port`);
+  }
 });
 
 test("maritime fleet weighting favors busy ports without removing quiet homes", () => {
@@ -171,7 +189,7 @@ test("Ottoman and European Mediterranean ports share one start-area draw", () =>
   const mediterraneanPorts = playerHomePortPools(PORTS).get("mediterranean");
   assert.deepEqual(
     mediterraneanPorts.map((port) => port.city).sort(),
-    ["Alexandria", "Cadiz", "Constantinople"]
+    ["Alexandria", "Azemmour", "Bakhchiserai", "Cadiz", "Constantinople"]
   );
 });
 
@@ -221,6 +239,36 @@ test("port classification accepts only the intended geographic areas", () => {
   assert.equal(playerStartAreaForPort(PORTS[11]), null);
   assert.equal(playerStartAreaForPort(PORTS[15]), null);
   assert.equal(playerStartAreaForPort(PORTS[16]), "southeast-asia");
+  assert.equal(playerStartAreaForPort(PORTS[17]), "india");
+  assert.equal(playerStartAreaForPort(PORTS[18]), "india");
+  assert.equal(playerStartAreaForPort(PORTS[19]), "mediterranean");
+  assert.equal(playerStartAreaForPort(PORTS[20]), "mediterranean");
+});
+
+test("home classification excludes only non-national starts and the intended world regions", () => {
+  const intendedExclusions = [
+    port(31, "Neutral Port", "Italy", "mediterranean", "neutral", 42, 12),
+    port(32, "Pirate Haven", "Unknown", "mediterranean", "pirate", 20, -30),
+    port(33, "New World Port", "Mexico", "mesoamerican", "spain", 19, -96),
+    port(34, "Andean Port", "Peru", "andean", "inca", -8, -79),
+    port(35, "Sub-Saharan Port", "Ethiopia", "sub-saharan", "ethiopia", 15, 39),
+    {
+      ...port(43, "Sovereign Village", "Indonesia", "southeast-asian", "ternate", 1, 127),
+      settlementType: "village"
+    }
+  ];
+  assert.ok(intendedExclusions.every((candidate) => playerStartAreaForPort(candidate) === null));
+
+  const intendedStarts = [
+    port(36, "European Port", "France", "northern-european", "france", 49, 2),
+    port(37, "Mediterranean Port", "Italy", "mediterranean", "venice", 45, 12),
+    port(38, "North African Port", "Morocco", "islamic-desert", "morocco", 33, -8),
+    port(39, "Persian Port", "Iran", "islamic-desert", "safavid", 28, 52),
+    port(40, "East Asian Port", "Japan", "east-asian", "japan", 35, 136),
+    port(41, "South Asian Port", "India", "south-asian", "gujarat", 22, 73),
+    port(42, "Southeast Asian Port", "Thailand", "southeast-asian", "ayutthaya", 14, 101)
+  ];
+  assert.ok(intendedStarts.every((candidate) => playerStartAreaForPort(candidate) !== null));
 });
 
 test("Portuguese Asian home ports produce Portuguese captains", () => {
