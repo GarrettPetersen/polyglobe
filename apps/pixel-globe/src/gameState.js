@@ -213,6 +213,9 @@ import {
   specialEquipmentOfferEntry,
   validateSpecialEquipmentOfferMemory
 } from "./specialEquipmentOffers.js";
+import {
+  prepareEquipmentFactorPitch as prepareEquipmentFactorPitchOffer
+} from "./equipmentFactorOffers.js";
 import { effectivePlayerShipStats, gameStatePerkTotals } from "./playerPerks.js";
 import {
   createNamedCrewDeathNotice,
@@ -2521,6 +2524,22 @@ export function enterSpecialEquipmentStore(state, economy, city) {
   });
 }
 
+export function prepareEquipmentFactorPitch(state, economy, city, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (!playerTradeAccess(state, city, { simMinute }).allowed) return null;
+  return prepareEquipmentFactorPitchOffer({
+    memory: state.memory,
+    economy,
+    city,
+    simMinute,
+    doubloons: state.doubloons,
+    voyageSeed: state.voyageSeed,
+    ship: state.ship,
+    inventory: state.inventory
+  });
+}
+
 export function purchasePerkItem(state, city, itemId, context = {}) {
   assertGameState(state);
   const item = perkItemById(itemId);
@@ -2584,19 +2603,75 @@ export function maybeGrantMissionPerkItem(state, city, {
     memory[missionId] = null;
     return null;
   }
-  state.inventory.items[item.id] = 1;
   memory[missionId] = item.id;
+  return {
+    ...grantPerkItemReward(state, item, city, context, {
+      kind: "quest",
+      description: `Mission gift: ${item.label}`
+    }),
+    chance,
+    alreadyResolved: false
+  };
+}
+
+export function maybeGrantDefeatedShipPerkItem(state, defeatedShip, {
+  sunk = false,
+  random = Math.random,
+  context = {}
+} = {}) {
+  assertGameState(state);
+  if (!defeatedShip || typeof defeatedShip !== "object" || Array.isArray(defeatedShip)) {
+    throw new Error("Defeated-ship item reward requires a ship");
+  }
+  if (typeof defeatedShip.id !== "string" || defeatedShip.id.trim() === "") {
+    throw new Error("Defeated-ship item reward requires a ship id");
+  }
+  if (!defeatedShip.currentPort || typeof defeatedShip.currentPort !== "object") {
+    throw new Error(`Defeated ship has no equipment provenance: ${defeatedShip.id}`);
+  }
+  if (typeof sunk !== "boolean") throw new Error(`Invalid defeated-ship sunk flag: ${sunk}`);
+  if (typeof random !== "function") throw new Error("Defeated-ship item reward requires a random source");
+  const chance = sunk ? 0.035 : 0.08;
+  const roll = random();
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Invalid defeated-ship item roll: ${roll}`);
+  }
+  if (roll >= chance) return null;
+  const item = missionGiftItem({
+    city: defeatedShip.currentPort,
+    identityKey: `defeated-ship|${defeatedShip.id}|${defeatedShip.slug || "unknown"}`,
+    ownedItemIds: Object.keys(state.inventory.items).filter((id) => state.inventory.items[id] > 0)
+  });
+  if (!item) return null;
+  return {
+    ...grantPerkItemReward(state, item, null, context, {
+      kind: "prize",
+      description: `${sunk ? "Salvaged" : "Seized"} ${item.label} from ${defeatedShip.id}`
+    }),
+    chance
+  };
+}
+
+function grantPerkItemReward(state, item, city, context, { kind, description }) {
+  if ((state.inventory.items[item.id] || 0) > 0) {
+    throw new Error(`Perk item reward is already aboard: ${item.label}`);
+  }
+  if (typeof kind !== "string" || kind.trim() === "" ||
+      typeof description !== "string" || description.trim() === "") {
+    throw new Error(`Invalid perk item reward ledger entry: ${item.id}`);
+  }
+  state.inventory.items[item.id] = 1;
   refreshPlayerPerkCargoCapacity(state);
   recordLedgerEntry(state, city, context, {
-    kind: "quest",
-    description: `Mission gift: ${item.label}`,
+    kind,
+    description,
     goodId: null,
     quantity: 1,
     amount: 0,
     costBasis: 0,
     pnl: null
   });
-  return { item, chance, alreadyResolved: false };
+  return { item };
 }
 
 export function prepareHighValueMissionPerkItem(state, city, missionId) {

@@ -15,6 +15,20 @@ export function openSpecialEquipmentOffer(
   city,
   { ownedItemIds = [], seedKey = null } = {}
 ) {
+  const item = ensureSpecialEquipmentOffer(memory, economy, city, {
+    ownedItemIds,
+    seedKey
+  });
+  if (!item) return null;
+  return presentSpecialEquipmentOffer(memory, city, item.id);
+}
+
+export function ensureSpecialEquipmentOffer(
+  memory,
+  economy,
+  city,
+  { ownedItemIds = [], seedKey = null } = {}
+) {
   validateSpecialEquipmentOfferMemory(memory);
   if (!Array.isArray(ownedItemIds) || ownedItemIds.some((id) => typeof id !== "string")) {
     throw new Error("Special equipment offer requires owned item ids");
@@ -34,6 +48,15 @@ export function openSpecialEquipmentOffer(
   if (entry.purchased || ownedItemIds.includes(entry.itemId)) {
     entry.purchased = true;
     return null;
+  }
+  return perkItemById(entry.itemId);
+}
+
+export function presentSpecialEquipmentOffer(memory, city, itemId) {
+  validateSpecialEquipmentOfferMemory(memory);
+  const entry = memory.byPort[portKey(city)];
+  if (!entry || entry.itemId !== itemId || entry.purchased) {
+    throw new Error(`No active special equipment offer for ${itemId}`);
   }
   const offer = Object.freeze({
     item: perkItemById(entry.itemId),

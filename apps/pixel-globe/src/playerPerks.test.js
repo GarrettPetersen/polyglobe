@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createGameState,
+  maybeGrantDefeatedShipPerkItem,
   maybeGrantMissionPerkItem,
   playerAssaultCargoBonus,
   refreshPlayerPerkCargoCapacity
@@ -90,4 +91,25 @@ test("harder missions can award a persistent unowned item", () => {
   });
   assert.ok(gift?.item);
   assert.equal(state.inventory.items[gift.item.id], 1);
+});
+
+test("defeated ships can yield one persistent piece of regional equipment", () => {
+  const state = perkState();
+  const ship = {
+    id: "defeated-merchant-1",
+    slug: "brigantine",
+    currentPort: {
+      tileId: 12,
+      portId: "test-port",
+      city: "Test Port",
+      factionId: "neutral",
+      cityType: "mediterranean"
+    }
+  };
+  const prize = maybeGrantDefeatedShipPerkItem(state, ship, { random: () => 0 });
+
+  assert.ok(prize?.item);
+  assert.equal(prize.chance, 0.08);
+  assert.equal(state.inventory.items[prize.item.id], 1);
+  assert.equal(maybeGrantDefeatedShipPerkItem(state, ship, { random: () => 0.5 }), null);
 });

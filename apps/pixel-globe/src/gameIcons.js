@@ -384,6 +384,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "buy-whale-harpoon": "action:harpoon",
   "buy-perk-item": "action:inventory",
   "decline-special-equipment": "action:back",
+  "buy-equipment-factor-pitch": "action:inventory",
+  "decline-equipment-factor-pitch": "action:back",
   buy: "action:buy",
   "accept-quest": "action:quest",
   "accept-passenger": "action:passenger",
@@ -462,6 +464,12 @@ export function menuLabelIconId(label) {
 
 export function dialogueOptionIconId(option) {
   if (!option?.action?.type) throw new Error("Dialogue option has no action type");
+  if (option.action.type === "buy-equipment-factor-pitch") {
+    if (option.action.kind === "fishing-net") return "action:fish";
+    if (option.action.kind === "cannon") return "action:attack";
+    if (option.action.kind === "whale-harpoon") return "action:harpoon";
+    if (option.action.kind === "perk-item") return perkItemIconId(option.action.itemId);
+  }
   if (option.action.goodId) return tradeGoodIconId(option.action.goodId);
   if (option.action.itemId) return perkItemIconId(option.action.itemId);
   if (option.action.type === "node" || (

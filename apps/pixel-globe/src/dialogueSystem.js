@@ -89,6 +89,13 @@ import {
   expelledForeignSettlements
 } from "./foreignSettlements.js";
 import {
+  EQUIPMENT_FACTOR_KIND_CANNON,
+  EQUIPMENT_FACTOR_KIND_FISHING_NET,
+  EQUIPMENT_FACTOR_KIND_PERK_ITEM,
+  EQUIPMENT_FACTOR_KIND_WHALE_HARPOON,
+  validateEquipmentFactorPitch
+} from "./equipmentFactorOffers.js";
+import {
   CUSTOM_LOADOUT_FIELDS,
   CUSTOM_LOADOUT_ID,
   SHIP_LOADOUT_PRESETS,
@@ -248,6 +255,9 @@ export function createPortDialogueSession(city, options = {}) {
   if (options.drunkVariant !== undefined && (!Number.isInteger(options.drunkVariant) || options.drunkVariant < 0)) {
     throw new Error(`Invalid drunk port dialogue variant: ${options.drunkVariant}`);
   }
+  if (options.equipmentFactorPitch !== undefined && options.equipmentFactorPitch !== null) {
+    validateEquipmentFactorPitch(options.equipmentFactorPitch);
+  }
   return {
     kind: "port",
     cityTileId: city.tileId,
@@ -267,6 +277,8 @@ export function createPortDialogueSession(city, options = {}) {
     tradeTip: null,
     shipHandover: null,
     specialEquipmentOffer: null,
+    equipmentFactorPitch: options.equipmentFactorPitch || null,
+    equipmentFactorPitchOutcome: null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
     japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
@@ -369,6 +381,17 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       postDrunkNodeId: arrivedDrunk ? "colonization" : null,
       drunkVariant,
       colonizationArrival: true,
+      admittedToPort: true
+    });
+  }
+  if (options.equipmentFactorPitch) {
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    return createPortDialogueSession(city, {
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "equipment-factor-offer",
+      nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? "equipment-factor-offer" : null,
+      drunkVariant,
+      equipmentFactorPitch: options.equipmentFactorPitch,
       admittedToPort: true
     });
   }
@@ -1008,6 +1031,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "equipment-special-offer") {
     return specialEquipmentOfferView(session, city, gameState);
   }
+  if (session.nodeId === "equipment-factor-offer") {
+    return equipmentFactorOfferView(session, city, gameState);
+  }
+  if (session.nodeId === "equipment-factor-followup") {
+    return equipmentFactorFollowupView(session, city);
+  }
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
@@ -1364,9 +1393,23 @@ export function selectPortDialogueOption(
       `${result.event.eventLabel} provisions`,
       context
     );
+    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
+      missionId: `chef-banquet-${city.tileId}`,
+      distanceKm: 3000,
+      reward: CHEF_QUEST_REWARD,
+      random: context.missionGiftRandom || neverGrantMissionItem,
+      context
+    });
     session.feedback = `${result.event.successText} The household paid ${payment.amount} db.`;
+    if (missionItemGift) session.feedback += ` The chef also gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
-    return { closed: false, chefBanquetCompleted: result, chefIngredientDeliveries: deliveries, payment };
+    return {
+      closed: false,
+      chefBanquetCompleted: result,
+      chefIngredientDeliveries: deliveries,
+      payment,
+      missionItemGift
+    };
   }
   if (action.type === "recruit-chef") {
     return { closed: false, action, chefRecruitmentRequested: true };
@@ -1780,6 +1823,42 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, cartazPurchase: result };
   }
+  if (action.type === "buy-equipment-factor-pitch") {
+    const pitch = validateEquipmentFactorPitch(session.equipmentFactorPitch);
+    if (action.kind !== pitch.kind || action.itemId !== pitch.itemId) {
+      throw new Error(`Equipment factor purchase does not match the offered item: ${action.itemId}`);
+    }
+    let result;
+    let resultKey;
+    if (pitch.kind === EQUIPMENT_FACTOR_KIND_FISHING_NET) {
+      result = purchaseFishingNet(gameState, economy, city, pitch.itemId, context);
+      resultKey = "fishingNetPurchase";
+    } else if (pitch.kind === EQUIPMENT_FACTOR_KIND_CANNON) {
+      result = purchaseCannonEquipment(gameState, economy, city, pitch.itemId, context);
+      resultKey = "cannonEquipmentPurchase";
+    } else if (pitch.kind === EQUIPMENT_FACTOR_KIND_WHALE_HARPOON) {
+      result = purchaseWhaleHarpoon(gameState, economy, city, pitch.itemId, context);
+      resultKey = "whaleHarpoonPurchase";
+    } else if (pitch.kind === EQUIPMENT_FACTOR_KIND_PERK_ITEM) {
+      result = purchasePerkItem(gameState, city, pitch.itemId, context);
+      resultKey = "perkItemPurchase";
+    } else {
+      throw new Error(`Unknown equipment factor purchase kind: ${pitch.kind}`);
+    }
+    session.equipmentFactorPitchOutcome = "purchased";
+    session.nodeId = "equipment-factor-followup";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false, [resultKey]: result };
+  }
+  if (action.type === "decline-equipment-factor-pitch") {
+    validateEquipmentFactorPitch(session.equipmentFactorPitch);
+    session.equipmentFactorPitchOutcome = "declined";
+    session.nodeId = "equipment-factor-followup";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
   if (action.type === "buy") {
     const result = buyGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
     recordMarketPurchase(session, result);
@@ -1844,13 +1923,15 @@ export function selectPortDialogueOption(
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
-    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
-      missionId: quest.id,
-      distanceKm: quest.distanceKm || 0,
-      reward: quest.reward || 0,
-      random: context.missionGiftRandom || neverGrantMissionItem,
-      context
-    });
+    const missionItemGift = quest.kind === "delivery"
+      ? null
+      : maybeGrantMissionPerkItem(gameState, city, {
+          missionId: quest.id,
+          distanceKm: quest.distanceKm || 0,
+          reward: quest.reward || 0,
+          random: context.missionGiftRandom || neverGrantMissionItem,
+          context
+        });
     session.feedback = isCaptureCommissionQuest(quest)
       ? isCaptureCapitalQuest(quest)
         ? `War-ending commission fulfilled. Earned ${quest.reward} db. Standing transformed.`
@@ -3059,6 +3140,51 @@ function equipmentView(session, city, gameState, economy) {
         disabledReason: "Your ship has no cannon battery to refit."
       }),
       option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function equipmentFactorOfferView(session, city, gameState) {
+  const pitch = validateEquipmentFactorPitch(session.equipmentFactorPitch);
+  const cannotAfford = gameState.doubloons < pitch.price;
+  return {
+    speaker: speakerName(city),
+    expressionId: "happy",
+    text: pitch.reconsidered
+      ? `Captain, before you go: have you reconsidered the ${pitch.label}? ` +
+        `${pitch.salesPitch} My price remains ${pitch.price} doubloons.`
+      : `Captain, before you go: the outfitters have ${pitch.label} ready. ` +
+        `${pitch.salesPitch} I can have it fitted now for ${pitch.price} doubloons.`,
+    feedback: null,
+    options: [
+      option(`Buy ${pitch.label}  ${pitch.price} db`, {
+        type: "buy-equipment-factor-pitch",
+        kind: pitch.kind,
+        itemId: pitch.itemId
+      }, {
+        detail: pitch.effectDetail,
+        disabled: cannotAfford,
+        disabledReason: `Need ${pitch.price - gameState.doubloons} more doubloons.`
+      }),
+      option("No, thank you", { type: "decline-equipment-factor-pitch" })
+    ]
+  };
+}
+
+function equipmentFactorFollowupView(session, city) {
+  const pitch = validateEquipmentFactorPitch(session.equipmentFactorPitch);
+  if (!["purchased", "declined"].includes(session.equipmentFactorPitchOutcome)) {
+    throw new Error("Equipment factor follow-up requires a purchase decision");
+  }
+  return {
+    speaker: speakerName(city),
+    expressionId: session.equipmentFactorPitchOutcome === "purchased" ? "pleased" : "neutral",
+    text: session.equipmentFactorPitchOutcome === "purchased"
+      ? `A sound choice. The ${pitch.label} is aboard and ready for work.`
+      : `Very well. The ${pitch.label} will remain available in the equipment store if you change your mind.`,
+    feedback: null,
+    options: [
+      option("Continue", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
     ]
   };
 }

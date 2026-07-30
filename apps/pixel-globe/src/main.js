@@ -278,6 +278,7 @@ import {
   loseFoodRations,
   loseCrew,
   migrateGameState,
+  maybeGrantDefeatedShipPerkItem,
   nextGamePoliticsMinute,
   playerVesselLossOutcome,
   playerAssaultCargoBonus,
@@ -287,6 +288,7 @@ import {
   pendingNamedCrewDeathNotice,
   pirateHideoutsVisibleToPlayer,
   prepareHighValueMissionPerkItem,
+  prepareEquipmentFactorPitch,
   portMemory,
   portEntryStatus,
   portugueseCartazInspectionStatus,
@@ -12202,6 +12204,17 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       chefQuestApproach: true
     });
   }
+  const equipmentFactorPitch = !openDeliveryMission
+    ? prepareEquipmentFactorPitch(gameState, worldEconomy, cityCall, simMinute)
+    : null;
+  if (equipmentFactorPitch) {
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      equipmentFactorPitch
+    });
+  }
   const rumor = maybeCampaignRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
   if (rumor) {
     const nextPortNodeId = needsLoadout
@@ -21350,6 +21363,7 @@ function addNpcCombatSplash(ball) {
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
   const strategicBeforeSurrender = npcSeaRoutes.shipById.get(loserId);
+  const rewardOrigin = combatEntityPoint(loserId);
   const loserWasPirate = strategicBeforeSurrender?.role === NPC_ROLE_PIRATE;
   const treasureEncounter = strategicBeforeSurrender?.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
     ? { ...strategicBeforeSurrender.encounter }
@@ -21374,6 +21388,10 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   const loot = surrenderNpcShip(npcSeaRoutes, loserId, npcWinnerId, options);
   if (winnerId === PLAYER_COMBAT_ID) {
     const received = receiveSurrenderedLoot(gameState, loot, { simMinute: weatherClockMinutes });
+    const itemGift = maybeGrantDefeatedShipPerkItem(gameState, strategicBeforeSurrender, {
+      random: Math.random,
+      context: { simMinute: weatherClockMinutes }
+    });
     if (loserFactionId) recordPlayerAttackConsequences(loserId, loserFactionId);
     syncShipCargoFromGameState();
     if (loot.specie > 0) playCoinClinkSound();
@@ -21387,6 +21405,10 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
       cargo: received.cargo,
       remainingCargo: received.remainingCargo
     };
+    if (itemGift) {
+      presentMissionItemGift(itemGift, null, rewardOrigin);
+      saveVoyageNow("equipment seized from surrendered ship");
+    }
   } else if (wonByShoreBattery) {
     const battery = shoreBatteryStates.get(winnerId);
     const captain = npcShipCaptains.get(loserId);
@@ -21458,6 +21480,7 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
 function handleNpcSinking(loserId, winnerId) {
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
+  const rewardOrigin = combatEntityPoint(loserId);
   const loserWasPirate = strategic.role === NPC_ROLE_PIRATE;
   const treasureEncounter = strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
     ? { ...strategic.encounter }
@@ -21474,6 +21497,13 @@ function handleNpcSinking(loserId, winnerId) {
   const faction = factionById(factionId);
   const sinkingNotice = `${faction.adjective.toUpperCase()} ` +
     `${shipLabelForSlug(strategic.slug).toUpperCase()} SUNK - CAPT. ${captain.name.toUpperCase()}`;
+  const itemGift = winnerId === PLAYER_COMBAT_ID
+    ? maybeGrantDefeatedShipPerkItem(gameState, strategic, {
+        sunk: true,
+        random: Math.random,
+        context: { simMinute: weatherClockMinutes }
+      })
+    : null;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerAttackConsequences(loserId, factionId);
   clearCombatForShip(loserId);
@@ -21484,6 +21514,10 @@ function handleNpcSinking(loserId, winnerId) {
     text: sinkingNotice,
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
   };
+  if (itemGift) {
+    presentMissionItemGift(itemGift, null, rewardOrigin);
+    saveVoyageNow("equipment salvaged from sunken ship");
+  }
   if (treasureEncounter) {
     if (winnerId === PLAYER_COMBAT_ID) {
       resolveTreasurePiratePlayerDefeat(loserId, treasureEncounter, { sunk: true });

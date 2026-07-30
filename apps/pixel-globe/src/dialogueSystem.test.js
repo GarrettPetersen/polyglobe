@@ -2035,6 +2035,84 @@ test("ports stock a local selection of fishing net upgrades", () => {
   assert.match(session.feedback, /Weighted cast net fitted/);
 });
 
+test("a factor can proactively fit an affordable equipment upgrade", () => {
+  const city = {
+    tileId: 17,
+    portId: "lubeck",
+    city: "Lubeck",
+    displayCity: "Lubeck",
+    country: "Hanseatic League",
+    cityType: "northern-european",
+    population: 40000,
+    character: { name: "Greta Brandt" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.inventory.fishingNetId = "weighted-cast-net";
+  gameState.doubloons = 5000;
+  const pitch = {
+    kind: "fishing-net",
+    itemId: "drift-net",
+    label: "Drift net",
+    price: 4000,
+    tier: 2,
+    tierGain: 1,
+    priority: 0,
+    salesPitch: "It should pay for itself after a few fishing trips.",
+    effectDetail: "Fishing odds x1.20 / Max haul 8",
+    reconsidered: false
+  };
+  const session = createPortArrivalDialogueSession(city, { equipmentFactorPitch: pitch });
+
+  const offer = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(offer.text, /before you go/i);
+  assert.equal(offer.options[0].label, "Buy Drift net  4000 db");
+  const result = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    0,
+    { simMinute: 100 }
+  );
+  assert.equal(result.fishingNetPurchase.net.id, "drift-net");
+  assert.equal(gameState.inventory.fishingNetId, "drift-net");
+  assert.equal(gameState.doubloons, 1000);
+  assert.match(portDialogueView(session, city, gameState, economy, [city]).text, /aboard and ready/);
+});
+
+test("a declined factor offer points the player back to the equipment store", () => {
+  const city = {
+    tileId: 17,
+    city: "Lubeck",
+    country: "Hanseatic League",
+    cityType: "northern-european",
+    population: 40000,
+    character: { name: "Greta Brandt" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortArrivalDialogueSession(city, {
+    equipmentFactorPitch: {
+      kind: "fishing-net",
+      itemId: "weighted-cast-net",
+      label: "Weighted cast net",
+      price: 900,
+      tier: 1,
+      tierGain: 1,
+      priority: 0,
+      salesPitch: "It should pay for itself after a few fishing trips.",
+      effectDetail: "Fishing odds x1.00 / Max haul 5",
+      reconsidered: false
+    }
+  });
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 1);
+  assert.match(portDialogueView(session, city, gameState, economy, [city]).text, /remain available/i);
+});
+
 test("the equipment overview shows stocked levels and identifies specialist markets", () => {
   const city = {
     tileId: 14,
@@ -3187,9 +3265,18 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
   const completeIndex = view.options.findIndex((entry) => entry.action.type === "complete-quest");
 
   assert.ok(completeIndex >= 0);
-  selectPortDialogueOption(session, destination, gameState, economy, ports, completeIndex);
+  const result = selectPortDialogueOption(
+    session,
+    destination,
+    gameState,
+    economy,
+    ports,
+    completeIndex,
+    { missionGiftRandom: () => 0 }
+  );
   assert.equal(session.nodeId, "loadout");
   assert.equal(gameState.memory.quests.active, null);
+  assert.equal(result.missionItemGift, null);
 });
 
 test("only admitted port sessions carry automatic departure services", () => {
