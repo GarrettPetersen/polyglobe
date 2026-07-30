@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   chooseNpcEscapeDirection,
   chooseNpcObstacleAvoidanceDirection,
+  chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement
 } from "./npcVisualNavigation.js";
@@ -137,6 +138,66 @@ test("NPC sailing honors a committed tack side", () => {
   assert.equal(sailing.tacking, true);
   assert.equal(sailing.tackSide, 1);
   assert.ok(sailing.direction.y < 0);
+});
+
+test("NPC sailing keeps an active tack through wind-boundary jitter", () => {
+  const angleFromUpwind = 54 * Math.PI / 180;
+  const sailing = chooseNpcSailingDirection({
+    desiredDirection: {
+      x: -Math.cos(angleFromUpwind),
+      y: -Math.sin(angleFromUpwind)
+    },
+    windFlowDirection: { x: 1, y: 0 },
+    stallAngleRad: 40 * Math.PI / 180,
+    currentDirection: { x: -1, y: -1 },
+    committedTackSide: 1
+  });
+
+  assert.equal(sailing.tacking, true);
+  assert.equal(sailing.tackSide, 1);
+});
+
+test("NPC sailing releases a committed tack once a direct course is clearly legal", () => {
+  const angleFromUpwind = 80 * Math.PI / 180;
+  const desiredDirection = {
+    x: -Math.cos(angleFromUpwind),
+    y: -Math.sin(angleFromUpwind)
+  };
+  const sailing = chooseNpcSailingDirection({
+    desiredDirection,
+    windFlowDirection: { x: 1, y: 0 },
+    stallAngleRad: 40 * Math.PI / 180,
+    currentDirection: { x: -1, y: -1 },
+    committedTackSide: 1
+  });
+
+  assert.equal(sailing.tacking, false);
+  assert.ok(
+    sailing.direction.x * desiredDirection.x +
+    sailing.direction.y * desiredDirection.y >
+    0.999999
+  );
+});
+
+test("NPC route following does not turn back toward a passed route marker", () => {
+  const direction = chooseNpcRouteFollowingDirection({
+    routePointDirection: { x: -1, y: 0 },
+    routeHeadingDirection: { x: 1, y: 0 },
+    distanceToRoutePointPx: 8
+  });
+
+  assert.deepEqual(direction, { x: 1, y: 0 });
+});
+
+test("NPC route following corrects cross-track drift while preserving forward progress", () => {
+  const direction = chooseNpcRouteFollowingDirection({
+    routePointDirection: { x: 0, y: -1 },
+    routeHeadingDirection: { x: 1, y: 0 },
+    distanceToRoutePointPx: 16
+  });
+
+  assert.ok(direction.x > 0.85);
+  assert.ok(direction.y < -0.4);
 });
 
 test("NPC visual activation moves a hull-clearance failure to nearby drawn water", () => {

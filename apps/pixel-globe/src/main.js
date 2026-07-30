@@ -678,6 +678,7 @@ import {
 import {
   chooseNpcEscapeDirection,
   chooseNpcObstacleAvoidanceDirection,
+  chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement
 } from "./npcVisualNavigation.js";
@@ -22101,7 +22102,19 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     !stormNavigation && !portAvoidance && !combatNavigation
     ? tangentToScreenDirection(snapshot.routeHeading)
     : null;
-  let direction = strategicRiverDirection || routeDirection;
+  const strategicOpenWaterDirection = startNav.ok && startNav.kind !== "river" &&
+    !stormNavigation && !portAvoidance && !combatNavigation
+    ? tangentToScreenDirection(snapshot.routeHeading)
+    : null;
+  let direction = strategicRiverDirection || (
+    strategicOpenWaterDirection
+      ? chooseNpcRouteFollowingDirection({
+          routePointDirection: routeDirection,
+          routeHeadingDirection: strategicOpenWaterDirection,
+          distanceToRoutePointPx: distance
+        })
+      : routeDirection
+  );
   let tack = null;
   if (startNav.ok && startNav.kind !== "river" && stats.propulsion === SHIP_PROPULSION_SAIL) {
     const wind = windForTile(state.tileId);
@@ -22112,11 +22125,12 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
       preferredTackSide = -state.tackSide;
     }
     tack = chooseNpcSailingDirection({
-      desiredDirection: routeDirection,
+      desiredDirection: direction,
       windFlowDirection,
       stallAngleRad: stats.upwindStallAngleRad,
       currentDirection: tangentToScreenDirection(state.heading) || routeDirection,
-      preferredTackSide
+      preferredTackSide,
+      committedTackSide: state.tackRemainingPx > 0 ? state.tackSide : 0
     });
     direction = tack.direction;
     if (tack.tacking && (state.tackSide !== tack.tackSide || state.tackRemainingPx <= 0)) {

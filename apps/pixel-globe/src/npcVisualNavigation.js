@@ -60,7 +60,9 @@ export function chooseNpcSailingDirection({
   stallAngleRad,
   currentDirection,
   preferredTackSide = 0,
-  tackMarginRad = 8 * Math.PI / 180
+  committedTackSide = 0,
+  tackMarginRad = 8 * Math.PI / 180,
+  tackReleaseMarginRad = 14 * Math.PI / 180
 }) {
   const desired = normalize2(desiredDirection);
   const windFlow = normalize2(windFlowDirection);
@@ -70,24 +72,42 @@ export function chooseNpcSailingDirection({
   if (!Number.isFinite(stallAngleRad) || stallAngleRad < 0) {
     throw new Error("NPC sailing navigation requires a valid stall angle");
   }
+  if (!Number.isFinite(preferredTackSide) || !Number.isFinite(committedTackSide)) {
+    throw new Error("NPC sailing navigation requires valid tack sides");
+  }
+  if (!Number.isFinite(tackMarginRad) || tackMarginRad < 0 ||
+      !Number.isFinite(tackReleaseMarginRad) || tackReleaseMarginRad < 0) {
+    throw new Error("NPC sailing navigation requires valid tack margins");
+  }
 
   const upwind = { x: -windFlow.x, y: -windFlow.y };
   const angleFromUpwind = Math.acos(clamp(dot2(desired, upwind), -1, 1));
   const safeAngle = Math.min(Math.PI, stallAngleRad + Math.max(0, tackMarginRad));
-  if (angleFromUpwind > safeAngle) {
-    return { direction: desired, tackSide: 0, tacking: false, angleFromUpwind };
-  }
-
   const tackCandidates = [-1, 1].map((side) => ({
     side,
     direction: rotate2(upwind, safeAngle * side)
   }));
-  const requestedSide = Math.sign(preferredTackSide);
-  const committed = tackCandidates.find((candidate) => candidate.side === requestedSide);
-  if (committed) {
+  const committedSide = Math.sign(committedTackSide);
+  const committed = tackCandidates.find((candidate) => candidate.side === committedSide);
+  const releaseAngle = Math.min(Math.PI, safeAngle + tackReleaseMarginRad);
+  if (committed && angleFromUpwind <= releaseAngle) {
     return {
       direction: committed.direction,
       tackSide: committed.side,
+      tacking: true,
+      angleFromUpwind
+    };
+  }
+  if (angleFromUpwind > safeAngle) {
+    return { direction: desired, tackSide: 0, tacking: false, angleFromUpwind };
+  }
+
+  const requestedSide = Math.sign(preferredTackSide);
+  const preferred = tackCandidates.find((candidate) => candidate.side === requestedSide);
+  if (preferred) {
+    return {
+      direction: preferred.direction,
+      tackSide: preferred.side,
       tacking: true,
       angleFromUpwind
     };
@@ -107,6 +127,41 @@ export function chooseNpcSailingDirection({
     tacking: true,
     angleFromUpwind
   };
+}
+
+export function chooseNpcRouteFollowingDirection({
+  routePointDirection,
+  routeHeadingDirection,
+  distanceToRoutePointPx,
+  correctionLookaheadPx = 32,
+  maxCorrection = 0.8
+}) {
+  const pointDirection = normalize2(routePointDirection);
+  const routeHeading = normalize2(routeHeadingDirection);
+  if (!pointDirection || !routeHeading) {
+    throw new Error("NPC route following requires point and heading directions");
+  }
+  if (!Number.isFinite(distanceToRoutePointPx) || distanceToRoutePointPx < 0) {
+    throw new Error(`Invalid NPC route-point distance: ${distanceToRoutePointPx}`);
+  }
+  if (!Number.isFinite(correctionLookaheadPx) || correctionLookaheadPx <= 0) {
+    throw new Error(`Invalid NPC route correction lookahead: ${correctionLookaheadPx}`);
+  }
+  if (!Number.isFinite(maxCorrection) || maxCorrection < 0) {
+    throw new Error(`Invalid NPC route correction limit: ${maxCorrection}`);
+  }
+
+  const routeSide = { x: -routeHeading.y, y: routeHeading.x };
+  const crossTrackPx = dot2(pointDirection, routeSide) * distanceToRoutePointPx;
+  const correction = clamp(
+    crossTrackPx / correctionLookaheadPx,
+    -maxCorrection,
+    maxCorrection
+  );
+  return normalize2({
+    x: routeHeading.x + routeSide.x * correction,
+    y: routeHeading.y + routeSide.y * correction
+  });
 }
 
 export function findNpcVisualPlacement({
