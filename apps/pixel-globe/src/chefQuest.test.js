@@ -29,6 +29,28 @@ test("a regional chef requests one complete edible ingredient list", () => {
   assert.equal(new Set(quest.ingredients.map((entry) => entry.goodId)).size, 4);
 });
 
+test("demo chefs request only ingredients sold inside the accessible region", () => {
+  const availableIngredientGoodIds = new Set(["fish", "pepper", "wine", "olive-oil"]);
+  const state = game();
+  const quest = maybeSpawnChefQuest(state, city, {
+    simMinute: 0,
+    spawnChance: 1,
+    availableIngredientGoodIds
+  });
+
+  assert.deepEqual(
+    quest.ingredients.map((ingredient) => ingredient.goodId),
+    ["fish", "pepper", "wine", "olive-oil"]
+  );
+
+  const incompleteMarketState = game();
+  assert.equal(maybeSpawnChefQuest(incompleteMarketState, city, {
+    simMinute: 0,
+    spawnChance: 1,
+    availableIngredientGoodIds: new Set(["fish", "pepper", "wine"])
+  }), null);
+});
+
 test("delivering every ingredient advances to a persistent recruitment", () => {
   const state = game();
   const quest = maybeSpawnChefQuest(state, city, { simMinute: 0, spawnChance: 1 });

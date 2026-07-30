@@ -282,6 +282,25 @@ test("empty shipyards can name the nearest active vessel sale worldwide", () => 
   assert.ok(listing.distanceKm < 400);
 });
 
+test("demo shipyard hints ignore listings outside the accessible ports", () => {
+  const system = createWorldShipyards({ ports: [LISBON, PORTO, FIJI], startMinute: 0 });
+  const lisbonYard = shipyardAtPort(system, LISBON);
+  const portoYard = shipyardAtPort(system, PORTO);
+  const fijiYard = shipyardAtPort(system, FIJI);
+  lisbonYard.listing = null;
+  portoYard.listing = generateShipyardListing(portoYard, 99, 0);
+  fijiYard.listing = generateShipyardListing(fijiYard, 99, 0);
+
+  const listing = nearestShipyardListingForPort(
+    system,
+    LISBON,
+    testSailingDistanceKm,
+    new Set([LISBON.tileId, FIJI.tileId])
+  );
+
+  assert.equal(listing.portName, "Fiji Village");
+});
+
 test("new listings spawn over time and purchased listings disappear", () => {
   const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0 });
   const yard = shipyardAtPort(system, SMALL_PORT);

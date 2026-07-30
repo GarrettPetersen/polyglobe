@@ -34,10 +34,6 @@ import {
 } from "./economy.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
 import {
-  DEMO_SHIP_LOCK_ICON_ID,
-  DEMO_SHIP_LOCK_MESSAGE
-} from "./demoVoyage.js";
-import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   TRADE_PASS_REPUTATION_REQUIRED,
@@ -554,35 +550,6 @@ test("a surrender prize accepts fractional cargo use from daily provisions", () 
   assert.equal(session.prize.cargoUsed, 116 / 3);
   selectShipDialogueOption(session, ship, 0);
   assert.equal(shipDialogueView(session, ship).options[0].disabled, false);
-});
-
-test("the demo locks a surrendered prize behind a grayed padlock option", () => {
-  const ship = {
-    id: "demo-prize",
-    slug: "small-cog",
-    hitPoints: 7,
-    maxHitPoints: 7,
-    combatGrace: true,
-    character: { name: "Ines de Castro" }
-  };
-  const session = prepareSurrenderPrizeDialogue(null, ship, {
-    slug: "fishing-lugger",
-    hitPoints: 4,
-    maxHitPoints: 4,
-    cargoUsed: 0
-  }, {}, {
-    buildEditionId: "demo",
-    demoShipLockMessage: DEMO_SHIP_LOCK_MESSAGE
-  });
-
-  selectShipDialogueOption(session, ship, 0);
-  const option = shipDialogueView(session, ship).options[0];
-  assert.equal(option.label, "Take Small Cog");
-  assert.equal(option.disabled, true);
-  assert.equal(option.detail, DEMO_SHIP_LOCK_MESSAGE);
-  assert.equal(option.disabledReason, DEMO_SHIP_LOCK_MESSAGE);
-  assert.equal(option.iconId, DEMO_SHIP_LOCK_ICON_ID);
-  assert.throws(() => selectShipDialogueOption(session, ship, 0), /not available in demo/i);
 });
 
 test("a protected surrendered ship cannot be threatened again", () => {
@@ -2389,23 +2356,6 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
   });
 
-  const demoContext = {
-    ...context,
-    buildEditionId: "demo",
-    demoShipLockMessage: DEMO_SHIP_LOCK_MESSAGE
-  };
-  const demoPurchase = portDialogueView(
-    session,
-    city,
-    gameState,
-    economy,
-    [city],
-    demoContext
-  ).options.find((entry) => entry.action.type === "purchase-ship");
-  assert.equal(demoPurchase.disabled, true);
-  assert.equal(demoPurchase.detail, DEMO_SHIP_LOCK_MESSAGE);
-  assert.equal(demoPurchase.disabledReason, DEMO_SHIP_LOCK_MESSAGE);
-  assert.equal(demoPurchase.iconId, DEMO_SHIP_LOCK_ICON_ID);
 });
 
 test("shipyards allow a profitable downgrade after projecting the smaller loadout", () => {
@@ -2737,18 +2687,6 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   assert.ok(reward.options.some((entry) => entry.action.type === "accept-viking-longship-reward"));
   assert.equal(reward.options.some((entry) => entry.label === "Back"), false);
   assert.equal(reward.options.length, 2);
-  const demoContext = {
-    ...context,
-    buildEditionId: "demo",
-    demoShipLockMessage: DEMO_SHIP_LOCK_MESSAGE
-  };
-  const demoReward = portDialogueView(session, city, gameState, economy, [city], demoContext);
-  const demoRewardOption = demoReward.options.find(
-    (entry) => entry.action.type === "accept-viking-longship-reward"
-  );
-  assert.equal(demoRewardOption.disabled, true);
-  assert.equal(demoRewardOption.detail, DEMO_SHIP_LOCK_MESSAGE);
-  assert.equal(demoRewardOption.iconId, DEMO_SHIP_LOCK_ICON_ID);
   const declineIndex = reward.options.findIndex((entry) => entry.action.type === "decline-viking-longship-reward");
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], declineIndex, context),
@@ -2768,17 +2706,6 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
     (entry) => entry.action.type === "purchase-viking-longship"
   );
   assert.equal(availableForPurchase.options[purchaseIndex].disabled, false);
-  const demoPurchase = portDialogueView(
-    session,
-    city,
-    gameState,
-    economy,
-    [city],
-    demoContext
-  ).options.find((entry) => entry.action.type === "purchase-viking-longship");
-  assert.equal(demoPurchase.disabled, true);
-  assert.equal(demoPurchase.disabledReason, DEMO_SHIP_LOCK_MESSAGE);
-  assert.equal(demoPurchase.iconId, DEMO_SHIP_LOCK_ICON_ID);
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], purchaseIndex, context),
     { closed: false, action: { type: "purchase-viking-longship", shipSlug: "viking-longship" } }

@@ -369,6 +369,29 @@ test("family debt dialogue gives the creditor a concise recurring voice", () => 
   assert.ok([...intro, ...homecoming].every((entry) => entry.text.length < 300));
 });
 
+test("the demo creditor advertises the full campaign quests after the debt is paid", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
+  const outcome = settleFamilyDebtHomecoming(goal, {
+    currentMinute: 0,
+    doubloons: FAMILY_DEBT_PRINCIPAL + FAMILY_DEBT_PROTECTED_PURSE
+  });
+  const fullSteps = campaignHomecomingSteps(goal, outcome, CHARACTER, new Map());
+  const demoSteps = campaignHomecomingSteps(
+    goal,
+    outcome,
+    CHARACTER,
+    new Map(),
+    { buildEditionId: "demo" }
+  );
+
+  assert.equal(outcome.completed, true);
+  assert.equal(demoSteps.length, fullSteps.length + 1);
+  assert.match(demoSteps.at(-1).text, /full version/i);
+  assert.match(demoSteps.at(-1).text, /wonders of the world/i);
+  assert.match(demoSteps.at(-1).text, /kill a white whale/i);
+  assert.match(demoSteps.at(-1).text, /pirate treasure/i);
+});
+
 test("family debt origins use faction-specific recent history", () => {
   const cases = [
     ["scotland", /Flodden/i, /crossed the Tweed/i],

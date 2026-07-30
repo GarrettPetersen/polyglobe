@@ -539,14 +539,22 @@ export function explorerPatronOutlook(character) {
   return EXPLORER_PATRON_OUTLOOKS_BY_FACTION[character.nationalityId];
 }
 
-export function campaignHomecomingSteps(goal, outcome, playerCharacter, discoveryById) {
+export function campaignHomecomingSteps(
+  goal,
+  outcome,
+  playerCharacter,
+  discoveryById,
+  { buildEditionId = "full" } = {}
+) {
   validateCampaignGoal(goal);
   assertCharacter(playerCharacter);
   if (!outcome || outcome.type !== goal.type) throw new Error("Campaign homecoming outcome does not match goal");
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
     return explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById);
   }
-  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) return debtHomecomingSteps(goal, outcome, playerCharacter);
+  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) {
+    return debtHomecomingSteps(goal, outcome, playerCharacter, { buildEditionId });
+  }
   if (goal.type === CAMPAIGN_GOAL_TREASURE) {
     return [
       step("contact", "attentive", `Twelve sails followed you toward home, and twelve are gone. Tell me Captain ${goal.treasureCaptainName}'s treasure was worth the broadside.`),
@@ -820,7 +828,7 @@ function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) 
   return steps;
 }
 
-function debtHomecomingSteps(goal, outcome, playerCharacter) {
+function debtHomecomingSteps(goal, outcome, playerCharacter, { buildEditionId }) {
   const captainName = playerCharacter.givenName || playerCharacter.name;
   const steps = [step(
     "contact",
@@ -832,6 +840,13 @@ function debtHomecomingSteps(goal, outcome, playerCharacter) {
   if (outcome.completed) {
     steps.push(step("contact", "annoyed", `There. Your final ${formatDoubloons(outcome.payment)} doubloons settle the account. Against my expectations, the estate is yours again. I had nearly decided where my seal would hang.`));
     steps.push(step("player", "happy", "Choose another wall. Write paid in full carefully; my family will frame the receipt where your claim once hung."));
+    if (buildEditionId === "demo") {
+      steps.push(step(
+        "contact",
+        "attentive",
+        "If settling one family account has made you hungry for more, the full version has quests to discover all the wonders of the world, kill a white whale, and find pirate treasure. I am told each is less predictable than compound interest."
+      ));
+    }
   } else if (outcome.payment > 0) {
     steps.push(step("contact", "stern", `${formatDoubloons(outcome.payment)} doubloons. Respectable enough to delay my plans, not enough to end them. I have left you ${outcome.protectedPurse}; the remaining balance is ${formatDoubloons(outcome.remainingBalance)}.`));
     steps.push(step("player", "determined", "You count what remains. I count how far I have come. The next payment will be larger."));

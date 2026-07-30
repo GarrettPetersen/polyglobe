@@ -116,7 +116,6 @@ export default {
   "demo.voyageComplete": "VOYAGE D'ESSAI TERMINÉ",
   "demo.thanks": "MERCI D'AVOIR JOUÉ",
   "demo.fullVersion": "ACHETEZ LE JEU COMPLET SUR STEAM",
-  "demo.shipLocked": "NON DISPONIBLE DANS LA DÉMO",
   "outcome.lostAtSea": "PERDU EN MER",
   "outcome.neverSeenAgain": "NE FUT JAMAIS REVU.",
   "outcome.voyageEnded": "VOYAGE TERMINÉ",

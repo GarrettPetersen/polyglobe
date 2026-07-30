@@ -220,24 +220,36 @@ export function claimShipyardListing(system, port, listingId) {
   return listing;
 }
 
-export function shipyardRumorForPort(system, port, sailingDistanceKm, maxDistanceKm = GOSSIP_RADIUS_KM) {
+export function shipyardRumorForPort(
+  system,
+  port,
+  sailingDistanceKm,
+  maxDistanceKm = GOSSIP_RADIUS_KM,
+  eligiblePortIds = null
+) {
   assertShipyardSystem(system);
   assertSailingDistanceResolver(sailingDistanceKm);
   if (!Number.isFinite(maxDistanceKm) || maxDistanceKm <= 0) {
     throw new Error(`Invalid shipyard gossip radius: ${maxDistanceKm}`);
   }
-  const nearest = nearestShipyardListingForPort(system, port, sailingDistanceKm);
+  const nearest = nearestShipyardListingForPort(system, port, sailingDistanceKm, eligiblePortIds);
   if (!nearest || nearest.distanceKm > maxDistanceKm) return null;
   return nearest;
 }
 
-export function nearestShipyardListingForPort(system, port, sailingDistanceKm) {
+export function nearestShipyardListingForPort(
+  system,
+  port,
+  sailingDistanceKm,
+  eligiblePortIds = null
+) {
   assertShipyardSystem(system);
   assertSailingDistanceResolver(sailingDistanceKm);
   const portId = requiredPortId(port);
   const candidates = [];
   for (const yard of system.yards.values()) {
     if (!yard.listing || yard.portId === portId) continue;
+    if (eligiblePortIds && !eligiblePortIds.has(yard.portId)) continue;
     const distanceKm = sailingDistanceKm(portId, yard.portId);
     if (distanceKm === null) continue;
     if (!Number.isInteger(distanceKm) || distanceKm < 0) {

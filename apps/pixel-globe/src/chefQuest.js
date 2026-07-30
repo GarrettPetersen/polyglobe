@@ -102,12 +102,17 @@ export function maybeSpawnChefQuest(state, city, context = {}) {
   }
   const identity = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
   if (chance < 1 && seededFraction(`${identity}|chef|${rollKey}`) >= chance) return null;
+  const ingredientGoodIds = selectIngredients(
+    `${identity}|${rollKey}`,
+    context.availableIngredientGoodIds
+  );
+  if (!ingredientGoodIds) return null;
 
   memory.stage = CHEF_QUEST_STAGE_GATHERING;
   memory.portTileId = city.tileId;
   memory.portCity = city.displayCity || city.city;
   memory.portCountry = city.country;
-  memory.ingredientGoodIds = selectIngredients(`${identity}|${rollKey}`);
+  memory.ingredientGoodIds = ingredientGoodIds;
   memory.eventProfileId = chefEventProfileForPort(city).id;
   validateChefQuestMemory(memory);
   return chefQuestState(state, city);
@@ -229,10 +234,21 @@ export function chefEventProfile(id) {
   return profile;
 }
 
-function selectIngredients(seed) {
-  return INGREDIENT_GROUPS.map((group, index) => group[
-    hashString32(`${seed}|ingredient|${index}`) % group.length
-  ]);
+function selectIngredients(seed, availableIngredientGoodIds = undefined) {
+  const available = availableIngredientGoodIds === undefined
+    ? null
+    : new Set(availableIngredientGoodIds);
+  const selected = [];
+  for (let index = 0; index < INGREDIENT_GROUPS.length; index++) {
+    const candidates = available
+      ? INGREDIENT_GROUPS[index].filter((goodId) => available.has(goodId))
+      : INGREDIENT_GROUPS[index];
+    if (candidates.length === 0) return null;
+    selected.push(candidates[
+      hashString32(`${seed}|ingredient|${index}`) % candidates.length
+    ]);
+  }
+  return selected;
 }
 
 function validateIngredientGoodId(goodId) {

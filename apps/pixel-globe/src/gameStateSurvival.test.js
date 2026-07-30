@@ -1458,39 +1458,6 @@ test("awarding a ship replaces the hull without charging the player", () => {
   assert.match(state.accounts.ledger.at(-1).description, /awarded for completing/i);
 });
 
-test("demo game-state rules reject every replacement ship mutation", () => {
-  const brigantine = shipStatsForSlug("brigantine");
-  const carrack = shipStatsForSlug("carrack");
-  const state = createGameState({ cargoCapacity: brigantine.cargoCapacity, shipStats: brigantine });
-  initializeProvisionalShipLoadout(state, brigantine);
-  state.doubloons = 60000;
-  const ledgerLength = state.accounts.ledger.length;
-
-  assert.throws(
-    () => purchasePlayerShip(state, LONDON, carrack, {
-      listingPrice: 50000,
-      tradeInValue: 0
-    }, {
-      buildEditionId: "demo",
-      simMinute: 240
-    }),
-    /not available in demo/i
-  );
-  assert.throws(
-    () => awardPlayerShip(
-      state,
-      LONDON,
-      carrack,
-      "Captured Carrack as a surrendered prize",
-      { buildEditionId: "demo", simMinute: 240 }
-    ),
-    /not available in demo/i
-  );
-  assert.equal(state.ship.slug, "brigantine");
-  assert.equal(state.doubloons, 60000);
-  assert.equal(state.accounts.ledger.length, ledgerLength);
-});
-
 test("a rejected ship replacement changes neither money nor the ledger", () => {
   const carrack = shipStatsForSlug("carrack");
   const felucca = shipStatsForSlug("felucca");

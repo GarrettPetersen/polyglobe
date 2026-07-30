@@ -50,7 +50,7 @@
 
 - [ ] Direct players to the demo.
   - The public call to action is to play the demo and wishlist the game.
-  - Be clear that the demo has no timer but does not allow changing ships.
+  - Be clear that the demo has no timer and includes the full feature set within the Mediterranean, Black Sea, and connected rivers, centered on the family-debt quest.
 
 - [ ] Post on Reddit without getting banned for self-promotion.
   - Read each subreddit's current rules before posting.

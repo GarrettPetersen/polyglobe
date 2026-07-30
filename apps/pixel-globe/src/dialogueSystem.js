@@ -53,7 +53,6 @@ import {
   restockShipLoadoutAtPort,
   sellGood
 } from "./gameState.js";
-import { demoShipAcquisitionRestriction } from "./demoVoyage.js";
 import { captureCapitalPoliticalContext } from "./captureCommissionDialogue.js";
 import {
   FRESH_WATER_GOOD_ID,
@@ -511,10 +510,6 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
   }
   const cargo = surrenderPrizeCargo(loot.cargo ?? {}, "secured");
   const remainingCargo = surrenderPrizeCargo(loot.remainingCargo ?? {}, "remaining");
-  const shipAcquisitionRestriction = demoShipAcquisitionRestriction(
-    context.buildEditionId ?? "full",
-    context.demoShipLockMessage
-  );
   target.nodeId = "surrendered";
   target.selectedIndex = 0;
   target.feedback = null;
@@ -528,8 +523,7 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
     cargoUsed: currentShip.cargoUsed,
     specie,
     cargo,
-    remainingCargo,
-    shipAcquisitionRestriction
+    remainingCargo
   });
   return target;
 }
@@ -837,7 +831,6 @@ function surrenderPrizeView(session, ship) {
     ? `Your ${cargoSpaceLabel(presentation.cargoUsed)} units of cargo will not fit its ` +
       `${shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity}-unit hold.`
     : null;
-  const restriction = presentation.shipAcquisitionRestriction;
   if (session.nodeId === "capture-confirm") {
     const remainingCargo = shipCargoManifest(presentation.remainingCargo);
     return {
@@ -852,10 +845,9 @@ function surrenderPrizeView(session, ship) {
       presentation,
       options: [
         option(`Confirm ${candidate}`, { type: "capture-surrendered-ship" }, {
-          detail: restriction?.detail || "CURRENT SHIP WILL BE REPLACED",
-          disabled: restriction?.disabled || Boolean(disabledReason),
-          disabledReason: restriction?.disabledReason || disabledReason,
-          iconId: restriction?.iconId
+          detail: "CURRENT SHIP WILL BE REPLACED",
+          disabled: Boolean(disabledReason),
+          disabledReason
         }),
         option(`Keep ${current}`, { type: "close" })
       ]
@@ -878,10 +870,9 @@ function surrenderPrizeView(session, ship) {
     presentation,
     options: [
       option(`Take ${candidate}`, { type: "inspect-surrendered-ship" }, {
-        detail: restriction?.detail || `COMPARE WITH ${current.toUpperCase()}`,
-        disabled: restriction?.disabled || Boolean(disabledReason),
-        disabledReason: restriction?.disabledReason || disabledReason,
-        iconId: restriction?.iconId
+        detail: `COMPARE WITH ${current.toUpperCase()}`,
+        disabled: Boolean(disabledReason),
+        disabledReason
       }),
       option(`Keep ${current}`, { type: "close" }, {
         detail: remainingCargo ? "LEAVE PRIZE AND REMAINING CARGO" : null
@@ -2613,10 +2604,6 @@ function vikingLongshipView(session, city, gameState, context) {
   const alreadyOwned = currentShipSlug === VIKING_LONGSHIP_SLUG;
   const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
   const shipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
-  const restriction = demoShipAcquisitionRestriction(
-    context.buildEditionId ?? "full",
-    context.demoShipLockMessage
-  );
   if (quest.rewardDisposition === VIKING_LONGSHIP_REWARD_PENDING) {
     const currentShipLabel = shipLabelForSlug(currentShipSlug);
     const disabledReason = alreadyOwned
@@ -2645,10 +2632,8 @@ function vikingLongshipView(session, city, gameState, context) {
           type: "accept-viking-longship-reward",
           shipSlug: VIKING_LONGSHIP_SLUG
         }, {
-          detail: restriction?.detail,
-          disabled: restriction?.disabled || Boolean(disabledReason),
-          disabledReason: restriction?.disabledReason || disabledReason,
-          iconId: restriction?.iconId
+          disabled: Boolean(disabledReason),
+          disabledReason
         }),
         option("Keep current ship", { type: "decline-viking-longship-reward" })
       ]
@@ -2698,10 +2683,8 @@ function vikingLongshipView(session, city, gameState, context) {
         type: "purchase-viking-longship",
         shipSlug: VIKING_LONGSHIP_SLUG
       }, {
-        detail: restriction?.detail,
-        disabled: restriction?.disabled || Boolean(disabledReason),
-        disabledReason: restriction?.disabledReason || disabledReason,
-        iconId: restriction?.iconId
+        disabled: Boolean(disabledReason),
+        disabledReason
       }),
       back
     ]
@@ -3393,10 +3376,6 @@ function shipyardView(session, city, gameState, context) {
   const cargoDoesNotFit = transferredCargoUsed !== null && transferredCargoUsed > stats.cargoCapacity;
   const alreadyOwned = currentShipSlug === listing.shipSlug;
   const cannotAfford = gameState.doubloons < purchaseTerms.netPrice;
-  const restriction = demoShipAcquisitionRestriction(
-    context.buildEditionId ?? "full",
-    context.demoShipLockMessage
-  );
   const disabledReason = alreadyOwned
     ? "You already command this type of vessel."
     : permanentCrewDoesNotFit
@@ -3423,10 +3402,8 @@ function shipyardView(session, city, gameState, context) {
         listingId: listing.id,
         shipSlug: listing.shipSlug
       }, {
-        detail: restriction?.detail,
-        disabled: restriction?.disabled || Boolean(disabledReason),
-        disabledReason: restriction?.disabledReason || disabledReason,
-        iconId: restriction?.iconId
+        disabled: Boolean(disabledReason),
+        disabledReason
       }),
       option("Back", { type: "node", nodeId: "root" })
     ]

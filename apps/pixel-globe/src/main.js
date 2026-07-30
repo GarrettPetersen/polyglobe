@@ -129,7 +129,9 @@ import {
 } from "./manualTerrainOverrides.js";
 import {
   buildWorldNavigationTopology,
+  canTraverseWorldNavigationEdge,
   edgeIndexTowardNeighbor as worldEdgeIndexTowardNeighbor,
+  isWorldNavigableTile,
   riverEdgeSet as worldRiverEdgeSet
 } from "./worldNavigationTopology.js";
 import {
@@ -221,6 +223,7 @@ import {
 } from "./cloudSpriteAssets.js";
 import {
   generatePlayerStartingProfile,
+  playerStartAreaForPort,
   playerStarterShipForFaction,
   resolvePlayerCharacterIdentityKey
 } from "./playerCharacter.js";
@@ -1099,6 +1102,7 @@ import {
   destroyPortGoodStock,
   establishPortIndustry,
   nextWorldEconomyEventMinute,
+  portMarket,
   restoreWorldEconomy,
   snapshotWorldEconomy,
   tradeGoodById,
@@ -1181,7 +1185,11 @@ import { NOTICE_DURATION_MS } from "./notificationTiming.js";
 import { fullNoticeTextLayout } from "./noticeTextLayout.js";
 import { steamStatValues } from "./steamStats.js";
 import {
-  assertShipAcquisitionAvailable,
+  DEMO_ESCAPE_GRACE_HEXES,
+  DEMO_GIBRALTAR_MESSAGE,
+  buildDemoMediterraneanAccessMask,
+  demoEscapeRequiresRecovery,
+  navigationDistanceFromAccessMask,
   startMenuEditionLabel
 } from "./demoVoyage.js";
 import {
@@ -1480,6 +1488,12 @@ let SCREEN_W = BASE_SCREEN_W;
 let SCREEN_H = BASE_SCREEN_H;
 const SUBDIVISIONS = 7;
 const SALTWATER_PASSAGE_TILE_IDS = MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
+const DEMO_MEDITERRANEAN_SEED = Object.freeze({ lat: 36, lon: 15 });
+const DEMO_GIBRALTAR_BARRIER_COORDINATES = Object.freeze([
+  Object.freeze({ lat: 35.82, lon: -5.68 }),
+  Object.freeze({ lat: 36.25, lon: -5.37 })
+]);
+const DEMO_GIBRALTAR_RECOVERY_COORDINATES = Object.freeze({ lat: 36, lon: -3.5 });
 const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
@@ -2563,6 +2577,13 @@ let riverMasks;
 let riverToWaterMasks;
 let riverBasinIds;
 let oceanReachableNavigationMask;
+let demoMediterraneanAccessMask = null;
+let demoDistanceFromMediterraneanAccess = null;
+let demoDistanceFromGibraltarBarrier = null;
+let demoAccessiblePortCities = null;
+let demoAccessiblePortIds = null;
+let demoGibraltarRecoveryTileId = null;
+let demoGibraltarWarningArmed = true;
 let freshWaterSurfaceMask;
 let stormSystem;
 const stormPassageState = createStormPassageState();
@@ -3029,6 +3050,7 @@ async function main() {
   );
   console.info(`[pixel-globe] ocean-reachable navigation: ${navigationStats.navigableTileCount} water/river tiles`);
   assertManualShallowWaterReachesOcean(oceanReachableNavigationMask, SUBDIVISIONS);
+  if (BUILD_EDITION_ID === "demo") initializeDemoMediterraneanNavigation();
   cityByTileId = placeCityCatalogOnWorld({ ...worldPortPlacementOptions(), cities: cityCatalog });
   landRoadNetwork = parseLandRoadNetwork(loadedLandRoadData, {
     subdivisions: SUBDIVISIONS,
@@ -3129,19 +3151,36 @@ async function main() {
   );
   factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
+  if (BUILD_EDITION_ID === "demo") {
+    demoAccessiblePortCities = portCities.filter((city) => demoMediterraneanAccessMask[city.tileId] === 1);
+    demoAccessiblePortIds = new Set(demoAccessiblePortCities.map((city) => city.tileId));
+    if (demoAccessiblePortCities.length === 0) {
+      throw new Error("Mediterranean demo navigation contains no ports");
+    }
+  }
   usedCharacterNames = new Set();
   const voyageSeed = playerCharacterIdentityKey();
+  const eligiblePlayerStartPorts = playerAccessiblePortCities().filter(
+    (port) => playerStartAreaForPort(port) === "mediterranean"
+  );
+  if (eligiblePlayerStartPorts.length === 0) {
+    throw new Error("No Mediterranean player start ports are available");
+  }
   const playerProfile = generatePlayerStartingProfile({
     identityKey: voyageSeed,
-    ports: portCities,
-    portWeights: npcFleetOriginWeightsForPorts(portCities),
+    ports: BUILD_EDITION_ID === "demo" ? eligiblePlayerStartPorts : portCities,
+    portWeights: npcFleetOriginWeightsForPorts(
+      BUILD_EDITION_ID === "demo" ? eligiblePlayerStartPorts : portCities
+    ),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
   const playerCharacter = CAPTURE_SCENARIO
     ? capturePlayerCharacter(playerProfile.character, CAPTURE_SCENARIO)
     : playerProfile.character;
-  const campaignGoalType = campaignGoalTypeForCharacter(playerCharacter);
+  const campaignGoalType = BUILD_EDITION_ID === "demo"
+    ? CAMPAIGN_GOAL_FAMILY_DEBT
+    : campaignGoalTypeForCharacter(playerCharacter);
   const playerShipSlug = START_SHIP_SLUG_OVERRIDE || playerStarterShipForFaction(
     playerCharacter.nationalityId,
     {
@@ -5752,7 +5791,11 @@ function ensureNaturalistCharacter(state) {
   const memory = state?.memory?.quests?.naturalist;
   if (!memory) throw new Error("Naturalist character requires quest memory");
   const startMinute = state.accounts?.ledger?.[0]?.simMinute ?? 0;
-  const tileId = assignNaturalistPort(memory, portCities, `${state.voyageSeed}|${startMinute}`);
+  const tileId = assignNaturalistPort(
+    memory,
+    playerAccessiblePortCities(),
+    `${state.voyageSeed}|${startMinute}`
+  );
   const port = portCitiesByTileId.get(tileId);
   if (!port) throw new Error(`Naturalist quest points to a missing port: ${tileId}`);
   const factor = portCityCharacters.get(tileId);
@@ -12080,6 +12123,7 @@ function rescuedTravelerAtHome(cityCall) {
 }
 
 function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk = false) {
+  const accessiblePorts = playerAccessiblePortCities();
   const drunkVariant = spriteKeyHash(
     `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
   );
@@ -12096,13 +12140,15 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       colonizationApproach: true
     });
   }
-  const colonizationOffer = colonizationOfferForCity(
-    gameState,
-    cityCall,
-    portCities,
-    colonizationTargetPlacements,
-    { simMinute: Math.floor(weatherClockMinutes) }
-  );
+  const colonizationOffer = BUILD_EDITION_ID === "demo"
+    ? null
+    : colonizationOfferForCity(
+      gameState,
+      cityCall,
+      accessiblePorts,
+      colonizationTargetPlacements,
+      { simMinute: Math.floor(weatherClockMinutes) }
+    );
   if (colonizationOffer) {
     const binding = bindColonizationQuestSelection(gameState);
     ensureColonizationOrganizer(gameState, binding.origin);
@@ -12117,13 +12163,13 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     });
   }
   const simMinute = Math.floor(weatherClockMinutes);
-  capturePortMissionOfferForCity(gameState, cityCall, portCities, {
+  capturePortMissionOfferForCity(gameState, cityCall, accessiblePorts, {
     simMinute,
     sailingDistanceKm: sailingDistanceBetweenPorts
   });
-  deliveryOfferForCity(gameState, cityCall, portCities, { simMinute });
+  deliveryOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
   const openDeliveryMission = !needsLoadout &&
-    deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities);
+    deliveryMissionShouldOpenOnArrival(gameState, cityCall, accessiblePorts);
   const vikingLongshipOffer = maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });
   if (vikingLongshipOffer &&
       vikingLongshipOfferShouldApproach(gameState, cityCall) &&
@@ -12170,7 +12216,12 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       caribbeanGingerApproach: true
     });
   }
-  const chefOffer = maybeSpawnChefQuest(gameState, cityCall, { simMinute });
+  const chefOffer = maybeSpawnChefQuest(gameState, cityCall, {
+    simMinute,
+    availableIngredientGoodIds: BUILD_EDITION_ID === "demo"
+      ? demoAvailableChefIngredientGoodIds()
+      : undefined
+  });
   if (chefOffer && chefQuestOfferShouldApproach(gameState, cityCall) && !openDeliveryMission) {
     ensureBanquetChef(gameState, cityCall);
     markChefQuestOfferSeen(gameState);
@@ -12529,7 +12580,8 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
     goal,
     outcome,
     gameState.playerCharacter,
-    discoveryCatalogById
+    discoveryCatalogById,
+    { buildEditionId: BUILD_EDITION_ID }
   );
   const steps = arrivedDrunk
     ? [...drunkenCampaignHomecomingSteps(goal, gameState.playerCharacter), ...ordinarySteps]
@@ -13825,7 +13877,7 @@ function chooseDialogueOption(optionIndex) {
       currentDialogueCity(),
       gameState,
       worldEconomy,
-      portCities,
+      playerAccessiblePortCities(),
       optionIndex,
       portDialogueContext()
     );
@@ -14194,7 +14246,6 @@ function updateItemAcquisitionEffects(nowMs) {
 }
 
 async function purchaseShipyardShip(action) {
-  assertShipAcquisitionAvailable(BUILD_EDITION_ID);
   if (shipyardPurchaseListingId) return;
   const session = dialogueState;
   const city = currentDialogueCity();
@@ -14215,7 +14266,6 @@ async function purchaseShipyardShip(action) {
     const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
     const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
     const purchase = purchasePlayerShip(gameState, city, stats, purchaseTerms, {
-      buildEditionId: BUILD_EDITION_ID,
       simMinute: Math.floor(weatherClockMinutes),
       departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
     });
@@ -14284,7 +14334,6 @@ function placeVikingLongshipEnthusiastAtPort(historian) {
 }
 
 async function acquireVikingLongship(action) {
-  assertShipAcquisitionAvailable(BUILD_EDITION_ID);
   if (vikingLongshipAcquisitionPending) return;
   const session = dialogueState;
   const city = currentDialogueCity();
@@ -14310,10 +14359,7 @@ async function acquireVikingLongship(action) {
     const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
     const assets = await loadShipAssetSet(VIKING_LONGSHIP_SLUG);
     if (dialogueState !== session || session.nodeId !== "viking-longship") return;
-    const transactionContext = {
-      buildEditionId: BUILD_EDITION_ID,
-      simMinute: Math.floor(weatherClockMinutes)
-    };
+    const transactionContext = { simMinute: Math.floor(weatherClockMinutes) };
     if (acceptingReward) {
       awardPlayerShip(
         gameState,
@@ -14419,7 +14465,6 @@ function applyShipDialogueAction(npcShipId, action) {
 }
 
 async function captureSurrenderedShip(npcShipId) {
-  assertShipAcquisitionAvailable(BUILD_EDITION_ID);
   if (surrenderedShipCapturePendingId) return;
   const session = dialogueState;
   if (
@@ -14457,7 +14502,6 @@ async function captureSurrenderedShip(npcShipId) {
       stats,
       `Captured ${shipLabelForSlug(candidateSlug)} as a surrendered prize`,
       {
-        buildEditionId: BUILD_EDITION_ID,
         simMinute: Math.floor(weatherClockMinutes),
         departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
       }
@@ -14666,7 +14710,14 @@ function chartPortCallById(portId) {
 
 function currentDialogueView() {
   if (dialogueState.kind === "port") {
-    return portDialogueView(dialogueState, currentDialogueCity(), gameState, worldEconomy, portCities, portDialogueContext());
+    return portDialogueView(
+      dialogueState,
+      currentDialogueCity(),
+      gameState,
+      worldEconomy,
+      playerAccessiblePortCities(),
+      portDialogueContext()
+    );
   }
   if (dialogueState.kind === "passenger") {
     return passengerDialogueView(dialogueState, currentDialogueCity(), currentDialoguePassenger(), gameState);
@@ -14699,12 +14750,11 @@ function portDialogueContext() {
     city.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED;
   const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
   const simMinute = Math.floor(weatherClockMinutes);
+  const accessiblePorts = playerAccessiblePortCities();
   return {
-    buildEditionId: BUILD_EDITION_ID,
-    demoShipLockMessage: uiText("demo.shipLocked"),
     random: Math.random,
     missionGiftRandom: Math.random,
-    portCities,
+    portCities: accessiblePorts,
     simMinute,
     dayIndex: weatherParts.dayIndex,
     shipPower: playerShipPrivateeringPower(),
@@ -14716,12 +14766,17 @@ function portDialogueContext() {
     rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
     historicalGossip: city
       ? recentPapalGossipForPort(gameState.relations.papacy, city, simMinute) ||
-        recentHistoricalGossipForPort(city, simMinute, portCities)
+        recentHistoricalGossipForPort(city, simMinute, accessiblePorts)
       : null,
     shipyard,
     sailingDistanceKm: sailingDistanceBetweenPorts,
     nearestShipyardListing: city && !questOnlyColony
-      ? nearestShipyardListingForPort(worldEconomy.shipyards, city, sailingDistanceBetweenPorts)
+      ? nearestShipyardListingForPort(
+        worldEconomy.shipyards,
+        city,
+        sailingDistanceBetweenPorts,
+        demoAccessiblePortIds
+      )
       : null,
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
     portRecoveryStatus: city && !questOnlyColony
@@ -14729,7 +14784,13 @@ function portDialogueContext() {
       : null,
     portConquestStatus: city && !questOnlyColony ? playerPortConquestStatus(city) : null,
     shipyardRumor: city && !questOnlyColony
-      ? shipyardRumorForPort(worldEconomy.shipyards, city, sailingDistanceBetweenPorts)
+      ? shipyardRumorForPort(
+        worldEconomy.shipyards,
+        city,
+        sailingDistanceBetweenPorts,
+        undefined,
+        demoAccessiblePortIds
+      )
       : null,
     passengerOffer: city && dialogueState?.kind === "port"
       ? pendingPassengerOfferForCity(gameState, city)
@@ -14782,7 +14843,7 @@ function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
     return activeMission.destinationTileId === city.tileId ? activeMission : null;
   }
   if (!createOffer) return pendingPassengerOfferForCity(gameState, city);
-  return travelMissionOfferForCity(gameState, city, portCities, {
+  return travelMissionOfferForCity(gameState, city, playerAccessiblePortCities(), {
     simMinute: Math.floor(weatherClockMinutes),
     relationBetween: currentDiplomacyBetween,
     createCharacter: createPassengerCharacterForQuest
@@ -16423,6 +16484,106 @@ function sailingDistanceBetweenPorts(origin, destination) {
   return portSailingDistanceKm(portSailingDistances, origin, destination);
 }
 
+function initializeDemoMediterraneanNavigation() {
+  const navigationContext = {
+    earthRows,
+    riverMasks,
+    reachableNavigationMask: oceanReachableNavigationMask
+  };
+  const isNavigableTile = (tileId) => isWorldNavigableTile({
+    ...navigationContext,
+    tileId
+  });
+  const nearestNavigableTile = ({ lat, lon }) => {
+    const requested = findNearestTileId(graph, directionIndex, latLonToDirection(lat, lon));
+    const tileId = isNavigableTile(requested)
+      ? requested
+      : nearestWorldTileMatching(graph, requested, isNavigableTile);
+    if (tileId === undefined) {
+      throw new Error(`Could not find demo navigation near ${lat}, ${lon}`);
+    }
+    return tileId;
+  };
+  const blockedTileIds = new Set(
+    DEMO_GIBRALTAR_BARRIER_COORDINATES.map(nearestNavigableTile)
+  );
+  const seedTileId = nearestNavigableTile(DEMO_MEDITERRANEAN_SEED);
+  demoMediterraneanAccessMask = buildDemoMediterraneanAccessMask({
+    graph,
+    seedTileId,
+    blockedTileIds,
+    isNavigableTile,
+    canTraverseEdge: (fromTileId, toTileId) => canTraverseWorldNavigationEdge({
+      graph,
+      earthRows,
+      riverMasks,
+      riverToWaterMasks,
+      fromTileId,
+      toTileId
+    })
+  });
+  demoDistanceFromMediterraneanAccess = navigationDistanceFromAccessMask(
+    graph,
+    demoMediterraneanAccessMask
+  );
+  const barrierMask = new Uint8Array(graph.tileCount);
+  for (const tileId of blockedTileIds) barrierMask[tileId] = 1;
+  demoDistanceFromGibraltarBarrier = navigationDistanceFromAccessMask(graph, barrierMask);
+  const requestedRecoveryTileId = nearestNavigableTile(DEMO_GIBRALTAR_RECOVERY_COORDINATES);
+  demoGibraltarRecoveryTileId = demoMediterraneanAccessMask[requestedRecoveryTileId] === 1
+    ? requestedRecoveryTileId
+    : nearestWorldTileMatching(
+      graph,
+      requestedRecoveryTileId,
+      (tileId) => demoMediterraneanAccessMask[tileId] === 1
+    );
+  if (demoGibraltarRecoveryTileId === undefined) {
+    throw new Error("Could not find a Mediterranean demo recovery tile");
+  }
+
+  const blackSeaTileId = nearestNavigableTile({ lat: 43, lon: 34 });
+  const nileTileId = nearestNavigableTile({ lat: 30.5, lon: 31.25 });
+  const danubeTileId = nearestNavigableTile({ lat: 45.5, lon: 28.5 });
+  const atlanticTileId = nearestNavigableTile({ lat: 34, lon: -10 });
+  const redSeaTileId = nearestNavigableTile({ lat: 21, lon: 38 });
+  if (
+    demoMediterraneanAccessMask[blackSeaTileId] !== 1 ||
+    demoMediterraneanAccessMask[nileTileId] !== 1 ||
+    demoMediterraneanAccessMask[danubeTileId] !== 1
+  ) {
+    throw new Error("Mediterranean demo navigation does not reach the Black Sea, Nile, and Danube");
+  }
+  if (
+    demoMediterraneanAccessMask[atlanticTileId] === 1 ||
+    demoMediterraneanAccessMask[redSeaTileId] === 1
+  ) {
+    throw new Error("Mediterranean demo navigation escaped Gibraltar or crossed Suez");
+  }
+  console.info(
+    `[pixel-globe] demo navigation: ${demoMediterraneanAccessMask.reduce((sum, value) => sum + value, 0)} ` +
+    `Mediterranean-connected tiles; Gibraltar barrier ${[...blockedTileIds].join(", ")}`
+  );
+}
+
+function playerAccessiblePortCities() {
+  if (BUILD_EDITION_ID !== "demo") return portCities;
+  if (!demoAccessiblePortCities) {
+    throw new Error("Mediterranean demo ports have not been initialized");
+  }
+  return demoAccessiblePortCities;
+}
+
+function demoAvailableChefIngredientGoodIds() {
+  if (BUILD_EDITION_ID !== "demo") return undefined;
+  const available = new Set();
+  for (const city of playerAccessiblePortCities()) {
+    for (const row of portMarket(worldEconomy, city)) {
+      if (row.listedForSale) available.add(row.good.id);
+    }
+  }
+  return available;
+}
+
 function createShip(latDeg, lonDeg, shipSlug, factionId) {
   const requested = latLonToDirection(latDeg, lonDeg);
   const tileId = nearestShipStartTile(requested);
@@ -16480,6 +16641,7 @@ function initialShipHeading(position) {
 
 function updateSailing(dt) {
   if (!ship || !camera) return false;
+  const recoveredFromDemoEscape = recoverEscapedDemoShip();
   const effectiveStats = currentPlayerEffectiveShipStats();
   const input = inputCommandForShip();
   const inputHeading = input.heading;
@@ -16520,6 +16682,7 @@ function updateSailing(dt) {
   applyShipHaulAcceleration(dt, inputHeading, haulMotionScale);
   const previousPosition = ship.position;
   const moveResult = moveShipWithCollision(dt, inputHeading);
+  if (moveResult.demoBoundary) handleDemoGibraltarBoundary();
   const movedPx = vectorLength([
     ship.position[0] - previousPosition[0],
     ship.position[1] - previousPosition[1],
@@ -16560,7 +16723,43 @@ function updateSailing(dt) {
   const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
   const tutorialChanged = updateSailingTutorials(dt, inRiver, movedPx);
-  return tutorialChanged || recovered || moveResult.moved || moveResult.collided || headingChanged || wakeChanged || vectorLength(ship.velocity) > 0.0001;
+  return recoveredFromDemoEscape || tutorialChanged || recovered || moveResult.moved ||
+    moveResult.collided || headingChanged || wakeChanged || vectorLength(ship.velocity) > 0.0001;
+}
+
+function recoverEscapedDemoShip() {
+  if (
+    BUILD_EDITION_ID !== "demo" ||
+    !demoDistanceFromMediterraneanAccess ||
+    !demoEscapeRequiresRecovery(
+      ship.tileId,
+      demoDistanceFromMediterraneanAccess,
+      DEMO_ESCAPE_GRACE_HEXES
+    )
+  ) {
+    return false;
+  }
+  placeShipAtTileCenterForRecovery(demoGibraltarRecoveryTileId);
+  demoGibraltarWarningArmed = false;
+  openCaptainAlertModal(
+    `${DEMO_GIBRALTAR_MESSAGE} Your ship has been returned to Mediterranean waters.`,
+    "neutral"
+  );
+  return true;
+}
+
+function handleDemoGibraltarBoundary() {
+  if (BUILD_EDITION_ID !== "demo") return;
+  ship.heading = normalizeTangentOrFallback(
+    scaleVector(ship.heading, -1),
+    ship.position,
+    WORLD_NORTH
+  );
+  ship.targetHeading = ship.heading.slice();
+  ship.velocity = [0, 0, 0];
+  if (demoGibraltarWarningArmed && openCaptainAlertModal(DEMO_GIBRALTAR_MESSAGE, "neutral")) {
+    demoGibraltarWarningArmed = false;
+  }
 }
 
 function normalizeBoundaryContactNormal(normal) {
@@ -17127,6 +17326,10 @@ function moveShipWithCollision(dt, inputHeading) {
     applyShipMove(direct.position, direct.tileId);
     return { moved: true, collided: false, normal: null };
   }
+  if (direct.demoBoundary) {
+    ship.velocity = [0, 0, 0];
+    return { moved: false, collided: true, normal: direct.normal || null, demoBoundary: true };
+  }
 
   const normal = direct.normal || shipCollisionNormal(ship.position, direct.blockedTileId, step);
   const slide = findShipSlideMove(normal, dt);
@@ -17212,6 +17415,7 @@ function recoverPlayerToNearbyNavigableWater(
     const oceanTileId = nearestTileMatching(previousTileId, (tileId) => (
       tileId !== previousTileId &&
       isShipOceanTile(tileId) &&
+      (BUILD_EDITION_ID !== "demo" || demoMediterraneanAccessMask?.[tileId] === 1) &&
       tileHasOffshoreHullClearance(tileId)
     ));
     if (oceanTileId === undefined) {
@@ -17534,6 +17738,14 @@ function attemptShipStep(fromPosition, fromTileId, step) {
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, centerNav.kind, movementDirection)) {
       return { ok: false, blockedTileId: tileId };
     }
+    if (demoShipStepCrossesBoundary(previousTileId, tileId)) {
+      return {
+        ok: false,
+        blockedTileId: tileId,
+        demoBoundary: true,
+        normal: shipCollisionNormal(position, tileId, step)
+      };
+    }
     if (!tileHasOffshoreHullClearance(tileId)) {
       const occupancy = vesselOccupancyAtPosition(position, tileId, localPoint, centerNav, ship.heading);
       if (!occupancy.ok) {
@@ -17549,6 +17761,26 @@ function attemptShipStep(fromPosition, fromTileId, step) {
   }
 
   return { ok: true, position, tileId: previousTileId };
+}
+
+function demoShipStepCrossesBoundary(fromTileId, toTileId) {
+  if (
+    BUILD_EDITION_ID !== "demo" ||
+    !demoMediterraneanAccessMask ||
+    fromTileId === toTileId ||
+    demoMediterraneanAccessMask[toTileId] === 1
+  ) {
+    if (
+      BUILD_EDITION_ID === "demo" &&
+      demoDistanceFromGibraltarBarrier?.[toTileId] >= 4
+    ) {
+      demoGibraltarWarningArmed = true;
+    }
+    return false;
+  }
+  const fromDistance = demoDistanceFromMediterraneanAccess[fromTileId];
+  const toDistance = demoDistanceFromMediterraneanAccess[toTileId];
+  return demoMediterraneanAccessMask[fromTileId] === 1 || toDistance >= fromDistance;
 }
 
 function movementCanUseDrawnNavigation(fromTileId, toTileId, fromNavKind, toNavKind, movementDirection) {
@@ -21447,10 +21679,7 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
     cargoUsed: cargoUsed(gameState)
-  }, lootSummary, {
-    buildEditionId: BUILD_EDITION_ID,
-    demoShipLockMessage: uiText("demo.shipLocked")
-  });
+  }, lootSummary);
   dialogueLayout = createDialogueLayoutState();
   ensureShipyardSideViewLoaded(prizeShip.slug);
   ensureDialoguePortraitLoaded();
@@ -21721,7 +21950,7 @@ function maybeOpenCastawayQuest(shoreCall) {
 }
 
 function rescuedTravelerHomePort(identityKey) {
-  const candidates = portCities
+  const candidates = playerAccessiblePortCities()
     .filter((city) => city.factionId !== PIRATE_FACTION_ID)
     .filter((city) => city.cityType === "northern-european" || city.cityType === "mediterranean")
     .map((city) => ({
