@@ -1,8 +1,16 @@
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
+const DEFAULT_CHUNK_ATTEMPTS = 3;
+const DEFAULT_CHUNK_CONCURRENCY = 3;
+const DEFAULT_CHUNK_RETRY_DELAY_MS = 250;
+
 export async function fetchChunkedBinary(path, label, {
   fetchAsset = fetchStaticAsset,
-  baseUrl = globalThis.location?.href
+  baseUrl = globalThis.location?.href,
+  chunkAttempts = DEFAULT_CHUNK_ATTEMPTS,
+  chunkConcurrency = DEFAULT_CHUNK_CONCURRENCY,
+  chunkRetryDelayMs = DEFAULT_CHUNK_RETRY_DELAY_MS,
+  sleep = wait
 } = {}) {
   if (typeof path !== "string" || path.length === 0) {
     throw new Error("Chunked binary fetch requires an asset path");
@@ -12,6 +20,18 @@ export async function fetchChunkedBinary(path, label, {
   }
   if (typeof fetchAsset !== "function") {
     throw new Error(`Chunked binary fetch requires fetch support: ${label}`);
+  }
+  if (!Number.isInteger(chunkAttempts) || chunkAttempts < 1) {
+    throw new Error(`Chunked binary fetch requires positive chunk attempts: ${chunkAttempts}`);
+  }
+  if (!Number.isInteger(chunkConcurrency) || chunkConcurrency < 1) {
+    throw new Error(`Chunked binary fetch requires positive concurrency: ${chunkConcurrency}`);
+  }
+  if (!Number.isFinite(chunkRetryDelayMs) || chunkRetryDelayMs < 0) {
+    throw new Error(`Chunked binary fetch requires a nonnegative retry delay: ${chunkRetryDelayMs}`);
+  }
+  if (typeof sleep !== "function") {
+    throw new Error(`Chunked binary fetch requires sleep support: ${label}`);
   }
 
   const manifestPath = `${path}.chunks.json`;
@@ -71,21 +91,75 @@ export async function fetchChunkedBinary(path, label, {
 
   const manifestUrl = new URL(manifestPath, baseUrl);
   const out = new Uint8Array(manifest.byteLength);
-  await Promise.all(chunks.map(async (chunkSpec) => {
-    const chunkUrl = new URL(chunkSpec.path, manifestUrl).toString();
-    const chunkRes = await fetchAsset(chunkUrl, {
+  await mapWithConcurrency(chunks, chunkConcurrency, async (chunkSpec) => {
+    const chunkUrl = new URL(chunkSpec.path, manifestUrl);
+    const bytes = await fetchValidatedChunk(chunkUrl, chunkSpec, label, {
+      fetchAsset,
+      chunkAttempts,
+      chunkRetryDelayMs,
+      sleep
+    });
+    out.set(bytes, chunkSpec.offset);
+  });
+  return out.buffer;
+}
+
+async function fetchValidatedChunk(chunkUrl, chunkSpec, label, {
+  fetchAsset,
+  chunkAttempts,
+  chunkRetryDelayMs,
+  sleep
+}) {
+  let lastContentError = null;
+  for (let attempt = 0; attempt < chunkAttempts; attempt++) {
+    if (attempt > 0) await sleep(chunkRetryDelayMs * attempt);
+    const attemptUrl = new URL(chunkUrl);
+    if (attempt > 0) attemptUrl.searchParams.set("chunk_retry", String(attempt));
+    const chunkRes = await fetchAsset(attemptUrl.toString(), {
       label: `${label} chunk ${chunkSpec.index}`
     });
     if (!chunkRes.ok) {
       throw new Error(`Failed to load ${label} chunk ${chunkSpec.index}: HTTP ${chunkRes.status}`);
     }
-    const bytes = new Uint8Array(await chunkRes.arrayBuffer());
-    if (bytes.byteLength !== chunkSpec.byteLength) {
-      throw new Error(
-        `Malformed ${label} chunk ${chunkSpec.index}: expected ${chunkSpec.byteLength} bytes, got ${bytes.byteLength}`
+
+    let bytes;
+    try {
+      bytes = new Uint8Array(await chunkRes.arrayBuffer());
+    } catch (error) {
+      lastContentError = new Error(
+        `Could not read ${label} chunk ${chunkSpec.index}`,
+        { cause: error instanceof Error ? error : new Error(String(error)) }
       );
+      continue;
     }
-    out.set(bytes, chunkSpec.offset);
-  }));
-  return out.buffer;
+    if (bytes.byteLength === chunkSpec.byteLength) return bytes;
+    lastContentError = new Error(
+      `expected ${chunkSpec.byteLength} bytes, got ${bytes.byteLength}`
+    );
+  }
+
+  throw new Error(
+    `Malformed ${label} chunk ${chunkSpec.index} after ${chunkAttempts} attempts: ` +
+      (lastContentError?.message || "unknown content error"),
+    { cause: lastContentError }
+  );
+}
+
+async function mapWithConcurrency(values, concurrency, work) {
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, values.length) },
+    async () => {
+      while (nextIndex < values.length) {
+        const index = nextIndex;
+        nextIndex++;
+        await work(values[index]);
+      }
+    }
+  );
+  await Promise.all(workers);
+}
+
+function wait(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }

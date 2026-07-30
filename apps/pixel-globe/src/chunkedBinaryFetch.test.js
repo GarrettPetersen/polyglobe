@@ -42,6 +42,98 @@ test("chunked binary fetch starts every chunk concurrently and assembles manifes
   assert.deepEqual([...result], [1, 2, 3, 4, 5, 6]);
 });
 
+test("chunked binary fetch bounds concurrent downloads", async () => {
+  const pendingChunks = [];
+  let active = 0;
+  let peakActive = 0;
+  const fetchAsset = async (resource) => {
+    if (resource === "asset.bin.chunks.json") {
+      return jsonResponse({
+        byteLength: 4,
+        chunks: Array.from({ length: 4 }, (_, index) => ({
+          path: `asset.part-${index}.bin`,
+          byteLength: 1
+        }))
+      });
+    }
+    active++;
+    peakActive = Math.max(peakActive, active);
+    return new Promise((resolve) => pendingChunks.push(() => {
+      active--;
+      resolve(binaryResponse([pendingChunks.length]));
+    }));
+  };
+
+  const resultPromise = fetchChunkedBinary("asset.bin", "asset", {
+    fetchAsset,
+    baseUrl: "https://example.test/",
+    chunkConcurrency: 2
+  });
+  await nextTurn();
+  assert.equal(pendingChunks.length, 2);
+  pendingChunks.shift()();
+  await nextTurn();
+  assert.equal(pendingChunks.length, 2);
+  pendingChunks.shift()();
+  await nextTurn();
+  pendingChunks.shift()();
+  pendingChunks.shift()();
+
+  await resultPromise;
+  assert.equal(peakActive, 2);
+});
+
+test("chunked binary fetch retries a truncated successful response", async () => {
+  const requests = [];
+  const fetchAsset = async (resource) => {
+    requests.push(resource);
+    if (resource === "asset.bin.chunks.json") {
+      return jsonResponse({
+        byteLength: 3,
+        chunks: [{ path: "asset.part-0.bin", byteLength: 3 }]
+      });
+    }
+    return binaryResponse(requests.length === 2 ? [1, 2] : [1, 2, 3]);
+  };
+
+  const result = await fetchChunkedBinary("asset.bin", "asset", {
+    fetchAsset,
+    baseUrl: "https://example.test/",
+    chunkRetryDelayMs: 0,
+    sleep: async () => {}
+  });
+
+  assert.deepEqual([...new Uint8Array(result)], [1, 2, 3]);
+  assert.deepEqual(requests, [
+    "asset.bin.chunks.json",
+    "https://example.test/asset.part-0.bin",
+    "https://example.test/asset.part-0.bin?chunk_retry=1"
+  ]);
+});
+
+test("chunked binary fetch reports persistent truncation after bounded retries", async () => {
+  const fetchAsset = async (resource) => {
+    if (resource === "asset.bin.chunks.json") {
+      return jsonResponse({
+        byteLength: 3,
+        chunks: [{ path: "asset.part-0.bin", byteLength: 3 }]
+      });
+    }
+    return binaryResponse([1]);
+  };
+
+  await assert.rejects(
+    fetchChunkedBinary("asset.bin", "asset", {
+      fetchAsset,
+      baseUrl: "https://example.test/",
+      chunkAttempts: 2,
+      chunkRetryDelayMs: 0,
+      sleep: async () => {}
+    }),
+    /Malformed asset chunk 0 after 2 attempts: expected 3 bytes, got 1/
+  );
+});
+
 test("chunked binary fetch rejects inconsistent manifest totals before downloading chunks", async () => {
   const requests = [];
   const fetchAsset = async (resource) => {

@@ -4,13 +4,19 @@ import { basename, dirname, extname, join, relative, resolve, sep } from "node:p
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { build } from "esbuild";
+import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 import { DEMO_VOYAGE_LIMIT_SECONDS } from "../src/demoVoyage.js";
+import { FACTIONS, factionHasFlag } from "../src/factions.js";
 
 const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
 const DEMO_PORTRAIT_EXPRESSION_LIMIT = 3;
 const CHARACTER_MANIFEST_PATH = "assets/characters/generated/character-portraits.json";
+const FACTION_FLAG_ATLAS_PATH = "assets/factions/flags-atlas.png";
+const FACTION_FLAG_ATLAS_COLUMNS = 8;
+const FACTION_FLAG_WIDTH = 32;
+const FACTION_FLAG_HEIGHT = 20;
 const SOURCE_ONLY_EXTENSIONS = new Set([".ase", ".aseprite"]);
 const SOURCE_ONLY_PUBLIC_FILES = new Set([
   "assets/clouds/README.md",
@@ -40,6 +46,7 @@ const sharedDataRoot = join(repoRoot, "examples/globe-demo/public");
 const edition = buildEditionFromArgs(process.argv.slice(2));
 const distRoot = join(appRoot, edition === BUILD_EDITION_DEMO ? "dist-demo" : "dist");
 const maxPagesFileBytes = 24 * 1024 * 1024;
+const largeFileChunkBytes = 10 * 1024 * 1024;
 
 const appEntries = edition === BUILD_EDITION_DEMO
   ? [
@@ -113,11 +120,11 @@ async function copyLargeFileAsChunks(source, target, byteLength) {
     throw new Error(`Large file changed while reading: ${source}`);
   }
   const chunks = [];
-  for (let offset = 0; offset < bytes.byteLength; offset += maxPagesFileBytes) {
+  for (let offset = 0; offset < bytes.byteLength; offset += largeFileChunkBytes) {
     const index = chunks.length;
     const chunkName = `${basename(target)}.part${String(index).padStart(3, "0")}`;
     const chunkPath = join(dirname(target), chunkName);
-    const chunk = bytes.subarray(offset, Math.min(offset + maxPagesFileBytes, bytes.byteLength));
+    const chunk = bytes.subarray(offset, Math.min(offset + largeFileChunkBytes, bytes.byteLength));
     await writeFile(chunkPath, chunk);
     chunks.push({
       path: chunkName,
@@ -179,6 +186,8 @@ function shouldCopyPublicPath(path) {
   if (
     normalized === "assets/social" ||
     normalized.startsWith("assets/social/") ||
+    normalized === "assets/factions/flags" ||
+    normalized.startsWith("assets/factions/flags/") ||
     normalized === "assets/ui/ship-icons" ||
     normalized.startsWith("assets/ui/ship-icons/") ||
     normalized === "assets/buildings/city-types/README.md" ||
@@ -262,6 +271,34 @@ function portraitFilesForManifest(manifest) {
 
 function normalizePath(path) {
   return path.split(sep).join("/");
+}
+
+async function buildDemoFactionFlagAtlas() {
+  const factions = FACTIONS.filter((faction) => factionHasFlag(faction.id));
+  const rows = Math.ceil(factions.length / FACTION_FLAG_ATLAS_COLUMNS);
+  const canvas = createCanvas(
+    FACTION_FLAG_ATLAS_COLUMNS * FACTION_FLAG_WIDTH,
+    rows * FACTION_FLAG_HEIGHT
+  );
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  for (const [index, faction] of factions.entries()) {
+    const image = await loadImage(
+      join(publicRoot, `assets/factions/flags/${faction.id}.png`)
+    );
+    if (image.width !== FACTION_FLAG_WIDTH || image.height !== FACTION_FLAG_HEIGHT) {
+      throw new Error(
+        `Faction flag ${faction.id} must be ${FACTION_FLAG_WIDTH}x${FACTION_FLAG_HEIGHT}, ` +
+          `got ${image.width}x${image.height}`
+      );
+    }
+    const x = (index % FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_WIDTH;
+    const y = Math.floor(index / FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_HEIGHT;
+    context.drawImage(image, x, y);
+  }
+  const atlasPath = join(distRoot, FACTION_FLAG_ATLAS_PATH);
+  await mkdir(dirname(atlasPath), { recursive: true });
+  await writeFile(atlasPath, canvas.toBuffer("image/png"));
 }
 
 function buildEditionModuleSource() {
@@ -350,6 +387,7 @@ await mkdir(distRoot, { recursive: true });
 for (const entry of appEntries) await copyEntry(appRoot, entry, shouldCopyAppPath);
 for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
+if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
 
 await writeFile(join(distRoot, "src/buildEdition.js"), buildEditionModuleSource());
 if (edition === BUILD_EDITION_DEMO) {

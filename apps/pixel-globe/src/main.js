@@ -1734,6 +1734,7 @@ const COLONY_DEPARTURE_DISTANCE_PX = 90;
 const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-4";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
+const FACTION_FLAG_ATLAS_COLUMNS = 8;
 const CITY_FLAG_W = 14;
 const CITY_FLAG_H = 9;
 const CITY_FLAG_FRAME_MS = 125;
@@ -4133,7 +4134,42 @@ async function loadCityTypeImage(artKey) {
 }
 
 async function loadFactionFlagImages() {
-  const entries = await Promise.all(FACTIONS.filter((faction) => factionHasFlag(faction.id)).map(async (faction) => {
+  const factions = FACTIONS.filter((faction) => factionHasFlag(faction.id));
+  if (BUILD_EDITION_ID === "demo") {
+    const atlas = await loadAssetImage(
+      `assets/factions/flags-atlas.png?v=${FACTION_FLAG_ASSET_VERSION}`,
+      "faction flag atlas"
+    );
+    const rows = Math.ceil(factions.length / FACTION_FLAG_ATLAS_COLUMNS);
+    validateImageDimensions(
+      atlas,
+      "Faction flag atlas",
+      FACTION_FLAG_ATLAS_COLUMNS * FACTION_FLAG_SOURCE_W,
+      rows * FACTION_FLAG_SOURCE_H
+    );
+    return new Map(factions.map((faction, index) => {
+      const image = document.createElement("canvas");
+      image.width = FACTION_FLAG_SOURCE_W;
+      image.height = FACTION_FLAG_SOURCE_H;
+      const flagContext = image.getContext("2d");
+      if (!flagContext) throw new Error(`Could not create faction flag canvas: ${faction.id}`);
+      flagContext.imageSmoothingEnabled = false;
+      flagContext.drawImage(
+        atlas,
+        (index % FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_SOURCE_W,
+        Math.floor(index / FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_SOURCE_H,
+        FACTION_FLAG_SOURCE_W,
+        FACTION_FLAG_SOURCE_H,
+        0,
+        0,
+        FACTION_FLAG_SOURCE_W,
+        FACTION_FLAG_SOURCE_H
+      );
+      return [faction.id, image];
+    }));
+  }
+
+  const entries = await Promise.all(factions.map(async (faction) => {
     const image = await loadAssetImage(
       `assets/factions/flags/${faction.id}.png?v=${FACTION_FLAG_ASSET_VERSION}`,
       `faction flag: ${faction.id}`

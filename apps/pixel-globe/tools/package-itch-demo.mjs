@@ -20,6 +20,7 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "src/bootstrap.js",
   "src/buildEdition.js",
   "assets/fonts/Silkscreen-Regular.ttf",
+  "assets/factions/flags-atlas.png",
   "assets/ui/game-icons.png",
   "assets/terrain/resurrect-64/water_deep_01_01.png",
   "assets/characters/generated/character-portraits.json",
@@ -52,6 +53,10 @@ async function assertDemoBuild(files) {
     if (!packagedPaths.has(requiredPath)) {
       throw new Error(`Itch package is missing required runtime file: ${requiredPath}`);
     }
+  }
+  const unpackedFlag = files.find((file) => file.relativePath.startsWith("assets/factions/flags/"));
+  if (unpackedFlag) {
+    throw new Error(`Itch package contains an unpacked faction flag: ${unpackedFlag.relativePath}`);
   }
   const editionPath = path.join(distRoot, "src/buildEdition.js");
   const editionSource = await fs.readFile(editionPath, "utf8");
