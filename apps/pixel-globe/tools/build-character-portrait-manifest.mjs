@@ -9,6 +9,8 @@ const portraitSize = 64;
 const individualSequencePacks = new Set([
   "Master Chef Portrait Pack by Captainskolot",
   "Indian Ocean Portrait Pack by OpenAI",
+  "Japanese Portrait Pack by OpenAI",
+  "Joseon Korean Portrait Pack by OpenAI",
   "Ming Chinese Portrait Pack by OpenAI",
   "Native Americain Portrait Pack by Captainskeleto",
   "Pirates Portrait Pack by Captainskeleto",
@@ -59,6 +61,8 @@ const singleSexPortraitDirectories = new Map([
 
 const reviewedSexSequences = new Map([
   ["Indian Ocean Portrait Pack by OpenAI", sexSequence("mfmmmmfmfmmfmfmm")],
+  ["Japanese Portrait Pack by OpenAI", sexSequence("mfmfmfmfmfmfmfmf")],
+  ["Joseon Korean Portrait Pack by OpenAI", sexSequence("mfmfmfmfmfmfmfmf")],
   ["Ming Chinese Portrait Pack by OpenAI", sexSequence("mmmmfmmmmfmmmmfm")],
   ["Native Americain Portrait Pack by Captainskeleto", sexSequence("ffffmmmmffmmffmm")],
   ["Polynesian Portrait Pack by OpenAI", sexSequence("mfmfmfmfmfmfmfmm")],
@@ -404,6 +408,18 @@ const numberedPortraitAgeRanges = new Map([
     9: [35, 52], 10: [20, 34], 11: [30, 45], 12: [35, 52],
     13: [18, 30], 14: [30, 45], 15: [20, 34], 16: [30, 45]
   })],
+  ["Japanese Portrait Pack by OpenAI", numberedRanges({
+    1: [40, 55], 2: [20, 32], 3: [18, 30], 4: [20, 34],
+    5: [38, 55], 6: [24, 40], 7: [42, 60], 8: [20, 34],
+    9: [62, 80], 10: [20, 34], 11: [38, 55], 12: [20, 36],
+    13: [35, 50], 14: [20, 34], 15: [38, 55], 16: [20, 34]
+  })],
+  ["Joseon Korean Portrait Pack by OpenAI", numberedRanges({
+    1: [35, 50], 2: [20, 34], 3: [38, 55], 4: [20, 34],
+    5: [30, 45], 6: [20, 34], 7: [58, 76], 8: [20, 34],
+    9: [30, 45], 10: [20, 34], 11: [32, 48], 12: [20, 34],
+    13: [58, 76], 14: [20, 34], 15: [30, 45], 16: [20, 34]
+  })],
   ["South Asian Portrait Pack by OpenAI", numberedRanges({
     1: [30, 45], 2: [20, 34], 3: [30, 45], 4: [20, 34],
     5: [25, 40], 6: [55, 75], 7: [18, 30], 8: [30, 45],
@@ -742,6 +758,14 @@ function expressionLabelsForGroup(group, expressionCount) {
 }
 
 const portraitMetadataOverrides = new Map([
+  ["Japanese Portrait Pack by OpenAI/Japanese 1", {
+    roles: ["captain", "warrior"],
+    regions: ["japan"]
+  }],
+  ["Joseon Korean Portrait Pack by OpenAI/Joseon Korean 1", {
+    roles: ["captain", "warrior"],
+    regions: ["joseon"]
+  }],
   ["Curated Historical Portraits by CaptainSkolot/Armored Soldier", {
     roles: ["captain", "warrior"],
     regions: ["global", "europe", "northern-europe", "mediterranean"]
@@ -791,6 +815,12 @@ function portraitMetadata(label, sourceDirectory) {
   }
   if (text.includes("polynesian")) {
     return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["polynesia"] };
+  }
+  if (text.includes("japanese portrait")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["japan"] };
+  }
+  if (text.includes("joseon korean portrait")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["joseon"] };
   }
   if (text.includes("ming chinese")) {
     return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["east-asia"] };

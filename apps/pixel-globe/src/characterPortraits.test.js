@@ -118,10 +118,20 @@ test("every portrait identity has a visually authored age range", () => {
   const nativeElder = GENERATED_MANIFEST.sourceCharacters.find(
     (source) => source.label === "Native American Portrait 7"
   );
+  const japaneseElder = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.sourceDirectory === "Japanese Portrait Pack by OpenAI"
+      && source.label === "Japanese 9"
+  );
+  const joseonOfficial = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.sourceDirectory === "Joseon Korean Portrait Pack by OpenAI"
+      && source.label === "Joseon Korean 3"
+  );
   assert.deepEqual([littleGirl.minAge, littleGirl.maxAge], [8, 13]);
   assert.deepEqual([oldWarrior.minAge, oldWarrior.maxAge], [58, 75]);
   assert.deepEqual([herbalist.minAge, herbalist.maxAge], [22, 34]);
   assert.deepEqual([nativeElder.minAge, nativeElder.maxAge], [45, 62]);
+  assert.deepEqual([japaneseElder.minAge, japaneseElder.maxAge], [62, 80]);
+  assert.deepEqual([joseonOfficial.minAge, joseonOfficial.maxAge], [38, 55]);
 });
 
 test("every portrait identity has an explicit reviewed sex", () => {
@@ -139,6 +149,8 @@ test("every portrait identity has an explicit reviewed sex", () => {
 test("mixed portrait sheets retain their visually reviewed sex assignments", () => {
   const expectedFemalePortraits = new Map([
     ["Indian Ocean Portrait Pack by OpenAI", [2, 7, 9, 12, 14]],
+    ["Japanese Portrait Pack by OpenAI", [2, 4, 6, 8, 10, 12, 14, 16]],
+    ["Joseon Korean Portrait Pack by OpenAI", [2, 4, 6, 8, 10, 12, 14, 16]],
     ["Ming Chinese Portrait Pack by OpenAI", [5, 10, 15]],
     ["Native Americain Portrait Pack by Captainskeleto", [1, 2, 3, 4, 9, 10, 13, 14]],
     ["Polynesian Portrait Pack by OpenAI", [2, 4, 6, 8, 10, 12, 14]],
@@ -347,9 +359,86 @@ test("East Asian players use the authored Ming portrait group", () => {
   assert.deepEqual(generatedSexes, new Set(["female", "male"]));
 });
 
+test("Japanese and Joseon players use their own reviewed portrait groups", () => {
+  for (const profile of [
+    {
+      factionId: "japan",
+      country: "Japan",
+      city: "Kyoto",
+      expectedPrefix: "japanese-portrait-pack-by-openai-",
+      expectedRegion: "japan"
+    },
+    {
+      factionId: "joseon",
+      country: "Republic of Korea",
+      city: "Seoul",
+      expectedPrefix: "joseon-korean-portrait-pack-by-openai-",
+      expectedRegion: "joseon"
+    }
+  ]) {
+    const generatedSexes = new Set();
+    for (let index = 0; index < 100; index += 1) {
+      const character = generatePlayerCharacter({
+        identityKey: `${profile.factionId}-player-${index}`,
+        homePort: {
+          tileId: 200 + index,
+          city: profile.city,
+          displayCity: profile.city,
+          country: profile.country,
+          factionId: profile.factionId,
+          cityType: "east-asian"
+        },
+        manifest: GENERATED_MANIFEST,
+        usedNames: new Set()
+      });
+      assert.ok(character.sourceId.startsWith(profile.expectedPrefix));
+      assert.deepEqual(character.sourceRegions, [profile.expectedRegion]);
+      assert.ok(character.age >= character.minAge && character.age <= character.maxAge);
+      generatedSexes.add(character.sex);
+    }
+    assert.deepEqual(generatedSexes, new Set(["female", "male"]));
+  }
+});
+
+test("Japanese and Joseon factors and ship captains keep their sovereign portrait groups", () => {
+  const ports = [
+    {
+      tileId: 301,
+      city: "Kyoto",
+      country: "Japan",
+      factionId: "japan",
+      cityType: "east-asian"
+    },
+    {
+      tileId: 302,
+      city: "Seoul",
+      country: "Republic of Korea",
+      factionId: "joseon",
+      cityType: "east-asian"
+    }
+  ];
+  const factors = assignPortCityCharacters(ports, GENERATED_MANIFEST, new Set());
+  assert.ok(factors.get(301).sourceId.startsWith("japanese-portrait-pack-by-openai-"));
+  assert.ok(factors.get(302).sourceId.startsWith("joseon-korean-portrait-pack-by-openai-"));
+
+  const ships = ports.map((currentPort, index) => ({
+    id: `east-asian-sovereign-${index}`,
+    slug: index === 0 ? "atakebune" : "panokseon",
+    role: "warship",
+    factionId: currentPort.factionId,
+    profileId: "east-asia",
+    currentPort: { ...currentPort, routeRegion: "east-asia" }
+  }));
+  const captains = assignNpcShipCaptains(ships, GENERATED_MANIFEST, new Set());
+  assert.ok(captains.get(ships[0].id).sourceId.startsWith("japanese-portrait-pack-by-openai-"));
+  assert.ok(captains.get(ships[1].id).sourceId.startsWith("joseon-korean-portrait-pack-by-openai-"));
+});
+
 test("generated culture packs contain sixteen native authored sprites apiece", () => {
   const packs = new Map([
     ["Ming Chinese Portrait Pack by OpenAI", "east-asia"],
+    ["Japanese Portrait Pack by OpenAI", "japan"],
+    ["Joseon Korean Portrait Pack by OpenAI", "joseon"],
     ["South Asian Portrait Pack by OpenAI", "south-asia"],
     ["Southeast Asian Portrait Pack by OpenAI", "southeast-asia"],
     ["Indian Ocean Portrait Pack by OpenAI", "indian-ocean"],
@@ -689,8 +778,9 @@ test("return-home passenger generation can use destination culture", () => {
   assert.equal(passenger.role, "passenger");
   assert.equal(passenger.destinationPortTileId, 2);
   assert.equal(passenger.nameCulture, "japanese");
-  assert.equal(passenger.region, "east-asia");
-  assert.ok(passenger.sourceRegions.includes("east-asia"));
+  assert.equal(passenger.region, "japan");
+  assert.deepEqual(passenger.sourceRegions, ["japan"]);
+  assert.ok(passenger.sourceId.startsWith("japanese-portrait-pack-by-openai-"));
   assert.equal("palette" in passenger, false);
 });
 

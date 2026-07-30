@@ -999,6 +999,930 @@
       ]
     },
     {
+      "id": "japanese-portrait-pack-by-openai-japanese-1",
+      "label": "Japanese 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "warrior"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 40,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-01.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-10",
+      "label": "Japanese 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-11",
+      "label": "Japanese 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-12",
+      "label": "Japanese 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 20,
+      "maxAge": 36,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-13",
+      "label": "Japanese 13",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 35,
+      "maxAge": 50,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-13.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-14",
+      "label": "Japanese 14",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-14.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-15",
+      "label": "Japanese 15",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-15.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-16",
+      "label": "Japanese 16",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-16.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-2",
+      "label": "Japanese 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 20,
+      "maxAge": 32,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-02.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-3",
+      "label": "Japanese 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 18,
+      "maxAge": 30,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-03.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-4",
+      "label": "Japanese 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-04.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-5",
+      "label": "Japanese 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-05.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-6",
+      "label": "Japanese 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 24,
+      "maxAge": 40,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-06.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-7",
+      "label": "Japanese 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 42,
+      "maxAge": 60,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-07.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-8",
+      "label": "Japanese 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-08.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "japanese-portrait-pack-by-openai-japanese-9",
+      "label": "Japanese 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Japanese Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "minAge": 62,
+      "maxAge": 80,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Japanese%20Portrait%20Pack%20by%20OpenAI/japanese-09.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-1",
+      "label": "Joseon Korean 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "warrior"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 35,
+      "maxAge": 50,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-01.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-10",
+      "label": "Joseon Korean 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-11",
+      "label": "Joseon Korean 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 32,
+      "maxAge": 48,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-12",
+      "label": "Joseon Korean 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-13",
+      "label": "Joseon Korean 13",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 58,
+      "maxAge": 76,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-13.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-14",
+      "label": "Joseon Korean 14",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-14.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-15",
+      "label": "Joseon Korean 15",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 30,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-15.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-16",
+      "label": "Joseon Korean 16",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-16.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-2",
+      "label": "Joseon Korean 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-02.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-3",
+      "label": "Joseon Korean 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-03.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-4",
+      "label": "Joseon Korean 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-04.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-5",
+      "label": "Joseon Korean 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 30,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-05.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-6",
+      "label": "Joseon Korean 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-06.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-7",
+      "label": "Joseon Korean 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 58,
+      "maxAge": 76,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-07.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-8",
+      "label": "Joseon Korean 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "female",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-08.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-korean-portrait-pack-by-openai-joseon-korean-9",
+      "label": "Joseon Korean 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Korean Portrait Pack by OpenAI",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "civilian",
+        "artisan"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 30,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-09.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "ultimate-portrait-pack-v1-0-knight-commander-knight-commander",
       "label": "Knight Commander",
       "groupingMode": "expression-set",

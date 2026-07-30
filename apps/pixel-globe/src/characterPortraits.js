@@ -15,7 +15,7 @@ import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-14";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-15";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
@@ -751,6 +751,8 @@ function sourceIdExclusionSet(sourceIds) {
 }
 
 function portraitRegionForCity(city) {
+  const sovereignRegion = sovereignEastAsianPortraitRegion(city);
+  if (sovereignRegion) return sovereignRegion;
   if (city.cityType === "east-asian") return "east-asia";
   if (city.cityType === "south-asian") return "south-asia";
   if (city.cityType === "southeast-asian") return "southeast-asia";
@@ -765,6 +767,10 @@ function portraitRegionForCity(city) {
 }
 
 function portraitRegionForNpcShip(ship) {
+  const sovereignRegion = sovereignEastAsianPortraitRegion(ship)
+    || sovereignEastAsianPortraitRegion(ship.currentPort)
+    || sovereignEastAsianPortraitRegion(ship.plan?.origin);
+  if (sovereignRegion) return sovereignRegion;
   const routeRegion = ship.currentPort?.routeRegion || ship.plan?.origin?.routeRegion;
   if (routeRegion === "east-asia") return "east-asia";
   if (routeRegion === "south-asia") return "south-asia";
@@ -781,6 +787,19 @@ function portraitRegionForNpcShip(ship) {
   if (ship.profileId === "mediterranean") return "mediterranean";
   if (ship.profileId === "atlantic-coast") return "northern-europe";
   return "global";
+}
+
+function sovereignEastAsianPortraitRegion(subject) {
+  if (subject?.factionId === "japan" || subject?.country === "Japan") return "japan";
+  if (
+    subject?.factionId === "joseon"
+    || subject?.country === "Republic of Korea"
+    || subject?.country === "Dem. People's Republic of Korea"
+    || subject?.country === "Joseon"
+  ) {
+    return "joseon";
+  }
+  return null;
 }
 
 export function characterExpression(character, expressionId = "neutral") {
