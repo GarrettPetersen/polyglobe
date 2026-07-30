@@ -225,6 +225,10 @@ def render_clip(job, dimensions, crop):
         "-deadline", "good", "-cpu-used", "2", "-row-mt", "1",
         "-pix_fmt", "yuv420p", "-r", str(FPS), "-an",
         "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+        "-metadata", f"title={heading}",
+        "-metadata", f"description={heading}",
+        "-metadata", f"comment={heading}",
+        "-metadata", f"alt_text={heading}",
         output_path,
     ])
     run(command)

@@ -1,0 +1,49 @@
+{
+  "title": "Marque & Reprisal — Steam Page Teaser",
+  "exclusiveAgainst": "marque-and-reprisal-steam-trailer-v7.edit.json",
+  "music": "assets/music/city-tropical-loop.ogg",
+  "musicGain": 0.42,
+  "gameAudioGain": 1.6,
+  "clips": [
+    {
+      "source": "sail/trailer-sail-large-junk.mp4",
+      "start": 2.0,
+      "duration": 3.4
+    },
+    {
+      "source": "explore/trailer-explore-fuji.mp4",
+      "start": 5.1,
+      "duration": 3.4
+    },
+    {
+      "source": "trade/trailer-trade-lisbon.mp4",
+      "start": 5.0,
+      "duration": 3.4
+    },
+    {
+      "source": "fish/trailer-fish-reef.mp4",
+      "start": 5.0,
+      "duration": 3.4
+    },
+    {
+      "source": "fight/trailer-fight-atlantic.mp4",
+      "start": 5.0,
+      "duration": 3.4
+    },
+    {
+      "source": "survive/trailer-survive-lightning.mp4",
+      "start": 5.6,
+      "duration": 3.4
+    },
+    {
+      "source": "sail/trailer-sail-brigantine.mp4",
+      "start": 2.0,
+      "duration": 3.4
+    }
+  ],
+  "outro": {
+    "duration": 5.2,
+    "image": "capsule_art/generated/event_cover_english.png",
+    "text": "Wishlist on Steam"
+  }
+}
