@@ -7,6 +7,7 @@ import {
 import {
   DEMO_ESCAPE_GRACE_HEXES,
   buildDemoMediterraneanAccessMask,
+  demoNaturalistAnimalIdsForLandfalls,
   demoEscapeRequiresRecovery,
   navigationDistanceFromAccessMask,
   startMenuEditionLabel
@@ -65,4 +66,38 @@ test("escape recovery allows a ten-hex grace band beyond the demo access mask", 
 
   assert.equal(demoEscapeRequiresRecovery(DEMO_ESCAPE_GRACE_HEXES, distances), false);
   assert.equal(demoEscapeRequiresRecovery(DEMO_ESCAPE_GRACE_HEXES + 1, distances), true);
+});
+
+test("the demo naturalist roster contains only animals at accessible landfalls", () => {
+  const graph = {
+    tileCount: 5,
+    neighbors: [[1], [0, 2], [1, 3], [2, 4], [3]],
+    latDeg: [35, 35, 35, -30, -30],
+    lonDeg: [20, 20, 20, 135, 135]
+  };
+  const accessMask = Uint8Array.from([1, 0, 0, 0, 0]);
+  const earthRows = [
+    { t: "ocean" },
+    { t: "forest" },
+    { t: "forest" },
+    { t: "grass" },
+    { t: "ocean" }
+  ];
+  const animalCatalog = [
+    { id: "fox", matches: ({ terrain }) => terrain === "forest" },
+    { id: "kangaroo", matches: ({ latitudeDeg, terrain }) => (
+      latitudeDeg < 0 && terrain === "grass"
+    ) }
+  ];
+  assert.deepEqual(
+    demoNaturalistAnimalIdsForLandfalls({
+      graph,
+      accessMask,
+      earthRows,
+      riverMasks: new Uint8Array(graph.tileCount),
+      animalCatalog,
+      isWaterSurfaceRow: (row) => row.t === "ocean"
+    }),
+    ["fox"]
+  );
 });

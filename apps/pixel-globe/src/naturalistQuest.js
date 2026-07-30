@@ -18,18 +18,30 @@ export function naturalistQuestPresentation(view, buildEditionId = "full") {
       ongoingDialogue:
         `${view.reportedCount} of ${view.totalCount} creatures now have a place in my book. ` +
         "Keep watch whenever you make landfall.",
+      completionLedgerLabel: "Completed the great bestiary",
+      completionDialogue:
+        "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary " +
+        "founded upon witnesses. Your name shall stand beside mine on its first page.",
       framesCompletion: true
     });
   }
   if (buildEditionId === "demo") {
     return Object.freeze({
-      title: "NATURAL HISTORY",
-      idleObjective: "DOCUMENT EXOTIC ANIMALS",
-      reportSummary: `NATURALIST REPORTS RECORDED ${view.reportedCount}`,
+      title: "MEDITERRANEAN NATURAL HISTORY",
+      idleObjective:
+        `DOCUMENT MEDITERRANEAN ANIMALS (${view.reportedCount}/${view.totalCount})`,
+      reportSummary: `MEDITERRANEAN REPORTS ${view.reportedCount}/${view.totalCount}`,
       ongoingDialogue:
-        "Every honest account adds another page to my book. " +
+        `${view.reportedCount} of ${view.totalCount} creatures of these seas now have a place ` +
+        "in my book. " +
         "Keep watch whenever you make landfall.",
-      framesCompletion: false
+      completionLedgerLabel: "Completed Mediterranean natural history",
+      completionDialogue:
+        "Splendid! Your accounts now contain every creature to be found in these demo waters. " +
+        "Yet the full game opens every ocean beyond Gibraltar, with still more beasts waiting " +
+        "on distant shores. Look at all these blank pages, captain. A natural philosopher could " +
+        "scarcely sleep.",
+      framesCompletion: true
     });
   }
   throw new Error(`Unknown naturalist presentation edition: ${buildEditionId}`);
@@ -79,18 +91,25 @@ export function assignNaturalistPort(memory, ports, identityKey = "naturalist") 
   return memory.portTileId;
 }
 
-export function naturalistQuestView(memory, animalMemory) {
+export function naturalistQuestView(memory, animalMemory, {
+  catalogAnimalIds = undefined
+} = {}) {
   validateNaturalistQuestMemory(memory);
   validateAnimalEncounterMemory(animalMemory);
-  const unreportedAnimalIds = animalMemory.encounterOrder.filter((id) => !memory.reportedAnimalIds.includes(id));
+  const catalogIds = validatedNaturalistCatalogIds(catalogAnimalIds);
+  const catalogIdSet = new Set(catalogIds);
+  const reportedAnimalIds = memory.reportedAnimalIds.filter((id) => catalogIdSet.has(id));
+  const unreportedAnimalIds = animalMemory.encounterOrder.filter((id) => (
+    catalogIdSet.has(id) && !memory.reportedAnimalIds.includes(id)
+  ));
   return Object.freeze({
     portTileId: memory.portTileId,
     met: memory.met,
-    reportedCount: memory.reportedAnimalIds.length,
-    totalCount: ANIMAL_CATALOG_BY_ID.size,
+    reportedCount: reportedAnimalIds.length,
+    totalCount: catalogIds.length,
     unreportedAnimalIds: Object.freeze(unreportedAnimalIds),
     hasUnreportedAnimals: unreportedAnimalIds.length > 0,
-    complete: memory.reportedAnimalIds.length === ANIMAL_CATALOG_BY_ID.size,
+    complete: reportedAnimalIds.length === catalogIds.length,
     completionRewarded: memory.completionRewarded
   });
 }
@@ -136,4 +155,19 @@ function hashString32(value) {
     hash = Math.imul(hash, 0x01000193);
   }
   return hash >>> 0;
+}
+
+function validatedNaturalistCatalogIds(catalogAnimalIds) {
+  const ids = catalogAnimalIds === undefined
+    ? [...ANIMAL_CATALOG_BY_ID.keys()]
+    : catalogAnimalIds;
+  if (!Array.isArray(ids) || ids.length === 0 || new Set(ids).size !== ids.length) {
+    throw new Error("Naturalist catalog must be a nonempty unique animal list");
+  }
+  for (const animalId of ids) {
+    if (!ANIMAL_CATALOG_BY_ID.has(animalId)) {
+      throw new Error(`Naturalist catalog names an unknown animal: ${animalId}`);
+    }
+  }
+  return ids;
 }

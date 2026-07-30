@@ -57,15 +57,21 @@ test("a panda remains an animal report independently of its companion dispositio
   assert.equal(naturalistQuestView(quest, animals).reportedCount, 1);
 });
 
-test("the demo presents natural history as open-ended while the full game keeps bestiary completion", () => {
+test("the demo completes a regional natural history while the full game keeps the great bestiary", () => {
   const view = { reportedCount: 4, totalCount: 18 };
   assert.deepEqual(naturalistQuestPresentation(view, "demo"), {
-    title: "NATURAL HISTORY",
-    idleObjective: "DOCUMENT EXOTIC ANIMALS",
-    reportSummary: "NATURALIST REPORTS RECORDED 4",
+    title: "MEDITERRANEAN NATURAL HISTORY",
+    idleObjective: "DOCUMENT MEDITERRANEAN ANIMALS (4/18)",
+    reportSummary: "MEDITERRANEAN REPORTS 4/18",
     ongoingDialogue:
-      "Every honest account adds another page to my book. Keep watch whenever you make landfall.",
-    framesCompletion: false
+      "4 of 18 creatures of these seas now have a place in my book. Keep watch whenever you make landfall.",
+    completionLedgerLabel: "Completed Mediterranean natural history",
+    completionDialogue:
+      "Splendid! Your accounts now contain every creature to be found in these demo waters. " +
+      "Yet the full game opens every ocean beyond Gibraltar, with still more beasts waiting " +
+      "on distant shores. Look at all these blank pages, captain. A natural philosopher could " +
+      "scarcely sleep.",
+    framesCompletion: true
   });
   assert.deepEqual(naturalistQuestPresentation(view, "full"), {
     title: "THE GREAT BESTIARY",
@@ -73,12 +79,35 @@ test("the demo presents natural history as open-ended while the full game keeps 
     reportSummary: "BESTIARY REPORTED 4/18",
     ongoingDialogue:
       "4 of 18 creatures now have a place in my book. Keep watch whenever you make landfall.",
+    completionLedgerLabel: "Completed the great bestiary",
+    completionDialogue:
+      "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary " +
+      "founded upon witnesses. Your name shall stand beside mine on its first page.",
     framesCompletion: true
   });
   assert.throws(
     () => naturalistQuestPresentation(view, "preview"),
     /Unknown naturalist presentation edition/
   );
+});
+
+test("a regional catalog completes without completing the global bestiary", () => {
+  const quest = createNaturalistQuestMemory();
+  quest.portTileId = 10;
+  meetNaturalist(quest);
+  const animals = createAnimalEncounterMemory();
+  recordAnimalEncounter(animals, "tiger");
+  recordAnimalEncounter(animals, "panda");
+  reportAnimalsToNaturalist(quest, animals);
+
+  const regional = naturalistQuestView(quest, animals, {
+    catalogAnimalIds: ["tiger", "panda"]
+  });
+  assert.equal(regional.reportedCount, 2);
+  assert.equal(regional.totalCount, 2);
+  assert.equal(regional.complete, true);
+  assert.equal(regional.completionRewarded, false);
+  assert.equal(naturalistQuestView(quest, animals).complete, false);
 });
 
 test("animal reports pay once and the completed bestiary grants its bonus", () => {

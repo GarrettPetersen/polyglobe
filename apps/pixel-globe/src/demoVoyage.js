@@ -8,6 +8,61 @@ export function startMenuEditionLabel(buildEditionId) {
   throw new Error(`Unknown build edition for start menu: ${buildEditionId}`);
 }
 
+export function demoNaturalistAnimalIdsForLandfalls({
+  graph,
+  accessMask,
+  earthRows,
+  riverMasks,
+  animalCatalog,
+  isWaterSurfaceRow
+}) {
+  validateNavigationGraph(graph);
+  if (!(accessMask instanceof Uint8Array) || accessMask.length !== graph.tileCount) {
+    throw new Error("Demo naturalist roster requires a complete access mask");
+  }
+  if (!Array.isArray(earthRows) || earthRows.length !== graph.tileCount) {
+    throw new Error("Demo naturalist roster requires complete terrain rows");
+  }
+  if (!riverMasks || riverMasks.length !== graph.tileCount) {
+    throw new Error("Demo naturalist roster requires complete river masks");
+  }
+  if (!Array.isArray(animalCatalog) || animalCatalog.length === 0 ||
+      typeof isWaterSurfaceRow !== "function") {
+    throw new Error("Demo naturalist roster requires animals and a water predicate");
+  }
+  const animalIds = new Set();
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    const row = earthRows[tileId];
+    if (isWaterSurfaceRow(row)) continue;
+    const accessibleLandfall = accessMask[tileId] === 1 ||
+      graph.neighbors[tileId].some((neighborId) => accessMask[neighborId] === 1);
+    if (!accessibleLandfall) continue;
+    const terrain = row?.t || "";
+    const habitat = {
+      latitudeDeg: graph.latDeg[tileId],
+      longitudeDeg: graph.lonDeg[tileId],
+      terrain,
+      isSurfaceIce: terrain === "ice_cap",
+      isRiver: Boolean(riverMasks[tileId]),
+      isLake: terrain === "lake",
+      isCoast: true
+    };
+    for (const animal of animalCatalog) {
+      if (!animal || typeof animal.id !== "string" || typeof animal.matches !== "function") {
+        throw new Error("Demo naturalist roster contains an invalid animal");
+      }
+      if (animal.matches(habitat)) animalIds.add(animal.id);
+    }
+  }
+  const orderedIds = animalCatalog
+    .map((animal) => animal.id)
+    .filter((animalId) => animalIds.has(animalId));
+  if (orderedIds.length === 0) {
+    throw new Error("Mediterranean demo landfalls contain no naturalist animals");
+  }
+  return Object.freeze(orderedIds);
+}
+
 export function buildDemoMediterraneanAccessMask({
   graph,
   seedTileId,

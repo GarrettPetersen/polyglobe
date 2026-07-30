@@ -367,6 +367,7 @@ import {
   recordAnimalCompanionNpcReaction
 } from "./animalCompanions.js";
 import {
+  NATURALIST_COMPLETION_REWARD,
   assignNaturalistPort,
   meetNaturalist,
   naturalistQuestPresentation,
@@ -1189,6 +1190,7 @@ import {
   DEMO_ESCAPE_GRACE_HEXES,
   DEMO_GIBRALTAR_MESSAGE,
   buildDemoMediterraneanAccessMask,
+  demoNaturalistAnimalIdsForLandfalls,
   demoEscapeRequiresRecovery,
   navigationDistanceFromAccessMask,
   startMenuEditionLabel
@@ -2583,6 +2585,7 @@ let demoDistanceFromMediterraneanAccess = null;
 let demoDistanceFromGibraltarBarrier = null;
 let demoAccessiblePortCities = null;
 let demoAccessiblePortIds = null;
+let demoNaturalistAnimalIds = null;
 let demoGibraltarRecoveryTileId = null;
 let demoGibraltarWarningArmed = true;
 let freshWaterSurfaceMask;
@@ -5785,6 +5788,20 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
 function naturalistPort() {
   const tileId = gameState?.memory?.quests?.naturalist?.portTileId;
   return Number.isInteger(tileId) ? portCitiesByTileId.get(tileId) || null : null;
+}
+
+function naturalistQuestViewForBuild(state = gameState) {
+  if (!state) throw new Error("Naturalist quest view requires game state");
+  if (BUILD_EDITION_ID === "demo" && !demoNaturalistAnimalIds) {
+    throw new Error("Mediterranean naturalist roster has not been initialized");
+  }
+  return naturalistQuestView(
+    state.memory.quests.naturalist,
+    state.memory.animals,
+    BUILD_EDITION_ID === "demo"
+      ? { catalogAnimalIds: demoNaturalistAnimalIds }
+      : undefined
+  );
 }
 
 function ensureNaturalistCharacter(state) {
@@ -12296,7 +12313,7 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     expressionId,
     message
   });
-  const before = naturalistQuestView(memory, gameState.memory.animals);
+  const before = naturalistQuestViewForBuild();
   const steps = [];
   if (!before.met) {
     meetNaturalist(memory);
@@ -12306,9 +12323,18 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     ));
   }
   const report = reportAnimalsToNaturalist(memory, gameState.memory.animals);
-  const after = naturalistQuestView(memory, gameState.memory.animals);
+  const after = naturalistQuestViewForBuild();
   const presentation = naturalistQuestPresentation(after, BUILD_EDITION_ID);
-  const framesCompletion = presentation.framesCompletion && report.completedNow;
+  const demoCompletionNow = BUILD_EDITION_ID === "demo" &&
+    after.complete &&
+    gameState.memory.flags.demoNaturalistQuestCompleted !== true;
+  if (demoCompletionNow) gameState.memory.flags.demoNaturalistQuestCompleted = true;
+  const completedNow = BUILD_EDITION_ID === "demo" ? demoCompletionNow : report.completedNow;
+  const framesCompletion = presentation.framesCompletion && completedNow;
+  const completionReward = demoCompletionNow && !report.completedNow
+    ? NATURALIST_COMPLETION_REWARD
+    : 0;
+  const totalReward = report.reward + completionReward;
   if (report.animalIds.length > 0) {
     const animals = report.animalIds.map((id) => {
       const animal = ANIMAL_CATALOG_BY_ID.get(id);
@@ -12319,9 +12345,9 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     receiveQuestPayment(
       gameState,
       cityCall,
-      report.reward,
+      totalReward,
       framesCompletion
-        ? "Completed the great bestiary"
+        ? presentation.completionLedgerLabel
         : `Natural history reports: ${names.join(", ")}`,
       portDialogueContext()
     );
@@ -12332,15 +12358,15 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     }
     steps.push(naturalistLine(
       "attentive",
-      `Your accounts of ${naturalistAnimalList(names)} are worth ${report.reward.toLocaleString("en-US")} doubloons to my work.`
+      `Your accounts of ${naturalistAnimalList(names)} are worth ${totalReward.toLocaleString("en-US")} doubloons to my work.`
     ));
   }
   if (framesCompletion) {
     steps.push(naturalistLine(
       "happy",
-      "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary founded upon witnesses. Your name shall stand beside mine on its first page."
+      presentation.completionDialogue
     ));
-  } else {
+  } else if (!after.complete) {
     steps.push(naturalistLine(
       "neutral",
       presentation.ongoingDialogue
@@ -16567,6 +16593,18 @@ function initializeDemoMediterraneanNavigation() {
   console.info(
     `[pixel-globe] demo navigation: ${demoMediterraneanAccessMask.reduce((sum, value) => sum + value, 0)} ` +
     `Mediterranean-connected tiles; Gibraltar barrier ${[...blockedTileIds].join(", ")}`
+  );
+  demoNaturalistAnimalIds = demoNaturalistAnimalIdsForLandfalls({
+    graph,
+    accessMask: demoMediterraneanAccessMask,
+    earthRows,
+    riverMasks,
+    animalCatalog: ANIMAL_CATALOG,
+    isWaterSurfaceRow
+  });
+  console.info(
+    `[pixel-globe] demo naturalist: ${demoNaturalistAnimalIds.length} available animals; ` +
+    demoNaturalistAnimalIds.join(", ")
   );
 }
 
@@ -26049,8 +26087,7 @@ function questJournalEntries() {
 }
 
 function naturalistJournalEntry() {
-  const memory = gameState.memory.quests.naturalist;
-  const view = naturalistQuestView(memory, gameState.memory.animals);
+  const view = naturalistQuestViewForBuild();
   const presentation = naturalistQuestPresentation(view, BUILD_EDITION_ID);
   if (!view.met || (view.complete && presentation.framesCompletion)) return null;
   const port = naturalistPort();
@@ -26596,7 +26633,7 @@ function navigationMenuEntries() {
 
 function activeNaturalistReportDestination() {
   if (!gameState) return null;
-  const view = naturalistQuestView(gameState.memory.quests.naturalist, gameState.memory.animals);
+  const view = naturalistQuestViewForBuild();
   return view.met && view.hasUnreportedAnimals ? naturalistPort() : null;
 }
 
@@ -28072,7 +28109,7 @@ function drawDiscoveriesMenu() {
       false
     );
   } else {
-    const naturalist = naturalistQuestView(gameState.memory.quests.naturalist, gameState.memory.animals);
+    const naturalist = naturalistQuestViewForBuild();
     const naturalistPresentation = naturalistQuestPresentation(naturalist, BUILD_EDITION_ID);
     const naturalistLines = wrapPixelTextAll(
       naturalist.met
