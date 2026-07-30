@@ -105,6 +105,8 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     ],
     // Mekong/Tonle Sap approach for Angkor.
     [23399, 93282, 23390, 93245, 92992],
+    // Rio de la Plata estuary from the Parana delta to the Atlantic coast.
+    [6776, 106926],
     // Dardanelles passage from the Aegean side into the Sea of Marmara.
     DARDANELLES_HEX_CHAIN,
     // Bosporus passage from the Sea of Marmara into the Black Sea.
@@ -132,6 +134,8 @@ export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
     // Yukon delta branches into the Bering Sea.
     { tile: 47511, edge: 3 },
     { tile: 47521, edge: 2 },
+    // Rio de la Plata opens into the South Atlantic beside Buenos Aires.
+    { tile: 106926, edge: 2 },
   ],
 };
 

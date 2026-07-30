@@ -155,6 +155,21 @@ test("both Yukon delta branches open into the Bering Sea", async () => {
   }
 });
 
+test("the Rio de la Plata opens into the South Atlantic", async () => {
+  const { earth, graph, masks, reachable } = await buildManualRiverFixture();
+  const deltaTileId = 6776;
+  const mouthTileId = 106926;
+  const mouthEdge = 2;
+  const coastalTileId = 107948;
+
+  assert.equal(riverTilesConnected(graph, masks, deltaTileId, mouthTileId), true);
+  assert.equal(graph.edgeNeighbors[mouthTileId][mouthEdge], coastalTileId);
+  assert.equal(isWaterSurfaceRow(earth.tiles[coastalTileId]), true);
+  assert.equal(riverEdgeSet(masks, mouthTileId, mouthEdge), true);
+  assert.equal(reachable[deltaTileId], 1);
+  assert.equal(reachable[mouthTileId], 1);
+});
+
 async function buildManualRiverFixture() {
   const earth = JSON.parse(await readFile(
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
