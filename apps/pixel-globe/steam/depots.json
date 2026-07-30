@@ -3,14 +3,16 @@
     "appId": 4516500,
     "depots": {
       "windows": 4516501,
-      "macos": 4516502
+      "macos": 4516502,
+      "linux": 4516503
     }
   },
   "demo": {
     "appId": 5029880,
     "depots": {
       "windows": 5029881,
-      "macos": 5029882
+      "macos": 5029882,
+      "linux": 5029883
     }
   }
 }

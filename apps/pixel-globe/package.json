@@ -16,6 +16,7 @@
     "steam:package:mac:signed": "npm --prefix steam-host run package -- --platform=darwin --arch=x64 --sign",
     "steam:package:mac:release": "npm --prefix steam-host run package -- --platform=darwin --arch=x64 --notarize",
     "steam:package:windows": "npm --prefix steam-host run package -- --platform=win32 --arch=x64",
+    "steam:package:linux": "npm --prefix steam-host run package -- --platform=linux --arch=x64",
     "steam:prepare-upload": "node tools/prepare-steampipe.mjs",
     "steam:upload": "node tools/upload-steampipe.mjs",
     "check": "node --check src/main.js && npm test && npm run build",

@@ -17,14 +17,16 @@ const editions = Object.freeze([
     appId: 4516500,
     windowsDirectory: "Marque & Reprisal-win32-x64",
     macDirectory: "Marque & Reprisal-darwin-x64",
-    macAppName: "Marque & Reprisal.app"
+    macAppName: "Marque & Reprisal.app",
+    linuxDirectory: "Marque & Reprisal-linux-x64"
   },
   {
     id: "demo",
     appId: 5029880,
     windowsDirectory: "Marque & Reprisal Demo-win32-x64",
     macDirectory: "Marque & Reprisal Demo-darwin-x64",
-    macAppName: "Marque & Reprisal Demo.app"
+    macAppName: "Marque & Reprisal Demo.app",
+    linuxDirectory: "Marque & Reprisal Demo-linux-x64"
   }
 ]);
 
@@ -35,6 +37,7 @@ for (const edition of editions) {
   const contentRoot = join(steamBuildRoot, edition.id);
   const windowsRoot = join(contentRoot, "win32-x64", edition.windowsDirectory);
   const macRoot = join(contentRoot, "darwin-x64", edition.macDirectory);
+  const linuxRoot = join(contentRoot, "linux-x64", edition.linuxDirectory);
   const configuredEdition = depotConfig[edition.id];
   assertEditionConfig(configuredEdition, edition);
   const platforms = {
@@ -57,6 +60,13 @@ for (const edition of editions) {
         "Resources",
         "steam-build.json"
       )
+    },
+    linux: {
+      depotId: configuredEdition.depots.linux,
+      contentRoot: linuxRoot,
+      localPath: "*",
+      depotPath: ".",
+      manifestPath: join(linuxRoot, "resources", "steam-build.json")
     }
   };
   const selectedDepots = [];
@@ -227,9 +237,9 @@ function vdfValue(value) {
 }
 
 function platformSelection(value) {
-  if (value === "all") return ["windows", "macos"];
-  if (value === "windows" || value === "macos") return [value];
-  throw new Error("Steam upload platform must be one of: all, windows, macos");
+  if (value === "all") return ["windows", "macos", "linux"];
+  if (value === "windows" || value === "macos" || value === "linux") return [value];
+  throw new Error("Steam upload platform must be one of: all, windows, macos, linux");
 }
 
 function argumentValue(name) {

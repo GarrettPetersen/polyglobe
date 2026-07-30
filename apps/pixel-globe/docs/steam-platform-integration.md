@@ -37,8 +37,9 @@ npm run steam:package
 Packages are written to `build/steam/<edition>/<platform>-<arch>/`. The demo
 embeds its assigned App ID `5029880`; `MARQUE_STEAM_DEMO_APP_ID` remains
 available as a packaging override. `npm run steam:package:windows` and
-`npm run steam:package:mac` create the current release targets. Cross-packaging
-does not replace a smoke test on the target OS.
+`npm run steam:package:mac`, and `npm run steam:package:linux` create the
+current release targets. Cross-packaging does not replace a smoke test on the
+target OS.
 
 ### macOS signing and notarization
 
@@ -73,9 +74,9 @@ verifies the signature and stapled ticket before accepting either package.
 
 ### SteamPipe depots
 
-Windows and macOS are delivered in separate, OS-restricted depots. Stable IDs
-live in `steam/depots.json`; a `null` value means Steamworks still needs to
-create that depot. Prepare both applications after all four IDs exist:
+Windows, macOS, and Linux are delivered in separate, OS-restricted depots.
+Stable IDs live in `steam/depots.json`; a `null` value means Steamworks still
+needs to create that depot. Prepare both applications after all six IDs exist:
 
 ```sh
 npm run steam:prepare-upload
@@ -87,10 +88,10 @@ For a Windows-only diagnostic upload while macOS depot IDs are still pending:
 npm run steam:prepare-upload -- --platform=windows
 ```
 
-The app build files reference both platform depots together so a single Steam
-Build ID represents the matching Windows and macOS release. SteamPipe leaves
-`SetLive` empty; assign an uploaded build to a protected beta branch manually
-after upload and verification.
+The app build files reference all three platform depots together so a single
+Steam Build ID represents the matching Windows, macOS, and Linux release.
+SteamPipe leaves `SetLive` empty; assign an uploaded build to a protected beta
+branch manually after upload and verification.
 
 ## Implemented services
 
@@ -130,10 +131,11 @@ does not commit Valve SDK files or expose Node APIs to the renderer.
 
 ## Steamworks checklist
 
-1. Under SteamPipe > Depots, configure full-game Depot `4516501` and demo Depot
-   `5029881` as Windows/64-bit. Create one macOS/64-bit depot under each app,
-   record the generated IDs in `steam/depots.json`, and add both platform
-   depots to the developer/autogrant and public store packages.
+1. Under SteamPipe > Depots, configure full-game Depots `4516501`, `4516502`,
+   and `4516503` for Windows, macOS, and Linux/SteamOS respectively. Configure
+   demo Depots `5029881`, `5029882`, and `5029883` the same way. All depots are
+   64-bit, recorded in `steam/depots.json`, and included in the public store,
+   beta, and developer packages.
 2. On full-game App `4516500`, publish the 13 Stats definitions from
    `steam/stats/catalog.json` and the 51 achievement definitions, icon pairs,
    hidden flags, and progress bindings from `steam/achievements/catalog.json`.
