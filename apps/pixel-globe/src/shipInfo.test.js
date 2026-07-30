@@ -20,6 +20,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipComparisonArmamentRow,
   shipComparisonDifferenceLabel,
   shipLocalDateLabel,
   shipLedgerDateLabel,
@@ -97,6 +98,28 @@ test("ship comparison differences occupy a dedicated signed column", () => {
   assert.equal(shipComparisonDifferenceLabel(0), "0");
   assert.equal(shipComparisonDifferenceLabel(-3), "-3");
   assert.throws(() => shipComparisonDifferenceLabel(Number.NaN), /Invalid ship comparison difference/);
+});
+
+test("ship comparison armament avoids repeating long gun summaries", () => {
+  const cannonComparison = createShipComparisonView("small-cog", "brigantine");
+  assert.deepEqual(shipComparisonArmamentRow(cannonComparison), {
+    label: "GUNS",
+    candidate: "14",
+    current: "2",
+    difference: 12
+  });
+
+  const arrowComparison = createShipComparisonView("small-cog", "viking-longship");
+  assert.deepEqual(shipComparisonArmamentRow(arrowComparison), {
+    label: "WEAPON",
+    candidate: "ARROWS",
+    current: "2 GUNS",
+    difference: -2
+  });
+  assert.throws(
+    () => shipComparisonArmamentRow(null),
+    /requires current and candidate vessels/
+  );
 });
 
 test("ship comparisons expose the turtle ship's exceptional armor", () => {

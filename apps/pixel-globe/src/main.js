@@ -1120,6 +1120,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipComparisonArmamentRow,
   shipComparisonDifferenceLabel,
   shipLocalDateLabel,
   shipLedgerDateLabel,
@@ -1159,6 +1160,7 @@ import {
 } from "./voyageHistory.js";
 import {
   ACHIEVEMENT_CATALOG,
+  ACHIEVEMENT_IDS,
   achievementCatalogPageForId,
   achievementPlatformAdapter,
   achievementPresentation,
@@ -1846,6 +1848,8 @@ let POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
 let POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
 const SHIP_INFO_SIDE_VIEW_W = 192;
 const SHIP_INFO_SIDE_VIEW_H = 104;
+const SHIP_COMPARISON_LANDSCAPE_ROW_H = 9;
+const SHIP_COMPARISON_STACKED_ROW_H = 12;
 const DIALOGUE_PORTRAIT_SIZE = 64;
 const DIALOGUE_OPTION_H = 24;
 let PLAYER_INTRO_PANEL_W = 326;
@@ -13901,15 +13905,31 @@ function chooseDialogueOption(optionIndex) {
     const city = currentDialogueCity();
     result = selectShoreBatteryDialogueOption(dialogueState, city, optionIndex);
     if (result.action?.type === "purchase-safe-passage") {
-      const passage = purchaseFactionSafePassage(gameState, city, Math.floor(weatherClockMinutes));
-      const battery = shoreBatteryStates.get(shoreBatteryId(city));
-      if (battery) {
-        battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
-        battery.playerHailed = false;
+      const simMinute = Math.floor(weatherClockMinutes);
+      const entryStatus = portEntryStatus(gameState, city, simMinute);
+      const toll = entryStatus.canPurchaseSafePassage
+        ? factionSafePassageToll(gameState)
+        : null;
+      if (!entryStatus.canPurchaseSafePassage || gameState.doubloons < toll) {
+        const notice = entryStatus.safePassage
+          ? "SAFE PASSAGE ALREADY SECURED"
+          : entryStatus.hostileByStanding
+            ? "SAFE PASSAGE REFUSED"
+            : gameState.doubloons < toll
+              ? "NOT ENOUGH DOUBLOONS"
+              : "PASSAGE OFFER WITHDRAWN";
+        showSurvivalNotice(notice, "warn");
+      } else {
+        const passage = purchaseFactionSafePassage(gameState, city, simMinute);
+        const battery = shoreBatteryStates.get(shoreBatteryId(city));
+        if (battery) {
+          battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
+          battery.playerHailed = false;
+        }
+        playCoinClinkSound();
+        showSurvivalNotice(`${factionById(passage.factionId).adjective.toUpperCase()} PASSAGE  ${passage.days} DAYS`, "good");
+        saveVoyageNow("purchased faction safe passage");
       }
-      playCoinClinkSound();
-      showSurvivalNotice(`${factionById(passage.factionId).adjective.toUpperCase()} PASSAGE  ${passage.days} DAYS`, "good");
-      saveVoyageNow("purchased faction safe passage");
       result.action = null;
     } else if (result.action?.type === "refuse-safe-passage") {
       refuseFactionSafePassage(gameState, city.factionId, Math.floor(weatherClockMinutes));
@@ -38145,6 +38165,7 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   const optionRowCount = optionGroups.regular.length + (optionGroups.exits.length > 0 ? 1 : 0);
   const optionY = panel.y + panel.h - optionRowCount * optionHeight -
     (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) - 7;
+  const sideViewSize = vesselDecisionSideViewSize(panel.w, compact);
 
   drawPiratePaperModal(panel, 0.9);
 
@@ -38164,31 +38185,41 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   });
 
   const artX = compact
-    ? panel.x + Math.floor((panel.w - SHIP_INFO_SIDE_VIEW_W) / 2)
+    ? panel.x + Math.floor((panel.w - sideViewSize.w) / 2)
     : panel.x + 10;
   const artY = compact ? panel.y + 40 : panel.y + 38;
   ctx.fillStyle = "#323353";
-  ctx.fillRect(artX, artY, SHIP_INFO_SIDE_VIEW_W, SHIP_INFO_SIDE_VIEW_H);
+  ctx.fillRect(artX, artY, sideViewSize.w, sideViewSize.h);
   ctx.strokeStyle = "#7f708a";
-  ctx.strokeRect(artX + 0.5, artY + 0.5, SHIP_INFO_SIDE_VIEW_W - 1, SHIP_INFO_SIDE_VIEW_H - 1);
+  ctx.strokeRect(artX + 0.5, artY + 0.5, sideViewSize.w - 1, sideViewSize.h - 1);
   const sideView = shipInfoImages.get(vessel.slug);
   if (sideView) {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(sideView, artX, artY);
+    ctx.drawImage(sideView, artX, artY, sideViewSize.w, sideViewSize.h);
   } else {
-    drawOptionsText("LOADING SHIP...", artX + SHIP_INFO_SIDE_VIEW_W / 2, artY + 48, {
+    drawOptionsText("LOADING SHIP...", artX + sideViewSize.w / 2, artY + Math.floor(sideViewSize.h / 2) - 4, {
       align: "center",
       color: "#9babb2"
     });
   }
 
   if (compact) {
-    if (shipyard) drawCompactShipyardStats(panel, comparison, presentation.purchaseTerms, artY);
-    else drawCompactShipCaptureStats(panel, comparison, presentation, artY);
+    if (shipyard) drawCompactShipyardStats(panel, comparison, presentation.purchaseTerms, artY, sideViewSize.h);
+    else drawCompactShipCaptureStats(panel, comparison, presentation, artY, sideViewSize.h);
   } else if (shipyard) {
-    drawLandscapeShipyardStats(panel, comparison, presentation.purchaseTerms);
+    drawLandscapeShipyardStats(
+      panel,
+      comparison,
+      presentation.purchaseTerms,
+      artX + sideViewSize.w + (panel.w < 370 ? 8 : 12)
+    );
   } else {
-    drawLandscapeShipCaptureStats(panel, comparison, presentation);
+    drawLandscapeShipCaptureStats(
+      panel,
+      comparison,
+      presentation,
+      artX + sideViewSize.w + (panel.w < 370 ? 8 : 12)
+    );
   }
   if (!shipyard || dialogueView.feedback) {
     drawVesselDecisionStatus(dialogueView, panel, optionY);
@@ -38204,28 +38235,49 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   );
 }
 
-function drawLandscapeShipyardStats(panel, comparison, purchaseTerms) {
+function vesselDecisionSideViewSize(panelWidth, compact) {
+  if (!Number.isFinite(panelWidth) || panelWidth <= 0) {
+    throw new Error(`Invalid vessel decision panel width: ${panelWidth}`);
+  }
+  if (compact || panelWidth >= 430) {
+    return { w: SHIP_INFO_SIDE_VIEW_W, h: SHIP_INFO_SIDE_VIEW_H };
+  }
+  if (panelWidth >= 370) return { w: 144, h: 78 };
+  return { w: 120, h: 65 };
+}
+
+function drawLandscapeShipyardStats(panel, comparison, purchaseTerms, comparisonX) {
   const comparisonY = panel.y + 40;
   drawShipComparison(
     comparison,
     shipyardComparisonColumns(comparison),
-    panel.x + 214,
+    comparisonX,
     panel.x + panel.w - 12,
-    comparisonY
+    comparisonY,
+    SHIP_COMPARISON_LANDSCAPE_ROW_H
   );
-  drawShipyardPriceRow(panel, purchaseTerms, comparisonY + shipComparisonHeight(comparison));
+  drawShipyardPriceRow(
+    panel,
+    purchaseTerms,
+    comparisonY + shipComparisonHeight(comparison, SHIP_COMPARISON_LANDSCAPE_ROW_H)
+  );
 }
 
-function drawCompactShipyardStats(panel, comparison, purchaseTerms, artY) {
-  const comparisonY = artY + SHIP_INFO_SIDE_VIEW_H + 9;
+function drawCompactShipyardStats(panel, comparison, purchaseTerms, artY, artHeight) {
+  const comparisonY = artY + artHeight + 9;
   drawShipComparison(
     comparison,
     shipyardComparisonColumns(comparison),
     panel.x + 12,
     panel.x + panel.w - 12,
-    comparisonY
+    comparisonY,
+    SHIP_COMPARISON_STACKED_ROW_H
   );
-  drawShipyardPriceRow(panel, purchaseTerms, comparisonY + shipComparisonHeight(comparison));
+  drawShipyardPriceRow(
+    panel,
+    purchaseTerms,
+    comparisonY + shipComparisonHeight(comparison, SHIP_COMPARISON_STACKED_ROW_H)
+  );
 }
 
 function shipyardComparisonColumns(comparison) {
@@ -38274,7 +38326,7 @@ function drawShipyardPurchaseBalance(panel, price, heading) {
   return { x: panel.x + panel.w - 10, align: "right" };
 }
 
-function drawLandscapeShipCaptureStats(panel, comparison, presentation) {
+function drawLandscapeShipCaptureStats(panel, comparison, presentation, comparisonX) {
   drawShipComparison(
     comparison,
     {
@@ -38283,13 +38335,14 @@ function drawLandscapeShipCaptureStats(panel, comparison, presentation) {
       candidateHull: `${presentation.candidateHitPoints}/${presentation.candidateMaxHitPoints}`,
       currentHull: `${presentation.currentHitPoints}/${presentation.currentMaxHitPoints}`
     },
-    panel.x + 214,
+    comparisonX,
     panel.x + panel.w - 12,
-    panel.y + 40
+    panel.y + 40,
+    SHIP_COMPARISON_LANDSCAPE_ROW_H
   );
 }
 
-function drawCompactShipCaptureStats(panel, comparison, presentation, artY) {
+function drawCompactShipCaptureStats(panel, comparison, presentation, artY, artHeight) {
   drawShipComparison(
     comparison,
     {
@@ -38300,19 +38353,23 @@ function drawCompactShipCaptureStats(panel, comparison, presentation, artY) {
     },
     panel.x + 12,
     panel.x + panel.w - 12,
-    artY + SHIP_INFO_SIDE_VIEW_H + 9
+    artY + artHeight + 9,
+    SHIP_COMPARISON_STACKED_ROW_H
   );
 }
 
-function drawShipComparison(comparison, columns, x, valueX, y) {
-  const currentColumn = { right: valueX, width: 60 };
+function drawShipComparison(comparison, columns, x, valueX, y, rowHeight) {
+  if (!Number.isInteger(rowHeight) || rowHeight < 9) {
+    throw new Error(`Invalid ship comparison row height: ${rowHeight}`);
+  }
+  const currentColumn = { right: valueX, width: 44 };
   const differenceColumn = {
     right: currentColumn.right - currentColumn.width - 3,
-    width: 34
+    width: 26
   };
   const candidateColumn = {
     right: differenceColumn.right - differenceColumn.width - 3,
-    width: 52
+    width: 44
   };
   drawOptionsText(columns.candidateHeading, candidateColumn.right, y, {
     font: PIXEL_FONT_SMALL_8,
@@ -38329,7 +38386,7 @@ function drawShipComparison(comparison, columns, x, valueX, y) {
     align: "right",
     color: PIRATE_MENU_INK_MUTED
   });
-  y += 12;
+  y += rowHeight;
 
   const hullMetric = comparison.metrics.find((metric) => metric.id === "hull");
   if (!hullMetric) throw new Error("Ship comparison is missing hull metrics");
@@ -38344,21 +38401,21 @@ function drawShipComparison(comparison, columns, x, valueX, y) {
     currentColumn,
     y
   );
-  y += 12;
+  y += rowHeight;
 
-  const armamentDifference = comparison.candidate.maxCannons - comparison.current.maxCannons;
+  const armament = shipComparisonArmamentRow(comparison);
   drawShipComparisonRow(
-    "ARMAMENT",
-    shipArmamentDisplayText(comparison.candidate),
-    shipArmamentDisplayText(comparison.current),
-    armamentDifference,
+    armament.label,
+    armament.candidate,
+    armament.current,
+    armament.difference,
     x,
     candidateColumn,
     differenceColumn,
     currentColumn,
     y
   );
-  y += 12;
+  y += rowHeight;
 
   for (const metric of comparison.metrics.filter((entry) => entry.id !== "hull")) {
     drawShipComparisonRow(
@@ -38372,19 +38429,18 @@ function drawShipComparison(comparison, columns, x, valueX, y) {
       currentColumn,
       y
     );
-    y += 12;
+    y += rowHeight;
   }
 }
 
-function shipArmamentDisplayText(shipView) {
-  return [shipView.armamentLabel, shipView.armamentSummary].filter(Boolean).join(" ");
-}
-
-function shipComparisonHeight(comparison) {
+function shipComparisonHeight(comparison, rowHeight) {
   if (!comparison || !Array.isArray(comparison.metrics) || comparison.metrics.length === 0) {
     throw new Error("Ship comparison height requires metrics");
   }
-  return (comparison.metrics.length + 2) * 12;
+  if (!Number.isInteger(rowHeight) || rowHeight < 9) {
+    throw new Error(`Invalid ship comparison row height: ${rowHeight}`);
+  }
+  return (comparison.metrics.length + 2) * rowHeight;
 }
 
 function drawShipComparisonRow(
@@ -38398,7 +38454,12 @@ function drawShipComparisonRow(
   currentColumn,
   y
 ) {
-  drawOptionsText(label, x, y, {
+  const labelWidth = Math.max(1, candidateColumn.right - candidateColumn.width - x - 4);
+  const compactLabel = label === "SEAWORTHY" ? "SEA" : label;
+  const fittedLabel = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) <= labelWidth
+    ? label
+    : fitPixelText(compactLabel, PIXEL_FONT_SMALL_8, labelWidth);
+  drawOptionsText(fittedLabel, x, y, {
     font: PIXEL_FONT_SMALL_8,
     color: PIRATE_MENU_INK
   });

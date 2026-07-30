@@ -2767,6 +2767,13 @@ function isNorthwestCoastWhalingPort(port) {
   return port.manualRegion === "northwest-coast";
 }
 
+function isNorthwestCoastRoutePoint(port) {
+  if (isNorthwestCoastWhalingPort(port)) return true;
+  if (!Number.isFinite(port?.lat) || !Number.isFinite(port?.lon)) return false;
+  const lon = normalizeLonDeg(port.lon);
+  return port.lat >= 40 && port.lat <= 61 && lon >= -150 && lon <= -118;
+}
+
 function isLongRangePort(port) {
   return isAnyUsablePort(port) && !isNativeCoastalPort(port) && [
     "europe",
@@ -2801,7 +2808,7 @@ function portRouteRegion(port) {
 }
 
 function anchorIdsForPort(port) {
-  if (isNorthwestCoastWhalingPort(port)) return ["yuquot"];
+  if (isNorthwestCoastRoutePoint(port)) return ["yuquot"];
   const region = portRouteRegion(port);
   if (region === "east-asia") return nearestAnchors(port, ["canton", "nagasaki", "manila"], 2);
   if (region === "southeast-asia") {

@@ -202,6 +202,20 @@ export function shipComparisonDifferenceLabel(difference) {
   return difference > 0 ? `+${difference}` : String(difference);
 }
 
+export function shipComparisonArmamentRow(comparison) {
+  if (!comparison?.current || !comparison?.candidate) {
+    throw new Error("Ship armament comparison requires current and candidate vessels");
+  }
+  const { current, candidate } = comparison;
+  const bothUseGuns = current.armamentLabel === "GUNS" && candidate.armamentLabel === "GUNS";
+  return Object.freeze({
+    label: bothUseGuns ? "GUNS" : "WEAPON",
+    candidate: bothUseGuns ? String(candidate.maxCannons) : conciseArmamentText(candidate),
+    current: bothUseGuns ? String(current.maxCannons) : conciseArmamentText(current),
+    difference: candidate.maxCannons - current.maxCannons
+  });
+}
+
 function comparisonMetric(id, label, current, candidate) {
   return Object.freeze({
     id,
@@ -210,6 +224,15 @@ function comparisonMetric(id, label, current, candidate) {
     candidate,
     difference: candidate - current
   });
+}
+
+function conciseArmamentText(shipView) {
+  if (shipView.armamentLabel === "ARROWS") return "ARROWS";
+  if (shipView.armamentLabel !== "GUNS" || !Number.isInteger(shipView.maxCannons)) {
+    throw new Error(`Invalid ship comparison armament: ${shipView.armamentLabel}`);
+  }
+  if (shipView.maxCannons === 0) return "NONE";
+  return `${shipView.maxCannons} ${shipView.maxCannons === 1 ? "GUN" : "GUNS"}`;
 }
 
 export function shipArmamentSummary(stats, activeCannons) {

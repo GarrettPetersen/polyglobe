@@ -74,6 +74,21 @@ const MESOAMERICAN_PORTS = Object.freeze([
   nativeVillage(port(34, "Coroa Vermelha Village", "Brazil", "mesoamerican", -16.33, -39.01, 1600, "neutral"))
 ]);
 
+const NORTHWEST_COAST_PORTS = Object.freeze([
+  Object.freeze({
+    ...port(44, "Yuquot Village", "Nuu-chah-nulth", "mesoamerican", 49.59, -126.62, 1500, "neutral"),
+    settlementType: "village",
+    manualRegion: "northwest-coast",
+    npcInterregionalTradeExcluded: true
+  }),
+  Object.freeze({
+    ...port(45, "Ozette Village", "Makah", "mesoamerican", 48.15, -124.73, 1000, "neutral"),
+    settlementType: "village",
+    manualRegion: "northwest-coast",
+    npcInterregionalTradeExcluded: true
+  })
+]);
+
 test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
   assert.ok(NPC_SHIP_SLUGS.includes("kelulus"));
@@ -273,16 +288,7 @@ test("a sparse dedicated whaling fleet hunts real whales without fishing nets", 
     port(41, "Reykjavik", "Iceland", "northern-european", 64.15, -21.94, 5000, "denmark-norway"),
     port(42, "Kyoto", "Japan", "east-asian", 35.01, 135.77, 100000, "japan"),
     port(43, "Nagasaki", "Japan", "east-asian", 32.75, 129.88, 30000, "japan"),
-    {
-      ...port(44, "Yuquot Village", "Nuu-chah-nulth", "mesoamerican", 49.59, -126.62, 1500, "neutral"),
-      manualRegion: "northwest-coast",
-      npcInterregionalTradeExcluded: true
-    },
-    {
-      ...port(45, "Ozette Village", "Makah", "mesoamerican", 48.15, -124.73, 1000, "neutral"),
-      manualRegion: "northwest-coast",
-      npcInterregionalTradeExcluded: true
-    }
+    ...NORTHWEST_COAST_PORTS
   ];
   const whaleMemory = createWhaleMemory();
   seedWhalePopulation(whaleMemory, whalingCandidates(), 320);
@@ -307,6 +313,29 @@ test("a sparse dedicated whaling fleet hunts real whales without fishing nets", 
     (ship.cargo["whale-blubber"] || 0) > 0
   )));
   assert.ok(whaleMemory.individuals.filter((whale) => whale.phase === "dead").length <= NPC_WHALER_FLEET_TARGET);
+});
+
+test("Northwest Coast fishing grounds share Yuquot's seasonal sea lane", () => {
+  const ports = [...PORTS, ...NORTHWEST_COAST_PORTS];
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy, fishState });
+  const northwestGrounds = routes.fishingGrounds.filter((ground) => (
+    ground.lat >= 40 && ground.lat <= 61 &&
+    ground.lon >= -150 && ground.lon <= -118
+  ));
+  const offshoreGround = northwestGrounds.find((ground) => ground.lon < -126.7);
+  const yuquot = routes.ports.find((candidate) => candidate.city === "Yuquot Village");
+
+  assert.ok(northwestGrounds.length > 0, "expected generated Northwest Coast fishing grounds");
+  assert.ok(northwestGrounds.every((ground) => (
+    ground.routeAnchors.length === 1 && ground.routeAnchors[0] === "yuquot"
+  )));
+  assert.ok(offshoreGround, "expected an offshore fishing ground west of Yuquot");
+  assert.ok(yuquot);
+  assert.doesNotThrow(() => (
+    routeBetweenPorts(routes, offshoreGround, yuquot, "mesoamerican-dugout-canoe", 0)
+  ));
 });
 
 test("Pacific villages get a small regional fishing and trading fleet", () => {
