@@ -41,15 +41,26 @@ const CULTURES = Object.freeze({
     ["Anna", "Birgitta", "Elin", "Else", "Ingeborg", "Karin", "Kirsten", "Margrete", "Maren", "Sigrid", "Sofie", "Tove"],
     ["Andersen", "Berg", "Eriksen", "Hansen", "Jorgensen", "Lind", "Nielsen", "Olsson", "Rasmussen", "Svensson", "Thomsen", "Vik"]
   ),
+  icelandic: culture(
+    ["Arni", "Bjarni", "Einar", "Eirik", "Gisli", "Gudmund", "Hallur", "Jon", "Olaf", "Snorri", "Stefan", "Thorstein"],
+    ["Anna", "Astrid", "Gudrun", "Hallbera", "Helga", "Ingibjorg", "Kristin", "Margret", "Ragnheidur", "Sigrid", "Thora", "Valgerd"],
+    ["Arna", "Bjarna", "Einars", "Eiriks", "Gisla", "Gudmundar", "Halls", "Jons", "Olafs", "Snorra", "Stefans", "Thorsteins"],
+    "given-first",
+    "icelandic-patronymic"
+  ),
   slavic: culture(
     ["Aleksander", "Andrei", "Bogdan", "Dmitri", "Grigori", "Ivan", "Jan", "Kazimierz", "Mikhail", "Nikolai", "Pavel", "Stefan"],
     ["Agata", "Aleksandra", "Anna", "Barbara", "Elena", "Irina", "Jadwiga", "Katarzyna", "Maria", "Natalia", "Sofia", "Zofia"],
-    ["Bielski", "Kowalski", "Mikhailov", "Nowak", "Orlov", "Petrov", "Romanov", "Sokolov", "Volkov", "Voronin", "Wisniewski", "Zielinski"]
+    ["Bielski", "Kowalski", "Mikhailov", "Nowak", "Orlov", "Petrov", "Romanov", "Sokolov", "Volkov", "Voronin", "Wisniewski", "Zielinski"],
+    "given-first",
+    "slavic-adjectival"
   ),
   polish: culture(
     ["Andrzej", "Jan", "Jakub", "Kazimierz", "Krzysztof", "Maciej", "Marcin", "Mikolaj", "Pawel", "Piotr", "Stanislaw", "Wojciech"],
     ["Agnieszka", "Anna", "Barbara", "Dorota", "Elzbieta", "Helena", "Jadwiga", "Katarzyna", "Malgorzata", "Regina", "Urszula", "Zofia"],
-    ["Bielski", "Dabrowski", "Kaminski", "Kowalski", "Mazur", "Nowak", "Szymanski", "Wisniewski", "Wojcik", "Wroblewski", "Zalewski", "Zielinski"]
+    ["Bielski", "Dabrowski", "Kaminski", "Kowalski", "Mazur", "Nowak", "Szymanski", "Wisniewski", "Wojcik", "Wroblewski", "Zalewski", "Zielinski"],
+    "given-first",
+    "polish-adjectival"
   ),
   lithuanian: culture(
     ["Albertas", "Andrius", "Augustinas", "Baltramiejus", "Benediktas", "Jokubas", "Jonas", "Jurgis", "Kazimieras", "Martynas", "Mikalojus", "Stanislovas"],
@@ -59,7 +70,9 @@ const CULTURES = Object.freeze({
   russian: culture(
     ["Aleksei", "Andrei", "Boris", "Dmitri", "Fyodor", "Grigori", "Ivan", "Mikhail", "Nikolai", "Semyon", "Vasili", "Yuri"],
     ["Anastasia", "Anna", "Daria", "Elena", "Evdokia", "Feodora", "Irina", "Ksenia", "Maria", "Natalia", "Olga", "Sofia"],
-    ["Alekseev", "Borisov", "Fedorov", "Ivanov", "Mikhailov", "Morozov", "Orlov", "Petrov", "Romanov", "Sokolov", "Vasiliev", "Volkov"]
+    ["Alekseev", "Borisov", "Fedorov", "Ivanov", "Mikhailov", "Morozov", "Orlov", "Petrov", "Romanov", "Sokolov", "Vasiliev", "Volkov"],
+    "given-first",
+    "east-slavic-adjectival"
   ),
   ruthenian: culture(
     ["Andrii", "Bohdan", "Danylo", "Fedko", "Hryhorii", "Ivan", "Levko", "Mykhailo", "Ostap", "Petro", "Semen", "Vasyl"],
@@ -80,7 +93,9 @@ const CULTURES = Object.freeze({
   bulgarian: culture(
     ["Bogdan", "Dimitar", "Dragomir", "Georgi", "Ivan", "Nikola", "Petar", "Radoslav", "Stefan", "Stoyan", "Todor", "Vasil"],
     ["Anna", "Desislava", "Elena", "Irina", "Kalina", "Katerina", "Maria", "Milena", "Nadezhda", "Rada", "Teodora", "Yana"],
-    ["Bogdanov", "Dimitrov", "Georgiev", "Ivanov", "Nikolov", "Petrov", "Radev", "Stoyanov", "Todorov", "Vasilev", "Vladislavov", "Zlatev"]
+    ["Bogdanov", "Dimitrov", "Georgiev", "Ivanov", "Nikolov", "Petrov", "Radev", "Stoyanov", "Todorov", "Vasilev", "Vladislavov", "Zlatev"],
+    "given-first",
+    "east-slavic-adjectival"
   ),
   romanian: culture(
     ["Alexandru", "Andrei", "Bogdan", "Dan", "Dragos", "Ion", "Mihail", "Mircea", "Nicolae", "Petru", "Radu", "Stefan"],
@@ -176,7 +191,7 @@ const COUNTRY_CULTURES = new Map([
   ["France", "french"], ["Spain", "spanish"], ["Portugal", "portuguese"],
   ["Italy", "italian"], ["Austria", "germanic"], ["Belgium", "germanic"],
   ["Germany", "germanic"], ["Netherlands", "germanic"], ["Denmark", "nordic"],
-  ["Norway", "nordic"], ["Sweden", "nordic"], ["Iceland", "nordic"], ["Poland", "polish"],
+  ["Norway", "nordic"], ["Sweden", "nordic"], ["Iceland", "icelandic"], ["Poland", "polish"],
   ["Lithuania", "lithuanian"], ["Russian Federation", "russian"], ["Ukraine", "ruthenian"],
   ["Hungary", "hungarian"], ["Albania", "albanian"], ["Bulgaria", "bulgarian"],
   ["Romania", "romanian"], ["Serbia", "serbian"], ["Greece", "greek"],
@@ -331,13 +346,22 @@ export function assignRegionalCharacterName({
   for (let attempt = 0; attempt < capacity; attempt++) {
     const index = (startIndex + attempt) % capacity;
     const givenName = givenNames[index % givenNames.length];
-    const familyName = nameCulture.family[Math.floor(index / givenNames.length) % nameCulture.family.length];
+    const familyNameRoot = nameCulture.family[
+      Math.floor(index / givenNames.length) % nameCulture.family.length
+    ];
+    const familyName = familyNameForSex(nameCulture, familyNameRoot, sex);
     const name = nameCulture.order === "family-first"
       ? `${familyName} ${givenName}`
       : `${givenName} ${familyName}`;
     if (usedNames.has(name)) continue;
     usedNames.add(name);
-    return { name, givenName, familyName, gender, nameCulture: cultureId };
+    return {
+      name,
+      givenName,
+      familyName,
+      gender,
+      nameCulture: cultureId
+    };
   }
   throw new Error(`Exhausted ${gender} names for ${cultureId}`);
 }
@@ -358,27 +382,71 @@ export function assignRegionalFamilyMemberName({ identityKey, relative, sex, use
   const cultureId = relative.nameCulture;
   const nameCulture = CULTURES[cultureId];
   if (!nameCulture) throw new Error(`Unknown relative name culture: ${cultureId}`);
-  if (!nameCulture.family.includes(relative.familyName)) {
-    throw new Error(`${relative.familyName} is not a ${cultureId} family name`);
-  }
+  const familyNameRoot = familyNameRootForCharacter(relative);
+  const familyName = familyNameForSex(nameCulture, familyNameRoot, sex);
   const givenNames = sex === "female" ? nameCulture.female : nameCulture.male;
   const startIndex = hashString32(`${identityKey}|${cultureId}|${sex}|relative`) % givenNames.length;
   for (let attempt = 0; attempt < givenNames.length; attempt++) {
     const givenName = givenNames[(startIndex + attempt) % givenNames.length];
     const name = nameCulture.order === "family-first"
-      ? `${relative.familyName} ${givenName}`
-      : `${givenName} ${relative.familyName}`;
+      ? `${familyName} ${givenName}`
+      : `${givenName} ${familyName}`;
     if (usedNames.has(name)) continue;
     usedNames.add(name);
     return {
       name,
       givenName,
-      familyName: relative.familyName,
+      familyName,
       gender: sex,
       nameCulture: cultureId
     };
   }
   throw new Error(`Exhausted ${sex} relatives for ${relative.name}`);
+}
+
+export function charactersShareFamilyName(left, right) {
+  return (
+    left?.nameCulture === right?.nameCulture &&
+    familyNameRootForCharacter(left) === familyNameRootForCharacter(right)
+  );
+}
+
+export function reconcileRegionalCharacterNameForms(root) {
+  if (!root || typeof root !== "object") {
+    throw new Error("Character name reconciliation requires an object graph");
+  }
+  const visited = new WeakSet();
+  let correctedCount = 0;
+
+  function visit(value) {
+    if (!value || typeof value !== "object" || ArrayBuffer.isView(value) || visited.has(value)) return;
+    visited.add(value);
+    if (
+      (value.sex === "female" || value.sex === "male") &&
+      typeof value.givenName === "string" &&
+      typeof value.familyName === "string" &&
+      typeof value.nameCulture === "string"
+    ) {
+      const nameCulture = CULTURES[value.nameCulture];
+      if (!nameCulture) throw new Error(`Unknown saved character name culture: ${value.nameCulture}`);
+      const familyNameRoot = familyNameRootForCharacter(value);
+      const familyName = familyNameForSex(nameCulture, familyNameRoot, value.sex);
+      const name = nameCulture.order === "family-first"
+        ? `${familyName} ${value.givenName}`
+        : `${value.givenName} ${familyName}`;
+      if (value.familyName !== familyName || value.name !== name) {
+        if (Object.isFrozen(value)) {
+          throw new Error(`Cannot reconcile frozen character name: ${value.name}`);
+        }
+        Object.assign(value, { name, familyName });
+        correctedCount += 1;
+      }
+    }
+    for (const child of Object.values(value)) visit(child);
+  }
+
+  visit(root);
+  return correctedCount;
 }
 
 export function nameCultureForSubject(subject) {
@@ -441,14 +509,68 @@ function shipPort(ship) {
   return port;
 }
 
-function culture(male, female, family, order = "given-first") {
+function culture(
+  male,
+  female,
+  family,
+  order = "given-first",
+  familyNameStyle = "invariant"
+) {
   if (male.length === 0 || female.length === 0 || family.length === 0) throw new Error("Name culture pools cannot be empty");
   return Object.freeze({
     male: Object.freeze(male),
     female: Object.freeze(female),
     family: Object.freeze(family),
-    order
+    order,
+    familyNameStyle
   });
+}
+
+function familyNameForSex(nameCulture, familyNameRoot, sex) {
+  if (sex !== "female" && sex !== "male") {
+    throw new Error(`Family name requires an explicit sex: ${sex}`);
+  }
+  if (!nameCulture.family.includes(familyNameRoot)) {
+    throw new Error(`${familyNameRoot} is not a registered family-name root`);
+  }
+  if (nameCulture.familyNameStyle === "icelandic-patronymic") {
+    return `${familyNameRoot}${sex === "female" ? "dottir" : "son"}`;
+  }
+  if (sex === "male" || nameCulture.familyNameStyle === "invariant") return familyNameRoot;
+  if (
+    nameCulture.familyNameStyle === "east-slavic-adjectival" ||
+    nameCulture.familyNameStyle === "slavic-adjectival"
+  ) {
+    if (/(?:ov|ev|in)$/.test(familyNameRoot)) return `${familyNameRoot}a`;
+  }
+  if (
+    nameCulture.familyNameStyle === "polish-adjectival" ||
+    nameCulture.familyNameStyle === "slavic-adjectival"
+  ) {
+    if (familyNameRoot.endsWith("dzki")) return `${familyNameRoot.slice(0, -4)}dzka`;
+    if (familyNameRoot.endsWith("cki")) return `${familyNameRoot.slice(0, -3)}cka`;
+    if (familyNameRoot.endsWith("ski")) return `${familyNameRoot.slice(0, -3)}ska`;
+  }
+  return familyNameRoot;
+}
+
+function familyNameRootForCharacter(character) {
+  if (!character || typeof character !== "object") {
+    throw new Error("Family-name comparison requires a character");
+  }
+  const nameCulture = CULTURES[character.nameCulture];
+  if (!nameCulture) throw new Error(`Unknown character name culture: ${character.nameCulture}`);
+  if (typeof character.familyName !== "string" || character.familyName.trim() === "") {
+    throw new Error("Character family name is missing");
+  }
+  const matchingRoot = nameCulture.family.find((candidate) => (
+    familyNameForSex(nameCulture, candidate, "male") === character.familyName ||
+    familyNameForSex(nameCulture, candidate, "female") === character.familyName
+  ));
+  if (!matchingRoot) {
+    throw new Error(`${character.familyName} is not a ${character.nameCulture} family name`);
+  }
+  return matchingRoot;
 }
 
 function normalizeName(value) {

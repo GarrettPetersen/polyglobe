@@ -1,4 +1,5 @@
 import { characterWithBiography, validateCharacterBiography } from "./characterBiography.js";
+import { charactersShareFamilyName } from "./characterNames.js";
 import { validateCharacterSkillIds } from "./characterSkills.js";
 
 export const RESCUED_TRAVELER_STAGE_OFFER = "offer";
@@ -66,7 +67,7 @@ export function createRescuedTravelerQuest(memory, {
   const relative = familySurvived ? rescuedTravelerWithBiography(familyMember, homePort) : null;
   if (familySurvived) {
     assertCharacter(relative, "Rescued traveler family member");
-    if (relative.familyName !== traveler.familyName) {
+    if (!charactersShareFamilyName(relative, traveler)) {
       throw new Error("Rescued traveler and family member must share a family name");
     }
   } else if (familyMember !== null) {
@@ -445,7 +446,7 @@ function validateRescuedTravelerQuest(quest) {
   if (typeof quest.familySurvived !== "boolean") throw new Error("Rescued traveler outcome must be fixed");
   if (quest.familySurvived) {
     assertCharacter(quest.familyMember, "Rescued traveler family member");
-    if (quest.familyMember.familyName !== quest.character.familyName) {
+    if (!charactersShareFamilyName(quest.familyMember, quest.character)) {
       throw new Error("Rescued traveler family names do not match");
     }
   } else if (quest.familyMember !== null) {

@@ -204,6 +204,7 @@ import {
   loadCharacterPortraitManifest,
   reconcileCharacterPortraitMetadata
 } from "./characterPortraits.js";
+import { reconcileRegionalCharacterNameForms } from "./characterNames.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import { portraitBottomTransparentRows } from "./portraitFrameAlignment.js";
 import {
@@ -8866,6 +8867,10 @@ async function restoreSavedVoyage(payload) {
   );
   if (correctedPortraitMetadataCount > 0) {
     console.info("[pixel-globe] corrected portrait metadata for saved characters:", correctedPortraitMetadataCount);
+  }
+  const correctedCharacterNameCount = reconcileRegionalCharacterNameForms(restoredGameState);
+  if (correctedCharacterNameCount > 0) {
+    console.info("[pixel-globe] corrected cultural name forms for saved characters:", correctedCharacterNameCount);
   }
   ensureWhalePopulation(restoredGameState);
   gameState = restoredGameState;

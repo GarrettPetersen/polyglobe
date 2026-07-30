@@ -779,7 +779,7 @@ test("port assignments use their authored culture-group portrait pools", () => {
   assert.equal(usedNames.size, 7);
 });
 
-test("a fixed port source keeps the Viking helmet portrait and a Nordic name", () => {
+test("a fixed port source keeps the Viking helmet portrait and an Icelandic name", () => {
   const city = {
     tileId: 64,
     city: "Hafnarfjordur",
@@ -793,7 +793,7 @@ test("a fixed port source keeps the Viking helmet portrait and a Nordic name", (
 
   assert.equal(character.sourceId, sourceId);
   assert.equal(character.region, "northern-europe");
-  assert.equal(character.nameCulture, "nordic");
+  assert.equal(character.nameCulture, "icelandic");
   assert.equal(character.role, "factor");
 });
 

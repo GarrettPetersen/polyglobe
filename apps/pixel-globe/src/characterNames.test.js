@@ -3,9 +3,12 @@ import test from "node:test";
 
 import {
   assignRegionalCharacterIdentity,
+  assignRegionalFamilyMemberName,
   assignRegionalCharacterName,
+  charactersShareFamilyName,
   nameCultureCandidatesForSubject,
-  nameCultureForSubject
+  nameCultureForSubject,
+  reconcileRegionalCharacterNameForms
 } from "./characterNames.js";
 
 test("regional character names are deterministic and respect family-first cultures", () => {
@@ -62,17 +65,42 @@ test("England and Scotland use distinct naming cultures", () => {
   assert.equal(nameCultureForSubject({ city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
 });
 
-test("Icelandic characters use the Nordic name pool", () => {
+test("Iceland and Sweden use distinct local name cultures", () => {
   assert.equal(nameCultureForSubject({
     city: "Hafnarfjordur",
     country: "Iceland",
     factionId: "denmark-norway"
-  }), "nordic");
+  }), "icelandic");
   assert.equal(nameCultureForSubject({
     city: "Soderkoping",
     country: "Sweden",
     factionId: "sweden"
   }), "nordic");
+});
+
+test("Icelandic patronymics use son and daughter forms", () => {
+  const city = {
+    city: "Hafnarfjordur",
+    country: "Iceland",
+    factionId: "neutral"
+  };
+  const male = assignRegionalCharacterName({
+    identityKey: "icelandic-male",
+    city,
+    sex: "male",
+    usedNames: new Set()
+  });
+  const female = assignRegionalCharacterName({
+    identityKey: "icelandic-female",
+    city,
+    sex: "female",
+    usedNames: new Set()
+  });
+
+  assert.equal(male.nameCulture, "icelandic");
+  assert.equal(female.nameCulture, "icelandic");
+  assert.match(male.familyName, /son$/);
+  assert.match(female.familyName, /dottir$/);
 });
 
 test("Pacific island villages use the Polynesian naming culture", () => {
@@ -126,6 +154,84 @@ test("eastern European home countries use precise local naming pools", () => {
   for (const [city, country, expected] of cases) {
     assert.equal(nameCultureForSubject({ city, country, factionId: "neutral" }), expected);
   }
+});
+
+test("Russian, Bulgarian, and Polish surnames use feminine forms", () => {
+  const cases = [
+    {
+      city: { city: "Moscow", country: "Russian Federation", factionId: "muscovy" },
+      expectedCulture: "russian",
+      assertForm: (identity) => assert.match(identity.familyName, /ova$|eva$/)
+    },
+    {
+      city: { city: "Sofia", country: "Bulgaria", factionId: "neutral" },
+      expectedCulture: "bulgarian",
+      assertForm: (identity) => assert.match(identity.familyName, /ova$|eva$/)
+    },
+    {
+      city: { city: "Warsaw", country: "Poland", factionId: "poland-lithuania" },
+      expectedCulture: "polish",
+      assertForm: (identity) => {
+        assert.equal(/ski$/.test(identity.familyName), false);
+        assert.match(identity.familyName, /ska$|Mazur$|Nowak$|Wojcik$/);
+      }
+    }
+  ];
+
+  for (const entry of cases) {
+    for (let index = 0; index < 96; index += 1) {
+      const identity = assignRegionalCharacterName({
+        identityKey: `${entry.expectedCulture}-female-${index}`,
+        city: entry.city,
+        sex: "female",
+        usedNames: new Set()
+      });
+      assert.equal(identity.nameCulture, entry.expectedCulture);
+      entry.assertForm(identity);
+    }
+  }
+});
+
+test("Russian relatives share a family root while displaying sex-specific surnames", () => {
+  const relative = {
+    name: "Anna Ivanova",
+    givenName: "Anna",
+    familyName: "Ivanova",
+    gender: "female",
+    sex: "female",
+    nameCulture: "russian"
+  };
+  const brother = assignRegionalFamilyMemberName({
+    identityKey: "anna-ivanova-brother",
+    relative,
+    sex: "male",
+    usedNames: new Set([relative.name])
+  });
+
+  assert.equal(brother.familyName, "Ivanov");
+  assert.equal(charactersShareFamilyName(relative, brother), true);
+});
+
+test("saved female Slavic names are reconciled without replacing their identity", () => {
+  const saved = {
+    captain: {
+      name: "Anna Ivanov",
+      givenName: "Anna",
+      familyName: "Ivanov",
+      sex: "female",
+      nameCulture: "russian"
+    }
+  };
+
+  assert.equal(reconcileRegionalCharacterNameForms(saved), 1);
+  assert.deepEqual(saved.captain, {
+    name: "Anna Ivanova",
+    givenName: "Anna",
+    familyName: "Ivanova",
+    sex: "female",
+    nameCulture: "russian"
+  });
+  assert.equal(reconcileRegionalCharacterNameForms(saved), 0);
 });
 
 test("Belgrade identities couple religion, local culture, and portrait attire", () => {
