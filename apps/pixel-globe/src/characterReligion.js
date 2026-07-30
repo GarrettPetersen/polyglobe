@@ -221,6 +221,7 @@ export function religionCandidatesForHome(homePort) {
     return choices(["roman-catholic", 1]);
   }
 
+  if (nameCulture === "tatar") return choices(["sunni-islam", 1]);
   if (country === "Japan" || factionId === "japan") return choices(["kami-buddhist", 1]);
   if (country === "Republic of Korea" || country === "Dem. People's Republic of Korea" || factionId === "joseon") {
     return choices(["korean-traditional", 3], ["mahayana-buddhism", 2]);
@@ -342,16 +343,46 @@ export function religionCandidatesForHome(homePort) {
   if (nameCulture === "chinese") return choices(["chinese-traditional", 3], ["mahayana-buddhism", 1]);
   if (nameCulture === "japanese") return choices(["kami-buddhist", 1]);
   if (nameCulture === "korean") return choices(["korean-traditional", 3], ["mahayana-buddhism", 2]);
-  if (nameCulture === "southAsian") return choices(["hinduism", 4], ["sunni-islam", 1], ["jainism", 1]);
-  if (nameCulture === "southeastAsian") {
+  if (["bengali", "gujarati", "malayali", "northIndian", "southAsian", "southIndian"].includes(nameCulture)) {
+    return choices(["hinduism", 4], ["sunni-islam", 1], ["jainism", 1]);
+  }
+  if (nameCulture === "sinhalese") return choices(["theravada-buddhism", 4], ["hinduism", 1]);
+  if (nameCulture === "indoMuslim") return choices(["sunni-islam", 1]);
+  if (nameCulture === "jewish") return choices(["judaism", 1]);
+  if (nameCulture === "sikh") return choices(["sikhism", 1]);
+  if (["southeastAsian", "javanese", "malukan"].includes(nameCulture)) {
     return choices(["theravada-buddhism", 2], ["sunni-islam", 1], ["austronesian-traditional", 1]);
   }
+  if (nameCulture === "cham") return choices(["hinduism", 3], ["sunni-islam", 1]);
+  if (nameCulture === "malay") return choices(["sunni-islam", 1]);
+  if (nameCulture === "cebuano") return choices(["austronesian-traditional", 1]);
+  if (["thai", "monBurmese", "lao"].includes(nameCulture)) return choices(["theravada-buddhism", 1]);
+  if (nameCulture === "vietnamese") {
+    return choices(["chinese-traditional", 2], ["mahayana-buddhism", 1]);
+  }
   if (nameCulture === "polynesian") return choices(["polynesian-traditional", 1]);
-  if (nameCulture === "nahua") return choices(["mesoamerican-traditional", 1]);
+  if (["maya", "nahua", "purepecha"].includes(nameCulture)) {
+    return choices(["mesoamerican-traditional", 1]);
+  }
+  if (["northwestCoast", "shawnee", "wendat"].includes(nameCulture)) {
+    return choices(["north-american-traditional", 1]);
+  }
+  if (["taino", "tupi"].includes(nameCulture)) return choices(["american-traditional", 1]);
   if (nameCulture === "andean") return choices(["andean-traditional", 1]);
-  if (nameCulture === "westAfrican" || nameCulture === "eastAfrican") {
+  if ([
+    "eastAfrican",
+    "khoikhoi",
+    "kongo",
+    "shona",
+    "westAfrican",
+    "yoruba"
+  ].includes(nameCulture)) {
     return choices(["african-traditional", 1]);
   }
+  if (["hausa", "kanuri", "mande", "somali", "swahili"].includes(nameCulture)) {
+    return choices(["sunni-islam", 4], ["african-traditional", 1]);
+  }
+  if (nameCulture === "ethiopian") return choices(["ethiopian-orthodox", 1]);
   if ([
     "slavic",
     "russian",
@@ -369,17 +400,22 @@ export function religionCandidatesForHome(homePort) {
   if (nameCulture === "albanian") {
     return choices(["eastern-orthodox", 2], ["roman-catholic", 1]);
   }
-  if (nameCulture === "ottoman" || nameCulture === "arabic") return choices(["sunni-islam", 1]);
+  if (["arabic", "centralAsian", "crimeanTatar", "ottoman", "tatar"].includes(nameCulture)) {
+    return choices(["sunni-islam", 1]);
+  }
   if (nameCulture === "persian") return choices(["shia-islam", 3], ["sunni-islam", 1]);
   if ([
     "english",
+    "irish",
     "scottish",
     "french",
     "spanish",
     "portuguese",
     "italian",
     "germanic",
+    "czech",
     "nordic",
+    "finnish",
     "maritime"
   ].includes(nameCulture)) {
     return choices(["roman-catholic", 1]);

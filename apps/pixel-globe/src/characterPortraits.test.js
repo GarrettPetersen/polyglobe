@@ -854,7 +854,7 @@ test("port assignments use their authored culture-group portrait pools", () => {
   assert.ok(PORT_PERSONALITY_IDS.includes(american.personalityId));
   const african = assignments.get(2);
   assert.ok(african.sourceId.startsWith("sub-saharan-african-portrait-pack-by-openai-"));
-  assert.equal(african.nameCulture, "eastAfrican");
+  assert.equal(african.nameCulture, "swahili");
   assert.ok(PORT_PERSONALITY_IDS.includes(african.personalityId));
   const polynesian = assignments.get(3);
   assert.equal(polynesian.region, "polynesia");

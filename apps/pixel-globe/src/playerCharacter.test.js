@@ -302,7 +302,7 @@ test("player-facing home labels use the 1522 realm instead of the modern country
   assert.equal(profile.character.homePortCountry, "Russian Federation");
   assert.equal(profile.character.homePortRealmName, "Ottoman Empire");
   assert.equal(profile.character.nationalityAdjective, "Ottoman");
-  assert.ok(["russian", "ottoman"].includes(profile.character.nameCulture));
+  assert.ok(["crimeanTatar", "ottoman"].includes(profile.character.nameCulture));
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {

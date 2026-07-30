@@ -123,8 +123,8 @@ const CULTURES = Object.freeze({
     ["al-Basri", "al-Dimashqi", "al-Fasi", "al-Halabi", "al-Hijazi", "al-Iskandari", "al-Masri", "al-Qahiri", "al-Qudsi", "al-Tunisi", "al-Yamani", "ibn Rashid"]
   ),
   persian: culture(
-    ["Abbas", "Ali", "Bahram", "Farhad", "Hasan", "Husayn", "Ismail", "Jamal", "Kamran", "Mirza", "Reza", "Yusuf"],
-    ["Afsaneh", "Banu", "Dilara", "Fatemeh", "Gohar", "Jahan", "Khadija", "Mahin", "Pari", "Roxana", "Shirin", "Zahra"],
+    ["Abbas", "Ali", "Bahram", "Farhad", "Hasan", "Husayn", "Ismail", "Jamal", "Kamran", "Muhammad", "Tahmasp", "Yusuf"],
+    ["Alamshah", "Banu", "Dilara", "Fatemeh", "Gohar", "Jahan", "Khadija", "Mahin", "Pari", "Shahbigi", "Shirin", "Zahra"],
     ["Ardabili", "Esfahani", "Gilani", "Kashani", "Kermani", "Mashhadi", "Qazvini", "Shirazi", "Tabrizi", "Tehrani", "Yazdi", "Zanjani"]
   ),
   southAsian: culture(
@@ -149,8 +149,8 @@ const CULTURES = Object.freeze({
     "family-first"
   ),
   japanese: culture(
-    ["Akira", "Harunobu", "Hideaki", "Katsuro", "Masaru", "Noboru", "Saburo", "Shiro", "Taro", "Toshio", "Yoshiro", "Yukimura"],
-    ["Aiko", "Chiyo", "Hana", "Haruko", "Kiku", "Matsu", "Nene", "Oichi", "Rin", "Saki", "Tama", "Yuki"],
+    ["Dosan", "Harunobu", "Hideyoshi", "Hisahide", "Ieyasu", "Kenshin", "Motonari", "Nobunaga", "Shingen", "Takakage", "Yoshihiro", "Yukimura"],
+    ["Chacha", "Go", "Hatsu", "Jukeini", "Kicho", "Matsu", "Nene", "Oichi", "Otsuya", "Sen", "Tama", "Tora"],
     ["Abe", "Fujiwara", "Hojo", "Mori", "Oda", "Saito", "Shimazu", "Takeda", "Tokugawa", "Uesugi", "Yamamoto", "Yoshida"],
     "family-first"
   ),
@@ -170,9 +170,217 @@ const CULTURES = Object.freeze({
     ["Aisha", "Almaz", "Aster", "Fatuma", "Hana", "Jamila", "Lulit", "Mariam", "Nuru", "Rahma", "Selam", "Zahra"],
     ["Abdalla", "Bekele", "Girma", "Kassa", "Kebede", "Mwinyi", "Negash", "Otieno", "Sahle", "Tesfaye", "Wolde", "Yared"]
   ),
+  irish: culture(
+    ["Aodh", "Brian", "Cormac", "Diarmaid", "Domhnall", "Eoghan", "Gearoid", "Muiris", "Niall", "Piaras", "Ruaidhri", "Sean"],
+    ["Aine", "Caitlin", "Dearbhail", "Eilis", "Fionnghuala", "Grainne", "Honora", "Maire", "Nuala", "Rose", "Sadhbh", "Siobhan"],
+    ["Burke", "Butler", "FitzGerald", "MacCarthy", "MacDonnell", "O'Brien", "O'Donnell", "O'Neill", "O'Rourke", "O'Sullivan", "Plunkett", "Tyrrell"]
+  ),
+  czech: culture(
+    ["Bohuslav", "Hynek", "Jan", "Jindrich", "Jiri", "Mikulash", "Oldrich", "Petr", "Vaclav", "Vilem", "Zbynek", "Zdenek"],
+    ["Alzbeta", "Anna", "Barbora", "Dorota", "Johanka", "Katerina", "Kunhuta", "Lidmila", "Ludmila", "Marketa", "Perchta", "Zofie"],
+    ["Berka", "Cernin", "Hassenstein", "Kostka", "Lobkowicz", "Pernstejn", "Podebrad", "Rozmberk", "Schlick", "Sternberk", "Trcka", "Zerotin"]
+  ),
+  finnish: culture(
+    ["Antti", "Henrik", "Jaakko", "Klaus", "Lauri", "Martti", "Matti", "Mikael", "Olavi", "Paavo", "Pietari", "Tuomas"],
+    ["Agneta", "Birgitta", "Elina", "Gertrud", "Kaarina", "Kerstin", "Kristina", "Margareta", "Marta", "Sigrid", "Valpuri", "Vappu"],
+    ["Aminoff", "Fleming", "Horn", "Ille", "Jagerhorn", "Kurki", "Sarkilahti", "Stalarm", "Tavast", "Tott", "Villnass", "Wildeman"]
+  ),
+  crimeanTatar: culture(
+    ["Ahmed", "Devlet", "Gazi", "Islam", "Mengli", "Mehmed", "Mubarek", "Murad", "Saadet", "Sahib", "Selim", "Yamgurchi"],
+    ["Ayse", "Canike", "Emine", "Feride", "Gulbahar", "Hafsa", "Hanim", "Nur Sultan", "Safiye", "Selime", "Sultanbike", "Zeynep"],
+    ["Argin", "Barin", "Giray", "Kipchak", "Mansur", "Shirin", "Sijivut", "Yashlav"]
+  ),
+  tatar: culture(
+    ["Abd al-Latif", "Ghabdellatif", "Ilham", "Mahmud", "Muhammad Amin", "Safa Giray", "Shahghali", "Yadigar", "Yusuf"],
+    ["Fatima", "Gawharshad", "Gulshah", "Nur Sultan", "Suyumbika", "Zahra"],
+    ["Ar", "Barin", "Bolgar", "Kipchak", "Manghit", "Mishar", "Nogai"]
+  ),
+  centralAsian: culture(
+    ["Abd al-Aziz", "Abdallah", "Babur", "Jani Beg", "Kuchkunji", "Mahmud", "Muhammad Yar", "Muhammad Shaybani", "Obaydallah", "Pir Muhammad", "Suyunch", "Ubayd"],
+    ["Aisan Daulat", "Gulbadan", "Gulrukh", "Habiba", "Khanzada", "Kutlugh", "Maham", "Mihr Nigar", "Nigar", "Qutlugh Nigar", "Sultan Nigar", "Zuhra"],
+    ["Barlas", "Dughlat", "Janibegid", "Kuchkunjid", "Manghit", "Qongirat", "Shaybanid", "Timurid", "Yuz"]
+  ),
+  indoMuslim: culture(
+    ["Alauddin", "Bahlul", "Daulat", "Ghiyas", "Ibrahim", "Iskandar", "Jamal", "Mahmud", "Muhammad", "Nasir", "Sikandar", "Yusuf"],
+    ["Amina", "Bibi", "Daulat", "Gulrukh", "Habiba", "Hamida", "Jahanara", "Khadija", "Mahduma", "Mariam", "Ruqayya", "Zaynab"],
+    ["Ansari", "Bukhari", "Farooqi", "Khan", "Lodi", "Mirza", "Qureshi", "Sayyid", "Shaikh", "Sherwani", "Siddiqi", "Sur"]
+  ),
+  jewish: culture(
+    ["Aaron", "Abraham", "Benjamin", "David", "Elijah", "Isaac", "Jacob", "Joseph", "Moses", "Raphael", "Samuel", "Solomon"],
+    ["Abigail", "Deborah", "Esther", "Hannah", "Judith", "Leah", "Miriam", "Rachel", "Rebecca", "Sarah", "Tamar", "Zipporah"],
+    ["Abravanel", "Alfandari", "Benveniste", "Capsali", "Caro", "Hamon", "ibn Yahya", "Nasi", "Navarro", "Pardo", "Saraf", "Sarfati"]
+  ),
+  sikh: culture(
+    ["Angad", "Bala", "Bhai Mardana", "Buddha", "Lahina", "Nanak", "Prithi", "Rai Bular", "Sajjan"],
+    ["Bebe Nanaki", "Daya", "Khivi", "Mata Mansa", "Rajni", "Sulakhni", "Tripta"],
+    ["Bedi", "Bhalla", "Khatri", "Sodhi", "Trehan"]
+  ),
+  northIndian: culture(
+    ["Ajit", "Amar", "Bhoj", "Chand", "Gopal", "Haridas", "Jagat", "Kalyan", "Pratap", "Ratan", "Suraj", "Vikram"],
+    ["Durgavati", "Hansabai", "Heer", "Karnavati", "Karmavati", "Meera", "Padmavati", "Ratna", "Sahibdevi", "Tara", "Udai", "Vijaya"],
+    ["Bundela", "Chauhan", "Gahlot", "Kachhwaha", "Paramara", "Rathore", "Sisodia", "Solanki", "Tomar"]
+  ),
+  gujarati: culture(
+    ["Bhalan", "Bhimji", "Jagdu", "Jiva", "Kalyan", "Kheta", "Mandana", "Narsinh", "Shamal", "Soma", "Teja", "Vasta"],
+    ["Ajab", "Amba", "Deval", "Gangabai", "Jivabai", "Kunwarbai", "Lalita", "Mena", "Ratanbai", "Rukmini", "Sonal", "Vijaya"],
+    ["Bhat", "Desai", "Mehta", "Modi", "Nagar", "Parekh", "Patel", "Shah", "Soni", "Vora"]
+  ),
+  bengali: culture(
+    ["Advaita", "Chaitanya", "Govinda", "Haridas", "Jagadananda", "Madhava", "Mukunda", "Nityananda", "Raghunath", "Ramananda", "Rupa", "Sanatana"],
+    ["Bishnupriya", "Chandravati", "Damayanti", "Ganga", "Jahnava", "Lakshmi", "Malati", "Narayanidevi", "Sachi", "Sita", "Subhadra", "Vasudha"],
+    ["Basu", "Chakrabarti", "Das", "Datta", "Ghosh", "Guha", "Mitra", "Mukherjee", "Pal", "Sen"]
+  ),
+  southIndian: culture(
+    ["Achyuta", "Appaji", "Bukkaraya", "Devaraya", "Krishnadevaraya", "Narasimha", "Ramaraya", "Saluva", "Timmarusu", "Tirumala", "Venkata", "Virupaksha"],
+    ["Chinnadevi", "Gangadevi", "Jaganmohini", "Kamaladevi", "Lakshmidevi", "Nagajamma", "Obambika", "Rangadevi", "Tirumalamba", "Tirumaladevi", "Varadambika", "Vengamamba"],
+    ["Aravidu", "Hampi", "Keladi", "Nayaka", "Saluva", "Sangama", "Tuluva", "Vijayanagara"]
+  ),
+  malayali: culture(
+    ["Achyuta", "Aditya", "Govindan", "Kesavan", "Kumaran", "Manavikrama", "Narayanan", "Rama", "Ravi", "Shankaran", "Unni", "Vira"],
+    ["Amma", "Devaki", "Gauri", "Kalyani", "Kunjamma", "Lakshmi", "Nangeli", "Parvati", "Savitri", "Sridevi", "Unnima", "Vallabha"],
+    ["Cochin", "Kolathiri", "Kottayam", "Kozhikode", "Nair", "Nambiar", "Nediyiruppu", "Palakkad", "Samoothiri", "Venad"]
+  ),
+  sinhalese: culture(
+    ["Bhuvanekabahu", "Dharmapala", "Jayavira", "Parakramabahu", "Raigam", "Senasammata", "Sri Rajasinha", "Vijayabahu", "Vira", "Wickramabahu"],
+    ["Anula", "Chandravati", "Kusumasana", "Lokamahadevi", "Samudra", "Sivali", "Somadevi", "Sunethra", "Viharamahadevi", "Yasodhara"],
+    ["Alagakkonara", "Bandara", "Jayawardena", "Kotte", "Rajapaksa", "Senasammata", "Siriwardena", "Wijesinghe"]
+  ),
+  swahili: culture(
+    ["Abdallah", "Ahmad", "Ali", "Bakari", "Hassan", "Ibrahim", "Juma", "Khalfan", "Muhammad", "Said", "Salim", "Yusuf"],
+    ["Aisha", "Amina", "Fatima", "Halima", "Khadija", "Maimuna", "Mariam", "Mwajuma", "Rahma", "Saada", "Salma", "Zaynab"],
+    ["al-Kilwi", "al-Malindi", "al-Mombasi", "al-Pembi", "al-Sufali", "al-Zanjibari", "Mvita", "Nabhani", "Shirazi"]
+  ),
+  somali: culture(
+    ["Abadir", "Ahmad", "Ali", "Aw", "Hassan", "Ibrahim", "Mahfuz", "Muhammad", "Nur", "Umar", "Wali", "Yusuf"],
+    ["Asha", "Faduma", "Halima", "Hawa", "Khadija", "Mariam", "Maryan", "Rahma", "Safiya", "Shukri", "Warsan", "Zahra"],
+    ["Ajuran", "Darod", "Dir", "Hawiye", "Isaaq", "Marehan", "Muzaffar", "Warsangali"]
+  ),
+  ethiopian: culture(
+    ["Amda", "Dawit", "Eskender", "Gelawdewos", "Lebna Dengel", "Makonnen", "Minas", "Naod", "Sarsa Dengel", "Takla", "Yaqob", "Zara"],
+    ["Eleni", "Martha", "Masih", "Romna", "Sabla Wangel", "Seble", "Walatta", "Woizero", "Yodit", "Zewditu"],
+    ["Amda", "Dawit", "Gebre", "Iyasu", "Makonnen", "Mikael", "Naod", "Takla", "Yaqob", "Yohannes", "Zara"]
+  ),
+  shona: culture(
+    ["Changamire", "Chisamharu", "Chivere", "Kakuyo", "Matope", "Mavura", "Mukwati", "Mutota", "Nehoreka", "Nyatsimba", "Rusere", "Togwa"],
+    ["Chipo", "Maita", "Maruva", "Masimba", "Mavambo", "Mudiwa", "Nyasha", "Rufaro", "Rudo", "Tariro", "Tendai", "Tsitsi"],
+    ["Mbire", "Mutapa", "Rozvi", "Tavara", "Torwa", "Zezuru"]
+  ),
+  mande: culture(
+    ["Abdou", "Amadou", "Bakari", "Daouda", "Ibrahim", "Mahmud", "Mamadou", "Muhammad", "Oumar", "Sekou", "Sonni", "Yoro"],
+    ["Aissatou", "Aminata", "Awa", "Binta", "Fatou", "Hawa", "Kadi", "Mariama", "Nana", "Nene", "Sira", "Yacine"],
+    ["Cisse", "Coulibaly", "Diarra", "Keita", "Kone", "Sissoko", "Soumare", "Toure", "Traore", "Wague"]
+  ),
+  yoruba: culture(
+    ["Ajiboyede", "Ajaka", "Alafin", "Egunoju", "Kori", "Ofinran", "Onigbogi", "Oranyan", "Sango", "Tella", "Timi", "Wamiloju"],
+    ["Abeni", "Abike", "Adetoun", "Aina", "Ajoke", "Efun", "Moremi", "Olu", "Orompoto", "Ronke", "Torosi", "Yejide"],
+    ["Egba", "Ekiti", "Ife", "Ijebu", "Ijesha", "Owu", "Oyo"]
+  ),
+  hausa: culture(
+    ["Abdullahi", "Abubakar", "Ali", "Bagauda", "Dauda", "Ibrahim", "Kisoki", "Muhammad", "Rumfa", "Sarki", "Umar", "Yakubu"],
+    ["Amina", "Asabe", "Binta", "Dije", "Fadima", "Hadiza", "Hauwa", "Kande", "Ladi", "Maryam", "Rabi", "Zainab"],
+    ["Daura", "Gobir", "Kano", "Katsina", "Kebbi", "Rano", "Zamfara", "Zazzau"]
+  ),
+  kanuri: culture(
+    ["Ali Gaji", "Bir", "Dunama", "Idris", "Ibrahim", "Kaday", "Muhammad", "Njimi", "Salih", "Umar", "Yaqub"],
+    ["Aisa", "Falmata", "Hajja", "Kaltumi", "Khadija", "Maimuna", "Maryam", "Ruqayya", "Zainab"],
+    ["Borno", "Bulala", "Kanembu", "Kayi", "Magumi", "Sefuwa"]
+  ),
+  kongo: culture(
+    ["Afonso", "Diogo", "Henrique", "Lukeni", "Mani", "Mpanzu", "Mvemba", "Nkuwu", "Nzinga", "Pedro"],
+    ["Ana", "Isabel", "Lukeni", "Mpemba", "Nzinga", "Teresa"],
+    ["Kanda", "Kinlaza", "Kimpanzu", "Kwilu", "Lukeni", "Mpanzu", "Nsaku", "Nzinga"]
+  ),
+  khoikhoi: culture(
+    ["Autshumao", "Doman", "Gonnema", "Goreinghaicona", "Klaas", "Oedasoa", "Schacher", "Sousoa"],
+    ["Krotoa", "Sara", "Hoena", "Kamies", "Nama", "Tsoa"],
+    ["Chainouqua", "Chariguriqua", "Cochoqua", "Goringhaiqua", "Gorachouqua", "Namaqua"]
+  ),
+  malay: culture(
+    ["Alauddin", "Hang Jebat", "Hang Kasturi", "Hang Lekir", "Hang Lekiu", "Hang Tuah", "Mahmud", "Mansur", "Muzaffar", "Parameswara", "Raja Ahmad", "Tun Perak"],
+    ["Dang Anum", "Puteri Gunung Ledang", "Raja Fatimah", "Raja Puteh", "Tun Fatimah", "Tun Kudu", "Tun Teja"],
+    ["Bendahara", "Brunei", "Johor", "Kedah", "Kelantan", "Melaka", "Pahang", "Patani", "Perak"]
+  ),
+  javanese: culture(
+    ["Arya", "Fatahillah", "Pati Unus", "Prawata", "Raden Patah", "Sunan Giri", "Sunan Kalijaga", "Trenggana", "Wirabhumi"],
+    ["Dewi Kandita", "Nyi Ageng", "Ratu Kalinyamat", "Retna Kencana", "Retno", "Sekar", "Wandan"],
+    ["Demak", "Giri", "Gresik", "Jepara", "Majapahit", "Pajang", "Tuban"]
+  ),
+  malukan: culture(
+    ["Abu Hayat", "Bayan Sirrullah", "Boleife", "Hairun", "Jamilu", "Kaicil", "Mansur", "Mir", "Sahmardan", "Taruwese", "Zainal Abidin"],
+    ["Boki Raja", "Boki Tanjung", "Gia", "Nita", "Nukila", "Siti", "Zainab"],
+    ["Bacan", "Banda", "Hitu", "Jailolo", "Makian", "Ternate", "Tidore"]
+  ),
+  cebuano: culture(
+    ["Awi", "Colambu", "Humabon", "Lapulapu", "Siaui", "Siagu", "Tupas", "Zula"],
+    ["Abuwana", "Humamay", "Juana", "Lalana", "Saray", "Ylang"],
+    ["Butuan", "Cebu", "Limasawa", "Mactan", "Sugbu"]
+  ),
+  thai: culture(
+    ["Borommaracha", "Chairacha", "Chai", "Intharacha", "Mahachakraphat", "Ramathibodi", "Ramesuan", "Songtham", "Thianracha"],
+    ["Boromdilok", "Si Sudachan", "Sukhon", "Suriyothai", "Yot Kham Thip"],
+    ["Ayutthaya", "Lavo", "Phitsanulok", "Sukhothai", "Suphanburi", "U-Thong"]
+  ),
+  monBurmese: culture(
+    ["Bayinnaung", "Binnya Ran", "Dhammazedi", "Minbin", "Minkhaung", "Minye Kyawswa", "Tabinshwehti", "Takayutpi", "Thado"],
+    ["Dhamma Dewi", "Mibaya", "Narapati Medaw", "Shin Bo-Me", "Shin Mi-Nauk", "Shin Myat Hla", "Shin Sawbu"],
+    ["Ava", "Hanthawaddy", "Mrauk-U", "Pegu", "Prome", "Taungoo"]
+  ),
+  vietnamese: culture(
+    ["Cong Uan", "Dang Dung", "Dang Doanh", "Dinh Le", "Le Loi", "Le Sat", "Mac Dang Dung", "Nguyen Trai", "Trinh Kha"],
+    ["Huyen Tran", "Ngoc Han", "Ngoc Kieu", "Nguyen Thi Anh", "Trinh Thi Ngoc"],
+    ["Bui", "Dinh", "Le", "Ly", "Mac", "Nguyen", "Pham", "Tran", "Trinh"],
+    "family-first"
+  ),
+  cham: culture(
+    ["Ban La Tra Toan", "Bo Tri Tri", "Che Bong Nga", "Che Man", "Che Nang", "Jaya Indravarman", "Maha Sajan", "Maha Vijaya", "Po Binasuor", "Tra Hoa Bo De"],
+    ["Bia At", "Bia Nai", "Bia Than Can", "Bia Than Cih", "Daravati", "Paramesvari", "Tapasi"],
+    ["Amaravati", "Indrapura", "Kauthara", "Panduranga", "Vijaya"]
+  ),
+  lao: culture(
+    ["Chakkaphat", "La Sen Thai", "Photisarath", "Samsenethai", "Setthathirath", "Visoun"],
+    ["Keo Phimpha", "Kham Khong", "Nang Keo", "Nang Kham", "Yot Kham Thip"],
+    ["Champasak", "Lan Xang", "Luang Prabang", "Vientiane"]
+  ),
+  // Personal names use documented transliterations. The final pool represents
+  // house, clan, nation, or community identity rather than European surnames.
+  northwestCoast: culture(
+    ["Callicum", "Haatse", "It-an-da-ha", "Kal-chote", "Keh-chook", "Maquinna", "Tah-a-howtl", "Tatoosh", "Tlehasim", "Tsah-tse-in", "Tse-kauwtl", "Wickaninnish"],
+    ["Aammiitlaawaksa", "Hitaao", "Naaskuusatl", "Thlaquas", "Tlehtskwiisimka"],
+    ["Ahousaht", "Bahaada", "Deah", "Hesquiaht", "Hoko", "Kyuquot", "Makah", "Mowachaht", "Nuchatlaht", "Ozette", "Tseshaht", "Waatch"]
+  ),
+  wendat: culture(
+    ["Aenon", "Ahatsistari", "Annenraes", "Atironta", "Chihwatenhwa", "Hechon", "Kondiaronk", "Ochasteguin", "Otsinonannhont", "Sastaretsi", "Taretande", "Tehorenhaegnon"],
+    ["Andehoua", "Aonetta", "Aorhenche", "Awirinda", "Lawinonkie", "Ondinnonk"],
+    ["Arendarhonon", "Ataronchronon", "Attigneenongnahac", "Attignawantan", "Bear", "Cord", "Deer", "Rock", "Tahontaenrat", "Tionontati", "Turtle", "Wendake"]
+  ),
+  shawnee: culture(
+    ["Catahecassa", "Cheeseekau", "Hokoleskwa", "Kishkalwa", "Lawachcamicky", "Misemeathaquatha", "Pucksinwah", "Tamenebuck", "Tecumseh", "Tenskwatawa", "Weyapiersenwah", "Wopatha"],
+    ["Kakowatcheky", "Methoataske", "Nonhelema", "Tecumapese", "Wea", "Wihcakwaya"],
+    ["Chillicothe", "Deer", "Hathawekela", "Kispoko", "Mekoche", "Panther", "Pekowi", "Raccoon", "Snake", "Turkey", "Turtle", "Wolf"]
+  ),
+  taino: culture(
+    ["Agueybana", "Aymaco", "Bohechio", "Caguax", "Caonabo", "Guacanagari", "Guama", "Guarionex", "Guarocuya", "Hatuey", "Humacao", "Orocobix"],
+    ["Anacaona", "Ata", "Ataguas", "Buriquena", "Caguama", "Canaca", "Higuenamota", "Yuisa"],
+    ["Bainoa", "Boriken", "Guanahani", "Higuey", "Jaragua", "Maguana", "Magua", "Marien", "Mayaguana", "Saona", "Xaragua", "Yumay"]
+  ),
+  tupi: culture(
+    ["Aimbere", "Arariboia", "Cunhambebe", "Guaixa", "Pindobucu", "Piragibe", "Taparica", "Tibirica"],
+    ["Bartira", "Guaibimpara", "Paraguacu", "Potira", "Terebe", "Ybotyra"],
+    ["Caete", "Carijo", "Goitaca", "Potiguara", "Tabajara", "Tamoio", "Temimino", "Tremembe", "Tupinae", "Tupinamba", "Tupinikin", "Tupiniquim"]
+  ),
+  maya: culture(
+    ["Ah Kin Chel", "Ah Pula", "Aj Canul", "Ajpop Balam", "Beleheb Tzi", "Can Ek", "Kiqab", "Moch Couoh", "Nachan Can", "Nachi Cocom", "Oxib Keh", "Tecun Uman"],
+    ["Ix Ajaw", "Ix Balam", "Ix Ch'el", "Ix Hun K'ay", "Ix Kabal Xook", "Ix Kan", "Ix Naah Ek", "Ix Tzakbu", "Ix Wak Chan", "Ix Yohl Kinich", "Sak Kuk", "Yohl Iknal"],
+    ["Canul", "Chel", "Chontal", "Cocom", "Cupul", "Itza", "Kaqchikel", "Kejache", "Kiche", "Kowoj", "Pech", "Xiu"]
+  ),
+  purepecha: culture(
+    ["Curatame", "Hiquingaje", "Hiripan", "Nanuma", "Tariacuri", "Tangaxoan", "Tzitzispandacuare", "Tzinzincha", "Vapeani", "Zizambanacha", "Zuangua", "Zuiripancuare"],
+    ["Atzimba", "Erendira", "Huanita", "Ireri", "Mintzita", "Parakata", "Tsitsiki", "Zizita"],
+    ["Cuitzeo", "Ihuatzio", "Jaracuaro", "Patzcuaro", "Tariacuri", "Tzintzuntzan", "Uacusecha", "Uanacaze", "Vayameo", "Zacapu", "Zirahuen", "Ziranzirancamaro"]
+  ),
   nahua: culture(
     ["Acolmiztli", "Cipac", "Cuauhtli", "Ixtlil", "Matlal", "Mazatl", "Tenoch", "Tizoc", "Tochtli", "Xicotencatl", "Yaotl", "Zolin"],
-    ["Atotoztli", "Chalchi", "Citlali", "Izel", "Malinali", "Miahuaxihuitl", "Tecuelhuetzin", "Tlacoehua", "Xilonen", "Xochitl", "Yaretzi", "Zyanya"],
+    ["Atotoztli", "Chalchi", "Citlali", "Izel", "Malinali", "Miahuaxihuitl", "Papantzin", "Tecuelhuetzin", "Tecuichpotzin", "Tlacoehua", "Xilonen", "Xochitl"],
     ["Acolhua", "Chalca", "Huexotzinca", "Mexica", "Mixteca", "Tepaneca", "Texcocan", "Tlaxcalteca", "Tolteca", "Totonaca", "Xochimilca", "Zapoteca"]
   ),
   andean: culture(
@@ -195,7 +403,7 @@ const COUNTRY_CULTURES = new Map([
   ["Lithuania", "lithuanian"], ["Russian Federation", "russian"], ["Ukraine", "ruthenian"],
   ["Hungary", "hungarian"], ["Albania", "albanian"], ["Bulgaria", "bulgarian"],
   ["Romania", "romanian"], ["Serbia", "serbian"], ["Greece", "greek"],
-  ["Cyprus", "greek"], ["Ireland", "english"], ["Turkey", "ottoman"],
+  ["Cyprus", "greek"], ["Ireland", "irish"], ["Finland", "finnish"], ["Turkey", "ottoman"],
   ["Egypt", "arabic"], ["Iraq", "arabic"], ["Lebanon", "arabic"],
   ["Israel", "arabic"], ["Morocco", "arabic"], ["Algeria", "arabic"],
   ["Libya", "arabic"], ["Tunisia", "arabic"], ["Oman", "arabic"],
@@ -217,9 +425,110 @@ const COUNTRY_CULTURES = new Map([
   ["Mali", "westAfrican"], ["Ghana", "westAfrican"], ["Nigeria", "westAfrican"],
   ["Senegal", "westAfrican"], ["Ethiopia", "eastAfrican"], ["Kenya", "eastAfrican"],
   ["Mozambique", "eastAfrican"], ["Tanzania", "eastAfrican"], ["Somalia", "eastAfrican"], ["Mexico", "nahua"],
-  ["Guatemala", "nahua"], ["Peru", "andean"], ["Bolivia", "andean"],
+  ["Guatemala", "maya"], ["Nuu-chah-nulth", "northwestCoast"], ["Makah", "northwestCoast"],
+  ["Peru", "andean"], ["Bolivia", "andean"],
   ["Ecuador", "andean"], ["Columbia", "andean"], ["Cuba", "spanish"],
   ["Dominican Republic", "spanish"], ["Panama", "spanish"], ["Puerto Rico", "spanish"]
+]);
+
+const CITY_CULTURES = new Map([
+  ["prague", "czech"],
+  ["riga", "germanic"],
+  ["bakhchiserai", "crimeanTatar"],
+  ["feodosia", "crimeanTatar"],
+  ["sudak", "crimeanTatar"],
+  ["kazan", "tatar"],
+  ["samarkand", "centralAsian"],
+  ["bukhara", "centralAsian"],
+  ["kabul", "centralAsian"],
+  ["kashi", "centralAsian"],
+  ["tsinkiang", "centralAsian"],
+  ["turpan", "centralAsian"],
+  ["herat", "persian"],
+  ["kilwa", "swahili"],
+  ["mombasa", "swahili"],
+  ["sofala", "swahili"],
+  ["mozambique island", "swahili"],
+  ["mogadishu", "somali"],
+  ["massawa", "ethiopian"],
+  ["axum", "ethiopian"],
+  ["zimbabwe", "shona"],
+  ["gao", "mande"],
+  ["mali", "mande"],
+  ["tombouctou", "mande"],
+  ["dienne", "mande"],
+  ["ikoso", "mande"],
+  ["oyo", "yoruba"],
+  ["kano", "hausa"],
+  ["alkalawa", "hausa"],
+  ["nkazargamu", "kanuri"],
+  ["m'banza-congo", "kongo"],
+  ["mossel bay village", "khoikhoi"],
+  ["vijayanagar", "southIndian"],
+  ["bhimavaram", "southIndian"],
+  ["madurai", "southIndian"],
+  ["chittoor", "southIndian"],
+  ["kolar", "southIndian"],
+  ["warangal", "southIndian"],
+  ["rajahmundry", "southIndian"],
+  ["calicut", "malayali"],
+  ["cochin", "malayali"],
+  ["quilon", "malayali"],
+  ["colombo", "sinhalese"],
+  ["ahmedabad", "gujarati"],
+  ["cambay", "gujarati"],
+  ["surat", "gujarati"],
+  ["diu", "gujarati"],
+  ["gauda", "bengali"],
+  ["patna", "bengali"],
+  ["kamtapur", "bengali"],
+  ["cuttack", "bengali"],
+  ["lahore", "northIndian"],
+  ["delhi", "northIndian"],
+  ["thana", "northIndian"],
+  ["chanderi", "northIndian"],
+  ["amber", "northIndian"],
+  ["mandu", "northIndian"],
+  ["ujjain", "northIndian"],
+  ["jaunpur", "northIndian"],
+  ["jodhpur", "northIndian"],
+  ["thatta", "northIndian"],
+  ["srinagar", "northIndian"],
+  ["multan", "northIndian"],
+  ["goa", "malayali"],
+  ["malacca", "malay"],
+  ["bandar seri begawan", "malay"],
+  ["aceh", "malay"],
+  ["patani", "malay"],
+  ["gresik", "javanese"],
+  ["ternate", "malukan"],
+  ["tidore", "malukan"],
+  ["banda village", "malukan"],
+  ["hitu village", "malukan"],
+  ["buru village", "malukan"],
+  ["makian village", "malukan"],
+  ["gane village", "malukan"],
+  ["mactan village", "cebuano"],
+  ["ayutthaya", "thai"],
+  ["chiang mai", "thai"],
+  ["pegu", "monBurmese"],
+  ["binh dinh", "cham"],
+  ["luang prabang", "lao"],
+  ["yuquot village", "northwestCoast"],
+  ["ozette village", "northwestCoast"],
+  ["wendat village", "wendat"],
+  ["chillicothe", "shawnee"],
+  ["guanahani village", "taino"],
+  ["coroa vermelha village", "tupi"],
+  ["xicalango", "maya"],
+  ["chakan putum", "maya"],
+  ["cuzamil", "maya"],
+  ["merida", "maya"],
+  ["tiho", "maya"],
+  ["gumarcaj", "maya"],
+  ["guatemala city", "maya"],
+  ["tzintzuntzan", "purepecha"],
+  ["veracruz", "spanish"]
 ]);
 
 const FACTION_CULTURES = new Map([
@@ -240,21 +549,34 @@ const FACTION_CULTURES = new Map([
   ["safavid", "persian"],
   ["muscovy", "russian"],
   ["poland-lithuania", "polish"],
+  ["crimea", "crimeanTatar"],
   ["sweden", "nordic"],
   ["denmark-norway", "nordic"],
-  ["songhai", "westAfrican"],
+  ["songhai", "mande"],
   ["morocco", "arabic"],
-  ["ethiopia", "eastAfrican"],
-  ["vijayanagara", "southAsian"],
-  ["gujarat", "southAsian"],
-  ["bengal", "southAsian"],
-  ["delhi", "southAsian"],
-  ["ayutthaya", "southeastAsian"],
+  ["ethiopia", "ethiopian"],
+  ["vijayanagara", "southIndian"],
+  ["gujarat", "gujarati"],
+  ["bengal", "bengali"],
+  ["delhi", "northIndian"],
+  ["ayutthaya", "thai"],
+  ["hormuz", "persian"],
+  ["ternate", "malukan"],
+  ["tidore", "malukan"],
   ["japan", "japanese"],
   ["joseon", "korean"]
 ]);
 
 const ISLAMIC_RELIGIONS = new Set(["sunni-islam", "shia-islam", "ibadi-islam"]);
+const SOUTH_ASIAN_NAME_CULTURES = new Set([
+  "bengali",
+  "gujarati",
+  "malayali",
+  "northIndian",
+  "sinhalese",
+  "southAsian",
+  "southIndian"
+]);
 const OTTOMAN_BALKAN_CULTURES = new Set([
   "albanian",
   "bulgarian",
@@ -273,6 +595,16 @@ const MUHAMMAD_NAME_BY_CULTURE = Object.freeze({
   persian: "Muhammad",
   southAsian: "Muhammad",
   southeastAsian: "Muhammad",
+  centralAsian: "Muhammad Shaybani",
+  crimeanTatar: "Mehmed",
+  hausa: "Muhammad",
+  indoMuslim: "Muhammad",
+  kanuri: "Muhammad",
+  malay: "Mahmud",
+  mande: "Muhammad",
+  somali: "Muhammad",
+  swahili: "Muhammad",
+  tatar: "Muhammad Amin",
   westAfrican: "Mamadou"
 });
 
@@ -288,9 +620,13 @@ export function assignRegionalCharacterIdentity({
     throw new Error("Regional character identity requires a portrait character");
   }
   const subject = city || shipPort(ship);
+  const localNameCulture = nameCultureForSubject(subject);
   const religion = inferCharacterReligion({
     identityKey,
-    homePort: subject,
+    homePort: {
+      ...subject,
+      nameCulture: subject.nameCulture || localNameCulture
+    },
     character: {
       ...character,
       religionId
@@ -464,6 +800,11 @@ export function nameCultureCandidatesForSubject(subject) {
 
 function chooseNameCultureForSubject(subject, identityKey, religionId) {
   const candidates = nameCultureCandidatesForSubject(subject);
+  if (religionId === "judaism") return "jewish";
+  if (religionId === "sikhism" && SOUTH_ASIAN_NAME_CULTURES.has(candidates[0])) return "sikh";
+  if (ISLAMIC_RELIGIONS.has(religionId) && SOUTH_ASIAN_NAME_CULTURES.has(candidates[0])) {
+    return "indoMuslim";
+  }
   if (
     religionId !== null &&
     candidates.length > 1 &&
@@ -484,6 +825,9 @@ function preferredMuhammadName({ identityKey, cultureId, gender, religionId, giv
 }
 
 function localNameCultureForSubject(subject) {
+  const cityCulture = CITY_CULTURES.get(normalizeName(subject.displayCity || subject.city))
+    || CITY_CULTURES.get(normalizeName(subject.city));
+  if (cityCulture) return cityCulture;
   if (subject.country === "United Kingdom") {
     return subject.factionId === "scotland" || normalizeName(subject.city) === "edinburgh" ? "scottish" : "english";
   }

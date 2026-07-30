@@ -116,6 +116,132 @@ test("Pacific island villages use the Polynesian naming culture", () => {
   assert.ok(character.name.includes(" "));
 });
 
+test("Indigenous American settlements use their local naming traditions", () => {
+  const cases = [
+    [{ city: "Yuquot Village", country: "Nuu-chah-nulth", cityType: "mesoamerican" }, "northwestCoast"],
+    [{ city: "Ozette Village", country: "Makah", cityType: "mesoamerican" }, "northwestCoast"],
+    [{ city: "Wendat Village", country: "Canada", cityType: "mesoamerican" }, "wendat"],
+    [{ city: "Chillicothe", country: "United States of America", cityType: "mesoamerican" }, "shawnee"],
+    [{ city: "Guanahani Village", country: "Bahamas", cityType: "mesoamerican" }, "taino"],
+    [{ city: "Coroa Vermelha Village", country: "Brazil", cityType: "mesoamerican" }, "tupi"],
+    [{ city: "Xicalango", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ city: "Chakan Putum", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ city: "Cuzamil", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ city: "Merida", displayCity: "Tiho", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ city: "Gumarcaj", country: "Guatemala", cityType: "mesoamerican" }, "maya"],
+    [{ city: "Guatemala City", country: "Guatemala", cityType: "mesoamerican" }, "maya"],
+    [{ city: "Tzintzuntzan", country: "Mexico", cityType: "mesoamerican" }, "purepecha"],
+    [{ city: "Mexico City", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ city: "Texcoco", displayCity: "Tezcoco", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ city: "Cholula", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ city: "Tenayuca", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ city: "Zempoala", displayCity: "Cempoala", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ city: "Veracruz", country: "Mexico", cityType: "mediterranean", factionId: "spain" }, "spanish"]
+  ];
+
+  for (const [city, expectedCulture] of cases) {
+    assert.equal(nameCultureForSubject(city), expectedCulture, city.city);
+    for (const sex of ["female", "male"]) {
+      const identity = assignRegionalCharacterName({
+        identityKey: `${city.city}|${sex}`,
+        city,
+        sex,
+        usedNames: new Set()
+      });
+      assert.equal(identity.nameCulture, expectedCulture);
+      assert.ok(identity.givenName.length > 0);
+      assert.ok(identity.familyName.length > 0);
+    }
+  }
+});
+
+test("ports across the Old World use specific local naming traditions", () => {
+  const cases = [
+    ["Dublin", "Ireland", "neutral", "irish"],
+    ["Prague", "Czechia", "habsburg", "czech"],
+    ["Turku", "Finland", "sweden", "finnish"],
+    ["Bakhchiserai", "Ukraine", "crimea", "crimeanTatar"],
+    ["Kazan", "Russian Federation", "neutral", "tatar"],
+    ["Samarkand", "Uzbekistan", "neutral", "centralAsian"],
+    ["Kashi", "China", "ming", "centralAsian"],
+    ["Herat", "Afghanistan", "safavid", "persian"],
+    ["Kilwa", "Tanzania", "neutral", "swahili"],
+    ["Mogadishu", "Somalia", "neutral", "somali"],
+    ["Axum", "Ethiopia", "ethiopia", "ethiopian"],
+    ["Zimbabwe", "Zimbabwe", "neutral", "shona"],
+    ["Gao", "Mali", "songhai", "mande"],
+    ["Oyo", "Nigeria", "neutral", "yoruba"],
+    ["Kano", "Nigeria", "neutral", "hausa"],
+    ["Nkazargamu", "Nigeria", "neutral", "kanuri"],
+    ["M'banza-Congo", "Angola", "neutral", "kongo"],
+    ["Mossel Bay Village", "South Africa", "neutral", "khoikhoi"],
+    ["Vijayanagar", "India", "vijayanagara", "southIndian"],
+    ["Ahmedabad", "India", "gujarat", "gujarati"],
+    ["Gauda", "India", "bengal", "bengali"],
+    ["Calicut", "India", "neutral", "malayali"],
+    ["Colombo", "Sri Lanka", "neutral", "sinhalese"],
+    ["Malacca", "Malaysia", "portugal", "malay"],
+    ["Gresik", "Indonesia", "neutral", "javanese"],
+    ["Ternate", "Indonesia", "ternate", "malukan"],
+    ["Mactan Village", "Philippines", "neutral", "cebuano"],
+    ["Ayutthaya", "Thailand", "ayutthaya", "thai"],
+    ["Pegu", "Myanmar", "neutral", "monBurmese"],
+    ["Binh Dinh", "Vietnam", "neutral", "cham"],
+    ["Luang Prabang", "Laos", "neutral", "lao"]
+  ];
+
+  for (const [city, country, factionId, expectedCulture] of cases) {
+    const homePort = { city, country, factionId };
+    assert.equal(nameCultureForSubject(homePort), expectedCulture, city);
+    const candidates = nameCultureCandidatesForSubject(homePort);
+    assert.equal(candidates[0], expectedCulture, city);
+    const identity = assignRegionalCharacterName({
+      identityKey: `regional-audit|${city}`,
+      city: homePort,
+      sex: "female",
+      usedNames: new Set()
+    });
+    assert.ok(candidates.includes(identity.nameCulture), city);
+
+    const completeIdentity = assignRegionalCharacterIdentity({
+      identityKey: `regional-audit-with-faith|${city}`,
+      city: homePort,
+      character: { id: `portrait|${city}`, sex: "female" },
+      usedNames: new Set()
+    });
+    assert.ok(completeIdentity.name.length > 0, city);
+    assert.ok(completeIdentity.religionId.length > 0, city);
+  }
+});
+
+test("faith-sensitive names remain grounded in the character's home region", () => {
+  const lahore = { city: "Lahore", country: "India", factionId: "delhi" };
+  const cases = [
+    ["hinduism", "northIndian"],
+    ["sunni-islam", "indoMuslim"],
+    ["sikhism", "sikh"]
+  ];
+  for (const [religionId, expectedCulture] of cases) {
+    const identity = assignRegionalCharacterName({
+      identityKey: `lahore|${religionId}`,
+      city: lahore,
+      sex: "male",
+      religionId,
+      usedNames: new Set()
+    });
+    assert.equal(identity.nameCulture, expectedCulture);
+  }
+
+  const jewishIdentity = assignRegionalCharacterName({
+    identityKey: "jerusalem|judaism",
+    city: { city: "Jerusalem", country: "Israel", factionId: "ottoman" },
+    sex: "female",
+    religionId: "judaism",
+    usedNames: new Set()
+  });
+  assert.equal(jewishIdentity.nameCulture, "jewish");
+});
+
 test("border and colonial cities mix local and ruling name cultures", () => {
   const sudak = {
     city: "Sudak",
@@ -123,8 +249,8 @@ test("border and colonial cities mix local and ruling name cultures", () => {
     cityType: "mediterranean",
     factionId: "ottoman"
   };
-  assert.equal(nameCultureForSubject(sudak), "russian");
-  assert.deepEqual(nameCultureCandidatesForSubject(sudak), ["russian", "ottoman"]);
+  assert.equal(nameCultureForSubject(sudak), "crimeanTatar");
+  assert.deepEqual(nameCultureCandidatesForSubject(sudak), ["crimeanTatar", "ottoman"]);
 
   const seen = new Set();
   for (let i = 0; i < 48; i++) {
@@ -135,7 +261,7 @@ test("border and colonial cities mix local and ruling name cultures", () => {
       usedNames: new Set()
     }).nameCulture);
   }
-  assert.ok(seen.has("russian"));
+  assert.ok(seen.has("crimeanTatar"));
   assert.ok(seen.has("ottoman"));
 });
 

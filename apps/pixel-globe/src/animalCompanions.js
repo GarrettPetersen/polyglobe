@@ -13,12 +13,36 @@ export const ANIMAL_NATURALIST_OFFER_ACCEPTED = "accepted";
 const NPC_REACTION_LIMIT = 8;
 const PANDA_FAMILIAR_CULTURES = new Set([
   "chinese",
+  "bengali",
+  "cebuano",
+  "cham",
+  "gujarati",
+  "indoMuslim",
+  "javanese",
   "japanese",
   "korean",
+  "lao",
+  "malay",
+  "malayali",
+  "malukan",
+  "monBurmese",
+  "northIndian",
+  "sinhalese",
+  "sikh",
   "southAsian",
-  "southeastAsian"
+  "southIndian",
+  "southeastAsian",
+  "thai",
+  "vietnamese"
 ]);
-const RACCOON_FAMILIAR_CULTURES = new Set(["nahua"]);
+const RACCOON_FAMILIAR_CULTURES = new Set([
+  "maya",
+  "nahua",
+  "northwestCoast",
+  "purepecha",
+  "shawnee",
+  "wendat"
+]);
 
 export const ANIMAL_COMPANION_CATALOG = Object.freeze([
   companion({

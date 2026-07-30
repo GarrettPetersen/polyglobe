@@ -846,9 +846,47 @@ function debtHomecomingSteps(goal, outcome, playerCharacter) {
 }
 
 function culturalStory(character) {
-  const stories = CULTURAL_STORIES[character.nameCulture] || CULTURAL_STORIES.maritime;
+  const storyCulture = CULTURAL_STORY_ALIASES[character.nameCulture] || character.nameCulture;
+  const stories = CULTURAL_STORIES[storyCulture] || CULTURAL_STORIES.maritime;
   return stories;
 }
+
+const CULTURAL_STORY_ALIASES = Object.freeze({
+  bengali: "southAsian",
+  cebuano: "maritime",
+  centralAsian: "persian",
+  cham: "maritime",
+  crimeanTatar: "ottoman",
+  czech: "maritime",
+  ethiopian: "eastAfrican",
+  finnish: "nordic",
+  gujarati: "southAsian",
+  hausa: "westAfrican",
+  indoMuslim: "southAsian",
+  irish: "maritime",
+  javanese: "maritime",
+  jewish: "maritime",
+  kanuri: "westAfrican",
+  khoikhoi: "westAfrican",
+  kongo: "westAfrican",
+  lao: "maritime",
+  malay: "maritime",
+  malayali: "southAsian",
+  malukan: "maritime",
+  mande: "westAfrican",
+  monBurmese: "maritime",
+  northIndian: "southAsian",
+  shona: "eastAfrican",
+  sinhalese: "southAsian",
+  sikh: "southAsian",
+  somali: "eastAfrican",
+  southIndian: "southAsian",
+  swahili: "eastAfrican",
+  tatar: "ottoman",
+  thai: "maritime",
+  vietnamese: "maritime",
+  yoruba: "westAfrican"
+});
 
 const CULTURAL_STORIES = Object.freeze({
   chinese: story(
