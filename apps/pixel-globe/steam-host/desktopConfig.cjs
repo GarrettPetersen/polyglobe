@@ -4,6 +4,15 @@ const { join, resolve } = require("node:path");
 const FULL_GAME_APP_ID = 4516500;
 const DEMO_APP_ID = 5029880;
 const VALID_EDITIONS = new Set(["full", "demo"]);
+const STEAM_CAPABILITY_NAMES = Object.freeze([
+  "achievements",
+  "cloud",
+  "input",
+  "richPresence",
+  "screenshots",
+  "stats",
+  "timeline"
+]);
 
 function resolveDesktopConfig({
   env = process.env,
@@ -86,8 +95,29 @@ function requiredRelativeDirectory(value, label) {
   return value;
 }
 
+function steamCapabilitiesForEdition(edition) {
+  const normalizedEdition = requiredEdition(edition);
+  const progressionEnabled = normalizedEdition === "full";
+  const capabilities = {
+    achievements: progressionEnabled,
+    cloud: true,
+    input: true,
+    richPresence: true,
+    screenshots: true,
+    stats: progressionEnabled,
+    timeline: true
+  };
+  for (const name of STEAM_CAPABILITY_NAMES) {
+    if (typeof capabilities[name] !== "boolean") {
+      throw new Error(`Steam capability is not boolean: ${name}`);
+    }
+  }
+  return Object.freeze(capabilities);
+}
+
 module.exports = {
   DEMO_APP_ID,
   FULL_GAME_APP_ID,
-  resolveDesktopConfig
+  resolveDesktopConfig,
+  steamCapabilitiesForEdition
 };

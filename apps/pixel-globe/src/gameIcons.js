@@ -464,6 +464,12 @@ export function menuLabelIconId(label) {
 
 export function dialogueOptionIconId(option) {
   if (!option?.action?.type) throw new Error("Dialogue option has no action type");
+  if (option.iconId) {
+    if (!GAME_ICON_INDEX.has(option.iconId)) {
+      throw new Error(`Dialogue option has unknown icon override: ${option.iconId}`);
+    }
+    return option.iconId;
+  }
   if (option.action.type === "buy-equipment-factor-pitch") {
     if (option.action.kind === "fishing-net") return "action:fish";
     if (option.action.kind === "cannon") return "action:attack";

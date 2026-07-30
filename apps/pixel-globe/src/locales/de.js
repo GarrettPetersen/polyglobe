@@ -116,6 +116,7 @@ export default {
   "demo.voyageComplete": "DEMOREISE BEENDET",
   "demo.thanks": "DANKE FÜRS SPIELEN",
   "demo.fullVersion": "VOLLVERSION AUF STEAM KAUFEN",
+  "demo.shipLocked": "IN DER DEMO NICHT VERFÜGBAR",
   "outcome.lostAtSea": "AUF SEE VERSCHOLLEN",
   "outcome.neverSeenAgain": "WURDE NIE WIEDER GESEHEN.",
   "outcome.voyageEnded": "REISE BEENDET",

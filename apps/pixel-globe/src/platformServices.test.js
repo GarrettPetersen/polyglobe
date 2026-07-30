@@ -9,6 +9,7 @@ import {
   addPlatformTimelineEvent,
   createPlatformActivityPublisher,
   createPlatformCloudSync,
+  currentPlatformGameLanguage,
   hydratePlatformCloudStorage,
   parseCloudEnvelope,
   platformServicesAdapter,
@@ -38,6 +39,7 @@ function bridge(overrides = {}) {
       stats: true,
       timeline: true
     }),
+    getCurrentGameLanguage: async () => "english",
     readCloudFile: async () => null,
     writeCloudFile: async () => {},
     setRichPresence: async () => {},
@@ -57,9 +59,45 @@ test("installed Steam bridges must expose every shipping capability", async () =
   const installed = bridge();
   assert.equal(platformServicesAdapter({ marqueSteamPlatform: installed }), installed);
   assert.equal((await validatePlatformCapabilities(installed)).timeline, true);
+  assert.equal(await currentPlatformGameLanguage(installed), "english");
   await assert.rejects(
     validatePlatformCapabilities(bridge({ getCapabilities: async () => ({ achievements: true }) })),
-    /capability is unavailable: cloud/
+    /capability is invalid: cloud/
+  );
+  await assert.rejects(
+    currentPlatformGameLanguage(bridge({ getCurrentGameLanguage: async () => "" })),
+    /invalid game language/
+  );
+});
+
+test("demo bridges keep Cloud but disable Steam progression services", async () => {
+  const capabilities = await validatePlatformCapabilities(bridge({
+    getCapabilities: async () => ({
+      achievements: false,
+      cloud: true,
+      input: true,
+      richPresence: true,
+      screenshots: true,
+      stats: false,
+      timeline: true
+    })
+  }));
+  assert.equal(capabilities.cloud, true);
+  assert.equal(capabilities.achievements, false);
+  assert.equal(capabilities.stats, false);
+  await assert.rejects(
+    validatePlatformCapabilities(bridge({
+      getCapabilities: async () => ({
+        achievements: false,
+        cloud: true,
+        input: true,
+        richPresence: true,
+        screenshots: true,
+        stats: true,
+        timeline: true
+      })
+    })),
+    /must be enabled together/
   );
 });
 

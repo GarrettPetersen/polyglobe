@@ -7,7 +7,8 @@ const { test } = require("node:test");
 const {
   DEMO_APP_ID,
   FULL_GAME_APP_ID,
-  resolveDesktopConfig
+  resolveDesktopConfig,
+  steamCapabilitiesForEdition
 } = require("./desktopConfig.cjs");
 
 test("development defaults to the full game", () => {
@@ -49,6 +50,28 @@ test("packaged demo defaults to its assigned App ID", (context) => {
 
   const config = resolveDesktopConfig({ env: {}, isPackaged: true, resourcesPath });
   assert.equal(config.appId, DEMO_APP_ID);
+});
+
+test("only the full edition exposes Steam Stats and achievements", () => {
+  assert.deepEqual(steamCapabilitiesForEdition("full"), {
+    achievements: true,
+    cloud: true,
+    input: true,
+    richPresence: true,
+    screenshots: true,
+    stats: true,
+    timeline: true
+  });
+  assert.deepEqual(steamCapabilitiesForEdition("demo"), {
+    achievements: false,
+    cloud: true,
+    input: true,
+    richPresence: true,
+    screenshots: true,
+    stats: false,
+    timeline: true
+  });
+  assert.throws(() => steamCapabilitiesForEdition("preview"), /Invalid Steam edition/);
 });
 
 function temporaryResources(context) {

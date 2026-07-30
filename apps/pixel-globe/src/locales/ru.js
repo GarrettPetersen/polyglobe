@@ -116,6 +116,7 @@ export default {
   "demo.voyageComplete": "ДЕМО-ПЛАВАНИЕ ЗАВЕРШЕНО",
   "demo.thanks": "СПАСИБО ЗА ИГРУ",
   "demo.fullVersion": "КУПИТЕ ПОЛНУЮ ВЕРСИЮ В STEAM",
+  "demo.shipLocked": "НЕДОСТУПНО В ДЕМО",
   "outcome.lostAtSea": "ПРОПАЛ В МОРЕ",
   "outcome.neverSeenAgain": "БОЛЬШЕ ЕГО НЕ ВИДЕЛИ.",
   "outcome.voyageEnded": "ПЛАВАНИЕ ОКОНЧЕНО",

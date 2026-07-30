@@ -333,7 +333,12 @@ test("runtime channels keep web, itch, local, and Steam reports separate", () =>
     edition: "full",
     platformId: "steam",
     location: { protocol: "file:", hostname: "" }
-  }), "steam");
+  }), "steam-full");
+  assert.equal(telemetryRuntimeChannel({
+    edition: "demo",
+    platformId: "steam",
+    location: { protocol: "file:", hostname: "" }
+  }), "steam-demo");
 });
 
 function metadata() {

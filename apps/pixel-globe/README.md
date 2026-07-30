@@ -31,7 +31,7 @@ npm run pixel-globe:build
 
 The build output is `apps/pixel-globe/dist`.
 
-Build the two-hour HTML5 demo ZIP for itch.io:
+Build the unlimited HTML5 demo ZIP for itch.io:
 
 ```sh
 make pixel-globe-demo-itch
@@ -42,6 +42,11 @@ The upload-ready archive is
 `index.html` at the ZIP root, uses relative runtime paths for itch.io's
 subdirectory hosting, and validates itch.io's default file, path, and size
 limits before packaging.
+
+The demo has no voyage timer. It exposes the complete sandbox but keeps the
+captain in the ship selected at the start of the run: shipyard purchases,
+surrendered prizes, and the Viking longship reward are shown with a disabled
+padlock control.
 
 Controls: arrow keys or WASD steer. Space or Enter activates the available interaction.
 

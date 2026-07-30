@@ -1,0 +1,16 @@
+{
+  "full": {
+    "appId": 4516500,
+    "depots": {
+      "windows": 4516501,
+      "macos": null
+    }
+  },
+  "demo": {
+    "appId": 5029880,
+    "depots": {
+      "windows": 5029881,
+      "macos": null
+    }
+  }
+}

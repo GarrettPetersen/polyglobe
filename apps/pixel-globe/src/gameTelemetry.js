@@ -253,7 +253,7 @@ export function createGameTelemetry({
 }
 
 export function telemetryRuntimeChannel({ edition, platformId = null, location = null } = {}) {
-  if (platformId === "steam") return "steam";
+  if (platformId === "steam") return edition === "demo" ? "steam-demo" : "steam-full";
   const protocol = location?.protocol || "";
   const hostname = location?.hostname || "";
   if (edition === "demo") return protocol === "file:" ? "itch-local" : "itch-demo";

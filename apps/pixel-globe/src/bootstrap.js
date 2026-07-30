@@ -1,14 +1,17 @@
 import { gameStorage, setGameStorageMutationHandler } from "./gameStorage.js";
 import {
   createPlatformCloudSync,
+  currentPlatformGameLanguage,
   hydratePlatformCloudStorage,
   platformServicesAdapter,
   validatePlatformCapabilities
 } from "./platformServices.js";
+import { setSteamInterfaceLanguage } from "./loadingScreenLocale.js";
 
 const bridge = platformServicesAdapter(window);
 if (bridge) {
   await validatePlatformCapabilities(bridge);
+  setSteamInterfaceLanguage(await currentPlatformGameLanguage(bridge));
   const hydration = await hydratePlatformCloudStorage(gameStorage, bridge);
   const cloudSync = createPlatformCloudSync(gameStorage, bridge);
   const requestCloudSync = (key) => {

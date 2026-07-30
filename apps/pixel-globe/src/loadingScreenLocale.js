@@ -19,12 +19,36 @@ const CAPSULE_TITLE_STEAM_CODE_BY_LANGUAGE = Object.freeze(new Map([
   ["ko", "koreana"]
 ]));
 
-export function initialInterfaceLanguage(requestedLanguage, storedLanguage) {
+const INTERFACE_LANGUAGE_BY_STEAM_CODE = Object.freeze(new Map(
+  [...CAPSULE_TITLE_STEAM_CODE_BY_LANGUAGE]
+    .map(([language, steamCode]) => [steamCode, language])
+));
+
+let steamInterfaceLanguage = null;
+
+export function initialInterfaceLanguage(requestedLanguage, storedLanguage, platformLanguage = null) {
   return normalizeLanguage(
     requestedLanguage ||
     storedLanguage ||
+    platformLanguage ||
     LANGUAGE_ENGLISH
   );
+}
+
+export function interfaceLanguageForSteamCode(steamCode) {
+  if (typeof steamCode !== "string" || steamCode.trim() === "") {
+    throw new Error("Steam game language is missing");
+  }
+  return INTERFACE_LANGUAGE_BY_STEAM_CODE.get(steamCode.trim().toLowerCase()) || LANGUAGE_ENGLISH;
+}
+
+export function setSteamInterfaceLanguage(steamCode) {
+  steamInterfaceLanguage = interfaceLanguageForSteamCode(steamCode);
+  return steamInterfaceLanguage;
+}
+
+export function currentSteamInterfaceLanguage() {
+  return steamInterfaceLanguage;
 }
 
 export function loadingCapsuleTitleSteamCode(language) {

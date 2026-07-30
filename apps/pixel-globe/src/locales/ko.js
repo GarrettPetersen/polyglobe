@@ -116,6 +116,7 @@ export default {
   "demo.voyageComplete": "체험판 항해 완료",
   "demo.thanks": "플레이해 주셔서 감사합니다",
   "demo.fullVersion": "STEAM에서 정식판 구매",
+  "demo.shipLocked": "체험판에서는 이용할 수 없음",
   "outcome.lostAtSea": "바다에서 실종",
   "outcome.neverSeenAgain": "다시는 모습을 보이지 않았다.",
   "outcome.voyageEnded": "항해 종료",

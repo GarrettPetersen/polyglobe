@@ -27,6 +27,7 @@ const inputRoot = join(appRoot, "steam-input");
 const iconRoot = join(appRoot, "capsule_art/generated");
 const args = parseArgs(process.argv.slice(2));
 const editions = args.edition === "both" ? ["full", "demo"] : [args.edition];
+const macSecurityOptions = resolveMacSecurityOptions();
 
 await assertBuildInputs();
 for (const edition of editions) {
@@ -88,6 +89,7 @@ async function packageEdition(edition) {
       platform: args.platform,
       prune: sourceRoot === hostRoot,
       quiet: false,
+      ...macSecurityOptions,
       win32metadata: {
         CompanyName: "Garrett Petersen",
         FileDescription: productName,
@@ -101,6 +103,19 @@ async function packageEdition(edition) {
       throw new Error(`Expected one packaged app, received ${packagePaths.length}`);
     }
     await verifyPackage(packagePaths[0], { appId, edition, gameDirectory, productName });
+    if (args.platform === "darwin" && args.sign) {
+      const appPath = join(packagePaths[0], `${productName}.app`);
+      await run("codesign", [
+        "--verify",
+        "--deep",
+        "--strict",
+        "--verbose=2",
+        appPath
+      ]);
+      if (args.notarize) {
+        await run("xcrun", ["stapler", "validate", appPath]);
+      }
+    }
     console.log(`Packaged ${edition}: ${packagePaths[0]}`);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
@@ -208,11 +223,18 @@ function parseArgs(values) {
   const parsed = {
     arch: process.arch,
     edition: "both",
+    notarize: false,
     platform: process.platform,
+    sign: false,
     skipStaticBuild: false
   };
   for (const value of values) {
     if (value === "--skip-static-build") parsed.skipStaticBuild = true;
+    else if (value === "--sign") parsed.sign = true;
+    else if (value === "--notarize") {
+      parsed.notarize = true;
+      parsed.sign = true;
+    }
     else if (value.startsWith("--edition=")) parsed.edition = value.slice("--edition=".length);
     else if (value.startsWith("--platform=")) parsed.platform = value.slice("--platform=".length);
     else if (value.startsWith("--arch=")) parsed.arch = value.slice("--arch=".length);
@@ -230,7 +252,30 @@ function parseArgs(values) {
   if (parsed.platform !== "darwin" && parsed.arch !== "x64") {
     throw new Error(`Steamworks.js only ships ${parsed.platform} x64 binaries`);
   }
+  if (parsed.sign && parsed.platform !== "darwin") {
+    throw new Error("The --sign and --notarize options are only valid for macOS packages");
+  }
+  if (parsed.sign && process.platform !== "darwin") {
+    throw new Error("macOS packages must be signed on a Mac");
+  }
   return parsed;
+}
+
+function resolveMacSecurityOptions() {
+  if (!args.sign) return {};
+  const identity = process.env.MARQUE_MAC_SIGN_IDENTITY?.trim();
+  const osxSign = identity ? { identity } : {};
+  if (!args.notarize) return { osxSign };
+  const keychainProfile = process.env.MARQUE_MAC_NOTARY_PROFILE?.trim();
+  if (!keychainProfile) {
+    throw new Error(
+      "Notarization requires MARQUE_MAC_NOTARY_PROFILE=<notarytool keychain profile>"
+    );
+  }
+  return {
+    osxNotarize: { keychainProfile },
+    osxSign
+  };
 }
 
 function optionalAppId(value) {

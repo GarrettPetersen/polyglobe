@@ -116,6 +116,7 @@ export default {
   "demo.voyageComplete": "試玩航程結束",
   "demo.thanks": "感謝遊玩",
   "demo.fullVersion": "在 STEAM 購買完整版繼續航行",
+  "demo.shipLocked": "試玩版中不可用",
   "outcome.lostAtSea": "葬身海上",
   "outcome.neverSeenAgain": "從此杳無音信。",
   "outcome.voyageEnded": "航程結束",

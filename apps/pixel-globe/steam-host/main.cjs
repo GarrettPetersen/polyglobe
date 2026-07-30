@@ -6,22 +6,17 @@ const { startStaticServer } = require("./staticServer.cjs");
 const { createSteamNativeApi } = require("./steamNativeApi.cjs");
 const { createSteamInputService } = require("./steamInput.cjs");
 const { updateHighWaterStats } = require("./steamStats.cjs");
-const { resolveDesktopConfig } = require("./desktopConfig.cjs");
+const {
+  resolveDesktopConfig,
+  steamCapabilitiesForEdition
+} = require("./desktopConfig.cjs");
 
 const desktopConfig = resolveDesktopConfig({ isPackaged: app.isPackaged });
 const APP_ID = desktopConfig.appId;
 const GAME_ROOT = desktopConfig.gameRoot;
 const INPUT_MANIFEST = desktopConfig.inputManifest;
 const PRESENCE_KEYS = Object.freeze(["steam_display", "status", "place", "ship"]);
-const CAPABILITIES = Object.freeze({
-  achievements: true,
-  cloud: true,
-  input: true,
-  richPresence: true,
-  screenshots: true,
-  stats: true,
-  timeline: true
-});
+const CAPABILITIES = steamCapabilitiesForEdition(desktopConfig.edition);
 
 steamworks.electronEnableSteamOverlay();
 
@@ -70,6 +65,7 @@ async function createGameWindow(url) {
     backgroundColor: "#101811",
     show: false,
     webPreferences: {
+      additionalArguments: [`--marque-steam-edition=${desktopConfig.edition}`],
       contextIsolation: true,
       nodeIntegration: false,
       preload: join(__dirname, "preload.cjs"),
@@ -86,8 +82,9 @@ async function createGameWindow(url) {
 
 function installIpcHandlers() {
   ipcMain.handle("steam:get-capabilities", () => CAPABILITIES);
+  ipcMain.handle("steam:get-current-game-language", () => currentGameLanguage());
   ipcMain.handle("steam:unlock-achievement", (_event, id) => unlockAchievement(id));
-  ipcMain.handle("steam:update-stats", (_event, values) => updateHighWaterStats(client.stats, values));
+  ipcMain.handle("steam:update-stats", (_event, values) => updateStats(values));
   ipcMain.handle("steam:cloud-read", (_event, name) => readCloudFile(name));
   ipcMain.handle("steam:cloud-write", (_event, name, contents) => writeCloudFile(name, contents));
   ipcMain.handle("steam:set-rich-presence", (_event, presence) => setRichPresence(presence));
@@ -97,7 +94,14 @@ function installIpcHandlers() {
   ipcMain.handle("steam:set-input-action-set", (_event, name) => steamInput.setActionSet(name));
 }
 
+function currentGameLanguage() {
+  return requiredString(client.apps.currentGameLanguage(), "Steam game language");
+}
+
 function unlockAchievement(id) {
+  if (!CAPABILITIES.achievements) {
+    throw new Error("Steam achievements are disabled in the demo");
+  }
   const achievementId = requiredString(id, "achievement id");
   if (client.achievement.isActivated(achievementId)) return true;
   if (!client.achievement.activate(achievementId)) {
@@ -105,6 +109,11 @@ function unlockAchievement(id) {
   }
   if (!client.stats.store()) throw new Error(`Steam could not store achievement ${achievementId}`);
   return true;
+}
+
+function updateStats(values) {
+  if (!CAPABILITIES.stats) throw new Error("Steam Stats are disabled in the demo");
+  return updateHighWaterStats(client.stats, values);
 }
 
 function readCloudFile(name) {

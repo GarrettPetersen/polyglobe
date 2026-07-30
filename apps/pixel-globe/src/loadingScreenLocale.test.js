@@ -3,10 +3,13 @@ import test from "node:test";
 
 import { SUPPORTED_LANGUAGES } from "./localization.js";
 import {
+  currentSteamInterfaceLanguage,
   INTERFACE_LANGUAGE_STORAGE_KEY,
   initialInterfaceLanguage,
+  interfaceLanguageForSteamCode,
   loadingCapsuleTitleAtlasFile,
-  loadingCapsuleTitleSteamCode
+  loadingCapsuleTitleSteamCode,
+  setSteamInterfaceLanguage
 } from "./loadingScreenLocale.js";
 
 test("loading screen selects every supported localized capsule title", () => {
@@ -34,9 +37,21 @@ test("loading screen selects every supported localized capsule title", () => {
   }
 });
 
-test("loading screen follows URL language before saved language", () => {
-  assert.equal(initialInterfaceLanguage("ja", "fr"), "ja");
-  assert.equal(initialInterfaceLanguage(null, "fr"), "fr");
-  assert.equal(initialInterfaceLanguage(null, null), "en");
-  assert.equal(initialInterfaceLanguage("zh-TW", "en"), "zh-Hant");
+test("loading screen follows URL, saved, Steam, then English language priority", () => {
+  assert.equal(initialInterfaceLanguage("ja", "fr", "de"), "ja");
+  assert.equal(initialInterfaceLanguage(null, "fr", "de"), "fr");
+  assert.equal(initialInterfaceLanguage(null, null, "de"), "de");
+  assert.equal(initialInterfaceLanguage(null, null, null), "en");
+  assert.equal(initialInterfaceLanguage("zh-TW", "en", "de"), "zh-Hant");
+});
+
+test("Steam language codes map to supported interface languages", () => {
+  assert.equal(interfaceLanguageForSteamCode("english"), "en");
+  assert.equal(interfaceLanguageForSteamCode("SChinese"), "zh-Hans");
+  assert.equal(interfaceLanguageForSteamCode("brazilian"), "pt-BR");
+  assert.equal(interfaceLanguageForSteamCode("koreana"), "ko");
+  assert.equal(interfaceLanguageForSteamCode("italian"), "en");
+  assert.throws(() => interfaceLanguageForSteamCode(""), /language is missing/);
+  assert.equal(setSteamInterfaceLanguage("japanese"), "ja");
+  assert.equal(currentSteamInterfaceLanguage(), "ja");
 });

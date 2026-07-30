@@ -2,13 +2,15 @@
 
 ## Store and build
 
-- [ ] **Get the Steam page up**
-  - Status: Blocked on Steam approval.
+- [x] **Get the Steam page up**
+  - Status: Launched.
   - Store page: https://store.steampowered.com/app/4516500/Marque__Reprisal/
 
 - [ ] **Get the demo build on Steam**
-  - Upload and test the demo as soon as the store page is approved.
-  - The demo is identical to the full game, but each voyage ends after two hours.
+  - Upload and test the demo against Steam App `5029880`.
+  - The demo exposes the full sandbox without a timer, but the captain keeps
+    their starting ship. Shipyards, surrendered prizes, and the Viking longship
+    reward show the replacement option as unavailable in the demo.
 
 - [ ] **Get the full build on Steam**
   - Keep it private until release, apart from keys provided for coverage and testing.
@@ -48,7 +50,7 @@
 
 - [ ] Direct players to the demo.
   - The public call to action is to play the demo and wishlist the game.
-  - Be clear that the demo gives each voyage a two-hour limit.
+  - Be clear that the demo has no timer but does not allow changing ships.
 
 - [ ] Post on Reddit without getting banned for self-promotion.
   - Read each subreddit's current rules before posting.

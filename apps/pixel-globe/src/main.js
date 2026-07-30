@@ -1181,13 +1181,10 @@ import { NOTICE_DURATION_MS } from "./notificationTiming.js";
 import { fullNoticeTextLayout } from "./noticeTextLayout.js";
 import { steamStatValues } from "./steamStats.js";
 import {
-  DEMO_LIMIT_MESSAGE,
-  DEMO_VOYAGE_OUTCOME,
-  demoVoyageLimitReached,
+  assertShipAcquisitionAvailable,
   startMenuEditionLabel
 } from "./demoVoyage.js";
 import {
-  ACTIVE_PLAY_LIMIT_SECONDS,
   BUILD_EDITION_ID,
   BUILD_REVISION
 } from "./buildEdition.js";
@@ -1471,6 +1468,7 @@ import {
 } from "./shoreScavenge.js";
 import { startCapsuleLoadingScreen } from "./loadingScreen.js";
 import {
+  currentSteamInterfaceLanguage,
   INTERFACE_LANGUAGE_STORAGE_KEY,
   initialInterfaceLanguage
 } from "./loadingScreenLocale.js";
@@ -1919,7 +1917,8 @@ const CONTROLLER_GLYPH_STORAGE_KEY = "pixel_globe_controller_glyphs";
 const CONTROL_SCHEME_STORAGE_KEY = "pixel_globe_control_scheme";
 let currentLanguage = initialInterfaceLanguage(
   new URLSearchParams(window.location.search).get("lang"),
-  readLocalStorage(INTERFACE_LANGUAGE_STORAGE_KEY)
+  readLocalStorage(INTERFACE_LANGUAGE_STORAGE_KEY),
+  currentSteamInterfaceLanguage()
 );
 let currentLanguageProfile = languageFontProfile(currentLanguage);
 const PIXEL_FONT_LATIN_SMALL_8 = "8px \"Silkscreen\", monospace";
@@ -4670,9 +4669,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (!simulationPaused) {
     advanceActivePlayTime(gameState, dt);
     if (updatePlayerWind(dt)) dirty = true;
-    if (updateDemoVoyageLimit()) {
-      dirty = true;
-    } else if (fishingAction) {
+    if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
     if (updateNavalWeapons(dt)) dirty = true;
@@ -4990,7 +4987,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
   rightCharacter = null
 } = {}) {
   if (!character) throw new Error("Character alert requires a character");
-  if (!["alert", "birthday", "demo-limit", "sequence", "choice"].includes(kind)) {
+  if (!["alert", "birthday", "sequence", "choice"].includes(kind)) {
     throw new Error(`Unknown character alert kind: ${kind}`);
   }
   if (typeof buttonLabel !== "string" || buttonLabel.trim() === "") {
@@ -5400,25 +5397,6 @@ function updateWhiteWhaleSightingObjective() {
   return true;
 }
 
-function updateDemoVoyageLimit() {
-  if (!demoVoyageLimitReached(gameState.activePlaySeconds, ACTIVE_PLAY_LIMIT_SECONDS)) return false;
-  if (BUILD_EDITION_ID !== "demo") {
-    throw new Error(`Active play limit configured for non-demo build: ${BUILD_EDITION_ID}`);
-  }
-  if (captainAlertModal) return false;
-  captainAlertModal = createCharacterAlertModal(
-    gameState.playerCharacter,
-    DEMO_LIMIT_MESSAGE,
-    "neutral",
-    { kind: "demo-limit", buttonLabel: "END VOYAGE" }
-  );
-  stopShipForDialogue();
-  const expression = characterExpression(gameState.playerCharacter, "neutral");
-  void ensureCharacterPortraitLoaded(gameState.playerCharacter, expression);
-  dirty = true;
-  return true;
-}
-
 function updateColonizationQuest() {
   const memory = gameState?.memory?.colonization;
   if (!memory || !ship || !Number.isInteger(memory.targetTileId)) return false;
@@ -5818,10 +5796,6 @@ function closeCaptainAlertModal() {
   keys.clear();
   clearPointerSteering();
   if (closedKind === "birthday") consumeBirthdayDialogueLine(gameState.memory.birthdays);
-  if (closedKind === "demo-limit") {
-    completeDemoVoyage();
-    return;
-  }
   if (closedKind === "sequence") {
     if (presentNextCharacterAlertSequenceStep()) return;
     const completion = characterAlertSequenceCompletion;
@@ -9489,14 +9463,16 @@ function syncAchievementsFromGameState(event = null) {
     if (result.newlyUnlocked.length > 0 && hasStartedVoyage && !startMenu) {
       queueAchievementNotices(result.newlyUnlocked);
       for (const entry of result.newlyUnlocked) {
-        publishPlatformTimelineEvent({
-          title: `Achievement unlocked: ${entry.title}`,
-          description: entry.description,
-          icon: "steam_achievement",
-          priority: 650,
-          durationSeconds: 0,
-          clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
-        });
+        if (BUILD_EDITION_ID === "full") {
+          publishPlatformTimelineEvent({
+            title: `Achievement unlocked: ${entry.title}`,
+            description: entry.description,
+            icon: "steam_achievement",
+            priority: 650,
+            durationSeconds: 0,
+            clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
+          });
+        }
       }
     }
   }
@@ -9542,6 +9518,7 @@ function updateAchievementNotice(nowMs) {
 }
 
 function queueAchievementPlatformSync(statValues = null) {
+  if (BUILD_EDITION_ID === "demo") return;
   if (!achievementProfile) return;
   let adapter;
   try {
@@ -14217,6 +14194,7 @@ function updateItemAcquisitionEffects(nowMs) {
 }
 
 async function purchaseShipyardShip(action) {
+  assertShipAcquisitionAvailable(BUILD_EDITION_ID);
   if (shipyardPurchaseListingId) return;
   const session = dialogueState;
   const city = currentDialogueCity();
@@ -14237,6 +14215,7 @@ async function purchaseShipyardShip(action) {
     const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
     const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
     const purchase = purchasePlayerShip(gameState, city, stats, purchaseTerms, {
+      buildEditionId: BUILD_EDITION_ID,
       simMinute: Math.floor(weatherClockMinutes),
       departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
     });
@@ -14305,6 +14284,7 @@ function placeVikingLongshipEnthusiastAtPort(historian) {
 }
 
 async function acquireVikingLongship(action) {
+  assertShipAcquisitionAvailable(BUILD_EDITION_ID);
   if (vikingLongshipAcquisitionPending) return;
   const session = dialogueState;
   const city = currentDialogueCity();
@@ -14330,7 +14310,10 @@ async function acquireVikingLongship(action) {
     const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
     const assets = await loadShipAssetSet(VIKING_LONGSHIP_SLUG);
     if (dialogueState !== session || session.nodeId !== "viking-longship") return;
-    const transactionContext = { simMinute: Math.floor(weatherClockMinutes) };
+    const transactionContext = {
+      buildEditionId: BUILD_EDITION_ID,
+      simMinute: Math.floor(weatherClockMinutes)
+    };
     if (acceptingReward) {
       awardPlayerShip(
         gameState,
@@ -14436,6 +14419,7 @@ function applyShipDialogueAction(npcShipId, action) {
 }
 
 async function captureSurrenderedShip(npcShipId) {
+  assertShipAcquisitionAvailable(BUILD_EDITION_ID);
   if (surrenderedShipCapturePendingId) return;
   const session = dialogueState;
   if (
@@ -14473,6 +14457,7 @@ async function captureSurrenderedShip(npcShipId) {
       stats,
       `Captured ${shipLabelForSlug(candidateSlug)} as a surrendered prize`,
       {
+        buildEditionId: BUILD_EDITION_ID,
         simMinute: Math.floor(weatherClockMinutes),
         departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
       }
@@ -14715,6 +14700,8 @@ function portDialogueContext() {
   const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
   const simMinute = Math.floor(weatherClockMinutes);
   return {
+    buildEditionId: BUILD_EDITION_ID,
+    demoShipLockMessage: uiText("demo.shipLocked"),
     random: Math.random,
     missionGiftRandom: Math.random,
     portCities,
@@ -19450,16 +19437,6 @@ function completeCampaignVoyage() {
   });
 }
 
-function completeDemoVoyage() {
-  if (BUILD_EDITION_ID !== "demo" || ACTIVE_PLAY_LIMIT_SECONDS === null) {
-    throw new Error("Cannot complete a demo voyage outside the demo build");
-  }
-  endPlayerVoyage(DEMO_VOYAGE_OUTCOME, {
-    sinkShip: false,
-    outcomeType: "demo"
-  });
-}
-
 function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   if (typeof reason !== "string" || reason.trim() === "") throw new Error("Ending a voyage requires a reason");
   if (typeof sinkShip !== "boolean") throw new Error("Ending a voyage requires an explicit sinkShip decision");
@@ -21470,7 +21447,10 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
     cargoUsed: cargoUsed(gameState)
-  }, lootSummary);
+  }, lootSummary, {
+    buildEditionId: BUILD_EDITION_ID,
+    demoShipLockMessage: uiText("demo.shipLocked")
+  });
   dialogueLayout = createDialogueLayoutState();
   ensureShipyardSideViewLoaded(prizeShip.slug);
   ensureDialoguePortraitLoaded();

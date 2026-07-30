@@ -61,8 +61,8 @@ async function assertDemoBuild(files) {
   const editionPath = path.join(distRoot, "src/buildEdition.js");
   const editionSource = await fs.readFile(editionPath, "utf8");
   if (!editionSource.includes('BUILD_EDITION_ID = "demo"') ||
-      !editionSource.includes("ACTIVE_PLAY_LIMIT_SECONDS = 7200")) {
-    throw new Error("Itch package was not built as the two-hour demo edition");
+      editionSource.includes("ACTIVE_PLAY_LIMIT_SECONDS")) {
+    throw new Error("Itch package was not built as the unlimited, ship-locked demo edition");
   }
 }
 

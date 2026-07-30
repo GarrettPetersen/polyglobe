@@ -88,10 +88,13 @@ game is released, configure the demo's Shared Cloud App ID as `4516500` so its
 versioned save/profile files can transfer to the full game. Do not set a shared
 App ID on the full game.
 
-The demo should not maintain a second, duplicate achievement catalog. It tracks
-progress in the shared local profile, and the full game reports any already
-earned achievements to Steam when it first loads that profile. This avoids two
-independent platform achievements for the same accomplishment.
+The demo must not maintain a second, duplicate achievement or Stats catalog.
+Its desktop host reports both capabilities as disabled, does not install the
+Steam achievement bridge, rejects direct Stats/achievement IPC calls, and
+keeps local achievement progress in the shared Cloud profile. The full game
+reports any already earned achievements to Steam when it first loads that
+profile. This follows Valve's demo guidance and avoids two independent
+platform achievements for the same accomplishment.
 
 Steam Stats back the fixed achievement progress counters in
 `steam/stats/catalog.json`. Steam Leaderboards remain disabled until the game

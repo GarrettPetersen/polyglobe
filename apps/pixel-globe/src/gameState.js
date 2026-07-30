@@ -36,6 +36,7 @@ import {
   validateNaturalistQuestMemory
 } from "./naturalistQuest.js";
 import { createBirthdayMemory, validateBirthdayMemory } from "./birthdayEvents.js";
+import { assertShipAcquisitionAvailable } from "./demoVoyage.js";
 import {
   DIPLOMACY_ALLY,
   DIPLOMACY_FRIENDLY,
@@ -1275,6 +1276,7 @@ export function futurePermanentCrewFloor(state, context = {}) {
 }
 
 export function purchasePlayerShip(state, city, stats, payment, context = {}) {
+  assertShipAcquisitionAvailable(context.buildEditionId ?? "full");
   assertGameState(state);
   if (!stats || typeof stats.slug !== "string") throw new Error("Ship purchase requires valid ship stats");
   if (!payment || typeof payment !== "object") throw new Error("Ship purchase requires payment terms");
@@ -1312,6 +1314,7 @@ export function purchasePlayerShip(state, city, stats, payment, context = {}) {
 }
 
 export function awardPlayerShip(state, city, stats, description, context = {}) {
+  assertShipAcquisitionAvailable(context.buildEditionId ?? "full");
   assertGameState(state);
   if (!stats || typeof stats.slug !== "string") throw new Error("Ship award requires valid ship stats");
   if (typeof description !== "string" || description.trim() === "") {

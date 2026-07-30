@@ -116,6 +116,7 @@ export default {
   "demo.voyageComplete": "REJS DEMO ZAKOŃCZONY",
   "demo.thanks": "DZIĘKUJEMY ZA GRĘ",
   "demo.fullVersion": "KUP PEŁNĄ WERSJĘ NA STEAM",
+  "demo.shipLocked": "NIEDOSTĘPNE W DEMO",
   "outcome.lostAtSea": "ZAGINĄŁ NA MORZU",
   "outcome.neverSeenAgain": "PRZEPADŁ BEZ WIEŚCI.",
   "outcome.voyageEnded": "REJS ZAKOŃCZONY",

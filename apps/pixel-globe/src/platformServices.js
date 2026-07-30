@@ -14,6 +14,7 @@ export const PLATFORM_CLOUD_STORAGE_KEYS = Object.freeze([
 
 const PLATFORM_METHODS = Object.freeze([
   "getCapabilities",
+  "getCurrentGameLanguage",
   "readCloudFile",
   "writeCloudFile",
   "setRichPresence",
@@ -56,12 +57,28 @@ export async function validatePlatformCapabilities(bridge) {
   if (!capabilities || typeof capabilities !== "object") {
     throw new Error("Steam platform bridge returned invalid capabilities");
   }
+  const optionalProgressionCapabilities = new Set(["achievements", "stats"]);
   for (const capability of ["achievements", "cloud", "input", "richPresence", "screenshots", "stats", "timeline"]) {
-    if (capabilities[capability] !== true) {
+    if (typeof capabilities[capability] !== "boolean") {
+      throw new Error(`Steam platform capability is invalid: ${capability}`);
+    }
+    if (!optionalProgressionCapabilities.has(capability) && capabilities[capability] !== true) {
       throw new Error(`Steam platform capability is unavailable: ${capability}`);
     }
   }
+  if (capabilities.achievements !== capabilities.stats) {
+    throw new Error("Steam achievement and stat capabilities must be enabled together");
+  }
   return Object.freeze({ ...capabilities });
+}
+
+export async function currentPlatformGameLanguage(bridge) {
+  if (!bridge) return null;
+  const language = await bridge.getCurrentGameLanguage();
+  if (typeof language !== "string" || language.trim() === "") {
+    throw new Error("Steam platform bridge returned an invalid game language");
+  }
+  return language.trim();
 }
 
 export async function hydratePlatformCloudStorage(storage, bridge) {

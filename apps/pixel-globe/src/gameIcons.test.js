@@ -76,6 +76,20 @@ test("every current dialogue and start-menu action resolves to an icon", async (
   assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "campaign-keep-sailing" } })]);
 });
 
+test("dialogue options can override their action icon with the demo padlock", () => {
+  assert.equal(
+    dialogueOptionIconId({
+      action: { type: "purchase-ship" },
+      iconId: "status:achievement-locked"
+    }),
+    "status:achievement-locked"
+  );
+  assert.throws(
+    () => dialogueOptionIconId({ action: { type: "purchase-ship" }, iconId: "status:missing" }),
+    /unknown icon override/
+  );
+});
+
 test("every controller family has native-size semantic action glyphs", () => {
   for (const family of Object.values(CONTROLLER_FAMILY)) {
     for (const action of [

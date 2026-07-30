@@ -188,6 +188,7 @@ test("audited canvas headings are localized everywhere", () => {
     "demo.voyageComplete",
     "demo.thanks",
     "demo.fullVersion",
+    "demo.shipLocked",
     "outcome.lostAtSea",
     "outcome.neverSeenAgain",
     "outcome.voyageEnded",

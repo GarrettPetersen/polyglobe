@@ -1,6 +1,7 @@
 import { loadingScreenRenderSize } from "./loadingScreenMotion.js";
 import { gameStorage } from "./gameStorage.js";
 import {
+  currentSteamInterfaceLanguage,
   INTERFACE_LANGUAGE_STORAGE_KEY,
   initialInterfaceLanguage,
   loadingCapsuleTitleAtlasFile
@@ -24,7 +25,8 @@ export function startCapsuleLoadingScreen() {
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
   const language = initialInterfaceLanguage(
     new URLSearchParams(window.location.search).get("lang"),
-    gameStorage.getItem(INTERFACE_LANGUAGE_STORAGE_KEY)
+    gameStorage.getItem(INTERFACE_LANGUAGE_STORAGE_KEY),
+    currentSteamInterfaceLanguage()
   );
   const titleAtlasFile = loadingCapsuleTitleAtlasFile(language);
   const startedAtMs = performance.now();

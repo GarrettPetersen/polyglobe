@@ -6,7 +6,6 @@ import { promisify } from "node:util";
 import { build } from "esbuild";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
-import { DEMO_VOYAGE_LIMIT_SECONDS } from "../src/demoVoyage.js";
 import { FACTIONS, factionHasFlag } from "../src/factions.js";
 
 const BUILD_EDITION_FULL = "full";
@@ -302,10 +301,8 @@ async function buildDemoFactionFlagAtlas() {
 }
 
 function buildEditionModuleSource() {
-  const limit = edition === BUILD_EDITION_DEMO ? DEMO_VOYAGE_LIMIT_SECONDS : null;
   return [
     `export const BUILD_EDITION_ID = ${JSON.stringify(edition)};`,
-    `export const ACTIVE_PLAY_LIMIT_SECONDS = ${limit === null ? "null" : limit};`,
     `export const BUILD_REVISION = ${JSON.stringify(buildRevision)};`,
     ""
   ].join("\n");
