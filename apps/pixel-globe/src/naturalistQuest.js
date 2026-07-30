@@ -4,6 +4,37 @@ export const NATURALIST_QUEST_MEMORY_VERSION = 1;
 export const NATURALIST_REPORT_REWARD = 100;
 export const NATURALIST_COMPLETION_REWARD = 1000;
 
+export function naturalistQuestPresentation(view, buildEditionId = "full") {
+  if (!view || !Number.isInteger(view.reportedCount) || view.reportedCount < 0 ||
+      !Number.isInteger(view.totalCount) || view.totalCount <= 0 ||
+      view.reportedCount > view.totalCount) {
+    throw new Error("Naturalist presentation requires valid report progress");
+  }
+  if (buildEditionId === "full") {
+    return Object.freeze({
+      title: "THE GREAT BESTIARY",
+      idleObjective: `DOCUMENT EXOTIC ANIMALS (${view.reportedCount}/${view.totalCount})`,
+      reportSummary: `BESTIARY REPORTED ${view.reportedCount}/${view.totalCount}`,
+      ongoingDialogue:
+        `${view.reportedCount} of ${view.totalCount} creatures now have a place in my book. ` +
+        "Keep watch whenever you make landfall.",
+      framesCompletion: true
+    });
+  }
+  if (buildEditionId === "demo") {
+    return Object.freeze({
+      title: "NATURAL HISTORY",
+      idleObjective: "DOCUMENT EXOTIC ANIMALS",
+      reportSummary: `NATURALIST REPORTS RECORDED ${view.reportedCount}`,
+      ongoingDialogue:
+        "Every honest account adds another page to my book. " +
+        "Keep watch whenever you make landfall.",
+      framesCompletion: false
+    });
+  }
+  throw new Error(`Unknown naturalist presentation edition: ${buildEditionId}`);
+}
+
 export function createNaturalistQuestMemory() {
   return {
     version: NATURALIST_QUEST_MEMORY_VERSION,

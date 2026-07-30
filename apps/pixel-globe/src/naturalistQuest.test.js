@@ -12,6 +12,7 @@ import {
   assignNaturalistPort,
   createNaturalistQuestMemory,
   meetNaturalist,
+  naturalistQuestPresentation,
   naturalistQuestView,
   naturalistShouldApproach,
   reportAnimalsToNaturalist
@@ -54,6 +55,30 @@ test("a panda remains an animal report independently of its companion dispositio
   const report = reportAnimalsToNaturalist(quest, animals);
   assert.deepEqual(report.animalIds, ["panda"]);
   assert.equal(naturalistQuestView(quest, animals).reportedCount, 1);
+});
+
+test("the demo presents natural history as open-ended while the full game keeps bestiary completion", () => {
+  const view = { reportedCount: 4, totalCount: 18 };
+  assert.deepEqual(naturalistQuestPresentation(view, "demo"), {
+    title: "NATURAL HISTORY",
+    idleObjective: "DOCUMENT EXOTIC ANIMALS",
+    reportSummary: "NATURALIST REPORTS RECORDED 4",
+    ongoingDialogue:
+      "Every honest account adds another page to my book. Keep watch whenever you make landfall.",
+    framesCompletion: false
+  });
+  assert.deepEqual(naturalistQuestPresentation(view, "full"), {
+    title: "THE GREAT BESTIARY",
+    idleObjective: "DOCUMENT EXOTIC ANIMALS (4/18)",
+    reportSummary: "BESTIARY REPORTED 4/18",
+    ongoingDialogue:
+      "4 of 18 creatures now have a place in my book. Keep watch whenever you make landfall.",
+    framesCompletion: true
+  });
+  assert.throws(
+    () => naturalistQuestPresentation(view, "preview"),
+    /Unknown naturalist presentation edition/
+  );
 });
 
 test("animal reports pay once and the completed bestiary grants its bonus", () => {

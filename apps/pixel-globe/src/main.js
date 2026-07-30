@@ -369,6 +369,7 @@ import {
 import {
   assignNaturalistPort,
   meetNaturalist,
+  naturalistQuestPresentation,
   naturalistQuestView,
   naturalistShouldApproach,
   reportAnimalsToNaturalist
@@ -12305,6 +12306,9 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     ));
   }
   const report = reportAnimalsToNaturalist(memory, gameState.memory.animals);
+  const after = naturalistQuestView(memory, gameState.memory.animals);
+  const presentation = naturalistQuestPresentation(after, BUILD_EDITION_ID);
+  const framesCompletion = presentation.framesCompletion && report.completedNow;
   if (report.animalIds.length > 0) {
     const animals = report.animalIds.map((id) => {
       const animal = ANIMAL_CATALOG_BY_ID.get(id);
@@ -12316,7 +12320,9 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
       gameState,
       cityCall,
       report.reward,
-      report.completedNow ? "Completed the great bestiary" : `Natural history reports: ${names.join(", ")}`,
+      framesCompletion
+        ? "Completed the great bestiary"
+        : `Natural history reports: ${names.join(", ")}`,
       portDialogueContext()
     );
     for (const animal of animals) {
@@ -12329,16 +12335,15 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
       `Your accounts of ${naturalistAnimalList(names)} are worth ${report.reward.toLocaleString("en-US")} doubloons to my work.`
     ));
   }
-  if (report.completedNow) {
+  if (framesCompletion) {
     steps.push(naturalistLine(
       "happy",
       "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary founded upon witnesses. Your name shall stand beside mine on its first page."
     ));
   } else {
-    const after = naturalistQuestView(memory, gameState.memory.animals);
     steps.push(naturalistLine(
       "neutral",
-      `${after.reportedCount} of ${after.totalCount} creatures now have a place in my book. Keep watch whenever you make landfall.`
+      presentation.ongoingDialogue
     ));
   }
   const offeredCompanionId = companionOfferIds[0] || null;
@@ -26046,15 +26051,16 @@ function questJournalEntries() {
 function naturalistJournalEntry() {
   const memory = gameState.memory.quests.naturalist;
   const view = naturalistQuestView(memory, gameState.memory.animals);
-  if (!view.met || view.complete) return null;
+  const presentation = naturalistQuestPresentation(view, BUILD_EDITION_ID);
+  if (!view.met || (view.complete && presentation.framesCompletion)) return null;
   const port = naturalistPort();
   if (!port) throw new Error("Met naturalist has no port");
   return {
     id: "naturalist",
-    title: "THE GREAT BESTIARY",
+    title: presentation.title,
     nextStep: view.hasUnreportedAnimals
       ? `REPORT ${view.unreportedAnimalIds.length} NEW ${view.unreportedAnimalIds.length === 1 ? "ANIMAL" : "ANIMALS"} AT ${cityLabelText(port).toUpperCase()}`
-      : `DOCUMENT EXOTIC ANIMALS (${view.reportedCount}/${view.totalCount})`,
+      : presentation.idleObjective,
     style: NATURALIST_NAVIGATION_STYLE
   };
 }
@@ -28067,9 +28073,10 @@ function drawDiscoveriesMenu() {
     );
   } else {
     const naturalist = naturalistQuestView(gameState.memory.quests.naturalist, gameState.memory.animals);
+    const naturalistPresentation = naturalistQuestPresentation(naturalist, BUILD_EDITION_ID);
     const naturalistLines = wrapPixelTextAll(
       naturalist.met
-        ? `BESTIARY REPORTED ${naturalist.reportedCount}/${naturalist.totalCount}`
+        ? naturalistPresentation.reportSummary
         : "A NATURAL PHILOSOPHER MAY VALUE THESE NOTES",
       PIXEL_FONT_SMALL_8,
       panel.w - 24
