@@ -170,6 +170,23 @@ test("the Rio de la Plata opens into the South Atlantic", async () => {
   assert.equal(reachable[mouthTileId], 1);
 });
 
+test("the Whanganui River opens into the Tasman Sea", async () => {
+  const { earth, graph, masks, reachable } = await buildManualRiverFixture();
+  const upperRiverTileId = 88824;
+  const lowerRiverTileId = 88822;
+  const mouthTileId = 88758;
+  const mouthEdge = 0;
+  const coastalTileId = 88759;
+
+  assert.equal(riverTilesConnected(graph, masks, upperRiverTileId, lowerRiverTileId), true);
+  assert.equal(riverTilesConnected(graph, masks, lowerRiverTileId, mouthTileId), true);
+  assert.equal(graph.edgeNeighbors[mouthTileId][mouthEdge], coastalTileId);
+  assert.equal(isWaterSurfaceRow(earth.tiles[coastalTileId]), true);
+  assert.equal(riverEdgeSet(masks, mouthTileId, mouthEdge), true);
+  assert.equal(reachable[upperRiverTileId], 1);
+  assert.equal(reachable[mouthTileId], 1);
+});
+
 async function buildManualRiverFixture() {
   const earth = JSON.parse(await readFile(
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),

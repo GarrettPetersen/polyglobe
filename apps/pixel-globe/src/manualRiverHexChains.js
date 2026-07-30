@@ -107,6 +107,8 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     [23399, 93282, 23390, 93245, 92992],
     // Rio de la Plata estuary from the Parana delta to the Atlantic coast.
     [6776, 106926],
+    // Lower Whanganui River, a major Maori waka route, to the Tasman Sea.
+    [88822, 88758],
     // Dardanelles passage from the Aegean side into the Sea of Marmara.
     DARDANELLES_HEX_CHAIN,
     // Bosporus passage from the Sea of Marmara into the Black Sea.
@@ -136,6 +138,8 @@ export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
     { tile: 47521, edge: 2 },
     // Rio de la Plata opens into the South Atlantic beside Buenos Aires.
     { tile: 106926, edge: 2 },
+    // Whanganui River opens onto New Zealand's west coast.
+    { tile: 88758, edge: 0 },
   ],
 };
 
