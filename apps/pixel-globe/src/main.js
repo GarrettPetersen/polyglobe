@@ -1317,6 +1317,7 @@ import {
 import {
   assertChartReframePositionPreserved,
   captureChartReframePosition,
+  chartReframeCandidateIsNorthUp,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
   selectRepresentativeChartDriftCalls
@@ -16078,10 +16079,11 @@ function measureCurrentChartNorthUpDrift() {
     return chartNorthUpDrift;
   }
   const northUp = northUpCamera(ship.position, camera.right);
+  const drawOffset = layoutOffsetPixels();
   const samples = [];
   for (const call of chart.driftSampleCalls) {
-    const localX = call.x - localLayout.viewX;
-    const localY = call.y - localLayout.viewY;
+    const localX = call.x + drawOffset.x - SCREEN_W / 2;
+    const localY = call.y + drawOffset.y - SCREEN_H / 2;
     const projected = projectDirectionFor(tileCenterVector(call.id), northUp, false);
     if (!projected) continue;
     samples.push({
@@ -16140,6 +16142,10 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   }
 
   const driftBefore = measureCurrentChartNorthUpDrift();
+  const priorCamera = camera;
+  const priorCenterTileId = centerTileId;
+  const priorLocalLayout = localLayout;
+  const priorChart = chart;
   const playerTileId = ship.tileId;
   const playerPosition = captureChartReframePosition(ship.position, "player");
   const npcStates = [...npcVisualShips.values()];
@@ -16151,9 +16157,28 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   const npcProjectilePositions = captureProjectileGlobePositions(npcCombatProjectiles);
 
   camera = northUpCamera(ship.position, camera.right);
+  const layoutAnchorTileId = findNearestTileId(graph, directionIndex, ship.position);
   centerTileId = ship.tileId;
-  localLayout = createNorthUpLocalLayout(centerTileId, ship.position, camera);
+  localLayout = createNorthUpLocalLayout(layoutAnchorTileId, camera);
   chart = buildChart(camera);
+  const candidateDrift = measureCurrentChartNorthUpDrift();
+  if (!chartReframeCandidateIsNorthUp(candidateDrift)) {
+    camera = priorCamera;
+    centerTileId = priorCenterTileId;
+    localLayout = priorLocalLayout;
+    chart = priorChart;
+    chartNorthUpDrift = driftBefore;
+    window.__PIXEL_GLOBE_CHART_DRIFT__ = driftBefore;
+    chartDriftMeasuredAtMs = lastFrameMs;
+    console.warn(
+      `[pixel-globe] rejected north-up chart reframe (${reason}): ` +
+        `${driftBefore.rotationDeg.toFixed(2)}deg -> ` +
+        `${candidateDrift.rotationDeg.toFixed(2)}deg rotation, ` +
+        `${driftBefore.rmsDistortionPx.toFixed(2)}px -> ` +
+        `${candidateDrift.rmsDistortionPx.toFixed(2)}px RMS`
+    );
+    return false;
+  }
   if (ship.tileId !== playerTileId) {
     throw new Error(`Chart reframe changed the player's tile from ${playerTileId} to ${ship.tileId}`);
   }
@@ -16166,12 +16191,15 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   reprojectProjectileGlobePositions(npcProjectilePositions);
   clearLocalChartTransientEffects();
 
-  chartNorthUpDrift = measureCurrentChartNorthUpDrift();
+  chartNorthUpDrift = candidateDrift;
+  window.__PIXEL_GLOBE_CHART_DRIFT__ = candidateDrift;
   chartDriftMeasuredAtMs = lastFrameMs;
   console.info(
     `[pixel-globe] north-up chart reframe (${reason}): ` +
-      `${driftBefore.rotationDeg.toFixed(2)}deg rotation, ` +
-      `${driftBefore.rmsDistortionPx.toFixed(2)}px RMS, ` +
+      `${driftBefore.rotationDeg.toFixed(2)}deg -> ` +
+      `${candidateDrift.rotationDeg.toFixed(2)}deg rotation, ` +
+      `${driftBefore.rmsDistortionPx.toFixed(2)}px -> ` +
+      `${candidateDrift.rmsDistortionPx.toFixed(2)}px RMS, ` +
       `${npcStates.length} NPC ships, ` +
       `${gameState?.memory?.whales?.individuals?.length || 0} whales, ` +
       `${landTradeSystem?.carts?.length || 0} carts`
@@ -16180,17 +16208,11 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   return true;
 }
 
-function createNorthUpLocalLayout(tileId, focusPosition, frame) {
-  const tileCenter = tileCenterVector(tileId);
-  const alignment = dot3(focusPosition, tileCenter);
-  if (alignment <= 0) {
-    throw new Error(`Cannot anchor north-up layout to tile ${tileId}; focus is beyond its tangent plane`);
+function createNorthUpLocalLayout(tileId, frame) {
+  const projected = projectTileCenterFor(tileId, frame);
+  if (!projected) {
+    throw new Error(`Cannot project north-up layout anchor tile ${tileId}`);
   }
-  const tangent = [
-    focusPosition[0] / alignment - tileCenter[0],
-    focusPosition[1] / alignment - tileCenter[1],
-    focusPosition[2] / alignment - tileCenter[2]
-  ];
   return {
     viewX: 0,
     viewY: 0,
@@ -16198,8 +16220,8 @@ function createNorthUpLocalLayout(tileId, focusPosition, frame) {
     positions: new Map([[
       tileId,
       {
-        x: Math.round(-dot3(tangent, frame.right) * PIXELS_PER_RADIAN),
-        y: Math.round(dot3(tangent, frame.up) * PIXELS_PER_RADIAN)
+        x: projected.x - Math.round(SCREEN_W / 2),
+        y: projected.y - Math.round(SCREEN_H / 2)
       }
     ]])
   };

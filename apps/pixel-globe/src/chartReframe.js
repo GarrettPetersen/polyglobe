@@ -2,6 +2,9 @@ export const NORTH_UP_POLE_TANGENT_EPSILON = 1e-6;
 export const CHART_REFRAME_ROTATION_THRESHOLD_DEG = 1.5;
 export const CHART_REFRAME_RMS_DISTORTION_THRESHOLD_PX = 1.5;
 export const CHART_REFRAME_MAX_DISTORTION_THRESHOLD_PX = 4;
+export const NORTH_UP_REBUILD_MAX_ROTATION_DEG = 0.75;
+export const NORTH_UP_REBUILD_MAX_RMS_ERROR_PX = 0.75;
+export const NORTH_UP_REBUILD_MAX_ERROR_PX = 1.5;
 
 export function selectRepresentativeChartDriftCalls(calls, viewport) {
   if (!Array.isArray(calls)) throw new Error("Chart drift calls must be an array");
@@ -125,6 +128,21 @@ export function measureChartNorthUpDrift(samples) {
 }
 
 export function chartNorthUpDriftExceedsThreshold(metrics) {
+  validateChartDriftMetrics(metrics);
+  return Math.abs(metrics.rotationDeg) >= CHART_REFRAME_ROTATION_THRESHOLD_DEG ||
+    metrics.rmsDistortionPx >= CHART_REFRAME_RMS_DISTORTION_THRESHOLD_PX ||
+    metrics.maxDistortionPx >= CHART_REFRAME_MAX_DISTORTION_THRESHOLD_PX;
+}
+
+export function chartReframeCandidateIsNorthUp(candidate) {
+  validateChartDriftMetrics(candidate);
+  return candidate.sampleCount > 0 &&
+    Math.abs(candidate.rotationDeg) <= NORTH_UP_REBUILD_MAX_ROTATION_DEG &&
+    candidate.rmsDistortionPx <= NORTH_UP_REBUILD_MAX_RMS_ERROR_PX &&
+    candidate.maxDistortionPx <= NORTH_UP_REBUILD_MAX_ERROR_PX;
+}
+
+function validateChartDriftMetrics(metrics) {
   if (!metrics || !Number.isInteger(metrics.sampleCount) || metrics.sampleCount < 0) {
     throw new Error("Chart drift metrics require a non-negative sample count");
   }
@@ -133,9 +151,6 @@ export function chartNorthUpDriftExceedsThreshold(metrics) {
       throw new Error(`Chart drift metrics have invalid ${key}`);
     }
   }
-  return Math.abs(metrics.rotationDeg) >= CHART_REFRAME_ROTATION_THRESHOLD_DEG ||
-    metrics.rmsDistortionPx >= CHART_REFRAME_RMS_DISTORTION_THRESHOLD_PX ||
-    metrics.maxDistortionPx >= CHART_REFRAME_MAX_DISTORTION_THRESHOLD_PX;
 }
 
 function emptyChartDrift() {

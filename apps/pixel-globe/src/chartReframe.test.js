@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   assertChartReframePositionPreserved,
   captureChartReframePosition,
+  chartReframeCandidateIsNorthUp,
   chartNorthUpDriftExceedsThreshold,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
@@ -126,6 +127,53 @@ test("a fresh north-up chart remains below every correction threshold", () => {
   assert.equal(chartNorthUpDriftExceedsThreshold(metrics), false);
 });
 
+test("a fresh reframe must be north-up rather than merely better than its predecessor", () => {
+  const northeastCandidate = driftMetrics({
+    rotationDeg: -7.22,
+    rmsDistortionPx: 0.95,
+    maxDistortionPx: 1.6
+  });
+  const improvedButStillWrong = driftMetrics({
+    rotationDeg: 3.5,
+    rmsDistortionPx: 0.7,
+    maxDistortionPx: 1.2
+  });
+
+  assert.equal(chartReframeCandidateIsNorthUp(northeastCandidate), false);
+  assert.equal(chartReframeCandidateIsNorthUp(improvedButStillWrong), false);
+});
+
+test("a fresh reframe accepts only a north-up result with pixel-rounding error", () => {
+  const corrected = driftMetrics({
+    rotationDeg: 0.01,
+    rmsDistortionPx: 0.64,
+    maxDistortionPx: 1.2
+  });
+  const alreadyNorthUp = driftMetrics({
+    rotationDeg: 0,
+    rmsDistortionPx: 0,
+    maxDistortionPx: 0
+  });
+  const roundedCandidate = driftMetrics({
+    rotationDeg: 0.04,
+    rmsDistortionPx: 0.64,
+    maxDistortionPx: 1.1
+  });
+
+  assert.equal(chartReframeCandidateIsNorthUp(corrected), true);
+  assert.equal(chartReframeCandidateIsNorthUp(alreadyNorthUp), true);
+  assert.equal(chartReframeCandidateIsNorthUp(roundedCandidate), true);
+  assert.equal(
+    chartReframeCandidateIsNorthUp(driftMetrics({
+      rotationDeg: 0,
+      rmsDistortionPx: 0,
+      maxDistortionPx: 0,
+      sampleCount: 0
+    })),
+    false
+  );
+});
+
 test("chart drift rejects malformed samples and metrics", () => {
   assert.throws(
     () => measureChartNorthUpDrift([{ localX: 0, localY: 0, northX: Number.NaN, northY: 0 }]),
@@ -140,6 +188,21 @@ test("chart drift rejects malformed samples and metrics", () => {
     /cannot be zero/
   );
 });
+
+function driftMetrics({
+  rotationDeg,
+  rmsDistortionPx,
+  maxDistortionPx,
+  sampleCount = 4
+}) {
+  return {
+    sampleCount,
+    rotationDeg,
+    rmsDistortionPx,
+    maxDistortionPx,
+    needsReframe: false
+  };
+}
 
 function rotatedSample(northX, northY, radians) {
   return {
