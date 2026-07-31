@@ -19,6 +19,12 @@ import {
 } from "./manualRiverHexChains.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
+  DEMO_GIBRALTAR_BARRIER_COORDINATES,
+  DEMO_MEDITERRANEAN_SEED,
+  buildDemoMediterraneanAccessMask,
+  demoAccessiblePortsForMask
+} from "./demoVoyage.js";
+import {
   CITY_COASTAL_REPLACEMENT_RADIUS_KM,
   CITY_OBSERVATION_RELEVANCE_YEARS,
   MANUAL_CITY_RECORDS_1522,
@@ -39,6 +45,11 @@ import {
   colonizationTargetForCity,
   withColonialFounding
 } from "./colonialCities.js";
+import {
+  canTraverseWorldNavigationEdge,
+  isWorldNavigableTile
+} from "./worldNavigationTopology.js";
+import { portAccessTileIds } from "./worldPortPlacement.js";
 
 const SUBDIVISIONS = 7;
 const CITY_CATALOG_MAX_COUNT = 480;
@@ -158,6 +169,52 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   const placed = placeCityRecords(graph, directionIndex, earth.tiles, reachable, masks, selected);
   const ports = placed.filter((city) => city.dockable);
+  const navigationContext = {
+    earthRows: earth.tiles,
+    riverMasks: masks,
+    reachableNavigationMask: reachable
+  };
+  const isNavigableTile = (tileId) => isWorldNavigableTile({
+    ...navigationContext,
+    tileId
+  });
+  const nearestNavigableTile = ({ lat, lon }) => {
+    const requestedTileId = findNearestTileId(
+      graph,
+      directionIndex,
+      latLonToDirection(lat, lon)
+    );
+    const tileId = isNavigableTile(requestedTileId)
+      ? requestedTileId
+      : nearestTileMatching(graph, requestedTileId, isNavigableTile);
+    assert.notEqual(tileId, undefined, `expected demo navigation near ${lat}, ${lon}`);
+    return tileId;
+  };
+  const demoAccessMask = buildDemoMediterraneanAccessMask({
+    graph,
+    seedTileId: nearestNavigableTile(DEMO_MEDITERRANEAN_SEED),
+    blockedTileIds: DEMO_GIBRALTAR_BARRIER_COORDINATES.map(nearestNavigableTile),
+    isNavigableTile,
+    canTraverseEdge: (fromTileId, toTileId) => canTraverseWorldNavigationEdge({
+      graph,
+      earthRows: earth.tiles,
+      riverMasks: masks,
+      riverToWaterMasks: toWaterMasks,
+      fromTileId,
+      toTileId
+    })
+  });
+  const demoPorts = demoAccessiblePortsForMask({
+    ports,
+    accessMask: demoAccessMask,
+    accessTileIdsForPort: (port) => portAccessTileIds({
+      graph,
+      earthRows: earth.tiles,
+      reachableNavigationMask: reachable,
+      riverMasks: masks
+    }, port.tileId)
+  });
+  const demoPortNames = new Set(demoPorts.map((port) => port.city));
   const manualCityRiverChains = MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS];
   const missingManualRiverPorts = Object.entries(manualCityRiverChains)
     .filter(([cityName, chain]) => !ports.some((city) => city.city === cityName && city.tileId === chain[0]))
@@ -334,6 +391,24 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(portByCity.get("Tripoli").factionId, "spain");
   assert.equal(portByCity.get("Birgu").factionId, "spain");
   assert.equal(portByCity.get("Kerkira").factionId, "venice");
+  for (const cityName of [
+    "Bastia",
+    "Cagliari",
+    "Ceuta",
+    "Algiers",
+    "Tripoli",
+    "Birgu",
+    "Syracuse",
+    "Ragusa",
+    "Kerkira",
+    "Rhodes",
+    "Suez"
+  ]) {
+    assert.ok(demoPortNames.has(cityName), `${cityName} should be accessible in the Mediterranean demo`);
+  }
+  for (const cityName of ["Funchal", "Angra", "Las Palmas"]) {
+    assert.equal(demoPortNames.has(cityName), false, `${cityName} should remain outside the Mediterranean demo`);
+  }
   assert.deepEqual(
     encounterVillages.map((city) => city.city).sort(),
     [

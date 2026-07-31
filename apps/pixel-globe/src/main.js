@@ -1188,8 +1188,12 @@ import { fullNoticeTextLayout } from "./noticeTextLayout.js";
 import { steamStatValues } from "./steamStats.js";
 import {
   DEMO_ESCAPE_GRACE_HEXES,
+  DEMO_GIBRALTAR_BARRIER_COORDINATES,
   DEMO_GIBRALTAR_MESSAGE,
+  DEMO_GIBRALTAR_RECOVERY_COORDINATES,
+  DEMO_MEDITERRANEAN_SEED,
   buildDemoMediterraneanAccessMask,
+  demoAccessiblePortsForMask,
   demoNaturalistAnimalIdsForLandfalls,
   demoEscapeRequiresRecovery,
   navigationDistanceFromAccessMask,
@@ -1498,12 +1502,6 @@ let SCREEN_W = BASE_SCREEN_W;
 let SCREEN_H = BASE_SCREEN_H;
 const SUBDIVISIONS = 7;
 const SALTWATER_PASSAGE_TILE_IDS = MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
-const DEMO_MEDITERRANEAN_SEED = Object.freeze({ lat: 36, lon: 15 });
-const DEMO_GIBRALTAR_BARRIER_COORDINATES = Object.freeze([
-  Object.freeze({ lat: 35.82, lon: -5.68 }),
-  Object.freeze({ lat: 36.25, lon: -5.37 })
-]);
-const DEMO_GIBRALTAR_RECOVERY_COORDINATES = Object.freeze({ lat: 36, lon: -3.5 });
 const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
@@ -3169,7 +3167,11 @@ async function main() {
   factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
   if (BUILD_EDITION_ID === "demo") {
-    demoAccessiblePortCities = portCities.filter((city) => demoMediterraneanAccessMask[city.tileId] === 1);
+    demoAccessiblePortCities = demoAccessiblePortsForMask({
+      ports: portCities,
+      accessMask: demoMediterraneanAccessMask,
+      accessTileIdsForPort: (port) => portAccessTileIds(worldPortPlacementOptions(), port.tileId)
+    });
     demoAccessiblePortIds = new Set(demoAccessiblePortCities.map((city) => city.tileId));
     if (demoAccessiblePortCities.length === 0) {
       throw new Error("Mediterranean demo navigation contains no ports");

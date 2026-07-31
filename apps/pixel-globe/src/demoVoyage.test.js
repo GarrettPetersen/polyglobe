@@ -7,6 +7,7 @@ import {
 import {
   DEMO_ESCAPE_GRACE_HEXES,
   buildDemoMediterraneanAccessMask,
+  demoAccessiblePortsForMask,
   demoNaturalistAnimalIdsForLandfalls,
   demoEscapeRequiresRecovery,
   navigationDistanceFromAccessMask,
@@ -50,6 +51,33 @@ test("the Mediterranean demo flood fill stops at Gibraltar and includes connecte
   });
 
   assert.deepEqual([...mask], [1, 0, 0, 1, 1, 1, 0, 0, 0]);
+});
+
+test("the Mediterranean demo derives its port list from the current navigation mask", () => {
+  const accessMask = Uint8Array.from([1, 0, 1, 0]);
+  const ports = [
+    { city: "Birgu", tileId: 10 },
+    { city: "Funchal", tileId: 11 },
+    { city: "Cagliari", tileId: 12 }
+  ];
+  const harborTiles = new Map([
+    [10, [0]],
+    [11, [1]],
+    [12, [2]]
+  ]);
+
+  assert.deepEqual(
+    demoAccessiblePortsForMask({
+      ports,
+      accessMask,
+      accessTileIdsForPort: (port) => harborTiles.get(port.tileId)
+    }).map((port) => port.city),
+    ["Birgu", "Cagliari"]
+  );
+  assert.throws(
+    () => demoAccessiblePortsForMask({ ports, accessMask: [] }),
+    /navigation mask/
+  );
 });
 
 test("escape recovery allows a ten-hex grace band beyond the demo access mask", () => {

@@ -1,6 +1,34 @@
 export const DEMO_GIBRALTAR_MESSAGE =
   "The full version has many adventures and riches to be found on the high seas.";
 export const DEMO_ESCAPE_GRACE_HEXES = 10;
+export const DEMO_MEDITERRANEAN_SEED = Object.freeze({ lat: 36, lon: 15 });
+export const DEMO_GIBRALTAR_BARRIER_COORDINATES = Object.freeze([
+  Object.freeze({ lat: 35.82, lon: -5.68 }),
+  Object.freeze({ lat: 36.25, lon: -5.37 })
+]);
+export const DEMO_GIBRALTAR_RECOVERY_COORDINATES = Object.freeze({ lat: 36, lon: -3.5 });
+
+export function demoAccessiblePortsForMask({ ports, accessMask, accessTileIdsForPort }) {
+  if (!Array.isArray(ports)) throw new Error("Demo accessible ports require a port catalog");
+  if (!(accessMask instanceof Uint8Array) || accessMask.length === 0) {
+    throw new Error("Demo accessible ports require a navigation mask");
+  }
+  if (typeof accessTileIdsForPort !== "function") {
+    throw new Error("Demo accessible ports require a harbor access resolver");
+  }
+  return ports.filter((port) => {
+    const accessTileIds = accessTileIdsForPort(port);
+    if (!Array.isArray(accessTileIds) || accessTileIds.length === 0) {
+      throw new Error(`Demo port has no harbor access tiles: ${port?.city || "unknown"}`);
+    }
+    for (const tileId of accessTileIds) {
+      if (!Number.isInteger(tileId) || tileId < 0 || tileId >= accessMask.length) {
+        throw new Error(`Demo port has invalid harbor access tile: ${port?.city || "unknown"}`);
+      }
+    }
+    return accessTileIds.some((tileId) => accessMask[tileId] === 1);
+  });
+}
 
 export function startMenuEditionLabel(buildEditionId) {
   if (buildEditionId === "full") return null;
