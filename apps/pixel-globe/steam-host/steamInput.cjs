@@ -1,16 +1,38 @@
 const ACTION_SET_NAMES = Object.freeze(["Sailing", "Menus"]);
 
 const DIGITAL_BUTTONS = Object.freeze({
-  confirm: 0,
-  back: 1,
-  anchor: 2,
-  secondary: 3,
-  fire_port: 4,
-  previous_page: 4,
-  fire_starboard: 5,
-  next_page: 5,
-  cycle_target: 8,
-  captain_menu: 9
+  Sailing: Object.freeze({
+    sailing_confirm: 0,
+    sailing_back: 1,
+    anchor: 2,
+    sailing_secondary: 3,
+    fire_port: 4,
+    fire_starboard: 5,
+    cycle_target: 8,
+    captain_menu: 9
+  }),
+  Menus: Object.freeze({
+    menu_confirm: 0,
+    menu_back: 1,
+    menu_secondary: 3,
+    previous_page: 4,
+    next_page: 5
+  })
+});
+
+const DIGITAL_DIRECTIONS = Object.freeze({
+  Sailing: Object.freeze({
+    up: "steer_up",
+    down: "steer_down",
+    left: "steer_left",
+    right: "steer_right"
+  }),
+  Menus: Object.freeze({
+    up: "navigate_up",
+    down: "navigate_down",
+    left: "navigate_left",
+    right: "navigate_right"
+  })
 });
 
 exportForCommonJs();
@@ -19,7 +41,10 @@ function createSteamInputService(input) {
   assertInputApi(input);
   const actionSets = Object.fromEntries(ACTION_SET_NAMES.map((name) => [name, input.getActionSet(name)]));
   const digitalActions = Object.fromEntries(
-    Object.keys(DIGITAL_BUTTONS).map((name) => [name, input.getDigitalAction(name)])
+    [...new Set([
+      ...Object.values(DIGITAL_BUTTONS).flatMap((buttons) => Object.keys(buttons)),
+      ...Object.values(DIGITAL_DIRECTIONS).flatMap((directions) => Object.values(directions))
+    ])].map((name) => [name, input.getDigitalAction(name)])
   );
   const analogActions = Object.freeze({
     steer: input.getAnalogAction("steer"),
@@ -39,14 +64,22 @@ function createSteamInputService(input) {
     if (!controller) return null;
     controller.activateActionSet(actionSets[activeActionSet]);
     const buttons = Array(16).fill(0);
-    const actionNames = activeActionSet === "Menus"
-      ? ["confirm", "back", "secondary", "previous_page", "next_page"]
-      : ["confirm", "back", "anchor", "secondary", "fire_port", "fire_starboard", "cycle_target", "captain_menu"];
-    for (const name of actionNames) {
-      buttons[DIGITAL_BUTTONS[name]] = controller.isDigitalActionPressed(digitalActions[name]) ? 1 : 0;
+    for (const [name, buttonIndex] of Object.entries(DIGITAL_BUTTONS[activeActionSet])) {
+      buttons[buttonIndex] = controller.isDigitalActionPressed(digitalActions[name]) ? 1 : 0;
     }
     const primary = controller.getAnalogActionVector(
       analogActions[activeActionSet === "Menus" ? "navigate" : "steer"]
+    );
+    const directions = DIGITAL_DIRECTIONS[activeActionSet];
+    const primaryX = normalizedAxis(
+      primary.x +
+        digitalActionValue(controller, digitalActions[directions.right]) -
+        digitalActionValue(controller, digitalActions[directions.left])
+    );
+    const primaryY = normalizedAxis(
+      primary.y +
+        digitalActionValue(controller, digitalActions[directions.up]) -
+        digitalActionValue(controller, digitalActions[directions.down])
     );
     const scroll = activeActionSet === "Menus"
       ? controller.getAnalogActionVector(analogActions.scroll)
@@ -56,12 +89,16 @@ function createSteamInputService(input) {
       id: `Steam Input ${controller.getType()}`,
       index: 0,
       inputType: controller.getType(),
-      axes: [normalizedAxis(primary.x), screenAxis(primary.y), normalizedAxis(scroll.x), screenAxis(scroll.y)],
+      axes: [primaryX, screenAxis(primaryY), normalizedAxis(scroll.x), screenAxis(scroll.y)],
       buttons
     });
   }
 
   return Object.freeze({ setActionSet, snapshot });
+}
+
+function digitalActionValue(controller, handle) {
+  return controller.isDigitalActionPressed(handle) ? 1 : 0;
 }
 
 function normalizedAxis(value) {

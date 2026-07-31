@@ -5,7 +5,7 @@ const { createSteamInputService } = require("./steamInput.cjs");
 
 function inputHarness() {
   const activeSets = [];
-  const pressed = new Set(["confirm", "previous_page"]);
+  const pressed = new Set(["menu_confirm", "previous_page"]);
   const controller = {
     activateActionSet: (handle) => activeSets.push(handle),
     isDigitalActionPressed: (handle) => pressed.has(handle),
@@ -14,6 +14,7 @@ function inputHarness() {
   };
   return {
     activeSets,
+    pressed,
     input: {
       getActionSet: (name) => `set:${name}`,
       getDigitalAction: (name) => name,
@@ -37,9 +38,11 @@ test("Steam menu actions become the standard gamepad frame consumed by the game"
 test("Steam sailing activates its own action set and rejects invented sets", () => {
   const harness = inputHarness();
   const service = createSteamInputService(harness.input);
+  harness.pressed.add("steer_up");
+  harness.pressed.add("steer_left");
   assert.equal(service.setActionSet("Sailing"), true);
   const frame = service.snapshot();
   assert.equal(harness.activeSets.at(-1), "set:Sailing");
-  assert.deepEqual(frame.axes, [-0.5, -0.5, 0, 0]);
+  assert.deepEqual(frame.axes, [-1, -1, 0, 0]);
   assert.throws(() => service.setActionSet("Inventory"), /Unknown Steam Input action set/);
 });

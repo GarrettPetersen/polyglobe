@@ -1,0 +1,265 @@
+"controller_mappings"
+{
+  "version" "3"
+  "title" "Marque & Reprisal Standard Gamepad"
+  "description" "Official positional gamepad layout for sailing and menus."
+  "controller_type" "controller_generic"
+  "actions"
+  {
+    "Sailing"
+    {
+      "title" "#Set_Sailing"
+      "legacy_set" "0"
+      "StickPadGyro"
+      {
+        "steer" { "title" "#Action_Steer" "input_mode" "joystick_move" }
+      }
+      "Button"
+      {
+        "steer_up" "#Action_SteerUp"
+        "steer_down" "#Action_SteerDown"
+        "steer_left" "#Action_SteerLeft"
+        "steer_right" "#Action_SteerRight"
+        "sailing_confirm" "#Action_Confirm"
+        "sailing_back" "#Action_Back"
+        "anchor" "#Action_Anchor"
+        "sailing_secondary" "#Action_Secondary"
+        "cycle_target" "#Action_CycleTarget"
+        "captain_menu" "#Action_CaptainMenu"
+        "fire_port" "#Action_FirePort"
+        "fire_starboard" "#Action_FireStarboard"
+      }
+    }
+    "Menus"
+    {
+      "title" "#Set_Menus"
+      "legacy_set" "0"
+      "StickPadGyro"
+      {
+        "navigate" { "title" "#Action_Navigate" "input_mode" "joystick_move" }
+        "scroll" { "title" "#Action_Scroll" "input_mode" "joystick_move" }
+      }
+      "Button"
+      {
+        "navigate_up" "#Action_NavigateUp"
+        "navigate_down" "#Action_NavigateDown"
+        "navigate_left" "#Action_NavigateLeft"
+        "navigate_right" "#Action_NavigateRight"
+        "menu_confirm" "#Action_Confirm"
+        "menu_back" "#Action_Back"
+        "menu_secondary" "#Action_Secondary"
+        "previous_page" "#Action_PreviousPage"
+        "next_page" "#Action_NextPage"
+      }
+    }
+  }
+  "localization"
+  {
+    "english"
+    {
+      "Set_Sailing" "Sailing"
+      "Set_Menus" "Menus"
+      "Action_Steer" "Steer"
+      "Action_SteerUp" "Steer up"
+      "Action_SteerDown" "Steer down"
+      "Action_SteerLeft" "Steer left"
+      "Action_SteerRight" "Steer right"
+      "Action_Confirm" "Confirm / interact"
+      "Action_Back" "Back"
+      "Action_Anchor" "Drop / weigh anchor"
+      "Action_Secondary" "Secondary action"
+      "Action_CycleTarget" "Cycle nearby target"
+      "Action_CaptainMenu" "Captain's chart"
+      "Action_FirePort" "Fire port broadside"
+      "Action_FireStarboard" "Fire starboard broadside"
+      "Action_Navigate" "Navigate menu"
+      "Action_NavigateUp" "Navigate up"
+      "Action_NavigateDown" "Navigate down"
+      "Action_NavigateLeft" "Navigate left"
+      "Action_NavigateRight" "Navigate right"
+      "Action_Scroll" "Scroll page"
+      "Action_PreviousPage" "Previous page"
+      "Action_NextPage" "Next page"
+    }
+  }
+  "group"
+  {
+    "id" "0"
+    "mode" "four_buttons"
+    "inputs"
+    {
+      "button_a" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing sailing_confirm, Confirm / interact" } } } }
+      "button_b" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing sailing_back, Back" } } } }
+      "button_x" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing anchor, Drop / weigh anchor" } } } }
+      "button_y" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing sailing_secondary, Secondary action" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "1"
+    "mode" "joystick_move"
+    "inputs" {}
+    "gameactions" { "Sailing" "steer" }
+  }
+  "group"
+  {
+    "id" "2"
+    "mode" "dpad"
+    "inputs"
+    {
+      "dpad_north" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing steer_up, Steer up" } } } }
+      "dpad_south" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing steer_down, Steer down" } } } }
+      "dpad_west" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing steer_left, Steer left" } } } }
+      "dpad_east" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing steer_right, Steer right" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "3"
+    "mode" "trigger"
+    "inputs"
+    {
+      "edge" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing fire_port, Fire port broadside" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "4"
+    "mode" "trigger"
+    "inputs"
+    {
+      "edge" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing fire_starboard, Fire starboard broadside" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "5"
+    "mode" "switches"
+    "inputs"
+    {
+      "button_escape" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing captain_menu, Captain's chart" } } } }
+      "button_menu" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing cycle_target, Cycle nearby target" } } } }
+      "left_bumper" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing fire_port, Fire port broadside" } } } }
+      "right_bumper" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Sailing fire_starboard, Fire starboard broadside" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "6"
+    "mode" "joystick_move"
+    "inputs" {}
+    "gameactions" { "Sailing" "steer" }
+  }
+  "group"
+  {
+    "id" "10"
+    "mode" "four_buttons"
+    "inputs"
+    {
+      "button_a" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus menu_confirm, Confirm / interact" } } } }
+      "button_b" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus menu_back, Back" } } } }
+      "button_y" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus menu_secondary, Secondary action" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "11"
+    "mode" "joystick_move"
+    "inputs" {}
+    "gameactions" { "Menus" "navigate" }
+  }
+  "group"
+  {
+    "id" "12"
+    "mode" "dpad"
+    "inputs"
+    {
+      "dpad_north" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus navigate_up, Navigate up" } } } }
+      "dpad_south" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus navigate_down, Navigate down" } } } }
+      "dpad_west" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus navigate_left, Navigate left" } } } }
+      "dpad_east" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus navigate_right, Navigate right" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "13"
+    "mode" "joystick_move"
+    "inputs" {}
+    "gameactions" { "Menus" "scroll" }
+  }
+  "group"
+  {
+    "id" "14"
+    "mode" "trigger"
+    "inputs"
+    {
+      "edge" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus previous_page, Previous page" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "15"
+    "mode" "trigger"
+    "inputs"
+    {
+      "edge" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus next_page, Next page" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "16"
+    "mode" "switches"
+    "inputs"
+    {
+      "left_bumper" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus previous_page, Previous page" } } } }
+      "right_bumper" { "activators" { "Full_Press" { "bindings" { "binding" "game_action Menus next_page, Next page" } } } }
+    }
+  }
+  "group"
+  {
+    "id" "17"
+    "mode" "joystick_move"
+    "inputs" {}
+    "gameactions" { "Menus" "navigate" }
+  }
+  "group"
+  {
+    "id" "18"
+    "mode" "joystick_move"
+    "inputs" {}
+    "gameactions" { "Menus" "scroll" }
+  }
+  "preset"
+  {
+    "id" "0"
+    "name" "Sailing"
+    "group_source_bindings"
+    {
+      "0" "button_diamond active"
+      "1" "joystick active"
+      "2" "dpad active"
+      "3" "left_trigger active"
+      "4" "right_trigger active"
+      "5" "switch active"
+      "6" "left_trackpad active"
+    }
+  }
+  "preset"
+  {
+    "id" "1"
+    "name" "Menus"
+    "group_source_bindings"
+    {
+      "10" "button_diamond active"
+      "11" "joystick active"
+      "12" "dpad active"
+      "13" "right_joystick active"
+      "14" "left_trigger active"
+      "15" "right_trigger active"
+      "16" "switch active"
+      "17" "left_trackpad active"
+      "18" "right_trackpad active"
+    }
+  }
+  "settings" {}
+}
