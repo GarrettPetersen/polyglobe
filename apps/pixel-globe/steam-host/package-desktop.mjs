@@ -25,6 +25,7 @@ const appRoot = resolve(hostRoot, "..");
 const outputRoot = join(appRoot, "build/steam");
 const inputRoot = join(appRoot, "steam-input");
 const iconRoot = join(appRoot, "capsule_art/generated");
+const steamMacEntitlements = join(hostRoot, "entitlements/steam.darwin.plist");
 const args = parseArgs(process.argv.slice(2));
 const editions = args.edition === "both" ? ["full", "demo"] : [args.edition];
 const macSecurityOptions = resolveMacSecurityOptions();
@@ -115,6 +116,16 @@ async function packageEdition(edition) {
       if (args.notarize) {
         await run("xcrun", ["stapler", "validate", appPath]);
       }
+      const entitlementResult = await run("codesign", [
+        "--display",
+        "--entitlements",
+        "-",
+        appPath
+      ]);
+      const entitlementOutput = `${entitlementResult.stdout}\n${entitlementResult.stderr}`;
+      if (!entitlementOutput.includes("com.apple.security.cs.disable-library-validation")) {
+        throw new Error("Packaged macOS app cannot load Steam's externally signed client library");
+      }
     }
     console.log(`Packaged ${edition}: ${packagePaths[0]}`);
   } finally {
@@ -164,6 +175,7 @@ async function assertBuildInputs() {
   await access(join(hostRoot, "node_modules/@electron/packager"));
   await access(join(inputRoot, "game_actions.vdf"));
   await access(platformIcon(args.platform));
+  if (args.platform === "darwin" && args.sign) await access(steamMacEntitlements);
 }
 
 function platformIcon(platform) {
@@ -264,7 +276,12 @@ function parseArgs(values) {
 function resolveMacSecurityOptions() {
   if (!args.sign) return {};
   const identity = process.env.MARQUE_MAC_SIGN_IDENTITY?.trim();
-  const osxSign = identity ? { identity } : {};
+  const osxSign = {
+    ...(identity ? { identity } : {}),
+    optionsForFile: (filePath) => isTopLevelAppBundle(filePath)
+      ? { entitlements: steamMacEntitlements }
+      : {}
+  };
   if (!args.notarize) return { osxSign };
   const keychainProfile = process.env.MARQUE_MAC_NOTARY_PROFILE?.trim();
   if (!keychainProfile) {
@@ -276,6 +293,11 @@ function resolveMacSecurityOptions() {
     osxNotarize: { keychainProfile },
     osxSign
   };
+}
+
+function isTopLevelAppBundle(filePath) {
+  const normalized = String(filePath).replaceAll("\\", "/");
+  return normalized.endsWith(".app") && !normalized.slice(0, -4).includes(".app/");
 }
 
 function optionalAppId(value) {

@@ -101,6 +101,21 @@ test("demo bridges keep Cloud but disable Steam progression services", async () 
   );
 });
 
+test("Steam builds remain playable when the user disables Cloud", async () => {
+  const capabilities = await validatePlatformCapabilities(bridge({
+    getCapabilities: async () => ({
+      achievements: true,
+      cloud: false,
+      input: true,
+      richPresence: true,
+      screenshots: true,
+      stats: true,
+      timeline: true
+    })
+  }));
+  assert.equal(capabilities.cloud, false);
+});
+
 test("Steam Cloud envelopes preserve every persistent game key", async () => {
   const original = memoryStorage(Object.fromEntries(
     PLATFORM_CLOUD_STORAGE_KEYS.map((key, index) => [key, `value-${index}`])

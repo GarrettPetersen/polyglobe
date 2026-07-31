@@ -48,7 +48,8 @@ function resolveDesktopConfig({
     edition,
     gameRoot,
     inputManifest,
-    manifestPath
+    manifestPath,
+    requireRelaunch: requiredRelaunchSetting(env.MARQUE_STEAM_REQUIRE_RELAUNCH, isPackaged)
   });
 }
 
@@ -95,12 +96,13 @@ function requiredRelativeDirectory(value, label) {
   return value;
 }
 
-function steamCapabilitiesForEdition(edition) {
+function steamCapabilitiesForEdition(edition, { cloudEnabled = true } = {}) {
   const normalizedEdition = requiredEdition(edition);
+  if (typeof cloudEnabled !== "boolean") throw new Error("Steam Cloud capability is not boolean");
   const progressionEnabled = normalizedEdition === "full";
   const capabilities = {
     achievements: progressionEnabled,
-    cloud: true,
+    cloud: cloudEnabled,
     input: true,
     richPresence: true,
     screenshots: true,
@@ -113,6 +115,13 @@ function steamCapabilitiesForEdition(edition) {
     }
   }
   return Object.freeze(capabilities);
+}
+
+function requiredRelaunchSetting(value, isPackaged) {
+  if (value === undefined || value === null || value === "") return Boolean(isPackaged);
+  if (value === "1") return true;
+  if (value === "0") return false;
+  throw new Error(`Invalid MARQUE_STEAM_REQUIRE_RELAUNCH value: ${value}`);
 }
 
 module.exports = {

@@ -66,7 +66,8 @@ MARQUE_MAC_NOTARY_PROFILE=marque-notary npm run steam:package:mac:release
 ```
 
 `@electron/packager` signs the complete Electron bundle with hardened runtime
-and its maintained default Electron entitlements, submits it with
+and the Steam-specific macOS entitlement that permits Valve's separately signed
+`steamclient.dylib` to load, submits it with
 `notarytool`, and staples the accepted ticket. Set
 `MARQUE_MAC_SIGN_IDENTITY` to the exact `Developer ID Application: ...` identity
 only when Keychain contains more than one valid signing identity. The packager

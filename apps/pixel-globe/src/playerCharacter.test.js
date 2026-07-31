@@ -43,7 +43,9 @@ const PORTS = [
   port(18, "Hormuz", "Iran", "islamic-desert", "hormuz", 27.1, 56.45),
   port(19, "Siraf", "Iran", "islamic-desert", "safavid", 27.67, 52.34),
   port(20, "Azemmour", "Morocco", "islamic-desert", "morocco", 33.29, -8.34),
-  port(21, "Bakhchiserai", "Ukraine", "mediterranean", "crimea", 44.76, 33.87)
+  port(21, "Bakhchiserai", "Ukraine", "mediterranean", "crimea", 44.76, 33.87),
+  port(22, "Tripoli", "Libya", "islamic-desert", "spain", 32.89, 13.19),
+  port(23, "Muscat", "Oman", "islamic-desert", "portugal", 23.59, 58.41)
 ];
 const PORT_WEIGHTS = npcFleetOriginWeightsForPorts(PORTS);
 
@@ -163,7 +165,7 @@ test("home selection balances five geographic areas and includes all sovereign O
   );
   assert.ok(seenCities.has("Goa"));
   assert.ok(seenCities.has("Malacca"));
-  for (const city of ["Hormuz", "Siraf", "Azemmour", "Bakhchiserai"]) {
+  for (const city of ["Hormuz", "Siraf", "Azemmour", "Bakhchiserai", "Tripoli", "Muscat"]) {
     assert.ok(seenCities.has(city), `${city} must be available as a home port`);
   }
 });
@@ -189,7 +191,7 @@ test("Ottoman and European Mediterranean ports share one start-area draw", () =>
   const mediterraneanPorts = playerHomePortPools(PORTS).get("mediterranean");
   assert.deepEqual(
     mediterraneanPorts.map((port) => port.city).sort(),
-    ["Alexandria", "Azemmour", "Bakhchiserai", "Cadiz", "Constantinople"]
+    ["Alexandria", "Azemmour", "Bakhchiserai", "Cadiz", "Constantinople", "Tripoli"]
   );
 });
 
@@ -243,6 +245,8 @@ test("port classification accepts only the intended geographic areas", () => {
   assert.equal(playerStartAreaForPort(PORTS[18]), "india");
   assert.equal(playerStartAreaForPort(PORTS[19]), "mediterranean");
   assert.equal(playerStartAreaForPort(PORTS[20]), "mediterranean");
+  assert.equal(playerStartAreaForPort(PORTS[21]), "mediterranean");
+  assert.equal(playerStartAreaForPort(PORTS[22]), "india");
 });
 
 test("home classification excludes only non-national starts and the intended world regions", () => {

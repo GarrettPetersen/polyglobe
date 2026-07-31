@@ -16,7 +16,7 @@ const APP_ID = desktopConfig.appId;
 const GAME_ROOT = desktopConfig.gameRoot;
 const INPUT_MANIFEST = desktopConfig.inputManifest;
 const PRESENCE_KEYS = Object.freeze(["steam_display", "status", "place", "ship"]);
-const CAPABILITIES = steamCapabilitiesForEdition(desktopConfig.edition);
+let capabilities = steamCapabilitiesForEdition(desktopConfig.edition);
 
 steamworks.electronEnableSteamOverlay();
 
@@ -27,12 +27,14 @@ let steamInputTimer = null;
 let staticServer = null;
 
 app.whenReady().then(async () => {
-  if (process.env.MARQUE_STEAM_REQUIRE_RELAUNCH === "1" && steamworks.restartAppIfNecessary(APP_ID)) {
+  if (desktopConfig.requireRelaunch && steamworks.restartAppIfNecessary(APP_ID)) {
     app.quit();
     return;
   }
   client = steamworks.init(APP_ID);
-  assertSteamCloudEnabled(client);
+  capabilities = steamCapabilitiesForEdition(desktopConfig.edition, {
+    cloudEnabled: steamCloudEnabled(client)
+  });
   client.input.init();
   nativeApi = createSteamNativeApi();
   nativeApi.setInputActionManifest(INPUT_MANIFEST);
@@ -81,7 +83,7 @@ async function createGameWindow(url) {
 }
 
 function installIpcHandlers() {
-  ipcMain.handle("steam:get-capabilities", () => CAPABILITIES);
+  ipcMain.handle("steam:get-capabilities", () => capabilities);
   ipcMain.handle("steam:get-current-game-language", () => currentGameLanguage());
   ipcMain.handle("steam:unlock-achievement", (_event, id) => unlockAchievement(id));
   ipcMain.handle("steam:update-stats", (_event, values) => updateStats(values));
@@ -99,7 +101,7 @@ function currentGameLanguage() {
 }
 
 function unlockAchievement(id) {
-  if (!CAPABILITIES.achievements) {
+  if (!capabilities.achievements) {
     throw new Error("Steam achievements are disabled in the demo");
   }
   const achievementId = requiredString(id, "achievement id");
@@ -112,7 +114,7 @@ function unlockAchievement(id) {
 }
 
 function updateStats(values) {
-  if (!CAPABILITIES.stats) throw new Error("Steam Stats are disabled in the demo");
+  if (!capabilities.stats) throw new Error("Steam Stats are disabled in the demo");
   return updateHighWaterStats(client.stats, values);
 }
 
@@ -146,9 +148,13 @@ function setRichPresence(presence) {
   return true;
 }
 
-function assertSteamCloudEnabled(steamClient) {
-  if (!steamClient.cloud.isEnabledForAccount()) throw new Error("Steam Cloud is disabled for this account");
-  if (!steamClient.cloud.isEnabledForApp()) throw new Error(`Steam Cloud is disabled for App ${APP_ID}`);
+function steamCloudEnabled(steamClient) {
+  try {
+    return steamClient.cloud.isEnabledForAccount() && steamClient.cloud.isEnabledForApp();
+  } catch (error) {
+    console.error("[steam] could not determine Steam Cloud availability", error);
+    return false;
+  }
 }
 
 function requiredCloudFileName(value) {

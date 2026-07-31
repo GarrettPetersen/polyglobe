@@ -20,6 +20,7 @@ test("development defaults to the full game", () => {
   assert.equal(config.edition, "full");
   assert.equal(config.gameRoot, join(appRoot, "dist"));
   assert.equal(config.inputManifest, join(appRoot, "steam-input/game_actions.vdf"));
+  assert.equal(config.requireRelaunch, false);
 });
 
 test("packaged demo uses Steam's launch App ID", (context) => {
@@ -39,6 +40,7 @@ test("packaged demo uses Steam's launch App ID", (context) => {
   assert.equal(config.edition, "demo");
   assert.equal(config.gameRoot, join(resourcesPath, "dist-demo"));
   assert.equal(config.inputManifest, join(resourcesPath, "steam-input/game_actions.vdf"));
+  assert.equal(config.requireRelaunch, true);
 });
 
 test("packaged demo defaults to its assigned App ID", (context) => {
@@ -71,7 +73,38 @@ test("only the full edition exposes Steam Stats and achievements", () => {
     stats: false,
     timeline: true
   });
+  assert.equal(steamCapabilitiesForEdition("full", { cloudEnabled: false }).cloud, false);
+  assert.throws(
+    () => steamCapabilitiesForEdition("full", { cloudEnabled: "yes" }),
+    /Cloud capability is not boolean/
+  );
   assert.throws(() => steamCapabilitiesForEdition("preview"), /Invalid Steam edition/);
+});
+
+test("packaged builds relaunch through Steam unless explicitly disabled", (context) => {
+  const resourcesPath = temporaryResources(context);
+  writeFileSync(
+    join(resourcesPath, "steam-build.json"),
+    JSON.stringify({ edition: "full", gameDirectory: "dist" })
+  );
+  assert.equal(resolveDesktopConfig({
+    env: { MARQUE_STEAM_REQUIRE_RELAUNCH: "0" },
+    isPackaged: true,
+    resourcesPath
+  }).requireRelaunch, false);
+  assert.equal(resolveDesktopConfig({
+    env: { MARQUE_STEAM_REQUIRE_RELAUNCH: "1" },
+    isPackaged: false,
+    resourcesPath
+  }).requireRelaunch, true);
+  assert.throws(
+    () => resolveDesktopConfig({
+      env: { MARQUE_STEAM_REQUIRE_RELAUNCH: "sometimes" },
+      isPackaged: true,
+      resourcesPath
+    }),
+    /Invalid MARQUE_STEAM_REQUIRE_RELAUNCH/
+  );
 });
 
 function temporaryResources(context) {

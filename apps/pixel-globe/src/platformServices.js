@@ -57,12 +57,12 @@ export async function validatePlatformCapabilities(bridge) {
   if (!capabilities || typeof capabilities !== "object") {
     throw new Error("Steam platform bridge returned invalid capabilities");
   }
-  const optionalProgressionCapabilities = new Set(["achievements", "stats"]);
+  const optionalCapabilities = new Set(["achievements", "cloud", "stats"]);
   for (const capability of ["achievements", "cloud", "input", "richPresence", "screenshots", "stats", "timeline"]) {
     if (typeof capabilities[capability] !== "boolean") {
       throw new Error(`Steam platform capability is invalid: ${capability}`);
     }
-    if (!optionalProgressionCapabilities.has(capability) && capabilities[capability] !== true) {
+    if (!optionalCapabilities.has(capability) && capabilities[capability] !== true) {
       throw new Error(`Steam platform capability is unavailable: ${capability}`);
     }
   }

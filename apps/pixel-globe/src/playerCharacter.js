@@ -69,6 +69,7 @@ const INDIAN_FACTIONS = new Set([
 ]);
 const SOUTHEAST_ASIAN_FACTIONS = new Set(["ayutthaya", "ternate", "tidore"]);
 const ISLAMIC_MEDITERRANEAN_FACTIONS = new Set(["ottoman", "morocco", "crimea"]);
+const ISLAMIC_MEDITERRANEAN_MAX_LONGITUDE = 40;
 const PLAYER_HOME_EXCLUDED_CITY_TYPES = new Set(["mesoamerican", "andean", "sub-saharan"]);
 
 export function playerStartRegionForFaction(factionId) {
@@ -203,13 +204,10 @@ export function playerStartAreaForPort(port) {
   if (port.cityType === "south-asian") return "india";
   if (port.cityType === "southeast-asian") return "southeast-asia";
   if (port.cityType === "islamic-desert") {
-    if (ISLAMIC_MEDITERRANEAN_FACTIONS.has(faction.id)) return "mediterranean";
-    if (INDIAN_FACTIONS.has(faction.id)) return "india";
-    if (EUROPEAN_FACTIONS.has(faction.id)) return "mediterranean";
-    throw new Error(
-      `Sovereign Islamic-desert port has no player start area: ` +
-      `${port.displayCity || port.city} (${faction.id})`
-    );
+    if (!Number.isFinite(port.lon)) {
+      throw new Error(`Islamic-desert port has no longitude: ${port.displayCity || port.city}`);
+    }
+    return port.lon <= ISLAMIC_MEDITERRANEAN_MAX_LONGITUDE ? "mediterranean" : "india";
   }
   return null;
 }
