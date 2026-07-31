@@ -1214,8 +1214,10 @@ import {
   nearestTileMatching as nearestWorldTileMatching,
   placeCityCatalogOnWorld,
   placeColonizationTargetsOnWorld,
+  portAccessTileIds,
   portCitiesOnWorld
 } from "./worldPortPlacement.js";
+import { buildPortArrivalNavigation } from "./portArrivalFlavor.js";
 import {
   assertPortSailingDistanceCoverage,
   parsePortSailingDistances,
@@ -2544,6 +2546,7 @@ let animalNoiseAudioContext = null;
 let colonizationTargetTileId = null;
 let colonizationTargetPlacements = [];
 let portSailingDistances;
+let portArrivalNavigationByTileId;
 let landRoadNetwork;
 let landTradeSystem;
 let portCitiesByTileId;
@@ -3154,6 +3157,11 @@ async function main() {
     portSailingDistances,
     [...portCities, ...colonizationTargetPlacements]
   );
+  portArrivalNavigationByTileId = buildPortArrivalNavigation({
+    ports: portCities,
+    sailingDistanceKm: sailingDistanceBetweenPorts,
+    approachKindForPort: portArrivalApproachKind
+  });
   console.info(
     `[pixel-globe] port sailing distances: ${portSailingDistances.endpoints.length} ` +
     "current ports and colony sites"
@@ -14796,6 +14804,7 @@ function portDialogueContext() {
     simMinute,
     dayIndex: weatherParts.dayIndex,
     playerShipSlug: ship?.stats?.slug || gameState.ship?.slug || null,
+    arrivalNavigation: city ? portArrivalNavigationByTileId?.get(city.tileId) || null : null,
     shipPower: playerShipPrivateeringPower(),
     shipStats: ship ? currentPlayerEffectiveShipStats() : null,
     nearbyShips: nearbyPortTraffic(city),
@@ -16549,6 +16558,13 @@ function worldPortPlacementOptions() {
 
 function sailingDistanceBetweenPorts(origin, destination) {
   return portSailingDistanceKm(portSailingDistances, origin, destination);
+}
+
+function portArrivalApproachKind(port) {
+  const accessTileIds = portAccessTileIds(worldPortPlacementOptions(), port.tileId);
+  if (accessTileIds.some((tileId) => freshWaterSurfaceMask[tileId] === 1)) return "lake";
+  if (accessTileIds.some((tileId) => (riverMasks[tileId] || 0) !== 0)) return "river";
+  return "ocean";
 }
 
 function initializeDemoMediterraneanNavigation() {

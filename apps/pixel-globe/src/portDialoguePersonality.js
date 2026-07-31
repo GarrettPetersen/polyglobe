@@ -180,6 +180,7 @@ export function portGreetingPresentationForPersonality({
   cityName,
   returning = false,
   localFlavor,
+  prioritizeLocalFlavor = false,
   visitCount = 1,
   dayIndex = 0,
   nearbyShips = {},
@@ -195,12 +196,20 @@ export function portGreetingPresentationForPersonality({
   if (!PORT_PERSONALITY_IDS.includes(personalityId)) {
     throw new Error(`Unknown port personality: ${personalityId}`);
   }
+  if (typeof localFlavor !== "string" || localFlavor.trim() === "") {
+    throw new Error("Port greeting requires local arrival flavor");
+  }
+  if (typeof prioritizeLocalFlavor !== "boolean") {
+    throw new Error("Port greeting local-flavor priority must be boolean");
+  }
   const phase = returning ? "returning" : "first";
   const seed = `${personalityId}|${cityName}|${visitCount}|${dayIndex}`;
   const baseFactory = choose(BASE_LINES[personalityId][phase], `${seed}|base`);
   const base = baseFactory(cityName);
   const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalTerms, seed });
-  const religiousGreeting = topic !== "pirates" && topic !== "storm" &&
+  const prioritizeArrival = prioritizeLocalFlavor && topic !== "pirates" && topic !== "storm";
+  const presentedTopic = prioritizeArrival ? null : topic;
+  const religiousGreeting = presentedTopic !== "pirates" && presentedTopic !== "storm" &&
     speakerReligionId && listenerReligionId
     ? occasionalReligiousGreeting({
         speakerReligionId,
@@ -208,10 +217,10 @@ export function portGreetingPresentationForPersonality({
         key: seed
       })
     : null;
-  const rulerLine = shouldTellRulerRumor(topic, rulerRumor)
+  const rulerLine = !prioritizeArrival && shouldTellRulerRumor(presentedTopic, rulerRumor)
     ? rulerRumorLine(personalityId, rulerRumor)
     : null;
-  const historyLine = !rulerLine && shouldTellHistoricalGossip(topic, historicalGossip)
+  const historyLine = !prioritizeArrival && !rulerLine && shouldTellHistoricalGossip(presentedTopic, historicalGossip)
     ? historicalGossipLine(
         personalityId,
         historicalGossip,
@@ -219,11 +228,14 @@ export function portGreetingPresentationForPersonality({
         listenerReligionId
       )
     : null;
-  const shipyardLine = !rulerLine && !historyLine && shouldTellShipyardRumor(personalityId, topic, shipyardRumor, seed)
+  const shipyardLine = !prioritizeArrival && !rulerLine && !historyLine &&
+    shouldTellShipyardRumor(personalityId, presentedTopic, shipyardRumor, seed)
     ? shipyardRumorLine(personalityId, shipyardRumor)
     : null;
   const rumorLine = rulerLine || historyLine || shipyardLine;
-  const contextLine = rumorLine || (topic ? contextLineFor(topic, personalityId, rivalTerms) : localFlavor);
+  const contextLine = prioritizeArrival
+    ? localFlavor
+    : rumorLine || (presentedTopic ? contextLineFor(presentedTopic, personalityId, rivalTerms) : localFlavor);
   return Object.freeze({
     text: `${religiousGreeting || base} ${contextLine}`.trim(),
     expressionId: rulerLine
@@ -232,8 +244,8 @@ export function portGreetingPresentationForPersonality({
       ? (personalityId === "gossipy" ? "pleased" : "attentive")
       : shipyardLine
       ? (personalityId === "gossipy" ? "pleased" : "attentive")
-      : topic
-      ? TOPIC_EXPRESSION_IDS[topic]
+      : presentedTopic
+      ? TOPIC_EXPRESSION_IDS[presentedTopic]
       : PERSONALITY_EXPRESSION_IDS[personalityId]
   });
 }

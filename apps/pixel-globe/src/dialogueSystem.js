@@ -111,7 +111,7 @@ import { formatDisplayQuantity } from "./displayNumber.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
-import { portArrivalFlavor } from "./portArrivalFlavor.js";
+import { portArrivalPresentation } from "./portArrivalFlavor.js";
 import {
   shipReplacementTermsWithoutTradeIn,
   shipyardPurchaseTerms
@@ -2179,11 +2179,13 @@ function greetingView(session, city, gameState, context) {
   }
   const name = cityLabel(city);
   const personalityId = city.character?.personalityId || portPersonalityForKey(`${name}|${city.country || "port"}`);
+  const arrival = portFlavor(city, gameState, context, memory.visits > 1);
   const greeting = portGreetingPresentationForPersonality({
     personalityId,
     cityName: name,
     returning: memory.visits > 1,
-    localFlavor: portFlavor(city, gameState, context, memory.visits > 1),
+    localFlavor: arrival.text,
+    prioritizeLocalFlavor: arrival.notable,
     visitCount: memory.visits,
     dayIndex: context.dayIndex || 0,
     nearbyShips: context.nearbyShips,
@@ -4416,10 +4418,11 @@ function neverGrantMissionItem() {
 
 function portFlavor(city, gameState, context, returning) {
   const playerShipSlug = context.playerShipSlug || gameState.ship?.slug || null;
-  return portArrivalFlavor({
+  return portArrivalPresentation({
     city,
     playerShipSlug,
     playerShipLabel: playerShipSlug ? shipLabelForSlug(playerShipSlug) : "vessel",
-    returning
+    returning,
+    navigation: context.arrivalNavigation || null
   });
 }

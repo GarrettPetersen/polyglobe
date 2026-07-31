@@ -17,6 +17,7 @@ import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 import {
   placeCityCatalogOnWorld,
   placeColonizationTargetsOnWorld,
+  portAccessTileIds,
   portCitiesOnWorld
 } from "./worldPortPlacement.js";
 
@@ -108,8 +109,21 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   const wuhan = requiredEndpoint(bake, "Wuhan");
   const kholmogory = requiredEndpoint(bake, "Kholmogory");
   const salerno = requiredEndpoint(bake, "Salerno");
+  const lisbon = requiredEndpoint(bake, "Lisbon");
+  const tombouctou = requiredEndpoint(bake, "Tombouctou");
+  const gao = requiredEndpoint(bake, "Gao");
+  const tombouctouPort = portCities.find((port) => port.city === "Tombouctou");
+  if (!tombouctouPort) throw new Error("Tombouctou must remain a dockable port city");
+  const tombouctouAccess = portAccessTileIds(placementOptions, tombouctouPort.tileId);
   assert.ok(portSailingDistanceKm(bake, istanbul, wuhan) > portSailingDistanceKm(bake, istanbul, cairo) * 10);
   assert.ok(portSailingDistanceKm(bake, kholmogory, salerno) > 0);
+  assert.ok(portSailingDistanceKm(bake, tombouctou, lisbon) > 0, "Timbuktu must remain reachable through the Niger");
+  assert.ok(portSailingDistanceKm(bake, gao, lisbon) > 0, "Gao must remain reachable through the Niger");
+  assert.equal(
+    tombouctouAccess.some((tileId) => (navigation.riverMasks[tileId] || 0) !== 0),
+    true,
+    "Timbuktu must retain a dockable Niger approach"
+  );
   assert.equal(
     bake.distancesKm.some((row) => row.some((distance) => distance === null)),
     false,

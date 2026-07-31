@@ -37,6 +37,33 @@ test("urgent nearby pirate traffic overrides ordinary port chatter", () => {
   assert.equal(presentation.expressionId, "afraid");
 });
 
+test("a remarkable first arrival takes priority over routine rumors", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "gossipy",
+    cityName: "Tombouctou",
+    localFlavor: "A sea-going carrack has reached Kabara by the Niger.",
+    prioritizeLocalFlavor: true,
+    nearbyShips: { merchants: 4 },
+    shipyardRumor: { shipLabel: "Brigantine", portName: "Lisbon" }
+  });
+
+  assert.match(presentation.text, /Kabara by the Niger/i);
+  assert.doesNotMatch(presentation.text, /brigantine|merchant sails/i);
+});
+
+test("urgent danger still takes priority over a remarkable first arrival", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "vigilant",
+    cityName: "Tombouctou",
+    localFlavor: "A sea-going carrack has reached Kabara by the Niger.",
+    prioritizeLocalFlavor: true,
+    nearbyShips: { pirates: 1 }
+  });
+
+  assert.match(presentation.text, /Pirates/);
+  assert.doesNotMatch(presentation.text, /Kabara/);
+});
+
 test("factors can comment on their faction's current rival", () => {
   const presentation = portGreetingPresentationForPersonality({
     personalityId: "reflective",
