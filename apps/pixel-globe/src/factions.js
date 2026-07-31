@@ -213,6 +213,17 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Crotone", "Italy", "spain"),
   cityRule("Messina", "Italy", "spain"),
   cityRule("Olbia", "Italy", "spain"),
+  cityRule("Cagliari", "Italy", "spain"),
+  cityRule("Syracuse", "Italy", "spain"),
+  cityRule("Bastia", "Italy", "genoa"),
+
+  cityRule("Ceuta", "Morocco", "portugal"),
+  cityRule("Algiers", "Algeria", "ottoman"),
+  cityRule("Tripoli", "Libya", "spain"),
+  // Charles V did not grant Malta to the displaced Hospitallers until 1530.
+  // In 1522 Birgu remains Spanish while the order still rules Rhodes.
+  cityRule("Birgu", "Malta", "spain"),
+  cityRule("Ragusa", "Croatia", NEUTRAL_FACTION_ID),
 
   cityRule("Kerkira", "Greece", "venice"),
   cityRule("Gortyn", "Greece", "venice"),
@@ -319,7 +330,10 @@ const COUNTRY_FACTIONS = uniqueMap([
   ["Cuba", "spain"],
   ["Dominican Republic", "spain"],
   ["Panama", "spain"],
-  ["Puerto Rico", "spain"]
+  ["Puerto Rico", "spain"],
+  ["Malta", "spain"],
+  ["Cape Verde", "portugal"],
+  ["Sao Tome and Principe", "portugal"]
 ], "country faction assignments");
 
 validateCityFactionRules();

@@ -146,6 +146,86 @@ export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
       terrainType: "tropical_rainforest",
       elevation: -0.015,
       landmassId: 1285
+    }),
+    // Corsica (Bastia)
+    Object.freeze({
+      tileId: 162196,
+      sourceTerrain: "lake",
+      terrainType: "mediterranean_hot",
+      elevation: -0.03,
+      landmassId: 414
+    }),
+    // Malta (Birgu)
+    Object.freeze({
+      tileId: 161924,
+      sourceTerrain: "lake",
+      terrainType: "mediterranean_hot",
+      elevation: -0.03,
+      landmassId: 1286
+    }),
+    // Corfu (Kerkira)
+    Object.freeze({
+      tileId: 98751,
+      sourceTerrain: "beach",
+      terrainType: "mediterranean_hot",
+      elevation: -0.03,
+      landmassId: 1287
+    }),
+    // Madeira (Funchal)
+    Object.freeze({
+      tileId: 161303,
+      sourceTerrain: "water",
+      terrainType: "mediterranean_warm",
+      elevation: -0.03,
+      landmassId: 1288
+    }),
+    // Terceira (Angra)
+    Object.freeze({
+      tileId: 72876,
+      sourceTerrain: "beach",
+      terrainType: "mediterranean_warm",
+      elevation: -0.03,
+      landmassId: 441
+    }),
+    // Gran Canaria (Las Palmas)
+    Object.freeze({
+      tileId: 163196,
+      sourceTerrain: "beach",
+      terrainType: "cold_desert",
+      elevation: -0.03,
+      landmassId: 548
+    }),
+    // Santiago, Cape Verde (Ribeira Grande)
+    Object.freeze({
+      tileId: 159153,
+      sourceTerrain: "beach",
+      terrainType: "hot_desert",
+      elevation: -0.03,
+      landmassId: 688
+    }),
+    // Sao Tome
+    Object.freeze({
+      tileId: 160114,
+      sourceTerrain: "beach",
+      terrainType: "tropical_rainforest",
+      elevation: -0.03,
+      landmassId: 850
+    }),
+    // Male
+    Object.freeze({
+      tileId: 39426,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.03,
+      landmassId: 1289
+    }),
+    // Zanzibar
+    Object.freeze({
+      tileId: 124671,
+      sourceTerrain: "beach",
+      terrainType: "tropical_savanna",
+      elevation: -0.03,
+      landmassId: 1290
     })
   ])
 });

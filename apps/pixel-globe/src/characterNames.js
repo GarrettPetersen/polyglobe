@@ -428,7 +428,9 @@ const COUNTRY_CULTURES = new Map([
   ["Guatemala", "maya"], ["Nuu-chah-nulth", "northwestCoast"], ["Makah", "northwestCoast"],
   ["Peru", "andean"], ["Bolivia", "andean"],
   ["Ecuador", "andean"], ["Columbia", "andean"], ["Cuba", "spanish"],
-  ["Dominican Republic", "spanish"], ["Panama", "spanish"], ["Puerto Rico", "spanish"]
+  ["Dominican Republic", "spanish"], ["Panama", "spanish"], ["Puerto Rico", "spanish"],
+  ["Malta", "italian"], ["Croatia", "slavic"], ["Cape Verde", "portuguese"],
+  ["Sao Tome and Principe", "portuguese"], ["Maldives", "southAsian"]
 ]);
 
 const CITY_CULTURES = new Map([
@@ -508,6 +510,26 @@ const CITY_CULTURES = new Map([
   ["buru village", "malukan"],
   ["makian village", "malukan"],
   ["gane village", "malukan"],
+  ["bastia", "italian"],
+  ["cagliari", "italian"],
+  ["ceuta", "portuguese"],
+  ["algiers", "arabic"],
+  ["tripoli", "arabic"],
+  ["birgu", "italian"],
+  ["syracuse", "italian"],
+  ["ragusa", "slavic"],
+  ["kerkira", "greek"],
+  ["funchal", "portuguese"],
+  ["angra", "portuguese"],
+  ["las palmas", "spanish"],
+  ["ribeira grande", "portuguese"],
+  ["sao tome", "portuguese"],
+  ["suez", "arabic"],
+  ["male", "southAsian"],
+  ["maynila", "southeastAsian"],
+  ["san juan", "spanish"],
+  ["zanzibar", "swahili"],
+  ["suq", "arabic"],
   ["mactan village", "cebuano"],
   ["ayutthaya", "thai"],
   ["chiang mai", "thai"],

@@ -26,6 +26,7 @@ test("the 1522 registry contains only historically active starting settlements",
       "portuguese-cochin",
       "portuguese-calicut",
       "portuguese-colombo",
+      "portuguese-zanzibar",
       "portuguese-quilon",
       "venetian-constantinople",
       "venetian-alexandria"
@@ -33,6 +34,11 @@ test("the 1522 registry contains only historically active starting settlements",
   );
   assert.deepEqual(
     foreignSettlementsForCity1522({ city: "Ternate", country: "Indonesia" })
+      .map((entry) => entry.factionId),
+    ["portugal"]
+  );
+  assert.deepEqual(
+    foreignSettlementsForCity1522({ city: "Zanzibar", country: "Tanzania" })
       .map((entry) => entry.factionId),
     ["portugal"]
   );

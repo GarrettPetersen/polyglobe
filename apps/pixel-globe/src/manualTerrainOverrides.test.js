@@ -64,8 +64,9 @@ test("missing small islands are restored as distinct dockable landforms", async 
   assert.deepEqual(
     islandOverrides.map((override) => override.tileId).sort((a, b) => a - b),
     [
-      16050, 34610, 67709, 85318, 89746, 90267, 90803, 91677,
-      91681, 91683, 91735, 91800, 136831, 141773, 142904, 143938
+      16050, 34610, 39426, 67709, 85318, 89746, 90267, 90803,
+      91677, 91681, 91683, 91735, 91800, 98751, 124671, 136831,
+      141773, 142904, 143938, 161303, 161924
     ]
   );
   assert.equal(

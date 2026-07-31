@@ -118,6 +118,8 @@ test("distant future rows cannot revive an ancient city or backfill a new one", 
 test("modern Cincinnati is not substituted for its pre-contact archaeological record", () => {
   assert.equal(cityDatasetRecordAllowedIn1522("Cincinnati", "United States of America"), false);
   assert.equal(cityDatasetRecordAllowedIn1522("Chillicothe", "United States of America"), true);
+  assert.equal(cityDatasetRecordAllowedIn1522("Syracuse", "Greece"), false);
+  assert.equal(cityDatasetRecordAllowedIn1522("Syracuse", "Italy"), true);
 });
 
 test("1522 city selection keeps enough British Isles ports and Inca access", async () => {
@@ -169,6 +171,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const edo = ports.find((city) => city.city === "Edo" && city.country === "Japan");
   const sakai = ports.find((city) => city.city === "Sakai" && city.country === "Japan");
   const kilwa = ports.find((city) => city.city === "Kilwa" && city.country === "Tanzania");
+  const portByCity = new Map(ports.map((city) => [city.city, city]));
   const pacificVillages = ports.filter((city) => city.manualRegion === "pacific-islands");
   const encounterVillages = ports.filter((city) => city.manualRegion === "explorer-encounters");
   const islandVillages = ports.filter((city) => city.islandSettlement);
@@ -268,7 +271,10 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   assert.ok(pacificVillages.every((city) => city.cityType === "polynesian"));
   assert.ok(pacificVillages.every((city) => city.settlementType === "village"));
-  assert.equal(islandVillages.length, 21);
+  assert.equal(
+    islandVillages.length,
+    MANUAL_CITY_RECORDS_1522.filter((city) => city.islandSettlement).length
+  );
   for (const city of islandVillages) {
     const intendedTileId = findNearestTileId(
       graph,
@@ -297,6 +303,37 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
       `${city.city} must remain dockable`
     );
   }
+  for (const cityName of [
+    "Bastia",
+    "Cagliari",
+    "Ceuta",
+    "Algiers",
+    "Tripoli",
+    "Birgu",
+    "Syracuse",
+    "Ragusa",
+    "Kerkira",
+    "Funchal",
+    "Angra",
+    "Las Palmas",
+    "Ribeira Grande",
+    "Sao Tome",
+    "Suez",
+    "Male",
+    "Maynila",
+    "San Juan",
+    "Zanzibar",
+    "Suq"
+  ]) {
+    assert.ok(portByCity.has(cityName), `${cityName} should be restored as a 1522 port`);
+  }
+  assert.equal(portByCity.get("Bastia").factionId, "genoa");
+  assert.equal(portByCity.get("Cagliari").factionId, "spain");
+  assert.equal(portByCity.get("Ceuta").factionId, "portugal");
+  assert.equal(portByCity.get("Algiers").factionId, "ottoman");
+  assert.equal(portByCity.get("Tripoli").factionId, "spain");
+  assert.equal(portByCity.get("Birgu").factionId, "spain");
+  assert.equal(portByCity.get("Kerkira").factionId, "venice");
   assert.deepEqual(
     encounterVillages.map((city) => city.city).sort(),
     [

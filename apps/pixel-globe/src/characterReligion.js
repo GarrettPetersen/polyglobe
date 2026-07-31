@@ -251,6 +251,7 @@ export function religionCandidatesForHome(homePort) {
   if (country === "Sri Lanka") {
     return choices(["theravada-buddhism", 4], ["hinduism", 1]);
   }
+  if (country === "Maldives") return choices(["sunni-islam", 1]);
   if (country === "India" || country === "Pakistan" || cityType === "south-asian") {
     return southAsianReligionCandidates({ city, factionId });
   }

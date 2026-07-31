@@ -8,7 +8,10 @@ export const CITY_COASTAL_REPLACEMENT_RADIUS_KM = 50;
 const EXCLUDED_DATASET_CITIES_1522 = new Set([
   // Chandler uses a modern city label for evidence of a pre-contact Ohio
   // settlement. Cincinnati itself was not founded or named until 1788.
-  "cincinnati|united states of america"
+  "cincinnati|united states of america",
+  // The source assigns the Sicilian port to modern Greece. A corrected
+  // Spanish-Sicilian record is supplied in the historical port layer below.
+  "syracuse|greece"
 ]);
 
 export function cityDatasetRecordAllowedIn1522(city, country) {
@@ -145,6 +148,129 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "mediterranean",
     manualRegion: "eastern-mediterranean",
     marketGoods: ["wine", "olive-oil", "naval-stores"]
+  }),
+  // Sparse modern population observations omit many ports that were already
+  // strategically important in 1522. Keep this layer selective: it restores
+  // historical maritime gaps, not every recognizable modern coastal city.
+  manualCity1522("Bastia", "Italy", 42.6973, 9.4509, 4000, {
+    cityType: "mediterranean",
+    manualRegion: "western-mediterranean",
+    islandSettlement: true,
+    marketGoods: ["wine", "olive-oil", "naval-stores"]
+  }),
+  manualCity1522("Cagliari", "Italy", 39.2238, 9.1217, 12000, {
+    cityType: "mediterranean",
+    manualRegion: "western-mediterranean",
+    islandSettlement: true,
+    marketGoods: ["grain", "salt", "wine"]
+  }),
+  manualCity1522("Ceuta", "Morocco", 35.8894, -5.3213, 6000, {
+    cityType: "mediterranean",
+    manualRegion: "strait-of-gibraltar",
+    marketGoods: ["fish", "salt", "naval-stores"]
+  }),
+  manualCity1522("Algiers", "Algeria", 36.7538, 3.0588, 20000, {
+    cityType: "islamic-desert",
+    manualRegion: "barbary-coast",
+    marketGoods: ["grain", "olive-oil", "wool"]
+  }),
+  manualCity1522("Tripoli", "Libya", 32.8872, 13.1913, 15000, {
+    cityType: "islamic-desert",
+    manualRegion: "barbary-coast",
+    marketGoods: ["salt", "olive-oil", "wool"]
+  }),
+  manualCity1522("Birgu", "Malta", 35.8881, 14.5222, 5000, {
+    cityType: "mediterranean",
+    manualRegion: "central-mediterranean",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "naval-stores"]
+  }),
+  manualCity1522("Syracuse", "Italy", 37.0755, 15.2866, 14000, {
+    cityType: "mediterranean",
+    manualRegion: "central-mediterranean",
+    marketGoods: ["grain", "wine", "olive-oil"]
+  }),
+  manualCity1522("Ragusa", "Croatia", 42.6507, 18.0944, 12000, {
+    cityType: "mediterranean",
+    manualRegion: "adriatic",
+    marketGoods: ["salt", "wool-cloth", "naval-stores"]
+  }),
+  manualCity1522("Kerkira", "Greece", 39.6243, 19.9217, 8000, {
+    cityType: "mediterranean",
+    manualRegion: "adriatic",
+    islandSettlement: true,
+    marketGoods: ["olive-oil", "wine", "fish"]
+  }),
+  manualCity1522("Funchal", "Portugal", 32.6509, -16.9097, 10000, {
+    cityType: "mediterranean",
+    manualRegion: "atlantic-islands",
+    islandSettlement: true,
+    marketGoods: ["sugar", "wine", "timber"]
+  }),
+  manualCity1522("Angra", "Portugal", 38.6547, -27.2208, 4000, {
+    cityType: "mediterranean",
+    manualRegion: "atlantic-islands",
+    islandSettlement: true,
+    marketGoods: ["grain", "fish", "cheese"]
+  }),
+  manualCity1522("Las Palmas", "Spain", 28.1235, -15.4363, 6000, {
+    cityType: "mediterranean",
+    manualRegion: "atlantic-islands",
+    islandSettlement: true,
+    marketGoods: ["sugar", "wine", "fish"]
+  }),
+  manualCity1522("Ribeira Grande", "Cape Verde", 14.9167, -23.6052, 4000, {
+    cityType: "mediterranean",
+    economyRegion: "sub-saharan",
+    manualRegion: "atlantic-islands",
+    islandSettlement: true,
+    marketGoods: ["salt", "fish", "cotton"]
+  }),
+  manualCity1522("Sao Tome", "Sao Tome and Principe", 0.3365, 6.7273, 8000, {
+    displayCity: "São Tomé",
+    cityType: "mediterranean",
+    economyRegion: "sub-saharan",
+    manualRegion: "atlantic-islands",
+    islandSettlement: true,
+    marketGoods: ["sugar", "timber", "ivory"]
+  }),
+  manualCity1522("Suez", "Egypt", 29.9668, 32.5498, 5000, {
+    cityType: "islamic-desert",
+    manualRegion: "red-sea",
+    marketGoods: ["grain", "cotton", "salt"]
+  }),
+  manualCity1522("Male", "Maldives", 4.1755, 73.5093, 5000, {
+    displayCity: "Malé",
+    cityType: "south-asian",
+    manualRegion: "indian-ocean-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "cotton", "sugar"]
+  }),
+  manualCity1522("Maynila", "Philippines", 14.5995, 120.9842, 8000, {
+    cityType: "southeast-asian",
+    manualRegion: "south-china-sea",
+    islandSettlement: true,
+    marketGoods: ["cotton", "beeswax", "fish"]
+  }),
+  manualCity1522("San Juan", "Puerto Rico", 18.4655, -66.1057, 4000, {
+    cityType: "mediterranean",
+    economyRegion: "caribbean",
+    manualRegion: "spanish-main",
+    islandSettlement: true,
+    playerHomeExcluded: true,
+    marketGoods: ["sugar", "gold", "fish"]
+  }),
+  manualCity1522("Zanzibar", "Tanzania", -6.1622, 39.1921, 10000, {
+    cityType: "sub-saharan",
+    manualRegion: "swahili-coast",
+    islandSettlement: true,
+    marketGoods: ["ivory", "beeswax", "fish"]
+  }),
+  manualCity1522("Suq", "Yemen", 12.65, 54.02, 3000, {
+    cityType: "islamic-desert",
+    manualRegion: "arabian-sea",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "perfume"]
   }),
   manualVillage1522("Edo", "Japan", 35.6896, 139.692, 1500, {
     cityType: "east-asian",

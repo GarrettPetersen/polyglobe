@@ -50,6 +50,7 @@ test("distinctive 1522 religious contexts remain explicit", () => {
     [{ city: "Muscat", country: "Oman", cityType: "islamic-desert", factionId: "portugal" }, "ibadi-islam"],
     [{ city: "Kyoto", country: "Japan", cityType: "east-asian", factionId: "japan" }, "kami-buddhist"],
     [{ city: "Ayutthaya", country: "Thailand", cityType: "southeast-asian", factionId: "ayutthaya" }, "theravada-buddhism"],
+    [{ city: "Male", country: "Maldives", cityType: "south-asian", factionId: "neutral" }, "sunni-islam"],
     [{ city: "Cuzco", country: "Peru", cityType: "andean", factionId: "inca" }, "andean-traditional"],
     [{ city: "Hawaii Village", country: "Hawaii", cityType: "polynesian", factionId: "neutral" }, "polynesian-traditional"]
   ];

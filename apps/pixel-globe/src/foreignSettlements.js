@@ -85,6 +85,14 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
     factorText: "A Portuguese fort and cinnamon factory stand beside the harbor under treaty with the local court."
   }),
   settlement({
+    id: "portuguese-zanzibar",
+    city: "Zanzibar",
+    country: "Tanzania",
+    factionId: "portugal",
+    label: "Portuguese factory and tribute station",
+    factorText: "The island's sultan still governs his people, but Portuguese factors collect tribute and keep warehouses beside the anchorage."
+  }),
+  settlement({
     id: "portuguese-quilon",
     city: "Quilon",
     country: "India",
