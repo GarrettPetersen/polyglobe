@@ -358,6 +358,8 @@ test("version 47 voyages from before Rhodes recover without losing their save", 
   assert.equal(restored.relations.factionReputation.hospitallers, 0);
   assert.equal(restored.doubloons, 43210);
   assert.equal(restored.memory.navigation.cumulativeLongitudeDeg, 187.5);
+  assert.equal(restored.memory.navigation.minimumCumulativeLongitudeDeg, 0);
+  assert.equal(restored.memory.navigation.maximumCumulativeLongitudeDeg, 187.5);
   validateGameState(restored);
 });
 

@@ -73,3 +73,36 @@ test("circumnavigation progress unwraps the international date line", () => {
   assert.equal(updateCircumnavigationProgress(state, 150), false);
   assert.equal(updateCircumnavigationProgress(state, -170), true);
 });
+
+test("earlier wandering cannot cancel a tight Antarctic circumnavigation", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  assert.equal(updateCircumnavigationProgress(state, longitudeOnParallel(-82, 40)), false);
+  assert.equal(updateCircumnavigationProgress(state, longitudeOnParallel(-82, 0)), false);
+
+  let completed = false;
+  const sampleCount = 137;
+  for (let index = 1; index <= sampleCount; index++) {
+    completed = updateCircumnavigationProgress(
+      state,
+      longitudeOnParallel(-82, index * 360 / sampleCount)
+    );
+  }
+
+  assert.equal(completed, true);
+  assert.ok(Math.abs(state.memory.navigation.cumulativeLongitudeDeg - 320) < 1e-9);
+  assert.ok(
+    state.memory.navigation.maximumCumulativeLongitudeDeg -
+      state.memory.navigation.minimumCumulativeLongitudeDeg >= 360 - 1e-6
+  );
+});
+
+function longitudeOnParallel(latitudeDeg, longitudeDeg) {
+  const latitudeRad = latitudeDeg * Math.PI / 180;
+  const longitudeRad = longitudeDeg * Math.PI / 180;
+  const direction = [
+    Math.cos(latitudeRad) * Math.cos(longitudeRad),
+    Math.sin(latitudeRad),
+    -Math.cos(latitudeRad) * Math.sin(longitudeRad)
+  ];
+  return Math.atan2(-direction[2], direction[0]) * 180 / Math.PI;
+}

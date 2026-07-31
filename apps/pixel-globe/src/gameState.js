@@ -235,7 +235,8 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 52;
+export const GAME_STATE_VERSION = 53;
+const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
@@ -456,6 +457,8 @@ export function createGameState({
       navigation: {
         lastLongitudeDeg: null,
         cumulativeLongitudeDeg: 0,
+        minimumCumulativeLongitudeDeg: 0,
+        maximumCumulativeLongitudeDeg: 0,
         optionalWaypoints: []
       },
       quests: {
@@ -508,7 +511,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -640,6 +643,8 @@ export function migrateGameState(state, shipStats) {
       },
       navigation: {
         ...legacyNavigation,
+        minimumCumulativeLongitudeDeg: Math.min(0, legacyNavigation.cumulativeLongitudeDeg),
+        maximumCumulativeLongitudeDeg: Math.max(0, legacyNavigation.cumulativeLongitudeDeg),
         optionalWaypoints: state.memory?.navigation?.optionalWaypoints || (legacyPortHeading ? [{
           id: `port:${legacyPortHeading.destinationTileId}`,
           destinationTileId: legacyPortHeading.destinationTileId,
@@ -1146,7 +1151,16 @@ export function updateCircumnavigationProgress(state, longitudeDeg) {
   const delta = normalizeLongitudeDelta(longitudeDeg - navigation.lastLongitudeDeg);
   navigation.lastLongitudeDeg = longitudeDeg;
   navigation.cumulativeLongitudeDeg += delta;
-  return Math.abs(navigation.cumulativeLongitudeDeg) >= 360;
+  navigation.minimumCumulativeLongitudeDeg = Math.min(
+    navigation.minimumCumulativeLongitudeDeg,
+    navigation.cumulativeLongitudeDeg
+  );
+  navigation.maximumCumulativeLongitudeDeg = Math.max(
+    navigation.maximumCumulativeLongitudeDeg,
+    navigation.cumulativeLongitudeDeg
+  );
+  return navigation.maximumCumulativeLongitudeDeg - navigation.minimumCumulativeLongitudeDeg >=
+    360 - CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG;
 }
 
 export function setCargoCapacity(state, cargoCapacity) {
@@ -5657,12 +5671,26 @@ function assertGameState(state) {
   if (!state.memory.navigation || typeof state.memory.navigation !== "object") {
     throw new Error("Game state navigation memory must be an object");
   }
-  const { lastLongitudeDeg, cumulativeLongitudeDeg, optionalWaypoints } = state.memory.navigation;
+  const {
+    lastLongitudeDeg,
+    cumulativeLongitudeDeg,
+    minimumCumulativeLongitudeDeg,
+    maximumCumulativeLongitudeDeg,
+    optionalWaypoints
+  } = state.memory.navigation;
   if (lastLongitudeDeg !== null && !Number.isFinite(lastLongitudeDeg)) {
     throw new Error(`Invalid last navigation longitude: ${lastLongitudeDeg}`);
   }
   if (!Number.isFinite(cumulativeLongitudeDeg)) {
     throw new Error(`Invalid cumulative navigation longitude: ${cumulativeLongitudeDeg}`);
+  }
+  if (!Number.isFinite(minimumCumulativeLongitudeDeg) ||
+      minimumCumulativeLongitudeDeg > cumulativeLongitudeDeg) {
+    throw new Error(`Invalid minimum cumulative navigation longitude: ${minimumCumulativeLongitudeDeg}`);
+  }
+  if (!Number.isFinite(maximumCumulativeLongitudeDeg) ||
+      maximumCumulativeLongitudeDeg < cumulativeLongitudeDeg) {
+    throw new Error(`Invalid maximum cumulative navigation longitude: ${maximumCumulativeLongitudeDeg}`);
   }
   if (!Array.isArray(optionalWaypoints)) {
     throw new Error("Game state optional navigation waypoints must be an array");
