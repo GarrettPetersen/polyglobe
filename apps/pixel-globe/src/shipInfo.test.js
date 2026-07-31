@@ -334,6 +334,23 @@ test("cargo manifest pages stop at either end", () => {
   assert.equal(shipInfoCargoPage(view, 2).page, 1);
 });
 
+test("cargo manifest pages respect compact responsive row capacity", () => {
+  const view = {
+    cargo: Array.from({ length: 7 }, (_, index) => ({ id: `good-${index}` }))
+  };
+  assert.deepEqual(shipInfoCargoPage(view, 0, 3), {
+    page: 0,
+    pageCount: 3,
+    rows: view.cargo.slice(0, 3)
+  });
+  assert.deepEqual(shipInfoCargoPage(view, 1, 3), {
+    page: 1,
+    pageCount: 3,
+    rows: view.cargo.slice(3, 6)
+  });
+  assert.throws(() => shipInfoCargoPage(view, 0, 0), /rows-per-page/i);
+});
+
 test("ship papers pages stop at either end", () => {
   const view = {
     papers: Array.from({ length: SHIP_PAPERS_ROWS_PER_PAGE + 1 }, (_, index) => ({ id: `paper-${index}` }))

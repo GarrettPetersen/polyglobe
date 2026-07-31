@@ -3,11 +3,15 @@ export function waypointArrowEdgePoint({
   screenWidth,
   screenHeight,
   margin,
-  maxY = screenHeight - margin
+  maxY = screenHeight - margin,
+  reservedRects = [],
+  clearance = 0
 }) {
   assertPositive(screenWidth, "screen width");
   assertPositive(screenHeight, "screen height");
   assertNonNegative(margin, "edge margin");
+  assertNonNegative(clearance, "reserved clearance");
+  if (!Array.isArray(reservedRects)) throw new Error("Waypoint reserved rectangles must be an array");
   const dir = normalizeDirection(direction);
   const minX = margin;
   const maxX = screenWidth - margin;
@@ -29,10 +33,53 @@ export function waypointArrowEdgePoint({
   const positive = candidates.filter((value) => value > 0);
   if (positive.length === 0) throw new Error("Waypoint arrow direction does not reach the viewport edge");
   const distance = Math.min(...positive);
-  return {
+  const initialPoint = {
     x: Math.round(centerX + dir.x * distance),
     y: Math.round(centerY + dir.y * distance)
   };
+  const inflatedRects = reservedRects.map((rect, index) => inflateReservedRect(rect, clearance, index));
+  if (!pointOverlapsRects(initialPoint, inflatedRects)) return initialPoint;
+
+  const edgeCandidates = [
+    { x: minX, y: minY },
+    { x: maxX, y: minY },
+    { x: minX, y: boundedMaxY },
+    { x: maxX, y: boundedMaxY }
+  ];
+  for (const rect of inflatedRects) {
+    const beforeX = Math.floor(rect.x) - 1;
+    const afterX = Math.ceil(rect.x + rect.w) + 1;
+    const beforeY = Math.floor(rect.y) - 1;
+    const afterY = Math.ceil(rect.y + rect.h) + 1;
+    edgeCandidates.push(
+      { x: beforeX, y: minY },
+      { x: afterX, y: minY },
+      { x: beforeX, y: boundedMaxY },
+      { x: afterX, y: boundedMaxY },
+      { x: minX, y: beforeY },
+      { x: minX, y: afterY },
+      { x: maxX, y: beforeY },
+      { x: maxX, y: afterY }
+    );
+  }
+  const validCandidates = edgeCandidates
+    .filter((point) => point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= boundedMaxY)
+    .filter((point) => !pointOverlapsRects(point, inflatedRects))
+    .sort((a, b) => pointDistanceSquared(a, initialPoint) - pointDistanceSquared(b, initialPoint));
+  if (validCandidates.length === 0) {
+    throw new Error("Waypoint arrow viewport edge is fully occupied by reserved UI");
+  }
+  return validCandidates[0];
+}
+
+export function waypointPointOverlapsReservedRects(point, reservedRects, clearance = 0) {
+  assertPoint(point, "reserved point");
+  assertNonNegative(clearance, "reserved clearance");
+  if (!Array.isArray(reservedRects)) throw new Error("Waypoint reserved rectangles must be an array");
+  return pointOverlapsRects(
+    point,
+    reservedRects.map((rect, index) => inflateReservedRect(rect, clearance, index))
+  );
 }
 
 export function waypointArrowGeometry({
@@ -122,6 +169,38 @@ function normalizeDirection(direction) {
     x: direction.x / length,
     y: direction.y / length
   };
+}
+
+function inflateReservedRect(rect, clearance, index) {
+  if (
+    !Number.isFinite(rect?.x) ||
+    !Number.isFinite(rect?.y) ||
+    !Number.isFinite(rect?.w) ||
+    !Number.isFinite(rect?.h) ||
+    rect.w < 0 ||
+    rect.h < 0
+  ) {
+    throw new Error(`Waypoint reserved rectangle ${index} is malformed`);
+  }
+  return {
+    x: rect.x - clearance,
+    y: rect.y - clearance,
+    w: rect.w + clearance * 2,
+    h: rect.h + clearance * 2
+  };
+}
+
+function pointOverlapsRects(point, rects) {
+  return rects.some((rect) => (
+    point.x >= rect.x &&
+    point.x <= rect.x + rect.w &&
+    point.y >= rect.y &&
+    point.y <= rect.y + rect.h
+  ));
+}
+
+function pointDistanceSquared(a, b) {
+  return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 }
 
 function assertPoint(point, label) {

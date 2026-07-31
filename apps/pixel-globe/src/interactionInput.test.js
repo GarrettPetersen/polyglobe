@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   INTERACTION_INPUT,
   WORLD_POINTER_ACTION,
+  captainMenuShortcutAvailable,
   dispatchSailingPointerAction,
   interactionInputOwner,
   worldPointerAction
@@ -70,6 +71,27 @@ test("achievements retain input over the main menu they cover", () => {
 
 test("world input is restored when no overlay or action owns it", () => {
   assert.equal(ownerFor({}), INTERACTION_INPUT.WORLD);
+});
+
+test("the Captain Menu remains available while admitted to port", () => {
+  assert.equal(captainMenuShortcutAvailable({
+    blockingMenu: false,
+    blockingModal: false,
+    dialogueActive: true,
+    admittedToPort: true
+  }), true);
+  assert.equal(captainMenuShortcutAvailable({
+    blockingMenu: false,
+    blockingModal: false,
+    dialogueActive: true,
+    admittedToPort: false
+  }), false);
+  assert.equal(captainMenuShortcutAvailable({
+    blockingMenu: true,
+    blockingModal: false,
+    dialogueActive: false,
+    admittedToPort: false
+  }), false);
 });
 
 test("interaction input state fails loudly when incomplete", () => {

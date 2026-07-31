@@ -263,16 +263,17 @@ export function shipPropulsionSummary(stats) {
   return `SAIL / ${stats.upwindStallAngleDeg} DEG`;
 }
 
-export function shipInfoCargoPage(view, page) {
+export function shipInfoCargoPage(view, page, rowsPerPage = SHIP_INFO_CARGO_ROWS_PER_PAGE) {
   if (!view || !Array.isArray(view.cargo)) throw new Error("Invalid ship information view");
-  const pageCount = Math.max(1, Math.ceil(view.cargo.length / SHIP_INFO_CARGO_ROWS_PER_PAGE));
+  assertRowsPerPage(rowsPerPage, "ship cargo manifest");
+  const pageCount = Math.max(1, Math.ceil(view.cargo.length / rowsPerPage));
   if (!Number.isInteger(page)) throw new Error(`Invalid cargo page: ${page}`);
   const normalizedPage = clampMenuIndex(page, pageCount);
-  const start = normalizedPage * SHIP_INFO_CARGO_ROWS_PER_PAGE;
+  const start = normalizedPage * rowsPerPage;
   return {
     page: normalizedPage,
     pageCount,
-    rows: view.cargo.slice(start, start + SHIP_INFO_CARGO_ROWS_PER_PAGE)
+    rows: view.cargo.slice(start, start + rowsPerPage)
   };
 }
 

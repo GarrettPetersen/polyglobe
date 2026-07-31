@@ -946,6 +946,7 @@ import { controlTextLayout, equalWidthControlRects } from "./controlTextLayout.j
 import {
   INTERACTION_INPUT,
   WORLD_POINTER_ACTION,
+  captainMenuShortcutAvailable,
   dispatchSailingPointerAction,
   interactionInputOwner,
   worldPointerAction
@@ -1123,6 +1124,7 @@ import {
 } from "./dayNightPalette.js";
 import { createWorldWebGL2Renderer } from "./worldWebglRenderer.js";
 import {
+  SHIP_INFO_CARGO_ROWS_PER_PAGE,
   SHIP_PAPER_ROW_CONTENT_INSET,
   compactShipMeterLayout,
   createShipComparisonView,
@@ -1276,7 +1278,7 @@ import {
   formatWaypointLabel,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
-  waypointArrowMaxY
+  waypointPointOverlapsReservedRects
 } from "./waypointArrowUi.js";
 import {
   activeNamedTravelMission,
@@ -2843,6 +2845,11 @@ window.addEventListener("keydown", (event) => {
   }
   if (goldTreasureSequence) {
     event.preventDefault();
+    return;
+  }
+  if (keyAction === KEY_ACTION.CAPTAIN_MENU && captainMenuButtonIsAvailable()) {
+    event.preventDefault();
+    openCaptainMenu();
     return;
   }
   if (dispatchWorldOverlayKey(event)) return;
@@ -8396,7 +8403,17 @@ function stepShipInfoPage(direction) {
     dirty = true;
     return;
   }
-  const page = shipInfoCargoPage(view, shipInfoMenu.cargoPage + direction);
+  const panel = captainNotebookPagePanel({
+    x: SHIP_INFO_PANEL_X,
+    y: SHIP_INFO_PANEL_Y,
+    w: SHIP_INFO_PANEL_W,
+    h: SHIP_INFO_PANEL_H
+  });
+  const page = shipInfoCargoPage(
+    view,
+    shipInfoMenu.cargoPage + direction,
+    shipInfoCargoRowsPerPage(panel)
+  );
   shipInfoMenu.cargoPage = page.page;
   dirty = true;
 }
@@ -10932,6 +10949,12 @@ function handlePointerDown(event) {
     openAchievementsMenu(achievementId);
     return;
   }
+  if (captainMenuButtonIsAvailable() && pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openCaptainMenu();
+    return;
+  }
   if (dispatchWorldOverlayPointerDown(event, point)) return;
   const statusTarget = statusHudTooltipTargetForPoint(point);
   if (statusTarget) {
@@ -10943,12 +10966,6 @@ function handlePointerDown(event) {
   if (selectedStatusHudTooltipId !== null) {
     selectedStatusHudTooltipId = null;
     dirty = true;
-  }
-  if (!dialogueState && pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openCaptainMenu();
-    return;
   }
   if (!dialogueState) {
     const waypoint = waypointArrowAtPoint(point);
@@ -13374,6 +13391,19 @@ function nearestCityToPosition(position) {
   }
   if (!nearest) throw new Error("White whale rumor could not find a reference city");
   return nearest;
+}
+
+function whiteWhaleSightingReferenceCityName(destination) {
+  if (
+    destination?.kind !== CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING ||
+    !Number.isFinite(destination.latitudeDeg) ||
+    !Number.isFinite(destination.longitudeDeg)
+  ) {
+    throw new Error("White whale waypoint requires a valid sighting destination");
+  }
+  return cityLabelText(nearestCityToPosition(
+    latLonToDirection(destination.latitudeDeg, destination.longitudeDeg)
+  ));
 }
 
 function approximateWhiteWhaleSightingLocation(position, interactionKey) {
@@ -17394,7 +17424,7 @@ function handleControllerAction(action) {
       closeCaptainNotebook();
       return;
     }
-    if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) openCaptainMenu();
+    if (captainMenuButtonIsAvailable()) openCaptainMenu();
     else dispatchControllerKey("Escape");
     return;
   }
@@ -24130,7 +24160,7 @@ function render(nowMs) {
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay(nowMs);
-  if (!portWaitState) drawCaptainMenuButton();
+  drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
@@ -25943,14 +25973,7 @@ function getOptionsButtonRect() {
 }
 
 function drawCaptainMenuButton() {
-  if (
-    startMenu ||
-    gameOverReason ||
-    playerIntroModal ||
-    captainAlertModal ||
-    dialogueState ||
-    captainMenu.isOpen
-  ) return;
+  if (!captainMenuButtonIsAvailable()) return;
   const rect = getCaptainMenuButtonRect();
   captainMenu.buttonRect = rect;
   const hovered = !menusAreOpen() && pointInRect(captainMenu.hoverPoint, expandedRect(rect, 3));
@@ -25972,6 +25995,15 @@ function drawCaptainMenuButton() {
   ctx.fillRect(menuLineX, menuLineY + 5, 15, 2);
   ctx.fillRect(menuLineX, menuLineY + 10, 15, 2);
   ctx.restore();
+}
+
+function captainMenuButtonIsAvailable() {
+  return captainMenuShortcutAvailable({
+    blockingMenu: menusAreOpen(),
+    blockingModal: Boolean(startMenu || gameOverReason || playerIntroModal || captainAlertModal),
+    dialogueActive: Boolean(dialogueState),
+    admittedToPort: dialogueState?.admittedToPort === true
+  });
 }
 
 function drawCaptainMenu(nowMs) {
@@ -26950,10 +26982,11 @@ function campaignNavigationMenuEntry(destination) {
     };
   }
   if (destination.kind === CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING) {
+    const nearbyCityName = whiteWhaleSightingReferenceCityName(destination);
     return {
       id: "campaign:white-whale-sighting",
-      destinationName: "White whale sighting",
-      reason: "WHITE WHALE LAST SEEN",
+      destinationName: `White whale sighting near ${nearbyCityName}`,
+      reason: `LAST SEEN NEAR ${nearbyCityName.toUpperCase()}`,
       style: CAMPAIGN_NAVIGATION_STYLE,
       targetVector: latLonToDirection(destination.latitudeDeg, destination.longitudeDeg),
       optionalWaypointId: null
@@ -27282,7 +27315,11 @@ function drawShipInfoMenu() {
     h: SHIP_INFO_PANEL_H
   });
   const view = createShipInfoView(ship, gameState);
-  const cargoPage = shipInfoCargoPage(view, shipInfoMenu.cargoPage);
+  const cargoPage = shipInfoCargoPage(
+    view,
+    shipInfoMenu.cargoPage,
+    shipInfoCargoRowsPerPage(panel)
+  );
   shipInfoMenu.cargoPage = cargoPage.page;
   shipInfoMenu.paperRowRects = [];
   shipInfoMenu.paperDetailBackRect = null;
@@ -27542,8 +27579,7 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, cargoY, panel.w - 20, 1);
   drawOptionsText("CARGO MANIFEST", panel.x + 12, cargoY + 6, { color: PIRATE_MENU_INK });
-  const maxRows = 3;
-  cargoPage.rows.slice(0, maxRows).forEach((row, index) => {
+  cargoPage.rows.forEach((row, index) => {
     const rowY = cargoY + 23 + index * 17;
     drawGameIcon(tradeGoodIconId(row.id), panel.x + 12, rowY - 4);
     drawOptionsText(
@@ -27652,8 +27688,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   if (cargoPage.rows.length === 0) {
     drawOptionsText("THE HOLD IS EMPTY", labelX, y, { color: PIRATE_MENU_INK_MUTED });
   } else {
-    const maxRows = Math.max(1, Math.floor((panel.y + panel.h - 22 - y) / 17));
-    cargoPage.rows.slice(0, maxRows).forEach((row, index) => {
+    cargoPage.rows.forEach((row, index) => {
       const rowY = y + index * 17;
       drawGameIcon(tradeGoodIconId(row.id), labelX, rowY - 4);
       drawOptionsText(
@@ -27667,6 +27702,16 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     });
   }
   drawCompactShipPager(panel, cargoPage.page, cargoPage.pageCount, "MANIFEST");
+}
+
+function shipInfoCargoRowsPerPage(panel) {
+  if (!panel || !Number.isFinite(panel.w) || !Number.isFinite(panel.h)) {
+    throw new Error("Ship cargo manifest requires a finite panel");
+  }
+  if (panel.w >= 400) return SHIP_INFO_CARGO_ROWS_PER_PAGE;
+  if (panel.h < 300) return 3;
+  const cargoRowsY = panel.y + 173 + localizedLineHeight(12) * 8;
+  return Math.max(1, Math.floor((panel.y + panel.h - 22 - cargoRowsY) / 17));
 }
 
 function drawCompactShipRating(label, rating, x, valueX, y) {
@@ -35601,7 +35646,7 @@ function drawOneCampaignGoalDestinationArrow(destination, nowMs) {
     const targetVector = latLonToDirection(destination.latitudeDeg, destination.longitudeDeg);
     drawWorldTargetArrow({
       id: "campaign:white-whale-sighting",
-      label: "White whale last seen",
+      label: `White whale last seen near ${whiteWhaleSightingReferenceCityName(destination)}`,
       targetVector,
       localPoint: localPointForGlobeVector(targetVector),
       localYOffset: -10,
@@ -35765,14 +35810,18 @@ function drawWorldTargetArrow({
   nowMs,
   style
 }) {
-  const maxY = currentWaypointArrowMaxY();
+  const reservedRects = currentWaypointArrowReservedRects();
+  const reservedClearance = QUEST_ARROW_SIZE_PX + QUEST_ARROW_CONTROL_GAP_PX;
   if (localPoint) {
     const offset = chartOffsetPixels(chart);
     const point = {
       x: Math.round(localPoint.x + offset.x),
       y: Math.round(localPoint.y + offset.y + localYOffset)
     };
-    if (pointWithinWaypointBounds(point, QUEST_ARROW_EDGE_MARGIN_PX, maxY)) {
+    if (
+      pointWithinWaypointBounds(point, QUEST_ARROW_EDGE_MARGIN_PX, SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX) &&
+      !waypointPointOverlapsReservedRects(point, reservedRects, reservedClearance)
+    ) {
       const direction = { x: 0, y: 1 };
       const hitRect = drawQuestArrowGlyph(point, direction, nowMs, style);
       registerWaypointArrow({ id, label, targetVector, point, direction, hitRect });
@@ -35787,31 +35836,34 @@ function drawWorldTargetArrow({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     margin: QUEST_ARROW_EDGE_MARGIN_PX,
-    maxY
+    reservedRects,
+    clearance: reservedClearance
   });
   const hitRect = drawQuestArrowGlyph(point, direction, nowMs, style);
   registerWaypointArrow({ id, label, targetVector, point, direction, hitRect });
 }
 
-function currentWaypointArrowMaxY() {
-  const controlRects = [
+function currentWaypointArrowReservedRects() {
+  const reservedRects = [
     anchorButtonRect,
     scavengeButtonRect,
     interactionButtonRect
   ].filter(Boolean);
-  if (portWaitButtonRect) {
-    controlRects.push({
-      ...portWaitButtonRect,
-      y: portWaitButtonRect.y - 17,
-      h: portWaitButtonRect.h + 17
+  if (portWaitButtonRect) reservedRects.push(portWaitButtonRect);
+  if (gameState && ship && !gameOverReason) {
+    const panel = survivalHudLayout().panel;
+    reservedRects.push({ x: panel.x, y: panel.y, w: panel.width, h: panel.height });
+  }
+  if (minimapShouldBeVisible()) {
+    reservedRects.push({
+      x: MINIMAP_X - 1,
+      y: MINIMAP_Y - 1,
+      w: MINIMAP_W + 2,
+      h: MINIMAP_H + 2
     });
   }
-  return waypointArrowMaxY({
-    screenHeight: SCREEN_H,
-    margin: QUEST_ARROW_EDGE_MARGIN_PX,
-    controlRects,
-    gap: QUEST_ARROW_CONTROL_GAP_PX
-  });
+  if (captainMenuButtonIsAvailable()) reservedRects.push(getCaptainMenuButtonRect());
+  return reservedRects;
 }
 
 function registerWaypointArrow({ id, label, targetVector, point, direction, hitRect }) {

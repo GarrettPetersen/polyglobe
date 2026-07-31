@@ -5,7 +5,8 @@ import {
   formatWaypointLabel,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
-  waypointArrowMaxY
+  waypointArrowMaxY,
+  waypointPointOverlapsReservedRects
 } from "./waypointArrowUi.js";
 
 test("bottom waypoint arrows stop above reserved action controls", () => {
@@ -38,6 +39,33 @@ test("diagonal waypoint arrows still choose the first reachable safe edge", () =
   });
   assert.equal(point.y, 215);
   assert.ok(point.x < 440);
+});
+
+test("waypoint arrows slide along the viewport edge around HUD panels", () => {
+  const reservedRects = [
+    { x: 0, y: 0, w: 130, h: 58 },
+    { x: 190, y: 220, w: 180, h: 36 }
+  ];
+  const topLeft = waypointArrowEdgePoint({
+    direction: { x: -1, y: -1 },
+    screenWidth: 455,
+    screenHeight: 256,
+    margin: 15,
+    reservedRects,
+    clearance: 8
+  });
+  const bottom = waypointArrowEdgePoint({
+    direction: { x: 0, y: 1 },
+    screenWidth: 455,
+    screenHeight: 256,
+    margin: 15,
+    reservedRects,
+    clearance: 8
+  });
+  assert.equal(waypointPointOverlapsReservedRects(topLeft, reservedRects, 8), false);
+  assert.equal(waypointPointOverlapsReservedRects(bottom, reservedRects, 8), false);
+  assert.ok(topLeft.x > 138 || topLeft.y > 66);
+  assert.ok(bottom.x < 182 || bottom.x > 378);
 });
 
 test("waypoint arrow geometry includes a generous pointer hitbox", () => {

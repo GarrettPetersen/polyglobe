@@ -86,7 +86,7 @@ export const TRADE_GOODS = Object.freeze([
   good(BEAVER_PELTS_GOOD_ID, "Beaver Pelts", 120, "luxury"),
   good("cheese", "Cheese", 14, "food"),
   good(WINE_GOOD_ID, "Wine", 18, "drink"),
-  good("olive-oil", "Olive Oil", 16, "food"),
+  good("olive-oil", "Olive Oil", 16, "food", { initialImportStockRatio: 0 }),
   good("salt", "Salt", 12, "staple", { unitSize: 2 }),
   good("sugar", "Sugar", 20, "food"),
   good("timber", "Timber", 14, "material", { unitSize: 4 }),

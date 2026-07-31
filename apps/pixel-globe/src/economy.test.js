@@ -214,6 +214,21 @@ test("New World production follows geography instead of city sprite style", () =
   assert.equal(mexicoCity.get("sugar").productionPerDay, 0);
 });
 
+test("Chinese ports do not begin a voyage with Mediterranean olive oil imports", () => {
+  const ports = ["Guangzhou", "Wuhan", "Nanjing"].map((cityName, index) => {
+    const city = CITY_CATALOG.find((candidate) => candidate.city === cityName);
+    assert.ok(city, `missing city catalog record for ${cityName}`);
+    return { ...city, tileId: 17000 + index };
+  });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  for (const port of ports) {
+    const oliveOil = marketByGood(economy, port).get("olive-oil");
+    assert.equal(oliveOil.productionPerDay, 0, port.city);
+    assert.equal(oliveOil.stock, 0, port.city);
+    assert.equal(oliveOil.listedForSale, false, port.city);
+  }
+});
+
 test("1522 bullion exports come from named American and African gateways", () => {
   const mexicoCity = port(80, "Mexico City", "Mexico", "mesoamerican", 100000);
   const tezcoco = port(81, "Tezcoco", "Mexico", "mesoamerican", 30000);

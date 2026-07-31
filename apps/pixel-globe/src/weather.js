@@ -288,6 +288,13 @@ export function windAtLatLonDeg(latDeg, lonDeg, subsolarLatDeg, options = {}) {
   const noiseStrength = options.noiseStrength ?? 0.32;
   const effLat = effectiveLatForSeason(latDeg, subsolarLatDeg);
   let { directionRad, strength } = baseWindAtLat(effLat);
+  ({ directionRad, strength } = southChinaSeaMonsoonWind({
+    latDeg,
+    lonDeg,
+    simMinute,
+    directionRad,
+    strength
+  }));
   const directionJitter = coherentSignedWindNoise(
     seed,
     latDeg,
@@ -461,6 +468,38 @@ function baseWindAtLat(latDeg) {
 
 function effectiveLatForSeason(latDeg, subsolarLatDeg) {
   return latDeg - subsolarLatDeg * 0.4;
+}
+
+function southChinaSeaMonsoonWind({
+  latDeg,
+  lonDeg,
+  simMinute,
+  directionRad,
+  strength
+}) {
+  const longitude = normalizeLongitudeDeg(lonDeg);
+  const latitudeWeight = smoothstep(-6, 5, latDeg) * (1 - smoothstep(24, 31, latDeg));
+  const longitudeWeight = smoothstep(95, 105, longitude) * (1 - smoothstep(122, 132, longitude));
+  const spatialWeight = latitudeWeight * longitudeWeight;
+  if (spatialWeight <= 0) return { directionRad, strength };
+
+  const dayOfYear = positiveModulo(simMinute, WIND_YEAR_MINUTES) / WEATHER_MINUTES_PER_DAY;
+  const summerWeight = smoothstep(112, 160, dayOfYear) * (1 - smoothstep(270, 315, dayOfYear));
+  const winterWeight = Math.max(
+    1 - smoothstep(45, 105, dayOfYear),
+    smoothstep(290, 335, dayOfYear)
+  );
+  const summerInfluence = spatialWeight * summerWeight;
+  const winterInfluence = spatialWeight * winterWeight;
+  directionRad = lerpAngleRad(directionRad, -Math.PI * 0.75, summerInfluence);
+  strength = lerp(strength, 0.52, summerInfluence);
+  directionRad = lerpAngleRad(directionRad, Math.PI * 0.25, winterInfluence);
+  strength = lerp(strength, 0.46, winterInfluence);
+  return { directionRad, strength };
+}
+
+function normalizeLongitudeDeg(longitudeDeg) {
+  return positiveModulo(longitudeDeg + 180, 360) - 180;
 }
 
 function clamp(value, min, max) {

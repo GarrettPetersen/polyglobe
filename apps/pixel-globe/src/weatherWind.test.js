@@ -29,6 +29,24 @@ test("coherent wind noise changes smoothly across nearby positions and times", (
   assert.ok(Math.abs(start.strength - nearby.strength) < 0.02);
 });
 
+test("South China Sea winds reverse with the historical summer monsoon", () => {
+  const summer = windAtLatLonDeg(15, 115, 23, {
+    seed: 1,
+    simMinute: 195 * 1440,
+    noiseDirectionRad: 0,
+    noiseStrength: 0
+  });
+  const winter = windAtLatLonDeg(15, 115, -20, {
+    seed: 1,
+    simMinute: 15 * 1440,
+    noiseDirectionRad: 0,
+    noiseStrength: 0
+  });
+
+  assert.ok(Math.abs(angleDelta(summer.directionRad, -Math.PI * 0.75)) < 0.12);
+  assert.ok(Math.abs(angleDelta(winter.directionRad, Math.PI * 0.25)) < 0.12);
+});
+
 function angleDelta(from, to) {
   return Math.atan2(Math.sin(to - from), Math.cos(to - from));
 }
