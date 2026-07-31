@@ -112,7 +112,7 @@ async function recordScenario(browser, scenarioId) {
   const audioPeakDb = audibleAudioPeakDb(
     sfxPath,
     scenarioId,
-    sidecar.scenario.sequence.kind === "sail"
+    captureSequenceAllowsSilence(sidecar.scenario.sequence)
   );
   encodeNativeTrailerWebm(frameDir, sfxPath, videoPath, durationSeconds);
   encodeTrailerMp4(frameDir, sfxPath, mp4Path, captureFormat, durationSeconds);
@@ -176,7 +176,7 @@ async function loadExistingTrailerManifest() {
       audioPeakDb: audibleAudioPeakDb(
         sfxPath,
         scenarioId,
-        sidecar.scenario.sequence.kind === "sail"
+        captureSequenceAllowsSilence(sidecar.scenario.sequence)
       ),
       eventsPath
     });
@@ -336,12 +336,13 @@ function encodeNativeTrailerWebm(frameDir, sfxInput, output, durationSeconds) {
 
 function renderCaptureSfx(sidecar, output, scenarioId) {
   const events = sidecar.events.filter((event) => event.type === "capture-sfx");
-  const expectsSilence = sidecar.scenario.sequence.kind === "sail";
-  if (expectsSilence && events.length > 0) {
+  const mustBeSilent = captureSequenceMustBeSilent(sidecar.scenario.sequence);
+  const allowsSilence = captureSequenceAllowsSilence(sidecar.scenario.sequence);
+  if (mustBeSilent && events.length > 0) {
     throw new Error(`${scenarioId} must be silent but emitted ${events.length} SFX events`);
   }
   if (events.length === 0) {
-    if (!expectsSilence) throw new Error(`${scenarioId} emitted no deterministic SFX events`);
+    if (!allowsSilence) throw new Error(`${scenarioId} emitted no deterministic SFX events`);
     renderSilentCaptureSfx(output, sidecar.durationMs / 1000);
     return;
   }
@@ -455,7 +456,7 @@ function verifyFeaturedSfxAudio(sidecar, audioPath, scenarioId) {
     featuredEvents.push(...sidecar.events.filter((event) => (
       event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.coin
     )));
-  } else if (sequence.kind === "fish") {
+  } else if (sequence.kind === "fish" || (sequence.kind === "panda" && sequence.variant === "fish")) {
     featuredEvents.push(...sidecar.events.filter((event) => (
       event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.fishingNet
     )));
@@ -538,7 +539,7 @@ function verifySidecar(sidecar, scenarioId, format) {
 function verifyFeaturedSfx(sidecar, scenarioId) {
   const sequence = sidecar.scenario.sequence;
   const sfxEvents = sidecar.events.filter((event) => event.type === "capture-sfx");
-  if (sequence.kind === "sail") {
+  if (captureSequenceMustBeSilent(sequence)) {
     if (sfxEvents.length !== 0) {
       throw new Error(`${scenarioId} sailing montage emitted unwanted SFX`);
     }
@@ -556,7 +557,7 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
       );
     }
   }
-  if (sequence.kind === "fish") {
+  if (sequence.kind === "fish" || (sequence.kind === "panda" && sequence.variant === "fish")) {
     const netSounds = sfxEvents.filter((event) => event.data?.assetPath === FEATURED_SFX.fishingNet);
     if (netSounds.length === 0) {
       throw new Error(`${scenarioId} emitted no fishing-net SFX`);
@@ -601,6 +602,16 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
       }
     }
   }
+}
+
+function captureSequenceMustBeSilent(sequence) {
+  return sequence.kind === "sail";
+}
+
+function captureSequenceAllowsSilence(sequence) {
+  return captureSequenceMustBeSilent(sequence) || (
+    sequence.kind === "panda" && ["sail", "port-reaction", "naturalist"].includes(sequence.variant)
+  );
 }
 
 async function assertServerReady(baseUrl) {

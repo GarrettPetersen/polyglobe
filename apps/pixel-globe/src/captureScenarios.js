@@ -441,6 +441,104 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("portugal", "caravel", 18.5, 39.5, 330),
     world: captureWorld(130, 12, 20, 14400),
     sequence: trailerSequence("survive", "dehydration", { durationSeconds: 9 })
+  }),
+  "trailer-panda-sail-east-china": trailerScenario({
+    id: "trailer-panda-sail-east-china",
+    title: "Sailing the East China Sea Before Meeting the Panda",
+    seed: "trailer-panda-sail-east-china-v1",
+    player: capturePlayer("ming", "medium-junk", 28.4, 123.0, 90),
+    world: captureWorld(118, 7, 10),
+    sequence: trailerSequence("panda", "sail", {
+      durationSeconds: 4.5,
+      beamSide: "starboard",
+      pandaAboard: false
+    })
+  }),
+  "trailer-panda-sail-south-china": trailerScenario({
+    id: "trailer-panda-sail-south-china",
+    title: "Sailing the South China Sea Before Meeting the Panda",
+    seed: "trailer-panda-sail-south-china-v1",
+    player: capturePlayer("ming", "medium-junk", 18.5, 113.5, 60),
+    world: captureWorld(104, 17, 35),
+    sequence: trailerSequence("panda", "sail", {
+      durationSeconds: 4.5,
+      beamSide: "port",
+      pandaAboard: false
+    })
+  }),
+  "trailer-panda-sail-seto": trailerScenario({
+    id: "trailer-panda-sail-seto",
+    title: "Panda Aboard in the Seto Inland Sea",
+    seed: "trailer-panda-sail-seto-v1",
+    player: capturePlayer("ming", "medium-junk", 34.3, 133.1, 270),
+    world: captureWorld(196, 16, 40),
+    sequence: trailerSequence("panda", "sail", {
+      durationSeconds: 4.5,
+      beamSide: "port"
+    })
+  }),
+  "trailer-panda-sail-taiwan": trailerScenario({
+    id: "trailer-panda-sail-taiwan",
+    title: "Panda Aboard East of Taiwan",
+    seed: "trailer-panda-sail-taiwan-v1",
+    player: capturePlayer("ming", "medium-junk", 23.5, 122.0, 300),
+    world: captureWorld(184, 11, 25),
+    sequence: trailerSequence("panda", "sail", {
+      durationSeconds: 4.5,
+      beamSide: "starboard"
+    })
+  }),
+  "trailer-panda-encounter": trailerScenario({
+    id: "trailer-panda-encounter",
+    title: "Meet a Panda in Sichuan",
+    seed: "trailer-panda-encounter-v1",
+    player: capturePlayer("ming", "medium-junk", 30.57, 104.07, 270),
+    world: captureWorld(142, 10, 20),
+    sequence: trailerSequence("panda", "encounter", {
+      durationSeconds: 22,
+      cityName: "Chengdu"
+    })
+  }),
+  "trailer-panda-fish-yellow-sea": trailerScenario({
+    id: "trailer-panda-fish-yellow-sea",
+    title: "Fish the Yellow Sea with a Panda Aboard",
+    seed: "trailer-panda-fish-yellow-sea-v1",
+    player: capturePlayer("ming", "medium-junk", 36.0, 124.0, 120),
+    world: captureWorld(168, 9, 15),
+    sequence: trailerSequence("panda", "fish", { durationSeconds: 7 })
+  }),
+  "trailer-panda-port-lisbon": trailerScenario({
+    id: "trailer-panda-port-lisbon",
+    title: "A Lisbon Factor Meets the Panda",
+    seed: "trailer-panda-port-lisbon-v1",
+    player: capturePlayer("ming", "medium-junk", 38.72, -9.14, 45),
+    world: captureWorld(224, 12, 30),
+    sequence: trailerSequence("panda", "port-reaction", {
+      durationSeconds: 8,
+      cityName: "Lisbon"
+    })
+  }),
+  "trailer-panda-port-nanjing": trailerScenario({
+    id: "trailer-panda-port-nanjing",
+    title: "A Nanjing Factor Meets the Panda",
+    seed: "trailer-panda-port-nanjing-v1",
+    player: capturePlayer("ming", "medium-junk", 32.06, 118.79, 315),
+    world: captureWorld(240, 14, 5),
+    sequence: trailerSequence("panda", "port-reaction", {
+      durationSeconds: 8,
+      cityName: "Nanjing"
+    })
+  }),
+  "trailer-panda-naturalist": trailerScenario({
+    id: "trailer-panda-naturalist",
+    title: "The Naturalist Makes an Offer for the Panda",
+    seed: "trailer-panda-naturalist-v1",
+    player: capturePlayer("ming", "medium-junk", 30.27, 120.16, 225),
+    world: captureWorld(266, 15, 20),
+    sequence: trailerSequence("panda", "naturalist", {
+      durationSeconds: 14,
+      cityName: "Hangzhou"
+    })
   })
 });
 
@@ -515,7 +613,7 @@ export function validateCaptureScenario(value) {
 
 function validateCaptureSequence(value) {
   if (!value || typeof value !== "object") throw new Error("Capture sequence must be an object");
-  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive"].includes(value.kind)) {
+  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda"].includes(value.kind)) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
@@ -529,7 +627,8 @@ function validateCaptureSequence(value) {
     fight: ["encounterId"],
     pillage: ["cityName"],
     colonize: ["cityName"],
-    survive: []
+    survive: [],
+    panda: []
   };
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
   if (value.kind === "trade") {
@@ -537,6 +636,21 @@ function validateCaptureSequence(value) {
   }
   if (value.kind === "sail" && !["port", "starboard"].includes(value.beamSide)) {
     throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
+  }
+  if (value.kind === "panda") {
+    if (!["encounter", "sail", "fish", "port-reaction", "naturalist"].includes(value.variant)) {
+      throw new Error(`Invalid panda capture variant: ${value.variant}`);
+    }
+    if (["encounter", "port-reaction", "naturalist"].includes(value.variant)) {
+      requiredString(value.cityName, "panda capture city name");
+    }
+    if (value.variant === "sail" && !["port", "starboard"].includes(value.beamSide)) {
+      throw new Error(`Invalid panda capture beam side: ${value.beamSide}`);
+    }
+    if (value.variant === "sail" && value.pandaAboard !== undefined &&
+        typeof value.pandaAboard !== "boolean") {
+      throw new Error("Panda capture aboard state must be boolean");
+    }
   }
   if (value.sailingTarget !== undefined) {
     if (!value.sailingTarget || typeof value.sailingTarget !== "object") {

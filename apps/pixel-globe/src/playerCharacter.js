@@ -205,6 +205,7 @@ export function playerStartAreaForPort(port) {
   if (port.cityType === "islamic-desert") {
     if (ISLAMIC_MEDITERRANEAN_FACTIONS.has(faction.id)) return "mediterranean";
     if (INDIAN_FACTIONS.has(faction.id)) return "india";
+    if (EUROPEAN_FACTIONS.has(faction.id)) return "mediterranean";
     throw new Error(
       `Sovereign Islamic-desert port has no player start area: ` +
       `${port.displayCity || port.city} (${faction.id})`

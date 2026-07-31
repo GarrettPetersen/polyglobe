@@ -65,8 +65,10 @@ test("combat benchmark stages a damaged merchant amid eastern Mediterranean figh
   assert.ok(scenario.encounters.some((encounter) => encounter.role === "pirate"));
 });
 
-test("the trailer roster includes feature pairs and eight fast sailing shots", () => {
-  const trailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-"));
+test("the general trailer roster includes feature pairs and eight fast sailing shots", () => {
+  const trailerIds = captureScenarioIds().filter((id) => (
+    id.startsWith("trailer-") && captureScenarioFromSearch(`?capture=${id}`).sequence.kind !== "panda"
+  ));
   assert.equal(trailerIds.length, 24);
   const counts = new Map();
   for (const id of trailerIds) {
@@ -85,6 +87,24 @@ test("the trailer roster includes feature pairs and eight fast sailing shots", (
     colonize: 2,
     survive: 2
   });
+});
+
+test("the landscape panda trailer has new b-roll, encounter, fishing, reactions, and naturalist scenes", () => {
+  const pandaIds = captureScenarioIds().filter((id) => id.startsWith("trailer-panda-"));
+  assert.equal(pandaIds.length, 9);
+  const captures = pandaIds.map((id) => captureScenarioFromSearch(`?capture=${id}`));
+  assert.deepEqual(
+    Object.fromEntries([...new Set(captures.map((capture) => capture.sequence.variant))].map((variant) => [
+      variant,
+      captures.filter((capture) => capture.sequence.variant === variant).length
+    ])),
+    { sail: 4, encounter: 1, fish: 1, "port-reaction": 2, naturalist: 1 }
+  );
+  assert.ok(captures.every((capture) => capture.player.factionId === "ming"));
+  assert.ok(captures.every((capture) => capture.player.shipSlug === "medium-junk"));
+  assert.equal(captures.find((capture) => capture.sequence.variant === "encounter").sequence.cityName, "Chengdu");
+  assert.equal(captures.filter((capture) => capture.sequence.variant === "sail" &&
+    capture.sequence.pandaAboard === false).length, 2);
 });
 
 test("fast sailing trailer shots stage distinct ships on validated beam reaches", () => {

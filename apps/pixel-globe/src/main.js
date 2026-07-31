@@ -7442,6 +7442,8 @@ function stageCaptureSequence() {
     stageCaptureColonization(sequence);
   } else if (sequence.kind === "survive") {
     stageCaptureSurvival(sequence);
+  } else if (sequence.kind === "panda") {
+    stageCapturePanda(sequence);
   } else {
     throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
   }
@@ -7480,6 +7482,7 @@ function updateCaptureDirectorFrame(nowMs) {
   else if (sequence.kind === "pillage") updateCapturePillage(sequence);
   else if (sequence.kind === "colonize") updateCaptureColonization(sequence);
   else if (sequence.kind === "survive") updateCaptureSurvival(sequence);
+  else if (sequence.kind === "panda") updateCapturePanda(sequence);
   else throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
 
   if (!captureDirector.stopping && captureDirectorComplete(captureDirector)) {
@@ -7687,6 +7690,91 @@ function updateCaptureSurvival(sequence) {
     emitCaptureEvent("capture-beat", { action: "fresh-water-empty" });
   }
   if (captureDirector.elapsedSeconds >= 1.0 && captainAlertModal) closeCaptainAlertModal();
+}
+
+function updateCapturePanda(sequence) {
+  if (sequence.variant === "sail") {
+    if (captureCue("panda-sailing", 0.1)) {
+      emitCaptureEvent("capture-beat", {
+        action: "sail-with-panda",
+        shipSlug: ship.typeSlug,
+        beamSide: sequence.beamSide
+      });
+    }
+    return;
+  }
+  if (sequence.variant === "fish") {
+    if (!captureCue("panda-fishing", 1.0)) return;
+    const call = activeFishCall();
+    if (!call) throw new Error("Panda trailer fishing ground has no fish in reach");
+    if (!catchFishAtFishery(call)) throw new Error("Panda trailer fishing cast could not start");
+    fishingAction.catchSucceeded = true;
+    emitCaptureEvent("capture-beat", { action: "fish-with-panda", species: call.label });
+    return;
+  }
+  if (sequence.variant === "encounter") {
+    if (captureCue("meet-panda", 1.0)) {
+      if (!recordAnimalEncounter(gameState.memory.animals, "panda")) {
+        throw new Error("Panda trailer could not record the panda encounter");
+      }
+      presentAnchoredAnimalEncounter(ANIMAL_CATALOG_BY_ID.get("panda"));
+      emitCaptureEvent("capture-beat", { action: "meet-panda", city: sequence.cityName });
+    }
+    for (const [cueId, atSeconds] of [
+      ["panda-call-read", 4.0],
+      ["panda-commentary-read", 7.0],
+      ["panda-reaction-read", 10.0]
+    ]) {
+      if (captureCue(cueId, atSeconds)) closeRequiredCaptureAlert(cueId);
+    }
+    if (captureCue("welcome-panda", 13.0)) {
+      if (captainAlertModal?.kind !== "choice") {
+        throw new Error("Panda trailer recruitment choice did not open");
+      }
+      activateCaptainAlertChoice();
+      emitCaptureEvent("capture-beat", { action: "welcome-panda-aboard" });
+    }
+    if (captureCue("panda-aboard-call-read", 16.3)) {
+      closeRequiredCaptureAlert("panda-aboard-call-read");
+    }
+    return;
+  }
+  if (sequence.variant === "port-reaction") {
+    if (captureCue("panda-port-reaction", 0.8)) {
+      const cityCall = capturePortCallByName(sequence.cityName);
+      if (!maybeOpenAnimalCompanionNpcReaction(`capture:panda:${sequence.cityName}`, cityCall.character)) {
+        throw new Error(`Panda trailer could not open the ${sequence.cityName} reaction`);
+      }
+      emitCaptureEvent("capture-beat", { action: "panda-port-reaction", city: sequence.cityName });
+    }
+    if (captureCue("panda-port-line-read", 4.4)) {
+      closeRequiredCaptureAlert("panda-port-line-read");
+    }
+    return;
+  }
+  if (sequence.variant === "naturalist") {
+    if (captureCue("naturalist-offer", 0.8)) {
+      const cityCall = capturePortCallByName(sequence.cityName);
+      if (!maybeOpenNaturalistPortDialogue(cityCall)) {
+        throw new Error("Panda trailer could not open the naturalist offer");
+      }
+      emitCaptureEvent("capture-beat", { action: "naturalist-offers-for-panda", city: sequence.cityName });
+    }
+    for (const [cueId, atSeconds] of [
+      ["naturalist-intro-read", 4.1],
+      ["panda-naturalist-reply-read", 6.8],
+      ["naturalist-price-read", 10.6]
+    ]) {
+      if (captureCue(cueId, atSeconds)) closeRequiredCaptureAlert(cueId);
+    }
+    return;
+  }
+  throw new Error(`Unknown panda capture variant: ${sequence.variant}`);
+}
+
+function closeRequiredCaptureAlert(cueId) {
+  if (!captainAlertModal) throw new Error(`Capture cue ${cueId} has no alert to advance`);
+  closeCaptainAlertModal();
 }
 
 function captureCue(id, atSeconds) {
@@ -7972,6 +8060,56 @@ function stageCaptureSurvival(sequence) {
   gameState.ship.crew = Math.min(6, gameState.ship.crewCapacity);
   survivalDeprivationTimers.waterNextMinute = weatherClockMinutes + SURVIVAL_DEHYDRATION_INTERVAL_MINUTES;
   syncShipCargoFromGameState();
+}
+
+function stageCapturePanda(sequence) {
+  if (sequence.variant === "encounter") {
+    const city = captureCityByName(sequence.cityName);
+    placeCapturePlayerNearTile(city.tileId);
+    anchored = true;
+    initialAnimalEncounterRollPending = false;
+    gameState.memory.animals.nextRollMinute = weatherClockMinutes + WEATHER_MINUTES_PER_DAY;
+    stopShipMotion();
+    return;
+  }
+
+  if (sequence.pandaAboard !== false) stageCapturePandaAboard();
+  if (sequence.variant === "sail") {
+    stageCaptureSailing(sequence);
+    return;
+  }
+  if (sequence.variant === "fish") {
+    stageCaptureFishingGround();
+    return;
+  }
+  if (sequence.variant === "port-reaction") {
+    placeCapturePlayerNearTile(captureCityByName(sequence.cityName).tileId);
+    return;
+  }
+  if (sequence.variant === "naturalist") {
+    const city = captureCityByName(sequence.cityName);
+    const memory = gameState.memory.quests.naturalist;
+    memory.portTileId = city.tileId;
+    memory.met = true;
+    memory.reportedAnimalIds = [...ANIMAL_CATALOG_BY_ID.keys()];
+    memory.completionRewarded = true;
+    ensureNaturalistCharacter(gameState);
+    placeCapturePlayerNearTile(city.tileId);
+    return;
+  }
+  throw new Error(`Unknown panda capture staging variant: ${sequence.variant}`);
+}
+
+function stageCapturePandaAboard() {
+  if (!gameState.memory.animals.encountered.panda) {
+    if (!recordAnimalEncounter(gameState.memory.animals, "panda")) {
+      throw new Error("Panda trailer could not record the panda encounter");
+    }
+  }
+  if (!aboardAnimalCompanionIds(gameState.memory.animalCompanions).includes("panda")) {
+    beginAnimalCompanionRecruitment(gameState.memory.animalCompanions, "panda");
+    acceptAnimalCompanion(gameState.memory.animalCompanions, "panda", weatherClockMinutes);
+  }
 }
 
 function captureChooseTradeGood(sequence) {
@@ -9576,6 +9714,7 @@ function syncAchievementsFromGameState(event = null) {
 
 function queueAchievementNotices(entries) {
   if (!Array.isArray(entries) || entries.length === 0) return false;
+  if (CAPTURE_SCENARIO?.sequence?.kind === "panda") return false;
   if (entries.length >= ACHIEVEMENT_NOTICE_BATCH_THRESHOLD) {
     achievementNoticeQueue.push({
       heading: `${entries.length} ACHIEVEMENTS UNLOCKED`,
@@ -13476,6 +13615,13 @@ function updateAnchoredAnimalEncounter() {
   if (!animalEntry) return false;
   if (!recordAnimalEncounter(gameState.memory.animals, animalEntry.id)) {
     throw new Error(`Animal encounter repeated within a voyage: ${animalEntry.id}`);
+  }
+  return presentAnchoredAnimalEncounter(animalEntry);
+}
+
+function presentAnchoredAnimalEncounter(animalEntry) {
+  if (!animalEntry || !ANIMAL_CATALOG_BY_ID.has(animalEntry.id)) {
+    throw new Error(`Cannot present unknown animal encounter: ${animalEntry?.id ?? "missing"}`);
   }
   const companionEncounter = ANIMAL_COMPANION_BY_ID.has(animalEntry.id);
   if (companionEncounter) {

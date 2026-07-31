@@ -264,11 +264,13 @@ test("home classification excludes only non-national starts and the intended wor
     port(37, "Mediterranean Port", "Italy", "mediterranean", "venice", 45, 12),
     port(38, "North African Port", "Morocco", "islamic-desert", "morocco", 33, -8),
     port(39, "Persian Port", "Iran", "islamic-desert", "safavid", 28, 52),
+    port(44, "Spanish Tripoli", "Libya", "islamic-desert", "spain", 33, 13),
     port(40, "East Asian Port", "Japan", "east-asian", "japan", 35, 136),
     port(41, "South Asian Port", "India", "south-asian", "gujarat", 22, 73),
     port(42, "Southeast Asian Port", "Thailand", "southeast-asian", "ayutthaya", 14, 101)
   ];
   assert.ok(intendedStarts.every((candidate) => playerStartAreaForPort(candidate) !== null));
+  assert.equal(playerStartAreaForPort(intendedStarts[4]), "mediterranean");
 });
 
 test("Portuguese Asian home ports produce Portuguese captains", () => {

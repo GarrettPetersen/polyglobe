@@ -29,6 +29,8 @@
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",
     "capture:trailer": "node tools/capture-trailer-clips.mjs",
+    "build:panda-trailer": "node tools/trailer/run-python-tool.mjs build-panda-trailer.py",
+    "upload:panda-trailer": "node tools/trailer/upload-panda-trailer.mjs",
     "build:steam-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py",
     "build:steam-page-teaser": "node tools/trailer/run-python-tool.mjs build-steam-page-teaser.py",
     "build:trailer-thumbnail": "node tools/trailer/run-python-tool.mjs build-youtube-thumbnail.py",

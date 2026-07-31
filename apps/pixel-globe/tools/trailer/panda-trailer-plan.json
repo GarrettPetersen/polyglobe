@@ -1,0 +1,20 @@
+{
+  "title": "Marque & Reprisal: Panda Trailer",
+  "clips": [
+    { "source": "panda/trailer-panda-sail-east-china.mp4", "startFrame": 15, "durationFrames": 54 },
+    { "source": "panda/trailer-panda-sail-south-china.mp4", "startFrame": 15, "durationFrames": 54 },
+    { "source": "panda/trailer-panda-encounter.mp4", "startFrame": 0, "durationFrames": 645 },
+    { "source": "panda/trailer-panda-sail-seto.mp4", "startFrame": 15, "durationFrames": 54 },
+    { "source": "panda/trailer-panda-sail-taiwan.mp4", "startFrame": 15, "durationFrames": 54 },
+    { "source": "panda/trailer-panda-fish-yellow-sea.mp4", "startFrame": 0, "durationFrames": 205 },
+    { "source": "panda/trailer-panda-sail-seto.mp4", "startFrame": 78, "durationFrames": 45 },
+    { "source": "panda/trailer-panda-port-lisbon.mp4", "startFrame": 0, "durationFrames": 235 },
+    { "source": "panda/trailer-panda-sail-taiwan.mp4", "startFrame": 82, "durationFrames": 45 },
+    { "source": "panda/trailer-panda-port-nanjing.mp4", "startFrame": 0, "durationFrames": 235 },
+    { "source": "panda/trailer-panda-fish-yellow-sea.mp4", "startFrame": 120, "durationFrames": 70 },
+    { "source": "panda/trailer-panda-naturalist.mp4", "startFrame": 0, "durationFrames": 415 }
+  ],
+  "outroFrames": 150,
+  "musicGain": 0.38,
+  "gameAudioGain": 0.86
+}
