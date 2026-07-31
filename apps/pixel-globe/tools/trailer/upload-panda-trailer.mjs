@@ -12,7 +12,7 @@ const TRAILER = path.join(
   ".captures/panda-trailer/marque-and-reprisal-panda-trailer.mp4"
 );
 const BUCKET = "marque-and-reprisal-press";
-const OBJECT_KEY = "trailers/marque-and-reprisal-panda-trailer-v1.mp4";
+const OBJECT_KEY = "trailers/marque-and-reprisal-panda-trailer-v2.mp4";
 const PUBLIC_URL = `https://downloads.marque-and-reprisal.com/${OBJECT_KEY}`;
 const WRANGLER = path.join(
   REPO_ROOT,
