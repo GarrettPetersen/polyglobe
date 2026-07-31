@@ -1192,10 +1192,13 @@ import {
   DEMO_GIBRALTAR_MESSAGE,
   DEMO_GIBRALTAR_RECOVERY_COORDINATES,
   DEMO_MEDITERRANEAN_SEED,
+  DEMO_VOYAGE_SCOPE_MEDITERRANEAN,
   buildDemoMediterraneanAccessMask,
   demoAccessiblePortsForMask,
   demoNaturalistAnimalIdsForLandfalls,
   demoEscapeRequiresRecovery,
+  demoVoyageScopeForSavedGame,
+  isMediterraneanDemoVoyage,
   navigationDistanceFromAccessMask,
   startMenuEditionLabel
 } from "./demoVoyage.js";
@@ -2594,6 +2597,9 @@ let demoAccessiblePortIds = null;
 let demoNaturalistAnimalIds = null;
 let demoGibraltarRecoveryTileId = null;
 let demoGibraltarWarningArmed = true;
+let demoVoyageScope = BUILD_EDITION_ID === "demo"
+  ? DEMO_VOYAGE_SCOPE_MEDITERRANEAN
+  : null;
 let freshWaterSurfaceMask;
 let stormSystem;
 const stormPassageState = createStormPassageState();
@@ -5807,13 +5813,13 @@ function naturalistPort() {
 
 function naturalistQuestViewForBuild(state = gameState) {
   if (!state) throw new Error("Naturalist quest view requires game state");
-  if (BUILD_EDITION_ID === "demo" && !demoNaturalistAnimalIds) {
+  if (mediterraneanDemoVoyageIsActive() && !demoNaturalistAnimalIds) {
     throw new Error("Mediterranean naturalist roster has not been initialized");
   }
   return naturalistQuestView(
     state.memory.quests.naturalist,
     state.memory.animals,
-    BUILD_EDITION_ID === "demo"
+    mediterraneanDemoVoyageIsActive()
       ? { catalogAnimalIds: demoNaturalistAnimalIds }
       : undefined
   );
@@ -8924,7 +8930,9 @@ async function continueSavedVoyage() {
     closeStartMenu();
     revealMinimapFromChart(chart, chartOffsetPixels(chart));
     saveVoyageNow("continued voyage");
-    if (restoration.recoveredDerivedSystems.length > 0) {
+    if (restoration.grandfatheredWorldwideDemo) {
+      showSurvivalNotice("WORLDWIDE VOYAGE GRANDFATHERED", "good");
+    } else if (restoration.recoveredDerivedSystems.length > 0) {
       showSurvivalNotice("OLD SAVE UPDATED", "good");
     }
   } catch (error) {
@@ -8947,6 +8955,15 @@ async function restoreSavedVoyage(payload) {
     shipStats: stats,
     gameState: restoredGameState
   } = migrateSavedVoyageCore(payload);
+  const restoredDemoVoyageScope = demoVoyageScopeForSavedGame({
+    buildEditionId: BUILD_EDITION_ID,
+    savedScope: payload.demoVoyageScope,
+    savedGameStateVersion: payload.gameState?.version
+  });
+  const grandfatheredWorldwideDemo = BUILD_EDITION_ID === "demo" &&
+    payload.demoVoyageScope === undefined &&
+    restoredDemoVoyageScope !== DEMO_VOYAGE_SCOPE_MEDITERRANEAN;
+  demoVoyageScope = restoredDemoVoyageScope;
   const restoredWorldClock = recoverSavedVoyageWorldClock(payload, restoredGameState);
   if (restoredWorldClock.recoveredDebtClockMinutes > 0) {
     console.warn(
@@ -9160,7 +9177,7 @@ async function restoreSavedVoyage(payload) {
   setBackgroundMusicTrack("ship", { force: true });
   lastAutosaveMs = performance.now();
   dirty = true;
-  return { recoveredDerivedSystems };
+  return { recoveredDerivedSystems, grandfatheredWorldwideDemo };
 }
 
 function restoreSavedDerivedWorld(payload, restoredGameState) {
@@ -9388,6 +9405,7 @@ function saveVoyageNow(reason) {
       anchored,
       survivalDamageTimers: { ...survivalDeprivationTimers }
     };
+    if (demoVoyageScope) payload.demoVoyageScope = demoVoyageScope;
     const snapshotErrors = [];
     addOptionalSaveSnapshot(payload, snapshotErrors, "economy", "world economy", () => (
       snapshotWorldEconomy(worldEconomy)
@@ -12173,7 +12191,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       colonizationApproach: true
     });
   }
-  const colonizationOffer = BUILD_EDITION_ID === "demo"
+  const colonizationOffer = mediterraneanDemoVoyageIsActive()
     ? null
     : colonizationOfferForCity(
       gameState,
@@ -12251,7 +12269,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   }
   const chefOffer = maybeSpawnChefQuest(gameState, cityCall, {
     simMinute,
-    availableIngredientGoodIds: BUILD_EDITION_ID === "demo"
+    availableIngredientGoodIds: mediterraneanDemoVoyageIsActive()
       ? demoAvailableChefIngredientGoodIds()
       : undefined
   });
@@ -12339,12 +12357,13 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
   }
   const report = reportAnimalsToNaturalist(memory, gameState.memory.animals);
   const after = naturalistQuestViewForBuild();
-  const presentation = naturalistQuestPresentation(after, BUILD_EDITION_ID);
-  const demoCompletionNow = BUILD_EDITION_ID === "demo" &&
+  const contentEditionId = currentVoyageContentEditionId();
+  const presentation = naturalistQuestPresentation(after, contentEditionId);
+  const demoCompletionNow = contentEditionId === "demo" &&
     after.complete &&
     gameState.memory.flags.demoNaturalistQuestCompleted !== true;
   if (demoCompletionNow) gameState.memory.flags.demoNaturalistQuestCompleted = true;
-  const completedNow = BUILD_EDITION_ID === "demo" ? demoCompletionNow : report.completedNow;
+  const completedNow = contentEditionId === "demo" ? demoCompletionNow : report.completedNow;
   const framesCompletion = presentation.framesCompletion && completedNow;
   const completionReward = demoCompletionNow && !report.completedNow
     ? NATURALIST_COMPLETION_REWARD
@@ -12627,7 +12646,7 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
     outcome,
     gameState.playerCharacter,
     discoveryCatalogById,
-    { buildEditionId: BUILD_EDITION_ID }
+    { buildEditionId: currentVoyageContentEditionId() }
   );
   const steps = arrivedDrunk
     ? [...drunkenCampaignHomecomingSteps(goal, gameState.playerCharacter), ...ordinarySteps]
@@ -14825,7 +14844,7 @@ function portDialogueContext() {
         worldEconomy.shipyards,
         city,
         sailingDistanceBetweenPorts,
-        demoAccessiblePortIds
+        mediterraneanDemoVoyageIsActive() ? demoAccessiblePortIds : undefined
       )
       : null,
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
@@ -14839,7 +14858,7 @@ function portDialogueContext() {
         city,
         sailingDistanceBetweenPorts,
         undefined,
-        demoAccessiblePortIds
+        mediterraneanDemoVoyageIsActive() ? demoAccessiblePortIds : undefined
       )
       : null,
     passengerOffer: city && dialogueState?.kind === "port"
@@ -16662,8 +16681,16 @@ function initializeDemoMediterraneanNavigation() {
   );
 }
 
+function mediterraneanDemoVoyageIsActive() {
+  return isMediterraneanDemoVoyage(BUILD_EDITION_ID, demoVoyageScope);
+}
+
+function currentVoyageContentEditionId() {
+  return mediterraneanDemoVoyageIsActive() ? "demo" : "full";
+}
+
 function playerAccessiblePortCities() {
-  if (BUILD_EDITION_ID !== "demo") return portCities;
+  if (!mediterraneanDemoVoyageIsActive()) return portCities;
   if (!demoAccessiblePortCities) {
     throw new Error("Mediterranean demo ports have not been initialized");
   }
@@ -16671,7 +16698,7 @@ function playerAccessiblePortCities() {
 }
 
 function demoAvailableChefIngredientGoodIds() {
-  if (BUILD_EDITION_ID !== "demo") return undefined;
+  if (!mediterraneanDemoVoyageIsActive()) return undefined;
   const available = new Set();
   for (const city of playerAccessiblePortCities()) {
     for (const row of portMarket(worldEconomy, city)) {
@@ -16826,7 +16853,7 @@ function updateSailing(dt) {
 
 function recoverEscapedDemoShip() {
   if (
-    BUILD_EDITION_ID !== "demo" ||
+    !mediterraneanDemoVoyageIsActive() ||
     !demoDistanceFromMediterraneanAccess ||
     !demoEscapeRequiresRecovery(
       ship.tileId,
@@ -16846,7 +16873,7 @@ function recoverEscapedDemoShip() {
 }
 
 function handleDemoGibraltarBoundary() {
-  if (BUILD_EDITION_ID !== "demo") return;
+  if (!mediterraneanDemoVoyageIsActive()) return;
   ship.heading = normalizeTangentOrFallback(
     scaleVector(ship.heading, -1),
     ship.position,
@@ -17512,7 +17539,7 @@ function recoverPlayerToNearbyNavigableWater(
     const oceanTileId = nearestTileMatching(previousTileId, (tileId) => (
       tileId !== previousTileId &&
       isShipOceanTile(tileId) &&
-      (BUILD_EDITION_ID !== "demo" || demoMediterraneanAccessMask?.[tileId] === 1) &&
+      (!mediterraneanDemoVoyageIsActive() || demoMediterraneanAccessMask?.[tileId] === 1) &&
       tileHasOffshoreHullClearance(tileId)
     ));
     if (oceanTileId === undefined) {
@@ -17862,13 +17889,13 @@ function attemptShipStep(fromPosition, fromTileId, step) {
 
 function demoShipStepCrossesBoundary(fromTileId, toTileId) {
   if (
-    BUILD_EDITION_ID !== "demo" ||
+    !mediterraneanDemoVoyageIsActive() ||
     !demoMediterraneanAccessMask ||
     fromTileId === toTileId ||
     demoMediterraneanAccessMask[toTileId] === 1
   ) {
     if (
-      BUILD_EDITION_ID === "demo" &&
+      mediterraneanDemoVoyageIsActive() &&
       demoDistanceFromGibraltarBarrier?.[toTileId] >= 4
     ) {
       demoGibraltarWarningArmed = true;
@@ -26142,7 +26169,7 @@ function questJournalEntries() {
 
 function naturalistJournalEntry() {
   const view = naturalistQuestViewForBuild();
-  const presentation = naturalistQuestPresentation(view, BUILD_EDITION_ID);
+  const presentation = naturalistQuestPresentation(view, currentVoyageContentEditionId());
   if (!view.met || (view.complete && presentation.framesCompletion)) return null;
   const port = naturalistPort();
   if (!port) throw new Error("Met naturalist has no port");
@@ -28164,7 +28191,10 @@ function drawDiscoveriesMenu() {
     );
   } else {
     const naturalist = naturalistQuestViewForBuild();
-    const naturalistPresentation = naturalistQuestPresentation(naturalist, BUILD_EDITION_ID);
+    const naturalistPresentation = naturalistQuestPresentation(
+      naturalist,
+      currentVoyageContentEditionId()
+    );
     const naturalistLines = wrapPixelTextAll(
       naturalist.met
         ? naturalistPresentation.reportSummary

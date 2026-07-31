@@ -1,6 +1,9 @@
 export const DEMO_GIBRALTAR_MESSAGE =
   "The full version has many adventures and riches to be found on the high seas.";
 export const DEMO_ESCAPE_GRACE_HEXES = 10;
+export const DEMO_VOYAGE_SCOPE_MEDITERRANEAN = "mediterranean";
+export const DEMO_VOYAGE_SCOPE_WORLDWIDE = "worldwide-grandfathered";
+export const LAST_WORLDWIDE_DEMO_GAME_STATE_VERSION = 51;
 export const DEMO_MEDITERRANEAN_SEED = Object.freeze({ lat: 36, lon: 15 });
 export const DEMO_GIBRALTAR_BARRIER_COORDINATES = Object.freeze([
   Object.freeze({ lat: 35.82, lon: -5.68 }),
@@ -28,6 +31,38 @@ export function demoAccessiblePortsForMask({ ports, accessMask, accessTileIdsFor
     }
     return accessTileIds.some((tileId) => accessMask[tileId] === 1);
   });
+}
+
+export function demoVoyageScopeForSavedGame({
+  buildEditionId,
+  savedScope,
+  savedGameStateVersion
+}) {
+  if (buildEditionId === "full") return null;
+  if (buildEditionId !== "demo") {
+    throw new Error(`Unknown build edition for saved demo voyage: ${buildEditionId}`);
+  }
+  if (savedScope !== undefined) {
+    if (![DEMO_VOYAGE_SCOPE_MEDITERRANEAN, DEMO_VOYAGE_SCOPE_WORLDWIDE].includes(savedScope)) {
+      throw new Error(`Unknown saved demo voyage scope: ${savedScope}`);
+    }
+    return savedScope;
+  }
+  return Number.isInteger(savedGameStateVersion) &&
+    savedGameStateVersion <= LAST_WORLDWIDE_DEMO_GAME_STATE_VERSION
+    ? DEMO_VOYAGE_SCOPE_WORLDWIDE
+    : DEMO_VOYAGE_SCOPE_MEDITERRANEAN;
+}
+
+export function isMediterraneanDemoVoyage(buildEditionId, voyageScope) {
+  if (buildEditionId === "full") return false;
+  if (buildEditionId !== "demo") {
+    throw new Error(`Unknown build edition for demo voyage scope: ${buildEditionId}`);
+  }
+  if (![DEMO_VOYAGE_SCOPE_MEDITERRANEAN, DEMO_VOYAGE_SCOPE_WORLDWIDE].includes(voyageScope)) {
+    throw new Error(`Unknown demo voyage scope: ${voyageScope}`);
+  }
+  return voyageScope === DEMO_VOYAGE_SCOPE_MEDITERRANEAN;
 }
 
 export function startMenuEditionLabel(buildEditionId) {

@@ -6,10 +6,14 @@ import {
 } from "./buildEdition.js";
 import {
   DEMO_ESCAPE_GRACE_HEXES,
+  DEMO_VOYAGE_SCOPE_MEDITERRANEAN,
+  DEMO_VOYAGE_SCOPE_WORLDWIDE,
   buildDemoMediterraneanAccessMask,
   demoAccessiblePortsForMask,
+  demoVoyageScopeForSavedGame,
   demoNaturalistAnimalIdsForLandfalls,
   demoEscapeRequiresRecovery,
+  isMediterraneanDemoVoyage,
   navigationDistanceFromAccessMask,
   startMenuEditionLabel
 } from "./demoVoyage.js";
@@ -22,6 +26,37 @@ test("the checked-in source remains the full edition", () => {
 test("only the demo build labels itself on the start menu", () => {
   assert.equal(startMenuEditionLabel("demo"), "DEMO");
   assert.throws(() => startMenuEditionLabel("preview"), /Unknown build edition/);
+});
+
+test("the last timed worldwide demo save is grandfathered for the rest of its voyage", () => {
+  assert.equal(demoVoyageScopeForSavedGame({
+    buildEditionId: "demo",
+    savedGameStateVersion: 51
+  }), DEMO_VOYAGE_SCOPE_WORLDWIDE);
+  assert.equal(demoVoyageScopeForSavedGame({
+    buildEditionId: "demo",
+    savedGameStateVersion: 52
+  }), DEMO_VOYAGE_SCOPE_MEDITERRANEAN);
+  assert.equal(isMediterraneanDemoVoyage("demo", DEMO_VOYAGE_SCOPE_WORLDWIDE), false);
+  assert.equal(isMediterraneanDemoVoyage("demo", DEMO_VOYAGE_SCOPE_MEDITERRANEAN), true);
+});
+
+test("an explicit grandfathered scope survives later save migrations", () => {
+  assert.equal(demoVoyageScopeForSavedGame({
+    buildEditionId: "demo",
+    savedScope: DEMO_VOYAGE_SCOPE_WORLDWIDE,
+    savedGameStateVersion: 53
+  }), DEMO_VOYAGE_SCOPE_WORLDWIDE);
+  assert.equal(demoVoyageScopeForSavedGame({
+    buildEditionId: "full",
+    savedScope: DEMO_VOYAGE_SCOPE_WORLDWIDE,
+    savedGameStateVersion: 51
+  }), null);
+  assert.throws(() => demoVoyageScopeForSavedGame({
+    buildEditionId: "demo",
+    savedScope: "atlantic",
+    savedGameStateVersion: 53
+  }), /Unknown saved demo voyage scope/);
 });
 
 test("the Mediterranean demo flood fill stops at Gibraltar and includes connected rivers", () => {
