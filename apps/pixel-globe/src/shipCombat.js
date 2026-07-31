@@ -27,6 +27,8 @@ export const PLAYER_ALLY_MIN_REINFORCEMENT_CANNONS = 4;
 export const PLAYER_NPC_ATTACK_GRACE_SECONDS = 60;
 export const COMBAT_MODE_ATTACK = "attack";
 export const COMBAT_MODE_FLEE = "flee";
+const COMBAT_SPATIAL_CELL_SIZE_PX = WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX;
+const COMBAT_SPATIAL_INDEX_MIN_ENTITIES = 49;
 
 export function createShipCombatState() {
   return {
@@ -61,10 +63,14 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     }
   }
 
-  for (let i = 0; i < entities.length; i++) {
-    for (let j = i + 1; j < entities.length; j++) {
-      const a = entities[i];
-      const b = entities[j];
+  const candidateIndexes = nearbyCombatCandidateIndexes(entities);
+  for (let index = 0; index < entities.length; index++) {
+    const candidates = candidateIndexes?.[index] ?? null;
+    const candidateCount = candidates?.length ?? entities.length - index - 1;
+    for (let candidate = 0; candidate < candidateCount; candidate++) {
+      const candidateIndex = candidates?.[candidate] ?? index + candidate + 1;
+      const a = entities[index];
+      const b = entities[candidateIndex];
       if (!withinDistance(a, b, combatDetectionRadius(a, b)) ||
           !validatedShipsTriggerCombat(a, b, relationBetween)) continue;
       const key = engagementKey(a.id, b.id);
@@ -113,6 +119,39 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     });
   }
   return { changed, intents, engagementCount: state.engagements.size, startedEngagements };
+}
+
+function nearbyCombatCandidateIndexes(entities) {
+  if (entities.length < COMBAT_SPATIAL_INDEX_MIN_ENTITIES) return null;
+  const cells = new Map();
+  const cellCoordinates = new Array(entities.length);
+  for (let index = 0; index < entities.length; index++) {
+    const entity = entities[index];
+    const cellX = Math.floor(entity.x / COMBAT_SPATIAL_CELL_SIZE_PX);
+    const cellY = Math.floor(entity.y / COMBAT_SPATIAL_CELL_SIZE_PX);
+    cellCoordinates[index] = { x: cellX, y: cellY };
+    const key = `${cellX},${cellY}`;
+    const occupants = cells.get(key);
+    if (occupants) occupants.push(index);
+    else cells.set(key, [index]);
+  }
+
+  const candidatesByIndex = Array.from({ length: entities.length }, () => []);
+  for (let index = 0; index < entities.length; index++) {
+    const cell = cellCoordinates[index];
+    const nearbyIndices = candidatesByIndex[index];
+    for (let offsetY = -1; offsetY <= 1; offsetY++) {
+      for (let offsetX = -1; offsetX <= 1; offsetX++) {
+        const occupants = cells.get(`${cell.x + offsetX},${cell.y + offsetY}`);
+        if (!occupants) continue;
+        for (const candidateIndex of occupants) {
+          if (candidateIndex > index) nearbyIndices.push(candidateIndex);
+        }
+      }
+    }
+    nearbyIndices.sort((a, b) => a - b);
+  }
+  return candidatesByIndex;
 }
 
 export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {

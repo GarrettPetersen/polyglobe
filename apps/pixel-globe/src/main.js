@@ -1628,8 +1628,9 @@ const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
 const NPC_VISUAL_UPDATE_HZ = 20;
-const NPC_COMBAT_TARGETING_HZ = 8;
-const NPC_PROJECTILE_UPDATE_HZ = 60;
+const NPC_COMBAT_TARGETING_HZ = 6;
+const NPC_COMBAT_COLLISION_HZ = 10;
+const NPC_PROJECTILE_UPDATE_HZ = 30;
 const NPC_WILDLIFE_UPDATE_HZ = 2;
 const NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES = 3 * 60;
 const DISTANT_WORLD_SHIP_BATCH_SIZE = 8;
@@ -20208,6 +20209,17 @@ function createWorldSimulationScheduler() {
       update: updateNpcCombat
     },
     {
+      id: "ship-collisions",
+      hz: NPC_COMBAT_COLLISION_HZ,
+      phaseSeconds: 0.025,
+      maxStepsPerAdvance: 1,
+      maxAccumulatedSteps: 1,
+      update: (dt) => measurePerformanceBenchmarkStage(
+        "npcShips.visual.collisions",
+        () => updateCombatShipCollisions(dt)
+      )
+    },
+    {
       id: "projectiles",
       hz: NPC_PROJECTILE_UPDATE_HZ,
       maxStepsPerAdvance: 3,
@@ -20407,7 +20419,12 @@ function updateNpcShips(dt) {
   );
   let scheduledChanged = false;
   for (const result of scheduled.values()) scheduledChanged ||= result.changed;
-  const scheduledBackgroundWork = ["visible-npcs", "combat-targeting", "wildlife-work"]
+  const scheduledBackgroundWork = [
+    "visible-npcs",
+    "combat-targeting",
+    "ship-collisions",
+    "wildlife-work"
+  ]
     .some((id) => scheduled.get(id).steps > 0);
   let distantChanged = false;
   if (pendingDistantWorldWork.length > 0) {
@@ -20500,7 +20517,7 @@ function updateNpcVisualShips(dt) {
       continue;
     }
     snapshotIds.add(snapshot.id);
-    const state = npcVisualShips.get(snapshot.id);
+    let state = npcVisualShips.get(snapshot.id);
     if (snapshot.hidden) {
       if (state) {
         releaseNpcVisualState(state);
@@ -20510,8 +20527,13 @@ function updateNpcVisualShips(dt) {
     }
     if (state && !syncNpcVisualStateFromSnapshot(state, snapshot)) {
       releaseNpcVisualState(state);
+      state = null;
       changed = true;
     }
+    if (state) state.visualMovementDebtSeconds += dt;
+    const movementBucket = state?.visualMovementBucket ??
+      npcVisualMovementBucketForId(snapshot.id);
+    if (movementBucket !== npcVisualMovementBucket) continue;
     activeSnapshots.push(snapshot);
   }
   const movementStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
@@ -20548,10 +20570,6 @@ function updateNpcVisualShips(dt) {
       changed = true;
     }
 
-    state.visualMovementDebtSeconds += dt;
-    if (
-      state.visualMovementBucket !== npcVisualMovementBucket
-    ) continue;
     const movementDt = state.visualMovementDebtSeconds;
     state.visualMovementDebtSeconds = 0;
     let visualNavigationChanged = false;
@@ -20614,7 +20632,6 @@ function updateNpcVisualShips(dt) {
     changed = true;
   }
   refreshWorldSpatialFastEntries();
-  if (measurePerformanceBenchmarkStage("npcShips.visual.collisions", () => updateCombatShipCollisions(dt))) changed = true;
   npcVisualMovementBucket =
     (npcVisualMovementBucket + 1) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
   return changed;
@@ -20644,6 +20661,12 @@ function createNpcVisualState(snapshot, routePoint) {
     fishingNetId: snapshot.fishingNetId,
     stats: profile.stats,
     navalWeapon: profile.navalWeapon,
+    cannons: profile.navalWeapon?.kind === NAVAL_WEAPON_CANNON
+      ? profile.stats.cannons
+      : 0,
+    topSpeedRad: profile.stats.topSpeedRad,
+    npcAttackProtected: false,
+    forceAttack: false,
     spriteAsset: profile.spriteAsset,
     hitPoints: snapshot.hitPoints,
     maxHitPoints: snapshot.maxHitPoints,
@@ -20712,6 +20735,10 @@ function syncNpcVisualStateFromSnapshot(state, snapshot) {
     state.stats = profile.stats;
     state.navalWeapon = profile.navalWeapon;
     state.spriteAsset = profile.spriteAsset;
+    state.cannons = profile.navalWeapon?.kind === NAVAL_WEAPON_CANNON
+      ? profile.stats.cannons
+      : 0;
+    state.topSpeedRad = profile.stats.topSpeedRad;
   }
   state.slug = snapshot.slug;
   state.factionId = snapshot.factionId;
@@ -20828,7 +20855,11 @@ function updateNpcCombat(dt) {
   const participantsBefore = combatParticipantIds();
   const entities = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.entities",
-    () => [playerCombatEntity(portEntryContext), ...[...npcVisualShips.values()].map(npcCombatEntity)]
+    () => {
+      const combatEntities = [playerCombatEntity(portEntryContext)];
+      for (const state of npcVisualShips.values()) combatEntities.push(npcCombatEntity(state));
+      return combatEntities;
+    }
   );
   const diplomacyByFactionPair = new Map();
   const cachedDiplomacyBetween = (aFactionId, bFactionId) => {
@@ -21497,20 +21528,11 @@ function npcCombatEntity(state) {
   const stats = state.stats;
   const weapon = npcNavalWeapon(state);
   const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
-  return {
-    id: state.id,
-    factionId: state.factionId,
-    role: state.role,
-    x: state.x,
-    y: state.y,
-    hitPoints: state.hitPoints,
-    maxHitPoints: state.maxHitPoints,
-    cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? stats.cannons : 0,
-    topSpeedRad: stats.topSpeedRad,
-    combatGrace: state.combatGrace,
-    npcAttackProtected: false,
-    forceAttack: encounter?.forceAttack === true
-  };
+  state.cannons = weapon?.kind === NAVAL_WEAPON_CANNON ? stats.cannons : 0;
+  state.topSpeedRad = stats.topSpeedRad;
+  state.npcAttackProtected = false;
+  state.forceAttack = encounter?.forceAttack === true;
+  return state;
 }
 
 function combatEntityPoint(entityId) {

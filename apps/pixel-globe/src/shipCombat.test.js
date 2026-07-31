@@ -72,6 +72,44 @@ test("warships intercept pirates before pirates can close with the player", () =
   assert.equal(playerRange.engagementCount, 0);
 });
 
+test("combat detection reaches across spatial bucket boundaries", () => {
+  const result = updateShipCombatState(createShipCombatState(), [
+    ship("pirate", "pirate", "pirate", -1, 0, 130, 12),
+    ship(
+      "warship",
+      "warship",
+      "portugal",
+      WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX - 1,
+      0,
+      190,
+      18
+    )
+  ]);
+
+  assert.equal(result.engagementCount, 1);
+});
+
+test("large combat rosters retain detection after spatial indexing", () => {
+  const distantShips = Array.from({ length: 49 }, (_, index) => (
+    ship(`distant-${index}`, "merchant", "neutral", 10_000 + index * 500, 0, 20, 0)
+  ));
+  const result = updateShipCombatState(createShipCombatState(), [
+    ship("pirate", "pirate", "pirate", -1, 0, 130, 12),
+    ...distantShips,
+    ship(
+      "warship",
+      "warship",
+      "portugal",
+      WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX - 1,
+      0,
+      190,
+      18
+    )
+  ]);
+
+  assert.equal(result.engagementCount, 1);
+});
+
 test("a nearby armed ally joins the player's fight against a shared enemy", () => {
   const player = ship("player", "merchant", "england", 0, 0, 40, 2);
   const enemy = ship("enemy", "warship", "france", 30, 0, 80, 12);
