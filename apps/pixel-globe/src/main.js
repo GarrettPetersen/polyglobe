@@ -14814,7 +14814,7 @@ function portDialogueContext() {
     rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
     historicalGossip: city
       ? recentPapalGossipForPort(gameState.relations.papacy, city, simMinute) ||
-        recentHistoricalGossipForPort(city, simMinute, accessiblePorts)
+        recentHistoricalGossipForPort(city, simMinute, [...cityByTileId.values()])
       : null,
     shipyard,
     sailingDistanceKm: sailingDistanceBetweenPorts,
