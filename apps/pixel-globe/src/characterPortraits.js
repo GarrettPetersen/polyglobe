@@ -306,7 +306,13 @@ export function assignMissingNpcShipCaptains(
   return additions;
 }
 
-export function generatePlayerCharacter({ identityKey, homePort, manifest, usedNames }) {
+export function generatePlayerCharacter({
+  identityKey,
+  homePort,
+  portraitSourceId = null,
+  manifest,
+  usedNames
+}) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
   if (typeof identityKey !== "string" || identityKey.trim() === "") {
@@ -316,7 +322,11 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
     throw new Error("Player character generation requires a home port");
   }
   const region = portraitRegionForCity(homePort);
-  const sourcePool = characterSourcesForPlayer(manifest, region);
+  const sourcePool = selectFixedPortraitSource(
+    characterSourcesForPlayer(manifest, region),
+    portraitSourceId,
+    "player character"
+  );
   const character = assignCharacterSprite(`player|${identityKey}`, region, sourcePool, new Set());
   const name = assignRegionalCharacterIdentity({
     identityKey: `player|${identityKey}`,
@@ -374,6 +384,7 @@ export function generateSpecialPortCharacter({
   identityKey,
   port,
   excludedSourceIds = [],
+  portraitSourceId = null,
   role,
   religionId = null,
   manifest,
@@ -391,7 +402,11 @@ export function generateSpecialPortCharacter({
     throw new Error("Special port character generation requires a role");
   }
   const region = portraitRegionForCity(port);
-  const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
+  const sourcePool = selectFixedPortraitSource(
+    characterSourcesForRole(manifest, "factor", region, { excludedSourceIds }),
+    portraitSourceId,
+    role
+  );
   const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
   return Object.freeze(characterWithBiography({
     ...character,
@@ -748,6 +763,18 @@ function sourceIdExclusionSet(sourceIds) {
     throw new Error("Character portrait exclusions must be source ids");
   }
   return new Set(sourceIds);
+}
+
+function selectFixedPortraitSource(sourcePool, sourceId, label) {
+  if (sourceId === null) return sourcePool;
+  if (typeof sourceId !== "string" || sourceId.trim() === "") {
+    throw new Error(`${label} portrait source id must be a non-empty string`);
+  }
+  const source = sourcePool.find((entry) => entry.id === sourceId);
+  if (!source) {
+    throw new Error(`${label} portrait source is unavailable for this role and region: ${sourceId}`);
+  }
+  return [source];
 }
 
 function portraitRegionForCity(city) {

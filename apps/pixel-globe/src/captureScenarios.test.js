@@ -91,20 +91,23 @@ test("the general trailer roster includes feature pairs and eight fast sailing s
 
 test("the landscape panda trailer has new b-roll, encounter, fishing, reactions, and naturalist scenes", () => {
   const pandaIds = captureScenarioIds().filter((id) => id.startsWith("trailer-panda-"));
-  assert.equal(pandaIds.length, 9);
+  assert.equal(pandaIds.length, 12);
   const captures = pandaIds.map((id) => captureScenarioFromSearch(`?capture=${id}`));
   assert.deepEqual(
     Object.fromEntries([...new Set(captures.map((capture) => capture.sequence.variant))].map((variant) => [
       variant,
       captures.filter((capture) => capture.sequence.variant === variant).length
     ])),
-    { sail: 4, encounter: 1, fish: 1, "port-reaction": 2, naturalist: 1 }
+    { sail: 7, encounter: 1, fish: 1, "port-reaction": 2, naturalist: 1 }
   );
-  assert.ok(captures.every((capture) => capture.player.factionId === "ming"));
-  assert.ok(captures.every((capture) => capture.player.shipSlug === "medium-junk"));
+  assert.ok(captures.every((capture) => capture.player.factionId === "portugal"));
+  assert.ok(captures.every((capture) => capture.player.shipSlug === "caravel"));
+  assert.ok(captures.every((capture) => capture.player.homeCityName === "Lisbon"));
+  assert.equal(new Set(captures.map((capture) => capture.player.characterPortraitSourceId)).size, 1);
   assert.equal(captures.find((capture) => capture.sequence.variant === "encounter").sequence.cityName, "Chengdu");
+  assert.equal(captures.find((capture) => capture.sequence.variant === "naturalist").sequence.cityName, "Vienna");
   assert.equal(captures.filter((capture) => capture.sequence.variant === "sail" &&
-    capture.sequence.pandaAboard === false).length, 2);
+    capture.sequence.pandaAboard === false).length, 3);
 });
 
 test("fast sailing trailer shots stage distinct ships on validated beam reaches", () => {

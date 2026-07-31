@@ -8,6 +8,10 @@ export const CAPTURE_VIEWPORTS = Object.freeze({
 });
 export const CAPTURE_FORMAT_QUERY_PARAM = "captureFormat";
 export const CAPTURE_MAX_SECONDS = 10 * 60;
+const PANDA_TRAILER_CAPTAIN_SOURCE_ID =
+  "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait";
+const PANDA_TRAILER_NATURALIST_SOURCE_ID =
+  "curated-historical-portraits-by-captainskolot-old-scholar";
 
 export function captureViewportFromSearch(search) {
   const value = new URLSearchParams(search).get(CAPTURE_FORMAT_QUERY_PARAM) || "shorts";
@@ -446,7 +450,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-sail-east-china",
     title: "Sailing the East China Sea Before Meeting the Panda",
     seed: "trailer-panda-sail-east-china-v1",
-    player: capturePlayer("ming", "medium-junk", 28.4, 123.0, 90),
+    player: pandaTrailerPlayer(28.4, 123.0, 90),
     world: captureWorld(118, 7, 10),
     sequence: trailerSequence("panda", "sail", {
       durationSeconds: 4.5,
@@ -458,7 +462,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-sail-south-china",
     title: "Sailing the South China Sea Before Meeting the Panda",
     seed: "trailer-panda-sail-south-china-v1",
-    player: capturePlayer("ming", "medium-junk", 18.5, 113.5, 60),
+    player: pandaTrailerPlayer(18.5, 113.5, 60),
     world: captureWorld(104, 17, 35),
     sequence: trailerSequence("panda", "sail", {
       durationSeconds: 4.5,
@@ -470,7 +474,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-sail-seto",
     title: "Panda Aboard in the Seto Inland Sea",
     seed: "trailer-panda-sail-seto-v1",
-    player: capturePlayer("ming", "medium-junk", 34.3, 133.1, 270),
+    player: pandaTrailerPlayer(34.3, 133.1, 270),
     world: captureWorld(196, 16, 40),
     sequence: trailerSequence("panda", "sail", {
       durationSeconds: 4.5,
@@ -481,7 +485,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-sail-taiwan",
     title: "Panda Aboard East of Taiwan",
     seed: "trailer-panda-sail-taiwan-v1",
-    player: capturePlayer("ming", "medium-junk", 23.5, 122.0, 300),
+    player: pandaTrailerPlayer(23.5, 122.0, 300),
     world: captureWorld(184, 11, 25),
     sequence: trailerSequence("panda", "sail", {
       durationSeconds: 4.5,
@@ -492,7 +496,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-encounter",
     title: "Meet a Panda in Sichuan",
     seed: "trailer-panda-encounter-v1",
-    player: capturePlayer("ming", "medium-junk", 30.57, 104.07, 270),
+    player: pandaTrailerPlayer(30.57, 104.07, 270),
     world: captureWorld(142, 10, 20),
     sequence: trailerSequence("panda", "encounter", {
       durationSeconds: 22,
@@ -503,7 +507,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-fish-yellow-sea",
     title: "Fish the Yellow Sea with a Panda Aboard",
     seed: "trailer-panda-fish-yellow-sea-v1",
-    player: capturePlayer("ming", "medium-junk", 36.0, 124.0, 120),
+    player: pandaTrailerPlayer(36.0, 124.0, 120),
     world: captureWorld(168, 9, 15),
     sequence: trailerSequence("panda", "fish", { durationSeconds: 7 })
   }),
@@ -511,7 +515,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-port-lisbon",
     title: "A Lisbon Factor Meets the Panda",
     seed: "trailer-panda-port-lisbon-v1",
-    player: capturePlayer("ming", "medium-junk", 38.72, -9.14, 45),
+    player: pandaTrailerPlayer(38.72, -9.14, 45),
     world: captureWorld(224, 12, 30),
     sequence: trailerSequence("panda", "port-reaction", {
       durationSeconds: 8,
@@ -522,7 +526,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-port-nanjing",
     title: "A Nanjing Factor Meets the Panda",
     seed: "trailer-panda-port-nanjing-v1",
-    player: capturePlayer("ming", "medium-junk", 32.06, 118.79, 315),
+    player: pandaTrailerPlayer(32.06, 118.79, 315),
     world: captureWorld(240, 14, 5),
     sequence: trailerSequence("panda", "port-reaction", {
       durationSeconds: 8,
@@ -533,11 +537,46 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-panda-naturalist",
     title: "The Naturalist Makes an Offer for the Panda",
     seed: "trailer-panda-naturalist-v1",
-    player: capturePlayer("ming", "medium-junk", 30.27, 120.16, 225),
+    player: pandaTrailerPlayer(48.21, 16.37, 225),
     world: captureWorld(266, 15, 20),
     sequence: trailerSequence("panda", "naturalist", {
       durationSeconds: 14,
-      cityName: "Hangzhou"
+      cityName: "Vienna",
+      naturalistPortraitSourceId: PANDA_TRAILER_NATURALIST_SOURCE_ID
+    })
+  }),
+  "trailer-panda-sail-atlantic": trailerScenario({
+    id: "trailer-panda-sail-atlantic",
+    title: "European Captain Sails for Asia",
+    seed: "trailer-panda-sail-atlantic-v1",
+    player: pandaTrailerPlayer(31.0, -22.0, 100),
+    world: captureWorld(91, 15, 10),
+    sequence: trailerSequence("panda", "sail", {
+      durationSeconds: 4.5,
+      beamSide: "starboard",
+      pandaAboard: false
+    })
+  }),
+  "trailer-panda-sail-indian-ocean": trailerScenario({
+    id: "trailer-panda-sail-indian-ocean",
+    title: "Panda Aboard in the Indian Ocean",
+    seed: "trailer-panda-sail-indian-ocean-v1",
+    player: pandaTrailerPlayer(-4.0, 69.0, 250),
+    world: captureWorld(218, 13, 20),
+    sequence: trailerSequence("panda", "sail", {
+      durationSeconds: 4.5,
+      beamSide: "port"
+    })
+  }),
+  "trailer-panda-sail-adriatic": trailerScenario({
+    id: "trailer-panda-sail-adriatic",
+    title: "Panda Aboard on the Homeward Voyage",
+    seed: "trailer-panda-sail-adriatic-v1",
+    player: pandaTrailerPlayer(43.3, 15.0, 320),
+    world: captureWorld(247, 16, 30),
+    sequence: trailerSequence("panda", "sail", {
+      durationSeconds: 4.5,
+      beamSide: "starboard"
     })
   })
 });
@@ -570,6 +609,12 @@ export function validateCaptureScenario(value) {
   requiredString(value.title, "capture scenario title");
   requiredString(value.seed, "capture scenario seed");
   validateVessel(value.player, "capture player");
+  if (value.player.characterPortraitSourceId !== undefined) {
+    requiredString(value.player.characterPortraitSourceId, "capture player portrait source id");
+  }
+  if (value.player.homeCityName !== undefined) {
+    requiredString(value.player.homeCityName, "capture player home city name");
+  }
   numberInRange(value.player.activePlaySeconds, 0, 86400, "capture active play seconds");
   if (!value.world || typeof value.world !== "object") throw new Error("Capture scenario needs world settings");
   integerInRange(value.world.day, 1, 365, "capture day");
@@ -644,6 +689,12 @@ function validateCaptureSequence(value) {
     if (["encounter", "port-reaction", "naturalist"].includes(value.variant)) {
       requiredString(value.cityName, "panda capture city name");
     }
+    if (value.naturalistPortraitSourceId !== undefined) {
+      if (value.variant !== "naturalist") {
+        throw new Error("Panda naturalist portrait source requires the naturalist capture variant");
+      }
+      requiredString(value.naturalistPortraitSourceId, "panda naturalist portrait source id");
+    }
     if (value.variant === "sail" && !["port", "starboard"].includes(value.beamSide)) {
       throw new Error(`Invalid panda capture beam side: ${value.beamSide}`);
     }
@@ -692,6 +743,14 @@ function sailingTrailerScenario(value) {
 
 function capturePlayer(factionId, shipSlug, lat, lon, headingDeg) {
   return { factionId, shipSlug, lat, lon, headingDeg, activePlaySeconds: 90 };
+}
+
+function pandaTrailerPlayer(lat, lon, headingDeg) {
+  return {
+    ...capturePlayer("portugal", "caravel", lat, lon, headingDeg),
+    characterPortraitSourceId: PANDA_TRAILER_CAPTAIN_SOURCE_ID,
+    homeCityName: "Lisbon"
+  };
 }
 
 function captureWorld(day, hour, minute, timeScale = 180) {

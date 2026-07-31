@@ -202,6 +202,7 @@ import {
   generatePassengerCharacter,
   generatePirateCaptiveCharacter,
   generatePirateCaptiveFamilyMember,
+  generatePlayerCharacter,
   generateSpecialPortCharacter,
   loadCharacterPortraitManifest,
   reconcileCharacterPortraitMetadata
@@ -5832,7 +5833,7 @@ function naturalistQuestViewForBuild(state = gameState) {
   );
 }
 
-function ensureNaturalistCharacter(state) {
+function ensureNaturalistCharacter(state, { portraitSourceId = null } = {}) {
   if (naturalistCharacter) return naturalistCharacter;
   const memory = state?.memory?.quests?.naturalist;
   if (!memory) throw new Error("Naturalist character requires quest memory");
@@ -5850,6 +5851,7 @@ function ensureNaturalistCharacter(state) {
     identityKey: `natural-philosopher-${tileId}`,
     port,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    portraitSourceId,
     role: "natural-philosopher",
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
@@ -7170,8 +7172,17 @@ function playerCharacterIdentityKey() {
 
 function capturePlayerCharacter(character, scenarioValue) {
   const faction = factionById(scenarioValue.player.factionId);
+  const captureCharacter = scenarioValue.player.characterPortraitSourceId
+    ? generatePlayerCharacter({
+      identityKey: scenarioValue.seed,
+      homePort: captureCityByName(scenarioValue.player.homeCityName),
+      portraitSourceId: scenarioValue.player.characterPortraitSourceId,
+      manifest: characterPortraitManifest,
+      usedNames: usedCharacterNames
+    })
+    : character;
   return Object.freeze({
-    ...character,
+    ...captureCharacter,
     nationalityId: faction.id,
     nationalityName: faction.name,
     nationalityAdjective: faction.adjective,
@@ -7878,7 +7889,13 @@ function placeCapturePlayerOnTile(navigableTileId) {
 }
 
 function stageCaptureFishingGround() {
-  const fishingTile = chart.tileCalls.find((call) => fisheryForTileCall(call));
+  const fishingTile = chart.tileCalls
+    .filter((call) => fisheryForTileCall(call))
+    .map((call) => ({
+      call,
+      distance: Math.acos(clamp(dot3(ship.position, tileCenterVector(call.id)), -1, 1))
+    }))
+    .sort((a, b) => a.distance - b.distance)[0]?.call;
   if (!fishingTile) throw new Error("Capture location has no visible fishery");
   placeCapturePlayerNearTile(fishingTile.id);
   if (!hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
@@ -8100,7 +8117,10 @@ function stageCapturePanda(sequence) {
     memory.met = true;
     memory.reportedAnimalIds = [...ANIMAL_CATALOG_BY_ID.keys()];
     memory.completionRewarded = true;
-    ensureNaturalistCharacter(gameState);
+    naturalistCharacter = null;
+    ensureNaturalistCharacter(gameState, {
+      portraitSourceId: sequence.naturalistPortraitSourceId || null
+    });
     placeCapturePlayerNearTile(city.tileId);
     return;
   }
@@ -20853,6 +20873,7 @@ function updateNpcCombat(dt) {
     });
   }
   const suppressCaptureHails = captureSuppressesCombatHails();
+  const overlayBlocksCombatHails = combatHailIsBlockedByOverlay();
   let combatHailOpened = false;
   if (pendingNpcCombatHailId) {
     const engagementActive = shipCombatState.engagements.has(
@@ -20860,7 +20881,7 @@ function updateNpcCombat(dt) {
     );
     if (suppressCaptureHails || !engagementActive || !npcVisualShips.has(pendingNpcCombatHailId)) {
       pendingNpcCombatHailId = null;
-    } else if (!combatHailIsBlockedByOverlay()) {
+    } else if (!overlayBlocksCombatHails) {
       combatHailOpened = openNpcCombatHail(pendingNpcCombatHailId);
       if (combatHailOpened) pendingNpcCombatHailId = null;
     }
@@ -20881,7 +20902,8 @@ function updateNpcCombat(dt) {
           shoreBatteryUpdateAccumulator = 0;
           return updateShoreBatteryCombat(
             elapsed,
-            combatHailOpened || combatHailPending || cartazHailOpened || suppressCaptureHails,
+            combatHailOpened || combatHailPending || cartazHailOpened || suppressCaptureHails ||
+              overlayBlocksCombatHails,
             portEntryContext
           );
         }
@@ -20980,7 +21002,9 @@ function maybeOpenPortugueseCartazInspection(simMinute) {
 }
 
 function combatHailIsBlockedByOverlay() {
-  return Boolean(gameOverReason || playerIntroModal || dialogueState || menusAreOpen());
+  return Boolean(
+    gameOverReason || playerIntroModal || captainAlertModal || dialogueState || menusAreOpen()
+  );
 }
 
 function forceColonizationDefenseEngagements(playerWasInCombat) {
@@ -21010,7 +21034,7 @@ function forceColonizationDefenseEngagements(playerWasInCombat) {
 function captureSuppressesCombatHails() {
   if (PERFORMANCE_BENCHMARK) return true;
   const kind = captureDirector?.sequence.kind;
-  return CAPTURE_AUTOMATIC && (kind === "fight" || kind === "pillage");
+  return CAPTURE_AUTOMATIC && (kind === "fight" || kind === "pillage" || kind === "panda");
 }
 
 function playerHasCombatEngagement() {
