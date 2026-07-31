@@ -345,13 +345,32 @@ test("Pacific villages get a small regional fishing and trading fleet", () => {
   const pacificShips = routes.ships.filter((ship) => ship.profileId === "pacific-islands");
 
   assert.ok(pacificShips.length > 0);
-  assert.ok(pacificShips.length <= 6);
+  assert.ok(pacificShips.length <= 12);
+  assert.ok(pacificShips.length >= PACIFIC_PORTS.length);
   assert.ok(pacificShips.every((ship) => ship.slug === "polynesian-voyaging-canoe"));
   assert.ok(pacificShips.every((ship) => ship.cultureType === "polynesian"));
   assert.ok(routes.ships.filter((ship) => ship.currentPort?.cityType === "polynesian").every((ship) => ship.profileId === "pacific-islands"));
   assert.ok(routes.ports.filter((port) => port.routeRegion === "polynesia").length >= PACIFIC_PORTS.length);
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
+});
+
+test("regional Pacific fishers do not chase richer grounds across another sea region", () => {
+  const hawaii = Object.freeze({
+    ...port(24, "Hawaii Village", "Hawaii", "polynesian", 19.48, -155.92, 3500, "neutral"),
+    settlementType: "village",
+    manualRegion: "pacific-islands"
+  });
+  const ports = [...PORTS, ...PACIFIC_PORTS, hawaii, ...NORTHWEST_COAST_PORTS];
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy, fishState });
+  const pacificFishers = routes.ships.filter((ship) => (
+    ship.profileId === "pacific-islands" && ship.role === NPC_ROLE_FISHERMAN
+  ));
+
+  assert.ok(pacificFishers.length > 0);
+  assert.ok(pacificFishers.every((ship) => ship.plan.destination.routeRegion === "polynesia"));
 });
 
 test("Southeast Asian traffic includes the regional Malay fleet", () => {

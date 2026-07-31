@@ -251,6 +251,28 @@ test("hostile shore batteries sell civilian passage for the whole empire", () =>
   );
 });
 
+test("disabled shore battery passage offers stay open without crashing", () => {
+  const city = {
+    tileId: 17,
+    portId: "city-17",
+    city: "Alexandria",
+    factionId: "ottoman",
+    character: { name: "Kemal Reis" }
+  };
+  const session = createShoreBatteryDialogueSession(city, {
+    relation: "hostile",
+    playerWarship: false,
+    toll: 55,
+    canAffordToll: false
+  });
+
+  assert.deepEqual(selectShoreBatteryDialogueOption(session, city, 0), {
+    closed: false,
+    action: null,
+    feedback: "Not enough doubloons."
+  });
+});
+
 test("merchant captains report their destination and visible cargo", () => {
   const ship = {
     id: "indian-ocean-7",

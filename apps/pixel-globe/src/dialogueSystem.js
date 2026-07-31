@@ -111,6 +111,7 @@ import { formatDisplayQuantity } from "./displayNumber.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
+import { portArrivalFlavor } from "./portArrivalFlavor.js";
 import {
   shipReplacementTermsWithoutTradeIn,
   shipyardPurchaseTerms
@@ -592,7 +593,13 @@ export function selectShoreBatteryDialogueOption(session, city, optionIndex = se
   const view = shoreBatteryDialogueView(session, city);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid shore battery dialogue option index: ${optionIndex}`);
-  if (selected.disabled) throw new Error(selected.disabledReason || "Shore battery option is unavailable");
+  if (selected.disabled) {
+    return {
+      closed: false,
+      action: null,
+      feedback: selected.disabledReason || "Shore battery option is unavailable"
+    };
+  }
   if (selected.action.type === "close") return { closed: true, action: null };
   if (selected.action.type === "purchase-safe-passage") {
     return { closed: true, action: selected.action };
@@ -2176,7 +2183,7 @@ function greetingView(session, city, gameState, context) {
     personalityId,
     cityName: name,
     returning: memory.visits > 1,
-    localFlavor: portFlavor(city),
+    localFlavor: portFlavor(city, gameState, context, memory.visits > 1),
     visitCount: memory.visits,
     dayIndex: context.dayIndex || 0,
     nearbyShips: context.nearbyShips,
@@ -4379,6 +4386,8 @@ function surrenderPrizeCargo(cargo, label) {
 function speakerName(city) {
   return city.isPirateHideout
     ? `${characterName(city.character)}, keeper of ${cityLabel(city)}`
+    : city.settlementType === "village"
+      ? `${characterName(city.character)}, trader of ${cityLabel(city)}`
     : `${characterName(city.character)}, ${cityLabel(city)} factor`;
 }
 
@@ -4405,9 +4414,12 @@ function neverGrantMissionItem() {
   return 1 - Number.EPSILON;
 }
 
-function portFlavor(city) {
-  const population = city.population || 0;
-  if (population >= 150000) return "The quay is crowded enough to hide a dozen fortunes.";
-  if (population >= 60000) return "There is steady trade if your hold has room.";
-  return "Small harbors remember generous captains.";
+function portFlavor(city, gameState, context, returning) {
+  const playerShipSlug = context.playerShipSlug || gameState.ship?.slug || null;
+  return portArrivalFlavor({
+    city,
+    playerShipSlug,
+    playerShipLabel: playerShipSlug ? shipLabelForSlug(playerShipSlug) : "vessel",
+    returning
+  });
 }

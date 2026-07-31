@@ -1,0 +1,47 @@
+export function chartReframeCoverIsOpaque({
+  startMenu = false,
+  gameOver = false,
+  fullPortDialogue = false,
+  playerIntro = false,
+  captainMenu = false,
+  optionsMenu = false,
+  creditsMenu = false,
+  pastVoyagesMenu = false,
+  discoveriesMenu = false,
+  achievementsMenu = false,
+  shipInfoMenu = false,
+  politicsMenu = false,
+  navigationMenu = false,
+  aboardMenu = false
+} = {}) {
+  return Boolean(
+    startMenu ||
+    gameOver ||
+    fullPortDialogue ||
+    playerIntro ||
+    captainMenu ||
+    optionsMenu ||
+    creditsMenu ||
+    pastVoyagesMenu ||
+    discoveriesMenu ||
+    achievementsMenu ||
+    shipInfoMenu ||
+    politicsMenu ||
+    navigationMenu ||
+    aboardMenu
+  );
+}
+
+export function chartShouldReframeOnCoverOpen({
+  coverIsActive,
+  coverWasActive,
+  drift
+}) {
+  if (typeof coverIsActive !== "boolean" || typeof coverWasActive !== "boolean") {
+    throw new Error("Chart cover reframe policy requires boolean cover state");
+  }
+  if (!drift || typeof drift.needsReframe !== "boolean") {
+    throw new Error("Chart cover reframe policy requires measured drift");
+  }
+  return coverIsActive && !coverWasActive && drift.needsReframe;
+}

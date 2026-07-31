@@ -302,7 +302,7 @@ const LANE_EDGES = Object.freeze([
 ]);
 
 const FLEET_PROFILES = Object.freeze([
-  profile("pacific-islands", 6, {
+  profile("pacific-islands", 12, {
     fishers: ["polynesian-voyaging-canoe"],
     merchants: ["polynesian-voyaging-canoe"],
     warships: ["polynesian-voyaging-canoe"]
@@ -1762,6 +1762,8 @@ function chooseFishermanFishingGround(system, ship, origin) {
 }
 
 function fishermanGroundForecast(system, ship, origin, ground) {
+  const profileSpec = fleetProfileForId(ship.profileId);
+  if (profileSpec.mode === "regional" && ground.routeRegion !== origin.routeRegion) return null;
   const fishery = fisheryForHabitat(system.fishState, ground.habitat, system.economy.lastMinute);
   if (!fishery) return null;
   const net = fishingNetById(ship.fishingNetId);

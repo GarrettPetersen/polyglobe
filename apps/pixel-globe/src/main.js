@@ -1322,6 +1322,10 @@ import {
   selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
 import {
+  chartReframeCoverIsOpaque,
+  chartShouldReframeOnCoverOpen
+} from "./chartReframeCover.js";
+import {
   partitionVisualStateReprojections,
   resolveVisualStateReprojection
 } from "./visualStateReprojection.js";
@@ -14014,7 +14018,9 @@ function chooseDialogueOption(optionIndex) {
   } else if (dialogueState.kind === "shore-battery") {
     const city = currentDialogueCity();
     result = selectShoreBatteryDialogueOption(dialogueState, city, optionIndex);
-    if (result.action?.type === "purchase-safe-passage") {
+    if (result.feedback) {
+      showSurvivalNotice(result.feedback.toUpperCase(), "warn");
+    } else if (result.action?.type === "purchase-safe-passage") {
       const simMinute = Math.floor(weatherClockMinutes);
       const entryStatus = portEntryStatus(gameState, city, simMinute);
       const toll = entryStatus.canPurchaseSafePassage
@@ -14788,6 +14794,7 @@ function portDialogueContext() {
     portCities: accessiblePorts,
     simMinute,
     dayIndex: weatherParts.dayIndex,
+    playerShipSlug: ship?.stats?.slug || gameState.ship?.slug || null,
     shipPower: playerShipPrivateeringPower(),
     shipStats: ship ? currentPlayerEffectiveShipStats() : null,
     nearbyShips: nearbyPortTraffic(city),
@@ -16092,28 +16099,35 @@ function measureCurrentChartNorthUpDrift() {
 function prepareNorthUpWorldBehindCover() {
   const coverIsActive = opaqueWorldCoverIsActive();
   if (coverIsActive && !chartReframeCoverWasActive && ship && camera && chart && localLayout) {
-    reframeWorldNorthUp("opaque screen opened");
+    const drift = measureCurrentChartNorthUpDrift();
+    if (chartShouldReframeOnCoverOpen({
+      coverIsActive,
+      coverWasActive: chartReframeCoverWasActive,
+      drift
+    })) {
+      reframeWorldNorthUp("opaque screen opened");
+    }
   }
   chartReframeCoverWasActive = coverIsActive;
 }
 
 function opaqueWorldCoverIsActive() {
-  return Boolean(
-    startMenu ||
-    gameOverReason ||
-    dialogueState ||
-    playerIntroModal ||
-    captainMenu.isOpen ||
-    optionsMenu.isOpen ||
-    creditsMenu.isOpen ||
-    pastVoyagesMenu.isOpen ||
-    discoveriesMenu.isOpen ||
-    achievementsMenu.isOpen ||
-    shipInfoMenu.isOpen ||
-    politicsMenu.isOpen ||
-    navigationMenu.isOpen ||
-    aboardMenu.isOpen
-  );
+  return chartReframeCoverIsOpaque({
+    startMenu: Boolean(startMenu),
+    gameOver: Boolean(gameOverReason),
+    fullPortDialogue: dialogueState?.kind === "port" && dialogueState.admittedToPort === true,
+    playerIntro: Boolean(playerIntroModal),
+    captainMenu: captainMenu.isOpen,
+    optionsMenu: optionsMenu.isOpen,
+    creditsMenu: creditsMenu.isOpen,
+    pastVoyagesMenu: pastVoyagesMenu.isOpen,
+    discoveriesMenu: discoveriesMenu.isOpen,
+    achievementsMenu: achievementsMenu.isOpen,
+    shipInfoMenu: shipInfoMenu.isOpen,
+    politicsMenu: politicsMenu.isOpen,
+    navigationMenu: navigationMenu.isOpen,
+    aboardMenu: aboardMenu.isOpen
+  });
 }
 
 function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {

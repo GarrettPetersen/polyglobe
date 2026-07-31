@@ -350,7 +350,7 @@ export function createWorldWebGL2Renderer({
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGBA,
+      gl.RGBA8,
       width,
       height,
       0,
