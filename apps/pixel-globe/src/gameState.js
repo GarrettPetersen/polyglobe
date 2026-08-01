@@ -146,6 +146,13 @@ import {
   createPortConquestMemory,
   validatePortConquestMemory
 } from "./portConquest.js";
+import {
+  HOSPITALLER_MALTA_STAGE_PETITION,
+  HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME,
+  createHospitallerMaltaQuestMemory,
+  migrateHospitallerMaltaQuestMemory,
+  validateHospitallerMaltaQuestMemory
+} from "./hospitallerMaltaQuest.js";
 import { rulerAtMinute } from "./rulers.js";
 import {
   CAMPAIGN_GOAL_EXPLORER,
@@ -237,7 +244,7 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 54;
+export const GAME_STATE_VERSION = 55;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -481,7 +488,8 @@ export function createGameState({
         chef: createChefQuestMemory(),
         pirateCaptive: createPirateCaptiveQuestMemory(),
         castaway: createCastawayQuestMemory(),
-        naturalist: createNaturalistQuestMemory()
+        naturalist: createNaturalistQuestMemory(),
+        hospitallerMalta: createHospitallerMaltaQuestMemory()
       },
       cargoReservations: {},
       missionItemGifts: {},
@@ -513,7 +521,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -641,7 +649,10 @@ export function migrateGameState(state, shipStats) {
         chef: state.memory?.quests?.chef || createChefQuestMemory(),
         pirateCaptive: migratePirateCaptiveQuestMemory(state.memory?.quests?.pirateCaptive),
         castaway: migrateCastawayQuestMemory(state.memory?.quests?.castaway),
-        naturalist: state.memory?.quests?.naturalist || createNaturalistQuestMemory()
+        naturalist: state.memory?.quests?.naturalist || createNaturalistQuestMemory(),
+        hospitallerMalta: migrateHospitallerMaltaQuestMemory(
+          state.memory?.quests?.hospitallerMalta
+        )
       },
       navigation: {
         ...legacyNavigation,
@@ -2140,6 +2151,11 @@ function shipTravelerManifestForValidatedState(state) {
   const passengerGroup = activeQuestTravelerGroup(state.memory.quests?.passengerActive || null);
   if (passengerGroup) groups.push(passengerGroup);
   if (state.relations.papacy.pendingMatter?.status === PAPAL_MATTER_COMMISSIONED) {
+    groups.push(Object.freeze({ kind: "envoy", count: 1 }));
+  }
+  const maltaQuest = state.memory.quests?.hospitallerMalta;
+  if (maltaQuest?.stage === HOSPITALLER_MALTA_STAGE_PETITION ||
+      maltaQuest?.stage === HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME) {
     groups.push(Object.freeze({ kind: "envoy", count: 1 }));
   }
   const pirateCaptive = state.memory.quests?.pirateCaptive?.active || null;
@@ -5666,6 +5682,7 @@ function assertGameState(state) {
   validatePirateCaptiveQuestMemory(state.memory.quests?.pirateCaptive);
   validateCastawayQuestMemory(state.memory.quests?.castaway);
   validateNaturalistQuestMemory(state.memory.quests?.naturalist);
+  validateHospitallerMaltaQuestMemory(state.memory.quests?.hospitallerMalta);
   validateColonizationQuestMemory(state.memory.colonization);
   validatePortConquestMemory(state.memory.conquest);
   validateVoyageAchievementProgress(state.memory.achievements);

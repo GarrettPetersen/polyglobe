@@ -1079,8 +1079,32 @@ import {
   portConquestStatus,
   recordPortCapture,
   resolvePortConquest,
+  restoreCollapsedFactionAtCities,
   settleCapitalPeaceTreaty
 } from "./portConquest.js";
+import {
+  HOSPITALLER_FACTION_ID,
+  HOSPITALLER_MALTA_GRANTOR_FACTION_ID,
+  HOSPITALLER_MALTA_STAGE_COMPLETED,
+  HOSPITALLER_MALTA_STAGE_LOCKED,
+  HOSPITALLER_MALTA_STAGE_PETITION,
+  HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME,
+  HOSPITALLER_MALTA_STAGE_SEEK_ROME,
+  acceptHospitallerMaltaPetition,
+  completeHospitallerMaltaQuest,
+  hospitallerMaltaQuestObjective,
+  maybeActivateHospitallerMaltaQuest,
+  recordHospitallerMaltaGrant,
+  relocateHospitallerCaptainHome,
+  resetHospitallerMaltaPetition
+} from "./hospitallerMaltaQuest.js";
+import {
+  hospitallerMaltaAcceptanceText,
+  hospitallerMaltaCaptainGrantText,
+  hospitallerMaltaCompletionText,
+  hospitallerMaltaGrantText,
+  hospitallerMaltaOfferText
+} from "./hospitallerMaltaDialogue.js";
 import { recentRegionalRulerChange } from "./rulers.js";
 import {
   PAPAL_COMMISSION_PEACE,
@@ -1116,6 +1140,7 @@ import {
   recentPapalGossipForCharacter,
   recentPapalGossipForPort
 } from "./papalGossip.js";
+import { selectAccessibleFactionMissionPort } from "./missionPortSelection.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
@@ -9244,7 +9269,7 @@ async function restoreSavedVoyage(payload) {
       ? payload.economy.lastMinute
       : restoredWorldClock.currentMinute
   });
-  applyCurrentPortConquestOwnership();
+  applyCurrentPortConquestOwnership({ refreshMaltaQuest: false });
   const assets = await loadShipAssetSet(savedShip.typeSlug);
   let recoveredDerivedSystems = restoreSavedDerivedWorld(payload, restoredGameState);
 
@@ -9256,7 +9281,7 @@ async function restoreSavedVoyage(payload) {
   consumedLandedSeagullIds.clear();
   familyDebtReturnReminderDelivered = false;
   restoreCartographyFromGameState();
-  applyCurrentPortConquestOwnership();
+  applyCurrentPortConquestOwnership({ refreshMaltaQuest: false });
   if (!gameState.memory.flags || typeof gameState.memory.flags !== "object") {
     gameState.memory.flags = {};
   }
@@ -9273,6 +9298,7 @@ async function restoreSavedVoyage(payload) {
   weatherClockMinutes = restoredWorldClock.currentMinute;
   voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
   weatherParts = weatherClockParts(weatherClockMinutes);
+  refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
 
   const savedPosition = normalize3(savedShip.position.slice());
@@ -9901,14 +9927,17 @@ function queueAchievementPlatformSync(statValues = null) {
     });
 }
 
-function applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions = false } = {}) {
+function applyCurrentPortConquestOwnership({
+  notifyForeignSettlementExpulsions = false,
+  refreshMaltaQuest = true
+} = {}) {
   if (!gameState?.memory?.conquest) throw new Error("Cannot apply port ownership without conquest state");
   const allCities = [...cityByTileId.values()];
   applyPortConquestOwnership(gameState.memory.conquest, allCities);
-  const factionByTileId = new Map(allCities.map((city) => [city.tileId, city.factionId]));
+  const cityStateByTileId = new Map(allCities.map((city) => [city.tileId, city]));
   for (const city of chart?.cityCalls || []) {
-    const factionId = factionByTileId.get(city.tileId);
-    if (factionId) factionSyncCity(city, factionId);
+    const cityState = cityStateByTileId.get(city.tileId);
+    if (cityState) factionSyncCity(city, cityState);
   }
   if (npcSeaRoutes) {
     const portFactionByTileId = new Map(portCities.map((city) => [city.tileId, city.factionId]));
@@ -9925,12 +9954,15 @@ function applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions =
   shoreBatteryStates.clear();
   shoreBatteryUpdateAccumulator = 0;
   reconcileForeignSettlementPolitics({ notify: notifyForeignSettlementExpulsions });
-  return factionByTileId;
+  if (refreshMaltaQuest) refreshHospitallerMaltaQuestState();
+  return new Map(allCities.map((city) => [city.tileId, city.factionId]));
 }
 
-function factionSyncCity(city, factionId) {
+function factionSyncCity(city, canonicalCity) {
   city.foundingFactionId = city.foundingFactionId || city.factionId;
-  city.factionId = factionId;
+  city.factionId = canonicalCity.factionId;
+  city.capitalOfFactionId = canonicalCity.capitalOfFactionId || null;
+  city.isFactionCapital = canonicalCity.isFactionCapital === true;
 }
 
 function snapshotPlayerShip() {
@@ -12397,18 +12429,33 @@ function openPortDialogue(cityCall) {
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
   if (!rescuedTravelerSession && !campaignSession) {
-    const openedPapalCommission = maybeOpenPapalCommissionPortDialogue(cityCall);
-    const openedNaturalist = !openedPapalCommission && maybeOpenNaturalistPortDialogue(cityCall);
-    const openedAnimalReaction = !openedPapalCommission && !openedNaturalist && maybeOpenAnimalCompanionNpcReaction(
+    const openedActivePapalCommission = activePapalCommissionObjectiveIsAt(cityCall) &&
+      maybeOpenPapalCommissionPortDialogue(cityCall);
+    const openedMaltaQuest = !openedActivePapalCommission &&
+      maybeOpenHospitallerMaltaQuestPortDialogue(cityCall);
+    const openedPapalCommission = !openedActivePapalCommission && !openedMaltaQuest &&
+      maybeOpenPapalCommissionPortDialogue(cityCall);
+    const openedNaturalist = !openedActivePapalCommission && !openedMaltaQuest &&
+      !openedPapalCommission && maybeOpenNaturalistPortDialogue(cityCall);
+    const openedAnimalReaction = !openedActivePapalCommission && !openedMaltaQuest &&
+      !openedPapalCommission && !openedNaturalist && maybeOpenAnimalCompanionNpcReaction(
       `port:${cityCall.tileId}`,
       cityCall.character
     );
-    if (!openedPapalCommission && !openedNaturalist && !openedAnimalReaction) {
+    if (!openedActivePapalCommission && !openedMaltaQuest && !openedPapalCommission &&
+        !openedNaturalist && !openedAnimalReaction) {
       openPendingDiscoveryPortDialogue();
     }
   }
   saveVoyageNow("port arrival");
   dirty = true;
+}
+
+function activePapalCommissionObjectiveIsAt(cityCall) {
+  const matter = papalPendingMatter(gameState.relations.papacy);
+  if (matter?.status !== PAPAL_MATTER_COMMISSIONED) return false;
+  const objective = papalCommissionObjective(gameState.relations.papacy);
+  return objective?.destination?.tileId === cityCall.tileId;
 }
 
 function createRescuedTravelerHomecomingSession(cityCall, {
@@ -12597,6 +12644,247 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   });
 }
 
+function hospitallerMaltaQuestPorts() {
+  const findPort = (city, country) => portCities.find((port) => (
+    port.city === city && port.country === country
+  )) || null;
+  return {
+    rhodes: findPort("Rhodes", "Greece"),
+    rome: findPort("Rome", "Italy"),
+    malta: findPort("Birgu", "Malta"),
+    tripoli: findPort("Tripoli", "Libya")
+  };
+}
+
+function refreshHospitallerMaltaQuestState() {
+  const memory = gameState?.memory?.quests?.hospitallerMalta;
+  if (!memory) return false;
+  const ports = hospitallerMaltaQuestPorts();
+  if (!ports.rhodes || !ports.rome || !ports.malta) {
+    throw new Error("Hospitaller Malta quest requires Rhodes, Rome, and Birgu");
+  }
+  const changed = maybeActivateHospitallerMaltaQuest(memory, {
+    playerFactionId: gameState.playerCharacter.nationalityId,
+    collapsedFactionIds: gameState.memory.conquest.collapsedFactionIds,
+    rhodes: ports.rhodes,
+    rome: ports.rome,
+    malta: ports.malta,
+    simMinute: Math.max(0, Math.floor(weatherClockMinutes))
+  });
+  if (memory.stage === HOSPITALLER_MALTA_STAGE_PETITION &&
+      ports.malta.factionId !== HOSPITALLER_MALTA_GRANTOR_FACTION_ID) {
+    resetHospitallerMaltaPetition(memory);
+    return true;
+  }
+  return changed;
+}
+
+function maybeOpenHospitallerMaltaQuestPortDialogue(cityCall) {
+  refreshHospitallerMaltaQuestState();
+  const memory = gameState.memory.quests.hospitallerMalta;
+  if ([HOSPITALLER_MALTA_STAGE_LOCKED, HOSPITALLER_MALTA_STAGE_COMPLETED].includes(memory.stage)) {
+    return false;
+  }
+  const objective = hospitallerMaltaQuestObjective(memory);
+  if (!objective || objective.destination.tileId !== cityCall.tileId) return false;
+  if (memory.stage === HOSPITALLER_MALTA_STAGE_SEEK_ROME) {
+    return openHospitallerMaltaPetitionOffer(cityCall, memory);
+  }
+  if (memory.stage === HOSPITALLER_MALTA_STAGE_PETITION) {
+    return openHospitallerMaltaGrantAudience(cityCall, memory);
+  }
+  if (memory.stage === HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME) {
+    return completeHospitallerMaltaMissionAtRome(cityCall, memory);
+  }
+  throw new Error(`Unhandled Hospitaller Malta quest stage: ${memory.stage}`);
+}
+
+function hospitallerMaltaGrantorCapital() {
+  return papalCommissionPortForFaction(HOSPITALLER_MALTA_GRANTOR_FACTION_ID);
+}
+
+function generateHospitallerMaltaNuncio(memory, rome) {
+  if (memory.envoy) return memory.envoy;
+  const factor = portCityCharacters.get(rome.tileId);
+  if (!factor) throw new Error("Rome has no factor for the Malta petition");
+  return generateSpecialPortCharacter({
+    identityKey: `hospitaller-malta-nuncio|${gameState.voyageSeed}|${rome.tileId}`,
+    port: rome,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
+    role: "papal-nuncio",
+    religionId: "roman-catholic",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+}
+
+function openHospitallerMaltaPetitionOffer(rome, memory) {
+  if (papalPendingMatter(gameState.relations.papacy)?.status === PAPAL_MATTER_COMMISSIONED) {
+    return false;
+  }
+  const capital = hospitallerMaltaGrantorCapital();
+  if (!capital) return false;
+  const { tripoli } = hospitallerMaltaQuestPorts();
+  const nuncio = generateHospitallerMaltaNuncio(memory, rome);
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "stern",
+      message: hospitallerMaltaOfferText({
+        tripoliAvailable: tripoli?.factionId === HOSPITALLER_MALTA_GRANTOR_FACTION_ID
+      })
+    })
+  ], () => {
+    const choiceOpened = openCharacterChoiceAlertModal(
+      nuncio,
+      `Will you petition the Spanish court at ${cityLabelText(capital)} for a new seat of the Order?`,
+      [
+        {
+          label: "CARRY THE PETITION",
+          onSelect: () => acceptHospitallerMaltaMission(rome, capital, nuncio)
+        },
+        {
+          label: "NOT YET",
+          onSelect: () => {
+            saveVoyageNow("deferred the Malta petition");
+            dirty = true;
+          }
+        }
+      ],
+      "attentive",
+      { leftCharacter: gameState.playerCharacter, rightCharacter: nuncio }
+    );
+    if (!choiceOpened) throw new Error("Hospitaller Malta petition choice could not open");
+  });
+  if (!opened) throw new Error("Hospitaller Malta petition offer could not open");
+  return true;
+}
+
+function acceptHospitallerMaltaMission(rome, capital, nuncio) {
+  const simMinute = Math.floor(weatherClockMinutes);
+  acceptHospitallerMaltaPetition(gameState.memory.quests.hospitallerMalta, {
+    grantorFactionId: HOSPITALLER_MALTA_GRANTOR_FACTION_ID,
+    grantorCapital: capital,
+    envoy: nuncio,
+    simMinute
+  });
+  gameState.relations.safePassageUntilMinute[HOSPITALLER_MALTA_GRANTOR_FACTION_ID] = Math.max(
+    gameState.relations.safePassageUntilMinute[HOSPITALLER_MALTA_GRANTOR_FACTION_ID] || 0,
+    simMinute + 365 * 24 * 60
+  );
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: gameState.playerCharacter,
+      expressionId: "stern",
+      message: "I did not surrender the Order with Rhodes. I will put its claim before the Emperor."
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "pleased",
+      message: hospitallerMaltaAcceptanceText(cityLabelText(capital))
+    })
+  ], () => {
+    saveVoyageNow("accepted the Malta petition");
+    dirty = true;
+  });
+  if (!opened) throw new Error("Hospitaller Malta acceptance dialogue could not open");
+}
+
+function openHospitallerMaltaGrantAudience(capital, memory) {
+  const { malta, tripoli } = hospitallerMaltaQuestPorts();
+  if (!malta || malta.factionId !== HOSPITALLER_MALTA_GRANTOR_FACTION_ID) {
+    resetHospitallerMaltaPetition(memory);
+    const opened = openCharacterAlertModal(
+      memory.envoy,
+      "Malta has passed from Spanish hands. We must return to Rome and seek a new brief.",
+      "stern"
+    );
+    if (!opened) throw new Error("Changed Malta ownership dialogue could not open");
+    return true;
+  }
+  const grantedCities = [malta];
+  if (tripoli?.factionId === HOSPITALLER_MALTA_GRANTOR_FACTION_ID) grantedCities.push(tripoli);
+  const simMinute = Math.floor(weatherClockMinutes);
+  restoreCollapsedFactionAtCities(gameState.memory.conquest, grantedCities, {
+    factionId: HOSPITALLER_FACTION_ID,
+    capitalCity: malta,
+    simMinute,
+    source: "papal-malta-grant"
+  });
+  recordHospitallerMaltaGrant(memory, { grantedCities, simMinute });
+  relocateHospitallerCaptainHome(gameState, malta);
+  establishDiplomaticSuzerainty(gameState.relations.diplomacy, {
+    vassalFactionId: HOSPITALLER_FACTION_ID,
+    suzerainFactionId: foreignPolicyPrincipalForState(
+      gameState.relations.diplomacy,
+      HOSPITALLER_MALTA_GRANTOR_FACTION_ID
+    ),
+    simMinute,
+    source: "malta-grant",
+    relation: DIPLOMACY_FRIENDLY
+  });
+  applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
+  const courtCharacter = portCityCharacters.get(capital.tileId);
+  if (!courtCharacter) throw new Error(`${cityLabelText(capital)} has no court representative`);
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: courtCharacter,
+      speakerCharacter: courtCharacter,
+      expressionId: "stern",
+      message: hospitallerMaltaGrantText({ tripoliIncluded: grantedCities.length > 1 })
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: memory.envoy,
+      speakerCharacter: gameState.playerCharacter,
+      expressionId: "stern",
+      message: hospitallerMaltaCaptainGrantText()
+    })
+  ], () => {
+    showSurvivalNotice("THE ORDER RESTORED AT MALTA", "good", { fullText: true });
+    saveVoyageNow("received the grant of Malta");
+    dirty = true;
+  });
+  if (!opened) throw new Error("Hospitaller Malta grant audience could not open");
+  return true;
+}
+
+function completeHospitallerMaltaMissionAtRome(rome, memory) {
+  const nuncio = memory.envoy;
+  const completion = completeHospitallerMaltaQuest(memory, Math.floor(weatherClockMinutes));
+  receiveQuestPayment(
+    gameState,
+    rome,
+    completion.rewardDoubloons,
+    "Papal reward for restoring the Order at Malta",
+    portDialogueContext()
+  );
+  adjustFactionReputation(gameState, "papal-states", 20);
+  playCoinClinkSound();
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "happy",
+      message: hospitallerMaltaCompletionText()
+    })
+  ], () => {
+    showSurvivalNotice(`MALTA GRANT REPORTED  +${completion.rewardDoubloons} DB`, "good");
+    saveVoyageNow("completed the Malta restoration mission");
+    dirty = true;
+  });
+  if (!opened) throw new Error("Hospitaller Malta completion dialogue could not open");
+  return true;
+}
+
 function maybeOpenPapalCommissionPortDialogue(cityCall) {
   const matter = papalPendingMatter(gameState.relations.papacy);
   if (!matter) return false;
@@ -12718,14 +13006,8 @@ function papalCommissionItinerary(matter) {
 }
 
 function papalCommissionPortForFaction(factionId) {
-  const candidates = playerAccessiblePortCities()
-    .filter((port) => port.factionId === factionId)
-    .sort((left, right) => (
-      Number(right.capitalOfFactionId === factionId) - Number(left.capitalOfFactionId === factionId) ||
-      right.population - left.population ||
-      cityLabelText(left).localeCompare(cityLabelText(right))
-    ));
-  return candidates[0] || null;
+  const accessibleTileIds = new Set(playerAccessiblePortCities().map((port) => port.tileId));
+  return selectAccessibleFactionMissionPort(portCities, factionId, accessibleTileIds);
 }
 
 function papalCommissionReward(rome, itinerary) {
@@ -24936,6 +25218,7 @@ function render(nowMs) {
   drawCampaignGoalDestinationArrow(nowMs);
   drawNaturalistDestinationArrow(nowMs);
   drawPapalCommissionDestinationArrow(nowMs);
+  drawHospitallerMaltaDestinationArrow(nowMs);
   drawPortNavigationHeadingArrow(nowMs);
   drawWaypointArrowTooltip();
   drawSurvivalHudTooltip();
@@ -27160,6 +27443,21 @@ function questJournalEntries() {
     });
   }
 
+  const maltaQuest = gameState.memory.quests.hospitallerMalta;
+  const maltaObjective = hospitallerMaltaQuestObjective(maltaQuest);
+  if (maltaObjective) {
+    entries.push({
+      id: "hospitaller-malta",
+      title: "THE ORDER'S NEW SEAT",
+      nextStep: maltaQuest.stage === HOSPITALLER_MALTA_STAGE_SEEK_ROME
+        ? "SEEK PAPAL AID IN ROME"
+        : maltaQuest.stage === HOSPITALLER_MALTA_STAGE_PETITION
+          ? `PETITION THE SPANISH COURT AT ${maltaObjective.destination.city.toUpperCase()}`
+          : "REPORT THE GRANT OF MALTA IN ROME",
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
+
   for (const { quest: activeQuest, destination: activeDestination } of activeQuestDestinations()) {
     const titleKey = activeQuest.kind === "passenger"
       ? "quest.passenger"
@@ -27698,6 +27996,27 @@ function navigationMenuEntries() {
       id: `papal:${papalMatter.id}`,
       destinationName: objective.destination.portName,
       reason: objective.kind === "return-to-rome" ? "REPORT TO THE POPE" : "PAPAL LEGATION",
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: placedCityTargetVector(destination),
+      optionalWaypointId: null
+    });
+  }
+  const maltaQuest = gameState.memory.quests.hospitallerMalta;
+  const maltaObjective = hospitallerMaltaQuestObjective(maltaQuest);
+  if (maltaObjective) {
+    const destination = portCitiesByTileId.get(maltaObjective.destination.tileId) ||
+      cityByTileId.get(maltaObjective.destination.tileId);
+    if (!destination) {
+      throw new Error(`Hospitaller Malta objective port is missing: ${maltaObjective.destination.city}`);
+    }
+    entries.push({
+      id: `hospitaller-malta:${maltaQuest.stage}`,
+      destinationName: cityLabelText(destination),
+      reason: maltaQuest.stage === HOSPITALLER_MALTA_STAGE_PETITION
+        ? "PETITION FOR MALTA"
+        : maltaQuest.stage === HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME
+          ? "REPORT MALTA GRANT"
+          : "SEEK PAPAL AID",
       style: QUEST_NAVIGATION_STYLE,
       targetVector: placedCityTargetVector(destination),
       optionalWaypointId: null
@@ -29638,6 +29957,12 @@ function currentAboardRoster() {
       character: papalMatter.commission.nuncio
     });
   }
+  const maltaQuest = gameState.memory.quests.hospitallerMalta;
+  if ([HOSPITALLER_MALTA_STAGE_PETITION, HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME].includes(
+    maltaQuest.stage
+  )) {
+    namedTravelers.push({ kind: "envoy", character: maltaQuest.envoy });
+  }
   for (const traveler of rescuedTravelers) {
     if (traveler.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
       namedTravelers.push({ kind: "passenger", character: traveler.character });
@@ -29711,6 +30036,17 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
       return travelerCharacterGoal({
         id: papalMatter.id,
         destinationName: objective.destination.portName
+      });
+    }
+    const maltaQuest = gameState.memory.quests.hospitallerMalta;
+    if ([HOSPITALLER_MALTA_STAGE_PETITION, HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME].includes(
+      maltaQuest.stage
+    ) && maltaQuest.envoy.id === entry.character.id) {
+      const objective = hospitallerMaltaQuestObjective(maltaQuest);
+      if (!objective) throw new Error("Malta petition nuncio aboard has no destination");
+      return travelerCharacterGoal({
+        id: "hospitaller-malta",
+        destinationName: objective.destination.city
       });
     }
     if (rescuedTravelers.some((traveler) => entry.character.id === traveler.character?.id)) {
@@ -37037,6 +37373,29 @@ function drawPapalCommissionDestinationArrow(nowMs) {
   drawWorldTargetArrow({
     id: `papal:${matter.id}:${objective.kind}`,
     label: objective.destination.portName,
+    targetVector,
+    localPoint: visibleCity || localPointForGlobeVector(targetVector),
+    localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+    nowMs,
+    style: QUEST_NAVIGATION_STYLE
+  });
+}
+
+function drawHospitallerMaltaDestinationArrow(nowMs) {
+  if (!ship || !chart || !localLayout || !gameState) return;
+  const memory = gameState.memory.quests.hospitallerMalta;
+  const objective = hospitallerMaltaQuestObjective(memory);
+  if (!objective) return;
+  const destination = portCitiesByTileId.get(objective.destination.tileId) ||
+    cityByTileId.get(objective.destination.tileId);
+  if (!destination) {
+    throw new Error(`Hospitaller Malta objective port is missing: ${objective.destination.city}`);
+  }
+  const targetVector = placedCityTargetVector(destination);
+  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+  drawWorldTargetArrow({
+    id: `hospitaller-malta:${memory.stage}`,
+    label: cityLabelText(destination),
     targetVector,
     localPoint: visibleCity || localPointForGlobeVector(targetVector),
     localYOffset: QUEST_ARROW_CITY_Y_OFFSET,

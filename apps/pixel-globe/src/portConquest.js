@@ -29,6 +29,7 @@ const PLAYER_ASSAULT_FLAG_PREFIX = "playerPortAssaultUntil:";
 export function createPortConquestMemory() {
   return {
     portFactionOverrides: {},
+    factionCapitalOverrides: {},
     collapsedFactionIds: [],
     treaties: [],
     events: []
@@ -46,6 +47,17 @@ export function validatePortConquestMemory(memory) {
   for (const [portId, factionId] of Object.entries(memory.portFactionOverrides)) {
     if (portId.trim() === "") throw new Error("Port conquest override has an empty port id");
     assertFactionId(factionId);
+  }
+  if (!memory.factionCapitalOverrides ||
+      typeof memory.factionCapitalOverrides !== "object" ||
+      Array.isArray(memory.factionCapitalOverrides)) {
+    throw new Error("Port conquest capital overrides must be an object");
+  }
+  for (const [factionId, portId] of Object.entries(memory.factionCapitalOverrides)) {
+    assertFactionId(factionId);
+    if (factionId === NEUTRAL_FACTION_ID || typeof portId !== "string" || portId.trim() === "") {
+      throw new Error(`Invalid conquest capital override: ${factionId} -> ${portId}`);
+    }
   }
   if (!Array.isArray(memory.collapsedFactionIds)) {
     throw new Error("Collapsed factions must be an array");
@@ -308,6 +320,7 @@ export function settleCapitalPeaceTreaty(
     if (!memory.collapsedFactionIds.includes(loserFactionId)) {
       memory.collapsedFactionIds.push(loserFactionId);
     }
+    delete memory.factionCapitalOverrides[loserFactionId];
     annexedFactionId = loserFactionId;
   } else {
     memory.portFactionOverrides[captureEvent.portId] = loserFactionId;
@@ -381,12 +394,78 @@ export function effectivePortFactionId(memory, city) {
 export function applyPortConquestOwnership(memory, ports) {
   validatePortConquestMemory(memory);
   if (!Array.isArray(ports)) throw new Error("Conquest ownership requires a city list");
+  const capitalFactionByPortId = new Map(
+    Object.entries(memory.factionCapitalOverrides).map(([factionId, portId]) => [portId, factionId])
+  );
   for (const city of ports) {
     assertCity(city);
     city.foundingFactionId = city.foundingFactionId || city.factionId;
+    if (!("foundingCapitalOfFactionId" in city)) {
+      city.foundingCapitalOfFactionId = city.capitalOfFactionId || null;
+    }
     city.factionId = effectivePortFactionId(memory, city);
+    const portId = portConquestPortId(city);
+    const overrideCapitalFactionId = capitalFactionByPortId.get(portId) || null;
+    const foundingCapitalFactionId = city.foundingCapitalOfFactionId;
+    const foundingCapitalWasMoved = foundingCapitalFactionId !== null &&
+      memory.factionCapitalOverrides[foundingCapitalFactionId] !== undefined;
+    city.capitalOfFactionId = overrideCapitalFactionId ||
+      (!foundingCapitalWasMoved && foundingCapitalFactionId === city.factionId
+        ? foundingCapitalFactionId
+        : null);
+    city.isFactionCapital = city.capitalOfFactionId !== null;
   }
   return ports;
+}
+
+export function restoreCollapsedFactionAtCities(memory, cities, {
+  factionId,
+  capitalCity,
+  simMinute,
+  source
+}) {
+  validatePortConquestMemory(memory);
+  assertFactionId(factionId);
+  if (factionId === NEUTRAL_FACTION_ID) throw new Error("Neutral cannot be restored as a faction");
+  if (!memory.collapsedFactionIds.includes(factionId)) {
+    throw new Error(`Faction restoration requires a collapsed faction: ${factionId}`);
+  }
+  if (!Array.isArray(cities) || cities.length === 0) {
+    throw new Error("Faction restoration requires at least one city");
+  }
+  for (const city of cities) assertCity(city);
+  assertCity(capitalCity);
+  const capitalPortId = portConquestPortId(capitalCity);
+  if (!cities.some((city) => portConquestPortId(city) === capitalPortId)) {
+    throw new Error("Faction restoration capital must be among its granted cities");
+  }
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid faction restoration minute: ${simMinute}`);
+  }
+  if (typeof source !== "string" || source.trim() === "") {
+    throw new Error("Faction restoration source is required");
+  }
+
+  for (const city of cities) {
+    memory.portFactionOverrides[portConquestPortId(city)] = factionId;
+  }
+  memory.collapsedFactionIds = memory.collapsedFactionIds.filter((id) => id !== factionId);
+  memory.factionCapitalOverrides[factionId] = capitalPortId;
+  const event = {
+    id: `restoration-${simMinute}-${factionId}`,
+    kind: "faction-restoration",
+    factionId,
+    capitalPortId,
+    cityPortIds: cities.map(portConquestPortId),
+    simMinute,
+    source
+  };
+  memory.events.push(event);
+  if (memory.events.length > PORT_CONQUEST_EVENT_LIMIT) {
+    memory.events.splice(0, memory.events.length - PORT_CONQUEST_EVENT_LIMIT);
+  }
+  validatePortConquestMemory(memory);
+  return event;
 }
 
 export function portConquestPortId(city) {

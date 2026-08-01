@@ -60,6 +60,7 @@ import {
   MING_TRADE_POLICY_ID,
   SPANISH_INDIES_TRADE_POLICY_ID
 } from "./sovereignTradeAccess.js";
+import { HOSPITALLER_MALTA_STAGE_LOCKED } from "./hospitallerMaltaQuest.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -280,10 +281,25 @@ test("version 11 voyages gain empty persistent port conquest state", () => {
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.memory.conquest, {
     portFactionOverrides: {},
+    factionCapitalOverrides: {},
     collapsedFactionIds: [],
     treaties: [],
     events: []
   });
+});
+
+test("version 54 Hospitaller voyages gain the Malta quest without changing nationality", () => {
+  const saved = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { ...PLAYER, nationalityId: "hospitallers" }
+  });
+  saved.version = 54;
+  delete saved.memory.quests.hospitallerMalta;
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.playerCharacter.nationalityId, "hospitallers");
+  assert.equal(restored.memory.quests.hospitallerMalta.stage, HOSPITALLER_MALTA_STAGE_LOCKED);
 });
 
 test("version 12 voyages gain empty persistent safe-passage refusals", () => {

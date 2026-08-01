@@ -19,6 +19,7 @@ import {
   portConquestStatus,
   recordPortCapture,
   resolvePortConquest,
+  restoreCollapsedFactionAtCities,
   settleCapitalPeaceTreaty,
   validatePortConquestMemory
 } from "./portConquest.js";
@@ -118,6 +119,48 @@ test("capturing a small-state capital permits annexation through a peace treaty"
   assert.equal(capital.factionId, "england");
   assert.equal(porto.factionId, "england");
   assert.equal(evora.factionId, "england");
+});
+
+test("a collapsed faction can be restored at a new capital", () => {
+  const memory = createPortConquestMemory();
+  memory.collapsedFactionIds.push("hospitallers");
+  const rhodes = city({
+    tileId: 30,
+    portId: "rhodes",
+    city: "Rhodes",
+    factionId: "ottoman",
+    foundingFactionId: "hospitallers",
+    isFactionCapital: true,
+    capitalOfFactionId: "hospitallers"
+  });
+  const birgu = city({
+    tileId: 31,
+    portId: "birgu",
+    city: "Birgu",
+    factionId: "spain"
+  });
+  const tripoli = city({
+    tileId: 32,
+    portId: "tripoli",
+    city: "Tripoli",
+    factionId: "spain"
+  });
+
+  restoreCollapsedFactionAtCities(memory, [birgu, tripoli], {
+    factionId: "hospitallers",
+    capitalCity: birgu,
+    simMinute: 600,
+    source: "papal-malta-grant"
+  });
+  applyPortConquestOwnership(memory, [rhodes, birgu, tripoli]);
+
+  assert.equal(memory.collapsedFactionIds.includes("hospitallers"), false);
+  assert.equal(birgu.factionId, "hospitallers");
+  assert.equal(birgu.isFactionCapital, true);
+  assert.equal(birgu.capitalOfFactionId, "hospitallers");
+  assert.equal(tripoli.factionId, "hospitallers");
+  assert.equal(rhodes.isFactionCapital, false);
+  assert.equal(rhodes.capitalOfFactionId, null);
 });
 
 test("capturing a large-state capital restores it under a vassalage settlement", () => {
