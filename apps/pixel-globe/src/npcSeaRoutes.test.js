@@ -37,6 +37,7 @@ import {
   storeNpcCargo,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
+  updateNpcSeaRouteEvents,
   updateNpcSeaRouteSystem
 } from "./npcSeaRoutes.js";
 import { DIPLOMACY_WAR, PIRATE_FACTION_ID, diplomacyBetween } from "./factions.js";
@@ -396,7 +397,11 @@ test("isolated Northwest Coast fishers stay inside the Yuquot sea-lane component
 
   assert.equal(fisherman.plan.destination.isFishingGround, true);
   assert.deepEqual(fisherman.plan.destination.routeAnchors, ["yuquot"]);
-  updateNpcSeaRouteSystem(routes, Math.ceil(fisherman.plan.endMinute + 1));
+  updateNpcSeaRouteEvents(
+    routes,
+    Math.ceil(fisherman.plan.endMinute + 1),
+    [fisherman.id]
+  );
   assert.equal(fisherman.currentPort.isFishingGround, true);
   assert.ok(fisherman.plan.destination.routeAnchors.includes("yuquot"));
 });
@@ -461,6 +466,127 @@ test("regional Pacific fishers do not chase richer grounds across another sea re
 
   assert.ok(pacificFishers.length > 0);
   assert.ok(pacificFishers.every((ship) => ship.plan.destination.routeRegion === "polynesia"));
+
+  const hawaiiPort = routes.ports.find((portSpec) => portSpec.tileId === hawaii.tileId);
+  const fisherman = configureNpcRouteEncounter(routes, {
+    id: "hawaii-fishing-route-regression",
+    originPortId: hawaiiPort.tileId,
+    factionId: "neutral",
+    role: NPC_ROLE_FISHERMAN,
+    profileId: "pacific-islands",
+    mode: "regional",
+    shipSlug: "polynesian-voyaging-canoe"
+  }, 0);
+  const fishingGround = fisherman.plan.destination;
+  updateNpcSeaRouteEvents(
+    routes,
+    Math.ceil(fisherman.plan.endMinute + 1),
+    [fisherman.id]
+  );
+
+  assert.equal(fisherman.currentPort.tileId, fishingGround.tileId);
+  assert.equal(fisherman.plan.destination.cityType, "polynesian");
+  assert.ok(fisherman.currentPort.routeAnchors.some((anchorId) => (
+    fisherman.plan.destination.routeAnchors.includes(anchorId)
+  )));
+});
+
+test("saved Pacific fishermen abandon obsolete routes to another sea-lane region", () => {
+  const hawaii = Object.freeze({
+    ...port(24, "Hawaii Village", "Hawaii", "polynesian", 19.48, -155.92, 3500, "neutral"),
+    settlementType: "village",
+    manualRegion: "pacific-islands"
+  });
+  const ports = [...PORTS, ...PACIFIC_PORTS, hawaii, ...NORTHWEST_COAST_PORTS];
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({
+    ports,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships.find((ship) => (
+    ship.profileId === "pacific-islands" && ship.role === NPC_ROLE_FISHERMAN
+  ));
+  const hawaiiPort = routes.ports.find((portSpec) => portSpec.tileId === hawaii.tileId);
+  const obsoleteGround = routes.fishingGrounds.find((ground) => (
+    ground.routeAnchors.length === 1 && ground.routeAnchors[0] === "yuquot"
+  ));
+  assert.ok(saved);
+  assert.ok(hawaiiPort);
+  assert.ok(obsoleteGround);
+  saved.currentPort = { ...hawaiiPort };
+  saved.finalDestination = null;
+  saved.plan = {
+    origin: { ...hawaiiPort },
+    destination: { ...obsoleteGround },
+    segments: [{
+      kind: "sail",
+      from: { ...hawaiiPort },
+      to: { ...obsoleteGround },
+      startMinute: 0,
+      endMinute: 60
+    }],
+    startMinute: 0,
+    endMinute: 60
+  };
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy, fishState });
+
+  const restored = routes.shipById.get(saved.id);
+  assert.equal(restored.currentPort.tileId, hawaii.tileId);
+  assert.equal(restored.plan.destination.routeRegion, "polynesia");
+  assert.ok(restored.currentPort.routeAnchors.some((anchorId) => (
+    restored.plan.destination.routeAnchors.includes(anchorId)
+  )));
+});
+
+test("saved Mesoamerican fishermen abandon obsolete Northwest Coast routes", () => {
+  const ports = [...PORTS, ...MESOAMERICAN_PORTS, ...NORTHWEST_COAST_PORTS];
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({
+    ports,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships.find((ship) => (
+    ship.profileId === "mesoamerican-coast" && ship.role === NPC_ROLE_FISHERMAN
+  ));
+  const cuzamil = routes.ports.find((portSpec) => portSpec.city === "Cuzamil");
+  const obsoleteGround = routes.fishingGrounds.find((ground) => (
+    ground.routeAnchors.length === 1 && ground.routeAnchors[0] === "yuquot"
+  ));
+  assert.ok(saved);
+  assert.ok(cuzamil);
+  assert.ok(obsoleteGround);
+  saved.currentPort = { ...cuzamil };
+  saved.finalDestination = null;
+  saved.plan = {
+    origin: { ...cuzamil },
+    destination: { ...obsoleteGround },
+    segments: [{
+      kind: "sail",
+      from: { ...cuzamil },
+      to: { ...obsoleteGround },
+      startMinute: 0,
+      endMinute: 60
+    }],
+    startMinute: 0,
+    endMinute: 60
+  };
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy, fishState });
+
+  const restored = routes.shipById.get(saved.id);
+  assert.equal(restored.currentPort.tileId, cuzamil.tileId);
+  assert.ok(!restored.plan.destination.routeAnchors.includes("yuquot"));
 });
 
 test("Southeast Asian traffic includes the regional Malay fleet", () => {

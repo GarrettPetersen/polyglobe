@@ -726,7 +726,15 @@ export function restoreNpcSeaRouteSystem(
   system.foreignSettlementExpulsions = foreignSettlementExpulsions;
   system.sovereignTradeOpenToFaction = sovereignTradeOpenToFaction;
   system.suzeraintyMemory = suzeraintyMemory;
+  // Saved routes may have been calculated against an older lane graph. Avoid
+  // reusing those cached paths while repairing and replanning the snapshot.
+  system.routeCache.clear();
+  system.edgeCostCache.clear();
   canonicalizeSavedNpcRoutePorts(system, ships);
+  const repairedRegionalRoutes = repairInvalidRegionalFishermanRoutes(system, ships);
+  if (repairedRegionalRoutes > 0) {
+    console.info(`Repaired ${repairedRegionalRoutes} saved regional fishing routes`);
+  }
   const replannedRoutes = replanNpcRoutesWithRemovedLaneEdges(system, ships);
   if (replannedRoutes > 0) {
     console.info(`Replanned ${replannedRoutes} saved NPC routes for the current sea-lane topology`);
@@ -734,8 +742,6 @@ export function restoreNpcSeaRouteSystem(
   system.ships = ships;
   system.replacementQueue = replacementQueue;
   system.pirateHideoutDangerUntil = danger;
-  system.routeCache.clear();
-  system.edgeCostCache.clear();
   synchronizePacificFleet(system, system.economy.lastMinute);
   synchronizeNpcWhalerFleet(system, system.economy.lastMinute);
   system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
@@ -765,6 +771,57 @@ function canonicalizeSavedNpcRoutePorts(system, ships) {
     ship.plan.origin = canonicalNpcRouteDestination(system, ship.plan.origin);
     ship.plan.destination = canonicalNpcRouteDestination(system, ship.plan.destination);
   }
+}
+
+function repairInvalidRegionalFishermanRoutes(system, ships) {
+  const startMinute = system.economy?.lastMinute;
+  if (!Number.isFinite(startMinute)) {
+    throw new Error(`Regional fishing-route repair requires a finite economy minute: ${startMinute}`);
+  }
+  let repaired = 0;
+  for (const ship of ships) {
+    if (ship.role !== NPC_ROLE_FISHERMAN || !ship.plan) continue;
+    const profileSpec = fleetProfileForId(ship.profileId);
+    if (profileSpec.mode !== "regional") continue;
+    const profilePorts = system.ports.filter(profileSpec.portPredicate);
+    if (profilePorts.length === 0) continue;
+    const destinations = [
+      ship.currentPort,
+      ship.plan.origin,
+      ship.plan.destination,
+      ship.finalDestination
+    ].filter(Boolean);
+    const belongsToProfile = destinations.every((destination) => (
+      regionalFishermanDestinationBelongsToProfile(profileSpec, profilePorts, destination)
+    ));
+    if (belongsToProfile) continue;
+
+    const currentBelongsToProfile = regionalFishermanDestinationBelongsToProfile(
+      profileSpec,
+      profilePorts,
+      ship.currentPort
+    );
+    if (!currentBelongsToProfile) {
+      ship.currentPort = [...profilePorts].sort((a, b) => (
+        distanceKm(ship.currentPort, a) - distanceKm(ship.currentPort, b) ||
+        a.tileId - b.tileId
+      ))[0];
+    }
+    ship.finalDestination = null;
+    ship.plan = null;
+    ship.clockOffsetMinutes = 0;
+    ship.visualNavigation = null;
+    assignNpcPlan(system, ship, startMinute);
+    repaired++;
+  }
+  return repaired;
+}
+
+function regionalFishermanDestinationBelongsToProfile(profileSpec, profilePorts, destination) {
+  if (destination.isFishingGround) {
+    return profilePorts.some((port) => npcRoutePointsShareAnchor(port, destination));
+  }
+  return profileSpec.portPredicate(destination);
 }
 
 function replanNpcRoutesWithRemovedLaneEdges(system, ships) {
@@ -1807,7 +1864,10 @@ function chooseFishermanFishingGround(system, ship, origin) {
 
 function fishermanGroundForecast(system, ship, origin, ground) {
   const profileSpec = fleetProfileForId(ship.profileId);
-  if (profileSpec.mode === "regional" && ground.routeRegion !== origin.routeRegion) return null;
+  if (profileSpec.mode === "regional" && (
+    ground.routeRegion !== origin.routeRegion ||
+    !npcRoutePointsShareAnchor(origin, ground)
+  )) return null;
   if (!npcPortsShareRouteNetwork(system, origin, ground)) return null;
   const fishery = fisheryForHabitat(system.fishState, ground.habitat, system.economy.lastMinute);
   if (!fishery) return null;
@@ -1836,9 +1896,15 @@ function fishermanGroundForecast(system, ship, origin, ground) {
 function chooseFishermanSalePort(system, ship, origin, quantity) {
   const safeQuantity = Math.max(1, Math.min(ship.cargoCapacity, Math.floor(quantity)));
   const seed = hashString32(`${ship.seed}|${origin.tileId}|fish-sale`);
+  const profileSpec = fleetProfileForId(ship.profileId);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
     .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
+    .filter((port) => (
+      profileSpec.mode !== "regional" ||
+      profileSpec.portPredicate(port) ||
+      npcRoutePointsShareAnchor(origin, port)
+    ))
     .filter((port) => npcMerchantCanTradeAtPort(system, ship, port))
     .map((port) => ({
       port,
@@ -2268,11 +2334,17 @@ export function npcCargoAvailableQuantity(ship, goodId) {
 }
 
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {
+  const profileSpec = fleetProfileForId(ship.profileId);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin) && !samePort(port, desiredDestination))
     .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(system, ship, port))
+    .filter((port) => (
+      profileSpec.mode !== "regional" ||
+      profileSpec.portPredicate(port) ||
+      npcRoutePointsShareAnchor(origin, port)
+    ))
     .filter((port) => port.routeRegion === origin.routeRegion || distanceKm(origin, port) <= NPC_ROUTE_HOP_MAX_KM)
     .map((port) => ({
       port,
@@ -2654,6 +2726,16 @@ function npcPortsShareRouteNetwork(system, origin, destination) {
     }
   }
   return false;
+}
+
+function npcRoutePointsShareAnchor(origin, destination) {
+  if (!Array.isArray(origin?.routeAnchors) || origin.routeAnchors.length === 0) {
+    throw new Error(`NPC route origin has no anchors: ${portName(origin)}`);
+  }
+  if (!Array.isArray(destination?.routeAnchors) || destination.routeAnchors.length === 0) {
+    throw new Error(`NPC route destination has no anchors: ${portName(destination)}`);
+  }
+  return origin.routeAnchors.some((anchorId) => destination.routeAnchors.includes(anchorId));
 }
 
 function cloneBaseAdjacency(baseEdges) {
