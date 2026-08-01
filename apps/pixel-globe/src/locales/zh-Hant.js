@@ -405,6 +405,8 @@ export default {
   "dialogue.capital": "首都",
   "status.mapped": "已測繪",
   "status.drinkableWaterLow": "飲用水不足",
+  "status.sunset": "日落",
+  "status.sunrise": "日出",
   "hud.tooltip.localDate": "當地日期：{date}",
   "hud.tooltip.doubloons": "達布隆：{count}",
   "hud.tooltip.hull": "船體強度：{current}/{maximum}",

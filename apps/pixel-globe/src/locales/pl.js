@@ -405,6 +405,8 @@ export default {
   "dialogue.capital": "STOLICA",
   "status.mapped": "ZMAPOWANO",
   "status.drinkableWaterLow": "MAŁO WODY PITNEJ",
+  "status.sunset": "ZACHÓD SŁOŃCA",
+  "status.sunrise": "WSCHÓD SŁOŃCA",
   "hud.tooltip.localDate": "Data lokalna: {date}",
   "hud.tooltip.doubloons": "Dublony: {count}",
   "hud.tooltip.hull": "Wytrzymałość kadłuba: {current}/{maximum}",

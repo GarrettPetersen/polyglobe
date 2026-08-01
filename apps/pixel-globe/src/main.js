@@ -1177,6 +1177,18 @@ import {
   dayNightPaletteVariant,
   prepareDayNightPalette
 } from "./dayNightPalette.js";
+import {
+  DAY_NIGHT_DAY_ALTITUDE,
+  DAY_NIGHT_NIGHT_ALTITUDE,
+  DAY_NIGHT_SUNSET_END_ALTITUDE,
+  DAY_NIGHT_SUNSET_START_ALTITUDE,
+  FIRST_DAY_NIGHT_NOTICE_SUNRISE,
+  FIRST_DAY_NIGHT_NOTICE_SUNSET,
+  advanceFirstDayNightNoticeState,
+  createFirstDayNightNoticeState,
+  restoreFirstDayNightNoticeState,
+  snapshotFirstDayNightNoticeState
+} from "./dayNightCycle.js";
 import { createWorldWebGL2Renderer } from "./worldWebglRenderer.js";
 import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
@@ -1777,10 +1789,6 @@ const STORM_CAPTAIN_ALERT_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.58;
 const STORM_CAPTAIN_CLEARANCE_DELAY_MS = 10000;
 const FIRST_STORM_WARNING_SHOWN_FLAG = "firstStormWarningDialogueShown";
 const FIRST_STORM_CLEARANCE_SHOWN_FLAG = "firstStormClearanceDialogueShown";
-const DAY_NIGHT_DAY_ALT = 0.34;
-const DAY_NIGHT_NIGHT_ALT = -0.34;
-const DAY_NIGHT_SUNSET_START_ALT = -0.3;
-const DAY_NIGHT_SUNSET_END_ALT = 0.3;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 30;
 const CLOUD_FADE_RATIO = 0.22;
@@ -2727,6 +2735,7 @@ let voyageStartClockMinutes = START_WEATHER.clockMinutes;
 let weatherTimeScale = START_WEATHER.timeScale;
 let pausedWeatherTimeScale = START_WEATHER.timeScale || WEATHER_DEFAULT_TIME_SCALE;
 let weatherParts = weatherClockParts(weatherClockMinutes);
+let firstDayNightNoticeState = null;
 let weatherMaskDayIndex = -1;
 let pendingWeatherMaskRefresh = null;
 let weatherMaskScratch = null;
@@ -3398,6 +3407,10 @@ async function main() {
     playerStartPosition.lon,
     playerShipSlug,
     playerCharacter.nationalityId
+  );
+  firstDayNightNoticeState = createFirstDayNightNoticeState(
+    dot3(ship.position, currentSunDirection()),
+    { completed: Boolean(CAPTURE_SCENARIO) }
   );
   resetPlayerWindState();
   if (CAPTURE_SCENARIO) applyCaptureShipHeading(ship, CAPTURE_SCENARIO.player.headingDeg);
@@ -9344,6 +9357,10 @@ async function restoreSavedVoyage(payload) {
   ship = createShip(savedLat, savedLon, savedShip.typeSlug, savedShip.factionId);
   ship.position = position;
   ship.tileId = restorePlacement.tileId;
+  firstDayNightNoticeState = restoreFirstDayNightNoticeState(
+    payload.firstDayNightNotices,
+    dot3(ship.position, currentSunDirection())
+  );
   ship.heading = normalizeTangentOrFallback(savedShip.heading, position, WORLD_NORTH);
   ship.targetHeading = normalizeTangentOrFallback(savedShip.targetHeading, position, ship.heading);
   ship.velocity = restorePlacement.stop ? [0, 0, 0] : savedShip.velocity.slice();
@@ -9692,6 +9709,7 @@ function saveVoyageNow(reason) {
         currentMinute: weatherClockMinutes,
         voyageStartMinute: voyageStartClockMinutes
       },
+      firstDayNightNotices: snapshotFirstDayNightNoticeState(firstDayNightNoticeState),
       anchored,
       survivalDamageTimers: { ...survivalDeprivationTimers }
     };
@@ -20294,6 +20312,17 @@ function updateWeather(dt, nowMs) {
     weatherClockMinutes += dt * weatherTimeScale / 60;
   }
   weatherParts = weatherClockParts(weatherClockMinutes);
+  const dayNightNotice = firstDayNightNoticeState
+    ? advanceFirstDayNightNoticeState(firstDayNightNoticeState, {
+        sunAltitude: dot3(ship.position, currentSunDirection()),
+        elapsedVoyageMinutes: Math.max(0, weatherClockMinutes - voyageStartClockMinutes)
+      })
+    : null;
+  if (dayNightNotice === FIRST_DAY_NIGHT_NOTICE_SUNSET) {
+    showSurvivalNotice(uiText("status.sunset"), "good");
+  } else if (dayNightNotice === FIRST_DAY_NIGHT_NOTICE_SUNRISE) {
+    showSurvivalNotice(uiText("status.sunrise"), "good");
+  }
   scheduleWeatherMaskRefresh(weatherParts.dayIndex);
   const sliceChanged = advanceWorldClockFrameSlice(nowMs);
   const tick = Math.floor(nowMs / WEATHER_REDRAW_MS);
@@ -25005,11 +25034,11 @@ function drawTerrainAtlasTiles(tileCalls, activeChart, offset) {
 function localDayNightLight() {
   const sunDirection = currentSunDirection();
   const sunAltitude = dot3(ship.position, sunDirection);
-  const day = smoothstep(DAY_NIGHT_NIGHT_ALT * 0.65, DAY_NIGHT_DAY_ALT, sunAltitude);
-  const night = 1 - smoothstep(DAY_NIGHT_NIGHT_ALT, 0.08, sunAltitude);
+  const day = smoothstep(DAY_NIGHT_NIGHT_ALTITUDE * 0.65, DAY_NIGHT_DAY_ALTITUDE, sunAltitude);
+  const night = 1 - smoothstep(DAY_NIGHT_NIGHT_ALTITUDE, 0.08, sunAltitude);
   const twilight = clamp(1 - day - night, 0, 1);
-  const sunset = smoothstep(DAY_NIGHT_SUNSET_START_ALT, 0.05, sunAltitude) *
-    (1 - smoothstep(0.06, DAY_NIGHT_SUNSET_END_ALT, sunAltitude));
+  const sunset = smoothstep(DAY_NIGHT_SUNSET_START_ALTITUDE, 0.05, sunAltitude) *
+    (1 - smoothstep(0.06, DAY_NIGHT_SUNSET_END_ALTITUDE, sunAltitude));
   return {
     sunAltitude,
     night: easeInOut(night),

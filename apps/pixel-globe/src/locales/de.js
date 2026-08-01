@@ -405,6 +405,8 @@ export default {
   "dialogue.capital": "HAUPTSTADT",
   "status.mapped": "KARTIERT",
   "status.drinkableWaterLow": "TRINKWASSER KNAPP",
+  "status.sunset": "SONNENUNTERGANG",
+  "status.sunrise": "SONNENAUFGANG",
   "hud.tooltip.localDate": "Ortsdatum: {date}",
   "hud.tooltip.doubloons": "{count} Dublonen",
   "hud.tooltip.hull": "Rumpfstärke: {current}/{maximum}",

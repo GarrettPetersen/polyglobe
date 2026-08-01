@@ -405,6 +405,8 @@ export default {
   "dialogue.capital": "СТОЛИЦА",
   "status.mapped": "НАНЕСЕНО НА КАРТУ",
   "status.drinkableWaterLow": "МАЛО ПИТЬЕВОЙ ВОДЫ",
+  "status.sunset": "ЗАКАТ",
+  "status.sunrise": "РАССВЕТ",
   "hud.tooltip.localDate": "Местная дата: {date}",
   "hud.tooltip.doubloons": "Дублоны: {count}",
   "hud.tooltip.hull": "Прочность корпуса: {current}/{maximum}",

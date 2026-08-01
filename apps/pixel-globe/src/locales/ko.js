@@ -405,6 +405,8 @@ export default {
   "dialogue.capital": "수도",
   "status.mapped": "지도 작성",
   "status.drinkableWaterLow": "식수 부족",
+  "status.sunset": "일몰",
+  "status.sunrise": "일출",
   "hud.tooltip.localDate": "현지 날짜: {date}",
   "hud.tooltip.doubloons": "두블룬 {count}개",
   "hud.tooltip.hull": "선체 내구도: {current}/{maximum}",

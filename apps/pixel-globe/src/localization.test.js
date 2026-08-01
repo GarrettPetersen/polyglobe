@@ -70,6 +70,18 @@ test("every translated catalog covers the complete English key set", () => {
   assert.equal(translate(LANGUAGE_KOREAN, "options.language"), "언어");
 });
 
+test("first-day sunset and sunrise notices are localized everywhere", () => {
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    for (const key of ["status.sunset", "status.sunrise"]) {
+      const value = translate(id, key);
+      assert.ok(value.length > 0, `${id} has an empty ${key}`);
+      if (id !== LANGUAGE_ENGLISH) {
+        assert.notEqual(value, translate(LANGUAGE_ENGLISH, key), `${id} retained English for ${key}`);
+      }
+    }
+  }
+});
+
 test("the Great Barrier Reef discovery and patron exchange are localized everywhere", () => {
   const keys = [
     "discovery.greatBarrierReef.name",

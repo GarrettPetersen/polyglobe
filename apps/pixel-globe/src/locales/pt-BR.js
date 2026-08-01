@@ -405,6 +405,8 @@ export default {
   "dialogue.capital": "CAPITAL",
   "status.mapped": "MAPEADO",
   "status.drinkableWaterLow": "ÁGUA POTÁVEL BAIXA",
+  "status.sunset": "PÔR DO SOL",
+  "status.sunrise": "NASCER DO SOL",
   "hud.tooltip.localDate": "Data local: {date}",
   "hud.tooltip.doubloons": "{count} dobrões",
   "hud.tooltip.hull": "Resistência do casco: {current}/{maximum}",
