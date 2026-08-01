@@ -215,6 +215,16 @@ export function selectRiverRailPath({
   };
 }
 
+export function npcRiverRailShouldRemainCommitted({ navigationKind, activePathKey }) {
+  if (typeof navigationKind !== "string" || navigationKind.length === 0) {
+    throw new Error("NPC river rail commitment requires a navigation kind");
+  }
+  if (activePathKey !== null && (typeof activePathKey !== "string" || activePathKey.length === 0)) {
+    throw new Error("NPC river rail commitment path key must be null or a non-empty string");
+  }
+  return navigationKind === "river" || activePathKey !== null;
+}
+
 export function rememberCompletedRiverRailPath(
   completedPathKeys,
   pathKey,

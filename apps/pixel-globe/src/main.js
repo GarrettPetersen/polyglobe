@@ -678,6 +678,7 @@ import {
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
+  npcRiverRailShouldRemainCommitted,
   playerRiverGatewayAssistEligible,
   rememberCompletedRiverRailPath,
   selectRiverRailPath,
@@ -695,6 +696,7 @@ import { compareShipDrawCalls } from "./shipDrawOrder.js";
 import {
   SHIP_MINIMUM_RUDDER_AUTHORITY,
   contactPushOffVelocity,
+  shipDirectionMakesForwardProgress,
   shipTurnRate,
   updateBoundaryContactLatch
 } from "./shipTurning.js";
@@ -17685,6 +17687,26 @@ function limitShipSpeed(maxSpeed) {
 }
 
 function moveShipWithCollision(dt, inputHeading) {
+  const preferredDirection = normalizeOrNull(projectTangentVector(
+    inputHeading || ship.heading,
+    ship.position
+  ));
+  const travelDirection = normalizeOrNull(projectTangentVector(ship.velocity, ship.position));
+  if (
+    inputHeading &&
+    preferredDirection &&
+    travelDirection &&
+    !tileHasOffshoreHullClearance(ship.tileId) &&
+    !shipDirectionMakesForwardProgress({
+      direction: travelDirection,
+      desiredDirection: preferredDirection
+    })
+  ) {
+    ship.velocity = scaleVector(
+      preferredDirection,
+      Math.max(vectorLength(ship.velocity), SHIP_MIN_SLIDE_SPEED_RAD)
+    );
+  }
   const step = scaleVector(ship.velocity, dt);
   if (vectorLength(step) < 1e-8) return { moved: false, collided: false, normal: null };
 
@@ -17707,14 +17729,23 @@ function moveShipWithCollision(dt, inputHeading) {
   }
 
   const normal = direct.normal || shipCollisionNormal(ship.position, direct.blockedTileId, step);
-  const slide = findShipSlideMove(normal, dt);
+  const slide = findShipSlideMove(normal, preferredDirection, dt);
   if (slide) {
     ship.velocity = projectTangentVector(slide.velocity, slide.position);
     applyShipMove(slide.position, slide.tileId);
     return { moved: true, collided: true, normal };
   }
 
-  const pushOff = findShipPushOffMove(normal);
+  const channelSlide = findShipSlideMove(normal, preferredDirection, dt, {
+    allowNarrowChannelHullOverlap: true
+  });
+  if (channelSlide) {
+    ship.velocity = projectTangentVector(channelSlide.velocity, channelSlide.position);
+    applyShipMove(channelSlide.position, channelSlide.tileId);
+    return { moved: true, collided: true, normal };
+  }
+
+  const pushOff = findShipPushOffMove(normal, preferredDirection);
   if (pushOff) {
     ship.velocity = projectTangentVector(pushOff.velocity, pushOff.position);
     applyShipMove(pushOff.position, pushOff.tileId);
@@ -17871,15 +17902,20 @@ function playerHaulRecoveryDirections(inputHeading, blockedNormal) {
   const away = blockedNormal
     ? normalizeOrNull(projectTangentVector(scaleVector(blockedNormal, -1), ship.position))
     : null;
-  if (away) addPlayerHaulRecoveryDirection(candidates, away);
-  for (const degrees of [0, 18, -18, 36, -36, 60, -60, 90, -90, 135, -135, 180]) {
-    addPlayerHaulRecoveryDirection(candidates, rotateTangentDirection(desired, ship.position, degrees * Math.PI / 180));
+  for (const degrees of [0, 18, -18, 36, -36, 60, -60, 82, -82]) {
+    addPlayerHaulRecoveryDirection(
+      candidates,
+      rotateTangentDirection(desired, ship.position, degrees * Math.PI / 180),
+      desired
+    );
   }
+  if (away) addPlayerHaulRecoveryDirection(candidates, away, desired);
   return candidates.map((candidate) => candidate.direction);
 }
 
-function addPlayerHaulRecoveryDirection(candidates, direction) {
+function addPlayerHaulRecoveryDirection(candidates, direction, desiredDirection) {
   if (!direction) return;
+  if (!shipDirectionMakesForwardProgress({ direction, desiredDirection })) return;
   const key = direction.map((value) => Math.round(value * 1000)).join(",");
   if (candidates.some((candidate) => candidate.key === key)) return;
   candidates.push({ key, direction });
@@ -17923,10 +17959,21 @@ function playerRiverGatewayVelocities(inputHeading) {
   return candidates;
 }
 
-function findShipSlideMove(normal, dt) {
-  for (const velocity of shipSlideVelocityCandidates(normal)) {
+function findShipSlideMove(
+  normal,
+  preferredDirection,
+  dt,
+  { allowNarrowChannelHullOverlap = false } = {}
+) {
+  if (allowNarrowChannelHullOverlap && tileHasOffshoreHullClearance(ship.tileId)) return null;
+  for (const velocity of shipSlideVelocityCandidates(normal, preferredDirection)) {
     if (vectorLength(velocity) < SHIP_MIN_SLIDE_SPEED_RAD) continue;
-    const slide = attemptShipStep(ship.position, ship.tileId, scaleVector(velocity, dt));
+    const slide = attemptShipStep(
+      ship.position,
+      ship.tileId,
+      scaleVector(velocity, dt),
+      { allowNarrowChannelHullOverlap }
+    );
     if (!slide.ok) continue;
     return {
       velocity,
@@ -17937,17 +17984,11 @@ function findShipSlideMove(normal, dt) {
   return null;
 }
 
-function findShipPushOffMove(normal) {
-  if (!normal) return null;
-  const away = normalizeOrNull(projectTangentVector(scaleVector(normal, -1), ship.position));
-  if (!away) return null;
-  const directions = [
-    away,
-    rotateTangentDirection(away, ship.position, Math.PI / 6),
-    rotateTangentDirection(away, ship.position, -Math.PI / 6),
-    rotateTangentDirection(away, ship.position, Math.PI / 3),
-    rotateTangentDirection(away, ship.position, -Math.PI / 3)
-  ];
+function findShipPushOffMove(normal, preferredDirection) {
+  if (!normal || !preferredDirection) return null;
+  const directions = shipSlideVelocityCandidates(normal, preferredDirection)
+    .map((velocity) => normalizeOrNull(projectTangentVector(velocity, ship.position)))
+    .filter(Boolean);
   const speed = Math.max(
     vectorLength(ship.velocity) * SHIP_COLLISION_PUSH_OFF_SPEED_KEEP,
     SHIP_MIN_SLIDE_SPEED_RAD
@@ -17968,41 +18009,68 @@ function findShipPushOffMove(normal) {
   return null;
 }
 
-function shipSlideVelocityCandidates(normal) {
-  const speed = vectorLength(ship.velocity);
-  if (speed <= 1e-9) return [];
-
-  const originalDirection = normalizeOrNull(projectTangentVector(ship.velocity, ship.position));
-  if (!originalDirection) return [];
+function shipSlideVelocityCandidates(normal, preferredDirection) {
+  const speed = Math.max(vectorLength(ship.velocity), SHIP_MIN_SLIDE_SPEED_RAD);
+  const desiredDirection = normalizeOrNull(projectTangentVector(
+    preferredDirection || ship.heading,
+    ship.position
+  ));
+  if (!desiredDirection) return [];
+  const currentDirection = normalizeOrNull(projectTangentVector(ship.velocity, ship.position)) || desiredDirection;
 
   const candidates = [];
-  addShipSlideVelocityCandidate(candidates, shipBoundarySlideVelocity(normal), originalDirection, speed);
+  addShipSlideVelocityCandidate(
+    candidates,
+    shipBoundarySlideVelocity(normal, desiredDirection, speed),
+    desiredDirection,
+    currentDirection,
+    speed
+  );
 
-  const tangent = shipBoundarySlideDirection(normal, originalDirection);
+  const tangent = shipBoundarySlideDirection(normal, desiredDirection);
   if (tangent) {
     addShipSlideVelocityCandidate(
       candidates,
       scaleVector(tangent, speed * SHIP_COLLISION_SLIDE_SPEED_KEEP),
-      originalDirection,
+      desiredDirection,
+      currentDirection,
       speed
     );
     for (const bias of SHIP_COLLISION_SLIDE_OUTWARD_BIASES) {
-      addBiasedShipSlideVelocityCandidates(candidates, tangent, normal, originalDirection, speed, bias);
+      addBiasedShipSlideVelocityCandidates(
+        candidates,
+        tangent,
+        normal,
+        desiredDirection,
+        currentDirection,
+        speed,
+        bias
+      );
     }
   }
 
   for (const angle of SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD) {
-    const direction = rotateTangentDirection(originalDirection, ship.position, angle);
-    if (Math.abs(angle) > 1e-6) {
-      addShipSlideVelocityCandidate(
-        candidates,
-        scaleVector(direction, speed * SHIP_COLLISION_SLIDE_SEARCH_SIDE_KEEP),
-        originalDirection,
-        speed
-      );
-    }
+    const direction = rotateTangentDirection(desiredDirection, ship.position, angle);
+    addShipSlideVelocityCandidate(
+      candidates,
+      scaleVector(
+        direction,
+        speed * (Math.abs(angle) > 1e-6 ? SHIP_COLLISION_SLIDE_SEARCH_SIDE_KEEP : 1)
+      ),
+      desiredDirection,
+      currentDirection,
+      speed
+    );
     for (const bias of SHIP_COLLISION_SLIDE_OUTWARD_BIASES) {
-      addBiasedShipSlideVelocityCandidates(candidates, direction, normal, originalDirection, speed, bias);
+      addBiasedShipSlideVelocityCandidates(
+        candidates,
+        direction,
+        normal,
+        desiredDirection,
+        currentDirection,
+        speed,
+        bias
+      );
     }
   }
 
@@ -18010,7 +18078,15 @@ function shipSlideVelocityCandidates(normal) {
   return candidates.map((candidate) => candidate.velocity);
 }
 
-function addBiasedShipSlideVelocityCandidates(candidates, direction, normal, originalDirection, speed, bias) {
+function addBiasedShipSlideVelocityCandidates(
+  candidates,
+  direction,
+  normal,
+  desiredDirection,
+  currentDirection,
+  speed,
+  bias
+) {
   if (!normal) return;
   const away = scaleVector(normal, -1);
   const biased = normalizeOrNull(projectTangentVector([
@@ -18022,16 +18098,24 @@ function addBiasedShipSlideVelocityCandidates(candidates, direction, normal, ori
   addShipSlideVelocityCandidate(
     candidates,
     scaleVector(biased, speed * SHIP_COLLISION_SLIDE_SEARCH_SIDE_KEEP),
-    originalDirection,
+    desiredDirection,
+    currentDirection,
     speed
   );
 }
 
-function addShipSlideVelocityCandidate(candidates, velocity, originalDirection, speed) {
+function addShipSlideVelocityCandidate(
+  candidates,
+  velocity,
+  desiredDirection,
+  currentDirection,
+  speed
+) {
   const direction = normalizeOrNull(projectTangentVector(velocity, ship.position));
   if (!direction) return;
-  const align = dot3(direction, originalDirection);
-  if (align < SHIP_COLLISION_SLIDE_SEARCH_MIN_ALIGN) return;
+  if (!shipDirectionMakesForwardProgress({ direction, desiredDirection })) return;
+  const desiredAlignment = dot3(direction, desiredDirection);
+  const currentAlignment = dot3(direction, currentDirection);
   const candidateSpeed = vectorLength(velocity);
   if (candidateSpeed < SHIP_MIN_SLIDE_SPEED_RAD) return;
   const key = `${Math.round(direction[0] * 1000)},${Math.round(direction[1] * 1000)},${Math.round(direction[2] * 1000)}`;
@@ -18040,14 +18124,12 @@ function addShipSlideVelocityCandidate(candidates, velocity, originalDirection, 
   candidates.push({
     key,
     velocity,
-    score: align * 2 + speedScore
+    score: desiredAlignment * 3 + currentAlignment * 0.2 + speedScore
   });
 }
 
-function shipBoundarySlideVelocity(normal) {
-  const speed = vectorLength(ship.velocity);
-  if (speed <= 1e-9) return [0, 0, 0];
-  const direction = shipBoundarySlideDirection(normal, ship.velocity);
+function shipBoundarySlideVelocity(normal, preferredDirection, speed) {
+  const direction = shipBoundarySlideDirection(normal, preferredDirection);
   if (!direction) return [0, 0, 0];
   return scaleVector(direction, speed * SHIP_COLLISION_SLIDE_SPEED_KEEP);
 }
@@ -18078,7 +18160,12 @@ function rotateTangentDirection(direction, axis, angle) {
   ], axis)) || direction;
 }
 
-function attemptShipStep(fromPosition, fromTileId, step) {
+function attemptShipStep(
+  fromPosition,
+  fromTileId,
+  step,
+  { allowNarrowChannelHullOverlap = false } = {}
+) {
   const segments = Math.max(1, Math.ceil(vectorLength(step) * PIXELS_PER_RADIAN / SHIP_COLLISION_SAMPLE_STEP_PX));
   const movementDirection = normalizeOrNull(step);
   const startNav = shipNavigabilityAtLocalPoint(localLayout.viewX, localLayout.viewY, fromTileId, fromPosition);
@@ -18121,7 +18208,7 @@ function attemptShipStep(fromPosition, fromTileId, step) {
         normal: shipCollisionNormal(position, tileId, step)
       };
     }
-    if (!tileHasOffshoreHullClearance(tileId)) {
+    if (!allowNarrowChannelHullOverlap && !tileHasOffshoreHullClearance(tileId)) {
       const occupancy = vesselOccupancyAtPosition(position, tileId, localPoint, centerNav, ship.heading);
       if (!occupancy.ok) {
         return {
@@ -22800,7 +22887,11 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
   const startNav = collisionChanged
     ? shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector)
     : initialNavigation;
-  const riverRailDistance = startNav.ok && startNav.kind === "river"
+  const riverRailCommitted = startNav.ok && npcRiverRailShouldRemainCommitted({
+    navigationKind: startNav.kind,
+    activePathKey: state.riverRailPathKey
+  });
+  const riverRailDistance = riverRailCommitted
     ? NPC_RIVER_RAIL_MIN_SPEED_PX * dt
     : 0;
   const stepDistance = Math.min(
@@ -22911,7 +23002,11 @@ function applyNpcCollisionDrift(state, dt) {
 
 function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   if (!startNav.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
-  if (startNav.kind === "river") {
+  const riverRailCommitted = npcRiverRailShouldRemainCommitted({
+    navigationKind: startNav.kind,
+    activePathKey: state.riverRailPathKey
+  });
+  if (riverRailCommitted) {
     const railMove = measurePerformanceBenchmarkStage(
       "npcShips.visual.movement.advance.step.riverRail",
       () => moveNpcAlongRiverRail(state, direction, distance, dt)
@@ -22920,6 +23015,7 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
       clearNpcEscapeManeuver(state);
       return railMove;
     }
+    if (startNav.kind !== "river") clearNpcRiverRail(state);
   } else {
     clearNpcRiverRail(state);
   }

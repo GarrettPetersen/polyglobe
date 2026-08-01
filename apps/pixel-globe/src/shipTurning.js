@@ -1,4 +1,5 @@
 export const SHIP_MINIMUM_RUDDER_AUTHORITY = 0.25;
+export const SHIP_MINIMUM_FORWARD_PROGRESS_ALIGNMENT = 0.01;
 
 export function shipTurnRate({
   turnRateRad,
@@ -75,6 +76,19 @@ export function contactPushOffVelocity({
     withoutBankwardVelocity[1] + desiredDirection[1] * addedSpeed,
     withoutBankwardVelocity[2] + desiredDirection[2] * addedSpeed
   ];
+}
+
+export function shipDirectionMakesForwardProgress({
+  direction,
+  desiredDirection,
+  minimumAlignment = SHIP_MINIMUM_FORWARD_PROGRESS_ALIGNMENT
+}) {
+  assertUnitVector3("Ship navigation direction", direction);
+  assertUnitVector3("Ship desired navigation direction", desiredDirection);
+  if (!Number.isFinite(minimumAlignment) || minimumAlignment < 0 || minimumAlignment > 1) {
+    throw new Error("Ship minimum forward alignment must be between zero and one");
+  }
+  return dot3(direction, desiredDirection) >= minimumAlignment;
 }
 
 function assertFinitePositive(label, value) {

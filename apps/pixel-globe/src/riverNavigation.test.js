@@ -6,6 +6,7 @@ import {
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
+  npcRiverRailShouldRemainCommitted,
   playerRiverGatewayAssistEligible,
   rememberCompletedRiverRailPath,
   selectRiverRailPath,
@@ -202,6 +203,21 @@ test("river rail keeps its active path at a crossing instead of vibrating betwee
 
   assert.equal(selection.probe.pathKey, "west-east");
   assert.equal(selection.directionSign, 1);
+});
+
+test("NPC river rail stays committed across transient open water between adjacent mouths", () => {
+  assert.equal(npcRiverRailShouldRemainCommitted({
+    navigationKind: "openWater",
+    activePathKey: "gdansk-mouth-west"
+  }), true);
+  assert.equal(npcRiverRailShouldRemainCommitted({
+    navigationKind: "openWater",
+    activePathKey: null
+  }), false);
+  assert.equal(npcRiverRailShouldRemainCommitted({
+    navigationKind: "river",
+    activePathKey: null
+  }), true);
 });
 
 test("river rail excludes a completed segment and takes the best outgoing branch", () => {

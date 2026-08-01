@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   contactPushOffVelocity,
+  shipDirectionMakesForwardProgress,
   shipTurnRate,
   updateBoundaryContactLatch
 } from "./shipTurning.js";
@@ -107,6 +108,22 @@ test("bank contact does not help input aimed into or along the bank", () => {
     obstacleNormal: [1, 0, 0],
     minimumEscapeSpeedRad: 0.0015
   }), velocity);
+});
+
+test("shoreline fallbacks keep making progress in the steered direction", () => {
+  const desiredDirection = [1, 0, 0];
+  assert.equal(shipDirectionMakesForwardProgress({
+    direction: [0.08, Math.sqrt(1 - 0.08 ** 2), 0],
+    desiredDirection
+  }), true);
+  assert.equal(shipDirectionMakesForwardProgress({
+    direction: [-0.08, Math.sqrt(1 - 0.08 ** 2), 0],
+    desiredDirection
+  }), false);
+  assert.equal(shipDirectionMakesForwardProgress({
+    direction: [-1, 0, 0],
+    desiredDirection
+  }), false);
 });
 
 test("turning helpers reject invalid motion data", () => {
