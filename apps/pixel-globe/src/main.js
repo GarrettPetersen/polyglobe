@@ -246,6 +246,7 @@ import {
   grantEnvoySafePassage,
   advanceGamePolitics,
   advanceActivePlayTime,
+  adjustFactionReputation,
   applySurvivalDeprivation,
   attemptPortDisguise,
   awardPlayerShip,
@@ -1082,13 +1083,34 @@ import {
 } from "./portConquest.js";
 import { recentRegionalRulerChange } from "./rulers.js";
 import {
+  PAPAL_COMMISSION_PEACE,
+  PAPAL_COMMISSION_RELIEF,
   PAPAL_ACTION_EXCOMMUNICATION,
   PAPAL_ACTION_FAVOUR,
+  PAPAL_MATTER_COMMISSIONED,
+  acceptPapalCommission,
+  advancePapalCommissionAtPort,
+  completePapalCommission,
   convertEnglishCatholicCharacter,
+  declinePapalCommission,
   imposePapalAction,
   papalActionNotice,
-  papalExcommunicationTargetCandidates
+  papalCommissionEligibility,
+  papalCommissionLabel,
+  papalCommissionObjective,
+  papalExcommunicationTargetCandidates,
+  papalMatterNotice,
+  papalPendingMatter,
+  recordPapalCommissionDenial
 } from "./papalPolitics.js";
+import {
+  papalCommissionAcceptedText,
+  papalCommissionAudienceText,
+  papalCommissionCompletionText,
+  papalCommissionDenialText,
+  papalCommissionOfferText,
+  papalCommissionRecommendationChoices
+} from "./papalCommissionDialogue.js";
 import {
   papalGossipDialogueLine,
   recentPapalGossipForCharacter,
@@ -12287,13 +12309,17 @@ function openPortDialogue(cityCall) {
     return;
   }
   const entryStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
+  const papalLegationObjective = papalCommissionObjective(gameState.relations.papacy);
+  const papalLegationAtPort = papalLegationObjective?.kind === "destination" &&
+    papalLegationObjective.destination.tileId === cityCall.tileId;
   const recoveryStatus = shoreBatteryRecoveryStatus(
     ensureShoreBatteryState(cityCall),
     Math.floor(weatherClockMinutes)
   );
   const conquestStatus = playerPortConquestStatus(cityCall);
   const portUnavailable = Boolean(
-    recoveryStatus || !entryStatus.allowed || conquestStatus.canAttempt || conquestStatus.playerAssaultActive
+    recoveryStatus || conquestStatus.playerAssaultActive ||
+    ((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort)
   );
   const rescuedTravelerHomecoming = rescuedTravelerAtHome(cityCall);
   if (rescuedTravelerHomecoming && portUnavailable) {
@@ -12317,8 +12343,8 @@ function openPortDialogue(cityCall) {
     dirty = true;
     return;
   }
-  if (!entryStatus.allowed || (recoveryStatus && entryStatus.hostile) ||
-      conquestStatus.canAttempt || conquestStatus.playerAssaultActive) {
+  if (((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort) ||
+      (recoveryStatus && entryStatus.hostile) || conquestStatus.playerAssaultActive) {
     dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "barred" });
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
@@ -12371,12 +12397,15 @@ function openPortDialogue(cityCall) {
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
   if (!rescuedTravelerSession && !campaignSession) {
-    const openedNaturalist = maybeOpenNaturalistPortDialogue(cityCall);
-    const openedAnimalReaction = !openedNaturalist && maybeOpenAnimalCompanionNpcReaction(
+    const openedPapalCommission = maybeOpenPapalCommissionPortDialogue(cityCall);
+    const openedNaturalist = !openedPapalCommission && maybeOpenNaturalistPortDialogue(cityCall);
+    const openedAnimalReaction = !openedPapalCommission && !openedNaturalist && maybeOpenAnimalCompanionNpcReaction(
       `port:${cityCall.tileId}`,
       cityCall.character
     );
-    if (!openedNaturalist && !openedAnimalReaction) openPendingDiscoveryPortDialogue();
+    if (!openedPapalCommission && !openedNaturalist && !openedAnimalReaction) {
+      openPendingDiscoveryPortDialogue();
+    }
   }
   saveVoyageNow("port arrival");
   dirty = true;
@@ -12566,6 +12595,358 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     questCharacterSession,
     openDeliveryMission
   });
+}
+
+function maybeOpenPapalCommissionPortDialogue(cityCall) {
+  const matter = papalPendingMatter(gameState.relations.papacy);
+  if (!matter) return false;
+  if (matter.status === PAPAL_MATTER_COMMISSIONED) {
+    const objective = papalCommissionObjective(gameState.relations.papacy);
+    if (!objective || objective.destination.tileId !== cityCall.tileId) return false;
+    return objective.kind === "return-to-rome"
+      ? completePapalCommissionAtRome(cityCall, matter)
+      : openPapalCommissionAudience(cityCall, matter, objective.destination);
+  }
+  if (cityCall.factionId !== "papal-states" || cityCall.city !== "Rome" ||
+      matter.playerOfferStatus !== null) {
+    return false;
+  }
+  const itinerary = papalCommissionItinerary(matter);
+  if (!itinerary) return false;
+  const eligibility = papalCommissionEligibility(
+    gameState.relations.papacy,
+    gameState.relations.diplomacy,
+    papalPlayerEligibilityContext()
+  );
+  const nuncio = generatePapalNuncio(matter, cityCall);
+  const rhodesStillHospitaller = portCities.some((port) => (
+    port.city === "Rhodes" && port.factionId === "hospitallers"
+  ));
+  const steps = [
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: eligibility.eligible ? "attentive" : "stern",
+      message: papalCommissionOfferText(matter, Math.floor(weatherClockMinutes), {
+        rhodesStillHospitaller
+      })
+    })
+  ];
+  if (!eligibility.eligible) {
+    recordPapalCommissionDenial(gameState.relations.papacy);
+    steps.push(pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "stern",
+      message: papalCommissionDenialText(eligibility)
+    }));
+    const opened = startCharacterAlertSequence(steps, () => {
+      saveVoyageNow("denied a Papal commission");
+      dirty = true;
+    });
+    if (!opened) throw new Error("Papal commission denial could not open");
+    return true;
+  }
+  const opened = startCharacterAlertSequence(steps, () => {
+    const choiceOpened = openCharacterChoiceAlertModal(
+      nuncio,
+      `${papalCommissionLabel(matter.commissionKind)}. Will you carry the nuncio and his briefs?`,
+      [
+        {
+          label: "Accept the commission",
+          onSelect: () => acceptPapalCommissionOffer(cityCall, matter, itinerary, nuncio)
+        },
+        {
+          label: "Decline",
+          onSelect: () => declinePapalCommissionOffer(nuncio)
+        }
+      ],
+      "attentive",
+      { leftCharacter: gameState.playerCharacter, rightCharacter: nuncio }
+    );
+    if (!choiceOpened) throw new Error("Papal commission choice could not open");
+  });
+  if (!opened) throw new Error("Papal commission offer could not open");
+  return true;
+}
+
+function papalPlayerEligibilityContext() {
+  if (!gameState?.playerCharacter) throw new Error("Papal eligibility requires a player character");
+  return {
+    playerFactionId: gameState.playerCharacter.nationalityId,
+    playerReligionId: gameState.playerCharacter.religionId,
+    papalReputation: factionReputation(gameState, "papal-states")
+  };
+}
+
+function generatePapalNuncio(matter, rome) {
+  const factor = portCityCharacters.get(rome.tileId);
+  if (!factor) throw new Error("Rome has no factor for the Papal commission");
+  return generateSpecialPortCharacter({
+    identityKey: `papal-nuncio|${matter.id}|${rome.tileId}`,
+    port: rome,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
+    role: "papal-nuncio",
+    religionId: "roman-catholic",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+}
+
+function papalCommissionItinerary(matter) {
+  const targetFactionIds = matter.commissionKind === PAPAL_COMMISSION_PEACE
+    ? [matter.targetFactionId, matter.partnerFactionId]
+    : matter.commissionKind === PAPAL_COMMISSION_RELIEF
+      ? [matter.beneficiaryFactionId || "venice"]
+      : [matter.targetFactionId];
+  const destinations = [];
+  for (const factionId of targetFactionIds) {
+    if (!factionId) return null;
+    const port = papalCommissionPortForFaction(factionId);
+    if (!port) return null;
+    if (destinations.some((entry) => entry.tileId === port.tileId)) continue;
+    destinations.push({
+      tileId: port.tileId,
+      portName: cityLabelText(port),
+      factionId,
+      purpose: matter.commissionKind
+    });
+  }
+  return destinations.length > 0 ? destinations : null;
+}
+
+function papalCommissionPortForFaction(factionId) {
+  const candidates = playerAccessiblePortCities()
+    .filter((port) => port.factionId === factionId)
+    .sort((left, right) => (
+      Number(right.capitalOfFactionId === factionId) - Number(left.capitalOfFactionId === factionId) ||
+      right.population - left.population ||
+      cityLabelText(left).localeCompare(cityLabelText(right))
+    ));
+  return candidates[0] || null;
+}
+
+function papalCommissionReward(rome, itinerary) {
+  let distanceKm = 0;
+  let previous = rome;
+  for (const stop of itinerary) {
+    const port = portCitiesByTileId.get(stop.tileId);
+    if (!port) throw new Error(`Papal itinerary port is missing: ${stop.portName}`);
+    const legDistanceKm = sailingDistanceBetweenPorts(previous, port);
+    if (!Number.isFinite(legDistanceKm) || legDistanceKm <= 0) {
+      throw new Error(`Papal itinerary has no sailing route: ${cityLabelText(previous)} / ${cityLabelText(port)}`);
+    }
+    distanceKm += legDistanceKm;
+    previous = port;
+  }
+  const returnDistanceKm = sailingDistanceBetweenPorts(previous, rome);
+  if (!Number.isFinite(returnDistanceKm) || returnDistanceKm <= 0) {
+    throw new Error(`Papal itinerary cannot return from ${cityLabelText(previous)} to Rome`);
+  }
+  distanceKm += returnDistanceKm;
+  return Math.max(500, Math.min(3000, Math.round((500 + distanceKm * 0.12) / 100) * 100));
+}
+
+function acceptPapalCommissionOffer(rome, matter, itinerary, nuncio) {
+  const accepted = acceptPapalCommission(
+    gameState.relations.papacy,
+    gameState.relations.diplomacy,
+    {
+      ...papalPlayerEligibilityContext(),
+      simMinute: Math.floor(weatherClockMinutes),
+      originTileId: rome.tileId,
+      itinerary,
+      rewardDoubloons: papalCommissionReward(rome, itinerary),
+      nuncio
+    }
+  );
+  for (const destination of itinerary) {
+    gameState.relations.safePassageUntilMinute[destination.factionId] =
+      Math.max(
+        gameState.relations.safePassageUntilMinute[destination.factionId] || 0,
+        accepted.commission.deadlineMinute
+      );
+  }
+  const objective = papalCommissionObjective(gameState.relations.papacy);
+  if (!objective) throw new Error("Accepted Papal commission has no objective");
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: gameState.playerCharacter,
+      expressionId: "stern",
+      message: "I will carry the legation and answer for its safety."
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "pleased",
+      message: papalCommissionAcceptedText(accepted, objective.destination.portName)
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "stern",
+      message: `Until these briefs return to Rome, do not attack the powers receiving us. ` +
+        "The law of embassies protects the ship only while we honor it."
+    })
+  ], () => {
+    saveVoyageNow("accepted a Papal commission");
+    dirty = true;
+  });
+  if (!opened) throw new Error("Accepted Papal commission dialogue could not open");
+}
+
+function declinePapalCommissionOffer(nuncio) {
+  if (!declinePapalCommission(gameState.relations.papacy)) {
+    throw new Error("Papal commission could not be declined");
+  }
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "stern",
+      message: "Then Rome will decide without your testimony. The matter cannot wait upon one captain."
+    })
+  ], () => {
+    saveVoyageNow("declined a Papal commission");
+    dirty = true;
+  });
+  if (!opened) throw new Error("Papal commission decline dialogue could not open");
+}
+
+function openPapalCommissionAudience(cityCall, matter, destination) {
+  const finalAudience = matter.commission.nextStopIndex === matter.commission.itinerary.length - 1;
+  const nuncio = matter.commission.nuncio;
+  const steps = [
+    pairedCharacterAlertStep({
+      leftCharacter: nuncio,
+      rightCharacter: cityCall.character,
+      speakerCharacter: cityCall.character,
+      expressionId: "attentive",
+      message: `Monsignor ${nuncio.name}, your credentials are recognized. Speak, and we will answer Rome.`
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: nuncio,
+      rightCharacter: cityCall.character,
+      speakerCharacter: nuncio,
+      expressionId: "stern",
+      message: papalCommissionAudienceText(matter, destination, { finalAudience })
+    })
+  ];
+  if (!finalAudience) {
+    advancePapalCommissionAtPort(gameState.relations.papacy, {
+      tileId: cityCall.tileId,
+      simMinute: Math.floor(weatherClockMinutes)
+    });
+    const opened = startCharacterAlertSequence(steps, () => {
+      saveVoyageNow(`completed Papal audience at ${cityCall.city}`);
+      dirty = true;
+    });
+    if (!opened) throw new Error("Papal commission audience could not open");
+    return true;
+  }
+  const opened = startCharacterAlertSequence(steps, () => {
+    const choices = papalCommissionRecommendationChoices(matter).map((choice) => ({
+      label: choice.label,
+      onSelect: () => finishPapalCommissionAudience(cityCall, matter, choice.recommendation)
+    }));
+    const choiceOpened = openCharacterChoiceAlertModal(
+      gameState.playerCharacter,
+      "The Pope will ask for your judgment as captain and witness. What shall the nuncio carry home?",
+      choices,
+      "thoughtful",
+      { leftCharacter: gameState.playerCharacter, rightCharacter: nuncio }
+    );
+    if (!choiceOpened) throw new Error("Papal recommendation choice could not open");
+  });
+  if (!opened) throw new Error("Final Papal commission audience could not open");
+  return true;
+}
+
+function finishPapalCommissionAudience(cityCall, matter, recommendation) {
+  advancePapalCommissionAtPort(gameState.relations.papacy, {
+    tileId: cityCall.tileId,
+    simMinute: Math.floor(weatherClockMinutes),
+    recommendation
+  });
+  const nuncio = matter.commission.nuncio;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: gameState.playerCharacter,
+      expressionId: "stern",
+      message: recommendation === "firm"
+        ? "Write it plainly. Rome should act with purpose, not hide behind another delay."
+        : "Write the whole truth, including what may temper Rome's judgment."
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "attentive",
+      message: "It is entered beneath my seal. Now we return to Rome before events outrun the dispatch."
+    })
+  ], () => {
+    saveVoyageNow(`advised the Papal legation at ${cityCall.city}`);
+    dirty = true;
+  });
+  if (!opened) throw new Error("Papal recommendation dialogue could not open");
+}
+
+function completePapalCommissionAtRome(rome, matter) {
+  const nuncio = matter.commission.nuncio;
+  const completion = completePapalCommission(
+    gameState.relations.papacy,
+    gameState.relations.diplomacy,
+    { simMinute: Math.floor(weatherClockMinutes) }
+  );
+  clearPapalCommissionSafePassage(completion);
+  receiveQuestPayment(
+    gameState,
+    rome,
+    completion.rewardDoubloons,
+    papalCommissionLabel(completion.commissionKind),
+    portDialogueContext()
+  );
+  adjustFactionReputation(gameState, "papal-states", 15);
+  playCoinClinkSound();
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "pleased",
+      message: "The briefs, replies, and your sworn account are before His Holiness. The matter is decided."
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: "happy",
+      message: papalCommissionCompletionText(completion)
+    })
+  ], () => {
+    showSurvivalNotice(papalActionNotice(completion.action), "good", { fullText: true });
+    saveVoyageNow("completed a Papal commission");
+    dirty = true;
+  });
+  if (!opened) throw new Error("Papal commission completion dialogue could not open");
+  return true;
+}
+
+function clearPapalCommissionSafePassage(result) {
+  for (const factionId of result.safePassageFactionIds || []) {
+    if (gameState.relations.safePassageUntilMinute[factionId] === result.safePassageUntilMinute) {
+      delete gameState.relations.safePassageUntilMinute[factionId];
+    }
+  }
 }
 
 function maybeOpenNaturalistPortDialogue(cityCall) {
@@ -13180,7 +13561,7 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
   }
   if (term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR ||
       term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
-    imposePapalAction(gameState.relations.papacy, gameState.relations.diplomacy, {
+    const papalResult = imposePapalAction(gameState.relations.papacy, gameState.relations.diplomacy, {
       kind: term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR
         ? PAPAL_ACTION_FAVOUR
         : PAPAL_ACTION_EXCOMMUNICATION,
@@ -13188,6 +13569,9 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
       simMinute,
       source: "rome-peace-treaty"
     });
+    if (papalResult.interruptedCommission) {
+      clearPapalCommissionSafePassage(papalResult.interruptedCommission);
+    }
   }
   return treaty;
 }
@@ -19732,6 +20116,27 @@ function updateWorldDiplomacy() {
     dirty = true;
     return true;
   }
+  if (result.papalCommissionRevoked) {
+    clearPapalCommissionSafePassage(result.papalCommissionRevoked);
+    showSurvivalNotice(
+      result.papalCommissionRevoked.reason === "commission-expired"
+        ? "PAPAL LEGATION EXPIRED - ROME ACTS WITHOUT US"
+        : "PAPAL LEGATION REVOKED",
+      "warn",
+      { fullText: true }
+    );
+    dirty = true;
+    return true;
+  }
+  if (result.papalMattersOpened.length > 0) {
+    showSurvivalNotice(
+      papalMatterNotice(result.papalMattersOpened.at(-1)),
+      "warn",
+      { fullText: true }
+    );
+    dirty = true;
+    return true;
+  }
   if (result.diplomacyEvents.length === 0 && expulsions.length === 0) return false;
   if (expulsions.length > 0) {
     showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn", { fullText: true });
@@ -24530,6 +24935,7 @@ function render(nowMs) {
   drawColonizationDestinationArrow(nowMs);
   drawCampaignGoalDestinationArrow(nowMs);
   drawNaturalistDestinationArrow(nowMs);
+  drawPapalCommissionDestinationArrow(nowMs);
   drawPortNavigationHeadingArrow(nowMs);
   drawWaypointArrowTooltip();
   drawSurvivalHudTooltip();
@@ -26740,6 +27146,20 @@ function questJournalEntries() {
     });
   }
 
+  const papalMatter = papalPendingMatter(gameState.relations.papacy);
+  if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
+    const objective = papalCommissionObjective(gameState.relations.papacy);
+    if (!objective) throw new Error("Active Papal commission has no journal objective");
+    entries.push({
+      id: `papal:${papalMatter.id}`,
+      title: papalCommissionLabel(papalMatter.commissionKind).toUpperCase(),
+      nextStep: objective.kind === "return-to-rome"
+        ? "RETURN THE SEALED REPLIES TO ROME"
+        : `CARRY THE PAPAL LEGATION TO ${objective.destination.portName.toUpperCase()}`,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
+
   for (const { quest: activeQuest, destination: activeDestination } of activeQuestDestinations()) {
     const titleKey = activeQuest.kind === "passenger"
       ? "quest.passenger"
@@ -27268,6 +27688,21 @@ function nativeCaptainChartMinimap(width, height, viewport) {
 function navigationMenuEntries() {
   if (!gameState) throw new Error("Navigation menu requires an active game state");
   const entries = [];
+  const papalMatter = papalPendingMatter(gameState.relations.papacy);
+  if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
+    const objective = papalCommissionObjective(gameState.relations.papacy);
+    const destination = portCitiesByTileId.get(objective.destination.tileId) ||
+      cityByTileId.get(objective.destination.tileId);
+    if (!destination) throw new Error(`Papal objective port is missing: ${objective.destination.portName}`);
+    entries.push({
+      id: `papal:${papalMatter.id}`,
+      destinationName: objective.destination.portName,
+      reason: objective.kind === "return-to-rome" ? "REPORT TO THE POPE" : "PAPAL LEGATION",
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: placedCityTargetVector(destination),
+      optionalWaypointId: null
+    });
+  }
   for (const { quest, destination: questDestination } of activeQuestDestinations()) {
     entries.push({
       id: `quest:${quest.id}`,
@@ -29196,6 +29631,13 @@ function currentAboardRoster() {
       character: namedTravelMission.character
     });
   }
+  const papalMatter = papalPendingMatter(gameState.relations.papacy);
+  if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
+    namedTravelers.push({
+      kind: "envoy",
+      character: papalMatter.commission.nuncio
+    });
+  }
   for (const traveler of rescuedTravelers) {
     if (traveler.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
       namedTravelers.push({ kind: "passenger", character: traveler.character });
@@ -29261,6 +29703,16 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
     return captainCharacterGoal(gameState.memory.campaignGoal);
   }
   if (entry.role === ABOARD_ROLE_PASSENGER || entry.role === ABOARD_ROLE_EMISSARY) {
+    const papalMatter = papalPendingMatter(gameState.relations.papacy);
+    if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED &&
+        papalMatter.commission.nuncio.id === entry.character.id) {
+      const objective = papalCommissionObjective(gameState.relations.papacy);
+      if (!objective) throw new Error("Papal nuncio aboard has no destination");
+      return travelerCharacterGoal({
+        id: papalMatter.id,
+        destinationName: objective.destination.portName
+      });
+    }
     if (rescuedTravelers.some((traveler) => entry.character.id === traveler.character?.id)) {
       return namedCrewCharacterGoal(entry.character);
     }
@@ -36568,6 +37020,28 @@ function drawNaturalistDestinationArrow(nowMs) {
     localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
     nowMs,
     style: NATURALIST_NAVIGATION_STYLE
+  });
+}
+
+function drawPapalCommissionDestinationArrow(nowMs) {
+  if (!ship || !chart || !localLayout || !gameState) return;
+  const matter = papalPendingMatter(gameState.relations.papacy);
+  if (matter?.status !== PAPAL_MATTER_COMMISSIONED) return;
+  const objective = papalCommissionObjective(gameState.relations.papacy);
+  if (!objective) throw new Error("Active Papal commission has no map objective");
+  const destination = portCitiesByTileId.get(objective.destination.tileId) ||
+    cityByTileId.get(objective.destination.tileId);
+  if (!destination) throw new Error(`Papal objective port is missing: ${objective.destination.portName}`);
+  const targetVector = placedCityTargetVector(destination);
+  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+  drawWorldTargetArrow({
+    id: `papal:${matter.id}:${objective.kind}`,
+    label: objective.destination.portName,
+    targetVector,
+    localPoint: visibleCity || localPointForGlobeVector(targetVector),
+    localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+    nowMs,
+    style: QUEST_NAVIGATION_STYLE
   });
 }
 

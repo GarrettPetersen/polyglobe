@@ -112,7 +112,7 @@ test("version 45 voyages gain papal politics without recalculating established r
   delete saved.relations.papacy;
   const restored = migrateGameState(saved, null);
   assert.equal(restored.relations.factionReputation.france, 37);
-  assert.equal(restored.relations.papacy.version, 1);
+  assert.equal(restored.relations.papacy.version, 2);
 });
 
 test("port entry evaluation context can be reused across an armed-port combat tick", () => {

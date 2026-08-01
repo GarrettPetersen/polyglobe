@@ -1,4 +1,5 @@
 import {
+  DIPLOMACY_ALLY,
   DIPLOMACY_FRIENDLY,
   DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL,
@@ -24,18 +25,37 @@ import {
   isRomanCatholicReligion
 } from "./religiousAttitudes.js";
 
-export const PAPAL_POLITICS_VERSION = 1;
+export const PAPAL_POLITICS_VERSION = 2;
 export const PAPAL_FACTION_ID = "papal-states";
 export const PAPAL_ACTION_FAVOUR = "papal-favour";
 export const PAPAL_ACTION_EXCOMMUNICATION = "papal-excommunication";
 export const PAPAL_ACTION_CONDEMNATION = "papal-condemnation";
 export const PAPAL_ACTION_CRUSADE = "papal-crusade";
+export const PAPAL_COMMISSION_ADMONITION = "admonition";
+export const PAPAL_COMMISSION_COMMENDATION = "commendation";
+export const PAPAL_COMMISSION_PEACE = "peace";
+export const PAPAL_COMMISSION_REFORM = "reform";
+export const PAPAL_COMMISSION_RELIEF = "relief";
+export const PAPAL_MATTER_AVAILABLE = "available";
+export const PAPAL_MATTER_COMMISSIONED = "commissioned";
 
 const MINUTES_PER_DAY = 24 * 60;
 const PAPAL_MIN_ACTION_DAYS = 300;
 const PAPAL_MAX_ACTION_DAYS = 480;
 const PAPAL_HISTORY_LIMIT = 24;
 const MAX_CATCH_UP_ACTIONS = 8;
+const PAPAL_MATTER_DECISION_DAYS = 75;
+const PAPAL_COMMISSION_DEADLINE_DAYS = 365;
+const PAPAL_COMMISSION_CATHOLIC_REPUTATION = 10;
+const PAPAL_COMMISSION_CHRISTIAN_REPUTATION = 25;
+const PAPAL_COMMISSION_NON_CHRISTIAN_REPUTATION = 50;
+const PAPAL_COMMISSION_KINDS = new Set([
+  PAPAL_COMMISSION_ADMONITION,
+  PAPAL_COMMISSION_COMMENDATION,
+  PAPAL_COMMISSION_PEACE,
+  PAPAL_COMMISSION_REFORM,
+  PAPAL_COMMISSION_RELIEF
+]);
 const PAPAL_ACTION_KINDS = new Set([
   PAPAL_ACTION_FAVOUR,
   PAPAL_ACTION_EXCOMMUNICATION,
@@ -60,7 +80,8 @@ export function createPapalPolitics({ startMinute = 0, seedKey = "papacy" } = {}
     nextActionMinute: startMinute,
     englishReformationApplied: false,
     excommunications: {},
-    history: []
+    history: [],
+    pendingMatter: null
   };
   memory.nextActionMinute += papalActionIntervalMinutes(memory, 0);
   return validatePapalPolitics(memory);
@@ -68,6 +89,13 @@ export function createPapalPolitics({ startMinute = 0, seedKey = "papacy" } = {}
 
 export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papacy" } = {}) {
   if (memory === undefined || memory === null) return createPapalPolitics({ startMinute, seedKey });
+  if (memory?.version === 1) {
+    return validatePapalPolitics({
+      ...memory,
+      version: PAPAL_POLITICS_VERSION,
+      pendingMatter: null
+    });
+  }
   return validatePapalPolitics(memory);
 }
 
@@ -105,18 +133,25 @@ export function validatePapalPolitics(memory) {
     throw new Error("Invalid papal action history");
   }
   for (const action of memory.history) validatePapalAction(action);
+  if (memory.pendingMatter !== null) validatePapalMatter(memory.pendingMatter);
   return memory;
 }
 
 export function nextPapalPoliticsMinute(memory) {
   validatePapalPolitics(memory);
+  const scheduledMinute = memory.pendingMatter
+    ? memory.pendingMatter.status === PAPAL_MATTER_COMMISSIONED
+      ? memory.pendingMatter.commission.deadlineMinute
+      : memory.pendingMatter.autonomousDecisionMinute
+    : memory.nextActionMinute;
   return memory.englishReformationApplied
-    ? memory.nextActionMinute
-    : Math.min(memory.nextActionMinute, ENGLISH_REFORMATION_MINUTE);
+    ? scheduledMinute
+    : Math.min(scheduledMinute, ENGLISH_REFORMATION_MINUTE);
 }
 
 export function advancePapalPolitics(memory, diplomacy, currentMinute, {
-  papalStatesActive = true
+  papalStatesActive = true,
+  playerCommissionContext = null
 } = {}) {
   validatePapalPolitics(memory);
   validateWorldDiplomacy(diplomacy);
@@ -128,35 +163,293 @@ export function advancePapalPolitics(memory, diplomacy, currentMinute, {
   }
   const actions = [];
   const diplomacyEvents = [];
+  const mattersOpened = [];
+  let commissionRevoked = null;
   let englishReformation = false;
   if (!memory.englishReformationApplied && currentMinute >= ENGLISH_REFORMATION_MINUTE) {
     memory.englishReformationApplied = true;
     englishReformation = true;
   }
+  if (memory.pendingMatter?.status === PAPAL_MATTER_COMMISSIONED) {
+    if (!papalStatesActive) {
+      commissionRevoked = revokePapalCommission(memory, currentMinute, "rome-interrupted");
+    } else if (playerCommissionContext) {
+      const eligibility = papalCommissionEligibility(memory, diplomacy, playerCommissionContext);
+      if (!eligibility.eligible) {
+        commissionRevoked = revokePapalCommission(memory, currentMinute, eligibility.reason);
+      }
+    }
+  }
+
   let guard = 0;
-  while (currentMinute >= memory.nextActionMinute && guard < MAX_CATCH_UP_ACTIONS) {
+  while (guard < MAX_CATCH_UP_ACTIONS) {
+    if (memory.pendingMatter) {
+      const matter = memory.pendingMatter;
+      if (matter.status === PAPAL_MATTER_COMMISSIONED &&
+          currentMinute >= matter.commission.deadlineMinute) {
+        commissionRevoked = revokePapalCommission(memory, currentMinute, "commission-expired");
+      }
+      if (memory.pendingMatter?.status === PAPAL_MATTER_AVAILABLE &&
+          currentMinute >= memory.pendingMatter.autonomousDecisionMinute) {
+        if (papalStatesActive) {
+          const result = enactPapalMatter(memory, diplomacy, memory.pendingMatter, {
+            simMinute: memory.pendingMatter.autonomousDecisionMinute,
+            source: "papal-policy"
+          });
+          actions.push(result.action);
+          diplomacyEvents.push(...result.diplomacyEvents);
+        }
+        memory.pendingMatter = null;
+        guard += 1;
+        continue;
+      }
+      break;
+    }
+    if (currentMinute < memory.nextActionMinute) break;
     const actionMinute = memory.nextActionMinute;
     if (papalStatesActive) {
       const proposal = chooseScheduledPapalAction(memory, diplomacy, actionMinute);
       if (proposal) {
-        const result = enactPapalAction(memory, diplomacy, {
-          ...proposal,
-          simMinute: actionMinute,
-          source: "papal-policy"
-        });
-        actions.push(result.action);
-        diplomacyEvents.push(...result.diplomacyEvents);
+        const matter = createPapalMatter(memory, diplomacy, proposal, actionMinute);
+        memory.pendingMatter = matter;
+        mattersOpened.push(papalMatterView(matter));
       }
     }
     memory.sequence += 1;
     memory.nextActionMinute = actionMinute + papalActionIntervalMinutes(memory, memory.sequence);
     guard += 1;
   }
-  if (guard >= MAX_CATCH_UP_ACTIONS && currentMinute >= memory.nextActionMinute) {
+  if (guard >= MAX_CATCH_UP_ACTIONS &&
+      !memory.pendingMatter && currentMinute >= memory.nextActionMinute) {
     memory.nextActionMinute = currentMinute + papalActionIntervalMinutes(memory, memory.sequence + 1);
   }
   memory.lastUpdateMinute = currentMinute;
-  return Object.freeze({ actions, diplomacyEvents, englishReformation });
+  return Object.freeze({
+    actions,
+    diplomacyEvents,
+    mattersOpened: Object.freeze(mattersOpened),
+    commissionRevoked,
+    englishReformation
+  });
+}
+
+export function papalPendingMatter(memory) {
+  validatePapalPolitics(memory);
+  return memory.pendingMatter ? papalMatterView(memory.pendingMatter) : null;
+}
+
+export function papalCommissionEligibility(memory, diplomacy, {
+  playerFactionId,
+  playerReligionId,
+  papalReputation
+}) {
+  validatePapalPolitics(memory);
+  validateWorldDiplomacy(diplomacy);
+  const matter = memory.pendingMatter;
+  if (!matter) return eligibility(false, "no-pending-matter");
+  assertFactionId(playerFactionId);
+  if (!Number.isFinite(papalReputation)) {
+    throw new Error(`Invalid Papal reputation for commission: ${papalReputation}`);
+  }
+  if (playerFactionId === PIRATE_FACTION_ID || playerFactionId === NEUTRAL_FACTION_ID) {
+    return eligibility(false, "outlaw-or-stateless");
+  }
+  const relation = worldDiplomacyBetween(diplomacy, PAPAL_FACTION_ID, playerFactionId);
+  if (relation === DIPLOMACY_WAR || relation === DIPLOMACY_HOSTILE) {
+    return eligibility(false, "papal-enemy");
+  }
+  if (isRomanCatholicReligion(playerReligionId)) {
+    return eligibility(
+      papalReputation >= PAPAL_COMMISSION_CATHOLIC_REPUTATION,
+      "insufficient-papal-standing",
+      PAPAL_COMMISSION_CATHOLIC_REPUTATION
+    );
+  }
+  if (![PAPAL_COMMISSION_PEACE, PAPAL_COMMISSION_RELIEF].includes(matter.commissionKind)) {
+    return eligibility(false, "doctrinal-office-reserved");
+  }
+  if (isChristianReligion(playerReligionId)) {
+    return eligibility(
+      papalReputation >= PAPAL_COMMISSION_CHRISTIAN_REPUTATION &&
+        (relation === DIPLOMACY_FRIENDLY || relation === DIPLOMACY_ALLY),
+      "insufficient-papal-standing",
+      PAPAL_COMMISSION_CHRISTIAN_REPUTATION
+    );
+  }
+  return eligibility(
+    papalReputation >= PAPAL_COMMISSION_NON_CHRISTIAN_REPUTATION &&
+      (relation === DIPLOMACY_FRIENDLY || relation === DIPLOMACY_ALLY),
+    "exceptional-trust-required",
+    PAPAL_COMMISSION_NON_CHRISTIAN_REPUTATION
+  );
+}
+
+export function acceptPapalCommission(memory, diplomacy, {
+  playerFactionId,
+  playerReligionId,
+  papalReputation,
+  simMinute,
+  originTileId,
+  itinerary,
+  rewardDoubloons,
+  nuncio
+}) {
+  const eligibilityResult = papalCommissionEligibility(memory, diplomacy, {
+    playerFactionId,
+    playerReligionId,
+    papalReputation
+  });
+  if (!eligibilityResult.eligible) {
+    throw new Error(`Cannot accept Papal commission: ${eligibilityResult.reason}`);
+  }
+  assertMinute(simMinute, "papal commission acceptance");
+  if (!Number.isInteger(originTileId) || originTileId < 0) {
+    throw new Error(`Invalid Papal commission origin: ${originTileId}`);
+  }
+  if (!Array.isArray(itinerary) || itinerary.length < 1 || itinerary.length > 3) {
+    throw new Error("Papal commission requires one to three destinations");
+  }
+  const route = itinerary.map((destination, index) => validatePapalDestination({
+    ...destination,
+    order: index,
+    visitedMinute: null
+  }));
+  if (!Number.isInteger(rewardDoubloons) || rewardDoubloons < 100) {
+    throw new Error(`Invalid Papal commission reward: ${rewardDoubloons}`);
+  }
+  validatePapalNuncio(nuncio);
+  const matter = memory.pendingMatter;
+  matter.status = PAPAL_MATTER_COMMISSIONED;
+  matter.playerOfferStatus = "accepted";
+  matter.commission = {
+    acceptedMinute: simMinute,
+    deadlineMinute: simMinute + PAPAL_COMMISSION_DEADLINE_DAYS * MINUTES_PER_DAY,
+    originTileId,
+    itinerary: route,
+    nextStopIndex: 0,
+    recommendation: null,
+    rewardDoubloons,
+    nuncio
+  };
+  validatePapalMatter(matter);
+  return papalMatterView(matter);
+}
+
+export function declinePapalCommission(memory) {
+  validatePapalPolitics(memory);
+  const matter = memory.pendingMatter;
+  if (!matter || matter.status !== PAPAL_MATTER_AVAILABLE) return false;
+  matter.playerOfferStatus = "declined";
+  return true;
+}
+
+export function recordPapalCommissionDenial(memory) {
+  validatePapalPolitics(memory);
+  const matter = memory.pendingMatter;
+  if (!matter || matter.status !== PAPAL_MATTER_AVAILABLE) return false;
+  matter.playerOfferStatus = "denied";
+  return true;
+}
+
+export function revokeActivePapalCommission(memory, simMinute, reason = "papal-enemy") {
+  validatePapalPolitics(memory);
+  assertMinute(simMinute, "Papal commission revocation");
+  if (typeof reason !== "string" || reason.trim() === "") {
+    throw new Error("Papal commission revocation requires a reason");
+  }
+  return revokePapalCommission(memory, simMinute, reason);
+}
+
+export function papalCommissionObjective(memory) {
+  validatePapalPolitics(memory);
+  const matter = memory.pendingMatter;
+  if (!matter || matter.status !== PAPAL_MATTER_COMMISSIONED) return null;
+  const commission = matter.commission;
+  const destination = commission.itinerary[commission.nextStopIndex] || null;
+  return Object.freeze(destination
+    ? { kind: "destination", matterId: matter.id, destination: { ...destination } }
+    : {
+        kind: "return-to-rome",
+        matterId: matter.id,
+        destination: {
+          tileId: commission.originTileId,
+          portName: "Rome",
+          factionId: PAPAL_FACTION_ID,
+          purpose: "report"
+        }
+      });
+}
+
+export function advancePapalCommissionAtPort(memory, {
+  tileId,
+  simMinute,
+  recommendation = null
+}) {
+  validatePapalPolitics(memory);
+  assertMinute(simMinute, "papal commission port visit");
+  const objective = papalCommissionObjective(memory);
+  if (!objective || objective.kind !== "destination") return null;
+  if (objective.destination.tileId !== tileId) return null;
+  if (recommendation !== null && !["firm", "moderate"].includes(recommendation)) {
+    throw new Error(`Invalid Papal commission recommendation: ${recommendation}`);
+  }
+  const commission = memory.pendingMatter.commission;
+  commission.itinerary[commission.nextStopIndex].visitedMinute = simMinute;
+  commission.nextStopIndex += 1;
+  if (recommendation !== null) commission.recommendation = recommendation;
+  validatePapalMatter(memory.pendingMatter);
+  return papalMatterView(memory.pendingMatter);
+}
+
+export function completePapalCommission(memory, diplomacy, { simMinute }) {
+  validatePapalPolitics(memory);
+  validateWorldDiplomacy(diplomacy);
+  assertMinute(simMinute, "papal commission completion");
+  const matter = memory.pendingMatter;
+  if (!matter || matter.status !== PAPAL_MATTER_COMMISSIONED) {
+    throw new Error("No Papal commission is ready to complete");
+  }
+  if (matter.commission.nextStopIndex !== matter.commission.itinerary.length) {
+    throw new Error("Papal commission cannot be completed before every audience");
+  }
+  const result = enactPapalMatter(memory, diplomacy, matter, {
+    simMinute,
+    source: "player-papal-commission",
+    recommendation: matter.commission.recommendation || "firm"
+  });
+  const completion = Object.freeze({
+    matterId: matter.id,
+    commissionKind: matter.commissionKind,
+    rewardDoubloons: matter.commission.rewardDoubloons,
+    safePassageFactionIds: Object.freeze([
+      ...new Set(matter.commission.itinerary.map((entry) => entry.factionId))
+    ]),
+    safePassageUntilMinute: matter.commission.deadlineMinute,
+    action: result.action,
+    diplomacyEvents: result.diplomacyEvents
+  });
+  memory.pendingMatter = null;
+  return completion;
+}
+
+export function papalCommissionLabel(kind) {
+  if (!PAPAL_COMMISSION_KINDS.has(kind)) throw new Error(`Unknown Papal commission kind: ${kind}`);
+  return {
+    [PAPAL_COMMISSION_ADMONITION]: "Papal Admonition",
+    [PAPAL_COMMISSION_COMMENDATION]: "Papal Commendation",
+    [PAPAL_COMMISSION_PEACE]: "Papal Peace Commission",
+    [PAPAL_COMMISSION_REFORM]: "Papal Reform Commission",
+    [PAPAL_COMMISSION_RELIEF]: "Papal Relief Commission"
+  }[kind];
+}
+
+export function papalMatterNotice(matter) {
+  const view = matter?.commissionKind ? matter : papalMatterView(matter);
+  const target = factionById(view.targetFactionId);
+  if (view.status === PAPAL_MATTER_COMMISSIONED) {
+    return `${papalCommissionLabel(view.commissionKind).toUpperCase()} UNDERWAY FOR ${target.shortName.toUpperCase()}`;
+  }
+  return `ROME DELIBERATES A ${papalCommissionLabel(view.commissionKind).toUpperCase()} CONCERNING ${target.shortName.toUpperCase()}`;
 }
 
 export function imposePapalAction(memory, diplomacy, {
@@ -165,7 +458,18 @@ export function imposePapalAction(memory, diplomacy, {
   simMinute,
   source = "rome-peace-treaty"
 }) {
-  return enactPapalAction(memory, diplomacy, { kind, targetFactionId, simMinute, source });
+  const interruptedCommission = memory.pendingMatter?.status === PAPAL_MATTER_COMMISSIONED
+    ? Object.freeze({
+        matterId: memory.pendingMatter.id,
+        safePassageFactionIds: Object.freeze([
+          ...new Set(memory.pendingMatter.commission.itinerary.map((entry) => entry.factionId))
+        ]),
+        safePassageUntilMinute: memory.pendingMatter.commission.deadlineMinute
+      })
+    : null;
+  if (memory.pendingMatter) memory.pendingMatter = null;
+  const result = enactPapalAction(memory, diplomacy, { kind, targetFactionId, simMinute, source });
+  return Object.freeze({ ...result, interruptedCommission });
 }
 
 export function papalExcommunicationTargetCandidates(diplomacy, winnerFactionId, simMinute) {
@@ -332,6 +636,297 @@ function chooseScheduledPapalAction(memory, diplomacy, simMinute) {
     }
   }
   throw new Error("Papal action weighted selection failed");
+}
+
+function createPapalMatter(memory, diplomacy, proposal, simMinute) {
+  let actionKind = proposal.kind;
+  let targetFactionId = proposal.targetFactionId;
+  let partnerFactionId = null;
+  let beneficiaryFactionId = null;
+  let commissionKind;
+  const pope = rulerAtMinute(PAPAL_FACTION_ID, simMinute);
+  const catholicWarPair = firstCatholicWarPair(memory, diplomacy, simMinute);
+  const reformCandidate = pope?.displayName === "Adrian VI" &&
+    !memory.history.some((action) => action.source === "player-papal-reform") &&
+    papalRandom(memory, memory.sequence, `adrian-reform|${simMinute}`) < 0.45;
+
+  if (reformCandidate) {
+    commissionKind = PAPAL_COMMISSION_REFORM;
+    actionKind = PAPAL_ACTION_FAVOUR;
+    targetFactionId = "habsburg";
+  } else if (proposal.kind === PAPAL_ACTION_CRUSADE) {
+    commissionKind = PAPAL_COMMISSION_RELIEF;
+    beneficiaryFactionId = catholicEnemyOf(diplomacy, proposal.targetFactionId, simMinute);
+  } else if (proposal.kind === PAPAL_ACTION_EXCOMMUNICATION ||
+      proposal.kind === PAPAL_ACTION_CONDEMNATION) {
+    commissionKind = PAPAL_COMMISSION_ADMONITION;
+  } else if (catholicWarPair) {
+    commissionKind = PAPAL_COMMISSION_PEACE;
+    actionKind = PAPAL_ACTION_FAVOUR;
+    targetFactionId = catholicWarPair[0];
+    partnerFactionId = catholicWarPair[1];
+  } else {
+    commissionKind = PAPAL_COMMISSION_COMMENDATION;
+  }
+
+  const matter = {
+    id: `papal-matter-${memory.sequence}-${simMinute}`,
+    status: PAPAL_MATTER_AVAILABLE,
+    commissionKind,
+    actionKind,
+    targetFactionId,
+    partnerFactionId,
+    beneficiaryFactionId,
+    createdMinute: simMinute,
+    autonomousDecisionMinute: simMinute + PAPAL_MATTER_DECISION_DAYS * MINUTES_PER_DAY,
+    playerOfferStatus: null,
+    commission: null
+  };
+  validatePapalMatter(matter);
+  return matter;
+}
+
+function enactPapalMatter(memory, diplomacy, matter, {
+  simMinute,
+  source,
+  recommendation = "firm"
+}) {
+  validatePapalMatter(matter);
+  let actionKind = matter.actionKind;
+  let targetFactionId = matter.targetFactionId;
+  const diplomacyEvents = [];
+
+  if (matter.commissionKind === PAPAL_COMMISSION_ADMONITION &&
+      recommendation === "moderate" && actionKind === PAPAL_ACTION_EXCOMMUNICATION) {
+    actionKind = PAPAL_ACTION_CONDEMNATION;
+  }
+  if (matter.commissionKind === PAPAL_COMMISSION_COMMENDATION && recommendation === "moderate") {
+    actionKind = PAPAL_ACTION_CONDEMNATION;
+  }
+  if (matter.commissionKind === PAPAL_COMMISSION_REFORM && recommendation === "moderate") {
+    actionKind = PAPAL_ACTION_CONDEMNATION;
+  }
+  if (matter.commissionKind === PAPAL_COMMISSION_RELIEF &&
+      recommendation === "moderate" && matter.beneficiaryFactionId) {
+    actionKind = PAPAL_ACTION_FAVOUR;
+    targetFactionId = matter.beneficiaryFactionId;
+    diplomacyEvents.push(...adjustDiplomaticStance(
+      diplomacy,
+      matter.targetFactionId,
+      matter.beneficiaryFactionId,
+      "improve",
+      simMinute,
+      { eventReason: "papal-relief-truce" }
+    ));
+  }
+  if (matter.commissionKind === PAPAL_COMMISSION_PEACE && matter.partnerFactionId) {
+    if (recommendation === "moderate") {
+      actionKind = PAPAL_ACTION_CONDEMNATION;
+      targetFactionId = matter.partnerFactionId;
+    } else {
+      diplomacyEvents.push(...adjustDiplomaticStance(
+        diplomacy,
+        matter.targetFactionId,
+        matter.partnerFactionId,
+        "improve",
+        simMinute,
+        { eventReason: "papal-peace-commission" }
+      ));
+    }
+  }
+  const result = enactPapalAction(memory, diplomacy, {
+    kind: actionKind,
+    targetFactionId,
+    simMinute,
+    source: matter.commissionKind === PAPAL_COMMISSION_REFORM && source === "player-papal-commission"
+      ? "player-papal-reform"
+      : source
+  });
+  return Object.freeze({
+    action: result.action,
+    diplomacyEvents: Object.freeze([...diplomacyEvents, ...result.diplomacyEvents])
+  });
+}
+
+function firstCatholicWarPair(memory, diplomacy, simMinute) {
+  const pairs = [];
+  for (let leftIndex = 0; leftIndex < SOVEREIGN_FACTIONS.length; leftIndex += 1) {
+    const left = SOVEREIGN_FACTIONS[leftIndex];
+    const leftRuler = rulerAtMinute(left.id, simMinute);
+    if (!leftRuler || !isRomanCatholicReligion(leftRuler.religionId)) continue;
+    for (let rightIndex = leftIndex + 1; rightIndex < SOVEREIGN_FACTIONS.length; rightIndex += 1) {
+      const right = SOVEREIGN_FACTIONS[rightIndex];
+      const rightRuler = rulerAtMinute(right.id, simMinute);
+      if (!rightRuler || !isRomanCatholicReligion(rightRuler.religionId)) continue;
+      if (worldDiplomacyBetween(diplomacy, left.id, right.id) === DIPLOMACY_WAR) {
+        pairs.push([left.id, right.id]);
+      }
+    }
+  }
+  if (pairs.length === 0) return null;
+  const index = Math.floor(
+    papalRandom(memory, memory.sequence, `peace-pair|${simMinute}`) * pairs.length
+  );
+  return pairs[index];
+}
+
+function catholicEnemyOf(diplomacy, targetFactionId, simMinute) {
+  const enemies = SOVEREIGN_FACTIONS
+    .filter(({ id }) => id !== targetFactionId)
+    .filter(({ id }) => {
+      const ruler = rulerAtMinute(id, simMinute);
+      return ruler && isRomanCatholicReligion(ruler.religionId) &&
+        worldDiplomacyBetween(diplomacy, targetFactionId, id) === DIPLOMACY_WAR;
+    })
+    .sort((left, right) => {
+      if (left.id === "hospitallers") return right.id === "hospitallers" ? 0 : -1;
+      if (right.id === "hospitallers") return 1;
+      return left.id.localeCompare(right.id);
+    });
+  return enemies[0]?.id || null;
+}
+
+function revokePapalCommission(memory, simMinute, reason) {
+  const matter = memory.pendingMatter;
+  if (!matter || matter.status !== PAPAL_MATTER_COMMISSIONED) return null;
+  const revoked = Object.freeze({
+    matterId: matter.id,
+    commissionKind: matter.commissionKind,
+    reason,
+    simMinute,
+    safePassageFactionIds: Object.freeze([
+      ...new Set(matter.commission.itinerary.map((entry) => entry.factionId))
+    ]),
+    safePassageUntilMinute: matter.commission.deadlineMinute
+  });
+  matter.status = PAPAL_MATTER_AVAILABLE;
+  matter.playerOfferStatus = "revoked";
+  matter.commission = null;
+  matter.autonomousDecisionMinute = Math.max(
+    simMinute + 7 * MINUTES_PER_DAY,
+    matter.autonomousDecisionMinute
+  );
+  validatePapalMatter(matter);
+  return revoked;
+}
+
+function eligibility(eligibleValue, reason, requiredReputation = null) {
+  return Object.freeze({
+    eligible: eligibleValue,
+    reason: eligibleValue ? null : reason,
+    requiredReputation: eligibleValue ? null : requiredReputation
+  });
+}
+
+function papalMatterView(matter) {
+  validatePapalMatter(matter);
+  return Object.freeze({
+    ...matter,
+    commission: matter.commission ? Object.freeze({
+      ...matter.commission,
+      itinerary: Object.freeze(matter.commission.itinerary.map((entry) => Object.freeze({ ...entry })))
+    }) : null
+  });
+}
+
+function validatePapalMatter(matter) {
+  if (!matter || typeof matter !== "object" || Array.isArray(matter) ||
+      typeof matter.id !== "string" || matter.id === "") {
+    throw new Error("Invalid pending Papal matter");
+  }
+  if (![PAPAL_MATTER_AVAILABLE, PAPAL_MATTER_COMMISSIONED].includes(matter.status)) {
+    throw new Error(`Invalid Papal matter status: ${matter.status}`);
+  }
+  if (!PAPAL_COMMISSION_KINDS.has(matter.commissionKind)) {
+    throw new Error(`Invalid Papal commission kind: ${matter.commissionKind}`);
+  }
+  if (!PAPAL_ACTION_KINDS.has(matter.actionKind)) {
+    throw new Error(`Invalid Papal matter action: ${matter.actionKind}`);
+  }
+  assertFactionId(matter.targetFactionId);
+  for (const [label, factionId] of [
+    ["partner", matter.partnerFactionId],
+    ["beneficiary", matter.beneficiaryFactionId]
+  ]) {
+    if (factionId !== null) {
+      assertFactionId(factionId);
+      if (factionId === matter.targetFactionId) {
+        throw new Error(`Papal matter ${label} repeats its target`);
+      }
+    }
+  }
+  assertMinute(matter.createdMinute, "Papal matter creation");
+  assertMinute(matter.autonomousDecisionMinute, "Papal matter decision");
+  if (matter.autonomousDecisionMinute <= matter.createdMinute) {
+    throw new Error("Papal matter decision must follow its creation");
+  }
+  if (![null, "accepted", "declined", "denied", "revoked"].includes(matter.playerOfferStatus)) {
+    throw new Error(`Invalid Papal player offer status: ${matter.playerOfferStatus}`);
+  }
+  if (matter.status === PAPAL_MATTER_COMMISSIONED) validatePapalCommission(matter.commission);
+  else if (matter.commission !== null) throw new Error("Available Papal matter retains a commission");
+  return matter;
+}
+
+function validatePapalCommission(commission) {
+  if (!commission || typeof commission !== "object" || Array.isArray(commission)) {
+    throw new Error("Commissioned Papal matter requires a commission");
+  }
+  assertMinute(commission.acceptedMinute, "Papal commission acceptance");
+  assertMinute(commission.deadlineMinute, "Papal commission deadline");
+  if (commission.deadlineMinute <= commission.acceptedMinute) {
+    throw new Error("Papal commission deadline must follow acceptance");
+  }
+  if (!Number.isInteger(commission.originTileId) || commission.originTileId < 0) {
+    throw new Error(`Invalid Papal commission origin: ${commission.originTileId}`);
+  }
+  if (!Array.isArray(commission.itinerary) || commission.itinerary.length < 1 ||
+      commission.itinerary.length > 3) {
+    throw new Error("Papal commission requires one to three destinations");
+  }
+  commission.itinerary.forEach((entry, index) => {
+    validatePapalDestination(entry);
+    if (entry.order !== index) throw new Error(`Invalid Papal itinerary order: ${entry.order}`);
+  });
+  if (!Number.isInteger(commission.nextStopIndex) || commission.nextStopIndex < 0 ||
+      commission.nextStopIndex > commission.itinerary.length) {
+    throw new Error(`Invalid Papal itinerary progress: ${commission.nextStopIndex}`);
+  }
+  if (![null, "firm", "moderate"].includes(commission.recommendation)) {
+    throw new Error(`Invalid Papal recommendation: ${commission.recommendation}`);
+  }
+  if (!Number.isInteger(commission.rewardDoubloons) || commission.rewardDoubloons < 100) {
+    throw new Error(`Invalid Papal commission reward: ${commission.rewardDoubloons}`);
+  }
+  validatePapalNuncio(commission.nuncio);
+}
+
+function validatePapalDestination(destination) {
+  if (!destination || typeof destination !== "object" || Array.isArray(destination)) {
+    throw new Error("Papal itinerary destination must be an object");
+  }
+  if (!Number.isInteger(destination.tileId) || destination.tileId < 0 ||
+      typeof destination.portName !== "string" || destination.portName.trim() === "" ||
+      typeof destination.purpose !== "string" || destination.purpose.trim() === "") {
+    throw new Error("Invalid Papal itinerary destination");
+  }
+  assertFactionId(destination.factionId);
+  if (!Number.isInteger(destination.order) || destination.order < 0) {
+    throw new Error(`Invalid Papal itinerary destination order: ${destination.order}`);
+  }
+  if (destination.visitedMinute !== null) {
+    assertMinute(destination.visitedMinute, "Papal itinerary visit");
+  }
+  return destination;
+}
+
+function validatePapalNuncio(nuncio) {
+  if (!nuncio || typeof nuncio !== "object" || Array.isArray(nuncio) ||
+      typeof nuncio.id !== "string" || nuncio.id === "" ||
+      typeof nuncio.name !== "string" || nuncio.name === "") {
+    throw new Error("Papal commission requires a named nuncio");
+  }
+  return nuncio;
 }
 
 function isAtWarWithCatholicPower(diplomacy, targetFactionId, simMinute) {

@@ -95,11 +95,13 @@ import {
 } from "./worldDiplomacy.js";
 import { initialReligiousFactionReputation } from "./religiousAttitudes.js";
 import {
+  PAPAL_MATTER_COMMISSIONED,
   advancePapalPolitics,
   convertEnglishCatholicCharacter,
   createPapalPolitics,
   migratePapalPolitics,
   nextPapalPoliticsMinute,
+  revokeActivePapalCommission,
   validatePapalPolitics
 } from "./papalPolitics.js";
 import { foreignPolicyPrincipal, suzeraintyTradePrivilege } from "./suzerainty.js";
@@ -235,7 +237,7 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 53;
+export const GAME_STATE_VERSION = 54;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -511,7 +513,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -929,7 +931,12 @@ export function advanceGamePolitics(state, currentMinute) {
   assertGameState(state);
   assertSimulationMinute(currentMinute);
   const papal = advancePapalPolitics(state.relations.papacy, state.relations.diplomacy, currentMinute, {
-    papalStatesActive: !state.memory.conquest.collapsedFactionIds.includes("papal-states")
+    papalStatesActive: !state.memory.conquest.collapsedFactionIds.includes("papal-states"),
+    playerCommissionContext: state.playerCharacter ? {
+      playerFactionId: state.playerCharacter.nationalityId,
+      playerReligionId: state.playerCharacter.religionId,
+      papalReputation: factionReputation(state, "papal-states")
+    } : null
   });
   const diplomacyEvents = advanceWorldDiplomacy(state.relations.diplomacy, currentMinute, {
     homeFactionId: state.playerCharacter?.nationalityId || null,
@@ -957,6 +964,8 @@ export function advanceGamePolitics(state, currentMinute) {
   return Object.freeze({
     diplomacyEvents: Object.freeze([...diplomacyEvents, ...papal.diplomacyEvents]),
     papalActions: papal.actions,
+    papalMattersOpened: papal.mattersOpened,
+    papalCommissionRevoked: papal.commissionRevoked,
     englishReformation: papal.englishReformation,
     englishReformationConversions
   });
@@ -2130,6 +2139,9 @@ function shipTravelerManifestForValidatedState(state) {
   if (questGroup) groups.push(questGroup);
   const passengerGroup = activeQuestTravelerGroup(state.memory.quests?.passengerActive || null);
   if (passengerGroup) groups.push(passengerGroup);
+  if (state.relations.papacy.pendingMatter?.status === PAPAL_MATTER_COMMISSIONED) {
+    groups.push(Object.freeze({ kind: "envoy", count: 1 }));
+  }
   const pirateCaptive = state.memory.quests?.pirateCaptive?.active || null;
   if (pirateCaptive && pirateCaptive.stage === "aboard") {
     groups.push(Object.freeze({ kind: "passenger", count: 1 }));
@@ -3490,6 +3502,21 @@ export function recordAttackAgainstFaction(state, factionId) {
   assertGameState(state);
   const id = assertFactionId(factionId);
   if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return factionReputation(state, id);
+  if (id === "papal-states") {
+    const revoked = revokeActivePapalCommission(
+      state.relations.papacy,
+      Math.max(0, state.survival.lastMinute),
+      "attacked-papacy"
+    );
+    if (revoked) {
+      for (const protectedFactionId of revoked.safePassageFactionIds) {
+        if (state.relations.safePassageUntilMinute[protectedFactionId] === revoked.safePassageUntilMinute) {
+          delete state.relations.safePassageUntilMinute[protectedFactionId];
+        }
+      }
+      recordDecision(state, `papal-commission.revoked.attack.${revoked.matterId}`, 1);
+    }
+  }
   revokeSafePassageAfterAttack(state, id);
   if (state.relations.lettersOfMarque[id]) {
     delete state.relations.lettersOfMarque[id];

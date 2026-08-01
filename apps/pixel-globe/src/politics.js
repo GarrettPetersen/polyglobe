@@ -16,7 +16,11 @@ import {
   recentGamePapalActions,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
-import { papalActionNotice } from "./papalPolitics.js";
+import {
+  papalActionNotice,
+  papalMatterNotice,
+  papalPendingMatter
+} from "./papalPolitics.js";
 import { rulerAtMinute } from "./rulers.js";
 import { religionById } from "./characterReligion.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
@@ -51,11 +55,13 @@ export function createPoliticsView(gameState, simMinute = gameState?.survival?.l
   const playerFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const recentEvents = recentGameDiplomacyEvents(gameState, 3);
   const recentPapalActions = recentGamePapalActions(gameState, 3);
+  const pendingPapalMatter = papalPendingMatter(gameState.relations.papacy);
   return {
     powers,
     recentEvents,
     recentPapalActions,
-    latestNews: latestPoliticsNews({ recentEvents, recentPapalActions }),
+    pendingPapalMatter,
+    latestNews: latestPoliticsNews({ recentEvents, recentPapalActions, pendingPapalMatter }),
     cards: orderPoliticsCards(cards, playerFactionId)
   };
 }
@@ -66,7 +72,18 @@ export function latestPoliticsNews(view) {
   }
   const diplomacy = view.recentEvents[0] || null;
   const papal = view.recentPapalActions[0] || null;
-  if (!diplomacy && !papal) return null;
+  const matter = view.pendingPapalMatter || null;
+  const matterMinute = matter?.commission?.acceptedMinute ?? matter?.createdMinute ?? -1;
+  if (!diplomacy && !papal && !matter) return null;
+  if (matter && (!diplomacy || matterMinute >= diplomacy.simMinute) &&
+      (!papal || matterMinute >= papal.simMinute)) {
+    return Object.freeze({
+      source: "papal-matter",
+      simMinute: matterMinute,
+      tone: matter.status === "commissioned" ? "good" : "warn",
+      text: papalMatterNotice(matter)
+    });
+  }
   if (papal && (!diplomacy || papal.simMinute >= diplomacy.simMinute)) {
     return Object.freeze({
       source: "papal",
