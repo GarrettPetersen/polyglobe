@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { flagWaveColumnOffsets } from "./flagAnimation.js";
+import {
+  FLAG_WAVE_FRAME_COUNT,
+  flagWaveColumnOffsets,
+  flagWaveFrameIndex
+} from "./flagAnimation.js";
 
 test("flag waves stay attached to the pole and within one subtle pixel", () => {
   for (const phase of [0, Math.PI / 3, Math.PI, Math.PI * 1.7]) {
@@ -30,4 +34,12 @@ test("flag wave uses one broad half wave across each flag", () => {
     assert.ok(lastMoving > width * 0.7, `expected ${width}px flag to finish the broad wave near the fly end`);
     assert.ok(offsets.every((offset) => offset >= 0), `expected ${width}px flag to form a single upward half wave`);
   }
+});
+
+test("flag animation phases wrap into a finite shared frame set", () => {
+  assert.equal(flagWaveFrameIndex(0), 0);
+  assert.equal(flagWaveFrameIndex(Math.PI * 2), 0);
+  assert.equal(flagWaveFrameIndex(-Math.PI * 2), 0);
+  assert.equal(flagWaveFrameIndex(Math.PI), FLAG_WAVE_FRAME_COUNT / 2);
+  assert.ok(flagWaveFrameIndex(1.25) < FLAG_WAVE_FRAME_COUNT);
 });

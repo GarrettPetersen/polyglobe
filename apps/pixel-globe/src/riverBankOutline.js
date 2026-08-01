@@ -34,6 +34,43 @@ export function visibleRiverBankPixelSet(waterPixelGroups) {
   return bankPixels;
 }
 
+export function visibleRiverBankPixelsFromRows(waterPixelRows) {
+  if (!(waterPixelRows instanceof Map)) {
+    throw new Error("Visible riverbanks require water pixels grouped by row");
+  }
+
+  const bankPixelRows = new Map();
+  const addBankPixel = (x, y) => {
+    let row = bankPixelRows.get(y);
+    if (!row) {
+      row = new Set();
+      bankPixelRows.set(y, row);
+    }
+    row.add(x);
+  };
+
+  for (const [y, waterXs] of waterPixelRows) {
+    if (!Number.isInteger(y) || !(waterXs instanceof Set)) {
+      throw new Error("River water rows require integer coordinates and Set values");
+    }
+    const north = waterPixelRows.get(y - 1);
+    const south = waterPixelRows.get(y + 1);
+    for (const x of waterXs) {
+      if (!Number.isInteger(x)) throw new Error(`Invalid river water pixel x coordinate: ${x}`);
+      if (!waterXs.has(x - 1)) addBankPixel(x - 1, y);
+      if (!waterXs.has(x + 1)) addBankPixel(x + 1, y);
+      if (!north?.has(x)) addBankPixel(x, y - 1);
+      if (!south?.has(x)) addBankPixel(x, y + 1);
+    }
+  }
+
+  const bankPixels = [];
+  for (const [y, bankXs] of bankPixelRows) {
+    for (const x of bankXs) bankPixels.push(Object.freeze({ x, y }));
+  }
+  return Object.freeze(bankPixels);
+}
+
 function pixelCoordinates(key) {
   if (typeof key !== "string" || !/^-?\d+,-?\d+$/.test(key)) {
     throw new Error(`Invalid river water pixel key: ${key}`);

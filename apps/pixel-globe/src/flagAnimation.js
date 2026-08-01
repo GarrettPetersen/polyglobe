@@ -1,3 +1,11 @@
+export const FLAG_WAVE_FRAME_COUNT = 12;
+
+export function flagWaveFrameIndex(phaseRad) {
+  if (!Number.isFinite(phaseRad)) throw new Error(`Invalid flag wave phase: ${phaseRad}`);
+  const cycle = ((phaseRad / (Math.PI * 2)) % 1 + 1) % 1;
+  return Math.floor(cycle * FLAG_WAVE_FRAME_COUNT) % FLAG_WAVE_FRAME_COUNT;
+}
+
 export function flagWaveColumnOffsets(width, phaseRad, amplitudePx = 1) {
   if (!Number.isInteger(width) || width < 1) throw new Error(`Invalid flag width: ${width}`);
   if (!Number.isFinite(phaseRad)) throw new Error(`Invalid flag wave phase: ${phaseRad}`);

@@ -971,7 +971,11 @@ import {
   readyFetchQuestDestinations
 } from "./fetchQuestObjectives.js";
 import { gameOverStatsLayout } from "./gameOverLayout.js";
-import { flagWaveColumnOffsets } from "./flagAnimation.js";
+import {
+  FLAG_WAVE_FRAME_COUNT,
+  flagWaveColumnOffsets,
+  flagWaveFrameIndex
+} from "./flagAnimation.js";
 import { shipFlagLayout } from "./shipFlagLayout.js";
 import {
   WIND_INDICATOR_BASE_RGB,
@@ -1119,7 +1123,7 @@ import {
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
-import { visibleRiverBankPixelSet } from "./riverBankOutline.js";
+import { visibleRiverBankPixelsFromRows } from "./riverBankOutline.js";
 import {
   dayNightPaletteVariant,
   prepareDayNightPalette
@@ -2445,12 +2449,14 @@ if (!shipSinkSampleCtx) throw new Error("Marque & Reprisal could not create its 
 shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
 const shipWaterlineLayerCache = new WeakMap();
-const floatingShipFrameCache = new WeakMap();
+const floatingShipFrameAtlasCache = new WeakMap();
 const FLOATING_SHIP_FRAME_CACHE_LIMIT = 48;
+const FLOATING_SHIP_FRAME_ATLAS_COLUMNS = 8;
 const selectableOutlineCache = new WeakMap();
 const greatBarrierReefWaterMaskCache = new WeakMap();
 const greatBarrierReefBeachPixelCache = new WeakMap();
 const surfaceDetailLayerCache = new WeakMap();
+const surfaceDetailRiverLayerCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
 const SURFACE_DETAIL_REDRAW_MS = 500;
 const underwaterWorldSpriteCanvas = document.createElement("canvas");
@@ -2610,14 +2616,12 @@ const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
-const wavingFactionFlagFrameCache = new Map();
+const wavingFactionFlagAtlasCache = new Map();
 const landRoadLayerCache = new WeakMap();
 const terrainImagePixelCache = new WeakMap();
-const visibleRiverBankCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
 const waterEffectForegroundLayerCache = new WeakMap();
-const waterEffectRiverConnectorByPairCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
 const riverGatewayDirectionCache = new WeakMap();
 const RIVER_GATEWAY_DIRECTION_CACHE_LIMIT = 4096;
@@ -3031,7 +3035,7 @@ async function main() {
   worldDiscoveryImages = loadedWorldDiscoveryImages;
   cityImages = loadedCityImages;
   factionFlagImages = loadedFactionFlagImages;
-  wavingFactionFlagFrameCache.clear();
+  wavingFactionFlagAtlasCache.clear();
   animalImages = loadedAnimalImages;
   statusHudImages = loadedStatusHudImages;
   statusDoubloonImages = createStatusDoubloonImages(statusHudImages.doubloon);
@@ -20649,7 +20653,10 @@ function updateNpcVisualShips(dt) {
     const movementDt = state.visualMovementDebtSeconds;
     state.visualMovementDebtSeconds = 0;
     let visualNavigationChanged = false;
-    let currentNavigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+    let currentNavigation = measurePerformanceBenchmarkStage(
+      "npcShips.visual.movement.navigation",
+      () => shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector)
+    );
     if (
       currentNavigation.ok &&
       !npcHullFitsDrawnNavigation(
@@ -20663,16 +20670,19 @@ function updateNpcVisualShips(dt) {
       currentNavigation = { ok: false, blockedTileId: currentNavigation.tileId };
     }
     if (!currentNavigation.ok) {
-      const placement = nearestNpcNavigableVisualPoint(
-        { x: state.x, y: state.y },
-        state.heading,
-        NPC_VISUAL_RECOVERY_SEARCH_PX,
-        state.slug
-      ) || nearestNpcNavigableVisualPoint(
-        routePoint,
-        snapshot.routeHeading,
-        NPC_VISUAL_RECOVERY_SEARCH_PX,
-        state.slug
+      const placement = measurePerformanceBenchmarkStage(
+        "npcShips.visual.movement.recovery",
+        () => nearestNpcNavigableVisualPoint(
+          { x: state.x, y: state.y },
+          state.heading,
+          NPC_VISUAL_RECOVERY_SEARCH_PX,
+          state.slug
+        ) || nearestNpcNavigableVisualPoint(
+          routePoint,
+          snapshot.routeHeading,
+          NPC_VISUAL_RECOVERY_SEARCH_PX,
+          state.slug
+        )
       );
       if (!placement) {
         releaseNpcVisualState(state);
@@ -20685,7 +20695,10 @@ function updateNpcVisualShips(dt) {
       }
       currentNavigation = { ok: true, kind: placement.navKind };
     }
-    if (advanceNpcVisualState(state, snapshot, routePoint, movementDt, currentNavigation)) {
+    if (measurePerformanceBenchmarkStage(
+      "npcShips.visual.movement.advance",
+      () => advanceNpcVisualState(state, snapshot, routePoint, movementDt, currentNavigation)
+    )) {
       visualNavigationChanged = true;
       changed = true;
     }
@@ -22851,7 +22864,10 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     state.vector,
     stats.turnRateRad * dt
   );
-  const move = moveNpcVisualShip(state, direction, stepDistance, collisionHeading, dt, startNav);
+  const move = measurePerformanceBenchmarkStage(
+    "npcShips.visual.movement.advance.step",
+    () => moveNpcVisualShip(state, direction, stepDistance, collisionHeading, dt, startNav)
+  );
   if (!move) return collisionChanged;
 
   state.x = move.x;
@@ -22896,7 +22912,10 @@ function applyNpcCollisionDrift(state, dt) {
 function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   if (!startNav.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
   if (startNav.kind === "river") {
-    const railMove = moveNpcAlongRiverRail(state, direction, distance, dt);
+    const railMove = measurePerformanceBenchmarkStage(
+      "npcShips.visual.movement.advance.step.riverRail",
+      () => moveNpcAlongRiverRail(state, direction, distance, dt)
+    );
     if (railMove) {
       clearNpcEscapeManeuver(state);
       return railMove;
@@ -22904,12 +22923,15 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   } else {
     clearNpcRiverRail(state);
   }
-  const openWaterMove = fastNpcOpenWaterStep(
-    state,
-    direction,
-    distance,
-    heading,
-    startNav
+  const openWaterMove = measurePerformanceBenchmarkStage(
+    "npcShips.visual.movement.advance.step.openWater",
+    () => fastNpcOpenWaterStep(
+      state,
+      direction,
+      distance,
+      heading,
+      startNav
+    )
   );
   if (openWaterMove) {
     clearNpcEscapeManeuver(state);
@@ -22945,10 +22967,17 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
     : [direction];
   const tried = new Set();
 
-  for (const baseDirection of baseDirections) {
-    const result = attemptNpcVisualStep(state, baseDirection, distance, heading, startNav);
-    if (result.ok) return result;
-  }
+  const directMove = measurePerformanceBenchmarkStage(
+    "npcShips.visual.movement.advance.step.direct",
+    () => {
+      for (const baseDirection of baseDirections) {
+        const result = attemptNpcVisualStep(state, baseDirection, distance, heading, startNav);
+        if (result.ok) return result;
+      }
+      return null;
+    }
+  );
+  if (directMove) return directMove;
 
   const slideDirections = [];
   for (const baseDirection of baseDirections) {
@@ -22965,17 +22994,20 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
     }
   }
 
-  const slide = slideDirections.length > 0
-    ? chooseNpcEscapeDirection({
-        desiredDirection: direction,
-        currentDirection: tangentToScreenDirection(state.heading) || direction,
-        candidateDirections: slideDirections,
-        clearDistanceFor: (candidateDirection) => (
-          npcEscapeClearDistance(state, candidateDirection, heading, startNav)
-        ),
-        preferredSide: state.escapeSide
-      })
-    : null;
+  const slide = measurePerformanceBenchmarkStage(
+    "npcShips.visual.movement.advance.step.slide",
+    () => slideDirections.length > 0
+      ? chooseNpcEscapeDirection({
+          desiredDirection: direction,
+          currentDirection: tangentToScreenDirection(state.heading) || direction,
+          candidateDirections: slideDirections,
+          clearDistanceFor: (candidateDirection) => (
+            npcEscapeClearDistance(state, candidateDirection, heading, startNav)
+          ),
+          preferredSide: state.escapeSide
+        })
+      : null
+  );
   if (slide) {
     const slideMove = attemptNpcVisualStep(state, slide.direction, distance, heading, startNav);
     if (slideMove.ok) {
@@ -22984,14 +23016,17 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
     }
   }
 
-  const escape = chooseNpcObstacleAvoidanceDirection({
-    desiredDirection: direction,
-    currentDirection: tangentToScreenDirection(state.heading) || direction,
-    clearDistanceFor: (candidateDirection) => (
-      npcEscapeClearDistance(state, candidateDirection, heading, startNav)
-    ),
-    preferredSide: state.escapeSide
-  });
+  const escape = measurePerformanceBenchmarkStage(
+    "npcShips.visual.movement.advance.step.escape",
+    () => chooseNpcObstacleAvoidanceDirection({
+      desiredDirection: direction,
+      currentDirection: tangentToScreenDirection(state.heading) || direction,
+      clearDistanceFor: (candidateDirection) => (
+        npcEscapeClearDistance(state, candidateDirection, heading, startNav)
+      ),
+      preferredSide: state.escapeSide
+    })
+  );
   if (!escape) return null;
 
   const escapeMove = attemptNpcVisualStep(state, escape.direction, distance, heading, startNav);
@@ -23103,7 +23138,14 @@ function clearNpcRiverRail(state) {
 
 function npcEscapeClearDistance(state, direction, heading, startNav = null) {
   const maximumDistance = NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX.at(-1);
-  const trace = traceNpcVisualStep(state, direction, maximumDistance, heading, startNav);
+  const trace = traceNpcVisualStep(
+    state,
+    direction,
+    maximumDistance,
+    heading,
+    startNav,
+    NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX
+  );
   for (let index = NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX.length - 1; index >= 0; index--) {
     const distance = NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX[index];
     if (trace.clearDistance + 1e-6 >= distance) return distance;
@@ -23262,8 +23304,28 @@ function attemptNpcVisualStep(state, direction, distance, heading, knownStartNav
   return trace.complete ? trace.placement : { ok: false };
 }
 
-function traceNpcVisualStep(state, direction, distance, heading, knownStartNav = null) {
+function traceNpcVisualStep(
+  state,
+  direction,
+  distance,
+  heading,
+  knownStartNav = null,
+  probeDistances = null
+) {
   const segments = Math.max(1, Math.ceil(distance / SHIP_COLLISION_SAMPLE_STEP_PX));
+  if (probeDistances !== null && (
+    !Array.isArray(probeDistances) ||
+    probeDistances.length === 0 ||
+    probeDistances.some((value, index) => (
+      !Number.isFinite(value) ||
+      value <= 0 ||
+      value > distance ||
+      (index > 0 && value <= probeDistances[index - 1])
+    ))
+  )) {
+    throw new Error("NPC visual trace probes must be increasing distances within the trace");
+  }
+  const sampleCount = probeDistances?.length || segments;
   const movementHeading = screenDirectionToTangent(direction, state.vector, heading);
   const startNav = knownStartNav ||
     shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
@@ -23271,32 +23333,35 @@ function traceNpcVisualStep(state, direction, distance, heading, knownStartNav =
   let previousTileId = startNav.tileId;
   let previousNavKind = startNav.kind;
   let result = null;
+  let clearDistance = 0;
 
-  for (let i = 1; i <= segments; i++) {
-    const x = state.x + direction.x * distance * (i / segments);
-    const y = state.y + direction.y * distance * (i / segments);
+  for (let i = 1; i <= sampleCount; i++) {
+    const sampleDistance = probeDistances?.[i - 1] ?? distance * (i / segments);
+    const x = state.x + direction.x * sampleDistance;
+    const y = state.y + direction.y * sampleDistance;
     const collisionTile = localCollisionTileAtPoint(x, y);
-    if (!collisionTile) return incompleteNpcVisualTrace(result, distance, i, segments);
+    if (!collisionTile) return incompleteNpcVisualTrace(result, clearDistance);
     const collisionTileId = collisionTile.tileId;
     const collisionVector = globePositionForLocalPoint(collisionTileId, x, y);
     const nav = shipNavigabilityAtLocalPoint(x, y, collisionTileId, collisionVector);
-    if (!nav.ok) return incompleteNpcVisualTrace(result, distance, i, segments);
+    if (!nav.ok) return incompleteNpcVisualTrace(result, clearDistance);
     const tileId = nav.tileId;
     const vector = tileId === collisionTileId
       ? collisionVector
       : globePositionForLocalPoint(tileId, x, y);
     const localHeading = normalizeTangentOrFallback(heading, vector, movementHeading);
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, nav.kind, movementHeading)) {
-      return incompleteNpcVisualTrace(result, distance, i, segments);
+      return incompleteNpcVisualTrace(result, clearDistance);
     }
     if (!npcHullFitsDrawnNavigation(x, y, localHeading, state.slug, nav)) {
-      return incompleteNpcVisualTrace(result, distance, i, segments);
+      return incompleteNpcVisualTrace(result, clearDistance);
     }
     if (nav.kind !== "openWater" && !tileHasOffshoreHullClearance(tileId)) {
       const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
-      if (!occupancy.ok) return incompleteNpcVisualTrace(result, distance, i, segments);
+      if (!occupancy.ok) return incompleteNpcVisualTrace(result, clearDistance);
     }
     result = { ok: true, x, y, tileId, vector, heading: localHeading };
+    clearDistance = sampleDistance;
     previousTileId = tileId;
     previousNavKind = nav.kind;
   }
@@ -23304,11 +23369,11 @@ function traceNpcVisualStep(state, direction, distance, heading, knownStartNav =
   return { complete: true, placement: result, clearDistance: distance };
 }
 
-function incompleteNpcVisualTrace(placement, distance, failedSegment, segmentCount) {
+function incompleteNpcVisualTrace(placement, clearDistance) {
   return {
     complete: false,
     placement,
-    clearDistance: distance * Math.max(0, failedSegment - 1) / segmentCount
+    clearDistance
   };
 }
 
@@ -24060,10 +24125,16 @@ function drawDayNightWorld(layers, nowMs) {
     },
     surfaceDetails: () => {
       drawCachedWorldLayer(
-        "surface-details",
-        layers.surface,
+        "surface-details-static",
+        layers.surface.static,
         layers.offset,
-        `${layers.surface.redrawTick}:${layers.surface.weatherDayIndex}`
+        layers.surface.static.weatherDayIndex
+      );
+      drawCachedWorldLayer(
+        "surface-details-rivers",
+        layers.surface.rivers,
+        layers.offset,
+        layers.surface.rivers.redrawTick
       );
     },
     waterEffects: () => {
@@ -24234,19 +24305,37 @@ function render(nowMs) {
   );
 
   const cachedWorldLayers = measurePerformanceBenchmarkStage("render.terrain", () => {
-    const connectors = terrainConnectorLayer(chart.faceCalls, chart);
+    const connectors = measurePerformanceBenchmarkStage(
+      "render.terrain.connectors",
+      () => terrainConnectorLayer(chart.faceCalls, chart)
+    );
     return {
       offset,
       activeChart: chart,
       connectors,
-      connectorWaves: terrainConnectorDynamicLayer(connectors, chart),
+      connectorWaves: measurePerformanceBenchmarkStage(
+        "render.terrain.connectorWaves",
+        () => terrainConnectorDynamicLayer(connectors, chart)
+      ),
       terrainCalls: renderTileCalls,
-      surface: surfaceDetailLayer(chart, offset),
+      surface: measurePerformanceBenchmarkStage(
+        "render.terrain.surface",
+        () => surfaceDetailLayer(chart, offset)
+      ),
       waterEffects: {
-        fishCalls: fishSchoolDrawCalls(chart, nowMs, renderTileCalls),
-        wakeCalls: shipWakeDrawCalls(chart)
+        fishCalls: measurePerformanceBenchmarkStage(
+          "render.terrain.fish",
+          () => fishSchoolDrawCalls(chart, nowMs, renderTileCalls)
+        ),
+        wakeCalls: measurePerformanceBenchmarkStage(
+          "render.terrain.wakes",
+          () => shipWakeDrawCalls(chart)
+        )
       },
-      waterForeground: waterEffectForegroundLayer(chart, offset)
+      waterForeground: measurePerformanceBenchmarkStage(
+        "render.terrain.waterForeground",
+        () => waterEffectForegroundLayer(chart, offset)
+      )
     };
   });
 
@@ -24278,12 +24367,22 @@ function render(nowMs) {
   ctx.restore();
 
   measurePerformanceBenchmarkStage("render.vessels", () => {
-    drawShipShadow(chart, shipLight, offset);
-    drawWhales(nowMs);
-    drawWhaleHuntEffects(nowMs);
-    drawFishingNetAnimation(nowMs);
-    drawNpcFishingNetAnimations(nowMs);
-    drawShips(chart, shipLight, nowMs);
+    measurePerformanceBenchmarkStage(
+      "render.vessels.shadows",
+      () => drawShipShadow(chart, shipLight, offset)
+    );
+    measurePerformanceBenchmarkStage("render.vessels.whales", () => {
+      drawWhales(nowMs);
+      drawWhaleHuntEffects(nowMs);
+    });
+    measurePerformanceBenchmarkStage("render.vessels.fishing", () => {
+      drawFishingNetAnimation(nowMs);
+      drawNpcFishingNetAnimations(nowMs);
+    });
+    measurePerformanceBenchmarkStage(
+      "render.vessels.ships",
+      () => drawShips(chart, shipLight, nowMs)
+    );
   });
   ctx.save();
   ctx.translate(offset.x, offset.y);
@@ -24434,20 +24533,35 @@ function surfaceDetailLayer(activeChart, offset) {
     maxY: SCREEN_H - offset.y
   };
   const redrawTick = Math.floor(waterAnimationClockMs / SURFACE_DETAIL_REDRAW_MS);
-  const cached = surfaceDetailLayerCache.get(activeChart);
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  let cached = surfaceDetailLayerCache.get(cacheKey);
   if (
-    cached?.weatherDayIndex === weatherMaskDayIndex &&
-    cached.redrawTick === redrawTick &&
-    surfaceDetailLayerCoversViewport({
+    !cached ||
+    cached.weatherDayIndex !== weatherMaskDayIndex ||
+    !surfaceDetailLayerCoversViewport({
       x: cached.x,
       y: cached.y,
       width: cached.canvas.width,
       height: cached.canvas.height
     }, viewport, TILE_ART_SIZE)
   ) {
-    return cached;
+    cached = measurePerformanceBenchmarkStage(
+      "render.terrain.surface.staticRebuild",
+      () => createStaticSurfaceDetailLayer(activeChart, viewport)
+    );
+    surfaceDetailLayerCache.set(cacheKey, cached);
   }
 
+  return {
+    static: cached,
+    rivers: measurePerformanceBenchmarkStage(
+      "render.terrain.surface.rivers",
+      () => surfaceDetailRiverLayer(activeChart, cached, redrawTick)
+    )
+  };
+}
+
+function createStaticSurfaceDetailLayer(activeChart, viewport) {
   const layerBounds = createSurfaceDetailLayerBounds({
     viewport,
     screenWidth: SCREEN_W,
@@ -24464,45 +24578,103 @@ function surfaceDetailLayer(activeChart, offset) {
   layerCtx.imageSmoothingEnabled = false;
   layerCtx.translate(-x, -y);
 
-  const {
-    tileCalls,
-    riverConnectorCalls
-  } = surfaceDetailCallsForLayer({
-    tileCalls: activeChart.tileCalls,
-    riverConnectorCalls: activeChart.riverConnectorCalls,
-    layer: layerBounds,
-    margin: TILE_ART_SIZE
-  });
-  const tileIds = new Set(tileCalls.map((call) => call.id));
+  const calls = measurePerformanceBenchmarkStage(
+    "render.terrain.surface.calls",
+    () => surfaceDetailCallsForLayer({
+      tileCalls: activeChart.tileCalls,
+      riverConnectorCalls: activeChart.riverConnectorCalls,
+      layer: layerBounds,
+      margin: TILE_ART_SIZE
+    })
+  );
+  const tileIds = new Set(calls.tileCalls.map((call) => call.id));
+  const riverWaterPixelRows = measurePerformanceBenchmarkStage(
+    "render.terrain.surface.riverBanks.waterPixels",
+    () => visibleRiverWaterPixelRows(
+      activeChart,
+      calls.tileCalls,
+      calls.riverConnectorCalls
+    )
+  );
+  const riverBankPixels = measurePerformanceBenchmarkStage(
+    "render.terrain.surface.riverBanks",
+    () => visibleRiverBankDrawPixels(
+      activeChart,
+      riverWaterPixelRows
+    )
+  );
   const previousCtx = ctx;
   ctx = layerCtx;
   try {
-    for (const call of tileCalls) {
-      drawTerrainPentagonMarker(call, layerCtx);
-      drawIceSurface(call, layerCtx);
-      drawWeatherSurface(call);
-    }
-    drawVisibleRiverBanks(activeChart);
-    drawLandRoads(activeChart, tileIds);
-    for (const call of tileCalls) drawRiver(call, activeChart);
-    for (const call of riverConnectorCalls) drawRiverConnector(call, activeChart);
+    measurePerformanceBenchmarkStage("render.terrain.surface.weather", () => {
+      for (const call of calls.tileCalls) {
+        drawTerrainPentagonMarker(call, layerCtx);
+        drawIceSurface(call, layerCtx);
+        drawWeatherSurface(call);
+      }
+    });
+    measurePerformanceBenchmarkStage(
+      "render.terrain.surface.riverBankDraw",
+      () => drawRiverBankPixels(riverBankPixels)
+    );
+    measurePerformanceBenchmarkStage(
+      "render.terrain.surface.roads",
+      () => drawLandRoads(activeChart, tileIds)
+    );
+  } finally {
+    ctx = previousCtx;
+  }
+
+  return {
+    canvas,
+    x,
+    y,
+    tileCalls: calls.tileCalls,
+    riverConnectorCalls: calls.riverConnectorCalls,
+    riverWaterPixelRows,
+    riverBankPixels,
+    weatherDayIndex: weatherMaskDayIndex
+  };
+}
+
+function surfaceDetailRiverLayer(activeChart, staticLayer, redrawTick) {
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const cached = surfaceDetailRiverLayerCache.get(cacheKey);
+  if (cached?.staticLayer === staticLayer && cached.redrawTick === redrawTick) {
+    return cached;
+  }
+
+  const reusable = cached?.staticLayer === staticLayer ? cached : null;
+  const canvas = reusable?.canvas || document.createElement("canvas");
+  if (!reusable) {
+    canvas.width = staticLayer.canvas.width;
+    canvas.height = staticLayer.canvas.height;
+  }
+  const layerCtx = canvas.getContext("2d");
+  if (!layerCtx) throw new Error("Could not create cached river animation layer");
+  layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+  layerCtx.clearRect(0, 0, canvas.width, canvas.height);
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.translate(-staticLayer.x, -staticLayer.y);
+
+  const previousCtx = ctx;
+  ctx = layerCtx;
+  try {
+    for (const call of staticLayer.tileCalls) drawRiver(call, activeChart);
+    for (const call of staticLayer.riverConnectorCalls) drawRiverConnector(call, activeChart);
   } finally {
     ctx = previousCtx;
   }
 
   const layer = {
     canvas,
-    x,
-    y,
-    redrawTick,
-    weatherDayIndex: weatherMaskDayIndex
+    x: staticLayer.x,
+    y: staticLayer.y,
+    staticLayer,
+    redrawTick
   };
-  surfaceDetailLayerCache.set(activeChart, layer);
+  surfaceDetailRiverLayerCache.set(cacheKey, layer);
   return layer;
-}
-
-function drawSurfaceDetailLayer(layer) {
-  ctx.drawImage(layer.canvas, layer.x, layer.y);
 }
 
 function drawStormShipStrike(nowMs) {
@@ -24691,7 +24863,8 @@ function waterEffectForegroundLayer(activeChart, offset) {
     maxY: SCREEN_H - offset.y
   };
   const connectorLayer = terrainConnectorLayer(activeChart.faceCalls, activeChart);
-  const cached = waterEffectForegroundLayerCache.get(activeChart);
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const cached = waterEffectForegroundLayerCache.get(cacheKey);
   if (
     cached?.connectorLayer === connectorLayer &&
     cached.weatherDayIndex === weatherMaskDayIndex &&
@@ -24728,13 +24901,16 @@ function waterEffectForegroundLayer(activeChart, offset) {
     drawTerrainConnectorStaticDetails(layerCtx, entry);
   }
 
-  const tileCalls = activeChart.tileCalls.filter((call) => {
+  const calls = surfaceDetailCallsForLayer({
+    tileCalls: activeChart.tileCalls,
+    riverConnectorCalls: activeChart.riverConnectorCalls,
+    layer: bounds,
+    margin: TILE_ART_SIZE
+  });
+  const tileCalls = calls.tileCalls.filter((call) => {
     const frozenWater = isPermanentSeaIceRow(call.row) || tileHasSurfaceIce(call.id);
     if (isWaterSurfaceRow(call.row) && !frozenWater) return false;
-    return call.drawSurfaceX >= bounds.x - TILE_ART_SIZE &&
-      call.drawSurfaceX <= bounds.x + bounds.width + TILE_ART_SIZE &&
-      call.drawSurfaceY >= bounds.y - TILE_ART_SIZE &&
-      call.drawSurfaceY <= bounds.y + bounds.height + TILE_ART_SIZE;
+    return true;
   });
   for (const call of tileCalls) {
     drawTile(layerCtx, call, activeChart);
@@ -24742,47 +24918,22 @@ function waterEffectForegroundLayer(activeChart, offset) {
     drawIceSurface(call, layerCtx);
   }
 
-  const foregroundWaterPixels = new Set();
-  for (const call of tileCalls) {
-    if (isWaterSurfaceRow(call.row)) continue;
-    const riverMask = riverMasks?.[call.id] || 0;
-    if (riverMask === 0) continue;
-    for (const key of riverTileSolidWaterPixels(call, activeChart, riverMask)) {
-      foregroundWaterPixels.add(key);
-    }
-  }
-  for (const entry of connectorLayer.entries) {
-    const riverConnector = waterEffectRiverConnectorForPair(
-      activeChart,
-      entry.call.a,
-      entry.call.b
-    );
-    if (!riverConnector) continue;
-    const geometry = riverConnectorGeometry(riverConnector, activeChart);
-    if (!geometry) {
-      throw new Error(`Could not resolve water-effect river connector ${riverConnector.a}/${riverConnector.b}`);
-    }
-    for (const key of riverConnectorWaterPixels(riverConnector, geometry)) {
-      foregroundWaterPixels.add(key);
-    }
-  }
-  for (const key of foregroundWaterPixels) {
-    const comma = key.indexOf(",");
-    layerCtx.clearRect(
-      Number(key.slice(0, comma)),
-      Number(key.slice(comma + 1)),
-      1,
-      1
-    );
-  }
-
   const previousCtx = ctx;
   ctx = layerCtx;
   try {
+    layerCtx.globalCompositeOperation = "destination-out";
+    for (const call of tileCalls) drawRiver(call, activeChart);
+    for (const call of calls.riverConnectorCalls) drawRiverConnector(call, activeChart);
+    layerCtx.globalCompositeOperation = "source-over";
     const tileIds = new Set(tileCalls.map((call) => call.id));
-    drawVisibleRiverBanks(activeChart);
+    const staticSurface = surfaceDetailLayerCache.get(cacheKey);
+    if (!staticSurface) {
+      throw new Error("Water-effect foreground requires the current static surface layer");
+    }
+    drawRiverBankPixels(staticSurface.riverBankPixels);
     drawLandRoads(activeChart, tileIds);
   } finally {
+    layerCtx.globalCompositeOperation = "source-over";
     ctx = previousCtx;
   }
 
@@ -24792,24 +24943,8 @@ function waterEffectForegroundLayer(activeChart, offset) {
     connectorLayer,
     weatherDayIndex: weatherMaskDayIndex
   };
-  waterEffectForegroundLayerCache.set(activeChart, result);
+  waterEffectForegroundLayerCache.set(cacheKey, result);
   return result;
-}
-
-function waterEffectRiverConnectorForPair(activeChart, tileA, tileB) {
-  let pairMap = waterEffectRiverConnectorByPairCache.get(activeChart);
-  if (!pairMap) {
-    pairMap = new Map();
-    for (const call of activeChart.riverConnectorCalls) {
-      pairMap.set(waterEffectTilePairKey(call.a, call.b), call);
-    }
-    waterEffectRiverConnectorByPairCache.set(activeChart, pairMap);
-  }
-  return pairMap.get(waterEffectTilePairKey(tileA, tileB)) || null;
-}
-
-function waterEffectTilePairKey(tileA, tileB) {
-  return tileA < tileB ? `${tileA}:${tileB}` : `${tileB}:${tileA}`;
 }
 
 function drawGreatBarrierReef(activeChart, nowMs) {
@@ -25293,6 +25428,17 @@ function updateDiscoveryNotice(nowMs) {
 function chartOffsetPixels(activeChart) {
   void activeChart;
   return layoutOffsetPixels();
+}
+
+function worldChartRenderCacheKey(activeChart) {
+  if (!activeChart || typeof activeChart !== "object") {
+    throw new Error("World render cache requires a chart");
+  }
+  if (activeChart !== chart) return activeChart;
+  if (!localLayout || typeof localLayout !== "object") {
+    throw new Error("Current world chart has no stable local layout cache key");
+  }
+  return localLayout;
 }
 
 function layoutOffsetPixels() {
@@ -31963,7 +32109,8 @@ function drawTerrainConnectorDynamicDetails(targetCtx, entry, waveClockMs) {
 }
 
 function terrainConnectorDynamicLayer(baseLayer, activeChart) {
-  const cached = terrainConnectorDynamicLayerCache.get(activeChart);
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const cached = terrainConnectorDynamicLayerCache.get(cacheKey);
   if (
     cached?.baseLayer === baseLayer &&
     cached.waterTick === waterAnimationDrawTick
@@ -31989,7 +32136,7 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart) {
     x: baseLayer.x,
     y: baseLayer.y
   });
-  terrainConnectorDynamicLayerCache.set(activeChart, {
+  terrainConnectorDynamicLayerCache.set(cacheKey, {
     baseLayer,
     waterTick: waterAnimationDrawTick,
     layer
@@ -32043,8 +32190,27 @@ function terrainConnectorLayer(faceCalls, activeChart) {
   if (!Array.isArray(faceCalls)) throw new Error("Terrain connector layer requires face calls");
   if (!activeChart || typeof activeChart !== "object") throw new Error("Terrain connector layer requires a chart");
   const dayKey = Math.floor(weatherClockMinutes / (24 * 60));
-  const cached = terrainConnectorLayerCache.get(activeChart);
-  if (cached?.dayKey === dayKey && cached.faceCalls === faceCalls) return cached;
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const cached = terrainConnectorLayerCache.get(cacheKey);
+  const currentWorldChart = activeChart === chart;
+  if (cached?.dayKey === dayKey) {
+    if (!currentWorldChart && cached.faceCalls === faceCalls) return cached;
+    if (currentWorldChart) {
+      const offset = chartOffsetPixels(activeChart);
+      const viewport = {
+        minX: -offset.x,
+        minY: -offset.y,
+        maxX: SCREEN_W - offset.x,
+        maxY: SCREEN_H - offset.y
+      };
+      if (surfaceDetailLayerCoversViewport({
+        x: cached.x,
+        y: cached.y,
+        width: cached.canvas.width,
+        height: cached.canvas.height
+      }, viewport, TILE_ART_SIZE)) return cached;
+    }
+  }
 
   const entries = [];
   let minX = Infinity;
@@ -32102,7 +32268,7 @@ function terrainConnectorLayer(faceCalls, activeChart) {
     x: minX,
     y: minY
   };
-  terrainConnectorLayerCache.set(activeChart, layer);
+  terrainConnectorLayerCache.set(cacheKey, layer);
   return layer;
 }
 
@@ -32558,12 +32724,14 @@ function drawRiverConnector(call, activeChart) {
 }
 
 function riverConnectorWaterPixels(call, geometry) {
-  const { path, a, b } = geometry;
   const pixels = new Set();
-  const addBrush = (x, y, radius) => {
-    forEachPixelBrushPoint(x, y, radius, (px, py) => pixels.add(pixelMaskKey(px, py)));
-  };
+  visitRiverConnectorWaterPixels(call, geometry, (x, y) => pixels.add(pixelMaskKey(x, y)));
+  return pixels;
+}
 
+function visitRiverConnectorWaterPixels(call, geometry, visit) {
+  const { path, a, b } = geometry;
+  const addBrush = (x, y, radius) => forEachPixelBrushPoint(x, y, radius, visit);
   forEachPixelOnBezier(path, (x, y) => addBrush(x, y, RIVER_CONNECTOR_RADIUS_PX));
   const wideAtStart = riverConnectorMouthWideAtStart(call);
   if (wideAtStart !== null) {
@@ -32575,12 +32743,12 @@ function riverConnectorWaterPixels(call, geometry) {
   addBrush(b.x, b.y, RIVER_CONNECTOR_RADIUS_PX);
   if (call.aMouth && call.bWater) addBrush(b.x, b.y, RIVER_MOUTH_RADIUS_PX);
   if (call.bMouth && call.aWater) addBrush(a.x, a.y, RIVER_MOUTH_RADIUS_PX);
-  return pixels;
 }
 
-function drawVisibleRiverBanks(activeChart) {
+function drawRiverBankPixels(pixels) {
+  if (!Array.isArray(pixels)) throw new Error("Riverbank drawing requires pixel entries");
   let currentColor = null;
-  for (const pixel of visibleRiverBankDrawPixels(activeChart)) {
+  for (const pixel of pixels) {
     if (pixel.color !== currentColor) {
       currentColor = pixel.color;
       ctx.fillStyle = currentColor;
@@ -32589,57 +32757,66 @@ function drawVisibleRiverBanks(activeChart) {
   }
 }
 
-function visibleRiverBankDrawPixels(activeChart) {
-  const cached = visibleRiverBankCache.get(activeChart);
-  if (cached?.weatherMaskDayIndex === weatherMaskDayIndex) return cached.pixels;
-
-  const waterPixelGroups = [];
-  for (const call of activeChart.tileCalls) {
+function visibleRiverWaterPixelRows(activeChart, tileCalls, riverConnectorCalls) {
+  if (!Array.isArray(tileCalls) || !Array.isArray(riverConnectorCalls)) {
+    throw new Error("Visible river water requires tile and connector calls");
+  }
+  const rows = new Map();
+  const addWaterPixel = (x, y) => {
+    let row = rows.get(y);
+    if (!row) {
+      row = new Set();
+      rows.set(y, row);
+    }
+    row.add(x);
+  };
+  for (const call of tileCalls) {
     const mask = riverMasks?.[call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
-    waterPixelGroups.push(riverTileSolidWaterPixels(call, activeChart, mask));
+    visitRiverTileSolidWaterPixels(call, activeChart, mask, addWaterPixel);
   }
-  for (const call of activeChart.riverConnectorCalls) {
+  for (const call of riverConnectorCalls) {
     const geometry = riverConnectorGeometry(call, activeChart);
-    if (geometry) waterPixelGroups.push(riverConnectorWaterPixels(call, geometry));
+    if (geometry) visitRiverConnectorWaterPixels(call, geometry, addWaterPixel);
   }
-
-  const shadeCache = new Map();
-  const pixels = [];
-  for (const key of visibleRiverBankPixelSet(waterPixelGroups)) {
-    const comma = key.indexOf(",");
-    const x = Number(key.slice(0, comma));
-    const y = Number(key.slice(comma + 1));
-    const terrainCall = topmostLandTerrainCallAtPoint(x, y, activeChart);
-    if (!terrainCall) continue;
-    const sourceHex = terrainPixelHexAtMapPoint(terrainCall, x, y);
-    if (!sourceHex) continue;
-    let shade = shadeCache.get(sourceHex);
-    if (!shade) {
-      shade = `#${darkerResurrect64Hex(sourceHex, 2)}`;
-      shadeCache.set(sourceHex, shade);
-    }
-    pixels.push(Object.freeze({ x, y, color: shade }));
-  }
-
-  const result = Object.freeze(pixels);
-  visibleRiverBankCache.set(activeChart, {
-    weatherMaskDayIndex,
-    pixels: result
-  });
-  return result;
+  return rows;
 }
 
-function riverTileSolidWaterPixels(call, activeChart, mask) {
+function visibleRiverBankDrawPixels(activeChart, waterPixelRows) {
+  if (!(waterPixelRows instanceof Map)) {
+    throw new Error("Riverbank pixels require visible river water rows");
+  }
+  const shadeCache = new Map();
+  const pixels = [];
+  const bankPixels = measurePerformanceBenchmarkStage(
+    "render.terrain.surface.riverBanks.outline",
+    () => visibleRiverBankPixelsFromRows(waterPixelRows)
+  );
+  measurePerformanceBenchmarkStage("render.terrain.surface.riverBanks.shade", () => {
+    for (const { x, y } of bankPixels) {
+      const terrainPixel = nearestLandTerrainPixelAtPoint(x, y, activeChart);
+      if (!terrainPixel) continue;
+      const { sourceHex } = terrainPixel;
+      let shade = shadeCache.get(sourceHex);
+      if (!shade) {
+        shade = `#${darkerResurrect64Hex(sourceHex, 2)}`;
+        shadeCache.set(sourceHex, shade);
+      }
+      pixels.push(Object.freeze({ x, y, color: shade }));
+    }
+  });
+  return Object.freeze(pixels);
+}
+
+function visitRiverTileSolidWaterPixels(call, activeChart, mask, visit) {
   const geometry = riverNavigationPathsForTile(call, activeChart, mask);
   const { endpoints, paths, pathOffsetX, pathOffsetY } = geometry;
-  const pixels = new Set();
   const addBrush = (x, y, radius) => {
     forEachPixelBrushPoint(
       x + pathOffsetX,
       y + pathOffsetY,
       radius,
-      (px, py) => pixels.add(pixelMaskKey(px, py))
+      visit
     );
   };
 
@@ -32661,19 +32838,35 @@ function riverTileSolidWaterPixels(call, activeChart, mask) {
       endpoint.mouth ? RIVER_MOUTH_RADIUS_PX : RIVER_CONNECTOR_RADIUS_PX
     );
   }
-  return pixels;
 }
 
-function topmostLandTerrainCallAtPoint(x, y, activeChart) {
-  let topmost = null;
-  for (const entry of wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex)) {
-    if (entry.kind !== "tile" || isWaterSurfaceRow(entry.call.row)) continue;
-    if (!tileTerrainSpriteOpaqueAtMapPoint(entry.call, x, y)) continue;
-    if (!topmost || compareTerrainDrawCalls(topmost, entry.call) < 0) {
-      topmost = entry.call;
+function nearestLandTerrainPixelAtPoint(x, y, activeChart) {
+  const bx = Math.floor(x / WAKE_WATER_BUCKET_PX);
+  const by = Math.floor(y / WAKE_WATER_BUCKET_PX);
+  const range = Math.ceil(WAKE_WATER_SEARCH_RADIUS_PX / WAKE_WATER_BUCKET_PX);
+  let nearest = null;
+  let nearestDistanceSquared = Infinity;
+  for (let yy = by - range; yy <= by + range; yy++) {
+    const row = activeChart.waterIndex.tileRows.get(yy);
+    if (!row) continue;
+    for (let xx = bx - range; xx <= bx + range; xx++) {
+      const calls = row.get(xx);
+      if (!calls) continue;
+      for (const call of calls) {
+        if (isWaterSurfaceRow(call.row)) continue;
+        const dx = x - call.drawSurfaceX;
+        const dy = y - call.drawSurfaceY;
+        const distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared < nearestDistanceSquared) {
+          nearest = call;
+          nearestDistanceSquared = distanceSquared;
+        }
+      }
     }
   }
-  return topmost;
+  if (!nearest) return null;
+  const sourceHex = terrainPixelHexAtMapPoint(nearest, x, y);
+  return sourceHex ? { call: nearest, sourceHex } : null;
 }
 
 function terrainPixelHexAtMapPoint(call, x, y) {
@@ -35038,53 +35231,93 @@ function drawFloatingShipSprite(call, layers, nowMs) {
     });
   }
   const frame = cachedFloatingShipFrame(layers, bands);
-  ctx.drawImage(frame, call.x - 1, call.y);
+  ctx.drawImage(
+    frame.canvas,
+    frame.x,
+    frame.y,
+    frame.width,
+    frame.height,
+    call.x - 1,
+    call.y,
+    frame.width,
+    frame.height
+  );
 }
 
 function cachedFloatingShipFrame(layers, bands) {
-  let frames = floatingShipFrameCache.get(layers);
-  if (!frames) {
-    frames = new Map();
-    floatingShipFrameCache.set(layers, frames);
+  let atlas = floatingShipFrameAtlasCache.get(layers);
+  if (!atlas) {
+    atlas = createFloatingShipFrameAtlas();
+    floatingShipFrameAtlasCache.set(layers, atlas);
   }
   const key = bands.map((band) => band.offset).join(",");
-  const cached = frames.get(key);
+  const cached = atlas.frames.get(key);
   if (cached) {
-    frames.delete(key);
-    frames.set(key, cached);
+    atlas.frames.delete(key);
+    atlas.frames.set(key, cached);
     return cached;
   }
 
-  const canvas = document.createElement("canvas");
-  canvas.width = SHIP_SHEET_FRAME_SIZE + 2;
-  canvas.height = SHIP_SHEET_FRAME_SIZE;
-  const frameCtx = canvas.getContext("2d");
-  if (!frameCtx) throw new Error("Could not create cached floating ship frame");
-  frameCtx.imageSmoothingEnabled = false;
-  frameCtx.globalAlpha = SHIP_SUBMERGED_ALPHA;
+  let slot;
+  if (atlas.frames.size >= FLOATING_SHIP_FRAME_CACHE_LIMIT) {
+    const oldestKey = atlas.frames.keys().next().value;
+    if (oldestKey === undefined) throw new Error("Floating ship frame cache eviction failed");
+    slot = atlas.frames.get(oldestKey);
+    atlas.frames.delete(oldestKey);
+  } else {
+    slot = floatingShipFrameAtlasSlot(atlas.canvas, atlas.frames.size);
+  }
+
+  atlas.ctx.clearRect(slot.x, slot.y, slot.width, slot.height);
+  atlas.ctx.globalAlpha = SHIP_SUBMERGED_ALPHA;
   for (const band of bands) {
-    frameCtx.drawImage(
+    atlas.ctx.drawImage(
       layers.submergedCanvas,
       0,
       band.y,
       SHIP_SHEET_FRAME_SIZE,
       band.height,
-      1 + band.offset,
-      band.y,
+      slot.x + 1 + band.offset,
+      slot.y + band.y,
       SHIP_SHEET_FRAME_SIZE,
       band.height
     );
   }
-  frameCtx.globalAlpha = 1;
-  frameCtx.drawImage(layers.aboveCanvas, 1, 0);
+  atlas.ctx.globalAlpha = 1;
+  atlas.ctx.drawImage(layers.aboveCanvas, slot.x + 1, slot.y);
+  atlas.frames.set(key, slot);
+  return slot;
+}
 
-  if (frames.size >= FLOATING_SHIP_FRAME_CACHE_LIMIT) {
-    const oldestKey = frames.keys().next().value;
-    if (oldestKey === undefined) throw new Error("Floating ship frame cache eviction failed");
-    frames.delete(oldestKey);
+function createFloatingShipFrameAtlas() {
+  const canvas = document.createElement("canvas");
+  const frameWidth = SHIP_SHEET_FRAME_SIZE + 2;
+  canvas.width = frameWidth * FLOATING_SHIP_FRAME_ATLAS_COLUMNS;
+  canvas.height = SHIP_SHEET_FRAME_SIZE * Math.ceil(
+    FLOATING_SHIP_FRAME_CACHE_LIMIT / FLOATING_SHIP_FRAME_ATLAS_COLUMNS
+  );
+  const atlasCtx = canvas.getContext("2d");
+  if (!atlasCtx) throw new Error("Could not create cached floating ship frame atlas");
+  atlasCtx.imageSmoothingEnabled = false;
+  return { canvas, ctx: atlasCtx, frames: new Map() };
+}
+
+function floatingShipFrameAtlasSlot(canvas, index) {
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    throw new Error("Floating ship frame atlas slot requires a canvas");
   }
-  frames.set(key, canvas);
-  return canvas;
+  if (!Number.isInteger(index) || index < 0 || index >= FLOATING_SHIP_FRAME_CACHE_LIMIT) {
+    throw new Error(`Invalid floating ship frame atlas slot: ${index}`);
+  }
+  const width = SHIP_SHEET_FRAME_SIZE + 2;
+  const height = SHIP_SHEET_FRAME_SIZE;
+  return Object.freeze({
+    canvas,
+    x: (index % FLOATING_SHIP_FRAME_ATLAS_COLUMNS) * width,
+    y: Math.floor(index / FLOATING_SHIP_FRAME_ATLAS_COLUMNS) * height,
+    width,
+    height
+  });
 }
 
 function drawWorldShipSinkEffect(entry, activeChart, nowMs) {
@@ -35122,33 +35355,54 @@ function drawShipSinkPixel(pixel, drawOffset) {
 }
 
 function drawShips(activeChart, playerLight, nowMs) {
-  const drawCalls = [];
-  const terrainForeground = shipForegroundTerrainDrawOrder(activeChart);
-  const npcDrawContext = createNpcShipDrawContext(activeChart);
-  const playerCall = playerShipDrawCall(playerLight);
-  if (playerCall) drawCalls.push(playerCall);
-  if (npcSeaRoutes && shipSpriteAssetStore && camera && directionIndex) {
-    for (const state of npcVisualShips.values()) {
-      const call = npcShipDrawCall(state, activeChart, npcDrawContext);
-      if (call) drawCalls.push(call);
+  const terrainForeground = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.terrain",
+    () => shipForegroundTerrainDrawOrder(activeChart)
+  );
+  const drawCalls = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.calls",
+    () => {
+      const calls = [];
+      const npcDrawContext = createNpcShipDrawContext(activeChart);
+      const playerCall = playerShipDrawCall(playerLight);
+      if (playerCall) calls.push(playerCall);
+      if (npcSeaRoutes && shipSpriteAssetStore && camera && directionIndex) {
+        for (const state of npcVisualShips.values()) {
+          const call = npcShipDrawCall(state, activeChart, npcDrawContext);
+          if (call) calls.push(call);
+        }
+      }
+      for (const entry of worldShipSinkEffects) {
+        const offset = entry.space === "chart" ? chartOffsetPixels(activeChart) : { x: 0, y: 0 };
+        calls.push({
+          id: `sinking:${entry.effect.id}`,
+          kind: "sinking",
+          sortY: entry.effect.waterlineY + offset.y,
+          entry,
+          activeChart
+        });
+      }
+      calls.sort(compareShipDrawCalls);
+      return calls;
     }
-  }
-  for (const entry of worldShipSinkEffects) {
-    const offset = entry.space === "chart" ? chartOffsetPixels(activeChart) : { x: 0, y: 0 };
-    drawCalls.push({
-      id: `sinking:${entry.effect.id}`,
-      kind: "sinking",
-      sortY: entry.effect.waterlineY + offset.y,
-      entry,
-      activeChart
-    });
-  }
-  drawCalls.sort(compareShipDrawCalls);
-  const overlapIndex = createShipDrawOverlapIndex(drawCalls);
-  for (const call of drawCalls) {
-    if (tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex)) continue;
-    drawShipCall(call, nowMs, terrainForeground);
-  }
+  );
+  const overlapIndex = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.overlap",
+    () => createShipDrawOverlapIndex(drawCalls)
+  );
+  measurePerformanceBenchmarkStage("render.vessels.ships.draw", () => {
+    for (const call of drawCalls) {
+      const queued = measurePerformanceBenchmarkStage(
+        "render.vessels.ships.draw.gpuQueue",
+        () => tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex)
+      );
+      if (queued) continue;
+      measurePerformanceBenchmarkStage(
+        "render.vessels.ships.draw.cpuFallback",
+        () => drawShipCall(call, nowMs, terrainForeground)
+      );
+    }
+  });
 }
 
 function createShipDrawOverlapIndex(drawCalls) {
@@ -35215,18 +35469,30 @@ function shipTileIsGpuSafeOpenWater(tileId) {
 function tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex) {
   if (call.kind !== "npc" || !shipTileIsGpuSafeOpenWater(call.tileId)) return false;
   if (shipDrawCallHasOverlap(call, overlapIndex)) return false;
-  const frameAsset = rowingShipFrameAsset(call, nowMs);
-  const drawCall = stormBobbedShipCall({
-    ...call,
-    img: frameAsset.image,
-    sinkDepthImg: frameAsset.sinkDepthImage,
-    flagAnchor: requiredShipFlagAnchor(call.slug, call.frame, frameAsset.rowingFrameIndex)
-  }, nowMs);
-  const layers = shipWaterlineLayers(
-    drawCall.img,
-    drawCall.sinkDepthImg,
-    drawCall.frame,
-    drawCall.slug
+  const drawCall = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.frame",
+    () => {
+      const resolvedFrameAsset = rowingShipFrameAsset(call, nowMs);
+      return stormBobbedShipCall({
+        ...call,
+        img: resolvedFrameAsset.image,
+        sinkDepthImg: resolvedFrameAsset.sinkDepthImage,
+        flagAnchor: requiredShipFlagAnchor(
+          call.slug,
+          call.frame,
+          resolvedFrameAsset.rowingFrameIndex
+        )
+      }, nowMs);
+    }
+  );
+  const layers = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.waterline",
+    () => shipWaterlineLayers(
+      drawCall.img,
+      drawCall.sinkDepthImg,
+      drawCall.frame,
+      drawCall.slug
+    )
   );
   const compositeBounds = {
     x: drawCall.x - SHIP_COMPOSITE_MARGIN_PX,
@@ -35234,23 +35500,29 @@ function tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex) {
     w: shipCompositeCanvas.width,
     h: shipCompositeCanvas.height
   };
-  if (shipTerrainForegroundForDrawCall(
-    drawCall,
-    layers,
-    terrainForeground,
-    compositeBounds
-  ).length > 0) return false;
+  const foreground = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.foreground",
+    () => shipTerrainForegroundForDrawCall(
+      drawCall,
+      layers,
+      terrainForeground,
+      compositeBounds
+    )
+  );
+  if (foreground.length > 0) return false;
 
   gpuShipDrawCommands.push({ drawCall, layers });
-  ctx.save();
-  try {
-    if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
-    drawNpcShipFlag(drawCall, nowMs);
-  } finally {
-    ctx.restore();
-  }
-  if (drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
-  if (drawCall.combatMode) drawNpcCombatHull(drawCall);
+  measurePerformanceBenchmarkStage("render.vessels.ships.decorations", () => {
+    ctx.save();
+    try {
+      if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
+      drawNpcShipFlag(drawCall, nowMs);
+    } finally {
+      ctx.restore();
+    }
+    if (drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
+    if (drawCall.combatMode) drawNpcCombatHull(drawCall);
+  });
   return true;
 }
 
@@ -35286,20 +35558,35 @@ function shipForegroundTerrainDrawOrder(activeChart) {
     throw new Error("Ship foreground terrain requires chart tiles and a water index");
   }
   const offset = chartOffsetPixels(activeChart);
-  let cached = shipTerrainOcclusionIndexCache.get(activeChart);
-  if (!cached || cached.weatherDayIndex !== weatherMaskDayIndex) {
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const surfaceLayer = surfaceDetailLayerCache.get(cacheKey);
+  if (!surfaceLayer?.riverWaterPixelRows) {
+    throw new Error("Ship foreground terrain requires the current surface detail layer");
+  }
+  let cached = shipTerrainOcclusionIndexCache.get(cacheKey);
+  if (!cached || cached.weatherDayIndex !== weatherMaskDayIndex ||
+      cached.surfaceLayer !== surfaceLayer) {
     const occluders = [];
-    for (const call of activeChart.tileCalls) {
+    for (const call of surfaceLayer.tileCalls) {
       if (isWaterSurfaceRow(call.row)) continue;
       for (const image of terrainOccludingLayerImagesForTile(call.row, call.id)) {
-        occluders.push(...terrainForegroundDrawLayers(call, image, activeChart));
+        occluders.push(...terrainForegroundDrawLayers(
+          call,
+          image,
+          activeChart,
+          surfaceLayer.riverWaterPixelRows
+        ));
       }
     }
     cached = {
+      chart: activeChart,
+      surfaceLayer,
       weatherDayIndex: weatherMaskDayIndex,
       index: createTerrainOcclusionIndex(occluders)
     };
-    shipTerrainOcclusionIndexCache.set(activeChart, cached);
+    shipTerrainOcclusionIndexCache.set(cacheKey, cached);
+  } else if (cached.chart !== activeChart) {
+    cached.chart = activeChart;
   }
   return {
     occludersForBounds: (bounds) => terrainOccludersForScreenBounds(cached.index, bounds, offset),
@@ -35307,7 +35594,10 @@ function shipForegroundTerrainDrawOrder(activeChart) {
   };
 }
 
-function terrainForegroundDrawLayers(call, image, activeChart) {
+function terrainForegroundDrawLayers(call, image, activeChart, riverWaterPixelRows) {
+  if (!(riverWaterPixelRows instanceof Map)) {
+    throw new Error(`Terrain foreground tile ${call.id} requires visible river water rows`);
+  }
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const width = image.naturalWidth || image.width;
@@ -35335,7 +35625,13 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
       depthY: call.sortY,
       width,
       height,
-      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, RIVER_BANK_UPPER, bankSplit)
+      drawLayer: terrainForegroundRiverBankDrawLayer(
+        call,
+        image,
+        RIVER_BANK_UPPER,
+        bankSplit,
+        riverWaterPixelRows
+      )
     },
     {
       x,
@@ -35343,7 +35639,13 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
       depthY: call.sortY + TILE_ART_HALF,
       width,
       height,
-      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, RIVER_BANK_LOWER, bankSplit)
+      drawLayer: terrainForegroundRiverBankDrawLayer(
+        call,
+        image,
+        RIVER_BANK_LOWER,
+        bankSplit,
+        riverWaterPixelRows
+      )
     }
   ];
 }
@@ -35364,14 +35666,32 @@ function terrainRiverBankSplit(call, activeChart, riverMask) {
   return split;
 }
 
-function terrainForegroundRiverBankDrawLayer(call, image, activeChart, bank, bankSplit) {
+function terrainForegroundRiverBankDrawLayer(
+  call,
+  image,
+  bank,
+  bankSplit,
+  riverWaterPixelRows
+) {
   return {
     image: null,
-    create: () => createTerrainForegroundRiverBankImage(call, image, activeChart, bank, bankSplit)
+    create: () => createTerrainForegroundRiverBankImage(
+      call,
+      image,
+      bank,
+      bankSplit,
+      riverWaterPixelRows
+    )
   };
 }
 
-function createTerrainForegroundRiverBankImage(call, image, activeChart, bank, bankSplit) {
+function createTerrainForegroundRiverBankImage(
+  call,
+  image,
+  bank,
+  bankSplit,
+  riverWaterPixelRows
+) {
   if (bank !== RIVER_BANK_UPPER && bank !== RIVER_BANK_LOWER) {
     throw new Error(`Unknown river bank layer: ${bank}`);
   }
@@ -35387,11 +35707,12 @@ function createTerrainForegroundRiverBankImage(call, image, activeChart, bank, b
   const imageData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
   for (let py = 0; py < canvas.height; py++) {
     const localY = y + py;
+    const waterXs = riverWaterPixelRows.get(localY);
     for (let px = 0; px < canvas.width; px++) {
       const pixelIndex = py * canvas.width + px;
       const dataIndex = pixelIndex * 4;
       const keep = bankSplit.banks[pixelIndex] === bank && imageData.data[dataIndex + 3] !== 0 &&
-        !wakeMapPointIsWater(x + px, localY, activeChart);
+        !waterXs?.has(x + px);
       if (!keep) imageData.data[dataIndex + 3] = 0;
     }
   }
@@ -35641,11 +35962,14 @@ function drawShipCall(call, nowMs, terrainForeground) {
       ? requiredShipFlagAnchor(call.slug, call.frame, frameAsset.rowingFrameIndex)
       : null
   }, nowMs);
-  const layers = shipWaterlineLayers(
-    drawCall.img,
-    drawCall.sinkDepthImg,
-    drawCall.frame,
-    drawCall.slug
+  const layers = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.waterline",
+    () => shipWaterlineLayers(
+      drawCall.img,
+      drawCall.sinkDepthImg,
+      drawCall.frame,
+      drawCall.slug
+    )
   );
   const compositeBounds = {
     x: drawCall.x - SHIP_COMPOSITE_MARGIN_PX,
@@ -35653,11 +35977,14 @@ function drawShipCall(call, nowMs, terrainForeground) {
     w: shipCompositeCanvas.width,
     h: shipCompositeCanvas.height
   };
-  const foreground = shipTerrainForegroundForDrawCall(
-    drawCall,
-    layers,
-    terrainForeground,
-    compositeBounds
+  const foreground = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.foreground",
+    () => shipTerrainForegroundForDrawCall(
+      drawCall,
+      layers,
+      terrainForeground,
+      compositeBounds
+    )
   );
   if (foreground.length === 0) {
     drawShipVisual(drawCall, layers, nowMs);
@@ -36763,66 +37090,84 @@ function drawWavingFactionFlag(
   }
   const image = factionFlagImages?.get(factionId);
   if (!image) throw new Error(`Missing faction flag image: ${factionId}`);
-  const offsets = flagWaveColumnOffsets(width, phaseRad, 1);
-  const frame = wavingFactionFlagFrame(
+  const frameIndex = flagWaveFrameIndex(phaseRad);
+  const atlas = wavingFactionFlagAtlas(
     factionId,
     image,
     width,
     height,
-    offsets,
     outlineColor
   );
-  ctx.drawImage(frame, Math.round(x), Math.round(y) - 2);
+  ctx.drawImage(
+    atlas.canvas,
+    frameIndex * atlas.frameWidth,
+    0,
+    atlas.frameWidth,
+    atlas.frameHeight,
+    Math.round(x),
+    Math.round(y) - atlas.verticalPadding,
+    atlas.frameWidth,
+    atlas.frameHeight
+  );
 }
 
-function wavingFactionFlagFrame(factionId, image, width, height, offsets, outlineColor) {
+function wavingFactionFlagAtlas(factionId, image, width, height, outlineColor) {
   const verticalPadding = 2;
-  const cacheKey = [
-    factionId,
-    width,
-    height,
-    outlineColor || "",
-    offsets.join(",")
-  ].join("|");
-  const cached = wavingFactionFlagFrameCache.get(cacheKey);
+  const cacheKey = [factionId, width, height, outlineColor || ""].join("|");
+  const cached = wavingFactionFlagAtlasCache.get(cacheKey);
   if (cached) return cached;
 
   const canvas = document.createElement("canvas");
-  canvas.width = width + (outlineColor === null ? 0 : 1);
-  canvas.height = height + verticalPadding * 2;
-  const frameCtx = canvas.getContext("2d");
-  if (!frameCtx) throw new Error(`Could not create animated flag frame for ${factionId}`);
-  frameCtx.imageSmoothingEnabled = false;
-  if (outlineColor !== null) {
-    frameCtx.fillStyle = outlineColor;
-    for (const [dx, dy] of [[0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) {
-      for (let column = 0; column < width; column++) {
-        frameCtx.fillRect(
-          column + dx,
-          verticalPadding + offsets[column] + dy,
-          1,
-          height
-        );
+  const frameWidth = width + (outlineColor === null ? 0 : 1);
+  const frameHeight = height + verticalPadding * 2;
+  canvas.width = frameWidth * FLAG_WAVE_FRAME_COUNT;
+  canvas.height = frameHeight;
+  const atlasCtx = canvas.getContext("2d");
+  if (!atlasCtx) throw new Error(`Could not create animated flag atlas for ${factionId}`);
+  atlasCtx.imageSmoothingEnabled = false;
+
+  for (let frameIndex = 0; frameIndex < FLAG_WAVE_FRAME_COUNT; frameIndex++) {
+    const frameX = frameIndex * frameWidth;
+    const phase = frameIndex / FLAG_WAVE_FRAME_COUNT * Math.PI * 2;
+    const offsets = flagWaveColumnOffsets(width, phase, 1);
+    if (outlineColor !== null) {
+      atlasCtx.fillStyle = outlineColor;
+      for (const [dx, dy] of [[0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) {
+        for (let column = 0; column < width; column++) {
+          atlasCtx.fillRect(
+            frameX + column + dx,
+            verticalPadding + offsets[column] + dy,
+            1,
+            height
+          );
+        }
       }
     }
+    for (let column = 0; column < width; column++) {
+      const sourceX = Math.floor(column * image.width / width);
+      const sourceEndX = Math.floor((column + 1) * image.width / width);
+      atlasCtx.drawImage(
+        image,
+        sourceX,
+        0,
+        Math.max(1, sourceEndX - sourceX),
+        image.height,
+        frameX + column,
+        verticalPadding + offsets[column],
+        1,
+        height
+      );
+    }
   }
-  for (let column = 0; column < width; column++) {
-    const sourceX = Math.floor(column * image.width / width);
-    const sourceEndX = Math.floor((column + 1) * image.width / width);
-    frameCtx.drawImage(
-      image,
-      sourceX,
-      0,
-      Math.max(1, sourceEndX - sourceX),
-      image.height,
-      column,
-      verticalPadding + offsets[column],
-      1,
-      height
-    );
-  }
-  wavingFactionFlagFrameCache.set(cacheKey, canvas);
-  return canvas;
+
+  const atlas = Object.freeze({
+    canvas,
+    frameWidth,
+    frameHeight,
+    verticalPadding
+  });
+  wavingFactionFlagAtlasCache.set(cacheKey, atlas);
+  return atlas;
 }
 
 function citySpriteShouldDrawAboveShip(call, offset) {

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { visibleRiverBankPixelSet } from "./riverBankOutline.js";
+import {
+  visibleRiverBankPixelSet,
+  visibleRiverBankPixelsFromRows
+} from "./riverBankOutline.js";
 
 test("visible riverbanks are calculated after adjoining water segments are united", () => {
   const firstSegment = new Set(["1,2", "2,2", "3,2"]);
@@ -27,4 +30,24 @@ test("visible riverbanks reject malformed pixel groups", () => {
   assert.throws(() => visibleRiverBankPixelSet(new Set()), /array/);
   assert.throws(() => visibleRiverBankPixelSet([[]]), /must be a Set/);
   assert.throws(() => visibleRiverBankPixelSet([new Set(["bad"])]), /pixel key/);
+});
+
+test("numeric river rows produce the same joined cardinal outline", () => {
+  const rows = new Map([[2, new Set([1, 2, 3, 4, 5, 6])]]);
+  const bank = visibleRiverBankPixelsFromRows(rows)
+    .map(({ x, y }) => `${x},${y}`)
+    .sort();
+
+  assert.equal(bank.includes("3,2"), false);
+  assert.equal(bank.includes("4,2"), false);
+  assert.equal(bank.includes("3,1"), true);
+  assert.equal(bank.includes("4,3"), true);
+});
+
+test("numeric river rows reject malformed input", () => {
+  assert.throws(() => visibleRiverBankPixelsFromRows([]), /grouped by row/);
+  assert.throws(
+    () => visibleRiverBankPixelsFromRows(new Map([["2", new Set([2])]])),
+    /integer coordinates/
+  );
 });

@@ -1,6 +1,5 @@
 const NPC_OBSTACLE_AVOIDANCE_ANGLES_RAD = Object.freeze([
-  15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90,
-  105, -105, 120, -120, 135, -135, 150, -150, 165, -165, 180
+  30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180
 ].map((degrees) => degrees * Math.PI / 180));
 
 export function chooseNpcEscapeDirection({
