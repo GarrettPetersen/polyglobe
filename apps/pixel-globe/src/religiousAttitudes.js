@@ -35,6 +35,7 @@ const BUDDHIST_RELIGIONS = new Set([
 ]);
 const EAST_ASIAN_RELIGIONS = new Set([
   ...BUDDHIST_RELIGIONS,
+  "daoism",
   "chinese-traditional",
   "korean-traditional",
   "kami-buddhist"

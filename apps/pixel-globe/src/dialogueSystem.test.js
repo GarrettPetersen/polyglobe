@@ -3053,6 +3053,98 @@ test("a Muslim captain can accompany a Hajj passenger inland from Jeddah", () =>
   );
 });
 
+test("a captain of the relevant faith can join a religious mission for an extra reward", () => {
+  const nanjing = {
+    tileId: 102,
+    city: "Nanjing",
+    displayCity: "Nanjing",
+    country: "China",
+    factionId: "joseon"
+  };
+  const quest = {
+    id: "passenger-religious-ming-mediation",
+    kind: "passenger",
+    originKey: "Beijing|China|101",
+    originTileId: 101,
+    originName: "Beijing",
+    originFactionId: "ming",
+    destinationKey: "Nanjing|China|102",
+    destinationTileId: nanjing.tileId,
+    destinationName: "Nanjing",
+    destinationCountry: "China",
+    distanceKm: 850,
+    passenger: { name: "Shi Dehai", religionId: "mahayana-buddhism" },
+    passengerReligionId: "mahayana-buddhism",
+    reward: 300,
+    scenarioId: "religious-ming-three-teachings-mediation",
+    religiousMissionId: "ming-three-teachings-mediation",
+    dialogue: {
+      arrival: "Nanjing's Buddhist, Daoist, and civic elders are seated together."
+    }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Lin Mei",
+      nationalityId: "ming",
+      religionId: "daoism",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  gameState.memory.quests.passengerActive = quest;
+  const session = createPassengerDialogueSession(nanjing, quest);
+  const beforeDoubloons = gameState.doubloons;
+  const beforeStanding = factionReputation(gameState, "joseon");
+
+  const arrival = passengerDialogueView(session, nanjing, quest, gameState);
+  assert.equal(arrival.speaker, "Shi Dehai, Buddhist monk");
+  assert.deepEqual(arrival.options.map(({ label }) => label), [
+    "Help reconcile the two temples",
+    "Set Buddhist monk ashore  300 db",
+    "Not yet"
+  ]);
+  assert.equal(dialogueOptionIconId(arrival.options[0]), "religion:buddhist");
+  assert.deepEqual(selectPassengerDialogueOption(session, nanjing, quest, gameState, 0), {
+    closed: false,
+    action: null
+  });
+
+  const mediation = passengerDialogueView(session, nanjing, quest, gameState);
+  assert.match(mediation.text, /shared upkeep/);
+  assert.equal(mediation.options[0].label, "Complete the mission  420 db");
+  const completion = selectPassengerDialogueOption(
+    session,
+    nanjing,
+    quest,
+    gameState,
+    0,
+    { simMinute: 400 }
+  );
+  assert.equal(completion.closed, true);
+  assert.equal(completion.religiousMissionParticipation.title, "Two Temples, One Harbor");
+  assert.equal(completion.religiousMissionParticipation.bonusDoubloons, 120);
+  assert.equal(gameState.doubloons, beforeDoubloons + quest.reward + 120);
+  assert.equal(factionReputation(gameState, "joseon"), beforeStanding + 3);
+  assert.equal(gameState.memory.quests.passengerActive, null);
+
+  const outsiderState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      religionId: "roman-catholic",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  outsiderState.memory.quests.passengerActive = quest;
+  const outsiderSession = createPassengerDialogueSession(nanjing, quest);
+  assert.deepEqual(
+    passengerDialogueView(outsiderSession, nanjing, quest, outsiderState)
+      .options.map(({ label }) => label),
+    ["Set Buddhist monk ashore  300 db", "Not yet"]
+  );
+});
+
 test("envoy dialogue advances from negotiations to a paid return voyage", () => {
   const origin = { tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
   const target = {

@@ -26,4 +26,6 @@ test("sectarian conflicts are strong while unrelated faiths are often neutral", 
   assert.equal(religiousAttitude("roman-catholic", "sunni-islam"), -4);
   assert.equal(religiousAttitude("roman-catholic", "kami-buddhist"), 0);
   assert.equal(religiousAttitude("kami-buddhist", "chinese-traditional"), 2);
+  assert.equal(religiousAttitude("daoism", "mahayana-buddhism"), 2);
+  assert.equal(religiousAttitude("daoism", "chinese-traditional"), 2);
 });

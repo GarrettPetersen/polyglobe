@@ -1357,6 +1357,10 @@ import {
   travelMissionOfferForCity
 } from "./passengerMissions.js";
 import {
+  isReligiousPassengerQuest,
+  religiousMissionTitle
+} from "./religiousMissions.js";
+import {
   fishHabitatKind,
   fisheryForHabitat,
   harvestFishery
@@ -15111,6 +15115,13 @@ function chooseDialogueOption(optionIndex) {
   if (result.missionItemGift) {
     presentMissionItemGift(result.missionItemGift, missionGiftCharacter, purchaseIconOrigin);
   }
+  if (result.religiousMissionParticipation) {
+    const participation = result.religiousMissionParticipation;
+    showSurvivalNotice(
+      `${participation.title.toUpperCase()}  +${participation.bonusDoubloons} DB`,
+      "good"
+    );
+  }
   if (result.action && dialogueNpcShipId) applyShipDialogueAction(dialogueNpcShipId, result.action);
   if (result.action?.type === "campaign-intro-complete") {
     markCampaignGoalIntroSeen(gameState.memory.campaignGoal);
@@ -15900,6 +15911,7 @@ function createPassengerCharacterForQuest({ quest, origin, destination, scenario
     scenarioId: scenario.id,
     namePortPreference: scenario.namePort,
     religionId: quest.passengerReligionId || null,
+    preferClergy: scenario.preferClergy === true,
     excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
@@ -28256,6 +28268,7 @@ function navigationQuestReason(quest) {
     if (quest.stage === "return") return "REPORT CAPTURE";
     return isCaptureCapitalQuest(quest) ? "CAPTURE CAPITAL" : "CAPTURE PORT";
   }
+  if (isReligiousPassengerQuest(quest)) return religiousMissionTitle(quest).toUpperCase();
   if (quest.kind === "passenger") return "PASSENGER MISSION";
   if (quest.kind === "delivery") return "DELIVERY MISSION";
   return "ACTIVE MISSION";

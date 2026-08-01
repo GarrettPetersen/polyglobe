@@ -16,6 +16,14 @@ import {
   sovereignTradePolicyById
 } from "./sovereignTradeAccess.js";
 import { islamicReligionForHome } from "./characterReligion.js";
+import {
+  isReligiousPassengerQuest,
+  religiousMissionById,
+  religiousMissionDialogueText,
+  religiousMissionRoleLabel,
+  religiousPassengerDistanceIsAllowed,
+  religiousPassengerPlan
+} from "./religiousMissions.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -52,8 +60,16 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   const originKey = cityKey(city);
   const rollKey = `${originKey}|${period}`;
   const hajjPlan = hajjPassengerPlan(city, portCities, context, rollKey);
-  if (context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID && !hajjPlan) return null;
-  const destination = hajjPlan?.destination || choosePassengerDestination(city, portCities, context);
+  const religiousPlan = hajjPlan
+    ? null
+    : religiousPassengerPlan(state, city, portCities, context, rollKey);
+  const specialPlan = hajjPlan || religiousPlan;
+  const forcedReligiousMission = context.religiousMissionId !== undefined ||
+    (typeof context.scenarioId === "string" && context.scenarioId.startsWith("religious-"));
+  if ((context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID || forcedReligiousMission) && !specialPlan) {
+    return null;
+  }
+  const destination = specialPlan?.destination || choosePassengerDestination(city, portCities, context);
   if (!destination) return null;
 
   if (quests.passengerRolls[rollKey]) return null;
@@ -62,13 +78,14 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   const spawnChance = passengerSpawnChance(context.spawnChance);
   if (spawnChance < 1 && seededFraction(`${rollKey}|passenger`) >= spawnChance) return null;
 
-  const distanceKm = hajjPlan?.distanceKm ?? greatCircleDistanceKm(city, destination);
-  const scenario = hajjPlan?.scenario || choosePassengerScenario(
+  const distanceKm = specialPlan?.distanceKm ?? greatCircleDistanceKm(city, destination);
+  const scenario = specialPlan?.scenario || choosePassengerScenario(
     `${rollKey}|${cityKey(destination)}`,
     context
   );
   const quest = buildPassengerQuest(city, destination, scenario, distanceKm, period, {
-    passengerReligionId: hajjPlan?.passengerReligionId || null
+    passengerReligionId: specialPlan?.passengerReligionId || null,
+    religiousMissionId: religiousPlan?.religiousMissionId || null
   });
   if (typeof context.createCharacter === "function") {
     let character = context.createCharacter({ quest, origin: city, destination, scenario });
@@ -431,6 +448,11 @@ export function isHajjPassengerQuest(quest) {
   return quest?.kind === "passenger" && quest.scenarioId === HAJJ_PASSENGER_SCENARIO_ID;
 }
 
+export function passengerRoleLabel(quest) {
+  if (isHajjPassengerQuest(quest)) return "pilgrim";
+  return religiousMissionRoleLabel(quest) || "passenger";
+}
+
 function buildPassengerQuest(origin, destination, scenario, distanceKm, period, options = {}) {
   const originKey = cityKey(origin);
   const destinationKey = cityKey(destination);
@@ -455,15 +477,28 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period, 
     ...(options.passengerReligionId
       ? { passengerReligionId: options.passengerReligionId }
       : {}),
+    ...(options.religiousMissionId
+      ? { religiousMissionId: options.religiousMissionId }
+      : {}),
     passengerName: "Passenger",
     seen: false,
-    dialogue: passengerDialogueText(scenario.id, origin, destination, reward)
+    dialogue: passengerDialogueText(
+      scenario.id,
+      origin,
+      destination,
+      reward,
+      options.religiousMissionId
+    )
   };
 }
 
-function passengerDialogueText(scenarioId, origin, destination, reward) {
+function passengerDialogueText(scenarioId, origin, destination, reward, religiousMissionId = null) {
   const originName = cityLabel(origin);
   const destinationName = cityLabel(destination);
+  if (religiousMissionId) {
+    religiousMissionById(religiousMissionId);
+    return religiousMissionDialogueText(religiousMissionId, origin, destination, reward);
+  }
   if (scenarioId === HAJJ_PASSENGER_SCENARIO_ID) {
     return {
       offer: `For years I have saved to make the Hajj to Mecca. Jeddah is its sea gate; from there I will join the road inland. Carry me to ${destinationName} and I will pay ${reward} db.`,
@@ -613,7 +648,9 @@ function hajjPassengerDistanceIsAllowed(distanceKm) {
 function passengerDistanceIsAllowed(quest) {
   return isHajjPassengerQuest(quest)
     ? hajjPassengerDistanceIsAllowed(quest.distanceKm)
-    : passengerDistanceIsMedium(quest.distanceKm);
+    : isReligiousPassengerQuest(quest)
+      ? religiousPassengerDistanceIsAllowed(quest.distanceKm, quest.religiousMissionId)
+      : passengerDistanceIsMedium(quest.distanceKm);
 }
 
 function choosePassengerScenario(seed, context) {

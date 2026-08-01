@@ -173,6 +173,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
     lightMonotone: ICON_COLOR.gold
   }),
   "religion:buddhist": nikoichu("Misc_Religion_Buddha_Buddhism_Meditation.png", ICON_COLOR.gold),
+  "religion:daoist": nikoichu("Misc_Yin_Yang_Balance_Big.png", ICON_COLOR.sea),
   "religion:confucian": projectAsset("public/assets/misc/confucian.png", null, {
     lightMonotone: ICON_COLOR.purple
   }),
@@ -376,6 +377,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "complete-passenger": "action:passenger",
   "begin-hajj": "religion:islam",
   "complete-hajj": "religion:islam",
+  "participate-religious-mission": "action:talk",
+  "complete-religious-mission": "action:quest",
   "negotiate-envoy": "action:letter",
   "envoy-negotiated": "action:letter",
   "finish-envoy-negotiation": "action:letter",

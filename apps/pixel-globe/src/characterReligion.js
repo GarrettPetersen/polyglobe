@@ -17,6 +17,7 @@ export const RELIGION_CATALOG = Object.freeze([
   religion("theravada-buddhism", "Theravada Buddhist", "religion:buddhist"),
   religion("mahayana-buddhism", "Mahayana Buddhist", "religion:buddhist"),
   religion("tibetan-buddhism", "Tibetan Buddhist", "religion:buddhist"),
+  religion("daoism", "Daoist", "religion:daoist"),
   religion("chinese-traditional", "Confucian tradition", "religion:confucian"),
   religion("korean-traditional", "Confucian tradition", "religion:confucian"),
   religion("kami-buddhist", "Shinto-Buddhist", "religion:shinto"),
@@ -246,7 +247,7 @@ export function religionCandidatesForHome(homePort) {
     if (["kashi", "tsinkiang", "turpan"].includes(city)) {
       return choices(["sunni-islam", 4], ["chinese-traditional", 1]);
     }
-    return choices(["chinese-traditional", 3], ["mahayana-buddhism", 1]);
+    return choices(["chinese-traditional", 2], ["daoism", 1], ["mahayana-buddhism", 1]);
   }
 
   if (POLYNESIAN_COUNTRIES.has(country)) return choices(["polynesian-traditional", 1]);
@@ -356,7 +357,9 @@ export function religionCandidatesForHome(homePort) {
   }
 
   if (cityType === "polynesian") return choices(["polynesian-traditional", 1]);
-  if (nameCulture === "chinese") return choices(["chinese-traditional", 3], ["mahayana-buddhism", 1]);
+  if (nameCulture === "chinese") {
+    return choices(["chinese-traditional", 2], ["daoism", 1], ["mahayana-buddhism", 1]);
+  }
   if (nameCulture === "japanese") return choices(["kami-buddhist", 1]);
   if (nameCulture === "korean") return choices(["korean-traditional", 3], ["mahayana-buddhism", 2]);
   if (["bengali", "gujarati", "malayali", "northIndian", "southAsian", "southIndian"].includes(nameCulture)) {

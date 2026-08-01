@@ -68,6 +68,15 @@ test("distinctive 1522 religious contexts remain explicit", () => {
     }).map(({ id }) => id),
     ["roman-catholic", "eastern-orthodox"]
   );
+  assert.deepEqual(
+    religionCandidatesForHome({
+      city: "Nanjing",
+      country: "China",
+      cityType: "east-asian",
+      factionId: "ming"
+    }).map(({ id }) => id),
+    ["chinese-traditional", "daoism", "mahayana-buddhism"]
+  );
 });
 
 test("Islamic communities provide a locally appropriate Hajj pilgrim religion", () => {

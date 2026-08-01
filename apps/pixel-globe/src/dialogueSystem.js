@@ -87,8 +87,15 @@ import {
 import { isIslamicReligion, religionById } from "./characterReligion.js";
 import {
   HAJJ_PASSENGER_SCENARIO_ID,
-  isHajjPassengerQuest
+  isHajjPassengerQuest,
+  passengerRoleLabel
 } from "./passengerMissions.js";
+import {
+  captainCanParticipateInReligiousMission,
+  isReligiousPassengerQuest,
+  religiousMissionIconId,
+  religiousMissionParticipation
+} from "./religiousMissions.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
   activeForeignSettlements,
@@ -436,6 +443,7 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     nextPortNodeId: options.nextPortNodeId || null,
     envoyNegotiationResult: null,
     hajjUnderway: false,
+    religiousParticipationUnderway: false,
     selectedIndex: 0,
     feedback: null
   };
@@ -2009,7 +2017,8 @@ export function passengerDialogueView(session, city, quest, gameState) {
     : questMemory.passengerActive ||
       (questMemory.active?.kind === "delivery" ? null : questMemory.active) ||
       null;
-  const speaker = `${passengerName(quest)}, ${isEnvoyQuest(quest) ? "envoy" : "passenger"}`;
+  const roleLabel = isEnvoyQuest(quest) ? "envoy" : passengerRoleLabel(quest);
+  const speaker = `${passengerName(quest)}, ${roleLabel}`;
   const expressionId = questExpressionId(quest);
   if (session.envoyNegotiationResult) {
     if (!isEnvoyQuest(quest)) {
@@ -2051,8 +2060,30 @@ export function passengerDialogueView(session, city, quest, gameState) {
         ]
       };
     }
+    if (isReligiousPassengerQuest(quest) && session.religiousParticipationUnderway) {
+      const participation = religiousMissionParticipation(quest);
+      return {
+        speaker,
+        expressionId: "happy",
+        text: participation.text,
+        feedback: session.feedback,
+        options: [
+          option(
+            `Complete the mission  ${quest.reward + participation.bonusDoubloons} db`,
+            { type: "complete-religious-mission" },
+            { iconId: religiousMissionIconId(quest) }
+          )
+        ]
+      };
+    }
     const hajjQuest = isHajjPassengerQuest(quest);
     const captainCanJoinHajj = hajjQuest && muslimCaptainCanUndertakeHajj(gameState);
+    const religiousQuest = isReligiousPassengerQuest(quest);
+    const captainCanParticipate = religiousQuest &&
+      captainCanParticipateInReligiousMission(gameState, quest);
+    const participation = captainCanParticipate
+      ? religiousMissionParticipation(quest)
+      : null;
     return {
       speaker,
       expressionId: "happy",
@@ -2066,12 +2097,19 @@ export function passengerDialogueView(session, city, quest, gameState) {
         ...(captainCanJoinHajj
           ? [option("Undertake the Hajj together", { type: "begin-hajj" })]
           : []),
+        ...(participation
+          ? [option(
+              participation.label,
+              { type: "participate-religious-mission" },
+              { iconId: religiousMissionIconId(quest) }
+            )]
+          : []),
         option(
           isEnvoyQuest(quest)
             ? `Report to court  ${quest.reward} db`
             : hajjQuest
               ? `See pilgrim to the Mecca road  ${quest.reward} db`
-              : `Set passenger ashore  ${quest.reward} db`,
+              : `Set ${roleLabel} ashore  ${quest.reward} db`,
           { type: "complete-passenger" }
         ),
         option("Not yet", { type: "close" })
@@ -2108,7 +2146,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
     text: `${quest.dialogue?.offer || `I need passage to ${quest.destinationName}. I can pay ${quest.reward} db on arrival.`} Distance ${formatDistanceKm(quest.distanceKm)}.`,
     feedback: session.feedback,
     options: [
-      option(`${isEnvoyQuest(quest) ? "Carry envoy" : "Take passenger"} to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
+      option(`${isEnvoyQuest(quest) ? "Carry envoy" : `Take ${roleLabel}`} to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
         detail: formatDistanceKm(quest.distanceKm)
       }),
       option("Decline", { type: "open-port" })
@@ -2154,8 +2192,26 @@ export function selectPassengerDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
-  if (action.type === "complete-passenger" || action.type === "complete-hajj") {
+  if (action.type === "participate-religious-mission") {
+    if (
+      !isReligiousPassengerQuest(quest) ||
+      !captainCanParticipateInReligiousMission(gameState, quest) ||
+      quest.destinationTileId !== city.tileId ||
+      activeTravelPassengerQuest(gameState)?.id !== quest.id
+    ) {
+      throw new Error("Captain is not eligible to participate in this religious mission");
+    }
+    session.religiousParticipationUnderway = true;
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (
+    action.type === "complete-passenger" ||
+    action.type === "complete-hajj" ||
+    action.type === "complete-religious-mission"
+  ) {
     const completingHajj = action.type === "complete-hajj";
+    const completingReligiousParticipation = action.type === "complete-religious-mission";
     if (completingHajj && (
       !session.hajjUnderway ||
       !isHajjPassengerQuest(quest) ||
@@ -2163,10 +2219,34 @@ export function selectPassengerDialogueOption(
     )) {
       throw new Error("Hajj cannot be completed from this passenger dialogue");
     }
+    if (completingReligiousParticipation && (
+      !session.religiousParticipationUnderway ||
+      !isReligiousPassengerQuest(quest) ||
+      !captainCanParticipateInReligiousMission(gameState, quest)
+    )) {
+      throw new Error("Religious mission participation cannot be completed from this dialogue");
+    }
     const completed = completeQuest(gameState, city, {
       ...context,
       questId: quest.id
     });
+    const religiousMissionParticipationResult = completingReligiousParticipation
+      ? religiousMissionParticipation(completed)
+      : null;
+    if (religiousMissionParticipationResult) {
+      receiveQuestPayment(
+        gameState,
+        city,
+        religiousMissionParticipationResult.bonusDoubloons,
+        `${religiousMissionParticipationResult.bonusLabel}: ${religiousMissionParticipationResult.title}`,
+        context
+      );
+      adjustFactionReputation(
+        gameState,
+        city.factionId,
+        religiousMissionParticipationResult.reputationBonus
+      );
+    }
     const missionItemGift = completingHajj
       ? grantGuaranteedMissionPerkItem(gameState, city, {
         missionId: completed.id,
@@ -2185,10 +2265,18 @@ export function selectPassengerDialogueOption(
     return {
       closed: true,
       action: null,
+      ...(religiousMissionParticipationResult
+        ? { religiousMissionParticipation: religiousMissionParticipationResult }
+        : {}),
       ...(missionItemGift ? { missionItemGift } : {})
     };
   }
   throw new Error(`Unknown passenger dialogue action: ${action.type}`);
+}
+
+function activeTravelPassengerQuest(gameState) {
+  const quests = gameState?.memory?.quests || {};
+  return quests.passengerActive || (isEnvoyQuest(quests.active) ? quests.active : null);
 }
 
 function muslimCaptainCanUndertakeHajj(gameState) {
@@ -4006,17 +4094,27 @@ function questView(session, city, gameState, portCities) {
   if (questState.kind === "ready-to-complete") {
     if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
       const envoy = isEnvoyQuest(questState.quest);
+      const scriptedPassenger = envoy ||
+        isHajjPassengerQuest(questState.quest) ||
+        isReligiousPassengerQuest(questState.quest);
+      const roleLabel = envoy ? "envoy" : passengerRoleLabel(questState.quest);
       return {
         speaker: speakerName(city),
         expressionId: "happy",
         text: envoy
           ? `${passengerName(questState.quest)} is ready for the court at ${questState.quest.destinationName}.`
-          : `${passengerName(questState.quest)} has reached ${questState.quest.destinationName}. Let them go ashore and settle the fare.`,
+          : `${passengerName(questState.quest)} has reached ${questState.quest.destinationName}. ` +
+            `Speak with the ${roleLabel} before they go ashore.`,
         feedback: session.feedback,
         options: [
-          option(envoy ? "Speak with envoy" : `Set passenger ashore  ${questState.quest.reward} db`, envoy
-            ? { type: "open-passenger", quest: questState.quest }
-            : { type: "complete-quest" }),
+          option(
+            scriptedPassenger
+              ? `Speak with ${roleLabel}`
+              : `Set passenger ashore  ${questState.quest.reward} db`,
+            scriptedPassenger
+              ? { type: "open-passenger", quest: questState.quest }
+              : { type: "complete-quest" }
+          ),
           option("Back", { type: "node", nodeId: returnNodeId })
         ]
       };
@@ -4483,6 +4581,7 @@ function questExpressionId(quest) {
   if (quest?.scenarioId === "shipwrecked-sailor") return "afraid";
   if (quest?.scenarioId === "return-home" || quest?.scenarioId === "family-letter") return "sad";
   if (quest?.scenarioId === HAJJ_PASSENGER_SCENARIO_ID) return "attentive";
+  if (isReligiousPassengerQuest(quest)) return "attentive";
   return "neutral";
 }
 

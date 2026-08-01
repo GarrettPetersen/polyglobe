@@ -430,6 +430,7 @@ export function generatePassengerCharacter({
   scenarioId = "",
   namePortPreference = "origin",
   religionId = null,
+  preferClergy = false,
   excludedSourceIds = [],
   manifest,
   usedNames
@@ -445,15 +446,22 @@ export function generatePassengerCharacter({
   if (!destinationPort || typeof destinationPort !== "object") {
     throw new Error("Passenger character generation requires a destination port");
   }
+  if (typeof preferClergy !== "boolean") {
+    throw new Error("Passenger clergy preference must be a boolean");
+  }
   const namePort = namePortPreference === "destination" ? destinationPort : originPort;
   const regionPort = scenarioId === "return-home" ? destinationPort : namePort;
   const region = portraitRegionForCity(regionPort);
   const regionalSourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
-  const sourcePool = religionId === null
+  const eligibleSourcePool = religionId === null
     ? regionalSourcePool
     : regionalSourcePool.filter((source) => (
         portraitAllowsReligion(source.requiredReligionFamily, religionId)
       ));
+  const clergySourcePool = eligibleSourcePool.filter((source) => source.roles.includes("clergy"));
+  const sourcePool = preferClergy && clergySourcePool.length > 0
+    ? clergySourcePool
+    : eligibleSourcePool;
   if (sourcePool.length === 0) {
     throw new Error(`Character portrait manifest has no ${region} passenger compatible with ${religionId}`);
   }
