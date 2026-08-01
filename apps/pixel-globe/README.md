@@ -31,6 +31,21 @@ npm run pixel-globe:build
 
 The build output is `apps/pixel-globe/dist`.
 
+Deploy the full browser build to the existing Cloudflare Pages project with:
+
+```sh
+npm ci
+npm --prefix examples/globe-demo ci
+npm --prefix apps/pixel-globe ci
+npm --prefix apps/pixel-globe run deploy
+```
+
+Deployment reads `PRODUCTION_CLOUDFLARE_ACCOUNT_ID` and
+`PRODUCTION_CLOUDFLARE_API_TOKEN` from the environment or the ignored root
+`.env` file. Pushes to `master` that change the game, its shared runtime data,
+or the deployment workflow automatically test, build, and deploy the full game
+through `.github/workflows/deploy-pixel-globe.yml`.
+
 Build the unlimited HTML5 demo ZIP for itch.io:
 
 ```sh

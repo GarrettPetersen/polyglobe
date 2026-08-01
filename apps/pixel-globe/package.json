@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node tools/build-static-site.mjs",
     "build:demo": "node tools/build-static-site.mjs --edition=demo",
+    "deploy": "npm run check && node tools/deploy.mjs",
     "package:demo:itch": "npm run build:demo && node tools/package-itch-demo.mjs",
     "steam:install": "npm --prefix steam-host install",
     "steam:start": "npm run build && npm --prefix steam-host start",
@@ -83,5 +84,8 @@
     "test": "node tools/run-node-tests.mjs --discover=src",
     "test:characters": "node tools/run-node-tests.mjs src/characterPortraits.test.js",
     "test:music": "node tools/run-node-tests.mjs src/musicPlayer.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "4.113.0"
   }
 }

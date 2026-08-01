@@ -29,6 +29,7 @@
     "pixel-globe:dev": "npm --prefix apps/pixel-globe run dev",
     "pixel-globe:build": "npm --prefix apps/pixel-globe run build",
     "pixel-globe:build-demo": "npm --prefix apps/pixel-globe run build:demo",
+    "pixel-globe:deploy": "npm --prefix apps/pixel-globe run deploy",
     "pixel-globe:package-demo:itch": "npm --prefix apps/pixel-globe run package:demo:itch",
     "pixel-globe:steam-package": "npm --prefix apps/pixel-globe run steam:package",
     "pixel-globe:steam-package-full": "npm --prefix apps/pixel-globe run steam:package:full",
