@@ -15,6 +15,7 @@ import {
   receiveTreasureCargo,
   receiveFishCatch,
   receivePortConquestPrize,
+  receiveScavengedTradeGood,
   receiveSurrenderedLoot,
   setCargoCapacity
 } from "./gameState.js";
@@ -118,6 +119,36 @@ test("fishing can partially fill physical hold space reserved for later provisio
   });
   assert.equal(received.quantity, 5);
   assert.equal(cargoUsed(state), state.cargoCapacity);
+});
+
+test("every non-purchased cargo reward fills visible physical hold space", () => {
+  const combatState = stateWithConsumedProvisionSpace();
+  const prize = receiveSurrenderedLoot(combatState, {
+    specie: 0,
+    cargo: { cinnamon: 8 }
+  });
+  assert.deepEqual(prize.cargo, { cinnamon: 5 });
+  assert.deepEqual(prize.remainingCargo, { cinnamon: 3 });
+  assert.equal(cargoUsed(combatState), combatState.cargoCapacity);
+
+  const treasureState = stateWithConsumedProvisionSpace();
+  const treasure = receiveTreasureCargo(treasureState, {
+    rewardId: "test.visible-hold-treasure",
+    sourceName: "Test Island",
+    goodId: "gold"
+  });
+  assert.equal(treasure.quantity, 5);
+  assert.equal(cargoUsed(treasureState), treasureState.cargoCapacity);
+
+  const scavengeState = stateWithConsumedProvisionSpace();
+  const scavenged = receiveScavengedTradeGood(
+    scavengeState,
+    "beaver-pelts",
+    8,
+    "river beaver"
+  );
+  assert.equal(scavenged.quantity, 5);
+  assert.equal(cargoUsed(scavengeState), scavengeState.cargoCapacity);
 });
 
 test("fractional ration space cannot be harvested as a fractional fish lot", () => {
@@ -243,3 +274,16 @@ test("campaign treasure fills the remaining hold with zero-basis gold exactly on
   assert.equal(duplicate.alreadyReceived, true);
   assert.equal(state.accounts.ledger.at(-1).kind, "campaign");
 });
+
+function stateWithConsumedProvisionSpace() {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const initiallyFree = cargoFree(state);
+  state.cargo.gold = initiallyFree;
+  state.accounts.cargoCostBasis.gold = 0;
+  state.survival.freshWater -= 5;
+  assert.equal(cargoUsed(state), state.cargoCapacity - 5);
+  assert.equal(cargoFree(state), 0);
+  return state;
+}
