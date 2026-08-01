@@ -1,4 +1,5 @@
 const perimeterSamplesByFrame = new WeakMap();
+const radiusByFrame = new WeakMap();
 
 export function validateShipFootprintBake(bake, expectedFrameSize, expectedHeadings, requiredSlugs) {
   if (!bake || bake.frameSize !== expectedFrameSize || bake.headings !== expectedHeadings) {
@@ -72,22 +73,56 @@ export function shipFootprintCollision(a, b, padding = 0) {
   validatePolygon(a, "first ship footprint");
   validatePolygon(b, "second ship footprint");
   if (!Number.isFinite(padding) || padding < 0) throw new Error(`Invalid ship footprint padding: ${padding}`);
+  let bestPenetration = Infinity;
+  let bestNormalX = 0;
+  let bestNormalY = 0;
+  let foundAxis = false;
+  for (let sourceIndex = 0; sourceIndex < 2; sourceIndex++) {
+    const source = sourceIndex === 0 ? a : b;
+    for (let edgeIndex = 0; edgeIndex < source.length; edgeIndex++) {
+      const start = source[edgeIndex];
+      const end = source[(edgeIndex + 1) % source.length];
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= 1e-6) continue;
+      foundAxis = true;
+      const axisX = -dy / length;
+      const axisY = dx / length;
+      let minA = Infinity;
+      let maxA = -Infinity;
+      let minB = Infinity;
+      let maxB = -Infinity;
+      for (const point of a) {
+        const value = point.x * axisX + point.y * axisY;
+        if (value < minA) minA = value;
+        if (value > maxA) maxA = value;
+      }
+      for (const point of b) {
+        const value = point.x * axisX + point.y * axisY;
+        if (value < minB) minB = value;
+        if (value > maxB) maxB = value;
+      }
+      const overlap = Math.min(maxA, maxB) - Math.max(minA, minB) + padding;
+      if (overlap <= 0) return null;
+      if (overlap < bestPenetration) {
+        bestPenetration = overlap;
+        bestNormalX = axisX;
+        bestNormalY = axisY;
+      }
+    }
+  }
+  if (!foundAxis) throw new Error("Ship footprint collision found no separating axes");
   const centerA = polygonCenter(a);
   const centerB = polygonCenter(b);
-  let best = null;
-  for (const axis of [...polygonAxes(a), ...polygonAxes(b)]) {
-    const projectionA = projectPolygon(a, axis);
-    const projectionB = projectPolygon(b, axis);
-    const overlap = Math.min(projectionA.max, projectionB.max) - Math.max(projectionA.min, projectionB.min) + padding;
-    if (overlap <= 0) return null;
-    if (!best || overlap < best.penetration) best = { normal: axis, penetration: overlap };
+  if ((centerB.x - centerA.x) * bestNormalX + (centerB.y - centerA.y) * bestNormalY < 0) {
+    bestNormalX = -bestNormalX;
+    bestNormalY = -bestNormalY;
   }
-  if (!best) throw new Error("Ship footprint collision found no separating axes");
-  const centerDelta = { x: centerB.x - centerA.x, y: centerB.y - centerA.y };
-  if (centerDelta.x * best.normal.x + centerDelta.y * best.normal.y < 0) {
-    best.normal = { x: -best.normal.x, y: -best.normal.y };
-  }
-  return best;
+  return {
+    normal: { x: bestNormalX, y: bestNormalY },
+    penetration: bestPenetration
+  };
 }
 
 export function firstSegmentShipFootprintHit(start, end, polygon) {
@@ -125,7 +160,12 @@ export function pointInShipFootprint(point, polygon) {
 
 export function shipFootprintRadius(frame) {
   validateFrame(frame);
-  return Math.max(...frame.polygon.map((point) => Math.hypot(point.x, point.y)));
+  const cached = radiusByFrame.get(frame);
+  if (cached !== undefined) return cached;
+  let radius = 0;
+  for (const point of frame.polygon) radius = Math.max(radius, Math.hypot(point.x, point.y));
+  radiusByFrame.set(frame, radius);
+  return radius;
 }
 
 export function shipFootprintCenter(frame) {
@@ -175,27 +215,14 @@ function uniquePoints(points) {
   return [...new Map(points.map((point) => [`${point.x},${point.y}`, point])).values()].map(freezePoint);
 }
 
-function polygonAxes(polygon) {
-  const axes = [];
-  for (let i = 0; i < polygon.length; i++) {
-    const a = polygon[i];
-    const b = polygon[(i + 1) % polygon.length];
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const length = Math.hypot(dx, dy);
-    if (length <= 1e-6) continue;
-    axes.push({ x: -dy / length, y: dx / length });
-  }
-  return axes;
-}
-
-function projectPolygon(polygon, axis) {
-  const values = polygon.map((point) => point.x * axis.x + point.y * axis.y);
-  return { min: Math.min(...values), max: Math.max(...values) };
-}
-
 function polygonCenter(polygon) {
-  return polygon.reduce((center, point) => ({ x: center.x + point.x / polygon.length, y: center.y + point.y / polygon.length }), { x: 0, y: 0 });
+  let x = 0;
+  let y = 0;
+  for (const point of polygon) {
+    x += point.x;
+    y += point.y;
+  }
+  return { x: x / polygon.length, y: y / polygon.length };
 }
 
 function segmentIntersectionFraction(a, b, c, d) {

@@ -1036,6 +1036,7 @@ import {
   shipFootprintPolygonCenter,
   shipFootprintFrame,
   shipFootprintPerimeterSamples,
+  shipFootprintRadius,
   translatedShipFootprint,
   validateShipFootprintBake
 } from "./shipFootprint.js";
@@ -1695,7 +1696,7 @@ const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
 const NPC_VISUAL_UPDATE_HZ = 60;
 const NPC_COMBAT_TARGETING_HZ = 6;
-const NPC_COMBAT_COLLISION_HZ = 10;
+const NPC_COMBAT_COLLISION_HZ = 4;
 const NPC_PROJECTILE_UPDATE_HZ = 30;
 const NPC_WILDLIFE_UPDATE_HZ = 2;
 const NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES = 3 * 60;
@@ -2428,7 +2429,7 @@ const shell = document.querySelector(".shell");
 if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
   throw new Error("Marque & Reprisal requires its shell and responsive canvas");
 }
-const screenCtx = canvas.getContext("2d", { alpha: false });
+const screenCtx = canvas.getContext("2d", { alpha: true });
 if (!screenCtx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
 screenCtx.imageSmoothingEnabled = false;
 let ctx = screenCtx;
@@ -2439,6 +2440,9 @@ const worldCtx = worldCanvas.getContext("2d", { alpha: true });
 if (!worldCtx) throw new Error("Marque & Reprisal could not create its world canvas context");
 worldCtx.imageSmoothingEnabled = false;
 const worldRenderer = createWorldWebGL2Renderer();
+worldRenderer.canvas.id = "world-view";
+worldRenderer.canvas.setAttribute("aria-hidden", "true");
+shell.insertBefore(worldRenderer.canvas, canvas);
 let gpuShipDrawCommands = [];
 let gpuWorldUnderlay = null;
 const CANVAS_WORLD_PRIMITIVE_PAINTER = Object.freeze({
@@ -2489,6 +2493,7 @@ shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
 const shipOutlineCtx = shipOutlineCanvas.getContext("2d");
 if (!shipOutlineCtx) throw new Error("Marque & Reprisal could not create its ship outline context");
 shipOutlineCtx.imageSmoothingEnabled = false;
+const gpuShipOutlineCanvasCache = new WeakMap();
 const shipCompositeCanvas = document.createElement("canvas");
 shipCompositeCanvas.width = SHIP_SHEET_FRAME_SIZE + SHIP_COMPOSITE_MARGIN_PX * 2;
 shipCompositeCanvas.height = SHIP_SHEET_FRAME_SIZE + SHIP_COMPOSITE_MARGIN_PX * 2;
@@ -7233,7 +7238,19 @@ async function saveRequestedScreenshot() {
   if (await triggerPlatformScreenshot(steamPlatformBridge)) {
     return { width: canvas.width, height: canvas.height };
   }
-  return saveShareScreenshot(canvas);
+  return saveShareScreenshot(compositePresentationCanvas());
+}
+
+function compositePresentationCanvas() {
+  const output = document.createElement("canvas");
+  output.width = SCREEN_W;
+  output.height = SCREEN_H;
+  const outputCtx = output.getContext("2d", { alpha: false });
+  if (!outputCtx) throw new Error("Could not create presentation capture canvas");
+  outputCtx.imageSmoothingEnabled = false;
+  outputCtx.drawImage(worldRenderer.canvas, 0, 0);
+  outputCtx.drawImage(canvas, 0, 0);
+  return output;
 }
 
 function uiText(key, replacements = {}) {
@@ -23349,7 +23366,12 @@ function updateCombatShipCollisions(dt) {
       const a = bodyForId(aId);
       const b = bodyForId(bId);
       if (!a || !b) continue;
-      if (shipCombatEntryCollisionGrace.has(a.id) || shipCombatEntryCollisionGrace.has(b.id)) {
+      const collisionGrace = shipCombatEntryCollisionGrace.has(a.id) || shipCombatEntryCollisionGrace.has(b.id);
+      const broadPhaseRange = a.radius + b.radius + (collisionGrace ? SHIP_COMBAT_ENTRY_SEPARATION_PX : 0);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      if (dx * dx + dy * dy > broadPhaseRange * broadPhaseRange) continue;
+      if (collisionGrace) {
         const separation = separateTouchingShips(a, b, SHIP_COMBAT_ENTRY_SEPARATION_PX);
         if (separation) {
           applyCombatCollisionSeparation(a.id, b.id, separation);
@@ -23406,7 +23428,7 @@ function combatCollisionBody(id) {
       headingX: heading.x,
       headingY: heading.y,
       mass: ship.stats.mass,
-      footprint: combatShipFootprint(id)
+      ...combatCollisionFootprint(id, localLayout.viewX, localLayout.viewY, heading)
     };
   }
   const state = npcVisualShips.get(id);
@@ -23423,7 +23445,17 @@ function combatCollisionBody(id) {
     headingX: heading.x,
     headingY: heading.y,
     mass: stats.mass,
-    footprint: combatShipFootprint(id)
+    ...combatCollisionFootprint(id, state.x, state.y, heading)
+  };
+}
+
+function combatCollisionFootprint(id, x, y, heading) {
+  const slug = id === PLAYER_COMBAT_ID ? ship.typeSlug : npcVisualShips.get(id)?.slug;
+  if (!slug) throw new Error(`Cannot resolve collision footprint for unknown ship: ${id}`);
+  const frame = shipFootprintFrame(requiredShipFootprints(slug), heading);
+  return {
+    footprint: translatedShipFootprint(frame, x, y),
+    radius: shipFootprintRadius(frame)
   };
 }
 
@@ -24690,10 +24722,12 @@ function fitCanvasToDisplay() {
     canvasWidth: SCREEN_W,
     canvasHeight: SCREEN_H
   });
-  canvas.style.left = `${layout.left}px`;
-  canvas.style.top = `${layout.top}px`;
-  canvas.style.width = `${layout.width}px`;
-  canvas.style.height = `${layout.height}px`;
+  for (const layer of [worldRenderer.canvas, canvas]) {
+    layer.style.left = `${layout.left}px`;
+    layer.style.top = `${layout.top}px`;
+    layer.style.width = `${layout.width}px`;
+    layer.style.height = `${layout.height}px`;
+  }
 }
 
 function applyResponsiveViewport(width, height) {
@@ -24988,7 +25022,7 @@ function drawDayNightWorld(layers, nowMs) {
       });
     }
   });
-  screenCtx.drawImage(worldRenderer.endFrame(), 0, 0);
+  worldRenderer.endFrame();
 }
 
 function drawCachedWorldLayer(key, layer, offset, revision) {
@@ -25104,6 +25138,9 @@ function render(nowMs) {
   worldRenderCount++;
   gpuShipDrawCommands = [];
   gpuWorldUnderlay = null;
+  screenCtx.setTransform(1, 0, 0, 1, 0, 0);
+  screenCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+  worldRenderer.canvas.hidden = Boolean(lakeBattleMode);
   if (lakeBattleMode) {
     ctx = screenCtx;
     drawLakeBattleMode(nowMs);
@@ -25276,6 +25313,12 @@ function render(nowMs) {
   drawStormLightningFlash(nowMs);
   if (telemetryConsentModal) drawTelemetryConsentModal();
   if (frameRateOverlayEnabled) drawFrameRateOverlay();
+  if (CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
+    screenCtx.save();
+    screenCtx.globalCompositeOperation = "destination-over";
+    screenCtx.drawImage(worldRenderer.canvas, 0, 0);
+    screenCtx.restore();
+  }
 }
 
 function greatBarrierReefIsVisible(activeChart, offset) {
@@ -36309,15 +36352,15 @@ function drawShips(activeChart, playerLight, nowMs) {
       return calls;
     }
   );
-  const overlapIndex = measurePerformanceBenchmarkStage(
+  const cpuOverlapIndex = measurePerformanceBenchmarkStage(
     "render.vessels.ships.overlap",
-    () => createShipDrawOverlapIndex(drawCalls)
+    () => createCpuShipDrawOverlapIndex(drawCalls)
   );
   measurePerformanceBenchmarkStage("render.vessels.ships.draw", () => {
     for (const call of drawCalls) {
       const queued = measurePerformanceBenchmarkStage(
         "render.vessels.ships.draw.gpuQueue",
-        () => tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex)
+        () => tryQueueGpuShipCall(call, nowMs, terrainForeground, cpuOverlapIndex)
       );
       if (queued) continue;
       measurePerformanceBenchmarkStage(
@@ -36328,11 +36371,12 @@ function drawShips(activeChart, playerLight, nowMs) {
   });
 }
 
-function createShipDrawOverlapIndex(drawCalls) {
+function createCpuShipDrawOverlapIndex(drawCalls) {
   const buckets = new Map();
   const callsById = new Map();
   for (const call of drawCalls) {
     if (call.kind !== "npc" && call.kind !== "player") continue;
+    if (call.kind === "npc" && shipTileIsGpuSafeOpenWater(call.tileId)) continue;
     callsById.set(call.id, call);
     const minBucketX = Math.floor(call.x / SHIP_SHEET_FRAME_SIZE);
     const minBucketY = Math.floor(call.y / SHIP_SHEET_FRAME_SIZE);
@@ -36353,7 +36397,7 @@ function createShipDrawOverlapIndex(drawCalls) {
   return { buckets, callsById };
 }
 
-function shipDrawCallHasOverlap(call, overlapIndex) {
+function shipDrawCallHasCpuOverlap(call, overlapIndex) {
   const minBucketX = Math.floor(call.x / SHIP_SHEET_FRAME_SIZE);
   const minBucketY = Math.floor(call.y / SHIP_SHEET_FRAME_SIZE);
   const maxBucketX = Math.floor((call.x + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
@@ -36391,7 +36435,7 @@ function shipTileIsGpuSafeOpenWater(tileId) {
 
 function tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex) {
   if (call.kind !== "npc" || !shipTileIsGpuSafeOpenWater(call.tileId)) return false;
-  if (shipDrawCallHasOverlap(call, overlapIndex)) return false;
+  if (shipDrawCallHasCpuOverlap(call, overlapIndex)) return false;
   const drawCall = measurePerformanceBenchmarkStage(
     "render.vessels.ships.frame",
     () => {
@@ -36434,23 +36478,13 @@ function tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex) {
   );
   if (foreground.length > 0) return false;
 
-  gpuShipDrawCommands.push({ drawCall, layers });
-  measurePerformanceBenchmarkStage("render.vessels.ships.decorations", () => {
-    ctx.save();
-    try {
-      if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
-      drawNpcShipFlag(drawCall, nowMs);
-    } finally {
-      ctx.restore();
-    }
-    if (drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
-    if (drawCall.combatMode) drawNpcCombatHull(drawCall);
-  });
+  gpuShipDrawCommands.push({ drawCall, layers, nowMs });
   return true;
 }
 
 function drawGpuShipCommands() {
-  for (const { drawCall, layers } of gpuShipDrawCommands) {
+  for (const { drawCall, layers, nowMs } of gpuShipDrawCommands) {
+    if (drawCall.combatAllegiance) drawGpuShipCombatOutline(drawCall, layers);
     if (layers.submergedMaxY >= layers.submergedMinY) {
       worldRenderer.drawAtlasSprite({
         source: layers.submergedCanvas,
@@ -36473,6 +36507,139 @@ function drawGpuShipCommands() {
         height: SHIP_SHEET_FRAME_SIZE
       }
     });
+    drawGpuNpcShipDecorations(drawCall, nowMs);
+  }
+}
+
+function drawGpuShipCombatOutline(call, layers) {
+  const outline = gpuShipCombatOutlineCanvas(layers.aboveCanvas, call.combatAllegiance);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    worldRenderer.drawAtlasSprite({
+      source: outline,
+      destinationRect: {
+        x: call.x + dx,
+        y: call.y + dy,
+        width: SHIP_SHEET_FRAME_SIZE,
+        height: SHIP_SHEET_FRAME_SIZE
+      }
+    });
+  }
+}
+
+function gpuShipCombatOutlineCanvas(aboveCanvas, allegiance) {
+  let byAllegiance = gpuShipOutlineCanvasCache.get(aboveCanvas);
+  if (!byAllegiance) {
+    byAllegiance = new Map();
+    gpuShipOutlineCanvasCache.set(aboveCanvas, byAllegiance);
+  }
+  const cached = byAllegiance.get(allegiance);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = SHIP_SHEET_FRAME_SIZE;
+  canvas.height = SHIP_SHEET_FRAME_SIZE;
+  const outlineCtx = canvas.getContext("2d");
+  if (!outlineCtx) throw new Error("Could not create a GPU ship combat outline");
+  outlineCtx.imageSmoothingEnabled = false;
+  outlineCtx.drawImage(aboveCanvas, 0, 0);
+  outlineCtx.globalCompositeOperation = "source-in";
+  outlineCtx.fillStyle = allegiance === "enemy" ? "#e83b3b" : "#38b764";
+  outlineCtx.fillRect(0, 0, canvas.width, canvas.height);
+  outlineCtx.globalCompositeOperation = "source-over";
+  byAllegiance.set(allegiance, canvas);
+  return canvas;
+}
+
+function drawGpuNpcShipDecorations(call, nowMs) {
+  drawGpuNpcShipFlag(call, nowMs);
+  if (call.stormAnchored) drawGpuNpcAnchorMarker(call);
+  if (call.combatMode) {
+    drawGpuShipHullBar(call, call.combatMode === COMBAT_MODE_FLEE ? "#f9c22b" : "#e83b3b");
+  }
+}
+
+function drawGpuNpcShipFlag(call, nowMs) {
+  if (!factionHasFlag(call.factionId)) return;
+  if (!call.flagAnchor) throw new Error(`NPC ship ${call.slug} is missing its flag anchor`);
+  const layout = shipFlagLayout({
+    anchorX: call.x + call.flagAnchor.x,
+    anchorY: call.y + call.flagAnchor.y,
+    poleHeight: NPC_SHIP_FLAG_POLE_H,
+    flagWidth: NPC_SHIP_FLAG_W,
+    flagHeight: NPC_SHIP_FLAG_H
+  });
+  worldRenderer.drawSolidRect({
+    destinationRect: {
+      x: layout.pole.x,
+      y: layout.pole.y,
+      width: layout.pole.w,
+      height: layout.pole.h
+    },
+    color: unitRgbaForCssColor("#4c3e24")
+  });
+  const image = factionFlagImages?.get(call.factionId);
+  if (!image) throw new Error(`Missing faction flag image: ${call.factionId}`);
+  const atlas = wavingFactionFlagAtlas(
+    call.factionId,
+    image,
+    layout.flag.w,
+    layout.flag.h,
+    npcShipFlagOutlineColor(call)
+  );
+  const frameIndex = flagWaveFrameIndex(flagWavePhase(nowMs, call.flagSeed));
+  worldRenderer.drawAtlasSprite({
+    source: atlas.canvas,
+    sourceRect: {
+      x: frameIndex * atlas.frameWidth,
+      y: 0,
+      width: atlas.frameWidth,
+      height: atlas.frameHeight
+    },
+    destinationRect: {
+      x: Math.round(layout.flag.x),
+      y: Math.round(layout.flag.y) - atlas.verticalPadding,
+      width: atlas.frameWidth,
+      height: atlas.frameHeight
+    }
+  });
+}
+
+function drawGpuShipHullBar(call, color) {
+  const layout = shipHullBarLayout({
+    x: call.x,
+    y: call.y,
+    frameSize: SHIP_SHEET_FRAME_SIZE,
+    hitPoints: call.hitPoints,
+    maxHitPoints: call.maxHitPoints
+  });
+  worldRenderer.drawSolidRect({
+    destinationRect: layout,
+    color: unitRgbaForCssColor("#2e222f")
+  });
+  if (layout.fillWidth <= 0) return;
+  worldRenderer.drawSolidRect({
+    destinationRect: {
+      x: layout.x + 1,
+      y: layout.y + 1,
+      width: layout.fillWidth,
+      height: 1
+    },
+    color: unitRgbaForCssColor(color)
+  });
+}
+
+function drawGpuNpcAnchorMarker(call) {
+  const x = call.x + SHIP_SHEET_FRAME_SIZE - 10;
+  const y = call.y + SHIP_SHEET_FRAME_SIZE - 11;
+  const color = unitRgbaForCssColor("rgba(199, 220, 208, 0.92)");
+  for (const destinationRect of [
+    { x: x + 2, y, width: 1, height: 6 },
+    { x, y: y + 2, width: 5, height: 1 },
+    { x, y: y + 5, width: 2, height: 1 },
+    { x: x + 3, y: y + 5, width: 2, height: 1 },
+    { x, y: y + 4, width: 1, height: 2 },
+    { x: x + 4, y: y + 4, width: 1, height: 2 }
+  ]) {
+    worldRenderer.drawSolidRect({ destinationRect, color });
   }
 }
 
@@ -37071,15 +37238,19 @@ function drawNpcShipFlag(call, nowMs) {
     layout.flag.h,
     flagWavePhase(nowMs, call.flagSeed),
     {
-      outlineColor: shipFlagDiplomacyOutlineColor(
-        currentDiplomacyBetween(ship.factionId, call.factionId),
-        {
-          hostileToPlayer: factionReputation(gameState, call.factionId) <=
-            HOSTILE_PORT_REPUTATION_THRESHOLD,
-          inCombatWithPlayer: shipCombatState.engagements.has(
-            engagementKey(PLAYER_COMBAT_ID, call.id)
-          )
-        }
+      outlineColor: npcShipFlagOutlineColor(call)
+    }
+  );
+}
+
+function npcShipFlagOutlineColor(call) {
+  return shipFlagDiplomacyOutlineColor(
+    currentDiplomacyBetween(ship.factionId, call.factionId),
+    {
+      hostileToPlayer: factionReputation(gameState, call.factionId) <=
+        HOSTILE_PORT_REPUTATION_THRESHOLD,
+      inCombatWithPlayer: shipCombatState.engagements.has(
+        engagementKey(PLAYER_COMBAT_ID, call.id)
       )
     }
   );

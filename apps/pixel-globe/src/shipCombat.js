@@ -28,7 +28,7 @@ export const PLAYER_NPC_ATTACK_GRACE_SECONDS = 60;
 export const COMBAT_MODE_ATTACK = "attack";
 export const COMBAT_MODE_FLEE = "flee";
 const COMBAT_SPATIAL_CELL_SIZE_PX = WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX;
-const COMBAT_SPATIAL_INDEX_MIN_ENTITIES = 49;
+const COMBAT_SPATIAL_INDEX_MIN_ENTITIES = 12;
 
 export function createShipCombatState() {
   return {
@@ -49,7 +49,7 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
   let changed = false;
   const startedEngagements = [];
 
-  for (const [key, engagement] of [...state.engagements.entries()]) {
+  for (const [key, engagement] of state.engagements) {
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
     if (!a || !b || a.combatGrace || b.combatGrace ||
@@ -93,23 +93,23 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     changed = true;
   }
 
-  const enemiesById = new Map(entities.map((entity) => [entity.id, []]));
+  const enemiesById = new Map();
   const playerReinforcementIds = new Set();
   for (const engagement of state.engagements.values()) {
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
     if (!a || !b) continue;
-    enemiesById.get(a.id).push(b);
-    enemiesById.get(b.id).push(a);
+    appendEnemy(enemiesById, a.id, b);
+    appendEnemy(enemiesById, b.id, a);
     if (engagement.alliedReinforcement === true) {
       playerReinforcementIds.add(a.id);
     }
   }
 
   const intents = new Map();
-  for (const entity of entities) {
-    const enemies = enemiesById.get(entity.id);
-    if (!enemies || enemies.length === 0) continue;
+  for (const [entityId, enemies] of enemiesById) {
+    const entity = byId.get(entityId);
+    if (!entity) throw new Error(`Combat enemy index lost entity: ${entityId}`);
     const mode = combatMode(entity, enemies, playerReinforcementIds.has(entity.id));
     const target = chooseTarget(entity, enemies, mode);
     intents.set(entity.id, {
@@ -119,6 +119,12 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     });
   }
   return { changed, intents, engagementCount: state.engagements.size, startedEngagements };
+}
+
+function appendEnemy(enemiesById, entityId, enemy) {
+  const enemies = enemiesById.get(entityId);
+  if (enemies) enemies.push(enemy);
+  else enemiesById.set(entityId, [enemy]);
 }
 
 function nearbyCombatCandidateIndexes(entities) {

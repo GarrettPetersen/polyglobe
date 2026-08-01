@@ -76,6 +76,16 @@ canvas {
   font-family: "Silkscreen", monospace;
 }
 
+#world-view {
+  z-index: 0;
+  pointer-events: none;
+}
+
+#view {
+  z-index: 1;
+  background: transparent;
+}
+
 .loading-screen {
   position: absolute;
   z-index: 100;

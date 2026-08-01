@@ -89,8 +89,8 @@ test("combat detection reaches across spatial bucket boundaries", () => {
   assert.equal(result.engagementCount, 1);
 });
 
-test("large combat rosters retain detection after spatial indexing", () => {
-  const distantShips = Array.from({ length: 49 }, (_, index) => (
+test("busy combat rosters retain detection after spatial indexing", () => {
+  const distantShips = Array.from({ length: 10 }, (_, index) => (
     ship(`distant-${index}`, "merchant", "neutral", 10_000 + index * 500, 0, 20, 0)
   ));
   const result = updateShipCombatState(createShipCombatState(), [
