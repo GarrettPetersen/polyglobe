@@ -36,6 +36,7 @@ import {
   createDistantWorldWorkPlan
 } from "./distantWorldWorkPlan.js";
 import { renderWorldLayerStack } from "./worldLayerOrder.js";
+import { forEachPixelLine, unitRgbaForCssColor } from "./worldPrimitiveBatch.js";
 import {
   bezierPathLength,
   closestPointOnQuadraticBezier,
@@ -1627,7 +1628,7 @@ const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
-const NPC_VISUAL_UPDATE_HZ = 20;
+const NPC_VISUAL_UPDATE_HZ = 60;
 const NPC_COMBAT_TARGETING_HZ = 6;
 const NPC_COMBAT_COLLISION_HZ = 10;
 const NPC_PROJECTILE_UPDATE_HZ = 30;
@@ -1643,7 +1644,10 @@ const WORLD_SPATIAL_KIND = Object.freeze({
   FISH_SCHOOL: "fish-school",
   WHALE: "whale"
 });
-const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 2;
+// Preserve a 10 Hz update rate per nearby ship at 60 FPS while distributing
+// collision work across short slices. Slower devices degrade the update rate
+// instead of accumulating a large catch-up spike.
+const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 6;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
@@ -2374,6 +2378,50 @@ const worldCtx = worldCanvas.getContext("2d", { alpha: true });
 if (!worldCtx) throw new Error("Marque & Reprisal could not create its world canvas context");
 worldCtx.imageSmoothingEnabled = false;
 const worldRenderer = createWorldWebGL2Renderer();
+let gpuShipDrawCommands = [];
+let gpuWorldUnderlay = null;
+const CANVAS_WORLD_PRIMITIVE_PAINTER = Object.freeze({
+  rect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  },
+  line(x0, y0, x1, y1, color) {
+    drawPixelLineOnContext(ctx, x0, y0, x1, y1, color);
+  }
+});
+
+function createGpuWorldPrimitivePainter(offset) {
+  if (!Number.isFinite(offset?.x) || !Number.isFinite(offset?.y)) {
+    throw new Error("GPU world primitive painter requires a finite chart offset");
+  }
+  return Object.freeze({
+    rect(x, y, width, height, color) {
+      worldRenderer.drawSolidRect({
+        destinationRect: {
+          x: x + offset.x,
+          y: y + offset.y,
+          width,
+          height
+        },
+        color: unitRgbaForCssColor(color)
+      });
+    },
+    line(x0, y0, x1, y1, color) {
+      const rgba = unitRgbaForCssColor(color);
+      forEachPixelLine(x0, y0, x1, y1, (x, y) => {
+        worldRenderer.drawSolidRect({
+          destinationRect: {
+            x: x + offset.x,
+            y: y + offset.y,
+            width: 1,
+            height: 1
+          },
+          color: rgba
+        });
+      });
+    }
+  });
+}
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
@@ -7301,7 +7349,9 @@ function performanceBenchmarkSceneSnapshot(state) {
     flyingSeagulls: seagulls.length,
     wakeParticles: ship.wakeParticles.length,
     navalProjectiles: ship.navalProjectiles.length + npcCombatProjectiles.length,
-    smokeBursts: cannonSmokeBursts.length
+    smokeBursts: cannonSmokeBursts.length,
+    gpuRenderedNpcShips: gpuShipDrawCommands.length,
+    gpuRenderer: worldRenderer.stats()
   };
 }
 
@@ -19264,53 +19314,57 @@ function addCannonSplash(ball) {
   }
 }
 
-function drawNavalEffects(activeChart) {
+function drawNavalEffects(activeChart, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   if (!ship) return;
-  drawCannonSmokeBursts(cannonSmokeBursts);
-  drawCannonSplashes(activeChart);
-  drawPlayerNavalProjectiles();
-  drawNpcCombatSplashes(activeChart);
-  drawNpcCombatProjectiles();
+  drawCannonSmokeBursts(cannonSmokeBursts, painter);
+  drawCannonSplashes(activeChart, painter);
+  drawPlayerNavalProjectiles(painter);
+  drawNpcCombatSplashes(activeChart, painter);
+  drawNpcCombatProjectiles(painter);
 }
 
-function drawNpcCombatProjectiles() {
+function drawNpcCombatProjectiles(painter) {
   for (const ball of npcCombatProjectiles) {
     const point = cannonBallPoint(ball, ball.age);
-    drawNavalProjectile(ball, point);
+    drawNavalProjectile(ball, point, painter);
   }
 }
 
-function drawNpcCombatSplashes(activeChart) {
+function drawNpcCombatSplashes(activeChart, painter) {
   for (const splash of npcCombatSplashes) {
     if (!wakeMapPointIsWater(splash.x, splash.y, activeChart)) continue;
     const life = clamp(splash.age / splash.ttl, 0, 1);
     const alpha = Math.pow(1 - life, 1.2);
-    ctx.fillStyle = `rgba(255, 253, 231, ${(0.72 * alpha).toFixed(3)})`;
-    ctx.fillRect(splash.x, splash.y, 2, 1);
-    ctx.fillRect(splash.x, splash.y - 1, 1, 3);
+    const color = `rgba(255, 253, 231, ${(0.72 * alpha).toFixed(3)})`;
+    painter.rect(splash.x, splash.y, 2, 1, color);
+    painter.rect(splash.x, splash.y - 1, 1, 3, color);
   }
 }
 
-function drawPlayerNavalProjectiles() {
+function drawPlayerNavalProjectiles(painter) {
   if (!ship.navalProjectiles.length) return;
   for (const ball of ship.navalProjectiles) {
     const point = cannonBallPoint(ball, ball.age);
-    drawNavalProjectile(ball, point);
+    drawNavalProjectile(ball, point, painter);
   }
 }
 
-function drawNavalProjectile(projectile, point) {
+function drawNavalProjectile(
+  projectile,
+  point,
+  painter = CANVAS_WORLD_PRIMITIVE_PAINTER
+) {
   if (projectile.kind === NAVAL_WEAPON_ARROW) {
-    drawArrowProjectile(projectile, point);
+    drawArrowProjectile(projectile, point, painter);
     return;
   }
-  drawCannonTrail(projectile);
-  ctx.fillStyle = "rgba(18, 14, 12, 0.95)";
-  ctx.fillRect(
+  drawCannonTrail(projectile, painter);
+  painter.rect(
     Math.round(point.x) - 1,
     Math.round(point.y - point.z) - 1,
     CANNONBALL_SIZE_PX,
-    CANNONBALL_SIZE_PX
+    CANNONBALL_SIZE_PX,
+    "rgba(18, 14, 12, 0.95)"
   );
 }
 
@@ -19321,11 +19375,19 @@ function addCannonSmokeBurst(projectile) {
   }
 }
 
-function drawCannonSmokeBursts(bursts) {
+function drawCannonSmokeBursts(
+  bursts,
+  painter = CANVAS_WORLD_PRIMITIVE_PAINTER
+) {
   for (const burst of bursts) {
     for (const pixel of cannonSmokePixels(burst)) {
-      ctx.fillStyle = `rgba(${CANNON_SMOKE_COLORS[pixel.shade]}, ${pixel.alpha.toFixed(3)})`;
-      ctx.fillRect(pixel.x, pixel.y, pixel.size, pixel.size);
+      painter.rect(
+        pixel.x,
+        pixel.y,
+        pixel.size,
+        pixel.size,
+        `rgba(${CANNON_SMOKE_COLORS[pixel.shade]}, ${pixel.alpha.toFixed(3)})`
+      );
     }
   }
 }
@@ -19346,7 +19408,7 @@ function drawHullSplinterBursts(bursts) {
   }
 }
 
-function drawArrowProjectile(projectile, point) {
+function drawArrowProjectile(projectile, point, painter) {
   const dx = projectile.targetX - projectile.startX;
   const dy = projectile.targetY - projectile.startY;
   const length = Math.hypot(dx, dy);
@@ -19354,13 +19416,18 @@ function drawArrowProjectile(projectile, point) {
   const ux = dx / length;
   const uy = dy / length;
   const y = point.y - point.z;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
   for (let i = 0; i < ARROW_LINE_LENGTH_PX; i++) {
-    ctx.fillRect(Math.round(point.x - ux * i), Math.round(y - uy * i), 1, 1);
+    painter.rect(
+      Math.round(point.x - ux * i),
+      Math.round(y - uy * i),
+      1,
+      1,
+      "rgba(255, 255, 255, 0.96)"
+    );
   }
 }
 
-function drawCannonTrail(ball) {
+function drawCannonTrail(ball, painter) {
   const dx = ball.targetX - ball.startX;
   const dy = ball.targetY - ball.startY;
   const length = Math.hypot(dx, dy);
@@ -19371,19 +19438,29 @@ function drawCannonTrail(ball) {
     const trailAge = Math.max(0, ball.age - i / Math.max(speedPx, 1));
     const trailPoint = cannonBallPoint(ball, trailAge);
     const alpha = 0.08 + (trailLength - i) / trailLength * 0.18;
-    ctx.fillStyle = `rgba(18, 14, 12, ${alpha.toFixed(3)})`;
-    ctx.fillRect(Math.round(trailPoint.x), Math.round(trailPoint.y - trailPoint.z), 1, 1);
+    painter.rect(
+      Math.round(trailPoint.x),
+      Math.round(trailPoint.y - trailPoint.z),
+      1,
+      1,
+      `rgba(18, 14, 12, ${alpha.toFixed(3)})`
+    );
   }
 }
 
-function drawCannonSplashes(activeChart) {
+function drawCannonSplashes(activeChart, painter) {
   if (!ship.cannonSplashes.length) return;
   for (const splash of ship.cannonSplashes) {
     if (!wakeMapPointIsWater(splash.x, splash.y, activeChart)) continue;
     const life = clamp(splash.age / splash.ttl, 0, 1);
     const alpha = Math.pow(1 - life, 1.2);
-    ctx.fillStyle = `rgba(255, 253, 231, ${(0.72 * alpha).toFixed(3)})`;
-    ctx.fillRect(splash.x, splash.y, 1, 1);
+    painter.rect(
+      splash.x,
+      splash.y,
+      1,
+      1,
+      `rgba(255, 253, 231, ${(0.72 * alpha).toFixed(3)})`
+    );
 
     for (let i = 0; i < CANNON_SPLASH_DROP_COUNT; i++) {
       const hash = hashInt(splash.seed ^ Math.imul(i + 17, 0x9e3779b1));
@@ -19392,8 +19469,7 @@ function drawCannonSplashes(activeChart) {
       const rise = Math.sin(life * Math.PI) * (1 + cannonUnit(hash, 7) * 3);
       const x = Math.round(splash.x + Math.cos(angle) * spread);
       const y = Math.round(splash.y + Math.sin(angle) * spread - rise);
-      ctx.fillStyle = `rgba(255, 253, 231, ${(0.54 * alpha).toFixed(3)})`;
-      ctx.fillRect(x, y, 1, 1);
+      painter.rect(x, y, 1, 1, `rgba(255, 253, 231, ${(0.54 * alpha).toFixed(3)})`);
     }
   }
 }
@@ -22828,6 +22904,17 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   } else {
     clearNpcRiverRail(state);
   }
+  const openWaterMove = fastNpcOpenWaterStep(
+    state,
+    direction,
+    distance,
+    heading,
+    startNav
+  );
+  if (openWaterMove) {
+    clearNpcEscapeManeuver(state);
+    return openWaterMove;
+  }
   if (state.escapeDirection && state.escapeRemainingPx > 0) {
     const traveledPx = NPC_VISUAL_ESCAPE_COMMIT_PX - state.escapeRemainingPx;
     const routeClearPx = traveledPx >= NPC_VISUAL_ESCAPE_REJOIN_AFTER_PX
@@ -22911,6 +22998,31 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   if (!escapeMove.ok) return null;
   commitNpcEscapeManeuver(state, escape.direction, escape.side, distance);
   return escapeMove;
+}
+
+function fastNpcOpenWaterStep(state, direction, distance, heading, startNav) {
+  if (
+    startNav.kind !== "openWater" ||
+    !tileHasOffshoreHullClearance(startNav.tileId)
+  ) return null;
+  const x = state.x + direction.x * distance;
+  const y = state.y + direction.y * distance;
+  const collisionTile = localCollisionTileAtPoint(x, y);
+  if (
+    !collisionTile ||
+    !isShipOpenWaterTile(collisionTile.tileId) ||
+    !tileHasOffshoreHullClearance(collisionTile.tileId)
+  ) return null;
+  const vector = globePositionForLocalPoint(collisionTile.tileId, x, y);
+  const movementHeading = screenDirectionToTangent(direction, state.vector, heading);
+  return {
+    ok: true,
+    x,
+    y,
+    tileId: collisionTile.tileId,
+    vector,
+    heading: normalizeTangentOrFallback(heading, vector, movementHeading)
+  };
 }
 
 function moveNpcAlongRiverRail(state, desiredDirection, distance, dt) {
@@ -23965,6 +24077,10 @@ function drawDayNightWorld(layers, nowMs) {
         layers.waterForeground.weatherDayIndex
       );
     },
+    dynamicUnderlay: () => {
+      drawGpuWorldUnderlay();
+      drawGpuShipCommands();
+    },
     dynamicWorld: () => {
       worldRenderer.drawChunk({
         key: "dynamic-world-overlay",
@@ -24093,6 +24209,8 @@ function smoothstep(edge0, edge1, x) {
 
 function render(nowMs) {
   worldRenderCount++;
+  gpuShipDrawCommands = [];
+  gpuWorldUnderlay = null;
   if (lakeBattleMode) {
     ctx = screenCtx;
     drawLakeBattleMode(nowMs);
@@ -24140,13 +24258,20 @@ function render(nowMs) {
     () => cloudDrawCalls(chart, offset)
   );
   renderedCloudSpriteCount = cloudCalls.length;
+  gpuWorldUnderlay = greatBarrierReefIsVisible(chart, offset)
+    ? null
+    : { activeChart: chart, nowMs, offset };
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawGreatBarrierReef(chart, nowMs);
-    drawPrecipitation(chart, nowMs, offset);
-    drawNavalEffects(chart);
+    if (!gpuWorldUnderlay) {
+      drawPrecipitation(chart, nowMs, offset);
+      drawNavalEffects(chart);
+    }
     drawCityShadows(chart, shipLight);
-    drawSeagulls(chart, nowMs);
-    drawWorldDiscoverySprites(chart);
+    if (!gpuWorldUnderlay) {
+      drawSeagulls(chart, nowMs);
+      drawWorldDiscoverySprites(chart);
+    }
     drawLandCarts(chart, nowMs, shipLight, renderTileIds);
     drawCitySprites(chart, nowMs);
   });
@@ -24228,6 +24353,28 @@ function render(nowMs) {
   drawStormLightningFlash(nowMs);
   if (telemetryConsentModal) drawTelemetryConsentModal();
   if (frameRateOverlayEnabled) drawFrameRateOverlay();
+}
+
+function greatBarrierReefIsVisible(activeChart, offset) {
+  for (const coral of greatBarrierReef) {
+    const call = activeChart.tileById.get(coral.tileId);
+    if (!call) continue;
+    if (pointNearScreen({
+      x: call.drawSurfaceX + offset.x,
+      y: call.drawSurfaceY + offset.y
+    }, TILE_ART_SIZE)) return true;
+  }
+  return false;
+}
+
+function drawGpuWorldUnderlay() {
+  if (!gpuWorldUnderlay) return;
+  const { activeChart, nowMs, offset } = gpuWorldUnderlay;
+  const painter = createGpuWorldPrimitivePainter(offset);
+  drawPrecipitation(activeChart, nowMs, offset, painter);
+  drawNavalEffects(activeChart, painter);
+  drawSeagullsWebGL(activeChart, nowMs, offset);
+  drawWorldDiscoverySpritesWebGL(activeChart, offset);
 }
 
 function chartTileCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
@@ -24440,6 +24587,25 @@ function drawWorldDiscoverySprites(activeChart) {
       Math.round(point.x - TILE_ART_HALF),
       Math.round(point.y - TILE_ART_HALF)
     );
+  }
+}
+
+function drawWorldDiscoverySpritesWebGL(activeChart, offset) {
+  for (const discovery of worldDiscoveries) {
+    if (!discovery.spriteKey || discovery.underwater) continue;
+    const image = worldDiscoveryImages.get(discovery.spriteKey);
+    if (!image) throw new Error(`Missing world discovery image: ${discovery.spriteKey}`);
+    const point = worldDiscoveryLocalPoint(discovery, activeChart);
+    if (!point) continue;
+    worldRenderer.drawAtlasSprite({
+      source: image,
+      destinationRect: {
+        x: Math.round(point.x - TILE_ART_HALF + offset.x),
+        y: Math.round(point.y - TILE_ART_HALF + offset.y),
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height
+      }
+    });
   }
 }
 
@@ -32730,7 +32896,12 @@ function drawRiver(call, activeChart) {
   ctx.drawImage(sprite, spriteX, spriteY);
 }
 
-function drawPrecipitation(activeChart, nowMs, offset) {
+function drawPrecipitation(
+  activeChart,
+  nowMs,
+  offset,
+  painter = CANVAS_WORLD_PRIMITIVE_PAINTER
+) {
   const weatherTiles = collectPrecipitationTileCalls(activeChart, offset);
   visiblePrecipitationLastRender = weatherTiles.rain.length > 0 || weatherTiles.snow.length > 0;
   syncPrecipitationParticles(weatherTiles);
@@ -32738,8 +32909,8 @@ function drawPrecipitation(activeChart, nowMs, offset) {
   for (const particle of precipParticles) {
     const call = weatherTiles.callsByParticleKey.get(precipParticleKey(particle.kind, particle.tileId));
     if (!call) continue;
-    if (particle.kind === PRECIPITATION_RAIN) drawRainParticle(particle, call, nowMs);
-    else drawSnowParticle(particle, call, nowMs);
+    if (particle.kind === PRECIPITATION_RAIN) drawRainParticle(particle, call, nowMs, painter);
+    else drawSnowParticle(particle, call, nowMs, painter);
   }
 }
 
@@ -32964,7 +33135,7 @@ function makePrecipitationParticle(kind, call, serial) {
   };
 }
 
-function drawRainParticle(particle, call, nowMs) {
+function drawRainParticle(particle, call, nowMs, painter) {
   const progress = precipitationProgress(particle, nowMs);
   const wind = windForTile(call.id);
   const flowDir = wind.directionRad + Math.PI;
@@ -32974,26 +33145,25 @@ function drawRainParticle(particle, call, nowMs) {
   const color = `rgba(137, 184, 205, ${particle.alpha.toFixed(3)})`;
 
   if (progress > 0.88) {
-    drawRainSplash(x, y, progress, color);
+    drawRainSplash(x, y, progress, color, painter);
     return;
   }
 
   const tailX = Math.round(x - windX * 2);
-  drawPixelLine(tailX, y - 3, x, y + 1, color);
+  painter.line(tailX, y - 3, x, y + 1, color);
 }
 
-function drawRainSplash(x, y, progress, color) {
+function drawRainSplash(x, y, progress, color, painter) {
   const stage = Math.floor((progress - 0.88) / 0.12 * 3);
-  ctx.fillStyle = color;
   if (stage <= 0) {
-    ctx.fillRect(x - 1, y, 3, 1);
+    painter.rect(x - 1, y, 3, 1, color);
   } else if (stage === 1) {
-    ctx.fillRect(x - 2, y - 1, 1, 1);
-    ctx.fillRect(x + 2, y - 1, 1, 1);
+    painter.rect(x - 2, y - 1, 1, 1, color);
+    painter.rect(x + 2, y - 1, 1, 1, color);
   }
 }
 
-function drawSnowParticle(particle, call, nowMs) {
+function drawSnowParticle(particle, call, nowMs, painter) {
   const progress = precipitationProgress(particle, nowMs);
   const wind = windForTile(call.id);
   const flowDir = wind.directionRad + Math.PI;
@@ -33002,10 +33172,10 @@ function drawSnowParticle(particle, call, nowMs) {
   const x = Math.round(call.drawSurfaceX + particle.offsetX + windX * progress * 4 + wobble);
   const y = Math.round(call.drawSurfaceY - 13 + particle.offsetY + progress * 24);
 
-  ctx.fillStyle = `rgba(251, 245, 239, ${particle.alpha.toFixed(3)})`;
-  ctx.fillRect(x, y, 1, 1);
+  const color = `rgba(251, 245, 239, ${particle.alpha.toFixed(3)})`;
+  painter.rect(x, y, 1, 1, color);
   if (((particle.seed + Math.floor(nowMs / 240)) & 15) === 0) {
-    ctx.fillRect(x + 1, y, 1, 1);
+    painter.rect(x + 1, y, 1, 1, color);
   }
 }
 
@@ -34505,6 +34675,35 @@ function drawSeagulls(activeChart, nowMs) {
   for (const call of seagullDrawCalls(activeChart, nowMs, assets)) drawSeagullSprite(call);
 }
 
+function drawSeagullsWebGL(activeChart, nowMs, offset) {
+  const untexturedCalls = seagullDrawCalls(activeChart, nowMs, null);
+  if (untexturedCalls.length === 0) return;
+  const assets = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS);
+  if (!assets) {
+    queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS, "visible seagulls");
+    return;
+  }
+  for (const call of seagullDrawCalls(activeChart, nowMs, assets)) {
+    if (!call.img) continue;
+    worldRenderer.drawAtlasSprite({
+      source: call.img,
+      sourceRect: {
+        x: call.frame * SEAGULL_FRAME_SIZE,
+        y: 0,
+        width: SEAGULL_FRAME_SIZE,
+        height: SEAGULL_FRAME_SIZE
+      },
+      destinationRect: {
+        x: call.x + offset.x,
+        y: call.y + offset.y,
+        width: SEAGULL_FRAME_SIZE,
+        height: SEAGULL_FRAME_SIZE
+      },
+      flipX: call.flip
+    });
+  }
+}
+
 function seagullDrawCalls(activeChart, nowMs, assets) {
   return [
     ...landedSeagullCalls(activeChart, assets),
@@ -34945,7 +35144,141 @@ function drawShips(activeChart, playerLight, nowMs) {
     });
   }
   drawCalls.sort(compareShipDrawCalls);
-  for (const call of drawCalls) drawShipCall(call, nowMs, terrainForeground);
+  const overlapIndex = createShipDrawOverlapIndex(drawCalls);
+  for (const call of drawCalls) {
+    if (tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex)) continue;
+    drawShipCall(call, nowMs, terrainForeground);
+  }
+}
+
+function createShipDrawOverlapIndex(drawCalls) {
+  const buckets = new Map();
+  const callsById = new Map();
+  for (const call of drawCalls) {
+    if (call.kind !== "npc" && call.kind !== "player") continue;
+    callsById.set(call.id, call);
+    const minBucketX = Math.floor(call.x / SHIP_SHEET_FRAME_SIZE);
+    const minBucketY = Math.floor(call.y / SHIP_SHEET_FRAME_SIZE);
+    const maxBucketX = Math.floor((call.x + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
+    const maxBucketY = Math.floor((call.y + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
+    for (let by = minBucketY; by <= maxBucketY; by++) {
+      for (let bx = minBucketX; bx <= maxBucketX; bx++) {
+        const key = `${bx}:${by}`;
+        let ids = buckets.get(key);
+        if (!ids) {
+          ids = new Set();
+          buckets.set(key, ids);
+        }
+        ids.add(call.id);
+      }
+    }
+  }
+  return { buckets, callsById };
+}
+
+function shipDrawCallHasOverlap(call, overlapIndex) {
+  const minBucketX = Math.floor(call.x / SHIP_SHEET_FRAME_SIZE);
+  const minBucketY = Math.floor(call.y / SHIP_SHEET_FRAME_SIZE);
+  const maxBucketX = Math.floor((call.x + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
+  const maxBucketY = Math.floor((call.y + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
+  const candidates = new Set();
+  for (let by = minBucketY; by <= maxBucketY; by++) {
+    for (let bx = minBucketX; bx <= maxBucketX; bx++) {
+      const ids = overlapIndex.buckets.get(`${bx}:${by}`);
+      if (!ids) continue;
+      for (const id of ids) {
+        if (id !== call.id) candidates.add(id);
+      }
+    }
+  }
+  for (const id of candidates) {
+    const candidate = overlapIndex.callsById.get(id);
+    if (!candidate) throw new Error(`Ship overlap index lost draw call: ${id}`);
+    if (
+      call.x < candidate.x + SHIP_SHEET_FRAME_SIZE &&
+      call.x + SHIP_SHEET_FRAME_SIZE > candidate.x &&
+      call.y < candidate.y + SHIP_SHEET_FRAME_SIZE &&
+      call.y + SHIP_SHEET_FRAME_SIZE > candidate.y
+    ) return true;
+  }
+  return false;
+}
+
+function shipTileIsGpuSafeOpenWater(tileId) {
+  if (!isShipOpenWaterTile(tileId) || isShipBlockedByIceTile(tileId)) return false;
+  const neighbors = graph.neighbors[tileId] || [];
+  return neighbors.length > 0 && neighbors.every((neighborId) => (
+    isShipOpenWaterTile(neighborId) && !isShipBlockedByIceTile(neighborId)
+  ));
+}
+
+function tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex) {
+  if (call.kind !== "npc" || !shipTileIsGpuSafeOpenWater(call.tileId)) return false;
+  if (shipDrawCallHasOverlap(call, overlapIndex)) return false;
+  const frameAsset = rowingShipFrameAsset(call, nowMs);
+  const drawCall = stormBobbedShipCall({
+    ...call,
+    img: frameAsset.image,
+    sinkDepthImg: frameAsset.sinkDepthImage,
+    flagAnchor: requiredShipFlagAnchor(call.slug, call.frame, frameAsset.rowingFrameIndex)
+  }, nowMs);
+  const layers = shipWaterlineLayers(
+    drawCall.img,
+    drawCall.sinkDepthImg,
+    drawCall.frame,
+    drawCall.slug
+  );
+  const compositeBounds = {
+    x: drawCall.x - SHIP_COMPOSITE_MARGIN_PX,
+    y: drawCall.y - SHIP_COMPOSITE_MARGIN_PX,
+    w: shipCompositeCanvas.width,
+    h: shipCompositeCanvas.height
+  };
+  if (shipTerrainForegroundForDrawCall(
+    drawCall,
+    layers,
+    terrainForeground,
+    compositeBounds
+  ).length > 0) return false;
+
+  gpuShipDrawCommands.push({ drawCall, layers });
+  ctx.save();
+  try {
+    if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
+    drawNpcShipFlag(drawCall, nowMs);
+  } finally {
+    ctx.restore();
+  }
+  if (drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
+  if (drawCall.combatMode) drawNpcCombatHull(drawCall);
+  return true;
+}
+
+function drawGpuShipCommands() {
+  for (const { drawCall, layers } of gpuShipDrawCommands) {
+    if (layers.submergedMaxY >= layers.submergedMinY) {
+      worldRenderer.drawAtlasSprite({
+        source: layers.submergedCanvas,
+        destinationRect: {
+          x: drawCall.x,
+          y: drawCall.y,
+          width: SHIP_SHEET_FRAME_SIZE,
+          height: SHIP_SHEET_FRAME_SIZE
+        },
+        alpha: SHIP_SUBMERGED_ALPHA,
+        refractionPx: 1
+      });
+    }
+    worldRenderer.drawAtlasSprite({
+      source: layers.aboveCanvas,
+      destinationRect: {
+        x: drawCall.x,
+        y: drawCall.y,
+        width: SHIP_SHEET_FRAME_SIZE,
+        height: SHIP_SHEET_FRAME_SIZE
+      }
+    });
+  }
 }
 
 function shipForegroundTerrainDrawOrder(activeChart) {

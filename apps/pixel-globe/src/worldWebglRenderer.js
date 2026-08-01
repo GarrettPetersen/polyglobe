@@ -54,6 +54,41 @@ void main() {
 }
 `;
 
+const PRIMITIVE_VERTEX_SHADER = `#version 300 es
+in vec4 a_rect;
+in vec4 a_color;
+
+uniform vec2 u_resolution;
+
+out vec4 v_color;
+
+void main() {
+  const vec2 corners[6] = vec2[6](
+    vec2(0.0, 0.0),
+    vec2(1.0, 0.0),
+    vec2(0.0, 1.0),
+    vec2(0.0, 1.0),
+    vec2(1.0, 0.0),
+    vec2(1.0, 1.0)
+  );
+  vec2 position = a_rect.xy + corners[gl_VertexID] * a_rect.zw;
+  vec2 clip = (position / u_resolution) * 2.0 - 1.0;
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  v_color = a_color;
+}
+`;
+
+const PRIMITIVE_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+
+in vec4 v_color;
+out vec4 outColor;
+
+void main() {
+  outColor = v_color;
+}
+`;
+
 const PRESENT_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
@@ -86,6 +121,8 @@ const FLOATS_PER_VERTEX = 10;
 const VERTICES_PER_QUAD = 6;
 const FLOATS_PER_QUAD = FLOATS_PER_VERTEX * VERTICES_PER_QUAD;
 const INITIAL_ATLAS_QUAD_CAPACITY = 1024;
+const FLOATS_PER_PRIMITIVE = 8;
+const INITIAL_PRIMITIVE_CAPACITY = 2048;
 const DEFAULT_ATLAS_SIZE = 4096;
 const DEFAULT_CHUNK_CACHE_LIMIT = 24;
 
@@ -208,7 +245,7 @@ export function createWorldWebGL2Renderer({
     antialias: false,
     depth: false,
     premultipliedAlpha: false,
-    preserveDrawingBuffer: true,
+    preserveDrawingBuffer: false,
     stencil: false
   });
   if (!gl) throw new Error("Marque & Reprisal requires WebGL2 for world rendering");
@@ -236,11 +273,19 @@ export function createWorldWebGL2Renderer({
     palette: requiredUniform(gl, presentProgram, "u_palette"),
     grade: requiredUniform(gl, presentProgram, "u_grade")
   };
+  const primitiveProgram = createProgram(gl, PRIMITIVE_VERTEX_SHADER, PRIMITIVE_FRAGMENT_SHADER);
+  const primitiveLocations = {
+    rect: requiredAttribute(gl, primitiveProgram, "a_rect"),
+    color: requiredAttribute(gl, primitiveProgram, "a_color"),
+    resolution: requiredUniform(gl, primitiveProgram, "u_resolution")
+  };
   const sceneVertexBuffer = requiredBuffer(gl, "world scene vertex buffer");
   const presentVertexBuffer = requiredBuffer(gl, "world presentation vertex buffer");
+  const primitiveInstanceBuffer = requiredBuffer(gl, "world primitive instance buffer");
   const sceneVertexArray = gl.createVertexArray();
   const presentVertexArray = gl.createVertexArray();
-  if (!sceneVertexArray || !presentVertexArray) {
+  const primitiveVertexArray = gl.createVertexArray();
+  if (!sceneVertexArray || !presentVertexArray || !primitiveVertexArray) {
     throw new Error("Could not allocate world vertex arrays");
   }
   gl.bindVertexArray(presentVertexArray);
@@ -281,6 +326,8 @@ export function createWorldWebGL2Renderer({
   const atlasEntries = new WeakMap();
   let atlasVertices = new Float32Array(FLOATS_PER_QUAD * INITIAL_ATLAS_QUAD_CAPACITY);
   let atlasFloatCount = 0;
+  let primitiveInstances = new Float32Array(FLOATS_PER_PRIMITIVE * INITIAL_PRIMITIVE_CAPACITY);
+  let primitiveFloatCount = 0;
   const chunkTextures = new Map();
   const chunkLru = new LruChunkKeys(chunkCacheLimit);
   const sceneTexture = createNearestTexture(gl);
@@ -295,16 +342,13 @@ export function createWorldWebGL2Renderer({
   let atlasSourceCount = 0;
   let drawCalls = 0;
   let uploadedChunks = 0;
-  const solidPixel = document.createElement("canvas");
-  solidPixel.width = 1;
-  solidPixel.height = 1;
-  const solidPixelContext = solidPixel.getContext("2d");
-  if (!solidPixelContext) throw new Error("Could not create world renderer solid pixel");
-  solidPixelContext.fillStyle = "#ffffff";
-  solidPixelContext.fillRect(0, 0, 1, 1);
-
+  let replacedChunkTextures = 0;
+  let updatedChunkTextures = 0;
+  let sceneVertexCapacityBytes = 0;
+  let primitiveInstanceCapacityBytes = 0;
   configureSceneAttributes();
   configurePresentationAttributes();
+  configurePrimitiveAttributes();
   gl.disable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -333,6 +377,17 @@ export function createWorldWebGL2Renderer({
     configureAttribute(gl, presentLocations.texCoord, 2, 4 * 4, 2 * 4);
     gl.uniform1i(presentLocations.scene, 0);
     gl.uniform1i(presentLocations.palette, 1);
+  }
+
+  function configurePrimitiveAttributes() {
+    gl.bindVertexArray(primitiveVertexArray);
+    gl.useProgram(primitiveProgram);
+    gl.bindBuffer(gl.ARRAY_BUFFER, primitiveInstanceBuffer);
+    const stride = FLOATS_PER_PRIMITIVE * 4;
+    configureAttribute(gl, primitiveLocations.rect, 4, stride, 0);
+    configureAttribute(gl, primitiveLocations.color, 4, stride, 4 * 4);
+    gl.vertexAttribDivisor(primitiveLocations.rect, 1);
+    gl.vertexAttribDivisor(primitiveLocations.color, 1);
   }
 
   function resize(width, height) {
@@ -378,8 +433,11 @@ export function createWorldWebGL2Renderer({
     validateColor(clearColor, "World renderer clear color");
     if (!Number.isFinite(timeMs)) throw new Error(`Invalid world renderer time: ${timeMs}`);
     atlasFloatCount = 0;
+    primitiveFloatCount = 0;
     drawCalls = 0;
     uploadedChunks = 0;
+    replacedChunkTextures = 0;
+    updatedChunkTextures = 0;
     frameTimeMs = timeMs;
     frameGrade = Boolean(paletteVariant);
     updatePaletteTexture(paletteVariant);
@@ -419,7 +477,7 @@ export function createWorldWebGL2Renderer({
     destinationRect,
     alpha = 1
   }) {
-    flushAtlasBatch();
+    flushBatches();
     if (typeof key !== "string" || key.length === 0) {
       throw new Error("World chunk requires a cache key");
     }
@@ -455,7 +513,21 @@ export function createWorldWebGL2Renderer({
     if (needsUpload) {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, entry.texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      if (entry.width === width && entry.height === height) {
+        gl.texSubImage2D(
+          gl.TEXTURE_2D,
+          0,
+          0,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          source
+        );
+        updatedChunkTextures++;
+      } else {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        replacedChunkTextures++;
+      }
       entry.source = source;
       entry.revision = revision;
       entry.width = width;
@@ -510,6 +582,7 @@ export function createWorldWebGL2Renderer({
     alphaThreshold = 0,
     flipX = false
   }) {
+    flushPrimitiveBatch();
     const entry = registerAtlasSource(source);
     const local = sourceRect || { x: 0, y: 0, width: entry.width, height: entry.height };
     validateRect(local, "atlas source");
@@ -548,12 +621,53 @@ export function createWorldWebGL2Renderer({
       throw new Error("World solid color requires four channels");
     }
     for (const channel of color) validateUnitInterval(channel, "world solid color channel");
-    drawAtlasSprite({
-      source: solidPixel,
-      destinationRect,
-      alpha: color[3],
-      tint: color.slice(0, 3)
-    });
+    flushAtlasBatch();
+    appendPrimitive(destinationRect, color);
+  }
+
+  function appendPrimitive(rect, color) {
+    ensurePrimitiveCapacity(primitiveFloatCount + FLOATS_PER_PRIMITIVE);
+    primitiveInstances[primitiveFloatCount++] = rect.x;
+    primitiveInstances[primitiveFloatCount++] = rect.y;
+    primitiveInstances[primitiveFloatCount++] = rect.width;
+    primitiveInstances[primitiveFloatCount++] = rect.height;
+    primitiveInstances[primitiveFloatCount++] = color[0];
+    primitiveInstances[primitiveFloatCount++] = color[1];
+    primitiveInstances[primitiveFloatCount++] = color[2];
+    primitiveInstances[primitiveFloatCount++] = color[3];
+  }
+
+  function ensurePrimitiveCapacity(requiredLength) {
+    if (requiredLength <= primitiveInstances.length) return;
+    let nextLength = primitiveInstances.length;
+    while (nextLength < requiredLength) nextLength *= 2;
+    const next = new Float32Array(nextLength);
+    next.set(primitiveInstances.subarray(0, primitiveFloatCount));
+    primitiveInstances = next;
+  }
+
+  function flushPrimitiveBatch() {
+    if (primitiveFloatCount === 0) return;
+    const instances = primitiveInstances.subarray(0, primitiveFloatCount);
+    const instanceCount = primitiveFloatCount / FLOATS_PER_PRIMITIVE;
+    primitiveFloatCount = 0;
+    gl.useProgram(primitiveProgram);
+    gl.bindVertexArray(primitiveVertexArray);
+    gl.bindBuffer(gl.ARRAY_BUFFER, primitiveInstanceBuffer);
+    gl.uniform2f(primitiveLocations.resolution, sceneWidth, sceneHeight);
+    const requiredBytes = instances.byteLength;
+    if (requiredBytes > primitiveInstanceCapacityBytes) {
+      primitiveInstanceCapacityBytes = nextPowerOfTwo(requiredBytes);
+      gl.bufferData(gl.ARRAY_BUFFER, primitiveInstanceCapacityBytes, gl.DYNAMIC_DRAW);
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, instances);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, instanceCount);
+    drawCalls++;
+  }
+
+  function flushBatches() {
+    flushAtlasBatch();
+    flushPrimitiveBatch();
   }
 
   function flushAtlasBatch() {
@@ -636,13 +750,18 @@ export function createWorldWebGL2Renderer({
     gl.uniform2f(sceneLocations.resolution, sceneWidth, sceneHeight);
     gl.uniform2f(sceneLocations.textureSize, textureWidth, textureHeight);
     gl.uniform1f(sceneLocations.time, frameTimeMs);
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+    const requiredBytes = vertices.byteLength;
+    if (requiredBytes > sceneVertexCapacityBytes) {
+      sceneVertexCapacityBytes = nextPowerOfTwo(requiredBytes);
+      gl.bufferData(gl.ARRAY_BUFFER, sceneVertexCapacityBytes, gl.DYNAMIC_DRAW);
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, vertices);
     gl.drawArrays(gl.TRIANGLES, 0, vertices.length / FLOATS_PER_VERTEX);
     drawCalls++;
   }
 
   function endFrame() {
-    flushAtlasBatch();
+    flushBatches();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, sceneWidth, sceneHeight);
     gl.disable(gl.BLEND);
@@ -671,9 +790,22 @@ export function createWorldWebGL2Renderer({
       residentChunks: chunkTextures.size,
       atlasSources: atlasSourceCount,
       drawCalls,
-      uploadedChunks
+      uploadedChunks,
+      replacedChunkTextures,
+      updatedChunkTextures,
+      sceneVertexCapacityBytes,
+      primitiveInstanceCapacityBytes
     })
   });
+}
+
+function nextPowerOfTwo(value) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`Cannot size a GPU buffer for ${value} bytes`);
+  }
+  let result = 1;
+  while (result < value) result *= 2;
+  return result;
 }
 
 function requiredBuffer(gl, label) {

@@ -20,6 +20,7 @@ test("the priority beach connector and its tide both remain beneath terrain tile
     "surfaceDetails",
     "waterEffects",
     "waterForeground",
+    "dynamicUnderlay",
     "dynamicWorld"
   ]);
 });
