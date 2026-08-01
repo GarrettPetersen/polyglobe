@@ -429,6 +429,7 @@ export function generatePassengerCharacter({
   destinationPort,
   scenarioId = "",
   namePortPreference = "origin",
+  religionId = null,
   excludedSourceIds = [],
   manifest,
   usedNames
@@ -447,18 +448,28 @@ export function generatePassengerCharacter({
   const namePort = namePortPreference === "destination" ? destinationPort : originPort;
   const regionPort = scenarioId === "return-home" ? destinationPort : namePort;
   const region = portraitRegionForCity(regionPort);
-  const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
+  const regionalSourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
+  const sourcePool = religionId === null
+    ? regionalSourcePool
+    : regionalSourcePool.filter((source) => (
+        portraitAllowsReligion(source.requiredReligionFamily, religionId)
+      ));
+  if (sourcePool.length === 0) {
+    throw new Error(`Character portrait manifest has no ${region} passenger compatible with ${religionId}`);
+  }
   const key = `passenger|${identityKey}`;
   const character = assignCharacterSprite(key, region, sourcePool, new Set());
   const name = assignRegionalCharacterIdentity({
     identityKey: key,
     city: namePort,
     character,
+    religionId,
     usedNames
   });
   return Object.freeze(characterWithBiography({
     ...character,
     ...name,
+    ...(religionId === null ? {} : { religionId }),
     skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: "passenger",
     originPortTileId: originPort.tileId,

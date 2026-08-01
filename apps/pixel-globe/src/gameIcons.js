@@ -373,6 +373,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "confirm-piracy": "action:attack",
   "receive-aid": "good:fresh-water",
   "complete-passenger": "action:passenger",
+  "begin-hajj": "religion:islam",
+  "complete-hajj": "religion:islam",
   "negotiate-envoy": "action:letter",
   "envoy-negotiated": "action:letter",
   "finish-envoy-negotiation": "action:letter",

@@ -239,6 +239,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const greatLakesVillages = ports.filter((city) => city.manualRegion === "great-lakes");
   const mesoamericanVillages = ports.filter((city) => city.manualRegion === "mesoamerican-villages");
   const manualPortFailures = MANUAL_CITY_RECORDS_1522
+    .filter(cityRequiresPortAccess)
     .filter((manualSpec) => !ports.some((city) =>
       city.city === manualSpec.city &&
       city.country === manualSpec.country &&
@@ -259,6 +260,10 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     [],
     "expected every named manual river city to remain a dockable port on its mapped tile"
   );
+  const mecca = placed.find((city) => city.city === "Mecca" && city.country === "Saudi Arabia");
+  assert.ok(mecca, "expected Mecca to remain in the 1522 city catalog");
+  assert.equal(mecca.dockable, false, "Mecca should be inland, with Jeddah as its sea gateway");
+  assert.equal(mecca.factionId, "ottoman", "Mecca should reflect Ottoman rule of the Hejaz in 1522");
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(glasgow, "Glasgow should reach the Irish Sea through the Clyde");
   assert.equal(glasgow.factionId, "scotland");

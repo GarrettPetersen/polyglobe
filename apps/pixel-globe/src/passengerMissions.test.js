@@ -18,6 +18,8 @@ import {
 } from "./gameState.js";
 import { diplomacyBetween } from "./factions.js";
 import {
+  HAJJ_PASSENGER_MAX_DISTANCE_KM,
+  HAJJ_PASSENGER_SCENARIO_ID,
   PASSENGER_MAX_DISTANCE_KM,
   PASSENGER_MIN_DISTANCE_KM,
   activeNamedTravelMission,
@@ -63,6 +65,8 @@ const VENICE = port(11, "Venice", "Italy", "mediterranean", "venice", 45.44, 12.
 const VENETIAN_ISTANBUL = withForeignSettlements1522(
   port(12, "Istanbul", "Turkey", "islamic-desert", "ottoman", 41.01, 28.98)
 );
+const ACEH = port(13, "Aceh", "Indonesia", "southeast-asian", "neutral", 5.55, 95.32);
+const JEDDAH = port(14, "Jeddah", "Saudi Arabia", "islamic-desert", "ottoman", 21.54, 39.17);
 
 for (const capital of [
   LISBON,
@@ -102,6 +106,51 @@ test("passenger missions spawn as persistent medium-distance offers", () => {
     simMinute: 0
   }), offer);
   assert.equal(offer.seen, true);
+});
+
+test("Muslim ports can offer long-distance Hajj passage to Jeddah", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  let characterRequest = null;
+  const offer = passengerOfferForCity(state, ACEH, [ACEH, JEDDAH], {
+    spawnChance: 1,
+    hajjScenarioChance: 1,
+    simMinute: 0,
+    sailingDistanceKm: () => 8600,
+    createCharacter: (request) => {
+      characterRequest = request;
+      return { name: "Nur Aisyah", religionId: request.quest.passengerReligionId };
+    }
+  });
+
+  assert.equal(offer.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+  assert.equal(offer.destinationName, "Jeddah");
+  assert.equal(offer.distanceKm, 8600);
+  assert.ok(offer.distanceKm > PASSENGER_MAX_DISTANCE_KM);
+  assert.ok(offer.distanceKm < HAJJ_PASSENGER_MAX_DISTANCE_KM);
+  assert.equal(offer.passengerReligionId, "sunni-islam");
+  assert.equal(offer.passenger.religionId, "sunni-islam");
+  assert.equal(characterRequest.scenario.namePort, "origin");
+  assert.match(offer.dialogue.offer, /Hajj to Mecca/i);
+  assert.match(offer.dialogue.offer, /Jeddah is its sea gate/i);
+  assert.equal(pendingPassengerOfferForCity(state, ACEH), offer);
+});
+
+test("Hajj passage requires both a Muslim origin community and accessible Jeddah", () => {
+  const nonMuslimOrigin = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  assert.equal(passengerOfferForCity(nonMuslimOrigin, LISBON, [LISBON, JEDDAH], {
+    spawnChance: 1,
+    scenarioId: HAJJ_PASSENGER_SCENARIO_ID,
+    simMinute: 0,
+    sailingDistanceKm: () => 9000
+  }), null);
+
+  const noJeddah = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  assert.equal(passengerOfferForCity(noJeddah, ACEH, [ACEH, GOA], {
+    spawnChance: 1,
+    scenarioId: HAJJ_PASSENGER_SCENARIO_ID,
+    simMinute: 0,
+    sailingDistanceKm: () => 5000
+  }), null);
 });
 
 test("accepting and completing passenger passage pays fare and clears pending offer", () => {

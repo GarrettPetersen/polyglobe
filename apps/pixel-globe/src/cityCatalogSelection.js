@@ -313,6 +313,13 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   manualCity1522("Jeddah", "Saudi Arabia", 21.5433, 39.1728, 25000, {
     manualRegion: "red-sea"
   }),
+  manualCity1522("Mecca", "Saudi Arabia", 21.42667, 39.82611, 34000, {
+    cityType: "islamic-desert",
+    manualRegion: "hejaz",
+    coastalIntent: false,
+    requiredTradePort: false,
+    marketGoods: ["grain", "cotton", "perfume"]
+  }),
   manualCity1522("Muscat", "Oman", 23.588, 58.3829, 20000, {
     manualRegion: "arabian-sea"
   }),

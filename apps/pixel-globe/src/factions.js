@@ -253,6 +253,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
 
   cityRule("Baghdad", "Iraq", "safavid"),
   cityRule("Jeddah", "Saudi Arabia", "ottoman"),
+  cityRule("Mecca", "Saudi Arabia", "ottoman"),
 
   cityRule("Sarai", "Russian Federation", NEUTRAL_FACTION_ID),
   cityRule("Astrakhan", "Russian Federation", NEUTRAL_FACTION_ID),

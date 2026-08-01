@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   RELIGION_CATALOG,
   inferCharacterReligion,
+  isIslamicReligion,
+  islamicReligionForHome,
   religionCandidatesForCharacter,
   religionCandidatesForHome
 } from "./characterReligion.js";
@@ -66,6 +68,25 @@ test("distinctive 1522 religious contexts remain explicit", () => {
     }).map(({ id }) => id),
     ["roman-catholic", "eastern-orthodox"]
   );
+});
+
+test("Islamic communities provide a locally appropriate Hajj pilgrim religion", () => {
+  assert.equal(isIslamicReligion("sunni-islam"), true);
+  assert.equal(isIslamicReligion("shia-islam"), true);
+  assert.equal(isIslamicReligion("ibadi-islam"), true);
+  assert.equal(isIslamicReligion("roman-catholic"), false);
+  assert.equal(islamicReligionForHome({
+    city: "Muscat",
+    country: "Oman",
+    cityType: "islamic-desert",
+    factionId: "portugal"
+  }, "hajj-muscat"), "ibadi-islam");
+  assert.equal(islamicReligionForHome({
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal"
+  }, "hajj-lisbon"), null);
 });
 
 test("new minority affiliations stay confined to plausible 1522 regions", () => {

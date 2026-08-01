@@ -15879,6 +15879,7 @@ function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
   return travelMissionOfferForCity(gameState, city, playerAccessiblePortCities(), {
     simMinute: Math.floor(weatherClockMinutes),
     relationBetween: currentDiplomacyBetween,
+    sailingDistanceKm: sailingDistanceBetweenPorts,
     createCharacter: createPassengerCharacterForQuest
   });
 }
@@ -15898,6 +15899,7 @@ function createPassengerCharacterForQuest({ quest, origin, destination, scenario
     destinationPort: destination,
     scenarioId: scenario.id,
     namePortPreference: scenario.namePort,
+    religionId: quest.passengerReligionId || null,
     excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames

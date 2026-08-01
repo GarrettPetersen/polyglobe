@@ -784,6 +784,65 @@ test("return-home passenger generation can use destination culture", () => {
   assert.equal("palette" in passenger, false);
 });
 
+test("Hajj passenger generation preserves the origin community's Islamic religion", () => {
+  const passenger = generatePassengerCharacter({
+    identityKey: "hajj-aceh-jeddah",
+    originPort: {
+      tileId: 13,
+      city: "Aceh",
+      displayCity: "Aceh",
+      country: "Indonesia",
+      cityType: "southeast-asian",
+      factionId: "neutral"
+    },
+    destinationPort: {
+      tileId: 14,
+      city: "Jeddah",
+      displayCity: "Jeddah",
+      country: "Saudi Arabia",
+      cityType: "islamic-desert",
+      factionId: "ottoman"
+    },
+    scenarioId: "hajj",
+    namePortPreference: "origin",
+    religionId: "sunni-islam",
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  });
+
+  assert.equal(passenger.religionId, "sunni-islam");
+  assert.equal(passenger.nameCulture, "malay");
+  assert.equal(passenger.originPortTileId, 13);
+  assert.equal(passenger.destinationPortTileId, 14);
+
+  const southAsianPilgrim = generatePassengerCharacter({
+    identityKey: "hajj-goa-jeddah",
+    originPort: {
+      tileId: 3,
+      city: "Goa",
+      displayCity: "Goa",
+      country: "India",
+      cityType: "south-asian",
+      factionId: "portugal"
+    },
+    destinationPort: {
+      tileId: 14,
+      city: "Jeddah",
+      displayCity: "Jeddah",
+      country: "Saudi Arabia",
+      cityType: "islamic-desert",
+      factionId: "ottoman"
+    },
+    scenarioId: "hajj",
+    namePortPreference: "origin",
+    religionId: "sunni-islam",
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  });
+  assert.equal(southAsianPilgrim.religionId, "sunni-islam");
+  assert.equal(southAsianPilgrim.nameCulture, "indoMuslim");
+});
+
 test("pirate captives use expressive portraits and reunite with the same family name", () => {
   const homePort = {
     tileId: 8,

@@ -159,6 +159,21 @@ export function religionById(religionId) {
   return profile;
 }
 
+export function isIslamicReligion(religionId) {
+  return religionById(religionId).iconId === "religion:islam";
+}
+
+export function islamicReligionForHome(homePort, identityKey) {
+  if (typeof identityKey !== "string" || identityKey.trim() === "") {
+    throw new Error("Islamic religion selection requires an identity key");
+  }
+  const candidates = religionCandidatesForHome(homePort).filter(({ id }) => (
+    isIslamicReligion(id)
+  ));
+  if (candidates.length === 0) return null;
+  return weightedChoice(candidates, `${identityKey}|islamic-religion`);
+}
+
 export function inferCharacterReligion({
   identityKey,
   homePort,

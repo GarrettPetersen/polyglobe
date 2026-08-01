@@ -15,6 +15,7 @@ import {
   SOVEREIGN_TRADE_ACCESS_POLICIES,
   sovereignTradePolicyById
 } from "./sovereignTradeAccess.js";
+import { islamicReligionForHome } from "./characterReligion.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -22,6 +23,17 @@ export const PASSENGER_MAX_DISTANCE_KM = 4200;
 export const PASSENGER_PREFERRED_DISTANCE_KM = 2400;
 export const PASSENGER_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
 export const ENVOY_SPAWN_CHANCE = 0.08;
+export const HAJJ_PASSENGER_SCENARIO_ID = "hajj";
+export const HAJJ_PASSENGER_SCENARIO_CHANCE = 0.35;
+export const HAJJ_PASSENGER_MIN_DISTANCE_KM = 300;
+export const HAJJ_PASSENGER_MAX_DISTANCE_KM = 16000;
+
+const HAJJ_DESTINATION_CITY = "jeddah";
+const HAJJ_PASSENGER_SCENARIO = Object.freeze({
+  id: HAJJ_PASSENGER_SCENARIO_ID,
+  expressionId: "attentive",
+  namePort: "origin"
+});
 
 export const PASSENGER_SCENARIOS = Object.freeze([
   Object.freeze({ id: "return-home", expressionId: "sad", namePort: "destination" }),
@@ -36,24 +48,40 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   const existing = pendingPassengerOfferForCity(state, city);
   if (existing) return existing;
 
-  const destination = choosePassengerDestination(city, portCities, context);
-  if (!destination) return null;
-
   const period = passengerRollPeriod(context.simMinute);
   const originKey = cityKey(city);
   const rollKey = `${originKey}|${period}`;
+  const hajjPlan = hajjPassengerPlan(city, portCities, context, rollKey);
+  if (context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID && !hajjPlan) return null;
+  const destination = hajjPlan?.destination || choosePassengerDestination(city, portCities, context);
+  if (!destination) return null;
+
   if (quests.passengerRolls[rollKey]) return null;
   quests.passengerRolls[rollKey] = true;
 
   const spawnChance = passengerSpawnChance(context.spawnChance);
   if (spawnChance < 1 && seededFraction(`${rollKey}|passenger`) >= spawnChance) return null;
 
-  const distanceKm = greatCircleDistanceKm(city, destination);
-  const scenario = choosePassengerScenario(`${rollKey}|${cityKey(destination)}`, context);
-  const quest = buildPassengerQuest(city, destination, scenario, distanceKm, period);
+  const distanceKm = hajjPlan?.distanceKm ?? greatCircleDistanceKm(city, destination);
+  const scenario = hajjPlan?.scenario || choosePassengerScenario(
+    `${rollKey}|${cityKey(destination)}`,
+    context
+  );
+  const quest = buildPassengerQuest(city, destination, scenario, distanceKm, period, {
+    passengerReligionId: hajjPlan?.passengerReligionId || null
+  });
   if (typeof context.createCharacter === "function") {
-    const character = context.createCharacter({ quest, origin: city, destination, scenario });
+    let character = context.createCharacter({ quest, origin: city, destination, scenario });
     if (character) {
+      if (
+        quest.passengerReligionId &&
+        character.religionId !== quest.passengerReligionId
+      ) {
+        character = Object.freeze({
+          ...character,
+          religionId: quest.passengerReligionId
+        });
+      }
       quest.passenger = character;
       quest.passengerName = character.name;
     }
@@ -155,7 +183,7 @@ export function pendingPassengerOfferForCity(state, city) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
-  if (!offer.tradeAccessPolicyId && !passengerDistanceIsMedium(offer.distanceKm)) {
+  if (!offer.tradeAccessPolicyId && !passengerDistanceIsAllowed(offer)) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
@@ -399,7 +427,11 @@ export function passengerName(quest) {
   return quest?.passenger?.name || quest?.passengerName || "Passenger";
 }
 
-function buildPassengerQuest(origin, destination, scenario, distanceKm, period) {
+export function isHajjPassengerQuest(quest) {
+  return quest?.kind === "passenger" && quest.scenarioId === HAJJ_PASSENGER_SCENARIO_ID;
+}
+
+function buildPassengerQuest(origin, destination, scenario, distanceKm, period, options = {}) {
   const originKey = cityKey(origin);
   const destinationKey = cityKey(destination);
   const seed = `${originKey}|${destinationKey}|${scenario.id}|${period}`;
@@ -420,6 +452,9 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period) 
     distanceKm: Math.round(distanceKm),
     reward,
     scenarioId: scenario.id,
+    ...(options.passengerReligionId
+      ? { passengerReligionId: options.passengerReligionId }
+      : {}),
     passengerName: "Passenger",
     seen: false,
     dialogue: passengerDialogueText(scenario.id, origin, destination, reward)
@@ -429,6 +464,13 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period) 
 function passengerDialogueText(scenarioId, origin, destination, reward) {
   const originName = cityLabel(origin);
   const destinationName = cityLabel(destination);
+  if (scenarioId === HAJJ_PASSENGER_SCENARIO_ID) {
+    return {
+      offer: `For years I have saved to make the Hajj to Mecca. Jeddah is its sea gate; from there I will join the road inland. Carry me to ${destinationName} and I will pay ${reward} db.`,
+      underway: `Each day brings us nearer to ${destinationName} and the road to Mecca. I have waited years for the Hajj; I pray our passage remains safe.`,
+      arrival: `${destinationName} at last—the sea gate to Mecca. From here the pilgrims take the road inland. You have carried me to the threshold of the Hajj.`
+    };
+  }
   if (scenarioId === "return-home") {
     return {
       offer: `Captain, I was born in ${destinationName}. My last berth ended here, and I have no kin in this harbor. Carry me home and I will pay ${reward} db.`,
@@ -515,6 +557,37 @@ function choosePassengerDestination(origin, portCities, context) {
     .sort((a, b) => a.score - b.score)[0].port;
 }
 
+function hajjPassengerPlan(origin, portCities, context, rollKey) {
+  const forcedHajj = context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID;
+  if (context.scenarioId && !forcedHajj) return null;
+  const destination = portCities.find((port) => (
+    String(port.displayCity || port.city || "").trim().toLowerCase() === HAJJ_DESTINATION_CITY
+  ));
+  if (!destination || destination.tileId === origin.tileId) return null;
+  const passengerReligionId = islamicReligionForHome(
+    origin,
+    `${rollKey}|hajj-passenger`
+  );
+  if (!passengerReligionId) return null;
+  const distanceKm = passengerTravelDistanceKm(origin, destination, context);
+  if (!hajjPassengerDistanceIsAllowed(distanceKm)) return null;
+  const chance = hajjPassengerScenarioChance(context.hajjScenarioChance);
+  if (!forcedHajj && chance < 1 && seededFraction(`${rollKey}|hajj`) >= chance) return null;
+  return {
+    destination,
+    distanceKm,
+    passengerReligionId,
+    scenario: HAJJ_PASSENGER_SCENARIO
+  };
+}
+
+function passengerTravelDistanceKm(origin, destination, context) {
+  if (typeof context.sailingDistanceKm === "function") {
+    return context.sailingDistanceKm(origin, destination);
+  }
+  return greatCircleDistanceKm(origin, destination);
+}
+
 function destinationScore(seed, port, distanceKm) {
   const random = seededFraction(`${seed}|${cityKey(port)}`);
   const distanceSpan = Math.max(
@@ -531,12 +604,30 @@ function passengerDistanceIsMedium(distanceKm) {
     distanceKm <= PASSENGER_MAX_DISTANCE_KM;
 }
 
+function hajjPassengerDistanceIsAllowed(distanceKm) {
+  return Number.isFinite(distanceKm) &&
+    distanceKm >= HAJJ_PASSENGER_MIN_DISTANCE_KM &&
+    distanceKm <= HAJJ_PASSENGER_MAX_DISTANCE_KM;
+}
+
+function passengerDistanceIsAllowed(quest) {
+  return isHajjPassengerQuest(quest)
+    ? hajjPassengerDistanceIsAllowed(quest.distanceKm)
+    : passengerDistanceIsMedium(quest.distanceKm);
+}
+
 function choosePassengerScenario(seed, context) {
+  if (context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID) return HAJJ_PASSENGER_SCENARIO;
   if (context.scenarioId) {
     const forced = PASSENGER_SCENARIOS.find((scenario) => scenario.id === context.scenarioId);
     if (forced) return forced;
   }
   return PASSENGER_SCENARIOS[hashString32(`${seed}|scenario`) % PASSENGER_SCENARIOS.length];
+}
+
+function hajjPassengerScenarioChance(value) {
+  if (!Number.isFinite(value)) return HAJJ_PASSENGER_SCENARIO_CHANCE;
+  return Math.max(0, Math.min(1, value));
 }
 
 function passengerSpawnChance(value) {

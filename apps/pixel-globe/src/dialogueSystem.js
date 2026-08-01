@@ -83,7 +83,11 @@ import {
   occasionalReligiousGreeting,
   protestantColonistReception
 } from "./religiousDialogue.js";
-import { religionById } from "./characterReligion.js";
+import { isIslamicReligion, religionById } from "./characterReligion.js";
+import {
+  HAJJ_PASSENGER_SCENARIO_ID,
+  isHajjPassengerQuest
+} from "./passengerMissions.js";
 import {
   activeForeignSettlements,
   expelledForeignSettlements
@@ -429,6 +433,7 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     continueToPortOnClose: options.continueToPortOnClose === true,
     nextPortNodeId: options.nextPortNodeId || null,
     envoyNegotiationResult: null,
+    hajjUnderway: false,
     selectedIndex: 0,
     feedback: null
   };
@@ -2033,16 +2038,38 @@ export function passengerDialogueView(session, city, quest, gameState) {
     };
   }
   if (active?.id === quest.id && quest.destinationTileId === city.tileId) {
+    if (isHajjPassengerQuest(quest) && session.hajjUnderway) {
+      return {
+        speaker,
+        expressionId: "happy",
+        text: "We stood together at Arafat and completed the Hajj. May God accept your pilgrimage, captain. I will remember that you carried me to the sea gate and then walked on beside me.",
+        feedback: session.feedback,
+        options: [
+          option(`Return to Jeddah  ${quest.reward} db`, { type: "complete-hajj" })
+        ]
+      };
+    }
+    const hajjQuest = isHajjPassengerQuest(quest);
+    const captainCanJoinHajj = hajjQuest && muslimCaptainCanUndertakeHajj(gameState);
     return {
       speaker,
       expressionId: "happy",
-      text: isEnvoyQuest(quest)
-        ? quest.dialogue?.homecoming || `${cityLabel(city)} at last. The treasury will settle our account.`
-        : quest.dialogue?.arrival || `${cityLabel(city)} at last. Here is the fare I promised.`,
+      text: hajjQuest
+        ? hajjArrivalDialogueText(quest, gameState)
+        : isEnvoyQuest(quest)
+          ? quest.dialogue?.homecoming || `${cityLabel(city)} at last. The treasury will settle our account.`
+          : quest.dialogue?.arrival || `${cityLabel(city)} at last. Here is the fare I promised.`,
       feedback: session.feedback,
       options: [
+        ...(captainCanJoinHajj
+          ? [option("Undertake the Hajj together", { type: "begin-hajj" })]
+          : []),
         option(
-          isEnvoyQuest(quest) ? `Report to court  ${quest.reward} db` : `Set passenger ashore  ${quest.reward} db`,
+          isEnvoyQuest(quest)
+            ? `Report to court  ${quest.reward} db`
+            : hajjQuest
+              ? `See pilgrim to the Mecca road  ${quest.reward} db`
+              : `Set passenger ashore  ${quest.reward} db`,
           { type: "complete-passenger" }
         ),
         option("Not yet", { type: "close" })
@@ -2117,11 +2144,28 @@ export function selectPassengerDialogueOption(
     }
     return { closed: true, action: null };
   }
-  if (action.type === "complete-passenger") {
+  if (action.type === "begin-hajj") {
+    if (!isHajjPassengerQuest(quest) || !muslimCaptainCanUndertakeHajj(gameState)) {
+      throw new Error("Captain is not eligible to undertake the Hajj");
+    }
+    session.hajjUnderway = true;
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "complete-passenger" || action.type === "complete-hajj") {
+    const completingHajj = action.type === "complete-hajj";
+    if (completingHajj && (
+      !session.hajjUnderway ||
+      !isHajjPassengerQuest(quest) ||
+      !muslimCaptainCanUndertakeHajj(gameState)
+    )) {
+      throw new Error("Hajj cannot be completed from this passenger dialogue");
+    }
     const completed = completeQuest(gameState, city, {
       ...context,
       questId: quest.id
     });
+    if (completingHajj) gameState.memory.flags.hajjCompleted = true;
     const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
       missionId: completed.id,
       distanceKm: completed.distanceKm || 0,
@@ -2136,6 +2180,26 @@ export function selectPassengerDialogueOption(
     };
   }
   throw new Error(`Unknown passenger dialogue action: ${action.type}`);
+}
+
+function muslimCaptainCanUndertakeHajj(gameState) {
+  const religionId = gameState?.playerCharacter?.religionId || null;
+  return Boolean(
+    religionId &&
+    isIslamicReligion(religionId) &&
+    gameState?.memory?.flags?.hajjCompleted !== true
+  );
+}
+
+function hajjArrivalDialogueText(quest, gameState) {
+  const opening = quest.dialogue?.arrival ||
+    "Jeddah at last—the sea gate to Mecca. From here the pilgrims take the road inland.";
+  const religionId = gameState?.playerCharacter?.religionId || null;
+  if (!religionId || !isIslamicReligion(religionId)) return opening;
+  if (gameState?.memory?.flags?.hajjCompleted === true) {
+    return `${opening} You have made the Hajj before, captain; pray that mine is accepted.`;
+  }
+  return `${opening} You are a fellow Muslim. If you are ready, come with me as a pilgrim.`;
 }
 
 function assertPassengerDialogueSubject(session, city, quest) {
@@ -4409,6 +4473,7 @@ function questExpressionId(quest) {
   if (quest?.kind === "hostile-envoy") return "stern";
   if (quest?.scenarioId === "shipwrecked-sailor") return "afraid";
   if (quest?.scenarioId === "return-home" || quest?.scenarioId === "family-letter") return "sad";
+  if (quest?.scenarioId === HAJJ_PASSENGER_SCENARIO_ID) return "attentive";
   return "neutral";
 }
 

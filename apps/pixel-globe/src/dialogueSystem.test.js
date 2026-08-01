@@ -2966,6 +2966,87 @@ test("passenger dialogue can be declined and accepted later", () => {
   assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
 });
 
+test("a Muslim captain can accompany a Hajj passenger inland from Jeddah", () => {
+  const jeddah = {
+    tileId: 14,
+    city: "Jeddah",
+    displayCity: "Jeddah",
+    country: "Saudi Arabia",
+    factionId: "ottoman"
+  };
+  const quest = {
+    id: "passenger-hajj-aceh-jeddah",
+    kind: "passenger",
+    originKey: "Aceh|Indonesia|13",
+    originTileId: 13,
+    originName: "Aceh",
+    originFactionId: "ottoman",
+    destinationKey: "Jeddah|Saudi Arabia|14",
+    destinationTileId: jeddah.tileId,
+    destinationName: "Jeddah",
+    destinationCountry: "Saudi Arabia",
+    distanceKm: 8600,
+    passenger: { name: "Nur Aisyah", religionId: "sunni-islam" },
+    reward: 650,
+    scenarioId: "hajj",
+    dialogue: {
+      arrival: "Jeddah at last—the sea gate to Mecca. From here the pilgrims take the road inland."
+    }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Ahmed Reis",
+      nationalityId: "ottoman",
+      religionId: "sunni-islam",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  gameState.memory.quests.passengerActive = quest;
+  const session = createPassengerDialogueSession(jeddah, quest);
+  const before = gameState.doubloons;
+
+  const arrival = passengerDialogueView(session, jeddah, quest, gameState);
+  assert.match(arrival.text, /fellow Muslim/i);
+  assert.equal(arrival.options[0].label, "Undertake the Hajj together");
+  assert.deepEqual(selectPassengerDialogueOption(session, jeddah, quest, gameState, 0), {
+    closed: false,
+    action: null
+  });
+
+  const pilgrimage = passengerDialogueView(session, jeddah, quest, gameState);
+  assert.match(pilgrimage.text, /stood together at Arafat/i);
+  assert.equal(pilgrimage.options[0].label, "Return to Jeddah  650 db");
+  assert.deepEqual(selectPassengerDialogueOption(
+    session,
+    jeddah,
+    quest,
+    gameState,
+    0,
+    { simMinute: 2000 }
+  ), { closed: true, action: null });
+  assert.equal(gameState.doubloons, before + quest.reward);
+  assert.equal(gameState.memory.flags.hajjCompleted, true);
+  assert.equal(gameState.memory.quests.passengerActive, null);
+
+  const nonMuslimState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      religionId: "roman-catholic",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  nonMuslimState.memory.quests.passengerActive = quest;
+  const nonMuslimSession = createPassengerDialogueSession(jeddah, quest);
+  assert.deepEqual(
+    passengerDialogueView(nonMuslimSession, jeddah, quest, nonMuslimState)
+      .options.map(({ label }) => label),
+    ["See pilgrim to the Mecca road  650 db", "Not yet"]
+  );
+});
+
 test("envoy dialogue advances from negotiations to a paid return voyage", () => {
   const origin = { tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
   const target = {
