@@ -39,6 +39,7 @@ import {
 import {
   consumePendingDiscoveryPortDialogue,
   createGameState,
+  pendingDiscoveryPortDialogue,
   recordDiscovery,
   validateGameState
 } from "./gameState.js";
@@ -233,6 +234,9 @@ test("circumnavigation queues a one-time calendar remark for the next port", () 
   assert.equal(recordDiscovery(state, CIRCUMNAVIGATION_DISCOVERY), true);
 
   const restored = validateGameState(JSON.parse(JSON.stringify(state)));
+  const pending = pendingDiscoveryPortDialogue(restored);
+  assert.equal(pending.discoveryId, CIRCUMNAVIGATION_DISCOVERY.id);
+  assert.equal(restored.memory.pendingDiscoveryPortDialogueIds.length, 1);
   const remark = consumePendingDiscoveryPortDialogue(restored);
   assert.equal(remark.discoveryId, CIRCUMNAVIGATION_DISCOVERY.id);
   assert.match(remark.message, /calendar.*log.*whole day/i);

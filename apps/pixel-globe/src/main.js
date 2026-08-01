@@ -291,6 +291,7 @@ import {
   playerFishingNet,
   playerWhaleHarpoon,
   playerShipIsWarship,
+  pendingDiscoveryPortDialogue,
   pendingNamedCrewDeathNotice,
   pirateHideoutsVisibleToPlayer,
   prepareHighValueMissionPerkItem,
@@ -585,6 +586,7 @@ import {
   createPortArrivalDialogueSession,
   createPortDialogueSession,
   deliveryMissionShouldOpenOnArrival,
+  dialogueBackOptionIndex,
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
@@ -12177,7 +12179,7 @@ function handleDialogueKeyDown(event) {
   }
   if (event.key === "Escape") {
     if (dialogueState.kind === "campaign-goal") return;
-    closeDialogue();
+    navigateBackFromDialogue();
     return;
   }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -12190,21 +12192,18 @@ function handleDialogueKeyDown(event) {
   }
   if (event.key === "ArrowLeft") {
     if (dialogueState.kind === "campaign-goal") return;
-    if (dialogueState.kind === "ship") {
-      closeDialogue();
-      return;
-    }
-    if (dialogueState.kind === "port" && ["barred", "disguise-failed"].includes(dialogueState.nodeId)) {
-      closeDialogue();
-      return;
-    }
-    dialogueState.nodeId = dialogueState.kind === "port" && dialogueState.nodeId === "disguise-success"
-      ? dialogueState.nextPortNodeId || "root"
-      : "root";
-    dialogueState.selectedIndex = 0;
-    dialogueState.feedback = null;
-    dirty = true;
+    navigateBackFromDialogue();
   }
+}
+
+function navigateBackFromDialogue() {
+  const backIndex = dialogueBackOptionIndex(currentDialogueView());
+  if (backIndex >= 0) {
+    chooseDialogueOption(backIndex);
+    return true;
+  }
+  closeDialogue();
+  return true;
 }
 
 function handleDialoguePointerDown(point) {
@@ -13612,9 +13611,15 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
 }
 
 function openPendingDiscoveryPortDialogue() {
-  const discoveryDialogue = consumePendingDiscoveryPortDialogue(gameState);
+  const discoveryDialogue = pendingDiscoveryPortDialogue(gameState);
   if (!discoveryDialogue) return false;
-  return openCaptainAlertModal(discoveryDialogue.message, discoveryDialogue.expressionId);
+  const opened = openCaptainAlertModal(discoveryDialogue.message, discoveryDialogue.expressionId);
+  if (!opened) return false;
+  const consumed = consumePendingDiscoveryPortDialogue(gameState);
+  if (consumed?.discoveryId !== discoveryDialogue.discoveryId) {
+    throw new Error(`Pending discovery dialogue changed while opening: ${discoveryDialogue.discoveryId}`);
+  }
+  return true;
 }
 
 function admitPlayerToPort(cityCall, { arrivedDrunk = false } = {}) {

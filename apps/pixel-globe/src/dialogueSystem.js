@@ -1017,6 +1017,13 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   return withPortExitFooter(portDialogueNodeView(session, city, gameState, economy, portCities, context));
 }
 
+export function dialogueBackOptionIndex(view) {
+  if (!view || !Array.isArray(view.options)) throw new Error("Dialogue back navigation requires options");
+  const explicitBackIndex = view.options.findIndex((entry) => entry?.label === "Back");
+  if (explicitBackIndex >= 0) return explicitBackIndex;
+  return view.options.findIndex((entry) => entry?.placement === "port-exit");
+}
+
 export function beginShipHandoverDialogue(session, { shipSlug, transactionText, sellerTitle }) {
   if (!session || session.kind !== "port") throw new Error("Ship handover requires a port dialogue session");
   shipStatsForSlug(shipSlug);
@@ -3774,19 +3781,13 @@ function bestHeldCargoTradeRoute({
     if (row.good.sellable === false) continue;
     const quantity = marketTradeLotCount(row.quantity);
     if (quantity <= 0) continue;
-    const basis = cargoCostBasis(gameState, row.good.id);
     purchases[row.good.id] = {
       goodId: row.good.id,
-      quantity,
-      cost: basis.known
-        ? basis.total * quantity / row.quantity
-        : quotePortPurchase(
-          economy,
-          originCity,
-          row.good.id,
-          quantity,
-          playerTradeTerms(gameState, originCity, row.good.id).saleMultiplier
-        )
+      // Advice after declining a sale compares the price of one trade lot. It
+      // must not disappear because the captain originally overpaid or because
+      // another port cannot afford the entire hold in one transaction.
+      quantity: 1,
+      cost: 0
     };
   }
   if (Object.keys(purchases).length === 0) return null;

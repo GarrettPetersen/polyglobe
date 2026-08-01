@@ -1030,6 +1030,20 @@ export function consumePendingDiscoveryPortDialogue(state) {
   return null;
 }
 
+export function pendingDiscoveryPortDialogue(state) {
+  assertGameState(state);
+  for (const discoveryId of state.memory.pendingDiscoveryPortDialogueIds) {
+    const discovery = state.memory.discoveries[discoveryId];
+    if (!discovery?.portArrivalDialogue) continue;
+    return {
+      discoveryId,
+      message: discovery.portArrivalDialogue,
+      expressionId: discovery.portArrivalExpressionId || "attentive"
+    };
+  }
+  return null;
+}
+
 export function hasDiscovery(state, discoveryId) {
   assertGameState(state);
   return Boolean(state.memory.discoveries[discoveryId]);

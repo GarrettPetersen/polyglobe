@@ -8,6 +8,7 @@ import {
   createPortArrivalDialogueSession,
   createPortDialogueSession,
   deliveryMissionShouldOpenOnArrival,
+  dialogueBackOptionIndex,
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
@@ -982,6 +983,11 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
     const view = portDialogueView(session, city, gameState, economy, [city], context);
     const back = view.options.find((entry) => entry.label === "Back");
     assert.equal(back?.placement, "port-exit", `${nodeId} should mark Back for the footer`);
+    assert.equal(
+      view.options[dialogueBackOptionIndex(view)]?.label,
+      "Back",
+      `${nodeId} back navigation should activate its declared Back action`
+    );
     const firstExitIndex = view.options.findIndex((entry) => entry.placement === "port-exit");
     assert.ok(
       view.options.slice(firstExitIndex).every((entry) => entry.placement === "port-exit"),
@@ -998,6 +1004,7 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
   const root = portDialogueView(rootSession, city, gameState, economy, [city], context);
   assert.equal(root.options.at(-1).label, "Leave port");
   assert.equal(root.options.at(-1).placement, "port-exit");
+  assert.equal(dialogueBackOptionIndex(root), root.options.length - 1);
 });
 
 test("market comparisons use pixel-font-safe directional wording", () => {
@@ -1319,7 +1326,8 @@ test("leaving the sell screen without a sale recommends a market for held trade 
   gameState.accounts.cargoCostBasis.cloves = 0;
   const session = createPortDialogueSession(ternate, { initialNodeId: "sell" });
   const market = portDialogueView(session, ternate, gameState, economy, ports);
-  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+  const backIndex = dialogueBackOptionIndex(market);
+  assert.equal(market.options[backIndex].action.type, "leave-sell");
 
   const result = selectPortDialogueOption(session, ternate, gameState, economy, ports, backIndex, {
     sailingDistanceKm: testSailingDistances([[ternate, london, 14200]])
@@ -1332,6 +1340,46 @@ test("leaving the sell screen without a sale recommends a market for held trade 
     portDialogueView(session, ternate, gameState, economy, ports).text,
     "I heard London pays a good price for Cloves."
   );
+});
+
+test("held-cargo price advice survives an unprofitable cost basis", () => {
+  const ternate = {
+    tileId: 205,
+    city: "Ternate",
+    displayCity: "Ternate",
+    country: "Ternate",
+    cityType: "southeast-asian",
+    lat: 0.79,
+    lon: 127.38,
+    population: 25000,
+    character: { name: "Hamza Darwis" }
+  };
+  const london = {
+    tileId: 206,
+    city: "London",
+    displayCity: "London",
+    country: "England",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000
+  };
+  const ports = [ternate, london];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.cloves = 2;
+  gameState.accounts.cargoCostBasis.cloves = 100000;
+  const session = createPortDialogueSession(ternate, { initialNodeId: "sell" });
+  const market = portDialogueView(session, ternate, gameState, economy, ports);
+  const backIndex = dialogueBackOptionIndex(market);
+
+  const result = selectPortDialogueOption(session, ternate, gameState, economy, ports, backIndex, {
+    sailingDistanceKm: testSailingDistances([[ternate, london, 14200]])
+  });
+
+  assert.equal(result.tradeTip.goodLabel, "Cloves");
+  assert.equal(result.tradeTip.destinationName, "London");
+  assert.equal(session.nodeId, "trade-tip");
 });
 
 test("trade advice praises the current port when its cargo price leads the local area", () => {
