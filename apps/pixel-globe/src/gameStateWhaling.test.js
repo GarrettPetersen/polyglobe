@@ -3,14 +3,18 @@ import test from "node:test";
 
 import { createWorldEconomy } from "./economy.js";
 import {
+  cargoHoldStatus,
   cargoUsed,
   createGameState,
+  initializeProvisionalShipLoadout,
   ledgerEntries,
   playerWhaleHarpoon,
   purchaseWhaleHarpoon,
   receiveWhaleBlubber,
+  restockShipLoadoutAtPort,
   shipItemRows
 } from "./gameState.js";
+import { shipStatsForSlug } from "./shipStats.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
 import {
   EQUIPMENT_STOCK_WHALE_HARPOON,
@@ -77,4 +81,35 @@ test("a whale carcass fills only the free hold with valuable zero-basis blubber"
     ledgerEntries(state).at(-1).description,
     "Process North Atlantic right whale blubber x5"
   );
+});
+
+test("whale blubber fills the visible physical hold instead of honoring invisible restock space", () => {
+  const stats = shipStatsForSlug("ketch");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  initializeProvisionalShipLoadout(state, stats);
+  state.doubloons = 10000;
+  restockShipLoadoutAtPort(state, PORTS[0], stats, "balanced", { simMinute: 120 });
+
+  state.cargo.gold = 19;
+  state.accounts.cargoCostBasis.gold = 0;
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+  state.survival.freshWater -= 4;
+
+  const before = cargoHoldStatus(state);
+  assert.equal(before.physicalWholeUnits, 41);
+  assert.equal(before.capacity, 60);
+  assert.equal(before.reservedForLoadout, 19);
+  assert.equal(before.freeForTrade, 0);
+
+  const result = receiveWhaleBlubber(state, 28, {
+    simMinute: 180,
+    speciesLabel: "North Atlantic right whale"
+  });
+
+  assert.equal(result.quantity, 19);
+  assert.equal(state.cargo["whale-blubber"], 19);
+  assert.equal(cargoHoldStatus(state).physicalWholeUnits, 60);
+  assert.equal(cargoUsed(state), state.cargoCapacity);
 });

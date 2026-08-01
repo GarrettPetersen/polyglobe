@@ -4114,7 +4114,8 @@ export function receiveWhaleBlubber(state, requestedQuantity, context = {}) {
   assertQuantity(requestedQuantity, "whale blubber yield");
   return receiveZeroCostCargo(state, WHALE_BLUBBER_GOOD_ID, requestedQuantity, context, {
     kind: "catch",
-    description: (quantity) => `Process ${context.speciesLabel || "whale"} blubber x${quantity}`
+    description: (quantity) => `Process ${context.speciesLabel || "whale"} blubber x${quantity}`,
+    usePhysicalHoldCapacity: true
   });
 }
 
@@ -4136,7 +4137,10 @@ function receiveZeroCostCargo(state, goodId, requestedQuantity, context, options
   if (!options || typeof options.kind !== "string" || typeof options.description !== "function") {
     throw new Error(`Zero-cost ${good.label} cargo requires ledger options`);
   }
-  const quantity = Math.min(requestedQuantity, cargoQuantityCapacityForGood(state, good.id));
+  const availableQuantity = options.usePhysicalHoldCapacity === true
+    ? Math.floor(physicalCargoFreeTicks(state) / (good.unitSize * CARGO_SPACE_TICKS_PER_UNIT))
+    : cargoQuantityCapacityForGood(state, good.id);
+  const quantity = Math.min(requestedQuantity, availableQuantity);
   if (quantity <= 0) return { good, quantity: 0 };
   state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
   state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
