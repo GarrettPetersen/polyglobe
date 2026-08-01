@@ -5314,7 +5314,7 @@ function presentPendingNamedCrewDeathNotice() {
   if (!gameState || captainAlertModal || gameOverReason) return false;
   const notice = pendingNamedCrewDeathNotice(gameState);
   if (!notice) return false;
-  const opened = openCharacterAlertModal(notice.character, notice.lastWords, "sad");
+  const opened = openCharacterAlertModal(notice.character, notice.lastWords, "dying");
   if (opened) consumeNamedCrewDeathNotice(gameState);
   return opened;
 }
@@ -40267,7 +40267,7 @@ function drawGameOverMemorial(state, fade) {
   ctx.fillRect(portraitX - 3, portraitY - 3, DIALOGUE_PORTRAIT_SIZE + 6, DIALOGUE_PORTRAIT_SIZE + 6);
   ctx.strokeStyle = "#7f8890";
   ctx.strokeRect(portraitX - 2.5, portraitY - 2.5, DIALOGUE_PORTRAIT_SIZE + 5, DIALOGUE_PORTRAIT_SIZE + 5);
-  drawDialoguePortrait(state.character, "sad", portraitX, portraitY, { grayscale: true });
+  drawDialoguePortrait(state.character, "dying", portraitX, portraitY, { grayscale: true });
 
   const textX = panel.x + 104;
   const textW = panel.w - 122;

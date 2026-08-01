@@ -222,37 +222,32 @@ function selectDemoExpressions(character) {
   if (!Array.isArray(character.expressions) || character.expressions.length === 0) {
     throw new Error(`Demo portrait source has no expressions: ${character?.id}`);
   }
-  const ranked = character.expressions
-    .map((expression, index) => ({
-      expression,
-      index,
-      priority: demoExpressionPriority(expression.id)
-    }))
-    .sort((a, b) => a.priority - b.priority || a.index - b.index)
-    .slice(0, DEMO_PORTRAIT_EXPRESSION_LIMIT)
-    .sort((a, b) => a.index - b.index)
-    .map((entry) => entry.expression);
+  const selected = new Set();
+  selectFirstDemoExpression(character.expressions, selected, ["neutral"]);
+  selectFirstDemoExpression(character.expressions, selected, [
+    "overjoyed", "laughing", "happy", "pleased", "smile", "soft-smile", "knowing"
+  ]);
+  selectFirstDemoExpression(character.expressions, selected, [
+    "crying", "pained", "hurt", "sad", "afraid", "worried", "concerned", "weary", "grimace"
+  ]);
+  for (const expression of character.expressions) {
+    if (selected.size >= DEMO_PORTRAIT_EXPRESSION_LIMIT) break;
+    selected.add(expression);
+  }
+  const ranked = character.expressions.filter((expression) => selected.has(expression));
   if (!ranked.some((expression) => expression.id === "neutral")) {
     throw new Error(`Demo portrait selection lost neutral expression: ${character.id}`);
   }
   return ranked;
 }
 
-function demoExpressionPriority(expressionId) {
-  const preferred = [
-    "neutral",
-    "happy",
-    "soft-smile",
-    "smile",
-    "sad",
-    "worried",
-    "angry",
-    "stern",
-    "concerned",
-    "serious"
-  ];
-  const index = preferred.indexOf(expressionId);
-  return index >= 0 ? index : preferred.length;
+function selectFirstDemoExpression(expressions, selected, preferredIds) {
+  for (const expressionId of preferredIds) {
+    const expression = expressions.find((entry) => entry.id === expressionId);
+    if (!expression) continue;
+    selected.add(expression);
+    return;
+  }
 }
 
 function portraitFilesForManifest(manifest) {

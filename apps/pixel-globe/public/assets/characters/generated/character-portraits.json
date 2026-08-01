@@ -485,8 +485,8 @@
       "expressionCount": 6,
       "expressions": [
         {
-          "id": "sad",
-          "label": "Sad",
+          "id": "thoughtful",
+          "label": "Thoughtful",
           "index": 1,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait1.png",
           "width": 64,
@@ -517,8 +517,8 @@
           "height": 64
         },
         {
-          "id": "afraid",
-          "label": "Afraid",
+          "id": "sad",
+          "label": "Sad",
           "index": 5,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait5.png",
           "width": 64,
@@ -2130,8 +2130,8 @@
       "expressionCount": 12,
       "expressions": [
         {
-          "id": "sad",
-          "label": "Sad",
+          "id": "soft-smile",
+          "label": "Soft Smile",
           "index": 1,
           "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_1.png",
           "width": 64,
@@ -2218,8 +2218,8 @@
           "height": 64
         },
         {
-          "id": "afraid",
-          "label": "Afraid",
+          "id": "sad",
+          "label": "Sad",
           "index": 12,
           "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_12.png",
           "width": 64,
@@ -7753,8 +7753,8 @@
       "expressionCount": 6,
       "expressions": [
         {
-          "id": "sad",
-          "label": "Sad",
+          "id": "concerned",
+          "label": "Concerned",
           "index": 1,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait1.png",
           "width": 64,
@@ -7793,8 +7793,8 @@
           "height": 64
         },
         {
-          "id": "concerned",
-          "label": "Concerned",
+          "id": "sad",
+          "label": "Sad",
           "index": 6,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait6.png",
           "width": 64,
@@ -8074,8 +8074,8 @@
           "height": 64
         },
         {
-          "id": "stern",
-          "label": "Stern",
+          "id": "sad",
+          "label": "Sad",
           "index": 9,
           "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_9.png",
           "width": 64,
@@ -8098,8 +8098,8 @@
           "height": 64
         },
         {
-          "id": "sad",
-          "label": "Sad",
+          "id": "stern",
+          "label": "Stern",
           "index": 12,
           "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_12.png",
           "width": 64,
@@ -10007,16 +10007,16 @@
       "expressionCount": 6,
       "expressions": [
         {
-          "id": "sad",
-          "label": "Sad",
+          "id": "shy",
+          "label": "Shy",
           "index": 1,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait1.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "concerned",
-          "label": "Concerned",
+          "id": "sad",
+          "label": "Sad",
           "index": 2,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait2.png",
           "width": 64,

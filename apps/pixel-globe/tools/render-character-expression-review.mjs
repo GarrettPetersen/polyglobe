@@ -7,6 +7,7 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 const appRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const characterRoot = join(appRoot, "public/assets/characters");
 const manifestPath = join(characterRoot, "generated/character-portraits.json");
+const characterAssetPrefix = "assets/characters/";
 const outputDir = process.argv[2] || "/tmp/pixel-globe-character-expression-review";
 const rowsPerPage = 6;
 const portraitSize = 64;
@@ -43,7 +44,10 @@ for (let pageStart = 0; pageStart < characters.length; pageStart += rowsPerPage)
 
     for (let column = 0; column < character.expressions.length; column++) {
       const expression = character.expressions[column];
-      const relPath = decodeURIComponent(expression.src.slice("/assets/characters/".length));
+      if (!expression.src.startsWith(characterAssetPrefix)) {
+        throw new Error(`Portrait expression has an invalid asset path: ${expression.src}`);
+      }
+      const relPath = decodeURIComponent(expression.src.slice(characterAssetPrefix.length));
       const image = await loadImage(join(characterRoot, relPath));
       const x = rowHeaderWidth + column * cellWidth;
       ctx.drawImage(image, x, y, cellWidth, cellWidth);

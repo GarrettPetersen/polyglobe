@@ -543,6 +543,66 @@ test("generated portrait expressions are semantically labelled", () => {
   assert.deepEqual(genericExpressions, []);
 });
 
+test("death portraits prefer unmistakable distress over reflective expressions", () => {
+  const deathExpressions = new Set([
+    "crying",
+    "pained",
+    "hurt",
+    "sad",
+    "afraid",
+    "worried",
+    "concerned",
+    "weary",
+    "grimace",
+    "stern"
+  ]);
+
+  for (const source of GENERATED_MANIFEST.sourceCharacters.filter((entry) => entry.expressions.length > 1)) {
+    const expression = characterExpression(source, "dying");
+    assert.ok(expression, `${source.label} has no death portrait`);
+    assert.ok(
+      deathExpressions.has(expression.id),
+      `${source.label} death portrait resolved to ${expression.id}`
+    );
+  }
+});
+
+test("visually reviewed downcast frames retain their corrected labels", () => {
+  const reviewed = new Map([
+    ["ultimate-portrait-pack-v1-0-herbalist-women-portrait-herbalist-women-portrait", {
+      thoughtful: 1,
+      sad: 5
+    }],
+    ["little-girl-portrait-pack-by-captainskeleto-little-girl-portrait", {
+      "soft-smile": 1,
+      sad: 12
+    }],
+    ["women-black-hair-portrait-by-captainskolot-women-black-hair-portrait", {
+      sad: 9,
+      stern: 12
+    }],
+    ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", {
+      concerned: 1,
+      sad: 6
+    }],
+    ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", {
+      shy: 1,
+      sad: 2
+    }]
+  ]);
+
+  for (const [sourceId, expected] of reviewed) {
+    const source = GENERATED_MANIFEST.sourceCharacters.find((entry) => entry.id === sourceId);
+    assert.ok(source, `Missing reviewed portrait source: ${sourceId}`);
+    const actual = Object.fromEntries(
+      source.expressions
+        .filter((expression) => Object.hasOwn(expected, expression.id))
+        .map((expression) => [expression.id, expression.index])
+    );
+    assert.deepEqual(actual, expected, `${source.label} corrected labels`);
+  }
+});
+
 test("Knight Portrait opens on its calm neutral frame", () => {
   const knight = GENERATED_MANIFEST.sourceCharacters.find((source) => (
     source.sourceDirectory === "Knight Portrait Pack by Captainskeleto"

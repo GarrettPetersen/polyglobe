@@ -15,7 +15,7 @@ import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-15";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-16";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
@@ -25,6 +25,9 @@ const EXPRESSION_FALLBACK_IDS = Object.freeze({
   overjoyed: Object.freeze(["laughing", "happy", "pleased", "smile", "soft-smile"]),
   sad: Object.freeze(["worried", "concerned", "pained", "hurt", "weary"]),
   crying: Object.freeze(["sad", "worried", "pained", "hurt", "concerned"]),
+  dying: Object.freeze([
+    "crying", "pained", "hurt", "sad", "afraid", "worried", "concerned", "weary", "grimace", "stern"
+  ]),
   concerned: Object.freeze(["worried", "wary", "afraid", "sad", "serious"]),
   wary: Object.freeze(["concerned", "skeptical", "stern", "serious", "afraid"]),
   stern: Object.freeze(["serious", "determined", "skeptical", "angry"]),

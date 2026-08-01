@@ -120,10 +120,10 @@ const expressionLabelOverrides = new Map([
     ["wary", "Wary"],
     ["embarrassed", "Embarrassed"],
     ["laughing", "Laughing"],
-    ["stern", "Stern"],
+    ["sad", "Sad"],
     ["pleased", "Pleased"],
     ["shouting", "Shouting"],
-    ["sad", "Sad"]
+    ["stern", "Stern"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Blacksmith/Blacksmith Portrait", [
     ["grimace", "Grimace"],
@@ -162,11 +162,11 @@ const expressionLabelOverrides = new Map([
     ["surprised", "Surprised"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Herbalist women portrait/Herbalist Women Portrait", [
-    ["sad", "Sad"],
+    ["thoughtful", "Thoughtful"],
     ["stern", "Stern"],
     ["neutral", "Neutral"],
     ["knowing", "Knowing"],
-    ["afraid", "Afraid"],
+    ["sad", "Sad"],
     ["happy", "Happy"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Knight Commander/Knight Commander", [
@@ -192,7 +192,7 @@ const expressionLabelOverrides = new Map([
     ["afraid", "Afraid"]
   ]),
   labels("Little Girl Portrait pack by Captainskeleto/Little Girl Portrait", [
-    ["sad", "Sad"],
+    ["soft-smile", "Soft Smile"],
     ["happy", "Happy"],
     ["worried", "Worried"],
     ["concerned", "Concerned"],
@@ -203,7 +203,7 @@ const expressionLabelOverrides = new Map([
     ["embarrassed", "Embarrassed"],
     ["neutral", "Neutral"],
     ["pleased", "Pleased"],
-    ["afraid", "Afraid"]
+    ["sad", "Sad"]
   ]),
   labels("Lumberjack Portrait by Captainskeleto/Lumberjack Portrait", [
     ["sad", "Sad"],
@@ -302,12 +302,12 @@ const expressionLabelOverrides = new Map([
     ["stern", "Stern"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Young Peasant Girl/Villager Young Girl Portrait", [
-    ["sad", "Sad"],
+    ["concerned", "Concerned"],
     ["soft-smile", "Soft Smile"],
     ["happy", "Happy"],
     ["neutral", "Neutral"],
     ["laughing", "Laughing"],
-    ["concerned", "Concerned"]
+    ["sad", "Sad"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Women Baker/Women Baker Portrait", [
     ["sad", "Sad"],
@@ -354,8 +354,8 @@ const expressionLabelOverrides = new Map([
     ["serious", "Serious"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Young Peasant Boy/Young Peasant Boy Portrait", [
+    ["shy", "Shy"],
     ["sad", "Sad"],
-    ["concerned", "Concerned"],
     ["happy", "Happy"],
     ["laughing", "Laughing"],
     ["afraid", "Afraid"],
