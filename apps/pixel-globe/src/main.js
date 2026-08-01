@@ -2687,6 +2687,7 @@ const landRoadLayerCache = new WeakMap();
 const terrainImagePixelCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
+const shipShadowSurfacePointCache = new WeakMap();
 const waterEffectForegroundLayerCache = new WeakMap();
 const drawnSurfaceNavigationCache = new WeakMap();
 const riverGatewayDirectionCache = new WeakMap();
@@ -25189,7 +25190,7 @@ function render(nowMs) {
       connectors,
       connectorWaves: measurePerformanceBenchmarkStage(
         "render.terrain.connectorWaves",
-        () => terrainConnectorDynamicLayer(connectors, chart)
+        () => terrainConnectorDynamicLayer(connectors, chart, renderWindow.faceCalls)
       ),
       terrainCalls: renderTileCalls,
       surface: measurePerformanceBenchmarkStage(
@@ -33090,40 +33091,79 @@ function drawTerrainConnectorDynamicDetails(targetCtx, entry, waveClockMs) {
   drawBeachWave(targetCtx, call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs);
 }
 
-function terrainConnectorDynamicLayer(baseLayer, activeChart) {
+function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls = null) {
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const cached = terrainConnectorDynamicLayerCache.get(cacheKey);
   if (
     cached?.baseLayer === baseLayer &&
+    cached.visibleFaceCalls === visibleFaceCalls &&
     cached.waterTick === waterAnimationDrawTick
   ) return cached.layer;
 
-  const reusable = cached?.baseLayer === baseLayer ? cached.layer : null;
+  const reusable = cached?.baseLayer === baseLayer && cached.visibleFaceCalls === visibleFaceCalls
+    ? cached.layer
+    : null;
+  const entries = terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls);
+  const bounds = terrainConnectorDynamicBounds(entries);
   const canvas = reusable?.canvas || document.createElement("canvas");
   if (!reusable) {
-    canvas.width = baseLayer.canvas.width;
-    canvas.height = baseLayer.canvas.height;
+    canvas.width = bounds.width;
+    canvas.height = bounds.height;
   }
   const layerCtx = canvas.getContext("2d");
   if (!layerCtx) throw new Error("Could not create terrain connector wave layer");
   layerCtx.setTransform(1, 0, 0, 1, 0, 0);
   layerCtx.clearRect(0, 0, canvas.width, canvas.height);
   layerCtx.imageSmoothingEnabled = false;
-  layerCtx.translate(-baseLayer.x, -baseLayer.y);
-  for (const entry of baseLayer.entries) {
+  layerCtx.translate(-bounds.x, -bounds.y);
+  for (const entry of entries) {
     drawTerrainConnectorDynamicDetails(layerCtx, entry, waterAnimationClockMs);
   }
   const layer = reusable || Object.freeze({
     canvas,
-    x: baseLayer.x,
-    y: baseLayer.y
+    x: bounds.x,
+    y: bounds.y
   });
   terrainConnectorDynamicLayerCache.set(cacheKey, {
     baseLayer,
+    visibleFaceCalls,
     waterTick: waterAnimationDrawTick,
     layer
   });
   return layer;
+}
+
+function terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls) {
+  if (visibleFaceCalls === null) return baseLayer.entries.filter((entry) => isCoastFace(entry.call));
+  const entries = [];
+  for (const call of visibleFaceCalls) {
+    const entry = baseLayer.entryByCall.get(call);
+    if (entry && isCoastFace(entry.call)) entries.push(entry);
+  }
+  return entries;
+}
+
+function terrainConnectorDynamicBounds(entries) {
+  if (entries.length === 0) return { x: 0, y: 0, width: 1, height: 1 };
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const { geometry } of entries) {
+    const padding = Math.ceil(geometry.width) + 3;
+    minX = Math.min(minX, geometry.ax, geometry.mx, geometry.bx) - padding;
+    minY = Math.min(minY, geometry.ay, geometry.my, geometry.by) - padding;
+    maxX = Math.max(maxX, geometry.ax, geometry.mx, geometry.bx) + padding;
+    maxY = Math.max(maxY, geometry.ay, geometry.my, geometry.by) + padding;
+  }
+  const x = Math.floor(minX);
+  const y = Math.floor(minY);
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.ceil(maxX) - x + 1),
+    height: Math.max(1, Math.ceil(maxY) - y + 1)
+  };
 }
 
 function drawTerrainConnectorLayer(layer, viewportBounds = null) {
@@ -35465,21 +35505,38 @@ function drawShipShadow(activeChart, light, offset) {
 }
 
 function shipShadowPointHasSurface(x, y, activeChart) {
-  if (wakeMapPointIsWater(x, y, activeChart)) return true;
   if (!activeChart?.waterIndex) return false;
+  const roundedX = Math.round(x);
+  const roundedY = Math.round(y);
+  const pixelKey = pixelMaskKey(roundedX, roundedY);
+  let cache = shipShadowSurfacePointCache.get(activeChart);
+  if (!cache || cache.weatherMaskDayIndex !== weatherMaskDayIndex) {
+    cache = {
+      weatherMaskDayIndex,
+      points: new Map()
+    };
+    shipShadowSurfacePointCache.set(activeChart, cache);
+  }
+  if (cache.points.has(pixelKey)) return cache.points.get(pixelKey);
+  if (wakeMapPointIsWater(roundedX, roundedY, activeChart)) {
+    cache.points.set(pixelKey, true);
+    return true;
+  }
 
   let topmostTerrain = null;
-  for (const entry of wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex)) {
+  for (const entry of wakeWaterCandidatesForPoint(roundedX, roundedY, activeChart.waterIndex)) {
     if (entry.kind !== "tile") continue;
-    if (!tileTerrainSpriteOpaqueAtMapPoint(entry.call, x, y)) continue;
+    if (!tileTerrainSpriteOpaqueAtMapPoint(entry.call, roundedX, roundedY)) continue;
     if (!topmostTerrain || compareTerrainDrawCalls(topmostTerrain, entry.call) < 0) {
       topmostTerrain = entry.call;
     }
   }
 
-  return topmostTerrain !== null && terrainSpriteReceivesShipShadow(
+  const result = topmostTerrain !== null && terrainSpriteReceivesShipShadow(
     spriteForTerrain(topmostTerrain.row, topmostTerrain.id)
   );
+  cache.points.set(pixelKey, result);
+  return result;
 }
 
 function drawFishingNetAnimation(nowMs) {
