@@ -7441,7 +7441,11 @@ function performanceBenchmarkSceneSnapshot(state) {
     wakeParticles: ship.wakeParticles.length,
     navalProjectiles: ship.navalProjectiles.length + npcCombatProjectiles.length,
     smokeBursts: cannonSmokeBursts.length,
-    gpuRenderedNpcShips: gpuShipDrawCommands.length,
+    gpuRenderedNpcShips: gpuShipDrawCommands.reduce(
+      (count, command) => count + Number(command.drawCall.kind === "npc"),
+      0
+    ),
+    gpuRenderedPlayerShip: gpuShipDrawCommands.some((command) => command.drawCall.kind === "player"),
     gpuRenderer: worldRenderer.stats()
   };
 }
@@ -12190,6 +12194,10 @@ function handleDialogueKeyDown(event) {
     chooseDialogueOption(dialogueState.selectedIndex);
     return;
   }
+  if ((event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+      stepDialogueSelectionColumn(event.key === "ArrowRight" ? 1 : -1)) {
+    return;
+  }
   if (event.key === "ArrowLeft") {
     if (dialogueState.kind === "campaign-goal") return;
     navigateBackFromDialogue();
@@ -12297,12 +12305,39 @@ function updateDialogueSelectionFromPoint(point) {
 
 function stepDialogueSelection(direction) {
   const view = currentDialogueView();
+  if (view.optionColumns === 2) {
+    const rows = dialogueSelectableOptionRows(view);
+    const currentRowIndex = rows.findIndex((row) => (
+      row.some((entry) => entry.index === dialogueState.selectedIndex)
+    ));
+    const currentColumnIndex = currentRowIndex < 0
+      ? 0
+      : Math.max(0, rows[currentRowIndex].findIndex((entry) => entry.index === dialogueState.selectedIndex));
+    const nextRowIndex = stepMenuIndex(Math.max(0, currentRowIndex), direction, rows.length);
+    const nextRow = rows[nextRowIndex];
+    dialogueState.selectedIndex = nextRow[Math.min(currentColumnIndex, nextRow.length - 1)].index;
+    dirty = true;
+    return;
+  }
   dialogueState.selectedIndex = stepMenuIndex(
     dialogueState.selectedIndex,
     direction,
     view.options.length
   );
   dirty = true;
+}
+
+function stepDialogueSelectionColumn(direction) {
+  const view = currentDialogueView();
+  if (view.optionColumns !== 2) return false;
+  const row = dialogueSelectableOptionRows(view).find((entries) => (
+    entries.some((entry) => entry.index === dialogueState.selectedIndex)
+  ));
+  if (!row || row.length < 2) return true;
+  const currentColumnIndex = row.findIndex((entry) => entry.index === dialogueState.selectedIndex);
+  dialogueState.selectedIndex = row[stepMenuIndex(currentColumnIndex, direction, row.length)].index;
+  dirty = true;
+  return true;
 }
 
 function handleCanvasWheel(event) {
@@ -14944,7 +14979,11 @@ function chooseDialogueOption(optionIndex) {
       );
       showSurvivalNotice(`${result.perkItemPurchase.item.label.toUpperCase()} ACQUIRED`, "good");
     }
-    saveVoyageNow("port transaction");
+    const marketPageStillOpen = dialogueState.kind === "port" &&
+      (dialogueState.nodeId === "buy" || dialogueState.nodeId === "sell");
+    if ((!result.marketPurchase && !result.marketSale) || !marketPageStillOpen) {
+      saveVoyageNow("port transaction");
+    }
     if (result.action?.type === "open-passenger") {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
       return;
@@ -36430,138 +36469,44 @@ function drawShips(activeChart, playerLight, nowMs) {
       return calls;
     }
   );
-  const cpuOverlapIndex = measurePerformanceBenchmarkStage(
-    "render.vessels.ships.overlap",
-    () => createCpuShipDrawOverlapIndex(drawCalls)
+  const gpuPlan = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.plan",
+    () => createGpuShipDrawPlan(drawCalls, nowMs, terrainForeground)
   );
   measurePerformanceBenchmarkStage("render.vessels.ships.draw", () => {
     for (const call of drawCalls) {
-      const queued = measurePerformanceBenchmarkStage(
-        "render.vessels.ships.draw.gpuQueue",
-        () => tryQueueGpuShipCall(call, nowMs, terrainForeground, cpuOverlapIndex)
-      );
-      if (queued) continue;
+      const prepared = gpuPlan.preparedById.get(call.id) || null;
+      if (gpuPlan.gpuIds.has(call.id)) {
+        if (!prepared) throw new Error(`GPU ship plan lost prepared draw call: ${call.id}`);
+        gpuShipDrawCommands.push(prepared);
+        continue;
+      }
       measurePerformanceBenchmarkStage(
         "render.vessels.ships.draw.cpuFallback",
-        () => drawShipCall(call, nowMs, terrainForeground)
+        () => drawShipCall(call, nowMs, terrainForeground, prepared)
       );
     }
   });
 }
 
-function createCpuShipDrawOverlapIndex(drawCalls) {
-  const buckets = new Map();
-  const callsById = new Map();
+function createGpuShipDrawPlan(drawCalls, nowMs, terrainForeground) {
+  const preparedById = new Map();
   for (const call of drawCalls) {
     if (call.kind !== "npc" && call.kind !== "player") continue;
-    if (call.kind === "npc" && shipTileIsGpuSafeOpenWater(call.tileId)) continue;
-    callsById.set(call.id, call);
-    const minBucketX = Math.floor(call.x / SHIP_SHEET_FRAME_SIZE);
-    const minBucketY = Math.floor(call.y / SHIP_SHEET_FRAME_SIZE);
-    const maxBucketX = Math.floor((call.x + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
-    const maxBucketY = Math.floor((call.y + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
-    for (let by = minBucketY; by <= maxBucketY; by++) {
-      for (let bx = minBucketX; bx <= maxBucketX; bx++) {
-        const key = `${bx}:${by}`;
-        let ids = buckets.get(key);
-        if (!ids) {
-          ids = new Set();
-          buckets.set(key, ids);
-        }
-        ids.add(call.id);
-      }
-    }
+    preparedById.set(call.id, prepareShipDrawCall(call, nowMs, terrainForeground));
   }
-  return { buckets, callsById };
-}
-
-function shipDrawCallHasCpuOverlap(call, overlapIndex) {
-  const minBucketX = Math.floor(call.x / SHIP_SHEET_FRAME_SIZE);
-  const minBucketY = Math.floor(call.y / SHIP_SHEET_FRAME_SIZE);
-  const maxBucketX = Math.floor((call.x + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
-  const maxBucketY = Math.floor((call.y + SHIP_SHEET_FRAME_SIZE - 1) / SHIP_SHEET_FRAME_SIZE);
-  const candidates = new Set();
-  for (let by = minBucketY; by <= maxBucketY; by++) {
-    for (let bx = minBucketX; bx <= maxBucketX; bx++) {
-      const ids = overlapIndex.buckets.get(`${bx}:${by}`);
-      if (!ids) continue;
-      for (const id of ids) {
-        if (id !== call.id) candidates.add(id);
-      }
-    }
-  }
-  for (const id of candidates) {
-    const candidate = overlapIndex.callsById.get(id);
-    if (!candidate) throw new Error(`Ship overlap index lost draw call: ${id}`);
-    if (
-      call.x < candidate.x + SHIP_SHEET_FRAME_SIZE &&
-      call.x + SHIP_SHEET_FRAME_SIZE > candidate.x &&
-      call.y < candidate.y + SHIP_SHEET_FRAME_SIZE &&
-      call.y + SHIP_SHEET_FRAME_SIZE > candidate.y
-    ) return true;
-  }
-  return false;
-}
-
-function shipTileIsGpuSafeOpenWater(tileId) {
-  if (!isShipOpenWaterTile(tileId) || isShipBlockedByIceTile(tileId)) return false;
-  const neighbors = graph.neighbors[tileId] || [];
-  return neighbors.length > 0 && neighbors.every((neighborId) => (
-    isShipOpenWaterTile(neighborId) && !isShipBlockedByIceTile(neighborId)
-  ));
-}
-
-function tryQueueGpuShipCall(call, nowMs, terrainForeground, overlapIndex) {
-  if (call.kind !== "npc" || !shipTileIsGpuSafeOpenWater(call.tileId)) return false;
-  if (shipDrawCallHasCpuOverlap(call, overlapIndex)) return false;
-  const drawCall = measurePerformanceBenchmarkStage(
-    "render.vessels.ships.frame",
-    () => {
-      const resolvedFrameAsset = rowingShipFrameAsset(call, nowMs);
-      return stormBobbedShipCall({
-        ...call,
-        img: resolvedFrameAsset.image,
-        sinkDepthImg: resolvedFrameAsset.sinkDepthImage,
-        flagAnchor: requiredShipFlagAnchor(
-          call.slug,
-          call.frame,
-          resolvedFrameAsset.rowingFrameIndex
-        )
-      }, nowMs);
-    }
-  );
-  const layers = measurePerformanceBenchmarkStage(
-    "render.vessels.ships.waterline",
-    () => shipWaterlineLayers(
-      drawCall.img,
-      drawCall.sinkDepthImg,
-      drawCall.frame,
-      drawCall.slug
+  return {
+    preparedById,
+    gpuIds: new Set(
+      drawCalls
+        .filter((call) => call.kind === "npc" || call.kind === "player")
+        .map((call) => call.id)
     )
-  );
-  const compositeBounds = {
-    x: drawCall.x - SHIP_COMPOSITE_MARGIN_PX,
-    y: drawCall.y - SHIP_COMPOSITE_MARGIN_PX,
-    w: shipCompositeCanvas.width,
-    h: shipCompositeCanvas.height
   };
-  const foreground = measurePerformanceBenchmarkStage(
-    "render.vessels.ships.foreground",
-    () => shipTerrainForegroundForDrawCall(
-      drawCall,
-      layers,
-      terrainForeground,
-      compositeBounds
-    )
-  );
-  if (foreground.length > 0) return false;
-
-  gpuShipDrawCommands.push({ drawCall, layers, nowMs });
-  return true;
 }
 
 function drawGpuShipCommands() {
-  for (const { drawCall, layers, nowMs } of gpuShipDrawCommands) {
+  for (const { drawCall, layers, foreground, nowMs } of gpuShipDrawCommands) {
     if (drawCall.combatAllegiance) drawGpuShipCombatOutline(drawCall, layers);
     if (layers.submergedMaxY >= layers.submergedMinY) {
       worldRenderer.drawAtlasSprite({
@@ -36585,7 +36530,66 @@ function drawGpuShipCommands() {
         height: SHIP_SHEET_FRAME_SIZE
       }
     });
-    drawGpuNpcShipDecorations(drawCall, nowMs);
+    if (drawCall.kind === "player") drawGpuPlayerShipDecorations(drawCall, layers);
+    if (drawCall.kind === "npc") drawGpuNpcShipDecorations(drawCall, nowMs);
+    drawGpuShipTerrainForeground(foreground);
+  }
+}
+
+function drawGpuPlayerShipDecorations(call, layers) {
+  drawGpuShipLighting(call, layers);
+  if (shipHullIsDamaged(call.hitPoints, call.maxHitPoints)) {
+    drawGpuShipHullBar(call, "#e83b3b");
+  }
+}
+
+function drawGpuShipLighting(call, layers) {
+  const light = call.light;
+  if (!shipLighting || !light || light.direct <= 0.01) return;
+  drawGpuDirectionalMaskPoints(
+    shipLightingPoints("shade", call.frame, light.bin),
+    call.x,
+    call.y,
+    [26 / 255, 18 / 255, 44 / 255, SHIP_LIGHT_SHADE_ALPHA * light.direct],
+    layers.abovePointSet
+  );
+  drawGpuDirectionalMaskPoints(
+    shipLightingPoints("light", call.frame, light.bin),
+    call.x,
+    call.y,
+    [1, 240 / 255, 188 / 255, SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct],
+    layers.abovePointSet
+  );
+}
+
+function drawGpuDirectionalMaskPoints(points, x, y, color, allowedPoints) {
+  for (const point of points) {
+    if (!allowedPoints.has(point)) continue;
+    worldRenderer.drawSolidRect({
+      destinationRect: { x: x + (point & 0xff), y: y + (point >> 8), width: 1, height: 1 },
+      color
+    });
+  }
+}
+
+function drawGpuShipTerrainForeground(foreground) {
+  for (const occluder of foreground) {
+    if (!occluder.drawLayer.image) {
+      occluder.drawLayer.image = occluder.drawLayer.create();
+      occluder.drawLayer.create = null;
+    }
+    if (!occluder.drawLayer.image) {
+      throw new Error(`Terrain foreground layer at ${occluder.x},${occluder.y} has no image`);
+    }
+    worldRenderer.drawAtlasSprite({
+      source: occluder.drawLayer.image,
+      destinationRect: {
+        x: occluder.x,
+        y: occluder.y,
+        width: occluder.width,
+        height: occluder.height
+      }
+    });
   }
 }
 
@@ -37116,12 +37120,14 @@ function pointNearScreen(point, margin) {
     point.y <= SCREEN_H + margin;
 }
 
-function drawShipCall(call, nowMs, terrainForeground) {
-  if (call.kind === "sinking") {
-    drawWorldShipSinkEffect(call.entry, call.activeChart, nowMs);
-    return;
+function prepareShipDrawCall(call, nowMs, terrainForeground) {
+  if (call.kind !== "npc" && call.kind !== "player") {
+    throw new Error(`Cannot prepare ship draw call kind: ${call.kind}`);
   }
-  const frameAsset = rowingShipFrameAsset(call, nowMs);
+  const frameAsset = measurePerformanceBenchmarkStage(
+    "render.vessels.ships.frame",
+    () => rowingShipFrameAsset(call, nowMs)
+  );
   const drawCall = stormBobbedShipCall({
     ...call,
     img: frameAsset.image,
@@ -37154,6 +37160,16 @@ function drawShipCall(call, nowMs, terrainForeground) {
       compositeBounds
     )
   );
+  return { drawCall, layers, foreground, compositeBounds, nowMs };
+}
+
+function drawShipCall(call, nowMs, terrainForeground, prepared = null) {
+  if (call.kind === "sinking") {
+    drawWorldShipSinkEffect(call.entry, call.activeChart, nowMs);
+    return;
+  }
+  const resolved = prepared || prepareShipDrawCall(call, nowMs, terrainForeground);
+  const { drawCall, layers, foreground, compositeBounds } = resolved;
   if (foreground.length === 0) {
     drawShipVisual(drawCall, layers, nowMs);
   } else {
@@ -40412,7 +40428,8 @@ function drawDialogueOverlay(nowMs) {
     : [];
   const optionHeight = dialogueOptionsHeight(view, dialogueFont, optionW);
   const optionGroups = dialogueOptionGroups(view.options);
-  const optionRowCount = optionGroups.regular.length + (optionGroups.exits.length > 0 ? 1 : 0);
+  const optionRowCount = dialogueRegularOptionRows(view, optionGroups.regular).length +
+    (optionGroups.exits.length > 0 ? 1 : 0);
   const maximumPanelHeight = SCREEN_H - 13;
   let feedbackLines = view.feedback
     ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
@@ -41230,29 +41247,35 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_
   dialogueLayout.nextRect = null;
   const optionHeight = dialogueOptionsHeight(view, font, width);
   const groups = dialogueOptionGroups(view.options);
+  const regularRows = dialogueRegularOptionRows(view, groups.regular);
   const stack = dialogueOptionStackLayout({
     desiredY: y,
     bottom,
     optionHeight,
-    regularCount: groups.regular.length,
+    regularCount: regularRows.length,
     exitCount: groups.exits.length
   });
   let navigation = null;
   let optionWindow = null;
-  if (groups.regular.length > 0) {
-    const selectedRegularIndex = groups.regular.findIndex((entry) => entry.index === dialogueState.selectedIndex);
+  if (regularRows.length > 0) {
+    const selectedRegularIndex = regularRows.findIndex((row) => (
+      row.some((entry) => entry.index === dialogueState.selectedIndex)
+    ));
     const fallbackSelectedIndex = Math.min(
-      groups.regular.length - 1,
+      regularRows.length - 1,
       dialogueLayout.scrollOffset + Math.max(0, stack.visibleRegularCount - 1)
     );
     optionWindow = dialogueOptionWindow({
-      optionCount: groups.regular.length,
+      optionCount: regularRows.length,
       visibleCount: stack.visibleRegularCount,
       selectedIndex: selectedRegularIndex >= 0 ? selectedRegularIndex : fallbackSelectedIndex,
       scrollOffset: dialogueLayout.scrollOffset
     });
     if (selectedRegularIndex >= 0) {
-      dialogueState.selectedIndex = groups.regular[optionWindow.selectedIndex].index;
+      const selectedRow = regularRows[optionWindow.selectedIndex];
+      if (!selectedRow.some((entry) => entry.index === dialogueState.selectedIndex)) {
+        dialogueState.selectedIndex = selectedRow[0].index;
+      }
     }
     dialogueLayout.scrollOffset = optionWindow.scrollOffset;
     navigation = stack.needsScroll
@@ -41267,15 +41290,19 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_
       })
       : null;
     const optionWidth = navigation?.optionWidth || width;
-    const visibleOptions = groups.regular.slice(optionWindow.start, optionWindow.end);
-    for (let localIndex = 0; localIndex < visibleOptions.length; localIndex++) {
-      const entry = visibleOptions[localIndex];
-      drawDialogueOptionEntry(view, entry, {
+    const visibleRows = regularRows.slice(optionWindow.start, optionWindow.end);
+    for (let localIndex = 0; localIndex < visibleRows.length; localIndex++) {
+      const row = visibleRows[localIndex];
+      const rowRects = dialogueRegularOptionRowRects({
         x,
         y: stack.y + localIndex * optionHeight,
-        w: optionWidth,
-        h: optionHeight - 2
-      }, font, false);
+        width: optionWidth,
+        optionHeight,
+        count: row.length
+      });
+      row.forEach((entry, columnIndex) => {
+        drawDialogueOptionEntry(view, entry, rowRects[columnIndex], font, false);
+      });
     }
     const indicatorX = x + optionWidth / 2;
     if (optionWindow.canScrollUp) {
@@ -41322,7 +41349,7 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_
     );
     if (navigation.direction === "vertical") {
       drawOptionsText(
-        `${optionWindow.selectedIndex + 1}/${groups.regular.length}`,
+        `${optionWindow.selectedIndex + 1}/${regularRows.length}`,
         dialogueLayout.previousRect.x + UI_PAGER_BUTTON_W / 2,
         stack.y + Math.floor((stack.visibleRegularCount * optionHeight - 8) / 2),
         { align: "center", color: PIRATE_MENU_INK_MUTED }
@@ -41387,8 +41414,54 @@ function dialogueOptionsHeight(view, font, width) {
   const conservativeWidth = Math.max(40, width - UI_PAGER_BUTTON_W - 5);
   return view.options.reduce((height, option) => Math.max(
     height,
-    dialogueOptionTextMetrics(option, font, conservativeWidth, minimumHeight).height
+    dialogueOptionTextMetrics(
+      option,
+      font,
+      option.rowId && view.optionColumns === 2
+        ? Math.max(40, Math.floor((conservativeWidth - 4) / 2))
+        : conservativeWidth,
+      minimumHeight
+    ).height
   ), minimumHeight);
+}
+
+function dialogueRegularOptionRows(view, entries) {
+  if (view.optionColumns === undefined || view.optionColumns === 1) {
+    return entries.map((entry) => [entry]);
+  }
+  if (view.optionColumns !== 2) {
+    throw new Error(`Unsupported dialogue option column count: ${view.optionColumns}`);
+  }
+  const rows = [];
+  for (const entry of entries) {
+    const rowId = entry.option.rowId;
+    const previous = rows.at(-1);
+    if (rowId && previous?.[0]?.option.rowId === rowId) {
+      if (previous.length >= 2) throw new Error(`Dialogue option row has more than two columns: ${rowId}`);
+      previous.push(entry);
+    } else {
+      rows.push([entry]);
+    }
+  }
+  return rows;
+}
+
+function dialogueSelectableOptionRows(view) {
+  const groups = dialogueOptionGroups(view.options);
+  const rows = dialogueRegularOptionRows(view, groups.regular);
+  if (groups.exits.length > 0) rows.push([...groups.exits]);
+  if (rows.length === 0) throw new Error("Dialogue has no selectable option rows");
+  return rows;
+}
+
+function dialogueRegularOptionRowRects({ x, y, width, optionHeight, count, gap = 4 }) {
+  if (count === 1) return [{ x, y, w: width, h: optionHeight - 2 }];
+  if (count !== 2) throw new Error(`Dialogue option row requires one or two entries, received ${count}`);
+  const leftWidth = Math.floor((width - gap) / 2);
+  return [
+    { x, y, w: leftWidth, h: optionHeight - 2 },
+    { x: x + leftWidth + gap, y, w: width - leftWidth - gap, h: optionHeight - 2 }
+  ];
 }
 
 function dialogueOptionTextMetrics(option, font, width, minimumHeight) {

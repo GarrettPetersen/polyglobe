@@ -794,6 +794,34 @@ export function portEconomySummary(economy, city) {
   };
 }
 
+export function snapshotPortTradeState(economy, city) {
+  const port = requiredPortState(economy, city);
+  return Object.freeze({
+    portId: port.id,
+    specie: port.specie,
+    stocks: Object.freeze(Object.fromEntries(
+      [...port.goods.entries()].map(([goodId, state]) => [goodId, state.stock])
+    ))
+  });
+}
+
+export function restorePortTradeState(economy, city, snapshot) {
+  const port = requiredPortState(economy, city);
+  if (!snapshot || snapshot.portId !== port.id || !Number.isFinite(snapshot.specie) ||
+      snapshot.specie < 0 || !snapshot.stocks || typeof snapshot.stocks !== "object") {
+    throw new Error(`Invalid market undo state for ${port.name}`);
+  }
+  for (const [goodId, state] of port.goods.entries()) {
+    const stock = snapshot.stocks[goodId];
+    if (!Number.isFinite(stock) || stock < 0) {
+      throw new Error(`Invalid market undo stock for ${port.name}: ${goodId}=${stock}`);
+    }
+    state.stock = stock;
+  }
+  port.specie = snapshot.specie;
+  return portMarket(economy, city);
+}
+
 export function consumePortGoodStock(economy, city, goodId, quantity) {
   if (!Number.isFinite(quantity) || quantity <= 0) {
     throw new Error(`Invalid port stock consumption: ${goodId}=${quantity}`);

@@ -13,6 +13,8 @@ import {
   portMarket,
   quotePortPurchase,
   quotePortSale,
+  restorePortTradeState,
+  snapshotPortTradeState,
   tradeGoodById
 } from "./economy.js";
 import {
@@ -3830,6 +3832,50 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   });
   if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
   return { good: row.good, quantity, price: total, costBasis: soldCost, pnl, tradeTerms: terms };
+}
+
+export function createMarketUndoSnapshot(state, economy, city) {
+  assertGameState(state);
+  return Object.freeze({
+    doubloons: state.doubloons,
+    cargo: Object.freeze({ ...state.cargo }),
+    cargoCostBasis: Object.freeze({ ...state.accounts.cargoCostBasis }),
+    realizedPnl: state.accounts.realizedPnl,
+    nextEntryId: state.accounts.nextEntryId,
+    ledger: Object.freeze(state.accounts.ledger.map(copyLedgerEntry)),
+    decisions: Object.freeze({ ...state.memory.decisions }),
+    factionReputation: Object.freeze({ ...state.relations.factionReputation }),
+    port: snapshotPortTradeState(economy, city)
+  });
+}
+
+export function restoreMarketUndoSnapshot(state, economy, city, snapshot) {
+  if (!snapshot || !Number.isFinite(snapshot.doubloons) || snapshot.doubloons < 0 ||
+      !snapshot.cargo || !snapshot.cargoCostBasis || !Array.isArray(snapshot.ledger) ||
+      !snapshot.decisions || !snapshot.factionReputation) {
+    throw new Error("Invalid market undo snapshot");
+  }
+  state.doubloons = snapshot.doubloons;
+  state.cargo = { ...snapshot.cargo };
+  state.accounts.cargoCostBasis = { ...snapshot.cargoCostBasis };
+  state.accounts.realizedPnl = snapshot.realizedPnl;
+  state.accounts.nextEntryId = snapshot.nextEntryId;
+  state.accounts.ledger = snapshot.ledger.map(copyLedgerEntry);
+  state.memory.decisions = { ...snapshot.decisions };
+  state.relations.factionReputation = { ...snapshot.factionReputation };
+  restorePortTradeState(economy, city, snapshot.port);
+  assertGameState(state);
+  return {
+    doubloons: state.doubloons,
+    cargo: { ...state.cargo }
+  };
+}
+
+function copyLedgerEntry(entry) {
+  return Object.fromEntries(Object.entries(entry).map(([key, value]) => [
+    key,
+    Array.isArray(value) ? [...value] : value
+  ]));
 }
 
 export function playerTradeAccess(state, city, context = {}) {

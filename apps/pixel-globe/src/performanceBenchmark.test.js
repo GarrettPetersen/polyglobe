@@ -5,6 +5,7 @@ import {
   BUSY_WORLD_CAPTURE_SCENARIO_ID,
   CLOUD_COVER_CAPTURE_SCENARIO_ID,
   COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
+  GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
@@ -61,6 +62,16 @@ test("nanjing-hotspot benchmark stages dense lower-Yangtze traffic", () => {
     warmupSeconds: 2,
     durationSeconds: 8,
     targetLandCarts: 14
+  });
+});
+
+test("gibraltar-hotspot benchmark stages dense traffic in the narrow strait", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=gibraltar-hotspot"), {
+    id: "gibraltar-hotspot",
+    captureScenarioId: GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 2
   });
 });
 

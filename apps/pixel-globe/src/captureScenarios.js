@@ -196,6 +196,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: nanjingHotspotBenchmarkEncounters()
   }),
+  "benchmark-gibraltar-hotspot": scenario({
+    id: "benchmark-gibraltar-hotspot",
+    title: "Straits of Gibraltar Traffic Performance Benchmark",
+    seed: "benchmark-gibraltar-hotspot-v1",
+    player: {
+      factionId: "spain",
+      shipSlug: "caravel",
+      lat: 36.02,
+      lon: -5.55,
+      headingDeg: 90,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: gibraltarHotspotBenchmarkEncounters()
+  }),
   "trailer-explore-fuji": trailerScenario({
     id: "trailer-explore-fuji",
     title: "Discover Mount Fuji",
@@ -865,6 +881,37 @@ function nanjingHotspotBenchmarkEncounters() {
       lat,
       lon,
       headingDeg: (index * 53) % 360,
+      replaceOnSink: false
+    };
+  });
+}
+
+function gibraltarHotspotBenchmarkEncounters() {
+  const ships = [
+    ["caravel", "merchant", "spain"],
+    ["small-cog", "merchant", "portugal"],
+    ["xebec", "merchant", "ottoman"],
+    ["fishing-lugger", "fisherman", "spain"],
+    ["mediterranean-galley", "warship", "spain"],
+    ["felucca", "merchant", "ottoman"]
+  ];
+  const positions = [
+    [35.94, -5.94], [36.00, -5.86], [36.06, -5.78], [35.97, -5.70],
+    [36.04, -5.64], [35.96, -5.58], [36.03, -5.52], [35.97, -5.46],
+    [36.04, -5.40], [35.98, -5.34], [36.05, -5.28], [35.99, -5.22],
+    [36.06, -5.16], [36.00, -5.10], [36.07, -5.04], [36.01, -4.98],
+    [36.08, -4.92], [36.02, -4.86]
+  ];
+  return positions.map(([lat, lon], index) => {
+    const [shipSlug, role, factionId] = ships[index % ships.length];
+    return {
+      id: `benchmark-gibraltar-ship-${String(index + 1).padStart(2, "0")}`,
+      factionId,
+      shipSlug,
+      role,
+      lat,
+      lon,
+      headingDeg: index % 2 === 0 ? 88 : 272,
       replaceOnSink: false
     };
   });

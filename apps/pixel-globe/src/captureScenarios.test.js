@@ -32,6 +32,7 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.ok(captureScenarioIds().includes("great-barrier-reef"));
   assert.ok(captureScenarioIds().includes("benchmark-cloud-cover"));
   assert.ok(captureScenarioIds().includes("benchmark-combat-hotspot"));
+  assert.ok(captureScenarioIds().includes("benchmark-gibraltar-hotspot"));
   assert.equal(captureScenarioFromSearch(""), null);
   assert.equal(captureScenarioFromSearch("?capture=turtle-ship-war").player.factionId, "joseon");
   assert.throws(() => captureScenarioFromSearch("?capture=missing"), /Unknown capture scenario/);
@@ -63,6 +64,15 @@ test("combat benchmark stages a damaged merchant amid eastern Mediterranean figh
   assert.equal(damaged.hitPoints, 2);
   assert.equal(damaged.replaceOnSink, false);
   assert.ok(scenario.encounters.some((encounter) => encounter.role === "pirate"));
+});
+
+test("Gibraltar benchmark crowds both lanes of the navigable strait", () => {
+  const scenario = captureScenarioFromSearch("?capture=benchmark-gibraltar-hotspot");
+  assert.equal(scenario.player.lat, 36.02);
+  assert.equal(scenario.player.lon, -5.55);
+  assert.equal(scenario.encounters.length, 18);
+  assert.ok(scenario.encounters.some((encounter) => encounter.headingDeg < 180));
+  assert.ok(scenario.encounters.some((encounter) => encounter.headingDeg > 180));
 });
 
 test("the general trailer roster includes feature pairs and eight fast sailing shots", () => {

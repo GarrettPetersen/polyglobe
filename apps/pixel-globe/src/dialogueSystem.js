@@ -17,6 +17,7 @@ import {
   cargoUsed,
   cityLabel,
   completeQuest,
+  createMarketUndoSnapshot,
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
   futurePermanentCrewFloor,
@@ -50,6 +51,7 @@ import {
   receiveQuestPayment,
   releaseCargoSpace,
   reserveCargoSpace,
+  restoreMarketUndoSnapshot,
   restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
   sellGood
@@ -61,6 +63,7 @@ import {
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   establishPortIndustry,
+  maximumPortSaleQuantity,
   maximumPortPurchaseQuantity,
   portEconomySummary,
   portMarket,
@@ -288,6 +291,8 @@ export function createPortDialogueSession(city, options = {}) {
     marketSales: 0,
     marketBuyGoodIds: [],
     marketSaleGoodIds: [],
+    marketUndoNodeId: null,
+    marketUndoSnapshot: null,
     tradeTip: null,
     shipHandover: null,
     specialEquipmentOffer: null,
@@ -1190,8 +1195,14 @@ export function selectPortDialogueOption(
       session.rumorText = null;
       session.nextPortNodeId = null;
     }
-    if (action.nodeId === "buy") session.marketPurchases = {};
-    if (action.nodeId === "sell") session.marketSales = 0;
+    if (action.nodeId === "buy") {
+      session.marketPurchases = {};
+      beginMarketUndoSession(session, "buy", gameState, economy, city);
+    }
+    if (action.nodeId === "sell") {
+      session.marketSales = 0;
+      beginMarketUndoSession(session, "sell", gameState, economy, city);
+    }
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
     if (action.nodeId === "viking-longship") markVikingLongshipOfferSeen(gameState);
     if (action.nodeId === "japanese-matchlocks") markJapaneseMatchlockOfferSeen(gameState);
@@ -1250,6 +1261,7 @@ export function selectPortDialogueOption(
       sailingDistanceKm: context.sailingDistanceKm
     });
     session.marketPurchases = {};
+    clearMarketUndoSession(session);
     session.selectedIndex = 0;
     session.feedback = null;
     if (!tip) {
@@ -1272,6 +1284,7 @@ export function selectPortDialogueOption(
         })
       : null;
     session.marketSales = 0;
+    clearMarketUndoSession(session);
     session.selectedIndex = 0;
     session.feedback = null;
     if (!tip) {
@@ -1888,10 +1901,14 @@ export function selectPortDialogueOption(
     session.feedback = null;
     return { closed: false };
   }
-  if (action.type === "buy") {
-    const result = buyGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
+  if (action.type === "buy" || action.type === "buy-max") {
+    ensureMarketUndoSession(session, "buy", gameState, economy, city);
+    const quantity = action.type === "buy-max" ? action.quantity : 1;
+    const result = buyGood(gameState, economy, city, action.goodId, quantity, tradeContext(session, context));
     recordMarketPurchase(session, result);
-    session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
+    session.feedback = result.quantity === 1
+      ? `Bought ${result.good.label} for ${result.price} db.`
+      : `Bought ${result.good.label} x${result.quantity} for ${result.price} db.`;
     return { closed: false, marketPurchase: result };
   }
   if (action.type === "buy-net") {
@@ -1930,12 +1947,34 @@ export function selectPortDialogueOption(
     session.feedback = null;
     return { closed: false };
   }
-  if (action.type === "sell") {
-    const result = sellGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
+  if (action.type === "sell" || action.type === "sell-all") {
+    ensureMarketUndoSession(session, "sell", gameState, economy, city);
+    const quantity = action.type === "sell-all" ? action.quantity : 1;
+    const result = sellGood(gameState, economy, city, action.goodId, quantity, tradeContext(session, context));
     session.marketSales += result.quantity;
     const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
-    session.feedback = `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`;
+    session.feedback = result.quantity === 1
+      ? `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`
+      : `Sold ${result.good.label} x${result.quantity} for ${result.price} db. P/L ${pnl}.`;
     return { closed: false, marketSale: result };
+  }
+  if (action.type === "undo-market") {
+    if (session.marketUndoNodeId !== session.nodeId || !session.marketUndoSnapshot) {
+      throw new Error(`No ${session.nodeId} market actions are available to undo`);
+    }
+    const restored = restoreMarketUndoSnapshot(
+      gameState,
+      economy,
+      city,
+      session.marketUndoSnapshot
+    );
+    session.marketPurchases = {};
+    session.marketSales = 0;
+    session.selectedIndex = 0;
+    session.feedback = session.nodeId === "buy"
+      ? "All purchases on this page were undone."
+      : "All sales on this page were undone.";
+    return { closed: false, marketUndo: restored };
   }
   if (action.type === "accept-quest") {
     acceptQuest(gameState, action.quest);
@@ -3608,7 +3647,7 @@ function buyView(session, city, gameState, economy, context) {
     return row;
   });
   const rows = tradeRows
-    .map((row) => {
+    .flatMap((row) => {
       const totalSize = row.good.unitSize;
       const terms = playerTradeTerms(gameState, city, row.good.id);
       const displayedPrice = quotePortSale(economy, city, row.good.id, 1, terms.purchaseMultiplier);
@@ -3617,18 +3656,53 @@ function buyView(session, city, gameState, economy, context) {
       const outOfStock = row.stock < 1;
       const cannotAfford = gameState.doubloons < displayedPrice;
       const cannotFit = freeSpace < totalSize;
-      return option(`Buy ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
-        detail: `${tradeTermsDetail(terms, "buy")}  ${worldPriceIndicator(comparison)}  SPACE ${totalSize}  STOCK ${row.stock}`,
-        disabled: outOfStock || cannotAfford || cannotFit,
-        disabledReason: outOfStock
-          ? `No ${row.good.label.toLowerCase()} remaining.`
-          : cannotAfford
-            ? "Not enough doubloons."
-            : cannotFit
-              ? `Needs ${totalSize} cargo spaces; ${hold.freeWholeUnits} free.`
-              : null
-      });
+      const requestedQuantity = Math.max(1, Math.min(
+        Math.floor(row.stock),
+        Math.floor(freeSpace / totalSize)
+      ));
+      const maximumQuantity = outOfStock || cannotFit
+        ? 0
+        : maximumPortSaleQuantity(
+            economy,
+            city,
+            row.good.id,
+            requestedQuantity,
+            gameState.doubloons,
+            terms.purchaseMultiplier
+          );
+      const maximumPrice = maximumQuantity > 0
+        ? quotePortSale(economy, city, row.good.id, maximumQuantity, terms.purchaseMultiplier)
+        : 0;
+      const disabledReason = outOfStock
+        ? `No ${row.good.label.toLowerCase()} remaining.`
+        : cannotAfford
+          ? "Not enough doubloons."
+          : cannotFit
+            ? `Needs ${totalSize} cargo spaces; ${hold.freeWholeUnits} free.`
+            : null;
+      const rowId = `market-${row.good.id}`;
+      return [
+        option(`Buy 1 ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
+          detail: `${tradeTermsDetail(terms, "buy")}  ${worldPriceIndicator(comparison)}  STOCK ${Math.floor(row.stock)}`,
+          rowId,
+          disabled: outOfStock || cannotAfford || cannotFit,
+          disabledReason
+        }),
+        option(`Buy max x${maximumQuantity}  ${maximumPrice} db`, {
+          type: "buy-max",
+          goodId: row.good.id,
+          quantity: maximumQuantity
+        }, {
+          detail: `SPACE ${totalSize} EACH  STOCK ${Math.floor(row.stock)}`,
+          rowId,
+          disabled: maximumQuantity <= 1,
+          disabledReason: disabledReason || "Only one unit fits or is affordable; use Buy 1."
+        })
+      ];
     });
+  if (marketUndoAvailable(session, "buy")) {
+    rows.push(option("Undo all purchases", { type: "undo-market" }));
+  }
   if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
   rows.push(option("Back", { type: "leave-buy", nodeId: "root" }));
   return {
@@ -3640,6 +3714,7 @@ function buyView(session, city, gameState, economy, context) {
     feedback: session.feedback,
     feedbackLineReserve: 2,
     optionHeight: 30,
+    optionColumns: 2,
     options: rows
   };
 }
@@ -3817,6 +3892,31 @@ function recordMarketPurchase(session, result) {
   session.marketPurchases[result.good.id] = current;
 }
 
+function beginMarketUndoSession(session, nodeId, gameState, economy, city) {
+  if (nodeId !== "buy" && nodeId !== "sell") {
+    throw new Error(`Unknown market undo node: ${nodeId}`);
+  }
+  session.marketUndoNodeId = nodeId;
+  session.marketUndoSnapshot = createMarketUndoSnapshot(gameState, economy, city);
+}
+
+function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
+  if (session.marketUndoNodeId === nodeId && session.marketUndoSnapshot) return;
+  beginMarketUndoSession(session, nodeId, gameState, economy, city);
+}
+
+function clearMarketUndoSession(session) {
+  session.marketUndoNodeId = null;
+  session.marketUndoSnapshot = null;
+}
+
+function marketUndoAvailable(session, nodeId) {
+  if (session.marketUndoNodeId !== nodeId || !session.marketUndoSnapshot) return false;
+  return nodeId === "buy"
+    ? Object.keys(session.marketPurchases || {}).length > 0
+    : session.marketSales > 0;
+}
+
 function destinationAcceptsPlayerTrade(city, gameState, simMinute) {
   if (!portEntryStatus(gameState, city, simMinute).allowed) return false;
   return playerTradeAccess(gameState, city, { simMinute }).allowed;
@@ -3984,7 +4084,7 @@ function loadoutRemovalSummary(removed) {
 function sellView(session, city, gameState, economy) {
   const hold = cargoHoldStatus(gameState);
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
-  const rows = marketSaleGoodIds(session, gameState).map((goodId) => {
+  const rows = marketSaleGoodIds(session, gameState).flatMap((goodId) => {
     const good = tradeGoodById(goodId);
     const quantity = gameState.cargo[goodId] || 0;
     const heldLots = marketTradeLotCount(quantity);
@@ -4003,24 +4103,57 @@ function sellView(session, city, gameState, economy) {
       1,
       terms.saleMultiplier
     ) < 1;
-    return option(`Sell ${good.label}  ${price} db`, {
-      type: "sell",
-      goodId
-    }, {
-      detail: `${tradeTermsDetail(terms, "sell")}  ${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${heldLots}`,
-      disabled: soldOut || marketOutOfSpecie,
-      disabledReason: soldOut
+    const fullSalePrice = heldLots > 0
+      ? quotePortPurchase(economy, city, goodId, heldLots, terms.saleMultiplier)
+      : 0;
+    const marketCanBuyAll = heldLots > 0 && maximumPortPurchaseQuantity(
+      economy,
+      city,
+      goodId,
+      heldLots,
+      terms.saleMultiplier
+    ) === heldLots;
+    const fullPnl = basis.known && heldLots > 0
+      ? signedDoubloons(fullSalePrice - basis.total * heldLots / quantity)
+      : "--";
+    const disabledReason = soldOut
         ? `No ${good.label.toLowerCase()} remaining.`
         : marketOutOfSpecie
           ? "The market is out of specie."
-          : null
-    });
+          : null;
+    const rowId = `market-${goodId}`;
+    return [
+      option(`Sell 1 ${good.label}  ${price} db`, {
+        type: "sell",
+        goodId
+      }, {
+        detail: `${tradeTermsDetail(terms, "sell")}  ${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${heldLots}`,
+        rowId,
+        disabled: soldOut || marketOutOfSpecie,
+        disabledReason
+      }),
+      option(`Sell all x${heldLots}  ${fullSalePrice} db`, {
+        type: "sell-all",
+        goodId,
+        quantity: heldLots
+      }, {
+        detail: `TOTAL P/L ${fullPnl}  HELD ${heldLots}`,
+        rowId,
+        disabled: heldLots <= 1 || !marketCanBuyAll,
+        disabledReason: disabledReason || (heldLots <= 1
+          ? "Only one unit remains; use Sell 1."
+          : "The market cannot afford the whole lot.")
+      })
+    ];
   });
   if (rows.length === 0) {
     rows.push(option("No cargo to sell", { type: "node", nodeId: "sell" }, {
       disabled: true,
       disabledReason: "The hold has no cargo buyers will take."
     }));
+  }
+  if (marketUndoAvailable(session, "sell")) {
+    rows.push(option("Undo all sales", { type: "undo-market" }));
   }
   rows.push(option("Back", { type: "leave-sell", nodeId: "root" }));
   return {
@@ -4032,6 +4165,7 @@ function sellView(session, city, gameState, economy) {
     feedback: session.feedback,
     feedbackLineReserve: 2,
     optionHeight: 30,
+    optionColumns: 2,
     options: rows
   };
 }
@@ -4443,7 +4577,8 @@ function option(label, action, details = {}) {
     detail: details.detail || null,
     disabled: !!details.disabled,
     disabledReason: details.disabledReason || null,
-    iconId: details.iconId || null
+    iconId: details.iconId || null,
+    rowId: details.rowId || null
   };
 }
 

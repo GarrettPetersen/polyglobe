@@ -7,6 +7,8 @@ export const COMBAT_HOTSPOT_BENCHMARK_ID = "combat-hotspot";
 export const COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-combat-hotspot";
 export const NANJING_HOTSPOT_BENCHMARK_ID = "nanjing-hotspot";
 export const NANJING_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-nanjing-hotspot";
+export const GIBRALTAR_HOTSPOT_BENCHMARK_ID = "gibraltar-hotspot";
+export const GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-gibraltar-hotspot";
 
 const BENCHMARKS = Object.freeze({
   [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
@@ -24,6 +26,10 @@ const BENCHMARKS = Object.freeze({
   [NANJING_HOTSPOT_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
     targetLandCarts: 14
+  }),
+  [GIBRALTAR_HOTSPOT_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2
   })
 });
 

@@ -998,13 +998,144 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
   const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
   const buy = portDialogueView(buySession, city, gameState, economy, [city], context);
   assert.equal(buy.options.at(-2).label, "Change ship loadout");
-  assert.ok(buy.options.slice(0, -2).every((entry) => entry.action.type === "buy"));
+  assert.ok(buy.options.slice(0, -2).every((entry) => (
+    entry.action.type === "buy" || entry.action.type === "buy-max"
+  )));
+  assert.equal(buy.optionColumns, 2);
 
   const rootSession = createPortDialogueSession(city, { initialNodeId: "root" });
   const root = portDialogueView(rootSession, city, gameState, economy, [city], context);
   assert.equal(root.options.at(-1).label, "Leave port");
   assert.equal(root.options.at(-1).placement, "port-exit");
   assert.equal(dialogueBackOptionIndex(root), root.options.length - 1);
+});
+
+test("market rows put unit and bulk actions together and undo every purchase on the page", () => {
+  const city = {
+    tileId: 301,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 8 });
+  gameState.doubloons = 100000;
+  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const initial = portDialogueView(session, city, gameState, economy, [city]);
+  const buy = initial.options.find((entry) => entry.action.type === "buy");
+  const buyMax = initial.options.find((entry) => (
+    entry.action.type === "buy-max" && entry.action.goodId === buy.action.goodId
+  ));
+
+  assert.ok(buyMax.action.quantity > 1);
+  assert.equal(buy.rowId, buyMax.rowId);
+  assert.equal(initial.options.some((entry) => entry.action.type === "undo-market"), false);
+  const port = economy.portStates.get(city.tileId);
+  const before = {
+    doubloons: gameState.doubloons,
+    cargo: { ...gameState.cargo },
+    cargoCostBasis: { ...gameState.accounts.cargoCostBasis },
+    realizedPnl: gameState.accounts.realizedPnl,
+    nextEntryId: gameState.accounts.nextEntryId,
+    ledger: gameState.accounts.ledger.map((entry) => ({ ...entry })),
+    decisions: { ...gameState.memory.decisions },
+    factionReputation: { ...gameState.relations.factionReputation },
+    specie: port.specie,
+    stocks: Object.fromEntries([...port.goods].map(([goodId, state]) => [goodId, state.stock]))
+  };
+
+  const purchase = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    initial.options.indexOf(buyMax),
+    { simMinute: 10 }
+  );
+  assert.equal(purchase.marketPurchase.quantity, buyMax.action.quantity);
+  const changed = portDialogueView(session, city, gameState, economy, [city]);
+  const undoIndex = changed.options.findIndex((entry) => entry.action.type === "undo-market");
+  assert.ok(undoIndex >= 0);
+  const undo = selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
+
+  assert.ok(undo.marketUndo);
+  assert.deepEqual({
+    doubloons: gameState.doubloons,
+    cargo: gameState.cargo,
+    cargoCostBasis: gameState.accounts.cargoCostBasis,
+    realizedPnl: gameState.accounts.realizedPnl,
+    nextEntryId: gameState.accounts.nextEntryId,
+    ledger: gameState.accounts.ledger,
+    decisions: gameState.memory.decisions,
+    factionReputation: gameState.relations.factionReputation,
+    specie: port.specie,
+    stocks: Object.fromEntries([...port.goods].map(([goodId, state]) => [goodId, state.stock]))
+  }, before);
+  assert.deepEqual(session.marketPurchases, {});
+});
+
+test("sell all is a paired market action and undo restores cargo, accounts, and port specie", () => {
+  const city = {
+    tileId: 302,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.wool = 4;
+  gameState.accounts.cargoCostBasis.wool = 80;
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const initial = portDialogueView(session, city, gameState, economy, [city]);
+  const sell = initial.options.find((entry) => entry.action.type === "sell" && entry.action.goodId === "wool");
+  const sellAll = initial.options.find((entry) => (
+    entry.action.type === "sell-all" && entry.action.goodId === "wool"
+  ));
+  const port = economy.portStates.get(city.tileId);
+  const before = {
+    doubloons: gameState.doubloons,
+    cargo: { ...gameState.cargo },
+    cargoCostBasis: { ...gameState.accounts.cargoCostBasis },
+    realizedPnl: gameState.accounts.realizedPnl,
+    ledger: gameState.accounts.ledger.map((entry) => ({ ...entry })),
+    specie: port.specie,
+    woolStock: port.goods.get("wool").stock
+  };
+
+  assert.equal(sell.rowId, sellAll.rowId);
+  assert.equal(sellAll.action.quantity, 4);
+  const sale = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    initial.options.indexOf(sellAll),
+    { simMinute: 10 }
+  );
+  assert.equal(sale.marketSale.quantity, 4);
+  assert.equal(gameState.cargo.wool, undefined);
+  const changed = portDialogueView(session, city, gameState, economy, [city]);
+  const undoIndex = changed.options.findIndex((entry) => entry.action.type === "undo-market");
+  selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
+
+  assert.deepEqual({
+    doubloons: gameState.doubloons,
+    cargo: gameState.cargo,
+    cargoCostBasis: gameState.accounts.cargoCostBasis,
+    realizedPnl: gameState.accounts.realizedPnl,
+    ledger: gameState.accounts.ledger,
+    specie: port.specie,
+    woolStock: port.goods.get("wool").stock
+  }, before);
+  assert.equal(session.marketSales, 0);
 });
 
 test("market comparisons use pixel-font-safe directional wording", () => {

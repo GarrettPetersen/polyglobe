@@ -28,6 +28,7 @@
     "benchmark:clouds": "node tools/run-performance-benchmark.mjs --benchmark cloud-cover",
     "benchmark:combat": "node tools/run-performance-benchmark.mjs --benchmark combat-hotspot",
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
+    "benchmark:gibraltar": "node tools/run-performance-benchmark.mjs --benchmark gibraltar-hotspot",
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",
     "capture:trailer": "node tools/capture-trailer-clips.mjs",
     "build:panda-trailer": "node tools/trailer/run-python-tool.mjs build-panda-trailer.py",
