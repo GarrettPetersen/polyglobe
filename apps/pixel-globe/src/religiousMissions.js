@@ -25,6 +25,94 @@ const BUDDHIST_RELIGIONS = Object.freeze([
 // patronage, Guru Nanak's new Kartarpur community, and oceanic ritual diplomacy.
 export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
   religiousMission({
+    id: "franciscan-bound-west",
+    title: "The Friar Bound West",
+    passengerReligionIds: ["roman-catholic"],
+    participantReligionIds: ["roman-catholic"],
+    originCities: ["Gent"],
+    destinationCities: ["Veracruz"],
+    destinationReligionIds: null,
+    roleLabel: "Franciscan friar",
+    preferClergy: true,
+    maximumDistanceKm: 12000,
+    bonusDoubloons: 130,
+    offer: ({ destinationName, reward }) =>
+      `Our Franciscan province is sending brothers west with grammars, medicines, and little money. I am bound for ${destinationName}, where I must find an interpreter before I presume to teach. Carry me there for ${reward} db.`,
+    underway: () =>
+      "A sermon no one understands is only noise. I mean to learn the local tongue, keep no armed escort, and refuse any grant founded on forced labor.",
+    arrival: ({ destinationName }) =>
+      `At ${destinationName}, local interpreters and the friars' hosts wait beside the customs house. The mission can begin with lessons and a sickbed rather than a demand.`,
+    participationLabel: "Help set the mission's rule",
+    participation: "You stand with the friar as he promises that baptism will not be bought with favors or driven by force, and that the mission house will shelter the sick regardless of faith. Catholic merchants contribute toward that work and thank the captain who made its terms public.",
+    bonusLabel: "Franciscan patrons' gift"
+  }),
+  religiousMission({
+    id: "dominican-testimony-hispaniola",
+    title: "A Dominican's Testimony",
+    passengerReligionIds: ["roman-catholic"],
+    participantReligionIds: ["roman-catholic"],
+    originCities: ["Seville"],
+    destinationCities: ["Santo Domingo"],
+    destinationReligionIds: null,
+    roleLabel: "Dominican friar",
+    preferClergy: true,
+    maximumDistanceKm: 11000,
+    bonusDoubloons: 125,
+    offer: ({ destinationName, reward }) =>
+      `I carry testimony against forced labor and forced conversion back to the brethren in ${destinationName}. Men who profit by the encomienda would rather these pages vanished at sea. Deliver me for ${reward} db.`,
+    underway: () =>
+      "A cross cannot excuse a chain. If our preaching depends upon terror, then it condemns the preacher before it persuades a single soul.",
+    arrival: ({ destinationName }) =>
+      `${destinationName}'s Dominicans have called colonists, officials, and Indigenous witnesses to hear the testimony in public.`,
+    participationLabel: "Stand against forced conversion",
+    participation: "You testify that the friar and his papers crossed under your protection, then stand beside the Dominicans as they denounce coerced labor and coerced baptism. Sympathetic parishioners pay the captain who made sure the testimony could be heard.",
+    bonusLabel: "Dominican supporters' purse"
+  }),
+  religiousMission({
+    id: "franciscan-house-goa",
+    title: "A Friar for Goa",
+    passengerReligionIds: ["roman-catholic"],
+    participantReligionIds: ["roman-catholic"],
+    originCities: ["Lisbon"],
+    destinationCities: ["Goa"],
+    destinationReligionIds: null,
+    roleLabel: "Franciscan friar",
+    preferClergy: true,
+    maximumDistanceKm: 22000,
+    bonusDoubloons: 140,
+    offer: ({ destinationName, reward }) =>
+      `The Franciscan house at ${destinationName} needs another brother to tend its sick, teach its Portuguese novices, and learn Konkani from its neighbors. I carry books and medicines, and can pay ${reward} db for passage.`,
+    underway: () =>
+      "The factories speak as if conquest settled every question. A friar who cannot listen in the language of the coast will serve the governor better than the Gospel.",
+    arrival: ({ destinationName }) =>
+      `${destinationName}'s friars, nurses, and local language teachers have come to divide the medicines and begin the new lessons.`,
+    participationLabel: "Endow the language lessons",
+    participation: "You join the friars and their Konkani teachers in setting aside a room where sailors and clergy must learn before they preach. Catholic patrons add a gift for the captain who helped make listening part of the mission.",
+    bonusLabel: "Goa mission-house gift"
+  }),
+  religiousMission({
+    id: "ethiopian-embassy-cleric",
+    title: "Letters Between Two Churches",
+    passengerReligionIds: ["roman-catholic", "ethiopian-orthodox"],
+    participantReligionIds: ["roman-catholic", "ethiopian-orthodox"],
+    originCities: ["Lisbon", "Massawa"],
+    destinationCities: ["Lisbon", "Massawa"],
+    destinationReligionIds: null,
+    roleLabel: "embassy cleric",
+    preferClergy: true,
+    maximumDistanceKm: 22000,
+    bonusDoubloons: 135,
+    offer: ({ destinationName, reward }) =>
+      `I carry letters between Emperor Lebna Dengel's court and King Joao of Portugal. Ethiopia is no heathen prize; its church is ancient, and these pages concern alliance, doctrine, and the safety of travelers. Take me to ${destinationName} for ${reward} db.`,
+    underway: () =>
+      "Each side arrived expecting an exotic mirror of itself. The letters matter because friendship must survive the moment both churches discover real differences.",
+    arrival: ({ destinationName }) =>
+      `${destinationName}'s clergy and royal agents are ready to receive the letters together, so neither court can quietly rewrite the other's words.`,
+    participationLabel: "Witness the churches' exchange",
+    participation: "You witness the seals, hear both churches named with respect, and describe the route their next envoys must travel. The assembled clergy reward a Christian captain who treated correspondence as diplomacy rather than conquest.",
+    bonusLabel: "Embassy churches' honorarium"
+  }),
+  religiousMission({
     id: "reformation-printing",
     title: "Words in the Vernacular",
     passengerReligionIds: ["lutheran"],
@@ -499,12 +587,14 @@ function buildMissionPlan(mission, origin, portCities, context, rollKey, playerR
 }
 
 function portMatchesOrigin(mission, port) {
-  return optionalListMatches(mission.originCountries, port.country) &&
+  return optionalListMatches(mission.originCities, port.city) &&
+    optionalListMatches(mission.originCountries, port.country) &&
     optionalListMatches(mission.originCityTypes, port.cityType);
 }
 
 function portMatchesDestination(mission, port) {
-  if (!optionalListMatches(mission.destinationCountries, port.country) ||
+  if (!optionalListMatches(mission.destinationCities, port.city) ||
+      !optionalListMatches(mission.destinationCountries, port.country) ||
       !optionalListMatches(mission.destinationCityTypes, port.cityType)) {
     return false;
   }
@@ -570,6 +660,8 @@ function religiousMission(spec) {
     destinationReligionIds: destinationReligionIds === null
       ? null
       : Object.freeze([...destinationReligionIds]),
+    originCities: freezeOptional(spec.originCities),
+    destinationCities: freezeOptional(spec.destinationCities),
     originCountries: freezeOptional(spec.originCountries),
     destinationCountries: freezeOptional(spec.destinationCountries),
     originCityTypes: freezeOptional(spec.originCityTypes),

@@ -11,23 +11,33 @@ import {
 import {
   RELIGIOUS_MISSION_CATALOG,
   captainCanParticipateInReligiousMission,
+  religiousPassengerDistanceIsAllowed,
   religiousMissionIconId,
   religiousMissionParticipation,
   religiousMissionTitle
 } from "./religiousMissions.js";
+import {
+  parsePortSailingDistances,
+  portSailingDistanceKm
+} from "./portSailingDistances.js";
 
 const CHARACTER_MANIFEST = JSON.parse(readFileSync(
   new URL("../public/assets/characters/generated/character-portraits.json", import.meta.url),
   "utf8"
 ));
+const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync(
+  new URL("../public/assets/data/port-sailing-distances.json", import.meta.url),
+  "utf8"
+)));
 
-test("religious mission catalog broadly covers non-Catholic traditions", () => {
-  assert.equal(RELIGIOUS_MISSION_CATALOG.length, 18);
-  assert.equal(new Set(RELIGIOUS_MISSION_CATALOG.map(({ id }) => id)).size, 18);
+test("religious mission catalog broadly covers religious traditions", () => {
+  assert.equal(RELIGIOUS_MISSION_CATALOG.length, 22);
+  assert.equal(new Set(RELIGIOUS_MISSION_CATALOG.map(({ id }) => id)).size, 22);
   const represented = new Set(RELIGIOUS_MISSION_CATALOG.flatMap((mission) => (
     mission.participantReligionIds
   )));
   for (const religionId of [
+    "roman-catholic",
     "lutheran",
     "eastern-orthodox",
     "ethiopian-orthodox",
@@ -49,6 +59,120 @@ test("religious mission catalog broadly covers non-Catholic traditions", () => {
     "austronesian-traditional"
   ]) {
     assert.ok(represented.has(religionId), religionId);
+  }
+});
+
+test("Christian missionary voyages use their documented 1522 routes", () => {
+  const cases = [
+    {
+      missionId: "franciscan-bound-west",
+      origin: port(301, "Gent", "Belgium", "habsburg", "northern-european"),
+      destination: port(302, "Veracruz", "Mexico", "spain"),
+      title: "The Friar Bound West",
+      role: "Franciscan friar",
+      copy: /learn the local tongue/
+    },
+    {
+      missionId: "dominican-testimony-hispaniola",
+      origin: port(303, "Seville", "Spain", "spain", "mediterranean"),
+      destination: port(304, "Santo Domingo", "Dominican Republic", "spain"),
+      title: "A Dominican's Testimony",
+      role: "Dominican friar",
+      copy: /cross cannot excuse a chain/
+    },
+    {
+      missionId: "franciscan-house-goa",
+      origin: port(305, "Lisbon", "Portugal", "portugal", "mediterranean"),
+      destination: port(306, "Goa", "India", "portugal"),
+      title: "A Friar for Goa",
+      role: "Franciscan friar",
+      copy: /learn Konkani/
+    },
+    {
+      missionId: "ethiopian-embassy-cleric",
+      origin: port(307, "Lisbon", "Portugal", "portugal", "mediterranean"),
+      destination: port(308, "Massawa", "Ethiopia", "ethiopia"),
+      title: "Letters Between Two Churches",
+      role: "embassy cleric",
+      copy: /church is ancient/,
+      playerReligionId: "roman-catholic"
+    },
+    {
+      missionId: "ethiopian-embassy-cleric",
+      origin: port(309, "Massawa", "Ethiopia", "ethiopia", "sub-saharan"),
+      destination: port(310, "Lisbon", "Portugal", "portugal", "mediterranean"),
+      title: "Letters Between Two Churches",
+      role: "embassy cleric",
+      copy: /church is ancient/,
+      playerReligionId: "ethiopian-orthodox"
+    }
+  ];
+
+  for (const entry of cases) {
+    const state = createGameState({
+      cargoCapacity: 20,
+      playerCharacter: {
+        name: "Captain Test",
+        nationalityId: entry.origin.factionId,
+        religionId: entry.playerReligionId || "roman-catholic",
+        expressions: ["neutral", "happy"]
+      }
+    });
+    const distractor = {
+      ...entry.destination,
+      tileId: entry.destination.tileId + 100,
+      city: `Not ${entry.destination.city}`,
+      displayCity: `Not ${entry.destination.city}`
+    };
+    const quest = passengerOfferForCity(
+      state,
+      entry.origin,
+      [entry.origin, distractor, entry.destination],
+      {
+        spawnChance: 1,
+        religiousMissionId: entry.missionId,
+        simMinute: 0,
+        sailingDistanceKm: () => 5000
+      }
+    );
+
+    assert.equal(quest.destinationName, entry.destination.city, entry.missionId);
+    assert.equal(quest.religiousMissionId, entry.missionId);
+    assert.equal(quest.passengerReligionId, entry.playerReligionId || "roman-catholic");
+    assert.equal(religiousMissionTitle(quest), entry.title);
+    assert.equal(passengerRoleLabel(quest), entry.role);
+    assert.equal(captainCanParticipateInReligiousMission(state, quest), true);
+    assert.match(quest.dialogue.underway + quest.dialogue.offer, entry.copy);
+  }
+});
+
+test("missionary voyages do not introduce the later Jesuit missions", () => {
+  const prose = RELIGIOUS_MISSION_CATALOG.flatMap((mission) => [
+    mission.title,
+    mission.roleLabel,
+    mission.offer({ destinationName: "Port", reward: 100 }),
+    mission.underway({ destinationName: "Port", reward: 100 }),
+    mission.arrival({ destinationName: "Port", reward: 100 }),
+    mission.participation
+  ]).join(" ");
+  assert.doesNotMatch(prose, /Jesuit|Xavier/i);
+});
+
+test("missionary routes exist in the sailing graph and fit their distance limits", () => {
+  for (const [missionId, originName, destinationName] of [
+    ["franciscan-bound-west", "Gent", "Veracruz"],
+    ["dominican-testimony-hispaniola", "Seville", "Santo Domingo"],
+    ["franciscan-house-goa", "Lisbon", "Goa"],
+    ["ethiopian-embassy-cleric", "Lisbon", "Massawa"]
+  ]) {
+    const origin = requiredSailingEndpoint(originName);
+    const destination = requiredSailingEndpoint(destinationName);
+    const distanceKm = portSailingDistanceKm(PORT_SAILING_DISTANCES, origin, destination);
+    assert.equal(
+      religiousPassengerDistanceIsAllowed(distanceKm, missionId),
+      true,
+      `${missionId} route is ${distanceKm} km`
+    );
   }
 });
 
@@ -129,15 +253,21 @@ test("mission generation prefers work in the captain's own tradition", () => {
   assert.equal(captainCanParticipateInReligiousMission(state, quest), true);
 });
 
-function port(tileId, city, country, factionId) {
+function port(tileId, city, country, factionId, cityType = null) {
   return {
     tileId,
     city,
     displayCity: city,
     country,
     factionId,
-    cityType: country === "China" ? "east-asian" : "south-asian",
+    cityType: cityType || (country === "China" ? "east-asian" : "south-asian"),
     lat: tileId,
     lon: tileId
   };
+}
+
+function requiredSailingEndpoint(name) {
+  const matches = PORT_SAILING_DISTANCES.endpoints.filter((endpoint) => endpoint.name === name);
+  assert.equal(matches.length, 1, `${name} must be a unique port in the sailing bake`);
+  return matches[0];
 }
