@@ -449,6 +449,102 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     islandSettlement: true,
     marketGoods: ["fish", "timber", "artwork"]
   }),
+  manualVillage1522("Rikitea Village", "French Polynesia", -23.12, -134.97, 2500, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
+  manualVillage1522("Tubuai Village", "French Polynesia", -23.38, -149.48, 1800, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Babeldaob Village", "Palau", 7.5, 134.5, 3000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
+  manualVillage1522("Yap Village", "Federated States of Micronesia", 9.52, 138.12, 2500, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
+  manualVillage1522("Chuuk Village", "Federated States of Micronesia", 7.55, 151.76, 3000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Nan Madol", "Federated States of Micronesia", 6.85, 158.23, 3000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
+  manualVillage1522("Kosrae Village", "Federated States of Micronesia", 5.32, 162.98, 1800, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Majuro Village", "Marshall Islands", 7.1, 171.38, 1500, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "artwork"]
+  }),
+  manualVillage1522("Nauru Village", "Nauru", -0.52, 166.93, 1200, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "artwork"]
+  }),
+  manualVillage1522("Banaba Village", "Kiribati", -0.86, 169.54, 900, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "artwork"]
+  }),
+  manualVillage1522("Rotuma Village", "Fiji", -12.52, 176.99, 1800, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Uvea Village", "Wallis and Futuna", -13.28, -176.18, 1800, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Futuna Village", "Wallis and Futuna", -14.28, -178.15, 1200, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Funafuti Village", "Tuvalu", -8.52, 179.2, 1000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "artwork"]
+  }),
+  manualVillage1522("Tokelau Village", "Tokelau", -9.2, -171.85, 800, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "artwork"]
+  }),
+  manualVillage1522("Lifou Village", "New Caledonia", -20.9, 167.25, 2200, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    islandSettlement: true,
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
   manualVillage1522("Yuquot Village", "Nuu-chah-nulth", 49.5926, -126.6174, 1500, {
     cityType: "mesoamerican",
     manualRegion: "northwest-coast",

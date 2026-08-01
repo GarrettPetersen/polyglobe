@@ -9,6 +9,7 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
+  NPC_PACIFIC_FLEET_TARGET,
   NPC_SEA_ROUTE_SNAPSHOT_VERSION,
   NPC_WHALER_FLEET_TARGET,
   NPC_SHIP_SLUGS,
@@ -400,19 +401,40 @@ test("isolated Northwest Coast fishers stay inside the Yuquot sea-lane component
   assert.ok(fisherman.plan.destination.routeAnchors.includes("yuquot"));
 });
 
-test("Pacific villages get a small regional fishing and trading fleet", () => {
+test("Pacific villages get a visible regional fishing and trading fleet", () => {
   const ports = [...PORTS, ...PACIFIC_PORTS];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
   const pacificShips = routes.ships.filter((ship) => ship.profileId === "pacific-islands");
 
   assert.ok(pacificShips.length > 0);
-  assert.ok(pacificShips.length <= 12);
+  assert.ok(pacificShips.length <= NPC_PACIFIC_FLEET_TARGET);
   assert.ok(pacificShips.length >= PACIFIC_PORTS.length);
+  assert.deepEqual(
+    [...new Set(pacificShips.map((ship) => ship.plan.origin.tileId))].sort((a, b) => a - b),
+    PACIFIC_PORTS.map((portSpec) => portSpec.tileId).sort((a, b) => a - b)
+  );
   assert.ok(pacificShips.every((ship) => ship.slug === "polynesian-voyaging-canoe"));
   assert.ok(pacificShips.every((ship) => ship.cultureType === "polynesian"));
   assert.ok(routes.ships.filter((ship) => ship.currentPort?.cityType === "polynesian").every((ship) => ship.profileId === "pacific-islands"));
   assert.ok(routes.ports.filter((port) => port.routeRegion === "polynesia").length >= PACIFIC_PORTS.length);
+  assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
+  assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
+});
+
+test("continued voyages receive the expanded Pacific canoe fleet", () => {
+  const ports = [...PORTS, ...PACIFIC_PORTS];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  snapshot.ships = snapshot.ships.filter((ship) => (
+    ship.profileId !== "pacific-islands" || Number(ship.id.split("-").at(-1)) < PACIFIC_PORTS.length
+  ));
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  const pacificShips = routes.ships.filter((ship) => ship.profileId === "pacific-islands");
+  assert.equal(pacificShips.length, PACIFIC_PORTS.length * 2);
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
 });

@@ -226,6 +226,182 @@ export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
       terrainType: "tropical_savanna",
       elevation: -0.03,
       landmassId: 1290
+    }),
+    // Cocos Island
+    Object.freeze({
+      tileId: 34387,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.015,
+      landmassId: 1291
+    }),
+    // Juan Fernandez Islands
+    Object.freeze({
+      tileId: 106244,
+      sourceTerrain: "water",
+      terrainType: "mediterranean_warm",
+      elevation: -0.015,
+      landmassId: 1292
+    }),
+    // Raoul Island, Kermadec Islands
+    Object.freeze({
+      tileId: 89845,
+      sourceTerrain: "water",
+      terrainType: "humid_subtropical",
+      elevation: -0.02,
+      landmassId: 1293
+    }),
+    // Norfolk Island
+    Object.freeze({
+      tileId: 89294,
+      sourceTerrain: "water",
+      terrainType: "humid_subtropical",
+      elevation: -0.02,
+      landmassId: 1294
+    }),
+    // Lord Howe Island
+    Object.freeze({
+      tileId: 147600,
+      sourceTerrain: "lake",
+      terrainType: "humid_subtropical",
+      elevation: -0.018,
+      landmassId: 1295
+    }),
+    // Pitcairn Island
+    Object.freeze({
+      tileId: 144889,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.015,
+      landmassId: 1296
+    }),
+    // Mangareva
+    Object.freeze({
+      tileId: 143707,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.02,
+      landmassId: 1297
+    }),
+    // Tubuai
+    Object.freeze({
+      tileId: 143441,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.025,
+      landmassId: 1298
+    }),
+    // Babeldaob, Palau
+    Object.freeze({
+      tileId: 22966,
+      sourceTerrain: "lake",
+      terrainType: "tropical_rainforest",
+      elevation: -0.025,
+      landmassId: 1299
+    }),
+    // Yap
+    Object.freeze({
+      tileId: 15782,
+      sourceTerrain: "lake",
+      terrainType: "tropical_rainforest",
+      elevation: -0.03,
+      landmassId: 1300
+    }),
+    // Chuuk
+    Object.freeze({
+      tileId: 16921,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.025,
+      landmassId: 1301
+    }),
+    // Pohnpei
+    Object.freeze({
+      tileId: 67580,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.015,
+      landmassId: 1302
+    }),
+    // Kosrae
+    Object.freeze({
+      tileId: 68532,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.015,
+      landmassId: 1303
+    }),
+    // Majuro
+    Object.freeze({
+      tileId: 67971,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.042,
+      landmassId: 1304
+    }),
+    // Nauru
+    Object.freeze({
+      tileId: 86665,
+      sourceTerrain: "water",
+      terrainType: "tropical_savanna",
+      elevation: -0.03,
+      landmassId: 1305
+    }),
+    // Banaba
+    Object.freeze({
+      tileId: 21751,
+      sourceTerrain: "water",
+      terrainType: "tropical_savanna",
+      elevation: -0.03,
+      landmassId: 1306
+    }),
+    // Rotuma
+    Object.freeze({
+      tileId: 22330,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.02,
+      landmassId: 1307
+    }),
+    // Uvea, Wallis Islands
+    Object.freeze({
+      tileId: 5632,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.03,
+      landmassId: 1308
+    }),
+    // Futuna
+    Object.freeze({
+      tileId: 22362,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.02,
+      landmassId: 1309
+    }),
+    // Funafuti
+    Object.freeze({
+      tileId: 22375,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.042,
+      landmassId: 1310
+    }),
+    // Tokelau
+    Object.freeze({
+      tileId: 84770,
+      sourceTerrain: "water",
+      terrainType: "tropical_rainforest",
+      elevation: -0.042,
+      landmassId: 1311
+    }),
+    // Lifou, Loyalty Islands
+    Object.freeze({
+      tileId: 89494,
+      sourceTerrain: "lake",
+      terrainType: "tropical_savanna",
+      elevation: -0.03,
+      landmassId: 1312
     })
   ])
 });

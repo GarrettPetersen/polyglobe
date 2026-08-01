@@ -313,17 +313,33 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.deepEqual(
     pacificVillages.map((city) => city.city).sort(),
     [
+      "Babeldaob Village",
+      "Banaba Village",
       "Bay of Islands Village",
+      "Chuuk Village",
       "Fiji Village",
+      "Funafuti Village",
+      "Futuna Village",
       "Hawaii Village",
+      "Kosrae Village",
+      "Lifou Village",
+      "Majuro Village",
+      "Nan Madol",
+      "Nauru Village",
       "Niue Village",
       "Rangiroa Village",
       "Rapa Nui Village",
       "Rarotonga Village",
+      "Rikitea Village",
+      "Rotuma Village",
       "Samoa Village",
       "Tahiti Village",
       "Tarawa Village",
-      "Tonga Village"
+      "Tokelau Village",
+      "Tonga Village",
+      "Tubuai Village",
+      "Uvea Village",
+      "Yap Village"
     ]
   );
   assert.ok(pacificVillages.every((city) => city.cityType === "polynesian"));

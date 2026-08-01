@@ -71,7 +71,8 @@ const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
 export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 2;
 const ROUTE_WIND_SEED = 90210;
-const NPC_FLEET_TARGET = 192;
+const NPC_FLEET_TARGET = 212;
+export const NPC_PACIFIC_FLEET_TARGET = 32;
 export const NPC_WHALER_FLEET_TARGET = 5;
 const NPC_ROUTE_WAIT_HOP_THRESHOLD_DAYS = 34;
 const NPC_ROUTE_HOP_MAX_DAYS = 19;
@@ -302,11 +303,11 @@ const LANE_EDGES = Object.freeze([
 ]);
 
 const FLEET_PROFILES = Object.freeze([
-  profile("pacific-islands", 12, {
+  profile("pacific-islands", NPC_PACIFIC_FLEET_TARGET, {
     fishers: ["polynesian-voyaging-canoe"],
     merchants: ["polynesian-voyaging-canoe"],
     warships: ["polynesian-voyaging-canoe"]
-  }, isPolynesianPort, "regional", nativeCoastalRoleWeights()),
+  }, isPolynesianPort, "regional", nativeCoastalRoleWeights(), true),
   profile("mesoamerican-coast", 7, {
     fishers: ["mesoamerican-dugout-canoe"],
     merchants: ["mesoamerican-dugout-canoe"],
@@ -451,6 +452,7 @@ export function createNpcSeaRouteSystem({
     replacementQueue: []
   };
   system.ships = createNpcFleet(system, startMinute);
+  synchronizePacificFleet(system, startMinute);
   synchronizeNpcWhalerFleet(system, startMinute);
   if (system.ships.length === 0) throw new Error("NPC sea routes created no ships");
   system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
@@ -734,6 +736,7 @@ export function restoreNpcSeaRouteSystem(
   system.pirateHideoutDangerUntil = danger;
   system.routeCache.clear();
   system.edgeCostCache.clear();
+  synchronizePacificFleet(system, system.economy.lastMinute);
   synchronizeNpcWhalerFleet(system, system.economy.lastMinute);
   system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
   if (system.shipById.size !== system.ships.length) {
@@ -1270,30 +1273,55 @@ function createNpcFleet(system, startMinute) {
     if (pool.length < 2) continue;
     const count = Math.min(profileSpec.count, pool.length * 2);
     for (let i = 0; i < count; i++) {
-      const seed = hashString32(npcSeedKey(system, `${profileSpec.id}|${i}|npc`));
-      let origin = pool[seed % pool.length];
-      const role = npcRoleForSeed(seed, origin.factionId, profileSpec);
-      if (role === NPC_ROLE_PIRATE && npcPortHasMajorProtection(origin)) {
-        const discreetOrigins = pool.filter((port) => !npcPortHasMajorProtection(port));
-        if (discreetOrigins.length > 0) origin = discreetOrigins[seed % discreetOrigins.length];
-      }
-      const slugs = profileSlugsForRole(profileSpec, role, origin.factionId);
-      const slug = npcShipSlugForRole(profileSpec, role, seed, origin.factionId);
-      const ship = createNpcShipRecord({
-        id: `${profileSpec.id}-${i}`,
-        factionId: role === NPC_ROLE_PIRATE ? PIRATE_FACTION_ID : origin.factionId,
-        role,
-        profileSpec,
-        slugs,
-        slug,
-        seed,
-        origin
-      });
-      seedNpcShipOnRoute(system, ship, startMinute);
-      ships.push(ship);
+      ships.push(createNpcProfileShip(system, profileSpec, pool, i, startMinute));
     }
   }
   return ships.slice(0, NPC_FLEET_TARGET);
+}
+
+function synchronizePacificFleet(system, startMinute) {
+  const profileSpec = fleetProfileForId("pacific-islands");
+  const pool = rankedProfilePorts(system.ports, profileSpec);
+  if (pool.length < 2) return 0;
+  const count = Math.min(profileSpec.count, pool.length * 2);
+  const reservedIds = new Set([
+    ...system.ships.map((ship) => ship.id),
+    ...system.replacementQueue.map((replacement) => replacement.shipId)
+  ]);
+  let added = 0;
+  for (let index = 0; index < count; index++) {
+    const id = `${profileSpec.id}-${index}`;
+    if (reservedIds.has(id)) continue;
+    system.ships.push(createNpcProfileShip(system, profileSpec, pool, index, startMinute));
+    reservedIds.add(id);
+    added++;
+  }
+  if (added > 0) console.info(`Added ${added} Polynesian canoes to the regional Pacific fleet`);
+  return added;
+}
+
+function createNpcProfileShip(system, profileSpec, pool, index, startMinute) {
+  const seed = hashString32(npcSeedKey(system, `${profileSpec.id}|${index}|npc`));
+  let origin = profileSpec.coverPorts ? pool[index % pool.length] : pool[seed % pool.length];
+  const role = npcRoleForSeed(seed, origin.factionId, profileSpec);
+  if (role === NPC_ROLE_PIRATE && npcPortHasMajorProtection(origin)) {
+    const discreetOrigins = pool.filter((port) => !npcPortHasMajorProtection(port));
+    if (discreetOrigins.length > 0) origin = discreetOrigins[seed % discreetOrigins.length];
+  }
+  const slugs = profileSlugsForRole(profileSpec, role, origin.factionId);
+  const slug = npcShipSlugForRole(profileSpec, role, seed, origin.factionId);
+  const ship = createNpcShipRecord({
+    id: `${profileSpec.id}-${index}`,
+    factionId: role === NPC_ROLE_PIRATE ? PIRATE_FACTION_ID : origin.factionId,
+    role,
+    profileSpec,
+    slugs,
+    slug,
+    seed,
+    origin
+  });
+  seedNpcShipOnRoute(system, ship, startMinute);
+  return ship;
 }
 
 function synchronizeNpcWhalerFleet(system, startMinute) {
@@ -2925,7 +2953,7 @@ function laneEdge(a, b, kind) {
   return Object.freeze({ a, b, kind });
 }
 
-function profile(id, count, shipPools, portPredicate, mode, roleWeights = null) {
+function profile(id, count, shipPools, portPredicate, mode, roleWeights = null, coverPorts = false) {
   const fisherSlugs = Object.freeze([...(shipPools.fishers || shipPools.merchants)]);
   const merchantSlugs = Object.freeze([...shipPools.merchants]);
   const warshipSlugs = Object.freeze([...shipPools.warships]);
@@ -2943,7 +2971,17 @@ function profile(id, count, shipPools, portPredicate, mode, roleWeights = null) 
     if (total !== 100) throw new Error(`NPC fleet profile ${id} role weights total ${total}, expected 100`);
   }
   for (const slug of [...fisherSlugs, ...merchantSlugs, ...warshipSlugs]) shipStatsForSlug(slug);
-  return Object.freeze({ id, count, fisherSlugs, merchantSlugs, warshipSlugs, portPredicate, mode, roleWeights });
+  return Object.freeze({
+    id,
+    count,
+    fisherSlugs,
+    merchantSlugs,
+    warshipSlugs,
+    portPredicate,
+    mode,
+    roleWeights,
+    coverPorts
+  });
 }
 
 function whalerProfile(id, count, whalerSlugs, groundIds, portPredicate, minimumPorts) {
