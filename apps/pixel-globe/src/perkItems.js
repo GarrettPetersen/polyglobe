@@ -8,7 +8,19 @@ const EUROPEAN_FACTIONS = new Set([
 ]);
 const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi"]);
 
-function item(id, label, detail, price, tier, iconId, perks, regions = ["global"]) {
+export const HAJJ_PILGRIMAGE_PERK_ITEM_ID = "zamzam-flask";
+
+function item(
+  id,
+  label,
+  detail,
+  price,
+  tier,
+  iconId,
+  perks,
+  regions = ["global"],
+  { rewardOnly = false } = {}
+) {
   const value = Object.freeze({
     id,
     label,
@@ -17,7 +29,8 @@ function item(id, label, detail, price, tier, iconId, perks, regions = ["global"
     tier,
     iconId,
     perks: Object.freeze(perks),
-    regions: Object.freeze(regions)
+    regions: Object.freeze(regions),
+    rewardOnly
   });
   validatePerkItem(value);
   return value;
@@ -51,7 +64,18 @@ export const PERK_ITEMS = Object.freeze([
   item("wheellock-pistol", "Wheellock Pistol", "A costly self-igniting pistol gives an assault leader a sharp advantage.", 3000, 3,
     "item:wheellock-pistol", { assaultChanceBonus: 0.1 }, ["europe"]),
   item("bronze-fish-hooks", "Bronze Fish Hooks", "A case of strong hooks improves both line fishing and net work.", 650, 1,
-    "item:bronze-fish-hooks", { fishingChanceMultiplier: 1.08, fishingHaulMultiplier: 1.1 })
+    "item:bronze-fish-hooks", { fishingChanceMultiplier: 1.08, fishingHaulMultiplier: 1.1 }),
+  item(
+    HAJJ_PILGRIMAGE_PERK_ITEM_ID,
+    "Zamzam Flask",
+    "A pilgrim's flask filled at the Zamzam well, with a fitted cup that helps the crew ration every cask.",
+    1600,
+    2,
+    "item:zamzam-flask",
+    { waterDurationMultiplier: 1.1 },
+    ["global"],
+    { rewardOnly: true }
+  )
 ]);
 
 const ITEMS_BY_ID = new Map(PERK_ITEMS.map((entry) => [entry.id, entry]));
@@ -81,6 +105,7 @@ export function perkItemOfferAtPort(economy, city, { ownedItemIds = [], seedKey 
     : prosperity >= 0.32 && tierRoll >= 0.48 ? 2 : 1;
   const owned = new Set(ownedItemIds);
   const candidates = PERK_ITEMS.filter((entry) => (
+    !entry.rewardOnly &&
     entry.tier <= maximumTier && itemMatchesPortRegion(entry, city) && !owned.has(entry.id)
   ));
   if (candidates.length === 0) return null;
@@ -94,7 +119,7 @@ export function missionGiftItem({ city, identityKey, ownedItemIds = [] }) {
     throw new Error("Mission item gift requires an identity key");
   }
   const owned = new Set(ownedItemIds);
-  const regional = PERK_ITEMS.filter((entry) => itemMatchesPortRegion(entry, city));
+  const regional = PERK_ITEMS.filter((entry) => !entry.rewardOnly && itemMatchesPortRegion(entry, city));
   const unowned = regional.filter((entry) => !owned.has(entry.id));
   if (regional.length === 0) throw new Error(`No mission gift items available at ${city?.city || "unknown port"}`);
   if (unowned.length === 0) return null;
@@ -107,7 +132,7 @@ export function highValueMissionGiftItem({ city, identityKey, ownedItemIds = [] 
   }
   const owned = new Set(ownedItemIds);
   const unowned = PERK_ITEMS
-    .filter((entry) => itemMatchesPortRegion(entry, city) && !owned.has(entry.id))
+    .filter((entry) => !entry.rewardOnly && itemMatchesPortRegion(entry, city) && !owned.has(entry.id))
     .sort((a, b) => b.price - a.price || b.tier - a.tier || a.id.localeCompare(b.id));
   if (unowned.length === 0) return null;
   const premiumFloor = Math.max(1500, Math.floor(unowned[0].price * 0.7));
@@ -128,6 +153,7 @@ function validatePerkItem(value) {
   if (!Number.isInteger(value.tier) || value.tier < 1 || value.tier > 3) throw new Error(`Invalid perk item tier: ${value.id}`);
   if (typeof value.iconId !== "string" || value.iconId.trim() === "") throw new Error(`Perk item ${value.id} needs an icon`);
   if (!Array.isArray(value.regions) || value.regions.length === 0) throw new Error(`Perk item ${value.id} needs regions`);
+  if (typeof value.rewardOnly !== "boolean") throw new Error(`Perk item ${value.id} needs reward-only availability`);
   return value;
 }
 

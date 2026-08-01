@@ -3,7 +3,13 @@ import test from "node:test";
 
 import { gameIconIds, perkItemIconId } from "./gameIcons.js";
 import { createWorldEconomy } from "./economy.js";
-import { PERK_ITEMS, perkItemById, perkItemOfferAtPort } from "./perkItems.js";
+import {
+  HAJJ_PILGRIMAGE_PERK_ITEM_ID,
+  PERK_ITEMS,
+  missionGiftItem,
+  perkItemById,
+  perkItemOfferAtPort
+} from "./perkItems.js";
 
 test("every perk item has a registered native game icon", () => {
   const icons = new Set(gameIconIds());
@@ -15,6 +21,23 @@ test("weapons and rigging retain their regional identities", () => {
   assert.deepEqual(perkItemById("tulwar").regions, ["south-asia"]);
   assert.deepEqual(perkItemById("flemish-sailcloth").regions, ["europe"]);
   assert.deepEqual(perkItemById("coir-cordage").regions, ["indian-ocean"]);
+});
+
+test("the Hajj reward is a pilgrimage-exclusive water-saving item", () => {
+  const item = perkItemById(HAJJ_PILGRIMAGE_PERK_ITEM_ID);
+  assert.equal(item.rewardOnly, true);
+  assert.equal(item.perks.waterDurationMultiplier, 1.1);
+  const city = {
+    tileId: 14,
+    portId: "jeddah",
+    city: "Jeddah",
+    factionId: "ottoman",
+    cityType: "desert"
+  };
+  assert.notEqual(
+    missionGiftItem({ city, identityKey: "ordinary-mission", ownedItemIds: [] })?.id,
+    HAJJ_PILGRIMAGE_PERK_ITEM_ID
+  );
 });
 
 test("the suite covers storage, navigation, combat, fishing, and scavenging", () => {

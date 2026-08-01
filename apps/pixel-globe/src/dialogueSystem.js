@@ -20,6 +20,7 @@ import {
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
   futurePermanentCrewFloor,
+  grantGuaranteedMissionPerkItem,
   grantLetterOfMarque,
   issuePersonalTradePass,
   isCaptureCapitalQuest,
@@ -88,6 +89,7 @@ import {
   HAJJ_PASSENGER_SCENARIO_ID,
   isHajjPassengerQuest
 } from "./passengerMissions.js";
+import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
   activeForeignSettlements,
   expelledForeignSettlements
@@ -2042,7 +2044,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
       return {
         speaker,
         expressionId: "happy",
-        text: "We stood together at Arafat and completed the Hajj. May God accept your pilgrimage, captain. I will remember that you carried me to the sea gate and then walked on beside me.",
+        text: "We stood together at Arafat and completed the Hajj. May God accept your pilgrimage, captain. Please take this flask of Zamzam water; its fitted cup will help your crew husband every cask at sea.",
         feedback: session.feedback,
         options: [
           option(`Return to Jeddah  ${quest.reward} db`, { type: "complete-hajj" })
@@ -2165,14 +2167,21 @@ export function selectPassengerDialogueOption(
       ...context,
       questId: quest.id
     });
+    const missionItemGift = completingHajj
+      ? grantGuaranteedMissionPerkItem(gameState, city, {
+        missionId: completed.id,
+        itemId: HAJJ_PILGRIMAGE_PERK_ITEM_ID,
+        description: "Hajj keepsake: Zamzam Flask",
+        context
+      })
+      : maybeGrantMissionPerkItem(gameState, city, {
+        missionId: completed.id,
+        distanceKm: completed.distanceKm || 0,
+        reward: completed.reward || 0,
+        random: context.missionGiftRandom || neverGrantMissionItem,
+        context
+      });
     if (completingHajj) gameState.memory.flags.hajjCompleted = true;
-    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
-      missionId: completed.id,
-      distanceKm: completed.distanceKm || 0,
-      reward: completed.reward || 0,
-      random: context.missionGiftRandom || neverGrantMissionItem,
-      context
-    });
     return {
       closed: true,
       action: null,

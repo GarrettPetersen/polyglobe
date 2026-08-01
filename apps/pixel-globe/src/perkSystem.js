@@ -19,6 +19,7 @@ const MULTIPLICATIVE_PERKS = new Set([
   "scavengingChanceMultiplier",
   "scavengingYieldMultiplier",
   "foodDurationMultiplier",
+  "waterDurationMultiplier",
   "cannonReloadMultiplier",
   "cannonSpreadMultiplier",
   "whalingChanceMultiplier",
@@ -153,6 +154,7 @@ export function perkEffectLabels(perks) {
     labels.push(`Hostile-port disguise +${Math.round(perks.disguiseChanceBonus * 100)}%`);
   }
   if (perks.foodDurationMultiplier) labels.push(`Food lasts ${percent(perks.foodDurationMultiplier)} longer`);
+  if (perks.waterDurationMultiplier) labels.push(`Water lasts ${percent(perks.waterDurationMultiplier)} longer`);
   if (perks.cannonReloadMultiplier) labels.push(`Cannon reload ${percent(perks.cannonReloadMultiplier)} faster`);
   if (perks.cannonSpreadMultiplier) labels.push(`Cannon spread -${percent(perks.cannonSpreadMultiplier)}`);
   if (perks.whalingChanceMultiplier) labels.push(`Whaling odds +${percent(perks.whalingChanceMultiplier)}`);

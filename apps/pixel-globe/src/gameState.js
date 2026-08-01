@@ -2292,6 +2292,10 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   if (!Number.isFinite(foodDurationMultiplier) || foodDurationMultiplier <= 0) {
     throw new Error(`Invalid food duration multiplier: ${foodDurationMultiplier}`);
   }
+  const waterDurationMultiplier = options.waterDurationMultiplier ?? 1;
+  if (!Number.isFinite(waterDurationMultiplier) || waterDurationMultiplier <= 0) {
+    throw new Error(`Invalid water duration multiplier: ${waterDurationMultiplier}`);
+  }
   const foodActivityMultiplier = options.foodActivityMultiplier ?? 1;
   if (!Number.isFinite(foodActivityMultiplier) || foodActivityMultiplier < 1) {
     throw new Error(`Invalid food activity multiplier: ${foodActivityMultiplier}`);
@@ -2340,8 +2344,8 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   if (!options.freshwater) {
     const wineEmergencyRecovered = state.survival.freshWater >= WINE_EMERGENCY_RECOVERY_WATER_UNITS;
     const waterUse = state.ship
-      ? elapsedDays * consumption.waterConsumers / WATER_PERSON_DAYS_PER_UNIT
-      : elapsedDays * FRESH_WATER_USE_PER_DAY;
+      ? elapsedDays * consumption.waterConsumers / WATER_PERSON_DAYS_PER_UNIT / waterDurationMultiplier
+      : elapsedDays * FRESH_WATER_USE_PER_DAY / waterDurationMultiplier;
     const availableRainWater = elapsedDays * rainfall *
       RAIN_WATER_COLLECTION_PER_CONSUMER_DAY * consumption.waterConsumers;
     const rainWaterUsed = Math.min(waterUse, availableRainWater);
@@ -2652,6 +2656,40 @@ export function maybeGrantMissionPerkItem(state, city, {
       description: `Mission gift: ${item.label}`
     }),
     chance,
+    alreadyResolved: false
+  };
+}
+
+export function grantGuaranteedMissionPerkItem(state, city, {
+  missionId,
+  itemId,
+  description = null,
+  context = {}
+}) {
+  assertGameState(state);
+  if (!city || !Number.isInteger(city.tileId)) throw new Error("Guaranteed mission item requires a port city");
+  if (typeof missionId !== "string" || missionId.trim() === "") {
+    throw new Error("Guaranteed mission item requires a mission id");
+  }
+  const item = perkItemById(itemId);
+  const memory = state.memory.missionItemGifts;
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    throw new Error("Game state requires mission item gift memory");
+  }
+  const existingItemId = memory[missionId];
+  if (existingItemId && existingItemId !== item.id) {
+    throw new Error(`Mission item was already resolved as ${existingItemId}: ${missionId}`);
+  }
+  memory[missionId] = item.id;
+  if ((state.inventory.items[item.id] || 0) > 0) {
+    return { item, guaranteed: true, alreadyResolved: true };
+  }
+  return {
+    ...grantPerkItemReward(state, item, city, context, {
+      kind: "quest",
+      description: description || `Mission gift: ${item.label}`
+    }),
+    guaranteed: true,
     alreadyResolved: false
   };
 }

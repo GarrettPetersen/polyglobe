@@ -328,6 +328,19 @@ test("survival consumes edible cargo by base replacement value", () => {
   assert.ok(state.survival.freshWater < FRESH_WATER_CAPACITY);
 });
 
+test("water-duration perks reduce drinking-water consumption", () => {
+  const baseline = createGameState({ cargoCapacity: 10 });
+  const rationed = createGameState({ cargoCapacity: 10 });
+  const baselineResult = updateSurvival(baseline, 0, 24 * 60, { freshwater: false });
+  const rationedResult = updateSurvival(rationed, 0, 24 * 60, {
+    freshwater: false,
+    waterDurationMultiplier: 1.1
+  });
+
+  assert.ok(rationedResult.waterConsumed < baselineResult.waterConsumed);
+  assert.ok(Math.abs(rationedResult.waterConsumed * 1.1 - baselineResult.waterConsumed) < 1e-9);
+});
+
 test("the crew eats low-base-price hardtack before zero-cost caught fish", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.cargo.hardtack = 1;

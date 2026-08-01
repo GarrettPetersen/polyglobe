@@ -33,6 +33,7 @@ import {
   quotePortPurchase
 } from "./economy.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
+import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
@@ -3017,14 +3018,19 @@ test("a Muslim captain can accompany a Hajj passenger inland from Jeddah", () =>
   const pilgrimage = passengerDialogueView(session, jeddah, quest, gameState);
   assert.match(pilgrimage.text, /stood together at Arafat/i);
   assert.equal(pilgrimage.options[0].label, "Return to Jeddah  650 db");
-  assert.deepEqual(selectPassengerDialogueOption(
+  const completion = selectPassengerDialogueOption(
     session,
     jeddah,
     quest,
     gameState,
     0,
     { simMinute: 2000 }
-  ), { closed: true, action: null });
+  );
+  assert.equal(completion.closed, true);
+  assert.equal(completion.action, null);
+  assert.equal(completion.missionItemGift.item.id, HAJJ_PILGRIMAGE_PERK_ITEM_ID);
+  assert.equal(completion.missionItemGift.guaranteed, true);
+  assert.equal(gameState.inventory.items[HAJJ_PILGRIMAGE_PERK_ITEM_ID], 1);
   assert.equal(gameState.doubloons, before + quest.reward);
   assert.equal(gameState.memory.flags.hajjCompleted, true);
   assert.equal(gameState.memory.quests.passengerActive, null);

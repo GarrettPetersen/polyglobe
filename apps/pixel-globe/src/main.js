@@ -20556,6 +20556,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
     rainfall: playerRainfallStrength(),
     safePort,
     foodDurationMultiplier: perks.foodDurationMultiplier,
+    waterDurationMultiplier: perks.waterDurationMultiplier,
     foodActivityMultiplier: playerShipIsRowing()
       ? ROWING_FOOD_CONSUMPTION_MULTIPLIER
       : 1

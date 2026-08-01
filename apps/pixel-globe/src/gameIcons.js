@@ -261,6 +261,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "item:katana": nikoichu("RPG_Skill_Strike_Attack_Sword_Slash_Cleave.png", ICON_COLOR.danger),
   "item:wheellock-pistol": nikoichu("RPG_Item_Weapon_Pistol_Gun_Ranged.png", ICON_COLOR.danger),
   "item:bronze-fish-hooks": nikoichu("Tools_Crafting_Fishing_Rod_Hook.png", ICON_COLOR.gold),
+  "item:zamzam-flask": nikoichu("Weather_Water_Droplet_Liquid_Rain_Element_Big.png", ICON_COLOR.dialogue),
 
   "good:gunpowder": pirate(42),
   "good:matchlocks": pirate(45)
