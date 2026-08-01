@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   LruChunkKeys,
   TextureAtlasAllocator,
+  allocateWorldSceneTexture,
   quadVertices
 } from "./worldWebglRenderer.js";
 
@@ -61,3 +62,73 @@ test("chunk LRU evicts only after the configured resident limit", () => {
   assert.equal(lru.touch("c"), "b");
   assert.deepEqual(lru.keys, ["a", "c"]);
 });
+
+test("world scene texture falls back to RGB8 when RGBA8 is unsupported", () => {
+  const gl = framebufferGl([36061, 36053]);
+  const format = allocateWorldSceneTexture(gl, {
+    texture: {},
+    framebuffer: {},
+    width: 455,
+    height: 256
+  });
+
+  assert.equal(format, "rgb8");
+  assert.deepEqual(gl.internalFormats, [gl.RGBA8, gl.RGB8]);
+  assert.equal(gl.lastFramebuffer, null);
+});
+
+test("world scene texture remembers a working RGB8 preference", () => {
+  const gl = framebufferGl([36053]);
+  const format = allocateWorldSceneTexture(gl, {
+    texture: {},
+    framebuffer: {},
+    width: 910,
+    height: 256,
+    preferredFormat: "rgb8"
+  });
+
+  assert.equal(format, "rgb8");
+  assert.deepEqual(gl.internalFormats, [gl.RGB8]);
+});
+
+test("world scene texture reports every rejected framebuffer format", () => {
+  const gl = framebufferGl([36061, 36054]);
+  assert.throws(
+    () => allocateWorldSceneTexture(gl, {
+      texture: {},
+      framebuffer: {},
+      width: 455,
+      height: 256
+    }),
+    /rgba8:36061, rgb8:36054/
+  );
+  assert.equal(gl.lastFramebuffer, null);
+});
+
+function framebufferGl(statuses) {
+  const remainingStatuses = [...statuses];
+  return {
+    TEXTURE_2D: 3553,
+    FRAMEBUFFER: 36160,
+    COLOR_ATTACHMENT0: 36064,
+    FRAMEBUFFER_COMPLETE: 36053,
+    RGBA8: 32856,
+    RGBA: 6408,
+    RGB8: 32849,
+    RGB: 6407,
+    UNSIGNED_BYTE: 5121,
+    internalFormats: [],
+    lastFramebuffer: undefined,
+    bindTexture() {},
+    texImage2D(target, level, internalFormat) {
+      this.internalFormats.push(internalFormat);
+    },
+    bindFramebuffer(target, framebuffer) {
+      this.lastFramebuffer = framebuffer;
+    },
+    framebufferTexture2D() {},
+    checkFramebufferStatus() {
+      return remainingStatuses.shift();
+    }
+  };
+}

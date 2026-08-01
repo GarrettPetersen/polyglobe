@@ -3388,6 +3388,7 @@ async function main() {
     startMinute: weatherClockMinutes,
     economy: worldEconomy,
     fishState: gameState,
+    fishingGroundIsNavigable: npcFishingGroundIsNavigable,
     whaleMemory: gameState.memory.whales,
     seedKey: gameState.voyageSeed,
     relationBetween: currentDiplomacyBetween,
@@ -9509,6 +9510,7 @@ function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
     startMinute: simulationMinute,
     economy: worldEconomy,
     fishState: restoredGameState,
+    fishingGroundIsNavigable: npcFishingGroundIsNavigable,
     whaleMemory: restoredGameState.memory.whales,
     seedKey: restoredGameState.voyageSeed,
     relationBetween: currentDiplomacyBetween,
@@ -9519,6 +9521,14 @@ function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
     suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
+}
+
+function npcFishingGroundIsNavigable({ lat, lon }) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    throw new Error(`NPC fishing ground requires finite coordinates: ${lat},${lon}`);
+  }
+  const tileId = findNearestTileId(graph, directionIndex, latLonToDirection(lat, lon));
+  return earthById[tileId]?.t === "water";
 }
 
 function recordDerivedSaveRecovery(recovered, label, error) {

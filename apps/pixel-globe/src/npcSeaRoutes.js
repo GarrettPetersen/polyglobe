@@ -382,6 +382,7 @@ export function createNpcSeaRouteSystem({
   startMinute,
   economy,
   fishState = null,
+  fishingGroundIsNavigable = null,
   whaleMemory = null,
   seedKey = null,
   relationBetween = diplomacyBetween,
@@ -394,6 +395,9 @@ export function createNpcSeaRouteSystem({
     throw new Error(`NPC sea routes require a non-negative start minute: ${startMinute}`);
   }
   if (!economy) throw new Error("NPC sea routes require a world economy");
+  if (fishState !== null && typeof fishingGroundIsNavigable !== "function") {
+    throw new Error("NPC fishing grounds require a navigable-water resolver");
+  }
   if (whaleMemory !== null) validateWhaleMemory(whaleMemory);
   validateOptionalSeedKey(seedKey, "NPC routes");
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
@@ -417,12 +421,14 @@ export function createNpcSeaRouteSystem({
 
   const laneNodes = new Map(LANE_NODES.map((node) => [node.id, node]));
   const baseEdges = buildDirectedLaneEdges(laneNodes);
+  const routeComponentByAnchorId = buildRouteAnchorComponents(laneNodes, baseEdges);
   const system = {
     ports: usablePorts,
     seedKey,
     economy,
     laneNodes,
     baseEdges,
+    routeComponentByAnchorId,
     routeCache: new Map(),
     edgeCostCache: new Map(),
     relationBetween,
@@ -432,7 +438,10 @@ export function createNpcSeaRouteSystem({
     onForeignPortCall,
     contactStartMinute: startMinute,
     fishState,
-    fishingGrounds: fishState ? buildFishingGrounds(usablePorts, fishState, startMinute) : [],
+    fishingGroundIsNavigable,
+    fishingGrounds: fishState
+      ? buildFishingGrounds(usablePorts, fishState, startMinute, fishingGroundIsNavigable)
+      : [],
     whaleMemory,
     whalingGrounds: whaleMemory ? buildWhalingGrounds() : [],
     pirateHideouts: choosePirateHideouts(usablePorts),
@@ -819,6 +828,9 @@ function restoreSavedFishingGround(system, destination) {
       destination.lon < -180 || destination.lon > 180) {
     throw new Error(`Saved NPC fishing ground has invalid position: ${destination.tileId}`);
   }
+  if (!system.fishingGroundIsNavigable(destination)) {
+    throw new Error(`Saved NPC fishing ground is no longer navigable: ${destination.tileId}`);
+  }
   const routeAnchors = anchorIdsForPort(destination);
   if (routeAnchors.length === 0) {
     throw new Error(`Saved NPC fishing ground has no current sea-lane anchors: ${destination.tileId}`);
@@ -912,13 +924,14 @@ function buildWhalingGrounds() {
   }));
 }
 
-function buildFishingGrounds(ports, fishState, startMinute) {
+function buildFishingGrounds(ports, fishState, startMinute, fishingGroundIsNavigable) {
   const byKey = new Map();
   for (const port of ports) {
     for (const distanceKmValue of FISHING_GROUND_SAMPLE_DISTANCES_KM) {
       for (const bearingDeg of FISHING_GROUND_SAMPLE_BEARINGS_DEG) {
         const point = destinationPoint(port, bearingDeg * DEG_TO_RAD, distanceKmValue);
         if (Math.abs(point.lat) > 70) continue;
+        if (!fishingGroundIsNavigable(point)) continue;
         const key = fishingGroundKey(point);
         if (byKey.has(key)) continue;
         const habitat = fishingGroundHabitat(point, distanceKmValue);
@@ -1670,6 +1683,7 @@ function chooseNpcDestination(system, ship, origin) {
   const seed = hashString32(`${ship.seed}|${origin.tileId}|dest`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
+    .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .filter((port) => !shipHasCombatGrace(ship) || npcPortIsSafeForShip(system, ship, port))
     .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(system, ship, port))
@@ -1701,10 +1715,11 @@ function chooseWhalerDestination(system, ship, origin) {
   }
   const profileSpec = fleetProfileForId(ship.profileId);
   const grounds = system.whalingGrounds.filter((ground) => (
-    profileSpec.groundIds.includes(ground.whalingGroundId)
+    profileSpec.groundIds.includes(ground.whalingGroundId) &&
+    npcPortsShareRouteNetwork(system, origin, ground)
   ));
-  if (grounds.length !== profileSpec.groundIds.length) {
-    throw new Error(`NPC whaler profile ${profileSpec.id} has missing hunting grounds`);
+  if (grounds.length === 0) {
+    throw new Error(`NPC whaler profile ${profileSpec.id} has no reachable hunting grounds`);
   }
   const seed = hashString32(`${ship.seed}|${origin.tileId}|whaling-ground`);
   return grounds.sort((a, b) => (
@@ -1719,6 +1734,7 @@ function chooseWhalerSalePort(system, ship, origin) {
   const seed = hashString32(`${ship.seed}|${origin.tileId}|blubber-sale`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
+    .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter(profileSpec.portPredicate)
     .filter((port) => npcMerchantCanTradeAtPort(system, ship, port))
     .map((port) => ({
@@ -1764,6 +1780,7 @@ function chooseFishermanFishingGround(system, ship, origin) {
 function fishermanGroundForecast(system, ship, origin, ground) {
   const profileSpec = fleetProfileForId(ship.profileId);
   if (profileSpec.mode === "regional" && ground.routeRegion !== origin.routeRegion) return null;
+  if (!npcPortsShareRouteNetwork(system, origin, ground)) return null;
   const fishery = fisheryForHabitat(system.fishState, ground.habitat, system.economy.lastMinute);
   if (!fishery) return null;
   const net = fishingNetById(ship.fishingNetId);
@@ -1793,6 +1810,7 @@ function chooseFishermanSalePort(system, ship, origin, quantity) {
   const seed = hashString32(`${ship.seed}|${origin.tileId}|fish-sale`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
+    .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => npcMerchantCanTradeAtPort(system, ship, port))
     .map((port) => ({
       port,
@@ -2224,6 +2242,7 @@ export function npcCargoAvailableQuantity(ship, goodId) {
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {
   const candidates = system.ports
     .filter((port) => !samePort(port, origin) && !samePort(port, desiredDestination))
+    .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(system, ship, port))
     .filter((port) => port.routeRegion === origin.routeRegion || distanceKm(origin, port) <= NPC_ROUTE_HOP_MAX_KM)
@@ -2555,6 +2574,58 @@ function buildDirectedLaneEdges(laneNodes) {
     addDirectedEdge(adjacency, edgeRecord(edge.b, edge.a, edge.kind));
   }
   return adjacency;
+}
+
+function buildRouteAnchorComponents(laneNodes, baseEdges) {
+  const componentByAnchorId = new Map();
+  let componentId = 0;
+  for (const anchorId of laneNodes.keys()) {
+    if (componentByAnchorId.has(anchorId)) continue;
+    const pending = [anchorId];
+    componentByAnchorId.set(anchorId, componentId);
+    while (pending.length > 0) {
+      const currentId = pending.pop();
+      for (const edge of baseEdges.get(currentId) || []) {
+        if (!laneNodes.has(edge.to)) {
+          throw new Error(`NPC lane component references an unknown anchor: ${edge.to}`);
+        }
+        if (componentByAnchorId.has(edge.to)) continue;
+        componentByAnchorId.set(edge.to, componentId);
+        pending.push(edge.to);
+      }
+    }
+    componentId++;
+  }
+  if (componentByAnchorId.size !== laneNodes.size) {
+    throw new Error("NPC lane components do not cover every route anchor");
+  }
+  return componentByAnchorId;
+}
+
+function npcPortsShareRouteNetwork(system, origin, destination) {
+  if (!(system.routeComponentByAnchorId instanceof Map)) {
+    throw new Error("NPC route network requires anchor components");
+  }
+  if (!Array.isArray(origin?.routeAnchors) || origin.routeAnchors.length === 0) {
+    throw new Error(`NPC route origin has no anchors: ${portName(origin)}`);
+  }
+  if (!Array.isArray(destination?.routeAnchors) || destination.routeAnchors.length === 0) {
+    throw new Error(`NPC route destination has no anchors: ${portName(destination)}`);
+  }
+  for (const originAnchorId of origin.routeAnchors) {
+    const originComponentId = system.routeComponentByAnchorId.get(originAnchorId);
+    if (originComponentId === undefined) {
+      throw new Error(`Unknown NPC route origin anchor: ${originAnchorId}`);
+    }
+    for (const destinationAnchorId of destination.routeAnchors) {
+      const destinationComponentId = system.routeComponentByAnchorId.get(destinationAnchorId);
+      if (destinationComponentId === undefined) {
+        throw new Error(`Unknown NPC route destination anchor: ${destinationAnchorId}`);
+      }
+      if (originComponentId === destinationComponentId) return true;
+    }
+  }
+  return false;
 }
 
 function cloneBaseAdjacency(baseEdges) {
@@ -3106,7 +3177,9 @@ function assertSaveableNpcRouteSystem(system) {
   if (!system || !Array.isArray(system.ships) || !(system.shipById instanceof Map) ||
       !Array.isArray(system.replacementQueue) || !(system.pirateHideoutDangerUntil instanceof Map) ||
       !Array.isArray(system.whalingGrounds) ||
+      !(system.routeComponentByAnchorId instanceof Map) ||
       !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map) ||
+      (system.fishState !== null && typeof system.fishingGroundIsNavigable !== "function") ||
       (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === "")) ||
       typeof system.relationBetween !== "function" ||
       typeof system.sovereignTradeOpenToFaction !== "function") {

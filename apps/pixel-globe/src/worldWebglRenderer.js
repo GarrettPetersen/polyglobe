@@ -232,6 +232,64 @@ export function quadVertices({
   ]));
 }
 
+export function allocateWorldSceneTexture(gl, {
+  texture,
+  framebuffer,
+  width,
+  height,
+  preferredFormat = "rgba8"
+}) {
+  if (!gl || typeof gl.texImage2D !== "function" ||
+      typeof gl.checkFramebufferStatus !== "function") {
+    throw new Error("World scene texture allocation requires WebGL2");
+  }
+  if (!texture || !framebuffer) {
+    throw new Error("World scene texture allocation requires a texture and framebuffer");
+  }
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw new Error(`Invalid world scene texture dimensions: ${width}x${height}`);
+  }
+  const formats = [
+    { id: "rgba8", internalFormat: gl.RGBA8, format: gl.RGBA },
+    { id: "rgb8", internalFormat: gl.RGB8, format: gl.RGB }
+  ];
+  if (!formats.some((candidate) => candidate.id === preferredFormat)) {
+    throw new Error(`Unknown preferred world scene texture format: ${preferredFormat}`);
+  }
+  formats.sort((a, b) => Number(b.id === preferredFormat) - Number(a.id === preferredFormat));
+  const failures = [];
+  for (const candidate of formats) {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      candidate.internalFormat,
+      width,
+      height,
+      0,
+      candidate.format,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      texture,
+      0
+    );
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if (status === gl.FRAMEBUFFER_COMPLETE) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return candidate.id;
+    }
+    failures.push(`${candidate.id}:${status}`);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  throw new Error(`World scene framebuffer is incomplete: ${failures.join(", ")}`);
+}
+
 export function createWorldWebGL2Renderer({
   atlasSize = DEFAULT_ATLAS_SIZE,
   chunkCacheLimit = DEFAULT_CHUNK_CACHE_LIMIT
@@ -336,6 +394,7 @@ export function createWorldWebGL2Renderer({
 
   let sceneWidth = 0;
   let sceneHeight = 0;
+  let sceneTextureFormat = "rgba8";
   let paletteKey = null;
   let frameTimeMs = 0;
   let frameGrade = false;
@@ -401,31 +460,19 @@ export function createWorldWebGL2Renderer({
     canvas.width = width;
     canvas.height = height;
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, sceneTexture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA8,
+    const allocatedFormat = allocateWorldSceneTexture(gl, {
+      texture: sceneTexture,
+      framebuffer: sceneFramebuffer,
       width,
       height,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      null
-    );
-    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFramebuffer);
-    gl.framebufferTexture2D(
-      gl.FRAMEBUFFER,
-      gl.COLOR_ATTACHMENT0,
-      gl.TEXTURE_2D,
-      sceneTexture,
-      0
-    );
-    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-    if (status !== gl.FRAMEBUFFER_COMPLETE) {
-      throw new Error(`World scene framebuffer is incomplete: ${status}`);
+      preferredFormat: sceneTextureFormat
+    });
+    if (allocatedFormat !== sceneTextureFormat) {
+      console.warn(
+        `World renderer switched scene texture from ${sceneTextureFormat} to ${allocatedFormat}`
+      );
+      sceneTextureFormat = allocatedFormat;
     }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
   function beginFrame({ width, height, clearColor, paletteVariant = null, timeMs = 0 }) {

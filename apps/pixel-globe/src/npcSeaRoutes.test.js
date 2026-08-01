@@ -88,6 +88,7 @@ const NORTHWEST_COAST_PORTS = Object.freeze([
     npcInterregionalTradeExcluded: true
   })
 ]);
+const ALL_TEST_FISHING_GROUNDS_NAVIGABLE = () => true;
 
 test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
@@ -319,7 +320,13 @@ test("Northwest Coast fishing grounds share Yuquot's seasonal sea lane", () => {
   const ports = [...PORTS, ...NORTHWEST_COAST_PORTS];
   const fishState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy, fishState });
+  const routes = createNpcSeaRouteSystem({
+    ports,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
   const northwestGrounds = routes.fishingGrounds.filter((ground) => (
     ground.lat >= 40 && ground.lat <= 61 &&
     ground.lon >= -150 && ground.lon <= -118
@@ -336,6 +343,61 @@ test("Northwest Coast fishing grounds share Yuquot's seasonal sea lane", () => {
   assert.doesNotThrow(() => (
     routeBetweenPorts(routes, offshoreGround, yuquot, "mesoamerican-dugout-canoe", 0)
   ));
+});
+
+test("NPC fishing grounds require and obey the world navigability resolver", () => {
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  assert.throws(
+    () => createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, fishState }),
+    /navigable-water resolver/i
+  );
+
+  let inspected = 0;
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: (point) => {
+      inspected++;
+      return point.lon >= 0;
+    }
+  });
+
+  assert.ok(inspected > routes.fishingGrounds.length);
+  assert.ok(routes.fishingGrounds.length > 0);
+  assert.ok(routes.fishingGrounds.every((ground) => ground.lon >= 0));
+});
+
+test("isolated Northwest Coast fishers stay inside the Yuquot sea-lane component", () => {
+  const ports = [...PORTS, ...NORTHWEST_COAST_PORTS];
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({
+    ports,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
+  const yuquot = routes.ports.find((port) => port.city === "Yuquot Village");
+  assert.ok(yuquot);
+  const fisherman = configureNpcRouteEncounter(routes, {
+    id: "yuquot-fishing-regression",
+    originPortId: yuquot.tileId,
+    factionId: "neutral",
+    role: NPC_ROLE_FISHERMAN,
+    profileId: "mesoamerican-coast",
+    mode: "regional",
+    shipSlug: "mesoamerican-dugout-canoe"
+  }, 0);
+
+  assert.equal(fisherman.plan.destination.isFishingGround, true);
+  assert.deepEqual(fisherman.plan.destination.routeAnchors, ["yuquot"]);
+  updateNpcSeaRouteSystem(routes, Math.ceil(fisherman.plan.endMinute + 1));
+  assert.equal(fisherman.currentPort.isFishingGround, true);
+  assert.ok(fisherman.plan.destination.routeAnchors.includes("yuquot"));
 });
 
 test("Pacific villages get a small regional fishing and trading fleet", () => {
@@ -364,7 +426,13 @@ test("regional Pacific fishers do not chase richer grounds across another sea re
   const ports = [...PORTS, ...PACIFIC_PORTS, hawaii, ...NORTHWEST_COAST_PORTS];
   const fishState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy, fishState });
+  const routes = createNpcSeaRouteSystem({
+    ports,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
   const pacificFishers = routes.ships.filter((ship) => (
     ship.profileId === "pacific-islands" && ship.role === NPC_ROLE_FISHERMAN
   ));
@@ -518,7 +586,13 @@ test("NPC route snapshots preserve planless pirates hidden at a hideout", () => 
 test("saved routes retain generated fishing grounds that leave the current top set", () => {
   const fishState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, fishState });
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
   const snapshot = snapshotNpcSeaRouteSystem(routes);
   const saved = snapshot.ships.find((ship) => ship.plan?.destination?.isFishingGround);
   assert.ok(saved, "expected a saved fisherman route to generated fishing grounds");
@@ -533,6 +607,29 @@ test("saved routes retain generated fishing grounds that leave the current top s
   assert.ok(restoredGround);
   assert.equal(restoredShip.plan.destination, restoredGround);
   assert.deepEqual(restoredGround.habitat, savedGround.habitat);
+});
+
+test("saved fishing routes reject grounds that are no longer navigable", () => {
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships.find((ship) => ship.plan?.destination?.isFishingGround);
+  assert.ok(saved, "expected a saved fisherman route to generated fishing grounds");
+  const savedGroundId = saved.plan.destination.tileId;
+  routes.fishingGrounds = routes.fishingGrounds.filter((ground) => ground.tileId !== savedGroundId);
+  routes.fishingGroundIsNavigable = () => false;
+
+  assert.throws(
+    () => restoreNpcSeaRouteSystem(routes, snapshot, { economy, fishState }),
+    /fishing ground is no longer navigable/i
+  );
 });
 
 test("NPC route snapshots reject planless ships outside pirate hideouts", () => {
@@ -663,7 +760,13 @@ test("NPC traders follow changing diplomacy when selecting later calls", () => {
 test("NPC fishermen choose generated fishing grounds and deplete them offscreen", () => {
   const fishState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, fishState });
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
 
   assert.ok(routes.fishingGrounds.length > 0);
   const fisherman = routes.ships.find((ship) => (
@@ -693,7 +796,13 @@ test("NPC fishermen choose generated fishing grounds and deplete them offscreen"
 test("NPC fishing catches stop at the remaining hull cargo capacity", () => {
   const fishState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, fishState });
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
   const fisherman = routes.ships.find((ship) => (
     ship.role === NPC_ROLE_FISHERMAN &&
     ship.plan?.destination?.isFishingGround
