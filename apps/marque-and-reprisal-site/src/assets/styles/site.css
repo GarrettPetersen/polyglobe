@@ -935,6 +935,78 @@ textarea {
   color: rgba(248, 237, 207, 0.68);
 }
 
+.screenshot-language-picker {
+  max-width: var(--content);
+  margin: -12px auto 36px;
+}
+
+.screenshot-language-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  border-top: 1px solid rgba(226, 173, 79, 0.32);
+  border-left: 1px solid rgba(226, 173, 79, 0.32);
+}
+
+.screenshot-language-tab {
+  min-height: 57px;
+  padding: 10px 12px;
+  border: 0;
+  border-right: 1px solid rgba(226, 173, 79, 0.32);
+  border-bottom: 1px solid rgba(226, 173, 79, 0.32);
+  background: var(--night-soft);
+  color: var(--foam);
+  cursor: pointer;
+  font-family: var(--utility);
+  text-align: left;
+}
+
+.screenshot-language-tab span,
+.screenshot-language-tab small {
+  display: block;
+}
+
+.screenshot-language-tab span {
+  font-size: 10px;
+}
+
+.screenshot-language-tab small {
+  margin-top: 4px;
+  color: rgba(248, 237, 207, 0.55);
+  font-size: 7px;
+}
+
+.screenshot-language-tab:hover,
+.screenshot-language-tab:focus-visible {
+  background: rgba(226, 173, 79, 0.13);
+}
+
+.screenshot-language-tab[aria-pressed="true"] {
+  background: var(--brass);
+  color: var(--ink);
+}
+
+.screenshot-language-tab[aria-pressed="true"] small {
+  color: rgba(36, 28, 41, 0.68);
+}
+
+.screenshot-language-download {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(226, 173, 79, 0.32);
+  border-top: 0;
+  color: rgba(248, 237, 207, 0.68);
+  font-family: var(--utility);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.screenshot-language-download strong {
+  color: var(--foam);
+}
+
 .press-asset-grid {
   display: grid;
   max-width: var(--content);
@@ -1500,6 +1572,14 @@ textarea {
   .asset-heading > a {
     display: inline-block;
     margin-top: 16px;
+  }
+
+  .screenshot-language-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .screenshot-language-download {
+    display: grid;
   }
 
   .press-asset-card > div {

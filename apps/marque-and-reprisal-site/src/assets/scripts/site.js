@@ -62,6 +62,57 @@ for (const button of document.querySelectorAll("[data-copy-text]")) {
   });
 }
 
+for (const gallery of document.querySelectorAll("[data-screenshot-gallery]")) {
+  const section = gallery.closest(".press-assets");
+  if (!section) throw new Error("Screenshot language picker is outside its press section");
+  const buttons = [...gallery.querySelectorAll("[data-screenshot-language]")];
+  const cards = [...section.querySelectorAll("[data-screenshot-card]")];
+  const currentLanguage = gallery.querySelector("[data-current-screenshot-language]");
+  const languageDownload = gallery.querySelector("[data-screenshot-language-download]");
+  if (buttons.length === 0 || cards.length === 0 || !currentLanguage || !languageDownload) {
+    throw new Error("Screenshot language picker is incomplete");
+  }
+
+  const selectScreenshotLanguage = (selected) => {
+    const code = selected.dataset.localeCode;
+    const label = selected.dataset.localeLabel;
+    const appLocale = selected.dataset.localeApp;
+    const archive = selected.dataset.localeArchive;
+    if (!code || !label || !appLocale || !archive) {
+      throw new Error("Screenshot language metadata is incomplete");
+    }
+    for (const button of buttons) {
+      button.setAttribute("aria-pressed", button === selected ? "true" : "false");
+    }
+    currentLanguage.textContent = label;
+    languageDownload.href = `/downloads/${archive}`;
+    languageDownload.textContent = `Download all ${cards.length} in ${label}`;
+
+    for (const card of cards) {
+      const prefix = card.dataset.screenshotPrefix;
+      const alt = card.dataset.screenshotAlt;
+      const image = card.querySelector("[data-screenshot-image]");
+      const preview = card.querySelector("[data-lightbox-src]");
+      const download = card.querySelector("[data-screenshot-download]");
+      if (!prefix || !alt || !image || !preview || !download) {
+        throw new Error("Localized screenshot card is incomplete");
+      }
+      const source = `/assets/press/screenshots/${prefix}_${code}.png`;
+      const localizedAlt = `${alt} Interface language: ${label}.`;
+      image.src = source;
+      image.alt = localizedAlt;
+      image.lang = appLocale;
+      preview.dataset.lightboxSrc = source;
+      preview.dataset.lightboxAlt = localizedAlt;
+      download.href = source;
+    }
+  };
+
+  for (const button of buttons) {
+    button.addEventListener("click", () => selectScreenshotLanguage(button));
+  }
+}
+
 const lightbox = document.querySelector(".lightbox");
 if (lightbox instanceof HTMLDialogElement) {
   const image = lightbox.querySelector("img");

@@ -1,4 +1,9 @@
 import { CAPSULE_TITLE_LOCALES } from "../../pixel-globe/tools/capsule-title-locales.mjs";
+import {
+  STEAM_SCREENSHOT_LANGUAGES,
+  STEAM_SCREENSHOT_SHOTS,
+  steamScreenshotFileName
+} from "../../pixel-globe/tools/steam-screenshot-catalog.mjs";
 
 // A subdivision-7 icosphere has 10 × 4⁷ + 2 dual cells.
 export const WORLD_MAP_CELL_COUNT = 163_842;
@@ -53,6 +58,56 @@ export const localizedCapsules = Object.freeze(CAPSULE_TITLE_LOCALES.map((locale
 
 export const languages = Object.freeze(localizedCapsules.map(({ label }) => label));
 
+export const screenshotLocales = Object.freeze(STEAM_SCREENSHOT_LANGUAGES.map((locale) => {
+  const capsuleLocale = localizedCapsules.find(({ appLocale }) => appLocale === locale.id);
+  if (!capsuleLocale) {
+    throw new Error(`Screenshot locale has no matching website language: ${locale.id}`);
+  }
+  return Object.freeze({
+    appLocale: locale.id,
+    steamCode: locale.steamCode,
+    label: capsuleLocale.label,
+    nativeLabel: locale.nativeLabel,
+    archiveFile: `marque-and-reprisal-screenshots-${locale.steamCode}.zip`
+  });
+}));
+
+const SCREENSHOT_ALT_TEXT = Object.freeze({
+  "explore-pyramids": "A captain reports the discovery of the Nubian pyramids while sailing the Nile.",
+  "trade-cloves": "The Ternate market offers cloves, fish, and timber with prices, duties, stock, and cargo space.",
+  "fish-grand-banks": "A sailing ship casts its net into a dense school of cod on the Grand Banks.",
+  "whale-hunt": "A harpooned right whale tows a ship through dark water as the line holds.",
+  "fight-carrack-broadside": "Carracks exchange cannon fire off Iberia with broadside arcs visible on the water.",
+  "pillage-havana": "Havana burns after its shore battery is disabled by a naval bombardment.",
+  "colonize-port-royal": "The governor of Port Royal asks the captain to resupply the new colony with grain.",
+  "survive-lightning": "Lightning strikes a ship during a violent storm and damages its hull.",
+  "meet-panda": "A captain decides whether to let an unexpected panda remain aboard the ship."
+});
+
+export const screenshots = Object.freeze(STEAM_SCREENSHOT_SHOTS.map((shot) => {
+  const alt = SCREENSHOT_ALT_TEXT[shot.id];
+  if (!alt) throw new Error(`Website screenshot needs alt text: ${shot.id}`);
+  return Object.freeze({
+    id: shot.id,
+    order: shot.order,
+    title: shot.title,
+    alt,
+    prefix: `${String(shot.order).padStart(2, "0")}_${shot.id}`,
+    files: Object.freeze(Object.fromEntries(screenshotLocales.map((locale) => [
+      locale.steamCode,
+      steamScreenshotFileName(shot, locale)
+    ])))
+  });
+}));
+
+function screenshotUrl(id, steamCode = "english") {
+  const shot = screenshots.find((candidate) => candidate.id === id);
+  if (!shot) throw new Error(`Unknown website screenshot: ${id}`);
+  const file = shot.files[steamCode];
+  if (!file) throw new Error(`Screenshot ${id} has no ${steamCode} file`);
+  return `/assets/press/screenshots/${file}`;
+}
+
 export const features = Object.freeze([
   Object.freeze({
     id: "explore",
@@ -60,7 +115,7 @@ export const features = Object.freeze([
     eyebrow: "A globe without edges",
     copy: `The world of Marque & Reprisal is a fully realized, ${WORLD_MAP_CELL_COUNT.toLocaleString("en-US")}-cell map of the entire Earth, complete with accurate geography, navigable rivers and lakes, mountains, a detailed weather simulation, and many ancient and natural wonders to discover.`,
     video: "/assets/video/explore.webm",
-    poster: "/assets/press/screenshots/01-explore-the-pyramids.png"
+    poster: screenshotUrl("explore-pyramids")
   }),
   Object.freeze({
     id: "trade",
@@ -68,7 +123,7 @@ export const features = Object.freeze([
     eyebrow: "Every port has a price",
     copy: "The cities and villages of the world buy and sell different goods at different prices, with supply and demand for goods and specie reacting dynamically to the actions of the player and the hundreds of NPC ships plying the trade routes in search of riches.",
     video: "/assets/video/trade.webm",
-    poster: "/assets/press/screenshots/02-trade-in-ternate.png"
+    poster: screenshotUrl("trade-cloves")
   }),
   Object.freeze({
     id: "fish",
@@ -76,7 +131,7 @@ export const features = Object.freeze([
     eyebrow: "Work the water",
     copy: "Fish for many different species of fish! Upgrade your ship and your net to catch more fish, and sell them in the best markets to earn profits.",
     video: "/assets/video/fish.webm",
-    poster: "/assets/press/screenshots/03-fish-the-reef.png"
+    poster: screenshotUrl("fish-grand-banks")
   }),
   Object.freeze({
     id: "whale",
@@ -84,7 +139,7 @@ export const features = Object.freeze([
     eyebrow: "Great and mysterious beasts",
     copy: "The ocean contains great and mysterious beasts! There are multiple different whale species in the game, with ecologically accurate ranges and behaviours. Whales breed and have babies, and you can often see a whale calf following its mother through the ocean. Kill a whale with your harpoon and collect its valuable blubber to sell!",
     video: "/assets/video/whale.webm",
-    poster: "/assets/press/screenshots/04-hunt-a-whale.png"
+    poster: screenshotUrl("whale-hunt")
   }),
   Object.freeze({
     id: "colonize",
@@ -92,7 +147,7 @@ export const features = Object.freeze([
     eyebrow: "Carry a settlement across the sea",
     copy: "Perhaps on your journey you will meet colonists seeking passage to the New World. Help them and you may found new cities together.",
     video: "/assets/video/colonize.webm",
-    poster: "/assets/press/screenshots/05-found-a-colony.png"
+    poster: screenshotUrl("colonize-port-royal")
   }),
   Object.freeze({
     id: "fight",
@@ -100,7 +155,7 @@ export const features = Object.freeze([
     eyebrow: "Choose your broadside",
     copy: "Do battle with pirates and hostile nations! Or become a pirate yourself and set out in search of rich merchant ships to seize.",
     video: "/assets/video/fight.webm",
-    poster: "/assets/press/screenshots/06-fight-off-iberia.png"
+    poster: screenshotUrl("fight-carrack-broadside")
   }),
   Object.freeze({
     id: "pillage",
@@ -108,7 +163,7 @@ export const features = Object.freeze([
     eyebrow: "Take the port",
     copy: "With a large enough warship, you can bombard a hostile city to silence its shore batteries, then land marines to capture the port!",
     video: "/assets/video/pillage.webm",
-    poster: "/assets/press/screenshots/07-pillage-havana.png"
+    poster: screenshotUrl("pillage-havana")
   }),
   Object.freeze({
     id: "survive",
@@ -116,7 +171,7 @@ export const features = Object.freeze([
     eyebrow: "One captain. One voyage.",
     copy: "If you die in Marque & Reprisal, there's no going back. You need to start a new voyage with a new captain. Death comes in many forms, from hunger and thirst to stormy seas and pirate attacks.",
     video: "/assets/video/survive.webm",
-    poster: "/assets/press/screenshots/08-survive-a-storm.png"
+    poster: screenshotUrl("survive-lightning")
   })
 ]);
 
@@ -186,17 +241,6 @@ export const qAndA = Object.freeze([
       `Every run randomly spawns you into the world as a new procedurally generated character. You could be a Polish-Lithuanian fisherman trying to pay off a large family debt, or a Japanese whaler seeking revenge against a white whale (my original concept; nobody has ever written a story about revenge against a white whale before), or an Ottoman explorer trying to find all the wonders of the world.`
     ])
   })
-]);
-
-export const screenshots = Object.freeze([
-  Object.freeze({ file: "01-explore-the-pyramids.png", title: "Explore the Pyramids", alt: "A captain discovers the Nubian pyramids on the world map." }),
-  Object.freeze({ file: "02-trade-in-ternate.png", title: "Trade in Ternate", alt: "The trading interface at Ternate shows goods, prices, cargo space, and local supply." }),
-  Object.freeze({ file: "03-fish-the-reef.png", title: "Fish the Reef", alt: "A ship fishes near a tropical reef while a storm approaches." }),
-  Object.freeze({ file: "04-hunt-a-whale.png", title: "Hunt a Whale", alt: "A ship is pulled through dark water by a harpooned whale." }),
-  Object.freeze({ file: "05-found-a-colony.png", title: "Found a Colony", alt: "A newly founded colony at Port Royal appears on the globe." }),
-  Object.freeze({ file: "06-fight-off-iberia.png", title: "Fight off Iberia", alt: "Several ships exchange cannon fire off the coast of Iberia." }),
-  Object.freeze({ file: "07-pillage-havana.png", title: "Pillage Havana", alt: "Havana burns after a naval bombardment in bright Caribbean waters." }),
-  Object.freeze({ file: "08-survive-a-storm.png", title: "Survive a Storm", alt: "A small ship takes hull damage while sailing through a violent Atlantic storm." })
 ]);
 
 export const pressLogos = Object.freeze([

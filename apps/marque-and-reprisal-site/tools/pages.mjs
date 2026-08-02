@@ -6,6 +6,7 @@ import {
   pressCapsuleArt,
   pressLogos,
   qAndA,
+  screenshotLocales,
   screenshots,
   site,
   WORLD_MAP_CELL_COUNT
@@ -14,7 +15,7 @@ import {
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
-const codeAssetVersion = "2026-07-24-pirata";
+const codeAssetVersion = "2026-08-02-localized-screenshots";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 
 export function homePage() {
@@ -34,7 +35,7 @@ export function homePage() {
 
   const gallery = screenshots.slice(0, 4).map((shot) => [
     "<a class='voyage-frame' href='/press/#screenshots'>",
-    "<img src='/assets/press/screenshots/", shot.file, "' alt='", escapeHtml(shot.alt), "' loading='lazy' width='1920' height='1080'>",
+    "<img src='/assets/press/screenshots/", shot.files.english, "' alt='", escapeHtml(shot.alt), "' loading='lazy' width='1920' height='1080'>",
     "<span>", escapeHtml(shot.title), "</span>",
     "</a>"
   ].join("")).join("\n");
@@ -110,15 +111,43 @@ export function pressPage() {
 
   const languageList = languages.map((language) => "<li>" + escapeHtml(language) + "</li>").join("");
 
-  const screenshotCards = screenshots.map((shot) => [
-    "<article class='press-asset-card'>",
-    "<button class='asset-preview' type='button' data-lightbox-src='/assets/press/screenshots/", shot.file, "' data-lightbox-alt='", escapeHtml(shot.alt), "'>",
-    "<img src='/assets/press/screenshots/", shot.file, "' alt='", escapeHtml(shot.alt), "' loading='lazy' width='1920' height='1080'>",
+  const defaultScreenshotLocale = screenshotLocales[0];
+  if (defaultScreenshotLocale?.steamCode !== "english") {
+    throw new Error("English must remain the default press screenshot locale");
+  }
+  const screenshotLanguageButtons = screenshotLocales.map((locale, index) => [
+    "<button class='screenshot-language-tab' type='button' data-screenshot-language data-locale-code='",
+    escapeHtml(locale.steamCode), "' data-locale-label='", escapeHtml(locale.label),
+    "' data-locale-app='", escapeHtml(locale.appLocale), "' data-locale-archive='",
+    escapeHtml(locale.archiveFile), "' aria-pressed='", index === 0 ? "true" : "false", "'>",
+    "<span lang='", escapeHtml(locale.appLocale), "'>", escapeHtml(locale.nativeLabel), "</span>",
+    locale.nativeLabel === locale.label ? "" : "<small>" + escapeHtml(locale.label) + "</small>",
+    "</button>"
+  ].join("")).join("\n");
+  const screenshotCards = screenshots.map((shot) => {
+    const file = shot.files[defaultScreenshotLocale.steamCode];
+    const source = `/assets/press/screenshots/${file}`;
+    return [
+    "<article class='press-asset-card' data-screenshot-card data-screenshot-prefix='", escapeHtml(shot.prefix),
+    "' data-screenshot-alt='", escapeHtml(shot.alt), "'>",
+    "<button class='asset-preview' type='button' data-lightbox-src='", source,
+    "' data-lightbox-alt='", escapeHtml(`${shot.alt} Interface language: ${defaultScreenshotLocale.label}.`), "'>",
+    "<img src='", source, "' alt='",
+    escapeHtml(`${shot.alt} Interface language: ${defaultScreenshotLocale.label}.`),
+    "' loading='lazy' width='1920' height='1080' data-screenshot-image>",
     "</button>",
     "<div><h3>", escapeHtml(shot.title), "</h3><p>1920 × 1080 PNG</p>",
-    "<a href='/assets/press/screenshots/", shot.file, "' download>Download PNG</a></div>",
+    "<a href='", source, "' download data-screenshot-download>Download PNG</a></div>",
     "</article>"
-  ].join("")).join("\n");
+    ].join("");
+  }).join("\n");
+  const screenshotLanguageDownload = [
+    "<div class='screenshot-language-download'><span>Showing <strong data-current-screenshot-language>",
+    escapeHtml(defaultScreenshotLocale.label), "</strong></span>",
+    "<a href='/downloads/", escapeHtml(defaultScreenshotLocale.archiveFile),
+    "' download data-screenshot-language-download>Download all ", String(screenshots.length),
+    " in ", escapeHtml(defaultScreenshotLocale.label), "</a></div>"
+  ].join("");
 
   const logoCards = pressLogos.map((asset) => graphicAssetCard(asset, "logos")).join("\n");
   const localizedCapsuleCards = localizedCapsules.map(localizedCapsuleCard).join("\n");
@@ -169,8 +198,13 @@ export function pressPage() {
     "</article>",
     "</div>",
     "<section class='press-assets' id='screenshots' aria-labelledby='screenshots-title'>",
-    "<div class='asset-heading'><div><p class='eyebrow'>Full resolution</p><h2 id='screenshots-title'>Screenshots</h2></div>",
-    "<a href='/downloads/marque-and-reprisal-press-kit.zip' download>Download all assets</a></div>",
+    "<div class='asset-heading'><div><p class='eyebrow'>Full resolution · localized</p><h2 id='screenshots-title'>Screenshots in ", String(screenshotLocales.length), " languages</h2></div>",
+    "<a href='/downloads/marque-and-reprisal-screenshots-all-languages.zip' download>Download all ", String(screenshots.length * screenshotLocales.length), " PNGs</a></div>",
+    "<p class='asset-intro'>Nine press-ready gameplay scenes are available in every supported interface language. Choose a language to preview and download its exact Steam-suffixed files.</p>",
+    "<div class='screenshot-language-picker' data-screenshot-gallery>",
+    "<div class='screenshot-language-tabs' role='group' aria-label='Screenshot language'>", screenshotLanguageButtons, "</div>",
+    screenshotLanguageDownload,
+    "</div>",
     "<div class='press-asset-grid'>", screenshotCards, "</div>",
     "</section>",
     "<section class='press-assets' aria-labelledby='logos-title'>",

@@ -10,6 +10,7 @@ import {
   LOCALIZED_CAPSULE_ASSET_NAMES,
   pressCapsuleArt,
   qAndA,
+  screenshotLocales,
   screenshots,
   site,
   WORLD_MAP_CELL_COUNT
@@ -29,21 +30,30 @@ test("Steam description has the complete eight-part voyage sequence", () => {
 test("every feature points at tracked video and screenshot assets", async () => {
   for (const feature of features) {
     await access(path.join(appRoot, "src", feature.video));
-    await access(path.join(appRoot, "src", feature.poster));
-  }
-  assert.equal(screenshots.length, features.length);
-  for (const screenshot of screenshots) {
-    const image = await readFile(path.join(
-      appRoot,
-      "src/assets/press/screenshots",
-      screenshot.file
-    ));
-    assert.deepEqual(
-      [...image.subarray(0, 8)],
-      [137, 80, 78, 71, 13, 10, 26, 10]
+    assert.ok(
+      screenshots.some((shot) => shot.files.english === path.basename(feature.poster)),
+      `Feature ${feature.id} has an unknown screenshot poster`
     );
-    assert.equal(image.readUInt32BE(16), 1920);
-    assert.equal(image.readUInt32BE(20), 1080);
+  }
+  assert.equal(screenshots.length, 9);
+  assert.equal(screenshotLocales.length, 11);
+  const screenshotRoot = path.resolve(
+    appRoot,
+    "../pixel-globe/promotional-materials/steam-screenshots"
+  );
+  for (const screenshot of screenshots) {
+    for (const locale of screenshotLocales) {
+      const image = await readFile(path.join(
+        screenshotRoot,
+        screenshot.files[locale.steamCode]
+      ));
+      assert.deepEqual(
+        [...image.subarray(0, 8)],
+        [137, 80, 78, 71, 13, 10, 26, 10]
+      );
+      assert.equal(image.readUInt32BE(16), 1920);
+      assert.equal(image.readUInt32BE(20), 1080);
+    }
   }
 });
 
@@ -137,6 +147,45 @@ test("press kit publishes every localized capsule set and download", async () =>
       ));
     }
   }
+});
+
+test("press kit publishes every localized screenshot set and download", async () => {
+  assert.deepEqual(
+    screenshotLocales.map(({ steamCode }) => steamCode),
+    [
+      "english",
+      "schinese",
+      "russian",
+      "spanish",
+      "brazilian",
+      "japanese",
+      "german",
+      "french",
+      "polish",
+      "tchinese",
+      "koreana"
+    ]
+  );
+  assert.deepEqual(
+    screenshotLocales.map(({ label }) => label),
+    languages
+  );
+  assert.equal(screenshots.length * screenshotLocales.length, 99);
+  const page = pressPage();
+  assert.match(page, /Screenshots in\s+11\s+languages/);
+  assert.match(page, /marque-and-reprisal-screenshots-all-languages\.zip/);
+  assert.equal((page.match(/data-screenshot-language(?:\s|>)/g) || []).length, 11);
+  assert.equal((page.match(/data-screenshot-card(?:\s|>)/g) || []).length, 9);
+  for (const locale of screenshotLocales) {
+    assert.match(page, new RegExp(locale.archiveFile.replaceAll(".", "\\.")));
+  }
+
+  const pressReadme = await readFile(
+    path.join(appRoot, "src/assets/press/README.txt"),
+    "utf8"
+  );
+  assert.match(pressReadme, /11 languages \(99 PNG files total\)/);
+  for (const language of languages) assert.match(pressReadme, new RegExp(language.replace(/[()]/g, "\\$&")));
 });
 
 test("world copy uses the exact subdivision-7 map-cell count", async () => {

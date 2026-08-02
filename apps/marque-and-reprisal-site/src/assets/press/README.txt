@@ -8,12 +8,18 @@ CONTENTS
 
 - factsheet.txt: Product facts and publication-ready descriptions.
 - developer-qa.txt: The complete developer Q&A in publication-ready text.
-- screenshots/: Eight full-resolution 1920x1080 gameplay screenshots.
+- screenshots/: Nine full-resolution 1920x1080 gameplay scenes in each of
+  11 languages (99 PNG files total), using Steam-compatible language suffixes.
 - logos/: Transparent title logo, store header, and square game icon.
 - capsule-art/: Complete capsule art, aligned transparent layers, composite
   lockups, and the original layered Aseprite file.
 - localized-capsules/: Thirteen full-resolution capsule, library, event,
   social, itch.io, and press PNG exports for each of 11 languages.
+
+SCREENSHOT LANGUAGES
+
+English, Simplified Chinese, Russian, Spanish (Spain), Portuguese (Brazil),
+Japanese, German, French, Polish, Traditional Chinese, and Korean.
 
 USAGE
 

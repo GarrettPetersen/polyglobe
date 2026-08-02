@@ -15,7 +15,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   LOCALIZED_CAPSULE_ASSET_NAMES,
-  localizedCapsules
+  localizedCapsules,
+  screenshotLocales,
+  screenshots
 } from "../content/site-content.mjs";
 import {
   factSheetText,
@@ -36,9 +38,14 @@ const capsuleOutputRoot = path.resolve(
   appRoot,
   "../pixel-globe/capsule_art/generated"
 );
+const screenshotSourceRoot = path.resolve(
+  appRoot,
+  "../pixel-globe/promotional-materials/steam-screenshots"
+);
 
 await rm(distRoot, { recursive: true, force: true });
 await cp(sourceRoot, distRoot, { recursive: true });
+await publishLocalizedScreenshots();
 
 await writePage("index.html", homePage());
 await writePage("qa/index.html", qAndAPage());
@@ -50,6 +57,7 @@ await writePage("sitemap.xml", sitemapXml());
 await writePage("assets/press/factsheet.txt", factSheetText());
 await writePage("assets/press/developer-qa.txt", qAndAText());
 await buildLocalizedCapsuleDownloads();
+await buildLocalizedScreenshotDownloads();
 await buildPressKitArchive();
 await validateBuild();
 
@@ -63,6 +71,13 @@ async function writePage(relativePath, contents) {
   const outputPath = path.join(distRoot, relativePath);
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, contents);
+}
+
+async function publishLocalizedScreenshots() {
+  const outputRoot = path.join(distRoot, "assets/press/screenshots");
+  await access(path.join(screenshotSourceRoot, "manifest.json"));
+  await rm(outputRoot, { recursive: true, force: true });
+  await cp(screenshotSourceRoot, outputRoot, { recursive: true });
 }
 
 async function buildLocalizedCapsuleDownloads() {
@@ -141,6 +156,62 @@ function localizedCapsuleReadme(locale) {
   ].join("\n");
 }
 
+async function buildLocalizedScreenshotDownloads() {
+  const stagingRoot = await mkdtemp(path.join(tmpdir(), "marque-localized-screenshots-"));
+  const downloadsRoot = path.join(distRoot, "downloads");
+  const bundleNames = [];
+  try {
+    await mkdir(downloadsRoot, { recursive: true });
+    for (const locale of screenshotLocales) {
+      const bundleName = locale.archiveFile.replace(/\.zip$/, "");
+      const bundleRoot = path.join(stagingRoot, bundleName);
+      bundleNames.push(bundleName);
+      await mkdir(bundleRoot, { recursive: true });
+      for (const shot of screenshots) {
+        const filename = shot.files[locale.steamCode];
+        await cp(
+          path.join(screenshotSourceRoot, filename),
+          path.join(bundleRoot, filename)
+        );
+      }
+      await writeFile(
+        path.join(bundleRoot, "README.txt"),
+        localizedScreenshotReadme(locale)
+      );
+      createZip(
+        path.join(downloadsRoot, locale.archiveFile),
+        stagingRoot,
+        [bundleName]
+      );
+    }
+    createZip(
+      path.join(downloadsRoot, "marque-and-reprisal-screenshots-all-languages.zip"),
+      stagingRoot,
+      bundleNames
+    );
+  } finally {
+    await rm(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+function localizedScreenshotReadme(locale) {
+  return [
+    "MARQUE & REPRISAL LOCALIZED SCREENSHOTS",
+    "=======================================",
+    "",
+    `Language: ${locale.label}`,
+    `Steam language suffix: ${locale.steamCode}`,
+    "",
+    "CONTENTS",
+    "",
+    ...screenshots.map((shot) => `- ${shot.files[locale.steamCode]}`),
+    "",
+    "Nine full-resolution 1920x1080 gameplay screenshots for press and",
+    "storefront use. Preserve their aspect ratio and crisp pixel edges.",
+    ""
+  ].join("\n");
+}
+
 async function buildPressKitArchive() {
   const stagingRoot = await mkdtemp(path.join(tmpdir(), "marque-press-kit-"));
   const bundleName = "marque-and-reprisal-press-kit";
@@ -192,6 +263,7 @@ async function validateBuild() {
     "404.html",
     "downloads/marque-and-reprisal-press-kit.zip",
     "downloads/marque-and-reprisal-capsules-all-languages.zip",
+    "downloads/marque-and-reprisal-screenshots-all-languages.zip",
     "assets/art/social-share.png",
     "assets/art/party-let-ampersand.png",
     "assets/fonts/pirata-one.ttf",
@@ -202,7 +274,11 @@ async function validateBuild() {
     ...localizedCapsules.flatMap((locale) => [
       `downloads/${locale.archiveFile}`,
       `assets/press/localized-capsules/${locale.steamCode}/${locale.previewFile}`
-    ])
+    ]),
+    ...screenshotLocales.map((locale) => `downloads/${locale.archiveFile}`),
+    ...screenshots.flatMap((shot) => screenshotLocales.map(
+      (locale) => `assets/press/screenshots/${shot.files[locale.steamCode]}`
+    ))
   ];
   for (const relativePath of requiredPaths) {
     await access(path.join(distRoot, relativePath));
