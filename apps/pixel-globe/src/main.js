@@ -1700,7 +1700,7 @@ const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
-const NPC_VISUAL_UPDATE_HZ = 60;
+const NPC_VISUAL_UPDATE_HZ = 30;
 const NPC_COMBAT_TARGETING_HZ = 6;
 const NPC_COMBAT_COLLISION_HZ = 4;
 const NPC_PROJECTILE_UPDATE_HZ = 30;
@@ -1716,10 +1716,10 @@ const WORLD_SPATIAL_KIND = Object.freeze({
   FISH_SCHOOL: "fish-school",
   WHALE: "whale"
 });
-// Preserve a 10 Hz update rate per nearby ship at 60 FPS while distributing
-// collision work across short slices. Slower devices degrade the update rate
-// instead of accumulating a large catch-up spike.
-const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 6;
+// Preserve a 10 Hz update rate per nearby ship while distributing collision work
+// across short slices. The 30 Hz coordinator avoids rebuilding every snapshot and
+// spatial entry between ship moves; slower devices degrade instead of catching up.
+const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 3;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
