@@ -5,6 +5,7 @@ import { createWorldEconomy } from "./economy.js";
 import {
   ENEMY_FACTION_START_REPUTATION,
   FACTION_SAFE_PASSAGE_DAYS,
+  FRIENDLY_FIRE_REPUTATION_PENALTY,
   GAME_STATE_VERSION,
   HOME_FACTION_START_REPUTATION,
   HOSTILE_PORT_REPUTATION_THRESHOLD,
@@ -43,6 +44,7 @@ import {
   pirateHideoutsVisibleToPlayer,
   playerPortDisguiseSuccessChance,
   playerShipIsWarship,
+  recordFriendlyFireAgainstFaction,
   playerTradeAccess,
   playerTradeTerms,
   personalTradePassStatus,
@@ -536,6 +538,26 @@ test("piracy notoriety can be recorded without double-counting the attacked vict
     factionReputation(state, "england"),
     englishBefore + PIRACY_HOME_ENEMY_REPUTATION_PENALTY
   );
+});
+
+test("friendly fire causes a small local penalty without revoking diplomatic papers", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const before = factionReputation(state, "france");
+  state.relations.safePassageUntilMinute.france = 2_000;
+  state.relations.lettersOfMarque.france = {
+    factionId: "france",
+    simMinute: 10
+  };
+
+  const result = recordFriendlyFireAgainstFaction(state, "france");
+
+  assert.equal(result.delta, FRIENDLY_FIRE_REPUTATION_PENALTY);
+  assert.equal(result.after, before + FRIENDLY_FIRE_REPUTATION_PENALTY);
+  assert.equal(factionSafePassageStatus(state, "france", 100).active, true);
+  assert.equal(hasLetterOfMarqueFrom(state, "france"), true);
+  assert.equal(state.memory.decisions["reputation.friendly-fire.france"], 1);
+  assert.equal(state.memory.decisions["reputation.attack.france"], undefined);
+  assert.equal(state.memory.decisions["reputation.piracy.france"], undefined);
 });
 
 test("letters of marque require capital standing and ship strength", () => {

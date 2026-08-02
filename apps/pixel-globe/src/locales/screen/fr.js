@@ -2310,6 +2310,8 @@ export default Object.freeze({
   "STORM PASSED - SAFE TO SAIL": "TEMPÊTE PASSÉE - NAVIGUER EN TOUTE SÉCURITÉ",
   "Storm weather. Remain in shelter if your hull is doubtful.": "Temps de tempête. Restez à l'abri si votre coque est douteuse.",
   "Straits of Gibraltar Traffic Performance Benchmark": "Référence de performance du trafic dans le détroit de Gibraltar",
+  "STRAY SHOT - HOLD YOUR FIRE": "TIR PERDU — CESSEZ LE FEU",
+  "STRAY SHOT: {0} STANDING {1}": "TIR PERDU : {0} RÉPUTATION {1}",
   "study the lock, breech screw, and proportions of the Portuguese pieces": "étudier la serrure, la vis de culasse et les proportions des pièces portugaises",
   "Study the reconstructed longship at sea": "Étudiez le drakkar reconstitué en mer",
   "Sturdy Barrels": "Barils robustes",

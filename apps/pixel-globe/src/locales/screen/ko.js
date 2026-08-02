@@ -2310,6 +2310,8 @@ export default Object.freeze({
   "STORM PASSED - SAFE TO SAIL": "폭풍우가 지나갔습니다. 항해는 안전합니다",
   "Storm weather. Remain in shelter if your hull is doubtful.": "폭풍우 날씨입니다. 선체가 의심스러운 경우 대피소에 머무르십시오.",
   "Straits of Gibraltar Traffic Performance Benchmark": "지브롤터 해협 교통 성능 벤치마크",
+  "STRAY SHOT - HOLD YOUR FIRE": "빗나간 포탄 — 사격 중지",
+  "STRAY SHOT: {0} STANDING {1}": "빗나간 포탄: {0} 평판 {1}",
   "study the lock, breech screw, and proportions of the Portuguese pieces": "포르투갈 작품의 자물쇠, 둔위 나사 및 비율을 연구합니다.",
   "Study the reconstructed longship at sea": "바다에서 재건된 롱십 연구하기",
   "Sturdy Barrels": "튼튼한 배럴",

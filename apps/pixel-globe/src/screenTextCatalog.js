@@ -2310,6 +2310,8 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "STORM PASSED - SAFE TO SAIL",
   "Storm weather. Remain in shelter if your hull is doubtful.",
   "Straits of Gibraltar Traffic Performance Benchmark",
+  "STRAY SHOT - HOLD YOUR FIRE",
+  "STRAY SHOT: {0} STANDING {1}",
   "study the lock, breech screw, and proportions of the Portuguese pieces",
   "Study the reconstructed longship at sea",
   "Sturdy Barrels",

@@ -322,6 +322,7 @@ import {
   reconcileQuestPortTiles,
   recordAttackAgainstFaction,
   recordDiscovery,
+  recordFriendlyFireAgainstFaction,
   recordPiracyAgainstFaction,
   releaseCargoSpace,
   reserveCargoSpace,
@@ -1008,6 +1009,13 @@ import {
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
+import {
+  FRIENDLY_FIRE_DIRECT,
+  FRIENDLY_FIRE_SAME_VOLLEY,
+  FRIENDLY_FIRE_WARNING,
+  classifyPlayerCannonHit,
+  clearFriendlyFireIncidents
+} from "./friendlyFire.js";
 import {
   SHORE_BATTERY_RANGE_PX,
   armShoreBatteryReload,
@@ -2649,6 +2657,7 @@ let pirateHideoutCharacters = new Map();
 let pirateHideoutPortsByTileId = new Map();
 const npcVisualShips = new Map();
 const shipCombatState = createShipCombatState();
+const playerFriendlyFireIncidents = new Map();
 const shipCollisionCooldowns = new Map();
 const shipCombatEntryCollisionGrace = new Map();
 let pendingNpcCombatHailId = null;
@@ -9579,6 +9588,7 @@ async function restoreSavedVoyage(payload) {
   npcCombatSplashes = [];
   pendingNpcCombatHailId = null;
   shipCombatState.engagements.clear();
+  clearFriendlyFireIncidents(playerFriendlyFireIncidents);
   shipCollisionCooldowns.clear();
   shipCombatEntryCollisionGrace.clear();
   playerHaulBlockedSeconds = 0;
@@ -19736,7 +19746,9 @@ function fireBroadside(sideName) {
       duration: range / (CANNON_SPEED_PX * weapon.speedScale),
       arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 4) * 4) * weapon.arcHeightScale,
       damage: weapon.damage,
-      seed
+      seed,
+      firedDuringCombat: true,
+      volleyId: sequenceBase
     };
     ship.navalProjectiles.push(projectile);
     if (projectile.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
@@ -20048,7 +20060,13 @@ function cannonMuzzleForeAftSpan(broadsideCount) {
 
 function updateNavalWeapons(dt) {
   if (!ship) return false;
-  if (!playerHasCombatEngagement()) clearCombatWounds(ship);
+  if (!playerHasCombatEngagement()) {
+    clearCombatWounds(ship);
+    const cannonVolleyInFlight = ship.navalProjectiles.some((ball) => (
+      ball.kind === NAVAL_WEAPON_CANNON && ball.firedDuringCombat === true
+    ));
+    if (!cannonVolleyInFlight) clearFriendlyFireIncidents(playerFriendlyFireIncidents);
+  }
   const activeCrew = activeCombatCrew(gameState?.ship?.crew || 0, ship.woundedCrew);
   const installedCannons = gameState?.ship?.cannons || 0;
   const reloadMultiplier = currentPlayerPerkTotals().cannonReloadMultiplier;
@@ -20201,9 +20219,44 @@ function combatEngagementIsActive(aId, bId) {
   return bBattery?.engagedTargetIds.has(aId) === true;
 }
 
+function playerCannonHitDisposition(ball, targetId, factionId) {
+  if (!ship) throw new Error("Friendly-fire classification requires the player ship");
+  const diplomacy = currentDiplomacyBetween(ship.factionId, factionId);
+  return classifyPlayerCannonHit(playerFriendlyFireIncidents, {
+    factionId,
+    volleyId: ball.volleyId,
+    targetAlreadyEngaged: combatEngagementIsActive(PLAYER_COMBAT_ID, targetId),
+    firedDuringCombat: ball.firedDuringCombat === true,
+    targetAlreadyHostile: factionId === PIRATE_FACTION_ID ||
+      factionReputation(gameState, factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD ||
+      diplomacy === DIPLOMACY_HOSTILE || diplomacy === DIPLOMACY_WAR
+  });
+}
+
+function recordPlayerFriendlyFireWarning(factionId) {
+  const result = recordFriendlyFireAgainstFaction(gameState, factionId);
+  if (result.delta === 0) {
+    showSurvivalNotice("STRAY SHOT - HOLD YOUR FIRE", "warn");
+  } else {
+    showSurvivalNotice(
+      `STRAY SHOT: ${factionById(factionId).name.toUpperCase()} STANDING ${result.delta}`,
+      "warn"
+    );
+  }
+  saveVoyageNow("friendly fire warning");
+}
+
+function friendlyFireDispositionIsAccidental(disposition) {
+  return disposition === FRIENDLY_FIRE_WARNING || disposition === FRIENDLY_FIRE_SAME_VOLLEY;
+}
+
 function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
-  if (hitByPlayer) beginPlayerInitiatedShoreCombat(battery);
-  else battery.engagedTargetIds.add(ball.ownerId);
+  const disposition = hitByPlayer && !ball.portable
+    ? playerCannonHitDisposition(ball, battery.id, battery.factionId)
+    : FRIENDLY_FIRE_DIRECT;
+  const accidentalFriendlyFire = friendlyFireDispositionIsAccidental(disposition);
+  if (hitByPlayer && !accidentalFriendlyFire) beginPlayerInitiatedShoreCombat(battery);
+  else if (!hitByPlayer) battery.engagedTargetIds.add(ball.ownerId);
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   const simMinute = Math.floor(weatherClockMinutes);
   const attackerLabel = shoreBatteryAttackerShipLabel(ball.ownerId);
@@ -20237,7 +20290,13 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     );
     addHullSplinterBurst(ball, point);
   }
-  if (!result.newlyDisabled) return;
+  if (!result.newlyDisabled) {
+    if (hitByPlayer && disposition === FRIENDLY_FIRE_WARNING) {
+      recordPlayerFriendlyFireWarning(battery.factionId);
+    }
+    return;
+  }
+  if (hitByPlayer && accidentalFriendlyFire) beginPlayerInitiatedShoreCombat(battery);
   destroyShoreBatteryGunpowderStore(battery);
   if (hitByPlayer) {
     const city = chartPortCallById(battery.portId);
@@ -20318,7 +20377,12 @@ function beginPlayerInitiatedShoreCombat(battery) {
 }
 
 function applyPlayerNavalHit(ball, target, point) {
-  if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, target.id))) {
+  const disposition = ball.portable
+    ? FRIENDLY_FIRE_DIRECT
+    : playerCannonHitDisposition(ball, target.id, target.factionId);
+  const accidentalFriendlyFire = friendlyFireDispositionIsAccidental(disposition);
+  if (!accidentalFriendlyFire &&
+      !shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, target.id))) {
     beginPlayerInitiatedCombat(target.id);
   }
   if (ball.portable) {
@@ -20341,7 +20405,16 @@ function applyPlayerNavalHit(ball, target, point) {
     remainingHitPoints: damage.hitPoints
   });
   target.hitPoints = damage.hitPoints;
-  if (damage.resisted) return;
+  if (damage.resisted) {
+    if (disposition === FRIENDLY_FIRE_WARNING) recordPlayerFriendlyFireWarning(target.factionId);
+    return;
+  }
+  if (accidentalFriendlyFire && (damage.sunk || damage.shouldSurrender)) {
+    beginPlayerInitiatedCombat(target.id);
+  }
+  if (disposition === FRIENDLY_FIRE_WARNING && !damage.sunk && !damage.shouldSurrender) {
+    recordPlayerFriendlyFireWarning(target.factionId);
+  }
   if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
   else {
     addHullSplinterBurst(ball, point);

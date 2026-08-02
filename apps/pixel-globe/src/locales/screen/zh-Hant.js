@@ -2310,6 +2310,8 @@ export default Object.freeze({
   "STORM PASSED - SAFE TO SAIL": "風暴過去－安全航行",
   "Storm weather. Remain in shelter if your hull is doubtful.": "暴風雨天氣。如果您的船體有疑問，請留在避難所。",
   "Straits of Gibraltar Traffic Performance Benchmark": "直布羅陀海峽交通績效基準",
+  "STRAY SHOT - HOLD YOUR FIRE": "流彈——停止射擊",
+  "STRAY SHOT: {0} STANDING {1}": "流彈：{0} 聲望 {1}",
   "study the lock, breech screw, and proportions of the Portuguese pieces": "研究葡萄牙零件的鎖、後螺絲和比例",
   "Study the reconstructed longship at sea": "研究重建的海上長船",
   "Sturdy Barrels": "堅固的桶",

@@ -115,6 +115,30 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedShipTypeOverrides(),
+  "STRAY SHOT - HOLD YOUR FIRE": Object.freeze({
+    "zh-Hans": "流弹——停止射击",
+    ru: "СЛУЧАЙНЫЙ ВЫСТРЕЛ — ПРЕКРАТИТЬ ОГОНЬ",
+    es: "DISPARO PERDIDO — ALTO EL FUEGO",
+    "pt-BR": "TIRO PERDIDO — CESSAR FOGO",
+    ja: "流れ弾だ——撃ち方やめ",
+    de: "FEHLSCHUSS — FEUER EINSTELLEN",
+    fr: "TIR PERDU — CESSEZ LE FEU",
+    pl: "ZABŁĄKANY STRZAŁ — WSTRZYMAĆ OGIEŃ",
+    "zh-Hant": "流彈——停止射擊",
+    ko: "빗나간 포탄 — 사격 중지"
+  }),
+  "STRAY SHOT: {0} STANDING {1}": Object.freeze({
+    "zh-Hans": "流弹：{0} 声望 {1}",
+    ru: "СЛУЧАЙНЫЙ ВЫСТРЕЛ: {0} РЕПУТАЦИЯ {1}",
+    es: "DISPARO PERDIDO: {0} REPUTACIÓN {1}",
+    "pt-BR": "TIRO PERDIDO: {0} REPUTAÇÃO {1}",
+    ja: "流れ弾：{0} 評判 {1}",
+    de: "FEHLSCHUSS: {0} ANSEHEN {1}",
+    fr: "TIR PERDU : {0} RÉPUTATION {1}",
+    pl: "ZABŁĄKANY STRZAŁ: {0} REPUTACJA {1}",
+    "zh-Hant": "流彈：{0} 聲望 {1}",
+    ko: "빗나간 포탄: {0} 평판 {1}"
+  }),
   "THE LINE HOLDS - PREPARE FOR THE TOW": Object.freeze({
     "zh-Hans": "缆绳撑住了——准备被鲸拖行",
     ru: "ЛИНЬ ДЕРЖИТСЯ — ГОТОВЬТЕСЬ К БУКСИРОВКЕ",
