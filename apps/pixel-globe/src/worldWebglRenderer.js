@@ -144,6 +144,14 @@ export class TextureAtlasAllocator {
   }
 
   allocate(width, height) {
+    const rect = this.tryAllocate(width, height);
+    if (!rect) {
+      throw new Error(`Texture atlas is full while allocating ${width}x${height}`);
+    }
+    return rect;
+  }
+
+  tryAllocate(width, height) {
     if (!Number.isInteger(width) || width <= 0 ||
         !Number.isInteger(height) || height <= 0) {
       throw new Error(`Invalid atlas allocation: ${width}x${height}`);
@@ -152,18 +160,45 @@ export class TextureAtlasAllocator {
         height + this.padding * 2 > this.height) {
       throw new Error(`Atlas allocation exceeds page dimensions: ${width}x${height}`);
     }
-    if (this.x + width + this.padding > this.width) {
-      this.x = this.padding;
-      this.y += this.rowHeight + this.padding;
-      this.rowHeight = 0;
+    let x = this.x;
+    let y = this.y;
+    let rowHeight = this.rowHeight;
+    if (x + width + this.padding > this.width) {
+      x = this.padding;
+      y += rowHeight + this.padding;
+      rowHeight = 0;
     }
-    if (this.y + height + this.padding > this.height) {
-      throw new Error(`Texture atlas is full while allocating ${width}x${height}`);
-    }
-    const rect = Object.freeze({ x: this.x, y: this.y, width, height });
-    this.x += width + this.padding;
-    this.rowHeight = Math.max(this.rowHeight, height);
+    if (y + height + this.padding > this.height) return null;
+    const rect = Object.freeze({ x, y, width, height });
+    this.x = x + width + this.padding;
+    this.y = y;
+    this.rowHeight = Math.max(rowHeight, height);
     return rect;
+  }
+}
+
+export class PagedTextureAtlasAllocator {
+  constructor(width, height, padding = 1) {
+    this.width = width;
+    this.height = height;
+    this.padding = padding;
+    this.pages = [new TextureAtlasAllocator(width, height, padding)];
+  }
+
+  allocate(width, height) {
+    let pageIndex = this.pages.length - 1;
+    let rect = this.pages[pageIndex].tryAllocate(width, height);
+    if (!rect) {
+      pageIndex = this.pages.length;
+      const page = new TextureAtlasAllocator(this.width, this.height, this.padding);
+      this.pages.push(page);
+      rect = page.allocate(width, height);
+    }
+    return Object.freeze({ pageIndex, ...rect });
+  }
+
+  get pageCount() {
+    return this.pages.length;
   }
 }
 
@@ -367,21 +402,10 @@ export function createWorldWebGL2Renderer({
     gl.UNSIGNED_BYTE,
     new Uint8Array([0, 0, 0, 255])
   );
-  const atlasTexture = createNearestTexture(gl);
-  gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    atlasSize,
-    atlasSize,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    null
-  );
-  const atlasAllocator = new TextureAtlasAllocator(atlasSize, atlasSize);
+  const atlasAllocator = new PagedTextureAtlasAllocator(atlasSize, atlasSize);
+  const atlasPages = [];
   const atlasEntries = new WeakMap();
+  let activeAtlasPageIndex = null;
   let atlasVertices = new Float32Array(FLOATS_PER_QUAD * INITIAL_ATLAS_QUAD_CAPACITY);
   let atlasFloatCount = 0;
   let primitiveInstances = new Float32Array(FLOATS_PER_PRIMITIVE * INITIAL_PRIMITIVE_CAPACITY);
@@ -598,8 +622,9 @@ export function createWorldWebGL2Renderer({
     const width = source.width || source.naturalWidth;
     const height = source.height || source.naturalHeight;
     const rect = atlasAllocator.allocate(width, height);
+    const page = atlasPage(rect.pageIndex);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
+    gl.bindTexture(gl.TEXTURE_2D, page.texture);
     gl.texSubImage2D(
       gl.TEXTURE_2D,
       0,
@@ -619,6 +644,37 @@ export function createWorldWebGL2Renderer({
     return entry;
   }
 
+  function atlasPage(pageIndex) {
+    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex > atlasPages.length) {
+      throw new Error(`Invalid world atlas page: ${pageIndex}`);
+    }
+    if (pageIndex < atlasPages.length) return atlasPages[pageIndex];
+    gl.activeTexture(gl.TEXTURE0);
+    const texture = createNearestTexture(gl);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      atlasSize,
+      atlasSize,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    const page = Object.freeze({ texture });
+    atlasPages.push(page);
+    return page;
+  }
+
+  function activateAtlasPage(pageIndex) {
+    if (activeAtlasPageIndex === pageIndex) return;
+    flushAtlasBatch();
+    atlasPage(pageIndex);
+    activeAtlasPageIndex = pageIndex;
+  }
+
   function drawAtlasSprite({
     source,
     sourceRect = null,
@@ -631,6 +687,7 @@ export function createWorldWebGL2Renderer({
   }) {
     flushPrimitiveBatch();
     const entry = registerAtlasSource(source);
+    activateAtlasPage(entry.pageIndex);
     const local = sourceRect || { x: 0, y: 0, width: entry.width, height: entry.height };
     validateRect(local, "atlas source");
     if (local.x + local.width > entry.width || local.y + local.height > entry.height) {
@@ -719,9 +776,12 @@ export function createWorldWebGL2Renderer({
 
   function flushAtlasBatch() {
     if (atlasFloatCount === 0) return;
+    if (activeAtlasPageIndex === null) {
+      throw new Error("World atlas batch has no active texture page");
+    }
     const vertices = atlasVertices.subarray(0, atlasFloatCount);
     atlasFloatCount = 0;
-    drawVertices(atlasTexture, atlasSize, atlasSize, vertices);
+    drawVertices(atlasPage(activeAtlasPageIndex).texture, atlasSize, atlasSize, vertices);
   }
 
   function appendAtlasQuad({
@@ -836,6 +896,7 @@ export function createWorldWebGL2Renderer({
     stats: () => Object.freeze({
       residentChunks: chunkTextures.size,
       atlasSources: atlasSourceCount,
+      atlasPages: atlasAllocator.pageCount,
       drawCalls,
       uploadedChunks,
       replacedChunkTextures,

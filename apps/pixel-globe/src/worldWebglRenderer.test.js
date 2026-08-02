@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   LruChunkKeys,
+  PagedTextureAtlasAllocator,
   TextureAtlasAllocator,
   allocateWorldSceneTexture,
   quadVertices
@@ -19,6 +20,26 @@ test("texture atlas fails loudly instead of overwriting resident art", () => {
   assert.throws(() => allocator.allocate(15, 1), /exceeds page dimensions/);
   allocator.allocate(10, 10);
   assert.throws(() => allocator.allocate(10, 10), /atlas is full/i);
+});
+
+test("failed texture atlas probes do not consume remaining shelf space", () => {
+  const allocator = new TextureAtlasAllocator(16, 16, 1);
+  allocator.allocate(10, 10);
+  assert.equal(allocator.tryAllocate(10, 10), null);
+  assert.deepEqual(allocator.allocate(2, 2), { x: 12, y: 1, width: 2, height: 2 });
+});
+
+test("paged texture atlases preserve allocations after one page fills", () => {
+  const allocator = new PagedTextureAtlasAllocator(16, 16, 1);
+  assert.deepEqual(
+    allocator.allocate(10, 10),
+    { pageIndex: 0, x: 1, y: 1, width: 10, height: 10 }
+  );
+  assert.deepEqual(
+    allocator.allocate(10, 10),
+    { pageIndex: 1, x: 1, y: 1, width: 10, height: 10 }
+  );
+  assert.equal(allocator.pageCount, 2);
 });
 
 test("batched quad vertices preserve painter geometry and exact UV bounds", () => {
