@@ -14,7 +14,9 @@ import {
   GOGIART_DHOW_MODEL_CREDIT,
   HUMPBACK_WHALE_MODEL_CREDIT,
   JAPANESE_ATAKEBUNE_MODEL_CREDIT,
+  JAPANESE_KOBAYA_MODEL_CREDIT,
   JAPANESE_KURIBUNE_MODEL_CREDIT,
+  JAPANESE_SEKIBUNE_MODEL_CREDIT,
   JOSEON_PANOKSEON_MODEL_CREDIT,
   JOSEON_TURTLE_SHIP_MODEL_CREDIT,
   KELULUS_MODEL_CREDIT,
@@ -80,6 +82,8 @@ const joseonTurtleShipSourceRoot = join(shipSourceRoot, "sketchfab/joseon-turtle
 const joseonPanokseonSourceRoot = join(shipSourceRoot, "sketchfab/joseon-panokseon");
 const japaneseAtakebuneSourceRoot = join(shipSourceRoot, "sketchfab/atakebune-japanese-warship");
 const japaneseKuribuneSourceRoot = join(shipSourceRoot, "sketchfab/kamakura-umi-bune");
+const japaneseKobayaSourceRoot = join(shipSourceRoot, "booth/hirokazu-kobayashi-kobaya");
+const japaneseSekibuneSourceRoot = join(shipSourceRoot, "booth/hirokazu-kobayashi-sekibune");
 const naoVictoriaSourceRoot = join(shipSourceRoot, "sketchfab/nao-victoria");
 const portugueseCarrackSourceRoot = join(shipSourceRoot, "sketchfab/portuguese-carrack");
 const gogiartDhowSourceRoot = join(shipSourceRoot, "sketchfab/dhow-gogiart");
@@ -184,6 +188,21 @@ const japaneseKuribuneStaticOarMeshes = Object.freeze(
     });
   })
 );
+const japaneseKobayaStaticOarMeshes = Object.freeze(
+  ["L", "R"].flatMap((side) => Array.from({ length: 10 }, (_, index) => Object.freeze({
+    nodeName: `櫂${side}${String(index + 1).padStart(2, "0")}`,
+    parentName: "櫂",
+    positionCount: 1944
+  })))
+);
+const japaneseSekibuneStaticOarMeshes = Object.freeze([
+  "櫂L01",
+  ...Array.from({ length: 63 }, (_, index) => `櫂L01${String(index + 1).padStart(3, "0")}`)
+].map((nodeName) => Object.freeze({
+  nodeName,
+  parentName: "櫂",
+  positionCount: 1944
+})));
 const joseonPanokseonStaticOarMeshes = Object.freeze([
   Object.freeze({
     nodeName: "Object_9",
@@ -558,8 +577,9 @@ function collectTriangles(scene, options = {}) {
       triangles.push({
         points,
         uvs,
-        color: materialColor(material),
-        textureSampler: options.materialTextureSamplers?.get(material?.name) || null,
+        color: options.meshColors?.get(node.name) || materialColor(material),
+        textureSampler: options.meshTextureSamplers?.get(node.name) ||
+          options.materialTextureSamplers?.get(material?.name) || null,
         sourceMeshName: node.name
       });
     }
@@ -2902,6 +2922,8 @@ function productionShipRenderConfigs() {
       "joseon-turtle-ship",
       "joseon-panokseon",
       "japanese-kuribune",
+      "japanese-kobaya",
+      "japanese-sekibune",
       "japanese-atakebune",
       "spanish-nao",
       "portuguese-carrack",
@@ -3191,7 +3213,7 @@ function japaneseKuribuneConfig() {
   validateJapaneseKuribuneOrientation();
   return {
     slug,
-    label: "Kuribune",
+    label: "Umi-bune",
     category: "Japanese coastal trader",
     assetLabel: "Kamakura Period Umi-Bune Japanese Boat",
     identifiedType: "small Japanese coastal cargo vessel",
@@ -3244,6 +3266,118 @@ function japaneseKuribuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY
   return [
     ...hullTriangles,
     ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-kuribune"))
+  ];
+}
+
+function japaneseKobayaConfig() {
+  const slug = "japanese-kobaya";
+  validateJapaneseKobayaOrientation();
+  return {
+    slug,
+    label: "Kobaya",
+    category: "Japanese light warship",
+    assetLabel: "Japanese Boat: Kobaya 3D Model",
+    identifiedType: "light Japanese scout and fighting boat",
+    identificationConfidence: "medium",
+    identificationNotes:
+      "The purchased source is an artist's reconstruction. Its 20 static oars are removed and replaced with eight widely spaced animated oars for a readable light-warship silhouette.",
+    ...JAPANESE_KOBAYA_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(japaneseKobayaSourceRoot, "kobaya-v1.2.fbx"),
+    targetModelMaxDim: 1.68,
+    frameScale: 0.62,
+    sideViewTargetModelMaxDim: 1.56,
+    scaleMode: "japanese-light-warship",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    wakeWaterlineBand: 0.2,
+    skipSelfShadowMaps: true,
+    sourceOrientation: {
+      rawUpAxis: "+Y",
+      rawForwardAxis: "-X",
+      evidence:
+        "The rudder is centred at the +X end, identifying +X as stern and -X as bow; the deck and protective shields rise on +Y while the keel lies below them on -Y."
+    },
+    orientationReviewPath: join(
+      appRoot,
+      "docs/ship-reference/japanese-kobaya-orientation-review.png"
+    ),
+    collectOptions: {
+      requiredExcludedMeshes: japaneseKobayaStaticOarMeshes,
+      meshTextureSamplers: japaneseKobayaTextureSamplers(),
+      transformPoint: orientJapaneseKobayaPoint
+    },
+    animationFrameCount: SHIP_ROWING_FRAME_COUNT,
+    animatedOarCount: 8,
+    animationTrianglesForFrame: japaneseKobayaTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/japanese-kobaya-rowing-frames.png"
+    ),
+    animationReviewHeading: 4
+  };
+}
+
+function japaneseKobayaTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-kobaya"))
+  ];
+}
+
+function japaneseSekibuneConfig() {
+  const slug = "japanese-sekibune";
+  validateJapaneseSekibuneOrientation();
+  return {
+    slug,
+    label: "Sekibune",
+    category: "Japanese warship",
+    assetLabel: "Japanese Boat: Sekibune 3D Model",
+    identifiedType: "medium Japanese coastal fighting ship",
+    identificationConfidence: "medium",
+    identificationNotes:
+      "The purchased source is an artist's reconstruction. Its 64 static oars are removed and replaced with 10 animated oars so the historical long-bank silhouette remains legible at gameplay scale.",
+    ...JAPANESE_SEKIBUNE_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(japaneseSekibuneSourceRoot, "sekibune-v1.2.fbx"),
+    targetModelMaxDim: 1.95,
+    frameScale: 0.61,
+    sideViewTargetModelMaxDim: 1.82,
+    scaleMode: "japanese-medium-warship",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    wakeWaterlineBand: 0.22,
+    skipSelfShadowMaps: true,
+    sourceOrientation: {
+      rawUpAxis: "+Y",
+      rawForwardAxis: "-X",
+      evidence:
+        "The rudder is centred at the +X end, identifying +X as stern and -X as bow; the deck and mast rise on +Y while the keel lies below them on -Y."
+    },
+    orientationReviewPath: join(
+      appRoot,
+      "docs/ship-reference/japanese-sekibune-orientation-review.png"
+    ),
+    collectOptions: {
+      requiredExcludedMeshes: japaneseSekibuneStaticOarMeshes,
+      meshTextureSamplers: japaneseSekibuneTextureSamplers(),
+      transformPoint: orientJapaneseSekibunePoint
+    },
+    animationFrameCount: SHIP_ROWING_FRAME_COUNT,
+    animatedOarCount: 10,
+    animationTrianglesForFrame: japaneseSekibuneTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/japanese-sekibune-rowing-frames.png"
+    ),
+    animationReviewHeading: 4
+  };
+}
+
+function japaneseSekibuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-sekibune"))
   ];
 }
 
@@ -3427,12 +3561,13 @@ function ottomanCoastalTraderConfig() {
   const slug = "ottoman-coastal-trader";
   return {
     slug,
-    label: "Ottoman Coastal Trader",
+    label: "Kancabash",
     category: "Ottoman merchant",
     assetLabel: "Ottoman Coastal Trade Tall Ship 3D Model",
-    identifiedType: "armed Ottoman coastal merchant",
+    identifiedType: "Ottoman Kancabash coastal trader",
     identificationConfidence: "medium",
-    identificationNotes: "A substantial square-rigged merchant model used as an Ottoman-specific regional trading hull rather than a named naval class.",
+    identificationNotes:
+      "The hooked bow, single fore-and-aft mast, and headsail match published Kancabaş coastal-trade plans. The surviving plan is later than 1522, so the game uses it as a representative Ottoman regional trader rather than an exact reconstruction for the start year.",
     ...OTTOMAN_COASTAL_TRADER_MODEL_CREDIT,
     stats: shipStatsForSlug(slug),
     modelPath: join(ottomanCoastalTraderSourceRoot, "scene.gltf"),
@@ -3464,6 +3599,156 @@ function liftTextureColor(color, { rScale, gScale, bScale, rOffset, gOffset, bOf
   };
 }
 
+function japaneseSekibuneTextureSamplers() {
+  const hull = repeatingTextureSampler((u, v) => {
+    const horizontalSeam = wrap01(v * 14) < 0.045;
+    const staggeredU = u + Math.floor(v * 14) * 0.059;
+    const verticalSeam = wrap01(staggeredU * 9) < 0.03;
+    if (horizontalSeam || verticalSeam) return { r: 58, g: 39, b: 30 };
+    const grain = Math.sin((u * 7 + v * 3) * Math.PI * 2) * 8 +
+      Math.sin((u * 29 - v * 11) * Math.PI * 2) * 5;
+    const fleck = ((Math.floor(u * 22) + Math.floor(v * 19)) & 1) ? 5 : -5;
+    const plank = (Math.floor(v * 14) % 3 - 1) * 5;
+    return {
+      r: clamp255(132 + grain + fleck + plank),
+      g: clamp255(82 + grain * 0.55 + fleck * 0.45 + plank * 0.45),
+      b: clamp255(45 + grain * 0.3 + fleck * 0.25)
+    };
+  });
+  const fightingWorks = repeatingTextureSampler((u, v) => {
+    const panelU = wrap01(u * 13);
+    const panelV = wrap01(v * 12);
+    if (panelU < 0.035 || panelV < 0.04) return { r: 45, g: 32, b: 29 };
+    const alternate = (Math.floor(u * 13) + Math.floor(v * 12)) % 3 - 1;
+    const grain = Math.sin((u * 8 - v * 5) * Math.PI * 2) * 10 +
+      Math.sin((u * 31 + v * 13) * Math.PI * 2) * 5;
+    const fleck = ((Math.floor(u * 24) + Math.floor(v * 21)) & 1) ? 6 : -6;
+    return {
+      r: clamp255(145 + alternate * 7 + grain + fleck),
+      g: clamp255(84 + alternate * 5 + grain * 0.55 + fleck * 0.45),
+      b: clamp255(45 + alternate * 3 + grain * 0.3 + fleck * 0.25)
+    };
+  });
+  const darkTimber = repeatingTextureSampler((u, v) => {
+    const grain = Math.sin((u * 23 + v * 5) * Math.PI * 2) * 5;
+    return {
+      r: clamp255(76 + grain),
+      g: clamp255(49 + grain * 0.6),
+      b: clamp255(34 + grain * 0.35)
+    };
+  });
+  const sail = repeatingTextureSampler((u, v) => {
+    const du = u - 0.5;
+    const dv = v - 0.5;
+    // The complete maru-ni-futatsubiki crest is a circle around two bars, but
+    // its circle becomes a misleading arch on a roughly ten-pixel sail. Keep
+    // the identifying two bars bold and separated at gameplay resolution.
+    const ashikagaBars = Math.abs(dv) < 0.31 &&
+      (Math.abs(du - 0.14) < 0.055 || Math.abs(du + 0.14) < 0.055);
+    if (ashikagaBars) return { r: 43, g: 54, b: 69 };
+    const clothSeam = wrap01(u * 10) < 0.025 || wrap01(v * 8) < 0.018;
+    if (clothSeam) return { r: 184, g: 158, b: 113 };
+    const weave = ((Math.floor(u * 48) + Math.floor(v * 48)) & 1) * 5;
+    return { r: 232 - weave, g: 213 - weave, b: 169 - weave };
+  });
+  const banner = repeatingTextureSampler((u, v) => {
+    const du = u - 0.5;
+    const dv = v - 0.5;
+    const border = u < 0.075 || u > 0.925 || v < 0.04 || v > 0.96;
+    if (border) return { r: 49, g: 35, b: 31 };
+    // Reverse the colours on the tiny banners so the cloth itself supplies a
+    // large, legible field and the two light bars survive downsampling.
+    if (Math.abs(dv) < 0.38 &&
+      (Math.abs(du - 0.13) < 0.075 || Math.abs(du + 0.13) < 0.075)) {
+      return { r: 238, g: 218, b: 174 };
+    }
+    return { r: 43, g: 54, b: 69 };
+  });
+  return new Map([
+    ["船体", hull],
+    ["櫓", fightingWorks],
+    ["舵", darkTimber],
+    ["帆柱_倒", darkTimber],
+    ["帆柱_立", darkTimber],
+    ["帆桁", darkTimber],
+    ["表車立", darkTimber],
+    ["艫車立", darkTimber],
+    ["筒車立", darkTimber],
+    ["帆", sail],
+    ["旗", banner],
+    ["旗001", banner],
+    ["旗002", banner],
+    ["旗003", banner]
+  ]);
+}
+
+function japaneseKobayaTextureSamplers() {
+  const hull = repeatingTextureSampler((u, v) => {
+    const row = Math.floor(v * 13);
+    const seamV = wrap01(v * 13) < 0.045;
+    const seamU = wrap01((u + row * 0.067) * 9) < 0.03;
+    if (seamV || seamU) return { r: 66, g: 43, b: 31 };
+    const grain = Math.sin((u * 47 + v * 9) * Math.PI * 2) * 9 +
+      Math.sin((u * 21 - v * 31) * Math.PI * 2) * 4;
+    const plank = (row % 3 - 1) * 5;
+    return {
+      r: clamp255(153 + plank + grain),
+      g: clamp255(94 + plank * 0.5 + grain * 0.55),
+      b: clamp255(49 + grain * 0.28)
+    };
+  });
+  const shields = repeatingTextureSampler((u, v) => {
+    const seam = wrap01(u * 11) < 0.045 || wrap01(v * 15) < 0.035;
+    if (seam) return { r: 76, g: 49, b: 32 };
+    const slat = (Math.floor(u * 11) % 3 - 1) * 5;
+    const grain = Math.sin((u * 61 + v * 13) * Math.PI * 2) * 6 +
+      Math.sin((u * 23 - v * 37) * Math.PI * 2) * 2.5;
+    return {
+      r: clamp255(198 + slat + grain),
+      g: clamp255(132 + slat * 0.55 + grain * 0.5),
+      b: clamp255(70 + grain * 0.25)
+    };
+  });
+  const darkTimber = repeatingTextureSampler((u, v) => {
+    const grain = Math.sin((u * 31 + v * 7) * Math.PI * 2) * 5 +
+      Math.sin((u * 13 - v * 19) * Math.PI * 2) * 2;
+    return {
+      r: clamp255(91 + grain),
+      g: clamp255(58 + grain * 0.6),
+      b: clamp255(37 + grain * 0.35)
+    };
+  });
+  const banner = repeatingTextureSampler((u, v) => {
+    const du = u - 0.5;
+    const dv = v - 0.5;
+    const border = u < 0.075 || u > 0.925 || v < 0.04 || v > 0.96;
+    if (border) return { r: 49, g: 35, b: 31 };
+    if (Math.abs(dv) < 0.38 &&
+      (Math.abs(du - 0.13) < 0.075 || Math.abs(du + 0.13) < 0.075)) {
+      return { r: 238, g: 218, b: 174 };
+    }
+    return { r: 43, g: 54, b: 69 };
+  });
+  return new Map([
+    ["小早船本体", hull],
+    ["舵", darkTimber],
+    ["旗", banner],
+    ["旗001", banner],
+    ...["L", "R"].flatMap((side) => Array.from(
+      { length: 8 },
+      (_, index) => [`盾${side}${index + 1}`, shields]
+    ))
+  ]);
+}
+
+function repeatingTextureSampler(sample) {
+  return Object.freeze({
+    sample(u, v) {
+      return sample(wrap01(u), wrap01(v));
+    }
+  });
+}
+
 function orientAtakebunePoint(point) {
   return vectorFromCoordinates(orientPositiveXForwardToZForward(point));
 }
@@ -3471,6 +3756,36 @@ function orientAtakebunePoint(point) {
 function orientJapaneseKuribunePoint(point) {
   const axisOriented = orientNegativeXForwardYUpToZForward(point);
   return vectorFromCoordinates(rotateY(axisOriented, -japaneseKuribunePresentationYawRad));
+}
+
+function orientJapaneseKobayaPoint(point) {
+  return vectorFromCoordinates(orientNegativeXForwardYUpToZForward(point));
+}
+
+function orientJapaneseSekibunePoint(point) {
+  return vectorFromCoordinates(orientNegativeXForwardYUpToZForward(point));
+}
+
+function validateJapaneseKobayaOrientation() {
+  const forward = orientJapaneseKobayaPoint(new THREE.Vector3(-1, 0, 0));
+  const up = orientJapaneseKobayaPoint(new THREE.Vector3(0, 1, 0));
+  if (Math.abs(forward.x) > 1e-9 || Math.abs(forward.y) > 1e-9 || forward.z < 1 - 1e-9) {
+    throw new Error(`Kobaya bow does not point forward after orientation: ${forward.toArray()}`);
+  }
+  if (Math.abs(up.x) > 1e-9 || up.y < 1 - 1e-9 || Math.abs(up.z) > 1e-9) {
+    throw new Error(`Kobaya keel is not below the deck after orientation: ${up.toArray()}`);
+  }
+}
+
+function validateJapaneseSekibuneOrientation() {
+  const forward = orientJapaneseSekibunePoint(new THREE.Vector3(-1, 0, 0));
+  const up = orientJapaneseSekibunePoint(new THREE.Vector3(0, 1, 0));
+  if (Math.abs(forward.x) > 1e-9 || Math.abs(forward.y) > 1e-9 || forward.z < 1 - 1e-9) {
+    throw new Error(`Sekibune bow does not point forward after orientation: ${forward.toArray()}`);
+  }
+  if (Math.abs(up.x) > 1e-9 || up.y < 1 - 1e-9 || Math.abs(up.z) > 1e-9) {
+    throw new Error(`Sekibune keel is not below the deck after orientation: ${up.toArray()}`);
+  }
 }
 
 function validateJapaneseKuribuneOrientation() {
@@ -3482,10 +3797,10 @@ function validateJapaneseKuribuneOrientation() {
   const forward = orientJapaneseKuribunePoint(importedForward);
   const up = orientJapaneseKuribunePoint(new THREE.Vector3(0, 1, 0));
   if (Math.abs(forward.x) > 1e-9 || Math.abs(forward.y) > 1e-9 || forward.z < 1 - 1e-9) {
-    throw new Error(`Kuribune bow axis must map exactly to +Z: ${forward.toArray()}`);
+    throw new Error(`Umi-bune bow axis must map exactly to +Z: ${forward.toArray()}`);
   }
   if (Math.abs(up.x) > 1e-9 || up.y < 1 - 1e-9 || Math.abs(up.z) > 1e-9) {
-    throw new Error(`Kuribune keel-up axis must map exactly to +Y: ${up.toArray()}`);
+    throw new Error(`Umi-bune keel-up axis must map exactly to +Y: ${up.toArray()}`);
   }
 }
 
@@ -3550,6 +3865,12 @@ function makeOarBankTriangles(frameIndex, waterlineY, config) {
   const bladeColor = { r: 111, g: 68, b: 44 };
   const triangles = [];
   for (const { pivot, side, bankIndex } of oarBankPivotEntries(waterlineY, config)) {
+      const inboardLength = config.inboardLength ?? 0;
+      const shaftStart = new THREE.Vector3(
+        pivot.x - side * inboardLength * Math.cos(sweep),
+        pivot.y,
+        pivot.z - inboardLength * Math.sin(sweep)
+      );
       const shaftEnd = new THREE.Vector3(
         pivot.x + side * config.shaftLength * Math.cos(sweep),
         pivot.y + lift,
@@ -3561,7 +3882,7 @@ function makeOarBankTriangles(frameIndex, waterlineY, config) {
         config.bladeLength * Math.sin(sweep)
       ));
       const rasterFeature = `oar:${side}:${bankIndex}`;
-      triangles.push(...makePrismTriangles(pivot, shaftEnd, config.shaftRadius, oarColor, 5, rasterFeature));
+      triangles.push(...makePrismTriangles(shaftStart, shaftEnd, config.shaftRadius, oarColor, 5, rasterFeature));
       triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5, rasterFeature));
   }
   return triangles;
@@ -3697,6 +4018,35 @@ function proceduralOarConfig(slug) {
     bladeLength: 0.045,
     shaftRadius: 0.010,
     bladeRadius: 0.016
+  };
+  if (slug === "japanese-kobaya") return {
+    kind: "bank",
+    // Four representative stations per side keep the small hull open and
+    // readable while still communicating its oar-driven speed.
+    bankPositions: evenBankPositions(-0.52, 0.31, 4),
+    pivotYOffset: 0.035,
+    pivotHalfBeam: 0.19,
+    inboardLength: 0.075,
+    shaftLength: 0.26,
+    bladeLength: 0.08,
+    shaftRadius: 0.014,
+    bladeRadius: 0.022
+  };
+  if (slug === "japanese-sekibune") return {
+    kind: "bank",
+    // The purchased reconstruction carries 32 oars per side. Five oversized
+    // representative stations per side preserve the rowing silhouette without
+    // collapsing into a comb at the production sprite size.
+    bankPositions: evenBankPositions(-0.64, 0.61, 5),
+    pivotYOffset: 0.04,
+    pivotHalfBeam: 0.27,
+    // Carry each shaft through the gunwale so its root cannot rasterize as a
+    // detached segment beside the hull at oblique headings.
+    inboardLength: 0.09,
+    shaftLength: 0.31,
+    bladeLength: 0.09,
+    shaftRadius: 0.017,
+    bladeRadius: 0.027
   };
   if (slug === "japanese-atakebune") return {
     kind: "bank",
@@ -4025,6 +4375,28 @@ async function renderJapaneseKuribune() {
   console.log(config.animationContactSheetPath);
 }
 
+async function renderJapaneseKobaya() {
+  const config = japaneseKobayaConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "japaneseKobayaGenerator",
+    "--japanese-kobaya"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
+async function renderJapaneseSekibune() {
+  const config = japaneseSekibuneConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "japaneseSekibuneGenerator",
+    "--japanese-sekibune"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
 async function renderSpanishNao() {
   const config = spanishNaoConfig();
   const result = await renderStandaloneShip(config, "spanishNaoGenerator", "--spanish-nao");
@@ -4183,6 +4555,8 @@ function standaloneShipConfigForSlug(slug) {
   if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
   if (slug === "joseon-panokseon") return joseonPanokseonConfig();
   if (slug === "japanese-kuribune") return japaneseKuribuneConfig();
+  if (slug === "japanese-kobaya") return japaneseKobayaConfig();
+  if (slug === "japanese-sekibune") return japaneseSekibuneConfig();
   if (slug === "japanese-atakebune") return japaneseAtakebuneConfig();
   if (slug === "spanish-nao") return spanishNaoConfig();
   if (slug === "portuguese-carrack") return portugueseCarrackConfig();
@@ -4738,6 +5112,8 @@ function renderAllProductionShips() {
     "--joseon-turtle-ship",
     "--joseon-panokseon",
     "--japanese-kuribune",
+    "--japanese-kobaya",
+    "--japanese-sekibune",
     "--japanese-atakebune",
     "--spanish-nao",
     "--portuguese-carrack",
@@ -4770,6 +5146,8 @@ async function renderRowingShips() {
   await renderJoseonTurtleShip();
   await renderJoseonPanokseon();
   await renderJapaneseKuribune();
+  await renderJapaneseKobaya();
+  await renderJapaneseSekibune();
   await renderJapaneseAtakebune();
   await renderKelulus();
   await renderMalayWarships();
@@ -4939,6 +5317,14 @@ async function main() {
   }
   if (args.has("--japanese-kuribune")) {
     await renderJapaneseKuribune();
+    return;
+  }
+  if (args.has("--japanese-kobaya")) {
+    await renderJapaneseKobaya();
+    return;
+  }
+  if (args.has("--japanese-sekibune")) {
+    await renderJapaneseSekibune();
     return;
   }
   if (args.has("--japanese-atakebune")) {

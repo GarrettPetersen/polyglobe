@@ -413,7 +413,7 @@
     },
     {
       "slug": "ottoman-coastal-trader",
-      "label": "Ottoman Coastal Trader",
+      "label": "Kancabash",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/ottoman-coastal-trader/scene.gltf",
       "sourceMaxDim": 7.385,
       "targetModelMaxDim": 2,
@@ -497,7 +497,7 @@
     },
     {
       "slug": "japanese-kuribune",
-      "label": "Kuribune",
+      "label": "Umi-bune",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/kamakura-umi-bune/scene.gltf",
       "sourceMaxDim": 449.2172,
       "targetModelMaxDim": 1.38,
@@ -508,6 +508,34 @@
       "creator": "urszulaczyz",
       "license": "CC BY 4.0",
       "sourceTitle": "Kamakura Period Umi-Bune Japanese Boat"
+    },
+    {
+      "slug": "japanese-sekibune",
+      "label": "Sekibune",
+      "sourceModel": "../polyglobe-ship-source-assets/booth/hirokazu-kobayashi-sekibune/sekibune-v1.2.fbx",
+      "sourceMaxDim": 5626.7821,
+      "targetModelMaxDim": 1.82,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/japanese-sekibune.png",
+      "creator": "HIROKAZU KOBAYASHI",
+      "license": "BOOTH commercial-use license",
+      "sourceTitle": "Japanese Boat: Sekibune 3D Model"
+    },
+    {
+      "slug": "japanese-kobaya",
+      "label": "Kobaya",
+      "sourceModel": "../polyglobe-ship-source-assets/booth/hirokazu-kobayashi-kobaya/kobaya-v1.2.fbx",
+      "sourceMaxDim": 2200.8705,
+      "targetModelMaxDim": 1.56,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/japanese-kobaya.png",
+      "creator": "HIROKAZU KOBAYASHI",
+      "license": "BOOTH commercial-use license",
+      "sourceTitle": "Japanese Boat: Kobaya 3D Model"
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -526,5 +554,7 @@
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
   "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow",
-  "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune"
+  "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune",
+  "japaneseSekibuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-sekibune",
+  "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya"
 }

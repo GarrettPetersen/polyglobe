@@ -18,6 +18,7 @@ import {
   shipyardRumorForPort,
   snapshotWorldShipyards
 } from "./shipyards.js";
+import { JAPANESE_SHIP_SLUGS } from "./shipStats.js";
 
 const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14, "portugal");
 const PORTO = port(2, "Porto", "northern-european", 65000, 41.15, -8.61);
@@ -160,7 +161,10 @@ test("East Asian national warships stay exclusive to their own shipyards", () =>
   assert.equal(nanjingHulls.has("japanese-atakebune"), false);
   assert.equal(nagasakiHulls.has("joseon-turtle-ship"), false);
   assert.equal(nagasakiHulls.has("japanese-kuribune"), true);
+  assert.equal(nagasakiHulls.has("japanese-kobaya"), true);
+  assert.equal(nagasakiHulls.has("japanese-sekibune"), true);
   assert.equal(nagasakiHulls.has("japanese-atakebune"), true);
+  assert.deepEqual([...nagasakiHulls].sort(), [...JAPANESE_SHIP_SLUGS].sort());
 });
 
 test("Spanish shipyards exclusively build the Spanish Nao", () => {
@@ -191,7 +195,7 @@ test("Portuguese shipyards exclusively build the Portuguese Carrack", () => {
   assert.equal(venetianHulls.has("portuguese-carrack"), false);
 });
 
-test("Ottoman shipyards exclusively build the Ottoman coastal trader", () => {
+test("Ottoman shipyards exclusively build the Kancabash", () => {
   const system = createWorldShipyards({ ports: [ISTANBUL, VENICE], startMinute: 0 });
   const ottomanHulls = generatedHulls(shipyardAtPort(system, ISTANBUL), 800);
   const venetianHulls = generatedHulls(shipyardAtPort(system, VENICE), 800);

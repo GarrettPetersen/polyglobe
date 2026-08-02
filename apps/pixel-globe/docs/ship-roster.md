@@ -36,6 +36,9 @@ For development, `?startShip={slug}` starts a new voyage with any roster ship. T
 | Lateen Barque | `ketch` | Ship Small 5 | two-masted lateen barque | Medium | Two triangular sails interpreted as a small Mediterranean lateen trader. |
 | Turtle Ship | `joseon-turtle-ship` | Geobukseon (Turtle Ship) | early Joseon armored oar-and-sail warship | High | Joseon-specific cannon warship with procedurally baked working oars. |
 | Panokseon | `joseon-panokseon` | Panok ship (Panokseon) | Joseon decked oar-and-sail warship lineage | Medium | Available from 1522 as a representative of earlier Joseon decked oar-and-sail predecessors; the mature named type is documented later. The source model's static paddles are replaced with procedurally baked working oars. |
+| Umi-bune | `japanese-kuribune` | Kamakura Period Umi-Bune Japanese Boat | small Japanese coastal cargo vessel | Medium | The legacy filename slug remains for save compatibility. The source model's eight static stern oars are replaced with four animated oars for a clearer gameplay silhouette. |
+| Kobaya | `japanese-kobaya` | Japanese Boat: Kobaya 3D Model | light Japanese scout and fighting boat | Medium | Purchased BOOTH reconstruction. Its 20 static oars are replaced with eight animated oars—four per side—and its shields, hull, rudder, and flags receive game-readable wood and cloth textures. |
+| Sekibune | `japanese-sekibune` | Japanese Boat: Sekibune 3D Model | medium Japanese coastal fighting ship | Medium | Purchased BOOTH reconstruction. Its 64 static oars are replaced with 10 shorter animated oars—five per side—with visible spacing and inboard shaft overlap. The sail and tiny banners retain the Ashikaga crest's two bars without its circle for pixel readability. |
 | Atakebune | `japanese-atakebune` | Atakebune Japanese Medieval Warship | Japanese coastal fortress warship | High | Japan-specific warship. The source model's static oar mesh is removed and replaced with procedurally baked working oars. |
 | Spanish Nao | `spanish-nao` | Nao Victoria Galleon Ship | early-16th-century Spanish nao / small carrack | High | Spain-specific exploration hull based on Nao Victoria. Its unusually dark texture receives a uniform brightness adjustment during baking. |
 | Portuguese Carrack | `portuguese-carrack` | Portuguese Carrack | early-16th-century Portuguese carrack | High | Portugal-specific armed ocean-going merchant retaining its cream-and-red sail treatment. |
@@ -44,7 +47,7 @@ For development, `?startShip={slug}` starts a new voyage with any roster ship. T
 | Penjajap | `penjajap` | Procedural Penjajap | light Malay coastal raider | Medium | Original one-masted reconstruction with a lean shallow hull and four thick representative oar pairs for pixel clarity. |
 | Lancaran | `lancaran` | Procedural Lancaran | Malay fleet warship | Medium | Original two-masted reconstruction with fighting platforms and five representative oar pairs. |
 | Royal Lancaran | `royal-lancaran` | Procedural Royal Lancaran | large Malay command warship | Medium | Original three-masted flagship reconstruction with dyed sails, gilt rails, a royal pavilion, and six representative oar pairs. |
-| Ottoman Coastal Trader | `ottoman-coastal-trader` | Ottoman Coastal Trade Tall Ship 3D Model | armed Ottoman coastal merchant | Medium | Ottoman-specific regional merchant; the source does not establish a narrower historical class. |
+| Kancabash | `ottoman-coastal-trader` | Ottoman Coastal Trade Tall Ship 3D Model | Ottoman Kancabaş coastal trader | Medium | The legacy filename slug remains for save compatibility. The hooked bow, single fore-and-aft mast, and headsail match published Kancabaş plans, though the surviving plan is later than the game's 1522 start date. |
 | Viking Longship | `viking-longship` | Viking Ship 1 | Norse-style clinker-built longship reconstruction | High | Special quest ship. Its bright striped sail is retained and its animated oars are procedurally baked. |
 
 ## Ship Stats
@@ -77,6 +80,9 @@ The Turtle Ship has 40% intrinsic combat armor. Each projectile or ramming impac
 | Lateen Barque | `ketch` | 4 | 0.024 | 0.035 | 34deg | 2.85 | 75 | 60 |
 | Turtle Ship | `joseon-turtle-ship` | 30 | 0.017 | 0.034 | 50deg | 1.85 | 45 | 90 |
 | Panokseon | `joseon-panokseon` | 20 | 0.020 | 0.035 | 52deg | 2.20 | 28 | 150 |
+| Umi-bune | `japanese-kuribune` | 0 | 0.028 | 0.034 | 42deg | 3.30 | 5 | 55 |
+| Kobaya | `japanese-kobaya` | 0 (arrows) | 0.027 | 0.038 | 42deg | 3.15 | 9 | 65 |
+| Sekibune | `japanese-sekibune` | 0 (arrows) | 0.023 | 0.038 | 46deg | 2.55 | 17 | 110 |
 | Atakebune | `japanese-atakebune` | 6 | 0.015 | 0.032 | 54deg | 1.70 | 38 | 170 |
 | Spanish Nao | `spanish-nao` | 8 | 0.017 | 0.034 | 54deg | 1.90 | 13 | 180 |
 | Portuguese Carrack | `portuguese-carrack` | 22 | 0.013 | 0.036 | 58deg | 1.45 | 31 | 440 |
@@ -85,7 +91,7 @@ The Turtle Ship has 40% intrinsic combat armor. Each projectile or ramming impac
 | Penjajap | `penjajap` | 2 | 0.028 | 0.042 | 44deg | 3.05 | 12 | 45 |
 | Lancaran | `lancaran` | 6 | 0.024 | 0.041 | 48deg | 2.60 | 20 | 95 |
 | Royal Lancaran | `royal-lancaran` | 10 | 0.019 | 0.040 | 50deg | 2.20 | 31 | 160 |
-| Ottoman Coastal Trader | `ottoman-coastal-trader` | 8 | 0.017 | 0.035 | 55deg | 1.90 | 17 | 240 |
+| Kancabash | `ottoman-coastal-trader` | 8 | 0.017 | 0.035 | 55deg | 1.90 | 17 | 240 |
 | Viking Longship | `viking-longship` | 0 (arrows) | 0.030 | 0.043 | 55deg | 2.75 | 18 | 90 |
 
 Skipped source assets:

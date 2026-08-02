@@ -9,17 +9,19 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Spanish Nao | 7 | 81 | 88 | -0.025 |
 | Atakebune | 6 | 72 | 78 | 0.073 |
 | Dhow | 5 | 69 | 74 | -0.244 |
+| Kancabash | 5 | 88 | 93 | -0.883 |
 | Kelulus | 5 | 73 | 78 | -0.020 |
 | Nusantaran Outrigger | 5 | 81 | 86 | -0.012 |
 | Ocean Dhow | 5 | 87 | 92 | 0.000 |
-| Ottoman Coastal Trader | 5 | 88 | 93 | -0.883 |
 | Polynesian Voyaging Canoe | 5 | 86 | 91 | -0.995 |
 | Square-Rigged Caravel | 5 | 85 | 90 | 0.000 |
 | Carrack | 4 | 83 | 87 | 0.000 |
 | Felucca | 4 | 70 | 74 | -0.352 |
 | Heavy Caravel | 4 | 88 | 92 | 0.000 |
+| Kobaya | 4 | 61 | 65 | 0.000 |
 | Large Junk | 4 | 82 | 86 | 0.000 |
 | Medium Junk | 4 | 82 | 86 | 0.000 |
+| Sekibune | 4 | 74 | 78 | 0.000 |
 | Caravel | 3 | 84 | 87 | -0.046 |
 | Great Carrack | 3 | 83 | 86 | 0.000 |
 | Lancaran | 3 | 67 | 70 | 0.040 |
@@ -30,9 +32,9 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Viking Longship | 3 | 76 | 79 | 0.000 |
 | Brigantine | 2 | 85 | 87 | 0.000 |
 | Galleon | 2 | 83 | 85 | 0.000 |
-| Kuribune | 2 | 65 | 67 | -0.018 |
 | Royal Lancaran | 2 | 68 | 70 | 0.040 |
 | Small Junk | 2 | 81 | 83 | 0.000 |
+| Umi-bune | 2 | 65 | 67 | -0.018 |
 | Xebec | 2 | 86 | 88 | 0.000 |
 | Coastal Pinnace | 1 | 74 | 75 | 0.000 |
 | Dugout Canoe | 1 | 58 | 59 | 0.023 |

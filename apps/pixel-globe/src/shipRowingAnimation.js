@@ -7,6 +7,8 @@ export const SHIP_ROWING_ANIMATION_SPECS = new Map([
   ["joseon-turtle-ship", rowingSpec(123, 0.14, 0.92)],
   ["joseon-panokseon", rowingSpec(125, 0.14, 0.90)],
   ["japanese-kuribune", rowingSpec(116, 0.11, 1.00)],
+  ["japanese-kobaya", rowingSpec(116, 0.12, 1.02)],
+  ["japanese-sekibune", rowingSpec(121, 0.13, 0.94)],
   ["japanese-atakebune", rowingSpec(137, 0.14, 0.84)],
   ["viking-longship", rowingSpec(117, 0.14, 0.96)],
   ["mesoamerican-dugout-canoe", rowingSpec(110, 0.11, 1.08)],

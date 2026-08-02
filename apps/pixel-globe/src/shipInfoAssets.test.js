@@ -52,6 +52,8 @@ const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
+const JAPANESE_KOBAYA_SLUG = "japanese-kobaya";
+const JAPANESE_SEKIBUNE_SLUG = "japanese-sekibune";
 const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const DHOW_SLUG = "dhow";
@@ -518,11 +520,11 @@ test("the Japanese Atakebune replaces its static oars with six working phases", 
   assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, SHIP_ROWING_FRAME_COUNT);
 });
 
-test("the Kuribune halves its source oars into four animated oars", async () => {
+test("the Umi-bune halves its source oars into four animated oars", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === JAPANESE_KURIBUNE_SLUG);
 
-  assert.ok(entry, "Kuribune manifest entry");
+  assert.ok(entry, "Umi-bune manifest entry");
   assert.equal(entry.creator, "urszulaczyz");
   assert.equal(entry.license, "CC BY 4.0");
   assert.equal(entry.sourceTitle, "Kamakura Period Umi-Bune Japanese Boat");
@@ -537,6 +539,48 @@ test("the Kuribune halves its source oars into four animated oars", async () => 
   assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
   assert.equal(entry.sourceOrientation.rawUpAxis, "+Y");
   assert.equal(entry.sourceOrientation.rawForwardAxis, "local -X");
+});
+
+test("the Kobaya replaces its source bank with eight attached animated oars", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const entry = manifest.ships.find((ship) => ship.slug === JAPANESE_KOBAYA_SLUG);
+
+  assert.ok(entry, "Kobaya manifest entry");
+  assert.equal(entry.creator, "HIROKAZU KOBAYASHI");
+  assert.equal(entry.license, "BOOTH commercial-use license");
+  assert.equal(entry.sourceTitle, "Japanese Boat: Kobaya 3D Model");
+  assert.match(entry.sourceModel, /hirokazu-kobayashi-kobaya\/kobaya-v1\.2\.fbx$/);
+  assert.equal(entry.removedSourceMeshes.length, 20);
+  assert.equal(new Set(entry.removedSourceMeshes.map(({ nodeName }) => nodeName)).size, 20);
+  assert.equal(entry.animatedOarCount, 8);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
+  assert.equal(entry.sourceOrientation.rawUpAxis, "+Y");
+  assert.equal(entry.sourceOrientation.rawForwardAxis, "-X");
+
+  const sideView = await loadImage(join(sideViewRoot, `${JAPANESE_KOBAYA_SLUG}.png`));
+  const sideViewBounds = opaqueImageBounds(sideView);
+  assert.ok(sideViewBounds.width > sideViewBounds.height, "Kobaya keel must remain below its deck");
+});
+
+test("the Sekibune replaces its dense source bank with 10 attached animated oars", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const entry = manifest.ships.find((ship) => ship.slug === JAPANESE_SEKIBUNE_SLUG);
+
+  assert.ok(entry, "Sekibune manifest entry");
+  assert.equal(entry.creator, "HIROKAZU KOBAYASHI");
+  assert.equal(entry.license, "BOOTH commercial-use license");
+  assert.equal(entry.sourceTitle, "Japanese Boat: Sekibune 3D Model");
+  assert.match(entry.sourceModel, /hirokazu-kobayashi-sekibune\/sekibune-v1\.2\.fbx$/);
+  assert.equal(entry.removedSourceMeshes.length, 64);
+  assert.equal(new Set(entry.removedSourceMeshes.map(({ nodeName }) => nodeName)).size, 64);
+  assert.equal(entry.animatedOarCount, 10);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
+  assert.equal(entry.sourceOrientation.rawUpAxis, "+Y");
+  assert.equal(entry.sourceOrientation.rawForwardAxis, "-X");
+
+  const sideView = await loadImage(join(sideViewRoot, `${JAPANESE_SEKIBUNE_SLUG}.png`));
+  const sideViewBounds = opaqueImageBounds(sideView);
+  assert.ok(sideViewBounds.width > sideViewBounds.height, "Sekibune keel must remain below its deck");
 });
 
 test("the Spanish Nao uses the credited Nao Victoria source at an intermediate carrack scale", async () => {

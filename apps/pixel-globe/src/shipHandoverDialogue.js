@@ -49,6 +49,10 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a broad-decked Joseon warship whose sturdy hull and elevated fighting platform were well matched to Korea's shallow, strongly tidal coasts",
   "japanese-kuribune":
     "a light Japanese coastal trader whose shallow hull, square sail, and stern oars are well suited to the island passages of the Inland Sea",
+  "japanese-kobaya":
+    "a swift, low-sided Kobaya used by Japanese sea forces for scouting, dispatches, pursuit, and sudden attacks under oars",
+  "japanese-sekibune":
+    "a lean Sekibune, built to carry warriors swiftly along the coast beneath a single sail and long banks of oars",
   "japanese-atakebune":
     "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops",
   "spanish-nao":
@@ -72,7 +76,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "royal-lancaran":
     "a great three-masted command lancaran, richly finished but entirely practical, with the crew, guns, and oar power expected of a sultan's flagship",
   "ottoman-coastal-trader":
-    "a workmanlike Ottoman coaster built for the busy short-haul trade linking the Aegean, the Levant, and the Black Sea"
+    "a workmanlike Kancabash, named for its hooked bow and built to carry cargo between the Marmara, the Aegean, and the Black Sea"
 });
 
 export function shipHandoverHistoryForSlug(shipSlug) {

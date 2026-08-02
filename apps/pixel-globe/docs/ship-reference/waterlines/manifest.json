@@ -153,8 +153,38 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-atakebune-waterline.png"
     },
     {
+      "slug": "japanese-kobaya",
+      "label": "Kobaya",
+      "waterlineY": -0.15633482813874838,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 61,
+      "lowestOpaquePixelY": 65,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
+      "oarPivotCount": 8,
+      "oarPivotPixels": [
+        {
+          "x": 72,
+          "y": 59
+        },
+        {
+          "x": 85,
+          "y": 59
+        },
+        {
+          "x": 98,
+          "y": 59
+        },
+        {
+          "x": 110,
+          "y": 59
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-kobaya-waterline.png"
+    },
+    {
       "slug": "japanese-kuribune",
-      "label": "Kuribune",
+      "label": "Umi-bune",
       "waterlineY": -0.2645213693292447,
       "waterlineOffsetY": -0.018,
       "sideViewWaterlineY": 65,
@@ -173,6 +203,40 @@
         }
       ],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-kuribune-waterline.png"
+    },
+    {
+      "slug": "japanese-sekibune",
+      "label": "Sekibune",
+      "waterlineY": -0.45590067481456925,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 74,
+      "lowestOpaquePixelY": 78,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
+      "oarPivotCount": 10,
+      "oarPivotPixels": [
+        {
+          "x": 67,
+          "y": 72
+        },
+        {
+          "x": 81,
+          "y": 72
+        },
+        {
+          "x": 95,
+          "y": 72
+        },
+        {
+          "x": 109,
+          "y": 72
+        },
+        {
+          "x": 124,
+          "y": 72
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-sekibune-waterline.png"
     },
     {
       "slug": "joseon-panokseon",
@@ -441,7 +505,7 @@
     },
     {
       "slug": "ottoman-coastal-trader",
-      "label": "Ottoman Coastal Trader",
+      "label": "Kancabash",
       "waterlineY": -0.7898186179309307,
       "waterlineOffsetY": -0.883,
       "sideViewWaterlineY": 88,

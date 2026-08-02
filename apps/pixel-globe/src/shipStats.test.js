@@ -200,15 +200,45 @@ test("the Japanese Atakebune is a slow heavy coastal oar-and-sail fortress", () 
   assert.ok(atakebune.turnRateRad < shipStatsForSlug("large-junk").turnRateRad);
 });
 
-test("the Kuribune is a light Japanese coastal oar-and-sail trader", () => {
-  const kuribune = shipStatsForSlug("japanese-kuribune");
+test("the Umi-bune is a light Japanese coastal oar-and-sail trader", () => {
+  const umiBune = shipStatsForSlug("japanese-kuribune");
 
-  assert.equal(shipLabelForSlug(kuribune.slug), "Kuribune");
-  assert.equal(kuribune.propulsion, SHIP_PROPULSION_OAR_SAIL);
-  assert.equal(kuribune.cannons, 0);
-  assert.ok(kuribune.mass < shipStatsForSlug("small-junk").mass);
-  assert.ok(kuribune.cargoCapacity < shipStatsForSlug("small-junk").cargoCapacity);
-  assert.ok(kuribune.seaworthiness >= 5);
+  assert.equal(shipLabelForSlug(umiBune.slug), "Umi-bune");
+  assert.equal(umiBune.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(umiBune.cannons, 0);
+  assert.ok(umiBune.mass < shipStatsForSlug("small-junk").mass);
+  assert.ok(umiBune.cargoCapacity < shipStatsForSlug("small-junk").cargoCapacity);
+  assert.ok(umiBune.seaworthiness >= 5);
+});
+
+test("the Kobaya is Japan's fast arrow-armed scout and campaign starter", () => {
+  const umiBune = shipStatsForSlug("japanese-kuribune");
+  const kobaya = shipStatsForSlug("japanese-kobaya");
+  const sekibune = shipStatsForSlug("japanese-sekibune");
+
+  assert.equal(shipLabelForSlug(kobaya.slug), "Kobaya");
+  assert.equal(kobaya.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(kobaya.navalWeaponKind, NAVAL_WEAPON_ARROW);
+  assert.equal(kobaya.cannons, 0);
+  assert.ok(kobaya.mass > umiBune.mass && kobaya.mass < sekibune.mass);
+  assert.ok(kobaya.cargoCapacity > umiBune.cargoCapacity);
+  assert.ok(kobaya.cargoCapacity < sekibune.cargoCapacity);
+  assert.ok(kobaya.topSpeedRad >= sekibune.topSpeedRad);
+  assert.ok(kobaya.seaworthiness >= 5);
+});
+
+test("the Sekibune fills Japan's arrow-armed middle warship tier", () => {
+  const umiBune = shipStatsForSlug("japanese-kuribune");
+  const sekibune = shipStatsForSlug("japanese-sekibune");
+  const atakebune = shipStatsForSlug("japanese-atakebune");
+
+  assert.equal(shipLabelForSlug(sekibune.slug), "Sekibune");
+  assert.equal(sekibune.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(sekibune.navalWeaponKind, NAVAL_WEAPON_ARROW);
+  assert.equal(sekibune.cannons, 0);
+  assert.ok(sekibune.mass > umiBune.mass && sekibune.mass < atakebune.mass);
+  assert.ok(sekibune.cargoCapacity > umiBune.cargoCapacity);
+  assert.ok(sekibune.cargoCapacity < atakebune.cargoCapacity);
 });
 
 test("the Spanish Nao is a small seaworthy exploration carrack", () => {
@@ -304,10 +334,10 @@ test("Malay warships form a distinct light-to-flagship progression", () => {
   assert.ok(lancaran.cargoCapacity < royal.cargoCapacity);
 });
 
-test("the Ottoman coastal trader is an armed regional merchant", () => {
+test("the Kancabash is an armed Ottoman regional merchant", () => {
   const trader = shipStatsForSlug("ottoman-coastal-trader");
 
-  assert.equal(shipLabelForSlug(trader.slug), "Ottoman Coastal Trader");
+  assert.equal(shipLabelForSlug(trader.slug), "Kancabash");
   assert.equal(trader.propulsion, SHIP_PROPULSION_SAIL);
   assert.ok(trader.cannons > shipStatsForSlug("caravel").cannons - 1);
   assert.ok(trader.cargoCapacity > shipStatsForSlug("spanish-nao").cargoCapacity);

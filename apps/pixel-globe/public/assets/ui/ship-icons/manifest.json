@@ -291,12 +291,12 @@
       "output": "public/assets/ui/ship-icons/mediterranean-galley.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 5,
+        "x": 8,
         "y": 5,
         "w": 37,
         "h": 37
       },
-      "opaquePixels": 133
+      "opaquePixels": 132
     },
     {
       "slug": "joseon-turtle-ship",
@@ -310,7 +310,7 @@
         "w": 36,
         "h": 34
       },
-      "opaquePixels": 127
+      "opaquePixels": 126
     },
     {
       "slug": "joseon-panokseon",
@@ -319,12 +319,54 @@
       "output": "public/assets/ui/ship-icons/joseon-panokseon.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 8,
+        "x": 9,
         "y": 7,
         "w": 30,
         "h": 32
       },
-      "opaquePixels": 151
+      "opaquePixels": 149
+    },
+    {
+      "slug": "japanese-kuribune",
+      "label": "Umi-bune",
+      "source": "public/assets/vehicles/unity-ships/japanese-kuribune-32-headings.png",
+      "output": "public/assets/ui/ship-icons/japanese-kuribune.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 15,
+        "y": 15,
+        "w": 17,
+        "h": 16
+      },
+      "opaquePixels": 98
+    },
+    {
+      "slug": "japanese-kobaya",
+      "label": "Kobaya",
+      "source": "public/assets/vehicles/unity-ships/japanese-kobaya-32-headings.png",
+      "output": "public/assets/ui/ship-icons/japanese-kobaya.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 13,
+        "y": 12,
+        "w": 24,
+        "h": 21
+      },
+      "opaquePixels": 111
+    },
+    {
+      "slug": "japanese-sekibune",
+      "label": "Sekibune",
+      "source": "public/assets/vehicles/unity-ships/japanese-sekibune-32-headings.png",
+      "output": "public/assets/ui/ship-icons/japanese-sekibune.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 9,
+        "y": 7,
+        "w": 32,
+        "h": 31
+      },
+      "opaquePixels": 125
     },
     {
       "slug": "japanese-atakebune",
@@ -333,7 +375,7 @@
       "output": "public/assets/ui/ship-icons/japanese-atakebune.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 9,
+        "x": 10,
         "y": 9,
         "w": 29,
         "h": 28
@@ -375,10 +417,10 @@
       "output": "public/assets/ui/ship-icons/viking-longship.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 3,
-        "y": 5,
-        "w": 40,
-        "h": 37
+        "x": 7,
+        "y": 6,
+        "w": 37,
+        "h": 34
       },
       "opaquePixels": 129
     },
@@ -403,12 +445,12 @@
       "output": "public/assets/ui/ship-icons/mesoamerican-dugout-canoe.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 11,
+        "x": 13,
         "y": 13,
         "w": 24,
         "h": 21
       },
-      "opaquePixels": 82
+      "opaquePixels": 81
     },
     {
       "slug": "nusantaran-outrigger",
@@ -431,12 +473,12 @@
       "output": "public/assets/ui/ship-icons/kelulus.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 2,
-        "y": 5,
-        "w": 42,
-        "h": 37
+        "x": 8,
+        "y": 7,
+        "w": 36,
+        "h": 32
       },
-      "opaquePixels": 112
+      "opaquePixels": 108
     },
     {
       "slug": "penjajap",
@@ -445,12 +487,12 @@
       "output": "public/assets/ui/ship-icons/penjajap.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 3,
-        "y": 7,
-        "w": 40,
-        "h": 33
+        "x": 7,
+        "y": 8,
+        "w": 37,
+        "h": 30
       },
-      "opaquePixels": 93
+      "opaquePixels": 90
     },
     {
       "slug": "lancaran",
@@ -459,12 +501,12 @@
       "output": "public/assets/ui/ship-icons/lancaran.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 3,
-        "y": 7,
-        "w": 40,
-        "h": 32
+        "x": 7,
+        "y": 9,
+        "w": 37,
+        "h": 29
       },
-      "opaquePixels": 108
+      "opaquePixels": 101
     },
     {
       "slug": "royal-lancaran",
@@ -473,16 +515,16 @@
       "output": "public/assets/ui/ship-icons/royal-lancaran.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 3,
-        "y": 6,
-        "w": 41,
-        "h": 34
+        "x": 7,
+        "y": 7,
+        "w": 37,
+        "h": 31
       },
-      "opaquePixels": 108
+      "opaquePixels": 114
     },
     {
       "slug": "ottoman-coastal-trader",
-      "label": "Ottoman Coastal Trader",
+      "label": "Kancabash",
       "source": "public/assets/vehicles/unity-ships/ottoman-coastal-trader-32-headings.png",
       "output": "public/assets/ui/ship-icons/ottoman-coastal-trader.png",
       "headingFrame": 28,

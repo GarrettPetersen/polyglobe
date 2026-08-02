@@ -2147,12 +2147,12 @@
     },
     {
       "slug": "ottoman-coastal-trader",
-      "label": "Ottoman Coastal Trader",
+      "label": "Kancabash",
       "category": "Ottoman merchant",
       "assetLabel": "Ottoman Coastal Trade Tall Ship 3D Model",
-      "identifiedType": "armed Ottoman coastal merchant",
+      "identifiedType": "Ottoman Kancabash coastal trader",
       "identificationConfidence": "medium",
-      "identificationNotes": "A substantial square-rigged merchant model used as an Ottoman-specific regional trading hull rather than a named naval class.",
+      "identificationNotes": "The hooked bow, single fore-and-aft mast, and headsail match published Kancabaş coastal-trade plans. The surviving plan is later than 1522, so the game uses it as a representative Ottoman regional trader rather than an exact reconstruction for the start year.",
       "creator": "Polygora",
       "license": "CC BY 4.0",
       "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model",
@@ -2641,7 +2641,7 @@
     },
     {
       "slug": "japanese-kuribune",
-      "label": "Kuribune",
+      "label": "Umi-bune",
       "category": "Japanese coastal trader",
       "assetLabel": "Kamakura Period Umi-Bune Japanese Boat",
       "identifiedType": "small Japanese coastal cargo vessel",
@@ -2778,6 +2778,614 @@
           "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-5-32-headings-sink-depth.png"
         ]
       }
+    },
+    {
+      "slug": "japanese-sekibune",
+      "label": "Sekibune",
+      "category": "Japanese warship",
+      "assetLabel": "Japanese Boat: Sekibune 3D Model",
+      "identifiedType": "medium Japanese coastal fighting ship",
+      "identificationConfidence": "medium",
+      "identificationNotes": "The purchased source is an artist's reconstruction. Its 64 static oars are removed and replaced with 10 animated oars so the historical long-bank silhouette remains legible at gameplay scale.",
+      "removedSourceMeshes": [
+        {
+          "nodeName": "櫂L01",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01001",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01002",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01003",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01004",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01005",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01006",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01007",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01008",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01009",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01010",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01011",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01012",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01013",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01014",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01015",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01016",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01017",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01018",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01019",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01020",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01021",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01022",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01023",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01024",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01025",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01026",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01027",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01028",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01029",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01030",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01031",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01032",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01033",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01034",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01035",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01036",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01037",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01038",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01039",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01040",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01041",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01042",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01043",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01044",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01045",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01046",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01047",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01048",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01049",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01050",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01051",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01052",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01053",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01054",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01055",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01056",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01057",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01058",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01059",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01060",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01061",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01062",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L01063",
+          "parentName": "櫂",
+          "positionCount": 1944
+        }
+      ],
+      "creator": "HIROKAZU KOBAYASHI",
+      "license": "BOOTH commercial-use license",
+      "sourceTitle": "Japanese Boat: Sekibune 3D Model",
+      "sourceOrientation": {
+        "rawUpAxis": "+Y",
+        "rawForwardAxis": "-X",
+        "evidence": "The rudder is centred at the +X end, identifying +X as stern and -X as bow; the deck and mast rise on +Y while the keel lies below them on -Y."
+      },
+      "animatedOarCount": 10,
+      "sourceModel": "../polyglobe-ship-source-assets/booth/hirokazu-kobayashi-sekibune/sekibune-v1.2.fbx",
+      "sourceTexture": null,
+      "sourceMaxDim": 5626.7821,
+      "targetModelMaxDim": 1.95,
+      "frameScale": 0.61,
+      "scaleMode": "japanese-medium-warship",
+      "waterlineY": -0.45590067481456925,
+      "waterlineOffsetY": 0,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 4,
+        "dominantLengthRatio": 0.9146,
+        "hullIntervalMinY": -0.455901,
+        "hullIntervalMaxY": -0.446873
+      },
+      "encodedWaterlineY": -0.455901,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.563492,
+      "sinkHeightMax": 0.577772,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": 0.008753,
+        "y": 0.577775,
+        "z": -0.322153
+      },
+      "stats": {
+        "slug": "japanese-sekibune",
+        "cannons": 0,
+        "accelerationRad": 0.023,
+        "topSpeedRad": 0.032299999999999995,
+        "upwindStallAngleDeg": 38,
+        "upwindStallAngleRad": 0.6632251157578453,
+        "turnRateRad": 2.55,
+        "mass": 170,
+        "crewCapacity": 14,
+        "hitPoints": 17,
+        "cargoCapacity": 110,
+        "seaworthiness": 6,
+        "armor": 0,
+        "propulsion": "oar-sail",
+        "navalWeaponKind": "arrow"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-sekibune-rowing-5-32-headings-sink-depth.png"
+        ]
+      }
+    },
+    {
+      "slug": "japanese-kobaya",
+      "label": "Kobaya",
+      "category": "Japanese light warship",
+      "assetLabel": "Japanese Boat: Kobaya 3D Model",
+      "identifiedType": "light Japanese scout and fighting boat",
+      "identificationConfidence": "medium",
+      "identificationNotes": "The purchased source is an artist's reconstruction. Its 20 static oars are removed and replaced with eight widely spaced animated oars for a readable light-warship silhouette.",
+      "removedSourceMeshes": [
+        {
+          "nodeName": "櫂L01",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L02",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L03",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L04",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L05",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L06",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L07",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L08",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L09",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂L10",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R01",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R02",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R03",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R04",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R05",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R06",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R07",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R08",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R09",
+          "parentName": "櫂",
+          "positionCount": 1944
+        },
+        {
+          "nodeName": "櫂R10",
+          "parentName": "櫂",
+          "positionCount": 1944
+        }
+      ],
+      "creator": "HIROKAZU KOBAYASHI",
+      "license": "BOOTH commercial-use license",
+      "sourceTitle": "Japanese Boat: Kobaya 3D Model",
+      "sourceOrientation": {
+        "rawUpAxis": "+Y",
+        "rawForwardAxis": "-X",
+        "evidence": "The rudder is centred at the +X end, identifying +X as stern and -X as bow; the deck and protective shields rise on +Y while the keel lies below them on -Y."
+      },
+      "animatedOarCount": 8,
+      "sourceModel": "../polyglobe-ship-source-assets/booth/hirokazu-kobayashi-kobaya/kobaya-v1.2.fbx",
+      "sourceTexture": null,
+      "sourceMaxDim": 2200.8705,
+      "targetModelMaxDim": 1.68,
+      "frameScale": 0.62,
+      "scaleMode": "japanese-light-warship",
+      "waterlineY": -0.15633482813874838,
+      "waterlineOffsetY": 0,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 3,
+        "dominantLengthRatio": 0.8372,
+        "hullIntervalMinY": -0.164901,
+        "hullIntervalMaxY": -0.143485
+      },
+      "encodedWaterlineY": -0.156335,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.259742,
+      "sinkHeightMax": 0.265212,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": -0.009983,
+        "y": 0.274121,
+        "z": -0.723386
+      },
+      "stats": {
+        "slug": "japanese-kobaya",
+        "cannons": 0,
+        "accelerationRad": 0.027,
+        "topSpeedRad": 0.032299999999999995,
+        "upwindStallAngleDeg": 34,
+        "upwindStallAngleRad": 0.5934119456780721,
+        "turnRateRad": 3.15,
+        "mass": 90,
+        "crewCapacity": 8,
+        "hitPoints": 9,
+        "cargoCapacity": 65,
+        "seaworthiness": 6,
+        "armor": 0,
+        "propulsion": "oar-sail",
+        "navalWeaponKind": "arrow"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-5-32-headings-sink-depth.png"
+        ]
+      }
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -2796,5 +3404,7 @@
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
   "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow",
-  "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune"
+  "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune",
+  "japaneseSekibuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-sekibune",
+  "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya"
 }

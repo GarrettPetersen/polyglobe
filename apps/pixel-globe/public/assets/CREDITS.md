@@ -40,6 +40,8 @@
 - Heat Of Fusion, with JJakgwi - "Panok ship (Panokseon) | 판옥선 | 板屋船" (CC BY 4.0)
 - LukasSI - "Atakebune Japanese Medieval Warship" (CC BY 4.0)
 - urszulaczyz - "Kamakura Period Umi-Bune Japanese Boat" (CC BY 4.0)
+- HIROKAZU KOBAYASHI - "Japanese Boat: Kobaya 3D Model" (BOOTH commercial-use license)
+- HIROKAZU KOBAYASHI - "Japanese Boat: Sekibune 3D Model" (BOOTH commercial-use license)
 - Javier López Cuadrado - "Nao Victoria Galleon Ship" (CC BY 4.0)
 - gogiart - "Portuguese Carrack" (CC BY 4.0)
 - gogiart - "Dhow" (CC BY 4.0)

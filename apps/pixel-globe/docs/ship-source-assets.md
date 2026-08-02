@@ -79,7 +79,10 @@ sketchfab/mediterranean-galley/scene.gltf
 sketchfab/mediterranean-galley-furled/scene.gltf
 sketchfab/joseon-turtle-ship/scene.gltf
 sketchfab/joseon-panokseon/scene.gltf
+sketchfab/kamakura-umi-bune/scene.gltf
 sketchfab/atakebune-japanese-warship/scene.gltf
+booth/hirokazu-kobayashi-kobaya/kobaya-v1.2.fbx
+booth/hirokazu-kobayashi-sekibune/sekibune-v1.2.fbx
 sketchfab/nao-victoria/scene.gltf
 sketchfab/portuguese-carrack/scene.gltf
 sketchfab/dhow-gogiart/scene.gltf
@@ -114,6 +117,8 @@ npm run render:native-boats
 npm run render:mediterranean-galley
 npm run render:joseon-turtle-ship
 npm run render:joseon-panokseon
+npm run render:japanese-kuribune
+npm run render:japanese-sekibune
 npm run render:japanese-atakebune
 npm run render:spanish-nao
 npm run render:portuguese-carrack

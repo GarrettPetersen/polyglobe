@@ -41,7 +41,7 @@ import {
   updateNpcSeaRouteSystem
 } from "./npcSeaRoutes.js";
 import { DIPLOMACY_WAR, PIRATE_FACTION_ID, diplomacyBetween } from "./factions.js";
-import { shipStatsForSlug } from "./shipStats.js";
+import { JAPANESE_SHIP_SLUGS, shipStatsForSlug } from "./shipStats.js";
 import { navalWeaponForShip } from "./navalWeapons.js";
 import {
   fishingNetById,
@@ -260,7 +260,9 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
     if (stats.mass >= 260) expensive += 1;
     if (ship.role === NPC_ROLE_PIRATE) {
       assert.equal(ship.factionId, PIRATE_FACTION_ID);
-      assert.ok(PIRATE_SHIP_SLUGS.includes(ship.slug));
+      assert.ok(
+        PIRATE_SHIP_SLUGS.includes(ship.slug) || JAPANESE_SHIP_SLUGS.includes(ship.slug)
+      );
     } else if (ship.role === NPC_ROLE_WARSHIP) {
       assert.ok(navalWeaponForShip({ cultureType: ship.cultureType, cannons: stats.cannons }));
       assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
@@ -282,6 +284,35 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   assert.ok(counts.warship > counts.pirate, JSON.stringify(counts));
   assert.ok(counts.pirate / routes.ships.length <= 0.06, JSON.stringify(counts));
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
+});
+
+test("every NPC ship originating in a Japanese city uses the complete local roster", () => {
+  const ports = [
+    ...PORTS,
+    port(40, "Kyoto", "Japan", "east-asian", 35.01, 135.77, 100000, "japan"),
+    port(41, "Nagasaki", "Japan", "east-asian", 32.75, 129.88, 30000, "japan"),
+    port(42, "Sakai", "Japan", "east-asian", 34.58, 135.47, 50000, "japan")
+  ];
+  const seenHulls = new Set();
+  let japaneseOrigins = 0;
+
+  for (let sample = 0; sample < 12; sample++) {
+    const seedKey = `japanese-roster-${sample}`;
+    const economy = createWorldEconomy({ ports, startMinute: 0, seedKey });
+    const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy, seedKey });
+    for (const ship of routes.ships) {
+      if (ship.plan?.origin?.factionId !== "japan") continue;
+      japaneseOrigins++;
+      seenHulls.add(ship.slug);
+      assert.ok(
+        JAPANESE_SHIP_SLUGS.includes(ship.slug),
+        `${ship.profileId} ${ship.role} spawned ${ship.slug} in ${ship.plan.origin.city}`
+      );
+    }
+  }
+
+  assert.ok(japaneseOrigins > 0);
+  assert.deepEqual([...seenHulls].sort(), [...JAPANESE_SHIP_SLUGS].sort());
 });
 
 test("a sparse dedicated whaling fleet hunts real whales without fishing nets", () => {

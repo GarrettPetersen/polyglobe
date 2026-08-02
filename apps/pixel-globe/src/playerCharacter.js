@@ -5,7 +5,12 @@ import {
   PIRATE_FACTION_ID,
   factionById
 } from "./factions.js";
-import { shipStatsForSlug } from "./shipStats.js";
+import {
+  JAPANESE_KOBAYA_SLUG,
+  JAPANESE_SHIP_SLUGS,
+  JAPANESE_UMI_BUNE_SLUG,
+  shipStatsForSlug
+} from "./shipStats.js";
 
 export const PLAYER_START_YEAR = 1522;
 
@@ -40,8 +45,6 @@ export const PLAYER_ARMED_STARTER_SHIPS = Object.freeze({
   india: "ketch",
   "southeast-asia": "penjajap"
 });
-
-const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
 
 const EUROPEAN_FACTIONS = new Set([
   "england",
@@ -92,15 +95,20 @@ export function playerStarterShipForFaction(factionId, { whaling = false, armed 
   const roster = whaling
     ? PLAYER_WHALING_STARTER_SHIPS
     : armed ? PLAYER_ARMED_STARTER_SHIPS : PLAYER_STARTER_SHIPS;
-  const slug = factionId === "japan" && !armed
-    ? JAPANESE_KURIBUNE_SLUG
+  const slug = factionId === "japan"
+    ? (whaling || armed ? JAPANESE_KOBAYA_SLUG : JAPANESE_UMI_BUNE_SLUG)
     : roster[region];
   if (!slug) throw new Error(`No ${whaling ? "whaling " : armed ? "armed " : ""}starter ship for ${factionId}`);
+  if (factionId === "japan" && !JAPANESE_SHIP_SLUGS.includes(slug)) {
+    throw new Error(`Japanese captain received a non-Japanese starter ship: ${slug}`);
+  }
   const stats = shipStatsForSlug(slug);
   if (whaling && stats.seaworthiness < 5) {
     throw new Error(`Whaling starter is not seaworthy: ${slug}`);
   }
-  if (armed && stats.cannons <= 0) throw new Error(`Armed starter has no cannons: ${slug}`);
+  if (armed && stats.cannons <= 0 && stats.navalWeaponKind === null) {
+    throw new Error(`Armed starter has no naval weapon: ${slug}`);
+  }
   return slug;
 }
 

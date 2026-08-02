@@ -1,4 +1,9 @@
-import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import {
+  JAPANESE_SHIP_SLUGS,
+  JAPANESE_UMI_BUNE_SLUG,
+  shipLabelForSlug,
+  shipStatsForSlug
+} from "./shipStats.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const SHIPYARD_SNAPSHOT_VERSION = 2;
@@ -10,8 +15,6 @@ const FAMOUS_LISTING_DAYS = 240;
 const GOSSIP_RADIUS_KM = 1800;
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
-const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
-const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
@@ -22,7 +25,7 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
   "fishing-lugger": 1800,
   felucca: 1800,
   sampan: 1800,
-  [JAPANESE_KURIBUNE_SLUG]: 2200,
+  [JAPANESE_UMI_BUNE_SLUG]: 2200,
   "polynesian-voyaging-canoe": 2400,
   cutter: 3000,
   "small-cog": 3400,
@@ -38,7 +41,7 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
 
 const FACTION_SHIPS = Object.freeze({
   joseon: Object.freeze([JOSEON_TURTLE_SHIP_SLUG, JOSEON_PANOKSEON_SLUG]),
-  japan: Object.freeze([JAPANESE_KURIBUNE_SLUG, JAPANESE_ATAKEBUNE_SLUG]),
+  japan: JAPANESE_SHIP_SLUGS,
   spain: Object.freeze([SPANISH_NAO_SLUG]),
   portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),
   ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG]),
@@ -311,6 +314,7 @@ function shipPoolForYard(yard) {
   const regionalPool = REGION_SHIP_POOLS[yard.cityType];
   if (!regionalPool) return null;
   const factionShips = FACTION_SHIPS[yard.factionId];
+  if (yard.factionId === "japan") return factionShips;
   if (factionShips) return [...regionalPool, ...factionShips];
   return regionalPool;
 }

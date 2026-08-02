@@ -7,6 +7,21 @@ export const SHIP_PROPULSION_SAIL = "sail";
 export const SHIP_PROPULSION_OAR = "oar";
 export const SHIP_PROPULSION_OAR_SAIL = "oar-sail";
 export const SHIP_UPWIND_FORGIVENESS_DEG = 8;
+export const JAPANESE_UMI_BUNE_SLUG = "japanese-kuribune";
+export const JAPANESE_KOBAYA_SLUG = "japanese-kobaya";
+export const JAPANESE_SEKIBUNE_SLUG = "japanese-sekibune";
+export const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
+export const JAPANESE_SHIP_SLUGS = Object.freeze([
+  JAPANESE_UMI_BUNE_SLUG,
+  JAPANESE_KOBAYA_SLUG,
+  JAPANESE_SEKIBUNE_SLUG,
+  JAPANESE_ATAKEBUNE_SLUG
+]);
+export const JAPANESE_ARMED_SHIP_SLUGS = Object.freeze([
+  JAPANESE_KOBAYA_SLUG,
+  JAPANESE_SEKIBUNE_SLUG,
+  JAPANESE_ATAKEBUNE_SLUG
+]);
 
 const SHIP_PROPULSIONS = new Set([
   SHIP_PROPULSION_SAIL,
@@ -41,7 +56,10 @@ const SHIP_LABELS = Object.freeze({
   "mediterranean-galley": "Mediterranean Galley",
   "joseon-turtle-ship": "Turtle Ship",
   "joseon-panokseon": "Panokseon",
-  "japanese-kuribune": "Kuribune",
+  // Keep the legacy slug for save compatibility; the source vessel is an umi-bune.
+  "japanese-kuribune": "Umi-bune",
+  "japanese-kobaya": "Kobaya",
+  "japanese-sekibune": "Sekibune",
   "japanese-atakebune": "Atakebune",
   "spanish-nao": "Spanish Nao",
   "portuguese-carrack": "Portuguese Carrack",
@@ -53,7 +71,8 @@ const SHIP_LABELS = Object.freeze({
   penjajap: "Penjajap",
   lancaran: "Lancaran",
   "royal-lancaran": "Royal Lancaran",
-  "ottoman-coastal-trader": "Ottoman Coastal Trader"
+  // Keep the legacy slug for save compatibility; use the period Ottoman vessel name in-game.
+  "ottoman-coastal-trader": "Kancabash"
 });
 
 const rawShipStats = [
@@ -81,6 +100,8 @@ const rawShipStats = [
   stats("joseon-turtle-ship", 30, 0.017, 0.034, 50, 1.85, 450, 90, 9, SHIP_PROPULSION_OAR_SAIL, null, 40),
   stats("joseon-panokseon", 20, 0.020, 0.035, 52, 2.20, 280, 150, 7, SHIP_PROPULSION_OAR_SAIL),
   stats("japanese-kuribune", 0, 0.028, 0.034, 42, 3.30, 50, 55, 5, SHIP_PROPULSION_OAR_SAIL),
+  stats("japanese-kobaya", 0, 0.027, 0.038, 42, 3.15, 90, 65, 6, SHIP_PROPULSION_OAR_SAIL, NAVAL_WEAPON_ARROW),
+  stats("japanese-sekibune", 0, 0.023, 0.038, 46, 2.55, 170, 110, 6, SHIP_PROPULSION_OAR_SAIL, NAVAL_WEAPON_ARROW),
   stats("japanese-atakebune", 6, 0.015, 0.032, 54, 1.70, 380, 170, 5, SHIP_PROPULSION_OAR_SAIL),
   stats("spanish-nao", 8, 0.017, 0.034, 54, 1.90, 130, 180, 8),
   stats("portuguese-carrack", 22, 0.013, 0.036, 58, 1.45, 310, 440, 9),
