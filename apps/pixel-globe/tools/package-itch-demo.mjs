@@ -26,6 +26,8 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/terrain/resurrect-64/water_deep_01_01.png",
   "assets/characters/generated/character-portraits.json",
   "assets/vehicles/unity-ships/brigantine-32-headings.png",
+  "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings.png",
+  "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings-sink-depth.png",
   "shared/earth-globe-cache-7.json",
   "shared/discrete-weather-bake-7.bin",
   "shared/globe-runtime-bake-7.bin"
@@ -58,6 +60,14 @@ async function assertDemoBuild(files) {
   const unpackedFlag = files.find((file) => file.relativePath.startsWith("assets/factions/flags/"));
   if (unpackedFlag) {
     throw new Error(`Itch package contains an unpacked faction flag: ${unpackedFlag.relativePath}`);
+  }
+  const unpackedRowingFrame = files.find((file) => (
+    /assets\/vehicles\/unity-ships\/.*-rowing-\d+-32-headings(?:-sink-depth)?\.png$/.test(
+      file.relativePath
+    )
+  ));
+  if (unpackedRowingFrame) {
+    throw new Error(`Itch package contains an unpacked rowing frame: ${unpackedRowingFrame.relativePath}`);
   }
   const editionPath = path.join(distRoot, "src/buildEdition.js");
   const editionSource = await fs.readFile(editionPath, "utf8");

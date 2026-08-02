@@ -3911,10 +3911,57 @@ async function loadRowingShipAssetsForSlug(slug) {
   shipStatsForSlug(slug);
   const spec = ROWING_SHIP_ANIMATION_SPECS.get(slug);
   if (!spec) throw new Error(`Ship has no rowing animation specification: ${slug}`);
+  if (BUILD_EDITION_ID === "demo") {
+    return loadDemoRowingShipAtlas(slug, spec.frames);
+  }
   return Object.freeze(await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
     const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
     return loadShipSpriteAsset(key, `Rowing ship: ${slug} frame ${frameIndex}`);
   })));
+}
+
+async function loadDemoRowingShipAtlas(slug, frameCount) {
+  const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-atlas-${SHIP_SPRITE_HEADING_SUFFIX}`;
+  const [imageAtlas, sinkDepthAtlas] = await Promise.all([
+    loadVehicleImage(key),
+    loadVehicleImage(`${key}-sink-depth`)
+  ]);
+  const atlasHeight = SHIP_SHEET_FRAME_SIZE * Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS) *
+    frameCount;
+  const atlasWidth = SHIP_SHEET_FRAME_SIZE * SHIP_SHEET_COLS;
+  validateImageDimensions(imageAtlas, `Demo rowing ship atlas: ${slug}`, atlasWidth, atlasHeight);
+  validateImageDimensions(
+    sinkDepthAtlas,
+    `Demo rowing ship sink-depth atlas: ${slug}`,
+    atlasWidth,
+    atlasHeight
+  );
+  return Object.freeze(Array.from({ length: frameCount }, (_, frameIndex) => {
+    const image = demoRowingAtlasFrame(imageAtlas, frameIndex, atlasWidth, atlasHeight / frameCount);
+    const sinkDepthImage = demoRowingAtlasFrame(
+      sinkDepthAtlas,
+      frameIndex,
+      atlasWidth,
+      atlasHeight / frameCount
+    );
+    validateShipSpriteSheet(image, `Demo rowing ship: ${slug} frame ${frameIndex}`);
+    validateShipSpriteSheet(
+      sinkDepthImage,
+      `Demo rowing ship sink-depth: ${slug} frame ${frameIndex}`
+    );
+    return Object.freeze({ image, sinkDepthImage });
+  }));
+}
+
+function demoRowingAtlasFrame(atlas, frameIndex, width, height) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const frameCtx = canvas.getContext("2d");
+  if (!frameCtx) throw new Error(`Could not create demo rowing atlas frame ${frameIndex}`);
+  frameCtx.imageSmoothingEnabled = false;
+  frameCtx.drawImage(atlas, 0, frameIndex * height, width, height, 0, 0, width, height);
+  return canvas;
 }
 
 async function loadWhaleAssetsForSlug(slug) {

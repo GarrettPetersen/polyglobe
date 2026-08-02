@@ -7,6 +7,11 @@ import { build } from "esbuild";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 import { FACTIONS, factionHasFlag } from "../src/factions.js";
+import { SHIP_ROWING_ANIMATION_SPECS } from "../src/shipRowingAnimation.js";
+import {
+  SHIP_SPRITE_SHEET_HEIGHT,
+  SHIP_SPRITE_SHEET_WIDTH
+} from "../src/shipSpriteLayout.js";
 
 const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
@@ -25,6 +30,7 @@ const SOURCE_ONLY_PUBLIC_FILES = new Set([
   "assets/misc/hull.png"
 ]);
 const DEMO_TERRAIN_VARIANT = "resurrect-64";
+const DEMO_ROWING_ATLAS_MARKER = "rowing-atlas-32-headings";
 const DEMO_PREBUILT_ICON_SOURCES = new Set([
   "assets/ui/anchor.png",
   "assets/misc/confucian.png",
@@ -200,6 +206,12 @@ function shouldCopyPublicPath(path) {
     const demoTerrainRoot = `assets/terrain/${DEMO_TERRAIN_VARIANT}`;
     return normalized === demoTerrainRoot || normalized.startsWith(`${demoTerrainRoot}/`);
   }
+  if (
+    normalized.startsWith("assets/vehicles/unity-ships/") &&
+    /-rowing-\d+-32-headings(?:-sink-depth)?\.png$/.test(normalized)
+  ) {
+    return false;
+  }
   if (normalized.startsWith("assets/characters/") && normalized.endsWith(".png")) {
     return demoPortraitFiles.has(normalized);
   }
@@ -297,6 +309,42 @@ async function buildDemoFactionFlagAtlas() {
   await writeFile(atlasPath, canvas.toBuffer("image/png"));
 }
 
+async function buildDemoRowingAtlases() {
+  for (const [slug, spec] of SHIP_ROWING_ANIMATION_SPECS) {
+    await buildDemoRowingAtlas(slug, spec.frames, "");
+    await buildDemoRowingAtlas(slug, spec.frames, "-sink-depth");
+  }
+}
+
+async function buildDemoRowingAtlas(slug, frameCount, suffix) {
+  const canvas = createCanvas(
+    SHIP_SPRITE_SHEET_WIDTH,
+    SHIP_SPRITE_SHEET_HEIGHT * frameCount
+  );
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+    const fileName = `${slug}-rowing-${frameIndex}-32-headings${suffix}.png`;
+    const image = await loadImage(
+      join(publicRoot, "assets/vehicles/unity-ships", fileName)
+    );
+    if (
+      image.width !== SHIP_SPRITE_SHEET_WIDTH ||
+      image.height !== SHIP_SPRITE_SHEET_HEIGHT
+    ) {
+      throw new Error(
+        `Demo rowing frame ${fileName} must be ${SHIP_SPRITE_SHEET_WIDTH}x` +
+        `${SHIP_SPRITE_SHEET_HEIGHT}, got ${image.width}x${image.height}`
+      );
+    }
+    context.drawImage(image, 0, frameIndex * SHIP_SPRITE_SHEET_HEIGHT);
+  }
+  const atlasName = `${slug}-${DEMO_ROWING_ATLAS_MARKER}${suffix}.png`;
+  const atlasPath = join(distRoot, "assets/vehicles/unity-ships", atlasName);
+  await mkdir(dirname(atlasPath), { recursive: true });
+  await writeFile(atlasPath, canvas.toBuffer("image/png"));
+}
+
 function buildEditionModuleSource() {
   return [
     `export const BUILD_EDITION_ID = ${JSON.stringify(edition)};`,
@@ -382,6 +430,7 @@ for (const entry of appEntries) await copyEntry(appRoot, entry, shouldCopyAppPat
 for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
+if (edition === BUILD_EDITION_DEMO) await buildDemoRowingAtlases();
 
 await writeFile(join(distRoot, "src/buildEdition.js"), buildEditionModuleSource());
 if (edition === BUILD_EDITION_DEMO) {
