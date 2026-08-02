@@ -1,4 +1,5 @@
 import { inferCharacterReligion, religionById } from "./characterReligion.js";
+import { registerCharacterProperName } from "./properNounLocalization.js";
 
 const CULTURES = Object.freeze({
   english: culture(
@@ -730,13 +731,15 @@ export function assignRegionalCharacterName({
       : `${givenName} ${familyName}`;
     if (usedNames.has(name)) continue;
     usedNames.add(name);
-    return {
+    const identity = {
       name,
       givenName,
       familyName,
       gender,
       nameCulture: cultureId
     };
+    registerCharacterProperName(identity);
+    return identity;
   }
   throw new Error(`Exhausted ${gender} names for ${cultureId}`);
 }
@@ -768,13 +771,15 @@ export function assignRegionalFamilyMemberName({ identityKey, relative, sex, use
       : `${givenName} ${familyName}`;
     if (usedNames.has(name)) continue;
     usedNames.add(name);
-    return {
+    const identity = {
       name,
       givenName,
       familyName,
       gender: sex,
       nameCulture: cultureId
     };
+    registerCharacterProperName(identity);
+    return identity;
   }
   throw new Error(`Exhausted ${sex} relatives for ${relative.name}`);
 }
@@ -816,6 +821,7 @@ export function reconcileRegionalCharacterNameForms(root) {
         Object.assign(value, { name, familyName });
         correctedCount += 1;
       }
+      registerCharacterProperName(value);
     }
     for (const child of Object.values(value)) visit(child);
   }

@@ -65,6 +65,7 @@ const DISPLAY_FUNCTION_NAME = /(?:Accounts?|Biographies|Biography|Comments?|Copi
 
 const EXCLUDED_FILES = new Set([
   "localization.js",
+  "properNounLocalization.js",
   "screenTextCatalog.js",
   "screenTextLocalization.js",
   "worldWebglRenderer.js"

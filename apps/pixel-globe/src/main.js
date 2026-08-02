@@ -789,7 +789,10 @@ import {
   textUsesLocaleGlyphs,
   translate
 } from "./localization.js";
-import { localizePlaceNames } from "./placeNameLocalization.js";
+import {
+  localizeProperNouns,
+  registerPlaceProperNames
+} from "./properNounLocalization.js";
 import {
   captainChartHeaderLayout,
   captainNotebookFrameLayout
@@ -3130,6 +3133,10 @@ async function main() {
   statusPersonImages = createStatusPersonImages(statusHudImages.crew);
   statusPersonOpaquePixels = opaqueStatusPersonPixels(statusHudImages.crew);
   cityCatalog = loadedCityCatalog;
+  registerPlaceProperNames([
+    ...cityCatalog.flatMap((city) => [city.city, city.displayCity]),
+    ...COLONIZATION_TARGETS.flatMap((target) => [target.city, target.displayCity])
+  ]);
   creditsMarkdown = loadedCreditsMarkdown;
   localSaveResult = CAPTURE_SCENARIO
     ? { status: "empty", save: null, error: null }
@@ -7341,7 +7348,7 @@ function uiText(key, replacements = {}) {
 }
 
 function renderedUiText(text) {
-  const rendered = localizePlaceNames(currentLanguage, localizeText(currentLanguage, text));
+  const rendered = localizeProperNouns(currentLanguage, localizeText(currentLanguage, text));
   if (CAPTURE_FRAME_PASS && currentLanguage !== LANGUAGE_ENGLISH &&
       !captureLocalizedTextOutputs.has(text)) {
     const key = `${text}\u0000${rendered}`;
