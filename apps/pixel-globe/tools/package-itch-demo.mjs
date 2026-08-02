@@ -11,6 +11,7 @@ const outputZip = path.resolve(
 
 const ITCH_LIMITS = Object.freeze({
   maxFiles: 1000,
+  fileSafetyMargin: 5,
   maxPathLength: 240,
   maxExtractedBytes: 500 * 1024 * 1024,
   maxSingleFileBytes: 200 * 1024 * 1024
@@ -26,7 +27,7 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/characters/generated/character-portraits.json",
   "assets/vehicles/unity-ships/brigantine-32-headings.png",
   "shared/earth-globe-cache-7.json",
-  "shared/discrete-weather-bake-7.bin.chunks.json",
+  "shared/discrete-weather-bake-7.bin",
   "shared/globe-runtime-bake-7.bin"
 ]);
 
@@ -68,9 +69,11 @@ async function assertDemoBuild(files) {
 
 function assertItchLimits(files) {
   const extractedBytes = files.reduce((sum, file) => sum + file.size, 0);
-  if (files.length > ITCH_LIMITS.maxFiles) {
+  const safeFileLimit = ITCH_LIMITS.maxFiles - ITCH_LIMITS.fileSafetyMargin;
+  if (files.length > safeFileLimit) {
     throw new Error(
-      `Itch package contains ${files.length} files; maximum is ${ITCH_LIMITS.maxFiles}`
+      `Itch package contains ${files.length} files; it must stay below the ` +
+      `${ITCH_LIMITS.maxFiles}-file platform boundary (target ${safeFileLimit})`
     );
   }
   if (extractedBytes > ITCH_LIMITS.maxExtractedBytes) {

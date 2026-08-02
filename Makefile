@@ -25,7 +25,7 @@ help:
 	@echo "  make railways-build     Build Railways app"
 	@echo "  make railways-preview   Preview built Railways app"
 	@echo "  make pixel-globe-dev    Run Pixel Globe locally on PIXEL_GLOBE_PORT (default: 5184)"
-	@echo "  make pixel-globe-demo-itch Build the two-hour HTML5 demo ZIP for itch.io"
+	@echo "  make pixel-globe-demo-itch Build the Mediterranean HTML5 demo ZIP for itch.io"
 	@echo "  make pixel-globe-capture Run a disposable 9:16 capture scenario"
 	@echo "  make pixel-globe-benchmark Run the deterministic busy-world performance benchmark"
 	@echo "  make pixel-globe-trailer-clips Record all scripted 9:16 trailer clips"

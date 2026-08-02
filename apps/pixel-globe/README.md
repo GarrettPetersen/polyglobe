@@ -56,12 +56,12 @@ The upload-ready archive is
 `apps/pixel-globe/build/marque-and-reprisal-demo-itch.zip`. It contains
 `index.html` at the ZIP root, uses relative runtime paths for itch.io's
 subdirectory hosting, and validates itch.io's default file, path, and size
-limits before packaging.
+limits before packaging. The demo build keeps its large weather bake as one
+browser-loaded file so the archive remains below itch.io's 1,000-file ceiling.
 
-The demo has no voyage timer. It exposes the complete sandbox but keeps the
-captain in the ship selected at the start of the run: shipyard purchases,
-surrendered prizes, and the Viking longship reward are shown with a disabled
-padlock control.
+The demo has no voyage timer. It exposes all game features within the
+Mediterranean, Black Sea, and their connected rivers; Gibraltar marks the edge
+of the demo voyage.
 
 Controls: arrow keys or WASD steer. Space or Enter activates the available interaction.
 

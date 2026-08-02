@@ -44,7 +44,9 @@ const publicRoot = join(appRoot, "public");
 const sharedDataRoot = join(repoRoot, "examples/globe-demo/public");
 const edition = buildEditionFromArgs(process.argv.slice(2));
 const distRoot = join(appRoot, edition === BUILD_EDITION_DEMO ? "dist-demo" : "dist");
-const maxPagesFileBytes = 24 * 1024 * 1024;
+const maxHostedFileBytes = edition === BUILD_EDITION_DEMO
+  ? 200 * 1024 * 1024
+  : 24 * 1024 * 1024;
 const largeFileChunkBytes = 10 * 1024 * 1024;
 
 const appEntries = edition === BUILD_EDITION_DEMO
@@ -103,7 +105,7 @@ async function copyEntry(fromRoot, [from, to], filter = null) {
   const target = join(distRoot, to);
   const sourceStat = await mustExist(source);
   await mkdir(dirname(target), { recursive: true });
-  if (sourceStat.isFile() && sourceStat.size > maxPagesFileBytes) {
+  if (sourceStat.isFile() && sourceStat.size > maxHostedFileBytes) {
     await copyLargeFileAsChunks(source, target, sourceStat.size);
     return;
   }
