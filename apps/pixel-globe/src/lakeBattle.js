@@ -6,12 +6,10 @@ import {
   NAVAL_WEAPON_CANNON
 } from "./navalWeapons.js";
 import {
-  MARINERS_BOWS_ITEM_ID,
   PORTABLE_PROJECTILE_CANNON,
-  VIKING_BOWS_ITEM_ID,
-  YUMI_ITEM_ID,
   activePortableWeaponAssignments,
-  portableWeaponItemById
+  portableWeaponItemById,
+  representativePortableWeaponItemIdsForShip
 } from "./portableWeapons.js";
 import { activeCombatCrew, applyCrewWounds, crewWoundsForceSurrender } from "./combatWounds.js";
 import {
@@ -126,6 +124,8 @@ export function createLakeBattle({
   enemySlug,
   playerCannonEquipmentId = STANDARD_CANNON_EQUIPMENT_ID,
   enemyCannonEquipmentId = STANDARD_CANNON_EQUIPMENT_ID,
+  playerPortableWeaponItemIds = null,
+  enemyPortableWeaponItemIds = null,
   shipFootprints,
   seed = LAKE_BATTLE_DEFAULT_SEED
 }) {
@@ -158,7 +158,8 @@ export function createLakeBattle({
       playerSpawn.x,
       playerSpawn.y,
       -0.18,
-      playerCannonEquipmentId
+      playerCannonEquipmentId,
+      playerPortableWeaponItemIds
     ),
     enemy: createBattleCombatant(
       LAKE_BATTLE_ENEMY_ID,
@@ -166,7 +167,8 @@ export function createLakeBattle({
       enemySpawn.x,
       enemySpawn.y,
       Math.PI - 0.18,
-      enemyCannonEquipmentId
+      enemyCannonEquipmentId,
+      enemyPortableWeaponItemIds
     ),
     projectiles: [],
     cannonSmokeBursts: [],
@@ -476,11 +478,11 @@ export function drainLakeBattleEvents(state) {
   return events;
 }
 
-function createBattleShip(id, slug, x, y, headingRad, cannonEquipmentId) {
-  return createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId);
+function createBattleShip(id, slug, x, y, headingRad, cannonEquipmentId, portableWeaponItemIds) {
+  return createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId, portableWeaponItemIds);
 }
 
-function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
+function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId, requestedPortableWeaponItemIds) {
   const stats = lakeBattleCombatantStats(slug);
   const baseWeapon = navalWeaponForShip({ cannons: stats.cannons });
   if (!baseWeapon && cannonEquipmentId !== STANDARD_CANNON_EQUIPMENT_ID) {
@@ -492,7 +494,9 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
   if (slug === LAKE_BATTLE_CITY_SLUG && weapon) {
     weapon = Object.freeze({ ...weapon, reloadSeconds: SHORE_BATTERY_RELOAD_SECONDS });
   }
-  const portableWeaponItemIds = lakeBattlePortableWeaponItemIds(slug);
+  const portableWeaponItemIds = requestedPortableWeaponItemIds === null
+    ? lakeBattlePortableWeaponItemIds(slug)
+    : validateLakeBattlePortableWeaponItemIds(requestedPortableWeaponItemIds, slug);
   return {
     id,
     slug,
@@ -525,12 +529,23 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
   };
 }
 
-function lakeBattlePortableWeaponItemIds(slug) {
-  if (slug === "japanese-kobaya" || slug === "japanese-kuribune" || slug === "japanese-atakebune") {
-    return Object.freeze([YUMI_ITEM_ID]);
+export function lakeBattlePortableWeaponItemIds(slug) {
+  const stats = lakeBattleCombatantStats(slug);
+  return representativePortableWeaponItemIdsForShip({ shipSlug: slug, cannons: stats.cannons });
+}
+
+function validateLakeBattlePortableWeaponItemIds(itemIds, slug) {
+  if (!Array.isArray(itemIds) || itemIds.length === 0) {
+    throw new Error(`Lake battle combatant needs portable equipment: ${slug}`);
   }
-  if (slug === "viking-longship") return Object.freeze([VIKING_BOWS_ITEM_ID]);
-  return Object.freeze([MARINERS_BOWS_ITEM_ID]);
+  const uniqueIds = [...new Set(itemIds)];
+  if (uniqueIds.length !== itemIds.length) {
+    throw new Error(`Lake battle portable equipment is duplicated: ${slug}`);
+  }
+  if (!uniqueIds.some((itemId) => portableWeaponItemById(itemId).weapon)) {
+    throw new Error(`Lake battle combatant has no portable weapon: ${slug}`);
+  }
+  return Object.freeze(uniqueIds);
 }
 
 function createLakeBattleWind(seed) {

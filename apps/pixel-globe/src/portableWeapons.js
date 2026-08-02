@@ -25,6 +25,18 @@ const ISLAMIC_BOW_FACTIONS = new Set([
 ]);
 const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi"]);
 const EAST_ASIAN_CROSSBOW_FACTIONS = new Set(["ming", "joseon"]);
+const JAPANESE_SHIP_SLUGS = new Set([
+  "japanese-kuribune", "japanese-kobaya", "japanese-sekibune", "japanese-atakebune"
+]);
+const EAST_ASIAN_SHIP_SLUGS = new Set([
+  "sampan", "small-junk", "medium-junk", "large-junk", "joseon-turtle-ship", "joseon-panokseon"
+]);
+const ISLAMIC_AND_INDIAN_OCEAN_SHIP_SLUGS = new Set([
+  "dhow", "ocean-dhow", "felucca", "xebec", "ottoman-coastal-trader"
+]);
+const SOUTHEAST_ASIAN_SHIP_SLUGS = new Set([
+  "nusantaran-outrigger", "kelulus", "penjajap", "lancaran", "royal-lancaran"
+]);
 
 function portableItem({
   id,
@@ -301,6 +313,32 @@ export function npcPortableWeaponItemIds({
       seededUnit(`${identityKey}|incendiary`) < 0.16) {
     ids.push(INCENDIARY_ARROWS_ITEM_ID);
   }
+  return Object.freeze(ids);
+}
+
+export function representativePortableWeaponItemIdsForShip({ shipSlug, cannons }) {
+  if (typeof shipSlug !== "string" || shipSlug === "") {
+    throw new Error(`Representative portable weapons require a ship: ${shipSlug}`);
+  }
+  if (!Number.isInteger(cannons) || cannons < 0) {
+    throw new Error(`Invalid representative cannon count: ${cannons}`);
+  }
+
+  const baseWeaponId = shipSlug === "viking-longship"
+    ? VIKING_BOWS_ITEM_ID
+    : JAPANESE_SHIP_SLUGS.has(shipSlug)
+      ? YUMI_ITEM_ID
+      : EAST_ASIAN_SHIP_SLUGS.has(shipSlug)
+        ? CROSSBOWS_ITEM_ID
+        : ISLAMIC_AND_INDIAN_OCEAN_SHIP_SLUGS.has(shipSlug) || SOUTHEAST_ASIAN_SHIP_SLUGS.has(shipSlug)
+          ? COMPOSITE_BOWS_ITEM_ID
+          : MARINERS_BOWS_ITEM_ID;
+  const ids = [baseWeaponId];
+
+  // The arena has no faction or port context, so give gunpowder hulls a representative
+  // fighting fit instead of pretending their crews brought no portable firearms.
+  if (cannons >= 6) ids.push(MATCHLOCK_ARQUEBUSES_ITEM_ID);
+  if (cannons >= 12) ids.push(SWIVEL_GUN_ITEM_ID);
   return Object.freeze(ids);
 }
 

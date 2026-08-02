@@ -1509,6 +1509,7 @@ import {
   lakeBattleCombatantLabel,
   lakeBattleCombatantPoint,
   lakeBattleCombatantStats,
+  lakeBattlePortableWeaponItemIds,
   lakeBattleProjectilePoint,
   lakeBattleWaterAt,
   lakeBattleWeaponRange,
@@ -31708,16 +31709,26 @@ function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
     { color: PIRATE_MENU_INK }
   );
   const gunCount = stats.batteryGuns || stats.cannons;
-  const armament = gunCount > 0 ? `${gunCount} GUNS` : "SMALL ARMS";
-  const compactArmament = gunCount > 0 ? `${gunCount}G` : "ARMS";
+  const portableEquipment = lakeBattlePortableWeaponItemIds(slug)
+    .map((itemId) => renderedUiText(portableWeaponItemById(itemId).label))
+    .join(" + ")
+    .toUpperCase();
+  const gunLabel = renderedUiText("Guns").toUpperCase();
+  const armament = gunCount > 0 ? `${gunCount} ${gunLabel} + ${portableEquipment}` : portableEquipment;
   const armor = stats.armor || 0;
   const summary = rect.w < 300
-    ? `H${stats.hitPoints} A${armor} P${stats.crewProtection} ${compactArmament} C${stats.crewCapacity}`
-    : `HULL ${stats.hitPoints}  ARMOR ${armor}%  COVER ${stats.crewProtection}%  ${armament}  CREW ${stats.crewCapacity}`;
+    ? `H${stats.hitPoints} A${armor} P${stats.crewProtection} C${stats.crewCapacity}`
+    : `HULL ${stats.hitPoints}  ARMOR ${armor}%  COVER ${stats.crewProtection}%  CREW ${stats.crewCapacity}`;
+  drawOptionsText(
+    fitPixelText(armament, PIXEL_FONT_SMALL_8, textWidth),
+    textLeft,
+    rect.y + 32,
+    { color: PIRATE_MENU_CHART_LINE }
+  );
   drawOptionsText(
     fitPixelText(summary, PIXEL_FONT_SMALL_8, textWidth),
     textLeft,
-    rect.y + 36,
+    rect.y + 43,
     { color: PIRATE_MENU_INK_MUTED }
   );
 }

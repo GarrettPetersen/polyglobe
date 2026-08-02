@@ -16,6 +16,7 @@ import {
   fireLakeBattlePortableWeapons,
   lakeBattleBroadsideDirection,
   lakeBattleHeadingVector,
+  lakeBattlePortableWeaponItemIds,
   lakeBattleShipFitsInWater,
   lakeBattleWindFlowDirection,
   lakeBattleWeaponRange,
@@ -23,7 +24,11 @@ import {
   updateLakeBattle
 } from "./lakeBattle.js";
 import {
+  COMPOSITE_BOWS_ITEM_ID,
+  CROSSBOWS_ITEM_ID,
   MARINERS_BOWS_ITEM_ID,
+  MATCHLOCK_ARQUEBUSES_ITEM_ID,
+  SWIVEL_GUN_ITEM_ID,
   VIKING_BOWS_ITEM_ID
 } from "./portableWeapons.js";
 import {
@@ -60,6 +65,30 @@ test("lake battle roster contains every hull because portable arms are not hull-
   assert.equal(LAKE_BATTLE_SHIP_SLUGS.includes("fishing-lugger"), true);
   assert.ok(LAKE_BATTLE_ENEMY_SLUGS.includes(LAKE_BATTLE_CITY_SLUG));
   assert.equal(LAKE_BATTLE_SHIP_SLUGS.includes(LAKE_BATTLE_CITY_SLUG), false);
+});
+
+test("every one-on-one combatant receives portable equipment", () => {
+  for (const slug of LAKE_BATTLE_ENEMY_SLUGS) {
+    assert.ok(lakeBattlePortableWeaponItemIds(slug).length > 0, slug);
+  }
+});
+
+test("former arrow hulls retain historically appropriate portable arms", () => {
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("japanese-kobaya"), ["yumi"]);
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("japanese-sekibune"), ["yumi"]);
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("viking-longship"), [VIKING_BOWS_ITEM_ID]);
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("polynesian-voyaging-canoe"), [MARINERS_BOWS_ITEM_ID]);
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("mesoamerican-dugout-canoe"), [MARINERS_BOWS_ITEM_ID]);
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("nusantaran-outrigger"), [COMPOSITE_BOWS_ITEM_ID]);
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("kelulus"), [COMPOSITE_BOWS_ITEM_ID]);
+});
+
+test("large one-on-one ships carry firearms and a swivel gun", () => {
+  assert.deepEqual(lakeBattlePortableWeaponItemIds("large-junk"), [
+    CROSSBOWS_ITEM_ID,
+    MATCHLOCK_ARQUEBUSES_ITEM_ID,
+    SWIVEL_GUN_ITEM_ID
+  ]);
 });
 
 test("a city is a stationary coastal enemy with a two-shot shore battery", () => {
