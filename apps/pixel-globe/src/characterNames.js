@@ -308,7 +308,7 @@ const CULTURES = Object.freeze({
   malukan: culture(
     ["Abu Hayat", "Bayan Sirrullah", "Boleife", "Hairun", "Jamilu", "Kaicil", "Mansur", "Mir", "Sahmardan", "Taruwese", "Zainal Abidin"],
     ["Boki Raja", "Boki Tanjung", "Gia", "Nita", "Nukila", "Siti", "Zainab"],
-    ["Bacan", "Banda", "Hitu", "Jailolo", "Makian", "Ternate", "Tidore"]
+    ["Bacan", "Banda", "Buru", "Gane", "Hitu", "Jailolo", "Makian", "Ternate", "Tidore"]
   ),
   cebuano: culture(
     ["Awi", "Colambu", "Humabon", "Lapulapu", "Siaui", "Siagu", "Tupas", "Zula"],
@@ -589,6 +589,16 @@ const FACTION_CULTURES = new Map([
   ["joseon", "korean"]
 ]);
 
+const MALUKAN_LOCATIVE_BY_CITY = new Map([
+  ["ternate", "Ternate"],
+  ["tidore", "Tidore"],
+  ["banda village", "Banda"],
+  ["hitu village", "Hitu"],
+  ["buru village", "Buru"],
+  ["makian village", "Makian"],
+  ["gane village", "Gane"]
+]);
+
 const ISLAMIC_RELIGIONS = new Set(["sunni-islam", "shia-islam", "ibadi-islam"]);
 const SOUTH_ASIAN_NAME_CULTURES = new Set([
   "bengali",
@@ -685,7 +695,9 @@ export function assignRegionalCharacterName({
   if (!nameCulture) throw new Error(`Unknown character name culture: ${cultureId}`);
   const gender = sex;
   const givenNames = gender === "female" ? nameCulture.female : nameCulture.male;
-  const capacity = givenNames.length * nameCulture.family.length;
+  const familyNamePlan = familyNamePlanForSubject(nameCulture, cultureId, subject);
+  const familyNames = familyNamePlan.names;
+  const capacity = givenNames.length * familyNames.length;
   const normalStartIndex = hashString32(`${identityKey}|${cultureId}|${gender}|name`) % capacity;
   const preferredGivenName = preferredMuhammadName({
     identityKey,
@@ -702,10 +714,15 @@ export function assignRegionalCharacterName({
       );
 
   for (let attempt = 0; attempt < capacity; attempt++) {
-    const index = (startIndex + attempt) % capacity;
+    const index = familyNamePlan.preferFirst
+      ? (
+          Math.floor(attempt / givenNames.length) * givenNames.length +
+          ((startIndex + attempt) % givenNames.length)
+        )
+      : (startIndex + attempt) % capacity;
     const givenName = givenNames[index % givenNames.length];
-    const familyNameRoot = nameCulture.family[
-      Math.floor(index / givenNames.length) % nameCulture.family.length
+    const familyNameRoot = familyNames[
+      Math.floor(index / givenNames.length) % familyNames.length
     ];
     const familyName = familyNameForSex(nameCulture, familyNameRoot, sex);
     const name = nameCulture.order === "family-first"
@@ -844,6 +861,27 @@ function preferredMuhammadName({ identityKey, cultureId, gender, religionId, giv
   const preferred = MUHAMMAD_NAME_BY_CULTURE[cultureId];
   if (!preferred || !givenNames.includes(preferred)) return null;
   return (hashString32(`${identityKey}|muhammad-name`) >>> 16) % 4 === 0 ? preferred : null;
+}
+
+function familyNamePlanForSubject(nameCulture, cultureId, subject) {
+  if (cultureId !== "malukan") return { names: nameCulture.family, preferFirst: false };
+  const cityName = normalizeName(subject.displayCity || subject.city);
+  const localLocative = MALUKAN_LOCATIVE_BY_CITY.get(cityName)
+    || (subject.factionId === "ternate" ? "Ternate" : null)
+    || (subject.factionId === "tidore" ? "Tidore" : null);
+  if (!localLocative) return { names: nameCulture.family, preferFirst: false };
+  const rivalLocative = localLocative === "Ternate"
+    ? "Tidore"
+    : localLocative === "Tidore" ? "Ternate" : null;
+  return {
+    names: [
+      localLocative,
+      ...nameCulture.family.filter((familyName) => (
+        familyName !== localLocative && familyName !== rivalLocative
+      ))
+    ],
+    preferFirst: true
+  };
 }
 
 function localNameCultureForSubject(subject) {

@@ -808,6 +808,40 @@ test("campaign contacts are distinct people from the home port factor", () => {
   assert.deepEqual(repeatedPatron, patron);
 });
 
+test("Ternate and Tidore factors and patrons keep their own locatives", () => {
+  for (const [index, cityName, factionId, rivalLocative] of [
+    [0, "Ternate", "ternate", "Tidore"],
+    [1, "Tidore", "tidore", "Ternate"]
+  ]) {
+    const homePort = {
+      tileId: 1200 + index,
+      city: cityName,
+      displayCity: cityName,
+      country: "Indonesia",
+      factionId,
+      cityType: "southeast-asian",
+      lat: 0.8,
+      lon: 127.4 + index * 0.1
+    };
+    const usedNames = new Set([`Zainal Abidin ${cityName}`]);
+    const [factor] = assignPortCityCharacters([homePort], GENERATED_MANIFEST, usedNames).values();
+    const patron = generateCampaignContactCharacter({
+      playerCharacter: { id: `captain-${factionId}`, name: `Zainal Abidin ${cityName}` },
+      homePort,
+      goalType: "explorer",
+      excludedSourceId: factor.sourceId,
+      manifest: GENERATED_MANIFEST,
+      usedNames
+    });
+
+    assert.equal(factor.familyName, cityName);
+    assert.equal(patron.familyName, cityName);
+    assert.notEqual(factor.familyName, rivalLocative);
+    assert.notEqual(patron.familyName, rivalLocative);
+    assert.notEqual(patron.name, factor.name);
+  }
+});
+
 test("return-home passenger generation can use destination culture", () => {
   const passenger = generatePassengerCharacter({
     identityKey: "passenger-lisbon-nagasaki",

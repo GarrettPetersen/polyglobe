@@ -189,6 +189,7 @@ test("ports across the Old World use specific local naming traditions", () => {
     ["Malacca", "Malaysia", "portugal", "malay"],
     ["Gresik", "Indonesia", "neutral", "javanese"],
     ["Ternate", "Indonesia", "ternate", "malukan"],
+    ["Tidore", "Indonesia", "tidore", "malukan"],
     ["Mactan Village", "Philippines", "neutral", "cebuano"],
     ["Ayutthaya", "Thailand", "ayutthaya", "thai"],
     ["Pegu", "Myanmar", "neutral", "monBurmese"],
@@ -217,6 +218,49 @@ test("ports across the Old World use specific local naming traditions", () => {
     });
     assert.ok(completeIdentity.name.length > 0, city);
     assert.ok(completeIdentity.religionId.length > 0, city);
+  }
+});
+
+test("Malukan characters use their home locative before regional fallbacks", () => {
+  const cases = [
+    [{ city: "Ternate", country: "Indonesia", factionId: "ternate" }, "Ternate", "Tidore"],
+    [{ city: "Tidore", country: "Indonesia", factionId: "tidore" }, "Tidore", "Ternate"],
+    [{ city: "Banda Village", country: "Indonesia", factionId: "neutral" }, "Banda", null],
+    [{ city: "Buru Village", country: "Indonesia", factionId: "tidore" }, "Buru", null]
+  ];
+
+  for (const [city, expectedLocative, forbiddenLocative] of cases) {
+    for (const sex of ["female", "male"]) {
+      for (let index = 0; index < 64; index++) {
+        const identity = assignRegionalCharacterName({
+          identityKey: `${city.city}|${sex}|${index}`,
+          city,
+          sex,
+          usedNames: new Set()
+        });
+        assert.equal(identity.familyName, expectedLocative, `${city.city} ${sex} ${index}`);
+        if (forbiddenLocative) assert.notEqual(identity.familyName, forbiddenLocative);
+      }
+    }
+  }
+});
+
+test("Malukan name exhaustion never falls back to the rival capital", () => {
+  for (const [city, forbiddenLocative] of [
+    [{ city: "Ternate", country: "Indonesia", factionId: "ternate" }, "Tidore"],
+    [{ city: "Tidore", country: "Indonesia", factionId: "tidore" }, "Ternate"]
+  ]) {
+    const usedNames = new Set();
+    const identities = [];
+    for (let index = 0; index < 18; index++) {
+      identities.push(assignRegionalCharacterName({
+        identityKey: `${city.city}|shared|${index}`,
+        city,
+        sex: "male",
+        usedNames
+      }));
+    }
+    assert.equal(identities.some((identity) => identity.familyName === forbiddenLocative), false);
   }
 });
 
