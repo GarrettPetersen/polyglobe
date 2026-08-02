@@ -11,6 +11,7 @@ const LOCAL_SHIP_SLUGS_BY_CITY_TYPE = Object.freeze({
     "large-junk",
     "joseon-turtle-ship",
     "joseon-panokseon",
+    "japanese-kuribune",
     "japanese-atakebune"
   ]),
   "south-asian": new Set(["dhow", "ocean-dhow"]),

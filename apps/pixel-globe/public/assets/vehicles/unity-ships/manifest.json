@@ -2638,6 +2638,146 @@
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ocean-dhow-32-headings-lighting-preview.png"
       }
+    },
+    {
+      "slug": "japanese-kuribune",
+      "label": "Kuribune",
+      "category": "Japanese coastal trader",
+      "assetLabel": "Kamakura Period Umi-Bune Japanese Boat",
+      "identifiedType": "small Japanese coastal cargo vessel",
+      "identificationConfidence": "medium",
+      "identificationNotes": "The source model's eight static stern oars are removed. Four animated oars retain two measured source stations per side for a clearer gameplay silhouette.",
+      "removedSourceMeshes": [
+        {
+          "nodeName": "Box006_DarkWood_0",
+          "parentName": "Box006",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Box007_DarkWood_0",
+          "parentName": "Box007",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Box008_DarkWood_0",
+          "parentName": "Box008",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Box009_DarkWood_0",
+          "parentName": "Box009",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Box010_DarkWood_0",
+          "parentName": "Box010",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Box011_DarkWood_0",
+          "parentName": "Box011",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Box012_DarkWood_0",
+          "parentName": "Box012",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Box013_DarkWood_0",
+          "parentName": "Box013",
+          "positionCount": 48
+        }
+      ],
+      "creator": "urszulaczyz",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Kamakura Period Umi-Bune Japanese Boat",
+      "sourceOrientation": {
+        "rawUpAxis": "+Y",
+        "rawForwardAxis": "local -X",
+        "importedSceneForward": [
+          -0.623437353,
+          0,
+          0.781872239
+        ],
+        "removedPresentationYawDeg": 51.432377,
+        "evidence": "The paired bow anchors identify local -X as forward, the stern oar bank identifies local +X as aft, and the hull underside lies below the deck on Y."
+      },
+      "animatedOarCount": 4,
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/kamakura-umi-bune/scene.gltf",
+      "sourceTexture": null,
+      "sourceMaxDim": 449.2172,
+      "targetModelMaxDim": 1.48,
+      "frameScale": 0.63,
+      "scaleMode": "standalone-source-relative",
+      "waterlineY": -0.2645213693292447,
+      "waterlineOffsetY": -0.018,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 3,
+        "dominantLengthRatio": 0.955,
+        "hullIntervalMinY": -0.256482,
+        "hullIntervalMaxY": -0.231581
+      },
+      "encodedWaterlineY": -0.264521,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.312028,
+      "sinkHeightMax": 0.308268,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": 0.000576,
+        "y": 0.318735,
+        "z": 0.074578
+      },
+      "stats": {
+        "slug": "japanese-kuribune",
+        "cannons": 0,
+        "accelerationRad": 0.028,
+        "topSpeedRad": 0.028900000000000002,
+        "upwindStallAngleDeg": 34,
+        "upwindStallAngleRad": 0.5934119456780721,
+        "turnRateRad": 3.3,
+        "mass": 50,
+        "crewCapacity": 4,
+        "hitPoints": 5,
+        "cargoCapacity": 55,
+        "seaworthiness": 5,
+        "armor": 0,
+        "propulsion": "oar-sail",
+        "navalWeaponKind": null
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kuribune-rowing-5-32-headings-sink-depth.png"
+        ]
+      }
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -2655,5 +2795,6 @@
   "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog",
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
-  "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow"
+  "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow",
+  "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune"
 }

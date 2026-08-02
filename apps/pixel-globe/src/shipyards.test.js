@@ -159,6 +159,7 @@ test("East Asian national warships stay exclusive to their own shipyards", () =>
   assert.equal(nanjingHulls.has("joseon-turtle-ship"), false);
   assert.equal(nanjingHulls.has("japanese-atakebune"), false);
   assert.equal(nagasakiHulls.has("joseon-turtle-ship"), false);
+  assert.equal(nagasakiHulls.has("japanese-kuribune"), true);
   assert.equal(nagasakiHulls.has("japanese-atakebune"), true);
 });
 

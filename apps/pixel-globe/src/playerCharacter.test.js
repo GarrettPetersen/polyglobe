@@ -111,6 +111,15 @@ test("Ming captains always receive Chinese starter vessels", () => {
   assert.notEqual(playerStarterShipForFaction("ming", { whaling: true }), "ketch");
 });
 
+test("Japanese captains start in the local Kuribune", () => {
+  assert.equal(playerStarterShipForFaction("japan"), "japanese-kuribune");
+  assert.equal(
+    playerStarterShipForFaction("japan", { whaling: true }),
+    "japanese-kuribune"
+  );
+  assert.equal(playerStarterShipForFaction("japan", { armed: true }), "small-junk");
+});
+
 test("a Hospitaller captain receives the European regional starter roster", () => {
   assert.equal(playerStarterShipForFaction("hospitallers"), "fishing-lugger");
   assert.equal(playerStarterShipForFaction("hospitallers", { armed: true }), "small-cog");

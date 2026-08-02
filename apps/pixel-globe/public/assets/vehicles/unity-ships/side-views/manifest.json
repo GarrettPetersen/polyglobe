@@ -494,6 +494,20 @@
       "creator": "Nisa Nurul Azizah",
       "license": "CC BY 4.0",
       "sourceTitle": "Low Poly Ancient Dhow Ship"
+    },
+    {
+      "slug": "japanese-kuribune",
+      "label": "Kuribune",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/kamakura-umi-bune/scene.gltf",
+      "sourceMaxDim": 449.2172,
+      "targetModelMaxDim": 1.38,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/japanese-kuribune.png",
+      "creator": "urszulaczyz",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Kamakura Period Umi-Bune Japanese Boat"
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -511,5 +525,6 @@
   "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog",
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
-  "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow"
+  "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow",
+  "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune"
 }

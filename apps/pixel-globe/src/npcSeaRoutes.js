@@ -165,6 +165,7 @@ export const PIRATE_SHIP_SLUGS = Object.freeze([
   "galleon"
 ]);
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
+const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
@@ -190,7 +191,7 @@ const WHALER_PROFILES = Object.freeze([
   whalerProfile(
     "japanese-coastal-whalers",
     2,
-    ["sampan", "small-junk"],
+    [JAPANESE_KURIBUNE_SLUG],
     ["kii-coast", "sanriku"],
     isJapaneseWhalingPort,
     1
@@ -374,6 +375,7 @@ export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
   ...WHALER_PROFILES.flatMap((profileSpec) => profileSpec.whalerSlugs),
   ...PIRATE_SHIP_SLUGS,
   ...Object.values(EAST_ASIAN_FACTION_WARSHIPS),
+  JAPANESE_KURIBUNE_SLUG,
   PORTUGUESE_CARRACK_SLUG,
   OTTOMAN_COASTAL_TRADER_SLUG
 ])]);
@@ -1570,6 +1572,15 @@ function npcShipSlugForRole(profileSpec, role, seed, factionId) {
     hashUnit(`${seed}|national-warship`) < 0.4
   ) {
     return nationalWarship;
+  }
+  if (
+    profileSpec.id === "east-asia" &&
+    factionId === "japan" &&
+    (role === NPC_ROLE_FISHERMAN || (
+      role === NPC_ROLE_MERCHANT && hashUnit(`${seed}|japanese-kuribune`) < 0.6
+    ))
+  ) {
+    return JAPANESE_KURIBUNE_SLUG;
   }
   if (
     role === NPC_ROLE_MERCHANT &&

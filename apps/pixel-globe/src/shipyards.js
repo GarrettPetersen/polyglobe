@@ -10,6 +10,7 @@ const FAMOUS_LISTING_DAYS = 240;
 const GOSSIP_RADIUS_KM = 1800;
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
+const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
@@ -21,6 +22,7 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
   "fishing-lugger": 1800,
   felucca: 1800,
   sampan: 1800,
+  [JAPANESE_KURIBUNE_SLUG]: 2200,
   "polynesian-voyaging-canoe": 2400,
   cutter: 3000,
   "small-cog": 3400,
@@ -36,7 +38,7 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
 
 const FACTION_SHIPS = Object.freeze({
   joseon: Object.freeze([JOSEON_TURTLE_SHIP_SLUG, JOSEON_PANOKSEON_SLUG]),
-  japan: Object.freeze([JAPANESE_ATAKEBUNE_SLUG]),
+  japan: Object.freeze([JAPANESE_KURIBUNE_SLUG, JAPANESE_ATAKEBUNE_SLUG]),
   spain: Object.freeze([SPANISH_NAO_SLUG]),
   portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),
   ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG]),

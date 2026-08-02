@@ -14,6 +14,7 @@ import {
   GOGIART_DHOW_MODEL_CREDIT,
   HUMPBACK_WHALE_MODEL_CREDIT,
   JAPANESE_ATAKEBUNE_MODEL_CREDIT,
+  JAPANESE_KURIBUNE_MODEL_CREDIT,
   JOSEON_PANOKSEON_MODEL_CREDIT,
   JOSEON_TURTLE_SHIP_MODEL_CREDIT,
   KELULUS_MODEL_CREDIT,
@@ -78,6 +79,7 @@ const mediterraneanGalleySourceRoot = join(shipSourceRoot, "sketchfab/mediterran
 const joseonTurtleShipSourceRoot = join(shipSourceRoot, "sketchfab/joseon-turtle-ship");
 const joseonPanokseonSourceRoot = join(shipSourceRoot, "sketchfab/joseon-panokseon");
 const japaneseAtakebuneSourceRoot = join(shipSourceRoot, "sketchfab/atakebune-japanese-warship");
+const japaneseKuribuneSourceRoot = join(shipSourceRoot, "sketchfab/kamakura-umi-bune");
 const naoVictoriaSourceRoot = join(shipSourceRoot, "sketchfab/nao-victoria");
 const portugueseCarrackSourceRoot = join(shipSourceRoot, "sketchfab/portuguese-carrack");
 const gogiartDhowSourceRoot = join(shipSourceRoot, "sketchfab/dhow-gogiart");
@@ -140,6 +142,10 @@ const horseCartMaxDrawPixels = 31;
 const horseCartColorExposure = 2.2;
 const horseCartColorLift = 6;
 const orientationReviewScale = 6;
+const japaneseKuribunePresentationYawRad = Math.atan2(
+  0.7818722388292283,
+  0.6234373530827396
+);
 const ancientDhowOrientation = createShipModelBasisOrientation({
   // Measured after the glTF scene transforms are applied. Raw mesh +X is the
   // bow, +Y is starboard, and +Z is deck-up.
@@ -168,6 +174,16 @@ const japaneseAtakebuneStaticOarMeshes = Object.freeze([
     positionCount: 480
   })
 ]);
+const japaneseKuribuneStaticOarMeshes = Object.freeze(
+  Array.from({ length: 8 }, (_, index) => {
+    const suffix = String(index + 6).padStart(3, "0");
+    return Object.freeze({
+      nodeName: `Box${suffix}_DarkWood_0`,
+      parentName: `Box${suffix}`,
+      positionCount: 48
+    });
+  })
+);
 const joseonPanokseonStaticOarMeshes = Object.freeze([
   Object.freeze({
     nodeName: "Object_9",
@@ -1906,6 +1922,9 @@ async function renderShipSpriteSet(config) {
     ...(config.license ? { license: config.license } : {}),
     ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {}),
     ...(config.sourceOrientation ? { sourceOrientation: config.sourceOrientation } : {}),
+    ...(Number.isInteger(config.animatedOarCount) ? {
+      animatedOarCount: config.animatedOarCount
+    } : {}),
     sourceModel: portablePath(config.modelPath),
     sourceTexture: config.texturePath ? portablePath(config.texturePath) : null,
     sourceMaxDim: Number(model.sourceMaxDim.toFixed(4)),
@@ -2708,7 +2727,7 @@ async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw }
   return { canvas: sideView, waterlineY: resolvedWaterlineY };
 }
 
-async function renderShipWaterlineReview() {
+async function renderShipWaterlineReview(targetSlug = null) {
   const manifest = JSON.parse(readFileSync(join(unityFleetOutputRoot, "manifest.json"), "utf8"));
   const sideViewManifest = JSON.parse(
     readFileSync(join(unityFleetSideViewOutputRoot, "manifest.json"), "utf8")
@@ -2725,11 +2744,32 @@ async function renderShipWaterlineReview() {
   if (JSON.stringify([...sideViewBySlug.keys()].sort()) !== JSON.stringify(expectedSlugs)) {
     throw new Error("Side-view ship manifest does not exactly match the ship roster");
   }
+  if (targetSlug !== null && !expectedSlugs.includes(targetSlug)) {
+    throw new Error(`Unknown focused waterline-review ship: ${targetSlug}`);
+  }
   const configBySlug = productionShipRenderConfigs();
 
-  resetWaterlineReviewOutput();
-  const entries = [];
-  for (const slug of expectedSlugs) {
+  let entries = [];
+  if (targetSlug === null) {
+    resetWaterlineReviewOutput();
+  } else {
+    mkdirSync(waterlineReviewOutputRoot, { recursive: true });
+    const existingManifest = JSON.parse(readFileSync(
+      join(waterlineReviewOutputRoot, "manifest.json"),
+      "utf8"
+    ));
+    if (!Array.isArray(existingManifest.ships)) {
+      throw new Error("Focused waterline review requires an existing review manifest");
+    }
+    entries = await Promise.all(existingManifest.ships
+      .filter((entry) => entry.slug !== targetSlug)
+      .map(async (entry) => ({
+        ...entry,
+        canvas: await loadImage(resolve(repoRoot, entry.file))
+      })));
+  }
+  const reviewSlugs = targetSlug === null ? expectedSlugs : [targetSlug];
+  for (const slug of reviewSlugs) {
     const production = productionBySlug.get(slug);
     const sideView = sideViewBySlug.get(slug);
     const config = configBySlug.get(slug);
@@ -2787,6 +2827,7 @@ async function renderShipWaterlineReview() {
       canvas: review
     });
   }
+  entries.sort((a, b) => a.slug.localeCompare(b.slug));
 
   const contactSheetPath = join(waterlineReviewOutputRoot, "ship-waterlines-contact-sheet.png");
   writeFileSync(contactSheetPath, makeWaterlineReviewContactSheet(entries).toBuffer("image/png"));
@@ -2809,6 +2850,12 @@ async function renderShipWaterlineReview() {
     "",
     "```sh",
     "npm run render:ship-waterline-review",
+    "```",
+    "",
+    "To inspect one newly added ship without reloading every source model:",
+    "",
+    "```sh",
+    "npm run render:ship-waterline-review -- <ship-slug>",
     "```",
     "",
     "Unity fleet corrections belong in `waterlineOffsetY` on the corresponding",
@@ -2854,6 +2901,7 @@ function productionShipRenderConfigs() {
       "mediterranean-galley",
       "joseon-turtle-ship",
       "joseon-panokseon",
+      "japanese-kuribune",
       "japanese-atakebune",
       "spanish-nao",
       "portuguese-carrack",
@@ -3138,6 +3186,67 @@ function japaneseAtakebuneConfig() {
   };
 }
 
+function japaneseKuribuneConfig() {
+  const slug = "japanese-kuribune";
+  validateJapaneseKuribuneOrientation();
+  return {
+    slug,
+    label: "Kuribune",
+    category: "Japanese coastal trader",
+    assetLabel: "Kamakura Period Umi-Bune Japanese Boat",
+    identifiedType: "small Japanese coastal cargo vessel",
+    identificationConfidence: "medium",
+    identificationNotes:
+      "The source model's eight static stern oars are removed. Four animated oars retain two measured source stations per side for a clearer gameplay silhouette.",
+    ...JAPANESE_KURIBUNE_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(japaneseKuribuneSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 1.48,
+    frameScale: 0.63,
+    sideViewTargetModelMaxDim: 1.38,
+    scaleMode: "standalone-source-relative",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    waterlineOffsetY: -0.018,
+    wakeWaterlineBand: 0.2,
+    skipSelfShadowMaps: true,
+    sourceOrientation: {
+      rawUpAxis: "+Y",
+      rawForwardAxis: "local -X",
+      importedSceneForward: [-0.623437353, 0, 0.781872239],
+      removedPresentationYawDeg: Number(
+        (japaneseKuribunePresentationYawRad * 180 / Math.PI).toFixed(6)
+      ),
+      evidence:
+        "The paired bow anchors identify local -X as forward, the stern oar bank identifies local +X as aft, and the hull underside lies below the deck on Y."
+    },
+    orientationReviewPath: join(
+      appRoot,
+      "docs/ship-reference/japanese-kuribune-orientation-review.png"
+    ),
+    collectOptions: {
+      requiredExcludedMeshes: japaneseKuribuneStaticOarMeshes,
+      includeMesh: includeJapaneseKuribuneMesh,
+      transformPoint: orientJapaneseKuribunePoint
+    },
+    animationFrameCount: SHIP_ROWING_FRAME_COUNT,
+    animatedOarCount: 4,
+    animationTrianglesForFrame: japaneseKuribuneTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/japanese-kuribune-rowing-frames.png"
+    ),
+    animationReviewHeading: 4
+  };
+}
+
+function japaneseKuribuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-kuribune"))
+  ];
+}
+
 function spanishNaoConfig() {
   const slug = "spanish-nao";
   return {
@@ -3359,6 +3468,36 @@ function orientAtakebunePoint(point) {
   return vectorFromCoordinates(orientPositiveXForwardToZForward(point));
 }
 
+function orientJapaneseKuribunePoint(point) {
+  const axisOriented = orientNegativeXForwardYUpToZForward(point);
+  return vectorFromCoordinates(rotateY(axisOriented, -japaneseKuribunePresentationYawRad));
+}
+
+function validateJapaneseKuribuneOrientation() {
+  const importedForward = new THREE.Vector3(
+    -0.6234373530827396,
+    0,
+    0.7818722388292283
+  ).normalize();
+  const forward = orientJapaneseKuribunePoint(importedForward);
+  const up = orientJapaneseKuribunePoint(new THREE.Vector3(0, 1, 0));
+  if (Math.abs(forward.x) > 1e-9 || Math.abs(forward.y) > 1e-9 || forward.z < 1 - 1e-9) {
+    throw new Error(`Kuribune bow axis must map exactly to +Z: ${forward.toArray()}`);
+  }
+  if (Math.abs(up.x) > 1e-9 || up.y < 1 - 1e-9 || Math.abs(up.z) > 1e-9) {
+    throw new Error(`Kuribune keel-up axis must map exactly to +Y: ${up.toArray()}`);
+  }
+}
+
+function includeJapaneseKuribuneMesh(node) {
+  const name = node?.name || "";
+  return !(
+    name.includes("_ropes_") ||
+    name.includes("_Lantern") ||
+    /^stone/i.test(name)
+  );
+}
+
 function orientTurtleShipPoint(point) {
   return vectorFromCoordinates(orientPositiveXForwardToZForward(point));
 }
@@ -3546,6 +3685,18 @@ function proceduralOarConfig(slug) {
     bladeLength: 0.1,
     shaftRadius: 0.03,
     bladeRadius: 0.048
+  };
+  if (slug === "japanese-kuribune") return {
+    kind: "bank",
+    // The source has four stations per side. Retain its first and third
+    // measured stations so the animated silhouette stays readable at 32px.
+    bankPositions: [-0.070, -0.252],
+    pivotYOffset: 0.045,
+    pivotHalfBeam: 0.10,
+    shaftLength: 0.14,
+    bladeLength: 0.045,
+    shaftRadius: 0.010,
+    bladeRadius: 0.016
   };
   if (slug === "japanese-atakebune") return {
     kind: "bank",
@@ -3863,6 +4014,17 @@ async function renderJapaneseAtakebune() {
   console.log(config.animationContactSheetPath);
 }
 
+async function renderJapaneseKuribune() {
+  const config = japaneseKuribuneConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "japaneseKuribuneGenerator",
+    "--japanese-kuribune"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
 async function renderSpanishNao() {
   const config = spanishNaoConfig();
   const result = await renderStandaloneShip(config, "spanishNaoGenerator", "--spanish-nao");
@@ -4020,6 +4182,7 @@ function standaloneShipConfigForSlug(slug) {
   if (slug === "mediterranean-galley") return mediterraneanGalleyConfig();
   if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
   if (slug === "joseon-panokseon") return joseonPanokseonConfig();
+  if (slug === "japanese-kuribune") return japaneseKuribuneConfig();
   if (slug === "japanese-atakebune") return japaneseAtakebuneConfig();
   if (slug === "spanish-nao") return spanishNaoConfig();
   if (slug === "portuguese-carrack") return portugueseCarrackConfig();
@@ -4574,6 +4737,7 @@ function renderAllProductionShips() {
     "--mediterranean-galley",
     "--joseon-turtle-ship",
     "--joseon-panokseon",
+    "--japanese-kuribune",
     "--japanese-atakebune",
     "--spanish-nao",
     "--portuguese-carrack",
@@ -4605,6 +4769,7 @@ async function renderRowingShips() {
   await renderMediterraneanGalley();
   await renderJoseonTurtleShip();
   await renderJoseonPanokseon();
+  await renderJapaneseKuribune();
   await renderJapaneseAtakebune();
   await renderKelulus();
   await renderMalayWarships();
@@ -4721,7 +4886,7 @@ async function main() {
     return;
   }
   if (args.has("--waterline-review")) {
-    await renderShipWaterlineReview();
+    await renderShipWaterlineReview(args.value("--waterline-review") ?? null);
     return;
   }
   if (args.has("--all-production-ships")) {
@@ -4770,6 +4935,10 @@ async function main() {
   }
   if (args.has("--joseon-panokseon")) {
     await renderJoseonPanokseon();
+    return;
+  }
+  if (args.has("--japanese-kuribune")) {
+    await renderJapaneseKuribune();
     return;
   }
   if (args.has("--japanese-atakebune")) {

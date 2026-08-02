@@ -51,6 +51,7 @@ const VIKING_LONGSHIP_SLUG = "viking-longship";
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
+const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
 const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const DHOW_SLUG = "dhow";
@@ -515,6 +516,27 @@ test("the Japanese Atakebune replaces its static oars with six working phases", 
     frames.push(await readFile(path));
   }
   assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, SHIP_ROWING_FRAME_COUNT);
+});
+
+test("the Kuribune halves its source oars into four animated oars", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const entry = manifest.ships.find((ship) => ship.slug === JAPANESE_KURIBUNE_SLUG);
+
+  assert.ok(entry, "Kuribune manifest entry");
+  assert.equal(entry.creator, "urszulaczyz");
+  assert.equal(entry.license, "CC BY 4.0");
+  assert.equal(entry.sourceTitle, "Kamakura Period Umi-Bune Japanese Boat");
+  assert.match(entry.sourceModel, /kamakura-umi-bune\/scene\.gltf$/);
+  assert.deepEqual(
+    entry.removedSourceMeshes.map(({ nodeName }) => nodeName),
+    Array.from({ length: 8 }, (_, index) => (
+      `Box${String(index + 6).padStart(3, "0")}_DarkWood_0`
+    ))
+  );
+  assert.equal(entry.animatedOarCount, 4);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
+  assert.equal(entry.sourceOrientation.rawUpAxis, "+Y");
+  assert.equal(entry.sourceOrientation.rawForwardAxis, "local -X");
 });
 
 test("the Spanish Nao uses the credited Nao Victoria source at an intermediate carrack scale", async () => {

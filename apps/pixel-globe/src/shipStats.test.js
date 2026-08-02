@@ -200,6 +200,17 @@ test("the Japanese Atakebune is a slow heavy coastal oar-and-sail fortress", () 
   assert.ok(atakebune.turnRateRad < shipStatsForSlug("large-junk").turnRateRad);
 });
 
+test("the Kuribune is a light Japanese coastal oar-and-sail trader", () => {
+  const kuribune = shipStatsForSlug("japanese-kuribune");
+
+  assert.equal(shipLabelForSlug(kuribune.slug), "Kuribune");
+  assert.equal(kuribune.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(kuribune.cannons, 0);
+  assert.ok(kuribune.mass < shipStatsForSlug("small-junk").mass);
+  assert.ok(kuribune.cargoCapacity < shipStatsForSlug("small-junk").cargoCapacity);
+  assert.ok(kuribune.seaworthiness >= 5);
+});
+
 test("the Spanish Nao is a small seaworthy exploration carrack", () => {
   const nao = shipStatsForSlug("spanish-nao");
 

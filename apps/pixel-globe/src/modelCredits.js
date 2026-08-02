@@ -34,6 +34,12 @@ export const JAPANESE_ATAKEBUNE_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const JAPANESE_KURIBUNE_MODEL_CREDIT = Object.freeze({
+  creator: "urszulaczyz",
+  sourceTitle: "Kamakura Period Umi-Bune Japanese Boat",
+  license: "CC BY 4.0"
+});
+
 export const JOSEON_PANOKSEON_MODEL_CREDIT = Object.freeze({
   creator: "Heat Of Fusion, with JJakgwi",
   sourceTitle: "Panok ship (Panokseon) | 판옥선 | 板屋船",
@@ -155,6 +161,7 @@ export const MODEL_CREDITS = Object.freeze([
   MEDITERRANEAN_GALLEY_MODEL_CREDIT,
   JOSEON_TURTLE_SHIP_MODEL_CREDIT,
   JAPANESE_ATAKEBUNE_MODEL_CREDIT,
+  JAPANESE_KURIBUNE_MODEL_CREDIT,
   JOSEON_PANOKSEON_MODEL_CREDIT,
   NAO_VICTORIA_MODEL_CREDIT,
   PORTUGUESE_CARRACK_MODEL_CREDIT,

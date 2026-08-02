@@ -153,6 +153,28 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-atakebune-waterline.png"
     },
     {
+      "slug": "japanese-kuribune",
+      "label": "Kuribune",
+      "waterlineY": -0.2645213693292447,
+      "waterlineOffsetY": -0.018,
+      "sideViewWaterlineY": 65,
+      "lowestOpaquePixelY": 67,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
+      "oarPivotCount": 4,
+      "oarPivotPixels": [
+        {
+          "x": 85,
+          "y": 63
+        },
+        {
+          "x": 93,
+          "y": 63
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-kuribune-waterline.png"
+    },
+    {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
       "waterlineY": -0.8118416173605141,

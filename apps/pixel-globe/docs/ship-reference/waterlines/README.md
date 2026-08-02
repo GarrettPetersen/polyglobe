@@ -9,6 +9,12 @@ Regenerate the review with:
 npm run render:ship-waterline-review
 ```
 
+To inspect one newly added ship without reloading every source model:
+
+```sh
+npm run render:ship-waterline-review -- <ship-slug>
+```
+
 Unity fleet corrections belong in `waterlineOffsetY` on the corresponding
 `unityShipRoster` entry. Re-bake one corrected Unity ship with:
 

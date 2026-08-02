@@ -305,7 +305,7 @@ test("a sparse dedicated whaling fleet hunts real whales without fishing nets", 
   assert.equal(whalers.filter((ship) => ship.profileId === "northwest-coast-whalers").length, 1);
   assert.ok(whalers
     .filter((ship) => ship.profileId === "japanese-coastal-whalers")
-    .every((ship) => ["sampan", "small-junk"].includes(ship.slug)));
+    .every((ship) => ship.slug === "japanese-kuribune"));
   assert.ok(whalers
     .filter((ship) => ship.profileId === "northwest-coast-whalers")
     .every((ship) => ship.slug === "mesoamerican-dugout-canoe"));

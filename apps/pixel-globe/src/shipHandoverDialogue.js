@@ -47,6 +47,8 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a roofed Joseon warship of the late sixteenth century, remembered for fighting in Admiral Yi Sun-sin's fleets among Korea's narrow tidal seas",
   "joseon-panokseon":
     "a broad-decked Joseon warship whose sturdy hull and elevated fighting platform were well matched to Korea's shallow, strongly tidal coasts",
+  "japanese-kuribune":
+    "a light Japanese coastal trader whose shallow hull, square sail, and stern oars are well suited to the island passages of the Inland Sea",
   "japanese-atakebune":
     "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops",
   "spanish-nao":

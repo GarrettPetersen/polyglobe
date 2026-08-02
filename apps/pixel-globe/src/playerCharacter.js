@@ -41,6 +41,8 @@ export const PLAYER_ARMED_STARTER_SHIPS = Object.freeze({
   "southeast-asia": "penjajap"
 });
 
+const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
+
 const EUROPEAN_FACTIONS = new Set([
   "england",
   "scotland",
@@ -90,7 +92,9 @@ export function playerStarterShipForFaction(factionId, { whaling = false, armed 
   const roster = whaling
     ? PLAYER_WHALING_STARTER_SHIPS
     : armed ? PLAYER_ARMED_STARTER_SHIPS : PLAYER_STARTER_SHIPS;
-  const slug = roster[region];
+  const slug = factionId === "japan" && !armed
+    ? JAPANESE_KURIBUNE_SLUG
+    : roster[region];
   if (!slug) throw new Error(`No ${whaling ? "whaling " : armed ? "armed " : ""}starter ship for ${factionId}`);
   const stats = shipStatsForSlug(slug);
   if (whaling && stats.seaworthiness < 5) {
