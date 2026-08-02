@@ -143,6 +143,23 @@ test("generic fish cargo uses the native-size herring art", () => {
   });
 });
 
+test("grain and scavenged food use their dedicated cargo art", () => {
+  assert.deepEqual(GAME_ICON_SOURCES["good:grain"], {
+    packId: null,
+    assetPath: "public/assets/misc/grain.png",
+    crop: null
+  });
+  assert.deepEqual(GAME_ICON_SOURCES["good:foraged-food"], {
+    packId: null,
+    assetPath: "public/assets/misc/meat.png",
+    crop: null
+  });
+  assert.notDeepEqual(
+    GAME_ICON_SOURCES["good:grain"],
+    GAME_ICON_SOURCES["good:hardtack"]
+  );
+});
+
 test("interface controls use varied dark Resurrect colors without outlines", () => {
   const palette = new Set(RESURRECT_64_HEX.map((hex) => `#${hex}`));
   const iconColors = new Set();
