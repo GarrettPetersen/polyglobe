@@ -292,8 +292,22 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 8,
-        "y": 5,
-        "w": 37,
+        "y": 6,
+        "w": 36,
+        "h": 34
+      },
+      "opaquePixels": 120
+    },
+    {
+      "slug": "galleass",
+      "label": "Galleass",
+      "source": "public/assets/vehicles/unity-ships/galleass-32-headings.png",
+      "output": "public/assets/ui/ship-icons/galleass.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 8,
+        "y": 4,
+        "w": 38,
         "h": 37
       },
       "opaquePixels": 132

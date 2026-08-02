@@ -46,6 +46,7 @@ const NATIVE_BOAT_SLUGS = Object.freeze([
   "mesoamerican-dugout-canoe"
 ]);
 const MEDITERRANEAN_GALLEY_SLUG = "mediterranean-galley";
+const GALLEASS_SLUG = "galleass";
 const MESOAMERICAN_CANOE_SLUG = "mesoamerican-dugout-canoe";
 const VIKING_LONGSHIP_SLUG = "viking-longship";
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
@@ -405,6 +406,24 @@ test("the Mediterranean galley provides licensed rowing animation frames", async
     assert.equal(image.height, SHIP_SHEET_HEIGHT, `rowing frame ${frameIndex} height`);
     assert.ok(opaquePixelCount(image) > 0, `rowing frame ${frameIndex} is blank`);
   }
+});
+
+test("the Galleass reuses the galley model at a larger unclipped scale", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const galley = manifest.ships.find((ship) => ship.slug === MEDITERRANEAN_GALLEY_SLUG);
+  const galleass = manifest.ships.find((ship) => ship.slug === GALLEASS_SLUG);
+  const galleyImage = await loadImage(join(shipAssetRoot, headingAssetFile(MEDITERRANEAN_GALLEY_SLUG)));
+  const galleassImage = await loadImage(join(shipAssetRoot, headingAssetFile(GALLEASS_SLUG)));
+
+  assert.ok(galley, "Mediterranean galley manifest entry");
+  assert.ok(galleass, "Galleass manifest entry");
+  assert.equal(galleass.sourceModel, galley.sourceModel);
+  assert.equal(galleass.creator, galley.creator);
+  assert.equal(galleass.license, galley.license);
+  assert.ok(galleass.targetModelMaxDim > galley.targetModelMaxDim);
+  assert.ok(maxOpaqueFrameDimension(galleassImage) > maxOpaqueFrameDimension(galleyImage));
+  assert.equal(opaqueFrameEdgePixelCount(galleassImage), 0);
+  assert.equal(galleass.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
 });
 
 test("the Viking longship keeps its authored colored sail and provides six working oar phases", async () => {
@@ -853,9 +872,10 @@ test("the Mesoamerican canoe has a readable six-frame paddle cycle", async () =>
   );
 });
 
-test("standalone Asian warships preserve their scale below the longer Mediterranean galley", async () => {
+test("the Galleass is the largest oared warship silhouette", async () => {
   const dimensions = {};
   for (const slug of [
+    GALLEASS_SLUG,
     MEDITERRANEAN_GALLEY_SLUG,
     JAPANESE_ATAKEBUNE_SLUG,
     JOSEON_PANOKSEON_SLUG,
@@ -865,10 +885,33 @@ test("standalone Asian warships preserve their scale below the longer Mediterran
     dimensions[slug] = maxOpaqueFrameDimension(image);
   }
 
-  assert.ok(dimensions[MEDITERRANEAN_GALLEY_SLUG] > dimensions[JAPANESE_ATAKEBUNE_SLUG]);
-  assert.ok(dimensions[MEDITERRANEAN_GALLEY_SLUG] > dimensions[JOSEON_PANOKSEON_SLUG]);
+  assert.ok(dimensions[GALLEASS_SLUG] > dimensions[MEDITERRANEAN_GALLEY_SLUG]);
+  assert.ok(dimensions[GALLEASS_SLUG] > dimensions[JAPANESE_ATAKEBUNE_SLUG]);
+  assert.ok(dimensions[GALLEASS_SLUG] > dimensions[JOSEON_PANOKSEON_SLUG]);
   assert.ok(dimensions[JAPANESE_ATAKEBUNE_SLUG] > dimensions[JOSEON_TURTLE_SHIP_SLUG]);
 });
+
+function opaqueFrameEdgePixelCount(image) {
+  assert.equal(image.width, SHIP_SHEET_WIDTH);
+  assert.equal(image.height, SHIP_SHEET_HEIGHT);
+  const pixels = imagePixels(image);
+  let count = 0;
+  for (let frame = 0; frame < SHIP_SPRITE_HEADINGS; frame++) {
+    const originX = frame % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+    const originY = Math.floor(frame / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+    for (let offset = 0; offset < SHIP_SPRITE_FRAME_SIZE; offset++) {
+      for (const [x, y] of [
+        [offset, 0],
+        [offset, SHIP_SPRITE_FRAME_SIZE - 1],
+        [0, offset],
+        [SHIP_SPRITE_FRAME_SIZE - 1, offset]
+      ]) {
+        if (pixels[((originX + x) + (originY + y) * image.width) * 4 + 3] > 0) count++;
+      }
+    }
+  }
+  return count;
+}
 
 function opaquePixelCount(image) {
   const canvas = createCanvas(image.width, image.height);

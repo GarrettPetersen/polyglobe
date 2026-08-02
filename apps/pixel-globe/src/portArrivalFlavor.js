@@ -39,7 +39,8 @@ const LOCAL_SHIP_SLUGS_BY_CITY_TYPE = Object.freeze({
     "cutter",
     "ketch",
     "xebec",
-    "mediterranean-galley"
+    "mediterranean-galley",
+    "galleass"
   ]),
   "northern-european": new Set([
     "fishing-lugger",

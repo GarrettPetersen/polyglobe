@@ -95,6 +95,7 @@ const ALL_TEST_FISHING_GROUNDS_NAVIGABLE = () => true;
 test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
   assert.ok(NPC_SHIP_SLUGS.includes("kelulus"));
+  assert.ok(NPC_SHIP_SLUGS.includes("galleass"));
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
 });
 

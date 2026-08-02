@@ -7,6 +7,8 @@ export const SHIP_PROPULSION_SAIL = "sail";
 export const SHIP_PROPULSION_OAR = "oar";
 export const SHIP_PROPULSION_OAR_SAIL = "oar-sail";
 export const SHIP_UPWIND_FORGIVENESS_DEG = 8;
+export const MEDITERRANEAN_GALLEY_SLUG = "mediterranean-galley";
+export const GALLEASS_SLUG = "galleass";
 export const JAPANESE_UMI_BUNE_SLUG = "japanese-kuribune";
 export const JAPANESE_KOBAYA_SLUG = "japanese-kobaya";
 export const JAPANESE_SEKIBUNE_SLUG = "japanese-sekibune";
@@ -53,7 +55,8 @@ const SHIP_LABELS = Object.freeze({
   felucca: "Felucca",
   cutter: "Coastal Pinnace",
   ketch: "Lateen Barque",
-  "mediterranean-galley": "Mediterranean Galley",
+  [MEDITERRANEAN_GALLEY_SLUG]: "Mediterranean Galley",
+  [GALLEASS_SLUG]: "Galleass",
   "joseon-turtle-ship": "Turtle Ship",
   "joseon-panokseon": "Panokseon",
   // Keep the legacy slug for save compatibility; the source vessel is an umi-bune.
@@ -96,7 +99,9 @@ const rawShipStats = [
   stats("felucca", 0, 0.029, 0.031, 30, 3.35, 35, 20, 3),
   stats("cutter", 4, 0.028, 0.035, 32, 3.25, 60, 30, 4),
   stats("ketch", 4, 0.024, 0.035, 34, 2.85, 75, 60, 6),
-  stats("mediterranean-galley", 12, 0.026, 0.040, 38, 2.55, 210, 90, 5, SHIP_PROPULSION_OAR_SAIL),
+  stats(MEDITERRANEAN_GALLEY_SLUG, 12, 0.026, 0.040, 38, 2.55, 210, 90, 5, SHIP_PROPULSION_OAR_SAIL),
+  // A galleass trades a galley's speed and agility for a much larger hull and gun deck.
+  stats(GALLEASS_SLUG, 36, 0.017, 0.034, 42, 1.65, 420, 160, 7, SHIP_PROPULSION_OAR_SAIL, null, 0, 60),
   stats("joseon-turtle-ship", 30, 0.017, 0.034, 50, 1.85, 450, 90, 9, SHIP_PROPULSION_OAR_SAIL, null, 40),
   stats("joseon-panokseon", 20, 0.020, 0.035, 52, 2.20, 280, 150, 7, SHIP_PROPULSION_OAR_SAIL),
   stats("japanese-kuribune", 0, 0.028, 0.034, 42, 3.30, 50, 55, 5, SHIP_PROPULSION_OAR_SAIL),

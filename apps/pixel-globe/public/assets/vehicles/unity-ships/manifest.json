@@ -1456,22 +1456,22 @@
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
       "sourceTexture": null,
       "sourceMaxDim": 4604.1799,
-      "targetModelMaxDim": 2.22,
+      "targetModelMaxDim": 2.109,
       "frameScale": 0.6667,
       "scaleMode": "galley-pixel-derivative",
-      "waterlineY": -0.5527968075173886,
-      "waterlineOffsetY": -0.15,
+      "waterlineY": -0.525156967141519,
+      "waterlineOffsetY": -0.1425,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 7,
         "dominantLengthRatio": 0.7085,
-        "hullIntervalMinY": -0.402797,
-        "hullIntervalMaxY": -0.392599
+        "hullIntervalMinY": -0.382657,
+        "hullIntervalMaxY": -0.372969
       },
-      "encodedWaterlineY": -0.552797,
+      "encodedWaterlineY": -0.525157,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.641608,
-      "sinkHeightMax": 0.636761,
+      "sinkHeightMin": -0.612925,
+      "sinkHeightMax": 0.618173,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1481,9 +1481,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": -0.021693,
-        "y": 0.652633,
-        "z": -0.617448
+        "x": -0.020609,
+        "y": 0.620001,
+        "z": -0.586576
       },
       "stats": {
         "slug": "mediterranean-galley",
@@ -3386,6 +3386,92 @@
           "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-rowing-5-32-headings-sink-depth.png"
         ]
       }
+    },
+    {
+      "slug": "galleass",
+      "label": "Galleass",
+      "category": "heavy Mediterranean warship",
+      "assetLabel": "Russian 22-bank Baltic galley",
+      "identifiedType": "sixteenth-century Mediterranean galleass",
+      "identificationConfidence": "high",
+      "identificationNotes": "The galley hull is rendered at a larger scale to represent a broad, heavily armed galleass.",
+      "creator": "Museovirasto Museiverket Finnish Heritage Agency",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceTexture": null,
+      "sourceMaxDim": 4604.1799,
+      "targetModelMaxDim": 2.2644,
+      "frameScale": 0.6667,
+      "scaleMode": "large-galley-pixel-derivative",
+      "waterlineY": -0.5638527436677363,
+      "waterlineOffsetY": -0.153,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 7,
+        "dominantLengthRatio": 0.7085,
+        "hullIntervalMinY": -0.410853,
+        "hullIntervalMaxY": -0.400451
+      },
+      "encodedWaterlineY": -0.563853,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.65801,
+      "sinkHeightMax": 0.662622,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": -0.022127,
+        "y": 0.665685,
+        "z": -0.629797
+      },
+      "stats": {
+        "slug": "galleass",
+        "cannons": 36,
+        "accelerationRad": 0.017,
+        "topSpeedRad": 0.028900000000000002,
+        "upwindStallAngleDeg": 34,
+        "upwindStallAngleRad": 0.5934119456780721,
+        "turnRateRad": 1.65,
+        "mass": 420,
+        "crewCapacity": 60,
+        "hitPoints": 42,
+        "cargoCapacity": 160,
+        "seaworthiness": 7,
+        "armor": 0,
+        "propulsion": "oar-sail",
+        "navalWeaponKind": null
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/galleass-rowing-5-32-headings-sink-depth.png"
+        ]
+      }
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -3406,5 +3492,6 @@
   "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow",
   "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune",
   "japaneseSekibuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-sekibune",
-  "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya"
+  "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya",
+  "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass"
 }

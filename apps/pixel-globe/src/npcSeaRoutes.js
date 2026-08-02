@@ -5,6 +5,7 @@ import {
   windAtLatLonDeg
 } from "./weather.js";
 import {
+  GALLEASS_SLUG,
   JAPANESE_ARMED_SHIP_SLUGS,
   JAPANESE_ATAKEBUNE_SLUG,
   JAPANESE_KOBAYA_SLUG,
@@ -381,7 +382,8 @@ export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
   ...Object.values(EAST_ASIAN_FACTION_WARSHIPS),
   ...JAPANESE_SHIP_SLUGS,
   PORTUGUESE_CARRACK_SLUG,
-  OTTOMAN_COASTAL_TRADER_SLUG
+  OTTOMAN_COASTAL_TRADER_SLUG,
+  GALLEASS_SLUG
 ])]);
 
 export function createNpcSeaRouteSystem({
@@ -1586,6 +1588,14 @@ function npcShipSlugForRole(profileSpec, role, seed, factionId) {
     hashUnit(`${seed}|national-warship`) < 0.4
   ) {
     return nationalWarship;
+  }
+  if (
+    role === NPC_ROLE_WARSHIP &&
+    factionId === "venice" &&
+    profileSpec.id === "mediterranean" &&
+    hashUnit(`${seed}|venetian-galleass`) < 0.35
+  ) {
+    return GALLEASS_SLUG;
   }
   if (
     role === NPC_ROLE_MERCHANT &&

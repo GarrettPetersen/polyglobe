@@ -1281,9 +1281,20 @@
       "assetPath": "public/assets/ui/ship-icons/mediterranean-galley.png"
     },
     {
-      "id": "ship:joseon-turtle-ship",
+      "id": "ship:galleass",
       "rect": {
         "x": 0,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": null,
+      "assetPath": "public/assets/ui/ship-icons/galleass.png"
+    },
+    {
+      "id": "ship:joseon-turtle-ship",
+      "rect": {
+        "x": 16,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1294,7 +1305,7 @@
     {
       "id": "ship:joseon-panokseon",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1305,7 +1316,7 @@
     {
       "id": "ship:japanese-kuribune",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1316,7 +1327,7 @@
     {
       "id": "ship:japanese-kobaya",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1327,7 +1338,7 @@
     {
       "id": "ship:japanese-sekibune",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1338,7 +1349,7 @@
     {
       "id": "ship:japanese-atakebune",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1349,7 +1360,7 @@
     {
       "id": "ship:spanish-nao",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1360,7 +1371,7 @@
     {
       "id": "ship:portuguese-carrack",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1371,7 +1382,7 @@
     {
       "id": "ship:viking-longship",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1382,7 +1393,7 @@
     {
       "id": "ship:polynesian-voyaging-canoe",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1393,7 +1404,7 @@
     {
       "id": "ship:mesoamerican-dugout-canoe",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1404,7 +1415,7 @@
     {
       "id": "ship:nusantaran-outrigger",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1415,7 +1426,7 @@
     {
       "id": "ship:kelulus",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1426,7 +1437,7 @@
     {
       "id": "ship:penjajap",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1437,7 +1448,7 @@
     {
       "id": "ship:lancaran",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1448,8 +1459,8 @@
     {
       "id": "ship:royal-lancaran",
       "rect": {
-        "x": 240,
-        "y": 112,
+        "x": 0,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1459,7 +1470,7 @@
     {
       "id": "ship:ottoman-coastal-trader",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1470,7 +1481,7 @@
     {
       "id": "action:dock",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1482,7 +1493,7 @@
     {
       "id": "action:anchor",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1494,7 +1505,7 @@
     {
       "id": "action:hail",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1506,7 +1517,7 @@
     {
       "id": "action:fish",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1518,7 +1529,7 @@
     {
       "id": "action:harpoon",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1530,7 +1541,7 @@
     {
       "id": "action:scavenge",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1542,7 +1553,7 @@
     {
       "id": "action:buy",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1554,7 +1565,7 @@
     {
       "id": "action:sell",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1566,7 +1577,7 @@
     {
       "id": "action:back",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1578,7 +1589,7 @@
     {
       "id": "action:leave",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1590,7 +1601,7 @@
     {
       "id": "action:quest",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1602,7 +1613,7 @@
     {
       "id": "action:talk",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1614,7 +1625,7 @@
     {
       "id": "action:wait",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1626,7 +1637,7 @@
     {
       "id": "action:attack",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1638,8 +1649,8 @@
     {
       "id": "action:loadout",
       "rect": {
-        "x": 240,
-        "y": 128,
+        "x": 0,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1650,7 +1661,7 @@
     {
       "id": "action:shipyard",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1662,7 +1673,7 @@
     {
       "id": "action:letter",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1674,7 +1685,7 @@
     {
       "id": "action:disguise",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1686,7 +1697,7 @@
     {
       "id": "action:surrender",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1698,7 +1709,7 @@
     {
       "id": "action:passenger",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1710,7 +1721,7 @@
     {
       "id": "action:viking",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1722,7 +1733,7 @@
     {
       "id": "action:inventory",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1734,7 +1745,7 @@
     {
       "id": "action:resume",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1746,7 +1757,7 @@
     {
       "id": "action:restart",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1758,7 +1769,7 @@
     {
       "id": "action:choose-ships",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1770,7 +1781,7 @@
     {
       "id": "action:start-menu",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1782,7 +1793,7 @@
     {
       "id": "action:navigation",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1794,7 +1805,7 @@
     {
       "id": "input:xbox:a",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1806,7 +1817,7 @@
     {
       "id": "input:xbox:b",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1818,7 +1829,7 @@
     {
       "id": "input:xbox:x",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 144,
         "w": 16,
         "h": 16
@@ -1830,8 +1841,8 @@
     {
       "id": "input:xbox:y",
       "rect": {
-        "x": 240,
-        "y": 144,
+        "x": 0,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1842,7 +1853,7 @@
     {
       "id": "input:xbox:lt",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1854,7 +1865,7 @@
     {
       "id": "input:xbox:rt",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1866,7 +1877,7 @@
     {
       "id": "input:playstation:cross",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1878,7 +1889,7 @@
     {
       "id": "input:playstation:circle",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1890,7 +1901,7 @@
     {
       "id": "input:playstation:square",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1902,7 +1913,7 @@
     {
       "id": "input:playstation:triangle",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1914,7 +1925,7 @@
     {
       "id": "input:playstation:l2",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1926,7 +1937,7 @@
     {
       "id": "input:playstation:r2",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1938,7 +1949,7 @@
     {
       "id": "input:nintendo:a",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1950,7 +1961,7 @@
     {
       "id": "input:nintendo:b",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1962,7 +1973,7 @@
     {
       "id": "input:nintendo:x",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1974,7 +1985,7 @@
     {
       "id": "input:nintendo:y",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1986,7 +1997,7 @@
     {
       "id": "input:nintendo:zl",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1997,7 +2008,7 @@
     {
       "id": "input:nintendo:zr",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 160,
         "w": 16,
         "h": 16
@@ -2008,7 +2019,7 @@
     {
       "id": "input:generic:south",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 160,
         "w": 16,
         "h": 16
@@ -2020,8 +2031,8 @@
     {
       "id": "input:generic:east",
       "rect": {
-        "x": 240,
-        "y": 160,
+        "x": 0,
+        "y": 176,
         "w": 16,
         "h": 16
       },
@@ -2032,7 +2043,7 @@
     {
       "id": "input:generic:west",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2044,7 +2055,7 @@
     {
       "id": "input:generic:north",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2056,7 +2067,7 @@
     {
       "id": "input:generic:left-trigger",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2068,7 +2079,7 @@
     {
       "id": "input:generic:right-trigger",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2080,7 +2091,7 @@
     {
       "id": "input:common:view",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2092,7 +2103,7 @@
     {
       "id": "input:common:menu",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2104,7 +2115,7 @@
     {
       "id": "input:common:left-stick",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2116,7 +2127,7 @@
     {
       "id": "input:common:right-stick",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2128,7 +2139,7 @@
     {
       "id": "item:sturdy-barrels",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2140,7 +2151,7 @@
     {
       "id": "item:shore-party-kit",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2152,7 +2163,7 @@
     {
       "id": "item:tarred-hemp-rigging",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2164,7 +2175,7 @@
     {
       "id": "item:coir-cordage",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2176,7 +2187,7 @@
     {
       "id": "item:flemish-sailcloth",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2188,7 +2199,7 @@
     {
       "id": "item:lateen-sailcloth",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2200,7 +2211,7 @@
     {
       "id": "item:lead-sheathing",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 176,
         "w": 16,
         "h": 16
@@ -2212,8 +2223,8 @@
     {
       "id": "item:surgeons-chest",
       "rect": {
-        "x": 240,
-        "y": 176,
+        "x": 0,
+        "y": 192,
         "w": 16,
         "h": 16
       },
@@ -2224,7 +2235,7 @@
     {
       "id": "item:pilots-instruments",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2236,7 +2247,7 @@
     {
       "id": "item:longsword",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2248,7 +2259,7 @@
     {
       "id": "item:tulwar",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2260,7 +2271,7 @@
     {
       "id": "item:katana",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2272,7 +2283,7 @@
     {
       "id": "item:wheellock-pistol",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2284,7 +2295,7 @@
     {
       "id": "item:bronze-fish-hooks",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2296,7 +2307,7 @@
     {
       "id": "item:zamzam-flask",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2308,7 +2319,7 @@
     {
       "id": "good:gunpowder",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2319,7 +2330,7 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 192,
         "w": 16,
         "h": 16

@@ -1,4 +1,5 @@
 import {
+  GALLEASS_SLUG,
   JAPANESE_SHIP_SLUGS,
   JAPANESE_UMI_BUNE_SLUG,
   shipLabelForSlug,
@@ -36,6 +37,7 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
   penjajap: 7000,
   lancaran: 18000,
   "royal-lancaran": 42000,
+  [GALLEASS_SLUG]: 76000,
   "square-rigged-caravel": 4000
 });
 
@@ -45,6 +47,7 @@ const FACTION_SHIPS = Object.freeze({
   spain: Object.freeze([SPANISH_NAO_SLUG]),
   portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),
   ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG]),
+  venice: Object.freeze([GALLEASS_SLUG]),
   hospitallers: Object.freeze(["mediterranean-galley"])
 });
 

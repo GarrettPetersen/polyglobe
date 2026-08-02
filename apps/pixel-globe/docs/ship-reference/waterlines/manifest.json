@@ -110,6 +110,40 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/fluyt-waterline.png"
     },
     {
+      "slug": "galleass",
+      "label": "Galleass",
+      "waterlineY": -0.5638527436677363,
+      "waterlineOffsetY": -0.153,
+      "sideViewWaterlineY": 76,
+      "lowestOpaquePixelY": 79,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 10,
+      "oarPivotPixels": [
+        {
+          "x": 75,
+          "y": 74
+        },
+        {
+          "x": 86,
+          "y": 74
+        },
+        {
+          "x": 96,
+          "y": 74
+        },
+        {
+          "x": 106,
+          "y": 74
+        },
+        {
+          "x": 117,
+          "y": 74
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/galleass-waterline.png"
+    },
+    {
       "slug": "galleon",
       "label": "Galleon",
       "waterlineY": -0.7066668082951645,
@@ -411,33 +445,33 @@
     {
       "slug": "mediterranean-galley",
       "label": "Mediterranean Galley",
-      "waterlineY": -0.5527968075173886,
-      "waterlineOffsetY": -0.15,
-      "sideViewWaterlineY": 76,
-      "lowestOpaquePixelY": 79,
-      "lowestOpaqueRelativeToWaterlinePx": 3,
-      "opaqueRowsBelowWaterline": 3,
+      "waterlineY": -0.525156967141519,
+      "waterlineOffsetY": -0.1425,
+      "sideViewWaterlineY": 75,
+      "lowestOpaquePixelY": 77,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
       "oarPivotCount": 10,
       "oarPivotPixels": [
         {
-          "x": 76,
-          "y": 73
+          "x": 77,
+          "y": 72
         },
         {
           "x": 86,
-          "y": 73
+          "y": 72
         },
         {
           "x": 96,
-          "y": 73
+          "y": 72
         },
         {
           "x": 106,
-          "y": 73
+          "y": 72
         },
         {
-          "x": 116,
-          "y": 73
+          "x": 115,
+          "y": 72
         }
       ],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/mediterranean-galley-waterline.png"

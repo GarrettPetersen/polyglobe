@@ -1806,7 +1806,7 @@ const CLOUD_VIEWPORT_MARGIN_PX =
   CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-3";
-const VEHICLE_ASSET_VERSION = "malay-warships-1";
+const VEHICLE_ASSET_VERSION = "galleass-1";
 const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_FLAG_ANCHORS_URL = `assets/vehicles/unity-ships/flag-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
@@ -2132,7 +2132,7 @@ const NAVIGATION_MENU_PANEL_W = 420;
 const NAVIGATION_MENU_PANEL_H = 226;
 const NAVIGATION_MENU_ROW_H = 38;
 const NAVIGATION_MENU_PAGE_SIZE = 4;
-const SHIP_INFO_ASSET_VERSION = "native-boats-1";
+const SHIP_INFO_ASSET_VERSION = "galleass-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
 const SFX_ASSET_VERSION = "whale-kill-1";
 const ANIMAL_ASSET_VERSION = "whale-species-1";

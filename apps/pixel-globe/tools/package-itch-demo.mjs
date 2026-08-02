@@ -28,6 +28,8 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/vehicles/unity-ships/brigantine-32-headings.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings-sink-depth.png",
+  "assets/vehicles/unity-ships/galleass-rowing-atlas-32-headings.png",
+  "assets/vehicles/unity-ships/galleass-rowing-atlas-32-headings-sink-depth.png",
   "shared/earth-globe-cache-7.json",
   "shared/discrete-weather-bake-7.bin",
   "shared/globe-runtime-bake-7.bin"

@@ -120,12 +120,21 @@ test("the Ocean Dhow fills the medium Indian Ocean merchant niche", () => {
 
 test("the Mediterranean galley is a period hybrid warship", () => {
   const galley = shipStatsForSlug("mediterranean-galley");
+  const galleass = shipStatsForSlug("galleass");
 
   assert.equal(shipLabelForSlug(galley.slug), "Mediterranean Galley");
   assert.equal(galley.propulsion, SHIP_PROPULSION_OAR_SAIL);
   assert.ok(galley.cannons > 0);
   assert.ok(galley.seaworthiness < shipStatsForSlug("carrack").seaworthiness);
   assert.ok(galley.cargoCapacity < shipStatsForSlug("carrack").cargoCapacity);
+  assert.equal(shipLabelForSlug(galleass.slug), "Galleass");
+  assert.equal(galleass.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.ok(galleass.cannons > galley.cannons);
+  assert.ok(galleass.mass > galley.mass);
+  assert.ok(galleass.hitPoints > galley.hitPoints);
+  assert.ok(galleass.crewCapacity > galley.crewCapacity);
+  assert.ok(galleass.topSpeedRad < galley.topSpeedRad);
+  assert.ok(galleass.turnRateRad < galley.turnRateRad);
 });
 
 test("the Joseon turtle ship is a heavy cannon-armed oar-and-sail warship", () => {

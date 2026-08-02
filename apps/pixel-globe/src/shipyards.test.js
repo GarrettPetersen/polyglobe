@@ -179,6 +179,7 @@ test("Spanish shipyards exclusively build the Spanish Nao", () => {
   }
   assert.equal(spanishHulls.has("spanish-nao"), true);
   assert.equal(venetianHulls.has("spanish-nao"), false);
+  assert.equal(venetianHulls.has("galleass"), true);
 });
 
 test("Portuguese shipyards exclusively build the Portuguese Carrack", () => {

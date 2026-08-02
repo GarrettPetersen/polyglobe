@@ -290,7 +290,7 @@
       "label": "Mediterranean Galley",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
       "sourceMaxDim": 4604.1799,
-      "targetModelMaxDim": 1.9,
+      "targetModelMaxDim": 1.805,
       "width": 192,
       "height": 104,
       "palette": "Resurrect 64",
@@ -536,6 +536,20 @@
       "creator": "HIROKAZU KOBAYASHI",
       "license": "BOOTH commercial-use license",
       "sourceTitle": "Japanese Boat: Kobaya 3D Model"
+    },
+    {
+      "slug": "galleass",
+      "label": "Galleass",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceMaxDim": 4604.1799,
+      "targetModelMaxDim": 1.938,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/galleass.png",
+      "creator": "Museovirasto Museiverket Finnish Heritage Agency",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Russian 22-bank Baltic galley"
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -556,5 +570,6 @@
   "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow",
   "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune",
   "japaneseSekibuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-sekibune",
-  "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya"
+  "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya",
+  "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass"
 }

@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-38";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-39";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",

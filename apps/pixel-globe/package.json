@@ -45,6 +45,7 @@
     "render:rowing-ships": "node tools/render-sail-ship-sprites.mjs --rowing-ships",
     "render:native-boats": "node tools/render-sail-ship-sprites.mjs --native-boats",
     "render:mediterranean-galley": "node tools/render-sail-ship-sprites.mjs --mediterranean-galley",
+    "render:galleass": "node tools/render-sail-ship-sprites.mjs --galleass",
     "render:joseon-turtle-ship": "node tools/render-sail-ship-sprites.mjs --joseon-turtle-ship",
     "render:joseon-panokseon": "node tools/render-sail-ship-sprites.mjs --joseon-panokseon",
     "render:japanese-kuribune": "node tools/render-sail-ship-sprites.mjs --japanese-kuribune",

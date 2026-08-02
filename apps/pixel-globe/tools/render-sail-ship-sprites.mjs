@@ -2767,7 +2767,10 @@ async function renderShipWaterlineReview(targetSlug = null) {
   if (targetSlug !== null && !expectedSlugs.includes(targetSlug)) {
     throw new Error(`Unknown focused waterline-review ship: ${targetSlug}`);
   }
-  const configBySlug = productionShipRenderConfigs();
+  // A focused review should only require that ship's private source model.
+  const configBySlug = targetSlug === null
+    ? productionShipRenderConfigs()
+    : new Map([[targetSlug, standaloneShipConfigForSlug(targetSlug)]]);
 
   let entries = [];
   if (targetSlug === null) {
@@ -2919,6 +2922,7 @@ function productionShipRenderConfigs() {
     ...nativeBoatConfigs(),
     ...[
       "mediterranean-galley",
+      "galleass",
       "joseon-turtle-ship",
       "joseon-panokseon",
       "japanese-kuribune",
@@ -3047,6 +3051,12 @@ function resetWaterlineReviewOutput() {
   mkdirSync(waterlineReviewOutputRoot, { recursive: true });
 }
 
+const MEDITERRANEAN_GALLEY_BASE_MAX_DIM = 2.22;
+const MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM = 1.9;
+const MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y = -0.15;
+const MEDITERRANEAN_GALLEY_SCALE = 0.95;
+const GALLEASS_SCALE = 1.02;
+
 function mediterraneanGalleyConfig() {
   const slug = "mediterranean-galley";
   return {
@@ -3060,13 +3070,14 @@ function mediterraneanGalleyConfig() {
     ...MEDITERRANEAN_GALLEY_MODEL_CREDIT,
     stats: shipStatsForSlug(slug),
     modelPath: join(mediterraneanGalleySourceRoot, "scene.gltf"),
-    targetModelMaxDim: 2.22,
+    targetModelMaxDim: MEDITERRANEAN_GALLEY_BASE_MAX_DIM * MEDITERRANEAN_GALLEY_SCALE,
     frameScale: 0.6667,
-    sideViewTargetModelMaxDim: 1.9,
+    sideViewTargetModelMaxDim:
+      MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * MEDITERRANEAN_GALLEY_SCALE,
     scaleMode: "galley-pixel-derivative",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
-    waterlineOffsetY: -0.15,
+    waterlineOffsetY: MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y * MEDITERRANEAN_GALLEY_SCALE,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
     collectOptions: {
@@ -3078,6 +3089,53 @@ function mediterraneanGalleyConfig() {
       appRoot,
       "docs/ship-reference/mediterranean-galley-rowing-frames.png"
     )
+  };
+}
+
+function galleassConfig() {
+  const slug = "galleass";
+  return {
+    ...mediterraneanGalleyConfig(),
+    slug,
+    label: "Galleass",
+    category: "heavy Mediterranean warship",
+    identifiedType: "sixteenth-century Mediterranean galleass",
+    identificationNotes:
+      "The galley hull is rendered at a larger scale to represent a broad, heavily armed galleass.",
+    stats: shipStatsForSlug(slug),
+    targetModelMaxDim: MEDITERRANEAN_GALLEY_BASE_MAX_DIM * GALLEASS_SCALE,
+    sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * GALLEASS_SCALE,
+    scaleMode: "large-galley-pixel-derivative",
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    waterlineOffsetY: MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y * GALLEASS_SCALE,
+    animationTrianglesForFrame: (hullTriangles, frameIndex, waterlineY) => [
+      ...hullTriangles,
+      ...makeOarBankTriangles(
+        frameIndex,
+        waterlineY,
+        proceduralOarConfig(slug)
+      )
+    ],
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/galleass-rowing-frames.png"
+    )
+  };
+}
+
+function scaledProceduralOarConfig(config, scale) {
+  if (!Number.isFinite(scale) || scale <= 0) throw new Error(`Invalid procedural oar scale: ${scale}`);
+  return {
+    ...config,
+    bankPositions: config.bankPositions.map((position) => position * scale),
+    bankOffset: (config.bankOffset ?? 0) * scale,
+    pivotYOffset: config.pivotYOffset * scale,
+    pivotHalfBeam: config.pivotHalfBeam * scale,
+    shaftLength: config.shaftLength * scale,
+    bladeLength: config.bladeLength * scale,
+    shaftRadius: config.shaftRadius * scale,
+    bladeRadius: config.bladeRadius * scale,
+    inboardLength: (config.inboardLength ?? 0) * scale
   };
 }
 
@@ -3855,7 +3913,11 @@ function japaneseAtakebuneTrianglesForFrame(hullTriangles, frameIndex, waterline
 }
 
 function makeGalleyOarTriangles(frameIndex, waterlineY) {
-  return makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("mediterranean-galley"));
+  return makeOarBankTriangles(
+    frameIndex,
+    waterlineY,
+    proceduralOarConfig("mediterranean-galley")
+  );
 }
 
 function makeOarBankTriangles(frameIndex, waterlineY, config) {
@@ -3976,7 +4038,7 @@ function proceduralOarConfig(slug) {
     shaftRadius: 0.03,
     bladeRadius: 0.05
   };
-  if (slug === "mediterranean-galley") return {
+  if (slug === "mediterranean-galley" || slug === "galleass") return scaledProceduralOarConfig({
     kind: "bank",
     bankPositions: evenBankPositions(-0.45, 0.45, 5),
     pivotYOffset: 0.05,
@@ -3985,7 +4047,7 @@ function proceduralOarConfig(slug) {
     bladeLength: 0.16,
     shaftRadius: 0.032,
     bladeRadius: 0.05
-  };
+  }, slug === "galleass" ? GALLEASS_SCALE : MEDITERRANEAN_GALLEY_SCALE);
   if (slug === "joseon-turtle-ship") return {
     kind: "bank",
     bankPositions: evenBankPositions(-0.48, 0.48, 5),
@@ -4324,6 +4386,13 @@ async function renderMediterraneanGalley() {
   console.log(config.animationContactSheetPath);
 }
 
+async function renderGalleass() {
+  const config = galleassConfig();
+  const result = await renderStandaloneShip(config, "galleassGenerator", "--galleass");
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
 async function renderVikingLongship() {
   const config = vikingLongshipConfig();
   const result = await renderStandaloneShip(config, "vikingLongshipGenerator", "--viking-longship");
@@ -4552,6 +4621,7 @@ async function renderWhales() {
 
 function standaloneShipConfigForSlug(slug) {
   if (slug === "mediterranean-galley") return mediterraneanGalleyConfig();
+  if (slug === "galleass") return galleassConfig();
   if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
   if (slug === "joseon-panokseon") return joseonPanokseonConfig();
   if (slug === "japanese-kuribune") return japaneseKuribuneConfig();
@@ -5109,6 +5179,7 @@ function renderAllProductionShips() {
     "--unity-fleet-side-views",
     "--native-boats",
     "--mediterranean-galley",
+    "--galleass",
     "--joseon-turtle-ship",
     "--joseon-panokseon",
     "--japanese-kuribune",
@@ -5143,6 +5214,7 @@ function renderAllProductionShips() {
 async function renderRowingShips() {
   await renderNativeBoats();
   await renderMediterraneanGalley();
+  await renderGalleass();
   await renderJoseonTurtleShip();
   await renderJoseonPanokseon();
   await renderJapaneseKuribune();
@@ -5301,6 +5373,10 @@ async function main() {
   }
   if (args.has("--mediterranean-galley")) {
     await renderMediterraneanGalley();
+    return;
+  }
+  if (args.has("--galleass")) {
+    await renderGalleass();
     return;
   }
   if (args.has("--viking-longship")) {

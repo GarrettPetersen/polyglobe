@@ -1,9 +1,15 @@
-import { SHIP_PROPULSION_SAIL, SHIP_STATS } from "./shipStats.js";
+import {
+  GALLEASS_SLUG,
+  MEDITERRANEAN_GALLEY_SLUG,
+  SHIP_PROPULSION_SAIL,
+  SHIP_STATS
+} from "./shipStats.js";
 
 export const SHIP_ROWING_FRAME_COUNT = 6;
 
 export const SHIP_ROWING_ANIMATION_SPECS = new Map([
-  ["mediterranean-galley", rowingSpec(125, 0.14, 0.88)],
+  [MEDITERRANEAN_GALLEY_SLUG, rowingSpec(125, 0.14, 0.88)],
+  [GALLEASS_SLUG, rowingSpec(150, 0.16, 0.76)],
   ["joseon-turtle-ship", rowingSpec(123, 0.14, 0.92)],
   ["joseon-panokseon", rowingSpec(125, 0.14, 0.90)],
   ["japanese-kuribune", rowingSpec(116, 0.11, 1.00)],

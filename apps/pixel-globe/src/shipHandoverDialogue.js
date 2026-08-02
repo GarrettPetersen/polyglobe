@@ -43,6 +43,8 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a practical coastal trader whose divided lateen sail plan can be shortened by a small crew when a sudden squall comes down",
   "mediterranean-galley":
     "the oared warship that still ruled much of the sixteenth-century Mediterranean, able to advance in a calm or drive straight into the wind",
+  galleass:
+    "a great broad-beamed galley enlarged into a floating gun platform, sacrificing the ordinary galley's speed for heavy artillery and a powerful fighting crew",
   "joseon-turtle-ship":
     "a roofed Joseon warship of the late sixteenth century, remembered for fighting in Admiral Yi Sun-sin's fleets among Korea's narrow tidal seas",
   "joseon-panokseon":
