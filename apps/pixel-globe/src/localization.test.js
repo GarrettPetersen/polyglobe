@@ -248,7 +248,7 @@ test("the start-menu title is translated in every supported language with a comp
   assert.throws(() => languageTitleFont(LANGUAGE_ENGLISH, null), /non-empty string/);
 });
 
-test("existing canvas phrases and templates localize without changing proper names", () => {
+test("existing canvas phrases, templates, and place names localize", () => {
   assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "CAPTAIN'S LEDGER"), "船长账簿");
   assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "PAGE 2/7"), "第2/7页");
   assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "WATER 16D"), "淡水 16天");
@@ -262,8 +262,8 @@ test("existing canvas phrases and templates localize without changing proper nam
   assert.equal(localizeText(LANGUAGE_JAPANESE, "Hardtack 12 RATIONS"), "乾パン 12食");
   assert.equal(localizeText(LANGUAGE_JAPANESE, "CLOVES 3"), "クローブ 3");
   assert.equal(localizeText(LANGUAGE_JAPANESE, "PIRATE"), "海賊");
-  assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "Lisbon"), "Lisbon");
-  assert.equal(localizeText(LANGUAGE_JAPANESE, "Lisbon"), "Lisbon");
+  assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "Lisbon"), "里斯本");
+  assert.equal(localizeText(LANGUAGE_JAPANESE, "Lisbon"), "リスボン");
   assert.equal(localizeText(LANGUAGE_ENGLISH, "PAGE 2/7"), "PAGE 2/7");
 });
 
@@ -319,7 +319,7 @@ test("dynamic canvas templates localize in every target language", () => {
     assert.match(page, /2.*7/);
     assert.match(water, /16/);
     assert.match(rations, /12/);
-    assert.equal(localizeText(id, "Lisbon"), "Lisbon");
+    assert.notEqual(localizeText(id, "Lisbon"), "Lisbon", `${id} left an English place name`);
   }
 });
 

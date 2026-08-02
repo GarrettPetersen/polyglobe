@@ -6,6 +6,7 @@ import POLISH from "./locales/pl.js";
 import PORTUGUESE_BRAZIL from "./locales/pt-BR.js";
 import RUSSIAN from "./locales/ru.js";
 import CHINESE_TRADITIONAL from "./locales/zh-Hant.js";
+import { localizeGameplayScreenText } from "./screenTextLocalization.js";
 
 export const LANGUAGE_ENGLISH = "en";
 export const LANGUAGE_CHINESE_SIMPLIFIED = "zh-Hans";
@@ -1367,6 +1368,8 @@ const CATALOGS = Object.freeze({
 const ENGLISH_PHRASE_KEYS = Object.freeze(new Map(
   Object.entries(ENGLISH).map(([key, value]) => [value, key])
 ));
+const LOCALIZED_TEXT_CACHE_LIMIT = 32_768;
+const localizedTextCache = new Map();
 
 const EMBEDDED_PHRASES = Object.freeze(
   Object.entries(ENGLISH)
@@ -1522,6 +1525,16 @@ export function localizeText(language, text) {
   if (typeof text !== "string") throw new Error(`Localized text must be a string: ${text}`);
   const locale = normalizeLanguage(language);
   if (locale === LANGUAGE_ENGLISH || text.length === 0) return text;
+  const cacheKey = `${locale}\u0000${text}`;
+  const cached = localizedTextCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const localized = localizeTextUncached(locale, text);
+  if (localizedTextCache.size >= LOCALIZED_TEXT_CACHE_LIMIT) localizedTextCache.clear();
+  localizedTextCache.set(cacheKey, localized);
+  return localized;
+}
+
+function localizeTextUncached(locale, text) {
   const exactKey = ENGLISH_PHRASE_KEYS.get(text);
   if (exactKey) return translate(locale, exactKey);
   for (const pattern of DYNAMIC_PATTERNS) {
@@ -1531,7 +1544,28 @@ export function localizeText(language, text) {
       return localizeEmbeddedPhrases(locale, formatDynamicTemplate(template, match.slice(1)));
     }
   }
+  const gameplayText = localizeGameplayScreenText(
+    locale,
+    text,
+    (capture) => localizeText(locale, capture)
+  );
+  if (gameplayText !== text) return localizeEmbeddedPhrases(locale, gameplayText);
+  const composedText = localizeComposedScreenText(locale, text);
+  if (composedText !== text) return composedText;
   return localizeEmbeddedPhrases(locale, text);
+}
+
+function localizeComposedScreenText(locale, text) {
+  const parts = text.split(/(\s{2,})/);
+  if (parts.length === 1) return text;
+  let changed = false;
+  const localized = parts.map((part, index) => {
+    if (index % 2 === 1) return part;
+    const result = localizeText(locale, part);
+    if (result !== part) changed = true;
+    return result;
+  });
+  return changed ? localized.join("") : text;
 }
 
 export function languageFontProfile(language) {

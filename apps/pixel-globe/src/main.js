@@ -2538,6 +2538,8 @@ underwaterWorldSpriteCtx.imageSmoothingEnabled = false;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
 const pixelTextWidthCache = new Map();
+let captureRenderedTextRecords = new Map();
+let captureLocalizedTextOutputs = new Set();
 const cityLabelRasterCache = new Map();
 let survivalHudRasterCache = null;
 const renderCallWindowCache = new WeakMap();
@@ -7312,7 +7314,14 @@ function uiText(key, replacements = {}) {
 }
 
 function renderedUiText(text) {
-  return localizePlaceNames(currentLanguage, localizeText(currentLanguage, text));
+  const rendered = localizePlaceNames(currentLanguage, localizeText(currentLanguage, text));
+  if (CAPTURE_FRAME_PASS && currentLanguage !== LANGUAGE_ENGLISH &&
+      !captureLocalizedTextOutputs.has(text)) {
+    const key = `${text}\u0000${rendered}`;
+    captureRenderedTextRecords.set(key, { source: text, rendered });
+  }
+  if (rendered !== text) captureLocalizedTextOutputs.add(rendered);
+  return rendered;
 }
 
 function setInterfaceLanguage(language, { persist = true } = {}) {
@@ -7600,7 +7609,10 @@ function rerenderAutomaticCaptureLanguage(language) {
     throw new Error("Capture language switching is unavailable outside the frame pass");
   }
   setInterfaceLanguage(language, { persist: false });
+  captureRenderedTextRecords = new Map();
+  captureLocalizedTextOutputs = new Set();
   runFrame(lastFrameMs, { scheduleNextFrame: false, forceRender: true });
+  window.__PIXEL_GLOBE_CAPTURE_RENDERED_TEXT__ = [...captureRenderedTextRecords.values()];
   return document.documentElement.lang;
 }
 
@@ -12979,7 +12991,7 @@ function openHospitallerMaltaGrantAudience(capital, memory) {
       message: hospitallerMaltaCaptainGrantText()
     })
   ], () => {
-    showSurvivalNotice("THE ORDER RESTORED AT MALTA", "good", { fullText: true });
+    showSurvivalNotice("THE ORDER RESTORED AT MALTA", "good");
     saveVoyageNow("received the grant of Malta");
     dirty = true;
   });
@@ -13346,7 +13358,7 @@ function completePapalCommissionAtRome(rome, matter) {
       message: papalCommissionCompletionText(completion)
     })
   ], () => {
-    showSurvivalNotice(papalActionNotice(completion.action), "good", { fullText: true });
+    showSurvivalNotice(papalActionNotice(completion.action), "good");
     saveVoyageNow("completed a Papal commission");
     dirty = true;
   });
@@ -14720,7 +14732,7 @@ function startShoreScavenge() {
     landedSeabirdId: nearestScavengeSeabirdCall()?.id ?? null
   };
   stopShipForDialogue();
-  showSurvivalNotice("SCAVENGING ASHORE...", "good");
+  showSurvivalNotice("SCAVENGING ASHORE", "good");
   dirty = true;
   return true;
 }
@@ -17131,14 +17143,10 @@ function showFishCatchNotice(text, tone) {
   dirty = true;
 }
 
-function showSurvivalNotice(text, tone, { fullText = false } = {}) {
-  if (typeof fullText !== "boolean") {
-    throw new Error(`Survival notice full-text flag must be boolean: ${fullText}`);
-  }
+function showSurvivalNotice(text, tone) {
   survivalNotice = {
     text,
     tone,
-    fullText,
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.survival
   };
   dirty = true;
@@ -20547,15 +20555,14 @@ function updateWorldDiplomacy() {
   if (result.englishReformation) reconcileEnglishReformationCharacters();
   const expulsions = reconcileForeignSettlementPolitics();
   if (result.englishReformation) {
-    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn", { fullText: true });
+    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn");
     dirty = true;
     return true;
   }
   if (result.papalActions.length > 0) {
     showSurvivalNotice(
       papalActionNotice(result.papalActions[result.papalActions.length - 1]),
-      "warn",
-      { fullText: true }
+      "warn"
     );
     dirty = true;
     return true;
@@ -20566,8 +20573,7 @@ function updateWorldDiplomacy() {
       result.papalCommissionRevoked.reason === "commission-expired"
         ? "PAPAL LEGATION EXPIRED - ROME ACTS WITHOUT US"
         : "PAPAL LEGATION REVOKED",
-      "warn",
-      { fullText: true }
+      "warn"
     );
     dirty = true;
     return true;
@@ -20575,22 +20581,20 @@ function updateWorldDiplomacy() {
   if (result.papalMattersOpened.length > 0) {
     showSurvivalNotice(
       papalMatterNotice(result.papalMattersOpened.at(-1)),
-      "warn",
-      { fullText: true }
+      "warn"
     );
     dirty = true;
     return true;
   }
   if (result.diplomacyEvents.length === 0 && expulsions.length === 0) return false;
   if (expulsions.length > 0) {
-    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn", { fullText: true });
+    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn");
     return true;
   }
   const latest = result.diplomacyEvents[result.diplomacyEvents.length - 1];
   showSurvivalNotice(
     diplomacyEventNotice(latest),
-    latest.kind === "peace" ? "good" : "warn",
-    { fullText: true }
+    latest.kind === "peace" ? "good" : "warn"
   );
   return true;
 }
@@ -20635,7 +20639,7 @@ function reconcileForeignSettlementPolitics({ notify = false } = {}) {
   });
   if (events.length === 0) return events;
   if (notify) {
-    showSurvivalNotice(foreignSettlementExpulsionNotice(events), "warn", { fullText: true });
+    showSurvivalNotice(foreignSettlementExpulsionNotice(events), "warn");
   }
   dirty = true;
   return events;
@@ -38656,10 +38660,11 @@ function rectsOverlap(a, b) {
 function drawDiscoveryNotice(nowMs) {
   if (!discoveryNotice || nowMs >= discoveryNotice.expiresAtMs) return;
   const discovery = discoveryNotice.discovery;
+  const layout = discoveryNoticeTextLayout(discovery);
   const x = MOUNTAIN_DISCOVERY_PANEL_X;
   const y = MOUNTAIN_DISCOVERY_PANEL_Y;
   const w = MOUNTAIN_DISCOVERY_PANEL_W;
-  const h = MOUNTAIN_DISCOVERY_PANEL_H;
+  const h = layout.height;
   ctx.fillStyle = "rgba(35, 27, 20, 0.92)";
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = "#d6b66b";
@@ -38671,10 +38676,40 @@ function drawDiscoveryNotice(nowMs) {
     ctx.drawImage(sprite, x + 3, y + 3, 18, 18);
   }
   ctx.fillStyle = "#fff1bf";
-  const headline = fitPixelText(discovery.notice, PIXEL_FONT_SMALL_8, x + w - 5 - textX);
-  drawPixelText(headline, textX, y + 4, { font: PIXEL_FONT_SMALL_8 });
+  let textY = y + 4;
+  for (const line of layout.headlineLines) {
+    drawPixelText(line, textX, textY, { font: PIXEL_FONT_SMALL_8 });
+    textY += layout.lineHeight;
+  }
   ctx.fillStyle = "#cbb88a";
-  drawPixelText(discovery.detail, textX, y + 14, { font: PIXEL_FONT_SMALL_8 });
+  for (const line of layout.detailLines) {
+    drawPixelText(line, textX, textY, { font: PIXEL_FONT_SMALL_8 });
+    textY += layout.lineHeight;
+  }
+}
+
+function discoveryNoticeTextLayout(discovery) {
+  const sprite = discoverySpriteImage(discovery);
+  const textWidth = MOUNTAIN_DISCOVERY_PANEL_W - (sprite ? 30 : 10);
+  const headlineLines = wrapPixelTextAll(renderedUiText(discovery.notice), PIXEL_FONT_SMALL_8, textWidth);
+  const detailLines = wrapPixelTextAll(renderedUiText(discovery.detail), PIXEL_FONT_SMALL_8, textWidth);
+  const lineHeight = localizedLineHeight(9);
+  return {
+    headlineLines,
+    detailLines,
+    lineHeight,
+    height: Math.max(
+      MOUNTAIN_DISCOVERY_PANEL_H,
+      8 + (headlineLines.length + detailLines.length) * lineHeight
+    )
+  };
+}
+
+function discoveryNoticePanelHeight(nowMs) {
+  if (!discoveryNotice || nowMs >= discoveryNotice.expiresAtMs) {
+    return MOUNTAIN_DISCOVERY_PANEL_H;
+  }
+  return discoveryNoticeTextLayout(discoveryNotice.discovery).height;
 }
 
 function drawInteractionButton() {
@@ -38821,18 +38856,20 @@ function drawControlIconLabel(rect, label, iconId, {
   font = PIXEL_FONT_DIALOGUE_8,
   controllerAction = null
 } = {}) {
+  const renderedLabel = renderedUiText(label);
+  const renderedSecondaryLabel = secondaryLabel === null ? null : renderedUiText(secondaryLabel);
   const iconX = rect.x + 5;
   const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
   drawGameIcon(iconId, iconX, iconY, { alpha: disabled ? 0.4 : 1 });
   const textLeft = iconX + GAME_ICON_SIZE + 4;
   const controllerWidth = controllerAction && controllerPromptsVisible() ? GAME_ICON_SIZE + 3 : 0;
   const textWidth = rect.x + rect.w - textLeft - 4 - controllerWidth;
-  const secondaryWidth = secondaryLabel
-    ? measurePixelTextWidth(secondaryLabel, PIXEL_FONT_SMALL_8) + 4
+  const secondaryWidth = renderedSecondaryLabel
+    ? measurePixelTextWidth(renderedSecondaryLabel, PIXEL_FONT_SMALL_8) + 4
     : 0;
   const labelWidth = textWidth - secondaryWidth;
   const textLayout = controlTextLayout({
-    label,
+    label: renderedLabel,
     maxWidth: labelWidth,
     measurePrimary: (text) => measurePixelTextWidth(text, font),
     measureCompact: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
@@ -38848,8 +38885,8 @@ function drawControlIconLabel(rect, label, iconId, {
       { font: labelFont, align: "center" }
     );
   }
-  if (secondaryLabel) {
-    drawPixelText(secondaryLabel, rect.x + rect.w - 3, rect.y + 2, {
+  if (renderedSecondaryLabel) {
+    drawPixelText(renderedSecondaryLabel, rect.x + rect.w - 3, rect.y + 2, {
       font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
@@ -38942,7 +38979,7 @@ function drawStormStatus(nowMs) {
       : `STORM ${Math.round(intensity * 100)}%`;
   const width = Math.min(190, measurePixelTextWidth(text, PIXEL_FONT_SMALL_8) + 12);
   const x = Math.round((SCREEN_W - width) / 2);
-  const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 3;
+  const y = MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 3;
   ctx.fillStyle = damageActive ? "rgba(93, 42, 43, 0.94)" : "rgba(38, 47, 58, 0.9)";
   ctx.fillRect(x, y, width, 13);
   ctx.strokeStyle = damageActive ? "#f68181" : "#8ac0b4";
@@ -39408,27 +39445,15 @@ function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
 
 function drawSurvivalNotice(nowMs) {
   if (!survivalNotice || nowMs >= survivalNotice.expiresAtMs) return;
-  const layout = survivalNotice.fullText
-    ? fullNoticeTextLayout(survivalNotice.text, {
-        screenWidth: SCREEN_W,
-        maximumWidth: 360,
-        lineHeight: localizedLineHeight(9),
-        measureText: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
-      })
-    : {
-        width: Math.min(240, measurePixelTextWidth(survivalNotice.text, PIXEL_FONT_SMALL_8) + 12),
-        height: 13,
-        lineHeight: localizedLineHeight(9),
-        lines: [fitPixelText(survivalNotice.text, PIXEL_FONT_SMALL_8, 230)]
-      };
+  const layout = noticeTextLayout(survivalNotice.text);
   const width = layout.width;
   const x = Math.round((SCREEN_W - width) / 2);
   const combatLayout = combatNoticeLayout(nowMs);
-  const fishY = fishCatchNoticeY(nowMs);
+  const fishLayout = fishCatchNoticeLayout(nowMs);
   const y = Math.max(
-    MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 48,
+    MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 48,
     combatLayout ? combatLayout.y + combatLayout.h + 2 : 0,
-    fishY === null ? 0 : fishY + 15
+    fishLayout ? fishLayout.y + fishLayout.height + 2 : 0
   );
   const warn = survivalNotice.tone === "warn";
   ctx.fillStyle = warn ? "rgba(80, 61, 42, 0.94)" : "rgba(31, 67, 70, 0.92)";
@@ -39446,18 +39471,20 @@ function drawSurvivalNotice(nowMs) {
 
 function drawSavePersistenceWarning() {
   if (!savePersistenceWarning) return;
-  const text = savePersistenceWarning.text;
-  const width = Math.min(SCREEN_W - 12, measurePixelTextWidth(text, PIXEL_FONT_SMALL_8) + 12);
+  const layout = noticeTextLayout(savePersistenceWarning.text);
+  const width = layout.width;
   const x = Math.round((SCREEN_W - width) / 2);
   const y = 5;
   ctx.fillStyle = "rgba(103, 42, 38, 0.97)";
-  ctx.fillRect(x, y, width, 13);
+  ctx.fillRect(x, y, width, layout.height);
   ctx.strokeStyle = "#f68181";
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, layout.height - 1);
   ctx.fillStyle = "#ffe6a6";
-  drawPixelText(fitPixelText(text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center"
+  layout.lines.forEach((line, index) => {
+    drawPixelText(line, x + width / 2, y + 3 + index * layout.lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
   });
 }
 
@@ -39472,8 +39499,14 @@ function drawAchievementNotice(nowMs) {
     return;
   }
   const width = Math.min(260, SCREEN_W - 12);
-  const height = 38;
   const x = Math.round((SCREEN_W - width) / 2);
+  const textWidth = width - 40;
+  const headingLines = wrapPixelTextAll(renderedUiText(notice.heading), PIXEL_FONT_SMALL_8, textWidth);
+  const titleLines = wrapPixelTextAll(renderedUiText(notice.title), PIXEL_FONT_DIALOGUE_8, textWidth);
+  const headingLineHeight = localizedLineHeight(9);
+  const titleLineHeight = localizedLineHeight(12);
+  const titleY = 6 + headingLines.length * headingLineHeight + 2;
+  const height = Math.max(38, titleY + titleLines.length * titleLineHeight + 5);
   const statusPanel = gameState && ship && !gameOverReason ? survivalHudLayout().panel : null;
   const statusBottom = statusPanel ? statusPanel.y + statusPanel.height : 0;
   const y = Math.max(6, statusBottom + 4);
@@ -39493,19 +39526,18 @@ function drawAchievementNotice(nowMs) {
     ctx.strokeStyle = PIRATE_MENU_PAPER_SELECTED;
     ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
   }
-  drawGameIcon(notice.iconId, x + 8, y + 11);
-  drawOptionsText(
-    fitPixelText(notice.heading, PIXEL_FONT_SMALL_8, width - 40),
-    textX,
-    y + 6,
-    { color: PIRATE_MENU_INK_MUTED }
-  );
-  drawOptionsText(
-    fitPixelText(notice.title, PIXEL_FONT_DIALOGUE_8, width - 40),
-    textX,
-    y + 19,
-    { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
-  );
+  drawGameIcon(notice.iconId, x + 8, y + Math.floor((height - GAME_ICON_SIZE) / 2));
+  headingLines.forEach((line, index) => {
+    drawOptionsText(line, textX, y + 6 + index * headingLineHeight, {
+      color: PIRATE_MENU_INK_MUTED
+    });
+  });
+  titleLines.forEach((line, index) => {
+    drawOptionsText(line, textX, y + titleY + index * titleLineHeight, {
+      font: PIXEL_FONT_DIALOGUE_8,
+      color: PIRATE_MENU_INK
+    });
+  });
   ctx.restore();
 }
 
@@ -39526,44 +39558,60 @@ function drawCombatNotice(nowMs) {
 }
 
 function drawFishCatchNotice(nowMs) {
-  if (!fishCatchNotice || nowMs >= fishCatchNotice.expiresAtMs) return;
-  const width = Math.min(240, measurePixelTextWidth(fishCatchNotice.text, PIXEL_FONT_SMALL_8) + 12);
-  const x = Math.round((SCREEN_W - width) / 2);
-  const y = fishCatchNoticeY(nowMs);
-  if (y === null) return;
+  const layout = fishCatchNoticeLayout(nowMs);
+  if (!layout) return;
+  const { width, x, y } = layout;
   const warn = fishCatchNotice.tone === "warn";
   ctx.fillStyle = warn ? "rgba(80, 61, 42, 0.94)" : "rgba(31, 67, 70, 0.92)";
-  ctx.fillRect(x, y, width, 13);
+  ctx.fillRect(x, y, width, layout.height);
   ctx.strokeStyle = warn ? "#e3a857" : "#8ac0b4";
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, layout.height - 1);
   ctx.fillStyle = warn ? "#ffe6a6" : "#d6f2e8";
-  drawPixelText(fitPixelText(fishCatchNotice.text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center"
+  layout.lines.forEach((line, index) => {
+    drawPixelText(line, x + width / 2, y + 3 + index * layout.lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
   });
 }
 
 function combatNoticeLayout(nowMs) {
   if (!combatNotice || nowMs >= combatNotice.expiresAtMs) return null;
   const maxWidth = Math.min(360, SCREEN_W - 12);
-  const lines = wrapPixelText(combatNotice.text, PIXEL_FONT_SMALL_8, maxWidth - 10, 3);
+  const lines = wrapPixelTextAll(renderedUiText(combatNotice.text), PIXEL_FONT_SMALL_8, maxWidth - 10);
   const textWidth = Math.max(...lines.map((line) => measurePixelTextWidth(line, PIXEL_FONT_SMALL_8)));
   const w = Math.min(maxWidth, textWidth + 12);
   const h = 4 + lines.length * 9;
   return {
     x: Math.round((SCREEN_W - w) / 2),
-    y: MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 18,
+    y: MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 18,
     w,
     h,
     lines
   };
 }
 
-function fishCatchNoticeY(nowMs) {
+function fishCatchNoticeLayout(nowMs) {
   if (!fishCatchNotice || nowMs >= fishCatchNotice.expiresAtMs) return null;
-  const baseY = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 33;
+  const textLayout = noticeTextLayout(fishCatchNotice.text);
+  const baseY = MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 33;
   const combatLayout = combatNoticeLayout(nowMs);
-  return combatLayout ? Math.max(baseY, combatLayout.y + combatLayout.h + 2) : baseY;
+  const y = combatLayout ? Math.max(baseY, combatLayout.y + combatLayout.h + 2) : baseY;
+  return {
+    ...textLayout,
+    x: Math.round((SCREEN_W - textLayout.width) / 2),
+    y
+  };
+}
+
+function noticeTextLayout(text) {
+  const localized = renderedUiText(text);
+  return fullNoticeTextLayout(localized, {
+    screenWidth: SCREEN_W,
+    maximumWidth: 360,
+    lineHeight: localizedLineHeight(9),
+    measureText: (entry) => measureRenderedPixelTextWidth(entry, PIXEL_FONT_SMALL_8)
+  });
 }
 
 function drawPlayerIntroModal(nowMs) {

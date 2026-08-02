@@ -27,8 +27,23 @@ test("long political notices wrap without losing any words", () => {
 
   assert.ok(layout.lines.length > 1);
   assert.equal(layout.lines.join(" "), text);
+  assert.ok(layout.lines.every((line) => !line.endsWith("...")));
   assert.ok(layout.width <= 160);
   assert.equal(layout.height, layout.lines.length * 9 + 4);
+});
+
+test("notifications use additional lines instead of adding an ellipsis", () => {
+  const text = "DIE LEINE HÄLT — MACHT EUCH AUF DEN SCHLEPPZUG GEFASST";
+  const layout = fullNoticeTextLayout(text, {
+    screenWidth: 120,
+    maximumWidth: 100,
+    lineHeight: 9,
+    measureText: monospaceMeasure
+  });
+
+  assert.ok(layout.lines.length >= 2);
+  assert.equal(layout.lines.join(" "), text);
+  assert.ok(layout.lines.every((line) => !line.endsWith("...")));
 });
 
 function monospaceMeasure(text) {

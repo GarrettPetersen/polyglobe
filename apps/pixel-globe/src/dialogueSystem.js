@@ -3683,7 +3683,7 @@ function buyView(session, city, gameState, economy, context) {
       const rowId = `market-${row.good.id}`;
       return [
         option(`Buy 1 ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
-          detail: `${tradeTermsDetail(terms, "buy")}  ${worldPriceIndicator(comparison)}  STOCK ${Math.floor(row.stock)}`,
+          detail: `${tradeTermsDetail(terms, "buy")}  ${worldPriceIndicator(comparison)}  ${marketStockIndicator(row.stock)}`,
           rowId,
           disabled: outOfStock || cannotAfford || cannotFit,
           disabledReason
@@ -3693,7 +3693,7 @@ function buyView(session, city, gameState, economy, context) {
           goodId: row.good.id,
           quantity: maximumQuantity
         }, {
-          detail: `SPACE ${totalSize} EACH  STOCK ${Math.floor(row.stock)}`,
+          detail: `${marketCargoSpaceIndicator(totalSize)}  ${marketStockIndicator(row.stock)}`,
           rowId,
           disabled: maximumQuantity <= 1,
           disabledReason: disabledReason || "Only one unit fits or is affordable; use Buy 1."
@@ -4127,7 +4127,7 @@ function sellView(session, city, gameState, economy) {
         type: "sell",
         goodId
       }, {
-        detail: `${tradeTermsDetail(terms, "sell")}  ${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${heldLots}`,
+        detail: `${tradeTermsDetail(terms, "sell")}  ${worldPriceIndicator(comparison)}  ${marketProfitIndicator(pnlLabel)}  ${marketHeldIndicator(heldLots)}`,
         rowId,
         disabled: soldOut || marketOutOfSpecie,
         disabledReason
@@ -4648,6 +4648,22 @@ export function worldPriceIndicator(comparison) {
   if (comparison.direction === "low") return `${Math.abs(comparison.percent)}% BELOW WORLD`;
   if (comparison.direction === "fair") return "= WORLD PRICE";
   throw new Error(`Unknown world price direction: ${comparison.direction}`);
+}
+
+function marketStockIndicator(stock) {
+  return `STOCK ${Math.floor(stock)}`;
+}
+
+function marketCargoSpaceIndicator(totalSize) {
+  return `SPACE ${totalSize} EACH`;
+}
+
+function marketProfitIndicator(pnlLabel) {
+  return `P/L ${pnlLabel}`;
+}
+
+function marketHeldIndicator(heldLots) {
+  return `HELD ${heldLots}`;
 }
 
 function formatDistanceKm(distanceKm) {

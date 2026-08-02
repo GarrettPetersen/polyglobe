@@ -32,6 +32,7 @@
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",
     "capture:trailer": "node tools/capture-trailer-clips.mjs",
     "capture:steam-screenshots": "node tools/capture-steam-screenshots.mjs",
+    "localize:screen-text": "node tools/build-screen-text-catalog.mjs && node tools/translate-screen-text-catalog.mjs",
     "build:panda-trailer": "node tools/trailer/run-python-tool.mjs build-panda-trailer.py",
     "upload:panda-trailer": "node tools/trailer/upload-panda-trailer.mjs",
     "build:steam-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py",

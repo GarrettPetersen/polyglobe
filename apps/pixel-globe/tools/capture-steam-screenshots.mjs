@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ import {
   STEAM_SCREENSHOT_WIDTH,
   steamScreenshotFileName
 } from "./steam-screenshot-catalog.mjs";
+import { localizeText } from "../src/localization.js";
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
@@ -22,6 +23,7 @@ const languages = selectById(STEAM_SCREENSHOT_LANGUAGES, args.languages, "langua
 const outputRoot = path.resolve(APP_ROOT, args.output);
 
 await mkdir(outputRoot, { recursive: true });
+await removeStaleFailureScreenshots(outputRoot);
 await assertCaptureServerReady(args.baseUrl);
 const browser = await launchCaptureBrowser({ headless: args.headless });
 const results = [];
@@ -88,6 +90,7 @@ async function captureLocalizedScreenshots(browser, shot) {
   const errors = [];
   collectCapturePageErrors(page, errors);
   const failureName = `.${String(shot.order).padStart(2, "0")}_${shot.id}.failure.png`;
+  await removeStaleFailureScreenshot(path.join(outputRoot, failureName));
   try {
     await page.goto(captureUrl(shot.scenarioId, languages[0].id), {
       waitUntil: "domcontentloaded",
@@ -127,6 +130,19 @@ async function captureLocalizedScreenshots(browser, shot) {
       if (activeLanguage !== language.id) {
         throw new Error(`Expected locale ${language.id}, game rendered ${activeLanguage}`);
       }
+      const renderedText = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_RENDERED_TEXT__ || []);
+      const untranslated = renderedText.filter(({ source, rendered }) => (
+        source === rendered && (
+          localizeText(language.id, source) !== source ||
+          isSubstantiveEnglishScreenText(source)
+        )
+      ));
+      if (language.id !== "en" && untranslated.length > 0) {
+        throw new Error(
+          `${language.id} rendered English-only screen text:\n` +
+          untranslated.map(({ source }) => `  ${source}`).join("\n")
+        );
+      }
       const fileName = steamScreenshotFileName(shot, language);
       const outputPath = path.join(outputRoot, fileName);
       await page.locator("#view").screenshot({
@@ -155,6 +171,34 @@ async function captureLocalizedScreenshots(browser, shot) {
   } finally {
     await context.close();
   }
+}
+
+function isSubstantiveEnglishScreenText(value) {
+  if (typeof value !== "string" || !/\s/.test(value)) return false;
+  if (/MARQUE-AND-REPRISAL\.COM/i.test(value)) return false;
+  if (/\b(?:Dogica|Galmuri11)\b/.test(value)) return false;
+  const englishGrammarWords = new Set([
+    "a", "an", "and", "are", "at", "can", "could", "for", "from", "has", "have",
+    "in", "into", "is", "of", "on", "our", "should", "that", "the", "this", "to",
+    "was", "we", "were", "will", "with", "you", "your"
+  ]);
+  const words = (value.match(/[A-Za-z]+/g) || []).map((word) => word.toLowerCase());
+  return new Set(words.filter((word) => englishGrammarWords.has(word))).size >= 2;
+}
+
+async function removeStaleFailureScreenshot(failurePath) {
+  try {
+    await unlink(failurePath);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+async function removeStaleFailureScreenshots(directory) {
+  const entries = await readdir(directory);
+  await Promise.all(entries
+    .filter((entry) => /^\..+\.failure\.png$/.test(entry))
+    .map((entry) => removeStaleFailureScreenshot(path.join(directory, entry))));
 }
 
 function captureUrl(scenarioId, languageId) {
