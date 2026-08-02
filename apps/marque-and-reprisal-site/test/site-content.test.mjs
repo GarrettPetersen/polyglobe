@@ -15,6 +15,11 @@ import {
   site,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
+import {
+  localizedPagePath,
+  websiteLocale,
+  websiteLocales
+} from "../content/site-locales.mjs";
 import { homePage, pressPage, qAndAPage, qAndAText } from "../tools/pages.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -67,6 +72,7 @@ test("published links and localization claims are explicit", () => {
   assert.equal(site.publisher, "Iron Pagoda");
   assert.equal(site.creator, "Garrett Petersen");
   assert.equal(site.copyrightHolder, "Garrett Petersen");
+  assert.equal(site.platforms, "Windows, macOS, and Linux");
   assert.match(pressPage(), /<dt>Developer<\/dt><dd>Iron Pagoda<\/dd>/);
   assert.match(pressPage(), /<dt>Publisher<\/dt><dd>Iron Pagoda<\/dd>/);
   assert.match(pressPage(), /<dt>Creator<\/dt><dd><a[^>]+>Garrett Petersen<\/a><\/dd>/);
@@ -81,6 +87,38 @@ test("published links and localization claims are explicit", () => {
   assert.doesNotMatch(homePage() + pressPage(), /Steam page coming soon|Page coming soon/);
   assert.equal(languages.length, 11);
   assert.equal(new Set(languages).size, languages.length);
+});
+
+test("website locales publish complete language routes and matching press downloads", async () => {
+  assert.equal(websiteLocales.length, 11);
+  assert.equal(new Set(websiteLocales.map(({ slug }) => slug)).size, websiteLocales.length);
+  const japanese = websiteLocale("Japanese");
+  assert.equal(localizedPagePath(japanese, "home"), "/ja/");
+  assert.equal(localizedPagePath(japanese, "press"), "/ja/press/");
+  assert.equal(websiteLocale("日本語"), japanese);
+  assert.equal(websiteLocale("japanese"), japanese);
+
+  const home = homePage("ja");
+  const press = pressPage("ja");
+  assert.match(home, /<html lang='ja'>/);
+  assert.match(home, /Windows・macOS・Linux版をSteamで同時発売予定/);
+  assert.match(home, /capsule_title_japanese\.png/);
+  assert.match(home, /01_explore-pyramids_japanese\.png/);
+  assert.match(press, /marque-and-reprisal-press-kit-japanese\.zip/);
+  assert.match(press, /marque-and-reprisal-screenshots-japanese\.zip/);
+  assert.match(press, /marque-and-reprisal-capsules-japanese\.zip/);
+  assert.doesNotMatch(home + press, /Windows first|macOS and Linux planned/);
+
+  for (const locale of websiteLocales) {
+    assert.match(homePage(locale.appLocale), new RegExp(`<html lang='${locale.appLocale}'>`));
+    if (locale.appLocale !== "en") {
+      assert.match(pressPage(locale.appLocale), new RegExp(locale.pressKitArchive.replaceAll(".", "\\.")));
+    }
+  }
+
+  const client = await readFile(path.join(appRoot, "src/assets/scripts/site.js"), "utf8");
+  assert.match(client, /URLSearchParams\(window\.location\.search\)\.get\("l"\)/);
+  assert.match(homePage(), /data-language-aliases='[^']*Japanese[^']*'/);
 });
 
 test("developer Q&A publishes the approved interview with factual wording fixes", () => {

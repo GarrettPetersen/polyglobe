@@ -11,14 +11,21 @@ import {
   site,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
+import {
+  defaultWebsiteLocale,
+  localizedPagePath,
+  websiteLocale,
+  websiteLocales
+} from "../content/site-locales.mjs";
 
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
-const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
-const codeAssetVersion = "2026-08-02-localized-screenshots";
+const codeAssetVersion = "2026-08-02-localized-website-v2";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 
-export function homePage() {
+export function homePage(localeValue = "en") {
+  const locale = websiteLocale(localeValue);
+  if (locale !== defaultWebsiteLocale) return localizedHomePage(locale);
   const featureRows = features.map((feature) => [
     "<section class='feature-row reveal' id='", feature.id, "' aria-label='", escapeHtml(feature.title), "'>",
     "<div class='feature-window'>",
@@ -54,7 +61,7 @@ export function homePage() {
     externalButton(site.steamUrl, "Wishlist on Steam", "button button-primary"),
     externalButton(site.itchUrl, "Play browser demo", "button button-ghost"),
     "</div>",
-    "<p class='platform-note'>Coming soon on Steam. Windows first; macOS and Linux planned.</p>",
+    "<p class='platform-note'>Coming soon on Steam for Windows, macOS, and Linux.</p>",
     "</div>",
     "<a class='soundings-link' href='#voyage'><span>Take soundings</span><i aria-hidden='true'></i></a>",
     "</section>",
@@ -99,11 +106,15 @@ export function homePage() {
     description,
     canonicalPath: "/",
     bodyClass: "home",
-    main
+    main,
+    locale,
+    pageKind: "home"
   });
 }
 
-export function pressPage() {
+export function pressPage(localeValue = "en") {
+  const locale = websiteLocale(localeValue);
+  if (locale !== defaultWebsiteLocale) return localizedPressPage(locale);
   const featureList = features.map((feature) => [
     "<li><strong>", escapeHtml(feature.title), ".</strong> ",
     escapeHtml(feature.copy), "</li>"
@@ -150,7 +161,9 @@ export function pressPage() {
   ].join("");
 
   const logoCards = pressLogos.map((asset) => graphicAssetCard(asset, "logos")).join("\n");
-  const localizedCapsuleCards = localizedCapsules.map(localizedCapsuleCard).join("\n");
+  const localizedCapsuleCards = localizedCapsules.map(
+    (capsuleLocale) => localizedCapsuleCard(capsuleLocale, "Download ZIP")
+  ).join("\n");
   const capsuleCards = pressCapsuleArt.map((asset) => graphicAssetCard(
     asset,
     "capsule-art",
@@ -234,8 +247,154 @@ export function pressPage() {
     description: "Official Marque & Reprisal fact sheet, screenshots, logos, artwork, and press downloads.",
     canonicalPath: "/press/",
     bodyClass: "press",
-    main
+    main,
+    locale,
+    pageKind: "press"
   });
+}
+
+function localizedHomePage(locale) {
+  const featureRows = features.map((feature, index) => {
+    const shot = screenshotForFeature(feature.id);
+    return [
+      "<section class='feature-row reveal' id='", feature.id, "' aria-label='", escapeHtml(locale.actions[index]), "'>",
+      "<div class='feature-window'>",
+      "<video class='feature-video' muted loop playsinline preload='none' poster='/assets/press/screenshots/",
+      escapeHtml(shot.files[locale.steamCode]), "' aria-label='", escapeHtml(locale.actions[index]), "'>",
+      "<source data-src='", feature.video, "' type='video/webm'>",
+      "</video></div>",
+      "<div class='feature-copy'><p class='eyebrow'>", escapeHtml(locale.actions[index]), "</p>",
+      "<p>", escapeHtml(locale.featureCopy[feature.id]), "</p></div>",
+      "</section>"
+    ].join("");
+  }).join("\n");
+
+  const gallery = screenshots.slice(0, 4).map((shot, index) => [
+    "<a class='voyage-frame' href='", localizedPagePath(locale, "press"), "#screenshots'>",
+    "<img src='/assets/press/screenshots/", shot.files[locale.steamCode], "' alt='",
+    escapeHtml(locale.actions[index]), "' loading='lazy' width='1920' height='1080'>",
+    "<span>", escapeHtml(locale.actions[index]), "</span></a>"
+  ].join("")).join("\n");
+
+  const titleAsset = localizedCapsuleAsset(locale, `capsule_title_${locale.steamCode}.png`);
+  const main = [
+    "<main>",
+    "<section class='hero' aria-labelledby='hero-title'>",
+    "<div class='hero-art' aria-hidden='true'></div><div class='hero-shade' aria-hidden='true'></div>",
+    "<div class='hero-copy'>",
+    "<p class='hero-kicker'>", escapeHtml(locale.ui.heroKicker), "</p>",
+    "<h1 id='hero-title'><img src='", titleAsset, "' alt='", escapeHtml(locale.title), "' width='1232' height='706'></h1>",
+    "<p class='hero-actions-line'>", escapeHtml(locale.actions.join(" · ")), "</p>",
+    "<p class='hero-deck'>", escapeHtml(locale.intro), "</p>",
+    "<div class='button-row'>",
+    externalButton(site.steamUrl, locale.ui.wishlist, "button button-primary"),
+    externalButton(site.itchUrl, locale.ui.playDemo, "button button-ghost"),
+    "</div><p class='platform-note'>", escapeHtml(locale.ui.platform), "</p></div>",
+    "<a class='soundings-link' href='#voyage'><span>", escapeHtml(locale.ui.navAbout), "</span><i aria-hidden='true'></i></a>",
+    "</section>",
+    "<section class='manifest' id='voyage' aria-labelledby='manifest-title'>",
+    "<div class='section-heading reveal'><p class='eyebrow'>", escapeHtml(locale.ui.heroKicker), "</p>",
+    "<h2 id='manifest-title'>", escapeHtml(locale.title), "</h2><p>", escapeHtml(locale.demoCopy), "</p></div>",
+    "</section>",
+    "<section class='feature-course' aria-label='", escapeHtml(locale.ui.aboutGame), "'>", featureRows, "</section>",
+    "<section class='gallery-tease' aria-labelledby='gallery-title'>",
+    "<div class='section-heading compact reveal'><p class='eyebrow'>", escapeHtml(locale.ui.galleryHeading), "</p>",
+    "<h2 id='gallery-title'>", escapeHtml(locale.ui.aboutGame), "</h2></div>",
+    "<div class='voyage-grid reveal'>", gallery, "</div>",
+    "<div class='centered-action reveal'><a class='button button-ghost' href='", localizedPagePath(locale, "press"), "'>",
+    escapeHtml(locale.ui.openPressKit), "</a></div></section>",
+    "<section class='final-call' aria-labelledby='final-title'><div class='final-call-art' aria-hidden='true'></div>",
+    "<div class='final-call-copy reveal'><h2 id='final-title'>", escapeHtml(locale.ui.finalTitle), "</h2>",
+    "<p>", escapeHtml(locale.ui.finalBody), "</p>",
+    externalButton(site.steamUrl, locale.ui.wishlist, "button button-primary"),
+    "</div></section></main>"
+  ].join("");
+
+  return layout({
+    title: `${locale.title} — ${locale.ui.heroKicker}`,
+    description: locale.intro,
+    canonicalPath: localizedPagePath(locale, "home"),
+    bodyClass: "home",
+    main,
+    locale,
+    pageKind: "home"
+  });
+}
+
+function localizedPressPage(locale) {
+  const screenshotCards = screenshots.map((shot) => {
+    const source = `/assets/press/screenshots/${shot.files[locale.steamCode]}`;
+    const featureIndex = features.findIndex(({ id }) => shot.id.startsWith(`${id}-`));
+    const title = featureIndex >= 0 ? locale.actions[featureIndex] : locale.ui.pandaShot;
+    return [
+      "<article class='press-asset-card'>",
+      "<button class='asset-preview' type='button' data-lightbox-src='", source,
+      "' data-lightbox-alt='", escapeHtml(title), "'><img src='", source, "' alt='",
+      escapeHtml(title), "' loading='lazy' width='1920' height='1080'></button>",
+      "<div><h3>", escapeHtml(title), "</h3><p>1920 × 1080 PNG</p>",
+      "<a href='", source, "' download>", escapeHtml(locale.ui.downloadPng), "</a></div></article>"
+    ].join("");
+  }).join("\n");
+  const featureList = features.map((feature, index) => [
+    "<li><strong>", escapeHtml(locale.actions[index]), ".</strong> ",
+    escapeHtml(locale.featureCopy[feature.id]), "</li>"
+  ].join("")).join("\n");
+  const capsulePreview = localizedCapsuleAsset(locale, `capsule_header_${locale.steamCode}.png`);
+  const main = [
+    "<main class='press-main localized-press'>",
+    "<header class='press-hero'><img src='", capsulePreview, "' alt='", escapeHtml(locale.title), "' width='920' height='430'>",
+    "<div><p class='eyebrow'>", escapeHtml(locale.ui.navPress), "</p><h1>", escapeHtml(locale.title), "</h1>",
+    "<p>", escapeHtml(locale.intro), "</p>",
+    "<a class='button button-primary' href='/downloads/", escapeHtml(locale.pressKitArchive), "' download>",
+    escapeHtml(locale.ui.downloadPressKit), "</a></div></header>",
+    "<div class='press-layout'><aside class='fact-sheet'><h2>", escapeHtml(locale.ui.factSheet), "</h2>",
+    fact(locale.ui.release, escapeHtml(locale.ui.platform)),
+    fact(locale.ui.platforms, "Windows · macOS · Linux"),
+    fact(locale.ui.genre, escapeHtml(locale.ui.heroKicker)),
+    fact(locale.ui.textLanguages, websiteLocales.map(({ nativeLabel }) => escapeHtml(nativeLabel)).join(" · ")),
+    "</aside><article class='press-copy'><section><p class='eyebrow'>", escapeHtml(locale.ui.aboutGame), "</p>",
+    "<h2>", escapeHtml(locale.title), "</h2><p class='press-lead'>", escapeHtml(locale.intro), "</p>",
+    "<ul class='press-features'>", featureList, "</ul></section></article></div>",
+    "<section class='press-assets' id='screenshots'><div class='asset-heading'><div><h2>",
+    escapeHtml(locale.ui.screenshotsHeading), "</h2></div><a href='/downloads/",
+    escapeHtml(`marque-and-reprisal-screenshots-${locale.steamCode}.zip`), "' download>",
+    escapeHtml(locale.ui.downloadScreenshots), "</a></div><p class='asset-intro'>",
+    escapeHtml(locale.ui.screenshotsBody), "</p><div class='press-asset-grid'>", screenshotCards, "</div></section>",
+    "<section class='press-assets localized-capsule-assets'><div class='asset-heading'><div><h2>",
+    escapeHtml(locale.ui.capsulesHeading), "</h2></div><a href='/downloads/",
+    escapeHtml(`marque-and-reprisal-capsules-${locale.steamCode}.zip`), "' download>",
+    escapeHtml(locale.ui.downloadCapsules), "</a></div><p class='asset-intro'>",
+    escapeHtml(locale.ui.capsulesBody), "</p><div class='localized-capsule-grid'>",
+    localizedCapsuleCard(locale, locale.ui.downloadZip), "</div></section>",
+    "<section class='press-assets'><div class='asset-heading'><div><p class='eyebrow'>",
+    escapeHtml(locale.ui.englishResources), "</p><h2>", escapeHtml(locale.ui.qaEnglish), "</h2></div></div>",
+    "<div class='press-copy-actions'><a href='/qa/'>", escapeHtml(locale.ui.readQaEnglish), "</a>",
+    "<a href='/downloads/marque-and-reprisal-press-kit.zip' download>", escapeHtml(locale.ui.completeEnglishPressKit), "</a></div></section>",
+    "<section class='usage-note'><h2>", escapeHtml(locale.ui.assetUse), "</h2><p>",
+    escapeHtml(locale.ui.assetUseBody), "</p></section>",
+    "<dialog class='lightbox' aria-label='", escapeHtml(locale.ui.screenshotsHeading), "'><button type='button' data-lightbox-close aria-label='Close'>×</button><img alt=''></dialog>",
+    "</main>"
+  ].join("");
+
+  return layout({
+    title: `${locale.ui.navPress} — ${locale.title}`,
+    description: locale.intro,
+    canonicalPath: localizedPagePath(locale, "press"),
+    bodyClass: "press",
+    main,
+    locale,
+    pageKind: "press"
+  });
+}
+
+function screenshotForFeature(featureId) {
+  const shot = screenshots.find(({ id }) => id.startsWith(`${featureId}-`));
+  if (!shot) throw new Error(`Feature has no localized screenshot: ${featureId}`);
+  return shot;
+}
+
+function localizedCapsuleAsset(locale, file) {
+  return `/assets/press/localized-capsules/${locale.steamCode}/${file}`;
 }
 
 export function qAndAPage() {
@@ -284,7 +443,8 @@ function graphicAssetCard(asset, folder, previewClass = "") {
   ].join("");
 }
 
-function localizedCapsuleCard(locale) {
+function localizedCapsuleCard(locale, downloadLabel) {
+  if (!downloadLabel) throw new Error(`Localized capsule download label is missing: ${locale.steamCode}`);
   const previewPath = [
     "/assets/press/localized-capsules/",
     locale.steamCode,
@@ -299,8 +459,9 @@ function localizedCapsuleCard(locale) {
     "<div class='localized-capsule-copy'><div>",
     "<p class='localized-capsule-language'>", escapeHtml(locale.label), "</p>",
     "<h3 lang='", escapeHtml(locale.appLocale), "'>", escapeHtml(locale.title), "</h3>",
-    "<p>", String(LOCALIZED_CAPSULE_ASSET_NAMES.length), " full-resolution PNG assets</p>",
-    "</div><a href='/downloads/", escapeHtml(locale.archiveFile), "' download>Download ZIP</a></div>",
+    "<p>", String(LOCALIZED_CAPSULE_ASSET_NAMES.length), " PNG</p>",
+    "</div><a href='/downloads/", escapeHtml(locale.archiveFile), "' download>",
+    escapeHtml(downloadLabel), "</a></div>",
     "</article>"
   ].join("");
 }
@@ -423,12 +584,15 @@ export function robotsText() {
 }
 
 export function sitemapXml() {
+  const localizedUrls = websiteLocales.flatMap((locale) => [
+    `<url><loc>${site.domain}${localizedPagePath(locale, "home")}</loc><priority>${locale === defaultWebsiteLocale ? "1.0" : "0.9"}</priority></url>`,
+    `<url><loc>${site.domain}${localizedPagePath(locale, "press")}</loc><priority>0.8</priority></url>`
+  ]);
   return [
     "<?xml version='1.0' encoding='UTF-8'?>",
     "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>",
-    "<url><loc>" + site.domain + "/</loc><priority>1.0</priority></url>",
+    ...localizedUrls,
     "<url><loc>" + site.domain + "/qa/</loc><priority>0.8</priority></url>",
-    "<url><loc>" + site.domain + "/press/</loc><priority>0.8</priority></url>",
     "<url><loc>" + site.domain + "/privacy/</loc><priority>0.3</priority></url>",
     "</urlset>",
     ""
@@ -441,12 +605,24 @@ function layout({
   canonicalPath,
   bodyClass,
   main,
-  noIndex = false
+  noIndex = false,
+  locale = defaultWebsiteLocale,
+  pageKind = null
 }) {
   const canonical = site.domain + canonicalPath;
+  const pageSocialImage = locale === defaultWebsiteLocale
+    ? socialImage
+    : site.domain + localizedCapsuleAsset(locale, `social_share_${locale.steamCode}.png`);
+  const alternates = pageKind ? websiteLocales.map((alternate) => [
+    "<link rel='alternate' hreflang='", escapeHtml(alternate.appLocale), "' href='",
+    site.domain, localizedPagePath(alternate, pageKind), "'>"
+  ].join("")).join("") + [
+    "<link rel='alternate' hreflang='x-default' href='", site.domain,
+    localizedPagePath(defaultWebsiteLocale, pageKind), "'>"
+  ].join("") : "";
   return [
     "<!doctype html>",
-    "<html lang='en'>",
+    "<html lang='", escapeHtml(locale.appLocale), "'>",
     "<head>",
     "<meta charset='utf-8'>",
     "<meta name='viewport' content='width=device-width, initial-scale=1'>",
@@ -454,6 +630,7 @@ function layout({
     "<meta name='description' content='", escapeHtml(pageDescription), "'>",
     noIndex ? "<meta name='robots' content='noindex'>" : "",
     "<link rel='canonical' href='", canonical, "'>",
+    alternates,
     "<link rel='icon' href='/assets/art/icon-256.png' sizes='256x256' type='image/png'>",
     "<meta name='theme-color' content='#24243b'>",
     "<meta property='og:type' content='website'>",
@@ -461,23 +638,23 @@ function layout({
     "<meta property='og:title' content='", escapeHtml(title), "'>",
     "<meta property='og:description' content='", escapeHtml(pageDescription), "'>",
     "<meta property='og:url' content='", canonical, "'>",
-    "<meta property='og:image' content='", socialImage, "'>",
+    "<meta property='og:image' content='", pageSocialImage, "'>",
     "<meta property='og:image:type' content='image/png'>",
     "<meta property='og:image:width' content='1200'>",
     "<meta property='og:image:height' content='630'>",
-    "<meta property='og:image:alt' content='", escapeHtml(socialImageAlt), "'>",
+    "<meta property='og:image:alt' content='", escapeHtml(locale.title), "'>",
     "<meta name='twitter:card' content='summary_large_image'>",
     "<meta name='twitter:title' content='", escapeHtml(title), "'>",
     "<meta name='twitter:description' content='", escapeHtml(pageDescription), "'>",
-    "<meta name='twitter:image' content='", socialImage, "'>",
-    "<meta name='twitter:image:alt' content='", escapeHtml(socialImageAlt), "'>",
+    "<meta name='twitter:image' content='", pageSocialImage, "'>",
+    "<meta name='twitter:image:alt' content='", escapeHtml(locale.title), "'>",
     "<link rel='stylesheet' href='/assets/styles/site.css?v=", codeAssetVersion, "'>",
     "</head>",
     "<body class='", bodyClass, "'>",
-    "<a class='skip-link' href='#main-content'>Skip to content</a>",
-    navigation(),
+    "<a class='skip-link' href='#main-content'>", escapeHtml(locale.ui.navAbout), "</a>",
+    navigation(locale, pageKind ?? "home"),
     "<div id='main-content'>", main, "</div>",
-    footer(),
+    footer(locale),
     "<script src='/assets/scripts/site.js?v=", codeAssetVersion, "' defer></script>",
     "</body>",
     "</html>",
@@ -485,29 +662,47 @@ function layout({
   ].join("");
 }
 
-function navigation() {
+function navigation(locale, pageKind) {
+  const homePath = localizedPagePath(locale, "home");
+  const pressPath = localizedPagePath(locale, "press");
   return [
     "<nav class='site-nav' aria-label='Primary navigation'>",
-    "<a class='wordmark' href='/' aria-label='Marque and Reprisal home'><span>M</span><i class='display-amp' aria-hidden='true'></i><span>R</span></a>",
+    "<a class='wordmark' href='", homePath, "' aria-label='", escapeHtml(locale.title), "'><span>M</span><i class='display-amp' aria-hidden='true'></i><span>R</span></a>",
     "<div class='nav-links'>",
-    "<a href='/#voyage'>About</a>",
-    "<a href='/qa/'>Q&amp;A</a>",
-    "<a href='/press/'>Press kit</a>",
+    "<a href='", homePath, "#voyage'>", escapeHtml(locale.ui.navAbout), "</a>",
+    "<a href='/qa/'>", escapeHtml(locale.ui.navQaEnglish), "</a>",
+    "<a href='", pressPath, "'>", escapeHtml(locale.ui.navPress), "</a>",
     externalTextLink(site.steamUrl, "Steam"),
-    externalTextLink(site.itchUrl, "Demo"),
+    externalTextLink(site.itchUrl, locale.ui.navDemo),
     externalTextLink(site.xUrl, "X"),
     "</div>",
+    languagePicker(locale, pageKind),
     "</nav>"
   ].join("");
 }
 
-function footer() {
+function languagePicker(locale, pageKind) {
+  const options = websiteLocales.map((candidate) => {
+    const aliases = [candidate.appLocale, candidate.steamCode, candidate.label, candidate.nativeLabel, candidate.slug || "english"];
+    return [
+      "<option value='", localizedPagePath(candidate, pageKind), "' data-language-aliases='",
+      escapeHtml(aliases.join("|")), "'", candidate === locale ? " selected" : "", ">",
+      escapeHtml(candidate.nativeLabel), "</option>"
+    ].join("");
+  }).join("");
+  return [
+    "<label class='site-language-picker'><span>", escapeHtml(locale.ui.language), "</span>",
+    "<select data-website-language aria-label='", escapeHtml(locale.ui.language), "'>", options, "</select></label>"
+  ].join("");
+}
+
+function footer(locale) {
   return [
     "<footer class='site-footer'>",
-    "<div><strong>Marque ", displayAmpersand, " Reprisal</strong><span>Developed &amp; published by ", escapeHtml(site.developer), ".</span></div>",
-    "<div class='footer-links'><a href='/press/'>Press kit</a><a href='/privacy/'>Privacy</a>",
-    externalTextLink(site.steamUrl, "Wishlist on Steam"),
-    externalTextLink(site.itchUrl, "Demo on itch.io"),
+    "<div><strong>", escapeHtml(locale.title), "</strong><span>", escapeHtml(locale.ui.developedPublished), "</span></div>",
+    "<div class='footer-links'><a href='", localizedPagePath(locale, "press"), "'>", escapeHtml(locale.ui.navPress), "</a><a href='/privacy/'>", escapeHtml(locale.ui.privacy), "</a>",
+    externalTextLink(site.steamUrl, locale.ui.wishlist),
+    externalTextLink(site.itchUrl, locale.ui.navDemo),
     externalTextLink(site.xUrl, site.xHandle),
     "</div>",
     "<p>© <span data-current-year>2026</span> ", escapeHtml(site.copyrightHolder), ".</p>",

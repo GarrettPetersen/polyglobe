@@ -20,6 +20,11 @@ import {
   screenshots
 } from "../content/site-content.mjs";
 import {
+  defaultWebsiteLocale,
+  localizedPagePath,
+  websiteLocales
+} from "../content/site-locales.mjs";
+import {
   factSheetText,
   homePage,
   notFoundPage,
@@ -50,6 +55,10 @@ await publishLocalizedScreenshots();
 await writePage("index.html", homePage());
 await writePage("qa/index.html", qAndAPage());
 await writePage("press/index.html", pressPage());
+for (const locale of websiteLocales.filter((candidate) => candidate !== defaultWebsiteLocale)) {
+  await writePage(pathForPage(localizedPagePath(locale, "home")), homePage(locale.appLocale));
+  await writePage(pathForPage(localizedPagePath(locale, "press")), pressPage(locale.appLocale));
+}
 await writePage("privacy/index.html", privacyPage());
 await writePage("404.html", notFoundPage());
 await writePage("robots.txt", robotsText());
@@ -58,6 +67,7 @@ await writePage("assets/press/factsheet.txt", factSheetText());
 await writePage("assets/press/developer-qa.txt", qAndAText());
 await buildLocalizedCapsuleDownloads();
 await buildLocalizedScreenshotDownloads();
+await buildLocalizedPressKitDownloads();
 await buildPressKitArchive();
 await validateBuild();
 
@@ -241,6 +251,94 @@ async function buildPressKitArchive() {
   }
 }
 
+async function buildLocalizedPressKitDownloads() {
+  const stagingRoot = await mkdtemp(path.join(tmpdir(), "marque-localized-press-kits-"));
+  const downloadsRoot = path.join(distRoot, "downloads");
+  try {
+    await mkdir(downloadsRoot, { recursive: true });
+    for (const locale of websiteLocales) {
+      const bundleName = locale.pressKitArchive.replace(/\.zip$/, "");
+      const bundleRoot = path.join(stagingRoot, bundleName);
+      await mkdir(path.join(bundleRoot, "screenshots"), { recursive: true });
+      await cp(path.join(distRoot, "assets/press/logos"), path.join(bundleRoot, "logos"), { recursive: true });
+      await cp(
+        path.join(distRoot, "assets/press/localized-capsules", locale.steamCode),
+        path.join(bundleRoot, "capsule-art"),
+        { recursive: true }
+      );
+      for (const shot of screenshots) {
+        const filename = shot.files[locale.steamCode];
+        await cp(
+          path.join(distRoot, "assets/press/screenshots", filename),
+          path.join(bundleRoot, "screenshots", filename)
+        );
+      }
+      await Promise.all([
+        cp(path.join(distRoot, "assets/press/factsheet.txt"), path.join(bundleRoot, "factsheet.txt")),
+        writeFile(path.join(bundleRoot, "description.txt"), localizedDescriptionText(locale)),
+        writeFile(path.join(bundleRoot, "README.txt"), localizedPressKitReadme(locale))
+      ]);
+      createZip(path.join(downloadsRoot, locale.pressKitArchive), stagingRoot, [bundleName]);
+      await rm(bundleRoot, { recursive: true, force: true });
+    }
+  } finally {
+    await rm(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+function localizedPressKitReadme(locale) {
+  return [
+    "MARQUE & REPRISAL LOCALIZED PRESS KIT",
+    "======================================",
+    "",
+    `Language: ${locale.label} / ${locale.nativeLabel}`,
+    `Website: ${siteUrl(localizedPagePath(locale, "press"))}`,
+    "",
+    "CONTENTS",
+    "- 9 localized 1920x1080 gameplay screenshots",
+    `- ${LOCALIZED_CAPSULE_ASSET_NAMES.length} localized capsule and storefront images`,
+    "- Shared game logos",
+    `- ${locale.nativeLabel} game description`,
+    "- English plain-text fact sheet",
+    "",
+    "The localized website contains the approved translated game description.",
+    ""
+  ].join("\n");
+}
+
+function localizedDescriptionText(locale) {
+  const featureIds = Object.keys(locale.featureCopy);
+  if (featureIds.length !== locale.actions.length) {
+    throw new Error(`Localized press description is incomplete: ${locale.appLocale}`);
+  }
+  return [
+    locale.title,
+    "=".repeat(Math.max(12, [...locale.title].length)),
+    "",
+    locale.intro,
+    "",
+    ...locale.actions.flatMap((action, index) => [
+      action.toLocaleUpperCase(locale.appLocale),
+      locale.featureCopy[featureIds[index]],
+      ""
+    ]),
+    `Website: ${siteUrl(localizedPagePath(locale, "home"))}`,
+    `Press kit: ${siteUrl(localizedPagePath(locale, "press"))}`,
+    ""
+  ].join("\n");
+}
+
+function pathForPage(urlPath) {
+  if (!urlPath.startsWith("/") || !urlPath.endsWith("/")) {
+    throw new Error(`Localized page path is not a directory URL: ${urlPath}`);
+  }
+  return `${urlPath.slice(1)}index.html`;
+}
+
+function siteUrl(urlPath) {
+  return `https://marque-and-reprisal.com${urlPath}`;
+}
+
 function createZip(outputPath, cwd, entries) {
   const archive = spawnSync("zip", ["-q", "-r", outputPath, ...entries], {
     cwd,
@@ -275,6 +373,11 @@ async function validateBuild() {
       `downloads/${locale.archiveFile}`,
       `assets/press/localized-capsules/${locale.steamCode}/${locale.previewFile}`
     ]),
+    ...websiteLocales.flatMap((locale) => [
+      pathForPage(localizedPagePath(locale, "home")),
+      pathForPage(localizedPagePath(locale, "press")),
+      `downloads/${locale.pressKitArchive}`
+    ]),
     ...screenshotLocales.map((locale) => `downloads/${locale.archiveFile}`),
     ...screenshots.flatMap((shot) => screenshotLocales.map(
       (locale) => `assets/press/screenshots/${shot.files[locale.steamCode]}`
@@ -287,7 +390,7 @@ async function validateBuild() {
   const htmlPaths = (await filesBelow(distRoot)).filter((filePath) => filePath.endsWith(".html"));
   for (const htmlPath of htmlPaths) {
     const html = await readFile(htmlPath, "utf8");
-    if (/TODO|PLACEHOLDER|lorem ipsum/i.test(html)) {
+    if (html.includes("TODO") || /PLACEHOLDER|lorem ipsum/i.test(html)) {
       throw new Error("Unfinished copy in " + path.relative(distRoot, htmlPath));
     }
     if (!html.includes("<meta name='description'")) {

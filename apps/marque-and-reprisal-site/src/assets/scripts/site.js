@@ -1,5 +1,26 @@
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+const websiteLanguage = document.querySelector("[data-website-language]");
+if (websiteLanguage instanceof HTMLSelectElement) {
+  const requestedLanguage = new URLSearchParams(window.location.search).get("l");
+  if (requestedLanguage) {
+    const normalized = requestedLanguage.trim().toLocaleLowerCase("en-US");
+    const requestedOption = [...websiteLanguage.options].find((option) =>
+      (option.dataset.languageAliases ?? "").split("|").some(
+        (alias) => alias.toLocaleLowerCase("en-US") === normalized
+      )
+    );
+    if (requestedOption) {
+      window.location.replace(requestedOption.value + window.location.hash);
+    } else {
+      console.warn(`Unknown website language: ${requestedLanguage}`);
+    }
+  }
+  websiteLanguage.addEventListener("change", () => {
+    window.location.assign(websiteLanguage.value);
+  });
+}
+
 for (const year of document.querySelectorAll("[data-current-year]")) {
   year.textContent = String(new Date().getFullYear());
 }

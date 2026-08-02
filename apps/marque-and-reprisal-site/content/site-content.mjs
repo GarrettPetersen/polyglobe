@@ -21,7 +21,7 @@ export const site = Object.freeze({
   publisher: "Iron Pagoda",
   copyrightHolder: "Garrett Petersen",
   release: "Coming soon",
-  platforms: "Windows; macOS and Linux planned",
+  platforms: "Windows, macOS, and Linux",
   genre: "Open-world sailing roguelike sandbox and historical simulation",
   tagline: "Explore. Trade. Fish. Whale. Colonize. Fight. Pillage. Survive.",
   shortDescription: "Explore. Trade. Fish. Whale. Colonize. Fight. Pillage. Survive. You are a sea captain in the year 1522, and the whole world is yours to discover in this roguelike sandbox historical sailing simulator.",
