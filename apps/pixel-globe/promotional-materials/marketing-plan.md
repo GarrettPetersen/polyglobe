@@ -28,6 +28,37 @@
 - [ ] **Immediately add the trailer to the Steam page**
   - Add it as soon as the IGN exclusive is published or the exclusivity window is otherwise over.
 
+## Japanese press outreach
+
+The first Japanese press pass was completed on **August 2, 2026**, following
+Indie Freaks' July 30 coverage. The pitches use that post as social proof without
+describing it as an endorsement. Full outlet-specific copy, submission details and
+sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach.md).
+
+- [x] Prepare the reusable Japanese campaign links.
+  - Indie Freaks coverage: https://x.com/Indie_FreaksJP/status/2082949368362238267
+  - Steam in Japanese: https://store.steampowered.com/app/4516500/Marque__Reprisal/?l=japanese
+  - Japanese website and browser demo: https://marque-and-reprisal.com/ja/
+  - Japanese press kit: https://marque-and-reprisal.com/ja/press/
+  - Link to the press kit instead of attaching large files.
+
+- [x] Send the first seven pitches individually from `garrett.m.petersen@gmail.com`.
+  - AUTOMATON: sent to `press@automaton.am`.
+  - 電ファミニコゲーマー: sent to `release@mare-inc.net`.
+  - Game*Spark: submitted through the IID media form as **ゲームスパーク → リリース送付**.
+  - 4Gamer: submitted through **パブリッシャーおよびデベロッパーの皆様 → ニュースリリースの送付について**.
+  - ファミ通.com: sent to `kgl-famitsu-release@ml.kadokawa.jp`.
+  - IGN Japan: sent to `ign_japan@ign.com`.
+  - もぐらゲームス: submitted through its official Google form as a self-submitted game and press release.
+
+- [ ] Monitor replies and coverage from the first Japanese press pass.
+  - Respond promptly with requested assets, a review build or a Steam key.
+  - 4Gamer's form says it may reply with a dedicated release-submission address;
+    send the complete release there when it arrives.
+  - Record coverage and useful editorial feedback before planning a second wave.
+  - Avoid sending a generic follow-up unless there is a material new beat, such as
+    the Steam demo launch, a major trailer, Next Fest or the release date.
+
 ## Streamer outreach
 
 - [ ] Add **Marque & Reprisal** to IGDB so it receives a Twitch game category.
