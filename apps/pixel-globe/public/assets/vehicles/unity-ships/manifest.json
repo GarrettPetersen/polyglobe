@@ -1449,29 +1449,45 @@
       "assetLabel": "Russian 22-bank Baltic galley",
       "identifiedType": "sixteenth-century Mediterranean-style sailing galley",
       "identificationConfidence": "high",
-      "identificationNotes": "An unfurled-sail galley model adapted with a readable animated bank of oars.",
+      "identificationNotes": "The source model's mizzen mast and sail are removed for a leaner galley silhouette; a readable animated bank of oars is added.",
+      "removedSourceComponents": [
+        {
+          "nodeName": "Object_13",
+          "positionCount": 770,
+          "firstVertex": 34,
+          "lastVertex": 301,
+          "description": "mizzen mast and spars"
+        },
+        {
+          "nodeName": "Object_20",
+          "positionCount": 831,
+          "firstVertex": 553,
+          "lastVertex": 830,
+          "description": "mizzen sail"
+        }
+      ],
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
       "sourceTitle": "Russian 22-bank Baltic galley",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
       "sourceTexture": null,
       "sourceMaxDim": 4604.1799,
-      "targetModelMaxDim": 2.109,
+      "targetModelMaxDim": 1.887,
       "frameScale": 0.6667,
       "scaleMode": "galley-pixel-derivative",
-      "waterlineY": -0.525156967141519,
-      "waterlineOffsetY": -0.1425,
+      "waterlineY": -0.46987728638978027,
+      "waterlineOffsetY": -0.1275,
       "waterlineSlice": {
         "expectedHullCount": 1,
-        "componentCount": 7,
-        "dominantLengthRatio": 0.7085,
-        "hullIntervalMinY": -0.382657,
-        "hullIntervalMaxY": -0.372969
+        "componentCount": 6,
+        "dominantLengthRatio": 0.724,
+        "hullIntervalMinY": -0.342377,
+        "hullIntervalMaxY": -0.33371
       },
-      "encodedWaterlineY": -0.525157,
+      "encodedWaterlineY": -0.469877,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.612925,
-      "sinkHeightMax": 0.618173,
+      "sinkHeightMin": -0.541952,
+      "sinkHeightMax": 0.543932,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1481,9 +1497,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": -0.020609,
-        "y": 0.620001,
-        "z": -0.586576
+        "x": -0.018439,
+        "y": 0.554738,
+        "z": -0.524831
       },
       "stats": {
         "slug": "mediterranean-galley",
@@ -3394,29 +3410,29 @@
       "assetLabel": "Russian 22-bank Baltic galley",
       "identifiedType": "sixteenth-century Mediterranean galleass",
       "identificationConfidence": "high",
-      "identificationNotes": "The galley hull is rendered at a larger scale to represent a broad, heavily armed galleass.",
+      "identificationNotes": "The complete three-sail galley rig is retained and rendered at a larger scale to represent a broad, heavily armed galleass.",
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
       "sourceTitle": "Russian 22-bank Baltic galley",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
       "sourceTexture": null,
       "sourceMaxDim": 4604.1799,
-      "targetModelMaxDim": 2.2644,
+      "targetModelMaxDim": 2.2755,
       "frameScale": 0.6667,
       "scaleMode": "large-galley-pixel-derivative",
-      "waterlineY": -0.5638527436677363,
-      "waterlineOffsetY": -0.153,
+      "waterlineY": -0.5666167277053232,
+      "waterlineOffsetY": -0.15374999999999997,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 7,
         "dominantLengthRatio": 0.7085,
-        "hullIntervalMinY": -0.410853,
-        "hullIntervalMaxY": -0.400451
+        "hullIntervalMinY": -0.412867,
+        "hullIntervalMaxY": -0.402414
       },
-      "encodedWaterlineY": -0.563853,
+      "encodedWaterlineY": -0.566617,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.65801,
-      "sinkHeightMax": 0.662622,
+      "sinkHeightMin": -0.660601,
+      "sinkHeightMax": 0.660124,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -3426,9 +3442,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": -0.022127,
-        "y": 0.665685,
-        "z": -0.629797
+        "x": -0.022236,
+        "y": 0.668949,
+        "z": -0.632885
       },
       "stats": {
         "slug": "galleass",

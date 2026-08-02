@@ -20,6 +20,10 @@ const MALAY_WARSHIP_OAR_PIVOT_COUNTS = Object.freeze({
   lancaran: 10,
   "royal-lancaran": 12
 });
+const MEDITERRANEAN_OAR_PIVOT_COUNTS = Object.freeze({
+  "mediterranean-galley": 8,
+  galleass: 12
+});
 
 test("waterline review covers the production roster with an exact blue guide", async () => {
   const manifest = JSON.parse(await readFile(join(reviewRoot, "manifest.json"), "utf8"));
@@ -104,6 +108,13 @@ test("waterline review covers the production roster with an exact blue guide", a
         entry.oarPivotCount,
         MALAY_WARSHIP_OAR_PIVOT_COUNTS[entry.slug],
         `${entry.slug} keeps its simplified representative oar bank`
+      );
+    }
+    if (MEDITERRANEAN_OAR_PIVOT_COUNTS[entry.slug]) {
+      assert.equal(
+        entry.oarPivotCount,
+        MEDITERRANEAN_OAR_PIVOT_COUNTS[entry.slug],
+        `${entry.slug} keeps its distinct readable oar bank`
       );
     }
   }

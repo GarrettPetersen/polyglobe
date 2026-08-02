@@ -23,16 +23,16 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Medium Junk | 4 | 82 | 86 | 0.000 |
 | Sekibune | 4 | 74 | 78 | 0.000 |
 | Caravel | 3 | 84 | 87 | -0.046 |
-| Galleass | 3 | 76 | 79 | -0.153 |
+| Galleass | 3 | 76 | 79 | -0.154 |
 | Great Carrack | 3 | 83 | 86 | 0.000 |
 | Lancaran | 3 | 67 | 70 | 0.040 |
 | Lateen Barque | 3 | 77 | 80 | 0.000 |
+| Mediterranean Galley | 3 | 72 | 75 | -0.128 |
 | Panokseon | 3 | 87 | 90 | -0.354 |
 | Urca | 3 | 83 | 86 | 0.000 |
 | Viking Longship | 3 | 76 | 79 | 0.000 |
 | Brigantine | 2 | 85 | 87 | 0.000 |
 | Galleon | 2 | 83 | 85 | 0.000 |
-| Mediterranean Galley | 2 | 75 | 77 | -0.142 |
 | Royal Lancaran | 2 | 68 | 70 | 0.040 |
 | Small Junk | 2 | 81 | 83 | 0.000 |
 | Umi-bune | 2 | 65 | 67 | -0.018 |

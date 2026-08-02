@@ -171,6 +171,22 @@ const mediterraneanGalleyMeshNames = new Set([
   "Object_23", // principal hull and mast timber
   "Object_24"  // deck and stern timber
 ]);
+const mediterraneanGalleyRemovedMizzenComponents = Object.freeze([
+  Object.freeze({
+    nodeName: "Object_13",
+    positionCount: 770,
+    firstVertex: 34,
+    lastVertex: 301,
+    description: "mizzen mast and spars"
+  }),
+  Object.freeze({
+    nodeName: "Object_20",
+    positionCount: 831,
+    firstVertex: 553,
+    lastVertex: 830,
+    description: "mizzen sail"
+  })
+]);
 const japaneseAtakebuneStaticOarMeshes = Object.freeze([
   Object.freeze({
     nodeName: "Object_13",
@@ -539,6 +555,10 @@ function collectTriangles(scene, options = {}) {
   const triangles = [];
   const allPoints = [];
   const excludedMeshes = requiredMeshExclusionSet(scene, options.requiredExcludedMeshes);
+  const excludedVertexRanges = requiredMeshVertexRangeExclusions(
+    scene,
+    options.requiredExcludedVertexRanges
+  );
 
   scene.traverse((node) => {
     if (!node.isMesh) return;
@@ -555,6 +575,13 @@ function collectTriangles(scene, options = {}) {
       const ids = index
         ? [index.getX(offset), index.getX(offset + 1), index.getX(offset + 2)]
         : [offset, offset + 1, offset + 2];
+      const componentExclusion = excludedVertexRanges.get(node)?.find((spec) => (
+        ids.every((id) => id >= spec.firstVertex && id <= spec.lastVertex)
+      ));
+      if (componentExclusion) {
+        componentExclusion.removedTriangleCount += 1;
+        continue;
+      }
       const points = ids.map((id) => {
         const point = new THREE.Vector3(
           positions.getX(id),
@@ -584,6 +611,17 @@ function collectTriangles(scene, options = {}) {
       });
     }
   });
+
+  for (const specs of excludedVertexRanges.values()) {
+    for (const spec of specs) {
+      if (spec.removedTriangleCount === 0) {
+        throw new Error(
+          `Source component exclusion removed no triangles: ${spec.nodeName} ` +
+          `${spec.firstVertex}..${spec.lastVertex}`
+        );
+      }
+    }
+  }
 
   if (triangles.length === 0) throw new Error("No mesh triangles found in ship model");
   const sourceBounds = boundsForPoints(allPoints);
@@ -634,6 +672,50 @@ function requiredMeshExclusionSet(scene, specs = []) {
   }
   if (excluded.size !== specs.length) throw new Error("Required mesh exclusions overlap");
   return excluded;
+}
+
+function requiredMeshVertexRangeExclusions(scene, specs = []) {
+  if (!Array.isArray(specs)) throw new Error("Required mesh vertex-range exclusions must be an array");
+  if (specs.length === 0) return new Map();
+  const meshes = [];
+  scene.traverse((node) => {
+    if (node.isMesh) meshes.push(node);
+  });
+  const exclusions = new Map();
+  for (const spec of specs) {
+    const matches = meshes.filter((node) => (
+      node.name === spec.nodeName &&
+      (spec.parentName === undefined || node.parent?.name === spec.parentName)
+    ));
+    if (matches.length !== 1) {
+      throw new Error(
+        `Expected one component source mesh ${spec.parentName ? `${spec.parentName}/` : ""}` +
+        `${spec.nodeName}, found ${matches.length}`
+      );
+    }
+    const mesh = matches[0];
+    const positionCount = mesh.geometry?.attributes?.position?.count;
+    if (positionCount !== spec.positionCount) {
+      throw new Error(
+        `Component source mesh ${spec.nodeName} changed: ` +
+        `expected ${spec.positionCount} positions, found ${positionCount}`
+      );
+    }
+    if (
+      !Number.isInteger(spec.firstVertex) || !Number.isInteger(spec.lastVertex) ||
+      spec.firstVertex < 0 || spec.lastVertex < spec.firstVertex ||
+      spec.lastVertex >= positionCount
+    ) {
+      throw new Error(
+        `Invalid component vertex range for ${spec.nodeName}: ` +
+        `${spec.firstVertex}..${spec.lastVertex}`
+      );
+    }
+    const meshExclusions = exclusions.get(mesh) ?? [];
+    meshExclusions.push({ ...spec, removedTriangleCount: 0 });
+    exclusions.set(mesh, meshExclusions);
+  }
+  return exclusions;
 }
 
 function boundsForPoints(points) {
@@ -1938,6 +2020,11 @@ async function renderShipSpriteSet(config) {
     ...(config.collectOptions?.requiredExcludedMeshes ? {
       removedSourceMeshes: config.collectOptions.requiredExcludedMeshes.map((spec) => ({ ...spec }))
     } : {}),
+    ...(config.collectOptions?.requiredExcludedVertexRanges ? {
+      removedSourceComponents: config.collectOptions.requiredExcludedVertexRanges.map(
+        (spec) => ({ ...spec })
+      )
+    } : {}),
     ...(config.creator ? { creator: config.creator } : {}),
     ...(config.license ? { license: config.license } : {}),
     ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {}),
@@ -3054,8 +3141,8 @@ function resetWaterlineReviewOutput() {
 const MEDITERRANEAN_GALLEY_BASE_MAX_DIM = 2.22;
 const MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM = 1.9;
 const MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y = -0.15;
-const MEDITERRANEAN_GALLEY_SCALE = 0.95;
-const GALLEASS_SCALE = 1.02;
+const MEDITERRANEAN_GALLEY_SCALE = 0.85;
+const GALLEASS_SCALE = 1.025;
 
 function mediterraneanGalleyConfig() {
   const slug = "mediterranean-galley";
@@ -3066,7 +3153,9 @@ function mediterraneanGalleyConfig() {
     assetLabel: "Russian 22-bank Baltic galley",
     identifiedType: "sixteenth-century Mediterranean-style sailing galley",
     identificationConfidence: "high",
-    identificationNotes: "An unfurled-sail galley model adapted with a readable animated bank of oars.",
+    identificationNotes:
+      "The source model's mizzen mast and sail are removed for a leaner galley silhouette; " +
+      "a readable animated bank of oars is added.",
     ...MEDITERRANEAN_GALLEY_MODEL_CREDIT,
     stats: shipStatsForSlug(slug),
     modelPath: join(mediterraneanGalleySourceRoot, "scene.gltf"),
@@ -3081,7 +3170,8 @@ function mediterraneanGalleyConfig() {
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
     collectOptions: {
-      includeMesh: (node) => mediterraneanGalleyMeshNames.has(node.name)
+      includeMesh: (node) => mediterraneanGalleyMeshNames.has(node.name),
+      requiredExcludedVertexRanges: mediterraneanGalleyRemovedMizzenComponents
     },
     animationFrameCount: SHIP_ROWING_FRAME_COUNT,
     animationTrianglesForFrame: mediterraneanGalleyTrianglesForFrame,
@@ -3101,13 +3191,17 @@ function galleassConfig() {
     category: "heavy Mediterranean warship",
     identifiedType: "sixteenth-century Mediterranean galleass",
     identificationNotes:
-      "The galley hull is rendered at a larger scale to represent a broad, heavily armed galleass.",
+      "The complete three-sail galley rig is retained and rendered at a larger scale to represent " +
+      "a broad, heavily armed galleass.",
     stats: shipStatsForSlug(slug),
     targetModelMaxDim: MEDITERRANEAN_GALLEY_BASE_MAX_DIM * GALLEASS_SCALE,
     sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * GALLEASS_SCALE,
     scaleMode: "large-galley-pixel-derivative",
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y * GALLEASS_SCALE,
+    collectOptions: {
+      includeMesh: (node) => mediterraneanGalleyMeshNames.has(node.name)
+    },
     animationTrianglesForFrame: (hullTriangles, frameIndex, waterlineY) => [
       ...hullTriangles,
       ...makeOarBankTriangles(
@@ -4040,7 +4134,7 @@ function proceduralOarConfig(slug) {
   };
   if (slug === "mediterranean-galley" || slug === "galleass") return scaledProceduralOarConfig({
     kind: "bank",
-    bankPositions: evenBankPositions(-0.45, 0.45, 5),
+    bankPositions: evenBankPositions(-0.45, 0.45, slug === "galleass" ? 6 : 4),
     pivotYOffset: 0.05,
     pivotHalfBeam: 0.19,
     shaftLength: 0.57,

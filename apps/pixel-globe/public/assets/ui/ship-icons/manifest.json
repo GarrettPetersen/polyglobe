@@ -291,12 +291,12 @@
       "output": "public/assets/ui/ship-icons/mediterranean-galley.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 8,
-        "y": 6,
-        "w": 36,
-        "h": 34
+        "x": 10,
+        "y": 7,
+        "w": 32,
+        "h": 30
       },
-      "opaquePixels": 120
+      "opaquePixels": 122
     },
     {
       "slug": "galleass",
@@ -310,7 +310,7 @@
         "w": 38,
         "h": 37
       },
-      "opaquePixels": 132
+      "opaquePixels": 133
     },
     {
       "slug": "joseon-turtle-ship",

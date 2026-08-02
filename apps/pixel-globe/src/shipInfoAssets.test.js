@@ -420,8 +420,18 @@ test("the Galleass reuses the galley model at a larger unclipped scale", async (
   assert.equal(galleass.sourceModel, galley.sourceModel);
   assert.equal(galleass.creator, galley.creator);
   assert.equal(galleass.license, galley.license);
-  assert.ok(galleass.targetModelMaxDim > galley.targetModelMaxDim);
-  assert.ok(maxOpaqueFrameDimension(galleassImage) > maxOpaqueFrameDimension(galleyImage));
+  assert.deepEqual(
+    galley.removedSourceComponents.map(({ nodeName, description }) => ({ nodeName, description })),
+    [
+      { nodeName: "Object_13", description: "mizzen mast and spars" },
+      { nodeName: "Object_20", description: "mizzen sail" }
+    ]
+  );
+  assert.equal(galleass.removedSourceComponents, undefined);
+  assert.ok(galleass.targetModelMaxDim >= galley.targetModelMaxDim * 1.2);
+  assert.ok(
+    maxOpaqueFrameDimension(galleassImage) >= maxOpaqueFrameDimension(galleyImage) * 1.2
+  );
   assert.equal(opaqueFrameEdgePixelCount(galleassImage), 0);
   assert.equal(galleass.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
 });
