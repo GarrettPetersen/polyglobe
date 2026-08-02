@@ -1,15 +1,17 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
 import { captureScenarioIds } from "../src/captureScenarios.js";
+import {
+  assertCaptureServerReady,
+  collectCapturePageErrors,
+  launchCaptureBrowser
+} from "./capture-browser.mjs";
 
-const require = createRequire(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FEATURED_SFX = Object.freeze({
   cannon: "assets/sfx/universfield-cannon-shot-352459.ogg",
@@ -34,7 +36,6 @@ const CAPTURE_FORMATS = Object.freeze({
     outputHeight: 1080
   })
 });
-const playwright = loadPlaywright();
 const args = parseArgs(process.argv.slice(2));
 const captureFormat = CAPTURE_FORMATS[args.format];
 if (!captureFormat) throw new Error(`Unknown trailer capture format: ${args.format}`);
@@ -48,13 +49,9 @@ if (unknown.length > 0) throw new Error(`Unknown capture scenarios: ${unknown.jo
 
 const outputRoot = path.resolve(APP_ROOT, args.output);
 await mkdir(outputRoot, { recursive: true });
-await assertServerReady(args.baseUrl);
+await assertCaptureServerReady(args.baseUrl);
 
-const browser = await playwright.chromium.launch({
-  headless: args.headless,
-  executablePath: browserExecutablePath(),
-  args: ["--autoplay-policy=no-user-gesture-required"]
-});
+const browser = await launchCaptureBrowser({ headless: args.headless });
 const manifest = new Array(scenarioIds.length);
 try {
   let nextScenarioIndex = 0;
@@ -224,7 +221,7 @@ async function recordFramePass(browser, scenarioId, categoryDir, frameDir) {
   });
   const page = await context.newPage();
   const consoleErrors = [];
-  collectPageErrors(page, consoleErrors);
+  collectCapturePageErrors(page, consoleErrors);
   try {
     await page.goto(captureUrl(scenarioId), {
       waitUntil: "domcontentloaded",
@@ -286,13 +283,6 @@ function captureUrl(scenarioId) {
   return `${args.baseUrl}/?capture=${encodeURIComponent(scenarioId)}` +
     `&captureFormat=${encodeURIComponent(captureFormat.queryValue)}` +
     "&autocapture=frames";
-}
-
-function collectPageErrors(page, errors) {
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => errors.push(error.message));
 }
 
 function captureFrameCount(sidecar, scenarioId) {
@@ -612,50 +602,6 @@ function captureSequenceAllowsSilence(sequence) {
   return captureSequenceMustBeSilent(sequence) || (
     sequence.kind === "panda" && ["sail", "port-reaction", "naturalist"].includes(sequence.variant)
   );
-}
-
-async function assertServerReady(baseUrl) {
-  let response;
-  try {
-    response = await fetch(baseUrl);
-  } catch (error) {
-    throw new Error(`Pixel globe server is not reachable at ${baseUrl}: ${error.message}`);
-  }
-  if (!response.ok) throw new Error(`Pixel globe server returned HTTP ${response.status} at ${baseUrl}`);
-}
-
-function loadPlaywright() {
-  const candidates = [
-    "playwright",
-    process.env.PLAYWRIGHT_MODULE_PATH,
-    path.join(
-      homedir(),
-      ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright"
-    )
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    try {
-      return require(candidate);
-    } catch (error) {
-      if (error?.code !== "MODULE_NOT_FOUND") throw error;
-    }
-  }
-  throw new Error(
-    "Playwright is unavailable. Install it locally or set PLAYWRIGHT_MODULE_PATH to its package directory."
-  );
-}
-
-function browserExecutablePath() {
-  const candidates = [
-    process.env.PIXEL_GLOBE_CAPTURE_BROWSER,
-    playwright.chromium.executablePath(),
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-  ].filter(Boolean);
-  const executable = candidates.find(existsSync);
-  if (!executable) {
-    throw new Error("No Chromium browser is available for trailer capture");
-  }
-  return executable;
 }
 
 function parseArgs(argv) {

@@ -7591,7 +7591,17 @@ function setupAutomaticFramePass() {
   emitCaptureEvent("scenario-start", captureScenarioStartEventData());
   window.__PIXEL_GLOBE_CAPTURE_TOTAL_FRAMES__ = captureFrameStepper.totalFrames;
   window.__PIXEL_GLOBE_CAPTURE_STEP__ = stepAutomaticCaptureFrame;
+  window.__PIXEL_GLOBE_CAPTURE_SET_LANGUAGE__ = rerenderAutomaticCaptureLanguage;
   window.__PIXEL_GLOBE_CAPTURE_READY__ = true;
+}
+
+function rerenderAutomaticCaptureLanguage(language) {
+  if (!CAPTURE_FRAME_PASS) {
+    throw new Error("Capture language switching is unavailable outside the frame pass");
+  }
+  setInterfaceLanguage(language, { persist: false });
+  runFrame(lastFrameMs, { scheduleNextFrame: false, forceRender: true });
+  return document.documentElement.lang;
 }
 
 function stepAutomaticCaptureFrame(frameIndex) {

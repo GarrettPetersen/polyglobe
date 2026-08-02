@@ -1,0 +1,267 @@
+{
+  "version": 1,
+  "dimensions": {
+    "width": 1920,
+    "height": 1080
+  },
+  "captureMethod": "deterministic-frame-step",
+  "languages": [
+    {
+      "id": "en",
+      "label": "English",
+      "nativeLabel": "English",
+      "steamCode": "english"
+    },
+    {
+      "id": "zh-Hans",
+      "label": "Chinese (Simplified)",
+      "nativeLabel": "简体中文",
+      "steamCode": "schinese"
+    },
+    {
+      "id": "ru",
+      "label": "Russian",
+      "nativeLabel": "Русский",
+      "steamCode": "russian"
+    },
+    {
+      "id": "es",
+      "label": "Spanish",
+      "nativeLabel": "Español",
+      "steamCode": "spanish"
+    },
+    {
+      "id": "pt-BR",
+      "label": "Portuguese (Brazil)",
+      "nativeLabel": "Português (Brasil)",
+      "steamCode": "brazilian"
+    },
+    {
+      "id": "ja",
+      "label": "Japanese",
+      "nativeLabel": "日本語",
+      "steamCode": "japanese"
+    },
+    {
+      "id": "de",
+      "label": "German",
+      "nativeLabel": "Deutsch",
+      "steamCode": "german"
+    },
+    {
+      "id": "fr",
+      "label": "French",
+      "nativeLabel": "Français",
+      "steamCode": "french"
+    },
+    {
+      "id": "pl",
+      "label": "Polish",
+      "nativeLabel": "Polski",
+      "steamCode": "polish"
+    },
+    {
+      "id": "zh-Hant",
+      "label": "Chinese (Traditional)",
+      "nativeLabel": "繁體中文",
+      "steamCode": "tchinese"
+    },
+    {
+      "id": "ko",
+      "label": "Korean",
+      "nativeLabel": "한국어",
+      "steamCode": "koreana"
+    }
+  ],
+  "shots": [
+    {
+      "order": 1,
+      "id": "explore-pyramids",
+      "title": "Discover the Pyramids of Meroe",
+      "scenarioId": "trailer-explore-pyramid",
+      "atSeconds": 4.2,
+      "frameIndex": 125,
+      "files": {
+        "english": "01_explore-pyramids_english.png",
+        "schinese": "01_explore-pyramids_schinese.png",
+        "russian": "01_explore-pyramids_russian.png",
+        "spanish": "01_explore-pyramids_spanish.png",
+        "brazilian": "01_explore-pyramids_brazilian.png",
+        "japanese": "01_explore-pyramids_japanese.png",
+        "german": "01_explore-pyramids_german.png",
+        "french": "01_explore-pyramids_french.png",
+        "polish": "01_explore-pyramids_polish.png",
+        "tchinese": "01_explore-pyramids_tchinese.png",
+        "koreana": "01_explore-pyramids_koreana.png"
+      }
+    },
+    {
+      "order": 2,
+      "id": "trade-cloves",
+      "title": "Buy cloves in Ternate",
+      "scenarioId": "trailer-trade-ternate",
+      "atSeconds": 3.5,
+      "frameIndex": 104,
+      "files": {
+        "english": "02_trade-cloves_english.png",
+        "schinese": "02_trade-cloves_schinese.png",
+        "russian": "02_trade-cloves_russian.png",
+        "spanish": "02_trade-cloves_spanish.png",
+        "brazilian": "02_trade-cloves_brazilian.png",
+        "japanese": "02_trade-cloves_japanese.png",
+        "german": "02_trade-cloves_german.png",
+        "french": "02_trade-cloves_french.png",
+        "polish": "02_trade-cloves_polish.png",
+        "tchinese": "02_trade-cloves_tchinese.png",
+        "koreana": "02_trade-cloves_koreana.png"
+      }
+    },
+    {
+      "order": 3,
+      "id": "fish-grand-banks",
+      "title": "Fish the Grand Banks",
+      "scenarioId": "trailer-fish-cod",
+      "atSeconds": 2.5,
+      "frameIndex": 74,
+      "files": {
+        "english": "03_fish-grand-banks_english.png",
+        "schinese": "03_fish-grand-banks_schinese.png",
+        "russian": "03_fish-grand-banks_russian.png",
+        "spanish": "03_fish-grand-banks_spanish.png",
+        "brazilian": "03_fish-grand-banks_brazilian.png",
+        "japanese": "03_fish-grand-banks_japanese.png",
+        "german": "03_fish-grand-banks_german.png",
+        "french": "03_fish-grand-banks_french.png",
+        "polish": "03_fish-grand-banks_polish.png",
+        "tchinese": "03_fish-grand-banks_tchinese.png",
+        "koreana": "03_fish-grand-banks_koreana.png"
+      }
+    },
+    {
+      "order": 4,
+      "id": "whale-hunt",
+      "title": "Harpoon a right whale",
+      "scenarioId": "trailer-whale-right",
+      "atSeconds": 2.7,
+      "frameIndex": 80,
+      "files": {
+        "english": "04_whale-hunt_english.png",
+        "schinese": "04_whale-hunt_schinese.png",
+        "russian": "04_whale-hunt_russian.png",
+        "spanish": "04_whale-hunt_spanish.png",
+        "brazilian": "04_whale-hunt_brazilian.png",
+        "japanese": "04_whale-hunt_japanese.png",
+        "german": "04_whale-hunt_german.png",
+        "french": "04_whale-hunt_french.png",
+        "polish": "04_whale-hunt_polish.png",
+        "tchinese": "04_whale-hunt_tchinese.png",
+        "koreana": "04_whale-hunt_koreana.png"
+      }
+    },
+    {
+      "order": 5,
+      "id": "fight-carrack-broadside",
+      "title": "Exchange broadsides off Iberia",
+      "scenarioId": "trailer-fight-atlantic",
+      "atSeconds": 1.6,
+      "frameIndex": 47,
+      "files": {
+        "english": "05_fight-carrack-broadside_english.png",
+        "schinese": "05_fight-carrack-broadside_schinese.png",
+        "russian": "05_fight-carrack-broadside_russian.png",
+        "spanish": "05_fight-carrack-broadside_spanish.png",
+        "brazilian": "05_fight-carrack-broadside_brazilian.png",
+        "japanese": "05_fight-carrack-broadside_japanese.png",
+        "german": "05_fight-carrack-broadside_german.png",
+        "french": "05_fight-carrack-broadside_french.png",
+        "polish": "05_fight-carrack-broadside_polish.png",
+        "tchinese": "05_fight-carrack-broadside_tchinese.png",
+        "koreana": "05_fight-carrack-broadside_koreana.png"
+      }
+    },
+    {
+      "order": 6,
+      "id": "pillage-havana",
+      "title": "Bombard Havana",
+      "scenarioId": "trailer-pillage-havana",
+      "atSeconds": 3,
+      "frameIndex": 89,
+      "files": {
+        "english": "06_pillage-havana_english.png",
+        "schinese": "06_pillage-havana_schinese.png",
+        "russian": "06_pillage-havana_russian.png",
+        "spanish": "06_pillage-havana_spanish.png",
+        "brazilian": "06_pillage-havana_brazilian.png",
+        "japanese": "06_pillage-havana_japanese.png",
+        "german": "06_pillage-havana_german.png",
+        "french": "06_pillage-havana_french.png",
+        "polish": "06_pillage-havana_polish.png",
+        "tchinese": "06_pillage-havana_tchinese.png",
+        "koreana": "06_pillage-havana_koreana.png"
+      }
+    },
+    {
+      "order": 7,
+      "id": "colonize-port-royal",
+      "title": "Found Port Royal",
+      "scenarioId": "trailer-colonize-found",
+      "atSeconds": 3.4,
+      "frameIndex": 101,
+      "files": {
+        "english": "07_colonize-port-royal_english.png",
+        "schinese": "07_colonize-port-royal_schinese.png",
+        "russian": "07_colonize-port-royal_russian.png",
+        "spanish": "07_colonize-port-royal_spanish.png",
+        "brazilian": "07_colonize-port-royal_brazilian.png",
+        "japanese": "07_colonize-port-royal_japanese.png",
+        "german": "07_colonize-port-royal_german.png",
+        "french": "07_colonize-port-royal_french.png",
+        "polish": "07_colonize-port-royal_polish.png",
+        "tchinese": "07_colonize-port-royal_tchinese.png",
+        "koreana": "07_colonize-port-royal_koreana.png"
+      }
+    },
+    {
+      "order": 8,
+      "id": "survive-lightning",
+      "title": "Survive a lightning strike",
+      "scenarioId": "trailer-survive-lightning",
+      "atSeconds": 2,
+      "frameIndex": 59,
+      "files": {
+        "english": "08_survive-lightning_english.png",
+        "schinese": "08_survive-lightning_schinese.png",
+        "russian": "08_survive-lightning_russian.png",
+        "spanish": "08_survive-lightning_spanish.png",
+        "brazilian": "08_survive-lightning_brazilian.png",
+        "japanese": "08_survive-lightning_japanese.png",
+        "german": "08_survive-lightning_german.png",
+        "french": "08_survive-lightning_french.png",
+        "polish": "08_survive-lightning_polish.png",
+        "tchinese": "08_survive-lightning_tchinese.png",
+        "koreana": "08_survive-lightning_koreana.png"
+      }
+    },
+    {
+      "order": 9,
+      "id": "meet-panda",
+      "title": "Meet a panda in Sichuan",
+      "scenarioId": "trailer-panda-encounter",
+      "atSeconds": 11,
+      "frameIndex": 329,
+      "files": {
+        "english": "09_meet-panda_english.png",
+        "schinese": "09_meet-panda_schinese.png",
+        "russian": "09_meet-panda_russian.png",
+        "spanish": "09_meet-panda_spanish.png",
+        "brazilian": "09_meet-panda_brazilian.png",
+        "japanese": "09_meet-panda_japanese.png",
+        "german": "09_meet-panda_german.png",
+        "french": "09_meet-panda_french.png",
+        "polish": "09_meet-panda_polish.png",
+        "tchinese": "09_meet-panda_tchinese.png",
+        "koreana": "09_meet-panda_koreana.png"
+      }
+    }
+  ]
+}
