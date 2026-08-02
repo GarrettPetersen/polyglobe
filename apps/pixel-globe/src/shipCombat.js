@@ -13,6 +13,7 @@ import {
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP
 } from "./npcSeaRoutes.js";
+import { activeCombatCrew, crewWoundsForceSurrender } from "./combatWounds.js";
 
 export const PLAYER_COMBAT_ID = "player";
 export const COMBAT_DETECTION_RADIUS_PX = 92;
@@ -377,11 +378,14 @@ export function npcShouldOfferSurrender(npc, player) {
   const npcPower = validatedCombatPower(npc);
   const playerPower = validatedCombatPower(player);
   const health = npc.hitPoints / npc.maxHitPoints;
+  const crewBroken = Number.isInteger(npc.crew) && Number.isInteger(npc.woundedCrew)
+    ? crewWoundsForceSurrender(npc.crew, npc.woundedCrew)
+    : false;
   const badlyDamaged = health <= 0.3;
   const hopelesslyOutmatched = playerPower >= npcPower * 2.4;
   const outmatched = playerPower >= npcPower * 1.35;
   const cannotOutrunPlayer = npc.topSpeedRad <= player.topSpeedRad * 0.97;
-  return badlyDamaged || hopelesslyOutmatched || (outmatched && cannotOutrunPlayer);
+  return crewBroken || badlyDamaged || hopelesslyOutmatched || (outmatched && cannotOutrunPlayer);
 }
 
 function combatMode(entity, enemies, reinforcingPlayer = false) {
@@ -445,6 +449,13 @@ function validateEntity(entity) {
     throw new Error(`Invalid maximum hull: ${entity.id}`);
   }
   if (!Number.isInteger(entity.cannons) || entity.cannons < 0) throw new Error(`Invalid cannon count: ${entity.id}`);
+  if (entity.crew !== undefined || entity.woundedCrew !== undefined) {
+    if (!Number.isInteger(entity.crew) || entity.crew <= 0 ||
+        !Number.isInteger(entity.woundedCrew) || entity.woundedCrew < 0 ||
+        entity.woundedCrew > entity.crew) {
+      throw new Error(`Invalid combat crew for ${entity.id}: ${entity.woundedCrew}/${entity.crew}`);
+    }
+  }
   if (typeof entity.npcAttackProtected !== "boolean") {
     throw new Error(`Invalid NPC attack protection for ${entity.id}: ${entity.npcAttackProtected}`);
   }
@@ -472,7 +483,10 @@ function assertRelationResolver(relationBetween) {
 }
 
 function validatedCombatPower(entity) {
-  return entity.hitPoints * 10 + entity.cannons * 9;
+  const activeCrew = Number.isInteger(entity.crew)
+    ? activeCombatCrew(entity.crew, entity.woundedCrew)
+    : 0;
+  return entity.hitPoints * 10 + entity.cannons * 9 + activeCrew * 2;
 }
 
 function withinDistance(a, b, radius) {

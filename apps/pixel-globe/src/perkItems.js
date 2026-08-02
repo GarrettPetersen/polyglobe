@@ -1,5 +1,11 @@
 import { portEquipmentProsperity } from "./portEquipment.js";
 import { perkEffectLabels, validatePerkSource } from "./perkSystem.js";
+import { MATCHLOCKS_GOOD_ID, portMarket } from "./economy.js";
+import {
+  MATCHLOCK_ARQUEBUSES_ITEM_ID,
+  PORTABLE_WEAPON_ITEMS,
+  portableWeaponEffectLabel
+} from "./portableWeapons.js";
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "habsburg", "hungary",
@@ -61,8 +67,6 @@ export const PERK_ITEMS = Object.freeze([
     "item:tulwar", { assaultChanceBonus: 0.06 }, ["south-asia"]),
   item("katana", "Katana", "A Japanese sword whose keen edge serves a marine officer well.", 1250, 2,
     "item:katana", { assaultChanceBonus: 0.07 }, ["japan"]),
-  item("wheellock-pistol", "Wheellock Pistol", "A costly self-igniting pistol gives an assault leader a sharp advantage.", 3000, 3,
-    "item:wheellock-pistol", { assaultChanceBonus: 0.1 }, ["europe"]),
   item("bronze-fish-hooks", "Bronze Fish Hooks", "A case of strong hooks improves both line fishing and net work.", 650, 1,
     "item:bronze-fish-hooks", { fishingChanceMultiplier: 1.08, fishingHaulMultiplier: 1.1 }),
   item(
@@ -75,7 +79,8 @@ export const PERK_ITEMS = Object.freeze([
     { waterDurationMultiplier: 1.1 },
     ["global"],
     { rewardOnly: true }
-  )
+  ),
+  ...PORTABLE_WEAPON_ITEMS
 ]);
 
 const ITEMS_BY_ID = new Map(PERK_ITEMS.map((entry) => [entry.id, entry]));
@@ -96,6 +101,13 @@ export function perkItemOfferAtPort(economy, city, { ownedItemIds = [], seedKey 
   }
   const prosperity = portEquipmentProsperity(economy, city);
   const portId = requiredPortId(city);
+  const owned = new Set(ownedItemIds);
+  const matchlocksListed = portMarket(economy, city).some((row) => (
+    row.good.id === MATCHLOCKS_GOOD_ID && row.listedForSale
+  ));
+  if (matchlocksListed && !owned.has(MATCHLOCK_ARQUEBUSES_ITEM_ID)) {
+    return perkItemById(MATCHLOCK_ARQUEBUSES_ITEM_ID);
+  }
   const spawnChance = 0.035 + prosperity * 0.065;
   if (hashUnit(perkOfferSeedKey(seedKey, `${portId}|perk-item-offer|spawn`)) >= spawnChance) return null;
 
@@ -103,7 +115,6 @@ export function perkItemOfferAtPort(economy, city, { ownedItemIds = [], seedKey 
   const maximumTier = prosperity >= 0.68 && tierRoll >= 0.9
     ? 3
     : prosperity >= 0.32 && tierRoll >= 0.48 ? 2 : 1;
-  const owned = new Set(ownedItemIds);
   const candidates = PERK_ITEMS.filter((entry) => (
     !entry.rewardOnly &&
     entry.tier <= maximumTier && itemMatchesPortRegion(entry, city) && !owned.has(entry.id)
@@ -142,7 +153,9 @@ export function highValueMissionGiftItem({ city, identityKey, ownedItemIds = [] 
 
 export function perkItemSummary(itemId) {
   const value = perkItemById(itemId);
-  return Object.freeze({ ...value, effectLabels: perkEffectLabels(value.perks) });
+  const effectLabels = [...perkEffectLabels(value.perks)];
+  if (value.weapon || value.modifier) effectLabels.push(portableWeaponEffectLabel(itemId));
+  return Object.freeze({ ...value, effectLabels: Object.freeze(effectLabels) });
 }
 
 function validatePerkItem(value) {
@@ -167,6 +180,17 @@ function portHasRegion(city, region) {
   if (region === "japan") return city.factionId === "japan";
   if (region === "south-asia") return SOUTH_ASIAN_FACTIONS.has(city.factionId) || city.cityType === "south-asian";
   if (region === "europe") return EUROPEAN_FACTIONS.has(city.factionId);
+  if (region === "england") return city.factionId === "england" || city.factionId === "scotland";
+  if (region === "islamic") {
+    return ["ottoman", "crimea", "morocco", "safavid", "hormuz", "gujarat", "delhi", "bengal"]
+      .includes(city.factionId) || city.cityType === "islamic-desert";
+  }
+  if (region === "east-asia") {
+    return ["ming", "joseon", "japan"].includes(city.factionId) || city.cityType === "east-asian";
+  }
+  if (region === "southeast-asia") {
+    return ["ternate", "tidore"].includes(city.factionId) || city.cityType === "southeast-asian";
+  }
   if (region === "indian-ocean") {
     return SOUTH_ASIAN_FACTIONS.has(city.factionId) || city.factionId === "ottoman" ||
       ["south-asian", "east-african", "desert"].includes(city.cityType);

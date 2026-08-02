@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-40";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-41";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -261,6 +261,15 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "item:tulwar": nikoichu("RPG_Item_Weapon_Shortsword_Melee.png", ICON_COLOR.gold),
   "item:katana": nikoichu("RPG_Skill_Strike_Attack_Sword_Slash_Cleave.png", ICON_COLOR.danger),
   "item:wheellock-pistol": nikoichu("RPG_Item_Weapon_Pistol_Gun_Ranged.png", ICON_COLOR.danger),
+  "item:mariners-bows": nikoichu("RPG_Item_Weapon_Bow_Ranged_Shooting.png", ICON_COLOR.timber),
+  "item:english-longbows": nikoichu("RPG_Item_Weapon_Bow_Drawn_Ranged_Shooting.png", ICON_COLOR.timber),
+  "item:composite-recurve-bows": nikoichu("RPG_Item_Weapon_Bow_Ranged_Shooting.png", ICON_COLOR.gold),
+  "item:yumi": nikoichu("RPG_Item_Weapon_Bow_Drawn_Ranged_Shooting.png", ICON_COLOR.danger),
+  "item:viking-bows": nikoichu("Tools_Crafting_Profession_Hunting_Bow_Meat_Game.png", ICON_COLOR.warm),
+  "item:crossbows": nikoichu("RPG_Item_Weapon_Crossbow_Ranged_Damage.png", ICON_COLOR.steel),
+  "item:matchlock-arquebuses": nikoichu("Warfare_Weapon_Pistol_Gun_Sidearm.png", ICON_COLOR.danger),
+  "item:swivel-gun": nikoichu("Warfare_Medieval_Siege_Engine_Cannon_Gunpowder.png", ICON_COLOR.steel),
+  "item:incendiary-arrows": nikoichu("RPG_Skill_Flaming_Shot_Fire_Arrow.png", ICON_COLOR.danger),
   "item:bronze-fish-hooks": nikoichu("Tools_Crafting_Fishing_Rod_Hook.png", ICON_COLOR.gold),
   "item:zamzam-flask": nikoichu("Weather_Water_Droplet_Liquid_Rain_Element_Big.png", ICON_COLOR.dialogue),
 

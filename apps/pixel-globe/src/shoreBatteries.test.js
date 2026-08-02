@@ -8,8 +8,10 @@ import {
   SHORE_BATTERY_NOTICE_RADIUS_PX,
   SHORE_BATTERY_RELOAD_SECONDS,
   armShoreBatteryReload,
+  clearShoreBatteryCombatWounds,
   createShoreBatteryState,
   damageShoreBattery,
+  damageShoreBatteryCrew,
   shoreBatteryCanFire,
   shoreBatteryDisabledNotice,
   shoreBatteryGunCount,
@@ -81,6 +83,34 @@ test("shore battery reload prevents immediate repeat fire", () => {
   assert.equal(shoreBatteryCanFire(battery, 0), false);
   updateShoreBatteryState(battery, {}, 0, 0.01);
   assert.equal(shoreBatteryCanFire(battery, 0), true);
+});
+
+test("shore garrisons surrender to heavy wounds and recover lesser wounds after combat", () => {
+  const flags = {};
+  const battery = createShoreBatteryState(city, flags, 0);
+  const skirmish = damageShoreBatteryCrew(
+    battery,
+    flags,
+    { crewDamage: 2, crewHitChance: 1 },
+    0,
+    "your Brigantine",
+    () => 0
+  );
+  assert.equal(skirmish.newWounds, 2);
+  assert.equal(skirmish.disabled, false);
+  assert.equal(clearShoreBatteryCombatWounds(battery), true);
+  assert.equal(battery.woundedGarrison, 0);
+
+  const surrender = damageShoreBatteryCrew(
+    battery,
+    flags,
+    { crewDamage: 7, crewHitChance: 1 },
+    0,
+    "your Brigantine",
+    () => 0
+  );
+  assert.equal(surrender.newlyDisabled, true);
+  assert.equal(battery.hitPoints, 0);
 });
 
 test("a remembered toll refusal suppresses another hail without forgiving a war", () => {

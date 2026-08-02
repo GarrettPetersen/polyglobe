@@ -6,6 +6,7 @@ import {
   factionById
 } from "./factions.js";
 import {
+  JAPANESE_ATAKEBUNE_SLUG,
   JAPANESE_KOBAYA_SLUG,
   JAPANESE_SHIP_SLUGS,
   JAPANESE_UMI_BUNE_SLUG,
@@ -96,7 +97,9 @@ export function playerStarterShipForFaction(factionId, { whaling = false, armed 
     ? PLAYER_WHALING_STARTER_SHIPS
     : armed ? PLAYER_ARMED_STARTER_SHIPS : PLAYER_STARTER_SHIPS;
   const slug = factionId === "japan"
-    ? (whaling || armed ? JAPANESE_KOBAYA_SLUG : JAPANESE_UMI_BUNE_SLUG)
+    ? (armed
+      ? JAPANESE_ATAKEBUNE_SLUG
+      : whaling ? JAPANESE_KOBAYA_SLUG : JAPANESE_UMI_BUNE_SLUG)
     : roster[region];
   if (!slug) throw new Error(`No ${whaling ? "whaling " : armed ? "armed " : ""}starter ship for ${factionId}`);
   if (factionId === "japan" && !JAPANESE_SHIP_SLUGS.includes(slug)) {
@@ -106,8 +109,8 @@ export function playerStarterShipForFaction(factionId, { whaling = false, armed 
   if (whaling && stats.seaworthiness < 5) {
     throw new Error(`Whaling starter is not seaworthy: ${slug}`);
   }
-  if (armed && stats.cannons <= 0 && stats.navalWeaponKind === null) {
-    throw new Error(`Armed starter has no naval weapon: ${slug}`);
+  if (armed && stats.cannons <= 0) {
+    throw new Error(`Armed starter has no gun ports: ${slug}`);
   }
   return slug;
 }

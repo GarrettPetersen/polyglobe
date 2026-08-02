@@ -10,7 +10,6 @@ import {
   survivalStatus
 } from "./gameState.js";
 import { factionById } from "./factions.js";
-import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 import {
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_OAR_SAIL,
@@ -132,6 +131,7 @@ export function createShipInfoView(ship, gameState) {
     propulsion: stats.propulsion,
     propulsionSummary: shipPropulsionSummary(stats),
     armor: stats.armor,
+    crewProtection: stats.crewProtection,
     seaworthiness: stats.seaworthiness,
     survival: survivalStatus(gameState),
     ratings: Object.freeze({
@@ -165,6 +165,7 @@ export function createShipyardShipView(slug) {
     propulsion: stats.propulsion,
     propulsionSummary: shipPropulsionSummary(stats),
     armor: stats.armor,
+    crewProtection: stats.crewProtection,
     seaworthiness: stats.seaworthiness,
     ratings: Object.freeze({
       speed: shipPerformanceRating(stats, "speed"),
@@ -184,6 +185,7 @@ export function createShipComparisonView(currentSlug, candidateSlug) {
     metrics: Object.freeze([
       comparisonMetric("hull", "HULL", current.maxHull, candidate.maxHull),
       comparisonMetric("armor", "ARMOR", current.armor, candidate.armor),
+      comparisonMetric("crew-protection", "COVER", current.crewProtection, candidate.crewProtection),
       comparisonMetric("crew", "CREW", current.crewCapacity, candidate.crewCapacity),
       comparisonMetric("cargo", "CARGO", current.cargoCapacity, candidate.cargoCapacity),
       comparisonMetric("speed", "SPEED", current.ratings.speed, candidate.ratings.speed),
@@ -227,7 +229,6 @@ function comparisonMetric(id, label, current, candidate) {
 }
 
 function conciseArmamentText(shipView) {
-  if (shipView.armamentLabel === "ARROWS") return "ARROWS";
   if (shipView.armamentLabel !== "GUNS" || !Number.isInteger(shipView.maxCannons)) {
     throw new Error(`Invalid ship comparison armament: ${shipView.armamentLabel}`);
   }
@@ -237,9 +238,6 @@ function conciseArmamentText(shipView) {
 
 export function shipArmamentSummary(stats, activeCannons) {
   if (!stats || typeof stats !== "object") throw new Error("Ship armament summary requires ship stats");
-  if (stats.navalWeaponKind === NAVAL_WEAPON_ARROW) {
-    return Object.freeze({ label: "ARROWS", summary: "" });
-  }
   if (!Number.isInteger(activeCannons) || activeCannons < 0 || activeCannons > stats.cannons) {
     throw new Error(`Invalid active cannon count for ${stats.slug}: ${activeCannons}`);
   }

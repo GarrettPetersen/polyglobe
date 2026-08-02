@@ -274,6 +274,7 @@ import {
   factionSafePassageToll,
   foodRationsForCargoQuantity,
   futurePermanentCrewFloor,
+  grantGuaranteedMissionPerkItem,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
   initializeProvisionalShipLoadout,
@@ -287,7 +288,6 @@ import {
   maybeGrantDefeatedShipPerkItem,
   nextGamePoliticsMinute,
   playerVesselLossOutcome,
-  playerAssaultCargoBonus,
   playerFishingNet,
   playerWhaleHarpoon,
   playerShipIsWarship,
@@ -1010,6 +1010,8 @@ import {
   armShoreBatteryReload,
   createShoreBatteryState,
   damageShoreBattery,
+  damageShoreBatteryCrew,
+  clearShoreBatteryCombatWounds,
   shoreBatteryCanFire,
   shoreBatteryDisabledNotice,
   shoreBatteryId,
@@ -1455,13 +1457,29 @@ import {
 import {
   accurateBroadsideShotIndex,
   advanceCannonReload,
-  navalArrowVolleyCount,
-  navalWeaponFiresAtWill,
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
+  isPreGunpowderCulture,
   navalWeaponForShip,
   navalWeaponUsesBroadside
 } from "./navalWeapons.js";
+import {
+  PORTABLE_PROJECTILE_ARROW,
+  PORTABLE_PROJECTILE_BULLET,
+  PORTABLE_PROJECTILE_CANNON,
+  VIKING_BOWS_ITEM_ID,
+  activePortableWeaponAssignments,
+  isPortableWeaponItemId,
+  npcPortableWeaponItemIds,
+  portableWeaponItemById,
+  regionalStarterPortableWeaponItemIds
+} from "./portableWeapons.js";
+import {
+  activeCombatCrew,
+  applyCrewWounds,
+  clearCombatWounds,
+  crewWoundsForceSurrender
+} from "./combatWounds.js";
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
 import {
@@ -6812,6 +6830,17 @@ function playNavalAttackSound(weapon, broadsideCount, distancePx = 0) {
   throw new Error(`Unknown naval attack sound: ${weapon.kind}`);
 }
 
+function playPortableWeaponAttackSound(weapon, count, distancePx = 0) {
+  if (weapon.animationKind === PORTABLE_PROJECTILE_ARROW) {
+    playBowFireSound();
+    return;
+  }
+  const distanceGain = cannonShotDistanceGain(distancePx);
+  const gain = weapon.swivel ? 0.42 : 0.24;
+  const pitch = weapon.swivel ? 1.28 : 1.62;
+  playSoundEffect(soundEffects?.cannon, SFX_CANNON_VOLUME * gain * distanceGain, pitch);
+}
+
 function playNavalImpactSound(projectile) {
   if (projectile.kind === NAVAL_WEAPON_ARROW) {
     playArrowHitSound();
@@ -8473,7 +8502,8 @@ function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false 
       port: 0,
       starboard: 0
     };
-    ship.arrowCooldown = 0;
+    ship.portableWeaponCooldowns = {};
+    ship.woundedCrew = 0;
   }
   syncShipSlugToLocation(slug);
   dirty = true;
@@ -8941,9 +8971,13 @@ function updateLakeBattleModeFrame(dt, nowMs) {
 }
 
 function startLakeBattleSinkSequence(battle, nowMs) {
-  const defeatedCombatants = [battle.player, battle.enemy].filter((state) => state.hitPoints <= 0);
+  const defeatedCombatants = [battle.player, battle.enemy].filter((state) => (
+    state.hitPoints <= 0 || state.surrendered
+  ));
   if (defeatedCombatants.length === 0) throw new Error("Finished lake battle has no defeated combatant");
-  const sunkShips = defeatedCombatants.filter((state) => !lakeBattleCombatantIsCity(state));
+  const sunkShips = defeatedCombatants.filter((state) => (
+    state.hitPoints <= 0 && !lakeBattleCombatantIsCity(state)
+  ));
   if (sunkShips.length === 0) {
     lakeBattleMode.sinkEffects = [];
     lakeBattleMode.resultReadyAtMs = null;
@@ -9014,7 +9048,13 @@ function processLakeBattleEvents(battle) {
         firingShip.x - battle.player.x,
         firingShip.y - battle.player.y
       );
-      playNavalAttackSound({ kind: event.weaponKind }, event.count, distanceFromPlayer);
+      if (event.weaponId) {
+        const portable = portableWeaponItemById(event.weaponId).weapon;
+        if (!portable) throw new Error(`Lake battle fired a non-weapon item: ${event.weaponId}`);
+        playPortableWeaponAttackSound(portable, event.count, distanceFromPlayer);
+      } else {
+        playNavalAttackSound({ kind: event.weaponKind }, event.count, distanceFromPlayer);
+      }
     } else if (event.type === "hit") {
       if (event.weaponKind === NAVAL_WEAPON_ARROW) playArrowHitSound();
       else if (event.resisted) playArmorGlanceSound(18);
@@ -9468,7 +9508,8 @@ async function restoreSavedVoyage(payload) {
   ship.wakeSeedCounter = savedShip.wakeSeedCounter || 0;
   ship.cannonSequence = savedShip.cannonSequence || 0;
   ship.cannonCooldowns = { port: 0, starboard: 0 };
-  ship.arrowCooldown = 0;
+  ship.portableWeaponCooldowns = {};
+  ship.woundedCrew = 0;
   ship.wakeParticles = [];
   ship.lastWakeEmit = null;
   ship.navalProjectiles = [];
@@ -13761,8 +13802,7 @@ function attemptHostilePortEntry(cityCall) {
 function playerPortConquestStatus(cityCall) {
   if (!gameState?.ship || !ship) throw new Error("Port conquest requires the player ship");
   const battery = ensureShoreBatteryState(cityCall);
-  const assaultChanceBonus = currentPlayerPerkTotals().assaultChanceBonus +
-    playerAssaultCargoBonus(gameState);
+  const assaultChanceBonus = currentPlayerPerkTotals().assaultChanceBonus;
   return {
     ...portConquestStatus({
     city: cityCall,
@@ -15535,6 +15575,12 @@ async function acquireVikingLongship(action) {
     addNamedCrewMember(gameState, city.character, NAMED_CREW_ROLE_HISTORIAN, {
       replaceGenericWhenFull: true
     });
+    grantGuaranteedMissionPerkItem(gameState, city, {
+      missionId: "viking-longship-armament",
+      itemId: VIKING_BOWS_ITEM_ID,
+      description: "Longship armament: Viking Bows",
+      context: transactionContext
+    });
     if (!vikingLongshipPortFactor) throw new Error("Viking longship handover lost the Hafnarfjordur factor");
     portCityCharacters.set(city.tileId, vikingLongshipPortFactor);
     usedCharacterNames.add(vikingLongshipPortFactor.name);
@@ -15545,8 +15591,8 @@ async function acquireVikingLongship(action) {
     beginShipHandoverDialogue(session, {
       shipSlug: VIKING_LONGSHIP_SLUG,
       transactionText: acceptingReward
-        ? `The ${longshipLabel} is yours as the reward for your help. The enthusiast comes aboard with her.`
-        : `The ${longshipLabel} is yours for ${VIKING_LONGSHIP_PRICE} doubloons, and the enthusiast comes aboard with her.`,
+        ? `The ${longshipLabel} is yours as the reward for your help, complete with a rack of reconstructed bows. The enthusiast comes aboard with her.`
+        : `The ${longshipLabel} is yours for ${VIKING_LONGSHIP_PRICE} doubloons, complete with its bows, and the enthusiast comes aboard with her.`,
       sellerTitle: "historical enthusiast"
     });
     dialogueLayout.scrollOffset = 0;
@@ -17823,7 +17869,8 @@ function createShip(latDeg, lonDeg, shipSlug, factionId) {
       port: 0,
       starboard: 0
     },
-    arrowCooldown: 0,
+    portableWeaponCooldowns: {},
+    woundedCrew: 0,
     rowing: false
   };
 }
@@ -19694,58 +19741,71 @@ function fireBroadside(sideName) {
   return true;
 }
 
-function firePlayerArrowVolleyAtWill() {
-  if (!ship || !localLayout || ship.arrowCooldown > 0) return false;
-  const weapon = playerNavalWeapon();
-  if (!navalWeaponFiresAtWill(weapon)) return false;
-  const target = nearestPlayerArrowTarget(CANNON_RANGE_PX * weapon.rangeScale);
+function firePlayerPortableWeaponsAtWill() {
+  if (!ship || !localLayout || !playerHasCombatEngagement()) return false;
+  const ownedItemIds = playerOwnedPortableWeaponItemIds();
+  if (ownedItemIds.length === 0) return false;
+  const maximumRangeScale = Math.max(...ownedItemIds.map((itemId) => (
+    portableWeaponItemById(itemId).weapon?.rangeScale || 0
+  )));
+  if (maximumRangeScale <= 0) return false;
+  const target = nearestPlayerPortableWeaponTarget(CANNON_RANGE_PX * maximumRangeScale);
   if (!target) return false;
+  const assignments = activePortableWeaponAssignments({
+    ownedItemIds,
+    activeCrew: activeCombatCrew(gameState.ship.crew, ship.woundedCrew),
+    shipStats: ship.stats,
+    installedCannons: gameState.ship.cannons,
+    targetDistancePx: target.distance,
+    baseRangePx: CANNON_RANGE_PX
+  }).filter(({ weapon }) => (ship.portableWeaponCooldowns[weapon.itemId] || 0) <= 0);
+  if (assignments.length === 0) return false;
 
-  ship.arrowCooldown = weapon.reloadSeconds;
-  const count = navalArrowVolleyCount(ship.stats.crewCapacity);
-  emitCaptureEvent("weapon-fired", {
-    ownerId: PLAYER_COMBAT_ID,
-    targetId: target.id,
-    weapon: weapon.kind,
-    count
-  });
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
   const heading = shipScreenHeading();
-  const sequence = ++ship.cannonSequence;
-  playNavalAttackSound(weapon, count);
-  startCombatMusicForThreat("small");
-
-  for (let index = 0; index < count; index++) {
-    const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
-    const seed = cannonSeed(sequence, index, 0x6172726f, origin);
-    const startX = origin.x + heading.x * lineT * 8;
-    const startY = origin.y + heading.y * lineT * 8;
-    const targetX = target.point.x + (cannonUnit(seed, 1) * 2 - 1) * 3;
-    const targetY = target.point.y + (cannonUnit(seed, 2) * 2 - 1) * 3;
-    const range = Math.hypot(targetX - startX, targetY - startY);
-    ship.navalProjectiles.push({
-      kind: weapon.kind,
+  for (const { weapon, operators } of assignments) {
+    ship.portableWeaponCooldowns[weapon.itemId] = weapon.reloadSeconds;
+    emitCaptureEvent("weapon-fired", {
       ownerId: PLAYER_COMBAT_ID,
       targetId: target.id,
-      startX,
-      startY,
-      targetX,
-      targetY,
-      age: 0,
-      duration: Math.max(0.12, range / (CANNON_SPEED_PX * weapon.speedScale)),
-      arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 4) * weapon.arcHeightScale,
-      damage: weapon.damage,
-      seed
+      weapon: weapon.itemId,
+      count: operators
     });
+    playPortableWeaponAttackSound(weapon, operators);
+    const sequence = ++ship.cannonSequence;
+    for (let index = 0; index < operators; index++) {
+      const lineT = operators === 1 ? 0 : index / (operators - 1) - 0.5;
+      const seed = cannonSeed(sequence, index, 0x6172726f, origin);
+      const startX = origin.x + heading.x * lineT * 8;
+      const startY = origin.y + heading.y * lineT * 8;
+      const jitter = weapon.animationKind === PORTABLE_PROJECTILE_BULLET ? 2 : 3.5;
+      const targetX = target.point.x + (cannonUnit(seed, 1) * 2 - 1) * jitter;
+      const targetY = target.point.y + (cannonUnit(seed, 2) * 2 - 1) * jitter;
+      const range = Math.hypot(targetX - startX, targetY - startY);
+      const projectile = portableCombatProjectile({
+        weapon,
+        ownerId: PLAYER_COMBAT_ID,
+        targetId: target.id,
+        startX,
+        startY,
+        targetX,
+        targetY,
+        range,
+        seed
+      });
+      ship.navalProjectiles.push(projectile);
+      if (weapon.smokeScale > 0) addCannonSmokeBurst(projectile);
+    }
   }
+  startCombatMusicForThreat("small");
   if (ship.navalProjectiles.length > NAVAL_MAX_PROJECTILES) {
     ship.navalProjectiles.splice(0, ship.navalProjectiles.length - NAVAL_MAX_PROJECTILES);
   }
   return true;
 }
 
-function nearestPlayerArrowTarget(range) {
-  if (!Number.isFinite(range) || range <= 0) throw new Error(`Invalid arrow range: ${range}`);
+function nearestPlayerPortableWeaponTarget(range) {
+  if (!Number.isFinite(range) || range <= 0) throw new Error(`Invalid portable weapon range: ${range}`);
   const candidateIds = new Set();
   for (const engagement of shipCombatState.engagements.values()) {
     if (engagement.aId === PLAYER_COMBAT_ID) candidateIds.add(engagement.bId);
@@ -19765,6 +19825,37 @@ function nearestPlayerArrowTarget(range) {
     nearest = { id, point, distance };
   }
   return nearest;
+}
+
+function playerOwnedPortableWeaponItemIds() {
+  return Object.entries(gameState?.inventory?.items || {})
+    .filter(([itemId, count]) => count > 0 && isPortableWeaponItemId(itemId) && portableWeaponItemById(itemId).weapon)
+    .map(([itemId]) => itemId);
+}
+
+function portableCombatProjectile({ weapon, ownerId, targetId, startX, startY, targetX, targetY, range, seed }) {
+  return {
+    kind: weapon.animationKind,
+    portable: true,
+    weaponId: weapon.itemId,
+    ownerId,
+    targetId,
+    startX,
+    startY,
+    targetX,
+    targetY,
+    age: 0,
+    duration: Math.max(0.1, range / (CANNON_SPEED_PX * weapon.speedScale)),
+    arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 4) * weapon.arcHeightScale,
+    damage: weapon.hullDamage,
+    hullDamage: weapon.hullDamage,
+    crewDamage: weapon.crewDamage,
+    crewHitChance: weapon.crewHitChance,
+    projectileSize: weapon.projectileSize,
+    smokeScale: weapon.smokeScale,
+    incendiary: weapon.incendiary === true,
+    seed
+  };
 }
 
 function drawCombatBroadsideControls() {
@@ -19930,18 +20021,11 @@ function shipBroadsideCannonCount() {
 }
 
 function playerNavalWeapon() {
-  const homePort = portCitiesByTileId?.get(gameState?.character?.homePortTileId);
-  const cultureType = homePort?.cityType || null;
   const cannons = gameState?.ship?.cannons || 0;
-  const weaponKind = ship?.stats?.navalWeaponKind || null;
   const cannonEquipmentId = gameState?.inventory?.cannonEquipmentId;
-  const signature = `${cultureType || "none"}|${cannons}|${weaponKind || "none"}|${cannonEquipmentId || "none"}`;
+  const signature = `${cannons}|${cannonEquipmentId || "none"}`;
   if (playerNavalWeaponCache?.signature === signature) return playerNavalWeaponCache.weapon;
-  let weapon = navalWeaponForShip({
-    cultureType,
-    cannons,
-    weaponKind
-  });
+  let weapon = navalWeaponForShip({ cannons });
   if (weapon?.kind === NAVAL_WEAPON_CANNON) {
     if (typeof cannonEquipmentId !== "string") throw new Error("Player cannon equipment is missing");
     weapon = cannonWeaponWithEquipment(weapon, cannonEquipmentId);
@@ -19956,7 +20040,8 @@ function cannonMuzzleForeAftSpan(broadsideCount) {
 
 function updateNavalWeapons(dt) {
   if (!ship) return false;
-  const activeCrew = gameState?.ship?.crew || 0;
+  if (!playerHasCombatEngagement()) clearCombatWounds(ship);
+  const activeCrew = activeCombatCrew(gameState?.ship?.crew || 0, ship.woundedCrew);
   const installedCannons = gameState?.ship?.cannons || 0;
   const reloadMultiplier = currentPlayerPerkTotals().cannonReloadMultiplier;
   const reloadDt = dt / reloadMultiplier;
@@ -19972,9 +20057,13 @@ function updateNavalWeapons(dt) {
     activeCrew,
     installedCannons
   );
-  ship.arrowCooldown = Math.max(0, ship.arrowCooldown - dt);
+  for (const itemId of Object.keys(ship.portableWeaponCooldowns)) {
+    const cooldown = Math.max(0, ship.portableWeaponCooldowns[itemId] - dt);
+    if (cooldown === 0) delete ship.portableWeaponCooldowns[itemId];
+    else ship.portableWeaponCooldowns[itemId] = cooldown;
+  }
 
-  let changed = firePlayerArrowVolleyAtWill();
+  let changed = firePlayerPortableWeaponsAtWill();
   if (cannonSmokeBursts.length > 0) {
     cannonSmokeBursts = advanceCannonSmokeBursts(cannonSmokeBursts, dt);
     changed = true;
@@ -19995,7 +20084,7 @@ function updateNavalWeapons(dt) {
         continue;
       }
       if (ball.age >= ball.duration) {
-        if (ball.kind === NAVAL_WEAPON_ARROW) {
+        if (ball.portable) {
           resolvePlayerNavalImpact(ball);
           continue;
         }
@@ -20068,8 +20157,8 @@ function resolvePlayerCannonPathHit(ball, previousAge) {
 }
 
 function resolvePlayerNavalImpact(ball) {
-  if (ball.kind !== NAVAL_WEAPON_ARROW || typeof ball.targetId !== "string") {
-    throw new Error("Player arrow projectile requires an explicit target");
+  if (!ball.portable || typeof ball.targetId !== "string") {
+    throw new Error("Player portable-weapon projectile requires an explicit target");
   }
   if (!combatEngagementIsActive(PLAYER_COMBAT_ID, ball.targetId)) return false;
   const target = npcVisualShips.get(ball.targetId) || shoreBatteryStates.get(ball.targetId);
@@ -20108,14 +20197,38 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   if (hitByPlayer) beginPlayerInitiatedShoreCombat(battery);
   else battery.engagedTargetIds.add(ball.ownerId);
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
-  const result = damageShoreBattery(
-    battery,
-    gameState.memory.flags,
-    ball.damage,
-    Math.floor(weatherClockMinutes),
-    shoreBatteryAttackerShipLabel(ball.ownerId)
-  );
-  addHullSplinterBurst(ball, point);
+  const simMinute = Math.floor(weatherClockMinutes);
+  const attackerLabel = shoreBatteryAttackerShipLabel(ball.ownerId);
+  let result;
+  if (ball.portable) {
+    result = damageShoreBatteryCrew(
+      battery,
+      gameState.memory.flags,
+      { crewDamage: ball.crewDamage, crewHitChance: ball.crewHitChance },
+      simMinute,
+      attackerLabel,
+      Math.random
+    );
+    if (!result.newlyDisabled && ball.hullDamage > 0) {
+      result = damageShoreBattery(
+        battery,
+        gameState.memory.flags,
+        ball.hullDamage,
+        simMinute,
+        attackerLabel
+      );
+      addHullSplinterBurst(ball, point);
+    }
+  } else {
+    result = damageShoreBattery(
+      battery,
+      gameState.memory.flags,
+      ball.damage,
+      simMinute,
+      attackerLabel
+    );
+    addHullSplinterBurst(ball, point);
+  }
   if (!result.newlyDisabled) return;
   destroyShoreBatteryGunpowderStore(battery);
   if (hitByPlayer) {
@@ -20200,6 +20313,10 @@ function applyPlayerNavalHit(ball, target, point) {
   if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, target.id))) {
     beginPlayerInitiatedCombat(target.id);
   }
+  if (ball.portable) {
+    applyPortableWeaponHitToNpc(ball, target, point, PLAYER_COMBAT_ID);
+    return;
+  }
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
   const impact = { ...ball, targetX: point.x, targetY: point.y };
   if (damage.resisted && ball.kind === NAVAL_WEAPON_CANNON) {
@@ -20221,6 +20338,43 @@ function applyPlayerNavalHit(ball, target, point) {
   else {
     addHullSplinterBurst(ball, point);
     if (damage.shouldSurrender) handleNpcSurrender(target.id, PLAYER_COMBAT_ID);
+  }
+}
+
+function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
+  const woundResult = applyCrewWounds({
+    totalCrew: target.stats.crewCapacity,
+    woundedCrew: target.woundedCrew,
+    crewDamage: ball.crewDamage,
+    hitChance: ball.crewHitChance,
+    crewProtection: target.stats.crewProtection,
+    random: Math.random
+  });
+  target.woundedCrew = woundResult.woundedCrew;
+  playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
+  emitCaptureEvent("projectile-hit", {
+    ownerId: ball.ownerId,
+    targetId: target.id,
+    weapon: ball.weaponId,
+    damage: ball.hullDamage,
+    crewWounds: woundResult.newWounds,
+    remainingHitPoints: target.hitPoints
+  });
+  if (ball.hullDamage > 0) {
+    const damage = damageNpcShip(npcSeaRoutes, target.id, ball.hullDamage);
+    target.hitPoints = damage.hitPoints;
+    if (damage.sunk) {
+      handleNpcSinking(target.id, winnerId);
+      return;
+    }
+    addHullSplinterBurst(ball, point);
+    if (damage.shouldSurrender) {
+      handleNpcSurrender(target.id, winnerId);
+      return;
+    }
+  }
+  if (crewWoundsForceSurrender(target.stats.crewCapacity, target.woundedCrew)) {
+    handleNpcSurrender(target.id, winnerId);
   }
 }
 
@@ -20282,11 +20436,12 @@ function drawNavalProjectile(
     return;
   }
   drawCannonTrail(projectile, painter);
+  const projectileSize = projectile.projectileSize || CANNONBALL_SIZE_PX;
   painter.rect(
-    Math.round(point.x) - 1,
-    Math.round(point.y - point.z) - 1,
-    CANNONBALL_SIZE_PX,
-    CANNONBALL_SIZE_PX,
+    Math.round(point.x) - Math.floor(projectileSize / 2),
+    Math.round(point.y - point.z) - Math.floor(projectileSize / 2),
+    projectileSize,
+    projectileSize,
     "rgba(18, 14, 12, 0.95)"
   );
 }
@@ -20345,8 +20500,15 @@ function drawArrowProjectile(projectile, point, painter) {
       Math.round(y - uy * i),
       1,
       1,
-      "rgba(255, 255, 255, 0.96)"
+      projectile.incendiary && i < 2 ? "rgba(249, 194, 43, 0.98)" : "rgba(255, 255, 255, 0.96)"
     );
+  }
+  if (projectile.incendiary) {
+    const flicker = (Math.floor(projectile.age * 24) + projectile.seed) % 3;
+    const flameX = Math.round(point.x - ux * (ARROW_LINE_LENGTH_PX + flicker));
+    const flameY = Math.round(y - uy * (ARROW_LINE_LENGTH_PX + flicker));
+    painter.rect(flameX, flameY, 1, 1, "rgba(239, 125, 37, 0.9)");
+    painter.rect(flameX - Math.round(uy), flameY + Math.round(ux), 1, 1, "rgba(249, 194, 43, 0.72)");
   }
 }
 
@@ -21698,6 +21860,7 @@ function createNpcVisualState(snapshot, routePoint) {
     fishingNetId: snapshot.fishingNetId,
     stats: profile.stats,
     navalWeapon: profile.navalWeapon,
+    portableWeaponItemIds: profile.portableWeaponItemIds,
     cannons: profile.navalWeapon?.kind === NAVAL_WEAPON_CANNON
       ? profile.stats.cannons
       : 0,
@@ -21726,6 +21889,9 @@ function createNpcVisualState(snapshot, routePoint) {
     combatMode: null,
     combatTargetId: null,
     combatEnemyIds: [],
+    crew: profile.stats.crewCapacity,
+    woundedCrew: 0,
+    portableWeaponCooldowns: {},
     weaponCooldown: 0,
     weaponSequence: 0,
     collisionVelocityX: 0,
@@ -21771,7 +21937,11 @@ function syncNpcVisualStateFromSnapshot(state, snapshot) {
     if (!profile) return false;
     state.stats = profile.stats;
     state.navalWeapon = profile.navalWeapon;
+    state.portableWeaponItemIds = profile.portableWeaponItemIds;
     state.spriteAsset = profile.spriteAsset;
+    state.crew = profile.stats.crewCapacity;
+    state.woundedCrew = 0;
+    state.portableWeaponCooldowns = {};
     state.cannons = profile.navalWeapon?.kind === NAVAL_WEAPON_CANNON
       ? profile.stats.cannons
       : 0;
@@ -21800,9 +21970,15 @@ function npcVisualShipProfile(shipId, slug) {
     stats,
     spriteAsset,
     navalWeapon: navalWeaponForShip({
-      cultureType: routeShip.cultureType || routeShip.currentPort?.cityType || null,
+      cannons: stats.cannons
+    }),
+    portableWeaponItemIds: npcPortableWeaponItemIds({
+      factionId: routeShip.factionId,
+      cityType: routeShip.cultureType || routeShip.currentPort?.cityType || null,
+      shipSlug: slug,
+      role: routeShip.role,
       cannons: stats.cannons,
-      weaponKind: stats.navalWeaponKind || null
+      identityKey: shipId
     })
   });
 }
@@ -21985,9 +22161,19 @@ function updateNpcCombat(dt) {
     const stats = state.stats;
     const weapon = npcNavalWeapon(state);
     if (state.weaponCooldown > 0) {
-      state.weaponCooldown = navalWeaponUsesBroadside(weapon)
-        ? advanceCannonReload(state.weaponCooldown, dt, stats.crewCapacity, stats.cannons)
+      state.weaponCooldown = weapon && navalWeaponUsesBroadside(weapon)
+        ? advanceCannonReload(
+            state.weaponCooldown,
+            dt,
+            activeCombatCrew(state.crew, state.woundedCrew),
+            stats.cannons
+          )
         : Math.max(0, state.weaponCooldown - dt);
+    }
+    for (const itemId of Object.keys(state.portableWeaponCooldowns)) {
+      const cooldown = Math.max(0, state.portableWeaponCooldowns[itemId] - dt);
+      if (cooldown === 0) delete state.portableWeaponCooldowns[itemId];
+      else state.portableWeaponCooldowns[itemId] = cooldown;
     }
     const intent = result.intents.get(state.id) || shoreBatteryIntents.get(state.id);
     const nextMode = intent?.mode || null;
@@ -22001,9 +22187,11 @@ function updateNpcCombat(dt) {
     state.combatMode = nextMode;
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
+    if (!nextMode) clearCombatWounds(state);
     if (!combatHailOpened && !combatHailPending && !cartazHailOpened && !batteryCombat.hailOpened &&
-        intent?.mode === COMBAT_MODE_ATTACK && fireNpcWeaponAtTarget(state, intent.targetId)) {
-      changed = true;
+        intent?.mode === COMBAT_MODE_ATTACK) {
+      if (fireNpcWeaponAtTarget(state, intent.targetId)) changed = true;
+      if (fireNpcPortableWeaponsAtTarget(state, intent.targetId)) changed = true;
     }
   }
   if (performanceBenchmarkState) {
@@ -22301,6 +22489,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
     });
     if (setContentsDiffer(state.engagedTargetIds, nextTargets)) changed = true;
     state.engagedTargetIds = nextTargets;
+    if (nextTargets.size === 0 && clearShoreBatteryCombatWounds(state)) changed = true;
     if (shoreBatteryCanFire(state, simMinute) && measurePerformanceBenchmarkStage(
       "npcShips.visual.combat.batteries.fire",
       () => fireShoreBatteryAtNearestTarget(state)
@@ -22308,7 +22497,10 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
   }
 
   for (const state of shoreBatteryStates.values()) {
-    if (!visibleIds.has(state.id)) state.engagedTargetIds.clear();
+    if (!visibleIds.has(state.id)) {
+      state.engagedTargetIds.clear();
+      if (clearShoreBatteryCombatWounds(state)) changed = true;
+    }
   }
   return { changed, hailOpened };
 }
@@ -22353,9 +22545,23 @@ function openShoreBatteryCombatHail(city, state) {
 }
 
 function shoreBatteryWeapon(state) {
-  const weapon = navalWeaponForShip({ cultureType: state.cultureType, cannons: state.gunCount });
-  if (!weapon) throw new Error(`Shore battery has no weapon: ${state.id}`);
-  return weapon;
+  if (!isPreGunpowderCulture(state.cultureType)) {
+    const cannon = navalWeaponForShip({ cannons: state.gunCount });
+    if (!cannon) throw new Error(`Shore battery has no cannon: ${state.id}`);
+    return cannon;
+  }
+  const itemId = regionalStarterPortableWeaponItemIds({
+    factionId: state.factionId,
+    cityType: state.cultureType
+  })[0];
+  const portable = portableWeaponItemById(itemId).weapon;
+  if (!portable) throw new Error(`Shore battery portable weapon has no combat spec: ${itemId}`);
+  return Object.freeze({
+    ...portable,
+    kind: portable.animationKind,
+    damage: portable.hullDamage,
+    portable: true
+  });
 }
 
 function shoreBatteryPoint(batteryId) {
@@ -22430,20 +22636,32 @@ function fireShoreBatteryAtNearestTarget(state) {
     const targetX = target.x + (trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * jitter);
     const targetY = target.y + (trueShot ? 0 : (cannonUnit(seed, 2) * 2 - 1) * jitter);
     const range = Math.hypot(targetX - origin.x, targetY - origin.y);
-    const projectile = {
-      kind: weapon.kind,
-      ownerId: state.id,
-      targetId,
-      startX: origin.x + index,
-      startY: origin.y,
-      targetX,
-      targetY,
-      age: 0,
-      duration: range / (CANNON_SPEED_PX * weapon.speedScale),
-      arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 3) * weapon.arcHeightScale,
-      damage: weapon.damage,
-      seed
-    };
+    const projectile = weapon.portable
+      ? portableCombatProjectile({
+          weapon,
+          ownerId: state.id,
+          targetId,
+          startX: origin.x + index,
+          startY: origin.y,
+          targetX,
+          targetY,
+          range,
+          seed
+        })
+      : {
+          kind: weapon.kind,
+          ownerId: state.id,
+          targetId,
+          startX: origin.x + index,
+          startY: origin.y,
+          targetX,
+          targetY,
+          age: 0,
+          duration: range / (CANNON_SPEED_PX * weapon.speedScale),
+          arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 3) * weapon.arcHeightScale,
+          damage: weapon.damage,
+          seed
+        };
     npcCombatProjectiles.push(projectile);
     if (weapon.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
   }
@@ -22493,6 +22711,8 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
     hitPoints: Math.max(1, ship.hitPoints),
     maxHitPoints: ship.maxHitPoints,
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? gameState?.ship?.cannons || 0 : 0,
+    crew: gameState.ship.crew,
+    woundedCrew: ship.woundedCrew,
     topSpeedRad: effectiveStats.topSpeedRad,
     combatGrace: false,
     npcAttackProtected: playerNpcAttackGraceIsActive(gameState.activePlaySeconds),
@@ -22566,6 +22786,7 @@ function npcCombatEntity(state) {
   const weapon = npcNavalWeapon(state);
   const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
   state.cannons = weapon?.kind === NAVAL_WEAPON_CANNON ? stats.cannons : 0;
+  state.crew = stats.crewCapacity;
   state.topSpeedRad = stats.topSpeedRad;
   state.npcAttackProtected = false;
   state.forceAttack = encounter?.forceAttack === true;
@@ -22653,7 +22874,7 @@ function fireNpcWeaponAtTarget(state, targetId) {
   if (!target) return false;
   const stats = state.stats;
   const weapon = npcNavalWeapon(state);
-  if (!weapon) return false;
+  if (!weapon || !navalWeaponUsesBroadside(weapon)) return false;
   const dx = target.x - state.x;
   const dy = target.y - state.y;
   const distance = Math.hypot(dx, dy);
@@ -22661,23 +22882,16 @@ function fireNpcWeaponAtTarget(state, targetId) {
   const heading = tangentToScreenDirection(state.heading);
   if (!heading) return false;
   const direct = { x: dx / distance, y: dy / distance };
-  if (
-    navalWeaponUsesBroadside(weapon) &&
-    Math.abs(heading.x * direct.x + heading.y * direct.y) > NPC_COMBAT_BROADSIDE_DOT
-  ) return false;
+  if (Math.abs(heading.x * direct.x + heading.y * direct.y) > NPC_COMBAT_BROADSIDE_DOT) return false;
 
-  const volleyCount = navalWeaponUsesBroadside(weapon)
-    ? Math.min(4, Math.max(1, Math.ceil(stats.cannons / 10)))
-    : navalArrowVolleyCount(stats.crewCapacity);
+  const volleyCount = Math.min(4, Math.max(1, Math.ceil(stats.cannons / 10)));
   emitCaptureEvent("weapon-fired", {
     ownerId: state.id,
     targetId,
     weapon: weapon.kind,
     count: volleyCount
   });
-  state.weaponCooldown = navalWeaponUsesBroadside(weapon)
-    ? NPC_COMBAT_COOLDOWN_SECONDS
-    : weapon.reloadSeconds;
+  state.weaponCooldown = NPC_COMBAT_COOLDOWN_SECONDS;
   state.weaponSequence += 1;
   playNavalAttackSound(
     weapon,
@@ -22685,21 +22899,19 @@ function fireNpcWeaponAtTarget(state, targetId) {
     distanceFromPlayerPoint(state)
   );
   startCombatMusicForThreat(stats.cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
-  const trueShotIndex = navalWeaponUsesBroadside(weapon)
-    ? accurateBroadsideShotIndex(volleyCount)
-    : -1;
+  const trueShotIndex = accurateBroadsideShotIndex(volleyCount);
 
   for (let index = 0; index < volleyCount; index++) {
     const seed = cannonSeed(state.weaponSequence, index, state.id.length * 0x51a7, state);
-    const jitterScale = weapon.kind === NAVAL_WEAPON_ARROW ? 3.5 : 7;
+    const jitterScale = 7;
     const trueShot = index === trueShotIndex;
     const jitterX = trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * jitterScale;
     const jitterY = trueShot ? 0 : (cannonUnit(seed, 2) * 2 - 1) * jitterScale;
     const targetX = target.x + jitterX;
     const targetY = target.y + jitterY;
     const lineT = volleyCount === 1 ? 0 : index / (volleyCount - 1) - 0.5;
-    const startX = state.x + (navalWeaponFiresAtWill(weapon) ? heading.x * lineT * 8 : 0);
-    const startY = state.y + (navalWeaponFiresAtWill(weapon) ? heading.y * lineT * 8 : 0);
+    const startX = state.x;
+    const startY = state.y;
     const range = Math.hypot(targetX - startX, targetY - startY);
     const projectile = {
       kind: weapon.kind,
@@ -22718,6 +22930,63 @@ function fireNpcWeaponAtTarget(state, targetId) {
     npcCombatProjectiles.push(projectile);
     if (projectile.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
   }
+  if (npcCombatProjectiles.length > NPC_COMBAT_MAX_PROJECTILES) {
+    npcCombatProjectiles.splice(0, npcCombatProjectiles.length - NPC_COMBAT_MAX_PROJECTILES);
+  }
+  return true;
+}
+
+function fireNpcPortableWeaponsAtTarget(state, targetId) {
+  if (state.combatGrace) return false;
+  const target = combatEntityAimPoint(targetId);
+  if (!target) return false;
+  const distance = Math.hypot(target.x - state.x, target.y - state.y);
+  const assignments = activePortableWeaponAssignments({
+    ownedItemIds: state.portableWeaponItemIds,
+    activeCrew: activeCombatCrew(state.crew, state.woundedCrew),
+    shipStats: state.stats,
+    installedCannons: state.stats.cannons,
+    targetDistancePx: distance,
+    baseRangePx: NPC_COMBAT_FIRE_RANGE_PX
+  }).filter(({ weapon }) => (state.portableWeaponCooldowns[weapon.itemId] || 0) <= 0);
+  if (assignments.length === 0) return false;
+  const heading = tangentToScreenDirection(state.heading);
+  if (!heading) return false;
+  for (const { weapon, operators } of assignments) {
+    state.portableWeaponCooldowns[weapon.itemId] = weapon.reloadSeconds;
+    state.weaponSequence += 1;
+    emitCaptureEvent("weapon-fired", {
+      ownerId: state.id,
+      targetId,
+      weapon: weapon.itemId,
+      count: operators
+    });
+    playPortableWeaponAttackSound(weapon, operators, distanceFromPlayerPoint(state));
+    for (let index = 0; index < operators; index++) {
+      const seed = cannonSeed(state.weaponSequence, index, state.id.length * 0x7151, state);
+      const jitter = weapon.animationKind === PORTABLE_PROJECTILE_BULLET ? 2 : 3.5;
+      const targetX = target.x + (cannonUnit(seed, 1) * 2 - 1) * jitter;
+      const targetY = target.y + (cannonUnit(seed, 2) * 2 - 1) * jitter;
+      const lineT = operators === 1 ? 0 : index / (operators - 1) - 0.5;
+      const startX = state.x + heading.x * lineT * 8;
+      const startY = state.y + heading.y * lineT * 8;
+      const range = Math.hypot(targetX - startX, targetY - startY);
+      const projectile = portableCombatProjectile({
+        weapon,
+        ownerId: state.id,
+        targetId,
+        startX,
+        startY,
+        targetX,
+        targetY,
+        range,
+        seed
+      });
+      npcCombatProjectiles.push(projectile);
+      if (weapon.smokeScale > 0) addCannonSmokeBurst(projectile);
+    }
+  }
+  startCombatMusicForThreat("small");
   if (npcCombatProjectiles.length > NPC_COMBAT_MAX_PROJECTILES) {
     npcCombatProjectiles.splice(0, npcCombatProjectiles.length - NPC_COMBAT_MAX_PROJECTILES);
   }
@@ -22753,7 +23022,7 @@ function updateNpcCombatProjectiles(dt) {
       changed = true;
       continue;
     }
-    if (ball.kind === NAVAL_WEAPON_ARROW) resolveNpcCombatImpact(ball);
+    if (ball.portable) resolveNpcCombatImpact(ball);
     else addNpcCombatSplash(ball);
     changed = true;
   }
@@ -22842,7 +23111,7 @@ function resolveNpcCombatImpact(ball) {
       ? !pointInShipFootprint({ x: ball.targetX, y: ball.targetY }, shipFootprint)
       : Math.hypot(target.x - ball.targetX, target.y - ball.targetY) > NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX)
   ) {
-    if (ball.kind !== NAVAL_WEAPON_ARROW) addNpcCombatSplash(ball);
+    if (!ball.portable) addNpcCombatSplash(ball);
     return;
   }
 
@@ -22868,6 +23137,18 @@ function applyNpcCombatHit(ball, targetId, point) {
   const battery = shoreBatteryStates.get(targetId);
   if (targetId !== PLAYER_COMBAT_ID && !battery && !npcSeaRoutes.shipById.has(targetId)) {
     if (ball.kind === NAVAL_WEAPON_CANNON) addNpcCombatSplash(ball);
+    return;
+  }
+  if (ball.portable) {
+    if (targetId === PLAYER_COMBAT_ID) {
+      applyPortableWeaponHitToPlayer(ball, point);
+    } else if (battery) {
+      applyShoreBatteryHit(ball, battery, point, false);
+    } else {
+      const target = npcVisualShips.get(targetId);
+      if (!target) throw new Error(`Portable weapon target has no visual combat state: ${targetId}`);
+      applyPortableWeaponHitToNpc(ball, target, point, ball.ownerId);
+    }
     return;
   }
   if (targetId === PLAYER_COMBAT_ID) {
@@ -22941,6 +23222,48 @@ function applyNpcCombatHit(ball, targetId, point) {
     addHullSplinterBurst(ball, point);
     if (damage.shouldSurrender) handleNpcSurrender(targetId, ball.ownerId);
   }
+}
+
+function applyPortableWeaponHitToPlayer(ball, point) {
+  if (playerShipIsInvulnerable()) return;
+  const woundResult = applyCrewWounds({
+    totalCrew: gameState.ship.crew,
+    woundedCrew: ship.woundedCrew,
+    crewDamage: ball.crewDamage,
+    hitChance: ball.crewHitChance,
+    crewProtection: ship.stats.crewProtection,
+    preserveFinalCrew: true,
+    random: Math.random
+  });
+  ship.woundedCrew = woundResult.woundedCrew;
+  playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
+  if (woundResult.newWounds > 0) {
+    combatNotice = {
+      text: woundResult.newWounds === 1 ? "1 CREW WOUNDED" : `${woundResult.newWounds} CREW WOUNDED`,
+      expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
+    };
+  }
+  if (ball.hullDamage > 0) {
+    const resisted = playerHullDamageWasResisted(ball.incendiary ? "FIRE ARROW" : "SWIVEL SHOT", {
+      notify: false
+    });
+    if (!resisted) {
+      ship.hitPoints = Math.max(0, ship.hitPoints - ball.hullDamage);
+      const lossOutcome = resolvePlayerDamageLoss({
+        sinkingReason: "Your ship was sunk in battle.",
+        crewLossReason: "The last of the crew fell in battle."
+      });
+      if (!lossOutcome) addHullSplinterBurst(ball, point);
+    }
+  }
+  emitCaptureEvent("projectile-hit", {
+    ownerId: ball.ownerId,
+    targetId: PLAYER_COMBAT_ID,
+    weapon: ball.weaponId,
+    damage: ball.hullDamage,
+    crewWounds: woundResult.newWounds,
+    remainingHitPoints: ship.hitPoints
+  });
 }
 
 function addNpcCombatSplash(ball) {
@@ -23032,6 +23355,8 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     state.combatMode = null;
     state.combatTargetId = null;
     state.combatEnemyIds = [];
+    state.woundedCrew = 0;
+    state.portableWeaponCooldowns = {};
   }
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
   if (playerPrizeSummary) {
@@ -28829,11 +29154,12 @@ function drawShipInfoMenu() {
     panel.y + 53
   );
   drawShipInfoValueRow("PROPULSION", view.propulsionSummary, statsX, valueX, panel.y + 65);
-  drawShipInfoRating("SPEED", view.ratings.speed, statsX, valueX, panel.y + 80);
-  drawShipInfoRating("ACCEL", view.ratings.acceleration, statsX, valueX, panel.y + 93);
-  drawShipInfoRating("TURNING", view.ratings.turning, statsX, valueX, panel.y + 106);
-  drawShipInfoRating("WINDWARD", view.ratings.windward, statsX, valueX, panel.y + 119);
-  drawShipInfoRating("SEAWORTHY", view.seaworthiness, statsX, valueX, panel.y + 132);
+  drawShipInfoValueRow("COVER", `${view.crewProtection}%`, statsX, valueX, panel.y + 77);
+  drawShipInfoRating("SPEED", view.ratings.speed, statsX, valueX, panel.y + 89);
+  drawShipInfoRating("ACCEL", view.ratings.acceleration, statsX, valueX, panel.y + 102);
+  drawShipInfoRating("TURNING", view.ratings.turning, statsX, valueX, panel.y + 115);
+  drawShipInfoRating("WINDWARD", view.ratings.windward, statsX, valueX, panel.y + 128);
+  drawShipInfoRating("SEAWORTHY", view.seaworthiness, statsX, valueX, panel.y + 141);
   const provisionY = artY + SHIP_INFO_SIDE_VIEW_H + 2;
   drawSplitShipInfoTextRow({
     leftText: `WATER ${remainingSupplyDayCount(view.survival.drinkDays)}D`,
@@ -28970,6 +29296,8 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
   statsY += statLineHeight;
   drawShipInfoValueRow("PROPULSION", view.propulsionSummary, statsX, valueX, statsY);
   statsY += statLineHeight + 1;
+  drawShipInfoValueRow("COVER", `${view.crewProtection}%`, statsX, valueX, statsY);
+  statsY += statLineHeight;
   const ratings = [
     ["SPEED", view.ratings.speed],
     ["ACCEL", view.ratings.acceleration],
@@ -29061,6 +29389,8 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   y += statLineHeight;
   drawShipInfoValueRow("PROPULSION", view.propulsionSummary, labelX, valueX, y);
   y += statLineHeight + 1;
+  drawShipInfoValueRow("COVER", `${view.crewProtection}%`, labelX, valueX, y);
+  y += statLineHeight;
   const ratings = [
     ["SPEED", view.ratings.speed],
     ["ACCEL", view.ratings.acceleration],
@@ -31378,12 +31708,12 @@ function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
     { color: PIRATE_MENU_INK }
   );
   const gunCount = stats.batteryGuns || stats.cannons;
-  const armament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARROWS" : `${gunCount} GUNS`;
-  const compactArmament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARR" : `${gunCount}G`;
+  const armament = gunCount > 0 ? `${gunCount} GUNS` : "SMALL ARMS";
+  const compactArmament = gunCount > 0 ? `${gunCount}G` : "ARMS";
   const armor = stats.armor || 0;
   const summary = rect.w < 300
-    ? `H${stats.hitPoints} A${armor} ${compactArmament} C${stats.crewCapacity}`
-    : `HULL ${stats.hitPoints}  ARMOR ${armor}%  ${armament}  CREW ${stats.crewCapacity}`;
+    ? `H${stats.hitPoints} A${armor} P${stats.crewProtection} ${compactArmament} C${stats.crewCapacity}`
+    : `HULL ${stats.hitPoints}  ARMOR ${armor}%  COVER ${stats.crewProtection}%  ${armament}  CREW ${stats.crewCapacity}`;
   drawOptionsText(
     fitPixelText(summary, PIXEL_FONT_SMALL_8, textWidth),
     textLeft,
@@ -37301,7 +37631,13 @@ function playerShipIsRowing() {
 function npcShipIsRowing(state) {
   if (state.stormMode === "anchored" || state.fishingAction) return false;
   if (state.routeKey?.startsWith("held:")) return false;
-  return shipUsesOars(state.stats, state.heading, state.vector, state.tileId);
+  return shipUsesOars(
+    state.stats,
+    state.heading,
+    state.vector,
+    state.tileId,
+    rowingCrewRatio(activeCombatCrew(state.crew, state.woundedCrew), state.stats.crewCapacity)
+  );
 }
 
 function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
@@ -37319,7 +37655,10 @@ function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
 function playerRowerRatio() {
   if (!ship?.stats) return 0;
   const crew = gameState?.ship?.crew ?? ship.stats.crewCapacity;
-  return rowingCrewRatio(crew, ship.stats.crewCapacity);
+  const activeCrew = ship.woundedCrew === undefined
+    ? crew
+    : activeCombatCrew(crew, ship.woundedCrew);
+  return rowingCrewRatio(activeCrew, ship.stats.crewCapacity);
 }
 
 function stormBobbedShipCall(call, nowMs) {
@@ -39047,6 +39386,7 @@ function survivalHudRasterKey({
     shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]),
     gameState.doubloons,
     gameState.ship.crew,
+    ship?.woundedCrew || 0,
     aboardAnimalCompanionIds(gameState.memory.animalCompanions),
     travelers,
     hud.occupiedCount,
@@ -39254,11 +39594,16 @@ function drawSurvivalCrewRow(x, y, panelWidth, travelerGroups = shipTravelerMani
     panelWidth,
     travelerGroups
   );
+  const woundedCrew = ship?.woundedCrew || 0;
+  const firstWoundedIndex = gameState.ship.crew - woundedCrew;
   for (const entry of layout.entries) {
     const variants = statusPersonImages?.get(entry.kind);
     const image = variants?.[entry.variant];
     if (!image) throw new Error(`Missing ${entry.kind} crew status image variant ${entry.variant}`);
+    const wounded = entry.kind === "crew" && entry.kindIndex >= firstWoundedIndex;
+    if (wounded) ctx.globalAlpha = 0.35;
     ctx.drawImage(image, entry.x, entry.y);
+    if (wounded) ctx.globalAlpha = 1;
   }
   for (const companion of layout.animalCompanions) {
     const image = statusHudImages?.animalCompanions?.[companion.id];

@@ -13,7 +13,6 @@ import {
   shipStatsForSlug
 } from "./shipStats.js";
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
-import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 
 test("later asset silhouettes use period-appropriate game identities", () => {
   const periodIdentities = {
@@ -59,7 +58,7 @@ test("all hulls share the gentler cruise-speed scale", () => {
   assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006));
 });
 
-test("native canoe hulls are small, arrow-armed, and regionally distinct", () => {
+test("native canoe hulls are small, cannonless, exposed, and regionally distinct", () => {
   const polynesian = shipStatsForSlug("polynesian-voyaging-canoe");
   const mesoamerican = shipStatsForSlug("mesoamerican-dugout-canoe");
 
@@ -67,8 +66,8 @@ test("native canoe hulls are small, arrow-armed, and regionally distinct", () =>
   assert.equal(shipLabelForSlug(mesoamerican.slug), "Dugout Canoe");
   assert.equal(polynesian.cannons, 0);
   assert.equal(mesoamerican.cannons, 0);
-  assert.equal(polynesian.navalWeaponKind, NAVAL_WEAPON_ARROW);
-  assert.equal(mesoamerican.navalWeaponKind, NAVAL_WEAPON_ARROW);
+  assert.equal(polynesian.crewProtection, 5);
+  assert.equal(mesoamerican.crewProtection, 0);
   assert.ok(polynesian.seaworthiness > mesoamerican.seaworthiness);
   assert.ok(polynesian.cargoCapacity > mesoamerican.cargoCapacity);
   assert.ok(mesoamerican.turnRateRad > polynesian.turnRateRad);
@@ -147,6 +146,7 @@ test("the Joseon turtle ship is a heavy cannon-armed oar-and-sail warship", () =
   assert.equal(turtleShip.cannons, 30);
   assert.equal(turtleShip.hitPoints, 45);
   assert.equal(turtleShip.armor, 40);
+  assert.equal(turtleShip.crewProtection, 100);
   assert.equal(turtleShip.seaworthiness, 9);
   assert.equal(shipHullResistsDamage(turtleShip, { roll: 0.39 }), true);
   assert.equal(shipHullResistsDamage(turtleShip, { roll: 0.4 }), false);
@@ -220,15 +220,15 @@ test("the Umi-bune is a light Japanese coastal oar-and-sail trader", () => {
   assert.ok(umiBune.seaworthiness >= 5);
 });
 
-test("the Kobaya is Japan's fast arrow-armed scout and campaign starter", () => {
+test("the Kobaya is Japan's fast cannonless scout and whaling starter", () => {
   const umiBune = shipStatsForSlug("japanese-kuribune");
   const kobaya = shipStatsForSlug("japanese-kobaya");
   const sekibune = shipStatsForSlug("japanese-sekibune");
 
   assert.equal(shipLabelForSlug(kobaya.slug), "Kobaya");
   assert.equal(kobaya.propulsion, SHIP_PROPULSION_OAR_SAIL);
-  assert.equal(kobaya.navalWeaponKind, NAVAL_WEAPON_ARROW);
   assert.equal(kobaya.cannons, 0);
+  assert.equal(kobaya.crewProtection, 20);
   assert.ok(kobaya.mass > umiBune.mass && kobaya.mass < sekibune.mass);
   assert.ok(kobaya.cargoCapacity > umiBune.cargoCapacity);
   assert.ok(kobaya.cargoCapacity < sekibune.cargoCapacity);
@@ -236,15 +236,15 @@ test("the Kobaya is Japan's fast arrow-armed scout and campaign starter", () => 
   assert.ok(kobaya.seaworthiness >= 5);
 });
 
-test("the Sekibune fills Japan's arrow-armed middle warship tier", () => {
+test("the Sekibune fills Japan's protected middle warship tier", () => {
   const umiBune = shipStatsForSlug("japanese-kuribune");
   const sekibune = shipStatsForSlug("japanese-sekibune");
   const atakebune = shipStatsForSlug("japanese-atakebune");
 
   assert.equal(shipLabelForSlug(sekibune.slug), "Sekibune");
   assert.equal(sekibune.propulsion, SHIP_PROPULSION_OAR_SAIL);
-  assert.equal(sekibune.navalWeaponKind, NAVAL_WEAPON_ARROW);
   assert.equal(sekibune.cannons, 0);
+  assert.equal(sekibune.crewProtection, 45);
   assert.ok(sekibune.mass > umiBune.mass && sekibune.mass < atakebune.mass);
   assert.ok(sekibune.cargoCapacity > umiBune.cargoCapacity);
   assert.ok(sekibune.cargoCapacity < atakebune.cargoCapacity);
@@ -275,24 +275,24 @@ test("the Portuguese Carrack is a large armed ocean-going merchant", () => {
   assert.ok(portugueseCarrack.seaworthiness >= spanishNao.seaworthiness);
 });
 
-test("the Viking longship is a fast seaworthy oar-and-sail arrow ship", () => {
+test("the Viking longship is a fast seaworthy cannonless oar-and-sail ship", () => {
   const longship = shipStatsForSlug("viking-longship");
 
   assert.equal(shipLabelForSlug(longship.slug), "Viking Longship");
   assert.equal(longship.propulsion, SHIP_PROPULSION_OAR_SAIL);
-  assert.equal(longship.navalWeaponKind, "arrow");
   assert.equal(longship.cannons, 0);
+  assert.equal(longship.crewProtection, 35);
   assert.ok(longship.seaworthiness >= 9);
   assert.ok(longship.topSpeedRad > shipStatsForSlug("brigantine").topSpeedRad);
 });
 
-test("the Nusantaran outrigger is a seaworthy regional arrow ship and trader", () => {
+test("the Nusantaran outrigger is a seaworthy exposed regional trader", () => {
   const outrigger = shipStatsForSlug("nusantaran-outrigger");
 
   assert.equal(shipLabelForSlug(outrigger.slug), "Nusantaran Outrigger");
   assert.equal(outrigger.propulsion, SHIP_PROPULSION_SAIL);
-  assert.equal(outrigger.navalWeaponKind, NAVAL_WEAPON_ARROW);
   assert.equal(outrigger.cannons, 0);
+  assert.equal(outrigger.crewProtection, 5);
   assert.ok(outrigger.cargoCapacity > shipStatsForSlug("small-junk").cargoCapacity);
   assert.ok(outrigger.cargoCapacity < shipStatsForSlug("medium-junk").cargoCapacity);
   assert.ok(outrigger.seaworthiness >= shipStatsForSlug("large-junk").seaworthiness);
@@ -305,7 +305,7 @@ test("the Kelulus is a fast compact Malay oar-and-sail raider", () => {
   assert.equal(shipLabelForSlug(kelulus.slug), "Kelulus");
   assert.equal(kelulus.propulsion, SHIP_PROPULSION_OAR_SAIL);
   assert.equal(kelulus.cannons, 0);
-  assert.equal(kelulus.navalWeaponKind, NAVAL_WEAPON_ARROW);
+  assert.equal(kelulus.crewProtection, 15);
   assert.equal(kelulus.crewCapacity, 11);
   assert.ok(kelulus.topSpeedRad > smallJunk.topSpeedRad);
   assert.ok(kelulus.turnRateRad > smallJunk.turnRateRad);

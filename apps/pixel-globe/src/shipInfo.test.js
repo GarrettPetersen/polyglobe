@@ -109,11 +109,11 @@ test("ship comparison armament avoids repeating long gun summaries", () => {
     difference: 12
   });
 
-  const arrowComparison = createShipComparisonView("small-cog", "viking-longship");
-  assert.deepEqual(shipComparisonArmamentRow(arrowComparison), {
-    label: "WEAPON",
-    candidate: "ARROWS",
-    current: "2 GUNS",
+  const cannonlessComparison = createShipComparisonView("small-cog", "viking-longship");
+  assert.deepEqual(shipComparisonArmamentRow(cannonlessComparison), {
+    label: "GUNS",
+    candidate: "0",
+    current: "2",
     difference: -2
   });
   assert.throws(
@@ -144,8 +144,9 @@ test("ship specifications explain oar and combined propulsion", () => {
   assert.equal(canoe.propulsionSummary, "OAR / NO DEAD ZONE");
   assert.equal(galley.propulsionSummary, "OAR + SAIL / ROW TO BOOST");
   assert.equal(longship.propulsionSummary, "OAR + SAIL / ROW TO BOOST");
-  assert.equal(longship.armamentLabel, "ARROWS");
-  assert.equal(longship.armamentSummary, "");
+  assert.equal(longship.armamentLabel, "GUNS");
+  assert.equal(longship.armamentSummary, "0/0");
+  assert.equal(longship.crewProtection, 35);
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {

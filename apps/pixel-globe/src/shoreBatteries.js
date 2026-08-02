@@ -1,8 +1,12 @@
+import { applyCrewWounds, crewWoundsForceSurrender } from "./combatWounds.js";
+
 export const SHORE_BATTERY_DISABLE_DAYS = 3;
 export const SHORE_BATTERY_DISABLE_MINUTES = SHORE_BATTERY_DISABLE_DAYS * 24 * 60;
 export const SHORE_BATTERY_RANGE_PX = 76;
 export const SHORE_BATTERY_RELOAD_SECONDS = 14;
 export const SHORE_BATTERY_HIT_POINTS_PER_GUN = 8;
+export const SHORE_BATTERY_GARRISON_PER_GUN = 6;
+export const SHORE_BATTERY_CREW_PROTECTION = 65;
 export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
 
 const DISABLED_UNTIL_PREFIX = "shoreBatteryDisabledUntil:";
@@ -29,6 +33,7 @@ export function createShoreBatteryState(city, flags, simMinute) {
   assertMinute(simMinute);
   const gunCount = shoreBatteryGunCount(city);
   const maxHitPoints = gunCount * SHORE_BATTERY_HIT_POINTS_PER_GUN;
+  const maxGarrison = gunCount * SHORE_BATTERY_GARRISON_PER_GUN;
   const disabledUntilMinute = readDisabledUntil(flags, city);
   const disabled = disabledUntilMinute > simMinute;
   return {
@@ -40,6 +45,8 @@ export function createShoreBatteryState(city, flags, simMinute) {
     cultureType: city.cityType || null,
     gunCount,
     maxHitPoints,
+    maxGarrison,
+    woundedGarrison: 0,
     hitPoints: disabled ? 0 : maxHitPoints,
     disabledUntilMinute: disabled ? disabledUntilMinute : null,
     disabledByShipLabel: disabled ? readDisabledByShip(flags, city) : null,
@@ -62,6 +69,7 @@ export function updateShoreBatteryState(state, flags, simMinute, dt) {
   state.disabledUntilMinute = null;
   state.disabledByShipLabel = null;
   state.hitPoints = state.maxHitPoints;
+  state.woundedGarrison = 0;
   state.engagedTargetIds.clear();
   state.playerHailed = false;
   return true;
@@ -78,13 +86,41 @@ export function damageShoreBattery(state, flags, damage, simMinute, attackerShip
   }
   state.hitPoints = Math.max(0, state.hitPoints - damage);
   if (state.hitPoints > 0) return { hitPoints: state.hitPoints, disabled: false, newlyDisabled: false };
-  state.disabledUntilMinute = simMinute + SHORE_BATTERY_DISABLE_MINUTES;
-  state.disabledByShipLabel = attackerShipLabel.trim();
-  flags[disabledFlagKey(state.portId)] = state.disabledUntilMinute;
-  flags[disabledByShipFlagKey(state.portId)] = state.disabledByShipLabel;
-  state.engagedTargetIds.clear();
-  state.playerHailed = false;
+  disableShoreBattery(state, flags, simMinute, attackerShipLabel);
   return { hitPoints: 0, disabled: true, newlyDisabled: true };
+}
+
+export function damageShoreBatteryCrew(
+  state,
+  flags,
+  { crewDamage, crewHitChance },
+  simMinute,
+  attackerShipLabel,
+  random = Math.random
+) {
+  assertState(state);
+  assertFlags(flags);
+  assertMinute(simMinute);
+  assertAttackerShipLabel(attackerShipLabel);
+  if (shoreBatteryIsDisabled(state, simMinute)) {
+    return { woundedGarrison: state.woundedGarrison, newWounds: 0, disabled: true, newlyDisabled: false };
+  }
+  const result = applyCrewWounds({
+    totalCrew: state.maxGarrison,
+    woundedCrew: state.woundedGarrison,
+    crewDamage,
+    hitChance: crewHitChance,
+    crewProtection: SHORE_BATTERY_CREW_PROTECTION,
+    random
+  });
+  state.woundedGarrison = result.woundedCrew;
+  const surrendered = crewWoundsForceSurrender(state.maxGarrison, state.woundedGarrison);
+  if (!surrendered) {
+    return { ...result, disabled: false, newlyDisabled: false };
+  }
+  state.hitPoints = 0;
+  disableShoreBattery(state, flags, simMinute, attackerShipLabel);
+  return { ...result, disabled: true, newlyDisabled: true };
 }
 
 export function shoreBatteryRecoveryStatus(state, simMinute) {
@@ -105,7 +141,15 @@ export function shoreBatteryIsDisabled(state, simMinute) {
 }
 
 export function shoreBatteryCanFire(state, simMinute) {
-  return !shoreBatteryIsDisabled(state, simMinute) && state.cooldownSeconds <= 0;
+  return !shoreBatteryIsDisabled(state, simMinute) &&
+    state.maxGarrison - state.woundedGarrison > 0 && state.cooldownSeconds <= 0;
+}
+
+export function clearShoreBatteryCombatWounds(state) {
+  assertState(state);
+  if (state.woundedGarrison === 0) return false;
+  state.woundedGarrison = 0;
+  return true;
 }
 
 export function shoreBatteryDisabledNotice(state) {
@@ -197,6 +241,15 @@ function disabledByShipFlagKey(portId) {
   return `${DISABLED_BY_SHIP_PREFIX}${portId}`;
 }
 
+function disableShoreBattery(state, flags, simMinute, attackerShipLabel) {
+  state.disabledUntilMinute = simMinute + SHORE_BATTERY_DISABLE_MINUTES;
+  state.disabledByShipLabel = attackerShipLabel.trim();
+  flags[disabledFlagKey(state.portId)] = state.disabledUntilMinute;
+  flags[disabledByShipFlagKey(state.portId)] = state.disabledByShipLabel;
+  state.engagedTargetIds.clear();
+  state.playerHailed = false;
+}
+
 function assertAttackerShipLabel(value) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error("Shore battery damage requires a specific attacking ship label");
@@ -222,6 +275,11 @@ function assertState(state) {
   if (!state || typeof state.id !== "string" || typeof state.cityName !== "string" || !state.cityName.trim() ||
       !(state.engagedTargetIds instanceof Set)) {
     throw new Error("Invalid shore battery state");
+  }
+  if (!Number.isInteger(state.maxGarrison) || state.maxGarrison <= 0 ||
+      !Number.isInteger(state.woundedGarrison) || state.woundedGarrison < 0 ||
+      state.woundedGarrison >= state.maxGarrison) {
+    throw new Error(`Invalid shore battery garrison: ${state?.woundedGarrison}/${state?.maxGarrison}`);
   }
 }
 

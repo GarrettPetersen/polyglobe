@@ -142,7 +142,12 @@ import {
   portugueseControlledCargo,
   tradeTerms
 } from "./tradePolicy.js";
-import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
+import {
+  VIKING_BOWS_ITEM_ID,
+  isPortableWeaponItemId,
+  portableWeaponCombatRating,
+  regionalStarterPortableWeaponItemIds
+} from "./portableWeapons.js";
 import {
   PORT_CONQUEST_MIN_CREW,
   createPortConquestMemory,
@@ -246,7 +251,7 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 55;
+export const GAME_STATE_VERSION = 56;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -404,7 +409,12 @@ export function createGameState({
       shipStats === null ? FRESH_WATER_CAPACITY : 0
     ),
     inventory: {
-      items: {},
+      items: normalizedPlayerCharacter && shipStats
+        ? Object.fromEntries(regionalStarterPortableWeaponItemIds({
+            factionId: normalizedPlayerCharacter.nationalityId || NEUTRAL_FACTION_ID,
+            shipSlug: shipStats.slug
+          }).map((itemId) => [itemId, 1]))
+        : {},
       fishingNetId: BASIC_FISHING_NET_ID,
       cannonEquipmentId: STANDARD_CANNON_EQUIPMENT_ID,
       whaleHarpoonId: resolvedCampaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE
@@ -523,7 +533,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -595,11 +605,15 @@ export function migrateGameState(state, shipStats) {
       ...state.ship,
       slug: shipStats.slug,
       baseCargoCapacity: shipStats.cargoCapacity,
-      mass: shipStats.mass,
-      navalWeaponKind: shipStats.navalWeaponKind
+      mass: shipStats.mass
     } : state.ship,
     inventory: {
       ...state.inventory,
+      items: migratePortableWeaponItems(
+        state.inventory?.items,
+        shipStats?.slug,
+        migratedPlayerCharacter?.nationalityId || NEUTRAL_FACTION_ID
+      ),
       whaleHarpoonId: state.inventory?.whaleHarpoonId ?? null
     },
     relations: {
@@ -714,7 +728,6 @@ function reconcileLoadedShipLoadout(state, shipStats) {
   state.ship.cannons = Math.min(state.ship.cannons, shipStats.cannons);
   state.ship.baseCargoCapacity = shipStats.cargoCapacity;
   state.ship.mass = shipStats.mass;
-  state.ship.navalWeaponKind = shipStats.navalWeaponKind;
   state.cargoCapacity = effectivePlayerShipStats(state, shipStats).cargoCapacity;
   const plan = selectedShipLoadoutPlan(state, shipStats);
   state.ship.loadoutTargets = plan;
@@ -1254,7 +1267,6 @@ export function setPlayerShipStats(state, stats) {
   state.ship.cannonCapacity = stats.cannons;
   state.ship.baseCargoCapacity = stats.cargoCapacity;
   state.ship.mass = stats.mass;
-  state.ship.navalWeaponKind = stats.navalWeaponKind;
   state.ship.crew = Math.max(crewFloor, Math.min(state.ship.crew, plan.crew));
   state.ship.cannons = Math.min(state.ship.cannons, plan.cannons);
   state.ship.loadoutTargets = plan;
@@ -2841,16 +2853,6 @@ export function receiveRescuedTravelerReunionReward(state, city, {
   return { rewardDoubloons, item };
 }
 
-export function playerAssaultCargoBonus(state) {
-  assertGameState(state);
-  const matchlocks = Math.floor(state.cargo[MATCHLOCKS_GOOD_ID] || 0);
-  const gunpowder = Math.floor(state.cargo[GUNPOWDER_GOOD_ID] || 0);
-  const matchlockBonus = Math.min(0.08, matchlocks * 0.012);
-  const powderBonus = Math.min(0.04, gunpowder * 0.006);
-  const combinedArmsBonus = matchlocks > 0 && gunpowder > 0 ? 0.03 : 0;
-  return Math.min(0.15, matchlockBonus + powderBonus + combinedArmsBonus);
-}
-
 export function playerPerkTotals(state) {
   assertGameState(state);
   return gameStatePerkTotals(state);
@@ -3390,9 +3392,12 @@ export function playerShipIsWarship(state) {
   if (!state?.ship) return false;
   const ship = state.ship;
   assertPlayerShipState(ship);
+  const portableItemIds = Object.entries(state.inventory?.items || {})
+    .filter(([itemId, count]) => count > 0 && isPortableWeaponItemId(itemId))
+    .map(([itemId]) => itemId);
   return ship.cannons >= 8 ||
     (ship.cannonCapacity >= 16 && ship.cannons >= 4) ||
-    (ship.navalWeaponKind === NAVAL_WEAPON_ARROW && ship.mass >= 100);
+    (ship.mass >= 100 && portableWeaponCombatRating(portableItemIds) >= 0.35);
 }
 
 export function factionSafePassageToll(state) {
@@ -4333,8 +4338,7 @@ export function isCaptureCommissionQuest(quest) {
 export function capturePortMissionEligibility(state) {
   assertGameState(state);
   const ship = state.ship;
-  const cannonArmed = ship?.navalWeaponKind !== NAVAL_WEAPON_ARROW &&
-    (ship?.cannons || 0) >= CAPTURE_PORT_MISSION_MIN_CANNONS;
+  const cannonArmed = (ship?.cannons || 0) >= CAPTURE_PORT_MISSION_MIN_CANNONS;
   const largeWarship = (ship?.crewCapacity || 0) >= PORT_CONQUEST_MIN_CREW;
   const enoughCrew = (ship?.crew || 0) >= PORT_CONQUEST_MIN_CREW;
   return {
@@ -4864,8 +4868,7 @@ function createPlayerShipState(stats) {
     cannons: 0,
     cannonCapacity: stats.cannons,
     baseCargoCapacity: stats.cargoCapacity,
-    mass: stats.mass,
-    navalWeaponKind: stats.navalWeaponKind
+    mass: stats.mass
   };
 }
 
@@ -5896,12 +5899,24 @@ function assertPlayerShipState(ship) {
     throw new Error(`Invalid ship base cargo capacity: ${ship.baseCargoCapacity}`);
   }
   if (!Number.isInteger(ship.mass) || ship.mass <= 0) throw new Error(`Invalid ship mass: ${ship.mass}`);
-  if (ship.navalWeaponKind !== null && typeof ship.navalWeaponKind !== "string") {
-    throw new Error(`Invalid ship naval weapon kind: ${ship.navalWeaponKind}`);
-  }
   if (ship.loadoutId !== null && typeof ship.loadoutId !== "string") {
     throw new Error(`Invalid ship loadout id: ${ship.loadoutId}`);
   }
+}
+
+function migratePortableWeaponItems(savedItems, shipSlug, factionId) {
+  const items = savedItems && typeof savedItems === "object" && !Array.isArray(savedItems)
+    ? { ...savedItems }
+    : {};
+  if (!shipSlug || !factionId || Object.entries(items).some(([itemId, count]) => (
+    count > 0 && isPortableWeaponItemId(itemId)
+  ))) return items;
+  const itemId = shipSlug === "viking-longship"
+    ? VIKING_BOWS_ITEM_ID
+    : regionalStarterPortableWeaponItemIds({ factionId, shipSlug })[0];
+  if (!itemId) throw new Error(`No migrated portable weapon for ${factionId}/${shipSlug}`);
+  items[itemId] = 1;
+  return items;
 }
 
 function assertSafePassageTable(table) {

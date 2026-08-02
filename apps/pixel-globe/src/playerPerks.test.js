@@ -5,7 +5,6 @@ import {
   createGameState,
   maybeGrantDefeatedShipPerkItem,
   maybeGrantMissionPerkItem,
-  playerAssaultCargoBonus,
   refreshPlayerPerkCargoCapacity
 } from "./gameState.js";
 import { gameStatePerkTotals } from "./playerPerks.js";
@@ -24,6 +23,7 @@ function perkState() {
     playerCharacter: {
       id: "perk-test-captain",
       name: "Perk Test Captain",
+      nationalityId: "england",
       expressions: [{ id: "neutral" }],
       skillIds: ["skilled-chef"]
     }
@@ -68,11 +68,12 @@ test("hull sheathing and a named shipwright share the resistance perk total", ()
   assert.equal(gameStatePerkTotals(state).hullRepairHitPointsPerDay, 10);
 });
 
-test("matchlocks and gunpowder aboard improve a marine assault together", () => {
+test("portable matchlocks improve a marine assault without trade cargo", () => {
   const state = perkState();
+  state.inventory.items["matchlock-arquebuses"] = 1;
   state.cargo.matchlocks = 5;
   state.cargo.gunpowder = 3;
-  assert.equal(playerAssaultCargoBonus(state), 0.108);
+  assert.equal(gameStatePerkTotals(state).assaultChanceBonus, 0.1);
 });
 
 test("harder missions can award a persistent unowned item", () => {

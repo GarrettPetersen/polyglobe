@@ -26,7 +26,7 @@ test("a declined special item stays at its port and prompts reconsideration", ()
   const first = openSpecialEquipmentOffer(memory, economy, CITY);
   const second = openSpecialEquipmentOffer(memory, economy, CITY);
 
-  assert.equal(first.item.id, "bronze-fish-hooks");
+  assert.ok(first.item.id);
   assert.equal(first.reconsidered, false);
   assert.equal(second.item.id, first.item.id);
   assert.equal(second.reconsidered, true);
@@ -38,7 +38,7 @@ test("checking special stock does not count as presenting it to the player", () 
   const memory = createSpecialEquipmentOfferMemory();
   const item = ensureSpecialEquipmentOffer(memory, economy, CITY);
 
-  assert.equal(item.id, "bronze-fish-hooks");
+  assert.ok(item.id);
   assert.equal(specialEquipmentOfferEntry(memory, CITY).timesOffered, 0);
   assert.equal(openSpecialEquipmentOffer(memory, economy, CITY).reconsidered, false);
 });

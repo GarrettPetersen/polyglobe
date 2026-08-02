@@ -104,13 +104,14 @@ export const TRADE_GOODS = Object.freeze([
     initialImportStockRatio: 0.08
   }),
   good(SULFUR_GOOD_ID, "Sulfur", 30, "material", { unitSize: 2, initialImportStockRatio: 0.08 }),
-  good("arms", "Arms", 50, "manufactured", { unitSize: 2 }),
+  // Keep the stable id for saves and route bakes; the good is non-firearm weaponry.
+  good("arms", "Pikes & Blades", 65, "manufactured", { unitSize: 2 }),
   good(GUNPOWDER_GOOD_ID, "Gunpowder", 44, "manufactured", {
     unitSize: 2,
     initialImportStockRatio: 0.08,
     criticalStockPricing: true
   }),
-  good(MATCHLOCKS_GOOD_ID, "Matchlocks", 88, "manufactured", {
+  good(MATCHLOCKS_GOOD_ID, "Matchlocks", 900, "manufactured", {
     unitSize: 2,
     initialImportStockRatio: 0.08
   }),

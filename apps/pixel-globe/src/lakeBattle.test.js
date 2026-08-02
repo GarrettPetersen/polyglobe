@@ -13,6 +13,7 @@ import {
   createLakeBattle as createRuntimeLakeBattle,
   drainLakeBattleEvents,
   fireLakeBattleBroadside,
+  fireLakeBattlePortableWeapons,
   lakeBattleBroadsideDirection,
   lakeBattleHeadingVector,
   lakeBattleShipFitsInWater,
@@ -21,6 +22,10 @@ import {
   resizeLakeBattle,
   updateLakeBattle
 } from "./lakeBattle.js";
+import {
+  MARINERS_BOWS_ITEM_ID,
+  VIKING_BOWS_ITEM_ID
+} from "./portableWeapons.js";
 import {
   SHORE_BATTERY_HIT_POINTS_PER_GUN,
   SHORE_BATTERY_RELOAD_SECONDS
@@ -47,12 +52,12 @@ function createLakeBattle(options) {
   return createRuntimeLakeBattle({ ...options, shipFootprints: TEST_SHIP_FOOTPRINTS });
 }
 
-test("lake battle roster contains every armed hull including native canoes", () => {
+test("lake battle roster contains every hull because portable arms are not hull-bound", () => {
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("brigantine"));
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("viking-longship"));
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("polynesian-voyaging-canoe"));
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("mesoamerican-dugout-canoe"));
-  assert.equal(LAKE_BATTLE_SHIP_SLUGS.includes("fishing-lugger"), false);
+  assert.equal(LAKE_BATTLE_SHIP_SLUGS.includes("fishing-lugger"), true);
   assert.ok(LAKE_BATTLE_ENEMY_SLUGS.includes(LAKE_BATTLE_CITY_SLUG));
   assert.equal(LAKE_BATTLE_SHIP_SLUGS.includes(LAKE_BATTLE_CITY_SLUG), false);
 });
@@ -84,7 +89,7 @@ test("a city is a stationary coastal enemy with a two-shot shore battery", () =>
   assert.ok(battle.enemy.x >= 36 && battle.enemy.x <= battle.width - 36);
 });
 
-test("native canoe archers automatically fire in any direction", () => {
+test("native canoe crews automatically fire portable bows in any direction", () => {
   for (const playerSlug of ["polynesian-voyaging-canoe", "mesoamerican-dugout-canoe"]) {
     const battle = createLakeBattle({
       width: 455,
@@ -93,7 +98,8 @@ test("native canoe archers automatically fire in any direction", () => {
       enemySlug: "caravel"
     });
 
-    assert.equal(battle.player.weapon.kind, "arrow");
+    assert.equal(battle.player.weapon, null);
+    assert.deepEqual(battle.player.portableWeaponItemIds, [MARINERS_BOWS_ITEM_ID]);
     assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), false);
     const dx = battle.enemy.x - battle.player.x;
     const dy = battle.enemy.y - battle.player.y;
@@ -103,13 +109,13 @@ test("native canoe archers automatically fire in any direction", () => {
     battle.enemy.cooldowns.port = 100;
     battle.enemy.cooldowns.starboard = 100;
     battle.player.headingRad = Math.atan2(dy, dx);
-    updateLakeBattle(battle, 1 / 60, {});
+    assert.equal(fireLakeBattlePortableWeapons(battle, LAKE_BATTLE_PLAYER_ID), true);
     const arrows = battle.projectiles.filter((projectile) => (
       projectile.ownerId === LAKE_BATTLE_PLAYER_ID && projectile.kind === "arrow"
     ));
-    assert.ok(arrows.length >= 2);
+    assert.ok(arrows.length >= 1);
     assert.ok(arrows.every((projectile) => projectile.targetId === LAKE_BATTLE_ENEMY_ID));
-    assert.ok(battle.player.cooldowns.atWill > 0);
+    assert.ok(battle.player.portableWeaponCooldowns[MARINERS_BOWS_ITEM_ID] > 0);
     assert.equal(battle.player.cooldowns.port, 0);
     assert.equal(battle.player.cooldowns.starboard, 0);
     assert.equal(battle.cannonSmokeBursts.length, 0);
@@ -127,7 +133,8 @@ test("a lake battle is transient local state with two selected hulls", () => {
 
   assert.equal(battle.phase, LAKE_BATTLE_PHASE_ACTIVE);
   assert.equal(battle.player.slug, "viking-longship");
-  assert.equal(battle.player.weapon.kind, "arrow");
+  assert.equal(battle.player.weapon, null);
+  assert.deepEqual(battle.player.portableWeaponItemIds, [VIKING_BOWS_ITEM_ID]);
   assert.equal(battle.enemy.slug, "galleon");
   assert.equal(battle.enemy.weapon.kind, "cannon");
   assert.equal("gameState" in battle, false);

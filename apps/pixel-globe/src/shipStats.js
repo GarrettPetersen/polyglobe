@@ -1,5 +1,4 @@
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
-import { NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
 import { damageResistanceRollSucceeds } from "./perkSystem.js";
 
 export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
@@ -30,7 +29,47 @@ const SHIP_PROPULSIONS = new Set([
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_OAR_SAIL
 ]);
-const NAVAL_WEAPON_KINDS = new Set([NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON]);
+const SHIP_CREW_PROTECTION = Object.freeze({
+  "fishing-lugger": 10,
+  "small-cog": 25,
+  dhow: 5,
+  "ocean-dhow": 15,
+  sampan: 8,
+  "large-junk": 60,
+  "pirate-brig": 45,
+  galleon: 60,
+  fluyt: 35,
+  carrack: 50,
+  "ship-of-the-line": 65,
+  "medium-junk": 45,
+  xebec: 30,
+  caravel: 30,
+  "square-rigged-caravel": 25,
+  brigantine: 35,
+  "small-junk": 30,
+  felucca: 5,
+  cutter: 15,
+  ketch: 15,
+  "mediterranean-galley": 20,
+  galleass: 55,
+  "joseon-turtle-ship": 100,
+  "joseon-panokseon": 65,
+  "japanese-kuribune": 8,
+  "japanese-kobaya": 20,
+  "japanese-sekibune": 45,
+  "japanese-atakebune": 70,
+  "spanish-nao": 35,
+  "portuguese-carrack": 55,
+  "viking-longship": 35,
+  "polynesian-voyaging-canoe": 5,
+  "mesoamerican-dugout-canoe": 0,
+  "nusantaran-outrigger": 5,
+  kelulus: 15,
+  penjajap: 25,
+  lancaran: 40,
+  "royal-lancaran": 55,
+  "ottoman-coastal-trader": 30
+});
 
 const DEG_TO_RAD = Math.PI / 180;
 const SHIP_MASS_PER_HIT_POINT = 10;
@@ -101,16 +140,16 @@ const rawShipStats = [
   stats("ketch", 4, 0.024, 0.035, 34, 2.85, 75, 60, 6),
   stats(MEDITERRANEAN_GALLEY_SLUG, 12, 0.026, 0.040, 38, 2.55, 210, 90, 5, SHIP_PROPULSION_OAR_SAIL),
   // A galleass trades a galley's speed and agility for a much larger hull and gun deck.
-  stats(GALLEASS_SLUG, 36, 0.017, 0.034, 42, 1.65, 420, 160, 7, SHIP_PROPULSION_OAR_SAIL, null, 0, 60),
-  stats("joseon-turtle-ship", 30, 0.017, 0.034, 50, 1.85, 450, 90, 9, SHIP_PROPULSION_OAR_SAIL, null, 40),
+  stats(GALLEASS_SLUG, 36, 0.017, 0.034, 42, 1.65, 420, 160, 7, SHIP_PROPULSION_OAR_SAIL, 0, 60),
+  stats("joseon-turtle-ship", 30, 0.017, 0.034, 50, 1.85, 450, 90, 9, SHIP_PROPULSION_OAR_SAIL, 40),
   stats("joseon-panokseon", 20, 0.020, 0.035, 52, 2.20, 280, 150, 7, SHIP_PROPULSION_OAR_SAIL),
   stats("japanese-kuribune", 0, 0.028, 0.034, 42, 3.30, 50, 55, 5, SHIP_PROPULSION_OAR_SAIL),
-  stats("japanese-kobaya", 0, 0.027, 0.038, 42, 3.15, 90, 65, 6, SHIP_PROPULSION_OAR_SAIL, NAVAL_WEAPON_ARROW),
-  stats("japanese-sekibune", 0, 0.023, 0.038, 46, 2.55, 170, 110, 6, SHIP_PROPULSION_OAR_SAIL, NAVAL_WEAPON_ARROW),
+  stats("japanese-kobaya", 0, 0.027, 0.038, 42, 3.15, 90, 65, 6, SHIP_PROPULSION_OAR_SAIL),
+  stats("japanese-sekibune", 0, 0.023, 0.038, 46, 2.55, 170, 110, 6, SHIP_PROPULSION_OAR_SAIL),
   stats("japanese-atakebune", 6, 0.015, 0.032, 54, 1.70, 380, 170, 5, SHIP_PROPULSION_OAR_SAIL),
   stats("spanish-nao", 8, 0.017, 0.034, 54, 1.90, 130, 180, 8),
   stats("portuguese-carrack", 22, 0.013, 0.036, 58, 1.45, 310, 440, 9),
-  stats("viking-longship", 0, 0.030, 0.043, 55, 2.75, 180, 90, 9, SHIP_PROPULSION_OAR_SAIL, NAVAL_WEAPON_ARROW),
+  stats("viking-longship", 0, 0.030, 0.043, 55, 2.75, 180, 90, 9, SHIP_PROPULSION_OAR_SAIL),
   stats(
     "polynesian-voyaging-canoe",
     0,
@@ -121,8 +160,7 @@ const rawShipStats = [
     45,
     42,
     7,
-    SHIP_PROPULSION_SAIL,
-    NAVAL_WEAPON_ARROW
+    SHIP_PROPULSION_SAIL
   ),
   stats(
     "mesoamerican-dugout-canoe",
@@ -134,10 +172,9 @@ const rawShipStats = [
     30,
     16,
     3,
-    SHIP_PROPULSION_OAR,
-    NAVAL_WEAPON_ARROW
+    SHIP_PROPULSION_OAR
   ),
-  stats("nusantaran-outrigger", 0, 0.022, 0.035, 48, 2.50, 100, 130, 8, SHIP_PROPULSION_SAIL, NAVAL_WEAPON_ARROW),
+  stats("nusantaran-outrigger", 0, 0.022, 0.035, 48, 2.50, 100, 130, 8, SHIP_PROPULSION_SAIL),
   stats(
     "kelulus",
     0,
@@ -149,13 +186,12 @@ const rawShipStats = [
     65,
     6,
     SHIP_PROPULSION_OAR_SAIL,
-    NAVAL_WEAPON_ARROW,
     0,
     11
   ),
-  stats("penjajap", 2, 0.028, 0.042, 44, 3.05, 115, 45, 6, SHIP_PROPULSION_OAR_SAIL, null, 0, 14),
-  stats("lancaran", 6, 0.024, 0.041, 48, 2.60, 195, 95, 7, SHIP_PROPULSION_OAR_SAIL, null, 0, 27),
-  stats("royal-lancaran", 10, 0.019, 0.040, 50, 2.20, 305, 160, 8, SHIP_PROPULSION_OAR_SAIL, null, 0, 43),
+  stats("penjajap", 2, 0.028, 0.042, 44, 3.05, 115, 45, 6, SHIP_PROPULSION_OAR_SAIL, 0, 14),
+  stats("lancaran", 6, 0.024, 0.041, 48, 2.60, 195, 95, 7, SHIP_PROPULSION_OAR_SAIL, 0, 27),
+  stats("royal-lancaran", 10, 0.019, 0.040, 50, 2.20, 305, 160, 8, SHIP_PROPULSION_OAR_SAIL, 0, 43),
   stats("ottoman-coastal-trader", 8, 0.017, 0.035, 55, 1.90, 170, 240, 7)
 ];
 
@@ -232,7 +268,6 @@ function stats(
   cargoCapacity,
   seaworthiness,
   propulsion = SHIP_PROPULSION_SAIL,
-  navalWeaponKind = null,
   armor = 0,
   crewCapacityOverride = null
 ) {
@@ -247,9 +282,9 @@ function stats(
   assertInteger(`${slug}.seaworthiness`, seaworthiness, 1);
   if (seaworthiness > 10) throw new Error(`Invalid ${slug}.seaworthiness: ${seaworthiness}`);
   if (!SHIP_PROPULSIONS.has(propulsion)) throw new Error(`Invalid ${slug}.propulsion: ${propulsion}`);
-  if (navalWeaponKind !== null && !NAVAL_WEAPON_KINDS.has(navalWeaponKind)) {
-    throw new Error(`Invalid ${slug}.navalWeaponKind: ${navalWeaponKind}`);
-  }
+  const crewProtection = SHIP_CREW_PROTECTION[slug];
+  assertInteger(`${slug}.crewProtection`, crewProtection, 0);
+  if (crewProtection > 100) throw new Error(`Invalid ${slug}.crewProtection: ${crewProtection}`);
   assertInteger(`${slug}.armor`, armor, 0);
   if (armor > 75) throw new Error(`Invalid ${slug}.armor: ${armor}`);
   if (crewCapacityOverride !== null) {
@@ -279,8 +314,8 @@ function stats(
     cargoCapacity,
     seaworthiness,
     armor,
+    crewProtection,
     propulsion,
-    navalWeaponKind
   });
 }
 

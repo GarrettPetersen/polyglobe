@@ -17,7 +17,8 @@ export function createCannonSmokeBurst(projectile) {
     directionY: dy / length,
     age: 0,
     ttl: CANNON_SMOKE_TTL_SECONDS,
-    seed: projectile.seed >>> 0
+    seed: projectile.seed >>> 0,
+    scale: projectile.smokeScale || 1
   };
 }
 
@@ -38,15 +39,16 @@ export function advanceCannonSmokeBursts(bursts, dt) {
 export function cannonSmokePixels(burst) {
   validateCannonSmokeBurst(burst);
   const pixels = [];
-  for (let index = 0; index < PARTICLE_COUNT; index++) {
+  const particleCount = Math.max(4, Math.round(PARTICLE_COUNT * burst.scale));
+  for (let index = 0; index < particleCount; index++) {
     const random = smokeRandom(burst.seed, index);
     const delay = index < 4 ? 0 : random[0] * 0.16;
     if (burst.age < delay) continue;
     const life = clamp((burst.age - delay) / (burst.ttl - delay), 0, 1);
-    const outward = 2 + life * 5 + (random[1] * 2 - 1) * (1.5 + life * 10);
-    const sideways = (random[2] * 2 - 1) * (1.5 + life * 8);
-    const rise = life * (3 + random[3] * 6);
-    const size = smokeParticleSize(life, random[1], index);
+    const outward = (2 + life * 5 + (random[1] * 2 - 1) * (1.5 + life * 10)) * burst.scale;
+    const sideways = (random[2] * 2 - 1) * (1.5 + life * 8) * burst.scale;
+    const rise = life * (3 + random[3] * 6) * burst.scale;
+    const size = Math.max(1, Math.round(smokeParticleSize(life, random[1], index) * burst.scale));
     pixels.push({
       x: Math.round(burst.x + burst.directionX * outward - burst.directionY * sideways - size / 2),
       y: Math.round(burst.y + burst.directionY * outward + burst.directionX * sideways - rise - size / 2),
@@ -65,7 +67,7 @@ function smokeParticleSize(life, sizeNoise, index) {
 }
 
 function validateCannonProjectile(projectile) {
-  if (!projectile || projectile.kind !== NAVAL_WEAPON_CANNON) {
+  if (!projectile || (projectile.kind !== NAVAL_WEAPON_CANNON && !(projectile.smokeScale > 0))) {
     throw new Error(`Cannon smoke requires a cannon projectile: ${projectile?.kind}`);
   }
   for (const key of ["startX", "startY", "targetX", "targetY", "seed"]) {
@@ -75,12 +77,13 @@ function validateCannonProjectile(projectile) {
 
 function validateCannonSmokeBurst(burst) {
   if (!burst || typeof burst !== "object") throw new Error("Invalid cannon smoke burst");
-  for (const key of ["x", "y", "directionX", "directionY", "age", "ttl", "seed"]) {
+  for (const key of ["x", "y", "directionX", "directionY", "age", "ttl", "seed", "scale"]) {
     if (!Number.isFinite(burst[key])) throw new Error(`Invalid cannon smoke burst ${key}: ${burst[key]}`);
   }
   if (burst.age < 0 || burst.ttl <= 0 || burst.age > burst.ttl) {
     throw new Error(`Invalid cannon smoke lifetime: ${burst.age}/${burst.ttl}`);
   }
+  if (burst.scale <= 0 || burst.scale > 1) throw new Error(`Invalid cannon smoke scale: ${burst.scale}`);
   const directionLength = Math.hypot(burst.directionX, burst.directionY);
   if (Math.abs(directionLength - 1) > 1e-6) {
     throw new Error(`Cannon smoke direction must be normalized: ${directionLength}`);

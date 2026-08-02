@@ -1,13 +1,19 @@
 import {
   accurateBroadsideShotIndex,
   advanceCannonReload,
-  navalArrowVolleyCount,
-  navalWeaponFiresAtWill,
   navalWeaponForShip,
   navalWeaponUsesBroadside,
-  NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON
 } from "./navalWeapons.js";
+import {
+  MARINERS_BOWS_ITEM_ID,
+  PORTABLE_PROJECTILE_CANNON,
+  VIKING_BOWS_ITEM_ID,
+  YUMI_ITEM_ID,
+  activePortableWeaponAssignments,
+  portableWeaponItemById
+} from "./portableWeapons.js";
+import { activeCombatCrew, applyCrewWounds, crewWoundsForceSurrender } from "./combatWounds.js";
 import {
   STANDARD_CANNON_EQUIPMENT_ID,
   cannonWeaponWithEquipment
@@ -62,7 +68,6 @@ export const LAKE_BATTLE_DEFAULT_SEED = 0x4c414b45;
 export const LAKE_BATTLE_CITY_SLUG = "city";
 export const LAKE_BATTLE_WIND = Object.freeze({ directionRad: Math.PI * 0.69, strength: 0.54 });
 export const LAKE_BATTLE_SHIP_SLUGS = Object.freeze(SHIP_STATS
-  .filter((stats) => stats.cannons > 0 || stats.navalWeaponKind !== null)
   .map((stats) => stats.slug));
 export const LAKE_BATTLE_ENEMY_SLUGS = Object.freeze([...LAKE_BATTLE_SHIP_SLUGS, LAKE_BATTLE_CITY_SLUG]);
 
@@ -72,13 +77,13 @@ const LAKE_BATTLE_CITY_STATS = Object.freeze({
   batteryGuns: 2,
   hitPoints: 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN,
   crewCapacity: 24,
+  crewProtection: 65,
   mass: 48,
   accelerationRad: 0,
   topSpeedRad: 0,
   turnRateRad: 0,
   upwindStallAngleRad: 0,
-  propulsion: null,
-  navalWeaponKind: NAVAL_WEAPON_CANNON
+  propulsion: null
 });
 
 const PIXELS_PER_RADIAN = 2450;
@@ -213,8 +218,8 @@ export function updateLakeBattle(state, dt, input = {}) {
 
   if (input.firePort) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "port");
   if (input.fireStarboard) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "starboard");
-  fireLakeBattleArrowVolley(state, LAKE_BATTLE_PLAYER_ID);
-  fireLakeBattleArrowVolley(state, LAKE_BATTLE_ENEMY_ID);
+  fireLakeBattlePortableWeapons(state, LAKE_BATTLE_PLAYER_ID);
+  fireLakeBattlePortableWeapons(state, LAKE_BATTLE_ENEMY_ID);
   fireEnemyWhenAligned(state);
   updateProjectiles(state, dt);
   updateEffects(state, dt);
@@ -319,64 +324,87 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
   return true;
 }
 
-export function fireLakeBattleArrowVolley(state, shipId) {
+export function fireLakeBattlePortableWeapons(state, shipId) {
   validateBattleState(state);
   if (state.phase !== LAKE_BATTLE_PHASE_ACTIVE) return false;
   const ship = lakeBattleShipById(state, shipId);
-  if (!navalWeaponFiresAtWill(ship.weapon) || ship.cooldowns.atWill > 0 || ship.hitPoints <= 0) return false;
+  if (ship.hitPoints <= 0 || ship.surrendered) return false;
   const target = ship.id === LAKE_BATTLE_PLAYER_ID ? state.enemy : state.player;
-  if (target.hitPoints <= 0) return false;
+  if (target.hitPoints <= 0 || target.surrendered) return false;
   const sourcePoint = lakeBattleCombatantPoint(ship);
   const targetPoint = lakeBattleCombatantAimPoint(state, target);
   const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
-  if (targetDistance <= 1e-6 || targetDistance > lakeBattleWeaponRange(ship)) return false;
+  if (targetDistance <= 1e-6) return false;
+  const assignments = activePortableWeaponAssignments({
+    ownedItemIds: ship.portableWeaponItemIds,
+    activeCrew: activeCombatCrew(ship.crew, ship.woundedCrew),
+    shipStats: ship.stats,
+    installedCannons: ship.stats.cannons,
+    targetDistancePx: targetDistance,
+    baseRangePx: CANNON_RANGE_PX
+  }).filter(({ weapon }) => (ship.portableWeaponCooldowns[weapon.itemId] || 0) <= 0);
+  if (assignments.length === 0) return false;
 
-  ship.cooldowns.atWill = ship.weapon.reloadSeconds;
-  const count = navalArrowVolleyCount(ship.stats.crewCapacity);
   const heading = lakeBattleHeadingVector(ship);
-  for (let index = 0; index < count; index++) {
-    const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
-    const seed = Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0;
-    const startX = sourcePoint.x + heading.x * lineT * 8;
-    const startY = sourcePoint.y + heading.y * lineT * 8;
-    const targetX = targetPoint.x + (nextBattleRandom(state) - 0.5) * 6;
-    const targetY = targetPoint.y + (nextBattleRandom(state) - 0.5) * 6;
-    const projectileRange = Math.hypot(targetX - startX, targetY - startY);
-    addLakeBattleProjectile(state, ship, {
-      id: state.projectileSerial++,
-      ownerId: ship.id,
-      targetId: target.id,
-      kind: ship.weapon.kind,
-      startX,
-      startY,
-      targetX,
-      targetY,
-      age: 0,
-      duration: Math.max(0.12, projectileRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
-      arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * ship.weapon.arcHeightScale,
-      damage: ship.weapon.damage,
-      seed
-    });
+  for (const { weapon, operators } of assignments) {
+    ship.portableWeaponCooldowns[weapon.itemId] = weapon.reloadSeconds;
+    for (let index = 0; index < operators; index++) {
+      const lineT = operators === 1 ? 0 : index / (operators - 1) - 0.5;
+      const seed = Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0;
+      const startX = sourcePoint.x + heading.x * lineT * 8;
+      const startY = sourcePoint.y + heading.y * lineT * 8;
+      const jitter = weapon.animationKind === "bullet" ? 2 : 3.5;
+      const targetX = targetPoint.x + (nextBattleRandom(state) - 0.5) * jitter * 2;
+      const targetY = targetPoint.y + (nextBattleRandom(state) - 0.5) * jitter * 2;
+      const projectileRange = Math.hypot(targetX - startX, targetY - startY);
+      addLakeBattleProjectile(state, ship, {
+        id: state.projectileSerial++,
+        ownerId: ship.id,
+        targetId: target.id,
+        kind: weapon.animationKind,
+        portable: true,
+        weaponId: weapon.itemId,
+        weapon,
+        startX,
+        startY,
+        targetX,
+        targetY,
+        age: 0,
+        duration: Math.max(0.12, projectileRange / (CANNON_SPEED_PX * weapon.speedScale)),
+        arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * weapon.arcHeightScale,
+        damage: weapon.hullDamage,
+        projectileSize: weapon.projectileSize,
+        smokeScale: weapon.smokeScale,
+        incendiary: weapon.incendiary === true,
+        seed
+      });
+    }
+    finishLakeBattleVolley(state, ship, operators, weapon.animationKind, weapon.itemId);
   }
-  finishLakeBattleVolley(state, ship, count);
   return true;
 }
 
 function addLakeBattleProjectile(state, ship, projectile) {
-  if (projectile.ownerId !== ship.id || projectile.kind !== ship.weapon.kind) {
+  const fixedWeaponMatches = ship.weapon && projectile.kind === ship.weapon.kind;
+  const portableWeaponMatches = projectile.portable &&
+    ship.portableWeaponItemIds.includes(projectile.weaponId) &&
+    portableWeaponItemById(projectile.weaponId).weapon !== null;
+  if (projectile.ownerId !== ship.id || (!fixedWeaponMatches && !portableWeaponMatches)) {
     throw new Error(`Lake battle projectile does not match firing ship: ${ship.id}`);
   }
   state.projectiles.push(projectile);
-  if (projectile.kind === NAVAL_WEAPON_CANNON) {
+  if (projectile.kind === NAVAL_WEAPON_CANNON || projectile.kind === PORTABLE_PROJECTILE_CANNON ||
+      projectile.weapon?.smokeScale > 0) {
     state.cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
   }
 }
 
-function finishLakeBattleVolley(state, ship, count) {
+function finishLakeBattleVolley(state, ship, count, weaponKind = ship.weapon?.kind, weaponId = null) {
+  if (!weaponKind) throw new Error(`Lake battle volley has no weapon kind: ${ship.id}`);
   if (state.projectiles.length > MAX_PROJECTILES) {
     state.projectiles.splice(0, state.projectiles.length - MAX_PROJECTILES);
   }
-  state.events.push({ type: "fire", shipId: ship.id, weaponKind: ship.weapon.kind, count });
+  state.events.push({ type: "fire", shipId: ship.id, weaponKind, weaponId, count });
 }
 
 export function lakeBattleWaterAt(state, x, y, margin = 0) {
@@ -426,8 +454,15 @@ export function lakeBattleBroadsideDirection(ship, sideName) {
 }
 
 export function lakeBattleWeaponRange(ship) {
-  if (!ship?.weapon) throw new Error("Lake battle weapon range requires an armed ship");
-  return CANNON_RANGE_PX * ship.weapon.rangeScale;
+  if (!ship || !Array.isArray(ship.portableWeaponItemIds)) {
+    throw new Error("Lake battle weapon range requires a combatant");
+  }
+  const rangeScales = ship.portableWeaponItemIds
+    .map((itemId) => portableWeaponItemById(itemId).weapon?.rangeScale || 0);
+  if (ship.weapon) rangeScales.push(ship.weapon.rangeScale);
+  const rangeScale = Math.max(0, ...rangeScales);
+  if (rangeScale <= 0) throw new Error(`Lake battle combatant is unarmed: ${ship.slug}`);
+  return CANNON_RANGE_PX * rangeScale;
 }
 
 export function lakeBattleProjectilePoint(projectile) {
@@ -447,31 +482,35 @@ function createBattleShip(id, slug, x, y, headingRad, cannonEquipmentId) {
 
 function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
   const stats = lakeBattleCombatantStats(slug);
-  const baseWeapon = navalWeaponForShip({ cannons: stats.cannons, weaponKind: stats.navalWeaponKind });
-  if (!baseWeapon) throw new Error(`Lake battle ship is unarmed: ${slug}`);
-  if (baseWeapon.kind !== NAVAL_WEAPON_CANNON && cannonEquipmentId !== STANDARD_CANNON_EQUIPMENT_ID) {
-    throw new Error(`Cannon equipment cannot be fitted to ${baseWeapon.kind}-armed ship: ${slug}`);
+  const baseWeapon = navalWeaponForShip({ cannons: stats.cannons });
+  if (!baseWeapon && cannonEquipmentId !== STANDARD_CANNON_EQUIPMENT_ID) {
+    throw new Error(`Cannon equipment cannot be fitted to cannonless ship: ${slug}`);
   }
-  let weapon = baseWeapon.kind === NAVAL_WEAPON_CANNON
+  let weapon = baseWeapon
     ? cannonWeaponWithEquipment(baseWeapon, cannonEquipmentId)
-    : baseWeapon;
-  if (slug === LAKE_BATTLE_CITY_SLUG) {
+    : null;
+  if (slug === LAKE_BATTLE_CITY_SLUG && weapon) {
     weapon = Object.freeze({ ...weapon, reloadSeconds: SHORE_BATTERY_RELOAD_SECONDS });
   }
+  const portableWeaponItemIds = lakeBattlePortableWeaponItemIds(slug);
   return {
     id,
     slug,
     kind: slug === LAKE_BATTLE_CITY_SLUG ? "city" : "ship",
     stats,
     crew: stats.crewCapacity,
+    woundedCrew: 0,
+    surrendered: false,
     weapon,
+    portableWeaponItemIds,
+    portableWeaponCooldowns: {},
     x,
     y,
     headingRad: normalizeAngle(headingRad),
     speedPx: 0,
     hitPoints: stats.hitPoints,
     maxHitPoints: stats.hitPoints,
-    cooldowns: { port: 0, starboard: 0, atWill: 0 },
+    cooldowns: { port: 0, starboard: 0 },
     rowing: false,
     orbitDirection: id === LAKE_BATTLE_ENEMY_ID ? 1 : 0,
     avoidanceActive: false,
@@ -484,6 +523,14 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
     wake: [],
     lastWakePoint: null
   };
+}
+
+function lakeBattlePortableWeaponItemIds(slug) {
+  if (slug === "japanese-kobaya" || slug === "japanese-kuribune" || slug === "japanese-atakebune") {
+    return Object.freeze([YUMI_ITEM_ID]);
+  }
+  if (slug === "viking-longship") return Object.freeze([VIKING_BOWS_ITEM_ID]);
+  return Object.freeze([MARINERS_BOWS_ITEM_ID]);
 }
 
 function createLakeBattleWind(seed) {
@@ -562,7 +609,7 @@ function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingRequested,
     windStrength: state.wind.strength,
     sailEfficiency,
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
-    rowerRatio: rowingCrewRatio(ship.crew, ship.stats.crewCapacity),
+    rowerRatio: rowingCrewRatio(activeCombatCrew(ship.crew, ship.woundedCrew), ship.stats.crewCapacity),
     rowingRequested
   });
   ship.rowing = propulsion.rowing;
@@ -820,11 +867,28 @@ function lakeBattleProjectileTarget(state, projectile) {
 }
 
 function applyLakeBattleProjectileHit(state, projectile, target, point) {
-  const resisted = target.kind !== "city" &&
+  let newWounds = 0;
+  if (projectile.portable) {
+    const weapon = portableWeaponItemById(projectile.weaponId).weapon;
+    if (!weapon) throw new Error(`Lake battle portable projectile has no weapon: ${projectile.weaponId}`);
+    const woundResult = applyCrewWounds({
+      totalCrew: target.crew,
+      woundedCrew: target.woundedCrew,
+      crewDamage: weapon.crewDamage,
+      hitChance: weapon.crewHitChance,
+      crewProtection: target.stats.crewProtection,
+      random: () => nextBattleRandom(state)
+    });
+    target.woundedCrew = woundResult.woundedCrew;
+    newWounds = woundResult.newWounds;
+    target.surrendered = crewWoundsForceSurrender(target.crew, target.woundedCrew);
+  }
+  const canDamageHull = projectile.damage > 0;
+  const resisted = canDamageHull && target.kind !== "city" &&
     shipHullResistsDamage(target.stats, { roll: nextBattleRandom(state) });
-  const damage = resisted ? 0 : projectile.damage;
+  const damage = canDamageHull && !resisted ? projectile.damage : 0;
   target.hitPoints = Math.max(0, target.hitPoints - damage);
-  if (!resisted && target.hitPoints > 0) {
+  if (damage > 0 && target.hitPoints > 0) {
     state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
   }
   state.impacts.push({
@@ -839,8 +903,11 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
     type: "hit",
     shipId: target.id,
     weaponKind: projectile.kind,
+    weaponId: projectile.weaponId || null,
     damage,
-    resisted
+    resisted,
+    newWounds,
+    surrendered: target.surrendered
   });
 }
 
@@ -910,16 +977,23 @@ function collisionBody(state, ship) {
 }
 
 function finishBattleIfNeeded(state) {
-  if (state.player.hitPoints > 0 && state.enemy.hitPoints > 0) return false;
+  const playerDefeated = state.player.hitPoints <= 0 || state.player.surrendered;
+  const enemyDefeated = state.enemy.hitPoints <= 0 || state.enemy.surrendered;
+  if (!playerDefeated && !enemyDefeated) return false;
   state.phase = LAKE_BATTLE_PHASE_FINISHED;
   state.player.speedPx = 0;
   state.enemy.speedPx = 0;
-  state.outcome = state.player.hitPoints <= 0 && state.enemy.hitPoints <= 0
+  state.outcome = playerDefeated && enemyDefeated
     ? "draw"
-    : state.enemy.hitPoints <= 0
+    : enemyDefeated
       ? "victory"
       : "defeat";
-  state.events.push({ type: "finished", outcome: state.outcome });
+  state.events.push({
+    type: "finished",
+    outcome: state.outcome,
+    playerSurrendered: state.player.surrendered,
+    enemySurrendered: state.enemy.surrendered
+  });
   return true;
 }
 
@@ -929,14 +1003,19 @@ function sailingEfficiencyForStats(stats, heading, windFlow) {
 }
 
 function updateCooldowns(ship, dt) {
+  const activeCrew = activeCombatCrew(ship.crew, ship.woundedCrew);
   if (navalWeaponUsesBroadside(ship.weapon)) {
-    ship.cooldowns.port = advanceCannonReload(ship.cooldowns.port, dt, ship.crew, ship.stats.cannons);
-    ship.cooldowns.starboard = advanceCannonReload(ship.cooldowns.starboard, dt, ship.crew, ship.stats.cannons);
+    ship.cooldowns.port = advanceCannonReload(ship.cooldowns.port, dt, activeCrew, ship.stats.cannons);
+    ship.cooldowns.starboard = advanceCannonReload(ship.cooldowns.starboard, dt, activeCrew, ship.stats.cannons);
   } else {
     ship.cooldowns.port = Math.max(0, ship.cooldowns.port - dt);
     ship.cooldowns.starboard = Math.max(0, ship.cooldowns.starboard - dt);
   }
-  ship.cooldowns.atWill = Math.max(0, ship.cooldowns.atWill - dt);
+  for (const itemId of Object.keys(ship.portableWeaponCooldowns)) {
+    const cooldown = Math.max(0, ship.portableWeaponCooldowns[itemId] - dt);
+    if (cooldown === 0) delete ship.portableWeaponCooldowns[itemId];
+    else ship.portableWeaponCooldowns[itemId] = cooldown;
+  }
 }
 
 function assertShipFitsLake(state, ship) {
@@ -1047,6 +1126,11 @@ function validateBattleState(state) {
   for (const combatant of [state.player, state.enemy]) {
     if (!Number.isInteger(combatant.crew) || combatant.crew < 0) {
       throw new Error(`Invalid lake battle crew: ${combatant.crew}`);
+    }
+    activeCombatCrew(combatant.crew, combatant.woundedCrew);
+    if (typeof combatant.surrendered !== "boolean" || !Array.isArray(combatant.portableWeaponItemIds) ||
+        !combatant.portableWeaponCooldowns || typeof combatant.portableWeaponCooldowns !== "object") {
+      throw new Error(`Invalid lake battle portable combat state: ${combatant.id}`);
     }
   }
 }

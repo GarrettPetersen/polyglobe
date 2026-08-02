@@ -3,15 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
   accurateBroadsideShotIndex,
   advanceCannonReload,
   cannonReloadWorkRate,
   isPreGunpowderCulture,
-  navalArrowVolleyCount,
   navalWeaponForShip,
-  navalWeaponFiresAtWill,
   navalWeaponUsesBroadside,
   navalWeaponSpec
 } from "./navalWeapons.js";
@@ -54,58 +51,23 @@ test("cannon reload staffing rejects malformed combat state", () => {
   assert.throws(() => advanceCannonReload(1, -1, 1, 1), /timestep/);
 });
 
-test("pre-gunpowder cultures use arrows even when their stand-in hull has cannon stats", () => {
+test("culture does not override a hull's built-in gun ports", () => {
   for (const cultureType of ["polynesian", "mesoamerican", "andean"]) {
     assert.equal(isPreGunpowderCulture(cultureType), true);
-    assert.equal(navalWeaponForShip({ cultureType, cannons: 12 }).kind, NAVAL_WEAPON_ARROW);
+    assert.equal(navalWeaponForShip({ cultureType, cannons: 12 }).kind, NAVAL_WEAPON_CANNON);
   }
   assert.equal(navalWeaponForShip({ cultureType: "southeast-asian", cannons: 12 }).kind, NAVAL_WEAPON_CANNON);
 });
 
-test("arrows have exactly half cannon range and damage", () => {
+test("only cannons are intrinsic naval weapons", () => {
   const cannon = navalWeaponSpec(NAVAL_WEAPON_CANNON);
-  const arrow = navalWeaponSpec(NAVAL_WEAPON_ARROW);
-
-  assert.equal(arrow.rangeScale, cannon.rangeScale / 2);
-  assert.equal(arrow.damage, cannon.damage / 2);
-});
-
-test("cannons use a low direct-fire arc while arrows retain a high arc", () => {
-  const cannon = navalWeaponSpec(NAVAL_WEAPON_CANNON);
-  const arrow = navalWeaponSpec(NAVAL_WEAPON_ARROW);
-
   assert.ok(cannon.arcHeightScale <= 0.25);
-  assert.ok(arrow.arcHeightScale > cannon.arcHeightScale * 2);
-});
-
-test("cannons use broadsides while deck archers fire at will", () => {
-  const cannon = navalWeaponSpec(NAVAL_WEAPON_CANNON);
-  const arrow = navalWeaponSpec(NAVAL_WEAPON_ARROW);
-
   assert.equal(navalWeaponUsesBroadside(cannon), true);
-  assert.equal(navalWeaponFiresAtWill(cannon), false);
-  assert.equal(navalWeaponUsesBroadside(arrow), false);
-  assert.equal(navalWeaponFiresAtWill(arrow), true);
-  assert.equal(navalArrowVolleyCount(3), 2);
-  assert.equal(navalArrowVolleyCount(12), 3);
-  assert.equal(navalArrowVolleyCount(40), 5);
-  assert.throws(() => navalArrowVolleyCount(0), /crew capacity/);
+  assert.throws(() => navalWeaponSpec("arrow"), /Unknown naval weapon/);
 });
 
 test("unarmed gunpowder-culture ships still have no ranged attack", () => {
   assert.equal(navalWeaponForShip({ cultureType: "northern-european", cannons: 0 }), null);
-});
-
-test("a hull-specific weapon overrides culture and cannon count", () => {
-  assert.equal(navalWeaponForShip({
-    cultureType: "northern-european",
-    cannons: 0,
-    weaponKind: NAVAL_WEAPON_ARROW
-  }).kind, NAVAL_WEAPON_ARROW);
-  assert.throws(
-    () => navalWeaponForShip({ cultureType: "northern-european", cannons: 0, weaponKind: "ballista" }),
-    /Unknown naval weapon/
-  );
 });
 
 test("bow fire and arrow hit sounds are packaged as repo-local Ogg assets", async () => {

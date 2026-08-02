@@ -61,6 +61,7 @@ import {
   SPANISH_INDIES_TRADE_POLICY_ID
 } from "./sovereignTradeAccess.js";
 import { HOSPITALLER_MALTA_STAGE_LOCKED } from "./hospitallerMaltaQuest.js";
+import { ENGLISH_LONGBOWS_ITEM_ID } from "./portableWeapons.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -144,6 +145,7 @@ test("version 8 game states migrate diplomacy and ship classification without lo
   delete saved.relations.safePassageUntilMinute;
   delete saved.ship.mass;
   delete saved.ship.navalWeaponKind;
+  delete saved.inventory.items[ENGLISH_LONGBOWS_ITEM_ID];
 
   const restored = migrateGameState(saved, stats);
 
@@ -154,6 +156,7 @@ test("version 8 game states migrate diplomacy and ship classification without lo
   assert.deepEqual(restored.relations.safePassageUntilMinute, {});
   assert.equal(restored.ship.mass, stats.mass);
   assert.equal(restored.ship.navalWeaponKind, stats.navalWeaponKind);
+  assert.equal(restored.inventory.items[ENGLISH_LONGBOWS_ITEM_ID], 1);
   assert.equal(diplomacyBetweenForState(restored, "england", "france"), "war");
 });
 

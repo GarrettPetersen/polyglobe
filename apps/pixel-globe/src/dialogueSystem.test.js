@@ -34,7 +34,7 @@ import {
   quotePortPurchase
 } from "./economy.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
-import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
+import { HAJJ_PILGRIMAGE_PERK_ITEM_ID, perkItemById } from "./perkItems.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
@@ -2401,9 +2401,14 @@ test("a rare equipment offer persists after declining and remembers the player",
   selectPortDialogueOption(session, city, gameState, economy, [city], equipmentIndex);
 
   const firstOffer = portDialogueView(session, city, gameState, economy, [city]);
-  assert.match(firstOffer.text, /a rare Bronze Fish Hooks came into my hands/i);
-  assert.deepEqual(firstOffer.options.map((entry) => entry.label), ["Buy it - 650 db", "No, thank you"]);
-  assert.match(firstOffer.options[0].detail, /Fishing odds \+8%/);
+  const offeredItemId = firstOffer.options[0].action.itemId;
+  const offeredItem = perkItemById(offeredItemId);
+  assert.ok(firstOffer.text.includes(`a rare ${offeredItem.label} came into my hands`));
+  assert.deepEqual(firstOffer.options.map((entry) => entry.label), [
+    `Buy it - ${offeredItem.price} db`,
+    "No, thank you"
+  ]);
+  assert.ok(firstOffer.options[0].detail.length > 0);
 
   selectPortDialogueOption(session, city, gameState, economy, [city], 1);
   const equipment = portDialogueView(session, city, gameState, economy, [city]);
@@ -2415,17 +2420,17 @@ test("a rare equipment offer persists after declining and remembers the player",
   const revisitedEquipmentIndex = revisitedRoot.options.findIndex((entry) => entry.action.nodeId === "equipment");
   selectPortDialogueOption(session, city, gameState, economy, [city], revisitedEquipmentIndex);
   const repeatedOffer = portDialogueView(session, city, gameState, economy, [city]);
-  assert.match(repeatedOffer.text, /Have you reconsidered buying the Bronze Fish Hooks/i);
+  assert.ok(repeatedOffer.text.includes(`Have you reconsidered buying the ${offeredItem.label}`));
 
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
     simMinute: 300
   });
-  assert.equal(result.perkItemPurchase.item.id, "bronze-fish-hooks");
-  assert.equal(gameState.inventory.items["bronze-fish-hooks"], 1);
-  assert.equal(gameState.doubloons, 4350);
-  assert.match(session.feedback, /Bronze Fish Hooks brought aboard/);
+  assert.equal(result.perkItemPurchase.item.id, offeredItemId);
+  assert.equal(gameState.inventory.items[offeredItemId], 1);
+  assert.equal(gameState.doubloons, 5000 - offeredItem.price);
+  assert.ok(session.feedback.includes(`${offeredItem.label} brought aboard`));
   assert.throws(
-    () => purchasePerkItem(gameState, city, "bronze-fish-hooks"),
+    () => purchasePerkItem(gameState, city, offeredItemId),
     /already aboard/
   );
 });

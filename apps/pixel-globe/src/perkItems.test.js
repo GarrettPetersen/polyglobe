@@ -10,6 +10,7 @@ import {
   perkItemById,
   perkItemOfferAtPort
 } from "./perkItems.js";
+import { MATCHLOCK_ARQUEBUSES_ITEM_ID } from "./portableWeapons.js";
 
 test("every perk item has a registered native game icon", () => {
   const icons = new Set(gameIconIds());
@@ -69,4 +70,22 @@ test("special equipment is an uncommon single-item port lottery", () => {
   assert.ok(stockedCount >= 10, `only ${stockedCount} ports stocked an item`);
   assert.ok(stockedCount <= 50, `${stockedCount} ports stocked an item`);
   assert.deepEqual(offers, ports.map((city) => perkItemOfferAtPort(economy, city)));
+});
+
+test("a port selling matchlocks also offers arquebuses as equipment", () => {
+  const lisbon = {
+    tileId: 1,
+    portId: "lisbon",
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 100000
+  };
+  const economy = createWorldEconomy({ ports: [lisbon], startMinute: 0 });
+  assert.equal(perkItemOfferAtPort(economy, lisbon).id, MATCHLOCK_ARQUEBUSES_ITEM_ID);
+  assert.notEqual(
+    perkItemOfferAtPort(economy, lisbon, { ownedItemIds: [MATCHLOCK_ARQUEBUSES_ITEM_ID] })?.id,
+    MATCHLOCK_ARQUEBUSES_ITEM_ID
+  );
 });
