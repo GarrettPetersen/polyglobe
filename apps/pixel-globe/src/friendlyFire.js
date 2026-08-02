@@ -2,6 +2,7 @@ export const FRIENDLY_FIRE_DIRECT = "direct";
 export const FRIENDLY_FIRE_WARNING = "warning";
 export const FRIENDLY_FIRE_SAME_VOLLEY = "same-volley";
 export const FRIENDLY_FIRE_ESCALATE = "escalate";
+export const FRIENDLY_FIRE_WARNING_LIMIT_PER_FACTION = 3;
 
 export function classifyPlayerCannonHit(incidentsByFaction, {
   factionId,
@@ -27,14 +28,26 @@ export function classifyPlayerCannonHit(incidentsByFaction, {
     throw new Error(`Friendly-fire classification requires a cannon volley id: ${volleyId}`);
   }
 
-  const previousVolleyId = incidentsByFaction.get(factionId);
-  if (previousVolleyId === undefined) {
-    incidentsByFaction.set(factionId, volleyId);
+  const incident = incidentsByFaction.get(factionId);
+  if (incident === undefined) {
+    incidentsByFaction.set(factionId, Object.freeze({
+      lastVolleyId: volleyId,
+      warningCount: 1
+    }));
     return FRIENDLY_FIRE_WARNING;
   }
-  return previousVolleyId === volleyId
-    ? FRIENDLY_FIRE_SAME_VOLLEY
-    : FRIENDLY_FIRE_ESCALATE;
+  if (!incident || !Number.isInteger(incident.lastVolleyId) || !Number.isInteger(incident.warningCount)) {
+    throw new Error(`Invalid friendly-fire incident record for ${factionId}`);
+  }
+  if (incident.lastVolleyId === volleyId) return FRIENDLY_FIRE_SAME_VOLLEY;
+  if (incident.warningCount >= FRIENDLY_FIRE_WARNING_LIMIT_PER_FACTION) {
+    return FRIENDLY_FIRE_ESCALATE;
+  }
+  incidentsByFaction.set(factionId, Object.freeze({
+    lastVolleyId: volleyId,
+    warningCount: incident.warningCount + 1
+  }));
+  return FRIENDLY_FIRE_WARNING;
 }
 
 export function clearFriendlyFireIncidents(incidentsByFaction) {

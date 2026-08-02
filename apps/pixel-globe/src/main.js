@@ -572,11 +572,12 @@ import {
   restrictMountainsToNavigableView
 } from "./discoveries.js";
 import {
-  GREAT_BARRIER_REEF_ALPHA,
-  GREAT_BARRIER_REEF_SPRITE_KEYS,
-  buildGreatBarrierReef,
-  greatBarrierReefWaterMaskSpans
-} from "./greatBarrierReef.js";
+  CORAL_REEF_ALPHA,
+  CORAL_REEF_SPRITE_KEYS,
+  GREAT_BARRIER_REEF_FIELD_ID,
+  buildCoralReefFields,
+  coralReefWaterMaskSpans
+} from "./coralReefs.js";
 import {
   explorerJournalDescriptionForDiscovery,
   validateExplorerReportDialogueCatalog
@@ -2548,8 +2549,8 @@ const floatingShipFrameAtlasCache = new WeakMap();
 const FLOATING_SHIP_FRAME_CACHE_LIMIT = 48;
 const FLOATING_SHIP_FRAME_ATLAS_COLUMNS = 8;
 const selectableOutlineCache = new WeakMap();
-const greatBarrierReefWaterMaskCache = new WeakMap();
-const greatBarrierReefBeachPixelCache = new WeakMap();
+const coralReefWaterMaskCache = new WeakMap();
+const coralReefBeachPixelCache = new WeakMap();
 const surfaceDetailLayerCache = new WeakMap();
 const surfaceDetailRiverLayerCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
@@ -2600,7 +2601,7 @@ let earthById;
 let chartTileProtection;
 let mountainLandmarks;
 let worldDiscoveries = [];
-let greatBarrierReef = [];
+let coralReefs = [];
 let discoveryCatalog = [];
 let discoveryCatalogById = new Map();
 let discoveryNotice = null;
@@ -3281,10 +3282,12 @@ async function main() {
     (discovery) => discovery.id === GREAT_BARRIER_REEF_DISCOVERY_ID
   );
   if (!greatBarrierReefDiscovery) throw new Error("Great Barrier Reef discovery is missing");
-  greatBarrierReef = buildGreatBarrierReef({
+  coralReefs = buildCoralReefFields({
     graph,
     navigationMask: oceanReachableNavigationMask,
-    discoveryTileId: greatBarrierReefDiscovery.spriteTileId
+    discoveryAnchorsByFieldId: new Map([
+      [GREAT_BARRIER_REEF_FIELD_ID, greatBarrierReefDiscovery.spriteTileId]
+    ])
   });
   discoveryCatalog = [
     ...mountainLandmarks.famous.map(mountainDiscovery),
@@ -3752,7 +3755,7 @@ function loadTerrainImages() {
 async function loadWorldDiscoveryImages() {
   const spriteKeys = [...new Set([
     ...WORLD_DISCOVERY_SPRITE_KEYS,
-    ...GREAT_BARRIER_REEF_SPRITE_KEYS
+    ...CORAL_REEF_SPRITE_KEYS
   ])];
   const entries = await Promise.all(spriteKeys.map(async (spriteKey) => {
     const image = await loadAssetImage(
@@ -4760,7 +4763,7 @@ function chartProtectionFeatureTileIds() {
   for (const target of colonizationTargetPlacements) protectedIds.add(target.tileId);
   for (const tileId of landRoadNetwork.segmentsByTileId.keys()) protectedIds.add(tileId);
   for (const tileId of mountainLandmarks.peakTileIds) protectedIds.add(tileId);
-  for (const coral of greatBarrierReef) protectedIds.add(coral.tileId);
+  for (const coral of coralReefs) protectedIds.add(coral.tileId);
   for (const discovery of discoveryCatalog) {
     if (Number.isInteger(discovery.tileId)) protectedIds.add(discovery.tileId);
     if (Number.isInteger(discovery.spriteTileId)) protectedIds.add(discovery.spriteTileId);
@@ -25728,11 +25731,11 @@ function render(nowMs) {
     () => cloudDrawCalls(chart, offset)
   );
   renderedCloudSpriteCount = cloudCalls.length;
-  gpuWorldUnderlay = greatBarrierReefIsVisible(chart, offset)
+  gpuWorldUnderlay = coralReefIsVisible(chart, offset)
     ? null
     : { activeChart: chart, nowMs, offset };
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
-    drawGreatBarrierReef(chart, nowMs);
+    drawCoralReefs(chart, nowMs);
     if (!gpuWorldUnderlay) {
       drawPrecipitation(chart, nowMs, offset);
       drawNavalEffects(chart);
@@ -25843,8 +25846,8 @@ function render(nowMs) {
   }
 }
 
-function greatBarrierReefIsVisible(activeChart, offset) {
-  for (const coral of greatBarrierReef) {
+function coralReefIsVisible(activeChart, offset) {
+  for (const coral of coralReefs) {
     const call = activeChart.tileById.get(coral.tileId);
     if (!call) continue;
     if (pointNearScreen({
@@ -26336,20 +26339,20 @@ function waterEffectForegroundLayer(activeChart, offset) {
   return result;
 }
 
-function drawGreatBarrierReef(activeChart, nowMs) {
+function drawCoralReefs(activeChart, nowMs) {
   const refractionTime = reducedMotionPreferred ? 0 : nowMs;
-  for (const coral of greatBarrierReef) {
+  for (const coral of coralReefs) {
     const call = activeChart.tileById.get(coral.tileId);
     if (!call) continue;
     const image = worldDiscoveryImages.get(coral.spriteKey);
-    if (!image) throw new Error(`Missing Great Barrier Reef image: ${coral.spriteKey}`);
+    if (!image) throw new Error(`Missing coral reef image: ${coral.spriteKey}`);
     drawUnderwaterWorldSprite(
       image,
       Math.round(call.drawSurfaceX - TILE_ART_HALF),
       Math.round(call.drawSurfaceY - TILE_ART_HALF),
       refractionTime,
       coral.seed,
-      greatBarrierReefWaterMask(activeChart, coral.tileId, call)
+      coralReefWaterMask(activeChart, coral.tileId, call)
     );
   }
 }
@@ -26386,7 +26389,7 @@ function drawUnderwaterWorldSprite(image, x, y, nowMs, seed, waterMask) {
   underwaterWorldSpriteCtx.globalCompositeOperation = "source-over";
 
   ctx.save();
-  ctx.globalAlpha = GREAT_BARRIER_REEF_ALPHA;
+  ctx.globalAlpha = CORAL_REEF_ALPHA;
   ctx.drawImage(
     underwaterWorldSpriteCanvas,
     x - UNDERWATER_WORLD_REFRACTION_PADDING_PX,
@@ -26395,11 +26398,11 @@ function drawUnderwaterWorldSprite(image, x, y, nowMs, seed, waterMask) {
   ctx.restore();
 }
 
-function greatBarrierReefWaterMask(activeChart, tileId, call) {
-  let chartMasks = greatBarrierReefWaterMaskCache.get(activeChart);
+function coralReefWaterMask(activeChart, tileId, call) {
+  let chartMasks = coralReefWaterMaskCache.get(activeChart);
   if (!chartMasks) {
     chartMasks = new Map();
-    greatBarrierReefWaterMaskCache.set(activeChart, chartMasks);
+    coralReefWaterMaskCache.set(activeChart, chartMasks);
   }
   const cached = chartMasks.get(tileId);
   if (cached) return cached;
@@ -26407,8 +26410,8 @@ function greatBarrierReefWaterMask(activeChart, tileId, call) {
   const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const spriteY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const originX = spriteX - UNDERWATER_WORLD_REFRACTION_PADDING_PX;
-  const beachPixels = greatBarrierReefBeachPixels(activeChart);
-  const spans = greatBarrierReefWaterMaskSpans({
+  const beachPixels = coralReefBeachPixels(activeChart);
+  const spans = coralReefWaterMaskSpans({
     originX,
     originY: spriteY,
     width: UNDERWATER_WORLD_SPRITE_WIDTH,
@@ -26420,15 +26423,15 @@ function greatBarrierReefWaterMask(activeChart, tileId, call) {
   mask.width = UNDERWATER_WORLD_SPRITE_WIDTH;
   mask.height = TILE_ART_SIZE;
   const maskCtx = mask.getContext("2d");
-  if (!maskCtx) throw new Error(`Could not create Great Barrier Reef water mask for tile ${tileId}`);
+  if (!maskCtx) throw new Error(`Could not create coral reef water mask for tile ${tileId}`);
   maskCtx.fillStyle = "#ffffff";
   for (const span of spans) maskCtx.fillRect(span.x, span.y, span.width, 1);
   chartMasks.set(tileId, mask);
   return mask;
 }
 
-function greatBarrierReefBeachPixels(activeChart) {
-  const cached = greatBarrierReefBeachPixelCache.get(activeChart);
+function coralReefBeachPixels(activeChart) {
+  const cached = coralReefBeachPixelCache.get(activeChart);
   if (cached) return cached;
 
   const pixels = new Set();
@@ -26441,7 +26444,7 @@ function greatBarrierReefBeachPixels(activeChart) {
       }
     }
   }
-  greatBarrierReefBeachPixelCache.set(activeChart, pixels);
+  coralReefBeachPixelCache.set(activeChart, pixels);
   return pixels;
 }
 

@@ -6,6 +6,7 @@ import {
   FRIENDLY_FIRE_ESCALATE,
   FRIENDLY_FIRE_SAME_VOLLEY,
   FRIENDLY_FIRE_WARNING,
+  FRIENDLY_FIRE_WARNING_LIMIT_PER_FACTION,
   classifyPlayerCannonHit,
   clearFriendlyFireIncidents
 } from "./friendlyFire.js";
@@ -21,12 +22,16 @@ function classify(incidents, overrides = {}) {
   });
 }
 
-test("one stray broadside is forgiven per faction during a battle", () => {
+test("several stray broadsides are forgiven per faction during a battle", () => {
   const incidents = new Map();
 
   assert.equal(classify(incidents), FRIENDLY_FIRE_WARNING);
   assert.equal(classify(incidents), FRIENDLY_FIRE_SAME_VOLLEY);
-  assert.equal(classify(incidents, { volleyId: 8 }), FRIENDLY_FIRE_ESCALATE);
+  assert.equal(classify(incidents, { volleyId: 8 }), FRIENDLY_FIRE_WARNING);
+  assert.equal(classify(incidents, { volleyId: 8 }), FRIENDLY_FIRE_SAME_VOLLEY);
+  assert.equal(classify(incidents, { volleyId: 9 }), FRIENDLY_FIRE_WARNING);
+  assert.equal(classify(incidents, { volleyId: 10 }), FRIENDLY_FIRE_ESCALATE);
+  assert.equal(FRIENDLY_FIRE_WARNING_LIMIT_PER_FACTION, 3);
 });
 
 test("aimed and already-hostile cannon hits remain direct attacks", () => {
