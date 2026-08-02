@@ -49,10 +49,10 @@ test("every feature points at tracked video and screenshot assets", async () => 
 
 test("published links and localization claims are explicit", () => {
   assert.match(site.domain, /^https:\/\//);
+  assert.equal(site.steamUrl, "https://store.steampowered.com/app/4516500/Marque__Reprisal");
   assert.equal(site.itchUrl, "https://garrettpetersen.itch.io/marque-and-reprisal");
   assert.equal(site.xUrl, "https://x.com/garrettpetersen");
   assert.equal(site.xHandle, "@garrettpetersen");
-  assert.equal(site.steamStatus, "Page coming soon");
   assert.equal(site.developer, "Iron Pagoda");
   assert.equal(site.publisher, "Iron Pagoda");
   assert.equal(site.creator, "Garrett Petersen");
@@ -62,6 +62,13 @@ test("published links and localization claims are explicit", () => {
   assert.match(pressPage(), /<dt>Creator<\/dt><dd><a[^>]+>Garrett Petersen<\/a><\/dd>/);
   assert.match(homePage(), /Developed &amp; published by Iron Pagoda\./);
   assert.match(homePage(), /© <span data-current-year>2026<\/span> Garrett Petersen\./);
+  assert.match(
+    homePage(),
+    /class='button button-primary' href='https:\/\/store\.steampowered\.com\/app\/4516500\/Marque__Reprisal'[^>]*>Wishlist on Steam/
+  );
+  assert.match(homePage(), /class='button button-ghost' href='https:\/\/garrettpetersen\.itch\.io\/marque-and-reprisal'[^>]*>Play browser demo/);
+  assert.match(pressPage(), /<dt>Steam<\/dt><dd><a href='https:\/\/store\.steampowered\.com\/app\/4516500\/Marque__Reprisal'/);
+  assert.doesNotMatch(homePage() + pressPage(), /Steam page coming soon|Page coming soon/);
   assert.equal(languages.length, 11);
   assert.equal(new Set(languages).size, languages.length);
 });

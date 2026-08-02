@@ -22,6 +22,6 @@ and event listings concerning Marque & Reprisal. Preserve the artwork's
 aspect ratio and use nearest-neighbour scaling to retain crisp pixel edges.
 
 Website: https://marque-and-reprisal.com
+Steam page: https://store.steampowered.com/app/4516500/Marque__Reprisal
 Browser demo: https://garrettpetersen.itch.io/marque-and-reprisal
 X: @garrettpetersen (https://x.com/garrettpetersen)
-Steam page: Coming soon

@@ -6,6 +6,7 @@ export const WORLD_MAP_CELL_COUNT = 163_842;
 export const site = Object.freeze({
   title: "Marque & Reprisal",
   domain: "https://marque-and-reprisal.com",
+  steamUrl: "https://store.steampowered.com/app/4516500/Marque__Reprisal",
   itchUrl: "https://garrettpetersen.itch.io/marque-and-reprisal",
   xUrl: "https://x.com/garrettpetersen",
   xHandle: "@garrettpetersen",
@@ -15,7 +16,6 @@ export const site = Object.freeze({
   publisher: "Iron Pagoda",
   copyrightHolder: "Garrett Petersen",
   release: "Coming soon",
-  steamStatus: "Page coming soon",
   platforms: "Windows; macOS and Linux planned",
   genre: "Open-world sailing roguelike sandbox and historical simulation",
   tagline: "Explore. Trade. Fish. Whale. Colonize. Fight. Pillage. Survive.",
