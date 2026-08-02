@@ -975,7 +975,7 @@ import {
   fetchQuestRequirements,
   readyFetchQuestDestinations
 } from "./fetchQuestObjectives.js";
-import { gameOverStatsLayout } from "./gameOverLayout.js";
+import { gameOverMemorialLayout, gameOverStatsLayout } from "./gameOverLayout.js";
 import {
   FLAG_WAVE_FRAME_COUNT,
   flagWaveColumnOffsets,
@@ -2010,9 +2010,6 @@ let PAST_VOYAGES_PANEL_Y = Math.floor((SCREEN_H - PAST_VOYAGES_PANEL_H) / 2);
 const GAME_OVER_MEMORIAL_MS = 8500;
 const GAME_OVER_FADE_MS = 1800;
 let GAME_OVER_PANEL_W = 350;
-const GAME_OVER_PANEL_H = 178;
-let GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
-let GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
 const CONTROLLER_GLYPH_STORAGE_KEY = "pixel_globe_controller_glyphs";
 const CONTROL_SCHEME_STORAGE_KEY = "pixel_globe_control_scheme";
@@ -24896,8 +24893,6 @@ function applyResponsiveViewport(width, height) {
   PAST_VOYAGES_PANEL_X = Math.floor((SCREEN_W - PAST_VOYAGES_PANEL_W) / 2);
   PAST_VOYAGES_PANEL_Y = Math.floor((SCREEN_H - PAST_VOYAGES_PANEL_H) / 2);
   GAME_OVER_PANEL_W = Math.min(350, SCREEN_W - 12);
-  GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
-  GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
   MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
   MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
   OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
@@ -40352,12 +40347,18 @@ function drawVictoryStatsScreen(state, elapsedMs) {
 }
 
 function drawGameOverMemorial(state, fade) {
-  const panel = {
-    x: GAME_OVER_PANEL_X,
-    y: GAME_OVER_PANEL_Y,
-    w: GAME_OVER_PANEL_W,
-    h: GAME_OVER_PANEL_H
-  };
+  const localizedReason = renderedUiText(state.reason);
+  const displayReason = textContainsCjk(localizedReason)
+    ? localizedReason
+    : localizedReason.toUpperCase();
+  const memorialLayout = gameOverMemorialLayout({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    preferredPanelWidth: GAME_OVER_PANEL_W,
+    cause: displayReason,
+    measureText: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
+  });
+  const panel = memorialLayout.panel;
   drawPiratePaperModal(panel, 0.78);
 
   ctx.fillStyle = PIRATE_MENU_INK;
@@ -40374,8 +40375,8 @@ function drawGameOverMemorial(state, fade) {
   ctx.strokeRect(portraitX - 2.5, portraitY - 2.5, DIALOGUE_PORTRAIT_SIZE + 5, DIALOGUE_PORTRAIT_SIZE + 5);
   drawDialoguePortrait(state.character, "dying", portraitX, portraitY, { grayscale: true });
 
-  const textX = panel.x + 104;
-  const textW = panel.w - 122;
+  const textX = panel.x + memorialLayout.textXOffset;
+  const textW = memorialLayout.textWidth;
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(
     fitPixelText((state.character?.name || "The captain").toUpperCase(), PIXEL_FONT_SMALL_8, textW),
@@ -40391,8 +40392,7 @@ function drawGameOverMemorial(state, fade) {
   const rows = [
     ["BORN", state.character?.birthDateLabel || "--"],
     ["DIED", state.endDateLabel],
-    ["HOME", state.character ? `${state.character.homePortName}, ${state.character.homePortRealmName}` : "--"],
-    ["CAUSE", state.reason]
+    ["HOME", state.character ? `${state.character.homePortName}, ${state.character.homePortRealmName}` : "--"]
   ];
   for (let i = 0; i < rows.length; i++) {
     const y = panel.y + 76 + i * 21;
@@ -40403,6 +40403,13 @@ function drawGameOverMemorial(state, fade) {
       font: PIXEL_FONT_SMALL_8
     });
   }
+  const causeY = panel.y + 139;
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  drawPixelText(uiText("outcome.cause"), textX, causeY, { font: PIXEL_FONT_SMALL_8 });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  memorialLayout.causeLines.forEach((line, index) => {
+    drawPixelText(line, textX, causeY + 9 + index * 10, { font: PIXEL_FONT_SMALL_8 });
+  });
 
   if (fade > 0) {
     ctx.fillStyle = `rgba(0, 0, 0, ${fade * 0.35})`;
@@ -40414,11 +40421,16 @@ function drawGameOverStatsScreen(state) {
   drawPiratePaperPanel({ x: 0, y: 0, w: SCREEN_W, h: SCREEN_H });
   const name = state.character?.name || "The captain";
   const epitaph = `${name} WAS NEVER SEEN AGAIN.`.toUpperCase();
+  const localizedReason = renderedUiText(state.reason);
+  const displayReason = textContainsCjk(localizedReason)
+    ? localizedReason
+    : localizedReason.toUpperCase();
   const layout = gameOverStatsLayout({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     epitaph,
-    cause: state.reason.toUpperCase(),
+    causeLabel: uiText("outcome.causeOfDeath"),
+    cause: displayReason,
     rows: gameOverStatRows(state),
     measureText: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
   });

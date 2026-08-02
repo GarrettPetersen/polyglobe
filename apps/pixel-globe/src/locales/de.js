@@ -119,6 +119,8 @@ export default {
   "outcome.lostAtSea": "AUF SEE VERSCHOLLEN",
   "outcome.neverSeenAgain": "WURDE NIE WIEDER GESEHEN.",
   "outcome.voyageEnded": "REISE BEENDET",
+  "outcome.cause": "URSACHE",
+  "outcome.causeOfDeath": "TODESURSACHE",
   "loadout.title": "EIGENE BELADUNG",
   "loadout.holdPlan": "LADERAUMPLAN",
   "navigation.none": "KEINE AKTIVEN WEGPUNKTE",

@@ -119,6 +119,8 @@ export default {
   "outcome.lostAtSea": "葬身海上",
   "outcome.neverSeenAgain": "從此杳無音信。",
   "outcome.voyageEnded": "航程結束",
+  "outcome.cause": "死因",
+  "outcome.causeOfDeath": "死亡原因",
   "loadout.title": "自訂配載",
   "loadout.holdPlan": "貨艙規劃",
   "navigation.none": "目前沒有航路點",

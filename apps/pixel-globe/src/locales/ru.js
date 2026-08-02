@@ -119,6 +119,8 @@ export default {
   "outcome.lostAtSea": "ПРОПАЛ В МОРЕ",
   "outcome.neverSeenAgain": "БОЛЬШЕ ЕГО НЕ ВИДЕЛИ.",
   "outcome.voyageEnded": "ПЛАВАНИЕ ОКОНЧЕНО",
+  "outcome.cause": "ПРИЧИНА",
+  "outcome.causeOfDeath": "ПРИЧИНА СМЕРТИ",
   "loadout.title": "СВОЯ ЗАГРУЗКА",
   "loadout.holdPlan": "ПЛАН ТРЮМА",
   "navigation.none": "НЕТ АКТИВНЫХ ПУТЕВЫХ ТОЧЕК",

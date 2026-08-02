@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { gameOverStatsLayout } from "./gameOverLayout.js";
+import { gameOverMemorialLayout, gameOverStatsLayout } from "./gameOverLayout.js";
 
 const measure = (text) => text.length * 4;
 const rows = [
@@ -23,6 +23,7 @@ test("portrait game-over rows keep labels and values from colliding", () => {
     screenWidth: 256,
     screenHeight: 455,
     epitaph: "GOVINDA GUPTA WAS NEVER SEEN AGAIN.",
+    causeLabel: "CAUSE OF DEATH",
     cause: "STRUCK BY LIGHTNING IN A STORM",
     rows,
     measureText: measure
@@ -41,6 +42,7 @@ test("long causes wrap in full above the statistics", () => {
     screenWidth: 256,
     screenHeight: 455,
     epitaph: "THE CAPTAIN WAS NEVER SEEN AGAIN.",
+    causeLabel: "CAUSE OF DEATH",
     cause,
     rows,
     measureText: measure
@@ -51,11 +53,43 @@ test("long causes wrap in full above the statistics", () => {
   assert.ok(layout.rows[0].labelY > layout.causeY);
 });
 
+test("very long causes never become ellipses on the final statistics", () => {
+  const cause = "THE LAST SURVIVOR DIED OF THIRST AFTER THE SHIP WAS DRIVEN FAR FROM EVERY KNOWN PORT BY A MONTH OF CONTRARY WINDS";
+  const layout = gameOverStatsLayout({
+    screenWidth: 256,
+    screenHeight: 455,
+    epitaph: "THE CAPTAIN WAS NEVER SEEN AGAIN.",
+    causeLabel: "CAUSE OF DEATH",
+    cause,
+    rows,
+    measureText: measure
+  });
+
+  assert.equal(layout.causeLines.join(" "), `CAUSE OF DEATH: ${cause}`);
+  assert.ok(layout.causeLines.every((line) => !line.endsWith("...")));
+});
+
+test("portrait memorial grows to show a complete cause of death", () => {
+  const cause = "THE LAST SURVIVOR DIED OF THIRST AFTER THE SHIP WAS DRIVEN FAR FROM EVERY KNOWN PORT BY A MONTH OF CONTRARY WINDS";
+  const layout = gameOverMemorialLayout({
+    screenWidth: 256,
+    screenHeight: 455,
+    preferredPanelWidth: 350,
+    cause,
+    measureText: measure
+  });
+
+  assert.ok(layout.panel.h > 178);
+  assert.equal(layout.causeLines.join(" "), cause);
+  assert.ok(layout.causeLines.every((line) => !line.endsWith("...")));
+});
+
 test("base landscape viewport retains a compact readable memorial", () => {
   const layout = gameOverStatsLayout({
     screenWidth: 455,
     screenHeight: 256,
     epitaph: "THE CAPTAIN WAS NEVER SEEN AGAIN.",
+    causeLabel: "CAUSE OF DEATH",
     cause: "LOST AT SEA",
     rows,
     measureText: measure
@@ -70,6 +104,7 @@ test("landscape layout tightens row spacing for a long name and cause", () => {
     screenWidth: 455,
     screenHeight: 256,
     epitaph: "ALEXANDER CHRISTOPHERSON WAS NEVER SEEN AGAIN.",
+    causeLabel: "CAUSE OF DEATH",
     cause: "THE LAST OF THE CREW DIED WHILE SCAVENGING ASHORE",
     rows,
     measureText: (text) => text.length * 8

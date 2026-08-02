@@ -119,6 +119,8 @@ export default {
   "outcome.lostAtSea": "PERDIDO EN EL MAR",
   "outcome.neverSeenAgain": "NUNCA VOLVIÓ A SER VISTO.",
   "outcome.voyageEnded": "VIAJE TERMINADO",
+  "outcome.cause": "CAUSA",
+  "outcome.causeOfDeath": "CAUSA DE MUERTE",
   "loadout.title": "CARGA PERSONALIZADA",
   "loadout.holdPlan": "PLAN DE BODEGA",
   "navigation.none": "NO HAY PUNTOS DE RUTA ACTIVOS",

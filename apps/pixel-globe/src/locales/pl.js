@@ -119,6 +119,8 @@ export default {
   "outcome.lostAtSea": "ZAGINĄŁ NA MORZU",
   "outcome.neverSeenAgain": "PRZEPADŁ BEZ WIEŚCI.",
   "outcome.voyageEnded": "REJS ZAKOŃCZONY",
+  "outcome.cause": "PRZYCZYNA",
+  "outcome.causeOfDeath": "PRZYCZYNA ŚMIERCI",
   "loadout.title": "WŁASNY ZAŁADUNEK",
   "loadout.holdPlan": "PLAN ŁADOWNI",
   "navigation.none": "BRAK AKTYWNYCH PUNKTÓW TRASY",

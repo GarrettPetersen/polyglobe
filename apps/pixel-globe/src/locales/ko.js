@@ -119,6 +119,8 @@ export default {
   "outcome.lostAtSea": "바다에서 실종",
   "outcome.neverSeenAgain": "다시는 모습을 보이지 않았다.",
   "outcome.voyageEnded": "항해 종료",
+  "outcome.cause": "사인",
+  "outcome.causeOfDeath": "사망 원인",
   "loadout.title": "맞춤 적재",
   "loadout.holdPlan": "화물칸 계획",
   "navigation.none": "활성 항로 지점 없음",
