@@ -260,23 +260,31 @@ removing all standard business phrasing would sound stranger, not more human.
 
 ## Sender setup
 
-Preferred address: `press@marque-and-reprisal.com`.
+Preferred sender: `garrett@marque-and-reprisal.com`, with the display name
+`Garrett Petersen — Iron Pagoda`. This is both personal and connected to the game.
+Keep `press@marque-and-reprisal.com` as a public alias that reaches the same inbox.
 
-Cloudflare now offers outbound SMTP through Email Sending as well as inbound Email
-Routing. A complete setup needs:
+Use a normal mailbox provider that supports person-to-person business email, such
+as Google Workspace or Fastmail. Cloudflare Email Sending is not appropriate for
+this campaign: its current FAQ says the service is only for transactional email,
+not marketing or outreach. Cloudflare can still manage the domain's DNS and, if
+needed, inbound Email Routing.
 
-1. Onboard `marque-and-reprisal.com` for Email Sending and let Cloudflare add its
-   SPF and DKIM records.
-2. Route incoming mail for `press@marque-and-reprisal.com` to Garrett's normal
-   inbox.
-3. Add a conservative DMARC policy after SPF and DKIM pass.
-4. Create a narrowly scoped `Email Sending: Edit` API token for SMTP, rather than
-   reusing the website deployment token.
-5. Add the address to the mail client using `smtp.mx.cloudflare.net`, port `465`,
-   implicit TLS, username `api_token`, and the new token as its password.
-6. Send a test to a separate account and confirm delivery, SPF, DKIM, DMARC, and
-   replies before contacting media.
+A complete setup needs:
+
+1. Create the mailbox `garrett@marque-and-reprisal.com` with the chosen provider.
+2. Add `press@marque-and-reprisal.com` as an alias to the same mailbox.
+3. Add the provider's SPF and DKIM records in Cloudflare DNS.
+4. Add DMARC with `p=none` initially, then strengthen the policy after confirming
+   that legitimate messages pass authentication.
+5. Send tests to separate Gmail and Outlook accounts and confirm delivery, SPF,
+   DKIM, DMARC, and replies before contacting media.
+
+If the custom mailbox is not ready promptly, send the seven pitches individually
+from Garrett's established personal Gmail account. Timely, relevant, personal mail
+from a real developer is preferable to delaying the outreach or sending through an
+inappropriate bulk/transactional service.
 
 The current repository token can deploy the website but cannot read or change
-Email Routing, DNS, or Email Sending. Do not broaden that token; create a separate
-mail-only credential.
+Email Routing or DNS. Do not broaden that token; use a separate narrowly scoped
+credential for any future mail automation.
