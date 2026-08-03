@@ -66,9 +66,8 @@ test("a castaway recounts the storm and offers emergency shore supplies", () => 
   const session = createCastawayDialogueSession(quest, { phase: "offer" });
   const offer = castawayDialogueView(session, quest);
   assert.equal(offer.expressionId, "crying");
-  assert.match(offer.text, /ship was caught in a storm/i);
-  assert.match(offer.text, /thrown overboard/i);
-  assert.match(offer.text, /woke on this beach/i);
+  assert.match(offer.text, /storm threw me overboard/i);
+  assert.match(offer.text, /woke among wreckage on this beach/i);
 
   selectRescuedTravelerDialogueOption(session, quest, memory, 0);
   assert.equal(quest.stage, CASTAWAY_STAGE_ABOARD);

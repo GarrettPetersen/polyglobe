@@ -355,7 +355,7 @@ test("family debt dialogue gives the creditor a concise recurring voice", () => 
   const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
   assert.equal(intro.length, 4);
   assert.ok(intro.some((entry) => /time now works for me/i.test(entry.text)));
-  assert.ok(intro.some((entry) => /bread, rope/i.test(entry.text)));
+  assert.ok(intro.some((entry) => /necessities/i.test(entry.text)));
 
   const outcome = settleFamilyDebtHomecoming(goal, {
     currentMinute: 40 * 24 * 60,
@@ -388,7 +388,7 @@ test("the demo creditor advertises the full campaign quests after the debt is pa
   assert.equal(demoSteps.length, fullSteps.length + 1);
   assert.match(demoSteps.at(-1).text, /full version/i);
   assert.match(demoSteps.at(-1).text, /wonders of the world/i);
-  assert.match(demoSteps.at(-1).text, /kill a white whale/i);
+  assert.match(demoSteps.at(-1).text, /hunt the white whale/i);
   assert.match(demoSteps.at(-1).text, /pirate treasure/i);
 });
 

@@ -492,9 +492,9 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
     const patronOutlook = explorerPatronOutlook(playerCharacter);
     return [
-      step("contact", "pleased", `${playerCharacter.givenName || playerCharacter.name}, travelers bring me tales of the world's wonders, and most contradict the last. I want an account from someone whose eyes I trust. ${patronOutlook} You notice what other captains sail past; I believe there is something exceptional in you.`),
+      step("contact", "pleased", `${playerCharacter.givenName || playerCharacter.name}, travelers' tales contradict one another. ${patronOutlook} I trust your eyes; there is something exceptional in you. Bring me true accounts of the world's wonders.`),
       step("player", "thoughtful", `Since I was a child, I have dreamed of seeing the whole world with my own eyes: every impossible mountain, ancient city, and shore beyond the horizon. ${culture.explorerIntro}`),
-      step("contact", "attentive", "Then bring that world home to me. I want to know not merely where each wonder stands, but what makes it worthy of wonder. I will reward every true account, and pay most richly for the rarest wonders at the farthest reaches of your voyage. Each time you return, I will share the nearest rumor still worth chasing."),
+      step("contact", "attentive", "Bring that world home to me. I reward every true account, especially rare and distant wonders. Each time you return, I will share the nearest rumor still worth chasing."),
       step("player", "determined", "I will follow those rumors to the edge of every chart. When I return, you will know these places as more than names, and I will finally have seen the world I imagined.")
     ];
   }
@@ -502,23 +502,23 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
     return [
       step("contact", "concerned", `You still mean to follow that white whale, ${playerCharacter.givenName || playerCharacter.name}? Other captains call it a beast. You speak of it as judgment.`),
       step("player", "stern", "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it."),
-      step("contact", "attentive", "Then take a hull fit for blue water and a harpoon fit for the work. Ask in every port and hail every passing ship. Sailors repeat strange news when a drink or a listening ear loosens them."),
+      step("contact", "attentive", "Take a blue-water hull and a sound harpoon. Ask in every port and hail passing ships; sailors repeat strange news to a listening captain."),
       step("player", "determined", "Let the chart be blank and the ocean without end. I know the mark I hunt. Towards that white shape I roll, though all the waves of the world lie between us.")
     ];
   }
   if (goal.type === CAMPAIGN_GOAL_TREASURE) {
     return [
-      step("contact", "attentive", `Captain ${goal.treasureCaptainName} left a treasure no honest chart records. Before the old rogue died, the crew tore the map into ${TREASURE_MAP_PIECE_COUNT} pieces, one for each hand who feared the rest.`),
+      step("contact", "attentive", `Captain ${goal.treasureCaptainName} left an uncharted treasure. The old crew tore its map into ${TREASURE_MAP_PIECE_COUNT} pieces, one for each pirate who feared the rest.`),
       step("player", "thoughtful", "A dozen pirates, a dozen scraps, and one island somewhere beyond the lamps of any harbor. It sounds like the beginning of a hanging, not a fortune."),
-      step("contact", "pleased", "Perhaps. But every piece is still aboard a pirate ship, and frightened sailors remember names and bearings. Ask in ports. Hail ships. Mark every reliable report; sooner or later, one of those old rogues will show his sail."),
-      step("player", "determined", `Then I will take the pieces from Captain ${goal.treasureCaptainName}'s old crew and read the map whole. Let them keep their black spots and mutiny talk. I mean to come home with the gold.`)
+      step("contact", "pleased", "Every piece is aboard a pirate ship. Ask in ports. Hail ships. Mark reliable bearings until the old crew shows its sails."),
+      step("player", "determined", `I will take the pieces from Captain ${goal.treasureCaptainName}'s old crew, read the map whole, and come home with the gold.`)
     ];
   }
   const debtOrigin = familyDebtOriginExchange(playerCharacter);
   return [
-    step("contact", "stern", `${playerCharacter.name}, your family's signature is here, beneath a debt of ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons. The estate secures every coin. At ten percent interest, time now works for me. ${debtOrigin.creditor}`),
+    step("contact", "stern", `${playerCharacter.name}, your family owes ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons, secured by the estate. At ten percent interest, time now works for me. ${debtOrigin.creditor}`),
     step("player", "concerned", `${debtOrigin.player} ${culture.debtIntro}`),
-    step("contact", "pleased", `I am not unreasonable. Each time you return, I will leave you ${goal.protectedPurse} doubloons for bread, rope, and whatever courage remains. Everything above it comes to me. Arrive poorer, and we shall learn what your promises are worth.`),
+    step("contact", "pleased", `I will leave you ${goal.protectedPurse} doubloons for necessities. Everything above that pays the debt. Return poorer, and your balance will keep growing.`),
     step("player", "determined", "Keep the deed close and your ink ready. One day you will write paid in full across it, and my family will keep what is ours.")
   ];
 }
@@ -643,14 +643,14 @@ export function campaignVictorySummary(goal, playerCharacter, { romance = null }
     return {
       title: "THE WHITE WHALE",
       reason: "Hunted the white whale across the world and returned home alive.",
-      legacy: `${playerCharacter.name} came home with the white whale's story and no need to embellish it. The chase became legend; the captain, having survived the thing that consumed so many dreams, finally learned to live beyond it. ${personal}${romanceEnding}`
+      legacy: `${playerCharacter.name} returned with the white whale's story. The chase became legend, but the captain finally learned to live beyond it. ${personal}${romanceEnding}`
     };
   }
   if (goal.type === CAMPAIGN_GOAL_TREASURE) {
     return {
       title: "CAPTAIN'S TREASURE",
       reason: `Recovered all ${TREASURE_MAP_PIECE_COUNT} pieces of Captain ${goal.treasureCaptainName}'s map, found the island, and fought the old crew home.`,
-      legacy: `${playerCharacter.name} returned with Captain ${goal.treasureCaptainName}'s treasure and a tale in which every impossible part was true. The map was locked away, the gold spent more wisely than pirates would have liked, and no black sail ever again made the captain mistake fear for destiny. ${personal}${romanceEnding}`
+      legacy: `${playerCharacter.name} returned with Captain ${goal.treasureCaptainName}'s treasure. The map was locked away, the gold wisely spent, and no black sail ruled the captain's fate again. ${personal}${romanceEnding}`
     };
   }
   return {
@@ -806,7 +806,7 @@ function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) 
     steps.push(step(
       "contact",
       "pleased",
-      `For ${outcome.newlyReportedIds.length === 1 ? "that account" : "those accounts"}, here are ${formatDoubloons(outcome.reward)} doubloons. Our record now holds ${outcome.reportedCount} of ${outcome.totalWonderCount} wonders.`
+      `${outcome.newlyReportedIds.length === 1 ? "That account earns" : "Those accounts earn"} ${formatDoubloons(outcome.reward)} doubloons. We now hold ${outcome.reportedCount} of ${outcome.totalWonderCount} wonders.`
     ));
   }
   if (outcome.completed) {
@@ -815,7 +815,7 @@ function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) 
   } else if (outcome.nextLeadDiscoveryId) {
     const lead = discoveryById.get(outcome.nextLeadDiscoveryId);
     if (!lead) throw new Error(`Missing explorer lead discovery: ${outcome.nextLeadDiscoveryId}`);
-    steps.push(step("contact", "attentive", `The nearest untested report concerns ${lead.displayName}: ${lead.detail || "a wonder not yet entered in our atlas"}. I can offer ${formatDoubloons(outcome.nextLeadReward)} doubloons for a true account. I have marked the bearing for you.`));
+    steps.push(step("contact", "attentive", `The nearest untested report is ${lead.displayName}: ${lead.detail || "a wonder missing from our atlas"}. A true account earns ${formatDoubloons(outcome.nextLeadReward)} doubloons. I marked the bearing.`));
   } else if (outcome.remainingNonLocationObjectiveIds.length > 0) {
     const objectiveId = outcome.remainingNonLocationObjectiveIds[0];
     const objective = discoveryById.get(objectiveId);
@@ -844,7 +844,7 @@ function debtHomecomingSteps(goal, outcome, playerCharacter, { buildEditionId })
       steps.push(step(
         "contact",
         "attentive",
-        "If settling one family account has made you hungry for more, the full version has quests to discover all the wonders of the world, kill a white whale, and find pirate treasure. I am told each is less predictable than compound interest."
+        "The full version offers stranger ambitions: chart the wonders of the world, hunt the white whale, or seek pirate treasure. All are less predictable than compound interest."
       ));
     }
   } else if (outcome.payment > 0) {

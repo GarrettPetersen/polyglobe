@@ -24,6 +24,11 @@ test("every authored screen-text template is committed to the localization catal
   assert.deepEqual(authored, screenTextTemplates());
 });
 
+test("ordinary screen text stays concise enough to read instead of skip", () => {
+  const overlong = screenTextTemplates().filter((template) => template.length > 200);
+  assert.deepEqual(overlong, []);
+});
+
 test("normal game text cannot be written to the screen in English-only form", () => {
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     const catalog = screenTextTranslationCatalog(language);
@@ -53,6 +58,15 @@ test("whale tow feedback is localized in every supported language", () => {
   const source = "THE LINE HOLDS - PREPARE FOR THE TOW";
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     assert.notEqual(localizeText(language, source), source, language);
+  }
+});
+
+test("composed port greetings localize both the salutation and useful news", () => {
+  const source = "Good morning, captain.  Pirates are close. Keep a watch posted before you cast off.";
+  for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
+    const localized = localizeText(language, source);
+    assert.notEqual(localized, source, language);
+    assert.doesNotMatch(localized, /Good morning|Pirates are close/, language);
   }
 });
 

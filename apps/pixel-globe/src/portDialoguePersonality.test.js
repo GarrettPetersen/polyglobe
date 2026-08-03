@@ -3,9 +3,13 @@ import test from "node:test";
 import {
   PORT_PERSONALITY_IDS,
   portGreetingForPersonality,
-  portGreetingPresentationForPersonality,
+  portGreetingPresentationForPersonality as renderPortGreetingPresentation,
   portPersonalityForKey
 } from "./portDialoguePersonality.js";
+
+function portGreetingPresentationForPersonality(options) {
+  return renderPortGreetingPresentation({ localHour: 13, ...options });
+}
 
 test("port personalities are stable and distributed across factors", () => {
   assert.equal(portPersonalityForKey("Lisbon|Portugal"), portPersonalityForKey("Lisbon|Portugal"));
@@ -13,15 +17,28 @@ test("port personalities are stable and distributed across factors", () => {
   assert.deepEqual([...assigned].sort(), [...PORT_PERSONALITY_IDS].sort());
 });
 
-test("different personalities give the same port a distinct voice", () => {
+test("ordinary port greetings get quickly to the useful local context", () => {
   const lines = PORT_PERSONALITY_IDS.map((personalityId) => portGreetingForPersonality({
     personalityId,
     cityName: "Lisbon",
     localFlavor: "The harbor is busy.",
     visitCount: 1,
-    dayIndex: 10
+    dayIndex: 10,
+    localHour: 13
   }));
-  assert.equal(new Set(lines).size, PORT_PERSONALITY_IDS.length);
+  assert.deepEqual([...new Set(lines)], ["Good afternoon, captain.  The harbor is busy."]);
+});
+
+test("port salutations follow local time", () => {
+  const atHour = (localHour) => renderPortGreetingPresentation({
+    personalityId: "cordial",
+    cityName: "Lisbon",
+    localFlavor: "The harbor is busy.",
+    localHour
+  }).text;
+  assert.match(atHour(8), /^Good morning, captain\./);
+  assert.match(atHour(13), /^Good afternoon, captain\./);
+  assert.match(atHour(20), /^Good evening, captain\./);
 });
 
 test("urgent nearby pirate traffic overrides ordinary port chatter", () => {
@@ -145,7 +162,7 @@ test("regional succession news takes priority over ordinary port gossip", () => 
   assert.equal(presentation.expressionId, "attentive");
 });
 
-test("port personalities retell regional historical news in their own voice", () => {
+test("port historical gossip stays to one useful report", () => {
   const gossip = {
     place: "Worms",
     report: "Martin Luther refused to recant before Emperor Charles V at the Diet of Worms",
@@ -165,8 +182,10 @@ test("port personalities retell regional historical news in their own voice", ()
     historicalGossip: gossip
   });
 
-  assert.match(enterprising.text, /Printers and pamphlet sellers/);
-  assert.match(reflective.text, /spoken words can travel farther/);
+  assert.match(enterprising.text, /Martin Luther refused to recant/);
+  assert.match(reflective.text, /Martin Luther refused to recant/);
+  assert.doesNotMatch(enterprising.text, /Printers and pamphlet sellers/);
+  assert.doesNotMatch(reflective.text, /spoken words can travel farther/);
   assert.equal(enterprising.expressionId, "attentive");
 });
 

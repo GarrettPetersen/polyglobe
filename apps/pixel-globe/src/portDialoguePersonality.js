@@ -12,69 +12,6 @@ export const PORT_PERSONALITY_IDS = Object.freeze([
   "reflective"
 ]);
 
-const BASE_LINES = Object.freeze({
-  cordial: {
-    first: [
-      (city) => `Welcome to ${city}, captain. Any honest sailor can find a chair by my fire.`,
-      (city) => `${city} has room for another friendly face. Come in, captain.`
-    ],
-    returning: [
-      (city) => `${city} remembers a familiar sail. Welcome back.`,
-      () => "Back again, captain. It is good to see the sea returned you safely."
-    ]
-  },
-  vigilant: {
-    first: [
-      (city) => `Welcome to ${city}. State your ship, cargo, and business plainly.`,
-      () => "Come in, captain, but keep your papers ready. I trust a tidy manifest."
-    ],
-    returning: [
-      () => "I know your sail now, captain. Let us see whether your papers remain in order.",
-      (city) => `Back in ${city}. I hope you have kept a sharper watch than some.`
-    ]
-  },
-  gossipy: {
-    first: [
-      (city) => `Welcome to ${city}. You have arrived on a day thick with rumors.`,
-      () => "A new captain means new stories. Sit down before the quay invents its own."
-    ],
-    returning: [
-      () => "There you are again. Half the quay has already guessed where you have been.",
-      (city) => `${city} has been talking in your absence, captain.`
-    ]
-  },
-  austere: {
-    first: [
-      (city) => `${city}. I am factor here. Keep your account straight and we will understand one another.`,
-      () => "Your name, your ship, your business. Brevity saves us both coin."
-    ],
-    returning: [
-      () => "You have returned. Your ledger remains open.",
-      (city) => `${city} again, captain. Let us proceed without ceremony.`
-    ]
-  },
-  enterprising: {
-    first: [
-      (city) => `Welcome to ${city}. A quick captain and a quick ledger can both prosper here.`,
-      () => "Come in. Every new sail is a new market, if its captain has nerve."
-    ],
-    returning: [
-      () => "Back with another hold to turn into coin, I hope.",
-      (city) => `${city} welcomes repeat business, captain. So do I.`
-    ]
-  },
-  reflective: {
-    first: [
-      (city) => `Welcome to ${city}. Every wake carries news, if one knows how to read it.`,
-      () => "Sit, captain. The sea teaches quickly, but rarely explains itself."
-    ],
-    returning: [
-      () => "You return with a different wake behind you. Voyages leave their mark.",
-      (city) => `${city} is much as you left it, though no port is ever truly still.`
-    ]
-  }
-});
-
 const CONTEXT_LINES = Object.freeze({
   pirates: {
     cordial: "Pirate sails have been seen nearby. Hospitality ends where their cannon range begins.",
@@ -178,7 +115,7 @@ export function portGreetingForPersonality({
 export function portGreetingPresentationForPersonality({
   personalityId,
   cityName,
-  returning = false,
+  localHour,
   localFlavor,
   prioritizeLocalFlavor = false,
   visitCount = 1,
@@ -202,10 +139,11 @@ export function portGreetingPresentationForPersonality({
   if (typeof prioritizeLocalFlavor !== "boolean") {
     throw new Error("Port greeting local-flavor priority must be boolean");
   }
-  const phase = returning ? "returning" : "first";
+  if (!Number.isFinite(localHour) || localHour < 0 || localHour >= 24) {
+    throw new Error(`Port greeting requires a valid local hour: ${localHour}`);
+  }
   const seed = `${personalityId}|${cityName}|${visitCount}|${dayIndex}`;
-  const baseFactory = choose(BASE_LINES[personalityId][phase], `${seed}|base`);
-  const base = baseFactory(cityName);
+  const salutation = localTimeGreeting(localHour);
   const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalTerms, seed });
   const prioritizeArrival = prioritizeLocalFlavor && topic !== "pirates" && topic !== "storm";
   const presentedTopic = prioritizeArrival ? null : topic;
@@ -237,7 +175,7 @@ export function portGreetingPresentationForPersonality({
     ? localFlavor
     : rumorLine || (presentedTopic ? contextLineFor(presentedTopic, personalityId, rivalTerms) : localFlavor);
   return Object.freeze({
-    text: `${religiousGreeting || base} ${contextLine}`.trim(),
+    text: `${religiousGreeting || salutation}  ${contextLine}`.trim(),
     expressionId: rulerLine
       ? "attentive"
       : historyLine
@@ -265,11 +203,16 @@ function historicalGossipLine(
   }
   const report = sentence(gossip.report);
   if (personalityId === "austere") return `News from ${gossip.place}: ${report}`;
-  if (personalityId === "enterprising") return `${report} ${gossip.tradeImpact}`;
-  if (personalityId === "reflective") return `${report} ${gossip.reflection}`;
   if (personalityId === "vigilant") return `Reports from ${gossip.place}: ${report}`;
   if (personalityId === "cordial") return `Travelers from ${gossip.place} say ${lowerFirst(report)}`;
+  if (personalityId === "enterprising" || personalityId === "reflective") return report;
   return `Have you heard? ${report}`;
+}
+
+function localTimeGreeting(localHour) {
+  if (localHour >= 5 && localHour < 12) return "Good morning, captain.";
+  if (localHour < 18) return "Good afternoon, captain.";
+  return "Good evening, captain.";
 }
 
 function sentence(value) {

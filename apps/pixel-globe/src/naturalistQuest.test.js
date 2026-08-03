@@ -67,10 +67,8 @@ test("the demo completes a regional natural history while the full game keeps th
       "4 of 18 creatures of these seas now have a place in my book. Keep watch whenever you make landfall.",
     completionLedgerLabel: "Completed Mediterranean natural history",
     completionDialogue:
-      "Splendid! Your accounts now contain every creature to be found in these demo waters. " +
-      "Yet the full game opens every ocean beyond Gibraltar, with still more beasts waiting " +
-      "on distant shores. Look at all these blank pages, captain. A natural philosopher could " +
-      "scarcely sleep.",
+      "Splendid! You have recorded every creature in these waters. The full game opens distant " +
+      "oceans and many blank pages in my book.",
     framesCompletion: true
   });
   assert.deepEqual(naturalistQuestPresentation(view, "full"), {

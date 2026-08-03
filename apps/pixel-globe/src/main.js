@@ -156,6 +156,7 @@ import {
   discreteWeatherFlagsForTile,
   fillIceMaskForDay,
   weatherClockAtLocalTime,
+  weatherLocalHour,
   weatherClockParts,
   windAtLatLonDeg
 } from "./weather.js";
@@ -5577,7 +5578,7 @@ function openCampaignGoalIntroDialogue() {
         {
           speaker: "contact",
           expressionId: "attentive",
-          text: `Begin with ${lead.displayName}: ${lead.detail || "the nearest wonder still missing from our atlas"}. I can offer ${outcome.nextLeadReward.toLocaleString("en-US")} doubloons for a true account. I have marked its bearing.`
+          text: `Begin with ${lead.displayName}: ${lead.detail || "the nearest wonder missing from our atlas"}. A true account earns ${outcome.nextLeadReward.toLocaleString("en-US")} doubloons. I marked its bearing.`
         }
       ];
     }
@@ -13514,7 +13515,7 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     meetNaturalist(memory);
     steps.push(naturalistLine(
       "happy",
-      "I am compiling a book of living creatures. Aristotle and Pliny wrote much, but sailors have seen what scholars have not. Bring me honest accounts of exotic beasts, and I shall pay 100 doubloons for each."
+      "Aristotle and Pliny never saw what sailors have. Bring me honest accounts of exotic beasts for my book; I pay 100 doubloons each."
     ));
   }
   const report = reportAnimalsToNaturalist(memory, gameState.memory.animals);
@@ -16031,6 +16032,7 @@ function portDialogueContext() {
     portCities: accessiblePorts,
     simMinute,
     dayIndex: weatherParts.dayIndex,
+    localHour: city ? weatherLocalHour(simMinute, graph.lonDeg[city.tileId]) : null,
     playerShipSlug: ship?.stats?.slug || gameState.ship?.slug || null,
     arrivalNavigation: city ? portArrivalNavigationByTileId?.get(city.tileId) || null : null,
     shipPower: playerShipPrivateeringPower(),

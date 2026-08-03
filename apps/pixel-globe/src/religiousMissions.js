@@ -37,13 +37,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     maximumDistanceKm: 12000,
     bonusDoubloons: 130,
     offer: ({ destinationName, reward }) =>
-      `Our Franciscan province is sending brothers west with grammars, medicines, and little money. I am bound for ${destinationName}, where I must find an interpreter before I presume to teach. Carry me there for ${reward} db.`,
+      `Our Franciscan province sends brothers west with grammars and medicine. I need an interpreter in ${destinationName} before I teach. Carry me for ${reward} db.`,
     underway: () =>
       "A sermon no one understands is only noise. I mean to learn the local tongue, keep no armed escort, and refuse any grant founded on forced labor.",
     arrival: ({ destinationName }) =>
       `At ${destinationName}, local interpreters and the friars' hosts wait beside the customs house. The mission can begin with lessons and a sickbed rather than a demand.`,
     participationLabel: "Help set the mission's rule",
-    participation: "You stand with the friar as he promises that baptism will not be bought with favors or driven by force, and that the mission house will shelter the sick regardless of faith. Catholic merchants contribute toward that work and thank the captain who made its terms public.",
+    participation: "You witness the friar reject forced baptism and open the mission house to the sick. Catholic merchants thank you for making those terms public.",
     bonusLabel: "Franciscan patrons' gift"
   }),
   religiousMission({
@@ -59,13 +59,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     maximumDistanceKm: 11000,
     bonusDoubloons: 125,
     offer: ({ destinationName, reward }) =>
-      `I carry testimony against forced labor and forced conversion back to the brethren in ${destinationName}. Men who profit by the encomienda would rather these pages vanished at sea. Deliver me for ${reward} db.`,
+      `I carry testimony against forced labor and conversion to ${destinationName}. Encomienda men want these pages lost. Deliver me for ${reward} db.`,
     underway: () =>
       "A cross cannot excuse a chain. If our preaching depends upon terror, then it condemns the preacher before it persuades a single soul.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s Dominicans have called colonists, officials, and Indigenous witnesses to hear the testimony in public.`,
     participationLabel: "Stand against forced conversion",
-    participation: "You testify that the friar and his papers crossed under your protection, then stand beside the Dominicans as they denounce coerced labor and coerced baptism. Sympathetic parishioners pay the captain who made sure the testimony could be heard.",
+    participation: "You confirm that the papers crossed safely as the Dominicans denounce forced labor and baptism. Sympathetic parishioners reward you.",
     bonusLabel: "Dominican supporters' purse"
   }),
   religiousMission({
@@ -81,13 +81,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     maximumDistanceKm: 22000,
     bonusDoubloons: 140,
     offer: ({ destinationName, reward }) =>
-      `The Franciscan house at ${destinationName} needs another brother to tend its sick, teach its Portuguese novices, and learn Konkani from its neighbors. I carry books and medicines, and can pay ${reward} db for passage.`,
+      `The Franciscan house at ${destinationName} needs a brother to tend the sick and learn Konkani. I carry books and medicine, and can pay ${reward} db.`,
     underway: () =>
       "The factories speak as if conquest settled every question. A friar who cannot listen in the language of the coast will serve the governor better than the Gospel.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s friars, nurses, and local language teachers have come to divide the medicines and begin the new lessons.`,
     participationLabel: "Endow the language lessons",
-    participation: "You join the friars and their Konkani teachers in setting aside a room where sailors and clergy must learn before they preach. Catholic patrons add a gift for the captain who helped make listening part of the mission.",
+    participation: "You help the friars and their Konkani teachers open a classroom. Catholic patrons reward the captain who made listening part of the mission.",
     bonusLabel: "Goa mission-house gift"
   }),
   religiousMission({
@@ -103,13 +103,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     maximumDistanceKm: 22000,
     bonusDoubloons: 135,
     offer: ({ destinationName, reward }) =>
-      `I carry letters between Emperor Lebna Dengel's court and King Joao of Portugal. Ethiopia is no heathen prize; its church is ancient, and these pages concern alliance, doctrine, and the safety of travelers. Take me to ${destinationName} for ${reward} db.`,
+      `I carry letters between Lebna Dengel and King Joao. Ethiopia's church is ancient; this concerns alliance, doctrine, and safe travel. Take me to ${destinationName} for ${reward} db.`,
     underway: () =>
       "Each side arrived expecting an exotic mirror of itself. The letters matter because friendship must survive the moment both churches discover real differences.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s clergy and royal agents are ready to receive the letters together, so neither court can quietly rewrite the other's words.`,
     participationLabel: "Witness the churches' exchange",
-    participation: "You witness the seals, hear both churches named with respect, and describe the route their next envoys must travel. The assembled clergy reward a Christian captain who treated correspondence as diplomacy rather than conquest.",
+    participation: "You witness the seals and chart the next envoys' route. The clergy reward a captain who treated the letters as diplomacy, not conquest.",
     bonusLabel: "Embassy churches' honorarium"
   }),
   religiousMission({
@@ -122,13 +122,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     preferClergy: true,
     bonusDoubloons: 90,
     offer: ({ destinationName, reward }) =>
-      `Wittenberg's presses have made every pulpit a frontier. I carry vernacular sermons and newly printed Scripture for readers in ${destinationName}. Give me safe passage and I can pay ${reward} db.`,
+      `Wittenberg's presses made every pulpit a frontier. I carry vernacular sermons and Scripture to ${destinationName}. Safe passage is worth ${reward} db.`,
     underway: ({ destinationName }) =>
       `Printers can make more copies than bishops can seize. If these sheets reach ${destinationName}, ordinary readers will judge the words themselves.`,
     arrival: ({ destinationName }) =>
       `${destinationName} has its readers—and its informers. I can move the bundles quietly from this quay.`,
     participationLabel: "Join the vernacular reading",
-    participation: "You read beside the reformer while sailors and artisans follow the words in their own tongue. The gathering entrusts you with offerings for carrying more texts between sympathetic ports.",
+    participation: "Sailors and artisans read the new text in their own tongue. The gathering pays you to carry more between sympathetic ports.",
     bonusLabel: "Reformation reading"
   }),
   religiousMission({
@@ -140,7 +140,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     preferClergy: true,
     bonusDoubloons: 85,
     offer: ({ destinationName, reward }) =>
-      `A coastal monastery lost books and painted panels when its storehouse roof failed. I have gathered the rescued icons and copyists' notes for brethren in ${destinationName}. Carry me there for ${reward} db.`,
+      `A monastery lost books and painted panels in a roof collapse. I carry the rescued icons and notes to ${destinationName}. Passage is ${reward} db.`,
     underway: () =>
       "Salt has touched the cases, but not the painted faces. Keep them dry and the monastery's memory will survive the storm.",
     arrival: ({ destinationName }) =>
@@ -160,7 +160,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     preferClergy: true,
     bonusDoubloons: 100,
     offer: ({ destinationName, reward }) =>
-      `Our pilgrims keep an ancient house in Jerusalem, but the road begins at the sea. I carry a Ge'ez service book and letters for the faithful gathering through ${destinationName}. Passage is worth ${reward} db.`,
+      `Our pilgrims keep an ancient house in Jerusalem. I carry a Ge'ez service book and letters through ${destinationName}. Passage is worth ${reward} db.`,
     underway: () =>
       "The book is wrapped against spray and the letters name every household that contributed. They have crossed harder country than this sea.",
     arrival: ({ destinationName }) =>
@@ -177,13 +177,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "waqf steward",
     bonusDoubloons: 90,
     offer: ({ destinationName, reward }) =>
-      `A merchant has endowed rents for a fountain, school, and soup kitchen. The signed waqf deed must reach its witnesses in ${destinationName} before the first accounts are opened. Carry me for ${reward} db.`,
+      `A merchant endowed a fountain, school, and soup kitchen. This waqf deed must reach its witnesses in ${destinationName}. Carry me for ${reward} db.`,
     underway: () =>
       "The deed names every shop, field, beneficiary, and witness. Charity lasts only when its obligations are harder to steal than its coin.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s judge and trustees are ready to register the endowment and begin feeding travelers.`,
     participationLabel: "Witness the charitable endowment",
-    participation: "You witness the deed with the trustees and inspect the first stores set aside for travelers and the poor. They pay an additional honorarium for a Muslim captain whose testimony can follow the endowment from port to port.",
+    participation: "You witness the deed and inspect stores for travelers and the poor. The trustees pay for testimony that can follow the endowment between ports.",
     bonusLabel: "Waqf witness fee"
   }),
   religiousMission({
@@ -194,13 +194,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "community messenger",
     bonusDoubloons: 100,
     offer: ({ destinationName, reward }) =>
-      `Our merchants dispute a partnership broken by shipwreck, and the local court found no settled answer. I carry the contracts and their question to learned rabbis in ${destinationName}. Safe passage is worth ${reward} db.`,
+      `A shipwreck broke a merchant partnership, and our court found no answer. I carry the contracts to rabbis in ${destinationName}. Passage is worth ${reward} db.`,
     underway: () =>
       "Every clause has been copied twice, with the witnesses' names. A responsum can settle this quarrel here and guide another community years from now.",
     arrival: ({ destinationName }) =>
       `The scholars of ${destinationName} have assembled to hear the facts before drafting their responsum.`,
     participationLabel: "Sit with the responsum court",
-    participation: "You explain the hazards of freight, salvage, and shared risk from a captain's experience. The scholars incorporate that testimony and the merchants add a fee for helping the ruling fit the sea as well as the page.",
+    participation: "You explain freight, salvage, and shared risk from experience. The scholars use your testimony, and the merchants add a fee.",
     bonusLabel: "Responsum testimony"
   }),
   religiousMission({
@@ -217,7 +217,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     arrival: ({ destinationName }) =>
       `${destinationName}'s guild elders are ready to count the pledges and release the first stores to the temple.`,
     participationLabel: "Present the guild's offering",
-    participation: "You present the donors' ledger before the temple stewards and name the ports that kept faith with the voyage. The guild rewards a Hindu captain who made the offering part of their own duty.",
+    participation: "You present the donors' ledger and name every port that kept faith. The guild rewards your care with the offering.",
     bonusLabel: "Temple guild honorarium"
   }),
   religiousMission({
@@ -228,13 +228,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "Jain lay steward",
     bonusDoubloons: 95,
     offer: ({ destinationName, reward }) =>
-      `Merchants have subscribed repairs and food for pilgrims climbing Shatrunjaya. Their accounts must meet the caravan assembling through ${destinationName}. Carry me and the donation rolls for ${reward} db.`,
+      `Merchants pledged repairs and food for pilgrims at Shatrunjaya. Carry their accounts to the caravan in ${destinationName} for ${reward} db.`,
     underway: () =>
       "No cargo in these rolls is taken by force or bought with slaughter. The donors mean commerce to leave a gentler mark than profit alone.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s Jain guild is ready to audit the rolls before the pilgrims and craftsmen go inland.`,
     participationLabel: "Audit the pilgrimage charity",
-    participation: "You help reconcile each port's pledge without favoring kin or partner. The guild records the accounts as clean and pays you for serving the pilgrimage without compromising its principles.",
+    participation: "You reconcile each port's pledge without favoring kin or partner. The guild records clean accounts and pays you.",
     bonusLabel: "Pilgrimage charity audit"
   }),
   religiousMission({
@@ -246,13 +246,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     minimumDistanceKm: 100,
     bonusDoubloons: 110,
     offer: ({ destinationName, reward }) =>
-      `Guru Nanak has settled at Kartarpur, where the sangat gathers morning and evening to sing. I carry remembered hymns and news of the community to friends near ${destinationName}. Take me there for ${reward} db.`,
+      `Guru Nanak's sangat gathers at Kartarpur to sing. I carry its hymns and news to friends near ${destinationName}. Take me for ${reward} db.`,
     underway: () =>
       "The hymns travel best in living voices. I repeat each measure at dawn so wind and fear cannot make me forget it.",
     arrival: ({ destinationName }) =>
       `The sangat at ${destinationName} has gathered. They ask to hear Kartarpur's hymns before any account is settled.`,
     participationLabel: "Sing with the sangat",
-    participation: "You sit among traders, farmers, and sailors as the hymn passes from one voice to the next. After the shared meal, the congregation contributes an additional gift for your service to the new community.",
+    participation: "Traders, farmers, and sailors pass the hymn from voice to voice. After the shared meal, the congregation gives you an additional gift.",
     bonusLabel: "Sangat's gift"
   }),
   religiousMission({
@@ -263,13 +263,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "community emissary",
     bonusDoubloons: 105,
     offer: ({ destinationName, reward }) =>
-      `Our households are few and scattered between Iran and Gujarat. I carry ritual questions, family letters, and copies of prayers to the community in ${destinationName}. Passage is worth ${reward} db.`,
+      `Our households are scattered between Iran and Gujarat. I carry prayers, questions, and family letters to ${destinationName}. Passage is worth ${reward} db.`,
     underway: () =>
       "The packets are small because every line matters. One answer may guide a household that has not seen another fire temple in a generation.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s elders are waiting to compare the letters and prepare replies for the return routes.`,
     participationLabel: "Join the community council",
-    participation: "You greet the council as hamazor and describe the faithful communities along your route. Their replies now have a trusted carrier, and they add a substantial gift to support your next crossing.",
+    participation: "You greet the council as hamazor and describe communities along your route. They entrust you with replies and a substantial gift.",
     bonusLabel: "Community correspondence"
   }),
   religiousMission({
@@ -281,13 +281,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     preferClergy: true,
     bonusDoubloons: 100,
     offer: ({ destinationName, reward }) =>
-      `Monks have crossed between Lanka and the mainland for ordination, study, and Pali texts. I carry a copied monastic rule and letters of lineage to a monastery near ${destinationName}. Passage is worth ${reward} db.`,
+      `Monks cross between Lanka and the mainland for study and ordination. I carry a monastic rule and lineage letters near ${destinationName}. Passage is ${reward} db.`,
     underway: () =>
       "A lineage lives through teachers, students, and careful conduct—not through a royal seal. Still, a dry manuscript helps.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s chapter has assembled to compare the text and hear news of monasteries across the sea.`,
     participationLabel: "Attend the merit dedication",
-    participation: "You attend while the chapter receives the text and dedicates the merit of the voyage. Lay patrons add provisions and coin for a Buddhist captain who protected the monastic exchange.",
+    participation: "The chapter receives the text and dedicates the voyage's merit. Lay patrons add provisions and coin for protecting the exchange.",
     bonusLabel: "Monastic patrons' gift"
   }),
   religiousMission({
@@ -302,13 +302,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     preferClergy: true,
     bonusDoubloons: 120,
     offer: ({ destinationName, reward }) =>
-      `Our monastery and a Daoist abbey both repaired the storm wharf, and now each claims its tolls and storehouse. I carry both account books to neutral elders in ${destinationName}. Take me there for ${reward} db.`,
+      `Our monastery and a Daoist abbey both claim the wharf they repaired. I carry both accounts to neutral elders in ${destinationName}. Take me for ${reward} db.`,
     underway: () =>
       "Buddhists and Daoists often share patrons and craftsmen; that makes a disputed wall or quay harder, not easier, to divide. The books must speak before tempers do.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s Buddhist, Daoist, and learned civic elders are seated together. They need a final maritime witness before dividing the wharf's upkeep and use.`,
     participationLabel: "Help reconcile the two temples",
-    participation: "You show that neither account paid for the wharf alone. The elders establish shared upkeep, alternating festival access, and free landing for storm-struck vessels. Both temples reward the captain who made coexistence more useful than victory.",
+    participation: "You show that neither account paid alone. The elders order shared upkeep and free landing in storms; both temples reward you.",
     bonusLabel: "Three Teachings mediation"
   }),
   religiousMission({
@@ -321,7 +321,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     preferClergy: true,
     bonusDoubloons: 90,
     offer: ({ destinationName, reward }) =>
-      `Our sutra copy lacks six leaves. A monastery near ${destinationName} owns another recension and will let me collate the missing lines. Carry me and the wrapped volume for ${reward} db.`,
+      `Our sutra lacks six leaves. A monastery near ${destinationName} will let me collate another copy. Carry me and the volume for ${reward} db.`,
     underway: () =>
       "A copyist can preserve an error for centuries as easily as a teaching. We will compare every doubtful character before filling the gaps.",
     arrival: ({ destinationName }) =>
@@ -341,7 +341,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "shrine-temple steward",
     bonusDoubloons: 85,
     offer: ({ destinationName, reward }) =>
-      `A shrine and its Buddhist temple share a storm-damaged approach near ${destinationName}. I carry donor lists and plans for rebuilding both without slighting either. Passage is worth ${reward} db.`,
+      `A shrine and Buddhist temple share a storm-damaged approach near ${destinationName}. I carry plans to rebuild both. Passage is worth ${reward} db.`,
     underway: () =>
       "The kami's gate and the temple hall stand on the same road. Repairing only one would leave the whole precinct broken.",
     arrival: ({ destinationName }) =>
@@ -359,13 +359,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     maximumDistanceKm: 22000,
     bonusDoubloons: 80,
     offer: ({ destinationName, reward }) =>
-      `Families entrusted me with a quipu recording cloth, maize, and labor promised to a huaca near ${destinationName}. I must place the record before its keepers. Carry me for ${reward} db.`,
+      `This quipu records cloth, maize, and labor promised to a huaca near ${destinationName}. I must reach its keepers. Carry me for ${reward} db.`,
     underway: () =>
       "Every knot binds a household to what it promised. If the cord is lost, memory becomes an argument between the coast and the high road.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s keepers and carriers are waiting to read the quipu against the offerings already received.`,
     participationLabel: "Witness the quipu accounting",
-    participation: "You recount the ports and weather of the journey while the keepers match knots to gifts. They recognize your shared obligations to land, ancestors, and sacred places with an additional reward.",
+    participation: "You recount the voyage while keepers match knots to gifts. They recognize your care for their obligations with an additional reward.",
     bonusLabel: "Huaca accounting"
   }),
   religiousMission({
@@ -376,13 +376,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "calendar keeper",
     bonusDoubloons: 80,
     offer: ({ destinationName, reward }) =>
-      `War and conquest scattered our painted day-counts. I carry a surviving copy so keepers in ${destinationName} can compare ceremonies, planting days, and remembered names. Passage is worth ${reward} db.`,
+      `War scattered our painted day-counts. Keepers in ${destinationName} must compare this copy with remembered ceremonies. Passage is worth ${reward} db.`,
     underway: () =>
       "A calendar is not merely a number. It tells a community when to plant, remember the dead, and renew its promises.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s keepers have brought their own damaged books and oral counts to compare with mine.`,
     participationLabel: "Join the calendar comparison",
-    participation: "You provide the voyage's day count while the keepers reconcile painted signs with remembered ceremonies. They reward a captain who understands that preserving time can preserve a people.",
+    participation: "Your voyage count helps reconcile painted signs with remembered ceremonies. The keepers reward you for preserving their time.",
     bonusLabel: "Calendar keepers' gift"
   }),
   religiousMission({
@@ -393,13 +393,13 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "lineage emissary",
     bonusDoubloons: 85,
     offer: ({ destinationName, reward }) =>
-      `Two trading lineages blame each other for a lost canoe and a broken marriage pledge. I carry witness gifts and the elders' terms to their kin in ${destinationName}. Take me there for ${reward} db.`,
+      `Two lineages dispute a lost canoe and broken marriage pledge. I carry witness gifts and the elders' terms to ${destinationName}. Take me for ${reward} db.`,
     underway: () =>
       "Coin can replace a canoe. It cannot by itself repair the names of the living before their ancestors. Every witness matters.",
     arrival: ({ destinationName }) =>
       `${destinationName}'s elders have assembled both lineages and laid out the witness gifts without opening them.`,
     participationLabel: "Stand witness before the ancestors",
-    participation: "You testify to the voyage and stand with the elders as gifts and obligations are exchanged. Both lineages add to your payment for helping turn a dangerous grievance into a remembered settlement.",
+    participation: "You testify as the elders exchange gifts and obligations. Both lineages add to your payment for settling the grievance.",
     bonusLabel: "Lineage settlement"
   }),
   religiousMission({
@@ -410,7 +410,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "wayfinding priest",
     bonusDoubloons: 95,
     offer: ({ destinationName, reward }) =>
-      `Our islands remember kinship by voyaging it. I carry genealogy, a carved adze, and kava for the chiefs at ${destinationName}, where an old sea alliance must be renewed. Passage is worth ${reward} db.`,
+      `Our islands remember kinship by voyaging it. I carry genealogy, an adze, and kava to renew an alliance at ${destinationName}. Passage is ${reward} db.`,
     underway: () =>
       "The stars and swells hold the road, but names hold the reason for sailing it. I repeat both before sleep.",
     arrival: ({ destinationName }) =>
@@ -427,7 +427,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     roleLabel: "ritual envoy",
     bonusDoubloons: 85,
     offer: ({ destinationName, reward }) =>
-      `A woven ancestor cloth and marriage gifts must reach our allied house in ${destinationName} before the monsoon closes the route. I am charged to speak the names that travel with them. Passage is worth ${reward} db.`,
+      `An ancestor cloth and marriage gifts must reach our allied house in ${destinationName} before the monsoon. Passage is worth ${reward} db.`,
     underway: () =>
       "The cloth has crossed this water before in stories. If it returns safely, two houses will still call each other kin.",
     arrival: ({ destinationName }) =>

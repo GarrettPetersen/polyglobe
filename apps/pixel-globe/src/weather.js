@@ -259,6 +259,20 @@ export function weatherClockParts(clockMinutes) {
   };
 }
 
+export function weatherLocalHour(clockMinutes, longitudeDeg) {
+  if (![clockMinutes, longitudeDeg].every(Number.isFinite)) {
+    throw new Error("Local weather hour inputs must be finite numbers");
+  }
+  if (longitudeDeg < -180 || longitudeDeg > 180) {
+    throw new Error(`Longitude ${longitudeDeg} is outside -180..180`);
+  }
+  const localMinute = positiveModulo(
+    Math.floor(clockMinutes + longitudeDeg * 4),
+    WEATHER_MINUTES_PER_DAY
+  );
+  return Math.floor(localMinute / 60);
+}
+
 export function weatherClockAtLocalTime(clockMinutes, longitudeDeg, localHour, localMinute = 0) {
   if (![clockMinutes, longitudeDeg, localHour, localMinute].every(Number.isFinite)) {
     throw new Error("Local weather clock inputs must be finite numbers");

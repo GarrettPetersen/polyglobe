@@ -9,7 +9,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "royal surveyor",
     settlementLeaderRole: "governor of the City of Kings",
     basis: "Pizarro founded the City of Kings in 1535 on Taulichusco's lands in the Rimac valley.",
-    pitch: "Pizarro's surveyors have chosen the Rimac valley for a coastal capital called the City of Kings. The land is already governed and cultivated under the curaca Taulichusco; this is a conquest and a new seat of Spanish power, not an empty shore.",
+    pitch: "Pizarro chose the cultivated Rimac valley, ruled by curaca Taulichusco, for his City of Kings. This is conquest, not an empty shore.",
     fetch: [
       stage("survey-camp", "linen-cloth", 6, "field tents, map cases, and the first chapel", "The survey party must work between the river and the old roads. Bring"),
       stage("city-grid", "timber", 8, "stakes, bridgework, and frames around the new plaza", "The plaza has been measured over the existing settlement. Its grid now needs"),
@@ -17,7 +17,7 @@ const HISTORIES = Object.freeze([
     ],
     ready: "The plans name it Ciudad de los Reyes, the City of Kings, with a plaza beside the Rimac and a road down to its harbor.",
     departed: "The surveyors guard the royal plans while the families watch the Pacific coast for the Rimac valley.",
-    landing: "This is Taulichusco's valley, already crossed by fields, canals, roads, and sacred places. The expedition will impose the City of Kings here and make it Spain's new Pacific capital.",
+    landing: "This is Taulichusco's cultivated valley. The expedition will impose the City of Kings here as Spain's Pacific capital.",
     landingAction: "Lay out the City of Kings",
     resupply: resupply("grain", 12, "food reserves while the new capital draws farmers and officials", "The City of Kings needs grain before its first dry season ends.", "The Rimac irrigates the fields, but the new population is growing faster than its harvest.", "Your grain has arrived before the storehouses failed."),
     established: "The City of Kings now governs Spain's Pacific conquests from the Rimac valley. Its warehouses face the road to the harbor, while the older landscape remains beneath the new grid."
@@ -26,7 +26,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Pernambuco harbor factor",
     settlementLeaderRole: "harbor factor of Recife",
     basis: "Recife grew around the arrecife dos navios as the reef-sheltered warehouse port for Olinda and Pernambuco sugar.",
-    pitch: "Olinda has fine hills but poor anchorage. Behind the long reef, fishers, inns, and storehouses are gathering at the arrecife dos navios. Pernambuco needs a proper harbor to move sugar and mill gear.",
+    pitch: "Olinda has poor anchorage. Behind the reef, fishers and stores gather at the arrecife dos navios. Pernambuco needs a harbor for sugar and mill gear.",
     fetch: [
       stage("reef-wharves", "timber", 8, "wharves and warehouses behind the sheltering reef", "The reef breaks the Atlantic swell, but cargo still needs dry footing. Bring"),
       stage("warehouse-fittings", "iron", 5, "cranes, locks, hoops, and sugar-mill repairs", "The first warehouses stand between the Capibaribe and Beberibe. Fit them with"),
@@ -43,7 +43,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Rio de la Plata adelantado",
     settlementLeaderRole: "commander of the Asuncion fort",
     basis: "Asuncion began as a 1537 fort during the search up the Paraguay River and became a refuge and base for later river settlements.",
-    pitch: "An expedition searching the Paraguay River for the road to the fabled Sierra de la Plata needs a permanent fort. The Cario Guarani control these banks; survival will depend as much on relations with them as on walls.",
+    pitch: "An expedition seeking the Sierra de la Plata needs a fort on the Paraguay. The Cario Guarani control these banks; survival requires their cooperation.",
     fetch: [
       stage("river-fort", "timber", 8, "a riverside stockade, boats, and raised store floors", "Floodwater and distance will punish a careless camp. Bring"),
       stage("expedition-arms", "arms", 4, "the garrison and the expeditions sent farther upriver", "The fort is also a base for a dangerous inland search. Supply"),
@@ -60,7 +60,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of the governor-general",
     settlementLeaderRole: "governor-general at Salvador",
     basis: "Tome de Sousa founded fortified Salvador in 1549 as the planned seat of Brazil's first governor-general.",
-    pitch: "The scattered captaincies of Brazil need a royal center. Tome de Sousa intends a planned, fortified capital above the Bay of All Saints, with government offices, a cathedral, and a defensible harbor.",
+    pitch: "Brazil's scattered captaincies need a royal center. Tome de Sousa plans a fortified capital above the Bay of All Saints.",
     fetch: [
       stage("governor-buildings", "timber", 10, "the governor's house, storehouses, and the first defenses", "A capital must rise quickly above the bay. Bring"),
       stage("royal-fittings", "iron", 6, "gates, tools, artillery fittings, and government chests", "The street plan and palisade are marked. The royal buildings require"),
@@ -77,7 +77,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "captain of the Chilean frontier",
     settlementLeaderRole: "commandant of Concepcion",
     basis: "Valdivia founded Concepcion at Penco Bay in 1550 as a strategic base in Mapuche territory during the conquest of Chile.",
-    pitch: "Pedro de Valdivia wants a southern base at Penco Bay. This is Mapuche country and the proposed town is a frontier fort in an active war, whatever the sponsors call it on their maps.",
+    pitch: "Valdivia wants a southern base at Penco Bay. This is Mapuche country; the proposed town is a frontier fort in an active war.",
     fetch: [
       stage("penco-stockade", "timber", 10, "a strong stockade and protected storehouses at Penco", "The bay is excellent, but the position must be defended from the first night. Bring"),
       stage("frontier-arms", "arms", 5, "the garrison posted south of the settled valleys", "A frontier town without a trained garrison will not last. Supply"),
@@ -94,7 +94,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "captain against France Antarctique",
     settlementLeaderRole: "captain of Sao Sebastiao",
     basis: "Estacio de Sa founded Sao Sebastiao do Rio de Janeiro in 1565 as a military base against France Antarctique in Guanabara Bay.",
-    pitch: "French settlers and their Tamoio allies hold Guanabara Bay as France Antarctique. Estacio de Sa needs a fortified Portuguese base at the harbor mouth before he can contest the bay.",
+    pitch: "French settlers and Tamoio allies hold Guanabara Bay. Estacio de Sa needs a Portuguese fort at the harbor mouth to contest it.",
     fetch: [
       stage("guanabara-fort", "timber", 10, "a stockade beneath Sugarloaf and boats for the bay", "The first settlement will be a military camp at the harbor mouth. Bring"),
       stage("saint-sebastian-arms", "arms", 5, "soldiers facing French guns and Tamoio canoes", "Guanabara is already defended. The expedition requires"),
@@ -111,9 +111,9 @@ const HISTORIES = Object.freeze([
       minCanoes: 3,
       maxCanoes: 4,
       reward: 1200,
-      alert: "The new powder is scarcely in the magazine, and Tamoio war canoes are already crossing Guanabara Bay. Their confederation and its French allies mean to destroy this Portuguese redoubt before it can close the bay. Defeat the attacking Tamoio canoes, or Sao Sebastiao will not hold.",
+      alert: "Tamoio war canoes and their French allies are crossing Guanabara Bay. Defeat them before they destroy the new Portuguese redoubt.",
       challenge: "Guanabara is Tamoio country. Your fort will not close this bay. Turn back, or we will drive you from these waters!",
-      report: "The surviving Tamoio canoes have withdrawn across Guanabara. Sao Sebastiao still holds the harbor mouth, though this victory will deepen a brutal war for the bay. The council has set aside a reward for the captain who kept the redoubt from falling."
+      report: "The Tamoio canoes withdrew. Sao Sebastiao holds the harbor mouth, though the war for the bay will deepen. The council pays your reward."
     }),
     established: "Sao Sebastiao has secured Guanabara Bay for Portugal. Around the old redoubt, Rio de Janeiro is becoming a true port."
   }),
@@ -138,7 +138,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "captain of the Venezuela expedition",
     settlementLeaderRole: "alcalde of Santiago de Leon",
     basis: "Diego de Losada founded Santiago de Leon de Caracas in 1567 after earlier settlements failed amid Indigenous resistance.",
-    pitch: "Earlier Spanish footholds in the Caracas valley have failed. Diego de Losada proposes Santiago de Leon de Caracas, but the Caracas and allied peoples have already shown that a name and charter do not secure the valley.",
+    pitch: "Earlier Spanish footholds in Caracas failed. Losada proposes a new city, though Caracas and allied peoples have shown that a charter cannot secure the valley.",
     fetch: [
       stage("caracas-frames", "timber", 8, "houses, a stockade, and the road from the coast", "The valley settlement must be defensible and connected to its landing place. Bring"),
       stage("caracas-tools", "iron", 6, "tools, gates, and farming implements", "The street grid is easy to draw and hard to build. It requires"),
@@ -155,7 +155,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of Legazpi",
     settlementLeaderRole: "governor of Manila",
     basis: "Legazpi made Manila the Spanish capital in 1571 after the conquest of the existing Tagalog polity of Maynila.",
-    pitch: "Legazpi wants a capital on Manila Bay, but Maynila is already a fortified Tagalog and Muslim trading polity beside Tondo. This expedition is meant to conquer and rebuild an existing Asian port, not discover one.",
+    pitch: "Maynila is already a fortified Tagalog and Muslim port beside Tondo. Legazpi means to conquer and rebuild it as his capital, not discover it.",
     fetch: [
       stage("manila-arms", "arms", 6, "the force sent to occupy Maynila", "The rulers of Maynila have ships, cannon, and allies. The expedition first demands"),
       stage("manila-powder", "gunpowder", 6, "arquebuses and artillery for the Pasig River approach", "A landing at the Pasig cannot rely on steel alone. Supply"),
@@ -172,7 +172,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Portuguese Japan-trade factor",
     settlementLeaderRole: "port steward of Nagasaki",
     basis: "Omura Sumitada and Jesuit planners opened Nagasaki to the Portuguese China ship in 1571 and laid out six streets by the anchorage.",
-    pitch: "The China ship needs a reliable Japanese harbor after the failures at Yokoseura and Fukuda. Omura Sumitada and the Jesuits propose six streets around Nagasaki's anchorage, under Japanese authority and local law.",
+    pitch: "After Yokoseura and Fukuda failed, Omura Sumitada and the Jesuits proposed six streets at Nagasaki for the China ship, under Japanese law.",
     fetch: [
       stage("nagasaki-quays", "timber", 8, "quays, warehouses, and houses around the new anchorage", "The sheltered inlet is excellent, but the projected six streets need"),
       stage("nagasaki-fittings", "iron", 5, "anchors, cranes, locks, and warehouse fittings", "A port for the great nao from Macau requires more than wooden sheds. Bring"),
@@ -184,20 +184,20 @@ const HISTORIES = Object.freeze([
     landingAction: "Open Nagasaki harbor",
     approval: {
       speakerRole: "envoy of the court and Omura house",
-      openingText: "We come under Portuguese seal to request a permanent trading harbor at Nagasaki, not to seize Japanese ground. Omura Sumitada's envoys propose six streets around the anchorage for the China ship, under Japanese authority and local law.",
-      responseText: "The court has heard the Portuguese emissaries. The site lies in Omura Sumitada's domain, and his envoys support the six streets. Japan already knows gunpowder; present the portable matchlock mechanism so our armorers may judge it, and the harbor terms may be sealed.",
+      openingText: "Under Portuguese seal, we request a trading harbor at Nagasaki, not Japanese territory. Omura Sumitada's envoys offer six streets under Japanese law.",
+      responseText: "The court accepts Omura's site in principle. Present the portable matchlock so our armorers may judge it, and we can seal the harbor terms.",
       closingText: "Then Nagasaki shall remain a Japanese port, and the annual China ship will have a lawful harbor. Captain, our course now lies to the Omura anchorage.",
       actionLabel: "Present arms and negotiate terms",
       grantedFeedback: "The court and Omura envoys have accepted terms for a Japanese trading port at Nagasaki."
     },
     resupply: resupply("silk-cloth", 6, "the Macau-Japan trade on which the new port depends", "Nagasaki needs a China-trade cargo, not another load of European promises.", "The six streets are filling, but no port built for the great ship can prosper while its warehouses are empty.", "Macau silk is in the warehouses; Nagasaki's reason for being is now visible on its quays."),
-    established: "Nagasaki is a Japanese port transformed by the annual Portuguese ship, with local officials, Japanese residents, Jesuit institutions, and foreign factors sharing its six new streets."
+    established: "Nagasaki is a Japanese port transformed by the annual Portuguese ship, its six streets shared by local officials, Jesuits, and foreign factors."
   }),
   history("Luanda", "Angola", {
     sponsorRole: "agent of Paulo Dias de Novais",
     settlementLeaderRole: "governor of Sao Paulo de Luanda",
     basis: "Paulo Dias de Novais founded Luanda in 1576 with settlers and soldiers; it became a fortified bridgehead tied to war and the Atlantic slave trade.",
-    pitch: "Paulo Dias de Novais has a royal charter, settler families, and soldiers for Sao Paulo de Luanda. The project is a fortified bridgehead into Mbundu lands, and its sponsors openly expect war, captives, and Atlantic slave trading.",
+    pitch: "Paulo Dias de Novais brings settlers and soldiers to Luanda: a fortified bridgehead into Mbundu lands built for war, captives, and slave trading.",
     fetch: [
       stage("luanda-fort", "timber", 10, "the first fortress above Luanda Bay", "The expedition begins with a fort, because its charter anticipates coercion. Bring"),
       stage("luanda-arms", "arms", 6, "soldiers campaigning inland from the coast", "Novais carries more soldiers than families. Equip them with"),
@@ -214,7 +214,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of Juan de Garay",
     settlementLeaderRole: "alcalde of Buenos Aires",
     basis: "Juan de Garay led the successful 1580 refoundation from Asuncion to give the Paraguay settlements an Atlantic outlet.",
-    pitch: "The first Buenos Aires starved and was abandoned. Juan de Garay means to refound it from Asuncion, giving the upriver settlements a lawful Atlantic outlet and bringing people who already understand the Plata basin.",
+    pitch: "The first Buenos Aires starved. Garay will refound it from Asuncion as an Atlantic outlet led by people who know the Plata basin.",
     fetch: [
       stage("plata-houses", "timber", 8, "houses, corrals, and boats at the muddy river landing", "The broad Plata offers little stone and much weather. Bring"),
       stage("plata-tools", "iron", 6, "ploughs, axes, nails, and cattle gear", "This second foundation must farm instead of waiting for treasure. Supply"),
@@ -231,7 +231,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Newfoundland fishing promoter",
     settlementLeaderRole: "fishing admiral at St. John's",
     basis: "Gilbert asserted an English claim at St. John's in 1583, but the harbor was already an international seasonal fishery and his colony plan failed.",
-    pitch: "St. John's is already crowded each season with Basque, Portuguese, French, and English fishing crews. Humphrey Gilbert's claim did not create the harbor, and his planned colony died with him at sea; this expedition would make that abandoned scheme real.",
+    pitch: "St. John's already hosts Basque, Portuguese, French, and English fishers each season. Gilbert's colony died with him at sea; we mean to revive it.",
     fetch: [
       stage("fishing-stages", "timber", 10, "stages, flakes, boats, and winter houses", "A permanent station needs more than the seasonal crews leave behind. Bring"),
       stage("cod-salt", "salt", 12, "curing cod for the voyage back across the Atlantic", "The fishery has no value if the catch spoils. Stock"),
@@ -248,7 +248,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Acadian colonial organizer",
     settlementLeaderRole: "governor of Port Royal",
     basis: "De Monts, Poutrincourt, and Champlain moved to sheltered Port Royal after the disastrous Saint Croix winter and maintained relations with the Mi'kmaq.",
-    pitch: "The Saint Croix winter proved what cold, isolation, and scurvy can do. De Monts and Poutrincourt want a second attempt in the sheltered Annapolis Basin, near Mi'kmaq communities whose knowledge and friendship are essential.",
+    pitch: "Cold, isolation, and scurvy destroyed Saint Croix. De Monts and Poutrincourt will try again in sheltered Annapolis, relying on nearby Mi'kmaq knowledge.",
     fetch: [
       stage("canvas-and-clothing", "wool-cloth", 6, "tents, spare clothes, and winter sea-cloaks", "Saint Croix taught us to fear cold more than distance. Bring"),
       stage("house-frames", "timber", 10, "the enclosed Habitation, palisade, and boats", "Champlain has sketched a fortified farm courtyard for the new site. It needs"),
@@ -265,7 +265,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Virginia Company adventurer",
     settlementLeaderRole: "president of the Jamestown council",
     basis: "The Virginia Company founded Jamestown in 1607 for profit; disease, brackish water, drought, and conflict with Powhatan brought catastrophic mortality.",
-    pitch: "The Virginia Company promises gold, a western passage, and profit. Its chosen James River island is defensible against European fleets but marshy, short of good water, and inside Powhatan's country.",
+    pitch: "The Virginia Company promises gold and a western passage. Its James River island is defensible but marshy, short of water, and inside Powhatan country.",
     fetch: [
       stage("james-fort", "timber", 10, "the triangular fort, storehouse, and river landing", "The company values defense before health. Its island fort needs"),
       stage("virginia-tools", "iron", 6, "axes, farming tools, nails, and experimental industries", "Gentlemen searching for treasure will still need to cut wood and plant. Bring"),
@@ -282,9 +282,9 @@ const HISTORIES = Object.freeze([
       minCanoes: 2,
       maxCanoes: 4,
       reward: 1000,
-      alert: "Opechancanough has united Powhatan forces in a coordinated strike against the spreading English settlements. War canoes are coming down the James while the fort is still unloading grain. Defeat the attacking Powhatan canoes, or Jamestown may vanish with the outlying plantations.",
+      alert: "Opechancanough has united Powhatan forces against the spreading settlements. Defeat the war canoes coming down the James, or Jamestown may fall.",
       challenge: "The English take more fields with every season. Opechancanough has ordered your settlements struck. Leave the James, or we attack!",
-      report: "The Powhatan attack has broken off and the river approaches are clear. Jamestown survives, but no one here can pretend the assault came without cause: English expansion and demands for land have made a wider war inevitable. The Virginia Company will pay the promised defense bounty."
+      report: "The Powhatan attack broke off. Jamestown survives, but English expansion has made a wider war inevitable. The Virginia Company pays the bounty."
     }),
     established: "Jamestown has survived disease, hunger, and conflict long enough to become permanent. The Virginia Company has its foothold, at a human cost its pamphlets will not advertise."
   }),
@@ -309,7 +309,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Virginia Company island promoter",
     settlementLeaderRole: "governor of St. George's",
     basis: "St. George's followed the 1609 wreck of the Sea Venture; survivors built Deliverance and Patience, and a deliberate town was settled in 1612.",
-    pitch: "The Sea Venture's survivors found Bermuda by wreck, then built Deliverance and Patience from island cedar and sailed on to Jamestown. Their reports have convinced the Virginia Company to plant a deliberate town at St. George's.",
+    pitch: "Sea Venture survivors built Deliverance and Patience from Bermuda cedar before reaching Jamestown. Their account now inspires a town at St. George's.",
     fetch: [
       stage("bermuda-houses", "timber", 8, "houses and storm-braced store sheds", "The wreckers praised Bermuda cedar, but the first company must arrive ready to build. Bring"),
       stage("bermuda-tools", "iron", 6, "axes, nails, boat fittings, and salvaging gear", "An island that saved one shipwreck may demand the same ingenuity again. Supply"),
@@ -345,7 +345,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "representative of the Leiden congregation",
     settlementLeaderRole: "governor of Plymouth",
     basis: "The Mayflower passengers settled at Patuxet in 1620 after epidemic had devastated the Wampanoag village; survival depended on Wampanoag assistance.",
-    pitch: "A Separatist congregation from Leiden seeks a place to worship under its own covenant. Their intended patent lies farther south, but weather may force them onto the Wampanoag coast at Patuxet.",
+    pitch: "A Separatist congregation from Leiden seeks its own covenant. Weather may force them north of their patent onto the Wampanoag coast at Patuxet.",
     fetch: [
       stage("plymouth-houses", "timber", 8, "common houses, roofs, and a defensive platform", "The congregation can write a compact aboard ship; it cannot sleep under parchment. Bring"),
       stage("plymouth-clothing", "wool-cloth", 8, "blankets and clothes for a New England winter", "The first winter will begin before proper houses are ready. Supply"),
@@ -363,7 +363,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Dutch West India Company director",
     settlementLeaderRole: "director of New Amsterdam",
     basis: "The Dutch West India Company formed New Amsterdam at Manhattan's southern tip to govern New Netherland and protect the Hudson fur trade.",
-    pitch: "The West India Company wants a fort and provincial seat at Manhattan's southern tip. It will guard the Hudson fur trade on Lenape land and gather the scattered New Netherland families into one harbor.",
+    pitch: "The West India Company wants a fort at Manhattan's tip to guard the Hudson fur trade on Lenape land and gather New Netherland into one harbor.",
     fetch: [
       stage("fort-amsterdam", "timber", 10, "Fort Amsterdam, warehouses, and the first quay", "The river mouth needs a company fort before it needs elegant streets. Bring"),
       stage("manhattan-trade", "wool-cloth", 8, "trade with Lenape suppliers and visiting merchants", "The settlement exists for commerce and must arrive with useful exchange goods. Supply"),
@@ -380,7 +380,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of the Earl of Carlisle",
     settlementLeaderRole: "governor at Bridgetown",
     basis: "English settlement at Bridgetown began in 1628 at Carlisle Bay; its early organic street plan preceded the later sugar-slavery economy.",
-    pitch: "The Earl of Carlisle's agents want a harbor town at Carlisle Bay. Early Barbados grows cotton and tobacco; the great sugar transformation, and the brutal expansion of enslaved labor with it, lies ahead rather than at the first landing.",
+    pitch: "Carlisle's agents want a harbor at Carlisle Bay. Barbados now grows cotton and tobacco; its sugar economy and brutal expansion of slavery lie ahead.",
     fetch: [
       stage("carlisle-wharf", "timber", 8, "a wharf, houses, and storm-secured warehouses", "The natural bay needs a working town behind it. Bring"),
       stage("barbados-tools", "iron", 6, "farming tools, cranes, and boat repairs", "An island colony must repair what it cannot quickly import. Supply"),
@@ -398,7 +398,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Massachusetts Bay organizer",
     settlementLeaderRole: "governor of Boston",
     basis: "Winthrop's fleet moved from water-poor Charlestown to Shawmut in 1630 after William Blackstone pointed out its spring.",
-    pitch: "Winthrop's Puritan fleet first crowded into Charlestown, where sickness and poor water threaten the settlement. William Blackstone has pointed them across the river to Shawmut's reliable spring.",
+    pitch: "Sickness and poor water threaten Winthrop's crowded Charlestown camp. Blackstone points them across the river to Shawmut's spring.",
     fetch: [
       stage("shawmut-houses", "timber", 10, "meetinghouses, homes, and a wharf on the peninsula", "Shawmut has good water but little ready shelter for a fleet of families. Bring"),
       stage("massachusetts-tools", "iron", 6, "axes, nails, mills, and farming tools", "A city upon a hill still requires ordinary labor. Supply"),
@@ -415,7 +415,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of Champlain",
     settlementLeaderRole: "commandant of Trois-Rivieres",
     basis: "Champlain sent Laviolette in 1634 to build a fortified post at the Saint-Maurice confluence, already a longstanding Indigenous fur-trade rendezvous.",
-    pitch: "Champlain wants Laviolette to fortify the meeting place at the three channels of the Saint-Maurice. Indigenous traders already use this confluence for the fur rendezvous; the French post enters an existing market.",
+    pitch: "Champlain wants Laviolette to fortify the Saint-Maurice confluence. Indigenous traders already use it for the fur rendezvous.",
     fetch: [
       stage("three-rivers-fort", "timber", 10, "a palisade, house, store, and raised river landing", "The elevated Platon overlooks both river approaches. Build it with"),
       stage("three-rivers-trade", "wool-cloth", 8, "the annual Indigenous fur rendezvous", "A post at an old meeting place must arrive ready to exchange, not merely command. Bring"),
@@ -433,7 +433,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Connecticut congregation organizer",
     settlementLeaderRole: "magistrate at Hartford",
     basis: "Thomas Hooker's congregation moved from crowded Massachusetts to Saukiog on the Connecticut River, near an earlier Dutch trading fort.",
-    pitch: "Thomas Hooker's congregation finds Massachusetts too crowded and restrictive. They plan to move to Saukiog on the Connecticut River, north of the Dutch fort and within a landscape used by Saukiog and Wangunk communities.",
+    pitch: "Hooker's congregation finds Massachusetts too restrictive. They plan Saukiog on the Connecticut, amid Saukiog and Wangunk communities.",
     fetch: [
       stage("connecticut-houses", "timber", 8, "homes, meetinghouse, barns, and river boats", "A whole congregation and its cattle need more than a trading camp. Bring"),
       stage("connecticut-tools", "iron", 6, "ploughs, axes, nails, and mill parts", "The river meadows can feed a town if settlers arrive prepared to work them. Supply"),
@@ -451,7 +451,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "friend of Roger Williams",
     settlementLeaderRole: "steward of Providence",
     basis: "Roger Williams founded Providence in 1636 after banishment, negotiating land use with Narragansett sachems Canonicus and Miantonomi.",
-    pitch: "Roger Williams has been banished from Massachusetts for dangerous opinions: liberty of conscience, separation of civil power from worship, and the claim that Native land requires agreement rather than a royal patent.",
+    pitch: "Banished for defending liberty of conscience and Native land rights, Roger Williams seeks a settlement beyond Massachusetts.",
     fetch: [
       stage("providence-houses", "timber", 8, "simple houses along the Moshassuck and a common landing", "The refuge begins with only a few companions beside a freshwater spring. Bring"),
       stage("narragansett-trade", "wool-cloth", 8, "the continuing exchange promised to Narragansett sachems", "Williams's relationship with Canonicus and Miantonomi must be sustained with useful goods. Supply"),
@@ -503,9 +503,9 @@ const HISTORIES = Object.freeze([
       minCanoes: 2,
       maxCanoes: 3,
       reward: 900,
-      alert: "A Haudenosaunee war party has appeared on the river. Ville-Marie was planted at a strategic meeting place inside an older struggle over the St. Lawrence trade, and its palisade has made the mission another armed foothold. Defeat the attacking Haudenosaunee canoes before they reach the landing.",
+      alert: "A Haudenosaunee war party is approaching Ville-Marie, an armed foothold in the struggle over St. Lawrence trade. Stop the canoes before they land.",
       challenge: "Your new fort reaches into our river road and your wars. Keep away from Ville-Marie, or our arrows will answer you!",
-      report: "The Haudenosaunee war party has withdrawn beyond the island channels. The palisade and Hotel-Dieu are safe for now, and the hospital is already treating the wounded. Maisonneuve has ordered the mission's defense reward paid in full."
+      report: "The Haudenosaunee withdrew beyond the island channels. The palisade and hospital are safe for now; Maisonneuve pays the defense reward."
     }),
     established: "Ville-Marie endures on Montreal Island, with Maisonneuve's fort and Jeanne Mance's Hotel-Dieu defining the mission settlement together."
   }),
@@ -513,7 +513,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of the Lords Proprietors",
     settlementLeaderRole: "governor of Charles Towne",
     basis: "The Lords Proprietors planted Charles Towne at Albemarle Point in 1670; settlers fortified it against Spain and relied on Cusabo support before moving in 1680.",
-    pitch: "The Lords Proprietors want a planting and trading province south of Virginia. Settlers from England, Barbados, and the Caribbean will land at Kayawah, in Cusabo country, under the shadow of Spanish Florida.",
+    pitch: "The Lords Proprietors want a colony south of Virginia. Settlers will land at Kayawah in Cusabo country, within reach of Spanish Florida.",
     fetch: [
       stage("charles-towne-palisade", "timber", 10, "a palisade, storehouse, and houses at Albemarle Point", "Spanish attack is a real possibility from the first season. Bring"),
       stage("carolina-arms", "arms", 6, "the southernmost English garrison", "The Proprietors' grand port begins as a small exposed camp. Equip it with"),
@@ -531,7 +531,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of William Penn",
     settlementLeaderRole: "steward of Philadelphia",
     basis: "William Penn planned Philadelphia in 1682 between the Delaware and Schuylkill as a Quaker capital and commercial port, negotiating land with Lenape leaders.",
-    pitch: "William Penn calls Pennsylvania a Holy Experiment: a Quaker refuge with broad religious toleration and a planned green city on the Delaware. His charter is English, but possession still requires negotiation with the Lenape.",
+    pitch: "Penn's Holy Experiment promises Quaker refuge and a green city on the Delaware. His charter still requires negotiation with the Lenape.",
     fetch: [
       stage("penn-grid", "timber", 10, "wharves, houses, and the first streets of Penn's spacious grid", "Penn wants a green country town rather than another crowded London. Build it with"),
       stage("delaware-trade", "wool-cloth", 8, "trade and the obligations of Lenape land agreements", "Peaceful language must be matched by useful and fairly delivered goods. Supply"),

@@ -266,7 +266,7 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before founding 
   const opening = portDialogueView(session, KYOTO, gameState, economy, ports, context);
 
   assert.match(opening.text, /Portuguese seal/);
-  assert.match(opening.text, /permanent trading harbor at Nagasaki/);
+  assert.match(opening.text, /trading harbor at Nagasaki/);
   assert.match(opening.text, /Omura Sumitada/);
   chooseAction(
     session,
@@ -278,9 +278,9 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before founding 
     "advance-colony-negotiation"
   );
   const reply = portDialogueView(session, KYOTO, gameState, economy, ports, context);
-  assert.match(reply.text, /Portuguese emissaries/);
-  assert.match(reply.text, /Japan already knows gunpowder/);
-  assert.match(reply.text, /Omura Sumitada/);
+  assert.match(reply.text, /court accepts Omura's site/);
+  assert.match(reply.text, /portable matchlock/);
+  assert.match(reply.text, /seal the harbor terms/);
   assert.equal(diplomacyBetweenForState(gameState, "japan", "portugal"), "neutral");
   const result = chooseAction(
     session,

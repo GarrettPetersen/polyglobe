@@ -2050,8 +2050,8 @@ test("a recovering non-enemy port refuses business and names the bombarding ship
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(view.speaker, "Beatriz Ferreira, Porto factor");
   assert.match(view.text, /French Brigantine commanded by Jean Moreau/);
-  assert.match(view.text, /still recovering/);
-  assert.match(view.text, /quays will remain closed for 2 more days/);
+  assert.match(view.text, /bombarded/);
+  assert.match(view.text, /quays remain closed for 2 more days/);
   assert.deepEqual(view.options.map((entry) => entry.label), ["Leave"]);
 });
 
@@ -2840,7 +2840,7 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   const firstView = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(firstView.speaker, "Leif Eriksen, historical enthusiast");
   assert.match(firstView.text, /historical enthusiast/i);
-  assert.match(firstView.text, /would you be willing to help/i);
+  assert.match(firstView.text, /could you find/i);
   assert.doesNotMatch(firstView.text, /bring me 8 wool\.?$/i);
   assert.equal(firstView.options.find((entry) => entry.action.type === "deliver-viking-material").disabled, true);
 
@@ -2890,7 +2890,7 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
     ).candidate.slug,
     "viking-longship"
   );
-  assert.match(reward.text, /accepting will replace your Brigantine/i);
+  assert.match(reward.text, /accepting replaces your Brigantine/i);
   assert.ok(reward.options.some((entry) => entry.action.type === "accept-viking-longship-reward"));
   assert.equal(reward.options.some((entry) => entry.label === "Back"), false);
   assert.equal(reward.options.length, 2);
@@ -3775,7 +3775,7 @@ test("a crown capture commission names the enemy port, spoils, and return reward
 
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, london, ports), true);
   assert.match(view.speaker, /war secretary/i);
-  assert.match(view.text, /customary spoils are yours/i);
+  assert.match(view.text, /keep the spoils/i);
   assert.match(view.text, /Calais/);
   assert.match(view.text, new RegExp(`${offer.reward.toLocaleString("en-US")} doubloons`));
   assert.ok(view.options.some((entry) => entry.action.type === "accept-quest"));
@@ -3841,8 +3841,7 @@ test("a final capital commission explains the war's grievance and general peace"
 
   assert.equal(offer.kind, "capture-capital");
   assert.match(view.text, /old claims across the Channel/i);
-  assert.match(view.text, /peace on every remaining front/i);
-  assert.match(view.text, /capital's concessions/i);
+  assert.match(view.text, /force peace/i);
   assert.match(view.text, new RegExp(`${offer.reward.toLocaleString("en-US")} doubloons`));
   assert.ok(view.options.some((entry) => (
     entry.action.type === "accept-quest" && /final commission/i.test(entry.label)

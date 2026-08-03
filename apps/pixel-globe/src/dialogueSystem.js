@@ -1104,7 +1104,7 @@ function recoveringPortView(city, context) {
   return {
     speaker: speakerName(city),
     expressionId: "sad",
-    text: `We are still recovering after ${recovery.attackerShipLabel} bombarded ${cityLabel(city)} and silenced the harbor guns. Fires are still being put out, and the quays will remain closed for ${dayLabel}. You must put back to sea.`,
+    text: `${recovery.attackerShipLabel} bombarded ${cityLabel(city)} and silenced its guns. The quays remain closed for ${dayLabel}; you must put back to sea.`,
     feedback: null,
     options: [option("Leave", { type: "close" })]
   };
@@ -2099,7 +2099,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
       return {
         speaker,
         expressionId: "happy",
-        text: "We stood together at Arafat and completed the Hajj. May God accept your pilgrimage, captain. Please take this flask of Zamzam water; its fitted cup will help your crew husband every cask at sea.",
+        text: "We stood together at Arafat and completed the Hajj. May God accept your pilgrimage. Take this Zamzam flask; its cup will help husband every cask.",
         feedback: session.feedback,
         options: [
           option(`Return to Jeddah  ${quest.reward} db`, { type: "complete-hajj" })
@@ -2390,11 +2390,11 @@ function greetingView(session, city, gameState, context) {
   const greeting = portGreetingPresentationForPersonality({
     personalityId,
     cityName: name,
-    returning: memory.visits > 1,
     localFlavor: arrival.text,
     prioritizeLocalFlavor: arrival.notable,
     visitCount: memory.visits,
     dayIndex: context.dayIndex || 0,
+    localHour: context.localHour ?? 12,
     nearbyShips: context.nearbyShips,
     stormy: context.stormy === true,
     playerStanding: context.playerStanding || 0,
@@ -2411,7 +2411,7 @@ function greetingView(session, city, gameState, context) {
   return {
     speaker: speakerName(city),
     expressionId: greeting.expressionId,
-    text: remarks.join(" "),
+    text: remarks.join("  "),
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: "root" })]
   };
@@ -2756,10 +2756,10 @@ function portugueseCartazView(session, city, gameState, context) {
     ? Math.max(1, Math.ceil((status.untilMinute - simMinute) / 1440))
     : 0;
   const text = status.valid
-    ? `Your Portuguese cartaz is in order for another ${remainingDays} day${remainingDays === 1 ? "" : "s"}. It protects this vessel from Estado da India inspections, but it does not waive local customs.`
+    ? `Your Portuguese cartaz is valid for ${remainingDays} more day${remainingDays === 1 ? "" : "s"}. It prevents Estado da India inspections, but local customs still apply.`
     : status.fee === null
       ? "The Estado da India will not issue a cartaz while relations remain hostile. Sailing its guarded routes without one risks inspection, fines, or seizure of controlled spices."
-      : `A ${status.fee} doubloon cartaz licenses this vessel for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days in waters patrolled by the Estado da India. Local customs and crown spice levies still apply.`;
+      : `A ${status.fee} doubloon cartaz licenses this vessel for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days under Estado da India patrols. Customs and spice levies still apply.`;
   return {
     speaker: speakerName(city),
     expressionId: status.valid ? "pleased" : "attentive",
@@ -2787,7 +2787,7 @@ function vikingLongshipView(session, city, gameState, context) {
   if (!quest.unlocked) {
     const stage = quest.stage;
     const requests = [
-      `I am a historical enthusiast, reconstructing a seaworthy Norse longship from the old sagas. Would you be willing to help me find ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}?`,
+      `I am a historical enthusiast rebuilding a Norse longship from the sagas. Could you find ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}?`,
       `The striped sail is ready, and I am grateful for your help. If your voyages allow, could you bring me ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}?`,
       `The oar bank is fitted, thanks to you. May I ask one last favor? I still need ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}.`
     ];
@@ -2830,7 +2830,7 @@ function vikingLongshipView(session, city, gameState, context) {
     return {
       speaker,
       expressionId: "happy",
-      text: `The longship is complete, and you supplied everything that made her possible. I will give her to you on one condition: take me aboard. I have spent long enough studying voyages from shore. Warning: accepting will replace your ${currentShipLabel}; the current vessel will be left behind.`,
+      text: `The longship is yours if you take me aboard; I am done studying voyages from shore. Accepting replaces your ${currentShipLabel}, which will remain here.`,
       feedback: session.feedback,
       presentation: {
         kind: "shipyard",
@@ -2946,7 +2946,7 @@ function chefQuestView(session, city, gameState) {
     return {
       speaker,
       expressionId: "happy",
-      text: `${quest.event.successText} I have cooked for grand tables; now I want to see what lies beyond the harbor. Give me a berth and I will make your provisions last farther than you thought possible.`,
+      text: `${quest.event.successText} Now I want to see beyond this harbor. Give me a berth, and I will make your provisions last.`,
       feedback: session.feedback,
       options: [
         option("Welcome aboard", { type: "recruit-chef" }, {
@@ -2988,7 +2988,7 @@ function japaneseMatchlockView(session, city, gameState) {
 
   const stage = quest.fetchStage;
   const requests = [
-    "The Portuguese pieces brought through Nagasaki are ingenious, but an imported weapon teaches little from behind glass. Bring me two matchlocks. I will take their locks apart and learn every screw and spring.",
+    "Imported matchlocks brought through Nagasaki teach little behind glass. Bring me two; I will study every lock, screw, and spring.",
     "The lock is simpler than its makers pretend. The barrel is the true test. Bring me good iron, and our forges will answer it.",
     "The first barrels have survived proof. Now we need seasoned timber for stocks and straight ramrods before a soldier can shoulder them.",
     "The first workshop batch is ready for proof. Bring gunpowder, and we shall learn whether Kyoto can make a matchlock worthy of battle."
@@ -3183,7 +3183,7 @@ function colonizationView(session, city, gameState, context) {
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: eligibility?.eligible && quest.approvalCargoReady ? "happy" : "concerned",
-      text: `${history.ready} Twenty-four units of your hold will carry the people and their personal chests.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} I will entrust them only to a capacious, seaworthy ship.`,
+      text: `${history.ready} The settlers need 24 hold spaces.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} They need a capacious, seaworthy ship.`,
       feedback: session.feedback,
       options: [
         option("Take the colonists aboard", { type: "embark-colonists" }, {
@@ -4352,10 +4352,9 @@ function capturePortQuestView(session, questState, returnNodeId) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
-      text: `By ${quest.originRulerName}'s warrant, this court entrusts you with more than prizes at sea. ` +
-        `${quest.targetName}, held by ${quest.targetFactionNoun}, commands waters too near our own. ` +
-        `Silence its batteries, put your company ashore, and raise ${quest.originFactionAdjective} colors ` +
-        `over the harbor. The customary spoils are yours. Return here afterward, and the treasury will pay ` +
+      text: `By ${quest.originRulerName}'s warrant: capture ${quest.targetName} from ` +
+        `${quest.targetFactionNoun}. Silence its batteries, land your company, and raise ` +
+        `${quest.originFactionAdjective} colors. Keep the spoils; return for ` +
         `${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
@@ -4373,9 +4372,8 @@ function capturePortQuestView(session, questState, returnNodeId) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "pleased",
-      text: `The dispatches reached us before your sails crossed the roadstead. ${quest.targetName} now ` +
-        `answers to ${quest.originRulerName}. You broke its guns, carried the walls, and kept faith with ` +
-        `your commission. The treasury stands ready to honor the crown's word.`,
+      text: `${quest.targetName} now answers to ${quest.originRulerName}. You silenced its guns and kept ` +
+        `faith with your commission. The treasury will honor the crown's word.`,
       feedback: session.feedback,
       options: [
         option(`Report victory  ${quest.reward.toLocaleString("en-US")} db`, {
@@ -4418,10 +4416,9 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
-      text: `The war against ${quest.targetFactionNoun} is nearly won. ${politicalContext} ` +
-        `Take ${quest.targetName}, compel peace on every remaining front, and accept the capital's ` +
-        `concessions in ${quest.originRulerName}'s name. The customary spoils are yours; the treasury ` +
-        `will add ${quest.reward.toLocaleString("en-US")} doubloons when you return.`,
+      text: `The war against ${quest.targetFactionNoun} is nearly won. ${politicalContext} Take ` +
+        `${quest.targetName} in ${quest.originRulerName}'s name and force peace. Keep the spoils; ` +
+        `return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
         option(`Accept final commission: capture ${quest.targetName}`, {
@@ -4505,7 +4502,7 @@ function marqueView(session, city, gameState, context) {
     ? `${ruler.displayName} grants you authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
     : status.granted
     ? `You already carry ${ruler.displayName}'s authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
-    : `${ruler.displayName}'s court will issue a letter if your standing and fighting ship are sufficient. Standing ${formatSignedReputation(status.reputation)}/${formatSignedReputation(status.reputationRequired)}. Ship strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
+    : `${ruler.displayName}'s court requires sufficient standing and ship strength. Standing ${formatSignedReputation(status.reputation)}/${formatSignedReputation(status.reputationRequired)}. Strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
   const disabledReason = status.missing.length > 0
     ? `Need ${status.missing.join(" and ")}.`
     : null;

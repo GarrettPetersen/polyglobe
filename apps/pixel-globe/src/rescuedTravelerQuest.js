@@ -325,7 +325,7 @@ function rescueOfferText(quest) {
   if (quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE) {
     return `Please, captain... the pirates kept me locked below. My family escaped toward ${quest.homePortName}. Take me aboard. I have to know whether they made it home.`;
   }
-  return `My ship was caught in a storm. I was thrown overboard and woke on this beach with wreckage in the surf. My family was aboard too. If they survived, they would have gone to ${quest.homePortName}. Please take me there.`;
+  return `A storm threw me overboard, and I woke among wreckage on this beach. My family may have reached ${quest.homePortName}. Please take me there.`;
 }
 
 function rescueAcceptedText(quest) {
