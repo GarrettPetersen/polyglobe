@@ -114,18 +114,24 @@ export function portSailingDistanceKm(bake, origin, destination) {
 export function assertPortSailingDistanceCoverage(bake, records) {
   assertParsedBake(bake);
   if (!Array.isArray(records)) throw new Error("Port sailing coverage validation requires endpoint records");
-  const requiredTileIds = new Set();
+  const requiredRecordsByTileId = new Map();
   for (const record of records) {
     const tileId = requiredTileId(record, "required endpoint");
-    if (requiredTileIds.has(tileId)) throw new Error(`Duplicate required port sailing endpoint tile: ${tileId}`);
-    requiredTileIds.add(tileId);
+    const existing = requiredRecordsByTileId.get(tileId);
+    if (existing) {
+      if (existing.preexistingSettlement !== true && record.preexistingSettlement !== true) {
+        throw new Error(`Duplicate required port sailing endpoint tile: ${tileId}`);
+      }
+      continue;
+    }
+    requiredRecordsByTileId.set(tileId, record);
     if (!bake.indexByTileId.has(tileId)) {
       const name = record.displayCity || record.city || record.name || tileId;
       throw new Error(`Port sailing distance bake is missing ${name} on tile ${tileId}; run npm run render:port-sailing-distances`);
     }
   }
-  if (requiredTileIds.size !== bake.endpoints.length) {
-    const stale = bake.endpoints.filter((endpoint) => !requiredTileIds.has(endpoint.tileId));
+  if (requiredRecordsByTileId.size !== bake.endpoints.length) {
+    const stale = bake.endpoints.filter((endpoint) => !requiredRecordsByTileId.has(endpoint.tileId));
     throw new Error(
       `Port sailing distance bake has ${stale.length} stale endpoint(s): ` +
       `${stale.map((endpoint) => endpoint.name).join(", ")}. Run npm run render:port-sailing-distances.`

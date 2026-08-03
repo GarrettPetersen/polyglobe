@@ -40,6 +40,15 @@ test("port sailing distance bakes are strict, symmetric, and support unreachable
 
   assert.equal(portSailingDistanceKm(bake, { tileId: 10 }, 20), null);
   assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [{ tileId: 10 }, { tileId: 20 }]));
+  assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [
+    { tileId: 10 },
+    { tileId: 10, preexistingSettlement: true },
+    { tileId: 20 }
+  ]));
+  assert.throws(
+    () => assertPortSailingDistanceCoverage(bake, [{ tileId: 10 }, { tileId: 10 }, { tileId: 20 }]),
+    /Duplicate required port sailing endpoint tile: 10/
+  );
   assert.throws(() => portSailingDistanceKm(bake, 10, 30), /no destination tile 30/);
   assert.throws(
     () => parsePortSailingDistances({
@@ -102,7 +111,7 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   assert.equal(nagasakiTarget?.tileId, nagasakiVillage.tileId);
   assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [
     ...portCities,
-    ...colonyTargets.filter((target) => !target.preexistingSettlement)
+    ...colonyTargets
   ]));
 
   const colonyNames = new Set(bake.endpoints.filter((endpoint) => endpoint.kind === "colony").map((endpoint) => endpoint.name));
