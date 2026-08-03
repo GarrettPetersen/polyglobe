@@ -112,8 +112,36 @@ test("world scene texture remembers a working RGB8 preference", () => {
   assert.deepEqual(gl.internalFormats, [gl.RGB8]);
 });
 
+test("world scene texture supports legacy RGBA render targets on strict drivers", () => {
+  const gl = framebufferGl([36061, 36061, 36053]);
+  const format = allocateWorldSceneTexture(gl, {
+    texture: {},
+    framebuffer: {},
+    width: 455,
+    height: 256
+  });
+
+  assert.equal(format, "rgba");
+  assert.deepEqual(gl.internalFormats, [gl.RGBA8, gl.RGB8, gl.RGBA]);
+  assert.deepEqual(gl.types, [gl.UNSIGNED_BYTE, gl.UNSIGNED_BYTE, gl.UNSIGNED_BYTE]);
+});
+
+test("world scene texture has a required low-color render-target fallback", () => {
+  const gl = framebufferGl([36061, 36061, 36061, 36053]);
+  const format = allocateWorldSceneTexture(gl, {
+    texture: {},
+    framebuffer: {},
+    width: 455,
+    height: 256
+  });
+
+  assert.equal(format, "rgb565");
+  assert.deepEqual(gl.internalFormats, [gl.RGBA8, gl.RGB8, gl.RGBA, gl.RGB565]);
+  assert.equal(gl.types.at(-1), gl.UNSIGNED_SHORT_5_6_5);
+});
+
 test("world scene texture reports every rejected framebuffer format", () => {
-  const gl = framebufferGl([36061, 36054]);
+  const gl = framebufferGl([36061, 36054, 36061, 36054]);
   assert.throws(
     () => allocateWorldSceneTexture(gl, {
       texture: {},
@@ -121,7 +149,7 @@ test("world scene texture reports every rejected framebuffer format", () => {
       width: 455,
       height: 256
     }),
-    /rgba8:36061, rgb8:36054/
+    /rgba8:36061, rgb8:36054, rgba:36061, rgb565:36054/
   );
   assert.equal(gl.lastFramebuffer, null);
 });
@@ -137,12 +165,16 @@ function framebufferGl(statuses) {
     RGBA: 6408,
     RGB8: 32849,
     RGB: 6407,
+    RGB565: 36194,
     UNSIGNED_BYTE: 5121,
+    UNSIGNED_SHORT_5_6_5: 33635,
     internalFormats: [],
+    types: [],
     lastFramebuffer: undefined,
     bindTexture() {},
-    texImage2D(target, level, internalFormat) {
+    texImage2D(target, level, internalFormat, width, height, border, format, type) {
       this.internalFormats.push(internalFormat);
+      this.types.push(type);
     },
     bindFramebuffer(target, framebuffer) {
       this.lastFramebuffer = framebuffer;

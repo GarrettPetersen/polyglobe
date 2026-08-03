@@ -285,8 +285,30 @@ export function allocateWorldSceneTexture(gl, {
     throw new Error(`Invalid world scene texture dimensions: ${width}x${height}`);
   }
   const formats = [
-    { id: "rgba8", internalFormat: gl.RGBA8, format: gl.RGBA },
-    { id: "rgb8", internalFormat: gl.RGB8, format: gl.RGB }
+    {
+      id: "rgba8",
+      internalFormat: gl.RGBA8,
+      format: gl.RGBA,
+      type: gl.UNSIGNED_BYTE
+    },
+    {
+      id: "rgb8",
+      internalFormat: gl.RGB8,
+      format: gl.RGB,
+      type: gl.UNSIGNED_BYTE
+    },
+    {
+      id: "rgba",
+      internalFormat: gl.RGBA,
+      format: gl.RGBA,
+      type: gl.UNSIGNED_BYTE
+    },
+    {
+      id: "rgb565",
+      internalFormat: gl.RGB565,
+      format: gl.RGB,
+      type: gl.UNSIGNED_SHORT_5_6_5
+    }
   ];
   if (!formats.some((candidate) => candidate.id === preferredFormat)) {
     throw new Error(`Unknown preferred world scene texture format: ${preferredFormat}`);
@@ -303,7 +325,7 @@ export function allocateWorldSceneTexture(gl, {
       height,
       0,
       candidate.format,
-      gl.UNSIGNED_BYTE,
+      candidate.type,
       null
     );
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
