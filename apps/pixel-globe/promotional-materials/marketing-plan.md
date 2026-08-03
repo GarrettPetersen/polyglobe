@@ -27,8 +27,13 @@
 ## Trailer
 
 - [ ] **Launch the trailer as an IGN exclusive**
-  - Send the saved IGN pitch when the Steam page is publicly available.
-  - Keep the trailer unlisted until IGN publishes it or passes on the exclusive.
+  - Status: Garrett sent the IGN pitch before August 2; no response has arrived yet.
+  - Keep the trailer unlisted while IGN considers the pitch.
+  - Monitor both the inbox and IGN's published coverage because a response is not
+    guaranteed before publication.
+  - If there is still no response after a reasonable editorial window, send one
+    concise follow-up or treat the silence as a pass and move to the public
+    trailer launch. Do not leave the campaign stalled indefinitely.
 
 - [ ] **Immediately add the trailer to the Steam page**
   - Add it as soon as the IGN exclusive is published or the exclusivity window is otherwise over.
@@ -67,9 +72,14 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 
 ## Streamer outreach
 
-- [ ] Add **Marque & Reprisal** to IGDB so it receives a Twitch game category.
-  - August 2: No matching IGDB entry exists. Contribution is ready to begin but
-    requires Garrett to sign into Twitch.
+- [x] Add **Marque & Reprisal** to IGDB so it can receive a Twitch game category.
+  - Submitted August 2 under Garrett's `econdetective` account.
+  - IGDB game ID: `412123`; contribution change: `2982132`.
+  - The contribution includes the cover, four screenshots, store and website
+    links, Windows/macOS/Linux release entries, categorization and all 11
+    interface languages.
+  - Moderation is pending. Developer-account verification is optional and is
+    not blocking the contribution.
   - Verify the category appears on Twitch after the IGDB submission is approved.
   - Use the category to monitor for new streams and notify Garrett.
 
@@ -184,11 +194,14 @@ These are free, accept unreleased games and provide a plausible audience for Mar
     1522 world, with trade, fishing, whaling and colonization voyages.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSdQJouPQDivmRTGnJ8iLA-ip55fFXVR4XztNrA-9h3O5ZN87A/viewform
 
-- [ ] **GWB Game Awards 2026 — apply by August 15**
-  - August 2: Rules reviewed. The portal requires an account and reCAPTCHA, plus
-    durable build access for 5–10 judges. The application package and unresolved
-    declarations are recorded in
-    [festival-application-workbench-2026.md](festival-application-workbench-2026.md).
+- [x] **GWB Game Awards 2026 — submitted August 2**
+  - The application was submitted through the official portal and included four
+    screenshots, the public Steam page, the itch demo and an accurate AI-use
+    declaration.
+  - Entered as a one-person developer in the Industry channel, with PC as the
+    platform and the relevant small-team eligibility declarations completed.
+  - Monitor the application account and email for judging access requests or
+    requests for additional keys.
   - Why: Free international competition for games released in 2026 or still in development. It includes a small-team award, relevant categories such as Gameplay Innovation and Touch the World, cash prizes and possible Steam-event promotion.
   - No travel is required.
   - Application: https://gameinstitute.tencent.com/awards2026
@@ -280,4 +293,7 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ## Current critical path
 
-Valve approves demo and main builds → launch Steam demo → IGN trailer decision → trailer on Steam → verify Steam integration → streamer outreach → prepare October Next Fest → release decision
+Valve approves demo and main builds → launch and verify Steam demo → IGN responds
+or its editorial window closes → publish trailer on YouTube and Steam → verify
+Steam integration → send the first streamer-key batch → prepare October Next
+Fest → release decision

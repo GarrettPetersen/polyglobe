@@ -115,8 +115,7 @@ recorded.** Selection notices are due by August 24.
 
 ## GWB Game Awards 2026
 
-Status: **Official rules reviewed; application is blocked at account login and
-reCAPTCHA.** Deadline: August 15.
+Status: **Submitted August 2 through the official portal.** Deadline: August 15.
 
 Recommended entry:
 
@@ -130,24 +129,31 @@ Recommended entry:
 - Build: use the Steam demo once approved, or another durable playable build
   that will remain available throughout judging
 
-Required before submission:
+Submitted details:
 
-- Create or sign into a GWB account and complete its reCAPTCHA.
-- Provide durable build access for at least 5–10 judges. GWB will not contact us
-  to request access and may require more keys if the game advances.
-- Provide images, video, introduction and a playable build.
-- Confirm whether to enter the Small Team category under its 70% internal-work
-  rule.
-- Write an accurate declaration of every use of AI in development. GWB requires
-  disclosure of AI-assisted art, music, gameplay features and code; do not infer
-  or omit this answer.
-- Confirm the organizer's rights to use submitted media for awards publicity and
-  to share the build with judges and prize partners.
+- Developer/team type: one-person developer; the game was created 100% by one
+  person.
+- Channel and platform: Industry; PC.
+- Build links: the public Steam page plus the itch demo for durable judge access.
+- Media: four screenshots uploaded.
+- AI declaration: yes, for many non-European character portraits; no AI audio.
+- Co-op: no. Designed for every age group: no. Core team of three or fewer: yes.
+- Monitor the account and email in case the organizers request more judge keys or
+  another durable build-access method.
 
 ## IGDB and Twitch category
 
-Status: **No matching IGDB entry existed on August 2. Creation is blocked at
-Twitch sign-in.**
+Status: **Submitted August 2 and awaiting IGDB moderation.**
+
+- IGDB game ID: `412123`.
+- Contribution change: `2982132`.
+- Submitted under the `econdetective` account.
+- Included the 600x800 cover, four captioned screenshots, Steam/itch/website
+  links, Windows/macOS/Linux release entries, genres, themes, game mode, player
+  perspective and all 11 interface languages.
+- Iron Pagoda was omitted because no matching IGDB company record exists.
+- The trailer was omitted because IGDB requires a public YouTube URL.
+- Developer verification is optional and not required for normal moderation.
 
 Suggested entry metadata:
 
@@ -163,4 +169,5 @@ Suggested entry metadata:
 - Summary: use the short description above
 
 After the contribution is approved, verify that Twitch exposes a matching game
-category before creator outreach begins.
+category. Creator outreach can begin before that if the Steam demo is public,
+but use the category for ongoing stream discovery once it exists.
