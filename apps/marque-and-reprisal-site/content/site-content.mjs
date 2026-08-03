@@ -1,3 +1,9 @@
+import { readFileSync } from "node:fs";
+import {
+  SHIP_STATS,
+  shipLabelForSlug
+} from "../../pixel-globe/src/shipStats.js";
+import { shipHandoverHistoryForSlug } from "../../pixel-globe/src/shipHandoverDialogue.js";
 import { CAPSULE_TITLE_LOCALES } from "../../pixel-globe/tools/capsule-title-locales.mjs";
 import {
   STEAM_SCREENSHOT_LANGUAGES,
@@ -26,6 +32,37 @@ export const site = Object.freeze({
   tagline: "Explore. Trade. Fish. Whale. Colonize. Fight. Pillage. Survive.",
   shortDescription: "Explore. Trade. Fish. Whale. Colonize. Fight. Pillage. Survive. You are a sea captain in the year 1522, and the whole world is yours to discover in this roguelike sandbox historical sailing simulator.",
   aboutLead: "You are a sea captain in the year 1522, and the whole world is yours to discover in this roguelike sandbox historical sailing simulator."
+});
+
+const MYSTERY_SHIP_SLUG = "viking-longship";
+const shipSideViewManifest = JSON.parse(readFileSync(new URL(
+  "../../pixel-globe/public/assets/vehicles/unity-ships/side-views/manifest.json",
+  import.meta.url
+), "utf8"));
+const shipSideViews = new Map(shipSideViewManifest.ships.map((entry) => [entry.slug, entry]));
+
+export const shipRoster = Object.freeze(SHIP_STATS
+  .filter(({ slug }) => slug !== MYSTERY_SHIP_SLUG)
+  .map((stats) => {
+    const sideView = shipSideViews.get(stats.slug);
+    if (!sideView) throw new Error(`Website ship roster needs a side view: ${stats.slug}`);
+    return Object.freeze({
+      slug: stats.slug,
+      label: shipLabelForSlug(stats.slug),
+      description: shipHandoverHistoryForSlug(stats.slug),
+      image: `/assets/ships/${stats.slug}.png`,
+      cargoCapacity: stats.cargoCapacity,
+      cannons: stats.cannons,
+      crewCapacity: stats.crewCapacity,
+      propulsion: stats.propulsion
+    });
+  })
+  .sort((left, right) => left.label.localeCompare(right.label, "en")));
+
+export const mysteryShip = Object.freeze({
+  label: "Mystery extra ship",
+  mark: "?",
+  description: "One more vessel waits beyond the ordinary shipyard roster. Its design, history, and means of discovery remain a mystery."
 });
 
 export const LOCALIZED_CAPSULE_ASSET_NAMES = Object.freeze([

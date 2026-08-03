@@ -17,7 +17,8 @@ import {
   LOCALIZED_CAPSULE_ASSET_NAMES,
   localizedCapsules,
   screenshotLocales,
-  screenshots
+  screenshots,
+  shipRoster
 } from "../content/site-content.mjs";
 import {
   defaultWebsiteLocale,
@@ -33,6 +34,7 @@ import {
   qAndAPage,
   qAndAText,
   robotsText,
+  shipsPage,
   sitemapXml
 } from "./pages.mjs";
 
@@ -47,13 +49,19 @@ const screenshotSourceRoot = path.resolve(
   appRoot,
   "../pixel-globe/promotional-materials/steam-screenshots"
 );
+const shipSideViewSourceRoot = path.resolve(
+  appRoot,
+  "../pixel-globe/public/assets/vehicles/unity-ships/side-views"
+);
 
 await rm(distRoot, { recursive: true, force: true });
 await cp(sourceRoot, distRoot, { recursive: true });
 await publishLocalizedScreenshots();
+await publishShipSideViews();
 
 await writePage("index.html", homePage());
 await writePage("qa/index.html", qAndAPage());
+await writePage("ships/index.html", shipsPage());
 await writePage("press/index.html", pressPage());
 for (const locale of websiteLocales.filter((candidate) => candidate !== defaultWebsiteLocale)) {
   await writePage(pathForPage(localizedPagePath(locale, "home")), homePage(locale.appLocale));
@@ -88,6 +96,17 @@ async function publishLocalizedScreenshots() {
   await access(path.join(screenshotSourceRoot, "manifest.json"));
   await rm(outputRoot, { recursive: true, force: true });
   await cp(screenshotSourceRoot, outputRoot, { recursive: true });
+}
+
+async function publishShipSideViews() {
+  const outputRoot = path.join(distRoot, "assets/ships");
+  await mkdir(outputRoot, { recursive: true });
+  for (const ship of shipRoster) {
+    await cp(
+      path.join(shipSideViewSourceRoot, `${ship.slug}.png`),
+      path.join(outputRoot, `${ship.slug}.png`)
+    );
+  }
 }
 
 async function buildLocalizedCapsuleDownloads() {
@@ -356,6 +375,7 @@ async function validateBuild() {
   const requiredPaths = [
     "index.html",
     "qa/index.html",
+    "ships/index.html",
     "press/index.html",
     "privacy/index.html",
     "404.html",
@@ -369,6 +389,7 @@ async function validateBuild() {
     "assets/press/developer-qa.txt",
     "assets/press/capsule-art/capsule-source.aseprite",
     "assets/press/capsule-art/title-with-ship.png",
+    ...shipRoster.map((ship) => `assets/ships/${ship.slug}.png`),
     ...localizedCapsules.flatMap((locale) => [
       `downloads/${locale.archiveFile}`,
       `assets/press/localized-capsules/${locale.steamCode}/${locale.previewFile}`

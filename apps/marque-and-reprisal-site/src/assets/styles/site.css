@@ -692,6 +692,7 @@ html:lang(ko) .localized-press h1 {
 
 .press .site-nav,
 .qa .site-nav,
+.ships .site-nav,
 .legal .site-nav,
 .not-found .site-nav {
   position: relative;
@@ -773,6 +774,183 @@ html:lang(ko) .localized-press h1 {
 
 .qa-answer p + p {
   margin-top: 1.25em;
+}
+
+/* Ship roster */
+
+.ships-main {
+  background: var(--night);
+}
+
+.ships-hero {
+  display: grid;
+  max-width: var(--content);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.34fr);
+  gap: clamp(44px, 8vw, 120px);
+  align-items: end;
+  margin: 0 auto;
+  padding: clamp(78px, 10vw, 136px) var(--gutter) clamp(74px, 9vw, 120px);
+}
+
+.ships-hero h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(68px, 11vw, 138px);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.85;
+}
+
+.ships-hero > div > p:last-child {
+  max-width: 720px;
+  margin: 34px 0 0;
+  color: rgba(248, 237, 207, 0.72);
+  font-size: clamp(18px, 2vw, 22px);
+}
+
+.roster-tally {
+  margin: 0;
+  border-top: 1px solid var(--brass);
+}
+
+.roster-tally div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(226, 173, 79, 0.32);
+}
+
+.roster-tally dt,
+.ship-specs dt {
+  color: var(--brass);
+  font-family: var(--utility);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.roster-tally dd {
+  margin: 0;
+  color: var(--foam);
+  font-family: var(--utility);
+  font-size: 11px;
+}
+
+.ship-roster-list {
+  border-top: 1px solid rgba(226, 173, 79, 0.32);
+}
+
+.ship-entry {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.95fr) minmax(0, 1.05fr);
+  gap: clamp(42px, 7vw, 104px);
+  align-items: center;
+  padding: clamp(54px, 7vw, 96px) max(var(--gutter), calc((100vw - var(--content)) / 2));
+  border-bottom: 1px solid rgba(226, 173, 79, 0.26);
+}
+
+.ship-entry:nth-child(even) {
+  background: var(--night-soft);
+}
+
+.ship-entry:nth-child(even) .ship-side-view {
+  order: 2;
+}
+
+.ship-side-view {
+  position: relative;
+  display: grid;
+  min-height: 250px;
+  place-items: center;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(226, 173, 79, 0.5);
+  background: var(--mid-water);
+  isolation: isolate;
+}
+
+.ship-side-view::before {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 31%;
+  border-top: 1px solid rgba(248, 237, 207, 0.42);
+  background: var(--deep-water);
+  content: "";
+}
+
+.ship-side-view img {
+  width: min(100%, 384px);
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.ship-register-number {
+  margin: 0 0 12px;
+  color: var(--brass);
+  font-family: var(--utility);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.ship-entry h2 {
+  margin: 0;
+  color: var(--foam);
+  font-family: var(--display);
+  font-size: clamp(44px, 5.5vw, 70px);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+}
+
+.ship-history {
+  max-width: 720px;
+  margin: 25px 0 31px;
+  color: rgba(248, 237, 207, 0.74);
+  font-size: 17px;
+}
+
+.ship-specs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid rgba(226, 173, 79, 0.3);
+  border-bottom: 1px solid rgba(226, 173, 79, 0.3);
+}
+
+.ship-specs div {
+  min-width: 0;
+  padding: 13px 12px 14px 0;
+}
+
+.ship-specs dd {
+  margin: 4px 0 0;
+  color: var(--foam);
+  font-family: var(--utility);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.ship-mystery-view {
+  background: var(--wine);
+}
+
+.ship-mystery-view::before {
+  background: var(--ink);
+}
+
+.ship-mystery-view span {
+  color: var(--paper);
+  font-family: var(--display);
+  font-size: clamp(118px, 17vw, 188px);
+  line-height: 0.7;
+  text-shadow: 6px 6px 0 var(--ink);
+}
+
+.ship-entry-mystery {
+  border-bottom-color: var(--brass);
 }
 
 /* Press kit */
@@ -1398,7 +1576,9 @@ html:lang(ko) .localized-press h1 {
 
   .manifest,
   .press-hero,
-  .press-layout {
+  .press-layout,
+  .ships-hero,
+  .ship-entry {
     grid-template-columns: 1fr;
   }
 
@@ -1416,6 +1596,10 @@ html:lang(ko) .localized-press h1 {
 
   .fact-sheet {
     max-width: 620px;
+  }
+
+  .ship-entry:nth-child(even) .ship-side-view {
+    order: 0;
   }
 
   .logo-grid,
@@ -1565,6 +1749,22 @@ html:lang(ko) .localized-press h1 {
 
   .qa-answer {
     font-size: 17px;
+  }
+
+  .ships-hero {
+    padding-top: 70px;
+  }
+
+  .ship-entry {
+    gap: 28px;
+  }
+
+  .ship-side-view {
+    min-height: 210px;
+  }
+
+  .ship-specs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .feature-course {

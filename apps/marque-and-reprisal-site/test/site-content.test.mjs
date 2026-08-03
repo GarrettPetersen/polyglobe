@@ -12,7 +12,9 @@ import {
   qAndA,
   screenshotLocales,
   screenshots,
+  shipRoster,
   site,
+  mysteryShip,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
 import {
@@ -20,7 +22,14 @@ import {
   websiteLocale,
   websiteLocales
 } from "../content/site-locales.mjs";
-import { homePage, pressPage, qAndAPage, qAndAText } from "../tools/pages.mjs";
+import {
+  homePage,
+  pressPage,
+  qAndAPage,
+  qAndAText,
+  shipsPage,
+  sitemapXml
+} from "../tools/pages.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -138,6 +147,38 @@ test("developer Q&A publishes the approved interview with factual wording fixes"
   assert.match(pressPage(), /href='\/assets\/press\/developer-qa\.txt' download/);
   assert.match(qAndAText(), /MARQUE & REPRISAL DEVELOPER Q&A/);
   assert.match(qAndAText(), /Q: What kind of game is Marque & Reprisal\?/);
+});
+
+test("ship roster publishes every known side view while keeping the quest ship secret", async () => {
+  const page = shipsPage();
+  const sideViewRoot = path.resolve(
+    appRoot,
+    "../pixel-globe/public/assets/vehicles/unity-ships/side-views"
+  );
+
+  assert.equal(shipRoster.length, 38);
+  assert.equal(new Set(shipRoster.map(({ slug }) => slug)).size, shipRoster.length);
+  assert.equal((page.match(/class='ship-entry'/g) || []).length, shipRoster.length);
+  assert.equal(mysteryShip.label, "Mystery extra ship");
+  assert.match(page, /<span aria-hidden='true'>\?<\/span>/);
+  assert.match(page, /Mystery extra ship/);
+  assert.doesNotMatch(page, /Viking|viking-longship/);
+  assert.match(homePage(), /href='\/ships\/'>Ships<\/a>/);
+  assert.match(sitemapXml(), /<loc>https:\/\/marque-and-reprisal\.com\/ships\/<\/loc>/);
+
+  for (const ship of shipRoster) {
+    assert.match(page, new RegExp(`/assets/ships/${ship.slug}\\.png`));
+    assert.match(page, new RegExp(ship.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.ok(page.includes(
+      ship.description
+        .replaceAll("&", "&amp;")
+        .replaceAll("'", "&#39;")
+    ));
+    const image = await readFile(path.join(sideViewRoot, `${ship.slug}.png`));
+    assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.equal(image.readUInt32BE(16), 192);
+    assert.equal(image.readUInt32BE(20), 104);
+  }
 });
 
 test("press kit publishes every localized capsule set and download", async () => {

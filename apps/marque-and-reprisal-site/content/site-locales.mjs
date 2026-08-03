@@ -7,7 +7,7 @@ const FEATURE_IDS = Object.freeze([
 ]);
 
 const UI_KEYS = Object.freeze([
-  "navAbout", "navPress", "navQaEnglish", "navDemo", "language",
+  "navAbout", "navShips", "navPress", "navQaEnglish", "navDemo", "language",
   "heroKicker", "wishlist", "playDemo", "platform",
   "galleryHeading", "openPressKit", "finalTitle", "finalBody",
   "downloadPressKit", "factSheet", "release", "platforms", "genre", "textLanguages",
@@ -34,7 +34,7 @@ const SLUGS = Object.freeze({
 
 const UI = Object.freeze({
   en: ui(`
-About|Press kit|Q&A|Demo|Language
+About|Ships|Press kit|Q&A|Demo|Language
 A globe-spanning sailing roguelike · 1522|Wishlist on Steam|Play browser demo|Coming soon on Steam for Windows, macOS, and Linux.
 From the captain's log|Open the press kit|Catch a good wind.|Make your fortune before the sea takes it back.
 Download English press kit|Fact sheet|Release|Platforms|Genre|Text languages
@@ -45,7 +45,7 @@ Asset use|These assets may be used for editorial coverage, reviews, videos, stre
 Developed & published by Iron Pagoda.|Privacy|Meet a panda in Sichuan
 `),
   "zh-Hans": ui(`
-游戏介绍|媒体资料|开发者问答（英文）|试玩版|语言
+游戏介绍|舰船|媒体资料|开发者问答（英文）|试玩版|语言
 纵贯全球的航海 Roguelike · 1522|在 Steam 加入愿望单|在线试玩|即将在 Steam 同步登陆 Windows、macOS 与 Linux。
 船长日志|打开媒体资料|乘风启航。|在大海夺回一切之前赚取你的财富。
 下载简体中文媒体包|资料一览|发行日期|平台|类型|文本语言
@@ -56,7 +56,7 @@ Developed & published by Iron Pagoda.|Privacy|Meet a panda in Sichuan
 由 Iron Pagoda 开发并发行。|隐私|在四川遇见熊猫
 `),
   ru: ui(`
-Об игре|Пресс-кит|Вопросы и ответы (англ.)|Демо|Язык
+Об игре|Корабли|Пресс-кит|Вопросы и ответы (англ.)|Демо|Язык
 Морской roguelike на всей Земле · 1522|Добавить в желаемое Steam|Играть в браузере|Скоро в Steam одновременно для Windows, macOS и Linux.
 Из журнала капитана|Открыть пресс-кит|Поймайте попутный ветер.|Сколотите состояние, пока море не забрало его обратно.
 Скачать русский пресс-кит|Краткие сведения|Выход|Платформы|Жанр|Языки текста
@@ -67,7 +67,7 @@ Developed & published by Iron Pagoda.|Privacy|Meet a panda in Sichuan
 Разработчик и издатель — Iron Pagoda.|Конфиденциальность|Встретить панду в Сычуани
 `),
   es: ui(`
-Acerca del juego|Kit de prensa|Preguntas (inglés)|Demo|Idioma
+Acerca del juego|Navíos|Kit de prensa|Preguntas (inglés)|Demo|Idioma
 Un roguelike naval por todo el globo · 1522|Añadir a deseados en Steam|Jugar la demo web|Próximamente en Steam para Windows, macOS y Linux simultáneamente.
 Del cuaderno del capitán|Abrir el kit de prensa|Atrapa un buen viento.|Haz fortuna antes de que el mar se la lleve.
 Descargar kit de prensa en español|Ficha técnica|Lanzamiento|Plataformas|Género|Idiomas de texto
@@ -78,7 +78,7 @@ Uso de recursos|Estos recursos pueden usarse en cobertura editorial, reseñas, v
 Desarrollado y publicado por Iron Pagoda.|Privacidad|Conoce a un panda en Sichuan
 `),
   "pt-BR": ui(`
-Sobre o jogo|Kit de imprensa|Perguntas (inglês)|Demo|Idioma
+Sobre o jogo|Navios|Kit de imprensa|Perguntas (inglês)|Demo|Idioma
 Um roguelike de navegação pelo globo · 1522|Adicionar à lista da Steam|Jogar demo no navegador|Em breve na Steam para Windows, macOS e Linux simultaneamente.
 Do diário do capitão|Abrir o kit de imprensa|Pegue um bom vento.|Faça fortuna antes que o mar a tome de volta.
 Baixar kit de imprensa em português|Ficha técnica|Lançamento|Plataformas|Gênero|Idiomas do texto
@@ -89,7 +89,7 @@ Uso dos materiais|Estes materiais podem ser usados em matérias, análises, víd
 Desenvolvido e publicado por Iron Pagoda.|Privacidade|Encontre um panda em Sichuan
 `),
   ja: ui(`
-ゲーム紹介|プレスキット|開発者Q&A（英語）|体験版|言語
+ゲーム紹介|船|プレスキット|開発者Q&A（英語）|体験版|言語
 地球規模の航海ローグライク · 1522年|Steamでウィッシュリストに追加|ブラウザ体験版|Windows・macOS・Linux版をSteamで同時発売予定。
 船長の航海日誌|プレスキットを開く|良い風をつかめ。|海に奪い返される前に、富を築け。
 日本語プレスキットをダウンロード|基本情報|発売日|対応OS|ジャンル|対応言語
@@ -100,7 +100,7 @@ Desenvolvido e publicado por Iron Pagoda.|Privacidade|Encontre um panda em Sichu
 Iron Pagoda 開発・販売。|プライバシー|四川でパンダに出会う
 `),
   de: ui(`
-Über das Spiel|Pressekit|Fragen (Englisch)|Demo|Sprache
+Über das Spiel|Schiffe|Pressekit|Fragen (Englisch)|Demo|Sprache
 Ein weltumspannendes Seefahrt-Roguelike · 1522|Auf Steam wünschen|Browser-Demo spielen|Demnächst gleichzeitig auf Steam für Windows, macOS und Linux.
 Aus dem Logbuch|Pressekit öffnen|Fang einen guten Wind.|Mach dein Glück, bevor das Meer es zurückholt.
 Deutsches Pressekit herunterladen|Steckbrief|Veröffentlichung|Plattformen|Genre|Textsprachen
@@ -111,7 +111,7 @@ Nutzung der Assets|Diese Assets dürfen für Berichte, Rezensionen, Videos, Stre
 Entwickelt und veröffentlicht von Iron Pagoda.|Datenschutz|Einen Panda in Sichuan treffen
 `),
   fr: ui(`
-À propos|Dossier de presse|Questions (anglais)|Démo|Langue
+À propos|Navires|Dossier de presse|Questions (anglais)|Démo|Langue
 Un roguelike de navigation à l'échelle du globe · 1522|Ajouter aux souhaits Steam|Jouer à la démo web|Bientôt sur Steam, simultanément sur Windows, macOS et Linux.
 Extrait du journal de bord|Ouvrir le dossier de presse|Trouvez un vent favorable.|Faites fortune avant que la mer ne la reprenne.
 Télécharger le dossier de presse français|Fiche technique|Sortie|Plateformes|Genre|Langues du texte
@@ -122,7 +122,7 @@ Utilisation des ressources|Ces ressources peuvent servir aux articles, critiques
 Développé et publié par Iron Pagoda.|Confidentialité|Rencontrer un panda au Sichuan
 `),
   pl: ui(`
-O grze|Materiały prasowe|Pytania (angielski)|Demo|Język
+O grze|Statki|Materiały prasowe|Pytania (angielski)|Demo|Język
 Żeglarski roguelike na całym globie · 1522|Dodaj do listy życzeń Steam|Zagraj w demo|Wkrótce jednocześnie na Steam dla Windows, macOS i Linux.
 Z dziennika kapitana|Otwórz materiały prasowe|Złap dobry wiatr.|Zdobądź fortunę, zanim morze ją odbierze.
 Pobierz polski pakiet prasowy|Informacje|Premiera|Platformy|Gatunek|Języki tekstu
@@ -133,7 +133,7 @@ Wykorzystanie materiałów|Materiały mogą być używane w artykułach, recenzj
 Gra opracowana i wydana przez Iron Pagoda.|Prywatność|Spotkaj pandę w Syczuanie
 `),
   "zh-Hant": ui(`
-遊戲介紹|媒體資料|開發者問答（英文）|試玩版|語言
+遊戲介紹|船艦|媒體資料|開發者問答（英文）|試玩版|語言
 縱貫全球的航海 Roguelike · 1522|在 Steam 加入願望清單|線上試玩|即將在 Steam 同步登上 Windows、macOS 與 Linux。
 船長日誌|開啟媒體資料|乘風啟航。|在大海奪回一切之前賺取你的財富。
 下載繁體中文媒體包|資料一覽|發售日期|平台|類型|文字語言
@@ -144,7 +144,7 @@ Gra opracowana i wydana przez Iron Pagoda.|Prywatność|Spotkaj pandę w Syczuan
 由 Iron Pagoda 開發並發行。|隱私|在四川遇見熊貓
 `),
   ko: ui(`
-게임 소개|프레스 키트|개발자 문답(영어)|데모|언어
+게임 소개|선박|프레스 키트|개발자 문답(영어)|데모|언어
 전 세계를 누비는 항해 로그라이크 · 1522년|Steam 찜 목록에 추가|브라우저 데모 플레이|Windows, macOS, Linux용으로 Steam에서 동시 출시 예정.
 선장의 항해일지|프레스 키트 열기|좋은 바람을 잡으세요.|바다가 되찾기 전에 부를 이루세요.
 한국어 프레스 키트 다운로드|기본 정보|출시|플랫폼|장르|지원 언어

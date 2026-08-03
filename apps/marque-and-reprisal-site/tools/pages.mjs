@@ -8,7 +8,9 @@ import {
   qAndA,
   screenshotLocales,
   screenshots,
+  shipRoster,
   site,
+  mysteryShip,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
 import {
@@ -20,7 +22,7 @@ import {
 
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
-const codeAssetVersion = "2026-08-02-localized-website-v2";
+const codeAssetVersion = "2026-08-02-ship-roster";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 
 export function homePage(localeValue = "en") {
@@ -432,6 +434,80 @@ export function qAndAPage() {
   });
 }
 
+export function shipsPage() {
+  const entries = shipRoster.map((ship, index) => [
+    "<article class='ship-entry' id='ship-", escapeHtml(ship.slug), "'>",
+    "<figure class='ship-side-view'>",
+    "<img src='", escapeHtml(ship.image), "' alt='Side view pixel art of the ",
+    escapeHtml(ship.label), "' loading='lazy' width='192' height='104'>",
+    "</figure>",
+    "<div class='ship-entry-copy'>",
+    "<p class='ship-register-number'>Vessel ", String(index + 1).padStart(2, "0"), "</p>",
+    "<h2>", escapeHtml(ship.label), "</h2>",
+    "<p class='ship-history'>", escapeHtml(ship.description), "</p>",
+    "<dl class='ship-specs'>",
+    shipSpec("Hold", ship.cargoCapacity),
+    shipSpec("Crew", ship.crewCapacity),
+    shipSpec("Cannons", ship.cannons),
+    shipSpec("Drive", propulsionLabel(ship.propulsion)),
+    "</dl>",
+    "</div>",
+    "</article>"
+  ].join("")).join("\n");
+
+  const mysteryEntry = [
+    "<article class='ship-entry ship-entry-mystery' id='mystery-ship'>",
+    "<figure class='ship-side-view ship-mystery-view' aria-label='Unknown ship'>",
+    "<span aria-hidden='true'>", escapeHtml(mysteryShip.mark), "</span>",
+    "</figure>",
+    "<div class='ship-entry-copy'>",
+    "<p class='ship-register-number'>Uncharted</p>",
+    "<h2>", escapeHtml(mysteryShip.label), "</h2>",
+    "<p class='ship-history'>", escapeHtml(mysteryShip.description), "</p>",
+    "</div>",
+    "</article>"
+  ].join("");
+
+  const main = [
+    "<main class='ships-main'>",
+    "<header class='ships-hero'>",
+    "<div>",
+    "<p class='eyebrow'>The ships of 1522</p>",
+    "<h1>Ship roster</h1>",
+    "<p>From shallow-water canoes to towering ocean carracks, every hull has its own history, carrying capacity, crew, armament, and way of working the wind.</p>",
+    "</div>",
+    "<dl class='roster-tally'>",
+    shipSpec("Known vessels", shipRoster.length),
+    shipSpec("Mystery vessels", 1),
+    "</dl>",
+    "</header>",
+    "<section class='ship-roster-list' aria-label='Ships in Marque and Reprisal'>",
+    entries,
+    mysteryEntry,
+    "</section>",
+    "</main>"
+  ].join("\n");
+
+  return layout({
+    title: "Ship roster — " + site.title,
+    description: "Explore the ships of Marque & Reprisal, from working canoes and coastal traders to ocean-going carracks and warships.",
+    canonicalPath: "/ships/",
+    bodyClass: "ships",
+    main
+  });
+}
+
+function shipSpec(label, value) {
+  return "<div><dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(value) + "</dd></div>";
+}
+
+function propulsionLabel(propulsion) {
+  if (propulsion === "sail") return "Sail";
+  if (propulsion === "oar") return "Oars";
+  if (propulsion === "oar-sail") return "Oars + sail";
+  throw new Error(`Unknown ship propulsion: ${propulsion}`);
+}
+
 function graphicAssetCard(asset, folder, previewClass = "") {
   return [
     "<article class='logo-card'>",
@@ -593,6 +669,7 @@ export function sitemapXml() {
     "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>",
     ...localizedUrls,
     "<url><loc>" + site.domain + "/qa/</loc><priority>0.8</priority></url>",
+    "<url><loc>" + site.domain + "/ships/</loc><priority>0.8</priority></url>",
     "<url><loc>" + site.domain + "/privacy/</loc><priority>0.3</priority></url>",
     "</urlset>",
     ""
@@ -670,6 +747,7 @@ function navigation(locale, pageKind) {
     "<a class='wordmark' href='", homePath, "' aria-label='", escapeHtml(locale.title), "'><span>M</span><i class='display-amp' aria-hidden='true'></i><span>R</span></a>",
     "<div class='nav-links'>",
     "<a href='", homePath, "#voyage'>", escapeHtml(locale.ui.navAbout), "</a>",
+    "<a href='/ships/'>", escapeHtml(locale.ui.navShips), "</a>",
     "<a href='/qa/'>", escapeHtml(locale.ui.navQaEnglish), "</a>",
     "<a href='", pressPath, "'>", escapeHtml(locale.ui.navPress), "</a>",
     externalTextLink(site.steamUrl, "Steam"),
