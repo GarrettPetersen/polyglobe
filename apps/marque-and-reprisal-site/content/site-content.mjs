@@ -55,6 +55,14 @@ export const shipRoster = Object.freeze(SHIP_STATS
     ) {
       throw new Error(`Website ship roster has an unsupported sprite atlas: ${stats.slug}`);
     }
+    const { x: turntableAnchorX, y: turntableAnchorY } = sprite.turntableAnchor ?? {};
+    if (
+      !Number.isFinite(turntableAnchorX) || !Number.isFinite(turntableAnchorY) ||
+      turntableAnchorX < 0 || turntableAnchorX >= sprite.frameSize ||
+      turntableAnchorY < 0 || turntableAnchorY >= sprite.frameSize
+    ) {
+      throw new Error(`Website ship roster needs a registered turntable anchor: ${stats.slug}`);
+    }
     return Object.freeze({
       slug: stats.slug,
       label: shipLabelForSlug(stats.slug),
@@ -67,6 +75,8 @@ export const shipRoster = Object.freeze(SHIP_STATS
       shadowFrameSize: sprite.shadowFrameSize,
       headings: sprite.headings,
       sheetCols: sprite.sheetCols,
+      turntableAnchorX,
+      turntableAnchorY,
       lightAzimuth: SHIP_ROSTER_LIGHTING_AZIMUTH,
       lightElevation: SHIP_ROSTER_LIGHTING_ELEVATION,
       cargoCapacity: stats.cargoCapacity,

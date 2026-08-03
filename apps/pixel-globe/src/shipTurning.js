@@ -1,5 +1,8 @@
 export const SHIP_MINIMUM_RUDDER_AUTHORITY = 0.25;
 export const SHIP_MINIMUM_FORWARD_PROGRESS_ALIGNMENT = 0.01;
+export const OAR_PIVOT_BASE_TURN_RATIO = 0.72;
+export const OAR_PIVOT_REFERENCE_MASS = 90;
+export const OAR_PIVOT_MINIMUM_MASS_SCALE = 0.4;
 
 export function shipTurnRate({
   turnRateRad,
@@ -19,6 +22,19 @@ export function shipTurnRate({
 
   if (assistedPivot) return turnRateRad * assistedMultiplier;
   return turnRateRad * Math.max(minimumRudderAuthority, Math.min(speedRad / topSpeedRad, 1));
+}
+
+export function oarPivotTurnRate({ turnRateRad, mass, rowerRatio }) {
+  assertFinitePositive("Oar pivot turn rate", turnRateRad);
+  assertFinitePositive("Oar pivot ship mass", mass);
+  if (!Number.isFinite(rowerRatio) || rowerRatio < 0 || rowerRatio > 1) {
+    throw new Error("Oar pivot rower ratio must be between zero and one");
+  }
+  const massScale = Math.max(
+    OAR_PIVOT_MINIMUM_MASS_SCALE,
+    Math.min(1, Math.sqrt(OAR_PIVOT_REFERENCE_MASS / mass))
+  );
+  return turnRateRad * OAR_PIVOT_BASE_TURN_RATIO * massScale * Math.sqrt(rowerRatio);
 }
 
 export function updateBoundaryContactLatch({

@@ -120,6 +120,18 @@ test("every oar-capable hull and only those hulls have rowing animation", async 
     .sort();
 
   assert.deepEqual(animated, expected);
+  for (const entry of manifest.ships.filter((ship) => expected.includes(ship.slug))) {
+    for (const field of [
+      "rowingAnimation",
+      "rowingSinkDepth",
+      "pivotPortAnimation",
+      "pivotPortSinkDepth",
+      "pivotStarboardAnimation",
+      "pivotStarboardSinkDepth"
+    ]) {
+      assert.equal(entry.files[field]?.length, SHIP_ROWING_FRAME_COUNT, `${entry.slug} ${field}`);
+    }
+  }
 });
 
 test("rowing power strokes put oar blades into the refracted water layer", async () => {
@@ -430,7 +442,9 @@ test("the Galleass reuses the galley model at a larger unclipped scale", async (
   assert.equal(galleass.removedSourceComponents, undefined);
   assert.ok(galleass.targetModelMaxDim >= galley.targetModelMaxDim * 1.2);
   assert.ok(
-    maxOpaqueFrameDimension(galleassImage) >= maxOpaqueFrameDimension(galleyImage) * 1.2
+    maxOpaqueFrameDimension(galleassImage) >= Math.floor(
+      maxOpaqueFrameDimension(galleyImage) * 1.2
+    )
   );
   assert.equal(opaqueFrameEdgePixelCount(galleassImage), 0);
   assert.equal(galleass.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);

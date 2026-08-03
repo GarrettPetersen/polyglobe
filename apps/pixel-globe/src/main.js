@@ -186,7 +186,17 @@ import {
 } from "./shipSpriteLayout.js";
 import {
   SHIP_ROWING_ANIMATION_SPECS,
-  SHIP_ROWING_FRAME_COUNT
+  SHIP_ROWING_FRAME_COUNT,
+  SHIP_ROWING_MODE_AHEAD,
+  SHIP_ROWING_MODE_ASTERN,
+  SHIP_ROWING_MODE_IDLE,
+  SHIP_ROWING_MODE_PIVOT_PORT,
+  SHIP_ROWING_MODE_PIVOT_STARBOARD,
+  normalizeShipRowingMode,
+  shipRowingAnimationFrameIndex,
+  shipRowingModeIsActive,
+  shipRowingModeIsPivot,
+  shipRowingModeThrustDirection
 } from "./shipRowingAnimation.js";
 import {
   SHIP_MINIMUM_POWERED_SPEED_RAD,
@@ -709,6 +719,7 @@ import { compareShipDrawCalls } from "./shipDrawOrder.js";
 import {
   SHIP_MINIMUM_RUDDER_AUTHORITY,
   contactPushOffVelocity,
+  oarPivotTurnRate,
   shipDirectionMakesForwardProgress,
   shipTurnRate,
   updateBoundaryContactLatch
@@ -3956,17 +3967,26 @@ async function loadRowingShipAssetsForSlug(slug) {
   shipStatsForSlug(slug);
   const spec = ROWING_SHIP_ANIMATION_SPECS.get(slug);
   if (!spec) throw new Error(`Ship has no rowing animation specification: ${slug}`);
-  if (BUILD_EDITION_ID === "demo") {
-    return loadDemoRowingShipAtlas(slug, spec.frames);
-  }
-  return Object.freeze(await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
-    const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
-    return loadShipSpriteAsset(key, `Rowing ship: ${slug} frame ${frameIndex}`);
-  })));
+  const loadMode = (modeStem) => BUILD_EDITION_ID === "demo"
+    ? loadDemoRowingShipAtlas(slug, spec.frames, modeStem)
+    : Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
+        const key = `${vehicleSpriteKeyForShipSlug(slug)}-${modeStem}-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+        return loadShipSpriteAsset(key, `${modeStem} ship: ${slug} frame ${frameIndex}`);
+      }));
+  const [ahead, pivotPort, pivotStarboard] = await Promise.all([
+    loadMode("rowing"),
+    loadMode("pivot-port"),
+    loadMode("pivot-starboard")
+  ]);
+  return Object.freeze({
+    ahead: Object.freeze(ahead),
+    pivotPort: Object.freeze(pivotPort),
+    pivotStarboard: Object.freeze(pivotStarboard)
+  });
 }
 
-async function loadDemoRowingShipAtlas(slug, frameCount) {
-  const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-atlas-${SHIP_SPRITE_HEADING_SUFFIX}`;
+async function loadDemoRowingShipAtlas(slug, frameCount, modeStem) {
+  const key = `${vehicleSpriteKeyForShipSlug(slug)}-${modeStem}-atlas-${SHIP_SPRITE_HEADING_SUFFIX}`;
   const [imageAtlas, sinkDepthAtlas] = await Promise.all([
     loadVehicleImage(key),
     loadVehicleImage(`${key}-sink-depth`)
@@ -9023,13 +9043,13 @@ function startLakeBattleSinkSequence(battle, nowMs) {
 
 function lakeBattleInputCommand() {
   const battle = lakeBattleMode?.battle;
-  if (!battle) return { desiredHeadingRad: null, rowingRequested: false };
+  if (!battle) return { desiredHeadingRad: null, rowingMode: SHIP_ROWING_MODE_IDLE };
   if (pointerSteering.active && pointerSteering.point) {
     const px = pointerSteering.point.x - battle.player.x;
     const py = pointerSteering.point.y - battle.player.y;
     const length = Math.hypot(px, py);
     if (length >= POINTER_STEERING_DEADZONE_PX) {
-      return { desiredHeadingRad: Math.atan2(py, px), rowingRequested: true };
+      return lakeBattleDirectionalInputCommand(battle, Math.atan2(py, px));
     }
   }
   const intent = steeringIntentForScheme({
@@ -9041,22 +9061,67 @@ function lakeBattleInputCommand() {
     controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
+  const canRow = shipCanUseOars(battle.player.stats);
+  if (intent.relativeBackward && canRow) {
+    return {
+      desiredHeadingRad: intent.relativeTurn === 0
+        ? battle.player.headingRad
+        : relativeHeadingAngle(battle.player.headingRad, intent.relativeTurn),
+      rowingMode: SHIP_ROWING_MODE_ASTERN
+    };
+  }
   if (intent.relativeTurn !== 0) {
     return {
       desiredHeadingRad: relativeHeadingAngle(battle.player.headingRad, intent.relativeTurn),
-      rowingRequested: intent.relativeForward
+      rowingMode: intent.relativeForward
+        ? (canRow ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE)
+        : canRow
+          ? (intent.relativeTurn > 0
+              ? SHIP_ROWING_MODE_PIVOT_STARBOARD
+              : SHIP_ROWING_MODE_PIVOT_PORT)
+          : SHIP_ROWING_MODE_IDLE
     };
   }
   if (intent.relativeForward) {
-    return { desiredHeadingRad: battle.player.headingRad, rowingRequested: true };
+    return {
+      desiredHeadingRad: battle.player.headingRad,
+      rowingMode: canRow ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE
+    };
   }
   if (intent.absoluteX === 0 && intent.absoluteY === 0) {
-    return { desiredHeadingRad: null, rowingRequested: false };
+    return { desiredHeadingRad: null, rowingMode: SHIP_ROWING_MODE_IDLE };
   }
-  return {
-    desiredHeadingRad: Math.atan2(-intent.absoluteY, intent.absoluteX),
-    rowingRequested: true
-  };
+  return lakeBattleDirectionalInputCommand(
+    battle,
+    Math.atan2(-intent.absoluteY, intent.absoluteX)
+  );
+}
+
+function lakeBattleDirectionalInputCommand(battle, desiredHeadingRad) {
+  if (!shipCanUseOars(battle.player.stats)) {
+    return { desiredHeadingRad, rowingMode: SHIP_ROWING_MODE_IDLE };
+  }
+  const turn = Math.atan2(
+    Math.sin(desiredHeadingRad - battle.player.headingRad),
+    Math.cos(desiredHeadingRad - battle.player.headingRad)
+  );
+  if (Math.cos(turn) <= -Math.cos(35 * Math.PI / 180)) {
+    return {
+      desiredHeadingRad: battle.player.headingRad,
+      rowingMode: SHIP_ROWING_MODE_ASTERN
+    };
+  }
+  const speedRatio = Math.abs(battle.player.speedPx) /
+    (battle.player.stats.topSpeedRad * PIXELS_PER_RADIAN);
+  if (speedRatio <= 0.2 && Math.abs(turn) > 20 * Math.PI / 180) {
+    return {
+      desiredHeadingRad,
+      rowingMode: turn > 0
+        ? SHIP_ROWING_MODE_PIVOT_STARBOARD
+        : SHIP_ROWING_MODE_PIVOT_PORT
+    };
+  }
+  return { desiredHeadingRad, rowingMode: SHIP_ROWING_MODE_AHEAD };
 }
 
 function fireLakeBattlePlayerBroadside(sideName) {
@@ -17900,7 +17965,8 @@ function createShip(latDeg, lonDeg, shipSlug, factionId) {
     },
     portableWeaponCooldowns: {},
     woundedCrew: 0,
-    rowing: false
+    rowing: false,
+    rowingMode: SHIP_ROWING_MODE_IDLE
   };
 }
 
@@ -17929,7 +17995,8 @@ function updateSailing(dt) {
   const recoveredFromDemoEscape = recoverEscapedDemoShip();
   const effectiveStats = currentPlayerEffectiveShipStats();
   const input = inputCommandForShip();
-  const inputHeading = input.heading;
+  const inputHeading = input.movementHeading;
+  const steeringHeading = input.steeringHeading;
   const inRiver = shipIsInRiverWater();
   if (!inputHeading) playerHaulBlockedSeconds = 0;
 
@@ -17941,16 +18008,22 @@ function updateSailing(dt) {
   });
 
   const previousHeading = ship.heading;
-  if (inputHeading) {
-    ship.targetHeading = inputHeading;
-    const turnRate = shipTurnRate({
-      turnRateRad: effectiveStats.turnRateRad,
-      speedRad: vectorLength(ship.velocity),
-      topSpeedRad: effectiveStats.topSpeedRad,
-      assistedPivot: Boolean(boundaryContact),
-      assistedMultiplier: inRiver ? SHIP_RIVER_TURN_RATE_MULTIPLIER : 1,
-      minimumRudderAuthority: SHIP_MINIMUM_RUDDER_AUTHORITY
-    });
+  if (steeringHeading) {
+    ship.targetHeading = steeringHeading;
+    const turnRate = shipRowingModeIsPivot(input.rowingMode)
+      ? oarPivotTurnRate({
+          turnRateRad: effectiveStats.turnRateRad,
+          mass: effectiveStats.mass,
+          rowerRatio: playerRowerRatio()
+        })
+      : shipTurnRate({
+          turnRateRad: effectiveStats.turnRateRad,
+          speedRad: vectorLength(ship.velocity),
+          topSpeedRad: effectiveStats.topSpeedRad,
+          assistedPivot: Boolean(boundaryContact),
+          assistedMultiplier: inRiver ? SHIP_RIVER_TURN_RATE_MULTIPLIER : 1,
+          minimumRudderAuthority: SHIP_MINIMUM_RUDDER_AUTHORITY
+        });
     ship.heading = rotateTangentToward(
       ship.heading,
       ship.targetHeading,
@@ -17961,7 +18034,7 @@ function updateSailing(dt) {
     ship.targetHeading = ship.heading;
   }
 
-  applyWindAcceleration(dt, effectiveStats, input.rowingRequested);
+  applyWindAcceleration(dt, effectiveStats, input.rowingMode);
   applyWhaleTowAcceleration(dt);
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
   applyShipHaulAcceleration(dt, inputHeading, haulMotionScale);
@@ -18199,13 +18272,12 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
 
 function inputCommandForShip() {
   const captureHeading = captureAutopilotHeading();
-  if (captureHeading) return { heading: captureHeading, rowingRequested: true };
+  if (captureHeading) return directionalShipInputCommand(captureHeading);
   const pointerVector = pointerSteeringInputVector();
   if (pointerVector) {
-    return {
-      heading: cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy),
-      rowingRequested: true
-    };
+    return directionalShipInputCommand(
+      cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy)
+    );
   }
   const intent = steeringIntentForScheme({
     scheme: optionsMenu.controlScheme,
@@ -18216,23 +18288,95 @@ function inputCommandForShip() {
     controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
-  if (intent.relativeTurn !== 0) {
+  const canRow = shipCanUseOars(currentPlayerEffectiveShipStats());
+  if (intent.relativeBackward && canRow) {
+    const steeringHeading = intent.relativeTurn === 0
+      ? ship.heading
+      : rotateTangentDirection(
+          ship.heading,
+          ship.position,
+          -intent.relativeTurn * Math.PI / 2
+        );
     return {
-      heading: rotateTangentDirection(
-        ship.heading,
-        ship.position,
-        -intent.relativeTurn * Math.PI / 2
-      ),
-      rowingRequested: intent.relativeForward
+      steeringHeading,
+      movementHeading: scaleVector(ship.heading, -1),
+      rowingMode: SHIP_ROWING_MODE_ASTERN
     };
   }
-  if (intent.relativeForward) return { heading: ship.heading, rowingRequested: true };
+  if (intent.relativeTurn !== 0) {
+    const steeringHeading = rotateTangentDirection(
+      ship.heading,
+      ship.position,
+      -intent.relativeTurn * Math.PI / 2
+    );
+    if (!intent.relativeForward && canRow) {
+      return {
+        steeringHeading,
+        movementHeading: null,
+        rowingMode: intent.relativeTurn > 0
+          ? SHIP_ROWING_MODE_PIVOT_STARBOARD
+          : SHIP_ROWING_MODE_PIVOT_PORT
+      };
+    }
+    return {
+      steeringHeading,
+      movementHeading: steeringHeading,
+      rowingMode: intent.relativeForward && canRow
+        ? SHIP_ROWING_MODE_AHEAD
+        : SHIP_ROWING_MODE_IDLE
+    };
+  }
+  if (intent.relativeForward) {
+    return {
+      steeringHeading: ship.heading,
+      movementHeading: ship.heading,
+      rowingMode: canRow ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE
+    };
+  }
   if (intent.absoluteX === 0 && intent.absoluteY === 0) {
-    return { heading: null, rowingRequested: false };
+    return {
+      steeringHeading: null,
+      movementHeading: null,
+      rowingMode: SHIP_ROWING_MODE_IDLE
+    };
+  }
+  return directionalShipInputCommand(
+    cameraSpaceHeadingForShip(intent.absoluteX, intent.absoluteY)
+  );
+}
+
+function directionalShipInputCommand(desiredHeading) {
+  const stats = currentPlayerEffectiveShipStats();
+  if (!shipCanUseOars(stats)) {
+    return {
+      steeringHeading: desiredHeading,
+      movementHeading: desiredHeading,
+      rowingMode: SHIP_ROWING_MODE_IDLE
+    };
+  }
+  const alignment = clamp(dot3(ship.heading, desiredHeading), -1, 1);
+  if (alignment <= -Math.cos(35 * Math.PI / 180)) {
+    return {
+      steeringHeading: ship.heading,
+      movementHeading: desiredHeading,
+      rowingMode: SHIP_ROWING_MODE_ASTERN
+    };
+  }
+  const speedRatio = vectorLength(ship.velocity) / stats.topSpeedRad;
+  if (speedRatio <= 0.2 && alignment < Math.cos(20 * Math.PI / 180)) {
+    const signedTurn = dot3(cross3(ship.heading, desiredHeading), ship.position);
+    return {
+      steeringHeading: desiredHeading,
+      movementHeading: null,
+      rowingMode: signedTurn < 0
+        ? SHIP_ROWING_MODE_PIVOT_STARBOARD
+        : SHIP_ROWING_MODE_PIVOT_PORT
+    };
   }
   return {
-    heading: cameraSpaceHeadingForShip(intent.absoluteX, intent.absoluteY),
-    rowingRequested: true
+    steeringHeading: desiredHeading,
+    movementHeading: desiredHeading,
+    rowingMode: SHIP_ROWING_MODE_AHEAD
   };
 }
 
@@ -18496,25 +18640,35 @@ function pointerSteeringInputVector() {
 function applyWindAcceleration(
   dt,
   effectiveStats = currentPlayerEffectiveShipStats(),
-  rowingRequested = false
+  rowingMode = SHIP_ROWING_MODE_IDLE
 ) {
+  const normalizedRowingMode = normalizeShipRowingMode(rowingMode);
+  const pivoting = shipRowingModeIsPivot(normalizedRowingMode);
+  const thrustDirection = shipRowingModeThrustDirection(normalizedRowingMode);
   const wind = windForShip();
   const windFlow = windFlowVectorAtShip(wind);
-  const efficiency = sailingEfficiencyForStats(effectiveStats, ship.heading, windFlow);
+  const efficiency = pivoting
+    ? 0
+    : sailingEfficiencyForStats(effectiveStats, ship.heading, windFlow);
   const propulsion = shipPropulsionPerformance(effectiveStats, {
     windStrength: wind.strength,
     sailEfficiency: efficiency,
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
     rowerRatio: playerRowerRatio(),
-    rowingRequested
+    rowingRequested: thrustDirection !== 0,
+    rowingDirection: thrustDirection < 0 ? -1 : 1
   });
-  ship.rowing = propulsion.rowing;
+  ship.rowingMode = pivoting ? normalizedRowingMode : (
+    propulsion.rowing ? normalizedRowingMode : SHIP_ROWING_MODE_IDLE
+  );
+  ship.rowing = shipRowingModeIsActive(ship.rowingMode);
   const propulsionAccel = effectiveStats.accelerationRad * propulsion.accelerationFactor;
+  const propulsionDirection = propulsion.propulsionDirection;
 
   ship.velocity = [
-    ship.velocity[0] + ship.heading[0] * propulsionAccel * dt,
-    ship.velocity[1] + ship.heading[1] * propulsionAccel * dt,
-    ship.velocity[2] + ship.heading[2] * propulsionAccel * dt
+    ship.velocity[0] + ship.heading[0] * propulsionAccel * propulsionDirection * dt,
+    ship.velocity[1] + ship.heading[1] * propulsionAccel * propulsionDirection * dt,
+    ship.velocity[2] + ship.heading[2] * propulsionAccel * propulsionDirection * dt
   ];
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
   ship.velocity = scaleVector(ship.velocity, shipDragFactor(propulsion.stalled, dt));
@@ -31916,6 +32070,7 @@ function lakeBattleShipSpriteCall(shipState, nowMs) {
     img: baseAsset.image,
     sinkDepthImg: baseAsset.sinkDepthImage,
     rowing: shipState.rowing,
+    rowingMode: shipState.rowingMode ?? SHIP_ROWING_MODE_AHEAD,
     bobSeed: shipState.id === LAKE_BATTLE_PLAYER_ID ? 0 : 37
   };
   const frameAsset = rowingShipFrameAsset(baseCall, nowMs);
@@ -37540,6 +37695,7 @@ function playerShipDrawCall(light) {
     img: shipImage,
     sinkDepthImg: shipSinkDepthImage,
     rowing: playerShipIsRowing(),
+    rowingMode: ship.rowingMode ?? SHIP_ROWING_MODE_IDLE,
     frame,
     x: origin.x,
     y: origin.y,
@@ -37579,6 +37735,7 @@ function npcShipDrawCall(state, activeChart, drawContext = createNpcShipDrawCont
     img: asset.image,
     sinkDepthImg: asset.sinkDepthImage,
     rowing: npcShipIsRowing(state),
+    rowingMode: SHIP_ROWING_MODE_AHEAD,
     frame,
     x: Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2),
     y: Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2),
@@ -37714,14 +37871,24 @@ function rowingShipFrameAsset(call, nowMs) {
   if (!call.rowing) {
     return { image: call.img, sinkDepthImage: call.sinkDepthImg, rowingFrameIndex: null };
   }
-  const frames = rowingShipAssetStore?.peek(call.slug);
-  if (!frames || frames.length === 0) throw new Error(`Rowing ship ${call.slug} has no animation assets`);
+  const assets = rowingShipAssetStore?.peek(call.slug);
+  if (!assets) throw new Error(`Rowing ship ${call.slug} has no animation assets`);
   const spec = ROWING_SHIP_ANIMATION_SPECS.get(call.slug);
   if (!spec) throw new Error(`Rowing ship ${call.slug} has no animation specification`);
+  const mode = normalizeShipRowingMode(call.rowingMode ?? SHIP_ROWING_MODE_AHEAD);
+  const frames = mode === SHIP_ROWING_MODE_PIVOT_PORT
+    ? assets.pivotPort
+    : mode === SHIP_ROWING_MODE_PIVOT_STARBOARD
+      ? assets.pivotStarboard
+      : assets.ahead;
+  if (!frames || frames.length === 0) {
+    throw new Error(`Rowing ship ${call.slug} has no ${mode} animation assets`);
+  }
   const seedOffset = call.kind === "npc" ? (call.bobSeed & 0xff) * 3 : 0;
-  const frameIndex = reducedMotionPreferred
+  const clockFrameIndex = reducedMotionPreferred
     ? 0
     : Math.floor((nowMs + seedOffset) / spec.frameMs) % frames.length;
+  const frameIndex = shipRowingAnimationFrameIndex(clockFrameIndex, mode, frames.length);
   return { ...frames[frameIndex], rowingFrameIndex: frameIndex };
 }
 

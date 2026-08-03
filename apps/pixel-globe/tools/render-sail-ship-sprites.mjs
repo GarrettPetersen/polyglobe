@@ -63,7 +63,21 @@ import {
   SHIP_SPRITE_RENDER_SIZE,
   SHIP_SPRITE_SHEET_COLS
 } from "../src/shipSpriteLayout.js";
-import { SHIP_ROWING_FRAME_COUNT, rowingOarPose } from "../src/shipRowingAnimation.js";
+import { anchoredShipFrameRegistration } from "../src/shipSpriteRegistration.js";
+import {
+  SHIP_ROWING_FRAME_COUNT,
+  SHIP_ROWING_MODE_AHEAD,
+  SHIP_ROWING_MODE_PIVOT_PORT,
+  SHIP_ROWING_MODE_PIVOT_STARBOARD,
+  rowingBankStrokeDirection,
+  rowingOarPose
+} from "../src/shipRowingAnimation.js";
+
+const ROWING_RENDER_MODES = Object.freeze([
+  Object.freeze({ id: "rowing", rowingMode: SHIP_ROWING_MODE_AHEAD }),
+  Object.freeze({ id: "pivot-port", rowingMode: SHIP_ROWING_MODE_PIVOT_PORT }),
+  Object.freeze({ id: "pivot-starboard", rowingMode: SHIP_ROWING_MODE_PIVOT_STARBOARD })
+]);
 import { selectShipFlagAnchorPoint } from "../src/shipFlagAnchors.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
@@ -282,7 +296,8 @@ const unityShipRoster = new Map([
     identifiedType: "small junk / sampan",
     confidence: "high",
     notes: "Small Chinese-rigged vessel; good for river/coastal Asian traffic.",
-    waterlineOffsetY: 0.023
+    waterlineOffsetY: 0.023,
+    flagAnchorMaxSnapDistancePx: 8
   }],
   ["ships large/chinese ship large.fbx", {
     label: "Large Junk",
@@ -1009,7 +1024,29 @@ function fixedFrameScale(boundsByHeading) {
   return Math.min(maxDraw / maxWidth, maxDraw / maxHeight);
 }
 
-function makeFrame(rendered, bounds, scale) {
+function makeFrame(rendered, registration) {
+  return makeRasterFrame(rendered, {
+    bounds: registration.sourceBounds,
+    drawX: registration.draw.x,
+    drawY: registration.draw.y,
+    drawW: registration.draw.width,
+    drawH: registration.draw.height
+  });
+}
+
+function makeCenteredFrame(rendered, bounds, scale) {
+  const drawW = Math.max(1, Math.round(bounds.width * scale));
+  const drawH = Math.max(1, Math.round(bounds.height * scale));
+  return makeRasterFrame(rendered, {
+    bounds,
+    drawX: Math.floor((frameSize - drawW) / 2),
+    drawY: Math.floor((frameSize - drawH) / 2),
+    drawW,
+    drawH
+  });
+}
+
+function makeRasterFrame(rendered, { bounds, drawX, drawY, drawW, drawH }) {
   const sourceCtx = rendered.canvas.getContext("2d");
   const sourceWidth = rendered.canvas.width;
   const sourceHeight = rendered.canvas.height;
@@ -1020,10 +1057,6 @@ function makeFrame(rendered, bounds, scale) {
   const normals = new Float32Array(frameSize * frameSize * 3);
   const positions = new Float32Array(frameSize * frameSize * 3);
   const alpha = new Uint8Array(frameSize * frameSize);
-  const drawW = Math.max(1, Math.round(bounds.width * scale));
-  const drawH = Math.max(1, Math.round(bounds.height * scale));
-  const drawX = Math.floor((frameSize - drawW) / 2);
-  const drawY = Math.floor((frameSize - drawH) / 2);
   const sourceSamples = hardEdgeSampleMap({
     rgba: source.data,
     sourceWidth,
@@ -1075,6 +1108,19 @@ function makeFrame(rendered, bounds, scale) {
     drawW,
     drawH
   };
+}
+
+function validateRegistrationSourceBounds(slug, registration, sourceWidth, sourceHeight) {
+  const { minX, minY, width, height } = registration.sourceBounds;
+  if (
+    minX < 0 || minY < 0 ||
+    minX + width > sourceWidth || minY + height > sourceHeight
+  ) {
+    throw new Error(
+      `${slug} anchored sprite viewport leaves its ${sourceWidth}x${sourceHeight} render: ` +
+      `${minX.toFixed(2)},${minY.toFixed(2)} ${width.toFixed(2)}x${height.toFixed(2)}`
+    );
+  }
 }
 
 function makeFlagAnchors(
@@ -1919,38 +1965,66 @@ async function renderShipSpriteSet(config) {
     waterlineY,
     collectCasters: !config.skipSelfShadowMaps
   };
-  const renderedAnimationHeadings = config.animationTrianglesForFrame
-    ? Array.from({ length: config.animationFrameCount }, (_, frameIndex) => {
-        const triangles = config.animationTrianglesForFrame(hullTriangles, frameIndex, waterlineY);
-        return Array.from(
-          { length: headings },
-          (_, headingIndex) => renderHeading(triangles, headingIndex, camera, renderOptions)
-        );
-      })
+  const renderedAnimationModes = config.animationTrianglesForFrame
+    ? ROWING_RENDER_MODES.map((mode) => ({
+        ...mode,
+        renderedHeadings: Array.from({ length: config.animationFrameCount }, (_, frameIndex) => {
+          const triangles = config.animationTrianglesForFrame(
+            hullTriangles,
+            frameIndex,
+            waterlineY,
+            mode.rowingMode
+          );
+          return Array.from(
+            { length: headings },
+            (_, headingIndex) => renderHeading(triangles, headingIndex, camera, renderOptions)
+          );
+        })
+      }))
     : null;
+  const renderedAnimationHeadings = renderedAnimationModes?.[0].renderedHeadings ?? null;
   const renderedHeadings = renderedAnimationHeadings?.[0] ?? Array.from(
     { length: headings },
     (_, headingIndex) => renderHeading(hullTriangles, headingIndex, camera, renderOptions)
   );
-  // Moving oars change the silhouette. One crop per heading keeps the static hull
-  // registered to the same output pixels throughout the complete stroke.
+  // Every heading and oar pose shares one model-space waterline anchor and one
+  // affine crop. Rotation can change the silhouette, never the ship's position.
   const boundsByHeading = renderedAnimationHeadings
     ? Array.from({ length: headings }, (_, headingIndex) => (
-        unionAlphaBounds(renderedAnimationHeadings.map((frames) => (
-          alphaBounds(frames[headingIndex].canvas)
+        unionAlphaBounds(renderedAnimationModes.flatMap((mode) => (
+          mode.renderedHeadings.map((frames) => alphaBounds(frames[headingIndex].canvas))
         )))
       ))
     : renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
-  const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
-  const animationFrames = renderedAnimationHeadings?.map((renderedFrames) => (
-    renderedFrames.map((rendered, headingIndex) => (
-      makeFrame(rendered, boundsByHeading[headingIndex], frameScale)
+  const turntableModelAnchor = new THREE.Vector3(0, waterlineY, 0);
+  const turntableSourceAnchor = projectedPoint(turntableModelAnchor, camera);
+  const frameRegistration = anchoredShipFrameRegistration({
+    boundsByHeading,
+    sourceAnchor: turntableSourceAnchor,
+    frameSize,
+    requestedScale: config.frameScale ?? null,
+    margin: config.frameRegistrationMargin
+  });
+  validateRegistrationSourceBounds(config.slug, frameRegistration, renderSize, renderSize);
+  const frameScale = frameRegistration.scale;
+  const animationModes = renderedAnimationModes?.map((mode) => ({
+    ...mode,
+    frames: mode.renderedHeadings.map((renderedFrames) => (
+      renderedFrames.map((rendered, headingIndex) => (
+        makeFrame(rendered, frameRegistration)
+      ))
     ))
-  )) ?? null;
+  })) ?? null;
+  const animationFrames = animationModes?.[0].frames ?? null;
   const frames = animationFrames?.[0] ?? renderedHeadings.map(
-    (rendered, headingIndex) => makeFrame(rendered, boundsByHeading[headingIndex], frameScale)
+    (rendered) => makeFrame(rendered, frameRegistration)
   );
-  if (animationFrames) validateStableAnimationFraming(config.slug, animationFrames);
+  if (animationModes) {
+    validateStableAnimationFraming(
+      config.slug,
+      animationModes.flatMap((mode) => mode.frames)
+    );
+  }
   const baseFlagAnchors = makeFlagAnchors(
     flagAnchorModelPoint,
     frames,
@@ -1960,7 +2034,7 @@ async function renderShipSpriteSet(config) {
   const footprintFrames = config.animationTrianglesForFrame
     ? Array.from({ length: headings }, (_, i) => {
         const rendered = renderHeading(hullTriangles, i, camera, renderOptions);
-        return makeFrame(rendered, boundsByHeading[i], frameScale);
+        return makeFrame(rendered, frameRegistration);
       })
     : frames;
   for (let i = 0; i < headings; i++) {
@@ -1995,16 +2069,22 @@ async function renderShipSpriteSet(config) {
   writeFileSync(shadowPath, shadowMask.toBuffer("image/png"));
   writeFileSync(previewPath, preview.toBuffer("image/png"));
   writeFileSync(lightingPreviewPath, lightingPreview.toBuffer("image/png"));
-  const animationFiles = animationFrames
-    ? renderShipAnimationSheets({
-      config,
-      flagAnchorModelPoint,
-      waterlineY,
-      camera,
-      firstSheet: sheet,
-      animationFrames
-    })
+  const animationFilesByMode = animationModes
+    ? Object.fromEntries(animationModes.map((mode, modeIndex) => [
+        mode.id,
+        renderShipAnimationSheets({
+          config,
+          flagAnchorModelPoint,
+          waterlineY,
+          camera,
+          firstSheet: modeIndex === 0 ? sheet : null,
+          animationFrames: mode.frames,
+          fileStem: mode.id,
+          contactSheetPath: modeIndex === 0 ? config.animationContactSheetPath : null
+        })
+      ]))
     : null;
+  const animationFiles = animationFilesByMode?.rowing ?? null;
   const flagAnchors = {
     base: baseFlagAnchors,
     ...(animationFiles ? { rowing: animationFiles.flagAnchors } : {})
@@ -2037,6 +2117,10 @@ async function renderShipSpriteSet(config) {
     sourceMaxDim: Number(model.sourceMaxDim.toFixed(4)),
     targetModelMaxDim: Number(model.targetMaxDim.toFixed(4)),
     frameScale: Number(frameScale.toFixed(4)),
+    turntableAnchor: {
+      x: Number(frameRegistration.targetAnchor.x.toFixed(4)),
+      y: Number(frameRegistration.targetAnchor.y.toFixed(4))
+    },
     scaleMode: config.scaleMode || "fit-model",
     waterlineY,
     waterlineOffsetY: config.waterlineOffsetY ?? 0,
@@ -2077,7 +2161,11 @@ async function renderShipSpriteSet(config) {
       lightingPreview: portablePath(lightingPreviewPath),
       ...(animationFiles ? {
         rowingAnimation: animationFiles.spritePaths.map(portablePath),
-        rowingSinkDepth: animationFiles.sinkDepthPaths.map(portablePath)
+        rowingSinkDepth: animationFiles.sinkDepthPaths.map(portablePath),
+        pivotPortAnimation: animationFilesByMode["pivot-port"].spritePaths.map(portablePath),
+        pivotPortSinkDepth: animationFilesByMode["pivot-port"].sinkDepthPaths.map(portablePath),
+        pivotStarboardAnimation: animationFilesByMode["pivot-starboard"].spritePaths.map(portablePath),
+        pivotStarboardSinkDepth: animationFilesByMode["pivot-starboard"].sinkDepthPaths.map(portablePath)
       } : {})
     },
     sheet
@@ -2090,7 +2178,9 @@ function renderShipAnimationSheets({
   waterlineY,
   camera,
   firstSheet,
-  animationFrames
+  animationFrames,
+  fileStem,
+  contactSheetPath
 }) {
   if (animationFrames.length !== config.animationFrameCount) {
     throw new Error(
@@ -2099,7 +2189,7 @@ function renderShipAnimationSheets({
     );
   }
   const animationSheets = animationFrames.map((frames, frameIndex) => (
-    frameIndex === 0 ? firstSheet : makeShipHeadingSheet(frames)
+    frameIndex === 0 && firstSheet ? firstSheet : makeShipHeadingSheet(frames)
   ));
   const animationFlagAnchors = animationFrames.map((frames) => makeFlagAnchors(
     flagAnchorModelPoint,
@@ -2116,11 +2206,11 @@ function renderShipAnimationSheets({
     if (!frames) throw new Error(`Missing ship animation geometry for frame ${frameIndex}`);
     const spritePath = join(
       config.outputDir,
-      `${basePrefix}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}.png`
+      `${basePrefix}-${fileStem}-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}.png`
     );
     const sinkDepthPath = join(
       config.outputDir,
-      `${basePrefix}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}-sink-depth.png`
+      `${basePrefix}-${fileStem}-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}-sink-depth.png`
     );
     const sinkDepth = makeSinkDepthSheet(frames, waterlineY);
     writeFileSync(spritePath, sheet.toBuffer("image/png"));
@@ -2128,14 +2218,14 @@ function renderShipAnimationSheets({
     spritePaths.push(spritePath);
     sinkDepthPaths.push(sinkDepthPath);
   }
-  if (config.animationContactSheetPath) {
-    mkdirSync(dirname(config.animationContactSheetPath), { recursive: true });
+  if (contactSheetPath) {
+    mkdirSync(dirname(contactSheetPath), { recursive: true });
     const contactSheet = makeRowingAnimationContactSheet(
       animationSheets,
       config.animationContactScale,
       config.animationReviewHeading
     );
-    writeFileSync(config.animationContactSheetPath, contactSheet.toBuffer("image/png"));
+    writeFileSync(contactSheetPath, contactSheet.toBuffer("image/png"));
   }
   return { spritePaths, sinkDepthPaths, flagAnchors: animationFlagAnchors };
 }
@@ -2276,6 +2366,7 @@ function unityShipConfig(modelPath) {
     texturePath: unityShipTexturePath,
     targetModelMaxDim: rosterEntry.targetModelMaxDim,
     waterlineOffsetY: rosterEntry.waterlineOffsetY,
+    flagAnchorMaxSnapDistancePx: rosterEntry.flagAnchorMaxSnapDistancePx,
     scaleMode: "source-relative-fleet",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${rosterEntry.slug}-${SHIP_SPRITE_HEADING_SUFFIX}`
@@ -2409,8 +2500,16 @@ async function renderShipReferenceSet(config) {
   };
   const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera, renderOptions));
   const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
-  const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
-  const frames = renderedHeadings.map((rendered, i) => makeFrame(rendered, boundsByHeading[i], frameScale));
+  const turntableSourceAnchor = projectedPoint(new THREE.Vector3(0, waterlineY, 0), camera);
+  const frameRegistration = anchoredShipFrameRegistration({
+    boundsByHeading,
+    sourceAnchor: turntableSourceAnchor,
+    frameSize,
+    requestedScale: config.frameScale ?? null
+  });
+  validateRegistrationSourceBounds(config.slug, frameRegistration, renderSize, renderSize);
+  const frameScale = frameRegistration.scale;
+  const frames = renderedHeadings.map((rendered) => makeFrame(rendered, frameRegistration));
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i);
   }
@@ -2433,6 +2532,10 @@ async function renderShipReferenceSet(config) {
     sourceMaxDim: Number(model.sourceMaxDim.toFixed(4)),
     targetModelMaxDim: Number(model.targetMaxDim.toFixed(4)),
     frameScale: Number(frameScale.toFixed(4)),
+    turntableAnchor: {
+      x: Number(frameRegistration.targetAnchor.x.toFixed(4)),
+      y: Number(frameRegistration.targetAnchor.y.toFixed(4))
+    },
     scaleMode: config.scaleMode || "fit-model",
     waterlineY,
     frameSize,
@@ -2588,7 +2691,7 @@ async function renderHorseCart() {
   const frameScale = Math.min(horseCartMaxDrawPixels / maxWidth, horseCartMaxDrawPixels / maxHeight);
   const framesByAnimation = renderedByFrame.map((renderedFrames) => (
     renderedFrames.map((rendered, headingIndex) => (
-      makeFrame(rendered, sharedBoundsByHeading[headingIndex], frameScale)
+      makeCenteredFrame(rendered, sharedBoundsByHeading[headingIndex], frameScale)
     ))
   ));
   const lightDirections = makeLightingDirections();
@@ -3195,6 +3298,7 @@ function galleassConfig() {
       "a broad, heavily armed galleass.",
     stats: shipStatsForSlug(slug),
     targetModelMaxDim: MEDITERRANEAN_GALLEY_BASE_MAX_DIM * GALLEASS_SCALE,
+    frameRegistrationMargin: 1,
     sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * GALLEASS_SCALE,
     scaleMode: "large-galley-pixel-derivative",
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -3202,12 +3306,13 @@ function galleassConfig() {
     collectOptions: {
       includeMesh: (node) => mediterraneanGalleyMeshNames.has(node.name)
     },
-    animationTrianglesForFrame: (hullTriangles, frameIndex, waterlineY) => [
+    animationTrianglesForFrame: (hullTriangles, frameIndex, waterlineY, rowingMode) => [
       ...hullTriangles,
       ...makeOarBankTriangles(
         frameIndex,
         waterlineY,
-        proceduralOarConfig(slug)
+        proceduralOarConfig(slug),
+        rowingMode
       )
     ],
     animationContactSheetPath: join(
@@ -3233,10 +3338,10 @@ function scaledProceduralOarConfig(config, scale) {
   };
 }
 
-function mediterraneanGalleyTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function mediterraneanGalleyTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeGalleyOarTriangles(frameIndex, waterlineY)
+    ...makeGalleyOarTriangles(frameIndex, waterlineY, rowingMode)
   ];
 }
 
@@ -3255,6 +3360,7 @@ function joseonTurtleShipConfig() {
     modelPath: join(joseonTurtleShipSourceRoot, "scene.gltf"),
     targetModelMaxDim: 2.28,
     frameScale: 0.56,
+    flagAnchorMaxSnapDistancePx: 8,
     sideViewTargetModelMaxDim: 2.05,
     scaleMode: "joseon-warship",
     outputDir: unityFleetOutputRoot,
@@ -3274,10 +3380,15 @@ function joseonTurtleShipConfig() {
   };
 }
 
-function joseonTurtleShipTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function joseonTurtleShipTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("joseon-turtle-ship"))
+    ...makeOarBankTriangles(
+      frameIndex,
+      waterlineY,
+      proceduralOarConfig("joseon-turtle-ship"),
+      rowingMode
+    )
   ];
 }
 
@@ -3318,10 +3429,10 @@ function joseonPanokseonConfig() {
   };
 }
 
-function joseonPanokseonTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function joseonPanokseonTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("joseon-panokseon"))
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("joseon-panokseon"), rowingMode)
   ];
 }
 
@@ -3414,10 +3525,10 @@ function japaneseKuribuneConfig() {
   };
 }
 
-function japaneseKuribuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function japaneseKuribuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-kuribune"))
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-kuribune"), rowingMode)
   ];
 }
 
@@ -3470,10 +3581,10 @@ function japaneseKobayaConfig() {
   };
 }
 
-function japaneseKobayaTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function japaneseKobayaTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-kobaya"))
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-kobaya"), rowingMode)
   ];
 }
 
@@ -3526,10 +3637,10 @@ function japaneseSekibuneConfig() {
   };
 }
 
-function japaneseSekibuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function japaneseSekibuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-sekibune"))
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-sekibune"), rowingMode)
   ];
 }
 
@@ -3601,6 +3712,7 @@ function gogiartDhowConfig() {
     modelPath: join(gogiartDhowSourceRoot, "scene.gltf"),
     targetModelMaxDim: 0.95,
     frameScale: 0.6,
+    flagAnchorMaxSnapDistancePx: 6,
     sideViewTargetModelMaxDim: 0.95,
     scaleMode: "standalone-source-relative",
     outputDir: unityFleetOutputRoot,
@@ -3999,47 +4111,50 @@ function vectorFromCoordinates(point) {
   return new THREE.Vector3(point.x, point.y, point.z);
 }
 
-function japaneseAtakebuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function japaneseAtakebuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-atakebune"))
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-atakebune"), rowingMode)
   ];
 }
 
-function makeGalleyOarTriangles(frameIndex, waterlineY) {
+function makeGalleyOarTriangles(frameIndex, waterlineY, rowingMode) {
   return makeOarBankTriangles(
     frameIndex,
     waterlineY,
-    proceduralOarConfig("mediterranean-galley")
+    proceduralOarConfig("mediterranean-galley"),
+    rowingMode
   );
 }
 
-function makeOarBankTriangles(frameIndex, waterlineY, config) {
+function makeOarBankTriangles(frameIndex, waterlineY, config, rowingMode = SHIP_ROWING_MODE_AHEAD) {
   validateProceduralOarStroke(config);
-  const { sweep, lift } = rowingOarPose(frameIndex);
   const oarColor = { r: 140, g: 86, b: 48 };
   const bladeColor = { r: 111, g: 68, b: 44 };
   const triangles = [];
   for (const { pivot, side, bankIndex } of oarBankPivotEntries(waterlineY, config)) {
-      const inboardLength = config.inboardLength ?? 0;
-      const shaftStart = new THREE.Vector3(
-        pivot.x - side * inboardLength * Math.cos(sweep),
-        pivot.y,
-        pivot.z - inboardLength * Math.sin(sweep)
-      );
-      const shaftEnd = new THREE.Vector3(
-        pivot.x + side * config.shaftLength * Math.cos(sweep),
-        pivot.y + lift,
-        pivot.z + config.shaftLength * Math.sin(sweep)
-      );
-      const bladeEnd = shaftEnd.clone().add(new THREE.Vector3(
-        side * config.bladeLength * Math.cos(sweep),
-        lift * 0.35,
-        config.bladeLength * Math.sin(sweep)
-      ));
-      const rasterFeature = `oar:${side}:${bankIndex}`;
-      triangles.push(...makePrismTriangles(shaftStart, shaftEnd, config.shaftRadius, oarColor, 5, rasterFeature));
-      triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5, rasterFeature));
+    const { sweep, lift } = rowingOarPose(frameIndex, {
+      strokeDirection: rowingBankStrokeDirection(rowingMode, side)
+    });
+    const inboardLength = config.inboardLength ?? 0;
+    const shaftStart = new THREE.Vector3(
+      pivot.x - side * inboardLength * Math.cos(sweep),
+      pivot.y,
+      pivot.z - inboardLength * Math.sin(sweep)
+    );
+    const shaftEnd = new THREE.Vector3(
+      pivot.x + side * config.shaftLength * Math.cos(sweep),
+      pivot.y + lift,
+      pivot.z + config.shaftLength * Math.sin(sweep)
+    );
+    const bladeEnd = shaftEnd.clone().add(new THREE.Vector3(
+      side * config.bladeLength * Math.cos(sweep),
+      lift * 0.35,
+      config.bladeLength * Math.sin(sweep)
+    ));
+    const rasterFeature = `oar:${side}:${bankIndex}`;
+    triangles.push(...makePrismTriangles(shaftStart, shaftEnd, config.shaftRadius, oarColor, 5, rasterFeature));
+    triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5, rasterFeature));
   }
   return triangles;
 }
@@ -4132,7 +4247,8 @@ function proceduralOarConfig(slug) {
     shaftRadius: 0.03,
     bladeRadius: 0.05
   };
-  if (slug === "mediterranean-galley" || slug === "galleass") return scaledProceduralOarConfig({
+  if (slug === "mediterranean-galley" || slug === "galleass") {
+    const config = scaledProceduralOarConfig({
     kind: "bank",
     bankPositions: evenBankPositions(-0.45, 0.45, slug === "galleass" ? 6 : 4),
     pivotYOffset: 0.05,
@@ -4141,7 +4257,11 @@ function proceduralOarConfig(slug) {
     bladeLength: 0.16,
     shaftRadius: 0.032,
     bladeRadius: 0.05
-  }, slug === "galleass" ? GALLEASS_SCALE : MEDITERRANEAN_GALLEY_SCALE);
+    }, slug === "galleass" ? GALLEASS_SCALE : MEDITERRANEAN_GALLEY_SCALE);
+    return slug === "galleass"
+      ? { ...config, shaftLength: config.shaftLength * 0.97, bladeLength: config.bladeLength * 0.97 }
+      : config;
+  }
   if (slug === "joseon-turtle-ship") return {
     kind: "bank",
     bankPositions: evenBankPositions(-0.48, 0.48, 5),
@@ -4282,10 +4402,10 @@ function kelulusConfig() {
   };
 }
 
-function kelulusTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function kelulusTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("kelulus"))
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("kelulus"), rowingMode)
   ];
 }
 
@@ -4348,9 +4468,9 @@ function malayWarshipConfig(slug) {
     waterlineImmersionRatio: 0.34,
     wakeWaterlineBand: 0.2,
     animationFrameCount: SHIP_ROWING_FRAME_COUNT,
-    animationTrianglesForFrame: (hullTriangles, frameIndex, waterlineY) => [
+    animationTrianglesForFrame: (hullTriangles, frameIndex, waterlineY, rowingMode) => [
       ...hullTriangles,
-      ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig(slug))
+      ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig(slug), rowingMode)
     ],
     animationContactSheetPath: join(
       appRoot,
@@ -4391,29 +4511,42 @@ function vikingLongshipConfig() {
   };
 }
 
-function vikingLongshipTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function vikingLongshipTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("viking-longship"))
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("viking-longship"), rowingMode)
   ];
 }
 
-function mesoamericanCanoeTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+function mesoamericanCanoeTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
   return [
     ...hullTriangles,
-    ...makeCanoePaddleTriangles(frameIndex, waterlineY, proceduralOarConfig("mesoamerican-dugout-canoe"))
+    ...makeCanoePaddleTriangles(
+      frameIndex,
+      waterlineY,
+      proceduralOarConfig("mesoamerican-dugout-canoe"),
+      rowingMode
+    )
   ];
 }
 
-function makeCanoePaddleTriangles(frameIndex, waterlineY, config) {
+function makeCanoePaddleTriangles(
+  frameIndex,
+  waterlineY,
+  config,
+  rowingMode = SHIP_ROWING_MODE_AHEAD
+) {
   const poseOptions = { sweepScale: 0.5, liftScale: 0.1 };
   validateProceduralOarStroke(config, poseOptions);
-  const { sweep, lift } = rowingOarPose(frameIndex, poseOptions);
   const shaftColor = { r: 140, g: 86, b: 48 };
   const bladeColor = { r: 111, g: 68, b: 44 };
   const triangles = [];
 
   for (const { paddle, pivot } of paddlePivotEntries(waterlineY, config)) {
+    const { sweep, lift } = rowingOarPose(frameIndex, {
+      ...poseOptions,
+      strokeDirection: rowingBankStrokeDirection(rowingMode, paddle.side)
+    });
     const shaftEnd = new THREE.Vector3(
       pivot.x + paddle.side * config.shaftLength * Math.cos(sweep),
       pivot.y + lift,

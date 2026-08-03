@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   contactPushOffVelocity,
+  oarPivotTurnRate,
   shipDirectionMakesForwardProgress,
   shipTurnRate,
   updateBoundaryContactLatch
@@ -83,6 +84,16 @@ test("bank contact permits a full assisted pivot without steerageway", () => {
     assistedPivot: true,
     assistedMultiplier: 2.4
   }), 4.8);
+});
+
+test("opposed oar banks pivot small craft faster than heavy galleasses", () => {
+  const rowboat = oarPivotTurnRate({ turnRateRad: 3.8, mass: 30, rowerRatio: 1 });
+  const galley = oarPivotTurnRate({ turnRateRad: 2.55, mass: 210, rowerRatio: 1 });
+  const galleass = oarPivotTurnRate({ turnRateRad: 1.65, mass: 420, rowerRatio: 1 });
+  assert.ok(rowboat > galley);
+  assert.ok(galley > galleass);
+  assert.ok(galleass > 0);
+  assert.equal(oarPivotTurnRate({ turnRateRad: 2, mass: 90, rowerRatio: 0 }), 0);
 });
 
 test("pushing away from a bank removes bankward momentum and guarantees escape speed", () => {

@@ -101,6 +101,12 @@ const turntableInteger = (canvas, key) => {
   return value;
 };
 
+const turntableNumber = (canvas, key) => {
+  const value = Number.parseFloat(canvas.dataset[key] ?? "");
+  if (!Number.isFinite(value)) throw new Error(`Ship turntable has invalid ${key}`);
+  return value;
+};
+
 const turntableMaskPoints = (state, kind, frameIndex) => {
   const cached = state.maskPoints[kind][frameIndex];
   if (cached) return cached;
@@ -215,10 +221,19 @@ const prepareShipTurntable = async (state) => {
 };
 
 const shipTurntableStates = new Map(shipTurntables.map((canvas) => {
+  const frameSize = turntableInteger(canvas, "frameSize");
+  const anchor = Object.freeze({
+    x: turntableNumber(canvas, "anchorX"),
+    y: turntableNumber(canvas, "anchorY")
+  });
+  if (anchor.x < 0 || anchor.x >= frameSize || anchor.y < 0 || anchor.y >= frameSize) {
+    throw new Error("Ship turntable anchor lies outside its frame");
+  }
   const state = {
     canvas,
     context: canvas.getContext("2d"),
-    frameSize: turntableInteger(canvas, "frameSize"),
+    frameSize,
+    anchor,
     shadowFrameSize: turntableInteger(canvas, "shadowFrameSize"),
     headings: turntableInteger(canvas, "headings"),
     sheetCols: turntableInteger(canvas, "sheetCols"),

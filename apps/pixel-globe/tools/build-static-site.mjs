@@ -30,7 +30,11 @@ const SOURCE_ONLY_PUBLIC_FILES = new Set([
   "assets/misc/hull.png"
 ]);
 const DEMO_TERRAIN_VARIANT = "resurrect-64";
-const DEMO_ROWING_ATLAS_MARKER = "rowing-atlas-32-headings";
+const DEMO_ROWING_ANIMATION_STEMS = Object.freeze([
+  "rowing",
+  "pivot-port",
+  "pivot-starboard"
+]);
 const DEMO_PREBUILT_ICON_SOURCES = new Set([
   "assets/ui/anchor.png",
   "assets/misc/confucian.png",
@@ -208,7 +212,7 @@ function shouldCopyPublicPath(path) {
   }
   if (
     normalized.startsWith("assets/vehicles/unity-ships/") &&
-    /-rowing-\d+-32-headings(?:-sink-depth)?\.png$/.test(normalized)
+    /-(?:rowing|pivot-port|pivot-starboard)-\d+-32-headings(?:-sink-depth)?\.png$/.test(normalized)
   ) {
     return false;
   }
@@ -311,12 +315,14 @@ async function buildDemoFactionFlagAtlas() {
 
 async function buildDemoRowingAtlases() {
   for (const [slug, spec] of SHIP_ROWING_ANIMATION_SPECS) {
-    await buildDemoRowingAtlas(slug, spec.frames, "");
-    await buildDemoRowingAtlas(slug, spec.frames, "-sink-depth");
+    for (const animationStem of DEMO_ROWING_ANIMATION_STEMS) {
+      await buildDemoRowingAtlas(slug, animationStem, spec.frames, "");
+      await buildDemoRowingAtlas(slug, animationStem, spec.frames, "-sink-depth");
+    }
   }
 }
 
-async function buildDemoRowingAtlas(slug, frameCount, suffix) {
+async function buildDemoRowingAtlas(slug, animationStem, frameCount, suffix) {
   const canvas = createCanvas(
     SHIP_SPRITE_SHEET_WIDTH,
     SHIP_SPRITE_SHEET_HEIGHT * frameCount
@@ -324,7 +330,7 @@ async function buildDemoRowingAtlas(slug, frameCount, suffix) {
   const context = canvas.getContext("2d");
   context.imageSmoothingEnabled = false;
   for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-    const fileName = `${slug}-rowing-${frameIndex}-32-headings${suffix}.png`;
+    const fileName = `${slug}-${animationStem}-${frameIndex}-32-headings${suffix}.png`;
     const image = await loadImage(
       join(publicRoot, "assets/vehicles/unity-ships", fileName)
     );
@@ -339,7 +345,7 @@ async function buildDemoRowingAtlas(slug, frameCount, suffix) {
     }
     context.drawImage(image, 0, frameIndex * SHIP_SPRITE_SHEET_HEIGHT);
   }
-  const atlasName = `${slug}-${DEMO_ROWING_ATLAS_MARKER}${suffix}.png`;
+  const atlasName = `${slug}-${animationStem}-atlas-32-headings${suffix}.png`;
   const atlasPath = join(distRoot, "assets/vehicles/unity-ships", atlasName);
   await mkdir(dirname(atlasPath), { recursive: true });
   await writeFile(atlasPath, canvas.toBuffer("image/png"));

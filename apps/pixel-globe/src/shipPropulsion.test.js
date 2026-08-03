@@ -5,6 +5,8 @@ import { shipStatsForSlug } from "./shipStats.js";
 import {
   HYBRID_ROWING_SPEED_RATIO,
   MAX_EFFECTIVE_ROWERS,
+  ROWING_ASTERN_ACCELERATION_RATIO,
+  ROWING_ASTERN_SPEED_RATIO,
   ROWING_FOOD_CONSUMPTION_MULTIPLIER,
   SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD,
   SAIL_CLOSE_HAULED_EFFICIENCY,
@@ -87,6 +89,31 @@ test("oar-sail ships row slowly when their sails cannot make progress", () => {
   assert.equal(rowing.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
   assert.equal(sailing.rowing, true);
   assert.ok(sailing.maxSpeedRad > rowing.maxSpeedRad * 2);
+});
+
+test("oar craft can back water without reversing their sails", () => {
+  const canoe = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const galley = shipStatsForSlug("mediterranean-galley");
+  const canoeAstern = shipPropulsionPerformance(canoe, {
+    windStrength: 1,
+    sailEfficiency: 1,
+    rowingDirection: -1
+  });
+  const galleyAstern = shipPropulsionPerformance(galley, {
+    windStrength: 1,
+    sailEfficiency: 1,
+    rowingDirection: -1
+  });
+
+  assert.equal(canoeAstern.propulsionDirection, -1);
+  assert.equal(canoeAstern.maxSpeedRad, canoe.topSpeedRad * ROWING_ASTERN_SPEED_RATIO);
+  assert.equal(canoeAstern.accelerationFactor, ROWING_ASTERN_ACCELERATION_RATIO);
+  assert.equal(galleyAstern.propulsionDirection, -1);
+  assert.equal(
+    galleyAstern.maxSpeedRad,
+    galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO * ROWING_ASTERN_SPEED_RATIO
+  );
+  assert.ok(galleyAstern.maxSpeedRad < galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
 });
 
 test("hybrid oars add speed and acceleration without cancelling stronger sails", () => {

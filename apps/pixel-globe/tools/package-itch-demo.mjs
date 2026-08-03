@@ -28,8 +28,16 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/vehicles/unity-ships/brigantine-32-headings.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings-sink-depth.png",
+  "assets/vehicles/unity-ships/mediterranean-galley-pivot-port-atlas-32-headings.png",
+  "assets/vehicles/unity-ships/mediterranean-galley-pivot-port-atlas-32-headings-sink-depth.png",
+  "assets/vehicles/unity-ships/mediterranean-galley-pivot-starboard-atlas-32-headings.png",
+  "assets/vehicles/unity-ships/mediterranean-galley-pivot-starboard-atlas-32-headings-sink-depth.png",
   "assets/vehicles/unity-ships/galleass-rowing-atlas-32-headings.png",
   "assets/vehicles/unity-ships/galleass-rowing-atlas-32-headings-sink-depth.png",
+  "assets/vehicles/unity-ships/galleass-pivot-port-atlas-32-headings.png",
+  "assets/vehicles/unity-ships/galleass-pivot-port-atlas-32-headings-sink-depth.png",
+  "assets/vehicles/unity-ships/galleass-pivot-starboard-atlas-32-headings.png",
+  "assets/vehicles/unity-ships/galleass-pivot-starboard-atlas-32-headings-sink-depth.png",
   "shared/earth-globe-cache-7.json",
   "shared/discrete-weather-bake-7.bin",
   "shared/globe-runtime-bake-7.bin"
@@ -64,7 +72,7 @@ async function assertDemoBuild(files) {
     throw new Error(`Itch package contains an unpacked faction flag: ${unpackedFlag.relativePath}`);
   }
   const unpackedRowingFrame = files.find((file) => (
-    /assets\/vehicles\/unity-ships\/.*-rowing-\d+-32-headings(?:-sink-depth)?\.png$/.test(
+    /assets\/vehicles\/unity-ships\/.*-(?:rowing|pivot-port|pivot-starboard)-\d+-32-headings(?:-sink-depth)?\.png$/.test(
       file.relativePath
     )
   ));

@@ -33,7 +33,8 @@ test("absolute steering combines direction keys and controller axes", () => {
     absoluteX: 0.75,
     absoluteY: 1.5,
     relativeTurn: 0,
-    relativeForward: false
+    relativeForward: false,
+    relativeBackward: false
   });
 });
 
@@ -47,7 +48,8 @@ test("relative steering turns laterally and treats forward as a hauling command"
     absoluteX: 0,
     absoluteY: 0,
     relativeTurn: -1,
-    relativeForward: true
+    relativeForward: true,
+    relativeBackward: false
   });
   assert.equal(
     steeringIntentForScheme({
@@ -61,9 +63,9 @@ test("relative steering turns laterally and treats forward as a hauling command"
     steeringIntentForScheme({
       scheme: CONTROL_SCHEME_RELATIVE,
       down: true,
-      controllerY: -1
-    }).relativeForward,
-    false
+      controllerY: -0.25
+    }).relativeBackward,
+    true
   );
 });
 

@@ -6,6 +6,19 @@ import {
 } from "./shipStats.js";
 
 export const SHIP_ROWING_FRAME_COUNT = 6;
+export const SHIP_ROWING_MODE_IDLE = "idle";
+export const SHIP_ROWING_MODE_AHEAD = "ahead";
+export const SHIP_ROWING_MODE_ASTERN = "astern";
+export const SHIP_ROWING_MODE_PIVOT_PORT = "pivot-port";
+export const SHIP_ROWING_MODE_PIVOT_STARBOARD = "pivot-starboard";
+
+export const SHIP_ROWING_MODES = Object.freeze([
+  SHIP_ROWING_MODE_IDLE,
+  SHIP_ROWING_MODE_AHEAD,
+  SHIP_ROWING_MODE_ASTERN,
+  SHIP_ROWING_MODE_PIVOT_PORT,
+  SHIP_ROWING_MODE_PIVOT_STARBOARD
+]);
 
 export const SHIP_ROWING_ANIMATION_SPECS = new Map([
   [MEDITERRANEAN_GALLEY_SLUG, rowingSpec(125, 0.14, 0.88)],
@@ -39,17 +52,66 @@ export function rowingOarPose(frameIndex, options = {}) {
   if (!Number.isInteger(frameIndex)) throw new Error(`Rowing frame must be an integer: ${frameIndex}`);
   const sweepScale = options.sweepScale ?? 0.46;
   const liftScale = options.liftScale ?? 0.1;
+  const strokeDirection = options.strokeDirection ?? 1;
   if (!Number.isFinite(sweepScale) || sweepScale <= 0) {
     throw new Error(`Rowing sweep scale must be positive: ${sweepScale}`);
   }
   if (!Number.isFinite(liftScale) || liftScale <= 0) {
     throw new Error(`Rowing lift scale must be positive: ${liftScale}`);
   }
+  if (strokeDirection !== 1 && strokeDirection !== -1) {
+    throw new Error(`Rowing stroke direction must be 1 or -1: ${strokeDirection}`);
+  }
   const phase = ((frameIndex % SHIP_ROWING_FRAME_COUNT) + SHIP_ROWING_FRAME_COUNT) % SHIP_ROWING_FRAME_COUNT;
   return Object.freeze({
-    sweep: ROWING_PHASES[phase].sweep * sweepScale,
+    sweep: ROWING_PHASES[phase].sweep * sweepScale * strokeDirection,
     lift: ROWING_PHASES[phase].lift * liftScale
   });
+}
+
+export function normalizeShipRowingMode(value) {
+  if (!SHIP_ROWING_MODES.includes(value)) {
+    throw new Error(`Unknown ship rowing mode: ${value}`);
+  }
+  return value;
+}
+
+export function shipRowingModeIsActive(mode) {
+  return normalizeShipRowingMode(mode) !== SHIP_ROWING_MODE_IDLE;
+}
+
+export function shipRowingModeIsPivot(mode) {
+  const normalized = normalizeShipRowingMode(mode);
+  return normalized === SHIP_ROWING_MODE_PIVOT_PORT ||
+    normalized === SHIP_ROWING_MODE_PIVOT_STARBOARD;
+}
+
+export function shipRowingModeThrustDirection(mode) {
+  const normalized = normalizeShipRowingMode(mode);
+  if (normalized === SHIP_ROWING_MODE_AHEAD) return 1;
+  if (normalized === SHIP_ROWING_MODE_ASTERN) return -1;
+  return 0;
+}
+
+export function rowingBankStrokeDirection(mode, side) {
+  if (side !== -1 && side !== 1) throw new Error(`Ship oar-bank side must be -1 or 1: ${side}`);
+  const normalized = normalizeShipRowingMode(mode);
+  if (normalized === SHIP_ROWING_MODE_AHEAD) return 1;
+  if (normalized === SHIP_ROWING_MODE_PIVOT_STARBOARD) return side < 0 ? 1 : -1;
+  if (normalized === SHIP_ROWING_MODE_PIVOT_PORT) return side < 0 ? -1 : 1;
+  throw new Error(`Ship oar banks cannot stroke in rowing mode: ${normalized}`);
+}
+
+export function shipRowingAnimationFrameIndex(frameIndex, mode, frameCount = SHIP_ROWING_FRAME_COUNT) {
+  if (!Number.isInteger(frameIndex)) throw new Error(`Rowing frame must be an integer: ${frameIndex}`);
+  if (!Number.isInteger(frameCount) || frameCount <= 0) {
+    throw new Error(`Rowing animation frame count must be a positive integer: ${frameCount}`);
+  }
+  const normalized = normalizeShipRowingMode(mode);
+  const forward = ((frameIndex % frameCount) + frameCount) % frameCount;
+  return normalized === SHIP_ROWING_MODE_ASTERN
+    ? (frameCount - forward) % frameCount
+    : forward;
 }
 
 function rowingSpec(frameMs, volume, playbackRate) {

@@ -154,19 +154,19 @@ export function rowingTutorialMessage(inputMode, controlScheme = CONTROL_SCHEME_
   }
   const normalizedControlScheme = normalizeControlScheme(controlScheme);
   if (inputMode === "touch") {
-    return "On an oared ship, touch and hold a direction to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
+    return "On an oared ship, hold ahead to row or behind to reverse. Hold to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
   }
   if (inputMode === "mouse") {
-    return "On an oared ship, click and hold a direction to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
+    return "On an oared ship, hold ahead to row or behind to reverse. Hold to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
   }
   if (inputMode === "keyboard") {
     return normalizedControlScheme === CONTROL_SCHEME_RELATIVE
-      ? "On an oared ship, hold the forward key to row. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster."
-      : "On an oared ship, hold a direction key to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
+      ? "On an oared ship, hold forward to row, back to reverse, or left/right while stopped to turn in place. Release to rest; more rowers are stronger but eat more."
+      : "On an oared ship, hold toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
   }
   return normalizedControlScheme === CONTROL_SCHEME_RELATIVE
-    ? "On an oared ship, hold the left stick forward to row. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster."
-    : "On an oared ship, hold the left stick in a direction to row that way. Release to rest the rowers. More crew make the oars stronger, but rowing uses food faster.";
+    ? "On an oared ship, hold the left stick forward to row, back to reverse, or left/right while stopped to turn in place. Release to rest; more rowers are stronger but eat more."
+    : "On an oared ship, hold the left stick toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
 }
 
 function assertEarlySailingHelpState(state) {

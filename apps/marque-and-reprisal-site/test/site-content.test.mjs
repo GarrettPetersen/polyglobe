@@ -170,6 +170,7 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
   assert.match(client, /requestAnimationFrame\(animateShipTurntables\)/);
   assert.match(client, /drawTurntableMask\(state, "shadow"/);
   assert.match(client, /globalCompositeOperation = "multiply"/);
+  assert.match(client, /turntable anchor lies outside its frame/i);
 
   for (const ship of shipRoster) {
     assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings\\.png`));
@@ -179,6 +180,12 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
     assert.equal(ship.headings, 32);
     assert.equal(ship.lightAzimuth, 2);
     assert.equal(ship.lightElevation, 1);
+    assert.ok(Number.isFinite(ship.turntableAnchorX));
+    assert.ok(Number.isFinite(ship.turntableAnchorY));
+    assert.ok(ship.turntableAnchorX >= 0 && ship.turntableAnchorX < ship.frameSize);
+    assert.ok(ship.turntableAnchorY >= 0 && ship.turntableAnchorY < ship.frameSize);
+    assert.match(page, new RegExp(`data-anchor-x='${ship.turntableAnchorX}'`));
+    assert.match(page, new RegExp(`data-anchor-y='${ship.turntableAnchorY}'`));
     assert.match(page, new RegExp(ship.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.ok(page.includes(
       ship.description

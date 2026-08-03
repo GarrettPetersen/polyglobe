@@ -45,6 +45,10 @@ import {
   SHIP_SPRITE_FRAME_SIZE,
   SHIP_SPRITE_HEADINGS
 } from "./shipSpriteLayout.js";
+import {
+  SHIP_ROWING_MODE_ASTERN,
+  SHIP_ROWING_MODE_PIVOT_STARBOARD
+} from "./shipRowingAnimation.js";
 
 const TEST_SHIP_FOOTPRINTS = validateShipFootprintBake(
   JSON.parse(readFileSync(new URL("../public/assets/vehicles/unity-ships/hull-footprints.json", import.meta.url), "utf8")),
@@ -527,6 +531,50 @@ test("releasing directional input rests player rowers in lake combat", () => {
   });
   assert.equal(battle.player.rowing, false);
   assert.ok(battle.player.speedPx < poweredSpeed);
+});
+
+test("oar ships back without turning their bow around", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "mesoamerican-dugout-canoe",
+    enemySlug: "brigantine"
+  });
+  const heading = battle.player.headingRad;
+  const start = { x: battle.player.x, y: battle.player.y };
+  for (let frame = 0; frame < 10; frame++) {
+    updateLakeBattle(battle, 0.1, {
+      desiredHeadingRad: heading,
+      rowingMode: SHIP_ROWING_MODE_ASTERN
+    });
+  }
+
+  assert.equal(battle.player.headingRad, heading);
+  assert.equal(battle.player.rowingMode, SHIP_ROWING_MODE_ASTERN);
+  assert.ok(battle.player.speedPx < 0);
+  const travelX = battle.player.x - start.x;
+  const travelY = battle.player.y - start.y;
+  assert.ok(travelX * Math.cos(heading) + travelY * Math.sin(heading) < 0);
+});
+
+test("opposed oar banks pivot a stopped ship without translating it", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "mediterranean-galley",
+    enemySlug: "brigantine"
+  });
+  const start = { x: battle.player.x, y: battle.player.y };
+  const heading = battle.player.headingRad;
+  updateLakeBattle(battle, 0.1, {
+    desiredHeadingRad: heading + Math.PI / 2,
+    rowingMode: SHIP_ROWING_MODE_PIVOT_STARBOARD
+  });
+
+  assert.ok(battle.player.headingRad > heading);
+  assert.equal(battle.player.speedPx, 0);
+  assert.deepEqual({ x: battle.player.x, y: battle.player.y }, start);
+  assert.equal(battle.player.rowingMode, SHIP_ROWING_MODE_PIVOT_STARBOARD);
 });
 
 test("lake battle rudder authority falls while stalled without reaching zero", () => {

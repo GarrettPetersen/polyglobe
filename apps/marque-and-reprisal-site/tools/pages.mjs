@@ -444,6 +444,8 @@ export function shipsPage() {
     escapeHtml(ship.shadowSheet), "' data-frame-size='", String(ship.frameSize),
     "' data-shadow-frame-size='", String(ship.shadowFrameSize), "' data-headings='",
     String(ship.headings), "' data-sheet-cols='", String(ship.sheetCols),
+    "' data-anchor-x='", String(ship.turntableAnchorX), "' data-anchor-y='",
+    String(ship.turntableAnchorY),
     "' data-light-azimuth='", String(ship.lightAzimuth), "' data-light-elevation='",
     String(ship.lightElevation), "' width='", String(ship.shadowFrameSize), "' height='",
     String(ship.shadowFrameSize),

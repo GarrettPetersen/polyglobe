@@ -6,6 +6,8 @@ import {
 
 export const HYBRID_ROWING_SPEED_RATIO = 0.36;
 export const HYBRID_ROWING_ACCELERATION_RATIO = 0.42;
+export const ROWING_ASTERN_SPEED_RATIO = 0.62;
+export const ROWING_ASTERN_ACCELERATION_RATIO = 0.72;
 export const HYBRID_ROUTE_PROGRESS_FLOOR = 0.34;
 export const MAX_EFFECTIVE_ROWERS = 20;
 export const ROWING_FOOD_CONSUMPTION_MULTIPLIER = 1.15;
@@ -56,7 +58,8 @@ export function shipPropulsionPerformance(stats, {
   sailEfficiency,
   minimumSailSpeed = 0,
   rowerRatio = 1,
-  rowingRequested = true
+  rowingRequested = true,
+  rowingDirection = 1
 }) {
   if (!stats || !Number.isFinite(stats.topSpeedRad) || !Number.isFinite(stats.accelerationRad)) {
     throw new Error("Ship propulsion requires valid ship stats");
@@ -76,15 +79,21 @@ export function shipPropulsionPerformance(stats, {
   if (typeof rowingRequested !== "boolean") {
     throw new Error(`Invalid rowing request: ${rowingRequested}`);
   }
+  if (rowingDirection !== 1 && rowingDirection !== -1) {
+    throw new Error(`Invalid rowing direction: ${rowingDirection}`);
+  }
 
   const rowingPower = rowingRequested ? Math.sqrt(rowerRatio) : 0;
+  const asternSpeedScale = rowingDirection < 0 ? ROWING_ASTERN_SPEED_RATIO : 1;
+  const asternAccelerationScale = rowingDirection < 0 ? ROWING_ASTERN_ACCELERATION_RATIO : 1;
 
   if (stats.propulsion === SHIP_PROPULSION_OAR) {
     return Object.freeze({
-      accelerationFactor: rowingPower,
-      maxSpeedRad: stats.topSpeedRad * rowingPower,
+      accelerationFactor: rowingPower * asternAccelerationScale,
+      maxSpeedRad: stats.topSpeedRad * rowingPower * asternSpeedScale,
       stalled: rowingPower <= 0,
-      rowing: rowingPower > 0
+      rowing: rowingPower > 0,
+      propulsionDirection: rowingPower > 0 ? rowingDirection : 0
     });
   }
 
@@ -98,14 +107,16 @@ export function shipPropulsionPerformance(stats, {
   const sailAcceleration = windStrength * sailEfficiency;
 
   if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) {
-    const rowingMaxSpeed = stats.topSpeedRad * HYBRID_ROWING_SPEED_RATIO * rowingPower;
-    const rowingAcceleration = HYBRID_ROWING_ACCELERATION_RATIO * rowingPower;
+    const backing = rowingDirection < 0 && rowingPower > 0;
+    const rowingMaxSpeed = stats.topSpeedRad * HYBRID_ROWING_SPEED_RATIO * rowingPower * asternSpeedScale;
+    const rowingAcceleration = HYBRID_ROWING_ACCELERATION_RATIO * rowingPower * asternAccelerationScale;
     const rowing = rowingPower > 0;
     return Object.freeze({
-      accelerationFactor: sailAcceleration + rowingAcceleration,
-      maxSpeedRad: sailMaxSpeed + rowingMaxSpeed,
-      stalled: sailMaxSpeed <= 0 && rowingMaxSpeed <= 0,
-      rowing
+      accelerationFactor: backing ? rowingAcceleration : sailAcceleration + rowingAcceleration,
+      maxSpeedRad: backing ? rowingMaxSpeed : sailMaxSpeed + rowingMaxSpeed,
+      stalled: backing ? rowingMaxSpeed <= 0 : sailMaxSpeed <= 0 && rowingMaxSpeed <= 0,
+      rowing,
+      propulsionDirection: backing ? -1 : 1
     });
   }
 
@@ -116,7 +127,8 @@ export function shipPropulsionPerformance(stats, {
     accelerationFactor: sailAcceleration,
     maxSpeedRad: sailEfficiency <= 0 ? Infinity : sailMaxSpeed,
     stalled: sailEfficiency <= 0,
-    rowing: false
+    rowing: false,
+    propulsionDirection: 1
   });
 }
 

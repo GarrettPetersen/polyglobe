@@ -28,9 +28,20 @@ import {
   translatedShipFootprint
 } from "./shipFootprint.js";
 import {
+  SHIP_ROWING_MODE_AHEAD,
+  SHIP_ROWING_MODE_IDLE,
+  SHIP_ROWING_MODE_PIVOT_PORT,
+  SHIP_ROWING_MODE_PIVOT_STARBOARD,
+  normalizeShipRowingMode,
+  shipRowingModeIsActive,
+  shipRowingModeIsPivot,
+  shipRowingModeThrustDirection
+} from "./shipRowingAnimation.js";
+import {
   SHIP_MINIMUM_POWERED_SPEED_RAD,
   rowingCrewRatio,
   sailingEfficiencyForAlignment,
+  shipCanUseOars,
   shipDragFactor,
   shipPropulsionPerformance
 } from "./shipPropulsion.js";
@@ -41,7 +52,7 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
-import { shipTurnRate } from "./shipTurning.js";
+import { oarPivotTurnRate, shipTurnRate } from "./shipTurning.js";
 import {
   chooseNpcObstacleAvoidanceDirection,
   chooseNpcSailingDirection
@@ -207,15 +218,20 @@ export function updateLakeBattle(state, dt, input = {}) {
   if (playerDesiredHeading !== null && !Number.isFinite(playerDesiredHeading)) {
     throw new Error(`Invalid player lake battle heading: ${input.desiredHeadingRad}`);
   }
-  const playerRowingRequested = input.rowingRequested ?? (
-    input.desiredHeadingRad !== null && input.desiredHeadingRad !== undefined
-  );
-  if (typeof playerRowingRequested !== "boolean") {
-    throw new Error(`Invalid player lake battle rowing request: ${input.rowingRequested}`);
-  }
+  const playerRowingMode = input.rowingMode === undefined
+    ? ((input.rowingRequested ?? playerDesiredHeading !== null)
+        ? SHIP_ROWING_MODE_AHEAD
+        : SHIP_ROWING_MODE_IDLE)
+    : normalizeShipRowingMode(input.rowingMode);
 
-  updateBattleShipMotion(state, state.player, playerDesiredHeading, playerRowingRequested, dt);
-  updateBattleShipMotion(state, state.enemy, enemyDesiredHeading(state, dt), true, dt);
+  updateBattleShipMotion(state, state.player, playerDesiredHeading, playerRowingMode, dt);
+  updateBattleShipMotion(
+    state,
+    state.enemy,
+    enemyDesiredHeading(state, dt),
+    SHIP_ROWING_MODE_AHEAD,
+    dt
+  );
   resolveBattleShipCollision(state);
 
   if (input.firePort) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "port");
@@ -516,6 +532,7 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId, re
     maxHitPoints: stats.hitPoints,
     cooldowns: { port: 0, starboard: 0 },
     rowing: false,
+    rowingMode: SHIP_ROWING_MODE_IDLE,
     orbitDirection: id === LAKE_BATTLE_ENEMY_ID ? 1 : 0,
     avoidanceActive: false,
     avoidanceSide: 0,
@@ -605,33 +622,65 @@ function relocateShipToNavigableMapCell(state, ship) {
   ship.speedPx = 0;
 }
 
-function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingRequested, dt) {
+function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt) {
   if (ship.kind === "city") return;
+  let normalizedRowingMode = normalizeShipRowingMode(rowingMode);
+  if (
+    normalizedRowingMode === SHIP_ROWING_MODE_AHEAD &&
+    desiredHeadingRad !== null &&
+    shipCanUseOars(ship.stats) &&
+    Math.abs(ship.speedPx) <= ship.stats.topSpeedRad * PIXELS_PER_RADIAN * 0.2
+  ) {
+    const turn = shortestAngle(desiredHeadingRad - ship.headingRad);
+    if (Math.abs(turn) > 20 * Math.PI / 180 && Math.cos(turn) > -Math.cos(35 * Math.PI / 180)) {
+      normalizedRowingMode = turn > 0
+        ? SHIP_ROWING_MODE_PIVOT_STARBOARD
+        : SHIP_ROWING_MODE_PIVOT_PORT;
+    }
+  }
+  const rowerRatio = rowingCrewRatio(
+    activeCombatCrew(ship.crew, ship.woundedCrew),
+    ship.stats.crewCapacity
+  );
   if (desiredHeadingRad !== null) {
-    const turnRate = shipTurnRate({
-      turnRateRad: ship.stats.turnRateRad,
-      speedRad: ship.speedPx / PIXELS_PER_RADIAN,
-      topSpeedRad: ship.stats.topSpeedRad
-    });
+    const turnRate = shipRowingModeIsPivot(normalizedRowingMode)
+      ? oarPivotTurnRate({
+          turnRateRad: ship.stats.turnRateRad,
+          mass: ship.stats.mass,
+          rowerRatio
+        })
+      : shipTurnRate({
+          turnRateRad: ship.stats.turnRateRad,
+          speedRad: Math.abs(ship.speedPx) / PIXELS_PER_RADIAN,
+          topSpeedRad: ship.stats.topSpeedRad
+        });
     ship.headingRad = rotateAngleToward(ship.headingRad, desiredHeadingRad, turnRate * dt);
     nudgeLakeBattleShipTowardClearWater(state, ship);
   }
   const heading = lakeBattleHeadingVector(ship);
   const windFlowDirection = lakeBattleWindFlowDirection(state);
   const windFlow = { x: Math.cos(windFlowDirection), y: Math.sin(windFlowDirection) };
-  const sailEfficiency = sailingEfficiencyForStats(ship.stats, heading, windFlow);
+  const pivoting = shipRowingModeIsPivot(normalizedRowingMode);
+  const sailEfficiency = pivoting ? 0 : sailingEfficiencyForStats(ship.stats, heading, windFlow);
+  const thrustDirection = shipRowingModeThrustDirection(normalizedRowingMode);
   const propulsion = shipPropulsionPerformance(ship.stats, {
     windStrength: state.wind.strength,
     sailEfficiency,
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
-    rowerRatio: rowingCrewRatio(activeCombatCrew(ship.crew, ship.woundedCrew), ship.stats.crewCapacity),
-    rowingRequested
+    rowerRatio,
+    rowingRequested: thrustDirection !== 0,
+    rowingDirection: thrustDirection < 0 ? -1 : 1
   });
-  ship.rowing = propulsion.rowing;
-  ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN * propulsion.accelerationFactor * dt;
+  ship.rowingMode = pivoting ? normalizedRowingMode : (
+    propulsion.rowing ? normalizedRowingMode : SHIP_ROWING_MODE_IDLE
+  );
+  ship.rowing = shipRowingModeIsActive(ship.rowingMode);
+  ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN *
+    propulsion.accelerationFactor * propulsion.propulsionDirection * dt;
   ship.speedPx *= shipDragFactor(propulsion.stalled, dt);
   const maxSpeedPx = propulsion.stalled ? 0 : propulsion.maxSpeedRad * PIXELS_PER_RADIAN;
-  ship.speedPx = clamp(ship.speedPx, 0, Number.isFinite(maxSpeedPx) ? maxSpeedPx : ship.speedPx);
+  const finiteMaxSpeedPx = Number.isFinite(maxSpeedPx) ? maxSpeedPx : Math.abs(ship.speedPx);
+  ship.speedPx = clamp(ship.speedPx, -finiteMaxSpeedPx, finiteMaxSpeedPx);
   const movedDistance = moveShipInsideLake(state, ship, ship.speedPx * dt);
   if (ship.tackSide !== 0) {
     ship.tackRemainingPx = Math.max(0, ship.tackRemainingPx - movedDistance);
@@ -663,12 +712,16 @@ function nearestLakeBattleClearancePoint(state, ship) {
 function updateShipWake(ship, dt) {
   for (const particle of ship.wake) particle.age += dt;
   ship.wake = ship.wake.filter((particle) => particle.age < particle.ttl);
-  if (ship.speedPx < 4) {
+  if (Math.abs(ship.speedPx) < 4) {
     ship.lastWakePoint = null;
     return;
   }
   const heading = lakeBattleHeadingVector(ship);
-  const point = { x: ship.x - heading.x * 6, y: ship.y - heading.y * 6 };
+  const wakeDirection = ship.speedPx < 0 ? -1 : 1;
+  const point = {
+    x: ship.x - heading.x * 6 * wakeDirection,
+    y: ship.y - heading.y * 6 * wakeDirection
+  };
   if (ship.lastWakePoint && Math.hypot(point.x - ship.lastWakePoint.x, point.y - ship.lastWakePoint.y) < 3) return;
   ship.wake.push({
     x: point.x,
@@ -684,16 +737,18 @@ function updateShipWake(ship, dt) {
 }
 
 function moveShipInsideLake(state, ship, distance) {
-  if (distance <= 0) return 0;
+  if (distance === 0) return 0;
+  const travelDistance = Math.abs(distance);
+  const travelOffset = distance < 0 ? Math.PI : 0;
   for (const angleOffset of SHORE_SLIDE_ANGLES) {
-    const movementAngle = ship.headingRad + angleOffset;
-    const x = ship.x + Math.cos(movementAngle) * distance;
-    const y = ship.y + Math.sin(movementAngle) * distance;
+    const movementAngle = ship.headingRad + travelOffset + angleOffset;
+    const x = ship.x + Math.cos(movementAngle) * travelDistance;
+    const y = ship.y + Math.sin(movementAngle) * travelDistance;
     if (!lakeBattleShipFitsInWater(state, ship, x, y)) continue;
     ship.x = x;
     ship.y = y;
     if (angleOffset !== 0) ship.speedPx *= 0.96;
-    return distance;
+    return travelDistance;
   }
   ship.speedPx *= 0.28;
   return 0;
@@ -953,8 +1008,10 @@ function resolveBattleShipCollision(state) {
     state.enemy.x = enemyX;
     state.enemy.y = enemyY;
   }
-  state.player.speedPx = Math.max(0, result.a.vx * Math.cos(state.player.headingRad) + result.a.vy * Math.sin(state.player.headingRad));
-  state.enemy.speedPx = Math.max(0, result.b.vx * Math.cos(state.enemy.headingRad) + result.b.vy * Math.sin(state.enemy.headingRad));
+  state.player.speedPx = result.a.vx * Math.cos(state.player.headingRad) +
+    result.a.vy * Math.sin(state.player.headingRad);
+  state.enemy.speedPx = result.b.vx * Math.cos(state.enemy.headingRad) +
+    result.b.vy * Math.sin(state.enemy.headingRad);
   if (state.collisionCooldown <= 0 && (result.a.damage > 0 || result.b.damage > 0)) {
     const playerResisted = result.a.damage > 0 &&
       shipHullResistsDamage(state.player.stats, { roll: nextBattleRandom(state) });

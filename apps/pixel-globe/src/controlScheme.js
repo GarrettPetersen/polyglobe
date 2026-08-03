@@ -47,14 +47,16 @@ export function steeringIntentForScheme({
       absoluteX: 0,
       absoluteY: 0,
       relativeTurn: Math.sign(horizontal),
-      relativeForward: vertical > 0
+      relativeForward: vertical > 0,
+      relativeBackward: vertical < 0
     };
   }
   return {
     absoluteX: horizontal,
     absoluteY: vertical,
     relativeTurn: 0,
-    relativeForward: false
+    relativeForward: false,
+    relativeBackward: false
   };
 }
 
