@@ -58,13 +58,15 @@ test("better fishing nets improve catch odds across the same fish school", () =>
 });
 
 test("fishing success follows the crew work multiplier shown to the player", () => {
-  const undercrewed = fishingCatchChance(4, 1, 0.5);
-  const standard = fishingCatchChance(4, 1, 1);
-  const fullCrew = fishingCatchChance(4, 1, 2);
+  const undercrewed = fishingCatchChance(1, 1, 0.5);
+  const standard = fishingCatchChance(1, 1, 1);
+  const fullCrew = fishingCatchChance(1, 1, 2);
+  const fullCrewWithPerks = fishingCatchChance(1, 1, 2.1);
 
   assert.equal(undercrewed, standard * 0.5);
   assert.equal(fullCrew, standard * 2);
-  assert.throws(() => fishingCatchChance(4, 1, 2.1), /work multiplier/);
+  assert.ok(fullCrewWithPerks > fullCrew);
+  assert.ok(fullCrewWithPerks < 1);
 });
 
 test("catch resolution and casting side are deterministic from their inputs", () => {

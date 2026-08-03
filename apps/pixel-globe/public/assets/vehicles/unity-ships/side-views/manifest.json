@@ -569,5 +569,6 @@
   "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
-  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader"
+  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
+  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
 }

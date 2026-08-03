@@ -48,8 +48,8 @@ function requireProbabilityScale(chance, multiplier, minimum, maximum, label) {
   if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
     throw new Error(`Invalid crew-scaled ${label} chance: ${chance}`);
   }
-  if (!Number.isFinite(multiplier) || multiplier < 0 || multiplier > MAXIMUM_CREW_WORK_MULTIPLIER) {
-    throw new Error(`Invalid crew work multiplier: ${multiplier}`);
+  if (!Number.isFinite(multiplier) || multiplier < 0) {
+    throw new Error(`Invalid crew activity multiplier: ${multiplier}`);
   }
   if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum < 0 || maximum > 1 || minimum > maximum) {
     throw new Error(`Invalid crew-scaled ${label} bounds: ${minimum}-${maximum}`);

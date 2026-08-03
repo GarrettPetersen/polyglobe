@@ -45,14 +45,18 @@ test("crew multipliers improve success and reduce failure without guaranteeing e
   assert.equal(crewScaledSuccessChance(0.4, 1), 0.4);
   assert.equal(crewScaledSuccessChance(0.4, 2), 0.8);
   assert.equal(crewScaledSuccessChance(0.8, 2), 0.98);
+  assert.ok(
+    Math.abs(crewScaledSuccessChance(0.4, 2.2993611111111107) - 0.9197444444444444) < 1e-12
+  );
   assert.equal(crewScaledFailureChance(0.4, 0.5), 0.8);
   assert.equal(crewScaledFailureChance(0.4, 1), 0.4);
   assert.equal(crewScaledFailureChance(0.4, 2), 0.2);
+  assert.ok(Math.abs(crewScaledFailureChance(0.4, 2.4) - 1 / 6) < 1e-12);
 });
 
 test("crew work rejects malformed complements and probability scales", () => {
   assert.throws(() => crewWorkMultiplier(1.5), /active crew/);
   assert.throws(() => crewWorkMultiplier(MAXIMUM_CREW_WORK_COUNT + 1), /exceeds/);
   assert.throws(() => crewScaledSuccessChance(1.1, 1), /success chance/);
-  assert.throws(() => crewScaledFailureChance(0.5, 2.1), /work multiplier/);
+  assert.throws(() => crewScaledFailureChance(0.5, Infinity), /activity multiplier/);
 });

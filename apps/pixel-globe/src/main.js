@@ -184,6 +184,7 @@ import {
   SHIP_SPRITE_HEADINGS,
   SHIP_SPRITE_SHEET_COLS
 } from "./shipSpriteLayout.js";
+import { validateShipWakeAnchors } from "./shipWakeAnchors.js";
 import {
   SHIP_ROWING_ANIMATION_SPECS,
   SHIP_ROWING_FRAME_COUNT,
@@ -4145,7 +4146,12 @@ async function loadShipWakeAnchors() {
   const anchorsBySlug = new Map();
   for (const [slug, anchors] of Object.entries(bake.ships)) {
     if (!SHIP_STATS_BY_SLUG.has(slug)) throw new Error(`Ship wake anchor bake contains unknown ship: ${slug}`);
-    anchorsBySlug.set(slug, validateShipWakeAnchors(slug, anchors));
+    anchorsBySlug.set(slug, validateShipWakeAnchors(
+      slug,
+      anchors,
+      SHIP_HEADING_COUNT,
+      SHIP_SHEET_FRAME_SIZE
+    ));
   }
   for (const slug of SHIP_MENU_SLUGS) {
     if (!anchorsBySlug.has(slug)) throw new Error(`Ship manifest is missing wake anchors for: ${slug}`);
@@ -4190,31 +4196,6 @@ function requiredShipFootprints(slug) {
   const footprints = shipFootprintsBySlug?.get(slug);
   if (!footprints) throw new Error(`Missing baked hull footprints for ship: ${slug}`);
   return footprints;
-}
-
-function validateShipWakeAnchors(slug, anchors) {
-  if (!Array.isArray(anchors) || anchors.length !== SHIP_HEADING_COUNT) {
-    throw new Error(`Ship ${slug} must have ${SHIP_HEADING_COUNT} wake anchor frames`);
-  }
-  return anchors.map((anchor, frame) => {
-    if (!anchor || typeof anchor !== "object") throw new Error(`Ship ${slug} has an invalid wake anchor at frame ${frame}`);
-    return {
-      stern: validateShipWakePoint(slug, frame, "stern", anchor.stern),
-      positiveShoulder: validateShipWakePoint(slug, frame, "positive shoulder", anchor.positiveShoulder),
-      negativeShoulder: validateShipWakePoint(slug, frame, "negative shoulder", anchor.negativeShoulder)
-    };
-  });
-}
-
-function validateShipWakePoint(slug, frame, label, point) {
-  if (!point || !Number.isInteger(point.x) || !Number.isInteger(point.y)) {
-    throw new Error(`Ship ${slug} frame ${frame} has an invalid ${label} wake point`);
-  }
-  const maxOffset = SHIP_SHEET_FRAME_SIZE / 2 + 2;
-  if (Math.abs(point.x) > maxOffset || Math.abs(point.y) > maxOffset) {
-    throw new Error(`Ship ${slug} frame ${frame} ${label} wake point is outside the sprite: ${point.x},${point.y}`);
-  }
-  return { x: point.x, y: point.y };
 }
 
 function requiredShipWakeAnchors(slug) {

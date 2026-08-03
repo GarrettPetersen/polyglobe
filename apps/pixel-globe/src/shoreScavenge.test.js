@@ -63,6 +63,10 @@ test("larger shore parties find supplies more often without removing risk", () =
     rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.995, 2),
     SHORE_SCAVENGE_CASUALTY
   );
+  assert.equal(
+    rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.9, 2.2993611111111107),
+    SHORE_SCAVENGE_FOOD
+  );
 });
 
 test("ordinary shores favor whichever provision is needed most", () => {

@@ -64,6 +64,7 @@ import {
   SHIP_SPRITE_SHEET_COLS
 } from "../src/shipSpriteLayout.js";
 import { anchoredShipFrameRegistration } from "../src/shipSpriteRegistration.js";
+import { alignHorizontalShipWakeShoulders } from "../src/shipWakeAnchors.js";
 import {
   SHIP_ROWING_FRAME_COUNT,
   SHIP_ROWING_MODE_AHEAD,
@@ -1472,28 +1473,11 @@ function makeWakeAnchor(frame, frameIndex, waterlineY, waterlineBand) {
   }
 
   const sternProjection = aftProjection - wakeSternClearancePx;
-  return alignHorizontalWakeShoulders({
+  return alignHorizontalShipWakeShoulders({
     stern: wakeAnchorPoint(sternProjection, stern.lateral, direction, side),
     positiveShoulder: positiveShoulder || mirrorWakeShoulder(negativeShoulder, direction, side),
     negativeShoulder: negativeShoulder || mirrorWakeShoulder(positiveShoulder, direction, side)
-  }, direction);
-}
-
-function alignHorizontalWakeShoulders(anchors, direction) {
-  if (Math.abs(direction.y) > 1e-6) return anchors;
-  const shoulderCenterY = (anchors.positiveShoulder.y + anchors.negativeShoulder.y) / 2;
-  const yOffset = Math.round(anchors.stern.y - shoulderCenterY);
-  return {
-    stern: anchors.stern,
-    positiveShoulder: {
-      x: anchors.positiveShoulder.x,
-      y: anchors.positiveShoulder.y + yOffset
-    },
-    negativeShoulder: {
-      x: anchors.negativeShoulder.x,
-      y: anchors.negativeShoulder.y + yOffset
-    }
-  };
+  }, direction, frameSize);
 }
 
 function wakeShoulderAnchor(points, aftProjection, length, direction, side, sideSign) {
