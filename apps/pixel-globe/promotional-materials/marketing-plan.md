@@ -7,13 +7,18 @@
   - Store page: https://store.steampowered.com/app/4516500/Marque__Reprisal/
 
 - [ ] **Get the demo build on Steam**
-  - Upload and test the demo against Steam App `5029880`.
-  - The demo exposes the full sandbox without a timer, but the captain keeps
-    their starting ship. Shipyards, surrendered prizes, and the Viking longship
-    reward show the replacement option as unavailable in the demo.
+  - Status: Demo store presence and build were submitted to Valve on July 30
+    and are in review.
+  - Steam App: `5029880`.
+  - The demo has no timer and retains the full feature set, but its voyages are
+    centered on the family-debt quest and limited to the Mediterranean, Black
+    Sea and connected rivers.
 
 - [ ] **Get the full build on Steam**
-  - Keep it private until release, apart from keys provided for coverage and testing.
+  - Status: Main-game store presence is approved; the build submitted on July
+    30 is in Valve review.
+  - Keep the build private until release, apart from keys provided for coverage
+    and testing.
 
 - [ ] **Connect Steam Stats and Steam Cloud**
   - Test stats, achievements and cloud saves on Windows, macOS and Linux.
@@ -52,6 +57,7 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
   - もぐらゲームス: submitted through its official Google form as a self-submitted game and press release.
 
 - [ ] Monitor replies and coverage from the first Japanese press pass.
+  - August 2 inbox check: no replies from the seven outlets yet.
   - Respond promptly with requested assets, a review build or a Steam key.
   - 4Gamer's form says it may reply with a dedicated release-submission address;
     send the complete release there when it arrives.
@@ -62,12 +68,16 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 ## Streamer outreach
 
 - [ ] Add **Marque & Reprisal** to IGDB so it receives a Twitch game category.
+  - August 2: No matching IGDB entry exists. Contribution is ready to begin but
+    requires Garrett to sign into Twitch.
   - Verify the category appears on Twitch after the IGDB submission is approved.
   - Use the category to monitor for new streams and notify Garrett.
 
 - [ ] Set up a proper campaign sender at `marque-and-reprisal.com`, including SPF, DKIM and DMARC.
 
 - [ ] Send full-build Steam keys to streamers.
+  - The first five personalized English-language drafts are ready in
+    [streamer-outreach-batch-01-drafts.md](streamer-outreach-batch-01-drafts.md).
   - Work through `streamer-outreach.csv` in small batches, starting with priority A and B.
   - Recheck each creator's public email, recent activity and relevant game before sending.
   - Write a short, genuinely personalized email for each creator:
@@ -97,7 +107,9 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 
 ## Steam Next Fest: October 2026
 
-- [ ] Register by **August 31 at 11:59 PM PDT**.
+- [x] Register by **August 31 at 11:59 PM PDT**.
+  - Registered August 2 with Strategy and Simulation as the event categories
+    and Garrett as the press contact.
 - [ ] Submit the demo build and store page for review by **September 21** if we want to be ready for the press preview.
 - [ ] Submit all required materials for review by **October 5**.
 - [ ] Make the demo public before **October 19 at 10:00 AM PDT**.
@@ -124,13 +136,13 @@ If those conditions are not met, delay the release instead of forcing the 2026 w
 
 ## Festival and showcase application plan
 
-Research checked **July 24, 2026**, using the [How To Market A Game festival directory](https://howtomarketagame.com/festivals/) for discovery and the organizers' own pages for verification.
+Research checked **August 2, 2026**, using the [How To Market A Game festival directory](https://howtomarketagame.com/festivals/) for discovery and the organizers' own pages for verification.
 
 ### Apply
 
 These are free, accept unreleased games and provide a plausible audience for Marque & Reprisal.
 
-- [ ] **Anime Game Festival, 3rd Edition — apply by July 30**
+- [ ] **Anime Game Festival, 3rd Edition — July 30 deadline missed**
   - Event: Early September 2026.
   - Why: The eligibility rules accept games that have Japanese anime/manga-style visual design, even if they do not meet the event's other anime-culture or narrative criteria. The character portraits give us an honest visual fit.
   - Pitch: A historical sailing roguelike with anime-influenced character art.
@@ -138,30 +150,50 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Do not add an Anime Steam tag solely for this application.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLScljMrlt5fnKW7k3l9SNiY_Par1qKdlwCl9F_-vJHZpda_Ssg/viewform
 
-- [ ] **Fall Epic RPG Adventure Festival — apply by July 31**
+- [ ] **Fall Epic RPG Adventure Festival — July 31 deadline missed**
   - Why: The game has RPG characters, quests, goals and progression, and the application explicitly accepts genre-bending RPGs.
   - Effort: Very low; it only asks for the game name, Steam App ID, store link, engine and contact information.
   - Application: https://docs.google.com/forms/d/12XU5Y-DW_MYq-CnWyw-ao4XGlOuQWgvhZLev7n8PuNI/viewform
 
-- [ ] **ENDIX Expo Fall 2026 — apply by July 31**
+- [ ] **ENDIX Expo Fall 2026 — July 31 deadline missed**
   - Event: November 2026.
   - Why: A playable online expo with a Steam event, content creators and press. It accepts existing trailers and public demos, so it does not need another exclusive.
   - Prepare: Steam page, two review keys or a playable build, demo link, trailer and a release-window or demo announcement.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLScDvtE9Sk40Kvk_FXODPa-Z_EcwsW5SbqxdVvxeJMyPCBbeNw/viewform
 
-- [ ] **Galaxies Autumn 2026 — apply by August 14**
+- [x] **Galaxies Autumn 2026 — submitted August 2**
+  - Google Forms confirmed that the response was recorded. Application answers
+    are recorded in
+    [festival-application-workbench-2026.md](festival-application-workbench-2026.md).
   - Showcase: October 15.
   - Why: Free slots are reserved for self-published indie teams, with media partners including IGN and GameSpot.
   - Pitch: A new look at gameplay or the Steam demo, not the trailer already pitched to IGN.
   - If selected: Supply a new 30- or 60-second trailer by September 28.
+  - Selection notices are due by August 24.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSe8x1tqzdZ0uUqF8gbcamoh8S49S9rHXKcNepI1HyT_yjaU9w/viewform
 
+- [x] **Atlantic Canada Game Celebration — submitted August 2**
+  - Google Forms confirmed that the response was recorded.
+  - Event: October 5–12, 2026 Steam event.
+  - Why: The eligibility rules accept games that feature Atlantic Canada as a
+    substantial playable location. Marque & Reprisal includes St. John's and
+    Newfoundland waters, the Grand Banks fishery, Newfoundland whaling grounds,
+    Port Royal and Acadian and Mi'kmaq history.
+  - Cost: Free.
+  - Pitch: A playable, historically grounded Atlantic Canada within the larger
+    1522 world, with trade, fishing, whaling and colonization voyages.
+  - Application: https://docs.google.com/forms/d/e/1FAIpQLSdQJouPQDivmRTGnJ8iLA-ip55fFXVR4XztNrA-9h3O5ZN87A/viewform
+
 - [ ] **GWB Game Awards 2026 — apply by August 15**
+  - August 2: Rules reviewed. The portal requires an account and reCAPTCHA, plus
+    durable build access for 5–10 judges. The application package and unresolved
+    declarations are recorded in
+    [festival-application-workbench-2026.md](festival-application-workbench-2026.md).
   - Why: Free international competition for games released in 2026 or still in development. It includes a small-team award, relevant categories such as Gameplay Innovation and Touch the World, cash prizes and possible Steam-event promotion.
   - No travel is required.
   - Application: https://gameinstitute.tencent.com/awards2026
 
-- [ ] **Steam Next Fest: October 2026 — apply by August 31**
+- [x] **Steam Next Fest: October 2026 — registered August 2**
   - This is the highest-priority festival application.
   - Complete the separate Next Fest workback plan above.
   - Registration: https://partner.steamgames.com/optin/sale/nextfest_october_2026/4516500
@@ -169,6 +201,34 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 - [ ] **Indie X 2026 — apply by September 13**
   - Why: Free international indie competition with approximately 50 finalists, livestreamed showcases, awards and a Steam event.
   - Application: https://indiex.online/submitgame/
+
+- [x] **SCHMOOVEMENT Festival — submitted August 2**
+  - Google Forms confirmed that the response was recorded under Movement
+    Underground with the public Steam demo.
+  - Event: September 22–29, 2026 Steam event. The organizer's form gives an
+    August 22 at 11:59 p.m. Pacific deadline; the directory currently says
+    August 21, so submit by August 21 to be safe.
+  - Why: Sailing well requires deliberate mastery of movement through wind,
+    tacking, sail trim, momentum and narrow-channel navigation. Apply honestly
+    under Movement Underground without presenting the game as an action
+    platformer.
+  - Cost: Free; demos and upcoming games are accepted.
+  - Application: https://docs.google.com/forms/d/e/1FAIpQLSckJ8MkHT7maY5DWd58cjXLmbsVUbeYQrN6TrlxzB_pMfd7lw/viewform
+
+- [ ] **Independent Games Festival 2027 — apply by September 13**
+  - August 2: The official submission portal was inspected and still reports
+    that entries are closed. Try again when submissions officially open August
+    3.
+  - Why: The most prestigious general indie competition in this application
+    cycle and a strong venue for the game's distinctive world simulation,
+    historical scope and interconnected systems.
+  - Cost: US$75. A full fee waiver can be requested by September 7.
+  - Eligibility: Early and demo builds are accepted only if substantially
+    feature-complete. Submit the strongest stable full build available by the
+    deadline; later uploads are allowed, but judges are only guaranteed to see
+    the first deadline build.
+  - Application: https://submit.igf.com/
+  - Rules and dates: https://igf.com/submission-info/
 
 ### Conditional
 
@@ -220,4 +280,4 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ## Current critical path
 
-Steam approval → store page live → demo on Steam → IGN trailer exclusive → trailer on Steam → full build and Steam integration → streamer outreach → October Next Fest → release decision
+Valve approves demo and main builds → launch Steam demo → IGN trailer decision → trailer on Steam → verify Steam integration → streamer outreach → prepare October Next Fest → release decision
