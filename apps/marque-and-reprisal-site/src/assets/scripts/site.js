@@ -67,6 +67,216 @@ if ("IntersectionObserver" in window) {
   for (const video of lazyVideos) loadVideo(video);
 }
 
+const shipTurntables = [...document.querySelectorAll("[data-ship-turntable]")];
+const SHIP_TURN_FRAME_MS = 300;
+// The hull rotates beneath one fixed light, matching a ship model on a turntable.
+const SHIP_LIGHTING = Object.freeze({
+  shadow: "rgba(20, 15, 26, 0.28)",
+  shade: "rgba(32, 24, 48, 0.34)",
+  highlight: "rgba(255, 245, 196, 0.38)"
+});
+
+const loadTurntableImage = (source) => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.decoding = "async";
+  image.addEventListener("load", () => resolve(image), { once: true });
+  image.addEventListener("error", () => reject(new Error(`Could not load ${source}`)), { once: true });
+  image.src = source;
+});
+
+const imagePixels = (image) => {
+  const buffer = document.createElement("canvas");
+  buffer.width = image.naturalWidth;
+  buffer.height = image.naturalHeight;
+  const context = buffer.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  return context.getImageData(0, 0, buffer.width, buffer.height);
+};
+
+const turntableInteger = (canvas, key) => {
+  const value = Number.parseInt(canvas.dataset[key] ?? "", 10);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Ship turntable has invalid ${key}`);
+  }
+  return value;
+};
+
+const turntableMaskPoints = (state, kind, frameIndex) => {
+  const cached = state.maskPoints[kind][frameIndex];
+  if (cached) return cached;
+
+  const mask = state.masks[kind];
+  const cellColumn = frameIndex % state.sheetCols;
+  const cellRow = Math.floor(frameIndex / state.sheetCols);
+  const rowCount = Math.ceil(state.headings / state.sheetCols);
+  const cellX = cellColumn * mask.frameSize;
+  const cellY = (state.lightElevation * rowCount + cellRow) * mask.frameSize;
+  const channel = state.lightAzimuth < 8 ? 0 : 1;
+  const bit = 1 << (state.lightAzimuth & 7);
+  const points = [];
+
+  for (let y = 0; y < mask.frameSize; y += 1) {
+    for (let x = 0; x < mask.frameSize; x += 1) {
+      const pixelOffset = ((cellY + y) * mask.pixels.width + cellX + x) * 4;
+      if ((mask.pixels.data[pixelOffset + channel] & bit) !== 0) points.push(x, y);
+    }
+  }
+  const packedPoints = Uint8Array.from(points);
+  state.maskPoints[kind][frameIndex] = packedPoints;
+  return packedPoints;
+};
+
+const precomputeTurntableMaskPoints = (state) => {
+  for (const kind of ["light", "shade", "shadow"]) {
+    for (let frameIndex = 0; frameIndex < state.headings; frameIndex += 1) {
+      turntableMaskPoints(state, kind, frameIndex);
+    }
+    delete state.masks[kind].pixels;
+  }
+};
+
+const drawTurntableMask = (state, kind, frameIndex, offset, color) => {
+  const points = turntableMaskPoints(state, kind, frameIndex);
+  state.context.fillStyle = color;
+  for (let index = 0; index < points.length; index += 2) {
+    state.context.fillRect(points[index] + offset, points[index + 1] + offset, 1, 1);
+  }
+};
+
+const drawShipTurntable = (state, frameIndex) => {
+  const frame = frameIndex % state.headings;
+  const frameX = (frame % state.sheetCols) * state.frameSize;
+  const frameY = Math.floor(frame / state.sheetCols) * state.frameSize;
+  const shipOffset = (state.shadowFrameSize - state.frameSize) / 2;
+  const context = state.context;
+
+  context.clearRect(0, 0, state.canvas.width, state.canvas.height);
+  context.globalCompositeOperation = "source-over";
+  drawTurntableMask(state, "shadow", frame, 0, SHIP_LIGHTING.shadow);
+  context.drawImage(
+    state.sprite,
+    frameX,
+    frameY,
+    state.frameSize,
+    state.frameSize,
+    shipOffset,
+    shipOffset,
+    state.frameSize,
+    state.frameSize
+  );
+  context.globalCompositeOperation = "multiply";
+  drawTurntableMask(state, "shade", frame, shipOffset, SHIP_LIGHTING.shade);
+  context.globalCompositeOperation = "source-over";
+  drawTurntableMask(state, "light", frame, shipOffset, SHIP_LIGHTING.highlight);
+  state.canvas.dataset.turntableFrame = String(frame);
+};
+
+const prepareShipTurntable = async (state) => {
+  if (state.status !== "idle") return;
+  state.status = "loading";
+  state.canvas.dataset.turntableState = "loading";
+  try {
+    const [sprite, light, shade, shadow] = await Promise.all([
+      loadTurntableImage(state.canvas.dataset.spriteSheet),
+      loadTurntableImage(state.canvas.dataset.lightSheet),
+      loadTurntableImage(state.canvas.dataset.shadeSheet),
+      loadTurntableImage(state.canvas.dataset.shadowSheet)
+    ]);
+    const rowCount = Math.ceil(state.headings / state.sheetCols);
+    const expectedSpriteWidth = state.frameSize * state.sheetCols;
+    const expectedSpriteHeight = state.frameSize * rowCount;
+    if (
+      sprite.naturalWidth !== expectedSpriteWidth || sprite.naturalHeight !== expectedSpriteHeight ||
+      light.naturalWidth !== expectedSpriteWidth || light.naturalHeight !== expectedSpriteHeight * 2 ||
+      shade.naturalWidth !== expectedSpriteWidth || shade.naturalHeight !== expectedSpriteHeight * 2 ||
+      shadow.naturalWidth !== state.shadowFrameSize * state.sheetCols ||
+      shadow.naturalHeight !== state.shadowFrameSize * rowCount * 2
+    ) {
+      throw new Error("Ship turntable atlas dimensions do not match its manifest");
+    }
+
+    state.sprite = sprite;
+    state.masks = {
+      light: { frameSize: state.frameSize, pixels: imagePixels(light) },
+      shade: { frameSize: state.frameSize, pixels: imagePixels(shade) },
+      shadow: { frameSize: state.shadowFrameSize, pixels: imagePixels(shadow) }
+    };
+    precomputeTurntableMaskPoints(state);
+    state.context.imageSmoothingEnabled = false;
+    state.status = "ready";
+    state.canvas.dataset.turntableState = "ready";
+    drawShipTurntable(state, reducedMotion ? 4 : Math.floor(performance.now() / SHIP_TURN_FRAME_MS));
+    startShipTurntableAnimation();
+  } catch (error) {
+    state.status = "error";
+    state.canvas.dataset.turntableState = "error";
+    console.error("Could not prepare ship turntable:", error);
+  }
+};
+
+const shipTurntableStates = new Map(shipTurntables.map((canvas) => {
+  const state = {
+    canvas,
+    context: canvas.getContext("2d"),
+    frameSize: turntableInteger(canvas, "frameSize"),
+    shadowFrameSize: turntableInteger(canvas, "shadowFrameSize"),
+    headings: turntableInteger(canvas, "headings"),
+    sheetCols: turntableInteger(canvas, "sheetCols"),
+    lightAzimuth: turntableInteger(canvas, "lightAzimuth"),
+    lightElevation: turntableInteger(canvas, "lightElevation"),
+    maskPoints: {
+      light: Array(turntableInteger(canvas, "headings")),
+      shade: Array(turntableInteger(canvas, "headings")),
+      shadow: Array(turntableInteger(canvas, "headings"))
+    },
+    status: "idle"
+  };
+  return [canvas, state];
+}));
+const activeShipTurntables = new Set();
+let shipTurntableAnimationFrame = null;
+let lastShipTurntableFrame = -1;
+
+function startShipTurntableAnimation() {
+  if (reducedMotion || shipTurntableAnimationFrame !== null || activeShipTurntables.size === 0) return;
+  shipTurntableAnimationFrame = window.requestAnimationFrame(animateShipTurntables);
+}
+
+function animateShipTurntables(timestamp) {
+  shipTurntableAnimationFrame = null;
+  if (activeShipTurntables.size === 0) return;
+  const frameIndex = Math.floor(timestamp / SHIP_TURN_FRAME_MS);
+  if (frameIndex !== lastShipTurntableFrame) {
+    lastShipTurntableFrame = frameIndex;
+    for (const state of activeShipTurntables) {
+      if (state.status === "ready") drawShipTurntable(state, frameIndex);
+    }
+  }
+  shipTurntableAnimationFrame = window.requestAnimationFrame(animateShipTurntables);
+}
+
+if (shipTurntables.length > 0 && "IntersectionObserver" in window) {
+  const shipTurntableObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const state = shipTurntableStates.get(entry.target);
+      if (!state) continue;
+      if (entry.isIntersecting) {
+        activeShipTurntables.add(state);
+        prepareShipTurntable(state);
+      } else {
+        activeShipTurntables.delete(state);
+      }
+    }
+    startShipTurntableAnimation();
+  }, { rootMargin: "360px 0px", threshold: 0 });
+  for (const canvas of shipTurntables) shipTurntableObserver.observe(canvas);
+} else {
+  for (const state of shipTurntableStates.values()) {
+    activeShipTurntables.add(state);
+    prepareShipTurntable(state);
+  }
+}
+
 for (const button of document.querySelectorAll("[data-copy-text]")) {
   button.addEventListener("click", async () => {
     const original = button.textContent;

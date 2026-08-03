@@ -49,15 +49,15 @@ const screenshotSourceRoot = path.resolve(
   appRoot,
   "../pixel-globe/promotional-materials/steam-screenshots"
 );
-const shipSideViewSourceRoot = path.resolve(
+const shipSpriteSourceRoot = path.resolve(
   appRoot,
-  "../pixel-globe/public/assets/vehicles/unity-ships/side-views"
+  "../pixel-globe/public/assets/vehicles/unity-ships"
 );
 
 await rm(distRoot, { recursive: true, force: true });
 await cp(sourceRoot, distRoot, { recursive: true });
 await publishLocalizedScreenshots();
-await publishShipSideViews();
+await publishShipSprites();
 
 await writePage("index.html", homePage());
 await writePage("qa/index.html", qAndAPage());
@@ -98,14 +98,17 @@ async function publishLocalizedScreenshots() {
   await cp(screenshotSourceRoot, outputRoot, { recursive: true });
 }
 
-async function publishShipSideViews() {
+async function publishShipSprites() {
   const outputRoot = path.join(distRoot, "assets/ships");
   await mkdir(outputRoot, { recursive: true });
   for (const ship of shipRoster) {
-    await cp(
-      path.join(shipSideViewSourceRoot, `${ship.slug}.png`),
-      path.join(outputRoot, `${ship.slug}.png`)
-    );
+    for (const suffix of ["", "-light", "-shade", "-shadow"]) {
+      const fileName = `${ship.slug}-32-headings${suffix}.png`;
+      await cp(
+        path.join(shipSpriteSourceRoot, fileName),
+        path.join(outputRoot, fileName)
+      );
+    }
   }
 }
 
@@ -389,7 +392,9 @@ async function validateBuild() {
     "assets/press/developer-qa.txt",
     "assets/press/capsule-art/capsule-source.aseprite",
     "assets/press/capsule-art/title-with-ship.png",
-    ...shipRoster.map((ship) => `assets/ships/${ship.slug}.png`),
+    ...shipRoster.flatMap((ship) => ["", "-light", "-shade", "-shadow"].map(
+      (suffix) => `assets/ships/${ship.slug}-32-headings${suffix}.png`
+    )),
     ...localizedCapsules.flatMap((locale) => [
       `downloads/${locale.archiveFile}`,
       `assets/press/localized-capsules/${locale.steamCode}/${locale.previewFile}`

@@ -22,7 +22,7 @@ import {
 
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
-const codeAssetVersion = "2026-08-02-ship-roster";
+const codeAssetVersion = "2026-08-02-ship-turntables";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 
 export function homePage(localeValue = "en") {
@@ -437,9 +437,18 @@ export function qAndAPage() {
 export function shipsPage() {
   const entries = shipRoster.map((ship, index) => [
     "<article class='ship-entry' id='ship-", escapeHtml(ship.slug), "'>",
-    "<figure class='ship-side-view'>",
-    "<img src='", escapeHtml(ship.image), "' alt='Side view pixel art of the ",
-    escapeHtml(ship.label), "' loading='lazy' width='192' height='104'>",
+    "<figure class='ship-turntable'>",
+    "<canvas class='ship-turntable-canvas' data-ship-turntable data-sprite-sheet='",
+    escapeHtml(ship.spriteSheet), "' data-light-sheet='", escapeHtml(ship.lightSheet),
+    "' data-shade-sheet='", escapeHtml(ship.shadeSheet), "' data-shadow-sheet='",
+    escapeHtml(ship.shadowSheet), "' data-frame-size='", String(ship.frameSize),
+    "' data-shadow-frame-size='", String(ship.shadowFrameSize), "' data-headings='",
+    String(ship.headings), "' data-sheet-cols='", String(ship.sheetCols),
+    "' data-light-azimuth='", String(ship.lightAzimuth), "' data-light-elevation='",
+    String(ship.lightElevation), "' width='", String(ship.shadowFrameSize), "' height='",
+    String(ship.shadowFrameSize),
+    "' role='img' aria-label='Game sprite of the ", escapeHtml(ship.label),
+    " slowly rotating through 32 headings'>", escapeHtml(ship.label), " game sprite</canvas>",
     "</figure>",
     "<div class='ship-entry-copy'>",
     "<p class='ship-register-number'>Vessel ", String(index + 1).padStart(2, "0"), "</p>",
@@ -457,7 +466,7 @@ export function shipsPage() {
 
   const mysteryEntry = [
     "<article class='ship-entry ship-entry-mystery' id='mystery-ship'>",
-    "<figure class='ship-side-view ship-mystery-view' aria-label='Unknown ship'>",
+    "<figure class='ship-turntable ship-mystery-view' aria-label='Unknown ship'>",
     "<span aria-hidden='true'>", escapeHtml(mysteryShip.mark), "</span>",
     "</figure>",
     "<div class='ship-entry-copy'>",

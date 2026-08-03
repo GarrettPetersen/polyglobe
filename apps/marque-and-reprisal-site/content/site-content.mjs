@@ -35,22 +35,40 @@ export const site = Object.freeze({
 });
 
 const MYSTERY_SHIP_SLUG = "viking-longship";
-const shipSideViewManifest = JSON.parse(readFileSync(new URL(
-  "../../pixel-globe/public/assets/vehicles/unity-ships/side-views/manifest.json",
+const SHIP_ROSTER_LIGHTING_AZIMUTH = 2;
+const SHIP_ROSTER_LIGHTING_ELEVATION = 1;
+const shipSpriteManifest = JSON.parse(readFileSync(new URL(
+  "../../pixel-globe/public/assets/vehicles/unity-ships/manifest.json",
   import.meta.url
 ), "utf8"));
-const shipSideViews = new Map(shipSideViewManifest.ships.map((entry) => [entry.slug, entry]));
+const shipSprites = new Map(shipSpriteManifest.ships.map((entry) => [entry.slug, entry]));
 
 export const shipRoster = Object.freeze(SHIP_STATS
   .filter(({ slug }) => slug !== MYSTERY_SHIP_SLUG)
   .map((stats) => {
-    const sideView = shipSideViews.get(stats.slug);
-    if (!sideView) throw new Error(`Website ship roster needs a side view: ${stats.slug}`);
+    const sprite = shipSprites.get(stats.slug);
+    if (!sprite) throw new Error(`Website ship roster needs a game sprite: ${stats.slug}`);
+    if (
+      sprite.headings !== 32 || sprite.sheetCols !== 8 || sprite.frameSize !== 47 ||
+      sprite.shadowFrameSize !== 95 || sprite.lightAzimuthBins !== 16 ||
+      sprite.lightElevationBins !== 2
+    ) {
+      throw new Error(`Website ship roster has an unsupported sprite atlas: ${stats.slug}`);
+    }
     return Object.freeze({
       slug: stats.slug,
       label: shipLabelForSlug(stats.slug),
       description: shipHandoverHistoryForSlug(stats.slug),
-      image: `/assets/ships/${stats.slug}.png`,
+      spriteSheet: `/assets/ships/${stats.slug}-32-headings.png`,
+      lightSheet: `/assets/ships/${stats.slug}-32-headings-light.png`,
+      shadeSheet: `/assets/ships/${stats.slug}-32-headings-shade.png`,
+      shadowSheet: `/assets/ships/${stats.slug}-32-headings-shadow.png`,
+      frameSize: sprite.frameSize,
+      shadowFrameSize: sprite.shadowFrameSize,
+      headings: sprite.headings,
+      sheetCols: sprite.sheetCols,
+      lightAzimuth: SHIP_ROSTER_LIGHTING_AZIMUTH,
+      lightElevation: SHIP_ROSTER_LIGHTING_ELEVATION,
       cargoCapacity: stats.cargoCapacity,
       cannons: stats.cannons,
       crewCapacity: stats.crewCapacity,

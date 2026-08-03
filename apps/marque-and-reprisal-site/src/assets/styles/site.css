@@ -853,37 +853,48 @@ html:lang(ko) .localized-press h1 {
   background: var(--night-soft);
 }
 
-.ship-entry:nth-child(even) .ship-side-view {
+.ship-entry:nth-child(even) .ship-turntable {
   order: 2;
 }
 
-.ship-side-view {
+.ship-turntable {
   position: relative;
   display: grid;
-  min-height: 250px;
+  min-height: 315px;
   place-items: center;
   margin: 0;
   overflow: hidden;
   border: 1px solid rgba(226, 173, 79, 0.5);
-  background: var(--mid-water);
-  isolation: isolate;
+  background: var(--deep-water);
 }
 
-.ship-side-view::before {
+.ship-turntable::before,
+.ship-turntable::after {
   position: absolute;
-  z-index: -1;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 31%;
-  border-top: 1px solid rgba(248, 237, 207, 0.42);
-  background: var(--deep-water);
+  background: rgba(76, 80, 115, 0.5);
   content: "";
 }
 
-.ship-side-view img {
-  width: min(100%, 384px);
+.ship-turntable::before {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.ship-turntable::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.ship-turntable-canvas {
+  z-index: 1;
+  width: 285px;
+  max-width: 86%;
   height: auto;
+  aspect-ratio: 1;
   image-rendering: pixelated;
 }
 
@@ -937,8 +948,9 @@ html:lang(ko) .localized-press h1 {
   background: var(--wine);
 }
 
-.ship-mystery-view::before {
-  background: var(--ink);
+.ship-mystery-view::before,
+.ship-mystery-view::after {
+  display: none;
 }
 
 .ship-mystery-view span {
@@ -1598,7 +1610,7 @@ html:lang(ko) .localized-press h1 {
     max-width: 620px;
   }
 
-  .ship-entry:nth-child(even) .ship-side-view {
+  .ship-entry:nth-child(even) .ship-turntable {
     order: 0;
   }
 
@@ -1759,8 +1771,8 @@ html:lang(ko) .localized-press h1 {
     gap: 28px;
   }
 
-  .ship-side-view {
-    min-height: 210px;
+  .ship-turntable {
+    min-height: 295px;
   }
 
   .ship-specs {
@@ -1860,6 +1872,16 @@ html:lang(ko) .localized-press h1 {
   .lightbox button {
     top: 6px;
     right: 6px;
+  }
+}
+
+@media (max-width: 340px) {
+  .ship-turntable {
+    min-height: 220px;
+  }
+
+  .ship-turntable-canvas {
+    width: 190px;
   }
 }
 

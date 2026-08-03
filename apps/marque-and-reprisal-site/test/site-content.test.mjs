@@ -149,35 +149,54 @@ test("developer Q&A publishes the approved interview with factual wording fixes"
   assert.match(qAndAText(), /Q: What kind of game is Marque & Reprisal\?/);
 });
 
-test("ship roster publishes every known side view while keeping the quest ship secret", async () => {
+test("ship roster rotates the real game sprites with a consistent lighting bake", async () => {
   const page = shipsPage();
-  const sideViewRoot = path.resolve(
+  const spriteRoot = path.resolve(
     appRoot,
-    "../pixel-globe/public/assets/vehicles/unity-ships/side-views"
+    "../pixel-globe/public/assets/vehicles/unity-ships"
   );
+  const client = await readFile(path.join(appRoot, "src/assets/scripts/site.js"), "utf8");
 
   assert.equal(shipRoster.length, 38);
   assert.equal(new Set(shipRoster.map(({ slug }) => slug)).size, shipRoster.length);
   assert.equal((page.match(/class='ship-entry'/g) || []).length, shipRoster.length);
+  assert.equal((page.match(/data-ship-turntable/g) || []).length, shipRoster.length);
   assert.equal(mysteryShip.label, "Mystery extra ship");
   assert.match(page, /<span aria-hidden='true'>\?<\/span>/);
   assert.match(page, /Mystery extra ship/);
   assert.doesNotMatch(page, /Viking|viking-longship/);
   assert.match(homePage(), /href='\/ships\/'>Ships<\/a>/);
   assert.match(sitemapXml(), /<loc>https:\/\/marque-and-reprisal\.com\/ships\/<\/loc>/);
+  assert.match(client, /requestAnimationFrame\(animateShipTurntables\)/);
+  assert.match(client, /drawTurntableMask\(state, "shadow"/);
+  assert.match(client, /globalCompositeOperation = "multiply"/);
 
   for (const ship of shipRoster) {
-    assert.match(page, new RegExp(`/assets/ships/${ship.slug}\\.png`));
+    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings\\.png`));
+    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings-light\\.png`));
+    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings-shade\\.png`));
+    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings-shadow\\.png`));
+    assert.equal(ship.headings, 32);
+    assert.equal(ship.lightAzimuth, 2);
+    assert.equal(ship.lightElevation, 1);
     assert.match(page, new RegExp(ship.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.ok(page.includes(
       ship.description
         .replaceAll("&", "&amp;")
         .replaceAll("'", "&#39;")
     ));
-    const image = await readFile(path.join(sideViewRoot, `${ship.slug}.png`));
-    assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-    assert.equal(image.readUInt32BE(16), 192);
-    assert.equal(image.readUInt32BE(20), 104);
+    const files = [
+      [`${ship.slug}-32-headings.png`, 376, 188],
+      [`${ship.slug}-32-headings-light.png`, 376, 376],
+      [`${ship.slug}-32-headings-shade.png`, 376, 376],
+      [`${ship.slug}-32-headings-shadow.png`, 760, 760]
+    ];
+    for (const [fileName, width, height] of files) {
+      const image = await readFile(path.join(spriteRoot, fileName));
+      assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+      assert.equal(image.readUInt32BE(16), width);
+      assert.equal(image.readUInt32BE(20), height);
+    }
   }
 });
 
