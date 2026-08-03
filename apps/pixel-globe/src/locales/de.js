@@ -129,6 +129,7 @@ export default {
   "navigation.gray": "GRAU",
   "navigation.teal": "TÜRKIS",
   "navigation.foundColony": "KOLONIE GRÜNDEN",
+  "navigation.openTradingPort": "HANDELSHAFEN ÖFFNEN",
   "navigation.resupplyColony": "KOLONIE VERSORGEN",
   "navigation.diplomaticMission": "DIPLOMATISCHE MISSION",
   "navigation.passengerMission": "PASSAGIERAUFTRAG",

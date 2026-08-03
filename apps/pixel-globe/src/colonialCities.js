@@ -248,6 +248,8 @@ export const COLONIZATION_TARGETS = Object.freeze([
   }),
   colonizationTarget("Nagasaki", "Japan", 32.752558, 129.878192, COLONIAL_FOUNDING_NEGOTIATED, 1571, "japan", {
     label: "Japanese port opened to Portuguese trade",
+    preexistingSettlement: true,
+    preexistingPopulation: 600,
     originFactionId: "portugal",
     originCountry: "Portugal",
     approvalFactionId: "japan",
@@ -490,8 +492,16 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
   if (!Number.isInteger(year) || year <= 1522) throw new Error(`Invalid colonization target year: ${city}`);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error(`Invalid colonization target coordinates: ${city}`);
   const datasetFirstYear = details.datasetFirstYear ?? null;
+  const preexistingSettlement = details.preexistingSettlement === true;
+  const preexistingPopulation = details.preexistingPopulation ?? null;
   if (datasetFirstYear !== null && (!Number.isInteger(datasetFirstYear) || datasetFirstYear < year)) {
     throw new Error(`Invalid colonization target dataset year: ${city}`);
+  }
+  if (preexistingSettlement && (!Number.isInteger(preexistingPopulation) || preexistingPopulation <= 0)) {
+    throw new Error(`Existing colonization settlement needs a population: ${city}`);
+  }
+  if (!preexistingSettlement && preexistingPopulation !== null) {
+    throw new Error(`New colonization target cannot have an existing population: ${city}`);
   }
   return Object.freeze({
     city,
@@ -502,6 +512,8 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     year,
     canFoundFromYear: details.canFoundFromYear || 1522,
     factionId,
+    preexistingSettlement,
+    preexistingPopulation,
     originFactionId: details.originFactionId || factionId,
     originCountry: details.originCountry || null,
     approvalFactionId: details.approvalFactionId || null,

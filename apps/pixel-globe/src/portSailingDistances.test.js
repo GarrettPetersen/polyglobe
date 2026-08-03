@@ -94,15 +94,23 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   const colonyTargets = placeColonizationTargetsOnWorld({
     ...placementOptions,
     targets: COLONIZATION_TARGETS,
-    occupiedTileIds: cityByTileId.keys()
+    occupiedCities: cityByTileId.values()
   });
-  assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [...portCities, ...colonyTargets]));
+  const nagasakiVillage = portCities.find((port) => port.city === "Nagasaki" && port.country === "Japan");
+  const nagasakiTarget = colonyTargets.find((target) => target.city === "Nagasaki" && target.country === "Japan");
+  assert.ok(nagasakiVillage, "Nagasaki village should be a baked port");
+  assert.equal(nagasakiTarget?.tileId, nagasakiVillage.tileId);
+  assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [
+    ...portCities,
+    ...colonyTargets.filter((target) => !target.preexistingSettlement)
+  ]));
 
   const colonyNames = new Set(bake.endpoints.filter((endpoint) => endpoint.kind === "colony").map((endpoint) => endpoint.name));
   const expectedColonyNames = COLONIZATION_TARGETS
-    .filter((target) => target.waterAccess !== "inland")
+    .filter((target) => target.waterAccess !== "inland" && !target.preexistingSettlement)
     .map((target) => target.city);
   for (const name of expectedColonyNames) assert.equal(colonyNames.has(name), true, `${name} must be baked`);
+  assert.equal(requiredEndpoint(bake, "Nagasaki").kind, "port");
 
   const istanbul = requiredEndpoint(bake, "Istanbul");
   const cairo = requiredEndpoint(bake, "Cairo");

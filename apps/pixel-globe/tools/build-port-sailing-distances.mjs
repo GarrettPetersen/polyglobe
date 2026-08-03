@@ -90,11 +90,14 @@ const portCities = portCitiesOnWorld(cityByTileId, placementOptions);
 const colonyTargets = placeColonizationTargetsOnWorld({
   ...placementOptions,
   targets: COLONIZATION_TARGETS,
-  occupiedTileIds: cityByTileId.keys()
+  occupiedCities: cityByTileId.values()
 });
+const portTileIds = new Set(portCities.map((port) => port.tileId));
 const endpoints = [
   ...portCities.map((city) => endpointRecord(city, "port", cityLabelText(city), placementOptions)),
-  ...colonyTargets.map((colony) => endpointRecord(colony, "colony", colony.city, placementOptions))
+  ...colonyTargets
+    .filter((colony) => !portTileIds.has(colony.tileId))
+    .map((colony) => endpointRecord(colony, "colony", colony.city, placementOptions))
 ].sort((a, b) => a.tileId - b.tileId);
 reportDisconnectedSailingEndpoints({ graph, earthRows, navigation, iceMask, endpoints });
 

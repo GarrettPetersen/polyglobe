@@ -129,6 +129,7 @@ export default {
   "navigation.gray": "灰色",
   "navigation.teal": "青色",
   "navigation.foundColony": "建立殖民地",
+  "navigation.openTradingPort": "開放貿易港",
   "navigation.resupplyColony": "補給殖民地",
   "navigation.diplomaticMission": "外交任務",
   "navigation.passengerMission": "載客任務",

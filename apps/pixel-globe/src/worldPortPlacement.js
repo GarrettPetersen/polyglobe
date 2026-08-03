@@ -43,13 +43,41 @@ export function placeCityCatalogOnWorld(options) {
   return placed;
 }
 
-export function placeColonizationTargetsOnWorld({ targets, occupiedTileIds = [], ...options }) {
+export function placeColonizationTargetsOnWorld({
+  targets,
+  occupiedTileIds = [],
+  occupiedCities = [],
+  ...options
+}) {
   if (!Array.isArray(targets)) throw new Error("Colony placement requires a target array");
   const occupied = new Set(occupiedTileIds);
+  const existingSettlements = new Map();
+  for (const city of occupiedCities) {
+    if (!Number.isInteger(city?.tileId) || city.tileId < 0) {
+      throw new Error("Existing colony-target settlement requires a tile id");
+    }
+    occupied.add(city.tileId);
+    const key = settlementKey(city);
+    if (existingSettlements.has(key)) {
+      throw new Error(`Duplicate existing colony-target settlement: ${city.city}, ${city.country}`);
+    }
+    existingSettlements.set(key, city);
+  }
   const placed = [];
   for (const target of targets) {
     if (target.waterAccess === "inland") continue;
     validateCoordinates(target, `colony ${target?.city || "unknown"}`);
+    if (target.preexistingSettlement) {
+      const settlement = existingSettlements.get(settlementKey(target));
+      if (!settlement) {
+        throw new Error(`Existing colony target is absent from the city catalog: ${target.city}, ${target.country}`);
+      }
+      if (settlement.settlementType !== "village") {
+        throw new Error(`Existing colony target is not a village: ${target.city}, ${target.country}`);
+      }
+      placed.push(Object.freeze({ ...target, tileId: settlement.tileId }));
+      continue;
+    }
     const startId = findNearestTileId(
       options.graph,
       options.directionIndex,
@@ -67,6 +95,14 @@ export function placeColonizationTargetsOnWorld({ targets, occupiedTileIds = [],
     placed.push(Object.freeze({ ...target, tileId }));
   }
   return Object.freeze(placed);
+}
+
+function settlementKey(record) {
+  if (typeof record?.city !== "string" || record.city.trim() === "" ||
+      typeof record?.country !== "string" || record.country.trim() === "") {
+    throw new Error("Colony-target settlement requires a city and country");
+  }
+  return `${record.city.trim().toLowerCase()}|${record.country.trim().toLowerCase()}`;
 }
 
 export function portCitiesOnWorld(cityByTileId, options) {

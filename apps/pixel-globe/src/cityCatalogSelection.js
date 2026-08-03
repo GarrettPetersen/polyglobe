@@ -277,6 +277,12 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "edo-bay",
     marketGoods: ["fish", "grain", "timber"]
   }),
+  manualVillage1522("Nagasaki", "Japan", 32.752558, 129.878192, 600, {
+    cityType: "east-asian",
+    manualRegion: "nagasaki-village",
+    playerHomeExcluded: true,
+    marketGoods: ["fish", "timber", "salt"]
+  }),
   manualVillage1522("Banda Village", "Indonesia", -4.5234, 129.9002, 3500, {
     cityType: "southeast-asian",
     manualRegion: "spice-islands",

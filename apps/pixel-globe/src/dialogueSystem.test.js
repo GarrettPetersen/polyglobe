@@ -1179,6 +1179,32 @@ test("founded colonies state and display their 15% goods discount", () => {
   assert.equal(playerTradeTerms(gameState, city, marketRows[0].action.goodId).purchaseDiscountMultiplier, 0.85);
 });
 
+test("a developed Nagasaki port states its trading discount without calling the player its founder", () => {
+  const city = {
+    tileId: 110,
+    city: "Nagasaki",
+    displayCity: "Nagasaki",
+    country: "Japan",
+    factionId: "japan",
+    cityType: "east-asian",
+    population: 2400,
+    lat: 32.75,
+    lon: 129.88,
+    playerDevelopedPort: true,
+    purchaseDiscountMultiplier: 0.85,
+    character: { name: "Ito Haru", personalityId: "warm" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(city, { initialNodeId: "greeting" });
+  const greeting = portDialogueView(session, city, gameState, economy, [city]);
+
+  assert.match(greeting.text, /China ship has made Nagasaki a city/);
+  assert.match(greeting.text, /15% off goods you buy/);
+  assert.doesNotMatch(greeting.text, /founder/i);
+  assert.match(greeting.speaker, /port steward of Nagasaki/);
+});
+
 test("leaving the buy screen recommends the strongest distance-adjusted trade route", () => {
   const ternate = {
     tileId: 101,

@@ -226,6 +226,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const incaPorts = ports.filter((city) => city.factionId === "inca");
   const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
   const edo = ports.find((city) => city.city === "Edo" && city.country === "Japan");
+  const nagasaki = ports.find((city) => city.city === "Nagasaki" && city.country === "Japan");
   const sakai = ports.find((city) => city.city === "Sakai" && city.country === "Japan");
   const kilwa = ports.find((city) => city.city === "Kilwa" && city.country === "Tanzania");
   const portByCity = new Map(ports.map((city) => [city.city, city]));
@@ -279,6 +280,11 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(edo.settlementType, "village");
   assert.equal(edo.factionId, "japan");
   assert.deepEqual(edo.marketGoods, ["fish", "grain", "timber"]);
+  assert.ok(nagasaki, "Nagasaki should begin as a dockable Japanese fishing village");
+  assert.equal(nagasaki.settlementType, "village");
+  assert.equal(nagasaki.factionId, "japan");
+  assert.equal(nagasaki.population, 600);
+  assert.deepEqual(nagasaki.marketGoods, ["fish", "timber", "salt"]);
   assert.equal(greatLakesVillages.length, 1, "the Great Lakes should have one dockable Wendat village");
   assert.equal(greatLakesVillages[0].city, "Wendat Village");
   assert.equal(greatLakesVillages[0].settlementType, "village");
@@ -499,7 +505,7 @@ test("colonial city metadata separates conquest, negotiated ports, and settler c
   assert.ok(COLONIAL_CITY_FOUNDINGS.some((entry) => entry.city === "Potosi" && entry.type === COLONIAL_FOUNDING_SETTLER));
 });
 
-test("colonization targets are creatable sites absent from the 1522 city list", async () => {
+test("new colonies are absent in 1522 while negotiated Nagasaki begins as a village", async () => {
   const csv = await readFile(
     new URL("examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv", repoRoot),
     "utf8"
@@ -513,9 +519,12 @@ test("colonization targets are creatable sites absent from the 1522 city list", 
       cityKey(target.city, target.country),
       cityKey(target.datasetCity, target.datasetCountry)
     ]);
-    for (const key of keys) {
-      if (currentCityKeys.has(key)) failures.push(`${target.city} via ${key}`);
+    const matchingKeys = [...keys].filter((key) => currentCityKeys.has(key));
+    if (target.preexistingSettlement) {
+      if (matchingKeys.length !== 1) failures.push(`${target.city} expected one pre-existing settlement`);
+      continue;
     }
+    for (const key of matchingKeys) failures.push(`${target.city} via ${key}`);
   }
 
   assert.equal(failures.join(", "), "");
@@ -538,6 +547,8 @@ test("colonization targets cover accelerated history hooks", () => {
   assert.equal(newAmsterdam.datasetCity, "New York");
   assert.equal(manila.type, COLONIAL_FOUNDING_CONQUERED);
   assert.equal(nagasaki.type, COLONIAL_FOUNDING_NEGOTIATED);
+  assert.equal(nagasaki.preexistingSettlement, true);
+  assert.equal(nagasaki.preexistingPopulation, 600);
 });
 
 test("1522 catalog records apply completed conquests to current allegiance", async () => {

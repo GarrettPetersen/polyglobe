@@ -178,9 +178,9 @@ const HISTORIES = Object.freeze([
       stage("nagasaki-fittings", "iron", 5, "anchors, cranes, locks, and warehouse fittings", "A port for the great nao from Macau requires more than wooden sheds. Bring"),
       stage("nagasaki-gifts", "silk-cloth", 4, "formal gifts and samples of the China trade the port will attract", "Before seeking leave, the emissaries must show what regular commerce can bring. Add")
     ],
-    ready: "The settlers, factors, and Jesuit emissaries are ready. Nagasaki is intended as a Japanese port for the Macau trade, not a Portuguese conquest.",
-    departed: "The expedition carries the people for Nagasaki, but Kyoto and the Omura house must still accept the terms.",
-    landing: "The Omura anchorage is sheltered and the permitted six streets have been marked. We can open Nagasaki to the Portuguese China ship without claiming the city for Portugal.",
+    ready: "The builders, factors, and Jesuit emissaries are ready. Nagasaki is intended as a Japanese port for the Macau trade, not a Portuguese conquest.",
+    departed: "The expedition carries builders and factors for Nagasaki, but Kyoto and the Omura house must still accept the terms.",
+    landing: "Nagasaki's fishing village stands beside a sheltered Omura anchorage. With six streets marked, it can grow into the lawful harbor promised to the China ship.",
     landingAction: "Open Nagasaki harbor",
     approval: {
       speakerRole: "envoy of the court and Omura house",

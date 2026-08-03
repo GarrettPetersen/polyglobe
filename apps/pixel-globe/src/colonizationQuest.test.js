@@ -249,7 +249,7 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
   assert.deepEqual(colonizationObjective(offer), { tileId: kyoto.tileId, kind: "negotiate-colony" });
   assert.throws(() => landColonists(offer, 1000), /requires government approval in Kyoto/);
   grantColonizationApproval(offer, { approvalCargoDelivered: true });
-  assert.deepEqual(colonizationObjective(offer), { tileId: nagasaki.tileId, kind: "found-colony" });
+  assert.deepEqual(colonizationObjective(offer), { tileId: nagasaki.tileId, kind: "develop-port" });
   landColonists(offer, 1000);
   assert.equal(offer.stage, COLONIZATION_STAGE_AWAITING_RESUPPLY);
 });
@@ -368,7 +368,7 @@ test("the colony remains a navigation destination with only fractional resupply 
   });
 });
 
-test("establishing Nagasaki creates a Japanese port with a Portuguese settlement", () => {
+test("establishing Nagasaki upgrades its Japanese village with a Portuguese settlement", () => {
   const target = {
     ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
     tileId: 789
@@ -396,12 +396,21 @@ test("establishing Nagasaki creates a Japanese port with a Portuguese settlement
   }
   beginColonizationExpedition(memory);
   grantColonizationApproval(memory, { approvalCargoDelivered: true });
+  assert.equal(colonizationWorldRecord(memory), null);
   landColonists(memory, 1000);
+  const village = colonizationWorldRecord(memory);
+  assert.equal(village.city, "Nagasaki");
+  assert.equal(village.settlementType, "village");
+  assert.equal(village.population, 600);
+  assert.equal(village.factionId, "japan");
   advanceColonizationQuest(memory, 1100, { awayFromColony: true });
   establishColony(memory, 1200);
 
   const city = colonizationWorldRecord(memory);
+  assert.equal(city.settlementType, "city");
   assert.equal(city.factionId, "japan");
+  assert.equal(city.playerFoundedColony, false);
+  assert.equal(city.playerDevelopedPort, true);
   assert.deepEqual(city.foreignSettlements.map((entry) => entry.id), ["portuguese-nagasaki"]);
 });
 

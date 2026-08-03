@@ -24,12 +24,14 @@ import {
   npcCargoAvailableQuantity,
   npcFleetOriginWeightsForPorts,
   npcPortHasMajorProtection,
+  npcSeaRoutePortSettlementType,
   reconcileNpcCargoCapacity,
   routeBetweenPorts,
   npcSeaRouteEventSchedule,
   npcShipHasCombatGrace,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
+  replaceNpcSeaRoutePort,
   restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
   sinkNpcShip,
@@ -179,6 +181,28 @@ test("a founded American port becomes an NPC sea-lane destination", () => {
   assert.equal(added.routeRegion, "americas");
   assert.ok(added.routeAnchors.length > 0);
   assert.throws(() => addNpcSeaRoutePort(routes, colony), /already exists/);
+});
+
+test("a developed village becomes a city in NPC sea routes", () => {
+  const village = nativeVillage(port(
+    99,
+    "Nagasaki",
+    "Japan",
+    "east-asian",
+    32.75,
+    129.88,
+    600,
+    "japan"
+  ));
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  addNpcSeaRoutePort(routes, village);
+  const city = { ...village, settlementType: "city", population: 2400 };
+
+  replaceNpcSeaRoutePort(routes, city);
+
+  assert.equal(npcSeaRoutePortSettlementType(routes, city), "city");
+  assert.equal(routes.ports.filter((port) => port.tileId === city.tileId).length, 1);
 });
 
 test("a collapsed empire loses its NPC fleet and captured port ownership", () => {

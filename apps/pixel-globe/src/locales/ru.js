@@ -129,6 +129,7 @@ export default {
   "navigation.gray": "СЕРЫЙ",
   "navigation.teal": "БИРЮЗОВЫЙ",
   "navigation.foundColony": "ОСНОВАТЬ КОЛОНИЮ",
+  "navigation.openTradingPort": "ОТКРЫТЬ ТОРГОВЫЙ ПОРТ",
   "navigation.resupplyColony": "СНАБДИТЬ КОЛОНИЮ",
   "navigation.diplomaticMission": "ДИПЛОМАТИЧЕСКАЯ МИССИЯ",
   "navigation.passengerMission": "ПЕРЕВЕЗТИ ПАССАЖИРА",

@@ -129,6 +129,7 @@ export default {
   "navigation.gray": "GRIS",
   "navigation.teal": "TURQUOISE",
   "navigation.foundColony": "FONDER LA COLONIE",
+  "navigation.openTradingPort": "OUVRIR LE PORT COMMERCIAL",
   "navigation.resupplyColony": "RAVITAILLER LA COLONIE",
   "navigation.diplomaticMission": "MISSION DIPLOMATIQUE",
   "navigation.passengerMission": "MISSION DE PASSAGER",

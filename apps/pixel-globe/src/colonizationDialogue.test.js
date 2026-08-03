@@ -233,7 +233,7 @@ test("the colonial organizer runs the paid expedition through a permanent founde
   assert.ok(gameState.accounts.ledger.some((entry) => entry.description === "Port Royal first-year resupply"));
 });
 
-test("Portuguese emissaries secure Japanese permission in Kyoto before founding Nagasaki", () => {
+test("Portuguese emissaries secure Japanese permission in Kyoto before opening Nagasaki", () => {
   const shipStats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
   assignColonizationQuest(gameState.memory.colonization, {
@@ -251,6 +251,7 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before founding 
   const originSession = createPortDialogueSession(LISBON, { initialNodeId: "colonization" });
   const departureView = portDialogueView(originSession, LISBON, gameState, economy, ports, context);
   const embarkOption = departureView.options.find((option) => option.action.type === "embark-colonists");
+  assert.equal(embarkOption.label, "Take the delegation aboard");
   assert.equal(embarkOption.disabled, true);
   assert.match(embarkOption.disabledReason, /4 matchlocks and 3 gunpowder/);
 
@@ -314,7 +315,7 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before founding 
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 24);
   assert.deepEqual(colonizationObjective(gameState.memory.colonization), {
     tileId: NAGASAKI.tileId,
-    kind: "found-colony"
+    kind: "develop-port"
   });
   assert.ok(gameState.accounts.ledger.some((entry) => entry.description === "Deliver Matchlocks x4"));
   assert.ok(gameState.accounts.ledger.some((entry) => entry.description === "Deliver Gunpowder x3"));
@@ -424,7 +425,12 @@ test("every sailing colony renders its own history through the complete dialogue
     assert.ok(underwayView.text.includes(history.departed), `${target.city}: departed`);
     if (approval) grantColonizationApproval(gameState.memory.colonization, { approvalCargoDelivered: true });
 
-    const site = { ...colonizationWorldRecord(gameState.memory.colonization), character: CHARACTER };
+    const site = {
+      ...(target.preexistingSettlement
+        ? { ...target, settlementType: "village" }
+        : colonizationWorldRecord(gameState.memory.colonization)),
+      character: CHARACTER
+    };
     const siteSession = createPortDialogueSession(site, { initialNodeId: "colonization" });
     const landingView = portDialogueView(siteSession, site, gameState, economy, ports, context);
     assert.ok(landingView.text.includes(history.landing), `${target.city}: landing`);

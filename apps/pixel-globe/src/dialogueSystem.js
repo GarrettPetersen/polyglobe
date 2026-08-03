@@ -2372,14 +2372,19 @@ function greetingView(session, city, gameState, context) {
     };
   }
   if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
-  if (city.playerFoundedColony) {
+  if (city.playerFoundedColony || city.playerDevelopedPort) {
     const discountPercent = founderPurchaseDiscountPercent(city);
+    const developedPortText = memory.visits > 1
+      ? `Welcome back, captain. Nagasaki's factors still honor your ${discountPercent}% trading discount.`
+      : `The China ship has made Nagasaki a city. For opening its harbor, you receive ${discountPercent}% off goods you buy here.`;
     return {
-      speaker: `${characterName(city.character)}, governor of ${cityLabel(city)}`,
+      speaker: `${characterName(city.character)}, ${city.playerDevelopedPort ? "port steward" : "governor"} of ${cityLabel(city)}`,
       expressionId: "happy",
-      text: memory.visits > 1
-        ? `Welcome home, founder. Every factor here gives you ${discountPercent}% off goods you buy.`
-        : `You have returned to the city you saved. As its founder, you receive ${discountPercent}% off goods you buy in ${cityLabel(city)}.`,
+      text: city.playerDevelopedPort
+        ? developedPortText
+        : memory.visits > 1
+          ? `Welcome home, founder. Every factor here gives you ${discountPercent}% off goods you buy.`
+          : `You have returned to the city you saved. As its founder, you receive ${discountPercent}% off goods you buy in ${cityLabel(city)}.`,
       feedback: null,
       options: [option("Continue", { type: "node", nodeId: "root" })]
     };
@@ -3071,6 +3076,7 @@ function colonizationView(session, city, gameState, context) {
   const history = quest.history;
   if (!history) throw new Error(`Colonization dialogue has no history for ${quest.target.city}`);
   const targetName = quest.target.city;
+  const developsExistingPort = quest.target.preexistingSettlement === true;
   const organizer = characterName(city.character);
   const back = atOrigin
     ? session.colonizationArrival
@@ -3180,13 +3186,16 @@ function colonizationView(session, city, gameState, context) {
     const negotiationCargo = quest.approvalCargo.length > 0
       ? ` The emissaries must also carry ${colonizationApprovalCargoSummary(quest.approvalCargo)} from ${quest.origin.country} as a trade demonstration.`
       : "";
+    const travelers = developsExistingPort ? "The delegation" : "The settlers";
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: eligibility?.eligible && quest.approvalCargoReady ? "happy" : "concerned",
-      text: `${history.ready} The settlers need 24 hold spaces.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} They need a capacious, seaworthy ship.`,
+      text: `${history.ready} ${travelers} need 24 hold spaces.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} They need a capacious, seaworthy ship.`,
       feedback: session.feedback,
       options: [
-        option("Take the colonists aboard", { type: "embark-colonists" }, {
+        option(developsExistingPort ? "Take the delegation aboard" : "Take the colonists aboard", {
+          type: "embark-colonists"
+        }, {
           disabled: Boolean(disabledReason),
           disabledReason
         }),
@@ -3212,7 +3221,7 @@ function colonizationView(session, city, gameState, context) {
       return {
         speaker: `${organizer}, ${history.sponsorRole}`,
         expressionId: "concerned",
-        text: `${targetName} cannot be founded without permission from the government in ${quest.approval.city}. We must take the emissaries there first.`,
+        text: `${targetName} cannot be ${developsExistingPort ? "opened to trade" : "founded"} without permission from the government in ${quest.approval.city}. We must take the emissaries there first.`,
         feedback: session.feedback,
         options: [back]
       };

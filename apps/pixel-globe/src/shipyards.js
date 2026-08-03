@@ -118,6 +118,20 @@ export function addWorldShipyardPort(system, port, startMinute = system?.lastMin
   return yard;
 }
 
+export function replaceWorldShipyardPort(system, port, startMinute = system?.lastMinute) {
+  assertShipyardSystem(system);
+  if (!Number.isFinite(startMinute)) throw new Error(`Invalid replacement shipyard minute: ${startMinute}`);
+  const portId = requiredPortId(port);
+  const previous = system.yards.get(portId);
+  if (!previous) throw new Error(`Replacement shipyard port does not exist: ${portId}`);
+  const replacement = createShipyard(port, startMinute, system.seedKey);
+  replacement.buildNumber = previous.buildNumber;
+  replacement.listing = previous.listing;
+  replacement.nextBuildMinute = Math.min(previous.nextBuildMinute, replacement.nextBuildMinute);
+  system.yards.set(portId, replacement);
+  return replacement;
+}
+
 export function snapshotWorldShipyards(system) {
   assertShipyardSystem(system);
   return {
@@ -383,7 +397,10 @@ function createShipyard(port, startMinute, seedKey) {
   if (!REGION_SHIP_POOLS[cityType]) throw new Error(`No shipyard profile for city type: ${cityType}`);
   const population = Math.max(1000, port.population || 10000);
   const wealthScale = clamp(Math.sqrt(population / 30000), 0.45, 4.2);
-  const famous = FAMOUS_TOWN_KEYS.has(normalizeName(port.city)) || FAMOUS_TOWN_KEYS.has(normalizeName(port.displayCity));
+  const famous = port.settlementType !== "village" && (
+    FAMOUS_TOWN_KEYS.has(normalizeName(port.city)) ||
+    FAMOUS_TOWN_KEYS.has(normalizeName(port.displayCity))
+  );
   const yard = {
     portId,
     seedKey,

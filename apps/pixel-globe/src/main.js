@@ -648,7 +648,9 @@ import {
   npcPortHasMajorProtection,
   npcRoleLabel,
   npcSeaRouteHasPort,
+  npcSeaRoutePortSettlementType,
   npcShipSnapshots,
+  replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
   restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
@@ -1199,10 +1201,12 @@ import {
   establishPortIndustry,
   nextWorldEconomyEventMinute,
   portMarket,
+  replaceWorldEconomyPort,
   restoreWorldEconomy,
   snapshotWorldEconomy,
   tradeGoodById,
-  worldEconomyHasPort
+  worldEconomyHasPort,
+  worldEconomyPortSettlementType
 } from "./economy.js";
 import {
   darkerResurrect64Hex,
@@ -2715,6 +2719,7 @@ let portCityCharacters;
 let vikingLongshipPortFactor = null;
 let campaignGoalContact;
 let colonizationOrganizer;
+let colonizationBaseSettlementCharacter = null;
 let japaneseMatchlockGunsmith;
 let caribbeanGingerPlanter;
 let banquetChef;
@@ -3271,7 +3276,7 @@ async function main() {
   colonizationTargetPlacements = placeColonizationTargetsOnWorld({
     ...worldPortPlacementOptions(),
     targets: COLONIZATION_TARGETS,
-    occupiedTileIds: cityByTileId.keys()
+    occupiedCities: cityByTileId.values()
   });
   if (colonizationTargetPlacements.some((target) => target.waterAccess === "inland")) {
     throw new Error("Inland cities cannot enter the sailing colonization target roster");
@@ -5989,6 +5994,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   if (!Array.isArray(permanentNamedCrew)) throw new Error("Port character assignment requires named crew");
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
   colonizationOrganizer = null;
+  colonizationBaseSettlementCharacter = null;
   japaneseMatchlockGunsmith = null;
   caribbeanGingerPlanter = null;
   banquetChef = null;
@@ -9997,8 +10003,11 @@ function currentAchievementSnapshot() {
   const ledger = state?.accounts?.ledger || [];
   const ledgerMetrics = state ? playerLedgerLifetimeMetrics(state) : null;
   const colony = state?.memory?.colonization;
-  const foundedCityIds = colony?.stage === COLONIZATION_STAGE_ESTABLISHED && colony.targetCity
-    ? [`${colony.targetCity}|${colony.targetCountry || ""}`]
+  const colonyRecord = colony?.stage === COLONIZATION_STAGE_ESTABLISHED
+    ? colonizationWorldRecord(colony)
+    : null;
+  const foundedCityIds = colonyRecord?.playerFoundedColony
+    ? [`${colonyRecord.city}|${colonyRecord.country || ""}`]
     : [];
   const soldGoodIds = ledgerMetrics?.soldGoodIds || [];
   const currentShipSlug = state ? ship?.stats?.slug || ship?.typeSlug || null : null;
@@ -17589,16 +17598,44 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
   const record = colonizationWorldRecord(state.memory.colonization);
   const existing = cityByTileId.get(colonizationTargetTileId);
   if (!record) {
-    if (existing?.colonizationQuestSite) cityByTileId.delete(colonizationTargetTileId);
-    portCityCharacters.delete(colonizationTargetTileId);
+    if (binding.target.preexistingSettlement) {
+      const baseSettlement = portCitiesByTileId.get(colonizationTargetTileId);
+      if (!baseSettlement || baseSettlement.colonizationQuestSite ||
+          baseSettlement.city !== binding.target.city ||
+          baseSettlement.country !== binding.target.country) {
+        throw new Error(`Cannot restore the original ${binding.target.city} village`);
+      }
+      cityByTileId.set(colonizationTargetTileId, baseSettlement);
+      if (colonizationBaseSettlementCharacter) {
+        portCityCharacters.set(colonizationTargetTileId, colonizationBaseSettlementCharacter);
+      }
+      chart = null;
+      dirty = true;
+    } else {
+      if (existing?.colonizationQuestSite) cityByTileId.delete(colonizationTargetTileId);
+      portCityCharacters.delete(colonizationTargetTileId);
+    }
     return null;
   }
   if (existing && !existing.colonizationQuestSite) {
-    throw new Error(`${binding.target.city} target tile is occupied by ${cityLabelText(existing)}`);
+    if (!binding.target.preexistingSettlement || existing.city !== binding.target.city ||
+        existing.country !== binding.target.country || existing.settlementType !== "village") {
+      throw new Error(`${binding.target.city} target tile is occupied by ${cityLabelText(existing)}`);
+    }
+    colonizationBaseSettlementCharacter ||= portCityCharacters.get(existing.tileId) || null;
+    if (!colonizationBaseSettlementCharacter) {
+      throw new Error(`${binding.target.city} village has no resident character`);
+    }
   }
 
   cityByTileId.set(record.tileId, record);
-  portCityCharacters.set(record.tileId, colonizationOrganizer);
+  const developedPortCharacter = record.playerDevelopedPort
+    ? colonizationBaseSettlementCharacter || portCityCharacters.get(record.tileId)
+    : null;
+  if (record.playerDevelopedPort && !developedPortCharacter) {
+    throw new Error(`${binding.target.city} developed port has no local official`);
+  }
+  portCityCharacters.set(record.tileId, developedPortCharacter || colonizationOrganizer);
   if (![
     COLONIZATION_STAGE_DEFEND,
     COLONIZATION_STAGE_REPORT_DEFENSE,
@@ -17613,12 +17650,23 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
   if (portIndex < 0) portCities.push(record);
   else portCities[portIndex] = record;
   portCitiesByTileId.set(record.tileId, record);
+  let economyChanged = false;
   if (!worldEconomyHasPort(worldEconomy, record)) {
     addWorldEconomyPort(worldEconomy, record, startMinute);
+    economyChanged = true;
+  } else if (worldEconomyPortSettlementType(worldEconomy, record) !== record.settlementType) {
+    replaceWorldEconomyPort(worldEconomy, record, startMinute);
+    economyChanged = true;
+  }
+  if (economyChanged) {
     connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
   }
-  if (npcSeaRoutes && !npcSeaRouteHasPort(npcSeaRoutes, record)) {
-    addNpcSeaRoutePort(npcSeaRoutes, record);
+  if (npcSeaRoutes) {
+    if (!npcSeaRouteHasPort(npcSeaRoutes, record)) {
+      addNpcSeaRoutePort(npcSeaRoutes, record);
+    } else if (npcSeaRoutePortSettlementType(npcSeaRoutes, record) !== record.settlementType) {
+      replaceNpcSeaRoutePort(npcSeaRoutes, record);
+    }
   }
   chart = null;
   dirty = true;
@@ -28902,14 +28950,22 @@ function colonizationObjectiveDestination(state, objective) {
     }
     return quest.approval;
   }
+  if (objective.kind === "develop-port") {
+    const village = portCitiesByTileId.get(objective.tileId);
+    if (!village || village.settlementType !== "village") {
+      throw new Error("Port development objective has no existing village");
+    }
+    return village;
+  }
   return colonizationWorldRecord(state.memory.colonization);
 }
 
 function colonizationNavigationReason(objective) {
   if (objective.kind === "deliver-colony-materials") return uiText("navigation.deliverColonyMaterials");
-  if (objective.kind === "negotiate-colony") return "SECURE PERMISSION";
-  if (objective.kind === "found-colony") return "FOUND THE COLONY";
-  if (objective.kind === "resupply-colony") return "RESUPPLY THE COLONY";
+  if (objective.kind === "negotiate-colony") return uiText("navigation.securePermission");
+  if (objective.kind === "develop-port") return uiText("navigation.openTradingPort");
+  if (objective.kind === "found-colony") return uiText("navigation.foundColony");
+  if (objective.kind === "resupply-colony") return uiText("navigation.resupplyColony");
   if (objective.kind === "defend-colony") {
     return `DEFEAT THE ATTACKING ${objective.attackerName.toUpperCase()}`;
   }

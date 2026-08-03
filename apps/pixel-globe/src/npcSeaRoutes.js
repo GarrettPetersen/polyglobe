@@ -484,12 +484,37 @@ export function addNpcSeaRoutePort(system, port) {
   return normalized;
 }
 
+export function replaceNpcSeaRoutePort(system, port) {
+  assertSaveableNpcRouteSystem(system);
+  if (!isAnyUsablePort(port)) throw new Error(`NPC replacement route port is unusable: ${portName(port)}`);
+  const index = system.ports.findIndex((candidate) => candidate.tileId === port.tileId);
+  if (index < 0) throw new Error(`NPC replacement route port does not exist: ${port.tileId}`);
+  const normalized = normalizeNpcRoutePort(port);
+  if (normalized.routeAnchors.length === 0) {
+    throw new Error(`NPC replacement route port has no sea-lane anchors: ${portName(port)}`);
+  }
+  system.ports[index] = normalized;
+  system.routeCache.clear();
+  system.edgeCostCache.clear();
+  return normalized;
+}
+
 export function npcSeaRouteHasPort(system, port) {
   assertSaveableNpcRouteSystem(system);
   if (!Number.isInteger(port?.tileId) || port.tileId < 0) {
     throw new Error("NPC route port lookup requires a tile id");
   }
   return system.ports.some((candidate) => candidate.tileId === port.tileId);
+}
+
+export function npcSeaRoutePortSettlementType(system, port) {
+  assertSaveableNpcRouteSystem(system);
+  if (!Number.isInteger(port?.tileId) || port.tileId < 0) {
+    throw new Error("NPC route settlement lookup requires a tile id");
+  }
+  const existing = system.ports.find((candidate) => candidate.tileId === port.tileId);
+  if (!existing) throw new Error(`NPC route port does not exist: ${port.tileId}`);
+  return existing.settlementType === "village" ? "village" : "city";
 }
 
 export function configureCaptureEncounter(system, spec, clockMinutes) {

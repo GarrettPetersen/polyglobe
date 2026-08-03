@@ -41,9 +41,11 @@ import {
   portMarket,
   quotePortPurchase,
   quotePortSale,
+  replaceWorldEconomyPort,
   restoreWorldEconomy,
   snapshotWorldEconomy,
   tradeGoodById,
+  worldEconomyPortSettlementType,
   worldMarketPriceComparison
 } from "./economy.js";
 import {
@@ -424,6 +426,31 @@ test("a founded port joins the economy and its save snapshot", () => {
   assert.ok(portMarket(economy, colony).some((row) => row.listedForSale));
   assert.ok(snapshotWorldEconomy(economy).ports.some((entry) => entry.id === colony.tileId));
   assert.throws(() => addWorldEconomyPort(economy, colony, 500), /already exists/);
+});
+
+test("developing a village replaces its economy without discarding local stock", () => {
+  const village = {
+    ...port(97, "Nagasaki", "Japan", "east-asian", 600, "village", ["fish", "timber", "salt"]),
+    factionId: "japan"
+  };
+  const city = {
+    ...village,
+    population: 2400,
+    settlementType: "city",
+    marketGoods: null,
+    initialImports: [{ goodId: MATCHLOCKS_GOOD_ID, quantity: 8 }],
+    playerDevelopedPort: true
+  };
+  const economy = createWorldEconomy({ ports: [village], startMinute: 0 });
+  const fishBefore = portMarket(economy, village).find((row) => row.good.id === "fish").stock;
+  const targetSpecieBefore = portEconomySummary(economy, village).targetSpecie;
+
+  replaceWorldEconomyPort(economy, city, 100);
+
+  assert.equal(worldEconomyPortSettlementType(economy, city), "city");
+  assert.ok(portMarket(economy, city).find((row) => row.good.id === "fish").stock >= fishBefore);
+  assert.ok(portMarket(economy, city).find((row) => row.good.id === MATCHLOCKS_GOOD_ID).stock >= 8);
+  assert.ok(portEconomySummary(economy, city).targetSpecie > targetSpecieBefore);
 });
 
 test("a founder discount changes both the quoted and executed market price", () => {

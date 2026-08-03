@@ -2,6 +2,7 @@ import {
   addWorldShipyardPort,
   advanceWorldShipyards,
   createWorldShipyards,
+  replaceWorldShipyardPort,
   restoreWorldShipyards,
   snapshotWorldShipyards
 } from "./shipyards.js";
@@ -659,6 +660,30 @@ export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMi
   const yard = addWorldShipyardPort(economy.shipyards, port, startMinute);
   economy.portStates.set(portId, state);
   return { port: state, shipyard: yard };
+}
+
+export function replaceWorldEconomyPort(economy, port, startMinute = economy?.lastMinute) {
+  assertEconomy(economy);
+  if (!Number.isFinite(startMinute)) throw new Error(`Invalid replacement economy minute: ${startMinute}`);
+  const portId = requiredPortId(port);
+  const previous = economy.portStates.get(portId);
+  if (!previous) throw new Error(`Replacement economy port does not exist: ${portId}`);
+  const replacement = createPortState(port, economy.seedKey);
+  replacement.specie = previous.specie + Math.max(0, replacement.targetSpecie - previous.targetSpecie);
+  for (const [goodId, state] of replacement.goods) {
+    const oldState = previous.goods.get(goodId);
+    if (!oldState) continue;
+    state.stock = Math.max(state.stock, oldState.stock);
+    state.industryProductionPerDay = oldState.industryProductionPerDay;
+  }
+  economy.portStates.set(portId, replacement);
+  replaceWorldShipyardPort(economy.shipyards, port, startMinute);
+  return replacement;
+}
+
+export function worldEconomyPortSettlementType(economy, port) {
+  assertEconomy(economy);
+  return requiredPortState(economy, port).settlementType;
 }
 
 export function establishPortIndustry(

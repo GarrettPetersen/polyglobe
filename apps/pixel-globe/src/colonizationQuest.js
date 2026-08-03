@@ -684,6 +684,10 @@ export function colonizationWorldRecord(memory) {
   const target = colonizationSelectedTarget(memory);
   if (!target || memory.targetTileId === null) return null;
   if ([COLONIZATION_STAGE_FETCH, COLONIZATION_STAGE_READY].includes(memory.stage)) return null;
+  if (target.preexistingSettlement && [
+    COLONIZATION_STAGE_OUTBOUND,
+    COLONIZATION_STAGE_FAILED
+  ].includes(memory.stage)) return null;
   const established = memory.stage === COLONIZATION_STAGE_ESTABLISHED;
   const upgraded = established || [
     COLONIZATION_STAGE_DEFEND,
@@ -698,15 +702,23 @@ export function colonizationWorldRecord(memory) {
       ? target.city
       : failed
         ? `${target.city} Ruins`
-        : outbound
-          ? `${target.city} Colony Site`
-          : `${target.city} Colony`,
+        : target.preexistingSettlement
+          ? target.city
+          : outbound
+            ? `${target.city} Colony Site`
+            : `${target.city} Colony`,
     country: target.country,
     lat: target.lat,
     lon: target.lon,
     year: target.canFoundFromYear,
     historicalFoundingYear: target.year,
-    population: upgraded ? 2400 : failed ? 1 : 120,
+    population: upgraded
+      ? 2400
+      : failed
+        ? 1
+        : target.preexistingSettlement
+          ? target.preexistingPopulation
+          : 120,
     cityType: target.cityType,
     settlementType: upgraded ? "city" : "village",
     coastalIntent: true,
@@ -715,13 +727,14 @@ export function colonizationWorldRecord(memory) {
     playerHomeExcluded: true,
     tileId: memory.targetTileId,
     portId: colonizationTargetPortId(target),
-    factionId: upgraded ? target.factionId : "neutral",
+    factionId: upgraded || target.preexistingSettlement ? target.factionId : "neutral",
     foundingFactionId: target.factionId,
     colonizationQuestSite: true,
     colonizationQuestStage: memory.stage,
     hiddenSettlement: outbound,
     colonyBurning: failed,
-    playerFoundedColony: upgraded,
+    playerFoundedColony: upgraded && !target.preexistingSettlement,
+    playerDevelopedPort: upgraded && target.preexistingSettlement,
     purchaseDiscountMultiplier: upgraded ? COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER : 1,
     initialImports: upgraded ? target.initialImports : [],
     foreignSettlements: established
@@ -738,7 +751,11 @@ export function colonizationObjective(memory) {
     if (approval && memory.approvalGranted !== true) {
       return { tileId: approval.tileId, kind: "negotiate-colony" };
     }
-    return { tileId: memory.targetTileId, kind: "found-colony" };
+    const target = requiredSelectedTarget(memory);
+    return {
+      tileId: memory.targetTileId,
+      kind: target.preexistingSettlement ? "develop-port" : "found-colony"
+    };
   }
   if (memory.stage === COLONIZATION_STAGE_AWAITING_RESUPPLY && memory.leftSinceFounding) {
     return { tileId: memory.targetTileId, kind: "resupply-colony" };

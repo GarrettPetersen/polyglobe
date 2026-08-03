@@ -129,6 +129,7 @@ export default {
   "navigation.gray": "회색",
   "navigation.teal": "청록색",
   "navigation.foundColony": "식민지 건설",
+  "navigation.openTradingPort": "무역항 개항",
   "navigation.resupplyColony": "식민지 재보급",
   "navigation.diplomaticMission": "외교 임무",
   "navigation.passengerMission": "승객 임무",
