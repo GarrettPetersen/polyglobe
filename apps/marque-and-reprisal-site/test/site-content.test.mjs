@@ -168,9 +168,11 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
   assert.match(homePage(), /href='\/ships\/'>Ships<\/a>/);
   assert.match(sitemapXml(), /<loc>https:\/\/marque-and-reprisal\.com\/ships\/<\/loc>/);
   assert.match(client, /requestAnimationFrame\(animateShipTurntables\)/);
-  assert.match(client, /drawTurntableMask\(state, "shadow"/);
+  assert.match(client, /"shadow",\s+frame,\s+shadowOffsetX,\s+shadowOffsetY/);
   assert.match(client, /globalCompositeOperation = "multiply"/);
   assert.match(client, /turntable anchor lies outside its frame/i);
+  assert.match(client, /canvasCenter - state\.anchor\.x/);
+  assert.match(client, /canvasCenter - state\.anchor\.y/);
 
   for (const ship of shipRoster) {
     assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings\\.png`));
@@ -180,6 +182,9 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
     assert.equal(ship.headings, 32);
     assert.equal(ship.lightAzimuth, 2);
     assert.equal(ship.lightElevation, 1);
+    for (const source of [ship.spriteSheet, ship.lightSheet, ship.shadeSheet, ship.shadowSheet]) {
+      assert.match(source, /\?v=2026-08-03-rotation-anchor-rebake$/);
+    }
     assert.ok(Number.isFinite(ship.turntableAnchorX));
     assert.ok(Number.isFinite(ship.turntableAnchorY));
     assert.ok(ship.turntableAnchorX >= 0 && ship.turntableAnchorX < ship.frameSize);
@@ -187,6 +192,10 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
     assert.match(page, new RegExp(`data-anchor-x='${ship.turntableAnchorX}'`));
     assert.match(page, new RegExp(`data-anchor-y='${ship.turntableAnchorY}'`));
     assert.match(page, new RegExp(ship.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.doesNotMatch(
+      ship.description,
+      new RegExp(`\\b${ship.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i")
+    );
     assert.ok(page.includes(
       ship.description
         .replaceAll("&", "&amp;")

@@ -35,6 +35,7 @@ export const site = Object.freeze({
 });
 
 const MYSTERY_SHIP_SLUG = "viking-longship";
+const SHIP_ROSTER_ASSET_VERSION = "2026-08-03-rotation-anchor-rebake";
 const SHIP_ROSTER_LIGHTING_AZIMUTH = 2;
 const SHIP_ROSTER_LIGHTING_ELEVATION = 1;
 const shipSpriteManifest = JSON.parse(readFileSync(new URL(
@@ -67,10 +68,10 @@ export const shipRoster = Object.freeze(SHIP_STATS
       slug: stats.slug,
       label: shipLabelForSlug(stats.slug),
       description: shipHandoverHistoryForSlug(stats.slug),
-      spriteSheet: `/assets/ships/${stats.slug}-32-headings.png`,
-      lightSheet: `/assets/ships/${stats.slug}-32-headings-light.png`,
-      shadeSheet: `/assets/ships/${stats.slug}-32-headings-shade.png`,
-      shadowSheet: `/assets/ships/${stats.slug}-32-headings-shadow.png`,
+      spriteSheet: versionedShipSprite(stats.slug),
+      lightSheet: versionedShipSprite(stats.slug, "-light"),
+      shadeSheet: versionedShipSprite(stats.slug, "-shade"),
+      shadowSheet: versionedShipSprite(stats.slug, "-shadow"),
       frameSize: sprite.frameSize,
       shadowFrameSize: sprite.shadowFrameSize,
       headings: sprite.headings,
@@ -86,6 +87,10 @@ export const shipRoster = Object.freeze(SHIP_STATS
     });
   })
   .sort((left, right) => left.label.localeCompare(right.label, "en")));
+
+function versionedShipSprite(slug, suffix = "") {
+  return `/assets/ships/${slug}-32-headings${suffix}.png?v=${SHIP_ROSTER_ASSET_VERSION}`;
+}
 
 export const mysteryShip = Object.freeze({
   label: "Mystery extra ship",

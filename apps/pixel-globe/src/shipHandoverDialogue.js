@@ -1,4 +1,4 @@
-import { SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import { SHIP_STATS, shipStatsForSlug } from "./shipStats.js";
 
 const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "fishing-lugger":
@@ -18,7 +18,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   galleon:
     "a sixteenth-century development of the carrack, with a longer hull and lower forward works that made a steadier gun platform and convoy escort",
   fluyt:
-    "a broad northern European cargo carrier known to Iberian sailors as an urca, built to move an exceptional hold with a relatively small crew",
+    "a broad northern European cargo carrier built to move an exceptional hold with a relatively small crew",
   carrack:
     "the great ocean carrier of the early Age of Discovery, combining high castles, heavy stores, and the endurance needed for the route around Africa",
   "ship-of-the-line":
@@ -52,9 +52,9 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "japanese-kuribune":
     "a light Japanese coastal trader whose shallow hull, square sail, and stern oars are well suited to the island passages of the Inland Sea",
   "japanese-kobaya":
-    "a swift, low-sided Kobaya used by Japanese sea forces for scouting, dispatches, pursuit, and sudden attacks under oars",
+    "a swift, low-sided Japanese scout used by maritime clans for dispatches, reconnaissance, pursuit, and sudden attacks under oars",
   "japanese-sekibune":
-    "a lean Sekibune, built to carry warriors swiftly along the coast beneath a single sail and long banks of oars",
+    "a lean Japanese war vessel built to carry warriors swiftly along the coast beneath a single sail and long banks of oars",
   "japanese-atakebune":
     "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops",
   "spanish-nao":
@@ -78,14 +78,14 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "royal-lancaran":
     "a great three-masted command lancaran, richly finished but entirely practical, with the crew, guns, and oar power expected of a sultan's flagship",
   "ottoman-coastal-trader":
-    "a workmanlike Kancabash, named for its hooked bow and built to carry cargo between the Marmara, the Aegean, and the Black Sea"
+    "a workmanlike Ottoman coastal trader with a hooked bow, built to carry cargo between the Marmara, the Aegean, and the Black Sea"
 });
 
 export function shipHandoverHistoryForSlug(shipSlug) {
   shipStatsForSlug(shipSlug);
   const history = SHIP_HANDOVER_HISTORIES[shipSlug];
   if (!history) throw new Error(`Missing ship handover history for ship type: ${shipSlug}`);
-  return `The ${shipLabelForSlug(shipSlug)} is ${history}.`;
+  return `${history.charAt(0).toUpperCase()}${history.slice(1)}.`;
 }
 
 export function validateShipHandoverHistoryCoverage() {

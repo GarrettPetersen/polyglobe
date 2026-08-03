@@ -22,7 +22,7 @@ import {
 
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
-const codeAssetVersion = "2026-08-02-ship-turntables";
+const codeAssetVersion = "2026-08-03-rotation-anchor-rebake";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 
 export function homePage(localeValue = "en") {

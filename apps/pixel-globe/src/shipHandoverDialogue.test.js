@@ -14,7 +14,9 @@ test("every ship type has its own substantial handover history", () => {
   assert.equal(new Set(histories).size, SHIP_STATS.length);
   for (let index = 0; index < SHIP_STATS.length; index += 1) {
     const label = shipLabelForSlug(SHIP_STATS[index].slug);
-    assert.match(histories[index], new RegExp(`^The ${escapeRegExp(label)} is `));
+    assert.doesNotMatch(histories[index], new RegExp(`\\b${escapeRegExp(label)}\\b`, "i"),
+      `${label} history repeats its heading`);
+    assert.match(histories[index], /^[A-Z]/);
     assert.ok(histories[index].length >= 100, `${label} handover history is too brief`);
     assert.match(histories[index], /\.$/);
   }

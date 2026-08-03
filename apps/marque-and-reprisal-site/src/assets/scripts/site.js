@@ -141,11 +141,11 @@ const precomputeTurntableMaskPoints = (state) => {
   }
 };
 
-const drawTurntableMask = (state, kind, frameIndex, offset, color) => {
+const drawTurntableMask = (state, kind, frameIndex, offsetX, offsetY, color) => {
   const points = turntableMaskPoints(state, kind, frameIndex);
   state.context.fillStyle = color;
   for (let index = 0; index < points.length; index += 2) {
-    state.context.fillRect(points[index] + offset, points[index + 1] + offset, 1, 1);
+    state.context.fillRect(points[index] + offsetX, points[index + 1] + offsetY, 1, 1);
   }
 };
 
@@ -153,27 +153,53 @@ const drawShipTurntable = (state, frameIndex) => {
   const frame = frameIndex % state.headings;
   const frameX = (frame % state.sheetCols) * state.frameSize;
   const frameY = Math.floor(frame / state.sheetCols) * state.frameSize;
-  const shipOffset = (state.shadowFrameSize - state.frameSize) / 2;
+  const canvasCenter = state.shadowFrameSize / 2;
+  const defaultShipOffset = (state.shadowFrameSize - state.frameSize) / 2;
+  const shipOffsetX = Math.round(canvasCenter - state.anchor.x);
+  const shipOffsetY = Math.round(canvasCenter - state.anchor.y);
+  const shadowOffsetX = shipOffsetX - defaultShipOffset;
+  const shadowOffsetY = shipOffsetY - defaultShipOffset;
   const context = state.context;
 
   context.clearRect(0, 0, state.canvas.width, state.canvas.height);
   context.globalCompositeOperation = "source-over";
-  drawTurntableMask(state, "shadow", frame, 0, SHIP_LIGHTING.shadow);
+  drawTurntableMask(
+    state,
+    "shadow",
+    frame,
+    shadowOffsetX,
+    shadowOffsetY,
+    SHIP_LIGHTING.shadow
+  );
   context.drawImage(
     state.sprite,
     frameX,
     frameY,
     state.frameSize,
     state.frameSize,
-    shipOffset,
-    shipOffset,
+    shipOffsetX,
+    shipOffsetY,
     state.frameSize,
     state.frameSize
   );
   context.globalCompositeOperation = "multiply";
-  drawTurntableMask(state, "shade", frame, shipOffset, SHIP_LIGHTING.shade);
+  drawTurntableMask(
+    state,
+    "shade",
+    frame,
+    shipOffsetX,
+    shipOffsetY,
+    SHIP_LIGHTING.shade
+  );
   context.globalCompositeOperation = "source-over";
-  drawTurntableMask(state, "light", frame, shipOffset, SHIP_LIGHTING.highlight);
+  drawTurntableMask(
+    state,
+    "light",
+    frame,
+    shipOffsetX,
+    shipOffsetY,
+    SHIP_LIGHTING.highlight
+  );
   state.canvas.dataset.turntableFrame = String(frame);
 };
 
