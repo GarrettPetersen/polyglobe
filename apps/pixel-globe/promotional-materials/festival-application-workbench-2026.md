@@ -1,6 +1,6 @@
 # 2026 Festival Application Workbench
 
-Last updated: **August 2, 2026**
+Last updated: **August 3, 2026**
 
 ## Reusable game details
 
@@ -68,8 +68,10 @@ recorded.**
 ## Independent Games Festival 2027
 
 Status: **Application preparation started August 2. The official portal was
-checked and still reports that entries are closed.** Submissions officially open
-August 3 and close September 13. Fee-waiver requests close September 7.
+rechecked at 7:37 a.m. PDT on August 3 and still reports that entries are
+closed.** The official schedule says only "early August" for game submissions;
+August 3 is the opening date for judge and juror applications. Submissions close
+September 13. Fee-waiver requests close September 7.
 
 - Entry: Regular independent developer, US$75 or full fee waiver
 - Build: Submit the strongest stable, substantially feature-complete full build

@@ -229,9 +229,10 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSckJ8MkHT7maY5DWd58cjXLmbsVUbeYQrN6TrlxzB_pMfd7lw/viewform
 
 - [ ] **Independent Games Festival 2027 — apply by September 13**
-  - August 2: The official submission portal was inspected and still reports
-    that entries are closed. Try again when submissions officially open August
-    3.
+  - August 3, 7:37 a.m. PDT: The official submission portal was rechecked and
+    still reports that entries are closed. The official schedule says only
+    "early August" for game submissions; August 3 is the opening date for judge
+    and juror applications. Recheck the portal later today.
   - Why: The most prestigious general indie competition in this application
     cycle and a strong venue for the game's distinctive world simulation,
     historical scope and interconnected systems.
