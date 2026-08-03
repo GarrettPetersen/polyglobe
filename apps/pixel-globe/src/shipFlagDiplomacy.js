@@ -5,9 +5,13 @@ import {
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR
 } from "./factions.js";
+import {
+  ENEMY_SHIP_COMBAT_COLOR,
+  FRIENDLY_SHIP_COMBAT_COLOR
+} from "./shipCombatPresentation.js";
 
-export const SHIP_FLAG_ENEMY_OUTLINE_COLOR = "#e83b3b";
-export const SHIP_FLAG_ALLY_OUTLINE_COLOR = "#38b764";
+export const SHIP_FLAG_ENEMY_OUTLINE_COLOR = ENEMY_SHIP_COMBAT_COLOR;
+export const SHIP_FLAG_ALLY_OUTLINE_COLOR = FRIENDLY_SHIP_COMBAT_COLOR;
 
 export function shipFlagDiplomacyOutlineColor(
   relation,

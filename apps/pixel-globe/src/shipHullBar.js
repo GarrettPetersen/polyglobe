@@ -1,6 +1,12 @@
+import { shipCombatAllegianceColor } from "./shipCombatPresentation.js";
+
 export function shipHullIsDamaged(hitPoints, maxHitPoints) {
   validateHull(hitPoints, maxHitPoints);
   return hitPoints < maxHitPoints - 1e-8;
+}
+
+export function npcShipHullBarColor(combatAllegiance) {
+  return shipCombatAllegianceColor(combatAllegiance);
 }
 
 export function shipHullBarLayout({ x, y, frameSize, hitPoints, maxHitPoints, width = 20 }) {

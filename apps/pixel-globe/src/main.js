@@ -104,7 +104,15 @@ import {
   statusIconRowLayout
 } from "./statusIconRow.js";
 import { seagullScreenPresence } from "./seagullAudio.js";
-import { shipHullBarLayout, shipHullIsDamaged } from "./shipHullBar.js";
+import {
+  npcShipHullBarColor,
+  shipHullBarLayout,
+  shipHullIsDamaged
+} from "./shipHullBar.js";
+import {
+  PLAYER_SHIP_COMBAT_COLOR,
+  shipCombatAllegianceColor
+} from "./shipCombatPresentation.js";
 import {
   captainIsDrunkAtPort,
   drunkenWineDialogue,
@@ -37019,7 +37027,7 @@ function drawGpuShipCommands() {
 function drawGpuPlayerShipDecorations(call, layers) {
   drawGpuShipLighting(call, layers);
   if (shipHullIsDamaged(call.hitPoints, call.maxHitPoints)) {
-    drawGpuShipHullBar(call, "#e83b3b");
+    drawGpuShipHullBar(call, PLAYER_SHIP_COMBAT_COLOR);
   }
 }
 
@@ -37104,7 +37112,7 @@ function gpuShipCombatOutlineCanvas(aboveCanvas, allegiance) {
   outlineCtx.imageSmoothingEnabled = false;
   outlineCtx.drawImage(aboveCanvas, 0, 0);
   outlineCtx.globalCompositeOperation = "source-in";
-  outlineCtx.fillStyle = allegiance === "enemy" ? "#e83b3b" : "#38b764";
+  outlineCtx.fillStyle = shipCombatAllegianceColor(allegiance);
   outlineCtx.fillRect(0, 0, canvas.width, canvas.height);
   outlineCtx.globalCompositeOperation = "source-over";
   byAllegiance.set(allegiance, canvas);
@@ -37115,7 +37123,7 @@ function drawGpuNpcShipDecorations(call, nowMs) {
   drawGpuNpcShipFlag(call, nowMs);
   if (call.stormAnchored) drawGpuNpcAnchorMarker(call);
   if (call.combatMode) {
-    drawGpuShipHullBar(call, call.combatMode === COMBAT_MODE_FLEE ? "#f9c22b" : "#e83b3b");
+    drawGpuShipHullBar(call, npcShipHullBarColor(call.combatAllegiance));
   }
 }
 
@@ -37668,7 +37676,7 @@ function drawShipCall(call, nowMs, terrainForeground, prepared = null) {
     ctx.drawImage(shipCompositeCanvas, compositeBounds.x, compositeBounds.y);
   }
   if (drawCall.kind === "player" && shipHullIsDamaged(drawCall.hitPoints, drawCall.maxHitPoints)) {
-    drawShipHullBar(drawCall, "#e83b3b");
+    drawShipHullBar(drawCall, PLAYER_SHIP_COMBAT_COLOR);
   }
   if (drawCall.kind === "npc" && drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
   if (drawCall.kind === "npc" && drawCall.combatMode) drawNpcCombatHull(drawCall);
@@ -37792,7 +37800,7 @@ function drawShipCombatOutline(call, layers) {
   shipOutlineCtx.globalCompositeOperation = "source-over";
   shipOutlineCtx.drawImage(layers.aboveCanvas, 0, 0);
   shipOutlineCtx.globalCompositeOperation = "source-in";
-  shipOutlineCtx.fillStyle = call.combatAllegiance === "enemy" ? "#e83b3b" : "#38b764";
+  shipOutlineCtx.fillStyle = shipCombatAllegianceColor(call.combatAllegiance);
   shipOutlineCtx.fillRect(0, 0, SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
   shipOutlineCtx.globalCompositeOperation = "source-over";
 
@@ -37840,7 +37848,7 @@ function npcShipFlagOutlineColor(call) {
 }
 
 function drawNpcCombatHull(call) {
-  drawShipHullBar(call, call.combatMode === COMBAT_MODE_FLEE ? "#f9c22b" : "#e83b3b");
+  drawShipHullBar(call, npcShipHullBarColor(call.combatAllegiance));
 }
 
 function drawShipHullBar(call, color) {
