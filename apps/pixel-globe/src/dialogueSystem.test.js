@@ -727,8 +727,11 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.feedbackLineReserve, 2);
   assert.equal(sell.optionHeight, 30);
-  assert.equal(sell.options.at(-1).label, "Back");
+  assert.equal(sell.options.at(-2).label, "Back");
+  assert.equal(sell.options.at(-2).placement, "port-exit");
+  assert.equal(sell.options.at(-1).label, "Undo all sales");
   assert.equal(sell.options.at(-1).placement, "port-exit");
+  assert.equal(sell.options.at(-1).disabled, true);
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
   assert.ok(sell.options.some((option) => /WORLD/.test(option.detail || "")));
 
@@ -743,7 +746,8 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   );
   assert.deepEqual(provisionsOnlySell.options.map((option) => option.label), [
     "No cargo to sell",
-    "Back"
+    "Back",
+    "Undo all sales"
   ]);
 });
 
@@ -997,10 +1001,14 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
 
   const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
   const buy = portDialogueView(buySession, city, gameState, economy, [city], context);
-  assert.equal(buy.options.at(-2).label, "Change ship loadout");
-  assert.ok(buy.options.slice(0, -2).every((entry) => (
+  assert.equal(buy.options.at(-3).label, "Change ship loadout");
+  assert.ok(buy.options.slice(0, -3).every((entry) => (
     entry.action.type === "buy" || entry.action.type === "buy-max"
   )));
+  assert.deepEqual(buy.options.slice(-2).map((entry) => entry.label), [
+    "Back",
+    "Undo all purchases"
+  ]);
   assert.equal(buy.optionColumns, 2);
 
   const rootSession = createPortDialogueSession(city, { initialNodeId: "root" });
@@ -1032,7 +1040,10 @@ test("market rows put unit and bulk actions together and undo every purchase on 
 
   assert.ok(buyMax.action.quantity > 1);
   assert.equal(buy.rowId, buyMax.rowId);
-  assert.equal(initial.options.some((entry) => entry.action.type === "undo-market"), false);
+  const initialUndoIndex = initial.options.findIndex((entry) => entry.action.type === "undo-market");
+  assert.ok(initialUndoIndex >= 0);
+  assert.equal(initial.options[initialUndoIndex].disabled, true);
+  assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
   const port = economy.portStates.get(city.tileId);
   const before = {
     doubloons: gameState.doubloons,
@@ -1059,7 +1070,8 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   assert.equal(purchase.marketPurchase.quantity, buyMax.action.quantity);
   const changed = portDialogueView(session, city, gameState, economy, [city]);
   const undoIndex = changed.options.findIndex((entry) => entry.action.type === "undo-market");
-  assert.ok(undoIndex >= 0);
+  assert.equal(undoIndex, initialUndoIndex);
+  assert.equal(changed.options[undoIndex].disabled, false);
   const undo = selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
 
   assert.ok(undo.marketUndo);
@@ -1111,6 +1123,10 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
 
   assert.equal(sell.rowId, sellAll.rowId);
   assert.equal(sellAll.action.quantity, 4);
+  const initialUndoIndex = initial.options.findIndex((entry) => entry.action.type === "undo-market");
+  assert.ok(initialUndoIndex >= 0);
+  assert.equal(initial.options[initialUndoIndex].disabled, true);
+  assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
   const sale = selectPortDialogueOption(
     session,
     city,
@@ -1124,6 +1140,8 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   assert.equal(gameState.cargo.wool, undefined);
   const changed = portDialogueView(session, city, gameState, economy, [city]);
   const undoIndex = changed.options.findIndex((entry) => entry.action.type === "undo-market");
+  assert.equal(undoIndex, initialUndoIndex);
+  assert.equal(changed.options[undoIndex].disabled, false);
   selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
 
   assert.deepEqual({
@@ -1765,6 +1783,10 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
   assert.equal(view.presentation.shipLabel, "Brigantine");
   assert.ok(view.presentation.crewWorkMultiplier > 1);
   assert.equal(view.presentation.cannonReloadPercent, 100);
+  assert.deepEqual(view.options.map((entry) => [entry.label, entry.placement]), [
+    ["Apply custom loadout", "port-exit"],
+    ["Back", "port-exit"]
+  ]);
   assert.deepEqual(view.presentation.fields.map((field) => field.key), [
     "crew", "cannons", "foodUnits", "waterUnits"
   ]);

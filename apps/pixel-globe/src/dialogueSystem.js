@@ -1151,7 +1151,7 @@ function withPortExitFooter(view) {
   const regularOptions = [];
   const exitOptions = [];
   for (const entry of view.options) {
-    const isExit = entry.label === "Back" || entry.action.type === "close";
+    const isExit = entry.placement === "port-exit" || entry.label === "Back" || entry.action.type === "close";
     (isExit ? exitOptions : regularOptions).push(isExit
       ? { ...entry, placement: "port-exit" }
       : entry);
@@ -3709,11 +3709,12 @@ function buyView(session, city, gameState, economy, context) {
         })
       ];
     });
-  if (marketUndoAvailable(session, "buy")) {
-    rows.push(option("Undo all purchases", { type: "undo-market" }));
-  }
   if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
   rows.push(option("Back", { type: "leave-buy", nodeId: "root" }));
+  rows.push(option("Undo all purchases", { type: "undo-market" }, {
+    disabled: !marketUndoAvailable(session, "buy"),
+    placement: "port-exit"
+  }));
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
@@ -4073,8 +4074,8 @@ function customLoadoutView(session, city, gameState, context) {
       }))
     },
     options: [
-      option("Apply custom loadout", { type: "select-custom-loadout" }),
-      option("Back", { type: "node", nodeId: "loadout" })
+      option("Apply custom loadout", { type: "select-custom-loadout" }, { placement: "port-exit" }),
+      option("Back", { type: "node", nodeId: "loadout" }, { placement: "port-exit" })
     ]
   };
 }
@@ -4161,10 +4162,11 @@ function sellView(session, city, gameState, economy) {
       disabledReason: "The hold has no cargo buyers will take."
     }));
   }
-  if (marketUndoAvailable(session, "sell")) {
-    rows.push(option("Undo all sales", { type: "undo-market" }));
-  }
   rows.push(option("Back", { type: "leave-sell", nodeId: "root" }));
+  rows.push(option("Undo all sales", { type: "undo-market" }, {
+    disabled: !marketUndoAvailable(session, "sell"),
+    placement: "port-exit"
+  }));
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
@@ -4577,7 +4579,7 @@ function tradePassView(session, city, gameState, context) {
 }
 
 function option(label, action, details = {}) {
-  return {
+  const entry = {
     label,
     action,
     detail: details.detail || null,
@@ -4586,6 +4588,8 @@ function option(label, action, details = {}) {
     iconId: details.iconId || null,
     rowId: details.rowId || null
   };
+  if (details.placement !== undefined) entry.placement = details.placement;
+  return entry;
 }
 
 function deliveryOptionLabel(goodLabel, deliverableQuantity) {
