@@ -312,6 +312,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   greeting: "action:talk",
   "drunk-factor": "action:talk",
   root: "action:back",
+  barred: "action:back",
   buy: "action:buy",
   equipment: "action:inventory",
   "equipment-nets": "action:fish",

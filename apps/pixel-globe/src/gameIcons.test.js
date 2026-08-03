@@ -63,7 +63,10 @@ test("every current dialogue and start-menu action resolves to an icon", async (
 
   const dialogueSource = await readFile(join(appRoot, "src/dialogueSystem.js"), "utf8");
   const actionTypes = new Set([...dialogueSource.matchAll(/type: "([^"]+)"/g)].map((match) => match[1]));
-  const nodeIds = new Set([...dialogueSource.matchAll(/nodeId: "([^"]+)"/g)].map((match) => match[1]));
+  const nodeIds = new Set(
+    [...dialogueSource.matchAll(/(?:nodeId|returnNodeId): "([^"]+)"/g)]
+      .map((match) => match[1])
+  );
   for (const actionType of actionTypes) {
     if (actionType === "node") continue;
     assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: actionType } })], actionType);
