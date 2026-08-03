@@ -280,7 +280,6 @@ import {
   clearPortNavigationWaypointsAt,
   consumeNamedCrewDeathNotice,
   consumePendingDiscoveryPortDialogue,
-  commissionedPortCaptureFactionId,
   advanceCapturePortMissionAfterConquest,
   capturePortMissionOfferForCity,
   createPortEntryStatusContext,
@@ -311,6 +310,7 @@ import {
   playerFishingNet,
   playerWhaleHarpoon,
   playerShipIsWarship,
+  playerPortAttackStatus,
   pendingDiscoveryPortDialogue,
   pendingNamedCrewDeathNotice,
   pirateHideoutsVisibleToPlayer,
@@ -333,6 +333,7 @@ import {
   receiveScavengedTradeGood,
   receiveWhaleBlubber,
   receivePortConquestPrize,
+  receivePortRaidPrize,
   receiveCastawayShoreAid,
   receiveRescuedTravelerReunionReward,
   receiveSurrenderedLoot,
@@ -1112,10 +1113,14 @@ import {
   capitalPeaceTreatyOptions,
   chooseCapitalPeaceTerm,
   clearPlayerPortAssault,
+  clearPlayerPortRaid,
   markPlayerPortAssault,
+  markPlayerPortRaided,
   npcPortConquestChance,
   portConquestPrize,
+  portRaidPrize,
   playerPortAssaultIsActive,
+  playerPortRaidIsActive,
   portConquestStatus,
   recordPortCapture,
   resolvePortConquest,
@@ -12614,9 +12619,10 @@ function openPortDialogue(cityCall) {
     ensureShoreBatteryState(cityCall),
     Math.floor(weatherClockMinutes)
   );
+  const attackStatus = playerPortAttackStatus(gameState, cityCall);
   const conquestStatus = playerPortConquestStatus(cityCall);
   const portUnavailable = Boolean(
-    recoveryStatus || conquestStatus.playerAssaultActive ||
+    recoveryStatus || conquestStatus.playerAssaultActive || attackStatus.commissioned ||
     ((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort)
   );
   const rescuedTravelerHomecoming = rescuedTravelerAtHome(cityCall);
@@ -12632,7 +12638,7 @@ function openPortDialogue(cityCall) {
     dirty = true;
     return;
   }
-  if (recoveryStatus && !entryStatus.hostile) {
+  if (recoveryStatus && !entryStatus.hostile && !conquestStatus.canAttempt) {
     dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "recovering" });
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
@@ -12641,7 +12647,7 @@ function openPortDialogue(cityCall) {
     dirty = true;
     return;
   }
-  if (((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort) ||
+  if (((!entryStatus.allowed || conquestStatus.canAttempt || attackStatus.commissioned) && !papalLegationAtPort) ||
       (recoveryStatus && entryStatus.hostile) || conquestStatus.playerAssaultActive) {
     dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "barred" });
     dialogueLayout = createDialogueLayoutState();
@@ -13887,20 +13893,27 @@ function attemptHostilePortEntry(cityCall) {
 function playerPortConquestStatus(cityCall) {
   if (!gameState?.ship || !ship) throw new Error("Port conquest requires the player ship");
   const battery = ensureShoreBatteryState(cityCall);
+  const simMinute = Math.floor(weatherClockMinutes);
+  const attackStatus = playerPortAttackStatus(gameState, cityCall);
   const assaultChanceBonus = currentPlayerPerkTotals().assaultChanceBonus;
-  return {
-    ...portConquestStatus({
+  const conquest = portConquestStatus({
     city: cityCall,
-    batteryDisabled: shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes)),
+    batteryDisabled: shoreBatteryIsDisabled(battery, simMinute),
     crew: gameState.ship.crew,
     crewCapacity: gameState.ship.crewCapacity,
-      attackerFactionId: ship.factionId,
-      assaultChanceBonus
-    }),
+    attackerFactionId: attackStatus.assaultFactionId,
+    assaultChanceBonus
+  });
+  const playerRaidActive = playerPortRaidIsActive(gameState.memory.flags, cityCall, simMinute);
+  return {
+    ...conquest,
+    ...attackStatus,
+    canAttempt: attackStatus.available && conquest.canAttempt && !playerRaidActive,
+    playerRaidActive,
     playerAssaultActive: playerPortAssaultIsActive(
       gameState.memory.flags,
       cityCall,
-      Math.floor(weatherClockMinutes)
+      simMinute
     )
   };
 }
@@ -13933,21 +13946,40 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   }
 
   const simMinute = Math.floor(weatherClockMinutes);
-  const prize = receivePortConquestPrize(
-    gameState,
-    cityCall,
-    portConquestPrize(cityCall),
-    { simMinute }
-  );
-  const commissionedFactionId = commissionedPortCaptureFactionId(gameState, cityCall);
+  if (status.mode === "raid") {
+    const battery = ensureShoreBatteryState(cityCall);
+    if (!Number.isFinite(battery.disabledUntilMinute)) {
+      throw new Error(`Successful raid has no disabled-battery expiry: ${battery.id}`);
+    }
+    const prize = receivePortRaidPrize(gameState, cityCall, portRaidPrize(cityCall), { simMinute });
+    markPlayerPortRaided(gameState.memory.flags, cityCall, battery.disabledUntilMinute);
+    clearCombatForShip(PLAYER_COMBAT_ID);
+    npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
+    closeDialogue();
+    playCoinClinkSound();
+    showSurvivalNotice(
+      `${cityLabelText(cityCall).toUpperCase()} PLUNDERED  +${prize.amount} DB`,
+      "good"
+    );
+    openCaptainAlertModal(
+      `${cityLabelText(cityCall)} has been plundered. Your raiders carry off ${prize.amount} doubloons, ` +
+        "but the city remains under its former flag.",
+      "happy"
+    );
+    saveVoyageNow("port raided");
+    dirty = true;
+    return true;
+  }
+  if (!status.captureFactionId) throw new Error("Conquest assault has no receiving faction");
+  const prize = receivePortConquestPrize(gameState, cityCall, portConquestPrize(cityCall), { simMinute });
   const event = recordPortCapture(
     gameState.memory.conquest,
     cityCall,
-    commissionedFactionId || ship.factionId,
+    status.captureFactionId,
     simMinute,
     "player"
   );
-  const captureMission = commissionedFactionId
+  const captureMission = status.commissioned
     ? advanceCapturePortMissionAfterConquest(gameState, cityCall, event, simMinute)
     : null;
   if (event.capitalCapturedFactionId) {
@@ -14013,6 +14045,7 @@ function openPlayerCapitalPeaceTreaty(cityCall, event, prize, captureMission = n
 function completePlayerPortConquest(cityCall, event, prize, treaty, captureMission = null) {
   const newFaction = factionById(event.newFactionId);
   clearPlayerPortAssault(gameState.memory.flags, cityCall);
+  clearPlayerPortRaid(gameState.memory.flags, cityCall);
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
   clearCombatForShip(PLAYER_COMBAT_ID);
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
@@ -15207,6 +15240,10 @@ function chooseDialogueOption(optionIndex) {
       attemptHostilePortEntry(currentDialogueCity());
       return;
     }
+    if (result.action?.type === "attack-city") {
+      beginPlayerCityAttack(currentDialogueCity());
+      return;
+    }
     if (result.action?.type === "land-marines") {
       attemptPlayerPortConquest(currentDialogueCity());
       return;
@@ -16070,6 +16107,7 @@ function portDialogueContext() {
       ? shoreBatteryRecoveryStatus(ensureShoreBatteryState(city), simMinute)
       : null,
     portConquestStatus: city && !questOnlyColony ? playerPortConquestStatus(city) : null,
+    portAttackStatus: city && !questOnlyColony ? playerPortAttackStatus(gameState, city) : null,
     shipyardRumor: city && !questOnlyColony
       ? shipyardRumorForPort(
         worldEconomy.shipyards,
@@ -20547,6 +20585,7 @@ function attemptNpcPortConquest(battery, npcShipId) {
   );
   const treaty = settleCapitalCaptureDiplomacy(event, Math.random());
   clearPlayerPortAssault(gameState.memory.flags, city);
+  clearPlayerPortRaid(gameState.memory.flags, city);
   const conqueringFaction = factionById(strategic.factionId);
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
   const treatyText = treaty ? `; ${capitalPeaceTreatyDescription(treaty).toUpperCase()}` : "";
@@ -20560,16 +20599,37 @@ function attemptNpcPortConquest(battery, npcShipId) {
 }
 
 function beginPlayerInitiatedShoreCombat(battery) {
+  const city = chartPortCallById(battery.portId);
+  if (!city) throw new Error(`Player shore attack has no visible port: ${battery.portId}`);
+  const attackStatus = playerPortAttackStatus(gameState, city);
+  if (!attackStatus.available) throw new Error(attackStatus.reason || `Cannot attack ${battery.portId}`);
   if (!battery.engagedTargetIds.has(PLAYER_COMBAT_ID)) {
     battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     battery.playerHailed = true;
   }
   if (battery.playerAttackRecorded) return;
-  recordAttackAgainstFaction(gameState, battery.factionId);
-  if (!hasPrivateeringAuthorityAgainst(gameState, battery.factionId)) {
+  if (battery.factionId !== PIRATE_FACTION_ID) {
+    recordAttackAgainstFaction(gameState, battery.factionId);
+  }
+  if (attackStatus.piracy) {
     recordPiracyAgainstFaction(gameState, battery.factionId, { includeVictim: false });
   }
   battery.playerAttackRecorded = true;
+}
+
+function beginPlayerCityAttack(city) {
+  const attackStatus = playerPortAttackStatus(gameState, city);
+  if (!attackStatus.available) throw new Error(attackStatus.reason || `Cannot attack ${cityLabelText(city)}`);
+  const battery = ensureShoreBatteryState(city);
+  if (shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes))) {
+    throw new Error(`Cannot begin bombardment while ${cityLabelText(city)}'s batteries are disabled`);
+  }
+  closeDialogue();
+  beginPlayerInitiatedShoreCombat(battery);
+  startCombatMusicForThreat(battery.gunCount >= 2 ? "big" : "small");
+  showSurvivalNotice(`${cityLabelText(city).toUpperCase()} BATTERIES ENGAGED`, "warn");
+  saveVoyageNow(`attacked ${cityLabelText(city)}`);
+  dirty = true;
 }
 
 function applyPlayerNavalHit(ball, target, point) {
@@ -22723,27 +22783,36 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
         "npcShips.visual.combat.batteries.portStatus",
         () => portEntryStatus(gameState, city, simMinute, portEntryContext)
       );
-      const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile;
+      const attackStatus = playerPortAttackStatus(gameState, city);
+      const commissionedTarget = attackStatus.commissioned;
+      const playerHostile = commissionedTarget || (
+        !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile
+      );
       const passageRefusalActive = playerHostile && entryStatus.passageRefusalActive;
-      const playerResponse = shoreBatteryPlayerResponse({
-        playerHostile,
-        hostileByWar: entryStatus.hostileByWar,
-        withinWeaponRange: true,
-        withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
-        tollDemandEligible: entryStatus.canPurchaseSafePassage && shoreBatteryMayDemandToll(city),
-        playerHailed: state.playerHailed,
-        passageRefusalActive
-      });
-      if (playerResponse.shouldHail) {
-        if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
-          if (!attemptEnvoyIntercession(city.factionId, city.character)) {
-            openShoreBatteryCombatHail(city, state);
+      if (commissionedTarget) {
+        state.playerHailed = true;
+        nextTargets.add(PLAYER_COMBAT_ID);
+      } else {
+        const playerResponse = shoreBatteryPlayerResponse({
+          playerHostile,
+          hostileByWar: entryStatus.hostileByWar,
+          withinWeaponRange: true,
+          withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
+          tollDemandEligible: entryStatus.canPurchaseSafePassage && shoreBatteryMayDemandToll(city),
+          playerHailed: state.playerHailed,
+          passageRefusalActive
+        });
+        if (playerResponse.shouldHail) {
+          if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
+            if (!attemptEnvoyIntercession(city.factionId, city.character)) {
+              openShoreBatteryCombatHail(city, state);
+            }
+            hailOpened = true;
+            changed = true;
           }
-          hailOpened = true;
-          changed = true;
         }
+        if (playerResponse.shouldEngage) nextTargets.add(PLAYER_COMBAT_ID);
       }
-      if (playerResponse.shouldEngage) nextTargets.add(PLAYER_COMBAT_ID);
     }
     if (playerDistance > range + 20) {
       state.playerHailed = false;

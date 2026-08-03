@@ -329,6 +329,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   marque: "action:letter",
   "trade-pass": "action:letter",
   "portuguese-cartaz": "action:letter",
+  "city-attack": "action:attack",
   cargo: "action:inventory"
 });
 
@@ -346,6 +347,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "complete-quest": "action:quest",
   "attempt-disguise": "action:disguise",
   "land-marines": "action:attack",
+  "attack-city": "action:attack",
   "attempt-restricted-illicit-trade": "action:disguise",
   attack: "action:attack",
   threaten: "action:attack",

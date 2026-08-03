@@ -11,11 +11,15 @@ import {
   createPortConquestMemory,
   effectivePortFactionId,
   clearPlayerPortAssault,
+  clearPlayerPortRaid,
   chooseCapitalPeaceTerm,
   markPlayerPortAssault,
+  markPlayerPortRaided,
   npcPortConquestChance,
   portConquestPrize,
+  portRaidPrize,
   playerPortAssaultIsActive,
+  playerPortRaidIsActive,
   portConquestStatus,
   recordPortCapture,
   resolvePortConquest,
@@ -394,4 +398,16 @@ test("a disabled harbor remembers the player assault until defenses recover or o
   markPlayerPortAssault(flags, target, 700);
   clearPlayerPortAssault(flags, target);
   assert.equal(playerPortAssaultIsActive(flags, target, 600), false);
+});
+
+test("a port raid pays reduced spoils and cannot repeat before the battery recovers", () => {
+  const flags = {};
+  const target = city();
+  assert.equal(portRaidPrize(target), Math.round((portConquestPrize(target) * 0.65) / 50) * 50);
+  markPlayerPortRaided(flags, target, 500);
+  assert.equal(playerPortRaidIsActive(flags, target, 499), true);
+  assert.equal(playerPortRaidIsActive(flags, target, 500), false);
+  markPlayerPortRaided(flags, target, 700);
+  clearPlayerPortRaid(flags, target);
+  assert.equal(playerPortRaidIsActive(flags, target, 600), false);
 });

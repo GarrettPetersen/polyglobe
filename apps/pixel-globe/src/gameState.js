@@ -1652,13 +1652,24 @@ export function receiveSurrenderedLoot(state, loot, context = {}) {
 }
 
 export function receivePortConquestPrize(state, city, amount, context = {}) {
+  return receivePortAssaultPrize(state, city, amount, "conquest", context);
+}
+
+export function receivePortRaidPrize(state, city, amount, context = {}) {
+  return receivePortAssaultPrize(state, city, amount, "raid", context);
+}
+
+function receivePortAssaultPrize(state, city, amount, kind, context) {
   assertGameState(state);
-  if (!city || !Number.isInteger(city.tileId)) throw new Error("Port conquest prize requires a city");
-  if (!Number.isInteger(amount) || amount <= 0) throw new Error(`Invalid port conquest prize: ${amount}`);
+  if (kind !== "conquest" && kind !== "raid") throw new Error(`Invalid port assault kind: ${kind}`);
+  if (!city || !Number.isInteger(city.tileId)) throw new Error(`Port ${kind} prize requires a city`);
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error(`Invalid port ${kind} prize: ${amount}`);
   state.doubloons += amount;
   recordLedgerEntry(state, city, context, {
-    kind: "conquest",
-    description: `${cityLabel(city)} conquest prize`,
+    kind,
+    description: kind === "conquest"
+      ? `${cityLabel(city)} conquest prize`
+      : `${cityLabel(city)} plunder`,
     goodId: null,
     quantity: 0,
     amount,
@@ -4463,6 +4474,64 @@ export function commissionedPortCaptureFactionId(state, city) {
   if (!isCaptureCommissionQuest(quest) || quest.stage !== "capture" ||
       quest.targetTileId !== city.tileId) return null;
   return assertFactionId(quest.originFactionId);
+}
+
+export function playerPortAttackStatus(state, city) {
+  assertGameState(state);
+  if (!city || !Number.isInteger(city.tileId) || !city.factionId) {
+    throw new Error("Port attack status requires a faction city");
+  }
+  const targetFactionId = assertFactionId(city.factionId);
+  const playerFactionId = assertFactionId(
+    state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
+  );
+  if (targetFactionId === NEUTRAL_FACTION_ID) {
+    return Object.freeze({
+      available: false,
+      reason: "Neutral settlements have no sovereign harbor defenses to attack.",
+      playerFactionId,
+      targetFactionId,
+      commissioned: false,
+      ownNationAtWar: false,
+      privateeringAuthority: false,
+      piracy: false,
+      mode: null,
+      captureFactionId: null,
+      assaultFactionId: playerFactionId
+    });
+  }
+
+  const ownPort = targetFactionId === playerFactionId;
+  const commissionedIssuerId = commissionedPortCaptureFactionId(state, city);
+  const commissionedFactionId = ownPort || commissionedIssuerId === targetFactionId
+    ? null
+    : commissionedIssuerId;
+  const ownNationAtWar = !ownPort && playerFactionId !== NEUTRAL_FACTION_ID &&
+    playerFactionId !== PIRATE_FACTION_ID &&
+    diplomacyBetweenForState(state, playerFactionId, targetFactionId) === DIPLOMACY_WAR;
+  const privateeringAuthority = hasPrivateeringAuthorityAgainst(state, targetFactionId);
+  const targetIsPirate = targetFactionId === PIRATE_FACTION_ID;
+  const captureFactionId = commissionedFactionId || (ownNationAtWar ? playerFactionId : null);
+  const piracy = ownPort || (
+    !commissionedFactionId && !ownNationAtWar && !privateeringAuthority && !targetIsPirate
+  );
+  const assaultFactionId = captureFactionId || (ownPort ? NEUTRAL_FACTION_ID : playerFactionId);
+  return Object.freeze({
+    available: true,
+    reason: null,
+    playerFactionId,
+    targetFactionId,
+    ownPort,
+    commissioned: commissionedFactionId !== null,
+    commissionedFactionId,
+    ownNationAtWar,
+    privateeringAuthority,
+    targetIsPirate,
+    piracy,
+    mode: captureFactionId ? "conquest" : "raid",
+    captureFactionId,
+    assaultFactionId
+  });
 }
 
 export function advanceCapturePortMissionAfterConquest(state, city, event, simMinute) {

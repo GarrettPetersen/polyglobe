@@ -38,6 +38,7 @@ import {
   personalTradePassStatus,
   personalTradePassStatuses,
   playerPortCustomsNotice,
+  playerPortAttackStatus,
   playerWhaleHarpoon,
   playerTradeAccess,
   playerTradeTerms,
@@ -1053,6 +1054,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
   if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
+  if (session.nodeId === "city-attack") return cityAttackView(session, city, gameState, context);
   if (session.nodeId === "portuguese-cartaz") {
     return portugueseCartazView(session, city, gameState, context);
   }
@@ -1204,6 +1206,9 @@ export function selectPortDialogueOption(
       beginMarketUndoSession(session, "sell", gameState, economy, city);
     }
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
+    if (action.nodeId === "city-attack") {
+      session.cityAttackReturnNodeId = action.returnNodeId || "root";
+    }
     if (action.nodeId === "viking-longship") markVikingLongshipOfferSeen(gameState);
     if (action.nodeId === "japanese-matchlocks") markJapaneseMatchlockOfferSeen(gameState);
     if (action.nodeId === "caribbean-ginger") markCaribbeanGingerOfferSeen(gameState);
@@ -1333,6 +1338,9 @@ export function selectPortDialogueOption(
   }
   if (action.type === "land-marines") {
     return { closed: false, action: { type: "land-marines" } };
+  }
+  if (action.type === "attack-city") {
+    return { closed: false, action: { type: "attack-city" } };
   }
   if (action.type === "attempt-restricted-illicit-trade") {
     if (typeof context.random !== "function") {
@@ -2469,8 +2477,9 @@ function pirateHideoutGreetingView(city, memory, context) {
 function barredPortView(city, context) {
   const status = context.portEntryStatus;
   const conquest = context.portConquestStatus || null;
+  const attack = context.portAttackStatus || null;
   const batteryDisabled = context.portRecoveryStatus !== null && context.portRecoveryStatus !== undefined;
-  if (!status?.hostile && !conquest?.canAttempt && !conquest?.playerAssaultActive) {
+  if (!status?.hostile && !conquest?.canAttempt && !conquest?.playerAssaultActive && !attack?.commissioned) {
     throw new Error("Barred port dialogue requires hostility or an exposed foreign port");
   }
   const faction = factionById(status.factionId);
@@ -2488,14 +2497,22 @@ function barredPortView(city, context) {
   const options = [];
   if (conquest?.canAttempt) {
     options.push(option(
-      "Land Marines",
+      attack?.mode === "raid" ? "Pillage city" : "Land Marines",
       { type: "land-marines" },
       {
         detail: `${conquest.successPercent}% Chance of Success`
       }
     ));
   }
-  if (status.hostile && !status.locked && !batteryDisabled && !conquest?.playerAssaultActive) {
+  if (attack?.available && !batteryDisabled && !conquest?.playerAssaultActive) {
+    options.push(option("Attack city", {
+      type: "node",
+      nodeId: "city-attack",
+      returnNodeId: "barred"
+    }));
+  }
+  if (!attack?.commissioned && status.hostile && !status.locked && !batteryDisabled &&
+      !conquest?.playerAssaultActive) {
     options.push(option("Try to enter in disguise", { type: "attempt-disguise" }));
   }
   options.push(option("Leave", { type: "close" }));
@@ -2503,12 +2520,43 @@ function barredPortView(city, context) {
     speaker: `${cityLabel(city)} harbor guard`,
     expressionId: "stern",
     text: conquest?.canAttempt
-      ? `The harbor guns are silent. ${cityLabel(city)} is exposed, but ${conquest.capital ? "the capital garrison" : "the garrison"} still bars the quays.`
+      ? attack?.mode === "raid"
+        ? `The harbor guns are silent. ${cityLabel(city)} is exposed to plunder, though no sovereign will recognize its annexation.`
+        : `The harbor guns are silent. ${cityLabel(city)} is exposed, but ${conquest.capital ? "the capital garrison" : "the garrison"} still bars the quays.`
+      : conquest?.playerRaidActive
+      ? `${cityLabel(city)} has already been stripped of portable wealth. The battered harbor remains under arms until its defenses recover.`
+      : attack?.commissioned && !batteryDisabled
+      ? `Your commission is known. ${cityLabel(city)} has closed its gates and trained its harbor batteries on your ship.`
       : batteryDisabled || conquest?.playerAssaultActive
       ? `The harbor guns are silent, but you need at least ${conquest.minimumCrew} crew aboard a large warship to land a viable assault force.`
       : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
     feedback: null,
     options
+  };
+}
+
+function cityAttackView(session, city, gameState, context) {
+  const attack = context.portAttackStatus || playerPortAttackStatus(gameState, city);
+  if (!attack.available) throw new Error(attack.reason || `Cannot attack ${cityLabel(city)}`);
+  const target = factionById(attack.targetFactionId);
+  const text = attack.piracy
+    ? `Without wartime authority, attacking ${cityLabel(city)} is piracy. The harbor batteries will open fire. If you prevail, you may plunder the city, but no crown will recognize a conquest.`
+    : attack.commissioned
+    ? `Your commission authorizes war against ${target.name}. Attack the harbor batteries, land your marines, and take ${cityLabel(city)} for ${factionById(attack.captureFactionId).name}.`
+    : attack.mode === "conquest"
+    ? `${target.name} is at war with the flag you serve. Attack the harbor batteries, land your marines, and the city can be taken for ${factionById(attack.captureFactionId).name}.`
+    : attack.privateeringAuthority
+    ? `Your letter of marque permits an attack on ${target.name}, but it is not a conquest commission. You may plunder ${cityLabel(city)}, not annex it.`
+    : `No sovereign will object to an attack on this pirate harbor. You may plunder it, but not annex it.`;
+  return {
+    speaker: gameState.playerCharacter.name,
+    expressionId: "stern",
+    text,
+    feedback: null,
+    options: [
+      option(attack.piracy ? "Attack city anyway" : "Attack city", { type: "attack-city" }),
+      option("Back", { type: "node", nodeId: session.cityAttackReturnNodeId || "root" })
+    ]
   };
 }
 
@@ -2653,6 +2701,10 @@ function rootView(session, city, gameState, economy, context) {
         nodeId: "portuguese-cartaz"
       }));
     }
+  }
+  const attack = context.portAttackStatus || null;
+  if (attack?.available) {
+    options.push(option("Attack city", { type: "node", nodeId: "city-attack" }));
   }
   options.push(
     option("Cargo ledger", { type: "node", nodeId: "cargo" }),

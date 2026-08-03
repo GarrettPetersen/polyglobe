@@ -43,6 +43,7 @@ import {
   sovereignTradeOpenToFaction,
   pirateHideoutsVisibleToPlayer,
   playerPortDisguiseSuccessChance,
+  playerPortAttackStatus,
   playerShipIsWarship,
   recordFriendlyFireAgainstFaction,
   playerTradeAccess,
@@ -86,6 +87,58 @@ test("player reputation starts from nationality, wars, and pirates", () => {
   assert.equal(factionReputation(state, "france"), ENEMY_FACTION_START_REPUTATION);
   assert.equal(factionReputation(state, "spain"), 0);
   assert.equal(factionReputation(state, "pirate"), PIRATE_START_REPUTATION);
+});
+
+test("port attacks distinguish conquest commissions, wartime capture, privateering, and piracy", () => {
+  const wartime = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  assert.deepEqual(
+    pickAttackStatus(playerPortAttackStatus(wartime, CALAIS)),
+    { commissioned: false, ownNationAtWar: true, privateeringAuthority: false, piracy: false,
+      mode: "conquest", captureFactionId: "england" }
+  );
+
+  const friendly = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const lisbon = port(3, "Lisbon", "Portugal", "mediterranean", 65000, "portugal");
+  assert.deepEqual(
+    pickAttackStatus(playerPortAttackStatus(friendly, lisbon)),
+    { commissioned: false, ownNationAtWar: false, privateeringAuthority: false, piracy: true,
+      mode: "raid", captureFactionId: null }
+  );
+
+  const commissioned = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: { ...PLAYER, nationalityId: "ming" }
+  });
+  const rhodes = port(4, "Rhodes", "Rhodes", "mediterranean", 18000, "hospitallers");
+  commissioned.memory.quests.active = {
+    id: "capture-rhodes",
+    kind: "capture-port",
+    stage: "capture",
+    targetTileId: rhodes.tileId,
+    originFactionId: "ottoman"
+  };
+  assert.deepEqual(
+    pickAttackStatus(playerPortAttackStatus(commissioned, rhodes)),
+    { commissioned: true, ownNationAtWar: false, privateeringAuthority: false, piracy: false,
+      mode: "conquest", captureFactionId: "ottoman" }
+  );
+
+  const privateer = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: { ...PLAYER, nationalityId: "ming" }
+  });
+  privateer.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  assert.deepEqual(
+    pickAttackStatus(playerPortAttackStatus(privateer, rhodes)),
+    { commissioned: false, ownNationAtWar: false, privateeringAuthority: true, piracy: false,
+      mode: "raid", captureFactionId: null }
+  );
+
+  assert.deepEqual(
+    pickAttackStatus(playerPortAttackStatus(wartime, LONDON)),
+    { commissioned: false, ownNationAtWar: false, privateeringAuthority: false, piracy: true,
+      mode: "raid", captureFactionId: null }
+  );
 });
 
 test("new voyages combine national standing, ruler faith, piety, and a seeded personal impression", () => {
@@ -846,4 +899,15 @@ test("armed warships cannot buy civilian safe passage", () => {
 
 function port(tileId, city, country, cityType, population, factionId) {
   return { tileId, city, displayCity: city, country, cityType, population, factionId, lat: 0, lon: 0 };
+}
+
+function pickAttackStatus(status) {
+  return {
+    commissioned: status.commissioned,
+    ownNationAtWar: status.ownNationAtWar,
+    privateeringAuthority: status.privateeringAuthority,
+    piracy: status.piracy,
+    mode: status.mode,
+    captureFactionId: status.captureFactionId
+  };
 }

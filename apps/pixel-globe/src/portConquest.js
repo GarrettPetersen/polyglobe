@@ -25,6 +25,7 @@ const CAPITAL_PEACE_TERMS = new Set([
   CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
 ]);
 const PLAYER_ASSAULT_FLAG_PREFIX = "playerPortAssaultUntil:";
+const PLAYER_RAID_FLAG_PREFIX = "playerPortRaidedUntil:";
 
 export function createPortConquestMemory() {
   return {
@@ -157,6 +158,10 @@ export function portConquestPrize(city) {
   const portWealth = Math.min(1400, population / 75);
   const capitalTreasury = city.isFactionCapital ? PORT_CONQUEST_CAPITAL_TREASURY_BONUS : 0;
   return Math.round((600 + portWealth + capitalTreasury) / 50) * 50;
+}
+
+export function portRaidPrize(city) {
+  return Math.max(100, Math.round((portConquestPrize(city) * 0.65) / 50) * 50);
 }
 
 export function recordPortCapture(memory, city, newFactionId, simMinute, source = "player") {
@@ -501,11 +506,43 @@ export function clearPlayerPortAssault(flags, city) {
   delete flags[playerAssaultFlagKey(city)];
 }
 
+export function markPlayerPortRaided(flags, city, untilMinute) {
+  assertFlags(flags);
+  assertCity(city);
+  if (!Number.isFinite(untilMinute) || untilMinute <= 0) {
+    throw new Error(`Invalid player port raid expiry: ${untilMinute}`);
+  }
+  flags[playerRaidFlagKey(city)] = untilMinute;
+  return untilMinute;
+}
+
+export function playerPortRaidIsActive(flags, city, simMinute) {
+  assertFlags(flags);
+  assertCity(city);
+  if (!Number.isFinite(simMinute) || simMinute < 0) throw new Error(`Invalid raid minute: ${simMinute}`);
+  const value = flags[playerRaidFlagKey(city)];
+  if (value === undefined) return false;
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`Invalid stored port raid expiry: ${value}`);
+  if (simMinute < value) return true;
+  delete flags[playerRaidFlagKey(city)];
+  return false;
+}
+
+export function clearPlayerPortRaid(flags, city) {
+  assertFlags(flags);
+  assertCity(city);
+  delete flags[playerRaidFlagKey(city)];
+}
+
 function crewLossRange(crew, minRatio, maxRatio) {
   return {
     min: Math.max(1, Math.ceil(crew * minRatio)),
     max: Math.max(1, Math.ceil(crew * maxRatio))
   };
+}
+
+function playerRaidFlagKey(city) {
+  return `${PLAYER_RAID_FLAG_PREFIX}${portConquestPortId(city)}`;
 }
 
 function assertCity(city) {

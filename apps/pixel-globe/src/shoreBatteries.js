@@ -53,7 +53,8 @@ export function createShoreBatteryState(city, flags, simMinute) {
     cooldownSeconds: 0,
     shotSequence: 0,
     engagedTargetIds: new Set(),
-    playerHailed: false
+    playerHailed: false,
+    playerAttackRecorded: false
   };
 }
 
@@ -72,6 +73,7 @@ export function updateShoreBatteryState(state, flags, simMinute, dt) {
   state.woundedGarrison = 0;
   state.engagedTargetIds.clear();
   state.playerHailed = false;
+  state.playerAttackRecorded = false;
   return true;
 }
 

@@ -15,6 +15,7 @@ import {
   receiveTreasureCargo,
   receiveFishCatch,
   receivePortConquestPrize,
+  receivePortRaidPrize,
   receiveScavengedTradeGood,
   receiveSurrenderedLoot,
   setCargoCapacity
@@ -77,6 +78,15 @@ test("port conquest pays prize money and records the captured treasury", () => {
     costBasis: 0,
     pnl: 1800
   });
+});
+
+test("port raids record plunder without describing a conquest", () => {
+  const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
+  const city = { tileId: 9, city: "Lisbon", displayCity: "Lisbon", country: "Portugal" };
+  const prize = receivePortRaidPrize(state, city, 1150, { simMinute: 140 });
+  assert.deepEqual(prize, { amount: 1150, balance: 1510 });
+  assert.equal(state.accounts.ledger.at(-1).kind, "raid");
+  assert.equal(state.accounts.ledger.at(-1).description, "Lisbon plunder");
 });
 
 test("fish catches enter cargo and the ledger with no cost basis", () => {

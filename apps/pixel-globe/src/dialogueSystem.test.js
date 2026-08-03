@@ -51,6 +51,7 @@ import {
   hasLetterOfMarqueFrom,
   hasPersonalTradePass,
   initializeProvisionalShipLoadout,
+  playerPortAttackStatus,
   playerTradeTerms,
   portMemory,
   portEntryStatus,
@@ -2031,6 +2032,102 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
     closed: false,
     action: { type: "land-marines" }
   });
+});
+
+test("a friendly foreign port warns before a piratical city attack", () => {
+  const city = {
+    tileId: 13,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 65000,
+    character: { name: "Beatriz Ferreira" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const context = { portAttackStatus: playerPortAttackStatus(gameState, city) };
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const attackIndex = root.options.findIndex((entry) => entry.label === "Attack city");
+  assert.ok(attackIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], attackIndex, context);
+  const warning = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(warning.text, /attacking Lisbon is piracy/i);
+  assert.match(warning.text, /plunder the city/i);
+  assert.deepEqual(warning.options.map((entry) => entry.label), ["Attack city anyway", "Back"]);
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
+    { closed: false, action: { type: "attack-city" } }
+  );
+});
+
+test("a friendly capture-commission target closes its harbor and engages", () => {
+  const city = {
+    tileId: 14,
+    city: "Rhodes",
+    displayCity: "Rhodes",
+    country: "Rhodes",
+    cityType: "mediterranean",
+    factionId: "hospitallers",
+    population: 18000,
+    character: { name: "Pierre de Villiers" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Hasan", nationalityId: "tidore", expressions: ["neutral"] }
+  });
+  gameState.memory.quests.active = {
+    id: "capture-rhodes",
+    kind: "capture-port",
+    stage: "capture",
+    targetTileId: city.tileId,
+    originFactionId: "ottoman"
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "barred" });
+  const context = {
+    simMinute: 100,
+    portEntryStatus: portEntryStatus(gameState, city, 100),
+    portAttackStatus: playerPortAttackStatus(gameState, city),
+    portConquestStatus: { canAttempt: false, playerAssaultActive: false, minimumCrew: 36 }
+  };
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(view.text, /commission is known/i);
+  assert.deepEqual(view.options.map((entry) => entry.label), ["Attack city", "Leave"]);
+});
+
+test("an unauthorized marine landing pillages instead of annexing", () => {
+  const city = {
+    tileId: 15,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 65000,
+    character: { name: "Beatriz Ferreira" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "barred" });
+  const context = {
+    portEntryStatus: portEntryStatus(gameState, city, 100),
+    portRecoveryStatus: { attackerShipLabel: "your ship", disabledUntilMinute: 3000, daysRemaining: 2 },
+    portAttackStatus: playerPortAttackStatus(gameState, city),
+    portConquestStatus: { canAttempt: true, playerAssaultActive: true, successPercent: 57, capital: false }
+  };
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(view.text, /exposed to plunder/i);
+  assert.equal(view.options[0].label, "Pillage city");
+  assert.equal(view.options[0].detail, "57% Chance of Success");
 });
 
 test("a disabled enemy harbor never admits an ineligible captain in disguise", () => {
