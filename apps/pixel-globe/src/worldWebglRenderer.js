@@ -5,13 +5,14 @@ in vec4 a_color;
 in vec2 a_effect;
 
 uniform vec2 u_resolution;
+uniform vec2 u_translation;
 
 out vec2 v_texCoord;
 out vec4 v_color;
 out vec2 v_effect;
 
 void main() {
-  vec2 clip = (a_position / u_resolution) * 2.0 - 1.0;
+  vec2 clip = ((a_position + u_translation) / u_resolution) * 2.0 - 1.0;
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
   v_texCoord = a_texCoord;
   v_color = a_color;
@@ -88,6 +89,7 @@ const FLOATS_PER_QUAD = FLOATS_PER_VERTEX * VERTICES_PER_QUAD;
 const INITIAL_ATLAS_QUAD_CAPACITY = 1024;
 const DEFAULT_ATLAS_SIZE = 4096;
 const DEFAULT_CHUNK_CACHE_LIMIT = 24;
+const DEFAULT_PERSISTENT_BATCH_CACHE_LIMIT = 96;
 
 export class TextureAtlasAllocator {
   constructor(width, height, padding = 1) {
@@ -339,6 +341,7 @@ export function createWorldWebGL2Renderer({
     color: requiredAttribute(gl, sceneProgram, "a_color"),
     effect: requiredAttribute(gl, sceneProgram, "a_effect"),
     resolution: requiredUniform(gl, sceneProgram, "u_resolution"),
+    translation: requiredUniform(gl, sceneProgram, "u_translation"),
     source: requiredUniform(gl, sceneProgram, "u_source"),
     time: requiredUniform(gl, sceneProgram, "u_time"),
     textureSize: requiredUniform(gl, sceneProgram, "u_textureSize")
@@ -387,6 +390,8 @@ export function createWorldWebGL2Renderer({
   let atlasFloatCount = 0;
   const chunkTextures = new Map();
   const chunkLru = new LruChunkKeys(chunkCacheLimit);
+  const persistentBatches = new Map();
+  const persistentBatchLru = new LruChunkKeys(DEFAULT_PERSISTENT_BATCH_CACHE_LIMIT);
   const sceneTexture = createNearestTexture(gl);
   const sceneFramebuffer = gl.createFramebuffer();
   if (!sceneFramebuffer) throw new Error("Could not allocate world scene framebuffer");
@@ -403,6 +408,8 @@ export function createWorldWebGL2Renderer({
   let replacedChunkTextures = 0;
   let updatedChunkTextures = 0;
   let sceneVertexCapacityBytes = 0;
+  let persistentBatchRebuilds = 0;
+  let persistentBatchDraws = 0;
   const solidPixelSource = createSolidPixelSource();
   configureSceneAttributes();
   configurePresentationAttributes();
@@ -471,6 +478,8 @@ export function createWorldWebGL2Renderer({
     uploadedChunks = 0;
     replacedChunkTextures = 0;
     updatedChunkTextures = 0;
+    persistentBatchRebuilds = 0;
+    persistentBatchDraws = 0;
     frameTimeMs = timeMs;
     frameGrade = Boolean(paletteVariant);
     updatePaletteTexture(paletteVariant);
@@ -680,6 +689,149 @@ export function createWorldWebGL2Renderer({
     });
   }
 
+  function drawPersistentAtlasSprites({
+    key,
+    revision,
+    createSprites,
+    offset = { x: 0, y: 0 }
+  }) {
+    flushBatches();
+    if (typeof key !== "string" || key.length === 0) {
+      throw new Error("Persistent atlas batch requires a cache key");
+    }
+    if ((typeof revision !== "string" && typeof revision !== "number") ||
+        (typeof revision === "number" && !Number.isFinite(revision))) {
+      throw new Error(`Persistent atlas batch ${key} requires a stable revision`);
+    }
+    if (typeof createSprites !== "function") {
+      throw new Error(`Persistent atlas batch ${key} requires a sprite factory`);
+    }
+    if (!offset || !Number.isFinite(offset.x) || !Number.isFinite(offset.y)) {
+      throw new Error(`Persistent atlas batch ${key} requires a finite offset`);
+    }
+
+    let batch = persistentBatches.get(key);
+    if (!batch || batch.revision !== revision) {
+      if (batch) deletePersistentBatch(batch);
+      batch = createPersistentBatch(key, revision, createSprites());
+      persistentBatches.set(key, batch);
+      persistentBatchRebuilds++;
+    }
+    const evictedKey = persistentBatchLru.touch(key);
+    if (evictedKey !== null) {
+      const evicted = persistentBatches.get(evictedKey);
+      if (!evicted) {
+        throw new Error(`Persistent atlas cache lost its LRU entry: ${evictedKey}`);
+      }
+      deletePersistentBatch(evicted);
+      persistentBatches.delete(evictedKey);
+    }
+
+    for (const group of batch.groups) {
+      drawPersistentGroup(group, offset);
+      persistentBatchDraws++;
+    }
+    activeAtlasPageIndex = null;
+  }
+
+  function createPersistentBatch(key, revision, sprites) {
+    if (!Array.isArray(sprites)) {
+      throw new Error(`Persistent atlas batch ${key} factory did not return an array`);
+    }
+    const verticesByPage = new Map();
+    for (const sprite of sprites) {
+      if (!sprite || !sprite.source) {
+        throw new Error(`Persistent atlas batch ${key} contains a malformed sprite`);
+      }
+      const entry = registerAtlasSource(sprite.source);
+      const local = sprite.sourceRect || {
+        x: 0,
+        y: 0,
+        width: entry.width,
+        height: entry.height
+      };
+      validateRect(local, "persistent atlas source");
+      if (local.x + local.width > entry.width || local.y + local.height > entry.height) {
+        throw new Error(`Persistent atlas batch ${key} source rectangle exceeds its image`);
+      }
+      validateRect(sprite.destinationRect, "persistent atlas destination");
+      const alpha = sprite.alpha ?? 1;
+      const tint = sprite.tint ?? [1, 1, 1];
+      const refractionPx = sprite.refractionPx ?? 0;
+      const alphaThreshold = sprite.alphaThreshold ?? 0;
+      validateUnitInterval(alpha, "persistent atlas alpha");
+      if (!Array.isArray(tint) || tint.length !== 3 ||
+          tint.some((channel) => !Number.isFinite(channel))) {
+        throw new Error(`Persistent atlas batch ${key} tint requires three finite channels`);
+      }
+      if (!Number.isFinite(refractionPx) || !Number.isFinite(alphaThreshold)) {
+        throw new Error(`Persistent atlas batch ${key} effects must be finite`);
+      }
+      let values = verticesByPage.get(entry.pageIndex);
+      if (!values) {
+        values = [];
+        verticesByPage.set(entry.pageIndex, values);
+      }
+      values.push(...quadVertices({
+        sourceRect: {
+          x: entry.x + local.x,
+          y: entry.y + local.y,
+          width: local.width,
+          height: local.height
+        },
+        textureWidth: atlasSize,
+        textureHeight: atlasSize,
+        destinationRect: sprite.destinationRect,
+        color: [tint[0], tint[1], tint[2], alpha],
+        refractionPx,
+        alphaThreshold,
+        flipX: Boolean(sprite.flipX)
+      }));
+    }
+
+    const groups = [...verticesByPage.entries()].map(([pageIndex, values]) => {
+      const vertices = new Float32Array(values);
+      const buffer = requiredBuffer(gl, `persistent atlas batch ${key}`);
+      const vertexArray = gl.createVertexArray();
+      if (!vertexArray) throw new Error(`Could not allocate persistent atlas batch ${key}`);
+      gl.bindVertexArray(vertexArray);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+      const stride = FLOATS_PER_VERTEX * 4;
+      configureAttribute(gl, sceneLocations.position, 2, stride, 0);
+      configureAttribute(gl, sceneLocations.texCoord, 2, stride, 2 * 4);
+      configureAttribute(gl, sceneLocations.color, 4, stride, 4 * 4);
+      configureAttribute(gl, sceneLocations.effect, 2, stride, 8 * 4);
+      return Object.freeze({
+        pageIndex,
+        buffer,
+        vertexArray,
+        vertexCount: vertices.length / FLOATS_PER_VERTEX
+      });
+    });
+    return { key, revision, groups };
+  }
+
+  function drawPersistentGroup(group, offset) {
+    gl.useProgram(sceneProgram);
+    gl.bindVertexArray(group.vertexArray);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, atlasPage(group.pageIndex).texture);
+    gl.uniform2f(sceneLocations.resolution, sceneWidth, sceneHeight);
+    gl.uniform2f(sceneLocations.translation, offset.x, offset.y);
+    gl.uniform2f(sceneLocations.textureSize, atlasSize, atlasSize);
+    gl.uniform1f(sceneLocations.time, frameTimeMs);
+    gl.drawArrays(gl.TRIANGLES, 0, group.vertexCount);
+    drawCalls++;
+  }
+
+  function deletePersistentBatch(batch) {
+    for (const group of batch.groups) {
+      gl.deleteVertexArray(group.vertexArray);
+      gl.deleteBuffer(group.buffer);
+    }
+  }
+
   function drawSolidRect({ destinationRect, color }) {
     validateRect(destinationRect, "solid destination");
     if (!Array.isArray(color) || color.length !== 4) {
@@ -785,6 +937,7 @@ export function createWorldWebGL2Renderer({
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniform2f(sceneLocations.resolution, sceneWidth, sceneHeight);
+    gl.uniform2f(sceneLocations.translation, 0, 0);
     gl.uniform2f(sceneLocations.textureSize, textureWidth, textureHeight);
     gl.uniform1f(sceneLocations.time, frameTimeMs);
     const requiredBytes = vertices.byteLength;
@@ -821,6 +974,7 @@ export function createWorldWebGL2Renderer({
     beginFrame,
     drawChunk,
     drawAtlasSprite,
+    drawPersistentAtlasSprites,
     drawSolidRect,
     endFrame,
     stats: () => Object.freeze({
@@ -831,7 +985,10 @@ export function createWorldWebGL2Renderer({
       uploadedChunks,
       replacedChunkTextures,
       updatedChunkTextures,
-      sceneVertexCapacityBytes
+      sceneVertexCapacityBytes,
+      persistentBatches: persistentBatches.size,
+      persistentBatchRebuilds,
+      persistentBatchDraws
     })
   });
 }

@@ -841,6 +841,8 @@ import {
 } from "./politicsCardLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import {
+  WATER_HEX_WAVE_FRAME_COUNT,
+  WATER_HEX_WAVE_PERIOD_MS,
   globeWaterHexWaveFrame,
   localWaterHexWaveFrame,
   waterHexWaveBandsForFrame
@@ -1445,8 +1447,11 @@ import {
 } from "./shipNavigationRecovery.js";
 import {
   drawnNavigationTransitionAllowed,
-  resolveDrawnSurfaceNavigation
 } from "./drawnShipNavigation.js";
+import {
+  drawnNavigationFieldPoint,
+  rasterizeDrawnNavigationChunk
+} from "./drawnNavigationField.js";
 import {
   assertChartReframePositionPreserved,
   captureChartReframePosition,
@@ -1728,6 +1733,9 @@ const SHIP_STUCK_RECOVERY_CLEARANCE_RADIUS_PX = SHIP_COLLISION_RADIUS_PX + 2;
 const SHIP_STUCK_RECOVERY_CLEARANCE_SAMPLES = 8;
 const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
 const SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX = 48;
+const DRAWN_NAVIGATION_FIELD_CHUNK_SIZE = 32;
+const DRAWN_NAVIGATION_FIELD_PADDING_PX = 12;
+const DRAWN_NAVIGATION_FIELD_CACHE_LIMIT = 1024;
 const SHIP_RIVER_HEADING_ALIGN_DOT = Math.cos(Math.PI / 3);
 const SHIP_RIVER_TARGET_ALIGN_DOT = Math.cos(80 * Math.PI / 180);
 const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
@@ -1764,7 +1772,7 @@ const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 18, 36, 54];
-const NPC_VISUAL_UPDATE_HZ = 30;
+const NPC_VISUAL_UPDATE_HZ = 18;
 const NPC_COMBAT_TARGETING_HZ = 6;
 const NPC_IDLE_COMBAT_TARGETING_HZ = 3;
 const NPC_COMBAT_COLLISION_HZ = 4;
@@ -1784,7 +1792,9 @@ const WORLD_SPATIAL_KIND = Object.freeze({
 // Preserve a 10 Hz update rate per nearby ship while distributing collision work
 // across short slices. The 30 Hz coordinator avoids rebuilding every snapshot and
 // spatial entry between ship moves; slower devices degrade instead of catching up.
-const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 3;
+const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 2;
+const NPC_VISUAL_PRESENTATION_MIN_MS = 50;
+const NPC_VISUAL_PRESENTATION_MAX_MS = 180;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
@@ -1807,7 +1817,6 @@ const NPC_HAIL_RADIUS_PX = 28;
 const NPC_HAIL_CLICK_PAD_PX = 4;
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
-const DRAWN_SURFACE_NAVIGATION_CACHE_LIMIT = 65536;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
 const CANNON_MUZZLE_SIDE_OFFSET_PX = 8;
 const CANNON_MUZZLE_FORE_AFT_SPAN_PX = 13;
@@ -2402,6 +2411,7 @@ const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const WHALE_SIMULATION_INTERVAL_SECONDS = 0.25;
 const WHALE_HUNT_SIMULATION_INTERVAL_SECONDS = 1 / 30;
 const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 32;
+const WHALE_RENDER_EXPOSURE_STEPS = 4;
 const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
@@ -2411,8 +2421,6 @@ const FISH_VISIBLE_MAX_SCHOOLS = 12;
 const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
-const FISH_SWIM_PERIOD_MIN_MS = 4200;
-const FISH_SWIM_PERIOD_SPREAD_MS = 5200;
 const FISH_SCATTER_RADIUS_PX = 30;
 const FISH_SCATTER_PUSH_PX = 5;
 const FISH_NPC_SEARCH_RETRY_MINUTES = 30;
@@ -2505,12 +2513,6 @@ const screenCtx = canvas.getContext("2d", { alpha: true });
 if (!screenCtx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
 screenCtx.imageSmoothingEnabled = false;
 let ctx = screenCtx;
-const worldCanvas = document.createElement("canvas");
-worldCanvas.width = canvas.width;
-worldCanvas.height = canvas.height;
-const worldCtx = worldCanvas.getContext("2d", { alpha: true });
-if (!worldCtx) throw new Error("Marque & Reprisal could not create its world canvas context");
-worldCtx.imageSmoothingEnabled = false;
 const worldRenderer = createWorldWebGL2Renderer();
 worldRenderer.canvas.id = "world-view";
 worldRenderer.canvas.setAttribute("aria-hidden", "true");
@@ -2583,26 +2585,23 @@ if (!shipSinkSampleCtx) throw new Error("Marque & Reprisal could not create its 
 shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
 const shipWaterlineLayerCache = new WeakMap();
+const shipWaterlineFrameCanvasCache = new WeakMap();
+const whaleRenderSourceCache = new WeakMap();
 const floatingShipFrameAtlasCache = new WeakMap();
 const FLOATING_SHIP_FRAME_CACHE_LIMIT = 48;
 const FLOATING_SHIP_FRAME_ATLAS_COLUMNS = 8;
 const selectableOutlineCache = new WeakMap();
 const coralReefWaterMaskCache = new WeakMap();
 const coralReefBeachPixelCache = new WeakMap();
+const coralReefMaskedSpriteCache = new WeakMap();
 const surfaceDetailLayerCache = new WeakMap();
 const surfaceDetailRiverDrawCallCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
+const TERRAIN_CONNECTOR_LAYER_MARGIN_PX = 128;
+const WATER_FOREGROUND_LAYER_MARGIN_PX = 160;
 const SURFACE_DETAIL_REDRAW_MS = 500;
 const SURFACE_DETAIL_RIVER_FRAME_COUNT = RIVER_HIGHLIGHT_FRAME_MS * 2 /
   SURFACE_DETAIL_REDRAW_MS;
-const underwaterWorldSpriteCanvas = document.createElement("canvas");
-underwaterWorldSpriteCanvas.width = UNDERWATER_WORLD_SPRITE_WIDTH;
-underwaterWorldSpriteCanvas.height = TILE_ART_SIZE;
-const underwaterWorldSpriteCtx = underwaterWorldSpriteCanvas.getContext("2d");
-if (!underwaterWorldSpriteCtx) {
-  throw new Error("Marque & Reprisal could not create its underwater world sprite context");
-}
-underwaterWorldSpriteCtx.imageSmoothingEnabled = false;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
 const pixelTextWidthCache = new Map();
@@ -2611,6 +2610,8 @@ let captureLocalizedTextOutputs = new Set();
 const cityLabelRasterCache = new Map();
 let survivalHudRasterCache = null;
 const renderCallWindowCache = new WeakMap();
+const terrainPersistentBatchKeyByCalls = new WeakMap();
+let nextTerrainPersistentBatchKey = 1;
 const RENDER_CALL_WINDOW_STEP_PX = 64;
 let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
@@ -2755,7 +2756,8 @@ const spriteAlphaMasks = new WeakMap();
 const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
-const shipTerrainRiverBankCache = new WeakMap();
+const shipTerrainRiverBankCache = new Map();
+const riverTileLocalWaterPointCache = new Map();
 const wavingFactionFlagAtlasCache = new Map();
 const landRoadLayerCache = new WeakMap();
 const terrainImagePixelCache = new WeakMap();
@@ -2763,7 +2765,7 @@ const riverNavigationPathCache = new WeakMap();
 const wakeWaterPointCache = new WeakMap();
 const shipShadowSurfacePointCache = new WeakMap();
 const waterEffectForegroundLayerCache = new WeakMap();
-const drawnSurfaceNavigationCache = new WeakMap();
+const drawnNavigationFieldCache = new WeakMap();
 const riverGatewayDirectionCache = new WeakMap();
 const RIVER_GATEWAY_DIRECTION_CACHE_LIMIT = 4096;
 const RIVER_GATEWAY_CACHE_POSITION_PX = 3;
@@ -2776,6 +2778,7 @@ const fishSchoolSpriteCache = new Map();
 let fishSchoolFrameCache = null;
 let fishSchoolCandidateCache = null;
 let fisheryRenderStateCache = null;
+const fishSchoolMotionCache = new WeakMap();
 const fishHabitatCache = new Map();
 let tileWeatherSamplingCache = null;
 let spriteColors;
@@ -2933,6 +2936,7 @@ const portraitPromiseCache = new Map();
 const grayscalePortraitCanvasCache = new WeakMap();
 const dialoguePortraitToneCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
+const cityShadowWebglSpriteCache = new Map();
 let centerTileId = 0;
 let chartNorthUpDrift = measureChartNorthUpDrift([]);
 let chartReframeCoverWasActive = false;
@@ -3892,14 +3896,20 @@ function loadVehicleImage(key) {
   return loadAssetImage(`assets/vehicles/${key}.png?v=${VEHICLE_ASSET_VERSION}`, `vehicle image: ${key}`);
 }
 
-async function loadShipSpriteAsset(spriteKey, label) {
+async function loadShipSpriteAsset(spriteKey, label, slug) {
   const [image, sinkDepthImage] = await Promise.all([
     loadVehicleImage(spriteKey),
     loadVehicleImage(`${spriteKey}-sink-depth`)
   ]);
   validateShipSpriteSheet(image, `${label} image`);
   validateShipSpriteSheet(sinkDepthImage, `${label} sink-depth image`);
+  await prebakeShipRenderLayers(image, sinkDepthImage, slug);
   return Object.freeze({ image, sinkDepthImage });
+}
+
+async function prebakeShipRenderLayers(image, sinkDepthImage, slug) {
+  shipStatsForSlug(slug);
+  shipWaterlineLayers(image, sinkDepthImage, 0, slug);
 }
 
 const WORLD_ANIMATION_ASSET = Object.freeze({
@@ -3981,7 +3991,7 @@ async function loadWorldAnimationAsset(key) {
 async function loadShipSpriteAssetsForSlug(slug) {
   shipStatsForSlug(slug);
   const key = `${vehicleSpriteKeyForShipSlug(slug)}-${SHIP_SPRITE_HEADING_SUFFIX}`;
-  return loadShipSpriteAsset(key, `Ship: ${slug}`);
+  return loadShipSpriteAsset(key, `Ship: ${slug}`, slug);
 }
 
 async function loadShipLightingForSlug(slug) {
@@ -3997,7 +4007,7 @@ async function loadRowingShipAssetsForSlug(slug) {
     ? loadDemoRowingShipAtlas(slug, spec.frames, modeStem)
     : Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
         const key = `${vehicleSpriteKeyForShipSlug(slug)}-${modeStem}-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
-        return loadShipSpriteAsset(key, `${modeStem} ship: ${slug} frame ${frameIndex}`);
+        return loadShipSpriteAsset(key, `${modeStem} ship: ${slug} frame ${frameIndex}`, slug);
       }));
   const [ahead, pivotPort, pivotStarboard] = await Promise.all([
     loadMode("rowing"),
@@ -4027,7 +4037,7 @@ async function loadDemoRowingShipAtlas(slug, frameCount, modeStem) {
     atlasWidth,
     atlasHeight
   );
-  return Object.freeze(Array.from({ length: frameCount }, (_, frameIndex) => {
+  const frames = await Promise.all(Array.from({ length: frameCount }, async (_, frameIndex) => {
     const image = demoRowingAtlasFrame(imageAtlas, frameIndex, atlasWidth, atlasHeight / frameCount);
     const sinkDepthImage = demoRowingAtlasFrame(
       sinkDepthAtlas,
@@ -4040,8 +4050,10 @@ async function loadDemoRowingShipAtlas(slug, frameCount, modeStem) {
       sinkDepthImage,
       `Demo rowing ship sink-depth: ${slug} frame ${frameIndex}`
     );
+    await prebakeShipRenderLayers(image, sinkDepthImage, slug);
     return Object.freeze({ image, sinkDepthImage });
   }));
+  return Object.freeze(frames);
 }
 
 function demoRowingAtlasFrame(atlas, frameIndex, width, height) {
@@ -4069,6 +4081,7 @@ async function loadWhaleAssetsForSlug(slug) {
   ]);
   validateShipSpriteSheet(image, `${slug} sprite sheet`);
   validateShipSpriteSheet(sinkDepthImage, `${slug} sink-depth sheet`);
+  prebakeWhaleRenderSource(image, sinkDepthImage, slug);
   return Object.freeze({ image, sinkDepthImage });
 }
 
@@ -7601,10 +7614,12 @@ function performanceBenchmarkSceneSnapshot(state) {
     navalProjectiles: ship.navalProjectiles.length + npcCombatProjectiles.length,
     smokeBursts: cannonSmokeBursts.length,
     gpuRenderedNpcShips: gpuShipDrawCommands.reduce(
-      (count, command) => count + Number(command.drawCall.kind === "npc"),
+      (count, command) => count + Number(command.kind === "ship" && command.drawCall.kind === "npc"),
       0
     ),
-    gpuRenderedPlayerShip: gpuShipDrawCommands.some((command) => command.drawCall.kind === "player"),
+    gpuRenderedPlayerShip: gpuShipDrawCommands.some(
+      (command) => command.kind === "ship" && command.drawCall.kind === "player"
+    ),
     gpuRenderer: worldRenderer.stats()
   };
 }
@@ -17074,13 +17089,13 @@ function pointHitsRenderedShipPixel(point, call, nowMs) {
   };
   if (pointHitsOpaqueSpritePixel({
     point,
-    mask: spriteAlphaMask(layers.aboveCanvas),
+    mask: spriteAlphaMask(shipWaterlineFrameCanvas(layers, "above")),
     sourceRect: frameRect,
     destinationRect
   })) return true;
 
   const refractionTime = reducedMotionPreferred ? 0 : nowMs;
-  const submergedMask = spriteAlphaMask(layers.submergedCanvas);
+  const submergedMask = spriteAlphaMask(shipWaterlineFrameCanvas(layers, "submerged"));
   for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y += SHIP_REFRACTION_BAND_HEIGHT) {
     const bandHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, SHIP_SHEET_FRAME_SIZE - y);
     if (pointHitsOpaqueSpritePixel({
@@ -17533,6 +17548,7 @@ function reprojectNpcVisualPositions(states) {
     state.y = point.y;
     state.tileId = point.tileId;
     state.heading = normalizeTangentOrFallback(state.heading, state.vector, WORLD_NORTH);
+    resetNpcVisualPresentation(state, lastFrameMs);
     state.collisionVelocityX = 0;
     state.collisionVelocityY = 0;
     clearNpcEscapeManeuver(state, true);
@@ -19422,7 +19438,9 @@ function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
     return {
       ok: true,
       kind: freshWaterSurfaceMask?.[surface.tileId] ? "lake" : "openWater",
-      tileId: surface.tileId
+      tileId: surface.tileId,
+      clearancePx: surface.clearancePx,
+      flow: surface.flow
     };
   }
 
@@ -19452,39 +19470,82 @@ function drawnSurfaceNavigationAtPoint(x, y, activeChart, isUsableWaterTile) {
   }
   const roundedX = Math.round(x);
   const roundedY = Math.round(y);
-  const pixelKey = pixelMaskKey(roundedX, roundedY);
-  let cache = drawnSurfaceNavigationCache.get(activeChart);
+  let cache = drawnNavigationFieldCache.get(activeChart);
   if (!cache || cache.weatherMaskDayIndex !== weatherMaskDayIndex) {
     cache = {
       weatherMaskDayIndex,
-      resolutions: new Map()
+      chunks: new Map()
     };
-    drawnSurfaceNavigationCache.set(activeChart, cache);
+    drawnNavigationFieldCache.set(activeChart, cache);
   }
-
-  let resolution;
-  if (cache.resolutions.has(pixelKey)) {
-    resolution = cache.resolutions.get(pixelKey);
-  } else {
-    resolution = resolveDrawnSurfaceNavigation({
-      candidates: wakeWaterCandidatesForPoint(roundedX, roundedY, activeChart.waterIndex),
-      x: roundedX,
-      y: roundedY,
+  const chunkX = Math.floor(roundedX / DRAWN_NAVIGATION_FIELD_CHUNK_SIZE);
+  const chunkY = Math.floor(roundedY / DRAWN_NAVIGATION_FIELD_CHUNK_SIZE);
+  const chunkKey = `${chunkX},${chunkY}`;
+  let chunk = cache.chunks.get(chunkKey);
+  if (!chunk) {
+    chunk = rasterizeDrawnNavigationChunk({
+      originX: chunkX * DRAWN_NAVIGATION_FIELD_CHUNK_SIZE,
+      originY: chunkY * DRAWN_NAVIGATION_FIELD_CHUNK_SIZE,
+      size: DRAWN_NAVIGATION_FIELD_CHUNK_SIZE,
+      padding: DRAWN_NAVIGATION_FIELD_PADDING_PX,
+      candidates: drawnNavigationFieldCandidates(
+        activeChart,
+        chunkX * DRAWN_NAVIGATION_FIELD_CHUNK_SIZE,
+        chunkY * DRAWN_NAVIGATION_FIELD_CHUNK_SIZE,
+        DRAWN_NAVIGATION_FIELD_CHUNK_SIZE
+      ),
       maxDistancePx: SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX,
       isWaterTile: (candidateTileId) => isWaterSurfaceRow(earthById[candidateTileId]),
       isUsableWaterTile: () => true,
-      isTileOpaqueAtPoint: tileTerrainSpriteOpaqueAtMapPoint
+      tileRaster: drawnNavigationTileRaster
     });
-    if (cache.resolutions.size >= DRAWN_SURFACE_NAVIGATION_CACHE_LIMIT) {
-      cache.resolutions.clear();
-    }
-    cache.resolutions.set(pixelKey, resolution);
+    if (cache.chunks.size >= DRAWN_NAVIGATION_FIELD_CACHE_LIMIT) cache.chunks.clear();
+    cache.chunks.set(chunkKey, chunk);
   }
+  const resolution = drawnNavigationFieldPoint(chunk, roundedX, roundedY);
   if (!resolution) return null;
+  const water = resolution.water && isUsableWaterTile(resolution.tileId);
   return {
     tileId: resolution.tileId,
-    water: resolution.water && isUsableWaterTile(resolution.tileId),
-    source: resolution.source
+    water,
+    source: resolution.source,
+    clearancePx: water ? resolution.clearancePx : 0,
+    flow: water ? resolution.flow : null
+  };
+}
+
+function drawnNavigationFieldCandidates(activeChart, originX, originY, size) {
+  const margin = SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX +
+    DRAWN_NAVIGATION_FIELD_PADDING_PX + TILE_ART_HALF;
+  const minBx = Math.floor((originX - margin) / WAKE_WATER_BUCKET_PX);
+  const maxBx = Math.floor((originX + size + margin) / WAKE_WATER_BUCKET_PX);
+  const minBy = Math.floor((originY - margin) / WAKE_WATER_BUCKET_PX);
+  const maxBy = Math.floor((originY + size + margin) / WAKE_WATER_BUCKET_PX);
+  const candidates = [];
+  const seen = new Set();
+  for (let by = minBy; by <= maxBy; by++) {
+    for (let bx = minBx; bx <= maxBx; bx++) {
+      const bucket = activeChart.waterIndex.buckets.get(wakeWaterBucketKey(bx, by));
+      if (!bucket) continue;
+      for (const entry of bucket) {
+        if (entry.kind !== "tile" || seen.has(entry)) continue;
+        seen.add(entry);
+        candidates.push(entry);
+      }
+    }
+  }
+  return candidates;
+}
+
+function drawnNavigationTileRaster(call) {
+  const image = terrainImageForTile(call.row, call.id);
+  const mask = spriteAlphaMask(image);
+  return {
+    x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
+    y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
+    width: mask.width,
+    height: mask.height,
+    alpha: mask.alpha
   };
 }
 
@@ -20807,11 +20868,16 @@ function addHullSplinterBurst(projectile, point) {
   }
 }
 
-function drawHullSplinterBursts(bursts) {
+function drawHullSplinterBursts(bursts, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   for (const burst of bursts) {
     for (const pixel of hullSplinterPixels(burst)) {
-      ctx.fillStyle = `rgba(${HULL_SPLINTER_COLORS[pixel.shade]}, ${pixel.alpha.toFixed(3)})`;
-      ctx.fillRect(pixel.x, pixel.y, 1, 1);
+      painter.rect(
+        pixel.x,
+        pixel.y,
+        1,
+        1,
+        `rgba(${HULL_SPLINTER_COLORS[pixel.shade]}, ${pixel.alpha.toFixed(3)})`
+      );
     }
   }
 }
@@ -22105,6 +22171,7 @@ function updateNpcVisualShips(dt) {
 
     const movementDt = state.visualMovementDebtSeconds;
     state.visualMovementDebtSeconds = 0;
+    let presentationStart = npcVisualPresentationPoint(state, lastFrameMs);
     let visualNavigationChanged = false;
     let currentNavigation = measurePerformanceBenchmarkStage(
       "npcShips.visual.movement.navigation",
@@ -22143,15 +22210,22 @@ function updateNpcVisualShips(dt) {
         continue;
       }
       if (applyNpcVisualPlacement(state, placement)) {
+        resetNpcVisualPresentation(state, lastFrameMs);
+        presentationStart = { x: state.x, y: state.y };
         visualNavigationChanged = true;
         changed = true;
       }
       currentNavigation = { ok: true, kind: placement.navKind };
     }
+    const movementStartX = state.x;
+    const movementStartY = state.y;
     if (measurePerformanceBenchmarkStage(
       "npcShips.visual.movement.advance",
       () => advanceNpcVisualState(state, snapshot, routePoint, movementDt, currentNavigation)
     )) {
+      if (state.x !== movementStartX || state.y !== movementStartY) {
+        beginNpcVisualPresentation(state, presentationStart, lastFrameMs, movementDt);
+      }
       visualNavigationChanged = true;
       changed = true;
     }
@@ -22247,6 +22321,12 @@ function createNpcVisualState(snapshot, routePoint) {
     fishSearchAfterMinute: 0,
     visualMovementBucket: npcVisualMovementBucketForId(snapshot.id),
     visualMovementDebtSeconds: 0,
+    presentationFromX: placement.x,
+    presentationFromY: placement.y,
+    presentationToX: placement.x,
+    presentationToY: placement.y,
+    presentationStartMs: lastFrameMs,
+    presentationDurationMs: 0,
     fishingAction: null
   };
   setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
@@ -22260,6 +22340,43 @@ function npcVisualMovementBucketForId(id) {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
+}
+
+function npcVisualPresentationPoint(state, nowMs) {
+  if (!Number.isFinite(nowMs)) throw new Error(`NPC presentation requires a finite time: ${nowMs}`);
+  const duration = state.presentationDurationMs || 0;
+  if (duration <= 0) return { x: state.presentationToX, y: state.presentationToY };
+  const t = clamp((nowMs - state.presentationStartMs) / duration, 0, 1);
+  return {
+    x: state.presentationFromX + (state.presentationToX - state.presentationFromX) * t,
+    y: state.presentationFromY + (state.presentationToY - state.presentationFromY) * t
+  };
+}
+
+function beginNpcVisualPresentation(state, from, nowMs, movementDt) {
+  if (!Number.isFinite(from?.x) || !Number.isFinite(from?.y) ||
+      !Number.isFinite(movementDt) || movementDt < 0) {
+    throw new Error(`NPC ${state.id} has invalid presentation transition`);
+  }
+  state.presentationFromX = from.x;
+  state.presentationFromY = from.y;
+  state.presentationToX = state.x;
+  state.presentationToY = state.y;
+  state.presentationStartMs = nowMs;
+  state.presentationDurationMs = clamp(
+    movementDt * 1000,
+    NPC_VISUAL_PRESENTATION_MIN_MS,
+    NPC_VISUAL_PRESENTATION_MAX_MS
+  );
+}
+
+function resetNpcVisualPresentation(state, nowMs) {
+  state.presentationFromX = state.x;
+  state.presentationFromY = state.y;
+  state.presentationToX = state.x;
+  state.presentationToY = state.y;
+  state.presentationStartMs = nowMs;
+  state.presentationDurationMs = 0;
 }
 
 function npcVisualStateRequiresLocalPhysics(state) {
@@ -24606,6 +24723,7 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   }
 
   const guide = npcRiverNavigationDirection(state, direction, startNav.kind);
+  const clearanceGuide = npcNavigationClearanceDirection(direction, startNav);
   const baseDirections = guide
     ? [
         blendRiverNavigationDirections(direction, guide, 0.5),
@@ -24613,7 +24731,9 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
         guide,
         direction
       ].filter(Boolean)
-    : [direction];
+    : clearanceGuide
+      ? [clearanceGuide, direction]
+      : [direction];
   const tried = new Set();
 
   const directMove = measurePerformanceBenchmarkStage(
@@ -24685,6 +24805,26 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   return null;
 }
 
+function npcNavigationClearanceDirection(direction, navigation) {
+  if (
+    navigation.kind !== "openWater" ||
+    !navigation.flow ||
+    !Number.isFinite(navigation.clearancePx) ||
+    navigation.clearancePx >= SHIP_COLLISION_RADIUS_PX + 4
+  ) return null;
+  const flow = normalizeScreenVector(navigation.flow);
+  if (!flow) return null;
+  const urgency = clamp(
+    1 - navigation.clearancePx / (SHIP_COLLISION_RADIUS_PX + 4),
+    0.25,
+    0.8
+  );
+  return normalizeScreenVector({
+    x: direction.x * (1 - urgency) + flow.x * urgency,
+    y: direction.y * (1 - urgency) + flow.y * urgency
+  });
+}
+
 function fastNpcOpenWaterStep(state, direction, distance, heading, startNav) {
   if (
     startNav.kind !== "openWater" ||
@@ -24712,7 +24852,7 @@ function fastNpcOpenWaterStep(state, direction, distance, heading, startNav) {
 
 function moveNpcAlongRiverRail(state, desiredDirection, distance, dt) {
   const selection = selectRiverRailPath({
-    probes: riverCenterlineInfosAtLocalPoint(state.x, state.y, chart),
+    probes: riverCenterlineInfosAtLocalPoint(state.x, state.y, chart, state.riverRailPathKey),
     desiredDirection,
     activePathKey: state.riverRailPathKey,
     activeDirectionSign: state.riverRailDirectionSign,
@@ -25569,11 +25709,8 @@ function applyResponsiveViewport(width, height) {
   lakeBattleTerrainChartKey = "";
   canvas.width = width;
   canvas.height = height;
-  worldCanvas.width = width;
-  worldCanvas.height = height;
   syncCanvasAriaLabel();
   screenCtx.imageSmoothingEnabled = false;
-  worldCtx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
   INTERACTION_BUTTON_Y = SCREEN_H - INTERACTION_BUTTON_H - 5;
@@ -25828,21 +25965,10 @@ function drawDayNightWorld(layers, nowMs) {
       );
     },
     dynamicUnderlay: () => {
-      drawGpuWorldUnderlay();
-      drawGpuShipCommands();
+      drawGpuDynamicUnderlay(layers.dynamicWorld);
     },
     dynamicWorld: () => {
-      worldRenderer.drawChunk({
-        key: "dynamic-world-overlay",
-        source: worldCanvas,
-        revision: worldRenderCount,
-        destinationRect: {
-          x: 0,
-          y: 0,
-          width: SCREEN_W,
-          height: SCREEN_H
-        }
-      });
+      drawGpuDynamicWorld(layers.dynamicWorld);
     }
   });
   worldRenderer.endFrame();
@@ -25869,6 +25995,24 @@ function drawTerrainAtlasTiles(tileCalls, activeChart, offset) {
   if (!Array.isArray(tileCalls) || !activeChart) {
     throw new Error("Terrain atlas rendering requires tile calls and an active chart");
   }
+  let batchKey = terrainPersistentBatchKeyByCalls.get(tileCalls);
+  if (!batchKey) {
+    batchKey = `terrain-window-${nextTerrainPersistentBatchKey++}`;
+    terrainPersistentBatchKeyByCalls.set(tileCalls, batchKey);
+  }
+  const waveCycleFrame = Math.floor(
+    waterAnimationClockMs / WATER_HEX_WAVE_PERIOD_MS * WATER_HEX_WAVE_FRAME_COUNT
+  ) % WATER_HEX_WAVE_FRAME_COUNT;
+  worldRenderer.drawPersistentAtlasSprites({
+    key: `${batchKey}:wave-${waveCycleFrame}`,
+    revision: 1,
+    offset,
+    createSprites: () => terrainPersistentSprites(tileCalls, activeChart)
+  });
+}
+
+function terrainPersistentSprites(tileCalls, activeChart) {
+  const sprites = [];
   for (const call of tileCalls) {
     const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
     const waveFrame = waterHexWaveFrameForTile(call, activeChart);
@@ -25877,15 +26021,14 @@ function drawTerrainAtlasTiles(tileCalls, activeChart, offset) {
       ...overlayImages
     ];
     const destinationRect = {
-      x: Math.round(call.drawSurfaceX - TILE_ART_HALF + offset.x),
-      y: Math.round(call.drawSurfaceY - TILE_ART_HALF + offset.y),
+      x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
+      y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
       width: TILE_ART_SIZE,
       height: TILE_ART_SIZE
     };
-    for (const image of imagesToDraw) {
-      worldRenderer.drawAtlasSprite({ source: image, destinationRect });
-    }
+    for (const source of imagesToDraw) sprites.push({ source, destinationRect });
   }
+  return sprites;
 }
 
 function drawRiverAtlasLayer(layer, offset) {
@@ -26000,10 +26143,8 @@ function render(nowMs) {
     if (optionsMenu.isOpen) drawOptionsMenu();
     return;
   }
-  ctx = worldCtx;
+  ctx = screenCtx;
   prepareNorthUpWorldBehindCover();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
 
   ensureChart();
   const offset = chartOffsetPixels(chart);
@@ -26046,67 +26187,33 @@ function render(nowMs) {
       },
       waterForeground: measurePerformanceBenchmarkStage(
         "render.terrain.waterForeground",
-        () => waterEffectForegroundLayer(chart, offset)
+        () => waterEffectForegroundLayer(chart, offset, connectors)
       )
     };
   });
 
-  ctx.save();
-  ctx.translate(offset.x, offset.y);
   const shipLight = shipSunLightState();
   const cloudCalls = measurePerformanceBenchmarkStage(
     "render.cloudPrepare",
     () => cloudDrawCalls(chart, offset)
   );
   renderedCloudSpriteCount = cloudCalls.length;
-  gpuWorldUnderlay = coralReefIsVisible(chart, offset)
-    ? null
-    : { activeChart: chart, nowMs, offset };
-  measurePerformanceBenchmarkStage("render.worldEffects", () => {
-    drawCoralReefs(chart, nowMs);
-    if (!gpuWorldUnderlay) {
-      drawPrecipitation(chart, nowMs, offset);
-      drawNavalEffects(chart);
-    }
-    drawCityShadows(chart, shipLight);
-    if (!gpuWorldUnderlay) {
-      drawSeagulls(chart, nowMs);
-      drawWorldDiscoverySprites(chart);
-    }
-    drawLandCarts(chart, nowMs, shipLight, renderTileIds);
-    drawCitySprites(chart, nowMs);
-  });
-  ctx.restore();
+  gpuWorldUnderlay = { activeChart: chart, nowMs, offset };
 
   measurePerformanceBenchmarkStage("render.vessels", () => {
-    measurePerformanceBenchmarkStage(
-      "render.vessels.shadows",
-      () => drawShipShadow(chart, shipLight, offset)
-    );
-    measurePerformanceBenchmarkStage("render.vessels.whales", () => {
-      drawWhales(nowMs);
-      drawWhaleHuntEffects(nowMs);
-    });
-    measurePerformanceBenchmarkStage("render.vessels.fishing", () => {
-      drawFishingNetAnimation(nowMs);
-      drawNpcFishingNetAnimations(nowMs);
-    });
     measurePerformanceBenchmarkStage(
       "render.vessels.ships",
       () => drawShips(chart, shipLight, nowMs)
     );
   });
-  ctx.save();
-  ctx.translate(offset.x, offset.y);
-  drawHullSplinterBursts(hullSplinterBursts);
-  drawCitySpritesAboveShip(chart, offset, nowMs);
-  ctx.restore();
-  ctx.save();
-  ctx.translate(offset.x, offset.y);
-  measurePerformanceBenchmarkStage("render.clouds", () => drawCloudLayer(cloudCalls));
-  drawCityLabels(chart.cityCalls, chart);
-  ctx.restore();
-  ctx = screenCtx;
+  cachedWorldLayers.dynamicWorld = {
+    activeChart: chart,
+    nowMs,
+    offset,
+    shipLight,
+    cloudCalls,
+    renderTileIds
+  };
   measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
     drawDayNightWorld(cachedWorldLayers, nowMs);
     drawStormScreenPrecipitation(nowMs);
@@ -26174,26 +26281,51 @@ function render(nowMs) {
   }
 }
 
-function coralReefIsVisible(activeChart, offset) {
-  for (const coral of coralReefs) {
-    const call = activeChart.tileById.get(coral.tileId);
-    if (!call) continue;
-    if (pointNearScreen({
-      x: call.drawSurfaceX + offset.x,
-      y: call.drawSurfaceY + offset.y
-    }, TILE_ART_SIZE)) return true;
-  }
-  return false;
-}
-
 function drawGpuWorldUnderlay() {
   if (!gpuWorldUnderlay) return;
   const { activeChart, nowMs, offset } = gpuWorldUnderlay;
   const painter = createGpuWorldPrimitivePainter(offset);
+  drawCoralReefsWebGL(activeChart, offset);
   drawPrecipitation(activeChart, nowMs, offset, painter);
   drawNavalEffects(activeChart, painter);
   drawSeagullsWebGL(activeChart, nowMs, offset);
   drawWorldDiscoverySpritesWebGL(activeChart, offset);
+}
+
+function drawGpuDynamicUnderlay(dynamicWorld) {
+  if (!dynamicWorld) throw new Error("GPU dynamic underlay requires a frame description");
+  const { activeChart, nowMs, offset, shipLight, renderTileIds } = dynamicWorld;
+  drawGpuWorldUnderlay();
+  measurePerformanceBenchmarkStage("render.worldEffects", () => {
+    drawCityShadowsWebGL(activeChart, shipLight, offset);
+    drawLandCartsWebGL(activeChart, nowMs, shipLight, offset, renderTileIds);
+  });
+  measurePerformanceBenchmarkStage(
+    "render.vessels.shadows",
+    () => drawShipShadowWebGL(activeChart, shipLight, offset)
+  );
+  measurePerformanceBenchmarkStage("render.vessels.whales", () => {
+    drawWhalesWebGL(nowMs);
+    drawWhaleHuntEffectsWebGL(nowMs);
+  });
+  measurePerformanceBenchmarkStage("render.vessels.fishing", () => {
+    drawFishingNetAnimationWebGL(nowMs);
+    drawNpcFishingNetAnimationsWebGL(nowMs);
+  });
+  drawGpuShipCommands();
+}
+
+function drawGpuDynamicWorld(dynamicWorld) {
+  if (!dynamicWorld) throw new Error("GPU dynamic world requires a frame description");
+  const { activeChart, nowMs, offset, shipLight, cloudCalls, renderTileIds } = dynamicWorld;
+  measurePerformanceBenchmarkStage("render.worldEffects", () => {
+    drawCitySpritesWebGL(activeChart, offset, nowMs);
+    drawHullSplinterBursts(hullSplinterBursts, createGpuWorldPrimitivePainter(offset));
+  });
+  measurePerformanceBenchmarkStage("render.clouds", () => {
+    drawCloudLayerWebGL(cloudCalls, offset);
+  });
+  drawCityLabelsWebGL(activeChart.cityCalls, activeChart, offset);
 }
 
 function chartTileCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
@@ -26237,9 +26369,9 @@ function renderCallWindow(activeChart, offset) {
     screenHeight: SCREEN_H,
     tileCalls,
     tileIds: new Set(tileCalls.map((call) => call.id)),
-    faceCalls: new Set(activeChart.faceCalls.filter(
+    faceCalls: activeChart.faceCalls.filter(
       (call) => chartEdgeCallNearViewport(call, windowOffset, margin)
-    ))
+    )
   };
   renderCallWindowCache.set(activeChart, result);
   return result;
@@ -26514,21 +26646,6 @@ function drawStormLightningFlash(nowMs) {
   playLightningStrikeSound();
 }
 
-function drawWorldDiscoverySprites(activeChart) {
-  for (const discovery of worldDiscoveries) {
-    if (!discovery.spriteKey || discovery.underwater) continue;
-    const image = worldDiscoveryImages.get(discovery.spriteKey);
-    if (!image) throw new Error(`Missing world discovery image: ${discovery.spriteKey}`);
-    const point = worldDiscoveryLocalPoint(discovery, activeChart);
-    if (!point) continue;
-    ctx.drawImage(
-      image,
-      Math.round(point.x - TILE_ART_HALF),
-      Math.round(point.y - TILE_ART_HALF)
-    );
-  }
-}
-
 function drawWorldDiscoverySpritesWebGL(activeChart, offset) {
   for (const discovery of worldDiscoveries) {
     if (!discovery.spriteKey || discovery.underwater) continue;
@@ -26622,19 +26739,20 @@ function drawFishSelectionOutlinesWebGL(fishCalls, offset, nowMs) {
   }
 }
 
-function waterEffectForegroundLayer(activeChart, offset) {
+function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   const viewport = {
     minX: -offset.x,
     minY: -offset.y,
     maxX: SCREEN_W - offset.x,
     maxY: SCREEN_H - offset.y
   };
-  const connectorLayer = terrainConnectorLayer(activeChart.faceCalls, activeChart);
+  if (!connectorLayer?.entries || !connectorLayer?.canvas) {
+    throw new Error("Water-effect foreground requires the current connector layer");
+  }
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const cached = waterEffectForegroundLayerCache.get(cacheKey);
   if (
-    cached?.connectorLayer === connectorLayer &&
-    cached.weatherDayIndex === weatherMaskDayIndex &&
+    cached?.weatherDayIndex === weatherMaskDayIndex &&
     surfaceDetailLayerCoversViewport(cached, viewport, TILE_ART_SIZE)
   ) {
     return cached;
@@ -26644,7 +26762,7 @@ function waterEffectForegroundLayer(activeChart, offset) {
     viewport,
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
-    layerMargin: SURFACE_DETAIL_LAYER_MARGIN_PX,
+    layerMargin: WATER_FOREGROUND_LAYER_MARGIN_PX,
     tileMargin: TILE_ART_SIZE
   });
   const canvas = document.createElement("canvas");
@@ -26692,13 +26810,6 @@ function waterEffectForegroundLayer(activeChart, offset) {
     for (const call of tileCalls) drawRiver(call, activeChart);
     for (const call of calls.riverConnectorCalls) drawRiverConnector(call, activeChart);
     layerCtx.globalCompositeOperation = "source-over";
-    const tileIds = new Set(tileCalls.map((call) => call.id));
-    const staticSurface = surfaceDetailLayerCache.get(cacheKey);
-    if (!staticSurface) {
-      throw new Error("Water-effect foreground requires the current static surface layer");
-    }
-    drawRiverBankPixels(staticSurface.riverBankPixels);
-    drawLandRoads(activeChart, tileIds);
   } finally {
     layerCtx.globalCompositeOperation = "source-over";
     ctx = previousCtx;
@@ -26707,70 +26818,53 @@ function waterEffectForegroundLayer(activeChart, offset) {
   const result = {
     ...bounds,
     canvas,
-    connectorLayer,
     weatherDayIndex: weatherMaskDayIndex
   };
   waterEffectForegroundLayerCache.set(cacheKey, result);
   return result;
 }
 
-function drawCoralReefs(activeChart, nowMs) {
-  const refractionTime = reducedMotionPreferred ? 0 : nowMs;
+function drawCoralReefsWebGL(activeChart, offset) {
   for (const coral of coralReefs) {
     const call = activeChart.tileById.get(coral.tileId);
     if (!call) continue;
     const image = worldDiscoveryImages.get(coral.spriteKey);
     if (!image) throw new Error(`Missing coral reef image: ${coral.spriteKey}`);
-    drawUnderwaterWorldSprite(
-      image,
-      Math.round(call.drawSurfaceX - TILE_ART_HALF),
-      Math.round(call.drawSurfaceY - TILE_ART_HALF),
-      refractionTime,
-      coral.seed,
-      coralReefWaterMask(activeChart, coral.tileId, call)
-    );
+    const source = coralReefMaskedSprite(activeChart, coral, call, image);
+    worldRenderer.drawAtlasSprite({
+      source,
+      destinationRect: {
+        x: Math.round(call.drawSurfaceX - TILE_ART_HALF - UNDERWATER_WORLD_REFRACTION_PADDING_PX + offset.x),
+        y: Math.round(call.drawSurfaceY - TILE_ART_HALF + offset.y),
+        width: source.width,
+        height: source.height
+      },
+      alpha: CORAL_REEF_ALPHA,
+      refractionPx: reducedMotionPreferred ? 0 : 1
+    });
   }
 }
 
-function drawUnderwaterWorldSprite(image, x, y, nowMs, seed, waterMask) {
-  underwaterWorldSpriteCtx.clearRect(
-    0,
-    0,
-    underwaterWorldSpriteCanvas.width,
-    underwaterWorldSpriteCanvas.height
-  );
-  underwaterWorldSpriteCtx.globalCompositeOperation = "source-over";
-  underwaterWorldSpriteCtx.globalAlpha = 1;
-  for (let sourceY = 0; sourceY < TILE_ART_SIZE; sourceY += SHIP_REFRACTION_BAND_HEIGHT) {
-    const bandHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, TILE_ART_SIZE - sourceY);
-    const offsetX = liveShipRefractionOffset(sourceY, nowMs, seed);
-    if (Math.abs(offsetX) > UNDERWATER_WORLD_REFRACTION_PADDING_PX) {
-      throw new Error(`Underwater world sprite refraction exceeds its padding: ${offsetX}`);
-    }
-    underwaterWorldSpriteCtx.drawImage(
-      image,
-      0,
-      sourceY,
-      TILE_ART_SIZE,
-      bandHeight,
-      UNDERWATER_WORLD_REFRACTION_PADDING_PX + offsetX,
-      sourceY,
-      TILE_ART_SIZE,
-      bandHeight
-    );
+function coralReefMaskedSprite(activeChart, coral, call, image) {
+  let sprites = coralReefMaskedSpriteCache.get(activeChart);
+  if (!sprites) {
+    sprites = new Map();
+    coralReefMaskedSpriteCache.set(activeChart, sprites);
   }
-  underwaterWorldSpriteCtx.globalCompositeOperation = "destination-in";
-  underwaterWorldSpriteCtx.drawImage(waterMask, 0, 0);
-  underwaterWorldSpriteCtx.globalCompositeOperation = "source-over";
-
-  ctx.save();
-  ctx.globalAlpha = CORAL_REEF_ALPHA;
-  ctx.drawImage(
-    underwaterWorldSpriteCanvas,
-    x - UNDERWATER_WORLD_REFRACTION_PADDING_PX,
-    y
-  );
-  ctx.restore();
+  const cached = sprites.get(coral.tileId);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = UNDERWATER_WORLD_SPRITE_WIDTH;
+  canvas.height = TILE_ART_SIZE;
+  const targetCtx = canvas.getContext("2d");
+  if (!targetCtx) throw new Error(`Could not mask coral reef ${coral.id || coral.tileId}`);
+  targetCtx.imageSmoothingEnabled = false;
+  targetCtx.drawImage(image, UNDERWATER_WORLD_REFRACTION_PADDING_PX, 0);
+  targetCtx.globalCompositeOperation = "destination-in";
+  targetCtx.drawImage(coralReefWaterMask(activeChart, coral.tileId, call), 0, 0);
+  targetCtx.globalCompositeOperation = "source-over";
+  sprites.set(coral.tileId, canvas);
+  return canvas;
 }
 
 function coralReefWaterMask(activeChart, tileId, call) {
@@ -26785,7 +26879,7 @@ function coralReefWaterMask(activeChart, tileId, call) {
   const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const spriteY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const originX = spriteX - UNDERWATER_WORLD_REFRACTION_PADDING_PX;
-  const beachPixels = coralReefBeachPixels(activeChart);
+  const beachPixels = coralReefBeachPixels(activeChart, tileId);
   const spans = coralReefWaterMaskSpans({
     originX,
     originY: spriteY,
@@ -26805,21 +26899,37 @@ function coralReefWaterMask(activeChart, tileId, call) {
   return mask;
 }
 
-function coralReefBeachPixels(activeChart) {
-  const cached = coralReefBeachPixelCache.get(activeChart);
+function coralReefBeachPixels(activeChart, tileId) {
+  let chartCache = coralReefBeachPixelCache.get(activeChart);
+  if (!chartCache) {
+    chartCache = new Map();
+    coralReefBeachPixelCache.set(activeChart, chartCache);
+  }
+  const cached = chartCache.get(tileId);
   if (cached) return cached;
+  const tileCall = activeChart.tileById.get(tileId);
+  if (!tileCall) throw new Error(`Coral reef ${tileId} is missing from its active chart`);
 
   const pixels = new Set();
-  const layer = terrainConnectorLayer(activeChart.faceCalls, activeChart);
-  for (const entry of layer.entries) {
-    if (!isCoastFace(entry.call)) continue;
-    for (const span of entry.spans) {
+  const margin = TILE_ART_SIZE + UNDERWATER_WORLD_REFRACTION_PADDING_PX;
+  for (const call of activeChart.faceCalls) {
+    const ax = call.ax - tileCall.drawSurfaceX;
+    const ay = call.ay - tileCall.drawSurfaceY;
+    const bx = call.bx - tileCall.drawSurfaceX;
+    const by = call.by - tileCall.drawSurfaceY;
+    if (!isCoastFace(call) ||
+        Math.max(ax, bx) < -margin || Math.min(ax, bx) > margin ||
+        Math.max(ay, by) < -margin || Math.min(ay, by) > margin) continue;
+    const geometry = terrainConnectorGeometry(call, activeChart);
+    if (!geometry) continue;
+    const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
+    for (const span of terrainConnectorRasterSpans(geometry.polygon, seed)) {
       for (let x = span.x; x < span.x + span.width; x++) {
         pixels.add(pixelMaskKey(x, span.y));
       }
     }
   }
-  coralReefBeachPixelCache.set(activeChart, pixels);
+  chartCache.set(tileId, pixels);
   return pixels;
 }
 
@@ -27380,7 +27490,11 @@ function buildChart(anchorCamera) {
     halfWidth: SCREEN_W / 2 + VIEW_MARGIN,
     halfHeight: SCREEN_H / 2 + VIEW_MARGIN
   });
-  const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, { tileById });
+  const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, {
+    tileById,
+    right: chartCamera.right,
+    up: chartCamera.up
+  });
   const placementChart = {
     tileById,
     waterIndex,
@@ -27536,6 +27650,9 @@ function riverPixelsForCityPlacement(tileCall, activeChart) {
 function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
   const buckets = new Map();
   const tileRows = new Map();
+  const riverPaths = new Map();
+  const riverConnectorWaterPoints = new WeakMap();
+  const riverTileWaterPoints = new Map();
   for (const [drawOrder, call] of tileCalls.entries()) {
     addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
       kind: "tile",
@@ -27549,6 +27666,7 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
     const geometry = riverConnectorGeometry(call, activeChart);
     if (!geometry) continue;
     const { path } = geometry;
+    const waterRaster = riverConnectorWaterRaster(call, geometry);
     addWakeWaterIndexBox(buckets, {
       minX: Math.min(path.x0, path.cx, path.x1, geometry.a.x, geometry.b.x) - WAKE_RIVER_RADIUS_PX,
       maxX: Math.max(path.x0, path.cx, path.x1, geometry.a.x, geometry.b.x) + WAKE_RIVER_RADIUS_PX,
@@ -27559,10 +27677,36 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
       call,
       geometry,
       path,
-      waterPixels: riverConnectorWaterPixels(call, geometry)
+      waterPixels: waterRaster.keys
     });
+    riverConnectorWaterPoints.set(call, waterRaster.points);
+    riverPaths.set(`connector:${call.a}:${call.b}`, Object.freeze({
+      path,
+      pathOffsetX: 0,
+      pathOffsetY: 0,
+      tileId: call.a
+    }));
   }
-  return { buckets, tileRows };
+  for (const call of tileCalls) {
+    const mask = riverMasks?.[call.id] || 0;
+    if (mask === 0) continue;
+    const geometry = riverNavigationPathsForTile(call, activeChart, mask);
+    for (let pathIndex = 0; pathIndex < geometry.paths.length; pathIndex++) {
+      riverPaths.set(`tile:${call.id}:${pathIndex}`, Object.freeze({
+        path: geometry.paths[pathIndex],
+        pathOffsetX: geometry.pathOffsetX,
+        pathOffsetY: geometry.pathOffsetY,
+        tileId: call.id
+      }));
+    }
+  }
+  return {
+    buckets,
+    tileRows,
+    riverPaths,
+    riverConnectorWaterPoints,
+    riverTileWaterPoints
+  };
 }
 
 function addWakeWaterTileIndexCall(tileRows, x, y, call) {
@@ -33957,6 +34101,7 @@ function projectDirectionFor(v, view, snap) {
 
 const terrainConnectorLayerCache = new WeakMap();
 const terrainConnectorDynamicLayerCache = new WeakMap();
+const terrainConnectorEntryCache = new WeakMap();
 
 function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
   const layer = terrainConnectorLayer(faceCalls, activeChart);
@@ -34109,6 +34254,11 @@ function terrainConnectorLayer(faceCalls, activeChart) {
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const cached = terrainConnectorLayerCache.get(cacheKey);
   const currentWorldChart = activeChart === chart;
+  let entryCache = terrainConnectorEntryCache.get(cacheKey);
+  if (!entryCache) {
+    entryCache = new Map();
+    terrainConnectorEntryCache.set(cacheKey, entryCache);
+  }
   if (cached?.dayKey === dayKey) {
     if (!currentWorldChart && cached.faceCalls === faceCalls) return cached;
     if (currentWorldChart) {
@@ -34133,30 +34283,69 @@ function terrainConnectorLayer(faceCalls, activeChart) {
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const call of faceCalls) {
-    const geometry = terrainConnectorGeometry(call, activeChart);
-    if (!geometry) continue;
-    const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
-    const spans = terrainConnectorRasterSpans(geometry.polygon, seed);
-    for (const span of spans) {
-      minX = Math.min(minX, span.x);
-      minY = Math.min(minY, span.y);
-      maxX = Math.max(maxX, span.x + span.width - 1);
-      maxY = Math.max(maxY, span.y);
-    }
-    entries.push({
-      call,
-      geometry,
-      color: faceColorFor(call),
-      spans
+  if (currentWorldChart) {
+    const offset = chartOffsetPixels(activeChart);
+    const bounds = createSurfaceDetailLayerBounds({
+      viewport: {
+        minX: -offset.x,
+        minY: -offset.y,
+        maxX: SCREEN_W - offset.x,
+        maxY: SCREEN_H - offset.y
+      },
+      screenWidth: SCREEN_W,
+      screenHeight: SCREEN_H,
+      layerMargin: TERRAIN_CONNECTOR_LAYER_MARGIN_PX,
+      tileMargin: TILE_ART_SIZE
     });
+    minX = bounds.x;
+    minY = bounds.y;
+    maxX = bounds.x + bounds.width - 1;
+    maxY = bounds.y + bounds.height - 1;
+  }
+  for (const call of faceCalls) {
+    if (currentWorldChart && (
+      Math.max(call.ax, call.bx) < minX - TILE_ART_SIZE ||
+      Math.min(call.ax, call.bx) > maxX + TILE_ART_SIZE ||
+      Math.max(call.ay, call.by) < minY - TILE_ART_SIZE ||
+      Math.min(call.ay, call.by) > maxY + TILE_ART_SIZE
+    )) continue;
+    const entryKey = `${Math.min(call.a, call.b)}:${Math.max(call.a, call.b)}`;
+    const revision = terrainConnectorEntryRevision(call, activeChart, dayKey);
+    const previous = entryCache.get(entryKey);
+    let entry;
+    if (previous?.revision === revision) {
+      entry = { ...previous.entry, call };
+    } else {
+      const geometry = terrainConnectorGeometry(call, activeChart);
+      if (!geometry) continue;
+      const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
+      entry = {
+        call,
+        geometry,
+        color: faceColorFor(call),
+        spans: terrainConnectorRasterSpans(geometry.polygon, seed)
+      };
+      entryCache.set(entryKey, { revision, entry });
+    }
+    const { spans } = entry;
+    if (!currentWorldChart) {
+      for (const span of spans) {
+        minX = Math.min(minX, span.x);
+        minY = Math.min(minY, span.y);
+        maxX = Math.max(maxX, span.x + span.width - 1);
+        maxY = Math.max(maxY, span.y);
+      }
+    }
+    entries.push(entry);
   }
   if (entries.length === 0) throw new Error("Terrain connector layer has no drawable faces");
-  const detailPadding = 3;
-  minX -= detailPadding;
-  minY -= detailPadding;
-  maxX += detailPadding;
-  maxY += detailPadding;
+  if (!currentWorldChart) {
+    const detailPadding = 3;
+    minX -= detailPadding;
+    minY -= detailPadding;
+    maxX += detailPadding;
+    maxY += detailPadding;
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = maxX - minX + 1;
@@ -34186,6 +34375,26 @@ function terrainConnectorLayer(faceCalls, activeChart) {
   };
   terrainConnectorLayerCache.set(cacheKey, layer);
   return layer;
+}
+
+function terrainConnectorEntryRevision(call, activeChart, dayKey) {
+  const a = activeChart.tileById.get(call.a);
+  const b = activeChart.tileById.get(call.b);
+  const ax = Math.round((a?.drawSurfaceX ?? call.ax) * 16);
+  const ay = Math.round((a?.drawSurfaceY ?? call.ay) * 16);
+  const bx = Math.round((b?.drawSurfaceX ?? call.bx) * 16);
+  const by = Math.round((b?.drawSurfaceY ?? call.by) * 16);
+  return [
+    dayKey,
+    ax,
+    ay,
+    bx,
+    by,
+    call.row,
+    call.nrow,
+    call.level,
+    call.nlevel
+  ].join(":");
 }
 
 function terrainConnectorGeometry(call, activeChart) {
@@ -34525,7 +34734,13 @@ function drawLandRoadSegment(targetCtx, path, segmentId) {
   });
 }
 
-function drawLandCarts(activeChart, nowMs, light, visibleTileIds = activeChart.visibleSet) {
+function drawLandCartsWebGL(
+  activeChart,
+  nowMs,
+  light,
+  offset,
+  visibleTileIds = activeChart.visibleSet
+) {
   if (!landTradeSystem) throw new Error("Land trade system is not initialized");
   if (!light) throw new Error("Land-vehicle lighting requires the current sun state");
   const visibleCarts = visibleLandCartSnapshots(
@@ -34533,7 +34748,6 @@ function drawLandCarts(activeChart, nowMs, light, visibleTileIds = activeChart.v
     weatherClockMinutes,
     visibleTileIds
   );
-  if (visibleCarts.length === 0) return;
   for (const cart of visibleCarts) {
     const vehicleAssets = landVehicleAssetStore?.peek(cart.vehicleType);
     if (!vehicleAssets) {
@@ -34551,14 +34765,86 @@ function drawLandCarts(activeChart, nowMs, light, visibleTileIds = activeChart.v
       ));
     for (const { member, point, headingFrame } of members) {
       const walkOffset = spriteKeyHash(member.id) % LAND_CART_WALK_FRAME_COUNT;
-      const walkFrame = (Math.floor(nowMs / LAND_CART_WALK_FRAME_MS) + walkOffset) % LAND_CART_WALK_FRAME_COUNT;
-      const x = Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2);
-      const y = Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2);
+      const walkFrame = (Math.floor(nowMs / LAND_CART_WALK_FRAME_MS) + walkOffset) %
+        LAND_CART_WALK_FRAME_COUNT;
       const asset = vehicleAssets[walkFrame];
-      drawLandCartShadow(asset.lighting, headingFrame, point, light, cart.vehicleType);
-      drawLakeBattleSpriteFrame(asset.image, headingFrame, x, y);
-      drawLandCartLighting(asset.lighting, headingFrame, x, y, light, cart.vehicleType);
+      drawLandCartShadowWebGL(asset.lighting, headingFrame, point, light, cart.vehicleType, offset);
+      const x = Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2 + offset.x);
+      const y = Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2 + offset.y);
+      worldRenderer.drawAtlasSprite({
+        source: asset.image,
+        sourceRect: shipSheetFrameSourceRect(headingFrame),
+        destinationRect: {
+          x,
+          y,
+          width: SHIP_SHEET_FRAME_SIZE,
+          height: SHIP_SHEET_FRAME_SIZE
+        }
+      });
+      drawLandCartLightingWebGL(
+        asset.lighting,
+        headingFrame,
+        x,
+        y,
+        light,
+        cart.vehicleType
+      );
     }
+  }
+}
+
+function shipSheetFrameSourceRect(frame) {
+  return {
+    x: (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+    y: Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+    width: SHIP_SHEET_FRAME_SIZE,
+    height: SHIP_SHEET_FRAME_SIZE
+  };
+}
+
+function drawLandCartShadowWebGL(lighting, frame, point, light, vehicleType, offset) {
+  if (light.shadow <= 0.01) return;
+  const x = Math.round(point.x - SHIP_SHADOW_FRAME_SIZE / 2 + offset.x);
+  const y = Math.round(point.y - SHIP_SHADOW_FRAME_SIZE / 2 + offset.y);
+  drawGpuPointMask(
+    directionalLightingPoints(lighting, "shadow", frame, light.bin, vehicleType),
+    x,
+    y,
+    [12 / 255, 9 / 255, 24 / 255, SHIP_LIGHT_SHADOW_ALPHA * light.shadow]
+  );
+}
+
+function drawLandCartLightingWebGL(lighting, frame, x, y, light, vehicleType) {
+  if (light.direct <= 0.01) return;
+  drawGpuPointMask(
+    directionalLightingPoints(lighting, "shade", frame, light.bin, vehicleType),
+    x,
+    y,
+    [26 / 255, 18 / 255, 44 / 255, SHIP_LIGHT_SHADE_ALPHA * light.direct]
+  );
+  drawGpuPointMask(
+    directionalLightingPoints(lighting, "light", frame, light.bin, vehicleType),
+    x,
+    y,
+    [1, 240 / 255, 188 / 255, SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct]
+  );
+}
+
+function drawGpuPointMask(points, x, y, color, allowedPoints = null) {
+  if (allowedPoints !== null && !(allowedPoints instanceof Set)) {
+    throw new Error("GPU directional lighting pixel filter must be a Set or null");
+  }
+  for (const point of points) {
+    if (allowedPoints !== null && !allowedPoints.has(point)) continue;
+    worldRenderer.drawSolidRect({
+      destinationRect: {
+        x: x + (point & 0xff),
+        y: y + (point >> 8),
+        width: 1,
+        height: 1
+      },
+      color
+    });
   }
 }
 
@@ -34573,35 +34859,6 @@ function landVehicleDrawCall(activeChart, member) {
     point,
     headingFrame: headingFrameForScreenHeading(quadraticBezierTangent(path, member.segmentT))
   };
-}
-
-function drawLandCartShadow(lighting, frame, point, light, vehicleType) {
-  if (light.shadow <= 0.01) return;
-  const points = directionalLightingPoints(lighting, "shadow", frame, light.bin, vehicleType);
-  const x = Math.round(point.x - SHIP_SHADOW_FRAME_SIZE / 2);
-  const y = Math.round(point.y - SHIP_SHADOW_FRAME_SIZE / 2);
-  drawDirectionalMaskPoints(
-    points,
-    x,
-    y,
-    `rgba(12, 9, 24, ${(SHIP_LIGHT_SHADOW_ALPHA * light.shadow).toFixed(3)})`
-  );
-}
-
-function drawLandCartLighting(lighting, frame, x, y, light, vehicleType) {
-  if (light.direct <= 0.01) return;
-  drawDirectionalMaskPoints(
-    directionalLightingPoints(lighting, "shade", frame, light.bin, vehicleType),
-    x,
-    y,
-    `rgba(26, 18, 44, ${(SHIP_LIGHT_SHADE_ALPHA * light.direct).toFixed(3)})`
-  );
-  drawDirectionalMaskPoints(
-    directionalLightingPoints(lighting, "light", frame, light.bin, vehicleType),
-    x,
-    y,
-    `rgba(255, 240, 188, ${(SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct).toFixed(3)})`
-  );
 }
 
 function landRoadSegmentPath(a, b, aTileId, bTileId) {
@@ -34657,10 +34914,42 @@ function drawRiverConnector(call, activeChart, targetCtx = ctx) {
   drawRiverSparkles(targetCtx, path, frame, seed, colors.light);
 }
 
-function riverConnectorWaterPixels(call, geometry) {
-  const pixels = new Set();
-  visitRiverConnectorWaterPixels(call, geometry, (x, y) => pixels.add(pixelMaskKey(x, y)));
-  return pixels;
+function riverConnectorWaterRaster(call, geometry) {
+  const points = collectUniqueRasterPoints((visit) => {
+    visitRiverConnectorWaterPixels(call, geometry, visit);
+  });
+  const keys = new Set();
+  for (let index = 0; index < points.length; index += 2) {
+    keys.add(pixelMaskKey(points[index], points[index + 1]));
+  }
+  return Object.freeze({ keys, points });
+}
+
+function collectUniqueRasterPoints(rasterize) {
+  if (typeof rasterize !== "function") throw new Error("Raster point collection requires a callback");
+  const rows = new Map();
+  rasterize((x, y) => {
+    if (!Number.isInteger(x) || !Number.isInteger(y)) {
+      throw new Error(`Raster point must use integer coordinates: ${x},${y}`);
+    }
+    let row = rows.get(y);
+    if (!row) {
+      row = new Set();
+      rows.set(y, row);
+    }
+    row.add(x);
+  });
+  let pointCount = 0;
+  for (const row of rows.values()) pointCount += row.size;
+  const points = new Int32Array(pointCount * 2);
+  let offset = 0;
+  for (const [y, row] of rows) {
+    for (const x of row) {
+      points[offset++] = x;
+      points[offset++] = y;
+    }
+  }
+  return points;
 }
 
 function visitRiverConnectorWaterPixels(call, geometry, visit) {
@@ -34707,13 +34996,63 @@ function visibleRiverWaterPixelRows(activeChart, tileCalls, riverConnectorCalls)
   for (const call of tileCalls) {
     const mask = riverMasks?.[call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
-    visitRiverTileSolidWaterPixels(call, activeChart, mask, addWaterPixel);
+    const points = cachedRiverTileWaterPoints(call, activeChart, mask);
+    for (let index = 0; index < points.length; index += 2) {
+      addWaterPixel(points[index], points[index + 1]);
+    }
   }
   for (const call of riverConnectorCalls) {
-    const geometry = riverConnectorGeometry(call, activeChart);
-    if (geometry) visitRiverConnectorWaterPixels(call, geometry, addWaterPixel);
+    const points = activeChart.waterIndex.riverConnectorWaterPoints.get(call);
+    if (!points) {
+      throw new Error(`Visible river connector ${call.a}:${call.b} is missing its raster cache`);
+    }
+    for (let index = 0; index < points.length; index += 2) {
+      addWaterPixel(points[index], points[index + 1]);
+    }
   }
   return rows;
+}
+
+function cachedRiverTileWaterPoints(call, activeChart, mask) {
+  const cache = activeChart.waterIndex.riverTileWaterPoints;
+  if (!(cache instanceof Map)) throw new Error("River tile raster cache is unavailable");
+  const cached = cache.get(call.id);
+  if (cached) {
+    if (cached.mask !== mask) {
+      throw new Error(`River tile raster mask changed for tile ${call.id}`);
+    }
+    return cached.points;
+  }
+  const shapeKey = riverTileWaterShapeKey(call, activeChart, mask);
+  let localPoints = riverTileLocalWaterPointCache.get(shapeKey);
+  const originX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
+  const originY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  if (!localPoints) {
+    const worldPoints = collectUniqueRasterPoints((visit) => {
+      visitRiverTileSolidWaterPixels(call, activeChart, mask, visit);
+    });
+    localPoints = new Int16Array(worldPoints.length);
+    for (let index = 0; index < worldPoints.length; index += 2) {
+      localPoints[index] = worldPoints[index] - originX;
+      localPoints[index + 1] = worldPoints[index + 1] - originY;
+    }
+    riverTileLocalWaterPointCache.set(shapeKey, localPoints);
+  }
+  const points = new Int32Array(localPoints.length);
+  for (let index = 0; index < localPoints.length; index += 2) {
+    points[index] = localPoints[index] + originX;
+    points[index + 1] = localPoints[index + 1] + originY;
+  }
+  cache.set(call.id, Object.freeze({ mask, points }));
+  return points;
+}
+
+function riverTileWaterShapeKey(call, activeChart, mask) {
+  const geometry = riverNavigationPathsForTile(call, activeChart, mask);
+  const endpoints = geometry.endpoints
+    .map((point) => `${point.x},${point.y},${point.mouth ? 1 : 0}`)
+    .join(";");
+  return `${hashInt(call.id) & 15}|${endpoints}`;
 }
 
 function visibleRiverBankDrawPixels(activeChart, waterPixelRows) {
@@ -34726,11 +35065,14 @@ function visibleRiverBankDrawPixels(activeChart, waterPixelRows) {
     "render.terrain.surface.riverBanks.outline",
     () => visibleRiverBankPixelsFromRows(waterPixelRows)
   );
+  const terrainRaster = measurePerformanceBenchmarkStage(
+    "render.terrain.surface.riverBanks.terrainRaster",
+    () => terrainRasterForRiverBanks(activeChart, bankPixels)
+  );
   measurePerformanceBenchmarkStage("render.terrain.surface.riverBanks.shade", () => {
     for (const { x, y } of bankPixels) {
-      const terrainPixel = nearestLandTerrainPixelAtPoint(x, y, activeChart);
-      if (!terrainPixel) continue;
-      const { sourceHex } = terrainPixel;
+      const sourceHex = terrainRasterHexAtPoint(terrainRaster, x, y);
+      if (!sourceHex) continue;
       let shade = shadeCache.get(sourceHex);
       if (!shade) {
         shade = `#${darkerResurrect64Hex(sourceHex, 2)}`;
@@ -34740,6 +35082,58 @@ function visibleRiverBankDrawPixels(activeChart, waterPixelRows) {
     }
   });
   return Object.freeze(pixels);
+}
+
+function terrainRasterForRiverBanks(activeChart, bankPixels) {
+  if (!Array.isArray(bankPixels)) throw new Error("Riverbank terrain raster requires bank pixels");
+  if (bankPixels.length === 0) {
+    return Object.freeze({ x: 0, y: 0, width: 1, height: 1, data: new Uint8ClampedArray(4) });
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const pixel of bankPixels) {
+    minX = Math.min(minX, pixel.x);
+    minY = Math.min(minY, pixel.y);
+    maxX = Math.max(maxX, pixel.x);
+    maxY = Math.max(maxY, pixel.y);
+  }
+  const x = Math.floor(minX);
+  const y = Math.floor(minY);
+  const width = Math.max(1, Math.ceil(maxX) - x + 1);
+  const height = Math.max(1, Math.ceil(maxY) - y + 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const rasterCtx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!rasterCtx) throw new Error("Could not rasterize terrain beneath riverbanks");
+  rasterCtx.imageSmoothingEnabled = false;
+  for (const call of activeChart.tileCalls) {
+    const drawX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
+    const drawY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+    if (
+      drawX >= x + width || drawY >= y + height ||
+      drawX + TILE_ART_SIZE <= x || drawY + TILE_ART_SIZE <= y
+    ) continue;
+    rasterCtx.drawImage(terrainImageForTile(call.row, call.id), drawX - x, drawY - y);
+  }
+  return Object.freeze({
+    x,
+    y,
+    width,
+    height,
+    data: rasterCtx.getImageData(0, 0, width, height).data
+  });
+}
+
+function terrainRasterHexAtPoint(raster, x, y) {
+  const px = x - raster.x;
+  const py = y - raster.y;
+  if (px < 0 || py < 0 || px >= raster.width || py >= raster.height) return null;
+  const offset = (px + py * raster.width) * 4;
+  if (raster.data[offset + 3] === 0) return null;
+  return rgbToHex(raster.data[offset], raster.data[offset + 1], raster.data[offset + 2]);
 }
 
 function visitRiverTileSolidWaterPixels(call, activeChart, mask, visit) {
@@ -34870,10 +35264,6 @@ function riverConnectorGeometry(call, activeChart) {
     y1: b.y
   };
   return { path, a, b };
-}
-
-function riverConnectorPath(call, activeChart) {
-  return riverConnectorGeometry(call, activeChart)?.path || null;
 }
 
 function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
@@ -35452,13 +35842,26 @@ function makeCloudDrawCall(call, spec) {
   };
 }
 
-function drawCloudLayer(calls) {
+function drawCloudLayerWebGL(calls, offset) {
   if (!cloudSpriteSheet || !cloudAssemblyFrames || calls.length === 0) return;
-  ctx.save();
   for (const call of calls) {
-    ctx.globalAlpha = call.alpha;
     if (call.phase === "stable" || reducedMotionPreferred) {
-      drawCloudSheetFrame(ctx, call.frameIndex, call.x, call.y);
+      worldRenderer.drawAtlasSprite({
+        source: cloudSpriteSheet,
+        sourceRect: {
+          x: call.frameIndex * CLOUD_SPRITE_FRAME_SIZE,
+          y: 0,
+          width: CLOUD_SPRITE_FRAME_SIZE,
+          height: CLOUD_SPRITE_FRAME_SIZE
+        },
+        destinationRect: {
+          x: call.x + offset.x,
+          y: call.y + offset.y,
+          width: CLOUD_SPRITE_FRAME_SIZE,
+          height: CLOUD_SPRITE_FRAME_SIZE
+        },
+        alpha: call.alpha
+      });
       continue;
     }
     const frame = cloudAssemblyFrames[call.frameIndex]?.[call.assemblyStageIndex];
@@ -35467,23 +35870,17 @@ function drawCloudLayer(calls) {
         `Missing cloud assembly frame: ${call.frameIndex}:${call.assemblyStageIndex}`
       );
     }
-    ctx.drawImage(frame, call.x, call.y);
+    worldRenderer.drawAtlasSprite({
+      source: frame,
+      destinationRect: {
+        x: call.x + offset.x,
+        y: call.y + offset.y,
+        width: frame.width,
+        height: frame.height
+      },
+      alpha: call.alpha
+    });
   }
-  ctx.restore();
-}
-
-function drawCloudSheetFrame(targetCtx, frameIndex, x, y) {
-  targetCtx.drawImage(
-    cloudSpriteSheet,
-    frameIndex * CLOUD_SPRITE_FRAME_SIZE,
-    0,
-    CLOUD_SPRITE_FRAME_SIZE,
-    CLOUD_SPRITE_FRAME_SIZE,
-    x,
-    y,
-    CLOUD_SPRITE_FRAME_SIZE,
-    CLOUD_SPRITE_FRAME_SIZE
-  );
 }
 
 function cloudLifecycleDrift(lifeU) {
@@ -36113,8 +36510,31 @@ function nearestRiverCenterlineInfoAtLocalPoint(x, y, activeChart, preferredDire
   ), null);
 }
 
-function riverCenterlineInfosAtLocalPoint(x, y, activeChart) {
+function riverCenterlineInfosAtLocalPoint(x, y, activeChart, preferredPathKey = null) {
   if (!activeChart?.waterIndex) return [];
+  if (preferredPathKey !== null) {
+    if (typeof preferredPathKey !== "string" || preferredPathKey.length === 0) {
+      throw new Error("Preferred river path key must be null or a non-empty string");
+    }
+    const descriptor = activeChart.waterIndex.riverPaths?.get(preferredPathKey);
+    if (descriptor) {
+      const probe = riverPathWaterProbe(
+        x - descriptor.pathOffsetX,
+        y - descriptor.pathOffsetY,
+        descriptor.path,
+        preferredPathKey.startsWith("connector:") ? RIVER_CONNECTOR_RADIUS_PX : RIVER_BODY_RADIUS_PX,
+        descriptor.tileId
+      );
+      if (probe.centerlineDistance <= WAKE_WATER_SEARCH_RADIUS_PX + RIVER_MOUTH_RADIUS_PX) {
+        probe.pathKey = preferredPathKey;
+        probe.pathOffsetX = descriptor.pathOffsetX;
+        probe.pathOffsetY = descriptor.pathOffsetY;
+        probe.centerlineX += descriptor.pathOffsetX;
+        probe.centerlineY += descriptor.pathOffsetY;
+        return [probe];
+      }
+    }
+  }
   const candidates = wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex);
   const probes = [];
 
@@ -36370,50 +36790,26 @@ function pointDistanceToBezierPath(px, py, path) {
   return closestPointOnQuadraticBezier(path, px, py).distance;
 }
 
-function pointDistanceToSegment(px, py, ax, ay, bx, by) {
-  return closestPointOnSegment(px, py, ax, ay, bx, by).distance;
-}
-
-function closestPointOnSegment(px, py, ax, ay, bx, by) {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const len2 = dx * dx + dy * dy;
-  if (len2 <= 1e-9) {
-    return {
-      x: ax,
-      y: ay,
-      t: 0,
-      distance: Math.hypot(px - ax, py - ay)
-    };
-  }
-  const t = clamp(((px - ax) * dx + (py - ay) * dy) / len2, 0, 1);
-  const x = ax + dx * t;
-  const y = ay + dy * t;
-  return {
-    x,
-    y,
-    t,
-    distance: Math.hypot(px - x, py - y)
-  };
-}
-
-function drawShipShadow(activeChart, light, offset) {
-  if (!ship || (gameOverReason && gameOverState?.sinkShip !== false) || !shipLighting || !light || light.shadow <= 0.01) return;
+function drawShipShadowWebGL(activeChart, light, offset) {
+  if (!ship || (gameOverReason && gameOverState?.sinkShip !== false) ||
+      !shipLighting || !light || light.shadow <= 0.01) return;
   const frame = shipHeadingFrame();
   const points = shipLightingPoints("shadow", frame, light.bin);
   if (points.length === 0) return;
   const origin = shipScreenOrigin(SHIP_SHADOW_FRAME_SIZE);
-  ctx.fillStyle = `rgba(12, 9, 24, ${(SHIP_LIGHT_SHADOW_ALPHA * light.shadow).toFixed(3)})`;
+  const visiblePoints = [];
   for (const point of points) {
-    const px = point & 0xff;
-    const py = point >> 8;
-    const screenPx = origin.x + px;
-    const screenPy = origin.y + py;
-    const localPx = screenPx - offset.x;
-    const localPy = screenPy - offset.y;
-    if (!shipShadowPointHasSurface(localPx, localPy, activeChart)) continue;
-    ctx.fillRect(screenPx, screenPy, 1, 1);
+    const screenPx = origin.x + (point & 0xff);
+    const screenPy = origin.y + (point >> 8);
+    if (!shipShadowPointHasSurface(screenPx - offset.x, screenPy - offset.y, activeChart)) continue;
+    visiblePoints.push(point);
   }
+  drawGpuPointMask(
+    visiblePoints,
+    origin.x,
+    origin.y,
+    [12 / 255, 9 / 255, 24 / 255, SHIP_LIGHT_SHADOW_ALPHA * light.shadow]
+  );
 }
 
 function shipShadowPointHasSurface(x, y, activeChart) {
@@ -36451,7 +36847,7 @@ function shipShadowPointHasSurface(x, y, activeChart) {
   return result;
 }
 
-function drawFishingNetAnimation(nowMs) {
+function drawFishingNetAnimationWebGL(nowMs) {
   if (!fishingAction) return;
   const fishingNet = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.FISHING_NET);
   if (!fishingNet) {
@@ -36460,40 +36856,27 @@ function drawFishingNetAnimation(nowMs) {
   }
   const animation = fishingAnimationState(fishingAction.startMs, nowMs);
   if (animation.complete) return;
-  const sx = animation.frameIndex * FISHING_NET_FRAME_SIZE;
-  const y = Math.round(SCREEN_H / 2 - FISHING_NET_FRAME_SIZE / 2);
-  ctx.save();
-  if (fishingAction.side < 0) {
-    ctx.translate(Math.round(SCREEN_W / 2), 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(
-      fishingNet,
-      sx,
-      0,
-      FISHING_NET_FRAME_SIZE,
-      FISHING_NET_FRAME_SIZE,
-      0,
-      y,
-      FISHING_NET_FRAME_SIZE,
-      FISHING_NET_FRAME_SIZE
-    );
-  } else {
-    ctx.drawImage(
-      fishingNet,
-      sx,
-      0,
-      FISHING_NET_FRAME_SIZE,
-      FISHING_NET_FRAME_SIZE,
-      Math.round(SCREEN_W / 2),
-      y,
-      FISHING_NET_FRAME_SIZE,
-      FISHING_NET_FRAME_SIZE
-    );
-  }
-  ctx.restore();
+  worldRenderer.drawAtlasSprite({
+    source: fishingNet,
+    sourceRect: {
+      x: animation.frameIndex * FISHING_NET_FRAME_SIZE,
+      y: 0,
+      width: FISHING_NET_FRAME_SIZE,
+      height: FISHING_NET_FRAME_SIZE
+    },
+    destinationRect: {
+      x: fishingAction.side < 0
+        ? Math.round(SCREEN_W / 2) - FISHING_NET_FRAME_SIZE
+        : Math.round(SCREEN_W / 2),
+      y: Math.round(SCREEN_H / 2 - FISHING_NET_FRAME_SIZE / 2),
+      width: FISHING_NET_FRAME_SIZE,
+      height: FISHING_NET_FRAME_SIZE
+    },
+    flipX: fishingAction.side < 0
+  });
 }
 
-function drawNpcFishingNetAnimations(nowMs) {
+function drawNpcFishingNetAnimationsWebGL(nowMs) {
   if (!chart) return;
   const activeStates = [...npcVisualShips.values()].filter((state) => state.fishingAction);
   if (activeStates.length === 0) return;
@@ -36508,39 +36891,26 @@ function drawNpcFishingNetAnimations(nowMs) {
     if (!action) continue;
     const animation = fishingAnimationState(action.startMs, nowMs);
     if (animation.complete) continue;
-    const sx = animation.frameIndex * FISHING_NET_FRAME_SIZE;
-    const shipX = Math.round(state.x + offset.x);
-    const y = Math.round(state.y + offset.y - FISHING_NET_FRAME_SIZE / 2);
+    const presentation = npcVisualPresentationPoint(state, nowMs);
+    const shipX = Math.round(presentation.x + offset.x);
+    const y = Math.round(presentation.y + offset.y - FISHING_NET_FRAME_SIZE / 2);
     if (!pointNearScreen({ x: shipX, y }, FISHING_NET_FRAME_SIZE)) continue;
-    ctx.save();
-    if (action.side < 0) {
-      ctx.translate(shipX, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(
-        fishingNet,
-        sx,
-        0,
-        FISHING_NET_FRAME_SIZE,
-        FISHING_NET_FRAME_SIZE,
-        0,
+    worldRenderer.drawAtlasSprite({
+      source: fishingNet,
+      sourceRect: {
+        x: animation.frameIndex * FISHING_NET_FRAME_SIZE,
+        y: 0,
+        width: FISHING_NET_FRAME_SIZE,
+        height: FISHING_NET_FRAME_SIZE
+      },
+      destinationRect: {
+        x: action.side < 0 ? shipX - FISHING_NET_FRAME_SIZE : shipX,
         y,
-        FISHING_NET_FRAME_SIZE,
-        FISHING_NET_FRAME_SIZE
-      );
-    } else {
-      ctx.drawImage(
-        fishingNet,
-        sx,
-        0,
-        FISHING_NET_FRAME_SIZE,
-        FISHING_NET_FRAME_SIZE,
-        shipX,
-        y,
-        FISHING_NET_FRAME_SIZE,
-        FISHING_NET_FRAME_SIZE
-      );
-    }
-    ctx.restore();
+        width: FISHING_NET_FRAME_SIZE,
+        height: FISHING_NET_FRAME_SIZE
+      },
+      flipX: action.side < 0
+    });
   }
 }
 
@@ -36612,11 +36982,17 @@ function invalidateFishSchoolRenderCaches() {
 function fishSchoolCallForFishery(tileCall, fishery, nowMs) {
   if (fishery.visibleIndividualCount <= 0) return null;
   const seed = hashInt(tileCall.id ^ 0x46495348);
-  const motion = fishSchoolSwimMotion(tileCall, fishery, seed, nowMs);
-  if (!motion) return null;
-  const centerX = Math.round(motion.x);
-  const centerY = Math.round(motion.y);
   const frame = fishSchoolAnimationFrame(nowMs, seed >>> 12);
+  const motion = cachedFishSchoolSwimMotion(tileCall, fishery, seed, frame);
+  if (!motion) return null;
+  const scatter = fishScatterOffset(motion.x, motion.y);
+  const scatteredX = motion.x + scatter.x;
+  const scatteredY = motion.y + scatter.y;
+  const scatterIsWater = scatter.x === 0 && scatter.y === 0
+    ? true
+    : wakeMapPointIsWater(scatteredX, scatteredY, chart);
+  const centerX = Math.round(scatterIsWater ? scatteredX : motion.x);
+  const centerY = Math.round(scatterIsWater ? scatteredY : motion.y);
   const density = fishSchoolDensityLevel(fishery.visibleIndividualCount);
   const sprite = fishSchoolSprite(fishery.colors, density, frame);
   return {
@@ -36635,27 +37011,41 @@ function fishSchoolCallForFishery(tileCall, fishery, nowMs) {
   };
 }
 
-function fishSchoolSwimMotion(tileCall, fishery, fishSeed, nowMs) {
+function cachedFishSchoolSwimMotion(tileCall, fishery, fishSeed, frame) {
+  let chartFrames = fishSchoolMotionCache.get(chart);
+  if (!chartFrames) {
+    chartFrames = new Map();
+    fishSchoolMotionCache.set(chart, chartFrames);
+  }
+  let frames = chartFrames.get(tileCall.id);
+  if (!frames) {
+    frames = new Array(FISH_SCHOOL_ANIMATION_FRAME_COUNT);
+    chartFrames.set(tileCall.id, frames);
+  }
+  if (frames[frame] !== undefined) return frames[frame];
+  const motion = fishSchoolSwimMotion(tileCall, fishery, fishSeed, frame);
+  frames[frame] = motion;
+  return motion;
+}
+
+function fishSchoolSwimMotion(tileCall, fishery, fishSeed, frame) {
   const radius = fisherySwimRadius(fishery);
   const axis = fisherySwimAxis(tileCall, fishery, fishSeed);
   const cross = { x: -axis.y, y: axis.x };
-  const periodMs = FISH_SWIM_PERIOD_MIN_MS + ((fishSeed >>> 7) % FISH_SWIM_PERIOD_SPREAD_MS);
-  const phase = ((nowMs + (fishSeed & 0xffff)) % periodMs) / periodMs * Math.PI * 2;
+  const phase = frame / FISH_SCHOOL_ANIMATION_FRAME_COUNT * Math.PI * 2;
+  const seedPhase = (fishSeed & 0xffff) / 0x10000 * Math.PI * 2;
   const home = {
     x: ((((fishSeed >>> 4) & 15) - 7.5) / 7.5) * radius.x * 0.3,
     y: ((((fishSeed >>> 12) & 15) - 7.5) / 7.5) * radius.y * 0.45
   };
   const forward = Math.sin(phase) * radius.x +
-    Math.sin(phase * 0.47 + fishSeed) * radius.x * 0.22;
-  const side = Math.sin(phase * 1.8 + (fishSeed >>> 5)) * radius.y;
-  const tailWag = Math.sin((nowMs + fishSeed) / 180) * 0.55;
-  let x = tileCall.drawSurfaceX + home.x + axis.x * forward + cross.x * (side + tailWag);
-  let y = tileCall.drawSurfaceY + home.y + axis.y * forward + cross.y * (side + tailWag);
-  const scatter = fishScatterOffset(x, y);
-  x += scatter.x;
-  y += scatter.y;
+    Math.sin(phase * 2 + seedPhase) * radius.x * 0.22;
+  const side = Math.sin(phase * 2 + seedPhase * 0.7) * radius.y;
+  const tailWag = Math.sin(phase * 3 + seedPhase) * 0.55;
+  const x = tileCall.drawSurfaceX + home.x + axis.x * forward + cross.x * (side + tailWag);
+  const y = tileCall.drawSurfaceY + home.y + axis.y * forward + cross.y * (side + tailWag);
   const vx = axis.x * Math.cos(phase) * radius.x +
-    cross.x * Math.cos(phase * 1.8) * radius.y + scatter.x;
+    cross.x * Math.cos(phase * 2 + seedPhase * 0.7) * radius.y;
   const waterPoint = fishWaterMaskedPoint(tileCall, fishery, x, y, axis);
   return waterPoint ? { ...waterPoint, vx } : null;
 }
@@ -36857,17 +37247,6 @@ function hexToRgb(hex) {
   };
 }
 
-function drawSeagulls(activeChart, nowMs) {
-  const untexturedCalls = seagullDrawCalls(activeChart, nowMs, null);
-  if (untexturedCalls.length === 0) return;
-  const assets = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS);
-  if (!assets) {
-    queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS, "visible seagulls");
-    return;
-  }
-  for (const call of seagullDrawCalls(activeChart, nowMs, assets)) drawSeagullSprite(call);
-}
-
 function drawSeagullsWebGL(activeChart, nowMs, offset) {
   const untexturedCalls = seagullDrawCalls(activeChart, nowMs, null);
   if (untexturedCalls.length === 0) return;
@@ -36961,30 +37340,6 @@ function seagullFlightFrame(gull, nowMs) {
   if (t < gull.glideMs) return 0;
   const flapU = (t - gull.glideMs) / gull.flapMs;
   return 1 + Math.min(SEAGULL_FLIGHT_FRAMES - 2, Math.floor(flapU * (SEAGULL_FLIGHT_FRAMES - 1)));
-}
-
-function drawSeagullSprite(call) {
-  if (!call.img) return;
-  const sx = call.frame * SEAGULL_FRAME_SIZE;
-  ctx.save();
-  if (call.flip) {
-    ctx.translate(call.x + SEAGULL_FRAME_SIZE, call.y);
-    ctx.scale(-1, 1);
-    ctx.drawImage(call.img, sx, 0, SEAGULL_FRAME_SIZE, SEAGULL_FRAME_SIZE, 0, 0, SEAGULL_FRAME_SIZE, SEAGULL_FRAME_SIZE);
-  } else {
-    ctx.drawImage(
-      call.img,
-      sx,
-      0,
-      SEAGULL_FRAME_SIZE,
-      SEAGULL_FRAME_SIZE,
-      call.x,
-      call.y,
-      SEAGULL_FRAME_SIZE,
-      SEAGULL_FRAME_SIZE
-    );
-  }
-  ctx.restore();
 }
 
 function isSeagullLandingCall(call) {
@@ -37154,64 +37509,149 @@ function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
   const cacheKey = `${frame}:${maxRasterDepth}`;
   const cached = frames.get(cacheKey);
   if (cached) return cached;
+  buildShipWaterlineLayerFrames(image, sinkDepthImage, slug, frames, maxRasterDepth);
+  const built = frames.get(cacheKey);
+  if (!built) throw new Error(`Ship waterline layer bake missed ${slug} frame ${frame}`);
+  return built;
+}
 
-  const aboveCanvas = document.createElement("canvas");
-  aboveCanvas.width = SHIP_SHEET_FRAME_SIZE;
-  aboveCanvas.height = SHIP_SHEET_FRAME_SIZE;
-  const aboveCtx = aboveCanvas.getContext("2d");
-  const submergedCanvas = document.createElement("canvas");
-  submergedCanvas.width = SHIP_SHEET_FRAME_SIZE;
-  submergedCanvas.height = SHIP_SHEET_FRAME_SIZE;
-  const submergedCtx = submergedCanvas.getContext("2d");
-  if (!aboveCtx || !submergedCtx) throw new Error("Could not create ship waterline layer canvases");
+function buildShipWaterlineLayerFrames(image, sinkDepthImage, slug, frames, maxRasterDepth) {
+  const width = image.width;
+  const height = image.height;
+  if (sinkDepthImage.width !== width || sinkDepthImage.height !== height) {
+    throw new Error(`Ship waterline sheets disagree for ${slug}: ${width}x${height} vs ` +
+      `${sinkDepthImage.width}x${sinkDepthImage.height}`);
+  }
+  const colorCanvas = document.createElement("canvas");
+  colorCanvas.width = width;
+  colorCanvas.height = height;
+  const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true, colorSpace: "srgb" });
+  const depthCanvas = document.createElement("canvas");
+  depthCanvas.width = width;
+  depthCanvas.height = height;
+  const depthCtx = depthCanvas.getContext("2d", { willReadFrequently: true, colorSpace: "srgb" });
+  const aboveSource = document.createElement("canvas");
+  aboveSource.width = width;
+  aboveSource.height = height;
+  const aboveCtx = aboveSource.getContext("2d");
+  const submergedSource = document.createElement("canvas");
+  submergedSource.width = width;
+  submergedSource.height = height;
+  const submergedCtx = submergedSource.getContext("2d");
+  if (!colorCtx || !depthCtx || !aboveCtx || !submergedCtx) {
+    throw new Error(`Could not create ship waterline atlas canvases for ${slug}`);
+  }
+  colorCtx.imageSmoothingEnabled = false;
+  depthCtx.imageSmoothingEnabled = false;
   aboveCtx.imageSmoothingEnabled = false;
   submergedCtx.imageSmoothingEnabled = false;
-  const aboveImageData = aboveCtx.createImageData(SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
-  const submergedImageData = submergedCtx.createImageData(
-    SHIP_SHEET_FRAME_SIZE,
-    SHIP_SHEET_FRAME_SIZE
-  );
+  colorCtx.drawImage(image, 0, 0);
+  depthCtx.drawImage(sinkDepthImage, 0, 0);
+  const colorData = colorCtx.getImageData(0, 0, width, height).data;
+  const depthData = depthCtx.getImageData(0, 0, width, height).data;
+  const aboveImageData = aboveCtx.createImageData(width, height);
+  const submergedImageData = submergedCtx.createImageData(width, height);
 
-  const pixels = shipSpriteFramePixels(image, sinkDepthImage, frame);
-  const submergedPointSet = floatingShipSubmergedPixelKeys(
-    pixels,
-    SHIP_SHEET_FRAME_SIZE,
-    maxRasterDepth
-  );
-  const abovePointSet = new Set();
-  let bottomOpaqueY = -1;
-  let submergedMinY = SHIP_SHEET_FRAME_SIZE;
-  let submergedMaxY = -1;
-  for (const pixel of pixels) {
-    bottomOpaqueY = Math.max(bottomOpaqueY, pixel.y);
-    const key = pixel.y * SHIP_SHEET_FRAME_SIZE + pixel.x;
-    const submerged = submergedPointSet.has(key);
-    const targetData = submerged ? submergedImageData.data : aboveImageData.data;
-    const dataOffset = key * 4;
-    targetData[dataOffset] = pixel.rgba >>> 24;
-    targetData[dataOffset + 1] = (pixel.rgba >>> 16) & 0xff;
-    targetData[dataOffset + 2] = (pixel.rgba >>> 8) & 0xff;
-    targetData[dataOffset + 3] = pixel.rgba & 0xff;
-    if (!submerged) {
-      abovePointSet.add(pixel.x | (pixel.y << 8));
-    } else {
-      submergedMinY = Math.min(submergedMinY, pixel.y);
-      submergedMaxY = Math.max(submergedMaxY, pixel.y);
+  for (let frameIndex = 0; frameIndex < SHIP_HEADING_COUNT; frameIndex++) {
+    const frameX = (frameIndex % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+    const frameY = Math.floor(frameIndex / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+    const pixels = [];
+    for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y++) {
+      for (let x = 0; x < SHIP_SHEET_FRAME_SIZE; x++) {
+        const sheetX = frameX + x;
+        const sheetY = frameY + y;
+        const sheetOffset = (sheetY * width + sheetX) * 4;
+        const alpha = colorData[sheetOffset + 3];
+        if (alpha === 0) continue;
+        const sinkDepth = shipSinkDepthByte(
+          depthData[sheetOffset],
+          depthData[sheetOffset + 1],
+          depthData[sheetOffset + 2],
+          ` in ${slug} frame ${frameIndex} at ${x},${y}`
+        );
+        pixels.push({ x, y, sinkHeight: sinkDepth / 255 });
+      }
     }
+    if (pixels.length === 0) {
+      throw new Error(`Ship waterline atlas frame is empty: ${slug} frame ${frameIndex}`);
+    }
+    const submergedPointSet = floatingShipSubmergedPixelKeys(
+      pixels,
+      SHIP_SHEET_FRAME_SIZE,
+      maxRasterDepth
+    );
+    const abovePointSet = new Set();
+    let bottomOpaqueY = -1;
+    let submergedMinY = SHIP_SHEET_FRAME_SIZE;
+    let submergedMaxY = -1;
+    for (const pixel of pixels) {
+      bottomOpaqueY = Math.max(bottomOpaqueY, pixel.y);
+      const frameKey = pixel.y * SHIP_SHEET_FRAME_SIZE + pixel.x;
+      const submerged = submergedPointSet.has(frameKey);
+      const targetData = submerged ? submergedImageData.data : aboveImageData.data;
+      const sheetOffset = ((frameY + pixel.y) * width + frameX + pixel.x) * 4;
+      targetData[sheetOffset] = colorData[sheetOffset];
+      targetData[sheetOffset + 1] = colorData[sheetOffset + 1];
+      targetData[sheetOffset + 2] = colorData[sheetOffset + 2];
+      targetData[sheetOffset + 3] = colorData[sheetOffset + 3];
+      if (submerged) {
+        submergedMinY = Math.min(submergedMinY, pixel.y);
+        submergedMaxY = Math.max(submergedMaxY, pixel.y);
+      } else {
+        abovePointSet.add(pixel.x | (pixel.y << 8));
+      }
+    }
+    frames.set(`${frameIndex}:${maxRasterDepth}`, Object.freeze({
+      aboveSource,
+      submergedSource,
+      sourceRect: Object.freeze({
+        x: frameX,
+        y: frameY,
+        width: SHIP_SHEET_FRAME_SIZE,
+        height: SHIP_SHEET_FRAME_SIZE
+      }),
+      abovePointSet,
+      bottomOpaqueY,
+      submergedMinY,
+      submergedMaxY
+    }));
   }
   aboveCtx.putImageData(aboveImageData, 0, 0);
   submergedCtx.putImageData(submergedImageData, 0, 0);
+}
 
-  const layers = Object.freeze({
-    aboveCanvas,
-    submergedCanvas,
-    abovePointSet,
-    bottomOpaqueY,
-    submergedMinY,
-    submergedMaxY
-  });
-  frames.set(cacheKey, layers);
-  return layers;
+function shipWaterlineFrameCanvas(layers, kind) {
+  if (kind !== "above" && kind !== "submerged") {
+    throw new Error(`Unknown ship waterline frame kind: ${kind}`);
+  }
+  let canvases = shipWaterlineFrameCanvasCache.get(layers);
+  if (!canvases) {
+    canvases = new Map();
+    shipWaterlineFrameCanvasCache.set(layers, canvases);
+  }
+  const cached = canvases.get(kind);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = SHIP_SHEET_FRAME_SIZE;
+  canvas.height = SHIP_SHEET_FRAME_SIZE;
+  const frameCtx = canvas.getContext("2d");
+  if (!frameCtx) throw new Error(`Could not extract ${kind} ship waterline frame`);
+  frameCtx.imageSmoothingEnabled = false;
+  const source = kind === "above" ? layers.aboveSource : layers.submergedSource;
+  const rect = layers.sourceRect;
+  frameCtx.drawImage(
+    source,
+    rect.x,
+    rect.y,
+    rect.width,
+    rect.height,
+    0,
+    0,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
+  canvases.set(kind, canvas);
+  return canvas;
 }
 
 function drawFloatingShipSprite(call, layers, nowMs) {
@@ -37272,7 +37712,7 @@ function cachedFloatingShipFrame(layers, bands) {
   atlas.ctx.globalAlpha = SHIP_SUBMERGED_ALPHA;
   for (const band of bands) {
     atlas.ctx.drawImage(
-      layers.submergedCanvas,
+      shipWaterlineFrameCanvas(layers, "submerged"),
       0,
       band.y,
       SHIP_SHEET_FRAME_SIZE,
@@ -37284,7 +37724,7 @@ function cachedFloatingShipFrame(layers, bands) {
     );
   }
   atlas.ctx.globalAlpha = 1;
-  atlas.ctx.drawImage(layers.aboveCanvas, slot.x + 1, slot.y);
+  atlas.ctx.drawImage(shipWaterlineFrameCanvas(layers, "above"), slot.x + 1, slot.y);
   atlas.frames.set(key, slot);
   return slot;
 }
@@ -37320,38 +37760,58 @@ function floatingShipFrameAtlasSlot(canvas, index) {
   });
 }
 
-function drawWorldShipSinkEffect(entry, activeChart, nowMs) {
+function drawWorldShipSinkEffect(
+  entry,
+  activeChart,
+  nowMs,
+  painter = CANVAS_WORLD_PRIMITIVE_PAINTER
+) {
   const chartOffset = chartOffsetPixels(activeChart);
   if (entry.space === "chart") {
-    drawShipSinkEffect(entry.effect, nowMs, chartOffset, (x, y) => wakeMapPointIsWater(x, y, activeChart));
+    drawShipSinkEffect(
+      entry.effect,
+      nowMs,
+      chartOffset,
+      (x, y) => wakeMapPointIsWater(x, y, activeChart),
+      painter
+    );
     return;
   }
   if (entry.space === "screen") {
     drawShipSinkEffect(entry.effect, nowMs, { x: 0, y: 0 }, (x, y) => (
       wakeMapPointIsWater(x - chartOffset.x, y - chartOffset.y, activeChart)
-    ));
+    ), painter);
     return;
   }
   throw new Error(`Unknown ship sinking coordinate space: ${entry.space}`);
 }
 
-function drawShipSinkEffect(effect, nowMs, drawOffset, waterAtPoint) {
+function drawShipSinkEffect(
+  effect,
+  nowMs,
+  drawOffset,
+  waterAtPoint,
+  painter = CANVAS_WORLD_PRIMITIVE_PAINTER
+) {
   const frame = shipSinkFrame(effect, nowMs);
-  ctx.save();
   for (const pixel of frame.ripples) {
     if (!waterAtPoint(pixel.x, pixel.y)) continue;
-    drawShipSinkPixel(pixel, drawOffset);
+    drawShipSinkPixel(pixel, drawOffset, painter);
   }
-  for (const pixel of frame.hullPixels) drawShipSinkPixel(pixel, drawOffset);
-  for (const pixel of frame.particles) drawShipSinkPixel(pixel, drawOffset);
-  ctx.restore();
+  for (const pixel of frame.hullPixels) drawShipSinkPixel(pixel, drawOffset, painter);
+  for (const pixel of frame.particles) drawShipSinkPixel(pixel, drawOffset, painter);
 }
 
-function drawShipSinkPixel(pixel, drawOffset) {
+function drawShipSinkPixel(pixel, drawOffset, painter) {
   if (pixel.alpha <= 0) return;
-  ctx.globalAlpha = pixel.alpha;
-  ctx.fillStyle = pixel.color;
-  ctx.fillRect(pixel.x + drawOffset.x, pixel.y + drawOffset.y, 1, 1);
+  const color = unitRgbaForCssColor(pixel.color);
+  painter.rect(
+    pixel.x + drawOffset.x,
+    pixel.y + drawOffset.y,
+    1,
+    1,
+    `rgba(${Math.round(color[0] * 255)}, ${Math.round(color[1] * 255)}, ${Math.round(color[2] * 255)}, ${(color[3] * pixel.alpha).toFixed(3)})`
+  );
 }
 
 function drawShips(activeChart, playerLight, nowMs) {
@@ -37363,7 +37823,7 @@ function drawShips(activeChart, playerLight, nowMs) {
     "render.vessels.ships.calls",
     () => {
       const calls = [];
-      const npcDrawContext = createNpcShipDrawContext(activeChart);
+      const npcDrawContext = createNpcShipDrawContext(activeChart, nowMs);
       const playerCall = playerShipDrawCall(playerLight);
       if (playerCall) calls.push(playerCall);
       if (npcSeaRoutes && shipSpriteAssetStore && camera && directionIndex) {
@@ -37386,22 +37846,24 @@ function drawShips(activeChart, playerLight, nowMs) {
       return calls;
     }
   );
-  const gpuPlan = measurePerformanceBenchmarkStage(
+  const preparedById = measurePerformanceBenchmarkStage(
     "render.vessels.ships.plan",
     () => createGpuShipDrawPlan(drawCalls, nowMs, terrainForeground)
   );
   measurePerformanceBenchmarkStage("render.vessels.ships.draw", () => {
     for (const call of drawCalls) {
-      const prepared = gpuPlan.preparedById.get(call.id) || null;
-      if (gpuPlan.gpuIds.has(call.id)) {
-        if (!prepared) throw new Error(`GPU ship plan lost prepared draw call: ${call.id}`);
-        gpuShipDrawCommands.push(prepared);
+      if (call.kind === "sinking") {
+        gpuShipDrawCommands.push({
+          kind: "sinking",
+          entry: call.entry,
+          activeChart: call.activeChart,
+          nowMs
+        });
         continue;
       }
-      measurePerformanceBenchmarkStage(
-        "render.vessels.ships.draw.cpuFallback",
-        () => drawShipCall(call, nowMs, terrainForeground, prepared)
-      );
+      const prepared = preparedById.get(call.id);
+      if (!prepared) throw new Error(`GPU ship plan lost prepared draw call: ${call.id}`);
+      gpuShipDrawCommands.push({ kind: "ship", ...prepared });
     }
   });
 }
@@ -37412,22 +37874,27 @@ function createGpuShipDrawPlan(drawCalls, nowMs, terrainForeground) {
     if (call.kind !== "npc" && call.kind !== "player") continue;
     preparedById.set(call.id, prepareShipDrawCall(call, nowMs, terrainForeground));
   }
-  return {
-    preparedById,
-    gpuIds: new Set(
-      drawCalls
-        .filter((call) => call.kind === "npc" || call.kind === "player")
-        .map((call) => call.id)
-    )
-  };
+  return preparedById;
 }
 
 function drawGpuShipCommands() {
-  for (const { drawCall, layers, foreground, nowMs } of gpuShipDrawCommands) {
+  const painter = createGpuWorldPrimitivePainter({ x: 0, y: 0 });
+  for (const command of gpuShipDrawCommands) {
+    if (command.kind === "sinking") {
+      drawWorldShipSinkEffect(
+        command.entry,
+        command.activeChart,
+        command.nowMs,
+        painter
+      );
+      continue;
+    }
+    const { drawCall, layers, foreground, nowMs } = command;
     if (drawCall.combatAllegiance) drawGpuShipCombatOutline(drawCall, layers);
     if (layers.submergedMaxY >= layers.submergedMinY) {
       worldRenderer.drawAtlasSprite({
-        source: layers.submergedCanvas,
+        source: layers.submergedSource,
+        sourceRect: layers.sourceRect,
         destinationRect: {
           x: drawCall.x,
           y: drawCall.y,
@@ -37439,7 +37906,8 @@ function drawGpuShipCommands() {
       });
     }
     worldRenderer.drawAtlasSprite({
-      source: layers.aboveCanvas,
+      source: layers.aboveSource,
+      sourceRect: layers.sourceRect,
       destinationRect: {
         x: drawCall.x,
         y: drawCall.y,
@@ -37511,7 +37979,10 @@ function drawGpuShipTerrainForeground(foreground) {
 }
 
 function drawGpuShipCombatOutline(call, layers) {
-  const outline = gpuShipCombatOutlineCanvas(layers.aboveCanvas, call.combatAllegiance);
+  const outline = gpuShipCombatOutlineCanvas(
+    shipWaterlineFrameCanvas(layers, "above"),
+    call.combatAllegiance
+  );
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     worldRenderer.drawAtlasSprite({
       source: outline,
@@ -37740,18 +38211,14 @@ function terrainForegroundDrawLayers(call, image, activeChart, riverWaterPixelRo
 }
 
 function terrainRiverBankSplit(call, activeChart, riverMask) {
-  let splitsByTileId = shipTerrainRiverBankCache.get(activeChart);
-  if (!splitsByTileId) {
-    splitsByTileId = new Map();
-    shipTerrainRiverBankCache.set(activeChart, splitsByTileId);
-  }
-  const cached = splitsByTileId.get(call.id);
-  if (cached) return cached;
   const riverSprite = riverSpriteForTile(call, activeChart, riverMask);
   if (!riverSprite) throw new Error(`Could not split terrain around river on tile ${call.id}`);
+  const shapeKey = riverTileWaterShapeKey(call, activeChart, riverMask);
+  const cached = shipTerrainRiverBankCache.get(shapeKey);
+  if (cached) return cached;
   const alphaMask = spriteAlphaMask(riverSprite);
   const split = splitRiverTerrainBanks(alphaMask.alpha, alphaMask.width, alphaMask.height);
-  splitsByTileId.set(call.id, split);
+  shipTerrainRiverBankCache.set(shapeKey, split);
   return split;
 }
 
@@ -37810,7 +38277,7 @@ function createTerrainForegroundRiverBankImage(
   return canvas;
 }
 
-function drawWhales(nowMs) {
+function drawWhalesWebGL(nowMs) {
   if (!gameState?.memory?.whales || !whaleAssetStore) return;
   for (const whale of gameState.memory.whales.individuals) {
     if (whale.phase === WHALE_PHASE_DEAD) continue;
@@ -37821,8 +38288,124 @@ function drawWhales(nowMs) {
       queueWhaleAssets(whale, `visible whale ${whale.id}`);
       continue;
     }
-    drawWhaleSprite(call, nowMs, images);
+    const exposure = whaleSurfaceExposure(call.whale);
+    const layers = whaleRenderLayers(images, call.frame, exposure);
+    const size = SHIP_SHEET_FRAME_SIZE * call.scale;
+    const originY = Math.round(call.y + (1 - exposure) * 3);
+    const destinationRect = {
+      x: Math.round(call.x - size / 2),
+      y: Math.round(originY - size / 2),
+      width: size,
+      height: size
+    };
+    worldRenderer.drawAtlasSprite({
+      source: layers.submerged,
+      destinationRect,
+      alpha: WHALE_SUBMERGED_ALPHA,
+      refractionPx: reducedMotionPreferred ? 0 : 1
+    });
+    worldRenderer.drawAtlasSprite({ source: layers.above, destinationRect });
   }
+}
+
+function prebakeWhaleRenderSource(image, sinkDepthImage, slug) {
+  if (image.width !== sinkDepthImage.width || image.height !== sinkDepthImage.height) {
+    throw new Error(`Whale render sheets disagree for ${slug}: ${image.width}x${image.height} vs ` +
+      `${sinkDepthImage.width}x${sinkDepthImage.height}`);
+  }
+  let depthImages = whaleRenderSourceCache.get(image);
+  if (!depthImages) {
+    depthImages = new WeakMap();
+    whaleRenderSourceCache.set(image, depthImages);
+  }
+  if (depthImages.has(sinkDepthImage)) return;
+  const colorCanvas = document.createElement("canvas");
+  colorCanvas.width = image.width;
+  colorCanvas.height = image.height;
+  const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true, colorSpace: "srgb" });
+  const depthCanvas = document.createElement("canvas");
+  depthCanvas.width = sinkDepthImage.width;
+  depthCanvas.height = sinkDepthImage.height;
+  const depthCtx = depthCanvas.getContext("2d", { willReadFrequently: true, colorSpace: "srgb" });
+  if (!colorCtx || !depthCtx) throw new Error(`Could not sample whale render sheets for ${slug}`);
+  colorCtx.imageSmoothingEnabled = false;
+  depthCtx.imageSmoothingEnabled = false;
+  colorCtx.drawImage(image, 0, 0);
+  depthCtx.drawImage(sinkDepthImage, 0, 0);
+  depthImages.set(sinkDepthImage, {
+    slug,
+    width: image.width,
+    colorData: colorCtx.getImageData(0, 0, image.width, image.height).data,
+    depthData: depthCtx.getImageData(0, 0, sinkDepthImage.width, sinkDepthImage.height).data,
+    frames: new Map()
+  });
+}
+
+function whaleRenderLayers(images, frame, exposure) {
+  if (!Number.isInteger(frame) || frame < 0 || frame >= SHIP_HEADING_COUNT) {
+    throw new Error(`Whale render received an invalid heading frame: ${frame}`);
+  }
+  const exposureStep = clamp(
+    Math.round(exposure * WHALE_RENDER_EXPOSURE_STEPS),
+    0,
+    WHALE_RENDER_EXPOSURE_STEPS
+  );
+  const source = whaleRenderSourceCache.get(images.image)?.get(images.sinkDepthImage);
+  if (!source) throw new Error("Whale render source was not pre-baked");
+  const key = frame * (WHALE_RENDER_EXPOSURE_STEPS + 1) + exposureStep;
+  const cached = source.frames.get(key);
+  if (cached) return cached;
+
+  const above = document.createElement("canvas");
+  const submerged = document.createElement("canvas");
+  above.width = submerged.width = SHIP_SHEET_FRAME_SIZE;
+  above.height = submerged.height = SHIP_SHEET_FRAME_SIZE;
+  const aboveCtx = above.getContext("2d");
+  const submergedCtx = submerged.getContext("2d");
+  if (!aboveCtx || !submergedCtx) {
+    throw new Error(`Could not create whale render layers for ${source.slug}`);
+  }
+  const aboveData = aboveCtx.createImageData(SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
+  const submergedData = submergedCtx.createImageData(SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
+  const frameX = (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const frameY = Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const quantizedExposure = exposureStep / WHALE_RENDER_EXPOSURE_STEPS;
+  const surfaceThreshold = 0.502 + (1 - quantizedExposure) * 0.52;
+  let visiblePixels = 0;
+  for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y++) {
+    for (let x = 0; x < SHIP_SHEET_FRAME_SIZE; x++) {
+      const sheetOffset = ((frameY + y) * source.width + frameX + x) * 4;
+      const alpha = source.colorData[sheetOffset + 3];
+      const depthAlpha = source.depthData[sheetOffset + 3];
+      if ((alpha === 0) !== (depthAlpha === 0)) {
+        throw new Error(
+          `Whale sprite and sink-depth alpha disagree for ${source.slug} frame ${frame} at ${x},${y}`
+        );
+      }
+      if (alpha === 0) continue;
+      const sinkDepth = shipSinkDepthByte(
+        source.depthData[sheetOffset],
+        source.depthData[sheetOffset + 1],
+        source.depthData[sheetOffset + 2],
+        ` in ${source.slug} frame ${frame} at ${x},${y}`
+      );
+      const target = sinkDepth / 255 > surfaceThreshold ? aboveData.data : submergedData.data;
+      const targetOffset = (y * SHIP_SHEET_FRAME_SIZE + x) * 4;
+      target[targetOffset] = source.colorData[sheetOffset];
+      target[targetOffset + 1] = source.colorData[sheetOffset + 1];
+      target[targetOffset + 2] = source.colorData[sheetOffset + 2];
+      target[targetOffset + 3] = alpha;
+      visiblePixels++;
+    }
+  }
+  if (visiblePixels === 0) {
+    throw new Error(`Whale render frame contains no visible pixels: ${source.slug}/${frame}`);
+  }
+  aboveCtx.putImageData(aboveData, 0, 0);
+  submergedCtx.putImageData(submergedData, 0, 0);
+  const layers = Object.freeze({ above, submerged });
+  source.frames.set(key, layers);
+  return layers;
 }
 
 function residentWhaleImageSet(whale) {
@@ -37834,18 +38417,6 @@ function whaleImageSet(whale) {
   const slug = whaleAssetSlug(whale);
   if (!whaleAssetStore) throw new Error("Whale asset store is not initialized");
   return whaleAssetStore.require(slug);
-}
-
-function drawWhaleSprite(call, nowMs, images) {
-  if (!images) throw new Error(`Whale ${call.id} cannot draw without resident assets`);
-  const pixels = whaleRenderedPixels(call, nowMs, images);
-  ctx.save();
-  for (const pixel of pixels) {
-    ctx.globalAlpha = pixel.alpha;
-    ctx.fillStyle = pixel.color;
-    ctx.fillRect(pixel.x, pixel.y, 1, 1);
-  }
-  ctx.restore();
 }
 
 function whaleRenderedPixels(call, nowMs, images = whaleImageSet(call.whale)) {
@@ -37872,68 +38443,74 @@ function whaleRenderedPixels(call, nowMs, images = whaleImageSet(call.whale)) {
   return rendered;
 }
 
-function drawWhaleHuntEffects(nowMs) {
-  for (const burst of whaleBlowBursts) drawWhaleBlowBurst(burst, nowMs);
-  for (const effect of whaleKillEffects) drawWhaleKillEffect(effect, nowMs);
-  if (whaleHarpoonProjectile) drawWhaleHarpoonProjectile(whaleHarpoonProjectile);
+function drawWhaleHuntEffectsWebGL(nowMs) {
+  const painter = createGpuWorldPrimitivePainter({ x: 0, y: 0 });
+  for (const burst of whaleBlowBursts) drawWhaleBlowBurst(burst, nowMs, painter);
+  for (const effect of whaleKillEffects) drawWhaleKillEffect(effect, nowMs, painter);
+  if (whaleHarpoonProjectile) drawWhaleHarpoonProjectile(whaleHarpoonProjectile, painter);
   const hunt = gameState?.memory?.whales?.activeHunt;
   if (!hunt) return;
   const whale = whaleById(gameState.memory.whales, hunt.whaleId);
   const call = whaleInteractionCall(whale);
   if (!call) return;
-  drawWhaleRope(SCREEN_W / 2, SCREEN_H / 2, call.x, call.y);
+  drawWhaleRope(SCREEN_W / 2, SCREEN_H / 2, call.x, call.y, painter);
 }
 
-function drawWhaleKillEffect(effect, nowMs) {
+function drawWhaleKillEffect(effect, nowMs, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   const frame = whaleKillEffectFrame(effect, nowMs, { x: SCREEN_W / 2, y: SCREEN_H / 2 });
   if (frame.complete) return;
-  ctx.save();
   for (const particle of frame.particles) {
     if (particle.trailAlpha > 0) {
-      ctx.globalAlpha = particle.trailAlpha;
-      ctx.fillStyle = particle.color;
-      ctx.fillRect(particle.trailX, particle.trailY, 1, 1);
+      const trail = unitRgbaForCssColor(particle.color);
+      painter.rect(
+        particle.trailX,
+        particle.trailY,
+        1,
+        1,
+        `rgba(${Math.round(trail[0] * 255)}, ${Math.round(trail[1] * 255)}, ${Math.round(trail[2] * 255)}, ${particle.trailAlpha.toFixed(3)})`
+      );
     }
     if (particle.accentAlpha > 0) {
-      ctx.globalAlpha = particle.accentAlpha * 0.82;
-      ctx.fillStyle = "#f6f2d4";
-      ctx.fillRect(particle.x - 1, particle.y, 3, 1);
-      ctx.fillRect(particle.x, particle.y - 1, 1, 3);
+      const alpha = (particle.accentAlpha * 0.82).toFixed(3);
+      painter.rect(particle.x - 1, particle.y, 3, 1, `rgba(246, 242, 212, ${alpha})`);
+      painter.rect(particle.x, particle.y - 1, 1, 3, `rgba(246, 242, 212, ${alpha})`);
     }
     if (particle.alpha <= 0) continue;
-    ctx.globalAlpha = particle.alpha;
-    ctx.fillStyle = particle.color;
-    ctx.fillRect(particle.x, particle.y, 1, 1);
+    const color = unitRgbaForCssColor(particle.color);
+    painter.rect(
+      particle.x,
+      particle.y,
+      1,
+      1,
+      `rgba(${Math.round(color[0] * 255)}, ${Math.round(color[1] * 255)}, ${Math.round(color[2] * 255)}, ${particle.alpha.toFixed(3)})`
+    );
   }
-  ctx.restore();
 }
 
-function drawWhaleBlowBurst(burst, nowMs) {
+function drawWhaleBlowBurst(burst, nowMs, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   const localPoint = localPointForGlobeVector(burst.originPosition);
   if (!localPoint) return;
   const offset = chartOffsetPixels(chart);
   const age = (nowMs - burst.startedAtMs) / 1000;
   const originX = localPoint.x + offset.x;
   const originY = localPoint.y + offset.y;
-  ctx.save();
   for (let index = 0; index < burst.particles.length; index++) {
     const frame = whaleBlowParticleFrame(burst.particles[index], age);
     if (!frame) continue;
     const x = Math.round(originX + frame.x);
     const y = Math.round(originY + frame.y);
-    ctx.globalAlpha = frame.alpha;
-    ctx.fillStyle = index % 3 === 0 ? "#c7dcd0" : "#f6f2d4";
-    ctx.fillRect(x, y, 1, 1);
+    const [r, g, b] = index % 3 === 0 ? [199, 220, 208] : [246, 242, 212];
+    painter.rect(x, y, 1, 1, `rgba(${r}, ${g}, ${b}, ${frame.alpha.toFixed(3)})`);
     if (frame.mist > 0.18) {
-      ctx.globalAlpha = frame.alpha * frame.mist * 0.32;
-      ctx.fillRect(x + frame.hazeOffsetX, y + frame.hazeOffsetY, 1, 1);
-      if ((index & 3) === 0) ctx.fillRect(x - frame.hazeOffsetX, y, 1, 1);
+      const alpha = (frame.alpha * frame.mist * 0.32).toFixed(3);
+      const color = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      painter.rect(x + frame.hazeOffsetX, y + frame.hazeOffsetY, 1, 1, color);
+      if ((index & 3) === 0) painter.rect(x - frame.hazeOffsetX, y, 1, 1, color);
     }
   }
-  ctx.restore();
 }
 
-function drawWhaleHarpoonProjectile(projectile) {
+function drawWhaleHarpoonProjectile(projectile, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   const whale = whaleById(gameState.memory.whales, projectile.whaleId);
   const call = whaleInteractionCall(whale);
   const targetX = call?.x ?? projectile.targetX;
@@ -37941,19 +38518,24 @@ function drawWhaleHarpoonProjectile(projectile) {
   const t = clamp(projectile.elapsedSeconds / projectile.durationSeconds, 0, 1);
   const x = projectile.startX + (targetX - projectile.startX) * t;
   const y = projectile.startY + (targetY - projectile.startY) * t + Math.sin(t * Math.PI) * WHALE_HARPOON_ARC_PX;
-  drawWhaleRope(projectile.startX, projectile.startY, x, y);
+  drawWhaleRope(projectile.startX, projectile.startY, x, y, painter);
   const direction = normalizeScreenVector({ x: targetX - projectile.startX, y: targetY - projectile.startY }) || { x: 1, y: 0 };
-  ctx.fillStyle = "#2e222f";
   for (let index = -1; index <= 1; index++) {
-    ctx.fillRect(Math.round(x + direction.x * index), Math.round(y + direction.y * index), 1, 1);
+    painter.rect(
+      Math.round(x + direction.x * index),
+      Math.round(y + direction.y * index),
+      1,
+      1,
+      "#2e222f"
+    );
   }
 }
 
-function drawWhaleRope(startX, startY, endX, endY) {
+function drawWhaleRope(startX, startY, endX, endY, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   const middleX = Math.round((startX + endX) / 2);
   const middleY = Math.round((startY + endY) / 2 + 2);
-  drawPixelLine(Math.round(startX), Math.round(startY), middleX, middleY, "#6b4932");
-  drawPixelLine(middleX, middleY, Math.round(endX), Math.round(endY), "#6b4932");
+  painter.line(Math.round(startX), Math.round(startY), middleX, middleY, "#6b4932");
+  painter.line(middleX, middleY, Math.round(endX), Math.round(endY), "#6b4932");
 }
 
 function playerShipDrawCall(light) {
@@ -37981,9 +38563,10 @@ function playerShipDrawCall(light) {
   };
 }
 
-function createNpcShipDrawContext(activeChart) {
+function createNpcShipDrawContext(activeChart, nowMs = lastFrameMs) {
   return {
     offset: chartOffsetPixels(activeChart),
+    nowMs,
     playerInCombat: playerHasCombatEngagement(),
     allegianceByFactionId: new Map()
   };
@@ -37991,7 +38574,8 @@ function createNpcShipDrawContext(activeChart) {
 
 function npcShipDrawCall(state, activeChart, drawContext = createNpcShipDrawContext(activeChart)) {
   const offset = drawContext.offset;
-  const point = { x: state.x + offset.x, y: state.y + offset.y };
+  const presentation = npcVisualPresentationPoint(state, drawContext.nowMs);
+  const point = { x: presentation.x + offset.x, y: presentation.y + offset.y };
   if (!pointNearScreen(point, SHIP_SHEET_FRAME_SIZE)) return null;
   if (!activeChart.visibleSet.has(state.tileId)) return null;
   const heading = npcShipScreenHeading(state.heading);
@@ -38080,51 +38664,6 @@ function prepareShipDrawCall(call, nowMs, terrainForeground) {
     )
   );
   return { drawCall, layers, foreground, compositeBounds, nowMs };
-}
-
-function drawShipCall(call, nowMs, terrainForeground, prepared = null) {
-  if (call.kind === "sinking") {
-    drawWorldShipSinkEffect(call.entry, call.activeChart, nowMs);
-    return;
-  }
-  const resolved = prepared || prepareShipDrawCall(call, nowMs, terrainForeground);
-  const { drawCall, layers, foreground, compositeBounds } = resolved;
-  if (foreground.length === 0) {
-    drawShipVisual(drawCall, layers, nowMs);
-  } else {
-    shipCompositeCtx.clearRect(0, 0, shipCompositeCanvas.width, shipCompositeCanvas.height);
-    shipCompositeCtx.save();
-    shipCompositeCtx.translate(-compositeBounds.x, -compositeBounds.y);
-    const previousCtx = ctx;
-    ctx = shipCompositeCtx;
-    try {
-      drawShipVisual(drawCall, layers, nowMs);
-      eraseTerrainOccludersFromShipLayer(ctx, foreground);
-    } finally {
-      ctx = previousCtx;
-      shipCompositeCtx.restore();
-    }
-    ctx.drawImage(shipCompositeCanvas, compositeBounds.x, compositeBounds.y);
-  }
-  if (drawCall.kind === "player" && shipHullIsDamaged(drawCall.hitPoints, drawCall.maxHitPoints)) {
-    drawShipHullBar(drawCall, PLAYER_SHIP_COMBAT_COLOR);
-  }
-  if (drawCall.kind === "npc" && drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
-  if (drawCall.kind === "npc" && drawCall.combatMode) drawNpcCombatHull(drawCall);
-}
-
-function drawShipVisual(drawCall, layers, nowMs) {
-  ctx.save();
-  try {
-    if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
-    drawFloatingShipSprite(drawCall, layers, nowMs);
-    if (drawCall.kind === "player") {
-      drawShipLighting(drawCall.frame, drawCall.x, drawCall.y, drawCall.light, layers.abovePointSet);
-    }
-    if (drawCall.kind === "npc") drawNpcShipFlag(drawCall, nowMs);
-  } finally {
-    ctx.restore();
-  }
 }
 
 function shipTerrainForegroundForDrawCall(call, layers, terrainForeground, shipBounds) {
@@ -38239,7 +38778,7 @@ function currentDiplomacyBetween(factionAId, factionBId) {
 function drawShipCombatOutline(call, layers) {
   shipOutlineCtx.clearRect(0, 0, SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
   shipOutlineCtx.globalCompositeOperation = "source-over";
-  shipOutlineCtx.drawImage(layers.aboveCanvas, 0, 0);
+  shipOutlineCtx.drawImage(shipWaterlineFrameCanvas(layers, "above"), 0, 0);
   shipOutlineCtx.globalCompositeOperation = "source-in";
   shipOutlineCtx.fillStyle = shipCombatAllegianceColor(call.combatAllegiance);
   shipOutlineCtx.fillRect(0, 0, SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
@@ -38248,31 +38787,6 @@ function drawShipCombatOutline(call, layers) {
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     ctx.drawImage(shipOutlineCanvas, call.x + dx, call.y + dy);
   }
-}
-
-function drawNpcShipFlag(call, nowMs) {
-  if (!factionHasFlag(call.factionId)) return;
-  if (!call.flagAnchor) throw new Error(`NPC ship ${call.slug} is missing its flag anchor`);
-  const layout = shipFlagLayout({
-    anchorX: call.x + call.flagAnchor.x,
-    anchorY: call.y + call.flagAnchor.y,
-    poleHeight: NPC_SHIP_FLAG_POLE_H,
-    flagWidth: NPC_SHIP_FLAG_W,
-    flagHeight: NPC_SHIP_FLAG_H
-  });
-  ctx.fillStyle = "#4c3e24";
-  ctx.fillRect(layout.pole.x, layout.pole.y, layout.pole.w, layout.pole.h);
-  drawWavingFactionFlag(
-    call.factionId,
-    layout.flag.x,
-    layout.flag.y,
-    layout.flag.w,
-    layout.flag.h,
-    flagWavePhase(nowMs, call.flagSeed),
-    {
-      outlineColor: npcShipFlagOutlineColor(call)
-    }
-  );
 }
 
 function npcShipFlagOutlineColor(call) {
@@ -38288,59 +38802,11 @@ function npcShipFlagOutlineColor(call) {
   );
 }
 
-function drawNpcCombatHull(call) {
-  drawShipHullBar(call, npcShipHullBarColor(call.combatAllegiance));
-}
-
-function drawShipHullBar(call, color) {
-  const layout = shipHullBarLayout({
-    x: call.x,
-    y: call.y,
-    frameSize: SHIP_SHEET_FRAME_SIZE,
-    hitPoints: call.hitPoints,
-    maxHitPoints: call.maxHitPoints
-  });
-  ctx.fillStyle = "#2e222f";
-  ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
-  ctx.fillStyle = color;
-  ctx.fillRect(layout.x + 1, layout.y + 1, layout.fillWidth, 1);
-}
-
-function drawNpcAnchorMarker(call) {
-  const x = call.x + SHIP_SHEET_FRAME_SIZE - 10;
-  const y = call.y + SHIP_SHEET_FRAME_SIZE - 11;
-  ctx.fillStyle = "rgba(199, 220, 208, 0.92)";
-  ctx.fillRect(x + 2, y, 1, 6);
-  ctx.fillRect(x, y + 2, 5, 1);
-  ctx.fillRect(x, y + 5, 2, 1);
-  ctx.fillRect(x + 3, y + 5, 2, 1);
-  ctx.fillRect(x, y + 4, 1, 2);
-  ctx.fillRect(x + 4, y + 4, 1, 2);
-}
-
 function shipScreenOrigin(frameSize) {
   return {
     x: Math.round(SCREEN_W / 2 - frameSize / 2),
     y: Math.round(SCREEN_H / 2 - frameSize / 2)
   };
-}
-
-function drawShipLighting(frame, x, y, light, abovePointSet) {
-  if (!shipLighting || !light || light.direct <= 0.01) return;
-  drawDirectionalMaskPoints(
-    shipLightingPoints("shade", frame, light.bin),
-    x,
-    y,
-    `rgba(26, 18, 44, ${(SHIP_LIGHT_SHADE_ALPHA * light.direct).toFixed(3)})`,
-    abovePointSet
-  );
-  drawDirectionalMaskPoints(
-    shipLightingPoints("light", frame, light.bin),
-    x,
-    y,
-    `rgba(255, 240, 188, ${(SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct).toFixed(3)})`,
-    abovePointSet
-  );
 }
 
 function shipLightingPoints(kind, frame, bin) {
@@ -38351,18 +38817,6 @@ function directionalLightingPoints(lighting, kind, frame, bin, label) {
   const points = lighting?.[kind]?.[frame]?.[bin];
   if (!points) throw new Error(`Missing ${label} ${kind} lighting mask for frame ${frame}, bin ${bin}`);
   return points;
-}
-
-function drawDirectionalMaskPoints(points, x, y, color, allowedPoints = null) {
-  if (points.length === 0) return;
-  if (allowedPoints !== null && !(allowedPoints instanceof Set)) {
-    throw new Error("Directional lighting pixel filter must be a Set or null");
-  }
-  ctx.fillStyle = color;
-  for (const point of points) {
-    if (allowedPoints !== null && !allowedPoints.has(point)) continue;
-    ctx.fillRect(x + (point & 0xff), y + (point >> 8), 1, 1);
-  }
 }
 
 function shipHeadingFrame() {
@@ -39049,7 +39503,7 @@ function cityDamageOverlay(image, seed) {
   return overlay;
 }
 
-function drawCityShadows(activeChart, light) {
+function drawCityShadowsWebGL(activeChart, light, offset) {
   if (!activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
   if (!light || light.shadow <= 0.01) return;
   const direction = cityShadowDirection();
@@ -39058,10 +39512,68 @@ function drawCityShadows(activeChart, light) {
   const stretch = CITY_SHADOW_MIN_STRETCH +
     (CITY_SHADOW_MAX_STRETCH - CITY_SHADOW_MIN_STRETCH) * easeInOut(lowSun);
   const alpha = CITY_SHADOW_ALPHA * light.shadow * (0.48 + lowSun * 0.52);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  for (const call of activeChart.cityCalls) drawCityShadow(call, direction, stretch);
-  ctx.restore();
+  for (const call of activeChart.cityCalls) {
+    if (call.hiddenSettlement) continue;
+    const sprite = cityShadowWebglSprite(call, direction, stretch);
+    const anchorX = call.spriteX + CITY_SPRITE_W / 2;
+    const anchorY = call.spriteY + CITY_SHADOW_SOURCE_Y;
+    worldRenderer.drawAtlasSprite({
+      source: sprite.canvas,
+      destinationRect: {
+        x: Math.round(anchorX + sprite.offsetX + offset.x),
+        y: Math.round(anchorY + sprite.offsetY + offset.y),
+        width: sprite.canvas.width,
+        height: sprite.canvas.height
+      },
+      alpha
+    });
+  }
+}
+
+function cityShadowWebglSprite(call, direction, stretch) {
+  const directionAngle = Math.atan2(direction.y, direction.x);
+  const directionBin = ((Math.round(directionAngle / (Math.PI * 2) * 16) % 16) + 16) % 16;
+  const quantizedAngle = directionBin / 16 * Math.PI * 2;
+  const quantizedDirection = { x: Math.cos(quantizedAngle), y: Math.sin(quantizedAngle) };
+  const stretchBin = Math.round(stretch * 4);
+  const quantizedStretch = stretchBin / 4;
+  const key = `${cityArtKeyForCity(call)}:${directionBin}:${stretchBin}`;
+  const cached = cityShadowWebglSpriteCache.get(key);
+  if (cached) return cached;
+
+  const source = cityShadowSpriteForCity(call);
+  const perpendicular = { x: -quantizedDirection.y, y: quantizedDirection.x };
+  const transform = {
+    a: perpendicular.x * CITY_SHADOW_WIDTH_SCALE,
+    b: perpendicular.y * CITY_SHADOW_WIDTH_SCALE,
+    c: quantizedDirection.x * quantizedStretch,
+    d: quantizedDirection.y * quantizedStretch
+  };
+  const corners = [
+    [-CITY_SPRITE_W / 2, 0],
+    [CITY_SPRITE_W / 2, 0],
+    [-CITY_SPRITE_W / 2, CITY_SHADOW_SOURCE_H],
+    [CITY_SPRITE_W / 2, CITY_SHADOW_SOURCE_H]
+  ].map(([x, y]) => ({
+    x: transform.a * x + transform.c * y,
+    y: transform.b * x + transform.d * y
+  }));
+  const offsetX = Math.floor(Math.min(...corners.map((corner) => corner.x))) - 1;
+  const offsetY = Math.floor(Math.min(...corners.map((corner) => corner.y))) - 1;
+  const maxX = Math.ceil(Math.max(...corners.map((corner) => corner.x))) + 1;
+  const maxY = Math.ceil(Math.max(...corners.map((corner) => corner.y))) + 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, maxX - offsetX);
+  canvas.height = Math.max(1, maxY - offsetY);
+  const shadowCtx = canvas.getContext("2d");
+  if (!shadowCtx) throw new Error(`Could not rasterize GPU city shadow: ${call.city}`);
+  shadowCtx.imageSmoothingEnabled = false;
+  shadowCtx.translate(-offsetX, -offsetY);
+  shadowCtx.transform(transform.a, transform.b, transform.c, transform.d, 0, 0);
+  shadowCtx.drawImage(source, -CITY_SPRITE_W / 2, 0);
+  const result = Object.freeze({ canvas, offsetX, offsetY });
+  cityShadowWebglSpriteCache.set(key, result);
+  return result;
 }
 
 function cityShadowDirection() {
@@ -39071,27 +39583,6 @@ function cityShadowDirection() {
   const towardSun = tangentToScreenDirection(tangent);
   if (!towardSun) return null;
   return normalizeScreenVector({ x: -towardSun.x, y: -towardSun.y });
-}
-
-function drawCityShadow(call, direction, stretch) {
-  if (call.hiddenSettlement) return;
-  const img = cityShadowSpriteForCity(call);
-  const px = -direction.y;
-  const py = direction.x;
-  const anchorX = call.spriteX + CITY_SPRITE_W / 2;
-  const anchorY = call.spriteY + CITY_SHADOW_SOURCE_Y;
-  ctx.save();
-  ctx.translate(anchorX, anchorY);
-  ctx.transform(
-    px * CITY_SHADOW_WIDTH_SCALE,
-    py * CITY_SHADOW_WIDTH_SCALE,
-    direction.x * stretch,
-    direction.y * stretch,
-    0,
-    0
-  );
-  ctx.drawImage(img, -CITY_SPRITE_W / 2, 0);
-  ctx.restore();
 }
 
 function cityShadowSpriteForCity(city) {
@@ -39122,19 +39613,12 @@ function cityShadowSpriteForCity(city) {
   return canvas;
 }
 
-function drawCitySprites(activeChart, nowMs) {
+function drawCitySpritesWebGL(activeChart, offset, nowMs) {
   if (!activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
-  for (const call of activeChart.cityCalls) drawCitySprite(call, nowMs);
+  for (const call of activeChart.cityCalls) drawCitySpriteWebGL(call, offset, nowMs);
 }
 
-function drawCitySpritesAboveShip(activeChart, offset, nowMs) {
-  if (!activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
-  for (const call of activeChart.cityCalls) {
-    if (citySpriteShouldDrawAboveShip(call, offset)) drawCitySprite(call, nowMs);
-  }
-}
-
-function drawCitySprite(call, nowMs) {
+function drawCitySpriteWebGL(call, offset, nowMs) {
   if (call.hiddenSettlement) return;
   const img = cityImageForCity(call);
   const battery = shoreBatteryStates.get(shoreBatteryId(call));
@@ -39152,7 +39636,15 @@ function drawCitySprite(call, nowMs) {
       false,
       "#e83b3b"
     );
-    ctx.drawImage(outline, call.spriteX - 1, call.spriteY - 1);
+    worldRenderer.drawAtlasSprite({
+      source: outline,
+      destinationRect: {
+        x: call.spriteX - 1 + offset.x,
+        y: call.spriteY - 1 + offset.y,
+        width: outline.width,
+        height: outline.height
+      }
+    });
   }
   const poleX = call.spriteX + 29;
   const poleTop = call.spriteY + 2;
@@ -39161,30 +39653,81 @@ function drawCitySprite(call, nowMs) {
     gameState?.relations?.foreignSettlementExpulsions || null
   );
   if (flagFactionIds.length > 0) {
-    ctx.fillStyle = "#4c3e24";
-    ctx.fillRect(
-      poleX,
-      poleTop,
-      1,
-      Math.max(18, 2 + flagFactionIds.length * (CITY_FLAG_H + 1))
-    );
+    worldRenderer.drawSolidRect({
+      destinationRect: {
+        x: poleX + offset.x,
+        y: poleTop + offset.y,
+        width: 1,
+        height: Math.max(18, 2 + flagFactionIds.length * (CITY_FLAG_H + 1))
+      },
+      color: unitRgbaForCssColor("#4c3e24")
+    });
   }
-  ctx.drawImage(img, call.spriteX, call.spriteY);
+  worldRenderer.drawAtlasSprite({
+    source: img,
+    destinationRect: {
+      x: call.spriteX + offset.x,
+      y: call.spriteY + offset.y,
+      width: call.spriteW,
+      height: call.spriteH
+    }
+  });
   if (batteryDisabled) {
-    ctx.drawImage(cityDamageOverlay(img, call.tileId), call.spriteX, call.spriteY);
+    worldRenderer.drawAtlasSprite({
+      source: cityDamageOverlay(img, call.tileId),
+      destinationRect: {
+        x: call.spriteX + offset.x,
+        y: call.spriteY + offset.y,
+        width: call.spriteW,
+        height: call.spriteH
+      }
+    });
   }
   for (let flagIndex = 0; flagIndex < flagFactionIds.length; flagIndex++) {
-    drawWavingFactionFlag(
-      flagFactionIds[flagIndex],
-      poleX + 1,
-      poleTop + 1 + flagIndex * (CITY_FLAG_H + 1),
-      CITY_FLAG_W,
-      CITY_FLAG_H,
-      flagWavePhase(nowMs, call.tileId + flagIndex * 997)
-    );
+    drawWavingFactionFlagWebGL({
+      factionId: flagFactionIds[flagIndex],
+      x: poleX + 1 + offset.x,
+      y: poleTop + 1 + flagIndex * (CITY_FLAG_H + 1) + offset.y,
+      width: CITY_FLAG_W,
+      height: CITY_FLAG_H,
+      phaseRad: flagWavePhase(nowMs, call.tileId + flagIndex * 997)
+    });
   }
-  if (fireSource) drawOnFire(fireSource, nowMs);
-  if (batteryInPlayerCombat) drawShoreBatteryHealthBar(call, battery);
+  if (fireSource) drawOnFireWebGL(fireSource, offset, nowMs);
+  if (batteryInPlayerCombat) drawShoreBatteryHealthBarWebGL(call, battery, offset);
+}
+
+function drawWavingFactionFlagWebGL({
+  factionId,
+  x,
+  y,
+  width,
+  height,
+  phaseRad,
+  outlineColor = null
+}) {
+  if (!factionHasFlag(factionId)) {
+    throw new Error(`Neutral faction cannot be drawn as a flag`);
+  }
+  const image = factionFlagImages?.get(factionId);
+  if (!image) throw new Error(`Missing faction flag image: ${factionId}`);
+  const atlas = wavingFactionFlagAtlas(factionId, image, width, height, outlineColor);
+  const frameIndex = flagWaveFrameIndex(phaseRad);
+  worldRenderer.drawAtlasSprite({
+    source: atlas.canvas,
+    sourceRect: {
+      x: frameIndex * atlas.frameWidth,
+      y: 0,
+      width: atlas.frameWidth,
+      height: atlas.frameHeight
+    },
+    destinationRect: {
+      x: Math.round(x),
+      y: Math.round(y) - atlas.verticalPadding,
+      width: atlas.frameWidth,
+      height: atlas.frameHeight
+    }
+  });
 }
 
 function visibleWorldFireSources() {
@@ -39212,35 +39755,46 @@ function fireSourceForCity(call, batteryDisabled) {
   };
 }
 
-function drawOnFire(source, nowMs) {
+function drawOnFireWebGL(source, offset, nowMs) {
   const fireEffectImage = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.FIRE);
   if (!fireEffectImage) {
     queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.FIRE, `visible fire source ${source.id}`);
     return;
   }
   const frame = fireAnimationFrame(nowMs, source.phaseSeed);
-  ctx.drawImage(
-    fireEffectImage,
-    frame * FIRE_FRAME_WIDTH,
-    0,
-    FIRE_FRAME_WIDTH,
-    FIRE_FRAME_HEIGHT,
-    Math.round(source.screenX - FIRE_FRAME_WIDTH / 2),
-    Math.round(source.screenBaseY - FIRE_FRAME_HEIGHT),
-    FIRE_FRAME_WIDTH,
-    FIRE_FRAME_HEIGHT
-  );
+  worldRenderer.drawAtlasSprite({
+    source: fireEffectImage,
+    sourceRect: {
+      x: frame * FIRE_FRAME_WIDTH,
+      y: 0,
+      width: FIRE_FRAME_WIDTH,
+      height: FIRE_FRAME_HEIGHT
+    },
+    destinationRect: {
+      x: Math.round(source.screenX - FIRE_FRAME_WIDTH / 2 + offset.x),
+      y: Math.round(source.screenBaseY - FIRE_FRAME_HEIGHT + offset.y),
+      width: FIRE_FRAME_WIDTH,
+      height: FIRE_FRAME_HEIGHT
+    }
+  });
 }
 
-function drawShoreBatteryHealthBar(call, battery) {
+function drawShoreBatteryHealthBarWebGL(call, battery, offset) {
   const width = 18;
-  const x = Math.round(call.x - width / 2);
-  const y = Math.round(call.spriteY - 3);
+  const x = Math.round(call.x - width / 2 + offset.x);
+  const y = Math.round(call.spriteY - 3 + offset.y);
   const fill = Math.round((width - 2) * clamp(battery.hitPoints / battery.maxHitPoints, 0, 1));
-  ctx.fillStyle = "#1a1512";
-  ctx.fillRect(x, y, width, 3);
-  ctx.fillStyle = battery.hitPoints <= battery.maxHitPoints * 0.35 ? "#e83b3b" : "#f68181";
-  ctx.fillRect(x + 1, y + 1, fill, 1);
+  worldRenderer.drawSolidRect({
+    destinationRect: { x, y, width, height: 3 },
+    color: unitRgbaForCssColor("#1a1512")
+  });
+  if (fill <= 0) return;
+  worldRenderer.drawSolidRect({
+    destinationRect: { x: x + 1, y: y + 1, width: fill, height: 1 },
+    color: unitRgbaForCssColor(
+      battery.hitPoints <= battery.maxHitPoints * 0.35 ? "#e83b3b" : "#f68181"
+    )
+  });
 }
 
 function flagWavePhase(nowMs, seed = 0) {
@@ -39372,9 +39926,18 @@ function shipScreenSortY() {
   return Math.round(SCREEN_H / 2 + SHIP_SHEET_FRAME_SIZE / 2);
 }
 
-function drawCityLabels(cityCalls, activeChart) {
+function drawCityLabelsWebGL(cityCalls, activeChart, offset) {
   for (const { label, box } of cityLabelBoxes(cityCalls, activeChart)) {
-    ctx.drawImage(cityLabelRaster(label), box.x, box.y);
+    const source = cityLabelRaster(label);
+    worldRenderer.drawAtlasSprite({
+      source,
+      destinationRect: {
+        x: box.x + offset.x,
+        y: box.y + offset.y,
+        width: source.width,
+        height: source.height
+      }
+    });
   }
 }
 
