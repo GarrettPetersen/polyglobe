@@ -44,6 +44,48 @@ void main() {
 }
 `;
 
+const BIT_MASK_VERTEX_SHADER = `#version 300 es
+in vec2 a_position;
+in vec2 a_maskTexCoord;
+in vec2 a_alphaTexCoord;
+
+uniform vec2 u_resolution;
+
+out vec2 v_maskTexCoord;
+out vec2 v_alphaTexCoord;
+
+void main() {
+  vec2 clip = (a_position / u_resolution) * 2.0 - 1.0;
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  v_maskTexCoord = a_maskTexCoord;
+  v_alphaTexCoord = a_alphaTexCoord;
+}
+`;
+
+const BIT_MASK_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+
+uniform sampler2D u_maskSource;
+uniform sampler2D u_alphaSource;
+uniform int u_channel;
+uniform float u_bitValue;
+uniform vec4 u_color;
+
+in vec2 v_maskTexCoord;
+in vec2 v_alphaTexCoord;
+out vec4 outColor;
+
+void main() {
+  vec4 packed = texture(u_maskSource, v_maskTexCoord);
+  float channel = u_channel == 0 ? packed.r : packed.g;
+  float byteValue = floor(channel * 255.0 + 0.5);
+  float enabled = mod(floor(byteValue / u_bitValue), 2.0);
+  float alpha = texture(u_alphaSource, v_alphaTexCoord).a;
+  if (enabled < 0.5 || alpha < 0.5) discard;
+  outColor = u_color;
+}
+`;
+
 const PRESENT_VERTEX_SHADER = `#version 300 es
 in vec2 a_position;
 in vec2 a_texCoord;
@@ -84,6 +126,7 @@ void main() {
 `;
 
 const FLOATS_PER_VERTEX = 10;
+const BIT_MASK_FLOATS_PER_VERTEX = 6;
 const VERTICES_PER_QUAD = 6;
 const FLOATS_PER_QUAD = FLOATS_PER_VERTEX * VERTICES_PER_QUAD;
 const INITIAL_ATLAS_QUAD_CAPACITY = 1024;
@@ -232,6 +275,50 @@ export function quadVertices({
   ]));
 }
 
+export function bitMaskQuadVertices({
+  maskSourceRect,
+  maskTextureWidth,
+  maskTextureHeight,
+  alphaSourceRect,
+  alphaTextureWidth,
+  alphaTextureHeight,
+  destinationRect
+}) {
+  validateRect(maskSourceRect, "bit-mask source");
+  validateRect(alphaSourceRect, "bit-mask alpha source");
+  validateRect(destinationRect, "bit-mask destination");
+  for (const [label, value] of Object.entries({
+    maskTextureWidth,
+    maskTextureHeight,
+    alphaTextureWidth,
+    alphaTextureHeight
+  })) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Invalid ${label}: ${value}`);
+    }
+  }
+  const x0 = destinationRect.x;
+  const y0 = destinationRect.y;
+  const x1 = x0 + destinationRect.width;
+  const y1 = y0 + destinationRect.height;
+  const mu0 = maskSourceRect.x / maskTextureWidth;
+  const mv0 = maskSourceRect.y / maskTextureHeight;
+  const mu1 = (maskSourceRect.x + maskSourceRect.width) / maskTextureWidth;
+  const mv1 = (maskSourceRect.y + maskSourceRect.height) / maskTextureHeight;
+  const au0 = alphaSourceRect.x / alphaTextureWidth;
+  const av0 = alphaSourceRect.y / alphaTextureHeight;
+  const au1 = (alphaSourceRect.x + alphaSourceRect.width) / alphaTextureWidth;
+  const av1 = (alphaSourceRect.y + alphaSourceRect.height) / alphaTextureHeight;
+  return new Float32Array([
+    x0, y0, mu0, mv0, au0, av0,
+    x1, y0, mu1, mv0, au1, av0,
+    x0, y1, mu0, mv1, au0, av1,
+    x0, y1, mu0, mv1, au0, av1,
+    x1, y0, mu1, mv0, au1, av0,
+    x1, y1, mu1, mv1, au1, av1
+  ]);
+}
+
 export function allocateWorldSceneTexture(gl, {
   texture,
   framebuffer,
@@ -346,6 +433,18 @@ export function createWorldWebGL2Renderer({
     time: requiredUniform(gl, sceneProgram, "u_time"),
     textureSize: requiredUniform(gl, sceneProgram, "u_textureSize")
   };
+  const bitMaskProgram = createProgram(gl, BIT_MASK_VERTEX_SHADER, BIT_MASK_FRAGMENT_SHADER);
+  const bitMaskLocations = {
+    position: requiredAttribute(gl, bitMaskProgram, "a_position"),
+    maskTexCoord: requiredAttribute(gl, bitMaskProgram, "a_maskTexCoord"),
+    alphaTexCoord: requiredAttribute(gl, bitMaskProgram, "a_alphaTexCoord"),
+    resolution: requiredUniform(gl, bitMaskProgram, "u_resolution"),
+    maskSource: requiredUniform(gl, bitMaskProgram, "u_maskSource"),
+    alphaSource: requiredUniform(gl, bitMaskProgram, "u_alphaSource"),
+    channel: requiredUniform(gl, bitMaskProgram, "u_channel"),
+    bitValue: requiredUniform(gl, bitMaskProgram, "u_bitValue"),
+    color: requiredUniform(gl, bitMaskProgram, "u_color")
+  };
   const presentProgram = createProgram(gl, PRESENT_VERTEX_SHADER, PRESENT_FRAGMENT_SHADER);
   const presentLocations = {
     position: requiredAttribute(gl, presentProgram, "a_position"),
@@ -355,10 +454,12 @@ export function createWorldWebGL2Renderer({
     grade: requiredUniform(gl, presentProgram, "u_grade")
   };
   const sceneVertexBuffer = requiredBuffer(gl, "world scene vertex buffer");
+  const bitMaskVertexBuffer = requiredBuffer(gl, "world bit-mask vertex buffer");
   const presentVertexBuffer = requiredBuffer(gl, "world presentation vertex buffer");
   const sceneVertexArray = gl.createVertexArray();
+  const bitMaskVertexArray = gl.createVertexArray();
   const presentVertexArray = gl.createVertexArray();
-  if (!sceneVertexArray || !presentVertexArray) {
+  if (!sceneVertexArray || !bitMaskVertexArray || !presentVertexArray) {
     throw new Error("Could not allocate world vertex arrays");
   }
   gl.bindVertexArray(presentVertexArray);
@@ -412,6 +513,7 @@ export function createWorldWebGL2Renderer({
   let persistentBatchDraws = 0;
   const solidPixelSource = createSolidPixelSource();
   configureSceneAttributes();
+  configureBitMaskAttributes();
   configurePresentationAttributes();
   gl.disable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);
@@ -441,6 +543,18 @@ export function createWorldWebGL2Renderer({
     configureAttribute(gl, presentLocations.texCoord, 2, 4 * 4, 2 * 4);
     gl.uniform1i(presentLocations.scene, 0);
     gl.uniform1i(presentLocations.palette, 1);
+  }
+
+  function configureBitMaskAttributes() {
+    gl.bindVertexArray(bitMaskVertexArray);
+    gl.useProgram(bitMaskProgram);
+    gl.bindBuffer(gl.ARRAY_BUFFER, bitMaskVertexBuffer);
+    const stride = BIT_MASK_FLOATS_PER_VERTEX * 4;
+    configureAttribute(gl, bitMaskLocations.position, 2, stride, 0);
+    configureAttribute(gl, bitMaskLocations.maskTexCoord, 2, stride, 2 * 4);
+    configureAttribute(gl, bitMaskLocations.alphaTexCoord, 2, stride, 4 * 4);
+    gl.uniform1i(bitMaskLocations.maskSource, 0);
+    gl.uniform1i(bitMaskLocations.alphaSource, 1);
   }
 
   function resize(width, height) {
@@ -852,6 +966,71 @@ export function createWorldWebGL2Renderer({
     });
   }
 
+  function drawBitMaskSprite({
+    maskSource,
+    maskSourceRect,
+    alphaSource,
+    alphaSourceRect,
+    destinationRect,
+    bitIndex,
+    color
+  }) {
+    flushBatches();
+    if (!Number.isInteger(bitIndex) || bitIndex < 0 || bitIndex >= 16) {
+      throw new Error(`World bit-mask index must be between 0 and 15: ${bitIndex}`);
+    }
+    if (!Array.isArray(color) || color.length !== 4) {
+      throw new Error("World bit-mask color requires four channels");
+    }
+    for (const channel of color) validateUnitInterval(channel, "world bit-mask color channel");
+    const maskEntry = registerAtlasSource(maskSource);
+    const alphaEntry = registerAtlasSource(alphaSource);
+    validateRect(maskSourceRect, "bit-mask source");
+    validateRect(alphaSourceRect, "bit-mask alpha source");
+    if (maskSourceRect.x + maskSourceRect.width > maskEntry.width ||
+        maskSourceRect.y + maskSourceRect.height > maskEntry.height) {
+      throw new Error("World bit-mask source rectangle exceeds its image");
+    }
+    if (alphaSourceRect.x + alphaSourceRect.width > alphaEntry.width ||
+        alphaSourceRect.y + alphaSourceRect.height > alphaEntry.height) {
+      throw new Error("World bit-mask alpha rectangle exceeds its image");
+    }
+    const vertices = bitMaskQuadVertices({
+      maskSourceRect: {
+        x: maskEntry.x + maskSourceRect.x,
+        y: maskEntry.y + maskSourceRect.y,
+        width: maskSourceRect.width,
+        height: maskSourceRect.height
+      },
+      maskTextureWidth: atlasSize,
+      maskTextureHeight: atlasSize,
+      alphaSourceRect: {
+        x: alphaEntry.x + alphaSourceRect.x,
+        y: alphaEntry.y + alphaSourceRect.y,
+        width: alphaSourceRect.width,
+        height: alphaSourceRect.height
+      },
+      alphaTextureWidth: atlasSize,
+      alphaTextureHeight: atlasSize,
+      destinationRect
+    });
+    gl.useProgram(bitMaskProgram);
+    gl.bindVertexArray(bitMaskVertexArray);
+    gl.bindBuffer(gl.ARRAY_BUFFER, bitMaskVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, atlasPage(maskEntry.pageIndex).texture);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, atlasPage(alphaEntry.pageIndex).texture);
+    gl.uniform2f(bitMaskLocations.resolution, sceneWidth, sceneHeight);
+    gl.uniform1i(bitMaskLocations.channel, bitIndex < 8 ? 0 : 1);
+    gl.uniform1f(bitMaskLocations.bitValue, 2 ** (bitIndex & 7));
+    gl.uniform4f(bitMaskLocations.color, color[0], color[1], color[2], color[3]);
+    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / BIT_MASK_FLOATS_PER_VERTEX);
+    drawCalls++;
+    activeAtlasPageIndex = null;
+  }
+
   function flushBatches() {
     flushAtlasBatch();
   }
@@ -974,6 +1153,7 @@ export function createWorldWebGL2Renderer({
     beginFrame,
     drawChunk,
     drawAtlasSprite,
+    drawBitMaskSprite,
     drawPersistentAtlasSprites,
     drawSolidRect,
     endFrame,

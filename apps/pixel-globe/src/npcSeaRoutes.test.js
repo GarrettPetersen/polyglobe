@@ -15,6 +15,7 @@ import {
   NPC_SHIP_SLUGS,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
+  applyNpcSeaRouteSimulationSnapshot,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
   configureNpcEncounter,
@@ -36,6 +37,7 @@ import {
   setNpcShipVisualNavigation,
   sinkNpcShip,
   snapshotNpcSeaRouteSystem,
+  snapshotNpcSeaRouteStrategicSystem,
   storeNpcCargo,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
@@ -747,6 +749,26 @@ test("visual navigation does not replace an NPC ship's strategic route target", 
   assert.deepEqual(after.routeVector, before.routeVector);
   assert.deepEqual(after.routeHeading, before.routeHeading);
   assert.notDeepEqual(after.routeVector, visualPosition);
+});
+
+test("worker simulation updates distant ships while preserving visible ships", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const protectedShip = routes.ships[0];
+  const distantShip = routes.ships[1];
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  const simulatedDistantShip = snapshot.ships.find((ship) => ship.id === distantShip.id);
+  simulatedDistantShip.specie += 17;
+  protectedShip.hitPoints -= 0.5;
+  setNpcShipVisualNavigation(routes, protectedShip.id, [1, 0, 0], [0, 1, 0]);
+
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshot, {
+    preserveShipIds: [protectedShip.id]
+  });
+
+  assert.equal(routes.shipById.get(protectedShip.id).hitPoints, protectedShip.hitPoints);
+  assert.deepEqual(routes.shipById.get(protectedShip.id).visualNavigation.vector, [1, 0, 0]);
+  assert.equal(routes.shipById.get(distantShip.id).specie, simulatedDistantShip.specie);
 });
 
 test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {

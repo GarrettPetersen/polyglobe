@@ -35,6 +35,9 @@ const DEMO_ROWING_ANIMATION_STEMS = Object.freeze([
   "pivot-port",
   "pivot-starboard"
 ]);
+const DEMO_LAND_VEHICLE_TYPES = Object.freeze(["horse-cart", "llama-caravan"]);
+const DEMO_LAND_VEHICLE_FRAME_COUNT = 6;
+const DEMO_LAND_VEHICLE_LAYERS = Object.freeze(["color", "light", "shade", "shadow"]);
 const DEMO_PREBUILT_ICON_SOURCES = new Set([
   "assets/ui/anchor.png",
   "assets/misc/confucian.png",
@@ -216,6 +219,13 @@ function shouldCopyPublicPath(path) {
   ) {
     return false;
   }
+  if (
+    /^assets\/vehicles\/(?:horse-cart|llama-caravan)\/[^/]+-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
+      normalized
+    )
+  ) {
+    return false;
+  }
   if (normalized.startsWith("assets/characters/") && normalized.endsWith(".png")) {
     return demoPortraitFiles.has(normalized);
   }
@@ -351,6 +361,36 @@ async function buildDemoRowingAtlas(slug, animationStem, frameCount, suffix) {
   await writeFile(atlasPath, canvas.toBuffer("image/png"));
 }
 
+async function buildDemoLandVehicleAtlases() {
+  for (const vehicleType of DEMO_LAND_VEHICLE_TYPES) {
+    for (const layer of DEMO_LAND_VEHICLE_LAYERS) {
+      const suffix = layer === "color" ? "" : `-${layer}`;
+      const firstName = `${vehicleType}-walk-0-32-headings${suffix}.png`;
+      const first = await loadImage(join(publicRoot, "assets/vehicles", vehicleType, firstName));
+      const canvas = createCanvas(first.width, first.height * DEMO_LAND_VEHICLE_FRAME_COUNT);
+      const context = canvas.getContext("2d");
+      context.imageSmoothingEnabled = false;
+      for (let frameIndex = 0; frameIndex < DEMO_LAND_VEHICLE_FRAME_COUNT; frameIndex++) {
+        const fileName = `${vehicleType}-walk-${frameIndex}-32-headings${suffix}.png`;
+        const image = frameIndex === 0
+          ? first
+          : await loadImage(join(publicRoot, "assets/vehicles", vehicleType, fileName));
+        if (image.width !== first.width || image.height !== first.height) {
+          throw new Error(
+            `Demo land-vehicle frame ${fileName} is ${image.width}x${image.height}; ` +
+            `expected ${first.width}x${first.height}`
+          );
+        }
+        context.drawImage(image, 0, frameIndex * first.height);
+      }
+      const atlasName = `${vehicleType}-walk-atlas-32-headings${suffix}.png`;
+      const atlasPath = join(distRoot, "assets/vehicles", vehicleType, atlasName);
+      await mkdir(dirname(atlasPath), { recursive: true });
+      await writeFile(atlasPath, canvas.toBuffer("image/png"));
+    }
+  }
+}
+
 function buildEditionModuleSource() {
   return [
     `export const BUILD_EDITION_ID = ${JSON.stringify(edition)};`,
@@ -437,6 +477,7 @@ for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopy
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
 if (edition === BUILD_EDITION_DEMO) await buildDemoRowingAtlases();
+if (edition === BUILD_EDITION_DEMO) await buildDemoLandVehicleAtlases();
 
 await writeFile(join(distRoot, "src/buildEdition.js"), buildEditionModuleSource());
 if (edition === BUILD_EDITION_DEMO) {

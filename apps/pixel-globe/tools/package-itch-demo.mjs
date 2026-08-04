@@ -38,6 +38,16 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/vehicles/unity-ships/galleass-pivot-port-atlas-32-headings-sink-depth.png",
   "assets/vehicles/unity-ships/galleass-pivot-starboard-atlas-32-headings.png",
   "assets/vehicles/unity-ships/galleass-pivot-starboard-atlas-32-headings-sink-depth.png",
+  "assets/vehicles/horse-cart/horse-cart-walk-atlas-32-headings.png",
+  "assets/vehicles/horse-cart/horse-cart-walk-atlas-32-headings-light.png",
+  "assets/vehicles/horse-cart/horse-cart-walk-atlas-32-headings-shade.png",
+  "assets/vehicles/horse-cart/horse-cart-walk-atlas-32-headings-shadow.png",
+  "assets/vehicles/llama-caravan/llama-caravan-walk-atlas-32-headings.png",
+  "assets/vehicles/llama-caravan/llama-caravan-walk-atlas-32-headings-light.png",
+  "assets/vehicles/llama-caravan/llama-caravan-walk-atlas-32-headings-shade.png",
+  "assets/vehicles/llama-caravan/llama-caravan-walk-atlas-32-headings-shadow.png",
+  "assets/vehicles/ship-render-layers/manifest.json",
+  "assets/vehicles/ship-render-layers/ship-render-layers-0.bin",
   "shared/earth-globe-cache-7.json",
   "shared/discrete-weather-bake-7.bin",
   "shared/globe-runtime-bake-7.bin"
@@ -78,6 +88,16 @@ async function assertDemoBuild(files) {
   ));
   if (unpackedRowingFrame) {
     throw new Error(`Itch package contains an unpacked rowing frame: ${unpackedRowingFrame.relativePath}`);
+  }
+  const unpackedLandVehicleFrame = files.find((file) => (
+    /assets\/vehicles\/(?:horse-cart|llama-caravan)\/.*-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
+      file.relativePath
+    )
+  ));
+  if (unpackedLandVehicleFrame) {
+    throw new Error(
+      `Itch package contains an unpacked land-vehicle frame: ${unpackedLandVehicleFrame.relativePath}`
+    );
   }
   const editionPath = path.join(distRoot, "src/buildEdition.js");
   const editionSource = await fs.readFile(editionPath, "utf8");

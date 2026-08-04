@@ -688,6 +688,71 @@ export function snapshotNpcSeaRouteSystem(system) {
   };
 }
 
+export function snapshotNpcSeaRouteStrategicSystem(system) {
+  const snapshot = snapshotNpcSeaRouteSystem(system);
+  for (const ship of snapshot.ships) ship.visualNavigation = null;
+  return snapshot;
+}
+
+export function applyNpcSeaRouteSimulationSnapshot(
+  system,
+  snapshot,
+  { preserveShipIds = [] } = {}
+) {
+  assertSaveableNpcRouteSystem(system);
+  if (!snapshot || snapshot.version !== NPC_SEA_ROUTE_SNAPSHOT_VERSION ||
+      !Array.isArray(snapshot.ships) || !Array.isArray(snapshot.replacementQueue) ||
+      !Array.isArray(snapshot.pirateHideoutDangerUntil)) {
+    throw new Error("Unsupported NPC route simulation data");
+  }
+  const existingVisualNavigation = new Map(system.ships
+    .filter((ship) => ship.visualNavigation)
+    .map((ship) => [ship.id, cloneJsonData(ship.visualNavigation)]));
+  const preservedIds = new Set(preserveShipIds);
+  const currentShipById = new Map(system.ships.map((ship) => [ship.id, ship]));
+  const ships = [];
+  const includedIds = new Set();
+  for (const simulatedShip of snapshot.ships) {
+    const ship = preservedIds.has(simulatedShip.id)
+      ? currentShipById.get(simulatedShip.id)
+      : simulatedShip;
+    if (!ship) continue;
+    ships.push(cloneJsonData(ship));
+    includedIds.add(ship.id);
+  }
+  for (const currentShip of system.ships) {
+    if (preservedIds.has(currentShip.id) && !includedIds.has(currentShip.id)) {
+      ships.push(cloneJsonData(currentShip));
+    }
+  }
+  const shipById = new Map();
+  for (const ship of ships) {
+    if (!ship || typeof ship.id !== "string" || ship.id === "" || shipById.has(ship.id)) {
+      throw new Error(`Invalid simulated NPC ship id: ${ship?.id}`);
+    }
+    if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
+        !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
+      throw new Error(`Invalid simulated NPC hull: ${ship.id}`);
+    }
+    assertFactionId(ship.factionId);
+    reconcileNpcCargoCapacity(ship, "worker simulation");
+    ship.visualNavigation = existingVisualNavigation.get(ship.id) || null;
+    shipById.set(ship.id, ship);
+  }
+  const danger = new Map();
+  for (const entry of snapshot.pirateHideoutDangerUntil) {
+    if (!Array.isArray(entry) || !Number.isInteger(entry[0]) || !Number.isFinite(entry[1])) {
+      throw new Error("Invalid simulated pirate hideout danger state");
+    }
+    danger.set(entry[0], entry[1]);
+  }
+  system.ships = ships;
+  system.shipById = shipById;
+  system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
+  system.pirateHideoutDangerUntil = danger;
+  return system;
+}
+
 export function restoreNpcSeaRouteSystem(
   system,
   snapshot,

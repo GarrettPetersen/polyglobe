@@ -5,6 +5,7 @@ import {
   PagedTextureAtlasAllocator,
   TextureAtlasAllocator,
   allocateWorldSceneTexture,
+  bitMaskQuadVertices,
   quadVertices
 } from "./worldWebglRenderer.js";
 
@@ -73,6 +74,21 @@ test("batched quad vertices can mirror a sprite without changing its geometry", 
   assert.equal(vertices[12], 0.25);
   assert.equal(vertices[0], 10);
   assert.equal(vertices[10], 18);
+});
+
+test("bit-mask quad vertices align packed lighting and ship alpha textures", () => {
+  const vertices = bitMaskQuadVertices({
+    maskSourceRect: { x: 8, y: 4, width: 4, height: 2 },
+    maskTextureWidth: 16,
+    maskTextureHeight: 8,
+    alphaSourceRect: { x: 16, y: 8, width: 8, height: 4 },
+    alphaTextureWidth: 32,
+    alphaTextureHeight: 16,
+    destinationRect: { x: 10, y: 20, width: 8, height: 4 }
+  });
+  assert.equal(vertices.length, 36);
+  assert.deepEqual([...vertices.slice(0, 6)], [10, 20, 0.5, 0.5, 0.5, 0.5]);
+  assert.deepEqual([...vertices.slice(30, 36)], [18, 24, 0.75, 0.75, 0.75, 0.75]);
 });
 
 test("chunk LRU evicts only after the configured resident limit", () => {

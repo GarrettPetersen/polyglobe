@@ -33,9 +33,12 @@ import { createFixedRateScheduler } from "./fixedRateScheduler.js";
 import { advanceFrameCadence } from "./frameCadence.js";
 import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
 import {
-  DISTANT_WORLD_WORK_KIND,
-  createDistantWorldWorkPlan
-} from "./distantWorldWorkPlan.js";
+  distantWorldSnapshotsEqual,
+  distantWorldValuesEqual,
+  portableDistantWorldSystems,
+  relationKey
+} from "./distantWorldSimulation.js";
+import { SOVEREIGN_TRADE_ACCESS_POLICIES } from "./sovereignTradeAccess.js";
 import { renderWorldLayerStack } from "./worldLayerOrder.js";
 import { forEachPixelLine, unitRgbaForCssColor } from "./worldPrimitiveBatch.js";
 import {
@@ -639,6 +642,7 @@ import {
   NPC_ROLE_WARSHIP,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
+  applyNpcSeaRouteSimulationSnapshot,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
   configureCaptureEncounter,
@@ -659,11 +663,10 @@ import {
   setNpcShipVisualNavigation,
   sinkNpcShip,
   snapshotNpcSeaRouteSystem,
+  snapshotNpcSeaRouteStrategicSystem,
   storeNpcCargo,
   surrenderNpcShip,
-  updateNpcPirateHideoutPlayerThreat,
-  npcSeaRouteEventSchedule,
-  updateNpcSeaRouteEvents
+  npcSeaRouteEventSchedule
 } from "./npcSeaRoutes.js";
 import {
   TREASURE_MAP_PIECE_COUNT,
@@ -741,10 +744,9 @@ import {
 import {
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_SUBMERGED_ALPHA,
-  floatingShipSubmergedPixelKeys,
-  liveShipRefractionOffset,
-  shipMaxRasterWaterlineDepth
+  liveShipRefractionOffset
 } from "./shipWaterline.js";
+import { validateShipRenderLayerManifest } from "./shipRenderLayerBake.js";
 import { shipLightStrengthsForSunAltitude } from "./shipLighting.js";
 import {
   STORM_ACTIVE_INTENSITY,
@@ -1201,7 +1203,6 @@ import {
   GUNPOWDER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   addWorldEconomyPort,
-  advanceWorldEconomy,
   connectNearbyPortMarkets,
   consumePortGoodStock,
   createWorldEconomy,
@@ -1359,7 +1360,6 @@ import {
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
   stageVisibleLandCartTraffic,
-  updateLandTradeEvents,
   landVehicleMemberSnapshots,
   visibleLandCartSnapshots
 } from "./landTradeSystem.js";
@@ -1772,15 +1772,13 @@ const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 18, 36, 54];
-const NPC_VISUAL_UPDATE_HZ = 18;
+const NPC_VISUAL_UPDATE_HZ = 24;
 const NPC_COMBAT_TARGETING_HZ = 6;
 const NPC_IDLE_COMBAT_TARGETING_HZ = 3;
 const NPC_COMBAT_COLLISION_HZ = 4;
 const NPC_PROJECTILE_UPDATE_HZ = 30;
 const NPC_WILDLIFE_UPDATE_HZ = 2;
 const NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES = 3 * 60;
-const DISTANT_WORLD_SHIP_BATCH_SIZE = 8;
-const DISTANT_WORLD_CART_BATCH_SIZE = 12;
 const WORLD_SPATIAL_KIND = Object.freeze({
   PLAYER: "player",
   NPC_SHIP: "npc-ship",
@@ -1789,8 +1787,8 @@ const WORLD_SPATIAL_KIND = Object.freeze({
   FISH_SCHOOL: "fish-school",
   WHALE: "whale"
 });
-// Preserve a 10 Hz update rate per nearby ship while distributing collision work
-// across short slices. The 30 Hz coordinator avoids rebuilding every snapshot and
+// Preserve a 12 Hz update rate per nearby ship while distributing collision work
+// across short slices. The 24 Hz coordinator avoids rebuilding every snapshot and
 // spatial entry between ship moves; slower devices degrade instead of catching up.
 const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 2;
 const NPC_VISUAL_PRESENTATION_MIN_MS = 50;
@@ -1846,7 +1844,7 @@ const WIND_INDICATOR_STALL_PULSE_MS = 900;
 const RIVER_HIGHLIGHT_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 125;
 const WATER_DEPTH_GRADATION_COUNT = 4;
-const WEATHER_REDRAW_MS = 250;
+const WEATHER_REDRAW_MS = 125;
 const PRECIP_PARTICLE_REDRAW_MS = 80;
 const RAIN_PARTICLE_LIMIT = 340;
 const SNOW_PARTICLE_LIMIT = 300;
@@ -1884,6 +1882,8 @@ const VEHICLE_ASSET_VERSION = "galley-galleass-2";
 const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_FLAG_ANCHORS_URL = `assets/vehicles/unity-ships/flag-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
+const SHIP_RENDER_LAYERS_URL =
+  `assets/vehicles/ship-render-layers/manifest.json?v=${VEHICLE_ASSET_VERSION}`;
 const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
@@ -2584,7 +2584,8 @@ const shipSinkSampleCtx = shipSinkSampleCanvas.getContext("2d", {
 if (!shipSinkSampleCtx) throw new Error("Marque & Reprisal could not create its ship sinking sample context");
 shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
-const shipWaterlineLayerCache = new WeakMap();
+const shipRenderLayerFramesByImage = new WeakMap();
+const shipRenderLayerBundlePromises = new Map();
 const shipWaterlineFrameCanvasCache = new WeakMap();
 const whaleRenderSourceCache = new WeakMap();
 const floatingShipFrameAtlasCache = new WeakMap();
@@ -2668,6 +2669,7 @@ let shipWakeAnchors;
 let shipWakeAnchorsBySlug;
 let shipFootprintsBySlug;
 let shipFlagAnchorsBySlug;
+let shipRenderLayerManifest;
 let shipLighting;
 const shipInfoImages = new Map();
 const shipInfoImagePromises = new Map();
@@ -2685,6 +2687,7 @@ let cityCatalog;
 let cityByTileId;
 let shipSpriteAssetStore;
 let shipLightingAssetStore;
+let shipRenderLayerAssetStore;
 let rowingShipAssetStore;
 let whaleAssetStore;
 let landVehicleAssetStore;
@@ -2722,8 +2725,6 @@ let worldClockProcessedMinutes = null;
 let worldSimulationScheduler = createWorldSimulationScheduler();
 let distantWorldWorkerClient = null;
 const pendingDistantWorldEvents = [];
-const pendingDistantWorldWork = [];
-let distantWorldWorkDeferredFrames = 0;
 const worldSpatialIndex = createSpatialHash({ cellSize: 32 });
 let worldSpatialChart = null;
 let worldSpatialWildlifeChart = null;
@@ -3126,6 +3127,7 @@ async function main() {
     loadShipWakeAnchors(),
     loadShipFootprints(),
     loadShipFlagAnchors(),
+    loadShipRenderLayerManifest(),
     loadGameIconAtlas(),
     loadCloudSpriteSheet(),
     loadWorldDiscoveryImages(),
@@ -3153,6 +3155,7 @@ async function main() {
     loadedShipWakeAnchors,
     loadedShipFootprints,
     loadedShipFlagAnchors,
+    loadedShipRenderLayerManifest,
     loadedGameIconAtlas,
     loadedCloudSpriteSheet,
     loadedWorldDiscoveryImages,
@@ -3177,6 +3180,7 @@ async function main() {
   shipWakeAnchors = requiredShipWakeAnchors(START_SHIP_SLUG);
   shipFootprintsBySlug = loadedShipFootprints;
   shipFlagAnchorsBySlug = loadedShipFlagAnchors;
+  shipRenderLayerManifest = loadedShipRenderLayerManifest;
   shipLighting = null;
   gameIconAtlasImage = loadedGameIconAtlas;
   gameIconOutlineAtlasImage = createGameIconOutlineAtlas(loadedGameIconAtlas);
@@ -3897,19 +3901,18 @@ function loadVehicleImage(key) {
 }
 
 async function loadShipSpriteAsset(spriteKey, label, slug) {
-  const [image, sinkDepthImage] = await Promise.all([
+  if (!shipRenderLayerAssetStore) {
+    throw new Error("Ship render-layer asset store is not initialized");
+  }
+  const [image, sinkDepthImage, renderLayers] = await Promise.all([
     loadVehicleImage(spriteKey),
-    loadVehicleImage(`${spriteKey}-sink-depth`)
+    loadVehicleImage(`${spriteKey}-sink-depth`),
+    shipRenderLayerAssetStore.request(slug)
   ]);
   validateShipSpriteSheet(image, `${label} image`);
   validateShipSpriteSheet(sinkDepthImage, `${label} sink-depth image`);
-  await prebakeShipRenderLayers(image, sinkDepthImage, slug);
+  attachShipRenderLayers(image, slug, spriteKey, renderLayers);
   return Object.freeze({ image, sinkDepthImage });
-}
-
-async function prebakeShipRenderLayers(image, sinkDepthImage, slug) {
-  shipStatsForSlug(slug);
-  shipWaterlineLayers(image, sinkDepthImage, 0, slug);
 }
 
 const WORLD_ANIMATION_ASSET = Object.freeze({
@@ -3920,7 +3923,8 @@ const WORLD_ANIMATION_ASSET = Object.freeze({
 });
 
 function initializeWorldAssetStores() {
-  if (shipSpriteAssetStore || shipLightingAssetStore || rowingShipAssetStore ||
+  if (shipSpriteAssetStore || shipLightingAssetStore || shipRenderLayerAssetStore ||
+      rowingShipAssetStore ||
       whaleAssetStore || landVehicleAssetStore || worldAnimationAssetStore) {
     throw new Error("World asset stores are already initialized");
   }
@@ -3931,6 +3935,10 @@ function initializeWorldAssetStores() {
   shipLightingAssetStore = createOnDemandAssetStore({
     label: "ship lighting",
     load: loadShipLightingForSlug
+  });
+  shipRenderLayerAssetStore = createOnDemandAssetStore({
+    label: "ship-render-layers",
+    load: loadShipRenderLayersForSlug
   });
   rowingShipAssetStore = createOnDemandAssetStore({
     label: "rowing animation",
@@ -3999,6 +4007,55 @@ async function loadShipLightingForSlug(slug) {
   return loadShipLightingBake(vehicleSpriteKeyForShipSlug(slug));
 }
 
+async function loadShipRenderLayersForSlug(slug) {
+  shipStatsForSlug(slug);
+  const entry = shipRenderLayerManifest?.ships?.[slug];
+  if (!entry) throw new Error(`Ship render-layer manifest is missing: ${slug}`);
+  const bundle = await loadShipRenderLayerBundle(entry.bundle);
+  const end = entry.byteOffset + entry.byteLength;
+  if (end > bundle.byteLength) {
+    throw new Error(`Ship render-layer payload exceeds its bundle: ${slug}`);
+  }
+  const payload = bundle.slice(entry.byteOffset, end);
+  const image = await loadBundledPngImage(payload, `ship render-layer atlas: ${slug}`);
+  validateImageDimensions(image, `Ship render-layer atlas: ${slug}`, entry.width, entry.height);
+  return Object.freeze({ image, entry });
+}
+
+function loadShipRenderLayerBundle(bundleName) {
+  const metadata = shipRenderLayerManifest?.bundles?.[bundleName];
+  if (!metadata) throw new Error(`Unknown ship render-layer bundle: ${bundleName}`);
+  let promise = shipRenderLayerBundlePromises.get(bundleName);
+  if (!promise) {
+    const label = bundleName;
+    promise = fetchStaticAsset(
+      `assets/vehicles/ship-render-layers/${bundleName}`,
+      { label }
+    ).then(async (response) => {
+      if (!response.ok) throw new Error(`Failed to load ${label}: HTTP ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength !== metadata.byteLength) {
+        throw new Error(
+          `Ship render-layer bundle ${bundleName} is ${buffer.byteLength} bytes; ` +
+          `expected ${metadata.byteLength}`
+        );
+      }
+      return buffer;
+    });
+    shipRenderLayerBundlePromises.set(bundleName, promise);
+  }
+  return promise;
+}
+
+async function loadBundledPngImage(buffer, label) {
+  const url = URL.createObjectURL(new Blob([buffer], { type: "image/png" }));
+  try {
+    return await loadAssetImage(url, label);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function loadRowingShipAssetsForSlug(slug) {
   shipStatsForSlug(slug);
   const spec = ROWING_SHIP_ANIMATION_SPECS.get(slug);
@@ -4037,6 +4094,7 @@ async function loadDemoRowingShipAtlas(slug, frameCount, modeStem) {
     atlasWidth,
     atlasHeight
   );
+  const renderLayers = await shipRenderLayerAssetStore.request(slug);
   const frames = await Promise.all(Array.from({ length: frameCount }, async (_, frameIndex) => {
     const image = demoRowingAtlasFrame(imageAtlas, frameIndex, atlasWidth, atlasHeight / frameCount);
     const sinkDepthImage = demoRowingAtlasFrame(
@@ -4050,7 +4108,9 @@ async function loadDemoRowingShipAtlas(slug, frameCount, modeStem) {
       sinkDepthImage,
       `Demo rowing ship sink-depth: ${slug} frame ${frameIndex}`
     );
-    await prebakeShipRenderLayers(image, sinkDepthImage, slug);
+    const sourceKey = `${vehicleSpriteKeyForShipSlug(slug)}-${modeStem}-${frameIndex}-` +
+      SHIP_SPRITE_HEADING_SUFFIX;
+    attachShipRenderLayers(image, slug, sourceKey, renderLayers);
     return Object.freeze({ image, sinkDepthImage });
   }));
   return Object.freeze(frames);
@@ -4216,6 +4276,14 @@ async function loadShipFlagAnchors() {
   );
 }
 
+async function loadShipRenderLayerManifest() {
+  const manifest = await fetchJson(SHIP_RENDER_LAYERS_URL, "ship-render-layers");
+  return validateShipRenderLayerManifest(
+    manifest,
+    SHIP_STATS.map((stats) => stats.slug)
+  );
+}
+
 function requiredShipFlagAnchor(slug, frame, rowingFrameIndex) {
   const anchorSet = shipFlagAnchorsBySlug?.get(slug);
   if (!anchorSet) throw new Error(`Missing baked flag anchors for ship: ${slug}`);
@@ -4293,6 +4361,7 @@ async function loadLandVehicleAssets(vehicleType) {
   if (!LAND_VEHICLE_ASSET_TYPES.has(vehicleType)) {
     throw new Error(`Unknown land-vehicle asset type: ${vehicleType}`);
   }
+  if (BUILD_EDITION_ID === "demo") return loadDemoLandVehicleAssets(vehicleType);
   return Object.freeze(await Promise.all(Array.from(
     { length: LAND_CART_WALK_FRAME_COUNT },
     async (_, frameIndex) => {
@@ -4315,6 +4384,68 @@ async function loadLandVehicleAssets(vehicleType) {
       });
     }
   )));
+}
+
+async function loadDemoLandVehicleAssets(vehicleType) {
+  const prefix = `assets/vehicles/${vehicleType}/${vehicleType}-walk-atlas-${SHIP_SPRITE_HEADING_SUFFIX}`;
+  const [imageAtlas, lightAtlas, shadeAtlas, shadowAtlas] = await Promise.all([
+    loadAssetImage(`${prefix}.png?v=${LAND_VEHICLE_ASSET_VERSION}`, `${vehicleType} walk atlas`),
+    loadAssetImage(`${prefix}-light.png?v=${LAND_VEHICLE_ASSET_VERSION}`, `${vehicleType} light atlas`),
+    loadAssetImage(`${prefix}-shade.png?v=${LAND_VEHICLE_ASSET_VERSION}`, `${vehicleType} shade atlas`),
+    loadAssetImage(`${prefix}-shadow.png?v=${LAND_VEHICLE_ASSET_VERSION}`, `${vehicleType} shadow atlas`)
+  ]);
+  const colorHeight = SHIP_SHEET_FRAME_SIZE * Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS);
+  const lightingHeight = colorHeight * 2;
+  const shadowHeight = SHIP_SHADOW_FRAME_SIZE * Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS) * 2;
+  const colorWidth = SHIP_SHEET_FRAME_SIZE * SHIP_SHEET_COLS;
+  const shadowWidth = SHIP_SHADOW_FRAME_SIZE * SHIP_SHEET_COLS;
+  validateImageDimensions(
+    imageAtlas,
+    `${vehicleType} walk atlas`,
+    colorWidth,
+    colorHeight * LAND_CART_WALK_FRAME_COUNT
+  );
+  for (const [kind, atlas] of [["light", lightAtlas], ["shade", shadeAtlas]]) {
+    validateImageDimensions(
+      atlas,
+      `${vehicleType} ${kind} atlas`,
+      colorWidth,
+      lightingHeight * LAND_CART_WALK_FRAME_COUNT
+    );
+  }
+  validateImageDimensions(
+    shadowAtlas,
+    `${vehicleType} shadow atlas`,
+    shadowWidth,
+    shadowHeight * LAND_CART_WALK_FRAME_COUNT
+  );
+  return Object.freeze(Array.from({ length: LAND_CART_WALK_FRAME_COUNT }, (_, frameIndex) => {
+    const diagnosticId = `${vehicleType} walk frame ${frameIndex}`;
+    const image = stackedAtlasFrame(imageAtlas, frameIndex, colorWidth, colorHeight);
+    const lightImage = stackedAtlasFrame(lightAtlas, frameIndex, colorWidth, lightingHeight);
+    const shadeImage = stackedAtlasFrame(shadeAtlas, frameIndex, colorWidth, lightingHeight);
+    const shadowImage = stackedAtlasFrame(shadowAtlas, frameIndex, shadowWidth, shadowHeight);
+    validateShipSpriteSheet(image, diagnosticId);
+    return Object.freeze({
+      image,
+      lighting: Object.freeze({
+        light: decodeDirectionalLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, `${diagnosticId} light`),
+        shade: decodeDirectionalLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, `${diagnosticId} shade`),
+        shadow: decodeDirectionalLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, `${diagnosticId} shadow`)
+      })
+    });
+  }));
+}
+
+function stackedAtlasFrame(atlas, frameIndex, width, height) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const frameCtx = canvas.getContext("2d");
+  if (!frameCtx) throw new Error(`Could not extract stacked atlas frame ${frameIndex}`);
+  frameCtx.imageSmoothingEnabled = false;
+  frameCtx.drawImage(atlas, 0, frameIndex * height, width, height, 0, 0, width, height);
+  return canvas;
 }
 
 async function loadStormShipStrikeImage() {
@@ -4549,8 +4680,8 @@ async function loadShipLightingBake(shipSpriteKey) {
     loadVehicleImage(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}-shadow`)
   ]);
   return {
-    light: decodeDirectionalLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, "ship light mask"),
-    shade: decodeDirectionalLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, "ship shade mask"),
+    lightImage,
+    shadeImage,
     shadow: decodeDirectionalLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, "ship water shadow mask")
   };
 }
@@ -7542,6 +7673,7 @@ function setupPerformanceBenchmark() {
   captainAlertModal = null;
   dialogueState = null;
   dialogueShipMotionPause = null;
+  resetDistantWorldWorkerSchedule();
   lastFrameMs = performance.now();
   performanceBenchmarkState = createPerformanceBenchmarkState(PERFORMANCE_BENCHMARK, lastFrameMs);
   performanceBenchmarkState.stagedCartCount = stagedCartCount;
@@ -9698,8 +9830,6 @@ async function restoreSavedVoyage(payload) {
   pendingWeatherMaskRefresh = null;
   worldSimulationScheduler = createWorldSimulationScheduler();
   pendingDistantWorldEvents.length = 0;
-  pendingDistantWorldWork.length = 0;
-  distantWorldWorkDeferredFrames = 0;
   worldSpatialIndex.clear();
   worldSpatialChart = null;
   worldSpatialWildlifeChart = null;
@@ -21864,14 +21994,20 @@ function resetDistantWorldWorkerSchedule() {
     throw new Error("Cannot schedule the distant world before its systems exist");
   }
   pendingDistantWorldEvents.length = 0;
-  pendingDistantWorldWork.length = 0;
-  distantWorldWorkDeferredFrames = 0;
   distantWorldWorkerClient.reset({
     economyMinute: nextWorldEconomyEventMinute(worldEconomy),
     maintenanceMinute: nextDistantWorldMaintenanceMinute(weatherClockMinutes),
     ships: npcSeaRouteEventSchedule(npcSeaRoutes),
     carts: landTradeEventSchedule(landTradeSystem)
-  }, weatherClockMinutes);
+  }, weatherClockMinutes, {
+    systems: portableDistantWorldSystems({
+      economy: worldEconomy,
+      landTrade: landTradeSystem,
+      npcRoutes: npcSeaRoutes,
+      fishState: gameState
+    }),
+    maintenanceIntervalMinutes: NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES
+  });
 }
 
 function nextDistantWorldMaintenanceMinute(clockMinute) {
@@ -22004,96 +22140,112 @@ function updateNpcShips(dt) {
   if (!distantWorldWorkerClient) {
     throw new Error("NPC simulation requires the distant-world worker");
   }
-  distantWorldWorkerClient.requestAdvance(weatherClockMinutes);
-  if (pendingDistantWorldWork.length === 0 && pendingDistantWorldEvents.length > 0) {
-    const event = pendingDistantWorldEvents.shift();
-    pendingDistantWorldWork.push(...createDistantWorldWorkPlan(event, {
-      shipBatchSize: DISTANT_WORLD_SHIP_BATCH_SIZE,
-      cartBatchSize: DISTANT_WORLD_CART_BATCH_SIZE
-    }));
-  }
+  distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
   const scheduled = measurePerformanceBenchmarkStage(
     "npcShips.scheduled",
     () => worldSimulationScheduler.advance(dt)
   );
   let scheduledChanged = false;
   for (const result of scheduled.values()) scheduledChanged ||= result.changed;
-  const scheduledBackgroundWork = [
-    "visible-npcs",
-    "combat-targeting",
-    "ship-collisions",
-    "wildlife-work"
-  ]
-    .some((id) => scheduled.get(id).steps > 0);
   let distantChanged = false;
-  if (pendingDistantWorldWork.length > 0) {
-    if (scheduledBackgroundWork && distantWorldWorkDeferredFrames < 3) {
-      distantWorldWorkDeferredFrames += 1;
-    } else {
-      distantWorldWorkDeferredFrames = 0;
-      distantChanged = processNextDistantWorldWork();
-    }
-  } else {
-    distantWorldWorkDeferredFrames = 0;
+  if (pendingDistantWorldEvents.length > 0) {
+    distantChanged = measurePerformanceBenchmarkStage(
+      "npcShips.workerApply",
+      () => applyDistantWorldSimulationResult(pendingDistantWorldEvents.shift())
+    );
   }
   return distantChanged || scheduledChanged;
 }
 
-function processNextDistantWorldWork() {
-  const work = pendingDistantWorldWork.shift();
-  if (!work) return false;
-  if (work.kind === DISTANT_WORLD_WORK_KIND.ECONOMY) {
-    return measurePerformanceBenchmarkStage(
-      "npcShips.economy",
-      () => advanceWorldEconomy(worldEconomy, weatherClockMinutes)
-    );
-  }
-  if (work.kind === DISTANT_WORLD_WORK_KIND.CARTS) {
-    return measurePerformanceBenchmarkStage(
-      "npcShips.landTrade",
-      () => updateLandTradeEvents(landTradeSystem, weatherClockMinutes, work.cartIds)
-    );
-  }
-  if (work.kind === DISTANT_WORLD_WORK_KIND.HIDEOUTS) {
-    return measurePerformanceBenchmarkStage(
-      "npcShips.hideouts",
-      () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
-        lat: latitudeDegForDirection(ship.position),
-        lon: longitudeDegForDirection(ship.position),
-        clockMinutes: weatherClockMinutes
-      })
-    );
-  }
-  if (work.kind === DISTANT_WORLD_WORK_KIND.MAINTENANCE) {
-    return measurePerformanceBenchmarkStage(
-      "npcShips.maintenance",
-      () => updateNpcSeaRouteEvents(
-        npcSeaRoutes,
-        weatherClockMinutes,
-        [],
-        { maintenance: true }
-      )
-    );
-  }
-  if (work.kind === DISTANT_WORLD_WORK_KIND.SHIPS) {
-    return measurePerformanceBenchmarkStage(
-      "npcShips.strategic",
-      () => updateNpcSeaRouteEvents(
-        npcSeaRoutes,
-        weatherClockMinutes,
-        work.shipIds,
-        { maintenance: false }
-      )
-    );
-  }
-  if (work.kind === DISTANT_WORLD_WORK_KIND.RESCHEDULE) {
-    if (pendingDistantWorldWork.length > 0) {
-      throw new Error("Distant-world reschedule was not the final work item");
+function distantWorldRuntimeState() {
+  if (!gameState || !ship) throw new Error("Distant-world runtime requires an active voyage");
+  const relations = [];
+  for (let aIndex = 0; aIndex < FACTIONS.length; aIndex++) {
+    for (let bIndex = aIndex; bIndex < FACTIONS.length; bIndex++) {
+      const aId = FACTIONS[aIndex].id;
+      const bId = FACTIONS[bIndex].id;
+      relations.push([relationKey(aId, bId), currentDiplomacyBetween(aId, bId)]);
     }
+  }
+  const sovereignAccess = [];
+  for (const policy of SOVEREIGN_TRADE_ACCESS_POLICIES) {
+    for (const faction of FACTIONS) {
+      sovereignAccess.push([
+        `${policy.id}|${faction.id}`,
+        sovereignTradeOpenToFaction(gameState, policy.id, faction.id)
+      ]);
+    }
+  }
+  return {
+    relations,
+    sovereignAccess,
+    protectedNpcShipIds: [...npcVisualShips.keys()],
+    foreignSettlementExpulsions: gameState.relations.foreignSettlementExpulsions,
+    suzeraintyMemory: gameState.relations.diplomacy.suzerainties,
+    player: {
+      lat: latitudeDegForDirection(ship.position),
+      lon: longitudeDegForDirection(ship.position)
+    }
+  };
+}
+
+function applyDistantWorldSimulationResult(event) {
+  const result = event?.simulation;
+  if (!result?.before || !result?.after || !Array.isArray(result.foreignPortCalls) ||
+      !Array.isArray(result.protectedNpcShipIds)) {
+    throw new Error("Distant-world worker returned an incomplete simulation result");
+  }
+  const current = {
+    economy: snapshotWorldEconomy(worldEconomy),
+    landTrade: snapshotLandTradeSystem(landTradeSystem),
+    npcRoutes: snapshotNpcSeaRouteStrategicSystem(npcSeaRoutes)
+  };
+  const protectedNpcShipIds = new Set(result.protectedNpcShipIds);
+  const comparableCurrent = distantWorldSnapshotsWithoutNpcShips(current, protectedNpcShipIds);
+  const comparableBefore = distantWorldSnapshotsWithoutNpcShips(result.before, protectedNpcShipIds);
+  if (!distantWorldSnapshotsEqual(comparableCurrent, comparableBefore)) {
+    const changedParts = ["economy", "landTrade", "npcRoutes"]
+      .filter((key) => !distantWorldValuesEqual(comparableCurrent[key], comparableBefore[key]));
+    console.info(
+      `[pixel-globe] discarded stale distant-world result after local ${changedParts.join("/")} changed`
+    );
     resetDistantWorldWorkerSchedule();
     return false;
   }
-  throw new Error(`Unknown distant-world work kind: ${work.kind}`);
+  if (!distantWorldValuesEqual(result.before.economy, result.after.economy)) {
+    restoreWorldEconomy(worldEconomy, result.after.economy, { seedKey: gameState.voyageSeed });
+  }
+  if (!distantWorldValuesEqual(result.before.landTrade, result.after.landTrade)) {
+    restoreLandTradeSystem(landTradeSystem, result.after.landTrade, {
+      seedKey: gameState.voyageSeed,
+      relationBetween: currentDiplomacyBetween,
+      foreignSettlementExpulsions: gameState.relations.foreignSettlementExpulsions,
+      sovereignTradeOpenToFaction: (policyId, factionId) => (
+        sovereignTradeOpenToFaction(gameState, policyId, factionId)
+      ),
+      suzeraintyMemory: gameState.relations.diplomacy.suzerainties
+    });
+  }
+  if (!distantWorldValuesEqual(result.before.npcRoutes, result.after.npcRoutes)) {
+    applyNpcSeaRouteSimulationSnapshot(npcSeaRoutes, result.after.npcRoutes, {
+      preserveShipIds: result.protectedNpcShipIds
+    });
+  }
+  for (const call of result.foreignPortCalls) {
+    recordNpcDiplomaticPortCall(call.visitorFactionId, call.hostFactionId, call.minute);
+  }
+  return Boolean(result.changed || result.foreignPortCalls.length > 0);
+}
+
+function distantWorldSnapshotsWithoutNpcShips(snapshot, shipIds) {
+  if (!(shipIds instanceof Set)) throw new Error("Distant-world protection requires a ship-id set");
+  return {
+    ...snapshot,
+    npcRoutes: {
+      ...snapshot.npcRoutes,
+      ships: snapshot.npcRoutes.ships.filter((entry) => !shipIds.has(entry.id))
+    }
+  };
 }
 
 function updateNpcVisualShips(dt) {
@@ -37495,129 +37647,55 @@ function shipSpriteFramePixels(image, sinkDepthImage, frame) {
 }
 
 function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
-  let depthImages = shipWaterlineLayerCache.get(image);
-  if (!depthImages) {
-    depthImages = new WeakMap();
-    shipWaterlineLayerCache.set(image, depthImages);
+  validateShipSpriteSheet(image, `${slug} render-layer source`);
+  validateShipSpriteSheet(sinkDepthImage, `${slug} sink-depth source`);
+  if (!Number.isInteger(frame) || frame < 0 || frame >= SHIP_HEADING_COUNT) {
+    throw new Error(`Ship render-layer heading is invalid: ${slug} frame ${frame}`);
   }
-  let frames = depthImages.get(sinkDepthImage);
-  if (!frames) {
-    frames = new Map();
-    depthImages.set(sinkDepthImage, frames);
+  const registration = shipRenderLayerFramesByImage.get(image);
+  if (!registration) throw new Error(`Ship image has no baked render layers: ${slug}`);
+  if (registration.slug !== slug) {
+    throw new Error(`Ship render-layer slug mismatch: ${registration.slug} vs ${slug}`);
   }
-  const maxRasterDepth = shipMaxRasterWaterlineDepth(slug);
-  const cacheKey = `${frame}:${maxRasterDepth}`;
-  const cached = frames.get(cacheKey);
-  if (cached) return cached;
-  buildShipWaterlineLayerFrames(image, sinkDepthImage, slug, frames, maxRasterDepth);
-  const built = frames.get(cacheKey);
-  if (!built) throw new Error(`Ship waterline layer bake missed ${slug} frame ${frame}`);
-  return built;
+  return registration.frames[frame];
 }
 
-function buildShipWaterlineLayerFrames(image, sinkDepthImage, slug, frames, maxRasterDepth) {
-  const width = image.width;
-  const height = image.height;
-  if (sinkDepthImage.width !== width || sinkDepthImage.height !== height) {
-    throw new Error(`Ship waterline sheets disagree for ${slug}: ${width}x${height} vs ` +
-      `${sinkDepthImage.width}x${sinkDepthImage.height}`);
+function attachShipRenderLayers(image, slug, sourceKey, renderLayers) {
+  if (shipRenderLayerFramesByImage.has(image)) {
+    throw new Error(`Ship image render layers were attached twice: ${slug}/${sourceKey}`);
   }
-  const colorCanvas = document.createElement("canvas");
-  colorCanvas.width = width;
-  colorCanvas.height = height;
-  const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true, colorSpace: "srgb" });
-  const depthCanvas = document.createElement("canvas");
-  depthCanvas.width = width;
-  depthCanvas.height = height;
-  const depthCtx = depthCanvas.getContext("2d", { willReadFrequently: true, colorSpace: "srgb" });
-  const aboveSource = document.createElement("canvas");
-  aboveSource.width = width;
-  aboveSource.height = height;
-  const aboveCtx = aboveSource.getContext("2d");
-  const submergedSource = document.createElement("canvas");
-  submergedSource.width = width;
-  submergedSource.height = height;
-  const submergedCtx = submergedSource.getContext("2d");
-  if (!colorCtx || !depthCtx || !aboveCtx || !submergedCtx) {
-    throw new Error(`Could not create ship waterline atlas canvases for ${slug}`);
-  }
-  colorCtx.imageSmoothingEnabled = false;
-  depthCtx.imageSmoothingEnabled = false;
-  aboveCtx.imageSmoothingEnabled = false;
-  submergedCtx.imageSmoothingEnabled = false;
-  colorCtx.drawImage(image, 0, 0);
-  depthCtx.drawImage(sinkDepthImage, 0, 0);
-  const colorData = colorCtx.getImageData(0, 0, width, height).data;
-  const depthData = depthCtx.getImageData(0, 0, width, height).data;
-  const aboveImageData = aboveCtx.createImageData(width, height);
-  const submergedImageData = submergedCtx.createImageData(width, height);
-
-  for (let frameIndex = 0; frameIndex < SHIP_HEADING_COUNT; frameIndex++) {
+  const source = renderLayers?.entry?.sources?.[sourceKey];
+  if (!source) throw new Error(`Baked ship render-layer source is missing: ${slug}/${sourceKey}`);
+  const sheetWidth = SHIP_SHEET_FRAME_SIZE * SHIP_SHEET_COLS;
+  const sheetHeight = SHIP_SHEET_FRAME_SIZE * Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS);
+  const sourceY = source.row * sheetHeight;
+  const frames = source.frames.map((metadata, frameIndex) => {
     const frameX = (frameIndex % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
-    const frameY = Math.floor(frameIndex / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
-    const pixels = [];
-    for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y++) {
-      for (let x = 0; x < SHIP_SHEET_FRAME_SIZE; x++) {
-        const sheetX = frameX + x;
-        const sheetY = frameY + y;
-        const sheetOffset = (sheetY * width + sheetX) * 4;
-        const alpha = colorData[sheetOffset + 3];
-        if (alpha === 0) continue;
-        const sinkDepth = shipSinkDepthByte(
-          depthData[sheetOffset],
-          depthData[sheetOffset + 1],
-          depthData[sheetOffset + 2],
-          ` in ${slug} frame ${frameIndex} at ${x},${y}`
-        );
-        pixels.push({ x, y, sinkHeight: sinkDepth / 255 });
-      }
-    }
-    if (pixels.length === 0) {
-      throw new Error(`Ship waterline atlas frame is empty: ${slug} frame ${frameIndex}`);
-    }
-    const submergedPointSet = floatingShipSubmergedPixelKeys(
-      pixels,
-      SHIP_SHEET_FRAME_SIZE,
-      maxRasterDepth
-    );
-    const abovePointSet = new Set();
-    let bottomOpaqueY = -1;
-    let submergedMinY = SHIP_SHEET_FRAME_SIZE;
-    let submergedMaxY = -1;
-    for (const pixel of pixels) {
-      bottomOpaqueY = Math.max(bottomOpaqueY, pixel.y);
-      const frameKey = pixel.y * SHIP_SHEET_FRAME_SIZE + pixel.x;
-      const submerged = submergedPointSet.has(frameKey);
-      const targetData = submerged ? submergedImageData.data : aboveImageData.data;
-      const sheetOffset = ((frameY + pixel.y) * width + frameX + pixel.x) * 4;
-      targetData[sheetOffset] = colorData[sheetOffset];
-      targetData[sheetOffset + 1] = colorData[sheetOffset + 1];
-      targetData[sheetOffset + 2] = colorData[sheetOffset + 2];
-      targetData[sheetOffset + 3] = colorData[sheetOffset + 3];
-      if (submerged) {
-        submergedMinY = Math.min(submergedMinY, pixel.y);
-        submergedMaxY = Math.max(submergedMaxY, pixel.y);
-      } else {
-        abovePointSet.add(pixel.x | (pixel.y << 8));
-      }
-    }
-    frames.set(`${frameIndex}:${maxRasterDepth}`, Object.freeze({
-      aboveSource,
-      submergedSource,
-      sourceRect: Object.freeze({
+    const frameY = sourceY + Math.floor(frameIndex / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+    return Object.freeze({
+      aboveSource: renderLayers.image,
+      submergedSource: renderLayers.image,
+      aboveSourceRect: Object.freeze({
         x: frameX,
         y: frameY,
         width: SHIP_SHEET_FRAME_SIZE,
         height: SHIP_SHEET_FRAME_SIZE
       }),
-      abovePointSet,
-      bottomOpaqueY,
-      submergedMinY,
-      submergedMaxY
-    }));
-  }
-  aboveCtx.putImageData(aboveImageData, 0, 0);
-  submergedCtx.putImageData(submergedImageData, 0, 0);
+      submergedSourceRect: Object.freeze({
+        x: sheetWidth + frameX,
+        y: frameY,
+        width: SHIP_SHEET_FRAME_SIZE,
+        height: SHIP_SHEET_FRAME_SIZE
+      }),
+      bottomOpaqueY: metadata.bottomOpaqueY,
+      submergedMinY: metadata.submergedMinY,
+      submergedMaxY: metadata.submergedMaxY
+    });
+  });
+  shipRenderLayerFramesByImage.set(image, Object.freeze({
+    slug,
+    frames: Object.freeze(frames)
+  }));
 }
 
 function shipWaterlineFrameCanvas(layers, kind) {
@@ -37638,7 +37716,7 @@ function shipWaterlineFrameCanvas(layers, kind) {
   if (!frameCtx) throw new Error(`Could not extract ${kind} ship waterline frame`);
   frameCtx.imageSmoothingEnabled = false;
   const source = kind === "above" ? layers.aboveSource : layers.submergedSource;
-  const rect = layers.sourceRect;
+  const rect = kind === "above" ? layers.aboveSourceRect : layers.submergedSourceRect;
   frameCtx.drawImage(
     source,
     rect.x,
@@ -37894,7 +37972,7 @@ function drawGpuShipCommands() {
     if (layers.submergedMaxY >= layers.submergedMinY) {
       worldRenderer.drawAtlasSprite({
         source: layers.submergedSource,
-        sourceRect: layers.sourceRect,
+        sourceRect: layers.submergedSourceRect,
         destinationRect: {
           x: drawCall.x,
           y: drawCall.y,
@@ -37907,7 +37985,7 @@ function drawGpuShipCommands() {
     }
     worldRenderer.drawAtlasSprite({
       source: layers.aboveSource,
-      sourceRect: layers.sourceRect,
+      sourceRect: layers.aboveSourceRect,
       destinationRect: {
         x: drawCall.x,
         y: drawCall.y,
@@ -37931,30 +38009,45 @@ function drawGpuPlayerShipDecorations(call, layers) {
 function drawGpuShipLighting(call, layers) {
   const light = call.light;
   if (!shipLighting || !light || light.direct <= 0.01) return;
-  drawGpuDirectionalMaskPoints(
-    shipLightingPoints("shade", call.frame, light.bin),
-    call.x,
-    call.y,
-    [26 / 255, 18 / 255, 44 / 255, SHIP_LIGHT_SHADE_ALPHA * light.direct],
-    layers.abovePointSet
+  drawGpuShipLightingMask(
+    shipLighting.shadeImage,
+    call,
+    layers,
+    [26 / 255, 18 / 255, 44 / 255, SHIP_LIGHT_SHADE_ALPHA * light.direct]
   );
-  drawGpuDirectionalMaskPoints(
-    shipLightingPoints("light", call.frame, light.bin),
-    call.x,
-    call.y,
-    [1, 240 / 255, 188 / 255, SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct],
-    layers.abovePointSet
+  drawGpuShipLightingMask(
+    shipLighting.lightImage,
+    call,
+    layers,
+    [1, 240 / 255, 188 / 255, SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct]
   );
 }
 
-function drawGpuDirectionalMaskPoints(points, x, y, color, allowedPoints) {
-  for (const point of points) {
-    if (!allowedPoints.has(point)) continue;
-    worldRenderer.drawSolidRect({
-      destinationRect: { x: x + (point & 0xff), y: y + (point >> 8), width: 1, height: 1 },
-      color
-    });
-  }
+function drawGpuShipLightingMask(maskImage, call, layers, color) {
+  if (!maskImage) throw new Error(`Missing ship lighting image for ${call.slug}`);
+  const elevation = Math.floor(call.light.bin / SHIP_LIGHT_AZIMUTH_BINS);
+  const azimuth = call.light.bin % SHIP_LIGHT_AZIMUTH_BINS;
+  const sheetRows = Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS);
+  worldRenderer.drawBitMaskSprite({
+    maskSource: maskImage,
+    maskSourceRect: {
+      x: (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+      y: (elevation * sheetRows + Math.floor(call.frame / SHIP_SHEET_COLS)) *
+        SHIP_SHEET_FRAME_SIZE,
+      width: SHIP_SHEET_FRAME_SIZE,
+      height: SHIP_SHEET_FRAME_SIZE
+    },
+    alphaSource: layers.aboveSource,
+    alphaSourceRect: layers.aboveSourceRect,
+    destinationRect: {
+      x: call.x,
+      y: call.y,
+      width: SHIP_SHEET_FRAME_SIZE,
+      height: SHIP_SHEET_FRAME_SIZE
+    },
+    bitIndex: azimuth,
+    color
+  });
 }
 
 function drawGpuShipTerrainForeground(foreground) {

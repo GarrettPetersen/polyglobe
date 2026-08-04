@@ -66,6 +66,7 @@ import {
 } from "../src/shipSpriteLayout.js";
 import { anchoredShipFrameRegistration } from "../src/shipSpriteRegistration.js";
 import { alignHorizontalShipWakeShoulders } from "../src/shipWakeAnchors.js";
+import { bakeAllShipRenderLayers } from "./bake-ship-render-layers.mjs";
 import {
   SHIP_ROWING_FRAME_COUNT,
   SHIP_ROWING_MODE_AHEAD,
@@ -5557,7 +5558,7 @@ async function renderUnityFleet() {
   console.log(contactSheetPath);
 }
 
-function renderAllProductionShips() {
+async function renderAllProductionShips() {
   const rendererPath = fileURLToPath(import.meta.url);
   const stages = [
     "--unity-fleet",
@@ -5594,6 +5595,8 @@ function renderAllProductionShips() {
       throw new Error(`Production fleet stage failed (${result.status}): ${stage}`);
     }
   }
+  await bakeAllShipRenderLayers();
+  console.log("production fleet stage ship render layers");
 }
 
 async function renderRowingShips() {

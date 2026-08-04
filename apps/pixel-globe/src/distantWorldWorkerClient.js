@@ -32,7 +32,6 @@ export function createDistantWorldWorkerClient({
       ready = true;
       inFlight = false;
       nextMinute = validatedNextMinute(message.nextMinute);
-      requestAdvance(latestClockMinute);
       return;
     }
     if (message.type === "due") {
@@ -51,33 +50,40 @@ export function createDistantWorldWorkerClient({
     onError(new Error("Distant-world worker could not deserialize a message"));
   });
 
-  function reset(schedule, clockMinute) {
+  function reset(schedule, clockMinute, simulation) {
     if (disposed) throw new Error("Cannot reset a disposed distant-world worker");
     if (!Number.isFinite(clockMinute) || clockMinute < 0) {
       throw new Error(`Invalid distant-world reset minute: ${clockMinute}`);
+    }
+    if (!simulation || typeof simulation !== "object") {
+      throw new Error("Distant-world reset requires a portable simulation state");
     }
     generation += 1;
     ready = false;
     inFlight = true;
     nextMinute = Infinity;
     latestClockMinute = clockMinute;
-    worker.postMessage({ type: "reset", generation, schedule });
+    worker.postMessage({ type: "reset", generation, schedule, simulation });
   }
 
-  function requestAdvance(clockMinute) {
+  function requestAdvance(clockMinute, runtimeFactory) {
     if (disposed) return false;
     if (!Number.isFinite(clockMinute) || clockMinute < 0) {
       throw new Error(`Invalid distant-world advance minute: ${clockMinute}`);
     }
     latestClockMinute = Math.max(latestClockMinute, clockMinute);
     if (!ready || inFlight || latestClockMinute + 1e-9 < nextMinute) return false;
+    if (typeof runtimeFactory !== "function") {
+      throw new Error("Distant-world advance requires a runtime-state factory");
+    }
     inFlight = true;
     requestId += 1;
     worker.postMessage({
       type: "advance",
       generation,
       requestId,
-      clockMinute: latestClockMinute
+      clockMinute: latestClockMinute,
+      runtime: runtimeFactory()
     });
     return true;
   }
@@ -112,6 +118,9 @@ function validateDueResult(result) {
       !Array.isArray(result.cartIds)) {
     throw new Error("Distant-world worker returned a malformed due result");
   }
+  if (result.due && (!result.simulation || typeof result.simulation !== "object")) {
+    throw new Error("Distant-world worker omitted a due simulation result");
+  }
   if (!result.due || result.nextMinute !== null) {
     validatedNextMinute(result.nextMinute);
   }
@@ -121,7 +130,8 @@ function validateDueResult(result) {
     maintenance: result.maintenance,
     shipIds: Object.freeze([...result.shipIds]),
     cartIds: Object.freeze([...result.cartIds]),
-    nextMinute: result.nextMinute
+    nextMinute: result.nextMinute,
+    simulation: result.simulation || null
   });
 }
 
