@@ -535,6 +535,48 @@ test("an isolated Mediterranean city replenishes native grain after its market i
   assert.equal(grain.listedForSale, true);
 });
 
+test("English ports distinguish native specialties from imported market goods", () => {
+  const names = [
+    "Bristol",
+    "Southampton",
+    "York",
+    "Hull",
+    "Newcastle upon Tyne",
+    "Norwich",
+    "Exeter"
+  ];
+  const cities = names.map((name, index) => {
+    const city = CITY_CATALOG.find((candidate) => candidate.city === name);
+    assert.ok(city, `missing English market city: ${name}`);
+    assert.equal(city.marketGoods ?? null, null, `${name} should not use a restricted market roster`);
+    return { ...city, tileId: 200 + index };
+  });
+  const economy = createWorldEconomy({
+    ports: cities,
+    shipyardPorts: [cities[0]],
+    startMinute: 0,
+    seedKey: "english-port-specialties"
+  });
+  const market = Object.fromEntries(cities.map((city) => [city.city, marketByGood(economy, city)]));
+
+  assert.ok(market.Bristol.get("wool-cloth").productionPerDay > 0);
+  assert.ok(market.Southampton.get("wool").productionPerDay > 0);
+  assert.ok(market.Southampton.get("wool-cloth").productionPerDay > 0);
+  assert.ok(market.York.get("grain").productionPerDay > 0);
+  assert.ok(market.York.get("wool").productionPerDay > 0);
+  assert.ok(market.Hull.get("wool-cloth").productionPerDay > 0);
+  assert.ok(market["Newcastle upon Tyne"].get("salt").productionPerDay > 0);
+  assert.ok(market["Newcastle upon Tyne"].get("timber").productionPerDay > 0);
+  assert.ok(market.Norwich.get("wool-cloth").productionPerDay > 0);
+  assert.ok(market.Exeter.get("tin").productionPerDay > 0);
+  assert.ok(market.Exeter.get("wool-cloth").productionPerDay > 0);
+
+  for (const city of [market.Bristol, market.Southampton]) {
+    assert.equal(city.get(WINE_GOOD_ID).productionPerDay, 0);
+    assert.equal(city.get(WINE_GOOD_ID).listedForSale, true);
+  }
+});
+
 test("Baltic ports offer distinct, moderate-value regional trade loops", () => {
   const gdansk = port(120, "Gdansk", "Poland", "northern-european", 50000);
   const lubeck = port(121, "Lubeck", "Germany", "northern-european", 50000);

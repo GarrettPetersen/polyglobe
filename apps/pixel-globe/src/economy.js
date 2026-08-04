@@ -393,7 +393,13 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Brugge", ["wool-cloth"]),
   specialty("Gent", ["wool-cloth", "linen-cloth"]),
   specialty("Norwich", ["wool-cloth"]),
-  specialty("Exeter", ["tin", "wool"]),
+  specialty("Exeter", ["tin", "wool-cloth"]),
+  specialty("Bristol", ["wool-cloth"]),
+  specialty("Southampton", ["wool", "wool-cloth"]),
+  specialty("York", ["grain", "wool"]),
+  specialty("Hull", ["wool-cloth"]),
+  // Coal is not a trade good; wool, salt, and timber are Newcastle's other documented exports.
+  specialty("Newcastle upon Tyne", ["wool", "salt", "timber"]),
   specialty("Gdansk", ["grain", AMBER_GOOD_ID]),
   specialty("Szczecin", ["grain", "timber", NAVAL_STORES_GOOD_ID]),
   specialty("Riga", ["flax", BEESWAX_GOOD_ID, NAVAL_STORES_GOOD_ID]),
@@ -497,6 +503,9 @@ const CITY_SPECIALTIES = uniqueMap([
 
 const CITY_DEMANDS = uniqueMap([
   cityRates("London", { grain: 0.35, timber: 0.24, [AMBER_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.16 }),
+  cityRates("Bristol", { wine: 0.28, iron: 0.16, "olive-oil": 0.12, [NAVAL_STORES_GOOD_ID]: 0.12 }),
+  cityRates("Southampton", { wine: 0.28, dyes: 0.18, "olive-oil": 0.12 }),
+  cityRates("Hull", { timber: 0.2, flax: 0.18, wine: 0.14 }),
   cityRates("Brugge", { grain: 0.3, [AMBER_GOOD_ID]: 0.14, [BEESWAX_GOOD_ID]: 0.14 }),
   cityRates("Gent", { grain: 0.28, flax: 0.22, [BEESWAX_GOOD_ID]: 0.12 }),
   cityRates("Lubeck", { grain: 0.28, timber: 0.22, [AMBER_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.14, [BEESWAX_GOOD_ID]: 0.14 }),

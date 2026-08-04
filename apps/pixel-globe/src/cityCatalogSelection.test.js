@@ -276,6 +276,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     const port = britishIslesPorts.find((candidate) => candidate.city === city);
     assert.ok(port, `${city} should be a dockable British Isles port`);
     assert.equal(port.factionId, "england", `${city} should belong to England in 1522`);
+    assert.equal(port.marketGoods, null, `${city} should use the full city market`);
   }
   assert.ok(glasgow, "Glasgow should reach the Irish Sea through the Clyde");
   assert.equal(glasgow.factionId, "scotland");
