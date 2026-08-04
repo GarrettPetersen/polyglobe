@@ -1110,8 +1110,7 @@ import {
   PORT_CONQUEST_MIN_CREW,
   PORT_CONQUEST_NPC_LANDING_RANGE_PX,
   applyPortConquestOwnership,
-  capitalPeaceTreatyOptions,
-  chooseCapitalPeaceTerm,
+  chooseCapitalPeaceSettlement,
   clearPlayerPortAssault,
   clearPlayerPortRaid,
   markPlayerPortAssault,
@@ -1150,7 +1149,7 @@ import {
   hospitallerMaltaGrantText,
   hospitallerMaltaOfferText
 } from "./hospitallerMaltaDialogue.js";
-import { recentRegionalRulerChange } from "./rulers.js";
+import { recentRegionalRulerChange, rulerAtMinute } from "./rulers.js";
 import {
   PAPAL_COMMISSION_PEACE,
   PAPAL_COMMISSION_RELIEF,
@@ -1600,9 +1599,8 @@ import {
   maybeSpawnCaribbeanGingerQuest
 } from "./caribbeanGingerQuest.js";
 import {
-  CHEF_QUEST_STAGE_RECRUITED,
-  CHEF_QUEST_STAGE_RECRUITMENT,
   chefQuestOfferShouldApproach,
+  chefQuestJournalText,
   chefQuestState,
   markChefQuestOfferSeen,
   maybeSpawnChefQuest,
@@ -13989,62 +13987,12 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     : null;
   if (event.capitalCapturedFactionId) {
     closeDialogue();
-    openPlayerCapitalPeaceTreaty(cityCall, event, prize, captureMission);
+    const treaty = settleCapitalCaptureDiplomacy(event, Math.random());
+    completePlayerPortConquest(cityCall, event, prize, treaty, captureMission);
     return true;
   }
   completePlayerPortConquest(cityCall, event, prize, null, captureMission);
   return true;
-}
-
-function openPlayerCapitalPeaceTreaty(cityCall, event, prize, captureMission = null) {
-  const papalContext = capitalPeacePapalContext(event);
-  const treatyContext = capitalPeaceTreatyContext(event, papalContext);
-  const options = capitalPeaceTreatyOptions(
-    gameState.memory.conquest,
-    portCities,
-    event,
-    treatyContext
-  );
-  const loser = factionById(event.previousFactionId);
-  const choices = options.papalSettlement
-    ? [
-        { label: "PAPAL FAVOUR", term: CAPITAL_PEACE_TERM_PAPAL_FAVOUR },
-        ...(papalContext.papalExcommunicationTargetFactionId
-          ? [{
-              label: `EXCOMMUNICATE ${
-                factionById(papalContext.papalExcommunicationTargetFactionId).shortName.toUpperCase()
-              }`,
-              term: CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
-            }]
-          : [])
-      ]
-    : [
-        {
-          label: "VASSAL",
-          term: CAPITAL_PEACE_TERM_VASSALAGE
-        },
-        ...(options.concessionAvailable
-          ? [{ label: "TAKE TERRITORY", term: CAPITAL_PEACE_TERM_CONCESSIONS }]
-          : []),
-        ...(options.annexationAllowed
-          ? [{ label: "ANNEX", term: CAPITAL_PEACE_TERM_ANNEXATION }]
-          : [])
-      ];
-  const opened = openCharacterChoiceAlertModal(
-    gameState.playerCharacter,
-    options.papalSettlement
-      ? "Rome has fallen, but Christendom will not accept its annexation. Compel the Pope to act."
-      : `${loser.name}'s capital has fallen. Choose the terms of peace.`,
-    choices.map((choice) => ({
-      label: choice.label,
-      onSelect: () => {
-        const treaty = settleCapitalCaptureDiplomacy(event, 0, choice.term);
-        completePlayerPortConquest(cityCall, event, prize, treaty, captureMission);
-      }
-    })),
-    "stern"
-  );
-  if (!opened) throw new Error(`Could not open capital peace treaty for ${event.portId}`);
 }
 
 function completePlayerPortConquest(cityCall, event, prize, treaty, captureMission = null) {
@@ -14100,12 +14048,12 @@ function completePlayerPortConquest(cityCall, event, prize, treaty, captureMissi
   dirty = true;
 }
 
-function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
+function settleCapitalCaptureDiplomacy(event, roll) {
   if (!event.capitalCapturedFactionId) return null;
   const simMinute = Math.floor(weatherClockMinutes);
   const papalContext = capitalPeacePapalContext(event);
   const treatyContext = capitalPeaceTreatyContext(event, papalContext);
-  const term = forcedTerm || chooseCapitalPeaceTerm(
+  const settlement = chooseCapitalPeaceSettlement(
     gameState.memory.conquest,
     portCities,
     event,
@@ -14116,9 +14064,12 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
     gameState.memory.conquest,
     portCities,
     event,
-    term,
+    settlement.term,
     simMinute,
-    treatyContext
+    {
+      ...treatyContext,
+      additionalConcessionCount: settlement.additionalConcessionCount
+    }
   );
   makeFactionPeaceWithAllEnemies(
     gameState.relations.diplomacy,
@@ -14126,14 +14077,14 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
     simMinute,
     { eventReason: "capital-peace-treaty" }
   );
-  if (term === CAPITAL_PEACE_TERM_ANNEXATION) {
+  if (settlement.term === CAPITAL_PEACE_TERM_ANNEXATION) {
     dissolveFactionDiplomaticSuzerainties(
       gameState.relations.diplomacy,
       treaty.loserFactionId,
       simMinute,
       "annexation"
     );
-  } else if (term === CAPITAL_PEACE_TERM_VASSALAGE) {
+  } else if (settlement.term === CAPITAL_PEACE_TERM_VASSALAGE) {
     dissolveFactionDiplomaticPersonalUnions(
       gameState.relations.diplomacy,
       treaty.loserFactionId,
@@ -14150,10 +14101,10 @@ function settleCapitalCaptureDiplomacy(event, roll, forcedTerm = null) {
       source: "capital-peace-treaty"
     });
   }
-  if (term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR ||
-      term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
+  if (settlement.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR ||
+      settlement.term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
     const papalResult = imposePapalAction(gameState.relations.papacy, gameState.relations.diplomacy, {
-      kind: term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR
+      kind: settlement.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR
         ? PAPAL_ACTION_FAVOUR
         : PAPAL_ACTION_EXCOMMUNICATION,
       targetFactionId: treaty.papalActionTargetFactionId,
@@ -14192,8 +14143,13 @@ function capitalPeaceTreatyContext(event, papalContext = capitalPeacePapalContex
 function capitalPeaceTreatyDescription(treaty) {
   const winner = factionById(treaty.winnerFactionId);
   const loser = factionById(treaty.loserFactionId);
+  const winnerRuler = rulerAtMinute(treaty.winnerFactionId, treaty.simMinute);
+  const loserRuler = rulerAtMinute(treaty.loserFactionId, treaty.simMinute);
+  const sovereigns = winnerRuler && loserRuler
+    ? `${winnerRuler.displayName} and ${loserRuler.displayName} have concluded peace. `
+    : "The sovereigns have concluded peace. ";
   if (treaty.term === CAPITAL_PEACE_TERM_ANNEXATION) {
-    return `${loser.name} is annexed by ${winner.name}.`;
+    return `${sovereigns}${loser.name} is annexed and placed under the direct rule of ${winner.name}.`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_VASSALAGE) {
     const principal = foreignPolicyPrincipalForState(
@@ -14204,17 +14160,16 @@ function capitalPeaceTreatyDescription(treaty) {
     const concessionText = concessionCount > 0
       ? ` It also cedes ${treatyConcessionLabel(treaty)}.`
       : "";
-    return `${loser.name} survives as a vassal of ${factionById(principal).name}.${concessionText}`;
+    return `${sovereigns}${loser.name} keeps its government as a vassal of ${factionById(principal).name}, follows its foreign policy, and grants its ships privileged trade.${concessionText}`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_CONCESSIONS) {
-    return `${loser.name} makes peace and cedes ${treatyConcessionLabel(treaty)} to ${winner.name}.`;
+    return `${sovereigns}${loser.name} remains independent but cedes ${treatyConcessionLabel(treaty)} to ${winner.name}.`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR) {
-    return `Rome remains independent, and the Pope issues a bull in favour of ${winner.name}.`;
+    return `${sovereigns}Rome remains independent, and the Pope issues a bull in favour of ${winner.name}.`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
-    return `Rome remains independent, and the Pope excommunicates the ruler of ` +
-      `${factionById(treaty.papalActionTargetFactionId).name}.`;
+    return `${sovereigns}Rome remains independent, and the Pope excommunicates the ruler of ${factionById(treaty.papalActionTargetFactionId).name}.`;
   }
   throw new Error(`Unknown capital peace term: ${treaty.term}`);
 }
@@ -28574,27 +28529,13 @@ function chefQuestJournalPort(state) {
 }
 
 function chefQuestJournalEntry(quest) {
-  if (!quest || quest.stage === CHEF_QUEST_STAGE_RECRUITED) return null;
-  if (quest.stage === CHEF_QUEST_STAGE_RECRUITMENT) {
-    return {
-      id: "banquet-chef",
-      title: "Banquet Chef",
-      nextStep: `Offer the chef a berth at ${quest.port.city}.`,
-      style: QUEST_NAVIGATION_STYLE
-    };
-  }
-  const missing = quest.ingredients.filter((ingredient) => !ingredient.ready);
-  const ingredientList = missing.length > 0
-    ? missing.map((ingredient) => ingredient.label).join(", ")
-    : "all ingredients";
-  return {
+  const nextStep = quest ? chefQuestJournalText(quest) : null;
+  return nextStep ? {
     id: "banquet-chef",
     title: "Banquet Chef",
-    nextStep: missing.length > 0
-      ? `Acquire one each: ${ingredientList}.`
-      : `Bring all ingredients to ${quest.port.city}.`,
+    nextStep,
     style: QUEST_NAVIGATION_STYLE
-  };
+  } : null;
 }
 
 function japaneseMatchlockJournalEntry(quest, port) {

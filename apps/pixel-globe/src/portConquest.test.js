@@ -12,7 +12,7 @@ import {
   effectivePortFactionId,
   clearPlayerPortAssault,
   clearPlayerPortRaid,
-  chooseCapitalPeaceTerm,
+  chooseCapitalPeaceSettlement,
   markPlayerPortAssault,
   markPlayerPortRaided,
   npcPortConquestChance,
@@ -104,7 +104,7 @@ test("capturing a small-state capital permits annexation through a peace treaty"
   assert.equal(event.capitalCapturedFactionId, "portugal");
   assert.equal(event.collapsedFactionId, null);
   assert.equal(
-    chooseCapitalPeaceTerm(memory, [capital, porto], event, 0.5, { cities }),
+    chooseCapitalPeaceSettlement(memory, [capital, porto], event, 0.1, { cities }).term,
     CAPITAL_PEACE_TERM_ANNEXATION
   );
   const treaty = settleCapitalPeaceTreaty(
@@ -123,6 +123,22 @@ test("capturing a small-state capital permits annexation through a peace treaty"
   assert.equal(capital.factionId, "england");
   assert.equal(porto.factionId, "england");
   assert.equal(evora.factionId, "england");
+});
+
+test("sovereigns use the same peace logic after player and NPC capital captures", () => {
+  const ports = [
+    city({ isFactionCapital: true, capitalOfFactionId: "portugal" }),
+    city({ tileId: 13, portId: "porto", city: "Porto" }),
+    city({ tileId: 14, portId: "coimbra", city: "Coimbra" }),
+    city({ tileId: 15, portId: "faro", city: "Faro" })
+  ];
+  const decide = (source) => {
+    const memory = createPortConquestMemory();
+    const event = recordPortCapture(memory, ports[0], "england", 400, source);
+    return chooseCapitalPeaceSettlement(memory, ports, event, 0.6);
+  };
+
+  assert.deepEqual(decide("player"), decide("npc:warship-1"));
 });
 
 test("a collapsed faction can be restored at a new capital", () => {
@@ -177,7 +193,10 @@ test("capturing a large-state capital restores it under a vassalage settlement",
     city({ tileId: 15, portId: "faro", city: "Faro" })
   ];
   const event = recordPortCapture(memory, capital, "england", 400, "player");
-  assert.equal(chooseCapitalPeaceTerm(memory, ports, event), CAPITAL_PEACE_TERM_VASSALAGE);
+  assert.equal(
+    chooseCapitalPeaceSettlement(memory, ports, event, 0.2).term,
+    CAPITAL_PEACE_TERM_VASSALAGE
+  );
   const treaty = settleCapitalPeaceTreaty(
     memory,
     ports,
@@ -208,15 +227,49 @@ test("inland cities count against annexation even when the defeated power has fe
   assert.equal(options.losingCityCount, 5);
   assert.equal(options.annexationAllowed, false);
   assert.equal(
-    chooseCapitalPeaceTerm(
+    chooseCapitalPeaceSettlement(
       memory,
       [capital, porto],
       event,
-      0.5,
+      0.2,
       { cities: [capital, porto, ...inlandCities] }
-    ),
+    ).term,
     CAPITAL_PEACE_TERM_VASSALAGE
   );
+});
+
+test("decisive occupations can demand several coherent territorial concessions", () => {
+  const memory = createPortConquestMemory();
+  const capital = city({ isFactionCapital: true, capitalOfFactionId: "portugal" });
+  const losingCities = Array.from({ length: 5 }, (_, index) => city({
+    tileId: 20 + index,
+    portId: `portugal-${index}`,
+    city: `Portuguese City ${index}`
+  }));
+  const winnerCities = Array.from({ length: 12 }, (_, index) => city({
+    tileId: 40 + index,
+    portId: `england-${index}`,
+    city: `English City ${index}`,
+    factionId: "england"
+  }));
+  for (const occupied of losingCities.slice(0, 1)) {
+    recordPortCapture(memory, occupied, "england", 300 + occupied.tileId, "npc:warship-1");
+  }
+  const event = recordPortCapture(memory, capital, "england", 400, "player");
+  const cities = [capital, ...losingCities, ...winnerCities];
+  const settlement = chooseCapitalPeaceSettlement(memory, cities, event, 0.8, { cities });
+
+  assert.equal(settlement.term, CAPITAL_PEACE_TERM_CONCESSIONS);
+  assert.equal(settlement.additionalConcessionCount, 2);
+  const treaty = settleCapitalPeaceTreaty(
+    memory,
+    cities,
+    event,
+    settlement.term,
+    400,
+    { cities, additionalConcessionCount: settlement.additionalConcessionCount }
+  );
+  assert.equal(treaty.concessionCityIds.length, 3);
 });
 
 test("territorial peace deterministically cedes the city nearest the winner's frontier", () => {
@@ -336,7 +389,7 @@ test("a Christian conqueror can dictate papal policy but cannot annex Rome", () 
   });
   const event = recordPortCapture(memory, rome, "england", 400, "player");
   assert.equal(
-    chooseCapitalPeaceTerm(memory, [rome], event),
+    chooseCapitalPeaceSettlement(memory, [rome], event).term,
     CAPITAL_PEACE_TERM_PAPAL_FAVOUR
   );
   assert.throws(

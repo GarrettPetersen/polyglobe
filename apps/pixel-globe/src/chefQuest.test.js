@@ -5,6 +5,7 @@ import {
   CHEF_QUEST_STAGE_RECRUITED,
   CHEF_QUEST_STAGE_RECRUITMENT,
   chefEventProfileForPort,
+  chefQuestJournalText,
   chefQuestState,
   completeChefBanquet,
   maybeSpawnChefQuest,
@@ -27,6 +28,7 @@ test("a regional chef requests one complete edible ingredient list", () => {
   assert.equal(quest.ingredients.length, 4);
   assert.match(quest.event.eventLabel, /Sultan/);
   assert.equal(new Set(quest.ingredients.map((entry) => entry.goodId)).size, 4);
+  assert.match(chefQuestJournalText(quest), /for Istanbul:/);
 });
 
 test("demo chefs request only ingredients sold inside the accessible region", () => {
@@ -68,7 +70,10 @@ test("delivering every ingredient advances to a persistent recruitment", () => {
     assert.equal(progress.complete, index === quest.ingredients.length - 1);
   }
   assert.equal(chefQuestState(state, city).complete, true);
-  assert.equal(completeChefBanquet(state, city, 100).stage, CHEF_QUEST_STAGE_RECRUITMENT);
+  assert.equal(chefQuestJournalText(chefQuestState(state, city)), "Bring all ingredients to Istanbul.");
+  const recruitment = completeChefBanquet(state, city, 100);
+  assert.equal(recruitment.stage, CHEF_QUEST_STAGE_RECRUITMENT);
+  assert.equal(chefQuestJournalText(recruitment), "Offer the chef a berth at Istanbul.");
   assert.deepEqual(state.cargo, {});
   assert.equal(recruitChef(state, city).stage, CHEF_QUEST_STAGE_RECRUITED);
 });

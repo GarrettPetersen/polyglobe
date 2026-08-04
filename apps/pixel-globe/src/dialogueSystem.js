@@ -2420,7 +2420,8 @@ function greetingView(session, city, gameState, context) {
   });
   const drunkMemoryRemark = rememberedDrunkFactorLine(session, memory);
   const settlementRemark = foreignSettlementFactorLine(city, gameState);
-  const remarks = [drunkMemoryRemark, settlementRemark, greeting.text].filter(Boolean);
+  const suzerainRemark = vassalPortEntryLine(context.portEntryStatus);
+  const remarks = [drunkMemoryRemark, settlementRemark, suzerainRemark, greeting.text].filter(Boolean);
   return {
     speaker: speakerName(city),
     expressionId: greeting.expressionId,
@@ -2428,6 +2429,14 @@ function greetingView(session, city, gameState, context) {
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: "root" })]
   };
+}
+
+function vassalPortEntryLine(status) {
+  if (!status?.suzerainProtectsEntry || !status.hostileLocalStanding || !status.suzerainFactionId) {
+    return null;
+  }
+  const suzerain = factionById(status.suzerainFactionId);
+  return `Your standing here remains poor, captain, but ${suzerain.name}'s protection opens the quay to you. Mind your conduct.`;
 }
 
 function foreignSettlementFactorLine(city, gameState) {

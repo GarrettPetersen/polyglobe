@@ -56,7 +56,11 @@ import {
   recordPiracyAgainstFaction,
   validateGameState
 } from "./gameState.js";
-import { WORLD_DIPLOMACY_VERSION, makeDiplomaticPeace } from "./worldDiplomacy.js";
+import {
+  WORLD_DIPLOMACY_VERSION,
+  establishDiplomaticSuzerainty,
+  makeDiplomaticPeace
+} from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import {
   JOSEON_TRADE_POLICY_ID,
@@ -715,6 +719,30 @@ test("war and deeply hostile standing bar entry while other ports remain open", 
   const outlawAtHome = portEntryStatus(state, LONDON, 100);
   assert.equal(outlawAtHome.allowed, false);
   assert.equal(outlawAtHome.hostileByStanding, true);
+});
+
+test("a vassal begrudgingly admits captains protected by its suzerain", () => {
+  const state = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: { ...PLAYER, nationalityId: "tidore" }
+  });
+  const rhodes = port(23, "Rhodes", "Rhodes", "mediterranean", 18000, "hospitallers");
+  establishDiplomaticSuzerainty(state.relations.diplomacy, {
+    vassalFactionId: "hospitallers",
+    suzerainFactionId: "ottoman",
+    simMinute: 100,
+    source: "capital-peace-treaty"
+  });
+  state.relations.factionReputation.hospitallers = -100;
+  state.relations.factionReputation.ottoman = 25;
+
+  const status = portEntryStatus(state, rhodes, 101);
+
+  assert.equal(status.allowed, true);
+  assert.equal(status.hostileLocalStanding, true);
+  assert.equal(status.hostileByStanding, false);
+  assert.equal(status.suzerainFactionId, "ottoman");
+  assert.equal(status.suzerainProtectsEntry, true);
 });
 
 test("failed port disguises impose a fixed fourteen-day lock", () => {

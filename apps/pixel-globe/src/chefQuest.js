@@ -158,6 +158,22 @@ export function chefQuestOfferShouldApproach(state, city) {
   return Boolean(quest && quest.stage !== CHEF_QUEST_STAGE_RECRUITED && !quest.offerSeen);
 }
 
+export function chefQuestJournalText(quest) {
+  if (!quest?.port?.city) throw new Error("Chef quest journal requires an origin city");
+  if (quest.stage === CHEF_QUEST_STAGE_RECRUITED) return null;
+  if (quest.stage === CHEF_QUEST_STAGE_RECRUITMENT) {
+    return `Offer the chef a berth at ${quest.port.city}.`;
+  }
+  if (quest.stage !== CHEF_QUEST_STAGE_GATHERING) {
+    throw new Error(`Unknown chef quest journal stage: ${quest.stage}`);
+  }
+  const missing = quest.ingredients.filter((ingredient) => !ingredient.ready);
+  if (missing.length === 0) return `Bring all ingredients to ${quest.port.city}.`;
+  return `Acquire one each for ${quest.port.city}: ${missing
+    .map((ingredient) => ingredient.label)
+    .join(", ")}.`;
+}
+
 export function markChefQuestOfferSeen(state) {
   const memory = chefQuestMemory(state);
   if (memory.stage === CHEF_QUEST_STAGE_LOCKED) throw new Error("Chef quest offer has not spawned");

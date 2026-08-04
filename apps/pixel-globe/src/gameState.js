@@ -106,7 +106,11 @@ import {
   revokeActivePapalCommission,
   validatePapalPolitics
 } from "./papalPolitics.js";
-import { foreignPolicyPrincipal, suzeraintyTradePrivilege } from "./suzerainty.js";
+import {
+  foreignPolicyPrincipal,
+  suzerainForFaction,
+  suzeraintyTradePrivilege
+} from "./suzerainty.js";
 import {
   createForeignSettlementExpulsionMemory,
   expelHostileForeignSettlements,
@@ -3362,17 +3366,40 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   const relation = playerFactionId && playerFactionId !== factionId
     ? worldDiplomacyBetween(state.relations.diplomacy, playerFactionId, factionId)
     : null;
+  const suzerainFactionId = suzerainForFaction(
+    state.relations.diplomacy.suzerainties,
+    factionId
+  );
+  const suzerainRelation = playerFactionId && suzerainFactionId
+    ? worldDiplomacyBetween(state.relations.diplomacy, playerFactionId, suzerainFactionId)
+    : null;
+  const suzerainStanding = suzerainFactionId
+    ? state.relations.factionReputation[suzerainFactionId]
+    : null;
+  const playerIsSuzerain = playerFactionId === suzerainFactionId;
+  const suzerainProtectsEntry = Boolean(suzerainFactionId && playerFactionId && (
+    playerIsSuzerain || (
+      suzerainRelation !== DIPLOMACY_HOSTILE && suzerainRelation !== DIPLOMACY_WAR &&
+      (suzerainStanding >= 0 || suzerainRelation === DIPLOMACY_FRIENDLY ||
+        suzerainRelation === DIPLOMACY_ALLY)
+    )
+  ));
   const hostileByWar = Boolean(
     factionId !== PIRATE_FACTION_ID &&
-    relation === DIPLOMACY_WAR
+    relation === DIPLOMACY_WAR &&
+    !suzerainProtectsEntry
   );
-  const hostileByStance = factionId !== PIRATE_FACTION_ID && relation === DIPLOMACY_HOSTILE;
+  const hostileByStance = factionId !== PIRATE_FACTION_ID &&
+    relation === DIPLOMACY_HOSTILE &&
+    !suzerainProtectsEntry;
   const diplomaticPassage = evaluation.diplomaticPassageFactionIds.has(factionId);
   const safePassage = diplomaticPassage || (
     !evaluation.playerWarship && state.relations.safePassageUntilMinute[factionId] > simMinute
   );
   const passageRefusalActive = state.relations.safePassageRefusalUntilMinute[factionId] > simMinute;
-  const hostileByStanding = state.relations.factionReputation[factionId] <= HOSTILE_PORT_REPUTATION_THRESHOLD;
+  const hostileLocalStanding = state.relations.factionReputation[factionId] <=
+    HOSTILE_PORT_REPUTATION_THRESHOLD;
+  const hostileByStanding = hostileLocalStanding && !suzerainProtectsEntry;
   const canPurchaseSafePassage = !evaluation.playerWarship &&
     !safePassage &&
     !hostileByStanding &&
@@ -3390,6 +3417,9 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
     hostileByWar,
     hostileByStance,
     hostileByStanding,
+    hostileLocalStanding,
+    suzerainFactionId,
+    suzerainProtectsEntry,
     safePassage,
     canPurchaseSafePassage,
     passageRefusalActive,

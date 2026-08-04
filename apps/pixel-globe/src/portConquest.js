@@ -222,6 +222,38 @@ export function capitalPeaceTreatyOptions(memory, ports, captureEvent, {
   const concessionCandidates = controlledCities.filter((city) => (
     portConquestPortId(city) !== captureEvent.portId && city.isFactionCapital !== true
   ));
+  const previousPeaceMinute = memory.treaties
+    .filter((treaty) => (
+      (treaty.loserFactionId === captureEvent.previousFactionId &&
+        treaty.winnerFactionId === captureEvent.newFactionId) ||
+      (treaty.loserFactionId === captureEvent.newFactionId &&
+        treaty.winnerFactionId === captureEvent.previousFactionId)
+    ))
+    .reduce((latest, treaty) => Math.max(latest, treaty.simMinute), -1);
+  const occupiedCityIds = new Set(memory.events
+    .filter((event) => (
+      event.simMinute > previousPeaceMinute &&
+      event.simMinute <= captureEvent.simMinute &&
+      event.previousFactionId === captureEvent.previousFactionId &&
+      event.newFactionId === captureEvent.newFactionId
+    ))
+    .map((event) => event.portId));
+  const originalLosingCityIds = new Set([
+    ...controlledCities.map(portConquestPortId),
+    ...occupiedCityIds
+  ]);
+  const occupiedCityCount = occupiedCityIds.size;
+  const winnerCityCount = cities.filter((city) => (
+    effectivePortFactionId(memory, city) === captureEvent.newFactionId
+  )).length;
+  const decisionFactors = {
+    originalLosingCityCount: originalLosingCityIds.size,
+    occupiedCityCount,
+    winnerCityCount,
+    occupationRatio: occupiedCityCount /
+      Math.max(1, originalLosingCityIds.size),
+    concessionCandidateCount: concessionCandidates.length
+  };
   const papalSettlement = isChristianCaptureOfPapacy(captureEvent);
   if (papalSettlement) {
     if (papalExcommunicationTargetFactionId !== null) {
@@ -233,6 +265,7 @@ export function capitalPeaceTreatyOptions(memory, ports, captureEvent, {
       losingCityCount: controlledCities.length,
       concessionAvailable: false,
       papalSettlement: true,
+      ...decisionFactors,
       terms: Object.freeze([
         CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
         ...(papalExcommunicationTargetFactionId
@@ -247,6 +280,7 @@ export function capitalPeaceTreatyOptions(memory, ports, captureEvent, {
     losingCityCount: controlledCities.length,
     concessionAvailable: concessionCandidates.length > 0,
     papalSettlement: false,
+    ...decisionFactors,
     terms: Object.freeze([
       CAPITAL_PEACE_TERM_VASSALAGE,
       ...(concessionCandidates.length > 0 ? [CAPITAL_PEACE_TERM_CONCESSIONS] : []),
@@ -255,22 +289,64 @@ export function capitalPeaceTreatyOptions(memory, ports, captureEvent, {
   });
 }
 
-export function chooseCapitalPeaceTerm(memory, ports, captureEvent, roll = 0.5, context = {}) {
+export function chooseCapitalPeaceSettlement(memory, ports, captureEvent, roll = 0.5, context = {}) {
   assertRoll(roll, "capital peace");
   const options = capitalPeaceTreatyOptions(memory, ports, captureEvent, context);
   if (options.papalSettlement) {
-    return options.terms.includes(CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) && roll < 0.38
-      ? CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
-      : CAPITAL_PEACE_TERM_PAPAL_FAVOUR;
+    return Object.freeze({
+      term: options.terms.includes(CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) && roll < 0.38
+        ? CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
+        : CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
+      additionalConcessionCount: 0
+    });
   }
-  if (captureEvent.source === "player") {
-    return options.annexationAllowed
-      ? CAPITAL_PEACE_TERM_ANNEXATION
-      : CAPITAL_PEACE_TERM_VASSALAGE;
+  const originalSize = Math.max(1, options.originalLosingCityCount);
+  const winnerStrength = clamp(options.winnerCityCount / originalSize / 3, 0, 1);
+  const annexationWeight = options.annexationAllowed
+    ? (CAPITAL_PEACE_ANNEXATION_CITY_LIMIT + 1 - options.losingCityCount) * 3 +
+      options.occupationRatio * 2 + winnerStrength
+    : 0;
+  const vassalageWeight = 2 + options.occupationRatio * 2 + winnerStrength * 2 +
+    (options.losingCityCount <= 6 ? 0.8 : 0);
+  const concessionsWeight = options.concessionAvailable
+    ? 2 + Math.max(0, options.losingCityCount - CAPITAL_PEACE_ANNEXATION_CITY_LIMIT) * 0.65 +
+      (1 - options.occupationRatio) * 2
+    : 0;
+  const weightedTerms = [
+    [CAPITAL_PEACE_TERM_ANNEXATION, annexationWeight],
+    [CAPITAL_PEACE_TERM_VASSALAGE, vassalageWeight],
+    [CAPITAL_PEACE_TERM_CONCESSIONS, concessionsWeight]
+  ].filter(([, weight]) => weight > 0);
+  const totalWeight = weightedTerms.reduce((sum, [, weight]) => sum + weight, 0);
+  if (!(totalWeight > 0)) throw new Error("Capital peace settlement has no available sovereign terms");
+  let cursor = roll * totalWeight;
+  let selectedTerm = weightedTerms[weightedTerms.length - 1][0];
+  let selectedTermRoll = 1;
+  for (const [term, weight] of weightedTerms) {
+    if (cursor < weight) {
+      selectedTerm = term;
+      selectedTermRoll = cursor / weight;
+      break;
+    }
+    cursor -= weight;
   }
-  if (options.annexationAllowed && roll < 0.35) return CAPITAL_PEACE_TERM_ANNEXATION;
-  if (roll < 0.72 || !options.concessionAvailable) return CAPITAL_PEACE_TERM_VASSALAGE;
-  return CAPITAL_PEACE_TERM_CONCESSIONS;
+  const maximumAdditionalConcessions = Math.min(3, options.concessionCandidateCount);
+  const decisivePressure = clamp(
+    options.occupationRatio * 0.65 + winnerStrength * 0.35,
+    0,
+    1
+  );
+  const additionalConcessionCount = selectedTerm === CAPITAL_PEACE_TERM_CONCESSIONS
+    ? clamp(
+        1 + Math.floor(
+          decisivePressure * Math.max(0, maximumAdditionalConcessions - 1) +
+          selectedTermRoll * 0.35
+        ),
+        1,
+        maximumAdditionalConcessions
+      )
+    : 0;
+  return Object.freeze({ term: selectedTerm, additionalConcessionCount });
 }
 
 export function settleCapitalPeaceTreaty(
@@ -336,7 +412,11 @@ export function settleCapitalPeaceTreaty(
     ));
     concessionCityIds.push(...existingConcessions.map(portConquestPortId));
     if (term === CAPITAL_PEACE_TERM_CONCESSIONS) {
-      const concession = factionControlledCities(memory, cities, loserFactionId, captureEvent.portId)
+      const additionalConcessionCount = context.additionalConcessionCount ?? 1;
+      if (!Number.isInteger(additionalConcessionCount) || additionalConcessionCount < 1) {
+        throw new Error(`Invalid additional territorial concession count: ${additionalConcessionCount}`);
+      }
+      const concessions = factionControlledCities(memory, cities, loserFactionId, captureEvent.portId)
         .filter((city) => (
           portConquestPortId(city) !== captureEvent.portId &&
           city.isFactionCapital !== true &&
@@ -351,13 +431,18 @@ export function settleCapitalPeaceTreaty(
           winnerFactionId,
           a,
           b
-        ))[0];
-      if (!concession) {
-        throw new Error(`${loserFactionId} has no city available for a territorial concession`);
+        ));
+      if (concessions.length < additionalConcessionCount) {
+        throw new Error(
+          `${loserFactionId} has only ${concessions.length} cities available for ` +
+          `${additionalConcessionCount} territorial concessions`
+        );
       }
-      const concessionCityId = portConquestPortId(concession);
-      memory.portFactionOverrides[concessionCityId] = winnerFactionId;
-      concessionCityIds.push(concessionCityId);
+      for (const concession of concessions.slice(0, additionalConcessionCount)) {
+        const concessionCityId = portConquestPortId(concession);
+        memory.portFactionOverrides[concessionCityId] = winnerFactionId;
+        concessionCityIds.push(concessionCityId);
+      }
     }
   }
 
