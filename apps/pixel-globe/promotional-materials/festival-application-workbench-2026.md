@@ -143,6 +143,25 @@ Submitted details:
 - Monitor the account and email in case the organizers request more judge keys or
   another durable build-access method.
 
+## Indie X 2026
+
+Status: **Submitted August 4. The official form confirmed that the application
+was sent and will be evaluated.** Deadline: September 13 at 23:59:59 Lisbon
+time.
+
+- Digital event attendance: Yes, if selected
+- Country: Canada
+- Target release date: December 1, 2026
+- Platforms: PC (Windows, macOS and Linux)
+- Playable build: https://garrettpetersen.itch.io/marque-and-reprisal
+- Preview image: https://marque-and-reprisal.com/assets/submissions/indie-x-2026/preview-square.png?v=20260804
+- High-resolution image: https://marque-and-reprisal.com/assets/submissions/indie-x-2026/high-res-gameplay.png?v=20260804
+- High-resolution logo: https://marque-and-reprisal.com/assets/submissions/indie-x-2026/high-res-logo.png?v=20260804
+- Gameplay reel: https://marque-and-reprisal.com/assets/submissions/indie-x-2026/gameplay-reel.mp4?v=20260804
+- The application accepts inclusion in the 2026 Indie X Steam Event and Sale
+  and possible legacy inclusion in the following two years unless removal is
+  requested.
+
 ## IGDB and Twitch category
 
 Status: **Submitted August 2 and awaiting IGDB moderation.**
