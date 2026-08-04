@@ -296,6 +296,7 @@ export default {
   "good.salt": "소금",
   "good.sugar": "설탕",
   "good.timber": "목재",
+  "good.coal": "석탄",
   "good.wool": "양모",
   "good.cotton": "목화",
   "good.flax": "아마",

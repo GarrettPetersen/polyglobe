@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-41";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-42";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -274,7 +274,8 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "item:zamzam-flask": nikoichu("Weather_Water_Droplet_Liquid_Rain_Element_Big.png", ICON_COLOR.dialogue),
 
   "good:gunpowder": pirate(42),
-  "good:matchlocks": pirate(45)
+  "good:matchlocks": pirate(45),
+  "good:coal": glionox(574)
 });
 
 const GAME_ICON_IDS = Object.freeze(Object.keys(GAME_ICON_SOURCES));

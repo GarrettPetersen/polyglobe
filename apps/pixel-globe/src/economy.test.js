@@ -9,6 +9,7 @@ import {
   BEESWAX_GOOD_ID,
   CINNAMON_GOOD_ID,
   CLOVE_GOOD_ID,
+  COAL_GOOD_ID,
   FRESH_WATER_GOOD_ID,
   FURS_GOOD_ID,
   GINSENG_GOOD_ID,
@@ -110,7 +111,7 @@ test("voyage seeds vary initial markets while remaining deterministic", () => {
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [
-    "hardtack", "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
+    "hardtack", "grain", "fish", "timber", COAL_GOOD_ID, "arms", "wool-cloth", "silk-cloth", "pepper",
     BEAVER_PELTS_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
     GINGER_GOOD_ID, INDIGO_GOOD_ID,
     AMBER_GOOD_ID, FURS_GOOD_ID, BEESWAX_GOOD_ID, NAVAL_STORES_GOOD_ID,
@@ -120,6 +121,11 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   ]) {
     assert.ok(ids.has(goodId), goodId);
   }
+  const coal = tradeGoodById(COAL_GOOD_ID);
+  assert.equal(coal.basePrice, 8);
+  assert.equal(coal.unitSize, 4);
+  assert.equal(coal.category, "material");
+  assert.equal(coal.initialImportStockRatio, 0.08);
   assert.equal(ids.has("spices"), false);
   assert.equal(ids.size, TRADE_GOODS.length);
 });
@@ -567,6 +573,7 @@ test("English ports distinguish native specialties from imported market goods", 
   assert.ok(market.Hull.get("wool-cloth").productionPerDay > 0);
   assert.ok(market["Newcastle upon Tyne"].get("salt").productionPerDay > 0);
   assert.ok(market["Newcastle upon Tyne"].get("timber").productionPerDay > 0);
+  assert.ok(market["Newcastle upon Tyne"].get(COAL_GOOD_ID).productionPerDay > 0);
   assert.ok(market.Norwich.get("wool-cloth").productionPerDay > 0);
   assert.ok(market.Exeter.get("tin").productionPerDay > 0);
   assert.ok(market.Exeter.get("wool-cloth").productionPerDay > 0);
@@ -574,6 +581,69 @@ test("English ports distinguish native specialties from imported market goods", 
   for (const city of [market.Bristol, market.Southampton]) {
     assert.equal(city.get(WINE_GOOD_ID).productionPerDay, 0);
     assert.equal(city.get(WINE_GOOD_ID).listedForSale, true);
+  }
+});
+
+test("1522 coal markets connect medieval producers to established fuel consumers", () => {
+  const names = [
+    "Newcastle upon Tyne",
+    "Edinburgh",
+    "Liege",
+    "Taiyuan",
+    "Beijing",
+    "London",
+    "Hull",
+    "Brugge",
+    "Gent",
+    "Southampton",
+    "Nanjing"
+  ];
+  const ports = Object.fromEntries(names.map((name, index) => {
+    const city = CITY_CATALOG.find((candidate) => candidate.city === name);
+    assert.ok(city, `missing coal market city: ${name}`);
+    return [name, { ...city, population: 30000, tileId: 400 + index }];
+  }));
+  const economy = createWorldEconomy({
+    ports: Object.values(ports),
+    shipyardPorts: [ports.London],
+    startMinute: 0,
+    seedKey: "coal-markets-1522"
+  });
+  const market = Object.fromEntries(names.map((name) => [name, marketByGood(economy, ports[name])]));
+
+  for (const name of ["Newcastle upon Tyne", "Edinburgh", "Liege", "Taiyuan", "Beijing"]) {
+    const coal = market[name].get(COAL_GOOD_ID);
+    assert.ok(coal.productionPerDay > coal.consumptionPerDay, `${name} should export coal`);
+    assert.equal(coal.listedForSale, true, `${name} should list coal`);
+  }
+  for (const name of ["London", "Hull", "Brugge", "Gent", "Southampton", "Nanjing"]) {
+    assert.equal(market[name].get(COAL_GOOD_ID).productionPerDay, 0, name);
+  }
+
+  const ordinaryEuropeanDemand = market.Southampton.get(COAL_GOOD_ID).consumptionPerDay;
+  for (const name of ["London", "Hull", "Brugge", "Gent"]) {
+    assert.ok(
+      market[name].get(COAL_GOOD_ID).consumptionPerDay > ordinaryEuropeanDemand,
+      `${name} should have elevated coal demand`
+    );
+  }
+  assert.ok(
+    market.Beijing.get(COAL_GOOD_ID).consumptionPerDay > market.Nanjing.get(COAL_GOOD_ID).consumptionPerDay
+  );
+
+  for (const [origin, destination] of [
+    ["Newcastle upon Tyne", "London"],
+    ["Liege", "Gent"],
+    ["Taiyuan", "Nanjing"]
+  ]) {
+    const route = planNpcTrade(economy, ports[origin], ports[destination], {
+      cargoCapacity: 80,
+      specie: 5000
+    });
+    assert.ok(
+      route.lines.some((line) => line.goodId === COAL_GOOD_ID),
+      `${origin} -> ${destination} should carry coal`
+    );
   }
 });
 
@@ -1053,7 +1123,8 @@ test("older economy snapshots initialize newly added trade goods without changin
     PRINTED_BOOKS_GOOD_ID,
     LACQUERWARE_GOOD_ID,
     GINSENG_GOOD_ID,
-    SULFUR_GOOD_ID
+    SULFUR_GOOD_ID,
+    COAL_GOOD_ID
   ]);
   for (const savedPort of snapshot.ports) {
     savedPort.stocks = savedPort.stocks.filter(([goodId]) => !newGoodIds.has(goodId));

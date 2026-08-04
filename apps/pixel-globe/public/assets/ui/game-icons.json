@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-41",
+  "version": "resurrect-icons-42",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 224,
@@ -2444,6 +2444,17 @@
         "h": 16
       },
       "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "good:coal",
+      "rect": {
+        "x": 48,
+        "y": 208,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
       "assetPath": null
     }
   ],

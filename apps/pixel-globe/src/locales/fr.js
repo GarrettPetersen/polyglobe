@@ -296,6 +296,7 @@ export default {
   "good.salt": "Sel",
   "good.sugar": "Sucre",
   "good.timber": "Bois",
+  "good.coal": "Charbon",
   "good.wool": "Laine",
   "good.cotton": "Coton",
   "good.flax": "Lin",

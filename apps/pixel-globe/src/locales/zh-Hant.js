@@ -296,6 +296,7 @@ export default {
   "good.salt": "鹽",
   "good.sugar": "糖",
   "good.timber": "木材",
+  "good.coal": "煤炭",
   "good.wool": "羊毛",
   "good.cotton": "棉花",
   "good.flax": "亞麻",

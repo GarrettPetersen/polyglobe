@@ -62,6 +62,7 @@ export const PAPER_GOOD_ID = "paper";
 export const LACQUERWARE_GOOD_ID = "lacquerware";
 export const GINSENG_GOOD_ID = "ginseng";
 export const SULFUR_GOOD_ID = "sulfur";
+export const COAL_GOOD_ID = "coal";
 export const PRINTED_BOOKS_GOOD_ID = "printed-books";
 
 export const TRADE_GOODS = Object.freeze([
@@ -91,6 +92,7 @@ export const TRADE_GOODS = Object.freeze([
   good("salt", "Salt", 12, "staple", { unitSize: 2 }),
   good("sugar", "Sugar", 20, "food"),
   good("timber", "Timber", 14, "material", { unitSize: 4 }),
+  good(COAL_GOOD_ID, "Coal", 8, "material", { unitSize: 4, initialImportStockRatio: 0.08 }),
   good("wool", "Wool", 18, "material", { unitSize: 3 }),
   good("cotton", "Cotton", 20, "material", { unitSize: 3 }),
   good("flax", "Flax", 14, "material", { unitSize: 3 }),
@@ -390,16 +392,18 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
 const CITY_SPECIALTIES = uniqueMap([
   specialty("Lisbon", ["salt", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
   specialty("London", ["wool", "wool-cloth", "arms"]),
+  // Established medieval coalfields; later industrial basins are intentionally absent in 1522.
+  specialty("Edinburgh", [COAL_GOOD_ID]),
   specialty("Brugge", ["wool-cloth"]),
   specialty("Gent", ["wool-cloth", "linen-cloth"]),
+  specialty("Liege", [COAL_GOOD_ID]),
   specialty("Norwich", ["wool-cloth"]),
   specialty("Exeter", ["tin", "wool-cloth"]),
   specialty("Bristol", ["wool-cloth"]),
   specialty("Southampton", ["wool", "wool-cloth"]),
   specialty("York", ["grain", "wool"]),
   specialty("Hull", ["wool-cloth"]),
-  // Coal is not a trade good; wool, salt, and timber are Newcastle's other documented exports.
-  specialty("Newcastle upon Tyne", ["wool", "salt", "timber"]),
+  specialty("Newcastle upon Tyne", [COAL_GOOD_ID, "wool", "salt", "timber"]),
   specialty("Gdansk", ["grain", AMBER_GOOD_ID]),
   specialty("Szczecin", ["grain", "timber", NAVAL_STORES_GOOD_ID]),
   specialty("Riga", ["flax", BEESWAX_GOOD_ID, NAVAL_STORES_GOOD_ID]),
@@ -457,7 +461,8 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Veracruz", ["cacao", "gold"]),
   specialty("Nombre de Dios", ["gold"]),
   specialty("Panama City", ["gold"]),
-  specialty("Beijing", [PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Beijing", [COAL_GOOD_ID, PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Taiyuan", [COAL_GOOD_ID]),
   specialty("Hangzhou", ["silk", "silk-cloth"]),
   specialty("Suzhou", ["silk", "silk-cloth"]),
   specialty("Jingdezhen", ["porcelain"]),
@@ -502,12 +507,27 @@ const CITY_SPECIALTIES = uniqueMap([
 ], "city specialties");
 
 const CITY_DEMANDS = uniqueMap([
-  cityRates("London", { grain: 0.35, timber: 0.24, [AMBER_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.16 }),
+  // Urban fuel, salt boiling, brewing, and other heat-intensive trades—not later coke smelting.
+  cityRates("London", {
+    grain: 0.35,
+    timber: 0.24,
+    [COAL_GOOD_ID]: 0.34,
+    [AMBER_GOOD_ID]: 0.16,
+    [FURS_GOOD_ID]: 0.16
+  }),
+  cityRates("Edinburgh", { [COAL_GOOD_ID]: 0.28 }),
   cityRates("Bristol", { wine: 0.28, iron: 0.16, "olive-oil": 0.12, [NAVAL_STORES_GOOD_ID]: 0.12 }),
   cityRates("Southampton", { wine: 0.28, dyes: 0.18, "olive-oil": 0.12 }),
-  cityRates("Hull", { timber: 0.2, flax: 0.18, wine: 0.14 }),
-  cityRates("Brugge", { grain: 0.3, [AMBER_GOOD_ID]: 0.14, [BEESWAX_GOOD_ID]: 0.14 }),
-  cityRates("Gent", { grain: 0.28, flax: 0.22, [BEESWAX_GOOD_ID]: 0.12 }),
+  cityRates("Hull", { timber: 0.2, flax: 0.18, wine: 0.14, [COAL_GOOD_ID]: 0.2 }),
+  cityRates("Newcastle upon Tyne", { [COAL_GOOD_ID]: 0.18 }),
+  cityRates("Brugge", {
+    grain: 0.3,
+    [COAL_GOOD_ID]: 0.22,
+    [AMBER_GOOD_ID]: 0.14,
+    [BEESWAX_GOOD_ID]: 0.14
+  }),
+  cityRates("Gent", { grain: 0.28, flax: 0.22, [COAL_GOOD_ID]: 0.24, [BEESWAX_GOOD_ID]: 0.12 }),
+  cityRates("Liege", { [COAL_GOOD_ID]: 0.22 }),
   cityRates("Lubeck", { grain: 0.28, timber: 0.22, [AMBER_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.14, [BEESWAX_GOOD_ID]: 0.14 }),
   cityRates("Hamburg", { grain: 0.28, timber: 0.2, [NAVAL_STORES_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.12 }),
   cityRates("Bremen", { grain: 0.24, timber: 0.2, [NAVAL_STORES_GOOD_ID]: 0.16 }),
@@ -522,7 +542,13 @@ const CITY_DEMANDS = uniqueMap([
   cityRates("Turku", { grain: 0.24, "wool-cloth": 0.22, salt: 0.2, wine: 0.14 }),
   cityRates("Novgorod", { "wool-cloth": 0.25, salt: 0.22, wine: 0.15, [AMBER_GOOD_ID]: 0.1 }),
   cityRates("Pskov", { "wool-cloth": 0.22, salt: 0.2, wine: 0.14 }),
-  cityRates("Beijing", { silver: 0.24, [GINSENG_GOOD_ID]: 0.18, [LACQUERWARE_GOOD_ID]: 0.12 }),
+  cityRates("Beijing", {
+    silver: 0.24,
+    [COAL_GOOD_ID]: 0.32,
+    [GINSENG_GOOD_ID]: 0.18,
+    [LACQUERWARE_GOOD_ID]: 0.12
+  }),
+  cityRates("Taiyuan", { [COAL_GOOD_ID]: 0.14 }),
   cityRates("Nanjing", { silver: 0.22, [GINSENG_GOOD_ID]: 0.14, [LACQUERWARE_GOOD_ID]: 0.12 }),
   cityRates("Hangzhou", { silver: 0.22, [GINSENG_GOOD_ID]: 0.13, [LACQUERWARE_GOOD_ID]: 0.12 }),
   cityRates("Guangzhou", { silver: 0.24, [GINSENG_GOOD_ID]: 0.12, [LACQUERWARE_GOOD_ID]: 0.1 }),
