@@ -1,5 +1,4 @@
-export const UNDERWATER_REFRACTION_PERIOD_MS = 2640;
-const UNDERWATER_REFRACTION_TIME_COEFFICIENT = 4 / UNDERWATER_REFRACTION_PERIOD_MS;
+import { UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT } from "./underwaterRefraction.js";
 
 const SCENE_VERTEX_SHADER = `#version 300 es
 in vec2 a_position;
@@ -38,7 +37,7 @@ out vec4 outColor;
 void main() {
   vec2 uv = v_texCoord;
   if (v_effect.x != 0.0) {
-    float wave = sin((gl_FragCoord.y + u_time * ${UNDERWATER_REFRACTION_TIME_COEFFICIENT.toFixed(12)}) * 1.57079632679);
+    float wave = sin((gl_FragCoord.y + u_time * ${UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT.toFixed(12)}) * 1.57079632679);
     uv.x += wave * v_effect.x / max(1.0, u_textureSize.x);
   }
   vec4 source = texture(u_source, uv);

@@ -12,6 +12,7 @@ import {
   shipPixelBakeHeight,
   shipPixelIsAboveWater
 } from "./shipWaterline.js";
+import { UNDERWATER_REFRACTION_PERIOD_MS } from "./underwaterRefraction.js";
 
 test("the baked midpoint divides submerged and above-water hull pixels", () => {
   assert.equal(shipPixelIsAboveWater(SHIP_WATERLINE_LEVEL - 1 / 255), false);
@@ -128,7 +129,9 @@ test("the sink pixel rule rejects malformed raster data", () => {
 });
 
 test("live refraction is pixel-snapped, subtle, and changes over time", () => {
-  const offsets = [0, 105, 210, 315, 420].map((nowMs) => (
+  const offsets = [0, 0.25, 0.5, 0.75, 1].map((cycle) => (
+    cycle * UNDERWATER_REFRACTION_PERIOD_MS
+  )).map((nowMs) => (
     liveShipRefractionOffset(SHIP_REFRACTION_BAND_HEIGHT * 2, nowMs, 72)
   ));
   assert.ok(offsets.every((offset) => Number.isInteger(offset) && Math.abs(offset) <= 1));

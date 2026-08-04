@@ -4,15 +4,10 @@ import {
   LruChunkKeys,
   PagedTextureAtlasAllocator,
   TextureAtlasAllocator,
-  UNDERWATER_REFRACTION_PERIOD_MS,
   allocateWorldSceneTexture,
   bitMaskQuadVertices,
   quadVertices
 } from "./worldWebglRenderer.js";
-
-test("GPU underwater refraction keeps the deliberate slow wave period", () => {
-  assert.equal(UNDERWATER_REFRACTION_PERIOD_MS, 2640);
-});
 
 test("texture atlas allocation is deterministic and starts a new shelf", () => {
   const allocator = new TextureAtlasAllocator(32, 32, 1);

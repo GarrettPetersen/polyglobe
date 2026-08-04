@@ -1,3 +1,5 @@
+import { underwaterRefractionPhase } from "./underwaterRefraction.js";
+
 export const SHIP_WATERLINE_DEPTH_BYTE = 128;
 export const SHIP_WATERLINE_LEVEL = SHIP_WATERLINE_DEPTH_BYTE / 255;
 export const SHIP_SUBMERGED_ALPHA = 0.38;
@@ -146,7 +148,7 @@ export function liveShipRefractionOffset(pixelY, nowMs, seed) {
   if (!Number.isFinite(nowMs)) throw new Error(`Ship refraction requires a finite time: ${nowMs}`);
   if (!Number.isFinite(seed)) throw new Error(`Ship refraction requires a finite seed: ${seed}`);
   const band = Math.floor(pixelY / SHIP_REFRACTION_BAND_HEIGHT);
-  const phase = nowMs / 420 + band * 1.17 + (seed & 1023) * 0.017;
+  const phase = underwaterRefractionPhase(nowMs) + band * 1.17 + (seed & 1023) * 0.017;
   return Math.round(Math.sin(phase));
 }
 

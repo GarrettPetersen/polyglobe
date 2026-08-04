@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  riverBankTerrainCalls,
   visibleRiverBankPixelSet,
   visibleRiverBankPixelsFromRows
 } from "./riverBankOutline.js";
@@ -50,4 +51,14 @@ test("numeric river rows reject malformed input", () => {
     () => visibleRiverBankPixelsFromRows(new Map([["2", new Set([2])]])),
     /integer coordinates/
   );
+});
+
+test("riverbank shading samples land beneath a mouth but never open water", () => {
+  const land = { id: 1, row: { t: "grass" } };
+  const ocean = { id: 2, row: { t: "ocean" } };
+  const calls = riverBankTerrainCalls([land, ocean], (row) => row.t === "ocean");
+
+  assert.deepEqual(calls, [land]);
+  assert.throws(() => riverBankTerrainCalls(new Set(), () => false), /array/);
+  assert.throws(() => riverBankTerrainCalls([], null), /predicate/);
 });

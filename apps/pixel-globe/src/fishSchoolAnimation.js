@@ -1,7 +1,8 @@
 export const FISH_SCHOOL_ANIMATION_FRAME_COUNT = 12;
-export const FISH_SCHOOL_ANIMATION_FRAME_MS = 125;
+export const FISH_SCHOOL_ANIMATION_FRAME_MS = 250;
 export const FISH_SCHOOL_MOTION_FRAME_COUNT = 48;
 export const FISH_SCHOOL_MAX_FISH = 6;
+export const FISH_SCHOOL_TRAVEL_SCALE = 0.35;
 
 const FISH_PHASES = Object.freeze([0, 2, 4, 6, 8, 10]);
 const SWIM_PATH = Object.freeze([

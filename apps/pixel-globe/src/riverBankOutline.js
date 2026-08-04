@@ -71,6 +71,16 @@ export function visibleRiverBankPixelsFromRows(waterPixelRows) {
   return Object.freeze(bankPixels);
 }
 
+export function riverBankTerrainCalls(tileCalls, isWaterSurface) {
+  if (!Array.isArray(tileCalls)) {
+    throw new Error("Riverbank terrain calls require an array");
+  }
+  if (typeof isWaterSurface !== "function") {
+    throw new Error("Riverbank terrain calls require a water-surface predicate");
+  }
+  return tileCalls.filter((call) => !isWaterSurface(call.row));
+}
+
 function pixelCoordinates(key) {
   if (typeof key !== "string" || !/^-?\d+,-?\d+$/.test(key)) {
     throw new Error(`Invalid river water pixel key: ${key}`);

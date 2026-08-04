@@ -487,6 +487,13 @@ import {
 } from "./pixelInteraction.js";
 import { whaleTargetRect } from "./whaleTargeting.js";
 import {
+  createVisualPresentation,
+  resetVisualPresentation,
+  retargetVisualPresentation,
+  visualPresentationIsActive,
+  visualPresentationPoint
+} from "./visualPresentation.js";
+import {
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_DEAD,
   WHALE_PHASE_SURFACED,
@@ -853,6 +860,7 @@ import {
   FISH_SCHOOL_ANIMATION_FRAME_COUNT,
   FISH_SCHOOL_MOTION_FRAME_COUNT,
   FISH_SCHOOL_MAX_FISH,
+  FISH_SCHOOL_TRAVEL_SCALE,
   fishSchoolAnimationFrame,
   fishSchoolAnimationTick,
   fishSchoolAnimationTime,
@@ -1225,7 +1233,10 @@ import {
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
-import { visibleRiverBankPixelsFromRows } from "./riverBankOutline.js";
+import {
+  riverBankTerrainCalls,
+  visibleRiverBankPixelsFromRows
+} from "./riverBankOutline.js";
 import {
   dayNightPaletteVariant,
   prepareDayNightPalette
@@ -2419,8 +2430,10 @@ const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_SCHOOL_SPRITE_WIDTH = 30;
 const FISH_SCHOOL_SPRITE_HEIGHT = 20;
-const FISH_VISIBLE_MAX_SCHOOLS = 12;
+const FISH_VISIBLE_MAX_SCHOOLS = 8;
 const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
+const FISH_SCHOOL_ALPHA = 0.2;
+const OVERFISHED_SCHOOL_ALPHA = 0.12;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
 const FISH_SCATTER_RADIUS_PX = 30;
@@ -2717,6 +2730,7 @@ let npcVisualMovementBucket = 0;
 let shoreBatteryUpdateAccumulator = 0;
 let whaleSimulationAccumulator = 0;
 let whaleBackgroundMovementBucket = 0;
+const whaleVisualPresentations = new Map();
 let ambientAudioUpdateAccumulator = 0;
 let ambientAudioContextAccumulator = 0;
 let ambientAudioWildlifeAccumulator = 0;
@@ -9823,6 +9837,7 @@ async function restoreSavedVoyage(payload) {
   shoreBatteryUpdateAccumulator = 0;
   whaleSimulationAccumulator = 0;
   whaleBackgroundMovementBucket = 0;
+  whaleVisualPresentations.clear();
   ambientAudioUpdateAccumulator = 0;
   ambientAudioContextAccumulator = 0;
   ambientAudioWildlifeAccumulator = 0;
@@ -16600,20 +16615,23 @@ function updateWhales(dt, nowMs) {
     whaleSimulationAccumulator + dt
   );
   const simulationDue = whaleSimulationAccumulator >= simulationInterval;
-  const events = simulationDue
-    ? advanceWhaleMemory(
-        gameState.memory.whales,
-        takeWhaleSimulationElapsed(),
-        whaleNavigationAtPosition,
-        weatherClockMinutes,
-        {
-          bucket: whaleBackgroundMovementBucket,
-          bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
-          activeWhaleIds: responsiveWhaleMovementIds()
-        }
-      )
-    : [];
+  let events = [];
   if (simulationDue) {
+    const responsiveIds = responsiveWhaleMovementIds();
+    const presentationStarts = captureWhalePresentationStarts(responsiveIds, nowMs);
+    const movementElapsed = takeWhaleSimulationElapsed();
+    events = advanceWhaleMemory(
+      gameState.memory.whales,
+      movementElapsed,
+      whaleNavigationAtPosition,
+      weatherClockMinutes,
+      {
+        bucket: whaleBackgroundMovementBucket,
+        bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
+        activeWhaleIds: responsiveIds
+      }
+    );
+    retargetWhalePresentations(presentationStarts, nowMs, movementElapsed);
     whaleBackgroundMovementBucket =
       (whaleBackgroundMovementBucket + 1) % WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT;
   }
@@ -16662,10 +16680,63 @@ function updateWhales(dt, nowMs) {
   if (activeKillEffects.length < previousKillEffectCount) playCollectionDingSound();
   whaleKillEffects = activeKillEffects;
   return changed ||
+    activeWhalePresentationExists(nowMs) ||
     whaleBlowBursts.length > 0 ||
     whaleBlowBursts.length !== previousBurstCount ||
     whaleKillEffects.length > 0 ||
     whaleKillEffects.length !== previousKillEffectCount;
+}
+
+function captureWhalePresentationStarts(whaleIds, nowMs) {
+  const starts = new Map();
+  for (const whaleId of whaleIds) {
+    const whale = whaleById(gameState.memory.whales, whaleId);
+    const rawPoint = localPointForKnownTileVector(whale.position, whale.tileId);
+    if (!rawPoint) continue;
+    starts.set(whaleId, presentedWhalePoint(whale, rawPoint, nowMs));
+  }
+  return starts;
+}
+
+function retargetWhalePresentations(starts, nowMs, movementElapsed) {
+  const durationMs = Math.max(1, movementElapsed * 1000);
+  for (const [whaleId, from] of starts) {
+    const whale = whaleById(gameState.memory.whales, whaleId);
+    if (whale.phase === WHALE_PHASE_DEAD) {
+      whaleVisualPresentations.delete(whaleId);
+      continue;
+    }
+    const target = localPointForKnownTileVector(whale.position, whale.tileId);
+    if (!target) {
+      whaleVisualPresentations.delete(whaleId);
+      continue;
+    }
+    let state = whaleVisualPresentations.get(whaleId);
+    if (!state || state.chart !== chart) {
+      state = {
+        id: whaleId,
+        chart,
+        ...createVisualPresentation(from, nowMs)
+      };
+      whaleVisualPresentations.set(whaleId, state);
+    }
+    state.chart = chart;
+    retargetVisualPresentation(state, from, target, nowMs, durationMs);
+  }
+}
+
+function presentedWhalePoint(whale, rawPoint, nowMs) {
+  const state = whaleVisualPresentations.get(whale.id);
+  if (!state || state.chart !== chart) return rawPoint;
+  const point = visualPresentationPoint(state, nowMs);
+  return { ...rawPoint, x: point.x, y: point.y };
+}
+
+function activeWhalePresentationExists(nowMs) {
+  for (const state of whaleVisualPresentations.values()) {
+    if (state.chart === chart && visualPresentationIsActive(state, nowMs)) return true;
+  }
+  return false;
 }
 
 function responsiveWhaleMovementIds() {
@@ -16754,8 +16825,9 @@ function harpoonableWhaleCalls() {
 function whaleInteractionCall(whale) {
   if (!chart || !camera || !localLayout) return null;
   if (!chart.visibleSet.has(whale.tileId)) return null;
-  const localPoint = localPointForKnownTileVector(whale.position, whale.tileId);
-  if (!localPoint) return null;
+  const rawPoint = localPointForKnownTileVector(whale.position, whale.tileId);
+  if (!rawPoint) return null;
+  const localPoint = presentedWhalePoint(whale, rawPoint, lastFrameMs);
   const offset = chartOffsetPixels(chart);
   const heading = tangentToScreenDirection(whale.heading) || { x: 1, y: 0 };
   return {
@@ -17680,7 +17752,7 @@ function reprojectNpcVisualPositions(states) {
     state.y = point.y;
     state.tileId = point.tileId;
     state.heading = normalizeTangentOrFallback(state.heading, state.vector, WORLD_NORTH);
-    resetNpcVisualPresentation(state, lastFrameMs);
+    resetVisualPresentation(state, { x: state.x, y: state.y }, lastFrameMs);
     state.collisionVelocityX = 0;
     state.collisionVelocityY = 0;
     clearNpcEscapeManeuver(state, true);
@@ -17755,6 +17827,7 @@ function clearLocalChartTransientEffects() {
   seagullNextSpawnMs = lastFrameMs + SEAGULL_SPAWN_CHECK_MS;
   worldShipSinkEffects = [];
   whaleKillEffects = [];
+  whaleVisualPresentations.clear();
   invalidateFishSchoolRenderCaches();
   if (whaleHarpoonProjectile) {
     whaleHarpoonProjectile.startX = SCREEN_W / 2;
@@ -22110,8 +22183,9 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
   const whaleEntries = [];
   for (const whale of gameState.memory.whales?.individuals || []) {
     if (whale.phase === WHALE_PHASE_DEAD || !chart.visibleSet.has(whale.tileId)) continue;
-    const point = localPointForKnownTileVector(whale.position, whale.tileId);
-    if (!point) continue;
+    const rawPoint = localPointForKnownTileVector(whale.position, whale.tileId);
+    if (!rawPoint) continue;
+    const point = presentedWhalePoint(whale, rawPoint, nowMs);
     whaleEntries.push({
       id: `whale:${whale.id}`,
       x: point.x,
@@ -22325,7 +22399,7 @@ function updateNpcVisualShips(dt) {
 
     const movementDt = state.visualMovementDebtSeconds;
     state.visualMovementDebtSeconds = 0;
-    let presentationStart = npcVisualPresentationPoint(state, lastFrameMs);
+    let presentationStart = visualPresentationPoint(state, lastFrameMs);
     let visualNavigationChanged = false;
     let currentNavigation = measurePerformanceBenchmarkStage(
       "npcShips.visual.movement.navigation",
@@ -22364,7 +22438,7 @@ function updateNpcVisualShips(dt) {
         continue;
       }
       if (applyNpcVisualPlacement(state, placement)) {
-        resetNpcVisualPresentation(state, lastFrameMs);
+        resetVisualPresentation(state, { x: state.x, y: state.y }, lastFrameMs);
         presentationStart = { x: state.x, y: state.y };
         visualNavigationChanged = true;
         changed = true;
@@ -22378,7 +22452,17 @@ function updateNpcVisualShips(dt) {
       () => advanceNpcVisualState(state, snapshot, routePoint, movementDt, currentNavigation)
     )) {
       if (state.x !== movementStartX || state.y !== movementStartY) {
-        beginNpcVisualPresentation(state, presentationStart, lastFrameMs, movementDt);
+        retargetVisualPresentation(
+          state,
+          presentationStart,
+          { x: state.x, y: state.y },
+          lastFrameMs,
+          clamp(
+            movementDt * 1000,
+            NPC_VISUAL_PRESENTATION_MIN_MS,
+            NPC_VISUAL_PRESENTATION_MAX_MS
+          )
+        );
       }
       visualNavigationChanged = true;
       changed = true;
@@ -22475,12 +22559,7 @@ function createNpcVisualState(snapshot, routePoint) {
     fishSearchAfterMinute: 0,
     visualMovementBucket: npcVisualMovementBucketForId(snapshot.id),
     visualMovementDebtSeconds: 0,
-    presentationFromX: placement.x,
-    presentationFromY: placement.y,
-    presentationToX: placement.x,
-    presentationToY: placement.y,
-    presentationStartMs: lastFrameMs,
-    presentationDurationMs: 0,
+    ...createVisualPresentation(placement, lastFrameMs),
     fishingAction: null
   };
   setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
@@ -22494,43 +22573,6 @@ function npcVisualMovementBucketForId(id) {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
-}
-
-function npcVisualPresentationPoint(state, nowMs) {
-  if (!Number.isFinite(nowMs)) throw new Error(`NPC presentation requires a finite time: ${nowMs}`);
-  const duration = state.presentationDurationMs || 0;
-  if (duration <= 0) return { x: state.presentationToX, y: state.presentationToY };
-  const t = clamp((nowMs - state.presentationStartMs) / duration, 0, 1);
-  return {
-    x: state.presentationFromX + (state.presentationToX - state.presentationFromX) * t,
-    y: state.presentationFromY + (state.presentationToY - state.presentationFromY) * t
-  };
-}
-
-function beginNpcVisualPresentation(state, from, nowMs, movementDt) {
-  if (!Number.isFinite(from?.x) || !Number.isFinite(from?.y) ||
-      !Number.isFinite(movementDt) || movementDt < 0) {
-    throw new Error(`NPC ${state.id} has invalid presentation transition`);
-  }
-  state.presentationFromX = from.x;
-  state.presentationFromY = from.y;
-  state.presentationToX = state.x;
-  state.presentationToY = state.y;
-  state.presentationStartMs = nowMs;
-  state.presentationDurationMs = clamp(
-    movementDt * 1000,
-    NPC_VISUAL_PRESENTATION_MIN_MS,
-    NPC_VISUAL_PRESENTATION_MAX_MS
-  );
-}
-
-function resetNpcVisualPresentation(state, nowMs) {
-  state.presentationFromX = state.x;
-  state.presentationFromY = state.y;
-  state.presentationToX = state.x;
-  state.presentationToY = state.y;
-  state.presentationStartMs = nowMs;
-  state.presentationDurationMs = 0;
 }
 
 function npcVisualStateRequiresLocalPhysics(state) {
@@ -35263,7 +35305,7 @@ function terrainRasterForRiverBanks(activeChart, bankPixels) {
   const rasterCtx = canvas.getContext("2d", { willReadFrequently: true });
   if (!rasterCtx) throw new Error("Could not rasterize terrain beneath riverbanks");
   rasterCtx.imageSmoothingEnabled = false;
-  for (const call of activeChart.tileCalls) {
+  for (const call of riverBankTerrainCalls(activeChart.tileCalls, isWaterSurfaceRow)) {
     const drawX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
     const drawY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
     if (
@@ -37045,7 +37087,7 @@ function drawNpcFishingNetAnimationsWebGL(nowMs) {
     if (!action) continue;
     const animation = fishingAnimationState(action.startMs, nowMs);
     if (animation.complete) continue;
-    const presentation = npcVisualPresentationPoint(state, nowMs);
+    const presentation = visualPresentationPoint(state, nowMs);
     const shipX = Math.round(presentation.x + offset.x);
     const y = Math.round(presentation.y + offset.y - FISHING_NET_FRAME_SIZE / 2);
     if (!pointNearScreen({ x: shipX, y }, FISHING_NET_FRAME_SIZE)) continue;
@@ -37162,7 +37204,7 @@ function fishSchoolCallForFishery(tileCall, fishery, nowMs) {
     sortY: centerY,
     fishery,
     sprite,
-    alpha: fishery.overfished ? 0.26 : 0.42,
+    alpha: fishery.overfished ? OVERFISHED_SCHOOL_ALPHA : FISH_SCHOOL_ALPHA,
     flip: motion.vx < 0
   };
 }
@@ -37226,11 +37268,15 @@ function fishWaterMaskedPoint(tileCall, fishery, x, y, preferredDirection) {
 
 function fisherySwimRadius(fishery) {
   const area = Math.max(4, fishery.areaRadiusPx || 8);
-  if (fishery.habitatKind === "river") return { x: area * 0.86, y: area * 0.3 };
-  if (fishery.habitatKind === "river-mouth") return { x: area * 0.9, y: area * 0.34 };
-  if (fishery.habitatKind === "lake") return { x: area * 0.84, y: area * 0.42 };
-  if (fishery.habitatKind === "coastal") return { x: area * 0.8, y: area * 0.44 };
-  return { x: area * 0.82, y: area * 0.46 };
+  const scaled = (x, y) => ({
+    x: area * x * FISH_SCHOOL_TRAVEL_SCALE,
+    y: area * y * FISH_SCHOOL_TRAVEL_SCALE
+  });
+  if (fishery.habitatKind === "river") return scaled(0.86, 0.3);
+  if (fishery.habitatKind === "river-mouth") return scaled(0.9, 0.34);
+  if (fishery.habitatKind === "lake") return scaled(0.84, 0.42);
+  if (fishery.habitatKind === "coastal") return scaled(0.8, 0.44);
+  return scaled(0.82, 0.46);
 }
 
 function fisherySwimAxis(tileCall, fishery, fishSeed) {
@@ -38671,7 +38717,7 @@ function createNpcShipDrawContext(activeChart, nowMs = lastFrameMs) {
 
 function npcShipDrawCall(state, activeChart, drawContext = createNpcShipDrawContext(activeChart)) {
   const offset = drawContext.offset;
-  const presentation = npcVisualPresentationPoint(state, drawContext.nowMs);
+  const presentation = visualPresentationPoint(state, drawContext.nowMs);
   const point = { x: presentation.x + offset.x, y: presentation.y + offset.y };
   if (!pointNearScreen(point, SHIP_SHEET_FRAME_SIZE)) return null;
   if (!activeChart.visibleSet.has(state.tileId)) return null;

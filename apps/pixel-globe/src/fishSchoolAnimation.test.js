@@ -6,6 +6,7 @@ import {
   FISH_SCHOOL_ANIMATION_FRAME_MS,
   FISH_SCHOOL_MOTION_FRAME_COUNT,
   FISH_SCHOOL_MAX_FISH,
+  FISH_SCHOOL_TRAVEL_SCALE,
   fishSchoolAnimationFrame,
   fishSchoolAnimationTick,
   fishSchoolAnimationTime,
@@ -13,30 +14,31 @@ import {
   fishSchoolMotionFrame
 } from "./fishSchoolAnimation.js";
 
-test("fish schools render a twelve-frame pixel animation at eight frames per second", () => {
+test("fish schools render a restrained twelve-frame pixel animation", () => {
   assert.equal(FISH_SCHOOL_ANIMATION_FRAME_COUNT, 12);
-  assert.equal(FISH_SCHOOL_ANIMATION_FRAME_MS, 125);
+  assert.equal(FISH_SCHOOL_ANIMATION_FRAME_MS, 250);
   assert.equal(FISH_SCHOOL_MOTION_FRAME_COUNT, 48);
+  assert.equal(FISH_SCHOOL_TRAVEL_SCALE, 0.35);
   assert.equal(
     FISH_SCHOOL_ANIMATION_FRAME_COUNT * FISH_SCHOOL_ANIMATION_FRAME_MS,
-    1500
+    3000
   );
 });
 
-test("school travel takes six seconds while fish keep their eight-frame-per-second motion", () => {
-  assert.equal(FISH_SCHOOL_MOTION_FRAME_COUNT * FISH_SCHOOL_ANIMATION_FRAME_MS, 6000);
+test("school travel takes twelve seconds", () => {
+  assert.equal(FISH_SCHOOL_MOTION_FRAME_COUNT * FISH_SCHOOL_ANIMATION_FRAME_MS, 12000);
   assert.equal(fishSchoolMotionFrame(0), 0);
-  assert.equal(fishSchoolMotionFrame(1500), 12);
-  assert.equal(fishSchoolMotionFrame(6000), 0);
+  assert.equal(fishSchoolMotionFrame(3000), 12);
+  assert.equal(fishSchoolMotionFrame(12000), 0);
   assert.equal(fishSchoolMotionFrame(0, 47), 47);
 });
 
 test("fish school animation clock advances on exact frame boundaries", () => {
-  assert.equal(fishSchoolAnimationTick(124.99), 0);
-  assert.equal(fishSchoolAnimationTick(125), 1);
-  assert.equal(fishSchoolAnimationTime(374.99), 250);
-  assert.equal(fishSchoolAnimationTime(375), 375);
-  assert.equal(fishSchoolAnimationFrame(1500), 0);
+  assert.equal(fishSchoolAnimationTick(249.99), 0);
+  assert.equal(fishSchoolAnimationTick(250), 1);
+  assert.equal(fishSchoolAnimationTime(749.99), 500);
+  assert.equal(fishSchoolAnimationTime(750), 750);
+  assert.equal(fishSchoolAnimationFrame(3000), 0);
   assert.equal(fishSchoolAnimationFrame(0, 11), 11);
 });
 
