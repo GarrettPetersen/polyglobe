@@ -3650,7 +3650,10 @@ test("a quest character precedes the loadout and factor during port arrival", ()
   assert.equal(firstPort.nextPortNodeId, "loadout");
 
   const ordinaryPort = createPortArrivalDialogueSession(city, {
-    questCharacterSession: passengerSession
+    questCharacterSession: passengerSession,
+    equipmentFactorPitch: { itemId: "sturdy-barrels" },
+    rumorText: "A factor has some lower-priority gossip.",
+    vikingLongshipApproach: true
   });
   assert.equal(ordinaryPort.kind, "passenger");
   assert.equal(ordinaryPort.admittedToPort, true);

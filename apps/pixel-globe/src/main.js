@@ -12920,7 +12920,7 @@ function openPortDialogue(cityCall) {
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
-  if (!rescuedTravelerSession && !campaignSession) {
+  if (!rescuedTravelerSession && !campaignSession && dialogueState.kind === "port") {
     const openedActivePapalCommission = activePapalCommissionObjectiveIsAt(cityCall) &&
       maybeOpenPapalCommissionPortDialogue(cityCall);
     const openedMaltaQuest = !openedActivePapalCommission &&
@@ -12989,6 +12989,15 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   const drunkVariant = spriteKeyHash(
     `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
   );
+  const arrivingTravelMission = passengerDialogueQuestForCity(cityCall);
+  if (arrivingTravelMission && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      questCharacterSession: createPassengerDialogueSession(cityCall, arrivingTravelMission)
+    });
+  }
   const colonizationQuest = colonizationQuestView(gameState, {
     currentMinute: Math.max(0, weatherClockMinutes)
   });
