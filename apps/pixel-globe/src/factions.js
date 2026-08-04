@@ -192,7 +192,11 @@ const WARS_1522 = Object.freeze([
 export const DIPLOMACY_MATRIX_1522 = buildDiplomacyMatrix();
 
 const CITY_FACTION_OVERRIDES = uniqueMap([
-  cityRule("London", "United Kingdom", "england"),
+  ...cityRulesForCountry("United Kingdom", [
+    "London", "Norwich", "Exeter", "Bristol", "Southampton", "York", "Hull",
+    "Newcastle upon Tyne"
+  ], "england"),
+  cityRule("Dublin", "Ireland", "england"),
   cityRule("Edinburgh", "United Kingdom", "scotland"),
   cityRule("Glasgow", "United Kingdom", "scotland"),
   cityRule("Avignon", "France", NEUTRAL_FACTION_ID),

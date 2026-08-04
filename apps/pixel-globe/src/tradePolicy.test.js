@@ -12,6 +12,7 @@ import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_CROWN_SPICE_GOOD_IDS,
   TRADE_POLICY_REGIMES,
+  WARTIME_TRADE_RESTRICTION_ID,
   customsTerms,
   customsRateForRelation,
   evaluateTradeAccess,
@@ -19,6 +20,7 @@ import {
   portugueseCartazFee,
   portugueseCartazFine,
   portugueseCartazRequired,
+  resolveRestrictedIllicitMarketAttempt,
   tradeTerms
 } from "./tradePolicy.js";
 import {
@@ -185,7 +187,7 @@ test("Portuguese Estado ports levy crown-controlled spices without taxing indepe
   assert.equal(independentPepper.purchaseMultiplier, 1.05);
 });
 
-test("war blocks ordinary commerce while a successful disguise remains an explicit exception", () => {
+test("war blocks ordinary commerce while illicit access and disguise remain explicit exceptions", () => {
   const blocked = evaluateTradeAccess({
     port: LISBON,
     traderFactionId: "morocco",
@@ -193,11 +195,23 @@ test("war blocks ordinary commerce while a successful disguise remains an explic
   });
   assert.equal(blocked.allowed, false);
   assert.equal(blocked.reason, "war");
-  assert.equal(blocked.policyId, null);
-  assert.equal(blocked.policy, null);
+  assert.equal(blocked.policyId, WARTIME_TRADE_RESTRICTION_ID);
+  assert.equal(blocked.policy.kind, "wartime-access");
+  assert.equal(blocked.policy.hostFactionId, "portugal");
   assert.equal(blocked.lawful, false);
   assert.equal(blocked.portFactionId, "portugal");
   assert.equal(blocked.traderFactionId, "morocco");
+  assert.equal(resolveRestrictedIllicitMarketAttempt(blocked, 0.449), true);
+  assert.equal(resolveRestrictedIllicitMarketAttempt(blocked, 0.45), false);
+
+  const illicit = evaluateTradeAccess({
+    port: LISBON,
+    traderFactionId: "morocco",
+    relation: DIPLOMACY_WAR,
+    illicitAccessPolicyId: WARTIME_TRADE_RESTRICTION_ID
+  });
+  assert.equal(illicit.allowed, true);
+  assert.equal(illicit.illicit, true);
 
   const disguised = evaluateTradeAccess({
     port: LISBON,
@@ -336,6 +350,7 @@ test("special trade restrictions live in one explicit policy registry", () => {
     [
       "relation-customs",
       "foreign-settlements",
+      "wartime-trade-restriction",
       "ming-maritime-prohibition",
       "joseon-licensed-trade",
       "spanish-indies-monopoly",

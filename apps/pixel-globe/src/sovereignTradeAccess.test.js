@@ -28,6 +28,7 @@ import {
   dissolveFactionDiplomaticPersonalUnions,
   establishDiplomaticSuzerainty
 } from "./worldDiplomacy.js";
+import { WARTIME_TRADE_RESTRICTION_ID } from "./tradePolicy.js";
 
 const GUANGZHOU = port(8, "Guangzhou", "China", "ming");
 const SEOUL = port(9, "Seoul", "South Korea", "joseon");
@@ -223,7 +224,7 @@ test("player commodity transactions cannot bypass sovereign trade access", () =>
   assert.equal(playerTradeAccess(state, GUANGZHOU, { simMinute: 0 }).allowed, true);
 });
 
-test("wartime entry at an unrestricted port does not invent a sovereign policy", () => {
+test("wartime trade closure is distinct from sovereign market policy", () => {
   const state = createGameState({
     cargoCapacity: 20,
     playerCharacter: {
@@ -236,8 +237,9 @@ test("wartime entry at an unrestricted port does not invent a sovereign policy",
   const access = playerTradeAccess(state, LISBON, { simMinute: 0 });
   assert.equal(access.allowed, false);
   assert.equal(access.reason, "war");
-  assert.equal(access.policyId, null);
-  assert.equal(access.policy, null);
+  assert.equal(access.policyId, WARTIME_TRADE_RESTRICTION_ID);
+  assert.equal(access.policy.kind, "wartime-access");
+  assert.equal(access.policy.hostFactionId, "portugal");
   assert.equal(access.personalTradePass, false);
 });
 

@@ -111,6 +111,14 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
 test("representative 1522 cities receive their governing faction", () => {
   const cases = [
     ["London", "United Kingdom", "england"],
+    ["Norwich", "United Kingdom", "england"],
+    ["Exeter", "United Kingdom", "england"],
+    ["Bristol", "United Kingdom", "england"],
+    ["Southampton", "United Kingdom", "england"],
+    ["York", "United Kingdom", "england"],
+    ["Hull", "United Kingdom", "england"],
+    ["Newcastle upon Tyne", "United Kingdom", "england"],
+    ["Dublin", "Ireland", "england"],
     ["Edinburgh", "United Kingdom", "scotland"],
     ["Paris", "France", "france"],
     ["Istanbul", "Turkey", "ottoman"],

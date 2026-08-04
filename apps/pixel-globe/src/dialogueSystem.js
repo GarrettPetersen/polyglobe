@@ -217,12 +217,9 @@ import {
   markCaribbeanGingerOfferSeen
 } from "./caribbeanGingerQuest.js";
 import {
-  resolveSovereignIllicitMarketAttempt,
-  sovereignTradePolicyById
-} from "./sovereignTradeAccess.js";
-import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
-  isPortugueseEstadoPort
+  isPortugueseEstadoPort,
+  resolveRestrictedIllicitMarketAttempt
 } from "./tradePolicy.js";
 const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
 
@@ -1346,16 +1343,16 @@ export function selectPortDialogueOption(
     if (typeof context.random !== "function") {
       throw new Error("Restricted illicit market attempt requires a random source");
     }
-    const policy = sovereignTradePolicyById(action.policyId);
     const currentAccess = playerPortTradeAccess(session, city, gameState, context);
-    if (currentAccess.policyId !== policy.id || currentAccess.allowed) {
-      throw new Error(`Illicit market action does not match the closed port policy: ${policy.id}`);
+    const policy = currentAccess.policy;
+    if (!policy || currentAccess.policyId !== action.policyId || currentAccess.allowed) {
+      throw new Error(`Illicit market action does not match the closed port policy: ${action.policyId}`);
     }
     if (session.illicitTradeAttemptedPolicyId === policy.id) {
       throw new Error(`${policy.label} illicit market may only be approached once per port visit`);
     }
     session.illicitTradeAttemptedPolicyId = policy.id;
-    if (resolveSovereignIllicitMarketAttempt(policy.id, context.random())) {
+    if (resolveRestrictedIllicitMarketAttempt(currentAccess, context.random())) {
       session.illicitTradeAccessPolicyId = policy.id;
       session.feedback = "A discreet broker agrees to handle your cargo until you leave port.";
     } else {
@@ -2728,7 +2725,7 @@ function rootView(session, city, gameState, economy, context) {
     : tradeAccess.restricted && !tradeAccess.allowed
     ? tradeAccess.policy
       ? `${tradeAccess.policy.closedMarketText} Water, provisions, and ordinary harbor services remain available.`
-      : "Wartime orders close this market and its harbor services."
+      : "Wartime orders close this market to enemy cargo."
     : tradeAccess.illicit
     ? `Keep your market business discreet. Market specie: ${market.specie} db.`
     : tradeAccess.personalTradePass

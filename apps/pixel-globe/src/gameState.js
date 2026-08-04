@@ -3980,7 +3980,7 @@ export function playerTradeAccess(state, city, context = {}) {
     illicitAccessPolicyId: context.illicitTradeAccessPolicyId ?? null,
     disguisedEntry: context.disguisedEntry === true
   });
-  const personalTradePass = access.policyId !== null &&
+  const personalTradePass = access.policy?.kind === "access" &&
     personalTradePassGranted(state.relations.personalTradePasses, access.policyId);
   return Object.freeze({
     ...access,

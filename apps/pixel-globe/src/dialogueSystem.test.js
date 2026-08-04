@@ -64,6 +64,7 @@ import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
+import { WARTIME_TRADE_RESTRICTION_ID } from "./tradePolicy.js";
 import {
   VIKING_LONGSHIP_FETCH_STAGES,
   VIKING_LONGSHIP_PORT_CITY,
@@ -2273,6 +2274,43 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
   assert.equal(result.illicitMarketAccessPolicyId, "ming-maritime-prohibition");
 
+  root = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.ok(root.options.some((entry) => entry.label === "Buy illicit goods"));
+  assert.ok(root.options.some((entry) => entry.label === "Sell cargo illicitly"));
+});
+
+test("captains admitted under safe passage can seek an illicit wartime market", () => {
+  const city = {
+    tileId: 151,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    factionId: "france",
+    population: 18000,
+    character: { name: "Etienne Moreau" }
+  };
+  const playerCharacter = {
+    name: "Joan Alden",
+    nationalityId: "england",
+    expressions: ["neutral", "happy"]
+  };
+  const shipStats = shipStatsForSlug("fishing-lugger");
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, playerCharacter, shipStats });
+  gameState.relations.safePassageUntilMinute.france = 1000;
+  assert.equal(portEntryStatus(gameState, city, 100).allowed, true);
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const context = { simMinute: 100, random: () => 0.1, shipStats };
+
+  let root = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(root.text, /Wartime orders close this market/);
+  assert.ok(root.options.every((entry) => entry.label !== "Buy goods" && entry.label !== "Sell cargo"));
+  const illicitIndex = root.options.findIndex((entry) => entry.label === "Seek illicit market");
+  assert.ok(illicitIndex >= 0);
+
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
+  assert.equal(result.illicitMarketAccessPolicyId, WARTIME_TRADE_RESTRICTION_ID);
   root = portDialogueView(session, city, gameState, economy, [city], context);
   assert.ok(root.options.some((entry) => entry.label === "Buy illicit goods"));
   assert.ok(root.options.some((entry) => entry.label === "Sell cargo illicitly"));

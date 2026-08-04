@@ -265,7 +265,18 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(mecca, "expected Mecca to remain in the 1522 city catalog");
   assert.equal(mecca.dockable, false, "Mecca should be inland, with Jeddah as its sea gateway");
   assert.equal(mecca.factionId, "ottoman", "Mecca should reflect Ottoman rule of the Hejaz in 1522");
-  assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
+  for (const city of [
+    "Bristol",
+    "Exeter",
+    "Hull",
+    "Newcastle upon Tyne",
+    "Southampton",
+    "York"
+  ]) {
+    const port = britishIslesPorts.find((candidate) => candidate.city === city);
+    assert.ok(port, `${city} should be a dockable British Isles port`);
+    assert.equal(port.factionId, "england", `${city} should belong to England in 1522`);
+  }
   assert.ok(glasgow, "Glasgow should reach the Irish Sea through the Clyde");
   assert.equal(glasgow.factionId, "scotland");
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));

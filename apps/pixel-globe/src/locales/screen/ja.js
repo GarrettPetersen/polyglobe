@@ -3088,7 +3088,7 @@ export default Object.freeze({
   "Warship": "軍艦",
   "Warships are patrolling nearby. Give them no reason to inspect your hold twice.": "軍艦が近くを巡回している。彼らにあなたの船倉を二度検査する理由を与えてはいけません。",
   "Warships in the roadstead mean contracts for some and searches for others.": "路上に停泊する軍艦は、ある者にとっては契約を意味し、他の者にとっては捜索を意味します。",
-  "Wartime orders close this market and its harbor services.": "戦時中の命令により、この市場と港湾サービスは閉鎖されました。",
+  "Wartime orders close this market to enemy cargo.": "戦時命令により、この市場では敵国の貨物を扱えません。",
   "Water": "水",
   "WATER {0}D": "水{0}D",
   "Water lasts {0} longer": "水は{0}長く持続します",

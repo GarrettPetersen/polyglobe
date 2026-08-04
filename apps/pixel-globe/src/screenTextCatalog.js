@@ -3088,7 +3088,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Warship",
   "Warships are patrolling nearby. Give them no reason to inspect your hold twice.",
   "Warships in the roadstead mean contracts for some and searches for others.",
-  "Wartime orders close this market and its harbor services.",
+  "Wartime orders close this market to enemy cargo.",
   "Water",
   "WATER {0}D",
   "Water lasts {0} longer",

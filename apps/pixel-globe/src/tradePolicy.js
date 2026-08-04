@@ -19,6 +19,17 @@ export const PORTUGUESE_FACTION_ID = "portugal";
 export const PORTUGUESE_CARTAZ_DURATION_DAYS = 90;
 export const PORTUGUESE_CARTAZ_FINE_MULTIPLIER = 2;
 export const PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS = 2;
+export const WARTIME_TRADE_RESTRICTION_ID = "wartime-trade-restriction";
+
+const WARTIME_TRADE_RESTRICTION = Object.freeze({
+  id: WARTIME_TRADE_RESTRICTION_ID,
+  label: "War",
+  kind: "wartime-access",
+  appliesTo: "enemy ports",
+  illicitMarketSuccessChance: 0.45,
+  illicitMarketReputationPenalty: 8,
+  closedMarketText: "Wartime orders close this market to enemy cargo."
+});
 
 export const CUSTOMS_RATE_BY_RELATION = Object.freeze({
   [DIPLOMACY_ALLY]: 0.02,
@@ -68,6 +79,7 @@ export const TRADE_POLICY_REGIMES = Object.freeze([
     kind: "port-jurisdiction",
     appliesTo: "ports-with-foreign-settlements"
   }),
+  WARTIME_TRADE_RESTRICTION,
   ...SOVEREIGN_TRADE_ACCESS_POLICIES,
   Object.freeze({
     id: "portuguese-cartaz",
@@ -102,21 +114,22 @@ export function evaluateTradeAccess({
     throw new Error("Trade access evaluation requires a sovereign permission resolver");
   }
   assertSuzeraintyTradePrivilege(suzeraintyPrivilege);
-  const wartimeBlocked = relation === DIPLOMACY_WAR &&
+  const wartimeRestricted = relation === DIPLOMACY_WAR &&
     port.isPirateHideout !== true &&
-    illicitAccessPolicyId === null &&
     disguisedEntry !== true;
-  if (wartimeBlocked) {
+  if (wartimeRestricted) {
+    const policy = wartimeTradeRestrictionForPort(port);
+    const illicit = illicitAccessPolicyId === policy.id;
     return Object.freeze({
-      allowed: false,
-      provisioningAllowed: false,
+      allowed: illicit,
+      provisioningAllowed: true,
       restricted: true,
       lawful: false,
-      illicit: false,
+      illicit,
       domesticAccess: false,
       lawfulExemption: false,
-      policyId: null,
-      policy: null,
+      policyId: policy.id,
+      policy,
       suzeraintyPrivilege,
       portFactionId: port.factionId || NEUTRAL_FACTION_ID,
       traderFactionId: traderId,
@@ -164,6 +177,31 @@ export function evaluateTradeAccess({
     suzeraintyPrivilege,
     foreignSettlement: settlementAccess,
     foreignSettlementFactionId: settlementAccess?.factionId || null
+  });
+}
+
+export function resolveRestrictedIllicitMarketAttempt(access, roll) {
+  if (!access || access.allowed || access.restricted !== true || !access.policy) {
+    throw new Error("Illicit market attempt requires an active closed-market restriction");
+  }
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Invalid ${access.policy.label} illicit market roll: ${roll}`);
+  }
+  const chance = access.policy.illicitMarketSuccessChance;
+  if (!Number.isFinite(chance) || chance <= 0 || chance >= 1) {
+    throw new Error(`Invalid ${access.policy.label} illicit market chance: ${chance}`);
+  }
+  return roll < chance;
+}
+
+function wartimeTradeRestrictionForPort(port) {
+  const hostFactionId = assertFactionId(port.factionId || NEUTRAL_FACTION_ID);
+  if (hostFactionId === NEUTRAL_FACTION_ID || hostFactionId === PIRATE_FACTION_ID) {
+    throw new Error(`Wartime trade restriction requires a sovereign port: ${hostFactionId}`);
+  }
+  return Object.freeze({
+    ...WARTIME_TRADE_RESTRICTION,
+    hostFactionId
   });
 }
 

@@ -3088,7 +3088,7 @@ export default Object.freeze({
   "Warship": "Navire de guerre",
   "Warships are patrolling nearby. Give them no reason to inspect your hold twice.": "Des navires de guerre patrouillent à proximité. Ne leur donnez aucune raison d’inspecter votre soute deux fois.",
   "Warships in the roadstead mean contracts for some and searches for others.": "Les navires de guerre en rade signifient contrats pour les uns et recherches pour les autres.",
-  "Wartime orders close this market and its harbor services.": "Les ordres de guerre ferment ce marché et ses services portuaires.",
+  "Wartime orders close this market to enemy cargo.": "Les ordres de guerre ferment ce marché aux cargaisons ennemies.",
   "Water": "Eau",
   "WATER {0}D": "EAU {0}D",
   "Water lasts {0} longer": "L'eau dure {0} plus longtemps",

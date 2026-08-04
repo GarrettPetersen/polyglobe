@@ -89,6 +89,31 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "northern-european",
     manualRegion: "british-isles"
   }),
+  manualCity1522("Bristol", "United Kingdom", 51.4545, -2.5879, 12000, {
+    cityType: "northern-european",
+    manualRegion: "british-isles",
+    marketGoods: ["wool-cloth", "wine", "naval-stores"]
+  }),
+  manualCity1522("Southampton", "United Kingdom", 50.9097, -1.4044, 4500, {
+    cityType: "northern-european",
+    manualRegion: "british-isles",
+    marketGoods: ["wool", "wine", "salt"]
+  }),
+  manualCity1522("York", "United Kingdom", 53.9599, -1.0873, 9000, {
+    cityType: "northern-european",
+    manualRegion: "british-isles",
+    marketGoods: ["wool", "wool-cloth", "grain"]
+  }),
+  manualCity1522("Hull", "United Kingdom", 53.7676, -0.3274, 6000, {
+    cityType: "northern-european",
+    manualRegion: "british-isles",
+    marketGoods: ["wool", "grain", "fish"]
+  }),
+  manualCity1522("Newcastle upon Tyne", "United Kingdom", 54.9783, -1.6178, 10000, {
+    cityType: "northern-european",
+    manualRegion: "british-isles",
+    marketGoods: ["salt", "wool", "naval-stores"]
+  }),
   manualCity1522("Gavle", "Sweden", 60.6749, 17.1413, 2500, {
     displayCity: "Gävle",
     cityType: "northern-european",
