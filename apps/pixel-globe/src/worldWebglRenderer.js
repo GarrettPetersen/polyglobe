@@ -22,7 +22,7 @@ void main() {
 }
 `;
 
-const SCENE_FRAGMENT_SHADER = `#version 300 es
+export const WORLD_SCENE_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
 uniform sampler2D u_source;
@@ -37,7 +37,8 @@ out vec4 outColor;
 void main() {
   vec2 uv = v_texCoord;
   if (v_effect.x != 0.0) {
-    float wave = sin((gl_FragCoord.y + u_time * ${UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT.toFixed(12)}) * 1.57079632679);
+    float sourcePixelY = floor(v_texCoord.y * u_textureSize.y);
+    float wave = sin((sourcePixelY + u_time * ${UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT.toFixed(12)}) * 1.57079632679);
     uv.x += wave * v_effect.x / max(1.0, u_textureSize.x);
   }
   vec4 source = texture(u_source, uv);
@@ -423,7 +424,7 @@ export function createWorldWebGL2Renderer({
     throw new Error("WebGL2 fragment precision is insufficient for exact palette lighting");
   }
 
-  const sceneProgram = createProgram(gl, SCENE_VERTEX_SHADER, SCENE_FRAGMENT_SHADER);
+  const sceneProgram = createProgram(gl, SCENE_VERTEX_SHADER, WORLD_SCENE_FRAGMENT_SHADER);
   const sceneLocations = {
     position: requiredAttribute(gl, sceneProgram, "a_position"),
     texCoord: requiredAttribute(gl, sceneProgram, "a_texCoord"),

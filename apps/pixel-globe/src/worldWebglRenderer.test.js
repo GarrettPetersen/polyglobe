@@ -4,10 +4,19 @@ import {
   LruChunkKeys,
   PagedTextureAtlasAllocator,
   TextureAtlasAllocator,
+  WORLD_SCENE_FRAGMENT_SHADER,
   allocateWorldSceneTexture,
   bitMaskQuadVertices,
   quadVertices
 } from "./worldWebglRenderer.js";
+
+test("underwater refraction stays anchored to sprite pixels while the camera moves", () => {
+  assert.match(
+    WORLD_SCENE_FRAGMENT_SHADER,
+    /sourcePixelY = floor\(v_texCoord\.y \* u_textureSize\.y\)/
+  );
+  assert.doesNotMatch(WORLD_SCENE_FRAGMENT_SHADER, /gl_FragCoord/);
+});
 
 test("texture atlas allocation is deterministic and starts a new shelf", () => {
   const allocator = new TextureAtlasAllocator(32, 32, 1);
