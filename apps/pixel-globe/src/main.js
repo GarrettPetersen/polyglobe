@@ -165,6 +165,15 @@ import {
   windAtLatLonDeg
 } from "./weather.js";
 import {
+  SURFACE_ICE_TRANSITION_STAGE_COUNT,
+  createSurfaceIceTransition,
+  surfaceIceStateForTile,
+  surfaceIceTransitionEntrapsTile,
+  surfaceIceTransitionIsComplete,
+  surfaceIceTransitionPixel,
+  surfaceIceTransitionStage
+} from "./surfaceIceTransition.js";
+import {
   PRECIPITATION_RAIN,
   PRECIPITATION_SNOW,
   precipitationKindForConditions,
@@ -2628,6 +2637,7 @@ let survivalHudRasterCache = null;
 const renderCallWindowCache = new WeakMap();
 const terrainPersistentBatchKeyByCalls = new WeakMap();
 let nextTerrainPersistentBatchKey = 1;
+const surfaceIceTransitionSpriteCache = new WeakMap();
 const RENDER_CALL_WINDOW_STEP_PX = 64;
 let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
@@ -2846,6 +2856,11 @@ let firstDayNightNoticeState = null;
 let weatherMaskDayIndex = -1;
 let pendingWeatherMaskRefresh = null;
 let weatherMaskScratch = null;
+let surfaceIceTransition = null;
+let surfaceIceTransitionDrawStage = SURFACE_ICE_TRANSITION_STAGE_COUNT;
+let surfaceIceSettledRevision = 0;
+let pendingSurfaceIceEntrapmentTileId = null;
+let surfaceIceEntrapmentActive = false;
 let weatherDrawTick = -1;
 let ship;
 let playerHaulBlockedSeconds = 0;
@@ -5169,8 +5184,10 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateFishAnimation(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage(
       "weather.masks",
-      advancePendingWeatherMaskRefresh
+      () => advancePendingWeatherMaskRefresh(nowMs)
     )) dirty = true;
+    if (updateSurfaceIceTransition(nowMs)) dirty = true;
+    if (presentPendingSurfaceIceEntrapment()) dirty = true;
     if (measurePerformanceBenchmarkStage("weather", () => updateWeather(dt, nowMs))) dirty = true;
     if (updateCampaignGoalReturnReminder()) dirty = true;
     if (updateWhiteWhaleSightingObjective()) dirty = true;
@@ -5199,7 +5216,8 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (updateDepartureControlFeedback(nowMs)) dirty = true;
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
-  if (!CAPTURE_SCENARIO && hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
+  if (!CAPTURE_SCENARIO && hasStartedVoyage && !surfaceIceEntrapmentActive &&
+      nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
     saveVoyageNow("periodic autosave");
   }
   if (!simulationPaused && updateWorldSpriteAnimation(nowMs)) dirty = true;
@@ -7097,6 +7115,10 @@ function playCannonImpactSound(distancePx = 0) {
 function playArmorGlanceSound(distancePx = 0) {
   const distanceGain = clamp(1 - distancePx / CANNON_RANGE_PX, 0.35, 1);
   playSoundEffect(soundEffects?.armorGlance, SFX_ARMOR_GLANCE_VOLUME * distanceGain, 1.02);
+}
+
+function playIceDigOutSound() {
+  playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * 0.82, 1.18);
 }
 
 function playSailDeploySound() {
@@ -20011,7 +20033,7 @@ function isShipOceanTile(tileId) {
 
 function isShipBlockedByIceTile(tileId) {
   if (!isWaterSurfaceRow(earthById[tileId])) return false;
-  return Boolean(seaIceMask?.[tileId] || freshwaterIceMask?.[tileId]);
+  return tileHasSurfaceIce(tileId);
 }
 
 function isPlayerUsableSurfaceWaterTile(tileId) {
@@ -25784,6 +25806,11 @@ function refreshWeatherState(force) {
   fillIceMaskForDay(runtimeWeather.seaIceCycle, weatherParts.dayIndex, seaIceMask);
   fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, weatherParts.dayIndex, freshwaterIceMask);
   fillSnowGroundMaskForDay(weatherParts.dayIndex, snowGroundMask);
+  surfaceIceTransition = null;
+  surfaceIceTransitionDrawStage = SURFACE_ICE_TRANSITION_STAGE_COUNT;
+  pendingSurfaceIceEntrapmentTileId = null;
+  surfaceIceEntrapmentActive = false;
+  surfaceIceSettledRevision++;
   return true;
 }
 
@@ -25809,9 +25836,12 @@ function scheduleWeatherMaskRefresh(dayIndex) {
   pendingWeatherMaskRefresh = { dayIndex, stage: 0 };
 }
 
-function advancePendingWeatherMaskRefresh() {
+function advancePendingWeatherMaskRefresh(nowMs) {
   const refresh = pendingWeatherMaskRefresh;
   if (!refresh) return false;
+  if (!Number.isFinite(nowMs) || nowMs < 0) {
+    throw new Error(`Cannot advance weather masks at invalid time: ${nowMs}`);
+  }
   if (!weatherMaskScratch) {
     throw new Error("Pending weather mask refresh has no scratch buffers");
   }
@@ -25837,15 +25867,116 @@ function advancePendingWeatherMaskRefresh() {
   if (refresh.stage !== 3) {
     throw new Error(`Invalid pending weather mask stage: ${refresh.stage}`);
   }
-  [seaIceMask, weatherMaskScratch.sea] = [weatherMaskScratch.sea, seaIceMask];
+  const previousSeaIceMask = seaIceMask;
+  const previousFreshwaterIceMask = freshwaterIceMask;
+  [seaIceMask, weatherMaskScratch.sea] = [weatherMaskScratch.sea, previousSeaIceMask];
   [freshwaterIceMask, weatherMaskScratch.freshwater] = [
     weatherMaskScratch.freshwater,
-    freshwaterIceMask
+    previousFreshwaterIceMask
   ];
   [snowGroundMask, weatherMaskScratch.snow] = [weatherMaskScratch.snow, snowGroundMask];
   weatherMaskDayIndex = refresh.dayIndex;
   pendingWeatherMaskRefresh = null;
+  surfaceIceTransition = createSurfaceIceTransition({
+    startedAtMs: nowMs,
+    fromSeaMask: previousSeaIceMask,
+    fromFreshwaterMask: previousFreshwaterIceMask,
+    toSeaMask: seaIceMask,
+    toFreshwaterMask: freshwaterIceMask
+  });
+  surfaceIceTransitionDrawStage = 0;
   return true;
+}
+
+function updateSurfaceIceTransition(nowMs) {
+  const transition = surfaceIceTransition;
+  if (!transition) return false;
+  const nextStage = surfaceIceTransitionStage(transition, nowMs);
+  let changed = nextStage !== surfaceIceTransitionDrawStage;
+  surfaceIceTransitionDrawStage = nextStage;
+  if (!surfaceIceTransitionIsComplete(transition, nowMs)) return changed;
+
+  if (
+    ship &&
+    isWaterSurfaceRow(earthById[ship.tileId]) &&
+    surfaceIceTransitionEntrapsTile(transition, ship.tileId)
+  ) {
+    pendingSurfaceIceEntrapmentTileId = ship.tileId;
+    ship.velocity = [0, 0, 0];
+    ship.wakeParticles = [];
+    ship.lastWakeEmit = null;
+  }
+  surfaceIceTransition = null;
+  surfaceIceTransitionDrawStage = SURFACE_ICE_TRANSITION_STAGE_COUNT;
+  surfaceIceSettledRevision++;
+  return true;
+}
+
+function presentPendingSurfaceIceEntrapment() {
+  const trappedTileId = pendingSurfaceIceEntrapmentTileId;
+  if (trappedTileId === null) return false;
+  if (
+    !gameState?.playerCharacter ||
+    startMenu ||
+    gameOverReason ||
+    playerIntroModal ||
+    captainAlertModal ||
+    dialogueState ||
+    menusAreOpen() ||
+    queuedCharacterAlertSteps.length > 0 ||
+    characterAlertSequenceCompletion
+  ) {
+    return false;
+  }
+  if (ship.tileId !== trappedTileId || !isShipBlockedByIceTile(trappedTileId)) {
+    pendingSurfaceIceEntrapmentTileId = null;
+    surfaceIceEntrapmentActive = false;
+    return false;
+  }
+
+  ship.velocity = [0, 0, 0];
+  const opened = startCharacterAlertSequence([{
+    character: gameState.playerCharacter,
+    message: renderedUiText("We're stuck in ice."),
+    expressionId: "concerned",
+    buttonLabel: renderedUiText("DIG OUT")
+  }], () => digPlayerOutOfSurfaceIce(trappedTileId));
+  if (opened) {
+    pendingSurfaceIceEntrapmentTileId = null;
+    surfaceIceEntrapmentActive = true;
+  }
+  return opened;
+}
+
+function digPlayerOutOfSurfaceIce(trappedTileId) {
+  if (!ship || !Number.isInteger(trappedTileId) || trappedTileId < 0) {
+    throw new Error(`Cannot dig player out from invalid surface ice tile: ${trappedTileId}`);
+  }
+  const nearestOpenWaterTileId = nearestTileMatching(trappedTileId, (tileId) => (
+    tileId !== trappedTileId &&
+    isShipOpenWaterTile(tileId) &&
+    (!mediterraneanDemoVoyageIsActive() || demoMediterraneanAccessMask?.[tileId] === 1) &&
+    tileHasOffshoreHullClearance(tileId)
+  ));
+  const recoveryTileId = nearestOpenWaterTileId ?? nearestTileMatching(trappedTileId, (tileId) => (
+    tileId !== trappedTileId &&
+    isShipNavigableTile(tileId) &&
+    (!mediterraneanDemoVoyageIsActive() || demoMediterraneanAccessMask?.[tileId] === 1)
+  ));
+  if (recoveryTileId === undefined) {
+    throw new Error(`Could not find ice-free water after digging out from tile ${trappedTileId}`);
+  }
+
+  playIceDigOutSound();
+  anchored = false;
+  portWaitState = null;
+  placeShipAtTileCenterForRecovery(recoveryTileId);
+  surfaceIceEntrapmentActive = false;
+  playerBoundaryAssistContact = null;
+  playerBoundaryProbeCache = null;
+  playerNavigationRecoveryState = createPlayerShipRecoveryState();
+  saveVoyageNow("dug out of surface ice");
+  dirty = true;
 }
 
 function fillSnowGroundMaskForDay(dayIndex, outMask) {
@@ -26126,7 +26257,7 @@ function drawDayNightWorld(layers, nowMs) {
         "terrain-connectors",
         layers.connectors,
         layers.offset,
-        layers.connectors.dayKey
+        layers.connectors.revision
       );
     },
     tidalWater: () => {
@@ -26138,14 +26269,14 @@ function drawDayNightWorld(layers, nowMs) {
       );
     },
     terrainTiles: () => {
-      drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset);
+      drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset, nowMs);
     },
     surfaceDetails: () => {
       drawCachedWorldLayer(
         "surface-details-static",
         layers.surface.static,
         layers.offset,
-        layers.surface.static.weatherDayIndex
+        layers.surface.static.weatherRevision
       );
       drawRiverAtlasLayer(layers.surface.rivers, layers.offset);
     },
@@ -26157,7 +26288,7 @@ function drawDayNightWorld(layers, nowMs) {
         "water-effect-foreground",
         layers.waterForeground,
         layers.offset,
-        layers.waterForeground.weatherDayIndex
+        layers.waterForeground.weatherRevision
       );
     },
     dynamicUnderlay: () => {
@@ -26187,9 +26318,12 @@ function drawCachedWorldLayer(key, layer, offset, revision) {
   });
 }
 
-function drawTerrainAtlasTiles(tileCalls, activeChart, offset) {
+function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs) {
   if (!Array.isArray(tileCalls) || !activeChart) {
     throw new Error("Terrain atlas rendering requires tile calls and an active chart");
+  }
+  if (!Number.isFinite(nowMs) || nowMs < 0) {
+    throw new Error(`Terrain atlas rendering requires a valid time: ${nowMs}`);
   }
   let batchKey = terrainPersistentBatchKeyByCalls.get(tileCalls);
   if (!batchKey) {
@@ -26199,23 +26333,22 @@ function drawTerrainAtlasTiles(tileCalls, activeChart, offset) {
   const waveCycleFrame = Math.floor(
     waterAnimationClockMs / WATER_HEX_WAVE_PERIOD_MS * WATER_HEX_WAVE_FRAME_COUNT
   ) % WATER_HEX_WAVE_FRAME_COUNT;
+  const iceStage = surfaceIceTransition
+    ? surfaceIceTransitionStage(surfaceIceTransition, nowMs)
+    : SURFACE_ICE_TRANSITION_STAGE_COUNT + 1;
+  const revision = weatherMaskDayIndex * (SURFACE_ICE_TRANSITION_STAGE_COUNT + 2) + iceStage;
   worldRenderer.drawPersistentAtlasSprites({
     key: `${batchKey}:wave-${waveCycleFrame}`,
-    revision: 1,
+    revision,
     offset,
-    createSprites: () => terrainPersistentSprites(tileCalls, activeChart)
+    createSprites: () => terrainPersistentSprites(tileCalls, activeChart, nowMs)
   });
 }
 
-function terrainPersistentSprites(tileCalls, activeChart) {
+function terrainPersistentSprites(tileCalls, activeChart, nowMs) {
   const sprites = [];
   for (const call of tileCalls) {
-    const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
-    const waveFrame = waterHexWaveFrameForTile(call, activeChart);
-    const imagesToDraw = [
-      waveFrame === null ? baseImage : prebakedWaterHexWaveFrame(baseImage, waveFrame),
-      ...overlayImages
-    ];
+    const imagesToDraw = terrainDrawImagesForTile(call, activeChart, nowMs);
     const destinationRect = {
       x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
       y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
@@ -26586,6 +26719,7 @@ function surfaceDetailLayer(activeChart, offset) {
   if (
     !cached ||
     cached.weatherDayIndex !== weatherMaskDayIndex ||
+    cached.iceRevision !== surfaceIceSettledRevision ||
     !surfaceDetailLayerCoversViewport({
       x: cached.x,
       y: cached.y,
@@ -26681,7 +26815,9 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
     riverConnectorCalls: calls.riverConnectorCalls,
     riverWaterPixelRows,
     riverBankPixels,
-    weatherDayIndex: weatherMaskDayIndex
+    weatherDayIndex: weatherMaskDayIndex,
+    iceRevision: surfaceIceSettledRevision,
+    weatherRevision: `${weatherMaskDayIndex}:${surfaceIceSettledRevision}`
   };
 }
 
@@ -26949,6 +27085,7 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   const cached = waterEffectForegroundLayerCache.get(cacheKey);
   if (
     cached?.weatherDayIndex === weatherMaskDayIndex &&
+    cached?.iceRevision === surfaceIceSettledRevision &&
     surfaceDetailLayerCoversViewport(cached, viewport, TILE_ART_SIZE)
   ) {
     return cached;
@@ -27014,7 +27151,9 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   const result = {
     ...bounds,
     canvas,
-    weatherDayIndex: weatherMaskDayIndex
+    weatherDayIndex: weatherMaskDayIndex,
+    iceRevision: surfaceIceSettledRevision,
+    weatherRevision: `${weatherMaskDayIndex}:${surfaceIceSettledRevision}`
   };
   waterEffectForegroundLayerCache.set(cacheKey, result);
   return result;
@@ -34447,6 +34586,7 @@ function terrainConnectorLayer(faceCalls, activeChart) {
   if (!Array.isArray(faceCalls)) throw new Error("Terrain connector layer requires face calls");
   if (!activeChart || typeof activeChart !== "object") throw new Error("Terrain connector layer requires a chart");
   const dayKey = Math.floor(weatherClockMinutes / (24 * 60));
+  const revision = `${dayKey}:${surfaceIceSettledRevision}`;
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const cached = terrainConnectorLayerCache.get(cacheKey);
   const currentWorldChart = activeChart === chart;
@@ -34455,7 +34595,7 @@ function terrainConnectorLayer(faceCalls, activeChart) {
     entryCache = new Map();
     terrainConnectorEntryCache.set(cacheKey, entryCache);
   }
-  if (cached?.dayKey === dayKey) {
+  if (cached?.revision === revision) {
     if (!currentWorldChart && cached.faceCalls === faceCalls) return cached;
     if (currentWorldChart) {
       const offset = chartOffsetPixels(activeChart);
@@ -34506,10 +34646,10 @@ function terrainConnectorLayer(faceCalls, activeChart) {
       Math.min(call.ay, call.by) > maxY + TILE_ART_SIZE
     )) continue;
     const entryKey = `${Math.min(call.a, call.b)}:${Math.max(call.a, call.b)}`;
-    const revision = terrainConnectorEntryRevision(call, activeChart, dayKey);
+    const entryRevision = terrainConnectorEntryRevision(call, activeChart, revision);
     const previous = entryCache.get(entryKey);
     let entry;
-    if (previous?.revision === revision) {
+    if (previous?.revision === entryRevision) {
       entry = { ...previous.entry, call };
     } else {
       const geometry = terrainConnectorGeometry(call, activeChart);
@@ -34521,7 +34661,7 @@ function terrainConnectorLayer(faceCalls, activeChart) {
         color: faceColorFor(call),
         spans: terrainConnectorRasterSpans(geometry.polygon, seed)
       };
-      entryCache.set(entryKey, { revision, entry });
+      entryCache.set(entryKey, { revision: entryRevision, entry });
     }
     const { spans } = entry;
     if (!currentWorldChart) {
@@ -34562,6 +34702,7 @@ function terrainConnectorLayer(faceCalls, activeChart) {
 
   const layer = {
     dayKey,
+    revision,
     faceCalls,
     entries,
     entryByCall: new Map(entries.map((entry) => [entry.call, entry])),
@@ -34573,7 +34714,7 @@ function terrainConnectorLayer(faceCalls, activeChart) {
   return layer;
 }
 
-function terrainConnectorEntryRevision(call, activeChart, dayKey) {
+function terrainConnectorEntryRevision(call, activeChart, weatherRevision) {
   const a = activeChart.tileById.get(call.a);
   const b = activeChart.tileById.get(call.b);
   const ax = Math.round((a?.drawSurfaceX ?? call.ax) * 16);
@@ -34581,7 +34722,7 @@ function terrainConnectorEntryRevision(call, activeChart, dayKey) {
   const bx = Math.round((b?.drawSurfaceX ?? call.bx) * 16);
   const by = Math.round((b?.drawSurfaceY ?? call.by) * 16);
   return [
-    dayKey,
+    weatherRevision,
     ax,
     ay,
     bx,
@@ -35475,18 +35616,131 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
 }
 
 function drawTile(targetCtx, call, activeChart) {
-  const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
-  const waveFrame = waterHexWaveFrameForTile(call, activeChart);
-  if (waveFrame !== null) {
-    targetCtx.drawImage(prebakedWaterHexWaveFrame(baseImage, waveFrame), x, y);
-  } else {
-    targetCtx.drawImage(baseImage, x, y);
+  for (const image of terrainDrawImagesForTile(call, activeChart, lastFrameMs)) {
+    targetCtx.drawImage(image, x, y);
   }
-  for (const image of overlayImages) targetCtx.drawImage(image, x, y);
 
   drawTerrainPentagonMarker(call, targetCtx);
+}
+
+function terrainDrawImagesForTile(call, activeChart, nowMs) {
+  const transitionState = isWaterSurfaceRow(call.row)
+    ? surfaceIceStateForTile({
+        transition: surfaceIceTransition,
+        seaMask: seaIceMask,
+        freshwaterMask: freshwaterIceMask,
+        tileId: call.id,
+        nowMs
+      })
+    : null;
+  if (transitionState && transitionState.fromIce !== transitionState.toIce) {
+    const spriteKey = spriteForTerrain(call.row, call.id);
+    const waterImage = waterLatitudeTerrainImage(spriteKey, call.id, call.row);
+    const waveFrame = waterHexWaveFrameForTile(call, activeChart);
+    const animatedWaterImage = waveFrame === null
+      ? waterImage
+      : prebakedWaterHexWaveFrame(waterImage, waveFrame);
+    const iceImage = terrainImage("snow_01");
+    return [surfaceIceTransitionSprite({
+      fromImage: transitionState.fromIce ? iceImage : animatedWaterImage,
+      toImage: transitionState.toIce ? iceImage : animatedWaterImage,
+      tileId: call.id,
+      stageIndex: transitionState.stageIndex
+    })];
+  }
+
+  const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
+  const waveFrame = waterHexWaveFrameForTile(call, activeChart);
+  return [
+    waveFrame === null ? baseImage : prebakedWaterHexWaveFrame(baseImage, waveFrame),
+    ...overlayImages
+  ];
+}
+
+function surfaceIceTransitionSprite({ fromImage, toImage, tileId, stageIndex }) {
+  if (stageIndex <= 0) return fromImage;
+  if (stageIndex >= SURFACE_ICE_TRANSITION_STAGE_COUNT) return toImage;
+  let targetCache = surfaceIceTransitionSpriteCache.get(fromImage);
+  if (!targetCache) {
+    targetCache = new WeakMap();
+    surfaceIceTransitionSpriteCache.set(fromImage, targetCache);
+  }
+  let frames = targetCache.get(toImage);
+  if (!frames) {
+    frames = new Map();
+    targetCache.set(toImage, frames);
+  }
+  const variant = hashInt(tileId ^ 0x494345) & 1;
+  const key = `${variant}:${stageIndex}`;
+  const cached = frames.get(key);
+  if (cached) return cached;
+
+  const fromPixels = terrainTransitionImagePixels(fromImage);
+  const toPixels = terrainTransitionImagePixels(toImage);
+  if (fromPixels.width !== toPixels.width || fromPixels.height !== toPixels.height) {
+    throw new Error(
+      `Surface ice transition image mismatch: ${fromPixels.width}x${fromPixels.height} / ` +
+      `${toPixels.width}x${toPixels.height}`
+    );
+  }
+  if (toPixels.width !== toPixels.height) {
+    throw new Error(`Surface ice transition requires square tile art: ${toPixels.width}x${toPixels.height}`);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = fromPixels.width;
+  canvas.height = fromPixels.height;
+  const transitionCtx = canvas.getContext("2d");
+  if (!transitionCtx) throw new Error("Could not create surface ice transition sprite");
+  const output = new ImageData(
+    new Uint8ClampedArray(fromPixels.data),
+    fromPixels.width,
+    fromPixels.height
+  );
+  for (let y = 0; y < toPixels.height; y++) {
+    for (let x = 0; x < toPixels.width; x++) {
+      const sourceOffset = (x + y * toPixels.width) * 4;
+      if (toPixels.data[sourceOffset + 3] === 0) continue;
+      const particle = surfaceIceTransitionPixel({
+        variant,
+        x,
+        y,
+        size: toPixels.width,
+        stageIndex
+      });
+      if (!particle.target) continue;
+      const targetOffset = (particle.x + particle.y * toPixels.width) * 4;
+      output.data[targetOffset] = toPixels.data[sourceOffset];
+      output.data[targetOffset + 1] = toPixels.data[sourceOffset + 1];
+      output.data[targetOffset + 2] = toPixels.data[sourceOffset + 2];
+      output.data[targetOffset + 3] = toPixels.data[sourceOffset + 3];
+    }
+  }
+  transitionCtx.putImageData(output, 0, 0);
+  frames.set(key, canvas);
+  return canvas;
+}
+
+function terrainTransitionImagePixels(image) {
+  let pixels = terrainImagePixelCache.get(image);
+  if (pixels) return pixels;
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const sampleCtx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!sampleCtx) throw new Error("Could not sample surface ice transition image");
+  sampleCtx.imageSmoothingEnabled = false;
+  sampleCtx.drawImage(image, 0, 0);
+  pixels = {
+    width,
+    height,
+    data: sampleCtx.getImageData(0, 0, width, height).data
+  };
+  terrainImagePixelCache.set(image, pixels);
+  return pixels;
 }
 
 function drawTerrainPentagonMarker(call, targetCtx) {
@@ -36366,6 +36620,12 @@ function terrainColorForTile(row, id) {
 
 function tileHasSurfaceIce(tileId) {
   if (!Number.isInteger(tileId) || tileId < 0) throw new Error(`Invalid surface ice tile: ${tileId}`);
+  if (surfaceIceTransition) {
+    return Boolean(
+      surfaceIceTransition.fromSeaMask[tileId] ||
+      surfaceIceTransition.fromFreshwaterMask[tileId]
+    );
+  }
   return Boolean(seaIceMask?.[tileId] || freshwaterIceMask?.[tileId]);
 }
 
