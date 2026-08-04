@@ -239,14 +239,17 @@ test("allied powers can be dragged into a new war", () => {
 test("player conduct biases diplomacy around the captain's home faction", () => {
   const peaceful = {
     homeFactionId: "england",
+    homeFactionInGoodStanding: true,
     reputation: { france: 40 },
     decisions: {
       "reputation.trade.france": 24,
-      "reputation.delivery.france": 3
+      "reputation.delivery.france": 3,
+      "reputation.mission.france": 2
     }
   };
   const hostile = {
     homeFactionId: "england",
+    homeFactionInGoodStanding: true,
     reputation: { france: -80 },
     decisions: {
       "reputation.attack.france": 3,
@@ -259,6 +262,30 @@ test("player conduct biases diplomacy around the captain's home faction", () => 
   assert.ok(playerDiplomacyBias(hostile, "england", "france", "war") > 1);
   assert.ok(playerDiplomacyBias(hostile, "england", "france", "peace") < 1);
   assert.equal(playerDiplomacyBias(hostile, "spain", "france", "war"), 1);
+  assert.equal(playerDiplomacyBias({
+    ...peaceful,
+    homeFactionInGoodStanding: false
+  }, "england", "france", "peace"), 1);
+});
+
+test("ordinary missions and commissioned attacks push national relations in opposite directions", () => {
+  const mission = {
+    homeFactionId: "england",
+    homeFactionInGoodStanding: true,
+    reputation: {},
+    decisions: { "reputation.mission.france": 4 }
+  };
+  const commissionedAttack = {
+    homeFactionId: "england",
+    homeFactionInGoodStanding: true,
+    reputation: {},
+    decisions: { "reputation.attack.france": 1 }
+  };
+
+  assert.ok(playerDiplomacyBias(mission, "england", "france", "peace") > 1);
+  assert.ok(playerDiplomacyBias(mission, "england", "france", "war") < 1);
+  assert.ok(playerDiplomacyBias(commissionedAttack, "england", "france", "war") > 1);
+  assert.ok(playerDiplomacyBias(commissionedAttack, "england", "france", "peace") < 1);
 });
 
 test("diplomacy history remains bounded in saved state", () => {

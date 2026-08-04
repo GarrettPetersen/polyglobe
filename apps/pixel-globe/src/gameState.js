@@ -941,11 +941,11 @@ export function diplomacyBetweenForState(state, factionAId, factionBId) {
 export function advanceGameDiplomacy(state, currentMinute) {
   assertGameState(state);
   assertSimulationMinute(currentMinute);
-  return advanceWorldDiplomacy(state.relations.diplomacy, currentMinute, {
-    homeFactionId: state.playerCharacter?.nationalityId || null,
-    reputation: state.relations.factionReputation,
-    decisions: state.memory.decisions
-  });
+  return advanceWorldDiplomacy(
+    state.relations.diplomacy,
+    currentMinute,
+    playerWorldDiplomacyInfluence(state)
+  );
 }
 
 export function nextGamePoliticsMinute(state) {
@@ -969,11 +969,11 @@ export function advanceGamePolitics(state, currentMinute) {
       papalReputation: factionReputation(state, "papal-states")
     } : null
   });
-  const diplomacyEvents = advanceWorldDiplomacy(state.relations.diplomacy, currentMinute, {
-    homeFactionId: state.playerCharacter?.nationalityId || null,
-    reputation: state.relations.factionReputation,
-    decisions: state.memory.decisions
-  });
+  const diplomacyEvents = advanceWorldDiplomacy(
+    state.relations.diplomacy,
+    currentMinute,
+    playerWorldDiplomacyInfluence(state)
+  );
   let englishReformationConversions = 0;
   if (papal.englishReformation) {
     const convertedPlayer = convertEnglishCatholicCharacter(state.playerCharacter);
@@ -1375,6 +1375,22 @@ export function purchasePlayerShip(state, city, stats, payment, context = {}) {
     netPrice,
     plan: replacement.value,
     departedNamedCrew: replacement.departedNamedCrew
+  };
+}
+
+function playerWorldDiplomacyInfluence(state) {
+  const homeFactionId = state.playerCharacter?.nationalityId || null;
+  const homeFactionInGoodStanding = Boolean(
+    homeFactionId &&
+    homeFactionId !== NEUTRAL_FACTION_ID &&
+    homeFactionId !== PIRATE_FACTION_ID &&
+    factionReputation(state, homeFactionId) > HOSTILE_PORT_REPUTATION_THRESHOLD
+  );
+  return {
+    homeFactionId,
+    homeFactionInGoodStanding,
+    reputation: state.relations.factionReputation,
+    decisions: state.memory.decisions
   };
 }
 
@@ -4930,6 +4946,11 @@ export function completeQuest(state, city, context = {}) {
     );
   }
   recordDecision(state, `quest.complete.${active.id}`, 1);
+  const missionFactionId = active.originFactionId || active.factionId || city.factionId || null;
+  if (!isEnvoyQuest(active) && missionFactionId &&
+      missionFactionId !== NEUTRAL_FACTION_ID && missionFactionId !== PIRATE_FACTION_ID) {
+    recordDecision(state, `reputation.mission.${assertFactionId(missionFactionId)}`, 1);
+  }
   if (active.kind === "delivery" && active.factionId) recordDeliveryForFaction(state, active.factionId);
   if (active.kind === "passenger" && active.originFactionId) {
     recordDeliveryForFaction(state, active.originFactionId);

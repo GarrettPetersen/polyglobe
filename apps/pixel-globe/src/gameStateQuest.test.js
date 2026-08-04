@@ -139,6 +139,7 @@ test("completed package deliveries increase faction standing", () => {
   completeQuest(state, PORTO, { simMinute: 100 });
 
   assert.equal(factionReputation(state, "portugal"), before + DELIVERY_REPUTATION_GAIN);
+  assert.equal(state.memory.decisions["reputation.mission.portugal"], 1);
 });
 
 test("saved jobs rebind to corrected coastal port tiles", () => {

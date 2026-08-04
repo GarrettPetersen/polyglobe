@@ -465,14 +465,17 @@ export function playerDiplomacyBias(influence, factionAId, factionBId, eventKind
   if (eventKind !== "war" && eventKind !== "peace") throw new Error(`Invalid diplomacy event kind: ${eventKind}`);
   const homeFactionId = influence?.homeFactionId || null;
   if (!homeFactionId || (homeFactionId !== factionAId && homeFactionId !== factionBId)) return 1;
+  if (influence.homeFactionInGoodStanding === false) return 1;
   const otherId = homeFactionId === factionAId ? factionBId : factionAId;
   const decisions = influence.decisions || {};
   const reputation = Number(influence.reputation?.[otherId] || 0);
   const trade = decisionCount(decisions, `reputation.trade.${otherId}`);
   const deliveries = decisionCount(decisions, `reputation.delivery.${otherId}`);
+  const missions = decisionCount(decisions, `reputation.mission.${otherId}`);
   const attacks = decisionCount(decisions, `reputation.attack.${otherId}`);
   const piracy = decisionCount(decisions, `reputation.piracy.${otherId}`);
-  const peacefulPressure = trade * 0.025 + deliveries * 0.22 + Math.max(0, reputation) * 0.014;
+  const peacefulPressure = trade * 0.025 + deliveries * 0.22 + missions * 0.18 +
+    Math.max(0, reputation) * 0.014;
   const hostilePressure = attacks * 0.55 + piracy * 0.3 + Math.max(0, -reputation) * 0.018;
   const score = eventKind === "war" ? hostilePressure - peacefulPressure : peacefulPressure - hostilePressure;
   return clamp(Math.exp(score), 0.15, 6);
