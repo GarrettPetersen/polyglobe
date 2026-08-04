@@ -43,7 +43,7 @@ test("carts move visibly while remaining slower than every player ship", () => {
   assert.equal(LAND_CART_SPEED_KM_PER_DAY, 120);
   const cartKmPerSecond = LAND_CART_SPEED_KM_PER_DAY / realSecondsPerGameDay();
   const slowestShipKmPerSecond = Math.min(...SHIP_STATS.map((ship) => ship.topSpeedRad)) * EARTH_RADIUS_KM;
-  assert.ok(cartKmPerSecond >= 10);
+  assert.ok(cartKmPerSecond >= 5);
   assert.ok(cartKmPerSecond < slowestShipKmPerSecond);
 });
 

@@ -4,20 +4,31 @@ import test from "node:test";
 import {
   FISH_SCHOOL_ANIMATION_FRAME_COUNT,
   FISH_SCHOOL_ANIMATION_FRAME_MS,
+  FISH_SCHOOL_MOTION_FRAME_COUNT,
   FISH_SCHOOL_MAX_FISH,
   fishSchoolAnimationFrame,
   fishSchoolAnimationTick,
   fishSchoolAnimationTime,
-  fishSchoolFishOffset
+  fishSchoolFishOffset,
+  fishSchoolMotionFrame
 } from "./fishSchoolAnimation.js";
 
 test("fish schools render a twelve-frame pixel animation at eight frames per second", () => {
   assert.equal(FISH_SCHOOL_ANIMATION_FRAME_COUNT, 12);
   assert.equal(FISH_SCHOOL_ANIMATION_FRAME_MS, 125);
+  assert.equal(FISH_SCHOOL_MOTION_FRAME_COUNT, 48);
   assert.equal(
     FISH_SCHOOL_ANIMATION_FRAME_COUNT * FISH_SCHOOL_ANIMATION_FRAME_MS,
     1500
   );
+});
+
+test("school travel takes six seconds while fish keep their eight-frame-per-second motion", () => {
+  assert.equal(FISH_SCHOOL_MOTION_FRAME_COUNT * FISH_SCHOOL_ANIMATION_FRAME_MS, 6000);
+  assert.equal(fishSchoolMotionFrame(0), 0);
+  assert.equal(fishSchoolMotionFrame(1500), 12);
+  assert.equal(fishSchoolMotionFrame(6000), 0);
+  assert.equal(fishSchoolMotionFrame(0, 47), 47);
 });
 
 test("fish school animation clock advances on exact frame boundaries", () => {
@@ -62,6 +73,7 @@ test("fish move continuously by no more than one hard-edged pixel per frame", ()
 test("fish school animation rejects invalid time, phases, frames, and fish indices", () => {
   assert.throws(() => fishSchoolAnimationTick(Number.NaN), /invalid time/);
   assert.throws(() => fishSchoolAnimationFrame(0, 0.5), /invalid phase/);
+  assert.throws(() => fishSchoolMotionFrame(0, 0.5), /invalid phase/);
   assert.throws(
     () => fishSchoolFishOffset(FISH_SCHOOL_ANIMATION_FRAME_COUNT, 0),
     /invalid frame/

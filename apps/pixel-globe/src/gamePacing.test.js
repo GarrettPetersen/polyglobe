@@ -3,17 +3,37 @@ import test from "node:test";
 import {
   DEFAULT_GAME_TIME_SCALE,
   SHIP_TOP_SPEED_SCALE,
+  advanceGameClockMinutes,
   realSecondsPerGameDay,
   voyageDurationMultiplier
 } from "./gamePacing.js";
 
-test("the default day-night cycle completes in twelve real seconds", () => {
-  assert.equal(DEFAULT_GAME_TIME_SCALE, 7200);
-  assert.equal(realSecondsPerGameDay(), 12);
+test("the default day-night cycle completes in twenty-four real seconds", () => {
+  assert.equal(DEFAULT_GAME_TIME_SCALE, 3600);
+  assert.equal(realSecondsPerGameDay(), 24);
 });
 
-test("calendar and cruise changes make voyages last over twice as many game days", () => {
+test("calendar advancement is independent of render cadence", () => {
+  const advanceAtHz = (hz) => {
+    let minute = 120;
+    for (let frame = 0; frame < hz * 10; frame++) {
+      minute = advanceGameClockMinutes(minute, 1 / hz);
+    }
+    return minute;
+  };
+  assert.ok(Math.abs(advanceAtHz(30) - advanceAtHz(60)) < 1e-8);
+  assert.ok(Math.abs(advanceAtHz(60) - advanceAtHz(120)) < 1e-8);
+  assert.ok(Math.abs(advanceAtHz(60) - 720) < 1e-8);
+});
+
+test("calendar advancement rejects malformed timing", () => {
+  assert.throws(() => advanceGameClockMinutes(Number.NaN, 1), /current game minute/);
+  assert.throws(() => advanceGameClockMinutes(0, -1), /elapsed game time/);
+  assert.throws(() => advanceGameClockMinutes(0, 1, -1), /game time scale/);
+});
+
+test("cruise changes make voyages last a little longer in game time", () => {
   assert.equal(SHIP_TOP_SPEED_SCALE, 0.85);
-  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) > 2.35);
-  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) < 2.36);
+  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) > 1.17);
+  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) < 1.18);
 });

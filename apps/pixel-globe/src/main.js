@@ -851,11 +851,13 @@ import {
 } from "./waterHexWave.js";
 import {
   FISH_SCHOOL_ANIMATION_FRAME_COUNT,
+  FISH_SCHOOL_MOTION_FRAME_COUNT,
   FISH_SCHOOL_MAX_FISH,
   fishSchoolAnimationFrame,
   fishSchoolAnimationTick,
   fishSchoolAnimationTime,
-  fishSchoolFishOffset
+  fishSchoolFishOffset,
+  fishSchoolMotionFrame
 } from "./fishSchoolAnimation.js";
 import {
   BINARY_CONFIRM_NO_INDEX,
@@ -1025,7 +1027,7 @@ import {
 } from "./windIndicator.js";
 import { loadImageWithRetry } from "./assetImageLoader.js";
 import { loadFontFaceAsset } from "./fontAssetLoader.js";
-import { DEFAULT_GAME_TIME_SCALE } from "./gamePacing.js";
+import { DEFAULT_GAME_TIME_SCALE, advanceGameClockMinutes } from "./gamePacing.js";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
@@ -21135,7 +21137,7 @@ function updateFishAnimation(nowMs) {
 function updateWeather(dt, nowMs) {
   if (!runtimeWeather || !weatherBake) return false;
   if (weatherTimeScale > 0) {
-    weatherClockMinutes += dt * weatherTimeScale / 60;
+    weatherClockMinutes = advanceGameClockMinutes(weatherClockMinutes, dt, weatherTimeScale);
   }
   weatherParts = weatherClockParts(weatherClockMinutes);
   const dayNightNotice = firstDayNightNoticeState
@@ -37134,8 +37136,10 @@ function invalidateFishSchoolRenderCaches() {
 function fishSchoolCallForFishery(tileCall, fishery, nowMs) {
   if (fishery.visibleIndividualCount <= 0) return null;
   const seed = hashInt(tileCall.id ^ 0x46495348);
-  const frame = fishSchoolAnimationFrame(nowMs, seed >>> 12);
-  const motion = cachedFishSchoolSwimMotion(tileCall, fishery, seed, frame);
+  const phase = seed >>> 12;
+  const frame = fishSchoolAnimationFrame(nowMs, phase);
+  const motionFrame = fishSchoolMotionFrame(nowMs, phase);
+  const motion = cachedFishSchoolSwimMotion(tileCall, fishery, seed, motionFrame);
   if (!motion) return null;
   const scatter = fishScatterOffset(motion.x, motion.y);
   const scatteredX = motion.x + scatter.x;
@@ -37171,7 +37175,7 @@ function cachedFishSchoolSwimMotion(tileCall, fishery, fishSeed, frame) {
   }
   let frames = chartFrames.get(tileCall.id);
   if (!frames) {
-    frames = new Array(FISH_SCHOOL_ANIMATION_FRAME_COUNT);
+    frames = new Array(FISH_SCHOOL_MOTION_FRAME_COUNT);
     chartFrames.set(tileCall.id, frames);
   }
   if (frames[frame] !== undefined) return frames[frame];
@@ -37184,7 +37188,7 @@ function fishSchoolSwimMotion(tileCall, fishery, fishSeed, frame) {
   const radius = fisherySwimRadius(fishery);
   const axis = fisherySwimAxis(tileCall, fishery, fishSeed);
   const cross = { x: -axis.y, y: axis.x };
-  const phase = frame / FISH_SCHOOL_ANIMATION_FRAME_COUNT * Math.PI * 2;
+  const phase = frame / FISH_SCHOOL_MOTION_FRAME_COUNT * Math.PI * 2;
   const seedPhase = (fishSeed & 0xffff) / 0x10000 * Math.PI * 2;
   const home = {
     x: ((((fishSeed >>> 4) & 15) - 7.5) / 7.5) * radius.x * 0.3,
