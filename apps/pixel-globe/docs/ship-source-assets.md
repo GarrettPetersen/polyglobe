@@ -131,6 +131,7 @@ npm run render:malay-warships
 npm run render:ottoman-coastal-trader
 npm run render:whales
 npm run render:horse-cart
+npm run render:llama-caravan
 node --test src/shipInfoAssets.test.js
 ```
 
@@ -156,3 +157,9 @@ whale assets belong in `public/assets/animals/`.
 The horse and cart are combined offline into a small 32-heading ground-trader
 sprite under `public/assets/vehicles/horse-cart/`. The horse's authored walk
 animation is sampled into six hard-edged frames; neither source model is shipped.
+
+The Inca land trader uses three independently positioned pack llamas with
+procedural sacks. One loaded llama's six-frame, 32-heading bake is written under
+`public/assets/vehicles/llama-caravan/`; runtime repeats it along the curved road
+so each animal turns when it reaches a bend. The labeled cardinal review verifies
+that the rig's head-to-tail axis points in the same direction as travel.

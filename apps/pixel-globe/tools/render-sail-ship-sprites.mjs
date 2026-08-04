@@ -21,6 +21,7 @@ import {
   JOSEON_TURTLE_SHIP_MODEL_CREDIT,
   KELULUS_MODEL_CREDIT,
   LANCARAN_MODEL_CREDIT,
+  LOWPOLY_LLAMA_MODEL_CREDIT,
   MEDITERRANEAN_GALLEY_MODEL_CREDIT,
   MESOAMERICAN_CANOE_MODEL_CREDIT,
   OCEAN_DHOW_MODEL_CREDIT,
@@ -113,11 +114,13 @@ const southernMinkeWhaleSourceRoot = join(shipSourceRoot, "sketchfab/southern-mi
 const spermWhaleSourceRoot = join(shipSourceRoot, "sketchfab/sperm-whale");
 const cartoonHorseSourceRoot = join(shipSourceRoot, "sketchfab/cartoon-horse-with-animations");
 const woodenCartSourceRoot = join(shipSourceRoot, "sketchfab/wooden-cart");
+const lowpolyLlamaSourceRoot = join(shipSourceRoot, "sketchfab/lowpoly-llama-romulogan");
 const kelulusSourceRoot = join(shipSourceRoot, "procedural/kelulus");
 const proceduralShipSourceRoot = join(shipSourceRoot, "procedural");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const animalOutputRoot = join(appRoot, "public/assets/animals");
 const horseCartOutputRoot = join(outputRoot, "horse-cart");
+const llamaCaravanOutputRoot = join(outputRoot, "llama-caravan");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
@@ -160,6 +163,9 @@ const horseCartWalkFrameCount = 6;
 const horseCartMaxDrawPixels = 31;
 const horseCartColorExposure = 2.2;
 const horseCartColorLift = 6;
+const loadedLlamaMaxDrawPixels = 13;
+const llamaCaravanColorExposure = 1.9;
+const llamaCaravanColorLift = 8;
 const orientationReviewScale = 6;
 const japaneseKuribunePresentationYawRad = Math.atan2(
   0.7818722388292283,
@@ -2660,6 +2666,110 @@ async function renderHorseCart() {
   const normalizedHorseFrames = normalizeAnimatedGroundModel(horseFrames, 1.0);
   const normalizedCart = normalizeGroundModel(cartTriangles, 1.0);
   const combinedFrames = composeHorseAndCart(normalizedHorseFrames, normalizedCart);
+  return writeGroundVehicleBake({
+    combinedFrames,
+    outputDir: horseCartOutputRoot,
+    outputPrefix: "horse-cart",
+    generatedBy: "tools/render-sail-ship-sprites.mjs --horse-cart",
+    contactSheetPath: join(appRoot, "docs/ship-reference/horse-cart-walk-frames.png"),
+    maxDrawPixels: horseCartMaxDrawPixels,
+    exposure: horseCartColorExposure,
+    lift: horseCartColorLift,
+    manifestDetails: {
+      horse: {
+        ...CARTOON_HORSE_MODEL_CREDIT,
+        sourceModel: portablePath(horsePath),
+        animation: walkClip.name,
+        durationSeconds: walkClip.duration
+      },
+      cart: {
+        ...WOODEN_CART_MODEL_CREDIT,
+        sourceModel: portablePath(cartPath)
+      }
+    }
+  });
+}
+
+async function renderLlamaCaravan() {
+  mkdirSync(llamaCaravanOutputRoot, { recursive: true });
+  const llamaPath = join(lowpolyLlamaSourceRoot, "scene.gltf");
+  const [llamaGltf, llamaMaterials] = await Promise.all([
+    loadGltf(llamaPath),
+    loadGltfMaterialTextureSamplers(llamaPath)
+  ]);
+  const walkClip = requiredSingleWalkClip(llamaGltf.animations, "Llama");
+  const hat = llamaGltf.scene.getObjectByName("DefaultHat");
+  if (!hat) throw new Error("Llama source model is missing its removable DefaultHat node");
+  hat.parent.remove(hat);
+  const mixer = new THREE.AnimationMixer(llamaGltf.scene);
+  const action = mixer.clipAction(walkClip);
+  action.setLoop(THREE.LoopRepeat, Infinity);
+  action.play();
+
+  mixer.setTime(0);
+  updateAnimatedScene(llamaGltf.scene);
+  const llamaOrientation = llamaForwardQuaternion(llamaGltf.scene);
+  const llamaFrames = [];
+  for (let frameIndex = 0; frameIndex < horseCartWalkFrameCount; frameIndex++) {
+    mixer.setTime(walkClip.duration * frameIndex / horseCartWalkFrameCount);
+    updateAnimatedScene(llamaGltf.scene);
+    llamaFrames.push(collectTriangles(llamaGltf.scene, {
+      targetMaxDim: null,
+      materialTextureSamplers: llamaMaterials,
+      transformPoint: (point) => point.clone().applyQuaternion(llamaOrientation)
+    }).triangles);
+  }
+  const normalizedFrames = normalizeAnimatedGroundModel(llamaFrames, 1.0);
+  const combinedFrames = composeLoadedLlamaFrames(normalizedFrames);
+  const orientationReviewPath = join(
+    appRoot,
+    "docs/ship-reference/llama-caravan-orientation-review.png"
+  );
+  return writeGroundVehicleBake({
+    combinedFrames,
+    outputDir: llamaCaravanOutputRoot,
+    outputPrefix: "llama-caravan",
+    generatedBy: "tools/render-sail-ship-sprites.mjs --llama-caravan",
+    contactSheetPath: join(appRoot, "docs/ship-reference/llama-caravan-walk-frames.png"),
+    orientationReviewPath,
+    maxDrawPixels: loadedLlamaMaxDrawPixels,
+    exposure: llamaCaravanColorExposure,
+    lift: llamaCaravanColorLift,
+    manifestDetails: {
+      llama: {
+        ...LOWPOLY_LLAMA_MODEL_CREDIT,
+        sourceModel: portablePath(llamaPath),
+        animation: walkClip.name,
+        durationSeconds: walkClip.duration,
+        runtimeCaravanCount: 3,
+        sourceOrientation: "scene Y-up; head and forelegs toward +Z",
+        gameOrientation: "Y-up; travel toward +Z",
+        removedSourceNodes: ["DefaultHat"]
+      },
+      load: {
+        description: "paired procedural pack sacks on each llama",
+        sacksPerLlama: 2,
+        runtimeSackPairs: 3
+      }
+    }
+  });
+}
+
+function writeGroundVehicleBake({
+  combinedFrames,
+  outputDir,
+  outputPrefix,
+  generatedBy,
+  contactSheetPath,
+  orientationReviewPath = null,
+  maxDrawPixels,
+  exposure,
+  lift,
+  manifestDetails
+}) {
+  if (!Array.isArray(combinedFrames) || combinedFrames.length !== horseCartWalkFrameCount) {
+    throw new Error(`${outputPrefix} requires ${horseCartWalkFrameCount} animation frames`);
+  }
   const camera = makeCamera();
   const renderOptions = { collectCasters: true };
   const renderedByFrame = combinedFrames.map((triangles) => (
@@ -2672,7 +2782,7 @@ async function renderHorseCart() {
   ));
   const maxWidth = Math.max(...sharedBoundsByHeading.map((bounds) => bounds.width));
   const maxHeight = Math.max(...sharedBoundsByHeading.map((bounds) => bounds.height));
-  const frameScale = Math.min(horseCartMaxDrawPixels / maxWidth, horseCartMaxDrawPixels / maxHeight);
+  const frameScale = Math.min(maxDrawPixels / maxWidth, maxDrawPixels / maxHeight);
   const framesByAnimation = renderedByFrame.map((renderedFrames) => (
     renderedFrames.map((rendered, headingIndex) => (
       makeCenteredFrame(rendered, sharedBoundsByHeading[headingIndex], frameScale)
@@ -2692,19 +2802,19 @@ async function renderHorseCart() {
     }
     shadeEdgesAndQuantizeToResurrect(sheet, {
       shadeEdges: false,
-      exposure: horseCartColorExposure,
-      lift: horseCartColorLift
+      exposure,
+      lift
     });
     const selfShadowMaps = makeSelfShadowMaps(frames, lightDirections, camera);
     const lightMask = makeLightingMaskSheet(frames, lightDirections, "light", selfShadowMaps);
     const shadeMask = makeLightingMaskSheet(frames, lightDirections, "shade", selfShadowMaps);
     const shadowMask = makeShadowMaskSheet(frames, lightDirections, camera, 0);
     const lightingPreview = makeLightingPreview(sheet, lightMask, shadeMask, shadowMask);
-    const prefix = `horse-cart-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
-    const filePath = join(horseCartOutputRoot, `${prefix}.png`);
-    const lightPath = join(horseCartOutputRoot, `${prefix}-light.png`);
-    const shadePath = join(horseCartOutputRoot, `${prefix}-shade.png`);
-    const shadowPath = join(horseCartOutputRoot, `${prefix}-shadow.png`);
+    const prefix = `${outputPrefix}-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+    const filePath = join(outputDir, `${prefix}.png`);
+    const lightPath = join(outputDir, `${prefix}-light.png`);
+    const shadePath = join(outputDir, `${prefix}-shade.png`);
+    const shadowPath = join(outputDir, `${prefix}-shadow.png`);
     const lightingPreviewPath = join(appRoot, "docs/ship-reference", `${prefix}-lighting-preview.png`);
     writeFileSync(filePath, sheet.toBuffer("image/png"));
     writeFileSync(lightPath, lightMask.toBuffer("image/png"));
@@ -2721,20 +2831,26 @@ async function renderHorseCart() {
     reviewFiles.push(portablePath(lightingPreviewPath));
   }
   const contactSheet = makeRowingAnimationContactSheet(sheets, 6, 0);
-  const contactSheetPath = join(appRoot, "docs/ship-reference/horse-cart-walk-frames.png");
   writeFileSync(contactSheetPath, contactSheet.toBuffer("image/png"));
-  const manifestPath = join(horseCartOutputRoot, "manifest.json");
+  if (orientationReviewPath) {
+    writeShipOrientationReview(sheets[0], {
+      label: outputPrefix,
+      outputPath: orientationReviewPath
+    });
+    reviewFiles.push(portablePath(orientationReviewPath));
+  }
+  const manifestPath = join(outputDir, "manifest.json");
   writeFileSync(manifestPath, `${JSON.stringify({
-    generatedBy: "tools/render-sail-ship-sprites.mjs --horse-cart",
+    generatedBy,
     frameSize,
     headings,
     sheetCols,
     animationFrames: horseCartWalkFrameCount,
-    maxDrawPixels: horseCartMaxDrawPixels,
+    maxDrawPixels,
     frameScale: Number(frameScale.toFixed(4)),
     colorGrade: {
-      exposure: horseCartColorExposure,
-      lift: horseCartColorLift
+      exposure,
+      lift
     },
     lighting: {
       azimuthBins: lightAzimuthBins,
@@ -2743,16 +2859,7 @@ async function renderHorseCart() {
       selfShadowed: true,
       groundY: 0
     },
-    horse: {
-      ...CARTOON_HORSE_MODEL_CREDIT,
-      sourceModel: portablePath(horsePath),
-      animation: walkClip.name,
-      durationSeconds: walkClip.duration
-    },
-    cart: {
-      ...WOODEN_CART_MODEL_CREDIT,
-      sourceModel: portablePath(cartPath)
-    },
+    ...manifestDetails,
     files,
     reviewFiles
   }, null, 2)}\n`);
@@ -2760,15 +2867,19 @@ async function renderHorseCart() {
   console.log(contactSheetPath);
 }
 
-function horseWalkClip(animations) {
+function requiredSingleWalkClip(animations, label) {
   if (!Array.isArray(animations) || animations.length === 0) {
-    throw new Error("Horse source model contains no animation clips");
+    throw new Error(`${label} source model contains no animation clips`);
   }
   const clips = animations.filter((clip) => Number.isFinite(clip.duration) && clip.duration > 0.5);
   if (clips.length !== 1) {
-    throw new Error(`Horse source must contain exactly one moving clip, found ${clips.length}`);
+    throw new Error(`${label} source must contain exactly one moving clip, found ${clips.length}`);
   }
   return clips[0];
+}
+
+function horseWalkClip(animations) {
+  return requiredSingleWalkClip(animations, "Horse");
 }
 
 function updateAnimatedScene(scene) {
@@ -2789,6 +2900,22 @@ function horseForwardQuaternion(scene) {
   forward.y = 0;
   if (forward.lengthSq() <= 1e-8) throw new Error("Horse rig cannot resolve a forward direction");
   forward.normalize();
+  return new THREE.Quaternion().setFromUnitVectors(forward, new THREE.Vector3(0, 0, 1));
+}
+
+function llamaForwardQuaternion(scene) {
+  const head = scene.getObjectByName("CATRigHead_013");
+  const tail = scene.getObjectByName("CATRigTail1_033");
+  if (!head || !tail) throw new Error("Llama rig is missing its head or true tail landmark bone");
+  const headPosition = head.getWorldPosition(new THREE.Vector3());
+  const tailPosition = tail.getWorldPosition(new THREE.Vector3());
+  const forward = headPosition.sub(tailPosition);
+  forward.y = 0;
+  if (forward.lengthSq() <= 1e-8) throw new Error("Llama rig cannot resolve a forward direction");
+  forward.normalize();
+  if (forward.z < 0.8) {
+    throw new Error(`Llama source orientation changed; expected scene +Z forward, got ${forward.toArray()}`);
+  }
   return new THREE.Quaternion().setFromUnitVectors(forward, new THREE.Vector3(0, 0, 1));
 }
 
@@ -2835,6 +2962,53 @@ function composeHorseAndCart(horseFrames, cartTriangles) {
     const bounds = boundsForPoints(combined.flatMap((triangle) => triangle.points));
     return translatedTriangles(combined, -bounds.center.x, -bounds.box.min.y, -bounds.center.z);
   });
+}
+
+function composeLoadedLlamaFrames(llamaFrames) {
+  const sacks = llamaPackSackTriangles();
+  return llamaFrames.map((llamaTriangles) => {
+    const combined = [...llamaTriangles, ...sacks];
+    const bounds = boundsForPoints(combined.flatMap((triangle) => triangle.points));
+    return translatedTriangles(combined, -bounds.center.x, -bounds.box.min.y, -bounds.center.z);
+  });
+}
+
+function llamaPackSackTriangles() {
+  const sackColor = { r: 187, g: 132, b: 82 };
+  const tieColor = { r: 95, g: 70, b: 50 };
+  return [
+    ...cuboidTriangles(-0.13, 0.49, -0.02, 0.17, 0.18, 0.22, sackColor),
+    ...cuboidTriangles(0.13, 0.49, -0.02, 0.17, 0.18, 0.22, sackColor),
+    ...cuboidTriangles(0, 0.55, -0.02, 0.31, 0.035, 0.08, tieColor)
+  ];
+}
+
+function cuboidTriangles(cx, cy, cz, width, height, depth, color) {
+  const x = width / 2;
+  const y = height / 2;
+  const z = depth / 2;
+  const points = [
+    new THREE.Vector3(cx - x, cy - y, cz - z),
+    new THREE.Vector3(cx + x, cy - y, cz - z),
+    new THREE.Vector3(cx + x, cy + y, cz - z),
+    new THREE.Vector3(cx - x, cy + y, cz - z),
+    new THREE.Vector3(cx - x, cy - y, cz + z),
+    new THREE.Vector3(cx + x, cy - y, cz + z),
+    new THREE.Vector3(cx + x, cy + y, cz + z),
+    new THREE.Vector3(cx - x, cy + y, cz + z)
+  ];
+  const faces = [
+    [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
+    [0, 1, 5], [0, 5, 4], [3, 7, 6], [3, 6, 2],
+    [0, 4, 7], [0, 7, 3], [1, 2, 6], [1, 6, 5]
+  ];
+  return faces.map((face) => ({
+    points: face.map((index) => points[index].clone()),
+    uvs: null,
+    color,
+    textureSampler: null,
+    sourceMeshName: "procedural-llama-pack-sack"
+  }));
 }
 
 function translatedTriangles(triangles, x, y, z) {
@@ -5540,6 +5714,10 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("--horse-cart")) {
     await renderHorseCart();
+    return;
+  }
+  if (args.has("--llama-caravan")) {
+    await renderLlamaCaravan();
     return;
   }
   if (args.has("--whales") || args.has("--north-atlantic-right-whale")) {

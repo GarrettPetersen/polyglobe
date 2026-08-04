@@ -166,6 +166,12 @@ export const WOODEN_CART_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const LOWPOLY_LLAMA_MODEL_CREDIT = Object.freeze({
+  creator: "Romulogan",
+  sourceTitle: "LowPoly Llama",
+  license: "CC BY 4.0"
+});
+
 export const MODEL_CREDITS = Object.freeze([
   UNITY_FLEET_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
@@ -194,7 +200,8 @@ export const MODEL_CREDITS = Object.freeze([
   SOUTHERN_MINKE_WHALE_MODEL_CREDIT,
   SPERM_WHALE_MODEL_CREDIT,
   CARTOON_HORSE_MODEL_CREDIT,
-  WOODEN_CART_MODEL_CREDIT
+  WOODEN_CART_MODEL_CREDIT,
+  LOWPOLY_LLAMA_MODEL_CREDIT
 ]);
 
 export function modelCreditMarkdownLine({ creator, sourceTitle, license }) {

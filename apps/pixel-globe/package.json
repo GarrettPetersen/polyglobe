@@ -43,6 +43,7 @@
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
     "render:whales": "node tools/render-sail-ship-sprites.mjs --whales",
     "render:horse-cart": "node tools/render-sail-ship-sprites.mjs --horse-cart",
+    "render:llama-caravan": "node tools/render-sail-ship-sprites.mjs --llama-caravan",
     "render:all-ships": "node tools/render-sail-ship-sprites.mjs --all-production-ships",
     "render:rowing-ships": "node tools/render-sail-ship-sprites.mjs --rowing-ships",
     "render:native-boats": "node tools/render-sail-ship-sprites.mjs --native-boats",

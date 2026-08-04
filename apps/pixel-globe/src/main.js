@@ -1348,12 +1348,15 @@ import {
 import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_WALK_FRAME_COUNT,
+  LAND_VEHICLE_HORSE_CART,
+  LAND_VEHICLE_LLAMA_CARAVAN,
   createLandTradeSystem,
   landTradeEventSchedule,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
   stageVisibleLandCartTraffic,
   updateLandTradeEvents,
+  landVehicleMemberSnapshots,
   visibleLandCartSnapshots
 } from "./landTradeSystem.js";
 import {
@@ -1905,7 +1908,11 @@ const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
 const PORT_SAILING_DISTANCE_URL = "assets/data/port-sailing-distances.json";
 const LAND_ROAD_URL = "assets/data/land-roads.json";
-const HORSE_CART_ASSET_VERSION = "horse-cart-3";
+const LAND_VEHICLE_ASSET_VERSION = "land-vehicle-1";
+const LAND_VEHICLE_ASSET_TYPES = new Set([
+  LAND_VEHICLE_HORSE_CART,
+  LAND_VEHICLE_LLAMA_CARAVAN
+]);
 const CITY_SPRITE_W = TILE_ART_SIZE;
 const CITY_SPRITE_H = TILE_ART_SIZE;
 const CITY_SHADOW_SOURCE_Y = Math.floor(CITY_SPRITE_H / 2);
@@ -2676,7 +2683,7 @@ let shipSpriteAssetStore;
 let shipLightingAssetStore;
 let rowingShipAssetStore;
 let whaleAssetStore;
-let horseCartAssetStore;
+let landVehicleAssetStore;
 let worldAnimationAssetStore;
 let pendingWorldAssetError = null;
 let pendingWorldSimulationError = null;
@@ -3634,12 +3641,15 @@ async function loadInitialNearbyWorldAssets() {
     weatherClockMinutes,
     chart.visibleSet
   );
-  if (visibleCarts.length > 0) requests.push(horseCartAssetStore.request("horse-cart"));
+  const landVehicleTypes = new Set(visibleCarts.map((cart) => cart.vehicleType));
+  for (const vehicleType of landVehicleTypes) {
+    requests.push(landVehicleAssetStore.request(vehicleType));
+  }
 
   await Promise.all(requests);
   console.info(
     `[pixel-globe] initial resident world assets: ${shipSlugs.size} nearby ship hulls, ` +
-    `${whaleSlugs.size} nearby whale species, ${visibleCarts.length > 0 ? "horse carts" : "no carts"}`
+    `${whaleSlugs.size} nearby whale species, ${visibleCarts.length} nearby land traders`
   );
 }
 
@@ -3897,7 +3907,7 @@ const WORLD_ANIMATION_ASSET = Object.freeze({
 
 function initializeWorldAssetStores() {
   if (shipSpriteAssetStore || shipLightingAssetStore || rowingShipAssetStore ||
-      whaleAssetStore || horseCartAssetStore || worldAnimationAssetStore) {
+      whaleAssetStore || landVehicleAssetStore || worldAnimationAssetStore) {
     throw new Error("World asset stores are already initialized");
   }
   shipSpriteAssetStore = createOnDemandAssetStore({
@@ -3916,12 +3926,9 @@ function initializeWorldAssetStores() {
     label: "whale sprite",
     load: loadWhaleAssetsForSlug
   });
-  horseCartAssetStore = createOnDemandAssetStore({
+  landVehicleAssetStore = createOnDemandAssetStore({
     label: "horse-cart animation",
-    load: async (key) => {
-      if (key !== "horse-cart") throw new Error(`Unknown horse-cart asset key: ${key}`);
-      return loadHorseCartAssets();
-    }
+    load: loadLandVehicleAssets
   });
   worldAnimationAssetStore = createOnDemandAssetStore({
     label: "world animation",
@@ -4122,10 +4129,10 @@ function queueWhaleAssets(whale, context) {
   observeWorldAssetRequest(promise, `${context} whale assets for ${slug}`);
 }
 
-function queueHorseCartAssets(context) {
-  if (!horseCartAssetStore) throw new Error("Horse-cart asset store is not initialized");
-  const promise = horseCartAssetStore.request("horse-cart");
-  observeWorldAssetRequest(promise, `${context} horse-cart assets`);
+function queueLandVehicleAssets(vehicleType, context) {
+  if (!landVehicleAssetStore) throw new Error("Land-vehicle asset store is not initialized");
+  const promise = landVehicleAssetStore.request(vehicleType);
+  observeWorldAssetRequest(promise, `${context} ${vehicleType} assets`);
 }
 
 function residentWorldAnimationAsset(key) {
@@ -4265,24 +4272,28 @@ async function loadAlwaysVisibleAnimalImages() {
   return Object.freeze({ fish });
 }
 
-async function loadHorseCartAssets() {
+async function loadLandVehicleAssets(vehicleType) {
+  if (!LAND_VEHICLE_ASSET_TYPES.has(vehicleType)) {
+    throw new Error(`Unknown land-vehicle asset type: ${vehicleType}`);
+  }
   return Object.freeze(await Promise.all(Array.from(
     { length: LAND_CART_WALK_FRAME_COUNT },
     async (_, frameIndex) => {
-      const prefix = `assets/vehicles/horse-cart/horse-cart-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+      const diagnosticId = `${vehicleType} walk frame ${frameIndex}`;
+      const prefix = `assets/vehicles/${vehicleType}/${vehicleType}-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
       const [image, lightImage, shadeImage, shadowImage] = await Promise.all([
-        loadAssetImage(`${prefix}.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart walk frame ${frameIndex}`),
-        loadAssetImage(`${prefix}-light.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart light frame ${frameIndex}`),
-        loadAssetImage(`${prefix}-shade.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart shade frame ${frameIndex}`),
-        loadAssetImage(`${prefix}-shadow.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart shadow frame ${frameIndex}`)
+        loadAssetImage(`${prefix}.png?v=${LAND_VEHICLE_ASSET_VERSION}`, diagnosticId),
+        loadAssetImage(`${prefix}-light.png?v=${LAND_VEHICLE_ASSET_VERSION}`, `${diagnosticId} light`),
+        loadAssetImage(`${prefix}-shade.png?v=${LAND_VEHICLE_ASSET_VERSION}`, `${diagnosticId} shade`),
+        loadAssetImage(`${prefix}-shadow.png?v=${LAND_VEHICLE_ASSET_VERSION}`, `${diagnosticId} shadow`)
       ]);
-      validateShipSpriteSheet(image, `horse cart walk frame ${frameIndex}`);
+      validateShipSpriteSheet(image, diagnosticId);
       return Object.freeze({
         image,
         lighting: Object.freeze({
-          light: decodeDirectionalLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, `horse cart light frame ${frameIndex}`),
-          shade: decodeDirectionalLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, `horse cart shade frame ${frameIndex}`),
-          shadow: decodeDirectionalLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, `horse cart shadow frame ${frameIndex}`)
+          light: decodeDirectionalLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, `${diagnosticId} light`),
+          shade: decodeDirectionalLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, `${diagnosticId} shade`),
+          shadow: decodeDirectionalLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, `${diagnosticId} shadow`)
         })
       });
     }
@@ -34446,43 +34457,57 @@ function drawLandRoadSegment(targetCtx, path, segmentId) {
 
 function drawLandCarts(activeChart, nowMs, light, visibleTileIds = activeChart.visibleSet) {
   if (!landTradeSystem) throw new Error("Land trade system is not initialized");
-  if (!light) throw new Error("Horse-cart lighting requires the current sun state");
+  if (!light) throw new Error("Land-vehicle lighting requires the current sun state");
   const visibleCarts = visibleLandCartSnapshots(
     landTradeSystem,
     weatherClockMinutes,
     visibleTileIds
   );
   if (visibleCarts.length === 0) return;
-  const horseCartAssets = horseCartAssetStore?.peek("horse-cart");
-  if (!horseCartAssets) {
-    queueHorseCartAssets("visible land traffic");
-    return;
-  }
-  if (horseCartAssets.length !== LAND_CART_WALK_FRAME_COUNT) {
-    throw new Error("Horse-cart animation has an invalid resident frame count");
-  }
   for (const cart of visibleCarts) {
-    const a = activeChart.tileById.get(cart.tileA);
-    const b = activeChart.tileById.get(cart.tileB);
-    if (!a || !b) continue;
-    const path = landRoadSegmentPath(a, b, cart.tileA, cart.tileB);
-    const point = quadraticBezierPoint(path, cart.segmentT);
-    const heading = quadraticBezierTangent(path, cart.segmentT);
-    const headingFrame = headingFrameForScreenHeading(heading);
-    const walkOffset = spriteKeyHash(cart.id) % LAND_CART_WALK_FRAME_COUNT;
-    const walkFrame = (Math.floor(nowMs / LAND_CART_WALK_FRAME_MS) + walkOffset) % LAND_CART_WALK_FRAME_COUNT;
-    const x = Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2);
-    const y = Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2);
-    const asset = horseCartAssets[walkFrame];
-    drawLandCartShadow(asset.lighting, headingFrame, point, light);
-    drawLakeBattleSpriteFrame(asset.image, headingFrame, x, y);
-    drawLandCartLighting(asset.lighting, headingFrame, x, y, light);
+    const vehicleAssets = landVehicleAssetStore?.peek(cart.vehicleType);
+    if (!vehicleAssets) {
+      queueLandVehicleAssets(cart.vehicleType, "visible land traffic");
+      continue;
+    }
+    if (vehicleAssets.length !== LAND_CART_WALK_FRAME_COUNT) {
+      throw new Error(`${cart.vehicleType} animation has an invalid resident frame count`);
+    }
+    const members = landVehicleMemberSnapshots(landTradeSystem, cart)
+      .map((member) => landVehicleDrawCall(activeChart, member))
+      .filter(Boolean)
+      .sort((a, b) => (
+        a.point.y - b.point.y || (a.member.memberIndex ?? 0) - (b.member.memberIndex ?? 0)
+      ));
+    for (const { member, point, headingFrame } of members) {
+      const walkOffset = spriteKeyHash(member.id) % LAND_CART_WALK_FRAME_COUNT;
+      const walkFrame = (Math.floor(nowMs / LAND_CART_WALK_FRAME_MS) + walkOffset) % LAND_CART_WALK_FRAME_COUNT;
+      const x = Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2);
+      const y = Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2);
+      const asset = vehicleAssets[walkFrame];
+      drawLandCartShadow(asset.lighting, headingFrame, point, light, cart.vehicleType);
+      drawLakeBattleSpriteFrame(asset.image, headingFrame, x, y);
+      drawLandCartLighting(asset.lighting, headingFrame, x, y, light, cart.vehicleType);
+    }
   }
 }
 
-function drawLandCartShadow(lighting, frame, point, light) {
+function landVehicleDrawCall(activeChart, member) {
+  const a = activeChart.tileById.get(member.tileA);
+  const b = activeChart.tileById.get(member.tileB);
+  if (!a || !b) return null;
+  const path = landRoadSegmentPath(a, b, member.tileA, member.tileB);
+  const point = quadraticBezierPoint(path, member.segmentT);
+  return {
+    member,
+    point,
+    headingFrame: headingFrameForScreenHeading(quadraticBezierTangent(path, member.segmentT))
+  };
+}
+
+function drawLandCartShadow(lighting, frame, point, light, vehicleType) {
   if (light.shadow <= 0.01) return;
-  const points = directionalLightingPoints(lighting, "shadow", frame, light.bin, "horse cart");
+  const points = directionalLightingPoints(lighting, "shadow", frame, light.bin, vehicleType);
   const x = Math.round(point.x - SHIP_SHADOW_FRAME_SIZE / 2);
   const y = Math.round(point.y - SHIP_SHADOW_FRAME_SIZE / 2);
   drawDirectionalMaskPoints(
@@ -34493,16 +34518,16 @@ function drawLandCartShadow(lighting, frame, point, light) {
   );
 }
 
-function drawLandCartLighting(lighting, frame, x, y, light) {
+function drawLandCartLighting(lighting, frame, x, y, light, vehicleType) {
   if (light.direct <= 0.01) return;
   drawDirectionalMaskPoints(
-    directionalLightingPoints(lighting, "shade", frame, light.bin, "horse cart"),
+    directionalLightingPoints(lighting, "shade", frame, light.bin, vehicleType),
     x,
     y,
     `rgba(26, 18, 44, ${(SHIP_LIGHT_SHADE_ALPHA * light.direct).toFixed(3)})`
   );
   drawDirectionalMaskPoints(
-    directionalLightingPoints(lighting, "light", frame, light.bin, "horse cart"),
+    directionalLightingPoints(lighting, "light", frame, light.bin, vehicleType),
     x,
     y,
     `rgba(255, 240, 188, ${(SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct).toFixed(3)})`

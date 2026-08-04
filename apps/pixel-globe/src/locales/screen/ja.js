@@ -1534,6 +1534,7 @@ export default Object.freeze({
   "Low Poly Borobudur Ship of Sriwijaya": "スリウィジャヤのローポリボロブドゥール船",
   "Low Poly Canoe - Stylized Game Asset": "ローポリ カヌー - 様式化されたゲーム アセット",
   "Low Poly Cartoon Sailing Ships": "低ポリ漫画帆船",
+  "LowPoly Llama": "ローポリのリャマ",
   "Luanda needs grain for a population built around a garrison rather than farms.": "ルアンダは農場ではなく駐屯地を中心に人口を増やすための穀物を必要としている。",
   "Lutheran": "ルーテル派",
   "Macau silk is in the warehouses; Nagasaki's reason for being is now visible on its quays.": "マカオのシルクは倉庫にあります。長崎の存在理由が今、岸壁に現れています。",

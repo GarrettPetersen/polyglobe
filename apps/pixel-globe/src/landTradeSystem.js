@@ -15,10 +15,15 @@ import {
   suzeraintyTradePrivilege,
   validateSuzeraintyMemory
 } from "./suzerainty.js";
+import { isPreGunpowderCulture } from "./navalWeapons.js";
 
 export const LAND_CART_CARGO_CAPACITY = 4;
 export const LAND_CART_SPEED_KM_PER_DAY = 120;
 export const LAND_CART_WALK_FRAME_COUNT = 6;
+export const LAND_VEHICLE_HORSE_CART = "horse-cart";
+export const LAND_VEHICLE_LLAMA_CARAVAN = "llama-caravan";
+export const LAND_LLAMA_CARAVAN_SIZE = 3;
+const LAND_LLAMA_SPACING_SEGMENTS = 0.42;
 export const MAX_VISIBLE_LAND_CARTS = 14;
 export const MAX_VISIBLE_LAND_CARTS_PER_SEGMENT = 2;
 const MAX_CARTS = 192;
@@ -145,6 +150,7 @@ export function landCartSnapshots(system, simMinute) {
 export function visibleLandCartSnapshots(system, simMinute, visibleTileIds) {
   if (!(visibleTileIds instanceof Set)) throw new Error("Visible land carts require a tile-id set");
   const candidates = landCartSnapshots(system, simMinute)
+    .filter((cart) => cart.vehicleType !== null)
     .filter((cart) => visibleTileIds.has(cart.tileA) && visibleTileIds.has(cart.tileB))
     .sort((a, b) => hashString32(a.id) - hashString32(b.id) || a.id.localeCompare(b.id));
   const segmentCounts = new Map();
@@ -162,23 +168,81 @@ export function visibleLandCartSnapshots(system, simMinute, visibleTileIds) {
   return visible;
 }
 
+export function landRouteVehicleType(system, route) {
+  assertLandTradeSystem(system);
+  return routeVehicleType(system.cityByTileId, route);
+}
+
+export function landVehicleMemberSnapshots(system, snapshot) {
+  assertLandTradeSystem(system);
+  if (!snapshot || typeof snapshot.id !== "string" || typeof snapshot.routeId !== "string") {
+    throw new Error("Land-vehicle members require a cart snapshot");
+  }
+  if (snapshot.vehicleType === LAND_VEHICLE_HORSE_CART) return Object.freeze([snapshot]);
+  if (snapshot.vehicleType !== LAND_VEHICLE_LLAMA_CARAVAN) {
+    throw new Error(`Cannot place members for land-vehicle type: ${snapshot.vehicleType}`);
+  }
+  const route = requiredCartRoute(system, snapshot.routeId);
+  return Object.freeze(Array.from({ length: LAND_LLAMA_CARAVAN_SIZE }, (_, memberIndex) => {
+    const pathPosition = Math.max(
+      0,
+      snapshot.pathPosition - memberIndex * LAND_LLAMA_SPACING_SEGMENTS
+    );
+    return Object.freeze({
+      ...snapshot,
+      ...landRoutePositionSnapshot(route, snapshot.forward, pathPosition),
+      id: `${snapshot.id}-llama-${memberIndex}`,
+      memberIndex
+    });
+  }));
+}
+
+function routeVehicleType(cityByTileId, route) {
+  if (!route || !Number.isInteger(route.fromTileId) || !Number.isInteger(route.toTileId)) {
+    throw new Error("Land-vehicle route requires two city endpoints");
+  }
+  const endpoints = [route.fromTileId, route.toTileId].map((tileId) => {
+    const city = cityByTileId.get(tileId);
+    if (!city) throw new Error(`Land-vehicle route endpoint city is missing: ${tileId}`);
+    return city;
+  });
+  const whollyPreContact = endpoints.every((city) => (
+    isPreGunpowderCulture(city.cityType) && ["inca", "neutral"].includes(city.factionId || "neutral")
+  ));
+  if (!whollyPreContact) return LAND_VEHICLE_HORSE_CART;
+  return endpoints.every((city) => city.cityType === "andean")
+    ? LAND_VEHICLE_LLAMA_CARAVAN
+    : null;
+}
+
 function landCartSnapshot(system, cart, simMinute) {
   const route = requiredCartRoute(system, cart.routeId);
   const duration = cart.arrivalMinute - cart.departureMinute;
   const progress = clamp((simMinute - cart.departureMinute) / duration, 0, 1);
   const segmentCount = route.tileIds.length - 1;
   const pathPosition = progress * segmentCount;
-  const segmentIndex = Math.min(segmentCount - 1, Math.floor(pathPosition));
   const forward = cart.originTileId === route.fromTileId;
-  const routeIndex = forward ? segmentIndex : segmentCount - segmentIndex;
   return Object.freeze({
     id: cart.id,
     routeId: cart.routeId,
+    vehicleType: routeVehicleType(system.cityByTileId, route),
+    ...landRoutePositionSnapshot(route, forward, pathPosition),
+    pathPosition,
+    forward,
+    progress
+  });
+}
+
+function landRoutePositionSnapshot(route, forward, pathPosition) {
+  const segmentCount = route.tileIds.length - 1;
+  const segmentIndex = Math.min(segmentCount - 1, Math.floor(pathPosition));
+  const routeIndex = forward ? segmentIndex : segmentCount - segmentIndex;
+  return {
     tileA: route.tileIds[routeIndex],
     tileB: route.tileIds[routeIndex + (forward ? 1 : -1)],
     segmentT: pathPosition - segmentIndex,
-    progress
-  });
+    pathPosition
+  };
 }
 
 export function stageVisibleLandCartTraffic(system, visibleTileIds, simMinute, targetCount) {

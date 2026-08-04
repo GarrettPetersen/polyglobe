@@ -1534,6 +1534,7 @@ export default Object.freeze({
   "Low Poly Borobudur Ship of Sriwijaya": "Navire Borobudur Low Poly de Sriwijaya",
   "Low Poly Canoe - Stylized Game Asset": "Low Poly Canoe - Actif de jeu stylisé",
   "Low Poly Cartoon Sailing Ships": "Voiliers de dessin animé Low Poly",
+  "LowPoly Llama": "Lama LowPoly",
   "Luanda needs grain for a population built around a garrison rather than farms.": "Luanda a besoin de céréales pour une population bâtie autour d'une garnison plutôt que de fermes.",
   "Lutheran": "luthérien",
   "Macau silk is in the warehouses; Nagasaki's reason for being is now visible on its quays.": "La soie de Macao est dans les entrepôts ; La raison d'être de Nagasaki est désormais visible sur ses quais.",

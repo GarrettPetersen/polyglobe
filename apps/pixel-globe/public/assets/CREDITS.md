@@ -61,6 +61,7 @@
 - Bohdan Lvov - "Sperm Whale" (CC BY 4.0)
 - Jungle Jim - "Cartoon Horse with animations" (CC BY 4.0)
 - Filip - "Wooden Cart" (CC BY 4.0)
+- Romulogan - "LowPoly Llama" (CC BY 4.0)
 
 ## Sound Effects
 - Alex Jauk

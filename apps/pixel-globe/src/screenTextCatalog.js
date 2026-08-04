@@ -1534,6 +1534,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Low Poly Borobudur Ship of Sriwijaya",
   "Low Poly Canoe - Stylized Game Asset",
   "Low Poly Cartoon Sailing Ships",
+  "LowPoly Llama",
   "Luanda needs grain for a population built around a garrison rather than farms.",
   "Lutheran",
   "Macau silk is in the warehouses; Nagasaki's reason for being is now visible on its quays.",

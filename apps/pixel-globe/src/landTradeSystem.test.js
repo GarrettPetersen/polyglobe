@@ -7,8 +7,13 @@ import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_CARGO_CAPACITY,
   LAND_CART_SPEED_KM_PER_DAY,
+  LAND_LLAMA_CARAVAN_SIZE,
+  LAND_VEHICLE_HORSE_CART,
+  LAND_VEHICLE_LLAMA_CARAVAN,
   MAX_VISIBLE_LAND_CARTS_PER_SEGMENT,
   createLandTradeSystem,
+  landRouteVehicleType,
+  landVehicleMemberSnapshots,
   landCartCountForCityCount,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
@@ -257,6 +262,56 @@ test("benchmark traffic staging places the requested carts on visible road segme
   const visible = visibleLandCartSnapshots(system, 50, new Set([1, 10, 2, 11, 3]));
   assert.equal(visible.length, 3);
   assert.ok(visible.every((cart) => cart.segmentT >= 0 && cart.segmentT <= 1));
+});
+
+test("Inca roads use llama caravans until colonial horses arrive", () => {
+  const nativeA = { ...city(21, "Native A", "andean", 10000), factionId: "inca" };
+  const nativeB = { ...city(22, "Native B", "andean", 12000), factionId: "inca" };
+  const roads = parseLandRoadNetwork({
+    format: "pixel-globe-land-roads",
+    version: 1,
+    subdivisions: 7,
+    earthCacheVersion: "test",
+    cities: [nativeA, nativeB].map((entry) => ({ tileId: entry.tileId, name: entry.city })),
+    routes: [{
+      id: "road-21-22",
+      fromTileId: 21,
+      toTileId: 22,
+      distanceKm: 80,
+      weightedCost: 90,
+      tileIds: [21, 23, 22]
+    }]
+  }, { subdivisions: 7, earthCacheVersion: "test" });
+  const system = createLandTradeSystem({
+    roads,
+    economy: createWorldEconomy({ ports: [nativeA, nativeB], startMinute: 0 }),
+    cities: [nativeA, nativeB],
+    startMinute: 0
+  });
+
+  assert.equal(landRouteVehicleType(system, roads.routes[0]), LAND_VEHICLE_LLAMA_CARAVAN);
+  const llamaSnapshots = visibleLandCartSnapshots(system, 10, new Set([21, 23, 22]));
+  assert.ok(llamaSnapshots.length > 0);
+  assert.ok(llamaSnapshots.every((snapshot) => (
+    snapshot.vehicleType === LAND_VEHICLE_LLAMA_CARAVAN
+  )));
+  const spacedSnapshot = { ...llamaSnapshots[0], pathPosition: 1.2, forward: true };
+  const members = landVehicleMemberSnapshots(system, spacedSnapshot);
+  assert.equal(members.length, LAND_LLAMA_CARAVAN_SIZE);
+  assert.deepEqual(
+    members.map((member) => Number(member.pathPosition.toFixed(2))),
+    [1.2, 0.78, 0.36]
+  );
+  assert.equal(new Set(members.map((member) => member.id)).size, LAND_LLAMA_CARAVAN_SIZE);
+
+  nativeB.factionId = "spain";
+  assert.equal(landRouteVehicleType(system, roads.routes[0]), LAND_VEHICLE_HORSE_CART);
+
+  nativeA.cityType = "mesoamerican";
+  nativeB.cityType = "mesoamerican";
+  nativeB.factionId = "neutral";
+  assert.equal(landRouteVehicleType(system, roads.routes[0]), null);
+  assert.deepEqual(visibleLandCartSnapshots(system, 10, new Set([21, 23, 22])), []);
 });
 
 function syntheticRoads() {

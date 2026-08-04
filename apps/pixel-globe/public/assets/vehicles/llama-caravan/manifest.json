@@ -1,0 +1,74 @@
+{
+  "generatedBy": "tools/render-sail-ship-sprites.mjs --llama-caravan",
+  "frameSize": 47,
+  "headings": 32,
+  "sheetCols": 8,
+  "animationFrames": 6,
+  "maxDrawPixels": 13,
+  "frameScale": 0.4194,
+  "colorGrade": {
+    "exposure": 1.9,
+    "lift": 8
+  },
+  "lighting": {
+    "azimuthBins": 16,
+    "elevationBins": 2,
+    "shadowFrameSize": 95,
+    "selfShadowed": true,
+    "groundY": 0
+  },
+  "llama": {
+    "creator": "Romulogan",
+    "sourceTitle": "LowPoly Llama",
+    "license": "CC BY 4.0",
+    "sourceModel": "apps/pixel-globe/source-models/sketchfab/lowpoly-llama-romulogan/scene.gltf",
+    "animation": "Walk",
+    "durationSeconds": 8.333333015441895,
+    "runtimeCaravanCount": 3,
+    "sourceOrientation": "scene Y-up; head and forelegs toward +Z",
+    "gameOrientation": "Y-up; travel toward +Z",
+    "removedSourceNodes": [
+      "DefaultHat"
+    ]
+  },
+  "load": {
+    "description": "paired procedural pack sacks on each llama",
+    "sacksPerLlama": 2,
+    "runtimeSackPairs": 3
+  },
+  "files": [
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-0-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-0-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-0-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-0-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-1-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-1-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-1-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-1-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-2-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-2-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-2-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-2-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-3-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-3-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-3-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-3-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-4-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-4-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-4-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-4-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-5-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-5-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-5-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/llama-caravan/llama-caravan-walk-5-32-headings-shadow.png"
+  ],
+  "reviewFiles": [
+    "apps/pixel-globe/docs/ship-reference/llama-caravan-walk-0-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/llama-caravan-walk-1-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/llama-caravan-walk-2-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/llama-caravan-walk-3-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/llama-caravan-walk-4-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/llama-caravan-walk-5-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/llama-caravan-orientation-review.png"
+  ]
+}
