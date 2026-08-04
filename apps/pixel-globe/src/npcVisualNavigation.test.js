@@ -5,7 +5,8 @@ import {
   chooseNpcObstacleAvoidanceDirection,
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
-  findNpcVisualPlacement
+  findNpcVisualPlacement,
+  rankNpcEscapeDirections
 } from "./npcVisualNavigation.js";
 
 test("NPC escape navigation reverses out of a concave corner", () => {
@@ -66,6 +67,23 @@ test("NPC escape navigation keeps routing around the committed side", () => {
   assert.ok(escape);
   assert.equal(escape.side, -1);
   assert.ok(escape.direction.y < 0);
+});
+
+test("NPC escape navigation exposes fallback candidates in score order", () => {
+  const ranked = rankNpcEscapeDirections({
+    desiredDirection: { x: 1, y: 0 },
+    currentDirection: { x: 1, y: 0 },
+    candidateDirections: [
+      { x: 0, y: 1 },
+      { x: 1, y: 0 },
+      { x: 0, y: -1 }
+    ],
+    clearDistanceFor: (direction) => direction.x > 0.9 ? 54 : 24
+  });
+
+  assert.equal(ranked.length, 3);
+  assert.ok(ranked[0].direction.x > 0.9);
+  assert.ok(ranked[1].score >= ranked[2].score);
 });
 
 test("NPC obstacle navigation takes the committed clear side around an island", () => {

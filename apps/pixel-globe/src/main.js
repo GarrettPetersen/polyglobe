@@ -30,6 +30,7 @@ import {
 } from "./pixelWaterMask.js";
 import { createSpatialHash } from "./spatialHash.js";
 import { createFixedRateScheduler } from "./fixedRateScheduler.js";
+import { advanceFrameCadence } from "./frameCadence.js";
 import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
 import {
   DISTANT_WORLD_WORK_KIND,
@@ -629,6 +630,7 @@ import {
   resumeDialogueShipMotion,
   worldSimulationIsPaused
 } from "./dialogueMotion.js";
+import { shouldRenderFrame } from "./frameRenderPolicy.js";
 import {
   NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
@@ -714,11 +716,11 @@ import {
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
 import {
-  chooseNpcEscapeDirection,
-  chooseNpcObstacleAvoidanceDirection,
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
-  findNpcVisualPlacement
+  findNpcVisualPlacement,
+  rankNpcEscapeDirections,
+  rankNpcObstacleAvoidanceDirections
 } from "./npcVisualNavigation.js";
 import { compareShipDrawCalls } from "./shipDrawOrder.js";
 import {
@@ -1761,9 +1763,10 @@ const NPC_STORM_SHELTER_SPEED_PX = 7;
 const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
-const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
+const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 18, 36, 54];
 const NPC_VISUAL_UPDATE_HZ = 30;
 const NPC_COMBAT_TARGETING_HZ = 6;
+const NPC_IDLE_COMBAT_TARGETING_HZ = 3;
 const NPC_COMBAT_COLLISION_HZ = 4;
 const NPC_PROJECTILE_UPDATE_HZ = 30;
 const NPC_WILDLIFE_UPDATE_HZ = 2;
@@ -2941,6 +2944,7 @@ let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
+let nextGameFrameMs = null;
 let frameRateOverlayEnabled = false;
 const frameRateMeter = createFrameRateMeter();
 let performanceBenchmarkState = null;
@@ -4899,6 +4903,16 @@ function easeInOut(t) {
 }
 
 function loop(nowMs) {
+  const cadence = advanceFrameCadence({
+    nowMs,
+    nextFrameMs: nextGameFrameMs,
+    bypass: Boolean(PERFORMANCE_BENCHMARK || CAPTURE_FRAME_PASS)
+  });
+  nextGameFrameMs = cadence.nextFrameMs;
+  if (!cadence.run) {
+    requestAnimationFrame(loop);
+    return;
+  }
   const benchmarkCpuStartMs = performanceBenchmarkState ? performance.now() : 0;
   try {
     runFrame(nowMs);
@@ -4967,8 +4981,8 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     updateWaterAnimation(nowMs);
     updateLakeBattleModeFrame(dt, nowMs);
     updateMusicContext(nowMs);
-    render(nowMs);
     dirty = false;
+    render(nowMs);
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
     updatePlatformActivity();
@@ -5028,14 +5042,22 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (!CAPTURE_SCENARIO && hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
     saveVoyageNow("periodic autosave");
   }
-  if (updateWorldSpriteAnimation(nowMs)) dirty = true;
-  if (forceRender || dirty || menusAreOpen() || dialogueState || captainAlertModal ||
-      gameOverReason || nowMs - lastStatusMs > 1000) {
-    measurePerformanceBenchmarkStage("render", () => render(nowMs));
+  if (!simulationPaused && updateWorldSpriteAnimation(nowMs)) dirty = true;
+  if (shouldRenderFrame({
+    forceRender,
+    dirty,
+    continuousAnimation: Boolean(startMenu),
+    simulationPaused,
+    nowMs,
+    lastStatusMs,
+    statusIntervalMs: 1000
+  })) {
     dirty = false;
+    measurePerformanceBenchmarkStage("render", () => render(nowMs));
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
-  } else if (!startMenu && !creditsMenu.isOpen && !playerIntroModal && nowMs - lastOverlayMs > 250) {
+  } else if (!simulationPaused && !startMenu && !creditsMenu.isOpen && !playerIntroModal &&
+      nowMs - lastOverlayMs > 250) {
     if (minimapShouldBeVisible()) drawMinimap(nowMs);
     drawSurvivalMeters();
     drawSavePersistenceWarning();
@@ -21690,6 +21712,7 @@ function restartAfterGameOver() {
 }
 
 function createWorldSimulationScheduler() {
+  let idleCombatElapsedSeconds = 0;
   return createFixedRateScheduler([
     {
       id: "visible-npcs",
@@ -21704,7 +21727,19 @@ function createWorldSimulationScheduler() {
       phaseSeconds: 0.0125,
       maxStepsPerAdvance: 1,
       maxAccumulatedSteps: 1,
-      update: updateNpcCombat
+      update: (dt) => {
+        if (shipCombatState.engagements.size > 0) {
+          idleCombatElapsedSeconds = 0;
+          return updateNpcCombat(dt);
+        }
+        idleCombatElapsedSeconds += dt;
+        if (idleCombatElapsedSeconds + 1e-12 < 1 / NPC_IDLE_COMBAT_TARGETING_HZ) {
+          return false;
+        }
+        const elapsed = idleCombatElapsedSeconds;
+        idleCombatElapsedSeconds = 0;
+        return updateNpcCombat(elapsed);
+      }
     },
     {
       id: "ship-collisions",
@@ -24608,21 +24643,21 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
     }
   }
 
-  const slide = measurePerformanceBenchmarkStage(
+  const slideCandidates = measurePerformanceBenchmarkStage(
     "npcShips.visual.movement.advance.step.slide",
     () => slideDirections.length > 0
-      ? chooseNpcEscapeDirection({
+      ? rankNpcEscapeDirections({
           desiredDirection: direction,
           currentDirection: tangentToScreenDirection(state.heading) || direction,
           candidateDirections: slideDirections,
           clearDistanceFor: (candidateDirection) => (
-            npcEscapeClearDistance(state, candidateDirection, heading, startNav)
+            npcEscapeCandidateClearDistance(state, candidateDirection, heading, startNav)
           ),
           preferredSide: state.escapeSide
         })
-      : null
+      : []
   );
-  if (slide) {
+  for (const slide of slideCandidates) {
     const slideMove = attemptNpcVisualStep(state, slide.direction, distance, heading, startNav);
     if (slideMove.ok) {
       commitNpcEscapeManeuver(state, slide.direction, slide.side, distance);
@@ -24630,23 +24665,24 @@ function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
     }
   }
 
-  const escape = measurePerformanceBenchmarkStage(
+  const escapeCandidates = measurePerformanceBenchmarkStage(
     "npcShips.visual.movement.advance.step.escape",
-    () => chooseNpcObstacleAvoidanceDirection({
+    () => rankNpcObstacleAvoidanceDirections({
       desiredDirection: direction,
       currentDirection: tangentToScreenDirection(state.heading) || direction,
       clearDistanceFor: (candidateDirection) => (
-        npcEscapeClearDistance(state, candidateDirection, heading, startNav)
+        npcEscapeCandidateClearDistance(state, candidateDirection, heading, startNav)
       ),
       preferredSide: state.escapeSide
     })
   );
-  if (!escape) return null;
-
-  const escapeMove = attemptNpcVisualStep(state, escape.direction, distance, heading, startNav);
-  if (!escapeMove.ok) return null;
-  commitNpcEscapeManeuver(state, escape.direction, escape.side, distance);
-  return escapeMove;
+  for (const escape of escapeCandidates) {
+    const escapeMove = attemptNpcVisualStep(state, escape.direction, distance, heading, startNav);
+    if (!escapeMove.ok) continue;
+    commitNpcEscapeManeuver(state, escape.direction, escape.side, distance);
+    return escapeMove;
+  }
+  return null;
 }
 
 function fastNpcOpenWaterStep(state, direction, distance, heading, startNav) {
@@ -24765,6 +24801,40 @@ function npcEscapeClearDistance(state, direction, heading, startNav = null) {
     if (trace.clearDistance + 1e-6 >= distance) return distance;
   }
   return 0;
+}
+
+function npcEscapeCandidateClearDistance(state, direction, heading, startNav = null) {
+  const start = startNav ||
+    shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+  if (!start.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
+  const movementHeading = screenDirectionToTangent(direction, state.vector, heading);
+  let previousTileId = start.tileId;
+  let previousNavKind = start.kind;
+  let clearDistance = 0;
+  for (const distance of NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX) {
+    const x = state.x + direction.x * distance;
+    const y = state.y + direction.y * distance;
+    const collisionTile = localCollisionTileAtPoint(x, y);
+    if (!collisionTile) break;
+    const vector = globePositionForLocalPoint(collisionTile.tileId, x, y);
+    const navigation = shipNavigabilityAtLocalPoint(
+      x,
+      y,
+      collisionTile.tileId,
+      vector
+    );
+    if (!navigation.ok || !movementCanUseDrawnNavigation(
+      previousTileId,
+      navigation.tileId,
+      previousNavKind,
+      navigation.kind,
+      movementHeading
+    )) break;
+    clearDistance = distance;
+    previousTileId = navigation.tileId;
+    previousNavKind = navigation.kind;
+  }
+  return clearDistance;
 }
 
 function commitNpcEscapeManeuver(state, direction, side, distance) {

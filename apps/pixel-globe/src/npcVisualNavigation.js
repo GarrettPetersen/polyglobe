@@ -9,6 +9,22 @@ export function chooseNpcEscapeDirection({
   clearDistanceFor,
   preferredSide = 0
 }) {
+  return rankNpcEscapeDirections({
+    desiredDirection,
+    currentDirection,
+    candidateDirections,
+    clearDistanceFor,
+    preferredSide
+  })[0] || null;
+}
+
+export function rankNpcEscapeDirections({
+  desiredDirection,
+  currentDirection,
+  candidateDirections,
+  clearDistanceFor,
+  preferredSide = 0
+}) {
   const desired = normalize2(desiredDirection);
   const current = normalize2(currentDirection) || desired;
   if (!desired) throw new Error("NPC escape navigation requires a desired direction");
@@ -19,7 +35,7 @@ export function chooseNpcEscapeDirection({
     throw new Error("NPC escape navigation requires a clearance probe");
   }
 
-  let best = null;
+  const ranked = [];
   for (const value of candidateDirections) {
     const direction = normalize2(value);
     if (!direction) continue;
@@ -30,10 +46,10 @@ export function chooseNpcEscapeDirection({
     const side = turnSide(desired, direction);
     const sideCommitment = preferredSide !== 0 && side === Math.sign(preferredSide) ? 1.25 : 0;
     const score = clearDistance + routeAlignment * 4 + continuity * 1.5 + sideCommitment;
-    if (best && score <= best.score) continue;
-    best = { direction, clearDistance, routeAlignment, side, score };
+    ranked.push({ direction, clearDistance, routeAlignment, side, score });
   }
-  return best;
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked;
 }
 
 export function chooseNpcObstacleAvoidanceDirection({
@@ -45,6 +61,23 @@ export function chooseNpcObstacleAvoidanceDirection({
   const desired = normalize2(desiredDirection);
   if (!desired) throw new Error("NPC obstacle navigation requires a desired direction");
   return chooseNpcEscapeDirection({
+    desiredDirection: desired,
+    currentDirection,
+    candidateDirections: NPC_OBSTACLE_AVOIDANCE_ANGLES_RAD.map((angle) => rotate2(desired, angle)),
+    clearDistanceFor,
+    preferredSide
+  });
+}
+
+export function rankNpcObstacleAvoidanceDirections({
+  desiredDirection,
+  currentDirection,
+  clearDistanceFor,
+  preferredSide = 0
+}) {
+  const desired = normalize2(desiredDirection);
+  if (!desired) throw new Error("NPC obstacle navigation requires a desired direction");
+  return rankNpcEscapeDirections({
     desiredDirection: desired,
     currentDirection,
     candidateDirections: NPC_OBSTACLE_AVOIDANCE_ANGLES_RAD.map((angle) => rotate2(desired, angle)),
