@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-42",
+  "version": "resurrect-icons-43",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 48,
@@ -491,6 +491,18 @@
       },
       "packId": "glionox",
       "assetPath": null
+    },
+    {
+      "id": "good:grain",
+      "rect": {
+        "x": 192,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null,
+      "paperOutline": true
     }
   ],
   "packs": {

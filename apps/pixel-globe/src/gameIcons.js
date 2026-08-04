@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-42";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-43";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -80,8 +80,8 @@ const SHIP_MENU_ICON_SOURCES = Object.freeze(Object.fromEntries(
 export const GAME_ICON_SOURCES = Object.freeze({
   "good:hardtack": alex("pastry_bread.png"),
   "good:fresh-water": nikoichu("Weather_Water_Droplet_Liquid_Rain_Element_Big.png", ICON_COLOR.dialogue),
-  "good:foraged-food": projectAsset("public/assets/misc/meat.png"),
-  "good:grain": projectAsset("public/assets/misc/grain.png"),
+  "good:foraged-food": alex("fruit_apple.png"),
+  "good:grain": paperOutlined(keifoo("grains_png/wheat.png")),
   "good:fish": generatedIcon("herring"),
   "good:whale-blubber": pirate(9),
   "good:beaver-pelts": generatedIcon("beaver-pelt"),

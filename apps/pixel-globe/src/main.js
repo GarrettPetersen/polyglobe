@@ -103,6 +103,7 @@ import {
 } from "./minimapSettlements.js";
 import { cargoCrateStatusLayout } from "./cargoCrateStatus.js";
 import {
+  proportionalStatusIconCounts,
   remainingSupplyDayCount,
   specialStatusIconCount,
   statusIconRowLayout
@@ -1218,6 +1219,7 @@ import {
 } from "./politics.js";
 import {
   BEAVER_PELTS_GOOD_ID,
+  FORAGED_FOOD_GOOD_ID,
   GINGER_GOOD_ID,
   GUNPOWDER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
@@ -1910,11 +1912,13 @@ const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
-const STATUS_HUD_ASSET_VERSION = "animal-companions-1";
+const STATUS_HUD_ASSET_VERSION = "provision-icons-2";
 const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
 const STATUS_HUD_DOUBLOON_URL = "assets/misc/dubloon.png";
 const STATUS_HUD_WATER_URL = "assets/misc/water.png";
 const STATUS_HUD_FOOD_URL = "assets/misc/food.png";
+const STATUS_HUD_GRAIN_URL = "assets/misc/grain.png";
+const STATUS_HUD_FORAGED_FOOD_URL = "assets/misc/meat.png";
 const STATUS_HUD_FISH_URL = "assets/misc/fish.png";
 const STATUS_HUD_WINE_URL = "assets/misc/wine.png";
 const STATUS_HUD_CRATE_SHEET_URL = "assets/misc/crate-Sheet.png";
@@ -4510,11 +4514,27 @@ async function loadFireEffectImage() {
 }
 
 async function loadStatusHudImages() {
-  const [crew, doubloon, water, food, fish, wine, crates, animalCompanionEntries] = await Promise.all([
+  const [
+    crew,
+    doubloon,
+    water,
+    food,
+    grain,
+    foragedFood,
+    fish,
+    wine,
+    crates,
+    animalCompanionEntries
+  ] = await Promise.all([
     loadAssetImage(`${STATUS_HUD_CREW_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "crew status icon"),
     loadAssetImage(`${STATUS_HUD_DOUBLOON_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "doubloon status icon"),
     loadAssetImage(`${STATUS_HUD_WATER_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "water status icon"),
     loadAssetImage(`${STATUS_HUD_FOOD_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "food status icon"),
+    loadAssetImage(`${STATUS_HUD_GRAIN_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "grain status icon"),
+    loadAssetImage(
+      `${STATUS_HUD_FORAGED_FOOD_URL}?v=${STATUS_HUD_ASSET_VERSION}`,
+      "foraged food status icon"
+    ),
     loadAssetImage(`${STATUS_HUD_FISH_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "fish status icon"),
     loadAssetImage(`${STATUS_HUD_WINE_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "wine status icon"),
     loadAssetImage(`${STATUS_HUD_CRATE_SHEET_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "cargo crate status sheet"),
@@ -4539,6 +4559,8 @@ async function loadStatusHudImages() {
   validateImageDimensions(doubloon, "doubloon status icon", 6, 6);
   validateImageDimensions(water, "water status icon", 6, 6);
   validateImageDimensions(food, "food status icon", 6, 6);
+  validateImageDimensions(grain, "grain status icon", 6, 6);
+  validateImageDimensions(foragedFood, "foraged food status icon", 6, 6);
   validateImageDimensions(fish, "fish status icon", 6, 6);
   validateImageDimensions(wine, "wine status icon", 6, 6);
   validateImageDimensions(crates, "cargo crate status sheet", SURVIVAL_CRATE_SIZE * 2, SURVIVAL_CRATE_SIZE);
@@ -4548,6 +4570,8 @@ async function loadStatusHudImages() {
     doubloon,
     water,
     food,
+    grain,
+    foragedFood,
     fish,
     wine,
     crates
@@ -40846,11 +40870,20 @@ function drawSurvivalMeters() {
   const status = snapshot.survival;
   const foodIconCount = remainingSupplyDayCount(status.foodDays);
   const fishRations = foodRationsForCargoQuantity(gameState.cargo[FISH_CARGO_GOOD_ID] || 0);
-  const fishIconCount = specialStatusIconCount(
-    foodIconCount,
-    fishRations,
-    status.storedFoodRations
+  const grainRations = foodRationsForCargoQuantity(gameState.cargo.grain || 0);
+  const foragedFoodRations = foodRationsForCargoQuantity(
+    gameState.cargo[FORAGED_FOOD_GOOD_ID] || 0
   );
+  const genericFoodRations = Math.max(
+    0,
+    status.storedFoodRations - fishRations - grainRations - foragedFoodRations
+  );
+  const foodSourceIconCounts = proportionalStatusIconCounts(foodIconCount, [
+    genericFoodRations,
+    grainRations,
+    foragedFoodRations,
+    fishRations
+  ]);
   const drinkIconCount = Math.max(0, Math.ceil(status.drinkDays));
   const wineIconCount = specialStatusIconCount(
     drinkIconCount,
@@ -40867,7 +40900,7 @@ function drawSurvivalMeters() {
     drinkIconCount,
     wineIconCount,
     foodIconCount,
-    fishIconCount
+    foodSourceIconCounts
   });
   if (survivalHudRasterCache?.key !== key) {
     survivalHudRasterCache = createSurvivalHudRaster({
@@ -40878,7 +40911,7 @@ function drawSurvivalMeters() {
       drinkIconCount,
       wineIconCount,
       foodIconCount,
-      fishIconCount
+      foodSourceIconCounts
     });
   }
   ctx.drawImage(survivalHudRasterCache.canvas, x, y);
@@ -40892,7 +40925,7 @@ function survivalHudRasterKey({
   drinkIconCount,
   wineIconCount,
   foodIconCount,
-  fishIconCount
+  foodSourceIconCounts
 }) {
   const travelers = snapshot.travelerManifest.map((entry) => [
     entry.kind,
@@ -40912,7 +40945,7 @@ function survivalHudRasterKey({
     drinkIconCount,
     wineIconCount,
     foodIconCount,
-    fishIconCount,
+    foodSourceIconCounts,
     width,
     height
   ]);
@@ -40926,7 +40959,7 @@ function createSurvivalHudRaster({
   drinkIconCount,
   wineIconCount,
   foodIconCount,
-  fishIconCount
+  foodSourceIconCounts
 }) {
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -40953,8 +40986,10 @@ function createSurvivalHudRaster({
     );
     drawSurvivalMeterRow(
       [
-        { icon: statusHudImages.food, count: foodIconCount - fishIconCount },
-        { icon: statusHudImages.fish, count: fishIconCount }
+        { icon: statusHudImages.food, count: foodSourceIconCounts[0] },
+        { icon: statusHudImages.grain, count: foodSourceIconCounts[1] },
+        { icon: statusHudImages.foragedFood, count: foodSourceIconCounts[2] },
+        { icon: statusHudImages.fish, count: foodSourceIconCounts[3] }
       ],
       `${foodIconCount}`,
       5,

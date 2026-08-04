@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-42",
+  "version": "resurrect-icons-43",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 224,
@@ -36,8 +36,8 @@
         "w": 16,
         "h": 16
       },
-      "packId": null,
-      "assetPath": "public/assets/misc/meat.png"
+      "packId": "alex",
+      "assetPath": null
     },
     {
       "id": "good:grain",
@@ -47,8 +47,9 @@
         "w": 16,
         "h": 16
       },
-      "packId": null,
-      "assetPath": "public/assets/misc/grain.png"
+      "packId": "keifoo",
+      "assetPath": null,
+      "paperOutline": true
     },
     {
       "id": "good:fish",

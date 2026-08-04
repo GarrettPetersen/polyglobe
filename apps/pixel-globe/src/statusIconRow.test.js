@@ -2,10 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  proportionalStatusIconCounts,
   remainingSupplyDayCount,
   specialStatusIconCount,
   statusIconRowLayout
 } from "./statusIconRow.js";
+
+test("mixed food stocks share a fixed number of HUD icons", () => {
+  assert.deepEqual(proportionalStatusIconCounts(12, [6, 3, 2, 1]), [6, 3, 2, 1]);
+  assert.deepEqual(proportionalStatusIconCounts(4, [100, 0.1, 0.1, 0]), [2, 1, 1, 0]);
+  assert.deepEqual(proportionalStatusIconCounts(1, [2, 8, 0, 0]), [0, 1, 0, 0]);
+  assert.deepEqual(proportionalStatusIconCounts(0, [2, 8]), [0, 0]);
+  assert.throws(() => proportionalStatusIconCounts(2, []), /non-empty array/);
+  assert.throws(() => proportionalStatusIconCounts(2, [1, -1]), /must be non-negative/);
+});
 
 test("small status counts leave a pixel between icons", () => {
   const layout = statusIconRowLayout({ count: 3, x: 10, y: 20, width: 40, iconWidth: 6 });
