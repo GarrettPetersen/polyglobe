@@ -14,7 +14,7 @@ import {
 
 test("every active storm supplies collectible rainwater", () => {
   assert.equal(rainCollectionStrength({ raining: false, snowing: false, stormIntensity: 0 }), 0);
-  assert.equal(rainCollectionStrength({ raining: true, snowing: false, stormIntensity: 0 }), 0.35);
+  assert.equal(rainCollectionStrength({ raining: true, snowing: false, stormIntensity: 0 }), 0.7);
   assert.equal(rainCollectionStrength({ raining: false, snowing: true, stormIntensity: 0 }), 0);
   assert.equal(rainCollectionStrength({
     raining: false,

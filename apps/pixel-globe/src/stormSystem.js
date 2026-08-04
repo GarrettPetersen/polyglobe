@@ -17,10 +17,10 @@ export function rainCollectionStrength({ raining, snowing, stormIntensity }) {
   }
   if (stormIntensity >= STORM_ACTIVE_INTENSITY) {
     const stormProgress = (stormIntensity - STORM_ACTIVE_INTENSITY) / (1 - STORM_ACTIVE_INTENSITY);
-    return Math.max(raining ? 0.35 : 0, 0.8 + stormProgress * 0.2);
+    return Math.max(raining ? 0.7 : 0, 0.8 + stormProgress * 0.2);
   }
   if (snowing) return 0;
-  return raining ? 0.35 : 0;
+  return raining ? 0.7 : 0;
 }
 
 export function createStormSystem({

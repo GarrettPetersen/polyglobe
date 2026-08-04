@@ -56,6 +56,7 @@ import {
   updateSurvival,
   validateGameState
 } from "./gameState.js";
+import { rainCollectionStrength } from "./stormSystem.js";
 import { crewHoldSpace, shipLoadoutPlan } from "./shipLoadouts.js";
 import { effectivePlayerShipStats } from "./playerPerks.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -523,6 +524,31 @@ test("rainwater silently offsets water consumption", () => {
     () => updateSurvival(rainy, 24 * 60, 25 * 60, { rainfall: 1.01 }),
     /Invalid rainfall strength/
   );
+});
+
+test("ordinary rain raises cask levels but mixed weather still requires resupply", () => {
+  const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.ship.crew = 1;
+  state.survival.freshWater -= 2;
+  const waterBeforeRain = state.survival.freshWater;
+  const ordinaryRainfall = rainCollectionStrength({
+    raining: true,
+    snowing: false,
+    stormIntensity: 0
+  });
+
+  const rainyResult = updateSurvival(state, 0, 24 * 60, { rainfall: ordinaryRainfall });
+  const waterAfterRain = state.survival.freshWater;
+  updateSurvival(state, 24 * 60, 2 * 24 * 60, { rainfall: 0 });
+
+  assert.ok(waterAfterRain > waterBeforeRain);
+  assert.equal(
+    rainyResult.rainWaterCollected,
+    ordinaryRainfall * RAIN_WATER_COLLECTION_PER_CONSUMER_DAY
+  );
+  assert.ok(state.survival.freshWater < waterBeforeRain);
 });
 
 test("heavy rain can raise a minimally crewed boat's water supply", () => {
