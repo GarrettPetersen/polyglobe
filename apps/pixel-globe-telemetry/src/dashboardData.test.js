@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ACCURATE_SESSION_PLAYTIME_SINCE,
+  ACCURATE_VOYAGE_START_PROFILE,
   buildDashboardSnapshot,
   dashboardQueries,
   validateDashboardWindow
@@ -18,6 +19,13 @@ test("dashboard queries count every consenting event without cohort estimates", 
   const sql = Object.values(dashboardQueries(7)).join("\n");
   assert.doesNotMatch(sql, /\bdouble1\b/);
   assert.doesNotMatch(sql, /DISTINCT index1\) \* 100/);
+});
+
+test("dashboard voyage starts include only immutable opening profiles", () => {
+  const queries = dashboardQueries(30);
+  assert.match(queries.totals, new RegExp(ACCURATE_VOYAGE_START_PROFILE));
+  assert.match(queries.daily, new RegExp(ACCURATE_VOYAGE_START_PROFILE));
+  assert.match(queries.starts, new RegExp(ACCURATE_VOYAGE_START_PROFILE));
 });
 
 test("dashboard crash reports are newest first", () => {

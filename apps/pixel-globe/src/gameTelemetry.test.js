@@ -13,6 +13,7 @@ import {
   voyageStartTelemetryPayload,
   voyageTelemetryPayload
 } from "./gameTelemetry.js";
+import { captureVoyageStartProfile } from "./voyageStartProfile.js";
 
 function memoryStorage(entries = {}) {
   const values = new Map(Object.entries(entries));
@@ -287,7 +288,7 @@ test("a fresh voyage records its bounded starting profile", async () => {
   assert.equal(start.payload.startingCrew, 12);
 });
 
-test("a resumed voyage recovers a missing start once while a new voyage can force it", async () => {
+test("a resumed voyage reports its captured opening profile once while a new voyage can force it", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
     [TELEMETRY_INSTALLATION_STORAGE_KEY]: "voyage-start-recovery"
@@ -321,6 +322,38 @@ test("a resumed voyage recovers a missing start once while a new voyage can forc
   assert.equal(telemetry.recordVoyageStart(state, { force: true }), true);
   await nextTask();
   assert.equal(events.filter((event) => event.type === "voyage_start").length, 2);
+});
+
+test("a migrated voyage without an opening profile does not invent start data", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "voyage-start-legacy"
+  });
+  const events = [];
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      events.push(...JSON.parse(options.body).events);
+      return successfulResponse();
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+
+  telemetry.start();
+  await nextTask();
+  const state = voyageStartState();
+  state.voyageStartProfile = null;
+  state.ship.slug = "spanish-nao";
+  assert.equal(telemetry.recordVoyageStart(state), false);
+  await nextTask();
+  assert.equal(events.filter((event) => event.type === "voyage_start").length, 0);
+  assert.equal(storage.values.has(TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY), false);
 });
 
 test("accepted batches remove poisoned legacy events from the persisted queue", async () => {
@@ -448,6 +481,7 @@ test("voyage summaries expose bounded feature engagement without names or save d
 test("voyage start summaries omit generated names and exact positions", () => {
   const payload = voyageStartTelemetryPayload(voyageStartState());
   assert.deepEqual(payload, {
+    profileVersion: 1,
     mainQuest: "explorer",
     faction: "portugal",
     ship: "caravel",
@@ -469,6 +503,22 @@ test("voyage start summaries omit generated names and exact positions", () => {
   assert.ok(!serialized.includes("Maria Test"));
   assert.ok(!serialized.includes("latitude"));
   assert.ok(!serialized.includes("longitude"));
+});
+
+test("voyage start telemetry never substitutes a later prize vessel", () => {
+  const state = voyageStartState();
+  state.ship.slug = "spanish-nao";
+  state.ship.crew = 40;
+  state.ship.cannons = 18;
+  state.cargoCapacity = 180;
+  state.doubloons = 75_000;
+
+  const payload = voyageStartTelemetryPayload(state);
+  assert.equal(payload.ship, "caravel");
+  assert.equal(payload.startingCrew, 12);
+  assert.equal(payload.startingCannons, 4);
+  assert.equal(payload.cargoCapacity, 90);
+  assert.equal(payload.startingDoubloons, 500);
 });
 
 test("raccoon telemetry records acquisition rather than a recruitment prompt", () => {
@@ -558,8 +608,9 @@ function voyageState(mainQuest) {
 }
 
 function voyageStartState() {
-  return {
+  const state = {
     voyageSeed: "voyage-start-seed",
+    voyageStartProfile: null,
     doubloons: 500,
     cargoCapacity: 90,
     playerCharacter: {
@@ -583,6 +634,8 @@ function voyageStartState() {
       campaignGoal: { type: "explorer" }
     }
   };
+  captureVoyageStartProfile(state);
+  return state;
 }
 
 function successfulResponse(body = { accepted: 1, rejected: 0, errors: [] }) {

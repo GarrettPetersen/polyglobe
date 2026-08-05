@@ -120,7 +120,7 @@ test("voyage starts record bounded origin, captain, ship, and loadout details", 
     "female",
     "master-navigator",
     "provisional-short-haul",
-    ""
+    "captured-v1"
   ]);
   assert.deepEqual(points[0].doubles.slice(1, 8), [31, 12, 4, 90, 20, 20, 500]);
 });
@@ -226,6 +226,7 @@ function voyagePayload(overrides) {
 function voyageStartPayload(overrides = {}) {
   return {
     samplingWeight: 1,
+    profileVersion: 1,
     mainQuest: "explorer",
     faction: "portugal",
     ship: "caravel",

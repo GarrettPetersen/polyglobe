@@ -75,7 +75,7 @@ const sections = [
       round(SUM(_sample_interval * double3) / SUM(_sample_interval), 1) AS average_crew,
       round(SUM(_sample_interval * double4) / SUM(_sample_interval), 1) AS average_cannons
     FROM ${dataset}
-    WHERE blob1 = 'voyage_start'
+    WHERE blob1 = 'voyage_start' AND blob17 = 'captured-v1'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${windowDays}' DAY
     GROUP BY main_quest, faction, ship, home_port, start_region, religion,

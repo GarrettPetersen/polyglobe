@@ -202,6 +202,7 @@ import {
   shipStatsForSlug
 } from "./shipStats.js";
 import { startShipSlugFromSearch } from "./shipLaunchParams.js";
+import { captureVoyageStartProfile } from "./voyageStartProfile.js";
 import {
   SHIP_SHADOW_FRAME_SIZE,
   SHIP_SPRITE_FRAME_SIZE,
@@ -9714,6 +9715,7 @@ function startNewVoyage() {
   playerNavigationRecoveryState = createPlayerShipRecoveryState();
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   reframeWorldNorthUp("new voyage");
+  captureVoyageStartProfile(gameState);
   hasStartedVoyage = true;
   gameTelemetry.recordVoyageStart(gameState, { force: true });
   closeStartMenu();

@@ -1,5 +1,6 @@
 const DATASET = "marque_and_reprisal_game_events";
 export const ACCURATE_SESSION_PLAYTIME_SINCE = "2026-08-05 05:38:00";
+export const ACCURATE_VOYAGE_START_PROFILE = "captured-v1";
 export const DASHBOARD_WINDOWS = Object.freeze([1, 7, 30, 90]);
 
 export async function fetchDashboardSnapshot(env, windowDays, {
@@ -42,7 +43,9 @@ export function dashboardQueries(windowDays) {
             AND timestamp >= toDateTime('${ACCURATE_SESSION_PLAYTIME_SINCE}'),
           double2, 0.0
         )) / 3600, 1) AS active_hours,
-        round(SUM(_sample_interval * if(blob1 = 'voyage_start', 1, 0))) AS voyage_starts,
+        round(SUM(_sample_interval * if(
+          blob1 = 'voyage_start' AND blob17 = '${ACCURATE_VOYAGE_START_PROFILE}', 1, 0
+        ))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
       FROM ${DATASET}
@@ -61,7 +64,9 @@ export function dashboardQueries(windowDays) {
             AND timestamp >= toDateTime('${ACCURATE_SESSION_PLAYTIME_SINCE}'),
           double2, 0.0
         )) / 3600, 1) AS active_hours,
-        round(SUM(_sample_interval * if(blob1 = 'voyage_start', 1, 0))) AS voyage_starts,
+        round(SUM(_sample_interval * if(
+          blob1 = 'voyage_start' AND blob17 = '${ACCURATE_VOYAGE_START_PROFILE}', 1, 0
+        ))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
       FROM ${DATASET}
@@ -130,7 +135,8 @@ export function dashboardQueries(windowDays) {
         round(SUM(_sample_interval * double7) / SUM(_sample_interval), 1) AS average_water_days,
         round(SUM(_sample_interval * double8) / SUM(_sample_interval), 1) AS average_doubloons
       FROM ${DATASET}
-      WHERE blob1 = 'voyage_start' AND ${where}
+      WHERE blob1 = 'voyage_start'
+        AND blob17 = '${ACCURATE_VOYAGE_START_PROFILE}' AND ${where}
       GROUP BY main_quest, faction, ship, home_port, start_region, religion,
         captain_sex, captain_skills, loadout
       ORDER BY voyage_starts DESC, main_quest, faction, home_port

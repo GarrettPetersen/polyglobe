@@ -40,6 +40,7 @@ const ingestion = await jsonFetch(`${endpoint}/v1/events`, {
       },
       payload: {
         samplingWeight: 1,
+        profileVersion: 1,
         mainQuest: "explorer",
         faction: "portugal",
         ship: "caravel",
@@ -66,6 +67,7 @@ const sql = `
   SELECT count() AS rows
   FROM marque_and_reprisal_game_events
   WHERE blob1 = 'voyage_start'
+    AND blob17 = 'captured-v1'
     AND blob4 = 'deployment-check'
     AND blob8 = 'explorer'
     AND blob9 = 'portugal'

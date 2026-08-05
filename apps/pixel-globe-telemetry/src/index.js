@@ -209,6 +209,9 @@ function validateVoyageStartPayload(payload, samplingWeight) {
   }
   return {
     samplingWeight,
+    profileVersion: payload.profileVersion === undefined
+      ? 0
+      : integerInRange(payload.profileVersion, 1, 100),
     mainQuest: shortString(payload.mainQuest, 80),
     faction: shortString(payload.faction, 80),
     ship: shortString(payload.ship, 160),
@@ -313,7 +316,7 @@ function eventDataColumns(type, payload, crashFingerprint) {
         payload.captainSex,
         payload.captainSkills,
         payload.loadout,
-        ""
+        payload.profileVersion === 1 ? "captured-v1" : ""
       ],
       doubles: [
         payload.captainAge,
