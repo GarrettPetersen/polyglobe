@@ -65,6 +65,14 @@ const PORTS = Object.freeze([
   port(9, "Nanjing", "China", "east-asian", 32.06, 118.79, 160000, "ming")
 ]);
 
+const DARDANELLES_PORTS = Object.freeze([
+  ...PORTS,
+  port(10, "Alexandria", "Egypt", "islamic-desert", 31.2, 29.92, 80000, "ottoman"),
+  port(11, "Athens", "Greece", "mediterranean", 37.98, 23.73, 50000, "venice"),
+  port(12, "Gelibolu", "Turkey", "islamic-desert", 40.41, 26.67, 10000, "ottoman"),
+  port(13, "Feodosia", "Ukraine", "islamic-desert", 45.03, 35.38, 10000, "ottoman")
+]);
+
 const PACIFIC_PORTS = Object.freeze([
   port(20, "Fiji Village", "Fiji", "polynesian", -18.14, 178.44, 3500, "neutral"),
   port(21, "Tonga Village", "Tonga", "polynesian", -21.14, -175.2, 3000, "neutral"),
@@ -172,6 +180,52 @@ test("eastbound Malacca routes go around the Malay Peninsula through Singapore",
     "canton->malacca",
     "manila->malacca"
   ].includes(pair)), sailPairs.join(", "));
+});
+
+test("Mediterranean Ottoman ports use local sea-lane anchors", () => {
+  const economy = createWorldEconomy({ ports: DARDANELLES_PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: DARDANELLES_PORTS, startMinute: 0, economy });
+
+  const routePort = (name) => routes.ports.find((port) => port.city === name);
+  assert.equal(routePort("Istanbul")?.routeRegion, "europe");
+  assert.deepEqual(routePort("Istanbul")?.routeAnchors, ["constantinople"]);
+  assert.equal(routePort("Alexandria")?.routeRegion, "europe");
+  assert.ok(routePort("Alexandria")?.routeAnchors.includes("alexandria"));
+  assert.equal(routePort("Gelibolu")?.routeRegion, "europe");
+  assert.deepEqual(routePort("Gelibolu")?.routeAnchors, ["dardanelles-south"]);
+  assert.equal(routePort("Feodosia")?.routeRegion, "europe");
+  assert.deepEqual(routePort("Feodosia")?.routeAnchors, ["black-sea"]);
+});
+
+test("NPC routes traverse the Dardanelles and Bosporus rails in both directions", () => {
+  const economy = createWorldEconomy({ ports: DARDANELLES_PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: DARDANELLES_PORTS, startMinute: 0, economy });
+  const alexandria = routes.ports.find((port) => port.city === "Alexandria");
+  const feodosia = routes.ports.find((port) => port.city === "Feodosia");
+  assert.ok(alexandria);
+  assert.ok(feodosia);
+
+  const expectedEastbound = [
+    "aegean->dardanelles-south",
+    "dardanelles-south->dardanelles-north",
+    "dardanelles-north->marmara-west",
+    "marmara-west->marmara-center",
+    "marmara-center->marmara-east",
+    "marmara-east->constantinople",
+    "constantinople->black-sea"
+  ];
+  const eastbound = routeBetweenPorts(routes, alexandria, feodosia, "small-cog", 0).segments
+    .filter((segment) => segment.kind === "sail")
+    .map((segment) => `${segment.from.id}->${segment.to.id}`);
+  const westbound = routeBetweenPorts(routes, feodosia, alexandria, "small-cog", 0).segments
+    .filter((segment) => segment.kind === "sail")
+    .map((segment) => `${segment.from.id}->${segment.to.id}`);
+
+  for (const pair of expectedEastbound) assert.ok(eastbound.includes(pair), eastbound.join(", "));
+  for (const pair of expectedEastbound) {
+    const [from, to] = pair.split("->");
+    assert.ok(westbound.includes(`${to}->${from}`), westbound.join(", "));
+  }
 });
 
 test("a founded American port becomes an NPC sea-lane destination", () => {
@@ -915,6 +969,52 @@ test("saved routes using removed Malacca crossings are replanned on restore", (t
     .map((segment) => `${segment.from.id}->${segment.to.id}`);
   assert.ok(sailPairs.includes("malacca->singapore"), sailPairs.join(", "));
   assert.deepEqual(restored.currentPort.routeAnchors, ["malacca"]);
+  assert.equal(restored.visualNavigation, null);
+  assert.equal(messages.length, 1);
+  assert.match(messages[0][0], /Replanned 1 saved NPC routes/);
+});
+
+test("saved routes using obsolete Istanbul anchors are replanned on restore", (t) => {
+  const economy = createWorldEconomy({ ports: DARDANELLES_PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: DARDANELLES_PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships[0];
+  const alexandria = routes.ports.find((port) => port.city === "Alexandria");
+  const istanbul = routes.ports.find((port) => port.city === "Istanbul");
+  const redSeaNode = routes.laneNodes.get("red-sea");
+  assert.ok(alexandria);
+  assert.ok(istanbul);
+  assert.ok(redSeaNode);
+  saved.currentPort = alexandria;
+  saved.finalDestination = null;
+  saved.plan = {
+    origin: alexandria,
+    destination: istanbul,
+    segments: [{
+      kind: "sail",
+      from: redSeaNode,
+      to: istanbul,
+      startMinute: 0,
+      endMinute: 1000
+    }],
+    startMinute: 0,
+    endMinute: 1000
+  };
+  saved.visualNavigation = {
+    vector: [1, 0, 0],
+    heading: [0, 1, 0]
+  };
+  const messages = [];
+  t.mock.method(console, "info", (...args) => messages.push(args));
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  const restored = routes.shipById.get(saved.id);
+  const sailPairs = restored.plan.segments
+    .filter((segment) => segment.kind === "sail")
+    .map((segment) => `${segment.from.id}->${segment.to.id}`);
+  assert.ok(sailPairs.includes("dardanelles-south->dardanelles-north"), sailPairs.join(", "));
+  assert.ok(sailPairs.includes("marmara-east->constantinople"), sailPairs.join(", "));
   assert.equal(restored.visualNavigation, null);
   assert.equal(messages.length, 1);
   assert.match(messages[0][0], /Replanned 1 saved NPC routes/);

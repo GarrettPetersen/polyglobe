@@ -234,7 +234,17 @@ const LANE_NODES = Object.freeze([
   laneNode("gibraltar", "Gibraltar", 35.9, -5.5),
   laneNode("sicily", "Sicily Channel", 36.8, 13.4),
   laneNode("alexandria", "Alexandria Roads", 31.0, 29.2),
-  laneNode("constantinople", "Constantinople", 41.0, 29.0),
+  // These points follow the same contiguous navigable hex chain as the local
+  // Dardanelles, Marmara, and Bosporus rails. Strategic and local navigation
+  // must agree in narrow water or obstacle avoidance will make ships oscillate.
+  laneNode("aegean", "Northern Aegean", 39.8952, 25.95852),
+  laneNode("dardanelles-south", "Dardanelles South", 40.32832, 26.43773),
+  laneNode("dardanelles-north", "Dardanelles North", 40.27811, 27.10846),
+  laneNode("marmara-west", "Sea of Marmara West", 40.70369, 27.59271),
+  laneNode("marmara-center", "Sea of Marmara", 40.64675, 28.26621),
+  laneNode("marmara-east", "Sea of Marmara East", 40.5859, 28.93853),
+  laneNode("constantinople", "Constantinople Roads", 41.06873, 28.76007),
+  laneNode("black-sea", "Black Sea Entrance", 41.48853, 29.26074),
   laneNode("venice", "Venice Lagoon", 45.2, 12.5),
   laneNode("canaries", "Canaries", 28.1, -16.1),
   laneNode("cape-verde", "Cape Verde", 15.4, -23.8),
@@ -271,7 +281,15 @@ const LANE_EDGES = Object.freeze([
   laneEdge("gibraltar", "sicily", "strait"),
   laneEdge("sicily", "alexandria", "coastal"),
   laneEdge("sicily", "venice", "coastal"),
-  laneEdge("alexandria", "constantinople", "coastal"),
+  laneEdge("sicily", "aegean", "coastal"),
+  laneEdge("alexandria", "aegean", "coastal"),
+  laneEdge("aegean", "dardanelles-south", "coastal"),
+  laneEdge("dardanelles-south", "dardanelles-north", "strait"),
+  laneEdge("dardanelles-north", "marmara-west", "strait"),
+  laneEdge("marmara-west", "marmara-center", "coastal"),
+  laneEdge("marmara-center", "marmara-east", "coastal"),
+  laneEdge("marmara-east", "constantinople", "strait"),
+  laneEdge("constantinople", "black-sea", "strait"),
   laneEdge("gibraltar", "canaries", "coastal"),
   laneEdge("canaries", "cape-verde", "bluewater"),
   laneEdge("cape-verde", "guinea", "coastal"),
@@ -833,7 +851,7 @@ export function restoreNpcSeaRouteSystem(
   if (repairedRegionalRoutes > 0) {
     console.info(`Repaired ${repairedRegionalRoutes} saved regional fishing routes`);
   }
-  const replannedRoutes = replanNpcRoutesWithRemovedLaneEdges(system, ships);
+  const replannedRoutes = replanNpcRoutesForCurrentTopology(system, ships);
   if (replannedRoutes > 0) {
     console.info(`Replanned ${replannedRoutes} saved NPC routes for the current sea-lane topology`);
   }
@@ -922,7 +940,7 @@ function regionalFishermanDestinationBelongsToProfile(profileSpec, profilePorts,
   return profileSpec.portPredicate(destination);
 }
 
-function replanNpcRoutesWithRemovedLaneEdges(system, ships) {
+function replanNpcRoutesForCurrentTopology(system, ships) {
   const startMinute = system.economy?.lastMinute;
   if (!Number.isFinite(startMinute)) {
     throw new Error(`NPC route topology repair requires a finite economy minute: ${startMinute}`);
@@ -930,7 +948,7 @@ function replanNpcRoutesWithRemovedLaneEdges(system, ships) {
   let replanned = 0;
   for (const ship of ships) {
     if (ship.hiddenAtHideout && ship.plan === null) continue;
-    if (!npcPlanUsesRemovedLaneEdge(system, ship.plan)) continue;
+    if (!npcPlanUsesObsoleteRouteTopology(system, ship.plan)) continue;
     const origin = canonicalNpcRouteDestination(system, ship.currentPort);
     const destination = canonicalNpcRouteDestination(system, ship.plan?.destination);
     const route = routeBetweenPorts(system, origin, destination, ship.slug, startMinute);
@@ -943,17 +961,32 @@ function replanNpcRoutesWithRemovedLaneEdges(system, ships) {
   return replanned;
 }
 
-function npcPlanUsesRemovedLaneEdge(system, plan) {
+function npcPlanUsesObsoleteRouteTopology(system, plan) {
   if (!plan || !Array.isArray(plan.segments)) throw new Error("Saved NPC ship has no route segments");
   for (const segment of plan.segments) {
     if (segment.kind !== "sail") continue;
     const fromId = segment.from?.id;
     const toId = segment.to?.id;
-    if (!system.laneNodes.has(fromId) || !system.laneNodes.has(toId)) continue;
-    const edgeExists = (system.baseEdges.get(fromId) || []).some((edge) => edge.to === toId);
-    if (!edgeExists) return true;
+    const fromIsLane = system.laneNodes.has(fromId);
+    const toIsLane = system.laneNodes.has(toId);
+    if (fromIsLane && toIsLane) {
+      const edgeExists = (system.baseEdges.get(fromId) || []).some((edge) => edge.to === toId);
+      if (!edgeExists) return true;
+      continue;
+    }
+    if (fromIsLane && !currentRoutePointUsesAnchor(system, segment.to, fromId)) return true;
+    if (toIsLane && !currentRoutePointUsesAnchor(system, segment.from, toId)) return true;
   }
   return false;
+}
+
+function currentRoutePointUsesAnchor(system, point, anchorId) {
+  if (!Number.isInteger(point?.tileId)) return true;
+  const currentPoint = system.ports.find((port) => port.tileId === point.tileId) ||
+    system.fishingGrounds.find((ground) => ground.tileId === point.tileId) ||
+    system.whalingGrounds.find((ground) => ground.tileId === point.tileId);
+  if (!currentPoint) return true;
+  return currentPoint.routeAnchors.includes(anchorId);
 }
 
 function canonicalNpcRouteDestination(system, destination) {
@@ -3106,6 +3139,10 @@ function portRouteRegion(port) {
   if (port.cityType === "southeast-asian") return "southeast-asia";
   if (port.cityType === "south-asian") return "south-asia";
   if (port.lon < -25) return "americas";
+  // City art groups are cultural, not nautical. Ottoman and North African
+  // Mediterranean ports use Islamic art, but must not inherit Indian Ocean
+  // route anchors such as Hormuz and Aden.
+  if (isMediterraneanOrBlackSeaRoutePort(port)) return "europe";
   if (port.cityType === "northern-european" || port.cityType === "mediterranean") return "europe";
   if (port.cityType === "sub-saharan") return "africa";
   if (port.cityType === "islamic-desert") return "indian-ocean";
@@ -3124,8 +3161,23 @@ function anchorIdsForPort(port) {
   if (region === "south-asia") return nearestAnchors(port, ["goa", "ceylon", "arabian-sea"], 2);
   if (region === "indian-ocean") return nearestAnchors(port, ["aden", "hormuz", "red-sea", "zanzibar", "arabian-sea"], 2);
   if (region === "europe") {
+    if (isBosporusRoutePort(port)) return ["constantinople"];
+    if (isBlackSeaRoutePort(port)) return ["black-sea"];
+    if (isDardanellesRoutePort(port)) {
+      return nearestAnchors(port, ["dardanelles-south", "dardanelles-north"], 1);
+    }
+    if (isMarmaraRoutePort(port)) {
+      return nearestAnchors(port, ["marmara-west", "marmara-center", "marmara-east"], 1);
+    }
     if (port.lat > 46) return nearestAnchors(port, ["north-sea", "biscay", "gibraltar"], 2);
-    return nearestAnchors(port, ["gibraltar", "sicily", "alexandria", "constantinople", "venice"], 2);
+    return nearestAnchors(port, [
+      "gibraltar",
+      "sicily",
+      "alexandria",
+      "aegean",
+      "dardanelles-south",
+      "venice"
+    ], 2);
   }
   if (region === "africa") {
     return port.lat < -5
@@ -3135,6 +3187,48 @@ function anchorIdsForPort(port) {
   if (region === "polynesia") return nearestAnchors(port, ["new-guinea", "fiji", "tahiti"], 2);
   if (region === "americas") return nearestAnchors(port, ["caribbean", "havana", "brazil-bulge", "magellan"], 2);
   return nearestAnchors(port, LANE_NODES.map((node) => node.id), 2);
+}
+
+function isMediterraneanOrBlackSeaRoutePort(port) {
+  if ([
+    "adriatic",
+    "barbary-coast",
+    "central-mediterranean",
+    "eastern-mediterranean",
+    "strait-of-gibraltar",
+    "western-mediterranean"
+  ].includes(port.manualRegion)) return true;
+  if (!Number.isFinite(port?.lat) || !Number.isFinite(port?.lon)) return false;
+  const lon = normalizeLonDeg(port.lon);
+  const northAfricanAtlantic = port.lat >= 20 && port.lat <= 36 && lon >= -18 && lon < -5;
+  const mediterraneanSouth = port.lat >= 30 && port.lat <= 38.5 && lon >= -6 && lon <= 36;
+  const aegeanAndBlackSea = port.lat >= 38.5 && port.lat <= 48 && lon >= 20 && lon <= 42.5;
+  return northAfricanAtlantic || mediterraneanSouth || aegeanAndBlackSea;
+}
+
+function isBosporusRoutePort(port) {
+  const name = portName(port).toLowerCase();
+  if (name === "istanbul" || name === "constantinople") return true;
+  const lon = normalizeLonDeg(port.lon);
+  return port.lat >= 40.85 && port.lat <= 41.25 && lon >= 28.65 && lon <= 29.35;
+}
+
+function isBlackSeaRoutePort(port) {
+  const lon = normalizeLonDeg(port.lon);
+  return (
+    (port.lat >= 41 && port.lat <= 47.5 && lon >= 30 && lon <= 42.5) ||
+    (port.lat >= 42 && port.lat <= 47.5 && lon >= 27 && lon < 30)
+  );
+}
+
+function isDardanellesRoutePort(port) {
+  const lon = normalizeLonDeg(port.lon);
+  return port.lat >= 39.7 && port.lat <= 40.8 && lon >= 25.7 && lon <= 27.8;
+}
+
+function isMarmaraRoutePort(port) {
+  const lon = normalizeLonDeg(port.lon);
+  return port.lat >= 39.5 && port.lat <= 41 && lon > 27.8 && lon <= 29.5;
 }
 
 function nearestAnchors(port, anchorIds, count) {
