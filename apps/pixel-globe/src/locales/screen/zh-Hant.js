@@ -2972,6 +2972,7 @@ export default Object.freeze({
   "Tiger": "虎",
   "Tigerfish": "虎魚",
   "tile {0}": "平鋪 {0}",
+  "TILT {0} DEG": "傾斜 {0} 度",
   "To arms": "到武器",
   "to carry sealed pleas for relief before another Christian harbor is lost.": "在另一個基督教港口消失之前，攜帶密封的救援請求。",
   "To challenge France Antarctique, the fort must also carry": "为了挑战法国南极队，堡垒还必须携带",

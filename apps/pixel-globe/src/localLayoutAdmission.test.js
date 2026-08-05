@@ -9,9 +9,10 @@ import {
 } from "./geodesic.js";
 import {
   admitProjectedTiles,
-  refreshOffscreenElasticLayoutTiles,
+  refreshOffscreenLayoutTiles,
   projectedViewportTileIds,
   retainLocalLayoutAnchor,
+  settleElasticLayoutTowardProjection,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 
@@ -144,6 +145,55 @@ test("a newly exposed ocean edge cannot make an unbounded correction jump", () =
   );
 });
 
+test("a quiet interval can admit ocean without applying a north-up jump", () => {
+  const points = rotatedAdmissionPoints(60);
+  admitProjectedTiles({
+    positions: points.positions,
+    projectedById: points.projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    ...admissionTopology(3, [[0, 1], [1, 2]], 0),
+    registrationIds: new Set([0, 1]),
+    correctElasticTilesNorthUp: false,
+    maxElasticCorrectionPx: 0
+  });
+
+  assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
+});
+
+test("ocean swell settlement moves only elastic viewport tiles toward north-up", () => {
+  const positions = new Map([
+    [0, { x: 100, y: 80 }],
+    [1, { x: 124, y: 10 }],
+    [2, { x: 148, y: 10 }],
+    [3, { x: 172, y: 10 }]
+  ]);
+  const projectedTiles = [
+    { id: 0, x: 100, y: 80 },
+    { id: 1, x: 124, y: 80 },
+    { id: 2, x: 148, y: 80 },
+    { id: 3, x: 500, y: 80 }
+  ];
+  const protectionById = new Uint8Array([255, 0, 255, 0]);
+
+  const settled = settleElasticLayoutTowardProjection({
+    positions,
+    projectedTiles,
+    protectionById,
+    anchorId: 0,
+    viewportWidth: 240,
+    viewportHeight: 160,
+    tileVisualRadius: 18,
+    maximumStepPx: 2
+  });
+
+  assert.equal(settled, 1);
+  assert.deepEqual(positions.get(0), { x: 100, y: 80 });
+  assert.deepEqual(positions.get(1), { x: 124, y: 12 });
+  assert.deepEqual(positions.get(2), { x: 148, y: 10 });
+  assert.deepEqual(positions.get(3), { x: 172, y: 10 });
+});
+
 test("the same correction keeps protected geography rigidly attached", () => {
   const points = rotatedAdmissionPoints(2);
   admitProjectedTiles({
@@ -155,6 +205,128 @@ test("the same correction keeps protected geography rigidly attached", () => {
   });
 
   assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
+});
+
+test("protected coastline entering beside corrected ocean keeps its component rigid", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 0, y: 24 }],
+    [4, { x: 0, y: 24 }],
+    [5, { x: 24, y: 24 }]
+  ]);
+  const projectedById = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 48, y: 0 }],
+    [3, { x: 72, y: 0 }],
+    [4, { x: 0, y: 24 }],
+    [5, { x: 24, y: 24 }]
+  ]);
+  const { neighborsById, protectionById } = admissionTopology(
+    6,
+    [[0, 1], [1, 2], [2, 3], [4, 5]],
+    0
+  );
+  for (const id of [0, 1, 2, 3]) protectionById[id] = 255;
+
+  admitProjectedTiles({
+    positions,
+    projectedById,
+    pendingIds: [2, 3],
+    anchorId: 0,
+    neighborsById,
+    protectionById,
+    registrationIds: new Set([4, 5]),
+    rigidRegistrationIds: new Set([0, 1, 4, 5]),
+    correctElasticTilesNorthUp: true
+  });
+
+  assert.deepEqual(positions.get(2), { x: 0, y: 48 });
+  assert.deepEqual(positions.get(3), { x: 0, y: 72 });
+});
+
+test("north-up correction preserves a protected one-tile sea channel", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 21, y: 12 }],
+    [3, { x: 0, y: 24 }],
+    [4, { x: 24, y: 24 }]
+  ]);
+  const projectedById = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 48, y: 0 }],
+    [3, { x: 0, y: 24 }],
+    [4, { x: 24, y: 24 }]
+  ]);
+  const { neighborsById, protectionById } = admissionTopology(
+    5,
+    [[0, 1], [1, 2], [3, 4]],
+    0
+  );
+  for (const id of [0, 1, 2]) protectionById[id] = 255;
+
+  admitProjectedTiles({
+    positions,
+    projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    neighborsById,
+    protectionById,
+    registrationIds: new Set([3, 4]),
+    rigidRegistrationIds: new Set([0, 1, 3, 4]),
+    correctElasticTilesNorthUp: true
+  });
+
+  assert.deepEqual(positions.get(2), { x: 42, y: 24 });
+  assert.ok(Math.abs(Math.hypot(
+    positions.get(1).x - positions.get(0).x,
+    positions.get(1).y - positions.get(0).y
+  ) - 24) < 0.5);
+  assert.ok(Math.abs(Math.hypot(
+    positions.get(2).x - positions.get(1).x,
+    positions.get(2).y - positions.get(1).y
+  ) - 24) < 0.5);
+});
+
+test("separated views of one global coastline inherit one protected frame", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 0, y: 24 }],
+    [4, { x: 0, y: 24 }],
+    [5, { x: 24, y: 24 }]
+  ]);
+  const projectedById = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 200, y: 0 }],
+    [3, { x: 224, y: 0 }],
+    [4, { x: 0, y: 24 }],
+    [5, { x: 24, y: 24 }]
+  ]);
+  const { neighborsById, protectionById } = admissionTopology(
+    6,
+    [[0, 1], [2, 3], [4, 5]],
+    0
+  );
+  for (const id of [0, 1, 2, 3]) protectionById[id] = 255;
+  const directProtectionComponentById = new Int32Array([7, 7, 7, 7, -1, -1]);
+
+  admitProjectedTiles({
+    positions,
+    projectedById,
+    pendingIds: [2, 3],
+    anchorId: 0,
+    neighborsById,
+    protectionById,
+    directProtectionComponentById,
+    registrationIds: new Set([4, 5]),
+    rigidRegistrationIds: new Set([0, 1, 4, 5]),
+    correctElasticTilesNorthUp: true
+  });
+
+  assert.deepEqual(positions.get(2), { x: 0, y: 200 });
+  assert.deepEqual(positions.get(3), { x: 0, y: 224 });
 });
 
 test("buffer protection permits a partial north-up correction", () => {
@@ -289,7 +461,7 @@ test("a newly centered tile is retained before an elastic north-up correction", 
     viewY: 49.6
   }), true);
   assert.deepEqual(positions.get(2), { x: 50, y: 50 });
-  assert.doesNotThrow(() => refreshOffscreenElasticLayoutTiles({
+  assert.doesNotThrow(() => refreshOffscreenLayoutTiles({
     positions,
     projectedTiles,
     protectionById,
@@ -299,6 +471,35 @@ test("a newly centered tile is retained before an elastic north-up correction", 
     anchorId: 2
   }));
   assert.deepEqual(positions.get(2), { x: 50, y: 50 });
+});
+
+test("fully offscreen protected geography is rebuilt before it returns", () => {
+  const positions = new Map([
+    [0, { x: 50, y: 50 }],
+    [1, { x: 82, y: 50 }],
+    [2, { x: 170, y: 50 }]
+  ]);
+  const projectedTiles = [
+    { id: 0, x: 50, y: 50 },
+    { id: 1, x: 82, y: 50 },
+    { id: 2, x: 170, y: 50 }
+  ];
+  const protectionById = new Uint8Array([255, 255, 255]);
+
+  const discarded = refreshOffscreenLayoutTiles({
+    positions,
+    projectedTiles,
+    protectionById,
+    viewportWidth: 100,
+    viewportHeight: 100,
+    tileVisualRadius: 18,
+    anchorId: 0
+  });
+
+  assert.equal(discarded, 1);
+  assert.equal(positions.has(0), true);
+  assert.equal(positions.has(1), true);
+  assert.equal(positions.has(2), false);
 });
 
 test("the offscreen preload margin cannot steer the visible frame fit", () => {
@@ -712,7 +913,7 @@ function simulateIslandChainCircuits() {
 
     if (support.correctionActive) {
       correctionSteps++;
-      refreshOffscreenElasticLayoutTiles({
+      refreshOffscreenLayoutTiles({
         positions,
         projectedTiles,
         protectionById,
@@ -811,7 +1012,7 @@ function simulateOceanViewportTurnover({ protectedViewport }) {
   let anchorId = gridTileId(5, 3, columns, rows);
   const initial = measureVisibleFrameError(positions, projectedById, anchorId);
   if (!protectedViewport) {
-    refreshOffscreenElasticLayoutTiles({
+    refreshOffscreenLayoutTiles({
       positions,
       projectedTiles: [...projectedById.entries()].map(([id, point]) => ({ id, ...point })),
       protectionById,
@@ -939,7 +1140,7 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
       elasticSteps++;
     }
     if (correctElasticTilesNorthUp && (refreshOffscreenEachStep || !resetActive)) {
-      refreshOffscreenElasticLayoutTiles({
+      refreshOffscreenLayoutTiles({
         positions,
         projectedTiles,
         protectionById,

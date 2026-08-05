@@ -2972,6 +2972,7 @@ export default Object.freeze({
   "Tiger": "Тигр",
   "Tigerfish": "Тигровая рыба",
   "tile {0}": "плитка {0}",
+  "TILT {0} DEG": "НАКЛОН {0} ГРАД.",
   "To arms": "К оружию",
   "to carry sealed pleas for relief before another Christian harbor is lost.": "нести запечатанные просьбы о помощи, прежде чем будет потеряна еще одна христианская гавань.",
   "To challenge France Antarctique, the fort must also carry": "Чтобы бросить вызов Антарктической Франции, форт должен также нести",

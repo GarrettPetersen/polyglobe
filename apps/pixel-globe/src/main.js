@@ -9,9 +9,11 @@ import {
   normalize3
 } from "./geodesic.js";
 import {
+  MAX_ELASTIC_FRAME_CORRECTION_PX,
   admitProjectedTiles,
-  refreshOffscreenElasticLayoutTiles,
+  refreshOffscreenLayoutTiles,
   retainLocalLayoutAnchor,
+  settleElasticLayoutTowardProjection,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 import {
@@ -20,6 +22,7 @@ import {
   surfaceDetailLayerCoversViewport
 } from "./surfaceDetailCache.js";
 import {
+  buildDirectChartProtectionComponents,
   buildChartTileProtection,
   chartProtectionStats
 } from "./chartTileProtection.js";
@@ -877,13 +880,7 @@ import {
   politicsCardSegmentsPage
 } from "./politicsCardLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
-import {
-  WATER_HEX_WAVE_FRAME_COUNT,
-  WATER_HEX_WAVE_PERIOD_MS,
-  globeWaterHexWaveFrame,
-  localWaterHexWaveFrame,
-  waterHexWaveBandsForFrame
-} from "./waterHexWave.js";
+import { oceanSwellOffset, oceanSwellState } from "./oceanSwell.js";
 import {
   FISH_SCHOOL_ANIMATION_FRAME_COUNT,
   FISH_SCHOOL_MOTION_FRAME_COUNT,
@@ -1500,6 +1497,7 @@ import {
   rasterizeDrawnNavigationChunk
 } from "./drawnNavigationField.js";
 import {
+  CHART_REFRAME_ROTATION_THRESHOLD_DEG,
   assertChartReframePositionPreserved,
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
@@ -2691,6 +2689,7 @@ let directionIndex;
 let earthRows;
 let earthById;
 let chartTileProtection;
+let chartDirectProtectionComponentByTileId;
 let mountainLandmarks;
 let worldDiscoveries = [];
 let coralReefs = [];
@@ -3023,9 +3022,6 @@ let lastOverlayMs = 0;
 let worldSpriteAnimationTick = -1;
 let waterAnimationClockMs = 0;
 let waterAnimationDrawTick = -1;
-const globeWaterHexWaveFrameIndexCache = new Map();
-const localWaterHexWaveFrameIndexCache = new Map();
-const waterHexWaveFrameCache = new WeakMap();
 let fishAnimationDrawTick = -1;
 let precipParticleDrawTick = -1;
 let precipParticles = [];
@@ -3420,6 +3416,10 @@ async function main() {
     graph,
     terrainClassForTile: chartProtectionTerrainClass,
     featureTileIds: chartProtectionFeatureTileIds()
+  });
+  chartDirectProtectionComponentByTileId = buildDirectChartProtectionComponents({
+    graph,
+    protection: chartTileProtection
   });
   const protectionStats = chartProtectionStats(chartTileProtection);
   console.info(
@@ -21412,8 +21412,6 @@ function updateWaterAnimation(nowMs) {
   if (tick === waterAnimationDrawTick) return false;
   waterAnimationDrawTick = tick;
   waterAnimationClockMs = tick * WATER_REDRAW_MS;
-  globeWaterHexWaveFrameIndexCache.clear();
-  localWaterHexWaveFrameIndexCache.clear();
   return true;
 }
 
@@ -26509,6 +26507,7 @@ function drawDayNightWorld(layers, nowMs) {
   }
   const light = localDayNightLight();
   const variant = dayNightPaletteVariant(light);
+  const swell = currentOceanSwellPresentation();
   worldRenderer.beginFrame({
     width: SCREEN_W,
     height: SCREEN_H,
@@ -26523,7 +26522,8 @@ function drawDayNightWorld(layers, nowMs) {
         layers.oceanShearFillCalls,
         layers.activeChart,
         layers.offset,
-        nowMs
+        nowMs,
+        swell
       );
     },
     connectorBase: () => {
@@ -26543,7 +26543,13 @@ function drawDayNightWorld(layers, nowMs) {
       );
     },
     terrainTiles: () => {
-      drawTerrainAtlasTiles(layers.terrainCalls, layers.activeChart, layers.offset, nowMs);
+      drawTerrainAtlasTiles(
+        layers.terrainCalls,
+        layers.activeChart,
+        layers.offset,
+        nowMs,
+        swell
+      );
     },
     surfaceDetails: () => {
       drawCachedWorldLayer(
@@ -26592,46 +26598,68 @@ function drawCachedWorldLayer(key, layer, offset, revision) {
   });
 }
 
-function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs) {
+function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs, swell) {
   if (!Array.isArray(tileCalls) || !activeChart) {
     throw new Error("Terrain atlas rendering requires tile calls and an active chart");
   }
   if (!Number.isFinite(nowMs) || nowMs < 0) {
     throw new Error(`Terrain atlas rendering requires a valid time: ${nowMs}`);
   }
+  if (!swell?.cacheKey) throw new Error("Terrain atlas rendering requires ocean swell state");
   let batchKey = terrainPersistentBatchKeyByCalls.get(tileCalls);
   if (!batchKey) {
     batchKey = `terrain-window-${nextTerrainPersistentBatchKey++}`;
     terrainPersistentBatchKeyByCalls.set(tileCalls, batchKey);
   }
-  const waveCycleFrame = Math.floor(
-    waterAnimationClockMs / WATER_HEX_WAVE_PERIOD_MS * WATER_HEX_WAVE_FRAME_COUNT
-  ) % WATER_HEX_WAVE_FRAME_COUNT;
   const iceStage = surfaceIceTransition
     ? surfaceIceTransitionStage(surfaceIceTransition, nowMs)
     : SURFACE_ICE_TRANSITION_STAGE_COUNT + 1;
   const revision = weatherMaskDayIndex * (SURFACE_ICE_TRANSITION_STAGE_COUNT + 2) + iceStage;
   worldRenderer.drawPersistentAtlasSprites({
-    key: `${batchKey}:wave-${waveCycleFrame}`,
+    key: `${batchKey}:swell-${swell.cacheKey}`,
     revision,
     offset,
-    createSprites: () => terrainPersistentSprites(tileCalls, activeChart, nowMs)
+    createSprites: () => terrainPersistentSprites(tileCalls, activeChart, nowMs, swell)
   });
 }
 
-function terrainPersistentSprites(tileCalls, activeChart, nowMs) {
+function terrainPersistentSprites(tileCalls, activeChart, nowMs, swell) {
   const sprites = [];
   for (const call of tileCalls) {
-    const imagesToDraw = terrainDrawImagesForTile(call, activeChart, nowMs);
+    const imagesToDraw = terrainDrawImagesForTile(call, nowMs);
+    const waveOffset = oceanSwellOffsetForTile(call, activeChart, swell);
     const destinationRect = {
-      x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
-      y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
+      x: Math.round(call.drawSurfaceX - TILE_ART_HALF + waveOffset.x),
+      y: Math.round(call.drawSurfaceY - TILE_ART_HALF + waveOffset.y),
       width: TILE_ART_SIZE,
       height: TILE_ART_SIZE
     };
     for (const source of imagesToDraw) sprites.push({ source, destinationRect });
   }
   return sprites;
+}
+
+function currentOceanSwellPresentation() {
+  const wind = playerWindState ? windForShip() : { directionRad: 0 };
+  const stormStart = STORM_ACTIVE_INTENSITY * 0.45;
+  const stormStrength = smoothstep(stormStart, 1, playerStormIntensity());
+  return oceanSwellState({
+    nowMs: waterAnimationClockMs,
+    stormStrength,
+    flowDirectionRad: wind.directionRad + Math.PI
+  });
+}
+
+function oceanSwellOffsetForTile(call, activeChart, swell) {
+  if (
+    activeChart?.map ||
+    !isWaterSurfaceRow(call.row) ||
+    chartTileProtection?.[call.id] !== 0 ||
+    tileHasSurfaceIce(call.id)
+  ) {
+    return { x: 0, y: 0 };
+  }
+  return oceanSwellOffset(swell, tileCenterVector(call.id));
 }
 
 function drawRiverAtlasLayer(layer, offset) {
@@ -27969,17 +27997,30 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     viewportHeight: SCREEN_H,
     tileVisualRadius: TILE_ART_HALF
   });
-  if (correctionSupport.correctionActive) {
-    refreshOffscreenElasticLayoutTiles({
+  const swell = currentOceanSwellPresentation();
+  const admissionCorrectionActive = correctionSupport.correctionActive;
+  const visibleSettlementActive = admissionCorrectionActive && swell.settlingActive;
+  if (visibleSettlementActive) {
+    settleElasticLayoutTowardProjection({
       positions: localLayout.positions,
       projectedTiles: projectedVisible,
       protectionById: chartTileProtection,
+      anchorId: chartCenterTileId,
       viewportWidth: SCREEN_W,
       viewportHeight: SCREEN_H,
       tileVisualRadius: TILE_ART_HALF,
-      anchorId: chartCenterTileId
+      maximumStepPx: swell.settlementStepPx
     });
   }
+  refreshOffscreenLayoutTiles({
+    positions: localLayout.positions,
+    projectedTiles: projectedVisible,
+    protectionById: chartTileProtection,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    tileVisualRadius: TILE_ART_HALF,
+    anchorId: chartCenterTileId
+  });
 
   const projectedById = new Map();
   const pending = new Set();
@@ -27997,10 +28038,15 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     anchorId: chartCenterTileId,
     neighborsById: graph.neighbors,
     protectionById: chartTileProtection,
-    registrationIds: correctionSupport.correctionActive
+    directProtectionComponentById: chartDirectProtectionComponentByTileId,
+    registrationIds: admissionCorrectionActive
       ? correctionSupport.elasticTileIds
       : correctionSupport.viewportTileIds,
-    correctElasticTilesNorthUp: correctionSupport.correctionActive
+    rigidRegistrationIds: correctionSupport.viewportTileIds,
+    correctElasticTilesNorthUp: admissionCorrectionActive,
+    maxElasticCorrectionPx: admissionCorrectionActive
+      ? MAX_ELASTIC_FRAME_CORRECTION_PX
+      : 0
   });
 }
 
@@ -35852,14 +35898,14 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
 function drawTile(targetCtx, call, activeChart, { surfaceIce = true } = {}) {
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
-  for (const image of terrainDrawImagesForTile(call, activeChart, lastFrameMs, { surfaceIce })) {
+  for (const image of terrainDrawImagesForTile(call, lastFrameMs, { surfaceIce })) {
     targetCtx.drawImage(image, x, y);
   }
 
   drawTerrainPentagonMarker(call, targetCtx);
 }
 
-function terrainDrawImagesForTile(call, activeChart, nowMs, { surfaceIce = true } = {}) {
+function terrainDrawImagesForTile(call, nowMs, { surfaceIce = true } = {}) {
   if (typeof surfaceIce !== "boolean") {
     throw new Error(`Terrain surface ice flag must be boolean: ${surfaceIce}`);
   }
@@ -35875,25 +35921,17 @@ function terrainDrawImagesForTile(call, activeChart, nowMs, { surfaceIce = true 
   if (transitionState && transitionState.fromIce !== transitionState.toIce) {
     const spriteKey = spriteForTerrain(call.row, call.id);
     const waterImage = waterLatitudeTerrainImage(spriteKey, call.id, call.row);
-    const waveFrame = waterHexWaveFrameForTile(call, activeChart);
-    const animatedWaterImage = waveFrame === null
-      ? waterImage
-      : prebakedWaterHexWaveFrame(waterImage, waveFrame);
     const iceImage = terrainImage("snow_01");
     return [surfaceIceTransitionSprite({
-      fromImage: transitionState.fromIce ? iceImage : animatedWaterImage,
-      toImage: transitionState.toIce ? iceImage : animatedWaterImage,
+      fromImage: transitionState.fromIce ? iceImage : waterImage,
+      toImage: transitionState.toIce ? iceImage : waterImage,
       tileId: call.id,
       stageIndex: transitionState.stageIndex
     })];
   }
 
   const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
-  const waveFrame = waterHexWaveFrameForTile(call, activeChart);
-  return [
-    waveFrame === null ? baseImage : prebakedWaterHexWaveFrame(baseImage, waveFrame),
-    ...overlayImages
-  ];
+  return [baseImage, ...overlayImages];
 }
 
 function surfaceIceTransitionSprite({ fromImage, toImage, tileId, stageIndex }) {
@@ -35989,60 +36027,6 @@ function drawTerrainPentagonMarker(call, targetCtx) {
     3,
     3
   );
-}
-
-function prebakedWaterHexWaveFrame(img, frame) {
-  let frames = waterHexWaveFrameCache.get(img);
-  if (!frames) {
-    frames = new Map();
-    waterHexWaveFrameCache.set(img, frames);
-  }
-  const cached = frames.get(frame);
-  if (cached) return cached;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = TILE_ART_SIZE;
-  canvas.height = TILE_ART_SIZE;
-  const waveCtx = canvas.getContext("2d");
-  if (!waveCtx) throw new Error("Could not create a pre-baked water wave frame");
-  waveCtx.imageSmoothingEnabled = false;
-  for (const band of waterHexWaveBandsForFrame(frame, TILE_ART_SIZE)) {
-    waveCtx.drawImage(
-      img,
-      0,
-      band.y,
-      TILE_ART_SIZE,
-      band.height,
-      band.offsetX,
-      band.y,
-      TILE_ART_SIZE,
-      band.height
-    );
-  }
-  frames.set(frame, canvas);
-  return canvas;
-}
-
-function waterHexWaveFrameForTile(call, activeChart) {
-  if (call.row?.t !== "water" && call.row?.t !== "lake") return null;
-  if (!activeChart?.map && tileHasSurfaceIce(call.id)) return null;
-  if (activeChart?.map) {
-    const cached = localWaterHexWaveFrameIndexCache.get(call.id);
-    if (cached !== undefined) return cached;
-    const frame = localWaterHexWaveFrame(waterAnimationClockMs, call.x, call.y);
-    localWaterHexWaveFrameIndexCache.set(call.id, frame);
-    return frame;
-  }
-  const cached = globeWaterHexWaveFrameIndexCache.get(call.id);
-  if (cached !== undefined) return cached;
-  const latitudeDeg = graph?.latDeg?.[call.id];
-  const longitudeDeg = graph?.lonDeg?.[call.id];
-  if (!Number.isFinite(latitudeDeg) || !Number.isFinite(longitudeDeg)) {
-    throw new Error(`Water tile ${call.id} has no globe coordinates for its wave phase`);
-  }
-  const frame = globeWaterHexWaveFrame(waterAnimationClockMs, latitudeDeg, longitudeDeg);
-  globeWaterHexWaveFrameIndexCache.set(call.id, frame);
-  return frame;
 }
 
 function cityImageForType(cityType, settlementType = "city") {
@@ -43787,15 +43771,26 @@ function drawFrameRateOverlay() {
   const value = frameRateMeter.framesPerSecond === null
     ? "--"
     : String(Math.round(frameRateMeter.framesPerSecond));
-  const label = `FPS ${value}`;
+  const drift = measureChartDriftAtInterval(lastFrameMs);
+  const tilt = Math.abs(drift.rotationDeg) < 0.05
+    ? "0.0"
+    : `${drift.rotationDeg > 0 ? "+" : ""}${drift.rotationDeg.toFixed(1)}`;
+  const fpsLabel = `FPS ${value}`;
+  const tiltLabel = `TILT ${tilt} DEG`;
+  const gap = 7;
   const font = PIXEL_FONT_LATIN_SMALL_8;
-  const width = measurePixelTextWidth(label, font) + 8;
+  const fpsWidth = measurePixelTextWidth(fpsLabel, font);
+  const width = fpsWidth + gap + measurePixelTextWidth(tiltLabel, font) + 8;
   const y = SCREEN_H - (DEBUG_STATUS_ENABLED ? 36 : 14);
   ctx.save();
   ctx.fillStyle = "rgba(15, 18, 14, 0.72)";
   ctx.fillRect(4, y, width, 10);
   ctx.fillStyle = "#d7d9bf";
-  drawPixelText(label, 8, y + 1, { font });
+  drawPixelText(fpsLabel, 8, y + 1, { font });
+  ctx.fillStyle = Math.abs(drift.rotationDeg) >= CHART_REFRAME_ROTATION_THRESHOLD_DEG
+    ? PIRATE_MENU_DANGER
+    : "#d7d9bf";
+  drawPixelText(tiltLabel, 8 + fpsWidth + gap, y + 1, { font });
   ctx.restore();
 }
 

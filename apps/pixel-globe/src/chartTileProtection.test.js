@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildDirectChartProtectionComponents,
   buildChartTileProtection,
   chartProtectionStats,
   CHART_PROTECTION_DIRECT,
@@ -51,6 +52,32 @@ test("the interior of a large uniform region remains elastic", () => {
     elastic: 5,
     total: 11
   });
+});
+
+test("a narrow water channel and both opposing coasts are directly protected", () => {
+  const graph = lineGraph(3);
+  const terrain = ["land", "ocean", "land"];
+  const protection = buildChartTileProtection({
+    graph,
+    terrainClassForTile: (tileId) => terrain[tileId]
+  });
+
+  assert.deepEqual([...protection], [
+    CHART_PROTECTION_DIRECT,
+    CHART_PROTECTION_DIRECT,
+    CHART_PROTECTION_DIRECT
+  ]);
+  assert.deepEqual([...buildDirectChartProtectionComponents({ graph, protection })], [0, 0, 0]);
+});
+
+test("protected fragments share their global component across an unseen connection", () => {
+  const graph = lineGraph(7);
+  const protection = new Uint8Array([
+    255, 255, 255, 255, 255, 255, 255
+  ]);
+  const components = buildDirectChartProtectionComponents({ graph, protection });
+
+  assert.equal(components[0], components[6]);
 });
 
 test("chart protection rejects malformed feature tiles and terrain classes", () => {

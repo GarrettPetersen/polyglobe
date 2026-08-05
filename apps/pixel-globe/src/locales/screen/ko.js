@@ -2972,6 +2972,7 @@ export default Object.freeze({
   "Tiger": "호랑이",
   "Tigerfish": "타이거피쉬",
   "tile {0}": "타일 {0}",
+  "TILT {0} DEG": "기울기 {0} 도",
   "To arms": "무기에",
   "to carry sealed pleas for relief before another Christian harbor is lost.": "또 다른 기독교 항구를 잃기 전에 구제를 위해 봉인된 탄원서를 전달하기 위해.",
   "To challenge France Antarctique, the fort must also carry": "프랑스 남극에 도전하려면 요새도 다음을 수행해야 합니다.",

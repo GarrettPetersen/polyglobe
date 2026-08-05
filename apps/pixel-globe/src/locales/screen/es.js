@@ -2972,6 +2972,7 @@ export default Object.freeze({
   "Tiger": "tigre",
   "Tigerfish": "pez tigre",
   "tile {0}": "mosaico {0}",
+  "TILT {0} DEG": "INCLIN. {0} GRADOS",
   "To arms": "a las armas",
   "to carry sealed pleas for relief before another Christian harbor is lost.": "para llevar peticiones selladas de ayuda antes de que se pierda otro puerto cristiano.",
   "To challenge France Antarctique, the fort must also carry": "Para desafiar a Francia Antártida, el fuerte también debe llevar",

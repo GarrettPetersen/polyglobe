@@ -4,7 +4,7 @@ function assertFinitePoint(point, label) {
   }
 }
 
-const MAX_ELASTIC_FRAME_CORRECTION_PX = 29;
+export const MAX_ELASTIC_FRAME_CORRECTION_PX = 29;
 const MAX_ELASTIC_ROTATION_CORRECTION_RAD = 16 * Math.PI / 180;
 const MIN_ELASTIC_CORRECTION_TILES = 3;
 
@@ -88,7 +88,8 @@ function boundaryFittedFrame({
   protectionById,
   rotation,
   fallbackFrame,
-  elasticBoundariesOnly = false
+  elasticBoundariesOnly = false,
+  directProtectedBoundariesOnly = false
 }) {
   const pendingSet = new Set(pending);
   const cos = Math.cos(rotation);
@@ -103,6 +104,10 @@ function boundaryFittedFrame({
       if (pendingSet.has(neighborId) || !neighborPosition || !neighborProjected) continue;
       const boundaryProtection = Math.max(protectionById[id], protectionById[neighborId]);
       if (elasticBoundariesOnly && boundaryProtection !== 0) continue;
+      if (
+        directProtectedBoundariesOnly &&
+        (protectionById[id] !== 255 || protectionById[neighborId] !== 255)
+      ) continue;
       const protection = boundaryProtection / 255;
       const weight = 1 + protection * 63;
       const rotatedX = neighborProjected.x * cos - neighborProjected.y * sin;
@@ -129,7 +134,7 @@ function admissionPointBetweenFrames(
   registeredFrame,
   translatedFrame,
   protection,
-  correctElasticTilesNorthUp
+  maxElasticCorrectionPx
 ) {
   const registered = registeredPoint(projected, registeredFrame);
   const translated = registeredPoint(projected, translatedFrame);
@@ -137,7 +142,7 @@ function admissionPointBetweenFrames(
   const correctionY = translated.y - registered.y;
   const correctionLength = Math.hypot(correctionX, correctionY);
   const elasticity = 1 - protection / 255;
-  const correctionLimit = MAX_ELASTIC_FRAME_CORRECTION_PX * elasticity ** 4;
+  const correctionLimit = maxElasticCorrectionPx * elasticity ** 4;
   if (correctionLength <= correctionLimit) return translated;
   if (correctionLimit <= 0 || correctionLength <= 1e-9) return registered;
   const scale = correctionLimit / correctionLength;
@@ -147,6 +152,125 @@ function admissionPointBetweenFrames(
   };
 }
 
+function directlyProtectedAdmissionFrames({
+  positions,
+  projectedById,
+  pending,
+  neighborsById,
+  protectionById,
+  directProtectionComponentById,
+  rigidRegistrationIds,
+  fallbackFrame
+}) {
+  const pendingDirectIds = new Set(pending.filter((id) => protectionById[id] === 255));
+  if (pendingDirectIds.size === 0) return new Map();
+
+  const components = directProtectionComponentById
+    ? projectedDirectComponentsByGlobalId({
+      projectedById,
+      protectionById,
+      directProtectionComponentById,
+      pendingDirectIds
+    })
+    : projectedDirectComponentsByAdjacency({
+      projectedById,
+      neighborsById,
+      protectionById,
+      pendingDirectIds
+    });
+  const frameByPendingId = new Map();
+  for (const componentIds of components) {
+    const retainedIds = componentIds.filter((id) => (
+      positions.has(id) && (!rigidRegistrationIds || rigidRegistrationIds.has(id))
+    ));
+    const pendingComponentIds = componentIds.filter((id) => pendingDirectIds.has(id));
+    let componentFrame = fallbackFrame;
+    if (retainedIds.length === 1) {
+      const retainedId = retainedIds[0];
+      componentFrame = {
+        anchorPosition: positions.get(retainedId),
+        anchorProjected: projectedById.get(retainedId),
+        cos: fallbackFrame.cos,
+        sin: fallbackFrame.sin
+      };
+    } else if (retainedIds.length > 1) {
+      componentFrame = registeredProjectionFrame(
+        positions,
+        projectedById,
+        retainedIds[0],
+        new Set(retainedIds)
+      );
+    }
+    if (retainedIds.length > 0) {
+      componentFrame = boundaryFittedFrame({
+        positions,
+        projectedById,
+        pending: pendingComponentIds,
+        neighborsById,
+        protectionById,
+        rotation: Math.atan2(componentFrame.sin, componentFrame.cos),
+        fallbackFrame: componentFrame,
+        directProtectedBoundariesOnly: true
+      });
+    }
+
+    for (const id of pendingComponentIds) {
+      if (pendingDirectIds.has(id)) frameByPendingId.set(id, componentFrame);
+    }
+  }
+  return frameByPendingId;
+}
+
+function projectedDirectComponentsByGlobalId({
+  projectedById,
+  protectionById,
+  directProtectionComponentById,
+  pendingDirectIds
+}) {
+  const components = new Map();
+  for (const id of projectedById.keys()) {
+    if (protectionById[id] !== 255) continue;
+    const componentId = directProtectionComponentById[id];
+    if (!Number.isInteger(componentId) || componentId < 0) {
+      throw new Error(`Directly protected tile ${id} has no global component`);
+    }
+    if (!components.has(componentId)) components.set(componentId, []);
+    components.get(componentId).push(id);
+  }
+  return [...components.values()].filter((ids) => ids.some((id) => pendingDirectIds.has(id)));
+}
+
+function projectedDirectComponentsByAdjacency({
+  projectedById,
+  neighborsById,
+  protectionById,
+  pendingDirectIds
+}) {
+  const components = [];
+  const visited = new Set();
+  for (const startId of pendingDirectIds) {
+    if (visited.has(startId)) continue;
+    const componentIds = [];
+    const queue = [startId];
+    visited.add(startId);
+    for (let head = 0; head < queue.length; head++) {
+      const id = queue[head];
+      componentIds.push(id);
+      for (const neighborId of neighborsById[id]) {
+        if (
+          visited.has(neighborId) ||
+          protectionById[neighborId] !== 255 ||
+          !projectedById.has(neighborId)
+        ) continue;
+        visited.add(neighborId);
+        queue.push(neighborId);
+      }
+    }
+    components.push(componentIds);
+  }
+  return components;
+}
+
 export function admitProjectedTiles({
   positions,
   projectedById,
@@ -154,8 +278,11 @@ export function admitProjectedTiles({
   anchorId,
   neighborsById,
   protectionById,
+  directProtectionComponentById = null,
   registrationIds = null,
-  correctElasticTilesNorthUp = false
+  rigidRegistrationIds = registrationIds,
+  correctElasticTilesNorthUp = false,
+  maxElasticCorrectionPx = MAX_ELASTIC_FRAME_CORRECTION_PX
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
@@ -165,11 +292,24 @@ export function admitProjectedTiles({
   if (!(protectionById instanceof Uint8Array) || protectionById.length !== neighborsById.length) {
     throw new Error("Local layout admission requires complete chart protection");
   }
+  if (
+    directProtectionComponentById !== null &&
+    (!(directProtectionComponentById instanceof Int32Array) ||
+      directProtectionComponentById.length !== neighborsById.length)
+  ) {
+    throw new Error("Local layout admission requires complete direct-protection components");
+  }
   if (registrationIds !== null && !(registrationIds instanceof Set)) {
     throw new Error("Local layout admission registration ids must be a set");
   }
+  if (rigidRegistrationIds !== null && !(rigidRegistrationIds instanceof Set)) {
+    throw new Error("Rigid local layout registration ids must be a set");
+  }
   if (typeof correctElasticTilesNorthUp !== "boolean") {
     throw new Error("Local layout north-up correction flag must be boolean");
+  }
+  if (!Number.isFinite(maxElasticCorrectionPx) || maxElasticCorrectionPx < 0) {
+    throw new Error(`Local layout correction limit must be non-negative: ${maxElasticCorrectionPx}`);
   }
   const pending = [...pendingIds];
   if (new Set(pending).size !== pending.length) {
@@ -206,6 +346,16 @@ export function admitProjectedTiles({
     fallbackFrame: retainedFrame,
     elasticBoundariesOnly: correctElasticTilesNorthUp
   });
+  const protectedFrameById = directlyProtectedAdmissionFrames({
+    positions,
+    projectedById,
+    pending,
+    neighborsById,
+    protectionById,
+    directProtectionComponentById,
+    rigidRegistrationIds,
+    fallbackFrame: registeredFrame
+  });
   let admitted = 0;
   for (const id of pending) {
     if (positions.has(id)) throw new Error(`Pending local layout tile ${id} already has a position`);
@@ -214,20 +364,89 @@ export function admitProjectedTiles({
     }
     const projected = projectedById.get(id);
     assertFinitePoint(projected, `Projected position for pending tile ${id}`);
+    const protectedFrame = protectedFrameById.get(id);
     positions.set(
       id,
-      admissionPointBetweenFrames(
-        projected,
-        registeredFrame,
-        translatedFrame,
-        protectionById[id],
-        correctElasticTilesNorthUp
-      )
+      protectedFrame
+        ? registeredPoint(projected, protectedFrame)
+        : admissionPointBetweenFrames(
+          projected,
+          registeredFrame,
+          translatedFrame,
+          protectionById[id],
+          maxElasticCorrectionPx
+        )
     );
     admitted++;
   }
 
   return admitted;
+}
+
+export function settleElasticLayoutTowardProjection({
+  positions,
+  projectedTiles,
+  protectionById,
+  anchorId,
+  viewportWidth,
+  viewportHeight,
+  tileVisualRadius,
+  maximumStepPx
+}) {
+  if (!(positions instanceof Map)) {
+    throw new Error("Elastic layout settlement requires a positions map");
+  }
+  if (!Array.isArray(projectedTiles)) {
+    throw new Error("Elastic layout settlement requires projected tiles");
+  }
+  if (!(protectionById instanceof Uint8Array)) {
+    throw new Error("Elastic layout settlement requires chart protection");
+  }
+  if (!Number.isInteger(anchorId) || !positions.has(anchorId)) {
+    throw new Error(`Elastic layout settlement requires a retained anchor: ${anchorId}`);
+  }
+  if (!Number.isFinite(maximumStepPx) || maximumStepPx < 0) {
+    throw new Error(`Elastic layout settlement step must be non-negative: ${maximumStepPx}`);
+  }
+  const viewportIds = projectedViewportTileIds({
+    projectedTiles,
+    protectionById,
+    viewportWidth,
+    viewportHeight,
+    tileVisualRadius
+  });
+  if (maximumStepPx === 0) return 0;
+
+  const projectedById = new Map(projectedTiles.map((tile) => [tile.id, tile]));
+  const anchorPosition = positions.get(anchorId);
+  const anchorProjected = projectedById.get(anchorId);
+  assertFinitePoint(anchorPosition, `Elastic layout anchor position for tile ${anchorId}`);
+  assertFinitePoint(anchorProjected, `Elastic layout projected anchor for tile ${anchorId}`);
+
+  let settled = 0;
+  for (const id of viewportIds) {
+    if (id === anchorId || protectionById[id] !== 0) continue;
+    const position = positions.get(id);
+    if (!position) continue;
+    const projected = projectedById.get(id);
+    assertFinitePoint(position, `Elastic layout position for tile ${id}`);
+    assertFinitePoint(projected, `Elastic layout projection for tile ${id}`);
+    const targetX = anchorPosition.x + projected.x - anchorProjected.x;
+    const targetY = anchorPosition.y + projected.y - anchorProjected.y;
+    const dx = targetX - position.x;
+    const dy = targetY - position.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 0.5) continue;
+    const scale = Math.min(1, maximumStepPx / distance);
+    const next = {
+      x: roundPixel(position.x + dx * scale),
+      y: roundPixel(position.y + dy * scale)
+    };
+    if (next.x === position.x && next.y === position.y) continue;
+    positions.set(id, next);
+    settled++;
+  }
+  return settled;
 }
 
 function clampMagnitude(value, maximumMagnitude) {
@@ -333,7 +552,7 @@ export function retainLocalLayoutAnchor({
   return true;
 }
 
-export function refreshOffscreenElasticLayoutTiles({
+export function refreshOffscreenLayoutTiles({
   positions,
   projectedTiles,
   protectionById,
@@ -343,10 +562,10 @@ export function refreshOffscreenElasticLayoutTiles({
   anchorId
 }) {
   if (!(positions instanceof Map)) {
-    throw new Error("Elastic north-up correction requires a positions map");
+    throw new Error("Offscreen chart refresh requires a positions map");
   }
   if (!Number.isInteger(anchorId) || !positions.has(anchorId)) {
-    throw new Error(`Elastic north-up correction requires a retained anchor: ${anchorId}`);
+    throw new Error(`Offscreen chart refresh requires a retained anchor: ${anchorId}`);
   }
   // Validate every projected tile before mutating the retained layout.
   projectedViewportTileIds({
@@ -361,7 +580,6 @@ export function refreshOffscreenElasticLayoutTiles({
   for (const tile of projectedTiles) {
     if (
       tile.id === anchorId ||
-      protectionById[tile.id] !== 0 ||
       projectedTileOverlapsViewport(tile, viewportWidth, viewportHeight, tileVisualRadius)
     ) {
       continue;

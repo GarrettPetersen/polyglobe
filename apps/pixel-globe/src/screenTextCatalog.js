@@ -2972,6 +2972,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Tiger",
   "Tigerfish",
   "tile {0}",
+  "TILT {0} DEG",
   "To arms",
   "to carry sealed pleas for relief before another Christian harbor is lost.",
   "To challenge France Antarctique, the fort must also carry",

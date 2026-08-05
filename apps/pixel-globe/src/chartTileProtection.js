@@ -82,6 +82,42 @@ export function chartProtectionStats(protection) {
   return Object.freeze({ direct, buffered, elastic, total: protection.length });
 }
 
+export function buildDirectChartProtectionComponents({ graph, protection }) {
+  if (
+    !graph ||
+    !Number.isInteger(graph.tileCount) ||
+    !Array.isArray(graph.neighbors) ||
+    graph.neighbors.length !== graph.tileCount
+  ) {
+    throw new Error("Direct chart components require a complete geodesic graph");
+  }
+  if (!(protection instanceof Uint8Array) || protection.length !== graph.tileCount) {
+    throw new Error("Direct chart components require complete chart protection");
+  }
+
+  const componentByTileId = new Int32Array(graph.tileCount);
+  componentByTileId.fill(-1);
+  let componentId = 0;
+  for (let startId = 0; startId < graph.tileCount; startId++) {
+    if (protection[startId] !== CHART_PROTECTION_DIRECT || componentByTileId[startId] >= 0) continue;
+    const queue = [startId];
+    componentByTileId[startId] = componentId;
+    for (let head = 0; head < queue.length; head++) {
+      const tileId = queue[head];
+      for (const neighborId of graph.neighbors[tileId]) {
+        if (
+          protection[neighborId] !== CHART_PROTECTION_DIRECT ||
+          componentByTileId[neighborId] >= 0
+        ) continue;
+        componentByTileId[neighborId] = componentId;
+        queue.push(neighborId);
+      }
+    }
+    componentId++;
+  }
+  return componentByTileId;
+}
+
 function protectDirectly(tileId, distance, queue) {
   if (distance[tileId] === 0) return;
   distance[tileId] = 0;
