@@ -215,6 +215,7 @@ export function tradeTerms({
   reputation = 0,
   reputationForFaction = null,
   suzeraintyPrivilege = null,
+  illicit = false,
   purchaseDiscountMultiplier = 1,
   purchaseBargainMultiplier = 1,
   saleBargainMultiplier = 1
@@ -240,6 +241,7 @@ export function tradeTerms({
   ) {
     throw new Error(`Invalid trade sale bargain: ${saleBargainMultiplier}`);
   }
+  if (typeof illicit !== "boolean") throw new Error(`Invalid illicit trade flag: ${illicit}`);
 
   const customs = customsTerms({
     port,
@@ -253,21 +255,30 @@ export function tradeTerms({
   });
   const crownMonopoly = isPortugueseEstadoPort(port, foreignSettlementExpulsions) &&
     isPortugueseCrownSpice(goodId);
-  const monopolyPurchaseRate = crownMonopoly ? 0.25 : 0;
-  const monopolySaleRate = crownMonopoly ? 0.1 : 0;
+  const officialCustomsRate = customs.customsRate;
+  const customsRate = illicit ? 0 : officialCustomsRate;
+  const officialMonopolyPurchaseRate = crownMonopoly ? 0.25 : 0;
+  const officialMonopolySaleRate = crownMonopoly ? 0.1 : 0;
+  const monopolyPurchaseRate = illicit ? 0 : officialMonopolyPurchaseRate;
+  const monopolySaleRate = illicit ? 0 : officialMonopolySaleRate;
   const purchaseMultiplier = purchaseDiscountMultiplier * purchaseBargainMultiplier *
-    (1 + customs.customsRate + monopolyPurchaseRate);
+    (1 + customsRate + monopolyPurchaseRate);
   const saleMultiplier = Math.max(
     0.5,
-    (1 - customs.customsRate - monopolySaleRate) * saleBargainMultiplier
+    (1 - customsRate - monopolySaleRate) * saleBargainMultiplier
   );
 
   return Object.freeze({
-    allowed: relation !== DIPLOMACY_WAR,
+    allowed: illicit || relation !== DIPLOMACY_WAR,
     ...customs,
+    illicit,
+    customsRate,
+    officialCustomsRate,
     crownMonopoly,
     monopolyPurchaseRate,
     monopolySaleRate,
+    officialMonopolyPurchaseRate,
+    officialMonopolySaleRate,
     purchaseDiscountMultiplier,
     purchaseBargainMultiplier,
     saleBargainMultiplier,

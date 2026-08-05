@@ -4409,7 +4409,9 @@ function proceduralOarConfig(slug) {
   };
   if (slug === "kelulus") return {
     kind: "bank",
-    bankPositions: evenBankPositions(-0.68, 0.66, 6),
+    // Four representative stations preserve the full bank span without making
+    // this compact hull read as a comb at the production sprite size.
+    bankPositions: evenBankPositions(-0.68, 0.66, 4),
     pivotYOffset: 0.045,
     pivotHalfBeam: 0.19,
     shaftLength: 0.47,

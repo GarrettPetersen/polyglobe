@@ -12,9 +12,10 @@ export function buildChartTileProtection({
   graph,
   terrainClassForTile,
   featureTileIds = [],
-  protectionRings = 2
+  protectionRings = 2,
+  pentagonNeedsProtection = () => true
 }) {
-  validateInputs(graph, terrainClassForTile, protectionRings);
+  validateInputs(graph, terrainClassForTile, protectionRings, pentagonNeedsProtection);
   const terrainClasses = Array.from(
     { length: graph.tileCount },
     (_, tileId) => {
@@ -30,7 +31,9 @@ export function buildChartTileProtection({
   const queue = [];
 
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
-    if (graph.isPentagon[tileId]) protectDirectly(tileId, distance, queue);
+    if (graph.isPentagon[tileId] && pentagonNeedsProtection(tileId)) {
+      protectDirectly(tileId, distance, queue);
+    }
     for (const neighborId of graph.neighbors[tileId]) {
       if (terrainClasses[neighborId] !== terrainClasses[tileId]) {
         protectDirectly(tileId, distance, queue);
@@ -124,7 +127,7 @@ function protectDirectly(tileId, distance, queue) {
   queue.push(tileId);
 }
 
-function validateInputs(graph, terrainClassForTile, protectionRings) {
+function validateInputs(graph, terrainClassForTile, protectionRings, pentagonNeedsProtection) {
   if (
     !graph ||
     !Number.isInteger(graph.tileCount) ||
@@ -138,6 +141,9 @@ function validateInputs(graph, terrainClassForTile, protectionRings) {
   }
   if (typeof terrainClassForTile !== "function") {
     throw new Error("Chart protection requires a terrain classifier");
+  }
+  if (typeof pentagonNeedsProtection !== "function") {
+    throw new Error("Chart protection requires a pentagon protection predicate");
   }
   if (!Number.isInteger(protectionRings) || protectionRings < 0 || protectionRings > 2) {
     throw new Error(`Chart protection rings must be between zero and two: ${protectionRings}`);

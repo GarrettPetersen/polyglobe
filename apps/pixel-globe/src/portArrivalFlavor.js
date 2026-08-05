@@ -57,44 +57,104 @@ const LOCAL_SHIP_SLUGS_BY_CITY_TYPE = Object.freeze({
 
 const REGIONAL_PORT_LINES = Object.freeze({
   "east-asian": Object.freeze({
-    major: "Barges crowd the river stairs, and the warehouse clerks are already arguing over the next tide's cargo.",
-    ordinary: "The quay watches every arriving sail closely; foreign cargo can change a season's prices here."
+    major: Object.freeze([
+      "Barges crowd the river stairs, and the warehouse clerks are already arguing over the next tide's cargo.",
+      "Porters move between river barges and sea-going hulls while brokers compare cargo lists beneath the customs awnings."
+    ]),
+    ordinary: Object.freeze([
+      "The quay watches every arriving sail closely; foreign cargo can change a season's prices here.",
+      "Boatmen are sounding the channel while merchants at the landing study each new flag and cargo."
+    ])
   }),
   "south-asian": Object.freeze({
-    major: "Brokers from inland markets crowd the waterfront, each waiting to learn what this tide has brought.",
-    ordinary: "Caravans meet the boats at this quay, so news of a useful cargo travels inland quickly."
+    major: Object.freeze([
+      "Brokers from inland markets crowd the waterfront, each waiting to learn what this tide has brought.",
+      "Warehouse agents, money changers, and caravan masters meet each arriving boat before its cargo reaches the quay."
+    ]),
+    ordinary: Object.freeze([
+      "Caravans meet the boats at this quay, so news of a useful cargo travels inland quickly.",
+      "Ox carts wait beyond the landing; anything unloaded here will be quoted in inland markets before sunset."
+    ])
   }),
   "southeast-asian": Object.freeze({
-    major: "Pilots, brokers, and sailors from several seas fill the roadstead; no cargo remains a secret for long.",
-    ordinary: "The harbor lives by the monsoon routes, and every new sail starts fresh bargaining on the quay."
+    major: Object.freeze([
+      "Pilots, brokers, and sailors from several seas fill the roadstead; no cargo remains a secret for long.",
+      "Junks, dhows, and island craft share the anchorage while interpreters carry offers from ship to ship."
+    ]),
+    ordinary: Object.freeze([
+      "The harbor lives by the monsoon routes, and every new sail starts fresh bargaining on the quay.",
+      "The beach pilots know every reef and seasonal wind; they are already asking which passage brought you in."
+    ])
   }),
   "islamic-desert": Object.freeze({
-    major: "River craft, caravans, and sea-going merchants meet here, filling the customs house with a dozen languages.",
-    ordinary: "The quay is the hinge between caravan roads and the sea; useful cargo will find a buyer."
+    major: Object.freeze([
+      "River craft, caravans, and sea-going merchants meet here, filling the customs house with a dozen languages.",
+      "Camel trains halt beside the warehouses as sailors carry manifests from the anchorage to the customs court."
+    ]),
+    ordinary: Object.freeze([
+      "The quay is the hinge between caravan roads and the sea; useful cargo will find a buyer.",
+      "Dust from the caravan road settles on the landing, where merchants weigh news from inland against news from the sea."
+    ])
   }),
   mediterranean: Object.freeze({
-    major: "Galleys, coasters, and deep-water merchants crowd the harbor, each carrying news from another shore.",
-    ordinary: "Coasters call with every change of wind, but an unusual cargo can still stir the whole market."
+    major: Object.freeze([
+      "Galleys, coasters, and deep-water merchants crowd the harbor, each carrying news from another shore.",
+      "Harbor boats weave among galleys and merchantmen while clerks bargain over berths, cargo, and the next convoy."
+    ]),
+    ordinary: Object.freeze([
+      "Coasters call with every change of wind, but an unusual cargo can still stir the whole market.",
+      "The quay knows the sails of every nearby coast, so an unfamiliar rig draws merchants before its anchor settles."
+    ])
   }),
   "northern-european": Object.freeze({
-    major: "Warehouses line the water and the cranes seldom rest; merchants here measure news by arriving sails.",
-    ordinary: "The harbor lives on coasting trade, and the quay is already judging what your hold might contain."
+    major: Object.freeze([
+      "Warehouses line the water and the cranes seldom rest; merchants here measure news by arriving sails.",
+      "Cranes swing over the crowded wharf while guild clerks tally barrels, bales, and ships waiting on the tide."
+    ]),
+    ordinary: Object.freeze([
+      "The harbor lives on coasting trade, and the quay is already judging what your hold might contain.",
+      "Fishing boats and coastal traders share the harbor; every crew pauses long enough to inspect a new arrival."
+    ])
   }),
   "sub-saharan": Object.freeze({
-    major: "Gold, ivory, cloth, and provisions pass between inland traders and ocean-going captains on this waterfront.",
-    ordinary: "The shore traders know the inland roads and the sea lanes alike; they are already studying your cargo."
+    major: Object.freeze([
+      "Gold, ivory, cloth, and provisions pass between inland traders and ocean-going captains on this waterfront.",
+      "Caravan brokers and coastal pilots bargain beneath the storehouses, linking distant inland markets to the sea."
+    ]),
+    ordinary: Object.freeze([
+      "The shore traders know the inland roads and the sea lanes alike; they are already studying your cargo.",
+      "Canoes work between the beach and anchorage while inland merchants wait to hear what your voyage has brought."
+    ])
   }),
   mesoamerican: Object.freeze({
-    major: "Canoes bring produce from along the coast while market runners carry news inland.",
-    ordinary: "The landing is busy with canoes, fishers, and traders eager to learn what came over the horizon."
+    major: Object.freeze([
+      "Canoes bring produce from along the coast while market runners carry news inland.",
+      "Porters unload coastal canoes as runners leave the market with news of every unfamiliar sail."
+    ]),
+    ordinary: Object.freeze([
+      "The landing is busy with canoes, fishers, and traders eager to learn what came over the horizon.",
+      "Fishers draw their canoes above the tide while families gather to see what your vessel carried across the sea."
+    ])
   }),
   andean: Object.freeze({
-    major: "Runners and coastal craft carry news from this landing toward the high country.",
-    ordinary: "The landing joins the sea road to settlements inland, and every unfamiliar sail draws attention."
+    major: Object.freeze([
+      "Runners and coastal craft carry news from this landing toward the high country.",
+      "Knotted records pass from the landing to waiting runners as coastal cargo begins its journey inland."
+    ]),
+    ordinary: Object.freeze([
+      "The landing joins the sea road to settlements inland, and every unfamiliar sail draws attention.",
+      "Fishing rafts line the shore, and word of your arrival is already moving toward the settlements above."
+    ])
   }),
   polynesian: Object.freeze({
-    major: "Canoes from neighboring islands lie along the beach, their crews trading news as eagerly as cargo.",
-    ordinary: "The beach is busy with canoes, and every crew wants to know what winds carried you here."
+    major: Object.freeze([
+      "Canoes from neighboring islands lie along the beach, their crews trading news as eagerly as cargo.",
+      "Navigators from several islands are comparing swells, stars, and distant news beneath the meeting house."
+    ]),
+    ordinary: Object.freeze([
+      "The beach is busy with canoes, and every crew wants to know what winds carried you here.",
+      "Outrigger canoes rest above the tide while the shore watch studies your sail and the weather behind it."
+    ])
   })
 });
 
@@ -154,23 +214,20 @@ export function portArrivalPresentation({
   playerShipSlug = null,
   playerShipLabel = "vessel",
   returning = false,
-  navigation = null
+  navigation = null,
+  variationKey = ""
 }) {
-  validateArrivalOptions({ city, playerShipLabel, returning, navigation });
+  validateArrivalOptions({ city, playerShipLabel, returning, navigation, variationKey });
   const shipLabel = playerShipLabel.toLowerCase();
   const localHull = locallyFamiliarHull(city.cityType, playerShipSlug);
   const namedLine = namedRemotePortLine(city, shipLabel, localHull, returning);
   if (namedLine) return presentation(namedLine, !returning);
 
   if (city.manualRegion === "pacific-islands") {
-    if (returning) {
-      return presentation(localHull
-        ? "The headland watch knew your canoe's sail before you reached the reef. News of your return is already crossing the village."
-        : `The headland watch remembered your ${shipLabel}. People were gathering on the beach before you crossed the reef.`);
-    }
-    return presentation(localHull
-      ? "Your canoe carries the cut of distant islands. The elders are already asking which winds and stars brought you here."
-      : `That ${shipLabel} is unlike anything that works this lagoon. The whole village has come to the beach to watch it cross the reef.`, true);
+    return presentation(
+      pacificIslandArrivalLine(city, shipLabel, localHull, returning, variationKey),
+      !returning && !localHull
+    );
   }
 
   const americanLine = americanVillageLine(city, shipLabel, localHull, returning);
@@ -198,17 +255,21 @@ export function portArrivalPresentation({
         ? `Few ships like your ${shipLabel} find this island. The landing has emptied to see what crossed the horizon.`
         : `Your ${shipLabel} is unlike the craft that usually work this shore. Traders and children alike have come to stare.`, true);
     }
-    return presentation(regionalLine(city.cityType, "ordinary"));
+    return presentation(regionalLine(city, "ordinary", variationKey));
   }
 
-  return presentation(regionalLine(city.cityType, (city.population || 0) >= 100000 ? "major" : "ordinary"));
+  return presentation(regionalLine(
+    city,
+    (city.population || 0) >= 100000 ? "major" : "ordinary",
+    variationKey
+  ));
 }
 
 export function portArrivalFlavor(options) {
   return portArrivalPresentation(options).text;
 }
 
-function validateArrivalOptions({ city, playerShipLabel, returning, navigation }) {
+function validateArrivalOptions({ city, playerShipLabel, returning, navigation, variationKey }) {
   if (!city || typeof city !== "object") throw new Error("Port arrival flavor requires a city");
   if (city.population !== undefined &&
       (!Number.isFinite(city.population) || city.population < 0)) {
@@ -218,11 +279,43 @@ function validateArrivalOptions({ city, playerShipLabel, returning, navigation }
     throw new Error("Port arrival flavor requires a ship label");
   }
   if (typeof returning !== "boolean") throw new Error("Port arrival flavor requires a return-visit flag");
+  if (typeof variationKey !== "string") {
+    throw new Error(`Port arrival flavor requires a string variation key: ${variationKey}`);
+  }
   if (navigation !== null) {
     if (!PORT_APPROACH_KINDS.has(navigation?.approachKind) || typeof navigation.remote !== "boolean") {
       throw new Error(`Port arrival flavor received invalid navigation for ${city.city || "unknown city"}`);
     }
   }
+}
+
+function pacificIslandArrivalLine(city, shipLabel, localHull, returning, variationKey) {
+  if (returning && localHull) {
+    return arrivalVariant(city, `pacific-return-local|${variationKey}`, [
+      "The headland watch knew your canoe's sail before you reached the reef. News of your return is already crossing the village.",
+      "Your canoe was recognized from the lookout hill. By the time you cross the reef, friends are already waiting on the beach.",
+      "A conch sounds from the headland when your sail appears. The village knows which voyager has returned."
+    ]);
+  }
+  if (returning) {
+    return arrivalVariant(city, `pacific-return-foreign|${shipLabel}|${variationKey}`, [
+      `The headland watch remembered your ${shipLabel}. People were gathering on the beach before you crossed the reef.`,
+      `Your ${shipLabel} is known here now. Canoes come out through the reef to guide you toward the old anchorage.`,
+      `The lookout calls your ${shipLabel} by name. Children are racing its shadow along the beach as you enter the lagoon.`
+    ]);
+  }
+  if (localHull) {
+    return arrivalVariant(city, `pacific-first-local|${variationKey}`, [
+      "Your canoe carries the cut of distant islands. The elders are already asking which winds and stars brought you here.",
+      "The canoe is familiar, but its sail and lashings speak of another island chain. Navigators gather to hear your route.",
+      "People know at once that your canoe has crossed open ocean. The first questions are about swell, birds, and stars."
+    ]);
+  }
+  return arrivalVariant(city, `pacific-first-foreign|${shipLabel}|${variationKey}`, [
+    `That ${shipLabel} is unlike anything that works this lagoon. The whole village has come to the beach to watch it cross the reef.`,
+    `The reef fishers have stopped paddling to stare at your ${shipLabel}. A crowd follows its progress from the headland to the beach.`,
+    `No one here has seen a ${shipLabel} cross the reef. Canoes keep a cautious distance while the village gathers at the water's edge.`
+  ]);
 }
 
 function namedRemotePortLine(city, shipLabel, localHull, returning) {
@@ -321,10 +414,33 @@ function locallyFamiliarHull(cityType, shipSlug) {
   return LOCAL_SHIP_SLUGS_BY_CITY_TYPE[cityType]?.has(shipSlug) === true;
 }
 
-function regionalLine(cityType, scale) {
-  const regional = REGIONAL_PORT_LINES[cityType];
-  if (regional) return regional[scale];
-  return scale === "major"
-    ? "Ships, carts, and warehouse crews crowd the waterfront; every arrival changes some merchant's plans."
-    : "The waterfront is watching the new arrivals closely, weighing news, cargo, and opportunity together.";
+function regionalLine(city, scale, variationKey) {
+  const regional = REGIONAL_PORT_LINES[city.cityType];
+  const lines = regional?.[scale] || (scale === "major"
+    ? [
+        "Ships, carts, and warehouse crews crowd the waterfront; every arrival changes some merchant's plans.",
+        "Porters and brokers move between the road and anchorage, watching each new cargo for an opportunity."
+      ]
+    : [
+        "The waterfront is watching the new arrivals closely, weighing news, cargo, and opportunity together.",
+        "The landing pauses to inspect your vessel, then returns to the daily bargaining over cargo and news."
+      ]);
+  return arrivalVariant(city, `regional-${scale}|${variationKey}`, lines);
+}
+
+function arrivalVariant(city, key, lines) {
+  if (!Array.isArray(lines) || lines.length === 0 || lines.some((line) => typeof line !== "string")) {
+    throw new Error(`Port arrival variant requires non-empty text for ${city.city || "unknown city"}`);
+  }
+  const cityIdentity = `${city.tileId ?? "no-tile"}|${city.displayCity || city.city || "unknown city"}`;
+  return lines[hashString32(`${cityIdentity}|${key}`) % lines.length];
+}
+
+function hashString32(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }

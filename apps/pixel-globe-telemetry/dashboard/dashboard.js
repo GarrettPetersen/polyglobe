@@ -431,6 +431,7 @@ function tableRow(values) {
 function tableEmpty(target, colspan, message) {
   const row = document.createElement("tr");
   const cell = document.createElement("td");
+  cell.className = "empty-table-cell";
   cell.colSpan = colspan;
   cell.textContent = message;
   row.append(cell);

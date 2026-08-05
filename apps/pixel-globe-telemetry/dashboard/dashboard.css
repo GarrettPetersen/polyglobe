@@ -239,6 +239,7 @@ main {
   grid-column: span 7;
 }
 
+.starts-panel,
 .channels-panel,
 .crashes-panel {
   grid-column: 1 / -1;
@@ -411,6 +412,12 @@ td:first-child,
 
 tbody tr:hover {
   background: rgba(215, 189, 131, 0.45);
+}
+
+.empty-table-cell {
+  height: 112px;
+  color: var(--ink-muted);
+  text-align: center;
 }
 
 .crash-list {

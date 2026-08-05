@@ -10,8 +10,10 @@ import {
 } from "./geodesic.js";
 import {
   MAX_ELASTIC_FRAME_CORRECTION_PX,
+  MAX_PROTECTED_ADMISSION_SLACK_PX,
   admitProjectedTiles,
   refreshOffscreenLayoutTiles,
+  resetFeaturelessViewportNorthUp,
   retainLocalLayoutAnchor,
   settleElasticLayoutTowardProjection,
   viewportElasticCorrectionSupport
@@ -280,6 +282,13 @@ import {
 } from "./windSmoothing.js";
 import { PORTUGUESE_FACTION_ID } from "./tradePolicy.js";
 import {
+  activeIllicitTradeCombatFactionIds,
+  illicitCargoAvailable,
+  illicitTradeIncidentForInspection,
+  recordIllicitTradeDeparture,
+  resolveIllicitTradeInspection
+} from "./illicitTradeEnforcement.js";
+import {
   FISH_CARGO_GOOD_ID,
   portNavigationReasonLabel,
   SHIP_ITEM_FISHING_NET,
@@ -345,7 +354,9 @@ import {
   recordPortugueseCartazInspection,
   buyPortugueseCartazFromInspector,
   payPortugueseCartazFine,
+  payIllicitTradeFine,
   surrenderPortugueseControlledCargo,
+  surrenderIllicitTradeCargo,
   refillFreshWaterFromShore,
   repairPlayerCargoOverflow,
   receiveDiscoveryCargo,
@@ -369,6 +380,7 @@ import {
   recordFriendlyFireAgainstFaction,
   reconcileFactionReputationAfterPlayerVassalage,
   recordPiracyAgainstFaction,
+  beginIllicitTradeEnforcementCombat,
   releaseCargoSpace,
   reserveCargoSpace,
   refuseFactionSafePassage,
@@ -3415,7 +3427,8 @@ async function main() {
   chartTileProtection = buildChartTileProtection({
     graph,
     terrainClassForTile: chartProtectionTerrainClass,
-    featureTileIds: chartProtectionFeatureTileIds()
+    featureTileIds: chartProtectionFeatureTileIds(),
+    pentagonNeedsProtection: (tileId) => !isWaterSurfaceRow(earthById[tileId])
   });
   chartDirectProtectionComponentByTileId = buildDirectChartProtectionComponents({
     graph,
@@ -14682,10 +14695,11 @@ function openShipDialogue(shipCall, options = {}) {
     strategicShip.encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND
     ? treasureGoal.treasureCaptainName
     : null;
-  const campaignRumor = options.attackReason || options.cartazInspection
+  const campaignRumor = options.attackReason || options.cartazInspection || options.illicitTradeInspection
     ? null
     : maybeCampaignRumor(`ship:${shipCall.id}`);
-  const papalGossip = options.attackReason || options.cartazInspection || campaignRumor
+  const papalGossip = options.attackReason || options.cartazInspection ||
+    options.illicitTradeInspection || campaignRumor
     ? null
     : recentPapalGossipForCharacter(
         gameState.relations.papacy,
@@ -14695,7 +14709,7 @@ function openShipDialogue(shipCall, options = {}) {
       );
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
-    rumorText: options.attackReason || options.cartazInspection
+    rumorText: options.attackReason || options.cartazInspection || options.illicitTradeInspection
       ? null
       : campaignRumor?.text || (papalGossip ? papalGossipDialogueLine(papalGossip) : null),
     listenerReligionId: gameState.playerCharacter?.religionId || null,
@@ -15420,7 +15434,8 @@ function startWaitingInPort(city) {
     startedAtMinute: weatherClockMinutes,
     disguisedEntry: dialogueState?.disguisedEntry === true,
     illicitTradeAccessPolicyId: dialogueState?.illicitTradeAccessPolicyId || null,
-    illicitTradeAttemptedPolicyId: dialogueState?.illicitTradeAttemptedPolicyId || null
+    illicitTradeAttemptedPolicyId: dialogueState?.illicitTradeAttemptedPolicyId || null,
+    illicitTradeVisit: dialogueState?.illicitTradeVisit || null
   };
   departureControlFeedback = null;
   resetSurvivalDamageTimers();
@@ -15451,6 +15466,7 @@ function stopWaitingInPort() {
   const disguisedEntry = portWaitState.disguisedEntry === true;
   const illicitTradeAccessPolicyId = portWaitState.illicitTradeAccessPolicyId || null;
   const illicitTradeAttemptedPolicyId = portWaitState.illicitTradeAttemptedPolicyId || null;
+  const illicitTradeVisit = portWaitState.illicitTradeVisit || null;
   portWaitState = null;
   portWaitButtonRect = null;
   departureControlFeedback = null;
@@ -15468,7 +15484,8 @@ function stopWaitingInPort() {
     admittedToPort: true,
     disguisedEntry,
     illicitTradeAccessPolicyId,
-    illicitTradeAttemptedPolicyId
+    illicitTradeAttemptedPolicyId,
+    illicitTradeVisit
   });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
@@ -15493,7 +15510,18 @@ function closeDialogue() {
   const departureCity = wasPortDialogue && dialogueState.admittedToPort === true
     ? currentDialogueCity()
     : null;
+  const illicitTradeVisit = departureCity && dialogueState.kind === "port"
+    ? dialogueState.illicitTradeVisit
+    : null;
   if (departureCity) applyAutomaticPortServices(departureCity);
+  if (departureCity && illicitTradeVisit) {
+    recordIllicitTradeDeparture(
+      gameState.memory.illicitTradeEnforcement,
+      illicitTradeVisit,
+      departureCity,
+      Math.floor(weatherClockMinutes)
+    );
+  }
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
   if (wasPortDialogue) {
@@ -16079,6 +16107,30 @@ async function acquireVikingLongship(action) {
 
 function applyShipDialogueAction(npcShipId, action) {
   const simMinute = Math.floor(weatherClockMinutes);
+  if (action.type === "pay-illicit-trade-fine") {
+    const incidentId = dialogueState?.illicitTradeInspection?.incidentId;
+    const result = payIllicitTradeFine(gameState, incidentId);
+    playCoinClinkSound();
+    showSurvivalNotice(`ILLICIT TRADE FINE  ${result.fine} DB`, "warning");
+    saveVoyageNow("paid illicit trade fine");
+    return;
+  }
+  if (action.type === "surrender-illicit-trade-cargo") {
+    const incidentId = dialogueState?.illicitTradeInspection?.incidentId;
+    const removed = surrenderIllicitTradeCargo(gameState, incidentId);
+    syncShipCargoFromGameState();
+    const quantity = removed.reduce((sum, row) => sum + row.quantity, 0);
+    showSurvivalNotice(`ILLICIT CARGO SURRENDERED  ${quantity}`, "warning");
+    saveVoyageNow("surrendered illicit cargo");
+    return;
+  }
+  if (action.type === "evade-illicit-trade-inspection") {
+    const incidentId = dialogueState?.illicitTradeInspection?.incidentId;
+    beginIllicitTradeEnforcementCombat(gameState, incidentId);
+    forceIllicitTradeEnforcementCombat(npcShipId);
+    saveVoyageNow("evaded illicit trade inspection");
+    return;
+  }
   if (action.type === "buy-cartaz-at-sea") {
     const fee = dialogueState?.cartazInspection?.permitFee;
     const result = buyPortugueseCartazFromInspector(gameState, npcShipId, simMinute, fee);
@@ -16253,6 +16305,18 @@ function beginPlayerInitiatedCombat(npcShipId) {
     durationSeconds: 0,
     clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
   });
+}
+
+function forceIllicitTradeEnforcementCombat(npcShipId) {
+  const state = npcVisualShips.get(npcShipId);
+  if (!state) throw new Error(`Cannot flee enforcement ship that is no longer visible: ${npcShipId}`);
+  if (state.combatGrace) throw new Error(`Cannot flee protected enforcement ship: ${npcShipId}`);
+  if (!forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, npcShipId)) return;
+  shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
+  shipCombatEntryCollisionGrace.set(npcShipId, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
+  const cannons = state.stats.cannons;
+  startCombatMusicForThreat(cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  forceNearbyIllicitTradeEnforcementEngagements(Math.floor(weatherClockMinutes));
 }
 
 function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
@@ -22966,6 +23030,7 @@ function updateNpcCombat(dt) {
   );
   const playerWasInCombat = playerHasCombatEngagement();
   const colonizationDefenseInitiator = forceColonizationDefenseEngagements(playerWasInCombat);
+  const illicitTradeEnforcementChanged = forceNearbyIllicitTradeEnforcementEngagements(simMinute);
   const participantsBefore = combatParticipantIds();
   const entities = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.entities",
@@ -22994,7 +23059,7 @@ function updateNpcCombat(dt) {
       shipCombatEntryCollisionGrace.set(id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
     }
   }
-  let changed = result.changed;
+  let changed = result.changed || illicitTradeEnforcementChanged;
   const firstPlayerEngagement = !playerWasInCombat
     ? result.startedEngagements.find((engagement) => (
         engagement.aId === PLAYER_COMBAT_ID || engagement.bId === PLAYER_COMBAT_ID
@@ -23032,7 +23097,11 @@ function updateNpcCombat(dt) {
     }
   }
   const combatHailPending = Boolean(pendingNpcCombatHailId);
-  const cartazHailOpened = !combatHailOpened && !combatHailPending && !suppressCaptureHails
+  const illicitTradeHailOpened = !combatHailOpened && !combatHailPending && !suppressCaptureHails
+    ? maybeOpenIllicitTradeInspection(simMinute)
+    : false;
+  const cartazHailOpened = !combatHailOpened && !combatHailPending &&
+      !illicitTradeHailOpened && !suppressCaptureHails
     ? maybeOpenPortugueseCartazInspection(simMinute)
     : false;
   shoreBatteryUpdateAccumulator = Math.min(
@@ -23047,8 +23116,8 @@ function updateNpcCombat(dt) {
           shoreBatteryUpdateAccumulator = 0;
           return updateShoreBatteryCombat(
             elapsed,
-            combatHailOpened || combatHailPending || cartazHailOpened || suppressCaptureHails ||
-              overlayBlocksCombatHails,
+            combatHailOpened || combatHailPending || illicitTradeHailOpened ||
+              cartazHailOpened || suppressCaptureHails || overlayBlocksCombatHails,
             portEntryContext
           );
         }
@@ -23089,7 +23158,8 @@ function updateNpcCombat(dt) {
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
     if (!nextMode) clearCombatWounds(state);
-    if (!combatHailOpened && !combatHailPending && !cartazHailOpened && !batteryCombat.hailOpened &&
+    if (!combatHailOpened && !combatHailPending && !illicitTradeHailOpened &&
+        !cartazHailOpened && !batteryCombat.hailOpened &&
         intent?.mode === COMBAT_MODE_ATTACK) {
       if (fireNpcWeaponAtTarget(state, intent.targetId)) changed = true;
       if (fireNpcPortableWeaponsAtTarget(state, intent.targetId)) changed = true;
@@ -23141,6 +23211,7 @@ function maybeOpenPortugueseCartazInspection(simMinute) {
       distance <= NPC_HAIL_RADIUS_PX
     ))
     .sort((a, b) => a.distance - b.distance || a.state.id.localeCompare(b.state.id));
+  let inspectionHistoryChanged = false;
   for (const { state } of inspectors) {
     const inspection = portugueseCartazInspectionStatus(gameState, {
       npcShipId: state.id,
@@ -23155,6 +23226,63 @@ function maybeOpenPortugueseCartazInspection(simMinute) {
     saveVoyageNow("Portuguese cartaz inspection");
     return true;
   }
+  return false;
+}
+
+function maybeOpenIllicitTradeInspection(simMinute) {
+  const memory = gameState?.memory?.illicitTradeEnforcement;
+  if (
+    !memory ||
+    memory.incidents.length === 0 ||
+    gameState.activePlaySeconds < 60 ||
+    combatHailIsBlockedByOverlay() ||
+    playerHasCombatEngagement()
+  ) {
+    return false;
+  }
+  const inspectors = worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    NPC_HAIL_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )
+    .map((match) => ({
+      state: match.entry.value,
+      distance: Math.sqrt(match.distanceSquared)
+    }))
+    .filter(({ state, distance }) => (
+      state.role === NPC_ROLE_WARSHIP &&
+      !state.combatGrace &&
+      distance <= NPC_HAIL_RADIUS_PX
+    ))
+    .sort((a, b) => a.distance - b.distance || a.state.id.localeCompare(b.state.id));
+  for (const { state } of inspectors) {
+    const incident = illicitTradeIncidentForInspection(memory, state.factionId, state.id, simMinute);
+    if (!incident) continue;
+    const inspection = resolveIllicitTradeInspection(memory, incident.id, state.id, Math.random());
+    if (!inspection.detected) {
+      inspectionHistoryChanged = true;
+      continue;
+    }
+    if (inspection.newlyDetected) {
+      adjustFactionReputation(gameState, incident.enforcementFactionId, -incident.reputationPenalty);
+    }
+    const illicitCargo = illicitCargoAvailable(incident, gameState.cargo);
+    const cargoQuantity = Object.values(illicitCargo).reduce((sum, quantity) => sum + quantity, 0);
+    const character = ensureNpcShipCaptain(state.id);
+    openShipDialogue({ id: state.id, character }, {
+      illicitTradeInspection: {
+        incidentId: incident.id,
+        originName: incident.originName,
+        fine: inspection.fine,
+        cargoQuantity,
+        canAffordFine: gameState.doubloons >= inspection.fine
+      }
+    });
+    saveVoyageNow("caught in an illicit trade inspection");
+    return true;
+  }
+  if (inspectionHistoryChanged) saveVoyageNow("passed an illicit trade inspection");
   return false;
 }
 
@@ -23186,6 +23314,41 @@ function forceColonizationDefenseEngagements(playerWasInCombat) {
     if (!playerWasInCombat && !initiator) initiator = state.id;
   }
   return initiator;
+}
+
+function forceNearbyIllicitTradeEnforcementEngagements(simMinute) {
+  const memory = gameState?.memory?.illicitTradeEnforcement;
+  if (!memory || memory.incidents.length === 0) return false;
+  const enforcingFactions = new Set(activeIllicitTradeCombatFactionIds(memory, simMinute));
+  if (enforcingFactions.size === 0) return false;
+  let changed = false;
+  let largestBroadside = 0;
+  for (const match of worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    COMBAT_DETECTION_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )) {
+    const state = match.entry.value;
+    if (
+      match.distanceSquared > COMBAT_DETECTION_RADIUS_PX * COMBAT_DETECTION_RADIUS_PX ||
+      state.role !== NPC_ROLE_WARSHIP ||
+      state.combatGrace ||
+      !enforcingFactions.has(state.factionId)
+    ) {
+      continue;
+    }
+    if (forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, state.id)) {
+      shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
+      shipCombatEntryCollisionGrace.set(state.id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
+      changed = true;
+    }
+    largestBroadside = Math.max(largestBroadside, state.stats.cannons);
+  }
+  if (changed) {
+    startCombatMusicForThreat(largestBroadside >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  }
+  return changed;
 }
 
 function captureSuppressesCombatHails() {
@@ -27988,6 +28151,7 @@ function chartProjectionOffsetPixels(activeChart) {
 }
 
 function syncLocalLayout(projectedVisible, chartCenterTileId) {
+  const projectedById = new Map(projectedVisible.map((item) => [item.id, item]));
   retainLocalLayoutAnchor({
     positions: localLayout.positions,
     anchorId: chartCenterTileId,
@@ -28003,6 +28167,13 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
   });
   const swell = currentOceanSwellPresentation();
   const admissionCorrectionActive = correctionSupport.correctionActive;
+  resetFeaturelessViewportNorthUp({
+    positions: localLayout.positions,
+    projectedById,
+    anchorId: chartCenterTileId,
+    viewportTileIds: correctionSupport.viewportTileIds,
+    protectionById: chartTileProtection
+  });
   const visibleSettlementActive = admissionCorrectionActive && swell.settlingActive;
   if (visibleSettlementActive) {
     settleElasticLayoutTowardProjection({
@@ -28026,10 +28197,8 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     anchorId: chartCenterTileId
   });
 
-  const projectedById = new Map();
   const pending = new Set();
   for (const item of projectedVisible) {
-    projectedById.set(item.id, item);
     if (!localLayout.positions.has(item.id)) pending.add(item.id);
   }
 
@@ -28050,7 +28219,9 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     correctElasticTilesNorthUp: admissionCorrectionActive,
     maxElasticCorrectionPx: admissionCorrectionActive
       ? MAX_ELASTIC_FRAME_CORRECTION_PX
-      : 0
+      : 0,
+    maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    protectedCorrectionViewportIds: correctionSupport.viewportTileIds
   });
 }
 

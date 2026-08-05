@@ -187,6 +187,37 @@ test("Portuguese patrols present explicit cartaz enforcement choices", () => {
   });
 });
 
+test("government patrols can enforce illicit trade restrictions at sea", () => {
+  const ship = {
+    id: "ming-patrol-4",
+    label: "Ming War Junk",
+    roleLabel: "Warship",
+    faction: { adjective: "Ming" },
+    character: { name: "Liang Chen" }
+  };
+  const session = createShipDialogueSession(ship, {
+    illicitTradeInspection: {
+      incidentId: "illicit-trade-1",
+      originName: "Guangzhou",
+      fine: 270,
+      cargoQuantity: 3,
+      canAffordFine: true
+    }
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.match(view.text, /Customs officers at Guangzhou traced illicit trade/);
+  assert.deepEqual(view.options.map((entry) => entry.label), [
+    "Pay fine  270 db",
+    "Surrender illicit cargo",
+    "Run for it"
+  ]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 2), {
+    closed: true,
+    action: { type: "evade-illicit-trade-inspection" }
+  });
+});
+
 test("a non-enemy ship offers emergency provisions once the player is depleted", () => {
   const ship = {
     id: "relief-ship",
@@ -2279,8 +2310,29 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
   assert.equal(result.illicitMarketAccessPolicyId, "ming-maritime-prohibition");
 
   root = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.ok(root.options.some((entry) => entry.label === "Buy illicit goods"));
+  const buyIllicitIndex = root.options.findIndex((entry) => entry.label === "Buy illicit goods");
+  assert.ok(buyIllicitIndex >= 0);
   assert.ok(root.options.some((entry) => entry.label === "Sell cargo illicitly"));
+  selectPortDialogueOption(session, city, gameState, economy, [city], buyIllicitIndex, context);
+  const buy = portDialogueView(session, city, gameState, economy, [city], context);
+  const buyIndex = buy.options.findIndex((entry) => entry.action.type === "buy" && !entry.disabled);
+  assert.ok(buyIndex >= 0);
+  assert.match(buy.options[buyIndex].detail, /ILLICIT  DUTY 0%/);
+  const purchase = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    buyIndex,
+    context
+  );
+  assert.equal(purchase.closed, false);
+  assert.equal(session.illicitTradeVisit.policyId, MING_TRADE_POLICY_ID);
+  assert.equal(session.illicitTradeVisit.enforcementFactionId, "ming");
+  assert.equal(session.illicitTradeVisit.transactionCount, 1);
+  assert.ok(session.illicitTradeVisit.transactionValue > 0);
+  assert.equal(Object.values(session.illicitTradeVisit.purchasedCargo).reduce((a, b) => a + b, 0), 1);
 });
 
 test("captains admitted under safe passage can seek an illicit wartime market", () => {

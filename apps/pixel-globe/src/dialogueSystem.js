@@ -286,6 +286,7 @@ export function createPortDialogueSession(city, options = {}) {
     disguisedEntry: options.disguisedEntry === true,
     illicitTradeAccessPolicyId: options.illicitTradeAccessPolicyId || null,
     illicitTradeAttemptedPolicyId: options.illicitTradeAttemptedPolicyId || null,
+    illicitTradeVisit: copyIllicitTradeVisit(options.illicitTradeVisit || null),
     nextPortNodeId: options.nextPortNodeId || null,
     postDrunkNodeId: options.postDrunkNodeId || null,
     drunkVariant: options.drunkVariant || 0,
@@ -295,6 +296,7 @@ export function createPortDialogueSession(city, options = {}) {
     marketSaleGoodIds: [],
     marketUndoNodeId: null,
     marketUndoSnapshot: null,
+    marketUndoIllicitTradeVisit: null,
     tradeTip: null,
     shipHandover: null,
     specialEquipmentOffer: null,
@@ -463,6 +465,7 @@ export function createShipDialogueSession(
     attackReason = null,
     rumorText = null,
     cartazInspection = null,
+    illicitTradeInspection = null,
     listenerReligionId = null,
     pirateTreasureName = null
   } = {}
@@ -480,6 +483,23 @@ export function createShipDialogueSession(
   )) {
     throw new Error("Ship cartaz inspection requires valid enforcement terms");
   }
+  if (illicitTradeInspection !== null && (
+    typeof illicitTradeInspection !== "object" ||
+    typeof illicitTradeInspection.incidentId !== "string" ||
+    illicitTradeInspection.incidentId === "" ||
+    typeof illicitTradeInspection.originName !== "string" ||
+    illicitTradeInspection.originName === "" ||
+    !Number.isInteger(illicitTradeInspection.fine) ||
+    illicitTradeInspection.fine <= 0 ||
+    !Number.isFinite(illicitTradeInspection.cargoQuantity) ||
+    illicitTradeInspection.cargoQuantity < 0 ||
+    typeof illicitTradeInspection.canAffordFine !== "boolean"
+  )) {
+    throw new Error("Ship illicit trade inspection requires valid enforcement terms");
+  }
+  if (cartazInspection && illicitTradeInspection) {
+    throw new Error("A ship cannot conduct two trade inspections at once");
+  }
   if (listenerReligionId !== null) religionById(listenerReligionId);
   if (pirateTreasureName !== null &&
       (typeof pirateTreasureName !== "string" || pirateTreasureName.trim() === "")) {
@@ -488,13 +508,18 @@ export function createShipDialogueSession(
   return {
     kind: "ship",
     npcShipId: ship.id,
-    nodeId: cartazInspection ? "cartaz-inspection" : "root",
+    nodeId: cartazInspection
+      ? "cartaz-inspection"
+      : illicitTradeInspection
+        ? "illicit-trade-inspection"
+        : "root",
     selectedIndex: 0,
     attackReason,
     piracyWarningAccepted: false,
     pendingPiracyAction: null,
     rumorText,
     cartazInspection,
+    illicitTradeInspection,
     listenerReligionId,
     pirateTreasureName
   };
@@ -660,6 +685,9 @@ function shipDialogueContentView(session, ship) {
   const speaker = `${characterName(ship.character)}, ${faction}${role.toLowerCase()} captain`;
   if (session.nodeId === "cartaz-inspection") {
     return portugueseCartazInspectionView(session, speaker);
+  }
+  if (session.nodeId === "illicit-trade-inspection") {
+    return illicitTradeInspectionView(session, speaker);
   }
   if (session.attackReason && ship.combatGrace) {
     return {
@@ -866,6 +894,27 @@ function portugueseCartazInspectionView(session, speaker) {
   };
 }
 
+function illicitTradeInspectionView(session, speaker) {
+  const inspection = session.illicitTradeInspection;
+  if (!inspection) throw new Error("Illicit trade inspection dialogue has no enforcement terms");
+  return {
+    speaker,
+    expressionId: "stern",
+    text: `Heave to. Customs officers at ${inspection.originName} traced illicit trade to this vessel. Pay the fine, surrender the unlicensed cargo, or answer to our guns.`,
+    feedback: null,
+    options: [
+      option(`Pay fine  ${inspection.fine} db`, { type: "pay-illicit-trade-fine" }, {
+        disabled: !inspection.canAffordFine,
+        disabledReason: "Not enough doubloons."
+      }),
+      ...(inspection.cargoQuantity > 0
+        ? [option("Surrender illicit cargo", { type: "surrender-illicit-trade-cargo" })]
+        : []),
+      option("Run for it", { type: "evade-illicit-trade-inspection" })
+    ]
+  };
+}
+
 function surrenderPrizeView(session, ship) {
   const presentation = surrenderPrizePresentation(session, ship);
   const candidate = shipLabelForSlug(presentation.candidateShipSlug);
@@ -962,6 +1011,21 @@ function assertShipDialogueSubject(session, ship) {
 }
 
 function applyShipDialogueAction(session, ship, action) {
+  if (
+    action.type === "pay-illicit-trade-fine" ||
+    action.type === "surrender-illicit-trade-cargo"
+  ) {
+    if (session.nodeId !== "illicit-trade-inspection") {
+      throw new Error(`Illicit trade enforcement action outside inspection: ${action.type}`);
+    }
+    return { closed: true, action };
+  }
+  if (action.type === "evade-illicit-trade-inspection") {
+    if (session.nodeId !== "illicit-trade-inspection") {
+      throw new Error("Illicit trade evasion outside inspection");
+    }
+    return { closed: true, action };
+  }
   if (
     action.type === "buy-cartaz-at-sea" ||
     action.type === "pay-cartaz-fine" ||
@@ -1089,7 +1153,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "equipment-factor-followup") {
     return equipmentFactorFollowupView(session, city);
   }
-  if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
+  if (session.nodeId === "sell") return sellView(session, city, gameState, economy, context);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
@@ -1931,6 +1995,7 @@ export function selectPortDialogueOption(
     const quantity = action.type === "buy-max" ? action.quantity : 1;
     const result = buyGood(gameState, economy, city, action.goodId, quantity, tradeContext(session, context));
     recordMarketPurchase(session, result);
+    recordIllicitMarketTransaction(session, result, "buy");
     session.feedback = result.quantity === 1
       ? `Bought ${result.good.label} for ${result.price} db.`
       : `Bought ${result.good.label} x${result.quantity} for ${result.price} db.`;
@@ -1977,6 +2042,7 @@ export function selectPortDialogueOption(
     const quantity = action.type === "sell-all" ? action.quantity : 1;
     const result = sellGood(gameState, economy, city, action.goodId, quantity, tradeContext(session, context));
     session.marketSales += result.quantity;
+    recordIllicitMarketTransaction(session, result, "sell");
     const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
     session.feedback = result.quantity === 1
       ? `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`
@@ -1995,6 +2061,7 @@ export function selectPortDialogueOption(
     );
     session.marketPurchases = {};
     session.marketSales = 0;
+    session.illicitTradeVisit = copyIllicitTradeVisit(session.marketUndoIllicitTradeVisit);
     session.selectedIndex = 0;
     session.feedback = session.nodeId === "buy"
       ? "All purchases on this page were undone."
@@ -2416,7 +2483,7 @@ function greetingView(session, city, gameState, context) {
   }
   const name = cityLabel(city);
   const personalityId = city.character?.personalityId || portPersonalityForKey(`${name}|${city.country || "port"}`);
-  const arrival = portFlavor(city, gameState, context, memory.visits > 1);
+  const arrival = portFlavor(city, gameState, context, memory.visits);
   const greeting = portGreetingPresentationForPersonality({
     personalityId,
     cityName: name,
@@ -3737,7 +3804,7 @@ function buyView(session, city, gameState, economy, context) {
   const rows = tradeRows
     .flatMap((row) => {
       const totalSize = row.good.unitSize;
-      const terms = playerTradeTerms(gameState, city, row.good.id);
+      const terms = playerTradeTerms(gameState, city, row.good.id, tradeContext(session, context));
       const displayedPrice = quotePortSale(economy, city, row.good.id, 1, terms.purchaseMultiplier);
       const comparison = worldMarketPriceComparison(economy, city, row.good.id, "buy");
       const freeSpace = cargoFreeForGood(gameState, row.good.id);
@@ -3981,12 +4048,64 @@ function recordMarketPurchase(session, result) {
   session.marketPurchases[result.good.id] = current;
 }
 
+function recordIllicitMarketTransaction(session, result, side) {
+  if (result.tradeTerms?.illicit !== true) return;
+  if (side !== "buy" && side !== "sell") {
+    throw new Error(`Invalid illicit market transaction side: ${side}`);
+  }
+  const terms = result.tradeTerms;
+  if (typeof terms.accessPolicyId !== "string" || terms.accessPolicyId === "" ||
+      typeof terms.enforcementFactionId !== "string" || terms.enforcementFactionId === "" ||
+      !Number.isInteger(terms.illicitMarketReputationPenalty) ||
+      terms.illicitMarketReputationPenalty <= 0) {
+    throw new Error("Illicit market transaction has no enforceable trade policy");
+  }
+  const visit = session.illicitTradeVisit || {
+    policyId: terms.accessPolicyId,
+    enforcementFactionId: terms.enforcementFactionId,
+    reputationPenalty: terms.illicitMarketReputationPenalty,
+    transactionCount: 0,
+    transactionValue: 0,
+    purchasedCargo: {}
+  };
+  if (visit.policyId !== terms.accessPolicyId ||
+      visit.enforcementFactionId !== terms.enforcementFactionId) {
+    throw new Error("A port visit cannot mix illicit trade enforcement policies");
+  }
+  visit.transactionCount += 1;
+  visit.transactionValue += result.price;
+  if (side === "buy") {
+    visit.purchasedCargo[result.good.id] =
+      (visit.purchasedCargo[result.good.id] || 0) + result.quantity;
+  }
+  session.illicitTradeVisit = visit;
+}
+
+function copyIllicitTradeVisit(visit) {
+  if (visit === null) return null;
+  if (!visit || typeof visit !== "object" || Array.isArray(visit) ||
+      typeof visit.policyId !== "string" || visit.policyId === "" ||
+      typeof visit.enforcementFactionId !== "string" || visit.enforcementFactionId === "" ||
+      !Number.isInteger(visit.reputationPenalty) || visit.reputationPenalty <= 0 ||
+      !Number.isInteger(visit.transactionCount) || visit.transactionCount < 0 ||
+      !Number.isFinite(visit.transactionValue) || visit.transactionValue < 0 ||
+      !visit.purchasedCargo || typeof visit.purchasedCargo !== "object" ||
+      Array.isArray(visit.purchasedCargo)) {
+    throw new Error("Invalid illicit trade port-visit record");
+  }
+  return {
+    ...visit,
+    purchasedCargo: { ...visit.purchasedCargo }
+  };
+}
+
 function beginMarketUndoSession(session, nodeId, gameState, economy, city) {
   if (nodeId !== "buy" && nodeId !== "sell") {
     throw new Error(`Unknown market undo node: ${nodeId}`);
   }
   session.marketUndoNodeId = nodeId;
   session.marketUndoSnapshot = createMarketUndoSnapshot(gameState, economy, city);
+  session.marketUndoIllicitTradeVisit = copyIllicitTradeVisit(session.illicitTradeVisit);
 }
 
 function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
@@ -3997,6 +4116,7 @@ function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
 function clearMarketUndoSession(session) {
   session.marketUndoNodeId = null;
   session.marketUndoSnapshot = null;
+  session.marketUndoIllicitTradeVisit = null;
 }
 
 function marketUndoAvailable(session, nodeId) {
@@ -4017,6 +4137,7 @@ function tradeTermsDetail(terms, side) {
     const change = Math.round((1 - terms.purchaseDiscountMultiplier) * 100);
     parts.push(`FOUNDER -${change}%`);
   }
+  if (terms.illicit) parts.push("ILLICIT");
   parts.push(`DUTY ${Math.round(terms.customsRate * 100)}%`);
   if (terms.crownMonopoly) {
     const rate = side === "buy" ? terms.monopolyPurchaseRate : terms.monopolySaleRate;
@@ -4170,7 +4291,7 @@ function loadoutRemovalSummary(removed) {
   return dumped + (reductions.length > 0 ? ` Removed ${reductions.join(" and ")}.` : "");
 }
 
-function sellView(session, city, gameState, economy) {
+function sellView(session, city, gameState, economy, context) {
   const hold = cargoHoldStatus(gameState);
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
   const rows = marketSaleGoodIds(session, gameState).flatMap((goodId) => {
@@ -4180,7 +4301,7 @@ function sellView(session, city, gameState, economy) {
     const soldOut = heldLots === 0;
     const row = market.get(goodId);
     if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${goodId}`);
-    const terms = playerTradeTerms(gameState, city, goodId);
+    const terms = playerTradeTerms(gameState, city, goodId, tradeContext(session, context));
     const price = quotePortPurchase(economy, city, goodId, 1, terms.saleMultiplier);
     const basis = cargoCostBasis(gameState, goodId);
     const pnlLabel = basis.known ? signedDoubloons(price - basis.average) : "--";
@@ -4830,13 +4951,18 @@ function neverGrantMissionItem() {
   return 1 - Number.EPSILON;
 }
 
-function portFlavor(city, gameState, context, returning) {
+function portFlavor(city, gameState, context, visitCount) {
+  if (!Number.isInteger(visitCount) || visitCount < 0) {
+    throw new Error(`Port flavor requires a non-negative visit count: ${visitCount}`);
+  }
+  const effectiveVisitCount = Math.max(1, visitCount);
   const playerShipSlug = context.playerShipSlug || gameState.ship?.slug || null;
   return portArrivalPresentation({
     city,
     playerShipSlug,
     playerShipLabel: playerShipSlug ? shipLabelForSlug(playerShipSlug) : "vessel",
-    returning,
-    navigation: context.arrivalNavigation || null
+    returning: effectiveVisitCount > 1,
+    navigation: context.arrivalNavigation || null,
+    variationKey: `${effectiveVisitCount}|${context.dayIndex ?? 0}`
   });
 }

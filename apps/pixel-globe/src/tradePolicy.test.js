@@ -75,6 +75,47 @@ test("diplomatic customs span ally through hostile while domestic trade is duty 
   assert.equal(neutral.saleMultiplier, 0.9);
 });
 
+test("illicit trade evades official customs and crown monopoly charges", () => {
+  const lawful = tradeTerms({
+    port: GOA,
+    traderFactionId: "england",
+    relation: DIPLOMACY_NEUTRAL,
+    goodId: "pepper"
+  });
+  const illicit = tradeTerms({
+    port: GOA,
+    traderFactionId: "england",
+    relation: DIPLOMACY_NEUTRAL,
+    goodId: "pepper",
+    illicit: true
+  });
+
+  assert.equal(illicit.illicit, true);
+  assert.equal(illicit.customsRate, 0);
+  assert.equal(illicit.officialCustomsRate, lawful.customsRate);
+  assert.equal(illicit.monopolyPurchaseRate, 0);
+  assert.equal(illicit.officialMonopolyPurchaseRate, lawful.monopolyPurchaseRate);
+  assert.equal(illicit.purchaseMultiplier, 1);
+  assert.equal(illicit.saleMultiplier, 1);
+});
+
+test("illicit wartime trade is quoted as allowed without collecting enemy customs", () => {
+  const illicit = tradeTerms({
+    port: LISBON,
+    traderFactionId: "morocco",
+    relation: DIPLOMACY_WAR,
+    goodId: "wine",
+    illicit: true
+  });
+
+  assert.equal(illicit.allowed, true);
+  assert.equal(illicit.illicit, true);
+  assert.equal(illicit.customsRate, 0);
+  assert.equal(illicit.officialCustomsRate, 0.2);
+  assert.equal(illicit.purchaseMultiplier, 1);
+  assert.equal(illicit.saleMultiplier, 1);
+});
+
 test("personal standing nudges customs without overriding diplomacy", () => {
   const admired = tradeTerms({
     port: CALICUT,

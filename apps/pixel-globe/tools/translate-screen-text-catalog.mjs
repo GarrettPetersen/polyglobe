@@ -115,6 +115,43 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedShipTypeOverrides(),
+  "Heave to. Customs officers at {0} traced illicit trade to this vessel. Pay the fine, surrender the unlicensed cargo, or answer to our guns.": Object.freeze({
+    "zh-Hans": "停船受检。{0}海关已查明这艘船参与走私。缴纳罚款、交出违禁货物，否则我们就开火。",
+    ru: "Лечь в дрейф! Таможня в {0} установила, что это судно вело контрабандную торговлю. Уплатите штраф, сдайте незаконный груз — или мы откроем огонь.",
+    es: "¡Deténganse! Los aduaneros de {0} han vinculado este navío con el comercio clandestino. Paguen la multa, entreguen la carga ilícita o responderán ante nuestros cañones.",
+    "pt-BR": "Parem o navio! Os fiscais da alfândega de {0} ligaram esta embarcação ao comércio clandestino. Paguem a multa, entreguem a carga ilícita ou respondam aos nossos canhões.",
+    ja: "停船せよ。{0}の税関は、この船の密貿易を突き止めた。罰金を払い、密輸品を引き渡せ。さもなくば砲撃する。",
+    de: "Beidrehen! Die Zollbeamten in {0} haben dieses Schiff mit illegalem Handel in Verbindung gebracht. Zahlt die Strafe, übergebt die unverzollte Ladung oder stellt euch unseren Geschützen.",
+    fr: "Mettez en panne ! Les douaniers de {0} ont relié ce navire à un commerce clandestin. Payez l'amende, livrez la cargaison illicite ou répondez à nos canons.",
+    pl: "Stać! Celnicy z {0} powiązali ten statek z nielegalnym handlem. Zapłaćcie grzywnę, oddajcie nielegalny ładunek albo odpowiecie przed naszymi działami.",
+    "zh-Hant": "停船受檢。{0}海關已查明這艘船參與走私。繳納罰款、交出違禁貨物，否則我們就開火。",
+    ko: "정선하라! {0} 세관이 이 배의 밀무역을 적발했다. 벌금을 내고 밀수 화물을 넘겨라. 거부하면 포격하겠다."
+  }),
+  "ILLICIT": Object.freeze({
+    "zh-Hans": "走私", ru: "КОНТРАБАНДА", es: "ILÍCITO", "pt-BR": "CLANDESTINO",
+    ja: "密貿易", de: "ILLEGAL", fr: "CLANDESTIN", pl: "NIELEGALNY",
+    "zh-Hant": "走私", ko: "밀무역"
+  }),
+  "ILLICIT CARGO SURRENDERED {0}": Object.freeze({
+    "zh-Hans": "已交出走私货物 {0}", ru: "КОНТРАБАНДНЫЙ ГРУЗ СДАН {0}",
+    es: "CARGA ILÍCITA ENTREGADA {0}", "pt-BR": "CARGA CLANDESTINA ENTREGUE {0}",
+    ja: "密輸品を引き渡した {0}", de: "ILLEGALE LADUNG ÜBERGEBEN {0}",
+    fr: "CARGAISON CLANDESTINE LIVRÉE {0}", pl: "ODDANO NIELEGALNY ŁADUNEK {0}",
+    "zh-Hant": "已交出走私貨物 {0}", ko: "밀수 화물 인도 {0}"
+  }),
+  "ILLICIT TRADE FINE {0} DB": Object.freeze({
+    "zh-Hans": "走私罚款 {0} DB", ru: "ШТРАФ ЗА КОНТРАБАНДУ {0} DB",
+    es: "MULTA POR COMERCIO ILÍCITO {0} DB", "pt-BR": "MULTA POR COMÉRCIO CLANDESTINO {0} DB",
+    ja: "密貿易の罰金 {0} DB", de: "STRAFE FÜR ILLEGALEN HANDEL {0} DB",
+    fr: "AMENDE POUR COMMERCE CLANDESTIN {0} DB", pl: "GRZYWNA ZA NIELEGALNY HANDEL {0} DB",
+    "zh-Hant": "走私罰款 {0} DB", ko: "밀무역 벌금 {0} DB"
+  }),
+  "Surrender illicit cargo": Object.freeze({
+    "zh-Hans": "交出走私货物", ru: "Сдать контрабандный груз", es: "Entregar carga ilícita",
+    "pt-BR": "Entregar carga clandestina", ja: "密輸品を引き渡す", de: "Illegale Ladung übergeben",
+    fr: "Livrer la cargaison clandestine", pl: "Oddaj nielegalny ładunek",
+    "zh-Hant": "交出走私貨物", ko: "밀수 화물 넘기기"
+  }),
   "STRAY SHOT - HOLD YOUR FIRE": Object.freeze({
     "zh-Hans": "流弹——停止射击",
     ru: "СЛУЧАЙНЫЙ ВЫСТРЕЛ — ПРЕКРАТИТЬ ОГОНЬ",

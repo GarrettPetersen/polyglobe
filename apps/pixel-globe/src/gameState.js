@@ -147,6 +147,16 @@ import {
   tradeTerms
 } from "./tradePolicy.js";
 import {
+  beginIllicitTradeEnforcementCombat as markIllicitTradeEnforcementCombat,
+  createIllicitTradeEnforcementMemory,
+  illicitCargoAvailable,
+  illicitTradeFine,
+  illicitTradeIncidentById,
+  migrateIllicitTradeEnforcementMemory,
+  resolveIllicitTradeIncident,
+  validateIllicitTradeEnforcementMemory
+} from "./illicitTradeEnforcement.js";
+import {
   VIKING_BOWS_ITEM_ID,
   isPortableWeaponItemId,
   portableWeaponCombatRating,
@@ -256,7 +266,7 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 56;
+export const GAME_STATE_VERSION = 57;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -481,6 +491,7 @@ export function createGameState({
       namedCrewDeathNotices: [],
       birthdays: createBirthdayMemory(),
       specialEquipmentOffers: createSpecialEquipmentOfferMemory(),
+      illicitTradeEnforcement: createIllicitTradeEnforcementMemory(),
       navigation: {
         lastLongitudeDeg: null,
         cumulativeLongitudeDeg: 0,
@@ -539,7 +550,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -652,6 +663,9 @@ export function migrateGameState(state, shipStats) {
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
       birthdays: state.memory?.birthdays || createBirthdayMemory(),
       specialEquipmentOffers: state.memory?.specialEquipmentOffers || createSpecialEquipmentOfferMemory(),
+      illicitTradeEnforcement: migrateIllicitTradeEnforcementMemory(
+        state.memory?.illicitTradeEnforcement
+      ),
       animals: state.memory?.animals || createAnimalEncounterMemory(),
       animalCompanions: migrateAnimalCompanionMemory(savedAnimalCompanions, {
         legacyPanda: legacyPandaCompanion
@@ -3846,7 +3860,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
   if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
-  const terms = playerTradeTerms(state, city, goodId);
+  const terms = playerTradeTerms(state, city, goodId, context);
   const total = quotePortSale(economy, city, goodId, quantity, terms.purchaseMultiplier);
   if (state.doubloons < total) {
     throw new Error(`Not enough doubloons to buy ${quantity} ${row.good.label}`);
@@ -3894,7 +3908,7 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
     throw new Error(`${row.good.label} is a ship supply and cannot be sold`);
   }
   if (held < quantity) throw new Error(`Cannot sell ${quantity} ${row.good.label}; hold has ${held}`);
-  const terms = playerTradeTerms(state, city, goodId);
+  const terms = playerTradeTerms(state, city, goodId, context);
   const total = quotePortPurchase(economy, city, goodId, quantity, terms.saleMultiplier);
   if (maximumPortPurchaseQuantity(economy, city, goodId, quantity, terms.saleMultiplier) < quantity) {
     throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
@@ -4016,14 +4030,15 @@ function assertPlayerTradeAccess(state, city, context) {
   return access;
 }
 
-export function playerTradeTerms(state, city, goodId) {
+export function playerTradeTerms(state, city, goodId, context = {}) {
   assertGameState(state);
   tradeGoodById(goodId);
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
   const reputation = state.relations.factionReputation[portFactionId] || 0;
   const perks = gameStatePerkTotals(state);
-  return tradeTerms({
+  const access = playerTradeAccess(state, city, context);
+  const terms = tradeTerms({
     port: city,
     traderFactionId,
     relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
@@ -4039,9 +4054,17 @@ export function playerTradeTerms(state, city, goodId) {
       traderFactionId,
       portFactionId
     ),
+    illicit: access.illicit,
     purchaseDiscountMultiplier: portPurchasePriceMultiplier(city),
     purchaseBargainMultiplier: perks.tradePurchaseMultiplier,
     saleBargainMultiplier: perks.tradeSaleMultiplier
+  });
+  return Object.freeze({
+    ...terms,
+    allowed: access.allowed,
+    accessPolicyId: access.policyId,
+    enforcementFactionId: access.policy?.hostFactionId || access.portFactionId,
+    illicitMarketReputationPenalty: access.policy?.illicitMarketReputationPenalty || 0
   });
 }
 
@@ -4236,6 +4259,43 @@ export function surrenderPortugueseControlledCargo(state, npcShipId, simMinute) 
   );
   recordPortugueseCartazInspection(state, npcShipId, simMinute);
   return Object.freeze(removed);
+}
+
+export function payIllicitTradeFine(state, incidentId) {
+  assertGameState(state);
+  const incident = illicitTradeIncidentById(state.memory.illicitTradeEnforcement, incidentId);
+  const fine = illicitTradeFine(incident);
+  if (state.doubloons < fine) throw new Error(`Not enough doubloons to pay a ${fine} db customs fine`);
+  state.doubloons -= fine;
+  resolveIllicitTradeIncident(state.memory.illicitTradeEnforcement, incidentId);
+  recordDecision(state, `trade.illicit.fine.${incident.policyId}`, 1);
+  return Object.freeze({ fine, incident });
+}
+
+export function surrenderIllicitTradeCargo(state, incidentId) {
+  assertGameState(state);
+  const incident = illicitTradeIncidentById(state.memory.illicitTradeEnforcement, incidentId);
+  const available = illicitCargoAvailable(incident, state.cargo);
+  const removed = [];
+  for (const [goodId, quantity] of Object.entries(available)) {
+    trimCargoQuantity(state, goodId, Math.max(0, (state.cargo[goodId] || 0) - quantity));
+    removed.push(Object.freeze({ goodId, quantity }));
+  }
+  if (removed.length === 0) throw new Error("No illicitly purchased cargo remains to surrender");
+  resolveIllicitTradeIncident(state.memory.illicitTradeEnforcement, incidentId);
+  recordDecision(
+    state,
+    `trade.illicit.cargo-surrendered.${incident.policyId}`,
+    removed.reduce((sum, row) => sum + row.quantity, 0)
+  );
+  return Object.freeze(removed);
+}
+
+export function beginIllicitTradeEnforcementCombat(state, incidentId) {
+  assertGameState(state);
+  const incident = markIllicitTradeEnforcementCombat(state.memory.illicitTradeEnforcement, incidentId);
+  recordDecision(state, `trade.illicit.enforcement-fought.${incident.policyId}`, 1);
+  return incident;
 }
 
 export function receiveFishCatch(state, catchResult, context = {}) {
@@ -5929,6 +5989,7 @@ function assertGameState(state) {
   validateNamedCrewDeathNotices(state.memory.namedCrewDeathNotices);
   validateBirthdayMemory(state.memory.birthdays);
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
+  validateIllicitTradeEnforcementMemory(state.memory.illicitTradeEnforcement);
   assertCargoReservations(state.memory.cargoReservations);
   assertMissionItemGifts(state.memory.missionItemGifts);
   validateQuestCargoDeliveryMemory(state.memory.quests?.cargoDeliveries);

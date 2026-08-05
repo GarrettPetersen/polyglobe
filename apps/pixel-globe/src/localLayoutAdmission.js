@@ -5,8 +5,10 @@ function assertFinitePoint(point, label) {
 }
 
 export const MAX_ELASTIC_FRAME_CORRECTION_PX = 29;
-const MAX_ELASTIC_ROTATION_CORRECTION_RAD = 16 * Math.PI / 180;
+export const MAX_PROTECTED_ADMISSION_SLACK_PX = 2;
+const MAX_ELASTIC_ROTATION_CORRECTION_RAD = Math.PI;
 const MIN_ELASTIC_CORRECTION_TILES = 3;
+const NORTH_UP_RESET_TOLERANCE_PX = 1.5;
 
 function registeredProjectionFrame(positions, projectedById, anchorId, registrationIds) {
   const anchorPosition = positions.get(anchorId);
@@ -67,11 +69,19 @@ function registeredProjectionFrame(positions, projectedById, anchorId, registrat
 }
 
 function registeredPoint(projected, frame) {
+  const point = unroundedRegisteredPoint(projected, frame);
+  return {
+    x: roundPixel(point.x),
+    y: roundPixel(point.y)
+  };
+}
+
+function unroundedRegisteredPoint(projected, frame) {
   const x = projected.x - frame.anchorProjected.x;
   const y = projected.y - frame.anchorProjected.y;
   return {
-    x: roundPixel(frame.anchorPosition.x + x * frame.cos - y * frame.sin),
-    y: roundPixel(frame.anchorPosition.y + x * frame.sin + y * frame.cos)
+    x: frame.anchorPosition.x + x * frame.cos - y * frame.sin,
+    y: frame.anchorPosition.y + x * frame.sin + y * frame.cos
   };
 }
 
@@ -134,7 +144,8 @@ function admissionPointBetweenFrames(
   registeredFrame,
   translatedFrame,
   protection,
-  maxElasticCorrectionPx
+  maxElasticCorrectionPx,
+  maxProtectedCorrectionPx
 ) {
   const registered = registeredPoint(projected, registeredFrame);
   const translated = registeredPoint(projected, translatedFrame);
@@ -142,9 +153,16 @@ function admissionPointBetweenFrames(
   const correctionY = translated.y - registered.y;
   const correctionLength = Math.hypot(correctionX, correctionY);
   const elasticity = 1 - protection / 255;
-  const correctionLimit = maxElasticCorrectionPx * elasticity ** 4;
+  const preventiveProtectedSlack = protection > 0 ? maxProtectedCorrectionPx : 0;
+  const correctionLimit = Math.max(
+    maxElasticCorrectionPx * elasticity ** 4,
+    preventiveProtectedSlack
+  );
   if (correctionLength <= correctionLimit) return translated;
   if (correctionLimit <= 0 || correctionLength <= 1e-9) return registered;
+  if (protection > 0) {
+    return pixelPointTowardWithinDistance(registered, translated, correctionLimit);
+  }
   const scale = correctionLimit / correctionLength;
   return {
     x: roundPixel(registered.x + correctionX * scale),
@@ -160,30 +178,45 @@ function directlyProtectedAdmissionFrames({
   protectionById,
   directProtectionComponentById,
   rigidRegistrationIds,
-  fallbackFrame
+  fallbackFrame,
+  targetFrame,
+  maxProtectedCorrectionPx,
+  protectedCorrectionViewportIds
 }) {
   const pendingDirectIds = new Set(pending.filter((id) => protectionById[id] === 255));
   if (pendingDirectIds.size === 0) return new Map();
 
-  const components = directProtectionComponentById
-    ? projectedDirectComponentsByGlobalId({
+  const components = pendingDirectComponentsByAdjacency({
+    neighborsById,
+    pendingDirectIds
+  });
+  const frameByPendingId = new Map();
+  for (const pendingComponentIds of components) {
+    const globalComponentId = validatePendingDirectComponent({
+      pendingComponentIds,
+      directProtectionComponentById
+    });
+    const retainedIds = protectedRetainedComponentIds({
+      positions,
       projectedById,
-      protectionById,
-      directProtectionComponentById,
-      pendingDirectIds
-    })
-    : projectedDirectComponentsByAdjacency({
-      projectedById,
+      pendingIds: pendingComponentIds,
       neighborsById,
       protectionById,
-      pendingDirectIds
+      rigidRegistrationIds
     });
-  const frameByPendingId = new Map();
-  for (const componentIds of components) {
-    const retainedIds = componentIds.filter((id) => (
-      positions.has(id) && (!rigidRegistrationIds || rigidRegistrationIds.has(id))
-    ));
-    const pendingComponentIds = componentIds.filter((id) => pendingDirectIds.has(id));
+    if (retainedIds.length === 0) {
+      retainedIds.push(...visibleGlobalProtectionComponentIds({
+        positions,
+        projectedById,
+        rigidRegistrationIds,
+        directProtectionComponentById,
+        globalComponentId
+      }));
+      if (retainedIds.length === 0) {
+        for (const id of pendingComponentIds) frameByPendingId.set(id, targetFrame);
+        continue;
+      }
+    }
     let componentFrame = fallbackFrame;
     if (retainedIds.length === 1) {
       const retainedId = retainedIds[0];
@@ -201,51 +234,135 @@ function directlyProtectedAdmissionFrames({
         new Set(retainedIds)
       );
     }
-    if (retainedIds.length > 0) {
-      componentFrame = boundaryFittedFrame({
-        positions,
-        projectedById,
-        pending: pendingComponentIds,
-        neighborsById,
-        protectionById,
-        rotation: Math.atan2(componentFrame.sin, componentFrame.cos),
-        fallbackFrame: componentFrame,
-        directProtectedBoundariesOnly: true
-      });
+    componentFrame = boundaryFittedFrame({
+      positions,
+      projectedById,
+      pending: pendingComponentIds,
+      neighborsById,
+      protectionById,
+      rotation: Math.atan2(componentFrame.sin, componentFrame.cos),
+      fallbackFrame: componentFrame,
+      directProtectedBoundariesOnly: true
+    });
+    const correctionLimitById = gradedProtectedCorrectionLimits({
+      pendingIds: pendingComponentIds,
+      positions,
+      projectedById,
+      neighborsById,
+      protectionById,
+      protectedCorrectionViewportIds,
+      visibleLimitPx: maxProtectedCorrectionPx
+    });
+    const sourceById = new Map();
+    let correctionX = 0;
+    let correctionY = 0;
+    for (const id of pendingComponentIds) {
+      const projected = projectedById.get(id);
+      assertFinitePoint(projected, `Projected protected tile ${id}`);
+      const source = registeredPoint(projected, componentFrame);
+      const target = registeredPoint(projected, targetFrame);
+      sourceById.set(id, source);
+      correctionX += target.x - source.x;
+      correctionY += target.y - source.y;
     }
+    correctionX /= pendingComponentIds.length;
+    correctionY /= pendingComponentIds.length;
 
     for (const id of pendingComponentIds) {
-      if (pendingDirectIds.has(id)) frameByPendingId.set(id, componentFrame);
+      const projected = projectedById.get(id);
+      const source = sourceById.get(id);
+      const corrected = pixelPointTowardWithinDistance(
+        source,
+        {
+          x: source.x + correctionX,
+          y: source.y + correctionY
+        },
+        correctionLimitById.get(id)
+      );
+      frameByPendingId.set(id, {
+        anchorPosition: corrected,
+        anchorProjected: projected,
+        cos: 1,
+        sin: 0
+      });
     }
   }
   return frameByPendingId;
 }
 
-function projectedDirectComponentsByGlobalId({
-  projectedById,
-  protectionById,
-  directProtectionComponentById,
-  pendingDirectIds
-}) {
-  const components = new Map();
-  for (const id of projectedById.keys()) {
-    if (protectionById[id] !== 255) continue;
-    const componentId = directProtectionComponentById[id];
-    if (!Number.isInteger(componentId) || componentId < 0) {
-      throw new Error(`Directly protected tile ${id} has no global component`);
-    }
-    if (!components.has(componentId)) components.set(componentId, []);
-    components.get(componentId).push(id);
-  }
-  return [...components.values()].filter((ids) => ids.some((id) => pendingDirectIds.has(id)));
-}
-
-function projectedDirectComponentsByAdjacency({
+function gradedProtectedCorrectionLimits({
+  pendingIds,
+  positions,
   projectedById,
   neighborsById,
   protectionById,
-  pendingDirectIds
+  protectedCorrectionViewportIds,
+  visibleLimitPx
 }) {
+  if (protectedCorrectionViewportIds === null) {
+    return new Map(pendingIds.map((id) => [id, visibleLimitPx]));
+  }
+  const pendingSet = new Set(pendingIds);
+  const distanceById = new Map();
+  const queue = [];
+  for (const id of pendingIds) {
+    const touchesRetainedProtectedTile = neighborsById[id].some((neighborId) => (
+      !pendingSet.has(neighborId) &&
+      protectionById[neighborId] === 255 &&
+      positions.has(neighborId) &&
+      projectedById.has(neighborId)
+    ));
+    if (!protectedCorrectionViewportIds.has(id) && !touchesRetainedProtectedTile) continue;
+    distanceById.set(id, 0);
+    queue.push(id);
+  }
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
+    const nextDistance = distanceById.get(id) + 1;
+    for (const neighborId of neighborsById[id]) {
+      if (!pendingSet.has(neighborId) || distanceById.has(neighborId)) continue;
+      distanceById.set(neighborId, nextDistance);
+      queue.push(neighborId);
+    }
+  }
+  return new Map(pendingIds.map((id) => [
+    id,
+    distanceById.has(id)
+      ? visibleLimitPx * (distanceById.get(id) + 1)
+      : Number.POSITIVE_INFINITY
+  ]));
+}
+
+function pixelPointTowardWithinDistance(origin, target, maximumDistance) {
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance <= maximumDistance) return target;
+  if (maximumDistance < 1) return origin;
+
+  const radius = Math.floor(maximumDistance);
+  let best = origin;
+  let bestTargetDistance = distance;
+  for (let offsetY = -radius; offsetY <= radius; offsetY++) {
+    for (let offsetX = -radius; offsetX <= radius; offsetX++) {
+      if (Math.hypot(offsetX, offsetY) > maximumDistance) continue;
+      const candidate = {
+        x: origin.x + offsetX,
+        y: origin.y + offsetY
+      };
+      const targetDistance = Math.hypot(
+        target.x - candidate.x,
+        target.y - candidate.y
+      );
+      if (targetDistance >= bestTargetDistance) continue;
+      best = candidate;
+      bestTargetDistance = targetDistance;
+    }
+  }
+  return best;
+}
+
+function pendingDirectComponentsByAdjacency({ neighborsById, pendingDirectIds }) {
   const components = [];
   const visited = new Set();
   for (const startId of pendingDirectIds) {
@@ -257,11 +374,7 @@ function projectedDirectComponentsByAdjacency({
       const id = queue[head];
       componentIds.push(id);
       for (const neighborId of neighborsById[id]) {
-        if (
-          visited.has(neighborId) ||
-          protectionById[neighborId] !== 255 ||
-          !projectedById.has(neighborId)
-        ) continue;
+        if (visited.has(neighborId) || !pendingDirectIds.has(neighborId)) continue;
         visited.add(neighborId);
         queue.push(neighborId);
       }
@@ -269,6 +382,90 @@ function projectedDirectComponentsByAdjacency({
     components.push(componentIds);
   }
   return components;
+}
+
+function validatePendingDirectComponent({
+  pendingComponentIds,
+  directProtectionComponentById
+}) {
+  if (!directProtectionComponentById) return null;
+  const expectedComponentId = directProtectionComponentById[pendingComponentIds[0]];
+  if (!Number.isInteger(expectedComponentId) || expectedComponentId < 0) {
+    throw new Error(`Directly protected tile ${pendingComponentIds[0]} has no global component`);
+  }
+  for (const id of pendingComponentIds) {
+    if (directProtectionComponentById[id] !== expectedComponentId) {
+      throw new Error(`Pending protected component crosses global components at tile ${id}`);
+    }
+  }
+  return expectedComponentId;
+}
+
+function protectedRetainedComponentIds({
+  positions,
+  projectedById,
+  pendingIds,
+  neighborsById,
+  protectionById,
+  rigidRegistrationIds
+}) {
+  const pendingSet = new Set(pendingIds);
+  const retainedIds = new Set();
+  const queue = [];
+  for (const pendingId of pendingIds) {
+    for (const neighborId of neighborsById[pendingId]) {
+      if (
+        pendingSet.has(neighborId) ||
+        protectionById[neighborId] !== 255 ||
+        !positions.has(neighborId) ||
+        !projectedById.has(neighborId) ||
+        (rigidRegistrationIds && !rigidRegistrationIds.has(neighborId))
+      ) {
+        continue;
+      }
+      retainedIds.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
+    for (const neighborId of neighborsById[id]) {
+      if (
+        retainedIds.has(neighborId) ||
+        pendingSet.has(neighborId) ||
+        protectionById[neighborId] !== 255 ||
+        !positions.has(neighborId) ||
+        !projectedById.has(neighborId) ||
+        (rigidRegistrationIds && !rigidRegistrationIds.has(neighborId))
+      ) {
+        continue;
+      }
+      retainedIds.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  return [...retainedIds];
+}
+
+function visibleGlobalProtectionComponentIds({
+  positions,
+  projectedById,
+  rigidRegistrationIds,
+  directProtectionComponentById,
+  globalComponentId
+}) {
+  if (!directProtectionComponentById || globalComponentId === null) return [];
+  const ids = [];
+  for (const id of positions.keys()) {
+    if (
+      directProtectionComponentById[id] === globalComponentId &&
+      projectedById.has(id) &&
+      (!rigidRegistrationIds || rigidRegistrationIds.has(id))
+    ) {
+      ids.push(id);
+    }
+  }
+  return ids;
 }
 
 export function admitProjectedTiles({
@@ -282,7 +479,9 @@ export function admitProjectedTiles({
   registrationIds = null,
   rigidRegistrationIds = registrationIds,
   correctElasticTilesNorthUp = false,
-  maxElasticCorrectionPx = MAX_ELASTIC_FRAME_CORRECTION_PX
+  maxElasticCorrectionPx = MAX_ELASTIC_FRAME_CORRECTION_PX,
+  maxProtectedCorrectionPx = 0,
+  protectedCorrectionViewportIds = null
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
@@ -310,6 +509,15 @@ export function admitProjectedTiles({
   }
   if (!Number.isFinite(maxElasticCorrectionPx) || maxElasticCorrectionPx < 0) {
     throw new Error(`Local layout correction limit must be non-negative: ${maxElasticCorrectionPx}`);
+  }
+  if (!Number.isFinite(maxProtectedCorrectionPx) || maxProtectedCorrectionPx < 0) {
+    throw new Error(`Protected local layout correction limit must be non-negative: ${maxProtectedCorrectionPx}`);
+  }
+  if (
+    protectedCorrectionViewportIds !== null &&
+    !(protectedCorrectionViewportIds instanceof Set)
+  ) {
+    throw new Error("Protected local layout correction viewport ids must be a set");
   }
   const pending = [...pendingIds];
   if (new Set(pending).size !== pending.length) {
@@ -340,10 +548,16 @@ export function admitProjectedTiles({
       MAX_ELASTIC_ROTATION_CORRECTION_RAD
     )
     : 0;
+  const translatedFallbackFrame = {
+    anchorPosition: retainedFrame.anchorPosition,
+    anchorProjected: retainedFrame.anchorProjected,
+    cos: Math.cos(correctionRotation),
+    sin: Math.sin(correctionRotation)
+  };
   const translatedFrame = boundaryFittedFrame({
     ...boundaryArgs,
     rotation: correctionRotation,
-    fallbackFrame: retainedFrame,
+    fallbackFrame: translatedFallbackFrame,
     elasticBoundariesOnly: correctElasticTilesNorthUp
   });
   const protectedFrameById = directlyProtectedAdmissionFrames({
@@ -354,7 +568,10 @@ export function admitProjectedTiles({
     protectionById,
     directProtectionComponentById,
     rigidRegistrationIds,
-    fallbackFrame: registeredFrame
+    fallbackFrame: registeredFrame,
+    targetFrame: translatedFrame,
+    maxProtectedCorrectionPx,
+    protectedCorrectionViewportIds
   });
   let admitted = 0;
   for (const id of pending) {
@@ -374,7 +591,10 @@ export function admitProjectedTiles({
           registeredFrame,
           translatedFrame,
           protectionById[id],
-          maxElasticCorrectionPx
+          maxElasticCorrectionPx,
+          protectedCorrectionViewportIds === null || protectedCorrectionViewportIds.has(id)
+            ? maxProtectedCorrectionPx
+            : Number.POSITIVE_INFINITY
         )
     );
     admitted++;
@@ -552,6 +772,52 @@ export function retainLocalLayoutAnchor({
   return true;
 }
 
+export function resetFeaturelessViewportNorthUp({
+  positions,
+  projectedById,
+  anchorId,
+  viewportTileIds,
+  protectionById
+}) {
+  if (!(positions instanceof Map)) {
+    throw new Error("Featureless chart reset requires a positions map");
+  }
+  if (!(projectedById instanceof Map)) {
+    throw new Error("Featureless chart reset requires projected positions");
+  }
+  if (!Number.isInteger(anchorId) || !positions.has(anchorId)) {
+    throw new Error(`Featureless chart reset requires a retained anchor: ${anchorId}`);
+  }
+  if (!(viewportTileIds instanceof Set) || viewportTileIds.size === 0) {
+    throw new Error("Featureless chart reset requires viewport tile ids");
+  }
+  if (!(protectionById instanceof Uint8Array)) {
+    throw new Error("Featureless chart reset requires chart protection");
+  }
+  for (const id of viewportTileIds) {
+    if (protectionById[id] === 255) return false;
+  }
+  const anchorPosition = positions.get(anchorId);
+  const anchorProjected = projectedById.get(anchorId);
+  assertFinitePoint(anchorProjected, `Featureless chart projected anchor ${anchorId}`);
+  let needsReset = false;
+  for (const id of viewportTileIds) {
+    if (id === anchorId || !positions.has(id) || !projectedById.has(id)) continue;
+    const position = positions.get(id);
+    const projected = projectedById.get(id);
+    const expectedX = anchorPosition.x + projected.x - anchorProjected.x;
+    const expectedY = anchorPosition.y + projected.y - anchorProjected.y;
+    if (Math.hypot(position.x - expectedX, position.y - expectedY) > NORTH_UP_RESET_TOLERANCE_PX) {
+      needsReset = true;
+      break;
+    }
+  }
+  if (!needsReset) return false;
+  positions.clear();
+  positions.set(anchorId, anchorPosition);
+  return true;
+}
+
 export function refreshOffscreenLayoutTiles({
   positions,
   projectedTiles,
@@ -578,9 +844,15 @@ export function refreshOffscreenLayoutTiles({
 
   let discarded = 0;
   for (const tile of projectedTiles) {
+    const drawnPosition = positions.get(tile.id);
     if (
       tile.id === anchorId ||
-      projectedTileOverlapsViewport(tile, viewportWidth, viewportHeight, tileVisualRadius)
+      (drawnPosition && projectedTileOverlapsViewport(
+        drawnPosition,
+        viewportWidth,
+        viewportHeight,
+        tileVisualRadius
+      ))
     ) {
       continue;
     }

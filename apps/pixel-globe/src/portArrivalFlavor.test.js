@@ -36,7 +36,7 @@ test("a remote Pacific village recognizes a locally familiar canoe silhouette", 
     playerShipLabel: "Polynesian Voyaging Canoe"
   });
 
-  assert.match(line, /distant islands|winds and stars/i);
+  assert.match(line, /distant islands|winds and stars|open ocean|swell|lashings/i);
   assert.doesNotMatch(line, /unlike anything/i);
 });
 
@@ -48,7 +48,44 @@ test("return visits trade first-arrival surprise for recognition", () => {
     returning: true
   });
 
-  assert.match(line, /remembered|return/i);
+  assert.match(line, /remembered|return|known here|old anchorage|lookout/i);
+});
+
+test("Pacific greetings vary by visit while remaining deterministic", () => {
+  const greetings = Array.from({ length: 24 }, (_, index) => portArrivalFlavor({
+    city: TARAWA,
+    playerShipSlug: "large-junk",
+    playerShipLabel: "Large Junk",
+    variationKey: String(index)
+  }));
+
+  assert.equal(new Set(greetings).size, 3);
+  assert.equal(
+    portArrivalFlavor({
+      city: TARAWA,
+      playerShipSlug: "large-junk",
+      playerShipLabel: "Large Junk",
+      variationKey: "same-arrival"
+    }),
+    portArrivalFlavor({
+      city: TARAWA,
+      playerShipSlug: "large-junk",
+      playerShipLabel: "Large Junk",
+      variationKey: "same-arrival"
+    })
+  );
+});
+
+test("ordinary regional waterfront observations vary between visits", () => {
+  const city = { city: "Istanbul", cityType: "mediterranean", population: 180000 };
+  const greetings = Array.from({ length: 12 }, (_, index) => portArrivalFlavor({
+    city,
+    playerShipSlug: "xebec",
+    playerShipLabel: "Xebec",
+    variationKey: String(index)
+  }));
+
+  assert.equal(new Set(greetings).size, 2);
 });
 
 test("major ports get region-specific waterfront observations", () => {

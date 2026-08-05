@@ -54,6 +54,29 @@ test("the interior of a large uniform region remains elastic", () => {
   });
 });
 
+test("a featureless ocean pentagon can remain elastic", () => {
+  const graph = lineGraph(5, new Set([2]));
+  const protection = buildChartTileProtection({
+    graph,
+    terrainClassForTile: () => "deep-ocean",
+    pentagonNeedsProtection: () => false
+  });
+
+  assert.deepEqual([...protection], [0, 0, 0, 0, 0]);
+});
+
+test("an ocean pentagon with a feature remains protected", () => {
+  const graph = lineGraph(5, new Set([2]));
+  const protection = buildChartTileProtection({
+    graph,
+    terrainClassForTile: () => "deep-ocean",
+    featureTileIds: [2],
+    pentagonNeedsProtection: () => false
+  });
+
+  assert.equal(protection[2], CHART_PROTECTION_DIRECT);
+});
+
 test("a narrow water channel and both opposing coasts are directly protected", () => {
   const graph = lineGraph(3);
   const terrain = ["land", "ocean", "land"];
