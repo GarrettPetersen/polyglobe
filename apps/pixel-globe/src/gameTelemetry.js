@@ -3,6 +3,8 @@ export const TELEMETRY_INSTALLATION_STORAGE_KEY = "marque-and-reprisal.telemetry
 export const TELEMETRY_FIRST_SEEN_STORAGE_KEY = "marque-and-reprisal.telemetry-first-seen";
 export const TELEMETRY_LAST_SESSION_STORAGE_KEY = "marque-and-reprisal.telemetry-last-session";
 export const TELEMETRY_QUEUE_STORAGE_KEY = "marque-and-reprisal.telemetry-queue";
+export const TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY =
+  "marque-and-reprisal.telemetry-last-voyage-start";
 
 export const TELEMETRY_CONSENT_UNKNOWN = "unknown";
 export const TELEMETRY_CONSENT_GRANTED = "granted";
@@ -113,6 +115,7 @@ export function createGameTelemetry({
       removeStorage(storage, TELEMETRY_FIRST_SEEN_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_LAST_SESSION_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
+      removeStorage(storage, TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY);
       return consent;
     }
     installationId = readOrCreateInstallationId(storage, randomId, now);
@@ -155,21 +158,27 @@ export function createGameTelemetry({
     return true;
   }
 
-  function recordVoyageStart(state) {
+  function recordVoyageStart(state, { force = false } = {}) {
     if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
       return false;
     }
     let payload;
+    let voyageKey;
     try {
+      voyageKey = requiredShortString(state?.voyageSeed, "voyage telemetry key");
+      if (!force && readStorage(storage, TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY) === voyageKey) {
+        return true;
+      }
       payload = voyageStartTelemetryPayload(state);
     } catch (error) {
       console.warn("[pixel-globe] voyage start telemetry was not recorded", error);
       return false;
     }
-    enqueueEvent("voyage_start", {
+    if (!enqueueEvent("voyage_start", {
       ...payload,
       samplingWeight: TELEMETRY_EVENT_WEIGHT
-    });
+    })) return false;
+    writeStorage(storage, TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY, voyageKey);
     void flush();
     return true;
   }
@@ -227,6 +236,13 @@ export function createGameTelemetry({
         signal: controller?.signal
       });
       if (response?.ok) {
+        const result = await telemetryResponseBody(response);
+        if (Number(result?.rejected) > 0) {
+          console.warn(
+            `[pixel-globe] telemetry discarded ${result.rejected} invalid queued event(s)`,
+            result.errors || []
+          );
+        }
         queue.splice(0, batch.length);
         persistQueue();
         accepted = true;
@@ -276,6 +292,15 @@ export function createGameTelemetry({
     captureCrash,
     flush
   });
+}
+
+async function telemetryResponseBody(response) {
+  if (typeof response?.json !== "function") return null;
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 export function telemetryRuntimeChannel({ edition, platformId = null, location = null } = {}) {

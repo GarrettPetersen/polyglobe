@@ -67,8 +67,20 @@ export default {
     }
     try {
       const events = await parseEvents(request);
-      const normalizedEvents = events.map(validateEvent);
-      for (const normalized of normalizedEvents) {
+      let accepted = 0;
+      const errors = [];
+      for (const event of events) {
+        let normalized;
+        try {
+          normalized = validateEvent(event);
+        } catch (error) {
+          if (!(error instanceof TelemetryRequestError)) throw error;
+          errors.push({
+            eventId: typeof event?.eventId === "string" ? event.eventId : "unknown",
+            error: error.code
+          });
+          continue;
+        }
         const installationHash = await sha256Hex(
           `${env.INSTALL_HASH_PEPPER}:${normalized.installationId}`
         );
@@ -80,8 +92,10 @@ export default {
             ].join("|"))
           : "";
         env.EVENTS.writeDataPoint(toDataPoint(normalized, installationHash, crashFingerprint));
+        accepted += 1;
       }
-      return jsonResponse({ accepted: events.length }, 202);
+      if (errors.length > 0) console.warn("Telemetry batch contained invalid events", errors);
+      return jsonResponse({ accepted, rejected: errors.length, errors }, 202);
     } catch (error) {
       if (error instanceof TelemetryRequestError) {
         return jsonResponse({ error: error.code }, error.status);

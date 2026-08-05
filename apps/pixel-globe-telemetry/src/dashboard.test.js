@@ -28,6 +28,6 @@ test("dashboard requests return normalized public snapshots", async () => {
   );
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), `public, max-age=${DASHBOARD_CACHE_SECONDS}`);
-  assert.equal(DASHBOARD_CACHE_SECONDS, 60);
+  assert.equal(DASHBOARD_CACHE_SECONDS, 15);
   assert.equal((await response.json()).windowDays, 7);
 });

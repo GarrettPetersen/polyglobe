@@ -6,6 +6,7 @@ import {
   TELEMETRY_CONSENT_GRANTED,
   TELEMETRY_CONSENT_STORAGE_KEY,
   TELEMETRY_INSTALLATION_STORAGE_KEY,
+  TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY,
   TELEMETRY_QUEUE_STORAGE_KEY,
   createGameTelemetry,
   telemetryRuntimeChannel,
@@ -286,6 +287,66 @@ test("a fresh voyage records its bounded starting profile", async () => {
   assert.equal(start.payload.startingCrew, 12);
 });
 
+test("a resumed voyage recovers a missing start once while a new voyage can force it", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "voyage-start-recovery"
+  });
+  const events = [];
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      events.push(...JSON.parse(options.body).events);
+      return successfulResponse();
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+
+  telemetry.start();
+  await nextTask();
+  const state = voyageStartState();
+  assert.equal(telemetry.recordVoyageStart(state), true);
+  await nextTask();
+  assert.equal(telemetry.recordVoyageStart(state), true);
+  await nextTask();
+  assert.equal(events.filter((event) => event.type === "voyage_start").length, 1);
+  assert.equal(storage.values.get(TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY), state.voyageSeed);
+
+  assert.equal(telemetry.recordVoyageStart(state, { force: true }), true);
+  await nextTask();
+  assert.equal(events.filter((event) => event.type === "voyage_start").length, 2);
+});
+
+test("accepted batches remove poisoned legacy events from the persisted queue", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "poisoned-queue",
+    [TELEMETRY_QUEUE_STORAGE_KEY]: JSON.stringify([queuedCrash()])
+  });
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async () => successfulResponse({
+      accepted: 1,
+      rejected: 1,
+      errors: [{ eventId: "old-event", error: "invalid_legacy_payload" }]
+    }),
+    randomId: () => "session-id",
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+
+  telemetry.start();
+  await nextTask();
+  assert.equal(storage.values.has(TELEMETRY_QUEUE_STORAGE_KEY), false);
+});
+
 test("an urgent voyage retries immediately when the older active request fails", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
@@ -498,6 +559,7 @@ function voyageState(mainQuest) {
 
 function voyageStartState() {
   return {
+    voyageSeed: "voyage-start-seed",
     doubloons: 500,
     cargoCapacity: 90,
     playerCharacter: {
@@ -519,6 +581,15 @@ function voyageStartState() {
     },
     memory: {
       campaignGoal: { type: "explorer" }
+    }
+  };
+}
+
+function successfulResponse(body = { accepted: 1, rejected: 0, errors: [] }) {
+  return {
+    ok: true,
+    async json() {
+      return body;
     }
   };
 }

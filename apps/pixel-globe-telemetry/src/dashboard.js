@@ -5,7 +5,7 @@ import {
 } from "./dashboardData.js";
 
 const DASHBOARD_HOST = "dashboard.marque-and-reprisal.com";
-export const DASHBOARD_CACHE_SECONDS = 60;
+export const DASHBOARD_CACHE_SECONDS = 15;
 const JSON_HEADERS = Object.freeze({
   "cache-control": `public, max-age=${DASHBOARD_CACHE_SECONDS}`,
   "content-type": "application/json; charset=utf-8",

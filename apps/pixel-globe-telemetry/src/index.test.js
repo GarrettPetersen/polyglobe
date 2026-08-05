@@ -130,11 +130,16 @@ test("voyage starts reject malformed captain demographics", async () => {
   const response = await worker.fetch(requestFor([event("voyage_start", voyageStartPayload({
     captainSex: "unknown"
   }))]), environment(points));
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 202);
   assert.equal(points.length, 0);
+  assert.deepEqual(await response.json(), {
+    accepted: 0,
+    rejected: 1,
+    errors: [{ eventId: "event-1", error: "invalid_captain_sex" }]
+  });
 });
 
-test("an invalid event prevents the entire batch from being written", async () => {
+test("an invalid queued event cannot prevent valid events from being written", async () => {
   const points = [];
   const valid = event("session_checkpoint", {
     samplingWeight: 1,
@@ -146,8 +151,13 @@ test("an invalid event prevents the entire batch from being written", async () =
   });
   invalid.eventId = "event-2";
   const response = await worker.fetch(requestFor([valid, invalid]), environment(points));
-  assert.equal(response.status, 400);
-  assert.equal(points.length, 0);
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+  assert.deepEqual(await response.json(), {
+    accepted: 1,
+    rejected: 1,
+    errors: [{ eventId: "event-2", error: "invalid_sampling_weight" }]
+  });
 });
 
 function environment(points) {
