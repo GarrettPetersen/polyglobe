@@ -9,10 +9,10 @@ import {
 } from "./geodesic.js";
 import {
   admitProjectedTiles,
-  discardOffscreenElasticLayoutTiles,
+  refreshOffscreenElasticLayoutTiles,
   projectedViewportTileIds,
   retainLocalLayoutAnchor,
-  viewportContainsOnlyElasticTiles
+  viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 
 const TRAVERSAL_SCREEN_W = 455;
@@ -210,34 +210,48 @@ test("protected geography does not use the full ocean north-up reset", () => {
   );
 });
 
-test("only protection overlapping the screen blocks an elastic ocean reset", () => {
-  const protectionById = new Uint8Array(3);
+test("a protected island does not veto correction supported by surrounding elastic water", () => {
+  const protectionById = new Uint8Array(5);
   protectionById[2] = 255;
   const projectedTiles = [
     { id: 0, x: 20, y: 20 },
     { id: 1, x: 80, y: 40 },
-    { id: 2, x: 140, y: 40 }
+    { id: 2, x: 50, y: 30 },
+    { id: 3, x: 20, y: 50 },
+    { id: 4, x: 80, y: 10 }
   ];
 
-  assert.equal(viewportContainsOnlyElasticTiles({
+  const support = viewportElasticCorrectionSupport({
     projectedTiles,
     protectionById,
     viewportWidth: 100,
     viewportHeight: 60,
     tileVisualRadius: 10
-  }), true);
+  });
 
-  projectedTiles[2].x = 109;
-  assert.equal(viewportContainsOnlyElasticTiles({
-    projectedTiles,
-    protectionById,
-    viewportWidth: 100,
-    viewportHeight: 60,
-    tileVisualRadius: 10
-  }), false);
+  assert.equal(support.correctionActive, true);
+  assert.deepEqual([...support.elasticTileIds], [0, 1, 3, 4]);
+  assert.equal(support.viewportTileIds.has(2), true);
 });
 
-test("a newly centered tile is retained before an elastic north-up reset", () => {
+test("a viewport without a spanning elastic region cannot correct north-up", () => {
+  const protectionById = new Uint8Array([255, 0, 0]);
+  const support = viewportElasticCorrectionSupport({
+    projectedTiles: [
+      { id: 0, x: 20, y: 20 },
+      { id: 1, x: 45, y: 30 },
+      { id: 2, x: 55, y: 30 }
+    ],
+    protectionById,
+    viewportWidth: 100,
+    viewportHeight: 60,
+    tileVisualRadius: 10
+  });
+
+  assert.equal(support.correctionActive, false);
+});
+
+test("a newly centered tile is retained before an elastic north-up correction", () => {
   const positions = new Map([[1, { x: -40, y: 0 }]]);
   const projectedTiles = [
     { id: 1, x: -80, y: 50 },
@@ -252,7 +266,7 @@ test("a newly centered tile is retained before an elastic north-up reset", () =>
     viewY: 49.6
   }), true);
   assert.deepEqual(positions.get(2), { x: 50, y: 50 });
-  assert.doesNotThrow(() => discardOffscreenElasticLayoutTiles({
+  assert.doesNotThrow(() => refreshOffscreenElasticLayoutTiles({
     positions,
     projectedTiles,
     protectionById,
@@ -327,6 +341,45 @@ test("one hundred oblique great-circle circuits keep admission drift bounded", (
   });
 
   assertRepeatedCircuitIsStable(result, "52-degree oblique circuit");
+});
+
+test("a screen-spaced island chain permits north-up correction for one hundred circuits", () => {
+  const result = simulateIslandChainCircuits();
+  const settled = result.circuitMetrics[9];
+  const last = result.circuitMetrics.at(-1);
+
+  assert.equal(
+    result.correctionSteps,
+    result.totalSteps,
+    "Recurring island protection unexpectedly vetoed elastic correction"
+  );
+  assert.equal(
+    result.fullyElasticSteps,
+    0,
+    "Island-chain regression accidentally provided an all-elastic viewport"
+  );
+  assert.equal(
+    result.visibleTilePositionChanges,
+    0,
+    "Elastic correction moved a tile that was already visible"
+  );
+  assert.ok(
+    last.maxRotationDeg <= 3.5,
+    `Island-chain chart reached ${last.maxRotationDeg.toFixed(2)} degrees after 100 circuits; ` +
+      `samples ${[0, 1, 2, 9, 24, 49, 74, 99].map((index) => (
+        result.circuitMetrics[index].maxRotationDeg.toFixed(1)
+      )).join("/")}`
+  );
+  assert.ok(
+    last.maxRotationDeg <= settled.maxRotationDeg + 0.5,
+    `Island-chain rotation grew from ${settled.maxRotationDeg.toFixed(2)} to ` +
+      `${last.maxRotationDeg.toFixed(2)} degrees`
+  );
+  assert.ok(
+    last.maxRmsError <= settled.maxRmsError + 1,
+    `Island-chain distortion grew from ${settled.maxRmsError.toFixed(2)}px to ` +
+      `${last.maxRmsError.toFixed(2)}px`
+  );
 });
 
 function simulateHighLatitudeTraversal(admitTiles) {
@@ -538,6 +591,160 @@ function simulateRepeatedCircuit({ centerRowForPhase, frameRotationForPhase }) {
   };
 }
 
+function simulateIslandChainCircuits() {
+  const columns = 120;
+  const rows = 15;
+  const centerRow = 7;
+  const tileSpacingX = 24;
+  const tileSpacingY = 21;
+  const viewportWidth = 240;
+  const viewportHeight = 126;
+  const tileVisualRadius = 12;
+  const preloadHalfColumns = 15;
+  const preloadHalfRows = 5;
+  const stepsPerCircuit = columns;
+  const totalSteps = stepsPerCircuit * 100;
+  const neighborsById = torusGridNeighbors(columns, rows);
+  const protectionById = new Uint8Array(columns * rows);
+  for (let islandColumn = 0; islandColumn < columns; islandColumn += 12) {
+    for (let rowOffset = -3; rowOffset <= 3; rowOffset++) {
+      for (let columnOffset = -3; columnOffset <= 3; columnOffset++) {
+        const distance = Math.abs(rowOffset) + Math.abs(columnOffset);
+        if (distance > 3) continue;
+        const protection = distance <= 1 ? 255 : distance === 2 ? 192 : 128;
+        const id = gridTileId(
+          islandColumn + columnOffset,
+          centerRow + rowOffset,
+          columns,
+          rows
+        );
+        protectionById[id] = Math.max(protectionById[id], protection);
+      }
+    }
+  }
+
+  const projectedWindow = (step) => {
+    const projectedById = new Map();
+    const phase = step * Math.PI * 2 / stepsPerCircuit;
+    const rotation = Math.sin(phase) * 0.2 + Math.sin(phase * 2) * 0.05;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    for (let rowOffset = -preloadHalfRows; rowOffset <= preloadHalfRows; rowOffset++) {
+      for (let columnOffset = -preloadHalfColumns; columnOffset <= preloadHalfColumns; columnOffset++) {
+        const id = gridTileId(step + columnOffset, centerRow + rowOffset, columns, rows);
+        const x = columnOffset * tileSpacingX;
+        const y = rowOffset * tileSpacingY;
+        projectedById.set(id, {
+          x: viewportWidth / 2 + x * cos - y * sin,
+          y: viewportHeight / 2 + x * sin + y * cos
+        });
+      }
+    }
+    return projectedById;
+  };
+
+  const positions = new Map();
+  let projectedById = projectedWindow(0);
+  const initialRotation = 12 * Math.PI / 180;
+  const initialCos = Math.cos(initialRotation);
+  const initialSin = Math.sin(initialRotation);
+  for (const [id, projected] of projectedById.entries()) {
+    const x = projected.x - viewportWidth / 2;
+    const y = projected.y - viewportHeight / 2;
+    positions.set(id, {
+      x: Math.round(x * initialCos - y * initialSin),
+      y: Math.round(x * initialSin + y * initialCos)
+    });
+  }
+
+  let correctionSteps = 0;
+  let fullyElasticSteps = 0;
+  let visibleTilePositionChanges = 0;
+  const circuitMetrics = Array.from({ length: 100 }, () => ({
+    maxRotationDeg: 0,
+    maxRmsError: 0
+  }));
+
+  for (let step = 1; step <= totalSteps; step++) {
+    projectedById = projectedWindow(step);
+    const projectedTiles = [...projectedById.entries()].map(([id, point]) => ({ id, ...point }));
+    const support = viewportElasticCorrectionSupport({
+      projectedTiles,
+      protectionById,
+      viewportWidth,
+      viewportHeight,
+      tileVisualRadius
+    });
+    const anchorId = gridTileId(step, centerRow, columns, rows);
+    assert.equal(
+      positions.has(anchorId),
+      true,
+      `Island-chain traversal lost its preloaded anchor at step ${step}`
+    );
+    const visibleBefore = new Map();
+    for (const id of support.viewportTileIds) {
+      const position = positions.get(id);
+      if (position) visibleBefore.set(id, { ...position });
+    }
+
+    if (support.correctionActive) {
+      correctionSteps++;
+      refreshOffscreenElasticLayoutTiles({
+        positions,
+        projectedTiles,
+        protectionById,
+        viewportWidth,
+        viewportHeight,
+        tileVisualRadius,
+        anchorId
+      });
+    }
+    if ([...support.viewportTileIds].every((id) => protectionById[id] === 0)) {
+      fullyElasticSteps++;
+    }
+    for (const [id, before] of visibleBefore.entries()) {
+      const after = positions.get(id);
+      if (!after || after.x !== before.x || after.y !== before.y) visibleTilePositionChanges++;
+    }
+
+    const pendingIds = [...projectedById.keys()].filter((id) => !positions.has(id));
+    admitProjectedTiles({
+      positions,
+      projectedById,
+      pendingIds,
+      anchorId,
+      neighborsById,
+      protectionById,
+      registrationIds: support.correctionActive
+        ? support.elasticTileIds
+        : support.viewportTileIds,
+      correctElasticTilesNorthUp: support.correctionActive
+    });
+    const retainedIds = new Set(projectedById.keys());
+    for (const id of positions.keys()) {
+      if (!retainedIds.has(id)) positions.delete(id);
+    }
+
+    const measuredPositions = new Map();
+    for (const id of support.elasticTileIds) {
+      const position = positions.get(id);
+      if (position) measuredPositions.set(id, position);
+    }
+    const frame = measureCenteredFrameError(measuredPositions, projectedById);
+    const metric = circuitMetrics[Math.min(99, Math.floor((step - 1) / stepsPerCircuit))];
+    metric.maxRotationDeg = Math.max(metric.maxRotationDeg, Math.abs(frame.rotationDeg));
+    metric.maxRmsError = Math.max(metric.maxRmsError, frame.rmsError);
+  }
+
+  return {
+    correctionSteps,
+    fullyElasticSteps,
+    totalSteps,
+    visibleTilePositionChanges,
+    circuitMetrics
+  };
+}
+
 function simulateOceanViewportTurnover({ protectedViewport }) {
   const columns = 50;
   const rows = 7;
@@ -581,7 +788,7 @@ function simulateOceanViewportTurnover({ protectedViewport }) {
   let anchorId = gridTileId(5, 3, columns, rows);
   const initial = measureVisibleFrameError(positions, projectedById, anchorId);
   if (!protectedViewport) {
-    discardOffscreenElasticLayoutTiles({
+    refreshOffscreenElasticLayoutTiles({
       positions,
       projectedTiles: [...projectedById.entries()].map(([id, point]) => ({ id, ...point })),
       protectionById,
@@ -611,7 +818,7 @@ function simulateOceanViewportTurnover({ protectedViewport }) {
         viewportHeight,
         tileVisualRadius
       }),
-      resetElasticTilesNorthUp: !protectedViewport
+      correctElasticTilesNorthUp: !protectedViewport
     });
     const visibleIds = new Set(projectedById.keys());
     for (const id of positions.keys()) {
@@ -697,7 +904,7 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
       viewportHeight,
       tileVisualRadius
     });
-    const resetElasticTilesNorthUp = [...viewportIds].every((id) => protectionById[id] === 0);
+    const correctElasticTilesNorthUp = [...viewportIds].every((id) => protectionById[id] === 0);
     const anchorId = gridTileId(centerColumn, 3, columns, rows);
     retainLocalLayoutAnchor({
       positions,
@@ -705,11 +912,11 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
       viewX: viewportWidth / 2,
       viewY: viewportHeight / 2
     });
-    if (resetElasticTilesNorthUp) {
+    if (correctElasticTilesNorthUp) {
       elasticSteps++;
     }
-    if (resetElasticTilesNorthUp && (refreshOffscreenEachStep || !resetActive)) {
-      discardOffscreenElasticLayoutTiles({
+    if (correctElasticTilesNorthUp && (refreshOffscreenEachStep || !resetActive)) {
+      refreshOffscreenElasticLayoutTiles({
         positions,
         projectedTiles,
         protectionById,
@@ -719,7 +926,7 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
         anchorId
       });
     }
-    resetActive = resetElasticTilesNorthUp;
+    resetActive = correctElasticTilesNorthUp;
     const pendingIds = [...projectedById.keys()].filter((id) => !positions.has(id));
     admitProjectedTiles({
       positions,
@@ -729,13 +936,13 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
       neighborsById,
       protectionById,
       registrationIds: viewportIds,
-      resetElasticTilesNorthUp
+      correctElasticTilesNorthUp
     });
     const retainedIds = new Set(projectedById.keys());
     for (const id of positions.keys()) {
       if (!retainedIds.has(id)) positions.delete(id);
     }
-    if (resetElasticTilesNorthUp) {
+    if (correctElasticTilesNorthUp) {
       const visiblePositions = new Map(
         [...positions.entries()].filter(([id]) => viewportIds.has(id))
       );
@@ -805,6 +1012,58 @@ function measureVisibleFrameError(positions, projectedById, anchorId) {
   return {
     rotationDeg: rotation * 180 / Math.PI,
     rmsError: samples.length > 0 ? Math.sqrt(squaredError / samples.length) : 0
+  };
+}
+
+function measureCenteredFrameError(positions, projectedById) {
+  const samples = [];
+  let projectedCenterX = 0;
+  let projectedCenterY = 0;
+  let layoutCenterX = 0;
+  let layoutCenterY = 0;
+  for (const [id, position] of positions.entries()) {
+    const projected = projectedById.get(id);
+    if (!projected) continue;
+    samples.push({ position, projected });
+    projectedCenterX += projected.x;
+    projectedCenterY += projected.y;
+    layoutCenterX += position.x;
+    layoutCenterY += position.y;
+  }
+  assert.ok(samples.length >= 2, "Centered frame measurement requires two retained samples");
+  projectedCenterX /= samples.length;
+  projectedCenterY /= samples.length;
+  layoutCenterX /= samples.length;
+  layoutCenterY /= samples.length;
+
+  let dotSum = 0;
+  let crossSum = 0;
+  const vectors = [];
+  for (const { position, projected } of samples) {
+    const projectedVector = {
+      x: projected.x - projectedCenterX,
+      y: projected.y - projectedCenterY
+    };
+    const layoutVector = {
+      x: position.x - layoutCenterX,
+      y: position.y - layoutCenterY
+    };
+    dotSum += projectedVector.x * layoutVector.x + projectedVector.y * layoutVector.y;
+    crossSum += projectedVector.x * layoutVector.y - projectedVector.y * layoutVector.x;
+    vectors.push({ projectedVector, layoutVector });
+  }
+  const rotation = Math.atan2(crossSum, dotSum);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  let squaredError = 0;
+  for (const { projectedVector, layoutVector } of vectors) {
+    const expectedX = projectedVector.x * cos - projectedVector.y * sin;
+    const expectedY = projectedVector.x * sin + projectedVector.y * cos;
+    squaredError += (layoutVector.x - expectedX) ** 2 + (layoutVector.y - expectedY) ** 2;
+  }
+  return {
+    rotationDeg: rotation * 180 / Math.PI,
+    rmsError: Math.sqrt(squaredError / vectors.length)
   };
 }
 

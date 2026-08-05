@@ -10,9 +10,9 @@ import {
 } from "./geodesic.js";
 import {
   admitProjectedTiles,
-  discardOffscreenElasticLayoutTiles,
-  projectedViewportTileIds,
-  retainLocalLayoutAnchor
+  refreshOffscreenElasticLayoutTiles,
+  retainLocalLayoutAnchor,
+  viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 import {
   createSurfaceDetailLayerBounds,
@@ -27858,17 +27858,15 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     viewX: localLayout.viewX,
     viewY: localLayout.viewY
   });
-  const viewportTileIds = projectedViewportTileIds({
+  const correctionSupport = viewportElasticCorrectionSupport({
     projectedTiles: projectedVisible,
     protectionById: chartTileProtection,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     tileVisualRadius: TILE_ART_HALF
   });
-  const resetElasticTilesNorthUp = viewportTileIds.size > 0 &&
-    [...viewportTileIds].every((id) => chartTileProtection[id] === 0);
-  if (resetElasticTilesNorthUp) {
-    discardOffscreenElasticLayoutTiles({
+  if (correctionSupport.correctionActive) {
+    refreshOffscreenElasticLayoutTiles({
       positions: localLayout.positions,
       projectedTiles: projectedVisible,
       protectionById: chartTileProtection,
@@ -27895,8 +27893,10 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     anchorId: chartCenterTileId,
     neighborsById: graph.neighbors,
     protectionById: chartTileProtection,
-    registrationIds: viewportTileIds,
-    resetElasticTilesNorthUp
+    registrationIds: correctionSupport.correctionActive
+      ? correctionSupport.elasticTileIds
+      : correctionSupport.viewportTileIds,
+    correctElasticTilesNorthUp: correctionSupport.correctionActive
   });
 }
 
