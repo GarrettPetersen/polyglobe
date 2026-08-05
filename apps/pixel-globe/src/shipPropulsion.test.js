@@ -16,6 +16,7 @@ import {
   rowingCrewRatio,
   sailingEfficiencyForAlignment,
   shipCanUseOars,
+  shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
   shipPropulsionPerformance
@@ -114,6 +115,21 @@ test("oar craft can back water without reversing their sails", () => {
     galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO * ROWING_ASTERN_SPEED_RATIO
   );
   assert.ok(galleyAstern.maxSpeedRad < galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
+});
+
+test("only oared ships translate toward an aft directional input", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const galley = shipStatsForSlug("mediterranean-galley");
+
+  assert.equal(shipDirectionalTranslationAllowed(brigantine, -1), false);
+  assert.equal(shipDirectionalTranslationAllowed(brigantine, -0.01), false);
+  assert.equal(shipDirectionalTranslationAllowed(brigantine, 0), true);
+  assert.equal(shipDirectionalTranslationAllowed(brigantine, 1), true);
+  assert.equal(shipDirectionalTranslationAllowed(galley, -1), true);
+  assert.throws(
+    () => shipDirectionalTranslationAllowed(brigantine, -1.01),
+    /Invalid directional translation alignment/
+  );
 });
 
 test("hybrid oars add speed and acceleration without cancelling stronger sails", () => {

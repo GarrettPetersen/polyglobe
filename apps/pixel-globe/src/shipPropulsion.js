@@ -143,6 +143,13 @@ export function shipCanUseOars(stats) {
     stats.propulsion === SHIP_PROPULSION_OAR_SAIL;
 }
 
+export function shipDirectionalTranslationAllowed(stats, headingAlignment) {
+  if (!Number.isFinite(headingAlignment) || headingAlignment < -1 || headingAlignment > 1) {
+    throw new Error(`Invalid directional translation alignment: ${headingAlignment}`);
+  }
+  return shipCanUseOars(stats) || headingAlignment >= 0;
+}
+
 export function rowingCrewRatio(activeCrew, shipCrewCapacity) {
   if (!Number.isInteger(activeCrew) || activeCrew < 0) {
     throw new Error(`Invalid active rowing crew: ${activeCrew}`);

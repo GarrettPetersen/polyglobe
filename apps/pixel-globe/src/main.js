@@ -226,6 +226,7 @@ import {
   rowingCrewRatio,
   sailingEfficiencyForAlignment,
   shipCanUseOars,
+  shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
   shipPropulsionPerformance
@@ -18760,14 +18761,16 @@ function inputCommandForShip() {
 
 function directionalShipInputCommand(desiredHeading) {
   const stats = currentPlayerEffectiveShipStats();
+  const alignment = clamp(dot3(ship.heading, desiredHeading), -1, 1);
   if (!shipCanUseOars(stats)) {
     return {
       steeringHeading: desiredHeading,
-      movementHeading: desiredHeading,
+      movementHeading: shipDirectionalTranslationAllowed(stats, alignment)
+        ? desiredHeading
+        : null,
       rowingMode: SHIP_ROWING_MODE_IDLE
     };
   }
-  const alignment = clamp(dot3(ship.heading, desiredHeading), -1, 1);
   if (alignment <= -Math.cos(35 * Math.PI / 180)) {
     return {
       steeringHeading: ship.heading,
