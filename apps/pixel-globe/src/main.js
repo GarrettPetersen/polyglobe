@@ -507,9 +507,13 @@ import {
   createVisualPresentation,
   resetVisualPresentation,
   retargetVisualPresentation,
-  visualPresentationIsActive,
   visualPresentationPoint
 } from "./visualPresentation.js";
+import {
+  retargetWhaleVisualPresentation,
+  whaleVisualPresentationIsActive,
+  whaleVisualPresentationPoint
+} from "./whaleVisualPresentation.js";
 import {
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_DEAD,
@@ -16897,30 +16901,31 @@ function retargetWhalePresentations(starts, nowMs, movementElapsed) {
       whaleVisualPresentations.delete(whaleId);
       continue;
     }
-    let state = whaleVisualPresentations.get(whaleId);
-    if (!state || state.chart !== chart) {
-      state = {
-        id: whaleId,
-        chart,
-        ...createVisualPresentation(from, nowMs)
-      };
-      whaleVisualPresentations.set(whaleId, state);
-    }
-    state.chart = chart;
-    retargetVisualPresentation(state, from, target, nowMs, durationMs);
+    whaleVisualPresentations.set(whaleId, retargetWhaleVisualPresentation(
+      whaleVisualPresentations.get(whaleId),
+      {
+        whaleId,
+        coordinateSpace: localLayout,
+        from,
+        to: target,
+        nowMs,
+        durationMs
+      }
+    ));
   }
 }
 
 function presentedWhalePoint(whale, rawPoint, nowMs) {
-  const state = whaleVisualPresentations.get(whale.id);
-  if (!state || state.chart !== chart) return rawPoint;
-  const point = visualPresentationPoint(state, nowMs);
-  return { ...rawPoint, x: point.x, y: point.y };
+  return whaleVisualPresentationPoint(whaleVisualPresentations.get(whale.id), {
+    coordinateSpace: localLayout,
+    rawPoint,
+    nowMs
+  });
 }
 
 function activeWhalePresentationExists(nowMs) {
   for (const state of whaleVisualPresentations.values()) {
-    if (state.chart === chart && visualPresentationIsActive(state, nowMs)) return true;
+    if (whaleVisualPresentationIsActive(state, localLayout, nowMs)) return true;
   }
   return false;
 }
