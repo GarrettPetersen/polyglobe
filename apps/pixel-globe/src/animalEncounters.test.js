@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -32,6 +33,46 @@ function habitat(overrides = {}) {
   };
 }
 
+const REVIEWED_STATIC_PORTRAIT_HASHES = Object.freeze({
+  tiger: "4717df76720e88f24092fa3a65ee40588670f65a1abbb7bdc3b85b73f070c0e6",
+  "brown-bear": "77731f8b102a978b685b1f4ec18c5dbc72b074bbbb4be71a5c3f99add5411779",
+  elephant: "59c9e17784eef9d25ee25d6aac8240c7a77fba6b6ca1567b19a8c8f8da77fb7a",
+  rhinoceros: "b9871bb6d1e18741ac16f97122096136d03068c72b27a23c085e17e304f21797",
+  otter: "138e3e02d84593a9c5d178de1d923a9a0db04dcafc9984ea684a2df224d19806",
+  chipmunk: "11440df1841c3597b0195f87133665ff27afeb85e53d6fda8ed4cdb02df5d23e",
+  giraffe: "1f2d5973690adfb9d87506b6305e233afde5f7d1aaa26ca5f6b4d8ce842fd3e6",
+  fox: "f6aeb58d4b612ee6db15c49e587b896875315d1dd01e89fcde0fb8ade993b25d",
+  kangaroo: "32b6b7ddc81f36d259821aa474a9989e0944e8f381cd6f0af23d18d2d8fb37fb",
+  parrot: "947ff209962cbc52e83e0edcac62de6bc22282d255065723bf3945b6ab29304b",
+  lion: "f1d7a35de78e959764dcb16cda1915d73f5740a713b9cef289e3e9141344c340",
+  eagle: "f0e74b5ec43261891362b5a7b56258f2c90d5f1190de8d49e96039951fea931f",
+  moose: "dd27663182536965c6e0880e5010b6065cd9d51b0cf6901ae650e4f663c82756",
+  "wild-dog": "97ee8445bd6d075539724f0c5ae8a0a48b31d99b8418a8f6a0ead6eb74db309d",
+  sloth: "391c5d7c103af38fd3495d003df009d3c6a2301116d556ed948adc0c6bfe4963"
+});
+
+const REVIEWED_COMPANION_EXPRESSIONS = Object.freeze({
+  panda: Object.freeze({ neutral: 14, happy: 5, surprised: 4, sad: 1, angry: 15, amused: 10 }),
+  raccoon: Object.freeze({
+    neutral: 4,
+    happy: 5,
+    surprised: 13,
+    sad: 1,
+    angry: 9,
+    amused: 10,
+    mischievous: 15
+  }),
+  penguin: Object.freeze({
+    neutral: 8,
+    happy: 2,
+    surprised: 4,
+    sad: 5,
+    angry: 3,
+    amused: 15,
+    confused: 14
+  })
+});
+
 test("animal catalog is unique and every portrait is expression-ready", () => {
   assert.equal(ANIMAL_CATALOG.length, 18);
   assert.equal(new Set(ANIMAL_CATALOG.map((entry) => entry.id)).size, ANIMAL_CATALOG.length);
@@ -54,14 +95,26 @@ test("animal catalog is unique and every portrait is expression-ready", () => {
       ANIMAL_COMPANION_ENCOUNTER_WEIGHT
     );
   }
-  assert.equal(
-    ANIMAL_CATALOG_BY_ID.get("raccoon").expressions.find(({ id }) => id === "sad").src,
-    "assets/animals/portraits/raccoon-1.png"
+});
+
+test("animal portraits remain on the visually reviewed species and expression frames", () => {
+  assert.deepEqual(
+    Object.keys(REVIEWED_STATIC_PORTRAIT_HASHES).sort(),
+    ANIMAL_CATALOG.filter(({ expressions }) => expressions.length === 1).map(({ id }) => id).sort()
   );
-  assert.equal(
-    ANIMAL_CATALOG_BY_ID.get("raccoon").expressions.find(({ id }) => id === "angry").src,
-    "assets/animals/portraits/raccoon-15.png"
-  );
+  for (const [animalId, expectedHash] of Object.entries(REVIEWED_STATIC_PORTRAIT_HASHES)) {
+    const [{ src }] = ANIMAL_CATALOG_BY_ID.get(animalId).expressions;
+    const bytes = readFileSync(new URL(`../public/${src}`, import.meta.url));
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), expectedHash, animalId);
+  }
+
+  for (const [animalId, expectedFrames] of Object.entries(REVIEWED_COMPANION_EXPRESSIONS)) {
+    const actual = Object.fromEntries(ANIMAL_CATALOG_BY_ID.get(animalId).expressions.map(({ id, src }) => [
+      id,
+      Number.parseInt(src.match(/-(\d+)\.png$/)?.[1] ?? "", 10)
+    ]));
+    assert.deepEqual(actual, expectedFrames, animalId);
+  }
 });
 
 test("every animal has unique naturalist dialogue reusable as its journal entry", () => {

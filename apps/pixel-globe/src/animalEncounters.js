@@ -39,7 +39,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     ["We have watched it cross one branch since breakfast. I admire its refusal to be hurried."], "Eeeh."),
   animalWithExpressions("panda", "Giant Panda", "A bamboo-eating bear of China's mountain forests.", "bleat", pandaRange,
     ["It has eaten every bamboo shoot in sight and appears to regard this as a full day's labor."], "Meee-eh!", {
-      neutral: 8, happy: 5, surprised: 4, sad: 13, angry: 15, amused: 16
+      neutral: 14, happy: 5, surprised: 4, sad: 1, angry: 15, amused: 10
     }, {
       encounterWeight: ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
       reactionExpression: "happy",
@@ -47,7 +47,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     }),
   animalWithExpressions("raccoon", "Raccoon", "A nimble masked forager of the Americas.", "chitter", raccoonRange,
     ["That little masked thief is aboard! Count the biscuits."], "Chrrr-chrrr-chrrr!", {
-      neutral: 4, happy: 5, surprised: 13, sad: 1, angry: 15, amused: 8, mischievous: 9
+      neutral: 4, happy: 5, surprised: 13, sad: 1, angry: 9, amused: 10, mischievous: 15
     }, {
       encounterWeight: ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
       effect: "steal-food",
@@ -56,7 +56,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     }),
   animalWithExpressions("penguin", "Penguin", "A flightless seabird of the southern ice.", "bray", penguinRange,
     ["A bird dressed for court, marching over ice where no court has ever sat."], "Honk-hraaa!", {
-      neutral: 1, happy: 2, surprised: 4, sad: 13, angry: 8, amused: 15, confused: 10
+      neutral: 8, happy: 2, surprised: 4, sad: 5, angry: 3, amused: 15, confused: 14
     }, {
       encounterWeight: ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
       reactionExpression: "amused",
