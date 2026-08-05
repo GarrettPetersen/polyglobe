@@ -183,7 +183,7 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
     assert.equal(ship.lightAzimuth, 2);
     assert.equal(ship.lightElevation, 1);
     for (const source of [ship.spriteSheet, ship.lightSheet, ship.shadeSheet, ship.shadowSheet]) {
-      assert.match(source, /\?v=2026-08-03-rotation-anchor-rebake$/);
+      assert.match(source, /\?v=2026-08-04-cleaner-raster-textures$/);
     }
     assert.ok(Number.isFinite(ship.turntableAnchorX));
     assert.ok(Number.isFinite(ship.turntableAnchorY));
