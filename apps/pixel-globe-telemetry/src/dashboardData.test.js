@@ -132,7 +132,7 @@ test("dashboard snapshots normalize aggregate query rows", () => {
   assert.equal(snapshot.totals.voyageStarts, 180);
   assert.equal(snapshot.totals.crashesPerThousandSessions, 5);
   assert.deepEqual(snapshot.playtime, {
-    measuredSince: "2026-08-05T05:45:00Z",
+    measuredSince: "2026-08-05T05:38:00Z",
     sessions: 400,
     meanSeconds: 225,
     medianSeconds: 90,

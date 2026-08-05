@@ -1,5 +1,5 @@
 const DATASET = "marque_and_reprisal_game_events";
-export const ACCURATE_SESSION_PLAYTIME_SINCE = "2026-08-05 05:45:00";
+export const ACCURATE_SESSION_PLAYTIME_SINCE = "2026-08-05 05:38:00";
 export const DASHBOARD_WINDOWS = Object.freeze([1, 7, 30, 90]);
 
 export async function fetchDashboardSnapshot(env, windowDays, {
