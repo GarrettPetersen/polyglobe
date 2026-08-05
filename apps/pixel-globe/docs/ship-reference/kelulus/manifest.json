@@ -28143,7 +28143,7 @@
         ]
       }
     ],
-    "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+    "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
     "flagAnchorModelPoint": {
       "x": 0.000932,
       "y": 0.604931,

@@ -68,11 +68,11 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": 0.068598,
-        "y": 0.332311,
-        "z": -0.364699
+        "x": -0.005372,
+        "y": 0.257278,
+        "z": -0.02425
       },
       "stats": {
         "slug": "fishing-lugger",
@@ -142,7 +142,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000137,
         "y": 0.489553,
@@ -216,7 +216,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0,
         "y": 0.462099,
@@ -290,7 +290,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0,
         "y": 0.718039,
@@ -364,7 +364,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000145,
         "y": 0.849112,
@@ -438,7 +438,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000118,
         "y": 0.713269,
@@ -512,7 +512,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000108,
         "y": 0.730618,
@@ -586,7 +586,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000105,
         "y": 0.72216,
@@ -660,7 +660,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000009,
         "y": 0.725238,
@@ -734,7 +734,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.000518,
         "y": 0.77145,
@@ -808,7 +808,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.000509,
         "y": 0.732784,
@@ -882,7 +882,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.00021,
         "y": 0.807615,
@@ -956,7 +956,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000191,
         "y": 0.731954,
@@ -1030,7 +1030,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0,
         "y": 0.647939,
@@ -1104,11 +1104,11 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": 0.409673,
-        "y": 0.448034,
-        "z": 0.416224
+        "x": -0.023135,
+        "y": 0.444928,
+        "z": -0.002607
       },
       "stats": {
         "slug": "felucca",
@@ -1178,7 +1178,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.068157,
         "y": 0.476931,
@@ -1252,7 +1252,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.016025,
         "y": 0.579414,
@@ -1326,7 +1326,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0,
         "y": 0.640953,
@@ -1448,7 +1448,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000483,
         "y": 0.840476,
@@ -1522,7 +1522,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.021868,
         "y": 0.126179,
@@ -1660,7 +1660,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.018439,
         "y": 0.554738,
@@ -1782,7 +1782,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.022236,
         "y": 0.668949,
@@ -1904,7 +1904,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0,
         "y": 0.83336,
@@ -2033,7 +2033,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.005012,
         "y": 0.912035,
@@ -2209,7 +2209,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.000576,
         "y": 0.318735,
@@ -2439,7 +2439,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.009983,
         "y": 0.274121,
@@ -2889,7 +2889,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.008753,
         "y": 0.577775,
@@ -3018,7 +3018,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.004353,
         "y": 0.594559,
@@ -3140,7 +3140,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.007113,
         "y": 0.880063,
@@ -3214,7 +3214,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.018513,
         "y": 0.850006,
@@ -3288,11 +3288,11 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": -0.125841,
-        "y": 0.457485,
-        "z": -0.335651
+        "x": -0.039591,
+        "y": 0.290745,
+        "z": -0.052614
       },
       "stats": {
         "slug": "dhow",
@@ -3372,7 +3372,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorSourceMesh": "Cube007_worn_wood_dhow_0",
       "flagAnchorModelPoint": {
         "x": -0.018527,
@@ -3447,7 +3447,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.000351,
         "y": 0.773106,
@@ -3521,7 +3521,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.021027,
         "y": 0.737296,
@@ -3595,7 +3595,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.000932,
         "y": 0.604931,
@@ -3717,7 +3717,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.00061,
         "y": 0.418201,
@@ -3839,7 +3839,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.000409,
         "y": 0.453617,
@@ -3961,7 +3961,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": 0.000314,
         "y": 0.498354,
@@ -4083,7 +4083,7 @@
       "sheetCols": 8,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
         "x": -0.022578,
         "y": 0.917478,

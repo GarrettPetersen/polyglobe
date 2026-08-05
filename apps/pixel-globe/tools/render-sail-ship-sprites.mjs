@@ -2145,7 +2145,7 @@ async function renderShipSpriteSet(config) {
     lightElevationBins,
     wakeAnchors,
     hullFootprints,
-    flagAnchorSelection: "highest-model-point-aftmost-tiebreak",
+    flagAnchorSelection: "upper-centerline-model-point-aftmost-tiebreak",
     ...(config.flagAnchorMeshName ? { flagAnchorSourceMesh: config.flagAnchorMeshName } : {}),
     flagAnchorModelPoint: Object.fromEntries(
       Object.entries(flagAnchorModelPoint).map(([axis, value]) => [axis, Number(value.toFixed(6))])

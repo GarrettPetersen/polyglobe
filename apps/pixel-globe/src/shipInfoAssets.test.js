@@ -210,7 +210,7 @@ test("every roster ship flag is anchored to one model point across all headings"
   for (const entry of manifest.ships) {
     assert.equal(
       entry.flagAnchorSelection,
-      "highest-model-point-aftmost-tiebreak",
+      "upper-centerline-model-point-aftmost-tiebreak",
       `${entry.slug} flag anchor selection`
     );
     assert.ok(

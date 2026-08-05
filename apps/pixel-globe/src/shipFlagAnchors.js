@@ -14,6 +14,9 @@ export function selectShipFlagAnchorPoint(triangles) {
   if (!Array.isArray(triangles) || triangles.length === 0) {
     throw new Error("Ship flag anchor selection requires model triangles");
   }
+  const points = [];
+  let minX = Infinity;
+  let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
   for (let triangleIndex = 0; triangleIndex < triangles.length; triangleIndex++) {
@@ -26,30 +29,57 @@ export function selectShipFlagAnchorPoint(triangles) {
         triangle.points[pointIndex],
         `Ship flag anchor triangle ${triangleIndex} point ${pointIndex}`
       );
+      points.push(point);
+      minX = Math.min(minX, point.x);
+      maxX = Math.max(maxX, point.x);
       minY = Math.min(minY, point.y);
       maxY = Math.max(maxY, point.y);
     }
   }
-  const epsilon = Math.max(1e-9, (maxY - minY) * 1e-7);
-  let selected = null;
-  for (const triangle of triangles) {
-    for (const point of triangle.points) {
-      if (maxY - point.y > epsilon) continue;
-      if (
-        !selected ||
-        point.z < selected.z - epsilon ||
-        (
-          Math.abs(point.z - selected.z) <= epsilon &&
-          (Math.abs(point.x) < Math.abs(selected.x) || (
-            Math.abs(point.x) === Math.abs(selected.x) && point.x < selected.x
-          ))
-        )
-      ) {
-        selected = point;
-      }
+  const lateralSpan = maxX - minX;
+  const heightSpan = maxY - minY;
+  const epsilon = Math.max(1e-9, Math.max(lateralSpan, heightSpan) * 1e-7);
+  const centerX = (minX + maxX) / 2;
+  const upperFloor = minY + heightSpan * 0.55;
+  let nearestUpperDistance = Infinity;
+  for (const point of points) {
+    if (point.y < upperFloor - epsilon) continue;
+    nearestUpperDistance = Math.min(nearestUpperDistance, Math.abs(point.x - centerX));
+  }
+  if (!Number.isFinite(nearestUpperDistance)) {
+    throw new Error("Ship flag anchor selection found no upper model points");
+  }
+  const centerlineHalfWidth = Math.max(lateralSpan * 0.12, nearestUpperDistance + epsilon);
+  let highestCenterlineY = -Infinity;
+  for (const point of points) {
+    if (
+      point.y >= upperFloor - epsilon &&
+      Math.abs(point.x - centerX) <= centerlineHalfWidth + epsilon
+    ) {
+      highestCenterlineY = Math.max(highestCenterlineY, point.y);
     }
   }
-  if (!selected) throw new Error("Ship flag anchor selection found no highest model point");
+  if (!Number.isFinite(highestCenterlineY)) {
+    throw new Error("Ship flag anchor selection found no upper centerline point");
+  }
+  let selected = null;
+  for (const point of points) {
+    if (Math.abs(point.x - centerX) > centerlineHalfWidth + epsilon) continue;
+    if (highestCenterlineY - point.y > epsilon) continue;
+    if (
+      !selected ||
+      point.z < selected.z - epsilon ||
+      (
+        Math.abs(point.z - selected.z) <= epsilon &&
+        (Math.abs(point.x - centerX) < Math.abs(selected.x - centerX) || (
+          Math.abs(point.x - centerX) === Math.abs(selected.x - centerX) && point.x < selected.x
+        ))
+      )
+    ) {
+      selected = point;
+    }
+  }
+  if (!selected) throw new Error("Ship flag anchor selection lost its upper centerline point");
   return Object.freeze({ x: selected.x, y: selected.y, z: selected.z });
 }
 
