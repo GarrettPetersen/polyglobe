@@ -75,6 +75,52 @@ test("every consenting installation submits routine sessions at unit weight", as
   assert.equal(bodies[0].events[0].payload.samplingWeight, 1);
 });
 
+test("session checkpoints report only explicitly recorded play in this page session", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "session-playtime"
+  });
+  const bodies = [];
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      return { ok: true };
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+
+  telemetry.start();
+  await nextTask();
+  telemetry.recordActivePlaySeconds(12.5);
+  assert.equal(telemetry.checkpoint(), true);
+  await nextTask();
+
+  const checkpoints = bodies.flatMap((body) => body.events)
+    .filter((entry) => entry.type === "session_checkpoint");
+  assert.equal(checkpoints.length, 1);
+  assert.equal(checkpoints[0].payload.activePlaySeconds, 12.5);
+  assert.equal(telemetry.checkpoint(), false);
+});
+
+test("session play rejects invalid durations", () => {
+  const telemetry = createGameTelemetry({
+    storage: memoryStorage(),
+    metadata: metadata()
+  });
+  telemetry.start();
+  assert.throws(
+    () => telemetry.recordActivePlaySeconds(-1),
+    /Invalid telemetry active play duration/
+  );
+});
+
 test("crashes queue safely when the network is unavailable", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,

@@ -57,22 +57,27 @@ export function createGameTelemetry({
   let sessionId = null;
   let started = false;
   let checkpointTimer = null;
-  let activePlayProvider = () => 0;
+  let activePlaySeconds = 0;
   let lastReportedActivePlaySeconds = 0;
   let requestInFlight = false;
   let keepaliveFlushPending = false;
   let queue = consent === TELEMETRY_CONSENT_GRANTED ? readQueue(storage) : [];
   const reportedCrashes = new Set();
 
-  function start({ getActivePlaySeconds = () => 0 } = {}) {
-    if (typeof getActivePlaySeconds !== "function") {
-      throw new Error("Telemetry active play provider must be a function");
-    }
-    activePlayProvider = getActivePlaySeconds;
-    lastReportedActivePlaySeconds = safeActivePlaySeconds(activePlayProvider());
+  function start() {
+    if (started) throw new Error("Game telemetry has already started");
+    lastReportedActivePlaySeconds = activePlaySeconds;
     started = true;
     if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED) return;
     beginSession();
+  }
+
+  function recordActivePlaySeconds(elapsedSeconds) {
+    if (!started) throw new Error("Game telemetry must start before recording active play");
+    if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+      throw new Error(`Invalid telemetry active play duration: ${elapsedSeconds}`);
+    }
+    activePlaySeconds += elapsedSeconds;
   }
 
   function beginSession() {
@@ -111,6 +116,7 @@ export function createGameTelemetry({
       return consent;
     }
     installationId = readOrCreateInstallationId(storage, randomId, now);
+    lastReportedActivePlaySeconds = activePlaySeconds;
     if (started) beginSession();
     return consent;
   }
@@ -119,9 +125,8 @@ export function createGameTelemetry({
     if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
       return false;
     }
-    const current = safeActivePlaySeconds(activePlayProvider());
-    const delta = Math.max(0, current - lastReportedActivePlaySeconds);
-    lastReportedActivePlaySeconds = current;
+    const delta = activePlaySeconds - lastReportedActivePlaySeconds;
+    lastReportedActivePlaySeconds = activePlaySeconds;
     if (delta <= 0) return false;
     enqueueEvent("session_checkpoint", {
       samplingWeight: TELEMETRY_EVENT_WEIGHT,
@@ -264,6 +269,7 @@ export function createGameTelemetry({
     start,
     stop,
     setConsent,
+    recordActivePlaySeconds,
     checkpoint,
     recordVoyageStart,
     recordVoyage,
@@ -448,10 +454,6 @@ function removeStorage(storage, key) {
   } catch {
     return false;
   }
-}
-
-function safeActivePlaySeconds(value) {
-  return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 function validTimestamp(value) {

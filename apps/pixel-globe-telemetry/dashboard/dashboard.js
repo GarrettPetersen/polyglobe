@@ -66,7 +66,9 @@ function renderPlaytime(playtime) {
   target.replaceChildren();
   if (!playtime || playtime.sessions === 0 || playtime.buckets.length === 0) {
     setText("playtime-summary", "Mean - / Median -");
-    note.textContent = "";
+    note.textContent = playtime?.measuredSince
+      ? `Accurate session-local timing begins ${formatDateTime(playtime.measuredSince)}.`
+      : "";
     return target.append(emptyState("No session playtime in this period."));
   }
 
@@ -83,10 +85,11 @@ function renderPlaytime(playtime) {
       `Mean ${preciseDuration(playtime.meanSeconds)}; median ${preciseDuration(playtime.medianSeconds)}.`
   );
   target.append(canvas);
-  note.textContent = marbleWeight === 1
+  const measuredSince = `Accurate session-local timing from ${formatDateTime(playtime.measuredSince)}. `;
+  note.textContent = measuredSince + (marbleWeight === 1
     ? `${compact(playtime.sessions)} sessions. Each marble is one session; the time scale is compressed.`
     : `${compact(playtime.sessions)} sessions. Each marble represents about ${marbleWeight} sessions; ` +
-      "the time scale is compressed.";
+      "the time scale is compressed.");
 
   const draw = () => drawPlaytimeChart(canvas, playtime, marbleWeight);
   state.playtimeResizeObserver = new ResizeObserver(draw);

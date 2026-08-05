@@ -31,6 +31,11 @@ import {
 } from "./pixelWaterMask.js";
 import { createSpatialHash } from "./spatialHash.js";
 import { createFixedRateScheduler } from "./fixedRateScheduler.js";
+import {
+  activeSessionFrameSeconds,
+  createSessionActivityState,
+  noteSessionActivity
+} from "./sessionActivity.js";
 import { advanceFrameCadence } from "./frameCadence.js";
 import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
 import {
@@ -2922,7 +2927,8 @@ const telemetryMetadata = {
   }),
   platform: steamPlatformBridge?.platformId || "browser",
   locale: currentLanguage,
-  gameStateVersion: GAME_STATE_VERSION
+  gameStateVersion: GAME_STATE_VERSION,
+  sessionClockVersion: 2
 };
 const gameTelemetry = createGameTelemetry({
   storage: gameStorage,
@@ -2994,7 +3000,9 @@ let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
+let lastSessionFrameMs = lastFrameMs;
 let nextGameFrameMs = null;
+const sessionActivityState = createSessionActivityState(lastFrameMs);
 let frameRateOverlayEnabled = false;
 const frameRateMeter = createFrameRateMeter();
 let performanceBenchmarkState = null;
@@ -3035,14 +3043,14 @@ const aboardMenu = createAboardMenuState();
 const captainMenu = createCaptainMenuState();
 const cheatCodeInput = createCheatCodeInputState();
 
-gameTelemetry.start({
-  getActivePlaySeconds: () => gameState?.activePlaySeconds || 0
-});
+gameTelemetry.start();
 fitCanvasToDisplay();
 window.addEventListener("resize", fitCanvasToDisplay);
 window.visualViewport?.addEventListener("resize", fitCanvasToDisplay);
+window.addEventListener("blur", clearSessionHeldControls);
 document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
+document.addEventListener("visibilitychange", resetSessionFrameClock);
 screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 window.addEventListener("pagehide", () => gameTelemetry.stop());
 window.addEventListener("error", (event) => {
@@ -3053,6 +3061,7 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 window.addEventListener("keydown", (event) => {
+  noteCurrentSessionActivity();
   if (telemetryConsentModal) {
     sailingTutorialInputMode = "keyboard";
     handleTelemetryConsentKeyDown(event);
@@ -3143,6 +3152,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("keyup", (event) => {
+  noteCurrentSessionActivity();
   if (typeof event.code !== "string" || event.code.length === 0) return;
   if (keys.release(event.code)) {
     event.preventDefault();
@@ -5184,7 +5194,9 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (frameRateOverlayEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
+  const sessionFrameSeconds = Math.max(0, (nowMs - lastSessionFrameMs) / 1000);
   lastFrameMs = nowMs;
+  lastSessionFrameMs = nowMs;
   if (captureDirector && !capturePlaybackPaused) updateCaptureDirectorFrame(nowMs);
   if (lakeBattleMode) {
     updateWaterAnimation(nowMs);
@@ -5209,6 +5221,13 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   });
   if (!simulationPaused) {
     advanceActivePlayTime(gameState, dt);
+    if (!CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
+      gameTelemetry.recordActivePlaySeconds(activeSessionFrameSeconds(sessionActivityState, {
+        nowMs,
+        elapsedSeconds: sessionFrameSeconds,
+        continuousInput: keys.size > 0 || pointerSteering.active || controllerSteering !== null
+      }));
+    }
     if (updatePlayerWind(dt)) dirty = true;
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
@@ -11556,6 +11575,7 @@ function activateStartMenuSelection() {
 }
 
 function handlePointerDown(event) {
+  noteCurrentSessionActivity();
   const point = canvasPointFromEvent(event);
   waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
   statusHudHoverPoint = event.pointerType === "touch" ? null : point;
@@ -11688,6 +11708,7 @@ function activatePointerWorldInteraction(event, target) {
 }
 
 function handlePointerMove(event) {
+  noteCurrentSessionActivity();
   const point = canvasPointFromEvent(event);
   waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
   statusHudHoverPoint = event.pointerType === "touch" ? null : point;
@@ -11743,6 +11764,7 @@ function handlePointerLeave(event) {
 }
 
 function handlePointerUp(event) {
+  noteCurrentSessionActivity();
   if (typeof canvas.releasePointerCapture === "function" && event?.pointerId !== undefined) {
     try {
       canvas.releasePointerCapture(event.pointerId);
@@ -12805,6 +12827,7 @@ function stepDialogueSelectionColumn(direction) {
 }
 
 function handleCanvasWheel(event) {
+  noteCurrentSessionActivity();
   if (Math.abs(event.deltaY) < 1) return;
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.WORLD) return;
@@ -18811,6 +18834,7 @@ function pollGamepadControls(nowMs) {
   const frame = gamepadControlFrame(gamepad, controllerButtons);
   controllerButtons = frame.buttons;
   controllerSteering = frame.steering;
+  if (frame.steering || frame.actions.length > 0) noteCurrentSessionActivity(nowMs);
   const captainChartPanning = frame.steeringSource === "stick" &&
     captainMenu.isOpen && !shipInfoMenu.isOpen && !politicsMenu.isOpen &&
       !discoveriesMenu.isOpen && !achievementsMenu.isOpen && !navigationMenu.isOpen &&
@@ -18837,6 +18861,7 @@ function pollGamepadControls(nowMs) {
   });
   controllerNavigationState = navigation.state;
   if (navigation.action) {
+    noteCurrentSessionActivity(nowMs);
     sailingTutorialInputMode = "controller";
     handleControllerAction(navigation.action);
   }
@@ -18847,9 +18872,26 @@ function pollGamepadControls(nowMs) {
   });
   controllerScrollState = scrolling.state;
   if (scrolling.action === "up" || scrolling.action === "down") {
+    noteCurrentSessionActivity(nowMs);
     sailingTutorialInputMode = "controller";
     dispatchControllerKey(scrolling.action === "up" ? "PageUp" : "PageDown");
   }
+}
+
+function noteCurrentSessionActivity(nowMs = performance.now()) {
+  if (CAPTURE_SCENARIO || PERFORMANCE_BENCHMARK) return;
+  noteSessionActivity(sessionActivityState, nowMs);
+}
+
+function resetSessionFrameClock() {
+  lastSessionFrameMs = performance.now();
+  if (document.visibilityState === "hidden") clearSessionHeldControls();
+}
+
+function clearSessionHeldControls() {
+  keys.clear();
+  if (pointerSteering.active) clearPointerSteering();
+  controllerSteering = null;
 }
 
 function syncSteamInputActionSet(bridge, actionSet) {

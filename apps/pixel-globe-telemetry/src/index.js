@@ -152,7 +152,8 @@ function validateMetadata(metadata) {
     channel: shortString(metadata.channel, 40),
     platform: shortString(metadata.platform, 40),
     locale: shortString(metadata.locale, 24),
-    gameStateVersion: integerInRange(metadata.gameStateVersion, 1, 10_000)
+    gameStateVersion: integerInRange(metadata.gameStateVersion, 1, 10_000),
+    sessionClockVersion: integerInRange(metadata.sessionClockVersion ?? 1, 1, 10_000)
   };
 }
 
@@ -279,7 +280,8 @@ function toDataPoint(event, installationHash, crashFingerprint) {
       payload.samplingWeight,
       ...columns.doubles,
       payload.installAgeDays || 0,
-      payload.daysSinceLastSession ?? -1
+      payload.daysSinceLastSession ?? -1,
+      event.metadata.sessionClockVersion
     ]
   };
 }

@@ -1,4 +1,5 @@
 const DATASET = "marque_and_reprisal_game_events";
+export const ACCURATE_SESSION_PLAYTIME_SINCE = "2026-08-05 05:45:00";
 export const DASHBOARD_WINDOWS = Object.freeze([1, 7, 30, 90]);
 
 export async function fetchDashboardSnapshot(env, windowDays, {
@@ -27,14 +28,20 @@ export function dashboardQueries(windowDays) {
     SELECT blob7 AS session_id,
       SUM(if(blob1 = 'session_checkpoint', _sample_interval * double2, 0.0)) AS active_seconds
     FROM ${DATASET}
-    WHERE blob1 IN ('session_start', 'session_checkpoint') AND ${where}
+    WHERE blob1 IN ('session_start', 'session_checkpoint')
+      AND double17 >= 2
+      AND timestamp >= toDateTime('${ACCURATE_SESSION_PLAYTIME_SINCE}') AND ${where}
     GROUP BY session_id
   `;
   return Object.freeze({
     totals: `
       SELECT
         round(SUM(_sample_interval * if(blob1 = 'session_start', 1, 0))) AS sessions,
-        round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double2, 0.0)) / 3600, 1) AS active_hours,
+        round(SUM(_sample_interval * if(
+          blob1 = 'session_checkpoint' AND double17 >= 2
+            AND timestamp >= toDateTime('${ACCURATE_SESSION_PLAYTIME_SINCE}'),
+          double2, 0.0
+        )) / 3600, 1) AS active_hours,
         round(SUM(_sample_interval * if(blob1 = 'voyage_start', 1, 0))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
@@ -49,7 +56,11 @@ export function dashboardQueries(windowDays) {
     daily: `
       SELECT toDate(timestamp) AS day,
         round(SUM(_sample_interval * if(blob1 = 'session_start', 1, 0))) AS sessions,
-        round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double2, 0.0)) / 3600, 1) AS active_hours,
+        round(SUM(_sample_interval * if(
+          blob1 = 'session_checkpoint' AND double17 >= 2
+            AND timestamp >= toDateTime('${ACCURATE_SESSION_PLAYTIME_SINCE}'),
+          double2, 0.0
+        )) / 3600, 1) AS active_hours,
         round(SUM(_sample_interval * if(blob1 = 'voyage_start', 1, 0))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
@@ -188,6 +199,7 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
     : 0;
   const playtimeStatsRow = results.playtimeStats[0] || {};
   const playtime = {
+    measuredSince: `${ACCURATE_SESSION_PLAYTIME_SINCE.replace(" ", "T")}Z`,
     sessions: nonnegativeNumber(playtimeStatsRow.sessions),
     meanSeconds: nonnegativeNumber(playtimeStatsRow.mean_seconds),
     medianSeconds: nonnegativeNumber(playtimeStatsRow.median_seconds),

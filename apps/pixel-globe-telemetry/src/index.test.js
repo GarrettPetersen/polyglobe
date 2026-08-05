@@ -68,6 +68,20 @@ test("routine events queued by old tabs are normalized to unit weight", async ()
   assert.equal(response.status, 202);
   assert.equal(points.length, 1);
   assert.equal(points[0].doubles[0], 1);
+  assert.equal(points[0].doubles[16], 1);
+});
+
+test("corrected session clocks carry a queryable telemetry version", async () => {
+  const points = [];
+  const checkpoint = event("session_checkpoint", {
+    samplingWeight: 1,
+    activePlaySeconds: 60
+  });
+  checkpoint.metadata.sessionClockVersion = 2;
+  const response = await worker.fetch(requestFor([checkpoint]), environment(points));
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+  assert.equal(points[0].doubles[16], 2);
 });
 
 test("voyage events record every animal companion while accepting old panda payloads", async () => {

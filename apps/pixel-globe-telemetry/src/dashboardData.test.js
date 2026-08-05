@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ACCURATE_SESSION_PLAYTIME_SINCE,
   buildDashboardSnapshot,
   dashboardQueries,
   validateDashboardWindow
@@ -30,6 +31,9 @@ test("session playtime is aggregated without returning session identifiers", () 
   const queries = dashboardQueries(30);
   assert.match(queries.playtimeStats, /GROUP BY session_id/);
   assert.match(queries.playtimeStats, /quantileExactWeighted\(0\.5\)/);
+  assert.match(queries.playtimeStats, new RegExp(ACCURATE_SESSION_PLAYTIME_SINCE));
+  assert.match(queries.playtimeStats, /double17 >= 2/);
+  assert.match(queries.totals, new RegExp(ACCURATE_SESSION_PLAYTIME_SINCE));
   assert.match(queries.playtimeDistribution, /GROUP BY duration_bucket/);
 });
 
@@ -128,6 +132,7 @@ test("dashboard snapshots normalize aggregate query rows", () => {
   assert.equal(snapshot.totals.voyageStarts, 180);
   assert.equal(snapshot.totals.crashesPerThousandSessions, 5);
   assert.deepEqual(snapshot.playtime, {
+    measuredSince: "2026-08-05T05:45:00Z",
     sessions: 400,
     meanSeconds: 225,
     medianSeconds: 90,
