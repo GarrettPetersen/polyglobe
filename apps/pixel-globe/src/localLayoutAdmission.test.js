@@ -121,6 +121,29 @@ test("uniform ocean admits a subpixel-safe north-up correction", () => {
   assert.deepEqual(points.positions.get(2), { x: 48, y: 1 });
 });
 
+test("a newly exposed ocean edge cannot make an unbounded correction jump", () => {
+  const points = rotatedAdmissionPoints(60);
+  admitProjectedTiles({
+    positions: points.positions,
+    projectedById: points.projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    ...admissionTopology(3, [[0, 1], [1, 2]], 0),
+    registrationIds: new Set([0, 1]),
+    correctElasticTilesNorthUp: true
+  });
+
+  const admitted = points.positions.get(2);
+  const retained = points.positions.get(1);
+  assert.ok(
+    Math.hypot(admitted.x - retained.x, admitted.y - retained.y) <= 56,
+    `Elastic ocean boundary stretched to ${Math.hypot(
+      admitted.x - retained.x,
+      admitted.y - retained.y
+    ).toFixed(2)}px`
+  );
+});
+
 test("the same correction keeps protected geography rigidly attached", () => {
   const points = rotatedAdmissionPoints(2);
   admitProjectedTiles({

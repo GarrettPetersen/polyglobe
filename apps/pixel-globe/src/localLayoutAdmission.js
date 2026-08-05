@@ -4,7 +4,7 @@ function assertFinitePoint(point, label) {
   }
 }
 
-const MAX_ELASTIC_FRAME_CORRECTION_PX = 6;
+const MAX_ELASTIC_FRAME_CORRECTION_PX = 29;
 const MAX_ELASTIC_ROTATION_CORRECTION_RAD = 16 * Math.PI / 180;
 const MIN_ELASTIC_CORRECTION_TILES = 3;
 
@@ -133,11 +133,11 @@ function admissionPointBetweenFrames(
 ) {
   const registered = registeredPoint(projected, registeredFrame);
   const translated = registeredPoint(projected, translatedFrame);
-  if (correctElasticTilesNorthUp && protection === 0) return translated;
   const correctionX = translated.x - registered.x;
   const correctionY = translated.y - registered.y;
   const correctionLength = Math.hypot(correctionX, correctionY);
-  const correctionLimit = MAX_ELASTIC_FRAME_CORRECTION_PX * (1 - protection / 255);
+  const elasticity = 1 - protection / 255;
+  const correctionLimit = MAX_ELASTIC_FRAME_CORRECTION_PX * elasticity ** 4;
   if (correctionLength <= correctionLimit) return translated;
   if (correctionLimit <= 0 || correctionLength <= 1e-9) return registered;
   const scale = correctionLimit / correctionLength;

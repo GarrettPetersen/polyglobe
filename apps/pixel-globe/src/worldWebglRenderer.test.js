@@ -8,9 +8,21 @@ import {
   WORLD_SCENE_FRAGMENT_SHADER,
   allocateWorldSceneTexture,
   bitMaskQuadVertices,
+  flipWebGlRgbaRows,
   orderedAtlasPageRuns,
   quadVertices
 } from "./worldWebglRenderer.js";
+
+test("WebGL screenshot pixels are flipped into canvas row order", () => {
+  const bottomRow = [1, 2, 3, 255, 4, 5, 6, 255];
+  const topRow = [7, 8, 9, 255, 10, 11, 12, 255];
+  const source = new Uint8Array([...bottomRow, ...topRow]);
+
+  assert.deepEqual(
+    [...flipWebGlRgbaRows(source, 2, 2)],
+    [...topRow, ...bottomRow]
+  );
+});
 
 test("directional ship lighting uses the base sprite color for soft contrast", () => {
   assert.match(BIT_MASK_FRAGMENT_SHADER, /vec3 softLight\(vec3 base, vec3 blend\)/);

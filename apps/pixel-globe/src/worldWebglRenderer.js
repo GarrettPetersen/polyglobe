@@ -265,6 +265,25 @@ export function orderedAtlasPageRuns(entries) {
   return runs;
 }
 
+export function flipWebGlRgbaRows(source, width, height, target = null) {
+  if (!(source instanceof Uint8Array) || source.length !== width * height * 4) {
+    throw new Error(`Invalid WebGL capture pixels for ${width}x${height}`);
+  }
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw new Error(`Invalid WebGL capture dimensions: ${width}x${height}`);
+  }
+  const output = target ?? new Uint8ClampedArray(source.length);
+  if (!(output instanceof Uint8ClampedArray) || output.length !== source.length) {
+    throw new Error("WebGL capture output must be a matching clamped RGBA array");
+  }
+  const rowBytes = width * 4;
+  for (let y = 0; y < height; y++) {
+    const sourceOffset = (height - 1 - y) * rowBytes;
+    output.set(source.subarray(sourceOffset, sourceOffset + rowBytes), y * rowBytes);
+  }
+  return output;
+}
+
 export function quadVertices({
   sourceRect,
   textureWidth,
@@ -534,6 +553,14 @@ export function createWorldWebGL2Renderer({
   const sceneTexture = createNearestTexture(gl);
   const sceneFramebuffer = gl.createFramebuffer();
   if (!sceneFramebuffer) throw new Error("Could not allocate world scene framebuffer");
+  let captureTexture = null;
+  let captureFramebuffer = null;
+  let captureCanvas = null;
+  let captureContext = null;
+  let capturePixels = null;
+  let captureFlippedPixels = null;
+  let captureWidth = 0;
+  let captureHeight = 0;
 
   let sceneWidth = 0;
   let sceneHeight = 0;
@@ -1172,9 +1199,8 @@ export function createWorldWebGL2Renderer({
     drawCalls++;
   }
 
-  function endFrame() {
-    flushBatches();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  function presentScene(framebuffer) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.viewport(0, 0, sceneWidth, sceneHeight);
     gl.disable(gl.BLEND);
     gl.useProgram(presentProgram);
@@ -1188,7 +1214,59 @@ export function createWorldWebGL2Renderer({
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.enable(gl.BLEND);
     drawCalls++;
+  }
+
+  function endFrame() {
+    flushBatches();
+    presentScene(null);
     return canvas;
+  }
+
+  function captureFrameCanvas() {
+    if (sceneWidth <= 0 || sceneHeight <= 0) {
+      throw new Error("Cannot capture the world before its first rendered frame");
+    }
+    ensureCaptureTarget();
+    presentScene(captureFramebuffer);
+    gl.readPixels(
+      0,
+      0,
+      sceneWidth,
+      sceneHeight,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      capturePixels
+    );
+    flipWebGlRgbaRows(capturePixels, sceneWidth, sceneHeight, captureFlippedPixels);
+    const imageData = captureContext.createImageData(sceneWidth, sceneHeight);
+    imageData.data.set(captureFlippedPixels);
+    captureContext.putImageData(imageData, 0, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, sceneWidth, sceneHeight);
+    return captureCanvas;
+  }
+
+  function ensureCaptureTarget() {
+    if (captureWidth === sceneWidth && captureHeight === sceneHeight) return;
+    if (!captureTexture) captureTexture = createNearestTexture(gl);
+    if (!captureFramebuffer) captureFramebuffer = gl.createFramebuffer();
+    if (!captureFramebuffer) throw new Error("Could not allocate world capture framebuffer");
+    allocateWorldSceneTexture(gl, {
+      texture: captureTexture,
+      framebuffer: captureFramebuffer,
+      width: sceneWidth,
+      height: sceneHeight
+    });
+    captureCanvas ??= document.createElement("canvas");
+    captureCanvas.width = sceneWidth;
+    captureCanvas.height = sceneHeight;
+    captureContext = captureCanvas.getContext("2d", { alpha: false });
+    if (!captureContext) throw new Error("Could not create world capture canvas context");
+    captureContext.imageSmoothingEnabled = false;
+    capturePixels = new Uint8Array(sceneWidth * sceneHeight * 4);
+    captureFlippedPixels = new Uint8ClampedArray(capturePixels.length);
+    captureWidth = sceneWidth;
+    captureHeight = sceneHeight;
   }
 
   return Object.freeze({
@@ -1200,6 +1278,7 @@ export function createWorldWebGL2Renderer({
     drawPersistentAtlasSprites,
     drawSolidRect,
     endFrame,
+    captureFrameCanvas,
     stats: () => Object.freeze({
       residentChunks: chunkTextures.size,
       atlasSources: atlasSourceCount,

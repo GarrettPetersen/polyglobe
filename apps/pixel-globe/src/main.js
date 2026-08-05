@@ -7652,7 +7652,7 @@ function compositePresentationCanvas() {
   const outputCtx = output.getContext("2d", { alpha: false });
   if (!outputCtx) throw new Error("Could not create presentation capture canvas");
   outputCtx.imageSmoothingEnabled = false;
-  outputCtx.drawImage(worldRenderer.canvas, 0, 0);
+  outputCtx.drawImage(worldRenderer.captureFrameCanvas(), 0, 0);
   outputCtx.drawImage(canvas, 0, 0);
   return output;
 }
