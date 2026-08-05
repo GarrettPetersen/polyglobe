@@ -42,6 +42,11 @@ export function simplifyDetailedSailShipTextureColor(color) {
   return DETAILED_SAIL_SHIP_TEXTURE_PALETTE.lightWood;
 }
 
+export function simplifyDetailedSailShipSailColor(color) {
+  assertTextureColor(color);
+  return DETAILED_SAIL_SHIP_TEXTURE_PALETTE.sail;
+}
+
 function assertTextureColor(color) {
   if (!color || ![color.r, color.g, color.b].every(Number.isFinite)) {
     throw new Error("Ship texture simplification requires a finite RGB color");

@@ -99,18 +99,6 @@
       "interiorPixels": 10079
     },
     {
-      "slug": "spanish-nao",
-      "label": "Spanish Nao",
-      "sourceTitle": "Nao Victoria Galleon Ship",
-      "score": 11.79,
-      "transitionRatio": 0.189,
-      "isolatedFleckRatio": 0.0418,
-      "microReversalRatio": 0.0379,
-      "checkerboardRatio": 0.0069,
-      "localColorDiversity": 0.9076,
-      "interiorPixels": 6574
-    },
-    {
       "slug": "carrack",
       "label": "Carrack",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
@@ -133,6 +121,18 @@
       "checkerboardRatio": 0.0034,
       "localColorDiversity": 0.9937,
       "interiorPixels": 11527
+    },
+    {
+      "slug": "spanish-nao",
+      "label": "Spanish Nao",
+      "sourceTitle": "Nao Victoria Galleon Ship",
+      "score": 11.3755,
+      "transitionRatio": 0.1849,
+      "isolatedFleckRatio": 0.038,
+      "microReversalRatio": 0.0354,
+      "checkerboardRatio": 0.0053,
+      "localColorDiversity": 0.889,
+      "interiorPixels": 6574
     },
     {
       "slug": "japanese-atakebune",

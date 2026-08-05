@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { simplifyDetailedSailShipTextureColor } from "./shipTextureSimplification.js";
+import {
+  simplifyDetailedSailShipSailColor,
+  simplifyDetailedSailShipTextureColor
+} from "./shipTextureSimplification.js";
 
 test("detailed sail ship texture simplification preserves broad material families", () => {
   assert.deepEqual(simplifyDetailedSailShipTextureColor({ r: 226, g: 220, b: 203 }), {
@@ -25,5 +28,12 @@ test("detailed sail ship texture simplification fails loudly for malformed color
   assert.throws(
     () => simplifyDetailedSailShipTextureColor({ r: 20, g: Number.NaN, b: 10 }),
     /finite RGB color/
+  );
+});
+
+test("detailed sail ship sail simplification cannot classify shaded cloth as wood", () => {
+  assert.deepEqual(
+    simplifyDetailedSailShipSailColor({ r: 71, g: 47, b: 31 }),
+    { r: 226, g: 215, b: 177 }
   );
 });

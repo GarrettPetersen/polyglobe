@@ -39,7 +39,10 @@ import {
 } from "../src/modelCredits.js";
 import { SHIP_STATS, shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
 import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
-import { simplifyDetailedSailShipTextureColor } from "../src/shipTextureSimplification.js";
+import {
+  simplifyDetailedSailShipSailColor,
+  simplifyDetailedSailShipTextureColor
+} from "../src/shipTextureSimplification.js";
 import {
   SHIP_DECK_NORMAL_Y,
   SHIP_MIN_RASTER_WATERLINE_DEPTH,
@@ -911,6 +914,7 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
       uvs: tri.uvs,
       textureSampler: tri.textureSampler || renderOptions?.textureSampler,
       colorTransform: renderOptions?.colorTransform,
+      sourceMeshName: tri.sourceMeshName,
       featureId
     }, {
       x: screenNormal.x,
@@ -1000,7 +1004,7 @@ function shadeSurfaceColor(surface, point, w0, w1, w2) {
     const v = w0 * surface.uvs[0].y + w1 * surface.uvs[1].y + w2 * surface.uvs[2].y;
     color = surface.textureSampler.sample(u, v);
   }
-  if (surface.colorTransform) color = surface.colorTransform(color);
+  if (surface.colorTransform) color = surface.colorTransform(color, surface);
   return baseColor(color, surface.normal);
 }
 
@@ -3834,7 +3838,7 @@ function spanishNaoConfig() {
     targetModelMaxDim: 2.3,
     frameScale: 0.56,
     sideViewTargetModelMaxDim: 2.0,
-    colorTransform: simplifyDetailedSailShipTextureColor,
+    colorTransform: simplifySpanishNaoTextureColor,
     gltfTextureSamplerOptions: {
       maxDimension: 96,
       smoothing: true
@@ -3846,6 +3850,20 @@ function spanishNaoConfig() {
     wakeWaterlineBand: 0.2,
     skipSelfShadowMaps: true
   };
+}
+
+function simplifySpanishNaoTextureColor(color, surface) {
+  if (isSpanishNaoSailMesh(surface?.sourceMeshName)) {
+    return simplifyDetailedSailShipSailColor(color);
+  }
+  return simplifyDetailedSailShipTextureColor(color);
+}
+
+function isSpanishNaoSailMesh(sourceMeshName) {
+  if (typeof sourceMeshName !== "string") {
+    throw new Error("Spanish Nao texture simplification requires a source mesh name");
+  }
+  return /^(?:Vela|Gavia)/i.test(sourceMeshName);
 }
 
 function portugueseCarrackConfig() {

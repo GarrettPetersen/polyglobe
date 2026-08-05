@@ -16,9 +16,9 @@ The score measures one-pixel color reversals, checkerboards, isolated flecks, an
 | 6 | Great Carrack (`ship-of-the-line`) | 12.10 | 4.5% | 0.4% | 7.7% | 84.5% |
 | 7 | Portuguese Carrack (`portuguese-carrack`) | 12.03 | 3.1% | 0.4% | 2.7% | 99.9% |
 | 8 | Turtle Ship (`joseon-turtle-ship`) | 11.94 | 3.7% | 0.2% | 5.0% | 92.4% |
-| 9 | Spanish Nao (`spanish-nao`) | 11.79 | 3.8% | 0.7% | 4.2% | 90.8% |
-| 10 | Carrack (`carrack`) | 11.77 | 5.2% | 0.6% | 5.6% | 81.4% |
-| 11 | Panokseon (`joseon-panokseon`) | 11.52 | 2.8% | 0.3% | 1.3% | 99.4% |
+| 9 | Carrack (`carrack`) | 11.77 | 5.2% | 0.6% | 5.6% | 81.4% |
+| 10 | Panokseon (`joseon-panokseon`) | 11.52 | 2.8% | 0.3% | 1.3% | 99.4% |
+| 11 | Spanish Nao (`spanish-nao`) | 11.38 | 3.5% | 0.5% | 3.8% | 88.9% |
 | 12 | Atakebune (`japanese-atakebune`) | 11.30 | 2.0% | 0.2% | 2.0% | 99.6% |
 | 13 | Urca (`fluyt`) | 11.11 | 4.1% | 0.6% | 2.6% | 85.7% |
 | 14 | Galleon (`galleon`) | 10.99 | 2.0% | 0.1% | 0.3% | 99.8% |
