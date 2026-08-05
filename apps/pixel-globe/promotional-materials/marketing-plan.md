@@ -211,9 +211,18 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Selection notices are due by August 24.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSe8x1tqzdZ0uUqF8gbcamoh8S49S9rHXKcNepI1HyT_yjaU9w/viewform
 
-- [x] **Atlantic Canada Game Celebration — submitted August 2**
-  - Google Forms confirmed that the response was recorded.
+- [x] **Atlantic Canada Game Celebration — accepted August 4**
+  - The organizer confirmed that Marque & Reprisal is included. Steam has
+    approved the event page.
   - Event: October 5–12, 2026 Steam event.
+  - Visibility: Steam's standard automatic event visibility; no additional
+    curated homepage featuring.
+  - Have the Steam demo public and verify its install flow before October 5.
+  - Watch Steamworks for the event invitation shortly before the event and opt
+    in when it appears.
+  - The discount recommendation applies to released games. Marque & Reprisal
+    should remain unreleased for October Next Fest, so no ACGC discount is
+    needed.
   - Why: The eligibility rules accept games that feature Atlantic Canada as a
     substantial playable location. Marque & Reprisal includes St. John's and
     Newfoundland waters, the Grand Banks fishery, Newfoundland whaling grounds,
@@ -221,6 +230,8 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Cost: Free.
   - Pitch: A playable, historically grounded Atlantic Canada within the larger
     1522 world, with trade, fishing, whaling and colonization voyages.
+  - Prepare one regional announcement for Steam and X rather than treating this
+    as a major homepage-featured beat.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSdQJouPQDivmRTGnJ8iLA-ip55fFXVR4XztNrA-9h3O5ZN87A/viewform
 
 - [x] **GWB Game Awards 2026 — submitted August 2**
