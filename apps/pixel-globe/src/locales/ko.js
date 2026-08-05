@@ -79,6 +79,8 @@ export default {
   "common.back": "뒤로",
   "common.continue": "계속",
   "common.decline": "거절",
+  "pronoun.objectFemale": "그녀",
+  "pronoun.objectMale": "그",
   "common.close": "닫기",
   "common.page": "쪽",
   "common.days": "일",

@@ -79,6 +79,8 @@ export default {
   "common.back": "VOLTAR",
   "common.continue": "CONTINUAR",
   "common.decline": "RECUSAR",
+  "pronoun.objectFemale": "ela",
+  "pronoun.objectMale": "ele",
   "common.close": "FECHAR",
   "common.page": "PÁGINA",
   "common.days": "DIAS",

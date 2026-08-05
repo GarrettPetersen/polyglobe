@@ -1,5 +1,6 @@
 import { characterWithBiography, validateCharacterBiography } from "./characterBiography.js";
 import { charactersShareFamilyName } from "./characterNames.js";
+import { characterPronouns } from "./characterPronouns.js";
 import { validateCharacterSkillIds } from "./characterSkills.js";
 
 export const RESCUED_TRAVELER_STAGE_OFFER = "offer";
@@ -298,14 +299,15 @@ export function rescuedTravelerLabel(quest) {
 
 function rescuedTravelerOfferView(session, quest) {
   if (session.stepIndex === 0) {
+    const pronouns = characterPronouns(quest.character);
     return {
       speaker: quest.character.name,
       character: quest.character,
       expressionId: "crying",
       text: rescueOfferText(quest),
       options: [
-        option("Take them aboard", "accept-rescued-traveler"),
-        option("Leave them at the nearest safe shore", "decline-rescued-traveler")
+        option(`Take ${pronouns.object} aboard`, "accept-rescued-traveler"),
+        option(`Leave ${pronouns.object} at the nearest safe shore`, "decline-rescued-traveler")
       ]
     };
   }

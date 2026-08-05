@@ -13,9 +13,8 @@ import {
   MAX_PROTECTED_ADMISSION_SLACK_PX,
   admitProjectedTiles,
   refreshOffscreenLayoutTiles,
-  resetFeaturelessViewportNorthUp,
   retainLocalLayoutAnchor,
-  settleElasticLayoutTowardProjection,
+  settleVisibleElasticTilesWithinMotion,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 import {
@@ -416,6 +415,7 @@ import {
   aboardAnimalCompanionIds,
   acceptAnimalCompanion,
   animalCompanionCharacter,
+  animalCompanionRetirementDialogueSteps,
   animalCompanionRecruitmentIsPending,
   animalNaturalistOfferIsAvailable,
   availableAnimalNaturalistOfferIds,
@@ -581,6 +581,7 @@ import {
   campaignGoalLabel,
   campaignGoalPresentation,
   campaignHomecomingSteps,
+  campaignRetirementBlockedSteps,
   campaignRetirementReturnSteps,
   campaignVictorySummary,
   createCampaignDialogueSession,
@@ -3034,6 +3035,7 @@ let lastStatusMs = 0;
 let lastOverlayMs = 0;
 let worldSpriteAnimationTick = -1;
 let waterAnimationClockMs = 0;
+let lastPresentedOceanSwell = null;
 let waterAnimationDrawTick = -1;
 let fishAnimationDrawTick = -1;
 let precipParticleDrawTick = -1;
@@ -14201,13 +14203,18 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
   if (goal.type === CAMPAIGN_GOAL_TREASURE && !treasureAmbushComplete(goal)) return null;
   if (goal.status === CAMPAIGN_GOAL_COMPLETE) {
+    const retirementBlocked = campaignRetirementBlockedByTravelers();
     const session = createCampaignDialogueSession({
       cityTileId: cityCall.tileId,
-      steps: campaignRetirementReturnSteps(goal, gameState.playerCharacter),
+      steps: [
+        ...campaignRetirementReturnSteps(goal, gameState.playerCharacter),
+        ...(retirementBlocked ? campaignRetirementBlockedSteps() : [])
+      ],
       phase: `${goal.type}-retirement-choice`,
       continueToPortOnClose: true,
       nextPortNodeId: needsLoadout ? "loadout" : "greeting",
-      retirementChoiceOnClose: true
+      retirementChoiceOnClose: !retirementBlocked,
+      retirementBlockedOnClose: retirementBlocked
     });
     session.needsLoadout = needsLoadout;
     return session;
@@ -14232,18 +14239,27 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
   const steps = arrivedDrunk
     ? [...drunkenCampaignHomecomingSteps(goal, gameState.playerCharacter), ...ordinarySteps]
     : ordinarySteps;
+  const retirementBlocked = outcome.completed && campaignRetirementBlockedByTravelers();
   const session = createCampaignDialogueSession({
     cityTileId: cityCall.tileId,
-    steps,
+    steps: [
+      ...steps,
+      ...(retirementBlocked ? campaignRetirementBlockedSteps() : [])
+    ],
     phase: outcome.completed
       ? `${goal.type}-victory`
       : goal.type,
     continueToPortOnClose: true,
     nextPortNodeId: needsLoadout ? "loadout" : "greeting",
-    retirementChoiceOnClose: outcome.completed
+    retirementChoiceOnClose: outcome.completed && !retirementBlocked,
+    retirementBlockedOnClose: retirementBlocked
   });
   session.needsLoadout = needsLoadout;
   return session;
+}
+
+function campaignRetirementBlockedByTravelers() {
+  return shipTravelerManifest(gameState).some(({ count }) => count > 0);
 }
 
 function openPendingDiscoveryPortDialogue() {
@@ -14664,24 +14680,48 @@ function beginCampaignRetirement() {
     throw new Error("Campaign retirement requires a completed campaign goal");
   }
   const city = currentDialogueCity();
+  if (campaignRetirementBlockedByTravelers()) {
+    dialogueState = createCampaignDialogueSession({
+      cityTileId: city.tileId,
+      steps: campaignRetirementBlockedSteps(),
+      phase: `${goal.type}-retirement-blocked`,
+      continueToPortOnClose: true,
+      nextPortNodeId: "greeting",
+      retirementBlockedOnClose: true
+    });
+    dialogueLayout = createDialogueLayoutState();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow("retirement postponed for travelers");
+    dirty = true;
+    return;
+  }
   const romance = createCampaignVictoryRomance({
     captain: gameState.playerCharacter,
     namedCrew: namedCrewMembers(gameState),
     currentMinute: weatherClockMinutes,
     homeLongitudeDeg: city.lon
   });
-  if (!romance) {
+  const animalCompanionIds = aboardAnimalCompanionIds(gameState.memory.animalCompanions);
+  const animalCharacters = animalCompanionIds.map(animalCompanionCharacter);
+  const retirementSteps = [
+    ...(romance ? campaignRomanceDialogueSteps(romance) : []),
+    ...animalCompanionRetirementDialogueSteps(animalCompanionIds, {
+      hasRomance: Boolean(romance)
+    })
+  ];
+  if (retirementSteps.length === 0) {
     completeCampaignVoyage();
     return;
   }
   dialogueState = createCampaignDialogueSession({
     cityTileId: city.tileId,
-    steps: campaignRomanceDialogueSteps(romance),
+    steps: retirementSteps,
     phase: `${goal.type}-retirement`,
     victoryOnClose: true,
-    companionCharacter: romance.companion
+    companionCharacter: romance?.companion || null,
+    participantCharacters: animalCharacters
   });
-  dialogueState.victoryRomance = romance;
+  dialogueState.victoryRomance = romance || null;
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   saveVoyageNow("chose campaign retirement");
@@ -16734,12 +16774,19 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
     const entryIndex = dialogueState.stepIndex;
     const entry = dialogueState.steps[entryIndex];
     const companion = dialogueState.companionCharacter || null;
+    const participantId = entry.participantId || entry.listenerParticipantId || null;
+    const participant = participantId
+      ? dialogueState.participantCharacters?.find(({ id }) => id === participantId) || null
+      : null;
+    if (participantId && !participant) {
+      throw new Error(`Campaign portrait participant is missing: ${participantId}`);
+    }
     const companionExchange = companion && (
       entry.speaker === "companion" ||
       dialogueState.steps[entryIndex - 1]?.speaker === "companion" ||
       dialogueState.steps[entryIndex + 1]?.speaker === "companion"
     );
-    const counterpart = companionExchange ? companion : campaignGoalContactCharacter();
+    const counterpart = participant || (companionExchange ? companion : campaignGoalContactCharacter());
     return dialoguePortraitPair(captain, counterpart, speakerCharacter);
   }
 
@@ -22059,7 +22106,13 @@ function completeCampaignVoyage() {
     recordVoyageAchievementEvent(gameState.memory.achievements, { type: "married" });
   }
   syncAchievementsFromGameState();
-  const victory = campaignVictorySummary(goal, gameState.playerCharacter, { romance });
+  const animalCompanionCount = aboardAnimalCompanionIds(
+    gameState.memory.animalCompanions
+  ).length;
+  const victory = campaignVictorySummary(goal, gameState.playerCharacter, {
+    romance,
+    animalCompanionCount
+  });
   endPlayerVoyage(victory.reason, {
     sinkShip: false,
     outcomeType: "victory",
@@ -26748,6 +26801,11 @@ function drawDayNightWorld(layers, nowMs) {
     }
   });
   worldRenderer.endFrame();
+  lastPresentedOceanSwell = {
+    layout: localLayout,
+    swell,
+    surfaceIceRevision: surfaceIceSettledRevision
+  };
 }
 
 function drawCachedWorldLayer(key, layer, offset, revision) {
@@ -28165,29 +28223,59 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     protectionById: chartTileProtection,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
-    tileVisualRadius: TILE_ART_HALF
+    tileVisualRadius: TILE_ART_HALF,
+    authoritativePositions: localLayout.positions,
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY
   });
-  const swell = currentOceanSwellPresentation();
+  const retainedCorrectionViewportIds = new Set(
+    [...correctionSupport.viewportTileIds].filter((id) => localLayout.positions.has(id))
+  );
   const admissionCorrectionActive = correctionSupport.correctionActive;
-  resetFeaturelessViewportNorthUp({
-    positions: localLayout.positions,
-    projectedById,
-    anchorId: chartCenterTileId,
-    viewportTileIds: correctionSupport.viewportTileIds,
-    protectionById: chartTileProtection
-  });
-  const visibleSettlementActive = admissionCorrectionActive && swell.settlingActive;
-  if (visibleSettlementActive) {
-    settleElasticLayoutTowardProjection({
+  const previousPresentation = lastPresentedOceanSwell?.layout === localLayout
+    ? lastPresentedOceanSwell
+    : null;
+  if (
+    admissionCorrectionActive &&
+    previousPresentation &&
+    previousPresentation.surfaceIceRevision === surfaceIceSettledRevision
+  ) {
+    const currentSwell = currentOceanSwellPresentation();
+    const movableTileIds = new Set();
+    const previousOffsetsById = new Map();
+    const currentOffsetsById = new Map();
+    for (const id of correctionSupport.elasticTileIds) {
+      if (
+        !isWaterSurfaceRow(earthById[id]) ||
+        tileHasSurfaceIce(id)
+      ) continue;
+      movableTileIds.add(id);
+      const globePosition = tileCenterVector(id);
+      previousOffsetsById.set(id, oceanSwellOffset(previousPresentation.swell, globePosition));
+      currentOffsetsById.set(id, oceanSwellOffset(currentSwell, globePosition));
+    }
+    settleVisibleElasticTilesWithinMotion({
       positions: localLayout.positions,
-      projectedTiles: projectedVisible,
+      projectedById,
       protectionById: chartTileProtection,
+      movableTileIds,
+      previousOffsetsById,
+      currentOffsetsById,
       anchorId: chartCenterTileId,
       viewportWidth: SCREEN_W,
       viewportHeight: SCREEN_H,
       tileVisualRadius: TILE_ART_HALF,
-      maximumStepPx: swell.settlementStepPx
+      viewX: localLayout.viewX,
+      viewY: localLayout.viewY,
+      maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
     });
+    // One displayed-to-current motion interval may hide settlement only once.
+    lastPresentedOceanSwell = null;
+  } else if (
+    previousPresentation &&
+    previousPresentation.surfaceIceRevision !== surfaceIceSettledRevision
+  ) {
+    lastPresentedOceanSwell = null;
   }
   refreshOffscreenLayoutTiles({
     positions: localLayout.positions,
@@ -28196,7 +28284,9 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     tileVisualRadius: TILE_ART_HALF,
-    anchorId: chartCenterTileId
+    anchorId: chartCenterTileId,
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY
   });
 
   const pending = new Set();
@@ -28223,15 +28313,32 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
       ? MAX_ELASTIC_FRAME_CORRECTION_PX
       : 0,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
-    protectedCorrectionViewportIds: correctionSupport.viewportTileIds
+    protectedCorrectionViewportIds: retainedCorrectionViewportIds
   });
 }
 
 function cullLocalLayout(projectedVisible) {
   const visibleIds = new Set(projectedVisible.map((item) => item.id));
-  for (const id of localLayout.positions.keys()) {
-    if (!visibleIds.has(id)) localLayout.positions.delete(id);
+  for (const [id, position] of localLayout.positions.entries()) {
+    if (visibleIds.has(id)) continue;
+    if (localLayoutPositionOverlapsViewport(position, TILE_ART_SIZE)) {
+      throw new Error(`Chart rebuild attempted to discard visible local tile: ${id}`);
+    }
+    localLayout.positions.delete(id);
   }
+}
+
+function localLayoutPositionOverlapsViewport(position, paddingPx) {
+  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+    throw new Error("Local layout viewport test requires a finite position");
+  }
+  if (!Number.isFinite(paddingPx) || paddingPx < 0) {
+    throw new Error(`Local layout viewport padding must be non-negative: ${paddingPx}`);
+  }
+  const screenX = position.x + SCREEN_W / 2 - localLayout.viewX;
+  const screenY = position.y + SCREEN_H / 2 - localLayout.viewY;
+  return screenX >= -paddingPx && screenX <= SCREEN_W + paddingPx &&
+    screenY >= -paddingPx && screenY <= SCREEN_H + paddingPx;
 }
 
 function buildChart(anchorCamera) {
@@ -34859,6 +34966,22 @@ function collectChartTiles(chartCamera, chartCenterTileId) {
         seen.add(nid);
         q.push(nid);
       }
+    }
+  }
+
+  if (localLayout) {
+    const collectedIds = new Set(visible.map(({ id }) => id));
+    for (const [id, position] of localLayout.positions.entries()) {
+      if (
+        collectedIds.has(id) ||
+        !localLayoutPositionOverlapsViewport(position, TILE_ART_SIZE)
+      ) continue;
+      const projected = projectTileCenterFor(id, chartCamera);
+      if (!projected) {
+        throw new Error(`Cannot retain visible local tile in chart projection: ${id}`);
+      }
+      visible.push({ id, x: projected.x, y: projected.y });
+      collectedIds.add(id);
     }
   }
 

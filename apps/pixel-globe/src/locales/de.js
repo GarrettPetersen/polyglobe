@@ -79,6 +79,8 @@ export default {
   "common.back": "ZURÜCK",
   "common.continue": "FORTSETZEN",
   "common.decline": "ABLEHNEN",
+  "pronoun.objectFemale": "sie",
+  "pronoun.objectMale": "ihn",
   "common.close": "SCHLIESSEN",
   "common.page": "SEITE",
   "common.days": "TAGE",

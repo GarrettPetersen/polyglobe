@@ -65,7 +65,7 @@ export const PERK_ITEMS = Object.freeze([
     "item:flemish-sailcloth", { topSpeedMultiplier: 1.08 }, ["europe"]),
   item("lateen-sailcloth", "Fine Lateen Sailcloth", "Light, strong canvas keeps a lateen rig drawing closer to the wind.", 2000, 2,
     "item:lateen-sailcloth", { topSpeedMultiplier: 1.04, windwardAngleReductionDeg: 2 }, ["indian-ocean"]),
-  item("lead-sheathing", "Lead Hull Sheathing", "Period hull sheathing sometimes turns a glancing blow or grounding.", 3600, 3,
+  item("lead-sheathing", "Lead Hull Sheathing", "Lead plates can turn aside a glancing shot or protect the hull during a grounding.", 3600, 3,
     "item:lead-sheathing", { damageResistanceChance: 0.14 }),
   item("surgeons-chest", "Surgeon's Chest", "Bandages, needles, splints, and spirits improve survival after injury.", 1750, 2,
     "item:surgeons-chest", { crewCasualtyResistanceChance: 0.16 }),

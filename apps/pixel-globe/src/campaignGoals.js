@@ -3,6 +3,7 @@ import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDistance.js";
 import { WHITE_WHALE_ID } from "./whaleSpecies.js";
 import { campaignRomanceEpilogue, validateCampaignVictoryRomance } from "./campaignRomance.js";
+import { characterPronouns } from "./characterPronouns.js";
 import {
   TREASURE_MAP_PIECE_COUNT,
   createTreasureCampaignFields,
@@ -597,6 +598,14 @@ export function campaignRetirementReturnSteps(goal, playerCharacter) {
   ];
 }
 
+export function campaignRetirementBlockedSteps() {
+  return [step(
+    "player",
+    "determined",
+    "My own quest is finished, but passengers, emissaries, or colonists are still aboard. I will not retire until everyone entrusted to this ship reaches their destination."
+  )];
+}
+
 export function drunkenCampaignHomecomingSteps(goal, playerCharacter) {
   validateCampaignGoal(goal);
   assertCharacter(playerCharacter);
@@ -624,39 +633,51 @@ export function drunkenCampaignHomecomingSteps(goal, playerCharacter) {
   ];
 }
 
-export function campaignVictorySummary(goal, playerCharacter, { romance = null } = {}) {
+export function campaignVictorySummary(
+  goal,
+  playerCharacter,
+  { romance = null, animalCompanionCount = 0 } = {}
+) {
   validateCampaignGoal(goal);
   assertCharacter(playerCharacter);
   if (goal.status !== CAMPAIGN_GOAL_COMPLETE) throw new Error("Campaign victory requires a completed goal");
   if (romance) validateCampaignVictoryRomance(romance);
+  if (!Number.isInteger(animalCompanionCount) || animalCompanionCount < 0) {
+    throw new Error(`Invalid retiring animal companion count: ${animalCompanionCount}`);
+  }
   const culture = culturalStory(playerCharacter);
   const personal = personalEnding(playerCharacter, goal.endingVariant, Boolean(romance));
   const romanceEnding = romance ? ` ${campaignRomanceEpilogue(romance, playerCharacter)}` : "";
+  const animalEnding = animalCompanionCount === 0
+    ? ""
+    : animalCompanionCount === 1
+      ? " The captain's animal companion came ashore too and remained a cherished, disorderly member of the household for the rest of its days."
+      : " The captain's animal companions came ashore too and remained cherished, disorderly members of the household for the rest of their days.";
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
     return {
       title: "THE GREATEST EXPLORER",
       reason: `Reported every known wonder to the patron of ${playerCharacter.homePortName}.`,
-      legacy: `${playerCharacter.name} was remembered as the greatest explorer of the age. ${culture.explorerOutro} ${personal}${romanceEnding}`
+      legacy: `${playerCharacter.name} was remembered as the greatest explorer of the age. ${culture.explorerOutro} ${personal}${romanceEnding}${animalEnding}`
     };
   }
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) {
     return {
       title: "THE WHITE WHALE",
       reason: "Hunted the white whale across the world and returned home alive.",
-      legacy: `${playerCharacter.name} returned with the white whale's story. The chase became legend, but the captain finally learned to live beyond it. ${personal}${romanceEnding}`
+      legacy: `${playerCharacter.name} returned with the white whale's story. The chase became legend, but the captain finally learned to live beyond it. ${personal}${romanceEnding}${animalEnding}`
     };
   }
   if (goal.type === CAMPAIGN_GOAL_TREASURE) {
     return {
       title: "CAPTAIN'S TREASURE",
       reason: `Recovered all ${TREASURE_MAP_PIECE_COUNT} pieces of Captain ${goal.treasureCaptainName}'s map, found the island, and fought the old crew home.`,
-      legacy: `${playerCharacter.name} returned with Captain ${goal.treasureCaptainName}'s treasure. The map was locked away, the gold wisely spent, and no black sail ruled the captain's fate again. ${personal}${romanceEnding}`
+      legacy: `${playerCharacter.name} returned with Captain ${goal.treasureCaptainName}'s treasure. The map was locked away, the gold wisely spent, and no black sail ruled the captain's fate again. ${personal}${romanceEnding}${animalEnding}`
     };
   }
   return {
     title: "THE ESTATE IS SAVED",
     reason: "Repaid the family debt in full and reclaimed the estate.",
-    legacy: `${playerCharacter.name} returned home free of debt and kept the family estate. ${culture.debtOutro} ${personal}${romanceEnding}`
+    legacy: `${playerCharacter.name} returned home free of debt and kept the family estate. ${culture.debtOutro} ${personal}${romanceEnding}${animalEnding}`
   };
 }
 
@@ -686,16 +707,31 @@ export function createCampaignDialogueSession({
   nextPortNodeId = null,
   victoryOnClose = false,
   retirementChoiceOnClose = false,
-  companionCharacter = null
+  retirementBlockedOnClose = false,
+  companionCharacter = null,
+  participantCharacters = []
 }) {
   if (!Number.isInteger(cityTileId) || cityTileId < 0) throw new Error(`Invalid campaign dialogue city: ${cityTileId}`);
   if (!Array.isArray(steps) || steps.length === 0) throw new Error("Campaign dialogue requires at least one step");
   if (typeof phase !== "string" || phase === "") throw new Error("Campaign dialogue requires a phase");
-  if (victoryOnClose && retirementChoiceOnClose) {
-    throw new Error("Campaign dialogue cannot both choose retirement and close into victory");
+  const closingModes = [victoryOnClose, retirementChoiceOnClose, retirementBlockedOnClose]
+    .filter(Boolean).length;
+  if (closingModes > 1) {
+    throw new Error("Campaign dialogue can have only one closing mode");
   }
   if (companionCharacter !== null) assertPerson(companionCharacter);
-  for (const entry of steps) validateDialogueStep(entry, companionCharacter);
+  if (!Array.isArray(participantCharacters)) {
+    throw new Error("Campaign dialogue participants must be an array");
+  }
+  const participantIds = new Set();
+  for (const character of participantCharacters) {
+    assertPerson(character);
+    if (participantIds.has(character.id)) {
+      throw new Error(`Duplicate campaign dialogue participant: ${character.id}`);
+    }
+    participantIds.add(character.id);
+  }
+  for (const entry of steps) validateDialogueStep(entry, companionCharacter, participantIds);
   return {
     kind: "campaign-goal",
     cityTileId,
@@ -708,7 +744,9 @@ export function createCampaignDialogueSession({
     nextPortNodeId,
     victoryOnClose,
     retirementChoiceOnClose,
-    companionCharacter
+    retirementBlockedOnClose,
+    companionCharacter,
+    participantCharacters
   };
 }
 
@@ -720,8 +758,8 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
   const speakerCharacter = campaignDialogueSpeaker(session, entry, playerCharacter, contactCharacter);
   const role = entry.speaker === "player"
     ? "captain"
-    : entry.speaker === "companion"
-      ? "crewmate"
+    : entry.speaker === "companion" || entry.speaker === "participant"
+      ? speakerCharacter.role === "ship-animal-companion" ? "companion" : "crewmate"
       : session.phase.startsWith("family-debt")
       ? "creditor"
       : session.phase.startsWith("white-whale")
@@ -744,6 +782,11 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
             action: { type: "campaign-keep-sailing" }
           }
         ]
+      : session.stepIndex === session.steps.length - 1 && session.retirementBlockedOnClose
+        ? [{
+            label: "Keep sailing",
+            action: { type: "campaign-keep-sailing" }
+          }]
       : [{
           label: session.stepIndex === session.steps.length - 1
             ? session.victoryOnClose ? "See my legacy" : session.continueToPortOnClose ? "Continue into port" : "Begin voyage"
@@ -776,6 +819,15 @@ export function selectCampaignDialogueOption(session, optionIndex = session.sele
       action: {
         type: optionIndex === 0 ? "campaign-retire" : "campaign-keep-sailing"
       }
+    };
+  }
+  if (session.retirementBlockedOnClose) {
+    if (optionIndex !== 0) {
+      throw new Error(`Invalid blocked campaign retirement option index: ${optionIndex}`);
+    }
+    return {
+      closed: true,
+      action: { type: "campaign-keep-sailing" }
     };
   }
   if (optionIndex !== 0) throw new Error(`Invalid campaign dialogue option index: ${optionIndex}`);
@@ -1201,13 +1253,11 @@ function assertExactKeys(label, actualKeys, expectedKeys) {
 }
 
 function personalEnding(character, variant, hasRomance = false) {
-  const pronouns = (character.sex || character.gender) === "female"
-    ? { subject: "She", possessive: "her" }
-    : { subject: "He", possessive: "his" };
+  const pronouns = characterPronouns(character, { capitalizeSubject: true });
   const endings = [
     hasRomance
-      ? `${pronouns.subject} filled ${pronouns.possessive} home with charts and loud stories of the sea.`
-      : `${pronouns.subject} later married and filled ${pronouns.possessive} home with children, charts, and loud stories of the sea.`,
+      ? `${pronouns.subject} filled ${pronouns.possessiveDeterminer} home with charts and loud stories of the sea.`
+      : `${pronouns.subject} later married and filled ${pronouns.possessiveDeterminer} home with children, charts, and loud stories of the sea.`,
     `${pronouns.subject} never stopped traveling entirely, but every later voyage ended at a home chosen freely.`,
     `${pronouns.subject} trained young captains and lived long enough to see them return with discoveries of their own.`,
     `${pronouns.subject} spent later years writing a plain account of the voyage, which became far more famous than intended.`
@@ -1252,15 +1302,37 @@ function assertCampaignDialogueSession(session) {
   if (session.companionCharacter !== null && session.companionCharacter !== undefined) {
     assertPerson(session.companionCharacter);
   }
-  validateDialogueStep(session.steps[session.stepIndex], session.companionCharacter || null);
+  const participantCharacters = session.participantCharacters || [];
+  if (!Array.isArray(participantCharacters)) {
+    throw new Error("Campaign dialogue participants must be an array");
+  }
+  const participantIds = new Set();
+  for (const character of participantCharacters) {
+    assertPerson(character);
+    if (participantIds.has(character.id)) {
+      throw new Error(`Duplicate campaign dialogue participant: ${character.id}`);
+    }
+    participantIds.add(character.id);
+  }
+  validateDialogueStep(
+    session.steps[session.stepIndex],
+    session.companionCharacter || null,
+    participantIds
+  );
 }
 
-function validateDialogueStep(entry, companionCharacter = null) {
-  if (!entry || !["player", "contact", "companion"].includes(entry.speaker)) {
+function validateDialogueStep(entry, companionCharacter = null, participantIds = new Set()) {
+  if (!entry || !["player", "contact", "companion", "participant"].includes(entry.speaker)) {
     throw new Error(`Invalid campaign dialogue speaker: ${entry?.speaker}`);
   }
   if (entry.speaker === "companion" && !companionCharacter) {
     throw new Error("Campaign companion dialogue requires a named crewmate");
+  }
+  if (entry.speaker === "participant" && !participantIds.has(entry.participantId)) {
+    throw new Error(`Campaign dialogue participant is missing: ${entry.participantId}`);
+  }
+  if (entry.listenerParticipantId !== undefined && !participantIds.has(entry.listenerParticipantId)) {
+    throw new Error(`Campaign dialogue listener is missing: ${entry.listenerParticipantId}`);
   }
   if (typeof entry.expressionId !== "string" || entry.expressionId === "") {
     throw new Error("Campaign dialogue requires an expression");
@@ -1276,8 +1348,13 @@ function validateDialogueStep(entry, companionCharacter = null) {
 function campaignDialogueSpeaker(session, entry, playerCharacter, contactCharacter) {
   if (entry.speaker === "player") return playerCharacter;
   if (entry.speaker === "contact") return contactCharacter;
-  if (!session.companionCharacter) throw new Error("Campaign dialogue lost its companion character");
-  return session.companionCharacter;
+  if (entry.speaker === "companion") {
+    if (!session.companionCharacter) throw new Error("Campaign dialogue lost its companion character");
+    return session.companionCharacter;
+  }
+  const participant = session.participantCharacters?.find(({ id }) => id === entry.participantId);
+  if (!participant) throw new Error(`Campaign dialogue lost participant: ${entry.participantId}`);
+  return participant;
 }
 
 function campaignGoalDefinition(type) {

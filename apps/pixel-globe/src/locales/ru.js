@@ -79,6 +79,8 @@ export default {
   "common.back": "НАЗАД",
   "common.continue": "ПРОДОЛЖИТЬ",
   "common.decline": "ОТКАЗАТЬСЯ",
+  "pronoun.objectFemale": "её",
+  "pronoun.objectMale": "его",
   "common.close": "ЗАКРЫТЬ",
   "common.page": "СТРАНИЦА",
   "common.days": "ДНЕЙ",

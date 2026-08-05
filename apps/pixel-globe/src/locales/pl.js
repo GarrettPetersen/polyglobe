@@ -79,6 +79,8 @@ export default {
   "common.back": "WRÓĆ",
   "common.continue": "KONTYNUUJ",
   "common.decline": "ODMÓW",
+  "pronoun.objectFemale": "ją",
+  "pronoun.objectMale": "go",
   "common.close": "ZAMKNIJ",
   "common.page": "STRONA",
   "common.days": "DNI",

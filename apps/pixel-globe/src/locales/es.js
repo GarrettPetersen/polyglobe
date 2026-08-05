@@ -79,6 +79,8 @@ export default {
   "common.back": "ATRÁS",
   "common.continue": "CONTINUAR",
   "common.decline": "RECHAZAR",
+  "pronoun.objectFemale": "ella",
+  "pronoun.objectMale": "él",
   "common.close": "CERRAR",
   "common.page": "PÁGINA",
   "common.days": "DÍAS",

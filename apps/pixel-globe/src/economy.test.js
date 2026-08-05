@@ -558,6 +558,22 @@ test("an isolated Mediterranean city replenishes native grain after its market i
   assert.equal(grain.listedForSale, true);
 });
 
+test("an isolated Mediterranean city replenishes wine and olive oil after depletion", () => {
+  const naples = port(120, "Naples", "Kingdom of Naples", "mediterranean", 50000);
+  const economy = createWorldEconomy({ ports: [naples], startMinute: 0 });
+  destroyPortGoodStock(economy, naples, WINE_GOOD_ID);
+  destroyPortGoodStock(economy, naples, "olive-oil");
+
+  advanceWorldEconomy(economy, 10 * 24 * 60);
+
+  const market = marketByGood(economy, naples);
+  for (const goodId of [WINE_GOOD_ID, "olive-oil"]) {
+    const row = market.get(goodId);
+    assert.ok(row.productionPerDay > row.consumptionPerDay, goodId);
+    assert.ok(row.stock > 0, goodId);
+  }
+});
+
 test("English ports distinguish native specialties from imported market goods", () => {
   const names = [
     "Bristol",

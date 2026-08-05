@@ -35,8 +35,6 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad }) {
     16
   );
   const amplitudeBin = Math.round(amplitudePx * 4);
-  const settlingActive = stormStrength > 0 || calmEnvelope >= 0.58;
-
   return Object.freeze({
     amplitudePx,
     cacheKey: `${frame}:${directionBin}:${amplitudeBin}`,
@@ -46,10 +44,6 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad }) {
       y: -Math.sin(flowDirectionRad)
     }),
     frame,
-    settlingActive,
-    settlementStepPx: settlingActive
-      ? (stormStrength >= 0.55 ? 2 : 1)
-      : 0,
     stormStrength
   });
 }

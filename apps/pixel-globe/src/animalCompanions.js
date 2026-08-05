@@ -468,6 +468,45 @@ export function animalCompanionCharacter(companionId) {
   });
 }
 
+export function animalCompanionRetirementDialogueSteps(companionIds, { hasRomance = false } = {}) {
+  const ids = validatedCompanionIds(companionIds, "retirement dialogue");
+  if (ids.length === 0) return Object.freeze([]);
+  const steps = [Object.freeze({
+    speaker: "player",
+    listenerParticipantId: animalCompanionCharacter(ids[0]).id,
+    expressionId: "happy",
+    text: ids.length === 1
+      ? "You are coming home with me too. After all these miles, I cannot imagine a hearth without you beside it."
+      : "You are all coming home with me too. After all these miles, I cannot imagine a hearth without your particular disorder."
+  })];
+  const replies = Object.freeze({
+    panda: Object.freeze({ expressionId: "happy", text: "Hrrmph." }),
+    penguin: Object.freeze({ expressionId: "amused", text: "Honk!" }),
+    raccoon: Object.freeze({ expressionId: "mischievous", text: "Chrrr-chrrr!" })
+  });
+  for (const id of ids) {
+    const reply = replies[id];
+    if (!reply) throw new Error(`Missing ${id} retirement reply`);
+    steps.push(Object.freeze({
+      speaker: "participant",
+      participantId: animalCompanionCharacter(id).id,
+      expressionId: reply.expressionId,
+      text: reply.text
+    }));
+  }
+  steps.push(Object.freeze({
+    speaker: hasRomance ? "companion" : "player",
+    ...(hasRomance ? {} : {
+      listenerParticipantId: animalCompanionCharacter(ids[ids.length - 1]).id
+    }),
+    expressionId: "happy",
+    text: hasRomance
+      ? "Good. I was afraid our household might be peaceful."
+      : "That settles it. I began this voyage with a ship; I retire with a family no chartmaker could have predicted."
+  }));
+  return Object.freeze(steps);
+}
+
 export function animalCompanionNpcReaction(memory, companionId, interactionKey, npcCharacter) {
   const entry = requiredCompanion(companionId);
   const state = companionState(memory, companionId);
@@ -706,6 +745,15 @@ function companionState(memory, companionId) {
   validateAnimalCompanionMemory(memory);
   requiredCompanion(companionId);
   return memory.byId[companionId];
+}
+
+function validatedCompanionIds(companionIds, label) {
+  if (!Array.isArray(companionIds)) throw new Error(`Animal companion ${label} requires an id list`);
+  if (new Set(companionIds).size !== companionIds.length) {
+    throw new Error(`Animal companion ${label} contains duplicate ids`);
+  }
+  for (const companionId of companionIds) requiredCompanion(companionId);
+  return companionIds;
 }
 
 function requiredCompanion(companionId) {

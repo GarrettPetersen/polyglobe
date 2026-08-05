@@ -8,7 +8,6 @@ export const MAX_ELASTIC_FRAME_CORRECTION_PX = 29;
 export const MAX_PROTECTED_ADMISSION_SLACK_PX = 2;
 const MAX_ELASTIC_ROTATION_CORRECTION_RAD = Math.PI;
 const MIN_ELASTIC_CORRECTION_TILES = 3;
-const NORTH_UP_RESET_TOLERANCE_PX = 1.5;
 
 function registeredProjectionFrame(positions, projectedById, anchorId, registrationIds) {
   const anchorPosition = positions.get(anchorId);
@@ -253,30 +252,14 @@ function directlyProtectedAdmissionFrames({
       protectedCorrectionViewportIds,
       visibleLimitPx: maxProtectedCorrectionPx
     });
-    const sourceById = new Map();
-    let correctionX = 0;
-    let correctionY = 0;
     for (const id of pendingComponentIds) {
       const projected = projectedById.get(id);
       assertFinitePoint(projected, `Projected protected tile ${id}`);
       const source = registeredPoint(projected, componentFrame);
       const target = registeredPoint(projected, targetFrame);
-      sourceById.set(id, source);
-      correctionX += target.x - source.x;
-      correctionY += target.y - source.y;
-    }
-    correctionX /= pendingComponentIds.length;
-    correctionY /= pendingComponentIds.length;
-
-    for (const id of pendingComponentIds) {
-      const projected = projectedById.get(id);
-      const source = sourceById.get(id);
       const corrected = pixelPointTowardWithinDistance(
         source,
-        {
-          x: source.x + correctionX,
-          y: source.y + correctionY
-        },
+        target,
         correctionLimitById.get(id)
       );
       frameByPendingId.set(id, {
@@ -420,9 +403,7 @@ function protectedRetainedComponentIds({
         !positions.has(neighborId) ||
         !projectedById.has(neighborId) ||
         (rigidRegistrationIds && !rigidRegistrationIds.has(neighborId))
-      ) {
-        continue;
-      }
+      ) continue;
       retainedIds.add(neighborId);
       queue.push(neighborId);
     }
@@ -437,9 +418,7 @@ function protectedRetainedComponentIds({
         !positions.has(neighborId) ||
         !projectedById.has(neighborId) ||
         (rigidRegistrationIds && !rigidRegistrationIds.has(neighborId))
-      ) {
-        continue;
-      }
+      ) continue;
       retainedIds.add(neighborId);
       queue.push(neighborId);
     }
@@ -461,9 +440,7 @@ function visibleGlobalProtectionComponentIds({
       directProtectionComponentById[id] === globalComponentId &&
       projectedById.has(id) &&
       (!rigidRegistrationIds || rigidRegistrationIds.has(id))
-    ) {
-      ids.push(id);
-    }
+    ) ids.push(id);
   }
   return ids;
 }
@@ -603,72 +580,6 @@ export function admitProjectedTiles({
   return admitted;
 }
 
-export function settleElasticLayoutTowardProjection({
-  positions,
-  projectedTiles,
-  protectionById,
-  anchorId,
-  viewportWidth,
-  viewportHeight,
-  tileVisualRadius,
-  maximumStepPx
-}) {
-  if (!(positions instanceof Map)) {
-    throw new Error("Elastic layout settlement requires a positions map");
-  }
-  if (!Array.isArray(projectedTiles)) {
-    throw new Error("Elastic layout settlement requires projected tiles");
-  }
-  if (!(protectionById instanceof Uint8Array)) {
-    throw new Error("Elastic layout settlement requires chart protection");
-  }
-  if (!Number.isInteger(anchorId) || !positions.has(anchorId)) {
-    throw new Error(`Elastic layout settlement requires a retained anchor: ${anchorId}`);
-  }
-  if (!Number.isFinite(maximumStepPx) || maximumStepPx < 0) {
-    throw new Error(`Elastic layout settlement step must be non-negative: ${maximumStepPx}`);
-  }
-  const viewportIds = projectedViewportTileIds({
-    projectedTiles,
-    protectionById,
-    viewportWidth,
-    viewportHeight,
-    tileVisualRadius
-  });
-  if (maximumStepPx === 0) return 0;
-
-  const projectedById = new Map(projectedTiles.map((tile) => [tile.id, tile]));
-  const anchorPosition = positions.get(anchorId);
-  const anchorProjected = projectedById.get(anchorId);
-  assertFinitePoint(anchorPosition, `Elastic layout anchor position for tile ${anchorId}`);
-  assertFinitePoint(anchorProjected, `Elastic layout projected anchor for tile ${anchorId}`);
-
-  let settled = 0;
-  for (const id of viewportIds) {
-    if (id === anchorId || protectionById[id] !== 0) continue;
-    const position = positions.get(id);
-    if (!position) continue;
-    const projected = projectedById.get(id);
-    assertFinitePoint(position, `Elastic layout position for tile ${id}`);
-    assertFinitePoint(projected, `Elastic layout projection for tile ${id}`);
-    const targetX = anchorPosition.x + projected.x - anchorProjected.x;
-    const targetY = anchorPosition.y + projected.y - anchorProjected.y;
-    const dx = targetX - position.x;
-    const dy = targetY - position.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance < 0.5) continue;
-    const scale = Math.min(1, maximumStepPx / distance);
-    const next = {
-      x: roundPixel(position.x + dx * scale),
-      y: roundPixel(position.y + dy * scale)
-    };
-    if (next.x === position.x && next.y === position.y) continue;
-    positions.set(id, next);
-    settled++;
-  }
-  return settled;
-}
-
 function clampMagnitude(value, maximumMagnitude) {
   return Math.max(-maximumMagnitude, Math.min(maximumMagnitude, value));
 }
@@ -678,10 +589,27 @@ export function viewportElasticCorrectionSupport({
   protectionById,
   viewportWidth,
   viewportHeight,
-  tileVisualRadius
+  tileVisualRadius,
+  authoritativePositions = null,
+  viewX = viewportWidth / 2,
+  viewY = viewportHeight / 2
 }) {
+  if (authoritativePositions !== null && !(authoritativePositions instanceof Map)) {
+    throw new Error("Elastic viewport authoritative positions must be a map");
+  }
+  assertFinitePoint({ x: viewX, y: viewY }, "Elastic viewport view position");
+  const viewportTiles = projectedTiles.map((tile) => {
+    const position = authoritativePositions?.get(tile.id);
+    if (!position) return tile;
+    assertFinitePoint(position, `Authoritative viewport tile ${tile.id}`);
+    return {
+      id: tile.id,
+      x: position.x + viewportWidth / 2 - viewX,
+      y: position.y + viewportHeight / 2 - viewY
+    };
+  });
   const ids = projectedViewportTileIds({
-    projectedTiles,
+    projectedTiles: viewportTiles,
     protectionById,
     viewportWidth,
     viewportHeight,
@@ -692,7 +620,7 @@ export function viewportElasticCorrectionSupport({
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const tile of projectedTiles) {
+  for (const tile of viewportTiles) {
     if (!ids.has(tile.id) || protectionById[tile.id] !== 0) continue;
     elasticTileIds.add(tile.id);
     minX = Math.min(minX, tile.x);
@@ -772,50 +700,107 @@ export function retainLocalLayoutAnchor({
   return true;
 }
 
-export function resetFeaturelessViewportNorthUp({
+export function settleVisibleElasticTilesWithinMotion({
   positions,
   projectedById,
+  protectionById,
+  movableTileIds,
+  previousOffsetsById,
+  currentOffsetsById,
   anchorId,
-  viewportTileIds,
-  protectionById
+  viewportWidth,
+  viewportHeight,
+  tileVisualRadius,
+  viewX,
+  viewY,
+  maximumStepPx
 }) {
-  if (!(positions instanceof Map)) {
-    throw new Error("Featureless chart reset requires a positions map");
+  if (!(positions instanceof Map) || !(projectedById instanceof Map)) {
+    throw new Error("Motion-hidden chart settlement requires position maps");
   }
-  if (!(projectedById instanceof Map)) {
-    throw new Error("Featureless chart reset requires projected positions");
+  if (!(protectionById instanceof Uint8Array) || !(movableTileIds instanceof Set)) {
+    throw new Error("Motion-hidden chart settlement requires protection and movable tile ids");
+  }
+  if (!(previousOffsetsById instanceof Map) || !(currentOffsetsById instanceof Map)) {
+    throw new Error("Motion-hidden chart settlement requires presented offset maps");
   }
   if (!Number.isInteger(anchorId) || !positions.has(anchorId)) {
-    throw new Error(`Featureless chart reset requires a retained anchor: ${anchorId}`);
+    throw new Error(`Motion-hidden chart settlement requires a retained anchor: ${anchorId}`);
   }
-  if (!(viewportTileIds instanceof Set) || viewportTileIds.size === 0) {
-    throw new Error("Featureless chart reset requires viewport tile ids");
-  }
-  if (!(protectionById instanceof Uint8Array)) {
-    throw new Error("Featureless chart reset requires chart protection");
-  }
-  for (const id of viewportTileIds) {
-    if (protectionById[id] === 255) return false;
-  }
-  const anchorPosition = positions.get(anchorId);
-  const anchorProjected = projectedById.get(anchorId);
-  assertFinitePoint(anchorProjected, `Featureless chart projected anchor ${anchorId}`);
-  let needsReset = false;
-  for (const id of viewportTileIds) {
-    if (id === anchorId || !positions.has(id) || !projectedById.has(id)) continue;
-    const position = positions.get(id);
-    const projected = projectedById.get(id);
-    const expectedX = anchorPosition.x + projected.x - anchorProjected.x;
-    const expectedY = anchorPosition.y + projected.y - anchorProjected.y;
-    if (Math.hypot(position.x - expectedX, position.y - expectedY) > NORTH_UP_RESET_TOLERANCE_PX) {
-      needsReset = true;
-      break;
+  for (const [label, value] of [
+    ["viewport width", viewportWidth],
+    ["viewport height", viewportHeight],
+    ["tile visual radius", tileVisualRadius],
+    ["maximum step", maximumStepPx]
+  ]) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Motion-hidden chart settlement ${label} must be positive: ${value}`);
     }
   }
-  if (!needsReset) return false;
-  positions.clear();
-  positions.set(anchorId, anchorPosition);
-  return true;
+  assertFinitePoint({ x: viewX, y: viewY }, "Motion-hidden chart view position");
+  const anchorPosition = positions.get(anchorId);
+  const anchorProjected = projectedById.get(anchorId);
+  assertFinitePoint(anchorPosition, `Motion-hidden chart anchor position ${anchorId}`);
+  assertFinitePoint(anchorProjected, `Motion-hidden chart projected anchor ${anchorId}`);
+
+  let settled = 0;
+  for (const id of movableTileIds) {
+    if (id === anchorId || protectionById[id] !== 0) continue;
+    const position = positions.get(id);
+    const projected = projectedById.get(id);
+    if (!position || !projected) continue;
+    const previousOffset = previousOffsetsById.get(id);
+    const currentOffset = currentOffsetsById.get(id);
+    assertFinitePoint(position, `Motion-hidden chart position ${id}`);
+    assertFinitePoint(projected, `Motion-hidden chart projection ${id}`);
+    assertFinitePoint(previousOffset, `Motion-hidden chart previous offset ${id}`);
+    assertFinitePoint(currentOffset, `Motion-hidden chart current offset ${id}`);
+    const priorScreenPosition = {
+      x: position.x + viewportWidth / 2 - viewX + previousOffset.x,
+      y: position.y + viewportHeight / 2 - viewY + previousOffset.y
+    };
+    if (!projectedTileOverlapsViewport(
+      priorScreenPosition,
+      viewportWidth,
+      viewportHeight,
+      tileVisualRadius
+    )) continue;
+
+    const targetX = anchorPosition.x + projected.x - anchorProjected.x;
+    const targetY = anchorPosition.y + projected.y - anchorProjected.y;
+    const shiftX = motionHiddenAxisShift(
+      targetX - position.x,
+      currentOffset.x - previousOffset.x,
+      maximumStepPx
+    );
+    const shiftY = motionHiddenAxisShift(
+      targetY - position.y,
+      currentOffset.y - previousOffset.y,
+      maximumStepPx
+    );
+    if (shiftX === 0 && shiftY === 0) continue;
+    positions.set(id, {
+      x: position.x + shiftX,
+      y: position.y + shiftY
+    });
+    settled++;
+  }
+  return settled;
+}
+
+function motionHiddenAxisShift(desiredShift, presentedMotion, maximumStepPx) {
+  if (
+    Math.abs(desiredShift) < 0.5 ||
+    presentedMotion === 0 ||
+    Math.sign(desiredShift) === Math.sign(presentedMotion)
+  ) {
+    return 0;
+  }
+  return Math.sign(desiredShift) * Math.min(
+    Math.round(Math.abs(desiredShift)),
+    Math.abs(presentedMotion),
+    Math.floor(maximumStepPx)
+  );
 }
 
 export function refreshOffscreenLayoutTiles({
@@ -825,7 +810,9 @@ export function refreshOffscreenLayoutTiles({
   viewportWidth,
   viewportHeight,
   tileVisualRadius,
-  anchorId
+  anchorId,
+  viewX = viewportWidth / 2,
+  viewY = viewportHeight / 2
 }) {
   if (!(positions instanceof Map)) {
     throw new Error("Offscreen chart refresh requires a positions map");
@@ -833,6 +820,7 @@ export function refreshOffscreenLayoutTiles({
   if (!Number.isInteger(anchorId) || !positions.has(anchorId)) {
     throw new Error(`Offscreen chart refresh requires a retained anchor: ${anchorId}`);
   }
+  assertFinitePoint({ x: viewX, y: viewY }, "Offscreen chart view position");
   // Validate every projected tile before mutating the retained layout.
   projectedViewportTileIds({
     projectedTiles,
@@ -845,10 +833,14 @@ export function refreshOffscreenLayoutTiles({
   let discarded = 0;
   for (const tile of projectedTiles) {
     const drawnPosition = positions.get(tile.id);
+    const screenPosition = drawnPosition ? {
+      x: drawnPosition.x + viewportWidth / 2 - viewX,
+      y: drawnPosition.y + viewportHeight / 2 - viewY
+    } : null;
     if (
       tile.id === anchorId ||
-      (drawnPosition && projectedTileOverlapsViewport(
-        drawnPosition,
+      (screenPosition && projectedTileOverlapsViewport(
+        screenPosition,
         viewportWidth,
         viewportHeight,
         tileVisualRadius

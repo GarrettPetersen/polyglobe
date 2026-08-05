@@ -79,6 +79,8 @@ export default {
   "common.back": "RETOUR",
   "common.continue": "CONTINUER",
   "common.decline": "REFUSER",
+  "pronoun.objectFemale": "la",
+  "pronoun.objectMale": "le",
   "common.close": "FERMER",
   "common.page": "PAGE",
   "common.days": "JOURS",

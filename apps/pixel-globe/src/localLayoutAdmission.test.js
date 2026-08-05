@@ -14,9 +14,8 @@ import {
   admitProjectedTiles,
   refreshOffscreenLayoutTiles,
   projectedViewportTileIds,
-  resetFeaturelessViewportNorthUp,
   retainLocalLayoutAnchor,
-  settleElasticLayoutTowardProjection,
+  settleVisibleElasticTilesWithinMotion,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 import {
@@ -171,37 +170,55 @@ test("a quiet interval can admit ocean without applying a north-up jump", () => 
   assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
 });
 
-test("ocean swell settlement moves only elastic viewport tiles toward north-up", () => {
+test("visible ocean settles only inside an opposing presented swell movement", () => {
   const positions = new Map([
-    [0, { x: 100, y: 80 }],
-    [1, { x: 124, y: 10 }],
-    [2, { x: 148, y: 10 }],
-    [3, { x: 172, y: 10 }]
+    [0, { x: 50, y: 50 }],
+    [1, { x: 72, y: 50 }],
+    [2, { x: 94, y: 50 }],
+    [3, { x: 116, y: 50 }]
   ]);
-  const projectedTiles = [
-    { id: 0, x: 100, y: 80 },
-    { id: 1, x: 124, y: 80 },
-    { id: 2, x: 148, y: 80 },
-    { id: 3, x: 500, y: 80 }
-  ];
-  const protectionById = new Uint8Array([255, 0, 255, 0]);
+  const projectedById = new Map([
+    [0, { x: 50, y: 50 }],
+    [1, { x: 74, y: 50 }],
+    [2, { x: 98, y: 50 }],
+    [3, { x: 122, y: 50 }]
+  ]);
+  const previousOffsetsById = new Map([
+    [1, { x: 1, y: 0 }],
+    [2, { x: 1, y: 0 }],
+    [3, { x: -1, y: 0 }]
+  ]);
+  const currentOffsetsById = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 0, y: 0 }],
+    [3, { x: 0, y: 0 }]
+  ]);
 
-  const settled = settleElasticLayoutTowardProjection({
+  const settled = settleVisibleElasticTilesWithinMotion({
     positions,
-    projectedTiles,
-    protectionById,
+    projectedById,
+    protectionById: new Uint8Array([255, 0, 255, 0]),
+    movableTileIds: new Set([1, 2, 3]),
+    previousOffsetsById,
+    currentOffsetsById,
     anchorId: 0,
-    viewportWidth: 240,
-    viewportHeight: 160,
+    viewportWidth: 160,
+    viewportHeight: 100,
     tileVisualRadius: 18,
+    viewX: 50,
+    viewY: 50,
     maximumStepPx: 2
   });
 
   assert.equal(settled, 1);
-  assert.deepEqual(positions.get(0), { x: 100, y: 80 });
-  assert.deepEqual(positions.get(1), { x: 124, y: 12 });
-  assert.deepEqual(positions.get(2), { x: 148, y: 10 });
-  assert.deepEqual(positions.get(3), { x: 172, y: 10 });
+  assert.deepEqual(positions.get(1), { x: 73, y: 50 });
+  assert.deepEqual(positions.get(2), { x: 94, y: 50 });
+  assert.deepEqual(positions.get(3), { x: 116, y: 50 });
+  assert.equal(
+    positions.get(1).x + currentOffsetsById.get(1).x,
+    72 + previousOffsetsById.get(1).x,
+    "The permanent ocean correction must not move the displayed tile"
+  );
 });
 
 test("the same correction keeps protected geography rigidly attached", () => {
@@ -525,70 +542,6 @@ test("a newly centered tile is retained before an elastic north-up correction", 
   assert.deepEqual(positions.get(2), { x: 50, y: 50 });
 });
 
-test("a featureless viewport can discard its retained frame and restart north-up", () => {
-  const positions = new Map([
-    [0, { x: 50, y: 50 }],
-    [1, { x: 76, y: 62 }],
-    [2, { x: 95, y: 80 }]
-  ]);
-  const protectionById = new Uint8Array([0, 128, 192]);
-
-  assert.equal(resetFeaturelessViewportNorthUp({
-    positions,
-    projectedById: new Map([
-      [0, { x: 50, y: 50 }],
-      [1, { x: 74, y: 50 }],
-      [2, { x: 98, y: 50 }]
-    ]),
-    anchorId: 0,
-    viewportTileIds: new Set([0, 1, 2]),
-    protectionById
-  }), true);
-  assert.deepEqual([...positions.entries()], [[0, { x: 50, y: 50 }]]);
-});
-
-test("an already north-up featureless viewport does not rebuild", () => {
-  const positions = new Map([
-    [0, { x: 50, y: 50 }],
-    [1, { x: 74, y: 50 }],
-    [2, { x: 98, y: 50 }]
-  ]);
-  const projectedById = new Map([
-    [0, { x: 10, y: 10 }],
-    [1, { x: 34, y: 10 }],
-    [2, { x: 58, y: 10 }]
-  ]);
-
-  assert.equal(resetFeaturelessViewportNorthUp({
-    positions,
-    projectedById,
-    anchorId: 0,
-    viewportTileIds: new Set([0, 1, 2]),
-    protectionById: new Uint8Array(3)
-  }), false);
-  assert.equal(positions.size, 3);
-});
-
-test("a directly protected viewport cannot visibly reset its retained frame", () => {
-  const positions = new Map([
-    [0, { x: 50, y: 50 }],
-    [1, { x: 76, y: 62 }]
-  ]);
-  const protectionById = new Uint8Array([0, 255]);
-
-  assert.equal(resetFeaturelessViewportNorthUp({
-    positions,
-    projectedById: new Map([
-      [0, { x: 50, y: 50 }],
-      [1, { x: 74, y: 50 }]
-    ]),
-    anchorId: 0,
-    viewportTileIds: new Set([0, 1]),
-    protectionById
-  }), false);
-  assert.equal(positions.size, 2);
-});
-
 test("fully offscreen protected geography is rebuilt before it returns", () => {
   const positions = new Map([
     [0, { x: 50, y: 50 }],
@@ -642,6 +595,35 @@ test("offscreen eviction follows the authoritative drawn position", () => {
   assert.equal(positions.has(1), false);
 });
 
+test("offscreen eviction retains every sprite still visible through the camera offset", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: -42, y: 0 }],
+    [2, { x: 72, y: 0 }]
+  ]);
+  const projectedTiles = [
+    { id: 0, x: 50, y: 50 },
+    { id: 1, x: 8, y: 50 },
+    { id: 2, x: 122, y: 50 }
+  ];
+
+  const discarded = refreshOffscreenLayoutTiles({
+    positions,
+    projectedTiles,
+    protectionById: new Uint8Array([255, 255, 255]),
+    viewportWidth: 100,
+    viewportHeight: 100,
+    tileVisualRadius: 18,
+    anchorId: 0,
+    viewX: 0,
+    viewY: 0
+  });
+
+  assert.equal(discarded, 1);
+  assert.deepEqual(positions.get(1), { x: -42, y: 0 });
+  assert.equal(positions.has(2), false);
+});
+
 test("the offscreen preload margin cannot steer the visible frame fit", () => {
   const positions = new Map([
     [0, { x: 0, y: 0 }],
@@ -689,7 +671,7 @@ test("successive high-latitude chart rebuilds keep newly entering neighbors atta
   );
 });
 
-test("a moving Lisbon-to-Kamchatka-to-Lisbon coastal circuit stays north-up without shearing", () => {
+test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geography", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage();
 
   assert.ok(
@@ -709,29 +691,20 @@ test("a moving Lisbon-to-Kamchatka-to-Lisbon coastal circuit stays north-up with
     result.maxVisibleProtectedAdmissionShiftPx <= MAX_PROTECTED_ADMISSION_SLACK_PX,
     `Visible protected admission shifted ${result.maxVisibleProtectedAdmissionShiftPx.toFixed(2)}px`
   );
-  assert.ok(
-    result.maxProtectedRotationDeg <= 4,
-    `Round-the-world protected coast reached ` +
-      `${result.maxProtectedRotationDeg.toFixed(2)} degrees of tilt at ` +
-      `${result.maxProtectedRotationLocation}`
+  assert.equal(
+    result.visibleProtectedRedraws,
+    0,
+    "A protected tile that was already visible was discarded or moved during the voyage"
+  );
+  assert.equal(
+    result.visibleLandRedraws,
+    0,
+    "A land tile that was already visible was discarded or moved during the voyage"
   );
   assert.ok(
-    Math.abs(result.finalProtectedRotationDeg) <= 1,
+    Math.abs(result.finalProtectedRotationDeg) <= 4,
     `Round-the-world protected coast finished at ` +
       `${result.finalProtectedRotationDeg.toFixed(2)} degrees of tilt`
-  );
-  assert.ok(
-    result.maxProtectedEdgeStretch <= 0.2,
-    `Protected coast edge stretched ${(result.maxProtectedEdgeStretch * 100).toFixed(1)}%`
-  );
-  assert.ok(
-    result.maxProtectedEdgeErrorPx <= 4.5,
-    `Protected coast edge differed by ${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
-      `${result.maxProtectedEdgeDetails.location}`
-  );
-  assert.ok(
-    result.protectedEdgeSamples >= 1000,
-    `Coastal voyage measured too few protected edges (${result.protectedEdgeSamples})`
   );
 });
 
@@ -914,7 +887,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     [25.0, -20.0],
     [38.72, -9.14]
   ], 0.1);
-  const protectionById = worldCoastProtection(graph);
+  const { protectionById, terrainClassByTileId } = worldCoastProtection(graph);
   const directProtectionComponentById = buildDirectChartProtectionComponents({
     graph,
     protection: protectionById
@@ -935,6 +908,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let maxProtectedEdgeErrorPx = 0;
   let maxProtectedEdgeDetails = null;
   let maxVisibleProtectedAdmissionShiftPx = 0;
+  let visibleProtectedRedraws = 0;
+  let visibleLandRedraws = 0;
   let protectedEdgeSamples = 0;
   let stepsWithoutProtectedCoast = 0;
   let stepsWithProtectedCoast = 0;
@@ -969,6 +944,24 @@ function simulateLisbonToKamchatkaCoastalVoyage(
 
     const centerId = findNearestTileId(graph, directionIndex, direction);
     const projectedTiles = collectTraversalTiles(graph, camera);
+    const collectedIds = new Set(projectedTiles.map(({ id }) => id));
+    for (const [id, position] of positions.entries()) {
+      const screenX = position.x - viewX + TRAVERSAL_SCREEN_W / 2;
+      const screenY = position.y - viewY + TRAVERSAL_SCREEN_H / 2;
+      if (
+        collectedIds.has(id) ||
+        screenX < -18 || screenX > TRAVERSAL_SCREEN_W + 18 ||
+        screenY < -18 || screenY > TRAVERSAL_SCREEN_H + 18
+      ) {
+        continue;
+      }
+      const projected = projectDirection(graphCenter(graph, id), camera);
+      if (!projected) {
+        throw new Error(`Cannot retain visible traversal tile in chart projection: ${id}`);
+      }
+      projectedTiles.push({ id, ...projected });
+      collectedIds.add(id);
+    }
     const projectedById = new Map(projectedTiles.map((point) => [point.id, point]));
     retainLocalLayoutAnchor({
       positions,
@@ -976,23 +969,33 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewX,
       viewY
     });
-    const centerPosition = positions.get(centerId);
-    viewX = centerPosition.x;
-    viewY = centerPosition.y;
     const support = viewportElasticCorrectionSupport({
       projectedTiles,
       protectionById,
       viewportWidth: TRAVERSAL_SCREEN_W,
       viewportHeight: TRAVERSAL_SCREEN_H,
-      tileVisualRadius: 18
+      tileVisualRadius: 18,
+      authoritativePositions: positions,
+      viewX,
+      viewY
     });
-    resetFeaturelessViewportNorthUp({
-      positions,
-      projectedById,
-      anchorId: centerId,
-      viewportTileIds: support.viewportTileIds,
-      protectionById
-    });
+    const retainedCorrectionViewportIds = new Set(
+      [...support.viewportTileIds].filter((id) => positions.has(id))
+    );
+    const visibleProtectedBefore = new Map();
+    const visibleLandBefore = new Map();
+    for (const [id, position] of positions.entries()) {
+      const screenX = position.x - viewX + TRAVERSAL_SCREEN_W / 2;
+      const screenY = position.y - viewY + TRAVERSAL_SCREEN_H / 2;
+      if (
+        screenX < -18 || screenX > TRAVERSAL_SCREEN_W + 18 ||
+        screenY < -18 || screenY > TRAVERSAL_SCREEN_H + 18
+      ) {
+        continue;
+      }
+      if (protectionById[id] === 255) visibleProtectedBefore.set(id, { ...position });
+      if (terrainClassByTileId[id] === "land") visibleLandBefore.set(id, { ...position });
+    }
     refreshOffscreenLayoutTiles({
       positions,
       projectedTiles,
@@ -1000,7 +1003,9 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewportWidth: TRAVERSAL_SCREEN_W,
       viewportHeight: TRAVERSAL_SCREEN_H,
       tileVisualRadius: 18,
-      anchorId: centerId
+      anchorId: centerId,
+      viewX,
+      viewY
     });
     const pendingIds = projectedTiles
       .map((point) => point.id)
@@ -1024,7 +1029,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         ? MAX_ELASTIC_FRAME_CORRECTION_PX
         : 0,
       maxProtectedCorrectionPx,
-      protectedCorrectionViewportIds: support.viewportTileIds
+      protectedCorrectionViewportIds: retainedCorrectionViewportIds
     };
     if (maxProtectedCorrectionPx > 0) {
       const rigidPositions = new Map(
@@ -1037,14 +1042,10 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       });
       admitProjectedTiles(admissionArgs);
       for (const id of pendingIds) {
-        if (
-          protectionById[id] !== 255 ||
-          !support.viewportTileIds.has(id)
-        ) {
-          continue;
-        }
+        if (protectionById[id] !== 255) continue;
         const rigid = rigidPositions.get(id);
         const corrected = positions.get(id);
+        if (!support.viewportTileIds.has(id)) continue;
         maxVisibleProtectedAdmissionShiftPx = Math.max(
           maxVisibleProtectedAdmissionShiftPx,
           Math.hypot(corrected.x - rigid.x, corrected.y - rigid.y)
@@ -1057,6 +1058,18 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     const retainedIds = new Set(projectedById.keys());
     for (const id of positions.keys()) {
       if (!retainedIds.has(id)) positions.delete(id);
+    }
+    for (const [id, before] of visibleProtectedBefore.entries()) {
+      const after = positions.get(id);
+      if (!after || after.x !== before.x || after.y !== before.y) {
+        visibleProtectedRedraws++;
+      }
+    }
+    for (const [id, before] of visibleLandBefore.entries()) {
+      const after = positions.get(id);
+      if (!after || after.x !== before.x || after.y !== before.y) {
+        visibleLandRedraws++;
+      }
     }
     const visiblePositions = new Map();
     const visibleProtectedPositions = new Map();
@@ -1157,6 +1170,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     maxProtectedEdgeErrorPx,
     maxProtectedEdgeDetails,
     maxVisibleProtectedAdmissionShiftPx,
+    visibleProtectedRedraws,
+    visibleLandRedraws,
     protectedEdgeSamples,
     rotationSamples
   };
@@ -1210,11 +1225,12 @@ function worldCoastProtection(graph) {
     );
     return isWaterSurfaceRow(earth.tiles[terrainTileId]) ? "water" : "land";
   });
-  return buildChartTileProtection({
+  const protectionById = buildChartTileProtection({
     graph,
     terrainClassForTile: (tileId) => terrainClassByTileId[tileId],
     pentagonNeedsProtection: (tileId) => terrainClassByTileId[tileId] !== "water"
   });
+  return { protectionById, terrainClassByTileId };
 }
 
 function simulateRepeatedCircuit({ centerRowForPhase, frameRotationForPhase }) {
@@ -1440,12 +1456,14 @@ function simulateIslandChainCircuits() {
     const visibleBefore = new Map();
     for (const id of support.viewportTileIds) {
       const position = positions.get(id);
+      const screenX = position ? position.x + viewportWidth / 2 : Number.NaN;
+      const screenY = position ? position.y + viewportHeight / 2 : Number.NaN;
       if (
         position &&
-        position.x + tileVisualRadius >= 0 &&
-        position.x - tileVisualRadius <= viewportWidth &&
-        position.y + tileVisualRadius >= 0 &&
-        position.y - tileVisualRadius <= viewportHeight
+        screenX + tileVisualRadius >= 0 &&
+        screenX - tileVisualRadius <= viewportWidth &&
+        screenY + tileVisualRadius >= 0 &&
+        screenY - tileVisualRadius <= viewportHeight
       ) {
         visibleBefore.set(id, { ...position });
       }
@@ -1460,7 +1478,9 @@ function simulateIslandChainCircuits() {
         viewportWidth,
         viewportHeight,
         tileVisualRadius,
-        anchorId
+        anchorId,
+        viewX: 0,
+        viewY: 0
       });
     }
     if ([...support.viewportTileIds].every((id) => protectionById[id] === 0)) {

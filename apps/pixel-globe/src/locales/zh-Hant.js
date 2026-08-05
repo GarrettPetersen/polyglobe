@@ -79,6 +79,8 @@ export default {
   "common.back": "返回",
   "common.continue": "繼續",
   "common.decline": "婉拒",
+  "pronoun.objectFemale": "她",
+  "pronoun.objectMale": "他",
   "common.close": "關閉",
   "common.page": "頁",
   "common.days": "天",

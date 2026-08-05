@@ -22,7 +22,6 @@ test("calm ocean swells arrive as brief low-amplitude packets", () => {
     flowDirectionRad: 0
   });
   assert.equal(quiet.amplitudePx, 0);
-  assert.equal(quiet.settlementStepPx, 0);
 
   const crest = oceanSwellState({
     nowMs: CALM_SWELL_PACKET_DURATION_MS / 2,
@@ -30,10 +29,9 @@ test("calm ocean swells arrive as brief low-amplitude packets", () => {
     flowDirectionRad: 0
   });
   assert.equal(crest.amplitudePx, 1);
-  assert.equal(crest.settlementStepPx, 1);
 });
 
-test("storms sustain stronger swells and hide two-pixel layout settlement", () => {
+test("storms sustain stronger wind-driven swells", () => {
   const state = oceanSwellState({
     nowMs: CALM_SWELL_PACKET_DURATION_MS + 1000,
     stormStrength: 1,
@@ -41,8 +39,6 @@ test("storms sustain stronger swells and hide two-pixel layout settlement", () =
   });
 
   assert.equal(state.amplitudePx, STORM_SWELL_MAX_AMPLITUDE_PX);
-  assert.equal(state.settlementStepPx, 2);
-  assert.equal(state.settlingActive, true);
 });
 
 test("whole ocean sprites move along the wind without exceeding swell amplitude", () => {
