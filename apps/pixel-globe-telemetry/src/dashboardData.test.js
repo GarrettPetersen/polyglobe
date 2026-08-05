@@ -26,6 +26,13 @@ test("dashboard crash reports are newest first", () => {
   );
 });
 
+test("session playtime is aggregated without returning session identifiers", () => {
+  const queries = dashboardQueries(30);
+  assert.match(queries.playtimeStats, /GROUP BY session_id/);
+  assert.match(queries.playtimeStats, /quantileExactWeighted\(0\.5\)/);
+  assert.match(queries.playtimeDistribution, /GROUP BY duration_bucket/);
+});
+
 test("dashboard snapshots normalize aggregate query rows", () => {
   const snapshot = buildDashboardSnapshot(30, {
     totals: [{ sessions: 400, active_hours: 25, voyage_starts: 180, voyages: 100, crashes: 2 }],
@@ -37,6 +44,21 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       voyage_starts: 18,
       voyages: 10,
       crashes: 1
+    }],
+    playtimeStats: [{
+      sessions: 400,
+      mean_seconds: 225,
+      median_seconds: 90,
+      max_seconds: 3600
+    }],
+    playtimeDistribution: [{
+      duration_bucket: 0,
+      sessions: 100,
+      average_seconds: 0
+    }, {
+      duration_bucket: 17,
+      sessions: 300,
+      average_seconds: 300
     }],
     channels: [{ channel: "web-prototype", players: 100, sessions: 300 }],
     retention: [{ channel: "web-prototype", return_window: "next-day", sessions: 25 }],
@@ -105,6 +127,18 @@ test("dashboard snapshots normalize aggregate query rows", () => {
   assert.equal(snapshot.totals.averageSessionMinutes, 3.8);
   assert.equal(snapshot.totals.voyageStarts, 180);
   assert.equal(snapshot.totals.crashesPerThousandSessions, 5);
+  assert.deepEqual(snapshot.playtime, {
+    sessions: 400,
+    meanSeconds: 225,
+    medianSeconds: 90,
+    maxSeconds: 3600,
+    buckets: [{ id: 0, sessions: 100, averageSeconds: 0 }, {
+      id: 17,
+      sessions: 300,
+      averageSeconds: 300
+    }]
+  });
+  assert.equal(JSON.stringify(snapshot).includes("session_id"), false);
   assert.deepEqual(snapshot.features.find((entry) => entry.id === "trade"), {
     id: "trade",
     voyages: 80,

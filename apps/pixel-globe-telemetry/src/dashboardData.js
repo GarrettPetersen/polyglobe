@@ -23,6 +23,13 @@ export function dashboardQueries(windowDays) {
     blob4 != 'deployment-check'
     AND timestamp > NOW() - INTERVAL '${days}' DAY
   `;
+  const sessionsByDuration = `
+    SELECT blob7 AS session_id,
+      SUM(if(blob1 = 'session_checkpoint', _sample_interval * double2, 0.0)) AS active_seconds
+    FROM ${DATASET}
+    WHERE blob1 IN ('session_start', 'session_checkpoint') AND ${where}
+    GROUP BY session_id
+  `;
   return Object.freeze({
     totals: `
       SELECT
@@ -50,6 +57,21 @@ export function dashboardQueries(windowDays) {
       WHERE ${where}
       GROUP BY day
       ORDER BY day
+    `,
+    playtimeStats: `
+      SELECT count() AS sessions,
+        round(avg(active_seconds), 1) AS mean_seconds,
+        round(quantileExactWeighted(0.5)(active_seconds, 1), 1) AS median_seconds,
+        round(max(active_seconds), 1) AS max_seconds
+      FROM (${sessionsByDuration})
+    `,
+    playtimeDistribution: `
+      SELECT floor(log(1 + active_seconds / 30.0) * 8) AS duration_bucket,
+        count() AS sessions,
+        round(avg(active_seconds), 1) AS average_seconds
+      FROM (${sessionsByDuration})
+      GROUP BY duration_bucket
+      ORDER BY duration_bucket
     `,
     channels: `
       SELECT blob4 AS channel,
@@ -161,11 +183,23 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
     voyages: nonnegativeNumber(totalsRow.voyages),
     crashes: nonnegativeNumber(totalsRow.crashes)
   };
-  totals.averageSessionMinutes = totals.sessions > 0
-    ? round((totals.activeHours * 60) / totals.sessions, 1)
-    : 0;
   totals.crashesPerThousandSessions = totals.sessions > 0
     ? round((totals.crashes * 1000) / totals.sessions, 1)
+    : 0;
+  const playtimeStatsRow = results.playtimeStats[0] || {};
+  const playtime = {
+    sessions: nonnegativeNumber(playtimeStatsRow.sessions),
+    meanSeconds: nonnegativeNumber(playtimeStatsRow.mean_seconds),
+    medianSeconds: nonnegativeNumber(playtimeStatsRow.median_seconds),
+    maxSeconds: nonnegativeNumber(playtimeStatsRow.max_seconds),
+    buckets: results.playtimeDistribution.map((row) => ({
+      id: nonnegativeInteger(row.duration_bucket, "playtime bucket"),
+      sessions: nonnegativeNumber(row.sessions),
+      averageSeconds: nonnegativeNumber(row.average_seconds)
+    }))
+  };
+  totals.averageSessionMinutes = playtime.sessions > 0
+    ? round(playtime.meanSeconds / 60, 1)
     : 0;
   const featureRow = results.features[0] || {};
   const featureVoyages = nonnegativeNumber(featureRow.voyages);
@@ -178,6 +212,7 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
     generatedAt: requiredString(generatedAt, "generatedAt"),
     windowDays: days,
     totals,
+    playtime,
     daily: results.daily.map((row) => ({
       day: requiredString(row.day, "daily day"),
       sessions: nonnegativeNumber(row.sessions),
@@ -297,6 +332,12 @@ function requiredSecret(value, name) {
 function nonnegativeNumber(value) {
   const parsed = Number(value || 0);
   if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`Invalid dashboard number: ${value}`);
+  return parsed;
+}
+
+function nonnegativeInteger(value, label) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`Invalid ${label}: ${value}`);
   return parsed;
 }
 

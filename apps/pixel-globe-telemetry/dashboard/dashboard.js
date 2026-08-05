@@ -5,7 +5,8 @@ const compactFormat = new Intl.NumberFormat("en-US", {
 });
 const state = {
   days: 30,
-  loading: false
+  loading: false,
+  playtimeResizeObserver: null
 };
 
 document.querySelectorAll("[data-days]").forEach((button) => {
@@ -48,6 +49,7 @@ function renderDashboard(data) {
   setText("metric-crashes", numberFormat.format(data.totals.crashesPerThousandSessions));
   setText("updated", `Updated ${formatDateTime(data.generatedAt)}`);
   renderActivity(data.daily);
+  renderPlaytime(data.playtime);
   renderRetention(data.retention);
   renderFeatures(data.features);
   renderOutcomes(data.outcomes);
@@ -55,6 +57,218 @@ function renderDashboard(data) {
   renderChannels(data.channels);
   renderEnvironments(data.environments);
   renderCrashes(data.crashes, data.totals.crashes);
+}
+
+function renderPlaytime(playtime) {
+  const target = document.querySelector("#playtime-chart");
+  const note = document.querySelector("#playtime-note");
+  state.playtimeResizeObserver?.disconnect();
+  target.replaceChildren();
+  if (!playtime || playtime.sessions === 0 || playtime.buckets.length === 0) {
+    setText("playtime-summary", "Mean - / Median -");
+    note.textContent = "";
+    return target.append(emptyState("No session playtime in this period."));
+  }
+
+  setText(
+    "playtime-summary",
+    `Mean ${preciseDuration(playtime.meanSeconds)} / Median ${preciseDuration(playtime.medianSeconds)}`
+  );
+  const canvas = document.createElement("canvas");
+  const marbleWeight = Math.max(1, Math.ceil(playtime.sessions / 360));
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute(
+    "aria-label",
+    `Session playtime distribution for ${playtime.sessions} sessions. ` +
+      `Mean ${preciseDuration(playtime.meanSeconds)}; median ${preciseDuration(playtime.medianSeconds)}.`
+  );
+  target.append(canvas);
+  note.textContent = marbleWeight === 1
+    ? `${compact(playtime.sessions)} sessions. Each marble is one session; the time scale is compressed.`
+    : `${compact(playtime.sessions)} sessions. Each marble represents about ${marbleWeight} sessions; ` +
+      "the time scale is compressed.";
+
+  const draw = () => drawPlaytimeChart(canvas, playtime, marbleWeight);
+  state.playtimeResizeObserver = new ResizeObserver(draw);
+  state.playtimeResizeObserver.observe(target);
+  requestAnimationFrame(draw);
+}
+
+function drawPlaytimeChart(canvas, playtime, marbleWeight) {
+  const width = Math.floor(canvas.parentElement?.clientWidth || 0);
+  if (width < 1) return;
+  const height = 270;
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(width * pixelRatio);
+  canvas.height = Math.round(height * pixelRatio);
+  const context = canvas.getContext("2d");
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+  const styles = getComputedStyle(document.documentElement);
+  const colors = {
+    ink: styles.getPropertyValue("--ink").trim(),
+    muted: styles.getPropertyValue("--ink-muted").trim(),
+    rule: styles.getPropertyValue("--rule").trim(),
+    paper: styles.getPropertyValue("--paper-light").trim(),
+    sea: styles.getPropertyValue("--sea").trim(),
+    seaLight: styles.getPropertyValue("--sea-light").trim(),
+    gold: styles.getPropertyValue("--gold").trim(),
+    rust: styles.getPropertyValue("--rust").trim(),
+    green: styles.getPropertyValue("--green").trim()
+  };
+  const left = width < 520 ? 34 : 46;
+  const right = width < 520 ? 14 : 24;
+  const top = 42;
+  const baseline = height - 31;
+  const plotWidth = Math.max(1, width - left - right);
+  const maxSeconds = Math.max(
+    60,
+    playtime.maxSeconds,
+    ...playtime.buckets.map((bucket) => bucket.averageSeconds)
+  );
+  const scaleX = (seconds) => {
+    const ratio = Math.log1p(Math.max(0, seconds) / 30) / Math.log1p(maxSeconds / 30);
+    return left + ratio * plotWidth;
+  };
+
+  drawPlaytimeAxis(context, { left, right, top, baseline, width, maxSeconds, scaleX, colors });
+  const meanX = scaleX(playtime.meanSeconds);
+  const medianX = scaleX(playtime.medianSeconds);
+  const labelsOverlap = Math.abs(meanX - medianX) < 125;
+  drawPlaytimeReference(context, {
+    x: medianX,
+    top,
+    baseline,
+    labelY: labelsOverlap ? 20 : 10,
+    label: `Median ${preciseDuration(playtime.medianSeconds)}`,
+    color: colors.sea,
+    paper: colors.paper,
+    width
+  });
+  drawPlaytimeReference(context, {
+    x: meanX,
+    top,
+    baseline,
+    labelY: 10,
+    label: `Mean ${preciseDuration(playtime.meanSeconds)}`,
+    color: colors.rust,
+    paper: colors.paper,
+    width
+  });
+
+  const spacing = width < 520 ? 6 : 7;
+  const radius = spacing * 0.38;
+  const maxRows = Math.max(1, Math.floor((baseline - top - 8) / spacing));
+  const maxColumn = Math.max(0, Math.floor(plotWidth / spacing));
+  const occupiedRows = new Map();
+  const marbles = expandedMarbles(playtime.buckets, marbleWeight)
+    .sort((leftEntry, rightEntry) => leftEntry.seconds - rightEntry.seconds);
+  const marbleColors = [colors.sea, colors.gold, colors.green, colors.seaLight];
+  for (let index = 0; index < marbles.length; index += 1) {
+    const marble = marbles[index];
+    const baseColumn = Math.round((scaleX(marble.seconds) - left) / spacing);
+    const column = availableMarbleColumn(baseColumn, maxColumn, maxRows, occupiedRows);
+    const row = occupiedRows.get(column) || 0;
+    occupiedRows.set(column, row + 1);
+    const x = left + column * spacing;
+    const y = baseline - radius - 2 - row * spacing;
+    drawMarble(context, x, y, radius, marbleColors[index % marbleColors.length], colors.ink);
+  }
+}
+
+function drawPlaytimeAxis(context, { left, right, top, baseline, width, maxSeconds, scaleX, colors }) {
+  context.save();
+  context.font = '10px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace';
+  context.textBaseline = "top";
+  context.strokeStyle = colors.rule;
+  context.fillStyle = colors.muted;
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(left, baseline + 0.5);
+  context.lineTo(width - right, baseline + 0.5);
+  context.stroke();
+
+  const candidates = [0, 60, 300, 900, 3600, 14400, 43200, 86400, 172800, 604800];
+  const ticks = candidates.filter((seconds) => seconds <= maxSeconds);
+  if (ticks.at(-1) !== maxSeconds) ticks.push(maxSeconds);
+  let previousLabelRight = -Infinity;
+  for (let index = 0; index < ticks.length; index += 1) {
+    const seconds = ticks[index];
+    const x = scaleX(seconds);
+    const label = axisDuration(seconds);
+    const labelWidth = context.measureText(label).width;
+    const labelLeft = Math.max(left - labelWidth / 2, Math.min(x - labelWidth / 2, width - right - labelWidth));
+    const isLast = index === ticks.length - 1;
+    if (!isLast && labelLeft < previousLabelRight + 10) continue;
+    context.strokeStyle = index === 0 ? colors.rule : `${colors.rule}55`;
+    context.beginPath();
+    context.moveTo(Math.round(x) + 0.5, top);
+    context.lineTo(Math.round(x) + 0.5, baseline + 4);
+    context.stroke();
+    context.fillText(label, labelLeft, baseline + 10);
+    previousLabelRight = labelLeft + labelWidth;
+  }
+  context.restore();
+}
+
+function drawPlaytimeReference(context, { x, top, baseline, labelY, label, color, paper, width }) {
+  context.save();
+  context.strokeStyle = color;
+  context.lineWidth = 2;
+  context.setLineDash([5, 4]);
+  context.beginPath();
+  context.moveTo(Math.round(x), top - 5);
+  context.lineTo(Math.round(x), baseline);
+  context.stroke();
+  context.setLineDash([]);
+  context.font = 'bold 10px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace';
+  const labelWidth = context.measureText(label).width;
+  const labelX = Math.max(4, Math.min(x - labelWidth / 2, width - labelWidth - 4));
+  context.fillStyle = paper;
+  context.fillRect(labelX - 3, labelY - 2, labelWidth + 6, 14);
+  context.fillStyle = color;
+  context.fillText(label, labelX, labelY);
+  context.restore();
+}
+
+function expandedMarbles(buckets, marbleWeight) {
+  const marbles = [];
+  for (const bucket of buckets) {
+    const count = Math.max(1, Math.round(bucket.sessions / marbleWeight));
+    for (let index = 0; index < count; index += 1) {
+      marbles.push({ seconds: bucket.averageSeconds });
+    }
+  }
+  return marbles;
+}
+
+function availableMarbleColumn(baseColumn, maxColumn, maxRows, occupiedRows) {
+  for (let distance = 0; distance <= maxColumn; distance += 1) {
+    const candidates = distance === 0
+      ? [baseColumn]
+      : [baseColumn + distance, baseColumn - distance];
+    for (const column of candidates) {
+      if (column < 0 || column > maxColumn) continue;
+      if ((occupiedRows.get(column) || 0) < maxRows) return column;
+    }
+  }
+  throw new Error("Session playtime chart has no room for another marble");
+}
+
+function drawMarble(context, x, y, radius, fill, outline) {
+  context.save();
+  context.fillStyle = fill;
+  context.strokeStyle = outline;
+  context.lineWidth = 0.75;
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "rgba(255, 255, 255, 0.48)";
+  context.beginPath();
+  context.arc(x - radius * 0.3, y - radius * 0.3, Math.max(0.7, radius * 0.22), 0, Math.PI * 2);
+  context.fill();
+  context.restore();
 }
 
 function renderStarts(rows) {
@@ -250,6 +464,27 @@ function duration(seconds) {
   const minutes = Math.round(Number(seconds) / 60);
   if (minutes < 60) return `${minutes}m`;
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function preciseDuration(seconds) {
+  const value = Math.max(0, Number(seconds) || 0);
+  if (value < 60) return `${Math.round(value)}s`;
+  const minutes = value / 60;
+  if (minutes < 10) return `${numberFormat.format(minutes)}m`;
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const roundedMinutes = Math.round(minutes);
+  const hours = Math.floor(roundedMinutes / 60);
+  const remainder = roundedMinutes % 60;
+  return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
+}
+
+function axisDuration(seconds) {
+  const value = Math.max(0, Number(seconds) || 0);
+  if (value === 0) return "0";
+  if (value < 60) return `${Math.round(value)}s`;
+  if (value < 3600) return `${Math.round(value / 60)}m`;
+  if (value < 86400) return `${numberFormat.format(value / 3600)}h`;
+  return `${numberFormat.format(value / 86400)}d`;
 }
 
 function formatDay(value) {
