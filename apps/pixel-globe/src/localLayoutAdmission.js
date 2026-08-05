@@ -5,7 +5,7 @@ function assertFinitePoint(point, label) {
 }
 
 const MAX_ELASTIC_FRAME_CORRECTION_PX = 6;
-const MAX_OPEN_OCEAN_ROTATION_CORRECTION_RAD = 8 * Math.PI / 180;
+const MAX_OPEN_OCEAN_ROTATION_CORRECTION_RAD = 16 * Math.PI / 180;
 
 function registeredProjectionFrame(positions, projectedById, anchorId, registrationIds) {
   const anchorPosition = positions.get(anchorId);
@@ -71,7 +71,8 @@ function boundaryFittedFrame({
   neighborsById,
   protectionById,
   rotation,
-  fallbackFrame
+  fallbackFrame,
+  elasticBoundariesOnly = false
 }) {
   const pendingSet = new Set(pending);
   const cos = Math.cos(rotation);
@@ -84,7 +85,9 @@ function boundaryFittedFrame({
       const neighborPosition = positions.get(neighborId);
       const neighborProjected = projectedById.get(neighborId);
       if (pendingSet.has(neighborId) || !neighborPosition || !neighborProjected) continue;
-      const protection = Math.max(protectionById[id], protectionById[neighborId]) / 255;
+      const boundaryProtection = Math.max(protectionById[id], protectionById[neighborId]);
+      if (elasticBoundariesOnly && boundaryProtection !== 0) continue;
+      const protection = boundaryProtection / 255;
       const weight = 1 + protection * 63;
       const rotatedX = neighborProjected.x * cos - neighborProjected.y * sin;
       const rotatedY = neighborProjected.x * sin + neighborProjected.y * cos;
@@ -184,7 +187,8 @@ export function admitProjectedTiles({
   const translatedFrame = boundaryFittedFrame({
     ...boundaryArgs,
     rotation: correctionRotation,
-    fallbackFrame: retainedFrame
+    fallbackFrame: retainedFrame,
+    elasticBoundariesOnly: resetElasticTilesNorthUp
   });
   let admitted = 0;
   for (const id of pending) {

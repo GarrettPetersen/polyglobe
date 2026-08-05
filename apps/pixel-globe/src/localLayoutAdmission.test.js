@@ -178,6 +178,29 @@ test("an ocean-only viewport fully resets north-up over one screen of movement",
   );
 });
 
+test("a finite Atlantic-like ocean crossing keeps readmitting hidden water toward north-up", () => {
+  const result = simulateFiniteOceanCrossing({ refreshOffscreenEachStep: true });
+  const stalePreload = simulateFiniteOceanCrossing({ refreshOffscreenEachStep: false });
+
+  assert.ok(
+    Math.abs(result.initialRotationDeg) >= 13,
+    `Finite ocean reset did not begin substantially rotated (${result.initialRotationDeg.toFixed(2)} degrees)`
+  );
+  assert.ok(
+    result.elasticSteps >= 12,
+    `Finite ocean crossing exposed too little elastic water (${result.elasticSteps} steps)`
+  );
+  assert.ok(
+    Math.abs(result.exitRotationDeg) <= 2,
+    `Finite ocean crossing exited open water at ${result.exitRotationDeg.toFixed(2)} degrees`
+  );
+  assert.ok(
+    Math.abs(stalePreload.exitRotationDeg) >= Math.abs(result.exitRotationDeg) + 3,
+    `One-time preload cleanup unexpectedly recovered as well as repeated cleanup ` +
+      `(${stalePreload.exitRotationDeg.toFixed(2)} vs ${result.exitRotationDeg.toFixed(2)} degrees)`
+  );
+});
+
 test("protected geography does not use the full ocean north-up reset", () => {
   const result = simulateOceanViewportTurnover({ protectedViewport: true });
 
@@ -601,6 +624,130 @@ function simulateOceanViewportTurnover({ protectedViewport }) {
     initialRotationDeg: initial.rotationDeg,
     finalRotationDeg: final.rotationDeg,
     finalRmsError: final.rmsError
+  };
+}
+
+function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
+  const columns = 80;
+  const rows = 7;
+  const tileSpacingX = 24;
+  const tileSpacingY = 21;
+  const viewportWidth = 240;
+  const viewportHeight = 126;
+  const tileVisualRadius = 12;
+  const preloadHalfColumns = 15;
+  const elasticStartColumn = 20;
+  const elasticEndColumn = 52;
+  const neighborsById = torusGridNeighbors(columns, rows);
+  const protectionById = new Uint8Array(columns * rows);
+  protectionById.fill(255);
+  for (let row = 0; row < rows; row++) {
+    for (let column = elasticStartColumn; column <= elasticEndColumn; column++) {
+      protectionById[gridTileId(column, row, columns, rows)] = 0;
+    }
+  }
+  const positions = new Map();
+  const rotation = 14 * Math.PI / 180;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+
+  const projectedWindow = (centerColumn) => {
+    const projectedById = new Map();
+    // A north-up tangent frame rotates continuously while travelling east at
+    // nonzero latitude. Model that transport so this is a traversal test, not
+    // merely a flat window sliding over a static grid.
+    const frameRotation = (centerColumn - 8) * 0.65 * Math.PI / 180;
+    const frameCos = Math.cos(frameRotation);
+    const frameSin = Math.sin(frameRotation);
+    for (let row = 0; row < rows; row++) {
+      for (let columnOffset = -preloadHalfColumns; columnOffset <= preloadHalfColumns; columnOffset++) {
+        const column = centerColumn + columnOffset;
+        const id = gridTileId(column, row, columns, rows);
+        const x = columnOffset * tileSpacingX;
+        const y = (row - 3) * tileSpacingY;
+        projectedById.set(id, {
+          x: viewportWidth / 2 + x * frameCos - y * frameSin,
+          y: viewportHeight / 2 + x * frameSin + y * frameCos
+        });
+      }
+    }
+    return projectedById;
+  };
+
+  let projectedById = projectedWindow(8);
+  for (const [id, projected] of projectedById.entries()) {
+    positions.set(id, {
+      x: Math.round(projected.x * cos - projected.y * sin),
+      y: Math.round(projected.x * sin + projected.y * cos)
+    });
+  }
+  const initialAnchorId = gridTileId(8, 3, columns, rows);
+  const initial = measureVisibleFrameError(positions, projectedById, initialAnchorId);
+  let exitRotationDeg = initial.rotationDeg;
+  let elasticSteps = 0;
+  let resetActive = false;
+
+  for (let centerColumn = 9; centerColumn <= 60; centerColumn++) {
+    projectedById = projectedWindow(centerColumn);
+    const projectedTiles = [...projectedById.entries()].map(([id, point]) => ({ id, ...point }));
+    const viewportIds = projectedViewportTileIds({
+      projectedTiles,
+      protectionById,
+      viewportWidth,
+      viewportHeight,
+      tileVisualRadius
+    });
+    const resetElasticTilesNorthUp = [...viewportIds].every((id) => protectionById[id] === 0);
+    const anchorId = gridTileId(centerColumn, 3, columns, rows);
+    retainLocalLayoutAnchor({
+      positions,
+      anchorId,
+      viewX: viewportWidth / 2,
+      viewY: viewportHeight / 2
+    });
+    if (resetElasticTilesNorthUp) {
+      elasticSteps++;
+    }
+    if (resetElasticTilesNorthUp && (refreshOffscreenEachStep || !resetActive)) {
+      discardOffscreenElasticLayoutTiles({
+        positions,
+        projectedTiles,
+        protectionById,
+        viewportWidth,
+        viewportHeight,
+        tileVisualRadius,
+        anchorId
+      });
+    }
+    resetActive = resetElasticTilesNorthUp;
+    const pendingIds = [...projectedById.keys()].filter((id) => !positions.has(id));
+    admitProjectedTiles({
+      positions,
+      projectedById,
+      pendingIds,
+      anchorId,
+      neighborsById,
+      protectionById,
+      registrationIds: viewportIds,
+      resetElasticTilesNorthUp
+    });
+    const retainedIds = new Set(projectedById.keys());
+    for (const id of positions.keys()) {
+      if (!retainedIds.has(id)) positions.delete(id);
+    }
+    if (resetElasticTilesNorthUp) {
+      const visiblePositions = new Map(
+        [...positions.entries()].filter(([id]) => viewportIds.has(id))
+      );
+      const frame = measureVisibleFrameError(visiblePositions, projectedById, anchorId);
+      exitRotationDeg = frame.rotationDeg;
+    }
+  }
+
+  return {
+    initialRotationDeg: initial.rotationDeg,
+    exitRotationDeg,
+    elasticSteps
   };
 }
 

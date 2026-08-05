@@ -17690,7 +17690,6 @@ function createLocalLayout(centerId) {
   return {
     viewX: 0,
     viewY: 0,
-    elasticNorthUpResetActive: false,
     positions: new Map([[centerId, { x: 0, y: 0 }]])
   };
 }
@@ -17844,7 +17843,6 @@ function createNorthUpLocalLayout(tileId, frame) {
   return {
     viewX: 0,
     viewY: 0,
-    elasticNorthUpResetActive: false,
     positions: new Map([[
       tileId,
       {
@@ -27869,7 +27867,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
   });
   const resetElasticTilesNorthUp = viewportTileIds.size > 0 &&
     [...viewportTileIds].every((id) => chartTileProtection[id] === 0);
-  if (resetElasticTilesNorthUp && !localLayout.elasticNorthUpResetActive) {
+  if (resetElasticTilesNorthUp) {
     discardOffscreenElasticLayoutTiles({
       positions: localLayout.positions,
       projectedTiles: projectedVisible,
@@ -27880,7 +27878,6 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
       anchorId: chartCenterTileId
     });
   }
-  localLayout.elasticNorthUpResetActive = resetElasticTilesNorthUp;
 
   const projectedById = new Map();
   const pending = new Set();
