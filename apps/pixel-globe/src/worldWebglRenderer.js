@@ -246,6 +246,25 @@ export class LruChunkKeys {
   }
 }
 
+export function orderedAtlasPageRuns(entries) {
+  if (!Array.isArray(entries)) {
+    throw new Error("Ordered atlas page runs require an array");
+  }
+  const runs = [];
+  for (const entry of entries) {
+    if (!entry || !Number.isInteger(entry.pageIndex) || entry.pageIndex < 0) {
+      throw new Error(`Invalid ordered atlas page index: ${entry?.pageIndex}`);
+    }
+    const previous = runs.at(-1);
+    if (previous?.pageIndex === entry.pageIndex) {
+      previous.entries.push(entry);
+    } else {
+      runs.push({ pageIndex: entry.pageIndex, entries: [entry] });
+    }
+  }
+  return runs;
+}
+
 export function quadVertices({
   sourceRect,
   textureWidth,
@@ -871,8 +890,7 @@ export function createWorldWebGL2Renderer({
     if (!Array.isArray(sprites)) {
       throw new Error(`Persistent atlas batch ${key} factory did not return an array`);
     }
-    const verticesByPage = new Map();
-    for (const sprite of sprites) {
+    const spriteVertices = sprites.map((sprite) => {
       if (!sprite || !sprite.source) {
         throw new Error(`Persistent atlas batch ${key} contains a malformed sprite`);
       }
@@ -900,30 +918,36 @@ export function createWorldWebGL2Renderer({
       if (!Number.isFinite(refractionPx) || !Number.isFinite(alphaThreshold)) {
         throw new Error(`Persistent atlas batch ${key} effects must be finite`);
       }
-      let values = verticesByPage.get(entry.pageIndex);
-      if (!values) {
-        values = [];
-        verticesByPage.set(entry.pageIndex, values);
-      }
-      values.push(...quadVertices({
-        sourceRect: {
-          x: entry.x + local.x,
-          y: entry.y + local.y,
-          width: local.width,
-          height: local.height
-        },
-        textureWidth: atlasSize,
-        textureHeight: atlasSize,
-        destinationRect: sprite.destinationRect,
-        color: [tint[0], tint[1], tint[2], alpha],
-        refractionPx,
-        alphaThreshold,
-        flipX: Boolean(sprite.flipX)
-      }));
-    }
+      return {
+        pageIndex: entry.pageIndex,
+        vertices: quadVertices({
+          sourceRect: {
+            x: entry.x + local.x,
+            y: entry.y + local.y,
+            width: local.width,
+            height: local.height
+          },
+          textureWidth: atlasSize,
+          textureHeight: atlasSize,
+          destinationRect: sprite.destinationRect,
+          color: [tint[0], tint[1], tint[2], alpha],
+          refractionPx,
+          alphaThreshold,
+          flipX: Boolean(sprite.flipX)
+        })
+      };
+    });
 
-    const groups = [...verticesByPage.entries()].map(([pageIndex, values]) => {
-      const vertices = new Float32Array(values);
+    // Texture changes require separate draws, but merging non-adjacent page
+    // entries would reorder overlapping sprites and break painter ordering.
+    const groups = orderedAtlasPageRuns(spriteVertices).map(({ pageIndex, entries }) => {
+      const vertexLength = entries.reduce((total, entry) => total + entry.vertices.length, 0);
+      const vertices = new Float32Array(vertexLength);
+      let vertexOffset = 0;
+      for (const entry of entries) {
+        vertices.set(entry.vertices, vertexOffset);
+        vertexOffset += entry.vertices.length;
+      }
       const buffer = requiredBuffer(gl, `persistent atlas batch ${key}`);
       const vertexArray = gl.createVertexArray();
       if (!vertexArray) throw new Error(`Could not allocate persistent atlas batch ${key}`);

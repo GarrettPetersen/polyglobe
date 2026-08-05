@@ -8,6 +8,7 @@ import {
   WORLD_SCENE_FRAGMENT_SHADER,
   allocateWorldSceneTexture,
   bitMaskQuadVertices,
+  orderedAtlasPageRuns,
   quadVertices
 } from "./worldWebglRenderer.js";
 
@@ -59,6 +60,26 @@ test("paged texture atlases preserve allocations after one page fills", () => {
     { pageIndex: 1, x: 1, y: 1, width: 10, height: 10 }
   );
   assert.equal(allocator.pageCount, 2);
+});
+
+test("persistent atlas page runs preserve painter order across texture changes", () => {
+  const entries = [
+    { pageIndex: 0, id: "terrain-behind" },
+    { pageIndex: 1, id: "terrain-middle" },
+    { pageIndex: 0, id: "terrain-in-front" },
+    { pageIndex: 0, id: "terrain-front-overlay" }
+  ];
+  const runs = orderedAtlasPageRuns(entries);
+
+  assert.deepEqual(runs.map((run) => run.pageIndex), [0, 1, 0]);
+  assert.deepEqual(
+    runs.flatMap((run) => run.entries.map((entry) => entry.id)),
+    entries.map((entry) => entry.id)
+  );
+  assert.throws(
+    () => orderedAtlasPageRuns([{ pageIndex: -1 }]),
+    /invalid ordered atlas page index/i
+  );
 });
 
 test("batched quad vertices preserve painter geometry and exact UV bounds", () => {
