@@ -39,6 +39,7 @@ import {
 } from "../src/modelCredits.js";
 import { SHIP_STATS, shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
 import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
+import { simplifyDetailedSailShipTextureColor } from "../src/shipTextureSimplification.js";
 import {
   SHIP_DECK_NORMAL_Y,
   SHIP_MIN_RASTER_WATERLINE_DEPTH,
@@ -454,7 +455,10 @@ function preparedGltfJson(path) {
   return JSON.stringify(document);
 }
 
-async function loadGltfMaterialTextureSamplers(path) {
+async function loadGltfMaterialTextureSamplers(path, {
+  maxDimension = 512,
+  smoothing = false
+} = {}) {
   if (extname(path).toLowerCase() !== ".gltf") return null;
   const document = JSON.parse(readFileSync(path, "utf8"));
   const samplers = new Map();
@@ -467,7 +471,8 @@ async function loadGltfMaterialTextureSamplers(path) {
     if (!uri || uri.startsWith("data:")) continue;
     samplers.set(gltfMaterialKey(index), await loadTextureSampler(
       join(dirname(path), decodeURIComponent(uri)),
-      512
+      maxDimension,
+      { smoothing }
     ));
   }
   return samplers;
@@ -522,14 +527,15 @@ async function loadScene(path) {
   throw new Error(`Unsupported ship model extension: ${path}`);
 }
 
-async function loadTextureSampler(path, maxDimension = Infinity) {
+async function loadTextureSampler(path, maxDimension = Infinity, { smoothing = false } = {}) {
   const image = await loadImage(path);
   const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
   const width = Math.max(1, Math.round(image.width * scale));
   const height = Math.max(1, Math.round(image.height * scale));
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = smoothing;
+  if (smoothing) ctx.imageSmoothingQuality = "high";
   ctx.drawImage(image, 0, 0, width, height);
   const data = ctx.getImageData(0, 0, width, height).data;
   return {
@@ -1924,7 +1930,10 @@ async function renderShipSpriteSet(config) {
   mkdirSync(config.outputDir, { recursive: true });
   const scene = await loadScene(config.modelPath);
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
-  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
+  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(
+    config.modelPath,
+    config.gltfTextureSamplerOptions
+  );
   const model = collectTriangles(scene, {
     targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim,
     materialTextureSamplers,
@@ -2467,7 +2476,10 @@ async function renderShipReferenceSet(config) {
   mkdirSync(config.outputDir, { recursive: true });
   const scene = await loadScene(config.modelPath);
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
-  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
+  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(
+    config.modelPath,
+    config.gltfTextureSamplerOptions
+  );
   const model = collectTriangles(scene, {
     targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim,
     materialTextureSamplers,
@@ -3056,7 +3068,10 @@ async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw }
   if (!camera) throw new Error(`Ship side view requires a camera: ${config.slug}`);
   const scene = await loadScene(config.modelPath);
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
-  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
+  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(
+    config.modelPath,
+    config.gltfTextureSamplerOptions
+  );
   const model = collectTriangles(scene, {
     targetMaxDim: config.sideViewTargetModelMaxDim ?? config.targetModelMaxDim,
     materialTextureSamplers,
@@ -3819,7 +3834,11 @@ function spanishNaoConfig() {
     targetModelMaxDim: 2.3,
     frameScale: 0.56,
     sideViewTargetModelMaxDim: 2.0,
-    colorTransform: spanishNaoTextureColor,
+    colorTransform: simplifyDetailedSailShipTextureColor,
+    gltfTextureSamplerOptions: {
+      maxDimension: 96,
+      smoothing: true
+    },
     scaleMode: "spanish-nao",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -3845,6 +3864,10 @@ function portugueseCarrackConfig() {
     targetModelMaxDim: 2.3,
     frameScale: 0.62,
     sideViewTargetModelMaxDim: 2.1,
+    gltfTextureSamplerOptions: {
+      maxDimension: 96,
+      smoothing: true
+    },
     scaleMode: "portuguese-carrack",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -3940,7 +3963,10 @@ function cyc3wGalleonConfig() {
     targetModelMaxDim: 2.3,
     frameScale: 0.62,
     sideViewTargetModelMaxDim: 2.1,
-    colorTransform: cyc3wSailingShipTextureColor,
+    gltfTextureSamplerOptions: {
+      maxDimension: 96,
+      smoothing: true
+    },
     scaleMode: "standalone-source-relative",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -4003,22 +4029,6 @@ function ottomanCoastalTraderConfig() {
     waterlineOffsetY: -0.883,
     wakeWaterlineBand: 0.2,
     skipSelfShadowMaps: true
-  };
-}
-
-function spanishNaoTextureColor(color) {
-  return liftTextureColor(color, { rScale: 1.75, gScale: 1.65, bScale: 1.5, rOffset: 20, gOffset: 18, bOffset: 14 });
-}
-
-function cyc3wSailingShipTextureColor(color) {
-  return liftTextureColor(color, { rScale: 1.4, gScale: 1.4, bScale: 1.4, rOffset: 16, gOffset: 16, bOffset: 16 });
-}
-
-function liftTextureColor(color, { rScale, gScale, bScale, rOffset, gOffset, bOffset }) {
-  return {
-    r: clamp255(color.r * rScale + rOffset),
-    g: clamp255(color.g * gScale + gOffset),
-    b: clamp255(color.b * bScale + bOffset)
   };
 }
 
