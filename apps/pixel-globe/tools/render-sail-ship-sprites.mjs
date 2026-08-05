@@ -39,10 +39,7 @@ import {
 } from "../src/modelCredits.js";
 import { SHIP_STATS, shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
 import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
-import {
-  simplifyDetailedSailShipSailColor,
-  simplifyDetailedSailShipTextureColor
-} from "../src/shipTextureSimplification.js";
+import { simplifySpanishNaoTextureColor } from "../src/spanishNaoTexture.js";
 import {
   SHIP_DECK_NORMAL_Y,
   SHIP_MIN_RASTER_WATERLINE_DEPTH,
@@ -3850,20 +3847,6 @@ function spanishNaoConfig() {
     wakeWaterlineBand: 0.2,
     skipSelfShadowMaps: true
   };
-}
-
-function simplifySpanishNaoTextureColor(color, surface) {
-  if (isSpanishNaoSailMesh(surface?.sourceMeshName)) {
-    return simplifyDetailedSailShipSailColor(color);
-  }
-  return simplifyDetailedSailShipTextureColor(color);
-}
-
-function isSpanishNaoSailMesh(sourceMeshName) {
-  if (typeof sourceMeshName !== "string") {
-    throw new Error("Spanish Nao texture simplification requires a source mesh name");
-  }
-  return /^(?:Vela|Gavia)/i.test(sourceMeshName);
 }
 
 function portugueseCarrackConfig() {
