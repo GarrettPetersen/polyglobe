@@ -18835,7 +18835,7 @@ function pollGamepadControls(nowMs) {
   const frame = gamepadControlFrame(gamepad, controllerButtons);
   controllerButtons = frame.buttons;
   controllerSteering = frame.steering;
-  if (frame.steering || frame.actions.length > 0) noteCurrentSessionActivity(nowMs);
+  if (frame.steering || frame.actions.length > 0) noteCurrentSessionActivity();
   const captainChartPanning = frame.steeringSource === "stick" &&
     captainMenu.isOpen && !shipInfoMenu.isOpen && !politicsMenu.isOpen &&
       !discoveriesMenu.isOpen && !achievementsMenu.isOpen && !navigationMenu.isOpen &&
@@ -18862,7 +18862,7 @@ function pollGamepadControls(nowMs) {
   });
   controllerNavigationState = navigation.state;
   if (navigation.action) {
-    noteCurrentSessionActivity(nowMs);
+    noteCurrentSessionActivity();
     sailingTutorialInputMode = "controller";
     handleControllerAction(navigation.action);
   }
@@ -18873,7 +18873,7 @@ function pollGamepadControls(nowMs) {
   });
   controllerScrollState = scrolling.state;
   if (scrolling.action === "up" || scrolling.action === "down") {
-    noteCurrentSessionActivity(nowMs);
+    noteCurrentSessionActivity();
     sailingTutorialInputMode = "controller";
     dispatchControllerKey(scrolling.action === "up" ? "PageUp" : "PageDown");
   }

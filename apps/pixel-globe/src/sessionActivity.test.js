@@ -46,6 +46,17 @@ test("held controls keep deliberate sailing active", () => {
   assert.equal(state.lastActivityMs, 60_000);
 });
 
+test("held controls preserve input sampled after the frame timestamp", () => {
+  const state = createSessionActivityState(1_000, { idleTimeoutMs: 5_000 });
+  noteSessionActivity(state, 2_005);
+  assert.equal(activeSessionFrameSeconds(state, {
+    nowMs: 2_000,
+    elapsedSeconds: 0.05,
+    continuousInput: true
+  }), 0.05);
+  assert.equal(state.lastActivityMs, 2_005);
+});
+
 test("a suspended frame cannot backfill more than one idle window", () => {
   const state = createSessionActivityState(1_000, { idleTimeoutMs: 5_000 });
   assert.equal(activeSessionFrameSeconds(state, {

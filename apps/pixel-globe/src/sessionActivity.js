@@ -35,7 +35,9 @@ export function activeSessionFrameSeconds(state, {
   if (typeof continuousInput !== "boolean") {
     throw new Error("Session continuous input flag must be boolean");
   }
-  if (continuousInput) noteSessionActivity(state, nowMs);
+  // Input events can be sampled after requestAnimationFrame receives its timestamp.
+  // Preserve that newer event time instead of treating the older frame sample as activity.
+  if (continuousInput && nowMs >= state.lastActivityMs) noteSessionActivity(state, nowMs);
   const boundedElapsedSeconds = Math.min(elapsedSeconds, state.idleTimeoutMs / 1000);
   const frameStartMs = nowMs - boundedElapsedSeconds * 1000;
   const activeUntilMs = state.lastActivityMs + state.idleTimeoutMs;
