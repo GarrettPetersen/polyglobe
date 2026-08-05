@@ -26517,6 +26517,15 @@ function drawDayNightWorld(layers, nowMs) {
     timeMs: nowMs
   });
   renderWorldLayerStack({
+    oceanGapFill: () => {
+      if (layers.oceanShearFillCalls.length === 0) return;
+      drawTerrainAtlasTiles(
+        layers.oceanShearFillCalls,
+        layers.activeChart,
+        layers.offset,
+        nowMs
+      );
+    },
     connectorBase: () => {
       drawCachedWorldLayer(
         "terrain-connectors",
@@ -26759,6 +26768,7 @@ function render(nowMs) {
     return {
       offset,
       activeChart: chart,
+      oceanShearFillCalls: renderWindow.oceanShearFillCalls,
       connectors,
       connectorWaves: measurePerformanceBenchmarkStage(
         "render.terrain.connectorWaves",
@@ -26965,7 +26975,8 @@ function renderCallWindow(activeChart, offset) {
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     tileCalls,
-    terrainCalls: [...oceanShearFillCalls, ...tileCalls],
+    oceanShearFillCalls,
+    terrainCalls: tileCalls,
     tileIds: new Set(tileCalls.map((call) => call.id)),
     faceCalls: activeChart.faceCalls.filter(
       (call) => chartEdgeCallNearViewport(call, windowOffset, margin)
@@ -28098,7 +28109,6 @@ function buildChart(anchorCamera) {
   const oceanShearFillCalls = buildOpenOceanShearFillCalls({
     faceCalls,
     tileById,
-    protectionById: chartTileProtection,
     isOpenOceanTile: (call) => call.row?.t === "water"
   });
   const driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {

@@ -1,4 +1,5 @@
 export const WORLD_LAYER_ORDER = Object.freeze([
+  "oceanGapFill",
   "connectorBase",
   "tidalWater",
   "terrainTiles",

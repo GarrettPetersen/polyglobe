@@ -14,6 +14,7 @@ test("the priority beach connector and its tide both remain beneath terrain tile
   renderWorldLayerStack(drawers);
 
   assert.deepEqual(drawn, [
+    "oceanGapFill",
     "connectorBase",
     "tidalWater",
     "terrainTiles",
@@ -28,6 +29,6 @@ test("the priority beach connector and its tide both remain beneath terrain tile
 test("world layer rendering fails loudly when a painter pass is absent", () => {
   assert.throws(
     () => renderWorldLayerStack({}),
-    /missing its connectorBase/
+    /missing its oceanGapFill/
   );
 });

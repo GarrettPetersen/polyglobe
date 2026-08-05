@@ -1,17 +1,13 @@
-export const OCEAN_SHEAR_FILL_MIN_EXTRA_PX = 2;
+export const OCEAN_SHEAR_FILL_MIN_EXTRA_PX = 0.5;
 
 export function buildOpenOceanShearFillCalls({
   faceCalls,
   tileById,
-  protectionById,
   isOpenOceanTile,
   minimumExtraPx = OCEAN_SHEAR_FILL_MIN_EXTRA_PX
 }) {
   if (!Array.isArray(faceCalls)) throw new Error("Ocean shear fill requires face calls");
   if (!(tileById instanceof Map)) throw new Error("Ocean shear fill requires a tile map");
-  if (!(protectionById instanceof Uint8Array)) {
-    throw new Error("Ocean shear fill requires chart protection");
-  }
   if (typeof isOpenOceanTile !== "function") {
     throw new Error("Ocean shear fill requires an open-ocean predicate");
   }
@@ -25,7 +21,6 @@ export function buildOpenOceanShearFillCalls({
     const a = tileById.get(face.a);
     const b = tileById.get(face.b);
     if (!a || !b) throw new Error(`Ocean shear edge is missing tile ${!a ? face.a : face.b}`);
-    if (protectionById[a.id] !== 0 || protectionById[b.id] !== 0) continue;
     if (!isOpenOceanTile(a) || !isOpenOceanTile(b)) continue;
 
     const actualDistance = pointDistance(a.drawSurfaceX, a.drawSurfaceY, b.drawSurfaceX, b.drawSurfaceY);

@@ -29,9 +29,16 @@ test("large ocean tears receive enough tiles to cover every segment", () => {
   }
 });
 
-test("ordinary, compressed, protected, and non-ocean edges do not receive fillers", () => {
+test("one-pixel ocean expansions receive fillers", () => {
   assert.equal(fillersFor({
     actualB: { x: 21, y: 0 },
+    projectedB: { x: 20, y: 0 }
+  }).length, 1);
+});
+
+test("subpixel, compressed, and non-ocean edges do not receive fillers", () => {
+  assert.equal(fillersFor({
+    actualB: { x: 20.4, y: 0 },
     projectedB: { x: 20, y: 0 }
   }).length, 0);
   assert.equal(fillersFor({
@@ -41,26 +48,18 @@ test("ordinary, compressed, protected, and non-ocean edges do not receive filler
   assert.equal(fillersFor({
     actualB: { x: 28, y: 0 },
     projectedB: { x: 20, y: 0 },
-    protectedTileId: 1
-  }).length, 0);
-  assert.equal(fillersFor({
-    actualB: { x: 28, y: 0 },
-    projectedB: { x: 20, y: 0 },
     terrain: "lake"
   }).length, 0);
 });
 
-function fillersFor({ actualB, projectedB, protectedTileId = null, terrain = "water" }) {
+function fillersFor({ actualB, projectedB, terrain = "water" }) {
   const tileById = new Map([
     [0, tileCall(0, { x: 0, y: 0 }, { x: 0, y: 0 }, terrain)],
     [1, tileCall(1, actualB, projectedB, terrain)]
   ]);
-  const protectionById = new Uint8Array(2);
-  if (protectedTileId !== null) protectionById[protectedTileId] = 255;
   return buildOpenOceanShearFillCalls({
     faceCalls: [{ a: 0, b: 1 }],
     tileById,
-    protectionById,
     isOpenOceanTile: (call) => call.row.t === "water"
   });
 }
