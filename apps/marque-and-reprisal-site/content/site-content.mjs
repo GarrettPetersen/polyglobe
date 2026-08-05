@@ -35,7 +35,7 @@ export const site = Object.freeze({
 });
 
 const MYSTERY_SHIP_SLUG = "viking-longship";
-const SHIP_ROSTER_ASSET_VERSION = "2026-08-04-cleaner-raster-textures";
+export const SHIP_ROSTER_ASSET_VERSION = "2026-08-04-cleaner-raster-textures";
 const SHIP_ROSTER_LIGHTING_AZIMUTH = 2;
 const SHIP_ROSTER_LIGHTING_ELEVATION = 1;
 const shipSpriteManifest = JSON.parse(readFileSync(new URL(
@@ -89,7 +89,7 @@ export const shipRoster = Object.freeze(SHIP_STATS
   .sort((left, right) => left.label.localeCompare(right.label, "en")));
 
 function versionedShipSprite(slug, suffix = "") {
-  return `/assets/ships/${slug}-32-headings${suffix}.png?v=${SHIP_ROSTER_ASSET_VERSION}`;
+  return `/assets/ships/${SHIP_ROSTER_ASSET_VERSION}/${slug}-32-headings${suffix}.png`;
 }
 
 export const mysteryShip = Object.freeze({

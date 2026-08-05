@@ -12,6 +12,7 @@ import {
   qAndA,
   screenshotLocales,
   screenshots,
+  SHIP_ROSTER_ASSET_VERSION,
   shipRoster,
   site,
   mysteryShip,
@@ -175,15 +176,16 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
   assert.match(client, /canvasCenter - state\.anchor\.y/);
 
   for (const ship of shipRoster) {
-    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings\\.png`));
-    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings-light\\.png`));
-    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings-shade\\.png`));
-    assert.match(page, new RegExp(`/assets/ships/${ship.slug}-32-headings-shadow\\.png`));
+    const spritePath = `/assets/ships/${SHIP_ROSTER_ASSET_VERSION}`;
+    assert.match(page, new RegExp(`${spritePath}/${ship.slug}-32-headings\\.png`));
+    assert.match(page, new RegExp(`${spritePath}/${ship.slug}-32-headings-light\\.png`));
+    assert.match(page, new RegExp(`${spritePath}/${ship.slug}-32-headings-shade\\.png`));
+    assert.match(page, new RegExp(`${spritePath}/${ship.slug}-32-headings-shadow\\.png`));
     assert.equal(ship.headings, 32);
     assert.equal(ship.lightAzimuth, 2);
     assert.equal(ship.lightElevation, 1);
     for (const source of [ship.spriteSheet, ship.lightSheet, ship.shadeSheet, ship.shadowSheet]) {
-      assert.match(source, /\?v=2026-08-04-cleaner-raster-textures$/);
+      assert.match(source, new RegExp(`^${spritePath}/.+\\.png$`));
     }
     assert.ok(Number.isFinite(ship.turntableAnchorX));
     assert.ok(Number.isFinite(ship.turntableAnchorY));

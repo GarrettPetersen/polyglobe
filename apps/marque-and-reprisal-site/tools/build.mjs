@@ -15,6 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   LOCALIZED_CAPSULE_ASSET_NAMES,
+  SHIP_ROSTER_ASSET_VERSION,
   localizedCapsules,
   screenshotLocales,
   screenshots,
@@ -99,7 +100,11 @@ async function publishLocalizedScreenshots() {
 }
 
 async function publishShipSprites() {
-  const outputRoot = path.join(distRoot, "assets/ships");
+  const outputRoot = path.join(
+    distRoot,
+    "assets/ships",
+    SHIP_ROSTER_ASSET_VERSION
+  );
   await mkdir(outputRoot, { recursive: true });
   for (const ship of shipRoster) {
     for (const suffix of ["", "-light", "-shade", "-shadow"]) {
@@ -393,7 +398,8 @@ async function validateBuild() {
     "assets/press/capsule-art/capsule-source.aseprite",
     "assets/press/capsule-art/title-with-ship.png",
     ...shipRoster.flatMap((ship) => ["", "-light", "-shade", "-shadow"].map(
-      (suffix) => `assets/ships/${ship.slug}-32-headings${suffix}.png`
+      (suffix) =>
+        `assets/ships/${SHIP_ROSTER_ASSET_VERSION}/${ship.slug}-32-headings${suffix}.png`
     )),
     ...localizedCapsules.flatMap((locale) => [
       `downloads/${locale.archiveFile}`,
