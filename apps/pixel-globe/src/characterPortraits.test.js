@@ -603,6 +603,28 @@ test("visually reviewed downcast frames retain their corrected labels", () => {
   }
 });
 
+test("the brown-haired merchant uses a clean birthday expression", () => {
+  const merchant = GENERATED_MANIFEST.sourceCharacters.find((source) => (
+    source.id === "merchant-portrait-pack-by-captainskolot-portrait-merchant"
+  ));
+  const expressionIndices = Object.fromEntries(
+    merchant.expressions.map((expression) => [expression.id, expression.index])
+  );
+
+  assert.equal(characterExpression(merchant, "happy").index, 7);
+  assert.deepEqual({
+    happy: expressionIndices.happy,
+    pained: expressionIndices.pained,
+    crying: expressionIndices.crying,
+    hurt: expressionIndices.hurt
+  }, {
+    happy: 7,
+    pained: 9,
+    crying: 11,
+    hurt: 12
+  });
+});
+
 test("Knight Portrait opens on its calm neutral frame", () => {
   const knight = GENERATED_MANIFEST.sourceCharacters.find((source) => (
     source.sourceDirectory === "Knight Portrait Pack by Captainskeleto"

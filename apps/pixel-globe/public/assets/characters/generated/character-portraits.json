@@ -5414,56 +5414,56 @@
           "height": 64
         },
         {
-          "id": "weary",
-          "label": "Weary",
+          "id": "soft-smile",
+          "label": "Soft Smile",
           "index": 2,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_2.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "soft-smile",
-          "label": "Soft Smile",
+          "id": "stern",
+          "label": "Stern",
           "index": 3,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_3.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "concerned",
-          "label": "Concerned",
+          "id": "angry",
+          "label": "Angry",
           "index": 4,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_4.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "angry",
-          "label": "Angry",
+          "id": "determined",
+          "label": "Determined",
           "index": 5,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_5.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "sad",
-          "label": "Sad",
+          "id": "pleased",
+          "label": "Pleased",
           "index": 6,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_6.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "surprised",
-          "label": "Surprised",
+          "id": "happy",
+          "label": "Happy",
           "index": 7,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_7.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "laughing",
-          "label": "Laughing",
+          "id": "sad",
+          "label": "Sad",
           "index": 8,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_8.png",
           "width": 64,
@@ -5478,24 +5478,24 @@
           "height": 64
         },
         {
-          "id": "pleased",
-          "label": "Pleased",
+          "id": "surprised",
+          "label": "Surprised",
           "index": 10,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_10.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "shouting",
-          "label": "Shouting",
+          "id": "crying",
+          "label": "Crying",
           "index": 11,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_11.png",
           "width": 64,
           "height": 64
         },
         {
-          "id": "happy",
-          "label": "Happy",
+          "id": "hurt",
+          "label": "Hurt",
           "index": 12,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_12.png",
           "width": 64,

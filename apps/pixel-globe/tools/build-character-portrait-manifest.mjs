@@ -85,17 +85,17 @@ const expressionLabelOverrides = new Map([
   ]),
   labels("Merchant Portrait Pack by Captainskolot/Portrait Merchant", [
     ["neutral", "Neutral"],
-    ["weary", "Weary"],
     ["soft-smile", "Soft Smile"],
-    ["concerned", "Concerned"],
+    ["stern", "Stern"],
     ["angry", "Angry"],
-    ["sad", "Sad"],
-    ["surprised", "Surprised"],
-    ["laughing", "Laughing"],
-    ["pained", "Pained"],
+    ["determined", "Determined"],
     ["pleased", "Pleased"],
-    ["shouting", "Shouting"],
-    ["happy", "Happy"]
+    ["happy", "Happy"],
+    ["sad", "Sad"],
+    ["pained", "Pained"],
+    ["surprised", "Surprised"],
+    ["crying", "Crying"],
+    ["hurt", "Hurt"]
   ]),
   labels("Warrior with Beard Pack by Captainskolot/Warrior With Beard", [
     ["neutral", "Neutral"],
