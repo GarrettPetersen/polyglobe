@@ -88,10 +88,12 @@ export function createDistantWorldSimulation({
       ) || changed;
     }
     const after = snapshots();
+    const changedParts = distantWorldChangedSnapshotParts(before, after);
     return Object.freeze({
-      changed,
-      before,
-      after,
+      changed: changed || changedParts.length > 0,
+      changedParts,
+      before: snapshotsForParts(before, changedParts),
+      after: snapshotsForParts(after, changedParts),
       protectedNpcShipIds: Object.freeze([...protectedNpcShipIds]),
       foreignPortCalls: Object.freeze(foreignPortCalls.map((entry) => Object.freeze(entry))),
       schedule: schedule(clockMinute, protectedNpcShipIds)
@@ -167,6 +169,14 @@ export function distantWorldSnapshotsEqual(a, b) {
   return distantWorldValuesEqual(a, b);
 }
 
+export function distantWorldChangedSnapshotParts(before, after) {
+  validateSnapshots(before);
+  validateSnapshots(after);
+  return Object.freeze(["economy", "landTrade", "npcRoutes"].filter((key) => (
+    !distantWorldValuesEqual(before[key], after[key])
+  )));
+}
+
 export function distantWorldValuesEqual(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -217,4 +227,8 @@ function validateSnapshots(value) {
   if (!value?.economy || !value?.landTrade || !value?.npcRoutes) {
     throw new Error("Distant-world comparison requires complete snapshots");
   }
+}
+
+function snapshotsForParts(snapshots, parts) {
+  return Object.freeze(Object.fromEntries(parts.map((key) => [key, snapshots[key]])));
 }

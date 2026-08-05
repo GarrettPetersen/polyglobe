@@ -7,6 +7,10 @@ export const LOCAL_SAVE_MODE_ECONOMY = "economy";
 export const LOCAL_SAVE_MODE_CORE = "core";
 
 export function writeLocalSave(payload, { storage = defaultStorage(), savedAt = Date.now() } = {}) {
+  return writeLocalSaveAttempt(payload, { storage, savedAt }).save;
+}
+
+function writeLocalSaveAttempt(payload, { storage, savedAt }) {
   const save = createLocalSave(payload, savedAt);
   const serialized = JSON.stringify(save);
   storage.setItem(LOCAL_SAVE_STORAGE_KEY, serialized);
@@ -20,7 +24,10 @@ export function writeLocalSave(payload, { storage = defaultStorage(), savedAt = 
   }
   const persisted = JSON.parse(persistedSerialized);
   validateLocalSave(persisted);
-  return persisted;
+  return {
+    save: persisted,
+    byteLength: serializedByteLength(serialized)
+  };
 }
 
 export function writeLocalSaveWithRecovery(
@@ -33,11 +40,11 @@ export function writeLocalSaveWithRecovery(
 
   for (const candidate of candidates) {
     try {
-      const save = writeLocalSave(candidate.payload, { storage, savedAt });
+      const write = writeLocalSaveAttempt(candidate.payload, { storage, savedAt });
       return {
-        save,
+        save: write.save,
         mode: candidate.mode,
-        byteLength: serializedByteLength(JSON.stringify(save)),
+        byteLength: write.byteLength,
         attempts: Object.freeze(attempts)
       };
     } catch (error) {

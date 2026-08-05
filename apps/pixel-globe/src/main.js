@@ -39,7 +39,6 @@ import {
 import { advanceFrameCadence } from "./frameCadence.js";
 import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
 import {
-  distantWorldSnapshotsEqual,
   distantWorldValuesEqual,
   portableDistantWorldSystems,
   relationKey
@@ -675,6 +674,7 @@ import {
   configureCaptureEncounter,
   configureNpcEncounter,
   configureNpcRouteEncounter,
+  createNpcShipSnapshotCache,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
@@ -1813,6 +1813,7 @@ const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 18, 36, 54];
 const NPC_VISUAL_UPDATE_HZ = 24;
+const NPC_ROUTE_SNAPSHOT_BUCKET_COUNT = 6;
 const NPC_COMBAT_TARGETING_HZ = 6;
 const NPC_IDLE_COMBAT_TARGETING_HZ = 3;
 const NPC_COMBAT_COLLISION_HZ = 4;
@@ -1827,10 +1828,9 @@ const WORLD_SPATIAL_KIND = Object.freeze({
   FISH_SCHOOL: "fish-school",
   WHALE: "whale"
 });
-// Preserve a 12 Hz update rate per nearby ship while distributing collision work
-// across short slices. The 24 Hz coordinator avoids rebuilding every snapshot and
-// spatial entry between ship moves; slower devices degrade instead of catching up.
-const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 2;
+// Ordinary traffic needs only a 6 Hz physics target because presentation interpolates
+// between updates. Combat, storms, and collisions remain on the 24 Hz coordinator.
+const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 4;
 const NPC_VISUAL_PRESENTATION_MIN_MS = 50;
 const NPC_VISUAL_PRESENTATION_MAX_MS = 180;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
@@ -2117,6 +2117,7 @@ const LAKE_BATTLE_SETUP_ROW_COUNT = 4;
 const LAKE_BATTLE_PAUSE_ACTIONS = Object.freeze(["RESUME", "RESTART", "CHOOSE SHIPS", "OPTIONS", "START MENU"]);
 const LAKE_BATTLE_RESULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE SHIPS", "START MENU"]);
 const AUTOSAVE_INTERVAL_MS = 30000;
+const AUTOSAVE_MAX_IDLE_DELAY_MS = 10000;
 const CREDITS_MARKDOWN_URL = "assets/CREDITS.md";
 let CREDITS_PANEL_W = 338;
 let CREDITS_PANEL_H = 218;
@@ -2746,6 +2747,9 @@ let npcShipCaptains;
 let pirateHideoutCharacters = new Map();
 let pirateHideoutPortsByTileId = new Map();
 const npcVisualShips = new Map();
+const npcVisualSnapshotCache = createNpcShipSnapshotCache({
+  bucketCount: NPC_ROUTE_SNAPSHOT_BUCKET_COUNT
+});
 const shipCombatState = createShipCombatState();
 const playerFriendlyFireIncidents = new Map();
 const shipCollisionCooldowns = new Map();
@@ -2949,6 +2953,8 @@ let captureDirector = null;
 let captureFrameStepper = null;
 let deterministicCaptureEvents = null;
 let lastAutosaveMs = 0;
+let periodicAutosaveRequest = null;
+let periodicAutosaveDueMs = null;
 let captainAlertModal = null;
 let characterAlertPortraitStage = createDialoguePortraitStageState();
 let familyDebtReturnReminderDelivered = false;
@@ -3684,7 +3690,10 @@ async function loadInitialNearbyWorldAssets() {
   const requests = [];
   const shipSlugs = new Set();
   const offset = chartOffsetPixels(chart);
-  for (const snapshot of npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)) {
+  for (const snapshot of npcVisualSnapshotCache.refresh(
+    npcSeaRoutes,
+    weatherClockMinutes
+  )) {
     if (snapshot.hidden) continue;
     const point = localPointForGlobeVector(snapshot.routeVector);
     if (!point) continue;
@@ -5272,7 +5281,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   updateMusicContext(nowMs);
   if (!CAPTURE_SCENARIO && hasStartedVoyage && !surfaceIceEntrapmentActive &&
       nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
-    saveVoyageNow("periodic autosave");
+    schedulePeriodicAutosave(nowMs);
   }
   if (!simulationPaused && updateWorldSpriteAnimation(nowMs)) dirty = true;
   if (shouldRenderFrame({
@@ -9917,6 +9926,7 @@ async function restoreSavedVoyage(payload) {
   gameOverReason = null;
   gameOverState = null;
   npcVisualShips.clear();
+  npcVisualSnapshotCache.reset();
   shoreBatteryStates.clear();
   npcVisualMovementBucket = 0;
   shoreBatteryUpdateAccumulator = 0;
@@ -10196,7 +10206,60 @@ function placeShipAtTileCenterForRecovery(tileId) {
   chart = buildChart(camera);
 }
 
+function schedulePeriodicAutosave(nowMs = performance.now()) {
+  if (periodicAutosaveRequest) return;
+  if (periodicAutosaveDueMs === null) periodicAutosaveDueMs = nowMs;
+  const voyageState = gameState;
+  const callback = (deadline) => {
+    periodicAutosaveRequest = null;
+    if (voyageState !== gameState || !hasStartedVoyage || gameOverReason || ship?.hitPoints <= 0) {
+      periodicAutosaveDueMs = null;
+      return;
+    }
+    const waitedMs = performance.now() - periodicAutosaveDueMs;
+    const activeControl = keys.size > 0 || pointerSteering.active || controllerSteering !== null;
+    const busy = activeControl || shipCombatState.engagements.size > 0 ||
+      Boolean(fishingAction) || Boolean(goldTreasureSequence) || surfaceIceEntrapmentActive;
+    const hasIdleBudget = deadline.didTimeout || deadline.timeRemaining() >= 4;
+    if ((busy || !hasIdleBudget) && waitedMs < AUTOSAVE_MAX_IDLE_DELAY_MS) {
+      queuePeriodicAutosaveCallback(callback);
+      return;
+    }
+    periodicAutosaveDueMs = null;
+    saveVoyageNow("periodic autosave");
+  };
+  queuePeriodicAutosaveCallback(callback);
+}
+
+function queuePeriodicAutosaveCallback(callback) {
+  if (typeof window.requestIdleCallback === "function") {
+    periodicAutosaveRequest = {
+      kind: "idle",
+      id: window.requestIdleCallback(callback, { timeout: 1000 })
+    };
+    return;
+  }
+  periodicAutosaveRequest = {
+    kind: "timeout",
+    id: window.setTimeout(() => callback({
+      didTimeout: false,
+      timeRemaining: () => 8
+    }), 50)
+  };
+}
+
+function cancelPeriodicAutosave() {
+  if (periodicAutosaveRequest?.kind === "idle") {
+    window.cancelIdleCallback(periodicAutosaveRequest.id);
+  } else if (periodicAutosaveRequest?.kind === "timeout") {
+    window.clearTimeout(periodicAutosaveRequest.id);
+  }
+  periodicAutosaveRequest = null;
+  periodicAutosaveDueMs = null;
+}
+
 function saveVoyageNow(reason) {
+  cancelPeriodicAutosave();
   if (CAPTURE_SCENARIO) return true;
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
   try {
@@ -22418,19 +22481,30 @@ function distantWorldRuntimeState() {
 function applyDistantWorldSimulationResult(event) {
   const result = event?.simulation;
   if (!result?.before || !result?.after || !Array.isArray(result.foreignPortCalls) ||
-      !Array.isArray(result.protectedNpcShipIds)) {
+      !Array.isArray(result.protectedNpcShipIds) || !Array.isArray(result.changedParts)) {
     throw new Error("Distant-world worker returned an incomplete simulation result");
   }
-  const current = {
-    economy: snapshotWorldEconomy(worldEconomy),
-    landTrade: snapshotLandTradeSystem(landTradeSystem),
-    npcRoutes: snapshotNpcSeaRouteStrategicSystem(npcSeaRoutes)
-  };
+  const validParts = new Set(["economy", "landTrade", "npcRoutes"]);
+  if (result.changedParts.some((key) => !validParts.has(key))) {
+    throw new Error(`Distant-world worker returned an unknown changed part: ${result.changedParts}`);
+  }
+  const current = {};
+  if (result.changedParts.includes("economy")) {
+    current.economy = snapshotWorldEconomy(worldEconomy);
+  }
+  if (result.changedParts.includes("landTrade")) {
+    current.landTrade = snapshotLandTradeSystem(landTradeSystem);
+  }
+  if (result.changedParts.includes("npcRoutes")) {
+    current.npcRoutes = snapshotNpcSeaRouteStrategicSystem(npcSeaRoutes);
+  }
   const protectedNpcShipIds = new Set(result.protectedNpcShipIds);
   const comparableCurrent = distantWorldSnapshotsWithoutNpcShips(current, protectedNpcShipIds);
   const comparableBefore = distantWorldSnapshotsWithoutNpcShips(result.before, protectedNpcShipIds);
-  if (!distantWorldSnapshotsEqual(comparableCurrent, comparableBefore)) {
-    const changedParts = ["economy", "landTrade", "npcRoutes"]
+  if (result.changedParts.some((key) => (
+    !distantWorldValuesEqual(comparableCurrent[key], comparableBefore[key])
+  ))) {
+    const changedParts = result.changedParts
       .filter((key) => !distantWorldValuesEqual(comparableCurrent[key], comparableBefore[key]));
     console.info(
       `[pixel-globe] discarded stale distant-world result after local ${changedParts.join("/")} changed`
@@ -22438,10 +22512,10 @@ function applyDistantWorldSimulationResult(event) {
     resetDistantWorldWorkerSchedule();
     return false;
   }
-  if (!distantWorldValuesEqual(result.before.economy, result.after.economy)) {
+  if (result.changedParts.includes("economy")) {
     restoreWorldEconomy(worldEconomy, result.after.economy, { seedKey: gameState.voyageSeed });
   }
-  if (!distantWorldValuesEqual(result.before.landTrade, result.after.landTrade)) {
+  if (result.changedParts.includes("landTrade")) {
     restoreLandTradeSystem(landTradeSystem, result.after.landTrade, {
       seedKey: gameState.voyageSeed,
       relationBetween: currentDiplomacyBetween,
@@ -22452,7 +22526,7 @@ function applyDistantWorldSimulationResult(event) {
       suzeraintyMemory: gameState.relations.diplomacy.suzerainties
     });
   }
-  if (!distantWorldValuesEqual(result.before.npcRoutes, result.after.npcRoutes)) {
+  if (result.changedParts.includes("npcRoutes")) {
     applyNpcSeaRouteSimulationSnapshot(npcSeaRoutes, result.after.npcRoutes, {
       preserveShipIds: result.protectedNpcShipIds
     });
@@ -22465,6 +22539,7 @@ function applyDistantWorldSimulationResult(event) {
 
 function distantWorldSnapshotsWithoutNpcShips(snapshot, shipIds) {
   if (!(shipIds instanceof Set)) throw new Error("Distant-world protection requires a ship-id set");
+  if (!snapshot.npcRoutes) return snapshot;
   return {
     ...snapshot,
     npcRoutes: {
@@ -22476,9 +22551,18 @@ function distantWorldSnapshotsWithoutNpcShips(snapshot, shipIds) {
 
 function updateNpcVisualShips(dt) {
   if (!chart || !localLayout || !camera || !directionIndex) return false;
+  const highPriorityShipIds = new Set(
+    [...npcVisualShips.values()]
+      .filter(npcVisualStateRequiresLocalPhysics)
+      .map((state) => state.id)
+  );
   const snapshots = measurePerformanceBenchmarkStage(
     "npcShips.visual.snapshots",
-    () => npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)
+    () => npcVisualSnapshotCache.refresh(
+      npcSeaRoutes,
+      weatherClockMinutes,
+      highPriorityShipIds
+    )
   );
   const snapshotIds = new Set();
   const activeSnapshots = [];
@@ -22508,6 +22592,10 @@ function updateNpcVisualShips(dt) {
       changed = true;
     }
     if (state) state.visualMovementDebtSeconds += dt;
+    if (state && npcVisualStateRequiresLocalPhysics(state)) {
+      activeSnapshots.push(snapshot);
+      continue;
+    }
     const movementBucket = state?.visualMovementBucket ??
       npcVisualMovementBucketForId(snapshot.id);
     if (movementBucket !== npcVisualMovementBucket) continue;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  distantWorldChangedSnapshotParts,
   distantWorldSnapshotsEqual,
   portableDistantWorldSystems,
   relationKey
@@ -53,4 +54,5 @@ test("distant snapshot equality notices live state conflicts", () => {
   const changed = structuredClone(a);
   changed.npcRoutes.ships[0].hitPoints = 1;
   assert.equal(distantWorldSnapshotsEqual(a, changed), false);
+  assert.deepEqual(distantWorldChangedSnapshotParts(a, changed), ["npcRoutes"]);
 });

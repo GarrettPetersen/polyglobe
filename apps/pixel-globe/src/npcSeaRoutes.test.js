@@ -20,6 +20,7 @@ import {
   captureSurrenderedNpcShip,
   configureNpcEncounter,
   configureNpcRouteEncounter,
+  createNpcShipSnapshotCache,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
@@ -109,6 +110,43 @@ test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("kelulus"));
   assert.ok(NPC_SHIP_SLUGS.includes("galleass"));
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
+});
+
+test("nearby NPC snapshot work is sliced while priority ships refresh immediately", () => {
+  const economy = createWorldEconomy({
+    ports: PORTS,
+    startMinute: 0,
+    seedKey: "snapshot-cache"
+  });
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    seedKey: "snapshot-cache"
+  });
+  const cache = createNpcShipSnapshotCache({ bucketCount: 64 });
+  const initial = new Map(cache.refresh(routes, 30).map((entry) => [entry.id, entry]));
+  const priorityShip = routes.ships.find((ship) => initial.has(ship.id));
+  assert.ok(priorityShip);
+  priorityShip.hitPoints -= 1;
+
+  const refreshed = new Map(cache.refresh(
+    routes,
+    31,
+    new Set([priorityShip.id])
+  ).map((entry) => [entry.id, entry]));
+  assert.equal(refreshed.get(priorityShip.id).hitPoints, priorityShip.hitPoints);
+  assert.ok(
+    [...initial].some(([id, snapshot]) => (
+      id !== priorityShip.id && refreshed.get(id) === snapshot
+    )),
+    "ordinary offscreen snapshots should remain cached between their assigned slices"
+  );
+
+  const removed = routes.ships.find((ship) => ship.id !== priorityShip.id);
+  routes.ships.splice(routes.ships.indexOf(removed), 1);
+  routes.shipById.delete(removed.id);
+  assert.equal(cache.refresh(routes, 32).some((entry) => entry.id === removed.id), false);
 });
 
 test("fleet-origin weights preserve every port while favoring active sailing origins", () => {

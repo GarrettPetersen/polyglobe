@@ -1307,6 +1307,58 @@ export function npcShipSnapshots(system, clockMinutes) {
     .filter(Boolean);
 }
 
+export function createNpcShipSnapshotCache({ bucketCount = 6 } = {}) {
+  if (!Number.isInteger(bucketCount) || bucketCount <= 0) {
+    throw new Error(`Invalid NPC snapshot bucket count: ${bucketCount}`);
+  }
+  const cache = new Map();
+  let bucket = 0;
+
+  function refresh(system, clockMinutes, highPriorityShipIds = new Set()) {
+    if (!system || !Array.isArray(system.ships) || !(system.shipById instanceof Map)) {
+      throw new Error("NPC snapshot cache requires a route system");
+    }
+    if (!Number.isFinite(clockMinutes) || clockMinutes < 0) {
+      throw new Error(`Invalid NPC snapshot clock: ${clockMinutes}`);
+    }
+    if (!(highPriorityShipIds instanceof Set)) {
+      throw new Error("High-priority NPC snapshot ids must be a set");
+    }
+    for (const ship of system.ships) {
+      if (cache.has(ship.id) &&
+          !highPriorityShipIds.has(ship.id) &&
+          snapshotBucketForId(ship.id, bucketCount) !== bucket) {
+        continue;
+      }
+      cache.set(
+        ship.id,
+        npcShipSnapshot(ship, npcEffectiveClock(ship, clockMinutes))
+      );
+    }
+    for (const shipId of cache.keys()) {
+      if (!system.shipById.has(shipId)) cache.delete(shipId);
+    }
+    bucket = (bucket + 1) % bucketCount;
+    return [...cache.values()].filter(Boolean);
+  }
+
+  function reset() {
+    cache.clear();
+    bucket = 0;
+  }
+
+  return Object.freeze({ refresh, reset });
+}
+
+function snapshotBucketForId(id, bucketCount) {
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index++) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % bucketCount;
+}
+
 export function npcRoleLabel(role) {
   if (role === NPC_ROLE_MERCHANT) return "Merchant";
   if (role === NPC_ROLE_FISHERMAN) return "Fisherman";
