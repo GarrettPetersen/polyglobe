@@ -2494,8 +2494,48 @@ test("a declined factor offer points the player back to the equipment store", ()
     }
   });
 
-  selectPortDialogueOption(session, city, gameState, economy, [city], 1);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 100 });
   assert.match(portDialogueView(session, city, gameState, economy, [city]).text, /remain available/i);
+  assert.deepEqual(gameState.memory.decisions, {
+    "equipment.factor-pitch-declined.fishing-net.weighted-cast-net": 101
+  });
+});
+
+test("equipment factor follow-up agrees with a plural equipment label", () => {
+  const city = {
+    tileId: 10,
+    portId: "lisbon",
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.doubloons = 5000;
+  const session = createPortArrivalDialogueSession(city, {
+    equipmentFactorPitch: {
+      kind: "cannon",
+      itemId: "bronze-culverins",
+      label: "Bronze culverins",
+      price: 2400,
+      tier: 1,
+      tierGain: 1,
+      priority: 0,
+      salesPitch: "A quicker battery can settle a broadside.",
+      effectDetail: "Reload 8.50s / Damage x1.15 / Range x1.12",
+      reconsidered: false
+    }
+  });
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, { simMinute: 100 });
+  assert.match(
+    portDialogueView(session, city, gameState, economy, [city]).text,
+    /The Bronze culverins are aboard/
+  );
 });
 
 test("the equipment overview shows stocked levels and identifies specialist markets", () => {
@@ -2586,7 +2626,7 @@ test("a rare equipment offer persists after declining and remembers the player",
   const firstOffer = portDialogueView(session, city, gameState, economy, [city]);
   const offeredItemId = firstOffer.options[0].action.itemId;
   const offeredItem = perkItemById(offeredItemId);
-  assert.ok(firstOffer.text.includes(`a rare ${offeredItem.label} came into my hands`));
+  assert.ok(firstOffer.text.includes(`came into possession of ${offeredItem.label}`));
   assert.deepEqual(firstOffer.options.map((entry) => entry.label), [
     `Buy it - ${offeredItem.price} db`,
     "No, thank you"

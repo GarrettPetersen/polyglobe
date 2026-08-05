@@ -27,6 +27,7 @@ import {
   shipLedgerPage,
   shipPapersPage,
   shipPerformanceRating,
+  shipPapersRowsPerPageForPanel,
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -98,6 +99,17 @@ test("ship comparison differences occupy a dedicated signed column", () => {
   assert.equal(shipComparisonDifferenceLabel(0), "0");
   assert.equal(shipComparisonDifferenceLabel(-3), "-3");
   assert.throws(() => shipComparisonDifferenceLabel(Number.NaN), /Invalid ship comparison difference/);
+});
+
+test("ship inventory page size reserves room for its pager", () => {
+  assert.equal(shipPapersRowsPerPageForPanel({ width: 520, height: 220 }), 6);
+  assert.equal(shipPapersRowsPerPageForPanel({ width: 320, height: 256 }), 5);
+  assert.equal(shipPapersRowsPerPageForPanel({ width: 320, height: 190 }), 3);
+  assert.equal(shipPapersRowsPerPageForPanel({
+    width: 520,
+    height: 220,
+    tallMetrics: true
+  }), 4);
 });
 
 test("ship comparison armament avoids repeating long gun summaries", () => {

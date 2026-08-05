@@ -372,6 +372,23 @@ test("shore battery volleys deplete gunpowder and a disabled battery creates max
   assert.equal(reserveVolley.remainingStock, 0);
 });
 
+test("a depleted gunpowder market stays integrated with a nearby producing city", () => {
+  const nanjing = port(76, "Nanjing", "China", "east-asian", 160000);
+  const changzhou = port(77, "Changzhou", "China", "east-asian", 90000);
+  const economy = createWorldEconomy({ ports: [nanjing, changzhou], startMinute: 0 });
+  connectNearbyPortMarkets(economy, [nanjing, changzhou], () => 50);
+
+  destroyPortGoodStock(economy, changzhou, GUNPOWDER_GOOD_ID);
+
+  const nanjingGunpowder = marketByGood(economy, nanjing).get(GUNPOWDER_GOOD_ID);
+  const changzhouGunpowder = marketByGood(economy, changzhou).get(GUNPOWDER_GOOD_ID);
+  assert.ok(nanjingGunpowder.productionPerDay > 0);
+  assert.ok(
+    changzhouGunpowder.sellPrice <= nanjingGunpowder.buyPrice,
+    `nearby gunpowder arbitrage remained ${nanjingGunpowder.buyPrice} -> ${changzhouGunpowder.sellPrice}`
+  );
+});
+
 test("a completed Kyoto workshop creates persistent matchlock production and input demand", () => {
   const economy = createWorldEconomy({ ports: [KYOTO], startMinute: 0 });
   const before = marketByGood(economy, KYOTO);
@@ -913,6 +930,17 @@ test("market comparisons describe local prices against the live world median", (
     () => worldMarketPriceComparison(economy, LONDON, CLOVE_GOOD_ID, "barter"),
     /Unknown market comparison side/
   );
+});
+
+test("world market median cache invalidates when a port market changes", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const before = worldMarketPriceComparison(economy, LONDON, "grain", "buy");
+
+  destroyPortGoodStock(economy, LONDON, "grain");
+
+  const after = worldMarketPriceComparison(economy, LONDON, "grain", "buy");
+  assert.notEqual(after.worldPrice, before.worldPrice);
+  assert.equal(after.worldPrice, after.localPrice);
 });
 
 test("other long-haul prestige goods support profitable world-spanning routes", () => {

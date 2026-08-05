@@ -79,10 +79,14 @@ export function captainMenuShortcutAvailable({
 export function worldPointerAction({
   interactionCandidate = null,
   combatShipBroadside = null,
+  combatShipEngaged = false,
   pointBroadside = null
 } = {}) {
   assertBroadsideSide(combatShipBroadside, "combat ship");
   assertBroadsideSide(pointBroadside, "pointer");
+  if (typeof combatShipEngaged !== "boolean") {
+    throw new Error(`Combat ship engagement must be boolean: ${combatShipEngaged}`);
+  }
   if (interactionCandidate !== null && (
     typeof interactionCandidate !== "object" ||
     typeof interactionCandidate.exact !== "boolean" ||
@@ -94,9 +98,13 @@ export function worldPointerAction({
   if (combatShipBroadside && interactionCandidate?.target.kind !== "ship") {
     throw new Error("Combat ship broadside requires a clicked ship target");
   }
+  if (combatShipEngaged && interactionCandidate?.target.kind !== "ship") {
+    throw new Error("Combat ship engagement requires a clicked ship target");
+  }
   if (combatShipBroadside) {
     return { type: WORLD_POINTER_ACTION.BROADSIDE, sideName: combatShipBroadside };
   }
+  if (combatShipEngaged) return { type: WORLD_POINTER_ACTION.STEER };
   if (interactionCandidate?.exact) {
     return { type: WORLD_POINTER_ACTION.INTERACTION, target: interactionCandidate.target };
   }

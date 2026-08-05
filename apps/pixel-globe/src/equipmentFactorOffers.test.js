@@ -3,9 +3,11 @@ import test from "node:test";
 
 import { createWorldEconomy } from "./economy.js";
 import {
+  EQUIPMENT_FACTOR_DECLINE_COOLDOWN_MINUTES,
   EQUIPMENT_FACTOR_KIND_FISHING_NET,
   EQUIPMENT_FACTOR_PITCH_COOLDOWN_MINUTES,
-  prepareEquipmentFactorPitch
+  prepareEquipmentFactorPitch,
+  recordEquipmentFactorPitchDecline
 } from "./equipmentFactorOffers.js";
 import { PERK_ITEMS } from "./perkItems.js";
 import { createSpecialEquipmentOfferMemory } from "./specialEquipmentOffers.js";
@@ -18,6 +20,13 @@ const CITY = Object.freeze({
   cityType: "northern-european",
   factionId: "hanseatic",
   population: 40000
+});
+
+const OTHER_CITY = Object.freeze({
+  ...CITY,
+  tileId: 18,
+  portId: "guangzhou",
+  city: "Guangzhou"
 });
 
 function pitchInputs(overrides = {}) {
@@ -52,7 +61,7 @@ test("the factor pitches the strongest affordable stocked upgrade", () => {
   assert.match(pitch.salesPitch, /pay for itself/i);
 });
 
-test("a declined item is not pitched again at the same port for one month", () => {
+test("an item is not pitched again at the same port for one month", () => {
   const inputs = pitchInputs();
   const first = prepareEquipmentFactorPitch(inputs);
   const duringCooldown = prepareEquipmentFactorPitch({
@@ -62,6 +71,33 @@ test("a declined item is not pitched again at the same port for one month", () =
   const afterCooldown = prepareEquipmentFactorPitch({
     ...inputs,
     simMinute: inputs.simMinute + EQUIPMENT_FACTOR_PITCH_COOLDOWN_MINUTES
+  });
+
+  assert.equal(first.itemId, "drift-net");
+  assert.equal(duringCooldown, null);
+  assert.equal(afterCooldown.itemId, "drift-net");
+});
+
+test("declining an item suppresses that exact pitch at every port for two months", () => {
+  const inputs = pitchInputs({
+    economy: createWorldEconomy({ ports: [CITY, OTHER_CITY], startMinute: 0 })
+  });
+  const first = prepareEquipmentFactorPitch(inputs);
+  recordEquipmentFactorPitchDecline({
+    memory: inputs.memory,
+    pitch: first,
+    simMinute: inputs.simMinute
+  });
+
+  const duringCooldown = prepareEquipmentFactorPitch({
+    ...inputs,
+    city: OTHER_CITY,
+    simMinute: inputs.simMinute + EQUIPMENT_FACTOR_DECLINE_COOLDOWN_MINUTES - 1
+  });
+  const afterCooldown = prepareEquipmentFactorPitch({
+    ...inputs,
+    city: OTHER_CITY,
+    simMinute: inputs.simMinute + EQUIPMENT_FACTOR_DECLINE_COOLDOWN_MINUTES
   });
 
   assert.equal(first.itemId, "drift-net");

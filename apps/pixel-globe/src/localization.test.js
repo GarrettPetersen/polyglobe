@@ -82,6 +82,28 @@ test("first-day sunset and sunrise notices are localized everywhere", () => {
   }
 });
 
+test("family debt journal summaries localize the live amount and home port", () => {
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    const summary = translate(id, "quest.familyDebtOutstanding", {
+      amount: "97k DB",
+      city: "London"
+    });
+    assert.match(summary, /97k DB/);
+    assert.match(summary, /London/);
+    assert.doesNotMatch(summary, /\{(?:amount|city)\}/);
+    if (id !== LANGUAGE_ENGLISH) {
+      assert.notEqual(
+        summary,
+        translate(LANGUAGE_ENGLISH, "quest.familyDebtOutstanding", {
+          amount: "97k DB",
+          city: "London"
+        }),
+        `${id} retained the English family-debt summary`
+      );
+    }
+  }
+});
+
 test("the Great Barrier Reef discovery and patron exchange are localized everywhere", () => {
   const keys = [
     "discovery.greatBarrierReef.name",

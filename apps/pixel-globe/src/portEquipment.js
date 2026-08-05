@@ -1,4 +1,5 @@
 import { portEconomySummary } from "./economy.js";
+import { isPreGunpowderCulture } from "./navalWeapons.js";
 
 export const EQUIPMENT_STOCK_FISHING_NET = "fishing-net";
 export const EQUIPMENT_STOCK_CANNON = "cannon";
@@ -15,6 +16,7 @@ const EQUIPMENT_SPECIALIST_PORT_NAMES = Object.freeze({
   [EQUIPMENT_STOCK_CANNON]: Object.freeze(["goa", "istanbul", "lisbon"]),
   [EQUIPMENT_STOCK_WHALE_HARPOON]: Object.freeze(["bordeaux"])
 });
+const PRE_CONTACT_NATIVE_FACTION_IDS = new Set(["inca", "neutral"]);
 
 export function equipmentStockAtPort(economy, city, kind, equipment) {
   if (!Array.isArray(equipment) || equipment.length === 0) {
@@ -27,12 +29,19 @@ export function equipmentAvailableAtPort(economy, city, kind, equipment) {
   assertEquipmentKind(kind);
   assertEquipment(equipment);
   if (equipment.tier === 0) return true;
+  if (nativePreContactPortCannotBuildCannons(city, kind)) return false;
   if (equipmentSpecialistAtPort(city, kind)) return true;
   const threshold = TIER_PROSPERITY_THRESHOLDS[equipment.tier];
   if (threshold === undefined) throw new Error(`No port equipment threshold for tier: ${equipment.tier}`);
   const prosperity = portEquipmentProsperity(economy, city);
   const specialty = (hashUnit(`${requiredPortId(city)}|${kind}|${equipment.id}`) - 0.5) * 0.34;
   return prosperity + specialty >= threshold;
+}
+
+export function nativePreContactPortCannotBuildCannons(city, kind) {
+  assertEquipmentKind(kind);
+  if (kind !== EQUIPMENT_STOCK_CANNON || !isPreGunpowderCulture(city?.cityType)) return false;
+  return PRE_CONTACT_NATIVE_FACTION_IDS.has(city?.factionId || "neutral");
 }
 
 export function equipmentSpecialistAtPort(city, kind) {

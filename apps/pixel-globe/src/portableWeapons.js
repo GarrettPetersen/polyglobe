@@ -1,4 +1,9 @@
 import { shipMinimumCrew } from "./shipLoadouts.js";
+import {
+  GRAMMATICAL_NUMBER_PLURAL,
+  GRAMMATICAL_NUMBER_SINGULAR,
+  validateGrammaticalNumber
+} from "./grammaticalNumber.js";
 
 export const PORTABLE_PROJECTILE_ARROW = "arrow";
 export const PORTABLE_PROJECTILE_BULLET = "bullet";
@@ -41,6 +46,7 @@ const SOUTHEAST_ASIAN_SHIP_SLUGS = new Set([
 function portableItem({
   id,
   label,
+  grammaticalNumber,
   detail,
   price,
   tier,
@@ -57,6 +63,7 @@ function portableItem({
   const value = Object.freeze({
     id,
     label,
+    grammaticalNumber,
     detail,
     price,
     tier,
@@ -67,6 +74,7 @@ function portableItem({
     weapon: weapon ? weaponSpec(id, weapon) : null,
     modifier: modifier ? Object.freeze({ ...modifier }) : null
   });
+  validateGrammaticalNumber(grammaticalNumber, `portable weapon item ${id}`);
   return value;
 }
 
@@ -109,6 +117,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: MARINERS_BOWS_ITEM_ID,
     label: "Mariners' Bows",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "A rack of simple bows lets free hands harry an exposed enemy deck.",
     price: 450,
     tier: 1,
@@ -124,6 +133,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: ENGLISH_LONGBOWS_ITEM_ID,
     label: "English Longbows",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "Powerful yew bows reach farther across the water, but demand practiced archers.",
     price: 950,
     tier: 2,
@@ -139,6 +149,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: COMPOSITE_BOWS_ITEM_ID,
     label: "Composite Recurve Bows",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "Compact horn-and-sinew bows loose quickly from a crowded deck.",
     price: 900,
     tier: 2,
@@ -154,6 +165,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: YUMI_ITEM_ID,
     label: "Yumi",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "Asymmetric Japanese bows can be worked above a gunwale without striking the deck.",
     price: 1000,
     tier: 2,
@@ -169,6 +181,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: VIKING_BOWS_ITEM_ID,
     label: "Viking Bows",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "Reconstructed ash and yew bows complete the longship's fighting equipment.",
     price: 850,
     tier: 2,
@@ -185,6 +198,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: CROSSBOWS_ITEM_ID,
     label: "Crossbows",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "A chest of crossbows trades a slow spanning time for an easier, harder shot.",
     price: 1150,
     tier: 2,
@@ -200,6 +214,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: MATCHLOCK_ARQUEBUSES_ITEM_ID,
     label: "Matchlock Arquebuses",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "A stand of heavy handguns punches through cover at the cost of smoke and a long reload.",
     price: 3400,
     tier: 3,
@@ -215,6 +230,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: WHEELLOCK_PISTOLS_ITEM_ID,
     label: "Wheellock Pistols",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "Costly self-igniting pistols are deadly at close range and useful in a landing party.",
     price: 3000,
     tier: 3,
@@ -230,6 +246,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: SWIVEL_GUN_ITEM_ID,
     label: "Swivel Gun",
+    grammaticalNumber: GRAMMATICAL_NUMBER_SINGULAR,
     detail: "One rail-mounted light gun can turn in any direction and rake an exposed deck.",
     price: 2800,
     tier: 3,
@@ -245,6 +262,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
   portableItem({
     id: INCENDIARY_ARROWS_ITEM_ID,
     label: "Incendiary Arrows",
+    grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
     detail: "Pitch-wrapped heads let every bow threaten rigging and planks, but fly shorter and slower.",
     price: 1400,
     tier: 2,

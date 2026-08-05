@@ -54,6 +54,7 @@ export function createShoreBatteryState(city, flags, simMinute) {
     shotSequence: 0,
     engagedTargetIds: new Set(),
     playerHailed: false,
+    playerAttackActive: false,
     playerAttackRecorded: false
   };
 }
@@ -73,6 +74,7 @@ export function updateShoreBatteryState(state, flags, simMinute, dt) {
   state.woundedGarrison = 0;
   state.engagedTargetIds.clear();
   state.playerHailed = false;
+  state.playerAttackActive = false;
   state.playerAttackRecorded = false;
   return true;
 }
@@ -196,6 +198,7 @@ export function shoreBatteryPlayerResponse({
   withinTollRange,
   tollDemandEligible,
   playerHailed,
+  playerAttackActive,
   passageRefusalActive
 }) {
   for (const [key, value] of Object.entries({
@@ -205,6 +208,7 @@ export function shoreBatteryPlayerResponse({
     withinTollRange,
     tollDemandEligible,
     playerHailed,
+    playerAttackActive,
     passageRefusalActive
   })) {
     if (typeof value !== "boolean") throw new Error(`Invalid shore battery player response ${key}: ${value}`);
@@ -215,7 +219,9 @@ export function shoreBatteryPlayerResponse({
     : tollDemandEligible && withinTollRange;
   return {
     shouldHail: playerHostile && shouldConfront && !confronted,
-    shouldEngage: playerHostile && withinWeaponRange && hostileByWar && confronted
+    shouldEngage: withinWeaponRange && (
+      playerAttackActive || (playerHostile && hostileByWar && confronted)
+    )
   };
 }
 
@@ -250,6 +256,7 @@ function disableShoreBattery(state, flags, simMinute, attackerShipLabel) {
   flags[disabledByShipFlagKey(state.portId)] = state.disabledByShipLabel;
   state.engagedTargetIds.clear();
   state.playerHailed = false;
+  state.playerAttackActive = false;
 }
 
 function assertAttackerShipLabel(value) {
@@ -277,6 +284,9 @@ function assertState(state) {
   if (!state || typeof state.id !== "string" || typeof state.cityName !== "string" || !state.cityName.trim() ||
       !(state.engagedTargetIds instanceof Set)) {
     throw new Error("Invalid shore battery state");
+  }
+  if (typeof state.playerAttackActive !== "boolean") {
+    throw new Error(`Invalid shore battery player attack state: ${state.playerAttackActive}`);
   }
   if (!Number.isInteger(state.maxGarrison) || state.maxGarrison <= 0 ||
       !Number.isInteger(state.woundedGarrison) || state.woundedGarrison < 0 ||

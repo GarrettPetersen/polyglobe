@@ -121,6 +121,7 @@ test("a remembered toll refusal suppresses another hail without forgiving a war"
     withinTollRange: true,
     tollDemandEligible: true,
     playerHailed: false,
+    playerAttackActive: false,
     passageRefusalActive: true
   });
   assert.deepEqual(hostile, { shouldHail: false, shouldEngage: false });
@@ -132,6 +133,7 @@ test("a remembered toll refusal suppresses another hail without forgiving a war"
     withinTollRange: false,
     tollDemandEligible: false,
     playerHailed: false,
+    playerAttackActive: false,
     passageRefusalActive: true
   });
   assert.deepEqual(war, { shouldHail: false, shouldEngage: true });
@@ -145,6 +147,7 @@ test("an expired toll refusal allows the next hostile port to hail", () => {
     withinTollRange: true,
     tollDemandEligible: true,
     playerHailed: false,
+    playerAttackActive: false,
     passageRefusalActive: false
   }), { shouldHail: true, shouldEngage: false });
 });
@@ -155,6 +158,7 @@ test("hostile toll hails wait for docking range and ignore minor ports", () => {
     hostileByWar: false,
     withinWeaponRange: true,
     playerHailed: false,
+    playerAttackActive: false,
     passageRefusalActive: false
   };
   assert.equal(shoreBatteryPlayerResponse({
@@ -172,6 +176,19 @@ test("hostile toll hails wait for docking range and ignore minor ports", () => {
     withinTollRange: true,
     tollDemandEligible: true
   }).shouldHail, true);
+});
+
+test("a player-declared shore attack persists without ordinary diplomatic hostility", () => {
+  assert.deepEqual(shoreBatteryPlayerResponse({
+    playerHostile: false,
+    hostileByWar: false,
+    withinWeaponRange: true,
+    withinTollRange: false,
+    tollDemandEligible: false,
+    playerHailed: true,
+    playerAttackActive: true,
+    passageRefusalActive: false
+  }), { shouldHail: false, shouldEngage: true });
 });
 
 test("nearby port surrenders identify the captain, nationality, and port", () => {

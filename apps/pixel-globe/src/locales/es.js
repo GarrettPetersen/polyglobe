@@ -149,6 +149,7 @@ export default {
   "quest.journal": "MISIONES EN CURSO",
   "quest.none": "NO HAY MISIONES EN CURSO",
   "quest.mainVoyage": "VIAJE PRINCIPAL",
+  "quest.familyDebtOutstanding": "{amount} PENDIENTES EN {city}",
   "quest.passenger": "PASAJERO",
   "quest.delivery": "ENTREGA",
   "quest.diplomacy": "DIPLOMACIA",

@@ -149,6 +149,7 @@ export default {
   "quest.journal": "進行中的任務",
   "quest.none": "沒有進行中的任務",
   "quest.mainVoyage": "主要航程",
+  "quest.familyDebtOutstanding": "{city}尚欠{amount}",
   "quest.passenger": "乘客",
   "quest.delivery": "遞送",
   "quest.diplomacy": "外交",

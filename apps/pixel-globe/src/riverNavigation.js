@@ -215,6 +215,26 @@ export function selectRiverRailPath({
   };
 }
 
+export function selectRiverEntranceRailPath({
+  probes,
+  desiredDirection,
+  excludedPathKeys = []
+}) {
+  if (!Array.isArray(probes)) {
+    throw new Error("River entrance rail selection requires centerline probes");
+  }
+  for (const probe of probes) {
+    if (typeof probe?.mouth !== "boolean") {
+      throw new Error("River entrance rail probes require a mouth flag");
+    }
+  }
+  return selectRiverRailPath({
+    probes: probes.filter((probe) => probe.mouth),
+    desiredDirection,
+    excludedPathKeys
+  });
+}
+
 export function npcRiverRailShouldRemainCommitted({ navigationKind, activePathKey }) {
   if (typeof navigationKind !== "string" || navigationKind.length === 0) {
     throw new Error("NPC river rail commitment requires a navigation kind");

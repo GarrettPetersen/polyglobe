@@ -33,6 +33,7 @@ const VILLAGE_PRODUCTION_MULTIPLIER = 0.58;
 const VILLAGE_CONSUMPTION_MULTIPLIER = 0.62;
 const NEARBY_PORT_MARKET_RADIUS_KM = 2500;
 const NEARBY_PORT_MARKET_INTEGRATION_STRENGTH = 0.65;
+const NEARBY_CRITICAL_STOCK_MARKET_INTEGRATION_STRENGTH = 0.9;
 const SOURCE_SPICE_ABUNDANCE_PRICE_MULTIPLIER = 0.22;
 const SOURCE_GINGER_ABUNDANCE_PRICE_MULTIPLIER = 0.4;
 const SOURCE_SPICE_MINIMUM_TARGET_STOCK = 80;
@@ -40,6 +41,7 @@ const CRITICAL_STOCK_PRICE_THRESHOLD_RATIO = 0.75;
 const CRITICAL_STOCK_PRICE_EXPONENT = 1.25;
 const MINT_FEE_RATE = 0.05;
 const SPECIE_METAL_GOOD_IDS = new Set(["gold", "silver"]);
+const WORLD_MARKET_MEDIAN_CACHE = new WeakMap();
 
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
@@ -682,7 +684,14 @@ export function connectNearbyPortMarkets(economy, ports, sailingDistanceKm) {
         integratedMultiplier - localMultiplier
       );
     }
+    origin.state.marketIntegrationNeighbors = weightedNeighbors
+      .filter((neighbor) => neighbor.weight > 0)
+      .map((neighbor) => ({
+        state: neighbor.state,
+        weight: neighbor.weight
+      }));
   }
+  invalidateWorldMarketMedianCache(economy);
   return economy;
 }
 
@@ -694,6 +703,7 @@ export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMi
   const state = createPortState(port, economy.seedKey);
   const yard = addWorldShipyardPort(economy.shipyards, port, startMinute);
   economy.portStates.set(portId, state);
+  invalidateWorldMarketMedianCache(economy);
   return { port: state, shipyard: yard };
 }
 
@@ -713,6 +723,7 @@ export function replaceWorldEconomyPort(economy, port, startMinute = economy?.la
   }
   economy.portStates.set(portId, replacement);
   replaceWorldShipyardPort(economy.shipyards, port, startMinute);
+  invalidateWorldMarketMedianCache(economy);
   return replacement;
 }
 
@@ -736,7 +747,9 @@ export function establishPortIndustry(
     throw new Error(`Invalid port industry initial stock: ${goodId}=${initialStock}`);
   }
   const port = requiredPortState(economy, city);
-  return establishIndustryAtPort(port, goodId, productionPerDay, initialStock);
+  const result = establishIndustryAtPort(port, goodId, productionPerDay, initialStock);
+  if (result.created) invalidateWorldMarketMedianCache(economy);
+  return result;
 }
 
 export function worldEconomyHasPort(economy, port) {
@@ -803,6 +816,7 @@ export function restoreWorldEconomy(economy, snapshot, { seedKey = economy?.seed
     port.specie = saved.specie * port.targetSpecie / savedTargetSpecie;
   }
   economy.lastMinute = snapshot.lastMinute;
+  invalidateWorldMarketMedianCache(economy);
   return economy;
 }
 
@@ -832,6 +846,7 @@ export function advanceWorldEconomy(economy, clockMinute) {
   }
   economy.lastMinute += steps * ECONOMY_STEP_MINUTES;
   advanceWorldShipyards(economy.shipyards, economy.lastMinute);
+  invalidateWorldMarketMedianCache(economy);
   return true;
 }
 
@@ -880,6 +895,7 @@ export function restorePortTradeState(economy, city, snapshot) {
     state.stock = stock;
   }
   port.specie = snapshot.specie;
+  invalidateWorldMarketMedianCache(economy);
   return portMarket(economy, city);
 }
 
@@ -904,14 +920,7 @@ export function worldMarketPriceComparison(economy, city, goodId, side) {
   }
 
   const localPrice = marketPrice(port, good, port.goods.get(goodId).stock)[priceKey];
-  const worldPrices = [...economy.portStates.values()]
-    .map((worldPort) => marketPrice(
-      worldPort,
-      good,
-      worldPort.goods.get(goodId).stock
-    )[priceKey])
-    .sort((a, b) => a - b);
-  const worldPrice = median(worldPrices);
+  const worldPrice = cachedWorldMarketMedian(economy, good, priceKey);
   const percent = Math.round((localPrice / worldPrice - 1) * 100);
   return {
     side,
@@ -938,6 +947,7 @@ export function executePortSale(economy, city, goodId, quantity, priceMultiplier
   );
   if (!good.alwaysAvailable) state.stock -= quantity;
   port.specie += total;
+  invalidateWorldMarketMedianCache(economy);
   return { good, quantity, total, unitPrice: Math.max(1, Math.round(total / quantity)) };
 }
 
@@ -997,6 +1007,7 @@ export function executePortPurchase(economy, city, goodId, quantity, priceMultip
   const mintingFee = minted ? Math.max(1, Math.round(total * MINT_FEE_RATE)) : 0;
   const retainedDuty = minted ? grossTotal - total : 0;
   port.specie += mintingFee;
+  invalidateWorldMarketMedianCache(economy);
   return {
     good,
     quantity,
@@ -1275,6 +1286,7 @@ function createPortState(port, seedKey) {
     hasMint: MINT_CITY_NAMES_1522.has(normalizeName(port.city)),
     marketGoodIds,
     marketIntegrationOffsets: new Map(TRADE_GOODS.map((good) => [good.id, 0])),
+    marketIntegrationNeighbors: [],
     goods
   };
   for (const good of TRADE_GOODS) refreshPortGoodPriceFactors(portState, good);
@@ -1382,13 +1394,13 @@ function marketPrice(port, good, stock, specieMultiplier = speciePriceMultiplier
   if (!port.marketIntegrationOffsets.has(good.id)) {
     throw new Error(`${port.name} market has no integration value for ${good.label}`);
   }
-  const integratedMultiplier = good.criticalStockPricing && stock <= 0
-    ? MAX_PRICE_MULTIPLIER
+  const integratedMultiplier = good.criticalStockPricing
+    ? criticalStockIntegratedMultiplier(port, good, stock, rawMultiplier)
     : clamp(
-      rawMultiplier + port.marketIntegrationOffsets.get(good.id),
-      MIN_INTEGRATED_PRICE_MULTIPLIER,
-      MAX_PRICE_MULTIPLIER
-    );
+        rawMultiplier + port.marketIntegrationOffsets.get(good.id),
+        MIN_INTEGRATED_PRICE_MULTIPLIER,
+        MAX_PRICE_MULTIPLIER
+      );
   const state = port.goods.get(good.id);
   const multiplier = clamp(
     integratedMultiplier * state.localAbundancePriceMultiplier * specieMultiplier,
@@ -1401,6 +1413,35 @@ function marketPrice(port, good, stock, specieMultiplier = speciePriceMultiplier
     buyPrice: Math.max(1, Math.round(midPrice * PORT_MARKUP)),
     sellPrice: Math.max(1, Math.floor(midPrice * PORT_MARKDOWN))
   };
+}
+
+function criticalStockIntegratedMultiplier(port, good, stock, localMultiplier) {
+  if (!Array.isArray(port.marketIntegrationNeighbors)) {
+    throw new Error(`${port.name} market has no nearby-market topology`);
+  }
+  if (port.marketIntegrationNeighbors.length === 0) return localMultiplier;
+  let weightedMultiplier = 0;
+  let totalWeight = 0;
+  for (const neighbor of port.marketIntegrationNeighbors) {
+    const neighborState = neighbor?.state;
+    const weight = neighbor?.weight;
+    if (!neighborState?.goods?.has(good.id) || !Number.isFinite(weight) || weight <= 0) {
+      throw new Error(`${port.name} has invalid nearby-market data for ${good.label}`);
+    }
+    weightedMultiplier += rawMarketMultiplier(
+      neighborState,
+      good,
+      neighborState.goods.get(good.id).stock
+    ) * weight;
+    totalWeight += weight;
+  }
+  const integrationWeight = NEARBY_CRITICAL_STOCK_MARKET_INTEGRATION_STRENGTH *
+    Math.min(1, totalWeight);
+  return clamp(
+    localMultiplier + (weightedMultiplier / totalWeight - localMultiplier) * integrationWeight,
+    MIN_INTEGRATED_PRICE_MULTIPLIER,
+    MAX_PRICE_MULTIPLIER
+  );
 }
 
 function speciePriceMultiplier(port) {
@@ -1584,12 +1625,38 @@ function removePortGoodStock(economy, city, goodId, requestedQuantity) {
     ? state.stock
     : Math.min(state.stock, requestedQuantity);
   state.stock = Math.max(0, state.stock - consumedQuantity);
+  invalidateWorldMarketMedianCache(economy);
   return Object.freeze({
     good,
     requestedQuantity,
     consumedQuantity,
     remainingStock: state.stock
   });
+}
+
+function cachedWorldMarketMedian(economy, good, priceKey) {
+  let cache = WORLD_MARKET_MEDIAN_CACHE.get(economy);
+  if (!cache) {
+    cache = new Map();
+    WORLD_MARKET_MEDIAN_CACHE.set(economy, cache);
+  }
+  const cacheKey = `${good.id}:${priceKey}`;
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const worldPrices = [...economy.portStates.values()]
+    .map((worldPort) => marketPrice(
+      worldPort,
+      good,
+      worldPort.goods.get(good.id).stock
+    )[priceKey])
+    .sort((a, b) => a - b);
+  const value = median(worldPrices);
+  cache.set(cacheKey, value);
+  return value;
+}
+
+function invalidateWorldMarketMedianCache(economy) {
+  WORLD_MARKET_MEDIAN_CACHE.delete(economy);
 }
 
 function median(sortedValues) {

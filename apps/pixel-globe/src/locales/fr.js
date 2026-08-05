@@ -149,6 +149,7 @@ export default {
   "quest.journal": "QUÊTES EN COURS",
   "quest.none": "AUCUNE QUÊTE EN COURS",
   "quest.mainVoyage": "VOYAGE PRINCIPAL",
+  "quest.familyDebtOutstanding": "{amount} RESTANT À {city}",
   "quest.passenger": "PASSAGER",
   "quest.delivery": "LIVRAISON",
   "quest.diplomacy": "DIPLOMATIE",

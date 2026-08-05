@@ -151,15 +151,39 @@ test("regional succession news takes priority over ordinary port gossip", () => 
     localFlavor: "The harbor is busy.",
     shipyardRumor: { shipLabel: "Brigantine", portName: "Venice" },
     rulerRumor: {
-      factionName: "Safavid Empire",
+      factionId: "safavid",
       displayName: "Shah Tahmasp I",
       previousRuler: { displayName: "Shah Ismail I" }
     }
   });
 
-  assert.match(presentation.text, /Shah Tahmasp I now rules the Safavid Empire/);
+  assert.match(presentation.text, /Shah Tahmasp I now rules Safavid Persia/);
   assert.doesNotMatch(presentation.text, /brigantine/i);
   assert.equal(presentation.expressionId, "attentive");
+});
+
+test("succession gossip respects each realm's canonical article", () => {
+  const rumor = (factionId, displayName) => ({
+    factionId,
+    displayName,
+    previousRuler: { displayName: "the former ruler" }
+  });
+  const denmarkNorway = portGreetingPresentationForPersonality({
+    personalityId: "gossipy",
+    cityName: "Copenhagen",
+    localFlavor: "The harbor is busy.",
+    rulerRumor: rumor("denmark-norway", "Frederick I")
+  });
+  const ottoman = portGreetingPresentationForPersonality({
+    personalityId: "gossipy",
+    cityName: "Istanbul",
+    localFlavor: "The harbor is busy.",
+    rulerRumor: rumor("ottoman", "Sultan Suleiman I")
+  });
+
+  assert.match(denmarkNorway.text, /rules Denmark-Norway/);
+  assert.doesNotMatch(denmarkNorway.text, /the Denmark-Norway/);
+  assert.match(ottoman.text, /rules the Ottoman Empire/);
 });
 
 test("port historical gossip stays to one useful report", () => {

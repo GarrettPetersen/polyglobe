@@ -149,6 +149,7 @@ export default {
   "quest.journal": "TRWAJĄCE ZADANIA",
   "quest.none": "BRAK TRWAJĄCYCH ZADAŃ",
   "quest.mainVoyage": "GŁÓWNA PODRÓŻ",
+  "quest.familyDebtOutstanding": "DŁUG {amount} W {city}",
   "quest.passenger": "PASAŻER",
   "quest.delivery": "DOSTAWA",
   "quest.diplomacy": "DYPLOMACJA",

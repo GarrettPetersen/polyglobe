@@ -149,6 +149,7 @@ export default {
   "quest.journal": "MISSÕES EM ANDAMENTO",
   "quest.none": "NENHUMA MISSÃO EM ANDAMENTO",
   "quest.mainVoyage": "VIAGEM PRINCIPAL",
+  "quest.familyDebtOutstanding": "{amount} PENDENTES EM {city}",
   "quest.passenger": "PASSAGEIRO",
   "quest.delivery": "ENTREGA",
   "quest.diplomacy": "DIPLOMACIA",

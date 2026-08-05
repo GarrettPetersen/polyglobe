@@ -13,6 +13,7 @@ import {
   portableWeaponItemById,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
+import { GRAMMATICAL_NUMBER_PLURAL } from "./grammaticalNumber.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 const STATS = shipStatsForSlug("brigantine");
@@ -22,6 +23,10 @@ test("regional starter arms are portable rather than hull properties", () => {
   assert.deepEqual(regionalStarterPortableWeaponItemIds({ factionId: "japan" }), [YUMI_ITEM_ID]);
   assert.deepEqual(regionalStarterPortableWeaponItemIds({ factionId: "ming" }), [CROSSBOWS_ITEM_ID]);
   assert.deepEqual(regionalStarterPortableWeaponItemIds({ factionId: "neutral" }), [MARINERS_BOWS_ITEM_ID]);
+  assert.equal(
+    portableWeaponItemById(MARINERS_BOWS_ITEM_ID).grammaticalNumber,
+    GRAMMATICAL_NUMBER_PLURAL
+  );
 });
 
 test("incendiary arrows trade bow range and reload speed for hull damage", () => {

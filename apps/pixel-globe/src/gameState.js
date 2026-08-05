@@ -234,7 +234,8 @@ import {
   validateSpecialEquipmentOfferMemory
 } from "./specialEquipmentOffers.js";
 import {
-  prepareEquipmentFactorPitch as prepareEquipmentFactorPitchOffer
+  prepareEquipmentFactorPitch as prepareEquipmentFactorPitchOffer,
+  recordEquipmentFactorPitchDecline as recordEquipmentFactorPitchDeclineOffer
 } from "./equipmentFactorOffers.js";
 import { effectivePlayerShipStats, gameStatePerkTotals } from "./playerPerks.js";
 import {
@@ -2649,6 +2650,16 @@ export function prepareEquipmentFactorPitch(state, economy, city, simMinute) {
   });
 }
 
+export function declineEquipmentFactorPitch(state, pitch, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  recordEquipmentFactorPitchDeclineOffer({
+    memory: state.memory,
+    pitch,
+    simMinute
+  });
+}
+
 export function purchasePerkItem(state, city, itemId, context = {}) {
   assertGameState(state);
   const item = perkItemById(itemId);
@@ -3328,6 +3339,12 @@ export function adjustFactionReputation(state, factionId, delta) {
   const next = roundReputation(clampReputation(current + delta));
   state.relations.factionReputation[id] = next;
   return next;
+}
+
+export function reconcileFactionReputationAfterPlayerVassalage(state, factionId) {
+  const current = factionReputation(state, factionId);
+  if (current >= 0) return current;
+  return adjustFactionReputation(state, factionId, -current);
 }
 
 export function createPortEntryStatusContext(state, simMinute = 0) {

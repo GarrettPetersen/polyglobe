@@ -11,6 +11,7 @@ import {
   equipmentAvailableAtPort,
   equipmentSpecialistAtPort,
   equipmentStockAtPort,
+  nativePreContactPortCannotBuildCannons,
   portEquipmentProsperity
 } from "./portEquipment.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
@@ -93,4 +94,26 @@ test("trade wealth can unlock top-tier equipment at an ordinary port", () => {
     EQUIPMENT_STOCK_CANNON,
     CANNON_EQUIPMENT.at(-1)
   ), true);
+});
+
+test("native pre-contact ports do not invent upgraded cannon equipment", () => {
+  const chanchan = {
+    tileId: 950,
+    city: "Chanchan",
+    country: "Peru",
+    cityType: "andean",
+    factionId: "inca",
+    population: 100000
+  };
+  const economy = createWorldEconomy({ ports: [chanchan], startMinute: 0 });
+
+  assert.equal(nativePreContactPortCannotBuildCannons(chanchan, EQUIPMENT_STOCK_CANNON), true);
+  assert.deepEqual(
+    equipmentStockAtPort(economy, chanchan, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT)
+      .map((item) => item.id),
+    ["standard-ordnance"]
+  );
+
+  const colonized = { ...chanchan, factionId: "spain" };
+  assert.equal(nativePreContactPortCannotBuildCannons(colonized, EQUIPMENT_STOCK_CANNON), false);
 });

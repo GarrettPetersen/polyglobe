@@ -149,6 +149,7 @@ export default {
   "quest.journal": "ТЕКУЩИЕ ЗАДАНИЯ",
   "quest.none": "НЕТ ТЕКУЩИХ ЗАДАНИЙ",
   "quest.mainVoyage": "ГЛАВНОЕ ПЛАВАНИЕ",
+  "quest.familyDebtOutstanding": "ДОЛГ {amount} В {city}",
   "quest.passenger": "ПАССАЖИР",
   "quest.delivery": "ДОСТАВКА",
   "quest.diplomacy": "ДИПЛОМАТИЯ",

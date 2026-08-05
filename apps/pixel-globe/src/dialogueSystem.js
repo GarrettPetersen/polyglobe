@@ -18,6 +18,7 @@ import {
   cityLabel,
   completeQuest,
   createMarketUndoSnapshot,
+  declineEquipmentFactorPitch,
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
   futurePermanentCrewFloor,
@@ -110,8 +111,10 @@ import {
   EQUIPMENT_FACTOR_KIND_FISHING_NET,
   EQUIPMENT_FACTOR_KIND_PERK_ITEM,
   EQUIPMENT_FACTOR_KIND_WHALE_HARPOON,
+  equipmentFactorPitchItem,
   validateEquipmentFactorPitch
 } from "./equipmentFactorOffers.js";
+import { usesPluralAgreement } from "./grammaticalNumber.js";
 import {
   CUSTOM_LOADOUT_FIELDS,
   CUSTOM_LOADOUT_ID,
@@ -296,6 +299,7 @@ export function createPortDialogueSession(city, options = {}) {
     specialEquipmentOffer: null,
     equipmentFactorPitch: options.equipmentFactorPitch || null,
     equipmentFactorPitchOutcome: null,
+    rulerRumor: options.rulerRumor || null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
     japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
@@ -1899,7 +1903,8 @@ export function selectPortDialogueOption(
     return { closed: false, [resultKey]: result };
   }
   if (action.type === "decline-equipment-factor-pitch") {
-    validateEquipmentFactorPitch(session.equipmentFactorPitch);
+    const pitch = validateEquipmentFactorPitch(session.equipmentFactorPitch);
+    declineEquipmentFactorPitch(gameState, pitch, context.simMinute);
     session.equipmentFactorPitchOutcome = "declined";
     session.nodeId = "equipment-factor-followup";
     session.selectedIndex = 0;
@@ -3459,11 +3464,17 @@ function equipmentFactorFollowupView(session, city) {
   if (!["purchased", "declined"].includes(session.equipmentFactorPitchOutcome)) {
     throw new Error("Equipment factor follow-up requires a purchase decision");
   }
+  const pluralItem = usesPluralAgreement(
+    equipmentFactorPitchItem(pitch).grammaticalNumber,
+    `equipment factor item ${pitch.itemId}`
+  );
   return {
     speaker: speakerName(city),
     expressionId: session.equipmentFactorPitchOutcome === "purchased" ? "pleased" : "neutral",
     text: session.equipmentFactorPitchOutcome === "purchased"
-      ? `A sound choice. The ${pitch.label} is aboard and ready for work.`
+      ? pluralItem
+        ? `A sound choice. The ${pitch.label} are aboard and ready for work.`
+        : `A sound choice. The ${pitch.label} is aboard and ready for work.`
       : `Very well. The ${pitch.label} will remain available in the equipment store if you change your mind.`,
     feedback: null,
     options: [
@@ -3489,7 +3500,7 @@ function specialEquipmentOfferView(session, city, gameState) {
     expressionId: "happy",
     text: activeOffer.reconsidered
       ? `Have you reconsidered buying the ${item.label}? ${item.detail} My price remains ${item.price} doubloons.`
-      : `Captain, a rare ${item.label} came into my hands. ${item.detail} I could part with it for ${item.price} doubloons.`,
+      : `Captain, I came into possession of ${item.label}. ${item.detail} I could part with it for ${item.price} doubloons.`,
     feedback: null,
     options: [
       option(`Buy it - ${item.price} db`, {

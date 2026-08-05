@@ -1,3 +1,5 @@
+import { GRAMMATICAL_NUMBER_SINGULAR } from "./grammaticalNumber.js";
+
 export const BASIC_FISHING_NET_ID = "basic-cast-net";
 
 export const FISHING_NETS = Object.freeze([
@@ -44,6 +46,7 @@ function fishingNet(id, label, tier, price, catchRateMultiplier, maxCatch) {
   return Object.freeze({
     id,
     label,
+    grammaticalNumber: GRAMMATICAL_NUMBER_SINGULAR,
     tier,
     price,
     catchRateMultiplier,

@@ -23,6 +23,7 @@ import {
   buildChartTileProtection,
   chartProtectionStats
 } from "./chartTileProtection.js";
+import { buildOpenOceanShearFillCalls } from "./oceanShearFill.js";
 import {
   alphaMaskContainsMapPoint,
   forEachPixelBrushPoint,
@@ -358,6 +359,7 @@ import {
   recordAttackAgainstFaction,
   recordDiscovery,
   recordFriendlyFireAgainstFaction,
+  reconcileFactionReputationAfterPlayerVassalage,
   recordPiracyAgainstFaction,
   releaseCargoSpace,
   reserveCargoSpace,
@@ -525,6 +527,7 @@ import {
   whaleSurfaceExposure,
   whiteWhale
 } from "./whaleSystem.js";
+import { applyWhaleTowPull, whaleTowKinematics } from "./whaleTowPhysics.js";
 import {
   WHITE_WHALE_ID,
   WHALE_SPECIES,
@@ -558,6 +561,7 @@ import {
   createCampaignDialogueSession,
   drunkenCampaignHomecomingSteps,
   explorerWonderCatalog,
+  familyDebtPayoffProjection,
   isExplorerLeadAssignable,
   markWhiteWhaleKilled,
   markCampaignGoalIntroSeen,
@@ -731,6 +735,7 @@ import {
   npcRiverRailShouldRemainCommitted,
   playerRiverGatewayAssistEligible,
   rememberCompletedRiverRailPath,
+  selectRiverEntranceRailPath,
   selectRiverRailPath,
   shipHaulMotionScale,
   steerAlongRiverCenterline
@@ -1175,7 +1180,11 @@ import {
   hospitallerMaltaGrantText,
   hospitallerMaltaOfferText
 } from "./hospitallerMaltaDialogue.js";
-import { recentRegionalRulerChange, rulerAtMinute } from "./rulers.js";
+import {
+  recordRulerGossipMention,
+  rulerAtMinute,
+  unheardRegionalRulerChange
+} from "./rulers.js";
 import {
   PAPAL_COMMISSION_PEACE,
   PAPAL_COMMISSION_RELIEF,
@@ -1279,6 +1288,7 @@ import {
   shipLedgerDateLabel,
   shipLedgerPage,
   shipPapersPage,
+  shipPapersRowsPerPageForPanel,
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import {
@@ -5517,10 +5527,6 @@ function playerIntroButtonRect() {
   };
 }
 
-function createCaptainAlertModal(message, expressionId = "neutral") {
-  return createCharacterAlertModal(gameState?.playerCharacter || null, message, expressionId);
-}
-
 function createCharacterAlertModal(character, message, expressionId = "neutral", {
   kind = "alert",
   buttonLabel = "CONTINUE",
@@ -8970,8 +8976,19 @@ function shipLedgerRowsPerPage() {
   return languageUsesTallPixelMetrics(currentLanguage) && SCREEN_W < 400 ? 8 : 10;
 }
 
-function shipPapersRowsPerPage() {
-  return languageUsesTallPixelMetrics(currentLanguage) ? 5 : 7;
+function shipPapersRowsPerPage(panel = captainNotebookPagePanel({
+  x: SHIP_INFO_PANEL_X,
+  y: SHIP_INFO_PANEL_Y,
+  w: SHIP_INFO_PANEL_W,
+  h: SHIP_INFO_PANEL_H
+})) {
+  return shipPapersRowsPerPageForPanel({
+    width: panel.w,
+    height: panel.h,
+    tallMetrics: languageUsesTallPixelMetrics(currentLanguage),
+    lineHeight: localizedLineHeight(9),
+    pagerHeight: UI_PAGER_BUTTON_H
+  });
 }
 
 function setShipInfoView(view) {
@@ -11636,9 +11653,13 @@ function handlePointerDown(event) {
   const combatShipBroadside = clickedWorldTarget?.target.kind === "ship"
     ? navalBroadsideSideForCombatShip(clickedWorldTarget.target.call.id)
     : null;
+  const combatShipEngaged = clickedWorldTarget?.target.kind === "ship" && shipCombatState.engagements.has(
+    engagementKey(PLAYER_COMBAT_ID, clickedWorldTarget.target.call.id)
+  );
   const pointerAction = worldPointerAction({
     interactionCandidate: clickedWorldTarget,
     combatShipBroadside,
+    combatShipEngaged,
     pointBroadside: navalBroadsideSideAtPoint(point)
   });
   if (pointerAction.type === WORLD_POINTER_ACTION.INTERACTION) {
@@ -12355,13 +12376,6 @@ function handleShipInfoPointerDown(point) {
     scrollShipPaperDetail(1);
     return;
   }
-  for (let index = 0; index < shipInfoMenu.paperRowRects.length; index++) {
-    if (!pointInRect(point, shipInfoMenu.paperRowRects[index])) continue;
-    shipInfoMenu.paperSelectedIndex = index;
-    shipInfoMenu.paperSelectionActive = false;
-    openSelectedShipPaperDetail();
-    return;
-  }
   if (pointInRect(point, shipInfoMenu.previousPageRect)) {
     shipInfoMenu.paperSelectionActive = false;
     stepShipInfoPage(-1);
@@ -12370,6 +12384,14 @@ function handleShipInfoPointerDown(point) {
   if (pointInRect(point, shipInfoMenu.nextPageRect)) {
     shipInfoMenu.paperSelectionActive = false;
     stepShipInfoPage(1);
+    return;
+  }
+  for (let index = 0; index < shipInfoMenu.paperRowRects.length; index++) {
+    if (!pointInRect(point, shipInfoMenu.paperRowRects[index])) continue;
+    shipInfoMenu.paperSelectedIndex = index;
+    shipInfoMenu.paperSelectionActive = false;
+    openSelectedShipPaperDetail();
+    return;
   }
 }
 
@@ -12939,7 +12961,10 @@ function openPortDialogue(cityCall) {
   if (rescuedTravelerSession || campaignSession) {
     dialogueState = rescuedTravelerSession || campaignSession;
   } else {
-    dialogueState = createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk);
+    dialogueState = withPortRulerGossip(
+      createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk),
+      cityCall
+    );
   }
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -12965,6 +12990,19 @@ function openPortDialogue(cityCall) {
   }
   saveVoyageNow("port arrival");
   dirty = true;
+}
+
+function withPortRulerGossip(session, cityCall) {
+  if (session.kind !== "port" || !cityCall.factionId) return session;
+  const rumor = unheardRegionalRulerChange(
+    gameState.memory.decisions,
+    cityCall.factionId,
+    Math.floor(weatherClockMinutes)
+  );
+  if (!rumor) return session;
+  recordRulerGossipMention(gameState.memory.decisions, rumor);
+  session.rulerRumor = rumor;
+  return session;
 }
 
 function activePapalCommissionObjectiveIsAt(cityCall) {
@@ -14350,6 +14388,9 @@ function settleCapitalCaptureDiplomacy(event, roll) {
       simMinute,
       source: "capital-peace-treaty"
     });
+    if (event.source === "player") {
+      reconcileFactionReputationAfterPlayerVassalage(gameState, treaty.loserFactionId);
+    }
   }
   if (settlement.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR ||
       settlement.term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
@@ -15522,6 +15563,7 @@ function chooseDialogueOption(optionIndex) {
         if (battery) {
           battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
           battery.playerHailed = false;
+          battery.playerAttackActive = false;
         }
         playCoinClinkSound();
         showSurvivalNotice(`${factionById(passage.factionId).adjective.toUpperCase()} PASSAGE  ${passage.days} DAYS`, "good");
@@ -16297,7 +16339,7 @@ function portDialogueContext() {
     stormy: city ? stormIntensityForTile(city.tileId) >= STORM_ACTIVE_INTENSITY * 0.62 : false,
     playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
     rivalTerms: portPoliticalRivalTerms(city),
-    rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
+    rulerRumor: dialogueState?.kind === "port" ? dialogueState.rulerRumor || null : null,
     historicalGossip: city
       ? recentPapalGossipForPort(gameState.relations.papacy, city, simMinute) ||
         recentHistoricalGossipForPort(city, simMinute, [...cityByTileId.values()])
@@ -16823,13 +16865,28 @@ function constrainActiveWhaleTether() {
   if (!hunt) return false;
   if (!ship?.position) throw new Error("Active whale hunt requires a player ship position");
   const whale = whaleById(gameState.memory.whales, hunt.whaleId);
-  const tetherLengthScale = whaleTetherLengthScale(whale, hunt);
   return constrainWhaleTether(
     whale,
     ship.position,
-    WHALE_TETHER_MAX_DISTANCE_PX * tetherLengthScale / PIXELS_PER_RADIAN,
+    whaleTetherMaximumDistanceRad(whale, hunt),
     whaleNavigationAtPosition
   );
+}
+
+function whaleTetherMaximumDistanceRad(whale, hunt) {
+  return WHALE_TETHER_MAX_DISTANCE_PX * whaleTetherLengthScale(whale, hunt) / PIXELS_PER_RADIAN;
+}
+
+function activeWhaleTowKinematics(whale, hunt) {
+  return whaleTowKinematics({
+    shipPosition: ship.position,
+    shipVelocity: ship.velocity,
+    whalePosition: whale.position,
+    whaleHeading: whale.heading,
+    whaleSpeedRad: whaleTowingSpeed(whale),
+    maximumRopeLengthRad: whaleTetherMaximumDistanceRad(whale, hunt),
+    tautToleranceRad: 1 / PIXELS_PER_RADIAN
+  });
 }
 
 function whaleNavigationAtPosition(position) {
@@ -17056,20 +17113,10 @@ function applyWhaleTowAcceleration(dt) {
   if (!hunt) return;
   const whale = whaleById(gameState.memory.whales, hunt.whaleId);
   if (whale.phase !== WHALE_PHASE_TETHERED) return;
-  const towardWhale = normalizeOrNull(projectTangentVector(whale.position, ship.position));
-  const whaleHeading = normalizeTangentOrFallback(whale.heading, ship.position, ship.heading);
-  const towDirection = normalizeTangentOrFallback([
-    whaleHeading[0] * 0.82 + (towardWhale?.[0] || 0) * 0.18,
-    whaleHeading[1] * 0.82 + (towardWhale?.[1] || 0) * 0.18,
-    whaleHeading[2] * 0.82 + (towardWhale?.[2] || 0) * 0.18
-  ], ship.position, whaleHeading);
+  const tow = activeWhaleTowKinematics(whale, hunt);
+  if (!tow.hasTension) return;
   const response = 1 - Math.exp(-WHALE_TOW_RESPONSE_PER_SECOND * dt);
-  const towVelocity = scaleVector(towDirection, whaleTowingSpeed(whale));
-  ship.velocity = [
-    ship.velocity[0] + (towVelocity[0] - ship.velocity[0]) * response,
-    ship.velocity[1] + (towVelocity[1] - ship.velocity[1]) * response,
-    ship.velocity[2] + (towVelocity[2] - ship.velocity[2]) * response
-  ];
+  ship.velocity = applyWhaleTowPull(ship.velocity, tow, response);
 }
 
 function activePortCalls() {
@@ -17098,6 +17145,9 @@ function activeNpcShipCalls() {
     [WORLD_SPATIAL_KIND.NPC_SHIP]
   )
     .filter((match) => match.distanceSquared <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX)
+    .filter((match) => !shipCombatState.engagements.has(
+      engagementKey(PLAYER_COMBAT_ID, match.entry.value.id)
+    ))
     .map((match) => npcShipInteractionCall(match.entry.value));
 }
 
@@ -20921,6 +20971,7 @@ function beginPlayerInitiatedShoreCombat(battery) {
     battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     battery.playerHailed = true;
   }
+  battery.playerAttackActive = true;
   if (battery.playerAttackRecorded) return;
   if (battery.factionId !== PIRATE_FACTION_ID) {
     recordAttackAgainstFaction(gameState, battery.factionId);
@@ -20941,7 +20992,6 @@ function beginPlayerCityAttack(city) {
   closeDialogue();
   beginPlayerInitiatedShoreCombat(battery);
   startCombatMusicForThreat(battery.gunCount >= 2 ? "big" : "small");
-  showSurvivalNotice(`${cityLabelText(city).toUpperCase()} BATTERIES ENGAGED`, "warn");
   saveVoyageNow(`attacked ${cityLabelText(city)}`);
   dirty = true;
 }
@@ -23067,7 +23117,6 @@ function attemptEnvoyIntercession(factionId, counterpart) {
   if (!envoy) throw new Error(`Envoy mission has no character: ${passage.quest.id}`);
   if (!counterpart) throw new Error(`Envoy intercession has no ${factionId} listener`);
   clearCombatForShip(PLAYER_COMBAT_ID);
-  for (const battery of shoreBatteryStates.values()) battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
   startCharacterAlertSequence([
     pairedCharacterAlertStep({
       leftCharacter: envoy,
@@ -23174,6 +23223,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
           withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
           tollDemandEligible: entryStatus.canPurchaseSafePassage && shoreBatteryMayDemandToll(city),
           playerHailed: state.playerHailed,
+          playerAttackActive: state.playerAttackActive,
           passageRefusalActive
         });
         if (playerResponse.shouldHail) {
@@ -23190,6 +23240,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
     }
     if (playerDistance > range + 20) {
       state.playerHailed = false;
+      state.playerAttackActive = false;
     }
 
     measurePerformanceBenchmarkStage("npcShips.visual.combat.batteries.targetScan", () => {
@@ -23219,6 +23270,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
   for (const state of shoreBatteryStates.values()) {
     if (!visibleIds.has(state.id)) {
       state.engagedTargetIds.clear();
+      state.playerAttackActive = false;
       if (clearShoreBatteryCombatWounds(state)) changed = true;
     }
   }
@@ -24490,7 +24542,10 @@ function clearCombatForShip(shipId) {
   for (const [key, engagement] of [...shipCombatState.engagements.entries()]) {
     if (engagement.aId === shipId || engagement.bId === shipId) shipCombatState.engagements.delete(key);
   }
-  for (const battery of shoreBatteryStates.values()) battery.engagedTargetIds.delete(shipId);
+  for (const battery of shoreBatteryStates.values()) {
+    battery.engagedTargetIds.delete(shipId);
+    if (shipId === PLAYER_COMBAT_ID) battery.playerAttackActive = false;
+  }
 }
 
 function updateCombatShipCollisions(dt) {
@@ -24815,12 +24870,11 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
   const riverRailDistance = riverRailCommitted
     ? NPC_RIVER_RAIL_MIN_SPEED_PX * dt
     : 0;
-  const stepDistance = Math.min(
+  let stepDistance = Math.min(
     distance,
     NPC_VISUAL_MAX_STEP_PX,
     Math.max(routeAdvancePx + catchupPx, stormResponsePx, combatResponsePx, riverRailDistance)
   );
-  if (stepDistance <= 1e-4) return collisionChanged;
 
   const routeDirection = { x: dx / distance, y: dy / distance };
   const stats = state.stats;
@@ -24841,8 +24895,24 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
         })
       : routeDirection
   );
+  const riverEntranceApproach = startNav.ok && startNav.kind === "openWater" &&
+    !stormNavigation && !portAvoidance && !combatNavigation
+    ? npcRiverEntranceApproach(state, direction)
+    : null;
+  if (riverEntranceApproach) {
+    direction = riverEntranceApproach;
+    stepDistance = Math.min(
+      distance,
+      NPC_VISUAL_MAX_STEP_PX,
+      Math.max(stepDistance, NPC_RIVER_RAIL_MIN_SPEED_PX * dt)
+    );
+  }
+  if (stepDistance <= 1e-4) return collisionChanged;
+
   let tack = null;
-  if (startNav.ok && startNav.kind !== "river" && stats.propulsion === SHIP_PROPULSION_SAIL) {
+  if (riverEntranceApproach) {
+    clearNpcTackManeuver(state);
+  } else if (startNav.ok && startNav.kind !== "river" && stats.propulsion === SHIP_PROPULSION_SAIL) {
     const wind = windForTile(state.tileId);
     const flowDir = wind.directionRad + Math.PI;
     const windFlowDirection = { x: Math.cos(flowDir), y: -Math.sin(flowDir) };
@@ -25372,6 +25442,30 @@ function npcRiverNavigationDirection(state, desiredDirection, currentKind) {
     centerlineDistance: centerline.centerlineDistance,
     channelDirection
   });
+}
+
+function npcRiverEntranceApproach(state, desiredDirection) {
+  if (state.riverRailPathKey !== null) {
+    return desiredDirection;
+  }
+  const gateway = riverGatewayDirectionAtLocalPoint(
+    state.x,
+    state.y,
+    "openWater",
+    desiredDirection
+  );
+  if (!gateway || gateway.targetKind !== "river") return null;
+
+  const selection = selectRiverEntranceRailPath({
+    probes: riverCenterlineInfosAtLocalPoint(gateway.targetX, gateway.targetY, chart),
+    desiredDirection: gateway,
+    excludedPathKeys: state.riverRailCompletedPathKeys
+  });
+  if (selection) {
+    state.riverRailPathKey = selection.probe.pathKey;
+    state.riverRailDirectionSign = selection.directionSign;
+  }
+  return gateway;
 }
 
 function attemptNpcVisualStep(state, direction, distance, heading, knownStartNav = null) {
@@ -26532,7 +26626,7 @@ function render(nowMs) {
         "render.terrain.connectorWaves",
         () => terrainConnectorDynamicLayer(connectors, chart, renderWindow.faceCalls)
       ),
-      terrainCalls: renderTileCalls,
+      terrainCalls: renderWindow.terrainCalls,
       surface: measurePerformanceBenchmarkStage(
         "render.terrain.surface",
         () => surfaceDetailLayer(chart, offset)
@@ -26724,12 +26818,16 @@ function renderCallWindow(activeChart, offset) {
   const tileCalls = activeChart.tileCalls.filter(
     (call) => chartTileCallNearViewport(call, windowOffset, margin)
   );
+  const oceanShearFillCalls = activeChart.oceanShearFillCalls.filter(
+    (call) => chartTileCallNearViewport(call, windowOffset, margin)
+  );
   const result = {
     cellX,
     cellY,
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     tileCalls,
+    terrainCalls: [...oceanShearFillCalls, ...tileCalls],
     tileIds: new Set(tileCalls.map((call) => call.id)),
     faceCalls: activeChart.faceCalls.filter(
       (call) => chartEdgeCallNearViewport(call, windowOffset, margin)
@@ -27176,6 +27274,12 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
     for (const call of tileCalls) drawRiver(call, activeChart);
     for (const call of calls.riverConnectorCalls) drawRiverConnector(call, activeChart);
     layerCtx.globalCompositeOperation = "source-over";
+    const staticSurface = surfaceDetailLayerCache.get(cacheKey);
+    if (!staticSurface) {
+      throw new Error("Water-effect foreground requires the current static surface layer");
+    }
+    drawRiverBankPixels(staticSurface.riverBankPixels);
+    drawLandRoads(activeChart, new Set(tileCalls.map((call) => call.id)));
   } finally {
     layerCtx.globalCompositeOperation = "source-over";
     ctx = previousCtx;
@@ -27797,6 +27901,8 @@ function buildChart(anchorCamera) {
       surface,
       drawSurfaceX: surface.x,
       drawSurfaceY: surface.y,
+      projectedX: item.x,
+      projectedY: item.y,
       drawLayer: terrainSpriteDrawLayer(spriteForTerrain(row, item.id)),
       sortY: surface.y + level * 3
     };
@@ -27852,6 +27958,12 @@ function buildChart(anchorCamera) {
   faceCalls.sort(compareTerrainConnectorDrawOrder);
   riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
   tileCalls.sort(compareTerrainDrawCalls);
+  const oceanShearFillCalls = buildOpenOceanShearFillCalls({
+    faceCalls,
+    tileById,
+    protectionById: chartTileProtection,
+    isOpenOceanTile: (call) => call.row?.t === "water"
+  });
   const driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {
     viewX: localLayout.viewX,
     viewY: localLayout.viewY,
@@ -27886,6 +27998,7 @@ function buildChart(anchorCamera) {
     tileById,
     waterIndex,
     faceCalls,
+    oceanShearFillCalls,
     riverConnectorCalls,
     tileCalls,
     driftSampleCalls,
@@ -28052,7 +28165,8 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
       path,
       pathOffsetX: 0,
       pathOffsetY: 0,
-      tileId: call.a
+      tileId: call.a,
+      mouth: Boolean(call.aMouth || call.bMouth)
     }));
   }
   for (const call of tileCalls) {
@@ -28064,7 +28178,8 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
         path: geometry.paths[pathIndex],
         pathOffsetX: geometry.pathOffsetX,
         pathOffsetY: geometry.pathOffsetY,
-        tileId: call.id
+        tileId: call.id,
+        mouth: false
       }));
     }
   }
@@ -28600,15 +28715,6 @@ function getCaptainMenuButtonRect() {
   };
 }
 
-function getOptionsButtonRect() {
-  return {
-    x: OPTIONS_BUTTON_X,
-    y: OPTIONS_BUTTON_Y,
-    w: OPTIONS_BUTTON_SIZE,
-    h: OPTIONS_BUTTON_SIZE
-  };
-}
-
 function drawCaptainMenuButton() {
   if (!captainMenuButtonIsAvailable()) return;
   const rect = getCaptainMenuButtonRect();
@@ -28900,15 +29006,24 @@ function questJournalEntries() {
     const navigation = campaignDestination
       ? campaignNavigationMenuEntry(campaignDestination)
       : null;
+    const familyDebtSummary = campaignGoal.type === CAMPAIGN_GOAL_FAMILY_DEBT
+      ? uiText("quest.familyDebtOutstanding", {
+          amount: `${formatCompactNumber(Math.ceil(familyDebtPayoffProjection(
+            campaignGoal,
+            Math.max(0, weatherClockMinutes)
+          ).projectedBalance))} DB`,
+          city: cityLabelText(campaignGoalHomeCity())
+        })
+      : null;
     entries.push({
       id: "campaign",
       title: `${uiText("quest.mainVoyage")} - ${presentation.label.toUpperCase()}`,
-      nextStep: navigation
+      nextStep: familyDebtSummary || (navigation
         ? uiText("quest.actionAt", {
             action: renderedUiText(navigation.reason),
             city: navigation.destinationName
           })
-        : presentation.objective.toUpperCase(),
+        : presentation.objective.toUpperCase()),
       style: CAMPAIGN_NAVIGATION_STYLE
     });
   }
@@ -29896,114 +30011,6 @@ function drawNavigationMenu() {
   ctx.restore();
 }
 
-function getShipInfoButtonRect() {
-  return {
-    x: SHIP_INFO_BUTTON_X,
-    y: SHIP_INFO_BUTTON_Y,
-    w: SHIP_INFO_BUTTON_SIZE,
-    h: SHIP_INFO_BUTTON_SIZE
-  };
-}
-
-function getPoliticsButtonRect() {
-  return {
-    x: POLITICS_BUTTON_X,
-    y: POLITICS_BUTTON_Y,
-    w: POLITICS_BUTTON_SIZE,
-    h: POLITICS_BUTTON_SIZE
-  };
-}
-
-function getDiscoveriesButtonRect() {
-  return {
-    x: DISCOVERIES_BUTTON_X,
-    y: DISCOVERIES_BUTTON_Y,
-    w: DISCOVERIES_BUTTON_SIZE,
-    h: DISCOVERIES_BUTTON_SIZE
-  };
-}
-
-function drawShipInfoButton() {
-  const rect = getShipInfoButtonRect();
-  shipInfoMenu.buttonRect = rect;
-  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
-
-  ctx.save();
-  drawPirateHudButton(rect, hovered);
-  drawGameIcon(
-    "menu:ship",
-    rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2),
-    rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2)
-  );
-  if (hovered) {
-    const label = "SHIP";
-    const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
-    ctx.fillStyle = PIRATE_MENU_PAPER;
-    ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
-    ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "right"
-    });
-  }
-  ctx.restore();
-}
-
-function drawPoliticsButton() {
-  const rect = getPoliticsButtonRect();
-  politicsMenu.buttonRect = rect;
-  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
-
-  ctx.save();
-  drawPirateHudButton(rect, hovered);
-  drawGameIcon("menu:politics", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
-  if (hovered) {
-    const label = "POLITICS";
-    const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
-    ctx.fillStyle = PIRATE_MENU_PAPER;
-    ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
-    ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "right"
-    });
-  }
-  ctx.restore();
-}
-
-function drawDiscoveriesButton() {
-  const rect = getDiscoveriesButtonRect();
-  discoveriesMenu.buttonRect = rect;
-  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
-
-  ctx.save();
-  drawPirateHudButton(rect, hovered);
-  drawGameIcon("menu:discoveries", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
-  if (hovered) {
-    const label = "DISCOVERIES";
-    const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
-    ctx.fillStyle = PIRATE_MENU_PAPER;
-    ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
-    ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "right"
-    });
-  }
-  ctx.restore();
-}
-
-function drawOptionsButton() {
-  const rect = getOptionsButtonRect();
-  optionsMenu.buttonRect = rect;
-  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
-
-  ctx.save();
-  drawPirateHudButton(rect, hovered);
-  drawGameIcon("menu:options", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
-  ctx.restore();
-}
-
 function drawShipInfoMenu() {
   const panel = captainNotebookPagePanel({
     x: SHIP_INFO_PANEL_X,
@@ -30533,7 +30540,7 @@ function drawCompactShipLedger(panel, view) {
 }
 
 function drawCompactShipPapers(panel, view) {
-  const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage());
+  const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage(panel));
   shipInfoMenu.papersPage = page.page;
   shipInfoMenu.paperSelectedIndex = clamp(
     shipInfoMenu.paperSelectedIndex,
@@ -30731,7 +30738,7 @@ function drawShipLedger(panel, view) {
 }
 
 function drawShipPapers(panel, view) {
-  const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage());
+  const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage(panel));
   shipInfoMenu.papersPage = page.page;
   shipInfoMenu.paperSelectedIndex = clamp(
     shipInfoMenu.paperSelectedIndex,
@@ -31817,8 +31824,7 @@ function drawAboardCharacterDetail(roster, panel) {
     ["BORN", compact
       ? `${characterBirthdayLabel(character)} ${character.birthDate.year}`
       : character.birthDateLabel],
-    ["AGE", String(age)],
-    ...(religion ? [[uiText("intro.religion"), religion.label, religion.iconId]] : [])
+    ["AGE", String(age)]
   ];
   const rowStep = 16;
   detailRows.forEach(([label, value, iconId], index) => {
@@ -31834,12 +31840,27 @@ function drawAboardCharacterDetail(roster, panel) {
       { color: PIRATE_MENU_INK }
     );
   });
+  const religionBottomY = religion
+    ? drawAboardWrappedDetailRow({
+      label: uiText("intro.religion"),
+      value: religion.label,
+      iconId: religion.iconId,
+      x: panel.x + 14,
+      y: Math.max(
+        portraitFrame.y + portraitFrame.h + 8,
+        contentY + detailRows.length * rowStep + 4
+      ),
+      width: panel.w - 28
+    })
+    : null;
   const goal = entry.goal;
   if (!goal) throw new Error(`Aboard character ${character.name} has no goal`);
-  const goalLabelY = Math.max(
-    portraitFrame.y + portraitFrame.h + 19,
-    contentY + detailRows.length * rowStep + 5
-  );
+  const goalLabelY = religionBottomY === null
+    ? Math.max(
+      portraitFrame.y + portraitFrame.h + 19,
+      contentY + detailRows.length * rowStep + 5
+    )
+    : religionBottomY + 7;
   drawOptionsText(uiText("aboard.goal"), panel.x + 14, goalLabelY, {
     color: PIRATE_MENU_INK_MUTED
   });
@@ -31902,6 +31923,33 @@ function drawAboardCharacterDetail(roster, panel) {
     skillY += rowH + 5;
   }
   ctx.restore();
+}
+
+function drawAboardWrappedDetailRow({ label, value, iconId, x, y, width }) {
+  if (!Number.isFinite(width) || width <= 0) {
+    throw new Error(`Aboard detail row requires positive width: ${width}`);
+  }
+  const labelColumnWidth = Math.min(76, Math.max(54, Math.floor(width * 0.36)));
+  const iconReserve = iconId ? GAME_ICON_SIZE + 4 : 0;
+  const valueWidth = Math.max(20, width - labelColumnWidth - iconReserve);
+  drawOptionsText(
+    fitPixelText(String(label).toUpperCase(), PIXEL_FONT_SMALL_8, labelColumnWidth - 4),
+    x,
+    y,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+  const valueX = x + labelColumnWidth;
+  if (iconId) drawGameIcon(iconId, valueX, y - 4, { alpha: 0.9 });
+  const textX = valueX + iconReserve;
+  const valueLines = wrapPixelTextAll(String(value).toUpperCase(), PIXEL_FONT_SMALL_8, valueWidth);
+  const lineHeight = localizedLineHeight(9);
+  valueLines.forEach((line, index) => drawOptionsText(
+    line,
+    textX,
+    y + index * lineHeight,
+    { color: PIRATE_MENU_INK }
+  ));
+  return y + Math.max(GAME_ICON_SIZE - 4, valueLines.length * lineHeight);
 }
 
 function drawAboardGenericEntry(entry, x, y) {
@@ -34264,10 +34312,6 @@ function drawOptionsRowFrame(rect, highlighted) {
   drawPiratePaperInset(rect, highlighted);
 }
 
-function rowTextY(rect, font = PIXEL_FONT_SMALL_8) {
-  return rect.y + Math.floor((rect.h - pixelFontSizePx(font)) / 2);
-}
-
 function controlTextY(rect, font = PIXEL_FONT_DIALOGUE_8) {
   return rect.y + Math.floor((rect.h - pixelFontSizePx(font) - 2) / 2);
 }
@@ -35012,23 +35056,23 @@ function roundedBeachWaveT(fromT, targetT, side, lineHalfWidth) {
 function drawLandRoads(activeChart, visibleTileIds = activeChart.visibleSet) {
   if (!landRoadNetwork?.segmentsByTileId) throw new Error("Land road network is not initialized");
   if (!(visibleTileIds instanceof Set)) throw new Error("Land road drawing requires visible tile ids");
-  const layer = cachedLandRoadLayer(activeChart);
+  const layer = cachedLandRoadLayer(activeChart, visibleTileIds);
   ctx.drawImage(layer.canvas, layer.x, layer.y);
 }
 
-function cachedLandRoadLayer(activeChart) {
+function cachedLandRoadLayer(activeChart, requiredTileIds) {
+  if (!(requiredTileIds instanceof Set)) {
+    throw new Error("Land road layer requires tile coverage");
+  }
   const cached = landRoadLayerCache.get(activeChart);
-  if (cached) return cached;
+  if (cached && setContainsEvery(cached.tileIds, requiredTileIds)) return cached;
   if (!Array.isArray(activeChart?.tileCalls) || !(activeChart.tileById instanceof Map)) {
     throw new Error("Land road layer requires a complete chart");
   }
   if (activeChart.tileCalls.length === 0) throw new Error("Land road layer requires chart tiles");
 
-  const offset = chartOffsetPixels(activeChart);
-  const cacheMargin = TILE_ART_SIZE + CHART_REBUILD_RADIUS_PX + LAND_ROAD_WIDTH_PX + 3;
-  const cacheTileIds = new Set(activeChart.tileCalls
-    .filter((call) => chartTileCallNearViewport(call, offset, cacheMargin))
-    .map((call) => call.id));
+  const cacheTileIds = new Set(cached?.tileIds || []);
+  for (const tileId of requiredTileIds) cacheTileIds.add(tileId);
   const roadSegments = [];
   const visibleSegmentIds = new Set();
   for (const tileId of cacheTileIds) {
@@ -35048,7 +35092,7 @@ function cachedLandRoadLayer(activeChart) {
     const canvas = document.createElement("canvas");
     canvas.width = 1;
     canvas.height = 1;
-    const layer = Object.freeze({ canvas, x: 0, y: 0 });
+    const layer = Object.freeze({ canvas, x: 0, y: 0, tileIds: cacheTileIds });
     landRoadLayerCache.set(activeChart, layer);
     return layer;
   }
@@ -35084,9 +35128,16 @@ function cachedLandRoadLayer(activeChart) {
   for (const segment of roadSegments) {
     drawLandRoadSegment(roadCtx, segment.path, segment.id);
   }
-  const layer = Object.freeze({ canvas, x: minX, y: minY });
+  const layer = Object.freeze({ canvas, x: minX, y: minY, tileIds: cacheTileIds });
   landRoadLayerCache.set(activeChart, layer);
   return layer;
+}
+
+function setContainsEvery(superset, subset) {
+  for (const value of subset) {
+    if (!superset.has(value)) return false;
+  }
+  return true;
 }
 
 function drawLandRoadSegment(targetCtx, path, segmentId) {
@@ -37018,6 +37069,7 @@ function riverCenterlineInfosAtLocalPoint(x, y, activeChart, preferredPathKey = 
         probe.pathKey = preferredPathKey;
         probe.pathOffsetX = descriptor.pathOffsetX;
         probe.pathOffsetY = descriptor.pathOffsetY;
+        probe.mouth = descriptor.mouth;
         probe.centerlineX += descriptor.pathOffsetX;
         probe.centerlineY += descriptor.pathOffsetY;
         return [probe];
@@ -37031,6 +37083,7 @@ function riverCenterlineInfosAtLocalPoint(x, y, activeChart, preferredPathKey = 
     if (entry.kind === "riverConnector") {
       const probe = riverPathWaterProbe(x, y, entry.path, RIVER_CONNECTOR_RADIUS_PX, entry.call.a);
       probe.pathKey = `connector:${entry.call.a}:${entry.call.b}`;
+      probe.mouth = Boolean(entry.call.aMouth || entry.call.bMouth);
       probes.push(probe);
       continue;
     }
@@ -37048,6 +37101,7 @@ function riverCenterlineInfosAtLocalPoint(x, y, activeChart, preferredPathKey = 
       probe.pathKey = `tile:${entry.call.id}:${pathIndex}`;
       probe.pathOffsetX = pathOffsetX;
       probe.pathOffsetY = pathOffsetY;
+      probe.mouth = false;
       probe.centerlineX += pathOffsetX;
       probe.centerlineY += pathOffsetY;
       probes.push(probe);
@@ -38889,7 +38943,10 @@ function drawWhaleHuntEffectsWebGL(nowMs) {
   const whale = whaleById(gameState.memory.whales, hunt.whaleId);
   const call = whaleInteractionCall(whale);
   if (!call) return;
-  drawWhaleRope(SCREEN_W / 2, SCREEN_H / 2, call.x, call.y, painter);
+  const tow = activeWhaleTowKinematics(whale, hunt);
+  const spareLinePx = tow.spareLineRad * PIXELS_PER_RADIAN;
+  const slackBendPx = tow.hasTension ? 0 : clamp(3 + spareLinePx * 0.35, 3, 12);
+  drawWhaleRope(SCREEN_W / 2, SCREEN_H / 2, call.x, call.y, painter, slackBendPx);
 }
 
 function drawWhaleKillEffect(effect, nowMs, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
@@ -38967,9 +39024,21 @@ function drawWhaleHarpoonProjectile(projectile, painter = CANVAS_WORLD_PRIMITIVE
   }
 }
 
-function drawWhaleRope(startX, startY, endX, endY, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
-  const middleX = Math.round((startX + endX) / 2);
-  const middleY = Math.round((startY + endY) / 2 + 2);
+function drawWhaleRope(
+  startX,
+  startY,
+  endX,
+  endY,
+  painter = CANVAS_WORLD_PRIMITIVE_PAINTER,
+  bendPx = 2
+) {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const length = Math.hypot(dx, dy);
+  const perpendicularX = length > 0 ? -dy / length : 0;
+  const perpendicularY = length > 0 ? dx / length : 1;
+  const middleX = Math.round((startX + endX) / 2 + perpendicularX * bendPx);
+  const middleY = Math.round((startY + endY) / 2 + perpendicularY * bendPx);
   painter.line(Math.round(startX), Math.round(startY), middleX, middleY, "#6b4932");
   painter.line(middleX, middleY, Math.round(endX), Math.round(endY), "#6b4932");
 }

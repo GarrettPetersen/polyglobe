@@ -14,6 +14,7 @@ import {
 import { WHALE_HARPOONS, whaleHarpoonById } from "./whaleHarpoons.js";
 
 export const EQUIPMENT_FACTOR_PITCH_COOLDOWN_MINUTES = 30 * 24 * 60;
+export const EQUIPMENT_FACTOR_DECLINE_COOLDOWN_MINUTES = 60 * 24 * 60;
 export const EQUIPMENT_FACTOR_KIND_FISHING_NET = "fishing-net";
 export const EQUIPMENT_FACTOR_KIND_CANNON = "cannon";
 export const EQUIPMENT_FACTOR_KIND_WHALE_HARPOON = "whale-harpoon";
@@ -93,6 +94,22 @@ export function validateEquipmentFactorPitch(pitch) {
     throw new Error("Equipment factor pitch requires a reconsidered flag");
   }
   return pitch;
+}
+
+export function recordEquipmentFactorPitchDecline({ memory, pitch, simMinute }) {
+  assertDecisionMemory(memory);
+  validateEquipmentFactorPitch(pitch);
+  assertPitchMinute(simMinute);
+  memory.decisions[equipmentFactorPitchDeclineKey(pitch.kind, pitch.itemId)] = simMinute + 1;
+}
+
+export function equipmentFactorPitchItem(pitch) {
+  validateEquipmentFactorPitch(pitch);
+  if (pitch.kind === EQUIPMENT_FACTOR_KIND_FISHING_NET) return fishingNetById(pitch.itemId);
+  if (pitch.kind === EQUIPMENT_FACTOR_KIND_CANNON) return cannonEquipmentById(pitch.itemId);
+  if (pitch.kind === EQUIPMENT_FACTOR_KIND_WHALE_HARPOON) return whaleHarpoonById(pitch.itemId);
+  if (pitch.kind === EQUIPMENT_FACTOR_KIND_PERK_ITEM) return perkItemSummary(pitch.itemId);
+  throw new Error(`Unknown equipment factor pitch kind: ${pitch.kind}`);
 }
 
 export function equipmentFactorPitchKey(city, kind, itemId) {
@@ -217,29 +234,44 @@ function compareCandidates(a, b) {
 }
 
 function equipmentFactorPitchOnCooldown(decisions, city, kind, itemId, simMinute) {
-  const value = decisions[equipmentFactorPitchKey(city, kind, itemId)];
+  return decisionMinuteOnCooldown(
+    decisions,
+    equipmentFactorPitchKey(city, kind, itemId),
+    simMinute,
+    EQUIPMENT_FACTOR_PITCH_COOLDOWN_MINUTES
+  ) || decisionMinuteOnCooldown(
+    decisions,
+    equipmentFactorPitchDeclineKey(kind, itemId),
+    simMinute,
+    EQUIPMENT_FACTOR_DECLINE_COOLDOWN_MINUTES
+  );
+}
+
+function decisionMinuteOnCooldown(decisions, key, simMinute, cooldownMinutes) {
+  const value = decisions[key];
   if (value === undefined) return false;
   if (!Number.isFinite(value) || value < 1) {
     throw new Error(`Invalid equipment factor pitch minute: ${value}`);
   }
   const lastPitchMinute = value - 1;
-  return simMinute - lastPitchMinute < EQUIPMENT_FACTOR_PITCH_COOLDOWN_MINUTES;
+  return simMinute - lastPitchMinute < cooldownMinutes;
+}
+
+function equipmentFactorPitchDeclineKey(kind, itemId) {
+  if (!EQUIPMENT_FACTOR_KINDS.has(kind)) throw new Error(`Unknown equipment factor kind: ${kind}`);
+  if (typeof itemId !== "string" || itemId.trim() === "") {
+    throw new Error("Equipment factor decline key requires an item id");
+  }
+  return `equipment.factor-pitch-declined.${kind}.${itemId}`;
 }
 
 function assertPitchInputs({ memory, city, simMinute, doubloons, voyageSeed, inventory }) {
-  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
-    throw new Error("Equipment factor pitch requires game memory");
-  }
-  if (!memory.decisions || typeof memory.decisions !== "object" || Array.isArray(memory.decisions)) {
-    throw new Error("Equipment factor pitch requires decision memory");
-  }
+  assertDecisionMemory(memory);
   if (!memory.specialEquipmentOffers) {
     throw new Error("Equipment factor pitch requires special-offer memory");
   }
   portKey(city);
-  if (!Number.isFinite(simMinute) || simMinute < 0) {
-    throw new Error(`Invalid equipment factor pitch minute: ${simMinute}`);
-  }
+  assertPitchMinute(simMinute);
   if (!Number.isInteger(doubloons) || doubloons < 0) {
     throw new Error(`Invalid equipment factor purse: ${doubloons}`);
   }
@@ -253,6 +285,21 @@ function assertPitchInputs({ memory, city, simMinute, doubloons, voyageSeed, inv
   fishingNetById(inventory.fishingNetId);
   cannonEquipmentById(inventory.cannonEquipmentId);
   if (inventory.whaleHarpoonId !== null) whaleHarpoonById(inventory.whaleHarpoonId);
+}
+
+function assertDecisionMemory(memory) {
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    throw new Error("Equipment factor pitch requires game memory");
+  }
+  if (!memory.decisions || typeof memory.decisions !== "object" || Array.isArray(memory.decisions)) {
+    throw new Error("Equipment factor pitch requires decision memory");
+  }
+}
+
+function assertPitchMinute(simMinute) {
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid equipment factor pitch minute: ${simMinute}`);
+  }
 }
 
 function portKey(city) {

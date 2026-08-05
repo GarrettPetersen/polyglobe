@@ -46,6 +46,7 @@ import {
   playerPortAttackStatus,
   playerShipIsWarship,
   recordFriendlyFireAgainstFaction,
+  reconcileFactionReputationAfterPlayerVassalage,
   playerTradeAccess,
   playerTradeTerms,
   personalTradePassStatus,
@@ -743,6 +744,15 @@ test("a vassal begrudgingly admits captains protected by its suzerain", () => {
   assert.equal(status.hostileByStanding, false);
   assert.equal(status.suzerainFactionId, "ottoman");
   assert.equal(status.suzerainProtectsEntry, true);
+});
+
+test("a captain who forces vassalage is no longer personally barred by the defeated state", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  state.relations.factionReputation.hospitallers = -100;
+
+  assert.equal(reconcileFactionReputationAfterPlayerVassalage(state, "hospitallers"), 0);
+  assert.equal(state.relations.factionReputation.hospitallers, 0);
+  assert.equal(reconcileFactionReputationAfterPlayerVassalage(state, "england"), HOME_FACTION_START_REPUTATION);
 });
 
 test("failed port disguises impose a fixed fourteen-day lock", () => {

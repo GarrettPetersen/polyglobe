@@ -6,6 +6,11 @@ import {
   PORTABLE_WEAPON_ITEMS,
   portableWeaponEffectLabel
 } from "./portableWeapons.js";
+import {
+  GRAMMATICAL_NUMBER_PLURAL,
+  GRAMMATICAL_NUMBER_SINGULAR,
+  validateGrammaticalNumber
+} from "./grammaticalNumber.js";
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "habsburg", "hungary",
@@ -25,11 +30,15 @@ function item(
   iconId,
   perks,
   regions = ["global"],
-  { rewardOnly = false } = {}
+  {
+    rewardOnly = false,
+    grammaticalNumber = GRAMMATICAL_NUMBER_SINGULAR
+  } = {}
 ) {
   const value = Object.freeze({
     id,
     label,
+    grammaticalNumber,
     detail,
     price,
     tier,
@@ -44,7 +53,8 @@ function item(
 
 export const PERK_ITEMS = Object.freeze([
   item("sturdy-barrels", "Sturdy Barrels", "Iron-hooped casks pack stores securely into the hold.", 700, 1,
-    "item:sturdy-barrels", { cargoCapacityFlat: 3 }),
+    "item:sturdy-barrels", { cargoCapacityFlat: 3 }, ["global"],
+    { grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL }),
   item("shore-party-kit", "Shore Party Kit", "Hatchets, sacks, tinderboxes, and cordage improve expeditions ashore.", 850, 1,
     "item:shore-party-kit", { scavengingChanceMultiplier: 1.18, scavengingYieldMultiplier: 1.3 }),
   item("tarred-hemp-rigging", "Tarred Hemp Rigging", "Weatherproof European hemp line makes sail handling faster.", 1100, 1,
@@ -60,7 +70,8 @@ export const PERK_ITEMS = Object.freeze([
   item("surgeons-chest", "Surgeon's Chest", "Bandages, needles, splints, and spirits improve survival after injury.", 1750, 2,
     "item:surgeons-chest", { crewCasualtyResistanceChance: 0.16 }),
   item("pilots-instruments", "Pilot's Instruments", "A compass, cross-staff, lead line, and tables sharpen shiphandling.", 2600, 2,
-    "item:pilots-instruments", { topSpeedMultiplier: 1.03, windwardAngleReductionDeg: 1, seaworthinessFlat: 1 }),
+    "item:pilots-instruments", { topSpeedMultiplier: 1.03, windwardAngleReductionDeg: 1, seaworthinessFlat: 1 }, ["global"],
+    { grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL }),
   item("longsword", "Longsword", "A well-made European sidearm lends confidence to a landing party.", 950, 1,
     "item:longsword", { assaultChanceBonus: 0.05 }, ["europe"]),
   item("tulwar", "Tulwar", "A curved South Asian sword built for decisive close fighting.", 1000, 1,
@@ -68,7 +79,8 @@ export const PERK_ITEMS = Object.freeze([
   item("katana", "Katana", "A Japanese sword whose keen edge serves a marine officer well.", 1250, 2,
     "item:katana", { assaultChanceBonus: 0.07 }, ["japan"]),
   item("bronze-fish-hooks", "Bronze Fish Hooks", "A case of strong hooks improves both line fishing and net work.", 650, 1,
-    "item:bronze-fish-hooks", { fishingChanceMultiplier: 1.08, fishingHaulMultiplier: 1.1 }),
+    "item:bronze-fish-hooks", { fishingChanceMultiplier: 1.08, fishingHaulMultiplier: 1.1 }, ["global"],
+    { grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL }),
   item(
     HAJJ_PILGRIMAGE_PERK_ITEM_ID,
     "Zamzam Flask",
@@ -161,6 +173,7 @@ export function perkItemSummary(itemId) {
 function validatePerkItem(value) {
   validatePerkSource(value);
   if (typeof value.label !== "string" || value.label.trim() === "") throw new Error(`Perk item ${value.id} needs a label`);
+  validateGrammaticalNumber(value.grammaticalNumber, `perk item ${value.id}`);
   if (typeof value.detail !== "string" || value.detail.trim() === "") throw new Error(`Perk item ${value.id} needs detail`);
   if (!Number.isInteger(value.price) || value.price <= 0) throw new Error(`Invalid perk item price: ${value.id}`);
   if (!Number.isInteger(value.tier) || value.tier < 1 || value.tier > 3) throw new Error(`Invalid perk item tier: ${value.id}`);

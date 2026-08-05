@@ -839,7 +839,7 @@ function advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById, 
     ? 0.82
     : whale.lifeStage === WHALE_LIFE_STAGE_ADOLESCENT ? 0.95 : 1;
   const speed = whale.phase === WHALE_PHASE_TETHERED
-    ? species.towingSpeedRad
+    ? whaleTowingSpeed(whale)
     : species.cruiseSpeedRad * stageSpeed;
   const mother = whale.motherId === null ? null : individualsById.get(whale.motherId);
   if (mother && mother.phase !== WHALE_PHASE_DEAD) steerTowardMother(whale, mother, dt);

@@ -5,10 +5,13 @@ import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import {
   ENGLISH_REFORMATION_MINUTE,
   RULER_TIMELINES,
+  RULER_GOSSIP_MENTION_LIMIT,
   gameMinuteForDate,
+  recordRulerGossipMention,
   recentRegionalRulerChange,
   rulerAtMinute,
-  rulerChangesBetween
+  rulerChangesBetween,
+  unheardRegionalRulerChange
 } from "./rulers.js";
 
 test("every sovereign faction has a named ruler in 1522", () => {
@@ -88,4 +91,17 @@ test("regional ruler gossip reaches nearby courts but not distant ones", () => {
   assert.equal(ottomanRumor.daysAgo, 10);
   assert.equal(japaneseRumor, null);
   assert.equal(recentRegionalRulerChange("ottoman", changeMinute + 181 * 1440), null);
+});
+
+test("each ruler change is mentioned at most twice across the voyage", () => {
+  const decisions = {};
+  const changeMinute = gameMinuteForDate(1523, 1, 20);
+
+  for (let count = 0; count < RULER_GOSSIP_MENTION_LIMIT; count += 1) {
+    const rumor = unheardRegionalRulerChange(decisions, "ottoman", changeMinute + 10);
+    assert.equal(rumor.factionId, "denmark-norway");
+    assert.equal(recordRulerGossipMention(decisions, rumor), count + 1);
+  }
+
+  assert.equal(unheardRegionalRulerChange(decisions, "ottoman", changeMinute + 10), null);
 });

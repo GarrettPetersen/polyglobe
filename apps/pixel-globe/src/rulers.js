@@ -9,6 +9,9 @@ import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
 export const RULER_START_YEAR = 1522;
 export const RULER_GOSSIP_DAYS = 180;
+export const RULER_GOSSIP_MENTION_LIMIT = 2;
+
+const RULER_GOSSIP_DECISION_PREFIX = "ruler-gossip-mentions";
 
 const MONTH_LENGTHS = Object.freeze([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
 export const ENGLISH_REFORMATION_MINUTE = gameMinuteForDate(1534, 11, 3);
@@ -242,6 +245,26 @@ export function recentRegionalRulerChange(factionId, simMinute, maxAgeDays = RUL
   return null;
 }
 
+export function unheardRegionalRulerChange(decisions, factionId, simMinute) {
+  assertRulerGossipDecisions(decisions);
+  const event = recentRegionalRulerChange(factionId, simMinute);
+  if (!event) return null;
+  return rulerGossipMentionCount(decisions, event) < RULER_GOSSIP_MENTION_LIMIT
+    ? event
+    : null;
+}
+
+export function recordRulerGossipMention(decisions, event) {
+  assertRulerGossipDecisions(decisions);
+  const key = rulerGossipDecisionKey(event);
+  const count = rulerGossipMentionCount(decisions, event);
+  if (count >= RULER_GOSSIP_MENTION_LIMIT) {
+    throw new Error(`Ruler gossip mention limit exceeded: ${key}`);
+  }
+  decisions[key] = count + 1;
+  return decisions[key];
+}
+
 export function gameMinuteForDate(year, month, day) {
   if (!Number.isInteger(year) || year < RULER_START_YEAR) throw new Error(`Invalid game year: ${year}`);
   if (!Number.isInteger(month) || month < 1 || month > 12) throw new Error(`Invalid game month: ${month}`);
@@ -249,6 +272,33 @@ export function gameMinuteForDate(year, month, day) {
   if (!Number.isInteger(day) || day < 1 || day > monthLength) throw new Error(`Invalid game day: ${year}-${month}-${day}`);
   const priorMonthDays = MONTH_LENGTHS.slice(0, month - 1).reduce((sum, length) => sum + length, 0);
   return ((year - RULER_START_YEAR) * 365 + priorMonthDays + day - 1) * WEATHER_MINUTES_PER_DAY;
+}
+
+function rulerGossipMentionCount(decisions, event) {
+  const key = rulerGossipDecisionKey(event);
+  const count = decisions[key] ?? 0;
+  if (!Number.isInteger(count) || count < 0 || count > RULER_GOSSIP_MENTION_LIMIT) {
+    throw new Error(`Invalid ruler gossip mention count for ${key}: ${count}`);
+  }
+  return count;
+}
+
+function rulerGossipDecisionKey(event) {
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
+    throw new Error("Ruler gossip requires a ruler-change event");
+  }
+  factionById(event.factionId);
+  assertSimMinute(event.fromMinute);
+  if (typeof event.displayName !== "string" || event.displayName.trim() === "") {
+    throw new Error("Ruler gossip event requires the succeeding ruler's name");
+  }
+  return `${RULER_GOSSIP_DECISION_PREFIX}.${event.factionId}.${event.fromMinute}.${event.displayName}`;
+}
+
+function assertRulerGossipDecisions(decisions) {
+  if (!decisions || typeof decisions !== "object" || Array.isArray(decisions)) {
+    throw new Error("Ruler gossip requires voyage decision memory");
+  }
 }
 
 function ruler(year, month, day, name, title) {

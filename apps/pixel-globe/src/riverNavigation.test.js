@@ -9,6 +9,7 @@ import {
   npcRiverRailShouldRemainCommitted,
   playerRiverGatewayAssistEligible,
   rememberCompletedRiverRailPath,
+  selectRiverEntranceRailPath,
   selectRiverRailPath,
   shipHaulMotionScale,
   steerAlongRiverCenterline
@@ -218,6 +219,41 @@ test("NPC river rail stays committed across transient open water between adjacen
     navigationKind: "river",
     activePathKey: null
   }), true);
+});
+
+test("NPC river approaches lock onto a mouth instead of a nearby inland segment", () => {
+  const selection = selectRiverEntranceRailPath({
+    probes: [
+      {
+        pathKey: "tile:river:0",
+        centerlineDistance: 0.1,
+        tangent: { x: 0, y: 1 },
+        mouth: false
+      },
+      {
+        pathKey: "connector:ocean:river",
+        centerlineDistance: 0.8,
+        tangent: { x: 1, y: 0 },
+        mouth: true
+      }
+    ],
+    desiredDirection: { x: 1, y: 0 }
+  });
+
+  assert.equal(selection.probe.pathKey, "connector:ocean:river");
+  assert.equal(selection.directionSign, 1);
+});
+
+test("NPC river approaches do not invent a rail away from a mouth", () => {
+  assert.equal(selectRiverEntranceRailPath({
+    probes: [{
+      pathKey: "connector:river:river",
+      centerlineDistance: 0,
+      tangent: { x: 1, y: 0 },
+      mouth: false
+    }],
+    desiredDirection: { x: 1, y: 0 }
+  }), null);
 });
 
 test("river rail excludes a completed segment and takes the best outgoing branch", () => {

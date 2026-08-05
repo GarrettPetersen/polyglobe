@@ -1,4 +1,5 @@
 import { crewScaledFailureChance, crewScaledSuccessChance } from "./crewEffectiveness.js";
+import { GRAMMATICAL_NUMBER_SINGULAR } from "./grammaticalNumber.js";
 
 export const BASIC_WHALE_HARPOON_ID = "ash-shaft-harpoon";
 
@@ -66,6 +67,7 @@ function whaleHarpoon(id, label, tier, price, accuracy, breakChance, rangePx, ex
   return Object.freeze({
     id,
     label,
+    grammaticalNumber: GRAMMATICAL_NUMBER_SINGULAR,
     tier,
     price,
     accuracy,

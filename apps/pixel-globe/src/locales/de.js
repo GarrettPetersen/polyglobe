@@ -149,6 +149,7 @@ export default {
   "quest.journal": "LAUFENDE AUFTRÄGE",
   "quest.none": "KEINE LAUFENDEN AUFTRÄGE",
   "quest.mainVoyage": "HAUPTREISE",
+  "quest.familyDebtOutstanding": "{amount} OFFEN IN {city}",
   "quest.passenger": "PASSAGIER",
   "quest.delivery": "LIEFERUNG",
   "quest.diplomacy": "DIPLOMATIE",
