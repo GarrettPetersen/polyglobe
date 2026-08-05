@@ -711,6 +711,20 @@ function shipDialogueContentView(session, ship) {
       ]
     };
   }
+  if (session.nodeId === "surrender-resolving") {
+    return {
+      speaker,
+      expressionId: "afraid",
+      text: "Enough. Our colors are struck. Spare my crew, and your people may take the cargo and inspect the ship.",
+      feedback: null,
+      options: [
+        option("Review the prize", { type: "review-surrendered-prize" }, {
+          disabled: true,
+          disabledReason: "The prize crew are still at work."
+        })
+      ]
+    };
+  }
   if (session.nodeId === "surrendered") {
     return {
       speaker,

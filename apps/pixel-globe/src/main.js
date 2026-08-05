@@ -32680,7 +32680,10 @@ function drawLakeBattleTerrain(terrainChart) {
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   drawTerrainConnectorFaces(terrainChart.faceCalls, terrainChart);
-  for (const tile of terrainChart.tileCalls) drawTile(ctx, tile, terrainChart);
+  // Lake-battle cells have arena-local ids, not world-weather tile ids.
+  for (const tile of terrainChart.tileCalls) {
+    drawTile(ctx, tile, terrainChart, { surfaceIce: false });
+  }
 }
 
 function drawLakeBattleSetup() {
@@ -35743,18 +35746,21 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
   };
 }
 
-function drawTile(targetCtx, call, activeChart) {
+function drawTile(targetCtx, call, activeChart, { surfaceIce = true } = {}) {
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
-  for (const image of terrainDrawImagesForTile(call, activeChart, lastFrameMs)) {
+  for (const image of terrainDrawImagesForTile(call, activeChart, lastFrameMs, { surfaceIce })) {
     targetCtx.drawImage(image, x, y);
   }
 
   drawTerrainPentagonMarker(call, targetCtx);
 }
 
-function terrainDrawImagesForTile(call, activeChart, nowMs) {
-  const transitionState = isWaterSurfaceRow(call.row)
+function terrainDrawImagesForTile(call, activeChart, nowMs, { surfaceIce = true } = {}) {
+  if (typeof surfaceIce !== "boolean") {
+    throw new Error(`Terrain surface ice flag must be boolean: ${surfaceIce}`);
+  }
+  const transitionState = surfaceIce && isWaterSurfaceRow(call.row)
     ? surfaceIceStateForTile({
         transition: surfaceIceTransition,
         seaMask: seaIceMask,

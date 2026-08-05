@@ -481,6 +481,10 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
     closed: false,
     action: { type: "surrender" }
   });
+  const resolving = shipDialogueView(acceptingSession, ship);
+  assert.match(resolving.text, /colors are struck/i);
+  assert.deepEqual(resolving.options.map((option) => option.label), ["Review the prize"]);
+  assert.equal(resolving.options[0].disabled, true);
   ship.combatGrace = true;
   prepareSurrenderPrizeDialogue(acceptingSession, ship, {
     slug: "fishing-lugger",
