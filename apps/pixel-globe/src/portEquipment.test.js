@@ -40,9 +40,9 @@ test("equipment stock is deterministic and varies between ports", () => {
     EQUIPMENT_STOCK_CANNON,
     CANNON_EQUIPMENT
   ).map((item) => item.id)));
-  assert.ok(stocks.every((stock) => stock.includes("standard-ordnance")));
+  assert.ok(stocks.every((stock) => !stock.includes("standard-ordnance")));
   assert.ok(new Set(stocks.map((stock) => stock.join("|"))).size > 1);
-  assert.ok(stocks.some((stock) => stock.length < CANNON_EQUIPMENT.length));
+  assert.ok(stocks.some((stock) => stock.length < CANNON_EQUIPMENT.length - 1));
 });
 
 test("historical specialist ports permanently stock every grade of their craft", () => {
@@ -66,7 +66,10 @@ test("historical specialist ports permanently stock every grade of their craft",
     };
     const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
     assert.equal(equipmentSpecialistAtPort(city, kind), true);
-    assert.deepEqual(equipmentStockAtPort(economy, city, kind, catalog), catalog);
+    assert.deepEqual(
+      equipmentStockAtPort(economy, city, kind, catalog),
+      catalog.filter((item) => item.tier > 0)
+    );
   }
 });
 
@@ -96,7 +99,7 @@ test("trade wealth can unlock top-tier equipment at an ordinary port", () => {
   ), true);
 });
 
-test("native pre-contact ports do not invent upgraded cannon equipment", () => {
+test("native pre-contact ports do not invent cannon merchandise", () => {
   const chanchan = {
     tileId: 950,
     city: "Chanchan",
@@ -111,7 +114,7 @@ test("native pre-contact ports do not invent upgraded cannon equipment", () => {
   assert.deepEqual(
     equipmentStockAtPort(economy, chanchan, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT)
       .map((item) => item.id),
-    ["standard-ordnance"]
+    []
   );
 
   const colonized = { ...chanchan, factionId: "spain" };

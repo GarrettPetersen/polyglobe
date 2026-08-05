@@ -19,16 +19,23 @@ const EQUIPMENT_SPECIALIST_PORT_NAMES = Object.freeze({
 const PRE_CONTACT_NATIVE_FACTION_IDS = new Set(["inca", "neutral"]);
 
 export function equipmentStockAtPort(economy, city, kind, equipment) {
+  assertEquipmentKind(kind);
+  return saleableEquipmentCatalog(equipment)
+    .filter((item) => equipmentAvailableAtPort(economy, city, kind, item));
+}
+
+export function saleableEquipmentCatalog(equipment) {
   if (!Array.isArray(equipment) || equipment.length === 0) {
     throw new Error("Port equipment stock requires equipment choices");
   }
-  return equipment.filter((item) => equipmentAvailableAtPort(economy, city, kind, item));
+  for (const item of equipment) assertEquipment(item);
+  return equipment.filter((item) => item.tier > 0);
 }
 
 export function equipmentAvailableAtPort(economy, city, kind, equipment) {
   assertEquipmentKind(kind);
   assertEquipment(equipment);
-  if (equipment.tier === 0) return true;
+  if (equipment.tier === 0) return false;
   if (nativePreContactPortCannotBuildCannons(city, kind)) return false;
   if (equipmentSpecialistAtPort(city, kind)) return true;
   const threshold = TIER_PROSPERITY_THRESHOLDS[equipment.tier];

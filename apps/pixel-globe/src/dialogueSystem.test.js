@@ -2409,13 +2409,10 @@ test("ports stock a local selection of fishing net upgrades", () => {
   assert.equal(view.optionHeight, 34);
   assert.match(view.text, /Current gear: Basic cast net/);
   const equipmentOptions = view.options.filter((entry) => entry.placement !== "port-exit");
-  assert.deepEqual(equipmentOptions.slice(0, 2).map((entry) => entry.label), [
-    "* Basic cast net  FITTED",
-    "Weighted cast net  900 db"
-  ]);
-  assert.ok(equipmentOptions.slice(0, 2).every((entry) => /MAX HAUL/.test(entry.detail)));
-  assert.equal(equipmentOptions[0].disabled, true);
-  assert.equal(equipmentOptions[1].disabled, false);
+  assert.equal(equipmentOptions[0].label, "Weighted cast net  900 db");
+  assert.match(equipmentOptions[0].detail, /MAX HAUL/);
+  assert.equal(equipmentOptions[0].disabled, false);
+  assert.equal(equipmentOptions.some((entry) => /Basic cast net/.test(entry.label)), false);
 
   const weightedIndex = view.options.findIndex((entry) => entry.action.netId === "weighted-cast-net");
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], weightedIndex, { simMinute: 300 });
@@ -2562,9 +2559,9 @@ test("the equipment overview shows stocked levels and identifies specialist mark
   const harpoons = view.options.find((entry) => entry.label === "Whale harpoons");
   const cannons = view.options.find((entry) => entry.label === "Cannon battery");
 
-  assert.match(nets.detail, /^STOCK \d\/4 LEVELS$/);
+  assert.match(nets.detail, /^STOCK \d\/3 LEVELS$/);
   assert.match(harpoons.detail, /^STOCK \d\/3 LEVELS$/);
-  assert.equal(cannons.detail, "STOCK 4/4 LEVELS  SPECIALIST");
+  assert.equal(cannons.detail, "STOCK 3/3 LEVELS  SPECIALIST");
 });
 
 test("the equipment store exposes stocked cannon upgrades and their complete firing profile", () => {
@@ -2587,17 +2584,44 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
   assert.equal(view.optionHeight, 34);
   const equipmentOptions = view.options.filter((entry) => entry.placement !== "port-exit");
   assert.deepEqual(equipmentOptions.slice(0, 3).map((entry) => entry.label), [
-    "* Standard ordnance  FITTED",
     "Bronze culverins  2400 db",
-    "Reinforced culverins  8500 db"
+    "Reinforced culverins  8500 db",
+    "Royal foundry battery  24000 db"
   ]);
-  assert.match(equipmentOptions[1].detail, /RELOAD 8\.50S  DAMAGE x1\.15  RANGE x1\.12/);
+  assert.match(equipmentOptions[0].detail, /RELOAD 8\.50S  DAMAGE x1\.15  RANGE x1\.12/);
 
   const bronzeIndex = view.options.findIndex((entry) => entry.action.equipmentId === "bronze-culverins");
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], bronzeIndex, { simMinute: 300 });
   assert.equal(result.cannonEquipmentPurchase.equipment.id, "bronze-culverins");
   assert.equal(gameState.doubloons, 7600);
   assert.match(session.feedback, /Bronze culverins fitted/);
+});
+
+test("a Polynesian equipment store does not present the player's cannons as local stock", () => {
+  const city = {
+    tileId: 11,
+    city: "Tarawa Village",
+    displayCity: "Tarawa Village",
+    country: "Neutral",
+    factionId: "neutral",
+    cityType: "polynesian",
+    population: 1200,
+    character: { name: "Te Rongo" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const overviewSession = createPortDialogueSession(city, { initialNodeId: "equipment" });
+
+  const overview = portDialogueView(overviewSession, city, gameState, economy, [city]);
+  const cannons = overview.options.find((entry) => entry.label === "Cannon battery");
+  assert.equal(cannons.detail, "STOCK 0/3 LEVELS");
+  assert.equal(cannons.disabled, true);
+  assert.equal(cannons.disabledReason, "This port has no cannon equipment in stock.");
+
+  const cannonSession = createPortDialogueSession(city, { initialNodeId: "equipment-cannons" });
+  const cannonView = portDialogueView(cannonSession, city, gameState, economy, [city]);
+  assert.equal(cannonView.options.some((entry) => /Standard ordnance/.test(entry.label)), false);
 });
 
 test("a rare equipment offer persists after declining and remembers the player", () => {
