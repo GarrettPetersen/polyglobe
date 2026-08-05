@@ -1,5 +1,7 @@
 # Marque & Reprisal Marketing Plan
 
+Last updated: **August 4, 2026**.
+
 ## Store and build
 
 - [x] **Get the Steam page up**
@@ -7,16 +9,22 @@
   - Store page: https://store.steampowered.com/app/4516500/Marque__Reprisal/
 
 - [ ] **Get the demo build on Steam**
-  - Status: Demo store presence and build were submitted to Valve on July 30
-    and are in review.
+  - Last confirmed status: Demo store presence and build were submitted to
+    Valve on July 30 and were in review. The private review status still needs
+    to be checked in Steamworks; the public store page had no demo button on
+    August 4.
+  - Valve says build reviews normally take 3–5 business days and recommends
+    allowing at least 7 business days. Do not escalate before August 10 unless
+    Valve sends feedback first.
   - Steam App: `5029880`.
   - The demo has no timer and retains the full feature set, but its voyages are
     centered on the family-debt quest and limited to the Mediterranean, Black
     Sea and connected rivers.
 
 - [ ] **Get the full build on Steam**
-  - Status: Main-game store presence is approved; the build submitted on July
-    30 is in Valve review.
+  - Last confirmed status: Main-game store presence is approved; the build
+    submitted on July 30 was in Valve review. The current private review status
+    still needs to be checked in Steamworks.
   - Keep the build private until release, apart from keys provided for coverage
     and testing.
 
@@ -31,9 +39,9 @@
   - Keep the trailer unlisted while IGN considers the pitch.
   - Monitor both the inbox and IGN's published coverage because a response is not
     guaranteed before publication.
-  - If there is still no response after a reasonable editorial window, send one
-    concise follow-up or treat the silence as a pass and move to the public
-    trailer launch. Do not leave the campaign stalled indefinitely.
+  - Send one concise follow-up on August 5 or 6. If there is still no response
+    within 48 hours, treat the silence as a pass and move to the public trailer
+    launch. Do not leave the campaign stalled indefinitely.
 
 - [ ] **Immediately add the trailer to the Steam page**
   - Add it as soon as the IGN exclusive is published or the exclusivity window is otherwise over.
@@ -83,7 +91,16 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
   - Verify the category appears on Twitch after the IGDB submission is approved.
   - Use the category to monitor for new streams and notify Garrett.
 
-- [ ] Set up a proper campaign sender at `marque-and-reprisal.com`, including SPF, DKIM and DMARC.
+- [ ] Set up a proper campaign sender at `marque-and-reprisal.com`, including
+  SPF, DKIM and DMARC, before the first large creator-outreach batch.
+
+- [ ] Prepare the first creator-outreach wave.
+  - The CSV now contains 2,837 contacts; finding more names is not the current
+    bottleneck.
+  - Recheck and personalize the first 25–50 priority A and B contacts before
+    scaling up.
+  - Keep the initial batches small enough to compare delivery, replies, key
+    redemption, coverage and wishlist results.
 
 - [ ] Send full-build Steam keys to streamers.
   - The first five personalized English-language drafts are ready in
@@ -98,6 +115,18 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
   - Compare results between batches before scaling up.
 
 ## Public promotion
+
+- [ ] Prepare the coordinated Steam-demo launch package before Valve approval.
+  - Draft the Steam announcement, X post, subreddit-specific posts, Japanese
+    press update and first creator email batch now.
+  - Publish them only after the Steam demo is live and its install flow has been
+    verified from a logged-out account.
+
+- [ ] Use campaign-specific UTM links for every external Steam link.
+  - Separate at least X, Reddit, Japanese press, the website, festivals and each
+    streamer batch so Steamworks can attribute visits and wishlists.
+  - Record the UTM naming scheme with the outreach materials and use it
+    consistently.
 
 - [ ] Direct players to the demo.
   - The public call to action is to play the demo and wishlist the game.
@@ -146,7 +175,7 @@ If those conditions are not met, delay the release instead of forcing the 2026 w
 
 ## Festival and showcase application plan
 
-Research checked **August 2, 2026**, using the [How To Market A Game festival directory](https://howtomarketagame.com/festivals/) for discovery and the organizers' own pages for verification.
+Research checked **August 2, 2026**, using the [How To Market A Game festival directory](https://howtomarketagame.com/festivals/) for discovery and the organizers' own pages for verification. Time-sensitive application statuses were updated on **August 4, 2026**.
 
 ### Apply
 
@@ -211,7 +240,9 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Complete the separate Next Fest workback plan above.
   - Registration: https://partner.steamgames.com/optin/sale/nextfest_october_2026/4516500
 
-- [ ] **Indie X 2026 — apply by September 13**
+- [x] **Indie X 2026 — submitted August 4**
+  - The submission was acknowledged and the materials are recorded in
+    [festival-application-workbench-2026.md](festival-application-workbench-2026.md).
   - Why: Free international indie competition with approximately 50 finalists, livestreamed showcases, awards and a Steam event.
   - Application: https://indiex.online/submitgame/
 
@@ -229,10 +260,8 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSckJ8MkHT7maY5DWd58cjXLmbsVUbeYQrN6TrlxzB_pMfd7lw/viewform
 
 - [ ] **Independent Games Festival 2027 — apply by September 13**
-  - August 3, 7:37 a.m. PDT: The official submission portal was rechecked and
-    still reports that entries are closed. The official schedule says only
-    "early August" for game submissions; August 3 is the opening date for judge
-    and juror applications. Recheck the portal later today.
+  - Status: Submissions opened August 3. Start the application now and prepare
+    the strongest stable full build for the final entry.
   - Why: The most prestigious general indie competition in this application
     cycle and a strong venue for the game's distinctive world simulation,
     historical scope and interconnected systems.
@@ -294,7 +323,11 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ## Current critical path
 
+In parallel now: start the IGF submission; set up the authenticated campaign
+sender; prepare the demo-launch package and UTM links; verify the first 25–50
+creator contacts.
+
 Valve approves demo and main builds → launch and verify Steam demo → IGN responds
-or its editorial window closes → publish trailer on YouTube and Steam → verify
-Steam integration → send the first streamer-key batch → prepare October Next
-Fest → release decision
+or its August follow-up window closes → publish trailer on YouTube and Steam →
+verify Steam integration → send the first streamer-key batch → prepare October
+Next Fest → release decision
