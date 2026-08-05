@@ -122,6 +122,7 @@ test("the landscape panda trailer has new b-roll, encounter, fishing, reactions,
 
 test("fast sailing trailer shots stage distinct ships on validated beam reaches", () => {
   const sailing = captureScenarioIds()
+    .filter((id) => id.startsWith("trailer-sail-"))
     .map((id) => captureScenarioFromSearch(`?capture=${id}`))
     .filter((capture) => capture.sequence?.kind === "sail");
   assert.equal(sailing.length, 8);

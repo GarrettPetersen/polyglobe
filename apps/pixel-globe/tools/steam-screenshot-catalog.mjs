@@ -78,6 +78,41 @@ export const STEAM_SCREENSHOT_SHOTS = Object.freeze([
     title: "Meet a panda in Sichuan",
     scenarioId: "trailer-panda-encounter",
     atSeconds: 11.0
+  }),
+  screenshot({
+    order: 10,
+    id: "sail-great-barrier-reef",
+    title: "Sail the Great Barrier Reef",
+    scenarioId: "screenshot-sail-great-barrier-reef",
+    atSeconds: 3.5
+  }),
+  screenshot({
+    order: 11,
+    id: "sail-spice-islands",
+    title: "Sail the Spice Islands",
+    scenarioId: "screenshot-sail-ternate",
+    atSeconds: 3.5
+  }),
+  screenshot({
+    order: 12,
+    id: "sail-seto-inland-sea",
+    title: "Sail the Seto Inland Sea",
+    scenarioId: "screenshot-sail-seto",
+    atSeconds: 1.5
+  }),
+  screenshot({
+    order: 13,
+    id: "sail-bosporus",
+    title: "Sail the Bosporus",
+    scenarioId: "screenshot-sail-bosporus",
+    atSeconds: 1.5
+  }),
+  screenshot({
+    order: 14,
+    id: "sail-lake-victoria",
+    title: "Sail Lake Victoria",
+    scenarioId: "screenshot-sail-lake-victoria",
+    atSeconds: 3.5
   })
 ]);
 
@@ -94,7 +129,7 @@ function screenshot(value) {
     throw new Error(`Invalid Steam screenshot id: ${value.id}`);
   }
   const scenario = captureScenarioFromSearch(`?capture=${value.scenarioId}`);
-  if (!value.scenarioId.startsWith("trailer-") || !scenario.sequence) {
+  if (!scenario.sequence) {
     throw new Error(`Steam screenshot must use a scripted gameplay scenario: ${value.scenarioId}`);
   }
   const frameIndex = Math.ceil(value.atSeconds * AUTOMATIC_CAPTURE_FRAME_RATE) - 1;

@@ -7991,6 +7991,7 @@ function stepAutomaticCaptureFrame(frameIndex) {
 function stageCaptureSequence() {
   if (!captureDirector) throw new Error("Cannot stage capture without a director");
   const sequence = captureDirector.sequence;
+  gameState.memory.flags.oarTutorialShown = true;
   gameState.memory.flags.sailingBasicsTutorialShown = true;
   gameState.memory.flags.tackingTutorialShown = true;
   stageCaptureDiscoveryMemory(sequence);
@@ -8160,6 +8161,7 @@ function updateCaptureWhale(sequence) {
 }
 
 function updateCaptureSailing(sequence) {
+  dismissCaptureOverlays();
   if (!captureCue("beam-reach", 0.1)) return;
   const performance = captureBeamReachPerformance();
   emitCaptureEvent("capture-beat", {
@@ -8173,15 +8175,7 @@ function updateCaptureSailing(sequence) {
 }
 
 function updateCaptureFight(sequence) {
-  if (dialogueState || captainAlertModal) {
-    if (captureDirector.elapsedSeconds >= 1.2) {
-      dialogueState = null;
-      dialogueLayout = createDialogueLayoutState();
-      captainAlertModal = null;
-      resumeShipAfterOverlayIfReady();
-      dirty = true;
-    }
-  }
+  if (captureDirector.elapsedSeconds >= 1.2) dismissCaptureOverlays();
   const target = npcVisualShips.get(sequence.encounterId);
   if (!target) return;
   if (captureCue("engage", 0.8)) {
@@ -8193,6 +8187,16 @@ function updateCaptureFight(sequence) {
     fireBroadside("port");
     fireBroadside("starboard");
   }
+}
+
+function dismissCaptureOverlays() {
+  if (!dialogueState && !captainAlertModal) return false;
+  dialogueState = null;
+  dialogueLayout = createDialogueLayoutState();
+  captainAlertModal = null;
+  resumeShipAfterOverlayIfReady();
+  dirty = true;
+  return true;
 }
 
 function updateCapturePillage(sequence) {

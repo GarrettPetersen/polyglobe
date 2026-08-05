@@ -21,65 +21,146 @@ const args = parseArgs(process.argv.slice(2));
 const shots = selectById(STEAM_SCREENSHOT_SHOTS, args.shots, "shot");
 const languages = selectById(STEAM_SCREENSHOT_LANGUAGES, args.languages, "language");
 const outputRoot = path.resolve(APP_ROOT, args.output);
+const manifestPath = path.join(outputRoot, "manifest.json");
 
 await mkdir(outputRoot, { recursive: true });
 await removeStaleFailureScreenshots(outputRoot);
-await assertCaptureServerReady(args.baseUrl);
-const browser = await launchCaptureBrowser({ headless: args.headless });
-const results = [];
-try {
-  let nextShotIndex = 0;
-  const workerCount = Math.min(args.jobs, shots.length);
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (nextShotIndex < shots.length) {
-      const shotIndex = nextShotIndex;
-      nextShotIndex += 1;
-      const shot = shots[shotIndex];
-      process.stdout.write(`[${shotIndex + 1}/${shots.length}] ${shot.id}\n`);
-      results.push(...await captureLocalizedScreenshots(browser, shot));
+if (args.manifestOnly) {
+  if (args.shots.length > 0 || args.languages.length > 0) {
+    throw new Error("--manifest-only always validates the complete catalog");
+  }
+  const manifest = steamScreenshotManifest(
+    STEAM_SCREENSHOT_SHOTS,
+    STEAM_SCREENSHOT_LANGUAGES
+  );
+  await validateManifestFiles(manifest);
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  process.stdout.write(`Validated complete Steam screenshot manifest: ${manifestPath}\n`);
+} else {
+  await assertCaptureServerReady(args.baseUrl);
+  const browser = await launchCaptureBrowser({ headless: args.headless });
+  const results = [];
+  try {
+    let nextShotIndex = 0;
+    const workerCount = Math.min(args.jobs, shots.length);
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+      while (nextShotIndex < shots.length) {
+        const shotIndex = nextShotIndex;
+        nextShotIndex += 1;
+        const shot = shots[shotIndex];
+        process.stdout.write(`[${shotIndex + 1}/${shots.length}] ${shot.id}\n`);
+        results.push(...await captureLocalizedScreenshots(browser, shot));
+      }
+    }));
+  } finally {
+    await browser.close();
+  }
+
+  const capturedManifest = steamScreenshotManifest(shots, languages);
+  const existingManifest = await readExistingManifest(manifestPath);
+  const manifest = mergeSteamScreenshotManifests(existingManifest, capturedManifest);
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  for (const result of results) {
+    if (result.width !== STEAM_SCREENSHOT_WIDTH || result.height !== STEAM_SCREENSHOT_HEIGHT) {
+      throw new Error(`${result.fileName} has invalid dimensions after capture`);
     }
-  }));
-} finally {
-  await browser.close();
+  }
+  process.stdout.write(
+    `Steam screenshots: ${results.length} files in ${outputRoot}\n` +
+    `Manifest: ${manifestPath}\n`
+  );
 }
 
-const manifest = {
-  version: 1,
-  dimensions: { width: STEAM_SCREENSHOT_WIDTH, height: STEAM_SCREENSHOT_HEIGHT },
-  captureMethod: "deterministic-frame-step",
-  languages: languages.map(({ id, label, nativeLabel, steamCode }) => ({
-    id,
-    label,
-    nativeLabel,
-    steamCode
-  })),
-  shots: shots.map(({ order, id, title, scenarioId, atSeconds, frameIndex }) => ({
-    order,
-    id,
-    title,
-    scenarioId,
-    atSeconds,
-    frameIndex,
-    files: Object.fromEntries(languages.map((language) => [
-      language.steamCode,
-      steamScreenshotFileName(
-        { order, id },
-        language
-      )
-    ]))
-  }))
-};
-await writeFile(path.join(outputRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+function steamScreenshotManifest(manifestShots, manifestLanguages) {
+  return {
+    version: 1,
+    dimensions: { width: STEAM_SCREENSHOT_WIDTH, height: STEAM_SCREENSHOT_HEIGHT },
+    captureMethod: "deterministic-frame-step",
+    languages: manifestLanguages.map(({ id, label, nativeLabel, steamCode }) => ({
+      id,
+      label,
+      nativeLabel,
+      steamCode
+    })),
+    shots: manifestShots.map(({ order, id, title, scenarioId, atSeconds, frameIndex }) => ({
+      order,
+      id,
+      title,
+      scenarioId,
+      atSeconds,
+      frameIndex,
+      files: Object.fromEntries(manifestLanguages.map((language) => [
+        language.steamCode,
+        steamScreenshotFileName({ order, id }, language)
+      ]))
+    }))
+  };
+}
 
-for (const result of results) {
-  if (result.width !== STEAM_SCREENSHOT_WIDTH || result.height !== STEAM_SCREENSHOT_HEIGHT) {
-    throw new Error(`${result.fileName} has invalid dimensions after capture`);
+async function validateManifestFiles(manifest) {
+  for (const shot of manifest.shots) {
+    for (const fileName of Object.values(shot.files)) {
+      let dimensions;
+      try {
+        dimensions = pngDimensions(await readFile(path.join(outputRoot, fileName)));
+      } catch (error) {
+        throw new Error(`Invalid Steam screenshot ${fileName}: ${error.message}`);
+      }
+      if (dimensions.width !== manifest.dimensions.width || dimensions.height !== manifest.dimensions.height) {
+        throw new Error(
+          `${fileName} is ${dimensions.width}x${dimensions.height}; expected ` +
+          `${manifest.dimensions.width}x${manifest.dimensions.height}`
+        );
+      }
+    }
   }
 }
-process.stdout.write(
-  `Steam screenshots: ${results.length} files in ${outputRoot}\n` +
-  `Manifest: ${path.join(outputRoot, "manifest.json")}\n`
-);
+
+async function readExistingManifest(manifestPath) {
+  try {
+    return JSON.parse(await readFile(manifestPath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw new Error(`Could not read existing Steam screenshot manifest: ${error.message}`);
+  }
+}
+
+function mergeSteamScreenshotManifests(existing, captured) {
+  if (!existing) return captured;
+  if (
+    existing.version !== captured.version ||
+    existing.captureMethod !== captured.captureMethod ||
+    existing.dimensions?.width !== captured.dimensions.width ||
+    existing.dimensions?.height !== captured.dimensions.height ||
+    !Array.isArray(existing.languages) ||
+    !Array.isArray(existing.shots)
+  ) {
+    throw new Error("Existing Steam screenshot manifest is incompatible with this capture");
+  }
+
+  const languageById = new Map(existing.languages.map((language) => [language.id, language]));
+  for (const language of captured.languages) languageById.set(language.id, language);
+
+  const shotById = new Map(existing.shots.map((shot) => [shot.id, shot]));
+  for (const shot of captured.shots) {
+    const previous = shotById.get(shot.id);
+    shotById.set(shot.id, {
+      ...shot,
+      files: { ...(previous?.files || {}), ...shot.files }
+    });
+  }
+
+  return {
+    ...captured,
+    languages: STEAM_SCREENSHOT_LANGUAGES
+      .map(({ id }) => languageById.get(id))
+      .filter(Boolean),
+    shots: STEAM_SCREENSHOT_SHOTS
+      .map(({ id }) => shotById.get(id))
+      .filter(Boolean)
+  };
+}
 
 async function captureLocalizedScreenshots(browser, shot) {
   const context = await browser.newContext({
@@ -240,7 +321,8 @@ function parseArgs(argv) {
     jobs: 2,
     headless: true,
     loadTimeoutMs: 120_000,
-    captureTimeoutMs: 120_000
+    captureTimeoutMs: 120_000,
+    manifestOnly: false
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -249,11 +331,24 @@ function parseArgs(argv) {
     else if (arg === "--shots") parsed.shots = commaList(requiredValue(argv, ++index, arg));
     else if (arg === "--languages") parsed.languages = commaList(requiredValue(argv, ++index, arg));
     else if (arg === "--jobs") parsed.jobs = Number(requiredValue(argv, ++index, arg));
+    else if (arg === "--load-timeout-ms") parsed.loadTimeoutMs = Number(requiredValue(argv, ++index, arg));
+    else if (arg === "--capture-timeout-ms") {
+      parsed.captureTimeoutMs = Number(requiredValue(argv, ++index, arg));
+    }
+    else if (arg === "--manifest-only") parsed.manifestOnly = true;
     else if (arg === "--headed") parsed.headless = false;
     else throw new Error(`Unknown Steam screenshot capture argument: ${arg}`);
   }
   if (!Number.isInteger(parsed.jobs) || parsed.jobs < 1 || parsed.jobs > 4) {
     throw new Error(`--jobs must be an integer from 1 to 4, got ${parsed.jobs}`);
+  }
+  for (const [flag, value] of [
+    ["--load-timeout-ms", parsed.loadTimeoutMs],
+    ["--capture-timeout-ms", parsed.captureTimeoutMs]
+  ]) {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new Error(`${flag} must be a positive integer, got ${value}`);
+    }
   }
   return parsed;
 }

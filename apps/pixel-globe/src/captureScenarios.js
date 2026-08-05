@@ -392,6 +392,72 @@ const CAPTURE_SCENARIOS = Object.freeze({
     minute: 45,
     beamSide: "port"
   }),
+  "screenshot-sail-great-barrier-reef": sailingTrailerScenario({
+    id: "screenshot-sail-great-barrier-reef",
+    title: "Sailing ship",
+    seed: "screenshot-sail-great-barrier-reef-v1",
+    factionId: "portugal",
+    shipSlug: "caravel",
+    lat: -18.4,
+    lon: 147.2,
+    day: 196,
+    hour: 2,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "screenshot-sail-ternate": sailingTrailerScenario({
+    id: "screenshot-sail-ternate",
+    title: "Sailing ship",
+    seed: "screenshot-sail-ternate-v1",
+    factionId: "ternate",
+    shipSlug: "kelulus",
+    lat: 0.8,
+    lon: 127.3,
+    day: 220,
+    hour: 3,
+    minute: 40,
+    beamSide: "port"
+  }),
+  "screenshot-sail-seto": sailingTrailerScenario({
+    id: "screenshot-sail-seto",
+    title: "Sailing ship",
+    seed: "screenshot-sail-seto-v1",
+    factionId: "japan",
+    shipSlug: "japanese-sekibune",
+    lat: 34.3,
+    lon: 133.1,
+    day: 148,
+    hour: 3,
+    minute: 10,
+    beamSide: "starboard"
+  }),
+  "screenshot-sail-bosporus": sailingTrailerScenario({
+    id: "screenshot-sail-bosporus",
+    title: "Sailing ship",
+    seed: "screenshot-sail-bosporus-v1",
+    factionId: "ottoman",
+    shipSlug: "ottoman-coastal-trader",
+    lat: 40.8,
+    lon: 28.8,
+    day: 172,
+    hour: 12,
+    minute: 30,
+    beamSide: "port"
+  }),
+  "screenshot-sail-lake-victoria": sailingTrailerScenario({
+    id: "screenshot-sail-lake-victoria",
+    title: "Sailing ship",
+    seed: "screenshot-sail-lake-victoria-v1",
+    factionId: "ethiopia",
+    shipSlug: "dhow",
+    lat: -1.0,
+    lon: 33.0,
+    day: 90,
+    hour: 13,
+    minute: 0,
+    timeScale: 1,
+    beamSide: "starboard"
+  }),
   "trailer-fight-turtle": trailerScenario({
     id: "trailer-fight-turtle",
     title: "Turtle Ship Battle",
@@ -749,7 +815,7 @@ function sailingTrailerScenario(value) {
     title: value.title,
     seed: value.seed,
     player: capturePlayer(value.factionId, value.shipSlug, value.lat, value.lon, 0),
-    world: captureWorld(value.day, value.hour, value.minute),
+    world: captureWorld(value.day, value.hour, value.minute, value.timeScale),
     sequence: trailerSequence("sail", "beam-reach", {
       durationSeconds: 6,
       beamSide: value.beamSide

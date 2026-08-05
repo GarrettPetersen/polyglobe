@@ -262,6 +262,111 @@
         "tchinese": "09_meet-panda_tchinese.png",
         "koreana": "09_meet-panda_koreana.png"
       }
+    },
+    {
+      "order": 10,
+      "id": "sail-great-barrier-reef",
+      "title": "Sail the Great Barrier Reef",
+      "scenarioId": "screenshot-sail-great-barrier-reef",
+      "atSeconds": 3.5,
+      "frameIndex": 104,
+      "files": {
+        "english": "10_sail-great-barrier-reef_english.png",
+        "schinese": "10_sail-great-barrier-reef_schinese.png",
+        "russian": "10_sail-great-barrier-reef_russian.png",
+        "spanish": "10_sail-great-barrier-reef_spanish.png",
+        "brazilian": "10_sail-great-barrier-reef_brazilian.png",
+        "japanese": "10_sail-great-barrier-reef_japanese.png",
+        "german": "10_sail-great-barrier-reef_german.png",
+        "french": "10_sail-great-barrier-reef_french.png",
+        "polish": "10_sail-great-barrier-reef_polish.png",
+        "tchinese": "10_sail-great-barrier-reef_tchinese.png",
+        "koreana": "10_sail-great-barrier-reef_koreana.png"
+      }
+    },
+    {
+      "order": 11,
+      "id": "sail-spice-islands",
+      "title": "Sail the Spice Islands",
+      "scenarioId": "screenshot-sail-ternate",
+      "atSeconds": 3.5,
+      "frameIndex": 104,
+      "files": {
+        "english": "11_sail-spice-islands_english.png",
+        "schinese": "11_sail-spice-islands_schinese.png",
+        "russian": "11_sail-spice-islands_russian.png",
+        "spanish": "11_sail-spice-islands_spanish.png",
+        "brazilian": "11_sail-spice-islands_brazilian.png",
+        "japanese": "11_sail-spice-islands_japanese.png",
+        "german": "11_sail-spice-islands_german.png",
+        "french": "11_sail-spice-islands_french.png",
+        "polish": "11_sail-spice-islands_polish.png",
+        "tchinese": "11_sail-spice-islands_tchinese.png",
+        "koreana": "11_sail-spice-islands_koreana.png"
+      }
+    },
+    {
+      "order": 12,
+      "id": "sail-seto-inland-sea",
+      "title": "Sail the Seto Inland Sea",
+      "scenarioId": "screenshot-sail-seto",
+      "atSeconds": 1.5,
+      "frameIndex": 44,
+      "files": {
+        "english": "12_sail-seto-inland-sea_english.png",
+        "schinese": "12_sail-seto-inland-sea_schinese.png",
+        "russian": "12_sail-seto-inland-sea_russian.png",
+        "spanish": "12_sail-seto-inland-sea_spanish.png",
+        "brazilian": "12_sail-seto-inland-sea_brazilian.png",
+        "japanese": "12_sail-seto-inland-sea_japanese.png",
+        "german": "12_sail-seto-inland-sea_german.png",
+        "french": "12_sail-seto-inland-sea_french.png",
+        "polish": "12_sail-seto-inland-sea_polish.png",
+        "tchinese": "12_sail-seto-inland-sea_tchinese.png",
+        "koreana": "12_sail-seto-inland-sea_koreana.png"
+      }
+    },
+    {
+      "order": 13,
+      "id": "sail-bosporus",
+      "title": "Sail the Bosporus",
+      "scenarioId": "screenshot-sail-bosporus",
+      "atSeconds": 1.5,
+      "frameIndex": 44,
+      "files": {
+        "english": "13_sail-bosporus_english.png",
+        "schinese": "13_sail-bosporus_schinese.png",
+        "russian": "13_sail-bosporus_russian.png",
+        "spanish": "13_sail-bosporus_spanish.png",
+        "brazilian": "13_sail-bosporus_brazilian.png",
+        "japanese": "13_sail-bosporus_japanese.png",
+        "german": "13_sail-bosporus_german.png",
+        "french": "13_sail-bosporus_french.png",
+        "polish": "13_sail-bosporus_polish.png",
+        "tchinese": "13_sail-bosporus_tchinese.png",
+        "koreana": "13_sail-bosporus_koreana.png"
+      }
+    },
+    {
+      "order": 14,
+      "id": "sail-lake-victoria",
+      "title": "Sail Lake Victoria",
+      "scenarioId": "screenshot-sail-lake-victoria",
+      "atSeconds": 3.5,
+      "frameIndex": 104,
+      "files": {
+        "english": "14_sail-lake-victoria_english.png",
+        "schinese": "14_sail-lake-victoria_schinese.png",
+        "russian": "14_sail-lake-victoria_russian.png",
+        "spanish": "14_sail-lake-victoria_spanish.png",
+        "brazilian": "14_sail-lake-victoria_brazilian.png",
+        "japanese": "14_sail-lake-victoria_japanese.png",
+        "german": "14_sail-lake-victoria_german.png",
+        "french": "14_sail-lake-victoria_french.png",
+        "polish": "14_sail-lake-victoria_polish.png",
+        "tchinese": "14_sail-lake-victoria_tchinese.png",
+        "koreana": "14_sail-lake-victoria_koreana.png"
+      }
     }
   ]
 }
