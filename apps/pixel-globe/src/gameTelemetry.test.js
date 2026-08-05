@@ -9,6 +9,7 @@ import {
   TELEMETRY_QUEUE_STORAGE_KEY,
   createGameTelemetry,
   telemetryRuntimeChannel,
+  voyageStartTelemetryPayload,
   voyageTelemetryPayload
 } from "./gameTelemetry.js";
 
@@ -203,6 +204,42 @@ test("a voyage ending during an active request flushes as soon as that request c
   assert.equal(storage.values.has(TELEMETRY_QUEUE_STORAGE_KEY), false);
 });
 
+test("a fresh voyage records its bounded starting profile", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "voyage-start"
+  });
+  const bodies = [];
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      return { ok: true };
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+
+  telemetry.start();
+  await nextTask();
+  assert.equal(telemetry.recordVoyageStart(voyageStartState()), true);
+  await nextTask();
+
+  const start = bodies.flatMap((body) => body.events)
+    .find((entry) => entry.type === "voyage_start");
+  assert.ok(start);
+  assert.equal(start.payload.mainQuest, "explorer");
+  assert.equal(start.payload.faction, "portugal");
+  assert.equal(start.payload.homePort, "Lisbon");
+  assert.equal(start.payload.ship, "caravel");
+  assert.equal(start.payload.startingCrew, 12);
+});
+
 test("an urgent voyage retries immediately when the older active request fails", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
@@ -301,6 +338,32 @@ test("voyage summaries expose bounded feature engagement without names or save d
   assert.equal(JSON.stringify(payload).includes("captain"), false);
 });
 
+test("voyage start summaries omit generated names and exact positions", () => {
+  const payload = voyageStartTelemetryPayload(voyageStartState());
+  assert.deepEqual(payload, {
+    mainQuest: "explorer",
+    faction: "portugal",
+    ship: "caravel",
+    homePort: "Lisbon",
+    startRegion: "europe",
+    captainReligion: "roman-catholic",
+    captainSex: "female",
+    captainSkills: "master-navigator",
+    loadout: "provisional-short-haul",
+    captainAge: 31,
+    startingCrew: 12,
+    startingCannons: 4,
+    cargoCapacity: 90,
+    foodDays: 20,
+    waterDays: 20,
+    startingDoubloons: 500
+  });
+  const serialized = JSON.stringify(payload);
+  assert.ok(!serialized.includes("Maria Test"));
+  assert.ok(!serialized.includes("latitude"));
+  assert.ok(!serialized.includes("longitude"));
+});
+
 test("raccoon telemetry records acquisition rather than a recruitment prompt", () => {
   for (const status of ["unmet", "pending", "declined"]) {
     const state = voyageState("explorer");
@@ -383,6 +446,33 @@ function voyageState(mainQuest) {
         }
       },
       achievements: {}
+    }
+  };
+}
+
+function voyageStartState() {
+  return {
+    doubloons: 500,
+    cargoCapacity: 90,
+    playerCharacter: {
+      name: "Maria Test",
+      nationalityId: "portugal",
+      homePortName: "Lisbon",
+      startRegion: "europe",
+      religionId: "roman-catholic",
+      sex: "female",
+      age: 31,
+      skillIds: ["master-navigator"]
+    },
+    ship: {
+      slug: "caravel",
+      loadoutId: null,
+      loadoutTargets: { foodDays: 20, waterDays: 20 },
+      crew: 12,
+      cannons: 4
+    },
+    memory: {
+      campaignGoal: { type: "explorer" }
     }
   };
 }

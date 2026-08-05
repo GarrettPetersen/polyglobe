@@ -5,8 +5,10 @@ to Workers Analytics Engine. It stores no cookies, save files, account IDs, IP
 addresses, or advertising identifiers.
 
 Routine play analytics and crash reports use unit event weights and are sent for
-all consenting installations. Analytics Engine automatically removes data after
-three months.
+all consenting installations. A fresh voyage records its quest, origin faction and
+port, starting ship and loadout, and bounded captain demographics; it never sends
+the generated captain name, exact coordinates, or save data. Analytics Engine
+automatically removes data after three months.
 
 ## Operations
 
@@ -37,9 +39,9 @@ Run `configure-secret` once after the first deployment, and again only when rota
 the installation-hash secret. It generates the secret locally and never prints or
 stores it.
 
-The report command prints 30-day sessions, active playtime, voyage outcomes, broad
-feature engagement, and grouped crashes. Cloudflare credentials are read from the
-root `.env` without being printed.
+The report command prints 30-day sessions, active playtime, voyage starts and
+outcomes, broad feature engagement, and grouped crashes. Cloudflare credentials
+are read from the root `.env` without being printed.
 
 The crash command retrieves every grouped crash context in a bounded lookback window,
 including the build revision, channel, platform, screen, redacted stack, report count,

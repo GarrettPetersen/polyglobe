@@ -28,6 +28,7 @@ export function dashboardQueries(windowDays) {
       SELECT
         round(SUM(_sample_interval * if(blob1 = 'session_start', 1, 0))) AS sessions,
         round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double2, 0.0)) / 3600, 1) AS active_hours,
+        round(SUM(_sample_interval * if(blob1 = 'voyage_start', 1, 0))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
       FROM ${DATASET}
@@ -42,6 +43,7 @@ export function dashboardQueries(windowDays) {
       SELECT toDate(timestamp) AS day,
         round(SUM(_sample_interval * if(blob1 = 'session_start', 1, 0))) AS sessions,
         round(SUM(_sample_interval * if(blob1 = 'session_checkpoint', double2, 0.0)) / 3600, 1) AS active_hours,
+        round(SUM(_sample_interval * if(blob1 = 'voyage_start', 1, 0))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
         round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
       FROM ${DATASET}
@@ -81,6 +83,25 @@ export function dashboardQueries(windowDays) {
       WHERE blob1 = 'voyage_end' AND ${where}
       GROUP BY main_quest, outcome
       ORDER BY voyages DESC
+    `,
+    starts: `
+      SELECT blob8 AS main_quest, blob9 AS faction, blob10 AS ship,
+        blob11 AS home_port, blob12 AS start_region, blob13 AS religion,
+        blob14 AS captain_sex, blob15 AS captain_skills, blob16 AS loadout,
+        round(SUM(_sample_interval)) AS voyage_starts,
+        round(SUM(_sample_interval * double2) / SUM(_sample_interval), 1) AS average_age,
+        round(SUM(_sample_interval * double3) / SUM(_sample_interval), 1) AS average_crew,
+        round(SUM(_sample_interval * double4) / SUM(_sample_interval), 1) AS average_cannons,
+        round(SUM(_sample_interval * double5) / SUM(_sample_interval), 1) AS average_cargo,
+        round(SUM(_sample_interval * double6) / SUM(_sample_interval), 1) AS average_food_days,
+        round(SUM(_sample_interval * double7) / SUM(_sample_interval), 1) AS average_water_days,
+        round(SUM(_sample_interval * double8) / SUM(_sample_interval), 1) AS average_doubloons
+      FROM ${DATASET}
+      WHERE blob1 = 'voyage_start' AND ${where}
+      GROUP BY main_quest, faction, ship, home_port, start_region, religion,
+        captain_sex, captain_skills, loadout
+      ORDER BY voyage_starts DESC, main_quest, faction, home_port
+      LIMIT 100
     `,
     features: `
       SELECT
@@ -136,6 +157,7 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
     players: nonnegativeNumber(playerRow.players),
     sessions: nonnegativeNumber(totalsRow.sessions),
     activeHours: nonnegativeNumber(totalsRow.active_hours),
+    voyageStarts: nonnegativeNumber(totalsRow.voyage_starts),
     voyages: nonnegativeNumber(totalsRow.voyages),
     crashes: nonnegativeNumber(totalsRow.crashes)
   };
@@ -160,6 +182,7 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
       day: requiredString(row.day, "daily day"),
       sessions: nonnegativeNumber(row.sessions),
       activeHours: nonnegativeNumber(row.active_hours),
+      voyageStarts: nonnegativeNumber(row.voyage_starts),
       voyages: nonnegativeNumber(row.voyages),
       crashes: nonnegativeNumber(row.crashes)
     })),
@@ -179,6 +202,25 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
       voyages: nonnegativeNumber(row.voyages),
       averageActiveSeconds: nonnegativeNumber(row.average_active_seconds),
       averageMappedPercent: nonnegativeNumber(row.average_mapped_percent)
+    })),
+    starts: results.starts.map((row) => ({
+      mainQuest: requiredString(row.main_quest, "start main quest"),
+      faction: requiredString(row.faction, "start faction"),
+      ship: requiredString(row.ship, "start ship"),
+      homePort: requiredString(row.home_port, "start home port"),
+      startRegion: requiredString(row.start_region, "start region"),
+      religion: requiredString(row.religion, "start religion"),
+      captainSex: requiredString(row.captain_sex, "start captain sex"),
+      captainSkills: requiredString(row.captain_skills, "start captain skills"),
+      loadout: requiredString(row.loadout, "start loadout"),
+      starts: nonnegativeNumber(row.voyage_starts),
+      averageAge: nonnegativeNumber(row.average_age),
+      averageCrew: nonnegativeNumber(row.average_crew),
+      averageCannons: nonnegativeNumber(row.average_cannons),
+      averageCargo: nonnegativeNumber(row.average_cargo),
+      averageFoodDays: nonnegativeNumber(row.average_food_days),
+      averageWaterDays: nonnegativeNumber(row.average_water_days),
+      averageDoubloons: nonnegativeNumber(row.average_doubloons)
     })),
     features: featureNames.map((id) => {
       const voyages = nonnegativeNumber(featureRow[id]);

@@ -90,6 +90,36 @@ test("voyage events record every animal companion while accepting old panda payl
   assert.equal(points[1].blobs[11], "panda:aboard");
 });
 
+test("voyage starts record bounded origin, captain, ship, and loadout details", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("voyage_start", voyageStartPayload())]), environment(points));
+
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+  assert.deepEqual(points[0].blobs.slice(7, 17), [
+    "explorer",
+    "portugal",
+    "caravel",
+    "Lisbon",
+    "europe",
+    "roman-catholic",
+    "female",
+    "master-navigator",
+    "provisional-short-haul",
+    ""
+  ]);
+  assert.deepEqual(points[0].doubles.slice(1, 8), [31, 12, 4, 90, 20, 20, 500]);
+});
+
+test("voyage starts reject malformed captain demographics", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("voyage_start", voyageStartPayload({
+    captainSex: "unknown"
+  }))]), environment(points));
+  assert.equal(response.status, 400);
+  assert.equal(points.length, 0);
+});
+
 test("an invalid event prevents the entire batch from being written", async () => {
   const points = [];
   const valid = event("session_checkpoint", {
@@ -165,6 +195,29 @@ function voyagePayload(overrides) {
     whalesKilled: 0,
     coloniesFounded: 0,
     spicesSold: 0,
+    ...overrides
+  };
+}
+
+function voyageStartPayload(overrides = {}) {
+  return {
+    samplingWeight: 1,
+    mainQuest: "explorer",
+    faction: "portugal",
+    ship: "caravel",
+    homePort: "Lisbon",
+    startRegion: "europe",
+    captainReligion: "roman-catholic",
+    captainSex: "female",
+    captainSkills: "master-navigator",
+    loadout: "provisional-short-haul",
+    captainAge: 31,
+    startingCrew: 12,
+    startingCannons: 4,
+    cargoCapacity: 90,
+    foodDays: 20,
+    waterDays: 20,
+    startingDoubloons: 500,
     ...overrides
   };
 }

@@ -9665,6 +9665,7 @@ function startNewVoyage() {
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   reframeWorldNorthUp("new voyage");
   hasStartedVoyage = true;
+  gameTelemetry.recordVoyageStart(gameState);
   closeStartMenu();
   revealMinimapFromChart(chart, chartOffsetPixels(chart));
   saveVoyageNow("new voyage");

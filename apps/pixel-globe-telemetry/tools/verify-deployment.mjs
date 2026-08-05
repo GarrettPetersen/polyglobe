@@ -26,7 +26,7 @@ const ingestion = await jsonFetch(`${endpoint}/v1/events`, {
     events: [{
       schemaVersion: 1,
       eventId,
-      type: "voyage_end",
+      type: "voyage_start",
       installationId: `deployment-${randomUUID()}`,
       sessionId: `deployment-${randomUUID()}`,
       occurredAt: new Date().toISOString(),
@@ -40,24 +40,22 @@ const ingestion = await jsonFetch(`${endpoint}/v1/events`, {
       },
       payload: {
         samplingWeight: 1,
-        outcome: "quit",
         mainQuest: "explorer",
-        activePlaySeconds: 60,
-        daysAtSea: 1,
-        endingDoubloons: 100,
-        grossDoubloonsEarned: 0,
-        mappedPercent: 0,
-        discoveries: 0,
-        visitedPorts: 0,
-        completedQuests: 0,
-        crewLost: 0,
-        ship: "deployment-check",
-        features: ["animals", "raccoon"],
-        companionStatuses: "panda:unmet,penguin:unmet,raccoon:aboard",
-        defeatedShips: 0,
-        whalesKilled: 0,
-        coloniesFounded: 0,
-        spicesSold: 0
+        faction: "portugal",
+        ship: "caravel",
+        homePort: "Lisbon",
+        startRegion: "europe",
+        captainReligion: "roman-catholic",
+        captainSex: "female",
+        captainSkills: "master-navigator",
+        loadout: "provisional-short-haul",
+        captainAge: 31,
+        startingCrew: 12,
+        startingCannons: 4,
+        cargoCapacity: 90,
+        foodDays: 20,
+        waterDays: 20,
+        startingDoubloons: 500
       }
     }]
   })
@@ -67,10 +65,16 @@ if (ingestion.accepted !== 1) throw new Error("Telemetry ingestion check was not
 const sql = `
   SELECT count() AS rows
   FROM marque_and_reprisal_game_events
-  WHERE blob1 = 'voyage_end'
+  WHERE blob1 = 'voyage_start'
     AND blob4 = 'deployment-check'
-    AND blob11 = 'animals,raccoon'
-    AND blob12 = 'panda:unmet,penguin:unmet,raccoon:aboard'
+    AND blob8 = 'explorer'
+    AND blob9 = 'portugal'
+    AND blob10 = 'caravel'
+    AND blob11 = 'Lisbon'
+    AND blob13 = 'roman-catholic'
+    AND blob15 = 'master-navigator'
+    AND double2 = 31
+    AND double3 = 12
     AND blob19 = '${eventId}'
     AND timestamp > NOW() - INTERVAL '1' DAY
 `;
@@ -82,11 +86,11 @@ for (let attempt = 0; attempt < 24 && storedRows < 1; attempt++) {
   storedRows = Number(rows[0]?.rows || 0);
 }
 if (storedRows < 1) {
-  throw new Error("Raccoon acquisition event was accepted but did not become queryable");
+  throw new Error("Voyage start event was accepted but did not become queryable");
 }
 
 console.log(
-  "Telemetry deployment verified: health, CORS, raccoon acquisition ingestion, and Analytics Engine query."
+  "Telemetry deployment verified: health, CORS, voyage start ingestion, and Analytics Engine query."
 );
 
 async function jsonFetch(url, options) {

@@ -5,8 +5,19 @@ import {
 
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_EVENTS_PER_REQUEST = 8;
-const EVENT_TYPES = new Set(["session_start", "session_checkpoint", "voyage_end", "crash"]);
-const ROUTINE_EVENT_TYPES = new Set(["session_start", "session_checkpoint", "voyage_end"]);
+const EVENT_TYPES = new Set([
+  "session_start",
+  "session_checkpoint",
+  "voyage_start",
+  "voyage_end",
+  "crash"
+]);
+const ROUTINE_EVENT_TYPES = new Set([
+  "session_start",
+  "session_checkpoint",
+  "voyage_start",
+  "voyage_end"
+]);
 const FEATURE_IDS = new Set([
   "trade",
   "fish",
@@ -172,8 +183,34 @@ function validatePayload(type, payload) {
       ship: shortString(payload.ship, 80)
     };
   }
+  if (type === "voyage_start") return validateVoyageStartPayload(payload, samplingWeight);
   if (type === "voyage_end") return validateVoyagePayload(payload, samplingWeight);
   throw new TelemetryRequestError("invalid_event_type", 400);
+}
+
+function validateVoyageStartPayload(payload, samplingWeight) {
+  if (payload.captainSex !== "female" && payload.captainSex !== "male") {
+    throw new TelemetryRequestError("invalid_captain_sex", 400);
+  }
+  return {
+    samplingWeight,
+    mainQuest: shortString(payload.mainQuest, 80),
+    faction: shortString(payload.faction, 80),
+    ship: shortString(payload.ship, 160),
+    homePort: shortString(payload.homePort, 160),
+    startRegion: shortString(payload.startRegion, 80),
+    captainReligion: shortString(payload.captainReligion, 80),
+    captainSex: payload.captainSex,
+    captainSkills: shortString(payload.captainSkills, 160),
+    loadout: shortString(payload.loadout, 80),
+    captainAge: integerInRange(payload.captainAge, 5, 90),
+    startingCrew: integerInRange(payload.startingCrew, 1, 1_000),
+    startingCannons: integerInRange(payload.startingCannons, 0, 1_000),
+    cargoCapacity: numberInRange(payload.cargoCapacity, 1, 100_000),
+    foodDays: numberInRange(payload.foodDays, 0, 10_000),
+    waterDays: numberInRange(payload.waterDays, 0, 10_000),
+    startingDoubloons: numberInRange(payload.startingDoubloons, 0, 1_000_000_000_000)
+  };
 }
 
 function normalizedSamplingWeight(type, samplingWeight) {
@@ -222,6 +259,7 @@ function validateVoyagePayload(payload, samplingWeight) {
 
 function toDataPoint(event, installationHash, crashFingerprint) {
   const payload = event.payload;
+  const columns = eventDataColumns(event.type, payload, crashFingerprint);
   return {
     indexes: [installationHash],
     blobs: [
@@ -232,39 +270,107 @@ function toDataPoint(event, installationHash, crashFingerprint) {
       event.metadata.platform,
       event.metadata.locale,
       event.sessionId,
-      payload.mainQuest || "",
-      payload.outcome || "",
-      payload.ship || "",
-      payload.features?.join(",") || "",
-      payload.companionStatuses || "",
-      crashFingerprint,
-      payload.errorName || "",
-      payload.message || "",
-      payload.stack || "",
-      payload.screen || "",
+      ...columns.blobs,
       String(event.metadata.gameStateVersion),
       event.eventId,
       event.occurredAt
     ],
     doubles: [
       payload.samplingWeight,
-      payload.activePlaySeconds || 0,
-      payload.daysAtSea || 0,
-      payload.endingDoubloons || 0,
-      payload.grossDoubloonsEarned || 0,
-      payload.mappedPercent || 0,
-      payload.discoveries || 0,
-      payload.visitedPorts || 0,
-      payload.completedQuests || 0,
-      payload.crewLost || 0,
-      payload.defeatedShips || 0,
-      payload.whalesKilled || 0,
-      payload.coloniesFounded || 0,
-      payload.spicesSold || 0,
+      ...columns.doubles,
       payload.installAgeDays || 0,
       payload.daysSinceLastSession ?? -1
     ]
   };
+}
+
+function eventDataColumns(type, payload, crashFingerprint) {
+  if (type === "voyage_start") {
+    return {
+      blobs: [
+        payload.mainQuest,
+        payload.faction,
+        payload.ship,
+        payload.homePort,
+        payload.startRegion,
+        payload.captainReligion,
+        payload.captainSex,
+        payload.captainSkills,
+        payload.loadout,
+        ""
+      ],
+      doubles: [
+        payload.captainAge,
+        payload.startingCrew,
+        payload.startingCannons,
+        payload.cargoCapacity,
+        payload.foodDays,
+        payload.waterDays,
+        payload.startingDoubloons,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    };
+  }
+  if (type === "voyage_end") {
+    return {
+      blobs: [
+        payload.mainQuest,
+        payload.outcome,
+        payload.ship,
+        payload.features.join(","),
+        payload.companionStatuses,
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      doubles: [
+        payload.activePlaySeconds,
+        payload.daysAtSea,
+        payload.endingDoubloons,
+        payload.grossDoubloonsEarned,
+        payload.mappedPercent,
+        payload.discoveries,
+        payload.visitedPorts,
+        payload.completedQuests,
+        payload.crewLost,
+        payload.defeatedShips,
+        payload.whalesKilled,
+        payload.coloniesFounded,
+        payload.spicesSold
+      ]
+    };
+  }
+  if (type === "crash") {
+    return {
+      blobs: [
+        payload.mainQuest,
+        "",
+        payload.ship,
+        "",
+        "",
+        crashFingerprint,
+        payload.errorName,
+        payload.message,
+        payload.stack,
+        payload.screen
+      ],
+      doubles: Array(13).fill(0)
+    };
+  }
+  if (type === "session_start" || type === "session_checkpoint") {
+    return {
+      blobs: Array(10).fill(""),
+      doubles: [payload.activePlaySeconds || 0, ...Array(12).fill(0)]
+    };
+  }
+  throw new Error(`Cannot map unknown telemetry event type: ${type}`);
 }
 
 function legacyCompanionStatuses(pandaStatus) {

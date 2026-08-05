@@ -150,6 +150,25 @@ export function createGameTelemetry({
     return true;
   }
 
+  function recordVoyageStart(state) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || sessionId === null) {
+      return false;
+    }
+    let payload;
+    try {
+      payload = voyageStartTelemetryPayload(state);
+    } catch (error) {
+      console.warn("[pixel-globe] voyage start telemetry was not recorded", error);
+      return false;
+    }
+    enqueueEvent("voyage_start", {
+      ...payload,
+      samplingWeight: TELEMETRY_EVENT_WEIGHT
+    });
+    void flush();
+    return true;
+  }
+
   function captureCrash(error, context = {}) {
     if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || installationId === null) return false;
     const normalized = normalizeCrash(error, context);
@@ -246,6 +265,7 @@ export function createGameTelemetry({
     stop,
     setConsent,
     checkpoint,
+    recordVoyageStart,
     recordVoyage,
     captureCrash,
     flush
@@ -291,6 +311,45 @@ export function voyageTelemetryPayload(record, state) {
     whalesKilled: nonNegativeNumber(achievements.whalesKilled || 0, "whales killed"),
     coloniesFounded: Array.isArray(achievements.foundedCityIds) ? achievements.foundedCityIds.length : 0,
     spicesSold: Array.isArray(achievements.soldSpiceGoodIds) ? achievements.soldSpiceGoodIds.length : 0
+  };
+}
+
+export function voyageStartTelemetryPayload(state) {
+  if (!state || typeof state !== "object") {
+    throw new Error("Voyage start telemetry requires game state");
+  }
+  const character = state.playerCharacter;
+  if (!character || typeof character !== "object") {
+    throw new Error("Voyage start telemetry requires a player character");
+  }
+  const ship = state.ship;
+  if (!ship || typeof ship !== "object") {
+    throw new Error("Voyage start telemetry requires player ship state");
+  }
+  const loadout = ship.loadoutTargets;
+  if (!loadout || typeof loadout !== "object") {
+    throw new Error("Voyage start telemetry requires an initial loadout");
+  }
+  if (!Array.isArray(character.skillIds) || character.skillIds.length < 1) {
+    throw new Error("Voyage start telemetry requires captain skills");
+  }
+  return {
+    mainQuest: requiredShortString(state.memory?.campaignGoal?.type || "none", "main quest"),
+    faction: requiredShortString(character.nationalityId, "captain faction"),
+    ship: requiredShortString(ship.slug, "starting ship"),
+    homePort: requiredShortString(character.homePortName, "home port"),
+    startRegion: requiredShortString(character.startRegion, "start region"),
+    captainReligion: requiredShortString(character.religionId || "unknown", "captain religion"),
+    captainSex: requiredShortString(character.sex, "captain sex"),
+    captainSkills: requiredShortString(character.skillIds.join(","), "captain skills"),
+    loadout: requiredShortString(ship.loadoutId || "provisional-short-haul", "starting loadout"),
+    captainAge: nonNegativeNumber(character.age, "captain age"),
+    startingCrew: nonNegativeNumber(ship.crew, "starting crew"),
+    startingCannons: nonNegativeNumber(ship.cannons, "starting cannons"),
+    cargoCapacity: nonNegativeNumber(state.cargoCapacity, "starting cargo capacity"),
+    foodDays: nonNegativeNumber(loadout.foodDays, "starting food days"),
+    waterDays: nonNegativeNumber(loadout.waterDays, "starting water days"),
+    startingDoubloons: nonNegativeNumber(state.doubloons, "starting doubloons")
   };
 }
 

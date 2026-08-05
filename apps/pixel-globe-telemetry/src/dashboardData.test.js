@@ -28,9 +28,16 @@ test("dashboard crash reports are newest first", () => {
 
 test("dashboard snapshots normalize aggregate query rows", () => {
   const snapshot = buildDashboardSnapshot(30, {
-    totals: [{ sessions: 400, active_hours: 25, voyages: 100, crashes: 2 }],
+    totals: [{ sessions: 400, active_hours: 25, voyage_starts: 180, voyages: 100, crashes: 2 }],
     players: [{ players: 200 }],
-    daily: [{ day: "2026-07-25", sessions: 40, active_hours: 2.5, voyages: 10, crashes: 1 }],
+    daily: [{
+      day: "2026-07-25",
+      sessions: 40,
+      active_hours: 2.5,
+      voyage_starts: 18,
+      voyages: 10,
+      crashes: 1
+    }],
     channels: [{ channel: "web-prototype", players: 100, sessions: 300 }],
     retention: [{ channel: "web-prototype", return_window: "next-day", sessions: 25 }],
     outcomes: [{
@@ -39,6 +46,25 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       voyages: 20,
       average_active_seconds: 3600,
       average_mapped_percent: 12.5
+    }],
+    starts: [{
+      main_quest: "explorer",
+      faction: "portugal",
+      ship: "caravel",
+      home_port: "Lisbon",
+      start_region: "europe",
+      religion: "roman-catholic",
+      captain_sex: "female",
+      captain_skills: "master-navigator",
+      loadout: "provisional-short-haul",
+      voyage_starts: 12,
+      average_age: 31.5,
+      average_crew: 12,
+      average_cannons: 4,
+      average_cargo: 90,
+      average_food_days: 20,
+      average_water_days: 20,
+      average_doubloons: 500
     }],
     features: [{
       voyages: 100,
@@ -77,6 +103,7 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     }]
   }, "2026-07-25T12:00:00.000Z");
   assert.equal(snapshot.totals.averageSessionMinutes, 3.8);
+  assert.equal(snapshot.totals.voyageStarts, 180);
   assert.equal(snapshot.totals.crashesPerThousandSessions, 5);
   assert.deepEqual(snapshot.features.find((entry) => entry.id === "trade"), {
     id: "trade",
@@ -92,5 +119,24 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     id: "raccoon",
     voyages: 3,
     percent: 3
+  });
+  assert.deepEqual(snapshot.starts[0], {
+    mainQuest: "explorer",
+    faction: "portugal",
+    ship: "caravel",
+    homePort: "Lisbon",
+    startRegion: "europe",
+    religion: "roman-catholic",
+    captainSex: "female",
+    captainSkills: "master-navigator",
+    loadout: "provisional-short-haul",
+    starts: 12,
+    averageAge: 31.5,
+    averageCrew: 12,
+    averageCannons: 4,
+    averageCargo: 90,
+    averageFoodDays: 20,
+    averageWaterDays: 20,
+    averageDoubloons: 500
   });
 });

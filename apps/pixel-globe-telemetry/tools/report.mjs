@@ -66,6 +66,23 @@ const sections = [
     GROUP BY main_quest, outcome
     ORDER BY main_quest, outcome
   `],
+  ["VOYAGE STARTS", `
+    SELECT blob8 AS main_quest, blob9 AS faction, blob10 AS ship,
+      blob11 AS home_port, blob12 AS start_region, blob13 AS religion,
+      blob14 AS captain_sex, blob15 AS captain_skills,
+      round(SUM(_sample_interval)) AS voyage_starts,
+      round(SUM(_sample_interval * double2) / SUM(_sample_interval), 1) AS average_age,
+      round(SUM(_sample_interval * double3) / SUM(_sample_interval), 1) AS average_crew,
+      round(SUM(_sample_interval * double4) / SUM(_sample_interval), 1) AS average_cannons
+    FROM ${dataset}
+    WHERE blob1 = 'voyage_start'
+      AND blob4 != 'deployment-check'
+      AND timestamp > NOW() - INTERVAL '${windowDays}' DAY
+    GROUP BY main_quest, faction, ship, home_port, start_region, religion,
+      captain_sex, captain_skills
+    ORDER BY voyage_starts DESC, main_quest, faction, home_port
+    LIMIT 100
+  `],
   ["FEATURE ENGAGEMENT", `
     SELECT
       round(SUM(_sample_interval)) AS voyages,

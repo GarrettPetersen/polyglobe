@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/index.js && node --check src/dashboard.js && node --check src/dashboardData.js && node --check dashboard/dashboard.js && node --check tools/report.mjs && node --check tools/crashes.mjs && node --check tools/configure-dashboard.mjs && node --check tools/verify-dashboard.mjs && node --test",
+    "check": "node --check src/index.js && node --check src/dashboard.js && node --check src/dashboardData.js && node --check dashboard/dashboard.js && node --check tools/report.mjs && node --check tools/crashes.mjs && node --check tools/configure-dashboard.mjs && node --check tools/verify-dashboard.mjs && node --check tools/verify-deployment.mjs && node --test",
     "deploy": "node tools/deploy.mjs",
     "configure-secret": "node tools/configure-secret.mjs",
     "configure-dashboard": "node tools/configure-dashboard.mjs",

@@ -43,6 +43,7 @@ function renderDashboard(data) {
   setText("metric-sessions", compact(data.totals.sessions));
   setText("metric-hours", `${numberFormat.format(data.totals.activeHours)}h`);
   setText("metric-session-length", `${numberFormat.format(data.totals.averageSessionMinutes)}m`);
+  setText("metric-voyage-starts", compact(data.totals.voyageStarts));
   setText("metric-voyages", compact(data.totals.voyages));
   setText("metric-crashes", numberFormat.format(data.totals.crashesPerThousandSessions));
   setText("updated", `Updated ${formatDateTime(data.generatedAt)}`);
@@ -50,9 +51,33 @@ function renderDashboard(data) {
   renderRetention(data.retention);
   renderFeatures(data.features);
   renderOutcomes(data.outcomes);
+  renderStarts(data.starts);
   renderChannels(data.channels);
   renderEnvironments(data.environments);
   renderCrashes(data.crashes, data.totals.crashes);
+}
+
+function renderStarts(rows) {
+  const target = document.querySelector("#starts-body");
+  target.replaceChildren();
+  if (rows.length === 0) return tableEmpty(target, 6, "No voyage starts recorded yet.");
+  for (const row of rows) {
+    const supplies = `${numberFormat.format(row.averageFoodDays)}d food / ` +
+      `${numberFormat.format(row.averageWaterDays)}d water`;
+    const captain = `${titleCase(row.captainSex)}, ${numberFormat.format(row.averageAge)} / ` +
+      `${titleCase(row.religion)} / ${titleCase(row.captainSkills)}`;
+    const loadout = `${titleCase(row.loadout)}: ${numberFormat.format(row.averageCrew)} crew, ` +
+      `${numberFormat.format(row.averageCannons)} guns, ${numberFormat.format(row.averageCargo)} hold, ` +
+      `${supplies}, ${numberFormat.format(row.averageDoubloons)} db`;
+    target.append(tableRow([
+      titleCase(row.mainQuest),
+      `${row.homePort} / ${titleCase(row.faction)}`,
+      titleCase(row.ship),
+      captain,
+      loadout,
+      compact(row.starts)
+    ]));
+  }
 }
 
 function renderActivity(rows) {
