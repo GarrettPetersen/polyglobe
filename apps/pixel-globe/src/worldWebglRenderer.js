@@ -1,4 +1,9 @@
 import { UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT } from "./underwaterRefraction.js";
+import { SHIP_SURFACE_LIGHTING_BLEND } from "./shipLighting.js";
+
+if (SHIP_SURFACE_LIGHTING_BLEND !== "soft-light") {
+  throw new Error(`World renderer cannot apply ship-lighting blend: ${SHIP_SURFACE_LIGHTING_BLEND}`);
+}
 
 const SCENE_VERTEX_SHADER = `#version 300 es
 in vec2 a_position;
@@ -65,7 +70,7 @@ void main() {
 }
 `;
 
-const BIT_MASK_FRAGMENT_SHADER = `#version 300 es
+export const BIT_MASK_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
 uniform sampler2D u_maskSource;
@@ -78,14 +83,25 @@ in vec2 v_maskTexCoord;
 in vec2 v_alphaTexCoord;
 out vec4 outColor;
 
+vec3 softLight(vec3 base, vec3 blend) {
+  vec3 low = base - (1.0 - 2.0 * blend) * base * (1.0 - base);
+  vec3 curve = mix(
+    ((16.0 * base - 12.0) * base + 4.0) * base,
+    sqrt(base),
+    step(vec3(0.25), base)
+  );
+  vec3 high = base + (2.0 * blend - 1.0) * (curve - base);
+  return mix(low, high, step(vec3(0.5), blend));
+}
+
 void main() {
   vec4 packed = texture(u_maskSource, v_maskTexCoord);
   float channel = u_channel == 0 ? packed.r : packed.g;
   float byteValue = floor(channel * 255.0 + 0.5);
   float enabled = mod(floor(byteValue / u_bitValue), 2.0);
-  float alpha = texture(u_alphaSource, v_alphaTexCoord).a;
-  if (enabled < 0.5 || alpha < 0.5) discard;
-  outColor = u_color;
+  vec4 base = texture(u_alphaSource, v_alphaTexCoord);
+  if (enabled < 0.5 || base.a < 0.5) discard;
+  outColor = vec4(mix(base.rgb, softLight(base.rgb, u_color.rgb), u_color.a), base.a);
 }
 `;
 

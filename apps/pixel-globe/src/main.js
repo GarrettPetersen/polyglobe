@@ -769,7 +769,10 @@ import {
   liveShipRefractionOffset
 } from "./shipWaterline.js";
 import { validateShipRenderLayerManifest } from "./shipRenderLayerBake.js";
-import { shipLightStrengthsForSunAltitude } from "./shipLighting.js";
+import {
+  scaledShipLightingRgba,
+  shipLightStrengthsForSunAltitude
+} from "./shipLighting.js";
 import {
   STORM_ACTIVE_INTENSITY,
   STORM_DAMAGE_INTENSITY,
@@ -1732,9 +1735,6 @@ const SHIP_LIGHT_AZIMUTH_BINS = 16;
 const SHIP_LIGHT_ELEVATION_BINS = 2;
 const SHIP_LIGHT_BIN_COUNT = SHIP_LIGHT_AZIMUTH_BINS * SHIP_LIGHT_ELEVATION_BINS;
 const SHIP_LIGHT_HIGH_ALTITUDE = 0.5;
-const SHIP_LIGHT_HIGHLIGHT_ALPHA = 0.3;
-const SHIP_LIGHT_SHADE_ALPHA = 0.28;
-const SHIP_LIGHT_SHADOW_ALPHA = 0.22;
 const SHIP_SHADOW_HALF = SHIP_SHADOW_FRAME_SIZE / 2;
 const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
 const SHIP_COLLISION_SLIDE_SPEED_KEEP = 0.96;
@@ -35231,7 +35231,7 @@ function drawLandCartShadowWebGL(lighting, frame, point, light, vehicleType, off
     directionalLightingPoints(lighting, "shadow", frame, light.bin, vehicleType),
     x,
     y,
-    [12 / 255, 9 / 255, 24 / 255, SHIP_LIGHT_SHADOW_ALPHA * light.shadow]
+    scaledShipLightingRgba("shadow", light.shadow)
   );
 }
 
@@ -35241,13 +35241,13 @@ function drawLandCartLightingWebGL(lighting, frame, x, y, light, vehicleType) {
     directionalLightingPoints(lighting, "shade", frame, light.bin, vehicleType),
     x,
     y,
-    [26 / 255, 18 / 255, 44 / 255, SHIP_LIGHT_SHADE_ALPHA * light.direct]
+    scaledShipLightingRgba("shade", light.direct)
   );
   drawGpuPointMask(
     directionalLightingPoints(lighting, "light", frame, light.bin, vehicleType),
     x,
     y,
-    [1, 240 / 255, 188 / 255, SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct]
+    scaledShipLightingRgba("highlight", light.direct)
   );
 }
 
@@ -37351,7 +37351,7 @@ function drawShipShadowWebGL(activeChart, light, offset) {
     visiblePoints,
     origin.x,
     origin.y,
-    [12 / 255, 9 / 255, 24 / 255, SHIP_LIGHT_SHADOW_ALPHA * light.shadow]
+    scaledShipLightingRgba("shadow", light.shadow)
   );
 }
 
@@ -38410,13 +38410,13 @@ function drawGpuShipLighting(call, layers) {
     shipLighting.shadeImage,
     call,
     layers,
-    [26 / 255, 18 / 255, 44 / 255, SHIP_LIGHT_SHADE_ALPHA * light.direct]
+    scaledShipLightingRgba("shade", light.direct)
   );
   drawGpuShipLightingMask(
     shipLighting.lightImage,
     call,
     layers,
-    [1, 240 / 255, 188 / 255, SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct]
+    scaledShipLightingRgba("highlight", light.direct)
   );
 }
 

@@ -19,10 +19,14 @@ import {
   websiteLocale,
   websiteLocales
 } from "../content/site-locales.mjs";
+import {
+  SHIP_SURFACE_LIGHTING_BLEND,
+  shipLightingCssColor
+} from "../../pixel-globe/src/shipLighting.js";
 
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
-const codeAssetVersion = "2026-08-03-rotation-anchor-rebake";
+const codeAssetVersion = "2026-08-04-shared-ship-lighting";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 
 export function homePage(localeValue = "en") {
@@ -447,7 +451,11 @@ export function shipsPage() {
     "' data-anchor-x='", String(ship.turntableAnchorX), "' data-anchor-y='",
     String(ship.turntableAnchorY),
     "' data-light-azimuth='", String(ship.lightAzimuth), "' data-light-elevation='",
-    String(ship.lightElevation), "' width='", String(ship.shadowFrameSize), "' height='",
+    String(ship.lightElevation), "' data-shadow-color='",
+    escapeHtml(shipLightingCssColor("shadow")), "' data-shade-color='",
+    escapeHtml(shipLightingCssColor("shade")), "' data-highlight-color='",
+    escapeHtml(shipLightingCssColor("highlight")), "' data-surface-lighting-blend='",
+    escapeHtml(SHIP_SURFACE_LIGHTING_BLEND), "' width='", String(ship.shadowFrameSize), "' height='",
     String(ship.shadowFrameSize),
     "' role='img' aria-label='Game sprite of the ", escapeHtml(ship.label),
     " slowly rotating through 32 headings'>", escapeHtml(ship.label), " game sprite</canvas>",

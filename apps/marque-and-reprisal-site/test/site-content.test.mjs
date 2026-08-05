@@ -31,6 +31,10 @@ import {
   shipsPage,
   sitemapXml
 } from "../tools/pages.mjs";
+import {
+  SHIP_SURFACE_LIGHTING_BLEND,
+  shipLightingCssColor
+} from "../../pixel-globe/src/shipLighting.js";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -170,7 +174,18 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
   assert.match(sitemapXml(), /<loc>https:\/\/marque-and-reprisal\.com\/ships\/<\/loc>/);
   assert.match(client, /requestAnimationFrame\(animateShipTurntables\)/);
   assert.match(client, /"shadow",\s+frame,\s+shadowOffsetX,\s+shadowOffsetY/);
-  assert.match(client, /globalCompositeOperation = "multiply"/);
+  assert.match(client, /state\.lighting\.surfaceBlend/);
+  assert.doesNotMatch(client, /globalCompositeOperation = "multiply"/);
+  assert.equal(
+    page.split(`data-surface-lighting-blend='${SHIP_SURFACE_LIGHTING_BLEND}'`).length - 1,
+    shipRoster.length
+  );
+  for (const kind of ["shadow", "shade", "highlight"]) {
+    assert.equal(
+      page.split(`data-${kind}-color='${shipLightingCssColor(kind)}'`).length - 1,
+      shipRoster.length
+    );
+  }
   assert.match(client, /turntable anchor lies outside its frame/i);
   assert.match(client, /canvasCenter - state\.anchor\.x/);
   assert.match(client, /canvasCenter - state\.anchor\.y/);

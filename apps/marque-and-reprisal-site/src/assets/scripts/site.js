@@ -69,12 +69,6 @@ if ("IntersectionObserver" in window) {
 
 const shipTurntables = [...document.querySelectorAll("[data-ship-turntable]")];
 const SHIP_TURN_FRAME_MS = 300;
-// The hull rotates beneath one fixed light, matching a ship model on a turntable.
-const SHIP_LIGHTING = Object.freeze({
-  shadow: "rgba(20, 15, 26, 0.28)",
-  shade: "rgba(32, 24, 48, 0.34)",
-  highlight: "rgba(255, 245, 196, 0.38)"
-});
 
 const loadTurntableImage = (source) => new Promise((resolve, reject) => {
   const image = new Image();
@@ -104,6 +98,12 @@ const turntableInteger = (canvas, key) => {
 const turntableNumber = (canvas, key) => {
   const value = Number.parseFloat(canvas.dataset[key] ?? "");
   if (!Number.isFinite(value)) throw new Error(`Ship turntable has invalid ${key}`);
+  return value;
+};
+
+const turntableString = (canvas, key) => {
+  const value = canvas.dataset[key];
+  if (!value) throw new Error(`Ship turntable has invalid ${key}`);
   return value;
 };
 
@@ -169,7 +169,7 @@ const drawShipTurntable = (state, frameIndex) => {
     frame,
     shadowOffsetX,
     shadowOffsetY,
-    SHIP_LIGHTING.shadow
+    state.lighting.shadow
   );
   context.drawImage(
     state.sprite,
@@ -182,23 +182,22 @@ const drawShipTurntable = (state, frameIndex) => {
     state.frameSize,
     state.frameSize
   );
-  context.globalCompositeOperation = "multiply";
+  context.globalCompositeOperation = state.lighting.surfaceBlend;
   drawTurntableMask(
     state,
     "shade",
     frame,
     shipOffsetX,
     shipOffsetY,
-    SHIP_LIGHTING.shade
+    state.lighting.shade
   );
-  context.globalCompositeOperation = "source-over";
   drawTurntableMask(
     state,
     "light",
     frame,
     shipOffsetX,
     shipOffsetY,
-    SHIP_LIGHTING.highlight
+    state.lighting.highlight
   );
   state.canvas.dataset.turntableFrame = String(frame);
 };
@@ -235,6 +234,11 @@ const prepareShipTurntable = async (state) => {
     };
     precomputeTurntableMaskPoints(state);
     state.context.imageSmoothingEnabled = false;
+    state.context.globalCompositeOperation = state.lighting.surfaceBlend;
+    if (state.context.globalCompositeOperation !== state.lighting.surfaceBlend) {
+      throw new Error("Ship turntables require soft-light canvas blending");
+    }
+    state.context.globalCompositeOperation = "source-over";
     state.status = "ready";
     state.canvas.dataset.turntableState = "ready";
     drawShipTurntable(state, reducedMotion ? 4 : Math.floor(performance.now() / SHIP_TURN_FRAME_MS));
@@ -265,6 +269,12 @@ const shipTurntableStates = new Map(shipTurntables.map((canvas) => {
     sheetCols: turntableInteger(canvas, "sheetCols"),
     lightAzimuth: turntableInteger(canvas, "lightAzimuth"),
     lightElevation: turntableInteger(canvas, "lightElevation"),
+    lighting: Object.freeze({
+      shadow: turntableString(canvas, "shadowColor"),
+      shade: turntableString(canvas, "shadeColor"),
+      highlight: turntableString(canvas, "highlightColor"),
+      surfaceBlend: turntableString(canvas, "surfaceLightingBlend")
+    }),
     maskPoints: {
       light: Array(turntableInteger(canvas, "headings")),
       shade: Array(turntableInteger(canvas, "headings")),

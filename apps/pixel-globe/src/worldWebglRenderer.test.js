@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  BIT_MASK_FRAGMENT_SHADER,
   LruChunkKeys,
   PagedTextureAtlasAllocator,
   TextureAtlasAllocator,
@@ -9,6 +10,14 @@ import {
   bitMaskQuadVertices,
   quadVertices
 } from "./worldWebglRenderer.js";
+
+test("directional ship lighting uses the base sprite color for soft contrast", () => {
+  assert.match(BIT_MASK_FRAGMENT_SHADER, /vec3 softLight\(vec3 base, vec3 blend\)/);
+  assert.match(
+    BIT_MASK_FRAGMENT_SHADER,
+    /mix\(base\.rgb, softLight\(base\.rgb, u_color\.rgb\), u_color\.a\)/
+  );
+});
 
 test("underwater refraction stays anchored to sprite pixels while the camera moves", () => {
   assert.match(
