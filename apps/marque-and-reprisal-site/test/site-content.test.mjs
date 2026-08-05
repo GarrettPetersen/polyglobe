@@ -54,7 +54,7 @@ test("every feature points at tracked video and screenshot assets", async () => 
       `Feature ${feature.id} has an unknown screenshot poster`
     );
   }
-  assert.equal(screenshots.length, 9);
+  assert.equal(screenshots.length, 14);
   assert.equal(screenshotLocales.length, 11);
   const screenshotRoot = path.resolve(
     appRoot,
@@ -125,8 +125,29 @@ test("website locales publish complete language routes and matching press downlo
 
   for (const locale of websiteLocales) {
     assert.match(homePage(locale.appLocale), new RegExp(`<html lang='${locale.appLocale}'>`));
+    const localizedPress = pressPage(locale.appLocale);
+    assert.match(locale.ui.screenshotsBody, /14/);
+    assert.equal(
+      (localizedPress.match(/data-screenshot-card(?:\s|>)/g) || []).length,
+      screenshots.length
+    );
+    for (const shot of screenshots) {
+      assert.match(
+        localizedPress,
+        new RegExp(shot.files[locale.steamCode].replaceAll(".", "\\."))
+      );
+    }
+    for (const uiKey of [
+      "greatBarrierReefShot",
+      "spiceIslandsShot",
+      "setoInlandSeaShot",
+      "bosporusShot",
+      "lakeVictoriaShot"
+    ]) {
+      assert.ok(localizedPress.includes(locale.ui[uiKey]));
+    }
     if (locale.appLocale !== "en") {
-      assert.match(pressPage(locale.appLocale), new RegExp(locale.pressKitArchive.replaceAll(".", "\\.")));
+      assert.match(localizedPress, new RegExp(locale.pressKitArchive.replaceAll(".", "\\.")));
     }
   }
 
@@ -301,12 +322,12 @@ test("press kit publishes every localized screenshot set and download", async ()
     screenshotLocales.map(({ label }) => label),
     languages
   );
-  assert.equal(screenshots.length * screenshotLocales.length, 99);
+  assert.equal(screenshots.length * screenshotLocales.length, 154);
   const page = pressPage();
   assert.match(page, /Screenshots in\s+11\s+languages/);
   assert.match(page, /marque-and-reprisal-screenshots-all-languages\.zip/);
   assert.equal((page.match(/data-screenshot-language(?:\s|>)/g) || []).length, 11);
-  assert.equal((page.match(/data-screenshot-card(?:\s|>)/g) || []).length, 9);
+  assert.equal((page.match(/data-screenshot-card(?:\s|>)/g) || []).length, 14);
   for (const locale of screenshotLocales) {
     assert.match(page, new RegExp(locale.archiveFile.replaceAll(".", "\\.")));
   }
@@ -315,7 +336,7 @@ test("press kit publishes every localized screenshot set and download", async ()
     path.join(appRoot, "src/assets/press/README.txt"),
     "utf8"
   );
-  assert.match(pressReadme, /11 languages \(99 PNG files total\)/);
+  assert.match(pressReadme, /11 languages \(154 PNG files total\)/);
   for (const language of languages) assert.match(pressReadme, new RegExp(language.replace(/[()]/g, "\\$&")));
 });
 

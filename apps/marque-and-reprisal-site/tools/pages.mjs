@@ -28,6 +28,14 @@ const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const codeAssetVersion = "2026-08-04-shared-ship-lighting";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
+const SCREENSHOT_UI_KEYS = Object.freeze({
+  "meet-panda": "pandaShot",
+  "sail-great-barrier-reef": "greatBarrierReefShot",
+  "sail-spice-islands": "spiceIslandsShot",
+  "sail-seto-inland-sea": "setoInlandSeaShot",
+  "sail-bosporus": "bosporusShot",
+  "sail-lake-victoria": "lakeVictoriaShot"
+});
 
 export function homePage(localeValue = "en") {
   const locale = websiteLocale(localeValue);
@@ -219,7 +227,7 @@ export function pressPage(localeValue = "en") {
     "<section class='press-assets' id='screenshots' aria-labelledby='screenshots-title'>",
     "<div class='asset-heading'><div><p class='eyebrow'>Full resolution · localized</p><h2 id='screenshots-title'>Screenshots in ", String(screenshotLocales.length), " languages</h2></div>",
     "<a href='/downloads/marque-and-reprisal-screenshots-all-languages.zip' download>Download all ", String(screenshots.length * screenshotLocales.length), " PNGs</a></div>",
-    "<p class='asset-intro'>Nine press-ready gameplay scenes are available in every supported interface language. Choose a language to preview and download its exact Steam-suffixed files.</p>",
+    "<p class='asset-intro'>", String(screenshots.length), " press-ready gameplay scenes are available in every supported interface language. Choose a language to preview and download its exact Steam-suffixed files.</p>",
     "<div class='screenshot-language-picker' data-screenshot-gallery>",
     "<div class='screenshot-language-tabs' role='group' aria-label='Screenshot language'>", screenshotLanguageButtons, "</div>",
     screenshotLanguageDownload,
@@ -330,10 +338,9 @@ function localizedHomePage(locale) {
 function localizedPressPage(locale) {
   const screenshotCards = screenshots.map((shot) => {
     const source = `/assets/press/screenshots/${shot.files[locale.steamCode]}`;
-    const featureIndex = features.findIndex(({ id }) => shot.id.startsWith(`${id}-`));
-    const title = featureIndex >= 0 ? locale.actions[featureIndex] : locale.ui.pandaShot;
+    const title = localizedScreenshotTitle(locale, shot);
     return [
-      "<article class='press-asset-card'>",
+      "<article class='press-asset-card' data-screenshot-card>",
       "<button class='asset-preview' type='button' data-lightbox-src='", source,
       "' data-lightbox-alt='", escapeHtml(title), "'><img src='", source, "' alt='",
       escapeHtml(title), "' loading='lazy' width='1920' height='1080'></button>",
@@ -514,6 +521,18 @@ export function shipsPage() {
     bodyClass: "ships",
     main
   });
+}
+
+function localizedScreenshotTitle(locale, shot) {
+  const featureIndex = features.findIndex(({ id }) => shot.id.startsWith(`${id}-`));
+  if (featureIndex >= 0) return locale.actions[featureIndex];
+
+  const uiKey = SCREENSHOT_UI_KEYS[shot.id];
+  const title = uiKey && locale.ui[uiKey];
+  if (!title) {
+    throw new Error(`Localized screenshot title is missing: ${locale.appLocale} / ${shot.id}`);
+  }
+  return title;
 }
 
 function shipSpec(label, value) {

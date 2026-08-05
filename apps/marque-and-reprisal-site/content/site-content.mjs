@@ -151,7 +151,12 @@ const SCREENSHOT_ALT_TEXT = Object.freeze({
   "pillage-havana": "Havana burns after its shore battery is disabled by a naval bombardment.",
   "colonize-port-royal": "The governor of Port Royal asks the captain to resupply the new colony with grain.",
   "survive-lightning": "Lightning strikes a ship during a violent storm and damages its hull.",
-  "meet-panda": "A captain decides whether to let an unexpected panda remain aboard the ship."
+  "meet-panda": "A captain decides whether to let an unexpected panda remain aboard the ship.",
+  "sail-great-barrier-reef": "A caravel sails through turquoise water along the reefs and tropical coast of the Great Barrier Reef.",
+  "sail-spice-islands": "A kelulus sails among Ternate, Tidore, and the mountainous Spice Islands.",
+  "sail-seto-inland-sea": "A Japanese sekibune sails among the islands and ports of the Seto Inland Sea.",
+  "sail-bosporus": "An Ottoman trader sails through the Bosporus amid Constantinople, Bursa, and other ports.",
+  "sail-lake-victoria": "A dhow sails on Lake Victoria amid winding rivers, mountains, and forests."
 });
 
 export const screenshots = Object.freeze(STEAM_SCREENSHOT_SHOTS.map((shot) => {

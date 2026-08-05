@@ -243,7 +243,7 @@ function localizedScreenshotReadme(locale) {
     "",
     ...screenshots.map((shot) => `- ${shot.files[locale.steamCode]}`),
     "",
-    "Nine full-resolution 1920x1080 gameplay screenshots for press and",
+    `${screenshots.length} full-resolution 1920x1080 gameplay screenshots for press and`,
     "storefront use. Preserve their aspect ratio and crisp pixel edges.",
     ""
   ].join("\n");
@@ -322,7 +322,7 @@ function localizedPressKitReadme(locale) {
     `Website: ${siteUrl(localizedPagePath(locale, "press"))}`,
     "",
     "CONTENTS",
-    "- 9 localized 1920x1080 gameplay screenshots",
+    `- ${screenshots.length} localized 1920x1080 gameplay screenshots`,
     `- ${LOCALIZED_CAPSULE_ASSET_NAMES.length} localized capsule and storefront images`,
     "- Shared game logos",
     `- ${locale.nativeLabel} game description`,
