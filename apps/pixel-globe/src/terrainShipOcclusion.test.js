@@ -10,6 +10,7 @@ import {
   RIVER_BANK_UPPER,
   shipOcclusionDepthY,
   splitRiverTerrainBanks,
+  terrainOccluderMaskIntersection,
   terrainOccludersForScreenBounds
 } from "./terrainShipOcclusion.js";
 
@@ -145,4 +146,27 @@ test("terrain masking removes only ship pixels and never repaints the finished w
   assert.deepEqual(rgbaAt(1, 1), [216, 58, 58, 255], "visible ship pixel");
   assert.deepEqual(rgbaAt(2, 1), [255, 211, 78, 255], "existing city/weather pixel");
   assert.deepEqual(rgbaAt(3, 1), [216, 58, 58, 255], "visible ship pixel");
+});
+
+test("GPU terrain occlusion is cropped to the ship mask instead of repainting the world", () => {
+  const terrain = occluder({ x: 20, y: 30, depthY: 42, width: 16, height: 12 });
+  const intersection = terrainOccluderMaskIntersection(
+    terrain,
+    { x: 28, y: 24, width: 16, height: 16 },
+    { x: 64, y: 96, width: 16, height: 16 }
+  );
+
+  assert.deepEqual(intersection, {
+    sourceRect: { x: 8, y: 0, width: 8, height: 10 },
+    maskSourceRect: { x: 64, y: 102, width: 8, height: 10 },
+    destinationRect: { x: 28, y: 30, width: 8, height: 10 }
+  });
+  assert.equal(
+    terrainOccluderMaskIntersection(
+      terrain,
+      { x: 100, y: 100, width: 16, height: 16 },
+      { x: 0, y: 0, width: 16, height: 16 }
+    ),
+    null
+  );
 });

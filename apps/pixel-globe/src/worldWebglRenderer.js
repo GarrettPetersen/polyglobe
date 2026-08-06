@@ -105,6 +105,42 @@ void main() {
 }
 `;
 
+const ALPHA_MASK_VERTEX_SHADER = `#version 300 es
+in vec2 a_position;
+in vec2 a_sourceTexCoord;
+in vec2 a_maskTexCoord;
+
+uniform vec2 u_resolution;
+
+out vec2 v_sourceTexCoord;
+out vec2 v_maskTexCoord;
+
+void main() {
+  vec2 clip = (a_position / u_resolution) * 2.0 - 1.0;
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  v_sourceTexCoord = a_sourceTexCoord;
+  v_maskTexCoord = a_maskTexCoord;
+}
+`;
+
+export const ALPHA_MASK_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+
+uniform sampler2D u_source;
+uniform sampler2D u_alphaMask;
+
+in vec2 v_sourceTexCoord;
+in vec2 v_maskTexCoord;
+out vec4 outColor;
+
+void main() {
+  vec4 source = texture(u_source, v_sourceTexCoord);
+  float maskAlpha = texture(u_alphaMask, v_maskTexCoord).a;
+  if (source.a <= 0.0 || maskAlpha <= 0.0) discard;
+  outColor = source;
+}
+`;
+
 const PRESENT_VERTEX_SHADER = `#version 300 es
 in vec2 a_position;
 in vec2 a_texCoord;
@@ -502,6 +538,15 @@ export function createWorldWebGL2Renderer({
     bitValue: requiredUniform(gl, bitMaskProgram, "u_bitValue"),
     color: requiredUniform(gl, bitMaskProgram, "u_color")
   };
+  const alphaMaskProgram = createProgram(gl, ALPHA_MASK_VERTEX_SHADER, ALPHA_MASK_FRAGMENT_SHADER);
+  const alphaMaskLocations = {
+    position: requiredAttribute(gl, alphaMaskProgram, "a_position"),
+    sourceTexCoord: requiredAttribute(gl, alphaMaskProgram, "a_sourceTexCoord"),
+    maskTexCoord: requiredAttribute(gl, alphaMaskProgram, "a_maskTexCoord"),
+    resolution: requiredUniform(gl, alphaMaskProgram, "u_resolution"),
+    source: requiredUniform(gl, alphaMaskProgram, "u_source"),
+    alphaMask: requiredUniform(gl, alphaMaskProgram, "u_alphaMask")
+  };
   const presentProgram = createProgram(gl, PRESENT_VERTEX_SHADER, PRESENT_FRAGMENT_SHADER);
   const presentLocations = {
     position: requiredAttribute(gl, presentProgram, "a_position"),
@@ -512,11 +557,13 @@ export function createWorldWebGL2Renderer({
   };
   const sceneVertexBuffer = requiredBuffer(gl, "world scene vertex buffer");
   const bitMaskVertexBuffer = requiredBuffer(gl, "world bit-mask vertex buffer");
+  const alphaMaskVertexBuffer = requiredBuffer(gl, "world alpha-mask vertex buffer");
   const presentVertexBuffer = requiredBuffer(gl, "world presentation vertex buffer");
   const sceneVertexArray = gl.createVertexArray();
   const bitMaskVertexArray = gl.createVertexArray();
+  const alphaMaskVertexArray = gl.createVertexArray();
   const presentVertexArray = gl.createVertexArray();
-  if (!sceneVertexArray || !bitMaskVertexArray || !presentVertexArray) {
+  if (!sceneVertexArray || !bitMaskVertexArray || !alphaMaskVertexArray || !presentVertexArray) {
     throw new Error("Could not allocate world vertex arrays");
   }
   gl.bindVertexArray(presentVertexArray);
@@ -579,6 +626,7 @@ export function createWorldWebGL2Renderer({
   const solidPixelSource = createSolidPixelSource();
   configureSceneAttributes();
   configureBitMaskAttributes();
+  configureAlphaMaskAttributes();
   configurePresentationAttributes();
   gl.disable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);
@@ -620,6 +668,18 @@ export function createWorldWebGL2Renderer({
     configureAttribute(gl, bitMaskLocations.alphaTexCoord, 2, stride, 4 * 4);
     gl.uniform1i(bitMaskLocations.maskSource, 0);
     gl.uniform1i(bitMaskLocations.alphaSource, 1);
+  }
+
+  function configureAlphaMaskAttributes() {
+    gl.bindVertexArray(alphaMaskVertexArray);
+    gl.useProgram(alphaMaskProgram);
+    gl.bindBuffer(gl.ARRAY_BUFFER, alphaMaskVertexBuffer);
+    const stride = BIT_MASK_FLOATS_PER_VERTEX * 4;
+    configureAttribute(gl, alphaMaskLocations.position, 2, stride, 0);
+    configureAttribute(gl, alphaMaskLocations.sourceTexCoord, 2, stride, 2 * 4);
+    configureAttribute(gl, alphaMaskLocations.maskTexCoord, 2, stride, 4 * 4);
+    gl.uniform1i(alphaMaskLocations.source, 0);
+    gl.uniform1i(alphaMaskLocations.alphaMask, 1);
   }
 
   function resize(width, height) {
@@ -1101,6 +1161,60 @@ export function createWorldWebGL2Renderer({
     activeAtlasPageIndex = null;
   }
 
+  function drawAtlasSpriteThroughAlphaMask({
+    source,
+    sourceRect,
+    alphaMaskSource,
+    alphaMaskSourceRect,
+    destinationRect
+  }) {
+    flushBatches();
+    const sourceEntry = registerAtlasSource(source);
+    const maskEntry = registerAtlasSource(alphaMaskSource);
+    validateRect(sourceRect, "alpha-masked source");
+    validateRect(alphaMaskSourceRect, "alpha-mask source");
+    validateRect(destinationRect, "alpha-masked destination");
+    if (sourceRect.x + sourceRect.width > sourceEntry.width ||
+        sourceRect.y + sourceRect.height > sourceEntry.height) {
+      throw new Error("Alpha-masked source rectangle exceeds its image");
+    }
+    if (alphaMaskSourceRect.x + alphaMaskSourceRect.width > maskEntry.width ||
+        alphaMaskSourceRect.y + alphaMaskSourceRect.height > maskEntry.height) {
+      throw new Error("Alpha-mask source rectangle exceeds its image");
+    }
+    const vertices = bitMaskQuadVertices({
+      maskSourceRect: {
+        x: sourceEntry.x + sourceRect.x,
+        y: sourceEntry.y + sourceRect.y,
+        width: sourceRect.width,
+        height: sourceRect.height
+      },
+      maskTextureWidth: atlasSize,
+      maskTextureHeight: atlasSize,
+      alphaSourceRect: {
+        x: maskEntry.x + alphaMaskSourceRect.x,
+        y: maskEntry.y + alphaMaskSourceRect.y,
+        width: alphaMaskSourceRect.width,
+        height: alphaMaskSourceRect.height
+      },
+      alphaTextureWidth: atlasSize,
+      alphaTextureHeight: atlasSize,
+      destinationRect
+    });
+    gl.useProgram(alphaMaskProgram);
+    gl.bindVertexArray(alphaMaskVertexArray);
+    gl.bindBuffer(gl.ARRAY_BUFFER, alphaMaskVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, atlasPage(sourceEntry.pageIndex).texture);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, atlasPage(maskEntry.pageIndex).texture);
+    gl.uniform2f(alphaMaskLocations.resolution, sceneWidth, sceneHeight);
+    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / BIT_MASK_FLOATS_PER_VERTEX);
+    drawCalls++;
+    activeAtlasPageIndex = null;
+  }
+
   function flushBatches() {
     flushAtlasBatch();
   }
@@ -1274,6 +1388,7 @@ export function createWorldWebGL2Renderer({
     beginFrame,
     drawChunk,
     drawAtlasSprite,
+    drawAtlasSpriteThroughAlphaMask,
     drawBitMaskSprite,
     drawPersistentAtlasSprites,
     drawSolidRect,

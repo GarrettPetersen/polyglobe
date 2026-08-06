@@ -151,6 +151,42 @@ export function shipOcclusionDepthY(spriteY, bottomOpaqueY, clearancePixels) {
   return spriteY + bottomOpaqueY + clearancePixels;
 }
 
+export function terrainOccluderMaskIntersection(
+  occluder,
+  maskDestinationRect,
+  maskSourceRect
+) {
+  validateOccluder(occluder);
+  validatePositiveRect(maskDestinationRect, "terrain occlusion mask destination");
+  validatePositiveRect(maskSourceRect, "terrain occlusion mask source");
+
+  const left = Math.max(occluder.x, maskDestinationRect.x);
+  const top = Math.max(occluder.y, maskDestinationRect.y);
+  const right = Math.min(occluder.x + occluder.width, maskDestinationRect.x + maskDestinationRect.width);
+  const bottom = Math.min(occluder.y + occluder.height, maskDestinationRect.y + maskDestinationRect.height);
+  if (right <= left || bottom <= top) return null;
+
+  const width = right - left;
+  const height = bottom - top;
+  const maskScaleX = maskSourceRect.width / maskDestinationRect.width;
+  const maskScaleY = maskSourceRect.height / maskDestinationRect.height;
+  return Object.freeze({
+    sourceRect: Object.freeze({
+      x: left - occluder.x,
+      y: top - occluder.y,
+      width,
+      height
+    }),
+    maskSourceRect: Object.freeze({
+      x: maskSourceRect.x + (left - maskDestinationRect.x) * maskScaleX,
+      y: maskSourceRect.y + (top - maskDestinationRect.y) * maskScaleY,
+      width: width * maskScaleX,
+      height: height * maskScaleY
+    }),
+    destinationRect: Object.freeze({ x: left, y: top, width, height })
+  });
+}
+
 export function eraseTerrainOccludersFromShipLayer(context, occluders) {
   if (!context || typeof context.save !== "function" || typeof context.restore !== "function" ||
     typeof context.drawImage !== "function") {
@@ -182,6 +218,14 @@ function validateBounds(bounds) {
   if (!bounds || !Number.isInteger(bounds.x) || !Number.isInteger(bounds.y) ||
     !Number.isInteger(bounds.w) || !Number.isInteger(bounds.h) || bounds.w <= 0 || bounds.h <= 0) {
     throw new Error("Ship terrain occlusion requires positive integer bounds");
+  }
+}
+
+function validatePositiveRect(rect, label) {
+  if (!rect || !Number.isFinite(rect.x) || !Number.isFinite(rect.y) ||
+    !Number.isFinite(rect.width) || !Number.isFinite(rect.height) ||
+    rect.width <= 0 || rect.height <= 0) {
+    throw new Error(`${label} requires a positive finite rectangle`);
   }
 }
 

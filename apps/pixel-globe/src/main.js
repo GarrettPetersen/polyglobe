@@ -1546,6 +1546,7 @@ import {
   RIVER_BANK_UPPER,
   shipOcclusionDepthY,
   splitRiverTerrainBanks,
+  terrainOccluderMaskIntersection,
   terrainOccludersForScreenBounds
 } from "./terrainShipOcclusion.js";
 import {
@@ -39103,7 +39104,7 @@ function drawGpuShipCommands() {
     });
     if (drawCall.kind === "player") drawGpuPlayerShipDecorations(drawCall, layers);
     if (drawCall.kind === "npc") drawGpuNpcShipDecorations(drawCall, nowMs);
-    drawGpuShipTerrainForeground(foreground);
+    drawGpuShipTerrainForeground(foreground, drawCall, layers);
   }
 }
 
@@ -39158,7 +39159,13 @@ function drawGpuShipLightingMask(maskImage, call, layers, color) {
   });
 }
 
-function drawGpuShipTerrainForeground(foreground) {
+function drawGpuShipTerrainForeground(foreground, drawCall, layers) {
+  const maskDestinationRect = {
+    x: drawCall.x,
+    y: drawCall.y,
+    width: SHIP_SHEET_FRAME_SIZE,
+    height: SHIP_SHEET_FRAME_SIZE
+  };
   for (const occluder of foreground) {
     if (!occluder.drawLayer.image) {
       occluder.drawLayer.image = occluder.drawLayer.create();
@@ -39167,15 +39174,24 @@ function drawGpuShipTerrainForeground(foreground) {
     if (!occluder.drawLayer.image) {
       throw new Error(`Terrain foreground layer at ${occluder.x},${occluder.y} has no image`);
     }
-    worldRenderer.drawAtlasSprite({
-      source: occluder.drawLayer.image,
-      destinationRect: {
-        x: occluder.x,
-        y: occluder.y,
-        width: occluder.width,
-        height: occluder.height
-      }
-    });
+    for (const [alphaMaskSource, alphaMaskSourceRect] of [
+      [layers.submergedSource, layers.submergedSourceRect],
+      [layers.aboveSource, layers.aboveSourceRect]
+    ]) {
+      const intersection = terrainOccluderMaskIntersection(
+        occluder,
+        maskDestinationRect,
+        alphaMaskSourceRect
+      );
+      if (!intersection) continue;
+      worldRenderer.drawAtlasSpriteThroughAlphaMask({
+        source: occluder.drawLayer.image,
+        sourceRect: intersection.sourceRect,
+        alphaMaskSource,
+        alphaMaskSourceRect: intersection.maskSourceRect,
+        destinationRect: intersection.destinationRect
+      });
+    }
   }
 }
 

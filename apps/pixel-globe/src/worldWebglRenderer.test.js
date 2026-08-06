@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ALPHA_MASK_FRAGMENT_SHADER,
   BIT_MASK_FRAGMENT_SHADER,
   LruChunkKeys,
   PagedTextureAtlasAllocator,
@@ -12,6 +13,11 @@ import {
   orderedAtlasPageRuns,
   quadVertices
 } from "./worldWebglRenderer.js";
+
+test("terrain foreground compositing cannot repaint pixels outside the ship alpha", () => {
+  assert.match(ALPHA_MASK_FRAGMENT_SHADER, /maskAlpha = texture\(u_alphaMask, v_maskTexCoord\)\.a/);
+  assert.match(ALPHA_MASK_FRAGMENT_SHADER, /maskAlpha <= 0\.0\) discard/);
+});
 
 test("WebGL screenshot pixels are flipped into canvas row order", () => {
   const bottomRow = [1, 2, 3, 255, 4, 5, 6, 255];
