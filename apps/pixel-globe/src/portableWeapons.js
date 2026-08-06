@@ -280,7 +280,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
       kind: "incendiary-arrows",
       bowRangeMultiplier: 0.72,
       bowReloadMultiplier: 1.55,
-      bowHullDamage: 0.25
+      bowHullDamage: 0.5
     })
   })
 ]);
@@ -296,6 +296,15 @@ export function portableWeaponItemById(itemId) {
 
 export function isPortableWeaponItemId(itemId) {
   return ITEMS_BY_ID.has(itemId);
+}
+
+export function ownedPortableWeaponItemIds(itemCounts) {
+  if (!itemCounts || typeof itemCounts !== "object" || Array.isArray(itemCounts)) {
+    throw new Error("Portable weapon inventory must be an item-count object");
+  }
+  return Object.entries(itemCounts)
+    .filter(([itemId, count]) => count > 0 && isPortableWeaponItemId(itemId))
+    .map(([itemId]) => itemId);
 }
 
 export function regionalStarterPortableWeaponItemIds({ factionId, cityType = null, shipSlug = null }) {

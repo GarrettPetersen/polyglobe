@@ -193,6 +193,36 @@ test("every roster ship has a hull footprint for every sprite heading", async ()
   }
 });
 
+test("cargo capacities remain plausible for each rendered hull and waterline", async () => {
+  const bake = JSON.parse(await readFile(join(shipAssetRoot, "hull-footprints.json"), "utf8"));
+  const footprints = validateShipFootprintBake(
+    bake,
+    SHIP_SPRITE_FRAME_SIZE,
+    SHIP_SPRITE_HEADINGS,
+    SHIP_STATS.map((entry) => entry.slug)
+  );
+
+  for (const stats of SHIP_STATS) {
+    const image = await loadImage(join(shipAssetRoot, headingAssetFile(stats.slug)));
+    const averageOpaquePixels = opaquePixelCount(image) / SHIP_SPRITE_HEADINGS;
+    const averageWaterlineSamples = footprints.get(stats.slug)
+      .reduce((sum, frame) => sum + frame.samples.length, 0) / SHIP_SPRITE_HEADINGS;
+    const cargoPerOpaquePixel = stats.cargoCapacity / averageOpaquePixels;
+    const cargoPerWaterlineSample = stats.cargoCapacity / averageWaterlineSamples;
+
+    // Low ratios are legitimate for warships and oared vessels. These upper
+    // bounds prevent a small-looking hull from receiving a merchantman's hold.
+    assert.ok(
+      cargoPerOpaquePixel <= 1.8,
+      `${stats.slug} cargo exceeds its rendered silhouette: ${cargoPerOpaquePixel.toFixed(2)}`
+    );
+    assert.ok(
+      cargoPerWaterlineSample <= 7,
+      `${stats.slug} cargo exceeds its waterline footprint: ${cargoPerWaterlineSample.toFixed(2)}`
+    );
+  }
+});
+
 test("every roster ship flag is anchored to one model point across all headings", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const bake = JSON.parse(await readFile(join(shipAssetRoot, "flag-anchors.json"), "utf8"));
@@ -332,6 +362,27 @@ test("every roster ship has a clipped-safe Resurrect side-view sprite", async ()
     }
     assert.ok(opaquePixels > 0, `${entry.slug} side view is blank`);
   }
+});
+
+test("the Javanese Jong quarter rudders remain attached to the stern", async () => {
+  const headingSheet = await loadImage(join(
+    shipAssetRoot,
+    headingAssetFile("javanese-jong")
+  ));
+  const headingComponents = opaqueComponents(
+    headingSheet,
+    0,
+    0,
+    SHIP_SPRITE_FRAME_SIZE,
+    SHIP_SPRITE_FRAME_SIZE
+  );
+  assert.ok(headingComponents[0] > 400, "jong side heading includes its hull and rudders");
+  assert.ok(headingComponents.slice(1).every((size) => size <= 2), "jong has no detached rudder pixels");
+
+  const sideView = await loadImage(join(sideViewRoot, "javanese-jong.png"));
+  const sideComponents = opaqueComponents(sideView, 0, 0, sideView.width, sideView.height);
+  assert.ok(sideComponents[0] > 2_500, "jong side view includes its hull and rudders");
+  assert.ok(sideComponents.slice(1).every((size) => size <= 3), "jong side view has no detached rudder");
 });
 
 test("native boat models provide complete sprite and wake bakes for every heading", async () => {
@@ -997,6 +1048,43 @@ function maxOpaqueFrameDimension(image) {
     maximum = Math.max(maximum, maxX - minX + 1, maxY - minY + 1);
   }
   return maximum;
+}
+
+function opaqueComponents(image, originX, originY, width, height) {
+  const pixels = imagePixels(image);
+  const visited = new Uint8Array(width * height);
+  const components = [];
+  const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const localIndex = x + y * width;
+      const alpha = pixels[
+        ((originX + x) + (originY + y) * image.width) * 4 + 3
+      ];
+      if (visited[localIndex] || alpha === 0) continue;
+      visited[localIndex] = 1;
+      const pending = [[x, y]];
+      let size = 0;
+      while (pending.length > 0) {
+        const [currentX, currentY] = pending.pop();
+        size += 1;
+        for (const [dx, dy] of neighbors) {
+          const nextX = currentX + dx;
+          const nextY = currentY + dy;
+          if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) continue;
+          const nextIndex = nextX + nextY * width;
+          const nextAlpha = pixels[
+            ((originX + nextX) + (originY + nextY) * image.width) * 4 + 3
+          ];
+          if (visited[nextIndex] || nextAlpha === 0) continue;
+          visited[nextIndex] = 1;
+          pending.push([nextX, nextY]);
+        }
+      }
+      components.push(size);
+    }
+  }
+  return components.sort((a, b) => b - a);
 }
 
 async function assertSinkDepthPair(spritePath, sinkDepthPath, label) {

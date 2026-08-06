@@ -159,6 +159,7 @@ import {
 import {
   VIKING_BOWS_ITEM_ID,
   isPortableWeaponItemId,
+  ownedPortableWeaponItemIds,
   portableWeaponCombatRating,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
@@ -3484,9 +3485,7 @@ export function playerShipIsWarship(state) {
   if (!state?.ship) return false;
   const ship = state.ship;
   assertPlayerShipState(ship);
-  const portableItemIds = Object.entries(state.inventory?.items || {})
-    .filter(([itemId, count]) => count > 0 && isPortableWeaponItemId(itemId))
-    .map(([itemId]) => itemId);
+  const portableItemIds = ownedPortableWeaponItemIds(state.inventory?.items || {});
   return ship.cannons >= 8 ||
     (ship.cannonCapacity >= 16 && ship.cannons >= 4) ||
     (ship.mass >= 100 && portableWeaponCombatRating(portableItemIds) >= 0.35);

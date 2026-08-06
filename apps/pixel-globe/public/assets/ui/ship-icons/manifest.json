@@ -109,12 +109,12 @@
       "output": "public/assets/ui/ship-icons/javanese-jong.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 10,
-        "y": 4,
-        "w": 23,
-        "h": 35
+        "x": 11,
+        "y": 7,
+        "w": 24,
+        "h": 34
       },
-      "opaquePixels": 86
+      "opaquePixels": 91
     },
     {
       "slug": "pirate-brig",

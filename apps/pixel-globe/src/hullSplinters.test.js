@@ -34,6 +34,19 @@ test("arrow impacts make fewer splinters than cannon impacts", () => {
   assert.ok(hullSplinterPixels(cannon).length > hullSplinterPixels(arrow).length);
 });
 
+test("incendiary arrow impacts retain their fire state and read more strongly", () => {
+  const ordinary = createHullSplinterBurst(
+    { ...PROJECTILE, kind: "arrow", damage: 0.5 },
+    { x: 42, y: 20 }
+  );
+  const incendiary = createHullSplinterBurst(
+    { ...PROJECTILE, kind: "arrow", damage: 0.5, incendiary: true },
+    { x: 42, y: 20 }
+  );
+  assert.equal(incendiary.incendiary, true);
+  assert.ok(hullSplinterPixels(incendiary).length > hullSplinterPixels(ordinary).length);
+});
+
 test("hull splinters persist briefly and then expire", () => {
   const burst = createHullSplinterBurst(PROJECTILE, { x: 42, y: 20 });
   assert.equal(advanceHullSplinterBursts([burst], 0.2).length, 1);

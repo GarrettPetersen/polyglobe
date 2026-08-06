@@ -20,7 +20,8 @@ export function createHullSplinterBurst(projectile, point) {
     ttl: HULL_SPLINTER_TTL_SECONDS,
     seed: projectile.seed >>> 0,
     kind: projectile.kind,
-    damage: projectile.damage
+    damage: projectile.damage,
+    incendiary: projectile.incendiary === true
   };
 }
 
@@ -41,7 +42,11 @@ export function advanceHullSplinterBursts(bursts, dt) {
 export function hullSplinterPixels(burst) {
   validateBurst(burst);
   const cannon = burst.kind === NAVAL_WEAPON_CANNON;
-  const count = cannon ? Math.min(10, 6 + Math.ceil(burst.damage * 1.5)) : 3;
+  const count = cannon
+    ? Math.min(10, 6 + Math.ceil(burst.damage * 1.5))
+    : burst.incendiary
+      ? 5
+      : 3;
   const pixels = [];
   for (let index = 0; index < count; index++) {
     const random = splinterRandom(burst.seed, index);
@@ -80,6 +85,9 @@ function validateBurst(burst) {
   }
   if (burst.kind !== NAVAL_WEAPON_CANNON && burst.kind !== NAVAL_WEAPON_ARROW) {
     throw new Error(`Invalid hull splinter weapon: ${burst.kind}`);
+  }
+  if (typeof burst.incendiary !== "boolean") {
+    throw new Error(`Invalid hull splinter incendiary state: ${burst.incendiary}`);
   }
   if (burst.age < 0 || burst.ttl <= 0 || burst.age > burst.ttl || burst.damage <= 0) {
     throw new Error(`Invalid hull splinter lifetime or damage: ${burst.age}/${burst.ttl}, ${burst.damage}`);

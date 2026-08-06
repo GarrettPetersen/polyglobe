@@ -9,7 +9,7 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Spanish Nao | 7 | 81 | 88 | -0.025 |
 | Atakebune | 6 | 72 | 78 | 0.073 |
 | Dhow | 5 | 69 | 74 | -0.244 |
-| Javanese Jong | 5 | 90 | 95 | 0.000 |
+| Javanese Jong | 5 | 84 | 89 | 0.000 |
 | Kancabash | 5 | 88 | 93 | -0.883 |
 | Kelulus | 5 | 73 | 78 | -0.020 |
 | Nusantaran Outrigger | 5 | 81 | 86 | -0.012 |

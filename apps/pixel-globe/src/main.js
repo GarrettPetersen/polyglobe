@@ -236,6 +236,10 @@ import {
   shipPropulsionPerformance
 } from "./shipPropulsion.js";
 import {
+  npcLocalResponseSpeedPx,
+  npcVisualMovementStepPx
+} from "./npcLocalMovement.js";
+import {
   assignNpcShipCaptains,
   assignMissingNpcShipCaptains,
   assignPortCityCharacterFromSource,
@@ -1585,6 +1589,7 @@ import {
   activePortableWeaponAssignments,
   isPortableWeaponItemId,
   npcPortableWeaponItemIds,
+  ownedPortableWeaponItemIds,
   portableWeaponItemById,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
@@ -1894,6 +1899,7 @@ const CANNON_MAX_SMOKE_BURSTS = 192;
 const CANNON_SMOKE_COLORS = Object.freeze(["92, 84, 76", "199, 204, 195", "255, 253, 231"]);
 const HULL_SPLINTER_MAX_BURSTS = 128;
 const HULL_SPLINTER_COLORS = Object.freeze(["84, 51, 30", "139, 82, 41", "218, 145, 62"]);
+const FIRE_ARROW_IMPACT_COLORS = Object.freeze(["239, 125, 37", "249, 194, 43", "255, 255, 255"]);
 const ARROW_LINE_LENGTH_PX = 4;
 const WIND_INDICATOR_RADIUS_PX = 20;
 const WIND_INDICATOR_DIRECTION_COUNT = 16;
@@ -20742,9 +20748,7 @@ function nearestPlayerPortableWeaponTarget(range) {
 }
 
 function playerOwnedPortableWeaponItemIds() {
-  return Object.entries(gameState?.inventory?.items || {})
-    .filter(([itemId, count]) => count > 0 && isPortableWeaponItemId(itemId) && portableWeaponItemById(itemId).weapon)
-    .map(([itemId]) => itemId);
+  return ownedPortableWeaponItemIds(gameState?.inventory?.items || {});
 }
 
 function portableCombatProjectile({ weapon, ownerId, targetId, startX, startY, targetX, targetY, range, seed }) {
@@ -21482,13 +21486,14 @@ function addHullSplinterBurst(projectile, point) {
 
 function drawHullSplinterBursts(bursts, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   for (const burst of bursts) {
+    const colors = burst.incendiary ? FIRE_ARROW_IMPACT_COLORS : HULL_SPLINTER_COLORS;
     for (const pixel of hullSplinterPixels(burst)) {
       painter.rect(
         pixel.x,
         pixel.y,
         1,
         1,
-        `rgba(${HULL_SPLINTER_COLORS[pixel.shade]}, ${pixel.alpha.toFixed(3)})`
+        `rgba(${colors[pixel.shade]}, ${pixel.alpha.toFixed(3)})`
       );
     }
   }
@@ -25333,10 +25338,6 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     Math.max(0, distance - NPC_VISUAL_TARGET_TOLERANCE_PX),
     NPC_VISUAL_CATCHUP_SPEED_PX * dt
   );
-  const stormResponsePx = state.stormMode === "seeking"
-    ? NPC_STORM_SHELTER_SPEED_PX * dt
-    : 0;
-  const combatResponsePx = combatNavigation || portAvoidance ? NPC_COMBAT_RESPONSE_SPEED_PX * dt : 0;
   const startNav = collisionChanged
     ? shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector)
     : initialNavigation;
@@ -25347,12 +25348,6 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
   const riverRailDistance = riverRailCommitted
     ? NPC_RIVER_RAIL_MIN_SPEED_PX * dt
     : 0;
-  let stepDistance = Math.min(
-    distance,
-    NPC_VISUAL_MAX_STEP_PX,
-    Math.max(routeAdvancePx + catchupPx, stormResponsePx, combatResponsePx, riverRailDistance)
-  );
-
   const routeDirection = { x: dx / distance, y: dy / distance };
   const stats = state.stats;
   const strategicRiverDirection = startNav.ok && startNav.kind === "river" &&
@@ -25378,13 +25373,7 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     : null;
   if (riverEntranceApproach) {
     direction = riverEntranceApproach;
-    stepDistance = Math.min(
-      distance,
-      NPC_VISUAL_MAX_STEP_PX,
-      Math.max(stepDistance, NPC_RIVER_RAIL_MIN_SPEED_PX * dt)
-    );
   }
-  if (stepDistance <= 1e-4) return collisionChanged;
 
   let tack = null;
   if (riverEntranceApproach) {
@@ -25423,9 +25412,31 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     state.vector,
     stats.turnRateRad * dt
   );
+  const localNavigationActive = Boolean(stormNavigation || portAvoidance || combatNavigation);
+  const responseSpeedPx = combatNavigation || portAvoidance
+    ? npcLocalCombatResponseSpeedPx(state, collisionHeading)
+    : 0;
+  const stormResponsePx = state.stormMode === "seeking"
+    ? NPC_STORM_SHELTER_SPEED_PX * dt
+    : 0;
+  const riverEntrancePx = riverEntranceApproach ? NPC_RIVER_RAIL_MIN_SPEED_PX * dt : 0;
+  const stepDistance = npcVisualMovementStepPx({
+    distancePx: distance,
+    maxStepPx: NPC_VISUAL_MAX_STEP_PX,
+    routeAdvancePx,
+    catchupPx,
+    stormResponsePx,
+    localResponsePx: responseSpeedPx * dt,
+    riverRailPx: Math.max(riverRailDistance, riverEntrancePx),
+    localNavigationActive
+  });
+  if (stepDistance <= 1e-4) return collisionChanged;
+  const movementDirection = localNavigationActive && startNav.kind !== "river"
+    ? tangentToScreenDirection(collisionHeading) || direction
+    : direction;
   const move = measurePerformanceBenchmarkStage(
     "npcShips.visual.movement.advance.step",
-    () => moveNpcVisualShip(state, direction, stepDistance, collisionHeading, dt, startNav)
+    () => moveNpcVisualShip(state, movementDirection, stepDistance, collisionHeading, dt, startNav)
   );
   if (!move) return collisionChanged;
 
@@ -25438,6 +25449,21 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     state.tackRemainingPx = Math.max(0, state.tackRemainingPx - stepDistance);
   }
   return true;
+}
+
+function npcLocalCombatResponseSpeedPx(state, heading) {
+  const stats = state.stats;
+  const wind = windForTile(state.tileId);
+  const windFlow = windFlowVectorAtPosition(wind, state.vector, heading);
+  return npcLocalResponseSpeedPx(stats, {
+    windStrength: wind.strength,
+    sailEfficiency: sailingEfficiencyForStats(stats, heading, windFlow),
+    rowerRatio: rowingCrewRatio(
+      activeCombatCrew(state.crew, state.woundedCrew),
+      stats.crewCapacity
+    ),
+    nominalSpeedPx: NPC_COMBAT_RESPONSE_SPEED_PX
+  });
 }
 
 function applyNpcCollisionDrift(state, dt) {

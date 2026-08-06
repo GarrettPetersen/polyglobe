@@ -12,6 +12,7 @@ import {
   YUMI_ITEM_ID,
   activePortableWeaponAssignments,
   npcPortableWeaponItemIds,
+  ownedPortableWeaponItemIds,
   portableWeaponItemById,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
@@ -42,9 +43,29 @@ test("incendiary arrows trade bow range and reload speed for hull damage", () =>
     shipStats: STATS, installedCannons: 0, targetDistancePx: 20, baseRangePx: 74
   })[0].weapon;
   assert.equal(plain.hullDamage, 0);
-  assert.ok(incendiary.hullDamage > 0);
+  assert.equal(incendiary.hullDamage, 0.5);
+  assert.equal(incendiary.incendiary, true);
   assert.ok(incendiary.rangeScale < plain.rangeScale);
   assert.ok(incendiary.reloadSeconds > plain.reloadSeconds);
+});
+
+test("modifier-only equipment survives inventory selection and converts owned bows", () => {
+  const ownedItemIds = ownedPortableWeaponItemIds({
+    [ENGLISH_LONGBOWS_ITEM_ID]: 1,
+    [INCENDIARY_ARROWS_ITEM_ID]: 1,
+    "sturdy-barrels": 1
+  });
+  assert.deepEqual(ownedItemIds, [ENGLISH_LONGBOWS_ITEM_ID, INCENDIARY_ARROWS_ITEM_ID]);
+  const assignment = activePortableWeaponAssignments({
+    ownedItemIds,
+    activeCrew: 10,
+    shipStats: STATS,
+    installedCannons: 0,
+    targetDistancePx: 20,
+    baseRangePx: 74
+  })[0];
+  assert.equal(assignment.weapon.incendiary, true);
+  assert.equal(assignment.weapon.hullDamage, 0.5);
 });
 
 test("crew staffing reserves sailors and gunners before assigning small arms", () => {

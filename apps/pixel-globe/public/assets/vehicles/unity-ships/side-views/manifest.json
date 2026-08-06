@@ -261,8 +261,8 @@
       "slug": "javanese-jong",
       "label": "Javanese Jong",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 7.fbx",
-      "sourceMaxDim": 2617.5764,
-      "targetModelMaxDim": 1.85,
+      "sourceMaxDim": 3592.6529,
+      "targetModelMaxDim": 2.15,
       "width": 192,
       "height": 104,
       "palette": "Resurrect 64",
@@ -579,5 +579,6 @@
       "license": "Standard Unity Asset Store EULA",
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
     }
-  ]
+  ],
+  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong"
 }

@@ -1370,27 +1370,27 @@
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 7.fbx",
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
-      "sourceMaxDim": 2617.5764,
+      "sourceMaxDim": 3592.6529,
       "targetModelMaxDim": 2.15,
-      "frameScale": 0.5443,
+      "frameScale": 0.63,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 31.0004
+        "y": 31.4902
       },
       "scaleMode": "source-relative-fleet",
-      "waterlineY": -0.9154296875,
+      "waterlineY": -0.6669743078794601,
       "waterlineOffsetY": 0,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 2,
-        "dominantLengthRatio": 0.7735,
-        "hullIntervalMinY": -0.999414,
-        "hullIntervalMaxY": -0.764258
+        "dominantLengthRatio": 0.7788,
+        "hullIntervalMinY": -0.728165,
+        "hullIntervalMaxY": -0.556832
       },
-      "encodedWaterlineY": -0.91543,
+      "encodedWaterlineY": -0.666974,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -1.057133,
-      "sinkHeightMax": 1.069092,
+      "sinkHeightMin": -0.772743,
+      "sinkHeightMax": 0.780865,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1400,9 +1400,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": 0.032329,
-        "y": 1.075,
-        "z": -0.518048
+        "x": 0.026382,
+        "y": 0.783236,
+        "z": -0.535972
       },
       "stats": {
         "slug": "javanese-jong",

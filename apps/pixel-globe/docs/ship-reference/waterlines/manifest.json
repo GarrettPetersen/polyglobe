@@ -292,10 +292,10 @@
     {
       "slug": "javanese-jong",
       "label": "Javanese Jong",
-      "waterlineY": -0.9154296875,
+      "waterlineY": -0.6669743078794601,
       "waterlineOffsetY": 0,
-      "sideViewWaterlineY": 90,
-      "lowestOpaquePixelY": 95,
+      "sideViewWaterlineY": 84,
+      "lowestOpaquePixelY": 89,
       "lowestOpaqueRelativeToWaterlinePx": 5,
       "opaqueRowsBelowWaterline": 5,
       "oarPivotCount": 0,

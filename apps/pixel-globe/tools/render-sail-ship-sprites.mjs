@@ -423,7 +423,14 @@ const unityShipRoster = new Map([
     confidence: "medium",
     notes: "Deep island Southeast Asian merchant hull with wind-filled canted sails and added twin quarter rudders.",
     targetModelMaxDim: 2.15,
-    sideViewTargetModelMaxDim: 1.85,
+    sideViewTargetModelMaxDim: 2.15,
+    frameScale: 0.63,
+    collectOptions: {
+      // The source is sold as a small fantasy ship. A longer, broader hull makes
+      // its silhouette read as the exceptionally capacious jong represented by
+      // the gameplay stats while preserving the authored rig and materials.
+      transformPoint: (point) => point.set(point.x * 1.12, point.y, point.z * 1.42)
+    },
     staticTrianglesForHull: javaneseJongTriangles
   }],
 ]);
@@ -2384,8 +2391,10 @@ function unityShipConfig(modelPath) {
     texturePath: unityShipTexturePath,
     targetModelMaxDim: rosterEntry.targetModelMaxDim,
     sideViewTargetModelMaxDim: rosterEntry.sideViewTargetModelMaxDim,
+    frameScale: rosterEntry.frameScale,
     waterlineOffsetY: rosterEntry.waterlineOffsetY,
     flagAnchorMaxSnapDistancePx: rosterEntry.flagAnchorMaxSnapDistancePx,
+    collectOptions: rosterEntry.collectOptions,
     staticTrianglesForHull: rosterEntry.staticTrianglesForHull,
     scaleMode: "source-relative-fleet",
     outputDir: unityFleetOutputRoot,
@@ -3058,10 +3067,17 @@ function staticTrianglesForConfig(hullTriangles, waterlineY, config) {
 function javaneseJongTriangles(hullTriangles, waterlineY) {
   const points = hullTriangles.flatMap((triangle) => triangle.points);
   const bounds = boundsForPoints(points);
-  const halfBeam = bounds.size.x / 2;
-  const length = bounds.size.z;
   const height = bounds.size.y;
-  const sternZ = bounds.box.min.z;
+  const lowerHullPoints = points.filter((point) => (
+    point.y <= waterlineY + height * 0.18
+  ));
+  if (lowerHullPoints.length === 0) {
+    throw new Error("Javanese jong has no lower hull points for its quarter rudders");
+  }
+  const lowerHullBounds = boundsForPoints(lowerHullPoints);
+  const halfBeam = lowerHullBounds.size.x / 2;
+  const length = lowerHullBounds.size.z;
+  const sternZ = lowerHullBounds.box.min.z;
   const shaftColor = { r: 91, g: 64, b: 50 };
   const bladeColor = { r: 128, g: 91, b: 63 };
   const shaftRadius = bounds.maxDim * 0.008;
@@ -3069,11 +3085,24 @@ function javaneseJongTriangles(hullTriangles, waterlineY) {
   const rudders = [];
 
   for (const side of [-1, 1]) {
-    const pivot = new THREE.Vector3(
+    const desiredPivot = new THREE.Vector3(
       side * halfBeam * 0.58,
       waterlineY + height * 0.06,
       sternZ + length * 0.08
     );
+    const attachmentCandidates = lowerHullPoints.filter((point) => (
+      Math.sign(point.x) === side &&
+      point.z <= sternZ + length * 0.24 &&
+      point.y >= waterlineY - height * 0.08
+    ));
+    if (attachmentCandidates.length === 0) {
+      throw new Error(`Javanese jong has no stern attachment point for rudder ${side}`);
+    }
+    const pivot = attachmentCandidates.reduce((nearest, point) => (
+      point.distanceToSquared(desiredPivot) < nearest.distanceToSquared(desiredPivot)
+        ? point
+        : nearest
+    )).clone();
     const shaftEnd = new THREE.Vector3(
       side * halfBeam * 0.69,
       waterlineY - height * 0.015,
@@ -5099,6 +5128,10 @@ async function renderWhales() {
 }
 
 function standaloneShipConfigForSlug(slug) {
+  const unityModelPath = unityShipModels().find((candidate) => (
+    unityShipConfig(candidate).slug === slug
+  ));
+  if (unityModelPath) return unityShipConfig(unityModelPath);
   if (slug === "mediterranean-galley") return mediterraneanGalleyConfig();
   if (slug === "galleass") return galleassConfig();
   if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
@@ -5255,7 +5288,7 @@ async function renderUnityShip(slug) {
   }
   const config = unityShipConfig(modelPath);
   config.targetModelMaxDim ??= existing.targetModelMaxDim;
-  config.frameScale = existing.frameScale;
+  config.frameScale ??= existing.frameScale;
   return renderStandaloneShip(config, "unitySingleShipGenerator", `--unity-ship ${slug}`);
 }
 
@@ -5588,7 +5621,7 @@ async function renderUnityFleet() {
   }
   const sharedFrameScale = fixedFrameScale(fleetBounds);
   for (const config of measuredConfigs) {
-    config.frameScale = sharedFrameScale;
+    config.frameScale ??= sharedFrameScale;
   }
   validateShipStatsForSlugs(measuredConfigs.map((config) => config.slug));
 
@@ -5734,7 +5767,7 @@ async function renderUnityFleetReferences() {
   }
   const sharedFrameScale = fixedFrameScale(fleetBounds);
   for (const config of measuredConfigs) {
-    config.frameScale = sharedFrameScale;
+    config.frameScale ??= sharedFrameScale;
   }
   validateShipStatsForSlugs(measuredConfigs.map((config) => config.slug));
 
