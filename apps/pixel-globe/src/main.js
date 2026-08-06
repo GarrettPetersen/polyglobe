@@ -41620,8 +41620,8 @@ function drawPortWaitControls(nowMs) {
   if (!portWaitState || gameOverReason) return;
   const city = cityByTileId.get(portWaitState.cityTileId);
   const status = `WAITING SAFELY IN ${city ? cityLabelText(city).toUpperCase() : "PORT"}`;
-  const statusW = Math.min(SCREEN_W - 12, measurePixelTextWidth(status, PIXEL_FONT_SMALL_8) + 12);
-  const statusX = Math.floor((SCREEN_W - statusW) / 2);
+  const statusLayout = noticeTextLayout(status, 220);
+  const statusX = Math.floor((SCREEN_W - statusLayout.width) / 2);
   const buttonW = Math.min(PORT_WAIT_BUTTON_W, SCREEN_W - 12);
   portWaitButtonRect = {
     x: Math.floor((SCREEN_W - buttonW) / 2),
@@ -41630,13 +41630,21 @@ function drawPortWaitControls(nowMs) {
     h: INTERACTION_BUTTON_H
   };
   ctx.fillStyle = "rgba(25, 31, 36, 0.9)";
-  ctx.fillRect(statusX, portWaitButtonRect.y - 17, statusW, 13);
+  const statusY = portWaitButtonRect.y - statusLayout.height - 4;
+  ctx.fillRect(statusX, statusY, statusLayout.width, statusLayout.height);
   ctx.strokeStyle = "#8ac0b4";
-  ctx.strokeRect(statusX + 0.5, portWaitButtonRect.y - 16.5, statusW - 1, 12);
+  ctx.strokeRect(
+    statusX + 0.5,
+    statusY + 0.5,
+    statusLayout.width - 1,
+    statusLayout.height - 1
+  );
   ctx.fillStyle = "#d6f2e8";
-  drawPixelText(fitPixelText(status, PIXEL_FONT_SMALL_8, statusW - 8), SCREEN_W / 2, portWaitButtonRect.y - 14, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center"
+  statusLayout.lines.forEach((line, index) => {
+    drawPixelText(line, SCREEN_W / 2, statusY + 3 + index * statusLayout.lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
   });
 
   const hovered = pointInRect(optionsMenu.hoverPoint, portWaitButtonRect);
@@ -41649,24 +41657,38 @@ function drawPortWaitControls(nowMs) {
 }
 
 function drawStormStatus(nowMs) {
-  if (!ship || gameOverReason) return;
+  const status = stormStatusLayout(nowMs);
+  if (!status) return;
+  ctx.fillStyle = status.damageActive ? "rgba(93, 42, 43, 0.94)" : "rgba(38, 47, 58, 0.9)";
+  ctx.fillRect(status.x, status.y, status.width, status.height);
+  ctx.strokeStyle = status.damageActive ? "#f68181" : "#8ac0b4";
+  ctx.strokeRect(status.x + 0.5, status.y + 0.5, status.width - 1, status.height - 1);
+  ctx.fillStyle = status.damageActive ? "#ffd2c6" : "#d6f2e8";
+  status.lines.forEach((line, index) => {
+    drawPixelText(line, status.x + status.width / 2, status.y + 3 + index * status.lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  });
+}
+
+function stormStatusLayout(nowMs) {
+  if (!ship || gameOverReason) return null;
   const intensity = playerStormIntensity();
   const damageActive = stormDamageNotice && nowMs < stormDamageNotice.expiresAtMs;
-  if (!damageActive && intensity < STORM_ACTIVE_INTENSITY && !anchored) return;
+  if (!damageActive && intensity < STORM_ACTIVE_INTENSITY && !anchored) return null;
   const text = damageActive
     ? `STORM DAMAGE -${stormDamageNotice.damage} HULL`
     : anchored
       ? (intensity >= STORM_ACTIVE_INTENSITY ? "ANCHORED - STORM SHELTER" : "ANCHORED - WAITING")
       : `STORM ${Math.round(intensity * 100)}%`;
-  const width = Math.min(190, measurePixelTextWidth(text, PIXEL_FONT_SMALL_8) + 12);
-  const x = Math.round((SCREEN_W - width) / 2);
-  const y = MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 3;
-  ctx.fillStyle = damageActive ? "rgba(93, 42, 43, 0.94)" : "rgba(38, 47, 58, 0.9)";
-  ctx.fillRect(x, y, width, 13);
-  ctx.strokeStyle = damageActive ? "#f68181" : "#8ac0b4";
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
-  ctx.fillStyle = damageActive ? "#ffd2c6" : "#d6f2e8";
-  drawPixelText(text, x + width / 2, y + 3, { font: PIXEL_FONT_SMALL_8, align: "center" });
+  const layout = noticeTextLayout(text, 190);
+  return {
+    ...layout,
+    x: Math.round((SCREEN_W - layout.width) / 2),
+    y: MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 3,
+    damageActive
+  };
 }
 
 function drawSurvivalMeters() {
@@ -42151,10 +42173,12 @@ function drawSurvivalNotice(nowMs) {
   const x = Math.round((SCREEN_W - width) / 2);
   const combatLayout = combatNoticeLayout(nowMs);
   const fishLayout = fishCatchNoticeLayout(nowMs);
+  const stormLayout = stormStatusLayout(nowMs);
   const y = Math.max(
     MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 48,
     combatLayout ? combatLayout.y + combatLayout.h + 2 : 0,
-    fishLayout ? fishLayout.y + fishLayout.height + 2 : 0
+    fishLayout ? fishLayout.y + fishLayout.height + 2 : 0,
+    stormLayout ? stormLayout.y + stormLayout.height + 2 : 0
   );
   const warn = survivalNotice.tone === "warn";
   survivalNoticeRect = { x, y, w: width, h: layout.height };
@@ -42253,10 +42277,15 @@ function drawCombatNotice(nowMs) {
   ctx.strokeRect(layout.x + 0.5, layout.y + 0.5, layout.w - 1, layout.h - 1);
   ctx.fillStyle = "#fbff86";
   for (let index = 0; index < layout.lines.length; index++) {
-    drawPixelText(layout.lines[index], layout.x + layout.w / 2, layout.y + 3 + index * 9, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "center"
-    });
+    drawPixelText(
+      layout.lines[index],
+      layout.x + layout.w / 2,
+      layout.y + 3 + index * layout.lineHeight,
+      {
+        font: PIXEL_FONT_SMALL_8,
+        align: "center"
+      }
+    );
   }
 }
 
@@ -42280,17 +42309,15 @@ function drawFishCatchNotice(nowMs) {
 
 function combatNoticeLayout(nowMs) {
   if (!combatNotice || nowMs >= combatNotice.expiresAtMs) return null;
-  const maxWidth = Math.min(360, SCREEN_W - 12);
-  const lines = wrapPixelTextAll(renderedUiText(combatNotice.text), PIXEL_FONT_SMALL_8, maxWidth - 10);
-  const textWidth = Math.max(...lines.map((line) => measurePixelTextWidth(line, PIXEL_FONT_SMALL_8)));
-  const w = Math.min(maxWidth, textWidth + 12);
-  const h = 4 + lines.length * 9;
+  const layout = noticeTextLayout(combatNotice.text);
+  const stormLayout = stormStatusLayout(nowMs);
+  const baseY = MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 18;
   return {
-    x: Math.round((SCREEN_W - w) / 2),
-    y: MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 18,
-    w,
-    h,
-    lines
+    ...layout,
+    x: Math.round((SCREEN_W - layout.width) / 2),
+    y: stormLayout ? Math.max(baseY, stormLayout.y + stormLayout.height + 2) : baseY,
+    w: layout.width,
+    h: layout.height
   };
 }
 
@@ -42299,7 +42326,12 @@ function fishCatchNoticeLayout(nowMs) {
   const textLayout = noticeTextLayout(fishCatchNotice.text);
   const baseY = MOUNTAIN_DISCOVERY_PANEL_Y + discoveryNoticePanelHeight(nowMs) + 33;
   const combatLayout = combatNoticeLayout(nowMs);
-  const y = combatLayout ? Math.max(baseY, combatLayout.y + combatLayout.h + 2) : baseY;
+  const stormLayout = stormStatusLayout(nowMs);
+  const y = Math.max(
+    baseY,
+    combatLayout ? combatLayout.y + combatLayout.h + 2 : 0,
+    stormLayout ? stormLayout.y + stormLayout.height + 2 : 0
+  );
   return {
     ...textLayout,
     x: Math.round((SCREEN_W - textLayout.width) / 2),
@@ -42307,11 +42339,11 @@ function fishCatchNoticeLayout(nowMs) {
   };
 }
 
-function noticeTextLayout(text) {
+function noticeTextLayout(text, maximumWidth = 360) {
   const localized = renderedUiText(text);
   return fullNoticeTextLayout(localized, {
     screenWidth: SCREEN_W,
-    maximumWidth: 360,
+    maximumWidth,
     lineHeight: localizedLineHeight(9),
     measureText: (entry) => measureRenderedPixelTextWidth(entry, PIXEL_FONT_SMALL_8)
   });
