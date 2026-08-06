@@ -771,6 +771,7 @@ import {
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement,
+  npcVisualStateIdsWithoutStrategicState,
   rankNpcEscapeDirections,
   rankNpcObstacleAvoidanceDirections
 } from "./npcVisualNavigation.js";
@@ -22729,15 +22730,17 @@ function applyDistantWorldSimulationResult(event) {
       suzeraintyMemory: gameState.relations.diplomacy.suzerainties
     });
   }
+  let visualFleetChanged = false;
   if (result.changedParts.includes("npcRoutes")) {
     applyNpcSeaRouteSimulationSnapshot(npcSeaRoutes, result.after.npcRoutes, {
       preserveShipIds: result.protectedNpcShipIds
     });
+    visualFleetChanged = releaseNpcVisualStatesWithoutStrategicState();
   }
   for (const call of result.foreignPortCalls) {
     recordNpcDiplomaticPortCall(call.visitorFactionId, call.hostFactionId, call.minute);
   }
-  return Boolean(result.changed || result.foreignPortCalls.length > 0);
+  return Boolean(result.changed || visualFleetChanged || result.foreignPortCalls.length > 0);
 }
 
 function distantWorldSnapshotsWithoutNpcShips(snapshot, shipIds) {
@@ -26245,6 +26248,19 @@ function releaseNpcVisualState(state) {
     releaseNpcShipVisualNavigation(npcSeaRoutes, state.id, weatherClockMinutes, state.vector);
   }
   npcVisualShips.delete(state.id);
+}
+
+function releaseNpcVisualStatesWithoutStrategicState() {
+  const orphanedIds = npcVisualStateIdsWithoutStrategicState(
+    npcVisualShips,
+    npcSeaRoutes.shipById
+  );
+  for (const shipId of orphanedIds) {
+    const state = npcVisualShips.get(shipId);
+    if (!state) throw new Error(`Orphaned NPC visual ship disappeared during release: ${shipId}`);
+    releaseNpcVisualState(state);
+  }
+  return orphanedIds.length > 0;
 }
 
 function updateSeagulls(dt, nowMs) {

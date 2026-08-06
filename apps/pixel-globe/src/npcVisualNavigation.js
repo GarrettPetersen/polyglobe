@@ -2,6 +2,20 @@ const NPC_OBSTACLE_AVOIDANCE_ANGLES_RAD = Object.freeze([
   30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180
 ].map((degrees) => degrees * Math.PI / 180));
 
+export function npcVisualStateIdsWithoutStrategicState(visualStates, strategicShipById) {
+  if (!(visualStates instanceof Map) || !(strategicShipById instanceof Map)) {
+    throw new Error("NPC visual reconciliation requires visual and strategic ship maps");
+  }
+  const orphanedIds = [];
+  for (const [shipId, state] of visualStates) {
+    if (state?.id !== shipId) {
+      throw new Error(`NPC visual state key does not match its ship: ${shipId}/${state?.id}`);
+    }
+    if (!strategicShipById.has(shipId)) orphanedIds.push(shipId);
+  }
+  return orphanedIds.sort((a, b) => a.localeCompare(b));
+}
+
 export function chooseNpcEscapeDirection({
   desiredDirection,
   currentDirection,

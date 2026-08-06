@@ -6,8 +6,23 @@ import {
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement,
+  npcVisualStateIdsWithoutStrategicState,
   rankNpcEscapeDirections
 } from "./npcVisualNavigation.js";
+
+test("visual ships orphaned by a strategic update are identified immediately", () => {
+  const visualStates = new Map([
+    ["merchant-2", { id: "merchant-2" }],
+    ["merchant-1", { id: "merchant-1" }],
+    ["merchant-3", { id: "merchant-3" }]
+  ]);
+  const strategicShips = new Map([["merchant-2", { id: "merchant-2" }]]);
+
+  assert.deepEqual(
+    npcVisualStateIdsWithoutStrategicState(visualStates, strategicShips),
+    ["merchant-1", "merchant-3"]
+  );
+});
 
 test("NPC escape navigation reverses out of a concave corner", () => {
   const escape = chooseNpcEscapeDirection({
