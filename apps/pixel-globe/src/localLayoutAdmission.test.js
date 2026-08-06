@@ -170,6 +170,22 @@ test("a quiet interval can admit ocean without applying a north-up jump", () => 
   assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
 });
 
+test("visible elastic land is rigid from its first rendered frame", () => {
+  const points = rotatedAdmissionPoints(60);
+  admitProjectedTiles({
+    positions: points.positions,
+    projectedById: points.projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    ...admissionTopology(3, [[0, 1], [1, 2]], 0),
+    registrationIds: new Set([0, 1]),
+    correctElasticTilesNorthUp: true,
+    rigidAdmissionIds: new Set([2])
+  });
+
+  assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
+});
+
 test("visible ocean settles only inside an opposing presented swell movement", () => {
   const positions = new Map([
     [0, { x: 50, y: 50 }],
@@ -1004,6 +1020,9 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewY
     });
     const correctionViewportIds = support.viewportTileIds;
+    const rigidAdmissionIds = new Set(
+      [...correctionViewportIds].filter((id) => terrainClassByTileId[id] === "land")
+    );
     const visibleProtectedBefore = new Map();
     const visibleLandBefore = new Map();
     for (const [id, position] of positions.entries()) {
@@ -1051,7 +1070,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         ? MAX_ELASTIC_FRAME_CORRECTION_PX
         : 0,
       maxProtectedCorrectionPx,
-      protectedCorrectionViewportIds: correctionViewportIds
+      protectedCorrectionViewportIds: correctionViewportIds,
+      rigidAdmissionIds
     };
     if (maxProtectedCorrectionPx > 0) {
       const rigidPositions = new Map(

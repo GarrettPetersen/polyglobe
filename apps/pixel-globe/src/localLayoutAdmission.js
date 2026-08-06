@@ -458,7 +458,8 @@ export function admitProjectedTiles({
   correctElasticTilesNorthUp = false,
   maxElasticCorrectionPx = MAX_ELASTIC_FRAME_CORRECTION_PX,
   maxProtectedCorrectionPx = 0,
-  protectedCorrectionViewportIds = null
+  protectedCorrectionViewportIds = null,
+  rigidAdmissionIds = null
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
@@ -495,6 +496,9 @@ export function admitProjectedTiles({
     !(protectedCorrectionViewportIds instanceof Set)
   ) {
     throw new Error("Protected local layout correction viewport ids must be a set");
+  }
+  if (rigidAdmissionIds !== null && !(rigidAdmissionIds instanceof Set)) {
+    throw new Error("Rigid local layout admission ids must be a set");
   }
   const pending = [...pendingIds];
   if (new Set(pending).size !== pending.length) {
@@ -561,7 +565,9 @@ export function admitProjectedTiles({
     const protectedFrame = protectedFrameById.get(id);
     positions.set(
       id,
-      protectedFrame
+      rigidAdmissionIds?.has(id) && protectionById[id] === 0
+        ? registeredPoint(projected, registeredFrame)
+        : protectedFrame
         ? registeredPoint(projected, protectedFrame)
         : admissionPointBetweenFrames(
           projected,

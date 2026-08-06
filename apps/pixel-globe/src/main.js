@@ -28453,6 +28453,12 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     viewY: localLayout.viewY
   });
   const correctionViewportIds = correctionSupport.viewportTileIds;
+  const rigidAdmissionIds = new Set();
+  for (const id of correctionViewportIds) {
+    if (!isWaterSurfaceRow(earthById[id]) || tileHasSurfaceIce(id)) {
+      rigidAdmissionIds.add(id);
+    }
+  }
   const admissionCorrectionActive = correctionSupport.correctionActive;
   const previousPresentation = lastPresentedOceanSwell?.layout === localLayout
     ? lastPresentedOceanSwell
@@ -28534,8 +28540,9 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     maxElasticCorrectionPx: admissionCorrectionActive
       ? MAX_ELASTIC_FRAME_CORRECTION_PX
       : 0,
-    maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
-    protectedCorrectionViewportIds: correctionViewportIds
+    maxProtectedCorrectionPx: 0,
+    protectedCorrectionViewportIds: correctionViewportIds,
+    rigidAdmissionIds
   });
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
 }
