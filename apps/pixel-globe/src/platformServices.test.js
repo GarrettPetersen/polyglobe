@@ -48,6 +48,7 @@ function bridge(overrides = {}) {
     triggerScreenshot: async () => {},
     updateStats: async () => {},
     onPauseRequested: () => {},
+    toggleFullscreen: async () => true,
     quitGame: async () => {},
     ...overrides
   };

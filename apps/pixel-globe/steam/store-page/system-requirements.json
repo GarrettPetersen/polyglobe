@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "minimum": {
+    "windows": {
+      "os": "Windows 10 (64-bit)",
+      "processor": "Intel Core i3-6100 or AMD Ryzen 3 1200",
+      "memory": "4 GB RAM",
+      "graphics": "Intel HD Graphics 530, Radeon R7 240, or equivalent",
+      "storage": "1 GB available space",
+      "notes": "1280x720 display; keyboard and mouse or controller"
+    },
+    "macos": {
+      "os": "macOS 12 Monterey",
+      "processor": "Intel Core i3 or Apple M1",
+      "memory": "4 GB RAM",
+      "graphics": "Intel HD Graphics 530, Apple M1, or equivalent",
+      "storage": "1 GB available space",
+      "notes": "1280x720 display; keyboard and mouse or controller"
+    },
+    "linux": {
+      "os": "Ubuntu 22.04 LTS (64-bit) or SteamOS 3",
+      "processor": "Intel Core i3-6100 or AMD Ryzen 3 1200",
+      "memory": "4 GB RAM",
+      "graphics": "Intel HD Graphics 530, Radeon R7 240, or equivalent with OpenGL 3.2",
+      "storage": "1 GB available space",
+      "notes": "1280x720 display; keyboard and mouse or controller"
+    }
+  }
+}

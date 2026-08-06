@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("marqueSteamPlatform", Object.freeze({
     if (typeof callback !== "function") throw new Error("Steam pause listener must be a function");
     ipcRenderer.on("steam:pause-request", (_event, reason) => callback(reason));
   },
+  toggleFullscreen: () => ipcRenderer.invoke("steam:toggle-fullscreen"),
   quitGame: () => ipcRenderer.invoke("steam:quit")
 }));
 

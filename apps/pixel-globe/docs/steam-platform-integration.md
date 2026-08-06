@@ -41,6 +41,12 @@ available as a packaging override. `npm run steam:package:windows` and
 current release targets. Cross-packaging does not replace a smoke test on the
 target OS.
 
+The exact minimum system requirements for all three store platforms live in
+`steam/store-page/system-requirements.json`. Copy those values into each
+platform's Steamworks System Requirements fields before submitting the store
+or a build for review. `npm run steam:check` fails if any advertised platform
+is missing its OS, processor, graphics, or notes fields.
+
 ### macOS signing and notarization
 
 Release packages must be built on macOS with a `Developer ID Application`
@@ -148,11 +154,19 @@ does not commit Valve SDK files or expose Node APIs to the renderer.
    game App `4516500`, and set `Shared Cloud App ID` to `4516500`. Do not create
    Stats or achievement definitions for the demo.
 5. Upload `steam/presence/steam_presence.vdf` and publish the official Steam
-   Input configuration based on `steam-input/game_actions.vdf`.
+   Input configuration based on `steam-input/game_actions.vdf`. Opt the
+   official configuration into Any Future Devices so newly supported
+   controllers inherit the generic gamepad layout.
 6. Enable the Steam Overlay for the application so screenshots and Game
    Recording are available.
 7. Test Xbox, PlayStation, Nintendo/Switch Pro, and Steam Deck hardware in the
    packaged build before selecting Full Controller Support on the store page.
+   The pass must begin at the telemetry policy, reach gameplay, open and close
+   every menu, toggle fullscreen, pause on controller disconnect and Steam
+   Overlay activation, and quit without touching a mouse or keyboard.
+8. Enter and publish the Windows, macOS, and Linux/SteamOS minimum requirements
+   from `steam/store-page/system-requirements.json`. Test the Linux depot on a
+   fresh SteamOS or Ubuntu machine rather than relying on cross-packaging.
 
 The Steam demo uses its own App ID at launch while sharing Cloud App ID
 `4516500` in Steamworks. Its host capabilities explicitly disable Steam Stats

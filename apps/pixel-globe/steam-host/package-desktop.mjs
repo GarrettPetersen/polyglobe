@@ -164,6 +164,15 @@ async function verifyPackage(packagePath, expected) {
   await access(join(resourcesRoot, "app/package.json"));
   await access(join(resourcesRoot, "app/node_modules", targetKoffiBinary()));
   await access(join(resourcesRoot, "app/node_modules/steamworks.js", targetSteamworksBinary()));
+  if (args.platform === "darwin") {
+    const [expectedIcon, packagedIcon] = await Promise.all([
+      readFile(platformIcon("darwin")),
+      readFile(join(resourcesRoot, "electron.icns"))
+    ]);
+    if (!expectedIcon.equals(packagedIcon)) {
+      throw new Error(`Packaged ${expected.edition} macOS app has the default Electron icon`);
+    }
+  }
 }
 
 async function packageVersion() {

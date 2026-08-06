@@ -23,6 +23,7 @@ const PLATFORM_METHODS = Object.freeze([
   "triggerScreenshot",
   "updateStats",
   "onPauseRequested",
+  "toggleFullscreen",
   "quitGame"
 ]);
 

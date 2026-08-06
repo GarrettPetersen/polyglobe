@@ -96,7 +96,18 @@ function installIpcHandlers() {
   ipcMain.handle("steam:add-timeline-event", (_event, event) => nativeApi.addTimelineEvent(event));
   ipcMain.handle("steam:trigger-screenshot", () => nativeApi.triggerScreenshot());
   ipcMain.handle("steam:set-input-action-set", (_event, name) => steamInput.setActionSet(name));
+  ipcMain.handle("steam:toggle-fullscreen", (event) => toggleSenderFullscreen(event.sender));
   ipcMain.handle("steam:quit", () => app.quit());
+}
+
+function toggleSenderFullscreen(sender) {
+  const window = BrowserWindow.fromWebContents(sender);
+  if (!window || window.isDestroyed()) {
+    throw new Error("Steam fullscreen request has no active game window");
+  }
+  const active = !window.isFullScreen();
+  window.setFullScreen(active);
+  return active;
 }
 
 function sendPauseRequest(window, reason) {

@@ -2700,6 +2700,7 @@ const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
 
 const steamPlatformBridge = platformServicesAdapter(window);
 const platformActivityPublisher = createPlatformActivityPublisher(steamPlatformBridge);
+let nativeFullscreenActive = false;
 let keyBindings = loadKeyBindings(gameStorage);
 const keys = createHeldKeyActions();
 const pointerSteering = {
@@ -26856,12 +26857,28 @@ function syncCanvasAriaLabel() {
 }
 
 function fullscreenAvailable() {
-  return !!document.fullscreenEnabled && typeof shell.requestFullscreen === "function";
+  return Boolean(steamPlatformBridge) || (
+    !!document.fullscreenEnabled && typeof shell.requestFullscreen === "function"
+  );
+}
+
+function fullscreenActive() {
+  return steamPlatformBridge ? nativeFullscreenActive : document.fullscreenElement === shell;
 }
 
 async function toggleFullscreenMode() {
   optionsMenu.fullscreenError = null;
   try {
+    if (steamPlatformBridge) {
+      const active = await steamPlatformBridge.toggleFullscreen();
+      if (typeof active !== "boolean") {
+        throw new Error("Steam fullscreen toggle returned an invalid state");
+      }
+      nativeFullscreenActive = active;
+      fitCanvasToDisplay();
+      dirty = true;
+      return;
+    }
     if (document.fullscreenElement === shell) {
       if (typeof document.exitFullscreen !== "function") {
         throw new Error("Fullscreen exit is unavailable");
@@ -34800,7 +34817,7 @@ function drawControllerBindingHint(action, label, x, y, maxWidth) {
 
 function drawOptionsFullscreenRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  const isFullscreen = document.fullscreenElement === shell;
+  const isFullscreen = fullscreenActive();
   const label = optionsMenu.fullscreenError || (
     fullscreenAvailable()
       ? (isFullscreen ? uiText("options.exitFullscreen") : uiText("options.enterFullscreen"))
