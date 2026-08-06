@@ -60,6 +60,29 @@ test("transparent connector gaps inherit nearby usable water", () => {
   assert.equal(point.source, "connector-gap");
 });
 
+test("a transparent mountain at Musandam cannot become a water bridge", () => {
+  const transparent = new Array(9).fill(0);
+  const chunk = rasterize([
+    tile(20, 0, 0, 2, transparent, true),
+    tile(21, 1, 3, 2, transparent, false),
+    tile(22, 2, 6, 2, transparent, true)
+  ]);
+  const mountainCenter = drawnNavigationFieldPoint(chunk, 4, 3);
+  assert.equal(mountainCenter.tileId, 21);
+  assert.equal(mountainCenter.water, false);
+  assert.equal(mountainCenter.source, "connector-gap");
+});
+
+test("beach tolerance is limited to one pixel beyond the water side", () => {
+  const transparent = new Array(9).fill(0);
+  const chunk = rasterize([
+    tile(30, 0, 0, 2, transparent, true),
+    tile(31, 1, 4, 2, transparent, false)
+  ]);
+  assert.equal(drawnNavigationFieldPoint(chunk, 3, 3).water, true);
+  assert.equal(drawnNavigationFieldPoint(chunk, 4, 3).water, false);
+});
+
 test("surface ice turns a drawn water sprite into blocked navigation", () => {
   const opaque = new Array(9).fill(255);
   const chunk = rasterize(

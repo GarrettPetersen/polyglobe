@@ -2,6 +2,7 @@ const DEFAULT_PADDING = 12;
 const DISTANCE_ORTHOGONAL = 3;
 const DISTANCE_DIAGONAL = 4;
 const DISTANCE_INFINITY = 0xffff;
+const WATER_EDGE_TOLERANCE_PX = 1;
 
 export function rasterizeDrawnNavigationChunk({
   originX,
@@ -161,9 +162,10 @@ function fillConnectorGaps({
   water,
   source
 }) {
-  const waterTiles = orderedTiles.filter((entry) => (
-    isWaterTile(entry.call.id) && isUsableWaterTile(entry.call.id)
-  ));
+  const surfaceTiles = orderedTiles.map((entry) => Object.freeze({
+    entry,
+    navigable: isWaterTile(entry.call.id) && isUsableWaterTile(entry.call.id)
+  }));
   const maxDistance2 = maxDistancePx * maxDistancePx;
   for (let y = 0; y < rasterSize; y++) {
     for (let x = 0; x < rasterSize; x++) {
@@ -171,19 +173,38 @@ function fillConnectorGaps({
       if (tileIds[index] >= 0) continue;
       const worldX = rasterOriginX + x;
       const worldY = rasterOriginY + y;
-      let best = null;
-      let bestDistance2 = maxDistance2;
-      for (const entry of waterTiles) {
+      let nearestSurface = null;
+      let nearestSurfaceNavigable = false;
+      let nearestSurfaceDistance2 = maxDistance2;
+      let nearestWater = null;
+      let nearestWaterDistance2 = maxDistance2;
+      for (const candidate of surfaceTiles) {
+        const { entry } = candidate;
         const dx = entry.call.drawSurfaceX - worldX;
         const dy = entry.call.drawSurfaceY - worldY;
         const distance2 = dx * dx + dy * dy;
-        if (distance2 >= bestDistance2) continue;
-        best = entry;
-        bestDistance2 = distance2;
+        if (distance2 < nearestSurfaceDistance2) {
+          nearestSurface = entry;
+          nearestSurfaceNavigable = candidate.navigable;
+          nearestSurfaceDistance2 = distance2;
+        }
+        if (
+          candidate.navigable &&
+          distance2 < nearestWaterDistance2
+        ) {
+          nearestWater = entry;
+          nearestWaterDistance2 = distance2;
+        }
       }
-      if (!best) continue;
-      tileIds[index] = best.call.id;
-      water[index] = 1;
+      if (!nearestSurface) continue;
+      const waterWithinEdgeTolerance = nearestWater &&
+        Math.sqrt(nearestWaterDistance2) <=
+          Math.sqrt(nearestSurfaceDistance2) + WATER_EDGE_TOLERANCE_PX;
+      const surface = nearestSurfaceNavigable || waterWithinEdgeTolerance
+        ? nearestWater || nearestSurface
+        : nearestSurface;
+      tileIds[index] = surface.call.id;
+      water[index] = surface === nearestWater || nearestSurfaceNavigable ? 1 : 0;
       source[index] = 2;
     }
   }
