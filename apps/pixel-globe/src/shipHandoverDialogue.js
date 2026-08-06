@@ -47,6 +47,8 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a practical coastal trader whose divided lateen sail plan can be shortened by a small crew when a sudden squall comes down",
   "mediterranean-galley":
     "the oared warship that still ruled much of the sixteenth-century Mediterranean, able to advance in a calm or drive straight into the wind",
+  fusta:
+    "a light one-masted Mediterranean galley, built for speed under oars and quick coastal fighting rather than the cargo or artillery of larger warships",
   galleass:
     "a great broad-beamed galley enlarged into a floating gun platform, sacrificing the ordinary galley's speed for heavy artillery and a powerful fighting crew",
   "joseon-turtle-ship":

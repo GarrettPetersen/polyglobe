@@ -35,7 +35,7 @@ export const site = Object.freeze({
 });
 
 const MYSTERY_SHIP_SLUG = "viking-longship";
-export const SHIP_ROSTER_ASSET_VERSION = "2026-08-05-jong-rudder";
+export const SHIP_ROSTER_ASSET_VERSION = "2026-08-06-mediterranean-fleet";
 const SHIP_ROSTER_LIGHTING_AZIMUTH = 2;
 const SHIP_ROSTER_LIGHTING_ELEVATION = 1;
 const shipSpriteManifest = JSON.parse(readFileSync(new URL(
