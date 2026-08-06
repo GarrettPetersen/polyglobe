@@ -250,6 +250,16 @@ const LANE_NODES = Object.freeze([
   laneNode("canaries", "Canaries", 28.1, -16.1),
   laneNode("cape-verde", "Cape Verde", 15.4, -23.8),
   laneNode("guinea", "Guinea Coast", 5.1, -2.2),
+  // The Niger bends northeast into the Sahara before turning southeast to the
+  // Gulf of Guinea. A direct inland-port-to-coast heading sends local river
+  // navigation upstream toward Guinea, so preserve the real downstream bend.
+  laneNode("niger-inner-delta", "Niger Inner Delta", 14.55, -3.8),
+  laneNode("niger-bend", "Niger Bend", 16.45, -1.65),
+  laneNode("niger-gao", "Niger at Gao", 16.25, -0.05),
+  laneNode("niger-middle", "Middle Niger", 13.5, 2.15),
+  laneNode("niger-lower", "Lower Niger", 8.1, 6.65),
+  laneNode("niger-delta", "Niger Delta", 5.35, 6.4),
+  laneNode("niger-bight", "Bight of Benin", 4.2, 5.95),
   laneNode("brazil-bulge", "Brazil Bulge", -7.5, -34.5),
   laneNode("south-atlantic-turn", "South Atlantic Turn", -31.0, -18.0),
   laneNode("goodhope", "Cape of Good Hope", -34.4, 18.5),
@@ -294,6 +304,13 @@ const LANE_EDGES = Object.freeze([
   laneEdge("gibraltar", "canaries", "coastal"),
   laneEdge("canaries", "cape-verde", "bluewater"),
   laneEdge("cape-verde", "guinea", "coastal"),
+  laneEdge("niger-inner-delta", "niger-bend", "river"),
+  laneEdge("niger-bend", "niger-gao", "river"),
+  laneEdge("niger-gao", "niger-middle", "river"),
+  laneEdge("niger-middle", "niger-lower", "river"),
+  laneEdge("niger-lower", "niger-delta", "river"),
+  laneEdge("niger-delta", "niger-bight", "river"),
+  laneEdge("niger-bight", "guinea", "coastal"),
   laneEdge("guinea", "goodhope", "coastal"),
   laneEdge("cape-verde", "brazil-bulge", "bluewater"),
   laneEdge("brazil-bulge", "south-atlantic-turn", "bluewater"),
@@ -3206,6 +3223,9 @@ function portRouteRegion(port) {
 }
 
 function anchorIdsForPort(port) {
+  const name = portName(port).toLowerCase();
+  if (name === "dienne") return ["niger-inner-delta"];
+  if (name === "gao") return ["niger-gao"];
   if (isNorthwestCoastRoutePoint(port)) return ["yuquot"];
   const region = portRouteRegion(port);
   if (region === "east-asia") return nearestAnchors(port, ["canton", "nagasaki", "manila"], 2);
