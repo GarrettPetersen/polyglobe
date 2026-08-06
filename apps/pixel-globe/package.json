@@ -49,6 +49,7 @@
     "render:rowing-ships": "node tools/render-sail-ship-sprites.mjs --rowing-ships && npm run render:ship-layers",
     "render:native-boats": "node tools/render-sail-ship-sprites.mjs --native-boats",
     "render:mediterranean-galley": "node tools/render-sail-ship-sprites.mjs --mediterranean-galley",
+    "render:fusta": "node tools/render-sail-ship-sprites.mjs --fusta",
     "render:galleass": "node tools/render-sail-ship-sprites.mjs --galleass",
     "render:joseon-turtle-ship": "node tools/render-sail-ship-sprites.mjs --joseon-turtle-ship",
     "render:joseon-panokseon": "node tools/render-sail-ship-sprites.mjs --joseon-panokseon",

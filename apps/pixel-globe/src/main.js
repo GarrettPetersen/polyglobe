@@ -3537,7 +3537,9 @@ async function main() {
     playerCharacter.nationalityId,
     {
       whaling: campaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE,
-      armed: campaignGoalType === CAMPAIGN_GOAL_TREASURE
+      armed: campaignGoalType === CAMPAIGN_GOAL_TREASURE,
+      identityKey: voyageSeed,
+      startArea: playerProfile.startArea
     }
   );
   const playerStartPosition = START_POSITION_OVERRIDE || {

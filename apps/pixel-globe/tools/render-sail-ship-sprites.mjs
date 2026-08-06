@@ -37,9 +37,19 @@ import {
   UNITY_FLEET_MODEL_CREDIT,
   WOODEN_CART_MODEL_CREDIT
 } from "../src/modelCredits.js";
-import { SHIP_STATS, shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
+import {
+  FUSTA_SLUG,
+  SHIP_STATS,
+  shipStatsForSlug,
+  validateShipStatsForSlugs
+} from "../src/shipStats.js";
 import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
 import { simplifySpanishNaoTextureColor } from "../src/spanishNaoTexture.js";
+import {
+  fustaHullColor,
+  galleassHullColor,
+  mediterraneanGalleyHullColor
+} from "../src/mediterraneanGalleyColors.js";
 import {
   SHIP_DECK_NORMAL_Y,
   SHIP_MIN_RASTER_WATERLINE_DEPTH,
@@ -208,6 +218,22 @@ const mediterraneanGalleyRemovedMizzenComponents = Object.freeze([
     firstVertex: 553,
     lastVertex: 830,
     description: "mizzen sail"
+  })
+]);
+const fustaRemovedForeAndMizzenComponents = Object.freeze([
+  Object.freeze({
+    nodeName: "Object_13",
+    positionCount: 770,
+    firstVertex: 34,
+    lastVertex: 535,
+    description: "fore and mizzen masts and spars"
+  }),
+  Object.freeze({
+    nodeName: "Object_20",
+    positionCount: 831,
+    firstVertex: 271,
+    lastVertex: 830,
+    description: "fore and mizzen sails"
   })
 ]);
 const japaneseAtakebuneStaticOarMeshes = Object.freeze([
@@ -3396,6 +3422,7 @@ function productionShipRenderConfigs() {
     ...nativeBoatConfigs(),
     ...[
       "mediterranean-galley",
+      FUSTA_SLUG,
       "galleass",
       "joseon-turtle-ship",
       "joseon-panokseon",
@@ -3530,6 +3557,8 @@ const MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM = 1.9;
 const MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y = -0.15;
 const MEDITERRANEAN_GALLEY_SCALE = 0.85;
 const GALLEASS_SCALE = 1.025;
+const FUSTA_SCALE = 0.68;
+const FUSTA_WATERLINE_OFFSET_Y = -0.35;
 
 function mediterraneanGalleyConfig() {
   const slug = "mediterranean-galley";
@@ -3550,6 +3579,7 @@ function mediterraneanGalleyConfig() {
     frameScale: 0.6667,
     sideViewTargetModelMaxDim:
       MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * MEDITERRANEAN_GALLEY_SCALE,
+    colorTransform: mediterraneanGalleyHullColor,
     scaleMode: "galley-pixel-derivative",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -3585,6 +3615,7 @@ function galleassConfig() {
     frameRegistrationMargin: 1,
     sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * GALLEASS_SCALE,
     scaleMode: "large-galley-pixel-derivative",
+    colorTransform: galleassHullColor,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y * GALLEASS_SCALE,
     collectOptions: {
@@ -3603,6 +3634,35 @@ function galleassConfig() {
       appRoot,
       "docs/ship-reference/galleass-rowing-frames.png"
     )
+  };
+}
+
+function fustaConfig() {
+  const slug = FUSTA_SLUG;
+  return {
+    ...mediterraneanGalleyConfig(),
+    slug,
+    label: "Fusta",
+    category: "light Mediterranean war galley",
+    identifiedType: "sixteenth-century one-masted fusta",
+    identificationNotes:
+      "The source galley is reduced to its central lateen rig and rendered on a smaller hull scale; " +
+      "three animated representative oars per side preserve a clean light-galley silhouette.",
+    stats: shipStatsForSlug(slug),
+    targetModelMaxDim: MEDITERRANEAN_GALLEY_BASE_MAX_DIM * FUSTA_SCALE,
+    sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * FUSTA_SCALE,
+    flagAnchorMaxSnapDistancePx: 5,
+    scaleMode: "light-galley-pixel-derivative",
+    colorTransform: fustaHullColor,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    waterlineOffsetY: FUSTA_WATERLINE_OFFSET_Y * FUSTA_SCALE,
+    collectOptions: {
+      includeMesh: (node) => mediterraneanGalleyMeshNames.has(node.name),
+      requiredExcludedVertexRanges: fustaRemovedForeAndMizzenComponents
+    },
+    animationTrianglesForFrame: fustaTrianglesForFrame,
+    animationContactSheetPath: join(appRoot, "docs/ship-reference/fusta-rowing-frames.png"),
+    orientationReviewPath: join(appRoot, "docs/ship-reference/fusta-cardinal-headings.png")
   };
 }
 
@@ -3626,6 +3686,13 @@ function mediterraneanGalleyTrianglesForFrame(hullTriangles, frameIndex, waterli
   return [
     ...hullTriangles,
     ...makeGalleyOarTriangles(frameIndex, waterlineY, rowingMode)
+  ];
+}
+
+function fustaTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig(FUSTA_SLUG), rowingMode)
   ];
 }
 
@@ -4528,17 +4595,18 @@ function proceduralOarConfig(slug) {
     shaftRadius: 0.03,
     bladeRadius: 0.05
   };
-  if (slug === "mediterranean-galley" || slug === "galleass") {
+  if (slug === FUSTA_SLUG || slug === "mediterranean-galley" || slug === "galleass") {
+    const isFusta = slug === FUSTA_SLUG;
     const config = scaledProceduralOarConfig({
     kind: "bank",
-    bankPositions: evenBankPositions(-0.45, 0.45, slug === "galleass" ? 6 : 4),
+    bankPositions: evenBankPositions(-0.45, 0.45, slug === "galleass" ? 6 : isFusta ? 3 : 4),
     pivotYOffset: 0.05,
     pivotHalfBeam: 0.19,
     shaftLength: 0.57,
     bladeLength: 0.16,
     shaftRadius: 0.032,
     bladeRadius: 0.05
-    }, slug === "galleass" ? GALLEASS_SCALE : MEDITERRANEAN_GALLEY_SCALE);
+    }, slug === "galleass" ? GALLEASS_SCALE : isFusta ? FUSTA_SCALE : MEDITERRANEAN_GALLEY_SCALE);
     return slug === "galleass"
       ? { ...config, shaftLength: config.shaftLength * 0.97, bladeLength: config.bladeLength * 0.97 }
       : config;
@@ -4894,6 +4962,14 @@ async function renderMediterraneanGalley() {
   console.log(config.animationContactSheetPath);
 }
 
+async function renderFusta() {
+  const config = fustaConfig();
+  const result = await renderStandaloneShip(config, "fustaGenerator", "--fusta");
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+  console.log(config.orientationReviewPath);
+}
+
 async function renderGalleass() {
   const config = galleassConfig();
   const result = await renderStandaloneShip(config, "galleassGenerator", "--galleass");
@@ -5133,6 +5209,7 @@ function standaloneShipConfigForSlug(slug) {
   ));
   if (unityModelPath) return unityShipConfig(unityModelPath);
   if (slug === "mediterranean-galley") return mediterraneanGalleyConfig();
+  if (slug === FUSTA_SLUG) return fustaConfig();
   if (slug === "galleass") return galleassConfig();
   if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
   if (slug === "joseon-panokseon") return joseonPanokseonConfig();
@@ -5687,6 +5764,7 @@ async function renderAllProductionShips() {
     "--unity-fleet-side-views",
     "--native-boats",
     "--mediterranean-galley",
+    "--fusta",
     "--galleass",
     "--joseon-turtle-ship",
     "--joseon-panokseon",
@@ -5724,6 +5802,7 @@ async function renderAllProductionShips() {
 async function renderRowingShips() {
   await renderNativeBoats();
   await renderMediterraneanGalley();
+  await renderFusta();
   await renderGalleass();
   await renderJoseonTurtleShip();
   await renderJoseonPanokseon();
@@ -5887,6 +5966,10 @@ async function main() {
   }
   if (args.has("--mediterranean-galley")) {
     await renderMediterraneanGalley();
+    return;
+  }
+  if (args.has("--fusta")) {
+    await renderFusta();
     return;
   }
   if (args.has("--galleass")) {

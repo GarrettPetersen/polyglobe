@@ -1,4 +1,5 @@
 import {
+  FUSTA_SLUG,
   GALLEASS_SLUG,
   MEDITERRANEAN_GALLEY_SLUG,
   SHIP_PROPULSION_SAIL,
@@ -21,6 +22,7 @@ export const SHIP_ROWING_MODES = Object.freeze([
 ]);
 
 export const SHIP_ROWING_ANIMATION_SPECS = new Map([
+  [FUSTA_SLUG, rowingSpec(113, 0.12, 1.04)],
   [MEDITERRANEAN_GALLEY_SLUG, rowingSpec(125, 0.14, 0.88)],
   [GALLEASS_SLUG, rowingSpec(150, 0.16, 0.76)],
   ["joseon-turtle-ship", rowingSpec(123, 0.14, 0.92)],

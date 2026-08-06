@@ -110,6 +110,32 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/fluyt-waterline.png"
     },
     {
+      "slug": "fusta",
+      "label": "Fusta",
+      "waterlineY": -0.30387512345727413,
+      "waterlineOffsetY": -0.238,
+      "sideViewWaterlineY": 66,
+      "lowestOpaquePixelY": 71,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 6,
+      "oarPivotPixels": [
+        {
+          "x": 82,
+          "y": 64
+        },
+        {
+          "x": 96,
+          "y": 64
+        },
+        {
+          "x": 110,
+          "y": 64
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/fusta-waterline.png"
+    },
+    {
       "slug": "galleass",
       "label": "Galleass",
       "waterlineY": -0.5666167277053232,

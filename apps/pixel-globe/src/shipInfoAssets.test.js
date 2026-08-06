@@ -46,6 +46,7 @@ const NATIVE_BOAT_SLUGS = Object.freeze([
   "mesoamerican-dugout-canoe"
 ]);
 const MEDITERRANEAN_GALLEY_SLUG = "mediterranean-galley";
+const FUSTA_SLUG = "fusta";
 const GALLEASS_SLUG = "galleass";
 const MESOAMERICAN_CANOE_SLUG = "mesoamerican-dugout-canoe";
 const VIKING_LONGSHIP_SLUG = "viking-longship";
@@ -499,6 +500,29 @@ test("the Galleass reuses the galley model at a larger unclipped scale", async (
   );
   assert.equal(opaqueFrameEdgePixelCount(galleassImage), 0);
   assert.equal(galleass.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
+});
+
+test("the Fusta reuses the galley model with one rig and a smaller unclipped hull", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const galley = manifest.ships.find((ship) => ship.slug === MEDITERRANEAN_GALLEY_SLUG);
+  const fusta = manifest.ships.find((ship) => ship.slug === FUSTA_SLUG);
+  const fustaImage = await loadImage(join(shipAssetRoot, headingAssetFile(FUSTA_SLUG)));
+
+  assert.ok(galley, "Mediterranean galley manifest entry");
+  assert.ok(fusta, "Fusta manifest entry");
+  assert.equal(fusta.sourceModel, galley.sourceModel);
+  assert.equal(fusta.creator, galley.creator);
+  assert.equal(fusta.license, galley.license);
+  assert.deepEqual(
+    fusta.removedSourceComponents.map(({ nodeName, description }) => ({ nodeName, description })),
+    [
+      { nodeName: "Object_13", description: "fore and mizzen masts and spars" },
+      { nodeName: "Object_20", description: "fore and mizzen sails" }
+    ]
+  );
+  assert.ok(fusta.targetModelMaxDim < galley.targetModelMaxDim * 0.85);
+  assert.equal(opaqueFrameEdgePixelCount(fustaImage), 0);
+  assert.equal(fusta.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
 });
 
 test("the Viking longship keeps its authored colored sail and provides six working oar phases", async () => {

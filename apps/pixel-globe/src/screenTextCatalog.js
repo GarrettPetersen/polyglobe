@@ -1181,6 +1181,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Fuji stood apart from every other height, a near-perfect cone carrying snow above fields, roads, and the sea. Its symmetry made the mountain feel composed rather than accidental.",
   "Full gun ports and fighting crew",
   "Furl your colors beyond the headland. Inside this cove, no captain asks where a cargo came from.",
+  "Fusta",
   "Galleass",
   "Galleon",
   "Galleon on a Beam Reach",

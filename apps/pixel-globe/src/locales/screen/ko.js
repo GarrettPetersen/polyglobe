@@ -1181,6 +1181,7 @@ export default Object.freeze({
   "Fuji stood apart from every other height, a near-perfect cone carrying snow above fields, roads, and the sea. Its symmetry made the mountain feel composed rather than accidental.": "후지산은 들판, 도로, 바다 위로 눈을 운반하는 거의 완벽한 원뿔 모양으로 다른 모든 높이와 차별화되었습니다. 그 대칭성은 산을 우연이라기보다는 차분한 느낌으로 만들었습니다.",
   "Full gun ports and fighting crew": "전체 포 포트 및 전투 승무원",
   "Furl your colors beyond the headland. Inside this cove, no captain asks where a cargo came from.": "곶 너머로 당신의 색깔을 펼쳐보세요. 이 만 안에서는 어떤 선장도 화물이 어디서 왔는지 묻지 않습니다.",
+  "Fusta": "푸스타",
   "Galleass": "Galleass",
   "Galleon": "Galleon",
   "Galleon on a Beam Reach": "빔 리치의 갤리온",

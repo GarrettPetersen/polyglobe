@@ -1181,6 +1181,7 @@ export default Object.freeze({
   "Fuji stood apart from every other height, a near-perfect cone carrying snow above fields, roads, and the sea. Its symmetry made the mountain feel composed rather than accidental.": "富士山與其他高度截然不同，它是一個近乎完美的圓錐體，承載著田野、道路和海洋上的積雪。它的對稱性使這座山顯得沉穩而不是偶然。",
   "Full gun ports and fighting crew": "完整的枪口和战斗人员",
   "Furl your colors beyond the headland. Inside this cove, no captain asks where a cargo came from.": "將你的顏色捲到岬角之外。在這個海灣內，沒有船長詢問貨物來自哪裡。",
+  "Fusta": "福斯塔",
   "Galleass": "Galleass",
   "Galleon": "Galleon",
   "Galleon on a Beam Reach": "橫樑上的帆船",

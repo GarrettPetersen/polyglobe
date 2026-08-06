@@ -1,4 +1,5 @@
 import {
+  FUSTA_SLUG,
   GALLEASS_SLUG,
   JAPANESE_SHIP_SLUGS,
   JAPANESE_UMI_BUNE_SLUG,
@@ -34,6 +35,7 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
   "small-junk": 3800,
   "nusantaran-outrigger": 4000,
   kelulus: 4200,
+  [FUSTA_SLUG]: 3200,
   penjajap: 7000,
   lancaran: 18000,
   "royal-lancaran": 42000,
@@ -48,7 +50,7 @@ const FACTION_SHIPS = Object.freeze({
   portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),
   ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG]),
   venice: Object.freeze([GALLEASS_SLUG]),
-  hospitallers: Object.freeze(["mediterranean-galley"])
+  hospitallers: Object.freeze([FUSTA_SLUG, "mediterranean-galley"])
 });
 
 export const FAMOUS_SHIPBUILDING_TOWNS = Object.freeze([
@@ -66,7 +68,8 @@ const REGION_SHIP_POOLS = Object.freeze({
     "caravel", "caravel", "brigantine", "fluyt", "carrack", "galleon", "ship-of-the-line"
   ]),
   mediterranean: Object.freeze([
-    "fishing-lugger", "felucca", "cutter", "ketch", "xebec", "xebec", "mediterranean-galley",
+    "fishing-lugger", "felucca", FUSTA_SLUG, FUSTA_SLUG, "cutter", "ketch", "xebec", "xebec",
+    "mediterranean-galley",
     "square-rigged-caravel", "caravel", "caravel", "brigantine", "carrack", "galleon", "ship-of-the-line"
   ]),
   "islamic-desert": Object.freeze([

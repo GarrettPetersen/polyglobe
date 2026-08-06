@@ -64,7 +64,10 @@ test("starting profiles are deterministic and internally consistent", () => {
   assert.equal(profile.character.nationalityId, profile.homePort.factionId);
   assert.equal(profile.character.homePortRealmName, profile.nationality.name);
   assert.equal(profile.character.startRegion, profile.startRegion);
-  assert.equal(profile.character.starterShipSlug, PLAYER_STARTER_SHIPS[profile.startRegion]);
+  assert.equal(profile.character.starterShipSlug, playerStarterShipForFaction(
+    profile.character.nationalityId,
+    { identityKey: "profile-seed", startArea: profile.startArea }
+  ));
   assert.equal(profile.startArea, playerStartAreaForPort(profile.homePort));
   assert.equal(profile.character.homePortName, profile.homePort.displayCity);
   assert.ok(profile.character.expressions.length >= 1);
@@ -129,6 +132,27 @@ test("Japanese captains use local hulls for every campaign start", () => {
 test("a Hospitaller captain receives the European regional starter roster", () => {
   assert.equal(playerStarterShipForFaction("hospitallers"), "fishing-lugger");
   assert.equal(playerStarterShipForFaction("hospitallers", { armed: true }), "small-cog");
+});
+
+test("Mediterranean starts vary between small local hulls and use the fusta for armed campaigns", () => {
+  const starters = new Set();
+  for (let index = 0; index < 64; index++) {
+    starters.add(playerStarterShipForFaction("venice", {
+      identityKey: `venetian-${index}`,
+      startArea: "mediterranean"
+    }));
+  }
+  assert.deepEqual([...starters].sort(), ["fishing-lugger", "fusta"]);
+  assert.equal(playerStarterShipForFaction("venice", {
+    armed: true,
+    identityKey: "armed-venetian",
+    startArea: "mediterranean"
+  }), "fusta");
+  assert.equal(playerStarterShipForFaction("ottoman", {
+    armed: true,
+    identityKey: "armed-ottoman",
+    startArea: "mediterranean"
+  }), "fusta");
 });
 
 test("previously omitted Old World powers receive regional starter vessels", () => {

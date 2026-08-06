@@ -5,6 +5,7 @@ import {
   windAtLatLonDeg
 } from "./weather.js";
 import {
+  FUSTA_SLUG,
   GALLEASS_SLUG,
   JAPANESE_ARMED_SHIP_SLUGS,
   JAPANESE_ATAKEBUNE_SLUG,
@@ -368,8 +369,8 @@ const FLEET_PROFILES = Object.freeze([
   }, isIndianOceanPort, "regional"),
   profile("mediterranean", 28, {
     fishers: ["fishing-lugger", "felucca", "cutter"],
-    merchants: ["felucca", "xebec", "xebec"],
-    warships: ["xebec", "xebec", "mediterranean-galley", "mediterranean-galley", "caravel", "galleon"]
+    merchants: ["felucca", FUSTA_SLUG, "xebec", "xebec"],
+    warships: [FUSTA_SLUG, FUSTA_SLUG, "xebec", "xebec", "mediterranean-galley", "mediterranean-galley", "caravel", "galleon"]
   }, isMediterraneanPort, "regional"),
   profile("atlantic-coast", 30, {
     fishers: ["fishing-lugger", "cutter", "felucca"],
@@ -402,6 +403,7 @@ export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
   ...JAPANESE_SHIP_SLUGS,
   PORTUGUESE_CARRACK_SLUG,
   OTTOMAN_COASTAL_TRADER_SLUG,
+  FUSTA_SLUG,
   GALLEASS_SLUG
 ])]);
 

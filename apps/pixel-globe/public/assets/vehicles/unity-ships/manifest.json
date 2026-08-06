@@ -4261,6 +4261,144 @@
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ottoman-coastal-trader-32-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ottoman-coastal-trader-32-headings-lighting-preview.png"
       }
+    },
+    {
+      "slug": "fusta",
+      "label": "Fusta",
+      "category": "light Mediterranean war galley",
+      "assetLabel": "Russian 22-bank Baltic galley",
+      "identifiedType": "sixteenth-century one-masted fusta",
+      "identificationConfidence": "high",
+      "identificationNotes": "The source galley is reduced to its central lateen rig and rendered on a smaller hull scale; three animated representative oars per side preserve a clean light-galley silhouette.",
+      "removedSourceComponents": [
+        {
+          "nodeName": "Object_13",
+          "positionCount": 770,
+          "firstVertex": 34,
+          "lastVertex": 535,
+          "description": "fore and mizzen masts and spars"
+        },
+        {
+          "nodeName": "Object_20",
+          "positionCount": 831,
+          "firstVertex": 271,
+          "lastVertex": 830,
+          "description": "fore and mizzen sails"
+        }
+      ],
+      "creator": "Museovirasto Museiverket Finnish Heritage Agency",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceTexture": null,
+      "sourceMaxDim": 4604.1799,
+      "targetModelMaxDim": 1.5096,
+      "frameScale": 0.6667,
+      "turntableAnchor": {
+        "x": 23.5,
+        "y": 25.3227
+      },
+      "scaleMode": "light-galley-pixel-derivative",
+      "waterlineY": -0.30387512345727413,
+      "waterlineOffsetY": -0.238,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 1,
+        "dominantLengthRatio": 1,
+        "hullIntervalMinY": -0.072809,
+        "hullIntervalMaxY": -0.045072
+      },
+      "encodedWaterlineY": -0.303875,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.438516,
+      "sinkHeightMax": 0.432157,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": -0.014752,
+        "y": 0.44379,
+        "z": -0.419865
+      },
+      "stats": {
+        "slug": "fusta",
+        "cannons": 2,
+        "accelerationRad": 0.031,
+        "topSpeedRad": 0.03485,
+        "upwindStallAngleDeg": 27,
+        "upwindStallAngleRad": 0.47123889803846897,
+        "turnRateRad": 3.2,
+        "mass": 90,
+        "crewCapacity": 12,
+        "hitPoints": 9,
+        "cargoCapacity": 42,
+        "seaworthiness": 4,
+        "armor": 0,
+        "crewProtection": 12,
+        "propulsion": "oar-sail"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-5-32-headings-sink-depth.png"
+        ],
+        "pivotPortAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-5-32-headings.png"
+        ],
+        "pivotPortSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-5-32-headings-sink-depth.png"
+        ],
+        "pivotStarboardAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-5-32-headings.png"
+        ],
+        "pivotStarboardSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-5-32-headings-sink-depth.png"
+        ]
+      }
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -4282,5 +4420,6 @@
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
   "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
   "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
-  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong"
+  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong",
+  "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta"
 }

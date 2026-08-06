@@ -134,9 +134,17 @@ test("the Ocean Dhow fills the medium Indian Ocean merchant niche", () => {
 });
 
 test("the Mediterranean galley is a period hybrid warship", () => {
+  const fusta = shipStatsForSlug("fusta");
   const galley = shipStatsForSlug("mediterranean-galley");
   const galleass = shipStatsForSlug("galleass");
 
+  assert.equal(shipLabelForSlug(fusta.slug), "Fusta");
+  assert.equal(fusta.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(fusta.cannons, 2);
+  assert.ok(fusta.mass < galley.mass);
+  assert.ok(fusta.cargoCapacity < galley.cargoCapacity);
+  assert.ok(fusta.topSpeedRad > galley.topSpeedRad);
+  assert.ok(fusta.turnRateRad > galley.turnRateRad);
   assert.equal(shipLabelForSlug(galley.slug), "Mediterranean Galley");
   assert.equal(galley.propulsion, SHIP_PROPULSION_OAR_SAIL);
   assert.ok(galley.cannons > 0);

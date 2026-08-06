@@ -1181,6 +1181,7 @@ export default Object.freeze({
   "Fuji stood apart from every other height, a near-perfect cone carrying snow above fields, roads, and the sea. Its symmetry made the mountain feel composed rather than accidental.": "Fuji se destacava de todas as outras alturas, um cone quase perfeito carregando neve sobre os campos, as estradas e o mar. Sua simetria fazia com que a montanha parecesse mais composta do que acidental.",
   "Full gun ports and fighting crew": "Portas de armas completas e tripulação de combate",
   "Furl your colors beyond the headland. Inside this cove, no captain asks where a cargo came from.": "Enrole suas cores além do promontório. Dentro desta enseada, nenhum capitão pergunta de onde veio a carga.",
+  "Fusta": "Fusta",
   "Galleass": "Galleass",
   "Galleon": "Galeão",
   "Galleon on a Beam Reach": "Galeão em um alcance de feixe",

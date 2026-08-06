@@ -105,8 +105,9 @@ blendswap/greek-trireme/trireme-bsw.blend
 ```
 
 The Polynesian canoe, Mesoamerican canoe, and unfurled Mediterranean galley are
-runtime ships. The furled galley and Greek trireme are retained as source references
-and are not currently loaded by the game.
+runtime sources. The fusta, Mediterranean galley, and galleass are distinct production
+derivatives of the same credited galley source. The furled galley and Greek trireme are
+retained as source references and are not currently loaded by the game.
 
 ## Baking runtime assets
 
@@ -115,6 +116,7 @@ Run these commands from `apps/pixel-globe/` after refreshing the private checkou
 ```sh
 npm run render:native-boats
 npm run render:mediterranean-galley
+npm run render:fusta
 npm run render:joseon-turtle-ship
 npm run render:joseon-panokseon
 npm run render:japanese-kuribune

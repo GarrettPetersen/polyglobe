@@ -6,6 +6,7 @@ import {
   factionById
 } from "./factions.js";
 import {
+  FUSTA_SLUG,
   JAPANESE_ATAKEBUNE_SLUG,
   JAPANESE_KOBAYA_SLUG,
   JAPANESE_SHIP_SLUGS,
@@ -88,19 +89,40 @@ export function playerStartRegionForFaction(factionId) {
   throw new Error(`Faction cannot provide a player starter ship: ${factionId}`);
 }
 
-export function playerStarterShipForFaction(factionId, { whaling = false, armed = false } = {}) {
+export function playerStarterShipForFaction(factionId, {
+  whaling = false,
+  armed = false,
+  identityKey = null,
+  startArea = null
+} = {}) {
   if (typeof whaling !== "boolean") throw new Error(`Invalid whaling starter flag: ${whaling}`);
   if (typeof armed !== "boolean") throw new Error(`Invalid armed starter flag: ${armed}`);
   if (whaling && armed) throw new Error("Starter ship cannot request separate whaling and armed campaigns");
+  if (identityKey !== null && !validPlayerCharacterSeed(identityKey)) {
+    throw new Error(`Invalid starter ship identity key: ${identityKey}`);
+  }
+  if (startArea !== null && !PLAYER_START_AREAS.includes(startArea)) {
+    throw new Error(`Invalid starter ship area: ${startArea}`);
+  }
   const region = playerStartRegionForFaction(factionId);
   const roster = whaling
     ? PLAYER_WHALING_STARTER_SHIPS
     : armed ? PLAYER_ARMED_STARTER_SHIPS : PLAYER_STARTER_SHIPS;
-  const slug = factionId === "japan"
+  let slug = factionId === "japan"
     ? (armed
       ? JAPANESE_ATAKEBUNE_SLUG
       : whaling ? JAPANESE_KOBAYA_SLUG : JAPANESE_UMI_BUNE_SLUG)
     : roster[region];
+  if (factionId !== "japan" && startArea === "mediterranean" && !whaling) {
+    const localStarters = armed
+      ? [FUSTA_SLUG]
+      : ISLAMIC_MEDITERRANEAN_FACTIONS.has(factionId)
+        ? ["felucca", FUSTA_SLUG]
+        : ["fishing-lugger", FUSTA_SLUG];
+    slug = identityKey
+      ? chooseSeeded(localStarters, `${identityKey}|starter-ship|${factionId}|${startArea}`)
+      : localStarters[0];
+  }
   if (!slug) throw new Error(`No ${whaling ? "whaling " : armed ? "armed " : ""}starter ship for ${factionId}`);
   if (factionId === "japan" && !JAPANESE_SHIP_SLUGS.includes(slug)) {
     throw new Error(`Japanese captain received a non-Japanese starter ship: ${slug}`);
@@ -140,7 +162,10 @@ export function generatePlayerStartingProfile({
       `Player start area disagrees with ${homePort.displayCity || homePort.city}: ${startArea} != ${portStartArea}`
     );
   }
-  const starterShipSlug = playerStarterShipForFaction(nationality.id);
+  const starterShipSlug = playerStarterShipForFaction(nationality.id, {
+    identityKey,
+    startArea
+  });
 
   const baseCharacter = generatePlayerCharacter({
     identityKey,

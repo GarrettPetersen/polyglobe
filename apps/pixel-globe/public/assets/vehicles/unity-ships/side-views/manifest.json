@@ -578,7 +578,24 @@
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
+    },
+    {
+      "slug": "fusta",
+      "label": "Fusta",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceMaxDim": 4604.1799,
+      "targetModelMaxDim": 1.292,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/fusta.png",
+      "creator": "Museovirasto Museiverket Finnish Heritage Agency",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Russian 22-bank Baltic galley"
     }
   ],
-  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong"
+  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong",
+  "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta",
+  "mediterraneanGalleyGenerator": "tools/render-sail-ship-sprites.mjs --mediterranean-galley",
+  "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass"
 }

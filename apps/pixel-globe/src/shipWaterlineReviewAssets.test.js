@@ -21,6 +21,7 @@ const MALAY_WARSHIP_OAR_PIVOT_COUNTS = Object.freeze({
   "royal-lancaran": 12
 });
 const MEDITERRANEAN_OAR_PIVOT_COUNTS = Object.freeze({
+  fusta: 6,
   "mediterranean-galley": 8,
   galleass: 12
 });
