@@ -359,7 +359,8 @@ export function fireLakeBattlePortableWeapons(state, shipId) {
     shipStats: ship.stats,
     installedCannons: ship.stats.cannons,
     targetDistancePx: targetDistance,
-    baseRangePx: CANNON_RANGE_PX
+    baseRangePx: CANNON_RANGE_PX,
+    targetCrewProtection: target.stats.crewProtection
   }).filter(({ weapon }) => (ship.portableWeaponCooldowns[weapon.itemId] || 0) <= 0);
   if (assignments.length === 0) return false;
 
@@ -947,6 +948,7 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
       crewDamage: weapon.crewDamage,
       hitChance: weapon.crewHitChance,
       crewProtection: target.stats.crewProtection,
+      crewProtectionPenetration: weapon.crewProtectionPenetration,
       random: () => nextBattleRandom(state)
     });
     target.woundedCrew = woundResult.woundedCrew;

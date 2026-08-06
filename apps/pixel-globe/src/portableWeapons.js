@@ -1,4 +1,5 @@
 import { shipMinimumCrew } from "./shipLoadouts.js";
+import { effectiveCrewHitChance } from "./combatWounds.js";
 import {
   GRAMMATICAL_NUMBER_PLURAL,
   GRAMMATICAL_NUMBER_SINGULAR,
@@ -19,6 +20,7 @@ export const WHEELLOCK_PISTOLS_ITEM_ID = "wheellock-pistol";
 export const SWIVEL_GUN_ITEM_ID = "swivel-gun";
 export const INCENDIARY_ARROWS_ITEM_ID = "incendiary-arrows";
 export const VIKING_BOWS_ITEM_ID = "viking-bows";
+const PORTABLE_WEAPON_RATING_CREW = 5;
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "habsburg", "hungary",
@@ -87,7 +89,8 @@ function weaponSpec(itemId, {
   speedScale,
   arcHeightScale,
   reloadSeconds,
-  operatorLimit,
+  singleInstallation = false,
+  crewProtectionPenetration = 0,
   projectileSize = 1,
   smokeScale = 0,
   bow = false,
@@ -103,7 +106,8 @@ function weaponSpec(itemId, {
     speedScale,
     arcHeightScale,
     reloadSeconds,
-    operatorLimit,
+    singleInstallation,
+    crewProtectionPenetration,
     projectileSize,
     smokeScale,
     bow,
@@ -127,7 +131,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
       crewHitChance: 0.2, rangeScale: 0.48, speedScale: 1.3, arcHeightScale: 0.8,
-      reloadSeconds: 2.4, operatorLimit: 5, bow: true
+      reloadSeconds: 2.4, bow: true
     }
   }),
   portableItem({
@@ -143,7 +147,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
       crewHitChance: 0.27, rangeScale: 0.64, speedScale: 1.38, arcHeightScale: 0.7,
-      reloadSeconds: 2.7, operatorLimit: 5, bow: true
+      reloadSeconds: 2.7, crewProtectionPenetration: 0.1, bow: true
     }
   }),
   portableItem({
@@ -159,7 +163,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
       crewHitChance: 0.25, rangeScale: 0.57, speedScale: 1.4, arcHeightScale: 0.72,
-      reloadSeconds: 2.0, operatorLimit: 5, bow: true
+      reloadSeconds: 2.0, crewProtectionPenetration: 0.08, bow: true
     }
   }),
   portableItem({
@@ -175,7 +179,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
       crewHitChance: 0.28, rangeScale: 0.61, speedScale: 1.38, arcHeightScale: 0.72,
-      reloadSeconds: 2.3, operatorLimit: 5, bow: true
+      reloadSeconds: 2.3, crewProtectionPenetration: 0.08, bow: true
     }
   }),
   portableItem({
@@ -192,7 +196,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
       crewHitChance: 0.25, rangeScale: 0.56, speedScale: 1.34, arcHeightScale: 0.75,
-      reloadSeconds: 2.25, operatorLimit: 5, bow: true
+      reloadSeconds: 2.25, crewProtectionPenetration: 0.05, bow: true
     }
   }),
   portableItem({
@@ -207,8 +211,8 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe", "east-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.34, rangeScale: 0.62, speedScale: 1.55, arcHeightScale: 0.55,
-      reloadSeconds: 4.2, operatorLimit: 4
+      crewHitChance: 0.44, rangeScale: 0.62, speedScale: 1.55, arcHeightScale: 0.55,
+      reloadSeconds: 4, crewProtectionPenetration: 0.35
     }
   }),
   portableItem({
@@ -223,8 +227,9 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe", "islamic", "south-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_BULLET, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.45, rangeScale: 0.55, speedScale: 2.1, arcHeightScale: 0.16,
-      reloadSeconds: 6.5, operatorLimit: 4, smokeScale: 0.35
+      crewHitChance: 0.78, rangeScale: 0.55, speedScale: 2.1, arcHeightScale: 0.16,
+      reloadSeconds: 5.8, crewProtectionPenetration: 0.7,
+      smokeScale: 0.35
     }
   }),
   portableItem({
@@ -239,8 +244,9 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_BULLET, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.52, rangeScale: 0.32, speedScale: 2.0, arcHeightScale: 0.12,
-      reloadSeconds: 5.2, operatorLimit: 2, smokeScale: 0.28
+      crewHitChance: 0.7, rangeScale: 0.32, speedScale: 2.0, arcHeightScale: 0.12,
+      reloadSeconds: 4.8, crewProtectionPenetration: 0.55,
+      smokeScale: 0.28
     }
   }),
   portableItem({
@@ -255,8 +261,9 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe", "islamic", "south-asia", "east-asia", "southeast-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_CANNON, hullDamage: 0.5, crewDamage: 2,
-      crewHitChance: 0.55, rangeScale: 0.76, speedScale: 1.5, arcHeightScale: 0.18,
-      reloadSeconds: 8.5, operatorLimit: 1, projectileSize: 1, smokeScale: 0.55, swivel: true
+      crewHitChance: 0.68, rangeScale: 0.76, speedScale: 1.5, arcHeightScale: 0.18,
+      reloadSeconds: 8, singleInstallation: true, crewProtectionPenetration: 0.75,
+      projectileSize: 1, smokeScale: 0.55, swivel: true
     }
   }),
   portableItem({
@@ -366,7 +373,8 @@ export function activePortableWeaponAssignments({
   shipStats,
   installedCannons,
   targetDistancePx,
-  baseRangePx
+  baseRangePx,
+  targetCrewProtection = 0
 }) {
   if (!Array.isArray(ownedItemIds)) throw new Error("Portable weapon assignments require item ids");
   if (!Number.isInteger(activeCrew) || activeCrew < 0) throw new Error(`Invalid active weapon crew: ${activeCrew}`);
@@ -378,6 +386,9 @@ export function activePortableWeaponAssignments({
       !Number.isFinite(baseRangePx) || baseRangePx <= 0) {
     throw new Error(`Invalid portable weapon range: ${targetDistancePx}/${baseRangePx}`);
   }
+  if (!Number.isInteger(targetCrewProtection) || targetCrewProtection < 0 || targetCrewProtection > 100) {
+    throw new Error(`Invalid portable weapon target protection: ${targetCrewProtection}`);
+  }
   const owned = new Set(ownedItemIds);
   const incendiary = owned.has(INCENDIARY_ARROWS_ITEM_ID);
   const availableWeapons = [...owned]
@@ -387,7 +398,7 @@ export function activePortableWeaponAssignments({
     .filter((weapon) => targetDistancePx <= baseRangePx * weapon.rangeScale)
     .sort((a, b) => (
       Number(b.swivel) - Number(a.swivel) ||
-      portableWeaponScore(b) - portableWeaponScore(a) ||
+      portableWeaponScore(b, targetCrewProtection) - portableWeaponScore(a, targetCrewProtection) ||
       a.itemId.localeCompare(b.itemId)
     ));
   if (availableWeapons.length === 0 || activeCrew === 0) return Object.freeze([]);
@@ -402,7 +413,8 @@ export function activePortableWeaponAssignments({
   const assignments = [];
   for (const weapon of availableWeapons) {
     if (freeCrew <= 0) break;
-    const operators = Math.min(weapon.operatorLimit, freeCrew);
+    // Small-arms purchases stock an armory for every free hand; mounted weapons are singular.
+    const operators = weapon.singleInstallation ? Math.min(1, freeCrew) : freeCrew;
     if (operators <= 0) continue;
     assignments.push(Object.freeze({ weapon, operators }));
     freeCrew -= operators;
@@ -422,11 +434,17 @@ export function portableWeaponEffectLabel(itemId) {
 
 export function portableWeaponCombatRating(itemIds) {
   if (!Array.isArray(itemIds)) throw new Error("Portable weapon rating requires item ids");
-  return itemIds.reduce((total, itemId) => {
+  // This strategic rating lacks a live crew count, so compare armories at a standard detail size.
+  let sharedArmoryScore = 0;
+  let installedWeaponScore = 0;
+  for (const itemId of itemIds) {
     const item = portableWeaponItemById(itemId);
-    if (!item.weapon) return total;
-    return total + portableWeaponScore(item.weapon) * item.weapon.operatorLimit;
-  }, 0);
+    if (!item.weapon) continue;
+    const score = portableWeaponScore(item.weapon);
+    if (item.weapon.singleInstallation) installedWeaponScore += score;
+    else sharedArmoryScore = Math.max(sharedArmoryScore, score);
+  }
+  return installedWeaponScore + sharedArmoryScore * PORTABLE_WEAPON_RATING_CREW;
 }
 
 function applyIncendiaryArrows(weapon) {
@@ -440,8 +458,13 @@ function applyIncendiaryArrows(weapon) {
   });
 }
 
-function portableWeaponScore(weapon) {
-  return (weapon.crewDamage * weapon.crewHitChance + weapon.hullDamage * 1.5) / weapon.reloadSeconds;
+function portableWeaponScore(weapon, targetCrewProtection = 0) {
+  const effectiveHitChance = effectiveCrewHitChance(
+    weapon.crewHitChance,
+    targetCrewProtection,
+    weapon.crewProtectionPenetration
+  );
+  return (weapon.crewDamage * effectiveHitChance + weapon.hullDamage * 1.5) / weapon.reloadSeconds;
 }
 
 function factionUsesMatchlocks(factionId, cityType) {
@@ -454,14 +477,17 @@ function validatePortableWeaponSpec(spec) {
   if (![PORTABLE_PROJECTILE_ARROW, PORTABLE_PROJECTILE_BULLET, PORTABLE_PROJECTILE_CANNON].includes(spec.animationKind)) {
     throw new Error(`Invalid portable weapon animation: ${spec.itemId}`);
   }
-  for (const key of ["hullDamage", "crewDamage", "crewHitChance", "rangeScale", "speedScale", "arcHeightScale", "reloadSeconds", "smokeScale"]) {
+  for (const key of ["hullDamage", "crewDamage", "crewHitChance", "rangeScale", "speedScale", "arcHeightScale", "reloadSeconds", "crewProtectionPenetration", "smokeScale"]) {
     if (!Number.isFinite(spec[key]) || spec[key] < 0) throw new Error(`Invalid portable weapon ${key}: ${spec.itemId}`);
   }
   if (!Number.isInteger(spec.crewDamage) || spec.crewDamage <= 0 ||
-      !Number.isInteger(spec.operatorLimit) || spec.operatorLimit <= 0 ||
       !Number.isInteger(spec.projectileSize) || spec.projectileSize <= 0 ||
-      spec.crewHitChance > 1 || spec.rangeScale <= 0 || spec.speedScale <= 0 || spec.reloadSeconds <= 0) {
+      spec.crewHitChance > 1 || spec.crewProtectionPenetration > 1 ||
+      spec.rangeScale <= 0 || spec.speedScale <= 0 || spec.reloadSeconds <= 0) {
     throw new Error(`Invalid portable weapon combat values: ${spec.itemId}`);
+  }
+  if (typeof spec.singleInstallation !== "boolean") {
+    throw new Error(`Invalid portable weapon installation type: ${spec.itemId}`);
   }
 }
 

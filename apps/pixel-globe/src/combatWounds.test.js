@@ -61,10 +61,24 @@ test("a turtle ship's complete crew protection prevents small-arms wounds", () =
     crewDamage: 8,
     hitChance: 1,
     crewProtection: 100,
+    crewProtectionPenetration: 1,
     random: () => 0
   });
   assert.equal(result.newWounds, 0);
   assert.equal(result.protected, true);
+});
+
+test("penetrating small arms defeat some cover without bypassing complete protection", () => {
+  const result = applyCrewWounds({
+    totalCrew: 8,
+    crewDamage: 1,
+    hitChance: 0.8,
+    crewProtection: 60,
+    crewProtectionPenetration: 0.75,
+    random: () => 0.5
+  });
+  assert.equal(result.effectiveChance, 0.68);
+  assert.equal(result.newWounds, 1);
 });
 
 test("final-crew protection never removes the last active person", () => {

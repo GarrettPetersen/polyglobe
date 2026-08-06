@@ -1098,6 +1098,7 @@ import {
 } from "./friendlyFire.js";
 import {
   SHORE_BATTERY_RANGE_PX,
+  SHORE_BATTERY_CREW_PROTECTION,
   armShoreBatteryReload,
   createShoreBatteryState,
   damageShoreBattery,
@@ -20668,7 +20669,8 @@ function firePlayerPortableWeaponsAtWill() {
     shipStats: ship.stats,
     installedCannons: gameState.ship.cannons,
     targetDistancePx: target.distance,
-    baseRangePx: CANNON_RANGE_PX
+    baseRangePx: CANNON_RANGE_PX,
+    targetCrewProtection: combatEntityCrewProtection(target.id)
   }).filter(({ weapon }) => (ship.portableWeaponCooldowns[weapon.itemId] || 0) <= 0);
   if (assignments.length === 0) return false;
 
@@ -20762,6 +20764,7 @@ function portableCombatProjectile({ weapon, ownerId, targetId, startX, startY, t
     hullDamage: weapon.hullDamage,
     crewDamage: weapon.crewDamage,
     crewHitChance: weapon.crewHitChance,
+    crewProtectionPenetration: weapon.crewProtectionPenetration,
     projectileSize: weapon.projectileSize,
     smokeScale: weapon.smokeScale,
     incendiary: weapon.incendiary === true,
@@ -21156,7 +21159,11 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     result = damageShoreBatteryCrew(
       battery,
       gameState.memory.flags,
-      { crewDamage: ball.crewDamage, crewHitChance: ball.crewHitChance },
+      {
+        crewDamage: ball.crewDamage,
+        crewHitChance: ball.crewHitChance,
+        crewProtectionPenetration: ball.crewProtectionPenetration
+      },
       simMinute,
       attackerLabel,
       Math.random
@@ -21342,6 +21349,7 @@ function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
     crewDamage: ball.crewDamage,
     hitChance: ball.crewHitChance,
     crewProtection: target.stats.crewProtection,
+    crewProtectionPenetration: ball.crewProtectionPenetration,
     random: Math.random
   });
   target.woundedCrew = woundResult.woundedCrew;
@@ -24013,6 +24021,17 @@ function combatEntityAimPoint(entityId) {
   return shipFootprintPolygonCenter(footprint);
 }
 
+function combatEntityCrewProtection(entityId) {
+  if (entityId === PLAYER_COMBAT_ID) {
+    if (!ship?.stats) throw new Error("Player combat entity has no ship stats");
+    return ship.stats.crewProtection;
+  }
+  if (shoreBatteryStates.has(entityId)) return SHORE_BATTERY_CREW_PROTECTION;
+  const state = npcVisualShips.get(entityId);
+  if (!state?.stats) throw new Error(`Combat entity has no crew protection: ${entityId}`);
+  return state.stats.crewProtection;
+}
+
 function distanceFromPlayerPoint(point) {
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
     throw new Error(`Invalid cannon sound source: ${point?.x},${point?.y}`);
@@ -24151,7 +24170,8 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
     shipStats: state.stats,
     installedCannons: state.stats.cannons,
     targetDistancePx: distance,
-    baseRangePx: NPC_COMBAT_FIRE_RANGE_PX
+    baseRangePx: NPC_COMBAT_FIRE_RANGE_PX,
+    targetCrewProtection: combatEntityCrewProtection(targetId)
   }).filter(({ weapon }) => (state.portableWeaponCooldowns[weapon.itemId] || 0) <= 0);
   if (assignments.length === 0) return false;
   const heading = tangentToScreenDirection(state.heading);
@@ -24436,6 +24456,7 @@ function applyPortableWeaponHitToPlayer(ball, point) {
     crewDamage: ball.crewDamage,
     hitChance: ball.crewHitChance,
     crewProtection: ship.stats.crewProtection,
+    crewProtectionPenetration: ball.crewProtectionPenetration,
     preserveFinalCrew: true,
     random: Math.random
   });

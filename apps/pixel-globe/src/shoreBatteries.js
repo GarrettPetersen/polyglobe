@@ -97,7 +97,7 @@ export function damageShoreBattery(state, flags, damage, simMinute, attackerShip
 export function damageShoreBatteryCrew(
   state,
   flags,
-  { crewDamage, crewHitChance },
+  { crewDamage, crewHitChance, crewProtectionPenetration = 0 },
   simMinute,
   attackerShipLabel,
   random = Math.random
@@ -115,6 +115,7 @@ export function damageShoreBatteryCrew(
     crewDamage,
     hitChance: crewHitChance,
     crewProtection: SHORE_BATTERY_CREW_PROTECTION,
+    crewProtectionPenetration,
     random
   });
   state.woundedGarrison = result.woundedCrew;

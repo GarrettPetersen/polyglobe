@@ -15,22 +15,23 @@ export function applyCrewWounds({
   crewDamage,
   hitChance,
   crewProtection,
+  crewProtectionPenetration = 0,
   preserveFinalCrew = false,
   random = Math.random
 }) {
   const activeBefore = activeCombatCrew(totalCrew, woundedCrew);
   requireCrewCount(crewDamage, "crew damage");
   if (crewDamage <= 0) throw new Error(`Crew damage must be positive: ${crewDamage}`);
-  requireUnitInterval(hitChance, "crew hit chance");
-  if (!Number.isInteger(crewProtection) || crewProtection < 0 || crewProtection > 100) {
-    throw new Error(`Invalid crew protection: ${crewProtection}`);
-  }
+  const effectiveChance = effectiveCrewHitChance(
+    hitChance,
+    crewProtection,
+    crewProtectionPenetration
+  );
   if (typeof preserveFinalCrew !== "boolean") {
     throw new Error(`Invalid final-crew protection: ${preserveFinalCrew}`);
   }
   if (typeof random !== "function") throw new Error("Crew wounds require a random source");
 
-  const effectiveChance = hitChance * (1 - crewProtection / 100);
   const maximumNewWounds = Math.max(0, activeBefore - Number(preserveFinalCrew));
   let newWounds = 0;
   for (let index = 0; index < crewDamage && newWounds < maximumNewWounds; index++) {
@@ -46,6 +47,17 @@ export function applyCrewWounds({
     effectiveChance,
     protected: effectiveChance === 0
   });
+}
+
+export function effectiveCrewHitChance(hitChance, crewProtection, crewProtectionPenetration = 0) {
+  requireUnitInterval(hitChance, "crew hit chance");
+  if (!Number.isInteger(crewProtection) || crewProtection < 0 || crewProtection > 100) {
+    throw new Error(`Invalid crew protection: ${crewProtection}`);
+  }
+  requireUnitInterval(crewProtectionPenetration, "crew protection penetration");
+  if (crewProtection === 100) return 0;
+  const effectiveProtection = crewProtection * (1 - crewProtectionPenetration);
+  return hitChance * (1 - effectiveProtection / 100);
 }
 
 export function crewWoundsForceSurrender(totalCrew, woundedCrew) {
