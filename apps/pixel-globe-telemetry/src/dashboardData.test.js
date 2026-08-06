@@ -35,6 +35,14 @@ test("dashboard crash reports are newest first", () => {
   );
 });
 
+test("dashboard crash reports split at the all-fixed cursor", () => {
+  const queries = dashboardQueries(7, "2026-08-05T12:34:56.000Z");
+  assert.match(queries.crashes, /timestamp > toDateTime\('2026-08-05 12:34:56'\)/);
+  assert.match(queries.fixedCrashes, /timestamp <= toDateTime\('2026-08-05 12:34:56'\)/);
+  assert.match(queries.crashStatus, /AS active_reports/);
+  assert.match(queries.crashStatus, /AS historical_reports/);
+});
+
 test("session playtime is aggregated without returning session identifiers", () => {
   const queries = dashboardQueries(30);
   assert.match(queries.playtimeStats, /GROUP BY session_id/);
@@ -122,6 +130,7 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       revision: "abc123",
       sessions: 300
     }],
+    crashStatus: [{ active_reports: 2, historical_reports: 3 }],
     crashes: [{
       fingerprint: "fingerprint",
       revision: "abc123",
@@ -134,11 +143,31 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       affected_installations: 1,
       first_seen: "2026-07-25 10:00:00.000",
       last_seen: "2026-07-25 11:00:00.000"
+    }],
+    fixedCrashes: [{
+      fingerprint: "old-fingerprint",
+      revision: "old123",
+      channel: "web-prototype",
+      platform: "browser",
+      screen: "port",
+      error_name: "Error",
+      message: "Old boom",
+      reports: 3,
+      affected_installations: 2,
+      first_seen: "2026-07-24 10:00:00.000",
+      last_seen: "2026-07-24 11:00:00.000"
     }]
-  }, "2026-07-25T12:00:00.000Z");
+  }, "2026-07-25T12:00:00.000Z", "2026-07-25T11:30:00.000Z");
   assert.equal(snapshot.totals.averageSessionMinutes, 3.8);
   assert.equal(snapshot.totals.voyageStarts, 180);
   assert.equal(snapshot.totals.crashesPerThousandSessions, 5);
+  assert.deepEqual(snapshot.crashCursor, {
+    allFixedAt: "2026-07-25T11:30:00.000Z",
+    activeReports: 2,
+    historicalReports: 3
+  });
+  assert.equal(snapshot.crashes[0].message, "Boom");
+  assert.equal(snapshot.fixedCrashes[0].message, "Old boom");
   assert.deepEqual(snapshot.playtime, {
     measuredSince: "2026-08-05T05:38:00Z",
     sessions: 400,

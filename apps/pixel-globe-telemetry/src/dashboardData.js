@@ -1,3 +1,9 @@
+import {
+  analyticsCursorTimestamp,
+  normalizeCrashCursor,
+  readCrashCursor
+} from "./crashCursor.js";
+
 const DATASET = "marque_and_reprisal_game_events";
 export const ACCURATE_SESSION_PLAYTIME_SINCE = "2026-08-05 05:38:00";
 export const ACCURATE_VOYAGE_START_PROFILE = "captured-v1";
@@ -11,16 +17,18 @@ export async function fetchDashboardSnapshot(env, windowDays, {
   if (typeof fetchImpl !== "function") throw new Error("Dashboard analytics requires fetch");
   const accountId = requiredSecret(env.ANALYTICS_ACCOUNT_ID, "ANALYTICS_ACCOUNT_ID");
   const apiToken = requiredSecret(env.ANALYTICS_API_TOKEN, "ANALYTICS_API_TOKEN");
-  const queries = dashboardQueries(days);
+  const crashCursor = await readCrashCursor(env);
+  const queries = dashboardQueries(days, crashCursor);
   const entries = await Promise.all(Object.entries(queries).map(async ([name, sql]) => {
     const rows = await queryAnalyticsEngine({ accountId, apiToken, sql, fetchImpl });
     return [name, rows];
   }));
-  return buildDashboardSnapshot(days, Object.fromEntries(entries), generatedAt);
+  return buildDashboardSnapshot(days, Object.fromEntries(entries), generatedAt, crashCursor);
 }
 
-export function dashboardQueries(windowDays) {
+export function dashboardQueries(windowDays, crashCursor = null) {
   const days = validateDashboardWindow(windowDays);
+  const cursor = analyticsCursorTimestamp(crashCursor);
   const where = `
     blob4 != 'deployment-check'
     AND timestamp > NOW() - INTERVAL '${days}' DAY
@@ -170,24 +178,46 @@ export function dashboardQueries(windowDays) {
       ORDER BY sessions DESC
       LIMIT 40
     `,
-    crashes: `
+    crashStatus: `
+      SELECT
+        round(SUM(_sample_interval * if(
+          timestamp > toDateTime('${cursor}'), 1, 0
+        ))) AS active_reports,
+        round(SUM(_sample_interval * if(
+          timestamp <= toDateTime('${cursor}'), 1, 0
+        ))) AS historical_reports
+      FROM ${DATASET}
+      WHERE blob1 = 'crash' AND ${where}
+    `,
+    crashes: crashGroupsQuery(where, `timestamp > toDateTime('${cursor}')`),
+    fixedCrashes: crashGroupsQuery(where, `timestamp <= toDateTime('${cursor}')`)
+  });
+}
+
+function crashGroupsQuery(where, cursorCondition) {
+  return `
       SELECT blob13 AS fingerprint, blob3 AS revision, blob4 AS channel,
         blob5 AS platform, blob17 AS screen, blob14 AS error_name,
         blob15 AS message, count() AS reports,
         count(DISTINCT index1) AS affected_installations,
         min(timestamp) AS first_seen, max(timestamp) AS last_seen
       FROM ${DATASET}
-      WHERE blob1 = 'crash' AND ${where}
+      WHERE blob1 = 'crash' AND ${cursorCondition} AND ${where}
       GROUP BY fingerprint, revision, channel, platform, screen, error_name, message
       ORDER BY last_seen DESC, reports DESC
       LIMIT 40
-    `
-  });
+    `;
 }
 
-export function buildDashboardSnapshot(windowDays, results, generatedAt = new Date().toISOString()) {
+export function buildDashboardSnapshot(
+  windowDays,
+  results,
+  generatedAt = new Date().toISOString(),
+  crashCursor = null
+) {
   const days = validateDashboardWindow(windowDays);
-  for (const name of Object.keys(dashboardQueries(days))) {
+  const normalizedCrashCursor = normalizeCrashCursor(crashCursor);
+  for (const name of Object.keys(dashboardQueries(days, normalizedCrashCursor))) {
     if (!Array.isArray(results?.[name])) throw new Error(`Missing dashboard query result: ${name}`);
   }
   const totalsRow = results.totals[0] || {};
@@ -225,11 +255,17 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
     "trade", "fish", "scavenge", "combat", "whale", "colonize",
     "piracy", "diplomacy", "side_quests", "animals", "panda", "penguin", "raccoon"
   ];
+  const crashStatusRow = results.crashStatus[0] || {};
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: requiredString(generatedAt, "generatedAt"),
     windowDays: days,
     totals,
+    crashCursor: {
+      allFixedAt: normalizedCrashCursor,
+      activeReports: nonnegativeNumber(crashStatusRow.active_reports),
+      historicalReports: nonnegativeNumber(crashStatusRow.historical_reports)
+    },
     playtime,
     daily: results.daily.map((row) => ({
       day: requiredString(row.day, "daily day"),
@@ -289,20 +325,25 @@ export function buildDashboardSnapshot(windowDays, results, generatedAt = new Da
       revision: requiredString(row.revision, "revision"),
       sessions: nonnegativeNumber(row.sessions)
     })),
-    crashes: results.crashes.map((row) => ({
-      fingerprint: requiredString(row.fingerprint, "crash fingerprint"),
-      revision: requiredString(row.revision, "crash revision"),
-      channel: requiredString(row.channel, "crash channel"),
-      platform: requiredString(row.platform, "crash platform"),
-      screen: requiredString(row.screen, "crash screen"),
-      errorName: requiredString(row.error_name, "crash error"),
-      message: optionalString(row.message),
-      reports: nonnegativeNumber(row.reports),
-      affectedInstallations: nonnegativeNumber(row.affected_installations),
-      firstSeen: requiredString(row.first_seen, "crash first seen"),
-      lastSeen: requiredString(row.last_seen, "crash last seen")
-    }))
+    crashes: normalizeCrashRows(results.crashes),
+    fixedCrashes: normalizeCrashRows(results.fixedCrashes)
   };
+}
+
+function normalizeCrashRows(rows) {
+  return rows.map((row) => ({
+    fingerprint: requiredString(row.fingerprint, "crash fingerprint"),
+    revision: requiredString(row.revision, "crash revision"),
+    channel: requiredString(row.channel, "crash channel"),
+    platform: requiredString(row.platform, "crash platform"),
+    screen: requiredString(row.screen, "crash screen"),
+    errorName: requiredString(row.error_name, "crash error"),
+    message: optionalString(row.message),
+    reports: nonnegativeNumber(row.reports),
+    affectedInstallations: nonnegativeNumber(row.affected_installations),
+    firstSeen: requiredString(row.first_seen, "crash first seen"),
+    lastSeen: requiredString(row.last_seen, "crash last seen")
+  }));
 }
 
 export function validateDashboardWindow(value) {

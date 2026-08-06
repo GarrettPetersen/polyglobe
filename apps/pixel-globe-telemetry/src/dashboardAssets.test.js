@@ -13,3 +13,9 @@ test("voyage starts occupy a full dashboard row", () => {
 test("empty dashboard tables retain readable vertical space", () => {
   assert.match(css, /\.empty-table-cell\s*{[^}]*height:\s*112px;/s);
 });
+
+test("pre-cursor crash reports live in a collapsed disclosure", () => {
+  assert.match(html, /<details id="fixed-crashes"[^>]*hidden>/);
+  assert.match(html, /id="fixed-crash-list"/);
+  assert.match(css, /\.fixed-crashes/);
+});

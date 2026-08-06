@@ -16,7 +16,9 @@ if (!page.headers.get("content-security-policy")?.includes("frame-ancestors 'non
 const dashboardData = await fetch(`${endpoint}/api/dashboard?days=1`);
 const body = await dashboardData.json();
 if (!dashboardData.ok) throw new Error(`Dashboard API failed (${dashboardData.status})`);
-if (body.schemaVersion !== 1 || body.windowDays !== 1 || !body.totals) {
+if (body.schemaVersion !== 2 || body.windowDays !== 1 || !body.totals ||
+    typeof body.crashCursor?.activeReports !== "number" ||
+    !Array.isArray(body.crashes) || !Array.isArray(body.fixedCrashes)) {
   throw new Error("Dashboard API returned an invalid snapshot");
 }
 

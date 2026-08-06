@@ -1,4 +1,6 @@
 import { queryAnalyticsEngine } from "./analyticsEngine.mjs";
+import { readRemoteCrashCursor } from "./cloudflareKv.mjs";
+import { rememberCrashReportRead } from "./crashReadState.mjs";
 import {
   crashGroupsSql,
   crashSummarySql,
@@ -8,13 +10,20 @@ import {
 } from "./crashReport.mjs";
 
 const options = parseCrashReportArguments(process.argv.slice(2));
+const readAt = new Date().toISOString();
+const cursor = options.sinceFixed ? await readRemoteCrashCursor() : null;
 const [summaryRows, crashRows] = await Promise.all([
-  queryAnalyticsEngine(crashSummarySql(options.windowHours)),
-  queryAnalyticsEngine(crashGroupsSql(options.windowHours))
+  queryAnalyticsEngine(crashSummarySql(options.windowHours, cursor)),
+  queryAnalyticsEngine(crashGroupsSql(options.windowHours, cursor))
 ]);
 const report = createCrashReport({
   windowHours: options.windowHours,
   summaryRows,
-  crashRows
+  crashRows,
+  cursor,
+  generatedAt: readAt
 });
+if (options.sinceFixed) {
+  await rememberCrashReportRead({ readAt, previousCursor: cursor });
+}
 process.stdout.write(formatCrashReport(report, options.format));

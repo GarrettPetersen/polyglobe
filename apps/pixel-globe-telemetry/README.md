@@ -33,6 +33,8 @@ npm run verify
 npm run report
 npm run crashes -- --hours 24
 npm run crashes -- --days 7 --format json
+npm run crashes:new
+npm run crashes:mark-fixed
 ```
 
 Run `configure-secret` once after the first deployment, and again only when rotating
@@ -53,6 +55,24 @@ From the repository root:
 ```sh
 npm run --silent pixel-globe-telemetry:crashes -- --hours 48 --format json
 ```
+
+For normal crash-fixing passes, read only reports observed after the shared
+"all fixed" cursor:
+
+```sh
+npm run --silent pixel-globe-telemetry:crashes:new
+```
+
+That command remembers the report's read timestamp locally. After every reported
+failure has been addressed, advance the shared cursor to that exact timestamp:
+
+```sh
+npm run --silent pixel-globe-telemetry:crashes:mark-fixed
+```
+
+Crashes arriving while fixes are underway remain after the cursor and appear in the
+next pass. The dashboard keeps post-cursor reports open and moves reports at or before
+the cursor into a collapsed history section.
 
 ## Dashboard
 

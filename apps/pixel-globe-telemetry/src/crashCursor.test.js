@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  analyticsCursorTimestamp,
+  normalizeCrashCursor,
+  readCrashCursor
+} from "./crashCursor.js";
+
+test("crash cursors normalize to unambiguous UTC timestamps", () => {
+  assert.equal(normalizeCrashCursor(null), null);
+  assert.equal(
+    normalizeCrashCursor("2026-08-05 12:34:56Z"),
+    "2026-08-05T12:34:56.000Z"
+  );
+  assert.equal(
+    analyticsCursorTimestamp("2026-08-05T12:34:56.789Z"),
+    "2026-08-05 12:34:56"
+  );
+  assert.throws(() => normalizeCrashCursor("last Tuesday"), /Invalid telemetry crash cursor/);
+});
+
+test("crash cursors are read from the shared telemetry state", async () => {
+  assert.equal(await readCrashCursor({
+    TELEMETRY_STATE: { get: async () => "2026-08-05T12:34:56.000Z" }
+  }), "2026-08-05T12:34:56.000Z");
+  await assert.rejects(() => readCrashCursor({}), /requires TELEMETRY_STATE KV/);
+});

@@ -425,6 +425,23 @@ tbody tr:hover {
   gap: 9px;
 }
 
+.fixed-crashes {
+  margin-top: 14px;
+  border-top: 1px solid rgba(138, 106, 66, 0.45);
+  padding-top: 10px;
+}
+
+.fixed-crashes summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fixed-crashes[open] summary {
+  margin-bottom: 10px;
+}
+
 .crash-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -432,6 +449,15 @@ tbody tr:hover {
   padding: 11px 12px;
   border-left: 4px solid var(--rust);
   background: rgba(215, 189, 131, 0.38);
+}
+
+.crash-card.fixed {
+  border-left-color: var(--rule);
+  opacity: 0.76;
+}
+
+.crash-card.fixed .crash-count {
+  color: var(--ink-muted);
 }
 
 .crash-card h3 {

@@ -56,7 +56,7 @@ function renderDashboard(data) {
   renderStarts(data.starts);
   renderChannels(data.channels);
   renderEnvironments(data.environments);
-  renderCrashes(data.crashes, data.totals.crashes);
+  renderCrashes(data.crashes, data.fixedCrashes, data.crashCursor);
 }
 
 function renderPlaytime(playtime) {
@@ -381,13 +381,42 @@ function renderEnvironments(rows) {
   }
 }
 
-function renderCrashes(rows, totalCrashes) {
+function renderCrashes(rows, fixedRows, cursor) {
   const target = document.querySelector("#crash-list");
+  const fixedSection = document.querySelector("#fixed-crashes");
+  const fixedTarget = document.querySelector("#fixed-crash-list");
   target.replaceChildren();
-  setText("crash-summary", `${compact(totalCrashes)} reports`);
-  if (rows.length === 0) return target.append(emptyState("No crashes reported in this period."));
+  fixedTarget.replaceChildren();
+  setText("crash-summary", cursor?.allFixedAt
+    ? `${compact(cursor.activeReports)} reports since last fix pass`
+    : `${compact(cursor?.activeReports || 0)} reports`);
+  if (rows.length === 0) {
+    target.append(emptyState(cursor?.allFixedAt
+      ? `No crashes reported since ${formatDateTime(cursor.allFixedAt)}.`
+      : "No crashes reported in this period."));
+  } else {
+    renderCrashCards(target, rows, false);
+  }
+  const showHistory = Boolean(cursor?.allFixedAt) &&
+    (fixedRows.length > 0 || cursor.historicalReports > 0);
+  fixedSection.hidden = !showHistory;
+  fixedSection.open = false;
+  if (!showHistory) return;
+  setText(
+    "fixed-crash-summary",
+    `${compact(cursor.historicalReports)} earlier reports through ` +
+      `${formatDateTime(cursor.allFixedAt)} (collapsed)`
+  );
+  if (fixedRows.length === 0) {
+    fixedTarget.append(emptyState("No earlier crash groups in this reporting window."));
+  } else {
+    renderCrashCards(fixedTarget, fixedRows, true);
+  }
+}
+
+function renderCrashCards(target, rows, fixed) {
   for (const row of rows) {
-    const card = element("article", "crash-card");
+    const card = element("article", `crash-card${fixed ? " fixed" : ""}`);
     const copy = document.createElement("div");
     const heading = document.createElement("h3");
     heading.textContent = `${row.errorName}: ${row.message || "(no message)"}`;

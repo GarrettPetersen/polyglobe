@@ -1,4 +1,5 @@
 import { ANALYTICS_ENGINE_DATASET } from "./analyticsEngine.mjs";
+import { analyticsCursorTimestamp, normalizeCrashCursor } from "../src/crashCursor.js";
 
 const DEFAULT_WINDOW_HOURS = 24;
 const MAX_WINDOW_HOURS = 90 * 24;
@@ -8,6 +9,7 @@ export function parseCrashReportArguments(args) {
   if (!Array.isArray(args)) throw new Error("Crash report arguments must be an array");
   let windowHours = DEFAULT_WINDOW_HOURS;
   let format = "human";
+  let sinceFixed = false;
   let windowWasSet = false;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -29,12 +31,16 @@ export function parseCrashReportArguments(args) {
       index += 1;
       continue;
     }
+    if (argument === "--since-fixed") {
+      sinceFixed = true;
+      continue;
+    }
     throw new Error(`Unknown crash report argument: ${argument}`);
   }
-  return { windowHours, format };
+  return { windowHours, format, sinceFixed };
 }
 
-export function crashSummarySql(windowHours) {
+export function crashSummarySql(windowHours, after = null) {
   const interval = validatedWindowHours(windowHours);
   return `
     SELECT count() AS reports,
@@ -46,10 +52,11 @@ export function crashSummarySql(windowHours) {
     WHERE blob1 = 'crash'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${interval}' HOUR
+      ${afterCursorSql(after)}
   `.trim();
 }
 
-export function crashGroupsSql(windowHours) {
+export function crashGroupsSql(windowHours, after = null) {
   const interval = validatedWindowHours(windowHours);
   return `
     SELECT blob13 AS fingerprint, blob3 AS revision, blob4 AS channel,
@@ -64,6 +71,7 @@ export function crashGroupsSql(windowHours) {
     WHERE blob1 = 'crash'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${interval}' HOUR
+      ${afterCursorSql(after)}
     GROUP BY fingerprint, revision, channel, platform, locale, game_state_version,
       screen, error_name, message, stack, main_quest, ship
     ORDER BY reports DESC, last_seen DESC
@@ -74,6 +82,7 @@ export function createCrashReport({
   windowHours,
   summaryRows,
   crashRows,
+  cursor = null,
   generatedAt = new Date().toISOString()
 }) {
   const interval = validatedWindowHours(windowHours);
@@ -129,9 +138,10 @@ export function createCrashReport({
     );
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: requiredString(generatedAt, "report generation time"),
     windowHours: interval,
+    cursor: normalizeCrashCursor(cursor),
     summary,
     crashes
   };
@@ -142,6 +152,7 @@ export function formatCrashReport(report, format) {
   if (format === "json") return `${JSON.stringify(report, null, 2)}\n`;
   const lines = [
     `Marque & Reprisal crash telemetry, last ${report.windowHours} hours`,
+    report.cursor ? `Only reports after all-fixed cursor ${report.cursor}` : "All reports in window",
     `${report.summary.reports} reports across ${report.crashes.length} context groups; ` +
       `${report.summary.affectedInstallations} affected installations`
   ];
@@ -162,6 +173,13 @@ export function formatCrashReport(report, format) {
     );
   }
   return `${lines.join("\n")}\n`;
+}
+
+function afterCursorSql(value) {
+  const cursor = normalizeCrashCursor(value);
+  return cursor === null
+    ? ""
+    : `AND timestamp > toDateTime('${analyticsCursorTimestamp(cursor)}')`;
 }
 
 function validatedWindowHours(value) {
