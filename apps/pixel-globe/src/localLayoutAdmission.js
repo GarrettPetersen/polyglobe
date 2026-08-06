@@ -180,7 +180,8 @@ function directlyProtectedAdmissionFrames({
   fallbackFrame,
   targetFrame,
   maxProtectedCorrectionPx,
-  protectedCorrectionViewportIds
+  protectedCorrectionViewportIds,
+  liveViewportAdmissionIds
 }) {
   const pendingDirectIds = new Set(pending.filter((id) => protectionById[id] === 255));
   if (pendingDirectIds.size === 0) return new Map();
@@ -211,7 +212,10 @@ function directlyProtectedAdmissionFrames({
         directProtectionComponentById,
         globalComponentId
       }));
-      if (retainedIds.length === 0) {
+      const entersLiveViewport = pendingComponentIds.some((id) => (
+        liveViewportAdmissionIds?.has(id)
+      ));
+      if (retainedIds.length === 0 && !entersLiveViewport) {
         for (const id of pendingComponentIds) frameByPendingId.set(id, targetFrame);
         continue;
       }
@@ -250,6 +254,7 @@ function directlyProtectedAdmissionFrames({
       neighborsById,
       protectionById,
       protectedCorrectionViewportIds,
+      liveViewportAdmissionIds,
       visibleLimitPx: maxProtectedCorrectionPx
     });
     for (const id of pendingComponentIds) {
@@ -280,10 +285,14 @@ function gradedProtectedCorrectionLimits({
   neighborsById,
   protectionById,
   protectedCorrectionViewportIds,
+  liveViewportAdmissionIds,
   visibleLimitPx
 }) {
   if (protectedCorrectionViewportIds === null) {
-    return new Map(pendingIds.map((id) => [id, visibleLimitPx]));
+    return new Map(pendingIds.map((id) => [
+      id,
+      liveViewportAdmissionIds?.has(id) ? 0 : visibleLimitPx
+    ]));
   }
   const pendingSet = new Set(pendingIds);
   const distanceById = new Map();
@@ -310,7 +319,9 @@ function gradedProtectedCorrectionLimits({
   }
   return new Map(pendingIds.map((id) => [
     id,
-    distanceById.has(id)
+    liveViewportAdmissionIds?.has(id)
+      ? 0
+      : distanceById.has(id)
       ? visibleLimitPx * (distanceById.get(id) + 1)
       : Number.POSITIVE_INFINITY
   ]));
@@ -458,7 +469,8 @@ export function admitProjectedTiles({
   correctElasticTilesNorthUp = false,
   maxElasticCorrectionPx = MAX_ELASTIC_FRAME_CORRECTION_PX,
   maxProtectedCorrectionPx = 0,
-  protectedCorrectionViewportIds = null
+  protectedCorrectionViewportIds = null,
+  liveViewportAdmissionIds = null
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
@@ -495,6 +507,9 @@ export function admitProjectedTiles({
     !(protectedCorrectionViewportIds instanceof Set)
   ) {
     throw new Error("Protected local layout correction viewport ids must be a set");
+  }
+  if (liveViewportAdmissionIds !== null && !(liveViewportAdmissionIds instanceof Set)) {
+    throw new Error("Live viewport admission ids must be a set");
   }
   const pending = [...pendingIds];
   if (new Set(pending).size !== pending.length) {
@@ -548,7 +563,8 @@ export function admitProjectedTiles({
     fallbackFrame: registeredFrame,
     targetFrame: translatedFrame,
     maxProtectedCorrectionPx,
-    protectedCorrectionViewportIds
+    protectedCorrectionViewportIds,
+    liveViewportAdmissionIds
   });
   let admitted = 0;
   for (const id of pending) {
@@ -559,6 +575,7 @@ export function admitProjectedTiles({
     const projected = projectedById.get(id);
     assertFinitePoint(projected, `Projected position for pending tile ${id}`);
     const protectedFrame = protectedFrameById.get(id);
+    const entersLiveViewport = liveViewportAdmissionIds?.has(id) ?? false;
     positions.set(
       id,
       protectedFrame
@@ -568,8 +585,10 @@ export function admitProjectedTiles({
           registeredFrame,
           translatedFrame,
           protectionById[id],
-          maxElasticCorrectionPx,
-          protectedCorrectionViewportIds === null || protectedCorrectionViewportIds.has(id)
+          entersLiveViewport ? 0 : maxElasticCorrectionPx,
+          entersLiveViewport
+            ? 0
+            : protectedCorrectionViewportIds === null || protectedCorrectionViewportIds.has(id)
             ? maxProtectedCorrectionPx
             : Number.POSITIVE_INFINITY
         )

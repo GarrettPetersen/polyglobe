@@ -170,6 +170,34 @@ test("a quiet interval can admit ocean without applying a north-up jump", () => 
   assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
 });
 
+test("stitching corrects offscreen tiles but never a tile entering the live viewport", () => {
+  const offscreen = rotatedAdmissionPoints(60);
+  const live = rotatedAdmissionPoints(60);
+  const topology = admissionTopology(3, [[0, 1], [1, 2]], 0);
+  const args = {
+    pendingIds: [2],
+    anchorId: 0,
+    ...topology,
+    registrationIds: new Set([0, 1]),
+    correctElasticTilesNorthUp: true
+  };
+
+  admitProjectedTiles({
+    positions: offscreen.positions,
+    projectedById: offscreen.projectedById,
+    ...args
+  });
+  admitProjectedTiles({
+    positions: live.positions,
+    projectedById: live.projectedById,
+    ...args,
+    liveViewportAdmissionIds: new Set([2])
+  });
+
+  assert.notDeepEqual(offscreen.positions.get(2), { x: 48, y: 0 });
+  assert.deepEqual(live.positions.get(2), { x: 48, y: 0 });
+});
+
 test("visible ocean settles only inside an opposing presented swell movement", () => {
   const positions = new Map([
     [0, { x: 50, y: 50 }],
@@ -237,8 +265,10 @@ test("the same correction keeps protected geography rigidly attached", () => {
 test("new protected geometry moves no visible tile more than two pixels", () => {
   const rigid = rotatedAdmissionPoints(10);
   const corrected = rotatedAdmissionPoints(10);
+  const live = rotatedAdmissionPoints(10);
   rigid.projectedById.set(3, rotatePoint({ x: 72, y: 0 }, 10));
   corrected.projectedById.set(3, rotatePoint({ x: 72, y: 0 }, 10));
+  live.projectedById.set(3, rotatePoint({ x: 72, y: 0 }, 10));
   const topology = admissionTopology(4, [[0, 1], [1, 2], [2, 3]], 255);
 
   admitProjectedTiles({
@@ -256,6 +286,15 @@ test("new protected geometry moves no visible tile more than two pixels", () => 
     ...topology,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX
   });
+  admitProjectedTiles({
+    positions: live.positions,
+    projectedById: live.projectedById,
+    pendingIds: [2, 3],
+    anchorId: 0,
+    ...topology,
+    maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    liveViewportAdmissionIds: new Set([2, 3])
+  });
 
   assert.ok(
     corrected.positions.get(3).y > rigid.positions.get(3).y,
@@ -268,6 +307,11 @@ test("new protected geometry moves no visible tile more than two pixels", () => 
       Math.hypot(adjusted.x - baseline.x, adjusted.y - baseline.y) <=
         MAX_PROTECTED_ADMISSION_SLACK_PX,
       `Protected tile ${id} exceeded its visible two-pixel admission allowance`
+    );
+    assert.deepEqual(
+      live.positions.get(id),
+      baseline,
+      `Protected tile ${id} stitched after entering the live viewport`
     );
   }
 });
@@ -1051,7 +1095,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         ? MAX_ELASTIC_FRAME_CORRECTION_PX
         : 0,
       maxProtectedCorrectionPx,
-      protectedCorrectionViewportIds: correctionViewportIds
+      protectedCorrectionViewportIds: correctionViewportIds,
+      liveViewportAdmissionIds: correctionViewportIds
     };
     if (maxProtectedCorrectionPx > 0) {
       const rigidPositions = new Map(

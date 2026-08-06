@@ -28535,7 +28535,8 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
       ? MAX_ELASTIC_FRAME_CORRECTION_PX
       : 0,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
-    protectedCorrectionViewportIds: correctionViewportIds
+    protectedCorrectionViewportIds: correctionViewportIds,
+    liveViewportAdmissionIds: correctionViewportIds
   });
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
 }
