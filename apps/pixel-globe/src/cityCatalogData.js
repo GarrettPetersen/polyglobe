@@ -19,6 +19,7 @@ export const CITY_MAX_COUNT = 480;
 export const CITY_DATA_URL = "shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
 
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
+  ["augsberg|germany", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Augsburg" }]],
   ["texcoco|mexico", [{ throughYear: 1522, displayCity: "Tezcoco" }]],
   ["merida|mexico", [{ throughYear: 1541, displayCity: "Tiho" }]],
   ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]]

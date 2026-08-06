@@ -87,6 +87,13 @@ const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync
   "utf8"
 )));
 
+test("city catalog corrects Augsburg without changing its stable source identity", () => {
+  const augsburg = CITY_CATALOG.find((city) => city.city === "Augsberg" && city.country === "Germany");
+  assert.ok(augsburg);
+  assert.equal(augsburg.displayCity, "Augsburg");
+  assert.equal(augsburg.cityId, "augsberg|germany");
+});
+
 test("voyage seeds vary initial markets while remaining deterministic", () => {
   const first = createWorldEconomy({
     ports: [LONDON, GOA, TERNATE],
