@@ -39,6 +39,7 @@ const SOURCE_GINGER_ABUNDANCE_PRICE_MULTIPLIER = 0.4;
 const SOURCE_SPICE_MINIMUM_TARGET_STOCK = 80;
 const CRITICAL_STOCK_PRICE_THRESHOLD_RATIO = 0.75;
 const CRITICAL_STOCK_PRICE_EXPONENT = 1.25;
+const STOCK_FLOAT_EPSILON = 1e-9;
 const MINT_FEE_RATE = 0.05;
 const SPECIE_METAL_GOOD_IDS = new Set(["gold", "silver"]);
 const WORLD_MARKET_MEDIAN_CACHE = new WeakMap();
@@ -799,9 +800,7 @@ export function restoreWorldEconomy(economy, snapshot, { seedKey = economy?.seed
       if (!good) throw new Error(`Saved economy good is missing: ${saved.id}/${goodId}`);
       if (savedGoodIds.has(goodId)) throw new Error(`Duplicate saved stock: ${saved.id}/${goodId}`);
       savedGoodIds.add(goodId);
-      if (!Number.isFinite(stock) || stock < 0) {
-        throw new Error(`Invalid saved stock: ${saved.id}/${goodId}=${stock}`);
-      }
+      normalizedEconomyStock(stock, `saved stock: ${saved.id}/${goodId}`);
     }
   }
   economy.seedKey = seedKey;
@@ -811,7 +810,12 @@ export function restoreWorldEconomy(economy, snapshot, { seedKey = economy?.seed
     for (const [goodId, productionPerDay] of saved.industries || []) {
       establishIndustryAtPort(port, goodId, productionPerDay, 0);
     }
-    for (const [goodId, stock] of saved.stocks) port.goods.get(goodId).stock = stock;
+    for (const [goodId, stock] of saved.stocks) {
+      port.goods.get(goodId).stock = normalizedEconomyStock(
+        stock,
+        `saved stock: ${saved.id}/${goodId}`
+      );
+    }
     const savedTargetSpecie = saved.targetSpecie ?? legacyTargetSpecie(port);
     port.specie = saved.specie * port.targetSpecie / savedTargetSpecie;
   }
@@ -889,10 +893,7 @@ export function restorePortTradeState(economy, city, snapshot) {
   }
   for (const [goodId, state] of port.goods.entries()) {
     const stock = snapshot.stocks[goodId];
-    if (!Number.isFinite(stock) || stock < 0) {
-      throw new Error(`Invalid market undo stock for ${port.name}: ${goodId}=${stock}`);
-    }
-    state.stock = stock;
+    state.stock = normalizedEconomyStock(stock, `market undo stock for ${port.name}: ${goodId}`);
   }
   port.specie = snapshot.specie;
   invalidateWorldMarketMedianCache(economy);
@@ -1321,12 +1322,19 @@ function advancePortEconomy(port, elapsedDays) {
         produced = Math.min(produced, port.goods.get(inputGoodId).stock / unitsPerOutput);
       }
       for (const [inputGoodId, unitsPerOutput] of Object.entries(inputs)) {
-        port.goods.get(inputGoodId).stock -= produced * unitsPerOutput;
+        const inputState = port.goods.get(inputGoodId);
+        inputState.stock = normalizedEconomyStock(
+          inputState.stock - produced * unitsPerOutput,
+          `industrial input stock for ${port.name}: ${inputGoodId}`
+        );
       }
     }
     state.stock += produced;
     const consumed = Math.min(state.stock, state.householdConsumptionPerDay * elapsedDays);
-    state.stock -= consumed;
+    state.stock = normalizedEconomyStock(
+      state.stock - consumed,
+      `household stock for ${port.name}: ${good.id}`
+    );
     const price = marketPrice(port, good, state.stock, currentSpeciePriceMultiplier).midPrice;
     localCashFlow += consumed * price * 0.38;
     localCashFlow -= produced * price * 0.32;
@@ -1678,6 +1686,13 @@ function assertEconomy(economy) {
       (economy.seedKey !== null && (typeof economy.seedKey !== "string" || economy.seedKey.trim() === ""))) {
     throw new Error("Invalid world economy");
   }
+}
+
+function normalizedEconomyStock(value, label) {
+  if (!Number.isFinite(value) || value < -STOCK_FLOAT_EPSILON) {
+    throw new Error(`Invalid ${label}=${value}`);
+  }
+  return Math.max(0, value);
 }
 
 function economySeedKey(seedKey, value) {

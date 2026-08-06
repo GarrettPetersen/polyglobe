@@ -23460,7 +23460,6 @@ function maybeOpenPortugueseCartazInspection(simMinute) {
       distance <= NPC_HAIL_RADIUS_PX
     ))
     .sort((a, b) => a.distance - b.distance || a.state.id.localeCompare(b.state.id));
-  let inspectionHistoryChanged = false;
   for (const { state } of inspectors) {
     const inspection = portugueseCartazInspectionStatus(gameState, {
       npcShipId: state.id,
@@ -23505,6 +23504,7 @@ function maybeOpenIllicitTradeInspection(simMinute) {
       distance <= NPC_HAIL_RADIUS_PX
     ))
     .sort((a, b) => a.distance - b.distance || a.state.id.localeCompare(b.state.id));
+  let inspectionHistoryChanged = false;
   for (const { state } of inspectors) {
     const incident = illicitTradeIncidentForInspection(memory, state.factionId, state.id, simMinute);
     if (!incident) continue;

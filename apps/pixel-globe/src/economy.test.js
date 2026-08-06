@@ -1134,6 +1134,24 @@ test("economy snapshots restore stocks, specie, clocks, and shipyards", () => {
   assert.equal(economy.shipyards.lastMinute, snapshot.shipyards.lastMinute);
 });
 
+test("economy restore clamps floating-point stock residue but rejects real deficits", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const snapshot = snapshotWorldEconomy(economy);
+  const savedLondon = snapshot.ports[0];
+  const paperStock = savedLondon.stocks.find(([goodId]) => goodId === PAPER_GOOD_ID);
+  assert.ok(paperStock);
+
+  paperStock[1] = -Number.EPSILON;
+  restoreWorldEconomy(economy, snapshot);
+  assert.equal(marketByGood(economy, LONDON).get(PAPER_GOOD_ID).stock, 0);
+
+  paperStock[1] = -0.01;
+  assert.throws(
+    () => restoreWorldEconomy(economy, snapshot),
+    /Invalid saved stock/
+  );
+});
+
 test("legacy economy saves preserve each port's relative cash health", () => {
   const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
   const snapshot = snapshotWorldEconomy(economy);
