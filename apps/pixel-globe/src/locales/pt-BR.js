@@ -54,6 +54,7 @@ export default {
   "options.exitFullscreen": "SAIR DA TELA CHEIA",
   "options.fullscreenUnavailable": "TELA CHEIA INDISPONÍVEL",
   "options.returnToMainMenu": "VOLTAR AO MENU PRINCIPAL",
+  "options.quitGame": "SAIR DO JOGO",
   "telemetry.title": "AJUDAR A MELHORAR O JOGO?",
   "telemetry.body": "Compartilhar estatísticas de jogo e relatórios de falha anônimos? Um ID de instalação aleatório mede jogadores e retenção. Não armazenamos nomes, IDs de conta, endereços IP, jogos salvos nem dados de anúncios. Os relatórios expiram após três meses. Altere a qualquer momento nas Opções.",
   "telemetry.decline": "NÃO, OBRIGADO",

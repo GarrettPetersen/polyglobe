@@ -75,6 +75,8 @@ async function createGameWindow(url) {
     }
   });
   window.setMenuBarVisibility(false);
+  window.on("blur", () => sendPauseRequest(window, "focus-lost"));
+  window.on("minimize", () => sendPauseRequest(window, "minimized"));
   window.once("ready-to-show", () => window.show());
   await window.loadURL(url);
   steamInputTimer = setInterval(() => {
@@ -94,6 +96,11 @@ function installIpcHandlers() {
   ipcMain.handle("steam:add-timeline-event", (_event, event) => nativeApi.addTimelineEvent(event));
   ipcMain.handle("steam:trigger-screenshot", () => nativeApi.triggerScreenshot());
   ipcMain.handle("steam:set-input-action-set", (_event, name) => steamInput.setActionSet(name));
+  ipcMain.handle("steam:quit", () => app.quit());
+}
+
+function sendPauseRequest(window, reason) {
+  if (!window.isDestroyed()) window.webContents.send("steam:pause-request", reason);
 }
 
 function currentGameLanguage() {

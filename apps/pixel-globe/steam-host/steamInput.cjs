@@ -39,17 +39,23 @@ exportForCommonJs();
 
 function createSteamInputService(input) {
   assertInputApi(input);
-  const actionSets = Object.fromEntries(ACTION_SET_NAMES.map((name) => [name, input.getActionSet(name)]));
+  const actionSets = Object.fromEntries(ACTION_SET_NAMES.map((name) => [
+    name,
+    requiredActionHandle(input.getActionSet(name), `action set ${name}`)
+  ]));
   const digitalActions = Object.fromEntries(
     [...new Set([
       ...Object.values(DIGITAL_BUTTONS).flatMap((buttons) => Object.keys(buttons)),
       ...Object.values(DIGITAL_DIRECTIONS).flatMap((directions) => Object.values(directions))
-    ])].map((name) => [name, input.getDigitalAction(name)])
+    ])].map((name) => [
+      name,
+      requiredActionHandle(input.getDigitalAction(name), `digital action ${name}`)
+    ])
   );
   const analogActions = Object.freeze({
-    steer: input.getAnalogAction("steer"),
-    navigate: input.getAnalogAction("navigate"),
-    scroll: input.getAnalogAction("scroll")
+    steer: requiredActionHandle(input.getAnalogAction("steer"), "analog action steer"),
+    navigate: requiredActionHandle(input.getAnalogAction("navigate"), "analog action navigate"),
+    scroll: requiredActionHandle(input.getAnalogAction("scroll"), "analog action scroll")
   });
   let activeActionSet = "Menus";
 
@@ -116,6 +122,13 @@ function assertInputApi(input) {
   for (const method of ["getActionSet", "getDigitalAction", "getAnalogAction", "getControllers"]) {
     if (typeof input?.[method] !== "function") throw new Error(`Steam Input API has no ${method} function`);
   }
+}
+
+function requiredActionHandle(handle, label) {
+  if (handle === null || handle === undefined || handle === 0 || handle === 0n || handle === "") {
+    throw new Error(`Steam Input returned no handle for ${label}; check the bundled action manifest`);
+  }
+  return handle;
 }
 
 function exportForCommonJs() {

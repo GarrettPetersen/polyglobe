@@ -1,5 +1,9 @@
 "Action Manifest"
 {
+  "major_revision" "1"
+  "minor_revision" "1"
+  "major_revision_affects_xinput" "1"
+  "major_revision_affects_mousekb" "0"
   "configurations"
   {
     "controller_neptune" { "0" { "path" "standard_gamepad.vdf" } }
@@ -35,18 +39,18 @@
       }
       "Button"
       {
-        "steer_up" { "title" "#Action_SteerUp" }
-        "steer_down" { "title" "#Action_SteerDown" }
-        "steer_left" { "title" "#Action_SteerLeft" }
-        "steer_right" { "title" "#Action_SteerRight" }
-        "sailing_confirm" { "title" "#Action_Confirm" }
-        "sailing_back" { "title" "#Action_Back" }
-        "anchor" { "title" "#Action_Anchor" }
-        "sailing_secondary" { "title" "#Action_Secondary" }
-        "cycle_target" { "title" "#Action_CycleTarget" }
-        "captain_menu" { "title" "#Action_CaptainMenu" }
-        "fire_port" { "title" "#Action_FirePort" }
-        "fire_starboard" { "title" "#Action_FireStarboard" }
+        "steer_up" "#Action_SteerUp"
+        "steer_down" "#Action_SteerDown"
+        "steer_left" "#Action_SteerLeft"
+        "steer_right" "#Action_SteerRight"
+        "sailing_confirm" "#Action_Confirm"
+        "sailing_back" "#Action_Back"
+        "anchor" "#Action_Anchor"
+        "sailing_secondary" "#Action_Secondary"
+        "cycle_target" "#Action_CycleTarget"
+        "captain_menu" "#Action_CaptainMenu"
+        "fire_port" "#Action_FirePort"
+        "fire_starboard" "#Action_FireStarboard"
       }
     }
     "Menus"
@@ -68,15 +72,15 @@
       }
       "Button"
       {
-        "navigate_up" { "title" "#Action_NavigateUp" }
-        "navigate_down" { "title" "#Action_NavigateDown" }
-        "navigate_left" { "title" "#Action_NavigateLeft" }
-        "navigate_right" { "title" "#Action_NavigateRight" }
-        "menu_confirm" { "title" "#Action_Confirm" }
-        "menu_back" { "title" "#Action_Back" }
-        "menu_secondary" { "title" "#Action_Secondary" }
-        "previous_page" { "title" "#Action_PreviousPage" }
-        "next_page" { "title" "#Action_NextPage" }
+        "navigate_up" "#Action_NavigateUp"
+        "navigate_down" "#Action_NavigateDown"
+        "navigate_left" "#Action_NavigateLeft"
+        "navigate_right" "#Action_NavigateRight"
+        "menu_confirm" "#Action_Confirm"
+        "menu_back" "#Action_Back"
+        "menu_secondary" "#Action_Secondary"
+        "previous_page" "#Action_PreviousPage"
+        "next_page" "#Action_NextPage"
       }
     }
   }

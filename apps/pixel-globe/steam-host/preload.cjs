@@ -21,7 +21,12 @@ contextBridge.exposeInMainWorld("marqueSteamPlatform", Object.freeze({
   setTimelineState: (state) => ipcRenderer.invoke("steam:set-timeline-state", state),
   addTimelineEvent: (event) => ipcRenderer.invoke("steam:add-timeline-event", event),
   triggerScreenshot: () => ipcRenderer.invoke("steam:trigger-screenshot"),
-  updateStats: (values) => ipcRenderer.invoke("steam:update-stats", values)
+  updateStats: (values) => ipcRenderer.invoke("steam:update-stats", values),
+  onPauseRequested: (callback) => {
+    if (typeof callback !== "function") throw new Error("Steam pause listener must be a function");
+    ipcRenderer.on("steam:pause-request", (_event, reason) => callback(reason));
+  },
+  quitGame: () => ipcRenderer.invoke("steam:quit")
 }));
 
 if (edition === "full") {

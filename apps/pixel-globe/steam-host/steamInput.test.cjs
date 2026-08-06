@@ -46,3 +46,12 @@ test("Steam sailing activates its own action set and rejects invented sets", () 
   assert.deepEqual(frame.axes, [-1, -1, 0, 0]);
   assert.throws(() => service.setActionSet("Inventory"), /Unknown Steam Input action set/);
 });
+
+test("Steam Input rejects missing action handles at startup", () => {
+  const harness = inputHarness();
+  harness.input.getDigitalAction = (name) => name === "menu_confirm" ? 0n : name;
+  assert.throws(
+    () => createSteamInputService(harness.input),
+    /no handle for digital action menu_confirm/
+  );
+});

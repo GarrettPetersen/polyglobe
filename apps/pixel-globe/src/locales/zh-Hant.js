@@ -54,6 +54,7 @@ export default {
   "options.exitFullscreen": "離開全螢幕",
   "options.fullscreenUnavailable": "無法使用全螢幕",
   "options.returnToMainMenu": "返回主選單",
+  "options.quitGame": "離開遊戲",
   "telemetry.title": "協助改善遊戲？",
   "telemetry.body": "是否分享匿名遊玩統計與當機報告？隨機安裝編號用於統計玩家數量與留存率。我們不會儲存姓名、帳戶編號、IP 位址、存檔或廣告資料。報告會在三個月後刪除。可隨時在選項中更改。",
   "telemetry.decline": "不用，謝謝",

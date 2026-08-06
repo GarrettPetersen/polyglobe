@@ -54,6 +54,7 @@ export default {
   "options.exitFullscreen": "QUITTER LE PLEIN ÉCRAN",
   "options.fullscreenUnavailable": "PLEIN ÉCRAN INDISPONIBLE",
   "options.returnToMainMenu": "RETOUR AU MENU PRINCIPAL",
+  "options.quitGame": "QUITTER LE JEU",
   "telemetry.title": "AMÉLIORER LE JEU ?",
   "telemetry.body": "Partager des statistiques de jeu et rapports de plantage anonymes ? Un identifiant d'installation aléatoire mesure le nombre de joueurs et leur fidélité. Aucun nom, identifiant de compte, adresse IP, sauvegarde ou donnée publicitaire n'est stocké. Les rapports expirent après trois mois. Modifiable dans Options.",
   "telemetry.decline": "NON, MERCI",

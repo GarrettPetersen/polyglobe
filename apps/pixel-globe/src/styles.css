@@ -41,6 +41,11 @@ body {
   font-family: "Silkscreen", monospace;
 }
 
+html.controller-input-active,
+html.controller-input-active * {
+  cursor: none !important;
+}
+
 body {
   display: grid;
   place-items: center;

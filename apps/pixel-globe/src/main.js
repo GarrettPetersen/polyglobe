@@ -1558,6 +1558,10 @@ import {
 } from "./freshWaterAccess.js";
 import { gamepadControlFrame, gamepadMenuNavigationFrame } from "./controllerInput.js";
 import {
+  createControllerConnectionMonitor,
+  observeControllerConnection
+} from "./controllerLifecycle.js";
+import {
   CONTROLLER_FAMILY,
   CONTROLLER_GLYPH_PREFERENCE,
   controllerFamilyForGamepad,
@@ -2711,6 +2715,8 @@ let controllerInteractionTargetKey = null;
 let activeControllerGamepad = null;
 let activeControllerFamily = CONTROLLER_FAMILY.GENERIC;
 let activeSteamInputActionSet = null;
+const controllerConnectionMonitor = createControllerConnectionMonitor();
+let controllerOwnsCursor = false;
 let graph;
 let directionIndex;
 let earthRows;
@@ -3040,6 +3046,7 @@ let dirty = true;
 let lastFrameMs = performance.now();
 let lastSessionFrameMs = lastFrameMs;
 let nextGameFrameMs = null;
+let regularGameLoopStarted = false;
 const sessionActivityState = createSessionActivityState(lastFrameMs);
 let frameRateOverlayEnabled = false;
 const frameRateMeter = createFrameRateMeter();
@@ -3083,7 +3090,7 @@ gameTelemetry.start();
 fitCanvasToDisplay();
 window.addEventListener("resize", fitCanvasToDisplay);
 window.visualViewport?.addEventListener("resize", fitCanvasToDisplay);
-window.addEventListener("blur", clearSessionHeldControls);
+window.addEventListener("blur", handleWindowBlur);
 document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
 document.addEventListener("visibilitychange", resetSessionFrameClock);
@@ -3095,6 +3102,7 @@ window.addEventListener("error", (event) => {
 window.addEventListener("unhandledrejection", (event) => {
   gameTelemetry.captureCrash(event.reason, telemetryCrashContext());
 });
+steamPlatformBridge?.onPauseRequested(handleSteamPlatformPauseRequest);
 
 window.addEventListener("keydown", (event) => {
   noteCurrentSessionActivity();
@@ -3202,6 +3210,7 @@ canvas.addEventListener("wheel", handleCanvasWheel, { passive: false });
 window.addEventListener("pointerup", handlePointerUp);
 window.addEventListener("pointercancel", handlePointerUp);
 
+requestAnimationFrame(pollControllerDuringStartup);
 main().catch((err) => {
   console.error(err);
   gameTelemetry.captureCrash(err, telemetryCrashContext("startup"));
@@ -3707,6 +3716,7 @@ async function main() {
   if (PERFORMANCE_BENCHMARK) setupPerformanceBenchmark();
   else if (CAPTURE_SCENARIO) setupCaptureMode();
   if (!CAPTURE_FRAME_PASS) {
+    regularGameLoopStarted = true;
     requestAnimationFrame((nowMs) => {
       loop(nowMs);
       capsuleLoadingScreen.finish();
@@ -5199,6 +5209,12 @@ function loop(nowMs) {
       }
     }
   }
+}
+
+function pollControllerDuringStartup(nowMs) {
+  if (regularGameLoopStarted) return;
+  if (telemetryConsentModal) pollGamepadControls(nowMs);
+  requestAnimationFrame(pollControllerDuringStartup);
 }
 
 function telemetryCrashContext(screenOverride = null) {
@@ -11031,6 +11047,14 @@ function returnToStartMenuFromOptions() {
   return true;
 }
 
+function activateOptionsExitRow() {
+  if (startMenu && steamPlatformBridge) {
+    void steamPlatformBridge.quitGame();
+    return true;
+  }
+  return returnToStartMenuFromOptions();
+}
+
 function resetCaptainChartView() {
   captainMenu.mapZoomIndex = 0;
   recenterCaptainChartMap();
@@ -11388,7 +11412,7 @@ function handleOptionsKeyDown(event) {
     }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS) openKeyBindingsMenu();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY) toggleAnonymousTelemetry();
-    if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) returnToStartMenuFromOptions();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) activateOptionsExitRow();
     return;
   }
   if (event.key === "m" || event.key === "M") {
@@ -11853,6 +11877,7 @@ function activatePointerWorldInteraction(event, target) {
 
 function handlePointerMove(event) {
   noteCurrentSessionActivity();
+  deactivateControllerInputMode();
   const point = canvasPointFromEvent(event);
   waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
   statusHudHoverPoint = event.pointerType === "touch" ? null : point;
@@ -11908,7 +11933,7 @@ function handlePointerLeave(event) {
   waypointArrowHoverPoint = null;
   statusHudHoverPoint = null;
   achievementNoticeHoverPoint = null;
-  canvas.style.cursor = "default";
+  canvas.style.cursor = controllerOwnsCursor ? "none" : "default";
   dirty = true;
 }
 
@@ -12111,7 +12136,7 @@ function handleOptionsPointerDown(point) {
   }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_START_MENU])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_START_MENU;
-    returnToStartMenuFromOptions();
+    activateOptionsExitRow();
   }
 }
 
@@ -19091,6 +19116,11 @@ function pollGamepadControls(nowMs) {
   const gamepad = steamInputFrame?.connected === true
     ? steamInputFrame
     : Array.from(pads || []).find((pad) => pad?.connected !== false) || null;
+  const connectionEvent = observeControllerConnection(controllerConnectionMonitor, {
+    connected: Boolean(gamepad),
+    nowMs
+  });
+  if (connectionEvent === "disconnected") pauseActiveSteamGameplay("controller-disconnected");
   if (!gamepad) {
     activeControllerGamepad = null;
     const nextFamily = controllerFamilyForGamepad(null, optionsMenu.controllerGlyphPreference);
@@ -19102,6 +19132,7 @@ function pollGamepadControls(nowMs) {
     controllerButtons = [];
     controllerNavigationState = null;
     controllerScrollState = null;
+    if (connectionEvent === "disconnected") deactivateControllerInputMode();
     return;
   }
   activeControllerGamepad = gamepad;
@@ -19117,6 +19148,7 @@ function pollGamepadControls(nowMs) {
   const frame = gamepadControlFrame(gamepad, controllerButtons);
   controllerButtons = frame.buttons;
   controllerSteering = frame.steering;
+  let controllerInputUsed = Boolean(frame.steering || frame.actions.length > 0);
   if (frame.steering || frame.actions.length > 0) noteCurrentSessionActivity();
   const captainChartPanning = frame.steeringSource === "stick" &&
     captainMenu.isOpen && !shipInfoMenu.isOpen && !politicsMenu.isOpen &&
@@ -19137,6 +19169,7 @@ function pollGamepadControls(nowMs) {
   if (!controllerDirectionalUiIsActive()) {
     controllerNavigationState = null;
     controllerScrollState = null;
+    if (controllerInputUsed) activateControllerInputMode();
     return;
   }
   const navigation = gamepadMenuNavigationFrame(gamepad, controllerNavigationState, nowMs, {
@@ -19144,6 +19177,7 @@ function pollGamepadControls(nowMs) {
   });
   controllerNavigationState = navigation.state;
   if (navigation.action) {
+    controllerInputUsed = true;
     noteCurrentSessionActivity();
     sailingTutorialInputMode = "controller";
     handleControllerAction(navigation.action);
@@ -19155,10 +19189,12 @@ function pollGamepadControls(nowMs) {
   });
   controllerScrollState = scrolling.state;
   if (scrolling.action === "up" || scrolling.action === "down") {
+    controllerInputUsed = true;
     noteCurrentSessionActivity();
     sailingTutorialInputMode = "controller";
     dispatchControllerKey(scrolling.action === "up" ? "PageUp" : "PageDown");
   }
+  if (controllerInputUsed) activateControllerInputMode();
 }
 
 function noteCurrentSessionActivity(nowMs = performance.now()) {
@@ -19168,7 +19204,48 @@ function noteCurrentSessionActivity(nowMs = performance.now()) {
 
 function resetSessionFrameClock() {
   lastSessionFrameMs = performance.now();
-  if (document.visibilityState === "hidden") clearSessionHeldControls();
+  if (document.visibilityState === "hidden") {
+    clearSessionHeldControls();
+    pauseActiveSteamGameplay("hidden");
+  }
+}
+
+function handleWindowBlur() {
+  clearSessionHeldControls();
+  pauseActiveSteamGameplay("focus-lost");
+}
+
+function handleSteamPlatformPauseRequest(reason) {
+  if (typeof reason !== "string" || reason.length === 0) {
+    throw new Error("Steam pause request has no reason");
+  }
+  clearSessionHeldControls();
+  pauseActiveSteamGameplay(reason);
+}
+
+function pauseActiveSteamGameplay(_reason) {
+  if (!steamPlatformBridge || startMenu || gameOverReason || telemetryConsentModal ||
+      dialogueState || playerIntroModal || captainAlertModal || goldTreasureSequence ||
+      menusAreOpen()) {
+    return false;
+  }
+  const activeBattle = lakeBattleMode?.screen === LAKE_BATTLE_SCREEN_ACTIVE;
+  if (!activeBattle && (!hasStartedVoyage || !gameState || !ship)) return false;
+  openOptionsMenu();
+  return true;
+}
+
+function activateControllerInputMode() {
+  controllerOwnsCursor = true;
+  sailingTutorialInputMode = "controller";
+  document.documentElement.classList.add("controller-input-active");
+  canvas.style.cursor = "none";
+}
+
+function deactivateControllerInputMode() {
+  controllerOwnsCursor = false;
+  document.documentElement.classList.remove("controller-input-active");
+  canvas.style.cursor = "default";
 }
 
 function clearSessionHeldControls() {
@@ -34923,7 +35000,9 @@ function drawOptionsStartMenuRow(rowRect, highlighted) {
   const iconX = rowRect.x + 8;
   const iconY = rowRect.y + Math.floor((rowRect.h - GAME_ICON_SIZE) / 2);
   drawGameIcon("action:start-menu", iconX, iconY, { alpha: optionsMenu.returnError ? 0.5 : 1 });
-  const label = optionsMenu.returnError || uiText("options.returnToMainMenu");
+  const label = optionsMenu.returnError || uiText(
+    startMenu && steamPlatformBridge ? "options.quitGame" : "options.returnToMainMenu"
+  );
   drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, rowRect.w - 38), rowRect.x + 31, controlTextY(rowRect), {
     font: PIXEL_FONT_SMALL_8,
     color: optionsMenu.returnError ? PIRATE_MENU_DANGER : PIRATE_MENU_INK

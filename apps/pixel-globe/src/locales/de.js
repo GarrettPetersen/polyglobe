@@ -54,6 +54,7 @@ export default {
   "options.exitFullscreen": "VOLLBILD BEENDEN",
   "options.fullscreenUnavailable": "VOLLBILD NICHT VERFÜGBAR",
   "options.returnToMainMenu": "ZURÜCK ZUM HAUPTMENÜ",
+  "options.quitGame": "SPIEL BEENDEN",
   "telemetry.title": "SPIEL VERBESSERN?",
   "telemetry.body": "Anonyme Spielstatistiken und Absturzberichte teilen? Eine zufällige Installations-ID misst Spielerzahl und Bindung. Wir speichern keine Namen, Konto-IDs, IP-Adressen, Spielstände oder Werbedaten. Berichte verfallen nach drei Monaten. Jederzeit in den Optionen änderbar.",
   "telemetry.decline": "NEIN, DANKE",

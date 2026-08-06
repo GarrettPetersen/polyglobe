@@ -54,6 +54,7 @@ export default {
   "options.exitFullscreen": "SALIR DE PANTALLA COMPLETA",
   "options.fullscreenUnavailable": "PANTALLA COMPLETA NO DISPONIBLE",
   "options.returnToMainMenu": "VOLVER AL MENÚ PRINCIPAL",
+  "options.quitGame": "SALIR DEL JUEGO",
   "telemetry.title": "¿AYUDAS A MEJORAR EL JUEGO?",
   "telemetry.body": "¿Compartir estadísticas de juego e informes de errores anónimos? Un ID de instalación aleatorio mide jugadores y retención. No guardamos nombres, IDs de cuenta, direcciones IP, partidas ni datos publicitarios. Los informes caducan tras tres meses. Puedes cambiarlo en Opciones.",
   "telemetry.decline": "NO, GRACIAS",

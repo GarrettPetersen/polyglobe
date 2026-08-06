@@ -1,6 +1,8 @@
 "controller_mappings"
 {
   "version" "3"
+  "major_revision" "1"
+  "minor_revision" "1"
   "title" "Marque & Reprisal Standard Gamepad"
   "description" "Official positional gamepad layout for sailing and menus."
   "controller_type" "controller_generic"

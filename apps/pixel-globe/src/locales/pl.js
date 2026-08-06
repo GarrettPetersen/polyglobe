@@ -54,6 +54,7 @@ export default {
   "options.exitFullscreen": "WYŁĄCZ PEŁNY EKRAN",
   "options.fullscreenUnavailable": "BRAK PEŁNEGO EKRANU",
   "options.returnToMainMenu": "DO MENU GŁÓWNEGO",
+  "options.quitGame": "ZAKOŃCZ GRĘ",
   "telemetry.title": "POMÓC ULEPSZYĆ GRĘ?",
   "telemetry.body": "Udostępniać anonimowe statystyki gry i raporty awarii? Losowy identyfikator instalacji mierzy liczbę graczy i powroty. Nie zapisujemy nazwisk, identyfikatorów kont, adresów IP, zapisów gry ani danych reklamowych. Raporty wygasają po trzech miesiącach. Zmień to w Opcjach.",
   "telemetry.decline": "NIE, DZIĘKUJĘ",

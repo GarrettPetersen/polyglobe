@@ -47,6 +47,8 @@ function bridge(overrides = {}) {
     addTimelineEvent: async () => {},
     triggerScreenshot: async () => {},
     updateStats: async () => {},
+    onPauseRequested: () => {},
+    quitGame: async () => {},
     ...overrides
   };
 }

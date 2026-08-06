@@ -21,7 +21,9 @@ const PLATFORM_METHODS = Object.freeze([
   "setTimelineState",
   "addTimelineEvent",
   "triggerScreenshot",
-  "updateStats"
+  "updateStats",
+  "onPauseRequested",
+  "quitGame"
 ]);
 
 export const PLATFORM_TIMELINE_MODE = Object.freeze({
