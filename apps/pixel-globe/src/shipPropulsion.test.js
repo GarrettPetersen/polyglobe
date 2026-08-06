@@ -135,23 +135,38 @@ test("only oared ships translate toward an aft directional input", () => {
 test("hybrid oars add speed and acceleration without cancelling stronger sails", () => {
   const galley = shipStatsForSlug("mediterranean-galley");
   const sailingOnly = shipPropulsionPerformance(galley, {
-    windStrength: 1,
+    windStrength: 0.65,
     sailEfficiency: 1,
     rowingRequested: false
   });
   const sailingAndRowing = shipPropulsionPerformance(galley, {
-    windStrength: 1,
+    windStrength: 0.65,
     sailEfficiency: 1,
     rowingRequested: true
   });
 
   assert.equal(sailingOnly.rowing, false);
   assert.equal(sailingAndRowing.rowing, true);
-  assert.equal(
-    sailingAndRowing.maxSpeedRad,
-    sailingOnly.maxSpeedRad + galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO
-  );
+  assert.ok(sailingAndRowing.maxSpeedRad > sailingOnly.maxSpeedRad);
+  assert.equal(sailingAndRowing.maxSpeedRad, galley.topSpeedRad);
   assert.ok(sailingAndRowing.accelerationFactor > sailingOnly.accelerationFactor);
+});
+
+test("hull speed caps strong sails and combined oar-sail thrust", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const fusta = shipStatsForSlug("fusta");
+  const galeDrivenBrigantine = shipPropulsionPerformance(brigantine, {
+    windStrength: 2,
+    sailEfficiency: 1
+  });
+  const rowingFusta = shipPropulsionPerformance(fusta, {
+    windStrength: 1,
+    sailEfficiency: 1,
+    rowingRequested: true
+  });
+
+  assert.equal(galeDrivenBrigantine.maxSpeedRad, brigantine.topSpeedRad);
+  assert.equal(rowingFusta.maxSpeedRad, fusta.topSpeedRad);
 });
 
 test("oars stop producing power when directional input is released", () => {
