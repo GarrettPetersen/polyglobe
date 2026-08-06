@@ -358,7 +358,7 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   manualCity1522("Sofala", "Mozambique", -20.1653, 34.7153, 12000, {
     manualRegion: "swahili-coast"
   }),
-  manualCity1522("Mozambique Island", "Mozambique", -15.0342, 40.7358, 10000, {
+  manualCity1522("Mozambique", "Mozambique", -15.0342, 40.7358, 10000, {
     manualRegion: "swahili-coast"
   }),
   manualCity1522("Mombasa", "Kenya", -4.0435, 39.6682, 20000, {

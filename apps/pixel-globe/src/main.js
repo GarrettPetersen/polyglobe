@@ -1311,6 +1311,7 @@ import {
   shipLocalDateLabel,
   shipLedgerDateLabel,
   shipLedgerPage,
+  shipLedgerRowsPerPageForPanel,
   shipPapersPage,
   shipPapersRowsPerPageForPanel,
   stepShipPaperSelectionIndex
@@ -1521,7 +1522,8 @@ import {
 } from "./chartReframe.js";
 import {
   chartReframeCoverIsOpaque,
-  chartShouldReframeOnCoverOpen
+  chartShouldReframeOnCoverOpen,
+  gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
 import {
   partitionVisualStateReprojections,
@@ -1713,6 +1715,7 @@ const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
 const TILE_ART_HALF = TILE_ART_SIZE / 2;
+const LOCAL_LAYOUT_RETENTION_MARGIN_PX = TILE_ART_SIZE;
 const UNDERWATER_WORLD_REFRACTION_PADDING_PX = 1;
 const UNDERWATER_WORLD_SPRITE_WIDTH = TILE_ART_SIZE + UNDERWATER_WORLD_REFRACTION_PADDING_PX * 2;
 const FACE_HALF_WIDTH = 9;
@@ -1934,7 +1937,7 @@ const CLOUD_VIEWPORT_MARGIN_PX =
   CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-3";
-const VEHICLE_ASSET_VERSION = "galley-galleass-2";
+const VEHICLE_ASSET_VERSION = "jong-holk-1";
 const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_FLAG_ANCHORS_URL = `assets/vehicles/unity-ships/flag-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
@@ -2266,7 +2269,7 @@ const NAVIGATION_MENU_PANEL_W = 420;
 const NAVIGATION_MENU_PANEL_H = 226;
 const NAVIGATION_MENU_ROW_H = 38;
 const NAVIGATION_MENU_PAGE_SIZE = 4;
-const SHIP_INFO_ASSET_VERSION = "galley-galleass-2";
+const SHIP_INFO_ASSET_VERSION = "jong-holk-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
 const SFX_ASSET_VERSION = "whale-kill-1";
 const ANIMAL_ASSET_VERSION = "whale-species-1";
@@ -2402,6 +2405,7 @@ const SFX_LIGHTNING_POOL_SIZE = 2;
 const SFX_CREW_DEATH_POOL_SIZE = 2;
 const SFX_WHALE_BLOW_POOL_SIZE = 3;
 const SFX_WHALE_KILL_POOL_SIZE = 2;
+const SHORE_BATTERY_CANNON_SOUND_DISTANCE_CAP_PX = 48;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_BOW_FIRE_VOLUME = 0.68;
 const SFX_ARROW_HIT_VOLUME = 0.54;
@@ -7164,6 +7168,18 @@ function playNavalAttackSound(weapon, broadsideCount, distancePx = 0) {
   throw new Error(`Unknown naval attack sound: ${weapon.kind}`);
 }
 
+function playShoreBatteryAttackSound(weapon, gunCount, distancePx) {
+  if (weapon.kind !== NAVAL_WEAPON_CANNON) {
+    playNavalAttackSound(weapon, gunCount, distancePx);
+    return;
+  }
+  // A fortified gun remains clearly audible throughout its firing range.
+  playCannonShotSound(
+    gunCount,
+    Math.min(distancePx, SHORE_BATTERY_CANNON_SOUND_DISTANCE_CAP_PX)
+  );
+}
+
 function playPortableWeaponAttackSound(weapon, count, distancePx = 0) {
   if (weapon.animationKind === PORTABLE_PROJECTILE_ARROW) {
     playBowFireSound();
@@ -9025,8 +9041,19 @@ function stepShipInfoPage(direction) {
   dirty = true;
 }
 
-function shipLedgerRowsPerPage() {
-  return languageUsesTallPixelMetrics(currentLanguage) && SCREEN_W < 400 ? 8 : 10;
+function shipLedgerRowsPerPage(panel = captainNotebookPagePanel({
+  x: SHIP_INFO_PANEL_X,
+  y: SHIP_INFO_PANEL_Y,
+  w: SHIP_INFO_PANEL_W,
+  h: SHIP_INFO_PANEL_H
+})) {
+  return shipLedgerRowsPerPageForPanel({
+    width: panel.w,
+    height: panel.h,
+    tallMetrics: languageUsesTallPixelMetrics(currentLanguage),
+    lineHeight: localizedLineHeight(9),
+    pagerHeight: UI_PAGER_BUTTON_H
+  });
 }
 
 function shipPapersRowsPerPage(panel = captainNotebookPagePanel({
@@ -11767,10 +11794,14 @@ function handlePointerDown(event) {
   const combatShipEngaged = clickedWorldTarget?.target.kind === "ship" && shipCombatState.engagements.has(
     engagementKey(PLAYER_COMBAT_ID, clickedWorldTarget.target.call.id)
   );
+  const combatShipHostile = clickedWorldTarget?.target.kind === "ship" && npcShipIsHostileToPlayer(
+    npcVisualShips.get(clickedWorldTarget.target.call.id)
+  );
   const pointerAction = worldPointerAction({
     interactionCandidate: clickedWorldTarget,
     combatShipBroadside,
     combatShipEngaged,
+    combatShipHostile,
     pointBroadside: navalBroadsideSideAtPoint(point)
   });
   if (pointerAction.type === WORLD_POINTER_ACTION.INTERACTION) {
@@ -14731,17 +14762,24 @@ function beginCampaignRetirement() {
 function openShipDialogue(shipCall, options = {}) {
   if (!shipCall.character) throw new Error(`Cannot hail NPC ship without a captain: ${shipCall.id}`);
   const strategicShip = npcSeaRoutes?.shipById?.get(shipCall.id);
+  const visualShip = npcVisualShips.get(shipCall.id);
+  if (!strategicShip || !visualShip) {
+    throw new Error(`Cannot hail missing NPC ship: ${shipCall.id}`);
+  }
+  const enforcementDialogue = Boolean(
+    options.attackReason || options.cartazInspection || options.illicitTradeInspection
+  );
+  if (!enforcementDialogue && npcShipIsHostileToPlayer(visualShip)) return false;
   const treasureGoal = activeTreasureCampaignGoal();
   const pirateTreasureName = treasureGoal?.treasureRecovered &&
     strategicShip?.role === NPC_ROLE_PIRATE &&
     strategicShip.encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND
     ? treasureGoal.treasureCaptainName
     : null;
-  const campaignRumor = options.attackReason || options.cartazInspection || options.illicitTradeInspection
+  const campaignRumor = enforcementDialogue
     ? null
     : maybeCampaignRumor(`ship:${shipCall.id}`);
-  const papalGossip = options.attackReason || options.cartazInspection ||
-    options.illicitTradeInspection || campaignRumor
+  const papalGossip = enforcementDialogue || campaignRumor
     ? null
     : recentPapalGossipForCharacter(
         gameState.relations.papacy,
@@ -14751,7 +14789,7 @@ function openShipDialogue(shipCall, options = {}) {
       );
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
-    rumorText: options.attackReason || options.cartazInspection || options.illicitTradeInspection
+    rumorText: enforcementDialogue
       ? null
       : campaignRumor?.text || (papalGossip ? papalGossipDialogueLine(papalGossip) : null),
     listenerReligionId: gameState.playerCharacter?.religionId || null,
@@ -14760,10 +14798,11 @@ function openShipDialogue(shipCall, options = {}) {
   dialogueLayout = createDialogueLayoutState();
   pauseShipForOverlay();
   ensureDialoguePortraitLoaded();
-  if (!options.attackReason && !options.cartazInspection) {
+  if (!enforcementDialogue) {
     maybeOpenAnimalCompanionNpcReaction(`ship:${shipCall.id}`, shipCall.character);
   }
   dirty = true;
+  return true;
 }
 
 function maybeWhiteWhaleRumor(interactionKey) {
@@ -16674,9 +16713,7 @@ function dialogueShipForId(npcShipId) {
   const combatGrace = npcShip.graceUntilPortVisit > npcShip.portVisits;
   const encounter = npcShip.encounter?.kind === "colonization-defense" ? npcShip.encounter : null;
   const inCombatWithPlayer = shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShip.id));
-  const enemy = inCombatWithPlayer ||
-    factionReputation(gameState, npcShip.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD ||
-    currentDiplomacyBetween(ship.factionId, npcShip.factionId) === DIPLOMACY_WAR;
+  const enemy = npcShipIsHostileToPlayer(visualState);
   const alliedToPlayer = playerTreatsFactionAsGreenAlly(npcShip.factionId);
   const emergencyAid = shipEmergencyAidNeed(gameState, npcShip.id, {
     allied: alliedToPlayer
@@ -17356,9 +17393,7 @@ function activeNpcShipCalls() {
     [WORLD_SPATIAL_KIND.NPC_SHIP]
   )
     .filter((match) => match.distanceSquared <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX)
-    .filter((match) => !shipCombatState.engagements.has(
-      engagementKey(PLAYER_COMBAT_ID, match.entry.value.id)
-    ))
+    .filter((match) => npcShipCanBeVoluntarilyHailed(match.entry.value))
     .map((match) => npcShipInteractionCall(match.entry.value));
 }
 
@@ -17660,8 +17695,26 @@ function npcShipInteractionCall(state) {
 }
 
 function npcShipInHailRange(state) {
-  if (!state || !localLayout) return false;
+  if (!state || state.combatGrace || !localLayout) return false;
   return distance2(localLayout.viewX, localLayout.viewY, state.x, state.y) <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX;
+}
+
+function npcShipCanBeVoluntarilyHailed(state) {
+  return npcShipInHailRange(state) && !npcShipIsHostileToPlayer(state);
+}
+
+function npcShipIsHostileToPlayer(state) {
+  if (!state) return false;
+  if (!gameState || !ship) throw new Error("NPC ship hostility requires an active voyage");
+  const strategic = npcSeaRoutes?.shipById?.get(state.id);
+  if (!strategic) throw new Error(`NPC ship hostility requires strategic state: ${state.id}`);
+  if (shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, state.id))) return true;
+  if (state.combatEnemyIds?.includes(PLAYER_COMBAT_ID) || strategic.encounter?.forceAttack === true) {
+    return true;
+  }
+  const diplomacy = currentDiplomacyBetween(ship.factionId, state.factionId);
+  return factionReputation(gameState, state.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD ||
+    diplomacy === DIPLOMACY_HOSTILE || diplomacy === DIPLOMACY_WAR;
 }
 
 function portCallInInteractionRange(call) {
@@ -17692,7 +17745,7 @@ function interactionTargetIsUsable(target) {
   if (target.kind === "fish") return fishInteractionCallIsUsable(target.call);
   if (target.kind === "ship") {
     const state = npcVisualShips.get(target.call?.id);
-    return npcShipInHailRange(state);
+    return npcShipCanBeVoluntarilyHailed(state);
   }
   if (target.kind === "whale") {
     if (!target.call?.whale || !whaleCanBeHarpooned(target.call.whale)) return false;
@@ -17928,7 +17981,12 @@ function prepareNorthUpWorldBehindCover() {
 function opaqueWorldCoverIsActive() {
   return chartReframeCoverIsOpaque({
     startMenu: Boolean(startMenu),
-    gameOver: Boolean(gameOverReason),
+    gameOver: gameOverReframeCoverIsOpaque({
+      active: Boolean(gameOverReason),
+      sinkShip: gameOverState?.sinkShip === true,
+      elapsedMs: gameOverElapsedMs(lastFrameMs),
+      sinkDurationMs: gameOverTransitionDurationMs()
+    }),
     fullPortDialogue: dialogueState?.kind === "port" && dialogueState.admittedToPort === true,
     playerIntro: Boolean(playerIntroModal),
     captainMenu: captainMenu.isOpen,
@@ -18125,6 +18183,10 @@ function globeDirectionToChartPoint(direction) {
 }
 
 function clearLocalChartTransientEffects() {
+  if (gameOverState?.sinkShip === true &&
+      gameOverElapsedMs(lastFrameMs) < gameOverTransitionDurationMs()) {
+    throw new Error("Cannot clear local chart effects while the player ship is still sinking");
+  }
   playerNavigationRecoveryState = createPlayerShipRecoveryState();
   playerHaulBlockedSeconds = 0;
   playerBoundaryAssistContact = null;
@@ -22141,6 +22203,12 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   });
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs, sinkShip, outcomeType, victory);
+  if (outcomeType === "death" && gameOverState.character) {
+    dialoguePortraitImage(
+      gameOverState.character,
+      characterExpression(gameOverState.character, "dying")
+    );
+  }
   const voyageRecord = createPastVoyageRecord({
     state: gameState,
     playerShip: snapshotPlayerShip(),
@@ -23587,7 +23655,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
         if (playerResponse.shouldHail) {
           if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
             if (!attemptEnvoyIntercession(city.factionId, city.character)) {
-              openShoreBatteryCombatHail(city, state);
+              openShoreBatteryCombatHail(city, state, entryStatus);
             }
             hailOpened = true;
             changed = true;
@@ -23654,17 +23722,22 @@ function shoreBatteryHostileToFaction(city, factionId, cache = null) {
   return hostile;
 }
 
-function openShoreBatteryCombatHail(city, state) {
+function openShoreBatteryCombatHail(city, state, entryStatus) {
+  if (entryStatus?.factionId !== city.factionId) {
+    throw new Error(`Shore battery hail has mismatched entry status: ${city.factionId}`);
+  }
   state.playerHailed = true;
   const currentRelation = currentDiplomacyBetween(ship.factionId, city.factionId);
   const relation = currentRelation === DIPLOMACY_WAR ? DIPLOMACY_WAR : DIPLOMACY_HOSTILE;
   const playerWarship = playerShipIsWarship(gameState);
-  const toll = playerWarship ? null : factionSafePassageToll(gameState);
+  const passageOffered = entryStatus.canPurchaseSafePassage;
+  const toll = passageOffered ? factionSafePassageToll(gameState) : null;
   dialogueState = createShoreBatteryDialogueSession(city, {
     relation,
     playerWarship,
+    passageOffered,
     toll,
-    canAffordToll: toll !== null && gameState.doubloons >= toll,
+    canAffordToll: passageOffered && gameState.doubloons >= toll,
     simMinute: Math.floor(weatherClockMinutes)
   });
   dialogueLayout = createDialogueLayoutState();
@@ -23754,7 +23827,7 @@ function fireShoreBatteryAtNearestTarget(state) {
     count: state.gunCount
   });
   armShoreBatteryReload(state);
-  playNavalAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
+  playShoreBatteryAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
   const trueShotIndex = weapon.kind === NAVAL_WEAPON_CANNON
     ? accurateBroadsideShotIndex(state.gunCount)
@@ -24524,7 +24597,7 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
   dirty = true;
 }
 
-function handleNpcSinking(loserId, winnerId) {
+function handleNpcSinking(loserId, winnerId, { accidentalPlayerCollision = false } = {}) {
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
   const rewardOrigin = combatEntityPoint(loserId);
@@ -24532,7 +24605,9 @@ function handleNpcSinking(loserId, winnerId) {
   const treasureEncounter = strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
     ? { ...strategic.encounter }
     : null;
-  if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
+  const playerVictory = winnerId === PLAYER_COMBAT_ID && !accidentalPlayerCollision;
+  let accidentalCollisionRecorded = false;
+  if (playerVictory) recordPlayerShipVictory();
   const visualState = npcVisualShips.get(loserId);
   if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
   if (strategic.encounter?.kind === "colonization-defense") {
@@ -24544,7 +24619,7 @@ function handleNpcSinking(loserId, winnerId) {
   const faction = factionById(factionId);
   const sinkingNotice = `${faction.adjective.toUpperCase()} ` +
     `${shipLabelForSlug(strategic.slug).toUpperCase()} SUNK - CAPT. ${captain.name.toUpperCase()}`;
-  const itemGift = winnerId === PLAYER_COMBAT_ID
+  const itemGift = playerVictory
     ? maybeGrantDefeatedShipPerkItem(gameState, strategic, {
         sunk: true,
         random: Math.random,
@@ -24552,7 +24627,12 @@ function handleNpcSinking(loserId, winnerId) {
       })
     : null;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
-  if (winnerId === PLAYER_COMBAT_ID) recordPlayerAttackConsequences(loserId, factionId);
+  if (playerVictory) {
+    recordPlayerAttackConsequences(loserId, factionId);
+  } else if (accidentalPlayerCollision) {
+    recordFriendlyFireAgainstFaction(gameState, factionId);
+    accidentalCollisionRecorded = true;
+  }
   clearCombatForShip(loserId);
   npcVisualShips.delete(loserId);
   shipCombatEntryCollisionGrace.delete(loserId);
@@ -24561,12 +24641,13 @@ function handleNpcSinking(loserId, winnerId) {
     text: sinkingNotice,
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
   };
+  if (accidentalCollisionRecorded) saveVoyageNow("friendly ship lost in an accidental collision");
   if (itemGift) {
     presentMissionItemGift(itemGift, null, rewardOrigin);
     saveVoyageNow("equipment salvaged from sunken ship");
   }
   if (treasureEncounter) {
-    if (winnerId === PLAYER_COMBAT_ID) {
+    if (playerVictory) {
       resolveTreasurePiratePlayerDefeat(loserId, treasureEncounter, { sunk: true });
     } else {
       ensureTreasureCampaignEncounters({ respawnAtHideouts: true });
@@ -24574,7 +24655,7 @@ function handleNpcSinking(loserId, winnerId) {
     }
     return true;
   }
-  if (winnerId === PLAYER_COMBAT_ID && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
+  if (playerVictory && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
   return true;
 }
 
@@ -25113,13 +25194,26 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   const state = npcVisualShips.get(id);
   if (state) state.hitPoints = damage.hitPoints;
   if (damage.sunk) {
-    handleNpcSinking(id, otherId);
+    handleNpcSinking(id, otherId, {
+      accidentalPlayerCollision: playerCollisionWithNpcIsAccidental(id, otherId)
+    });
     return;
   }
   if (!damage.shouldSurrender || !state) return;
   const directEnemy = shipCombatState.engagements.has(engagementKey(id, otherId));
   const winnerId = directEnemy ? otherId : state.combatTargetId;
   if (winnerId) handleNpcSurrender(id, winnerId);
+}
+
+function playerCollisionWithNpcIsAccidental(npcShipId, otherId) {
+  if (otherId !== PLAYER_COMBAT_ID) return false;
+  const npcShip = npcSeaRoutes.shipById.get(npcShipId);
+  if (!npcShip) throw new Error(`Cannot classify collision with missing NPC ship: ${npcShipId}`);
+  if (combatEngagementIsActive(PLAYER_COMBAT_ID, npcShipId)) return false;
+  if (npcShip.factionId === PIRATE_FACTION_ID) return false;
+  if (factionReputation(gameState, npcShip.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD) return false;
+  const diplomacy = currentDiplomacyBetween(ship.factionId, npcShip.factionId);
+  return diplomacy !== DIPLOMACY_HOSTILE && diplomacy !== DIPLOMACY_WAR;
 }
 
 function formatCombatDamage(damage) {
@@ -26793,6 +26887,14 @@ function drawDayNightWorld(layers, nowMs) {
         layers.waterForeground.weatherRevision
       );
     },
+    roads: () => {
+      drawCachedWorldLayer(
+        "land-roads",
+        layers.roads,
+        layers.offset,
+        layers.roads.revision
+      );
+    },
     dynamicUnderlay: () => {
       drawGpuDynamicUnderlay(layers.dynamicWorld);
     },
@@ -27047,6 +27149,10 @@ function render(nowMs) {
       waterForeground: measurePerformanceBenchmarkStage(
         "render.terrain.waterForeground",
         () => waterEffectForegroundLayer(chart, offset, connectors)
+      ),
+      roads: measurePerformanceBenchmarkStage(
+        "render.terrain.roads",
+        () => cachedLandRoadLayer(chart, renderTileIds)
       )
     };
   });
@@ -27304,7 +27410,6 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
       margin: TILE_ART_SIZE
     })
   );
-  const tileIds = new Set(calls.tileCalls.map((call) => call.id));
   const riverWaterPixelRows = measurePerformanceBenchmarkStage(
     "render.terrain.surface.riverBanks.waterPixels",
     () => visibleRiverWaterPixelRows(
@@ -27333,10 +27438,6 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
     measurePerformanceBenchmarkStage(
       "render.terrain.surface.riverBankDraw",
       () => drawRiverBankPixels(riverBankPixels)
-    );
-    measurePerformanceBenchmarkStage(
-      "render.terrain.surface.roads",
-      () => drawLandRoads(activeChart, tileIds)
     );
   } finally {
     ctx = previousCtx;
@@ -27683,7 +27784,6 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
       throw new Error("Water-effect foreground requires the current static surface layer");
     }
     drawRiverBankPixels(staticSurface.riverBankPixels);
-    drawLandRoads(activeChart, new Set(tileCalls.map((call) => call.id)));
   } finally {
     layerCtx.globalCompositeOperation = "source-over";
     ctx = previousCtx;
@@ -27833,7 +27933,7 @@ function drawSelectableInteractionOutlines(nowMs) {
   }
 
   for (const state of npcVisualShips.values()) {
-    if (!npcShipInHailRange(state)) continue;
+    if (!npcShipCanBeVoluntarilyHailed(state)) continue;
     const call = currentNpcShipDrawCall(state, nowMs);
     if (!call) continue;
     drawSelectableSpriteOutline({
@@ -28211,6 +28311,7 @@ function chartProjectionOffsetPixels(activeChart) {
 }
 
 function syncLocalLayout(projectedVisible, chartCenterTileId) {
+  const visibleAuthoritativePositions = captureVisibleAuthoritativeTilePositions();
   const projectedById = new Map(projectedVisible.map((item) => [item.id, item]));
   retainLocalLayoutAnchor({
     positions: localLayout.positions,
@@ -28283,7 +28384,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     protectionById: chartTileProtection,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
-    tileVisualRadius: TILE_ART_HALF,
+    tileVisualRadius: LOCAL_LAYOUT_RETENTION_MARGIN_PX,
     anchorId: chartCenterTileId,
     viewX: localLayout.viewX,
     viewY: localLayout.viewY
@@ -28315,13 +28416,45 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     protectedCorrectionViewportIds: retainedCorrectionViewportIds
   });
+  assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
+}
+
+function captureVisibleAuthoritativeTilePositions() {
+  const captured = new Map();
+  for (const [id, position] of localLayout.positions.entries()) {
+    const row = earthById[id];
+    const canSettleInsideSwell = isWaterSurfaceRow(row) &&
+      chartTileProtection[id] === 0 &&
+      !tileHasSurfaceIce(id);
+    if (
+      canSettleInsideSwell ||
+      !localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX)
+    ) continue;
+    captured.set(id, { x: position.x, y: position.y });
+  }
+  return captured;
+}
+
+function assertVisibleAuthoritativeTilePositionsUnchanged(captured) {
+  for (const [id, previous] of captured.entries()) {
+    const current = localLayout.positions.get(id);
+    if (!current) {
+      throw new Error(`Live chart rebuild discarded visible authoritative tile: ${id}`);
+    }
+    if (current.x !== previous.x || current.y !== previous.y) {
+      throw new Error(
+        `Live chart rebuild moved visible authoritative tile ${id}: ` +
+        `${previous.x},${previous.y} -> ${current.x},${current.y}`
+      );
+    }
+  }
 }
 
 function cullLocalLayout(projectedVisible) {
   const visibleIds = new Set(projectedVisible.map((item) => item.id));
   for (const [id, position] of localLayout.positions.entries()) {
     if (visibleIds.has(id)) continue;
-    if (localLayoutPositionOverlapsViewport(position, TILE_ART_SIZE)) {
+    if (localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX)) {
       throw new Error(`Chart rebuild attempted to discard visible local tile: ${id}`);
     }
     localLayout.positions.delete(id);
@@ -35549,14 +35682,8 @@ function roundedBeachWaveT(fromT, targetT, side, lineHalfWidth) {
   return fromT + (targetT - fromT) * reachScale;
 }
 
-function drawLandRoads(activeChart, visibleTileIds = activeChart.visibleSet) {
-  if (!landRoadNetwork?.segmentsByTileId) throw new Error("Land road network is not initialized");
-  if (!(visibleTileIds instanceof Set)) throw new Error("Land road drawing requires visible tile ids");
-  const layer = cachedLandRoadLayer(activeChart, visibleTileIds);
-  ctx.drawImage(layer.canvas, layer.x, layer.y);
-}
-
 function cachedLandRoadLayer(activeChart, requiredTileIds) {
+  if (!landRoadNetwork?.segmentsByTileId) throw new Error("Land road network is not initialized");
   if (!(requiredTileIds instanceof Set)) {
     throw new Error("Land road layer requires tile coverage");
   }
@@ -35588,7 +35715,13 @@ function cachedLandRoadLayer(activeChart, requiredTileIds) {
     const canvas = document.createElement("canvas");
     canvas.width = 1;
     canvas.height = 1;
-    const layer = Object.freeze({ canvas, x: 0, y: 0, tileIds: cacheTileIds });
+    const layer = Object.freeze({
+      canvas,
+      x: 0,
+      y: 0,
+      tileIds: cacheTileIds,
+      revision: `empty:${cacheTileIds.size}`
+    });
     landRoadLayerCache.set(activeChart, layer);
     return layer;
   }
@@ -35624,7 +35757,13 @@ function cachedLandRoadLayer(activeChart, requiredTileIds) {
   for (const segment of roadSegments) {
     drawLandRoadSegment(roadCtx, segment.path, segment.id);
   }
-  const layer = Object.freeze({ canvas, x: minX, y: minY, tileIds: cacheTileIds });
+  const layer = Object.freeze({
+    canvas,
+    x: minX,
+    y: minY,
+    tileIds: cacheTileIds,
+    revision: `${cacheTileIds.size}:${visibleSegmentIds.size}`
+  });
   landRoadLayerCache.set(activeChart, layer);
   return layer;
 }
@@ -39054,8 +39193,11 @@ function shipForegroundTerrainDrawOrder(activeChart) {
   if (!cached || cached.weatherDayIndex !== weatherMaskDayIndex ||
       cached.surfaceLayer !== surfaceLayer) {
     const occluders = [];
+    const landmarkTileIds = new Set(worldDiscoveries
+      .filter((discovery) => discovery.spriteKey && !discovery.underwater)
+      .map((discovery) => discovery.spriteTileId));
     for (const call of surfaceLayer.tileCalls) {
-      if (isWaterSurfaceRow(call.row)) continue;
+      if (isWaterSurfaceRow(call.row) || landmarkTileIds.has(call.id)) continue;
       for (const image of terrainOccludingLayerImagesForTile(call.row, call.id)) {
         occluders.push(...terrainForegroundDrawLayers(
           call,
@@ -42178,8 +42320,17 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
   ];
   const detailX = panel.x + 18;
   const detailW = panel.w - 36;
+  const button = modal.buttonRect;
+  const skillHeight = characterSkillBadgeLayout(character, detailX, 0, detailW).rect.h;
+  const detailStartY = panel.y + 114;
+  const skillBottomY = button.y - 5;
+  const detailRowH = clamp(
+    Math.floor((skillBottomY - skillHeight - detailStartY - 2) / rows.length),
+    localizedLineHeight(20),
+    31
+  );
   rows.forEach((row, index) => {
-    const y = panel.y + 122 + index * 31;
+    const y = detailStartY + index * detailRowH;
     ctx.fillStyle = PIRATE_MENU_INK_MUTED;
     drawPixelText(row[0], detailX, y, { font: PIXEL_FONT_SMALL_8 });
     ctx.fillStyle = PIRATE_MENU_INK;
@@ -42188,9 +42339,12 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
     });
   });
 
-  drawCharacterSkillBadge(character, detailX, panel.y + 246, detailW);
+  const skillY = Math.min(
+    detailStartY + rows.length * detailRowH + 2,
+    skillBottomY - skillHeight
+  );
+  drawCharacterSkillBadge(character, detailX, skillY, detailW);
 
-  const button = modal.buttonRect;
   drawPiratePaperInset(button, modal.hovered);
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, controlTextY(button), {
@@ -42199,7 +42353,7 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
   });
 }
 
-function drawCharacterSkillBadge(character, x, y, width) {
+function characterSkillBadgeLayout(character, x, y, width) {
   const skills = characterSkills(character);
   const skill = characterSkillSummary(skills[0].id);
   const rectWidth = Math.round(width);
@@ -42215,6 +42369,16 @@ function drawCharacterSkillBadge(character, x, y, width) {
     w: rectWidth,
     h: 15 + labelLines.length * lineHeight
   };
+  return { skill, labelLines, lineHeight, rect };
+}
+
+function drawCharacterSkillBadge(character, x, y, width) {
+  const { skill, labelLines, lineHeight, rect } = characterSkillBadgeLayout(
+    character,
+    x,
+    y,
+    width
+  );
   ctx.fillStyle = "#f2d492";
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;

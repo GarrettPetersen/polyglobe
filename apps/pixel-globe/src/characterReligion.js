@@ -107,7 +107,7 @@ const SWAHILI_COAST_CITIES = new Set([
   "kilwa",
   "mombasa",
   "mogadishu",
-  "mozambique island",
+  "mozambique",
   "sofala"
 ]);
 const EARLY_REFORMATION_CITIES = new Set([

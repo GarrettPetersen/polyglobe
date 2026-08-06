@@ -14,6 +14,8 @@ import { isWaterSurfaceRow } from "./terrainSurface.js";
 const SUBDIVISIONS = 7;
 const GULF_OF_KHAMBHAT_TILE_ID = 38891;
 const GULF_OF_KHAMBHAT_OUTLET_TILE_ID = 38903;
+const MOZAMBIQUE_ISLAND_TILE_ID = 125893;
+const MOZAMBIQUE_CHANNEL_TILE_IDS = Object.freeze([31618, 125890, 125896]);
 const ITALY_SALENTO_TILE_ID = 98761;
 const ITALY_ADJOINING_LAND_TILE_ID = 98762;
 const repoRoot = new URL("../../../", import.meta.url);
@@ -68,7 +70,7 @@ test("missing small islands are restored as distinct dockable landforms", async 
       22966, 34387, 34610, 39426, 67580, 67709, 67971, 68532,
       84770, 85318, 86665, 89294, 89494, 89746, 89845, 90267,
       90803, 91677, 91681, 91683, 91735, 91800, 98751, 106244,
-      124671, 136831, 141773, 142904, 143441, 143707, 143938,
+      124671, 125893, 136831, 141773, 142904, 143441, 143707, 143938,
       144889, 147600, 161303, 161924
     ]
   );
@@ -100,7 +102,11 @@ test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", as
 
   assert.deepEqual(
     MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS[SUBDIVISIONS],
-    [GULF_OF_KHAMBHAT_TILE_ID, GULF_OF_KHAMBHAT_OUTLET_TILE_ID]
+    [
+      GULF_OF_KHAMBHAT_TILE_ID,
+      GULF_OF_KHAMBHAT_OUTLET_TILE_ID,
+      ...MOZAMBIQUE_CHANNEL_TILE_IDS
+    ]
   );
   assert.equal(earth.tiles[GULF_OF_KHAMBHAT_TILE_ID].t, "hot_steppe");
   assert.deepEqual(correctedRows[GULF_OF_KHAMBHAT_TILE_ID], {
@@ -112,6 +118,34 @@ test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", as
   assert.equal(correctedRows[38890], earth.tiles[38890]);
   assert.ok(Math.abs(graph.latDeg[GULF_OF_KHAMBHAT_TILE_ID] - 22.2082) < 0.01);
   assert.ok(Math.abs(graph.lonDeg[GULF_OF_KHAMBHAT_TILE_ID] - 72.5391) < 0.01);
+});
+
+test("Mozambique is a distinct island surrounded by navigable coastal water", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+
+  assert.equal(correctedRows[MOZAMBIQUE_ISLAND_TILE_ID].m, 1313);
+  assert.equal(isWaterSurfaceRow(correctedRows[MOZAMBIQUE_ISLAND_TILE_ID]), false);
+  assert.deepEqual(
+    graph.neighbors[MOZAMBIQUE_ISLAND_TILE_ID].sort((a, b) => a - b),
+    [31618, 31620, 125890, 125891, 125892, 125896]
+  );
+  for (const neighborId of graph.neighbors[MOZAMBIQUE_ISLAND_TILE_ID]) {
+    assert.equal(
+      isWaterSurfaceRow(correctedRows[neighborId]),
+      true,
+      `Mozambique neighbor ${neighborId} must be navigable water`
+    );
+  }
+  for (const tileId of MOZAMBIQUE_CHANNEL_TILE_IDS) {
+    assert.equal(earth.tiles[tileId].m, 57);
+    assert.equal(correctedRows[tileId].t, "beach");
+    assert.equal(correctedRows[tileId].o, 1);
+  }
 });
 
 test("Cambay's corrected bay has a continuous water route to the Arabian Sea", async () => {

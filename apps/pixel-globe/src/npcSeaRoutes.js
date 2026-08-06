@@ -342,14 +342,15 @@ const FLEET_PROFILES = Object.freeze([
     merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
     warships: ["small-junk", "medium-junk", "large-junk"]
   }, isEastAsiaPort, "regional"),
-  profile("southeast-asia", 10, {
+  profile("southeast-asia", 12, {
     fishers: ["sampan", "dhow"],
     merchants: [
       KELULUS_SLUG,
       KELULUS_SLUG,
       PENJAJAP_SLUG,
       NUSANTARAN_OUTRIGGER_SLUG,
-      "small-junk"
+      "small-junk",
+      "javanese-jong"
     ],
     warships: [
       PENJAJAP_SLUG,
@@ -372,7 +373,7 @@ const FLEET_PROFILES = Object.freeze([
   }, isMediterraneanPort, "regional"),
   profile("atlantic-coast", 30, {
     fishers: ["fishing-lugger", "cutter", "felucca"],
-    merchants: ["cutter", "small-cog", "caravel", "caravel", "brigantine", "fluyt"],
+    merchants: ["cutter", "small-cog", "holk", "holk", "caravel", "caravel", "brigantine", "fluyt"],
     warships: ["square-rigged-caravel", "caravel", "brigantine", "pirate-brig", "galleon"]
   }, isAtlanticPort, "regional"),
   profile("cape-trade", 44, {

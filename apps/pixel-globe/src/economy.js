@@ -455,7 +455,7 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Gane Village", ["fish", "timber", NAVAL_STORES_GOOD_ID]),
   specialty("Buru Village", ["fish", "timber", BEESWAX_GOOD_ID]),
   specialty("Sofala", ["gold"]),
-  specialty("Mozambique Island", ["gold", "ivory"]),
+  specialty("Mozambique", ["gold", "ivory"]),
   specialty("Mombasa", ["ivory"]),
   specialty("Mogadishu", ["cotton-cloth", "ivory"]),
   specialty("Santo Domingo", ["sugar", INDIGO_GOOD_ID, "gold"]),

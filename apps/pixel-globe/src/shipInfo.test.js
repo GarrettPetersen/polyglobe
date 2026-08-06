@@ -25,6 +25,7 @@ import {
   shipLocalDateLabel,
   shipLedgerDateLabel,
   shipLedgerPage,
+  shipLedgerRowsPerPageForPanel,
   shipPapersPage,
   shipPerformanceRating,
   shipPapersRowsPerPageForPanel,
@@ -110,6 +111,18 @@ test("ship inventory page size reserves room for its pager", () => {
     height: 220,
     tallMetrics: true
   }), 4);
+});
+
+test("ship ledger page size keeps its final text row above the pager", () => {
+  assert.equal(shipLedgerRowsPerPageForPanel({ width: 520, height: 240 }), 9);
+  assert.equal(shipLedgerRowsPerPageForPanel({ width: 320, height: 256 }), 8);
+  assert.equal(shipLedgerRowsPerPageForPanel({ width: 320, height: 190 }), 5);
+  assert.equal(shipLedgerRowsPerPageForPanel({
+    width: 520,
+    height: 240,
+    tallMetrics: true,
+    lineHeight: 12
+  }), 8);
 });
 
 test("ship comparison armament avoids repeating long gun summaries", () => {

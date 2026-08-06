@@ -583,7 +583,13 @@ export function createShoreBatteryDialogueSession(city, context = {}) {
     throw new Error(`Shore battery hail requires hostile diplomacy: ${context.relation}`);
   }
   if (typeof context.playerWarship !== "boolean") throw new Error("Shore battery hail requires ship classification");
-  if (!context.playerWarship && (!Number.isInteger(context.toll) || context.toll <= 0)) {
+  if (typeof context.passageOffered !== "boolean") {
+    throw new Error("Shore battery hail requires safe-passage eligibility");
+  }
+  if (context.playerWarship && context.passageOffered) {
+    throw new Error("Shore battery cannot offer civilian passage to a warship");
+  }
+  if (context.passageOffered && (!Number.isInteger(context.toll) || context.toll <= 0)) {
     throw new Error(`Invalid shore battery passage toll: ${context.toll}`);
   }
   const ruler = rulerAtMinute(city.factionId, context.simMinute ?? 0);
@@ -595,9 +601,10 @@ export function createShoreBatteryDialogueSession(city, context = {}) {
     selectedIndex: 0,
     relation: context.relation,
     playerWarship: context.playerWarship,
+    passageOffered: context.passageOffered,
     rulerName: ruler.displayName,
-    toll: context.playerWarship ? null : context.toll,
-    canAffordToll: context.playerWarship ? false : context.canAffordToll === true
+    toll: context.passageOffered ? context.toll : null,
+    canAffordToll: context.passageOffered && context.canAffordToll === true
   };
 }
 
@@ -606,7 +613,7 @@ export function shoreBatteryDialogueView(session, city) {
     throw new Error("Shore battery dialogue city does not match active session");
   }
   const faction = factionById(city.factionId);
-  if (session.playerWarship) {
+  if (!session.passageOffered) {
     const atWar = session.relation === "war";
     return {
       speaker: `${characterName(city.character)}, ${city.city}`,

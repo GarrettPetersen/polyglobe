@@ -3,7 +3,10 @@ const SHALLOW_WATER_ELEVATION = -0.20500000000000002;
 export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze([
     38891, // Gulf of Khambhat at Cambay's historical harbor.
-    38903 // Outlet from the inner gulf to the existing Arabian Sea coast.
+    38903, // Outlet from the inner gulf to the existing Arabian Sea coast.
+    31618, // Mozambique's southwest island channel.
+    125890, // Mozambique's northwest island channel.
+    125896 // Mozambique's northeast island channel.
   ])
 });
 
@@ -402,6 +405,14 @@ export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
       terrainType: "tropical_savanna",
       elevation: -0.03,
       landmassId: 1312
+    }),
+    // Mozambique
+    Object.freeze({
+      tileId: 125893,
+      sourceTerrain: "tropical_savanna",
+      terrainType: "tropical_savanna",
+      elevation: -0.042,
+      landmassId: 1313
     })
   ])
 });

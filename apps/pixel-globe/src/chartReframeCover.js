@@ -32,6 +32,22 @@ export function chartReframeCoverIsOpaque({
   );
 }
 
+export function gameOverReframeCoverIsOpaque({
+  active = false,
+  sinkShip = false,
+  elapsedMs = 0,
+  sinkDurationMs = 0
+} = {}) {
+  if (typeof active !== "boolean" || typeof sinkShip !== "boolean") {
+    throw new Error("Game-over chart cover requires boolean state");
+  }
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0 ||
+      !Number.isFinite(sinkDurationMs) || sinkDurationMs < 0) {
+    throw new Error("Game-over chart cover requires valid transition timing");
+  }
+  return active && (!sinkShip || elapsedMs >= sinkDurationMs);
+}
+
 export function chartShouldReframeOnCoverOpen({
   coverIsActive,
   coverWasActive,

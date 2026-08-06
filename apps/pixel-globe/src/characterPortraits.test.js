@@ -830,6 +830,35 @@ test("campaign contacts are distinct people from the home port factor", () => {
   assert.deepEqual(repeatedPatron, patron);
 });
 
+test("the treasure campaign contact is an old warrior rather than a young factor", () => {
+  const homePort = {
+    tileId: 11,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    lat: 38.72,
+    lon: -9.14
+  };
+  const usedNames = new Set(["Ines Pereira"]);
+  const [factor] = assignPortCityCharacters([homePort], GENERATED_MANIFEST, usedNames).values();
+  const buccaneer = generateCampaignContactCharacter({
+    playerCharacter: { id: "captain-lisbon", name: "Ines Pereira" },
+    homePort,
+    goalType: "pirate-treasure",
+    excludedSourceId: factor.sourceId,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+
+  assert.equal(buccaneer.role, "old-buccaneer");
+  assert.ok(buccaneer.age >= 45);
+  assert.ok(buccaneer.sourceRoles.includes("captain"));
+  assert.ok(buccaneer.sourceRoles.includes("warrior"));
+  assert.equal(buccaneer.sourceLabel, "Old Warrior Grey Beard");
+  assert.notEqual(buccaneer.sourceId, factor.sourceId);
+});
+
 test("Ternate and Tidore factors and patrons keep their own locatives", () => {
   for (const [index, cityName, factionId, rivalLocative] of [
     [0, "Ternate", "ternate", "Tidore"],

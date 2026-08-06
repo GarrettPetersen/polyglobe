@@ -18,6 +18,10 @@ import { fetchStaticAsset } from "./staticAssetFetch.js";
 export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-17";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
+const OLD_BUCCANEER_MINIMUM_AGE = 45;
+const OLD_BUCCANEER_PREFERRED_SOURCE_ID =
+  "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard";
+
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
   angry: Object.freeze(["stern", "shouting", "annoyed", "determined"]),
   afraid: Object.freeze(["worried", "surprised", "concerned", "wary"]),
@@ -406,11 +410,13 @@ export function generateSpecialPortCharacter({
   }
   const region = portraitRegionForCity(port);
   const sourcePool = selectFixedPortraitSource(
-    characterSourcesForRole(manifest, "factor", region, { excludedSourceIds }),
+    specialPortCharacterSources(manifest, role, region, excludedSourceIds),
     portraitSourceId,
     role
   );
-  const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
+  const character = assignCharacterSprite(identityKey, region, sourcePool, new Set(), {
+    minimumAge: role === "old-buccaneer" ? OLD_BUCCANEER_MINIMUM_AGE : null
+  });
   return Object.freeze(characterWithBiography({
     ...character,
     ...assignRegionalCharacterIdentity({
@@ -661,8 +667,11 @@ function assertUsedNames(usedNames) {
   if (!(usedNames instanceof Set)) throw new Error("Character assignment requires a shared used-name Set");
 }
 
-function assignCharacterSprite(key, region, sourcePool, used) {
+function assignCharacterSprite(key, region, sourcePool, used, { minimumAge = null } = {}) {
   if (sourcePool.length === 0) throw new Error(`No character portrait sources available for ${key}`);
+  if (minimumAge !== null && (!Number.isInteger(minimumAge) || minimumAge < 5 || minimumAge > 90)) {
+    throw new Error(`Invalid minimum portrait age for ${key}: ${minimumAge}`);
+  }
   const unusedTickets = portraitSourceTickets(sourcePool).filter(({ ticketId }) => (
     !used.has(ticketId)
   ));
@@ -673,8 +682,16 @@ function assignCharacterSprite(key, region, sourcePool, used) {
   }
   used.add(ticket.ticketId);
   const source = ticket.source;
+  if (minimumAge !== null && source.maxAge < minimumAge) {
+    throw new Error(`${source.label} cannot portray a character aged ${minimumAge} or older`);
+  }
   const identitySuffix = hashString32(key).toString(16).padStart(8, "0");
-  return assignedCharacter(`${source.id}-${identitySuffix}`, region, source, ageForSource(key, source));
+  return assignedCharacter(
+    `${source.id}-${identitySuffix}`,
+    region,
+    source,
+    ageForSource(key, source, minimumAge)
+  );
 }
 
 function portraitSourceTickets(sourcePool) {
@@ -687,9 +704,10 @@ function portraitSourceTickets(sourcePool) {
   });
 }
 
-function ageForSource(key, source) {
-  const span = source.maxAge - source.minAge + 1;
-  return source.minAge + hashString32(`${key}|${source.id}|age`) % span;
+function ageForSource(key, source, minimumAge = null) {
+  const minAge = minimumAge === null ? source.minAge : Math.max(source.minAge, minimumAge);
+  const span = source.maxAge - minAge + 1;
+  return minAge + hashString32(`${key}|${source.id}|age`) % span;
 }
 
 function assignedCharacter(id, region, source, age) {
@@ -778,6 +796,23 @@ function characterSourcesForRole(
     throw new Error(`Character portrait manifest has no ${region} sources for role ${role}`);
   }
   return regional;
+}
+
+function specialPortCharacterSources(manifest, role, region, excludedSourceIds) {
+  const regional = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
+  if (role !== "old-buccaneer") return regional;
+
+  const preferred = regional.find((source) => source.id === OLD_BUCCANEER_PREFERRED_SOURCE_ID);
+  if (preferred) return [preferred];
+
+  const veteranCaptains = regional.filter((source) => (
+    source.roles.includes("captain") && source.maxAge >= OLD_BUCCANEER_MINIMUM_AGE
+  ));
+  if (veteranCaptains.length === 0) {
+    throw new Error(`Character portrait manifest has no veteran ${region} captain for the old buccaneer`);
+  }
+  const warriors = veteranCaptains.filter((source) => source.roles.includes("warrior"));
+  return warriors.length > 0 ? warriors : veteranCaptains;
 }
 
 function sourceIdExclusionSet(sourceIds) {

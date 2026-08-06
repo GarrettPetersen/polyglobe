@@ -6,6 +6,7 @@ export const WORLD_LAYER_ORDER = Object.freeze([
   "surfaceDetails",
   "waterEffects",
   "waterForeground",
+  "roads",
   "dynamicUnderlay",
   "dynamicWorld"
 ]);

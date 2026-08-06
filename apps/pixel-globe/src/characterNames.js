@@ -451,7 +451,7 @@ const CITY_CULTURES = new Map([
   ["kilwa", "swahili"],
   ["mombasa", "swahili"],
   ["sofala", "swahili"],
-  ["mozambique island", "swahili"],
+  ["mozambique", "swahili"],
   ["mogadishu", "somali"],
   ["massawa", "ethiopian"],
   ["axum", "ethiopian"],

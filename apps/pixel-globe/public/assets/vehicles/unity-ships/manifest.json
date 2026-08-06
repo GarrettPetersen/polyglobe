@@ -5,7 +5,7 @@
   "scaleNotes": "Imported FBX source sizes are preserved through a compressed readability curve so boats stay smaller without becoming illegible at 47px.",
   "targetMaxDimForLargestShip": 2.3,
   "fleetScaleExponent": 0.5,
-  "sharedFrameScale": 0.6615,
+  "sharedFrameScale": 0.6143,
   "skipped": [
     "Models/boats/boat 2.fbx (superseded by the credited one-person Dhow model)",
     "Models/boats/boat 4.fbx (superseded by the credited gogiart Dhow model)",
@@ -13,13 +13,11 @@
     "Models/ships large/pirate ship large 2.fbx (redundant with the more detailed credited Galleon model)",
     "Models/ships large/ship large 2.fbx (redundant with the more detailed credited Galleon model)",
     "Models/ships medium/pirate ship medium.fbx (redundant with the Brigantine and Xebec)",
-    "Models/ships medium/ship medium 3.fbx (redundant with the stronger Carrack and Spanish Nao models)",
     "Models/ships medium/ship medium 6.fbx (redundant with the more distinctive Heavy Caravel)",
     "Models/ships small/pirate ship small.fbx (redundant with the cleaner Coastal Pinnace)",
     "Models/ships small/ship small 1.fbx (redundant with the more distinctive Xebec)",
     "Models/ships small/ship small 4.fbx (redundant with the credited gogiart Dhow model)",
     "Models/ships small/ship small 6.fbx (redundant with the Small Cog and Caravel)",
-    "Models/ships small/ship small 7.fbx (alternate two-sail dhow-like craft retained behind the dedicated Ocean Dhow)",
     "Models/viking ships/viking ship 1.fbx (rendered by the dedicated animated-oar Viking Longship bake)",
     "Models/viking ships/viking ship 2.fbx (alternate sail color)",
     "Models/viking ships/viking ship 3.fbx (alternate sail color)",
@@ -42,10 +40,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 831.0967,
       "targetModelMaxDim": 0.9096,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.4325
+        "y": 27.1516
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.31413747736668796,
@@ -57,10 +55,10 @@
         "hullIntervalMinY": -0.324522,
         "hullIntervalMaxY": -0.29856
       },
-      "encodedWaterlineY": -0.302026,
+      "encodedWaterlineY": -0.300435,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.307021,
-      "sinkHeightMax": 0.327331,
+      "sinkHeightMin": -0.305434,
+      "sinkHeightMax": 0.329473,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -116,10 +114,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 645.6119,
       "targetModelMaxDim": 1.3,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.7959
+        "y": 27.4891
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.4627803946263036,
@@ -131,10 +129,10 @@
         "hullIntervalMinY": -0.478079,
         "hullIntervalMaxY": -0.432183
       },
-      "encodedWaterlineY": -0.435528,
+      "encodedWaterlineY": -0.435527,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.442851,
-      "sinkHeightMax": 0.487232,
+      "sinkHeightMax": 0.48727,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -190,10 +188,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 857.9191,
       "targetModelMaxDim": 0.9242,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.6951
+        "y": 27.3955
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.4066075800641935,
@@ -207,7 +205,7 @@
       },
       "encodedWaterlineY": -0.406608,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.427124,
+      "sinkHeightMin": -0.443035,
       "sinkHeightMax": 0.460822,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -264,10 +262,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3252.2148,
       "targetModelMaxDim": 1.7994,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.1521
+        "y": 28.7484
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6114549926396833,
@@ -281,8 +279,8 @@
       },
       "encodedWaterlineY": -0.611455,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.715028,
-      "sinkHeightMax": 0.712402,
+      "sinkHeightMin": -0.716323,
+      "sinkHeightMax": 0.71326,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -338,10 +336,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3234.0896,
       "targetModelMaxDim": 1.7944,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 34.6655
+        "y": 33.8679
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.7496062855636385,
@@ -356,7 +354,7 @@
       "encodedWaterlineY": -0.749606,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.837111,
-      "sinkHeightMax": 0.84407,
+      "sinkHeightMax": 0.844024,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -412,10 +410,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 5137.2568,
       "targetModelMaxDim": 2.2616,
-      "frameScale": 0.6515,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 30.1106
+        "y": 29.7328
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6408279004097618,
@@ -429,8 +427,8 @@
       },
       "encodedWaterlineY": -0.640828,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.710824,
-      "sinkHeightMax": 0.711681,
+      "sinkHeightMin": -0.711521,
+      "sinkHeightMax": 0.71257,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -486,10 +484,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 4324.8892,
       "targetModelMaxDim": 2.0751,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.1217
+        "y": 28.7201
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6335832014325332,
@@ -503,7 +501,7 @@
       },
       "encodedWaterlineY": -0.633583,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.730291,
+      "sinkHeightMin": -0.712462,
       "sinkHeightMax": 0.728635,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -560,10 +558,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 5313.3955,
       "targetModelMaxDim": 2.3,
-      "frameScale": 0.6515,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 30.0665
+        "y": 29.6913
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6375315248193973,
@@ -577,7 +575,7 @@
       },
       "encodedWaterlineY": -0.637532,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.721045,
+      "sinkHeightMin": -0.704218,
       "sinkHeightMax": 0.719604,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -634,10 +632,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2870.6094,
       "targetModelMaxDim": 1.6906,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 28.7508
+        "y": 28.3757
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.606253297214245,
@@ -651,8 +649,8 @@
       },
       "encodedWaterlineY": -0.606253,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.723458,
-      "sinkHeightMax": 0.722625,
+      "sinkHeightMin": -0.715353,
+      "sinkHeightMax": 0.722622,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -708,10 +706,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3954.8806,
       "targetModelMaxDim": 1.9843,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 31.2525
+        "y": 30.6987
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6930998858395693,
@@ -725,8 +723,8 @@
       },
       "encodedWaterlineY": -0.6931,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.761168,
-      "sinkHeightMax": 0.768811,
+      "sinkHeightMin": -0.76141,
+      "sinkHeightMax": 0.768453,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -782,10 +780,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3621.5095,
       "targetModelMaxDim": 1.8988,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 31.1145
+        "y": 30.5706
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6585613902860337,
@@ -799,8 +797,8 @@
       },
       "encodedWaterlineY": -0.658561,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.706804,
-      "sinkHeightMax": 0.72989,
+      "sinkHeightMin": -0.69892,
+      "sinkHeightMax": 0.730041,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -842,6 +840,80 @@
       }
     },
     {
+      "slug": "holk",
+      "label": "Holk",
+      "category": "ships medium",
+      "assetLabel": "Ship Medium 3",
+      "identifiedType": "northern European holk / hulk",
+      "identificationConfidence": "medium",
+      "identificationNotes": "Broad cargo hull and compact square rig interpreted as a late medieval North Sea and Baltic holk.",
+      "creator": "Palmov Island",
+      "license": "Standard Unity Asset Store EULA",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 3.fbx",
+      "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
+      "sourceMaxDim": 3190.7581,
+      "targetModelMaxDim": 1.6,
+      "frameScale": 0.6143,
+      "turntableAnchor": {
+        "x": 23.5,
+        "y": 30.4014
+      },
+      "scaleMode": "source-relative-fleet",
+      "waterlineY": -0.4745232593905815,
+      "waterlineOffsetY": 0,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 1,
+        "dominantLengthRatio": 1,
+        "hullIntervalMinY": -0.510677,
+        "hullIntervalMaxY": -0.420292
+      },
+      "encodedWaterlineY": -0.474523,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.562822,
+      "sinkHeightMax": 0.573205,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": -0.000893,
+        "y": 0.578466,
+        "z": -0.14844
+      },
+      "stats": {
+        "slug": "holk",
+        "cannons": 4,
+        "accelerationRad": 0.015,
+        "topSpeedRad": 0.02635,
+        "upwindStallAngleDeg": 50,
+        "upwindStallAngleRad": 0.8726646259971648,
+        "turnRateRad": 1.75,
+        "mass": 150,
+        "crewCapacity": 16,
+        "hitPoints": 15,
+        "cargoCapacity": 250,
+        "seaworthiness": 7,
+        "armor": 0,
+        "crewProtection": 35,
+        "propulsion": "sail"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/holk-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/holk-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/holk-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/holk-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/holk-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/holk-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/holk-32-headings-lighting-preview.png"
+      }
+    },
+    {
       "slug": "square-rigged-caravel",
       "label": "Square-Rigged Caravel",
       "category": "ships medium",
@@ -856,10 +928,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2620.5049,
       "targetModelMaxDim": 1.6152,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 31.3391
+        "y": 30.7792
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6751154748377313,
@@ -873,8 +945,8 @@
       },
       "encodedWaterlineY": -0.675115,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.7866,
-      "sinkHeightMax": 0.778331,
+      "sinkHeightMin": -0.797548,
+      "sinkHeightMax": 0.776172,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -930,10 +1002,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3148.0386,
       "targetModelMaxDim": 1.7704,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.2722
+        "y": 28.8599
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6690514625851667,
@@ -947,8 +1019,8 @@
       },
       "encodedWaterlineY": -0.669051,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.684821,
-      "sinkHeightMax": 0.722745,
+      "sinkHeightMin": -0.68519,
+      "sinkHeightMax": 0.729141,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1004,10 +1076,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2058.6396,
       "targetModelMaxDim": 1.4316,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 30.0213
+        "y": 29.5555
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6023806016218708,
@@ -1019,10 +1091,10 @@
         "hullIntervalMinY": -0.612505,
         "hullIntervalMaxY": -0.582133
       },
-      "encodedWaterlineY": -0.602381,
+      "encodedWaterlineY": -0.601528,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.632713,
-      "sinkHeightMax": 0.644932,
+      "sinkHeightMin": -0.611419,
+      "sinkHeightMax": 0.644756,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1078,10 +1150,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 1609.0532,
       "targetModelMaxDim": 0.98,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.6477
+        "y": 29.2086
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.35550026463023854,
@@ -1152,10 +1224,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 1941.4077,
       "targetModelMaxDim": 1.2,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 28.7548
+        "y": 28.3795
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.435944446360453,
@@ -1170,7 +1242,7 @@
       "encodedWaterlineY": -0.42603,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.433186,
-      "sinkHeightMax": 0.475639,
+      "sinkHeightMax": 0.475662,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1226,10 +1298,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2970.9222,
       "targetModelMaxDim": 1.7198,
-      "frameScale": 0.6615,
+      "frameScale": 0.6143,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.7958
+        "y": 27.4889
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.5115140875905757,
@@ -1243,8 +1315,8 @@
       },
       "encodedWaterlineY": -0.511514,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.577286,
-      "sinkHeightMax": 0.576584,
+      "sinkHeightMin": -0.575462,
+      "sinkHeightMax": 0.578963,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1283,6 +1355,80 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-32-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-32-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-32-headings-lighting-preview.png"
+      }
+    },
+    {
+      "slug": "javanese-jong",
+      "label": "Javanese Jong",
+      "category": "ships small",
+      "assetLabel": "Ship Small 7",
+      "identifiedType": "large Javanese jong",
+      "identificationConfidence": "medium",
+      "identificationNotes": "Deep island Southeast Asian merchant hull with wind-filled canted sails and added twin quarter rudders.",
+      "creator": "Palmov Island",
+      "license": "Standard Unity Asset Store EULA",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 7.fbx",
+      "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
+      "sourceMaxDim": 2617.5764,
+      "targetModelMaxDim": 2.15,
+      "frameScale": 0.5443,
+      "turntableAnchor": {
+        "x": 23.5,
+        "y": 31.0004
+      },
+      "scaleMode": "source-relative-fleet",
+      "waterlineY": -0.9154296875,
+      "waterlineOffsetY": 0,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 2,
+        "dominantLengthRatio": 0.7735,
+        "hullIntervalMinY": -0.999414,
+        "hullIntervalMaxY": -0.764258
+      },
+      "encodedWaterlineY": -0.91543,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -1.057133,
+      "sinkHeightMax": 1.069092,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": 0.032329,
+        "y": 1.075,
+        "z": -0.518048
+      },
+      "stats": {
+        "slug": "javanese-jong",
+        "cannons": 8,
+        "accelerationRad": 0.011,
+        "topSpeedRad": 0.028900000000000002,
+        "upwindStallAngleDeg": 48,
+        "upwindStallAngleRad": 0.8377580409572782,
+        "turnRateRad": 1.25,
+        "mass": 400,
+        "crewCapacity": 39,
+        "hitPoints": 40,
+        "cargoCapacity": 600,
+        "seaworthiness": 9,
+        "armor": 0,
+        "crewProtection": 55,
+        "propulsion": "sail"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/javanese-jong-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/javanese-jong-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/javanese-jong-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/javanese-jong-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/javanese-jong-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/javanese-jong-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/javanese-jong-32-headings-lighting-preview.png"
       }
     },
     {
@@ -3114,10 +3260,10 @@
       "sourceTexture": null,
       "sourceMaxDim": 42.0511,
       "targetModelMaxDim": 2.3,
-      "frameScale": 0.56,
+      "frameScale": 0.54,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.209
+        "y": 29.0051
       },
       "scaleMode": "spanish-nao",
       "waterlineY": -0.6919229817707491,
@@ -3262,10 +3408,10 @@
       "sourceTexture": null,
       "sourceMaxDim": 5.9955,
       "targetModelMaxDim": 0.95,
-      "frameScale": 0.6,
+      "frameScale": 0.56,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.2152
+        "y": 26.9675
       },
       "scaleMode": "standalone-source-relative",
       "waterlineY": -0.3262044250051358,
@@ -3279,8 +3425,8 @@
       },
       "encodedWaterlineY": -0.326204,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.442187,
-      "sinkHeightMax": 0.45569,
+      "sinkHeightMin": -0.441407,
+      "sinkHeightMax": 0.449775,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -4135,5 +4281,6 @@
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
   "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
-  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
+  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
+  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong"
 }

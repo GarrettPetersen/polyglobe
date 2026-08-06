@@ -742,7 +742,9 @@ test("saved Mesoamerican fishermen abandon obsolete Northwest Coast routes", () 
 test("Southeast Asian traffic includes the regional Malay fleet", () => {
   const ports = [
     ...PORTS,
-    port(10, "Aceh", "Indonesia", "southeast-asian", 5.55, 95.32, 35000, "neutral")
+    port(10, "Aceh", "Indonesia", "southeast-asian", 5.55, 95.32, 35000, "neutral"),
+    port(11, "Banten", "Indonesia", "southeast-asian", -6.04, 106.15, 24000, "neutral"),
+    port(12, "Ternate", "Indonesia", "southeast-asian", 0.79, 127.38, 18000, "ternate")
   ];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
@@ -762,6 +764,7 @@ test("Southeast Asian traffic includes the regional Malay fleet", () => {
     .filter((ship) => ship.profileId === "indian-ocean")
     .every((ship) => !["kelulus", "penjajap", "lancaran", "royal-lancaran"].includes(ship.slug)));
   assert.ok(NPC_SHIP_SLUGS.includes("ocean-dhow"));
+  assert.ok(NPC_SHIP_SLUGS.includes("javanese-jong"));
 });
 
 test("independent Mesoamerican villages get a sparse dugout-canoe fishing fleet", () => {

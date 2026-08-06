@@ -120,6 +120,16 @@ test("clicking an engaged ship outside a cannon arc steers instead of hailing", 
   });
 });
 
+test("clicking a hostile ship outside combat steers instead of hailing", () => {
+  const target = { kind: "ship", call: { id: "hostile-ship" } };
+  assert.deepEqual(worldPointerAction({
+    interactionCandidate: { target, exact: true },
+    combatShipHostile: true
+  }), {
+    type: WORLD_POINTER_ACTION.STEER
+  });
+});
+
 test("exact noncombat interactions still beat a broadside sector beneath them", () => {
   const target = { kind: "port", call: { tileId: 42 } };
   assert.deepEqual(worldPointerAction({

@@ -249,7 +249,8 @@ test("hostile shore batteries hail before opening fire", () => {
   };
   const session = createShoreBatteryDialogueSession(city, {
     relation: "war",
-    playerWarship: true
+    playerWarship: true,
+    passageOffered: false
   });
   const view = shoreBatteryDialogueView(session, city);
   assert.equal(session.kind, "shore-battery");
@@ -270,6 +271,7 @@ test("hostile shore batteries sell civilian passage for the whole empire", () =>
   const session = createShoreBatteryDialogueSession(city, {
     relation: "hostile",
     playerWarship: false,
+    passageOffered: true,
     toll: 55,
     canAffordToll: true
   });
@@ -286,6 +288,26 @@ test("hostile shore batteries sell civilian passage for the whole empire", () =>
   );
 });
 
+test("shore batteries do not quote passage that the faction will refuse", () => {
+  const city = {
+    tileId: 17,
+    portId: "city-17",
+    city: "Alexandria",
+    factionId: "ottoman",
+    character: { name: "Kemal Reis" }
+  };
+  const session = createShoreBatteryDialogueSession(city, {
+    relation: "war",
+    playerWarship: false,
+    passageOffered: false
+  });
+  const view = shoreBatteryDialogueView(session, city);
+
+  assert.match(view.text, /at war with your flag/);
+  assert.deepEqual(view.options.map((entry) => entry.label), ["To arms"]);
+  assert.ok(view.options.every((entry) => entry.action.type !== "purchase-safe-passage"));
+});
+
 test("disabled shore battery passage offers stay open without crashing", () => {
   const city = {
     tileId: 17,
@@ -297,6 +319,7 @@ test("disabled shore battery passage offers stay open without crashing", () => {
   const session = createShoreBatteryDialogueSession(city, {
     relation: "hostile",
     playerWarship: false,
+    passageOffered: true,
     toll: 55,
     canAffordToll: false
   });

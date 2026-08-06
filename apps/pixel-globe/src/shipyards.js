@@ -62,7 +62,7 @@ const FAMOUS_TOWN_KEYS = new Set(FAMOUS_SHIPBUILDING_TOWNS.map(normalizeName));
 
 const REGION_SHIP_POOLS = Object.freeze({
   "northern-european": Object.freeze([
-    "fishing-lugger", "small-cog", "small-cog", "cutter", "ketch", "square-rigged-caravel",
+    "fishing-lugger", "small-cog", "small-cog", "holk", "holk", "cutter", "ketch", "square-rigged-caravel",
     "caravel", "caravel", "brigantine", "fluyt", "carrack", "galleon", "ship-of-the-line"
   ]),
   mediterranean: Object.freeze([
@@ -81,7 +81,7 @@ const REGION_SHIP_POOLS = Object.freeze({
   "southeast-asian": Object.freeze([
     "sampan", "dhow", "dhow", "kelulus", "kelulus", "penjajap", "penjajap",
     "nusantaran-outrigger", "nusantaran-outrigger", "small-junk", "lancaran", "lancaran",
-    "medium-junk", "royal-lancaran", "large-junk", "caravel", "carrack"
+    "medium-junk", "royal-lancaran", "large-junk", "javanese-jong", "javanese-jong", "caravel", "carrack"
   ]),
   polynesian: Object.freeze(["polynesian-voyaging-canoe"]),
   mesoamerican: Object.freeze(["mesoamerican-dugout-canoe"]),

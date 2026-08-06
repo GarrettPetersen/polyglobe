@@ -52,7 +52,7 @@ const PORTUGUESE_ESTADO_PORT_KEYS = new Set([
   portKey("Malacca", "Malaysia"),
   portKey("Muscat", "Oman"),
   portKey("Sofala", "Mozambique"),
-  portKey("Mozambique Island", "Mozambique")
+  portKey("Mozambique", "Mozambique")
 ]);
 
 const PORTUGUESE_CARTAZ_ENFORCEMENT_ZONES = Object.freeze([

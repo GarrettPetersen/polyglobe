@@ -16,6 +16,7 @@ For development, `?startShip={slug}` starts a new voyage with any roster ship. T
 |---|---|---|---|---|---|
 | Fishing Barque | `fishing-lugger` | Boat 1 | small fishing barque | Medium | Small single-mast coastal working boat. |
 | Small Cog | `small-cog` | Boat 3 | small cog / roundship | Medium | Broad little hull with a simple square-sail profile. Its tuned scale keeps it above open boats but below the small-junk and medium-ship tier. |
+| Holk | `holk` | Ship Medium 3 | northern European holk / hulk | Medium | Broad cargo hull and compact square rig interpreted as a late-medieval North Sea and Baltic bulk carrier. |
 | Dhow | `dhow` | Dhow by gogiart | small coastal dhow / fishing craft | High | Purpose-built one-person coastal dhow used as a light fishing and trading craft. |
 | Ocean Dhow | `ocean-dhow` | Low Poly Ancient Dhow Ship by Nisa Nurul Azizah | medium western Indian Ocean lateen trader | High | Broad-beamed, two-masted cargo dhow scaled between small coastal lateen craft and large ocean warships. |
 | Sampan | `sampan` | Chinese Boat | small junk / sampan | High | Small Chinese-rigged vessel; good for river/coastal Asian traffic. |
@@ -34,6 +35,7 @@ For development, `?startShip={slug}` starts a new voyage with any roster ship. T
 | Felucca | `felucca` | Ship Small 2 | dhow / felucca | High | Small single-lateen craft, scaled with the other low-capacity coastal starters. |
 | Coastal Pinnace | `cutter` | Ship Small 3 | small pinnace | Medium | Small European fore-and-aft silhouette used as a coastal pinnace, between the starter boats and compact cargo upgrades. |
 | Lateen Barque | `ketch` | Ship Small 5 | two-masted lateen barque | Medium | Two triangular sails interpreted as a small Mediterranean lateen trader. |
+| Javanese Jong | `javanese-jong` | Ship Small 7 | large Javanese jong | Medium | The pack's unusually deep hull and three wind-filled canted sails provide a readable heavy island merchant silhouette. Twin quarter rudders are added procedurally to every heading, lighting mask, shadow, sinking layer, and side view. |
 | Turtle Ship | `joseon-turtle-ship` | Geobukseon (Turtle Ship) | early Joseon armored oar-and-sail warship | High | Joseon-specific cannon warship with procedurally baked working oars. |
 | Panokseon | `joseon-panokseon` | Panok ship (Panokseon) | Joseon decked oar-and-sail warship lineage | Medium | Available from 1522 as a representative of earlier Joseon decked oar-and-sail predecessors; the mature named type is documented later. The source model's static paddles are replaced with procedurally baked working oars. |
 | Umi-bune | `japanese-kuribune` | Kamakura Period Umi-Bune Japanese Boat | small Japanese coastal cargo vessel | Medium | The legacy filename slug remains for save compatibility. The source model's eight static stern oars are replaced with four animated oars for a clearer gameplay silhouette. |
@@ -60,10 +62,12 @@ The Turtle Ship has 40% intrinsic combat armor. Each projectile or ramming impac
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | Fishing Barque | `fishing-lugger` | 0 | 0.021 | 0.028 | 48deg | 2.90 | 35 | 18 |
 | Small Cog | `small-cog` | 2 | 0.016 | 0.026 | 58deg | 2.00 | 70 | 70 |
+| Holk | `holk` | 4 | 0.015 | 0.031 | 58deg | 1.75 | 15 | 250 |
 | Dhow | `dhow` | 0 | 0.030 | 0.029 | 38deg | 3.50 | 12 | 10 |
 | Ocean Dhow | `ocean-dhow` | 2 | 0.022 | 0.034 | 40deg | 2.55 | 11 | 125 |
 | Sampan | `sampan` | 0 | 0.026 | 0.026 | 45deg | 3.40 | 30 | 25 |
 | Large Junk | `large-junk` | 24 | 0.015 | 0.038 | 50deg | 1.75 | 220 | 360 |
+| Javanese Jong | `javanese-jong` | 8 | 0.011 | 0.034 | 56deg | 1.25 | 40 | 600 |
 | Heavy Caravel | `pirate-brig` | 18 | 0.020 | 0.041 | 42deg | 2.35 | 190 | 130 |
 | Galleon | `galleon` | 32 | 0.013 | 0.037 | 55deg | 1.55 | 360 | 420 |
 | Urca | `fluyt` | 12 | 0.012 | 0.036 | 58deg | 1.45 | 260 | 520 |
@@ -108,8 +112,6 @@ Skipped source assets:
 | Ship Medium 6 | Redundant with the more distinctive Heavy Caravel. |
 | Pirate Ship Small | Redundant with the cleaner Coastal Pinnace. |
 | Ship Large 1 | Superseded by the credited cyc3w Sailing ship model. |
-| Ship Medium 3 | Redundant with the stronger Carrack and Spanish Nao models. |
 | Ship Small 1 | Redundant with the more distinctive Xebec. |
 | Ship Small 4 | Redundant with the credited purpose-built Dhow model. |
 | Ship Small 6 | Redundant with the Small Cog and Caravel. |
-| Ship Small 7 | Redundant with the Felucca and credited purpose-built Dhow models. |

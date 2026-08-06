@@ -40,7 +40,7 @@ const ISLAMIC_AND_INDIAN_OCEAN_SHIP_SLUGS = new Set([
   "dhow", "ocean-dhow", "felucca", "xebec", "ottoman-coastal-trader"
 ]);
 const SOUTHEAST_ASIAN_SHIP_SLUGS = new Set([
-  "nusantaran-outrigger", "kelulus", "penjajap", "lancaran", "royal-lancaran"
+  "nusantaran-outrigger", "kelulus", "penjajap", "lancaran", "royal-lancaran", "javanese-jong"
 ]);
 
 function portableItem({

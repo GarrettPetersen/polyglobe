@@ -27,7 +27,8 @@ const SHIP_TYPE_TERMS = new Set([
   "Coastal Pinnace", "Lateen Barque", "Mediterranean Galley", "Galleass", "Turtle Ship",
   "Panokseon", "Umi-bune", "Kobaya", "Sekibune", "Atakebune", "Spanish Nao",
   "Portuguese Carrack", "Viking Longship", "Polynesian Voyaging Canoe", "Dugout Canoe",
-  "Nusantaran Outrigger", "Kelulus", "Penjajap", "Lancaran", "Royal Lancaran", "Kancabash"
+  "Nusantaran Outrigger", "Kelulus", "Penjajap", "Lancaran", "Royal Lancaran", "Kancabash",
+  "Holk", "Javanese Jong"
 ]);
 
 const DIPLOMACY_TERMS = new Set(["Ally", "Friendly", "Neutral", "Hostile", "War"]);
@@ -37,7 +38,7 @@ const REVIEWED_SHIP_TYPE_TERMS = Object.freeze([
   "Great Carrack", "Medium Junk", "Square-Rigged Caravel", "Small Junk",
   "Coastal Pinnace", "Lateen Barque", "Mediterranean Galley", "Turtle Ship",
   "Spanish Nao", "Portuguese Carrack", "Viking Longship", "Polynesian Voyaging Canoe",
-  "Dugout Canoe", "Nusantaran Outrigger", "Royal Lancaran"
+  "Dugout Canoe", "Nusantaran Outrigger", "Royal Lancaran", "Holk", "Javanese Jong"
 ]);
 
 const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
@@ -46,70 +47,72 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
     "大型卡拉克帆船", "中型福船", "横帆卡拉维尔帆船", "小型福船",
     "近海轻帆船", "三角帆驳船", "地中海桨帆船", "龟船",
     "西班牙大帆船", "葡萄牙卡拉克帆船", "维京长船", "波利尼西亚远航独木舟",
-    "独木舟", "南洋舷外浮木舟", "皇家兰卡兰"
+    "独木舟", "南洋舷外浮木舟", "皇家兰卡兰", "霍尔克船", "爪哇海船"
   ]),
   ru: Object.freeze([
     "Рыболовный барк", "Малый когг", "Океанский дау", "Большая джонка", "Тяжёлая каравелла",
     "Большая каракка", "Средняя джонка", "Каравелла с прямым парусом", "Малая джонка",
     "Прибрежная пинасса", "Латинская барка", "Средиземноморская галера", "Корабль-черепаха",
     "Испанский нао", "Португальская каракка", "Драккар викингов", "Полинезийское мореходное каноэ",
-    "Долблёное каноэ", "Нусантаранское каноэ с аутригером", "Королевский ланчаран"
+    "Долблёное каноэ", "Нусантаранское каноэ с аутригером", "Королевский ланчаран",
+    "Корабль-хольк", "Яванский джонг"
   ]),
   es: Object.freeze([
     "Barca pesquera", "Coca pequeña", "Dhow oceánico", "Junco grande", "Carabela pesada",
     "Gran carraca", "Junco mediano", "Carabela de aparejo cuadrado", "Junco pequeño",
     "Pinaza costera", "Barca de vela latina", "Galera mediterránea", "Barco tortuga",
     "Nao española", "Carraca portuguesa", "Drakkar vikingo", "Canoa de travesía polinesia",
-    "Canoa monóxila", "Canoa con balancín nusantarana", "Lancaran real"
+    "Canoa monóxila", "Canoa con balancín nusantarana", "Lancaran real", "Holca", "Junco javanés"
   ]),
   "pt-BR": Object.freeze([
     "Barca de pesca", "Coca pequena", "Dhow oceânico", "Junco grande", "Caravela pesada",
     "Grande carraca", "Junco médio", "Caravela de armação redonda", "Junco pequeno",
     "Pinaça costeira", "Barca de vela latina", "Galé mediterrânea", "Navio-tartaruga",
     "Nao espanhola", "Carraca portuguesa", "Dracar viking", "Canoa de viagem polinésia",
-    "Canoa monóxila", "Canoa nusantarense com estabilizador", "Lancaran real"
+    "Canoa monóxila", "Canoa nusantarense com estabilizador", "Lancaran real", "Holca", "Jong javanês"
   ]),
   ja: Object.freeze([
     "漁船", "小型コグ船", "外洋ダウ船", "大型ジャンク船", "重カラベル船",
     "大型キャラック船", "中型ジャンク船", "横帆カラベル船", "小型ジャンク船",
     "沿岸ピンネース", "ラティーン帆船", "地中海ガレー船", "亀甲船",
     "スペイン・ナオ船", "ポルトガル・キャラック船", "ヴァイキング長船", "ポリネシア航海カヌー",
-    "丸木舟", "ヌサンタラ式アウトリガー船", "王室ランチャラン"
+    "丸木舟", "ヌサンタラ式アウトリガー船", "王室ランチャラン", "ホルク船", "ジャワ式ジョン船"
   ]),
   de: Object.freeze([
     "Fischerbarke", "Kleine Kogge", "Hochseedhau", "Große Dschunke", "Schwere Karavelle",
     "Große Karacke", "Mittlere Dschunke", "Rahgetakelte Karavelle", "Kleine Dschunke",
     "Küstenpinasse", "Lateinerbarke", "Mittelmeergaleere", "Schildkrötenschiff",
     "Spanische Nao", "Portugiesische Karacke", "Wikinger-Langschiff", "Polynesisches Reisekanu",
-    "Einbaum", "Nusantara-Auslegerboot", "Königliche Lancaran"
+    "Einbaum", "Nusantara-Auslegerboot", "Königliche Lancaran", "Holk-Schiff", "Javanischer Jong"
   ]),
   fr: Object.freeze([
     "Barque de pêche", "Petite cogue", "Boutre hauturier", "Grande jonque", "Caravelle lourde",
     "Grande caraque", "Jonque moyenne", "Caravelle à gréement carré", "Petite jonque",
     "Pinasse côtière", "Barque à voile latine", "Galère méditerranéenne", "Navire tortue",
     "Nao espagnole", "Caraque portugaise", "Drakkar viking", "Pirogue de voyage polynésienne",
-    "Pirogue monoxyle", "Pirogue à balancier nusantarienne", "Lancaran royal"
+    "Pirogue monoxyle", "Pirogue à balancier nusantarienne", "Lancaran royal", "Hourque", "Jong javanais"
   ]),
   pl: Object.freeze([
     "Barka rybacka", "Mała koga", "Dau oceaniczne", "Wielka dżonka", "Ciężka karawela",
     "Wielka karaka", "Średnia dżonka", "Karawela rejowa", "Mała dżonka",
     "Pinasa przybrzeżna", "Barka łacińska", "Galera śródziemnomorska", "Okręt żółwi",
     "Hiszpańska nao", "Portugalska karaka", "Wikiński drakkar", "Polinezyjskie kanoe oceaniczne",
-    "Wydrążone czółno", "Nusantaryjskie czółno z podporą", "Królewski lancaran"
+    "Wydrążone czółno", "Nusantaryjskie czółno z podporą", "Królewski lancaran",
+    "Statek holk", "Jawajski dżong"
   ]),
   "zh-Hant": Object.freeze([
     "漁用帆船", "小型柯克船", "遠洋單桅三角帆船", "大型福船", "重型卡拉維爾帆船",
     "大型卡拉克帆船", "中型福船", "橫帆卡拉維爾帆船", "小型福船",
     "近海輕帆船", "三角帆駁船", "地中海槳帆船", "龜船",
     "西班牙大帆船", "葡萄牙卡拉克帆船", "維京長船", "波利尼西亞遠航獨木舟",
-    "獨木舟", "南洋舷外浮木舟", "皇家蘭卡蘭"
+    "獨木舟", "南洋舷外浮木舟", "皇家蘭卡蘭", "霍爾克船", "爪哇海船"
   ]),
   ko: Object.freeze([
     "어선", "소형 코그선", "대양 다우선", "대형 정크선", "중무장 카라벨선",
     "대형 카락선", "중형 정크선", "횡범 카라벨선", "소형 정크선",
     "연안 피나스선", "라틴 범장 바크선", "지중해 갤리선", "거북선",
     "스페인 나오선", "포르투갈 카락선", "바이킹 롱십", "폴리네시아 원양 카누",
-    "통나무배", "누산타라 아웃리거선", "왕실 란차란"
+    "통나무배", "누산타라 아웃리거선", "왕실 란차란", "홀크선", "자바 종선"
   ])
 });
 

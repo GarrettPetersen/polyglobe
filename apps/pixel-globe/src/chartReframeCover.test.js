@@ -3,7 +3,8 @@ import test from "node:test";
 
 import {
   chartReframeCoverIsOpaque,
-  chartShouldReframeOnCoverOpen
+  chartShouldReframeOnCoverOpen,
+  gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
 
 test("compact at-sea dialogue does not qualify as hidden chart cover", () => {
@@ -32,4 +33,31 @@ test("opening opaque cover only reframes a chart that actually drifted", () => {
     coverWasActive: true,
     drift: { needsReframe: true }
   }), false);
+});
+
+test("a sinking voyage only becomes opaque cover after the ship animation", () => {
+  assert.equal(gameOverReframeCoverIsOpaque({
+    active: true,
+    sinkShip: true,
+    elapsedMs: 0,
+    sinkDurationMs: 5200
+  }), false);
+  assert.equal(gameOverReframeCoverIsOpaque({
+    active: true,
+    sinkShip: true,
+    elapsedMs: 5199,
+    sinkDurationMs: 5200
+  }), false);
+  assert.equal(gameOverReframeCoverIsOpaque({
+    active: true,
+    sinkShip: true,
+    elapsedMs: 5200,
+    sinkDurationMs: 5200
+  }), true);
+  assert.equal(gameOverReframeCoverIsOpaque({
+    active: true,
+    sinkShip: false,
+    elapsedMs: 0,
+    sinkDurationMs: 0
+  }), true);
 });

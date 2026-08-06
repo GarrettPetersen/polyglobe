@@ -21,6 +21,7 @@ test("the priority beach connector and its tide both remain beneath terrain tile
     "surfaceDetails",
     "waterEffects",
     "waterForeground",
+    "roads",
     "dynamicUnderlay",
     "dynamicWorld"
   ]);

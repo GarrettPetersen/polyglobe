@@ -256,13 +256,11 @@ const unityFleetExcludedModels = new Map([
   ["ships large/pirate ship large 2.fbx", "redundant with the more detailed credited Galleon model"],
   ["ships large/ship large 2.fbx", "redundant with the more detailed credited Galleon model"],
   ["ships medium/pirate ship medium.fbx", "redundant with the Brigantine and Xebec"],
-  ["ships medium/ship medium 3.fbx", "redundant with the stronger Carrack and Spanish Nao models"],
   ["ships medium/ship medium 6.fbx", "redundant with the more distinctive Heavy Caravel"],
   ["ships small/pirate ship small.fbx", "redundant with the cleaner Coastal Pinnace"],
   ["ships small/ship small 1.fbx", "redundant with the more distinctive Xebec"],
   ["ships small/ship small 4.fbx", "redundant with the credited gogiart Dhow model"],
   ["ships small/ship small 6.fbx", "redundant with the Small Cog and Caravel"],
-  ["ships small/ship small 7.fbx", "alternate two-sail dhow-like craft retained behind the dedicated Ocean Dhow"],
   ["viking ships/viking ship 1.fbx", "rendered by the dedicated animated-oar Viking Longship bake"],
   ["viking ships/viking ship 2.fbx", "alternate sail color"],
   ["viking ships/viking ship 3.fbx", "alternate sail color"],
@@ -365,6 +363,14 @@ const unityShipRoster = new Map([
     notes: "Small explorer/trader silhouette.",
     waterlineOffsetY: -0.046
   }],
+  ["ships medium/ship medium 3.fbx", {
+    label: "Holk",
+    slug: "holk",
+    identifiedType: "northern European holk / hulk",
+    confidence: "medium",
+    notes: "Broad cargo hull and compact square rig interpreted as a late medieval North Sea and Baltic holk.",
+    targetModelMaxDim: 1.6
+  }],
   ["ships medium/ship medium 4.fbx", {
     label: "Square-Rigged Caravel",
     slug: "square-rigged-caravel",
@@ -409,6 +415,16 @@ const unityShipRoster = new Map([
     identifiedType: "two-masted lateen barque",
     confidence: "medium",
     notes: "Two triangular sails interpreted as a small Mediterranean lateen trader."
+  }],
+  ["ships small/ship small 7.fbx", {
+    label: "Javanese Jong",
+    slug: "javanese-jong",
+    identifiedType: "large Javanese jong",
+    confidence: "medium",
+    notes: "Deep island Southeast Asian merchant hull with wind-filled canted sails and added twin quarter rudders.",
+    targetModelMaxDim: 2.15,
+    sideViewTargetModelMaxDim: 1.85,
+    staticTrianglesForHull: javaneseJongTriangles
   }],
 ]);
 
@@ -1954,6 +1970,7 @@ async function renderShipSpriteSet(config) {
   const flagAnchorModelPoint = selectShipFlagAnchorPoint(flagAnchorTriangles);
   const waterline = estimateWaterlineForConfig(hullTriangles, config);
   const waterlineY = waterline.y;
+  const renderTriangles = staticTrianglesForConfig(hullTriangles, waterlineY, config);
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
   const sheetCtx = sheet.getContext("2d");
@@ -1971,7 +1988,7 @@ async function renderShipSpriteSet(config) {
         ...mode,
         renderedHeadings: Array.from({ length: config.animationFrameCount }, (_, frameIndex) => {
           const triangles = config.animationTrianglesForFrame(
-            hullTriangles,
+            renderTriangles,
             frameIndex,
             waterlineY,
             mode.rowingMode
@@ -1986,7 +2003,7 @@ async function renderShipSpriteSet(config) {
   const renderedAnimationHeadings = renderedAnimationModes?.[0].renderedHeadings ?? null;
   const renderedHeadings = renderedAnimationHeadings?.[0] ?? Array.from(
     { length: headings },
-    (_, headingIndex) => renderHeading(hullTriangles, headingIndex, camera, renderOptions)
+    (_, headingIndex) => renderHeading(renderTriangles, headingIndex, camera, renderOptions)
   );
   // Every heading and oar pose shares one model-space waterline anchor and one
   // affine crop. Rotation can change the silhouette, never the ship's position.
@@ -2032,7 +2049,7 @@ async function renderShipSpriteSet(config) {
     camera,
     config.flagAnchorMaxSnapDistancePx
   );
-  const footprintFrames = config.animationTrianglesForFrame
+  const footprintFrames = config.animationTrianglesForFrame || config.staticTrianglesForHull
     ? Array.from({ length: headings }, (_, i) => {
         const rendered = renderHeading(hullTriangles, i, camera, renderOptions);
         return makeFrame(rendered, frameRegistration);
@@ -2366,8 +2383,10 @@ function unityShipConfig(modelPath) {
     modelPath,
     texturePath: unityShipTexturePath,
     targetModelMaxDim: rosterEntry.targetModelMaxDim,
+    sideViewTargetModelMaxDim: rosterEntry.sideViewTargetModelMaxDim,
     waterlineOffsetY: rosterEntry.waterlineOffsetY,
     flagAnchorMaxSnapDistancePx: rosterEntry.flagAnchorMaxSnapDistancePx,
+    staticTrianglesForHull: rosterEntry.staticTrianglesForHull,
     scaleMode: "source-relative-fleet",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${rosterEntry.slug}-${SHIP_SPRITE_HEADING_SUFFIX}`
@@ -2384,8 +2403,9 @@ async function measureRenderedBounds(config) {
   const model = collectTriangles(scene, { targetMaxDim: config.targetModelMaxDim });
   const camera = makeCamera();
   const waterlineY = estimateWaterlineForConfig(model.triangles, config).y;
+  const renderTriangles = staticTrianglesForConfig(model.triangles, waterlineY, config);
   return Array.from({ length: headings }, (_, i) => (
-    alphaBounds(renderHeading(model.triangles, i, camera, {
+    alphaBounds(renderHeading(renderTriangles, i, camera, {
       textureSampler: null,
       waterlineY
     }).canvas)
@@ -2487,9 +2507,10 @@ async function renderShipReferenceSet(config) {
     ...config.collectOptions
   });
   const waterlineY = estimateWaterlineForConfig(model.triangles, config).y;
+  const staticTriangles = staticTrianglesForConfig(model.triangles, waterlineY, config);
   const triangles = config.animationTrianglesForFrame
-    ? config.animationTrianglesForFrame(model.triangles, 0, waterlineY)
-    : model.triangles;
+    ? config.animationTrianglesForFrame(staticTriangles, 0, waterlineY)
+    : staticTriangles;
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
   const sheetCtx = sheet.getContext("2d");
@@ -3025,6 +3046,64 @@ function cuboidTriangles(cx, cy, cz, width, height, depth, color) {
   }));
 }
 
+function staticTrianglesForConfig(hullTriangles, waterlineY, config) {
+  if (!config.staticTrianglesForHull) return hullTriangles;
+  const triangles = config.staticTrianglesForHull(hullTriangles, waterlineY);
+  if (!Array.isArray(triangles) || triangles.length <= hullTriangles.length) {
+    throw new Error(`${config.slug} static ship geometry added no triangles`);
+  }
+  return triangles;
+}
+
+function javaneseJongTriangles(hullTriangles, waterlineY) {
+  const points = hullTriangles.flatMap((triangle) => triangle.points);
+  const bounds = boundsForPoints(points);
+  const halfBeam = bounds.size.x / 2;
+  const length = bounds.size.z;
+  const height = bounds.size.y;
+  const sternZ = bounds.box.min.z;
+  const shaftColor = { r: 91, g: 64, b: 50 };
+  const bladeColor = { r: 128, g: 91, b: 63 };
+  const shaftRadius = bounds.maxDim * 0.008;
+  const bladeRadius = bounds.maxDim * 0.019;
+  const rudders = [];
+
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Vector3(
+      side * halfBeam * 0.58,
+      waterlineY + height * 0.06,
+      sternZ + length * 0.08
+    );
+    const shaftEnd = new THREE.Vector3(
+      side * halfBeam * 0.69,
+      waterlineY - height * 0.015,
+      sternZ + length * 0.025
+    );
+    const bladeEnd = new THREE.Vector3(
+      side * halfBeam * 0.72,
+      waterlineY - height * 0.04,
+      sternZ + length * 0.005
+    );
+    rudders.push(...makePrismTriangles(
+      pivot,
+      shaftEnd,
+      shaftRadius,
+      shaftColor,
+      5,
+      `javanese-jong-rudder-${side}`
+    ));
+    rudders.push(...makePrismTriangles(
+      shaftEnd,
+      bladeEnd,
+      bladeRadius,
+      bladeColor,
+      4,
+      `javanese-jong-rudder-blade-${side}`
+    ));
+  }
+  return [...hullTriangles, ...rudders];
+}
+
 function translatedTriangles(triangles, x, y, z) {
   return triangles.map((triangle) => ({
     ...triangle,
@@ -3079,9 +3158,10 @@ async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw }
     ...config.collectOptions
   });
   const resolvedWaterlineY = waterlineY ?? estimateWaterlineForConfig(model.triangles, config).y;
+  const staticTriangles = staticTrianglesForConfig(model.triangles, resolvedWaterlineY, config);
   const triangles = config.animationTrianglesForFrame
-    ? config.animationTrianglesForFrame(model.triangles, 0, resolvedWaterlineY)
-    : model.triangles;
+    ? config.animationTrianglesForFrame(staticTriangles, 0, resolvedWaterlineY)
+    : staticTriangles;
   const renderViewport = {
     width: sideViewWidth * sideViewRenderScale,
     height: sideViewHeight * sideViewRenderScale
@@ -3833,7 +3913,7 @@ function spanishNaoConfig() {
     stats: shipStatsForSlug(slug),
     modelPath: join(naoVictoriaSourceRoot, "scene.gltf"),
     targetModelMaxDim: 2.3,
-    frameScale: 0.56,
+    frameScale: 0.54,
     sideViewTargetModelMaxDim: 2.0,
     colorTransform: simplifySpanishNaoTextureColor,
     gltfTextureSamplerOptions: {
@@ -3894,7 +3974,7 @@ function gogiartDhowConfig() {
     stats: shipStatsForSlug(slug),
     modelPath: join(gogiartDhowSourceRoot, "scene.gltf"),
     targetModelMaxDim: 0.95,
-    frameScale: 0.6,
+    frameScale: 0.56,
     flagAnchorMaxSnapDistancePx: 6,
     sideViewTargetModelMaxDim: 0.95,
     scaleMode: "standalone-source-relative",
@@ -5448,20 +5528,16 @@ function upsertShipFrameBake(fileName, label, entries, generatorKey, generatorFl
 
 async function renderUnityFleetSideViews() {
   resetUnityFleetSideViewOutput();
-  const models = unityShipModels();
-  if (models.length === 0) throw new Error(`No Unity ship FBX files found in ${unityShipModelRoot}`);
-
-  const configs = [];
-  for (const modelPath of models) {
-    const config = unityShipConfig(modelPath);
-    config.sourceMaxDim = await measureSourceMaxDim(modelPath);
-    configs.push(config);
+  const configs = [...productionShipRenderConfigs().values()];
+  const fleetScaledConfigs = configs.filter((config) => config.scaleMode === "source-relative-fleet");
+  if (fleetScaledConfigs.length === 0) {
+    throw new Error("Production side views have no source-relative Unity fleet");
   }
-  const vikingConfig = vikingLongshipConfig();
-  vikingConfig.sourceMaxDim = await measureSourceMaxDim(vikingConfig.modelPath);
-  configs.push(vikingConfig);
-  const largestSourceMaxDim = Math.max(...configs.map((config) => config.sourceMaxDim));
   for (const config of configs) {
+    config.sourceMaxDim = await measureSourceMaxDim(config.modelPath);
+  }
+  const largestSourceMaxDim = Math.max(...fleetScaledConfigs.map((config) => config.sourceMaxDim));
+  for (const config of fleetScaledConfigs) {
     config.targetModelMaxDim ??= fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
   }
   validateShipStatsForSlugs(configs.map((config) => config.slug));
@@ -5476,7 +5552,7 @@ async function renderUnityFleetSideViews() {
   const manifestPath = join(unityFleetSideViewOutputRoot, "manifest.json");
   writeFileSync(manifestPath, `${JSON.stringify({
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet-side-views",
-    scaleMode: "source-relative-fleet",
+    scaleMode: "production-roster",
     palette: "Resurrect 64",
     width: sideViewWidth,
     height: sideViewHeight,

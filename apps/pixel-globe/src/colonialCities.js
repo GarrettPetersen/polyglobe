@@ -21,7 +21,7 @@ export const COLONIAL_CITY_FOUNDINGS = Object.freeze([
     label: "Portuguese conquered city",
     note: "Existing Indian Ocean city taken by force and made a Portuguese capital."
   }),
-  colonialFounding("Mozambique Island", "Mozambique", COLONIAL_FOUNDING_NEGOTIATED, 1507, "portugal", {
+  colonialFounding("Mozambique", "Mozambique", COLONIAL_FOUNDING_NEGOTIATED, 1507, "portugal", {
     label: "Portuguese negotiated trade base",
     note: "Older Swahili settlement used as a Portuguese port and naval base."
   }),

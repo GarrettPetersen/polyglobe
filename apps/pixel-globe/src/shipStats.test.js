@@ -17,6 +17,7 @@ import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
 test("later asset silhouettes use period-appropriate game identities", () => {
   const periodIdentities = {
     "fishing-lugger": "Fishing Barque",
+    holk: "Holk",
     "pirate-brig": "Heavy Caravel",
     fluyt: "Urca",
     "ship-of-the-line": "Great Carrack",
@@ -24,13 +25,28 @@ test("later asset silhouettes use period-appropriate game identities", () => {
     cutter: "Coastal Pinnace",
     ketch: "Lateen Barque",
     "spanish-nao": "Spanish Nao",
-    "portuguese-carrack": "Portuguese Carrack"
+    "portuguese-carrack": "Portuguese Carrack",
+    "javanese-jong": "Javanese Jong"
   };
 
   for (const [slug, label] of Object.entries(periodIdentities)) {
     assert.equal(shipStatsForSlug(slug).slug, slug);
     assert.equal(shipLabelForSlug(slug), label);
   }
+});
+
+test("the Holk and Javanese Jong fill distinct regional cargo niches", () => {
+  const cog = shipStatsForSlug("small-cog");
+  const holk = shipStatsForSlug("holk");
+  const jong = shipStatsForSlug("javanese-jong");
+  const largeJunk = shipStatsForSlug("large-junk");
+
+  assert.ok(holk.cargoCapacity > cog.cargoCapacity);
+  assert.ok(holk.cargoCapacity < largeJunk.cargoCapacity);
+  assert.ok(jong.cargoCapacity > largeJunk.cargoCapacity);
+  assert.ok(jong.turnRateRad < largeJunk.turnRateRad);
+  assert.ok(jong.seaworthiness > largeJunk.seaworthiness);
+  assert.ok(jong.cannons < largeJunk.cannons);
 });
 
 test("hull points count one-point cannonball hits while mass preserves ship scale", () => {

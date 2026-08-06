@@ -624,6 +624,30 @@ test("offscreen eviction retains every sprite still visible through the camera o
   assert.equal(positions.has(2), false);
 });
 
+test("offscreen eviction can retain a connector endpoint beyond the tile sprite radius", () => {
+  const positions = new Map([
+    [0, { x: 50, y: 50 }],
+    [1, { x: -30, y: 50 }]
+  ]);
+  const projectedTiles = [
+    { id: 0, x: 50, y: 50 },
+    { id: 1, x: -30, y: 50 }
+  ];
+
+  const discarded = refreshOffscreenLayoutTiles({
+    positions,
+    projectedTiles,
+    protectionById: new Uint8Array([255, 255]),
+    viewportWidth: 100,
+    viewportHeight: 100,
+    tileVisualRadius: 36,
+    anchorId: 0
+  });
+
+  assert.equal(discarded, 0);
+  assert.deepEqual(positions.get(1), { x: -30, y: 50 });
+});
+
 test("the offscreen preload margin cannot steer the visible frame fit", () => {
   const positions = new Map([
     [0, { x: 0, y: 0 }],

@@ -13,7 +13,7 @@ city in a broad terrain or culture group.
   because its silver boom began after the game's period.
 - Gao and Tombouctou represent the trans-Saharan gold trade from southern West
   African fields.
-- Sofala and Mozambique Island represent gold moving from the Zimbabwe plateau
+- Sofala and Mozambique represent gold moving from the Zimbabwe plateau
   to the Indian Ocean.
 
 The regional defaults do not make every Mesoamerican, Andean, or sub-Saharan

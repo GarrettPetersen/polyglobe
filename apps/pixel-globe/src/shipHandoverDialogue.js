@@ -5,6 +5,8 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a sturdy coastal working boat whose handy lug sail and useful hold descend from the fishing craft that kept Europe's ports supplied",
   "small-cog":
     "a round-bellied descendant of the medieval North Sea cog, with high sides and a simple square rig built for cargo rather than haste",
+  holk:
+    "a broad northern cargo carrier, descended from the capacious roundships that linked the North Sea and Baltic ports",
   dhow:
     "a lateen-rigged Indian Ocean trader, shaped by generations of mariners who timed their voyages to the reversing monsoon winds",
   "ocean-dhow":
@@ -13,6 +15,8 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a light East Asian river and coastal craft, shallow enough for creeks and crowded harbors where a deeper ocean ship could never work",
   "large-junk":
     "an ocean-going Chinese junk, joining a capacious hold with battened sails and internal bulkheads refined over centuries of maritime trade",
+  "javanese-jong":
+    "a towering island merchant, built with a deep cargo hull, canted sails, and twin quarter rudders for the long monsoon passages of Southeast Asia",
   "pirate-brig":
     "a caravel strengthened into a fighting ship, keeping the Iberian type's nimble hull while carrying more iron and ordnance",
   galleon:

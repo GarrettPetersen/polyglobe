@@ -161,6 +161,19 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/galleon-waterline.png"
     },
     {
+      "slug": "holk",
+      "label": "Holk",
+      "waterlineY": -0.4745232593905815,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 76,
+      "lowestOpaquePixelY": 80,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/holk-waterline.png"
+    },
+    {
       "slug": "japanese-atakebune",
       "label": "Atakebune",
       "waterlineY": -0.44259402325803004,
@@ -277,6 +290,19 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-sekibune-waterline.png"
     },
     {
+      "slug": "javanese-jong",
+      "label": "Javanese Jong",
+      "waterlineY": -0.9154296875,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 90,
+      "lowestOpaquePixelY": 95,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/javanese-jong-waterline.png"
+    },
+    {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
       "waterlineY": -0.8118416173605141,
@@ -357,26 +383,18 @@
       "lowestOpaquePixelY": 78,
       "lowestOpaqueRelativeToWaterlinePx": 5,
       "opaqueRowsBelowWaterline": 5,
-      "oarPivotCount": 12,
+      "oarPivotCount": 8,
       "oarPivotPixels": [
         {
           "x": 65,
           "y": 71
         },
         {
-          "x": 77,
+          "x": 85,
           "y": 71
         },
         {
-          "x": 89,
-          "y": 71
-        },
-        {
-          "x": 102,
-          "y": 71
-        },
-        {
-          "x": 114,
+          "x": 106,
           "y": 71
         },
         {
@@ -527,12 +545,12 @@
     {
       "slug": "ocean-dhow",
       "label": "Ocean Dhow",
-      "waterlineY": -0.7941406249999998,
+      "waterlineY": -0.838671875,
       "waterlineOffsetY": 0,
-      "sideViewWaterlineY": 87,
+      "sideViewWaterlineY": 89,
       "lowestOpaquePixelY": 92,
-      "lowestOpaqueRelativeToWaterlinePx": 5,
-      "opaqueRowsBelowWaterline": 5,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
       "oarPivotCount": 0,
       "oarPivotPixels": [],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/ocean-dhow-waterline.png"
