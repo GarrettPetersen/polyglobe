@@ -56,7 +56,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "japanese-kuribune":
     "a light Japanese coastal trader whose shallow hull, square sail, and stern oars are well suited to the island passages of the Inland Sea",
   "japanese-kobaya":
-    "a swift, low-sided Japanese scout used by maritime clans for dispatches, reconnaissance, pursuit, and sudden attacks under oars",
+    "a swift Japanese oared fighting boat whose wooden screens shelter warriors during reconnaissance, pursuit, and sudden attacks",
   "japanese-sekibune":
     "a lean Japanese war vessel built to carry warriors swiftly along the coast beneath a single sail and long banks of oars",
   "japanese-atakebune":

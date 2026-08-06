@@ -237,6 +237,7 @@ export default {
   "politics.status": "관계",
   "politics.you": "나",
   "politics.latest": "최근",
+  "politics.recent": "최근 정세",
   "politics.marque": "사략 허가장",
   "politics.legendAlly": "A 동맹",
   "politics.legendWar": "W 전쟁",

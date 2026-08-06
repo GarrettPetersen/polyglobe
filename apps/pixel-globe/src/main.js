@@ -1070,7 +1070,7 @@ import {
   flagWaveColumnOffsets,
   flagWaveFrameIndex
 } from "./flagAnimation.js";
-import { shipFlagLayout } from "./shipFlagLayout.js";
+import { npcShipFlagDisplay, shipFlagLayout } from "./shipFlagLayout.js";
 import {
   WIND_INDICATOR_BASE_RGB,
   windVFlowDirectionForScreenVector,
@@ -2732,6 +2732,7 @@ let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
 let goldTreasureSequence = null;
 let survivalNotice = null;
+let survivalNoticeRect = null;
 let savePersistenceWarning = null;
 let lastLocalSaveMode = LOCAL_SAVE_MODE_FULL;
 let achievementNotice = null;
@@ -10359,9 +10360,6 @@ function saveVoyageNow(reason) {
     const previousFailure = savePersistenceWarning;
     savePersistenceWarning = null;
     if (previousFailure) showSurvivalNotice("SAVE RESTORED", "good");
-    if (write.mode !== lastLocalSaveMode && write.mode !== LOCAL_SAVE_MODE_FULL) {
-      showSurvivalNotice("SAVE COMPACTED - TRAFFIC REBUILDS", "warn");
-    }
     if (write.mode !== LOCAL_SAVE_MODE_FULL || snapshotErrors.length > 0) {
       console.warn(
         `[pixel-globe] saved voyage in ${write.mode} mode; reconstructible world traffic will rebuild on load`,
@@ -10792,6 +10790,13 @@ function openPoliticsMenu() {
   keys.clear();
   clearPointerSteering();
   dirty = true;
+}
+
+function openPoliticsNewsFeed() {
+  openPoliticsMenu();
+  if (!openPoliticsNewsDetail()) {
+    throw new Error("Political notice requires a recent political development");
+  }
 }
 
 function closePoliticsMenu() {
@@ -11741,6 +11746,19 @@ function handlePointerDown(event) {
     openAchievementsMenu(achievementId);
     return;
   }
+  if (
+    !telemetryConsentModal &&
+    survivalNotice?.action === "politics-news" &&
+    lastFrameMs < survivalNotice.expiresAtMs &&
+    pointInRect(point, survivalNoticeRect)
+  ) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    survivalNotice = null;
+    survivalNoticeRect = null;
+    openPoliticsNewsFeed();
+    return;
+  }
   if (captainMenuButtonIsAvailable() && pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -11803,14 +11821,10 @@ function handlePointerDown(event) {
   const combatShipEngaged = clickedWorldTarget?.target.kind === "ship" && shipCombatState.engagements.has(
     engagementKey(PLAYER_COMBAT_ID, clickedWorldTarget.target.call.id)
   );
-  const combatShipHostile = clickedWorldTarget?.target.kind === "ship" && npcShipIsHostileToPlayer(
-    npcVisualShips.get(clickedWorldTarget.target.call.id)
-  );
   const pointerAction = worldPointerAction({
     interactionCandidate: clickedWorldTarget,
     combatShipBroadside,
     combatShipEngaged,
-    combatShipHostile,
     pointBroadside: navalBroadsideSideAtPoint(point)
   });
   if (pointerAction.type === WORLD_POINTER_ACTION.INTERACTION) {
@@ -11861,6 +11875,11 @@ function handlePointerMove(event) {
       achievementNotice &&
       lastFrameMs < achievementNotice.expiresAtMs &&
       pointInRect(point, achievementNoticeRect)
+    ) || (
+      !telemetryConsentModal &&
+      survivalNotice?.action === "politics-news" &&
+      lastFrameMs < survivalNotice.expiresAtMs &&
+      pointInRect(point, survivalNoticeRect)
     )
   )
     ? "pointer"
@@ -13932,7 +13951,7 @@ function completePapalCommissionAtRome(rome, matter) {
       message: papalCommissionCompletionText(completion)
     })
   ], () => {
-    showSurvivalNotice(papalActionNotice(completion.action), "good");
+    showSurvivalNotice(papalActionNotice(completion.action), "good", "politics-news");
     saveVoyageNow("completed a Papal commission");
     dirty = true;
   });
@@ -14778,17 +14797,17 @@ function openShipDialogue(shipCall, options = {}) {
   const enforcementDialogue = Boolean(
     options.attackReason || options.cartazInspection || options.illicitTradeInspection
   );
-  if (!enforcementDialogue && npcShipIsHostileToPlayer(visualShip)) return false;
+  const hostileHail = !enforcementDialogue && npcShipIsHostileToPlayer(visualShip);
   const treasureGoal = activeTreasureCampaignGoal();
   const pirateTreasureName = treasureGoal?.treasureRecovered &&
     strategicShip?.role === NPC_ROLE_PIRATE &&
     strategicShip.encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND
     ? treasureGoal.treasureCaptainName
     : null;
-  const campaignRumor = enforcementDialogue
+  const campaignRumor = enforcementDialogue || hostileHail
     ? null
     : maybeCampaignRumor(`ship:${shipCall.id}`);
-  const papalGossip = enforcementDialogue || campaignRumor
+  const papalGossip = enforcementDialogue || hostileHail || campaignRumor
     ? null
     : recentPapalGossipForCharacter(
         gameState.relations.papacy,
@@ -14802,12 +14821,13 @@ function openShipDialogue(shipCall, options = {}) {
       ? null
       : campaignRumor?.text || (papalGossip ? papalGossipDialogueLine(papalGossip) : null),
     listenerReligionId: gameState.playerCharacter?.religionId || null,
-    pirateTreasureName
+    pirateTreasureName,
+    hostileHail
   });
   dialogueLayout = createDialogueLayoutState();
   pauseShipForOverlay();
   ensureDialoguePortraitLoaded();
-  if (!enforcementDialogue) {
+  if (!enforcementDialogue && !hostileHail) {
     maybeOpenAnimalCompanionNpcReaction(`ship:${shipCall.id}`, shipCall.character);
   }
   dirty = true;
@@ -17402,7 +17422,7 @@ function activeNpcShipCalls() {
     [WORLD_SPATIAL_KIND.NPC_SHIP]
   )
     .filter((match) => match.distanceSquared <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX)
-    .filter((match) => npcShipCanBeVoluntarilyHailed(match.entry.value))
+    .filter((match) => npcShipCanBeHailed(match.entry.value))
     .map((match) => npcShipInteractionCall(match.entry.value));
 }
 
@@ -17708,8 +17728,8 @@ function npcShipInHailRange(state) {
   return distance2(localLayout.viewX, localLayout.viewY, state.x, state.y) <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX;
 }
 
-function npcShipCanBeVoluntarilyHailed(state) {
-  return npcShipInHailRange(state) && !npcShipIsHostileToPlayer(state);
+function npcShipCanBeHailed(state) {
+  return npcShipInHailRange(state);
 }
 
 function npcShipIsHostileToPlayer(state) {
@@ -17754,7 +17774,7 @@ function interactionTargetIsUsable(target) {
   if (target.kind === "fish") return fishInteractionCallIsUsable(target.call);
   if (target.kind === "ship") {
     const state = npcVisualShips.get(target.call?.id);
-    return npcShipCanBeVoluntarilyHailed(state);
+    return npcShipCanBeHailed(state);
   }
   if (target.kind === "whale") {
     if (!target.call?.whale || !whaleCanBeHarpooned(target.call.whale)) return false;
@@ -17900,12 +17920,17 @@ function showFishCatchNotice(text, tone) {
   dirty = true;
 }
 
-function showSurvivalNotice(text, tone) {
+function showSurvivalNotice(text, tone, action = null) {
+  if (action !== null && action !== "politics-news") {
+    throw new Error(`Unknown survival notice action: ${action}`);
+  }
   survivalNotice = {
     text,
     tone,
+    action,
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.survival
   };
+  survivalNoticeRect = null;
   dirty = true;
 }
 
@@ -21725,14 +21750,15 @@ function updateWorldDiplomacy() {
   if (result.englishReformation) reconcileEnglishReformationCharacters();
   const expulsions = reconcileForeignSettlementPolitics();
   if (result.englishReformation) {
-    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn");
+    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn", "politics-news");
     dirty = true;
     return true;
   }
   if (result.papalActions.length > 0) {
     showSurvivalNotice(
       papalActionNotice(result.papalActions[result.papalActions.length - 1]),
-      "warn"
+      "warn",
+      "politics-news"
     );
     dirty = true;
     return true;
@@ -21743,7 +21769,8 @@ function updateWorldDiplomacy() {
       result.papalCommissionRevoked.reason === "commission-expired"
         ? "PAPAL LEGATION EXPIRED - ROME ACTS WITHOUT US"
         : "PAPAL LEGATION REVOKED",
-      "warn"
+      "warn",
+      "politics-news"
     );
     dirty = true;
     return true;
@@ -21751,20 +21778,22 @@ function updateWorldDiplomacy() {
   if (result.papalMattersOpened.length > 0) {
     showSurvivalNotice(
       papalMatterNotice(result.papalMattersOpened.at(-1)),
-      "warn"
+      "warn",
+      "politics-news"
     );
     dirty = true;
     return true;
   }
   if (result.diplomacyEvents.length === 0 && expulsions.length === 0) return false;
   if (expulsions.length > 0) {
-    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn");
+    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn", "politics-news");
     return true;
   }
   const latest = result.diplomacyEvents[result.diplomacyEvents.length - 1];
   showSurvivalNotice(
     diplomacyEventNotice(latest),
-    latest.kind === "peace" ? "good" : "warn"
+    latest.kind === "peace" ? "good" : "warn",
+    "politics-news"
   );
   return true;
 }
@@ -27930,7 +27959,7 @@ function drawSelectableInteractionOutlines(nowMs) {
   }
 
   for (const state of npcVisualShips.values()) {
-    if (!npcShipCanBeVoluntarilyHailed(state)) continue;
+    if (!npcShipCanBeHailed(state)) continue;
     const call = currentNpcShipDrawCall(state, nowMs);
     if (!call) continue;
     drawSelectableSpriteOutline({
@@ -32922,8 +32951,10 @@ function drawPoliticsLatestNews(view, panel, pagerY) {
 }
 
 function drawPoliticsNewsDetail(view, panel) {
-  const latest = view.latestNews;
-  if (!latest) throw new Error("Politics news detail opened without a news item");
+  const history = view.newsHistory;
+  if (!Array.isArray(history) || history.length === 0) {
+    throw new Error("Politics news detail opened without a news history");
+  }
   politicsMenu.newsRect = null;
   politicsMenu.previousPageRect = null;
   politicsMenu.nextPageRect = null;
@@ -32931,13 +32962,9 @@ function drawPoliticsNewsDetail(view, panel) {
   const left = panel.x + 13;
   const right = panel.x + panel.w - 13;
   const footerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
-  drawOptionsText(uiText("politics.latest"), left, panel.y + 29, {
+  drawOptionsText(uiText("politics.recent"), left, panel.y + 29, {
     font: PIXEL_FONT_DIALOGUE_8,
     color: PIRATE_MENU_INK
-  });
-  drawOptionsText(shipLedgerDateLabel(latest.simMinute), right, panel.y + 30, {
-    align: "right",
-    color: PIRATE_MENU_INK_MUTED
   });
 
   const inset = {
@@ -32953,11 +32980,18 @@ function drawPoliticsNewsDetail(view, panel) {
   const bodyW = inset.w - 14 - controlsW;
   const bodyH = inset.h - 14;
   const lineHeight = localizedLineHeight(11);
-  const lines = wrapPixelTextAll(
-    latest.text.toUpperCase(),
-    PIXEL_FONT_DIALOGUE_8,
-    bodyW
-  );
+  const lines = history.flatMap((entry, index) => [
+    {
+      text: shipLedgerDateLabel(entry.simMinute),
+      color: PIRATE_MENU_INK_MUTED
+    },
+    ...wrapPixelTextAll(entry.text.toUpperCase(), PIXEL_FONT_DIALOGUE_8, bodyW)
+      .map((text) => ({
+        text,
+        color: entry.tone === "good" ? "#165a4c" : PIRATE_MENU_INK
+      })),
+    ...(index < history.length - 1 ? [{ text: "", color: PIRATE_MENU_INK }] : [])
+  ]);
   politicsMenu.newsDetailMaxScrollY = Math.max(0, lines.length * lineHeight - bodyH);
   politicsMenu.newsDetailScrollY = clamp(
     politicsMenu.newsDetailScrollY,
@@ -32971,12 +33005,12 @@ function drawPoliticsNewsDetail(view, panel) {
   ctx.clip();
   lines.forEach((line, index) => {
     drawOptionsText(
-      line,
+      line.text,
       bodyX,
       bodyY + index * lineHeight - politicsMenu.newsDetailScrollY,
       {
         font: PIXEL_FONT_DIALOGUE_8,
-        color: latest.tone === "good" ? "#165a4c" : PIRATE_MENU_INK
+        color: line.color
       }
     );
   });
@@ -39099,6 +39133,7 @@ function drawGpuNpcShipDecorations(call, nowMs) {
 function drawGpuNpcShipFlag(call, nowMs) {
   if (!factionHasFlag(call.factionId)) return;
   if (!call.flagAnchor) throw new Error(`NPC ship ${call.slug} is missing its flag anchor`);
+  const display = npcShipFlagDisplay(call.combatGrace);
   const layout = shipFlagLayout({
     anchorX: call.x + call.flagAnchor.x,
     anchorY: call.y + call.flagAnchor.y,
@@ -39115,6 +39150,28 @@ function drawGpuNpcShipFlag(call, nowMs) {
     },
     color: unitRgbaForCssColor("#4c3e24")
   });
+  if (display === "surrender") {
+    const surrenderFlag = {
+      x: layout.pole.x + 1,
+      y: layout.pole.y + layout.pole.h - 4,
+      width: 5,
+      height: 3
+    };
+    worldRenderer.drawSolidRect({
+      destinationRect: surrenderFlag,
+      color: unitRgbaForCssColor("#4c3e24")
+    });
+    worldRenderer.drawSolidRect({
+      destinationRect: {
+        x: surrenderFlag.x,
+        y: surrenderFlag.y,
+        width: surrenderFlag.width - 1,
+        height: surrenderFlag.height - 1
+      },
+      color: unitRgbaForCssColor("#f4e9d0")
+    });
+    return;
+  }
   const image = factionFlagImages?.get(call.factionId);
   if (!image) throw new Error(`Missing faction flag image: ${call.factionId}`);
   const atlas = wavingFactionFlagAtlas(
@@ -39688,6 +39745,7 @@ function npcShipDrawCall(state, activeChart, drawContext = createNpcShipDrawCont
     sortY: point.y + SHIP_SHEET_FRAME_SIZE / 2,
     stormAnchored: state.stormMode === "anchored",
     combatMode: state.combatMode,
+    combatGrace: state.combatGrace,
     combatAllegiance: npcCombatAllegiance(state.id, state.factionId, drawContext),
     hitPoints: state.hitPoints,
     maxHitPoints: state.maxHitPoints,
@@ -41988,7 +42046,10 @@ function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
 }
 
 function drawSurvivalNotice(nowMs) {
-  if (!survivalNotice || nowMs >= survivalNotice.expiresAtMs) return;
+  if (!survivalNotice || nowMs >= survivalNotice.expiresAtMs) {
+    survivalNoticeRect = null;
+    return;
+  }
   const layout = noticeTextLayout(survivalNotice.text);
   const width = layout.width;
   const x = Math.round((SCREEN_W - width) / 2);
@@ -42000,9 +42061,11 @@ function drawSurvivalNotice(nowMs) {
     fishLayout ? fishLayout.y + fishLayout.height + 2 : 0
   );
   const warn = survivalNotice.tone === "warn";
+  survivalNoticeRect = { x, y, w: width, h: layout.height };
+  const hovered = survivalNotice.action !== null && pointInRect(optionsMenu.hoverPoint, survivalNoticeRect);
   ctx.fillStyle = warn ? "rgba(80, 61, 42, 0.94)" : "rgba(31, 67, 70, 0.92)";
   ctx.fillRect(x, y, width, layout.height);
-  ctx.strokeStyle = warn ? "#e3a857" : "#8ac0b4";
+  ctx.strokeStyle = hovered ? PIRATE_MENU_PAPER_SELECTED : warn ? "#e3a857" : "#8ac0b4";
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, layout.height - 1);
   ctx.fillStyle = warn ? "#ffe6a6" : "#d6f2e8";
   layout.lines.forEach((line, index) => {

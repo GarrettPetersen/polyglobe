@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { shipFlagLayout } from "./shipFlagLayout.js";
+import { npcShipFlagDisplay, shipFlagLayout } from "./shipFlagLayout.js";
 
 test("ship flag anchor is the pole base rather than the flag top-left", () => {
   const layout = shipFlagLayout({
@@ -27,4 +27,10 @@ test("ship flag layout rejects fractional or non-positive geometry", () => {
     () => shipFlagLayout({ anchorX: 2, anchorY: 4, poleHeight: 0, flagWidth: 10, flagHeight: 6 }),
     /poleHeight must be a positive integer/
   );
+});
+
+test("an NPC ship lowers its colors after surrendering", () => {
+  assert.equal(npcShipFlagDisplay(false), "colors");
+  assert.equal(npcShipFlagDisplay(true), "surrender");
+  assert.throws(() => npcShipFlagDisplay(null), /must be boolean/);
 });

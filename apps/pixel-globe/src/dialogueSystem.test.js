@@ -123,6 +123,30 @@ test("hailing an NPC ship identifies the captain by name", () => {
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
 });
 
+test("hailing a hostile pirate offers combat without friendly gossip", () => {
+  const ship = {
+    id: "pirate-felucca",
+    label: "Felucca",
+    roleLabel: "Pirate",
+    faction: { adjective: "Pirate" },
+    character: { name: "Anne Flint" },
+    playerAttackIsPiracy: false
+  };
+  const session = createShipDialogueSession(ship, {
+    hostileHail: true,
+    rumorText: null
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.equal(view.expressionId, "angry");
+  assert.equal(view.text, "Heave to. Your cargo or your life.");
+  assert.deepEqual(view.options.map((entry) => entry.label), ["Attack", "Leave"]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), {
+    closed: true,
+    action: { type: "attack" }
+  });
+});
+
 test("two Zoroastrian captains recognize one another when they hail", () => {
   const ship = {
     id: "hormuz-merchant",

@@ -236,15 +236,16 @@ test("the Umi-bune is a light Japanese coastal oar-and-sail trader", () => {
   assert.ok(umiBune.seaworthiness >= 5);
 });
 
-test("the Kobaya is Japan's fast cannonless scout and whaling starter", () => {
+test("the Kobaya is Japan's protected oared fighting boat and whaling starter", () => {
   const umiBune = shipStatsForSlug("japanese-kuribune");
   const kobaya = shipStatsForSlug("japanese-kobaya");
   const sekibune = shipStatsForSlug("japanese-sekibune");
 
   assert.equal(shipLabelForSlug(kobaya.slug), "Kobaya");
-  assert.equal(kobaya.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(kobaya.propulsion, SHIP_PROPULSION_OAR);
   assert.equal(kobaya.cannons, 0);
-  assert.equal(kobaya.crewProtection, 20);
+  assert.equal(kobaya.crewProtection, 35);
+  assert.equal(kobaya.upwindStallAngleDeg, 0);
   assert.ok(kobaya.mass > umiBune.mass && kobaya.mass < sekibune.mass);
   assert.ok(kobaya.cargoCapacity > umiBune.cargoCapacity);
   assert.ok(kobaya.cargoCapacity < sekibune.cargoCapacity);

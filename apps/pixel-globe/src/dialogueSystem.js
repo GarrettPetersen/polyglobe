@@ -467,7 +467,8 @@ export function createShipDialogueSession(
     cartazInspection = null,
     illicitTradeInspection = null,
     listenerReligionId = null,
-    pirateTreasureName = null
+    pirateTreasureName = null,
+    hostileHail = false
   } = {}
 ) {
   if (attackReason !== null && (typeof attackReason !== "string" || attackReason.trim() === "")) {
@@ -505,6 +506,9 @@ export function createShipDialogueSession(
       (typeof pirateTreasureName !== "string" || pirateTreasureName.trim() === "")) {
     throw new Error("Pirate treasure dialogue requires a captain name");
   }
+  if (typeof hostileHail !== "boolean") {
+    throw new Error(`Ship hostile hail state must be boolean: ${hostileHail}`);
+  }
   return {
     kind: "ship",
     npcShipId: ship.id,
@@ -521,7 +525,8 @@ export function createShipDialogueSession(
     cartazInspection,
     illicitTradeInspection,
     listenerReligionId,
-    pirateTreasureName
+    pirateTreasureName,
+    hostileHail
   };
 }
 
@@ -813,6 +818,22 @@ function shipDialogueContentView(session, ship) {
     };
   }
   if (session.nodeId !== "root") throw new Error(`Unknown ship dialogue node: ${session.nodeId}`);
+  if (session.hostileHail) {
+    return {
+      speaker,
+      expressionId: "angry",
+      text: role === "Pirate"
+        ? session.pirateTreasureName
+          ? `Captain ${session.pirateTreasureName}'s treasure is aboard. Heave to, or we will take it by force.`
+          : "Heave to. Your cargo or your life."
+        : "Stand off. Our guns are trained on you.",
+      feedback: null,
+      options: [
+        option("Attack", { type: "attack" }),
+        option("Leave", { type: "close" })
+      ]
+    };
+  }
   if (session.rumorText !== null) {
     return {
       speaker,

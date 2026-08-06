@@ -44,6 +44,8 @@ export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_WAR]: "War"
 });
 
+export const POLITICS_NEWS_HISTORY_LIMIT = 5;
+
 export function createPoliticsView(gameState, simMinute = gameState?.survival?.lastMinute ?? 0) {
   if (!gameState || typeof gameState !== "object") throw new Error("Politics view requires game state");
   if (!Number.isFinite(simMinute) || simMinute < 0) {
@@ -53,51 +55,62 @@ export function createPoliticsView(gameState, simMinute = gameState?.survival?.l
   const powerById = new Map(powers.map((power) => [power.id, power]));
   const cards = powers.map((faction) => politicsCard(gameState, faction, powers, powerById, simMinute));
   const playerFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
-  const recentEvents = recentGameDiplomacyEvents(gameState, 3);
-  const recentPapalActions = recentGamePapalActions(gameState, 3);
+  const recentEvents = recentGameDiplomacyEvents(gameState, POLITICS_NEWS_HISTORY_LIMIT);
+  const recentPapalActions = recentGamePapalActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const pendingPapalMatter = papalPendingMatter(gameState.relations.papacy);
+  const newsHistory = recentPoliticsNews({ recentEvents, recentPapalActions, pendingPapalMatter });
   return {
     powers,
     recentEvents,
     recentPapalActions,
     pendingPapalMatter,
-    latestNews: latestPoliticsNews({ recentEvents, recentPapalActions, pendingPapalMatter }),
+    newsHistory,
+    latestNews: newsHistory[0] || null,
     cards: orderPoliticsCards(cards, playerFactionId)
   };
 }
 
 export function latestPoliticsNews(view) {
+  return recentPoliticsNews(view, 1)[0] || null;
+}
+
+export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
   if (!view || !Array.isArray(view.recentEvents) || !Array.isArray(view.recentPapalActions)) {
-    throw new Error("Latest politics news requires diplomacy and papal histories");
+    throw new Error("Politics news requires diplomacy and papal histories");
   }
-  const diplomacy = view.recentEvents[0] || null;
-  const papal = view.recentPapalActions[0] || null;
-  const matter = view.pendingPapalMatter || null;
-  const matterMinute = matter?.commission?.acceptedMinute ?? matter?.createdMinute ?? -1;
-  if (!diplomacy && !papal && !matter) return null;
-  if (matter && (!diplomacy || matterMinute >= diplomacy.simMinute) &&
-      (!papal || matterMinute >= papal.simMinute)) {
-    return Object.freeze({
-      source: "papal-matter",
-      simMinute: matterMinute,
-      tone: matter.status === "commissioned" ? "good" : "warn",
-      text: papalMatterNotice(matter)
-    });
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error(`Politics news limit must be a positive integer: ${limit}`);
   }
-  if (papal && (!diplomacy || papal.simMinute >= diplomacy.simMinute)) {
-    return Object.freeze({
+  const entries = [
+    ...view.recentEvents.map((event) => ({
+      source: "diplomacy",
+      simMinute: event.simMinute,
+      tone: event.kind === "peace" ? "good" : "warn",
+      text: diplomacyEventNotice(event),
+      tiePriority: 0
+    })),
+    ...view.recentPapalActions.map((action) => ({
       source: "papal",
-      simMinute: papal.simMinute,
+      simMinute: action.simMinute,
       tone: "warn",
-      text: papalActionNotice(papal)
+      text: papalActionNotice(action),
+      tiePriority: 1
+    }))
+  ];
+  const matter = view.pendingPapalMatter || null;
+  if (matter) {
+    entries.push({
+      source: "papal-matter",
+      simMinute: matter.commission?.acceptedMinute ?? matter.createdMinute,
+      tone: matter.status === "commissioned" ? "good" : "warn",
+      text: papalMatterNotice(matter),
+      tiePriority: 2
     });
   }
-  return Object.freeze({
-    source: "diplomacy",
-    simMinute: diplomacy.simMinute,
-    tone: diplomacy.kind === "peace" ? "good" : "warn",
-    text: diplomacyEventNotice(diplomacy)
-  });
+  return Object.freeze(entries
+    .sort((left, right) => right.simMinute - left.simMinute || right.tiePriority - left.tiePriority)
+    .slice(0, limit)
+    .map(({ tiePriority: _tiePriority, ...entry }) => Object.freeze(entry)));
 }
 
 export function politicalPowers(gameState = null) {

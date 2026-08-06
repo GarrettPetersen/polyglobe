@@ -120,13 +120,13 @@ test("clicking an engaged ship outside a cannon arc steers instead of hailing", 
   });
 });
 
-test("clicking a hostile ship outside combat steers instead of hailing", () => {
+test("clicking a hostile ship outside combat opens its hostile interaction", () => {
   const target = { kind: "ship", call: { id: "hostile-ship" } };
   assert.deepEqual(worldPointerAction({
-    interactionCandidate: { target, exact: true },
-    combatShipHostile: true
+    interactionCandidate: { target, exact: true }
   }), {
-    type: WORLD_POINTER_ACTION.STEER
+    type: WORLD_POINTER_ACTION.INTERACTION,
+    target
   });
 });
 

@@ -237,6 +237,7 @@ export default {
   "politics.status": "關係",
   "politics.you": "你",
   "politics.latest": "最新",
+  "politics.recent": "近期政局",
   "politics.marque": "私掠許可",
   "politics.legendAlly": "A 同盟",
   "politics.legendWar": "W 戰爭",

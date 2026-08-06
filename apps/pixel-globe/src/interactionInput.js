@@ -80,16 +80,12 @@ export function worldPointerAction({
   interactionCandidate = null,
   combatShipBroadside = null,
   combatShipEngaged = false,
-  combatShipHostile = false,
   pointBroadside = null
 } = {}) {
   assertBroadsideSide(combatShipBroadside, "combat ship");
   assertBroadsideSide(pointBroadside, "pointer");
   if (typeof combatShipEngaged !== "boolean") {
     throw new Error(`Combat ship engagement must be boolean: ${combatShipEngaged}`);
-  }
-  if (typeof combatShipHostile !== "boolean") {
-    throw new Error(`Combat ship hostility must be boolean: ${combatShipHostile}`);
   }
   if (interactionCandidate !== null && (
     typeof interactionCandidate !== "object" ||
@@ -105,13 +101,10 @@ export function worldPointerAction({
   if (combatShipEngaged && interactionCandidate?.target.kind !== "ship") {
     throw new Error("Combat ship engagement requires a clicked ship target");
   }
-  if (combatShipHostile && interactionCandidate?.target.kind !== "ship") {
-    throw new Error("Combat ship hostility requires a clicked ship target");
-  }
   if (combatShipBroadside) {
     return { type: WORLD_POINTER_ACTION.BROADSIDE, sideName: combatShipBroadside };
   }
-  if (combatShipEngaged || combatShipHostile) return { type: WORLD_POINTER_ACTION.STEER };
+  if (combatShipEngaged) return { type: WORLD_POINTER_ACTION.STEER };
   if (interactionCandidate?.exact) {
     return { type: WORLD_POINTER_ACTION.INTERACTION, target: interactionCandidate.target };
   }

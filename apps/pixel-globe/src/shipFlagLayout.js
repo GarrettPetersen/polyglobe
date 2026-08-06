@@ -13,3 +13,10 @@ export function shipFlagLayout({ anchorX, anchorY, poleHeight, flagWidth, flagHe
     flag: Object.freeze({ x: anchorX + 1, y: poleTopY, w: flagWidth, h: flagHeight })
   });
 }
+
+export function npcShipFlagDisplay(combatGrace) {
+  if (typeof combatGrace !== "boolean") {
+    throw new Error(`NPC ship flag protection state must be boolean: ${combatGrace}`);
+  }
+  return combatGrace ? "surrender" : "colors";
+}

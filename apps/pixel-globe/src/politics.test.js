@@ -24,11 +24,13 @@ import {
   grantPersonalTradePass
 } from "./sovereignTradeAccess.js";
 import {
+  POLITICS_NEWS_HISTORY_LIMIT,
   createPoliticsView,
   playerStandingForReputation,
   politicalPowers,
   politicsMarqueMarker,
-  politicsTradeCode
+  politicsTradeCode,
+  recentPoliticsNews
 } from "./politics.js";
 
 const PLAYER = {
@@ -190,6 +192,29 @@ test("the politics view preserves the complete newest papal headline", () => {
   assert.equal(view.latestNews.source, "papal");
   assert.match(view.latestNews.text, /PROCLAIMS A CRUSADE AGAINST OTTOMAN/);
   assert.equal(view.latestNews.text.endsWith("..."), false);
+});
+
+test("politics news keeps the five newest dated developments", () => {
+  const recentEvents = Array.from({ length: 7 }, (_, index) => ({
+    id: `test-politics-${index}`,
+    kind: index % 2 === 0 ? "war" : "peace",
+    factionAId: "england",
+    factionBId: "france",
+    simMinute: 100 + index * 10,
+    headline: `Test development ${index}`
+  })).reverse();
+
+  const history = recentPoliticsNews({
+    recentEvents,
+    recentPapalActions: [],
+    pendingPapalMatter: null
+  });
+
+  assert.equal(history.length, POLITICS_NEWS_HISTORY_LIMIT);
+  assert.deepEqual(history.map((entry) => entry.simMinute), [160, 150, 140, 130, 120]);
+  assert.equal(history[0].text, "WAR: ENGLAND / FRANCE");
+  assert.equal(Object.isFrozen(history), true);
+  assert.equal(Object.isFrozen(history[0]), true);
 });
 
 test("politics cards omit neutral relationships even after contact", () => {
