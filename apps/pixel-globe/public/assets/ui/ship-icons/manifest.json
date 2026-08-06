@@ -341,6 +341,20 @@
       "opaquePixels": 131
     },
     {
+      "slug": "fusta",
+      "label": "Fusta",
+      "source": "public/assets/vehicles/unity-ships/fusta-32-headings.png",
+      "output": "public/assets/ui/ship-icons/fusta.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 11,
+        "w": 27,
+        "h": 23
+      },
+      "opaquePixels": 98
+    },
+    {
       "slug": "joseon-turtle-ship",
       "label": "Turtle Ship",
       "source": "public/assets/vehicles/unity-ships/joseon-turtle-ship-32-headings.png",
