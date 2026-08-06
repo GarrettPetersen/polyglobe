@@ -1847,11 +1847,11 @@ const WORLD_SPATIAL_KIND = Object.freeze({
   FISH_SCHOOL: "fish-school",
   WHALE: "whale"
 });
-// Ordinary traffic needs only a 6 Hz physics target because presentation interpolates
+// Ordinary traffic needs only a 4 Hz physics target because presentation interpolates
 // between updates. Combat, storms, and collisions remain on the 24 Hz coordinator.
-const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 4;
+const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 6;
 const NPC_VISUAL_PRESENTATION_MIN_MS = 50;
-const NPC_VISUAL_PRESENTATION_MAX_MS = 180;
+const NPC_VISUAL_PRESENTATION_MAX_MS = 280;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
@@ -2488,6 +2488,7 @@ const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
 const FISH_SCATTER_RADIUS_PX = 30;
 const FISH_SCATTER_PUSH_PX = 5;
+const FISH_RENDER_STATE_REFRESH_MINUTES = 30;
 const FISH_NPC_SEARCH_RETRY_MINUTES = 30;
 const SEAGULL_FLIGHT_FRAMES = 6;
 const SEAGULL_MAX_FLYING = 14;
@@ -2661,7 +2662,7 @@ const coralReefWaterMaskCache = new WeakMap();
 const coralReefBeachPixelCache = new WeakMap();
 const coralReefMaskedSpriteCache = new WeakMap();
 const surfaceDetailLayerCache = new WeakMap();
-const surfaceDetailRiverDrawCallCache = new WeakMap();
+const surfaceDetailRiverLayerCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
 const TERRAIN_CONNECTOR_LAYER_MARGIN_PX = 128;
 const WATER_FOREGROUND_LAYER_MARGIN_PX = 160;
@@ -26874,7 +26875,12 @@ function drawDayNightWorld(layers, nowMs) {
         layers.offset,
         layers.surface.static.weatherRevision
       );
-      drawRiverAtlasLayer(layers.surface.rivers, layers.offset);
+      drawCachedWorldLayer(
+        `surface-details-rivers-${layers.surface.rivers.frameIndex}`,
+        layers.surface.rivers,
+        layers.offset,
+        layers.surface.rivers.revision
+      );
     },
     waterEffects: () => {
       drawWorldWaterEffects(layers.waterEffects, layers.offset, nowMs);
@@ -26989,36 +26995,6 @@ function oceanSwellOffsetForTile(call, activeChart, swell) {
     return { x: 0, y: 0 };
   }
   return oceanSwellOffset(swell, tileCenterVector(call.id));
-}
-
-function drawRiverAtlasLayer(layer, offset) {
-  if (!layer || !Array.isArray(layer.calls)) {
-    throw new Error("River atlas rendering requires cached draw calls");
-  }
-  for (const call of layer.calls) {
-    if (call.color) {
-      worldRenderer.drawSolidRect({
-        destinationRect: {
-          x: call.x + offset.x,
-          y: call.y + offset.y,
-          width: call.width,
-          height: call.height
-        },
-        color: call.color
-      });
-      continue;
-    }
-    if (!call.source) throw new Error("River draw call requires a sprite or solid color");
-    worldRenderer.drawAtlasSprite({
-      source: call.source,
-      destinationRect: {
-        x: call.x + offset.x,
-        y: call.y + offset.y,
-        width: call.width,
-        height: call.height
-      }
-    });
-  }
 }
 
 function localDayNightLight() {
@@ -27379,7 +27355,7 @@ function surfaceDetailLayer(activeChart, offset) {
     static: cached,
     rivers: measurePerformanceBenchmarkStage(
       "render.terrain.surface.rivers",
-      () => surfaceDetailRiverDrawCalls(activeChart, cached, redrawTick)
+      () => surfaceDetailRiverLayer(activeChart, cached, redrawTick)
     )
   };
 }
@@ -27457,91 +27433,49 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
   };
 }
 
-function surfaceDetailRiverDrawCalls(activeChart, staticLayer, redrawTick) {
+function surfaceDetailRiverLayer(activeChart, staticLayer, redrawTick) {
   const cacheKey = worldChartRenderCacheKey(activeChart);
-  let cached = surfaceDetailRiverDrawCallCache.get(cacheKey);
+  let cached = surfaceDetailRiverLayerCache.get(cacheKey);
   if (cached?.staticLayer !== staticLayer) {
     cached = { staticLayer, frames: new Map() };
-    surfaceDetailRiverDrawCallCache.set(cacheKey, cached);
+    surfaceDetailRiverLayerCache.set(cacheKey, cached);
   }
   const frameIndex = redrawTick % SURFACE_DETAIL_RIVER_FRAME_COUNT;
   const existing = cached.frames.get(frameIndex);
   if (existing) return existing;
 
-  const calls = [];
+  const canvas = document.createElement("canvas");
+  canvas.width = staticLayer.canvas.width;
+  canvas.height = staticLayer.canvas.height;
+  const layerCtx = canvas.getContext("2d");
+  if (!layerCtx) throw new Error("Could not create cached river surface layer");
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.translate(-staticLayer.x, -staticLayer.y);
+
   for (const call of staticLayer.tileCalls) {
     const mask = riverMasks?.[call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
     const source = riverSpriteForTile(call, activeChart, mask);
     if (!source) continue;
-    calls.push({
+    layerCtx.drawImage(
       source,
-      x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
-      y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
-      width: source.width,
-      height: source.height
-    });
+      Math.round(call.drawSurfaceX - TILE_ART_HALF),
+      Math.round(call.drawSurfaceY - TILE_ART_HALF)
+    );
   }
   for (const call of staticLayer.riverConnectorCalls) {
-    calls.push(...riverConnectorGpuDrawCalls(call, activeChart));
+    drawRiverConnector(call, activeChart, layerCtx);
   }
   const layer = Object.freeze({
+    canvas,
+    x: staticLayer.x,
+    y: staticLayer.y,
     staticLayer,
     frameIndex,
-    calls: Object.freeze(calls)
+    revision: `${staticLayer.weatherRevision}:${frameIndex}`
   });
   cached.frames.set(frameIndex, layer);
   return layer;
-}
-
-function riverConnectorGpuDrawCalls(call, activeChart) {
-  if (!riverConnectorGeometry(call, activeChart)) return [];
-  const pixels = new Map();
-  const painter = {
-    fillStyle: "",
-    fillRect(x, y, width, height) {
-      if (width !== 1 || height !== 1) {
-        throw new Error(`River connector pixel painter received ${width}x${height}`);
-      }
-      pixels.set(`${x},${y}`, { x, y, color: this.fillStyle });
-    }
-  };
-  drawRiverConnector(call, activeChart, painter);
-
-  const rows = new Map();
-  for (const pixel of pixels.values()) {
-    let row = rows.get(pixel.y);
-    if (!row) {
-      row = [];
-      rows.set(pixel.y, row);
-    }
-    row.push(pixel);
-  }
-  const drawCalls = [];
-  for (const [y, row] of rows) {
-    row.sort((a, b) => a.x - b.x);
-    let start = row[0];
-    let endX = start.x;
-    for (let index = 1; index <= row.length; index++) {
-      const pixel = row[index];
-      if (pixel && pixel.x === endX + 1 && pixel.color === start.color) {
-        endX = pixel.x;
-        continue;
-      }
-      drawCalls.push(Object.freeze({
-        x: start.x,
-        y,
-        width: endX - start.x + 1,
-        height: 1,
-        color: unitRgbaForCssColor(start.color)
-      }));
-      if (pixel) {
-        start = pixel;
-        endX = pixel.x;
-      }
-    }
-  }
-  return drawCalls;
 }
 
 function drawStormShipStrike(nowMs) {
@@ -38243,14 +38177,20 @@ function fisheryForTileCall(tileCall) {
   const simMinute = Math.floor(weatherClockMinutes);
   if (
     fisheryRenderStateCache?.gameState !== gameState ||
-    fisheryRenderStateCache.simMinute !== simMinute
+    simMinute < fisheryRenderStateCache.simMinute ||
+    simMinute >= fisheryRenderStateCache.refreshAtMinute
   ) {
-    fisheryRenderStateCache = { gameState, simMinute, byTileId: new Map() };
+    fisheryRenderStateCache = {
+      gameState,
+      simMinute,
+      refreshAtMinute: simMinute + FISH_RENDER_STATE_REFRESH_MINUTES,
+      byTileId: new Map()
+    };
   }
   if (fisheryRenderStateCache.byTileId.has(tileCall.id)) {
     return fisheryRenderStateCache.byTileId.get(tileCall.id);
   }
-  const fishery = fisheryForHabitat(gameState, habitat, simMinute);
+  const fishery = fisheryForHabitat(gameState, habitat, fisheryRenderStateCache.simMinute);
   fisheryRenderStateCache.byTileId.set(tileCall.id, fishery);
   return fishery;
 }

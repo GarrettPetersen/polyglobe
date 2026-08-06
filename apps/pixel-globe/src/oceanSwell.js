@@ -35,15 +35,19 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad }) {
     16
   );
   const amplitudeBin = Math.round(amplitudePx * 4);
+  const settled = amplitudeBin === 0;
+  const cachedFrame = settled ? 0 : frame;
+  const cachedDirectionBin = settled ? 0 : directionBin;
+  const cachedDirectionRad = cachedDirectionBin / 16 * TAU;
   return Object.freeze({
-    amplitudePx,
-    cacheKey: `${frame}:${directionBin}:${amplitudeBin}`,
+    amplitudePx: amplitudeBin / 4,
+    cacheKey: `${cachedFrame}:${cachedDirectionBin}:${amplitudeBin}`,
     cycle,
     flow: Object.freeze({
-      x: Math.cos(flowDirectionRad),
-      y: -Math.sin(flowDirectionRad)
+      x: Math.cos(cachedDirectionRad),
+      y: -Math.sin(cachedDirectionRad)
     }),
-    frame,
+    frame: cachedFrame,
     stormStrength
   });
 }

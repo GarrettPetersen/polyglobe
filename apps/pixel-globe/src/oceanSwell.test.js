@@ -41,6 +41,17 @@ test("storms sustain stronger wind-driven swells", () => {
   assert.equal(state.amplitudePx, STORM_SWELL_MAX_AMPLITUDE_PX);
 });
 
+test("visually settled water shares one terrain cache state", () => {
+  const early = oceanSwellState({ nowMs: 100, stormStrength: 0, flowDirectionRad: 0 });
+  const later = oceanSwellState({ nowMs: 700, stormStrength: 0, flowDirectionRad: 2.4 });
+
+  assert.equal(early.amplitudePx, 0);
+  assert.equal(later.amplitudePx, 0);
+  assert.equal(early.cacheKey, later.cacheKey);
+  assert.equal(early.frame, 0);
+  assert.equal(later.frame, 0);
+});
+
 test("whole ocean sprites move along the wind without exceeding swell amplitude", () => {
   const eastward = oceanSwellState({ nowMs: 1733, stormStrength: 1, flowDirectionRad: 0 });
   const northward = oceanSwellState({ nowMs: 1733, stormStrength: 1, flowDirectionRad: Math.PI / 2 });
