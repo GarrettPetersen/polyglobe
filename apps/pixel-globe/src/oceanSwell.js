@@ -6,17 +6,21 @@ export const STORM_SWELL_MAX_AMPLITUDE_PX = 3;
 
 const STORM_SWELL_PERIOD_MS = 5000;
 const CALM_SWELL_WAVE_PERIOD_MS = 12000;
-const GLOBE_WAVE_AXIS = normalize3([0.71, 0.43, -0.56]);
 const GLOBE_WAVE_CYCLES = 12;
+const PHASE_AXIS_QUANTIZATION = 64;
 const TAU = Math.PI * 2;
 
-export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad }) {
+export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseAxis }) {
   for (const [label, value] of Object.entries({ nowMs, stormStrength, flowDirectionRad })) {
     if (!Number.isFinite(value)) throw new Error(`Ocean swell ${label} must be finite: ${value}`);
   }
   if (nowMs < 0) throw new Error(`Ocean swell time must be non-negative: ${nowMs}`);
   if (stormStrength < 0 || stormStrength > 1) {
     throw new Error(`Ocean swell storm strength must be within 0..1: ${stormStrength}`);
+  }
+  if (!Array.isArray(phaseAxis) || phaseAxis.length !== 3 ||
+      phaseAxis.some((value) => !Number.isFinite(value))) {
+    throw new Error("Ocean swell phase axis must be a finite 3D vector");
   }
 
   const calmEnvelope = calmSwellEnvelope(nowMs);
@@ -39,15 +43,20 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad }) {
   const cachedFrame = settled ? 0 : frame;
   const cachedDirectionBin = settled ? 0 : directionBin;
   const cachedDirectionRad = cachedDirectionBin / 16 * TAU;
+  const cachedPhaseAxis = quantizedUnitVector(phaseAxis, PHASE_AXIS_QUANTIZATION);
+  const phaseAxisKey = cachedPhaseAxis.map(
+    (value) => Math.round(value * PHASE_AXIS_QUANTIZATION)
+  ).join(":");
   return Object.freeze({
     amplitudePx: amplitudeBin / 4,
-    cacheKey: `${cachedFrame}:${cachedDirectionBin}:${amplitudeBin}`,
-    cycle,
+    cacheKey: `${cachedFrame}:${cachedDirectionBin}:${amplitudeBin}:${phaseAxisKey}`,
+    cycle: settled ? 0 : cachedFrame / OCEAN_SWELL_FRAME_COUNT,
     flow: Object.freeze({
       x: Math.cos(cachedDirectionRad),
       y: -Math.sin(cachedDirectionRad)
     }),
     frame: cachedFrame,
+    phaseAxis: Object.freeze(cachedPhaseAxis),
     stormStrength
   });
 }
@@ -62,7 +71,7 @@ export function oceanSwellOffset(state, globePosition) {
   }
   if (state.amplitudePx <= 0) return { x: 0, y: 0 };
 
-  const spatialCycles = dot3(globePosition, GLOBE_WAVE_AXIS) * GLOBE_WAVE_CYCLES;
+  const spatialCycles = dot3(globePosition, state.phaseAxis) * GLOBE_WAVE_CYCLES;
   const displacement = Math.sin(TAU * (state.cycle - spatialCycles)) * state.amplitudePx;
   return {
     x: roundPixel(state.flow.x * displacement),
@@ -82,7 +91,13 @@ export function calmSwellEnvelope(nowMs) {
 
 function normalize3(vector) {
   const length = Math.hypot(...vector);
+  if (length <= 1e-9) throw new Error("Ocean swell phase axis cannot be zero");
   return vector.map((value) => value / length);
+}
+
+function quantizedUnitVector(vector, scale) {
+  const normalized = normalize3(vector);
+  return normalize3(normalized.map((value) => Math.round(value * scale) / scale));
 }
 
 function dot3(a, b) {

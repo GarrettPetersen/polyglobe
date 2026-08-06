@@ -10,20 +10,26 @@ import {
   oceanSwellState
 } from "./oceanSwell.js";
 
+const EASTWARD_PHASE = [1, 0, 0];
+
+function swellState(options) {
+  return oceanSwellState({ phaseAxis: EASTWARD_PHASE, ...options });
+}
+
 test("calm ocean swells arrive as brief low-amplitude packets", () => {
   assert.equal(calmSwellEnvelope(0), 0);
   assert.equal(calmSwellEnvelope(CALM_SWELL_PACKET_DURATION_MS), 0);
   assert.equal(calmSwellEnvelope(CALM_SWELL_PACKET_PERIOD_MS - 1), 0);
   assert.ok(calmSwellEnvelope(CALM_SWELL_PACKET_DURATION_MS / 2) > 0.99);
 
-  const quiet = oceanSwellState({
+  const quiet = swellState({
     nowMs: CALM_SWELL_PACKET_DURATION_MS + 1000,
     stormStrength: 0,
     flowDirectionRad: 0
   });
   assert.equal(quiet.amplitudePx, 0);
 
-  const crest = oceanSwellState({
+  const crest = swellState({
     nowMs: CALM_SWELL_PACKET_DURATION_MS / 2,
     stormStrength: 0,
     flowDirectionRad: 0
@@ -32,7 +38,7 @@ test("calm ocean swells arrive as brief low-amplitude packets", () => {
 });
 
 test("storms sustain stronger wind-driven swells", () => {
-  const state = oceanSwellState({
+  const state = swellState({
     nowMs: CALM_SWELL_PACKET_DURATION_MS + 1000,
     stormStrength: 1,
     flowDirectionRad: Math.PI / 3
@@ -42,8 +48,8 @@ test("storms sustain stronger wind-driven swells", () => {
 });
 
 test("visually settled water shares one terrain cache state", () => {
-  const early = oceanSwellState({ nowMs: 100, stormStrength: 0, flowDirectionRad: 0 });
-  const later = oceanSwellState({ nowMs: 700, stormStrength: 0, flowDirectionRad: 2.4 });
+  const early = swellState({ nowMs: 100, stormStrength: 0, flowDirectionRad: 0 });
+  const later = swellState({ nowMs: 700, stormStrength: 0, flowDirectionRad: 2.4 });
 
   assert.equal(early.amplitudePx, 0);
   assert.equal(later.amplitudePx, 0);
@@ -53,8 +59,8 @@ test("visually settled water shares one terrain cache state", () => {
 });
 
 test("whole ocean sprites move along the wind without exceeding swell amplitude", () => {
-  const eastward = oceanSwellState({ nowMs: 1733, stormStrength: 1, flowDirectionRad: 0 });
-  const northward = oceanSwellState({ nowMs: 1733, stormStrength: 1, flowDirectionRad: Math.PI / 2 });
+  const eastward = swellState({ nowMs: 1733, stormStrength: 1, flowDirectionRad: 0 });
+  const northward = swellState({ nowMs: 1733, stormStrength: 1, flowDirectionRad: Math.PI / 2 });
   const position = [0.8, 0.3, -0.519615242];
   const eastOffset = oceanSwellOffset(eastward, position);
   const northOffset = oceanSwellOffset(northward, position);
@@ -66,11 +72,33 @@ test("whole ocean sprites move along the wind without exceeding swell amplitude"
 });
 
 test("swell phase is anchored to globe position rather than screen position", () => {
-  const state = oceanSwellState({ nowMs: 3500, stormStrength: 0.8, flowDirectionRad: 0.7 });
+  const state = swellState({ nowMs: 3500, stormStrength: 0.8, flowDirectionRad: 0.7 });
   const position = [0.2, 0.9, -0.38];
   assert.deepEqual(oceanSwellOffset(state, position), oceanSwellOffset(state, position));
   assert.throws(
     () => oceanSwellOffset(state, [0, Number.NaN, 1]),
     /finite globe position/
+  );
+});
+
+test("swell phase advances along the wind axis rather than across it", () => {
+  const state = swellState({ nowMs: 3500, stormStrength: 1, flowDirectionRad: 0 });
+  const origin = oceanSwellOffset(state, [0, 1, 0]);
+  const alongWind = oceanSwellOffset(state, [0.04, Math.sqrt(1 - 0.04 ** 2), 0]);
+  const acrossWind = oceanSwellOffset(state, [0, Math.sqrt(1 - 0.04 ** 2), 0.04]);
+
+  assert.notDeepEqual(alongWind, origin);
+  assert.deepEqual(acrossWind, origin);
+});
+
+test("swell cache state uses the exact phase represented by its frame", () => {
+  const first = swellState({ nowMs: 1700, stormStrength: 1, flowDirectionRad: 0 });
+  const sameFrame = swellState({ nowMs: 1710, stormStrength: 1, flowDirectionRad: 0 });
+
+  assert.equal(first.cacheKey, sameFrame.cacheKey);
+  assert.equal(first.cycle, sameFrame.cycle);
+  assert.deepEqual(
+    oceanSwellOffset(first, [0.4, 0.8, -0.4472135955]),
+    oceanSwellOffset(sameFrame, [0.4, 0.8, -0.4472135955])
   );
 });

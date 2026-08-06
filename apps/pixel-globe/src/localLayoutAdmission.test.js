@@ -1003,9 +1003,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewX,
       viewY
     });
-    const retainedCorrectionViewportIds = new Set(
-      [...support.viewportTileIds].filter((id) => positions.has(id))
-    );
+    const correctionViewportIds = support.viewportTileIds;
     const visibleProtectedBefore = new Map();
     const visibleLandBefore = new Map();
     for (const [id, position] of positions.entries()) {
@@ -1053,7 +1051,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         ? MAX_ELASTIC_FRAME_CORRECTION_PX
         : 0,
       maxProtectedCorrectionPx,
-      protectedCorrectionViewportIds: retainedCorrectionViewportIds
+      protectedCorrectionViewportIds: correctionViewportIds
     };
     if (maxProtectedCorrectionPx > 0) {
       const rigidPositions = new Map(

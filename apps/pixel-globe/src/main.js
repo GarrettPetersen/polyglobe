@@ -27169,7 +27169,8 @@ function currentOceanSwellPresentation() {
   return oceanSwellState({
     nowMs: waterAnimationClockMs,
     stormStrength,
-    flowDirectionRad: wind.directionRad + Math.PI
+    flowDirectionRad: wind.directionRad + Math.PI,
+    phaseAxis: ship && camera ? windFlowVectorAtShip(wind) : [1, 0, 0]
   });
 }
 
@@ -28451,9 +28452,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     viewX: localLayout.viewX,
     viewY: localLayout.viewY
   });
-  const retainedCorrectionViewportIds = new Set(
-    [...correctionSupport.viewportTileIds].filter((id) => localLayout.positions.has(id))
-  );
+  const correctionViewportIds = correctionSupport.viewportTileIds;
   const admissionCorrectionActive = correctionSupport.correctionActive;
   const previousPresentation = lastPresentedOceanSwell?.layout === localLayout
     ? lastPresentedOceanSwell
@@ -28536,7 +28535,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
       ? MAX_ELASTIC_FRAME_CORRECTION_PX
       : 0,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
-    protectedCorrectionViewportIds: retainedCorrectionViewportIds
+    protectedCorrectionViewportIds: correctionViewportIds
   });
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
 }
