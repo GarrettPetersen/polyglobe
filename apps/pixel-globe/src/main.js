@@ -1067,8 +1067,10 @@ import {
 import { gameOverMemorialLayout, gameOverStatsLayout } from "./gameOverLayout.js";
 import {
   FLAG_WAVE_FRAME_COUNT,
+  flagExteriorOutlineMask,
   flagWaveColumnOffsets,
-  flagWaveFrameIndex
+  flagWaveFrameIndex,
+  flagWindPose
 } from "./flagAnimation.js";
 import { npcShipFlagDisplay, shipFlagLayout } from "./shipFlagLayout.js";
 import {
@@ -39288,12 +39290,16 @@ function drawGpuNpcShipFlag(call, nowMs) {
   }
   const image = factionFlagImages?.get(call.factionId);
   if (!image) throw new Error(`Missing faction flag image: ${call.factionId}`);
+  const flagWind = screenFlagWindForTile(call.tileId);
   const atlas = wavingFactionFlagAtlas(
     call.factionId,
     image,
     layout.flag.w,
     layout.flag.h,
-    npcShipFlagOutlineColor(call)
+    {
+      outlineColor: npcShipFlagOutlineColor(call),
+      ...flagWind
+    }
   );
   const frameIndex = flagWaveFrameIndex(flagWavePhase(nowMs, call.flagSeed));
   worldRenderer.drawAtlasSprite({
@@ -39305,8 +39311,8 @@ function drawGpuNpcShipFlag(call, nowMs) {
       height: atlas.frameHeight
     },
     destinationRect: {
-      x: Math.round(layout.flag.x),
-      y: Math.round(layout.flag.y) - atlas.verticalPadding,
+      x: Math.round(layout.flag.x) + atlas.drawOffsetX,
+      y: Math.round(layout.flag.y) + atlas.drawOffsetY,
       width: atlas.frameWidth,
       height: atlas.frameHeight
     }
@@ -40942,6 +40948,7 @@ function drawCitySpriteWebGL(call, offset, nowMs) {
       }
     });
   }
+  const flagWind = flagFactionIds.length > 0 ? screenFlagWindForTile(call.tileId) : null;
   for (let flagIndex = 0; flagIndex < flagFactionIds.length; flagIndex++) {
     drawWavingFactionFlagWebGL({
       factionId: flagFactionIds[flagIndex],
@@ -40949,7 +40956,8 @@ function drawCitySpriteWebGL(call, offset, nowMs) {
       y: poleTop + 1 + flagIndex * (CITY_FLAG_H + 1) + offset.y,
       width: CITY_FLAG_W,
       height: CITY_FLAG_H,
-      phaseRad: flagWavePhase(nowMs, call.tileId + flagIndex * 997)
+      phaseRad: flagWavePhase(nowMs, call.tileId + flagIndex * 997),
+      ...flagWind
     });
   }
   if (fireSource) drawOnFireWebGL(fireSource, offset, nowMs);
@@ -40963,14 +40971,20 @@ function drawWavingFactionFlagWebGL({
   width,
   height,
   phaseRad,
-  outlineColor = null
+  outlineColor = null,
+  flowDirectionRad = null,
+  windStrength = null
 }) {
   if (!factionHasFlag(factionId)) {
     throw new Error(`Neutral faction cannot be drawn as a flag`);
   }
   const image = factionFlagImages?.get(factionId);
   if (!image) throw new Error(`Missing faction flag image: ${factionId}`);
-  const atlas = wavingFactionFlagAtlas(factionId, image, width, height, outlineColor);
+  const atlas = wavingFactionFlagAtlas(factionId, image, width, height, {
+    outlineColor,
+    flowDirectionRad,
+    windStrength
+  });
   const frameIndex = flagWaveFrameIndex(phaseRad);
   worldRenderer.drawAtlasSprite({
     source: atlas.canvas,
@@ -40981,8 +40995,8 @@ function drawWavingFactionFlagWebGL({
       height: atlas.frameHeight
     },
     destinationRect: {
-      x: Math.round(x),
-      y: Math.round(y) - atlas.verticalPadding,
+      x: Math.round(x) + atlas.drawOffsetX,
+      y: Math.round(y) + atlas.drawOffsetY,
       width: atlas.frameWidth,
       height: atlas.frameHeight
     }
@@ -41060,6 +41074,15 @@ function flagWavePhase(nowMs, seed = 0) {
   return nowMs * CITY_FLAG_WAVE_SPEED_RAD_PER_MS + seed * 0.37;
 }
 
+function screenFlagWindForTile(tileId) {
+  const wind = windForTile(tileId);
+  const flow = screenWindFlowVector(wind);
+  return {
+    flowDirectionRad: Math.atan2(flow.y, flow.x),
+    windStrength: wind.strength
+  };
+}
+
 function drawWavingFactionFlag(
   factionId,
   x,
@@ -41067,7 +41090,11 @@ function drawWavingFactionFlag(
   width,
   height,
   phaseRad,
-  { outlineColor = null } = {}
+  {
+    outlineColor = null,
+    flowDirectionRad = null,
+    windStrength = null
+  } = {}
 ) {
   if (!factionHasFlag(factionId)) {
     throw new Error(`Neutral faction cannot be drawn as a flag`);
@@ -41080,7 +41107,7 @@ function drawWavingFactionFlag(
     image,
     width,
     height,
-    outlineColor
+    { outlineColor, flowDirectionRad, windStrength }
   );
   ctx.drawImage(
     atlas.canvas,
@@ -41088,67 +41115,126 @@ function drawWavingFactionFlag(
     0,
     atlas.frameWidth,
     atlas.frameHeight,
-    Math.round(x),
-    Math.round(y) - atlas.verticalPadding,
+    Math.round(x) + atlas.drawOffsetX,
+    Math.round(y) + atlas.drawOffsetY,
     atlas.frameWidth,
     atlas.frameHeight
   );
 }
 
-function wavingFactionFlagAtlas(factionId, image, width, height, outlineColor) {
-  const verticalPadding = 2;
-  const cacheKey = [factionId, width, height, outlineColor || ""].join("|");
+function wavingFactionFlagAtlas(
+  factionId,
+  image,
+  width,
+  height,
+  {
+    outlineColor = null,
+    flowDirectionRad = null,
+    windStrength = null
+  } = {}
+) {
+  const directional = flowDirectionRad !== null || windStrength !== null;
+  if (directional && (!Number.isFinite(flowDirectionRad) || !Number.isFinite(windStrength))) {
+    throw new Error(`Incomplete flag wind: ${flowDirectionRad}/${windStrength}`);
+  }
+  const pose = directional ? flagWindPose(flowDirectionRad, windStrength) : null;
+  const poseKey = pose === null ? "display" : pose.slack ? "slack" : `wind-${pose.directionIndex}`;
+  const cacheKey = [factionId, width, height, outlineColor || "", poseKey].join("|");
   const cached = wavingFactionFlagAtlasCache.get(cacheKey);
   if (cached) return cached;
 
+  const verticalPadding = 2;
+  const halfHeight = Math.floor(height / 2);
+  const radius = pose === null ? null : Math.ceil(Math.hypot(width, height / 2)) + verticalPadding + 1;
   const canvas = document.createElement("canvas");
-  const frameWidth = width + (outlineColor === null ? 0 : 1);
-  const frameHeight = height + verticalPadding * 2;
+  const frameWidth = pose === null ? width + 2 : radius * 2 + 1;
+  const frameHeight = pose === null ? height + verticalPadding * 2 : radius * 2 + 1;
   canvas.width = frameWidth * FLAG_WAVE_FRAME_COUNT;
   canvas.height = frameHeight;
   const atlasCtx = canvas.getContext("2d");
   if (!atlasCtx) throw new Error(`Could not create animated flag atlas for ${factionId}`);
   atlasCtx.imageSmoothingEnabled = false;
+  const frameCanvas = document.createElement("canvas");
+  frameCanvas.width = frameWidth;
+  frameCanvas.height = frameHeight;
+  const frameCtx = frameCanvas.getContext("2d", { willReadFrequently: outlineColor !== null });
+  if (!frameCtx) throw new Error(`Could not create animated flag frame for ${factionId}`);
+  frameCtx.imageSmoothingEnabled = false;
+  const outlineCanvas = outlineColor === null ? null : document.createElement("canvas");
+  if (outlineCanvas) {
+    outlineCanvas.width = frameWidth;
+    outlineCanvas.height = frameHeight;
+  }
+  const outlineCtx = outlineCanvas?.getContext("2d") || null;
+  if (outlineCanvas && !outlineCtx) {
+    throw new Error(`Could not create animated flag outline for ${factionId}`);
+  }
+  const fabricWidth = pose?.slack ? Math.max(2, Math.round(width * 0.25)) : width;
+  const fabricCanvas = document.createElement("canvas");
+  fabricCanvas.width = fabricWidth;
+  fabricCanvas.height = height + verticalPadding * 2;
+  const fabricCtx = fabricCanvas.getContext("2d");
+  if (!fabricCtx) throw new Error(`Could not create animated flag fabric for ${factionId}`);
+  fabricCtx.imageSmoothingEnabled = false;
 
   for (let frameIndex = 0; frameIndex < FLAG_WAVE_FRAME_COUNT; frameIndex++) {
     const frameX = frameIndex * frameWidth;
     const phase = frameIndex / FLAG_WAVE_FRAME_COUNT * Math.PI * 2;
-    const offsets = flagWaveColumnOffsets(width, phase, 1);
-    if (outlineColor !== null) {
-      atlasCtx.fillStyle = outlineColor;
-      for (const [dx, dy] of [[0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) {
-        for (let column = 0; column < width; column++) {
-          atlasCtx.fillRect(
-            frameX + column + dx,
-            verticalPadding + offsets[column] + dy,
-            1,
-            height
-          );
-        }
-      }
-    }
-    for (let column = 0; column < width; column++) {
-      const sourceX = Math.floor(column * image.width / width);
-      const sourceEndX = Math.floor((column + 1) * image.width / width);
-      atlasCtx.drawImage(
+    const offsets = flagWaveColumnOffsets(fabricWidth, phase, pose?.slack ? 0 : 1);
+    fabricCtx.clearRect(0, 0, fabricCanvas.width, fabricCanvas.height);
+    for (let column = 0; column < fabricWidth; column++) {
+      const sourceX = Math.floor(column * image.width / fabricWidth);
+      const sourceEndX = Math.floor((column + 1) * image.width / fabricWidth);
+      fabricCtx.drawImage(
         image,
         sourceX,
         0,
         Math.max(1, sourceEndX - sourceX),
         image.height,
-        frameX + column,
+        column,
         verticalPadding + offsets[column],
         1,
         height
       );
     }
+
+    frameCtx.clearRect(0, 0, frameWidth, frameHeight);
+    if (pose === null) {
+      frameCtx.drawImage(fabricCanvas, 1, 0);
+    } else {
+      frameCtx.save();
+      frameCtx.translate(radius, radius);
+      if (!pose.slack) frameCtx.rotate(pose.angleRad);
+      frameCtx.drawImage(fabricCanvas, 0, -halfHeight - verticalPadding);
+      frameCtx.restore();
+    }
+    if (outlineColor !== null) {
+      const pixels = frameCtx.getImageData(0, 0, frameWidth, frameHeight);
+      const outlineMask = flagExteriorOutlineMask(pixels.data, frameWidth, frameHeight);
+      const outlinePixels = outlineCtx.createImageData(frameWidth, frameHeight);
+      for (let index = 0; index < outlineMask.length; index++) {
+        outlinePixels.data[index * 4] = 255;
+        outlinePixels.data[index * 4 + 1] = 255;
+        outlinePixels.data[index * 4 + 2] = 255;
+        outlinePixels.data[index * 4 + 3] = outlineMask[index];
+      }
+      outlineCtx.clearRect(0, 0, frameWidth, frameHeight);
+      outlineCtx.putImageData(outlinePixels, 0, 0);
+      outlineCtx.globalCompositeOperation = "source-in";
+      outlineCtx.fillStyle = outlineColor;
+      outlineCtx.fillRect(0, 0, frameWidth, frameHeight);
+      outlineCtx.globalCompositeOperation = "source-over";
+      atlasCtx.drawImage(outlineCanvas, frameX, 0);
+    }
+    atlasCtx.drawImage(frameCanvas, frameX, 0);
   }
 
   const atlas = Object.freeze({
     canvas,
     frameWidth,
     frameHeight,
-    verticalPadding
+    drawOffsetX: pose === null ? -1 : -radius,
+    drawOffsetY: pose === null ? -verticalPadding : halfHeight - radius
   });
   wavingFactionFlagAtlasCache.set(cacheKey, atlas);
   return atlas;

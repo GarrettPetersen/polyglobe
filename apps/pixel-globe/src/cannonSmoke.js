@@ -1,8 +1,9 @@
 import { NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
 
-export const CANNON_SMOKE_TTL_SECONDS = 1.05;
+export const CANNON_SMOKE_TTL_SECONDS = 2.2;
 
-const PARTICLE_COUNT = 20;
+const PARTICLE_COUNT = 30;
+const MUZZLE_PARTICLE_COUNT = 6;
 
 export function createCannonSmokeBurst(projectile) {
   validateCannonProjectile(projectile);
@@ -42,18 +43,18 @@ export function cannonSmokePixels(burst) {
   const particleCount = Math.max(4, Math.round(PARTICLE_COUNT * burst.scale));
   for (let index = 0; index < particleCount; index++) {
     const random = smokeRandom(burst.seed, index);
-    const delay = index < 4 ? 0 : random[0] * 0.16;
+    const delay = index < MUZZLE_PARTICLE_COUNT ? 0 : random[0] * 0.2;
     if (burst.age < delay) continue;
     const life = clamp((burst.age - delay) / (burst.ttl - delay), 0, 1);
-    const outward = (2 + life * 5 + (random[1] * 2 - 1) * (1.5 + life * 10)) * burst.scale;
-    const sideways = (random[2] * 2 - 1) * (1.5 + life * 8) * burst.scale;
-    const rise = life * (3 + random[3] * 6) * burst.scale;
+    const outward = (2 + life * 7 + (random[1] * 2 - 1) * (2 + life * 13)) * burst.scale;
+    const sideways = (random[2] * 2 - 1) * (2 + life * 11) * burst.scale;
+    const rise = life * (4 + random[3] * 9) * burst.scale;
     const size = Math.max(1, Math.round(smokeParticleSize(life, random[1], index) * burst.scale));
     pixels.push({
       x: Math.round(burst.x + burst.directionX * outward - burst.directionY * sideways - size / 2),
       y: Math.round(burst.y + burst.directionY * outward + burst.directionX * sideways - rise - size / 2),
       size,
-      alpha: Math.pow(1 - life, 1.15) * (0.72 + random[0] * 0.24),
+      alpha: Math.pow(1 - life, 0.92) * (0.78 + random[0] * 0.2),
       shade: random[3] < 0.12 ? 0 : random[3] < 0.48 ? 1 : 2
     });
   }
@@ -61,9 +62,9 @@ export function cannonSmokePixels(burst) {
 }
 
 function smokeParticleSize(life, sizeNoise, index) {
-  if (life < 0.08) return index < 4 ? 3 : 2;
-  if (life < 0.62) return sizeNoise > 0.38 ? 4 : 3;
-  return sizeNoise > 0.68 ? 3 : 2;
+  if (life < 0.08) return index < MUZZLE_PARTICLE_COUNT ? 4 : 3;
+  if (life < 0.68) return sizeNoise > 0.64 ? 6 : sizeNoise > 0.24 ? 5 : 4;
+  return sizeNoise > 0.58 ? 4 : 3;
 }
 
 function validateCannonProjectile(projectile) {
