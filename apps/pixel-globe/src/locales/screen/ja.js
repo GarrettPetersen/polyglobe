@@ -343,6 +343,7 @@ export default Object.freeze({
   "a light East Asian river and coastal craft, shallow enough for creeks and crowded harbors where a deeper ocean ship could never work": "軽い東アジアの川と沿岸の船で、深海の船では決して航行できない小川や混雑した港には十分に浅い",
   "a light Japanese coastal trader whose shallow hull, square sail, and stern oars are well suited to the island passages of the Inland Sea": "浅い船体、四角い帆、船尾のオールが瀬戸内海の島々の航路によく適している、軽い日本の沿岸貿易商",
   "a light lateen craft long at home on the Nile and eastern Mediterranean, fast to handle and able to trade from the smallest landing places": "ナイル川と地中海東部を長く本拠地とする軽量の最新船で、扱いが速く、最小の上陸地点から交易できる",
+  "a light one-masted Mediterranean galley, built for speed under oars and quick coastal fighting rather than the cargo or artillery of larger warships": "櫂走の速さと沿岸での素早い戦闘を重視した、軽量な一本マストの地中海ガレー船。大型軍船のような積載力や火力はない",
   "A Lisbon Factor Meets the Panda": "リスボンの港商人とパンダの出会い",
   "A maritime world raised into the mountains. Record how its people build with reeds where timber is scarce; ingenuity belongs in our book beside grandeur.": "山中に隆起した海洋世界。木材が不足している地域で人々がどのように葦を使って家を建てているかを記録してください。私たちの本には壮大さとともに創意工夫も含まれています。",
   "A Merchant's Temple Gift": "商人の寺院の贈り物",

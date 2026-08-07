@@ -343,6 +343,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "a light East Asian river and coastal craft, shallow enough for creeks and crowded harbors where a deeper ocean ship could never work",
   "a light Japanese coastal trader whose shallow hull, square sail, and stern oars are well suited to the island passages of the Inland Sea",
   "a light lateen craft long at home on the Nile and eastern Mediterranean, fast to handle and able to trade from the smallest landing places",
+  "a light one-masted Mediterranean galley, built for speed under oars and quick coastal fighting rather than the cargo or artillery of larger warships",
   "A Lisbon Factor Meets the Panda",
   "A maritime world raised into the mountains. Record how its people build with reeds where timber is scarce; ingenuity belongs in our book beside grandeur.",
   "A Merchant's Temple Gift",

@@ -343,6 +343,7 @@ export default Object.freeze({
   "a light East Asian river and coastal craft, shallow enough for creeks and crowded harbors where a deeper ocean ship could never work": "一种轻型的东亚河流和沿海船只，足够浅，可通达小溪和拥挤的港口，而更深的远洋船只永远无法在这些地方作业",
   "a light Japanese coastal trader whose shallow hull, square sail, and stern oars are well suited to the island passages of the Inland Sea": "轻型日本沿海贸易商，其浅船体、方帆和尾桨非常适合内海的岛屿航道",
   "a light lateen craft long at home on the Nile and eastern Mediterranean, fast to handle and able to trade from the smallest landing places": "一种轻型大篷船，长期在尼罗河和东地中海航行，操作速度快，能够从最小的登陆地点进行贸易",
+  "a light one-masted Mediterranean galley, built for speed under oars and quick coastal fighting rather than the cargo or artillery of larger warships": "一艘轻型单桅地中海桨帆船，专为桨下高速航行和快速近岸作战而造，并不具备大型战船的载货量或火炮",
   "A Lisbon Factor Meets the Panda": "里斯本港口商人遇见熊猫",
   "A maritime world raised into the mountains. Record how its people build with reeds where timber is scarce; ingenuity belongs in our book beside grandeur.": "一个耸立在山上的海洋世界。记录人们如何在木材稀缺的地方用芦苇建造建筑；除了宏伟之外，独创性也属于我们的书中。",
   "A Merchant's Temple Gift": "商人的圣殿礼物",
