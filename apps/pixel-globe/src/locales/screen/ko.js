@@ -1814,7 +1814,6 @@ export default Object.freeze({
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops": "16세기 후반 일본의 위대한 전함 중 하나로서 군인과 미사일 부대를 위한 성과 같은 전투 작업을 수행했습니다.",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.": "레일에 장착된 경총 1개는 어느 방향으로든 회전하여 노출된 갑판을 긁어낼 수 있습니다.",
   "Only one unit fits or is affordable; use Buy 1.": "단 하나의 장치만 적합하거나 저렴합니다. 구매 1을 사용하세요.",
-  "Only one unit remains; use Sell 1.": "단 하나의 유닛만 남았습니다. 매도 1을 사용하세요.",
   "opened campaign goal": "공개된 캠페인 목표",
   "opened to trade": "거래가 가능해졌습니다",
   "Opening balance": "기초 잔액",

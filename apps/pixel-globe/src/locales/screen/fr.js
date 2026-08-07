@@ -1814,7 +1814,6 @@ export default Object.freeze({
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops": "l'un des grands navires de guerre japonais de la fin du XVIe siècle, transportant des ouvrages de combat en forme de château pour les soldats et les troupes de missiles",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.": "Un canon léger monté sur rail peut tourner dans n’importe quelle direction et ratisser un pont exposé.",
   "Only one unit fits or is affordable; use Buy 1.": "Une seule unité convient ou est abordable ; utilisez Acheter 1.",
-  "Only one unit remains; use Sell 1.": "Il ne reste qu’une seule unité ; utilisez Vendre 1.",
   "opened campaign goal": "objectif de campagne ouvert",
   "opened to trade": "ouvert au commerce",
   "Opening balance": "Solde d'ouverture",

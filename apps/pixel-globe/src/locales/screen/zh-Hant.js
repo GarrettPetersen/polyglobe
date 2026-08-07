@@ -1814,7 +1814,6 @@ export default Object.freeze({
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops": "日本十六世紀末最偉大的軍艦之一，為士兵和飛彈部隊攜帶城堡般的戰鬥設施",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.": "一把安裝在軌道上的光槍可以向任何方向轉動並掃掠暴露的甲板。",
   "Only one unit fits or is affordable; use Buy 1.": "只有一套適合或負擔得起；使用購買 1。",
-  "Only one unit remains; use Sell 1.": "只剩下一個單位；使用銷售 1。",
   "opened campaign goal": "開啟的活動目標",
   "opened to trade": "開放交易",
   "Opening balance": "期初餘額",

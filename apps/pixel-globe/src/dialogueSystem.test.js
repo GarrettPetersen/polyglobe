@@ -1240,6 +1240,43 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   assert.equal(session.marketSales, 0);
 });
 
+test("sell all remains actionable when only one unit is held", () => {
+  const city = {
+    tileId: 303,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.wool = 1;
+  gameState.accounts.cargoCostBasis.wool = 20;
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  const sellAllIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell-all" && entry.action.goodId === "wool"
+  ));
+
+  assert.ok(sellAllIndex >= 0);
+  assert.equal(view.options[sellAllIndex].action.quantity, 1);
+  assert.equal(view.options[sellAllIndex].disabled, false);
+  const sale = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    sellAllIndex,
+    { simMinute: 10 }
+  );
+
+  assert.equal(sale.marketSale.quantity, 1);
+  assert.equal(gameState.cargo.wool, undefined);
+});
+
 test("market comparisons use pixel-font-safe directional wording", () => {
   assert.equal(worldPriceIndicator({ direction: "high", percent: 18 }), "18% ABOVE WORLD");
   assert.equal(worldPriceIndicator({ direction: "low", percent: -12 }), "12% BELOW WORLD");

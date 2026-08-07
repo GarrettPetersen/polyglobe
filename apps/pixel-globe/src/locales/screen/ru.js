@@ -1814,7 +1814,6 @@ export default Object.freeze({
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops": "один из величайших японских военных кораблей конца шестнадцатого века, несущий боевые сооружения для солдат и ракетных войск, напоминающие замок.",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.": "Одна легкая пушка, установленная на рельсах, может поворачиваться в любом направлении и обстреливать открытую палубу.",
   "Only one unit fits or is affordable; use Buy 1.": "Подходит только один блок или он доступен по цене; используйте Купить 1.",
-  "Only one unit remains; use Sell 1.": "Остался только один отряд; используйте Продать 1.",
   "opened campaign goal": "открытая цель кампании",
   "opened to trade": "открыт для торговли",
   "Opening balance": "Начальный баланс",

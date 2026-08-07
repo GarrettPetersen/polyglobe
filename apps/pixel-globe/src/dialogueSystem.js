@@ -4390,10 +4390,8 @@ function sellView(session, city, gameState, economy, context) {
       }, {
         detail: `TOTAL P/L ${fullPnl}  HELD ${heldLots}`,
         rowId,
-        disabled: heldLots <= 1 || !marketCanBuyAll,
-        disabledReason: disabledReason || (heldLots <= 1
-          ? "Only one unit remains; use Sell 1."
-          : "The market cannot afford the whole lot.")
+        disabled: !marketCanBuyAll,
+        disabledReason: disabledReason || "The market cannot afford the whole lot."
       })
     ];
   });
