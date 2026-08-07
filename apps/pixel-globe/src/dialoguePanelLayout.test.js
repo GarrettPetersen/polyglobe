@@ -5,6 +5,7 @@ import {
   characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
+  dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
@@ -13,6 +14,25 @@ import {
   dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
+
+test("character exchanges replace rather than overlap the underlying dialogue", () => {
+  assert.equal(dialogueOverlayIsVisible({
+    dialogueActive: true,
+    characterAlertActive: false
+  }), true);
+  assert.equal(dialogueOverlayIsVisible({
+    dialogueActive: true,
+    characterAlertActive: true
+  }), false);
+  assert.equal(dialogueOverlayIsVisible({
+    dialogueActive: false,
+    characterAlertActive: true
+  }), false);
+  assert.throws(
+    () => dialogueOverlayIsVisible({ dialogueActive: true, characterAlertActive: null }),
+    /requires boolean modal states/
+  );
+});
 
 test("character alerts use the same standing portrait composition as dialogue", () => {
   const layout = characterAlertGeometry({

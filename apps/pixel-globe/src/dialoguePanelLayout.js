@@ -1,5 +1,12 @@
 import { wrapMeasuredText } from "./measuredTextLayout.js";
 
+export function dialogueOverlayIsVisible({ dialogueActive, characterAlertActive }) {
+  if (typeof dialogueActive !== "boolean" || typeof characterAlertActive !== "boolean") {
+    throw new Error("Dialogue overlay visibility requires boolean modal states");
+  }
+  return dialogueActive && !characterAlertActive;
+}
+
 export function characterAlertGeometry({
   screenWidth,
   screenHeight,

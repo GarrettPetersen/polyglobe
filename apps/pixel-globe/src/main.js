@@ -1045,6 +1045,7 @@ import {
   characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
+  dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueOptionNavigationLayout,
   dialogueOptionStackLayout,
@@ -28429,7 +28430,10 @@ function render(nowMs) {
   drawSurvivalHudTooltip();
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
-  if (dialogueState) drawDialogueOverlay(nowMs);
+  if (dialogueOverlayIsVisible({
+    dialogueActive: Boolean(dialogueState),
+    characterAlertActive: Boolean(captainAlertModal)
+  })) drawDialogueOverlay(nowMs);
   drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
