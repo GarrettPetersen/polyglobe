@@ -17,6 +17,7 @@ import {
   npcPortableWeaponItemIds,
   ownedPortableWeaponItemIds,
   portableWeaponItemById,
+  portableWeaponItemIsArmoryUpgrade,
   portableWeaponSoundKind,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
@@ -102,6 +103,30 @@ test("one small-arms purchase equips every free crew member while a swivel remai
   assert.equal(assignments[1].weapon.itemId, MATCHLOCK_ARQUEBUSES_ITEM_ID);
   assert.ok(assignments[1].operators > 5);
   assert.equal(assignments.length, 2);
+});
+
+test("merchants treat small arms as strict armory upgrades", () => {
+  assert.equal(
+    portableWeaponItemIsArmoryUpgrade(CROSSBOWS_ITEM_ID, [MARINERS_BOWS_ITEM_ID]),
+    true
+  );
+  assert.equal(
+    portableWeaponItemIsArmoryUpgrade(MARINERS_BOWS_ITEM_ID, [CROSSBOWS_ITEM_ID]),
+    false
+  );
+  assert.equal(
+    portableWeaponItemIsArmoryUpgrade(MATCHLOCK_ARQUEBUSES_ITEM_ID, [WHEELLOCK_PISTOLS_ITEM_ID]),
+    false
+  );
+  assert.equal(
+    portableWeaponItemIsArmoryUpgrade(SWIVEL_GUN_ITEM_ID, [MATCHLOCK_ARQUEBUSES_ITEM_ID]),
+    true
+  );
+  assert.equal(
+    portableWeaponItemIsArmoryUpgrade(INCENDIARY_ARROWS_ITEM_ID, [ENGLISH_LONGBOWS_ITEM_ID]),
+    true
+  );
+  assert.equal(portableWeaponItemIsArmoryUpgrade(INCENDIARY_ARROWS_ITEM_ID, []), false);
 });
 
 test("arquebuses outperform crossbows when scarce crew choose small arms", () => {

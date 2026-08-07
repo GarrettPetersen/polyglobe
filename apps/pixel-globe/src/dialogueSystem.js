@@ -3508,6 +3508,16 @@ function equipmentView(session, city, gameState, economy) {
   const nets = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS);
   const cannonEquipment = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT);
   const harpoons = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS);
+  const currentNet = playerFishingNet(gameState);
+  const currentCannonEquipment = playerCannonEquipment(gameState);
+  const currentHarpoon = playerWhaleHarpoon(gameState);
+  const netUpgradeAvailable = nets.some((net) => net.tier > currentNet.tier);
+  const cannonUpgradeAvailable = cannonEquipment.some((equipment) => (
+    equipment.tier > currentCannonEquipment.tier
+  ));
+  const harpoonUpgradeAvailable = harpoons.some((harpoon) => (
+    harpoon.tier > (currentHarpoon?.tier || 0)
+  ));
   const cannonArmed = Boolean(gameState.ship && gameState.ship.cannonCapacity > 0);
   return {
     speaker: speakerName(city),
@@ -3520,26 +3530,38 @@ function equipmentView(session, city, gameState, economy) {
           city,
           EQUIPMENT_STOCK_FISHING_NET
         )),
-        disabled: nets.length === 0,
-        disabledReason: "This port has no fishing nets in stock."
+        disabled: !netUpgradeAvailable,
+        disabledReason: netUpgradeAvailable
+          ? null
+          : nets.length === 0
+            ? "This port has no fishing nets in stock."
+            : `Your ${currentNet.label} is superior.`
       }),
       option("Whale harpoons", { type: "node", nodeId: "equipment-harpoons" }, {
         detail: equipmentStockLabel(harpoons, WHALE_HARPOONS, equipmentSpecialistAtPort(
           city,
           EQUIPMENT_STOCK_WHALE_HARPOON
         )),
-        disabled: harpoons.length === 0,
-        disabledReason: "This port has no whaling gear in stock."
+        disabled: !harpoonUpgradeAvailable,
+        disabledReason: harpoonUpgradeAvailable
+          ? null
+          : harpoons.length === 0
+            ? "This port has no whaling gear in stock."
+            : `Your ${currentHarpoon.label} is superior.`
       }),
       option("Cannon battery", { type: "node", nodeId: "equipment-cannons" }, {
         detail: equipmentStockLabel(cannonEquipment, CANNON_EQUIPMENT, equipmentSpecialistAtPort(
           city,
           EQUIPMENT_STOCK_CANNON
         )),
-        disabled: !cannonArmed || cannonEquipment.length === 0,
+        disabled: !cannonArmed || !cannonUpgradeAvailable,
         disabledReason: !cannonArmed
           ? "Your ship has no cannon battery to refit."
-          : "This port has no cannon equipment in stock."
+          : cannonUpgradeAvailable
+            ? null
+            : cannonEquipment.length === 0
+              ? "This port has no cannon equipment in stock."
+              : `Your ${currentCannonEquipment.label} is superior.`
       }),
       option("Back", { type: "node", nodeId: "root" })
     ]
@@ -3634,21 +3656,18 @@ function specialEquipmentOfferView(session, city, gameState) {
 function fishingNetView(session, city, gameState, economy) {
   const current = playerFishingNet(gameState);
   const stock = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS);
-  const offered = stock.filter((net) => net.id !== current.id);
+  const offered = stock.filter((net) => net.tier > current.tier);
   const rows = offered.map((net) => {
-    const inferior = net.tier < current.tier;
     const cannotAfford = gameState.doubloons < net.price;
-    const disabledReason = inferior
-        ? `Your ${current.label} is superior.`
-        : cannotAfford
-          ? `Need ${net.price - gameState.doubloons} more doubloons.`
-          : null;
+    const disabledReason = cannotAfford
+      ? `Need ${net.price - gameState.doubloons} more doubloons.`
+      : null;
     return option(`${net.label}  ${net.price} db`, {
       type: "buy-net",
       netId: net.id
     }, {
       detail: `ODDS x${net.catchRateMultiplier.toFixed(2)}  MAX HAUL ${net.maxCatch}`,
-      disabled: inferior || cannotAfford,
+      disabled: cannotAfford,
       disabledReason
     });
   });
@@ -3669,20 +3688,17 @@ function cannonEquipmentView(session, city, gameState, economy) {
   }
   const current = playerCannonEquipment(gameState);
   const stock = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT);
-  const rows = stock.filter((equipment) => equipment.id !== current.id).map((equipment) => {
-    const inferior = equipment.tier < current.tier;
+  const rows = stock.filter((equipment) => equipment.tier > current.tier).map((equipment) => {
     const cannotAfford = gameState.doubloons < equipment.price;
-    const disabledReason = inferior
-        ? `Your ${current.label} is superior.`
-        : cannotAfford
-          ? `Need ${equipment.price - gameState.doubloons} more doubloons.`
-          : null;
+    const disabledReason = cannotAfford
+      ? `Need ${equipment.price - gameState.doubloons} more doubloons.`
+      : null;
     return option(`${equipment.label}  ${equipment.price} db`, {
       type: "buy-cannon-equipment",
       equipmentId: equipment.id
     }, {
       detail: `RELOAD ${equipment.reloadSeconds.toFixed(2)}S  DAMAGE x${equipment.damageMultiplier.toFixed(2)}  RANGE x${equipment.rangeMultiplier.toFixed(2)}`,
-      disabled: inferior || cannotAfford,
+      disabled: cannotAfford,
       disabledReason
     });
   });
@@ -3700,20 +3716,17 @@ function cannonEquipmentView(session, city, gameState, economy) {
 function whaleHarpoonView(session, city, gameState, economy) {
   const current = playerWhaleHarpoon(gameState);
   const stock = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS);
-  const rows = stock.filter((harpoon) => harpoon.id !== current?.id).map((harpoon) => {
-    const inferior = Boolean(current && harpoon.tier < current.tier);
+  const rows = stock.filter((harpoon) => harpoon.tier > (current?.tier || 0)).map((harpoon) => {
     const cannotAfford = gameState.doubloons < harpoon.price;
-    const disabledReason = inferior
-        ? `Your ${current.label} is superior.`
-        : cannotAfford
-          ? `Need ${harpoon.price - gameState.doubloons} more doubloons.`
-          : null;
+    const disabledReason = cannotAfford
+      ? `Need ${harpoon.price - gameState.doubloons} more doubloons.`
+      : null;
     return option(`${harpoon.label}  ${harpoon.price} db`, {
       type: "buy-whale-harpoon",
       harpoonId: harpoon.id
     }, {
       detail: `ACCURACY ${Math.round(harpoon.accuracy * 100)}%  LINE BREAK ${Math.round(harpoon.breakChance * 100)}%  RANGE ${harpoon.rangePx}`,
-      disabled: inferior || cannotAfford,
+      disabled: cannotAfford,
       disabledReason
     });
   });

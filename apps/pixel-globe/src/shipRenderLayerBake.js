@@ -1,7 +1,7 @@
 import { shipSinkDepthByte } from "./shipSinking.js";
 import { floatingShipSubmergedPixelKeys } from "./shipWaterline.js";
 
-export const SHIP_RENDER_LAYER_BAKE_VERSION = 2;
+export const SHIP_RENDER_LAYER_BAKE_VERSION = 3;
 
 export function bakeShipRenderLayerSheet({
   colorPixels,
@@ -11,10 +11,14 @@ export function bakeShipRenderLayerSheet({
   frameSize,
   sheetColumns,
   headingCount,
-  maxRasterDepth
+  maxRasterDepth,
+  dryOccluderPixels = null
 }) {
   validatePixels(colorPixels, width, height, "color");
   validatePixels(depthPixels, width, height, "sink-depth");
+  if (dryOccluderPixels !== null) {
+    validatePixels(dryOccluderPixels, width, height, "dry occluder");
+  }
   if (!Number.isInteger(frameSize) || frameSize <= 0 ||
       !Number.isInteger(sheetColumns) || sheetColumns <= 0 ||
       !Number.isInteger(headingCount) || headingCount <= 0) {
@@ -71,10 +75,11 @@ export function bakeShipRenderLayerSheet({
     let submergedMaxY = -1;
     for (const pixel of opaque) {
       const offset = ((frameY + pixel.y) * width + frameX + pixel.x) * 4;
-      const target = submerged.has(pixel.y * frameSize + pixel.x)
-        ? submergedPixels
-        : abovePixels;
-      target.set(colorPixels.subarray(offset, offset + 4), offset);
+      const isSubmerged = submerged.has(pixel.y * frameSize + pixel.x);
+      const dryOccluder = isSubmerged && dryOccluderPixels?.[offset + 3] > 0;
+      const target = isSubmerged && !dryOccluder ? submergedPixels : abovePixels;
+      const source = dryOccluder ? dryOccluderPixels : colorPixels;
+      target.set(source.subarray(offset, offset + 4), offset);
       bottomOpaqueY = Math.max(bottomOpaqueY, pixel.y);
       if (target === submergedPixels) {
         submergedMinY = Math.min(submergedMinY, pixel.y);

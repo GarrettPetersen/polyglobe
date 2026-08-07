@@ -178,6 +178,45 @@ test("rowing power strokes put oar blades into the refracted water layer", async
   }
 });
 
+test("fusta rowing layers never refract over its dry hull", async () => {
+  const renderLayerRoot = join(shipAssetRoot, "../ship-render-layers");
+  const manifest = JSON.parse(await readFile(join(renderLayerRoot, "manifest.json"), "utf8"));
+  const entry = manifest.ships[FUSTA_SLUG];
+  assert.ok(entry, "fusta render-layer entry");
+  const bundle = await readFile(join(renderLayerRoot, entry.bundle));
+  const atlas = await loadImage(bundle.subarray(entry.byteOffset, entry.byteOffset + entry.byteLength));
+  const pixels = imagePixels(atlas);
+  const sheetWidth = SHIP_SPRITE_SHEET_WIDTH;
+  const baseKey = `unity-ships/${FUSTA_SLUG}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+  const base = entry.sources[baseKey];
+  assert.ok(base, "fusta static render-layer source");
+
+  for (const [sourceKey, source] of Object.entries(entry.sources)) {
+    if (source === base) continue;
+    for (let heading = 0; heading < SHIP_SPRITE_HEADINGS; heading++) {
+      const frameX = heading % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+      const frameY = Math.floor(heading / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+      for (let y = 0; y < SHIP_SPRITE_FRAME_SIZE; y++) {
+        for (let x = 0; x < SHIP_SPRITE_FRAME_SIZE; x++) {
+          const dryAlpha = pixels[
+            ((frameX + x) + (base.row * SHIP_SPRITE_SHEET_HEIGHT + frameY + y) * atlas.width) * 4 + 3
+          ];
+          if (dryAlpha === 0) continue;
+          const submergedAlpha = pixels[
+            ((sheetWidth + frameX + x) +
+              (source.row * SHIP_SPRITE_SHEET_HEIGHT + frameY + y) * atlas.width) * 4 + 3
+          ];
+          assert.equal(
+            submergedAlpha,
+            0,
+            `${sourceKey} heading ${heading} refracts over dry hull pixel ${x},${y}`
+          );
+        }
+      }
+    }
+  }
+});
+
 test("every roster ship has a hull footprint for every sprite heading", async () => {
   const bake = JSON.parse(await readFile(join(shipAssetRoot, "hull-footprints.json"), "utf8"));
   const footprints = validateShipFootprintBake(

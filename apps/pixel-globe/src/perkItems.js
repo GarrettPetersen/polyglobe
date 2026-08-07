@@ -4,7 +4,8 @@ import { MATCHLOCKS_GOOD_ID, portMarket } from "./economy.js";
 import {
   MATCHLOCK_ARQUEBUSES_ITEM_ID,
   PORTABLE_WEAPON_ITEMS,
-  portableWeaponEffectLabel
+  portableWeaponEffectLabel,
+  portableWeaponItemIsArmoryUpgrade
 } from "./portableWeapons.js";
 import {
   GRAMMATICAL_NUMBER_PLURAL,
@@ -113,11 +114,10 @@ export function perkItemOfferAtPort(economy, city, { ownedItemIds = [], seedKey 
   }
   const prosperity = portEquipmentProsperity(economy, city);
   const portId = requiredPortId(city);
-  const owned = new Set(ownedItemIds);
   const matchlocksListed = portMarket(economy, city).some((row) => (
     row.good.id === MATCHLOCKS_GOOD_ID && row.listedForSale
   ));
-  if (matchlocksListed && !owned.has(MATCHLOCK_ARQUEBUSES_ITEM_ID)) {
+  if (matchlocksListed && perkItemIsMerchantUpgrade(MATCHLOCK_ARQUEBUSES_ITEM_ID, ownedItemIds)) {
     return perkItemById(MATCHLOCK_ARQUEBUSES_ITEM_ID);
   }
   const spawnChance = 0.035 + prosperity * 0.065;
@@ -129,12 +129,23 @@ export function perkItemOfferAtPort(economy, city, { ownedItemIds = [], seedKey 
     : prosperity >= 0.32 && tierRoll >= 0.48 ? 2 : 1;
   const candidates = PERK_ITEMS.filter((entry) => (
     !entry.rewardOnly &&
-    entry.tier <= maximumTier && itemMatchesPortRegion(entry, city) && !owned.has(entry.id)
+    entry.tier <= maximumTier && itemMatchesPortRegion(entry, city) &&
+    perkItemIsMerchantUpgrade(entry.id, ownedItemIds)
   ));
   if (candidates.length === 0) return null;
   return candidates[
     hashString32(perkOfferSeedKey(seedKey, `${portId}|perk-item-offer|choice`)) % candidates.length
   ];
+}
+
+export function perkItemIsMerchantUpgrade(itemId, ownedItemIds) {
+  if (!Array.isArray(ownedItemIds) || ownedItemIds.some((id) => typeof id !== "string")) {
+    throw new Error("Merchant equipment comparison requires owned item ids");
+  }
+  const item = perkItemById(itemId);
+  if (ownedItemIds.includes(item.id)) return false;
+  if (!item.weapon && !item.modifier) return true;
+  return portableWeaponItemIsArmoryUpgrade(item.id, ownedItemIds);
 }
 
 export function missionGiftItem({ city, identityKey, ownedItemIds = [] }) {

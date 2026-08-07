@@ -10,6 +10,7 @@ import {
   specialEquipmentOfferEntry,
   validateSpecialEquipmentOfferMemory
 } from "./specialEquipmentOffers.js";
+import { CROSSBOWS_ITEM_ID, MARINERS_BOWS_ITEM_ID } from "./portableWeapons.js";
 
 const CITY = Object.freeze({
   tileId: 17,
@@ -55,4 +56,21 @@ test("a purchased special item cannot be offered or completed twice", () => {
     /No active special equipment offer/
   );
   assert.equal(validateSpecialEquipmentOfferMemory(memory), memory);
+});
+
+test("an obsolete small-arms offer is retired after the player acquires better arms", () => {
+  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0 });
+  const memory = createSpecialEquipmentOfferMemory();
+  memory.byPort[String(CITY.tileId)] = {
+    itemId: MARINERS_BOWS_ITEM_ID,
+    timesOffered: 1,
+    purchased: false
+  };
+
+  const replacement = ensureSpecialEquipmentOffer(memory, economy, CITY, {
+    ownedItemIds: [CROSSBOWS_ITEM_ID]
+  });
+
+  assert.notEqual(replacement?.id, MARINERS_BOWS_ITEM_ID);
+  assert.notEqual(specialEquipmentOfferEntry(memory, CITY)?.itemId, MARINERS_BOWS_ITEM_ID);
 });

@@ -72,6 +72,7 @@ async function bakeShip(slug) {
   const context = atlas.getContext("2d");
   context.imageSmoothingEnabled = false;
   const sources = {};
+  let dryOccluderPixels = null;
   for (let row = 0; row < sourceKeys.length; row++) {
     const sourceKey = sourceKeys[row];
     const [colorImage, depthImage] = await Promise.all([
@@ -90,8 +91,10 @@ async function bakeShip(slug) {
       frameSize: SHIP_SPRITE_FRAME_SIZE,
       sheetColumns: SHIP_SPRITE_SHEET_COLS,
       headingCount: SHIP_SPRITE_HEADINGS,
-      maxRasterDepth: shipMaxRasterWaterlineDepth(slug)
+      maxRasterDepth: shipMaxRasterWaterlineDepth(slug),
+      dryOccluderPixels
     });
+    if (row === 0) dryOccluderPixels = baked.abovePixels;
     const y = row * SHIP_SPRITE_SHEET_HEIGHT;
     context.putImageData(
       createImageData(baked.abovePixels, SHIP_SPRITE_SHEET_WIDTH, SHIP_SPRITE_SHEET_HEIGHT),

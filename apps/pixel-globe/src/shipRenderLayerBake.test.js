@@ -33,6 +33,39 @@ test("ship render-layer bake separates only the exposed bottom hull", () => {
   });
 });
 
+test("dry hull pixels occlude submerged rowing geometry", () => {
+  const color = new Uint8ClampedArray(2 * 2 * 4);
+  const depth = new Uint8ClampedArray(color.length);
+  const dryOccluder = new Uint8ClampedArray(color.length);
+  const overlappingOffset = (1 * 2) * 4;
+  color.set([80, 45, 20, 255], overlappingOffset);
+  depth.set([20, 20, 20, 255], overlappingOffset);
+  dryOccluder.set([170, 85, 45, 255], overlappingOffset);
+
+  const result = bakeShipRenderLayerSheet({
+    colorPixels: color,
+    depthPixels: depth,
+    dryOccluderPixels: dryOccluder,
+    width: 2,
+    height: 2,
+    frameSize: 2,
+    sheetColumns: 1,
+    headingCount: 1,
+    maxRasterDepth: 2
+  });
+
+  assert.deepEqual(
+    [...result.abovePixels.slice(overlappingOffset, overlappingOffset + 4)],
+    [170, 85, 45, 255]
+  );
+  assert.equal(result.submergedPixels[overlappingOffset + 3], 0);
+  assert.deepEqual(result.frames[0], {
+    bottomOpaqueY: 1,
+    submergedMinY: 2,
+    submergedMaxY: -1
+  });
+});
+
 test("ship render-layer manifest validates its full roster and bounds", () => {
   const manifest = {
     version: SHIP_RENDER_LAYER_BAKE_VERSION,

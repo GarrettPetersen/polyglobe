@@ -2696,6 +2696,30 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
   assert.match(session.feedback, /Bronze culverins fitted/);
 });
 
+test("equipment merchants omit gear below the player's current tier", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.inventory.cannonEquipmentId = "reinforced-culverins";
+  const session = createPortDialogueSession(city, { initialNodeId: "equipment-cannons" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  const labels = view.options.map((entry) => entry.label);
+
+  assert.equal(labels.some((label) => /Bronze culverins/.test(label)), false);
+  assert.equal(labels.some((label) => /Reinforced culverins/.test(label)), false);
+  assert.equal(labels.some((label) => /Royal foundry battery/.test(label)), true);
+});
+
 test("a Polynesian equipment store does not present the player's cannons as local stock", () => {
   const city = {
     tileId: 11,

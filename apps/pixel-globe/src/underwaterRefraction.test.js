@@ -7,11 +7,11 @@ import {
   underwaterRefractionPhase
 } from "./underwaterRefraction.js";
 
-test("underwater refraction uses one calm six-second cycle", () => {
-  assert.equal(UNDERWATER_REFRACTION_PERIOD_MS, 6000);
-  assert.equal(UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT, 4 / 6000);
+test("underwater refraction uses one calm four-second cycle", () => {
+  assert.equal(UNDERWATER_REFRACTION_PERIOD_MS, 4000);
+  assert.equal(UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT, 4 / 4000);
   assert.equal(underwaterRefractionPhase(0), 0);
-  assert.ok(Math.abs(underwaterRefractionPhase(6000) - Math.PI * 2) < 1e-12);
+  assert.ok(Math.abs(underwaterRefractionPhase(4000) - Math.PI * 2) < 1e-12);
 });
 
 test("underwater refraction rejects malformed time", () => {

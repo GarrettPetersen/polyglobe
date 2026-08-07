@@ -302,6 +302,27 @@ export function isPortableWeaponItemId(itemId) {
   return ITEMS_BY_ID.has(itemId);
 }
 
+export function portableWeaponItemIsArmoryUpgrade(itemId, ownedItemIds) {
+  if (!Array.isArray(ownedItemIds) || ownedItemIds.some((id) => typeof id !== "string")) {
+    throw new Error("Portable weapon upgrade comparison requires owned item ids");
+  }
+  const candidate = portableWeaponItemById(itemId);
+  const owned = new Set(ownedItemIds.filter(isPortableWeaponItemId));
+  if (owned.has(itemId)) return false;
+
+  if (candidate.modifier) {
+    return [...owned].some((id) => portableWeaponItemById(id).weapon?.bow);
+  }
+
+  const singleInstallation = candidate.weapon.singleInstallation;
+  const bestOwnedTier = [...owned].reduce((bestTier, id) => {
+    const item = portableWeaponItemById(id);
+    if (!item.weapon || item.weapon.singleInstallation !== singleInstallation) return bestTier;
+    return Math.max(bestTier, item.tier);
+  }, 0);
+  return candidate.tier > bestOwnedTier;
+}
+
 export function portableWeaponSoundKind(weapon) {
   if (!weapon || typeof weapon !== "object") {
     throw new Error("Portable weapon sound needs a weapon");

@@ -1,4 +1,8 @@
-import { perkItemById, perkItemOfferAtPort } from "./perkItems.js";
+import {
+  perkItemById,
+  perkItemIsMerchantUpgrade,
+  perkItemOfferAtPort
+} from "./perkItems.js";
 
 const SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION = 1;
 
@@ -35,6 +39,10 @@ export function ensureSpecialEquipmentOffer(
   }
   const key = portKey(city);
   let entry = memory.byPort[key] || null;
+  if (entry && !entry.purchased && !perkItemIsMerchantUpgrade(entry.itemId, ownedItemIds)) {
+    delete memory.byPort[key];
+    entry = null;
+  }
   if (!entry) {
     const item = perkItemOfferAtPort(economy, city, { ownedItemIds, seedKey });
     if (!item) return null;

@@ -10,7 +10,10 @@ import {
   perkItemById,
   perkItemOfferAtPort
 } from "./perkItems.js";
-import { MATCHLOCK_ARQUEBUSES_ITEM_ID } from "./portableWeapons.js";
+import {
+  MATCHLOCK_ARQUEBUSES_ITEM_ID,
+  WHEELLOCK_PISTOLS_ITEM_ID
+} from "./portableWeapons.js";
 
 test("every perk item has a registered native game icon", () => {
   const icons = new Set(gameIconIds());
@@ -86,6 +89,10 @@ test("a port selling matchlocks also offers arquebuses as equipment", () => {
   assert.equal(perkItemOfferAtPort(economy, lisbon).id, MATCHLOCK_ARQUEBUSES_ITEM_ID);
   assert.notEqual(
     perkItemOfferAtPort(economy, lisbon, { ownedItemIds: [MATCHLOCK_ARQUEBUSES_ITEM_ID] })?.id,
+    MATCHLOCK_ARQUEBUSES_ITEM_ID
+  );
+  assert.notEqual(
+    perkItemOfferAtPort(economy, lisbon, { ownedItemIds: [WHEELLOCK_PISTOLS_ITEM_ID] })?.id,
     MATCHLOCK_ARQUEBUSES_ITEM_ID
   );
 });
