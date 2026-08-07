@@ -1684,6 +1684,7 @@ import {
   historicalBattleSideSummary,
   historicalBattleSquadronSummary,
   historicalBattleVisibleShips,
+  historicalBattleWindFlowDirection,
   updateHistoricalBattle
 } from "./historicalBattle.js";
 import {
@@ -1691,6 +1692,7 @@ import {
   historicalBattleScenarioById,
   historicalBattleSideById
 } from "./historicalBattleScenarios.js";
+import { historicalBattleMapWaterAt } from "./historicalBattleMap.js";
 import {
   VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID,
   VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
@@ -9366,6 +9368,8 @@ function createHistoricalBattleModeState() {
     selectedIndex: HISTORICAL_BATTLE_SETUP_SCENARIO_ROW,
     battle: null,
     camera: null,
+    sinkEffects: [],
+    resultReadyAtMs: null,
     loading: false,
     error: null,
     hoverPoint: null,
@@ -9496,6 +9500,8 @@ async function beginHistoricalBattle() {
     const player = historicalBattlePlayerShip(mode.battle);
     mode.camera = { x: player.x, y: player.y };
     mode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+    mode.sinkEffects = [];
+    mode.resultReadyAtMs = null;
     mode.selectedIndex = 0;
     mode.loading = false;
     mode.pauseButtonRect = null;
@@ -9526,6 +9532,8 @@ function restartHistoricalBattle() {
   const player = historicalBattlePlayerShip(lakeBattleMode.battle);
   lakeBattleMode.camera = { x: player.x, y: player.y };
   lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+  lakeBattleMode.sinkEffects = [];
+  lakeBattleMode.resultReadyAtMs = null;
   lakeBattleMode.selectedIndex = 0;
   clearHistoricalBattlePendingActions();
   keys.clear();
@@ -9539,6 +9547,8 @@ function returnHistoricalBattleToSetup() {
   lakeBattleMode.screen = LAKE_BATTLE_SCREEN_SETUP;
   lakeBattleMode.battle = null;
   lakeBattleMode.camera = null;
+  lakeBattleMode.sinkEffects = [];
+  lakeBattleMode.resultReadyAtMs = null;
   lakeBattleMode.selectedIndex = HISTORICAL_BATTLE_SETUP_SCENARIO_ROW;
   lakeBattleMode.error = null;
   clearHistoricalBattlePendingActions();
@@ -9742,6 +9752,18 @@ function updateLakeBattleModeFrame(dt, nowMs) {
 
 function updateHistoricalBattleModeFrame(dt, nowMs) {
   if (lakeBattleMode?.kind !== "historical" || optionsMenu.isOpen) return false;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
+    pruneHistoricalBattleSinkEffects(nowMs);
+    if (!Number.isFinite(lakeBattleMode.resultReadyAtMs)) {
+      throw new Error("Historical battle sinking screen has no result deadline");
+    }
+    if (nowMs >= lakeBattleMode.resultReadyAtMs) {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_RESULT;
+      lakeBattleMode.selectedIndex = 0;
+    }
+    dirty = true;
+    return true;
+  }
   if (lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
   const battle = lakeBattleMode.battle;
   if (!battle) throw new Error("Active historical battle screen has no battle state");
@@ -9751,7 +9773,8 @@ function updateHistoricalBattleModeFrame(dt, nowMs) {
     lakeBattleMode.pendingFireStarboard = false;
     lakeBattleMode.pendingUnitCommand = null;
   }
-  processHistoricalBattleEvents(battle);
+  processHistoricalBattleEvents(battle, nowMs);
+  pruneHistoricalBattleSinkEffects(nowMs);
   const player = historicalBattlePlayerShip(battle);
   if (!lakeBattleMode.camera) lakeBattleMode.camera = { x: player.x, y: player.y };
   const cameraCatchup = 1 - Math.exp(-dt * 9);
@@ -9759,8 +9782,7 @@ function updateHistoricalBattleModeFrame(dt, nowMs) {
   lakeBattleMode.camera.y += (player.y - lakeBattleMode.camera.y) * cameraCatchup;
   clampHistoricalBattleCamera(lakeBattleMode.camera, battle.map);
   if (battle.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE) {
-    lakeBattleMode.screen = LAKE_BATTLE_SCREEN_RESULT;
-    lakeBattleMode.selectedIndex = 0;
+    finishHistoricalBattlePresentation(nowMs);
     keys.clear();
     clearPointerSteering();
   }
@@ -9832,7 +9854,7 @@ function fireHistoricalBattlePlayerBroadside(sideName) {
   return true;
 }
 
-function processHistoricalBattleEvents(battle) {
+function processHistoricalBattleEvents(battle, nowMs) {
   const player = historicalBattlePlayerShip(battle);
   let attackSounds = 0;
   let impactSounds = 0;
@@ -9864,13 +9886,51 @@ function processHistoricalBattleEvents(battle) {
         playCannonImpactSound(Math.max(8, 18 - distance / 30));
         impactSounds += 1;
       }
-    } else if (event.type === "collision" || event.type === "escaped" || event.type === "sunk" ||
+    } else if (event.type === "sunk") {
+      const sunkShip = battle.ships[event.shipIndex];
+      if (!sunkShip) throw new Error(`Historical battle sink event lost ship ${event.shipIndex}`);
+      if (historicalBattleShipNearViewport(sunkShip) &&
+          !lakeBattleMode.sinkEffects.some((entry) => entry.shipId === sunkShip.id)) {
+        lakeBattleMode.sinkEffects.push({
+          shipId: sunkShip.id,
+          effect: createHistoricalBattleShipSinkEffect(battle, sunkShip, nowMs)
+        });
+      }
+    } else if (event.type === "collision" || event.type === "escaped" ||
                event.type === "surrendered" || event.type === "finished") {
       // Their visible state and the result screen present these aggregate fleet events.
     } else {
       throw new Error(`Unknown historical battle event: ${event.type}`);
     }
   }
+}
+
+function historicalBattleShipNearViewport(shipState) {
+  const point = historicalBattleWorldToScreen(shipState);
+  return point.x >= -SHIP_SHEET_FRAME_SIZE && point.x <= SCREEN_W + SHIP_SHEET_FRAME_SIZE &&
+    point.y >= -SHIP_SHEET_FRAME_SIZE && point.y <= SCREEN_H + SHIP_SHEET_FRAME_SIZE;
+}
+
+function pruneHistoricalBattleSinkEffects(nowMs) {
+  lakeBattleMode.sinkEffects = lakeBattleMode.sinkEffects.filter(({ effect }) => (
+    !shipSinkEffectComplete(effect, nowMs)
+  ));
+}
+
+function finishHistoricalBattlePresentation(nowMs) {
+  if (lakeBattleMode.sinkEffects.length === 0) {
+    lakeBattleMode.resultReadyAtMs = null;
+    lakeBattleMode.screen = LAKE_BATTLE_SCREEN_RESULT;
+    lakeBattleMode.selectedIndex = 0;
+    return;
+  }
+  lakeBattleMode.resultReadyAtMs = Math.max(...lakeBattleMode.sinkEffects.map(({ effect }) => (
+    effect.startedAtMs + SHIP_SINK_EFFECT_DURATION_MS
+  )));
+  if (lakeBattleMode.resultReadyAtMs <= nowMs) {
+    throw new Error("Historical battle sink presentation ended before it began");
+  }
+  lakeBattleMode.screen = LAKE_BATTLE_SCREEN_SINKING;
 }
 
 function clampHistoricalBattleCamera(cameraValue, map) {
@@ -34340,10 +34400,13 @@ function drawHistoricalBattleMode(nowMs) {
   drawHistoricalBattleField(battle, nowMs);
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
     drawHistoricalBattleBroadsideControls(battle);
+    drawHistoricalBattleWindIndicator(battle, nowMs);
     drawHistoricalBattleCommandMenu(battle);
     drawLakeBattlePauseButton(historicalBattlePauseButtonRect());
   } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED) {
     drawLakeBattleActionOverlay("BATTLE PAUSED", HISTORICAL_BATTLE_PAUSE_ACTIONS);
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
+    // The last visible wreck finishes sinking before the result replaces the battle.
   } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_RESULT) {
     const title = battle.outcome === "victory"
       ? "VICTORY"
@@ -34501,6 +34564,7 @@ function drawHistoricalBattleField(battle, nowMs) {
   drawHistoricalBattleMap(battle.map);
   drawHistoricalBattleProjectiles(battle);
   drawHistoricalBattleShips(battle, nowMs);
+  drawHistoricalBattleSinkEffects(battle, nowMs);
   drawHistoricalBattleHud(battle);
   drawHistoricalBattleMinimap(battle);
 }
@@ -34585,9 +34649,13 @@ function drawHistoricalBattleShips(battle, nowMs) {
   for (const shipState of visible) drawHistoricalBattleShip(battle, shipState, nowMs);
 }
 
-function drawHistoricalBattleShip(battle, shipState, nowMs) {
+function historicalBattleShipSpriteCall(battle, shipState, nowMs, coordinateSpace = "screen") {
+  if (coordinateSpace !== "screen" && coordinateSpace !== "world") {
+    throw new Error(`Unknown historical ship coordinate space: ${coordinateSpace}`);
+  }
   const asset = lakeBattleShipAssets.get(shipState.shipSlug) || residentShipVisualAsset(shipState.shipSlug);
   if (!asset) throw new Error(`Missing historical battle ship asset: ${shipState.shipSlug}`);
+  const bobSeed = shipState.slotIndex * 13 + shipState.sideIndex * 101;
   const frameAsset = rowingShipFrameAsset({
     id: shipState.id,
     kind: shipState.playerControlled ? "player" : "npc",
@@ -34596,44 +34664,69 @@ function drawHistoricalBattleShip(battle, shipState, nowMs) {
     sinkDepthImg: asset.sinkDepthImage,
     rowing: shipState.rowing,
     rowingMode: shipState.rowingMode,
-    bobSeed: shipState.slotIndex * 13 + shipState.sideIndex * 101
+    bobSeed
   }, nowMs);
-  const screenPoint = historicalBattleWorldToScreen(shipState);
+  const point = coordinateSpace === "screen" ? historicalBattleWorldToScreen(shipState) : shipState;
   const frame = headingFrameForScreenHeading({
     x: Math.cos(shipState.headingRad),
     y: Math.sin(shipState.headingRad)
   });
-  const x = Math.round(screenPoint.x - SHIP_SHEET_FRAME_SIZE / 2);
-  const y = Math.round(screenPoint.y - SHIP_SHEET_FRAME_SIZE / 2);
-  ctx.save();
-  if (!shipState.active && !shipState.surrendered) {
-    ctx.globalAlpha = clamp(shipState.sinkingSeconds / 2.8, 0.15, 0.75);
-  }
-  const call = {
-    id: shipState.id,
-    kind: shipState.playerControlled ? "player" : "npc",
-    slug: shipState.shipSlug,
-    img: frameAsset.image,
-    sinkDepthImg: frameAsset.sinkDepthImage,
-    frame,
-    x,
-    y,
-    combatAllegiance: shipState.sideId === battle.playerSideId ? "ally" : "enemy"
+  const x = Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2);
+  const y = Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2);
+  return {
+    frameAsset,
+    call: {
+      id: shipState.id,
+      kind: shipState.playerControlled ? "player" : "npc",
+      slug: shipState.shipSlug,
+      img: frameAsset.image,
+      sinkDepthImg: frameAsset.sinkDepthImage,
+      frame,
+      x,
+      y,
+      bobSeed,
+      combatAllegiance: shipState.sideId === battle.playerSideId ? "ally" : "enemy"
+    }
   };
-  const layers = shipWaterlineLayers(call.img, call.sinkDepthImg, frame, call.slug);
+}
+
+function createHistoricalBattleShipSinkEffect(battle, shipState, nowMs) {
+  const { call } = historicalBattleShipSpriteCall(battle, shipState, nowMs, "world");
+  return createRenderedBattleShipSinkEffect(call, shipState, nowMs);
+}
+
+function drawHistoricalBattleShip(battle, shipState, nowMs) {
+  const { call, frameAsset } = historicalBattleShipSpriteCall(battle, shipState, nowMs);
+  ctx.save();
+  const layers = shipWaterlineLayers(call.img, call.sinkDepthImg, call.frame, call.slug);
   drawShipCombatOutline(call, layers);
-  drawLakeBattleSpriteFrame(frameAsset.image, frame, x, y);
+  drawFloatingShipSprite(call, layers, nowMs);
   drawHistoricalBattleShipFlag(
     shipState,
     frameAsset,
-    frame,
-    x,
-    y,
+    call.frame,
+    call.x,
+    call.y,
     nowMs,
     call.combatAllegiance,
     battle.wind
   );
   ctx.restore();
+}
+
+function drawHistoricalBattleSinkEffects(battle, nowMs) {
+  const drawOffset = {
+    x: Math.round(SCREEN_W / 2 - lakeBattleMode.camera.x),
+    y: Math.round(SCREEN_H / 2 - lakeBattleMode.camera.y)
+  };
+  for (const { effect } of lakeBattleMode.sinkEffects) {
+    drawShipSinkEffect(
+      effect,
+      nowMs,
+      drawOffset,
+      (x, y) => historicalBattleMapWaterAt(battle.map, x, y)
+    );
+  }
 }
 
 function drawHistoricalBattleShipFlag(shipState, frameAsset, frame, x, y, nowMs, allegiance, wind) {
@@ -35041,6 +35134,10 @@ function lakeBattleShipSpriteCall(shipState, nowMs) {
 
 function createLakeBattleShipSinkEffect(shipState, nowMs) {
   const call = lakeBattleShipSpriteCall(shipState, nowMs);
+  return createRenderedBattleShipSinkEffect(call, shipState, nowMs);
+}
+
+function createRenderedBattleShipSinkEffect(call, shipState, nowMs) {
   return createShipSinkEffect({
     id: call.id,
     pixels: shipSpriteFramePixels(call.img, call.sinkDepthImg, call.frame),
@@ -35130,18 +35227,44 @@ function drawLakeBattleHudSide(shipState, label, panel) {
 function drawLakeBattleWindIndicator(battle, nowMs) {
   const flowDirectionRad = lakeBattleWindFlowDirection(battle);
   const flow = { x: Math.cos(flowDirectionRad), y: Math.sin(flowDirectionRad) };
-  const heading = lakeBattleHeadingVector(battle.player);
-  const alignment = clamp(heading.x * flow.x + heading.y * flow.y, -1, 1);
-  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
-  const warning = shipHasWindDeadZone(battle.player.stats)
-    ? sailingStallWarningStrength(angleFromWind, battle.player.stats.upwindStallAngleRad)
-    : 0;
-  drawShipWindV({
+  drawBattleWindIndicator({
     centerX: battle.player.x,
     centerY: battle.player.y,
-    flowDirectionRad: windVFlowDirectionForScreenVector(flow.x, flow.y),
-    deadZoneHalfAngleRad: battle.player.stats.upwindStallAngleRad,
+    flow,
+    heading: lakeBattleHeadingVector(battle.player),
+    stats: battle.player.stats,
     strength: battle.wind.strength,
+    nowMs
+  });
+}
+
+function drawHistoricalBattleWindIndicator(battle, nowMs) {
+  const player = historicalBattlePlayerShip(battle);
+  const center = historicalBattleWorldToScreen(player);
+  const flowDirectionRad = historicalBattleWindFlowDirection(battle);
+  drawBattleWindIndicator({
+    centerX: center.x,
+    centerY: center.y,
+    flow: { x: Math.cos(flowDirectionRad), y: Math.sin(flowDirectionRad) },
+    heading: { x: Math.cos(player.headingRad), y: Math.sin(player.headingRad) },
+    stats: player.stats,
+    strength: battle.wind.strength,
+    nowMs
+  });
+}
+
+function drawBattleWindIndicator({ centerX, centerY, flow, heading, stats, strength, nowMs }) {
+  const alignment = clamp(heading.x * flow.x + heading.y * flow.y, -1, 1);
+  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
+  const warning = shipHasWindDeadZone(stats)
+    ? sailingStallWarningStrength(angleFromWind, stats.upwindStallAngleRad)
+    : 0;
+  drawShipWindV({
+    centerX,
+    centerY,
+    flowDirectionRad: windVFlowDirectionForScreenVector(flow.x, flow.y),
+    deadZoneHalfAngleRad: stats.upwindStallAngleRad,
+    strength,
     warning,
     nowMs
   });

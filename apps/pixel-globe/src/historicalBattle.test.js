@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -12,13 +13,34 @@ import {
   historicalBattleSnapshot,
   historicalBattleSquadronSummary,
   historicalBattleVisibleShips,
+  historicalBattleWindFlowDirection,
   updateHistoricalBattle
 } from "./historicalBattle.js";
+import { validateShipFootprintBake } from "./shipFootprint.js";
+import { SHIP_SPRITE_FRAME_SIZE, SHIP_SPRITE_HEADINGS } from "./shipSpriteLayout.js";
 import {
   HOLY_LEAGUE_SIDE_ID,
   LEPANTO_SCENARIO_ID,
   OTTOMAN_SIDE_ID
 } from "./historicalBattleScenarios.js";
+
+const HISTORICAL_SHIP_SLUGS = Object.freeze([
+  "mediterranean-galley",
+  "galleass",
+  "galleon",
+  "carrack",
+  "fusta"
+]);
+const SHIP_FOOTPRINT_BAKE = JSON.parse(readFileSync(
+  new URL("../public/assets/vehicles/unity-ships/hull-footprints.json", import.meta.url),
+  "utf8"
+));
+const HISTORICAL_SHIP_FOOTPRINTS = validateShipFootprintBake(
+  SHIP_FOOTPRINT_BAKE,
+  SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADINGS,
+  HISTORICAL_SHIP_SLUGS
+);
 
 function createBattle(overrides = {}) {
   return createHistoricalBattle({
@@ -146,6 +168,44 @@ test("port and starboard cannon reloads remain independent", () => {
 
   assert.equal(player.cooldowns.port, 0);
   assert.ok(player.cooldowns.starboard > 0);
+});
+
+test("historical wind uses the shared downwind flow convention", () => {
+  const battle = createBattle();
+
+  assert.equal(historicalBattleWindFlowDirection(battle), Math.PI);
+});
+
+test("baked hull radii keep large ships in the collision broad phase", () => {
+  const battle = createBattle({ shipFootprints: HISTORICAL_SHIP_FOOTPRINTS });
+  const player = historicalBattlePlayerShip(battle);
+  const targetIndex = battle.ships.findIndex((ship) => (
+    ship.sideId === OTTOMAN_SIDE_ID && ship.shipSlug === "mediterranean-galley"
+  ));
+  const target = battle.ships[targetIndex];
+  player.x = 1987;
+  player.y = 1100;
+  player.headingRad = 0;
+  player.speedPx = 12;
+  target.x = 2016;
+  target.y = 1100;
+  target.headingRad = Math.PI;
+  target.speedPx = 12;
+
+  for (let step = 0; step < 2; step++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: 0,
+      rowingRequested: false
+    });
+  }
+  const collision = drainHistoricalBattleEvents(battle).find((event) => (
+    event.type === "collision" && event.shipIndex === battle.playerShipIndex &&
+    event.otherIndex === targetIndex
+  ));
+
+  assert.ok(player.collisionRadius > 18);
+  assert.ok(battle.maxCollisionRadius > 21);
+  assert.ok(collision, "overlapping ships in adjacent spatial cells passed through each other");
 });
 
 test("Lepanto uses faction equipment rather than a separate boarding weapon", () => {

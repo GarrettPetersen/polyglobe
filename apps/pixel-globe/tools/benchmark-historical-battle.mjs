@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 
 import {
@@ -10,13 +11,26 @@ import {
   HOLY_LEAGUE_SIDE_ID,
   LEPANTO_SCENARIO_ID
 } from "../src/historicalBattleScenarios.js";
+import { validateShipFootprintBake } from "../src/shipFootprint.js";
+import { SHIP_SPRITE_FRAME_SIZE, SHIP_SPRITE_HEADINGS } from "../src/shipSpriteLayout.js";
 
 const SIMULATED_SECONDS = 180;
 const STEP_COUNT = Math.round(SIMULATED_SECONDS / HISTORICAL_BATTLE_FIXED_STEP_SECONDS);
+const footprintBake = JSON.parse(readFileSync(
+  new URL("../public/assets/vehicles/unity-ships/hull-footprints.json", import.meta.url),
+  "utf8"
+));
+const shipFootprints = validateShipFootprintBake(
+  footprintBake,
+  SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADINGS,
+  ["mediterranean-galley", "galleass", "galleon", "carrack", "fusta"]
+);
 const battle = createHistoricalBattle({
   scenarioId: LEPANTO_SCENARIO_ID,
   playerSideId: HOLY_LEAGUE_SIDE_ID,
   playerSquadronId: "league-center",
+  shipFootprints,
   seed: 0x42454e43
 });
 

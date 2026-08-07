@@ -18,7 +18,11 @@ import {
   portableWeaponItemById
 } from "./portableWeapons.js";
 import { resolveShipCollision } from "./shipCollision.js";
-import { shipFootprintFrame, translatedShipFootprint } from "./shipFootprint.js";
+import {
+  shipFootprintFrame,
+  shipFootprintRadius,
+  translatedShipFootprint
+} from "./shipFootprint.js";
 import {
   SHIP_ROWING_MODE_AHEAD,
   SHIP_ROWING_MODE_ASTERN,
@@ -63,7 +67,6 @@ const FORMATION_COLUMN_SPACING_PX = 44;
 const FORMATION_ROW_SPACING_PX = 38;
 const FORMATION_REJOIN_DISTANCE_PX = 210;
 const FRIENDLY_AVOIDANCE_RADIUS_PX = 34;
-const COLLISION_QUERY_RADIUS_PX = 24;
 const CANNON_RANGE_PX = 74;
 const CANNON_SPEED_PX = 88;
 const CANNON_SPREAD_RAD = 0.18;
@@ -154,6 +157,7 @@ export function createHistoricalBattle({
       collisionChecks: 0
     }
   };
+  initializeHistoricalShipCollisionRadii(state);
   rebuildBattleSpatialGrid(state.spatialGrid, ships);
   recountHistoricalBattleSides(state);
   validateInitialFleetPositions(state);
@@ -215,6 +219,11 @@ export function historicalBattlePlayerShip(state) {
   return ship;
 }
 
+export function historicalBattleWindFlowDirection(state) {
+  assertBattle(state);
+  return normalizeAngle(state.wind.directionRad + Math.PI);
+}
+
 export function historicalBattleSideSummary(state, sideId) {
   assertBattle(state);
   const found = state.sides.find((side) => side.id === sideId);
@@ -253,7 +262,7 @@ export function historicalBattleVisibleShips(state, camera, width, height, margi
   const top = camera.y - height / 2 - margin;
   const bottom = camera.y + height / 2 + margin;
   return state.ships.filter((ship) => (
-    (ship.active || ship.surrendered || ship.sinkingSeconds > 0) &&
+    (ship.active || ship.surrendered) &&
     ship.x >= left && ship.x <= right && ship.y >= top && ship.y <= bottom
   ));
 }
@@ -340,7 +349,6 @@ function stepHistoricalBattle(state, command) {
   if (state.tick % 2 === 0) resolveHistoricalShipCollisions(state);
   updateShipWeapons(state, command);
   updateBattleProjectiles(state);
-  updateSinkingShips(state);
   recountHistoricalBattleSides(state);
   finishHistoricalBattleIfNeeded(state);
 }
@@ -407,7 +415,7 @@ function expandSquadronShips(ships, squadronState, sideValue, squadronValue, pla
         crew: stats.crewCapacity,
         woundedCrew: 0,
         maxCrew: stats.crewCapacity,
-        sinkingSeconds: 0,
+        collisionRadius: 0,
         collisionCooldownSeconds: 0,
         rowing: false,
         rowingMode: SHIP_ROWING_MODE_IDLE,
@@ -634,7 +642,7 @@ function moveShipWithStandardPropulsion(
   ship.previousY = ship.y;
   ship.headingRad = turnToward(ship.headingRad, desiredHeading, turnRate * dt);
   const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
-  const windFlow = normalizeAngle(state.wind.directionRad + Math.PI);
+  const windFlow = historicalBattleWindFlowDirection(state);
   const alignment = clamp(heading.x * Math.cos(windFlow) + heading.y * Math.sin(windFlow), -1, 1);
   const sailEfficiency = sailingEfficiencyForAlignment(ship.stats, alignment);
   const normalizedRowingMode = shipCanUseOars(ship.stats)
@@ -732,7 +740,13 @@ function resolveHistoricalShipCollisions(state) {
       0,
       ship.collisionCooldownSeconds - HISTORICAL_BATTLE_FIXED_STEP_SECONDS * 2
     );
-    queryBattleSpatialGrid(state.spatialGrid, ship.x, ship.y, COLLISION_QUERY_RADIUS_PX, state.spatialScratch);
+    queryBattleSpatialGrid(
+      state.spatialGrid,
+      ship.x,
+      ship.y,
+      historicalCollisionQueryRadius(state, ship),
+      state.spatialScratch
+    );
     for (const otherIndex of state.spatialScratch) {
       if (otherIndex <= index) continue;
       const other = state.ships[otherIndex];
@@ -813,6 +827,40 @@ function historicalShipWorldFootprint(state, ship) {
     x: ship.x + point.x * cos - point.y * sin,
     y: ship.y + point.x * sin + point.y * cos
   }));
+}
+
+function initializeHistoricalShipCollisionRadii(state) {
+  const radiusBySlug = new Map();
+  let maximumRadius = 0;
+  for (const ship of state.ships) {
+    let radius = radiusBySlug.get(ship.shipSlug);
+    if (radius === undefined) {
+      const frames = state.shipFootprints?.get?.(ship.shipSlug);
+      if (frames) {
+        radius = frames.reduce((maximum, frame) => Math.max(maximum, shipFootprintRadius(frame)), 0);
+      } else {
+        const halfLength = ship.role === "galleass" ? 10 : 8;
+        const halfWidth = ship.role === "galleass" ? 5 : 3;
+        radius = Math.hypot(halfLength, halfWidth);
+      }
+      if (!Number.isFinite(radius) || radius <= 0) {
+        throw new Error(`Historical ship has an invalid collision radius: ${ship.shipSlug}/${radius}`);
+      }
+      radiusBySlug.set(ship.shipSlug, radius);
+    }
+    ship.collisionRadius = radius;
+    maximumRadius = Math.max(maximumRadius, radius);
+  }
+  if (maximumRadius <= 0) throw new Error("Historical battle has no collision radius");
+  state.maxCollisionRadius = maximumRadius;
+}
+
+function historicalCollisionQueryRadius(state, ship) {
+  if (!Number.isFinite(ship.collisionRadius) || ship.collisionRadius <= 0 ||
+      !Number.isFinite(state.maxCollisionRadius) || state.maxCollisionRadius <= 0) {
+    throw new Error(`Historical collision bounds are invalid: ${ship.id}`);
+  }
+  return ship.collisionRadius + state.maxCollisionRadius;
 }
 
 function collisionDamageAfterResistance(state, ship, damage) {
@@ -1041,7 +1089,6 @@ function resolveShipDefeat(state, ship) {
   if (!ship.active) return;
   if (ship.hitPoints <= 0) {
     ship.active = false;
-    ship.sinkingSeconds = 2.8;
     ship.speedPx = 0;
     pushBattleEvent(state, { type: "sunk", shipIndex: state.ships.indexOf(ship) });
     return;
@@ -1059,13 +1106,6 @@ function escapeShip(state, ship) {
   ship.escaped = true;
   ship.speedPx = 0;
   pushBattleEvent(state, { type: "escaped", shipIndex: state.ships.indexOf(ship) });
-}
-
-function updateSinkingShips(state) {
-  for (const ship of state.ships) {
-    if (ship.sinkingSeconds <= 0) continue;
-    ship.sinkingSeconds = Math.max(0, ship.sinkingSeconds - HISTORICAL_BATTLE_FIXED_STEP_SECONDS);
-  }
 }
 
 function recountHistoricalBattleSides(state) {
@@ -1167,7 +1207,7 @@ function validateInitialFleetPositions(state) {
       state.spatialGrid,
       ship.x,
       ship.y,
-      COLLISION_QUERY_RADIUS_PX,
+      historicalCollisionQueryRadius(state, ship),
       state.spatialScratch
     );
     for (const otherIndex of state.spatialScratch) {
