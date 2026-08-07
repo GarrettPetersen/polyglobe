@@ -447,6 +447,7 @@ import {
   naturalistReportDialogueForAnimal,
   validateNaturalistReportDialogueCatalog
 } from "./naturalistAnimalDialogue.js";
+import { openNextPortArrivalFollowup } from "./portArrivalQueue.js";
 import {
   characterSkillIdsForIdentity,
   characterSkillSummary,
@@ -5872,6 +5873,7 @@ function activateCaptainAlertChoice() {
   keys.clear();
   clearPointerSteering();
   choice.onSelect();
+  if (continuePortArrivalDialogues()) return;
   resumeShipAfterOverlayIfReady();
   dirty = true;
 }
@@ -6460,6 +6462,7 @@ function closeCaptainAlertModal() {
   }
   if (presentPendingNamedCrewDeathNotice()) return;
   if (presentPendingBirthdayDialogue()) return;
+  if (continuePortArrivalDialogues()) return;
   resumeShipAfterOverlayIfReady();
   dirty = true;
 }
@@ -13174,23 +13177,7 @@ function openPortDialogue(cityCall) {
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
   if (!rescuedTravelerSession && !campaignSession && dialogueState.kind === "port") {
-    const openedActivePapalCommission = activePapalCommissionObjectiveIsAt(cityCall) &&
-      maybeOpenPapalCommissionPortDialogue(cityCall);
-    const openedMaltaQuest = !openedActivePapalCommission &&
-      maybeOpenHospitallerMaltaQuestPortDialogue(cityCall);
-    const openedPapalCommission = !openedActivePapalCommission && !openedMaltaQuest &&
-      maybeOpenPapalCommissionPortDialogue(cityCall);
-    const openedNaturalist = !openedActivePapalCommission && !openedMaltaQuest &&
-      !openedPapalCommission && maybeOpenNaturalistPortDialogue(cityCall);
-    const openedAnimalReaction = !openedActivePapalCommission && !openedMaltaQuest &&
-      !openedPapalCommission && !openedNaturalist && maybeOpenAnimalCompanionNpcReaction(
-      `port:${cityCall.tileId}`,
-      cityCall.character
-    );
-    if (!openedActivePapalCommission && !openedMaltaQuest && !openedPapalCommission &&
-        !openedNaturalist && !openedAnimalReaction) {
-      openPendingDiscoveryPortDialogue();
-    }
+    continuePortArrivalDialogues();
   }
   saveVoyageNow("port arrival");
   dirty = true;
@@ -13214,6 +13201,31 @@ function activePapalCommissionObjectiveIsAt(cityCall) {
   if (matter?.status !== PAPAL_MATTER_COMMISSIONED) return false;
   const objective = papalCommissionObjective(gameState.relations.papacy);
   return objective?.destination?.tileId === cityCall.tileId;
+}
+
+function continuePortArrivalDialogues() {
+  if (
+    dialogueState?.kind !== "port" ||
+    dialogueState.admittedToPort !== true ||
+    captainAlertModal ||
+    queuedCharacterAlertSteps.length > 0 ||
+    characterAlertSequenceCompletion
+  ) {
+    return false;
+  }
+  const cityCall = currentDialogueCity();
+  return openNextPortArrivalFollowup([
+    () => activePapalCommissionObjectiveIsAt(cityCall) &&
+      maybeOpenPapalCommissionPortDialogue(cityCall),
+    () => maybeOpenHospitallerMaltaQuestPortDialogue(cityCall),
+    () => maybeOpenPapalCommissionPortDialogue(cityCall),
+    () => maybeOpenNaturalistPortDialogue(cityCall),
+    () => maybeOpenAnimalCompanionNpcReaction(
+      `port:${cityCall.tileId}`,
+      cityCall.character
+    ),
+    () => openPendingDiscoveryPortDialogue()
+  ]);
 }
 
 function createRescuedTravelerHomecomingSession(cityCall, {
@@ -14750,6 +14762,7 @@ function continuePortDialogueAfterQuestCharacter() {
   });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
+  continuePortArrivalDialogues();
   dirty = true;
 }
 
@@ -14759,7 +14772,7 @@ function continuePortDialogueAfterCampaign() {
   dialogueState = createOrdinaryPortArrivalSession(city, needsLoadout);
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
-  openPendingDiscoveryPortDialogue();
+  continuePortArrivalDialogues();
   saveVoyageNow("campaign homecoming complete");
   dirty = true;
 }
