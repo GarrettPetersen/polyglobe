@@ -462,9 +462,12 @@ import {
   NAMED_CREW_ROLE_CHEF,
   NAMED_CREW_ROLE_HISTORIAN,
   addNamedCrewMember,
+  createNamedCrewDeathNotice,
+  genericCrewCount,
   hasPermanentCrewBerth,
   namedCrewMembers,
-  permanentCrewFloor
+  permanentCrewFloor,
+  removeNamedCrewMember
 } from "./namedCrew.js";
 import {
   activePirateCaptiveQuest,
@@ -581,6 +584,7 @@ import {
   CAMPAIGN_GOAL_COMPLETE,
   CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE,
+  campaignGoalTypeForStoredLabel,
   campaignGoalTypeForCharacter,
   campaignGoalDestinations,
   campaignDialogueCharacter,
@@ -803,6 +807,7 @@ import {
 import {
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_SUBMERGED_ALPHA,
+  SHIP_WATERLINE_LEVEL,
   liveShipRefractionOffset
 } from "./shipWaterline.js";
 import { validateShipRenderLayerManifest } from "./shipRenderLayerBake.js";
@@ -905,6 +910,19 @@ import {
 } from "./politicsCardLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import { oceanSwellOffset, oceanSwellState } from "./oceanSwell.js";
+import {
+  createStormWaveState,
+  overboardFlightDurationSeconds,
+  overboardFlightLiftPx,
+  overboardSwimDurationSeconds,
+  restoreOverboardCrew,
+  resetStormWaveState,
+  snapshotOverboardCrew,
+  stormWaveCrestParticles,
+  stormWaveFrame,
+  stormWaveSweptCrewCount,
+  updateStormWaveState
+} from "./stormWave.js";
 import {
   FISH_SCHOOL_ANIMATION_FRAME_COUNT,
   FISH_SCHOOL_MOTION_FRAME_COUNT,
@@ -1368,8 +1386,10 @@ import {
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
+  importCampaignVoyageHistory,
   orderedAchievementCatalog,
   readAchievementProfile,
+  recordCampaignVoyageStart,
   recordVoyageAchievementEvent,
   syncAchievementProfileToPlatform,
   synchronizeAchievements,
@@ -1963,6 +1983,14 @@ const STORM_CAPTAIN_ALERT_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.58;
 const STORM_CAPTAIN_CLEARANCE_DELAY_MS = 10000;
 const FIRST_STORM_WARNING_SHOWN_FLAG = "firstStormWarningDialogueShown";
 const FIRST_STORM_CLEARANCE_SHOWN_FLAG = "firstStormClearanceDialogueShown";
+const STORM_OVERBOARD_EXPLAINED_FLAG = "stormOverboardExplained";
+const OVERBOARD_RECOVERY_RADIUS_PX = 9;
+const OVERBOARD_EJECTION_MIN_PX = 18;
+const OVERBOARD_EJECTION_MAX_PX = 30;
+const OVERBOARD_LATERAL_SPREAD_PX = 14;
+const OVERBOARD_MAX_ACTIVE_CREW = 12;
+const OVERBOARD_SPLASH_DURATION_SECONDS = 1.2;
+const STORM_WASH_MASK_STAGES = 8;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 30;
 const CLOUD_FADE_RATIO = 0.22;
@@ -2578,6 +2606,8 @@ const START_SHIP_SLUG = START_SHIP_SLUG_OVERRIDE || DEFAULT_PLAYER_SHIP_SLUG;
 const SHIP_MENU_SLUGS = SHIP_STATS.map((entry) => entry.slug);
 const DEBUG_STATUS_ENABLED = debugStatusFromLocation();
 const DEBUG_WEATHER_CONTROLS_ENABLED = debugWeatherControlsFromLocation();
+const DEBUG_STORM_WAVE_ENABLED = new URLSearchParams(window.location.search)
+  .get("debugStormWave") === "1";
 
 const terrainAssets = [
   "water_deep_01_01", "water_deep_01_02", "water_shallow_01", "water_shallow_02",
@@ -2885,6 +2915,7 @@ const spriteAlphaMasks = new WeakMap();
 const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
+const stormWaveWashMaskCache = new WeakMap();
 const shipTerrainRiverBankCache = new Map();
 const riverTileLocalWaterPointCache = new Map();
 const wavingFactionFlagAtlasCache = new Map();
@@ -2935,6 +2966,8 @@ let demoVoyageScope = BUILD_EDITION_ID === "demo"
 let freshWaterSurfaceMask;
 let stormSystem;
 const stormPassageState = createStormPassageState();
+const stormWaveState = createStormWaveState();
+let overboardCrew = [];
 let riverSpriteCache = new Map();
 let waterDepthBands;
 let weatherBake;
@@ -3362,6 +3395,15 @@ async function main() {
   if (achievementProfileResult.status === "invalid") {
     console.error("[pixel-globe] achievement profile is unavailable", achievementProfileResult.error);
   } else {
+    if (voyageHistoryResult.status === "ready" && importCampaignVoyageHistory(
+      achievementProfile,
+      voyageHistoryResult.records
+        .map((record) => campaignGoalTypeForStoredLabel(record.goal))
+        .filter(Boolean)
+    )) {
+      writeAchievementProfile(achievementProfile);
+      achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
+    }
     queueAchievementPlatformSync(steamStatValues(
       achievementProfile,
       createVoyageAchievementProgress(),
@@ -3580,7 +3622,10 @@ async function main() {
     : playerProfile.character;
   const campaignGoalType = BUILD_EDITION_ID === "demo"
     ? CAMPAIGN_GOAL_FAMILY_DEBT
-    : campaignGoalTypeForCharacter(playerCharacter);
+    : campaignGoalTypeForCharacter(
+        playerCharacter,
+        achievementProfile?.lifetime.campaignStartsByGoal
+      );
   const playerShipSlug = START_SHIP_SLUG_OVERRIDE || playerStarterShipForFaction(
     playerCharacter.nationalityId,
     {
@@ -4220,12 +4265,22 @@ async function loadRowingShipAssetsForSlug(slug) {
   shipStatsForSlug(slug);
   const spec = ROWING_SHIP_ANIMATION_SPECS.get(slug);
   if (!spec) throw new Error(`Ship has no rowing animation specification: ${slug}`);
-  const loadMode = (modeStem) => BUILD_EDITION_ID === "demo"
-    ? loadDemoRowingShipAtlas(slug, spec.frames, modeStem)
-    : Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
-        const key = `${vehicleSpriteKeyForShipSlug(slug)}-${modeStem}-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
-        return loadShipSpriteAsset(key, `${modeStem} ship: ${slug} frame ${frameIndex}`, slug);
-      }));
+  const loadMode = async (modeStem) => {
+    if (BUILD_EDITION_ID === "demo") {
+      return loadDemoRowingShipAtlas(slug, spec.frames, modeStem);
+    }
+    const frames = [];
+    for (let frameIndex = 0; frameIndex < spec.frames; frameIndex++) {
+      const key = `${vehicleSpriteKeyForShipSlug(slug)}-${modeStem}-${frameIndex}-` +
+        SHIP_SPRITE_HEADING_SUFFIX;
+      frames.push(await loadShipSpriteAsset(
+        key,
+        `${modeStem} ship: ${slug} frame ${frameIndex}`,
+        slug
+      ));
+    }
+    return Object.freeze(frames);
+  };
   const [ahead, pivotPort, pivotStarboard] = await Promise.all([
     loadMode("rowing"),
     loadMode("pivot-port"),
@@ -4305,15 +4360,15 @@ async function loadWhaleAssetsForSlug(slug) {
   return Object.freeze({ image, sinkDepthImage });
 }
 
-function requestShipVisualAssets(slug) {
+async function requestShipVisualAssets(slug) {
   if (!shipSpriteAssetStore || !rowingShipAssetStore) {
     throw new Error("Ship asset stores are not initialized");
   }
-  const spritePromise = shipSpriteAssetStore.request(slug);
-  const rowingPromise = ROWING_SHIP_ANIMATION_SPECS.has(slug)
-    ? rowingShipAssetStore.request(slug)
-    : Promise.resolve(null);
-  return Promise.all([spritePromise, rowingPromise]).then(([spriteAsset]) => spriteAsset);
+  const spriteAsset = await shipSpriteAssetStore.request(slug);
+  if (ROWING_SHIP_ANIMATION_SPECS.has(slug)) {
+    await rowingShipAssetStore.request(slug);
+  }
+  return spriteAsset;
 }
 
 function residentShipVisualAsset(slug) {
@@ -4334,9 +4389,8 @@ function observeWorldAssetRequest(promise, context) {
     },
     (error) => {
       if (!pendingWorldAssetError) {
-        pendingWorldAssetError = new Error(`Streaming ${context} failed`, {
-          cause: error instanceof Error ? error : new Error(String(error))
-        });
+        const cause = error instanceof Error ? error : new Error(String(error));
+        pendingWorldAssetError = new Error(`Streaming ${context} failed: ${cause.message}`, { cause });
       }
       dirty = true;
     }
@@ -4347,14 +4401,18 @@ function queueShipVisualAssets(slug, context) {
   if (!shipSpriteAssetStore || !rowingShipAssetStore) {
     throw new Error("Ship asset stores are not initialized");
   }
+  const spritePromise = shipSpriteAssetStore.request(slug);
   observeWorldAssetRequest(
-    shipSpriteAssetStore.request(slug),
+    spritePromise,
     `${context} ship sprite for ${slug}`
   );
   if (ROWING_SHIP_ANIMATION_SPECS.has(slug)) {
-    observeWorldAssetRequest(
-      rowingShipAssetStore.request(slug),
-      `${context} rowing animation for ${slug}`
+    spritePromise.then(
+      () => observeWorldAssetRequest(
+        rowingShipAssetStore.request(slug),
+        `${context} rowing animation for ${slug}`
+      ),
+      () => {}
     );
   }
 }
@@ -5353,6 +5411,10 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateSurfaceIceTransition(nowMs)) dirty = true;
     if (presentPendingSurfaceIceEntrapment()) dirty = true;
     if (measurePerformanceBenchmarkStage("weather", () => updateWeather(dt, nowMs))) dirty = true;
+    if (measurePerformanceBenchmarkStage(
+      "weather.breakingWave",
+      () => updateStormWaveHazard(dt)
+    )) dirty = true;
     if (updateCampaignGoalReturnReminder()) dirty = true;
     if (updateWhiteWhaleSightingObjective()) dirty = true;
     if (updateColonizationQuest()) dirty = true;
@@ -7310,6 +7372,14 @@ function playCoinClinkSound() {
 
 function playFishingSound() {
   playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME);
+}
+
+function playStormWaveCrashSound() {
+  playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME * 1.35, 0.72);
+}
+
+function playManOverboardSplashSound() {
+  playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME * 0.58, 1.12);
 }
 
 function playRowingStrokeSound(spec) {
@@ -10412,12 +10482,19 @@ function startNewVoyage() {
   }
   sailingTutorialState = createSailingTutorialState();
   resetStormPassageState(stormPassageState);
+  resetStormWaveState(stormWaveState);
+  overboardCrew = [];
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
   playerNavigationRecoveryState = createPlayerShipRecoveryState();
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   reframeWorldNorthUp("new voyage");
   captureVoyageStartProfile(gameState);
+  if (BUILD_EDITION_ID === "full" && achievementProfile) {
+    recordCampaignVoyageStart(achievementProfile, gameState.memory.campaignGoal.type);
+    writeAchievementProfile(achievementProfile);
+    achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
+  }
   hasStartedVoyage = true;
   gameTelemetry.recordVoyageStart(gameState, { force: true });
   closeStartMenu();
@@ -10481,6 +10558,7 @@ async function continueSavedVoyage() {
 
 async function restoreSavedVoyage(payload) {
   resetStormPassageState(stormPassageState);
+  resetStormWaveState(stormWaveState);
   const {
     savedShip,
     shipStats: stats,
@@ -10618,6 +10696,7 @@ async function restoreSavedVoyage(payload) {
   ship.lastWakeEmit = null;
   ship.navalProjectiles = [];
   ship.cannonSplashes = [];
+  overboardCrew = restoreOverboardCrew(savedShip.overboardCrew);
   cannonSmokeBursts = [];
   hullSplinterBursts = [];
 
@@ -11288,7 +11367,8 @@ function snapshotPlayerShip() {
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
     wakeSeedCounter: ship.wakeSeedCounter,
-    cannonSequence: ship.cannonSequence
+    cannonSequence: ship.cannonSequence,
+    overboardCrew: snapshotOverboardCrew(overboardCrew)
   };
 }
 
@@ -22806,6 +22886,189 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   return changed || opened;
 }
 
+function updateStormWaveHazard(dt) {
+  if (!ship || !gameState) return false;
+  const intensity = DEBUG_STORM_WAVE_ENABLED ? 1 : playerStormIntensity();
+  const eligible = !anchored && !portWaitState && !gameOverReason &&
+    !captainAlertModal && !dialogueState && isShipOpenWaterTile(ship.tileId);
+  const flow = currentOceanSwellPresentation().flow;
+  const transition = updateStormWaveState(stormWaveState, {
+    dt,
+    intensity,
+    eligible,
+    flow,
+    immediate: DEBUG_STORM_WAVE_ENABLED
+  });
+  if (transition.impact) resolveStormWaveImpact(transition.impact);
+  const swimmersChanged = updateOverboardCrew(dt);
+  if (DEBUG_STORM_WAVE_ENABLED) {
+    window.__PIXEL_GLOBE_STORM_WAVE_DEBUG__ = Object.freeze({
+      eligible,
+      intensity,
+      tileId: ship.tileId,
+      terrain: earthById[ship.tileId]?.t || null,
+      wave: stormWaveState.active ? Object.freeze({ ...stormWaveState.active }) : null,
+      overboardCrew: overboardCrew.length
+    });
+  }
+  return transition.changed || swimmersChanged;
+}
+
+function resolveStormWaveImpact(impact) {
+  playStormWaveCrashSound();
+  if (overboardCrew.length >= OVERBOARD_MAX_ACTIVE_CREW) return;
+  const effectiveStats = currentPlayerEffectiveShipStats();
+  const count = Math.min(
+    OVERBOARD_MAX_ACTIVE_CREW - overboardCrew.length,
+    stormWaveSweptCrewCount({
+      crew: gameState.ship.crew,
+      seaworthiness: clamp(Math.round(effectiveStats.seaworthiness), 1, 10),
+      intensity: impact.intensity,
+      random: DEBUG_STORM_WAVE_ENABLED ? () => 0 : Math.random
+    })
+  );
+  if (count <= 0) return;
+
+  const removed = sweepCrewOverboard(count, impact);
+  overboardCrew.push(...removed);
+  ship.woundedCrew = Math.min(ship.woundedCrew || 0, Math.max(0, gameState.ship.crew - 1));
+  syncShipCargoFromGameState();
+  if (gameState.memory.flags[STORM_OVERBOARD_EXPLAINED_FLAG] !== true) {
+    gameState.memory.flags[STORM_OVERBOARD_EXPLAINED_FLAG] = true;
+    openCaptainAlertModal(uiText("storm.manOverboardFirst"), "concerned");
+  } else {
+    showSurvivalNotice(uiText(
+      count === 1 ? "storm.manOverboardNoticeOne" : "storm.manOverboardNoticeMany",
+      { count }
+    ), "warn");
+  }
+  saveVoyageNow("crew swept overboard");
+}
+
+function sweepCrewOverboard(count, impact) {
+  if (!Number.isInteger(count) || count <= 0 || count >= gameState.ship.crew) {
+    throw new Error(`Invalid storm-wave crew loss: ${count}/${gameState.ship.crew}`);
+  }
+  const swept = [];
+  for (let index = 0; index < count; index++) {
+    let character = null;
+    let kind = "generic";
+    if (genericCrewCount(gameState) <= 0) {
+      const named = namedCrewMembers(gameState);
+      if (named.length === 0) throw new Error("Storm wave tried to sweep the captain overboard");
+      character = removeNamedCrewMember(
+        gameState,
+        named[Math.floor(Math.random() * named.length)].id
+      );
+      kind = "named";
+    }
+    gameState.ship.crew -= 1;
+    const seed = hashInt(impact.seed ^ Math.imul(index + 1, 0x9e3779b1));
+    swept.push({
+      id: `storm-overboard-${Math.floor(weatherClockMinutes * 1000)}-${impact.id}-${index}`,
+      kind,
+      character,
+      startPosition: ship.position.slice(),
+      position: stormWaveEjectionPosition(impact.flow, seed, index, count),
+      ageSeconds: 0,
+      flightSeconds: overboardFlightDurationSeconds(
+        () => 0.2 + ((seed >>> 8) & 0xff) / 255 * 0.6
+      ),
+      remainingSeconds: overboardSwimDurationSeconds(
+        () => ((seed >>> 16) & 0xffff) / 0xffff
+      ),
+      seed: seed >>> 0,
+      variant: seed & 1,
+      splashed: false
+    });
+  }
+  return swept;
+}
+
+function stormWaveEjectionPosition(flow, seed, index, count) {
+  const forward = screenDirectionToTangent(flow, ship.position, ship.heading);
+  const side = screenDirectionToTangent({ x: -flow.y, y: flow.x }, ship.position, ship.heading);
+  const spacing = count <= 1 ? 0 : index / (count - 1) - 0.5;
+  const randomSide = (((seed >>> 4) & 0xffff) / 0xffff - 0.5) * 5;
+  const forwardPx = OVERBOARD_EJECTION_MIN_PX +
+    ((seed >>> 20) & 0xff) / 255 * (OVERBOARD_EJECTION_MAX_PX - OVERBOARD_EJECTION_MIN_PX);
+  const sidePx = spacing * OVERBOARD_LATERAL_SPREAD_PX + randomSide;
+  const candidate = normalize3([
+    ship.position[0] + (forward[0] * forwardPx + side[0] * sidePx) / PIXELS_PER_RADIAN,
+    ship.position[1] + (forward[1] * forwardPx + side[1] * sidePx) / PIXELS_PER_RADIAN,
+    ship.position[2] + (forward[2] * forwardPx + side[2] * sidePx) / PIXELS_PER_RADIAN
+  ]);
+  const tileId = findNearestTileId(graph, directionIndex, candidate);
+  if (isShipOceanTile(tileId)) return candidate;
+  return normalize3([
+    ship.position[0] + forward[0] * OVERBOARD_EJECTION_MIN_PX / PIXELS_PER_RADIAN,
+    ship.position[1] + forward[1] * OVERBOARD_EJECTION_MIN_PX / PIXELS_PER_RADIAN,
+    ship.position[2] + forward[2] * OVERBOARD_EJECTION_MIN_PX / PIXELS_PER_RADIAN
+  ]);
+}
+
+function updateOverboardCrew(dt) {
+  if (overboardCrew.length === 0) return false;
+  const rescued = [];
+  const drowned = [];
+  for (const entry of overboardCrew) {
+    const previousAge = entry.ageSeconds;
+    entry.ageSeconds += dt;
+    if (!entry.splashed && entry.ageSeconds >= entry.flightSeconds) {
+      entry.splashed = true;
+      playManOverboardSplashSound();
+    }
+    if (entry.ageSeconds > entry.flightSeconds) {
+      entry.remainingSeconds -= Math.max(0, entry.ageSeconds - Math.max(previousAge, entry.flightSeconds));
+      if (vectorArcDistance(ship.position, entry.position) * PIXELS_PER_RADIAN <= OVERBOARD_RECOVERY_RADIUS_PX) {
+        rescued.push(entry);
+      } else if (entry.remainingSeconds <= 0) {
+        drowned.push(entry);
+      }
+    }
+  }
+  if (rescued.length > 0 || drowned.length > 0) {
+    const resolvedIds = new Set([...rescued, ...drowned].map((entry) => entry.id));
+    overboardCrew = overboardCrew.filter((entry) => !resolvedIds.has(entry.id));
+    for (const entry of rescued) restoreSweptCrewMember(entry);
+    for (const entry of drowned) recordDrownedCrewMember(entry);
+    syncShipCargoFromGameState();
+    if (rescued.length > 0) {
+      playCollectionDingSound();
+      showSurvivalNotice(uiText(
+        rescued.length === 1 ? "storm.manOverboardRecoveredOne" : "storm.manOverboardRecoveredMany",
+        { count: rescued.length }
+      ), "good");
+    }
+    if (drowned.length > 0) {
+      playCrewDeathSound();
+      showSurvivalNotice(uiText(
+        drowned.length === 1 ? "storm.manOverboardDrownedOne" : "storm.manOverboardDrownedMany",
+        { count: drowned.length }
+      ), "warn");
+      presentPendingNamedCrewDeathNotice();
+    }
+    saveVoyageNow(rescued.length > 0 ? "recovered crew overboard" : "crew drowned overboard");
+  }
+  return true;
+}
+
+function restoreSweptCrewMember(entry) {
+  if (entry.kind === "named") {
+    addNamedCrewMember(gameState, entry.character, entry.character.role, {
+      replaceGenericWhenFull: true
+    });
+    return;
+  }
+  // A port may already have refilled this generic berth while the sailor was in the water.
+  gameState.ship.crew = Math.min(gameState.ship.crew + 1, gameState.ship.crewCapacity);
+}
+
+function recordDrownedCrewMember(entry) {
+  if (entry.kind !== "named") return;
+  gameState.memory.namedCrewDeathNotices.push(createNamedCrewDeathNotice(entry.character));
+}
+
 function captureUsesScriptedShipLightning() {
   return CAPTURE_AUTOMATIC &&
     captureDirector?.sequence.kind === "survive" &&
@@ -28035,6 +28298,7 @@ function render(nowMs) {
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
   });
+  drawOverboardCrewLabels(nowMs);
   drawCombatBroadsideControls();
   drawSelectableInteractionOutlines(nowMs);
   drawWindIndicator(nowMs);
@@ -28128,6 +28392,7 @@ function drawGpuDynamicUnderlay(dynamicWorld) {
     drawNpcFishingNetAnimationsWebGL(nowMs);
   });
   drawGpuShipCommands();
+  drawStormWaveEffectsWebGL(activeChart, nowMs, offset);
 }
 
 function drawGpuDynamicWorld(dynamicWorld) {
@@ -40238,6 +40503,197 @@ function drawGpuShipCommands() {
     if (drawCall.kind === "npc") drawGpuNpcShipDecorations(drawCall, nowMs);
     drawGpuShipTerrainForeground(foreground, drawCall, layers);
   }
+}
+
+function drawStormWaveEffectsWebGL(activeChart, nowMs, chartOffset) {
+  const painter = createGpuWorldPrimitivePainter({ x: 0, y: 0 });
+  const wave = stormWaveState.active;
+  if (wave) {
+    const frame = stormWaveFrame(wave, SCREEN_W, SCREEN_H);
+    if (frame.wash > 0.01) drawStormWaveShipWash(frame);
+    for (const particle of stormWaveCrestParticles(wave, SCREEN_W, SCREEN_H)) {
+      if (!wakeMapPointIsWater(
+        particle.x - chartOffset.x,
+        particle.y - chartOffset.y,
+        activeChart
+      )) continue;
+      const alpha = clamp(particle.alpha * (0.72 + wave.intensity * 0.28), 0, 1);
+      painter.rect(
+        particle.x,
+        particle.y,
+        alpha > 0.78 ? 2 : 1,
+        1,
+        `rgba(246, 242, 212, ${alpha.toFixed(3)})`
+      );
+    }
+  }
+  drawOverboardCrewWebGL(nowMs, painter);
+}
+
+function drawStormWaveShipWash(frame) {
+  const command = gpuShipDrawCommands.find((candidate) => (
+    candidate.kind === "ship" && candidate.drawCall.kind === "player"
+  ));
+  if (!command) return;
+  const { drawCall } = command;
+  const wash = stormWaveWashMaskCanvas(
+    drawCall.img,
+    drawCall.sinkDepthImg,
+    drawCall.frame,
+    frame.washSurfaceLevel
+  );
+  worldRenderer.drawAtlasSprite({
+    source: wash,
+    destinationRect: {
+      x: drawCall.x,
+      y: drawCall.y,
+      width: SHIP_SHEET_FRAME_SIZE,
+      height: SHIP_SHEET_FRAME_SIZE
+    },
+    alpha: frame.washAlpha,
+    refractionPx: 1
+  });
+}
+
+function stormWaveWashMaskCanvas(image, sinkDepthImage, frame, surfaceLevel) {
+  let byDepthImage = stormWaveWashMaskCache.get(image);
+  if (!byDepthImage) {
+    byDepthImage = new WeakMap();
+    stormWaveWashMaskCache.set(image, byDepthImage);
+  }
+  let byFrame = byDepthImage.get(sinkDepthImage);
+  if (!byFrame) {
+    byFrame = new Map();
+    byDepthImage.set(sinkDepthImage, byFrame);
+  }
+  const stage = clamp(Math.round(
+    (surfaceLevel - SHIP_WATERLINE_LEVEL) /
+      (1 - SHIP_WATERLINE_LEVEL) * (STORM_WASH_MASK_STAGES - 1)
+  ), 0, STORM_WASH_MASK_STAGES - 1);
+  const key = `${frame}:${stage}`;
+  const cached = byFrame.get(key);
+  if (cached) return cached;
+  const stagedSurfaceLevel = SHIP_WATERLINE_LEVEL +
+    stage / (STORM_WASH_MASK_STAGES - 1) * (1 - SHIP_WATERLINE_LEVEL);
+  const canvas = document.createElement("canvas");
+  canvas.width = SHIP_SHEET_FRAME_SIZE;
+  canvas.height = SHIP_SHEET_FRAME_SIZE;
+  const washCtx = canvas.getContext("2d");
+  if (!washCtx) throw new Error("Could not create storm-wave ship wash mask");
+  for (const pixel of shipSpriteFramePixels(image, sinkDepthImage, frame)) {
+    if (pixel.sinkHeight <= SHIP_WATERLINE_LEVEL || pixel.sinkHeight > stagedSurfaceLevel) continue;
+    washCtx.fillStyle = pixel.sinkHeight > stagedSurfaceLevel - 0.035
+      ? "rgba(246, 242, 212, 0.82)"
+      : "rgba(138, 192, 180, 0.72)";
+    washCtx.fillRect(pixel.x, pixel.y, 1, 1);
+  }
+  byFrame.set(key, canvas);
+  return canvas;
+}
+
+function drawOverboardCrewWebGL(nowMs, painter) {
+  for (const entry of overboardCrew) {
+    const point = overboardCrewScreenPoint(entry);
+    if (!point || !pointNearScreen(point, CREW_STATUS_ICON_WIDTH + 4)) continue;
+    const image = statusPersonImages?.get("crew")?.[entry.variant];
+    if (!image) throw new Error(`Missing overboard crew sprite variant ${entry.variant}`);
+    const x = Math.round(point.x - image.width / 2);
+    const y = Math.round(point.y - image.height / 2);
+    if (entry.ageSeconds < entry.flightSeconds) {
+      worldRenderer.drawAtlasSprite({
+        source: image,
+        destinationRect: { x, y, width: image.width, height: image.height }
+      });
+    } else {
+      const submergedHeight = Math.min(2, image.height - 1);
+      const aboveHeight = image.height - submergedHeight;
+      worldRenderer.drawAtlasSprite({
+        source: image,
+        sourceRect: { x: 0, y: 0, width: image.width, height: aboveHeight },
+        destinationRect: { x, y, width: image.width, height: aboveHeight }
+      });
+      worldRenderer.drawAtlasSprite({
+        source: image,
+        sourceRect: { x: 0, y: aboveHeight, width: image.width, height: submergedHeight },
+        destinationRect: {
+          x,
+          y: y + aboveHeight,
+          width: image.width,
+          height: submergedHeight
+        },
+        alpha: 0.44,
+        refractionPx: 1
+      });
+    }
+    drawOverboardSplash(entry, point, painter, nowMs);
+  }
+}
+
+function drawOverboardSplash(entry, point, painter, nowMs) {
+  void nowMs;
+  if (!entry.splashed) return;
+  const splashAge = entry.ageSeconds - entry.flightSeconds;
+  if (splashAge < 0 || splashAge > OVERBOARD_SPLASH_DURATION_SECONDS) return;
+  const progress = splashAge / OVERBOARD_SPLASH_DURATION_SECONDS;
+  const alpha = 1 - progress;
+  for (let index = 0; index < 8; index++) {
+    const angle = index / 8 * Math.PI * 2 + (entry.seed & 0xff) / 255;
+    const distance = 1 + progress * (2 + (hashInt(entry.seed ^ index) & 3));
+    const x = Math.round(point.x + Math.cos(angle) * distance);
+    const y = Math.round(point.y + Math.sin(angle) * distance * 0.55);
+    painter.rect(x, y, 1, 1, `rgba(214, 242, 232, ${(alpha * 0.8).toFixed(3)})`);
+  }
+}
+
+function overboardCrewScreenPoint(entry) {
+  const flightProgress = clamp(entry.ageSeconds / entry.flightSeconds, 0, 1);
+  const position = flightProgress >= 1
+    ? entry.position
+    : normalize3([
+      entry.startPosition[0] + (entry.position[0] - entry.startPosition[0]) * flightProgress,
+      entry.startPosition[1] + (entry.position[1] - entry.startPosition[1]) * flightProgress,
+      entry.startPosition[2] + (entry.position[2] - entry.startPosition[2]) * flightProgress
+    ]);
+  const localPoint = localPointForGlobeVector(position);
+  if (!localPoint) return null;
+  const offset = chartOffsetPixels(chart);
+  const flightLift = flightProgress < 1
+    ? overboardFlightLiftPx(entry.ageSeconds, entry.flightSeconds)
+    : 0;
+  const bob = flightProgress >= 1
+    ? Math.sin((entry.ageSeconds - entry.flightSeconds) * 3.4 + (entry.seed & 0xff))
+    : 0;
+  return {
+    x: localPoint.x + offset.x,
+    y: localPoint.y + offset.y + flightLift + bob
+  };
+}
+
+function drawOverboardCrewLabels(nowMs) {
+  void nowMs;
+  if (overboardCrew.length === 0) return;
+  const text = renderedUiText(uiText("storm.manOverboardLabel"));
+  const font = PIXEL_FONT_SMALL_8;
+  const textWidth = measurePixelTextWidth(text, font);
+  const boxWidth = Math.min(SCREEN_W - 4, textWidth + 6);
+  overboardCrew.forEach((entry, index) => {
+    if (entry.ageSeconds < entry.flightSeconds) return;
+    const point = overboardCrewScreenPoint(entry);
+    if (!point || !pointNearScreen(point, 18)) return;
+    const x = clamp(Math.round(point.x - boxWidth / 2), 2, SCREEN_W - boxWidth - 2);
+    const y = clamp(Math.round(point.y - 17 - (index % 2) * 5), 2, SCREEN_H - 12);
+    ctx.fillStyle = "rgba(31, 67, 70, 0.92)";
+    ctx.fillRect(x, y, boxWidth, 9);
+    ctx.strokeStyle = "rgba(234, 216, 178, 0.9)";
+    ctx.strokeRect(x + 0.5, y + 0.5, boxWidth - 1, 8);
+    ctx.fillStyle = "#f6f2d4";
+    drawPixelText(text, x + boxWidth / 2, y + 1, { font, align: "center" });
+    const arrowX = clamp(Math.round(point.x), x + 2, x + boxWidth - 3);
+    drawPixelLine(arrowX, y + 9, arrowX, Math.round(point.y - 3), "#f6f2d4");
+    ctx.fillStyle = "#f6f2d4";
+    ctx.fillRect(arrowX - 1, Math.round(point.y - 4), 3, 1);
+    ctx.fillRect(arrowX, Math.round(point.y - 3), 1, 1);
+  });
 }
 
 function drawGpuPlayerShipDecorations(call, layers) {

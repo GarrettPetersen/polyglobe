@@ -1,7 +1,7 @@
 import { gameStorage } from "./gameStorage.js";
 
 export const ACHIEVEMENT_PROFILE_STORAGE_KEY = "marque-and-reprisal.achievements";
-export const ACHIEVEMENT_PROFILE_VERSION = 3;
+export const ACHIEVEMENT_PROFILE_VERSION = 4;
 export const VOYAGE_ACHIEVEMENT_PROGRESS_VERSION = 2;
 
 export const ACHIEVEMENT_IDS = Object.freeze({
@@ -189,7 +189,9 @@ export function createAchievementProfile() {
     lifetime: {
       sailedShipSlugs: [],
       seenAnimalIds: [],
-      maxVoyageDiscoveryCount: 0
+      maxVoyageDiscoveryCount: 0,
+      campaignStartsByGoal: {},
+      campaignHistoryImported: false
     },
     platformUnlocks: {}
   };
@@ -275,12 +277,23 @@ export function migrateAchievementProfile(profile) {
     });
   }
   if (profile?.version === 2) {
+    return migrateAchievementProfile({
+      ...profile,
+      version: 3,
+      lifetime: {
+        ...profile.lifetime,
+        maxVoyageDiscoveryCount: 0
+      }
+    });
+  }
+  if (profile?.version === 3) {
     return {
       ...profile,
       version: ACHIEVEMENT_PROFILE_VERSION,
       lifetime: {
         ...profile.lifetime,
-        maxVoyageDiscoveryCount: 0
+        campaignStartsByGoal: {},
+        campaignHistoryImported: false
       }
     };
   }
@@ -291,6 +304,33 @@ export function writeAchievementProfile(profile, { storage = defaultStorage() } 
   validateAchievementProfile(profile);
   storage.setItem(ACHIEVEMENT_PROFILE_STORAGE_KEY, JSON.stringify(profile));
   return profile;
+}
+
+export function recordCampaignVoyageStart(profile, campaignGoalType) {
+  validateAchievementProfile(profile);
+  if (typeof campaignGoalType !== "string" || campaignGoalType.trim() === "") {
+    throw new Error("Campaign voyage start requires a goal type");
+  }
+  const previous = profile.lifetime.campaignStartsByGoal[campaignGoalType] ?? 0;
+  if (!Number.isInteger(previous) || previous < 0) {
+    throw new Error(`Invalid campaign start count for ${campaignGoalType}: ${previous}`);
+  }
+  profile.lifetime.campaignStartsByGoal[campaignGoalType] = previous + 1;
+  validateAchievementProfile(profile);
+  return profile.lifetime.campaignStartsByGoal[campaignGoalType];
+}
+
+export function importCampaignVoyageHistory(profile, campaignGoalTypes) {
+  validateAchievementProfile(profile);
+  if (!Array.isArray(campaignGoalTypes) ||
+      campaignGoalTypes.some((type) => typeof type !== "string" || type.trim() === "")) {
+    throw new Error("Campaign voyage history must contain goal types");
+  }
+  if (profile.lifetime.campaignHistoryImported) return false;
+  for (const type of campaignGoalTypes) recordCampaignVoyageStart(profile, type);
+  profile.lifetime.campaignHistoryImported = true;
+  validateAchievementProfile(profile);
+  return true;
 }
 
 export function validateAchievementProfile(profile) {
@@ -317,6 +357,19 @@ export function validateAchievementProfile(profile) {
       `Invalid lifetime voyage discovery high-water mark: ` +
       `${profile.lifetime.maxVoyageDiscoveryCount}`
     );
+  }
+  if (!profile.lifetime.campaignStartsByGoal ||
+      typeof profile.lifetime.campaignStartsByGoal !== "object" ||
+      Array.isArray(profile.lifetime.campaignStartsByGoal)) {
+    throw new Error("Invalid lifetime campaign start counts");
+  }
+  for (const [goalType, count] of Object.entries(profile.lifetime.campaignStartsByGoal)) {
+    if (goalType.trim() === "" || !Number.isInteger(count) || count < 0) {
+      throw new Error(`Invalid lifetime campaign start count: ${goalType}=${count}`);
+    }
+  }
+  if (typeof profile.lifetime.campaignHistoryImported !== "boolean") {
+    throw new Error("Invalid campaign history import state");
   }
   if (!profile.platformUnlocks || typeof profile.platformUnlocks !== "object" ||
       Array.isArray(profile.platformUnlocks)) {

@@ -19,6 +19,14 @@ export const CAMPAIGN_GOAL_EXPLORER = "explorer";
 export const CAMPAIGN_GOAL_FAMILY_DEBT = "family-debt";
 export const CAMPAIGN_GOAL_WHITE_WHALE = "white-whale-revenge";
 export const CAMPAIGN_GOAL_TREASURE = "pirate-treasure";
+export const CAMPAIGN_GOAL_TYPE_IDS = Object.freeze([
+  CAMPAIGN_GOAL_EXPLORER,
+  CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_WHITE_WHALE,
+  CAMPAIGN_GOAL_TREASURE
+]);
+export const CAMPAIGN_GOAL_BASE_SELECTION_WEIGHT = 8;
+export const CAMPAIGN_GOAL_UNDERPLAYED_BONUS_CAP = 3;
 export const CAMPAIGN_GOAL_ACTIVE = "active";
 export const CAMPAIGN_GOAL_COMPLETE = "complete";
 export const EXPLORER_DISCOVERY_REWARD_MIN = 100;
@@ -80,7 +88,7 @@ const CAMPAIGN_GOAL_DEFINITIONS = Object.freeze({
     validate: validateTreasureCampaignFields
   })
 });
-const CAMPAIGN_GOAL_TYPES = new Set(Object.keys(CAMPAIGN_GOAL_DEFINITIONS));
+const CAMPAIGN_GOAL_TYPES = new Set(CAMPAIGN_GOAL_TYPE_IDS);
 const SOVEREIGN_FACTION_IDS = Object.freeze(FACTIONS
   .map((faction) => faction.id)
   .filter((factionId) => ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(factionId)));
@@ -480,9 +488,38 @@ export function markWhiteWhaleKilled(goal, currentMinute) {
   return true;
 }
 
-export function campaignGoalTypeForCharacter(playerCharacter) {
+export function campaignGoalTypeForCharacter(playerCharacter, campaignStartsByGoal = {}) {
   assertCharacter(playerCharacter);
-  return seededGoalType(playerCharacter.id);
+  return seededGoalType(playerCharacter.id, campaignStartsByGoal);
+}
+
+export function campaignGoalTypeForStoredLabel(label) {
+  if (typeof label !== "string" || label.trim() === "") return null;
+  return CAMPAIGN_GOAL_TYPE_IDS.find(
+    (type) => CAMPAIGN_GOAL_DEFINITIONS[type].label === label
+  ) || null;
+}
+
+export function campaignGoalSelectionWeights(campaignStartsByGoal = {}) {
+  if (!campaignStartsByGoal || typeof campaignStartsByGoal !== "object" ||
+      Array.isArray(campaignStartsByGoal)) {
+    throw new Error("Campaign start counts must be an object");
+  }
+  const counts = CAMPAIGN_GOAL_TYPE_IDS.map((type) => {
+    const count = campaignStartsByGoal[type] ?? 0;
+    if (!Number.isInteger(count) || count < 0) {
+      throw new Error(`Invalid campaign start count for ${type}: ${count}`);
+    }
+    return count;
+  });
+  const mostPlayedCount = Math.max(...counts);
+  return Object.fromEntries(CAMPAIGN_GOAL_TYPE_IDS.map((type, index) => [
+    type,
+    CAMPAIGN_GOAL_BASE_SELECTION_WEIGHT + Math.min(
+      CAMPAIGN_GOAL_UNDERPLAYED_BONUS_CAP,
+      mostPlayedCount - counts[index]
+    )
+  ]));
 }
 
 export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) {
@@ -1269,13 +1306,15 @@ function step(speaker, expressionId, text, topic = null) {
   return Object.freeze({ speaker, expressionId, text, ...(topic === null ? {} : { topic }) });
 }
 
-function seededGoalType(identityKey) {
-  return [
-    CAMPAIGN_GOAL_EXPLORER,
-    CAMPAIGN_GOAL_FAMILY_DEBT,
-    CAMPAIGN_GOAL_WHITE_WHALE,
-    CAMPAIGN_GOAL_TREASURE
-  ][hashString32(`${identityKey}|campaign-goal`) % 4];
+function seededGoalType(identityKey, campaignStartsByGoal = {}) {
+  const weights = campaignGoalSelectionWeights(campaignStartsByGoal);
+  const totalWeight = CAMPAIGN_GOAL_TYPE_IDS.reduce((total, type) => total + weights[type], 0);
+  let roll = hashString32(`${identityKey}|campaign-goal`) % totalWeight;
+  for (const type of CAMPAIGN_GOAL_TYPE_IDS) {
+    if (roll < weights[type]) return type;
+    roll -= weights[type];
+  }
+  throw new Error("Campaign goal weighting did not select a goal");
 }
 
 function validateExplorerGoal(goal) {

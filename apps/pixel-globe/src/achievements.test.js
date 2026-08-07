@@ -11,10 +11,12 @@ import {
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
+  importCampaignVoyageHistory,
   migrateAchievementProfile,
   migrateVoyageAchievementProgress,
   orderedAchievementCatalog,
   readAchievementProfile,
+  recordCampaignVoyageStart,
   recordVoyageAchievementEvent,
   syncAchievementProfileToPlatform,
   synchronizeAchievements,
@@ -77,7 +79,7 @@ test("achievement profile persists independently from a voyage save", () => {
   assert.deepEqual(readAchievementProfile({ storage }).profile, profile);
 });
 
-test("achievement profiles migrate discovery high-water tracking forward", () => {
+test("achievement profiles migrate discovery and campaign tracking forward", () => {
   const migrated = migrateAchievementProfile({
     version: 2,
     unlocked: {},
@@ -89,15 +91,39 @@ test("achievement profiles migrate discovery high-water tracking forward", () =>
   });
 
   assert.deepEqual(migrated, {
-    version: 3,
+    version: 4,
     unlocked: {},
     lifetime: {
       sailedShipSlugs: ["caravel"],
       seenAnimalIds: ["penguin"],
-      maxVoyageDiscoveryCount: 0
+      maxVoyageDiscoveryCount: 0,
+      campaignStartsByGoal: {},
+      campaignHistoryImported: false
     },
     platformUnlocks: {}
   });
+});
+
+test("campaign starts persist as lifetime profile counts", () => {
+  const profile = createAchievementProfile();
+  assert.equal(recordCampaignVoyageStart(profile, "explorer"), 1);
+  assert.equal(recordCampaignVoyageStart(profile, "explorer"), 2);
+  assert.equal(recordCampaignVoyageStart(profile, "pirate-treasure"), 1);
+  assert.deepEqual(profile.lifetime.campaignStartsByGoal, {
+    explorer: 2,
+    "pirate-treasure": 1
+  });
+});
+
+test("past voyage campaign history imports exactly once", () => {
+  const profile = createAchievementProfile();
+  assert.equal(importCampaignVoyageHistory(profile, ["explorer", "family-debt", "explorer"]), true);
+  assert.equal(importCampaignVoyageHistory(profile, ["pirate-treasure"]), false);
+  assert.deepEqual(profile.lifetime.campaignStartsByGoal, {
+    explorer: 2,
+    "family-debt": 1
+  });
+  assert.equal(profile.lifetime.campaignHistoryImported, true);
 });
 
 test("completed achievements appear first while preserving catalog order", () => {

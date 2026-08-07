@@ -9,6 +9,7 @@ import {
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
   CAMPAIGN_GOAL_TREASURE,
+  CAMPAIGN_GOAL_TYPE_IDS,
   CAMPAIGN_GOAL_WHITE_WHALE,
   FAMILY_DEBT_PRINCIPAL,
   FAMILY_DEBT_PROTECTED_PURSE,
@@ -17,6 +18,9 @@ import {
   campaignDialogueView,
   campaignGoalIntroSteps,
   campaignGoalPresentation,
+  campaignGoalSelectionWeights,
+  campaignGoalTypeForCharacter,
+  campaignGoalTypeForStoredLabel,
   campaignHomecomingSteps,
   campaignRetirementReturnSteps,
   campaignVictorySummary,
@@ -79,6 +83,44 @@ test("every campaign goal exposes a persistent journal and character objective",
   assert.match(presentations[1].objective, /pay off the family debt/i);
   assert.match(presentations[2].objective, /kill the white whale/i);
   assert.match(presentations[3].objective, /treasure map/i);
+});
+
+test("campaign selection subtly favors goals played less often", () => {
+  const equalWeights = campaignGoalSelectionWeights({});
+  assert.deepEqual(Object.values(equalWeights), [8, 8, 8, 8]);
+
+  const starts = {
+    [CAMPAIGN_GOAL_EXPLORER]: 8,
+    [CAMPAIGN_GOAL_FAMILY_DEBT]: 8,
+    [CAMPAIGN_GOAL_WHITE_WHALE]: 8,
+    [CAMPAIGN_GOAL_TREASURE]: 2
+  };
+  assert.deepEqual(campaignGoalSelectionWeights(starts), {
+    [CAMPAIGN_GOAL_EXPLORER]: 8,
+    [CAMPAIGN_GOAL_FAMILY_DEBT]: 8,
+    [CAMPAIGN_GOAL_WHITE_WHALE]: 8,
+    [CAMPAIGN_GOAL_TREASURE]: 11
+  });
+
+  const selections = Object.fromEntries(CAMPAIGN_GOAL_TYPE_IDS.map((type) => [type, 0]));
+  for (let index = 0; index < 4096; index++) {
+    const type = campaignGoalTypeForCharacter(
+      { ...CHARACTER, id: `campaign-variety-${index}` },
+      starts
+    );
+    selections[type] += 1;
+  }
+  assert.ok(selections[CAMPAIGN_GOAL_TREASURE] > selections[CAMPAIGN_GOAL_EXPLORER]);
+  assert.ok(selections[CAMPAIGN_GOAL_TREASURE] > selections[CAMPAIGN_GOAL_FAMILY_DEBT]);
+  assert.ok(selections[CAMPAIGN_GOAL_TREASURE] > selections[CAMPAIGN_GOAL_WHITE_WHALE]);
+});
+
+test("stored voyage labels map back to stable campaign goal ids", () => {
+  assert.equal(campaignGoalTypeForStoredLabel("Explorer"), CAMPAIGN_GOAL_EXPLORER);
+  assert.equal(campaignGoalTypeForStoredLabel("Family Debt"), CAMPAIGN_GOAL_FAMILY_DEBT);
+  assert.equal(campaignGoalTypeForStoredLabel("The White Whale"), CAMPAIGN_GOAL_WHITE_WHALE);
+  assert.equal(campaignGoalTypeForStoredLabel("Captain's Treasure"), CAMPAIGN_GOAL_TREASURE);
+  assert.equal(campaignGoalTypeForStoredLabel("Unknown"), null);
 });
 
 test("treasure dialogue keeps the three-rumor cap as an invisible backend constraint", () => {
