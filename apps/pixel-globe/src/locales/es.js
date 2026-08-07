@@ -68,6 +68,8 @@ export default {
   "start.newGame": "NUEVA PARTIDA",
   "start.startGame": "INICIAR PARTIDA",
   "start.shipBattle": "BATALLA NAVAL",
+  "start.historicalBattles": "BATALLAS HISTÓRICAS",
+  "battle.choose": "ELEGIR BATALLA",
   "start.pastVoyages": "VIAJES ANTERIORES",
   "start.achievements": "LOGROS",
   "start.credits": "CRÉDITOS",
@@ -442,5 +444,6 @@ export default {
   "status.loading": "Cargando Marque & Reprisal...",
   "aria.worldMap": "mapa del mundo",
   "aria.shipBattleLake": "aguas de batalla naval",
+  "aria.historicalBattle": "batalla naval histórica",
   "aria.canvas": "Marque & Reprisal, {surface}, {width} por {height}"
 };

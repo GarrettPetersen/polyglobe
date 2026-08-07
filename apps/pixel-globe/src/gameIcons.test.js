@@ -18,6 +18,7 @@ import {
   gameIconAtlasRect,
   gameIconDrawRect,
   gameIconIds,
+  menuLabelIconId,
   shipMenuIconId,
   startMenuIconId,
   tradeGoodIconId
@@ -53,6 +54,7 @@ test("every current dialogue and start-menu action resolves to an icon", async (
     "continue",
     "new-game",
     "lake-battle",
+    "historical-battle",
     "past-voyages",
     "achievements",
     "options",
@@ -60,6 +62,7 @@ test("every current dialogue and start-menu action resolves to an icon", async (
   ]) {
     assert.ok(GAME_ICON_SOURCES[startMenuIconId(actionId)], actionId);
   }
+  assert.ok(GAME_ICON_SOURCES[menuLabelIconId("CHOOSE BATTLE")]);
 
   const dialogueSource = await readFile(join(appRoot, "src/dialogueSystem.js"), "utf8");
   const actionTypes = new Set([...dialogueSource.matchAll(/type: "([^"]+)"/g)].map((match) => match[1]));

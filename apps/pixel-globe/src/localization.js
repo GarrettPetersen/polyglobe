@@ -104,6 +104,8 @@ const ENGLISH = Object.freeze({
   "start.newGame": "NEW GAME",
   "start.startGame": "START GAME",
   "start.shipBattle": "SHIP BATTLE",
+  "start.historicalBattles": "HISTORICAL BATTLES",
+  "battle.choose": "CHOOSE BATTLE",
   "start.pastVoyages": "PAST VOYAGES",
   "start.achievements": "ACHIEVEMENTS",
   "start.credits": "CREDITS",
@@ -478,6 +480,7 @@ const ENGLISH = Object.freeze({
   "status.loading": "Loading Marque & Reprisal...",
   "aria.worldMap": "world map",
   "aria.shipBattleLake": "ship battle lake",
+  "aria.historicalBattle": "historical sea battle",
   "aria.canvas": "Marque & Reprisal {surface}, {width} by {height}"
 });
 
@@ -551,6 +554,8 @@ const CHINESE_SIMPLIFIED = Object.freeze({
   "start.newGame": "新游戏",
   "start.startGame": "开始游戏",
   "start.shipBattle": "海战",
+  "start.historicalBattles": "历史战役",
+  "battle.choose": "选择战役",
   "start.pastVoyages": "往昔航程",
   "start.achievements": "成就",
   "start.credits": "制作人员",
@@ -925,6 +930,7 @@ const CHINESE_SIMPLIFIED = Object.freeze({
   "status.loading": "《Marque & Reprisal》读取中……",
   "aria.worldMap": "世界地图",
   "aria.shipBattleLake": "海战水域",
+  "aria.historicalBattle": "历史海战",
   "aria.canvas": "Marque & Reprisal {surface}，{width}乘{height}"
 });
 
@@ -998,6 +1004,8 @@ const JAPANESE = Object.freeze({
   "start.newGame": "ニューゲーム",
   "start.startGame": "ゲーム開始",
   "start.shipBattle": "海戦",
+  "start.historicalBattles": "歴史海戦",
+  "battle.choose": "海戦を選ぶ",
   "start.pastVoyages": "過去の航海",
   "start.achievements": "実績",
   "start.credits": "クレジット",
@@ -1372,6 +1380,7 @@ const JAPANESE = Object.freeze({
   "status.loading": "『Marque & Reprisal』読み込み中……",
   "aria.worldMap": "世界地図",
   "aria.shipBattleLake": "海戦水域",
+  "aria.historicalBattle": "歴史海戦",
   "aria.canvas": "Marque & Reprisal {surface}、{width}×{height}"
 });
 

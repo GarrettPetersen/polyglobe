@@ -68,6 +68,8 @@ export default {
   "start.newGame": "НОВАЯ ИГРА",
   "start.startGame": "НАЧАТЬ ИГРУ",
   "start.shipBattle": "МОРСКОЙ БОЙ",
+  "start.historicalBattles": "ИСТОРИЧЕСКИЕ БИТВЫ",
+  "battle.choose": "ВЫБРАТЬ БИТВУ",
   "start.pastVoyages": "ПРОШЛЫЕ ПЛАВАНИЯ",
   "start.achievements": "ДОСТИЖЕНИЯ",
   "start.credits": "АВТОРЫ",
@@ -442,5 +444,6 @@ export default {
   "status.loading": "Загрузка Marque & Reprisal...",
   "aria.worldMap": "карта мира",
   "aria.shipBattleLake": "акватория морского боя",
+  "aria.historicalBattle": "историческое морское сражение",
   "aria.canvas": "Marque & Reprisal, {surface}, {width} на {height}"
 };

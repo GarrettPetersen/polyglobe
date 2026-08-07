@@ -68,6 +68,8 @@ export default {
   "start.newGame": "NOWA GRA",
   "start.startGame": "ROZPOCZNIJ GRĘ",
   "start.shipBattle": "BITWA MORSKA",
+  "start.historicalBattles": "BITWY HISTORYCZNE",
+  "battle.choose": "WYBIERZ BITWĘ",
   "start.pastVoyages": "DAWNE REJSY",
   "start.achievements": "OSIĄGNIĘCIA",
   "start.credits": "AUTORZY",
@@ -442,5 +444,6 @@ export default {
   "status.loading": "Wczytywanie Marque & Reprisal...",
   "aria.worldMap": "mapa świata",
   "aria.shipBattleLake": "akwen bitwy morskiej",
+  "aria.historicalBattle": "historyczna bitwa morska",
   "aria.canvas": "Marque & Reprisal, {surface}, {width} na {height}"
 };

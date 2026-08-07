@@ -124,6 +124,9 @@ export function chefQuestState(state, city) {
   if ((city.displayCity || city.city) !== memory.portCity || city.country !== memory.portCountry) {
     throw new Error(`Chef quest port changed from ${memory.portCity}`);
   }
+  if (city.settlementType === "village" && memory.eventProfileId === "guild-banquet") {
+    memory.eventProfileId = chefEventProfileForPort(city).id;
+  }
   const ingredients = memory.ingredientGoodIds.map((goodId) => {
     const good = tradeGoodById(goodId);
     const held = state.cargo?.[goodId] || 0;
@@ -162,7 +165,7 @@ export function chefQuestJournalText(quest) {
   if (!quest?.port?.city) throw new Error("Chef quest journal requires an origin city");
   if (quest.stage === CHEF_QUEST_STAGE_RECRUITED) return null;
   if (quest.stage === CHEF_QUEST_STAGE_RECRUITMENT) {
-    return `Offer the chef a berth at ${quest.port.city}.`;
+    return `Offer the cook a berth at ${quest.port.city}.`;
   }
   if (quest.stage !== CHEF_QUEST_STAGE_GATHERING) {
     throw new Error(`Unknown chef quest journal stage: ${quest.stage}`);
@@ -215,12 +218,18 @@ export function recruitChef(state, city) {
 }
 
 export function chefQuestPortEligible(city) {
-  return Boolean(city && Number.isInteger(city.tileId) && !city.isPirateHideout && !city.isVillage);
+  return Boolean(city && Number.isInteger(city.tileId) && !city.isPirateHideout);
 }
 
 export function chefEventProfileForPort(city) {
   const type = city?.cityType || "";
   const country = city?.country || "";
+  const region = city?.manualRegion || "";
+  const isVillage = city?.settlementType === "village";
+  if (isVillage && region === "great-lakes") return chefEventProfile("great-lakes-council-feast");
+  if (isVillage && region === "northwest-coast") return chefEventProfile("northwest-coast-welcome-feast");
+  if (isVillage && type === "polynesian") return chefEventProfile("pacific-voyagers-feast");
+  if (isVillage && type === "mesoamerican") return chefEventProfile("native-village-feast");
   if (["Ottoman Empire", "Morocco", "Persia", "Mamluk Sultanate"].includes(country) ||
       type === "islamic-desert") return chefEventProfile("sultans-wedding");
   if (["Ming China", "Joseon", "Japan"].includes(country) || type === "east-asian") {
@@ -231,10 +240,16 @@ export function chefEventProfileForPort(city) {
   }
   if (type === "northern-european") return chefEventProfile("midsummer-feast");
   if (["Cuba", "New Spain", "Spanish Empire"].includes(country)) return chefEventProfile("governors-feast");
+  if (isVillage) return chefEventProfile("village-harvest-feast");
   return chefEventProfile("guild-banquet");
 }
 
 const EVENT_PROFILES = Object.freeze([
+  eventProfile("great-lakes-council-feast", "a council feast for neighboring longhouses", "The visiting families praised every dish, and the council asked that the cook be honored."),
+  eventProfile("northwest-coast-welcome-feast", "a welcome feast for families from neighboring villages", "The visiting families ate well, and their hosts praised every dish."),
+  eventProfile("native-village-feast", "a feast welcoming visiting kin", "The visitors ate well, and the whole village praised the cook."),
+  eventProfile("pacific-voyagers-feast", "a feast welcoming visiting voyagers", "The voyagers and their hosts praised every dish."),
+  eventProfile("village-harvest-feast", "the village's harvest feast", "The elders praised every dish, and the village celebrated late into the night."),
   eventProfile("sultans-wedding", "the Sultan's son's wedding feast", "The wedding tables were praised from the palace kitchens to the outer court."),
   eventProfile("governors-banquet", "the governor's formal banquet", "The governor called the final course worthy of an imperial table."),
   eventProfile("princes-wedding", "a prince's wedding feast", "The wedding guests sent back every platter clean and demanded the cook's name."),

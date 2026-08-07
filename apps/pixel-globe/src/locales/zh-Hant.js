@@ -68,6 +68,8 @@ export default {
   "start.newGame": "新遊戲",
   "start.startGame": "開始遊戲",
   "start.shipBattle": "海戰",
+  "start.historicalBattles": "歷史戰役",
+  "battle.choose": "選擇戰役",
   "start.pastVoyages": "往昔航程",
   "start.achievements": "成就",
   "start.credits": "製作人員",
@@ -442,5 +444,6 @@ export default {
   "status.loading": "Marque & Reprisal 讀取中……",
   "aria.worldMap": "世界地圖",
   "aria.shipBattleLake": "海戰水域",
+  "aria.historicalBattle": "歷史海戰",
   "aria.canvas": "Marque & Reprisal {surface}，{width}×{height}"
 };

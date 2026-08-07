@@ -7,6 +7,7 @@ import { isWaterSurfaceRow } from "./terrainSurface.js";
 import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 import {
   CIRCUMNAVIGATION_DISCOVERY,
+  DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX,
   EL_DORADO_DISCOVERY_ID,
   EL_DORADO_DISCOVERY_LAT,
   EL_DORADO_DISCOVERY_LON,
@@ -16,6 +17,7 @@ import {
   GREAT_PYRAMID_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
+  MOUNT_SHASTA_DISCOVERY_RADIUS_PX,
   MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY,
   NIAGARA_FALLS_DISCOVERY_ID,
   NIAGARA_FALLS_DISCOVERY_RADIUS_PX,
@@ -284,6 +286,25 @@ test("mountain accessibility requires ocean-connected navigation within viewing 
   assert.equal(mountainIsAccessibleFromNavigation(mountainTileId, graph, mask, 0.5), false);
   mask[nearbyTileId] = 1;
   assert.equal(mountainIsAccessibleFromNavigation(mountainTileId, graph, mask, 0.5), true);
+});
+
+test("Mount Shasta has a slightly wider coastal discovery radius", () => {
+  const baseMountain = {
+    id: "mountain-test",
+    elevationM: 4322,
+    lat: 41.4093,
+    lon: -122.195,
+    tileId: 1
+  };
+
+  assert.equal(
+    mountainDiscovery({ ...baseMountain, displayName: "Mount Shasta" }).radiusPx,
+    MOUNT_SHASTA_DISCOVERY_RADIUS_PX
+  );
+  assert.equal(
+    mountainDiscovery({ ...baseMountain, displayName: "Mount Rainier" }).radiusPx,
+    DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX
+  );
 });
 
 function greatCircleDistancePx(a, b, pixelsPerRadian) {

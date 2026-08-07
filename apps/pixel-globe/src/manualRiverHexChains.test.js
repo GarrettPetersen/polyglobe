@@ -247,6 +247,26 @@ test("the Whanganui River opens into the Tasman Sea", async () => {
   assert.equal(reachable[mouthTileId], 1);
 });
 
+test("all of Lake Malawi reaches the Indian Ocean through the Shire River", async () => {
+  const { earth, graph, reachable } = await buildManualRiverFixture();
+  const lakeCenterline = [
+    31333, 124778, 7886, 124560, 124561,
+    124564, 31274, 125693, 31571, 125695
+  ];
+
+  for (let index = 0; index < lakeCenterline.length; index++) {
+    const tileId = lakeCenterline[index];
+    assert.equal(earth.tiles[tileId].t, "lake", `Lake Malawi tile ${tileId} must be water`);
+    assert.equal(reachable[tileId], 1, `Lake Malawi tile ${tileId} must reach the Shire River`);
+    if (index === 0) continue;
+    assert.equal(
+      graph.neighbors[lakeCenterline[index - 1]].includes(tileId),
+      true,
+      `Lake Malawi must remain continuous at tile ${tileId}`
+    );
+  }
+});
+
 async function buildManualRiverFixture() {
   const earth = JSON.parse(await readFile(
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),

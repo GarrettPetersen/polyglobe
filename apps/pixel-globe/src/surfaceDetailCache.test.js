@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
+  surfaceDetailCallsHaveSameGeometry,
   surfaceDetailLayerCoversViewport
 } from "./surfaceDetailCache.js";
 
@@ -132,4 +133,58 @@ test("surface detail cache covers movement on every supported viewport shape", (
     });
     assert.deepEqual(calls.tileCalls, [cornerRiverTile], label);
   }
+});
+
+test("surface detail cache invalidates when an offscreen river moves before entering view", () => {
+  const riverRow = { t: "land", e: "grass" };
+  const cached = {
+    tileCalls: [{
+      id: 41,
+      drawSurfaceX: 520,
+      drawSurfaceY: 100,
+      level: 0,
+      row: riverRow
+    }],
+    riverConnectorCalls: [{
+      a: 41,
+      b: 42,
+      ax: 520,
+      ay: 100,
+      bx: 548,
+      by: 101,
+      aMouth: false,
+      bMouth: false,
+      aWater: false,
+      bWater: false
+    }]
+  };
+  const unchanged = {
+    tileCalls: cached.tileCalls.map((call) => ({ ...call })),
+    riverConnectorCalls: cached.riverConnectorCalls.map((call) => ({ ...call }))
+  };
+  assert.equal(surfaceDetailCallsHaveSameGeometry(cached, unchanged), true);
+
+  const stitched = {
+    tileCalls: [{ ...unchanged.tileCalls[0], drawSurfaceX: 518 }],
+    riverConnectorCalls: [{
+      ...unchanged.riverConnectorCalls[0],
+      ax: 518
+    }]
+  };
+  assert.equal(surfaceDetailCallsHaveSameGeometry(cached, stitched), false);
+});
+
+test("surface detail cache invalidates when a newly drawn river enters its bounds", () => {
+  const cached = { tileCalls: [], riverConnectorCalls: [] };
+  const current = {
+    tileCalls: [{
+      id: 7,
+      drawSurfaceX: 400,
+      drawSurfaceY: 120,
+      level: 0,
+      row: { t: "land", e: "grass" }
+    }],
+    riverConnectorCalls: []
+  };
+  assert.equal(surfaceDetailCallsHaveSameGeometry(cached, current), false);
 });

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {
+  shipDragFactor,
+  shipVelocityLimitAfterPropulsion
+} from "./shipPropulsion.js";
 import { applyWhaleTowPull, whaleTowKinematics } from "./whaleTowPhysics.js";
 
 const DISTANCE_RAD = 0.03;
@@ -74,4 +78,29 @@ test("a coincident whale leaves the fully slack line force-free", () => {
   assert.equal(tow.hasTension, false);
   assert.equal(tow.towardWhale, null);
   assert.deepEqual(applyWhaleTowPull([0.001, 0, 0], tow, 1), [0.001, 0, 0]);
+});
+
+test("an idle oared ship retains enough tow motion to follow a whale", () => {
+  const dt = 1 / 60;
+  const response = 1 - Math.exp(-2.6 * dt);
+  const dragFactor = shipDragFactor(true, dt);
+  let shipVelocity = [0, 0, 0];
+
+  for (let frame = 0; frame < 180; frame += 1) {
+    const priorSpeedRad = Math.hypot(...shipVelocity);
+    const speedLimit = shipVelocityLimitAfterPropulsion({
+      poweredSpeedLimitRad: 0,
+      priorSpeedRad,
+      dragFactor
+    });
+    shipVelocity = shipVelocity.map((value) => value * dragFactor);
+    const draggedSpeedRad = Math.hypot(...shipVelocity);
+    if (draggedSpeedRad > speedLimit) {
+      shipVelocity = shipVelocity.map((value) => value * speedLimit / draggedSpeedRad);
+    }
+    const tow = kinematics({ shipVelocity });
+    shipVelocity = applyWhaleTowPull(shipVelocity, tow, response);
+  }
+
+  assert.ok(shipVelocity[2] > WHALE_SPEED_RAD * 0.7);
 });

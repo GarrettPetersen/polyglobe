@@ -53,6 +53,25 @@ export function shipDragFactor(stalled, dt) {
   return Math.exp(-drag * dt);
 }
 
+export function shipVelocityLimitAfterPropulsion({
+  poweredSpeedLimitRad,
+  priorSpeedRad,
+  dragFactor
+}) {
+  if (!(Number.isFinite(poweredSpeedLimitRad) || poweredSpeedLimitRad === Infinity) ||
+      poweredSpeedLimitRad < 0) {
+    throw new Error(`Invalid powered ship speed limit: ${poweredSpeedLimitRad}`);
+  }
+  if (!Number.isFinite(priorSpeedRad) || priorSpeedRad < 0) {
+    throw new Error(`Invalid prior ship speed: ${priorSpeedRad}`);
+  }
+  if (!Number.isFinite(dragFactor) || dragFactor < 0 || dragFactor > 1) {
+    throw new Error(`Invalid ship propulsion drag factor: ${dragFactor}`);
+  }
+  if (poweredSpeedLimitRad === Infinity) return Infinity;
+  return Math.max(poweredSpeedLimitRad, priorSpeedRad * dragFactor);
+}
+
 export function shipPropulsionPerformance(stats, {
   windStrength,
   sailEfficiency,

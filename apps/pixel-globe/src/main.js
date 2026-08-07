@@ -13,13 +13,14 @@ import {
   MAX_PROTECTED_ADMISSION_SLACK_PX,
   admitProjectedTiles,
   refreshOffscreenLayoutTiles,
-  retainLocalLayoutAnchor,
+  resolveLocalLayoutAnchor,
   settleVisibleElasticTilesWithinMotion,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 import {
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
+  surfaceDetailCallsHaveSameGeometry,
   surfaceDetailLayerCoversViewport
 } from "./surfaceDetailCache.js";
 import {
@@ -233,7 +234,8 @@ import {
   shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
-  shipPropulsionPerformance
+  shipPropulsionPerformance,
+  shipVelocityLimitAfterPropulsion
 } from "./shipPropulsion.js";
 import {
   npcLocalResponseSpeedPx,
@@ -642,6 +644,7 @@ import {
   CIRCUMNAVIGATION_DISCOVERY,
   EL_DORADO_DISCOVERY_ID,
   GREAT_BARRIER_REEF_DISCOVERY_ID,
+  MAX_MOUNTAIN_DISCOVERY_RADIUS_PX,
   WORLD_DISCOVERY_SPRITE_KEYS,
   buildWorldDiscoveries,
   captainDialogueForDiscovery,
@@ -1647,6 +1650,22 @@ import {
 } from "./lakeBattle.js";
 import { lakeBattleHudLayout } from "./lakeBattleHud.js";
 import {
+  HISTORICAL_BATTLE_PHASE_ACTIVE,
+  createHistoricalBattle,
+  drainHistoricalBattleEvents,
+  historicalBattlePlayerShip,
+  historicalBattleShipAtPoint,
+  historicalBattleSideSummary,
+  historicalBattleSquadronSummary,
+  historicalBattleVisibleShips,
+  updateHistoricalBattle
+} from "./historicalBattle.js";
+import {
+  HISTORICAL_BATTLE_SCENARIOS,
+  historicalBattleScenarioById,
+  historicalBattleSideById
+} from "./historicalBattleScenarios.js";
+import {
   VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID,
   VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
   VIKING_LONGSHIP_PRICE,
@@ -2072,7 +2091,6 @@ const NATURALIST_NAVIGATION_STYLE = Object.freeze({
   dark: "#4f8f5b",
   shadow: "rgba(24, 47, 37, 0.78)"
 });
-const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
 const MOUNTAIN_DISCOVERY_PANEL_W = 230;
 const MOUNTAIN_DISCOVERY_PANEL_H = 24;
 let MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
@@ -2135,6 +2153,7 @@ const START_MENU_BUTTON_GAP = 8;
 const START_MENU_ACTION_CONTINUE = "continue";
 const START_MENU_ACTION_NEW_GAME = "new-game";
 const START_MENU_ACTION_LAKE_BATTLE = "lake-battle";
+const START_MENU_ACTION_HISTORICAL_BATTLE = "historical-battle";
 const START_MENU_ACTION_PAST_VOYAGES = "past-voyages";
 const START_MENU_ACTION_ACHIEVEMENTS = "achievements";
 const START_MENU_ACTION_OPTIONS = "options";
@@ -2152,6 +2171,20 @@ const LAKE_BATTLE_SETUP_BACK_ROW = 3;
 const LAKE_BATTLE_SETUP_ROW_COUNT = 4;
 const LAKE_BATTLE_PAUSE_ACTIONS = Object.freeze(["RESUME", "RESTART", "CHOOSE SHIPS", "OPTIONS", "START MENU"]);
 const LAKE_BATTLE_RESULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE SHIPS", "START MENU"]);
+const HISTORICAL_BATTLE_SETUP_SCENARIO_ROW = 0;
+const HISTORICAL_BATTLE_SETUP_SIDE_ROW = 1;
+const HISTORICAL_BATTLE_SETUP_SQUADRON_ROW = 2;
+const HISTORICAL_BATTLE_SETUP_BEGIN_ROW = 3;
+const HISTORICAL_BATTLE_SETUP_BACK_ROW = 4;
+const HISTORICAL_BATTLE_SETUP_ROW_COUNT = 5;
+const HISTORICAL_BATTLE_PAUSE_ACTIONS = Object.freeze([
+  "RESUME",
+  "RESTART",
+  "CHOOSE BATTLE",
+  "OPTIONS",
+  "START MENU"
+]);
+const HISTORICAL_BATTLE_RESULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE BATTLE", "START MENU"]);
 const AUTOSAVE_INTERVAL_MS = 30000;
 const AUTOSAVE_MAX_IDLE_DELAY_MS = 10000;
 const CREDITS_MARKDOWN_URL = "assets/CREDITS.md";
@@ -2729,6 +2762,8 @@ let earthRows;
 let earthById;
 let chartTileProtection;
 let chartDirectProtectionComponentByTileId;
+let chartLandContinuityMask;
+let chartElasticCorrectionMask;
 let mountainLandmarks;
 let worldDiscoveries = [];
 let coralReefs = [];
@@ -3427,7 +3462,7 @@ async function main() {
     mountainLandmarks,
     graph,
     oceanReachableNavigationMask,
-    MOUNTAIN_DISCOVERY_RADIUS_PX / PIXELS_PER_RADIAN
+    MAX_MOUNTAIN_DISCOVERY_RADIUS_PX / PIXELS_PER_RADIAN
   );
   worldDiscoveries = buildWorldDiscoveries(graph, directionIndex, {
     landMask: Uint8Array.from(earthRows, (row) => isWaterSurfaceRow(row) ? 0 : 1),
@@ -3466,6 +3501,14 @@ async function main() {
     graph,
     protection: chartTileProtection
   });
+  chartLandContinuityMask = Uint8Array.from(
+    earthRows,
+    (row) => isWaterSurfaceRow(row) ? 0 : 1
+  );
+  chartElasticCorrectionMask = Uint8Array.from(
+    earthRows,
+    (row) => isWaterSurfaceRow(row) ? 1 : 0
+  );
   const protectionStats = chartProtectionStats(chartTileProtection);
   console.info(
     `[pixel-globe] chart protection: ${protectionStats.direct} direct, ` +
@@ -5227,7 +5270,7 @@ function pollControllerDuringStartup(nowMs) {
 
 function telemetryCrashContext(screenOverride = null) {
   const screen = screenOverride || (
-    lakeBattleMode ? `lake-battle:${lakeBattleMode.screen}` :
+    lakeBattleMode ? `${lakeBattleMode.kind === "historical" ? "historical-battle" : "lake-battle"}:${lakeBattleMode.screen}` :
       gameOverReason ? "voyage-ended" :
         dialogueState ? `dialogue:${dialogueState.kind || "unknown"}` :
           optionsMenu.isOpen ? `options:${optionsMenu.view}` :
@@ -5568,6 +5611,7 @@ function startMenuActions() {
     label: localSaveResult.status === "ready" ? uiText("start.newGame") : uiText("start.startGame")
   });
   actions.push({ id: START_MENU_ACTION_LAKE_BATTLE, label: uiText("start.shipBattle") });
+  actions.push({ id: START_MENU_ACTION_HISTORICAL_BATTLE, label: uiText("start.historicalBattles") });
   actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: uiText("start.pastVoyages") });
   actions.push({ id: START_MENU_ACTION_ACHIEVEMENTS, label: uiText("start.achievements") });
   actions.push({ id: START_MENU_ACTION_OPTIONS, label: uiText("options.title") });
@@ -9185,6 +9229,7 @@ function createLakeBattleModeState() {
   const enemyIndex = LAKE_BATTLE_ENEMY_SLUGS.indexOf("caravel");
   if (playerIndex < 0 || enemyIndex < 0) throw new Error("Lake battle default ships are missing from the armed roster");
   return {
+    kind: "skirmish",
     screen: LAKE_BATTLE_SCREEN_SETUP,
     playerIndex,
     enemyIndex,
@@ -9203,6 +9248,36 @@ function createLakeBattleModeState() {
   };
 }
 
+function createHistoricalBattleModeState() {
+  const scenario = HISTORICAL_BATTLE_SCENARIOS[0];
+  if (!scenario) throw new Error("Historical battle catalog is empty");
+  const side = scenario.sides[0];
+  if (!side?.squadrons?.[0]) throw new Error(`Historical battle has no playable squadrons: ${scenario.id}`);
+  return {
+    kind: "historical",
+    screen: LAKE_BATTLE_SCREEN_SETUP,
+    scenarioIndex: 0,
+    sideIndex: 0,
+    squadronIndex: 0,
+    selectedIndex: HISTORICAL_BATTLE_SETUP_SCENARIO_ROW,
+    battle: null,
+    camera: null,
+    loading: false,
+    error: null,
+    hoverPoint: null,
+    rowRects: [],
+    leftArrowRects: [],
+    rightArrowRects: [],
+    actionRects: [],
+    pauseButtonRect: null,
+    pendingFirePort: false,
+    pendingFireStarboard: false,
+    pendingUnitCommand: null,
+    selectedShipIndex: -1,
+    commandRects: []
+  };
+}
+
 function openLakeBattleMode() {
   lakeBattleMode = createLakeBattleModeState();
   startMenu = null;
@@ -9212,6 +9287,175 @@ function openLakeBattleMode() {
   preloadLakeBattleShipAsset(selectedLakeBattleSlug("player"));
   preloadLakeBattleShipAsset(selectedLakeBattleSlug("enemy"));
   dirty = true;
+}
+
+function openHistoricalBattleMode() {
+  lakeBattleMode = createHistoricalBattleModeState();
+  startMenu = null;
+  keys.clear();
+  clearPointerSteering();
+  syncCanvasAriaLabel();
+  preloadHistoricalBattleAssets(selectedHistoricalBattleScenario());
+  dirty = true;
+}
+
+function selectedHistoricalBattleScenario() {
+  if (lakeBattleMode?.kind !== "historical") {
+    throw new Error("Historical battle mode is not open");
+  }
+  const scenario = HISTORICAL_BATTLE_SCENARIOS[lakeBattleMode.scenarioIndex];
+  if (!scenario) throw new Error(`Historical battle selection is invalid: ${lakeBattleMode.scenarioIndex}`);
+  return scenario;
+}
+
+function selectedHistoricalBattleSide() {
+  const scenario = selectedHistoricalBattleScenario();
+  const side = scenario.sides[lakeBattleMode.sideIndex];
+  if (!side) throw new Error(`Historical battle side selection is invalid: ${lakeBattleMode.sideIndex}`);
+  return side;
+}
+
+function selectedHistoricalBattleSquadron() {
+  const side = selectedHistoricalBattleSide();
+  const squadron = side.squadrons[lakeBattleMode.squadronIndex];
+  if (!squadron) {
+    throw new Error(`Historical battle squadron selection is invalid: ${lakeBattleMode.squadronIndex}`);
+  }
+  return squadron;
+}
+
+function stepHistoricalBattleSelection(kind, direction) {
+  if (lakeBattleMode?.kind !== "historical") throw new Error("Historical battle mode is not open");
+  if (!Number.isInteger(direction) || direction === 0) {
+    throw new Error(`Invalid historical battle selection step: ${direction}`);
+  }
+  if (kind === "scenario") {
+    lakeBattleMode.scenarioIndex = wrapIndex(
+      lakeBattleMode.scenarioIndex + direction,
+      HISTORICAL_BATTLE_SCENARIOS.length
+    );
+    lakeBattleMode.sideIndex = 0;
+    lakeBattleMode.squadronIndex = 0;
+    preloadHistoricalBattleAssets(selectedHistoricalBattleScenario());
+  } else if (kind === "side") {
+    lakeBattleMode.sideIndex = wrapIndex(
+      lakeBattleMode.sideIndex + direction,
+      selectedHistoricalBattleScenario().sides.length
+    );
+    lakeBattleMode.squadronIndex = 0;
+  } else if (kind === "squadron") {
+    lakeBattleMode.squadronIndex = wrapIndex(
+      lakeBattleMode.squadronIndex + direction,
+      selectedHistoricalBattleSide().squadrons.length
+    );
+  } else {
+    throw new Error(`Unknown historical battle selector: ${kind}`);
+  }
+  lakeBattleMode.error = null;
+  dirty = true;
+}
+
+function preloadHistoricalBattleAssets(scenario) {
+  const slugs = new Set();
+  for (const side of scenario.sides) {
+    for (const squadron of side.squadrons) {
+      for (const group of squadron.shipGroups) slugs.add(group.shipSlug);
+    }
+  }
+  for (const slug of slugs) preloadLakeBattleShipAsset(slug);
+}
+
+async function beginHistoricalBattle() {
+  if (lakeBattleMode?.kind !== "historical" || lakeBattleMode.loading) return;
+  const mode = lakeBattleMode;
+  mode.loading = true;
+  mode.error = null;
+  dirty = true;
+  try {
+    const scenario = selectedHistoricalBattleScenario();
+    const side = selectedHistoricalBattleSide();
+    const squadron = selectedHistoricalBattleSquadron();
+    const slugs = new Set();
+    for (const scenarioSide of scenario.sides) {
+      for (const scenarioSquadron of scenarioSide.squadrons) {
+        for (const group of scenarioSquadron.shipGroups) slugs.add(group.shipSlug);
+      }
+    }
+    await Promise.all([...slugs].map((slug) => ensureLakeBattleShipAsset(slug)));
+    if (lakeBattleMode !== mode) return;
+    mode.battle = createHistoricalBattle({
+      scenarioId: scenario.id,
+      playerSideId: side.id,
+      playerSquadronId: squadron.id,
+      shipFootprints: shipFootprintsBySlug
+    });
+    const player = historicalBattlePlayerShip(mode.battle);
+    mode.camera = { x: player.x, y: player.y };
+    mode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+    mode.selectedIndex = 0;
+    mode.loading = false;
+    mode.pauseButtonRect = null;
+    clearHistoricalBattlePendingActions();
+    keys.clear();
+    clearPointerSteering();
+    startCombatMusicForThreat("big");
+  } catch (error) {
+    if (lakeBattleMode !== mode) return;
+    mode.loading = false;
+    mode.error ||= "BATTLE COULD NOT START";
+    console.error("[pixel-globe] historical battle could not start", error);
+  }
+  dirty = true;
+}
+
+function restartHistoricalBattle() {
+  if (lakeBattleMode?.kind !== "historical") return;
+  const scenario = selectedHistoricalBattleScenario();
+  const side = selectedHistoricalBattleSide();
+  const squadron = selectedHistoricalBattleSquadron();
+  lakeBattleMode.battle = createHistoricalBattle({
+    scenarioId: scenario.id,
+    playerSideId: side.id,
+    playerSquadronId: squadron.id,
+    shipFootprints: shipFootprintsBySlug
+  });
+  const player = historicalBattlePlayerShip(lakeBattleMode.battle);
+  lakeBattleMode.camera = { x: player.x, y: player.y };
+  lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+  lakeBattleMode.selectedIndex = 0;
+  clearHistoricalBattlePendingActions();
+  keys.clear();
+  clearPointerSteering();
+  startCombatMusicForThreat("big");
+  dirty = true;
+}
+
+function returnHistoricalBattleToSetup() {
+  if (lakeBattleMode?.kind !== "historical") return;
+  lakeBattleMode.screen = LAKE_BATTLE_SCREEN_SETUP;
+  lakeBattleMode.battle = null;
+  lakeBattleMode.camera = null;
+  lakeBattleMode.selectedIndex = HISTORICAL_BATTLE_SETUP_SCENARIO_ROW;
+  lakeBattleMode.error = null;
+  clearHistoricalBattlePendingActions();
+  combatMusicUntilMs = 0;
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function wrapIndex(value, length) {
+  if (!Number.isInteger(length) || length <= 0) throw new Error(`Cannot wrap index over ${length} entries`);
+  return ((value % length) + length) % length;
+}
+
+function clearHistoricalBattlePendingActions() {
+  if (lakeBattleMode?.kind !== "historical") return;
+  lakeBattleMode.pendingFirePort = false;
+  lakeBattleMode.pendingFireStarboard = false;
+  lakeBattleMode.pendingUnitCommand = null;
+  lakeBattleMode.selectedShipIndex = -1;
+  lakeBattleMode.commandRects = [];
 }
 
 function closeLakeBattleModeToStartMenu() {
@@ -9364,6 +9608,9 @@ function returnLakeBattleToSetup() {
 
 function updateLakeBattleModeFrame(dt, nowMs) {
   if (!lakeBattleMode || optionsMenu.isOpen) return false;
+  if (lakeBattleMode.kind === "historical") {
+    return updateHistoricalBattleModeFrame(dt, nowMs);
+  }
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
     if (!Number.isFinite(lakeBattleMode.resultReadyAtMs)) {
       throw new Error("Lake battle sinking screen has no result deadline");
@@ -9387,6 +9634,148 @@ function updateLakeBattleModeFrame(dt, nowMs) {
   }
   dirty = true;
   return true;
+}
+
+function updateHistoricalBattleModeFrame(dt, nowMs) {
+  if (lakeBattleMode?.kind !== "historical" || optionsMenu.isOpen) return false;
+  if (lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
+  const battle = lakeBattleMode.battle;
+  if (!battle) throw new Error("Active historical battle screen has no battle state");
+  const advanced = updateHistoricalBattle(battle, dt, historicalBattleInputCommand());
+  if (advanced) {
+    lakeBattleMode.pendingFirePort = false;
+    lakeBattleMode.pendingFireStarboard = false;
+    lakeBattleMode.pendingUnitCommand = null;
+  }
+  processHistoricalBattleEvents(battle);
+  const player = historicalBattlePlayerShip(battle);
+  if (!lakeBattleMode.camera) lakeBattleMode.camera = { x: player.x, y: player.y };
+  const cameraCatchup = 1 - Math.exp(-dt * 9);
+  lakeBattleMode.camera.x += (player.x - lakeBattleMode.camera.x) * cameraCatchup;
+  lakeBattleMode.camera.y += (player.y - lakeBattleMode.camera.y) * cameraCatchup;
+  clampHistoricalBattleCamera(lakeBattleMode.camera, battle.map);
+  if (battle.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE) {
+    lakeBattleMode.screen = LAKE_BATTLE_SCREEN_RESULT;
+    lakeBattleMode.selectedIndex = 0;
+    keys.clear();
+    clearPointerSteering();
+  }
+  dirty = true;
+  return true;
+}
+
+function historicalBattleInputCommand() {
+  const battle = lakeBattleMode?.kind === "historical" ? lakeBattleMode.battle : null;
+  if (!battle) return { desiredHeadingRad: null, rowingRequested: false };
+  const oneShotActions = {
+    firePort: lakeBattleMode.pendingFirePort === true,
+    fireStarboard: lakeBattleMode.pendingFireStarboard === true,
+    unitCommand: lakeBattleMode.pendingUnitCommand
+  };
+  const player = historicalBattlePlayerShip(battle);
+  if (pointerSteering.active && pointerSteering.point) {
+    const screenPoint = historicalBattleWorldToScreen(player);
+    const px = pointerSteering.point.x - screenPoint.x;
+    const py = pointerSteering.point.y - screenPoint.y;
+    if (Math.hypot(px, py) >= POINTER_STEERING_DEADZONE_PX) {
+      return { desiredHeadingRad: Math.atan2(py, px), rowingRequested: true, ...oneShotActions };
+    }
+  }
+  const intent = steeringIntentForScheme({
+    scheme: optionsMenu.controlScheme,
+    left: keys.has(KEY_ACTION.STEER_LEFT),
+    right: keys.has(KEY_ACTION.STEER_RIGHT),
+    up: keys.has(KEY_ACTION.STEER_UP),
+    down: keys.has(KEY_ACTION.STEER_DOWN),
+    controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
+    controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
+  });
+  if (intent.relativeBackward) {
+    return {
+      desiredHeadingRad: normalizeAngleRad(player.headingRad + Math.PI),
+      rowingRequested: true,
+      ...oneShotActions
+    };
+  }
+  if (intent.relativeTurn !== 0) {
+    return {
+      desiredHeadingRad: relativeHeadingAngle(player.headingRad, intent.relativeTurn),
+      rowingRequested: intent.relativeForward || Math.abs(player.speedPx) < 2,
+      ...oneShotActions
+    };
+  }
+  if (intent.relativeForward) {
+    return { desiredHeadingRad: player.headingRad, rowingRequested: true, ...oneShotActions };
+  }
+  if (intent.absoluteX === 0 && intent.absoluteY === 0) {
+    return { desiredHeadingRad: null, rowingRequested: false, ...oneShotActions };
+  }
+  return {
+    desiredHeadingRad: Math.atan2(-intent.absoluteY, intent.absoluteX),
+    rowingRequested: true,
+    ...oneShotActions
+  };
+}
+
+function fireHistoricalBattlePlayerBroadside(sideName) {
+  const battle = lakeBattleMode?.kind === "historical" ? lakeBattleMode.battle : null;
+  if (!battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
+  if (sideName !== "port" && sideName !== "starboard") {
+    throw new Error(`Unknown historical battle broadside: ${sideName}`);
+  }
+  lakeBattleMode[sideName === "port" ? "pendingFirePort" : "pendingFireStarboard"] = true;
+  dirty = true;
+  return true;
+}
+
+function processHistoricalBattleEvents(battle) {
+  const player = historicalBattlePlayerShip(battle);
+  let cannonSounds = 0;
+  let impactSounds = 0;
+  for (const event of drainHistoricalBattleEvents(battle)) {
+    if (event.type === "fire") {
+      const firingShip = battle.ships[event.shipIndex];
+      if (!firingShip) throw new Error(`Historical battle fire event lost ship ${event.shipIndex}`);
+      const distance = Math.hypot(firingShip.x - player.x, firingShip.y - player.y);
+      if (distance <= Math.max(SCREEN_W, SCREEN_H) && cannonSounds < 4) {
+        playNavalAttackSound(
+          { kind: event.weaponKind || NAVAL_WEAPON_CANNON },
+          Math.max(1, event.cannonCount || 1),
+          distance
+        );
+        cannonSounds += 1;
+      }
+    } else if (event.type === "hit") {
+      const hitShip = battle.ships[event.shipIndex];
+      if (!hitShip) throw new Error(`Historical battle hit event lost ship ${event.shipIndex}`);
+      const distance = Math.hypot(hitShip.x - player.x, hitShip.y - player.y);
+      if (distance <= Math.max(SCREEN_W, SCREEN_H) && impactSounds < 4) {
+        playCannonImpactSound(Math.max(8, 18 - distance / 30));
+        impactSounds += 1;
+      }
+    } else if (event.type === "collision" || event.type === "escaped" || event.type === "sunk" ||
+               event.type === "surrendered" || event.type === "finished") {
+      // Their visible state and the result screen present these aggregate fleet events.
+    } else {
+      throw new Error(`Unknown historical battle event: ${event.type}`);
+    }
+  }
+}
+
+function clampHistoricalBattleCamera(cameraValue, map) {
+  const halfWidth = Math.min(SCREEN_W / 2, map.width / 2);
+  const halfHeight = Math.min(SCREEN_H / 2, map.height / 2);
+  cameraValue.x = clamp(cameraValue.x, halfWidth, map.width - halfWidth);
+  cameraValue.y = clamp(cameraValue.y, halfHeight, map.height - halfHeight);
+}
+
+function historicalBattleWorldToScreen(point) {
+  const cameraValue = lakeBattleMode?.camera;
+  if (!cameraValue) throw new Error("Historical battle camera is missing");
+  return {
+    x: point.x - cameraValue.x + SCREEN_W / 2,
+    y: point.y - cameraValue.y + SCREEN_H / 2
+  };
 }
 
 function startLakeBattleSinkSequence(battle, nowMs) {
@@ -9532,6 +9921,10 @@ function processLakeBattleEvents(battle) {
 }
 
 function handleLakeBattlePointerDown(pointerId, point) {
+  if (lakeBattleMode?.kind === "historical") {
+    handleHistoricalBattlePointerDown(pointerId, point);
+    return;
+  }
   lakeBattleMode.hoverPoint = point;
   if (lakeBattleMode.loading) return;
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) return;
@@ -9588,6 +9981,10 @@ function handleLakeBattlePointerDown(pointerId, point) {
 }
 
 function handleLakeBattlePointerMove(event, point) {
+  if (lakeBattleMode?.kind === "historical") {
+    handleHistoricalBattlePointerMove(event, point);
+    return;
+  }
   lakeBattleMode.hoverPoint = point;
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
     dirty = true;
@@ -9635,6 +10032,10 @@ function lakeBattleBroadsideSideAtPoint(point) {
 function handleLakeBattleKeyDown(event, keyAction) {
   if (!lakeBattleMode) return;
   event.preventDefault();
+  if (lakeBattleMode.kind === "historical") {
+    handleHistoricalBattleKeyDown(event, keyAction);
+    return;
+  }
   if (lakeBattleMode.loading) return;
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) return;
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
@@ -9666,6 +10067,242 @@ function handleLakeBattleKeyDown(event, keyAction) {
     return;
   }
   throw new Error(`Unknown lake battle screen: ${lakeBattleMode.screen}`);
+}
+
+function handleHistoricalBattlePointerDown(pointerId, point) {
+  lakeBattleMode.hoverPoint = point;
+  if (lakeBattleMode.loading) return;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    const selectors = ["scenario", "side", "squadron"];
+    for (let row = 0; row < selectors.length; row++) {
+      if (pointInRect(point, lakeBattleMode.leftArrowRects[row])) {
+        lakeBattleMode.selectedIndex = row;
+        stepHistoricalBattleSelection(selectors[row], -1);
+        return;
+      }
+      if (pointInRect(point, lakeBattleMode.rightArrowRects[row])) {
+        lakeBattleMode.selectedIndex = row;
+        stepHistoricalBattleSelection(selectors[row], 1);
+        return;
+      }
+    }
+    for (let row = 0; row < lakeBattleMode.rowRects.length; row++) {
+      if (!pointInRect(point, lakeBattleMode.rowRects[row])) continue;
+      lakeBattleMode.selectedIndex = row;
+      if (row >= HISTORICAL_BATTLE_SETUP_BEGIN_ROW) activateHistoricalBattleSetupRow();
+      dirty = true;
+      return;
+    }
+    return;
+  }
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+    if (pointInRect(point, lakeBattleMode.pauseButtonRect)) {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_PAUSED;
+      lakeBattleMode.selectedIndex = 0;
+      clearHistoricalBattlePendingActions();
+      keys.clear();
+      clearPointerSteering();
+      dirty = true;
+      return;
+    }
+    for (const command of lakeBattleMode.commandRects) {
+      if (!pointInRect(point, command.rect)) continue;
+      lakeBattleMode.pendingUnitCommand = {
+        shipIndex: lakeBattleMode.selectedShipIndex,
+        action: command.action
+      };
+      lakeBattleMode.selectedShipIndex = -1;
+      lakeBattleMode.commandRects = [];
+      dirty = true;
+      return;
+    }
+    const worldPoint = historicalBattleScreenToWorld(point);
+    const selectedShip = historicalBattleShipAtPoint(
+      lakeBattleMode.battle,
+      worldPoint.x,
+      worldPoint.y,
+      15
+    );
+    if (selectedShip && !selectedShip.playerControlled) {
+      lakeBattleMode.selectedShipIndex = lakeBattleMode.battle.ships.indexOf(selectedShip);
+      dirty = true;
+      return;
+    }
+    lakeBattleMode.selectedShipIndex = -1;
+    lakeBattleMode.commandRects = [];
+    const broadside = historicalBattleBroadsideSideAtPoint(point);
+    dispatchSailingPointerAction({
+      type: broadside ? WORLD_POINTER_ACTION.BROADSIDE : WORLD_POINTER_ACTION.STEER,
+      sideName: broadside || undefined
+    }, {
+      fireBroadside: fireHistoricalBattlePlayerBroadside,
+      beginSteering: () => beginPointerSteering(pointerId, point)
+    });
+    return;
+  }
+  const actions = lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED
+    ? HISTORICAL_BATTLE_PAUSE_ACTIONS
+    : HISTORICAL_BATTLE_RESULT_ACTIONS;
+  for (let index = 0; index < lakeBattleMode.actionRects.length; index++) {
+    if (!pointInRect(point, lakeBattleMode.actionRects[index])) continue;
+    lakeBattleMode.selectedIndex = index;
+    activateHistoricalBattleAction(actions[index]);
+    return;
+  }
+}
+
+function historicalBattleScreenToWorld(point) {
+  const cameraValue = lakeBattleMode?.camera;
+  if (!cameraValue) throw new Error("Historical battle camera is missing");
+  return {
+    x: point.x + cameraValue.x - SCREEN_W / 2,
+    y: point.y + cameraValue.y - SCREEN_H / 2
+  };
+}
+
+function handleHistoricalBattlePointerMove(event, point) {
+  lakeBattleMode.hoverPoint = point;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE &&
+      pointerSteering.active && pointerSteering.pointerId === event.pointerId) {
+    event.preventDefault();
+    updatePointerSteering(point);
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    for (let row = 0; row < lakeBattleMode.rowRects.length; row++) {
+      if (pointInRect(point, lakeBattleMode.rowRects[row])) lakeBattleMode.selectedIndex = row;
+    }
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED ||
+             lakeBattleMode.screen === LAKE_BATTLE_SCREEN_RESULT) {
+    for (let index = 0; index < lakeBattleMode.actionRects.length; index++) {
+      if (pointInRect(point, lakeBattleMode.actionRects[index])) lakeBattleMode.selectedIndex = index;
+    }
+  }
+  dirty = true;
+}
+
+function handleHistoricalBattleKeyDown(event, keyAction) {
+  if (lakeBattleMode.loading) return;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    handleHistoricalBattleSetupKeyDown(event.key);
+    return;
+  }
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+    if (keyAction === KEY_ACTION.CAPTAIN_MENU) {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_PAUSED;
+      lakeBattleMode.selectedIndex = 0;
+      clearHistoricalBattlePendingActions();
+      keys.clear();
+      clearPointerSteering();
+    } else if (keyAction === KEY_ACTION.FIRE_PORT || keyAction === KEY_ACTION.FIRE_STARBOARD) {
+      if (!event.repeat) fireHistoricalBattlePlayerBroadside(
+        keyAction === KEY_ACTION.FIRE_PORT ? "port" : "starboard"
+      );
+    } else if (isSteeringKeyAction(keyAction)) {
+      keys.press(event.code, keyAction);
+    }
+    dirty = true;
+    return;
+  }
+  const actions = lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED
+    ? HISTORICAL_BATTLE_PAUSE_ACTIONS
+    : HISTORICAL_BATTLE_RESULT_ACTIONS;
+  handleHistoricalBattleActionMenuKeyDown(event.key, actions);
+}
+
+function handleHistoricalBattleSetupKeyDown(key) {
+  if (key === "Escape") {
+    closeLakeBattleModeToStartMenu();
+    return;
+  }
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    lakeBattleMode.selectedIndex = stepMenuIndex(
+      lakeBattleMode.selectedIndex,
+      key === "ArrowDown" ? 1 : -1,
+      HISTORICAL_BATTLE_SETUP_ROW_COUNT
+    );
+    dirty = true;
+    return;
+  }
+  if (key === "ArrowLeft" || key === "ArrowRight") {
+    const selector = ["scenario", "side", "squadron"][lakeBattleMode.selectedIndex];
+    if (selector) stepHistoricalBattleSelection(selector, key === "ArrowRight" ? 1 : -1);
+    return;
+  }
+  if (key === "Enter" || key === " ") activateHistoricalBattleSetupRow();
+}
+
+function activateHistoricalBattleSetupRow() {
+  const selector = ["scenario", "side", "squadron"][lakeBattleMode.selectedIndex];
+  if (selector) {
+    stepHistoricalBattleSelection(selector, 1);
+  } else if (lakeBattleMode.selectedIndex === HISTORICAL_BATTLE_SETUP_BEGIN_ROW) {
+    void beginHistoricalBattle();
+  } else if (lakeBattleMode.selectedIndex === HISTORICAL_BATTLE_SETUP_BACK_ROW) {
+    closeLakeBattleModeToStartMenu();
+  }
+}
+
+function handleHistoricalBattleActionMenuKeyDown(key, actions) {
+  if (key === "Escape") {
+    if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED) {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+      lakeBattleMode.selectedIndex = 0;
+    } else {
+      returnHistoricalBattleToSetup();
+    }
+    dirty = true;
+    return;
+  }
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    lakeBattleMode.selectedIndex = stepMenuIndex(
+      lakeBattleMode.selectedIndex,
+      key === "ArrowDown" ? 1 : -1,
+      actions.length
+    );
+    dirty = true;
+    return;
+  }
+  if (key === "Enter" || key === " ") activateHistoricalBattleAction(actions[lakeBattleMode.selectedIndex]);
+}
+
+function activateHistoricalBattleAction(action) {
+  if (action === "RESUME") {
+    lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+  } else if (action === "RESTART" || action === "REMATCH") {
+    restartHistoricalBattle();
+  } else if (action === "CHOOSE BATTLE") {
+    returnHistoricalBattleToSetup();
+  } else if (action === "OPTIONS") {
+    openOptionsMenu();
+  } else if (action === "START MENU") {
+    closeLakeBattleModeToStartMenu();
+  } else {
+    throw new Error(`Unknown historical battle action: ${action}`);
+  }
+  dirty = true;
+}
+
+function historicalBattleBroadsideArc(sideName) {
+  const battle = lakeBattleMode?.kind === "historical" ? lakeBattleMode.battle : null;
+  if (!battle) throw new Error("Cannot create historical broadside arc without a battle");
+  const player = historicalBattlePlayerShip(battle);
+  const origin = historicalBattleWorldToScreen(player);
+  return broadsideArcGeometry({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    heading: { x: Math.cos(player.headingRad), y: Math.sin(player.headingRad) },
+    sideName,
+    range: player.weaponRangePx,
+    origin
+  });
+}
+
+function historicalBattleBroadsideSideAtPoint(point) {
+  if (lakeBattleMode?.kind !== "historical" ||
+      !lakeBattleMode.battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return null;
+  for (const sideName of ["port", "starboard"]) {
+    if (pointInBroadsideArc(point, historicalBattleBroadsideArc(sideName), 5)) return sideName;
+  }
+  return null;
 }
 
 function handleLakeBattleSetupKeyDown(key) {
@@ -11722,6 +12359,10 @@ function activateStartMenuSelection() {
   }
   if (action.id === START_MENU_ACTION_LAKE_BATTLE) {
     openLakeBattleMode();
+    return;
+  }
+  if (action.id === START_MENU_ACTION_HISTORICAL_BATTLE) {
+    openHistoricalBattleMode();
     return;
   }
   if (action.id === START_MENU_ACTION_PAST_VOYAGES) {
@@ -19453,6 +20094,7 @@ function applyWindAcceleration(
   effectiveStats = currentPlayerEffectiveShipStats(),
   rowingMode = SHIP_ROWING_MODE_IDLE
 ) {
+  const priorSpeedRad = vectorLength(ship.velocity);
   const normalizedRowingMode = normalizeShipRowingMode(rowingMode);
   const pivoting = shipRowingModeIsPivot(normalizedRowingMode);
   const thrustDirection = shipRowingModeThrustDirection(normalizedRowingMode);
@@ -19482,8 +20124,13 @@ function applyWindAcceleration(
     ship.velocity[2] + ship.heading[2] * propulsionAccel * propulsionDirection * dt
   ];
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
-  ship.velocity = scaleVector(ship.velocity, shipDragFactor(propulsion.stalled, dt));
-  limitShipSpeed(propulsion.maxSpeedRad);
+  const dragFactor = shipDragFactor(propulsion.stalled, dt);
+  ship.velocity = scaleVector(ship.velocity, dragFactor);
+  limitShipSpeed(shipVelocityLimitAfterPropulsion({
+    poweredSpeedLimitRad: propulsion.maxSpeedRad,
+    priorSpeedRad,
+    dragFactor
+  }));
 }
 
 function applyShipHaulAcceleration(dt, inputHeading, motionScale) {
@@ -26811,7 +27458,11 @@ function applyResponsiveViewport(width, height) {
   if (width === SCREEN_W && height === SCREEN_H) return;
   SCREEN_W = width;
   SCREEN_H = height;
-  if (lakeBattleMode?.battle) resizeLakeBattle(lakeBattleMode.battle, width, height);
+  if (lakeBattleMode?.battle && lakeBattleMode.kind !== "historical") {
+    resizeLakeBattle(lakeBattleMode.battle, width, height);
+  } else if (lakeBattleMode?.kind === "historical" && lakeBattleMode.camera) {
+    clampHistoricalBattleCamera(lakeBattleMode.camera, lakeBattleMode.battle.map);
+  }
   lakeBattleTerrainChart = null;
   lakeBattleTerrainChartKey = "";
   canvas.width = width;
@@ -26878,7 +27529,13 @@ function rebuildChartForViewportResize() {
 }
 
 function syncCanvasAriaLabel() {
-  const surface = uiText(lakeBattleMode ? "aria.shipBattleLake" : "aria.worldMap");
+  const surface = uiText(
+    lakeBattleMode?.kind === "historical"
+      ? "aria.historicalBattle"
+      : lakeBattleMode
+        ? "aria.shipBattleLake"
+        : "aria.worldMap"
+  );
   canvas.setAttribute("aria-label", uiText("aria.canvas", {
     surface,
     width: SCREEN_W,
@@ -27550,8 +28207,11 @@ function surfaceDetailLayer(activeChart, offset) {
   const redrawTick = Math.floor(waterAnimationClockMs / SURFACE_DETAIL_REDRAW_MS);
   const cacheKey = worldChartRenderCacheKey(activeChart);
   let cached = surfaceDetailLayerCache.get(cacheKey);
+  const chartGeometryChanged = Boolean(cached && cached.chart !== activeChart &&
+    !cachedSurfaceDetailGeometryMatchesChart(cached, activeChart));
   if (
     !cached ||
+    chartGeometryChanged ||
     cached.weatherDayIndex !== weatherMaskDayIndex ||
     cached.iceRevision !== surfaceIceSettledRevision ||
     !surfaceDetailLayerCoversViewport({
@@ -27566,6 +28226,8 @@ function surfaceDetailLayer(activeChart, offset) {
       () => createStaticSurfaceDetailLayer(activeChart, viewport)
     );
     surfaceDetailLayerCache.set(cacheKey, cached);
+  } else if (cached.chart !== activeChart) {
+    cached.chart = activeChart;
   }
 
   return {
@@ -27575,6 +28237,22 @@ function surfaceDetailLayer(activeChart, offset) {
       () => surfaceDetailRiverLayer(activeChart, cached, redrawTick)
     )
   };
+}
+
+function cachedSurfaceDetailGeometryMatchesChart(cached, activeChart) {
+  if (!cached || !activeChart) return false;
+  const currentCalls = surfaceDetailCallsForLayer({
+    tileCalls: activeChart.tileCalls,
+    riverConnectorCalls: activeChart.riverConnectorCalls,
+    layer: {
+      x: cached.x,
+      y: cached.y,
+      width: cached.canvas.width,
+      height: cached.canvas.height
+    },
+    margin: TILE_ART_SIZE
+  });
+  return surfaceDetailCallsHaveSameGeometry(cached, currentCalls);
 }
 
 function createStaticSurfaceDetailLayer(activeChart, viewport) {
@@ -27640,6 +28318,7 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
     canvas,
     x,
     y,
+    chart: activeChart,
     tileCalls: calls.tileCalls,
     riverConnectorCalls: calls.riverConnectorCalls,
     riverWaterPixelRows,
@@ -27869,8 +28548,10 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
     throw new Error("Water-effect foreground requires the current connector layer");
   }
   const cacheKey = worldChartRenderCacheKey(activeChart);
+  const currentSurfaceLayer = surfaceDetailLayerCache.get(cacheKey);
   const cached = waterEffectForegroundLayerCache.get(cacheKey);
   if (
+    cached?.surfaceLayer === currentSurfaceLayer &&
     cached?.weatherDayIndex === weatherMaskDayIndex &&
     cached?.iceRevision === surfaceIceSettledRevision &&
     surfaceDetailLayerCoversViewport(cached, viewport, TILE_ART_SIZE)
@@ -27923,6 +28604,10 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
     drawIceSurface(call, layerCtx);
   }
 
+  const staticSurface = surfaceDetailLayerCache.get(cacheKey);
+  if (!staticSurface) {
+    throw new Error("Water-effect foreground requires the current static surface layer");
+  }
   const previousCtx = ctx;
   ctx = layerCtx;
   try {
@@ -27930,10 +28615,6 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
     for (const call of tileCalls) drawRiver(call, activeChart);
     for (const call of calls.riverConnectorCalls) drawRiverConnector(call, activeChart);
     layerCtx.globalCompositeOperation = "source-over";
-    const staticSurface = surfaceDetailLayerCache.get(cacheKey);
-    if (!staticSurface) {
-      throw new Error("Water-effect foreground requires the current static surface layer");
-    }
     drawRiverBankPixels(staticSurface.riverBankPixels);
   } finally {
     layerCtx.globalCompositeOperation = "source-over";
@@ -27943,6 +28624,7 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   const result = {
     ...bounds,
     canvas,
+    surfaceLayer: staticSurface,
     weatherDayIndex: weatherMaskDayIndex,
     iceRevision: surfaceIceSettledRevision,
     weatherRevision: `${weatherMaskDayIndex}:${surfaceIceSettledRevision}`
@@ -28464,15 +29146,17 @@ function chartProjectionOffsetPixels(activeChart) {
 function syncLocalLayout(projectedVisible, chartCenterTileId) {
   const visibleAuthoritativePositions = captureVisibleAuthoritativeTilePositions();
   const projectedById = new Map(projectedVisible.map((item) => [item.id, item]));
-  retainLocalLayoutAnchor({
+  const admissionAnchorId = resolveLocalLayoutAnchor({
     positions: localLayout.positions,
-    anchorId: chartCenterTileId,
+    projectedById,
+    preferredAnchorId: chartCenterTileId,
     viewX: localLayout.viewX,
     viewY: localLayout.viewY
   });
   const correctionSupport = viewportElasticCorrectionSupport({
     projectedTiles: projectedVisible,
     protectionById: chartTileProtection,
+    elasticityMaskById: chartElasticCorrectionMask,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     tileVisualRadius: TILE_ART_HALF,
@@ -28511,7 +29195,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
       movableTileIds,
       previousOffsetsById,
       currentOffsetsById,
-      anchorId: chartCenterTileId,
+      anchorId: admissionAnchorId,
       viewportWidth: SCREEN_W,
       viewportHeight: SCREEN_H,
       tileVisualRadius: TILE_ART_HALF,
@@ -28534,7 +29218,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     tileVisualRadius: LOCAL_LAYOUT_RETENTION_MARGIN_PX,
-    anchorId: chartCenterTileId,
+    anchorId: admissionAnchorId,
     viewX: localLayout.viewX,
     viewY: localLayout.viewY
   });
@@ -28544,13 +29228,13 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     if (!localLayout.positions.has(item.id)) pending.add(item.id);
   }
 
-  pending.delete(chartCenterTileId);
+  pending.delete(admissionAnchorId);
 
   admitProjectedTiles({
     positions: localLayout.positions,
     projectedById,
     pendingIds: pending,
-    anchorId: chartCenterTileId,
+    anchorId: admissionAnchorId,
     neighborsById: graph.neighbors,
     protectionById: chartTileProtection,
     directProtectionComponentById: chartDirectProtectionComponentByTileId,
@@ -28563,6 +29247,8 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
       ? MAX_ELASTIC_FRAME_CORRECTION_PX
       : 0,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    continuityMaskById: chartLandContinuityMask,
+    maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     protectedCorrectionViewportIds: correctionViewportIds,
     liveViewportAdmissionIds: correctionViewportIds
   });
@@ -33301,6 +33987,10 @@ function politicsFactionColor(factionId) {
 }
 
 function drawLakeBattleMode(nowMs) {
+  if (lakeBattleMode.kind === "historical") {
+    drawHistoricalBattleMode(nowMs);
+    return;
+  }
   const terrainChart = ensureLakeBattleTerrainChart();
   drawLakeBattleTerrain(terrainChart);
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
@@ -33333,6 +34023,417 @@ function drawLakeBattleMode(nowMs) {
   } else {
     throw new Error(`Unknown lake battle screen: ${lakeBattleMode.screen}`);
   }
+}
+
+function drawHistoricalBattleMode(nowMs) {
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    drawHistoricalBattleSetup();
+    return;
+  }
+  const battle = lakeBattleMode.battle;
+  if (!battle) throw new Error(`Historical battle screen ${lakeBattleMode.screen} has no battle state`);
+  drawHistoricalBattleField(battle, nowMs);
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+    drawHistoricalBattleBroadsideControls(battle);
+    drawHistoricalBattleCommandMenu(battle);
+    drawLakeBattlePauseButton(historicalBattlePauseButtonRect());
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED) {
+    drawLakeBattleActionOverlay("BATTLE PAUSED", HISTORICAL_BATTLE_PAUSE_ACTIONS);
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_RESULT) {
+    const title = battle.outcome === "victory"
+      ? "VICTORY"
+      : battle.outcome === "defeat"
+        ? "DEFEAT"
+        : "DRAW";
+    drawLakeBattleActionOverlay(title, HISTORICAL_BATTLE_RESULT_ACTIONS);
+  } else {
+    throw new Error(`Unknown historical battle screen: ${lakeBattleMode.screen}`);
+  }
+}
+
+function drawHistoricalBattleCommandMenu(battle) {
+  const shipIndex = lakeBattleMode.selectedShipIndex;
+  const shipState = battle.ships[shipIndex];
+  if (!shipState?.active || shipState.playerControlled) {
+    lakeBattleMode.commandRects = [];
+    return;
+  }
+  const actions = shipState.sideId === battle.playerSideId
+    ? [
+        { action: "follow", label: "FOLLOW ME" },
+        { action: "attack", label: "ATTACK" },
+        { action: "retreat", label: "RETREAT" }
+      ]
+    : [{ action: "target", label: "TARGET SHIP" }];
+  const point = historicalBattleWorldToScreen(shipState);
+  const width = 74;
+  const height = 17;
+  const gap = 2;
+  const totalHeight = actions.length * height + (actions.length - 1) * gap;
+  const x = clamp(Math.round(point.x + 14), 3, SCREEN_W - width - 3);
+  const y = clamp(Math.round(point.y - totalHeight / 2), 31, SCREEN_H - totalHeight - 4);
+  lakeBattleMode.commandRects = actions.map((entry, index) => ({
+    ...entry,
+    rect: { x, y: y + index * (height + gap), w: width, h: height }
+  }));
+  for (const entry of lakeBattleMode.commandRects) {
+    drawShipInfoArrowButton(
+      entry.rect,
+      entry.label,
+      pointInRect(lakeBattleMode.hoverPoint, entry.rect)
+    );
+  }
+}
+
+function drawHistoricalBattleSetup() {
+  const panel = lakeBattleSetupPanelRect();
+  ctx.save();
+  drawPiratePaperModal(panel, 0.78);
+  drawOptionsText("HISTORICAL BATTLES", panel.x + panel.w / 2, panel.y + 9, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  const rowHeight = 43;
+  const rowGap = 3;
+  const firstY = panel.y + 25;
+  const selectorRects = Array.from({ length: 3 }, (_, index) => ({
+    x: panel.x + 8,
+    y: firstY + index * (rowHeight + rowGap),
+    w: panel.w - 16,
+    h: rowHeight
+  }));
+  const beginRect = {
+    x: panel.x + Math.floor((panel.w - 166) / 2),
+    y: selectorRects[2].y + rowHeight + 6,
+    w: 166,
+    h: 24
+  };
+  const backRect = { ...beginRect, y: beginRect.y + 27 };
+  lakeBattleMode.rowRects = [...selectorRects, beginRect, backRect];
+
+  const scenario = selectedHistoricalBattleScenario();
+  const side = selectedHistoricalBattleSide();
+  const squadron = selectedHistoricalBattleSquadron();
+  drawHistoricalBattleSelector(
+    selectorRects[0],
+    "BATTLE",
+    scenario.title,
+    `${scenario.date} / ${scenario.location}`,
+    HISTORICAL_BATTLE_SETUP_SCENARIO_ROW,
+    "scenario"
+  );
+  drawHistoricalBattleSelector(
+    selectorRects[1],
+    "SIDE",
+    side.name,
+    `${side.squadrons.reduce((total, entry) => total + entry.count, 0)} SHIPS`,
+    HISTORICAL_BATTLE_SETUP_SIDE_ROW,
+    "side"
+  );
+  drawHistoricalBattleSelector(
+    selectorRects[2],
+    "SQUADRON",
+    squadron.name,
+    `${squadron.count} SHIPS / ${squadron.commander}`,
+    HISTORICAL_BATTLE_SETUP_SQUADRON_ROW,
+    "squadron"
+  );
+  drawStartMenuButton(
+    beginRect,
+    lakeBattleMode.loading ? "LOADING FLEETS..." : "TAKE COMMAND",
+    lakeBattleMode.selectedIndex === HISTORICAL_BATTLE_SETUP_BEGIN_ROW,
+    "action:attack"
+  );
+  drawStartMenuButton(
+    backRect,
+    "BACK",
+    lakeBattleMode.selectedIndex === HISTORICAL_BATTLE_SETUP_BACK_ROW,
+    "action:back"
+  );
+  if (lakeBattleMode.error) {
+    drawOptionsText(
+      fitPixelText(lakeBattleMode.error, PIXEL_FONT_SMALL_8, panel.w - 20),
+      panel.x + panel.w / 2,
+      panel.y + panel.h - 7,
+      { align: "center", color: "#f68181" }
+    );
+  }
+  ctx.restore();
+}
+
+function drawHistoricalBattleSelector(rect, label, value, detail, row, selectorKind) {
+  const selected = lakeBattleMode.selectedIndex === row;
+  drawPiratePaperInset(rect, selected);
+  const arrowSize = 22;
+  const leftRect = { x: rect.x + 3, y: rect.y + 10, w: arrowSize, h: arrowSize };
+  const rightRect = { x: rect.x + rect.w - arrowSize - 3, y: rect.y + 10, w: arrowSize, h: arrowSize };
+  lakeBattleMode.leftArrowRects[row] = leftRect;
+  lakeBattleMode.rightArrowRects[row] = rightRect;
+  drawShipInfoArrowButton(leftRect, "<", pointInRect(lakeBattleMode.hoverPoint, leftRect));
+  drawShipInfoArrowButton(rightRect, ">", pointInRect(lakeBattleMode.hoverPoint, rightRect));
+  const textX = leftRect.x + leftRect.w + 6;
+  const textWidth = rightRect.x - textX - 5;
+  drawOptionsText(label, textX, rect.y + 4, {
+    color: selected ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED
+  });
+  drawOptionsText(
+    fitPixelText(value.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth),
+    textX,
+    rect.y + 16,
+    { color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    fitPixelText(detail.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth),
+    textX,
+    rect.y + 28,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+  if (!selectorKind) throw new Error("Historical battle selector kind is required");
+}
+
+function drawHistoricalBattleField(battle, nowMs) {
+  drawHistoricalBattleMap(battle.map);
+  drawHistoricalBattleProjectiles(battle);
+  drawHistoricalBattleShips(battle, nowMs);
+  drawHistoricalBattleHud(battle);
+  drawHistoricalBattleMinimap(battle);
+}
+
+function drawHistoricalBattleMap(map) {
+  const cameraValue = lakeBattleMode.camera;
+  if (!cameraValue) throw new Error("Historical battle map has no camera");
+  const terrainChart = ensureHistoricalBattleTerrainChart(map);
+  ctx.fillStyle = "#1f3650";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  const offsetX = Math.round(SCREEN_W / 2 - cameraValue.x);
+  const offsetY = Math.round(SCREEN_H / 2 - cameraValue.y);
+  const viewport = {
+    minX: cameraValue.x - SCREEN_W / 2 - TILE_ART_SIZE,
+    minY: cameraValue.y - SCREEN_H / 2 - TILE_ART_SIZE,
+    maxX: cameraValue.x + SCREEN_W / 2 + TILE_ART_SIZE,
+    maxY: cameraValue.y + SCREEN_H / 2 + TILE_ART_SIZE
+  };
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  drawTerrainConnectorFaces(terrainChart.faceCalls, terrainChart, {
+    viewportBounds: viewport,
+    waveClockMs: waterAnimationClockMs,
+    visibleDetailCalls: []
+  });
+  for (const tile of terrainChart.tileCalls) {
+    if (
+      tile.drawSurfaceX < viewport.minX || tile.drawSurfaceX > viewport.maxX ||
+      tile.drawSurfaceY < viewport.minY || tile.drawSurfaceY > viewport.maxY
+    ) continue;
+    drawTile(ctx, tile, terrainChart, { surfaceIce: false });
+  }
+  ctx.restore();
+  drawHistoricalBattleArenaBoundary(map);
+}
+
+function ensureHistoricalBattleTerrainChart(map) {
+  const key = `historical:${map.id}:${map.width}x${map.height}`;
+  if (lakeBattleTerrainChart && lakeBattleTerrainChartKey === key) return lakeBattleTerrainChart;
+  lakeBattleTerrainChart = buildLakeBattleTerrainChart(map);
+  lakeBattleTerrainChartKey = key;
+  return lakeBattleTerrainChart;
+}
+
+function drawHistoricalBattleArenaBoundary(map) {
+  const topLeft = historicalBattleWorldToScreen({ x: 0, y: 0 });
+  const bottomRight = historicalBattleWorldToScreen({ x: map.width, y: map.height });
+  ctx.save();
+  ctx.strokeStyle = "#f4e9d0";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(
+    Math.round(topLeft.x) + 0.5,
+    Math.round(topLeft.y) + 0.5,
+    Math.round(bottomRight.x - topLeft.x) - 1,
+    Math.round(bottomRight.y - topLeft.y) - 1
+  );
+  ctx.restore();
+}
+
+function drawHistoricalBattleProjectiles(battle) {
+  for (const projectile of battle.projectiles) {
+    const t = clamp(projectile.ageSeconds / projectile.durationSeconds, 0, 1);
+    const point = historicalBattleWorldToScreen({
+      x: projectile.startX + (projectile.targetX - projectile.startX) * t,
+      y: projectile.startY + (projectile.targetY - projectile.startY) * t
+    });
+    if (point.x < -2 || point.x > SCREEN_W + 2 || point.y < -2 || point.y > SCREEN_H + 2) continue;
+    const size = projectile.projectileSize || (projectile.kind === "cannon" ? 2 : 1);
+    ctx.fillStyle = projectile.kind === "arrow" ? "#4c3e24" : "#2e222f";
+    ctx.fillRect(
+      Math.round(point.x) - Math.floor(size / 2),
+      Math.round(point.y) - Math.floor(size / 2),
+      size,
+      size
+    );
+  }
+}
+
+function drawHistoricalBattleShips(battle, nowMs) {
+  const visible = historicalBattleVisibleShips(battle, lakeBattleMode.camera, SCREEN_W, SCREEN_H)
+    .sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
+  for (const shipState of visible) drawHistoricalBattleShip(battle, shipState, nowMs);
+}
+
+function drawHistoricalBattleShip(battle, shipState, nowMs) {
+  const asset = lakeBattleShipAssets.get(shipState.shipSlug) || residentShipVisualAsset(shipState.shipSlug);
+  if (!asset) throw new Error(`Missing historical battle ship asset: ${shipState.shipSlug}`);
+  const frameAsset = rowingShipFrameAsset({
+    id: shipState.id,
+    kind: shipState.playerControlled ? "player" : "npc",
+    slug: shipState.shipSlug,
+    img: asset.image,
+    sinkDepthImg: asset.sinkDepthImage,
+    rowing: shipState.rowing,
+    rowingMode: shipState.rowingMode,
+    bobSeed: shipState.slotIndex * 13 + shipState.sideIndex * 101
+  }, nowMs);
+  const screenPoint = historicalBattleWorldToScreen(shipState);
+  const frame = headingFrameForScreenHeading({
+    x: Math.cos(shipState.headingRad),
+    y: Math.sin(shipState.headingRad)
+  });
+  const x = Math.round(screenPoint.x - SHIP_SHEET_FRAME_SIZE / 2);
+  const y = Math.round(screenPoint.y - SHIP_SHEET_FRAME_SIZE / 2);
+  ctx.save();
+  if (!shipState.active && !shipState.surrendered) {
+    ctx.globalAlpha = clamp(shipState.sinkingSeconds / 2.8, 0.15, 0.75);
+  }
+  const call = {
+    id: shipState.id,
+    kind: shipState.playerControlled ? "player" : "npc",
+    slug: shipState.shipSlug,
+    img: frameAsset.image,
+    sinkDepthImg: frameAsset.sinkDepthImage,
+    frame,
+    x,
+    y,
+    combatAllegiance: shipState.sideId === battle.playerSideId ? "ally" : "enemy"
+  };
+  const layers = shipWaterlineLayers(call.img, call.sinkDepthImg, frame, call.slug);
+  drawShipCombatOutline(call, layers);
+  drawLakeBattleSpriteFrame(frameAsset.image, frame, x, y);
+  drawHistoricalBattleShipFlag(shipState, frameAsset, frame, x, y, nowMs, call.combatAllegiance);
+  ctx.restore();
+}
+
+function drawHistoricalBattleShipFlag(shipState, frameAsset, frame, x, y, nowMs, allegiance) {
+  const anchor = requiredShipFlagAnchor(
+    shipState.shipSlug,
+    frame,
+    frameAsset.rowingFrameIndex
+  );
+  const layout = shipFlagLayout({
+    anchorX: x + anchor.x,
+    anchorY: y + anchor.y,
+    poleHeight: NPC_SHIP_FLAG_POLE_H,
+    flagWidth: NPC_SHIP_FLAG_W,
+    flagHeight: NPC_SHIP_FLAG_H
+  });
+  ctx.fillStyle = "#4c3e24";
+  ctx.fillRect(layout.pole.x, layout.pole.y, layout.pole.w, layout.pole.h);
+  if (shipState.surrendered) {
+    ctx.fillStyle = "#f4e9d0";
+    ctx.fillRect(layout.pole.x + 1, layout.pole.y + layout.pole.h - 4, 4, 2);
+    return;
+  }
+  drawWavingFactionFlag(
+    shipState.factionId,
+    layout.flag.x,
+    layout.flag.y,
+    layout.flag.w,
+    layout.flag.h,
+    flagWavePhase(nowMs, shipState.slotIndex + shipState.sideIndex * 997),
+    { outlineColor: shipCombatAllegianceColor(allegiance) }
+  );
+}
+
+function drawHistoricalBattleHud(battle) {
+  const playerSide = historicalBattleSideSummary(battle, battle.playerSideId);
+  const enemySide = battle.sides.find((side) => side.id !== battle.playerSideId);
+  if (!enemySide) throw new Error("Historical battle HUD has no enemy side");
+  const panelWidth = Math.min(154, Math.floor((SCREEN_W - 38) / 2));
+  drawHistoricalBattleStrengthPanel(playerSide, 4, 4, panelWidth, false);
+  drawHistoricalBattleStrengthPanel(enemySide, SCREEN_W - panelWidth - 32, 4, panelWidth, true);
+  const squadron = historicalBattleSquadronSummary(battle, battle.playerSquadronId);
+  const label = `${squadron.name.toUpperCase()} ${squadron.remainingShips}/${squadron.startingShips}`;
+  const width = Math.min(SCREEN_W - 16, measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 12);
+  ctx.fillStyle = "rgba(21, 29, 32, 0.78)";
+  ctx.fillRect(4, SCREEN_H - 19, width, 15);
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, width - 8), 8, SCREEN_H - 15, {
+    font: PIXEL_FONT_SMALL_8,
+    color: "#f6e6c3"
+  });
+}
+
+function drawHistoricalBattleStrengthPanel(side, x, y, width, alignRight) {
+  ctx.fillStyle = "rgba(21, 29, 32, 0.78)";
+  ctx.fillRect(x, y, width, 25);
+  drawOptionsText(fitPixelText(side.name.toUpperCase(), PIXEL_FONT_SMALL_8, width - 8), alignRight ? x + width - 4 : x + 4, y + 4, {
+    font: PIXEL_FONT_SMALL_8,
+    align: alignRight ? "right" : "left",
+    color: "#f6e6c3"
+  });
+  drawOptionsText(`${side.remainingShips}/${side.startingShips} SHIPS`, alignRight ? x + width - 4 : x + 4, y + 14, {
+    font: PIXEL_FONT_SMALL_8,
+    align: alignRight ? "right" : "left",
+    color: side.color
+  });
+}
+
+function drawHistoricalBattleMinimap(battle) {
+  const width = Math.min(112, Math.floor(SCREEN_W * 0.3));
+  const height = Math.max(42, Math.round(width * battle.map.height / battle.map.width));
+  const x = SCREEN_W - width - 5;
+  const y = SCREEN_H - height - 5;
+  ctx.fillStyle = "rgba(21, 29, 32, 0.84)";
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = "#9babb2";
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+  for (const shipState of battle.ships) {
+    if (!shipState.active) continue;
+    const px = x + Math.floor(shipState.x / battle.map.width * (width - 2)) + 1;
+    const py = y + Math.floor(shipState.y / battle.map.height * (height - 2)) + 1;
+    ctx.fillStyle = shipState.playerControlled ? "#ffffff" : battle.sides[shipState.sideIndex].color;
+    ctx.fillRect(px, py, shipState.playerControlled ? 2 : 1, shipState.playerControlled ? 2 : 1);
+  }
+  const viewportX = x + (lakeBattleMode.camera.x - SCREEN_W / 2) / battle.map.width * width;
+  const viewportY = y + (lakeBattleMode.camera.y - SCREEN_H / 2) / battle.map.height * height;
+  ctx.strokeStyle = "#c7dcd0";
+  ctx.strokeRect(
+    Math.round(viewportX) + 0.5,
+    Math.round(viewportY) + 0.5,
+    Math.max(3, Math.round(SCREEN_W / battle.map.width * width)),
+    Math.max(3, Math.round(SCREEN_H / battle.map.height * height))
+  );
+}
+
+function drawHistoricalBattleBroadsideControls(battle) {
+  const player = historicalBattlePlayerShip(battle);
+  const visibleEnemies = historicalBattleVisibleShips(battle, lakeBattleMode.camera, SCREEN_W, SCREEN_H)
+    .filter((shipState) => shipState.active && shipState.sideIndex !== player.sideIndex);
+  for (const sideName of ["port", "starboard"]) {
+    const arc = historicalBattleBroadsideArc(sideName);
+    const targetInArc = visibleEnemies.some((target) => (
+      pointInBroadsideArc(historicalBattleWorldToScreen(target), arc, 7)
+    ));
+    drawBroadsideReloadIndicator(
+      arc,
+      player.cooldowns[sideName],
+      player.weapon?.reloadSeconds || 1,
+      targetInArc,
+      sideName === "port" ? "firePort" : "fireStarboard"
+    );
+  }
+}
+
+function historicalBattlePauseButtonRect() {
+  return { x: SCREEN_W - 27, y: 32, w: 22, h: 22 };
 }
 
 function ensureLakeBattleTerrainChart() {
@@ -33796,11 +34897,15 @@ function drawLakeBattleActionOverlay(title, actions) {
   for (let index = 0; index < actions.length; index++) {
     drawStartMenuButton(
       lakeBattleMode.actionRects[index],
-      actions[index],
+      lakeBattleActionLabel(actions[index]),
       lakeBattleMode.selectedIndex === index,
       menuLabelIconId(actions[index])
     );
   }
+}
+
+function lakeBattleActionLabel(action) {
+  return action === "CHOOSE BATTLE" ? uiText("battle.choose") : action;
 }
 
 function drawStartMenu(nowMs) {

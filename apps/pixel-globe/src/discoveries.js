@@ -15,7 +15,17 @@ export const EL_DORADO_DISCOVERY_LON = -73.2516;
 export const EL_DORADO_DISCOVERY_RADIUS_PX = 54;
 export const CIRCUMNAVIGATION_DISCOVERY_ID = "achievement-circumnavigation";
 export const MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY = "mountain_snowy_01";
+export const DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
+export const MOUNT_SHASTA_DISCOVERY_RADIUS_PX = 140;
+export const MAX_MOUNTAIN_DISCOVERY_RADIUS_PX = Math.max(
+  DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX,
+  MOUNT_SHASTA_DISCOVERY_RADIUS_PX
+);
 export const WATER_DISCOVERY_MENU_SPRITE_KEY = "water_shallow_01";
+
+const MOUNTAIN_DISCOVERY_RADIUS_OVERRIDES = new Map([
+  ["Mount Shasta", MOUNT_SHASTA_DISCOVERY_RADIUS_PX]
+]);
 
 const GRAND_CANAL_ROUTE_COORDINATES = Object.freeze([
   Object.freeze({ lat: 39.92, lon: 116.21 }),
@@ -424,7 +434,8 @@ export function mountainDiscovery(mountain) {
     lat: mountain.lat,
     lon: mountain.lon,
     tileId: mountain.tileId,
-    radiusPx: 120,
+    radiusPx: MOUNTAIN_DISCOVERY_RADIUS_OVERRIDES.get(mountain.displayName) ??
+      DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX,
     menuTerrainSpriteKey: MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY
   };
 }

@@ -1,4 +1,5 @@
 const SHALLOW_WATER_ELEVATION = -0.20500000000000002;
+const LAKE_MALAWI_ELEVATION = -0.0369949146978479;
 
 export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze([
@@ -7,6 +8,17 @@ export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
     31618, // Mozambique's southwest island channel.
     125890, // Mozambique's northwest island channel.
     125896 // Mozambique's northeast island channel.
+  ])
+});
+
+// Lake Malawi is narrower than a subdivision-seven hex in places. The base
+// terrain bake leaves three false land barriers across its centerline even
+// though its southern outlet correctly joins the Shire River.
+export const MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
+  7: Object.freeze([
+    Object.freeze({ tileId: 124778, sourceTerrain: "humid_subtropical" }),
+    Object.freeze({ tileId: 7886, sourceTerrain: "humid_subtropical" }),
+    Object.freeze({ tileId: 31571, sourceTerrain: "subtropical_highland" })
   ])
 });
 
@@ -420,9 +432,11 @@ export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
 export function applyManualTerrainOverrides(earthRows, subdivisions) {
   if (!Array.isArray(earthRows)) throw new Error("Manual terrain overrides require Earth tile rows");
   const shallowWaterTileIds = MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS[subdivisions] || [];
+  const lakeOverrides = MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS[subdivisions] || [];
   const landOverrides = MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[subdivisions] || [];
   if (
     shallowWaterTileIds.length === 0 &&
+    lakeOverrides.length === 0 &&
     landOverrides.length === 0
   ) return earthRows;
 
@@ -435,6 +449,21 @@ export function applyManualTerrainOverrides(earthRows, subdivisions) {
       t: "beach",
       e: SHALLOW_WATER_ELEVATION,
       o: 1
+    };
+  }
+  for (const override of lakeOverrides) {
+    const source = manualTerrainSource(earthRows, override.tileId, "lake");
+    if (source.t !== override.sourceTerrain) {
+      throw new Error(
+        `Manual lake tile ${override.tileId} is ${source.t}, expected ${override.sourceTerrain}`
+      );
+    }
+    const { h: _hill, l: _lake, m: _landmass, o: _ocean, ...shared } = source;
+    correctedRows[override.tileId] = {
+      ...shared,
+      t: "lake",
+      e: LAKE_MALAWI_ELEVATION,
+      l: 11
     };
   }
   for (const override of landOverrides) {

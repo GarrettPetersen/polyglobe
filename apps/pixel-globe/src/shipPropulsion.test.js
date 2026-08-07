@@ -19,7 +19,8 @@ import {
   shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
-  shipPropulsionPerformance
+  shipPropulsionPerformance,
+  shipVelocityLimitAfterPropulsion
 } from "./shipPropulsion.js";
 
 test("world and lake sailing share one drag curve", () => {
@@ -29,6 +30,28 @@ test("world and lake sailing share one drag curve", () => {
     Math.exp(-SHIP_DRAG_PER_SECOND * SHIP_STALLED_DRAG_MULTIPLIER)
   );
   assert.ok(shipDragFactor(true, 1) < shipDragFactor(false, 1));
+});
+
+test("propulsion limits preserve externally imparted motion through drag", () => {
+  const dragFactor = shipDragFactor(true, 1 / 60);
+  const whaleTowSpeed = 0.012;
+
+  assert.equal(
+    shipVelocityLimitAfterPropulsion({
+      poweredSpeedLimitRad: 0,
+      priorSpeedRad: whaleTowSpeed,
+      dragFactor
+    }),
+    whaleTowSpeed * dragFactor
+  );
+  assert.equal(
+    shipVelocityLimitAfterPropulsion({
+      poweredSpeedLimitRad: 0.008,
+      priorSpeedRad: 0,
+      dragFactor
+    }),
+    0.008
+  );
 });
 
 test("the shared sail curve stalls upwind and peaks across the wind", () => {

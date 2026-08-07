@@ -1558,7 +1558,7 @@ export function selectPortDialogueOption(
       random: context.missionGiftRandom || neverGrantMissionItem,
       context
     });
-    session.feedback = `${result.event.successText} The household paid ${payment.amount} db.`;
+    session.feedback = `${result.event.successText} The hosts paid ${payment.amount} db.`;
     if (missionItemGift) session.feedback += ` The chef also gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return {
@@ -2769,7 +2769,7 @@ function rootView(session, city, gameState, economy, context) {
   }
   const chefQuest = chefQuestState(gameState, city);
   if (chefQuest && chefQuest.stage !== CHEF_QUEST_STAGE_RECRUITED && !session.disguisedEntry) {
-    options.splice(4, 0, option("Speak with the banquet chef", {
+    options.splice(4, 0, option("Speak with the cook", {
       type: "node",
       nodeId: "chef-quest"
     }));
@@ -3088,7 +3088,7 @@ function vikingLongshipView(session, city, gameState, context) {
 function chefQuestView(session, city, gameState) {
   const quest = chefQuestState(gameState, city);
   if (!quest) throw new Error("Chef dialogue opened outside its origin port");
-  const speaker = `${characterName(city.character)}, chef`;
+  const speaker = `${characterName(city.character)}, cook`;
   const back = session.chefQuestArrival
     ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
     : option("Back", { type: "node", nodeId: "root" });
@@ -3124,7 +3124,7 @@ function chefQuestView(session, city, gameState) {
     return {
       speaker,
       expressionId: "happy",
-      text: `${quest.event.successText} Now I want to see beyond this harbor. Give me a berth, and I will make your provisions last.`,
+      text: `${quest.event.successText} Now I want to see beyond this shore. Give me a berth, and I will make your provisions last.`,
       feedback: session.feedback,
       options: [
         option("Welcome aboard", { type: "recruit-chef" }, {

@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { buildGeodesicGraph } from "./geodesic.js";
 import {
+  MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS,
   MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS,
   MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS,
   applyManualTerrainOverrides,
@@ -16,6 +17,7 @@ const GULF_OF_KHAMBHAT_TILE_ID = 38891;
 const GULF_OF_KHAMBHAT_OUTLET_TILE_ID = 38903;
 const MOZAMBIQUE_ISLAND_TILE_ID = 125893;
 const MOZAMBIQUE_CHANNEL_TILE_IDS = Object.freeze([31618, 125890, 125896]);
+const LAKE_MALAWI_GAP_TILE_IDS = Object.freeze([124778, 7886, 31571]);
 const ITALY_SALENTO_TILE_ID = 98761;
 const ITALY_ADJOINING_LAND_TILE_ID = 98762;
 const repoRoot = new URL("../../../", import.meta.url);
@@ -118,6 +120,41 @@ test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", as
   assert.equal(correctedRows[38890], earth.tiles[38890]);
   assert.ok(Math.abs(graph.latDeg[GULF_OF_KHAMBHAT_TILE_ID] - 22.2082) < 0.01);
   assert.ok(Math.abs(graph.lonDeg[GULF_OF_KHAMBHAT_TILE_ID] - 72.5391) < 0.01);
+});
+
+test("Lake Malawi terrain gaps are restored as one continuous lake", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+  const lakeCenterline = [
+    31333, 124778, 7886, 124560, 124561,
+    124564, 31274, 125693, 31571, 125695
+  ];
+
+  assert.deepEqual(
+    MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS[SUBDIVISIONS]
+      .map((override) => override.tileId),
+    LAKE_MALAWI_GAP_TILE_IDS
+  );
+  for (const tileId of LAKE_MALAWI_GAP_TILE_IDS) {
+    assert.equal(correctedRows[tileId].t, "lake");
+    assert.equal(correctedRows[tileId].l, 11);
+    assert.equal(correctedRows[tileId].m, undefined);
+    assert.equal(correctedRows[tileId].h, undefined);
+  }
+  for (let index = 0; index < lakeCenterline.length - 1; index++) {
+    const tileId = lakeCenterline[index];
+    const nextTileId = lakeCenterline[index + 1];
+    assert.equal(correctedRows[tileId].t, "lake");
+    assert.equal(
+      graph.neighbors[tileId].includes(nextTileId),
+      true,
+      `Lake Malawi centerline breaks between ${tileId} and ${nextTileId}`
+    );
+  }
 });
 
 test("Mozambique is a distinct island surrounded by navigable coastal water", async () => {

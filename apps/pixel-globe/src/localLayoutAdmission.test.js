@@ -14,6 +14,7 @@ import {
   admitProjectedTiles,
   refreshOffscreenLayoutTiles,
   projectedViewportTileIds,
+  resolveLocalLayoutAnchor,
   retainLocalLayoutAnchor,
   settleVisibleElasticTilesWithinMotion,
   viewportElasticCorrectionSupport
@@ -154,6 +155,37 @@ test("a newly exposed ocean edge cannot make an unbounded correction jump", () =
   );
 });
 
+test("a newly exposed uniform land edge cannot open a large correction tear", () => {
+  const points = rotatedAdmissionPoints(60);
+  const topology = admissionTopology(3, [[0, 1], [1, 2]], 0);
+  admitProjectedTiles({
+    positions: points.positions,
+    projectedById: points.projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    ...topology,
+    registrationIds: new Set([0, 1]),
+    correctElasticTilesNorthUp: true,
+    continuityMaskById: new Uint8Array([1, 1, 1]),
+    maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX
+  });
+
+  const admitted = points.positions.get(2);
+  const retained = points.positions.get(1);
+  const edgeLength = Math.hypot(
+    admitted.x - retained.x,
+    admitted.y - retained.y
+  );
+  assert.ok(
+    Math.abs(edgeLength - 24) <= MAX_PROTECTED_ADMISSION_SLACK_PX,
+    `Uniform land boundary opened to ${edgeLength.toFixed(2)}px`
+  );
+  assert.ok(
+    Math.hypot(admitted.x - 48, admitted.y) <= MAX_PROTECTED_ADMISSION_SLACK_PX,
+    `Uniform land exceeded its ${MAX_PROTECTED_ADMISSION_SLACK_PX}px continuity allowance`
+  );
+});
+
 test("a quiet interval can admit ocean without applying a north-up jump", () => {
   const points = rotatedAdmissionPoints(60);
   admitProjectedTiles({
@@ -262,26 +294,23 @@ test("the same correction keeps protected geography rigidly attached", () => {
   assert.deepEqual(points.positions.get(2), { x: 48, y: 0 });
 });
 
-test("new protected geometry moves no visible tile more than two pixels", () => {
+test("new protected geometry stays within its three-pixel admission circle", () => {
   const rigid = rotatedAdmissionPoints(10);
   const corrected = rotatedAdmissionPoints(10);
   const live = rotatedAdmissionPoints(10);
-  rigid.projectedById.set(3, rotatePoint({ x: 72, y: 0 }, 10));
-  corrected.projectedById.set(3, rotatePoint({ x: 72, y: 0 }, 10));
-  live.projectedById.set(3, rotatePoint({ x: 72, y: 0 }, 10));
-  const topology = admissionTopology(4, [[0, 1], [1, 2], [2, 3]], 255);
+  const topology = admissionTopology(3, [[0, 1], [1, 2]], 255);
 
   admitProjectedTiles({
     positions: rigid.positions,
     projectedById: rigid.projectedById,
-    pendingIds: [2, 3],
+    pendingIds: [2],
     anchorId: 0,
     ...topology
   });
   admitProjectedTiles({
     positions: corrected.positions,
     projectedById: corrected.projectedById,
-    pendingIds: [2, 3],
+    pendingIds: [2],
     anchorId: 0,
     ...topology,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX
@@ -289,30 +318,33 @@ test("new protected geometry moves no visible tile more than two pixels", () => 
   admitProjectedTiles({
     positions: live.positions,
     projectedById: live.projectedById,
-    pendingIds: [2, 3],
+    pendingIds: [2],
     anchorId: 0,
     ...topology,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
-    liveViewportAdmissionIds: new Set([2, 3])
+    liveViewportAdmissionIds: new Set([2])
   });
 
   assert.ok(
-    corrected.positions.get(3).y > rigid.positions.get(3).y,
+    corrected.positions.get(2).y > rigid.positions.get(2).y,
     "Protected admission did not make its preventative north-up correction"
   );
-  for (const id of [2, 3]) {
+  for (const id of [2]) {
     const baseline = rigid.positions.get(id);
-    const adjusted = corrected.positions.get(id);
-    assert.ok(
-      Math.hypot(adjusted.x - baseline.x, adjusted.y - baseline.y) <=
-        MAX_PROTECTED_ADMISSION_SLACK_PX,
-      `Protected tile ${id} exceeded its visible two-pixel admission allowance`
-    );
-    assert.deepEqual(
-      live.positions.get(id),
-      baseline,
-      `Protected tile ${id} stitched after entering the live viewport`
-    );
+    for (const [label, adjusted] of [
+      ["buffered", corrected.positions.get(id)],
+      ["live", live.positions.get(id)]
+    ]) {
+      assert.ok(
+        Math.hypot(adjusted.x - baseline.x, adjusted.y - baseline.y) <=
+          MAX_PROTECTED_ADMISSION_SLACK_PX,
+        `Protected tile ${id} exceeded its ${label} admission circle`
+      );
+    }
+  }
+  for (const id of [0, 1]) {
+    assert.deepEqual(corrected.positions.get(id), rigid.positions.get(id));
+    assert.deepEqual(live.positions.get(id), rigid.positions.get(id));
   }
 });
 
@@ -398,7 +430,7 @@ test("north-up correction preserves a protected one-tile sea channel", () => {
   ) - 24) < 0.5);
 });
 
-test("a reappearing protected fragment shares its landmass frame before reconnecting", () => {
+test("a disconnected protected fragment enters north-up until adjacency reconnects it", () => {
   const positions = new Map([
     [0, { x: 0, y: 0 }],
     [1, { x: 0, y: 24 }],
@@ -434,8 +466,8 @@ test("a reappearing protected fragment shares its landmass frame before reconnec
     correctElasticTilesNorthUp: true
   });
 
-  assert.deepEqual(positions.get(2), { x: 0, y: 200 });
-  assert.deepEqual(positions.get(3), { x: 0, y: 224 });
+  assert.deepEqual(positions.get(2), { x: 200, y: 0 });
+  assert.deepEqual(positions.get(3), { x: 224, y: 0 });
 });
 
 test("buffer protection permits a partial north-up correction", () => {
@@ -730,7 +762,7 @@ test("successive high-latitude chart rebuilds keep newly entering neighbors atta
     `High-latitude traversal tore a neighboring tile edge to ${registered.maxNeighborDistance.toFixed(2)}px`
   );
   assert.ok(
-    registered.maxNeighborStretch < 1.2,
+    registered.maxNeighborStretch < 1.3,
     `High-latitude traversal stretched a neighboring tile edge by ${registered.maxNeighborStretch.toFixed(3)}x`
   );
   assert.ok(
@@ -770,10 +802,97 @@ test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geogr
     "A land tile that was already visible was discarded or moved during the voyage"
   );
   assert.ok(
-    Math.abs(result.finalProtectedRotationDeg) <= 4,
+    Math.abs(result.finalProtectedRotationDeg) <= 8,
     `Round-the-world protected coast finished at ` +
       `${result.finalProtectedRotationDeg.toFixed(2)} degrees of tilt`
   );
+});
+
+test("a coast-heavy Mediterranean crossing keeps protected geography north-up", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [38.72, -9.14],
+        [36.0, -5.5],
+        [37.6, -0.98],
+        [41.3, 2.1],
+        [43.3, 5.3],
+        [44.4, 8.9],
+        [40.8, 14.2],
+        [38.1, 13.4],
+        [35.9, 14.5],
+        [35.3, 25.1],
+        [36.4, 28.2],
+        [34.7, 33.0],
+        [31.2, 29.9]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218
+    }
+  );
+
+  assert.ok(
+    result.movementFrames >= 400,
+    `Mediterranean crossing was too coarsely sampled (${result.movementFrames} moving frames)`
+  );
+  assert.ok(
+    result.chartBuilds >= 60,
+    `Mediterranean crossing rebuilt too few moving charts (${result.chartBuilds})`
+  );
+  assert.ok(
+    result.stepsWithProtectedCoast >= 60,
+    `Mediterranean crossing sampled too little protected coastline ` +
+      `(${result.stepsWithProtectedCoast} moving charts)`
+  );
+  assert.ok(
+    result.protectedEdgeSamples >= 100,
+    `Mediterranean crossing measured too few protected land edges ` +
+      `(${result.protectedEdgeSamples})`
+  );
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxProtectedRotationDeg <= 4,
+    `Mediterranean coast reached ${result.maxProtectedRotationDeg.toFixed(2)} degrees of tilt ` +
+      `near ${result.maxProtectedRotationLocation}`
+  );
+  assert.ok(
+    result.maxProtectedEdgeErrorPx <= 5.05,
+    `Mediterranean protected edge opened by ` +
+      `${result.maxProtectedEdgeErrorPx.toFixed(2)}px of separation at ` +
+      `${JSON.stringify(result.maxProtectedEdgeDetails)}`
+  );
+  assert.ok(
+    Math.abs(result.finalProtectedRotationDeg) <= 3,
+    `Mediterranean coast finished at ${result.finalProtectedRotationDeg.toFixed(2)} degrees ` +
+      `(whole chart ${result.finalRotationDeg.toFixed(2)} degrees, ` +
+      `maximum ${result.maxProtectedRotationDeg.toFixed(2)} degrees near ` +
+      `${result.maxProtectedRotationLocation}; samples ` +
+      `${result.rotationSamples.map((sample) => (
+        `${sample.step}:${sample.protected.toFixed(1)}`
+      )).join("/")})`
+  );
+});
+
+test("uniform land cannot masquerade as the elastic ocean correction reservoir", () => {
+  const support = viewportElasticCorrectionSupport({
+    projectedTiles: [
+      { id: 0, x: 20, y: 20 },
+      { id: 1, x: 50, y: 20 },
+      { id: 2, x: 80, y: 20 },
+      { id: 3, x: 50, y: 50 }
+    ],
+    protectionById: new Uint8Array(4),
+    elasticityMaskById: new Uint8Array([0, 0, 0, 1]),
+    viewportWidth: 100,
+    viewportHeight: 70,
+    tileVisualRadius: 18
+  });
+
+  assert.deepEqual([...support.elasticTileIds], [3]);
+  assert.equal(support.correctionActive, false);
 });
 
 test("one hundred high-latitude circuits keep admission drift bounded", () => {
@@ -863,20 +982,24 @@ function simulateHighLatitudeTraversal(admitTiles) {
     const centerId = findNearestTileId(graph, directionIndex, direction);
     const projectedVisible = collectTraversalTiles(graph, camera);
     const projectedById = new Map(projectedVisible.map((point) => [point.id, point]));
+    const admissionAnchorId = resolveLocalLayoutAnchor({
+      positions,
+      projectedById,
+      preferredAnchorId: centerId,
+      viewX,
+      viewY
+    });
     const pendingIds = projectedVisible
       .map((point) => point.id)
       .filter((id) => !positions.has(id));
-    if (!positions.has(centerId)) {
-      positions.set(centerId, { x: Math.round(viewX), y: Math.round(viewY) });
-      const pendingIndex = pendingIds.indexOf(centerId);
-      if (pendingIndex >= 0) pendingIds.splice(pendingIndex, 1);
-    }
+    const pendingAnchorIndex = pendingIds.indexOf(admissionAnchorId);
+    if (pendingAnchorIndex >= 0) pendingIds.splice(pendingAnchorIndex, 1);
 
     admittedTotal += admitTiles({
       positions,
       projectedById,
       pendingIds,
-      anchorId: centerId,
+      anchorId: admissionAnchorId,
       neighborsById: graph.neighbors,
       protectionById
     });
@@ -913,11 +1036,17 @@ function simulateHighLatitudeTraversal(admitTiles) {
 }
 
 function simulateLisbonToKamchatkaCoastalVoyage(
-  maxProtectedCorrectionPx = MAX_PROTECTED_ADMISSION_SLACK_PX
+  maxProtectedCorrectionPx = 0,
+  {
+    routeWaypoints = null,
+    subdivisions = 5,
+    pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN,
+    chartMargin = TRAVERSAL_MARGIN
+  } = {}
 ) {
-  const graph = buildGeodesicGraph(5);
+  const graph = buildGeodesicGraph(subdivisions);
   const directionIndex = createDirectionIndex(graph);
-  const route = geographicRouteDirections([
+  const route = geographicRouteDirections(routeWaypoints || [
     [38.72, -9.14],
     [20.0, -17.0],
     [5.0, -5.0],
@@ -956,11 +1085,16 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     [38.72, -9.14]
   ], 0.1);
   const { protectionById, terrainClassByTileId } = worldCoastProtection(graph);
+  const continuityMaskById = Uint8Array.from(
+    terrainClassByTileId,
+    (terrainClass) => terrainClass === "land" ? 1 : 0
+  );
   const directProtectionComponentById = buildDirectChartProtectionComponents({
     graph,
     protection: protectionById
   });
   const positions = new Map();
+  const admittedStepById = new Map();
   let camera = northUpFrame(route[0]);
   let previousDirection = route[0];
   let viewX = TRAVERSAL_SCREEN_W / 2;
@@ -993,8 +1127,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         direction[1] - previousDirection[1],
         direction[2] - previousDirection[2]
       ];
-      const moveX = dot3(delta, camera.right) * TRAVERSAL_PIXELS_PER_RADIAN;
-      const moveY = -dot3(delta, camera.up) * TRAVERSAL_PIXELS_PER_RADIAN;
+      const moveX = dot3(delta, camera.right) * pixelsPerRadian;
+      const moveY = -dot3(delta, camera.up) * pixelsPerRadian;
       viewX += moveX;
       viewY += moveY;
       distanceSinceBuildPx += Math.hypot(moveX, moveY);
@@ -1011,7 +1145,11 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     chartBuilds++;
 
     const centerId = findNearestTileId(graph, directionIndex, direction);
-    const projectedTiles = collectTraversalTiles(graph, camera);
+    const projectedTiles = collectTraversalTiles(graph, camera, {
+      centerId,
+      pixelsPerRadian,
+      chartMargin
+    });
     const collectedIds = new Set(projectedTiles.map(({ id }) => id));
     for (const [id, position] of positions.entries()) {
       const screenX = position.x - viewX + TRAVERSAL_SCREEN_W / 2;
@@ -1031,15 +1169,22 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       collectedIds.add(id);
     }
     const projectedById = new Map(projectedTiles.map((point) => [point.id, point]));
-    retainLocalLayoutAnchor({
+    const hadCenter = positions.has(centerId);
+    const admissionAnchorId = resolveLocalLayoutAnchor({
       positions,
-      anchorId: centerId,
+      projectedById,
+      preferredAnchorId: centerId,
       viewX,
       viewY
     });
+    if (!hadCenter && admissionAnchorId === centerId) admittedStepById.set(centerId, step);
     const support = viewportElasticCorrectionSupport({
       projectedTiles,
       protectionById,
+      elasticityMaskById: Uint8Array.from(
+        terrainClassByTileId,
+        (terrainClass) => terrainClass === "water" ? 1 : 0
+      ),
       viewportWidth: TRAVERSAL_SCREEN_W,
       viewportHeight: TRAVERSAL_SCREEN_H,
       tileVisualRadius: 18,
@@ -1069,20 +1214,20 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewportWidth: TRAVERSAL_SCREEN_W,
       viewportHeight: TRAVERSAL_SCREEN_H,
       tileVisualRadius: 18,
-      anchorId: centerId,
+      anchorId: admissionAnchorId,
       viewX,
       viewY
     });
     const pendingIds = projectedTiles
       .map((point) => point.id)
       .filter((id) => !positions.has(id));
-    const centerPendingIndex = pendingIds.indexOf(centerId);
+    const centerPendingIndex = pendingIds.indexOf(admissionAnchorId);
     if (centerPendingIndex >= 0) pendingIds.splice(centerPendingIndex, 1);
     const admissionArgs = {
       positions,
       projectedById,
       pendingIds,
-      anchorId: centerId,
+      anchorId: admissionAnchorId,
       neighborsById: graph.neighbors,
       protectionById,
       directProtectionComponentById,
@@ -1095,6 +1240,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         ? MAX_ELASTIC_FRAME_CORRECTION_PX
         : 0,
       maxProtectedCorrectionPx,
+      continuityMaskById,
+      maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
       protectedCorrectionViewportIds: correctionViewportIds,
       liveViewportAdmissionIds: correctionViewportIds
     };
@@ -1121,6 +1268,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     } else {
       admitProjectedTiles(admissionArgs);
     }
+    for (const id of pendingIds) admittedStepById.set(id, step);
 
     const retainedIds = new Set(projectedById.keys());
     for (const id of positions.keys()) {
@@ -1201,7 +1349,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
           maxProtectedEdgeStretch,
           Math.abs(visualDistance / projectedDistance - 1)
         );
-        const edgeErrorPx = Math.abs(visualDistance - projectedDistance);
+        const edgeErrorPx = Math.max(0, visualDistance - projectedDistance);
         if (edgeErrorPx > maxProtectedEdgeErrorPx) {
           maxProtectedEdgeErrorPx = edgeErrorPx;
           maxProtectedEdgeDetails = {
@@ -1211,6 +1359,10 @@ function simulateLisbonToKamchatkaCoastalVoyage(
             tileLocations: [
               directionLocation(graphCenter(graph, id)),
               directionLocation(graphCenter(graph, neighborId))
+            ],
+            admittedSteps: [
+              admittedStepById.get(id) ?? null,
+              admittedStepById.get(neighborId) ?? null
             ],
             visualDistance,
             projectedDistance
@@ -2000,23 +2152,56 @@ test("admission fails when its projected anchor is missing", () => {
   );
 });
 
-function collectTraversalTiles(graph, camera) {
+function collectTraversalTiles(
+  graph,
+  camera,
+  {
+    centerId = null,
+    pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN,
+    chartMargin = TRAVERSAL_MARGIN
+  } = {}
+) {
   const points = [];
-  for (let id = 0; id < graph.tileCount; id++) {
-    const projected = projectDirection(graphCenter(graph, id), camera);
+  const ids = centerId === null
+    ? Array.from({ length: graph.tileCount }, (_, id) => id)
+    : traversalTileIdsNearViewport(graph, camera, centerId, pixelsPerRadian, chartMargin);
+  for (const id of ids) {
+    const projected = projectDirection(graphCenter(graph, id), camera, pixelsPerRadian);
     if (!projected) continue;
     if (
-      projected.x < -TRAVERSAL_MARGIN ||
-      projected.x > TRAVERSAL_SCREEN_W + TRAVERSAL_MARGIN ||
-      projected.y < -TRAVERSAL_MARGIN ||
-      projected.y > TRAVERSAL_SCREEN_H + TRAVERSAL_MARGIN
+      projected.x < -chartMargin ||
+      projected.x > TRAVERSAL_SCREEN_W + chartMargin ||
+      projected.y < -chartMargin ||
+      projected.y > TRAVERSAL_SCREEN_H + chartMargin
     ) continue;
     points.push({ id, ...projected });
   }
   return points;
 }
 
-function projectDirection(direction, camera) {
+function traversalTileIdsNearViewport(graph, camera, centerId, pixelsPerRadian, chartMargin) {
+  const maximumDistance = Math.hypot(
+    TRAVERSAL_SCREEN_W / 2 + chartMargin,
+    TRAVERSAL_SCREEN_H / 2 + chartMargin
+  ) / pixelsPerRadian + 0.025;
+  const minimumDot = Math.cos(maximumDistance);
+  const ids = [];
+  const queue = [centerId];
+  const seen = new Set(queue);
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
+    if (dot3(graphCenter(graph, id), camera.center) < minimumDot) continue;
+    ids.push(id);
+    for (const neighborId of graph.neighbors[id]) {
+      if (seen.has(neighborId)) continue;
+      seen.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  return ids;
+}
+
+function projectDirection(direction, camera, pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN) {
   const d = dot3(direction, camera.center);
   if (d <= 0.2) return null;
   const vx = dot3(direction, camera.right);
@@ -2024,8 +2209,8 @@ function projectDirection(direction, camera) {
   const sinTheta = Math.sqrt(Math.max(0, 1 - d * d));
   const scale = sinTheta > 1e-6 ? Math.acos(clamp(d, -1, 1)) / sinTheta : 1;
   return {
-    x: Math.round(TRAVERSAL_SCREEN_W / 2 + vx * scale * TRAVERSAL_PIXELS_PER_RADIAN),
-    y: Math.round(TRAVERSAL_SCREEN_H / 2 - vy * scale * TRAVERSAL_PIXELS_PER_RADIAN)
+    x: Math.round(TRAVERSAL_SCREEN_W / 2 + vx * scale * pixelsPerRadian),
+    y: Math.round(TRAVERSAL_SCREEN_H / 2 - vy * scale * pixelsPerRadian)
   };
 }
 

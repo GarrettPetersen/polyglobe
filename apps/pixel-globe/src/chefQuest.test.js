@@ -6,6 +6,7 @@ import {
   CHEF_QUEST_STAGE_RECRUITMENT,
   chefEventProfileForPort,
   chefQuestJournalText,
+  chefQuestPortEligible,
   chefQuestState,
   completeChefBanquet,
   maybeSpawnChefQuest,
@@ -73,7 +74,7 @@ test("delivering every ingredient advances to a persistent recruitment", () => {
   assert.equal(chefQuestJournalText(chefQuestState(state, city)), "Bring all ingredients to Istanbul.");
   const recruitment = completeChefBanquet(state, city, 100);
   assert.equal(recruitment.stage, CHEF_QUEST_STAGE_RECRUITMENT);
-  assert.equal(chefQuestJournalText(recruitment), "Offer the chef a berth at Istanbul.");
+  assert.equal(chefQuestJournalText(recruitment), "Offer the cook a berth at Istanbul.");
   assert.deepEqual(state.cargo, {});
   assert.equal(recruitChef(state, city).stage, CHEF_QUEST_STAGE_RECRUITED);
 });
@@ -82,6 +83,46 @@ test("chef event copy follows the host region", () => {
   assert.match(chefEventProfileForPort(city).eventLabel, /Sultan/);
   assert.match(chefEventProfileForPort({ country: "Japan", cityType: "east-asian" }).eventLabel, /governor/);
   assert.match(chefEventProfileForPort({ country: "England", cityType: "northern-european" }).eventLabel, /midsummer/);
+  const wendat = {
+    tileId: 45,
+    city: "Wendat Village",
+    country: "Canada",
+    cityType: "mesoamerican",
+    manualRegion: "great-lakes",
+    settlementType: "village"
+  };
+  assert.equal(chefQuestPortEligible(wendat), true);
+  assert.match(chefEventProfileForPort(wendat).eventLabel, /longhouses/);
+  assert.doesNotMatch(chefEventProfileForPort(wendat).eventLabel, /merchant|guild/i);
+  assert.match(chefEventProfileForPort({
+    ...wendat,
+    city: "Tahiti Village",
+    country: "French Polynesia",
+    cityType: "polynesian",
+    manualRegion: "pacific-islands"
+  }).eventLabel, /voyagers/);
+});
+
+test("active village chef quests migrate away from the urban guild banquet", () => {
+  const state = game();
+  const legacyVillage = {
+    tileId: 45,
+    city: "Wendat Village",
+    country: "Canada"
+  };
+  assert.equal(
+    maybeSpawnChefQuest(state, legacyVillage, { simMinute: 0, spawnChance: 1 }).event.id,
+    "guild-banquet"
+  );
+  const restoredVillage = {
+    ...legacyVillage,
+    cityType: "mesoamerican",
+    manualRegion: "great-lakes",
+    settlementType: "village"
+  };
+  const restoredQuest = chefQuestState(state, restoredVillage);
+  assert.equal(restoredQuest.event.id, "great-lakes-council-feast");
+  assert.match(restoredQuest.event.eventLabel, /longhouses/);
 });
 
 test("chef missions do not spawn without a permanent berth, while active missions continue", () => {

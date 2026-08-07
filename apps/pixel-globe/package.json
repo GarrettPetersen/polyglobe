@@ -27,6 +27,7 @@
     "benchmark:busy": "node tools/run-performance-benchmark.mjs",
     "benchmark:clouds": "node tools/run-performance-benchmark.mjs --benchmark cloud-cover",
     "benchmark:combat": "node tools/run-performance-benchmark.mjs --benchmark combat-hotspot",
+    "benchmark:lepanto": "node tools/benchmark-historical-battle.mjs",
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
     "benchmark:gibraltar": "node tools/run-performance-benchmark.mjs --benchmark gibraltar-hotspot",
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",

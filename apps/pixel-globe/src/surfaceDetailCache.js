@@ -69,6 +69,38 @@ export function surfaceDetailCallsForLayer({
   };
 }
 
+export function surfaceDetailCallsHaveSameGeometry(left, right) {
+  validateSurfaceDetailCallSet(left, "cached");
+  validateSurfaceDetailCallSet(right, "current");
+  if (left.tileCalls.length !== right.tileCalls.length ||
+      left.riverConnectorCalls.length !== right.riverConnectorCalls.length) {
+    return false;
+  }
+  for (let index = 0; index < left.tileCalls.length; index++) {
+    const a = left.tileCalls[index];
+    const b = right.tileCalls[index];
+    if (a.id !== b.id ||
+        a.drawSurfaceX !== b.drawSurfaceX ||
+        a.drawSurfaceY !== b.drawSurfaceY ||
+        a.level !== b.level ||
+        a.row !== b.row) {
+      return false;
+    }
+  }
+  for (let index = 0; index < left.riverConnectorCalls.length; index++) {
+    const a = left.riverConnectorCalls[index];
+    const b = right.riverConnectorCalls[index];
+    if (a.a !== b.a || a.b !== b.b ||
+        a.ax !== b.ax || a.ay !== b.ay ||
+        a.bx !== b.bx || a.by !== b.by ||
+        a.aMouth !== b.aMouth || a.bMouth !== b.bMouth ||
+        a.aWater !== b.aWater || a.bWater !== b.bWater) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function pointNearBounds(x, y, bounds, margin) {
   return (
     x >= bounds.minX - margin &&
@@ -89,6 +121,12 @@ function segmentNearBounds(ax, ay, bx, by, bounds, margin) {
     maxY >= bounds.minY - margin &&
     minY <= bounds.maxY + margin
   );
+}
+
+function validateSurfaceDetailCallSet(value, label) {
+  if (!value || !Array.isArray(value.tileCalls) || !Array.isArray(value.riverConnectorCalls)) {
+    throw new Error(`${label} surface detail geometry requires tile and river connector calls`);
+  }
 }
 
 function validateViewport(viewport) {

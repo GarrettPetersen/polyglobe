@@ -68,6 +68,8 @@ export default {
   "start.newGame": "NEUES SPIEL",
   "start.startGame": "SPIEL STARTEN",
   "start.shipBattle": "SEESCHLACHT",
+  "start.historicalBattles": "HISTORISCHE SCHLACHTEN",
+  "battle.choose": "SCHLACHT WÄHLEN",
   "start.pastVoyages": "FRÜHERE REISEN",
   "start.achievements": "ERFOLGE",
   "start.credits": "MITWIRKENDE",
@@ -442,5 +444,6 @@ export default {
   "status.loading": "Marque & Reprisal wird geladen ...",
   "aria.worldMap": "Weltkarte",
   "aria.shipBattleLake": "Seegebiet der Seeschlacht",
+  "aria.historicalBattle": "historische Seeschlacht",
   "aria.canvas": "Marque & Reprisal, {surface}, {width} mal {height}"
 };
