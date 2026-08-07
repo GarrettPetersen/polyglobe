@@ -7,6 +7,9 @@ import {
   INCENDIARY_ARROWS_ITEM_ID,
   MARINERS_BOWS_ITEM_ID,
   MATCHLOCK_ARQUEBUSES_ITEM_ID,
+  PORTABLE_WEAPON_SOUND_BOW,
+  PORTABLE_WEAPON_SOUND_CANNON,
+  PORTABLE_WEAPON_SOUND_SMALL_FIREARM,
   SWIVEL_GUN_ITEM_ID,
   WHEELLOCK_PISTOLS_ITEM_ID,
   YUMI_ITEM_ID,
@@ -14,6 +17,7 @@ import {
   npcPortableWeaponItemIds,
   ownedPortableWeaponItemIds,
   portableWeaponItemById,
+  portableWeaponSoundKind,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
 import { effectiveCrewHitChance } from "./combatWounds.js";
@@ -134,6 +138,23 @@ test("crews prefer penetration against protected targets and pistols on an expos
 
   assert.equal(assignmentsFor(0)[0].weapon.itemId, WHEELLOCK_PISTOLS_ITEM_ID);
   assert.equal(assignmentsFor(60)[0].weapon.itemId, MATCHLOCK_ARQUEBUSES_ITEM_ID);
+});
+
+test("bows, small firearms, and swivel guns use distinct attack sounds", () => {
+  assert.equal(
+    portableWeaponSoundKind(portableWeaponItemById(MARINERS_BOWS_ITEM_ID).weapon),
+    PORTABLE_WEAPON_SOUND_BOW
+  );
+  for (const itemId of [MATCHLOCK_ARQUEBUSES_ITEM_ID, WHEELLOCK_PISTOLS_ITEM_ID]) {
+    assert.equal(
+      portableWeaponSoundKind(portableWeaponItemById(itemId).weapon),
+      PORTABLE_WEAPON_SOUND_SMALL_FIREARM
+    );
+  }
+  assert.equal(
+    portableWeaponSoundKind(portableWeaponItemById(SWIVEL_GUN_ITEM_ID).weapon),
+    PORTABLE_WEAPON_SOUND_CANNON
+  );
 });
 
 test("small arms follow a coherent range, damage, and protection curve", () => {

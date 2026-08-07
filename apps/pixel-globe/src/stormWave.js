@@ -191,6 +191,25 @@ export function stormWaveSweptCrewCount({ crew, seaworthiness, intensity, random
   return minimum + Math.floor(random() * (maximum - minimum + 1));
 }
 
+export function stormWaveImpactSoundVolume({ intensity, sweptCrewCount }) {
+  if (!Number.isFinite(intensity) || intensity < 0 || intensity > 1) {
+    throw new Error(`Storm wave sound requires intensity from 0 to 1: ${intensity}`);
+  }
+  if (!Number.isInteger(sweptCrewCount) || sweptCrewCount < 0) {
+    throw new Error(`Storm wave sound requires a nonnegative swept crew count: ${sweptCrewCount}`);
+  }
+  const severity = clamp(
+    (intensity - STORM_BREAKING_WAVE_MIN_INTENSITY) /
+      (1 - STORM_BREAKING_WAVE_MIN_INTENSITY),
+    0,
+    1
+  );
+  const sweepBoost = sweptCrewCount > 0
+    ? 0.14 + Math.min(0.06, (sweptCrewCount - 1) * 0.02)
+    : 0;
+  return clamp(lerp(0.18, 0.38, severity) + sweepBoost, 0, 0.58);
+}
+
 export function overboardSwimDurationSeconds(random = Math.random) {
   if (typeof random !== "function") throw new Error("Overboard swim duration requires a random source");
   return randomBetween(random, OVERBOARD_SWIM_MIN_SECONDS, OVERBOARD_SWIM_MAX_SECONDS);

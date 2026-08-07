@@ -23,6 +23,29 @@ export function flagWaveColumnOffsets(width, phaseRad, amplitudePx = 1) {
   });
 }
 
+export function flagSlackColumnLayout(width, height) {
+  if (!Number.isInteger(width) || width < 1 || !Number.isInteger(height) || height < 1) {
+    throw new Error(`Invalid slack flag dimensions: ${width}x${height}`);
+  }
+  const fabricWidth = Math.min(width, Math.max(2, Math.round(width * 0.34)));
+  const drop = Math.max(2, Math.round(height * 0.82));
+  const columns = Array.from({ length: fabricWidth }, (_, column) => {
+    const progress = fabricWidth <= 1 ? 0 : column / (fabricWidth - 1);
+    const eased = progress * progress * (3 - 2 * progress);
+    return Object.freeze({
+      sourceStart: column / fabricWidth,
+      sourceEnd: (column + 1) / fabricWidth,
+      x: column,
+      y: Math.round(drop * eased)
+    });
+  });
+  return Object.freeze({
+    fabricWidth,
+    drop,
+    columns: Object.freeze(columns)
+  });
+}
+
 export function flagWindPose(flowDirectionRad, windStrength) {
   if (!Number.isFinite(flowDirectionRad)) {
     throw new Error(`Invalid flag wind direction: ${flowDirectionRad}`);

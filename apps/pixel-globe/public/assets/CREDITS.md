@@ -69,6 +69,7 @@
 - Floraphonic
 - Freesound Community
 - Freesound Community - "Door Hit" (Pixabay 98828, Pixabay Content License)
+- Freesound Community - "Old Musket Bang" (Pixabay 95873, Pixabay Content License; trimmed)
 - Freesound Community / druidus (Freesound) - "Lightning Strike" (Pixabay 29683, Pixabay Content License; trimmed)
 - SoundsForYou
 - Tanweraman
@@ -81,6 +82,7 @@
 - H. Lentfer / National Park Service - "Humpbacks and Murrelets" surface blow excerpt (public domain; cleaned)
 - DRAGON-STUDIO - "Creepy Whale Song" and "Haunting Whale Song" (Pixabay Content License)
 - cclaretc / Freesound Community - "Whale" (Pixabay 45996, Pixabay Content License)
+- CatFox_Alex - "Ocean Wave Slowly" (Pixabay 236010, Pixabay Content License)
 
 ## Pixel Art Icons
 - Free Game Assets - "Free Pirate Stuff Icons" (CraftPix Freebie License)

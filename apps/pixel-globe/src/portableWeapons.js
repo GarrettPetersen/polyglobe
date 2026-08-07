@@ -10,6 +10,10 @@ export const PORTABLE_PROJECTILE_ARROW = "arrow";
 export const PORTABLE_PROJECTILE_BULLET = "bullet";
 export const PORTABLE_PROJECTILE_CANNON = "cannon";
 
+export const PORTABLE_WEAPON_SOUND_BOW = "bow";
+export const PORTABLE_WEAPON_SOUND_SMALL_FIREARM = "small-firearm";
+export const PORTABLE_WEAPON_SOUND_CANNON = "cannon";
+
 export const MARINERS_BOWS_ITEM_ID = "mariners-bows";
 export const ENGLISH_LONGBOWS_ITEM_ID = "english-longbows";
 export const COMPOSITE_BOWS_ITEM_ID = "composite-recurve-bows";
@@ -296,6 +300,24 @@ export function portableWeaponItemById(itemId) {
 
 export function isPortableWeaponItemId(itemId) {
   return ITEMS_BY_ID.has(itemId);
+}
+
+export function portableWeaponSoundKind(weapon) {
+  if (!weapon || typeof weapon !== "object") {
+    throw new Error("Portable weapon sound needs a weapon");
+  }
+  if (weapon.animationKind === PORTABLE_PROJECTILE_ARROW) {
+    return PORTABLE_WEAPON_SOUND_BOW;
+  }
+  if (weapon.animationKind === PORTABLE_PROJECTILE_BULLET) {
+    if (weapon.swivel) throw new Error(`Small firearm cannot be a swivel gun: ${weapon.itemId}`);
+    return PORTABLE_WEAPON_SOUND_SMALL_FIREARM;
+  }
+  if (weapon.animationKind === PORTABLE_PROJECTILE_CANNON) {
+    if (!weapon.swivel) throw new Error(`Portable cannon must be a swivel gun: ${weapon.itemId}`);
+    return PORTABLE_WEAPON_SOUND_CANNON;
+  }
+  throw new Error(`Unknown portable weapon sound animation: ${weapon.animationKind}`);
 }
 
 export function ownedPortableWeaponItemIds(itemCounts) {

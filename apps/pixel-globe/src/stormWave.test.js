@@ -11,6 +11,7 @@ import {
   stormWaveCrewLossChance,
   stormWaveCrestParticles,
   stormWaveFrame,
+  stormWaveImpactSoundVolume,
   stormWaveSweptCrewCount,
   restoreOverboardCrew,
   snapshotOverboardCrew,
@@ -81,6 +82,16 @@ test("the captain is never counted among swept crew", () => {
     intensity: 1,
     random: sequenceRandom([0, 0.999])
   }), 5);
+});
+
+test("wave impact audio stays subdued unless the breaker is large or sweeps crew", () => {
+  const small = stormWaveImpactSoundVolume({ intensity: 0.5, sweptCrewCount: 0 });
+  const large = stormWaveImpactSoundVolume({ intensity: 1, sweptCrewCount: 0 });
+  const sweeping = stormWaveImpactSoundVolume({ intensity: 1, sweptCrewCount: 3 });
+  assert.equal(small, 0.18);
+  assert.equal(large, 0.38);
+  assert.equal(sweeping, 0.56);
+  assert.ok(small < large && large < sweeping);
 });
 
 test("overboard crew swim for one to three active minutes", () => {

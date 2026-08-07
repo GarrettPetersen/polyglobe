@@ -12,6 +12,12 @@ const loudnessTarget = -18;
 const loudnessRangeTarget = 11;
 const truePeakTarget = -1.5;
 const force = process.argv.includes("--force");
+const sourceEdits = new Map([
+  ["freesound_community-old-musket-bang-95873.mp3", Object.freeze({
+    startSeconds: 0.325,
+    endSeconds: 1.45
+  })]
+]);
 
 function runFfmpeg(args) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -48,16 +54,36 @@ function parseLoudnormMeasurement(stderr, filename) {
   return measured;
 }
 
+function sourceFilters(filename) {
+  const edit = sourceEdits.get(filename);
+  if (!edit) return [];
+  if (!(Number.isFinite(edit.startSeconds) && Number.isFinite(edit.endSeconds)) ||
+      edit.startSeconds < 0 || edit.endSeconds <= edit.startSeconds) {
+    throw new Error(`Invalid source edit for ${filename}`);
+  }
+  return [
+    `atrim=start=${edit.startSeconds}:end=${edit.endSeconds}`,
+    "asetpts=PTS-STARTPTS"
+  ];
+}
+
+function audioFilter(filename, finalFilter) {
+  return [...sourceFilters(filename), finalFilter].join(",");
+}
+
 async function measure(inputPath, filename) {
   const stderr = await runFfmpeg([
     "-hide_banner", "-nostats", "-i", inputPath,
-    "-af", `loudnorm=I=${loudnessTarget}:LRA=${loudnessRangeTarget}:TP=${truePeakTarget}:print_format=json`,
+    "-af", audioFilter(
+      filename,
+      `loudnorm=I=${loudnessTarget}:LRA=${loudnessRangeTarget}:TP=${truePeakTarget}:print_format=json`
+    ),
     "-f", "null", "-"
   ]);
   return parseLoudnormMeasurement(stderr, filename);
 }
 
-async function normalize(inputPath, outputPath, measured) {
+async function normalize(inputPath, outputPath, filename, measured) {
   const filter = [
     `loudnorm=I=${loudnessTarget}`,
     `LRA=${loudnessRangeTarget}`,
@@ -72,7 +98,7 @@ async function normalize(inputPath, outputPath, measured) {
   ].join(":");
   await runFfmpeg([
     "-hide_banner", "-nostats", "-y", "-i", inputPath,
-    "-af", filter,
+    "-af", audioFilter(filename, filter),
     "-ar", "48000", "-ac", "2", "-c:a", "vorbis", "-strict", "experimental", "-q:a", "5",
     outputPath
   ]);
@@ -101,7 +127,7 @@ for (const filename of sourceFiles) {
     continue;
   }
   const measured = await measure(inputPath, filename);
-  await normalize(inputPath, outputPath, measured);
+  await normalize(inputPath, outputPath, filename, measured);
   normalizedCount += 1;
   console.log(`${filename} -> ${outputName} (${measured.input_i} LUFS input)`);
 }

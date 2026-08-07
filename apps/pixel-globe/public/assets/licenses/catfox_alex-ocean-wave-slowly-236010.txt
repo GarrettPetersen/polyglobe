@@ -1,0 +1,11 @@
+Title: Ocean Wave Slowly
+Creator: CatFox_Alex
+Source: https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=236010
+Creator page: https://pixabay.com/users/catfox_alex-45660138/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=236010
+License: Pixabay Content License
+License summary: https://pixabay.com/service/license-summary/
+
+Production use:
+- Normalized to -18 LUFS with a -1.5 dB true-peak ceiling.
+- Encoded as 48 kHz stereo Ogg Vorbis.
+- Played when a breaking storm wave reaches the player's ship, with gain scaled by wave severity.

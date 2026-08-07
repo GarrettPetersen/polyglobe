@@ -1,0 +1,13 @@
+Title: Old Musket Bang
+Creator: freesound_community
+Source: https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=95873
+Creator page: https://pixabay.com/users/freesound_community-46691455/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=95873
+License: Pixabay Content License
+License summary: https://pixabay.com/service/license-summary/
+
+Production use:
+- Trimmed to place the main report about 30 ms after the firearm animation begins.
+- Normalized to -18 LUFS with a -1.5 dB true-peak ceiling.
+- Encoded as 48 kHz stereo Ogg Vorbis.
+- Used for arquebuses, wheellock pistols, and other non-swivel gunpowder small arms.
+- Cannons and swivel guns retain the separate cannon sound effect.

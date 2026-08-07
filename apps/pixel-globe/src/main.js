@@ -920,6 +920,7 @@ import {
   snapshotOverboardCrew,
   stormWaveCrestParticles,
   stormWaveFrame,
+  stormWaveImpactSoundVolume,
   stormWaveSweptCrewCount,
   updateStormWaveState
 } from "./stormWave.js";
@@ -1091,6 +1092,7 @@ import { gameOverMemorialLayout, gameOverStatsLayout } from "./gameOverLayout.js
 import {
   FLAG_WAVE_FRAME_COUNT,
   flagExteriorOutlineMask,
+  flagSlackColumnLayout,
   flagWaveColumnOffsets,
   flagWaveFrameIndex,
   flagWindPose
@@ -1617,12 +1619,16 @@ import {
   PORTABLE_PROJECTILE_ARROW,
   PORTABLE_PROJECTILE_BULLET,
   PORTABLE_PROJECTILE_CANNON,
+  PORTABLE_WEAPON_SOUND_BOW,
+  PORTABLE_WEAPON_SOUND_CANNON,
+  PORTABLE_WEAPON_SOUND_SMALL_FIREARM,
   VIKING_BOWS_ITEM_ID,
   activePortableWeaponAssignments,
   isPortableWeaponItemId,
   npcPortableWeaponItemIds,
   ownedPortableWeaponItemIds,
   portableWeaponItemById,
+  portableWeaponSoundKind,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
 import {
@@ -2432,6 +2438,7 @@ const CITY_TYPE_MUSIC_TRACK_KEYS = Object.freeze({
 const COMBAT_MUSIC_HOLD_MS = 18000;
 const COMBAT_BIG_BROADSIDE_MIN_CANNONS = 10;
 const SFX_CANNON_URL = "assets/sfx/universfield-cannon-shot-352459.ogg";
+const SFX_SMALL_FIREARM_URL = "assets/sfx/freesound_community-old-musket-bang-95873.ogg";
 const SFX_BOW_FIRE_URL = "assets/sfx/bow-fire.ogg";
 const SFX_ARROW_HIT_URL = "assets/sfx/arrow-hit.ogg";
 const SFX_HARBOUR_URL = "assets/sfx/freesound_community-harboursoundsanno1811-24015.ogg";
@@ -2451,6 +2458,7 @@ const SFX_SAIL_DEPLOY_URL = "assets/sfx/freesound_community-saildeploy-99393.ogg
 const SFX_DISCOVERY_SUCCESS_URL = "assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
 const SFX_COIN_CLINK_URL = "assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3";
 const SFX_FISHING_URL = "assets/sfx/alex_jauk-water-splash-147014.mp3";
+const SFX_STORM_WAVE_URL = "assets/sfx/catfox_alex-ocean-wave-slowly-236010.ogg";
 const SFX_FISHING_SUCCESS_URL = "assets/sfx/freesound_community-item-pickup-37089.ogg";
 const SFX_FISHING_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_SCAVENGE_SUCCESS_URL = "assets/sfx/freesound_community-item-pickup-37089.ogg";
@@ -2465,6 +2473,7 @@ const SFX_WHALE_SONG_URLS = Object.freeze([
   "assets/sfx/freesound-community-cclaretc-whale-45996.ogg"
 ]);
 const SFX_CANNON_POOL_SIZE = 8;
+const SFX_SMALL_FIREARM_POOL_SIZE = 6;
 const SFX_BOW_FIRE_POOL_SIZE = 6;
 const SFX_ARROW_HIT_POOL_SIZE = 6;
 const SFX_IMPACT_POOL_SIZE = 6;
@@ -2473,6 +2482,7 @@ const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
 const SFX_COIN_CLINK_POOL_SIZE = 8;
 const SFX_FISHING_POOL_SIZE = 3;
+const SFX_STORM_WAVE_POOL_SIZE = 1;
 const SFX_ROWING_POOL_SIZE = 2;
 const SFX_FISHING_SUCCESS_POOL_SIZE = 2;
 const SFX_FISHING_FAILURE_POOL_SIZE = 2;
@@ -2485,6 +2495,7 @@ const SFX_WHALE_BLOW_POOL_SIZE = 3;
 const SFX_WHALE_KILL_POOL_SIZE = 2;
 const SHORE_BATTERY_CANNON_SOUND_DISTANCE_CAP_PX = 48;
 const SFX_CANNON_VOLUME = 0.76;
+const SFX_SMALL_FIREARM_VOLUME = 0.56;
 const SFX_BOW_FIRE_VOLUME = 0.68;
 const SFX_ARROW_HIT_VOLUME = 0.54;
 const SFX_IMPACT_VOLUME = 0.64;
@@ -2493,6 +2504,7 @@ const SFX_SAIL_DEPLOY_VOLUME = 0.22;
 const SFX_DISCOVERY_SUCCESS_VOLUME = 0.72;
 const SFX_COIN_CLINK_VOLUME = 0.58;
 const SFX_FISHING_VOLUME = 0.42;
+const SFX_ROWING_SPLASH_VOLUME_SCALE = 0.4;
 const SFX_FISHING_SUCCESS_VOLUME = 0.58;
 const SFX_FISHING_FAILURE_VOLUME = 0.46;
 const SFX_SCAVENGE_SUCCESS_VOLUME = 0.62;
@@ -6901,6 +6913,11 @@ function setupSoundEffects() {
   if (soundEffects) return;
   soundEffects = {
     cannon: createSoundPool(SFX_CANNON_URL, SFX_CANNON_POOL_SIZE, "cannon shot"),
+    smallFirearm: createSoundPool(
+      SFX_SMALL_FIREARM_URL,
+      SFX_SMALL_FIREARM_POOL_SIZE,
+      "small firearm shot"
+    ),
     bowFire: createSoundPool(SFX_BOW_FIRE_URL, SFX_BOW_FIRE_POOL_SIZE, "bow fire"),
     arrowHit: createSoundPool(SFX_ARROW_HIT_URL, SFX_ARROW_HIT_POOL_SIZE, "arrow hit"),
     impact: createSoundPool(SFX_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "impact thud"),
@@ -6913,6 +6930,7 @@ function setupSoundEffects() {
     discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
     coinClink: createSoundPool(SFX_COIN_CLINK_URL, SFX_COIN_CLINK_POOL_SIZE, "coin clink"),
     fishing: createSoundPool(SFX_FISHING_URL, SFX_FISHING_POOL_SIZE, "fishing splash"),
+    stormWave: createSoundPool(SFX_STORM_WAVE_URL, SFX_STORM_WAVE_POOL_SIZE, "breaking wave"),
     rowing: createSoundPool(SFX_FISHING_URL, SFX_ROWING_POOL_SIZE, "oar stroke"),
     fishingSuccess: createSoundPool(
       SFX_FISHING_SUCCESS_URL,
@@ -7174,6 +7192,7 @@ function applyThemeAudioSettings() {
   if (soundEffects) {
     for (const audio of [
       ...soundEffects.cannon,
+      ...soundEffects.smallFirearm,
       ...soundEffects.bowFire,
       ...soundEffects.arrowHit,
       ...soundEffects.impact,
@@ -7182,6 +7201,7 @@ function applyThemeAudioSettings() {
       ...soundEffects.discoverySuccess,
       ...soundEffects.coinClink,
       ...soundEffects.fishing,
+      ...soundEffects.stormWave,
       ...soundEffects.rowing,
       ...soundEffects.fishingSuccess,
       ...soundEffects.fishingFailure,
@@ -7323,14 +7343,25 @@ function playShoreBatteryAttackSound(weapon, gunCount, distancePx) {
 }
 
 function playPortableWeaponAttackSound(weapon, count, distancePx = 0) {
-  if (weapon.animationKind === PORTABLE_PROJECTILE_ARROW) {
+  const soundKind = portableWeaponSoundKind(weapon);
+  if (soundKind === PORTABLE_WEAPON_SOUND_BOW) {
     playBowFireSound();
     return;
   }
   const distanceGain = cannonShotDistanceGain(distancePx);
-  const gain = weapon.swivel ? 0.42 : 0.24;
-  const pitch = weapon.swivel ? 1.28 : 1.62;
-  playSoundEffect(soundEffects?.cannon, SFX_CANNON_VOLUME * gain * distanceGain, pitch);
+  if (soundKind === PORTABLE_WEAPON_SOUND_SMALL_FIREARM) {
+    const volleyGain = 0.72 + Math.min(0.28, Math.max(0, count - 1) * 0.04);
+    playSoundEffect(
+      soundEffects?.smallFirearm,
+      SFX_SMALL_FIREARM_VOLUME * volleyGain * distanceGain
+    );
+    return;
+  }
+  if (soundKind === PORTABLE_WEAPON_SOUND_CANNON) {
+    playSoundEffect(soundEffects?.cannon, SFX_CANNON_VOLUME * 0.42 * distanceGain, 1.28);
+    return;
+  }
+  throw new Error(`Unknown portable weapon sound kind: ${soundKind}`);
 }
 
 function playNavalImpactSound(projectile) {
@@ -7374,8 +7405,11 @@ function playFishingSound() {
   playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME);
 }
 
-function playStormWaveCrashSound() {
-  playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME * 1.35, 0.72);
+function playStormWaveCrashSound(impact, sweptCrewCount) {
+  playSoundEffect(
+    soundEffects?.stormWave,
+    stormWaveImpactSoundVolume({ intensity: impact.intensity, sweptCrewCount })
+  );
 }
 
 function playManOverboardSplashSound() {
@@ -7385,7 +7419,7 @@ function playManOverboardSplashSound() {
 function playRowingStrokeSound(spec) {
   playSoundEffect(
     soundEffects?.rowing,
-    spec.volume,
+    spec.volume * SFX_ROWING_SPLASH_VOLUME_SCALE,
     spec.playbackRate
   );
 }
@@ -22915,18 +22949,17 @@ function updateStormWaveHazard(dt) {
 }
 
 function resolveStormWaveImpact(impact) {
-  playStormWaveCrashSound();
-  if (overboardCrew.length >= OVERBOARD_MAX_ACTIVE_CREW) return;
+  const availableOverboardSlots = Math.max(0, OVERBOARD_MAX_ACTIVE_CREW - overboardCrew.length);
   const effectiveStats = currentPlayerEffectiveShipStats();
-  const count = Math.min(
-    OVERBOARD_MAX_ACTIVE_CREW - overboardCrew.length,
-    stormWaveSweptCrewCount({
+  const count = availableOverboardSlots === 0
+    ? 0
+    : Math.min(availableOverboardSlots, stormWaveSweptCrewCount({
       crew: gameState.ship.crew,
       seaworthiness: clamp(Math.round(effectiveStats.seaworthiness), 1, 10),
       intensity: impact.intensity,
       random: DEBUG_STORM_WAVE_ENABLED ? () => 0 : Math.random
-    })
-  );
+    }));
+  playStormWaveCrashSound(impact, count);
   if (count <= 0) return;
 
   const removed = sweepCrewOverboard(count, impact);
@@ -42747,10 +42780,11 @@ function wavingFactionFlagAtlas(
   if (outlineCanvas && !outlineCtx) {
     throw new Error(`Could not create animated flag outline for ${factionId}`);
   }
-  const fabricWidth = pose?.slack ? Math.max(2, Math.round(width * 0.25)) : width;
+  const slackLayout = pose?.slack ? flagSlackColumnLayout(width, height) : null;
+  const fabricWidth = slackLayout?.fabricWidth || width;
   const fabricCanvas = document.createElement("canvas");
   fabricCanvas.width = fabricWidth;
-  fabricCanvas.height = height + verticalPadding * 2;
+  fabricCanvas.height = height + verticalPadding * 2 + (slackLayout?.drop || 0);
   const fabricCtx = fabricCanvas.getContext("2d");
   if (!fabricCtx) throw new Error(`Could not create animated flag fabric for ${factionId}`);
   fabricCtx.imageSmoothingEnabled = false;
@@ -42761,16 +42795,18 @@ function wavingFactionFlagAtlas(
     const offsets = flagWaveColumnOffsets(fabricWidth, phase, pose?.slack ? 0 : 1);
     fabricCtx.clearRect(0, 0, fabricCanvas.width, fabricCanvas.height);
     for (let column = 0; column < fabricWidth; column++) {
-      const sourceX = Math.floor(column * image.width / fabricWidth);
-      const sourceEndX = Math.floor((column + 1) * image.width / fabricWidth);
+      const sourceStart = slackLayout?.columns[column].sourceStart ?? column / fabricWidth;
+      const sourceEnd = slackLayout?.columns[column].sourceEnd ?? (column + 1) / fabricWidth;
+      const sourceX = Math.min(image.width - 1, Math.floor(sourceStart * image.width));
+      const sourceEndX = Math.max(sourceX + 1, Math.ceil(sourceEnd * image.width));
       fabricCtx.drawImage(
         image,
         sourceX,
         0,
-        Math.max(1, sourceEndX - sourceX),
+        Math.min(image.width - sourceX, sourceEndX - sourceX),
         image.height,
         column,
-        verticalPadding + offsets[column],
+        verticalPadding + offsets[column] + (slackLayout?.columns[column].y || 0),
         1,
         height
       );

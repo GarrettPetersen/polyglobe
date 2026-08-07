@@ -6,6 +6,7 @@ import {
   FLAG_WIND_DIRECTION_COUNT,
   FLAG_WAVE_FRAME_COUNT,
   flagExteriorOutlineMask,
+  flagSlackColumnLayout,
   flagWaveColumnOffsets,
   flagWaveFrameIndex,
   flagWindPose
@@ -75,6 +76,24 @@ test("flags hang beside the pole in weak wind", () => {
     angleRad: 0
   });
   assert.throws(() => flagWindPose(0, -0.1), /Invalid flag wind strength/);
+});
+
+test("slack flags keep the hoist upright while the free cloth droops", () => {
+  for (const [width, height] of [[10, 6], [32, 20]]) {
+    const layout = flagSlackColumnLayout(width, height);
+    assert.ok(layout.fabricWidth >= 2 && layout.fabricWidth < width);
+    assert.deepEqual(layout.columns[0], {
+      sourceStart: 0,
+      sourceEnd: 1 / layout.fabricWidth,
+      x: 0,
+      y: 0
+    });
+    assert.equal(layout.columns.at(-1).sourceEnd, 1);
+    assert.equal(layout.columns.at(-1).y, layout.drop);
+    assert.ok(layout.columns.every((column, index) => (
+      column.x === index && (index === 0 || column.y >= layout.columns[index - 1].y)
+    )));
+  }
 });
 
 test("diplomatic outlines occupy only transparent pixels outside the complete flag", () => {
