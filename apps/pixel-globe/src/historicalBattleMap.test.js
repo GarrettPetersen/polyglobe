@@ -10,22 +10,25 @@ import {
 
 test("the authored Lepanto field has a broad navigable gulf and solid shores", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
+  const centerX = map.width / 2;
+  const centerY = map.height / 2;
 
-  assert.equal(historicalBattleMapWaterAt(map, 1536, 864, 20), true);
-  assert.equal(historicalBattleMapWaterAt(map, 1536, 30), false);
-  assert.equal(historicalBattleMapWaterAt(map, 1536, 1690), false);
-  assert.equal(historicalBattleMapWaterAt(map, 210, 535), false);
-  assert.equal(historicalBattleMapWaterAt(map, -1, 864), false);
+  assert.equal(historicalBattleMapWaterAt(map, centerX, centerY, 20), true);
+  assert.equal(historicalBattleMapWaterAt(map, centerX, 30), false);
+  assert.equal(historicalBattleMapWaterAt(map, centerX, map.height - 38), false);
+  assert.equal(historicalBattleMapWaterAt(map, 280, 713), false);
+  assert.equal(historicalBattleMapWaterAt(map, -1, centerY), false);
   assert.equal(historicalBattleMapPolygons(map).length, 2);
   assert.ok(map.cells.length > 10_000);
 });
 
 test("authored shore clearance rejects ships that only have their center in water", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
+  const centerX = map.width / 2;
   let firstWaterY = 0;
-  while (!historicalBattleMapWaterAt(map, 1536, firstWaterY)) firstWaterY += 1;
+  while (!historicalBattleMapWaterAt(map, centerX, firstWaterY)) firstWaterY += 1;
 
-  assert.equal(historicalBattleMapWaterAt(map, 1536, firstWaterY), true);
-  assert.equal(historicalBattleMapWaterAt(map, 1536, firstWaterY, 8), false);
-  assert.equal(historicalBattleMapWaterAt(map, 1536, firstWaterY + 12, 8), true);
+  assert.equal(historicalBattleMapWaterAt(map, centerX, firstWaterY), true);
+  assert.equal(historicalBattleMapWaterAt(map, centerX, firstWaterY, 8), false);
+  assert.equal(historicalBattleMapWaterAt(map, centerX, firstWaterY + 12, 8), true);
 });

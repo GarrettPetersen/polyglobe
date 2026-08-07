@@ -510,6 +510,7 @@ function updateShipMotion(state, command) {
       : Number.POSITIVE_INFINITY;
     let desiredHeading = ship.headingRad;
     let rowingMode = shipCanUseOars(ship.stats) ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE;
+    let speedCapPx = Number.POSITIVE_INFINITY;
 
     if (ship.playerControlled) {
       desiredHeading = command.desiredHeadingQ === null
@@ -517,12 +518,18 @@ function updateShipMotion(state, command) {
         : command.desiredHeadingQ / 65535 * TWO_PI;
       rowingMode = command.rowingMode;
     } else if (isSquadronLeader(state, index)) {
-      desiredHeading = leaderMotionIntent(state, ship, target, targetDistance);
+      const intent = leaderMotionIntent(state, ship, target, targetDistance);
+      desiredHeading = intent.headingRad;
+      speedCapPx = intent.speedCapPx;
     } else {
-      desiredHeading = followerMotionIntent(state, ship, target, targetDistance);
+      const intent = followerMotionIntent(state, ship, target, targetDistance);
+      desiredHeading = intent.headingRad;
+      speedCapPx = intent.speedCapPx;
     }
-    desiredHeading = avoidFriendlyCollisionHeading(state, index, desiredHeading);
-    moveShipWithStandardPropulsion(state, ship, desiredHeading, rowingMode);
+    if (speedCapPx !== 0) {
+      desiredHeading = avoidFriendlyCollisionHeading(state, index, desiredHeading);
+    }
+    moveShipWithStandardPropulsion(state, ship, desiredHeading, rowingMode, speedCapPx);
   }
 }
 
@@ -532,26 +539,58 @@ function leaderMotionIntent(state, ship, target, targetDistance) {
   if (squadron.order === "follow") {
     const followed = state.squadrons.find((entry) => entry.id === squadron.followSquadronId);
     const leader = state.ships[followed?.leaderIndex];
-    if (leader?.active) return Math.atan2(leader.y - ship.y, leader.x - ship.x);
+    if (leader?.active) {
+      return {
+        headingRad: Math.atan2(leader.y - ship.y, leader.x - ship.x),
+        speedCapPx: Number.POSITIVE_INFINITY
+      };
+    }
   }
-  if (squadron.order === "hold" && targetDistance > ENGAGEMENT_RANGE_PX) return squadron.headingRad;
-  if (squadron.order === "withdraw") return retreatHeading(state, ship);
+  if (squadron.order === "hold" && targetDistance > ENGAGEMENT_RANGE_PX) {
+    return { headingRad: squadron.headingRad, speedCapPx: 0 };
+  }
+  if (squadron.order === "withdraw") {
+    return { headingRad: retreatHeading(state, ship), speedCapPx: Number.POSITIVE_INFINITY };
+  }
   if (target?.active && targetDistance <= 27 && bowAlignment(ship, target) > 0.7) {
-    return Math.atan2(target.y - ship.y, target.x - ship.x);
+    return {
+      headingRad: Math.atan2(target.y - ship.y, target.x - ship.x),
+      speedCapPx: Number.POSITIVE_INFINITY
+    };
   }
-  if (target?.active && targetDistance <= ENGAGEMENT_RANGE_PX) return broadsideApproach(ship, target);
-  return squadron.headingRad;
+  if (target?.active && targetDistance <= ENGAGEMENT_RANGE_PX) {
+    return {
+      headingRad: broadsideApproach(ship, target),
+      speedCapPx: Number.POSITIVE_INFINITY
+    };
+  }
+  return { headingRad: squadron.headingRad, speedCapPx: Number.POSITIVE_INFINITY };
 }
 
 function followerMotionIntent(state, ship, target, targetDistance) {
   const squadron = state.squadrons[ship.squadronIndex];
-  if (squadron?.order === "withdraw") return retreatHeading(state, ship);
-  if (target?.active && targetDistance <= 27 && bowAlignment(ship, target) > 0.72) {
-    return Math.atan2(target.y - ship.y, target.x - ship.x);
+  if (squadron?.order === "withdraw") {
+    return { headingRad: retreatHeading(state, ship), speedCapPx: Number.POSITIVE_INFINITY };
   }
-  if (target?.active && targetDistance <= ENGAGEMENT_RANGE_PX) return broadsideApproach(ship, target);
+  if (squadron?.order === "hold" && targetDistance > ENGAGEMENT_RANGE_PX) {
+    return { headingRad: squadron.headingRad, speedCapPx: 0 };
+  }
+  if (target?.active && targetDistance <= 27 && bowAlignment(ship, target) > 0.72) {
+    return {
+      headingRad: Math.atan2(target.y - ship.y, target.x - ship.x),
+      speedCapPx: Number.POSITIVE_INFINITY
+    };
+  }
+  if (target?.active && targetDistance <= ENGAGEMENT_RANGE_PX) {
+    return { headingRad: broadsideApproach(ship, target), speedCapPx: Number.POSITIVE_INFINITY };
+  }
   const leader = state.ships[squadron?.leaderIndex];
-  if (!leader?.active) return squadron?.headingRad ?? ship.headingRad;
+  if (!leader?.active) {
+    return {
+      headingRad: squadron?.headingRad ?? ship.headingRad,
+      speedCapPx: Number.POSITIVE_INFINITY
+    };
+  }
   const slot = projectFormationPoint(
     leader.x,
     leader.y,
@@ -560,7 +599,10 @@ function followerMotionIntent(state, ship, target, targetDistance) {
     ship.formationLateral
   );
   const distance = Math.hypot(slot.x - ship.x, slot.y - ship.y);
-  return distance < 4 ? leader.headingRad : Math.atan2(slot.y - ship.y, slot.x - ship.x);
+  return {
+    headingRad: distance < 4 ? leader.headingRad : Math.atan2(slot.y - ship.y, slot.x - ship.x),
+    speedCapPx: Math.abs(leader.speedPx) + Math.max(0, distance - 4) * 0.75
+  };
 }
 
 function broadsideApproach(ship, target) {
@@ -573,7 +615,13 @@ function retreatHeading(state, ship) {
   return ship.sideId === state.map.escape.sideId ? 0 : Math.PI;
 }
 
-function moveShipWithStandardPropulsion(state, ship, desiredHeading, rowingMode) {
+function moveShipWithStandardPropulsion(
+  state,
+  ship,
+  desiredHeading,
+  rowingMode,
+  speedCapPx = Number.POSITIVE_INFINITY
+) {
   const dt = HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
   const activeCrew = activeCombatCrew(ship.crew, ship.woundedCrew);
   const rowerRatio = rowingCrewRatio(activeCrew, ship.stats.crewCapacity);
@@ -606,7 +654,8 @@ function moveShipWithStandardPropulsion(state, ship, desiredHeading, rowingMode)
   ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN *
     propulsion.accelerationFactor * propulsion.propulsionDirection * dt;
   ship.speedPx *= shipDragFactor(propulsion.stalled, dt);
-  const maxSpeedPx = propulsion.stalled ? 0 : propulsion.maxSpeedRad * PIXELS_PER_RADIAN;
+  const propulsionMaxSpeedPx = propulsion.stalled ? 0 : propulsion.maxSpeedRad * PIXELS_PER_RADIAN;
+  const maxSpeedPx = Math.min(propulsionMaxSpeedPx, Math.max(0, speedCapPx));
   ship.speedPx = clamp(ship.speedPx, -maxSpeedPx, maxSpeedPx);
   const movementAngle = ship.headingRad + (ship.speedPx < 0 ? Math.PI : 0);
   const distance = Math.abs(ship.speedPx * dt);
@@ -930,6 +979,7 @@ function firePortableWeapons(state, ship, target, targetDistance) {
       shipIndex: state.ships.indexOf(ship),
       weaponKind: weapon.animationKind,
       weaponId: weapon.itemId,
+      count: operators,
       cannonCount: 0
     });
   }
@@ -977,6 +1027,7 @@ function updateBattleProjectiles(state) {
       shipIndex: projectile.targetIndex,
       ownerIndex: projectile.ownerIndex,
       weaponKind: projectile.kind,
+      weaponId: projectile.weaponId || null,
       damage,
       newWounds,
       resisted
@@ -1107,9 +1158,23 @@ function applyUnitCommand(state, unitCommand) {
 }
 
 function validateInitialFleetPositions(state) {
-  for (const ship of state.ships) {
+  for (let index = 0; index < state.ships.length; index++) {
+    const ship = state.ships[index];
     if (!historicalBattleMapWaterAt(state.map, ship.x, ship.y, ship.role === "galleass" ? 10 : 7)) {
       throw new Error(`Historical ship starts outside navigable water: ${ship.id} at ${ship.x},${ship.y}`);
+    }
+    queryBattleSpatialGrid(
+      state.spatialGrid,
+      ship.x,
+      ship.y,
+      COLLISION_QUERY_RADIUS_PX,
+      state.spatialScratch
+    );
+    for (const otherIndex of state.spatialScratch) {
+      if (otherIndex <= index) continue;
+      const other = state.ships[otherIndex];
+      if (!resolveShipCollision(collisionBody(state, ship), collisionBody(state, other))) continue;
+      throw new Error(`Historical ships overlap at battle start: ${ship.id} / ${other.id}`);
     }
   }
 }

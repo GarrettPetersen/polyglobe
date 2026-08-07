@@ -9834,20 +9834,27 @@ function fireHistoricalBattlePlayerBroadside(sideName) {
 
 function processHistoricalBattleEvents(battle) {
   const player = historicalBattlePlayerShip(battle);
-  let cannonSounds = 0;
+  let attackSounds = 0;
   let impactSounds = 0;
   for (const event of drainHistoricalBattleEvents(battle)) {
     if (event.type === "fire") {
       const firingShip = battle.ships[event.shipIndex];
       if (!firingShip) throw new Error(`Historical battle fire event lost ship ${event.shipIndex}`);
       const distance = Math.hypot(firingShip.x - player.x, firingShip.y - player.y);
-      if (distance <= Math.max(SCREEN_W, SCREEN_H) && cannonSounds < 4) {
-        playNavalAttackSound(
-          { kind: event.weaponKind || NAVAL_WEAPON_CANNON },
-          Math.max(1, event.cannonCount || 1),
-          distance
-        );
-        cannonSounds += 1;
+      if (distance <= Math.max(SCREEN_W, SCREEN_H) && attackSounds < 4) {
+        const count = Math.max(1, event.count || event.cannonCount || 1);
+        if (event.weaponId) {
+          const portable = portableWeaponItemById(event.weaponId).weapon;
+          if (!portable) throw new Error(`Historical battle fired a non-weapon item: ${event.weaponId}`);
+          playPortableWeaponAttackSound(portable, count, distance);
+        } else {
+          playNavalAttackSound(
+            { kind: event.weaponKind || NAVAL_WEAPON_CANNON },
+            count,
+            distance
+          );
+        }
+        attackSounds += 1;
       }
     } else if (event.type === "hit") {
       const hitShip = battle.ships[event.shipIndex];

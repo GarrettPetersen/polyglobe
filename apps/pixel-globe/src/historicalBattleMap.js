@@ -5,6 +5,8 @@ import {
 
 const COAST_SAMPLE_COUNT = 8;
 const HISTORICAL_BATTLE_TILE_ID_BASE = 3_000_000;
+const LEPANTO_REFERENCE_WIDTH = 3072;
+const LEPANTO_REFERENCE_HEIGHT = 1728;
 
 export function createHistoricalBattleMap(mapSpec) {
   if (!mapSpec?.id || !Number.isInteger(mapSpec.width) || !Number.isInteger(mapSpec.height)) {
@@ -28,20 +30,33 @@ export function createHistoricalBattleMap(mapSpec) {
 }
 
 function lepantoCoast(mapSpec) {
+  const scaleX = mapSpec.width / LEPANTO_REFERENCE_WIDTH;
+  const scaleY = mapSpec.height / LEPANTO_REFERENCE_HEIGHT;
+  const scaledPoint = (x, y) => point(x * scaleX, y * scaleY);
   return {
     northCoast: Object.freeze([
-      point(0, 168), point(360, 138), point(760, 182), point(1160, 132),
-      point(1560, 178), point(1940, 218), point(2260, 318), point(2520, 420),
-      point(2780, 532), point(mapSpec.width, 586)
+      scaledPoint(0, 168), scaledPoint(360, 138), scaledPoint(760, 182), scaledPoint(1160, 132),
+      scaledPoint(1560, 178), scaledPoint(1940, 218), scaledPoint(2260, 318), scaledPoint(2520, 420),
+      scaledPoint(2780, 532), scaledPoint(LEPANTO_REFERENCE_WIDTH, 586)
     ]),
     southCoast: Object.freeze([
-      point(0, 1550), point(380, 1584), point(780, 1538), point(1180, 1592),
-      point(1580, 1542), point(1940, 1500), point(2260, 1406), point(2520, 1308),
-      point(2780, 1190), point(mapSpec.width, 1138)
+      scaledPoint(0, 1550), scaledPoint(380, 1584), scaledPoint(780, 1538), scaledPoint(1180, 1592),
+      scaledPoint(1580, 1542), scaledPoint(1940, 1500), scaledPoint(2260, 1406), scaledPoint(2520, 1308),
+      scaledPoint(2780, 1190), scaledPoint(LEPANTO_REFERENCE_WIDTH, 1138)
     ]),
     islands: Object.freeze([
-      Object.freeze({ x: 210, y: 535, radiusX: 78, radiusY: 160 }),
-      Object.freeze({ x: 320, y: 380, radiusX: 44, radiusY: 76 })
+      Object.freeze({
+        x: 210 * scaleX,
+        y: 535 * scaleY,
+        radiusX: 78 * scaleX,
+        radiusY: 160 * scaleY
+      }),
+      Object.freeze({
+        x: 320 * scaleX,
+        y: 380 * scaleY,
+        radiusX: 44 * scaleX,
+        radiusY: 76 * scaleY
+      })
     ])
   };
 }

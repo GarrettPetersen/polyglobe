@@ -6,6 +6,7 @@ import {
   HISTORICAL_BATTLE_PHASE_ACTIVE,
   createHistoricalBattle,
   createHistoricalBattleCommand,
+  drainHistoricalBattleEvents,
   historicalBattlePlayerShip,
   historicalBattleSideSummary,
   historicalBattleSnapshot,
@@ -54,6 +55,48 @@ test("the chosen squadron flagship is the only player-controlled ship", () => {
   assert.equal(playerShips[0].id, historicalBattlePlayerShip(battle).id);
   assert.equal(playerShips[0].sideId, OTTOMAN_SIDE_ID);
   assert.equal(playerShips[0].squadronId, "ottoman-left");
+});
+
+test("the separated fleets suffer no losses or collisions before first contact", () => {
+  const battle = createBattle();
+  const initialRemaining = battle.sides.map((side) => side.remainingShips);
+  const openingEvents = [];
+
+  for (let tick = 0; tick < 200; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: 0,
+      rowingRequested: true
+    });
+    openingEvents.push(...drainHistoricalBattleEvents(battle));
+  }
+
+  assert.deepEqual(battle.sides.map((side) => side.remainingShips), initialRemaining);
+  assert.equal(
+    openingEvents.some((event) => ["collision", "fire", "hit", "sunk", "surrendered"].includes(event.type)),
+    false
+  );
+});
+
+test("portable fire events retain the weapon identity needed by shared audio", () => {
+  const battle = createBattle();
+  const shooterIndex = battle.ships.findIndex((ship) => (
+    ship.factionId === "venice" && !ship.playerControlled
+  ));
+  const targetIndex = battle.ships.findIndex((ship) => ship.sideId === OTTOMAN_SIDE_ID);
+  const shooter = battle.ships[shooterIndex];
+  const target = battle.ships[targetIndex];
+  target.x = shooter.x + 35;
+  target.y = shooter.y;
+  shooter.targetIndex = targetIndex;
+
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS);
+  const event = drainHistoricalBattleEvents(battle).find((entry) => (
+    entry.type === "fire" && entry.shipIndex === shooterIndex && entry.weaponId
+  ));
+
+  assert.equal(event.weaponId, "matchlock-arquebuses");
+  assert.equal(event.weaponKind, "bullet");
+  assert.ok(event.count >= 1);
 });
 
 test("fixed-step updates are deterministic across different render frame rates", () => {
