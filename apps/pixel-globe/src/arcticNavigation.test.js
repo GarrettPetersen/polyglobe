@@ -22,6 +22,8 @@ const BARENTS_APPROACH_TILE_ID = 13837;
 const BAFFIN_APPROACH_TILE_ID = 52416;
 const BEAUFORT_APPROACH_TILE_ID = 48551;
 const BERING_STRAIT_TILE_ID = 47585;
+const LENA_DELTA_COAST_TILE_IDS = Object.freeze([13710, 13505, 53878]);
+const LENA_RIVER_TILE_IDS = Object.freeze([54672, 53872, 54566]);
 const NORTH_POLE_TILE_ID = 15;
 const SOUTH_POLE_TILE_ID = 35;
 const repoRoot = new URL("../../../", import.meta.url);
@@ -134,6 +136,22 @@ test("the 1522 ice cap does not create a Northwest Passage or full Northern Sea 
       `full Northern Sea Route unexpectedly opened on weather day ${day}`
     );
   }
+});
+
+test("the Lena route thaws in summer and refreezes in winter", async () => {
+  const { graph, runtimeWeather } = await arcticFixture();
+  const seaIceMask = new Uint8Array(graph.tileCount);
+  const freshwaterIceMask = new Uint8Array(graph.tileCount);
+
+  fillIceMaskForDay(runtimeWeather.seaIceCycle, 190, seaIceMask);
+  fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, 190, freshwaterIceMask);
+  assert.ok(LENA_DELTA_COAST_TILE_IDS.every((tileId) => seaIceMask[tileId] === 0));
+  assert.ok(LENA_RIVER_TILE_IDS.every((tileId) => freshwaterIceMask[tileId] === 0));
+
+  fillIceMaskForDay(runtimeWeather.seaIceCycle, 0, seaIceMask);
+  fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, 0, freshwaterIceMask);
+  assert.ok(LENA_DELTA_COAST_TILE_IDS.every((tileId) => seaIceMask[tileId] !== 0));
+  assert.ok(LENA_RIVER_TILE_IDS.every((tileId) => freshwaterIceMask[tileId] !== 0));
 });
 
 async function arcticFixture() {

@@ -20157,7 +20157,7 @@ function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
   const riverInfo = tileHasOffshoreHullClearance(tileId)
     ? null
     : riverWaterInfoAtLocalPoint(x, y, chart);
-  if (riverInfo?.ok) {
+  if (riverInfo?.ok && isWorldReachableNavigationTile(riverInfo.tileId)) {
     return {
       ok: true,
       kind: "river",
@@ -20522,11 +20522,15 @@ function riverEdgeTangent(tileId, edge, atPosition) {
 }
 
 function isShipNavigableTile(tileId) {
-  return isShipOpenWaterTile(tileId) || shipTileHasRiver(tileId);
+  return isWorldReachableNavigationTile(tileId) && (
+    isShipOpenWaterTile(tileId) || shipTileHasRiver(tileId)
+  );
 }
 
 function isShipBaseNavigableTile(tileId) {
-  return isWaterSurfaceRow(earthById[tileId]) || shipTileHasRiver(tileId);
+  return isWorldReachableNavigationTile(tileId) && (
+    isWaterSurfaceRow(earthById[tileId]) || shipTileHasRiver(tileId)
+  );
 }
 
 function isShipOpenWaterTile(tileId) {
@@ -20544,12 +20548,19 @@ function isShipBlockedByIceTile(tileId) {
 
 function isPlayerUsableSurfaceWaterTile(tileId) {
   if (!ship) return false;
-  return isShipUsableSurfaceWater(
+  return isWorldReachableNavigationTile(tileId) && isShipUsableSurfaceWater(
     earthById[tileId],
     tileId,
     ship.tileId,
     isShipBlockedByIceTile(tileId)
   );
+}
+
+function isWorldReachableNavigationTile(tileId) {
+  if (!(oceanReachableNavigationMask instanceof Uint8Array)) {
+    throw new Error("Ship navigation requires the world-reachable navigation mask");
+  }
+  return oceanReachableNavigationMask[tileId] === 1;
 }
 
 function shipTileHasRiver(tileId) {

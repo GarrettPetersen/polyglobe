@@ -1,3 +1,5 @@
+import { isWaterSurfaceRow } from "./terrainSurface.js";
+
 const DARDANELLES_HEX_CHAIN = Object.freeze([98820, 98676, 98678, 24757]);
 const BOSPORUS_HEX_CHAIN = Object.freeze([98682, 6233, 98694, 98704]);
 
@@ -126,6 +128,16 @@ export const MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS = Object.freeze({
   ]),
 });
 
+// The coarse river bake runs the Lena headwaters into Lake Baikal. Baikal
+// instead drains through the Angara and Yenisei; the Lena is a separate basin.
+export const MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = Object.freeze({
+  7: Object.freeze([
+    Object.freeze({ tile: 57232, edge: 4 }),
+    Object.freeze({ tile: 57229, edge: 2 }),
+    Object.freeze({ tile: 57229, edge: 3 }),
+  ]),
+});
+
 export const MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS = {
   7: Object.freeze([...DARDANELLES_HEX_CHAIN, ...BOSPORUS_HEX_CHAIN])
 };
@@ -133,6 +145,10 @@ export const MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS = {
 export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
   7: [
     { tile: 25502, edge: 0 },
+    // Lena delta branches into the Laptev Sea.
+    { tile: 54672, edge: 3 },
+    { tile: 53872, edge: 2 },
+    { tile: 53872, edge: 3 },
     // Yukon delta branches into the Bering Sea.
     { tile: 47511, edge: 3 },
     { tile: 47521, edge: 2 },
@@ -142,6 +158,56 @@ export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
     { tile: 88758, edge: 0 },
   ],
 };
+
+export function removeBlockedRiverMouthEdgesFromMasks(
+  graph,
+  earthRows,
+  masks,
+  toWaterMasks,
+  blockedMouths
+) {
+  if (!graph || !Array.isArray(graph.edgeNeighbors)) {
+    throw new Error("Blocked river mouth removal requires a geodesic graph");
+  }
+  if (!Array.isArray(earthRows) || earthRows.length !== graph.tileCount) {
+    throw new Error("Blocked river mouth removal requires one terrain row per globe tile");
+  }
+  for (const [label, candidate] of [["river", masks], ["river-to-water", toWaterMasks]]) {
+    if (!(candidate instanceof Uint8Array) || candidate.length !== graph.tileCount) {
+      throw new Error(`Blocked river mouth removal requires one ${label} mask per globe tile`);
+    }
+  }
+  if (!Array.isArray(blockedMouths)) {
+    throw new Error("Blocked river mouths must be an array");
+  }
+
+  let removed = 0;
+  for (const mouth of blockedMouths) {
+    const tile = mouth?.tile;
+    const edge = mouth?.edge;
+    if (!Number.isInteger(tile) || !Number.isInteger(edge)) {
+      throw new Error(`Blocked river mouth has invalid tile or edge: ${tile}/${edge}`);
+    }
+    const neighborId = graph.edgeNeighbors[tile]?.[edge];
+    if (neighborId === undefined) {
+      throw new Error(`Blocked river mouth tile ${tile} has no edge ${edge}`);
+    }
+    if (!isWaterSurfaceRow(earthRows[neighborId])) {
+      throw new Error(`Blocked river mouth tile ${tile} edge ${edge} does not touch water`);
+    }
+    const bit = 1 << edge;
+    if ((masks[tile] & bit) === 0) {
+      throw new Error(`Blocked river mouth ${tile}/${edge} is missing from the base river bake`);
+    }
+    masks[tile] &= ~bit;
+    removed++;
+    if ((toWaterMasks[tile] & bit) !== 0) {
+      toWaterMasks[tile] &= ~bit;
+      removed++;
+    }
+  }
+  return removed;
+}
 
 export function removeBlockedRiverEdgesFromMasks(graph, masks, blockedEdges) {
   if (!graph || !Array.isArray(graph.edgeNeighbors)) {

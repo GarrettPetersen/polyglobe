@@ -7,11 +7,13 @@ import { cityHasPortAccess } from "./cityPortAccess.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
   MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
+  MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS,
-  removeBlockedRiverEdgesFromMasks
+  removeBlockedRiverEdgesFromMasks,
+  removeBlockedRiverMouthEdgesFromMasks
 } from "./manualRiverHexChains.js";
 
 const SUBDIVISIONS = 7;
@@ -139,6 +141,64 @@ test("Mekong and Yangtze remain separate river systems", async () => {
   assert.equal(riverTilesConnected(graph, masks, 93216, 61636), false);
 });
 
+test("the Lena reaches the Laptev Sea without draining into Lake Baikal", async () => {
+  const { earth, graph, masks, toWaterMasks, reachable } = await buildManualRiverFixture();
+  const yakutskTileId = 54566;
+  const lenaHeadwaterTileId = 57232;
+  const falseBaikalOutlets = MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS];
+  const deltaBranches = [
+    { riverTileId: 54672, edge: 3, coastalTileId: 13710 },
+    { riverTileId: 53872, edge: 2, coastalTileId: 13505 },
+    { riverTileId: 53872, edge: 3, coastalTileId: 53878 },
+  ];
+
+  assert.deepEqual(falseBaikalOutlets, [
+    { tile: 57232, edge: 4 },
+    { tile: 57229, edge: 2 },
+    { tile: 57229, edge: 3 },
+  ]);
+  assert.equal(riverTilesConnected(graph, masks, yakutskTileId, lenaHeadwaterTileId), true);
+  for (const { tile, edge } of falseBaikalOutlets) {
+    const lakeTileId = graph.edgeNeighbors[tile][edge];
+    assert.equal(earth.tiles[lakeTileId].t, "lake");
+    assert.equal(riverEdgeSet(masks, tile, edge), false);
+    assert.equal(riverEdgeSet(toWaterMasks, tile, edge), false);
+  }
+  for (const { riverTileId, edge, coastalTileId } of deltaBranches) {
+    assert.equal(graph.edgeNeighbors[riverTileId][edge], coastalTileId);
+    assert.equal(earth.tiles[coastalTileId].t, "beach");
+    assert.equal(riverEdgeSet(masks, riverTileId, edge), true);
+    assert.equal(
+      riverEdgeSet(toWaterMasks, riverTileId, edge),
+      true,
+      `Lena delta branch ${riverTileId}/${edge} must be marked river-to-water`
+    );
+    assert.equal(reachable[riverTileId], 1);
+  }
+  assert.equal(reachable[yakutskTileId], 1);
+  assert.equal(reachable[lenaHeadwaterTileId], 1);
+});
+
+test("no coastal river component is stranded one edge from navigable water", async () => {
+  const { earth, graph, masks, reachable } = await buildManualRiverFixture();
+  const visited = new Uint8Array(graph.tileCount);
+
+  for (let startTileId = 0; startTileId < graph.tileCount; startTileId++) {
+    if (visited[startTileId] || masks[startTileId] === 0) continue;
+    const component = connectedRiverTiles(graph, masks, startTileId, visited);
+    const touchesReachableWater = component.some((tileId) => (
+      graph.neighbors[tileId].some((neighborId) => (
+        isWaterSurfaceRow(earth.tiles[neighborId]) && reachable[neighborId] === 1
+      ))
+    ));
+    if (!touchesReachableWater) continue;
+    assert.ok(
+      component.every((tileId) => reachable[tileId] === 1),
+      `river component ${startTileId} touches navigable coastal water but remains stranded`
+    );
+  }
+});
+
 test("both Yukon delta branches open into the Bering Sea", async () => {
   const { earth, graph, masks, reachable } = await buildManualRiverFixture();
   const branches = [
@@ -197,7 +257,7 @@ async function buildManualRiverFixture() {
   const directionIndex = createDirectionIndex(graph);
   const { masks, toWaterMasks } = buildRiverMasks(graph, earth);
   const reachable = buildOceanReachableNavigationMask(graph, earth.tiles, masks, toWaterMasks);
-  return { earth, graph, directionIndex, masks, reachable };
+  return { earth, graph, directionIndex, masks, toWaterMasks, reachable };
 }
 
 function buildRiverMasks(graph, earth) {
@@ -216,6 +276,13 @@ function buildRiverMasks(graph, earth) {
     graph,
     masks,
     MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []
+  );
+  removeBlockedRiverMouthEdgesFromMasks(
+    graph,
+    earth.tiles,
+    masks,
+    toWaterMasks,
+    MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []
   );
   for (const chain of MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || []) {
     for (let i = 0; i < chain.length - 1; i++) {
@@ -248,6 +315,24 @@ function riverTilesConnected(graph, masks, startTileId, targetTileId) {
     }
   }
   return startTileId === targetTileId;
+}
+
+function connectedRiverTiles(graph, masks, startTileId, visited = new Uint8Array(graph.tileCount)) {
+  const queue = [startTileId];
+  visited[startTileId] = 1;
+  for (let head = 0; head < queue.length; head++) {
+    const tileId = queue[head];
+    for (let edge = 0; edge < graph.edgeCount[tileId]; edge++) {
+      if (!riverEdgeSet(masks, tileId, edge)) continue;
+      const neighborId = graph.edgeNeighbors[tileId]?.[edge];
+      if (neighborId === undefined || visited[neighborId]) continue;
+      const reciprocalEdge = edgeIndexTowardNeighbor(graph, neighborId, tileId);
+      if (reciprocalEdge === undefined || !riverEdgeSet(masks, neighborId, reciprocalEdge)) continue;
+      visited[neighborId] = 1;
+      queue.push(neighborId);
+    }
+  }
+  return queue;
 }
 
 function buildOceanReachableNavigationMask(graph, earthRows, riverMasks, riverToWaterMasks) {

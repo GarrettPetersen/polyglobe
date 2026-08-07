@@ -1,8 +1,10 @@
 import {
   MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
+  MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
-  removeBlockedRiverEdgesFromMasks
+  removeBlockedRiverEdgesFromMasks,
+  removeBlockedRiverMouthEdgesFromMasks
 } from "./manualRiverHexChains.js";
 import { buildNamedRiverBasinIds } from "./riverBasins.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
@@ -36,6 +38,7 @@ export function buildWorldNavigationTopology({ graph, earthRows, earthCache, sub
       riverTileCount: countRiverTiles(riverData.riverMasks),
       navigableTileCount,
       removedBlockedHalfEdges: riverData.removedBlockedHalfEdges,
+      removedBlockedMouthHalfEdges: riverData.removedBlockedMouthHalfEdges,
       manualHalfEdges: riverData.manualHalfEdges,
       manualMouthHalfEdges: riverData.manualMouthHalfEdges,
       derivedMouthHalfEdges: riverData.derivedMouthHalfEdges
@@ -109,6 +112,13 @@ function buildRiverMasks({ graph, earthRows, earthCache, subdivisions }) {
     riverMasks,
     MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[subdivisions] || []
   );
+  const removedBlockedMouthHalfEdges = removeBlockedRiverMouthEdgesFromMasks(
+    graph,
+    earthRows,
+    riverMasks,
+    riverToWaterMasks,
+    MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[subdivisions] || []
+  );
   const manualHalfEdges = mergeManualRiverChains(graph, riverMasks, subdivisions);
   const manualMouthHalfEdges = mergeManualRiverMouthEdges(
     graph,
@@ -127,6 +137,7 @@ function buildRiverMasks({ graph, earthRows, earthCache, subdivisions }) {
     riverMasks,
     riverToWaterMasks,
     removedBlockedHalfEdges,
+    removedBlockedMouthHalfEdges,
     manualHalfEdges,
     manualMouthHalfEdges,
     derivedMouthHalfEdges
