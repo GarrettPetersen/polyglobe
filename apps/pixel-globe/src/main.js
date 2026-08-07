@@ -1615,6 +1615,7 @@ import {
 } from "./controllerPrompts.js";
 import {
   broadsideArcGeometry,
+  broadsideHullEdgeDistance,
   broadsideReloadGeometry,
   pointInBroadsideArc
 } from "./broadsideControls.js";
@@ -1952,7 +1953,6 @@ const NPC_HAIL_CLICK_PAD_PX = 4;
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
-const CANNON_MUZZLE_SIDE_OFFSET_PX = 8;
 const CANNON_MUZZLE_FORE_AFT_SPAN_PX = 13;
 const CANNON_RANGE_PX = 74;
 const CANNON_RANGE_JITTER_PX = 15;
@@ -2237,6 +2237,7 @@ const HISTORICAL_BATTLE_PAUSE_ACTIONS = Object.freeze([
 const HISTORICAL_BATTLE_RESULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE BATTLE", "START MENU"]);
 const AUTOSAVE_INTERVAL_MS = 30000;
 const AUTOSAVE_MAX_IDLE_DELAY_MS = 10000;
+const SAVE_REASON_QUEST_DECISION = "quest decision";
 const CREDITS_MARKDOWN_URL = "assets/CREDITS.md";
 let CREDITS_PANEL_W = 338;
 let CREDITS_PANEL_H = 218;
@@ -10195,13 +10196,22 @@ function handleLakeBattlePointerMove(event, point) {
 function lakeBattleBroadsideArc(sideName) {
   const battle = lakeBattleMode?.battle;
   if (!battle) throw new Error("Cannot create lake broadside arc without a battle");
+  const heading = lakeBattleHeadingVector(battle.player);
+  const frames = battle.shipFootprints?.get(battle.player.slug);
+  if (!frames) throw new Error(`Lake battle is missing hull footprints for ${battle.player.slug}`);
+  const origin = { x: battle.player.x, y: battle.player.y };
   return broadsideArcGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
-    heading: lakeBattleHeadingVector(battle.player),
+    heading,
     sideName,
     range: lakeBattleWeaponRange(battle.player),
-    origin: { x: battle.player.x, y: battle.player.y }
+    origin,
+    hullFootprint: translatedShipFootprint(
+      shipFootprintFrame(frames, heading),
+      origin.x,
+      origin.y
+    )
   });
 }
 
@@ -10471,13 +10481,21 @@ function historicalBattleBroadsideArc(sideName) {
   if (!battle) throw new Error("Cannot create historical broadside arc without a battle");
   const player = historicalBattlePlayerShip(battle);
   const origin = historicalBattleWorldToScreen(player);
+  const heading = { x: Math.cos(player.headingRad), y: Math.sin(player.headingRad) };
+  const frames = battle.shipFootprints?.get(player.shipSlug);
+  if (!frames) throw new Error(`Historical battle is missing hull footprints for ${player.shipSlug}`);
   return broadsideArcGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
-    heading: { x: Math.cos(player.headingRad), y: Math.sin(player.headingRad) },
+    heading,
     sideName,
     range: player.weaponRangePx,
-    origin
+    origin,
+    hullFootprint: translatedShipFootprint(
+      shipFootprintFrame(frames, heading),
+      origin.x,
+      origin.y
+    )
   });
 }
 
@@ -13935,6 +13953,24 @@ function openPortDialogue(cityCall) {
     recoveryStatus || conquestStatus.playerAssaultActive || attackStatus.commissioned ||
     ((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort)
   );
+  const arrivingTravelMission = activeTravelMissionQuest(gameState);
+  if (portUnavailable &&
+      arrivingTravelMission?.destinationTileId === cityCall.tileId &&
+      shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
+    dialogueState = createPassengerDialogueSession(cityCall, arrivingTravelMission, {
+      admittedToPort: false,
+      continueToPortOnClose: true,
+      nextPortNodeId: recoveryStatus && !entryStatus.hostile && !conquestStatus.canAttempt
+        ? "recovering"
+        : "barred"
+    });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow(SAVE_REASON_QUEST_DECISION);
+    dirty = true;
+    return;
+  }
   const rescuedTravelerHomecoming = rescuedTravelerAtHome(cityCall);
   if (rescuedTravelerHomecoming && portUnavailable) {
     dialogueState = createRescuedTravelerHomecomingSession(cityCall, {
@@ -16715,7 +16751,7 @@ function chooseDialogueOption(optionIndex) {
     reconcileForeignSettlementPolitics({ notify: true });
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
-    saveVoyageNow("quest decision");
+    saveVoyageNow(SAVE_REASON_QUEST_DECISION);
     if (result.action?.type === "open-port") {
       continuePortDialogueAfterQuestCharacter();
       return;
@@ -21670,6 +21706,11 @@ function fireBroadside(sideName) {
   const starboard = { x: -heading.y, y: heading.x };
   const side = sideName === "starboard" ? starboard : scale2(starboard, -1);
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
+  const muzzleSideOffset = broadsideHullEdgeDistance(
+    combatShipFootprint(PLAYER_COMBAT_ID),
+    origin,
+    side
+  );
   const sequenceBase = ++ship.cannonSequence;
   const sideSalt = sideName === "starboard" ? 0x51a7b04d : 0x704f1b23;
   const muzzleSpan = cannonMuzzleForeAftSpan(broadsideCount);
@@ -21690,10 +21731,10 @@ function fireBroadside(sideName) {
     const aim = rotate2(side, spread);
     const startX = origin.x +
       heading.x * lineT * muzzleSpan +
-      side.x * (CANNON_MUZZLE_SIDE_OFFSET_PX + sideJitter);
+      side.x * (muzzleSideOffset + sideJitter);
     const startY = origin.y +
       heading.y * lineT * muzzleSpan +
-      side.y * (CANNON_MUZZLE_SIDE_OFFSET_PX + sideJitter);
+      side.y * (muzzleSideOffset + sideJitter);
     const targetX = startX + aim.x * range;
     const targetY = startY + aim.y * range;
     const projectile = {
@@ -21939,7 +21980,9 @@ function navalBroadsideArc(sideName, weapon = playerNavalWeapon()) {
     screenHeight: SCREEN_H,
     heading,
     sideName,
-    range: cannonLength * weapon.rangeScale
+    range: cannonLength * weapon.rangeScale,
+    origin: { x: localLayout.viewX, y: localLayout.viewY },
+    hullFootprint: combatShipFootprint(PLAYER_COMBAT_ID)
   });
 }
 

@@ -272,6 +272,7 @@ export const GAME_STATE_VERSION = 58;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
+export const PORT_NAVIGATION_REASON_QUEST_CARGO = "QUEST CARGO SOURCE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
@@ -915,6 +916,7 @@ export function portNavigationReasonLabel(reason) {
   if (reason === "PLAYER HEADING" || reason === "SHIPYARD RUMOUR") {
     return PORT_NAVIGATION_REASON_NEW_SHIP;
   }
+  if (reason === PORT_NAVIGATION_REASON_QUEST_CARGO) return "Quest cargo source";
   return reason;
 }
 

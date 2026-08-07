@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES,
   bestPurchasedTradeRoute,
+  bestQuestCargoSource,
   beginShipHandoverDialogue,
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
@@ -1591,6 +1593,123 @@ test("leaving the buy screen without a purchase returns directly to port busines
     { closed: false }
   );
   assert.equal(session.nodeId, "root");
+});
+
+test("leaving a market empty-handed can reveal a source for outstanding quest cargo", () => {
+  const hafnarfjordur = {
+    tileId: 106,
+    city: VIKING_LONGSHIP_PORT_CITY,
+    country: "Iceland"
+  };
+  const ternate = {
+    tileId: 107,
+    city: "Ternate",
+    country: "Ternate",
+    factionId: "neutral",
+    cityType: "southeast-asian",
+    lat: 0.79,
+    lon: 127.38,
+    population: 25000,
+    character: { name: "Hamza Darwis" }
+  };
+  const london = {
+    tileId: 108,
+    city: "London",
+    country: "England",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000
+  };
+  const ports = [ternate, london];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  economy.portStates.get(ternate.tileId).goods.get("wool").stock = 0;
+  economy.portStates.get(london.tileId).goods.get("wool").stock = 20;
+  const shipStats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
+  maybeSpawnVikingLongshipQuest(gameState, hafnarfjordur, {
+    spawnChance: 1,
+    simMinute: 0
+  });
+  const sailingDistanceKm = testSailingDistances([[ternate, london, 14200]]);
+
+  assert.deepEqual(bestQuestCargoSource({
+    originCity: ternate,
+    gameState,
+    economy,
+    portCities: ports,
+    simMinute: 100,
+    sailingDistanceKm,
+    random: () => 0
+  }), {
+    goodId: "wool",
+    goodLabel: "Wool",
+    destinationTileId: london.tileId,
+    destinationName: "London",
+    distanceKm: 14200
+  });
+
+  const session = createPortDialogueSession(ternate, { initialNodeId: "buy" });
+  const market = portDialogueView(session, ternate, gameState, economy, ports);
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
+  const hintResult = selectPortDialogueOption(
+    session,
+    ternate,
+    gameState,
+    economy,
+    ports,
+    backIndex,
+    { simMinute: 100, sailingDistanceKm, random: () => 0 }
+  );
+  assert.equal(hintResult.questCargoTip.goodId, "wool");
+  assert.equal(session.nodeId, "quest-cargo-tip");
+  const hint = portDialogueView(session, ternate, gameState, economy, ports);
+  assert.equal(hint.text, "If it's Wool you're looking for, I hear they have some at London.");
+  assert.equal(hint.options[0].label, "Set a heading for London");
+
+  assert.deepEqual(
+    selectPortDialogueOption(session, ternate, gameState, economy, ports, 1, { simMinute: 100 }),
+    { closed: false, questCargoHintDeclined: true }
+  );
+  assert.equal(session.nodeId, "root");
+  assert.equal(bestQuestCargoSource({
+    originCity: ternate,
+    gameState,
+    economy,
+    portCities: ports,
+    simMinute: 100 + QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES - 1,
+    sailingDistanceKm,
+    random: () => 0
+  }), null);
+
+  const laterSession = createPortDialogueSession(ternate, { initialNodeId: "buy" });
+  const laterMarket = portDialogueView(laterSession, ternate, gameState, economy, ports);
+  selectPortDialogueOption(
+    laterSession,
+    ternate,
+    gameState,
+    economy,
+    ports,
+    laterMarket.options.findIndex((entry) => entry.action.type === "leave-buy"),
+    {
+      simMinute: 100 + QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES,
+      sailingDistanceKm,
+      random: () => 0
+    }
+  );
+  assert.deepEqual(
+    selectPortDialogueOption(laterSession, ternate, gameState, economy, ports, 0),
+    {
+      closed: false,
+      action: {
+        type: "set-port-heading",
+        destinationTileId: london.tileId,
+        destinationName: "London",
+        reason: "QUEST CARGO SOURCE"
+      }
+    }
+  );
 });
 
 test("leaving the sell screen without a sale recommends a market for held trade goods", () => {
@@ -3560,6 +3679,49 @@ test("passenger dialogue can be declined and accepted later", () => {
   });
   assert.equal(gameState.memory.quests.passengerActive.id, quest.id);
   assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
+});
+
+test("a passenger can disembark before the captain enters a barred destination", () => {
+  const destination = {
+    tileId: 2,
+    city: "Algiers",
+    displayCity: "Algiers",
+    country: "Algeria",
+    factionId: "ottoman"
+  };
+  const quest = {
+    id: "passenger-hostile-algiers-test",
+    kind: "passenger",
+    originKey: "Lisbon|Portugal|1",
+    originTileId: 1,
+    originName: "Lisbon",
+    destinationKey: "Algiers|Algeria|2",
+    destinationTileId: destination.tileId,
+    destinationName: destination.city,
+    destinationCountry: destination.country,
+    distanceKm: 1100,
+    passenger: { name: "Yusuf Benali" },
+    reward: 180,
+    scenarioId: "family-letter",
+    dialogue: { arrival: "Algiers at last." }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.memory.quests.passengerActive = quest;
+  const session = createPassengerDialogueSession(destination, quest, {
+    admittedToPort: false,
+    continueToPortOnClose: true,
+    nextPortNodeId: "barred"
+  });
+
+  assert.equal(session.admittedToPort, false);
+  assert.equal(session.continueToPortOnClose, true);
+  assert.equal(session.nextPortNodeId, "barred");
+  assert.match(passengerDialogueView(session, destination, quest, gameState).options[0].label, /Set passenger ashore/);
+  assert.deepEqual(
+    selectPassengerDialogueOption(session, destination, quest, gameState, 0),
+    { closed: true, action: null }
+  );
+  assert.equal(gameState.memory.quests.passengerActive, null);
 });
 
 test("a Muslim captain can accompany a Hajj passenger inland from Jeddah", () => {

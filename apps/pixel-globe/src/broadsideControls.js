@@ -5,7 +5,8 @@ export function broadsideArcGeometry({
   sideName,
   range,
   origin = null,
-  start = 13,
+  start = 8,
+  hullFootprint = null,
   halfAngle = Math.PI / 9
 }) {
   if (sideName !== "port" && sideName !== "starboard") {
@@ -29,20 +30,52 @@ export function broadsideArcGeometry({
   if (!Number.isFinite(resolvedOrigin.x) || !Number.isFinite(resolvedOrigin.y)) {
     throw new Error(`Invalid broadside origin: ${resolvedOrigin.x}, ${resolvedOrigin.y}`);
   }
+  const resolvedStart = hullFootprint
+    ? broadsideHullEdgeDistance(hullFootprint, resolvedOrigin, direction)
+    : start;
+  if (!Number.isFinite(resolvedStart) || resolvedStart < 0) {
+    throw new Error(`Invalid broadside start: ${resolvedStart}`);
+  }
   const centerAngle = Math.atan2(direction.y, direction.x);
   return {
     sideName,
     origin: { x: resolvedOrigin.x, y: resolvedOrigin.y },
     direction,
     heading: normalizedHeading,
-    start,
+    start: resolvedStart,
     length: range,
-    innerRadius: start,
-    outerRadius: start + range,
+    innerRadius: resolvedStart,
+    outerRadius: resolvedStart + range,
     halfAngle,
     startAngle: centerAngle - halfAngle,
     endAngle: centerAngle + halfAngle
   };
+}
+
+export function broadsideHullEdgeDistance(footprint, origin, direction) {
+  if (!Array.isArray(footprint) || footprint.length < 3) {
+    throw new Error("Broadside hull edge requires a polygon");
+  }
+  if (!origin || !Number.isFinite(origin.x) || !Number.isFinite(origin.y)) {
+    throw new Error("Broadside hull edge requires a finite origin");
+  }
+  const directionLength = Math.hypot(direction?.x || 0, direction?.y || 0);
+  if (!Number.isFinite(directionLength) || directionLength <= 0) {
+    throw new Error("Broadside hull edge requires a direction");
+  }
+  const directionX = direction.x / directionLength;
+  const directionY = direction.y / directionLength;
+  let edgeDistance = 0;
+  for (const point of footprint) {
+    if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+      throw new Error("Broadside hull edge received an invalid polygon point");
+    }
+    edgeDistance = Math.max(
+      edgeDistance,
+      (point.x - origin.x) * directionX + (point.y - origin.y) * directionY
+    );
+  }
+  return edgeDistance;
 }
 
 export function pointInBroadsideArc(point, arc, padding = 0) {

@@ -2,10 +2,47 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   broadsideArcGeometry,
+  broadsideHullEdgeDistance,
   broadsideReloadGeometry,
   hasBroadsideCannons,
   pointInBroadsideArc
 } from "./broadsideControls.js";
+
+test("broadside arcs begin on the baked hull edge instead of beyond it", () => {
+  const footprint = [
+    { x: 90, y: 98 },
+    { x: 110, y: 98 },
+    { x: 110, y: 104 },
+    { x: 90, y: 104 }
+  ];
+  const starboard = broadsideArcGeometry({
+    screenWidth: 200,
+    screenHeight: 200,
+    heading: { x: 1, y: 0 },
+    sideName: "starboard",
+    range: 60,
+    origin: { x: 100, y: 100 },
+    hullFootprint: footprint
+  });
+  const port = broadsideArcGeometry({
+    screenWidth: 200,
+    screenHeight: 200,
+    heading: { x: 1, y: 0 },
+    sideName: "port",
+    range: 60,
+    origin: { x: 100, y: 100 },
+    hullFootprint: footprint
+  });
+
+  assert.equal(starboard.innerRadius, 4);
+  assert.equal(port.innerRadius, 2);
+  assert.equal(broadsideHullEdgeDistance(
+    footprint,
+    { x: 100, y: 100 },
+    { x: 0, y: 1 }
+  ), 4);
+  assert.equal(pointInBroadsideArc({ x: 100, y: 103 }, starboard, 1), true);
+});
 
 test("broadside arcs extend from the correct side of a northbound ship", () => {
   const starboard = broadsideArcGeometry({
@@ -52,7 +89,7 @@ test("broadside hit testing includes a touch pad outside the visible arc", () =>
     sideName: "starboard",
     range: 52
   });
-  const nearOuterEdge = { x: 128, y: 295 };
+  const nearOuterEdge = { x: 128, y: arc.origin.y + arc.outerRadius + 4 };
   assert.equal(pointInBroadsideArc(nearOuterEdge, arc), false);
   assert.equal(pointInBroadsideArc(nearOuterEdge, arc, 5), true);
 });

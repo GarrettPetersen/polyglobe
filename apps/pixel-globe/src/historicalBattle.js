@@ -18,6 +18,7 @@ import {
   portableWeaponItemById
 } from "./portableWeapons.js";
 import { resolveShipCollision } from "./shipCollision.js";
+import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
   shipFootprintFrame,
   shipFootprintRadius,
@@ -937,6 +938,11 @@ function fireShipBroadside(state, ship, target, sideName) {
   ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
   const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
   const sideDirection = broadsideDirection(ship, sideName);
+  const muzzleSideOffset = broadsideHullEdgeDistance(
+    historicalShipWorldFootprint(state, ship),
+    ship,
+    sideDirection
+  );
   const toTarget = normalizedDirection(target.x - ship.x, target.y - ship.y);
   const targetDistance = Math.hypot(target.x - ship.x, target.y - ship.y);
   const aimed = targetDistance <= cannonRange(ship) * 1.08 &&
@@ -946,8 +952,8 @@ function fireShipBroadside(state, ship, target, sideName) {
     const trueShot = index === trueShotIndex;
     const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
     const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
-    const startX = ship.x + heading.x * lineT * 13 + sideDirection.x * 8;
-    const startY = ship.y + heading.y * lineT * 13 + sideDirection.y * 8;
+    const startX = ship.x + heading.x * lineT * 13 + sideDirection.x * muzzleSideOffset;
+    const startY = ship.y + heading.y * lineT * 13 + sideDirection.y * muzzleSideOffset;
     const spread = trueShot ? 0 : (nextRandom(state) - 0.5) * 2 * CANNON_SPREAD_RAD;
     const aim = rotate(aimed ? toTarget : sideDirection, spread);
     const projectileRange = aimed

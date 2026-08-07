@@ -1,6 +1,7 @@
 import {
   FACTION_SAFE_PASSAGE_DAYS,
   PORT_NAVIGATION_REASON_NEW_SHIP,
+  PORT_NAVIGATION_REASON_QUEST_CARGO,
   PORT_NAVIGATION_REASON_TRADE_PRICE,
   acknowledgePlayerPortCustomsNotice,
   acceptQuest,
@@ -114,6 +115,7 @@ import {
   equipmentFactorPitchItem,
   validateEquipmentFactorPitch
 } from "./equipmentFactorOffers.js";
+import { activeQuestCargoReservedQuantities } from "./activeQuestCargo.js";
 import { usesPluralAgreement } from "./grammaticalNumber.js";
 import {
   CUSTOM_LOADOUT_FIELDS,
@@ -267,6 +269,9 @@ const REMEMBERED_REPEAT_DRUNK_FACTOR_LINES = Object.freeze([
   () => "The bollards are safe, the ledger is upright, and so are you. A promising beginning."
 ]);
 
+export const QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES = 60 * 24 * 60;
+const QUEST_CARGO_HINT_DECLINE_DECISION = "quest-cargo.market-hint-declined";
+
 export function createPortDialogueSession(city, options = {}) {
   if (options.rumorText !== undefined && (typeof options.rumorText !== "string" || options.rumorText === "")) {
     throw new Error("Port rumor text must be a non-empty string");
@@ -303,6 +308,7 @@ export function createPortDialogueSession(city, options = {}) {
     marketUndoSnapshot: null,
     marketUndoIllicitTradeVisit: null,
     tradeTip: null,
+    questCargoTip: null,
     shipHandover: null,
     specialEquipmentOffer: null,
     equipmentFactorPitch: options.equipmentFactorPitch || null,
@@ -1175,6 +1181,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
+  if (session.nodeId === "quest-cargo-tip") return questCargoTipView(session, city);
   if (session.nodeId === "equipment") return equipmentView(session, city, gameState, economy);
   if (session.nodeId === "equipment-nets") return fishingNetView(session, city, gameState, economy);
   if (session.nodeId === "equipment-cannons") return cannonEquipmentView(session, city, gameState, economy);
@@ -1344,6 +1351,7 @@ export function selectPortDialogueOption(
       session.chefQuestArrival = false;
     }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
+    if (session.nodeId === "quest-cargo-tip") session.questCargoTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
     if (session.nodeId === "marque" && action.nodeId !== "marque") {
       session.marqueGrantedFactionId = null;
@@ -1371,6 +1379,7 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "leave-buy") {
+    const madePurchase = Object.keys(session.marketPurchases).length > 0;
     const tip = bestPurchasedTradeRoute({
       purchases: session.marketPurchases,
       originCity: city,
@@ -1380,13 +1389,27 @@ export function selectPortDialogueOption(
       simMinute: context.simMinute ?? 0,
       sailingDistanceKm: context.sailingDistanceKm
     });
+    const questCargoTip = madePurchase ? null : bestQuestCargoSource({
+      originCity: city,
+      gameState,
+      economy,
+      portCities,
+      simMinute: context.simMinute ?? 0,
+      sailingDistanceKm: context.sailingDistanceKm,
+      random: context.random || Math.random
+    });
     session.marketPurchases = {};
     clearMarketUndoSession(session);
     session.selectedIndex = 0;
     session.feedback = null;
-    if (!tip) {
+    if (!tip && !questCargoTip) {
       session.nodeId = action.nodeId;
       return { closed: false };
+    }
+    if (questCargoTip) {
+      session.questCargoTip = { ...questCargoTip, nextNodeId: action.nodeId };
+      session.nodeId = "quest-cargo-tip";
+      return { closed: false, questCargoTip };
     }
     session.tradeTip = { ...tip, nextNodeId: action.nodeId };
     session.nodeId = "trade-tip";
@@ -1429,6 +1452,7 @@ export function selectPortDialogueOption(
       throw new Error("Port heading requires a reason");
     }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
+    if (session.nodeId === "quest-cargo-tip") session.questCargoTip = null;
     session.nodeId = action.nextNodeId;
     session.selectedIndex = 0;
     session.feedback = `Heading set for ${action.destinationName}.`;
@@ -1441,6 +1465,17 @@ export function selectPortDialogueOption(
         reason: action.reason
       }
     };
+  }
+  if (action.type === "decline-quest-cargo-tip") {
+    if (session.nodeId !== "quest-cargo-tip" || !session.questCargoTip) {
+      throw new Error("Quest cargo hint decline requires an active hint");
+    }
+    recordQuestCargoHintDecline(gameState, context.simMinute ?? 0);
+    session.questCargoTip = null;
+    session.nodeId = action.nextNodeId;
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false, questCargoHintDeclined: true };
   }
   if (action.type === "open-passenger") {
     return { closed: false, action: { type: "open-passenger", quest: action.quest } };
@@ -3960,6 +3995,134 @@ function tradeTipView(session, city) {
       option("Continue", { type: "node", nodeId: tip.nextNodeId })
     ]
   };
+}
+
+function questCargoTipView(session, city) {
+  const tip = session.questCargoTip;
+  if (!tip) throw new Error("Quest-cargo-tip dialogue requires a computed source");
+  return {
+    speaker: speakerName(city),
+    expressionId: "attentive",
+    text: `If it's ${tip.goodLabel} you're looking for, I hear they have some at ${tip.destinationName}.`,
+    feedback: null,
+    options: [
+      option(`Set a heading for ${tip.destinationName}`, {
+        type: "set-port-heading",
+        destinationTileId: tip.destinationTileId,
+        destinationName: tip.destinationName,
+        reason: PORT_NAVIGATION_REASON_QUEST_CARGO,
+        nextNodeId: tip.nextNodeId
+      }),
+      option("No, thank you", {
+        type: "decline-quest-cargo-tip",
+        nextNodeId: tip.nextNodeId
+      })
+    ]
+  };
+}
+
+export function bestQuestCargoSource({
+  originCity,
+  gameState,
+  economy,
+  portCities,
+  simMinute = 0,
+  sailingDistanceKm,
+  random = Math.random
+}) {
+  if (!originCity || !Number.isInteger(originCity.tileId)) {
+    throw new Error("Quest cargo advice requires an origin port");
+  }
+  if (!Array.isArray(portCities)) throw new Error("Quest cargo advice requires candidate ports");
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid quest cargo advice minute: ${simMinute}`);
+  }
+  if (questCargoHintOnCooldown(gameState, simMinute)) return null;
+
+  const requiredQuantities = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: simMinute
+  });
+  const neededGoodIds = Object.entries(requiredQuantities)
+    .filter(([goodId, required]) => (gameState.cargo[goodId] || 0) < required)
+    .map(([goodId]) => goodId)
+    .sort();
+  if (neededGoodIds.length === 0) return null;
+  if (typeof sailingDistanceKm !== "function") {
+    throw new Error("Quest cargo advice requires the precomputed sailing-distance resolver");
+  }
+  if (typeof random !== "function") throw new Error("Quest cargo advice requires a random source");
+
+  const existingWaypointTileIds = new Set(
+    gameState.memory.navigation.optionalWaypoints.map((waypoint) => waypoint.destinationTileId)
+  );
+  const currentMarket = portMarket(economy, originCity);
+  const hints = [];
+  for (const goodId of neededGoodIds) {
+    const currentRow = currentMarket.find((row) => row.good.id === goodId);
+    if (!currentRow) throw new Error(`Quest cargo good is absent from the market: ${goodId}`);
+    if (currentRow.listedForSale && currentRow.stock >= 1) continue;
+
+    const sources = [];
+    for (const destination of portCities) {
+      if (destination.tileId === originCity.tileId ||
+          existingWaypointTileIds.has(destination.tileId) ||
+          !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) {
+        continue;
+      }
+      const row = portMarket(economy, destination).find((entry) => entry.good.id === goodId);
+      if (!row) throw new Error(`Quest cargo good is absent from the market: ${goodId}`);
+      if (!row.listedForSale || row.stock < 1) continue;
+      const distanceKm = sailingDistanceKm(originCity, destination);
+      if (distanceKm === null) continue;
+      if (!Number.isInteger(distanceKm) || distanceKm < 0) {
+        throw new Error(`Quest cargo sailing distance is invalid: ${distanceKm}`);
+      }
+      sources.push({
+        destination,
+        distanceKm,
+        productionPerDay: row.productionPerDay,
+        stock: row.stock
+      });
+    }
+    sources.sort((left, right) => (
+      Number(right.productionPerDay > 0) - Number(left.productionPerDay > 0) ||
+      left.distanceKm - right.distanceKm ||
+      right.stock - left.stock ||
+      left.destination.tileId - right.destination.tileId
+    ));
+    const source = sources[0];
+    if (!source) continue;
+    const good = tradeGoodById(goodId);
+    hints.push(Object.freeze({
+      goodId,
+      goodLabel: good.label,
+      destinationTileId: source.destination.tileId,
+      destinationName: cityLabel(source.destination),
+      distanceKm: source.distanceKm
+    }));
+  }
+  if (hints.length === 0) return null;
+  const roll = random();
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Invalid quest cargo advice roll: ${roll}`);
+  }
+  return hints[Math.floor(roll * hints.length)];
+}
+
+function recordQuestCargoHintDecline(gameState, simMinute) {
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid quest cargo hint decline minute: ${simMinute}`);
+  }
+  gameState.memory.decisions[QUEST_CARGO_HINT_DECLINE_DECISION] = simMinute + 1;
+}
+
+function questCargoHintOnCooldown(gameState, simMinute) {
+  const value = gameState?.memory?.decisions?.[QUEST_CARGO_HINT_DECLINE_DECISION];
+  if (value === undefined) return false;
+  if (!Number.isFinite(value) || value < 1) {
+    throw new Error(`Invalid quest cargo hint decline record: ${value}`);
+  }
+  return simMinute - (value - 1) < QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES;
 }
 
 export function bestPurchasedTradeRoute({

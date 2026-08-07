@@ -20,6 +20,7 @@ import { advanceCannonSmokeBursts, createCannonSmokeBurst } from "./cannonSmoke.
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import { resolveShipCollision } from "./shipCollision.js";
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
+import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
   pointInShipFootprint,
   shipFootprintCenter,
@@ -299,6 +300,13 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
   const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
   const side = lakeBattleBroadsideDirection(ship, sideName);
   const sourcePoint = lakeBattleCombatantPoint(ship);
+  const muzzleSideOffset = lakeBattleCombatantIsCity(ship)
+    ? 8
+    : broadsideHullEdgeDistance(
+        lakeBattleShipWorldFootprint(state, ship),
+        sourcePoint,
+        side
+      );
   const targetPoint = lakeBattleCombatantAimPoint(state, target);
   const toTarget = normalizedDirection(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
   const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
@@ -312,8 +320,8 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
     const trueShot = index === trueShotIndex;
     const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
     const heading = lakeBattleHeadingVector(ship);
-    const startX = sourcePoint.x + heading.x * lineT * 13 + side.x * 8;
-    const startY = sourcePoint.y + heading.y * lineT * 13 + side.y * 8;
+    const startX = sourcePoint.x + heading.x * lineT * 13 + side.x * muzzleSideOffset;
+    const startY = sourcePoint.y + heading.y * lineT * 13 + side.y * muzzleSideOffset;
     const spread = trueShot ? 0 : (random - 0.5) * 2 * CANNON_SPREAD_RAD;
     const aim = rotate2(aimed ? toTarget : side, spread);
     const projectileRange = aimed

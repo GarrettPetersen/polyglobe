@@ -413,6 +413,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "decline-special-equipment": "action:back",
   "buy-equipment-factor-pitch": "action:inventory",
   "decline-equipment-factor-pitch": "action:back",
+  "decline-quest-cargo-tip": "action:back",
   buy: "action:buy",
   "accept-quest": "action:quest",
   "accept-passenger": "action:passenger",

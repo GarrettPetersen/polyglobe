@@ -36,9 +36,11 @@ import {
   SHORE_BATTERY_RELOAD_SECONDS
 } from "./shoreBatteries.js";
 import { accurateBroadsideShotIndex } from "./navalWeapons.js";
+import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
   shipFootprintCenter,
   shipFootprintFrame,
+  translatedShipFootprint,
   validateShipFootprintBake
 } from "./shipFootprint.js";
 import {
@@ -335,6 +337,19 @@ test("broadside fire follows the selected side and emits combat events", () => {
   assert.equal(starboard.y, 1);
   assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), true);
   assert.ok(battle.projectiles.length > 1);
+  const playerFootprint = translatedShipFootprint(
+    shipFootprintFrame(TEST_SHIP_FOOTPRINTS.get(battle.player.slug), { x: 1, y: 0 }),
+    battle.player.x,
+    battle.player.y
+  );
+  const muzzleOffset = broadsideHullEdgeDistance(
+    playerFootprint,
+    { x: battle.player.x, y: battle.player.y },
+    port
+  );
+  assert.ok(battle.projectiles.every((projectile) => (
+    Math.abs(projectile.startY - (battle.player.y - muzzleOffset)) < 1e-9
+  )));
   assert.equal(battle.cannonSmokeBursts.length, battle.projectiles.length);
   assert.ok(battle.projectiles.every((projectile) => projectile.arcHeight < 4));
   assert.deepEqual(drainLakeBattleEvents(battle).map((event) => event.type), ["fire"]);
