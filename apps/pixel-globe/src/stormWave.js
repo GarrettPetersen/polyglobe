@@ -1,6 +1,8 @@
 import { SHIP_WATERLINE_LEVEL } from "./shipWaterline.js";
+import { STORM_ACTIVE_INTENSITY } from "./stormSystem.js";
 
-export const STORM_BREAKING_WAVE_MIN_INTENSITY = 0.5;
+export const STORM_BREAKING_WAVE_MIN_INTENSITY = STORM_ACTIVE_INTENSITY;
+export const STORM_OVERBOARD_MIN_INTENSITY = 0.5;
 export const STORM_BREAKING_WAVE_DURATION_SECONDS = 4.8;
 export const STORM_BREAKING_WAVE_IMPACT_PROGRESS = 0.5;
 export const OVERBOARD_SWIM_MIN_SECONDS = 60;
@@ -163,11 +165,11 @@ export function stormWaveCrewLossChance({ seaworthiness, intensity }) {
   if (!Number.isFinite(intensity) || intensity < 0 || intensity > 1) {
     throw new Error(`Storm wave requires intensity from 0 to 1: ${intensity}`);
   }
-  if (intensity < STORM_BREAKING_WAVE_MIN_INTENSITY) return 0;
+  if (intensity < STORM_OVERBOARD_MIN_INTENSITY) return 0;
   const vulnerability = (11 - seaworthiness) / 10;
   const stormSeverity = clamp(
-    (intensity - STORM_BREAKING_WAVE_MIN_INTENSITY) /
-      (1 - STORM_BREAKING_WAVE_MIN_INTENSITY),
+    (intensity - STORM_OVERBOARD_MIN_INTENSITY) /
+      (1 - STORM_OVERBOARD_MIN_INTENSITY),
     0,
     1
   );

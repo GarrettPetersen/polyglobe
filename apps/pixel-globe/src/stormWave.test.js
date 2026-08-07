@@ -5,6 +5,8 @@ import {
   OVERBOARD_SWIM_MAX_SECONDS,
   OVERBOARD_SWIM_MIN_SECONDS,
   STORM_BREAKING_WAVE_DURATION_SECONDS,
+  STORM_BREAKING_WAVE_MIN_INTENSITY,
+  STORM_OVERBOARD_MIN_INTENSITY,
   createStormWaveState,
   overboardFlightLiftPx,
   overboardSwimDurationSeconds,
@@ -38,6 +40,28 @@ test("breaking storm waves use the existing wind-aligned swell direction", () =>
   assert.ok(Math.abs(frame.center.y - 256 / 2) < 0.001);
   assert.ok(frame.wash > 0.99);
   assert.ok(stormWaveCrestParticles(state.active, 455, 256).length > 100);
+});
+
+test("every active storm can show breakers without making mild storms sweep crew", () => {
+  const state = createStormWaveState();
+  updateStormWaveState(state, {
+    dt: 0,
+    intensity: STORM_BREAKING_WAVE_MIN_INTENSITY,
+    eligible: true,
+    flow: { x: 1, y: 0 },
+    random: () => 0.25,
+    immediate: true
+  });
+
+  assert.ok(state.active);
+  assert.equal(stormWaveCrewLossChance({
+    seaworthiness: 1,
+    intensity: STORM_OVERBOARD_MIN_INTENSITY - 0.01
+  }), 0);
+  assert.ok(stormWaveCrewLossChance({
+    seaworthiness: 1,
+    intensity: STORM_OVERBOARD_MIN_INTENSITY
+  }) > 0);
 });
 
 test("a breaking wave resolves exactly one impact", () => {
@@ -85,7 +109,10 @@ test("the captain is never counted among swept crew", () => {
 });
 
 test("wave impact audio stays subdued unless the breaker is large or sweeps crew", () => {
-  const small = stormWaveImpactSoundVolume({ intensity: 0.5, sweptCrewCount: 0 });
+  const small = stormWaveImpactSoundVolume({
+    intensity: STORM_BREAKING_WAVE_MIN_INTENSITY,
+    sweptCrewCount: 0
+  });
   const large = stormWaveImpactSoundVolume({ intensity: 1, sweptCrewCount: 0 });
   const sweeping = stormWaveImpactSoundVolume({ intensity: 1, sweptCrewCount: 3 });
   assert.equal(small, 0.18);
