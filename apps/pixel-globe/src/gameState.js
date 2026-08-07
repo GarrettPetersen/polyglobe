@@ -2382,6 +2382,9 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   if (!Number.isFinite(foodActivityMultiplier) || foodActivityMultiplier < 1) {
     throw new Error(`Invalid food activity multiplier: ${foodActivityMultiplier}`);
   }
+  const protectedCargoQuantities = validateProtectedCargoQuantities(
+    options.protectedCargoQuantities
+  );
   const result = {
     changed: false,
     freshWaterRefilled: false,
@@ -2433,7 +2436,8 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     const rainWaterUsed = Math.min(waterUse, availableRainWater);
     const water = consumeDrinkSupply(state, waterUse - rainWaterUsed, {
       allowCargoReserve: !state.ship,
-      allowWine: Boolean(state.ship)
+      allowWine: Boolean(state.ship),
+      protectedCargoQuantities
     });
     const rainWaterStored = stowFreshWater(state, availableRainWater - rainWaterUsed);
     if (rainWaterStored > 0) {
@@ -2462,12 +2466,13 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     state,
     consumption.restrictedAnimalFood,
     elapsedDays,
-    result.foodConsumed
+    result.foodConsumed,
+    protectedCargoQuantities
   ) || result.changed;
   state.survival.foodRationDebt += elapsedDays * consumption.foodConsumers *
     foodActivityMultiplier / foodDurationMultiplier;
   while (state.survival.foodRationDebt >= 1) {
-    const consumed = consumeCheapestFoodRation(state);
+    const consumed = consumeCheapestFoodRation(state, protectedCargoQuantities);
     if (!consumed) {
       result.starved = true;
       result.changed = clearMissedFoodRationDebt(state) || result.changed;
@@ -5396,7 +5401,36 @@ function openFoodRations(quantity) {
   return foodRationsForCargoQuantity(quantity) % FOOD_RATIONS_PER_HOLD_UNIT;
 }
 
+function unprotectedFoodRations(row, protectedCargoQuantities) {
+  const heldRations = foodRationsForCargoQuantity(row.quantity);
+  const protectedQuantity = protectedCargoQuantities[row.good.id] || 0;
+  const protectedRations = Math.round(protectedQuantity * FOOD_RATIONS_PER_HOLD_UNIT);
+  return Math.max(0, heldRations - protectedRations);
+}
+
+function unprotectedCargoQuantity(heldQuantity, protectedQuantity = 0) {
+  return Math.max(0, heldQuantity - protectedQuantity);
+}
+
+function validateProtectedCargoQuantities(quantities) {
+  if (quantities === undefined) return {};
+  if (!quantities || typeof quantities !== "object" || Array.isArray(quantities)) {
+    throw new Error("Protected quest cargo quantities must be an object");
+  }
+  for (const [goodId, quantity] of Object.entries(quantities)) {
+    goodById(goodId);
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      throw new Error(`Invalid protected quest cargo quantity: ${goodId}=${quantity}`);
+    }
+  }
+  return quantities;
+}
+
 function compareFoodConsumptionCandidates(a, b) {
+  if (a.unprotectedRations !== b.unprotectedRations) {
+    if (a.unprotectedRations === 0) return 1;
+    if (b.unprotectedRations === 0) return -1;
+  }
   const aOpenRations = openFoodRations(a.quantity);
   const bOpenRations = openFoodRations(b.quantity);
   const aIsOpen = aOpenRations > 0;
@@ -5409,19 +5443,30 @@ function compareFoodConsumptionCandidates(a, b) {
   );
 }
 
-function consumeCheapestFoodRation(state) {
+function consumeCheapestFoodRation(state, protectedCargoQuantities = {}) {
   const candidates = edibleCargoRows(state)
+    .map((row) => ({
+      ...row,
+      unprotectedRations: unprotectedFoodRations(row, protectedCargoQuantities)
+    }))
     .sort(compareFoodConsumptionCandidates);
   const row = candidates[0];
   if (!row) return null;
   return consumeFoodRationFromRow(state, row);
 }
 
-function consumeFoodRationByGoodId(state, goodId) {
+function consumeFoodRationByGoodId(
+  state,
+  goodId,
+  { protectedCargoQuantities = {}, allowProtected = true } = {}
+) {
   const good = tradeGoodById(goodId);
   if (good.category !== "food") throw new Error(`${good.label} is not edible companion food`);
   const quantity = state.cargo[goodId] || 0;
-  return quantity > 0 ? consumeFoodRationFromRow(state, { good, quantity }) : null;
+  if (quantity <= 0) return null;
+  const row = { good, quantity };
+  if (!allowProtected && unprotectedFoodRations(row, protectedCargoQuantities) <= 0) return null;
+  return consumeFoodRationFromRow(state, row);
 }
 
 function consumeFoodRationFromRow(state, row) {
@@ -5448,7 +5493,13 @@ function consumeFoodRationFromRow(state, row) {
   };
 }
 
-function consumeRestrictedAnimalFood(state, requirements, elapsedDays, consumedEntries) {
+function consumeRestrictedAnimalFood(
+  state,
+  requirements,
+  elapsedDays,
+  consumedEntries,
+  protectedCargoQuantities
+) {
   if (!Array.isArray(requirements) || !Array.isArray(consumedEntries)) {
     throw new Error("Restricted animal feeding requires arrays");
   }
@@ -5465,7 +5516,10 @@ function consumeRestrictedAnimalFood(state, requirements, elapsedDays, consumedE
     );
     if (elapsedDays > 0) changed = true;
     for (let ration = 0; ration < rationCount; ration += 1) {
-      const consumed = consumeFoodRationByGoodId(state, requirement.goodId);
+      const consumed = consumeFoodRationByGoodId(state, requirement.goodId, {
+        protectedCargoQuantities,
+        allowProtected: false
+      });
       if (consumed) consumedEntries.push(consumed);
       // A companion without its preferred cargo catches its own food offscreen.
     }
@@ -5483,7 +5537,11 @@ export function loseFoodRations(state, requestedRations) {
   return lost;
 }
 
-function consumeDrinkSupply(state, waterUse, { allowCargoReserve = true, allowWine = false } = {}) {
+function consumeDrinkSupply(state, waterUse, {
+  allowCargoReserve = true,
+  allowWine = false,
+  protectedCargoQuantities = {}
+} = {}) {
   let remainingUse = Math.max(0, waterUse);
   let waterConsumed = 0;
   let cargoConsumed = 0;
@@ -5498,29 +5556,48 @@ function consumeDrinkSupply(state, waterUse, { allowCargoReserve = true, allowWi
     changed = true;
   }
 
-  while (allowCargoReserve && remainingUse > 1e-8 && (state.cargo[FRESH_WATER_GOOD_ID] || 0) > 0) {
-    const unit = consumeCargoUnit(state, FRESH_WATER_GOOD_ID);
-    if (!unit) break;
-    cargoConsumed += 1;
-    const unitWater = FRESH_WATER_USE_PER_DAY * FRESH_WATER_CARGO_DAYS;
-    const unitUse = Math.min(unitWater, remainingUse);
-    waterConsumed += unitUse;
-    remainingUse -= unitUse;
-    const leftover = unitWater - unitUse;
-    if (leftover > 0) {
-      state.survival.freshWater = Math.min(state.survival.freshWaterCapacity, state.survival.freshWater + leftover);
+  const consumeCargoWater = (allowProtected) => {
+    while (allowCargoReserve && remainingUse > 1e-8) {
+      const held = state.cargo[FRESH_WATER_GOOD_ID] || 0;
+      const available = allowProtected
+        ? held
+        : unprotectedCargoQuantity(held, protectedCargoQuantities[FRESH_WATER_GOOD_ID]);
+      if (available < 1 - 1e-8) break;
+      const unit = consumeCargoUnit(state, FRESH_WATER_GOOD_ID);
+      if (!unit) break;
+      cargoConsumed += 1;
+      const unitWater = FRESH_WATER_USE_PER_DAY * FRESH_WATER_CARGO_DAYS;
+      const unitUse = Math.min(unitWater, remainingUse);
+      waterConsumed += unitUse;
+      remainingUse -= unitUse;
+      const leftover = unitWater - unitUse;
+      if (leftover > 0) {
+        state.survival.freshWater = Math.min(
+          state.survival.freshWaterCapacity,
+          state.survival.freshWater + leftover
+        );
+      }
+      changed = true;
     }
-    changed = true;
-  }
-
-  if (allowWine && remainingUse > 1e-8 && (state.cargo[WINE_GOOD_ID] || 0) > 0) {
-    const held = state.cargo[WINE_GOOD_ID];
-    const unitUse = Math.min(held, remainingUse);
+  };
+  const consumeWine = (allowProtected) => {
+    if (!allowWine || remainingUse <= 1e-8) return;
+    const held = state.cargo[WINE_GOOD_ID] || 0;
+    const available = allowProtected
+      ? held
+      : unprotectedCargoQuantity(held, protectedCargoQuantities[WINE_GOOD_ID]);
+    const unitUse = Math.min(available, remainingUse);
+    if (unitUse <= 1e-8) return;
     consumeDrinkQuantity(state, WINE_GOOD_ID, unitUse);
     wineConsumed += unitUse;
     remainingUse -= unitUse;
     changed = true;
-  }
+  };
+
+  consumeCargoWater(false);
+  consumeWine(false);
+  consumeCargoWater(true);
+  consumeWine(true);
 
   return {
     changed,

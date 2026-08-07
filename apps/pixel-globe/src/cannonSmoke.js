@@ -1,6 +1,8 @@
 import { NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
 
 export const CANNON_SMOKE_TTL_SECONDS = 2.2;
+export const CANNON_SMOKE_LAYER_BEHIND = "behind-emitter";
+export const CANNON_SMOKE_LAYER_FRONT = "in-front-of-emitter";
 
 const PARTICLE_COUNT = 30;
 const MUZZLE_PARTICLE_COUNT = 6;
@@ -19,7 +21,8 @@ export function createCannonSmokeBurst(projectile) {
     age: 0,
     ttl: CANNON_SMOKE_TTL_SECONDS,
     seed: projectile.seed >>> 0,
-    scale: projectile.smokeScale || 1
+    scale: projectile.smokeScale || 1,
+    drawLayer: cannonSmokeDrawLayer(projectile, dy / length)
   };
 }
 
@@ -74,6 +77,9 @@ function validateCannonProjectile(projectile) {
   for (const key of ["startX", "startY", "targetX", "targetY", "seed"]) {
     if (!Number.isFinite(projectile[key])) throw new Error(`Invalid cannon smoke projectile ${key}: ${projectile[key]}`);
   }
+  if (projectile.smokeOcclusionY !== undefined && !Number.isFinite(projectile.smokeOcclusionY)) {
+    throw new Error(`Invalid cannon smoke occlusion line: ${projectile.smokeOcclusionY}`);
+  }
 }
 
 function validateCannonSmokeBurst(burst) {
@@ -85,10 +91,21 @@ function validateCannonSmokeBurst(burst) {
     throw new Error(`Invalid cannon smoke lifetime: ${burst.age}/${burst.ttl}`);
   }
   if (burst.scale <= 0 || burst.scale > 1) throw new Error(`Invalid cannon smoke scale: ${burst.scale}`);
+  if (burst.drawLayer !== CANNON_SMOKE_LAYER_BEHIND && burst.drawLayer !== CANNON_SMOKE_LAYER_FRONT) {
+    throw new Error(`Invalid cannon smoke draw layer: ${burst.drawLayer}`);
+  }
   const directionLength = Math.hypot(burst.directionX, burst.directionY);
   if (Math.abs(directionLength - 1) > 1e-6) {
     throw new Error(`Cannon smoke direction must be normalized: ${directionLength}`);
   }
+}
+
+function cannonSmokeDrawLayer(projectile, directionY) {
+  const occlusionY = projectile.smokeOcclusionY ?? projectile.startY;
+  const muzzleOffsetY = projectile.startY - occlusionY;
+  if (muzzleOffsetY > 0.25) return CANNON_SMOKE_LAYER_FRONT;
+  if (muzzleOffsetY < -0.25) return CANNON_SMOKE_LAYER_BEHIND;
+  return directionY >= 0 ? CANNON_SMOKE_LAYER_FRONT : CANNON_SMOKE_LAYER_BEHIND;
 }
 
 function smokeRandom(seed, index) {

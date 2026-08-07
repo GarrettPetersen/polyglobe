@@ -402,6 +402,45 @@ test("the crew finishes an opened fish stack before eating unopened provisions",
   assert.equal(state.cargo.hardtack, 1);
 });
 
+test("the crew eats ordinary provisions before cargo promised to a quest", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.cargo.grain = 1;
+  state.cargo.fish = 1;
+  state.accounts.cargoCostBasis.grain = 8;
+  state.accounts.cargoCostBasis.fish = 20;
+
+  const result = updateSurvival(state, 0, 24 * 60, {
+    freshwater: false,
+    protectedCargoQuantities: { grain: 1 }
+  });
+
+  assert.equal(result.foodConsumed[0].goodId, "fish");
+  assert.equal(state.cargo.grain, 1);
+  assert.equal(state.cargo.fish, 11 / 12);
+});
+
+test("surplus quest goods remain edible and promised stores remain emergency food", () => {
+  const surplus = createGameState({ cargoCapacity: 10 });
+  surplus.cargo.grain = 13 / 12;
+  surplus.accounts.cargoCostBasis.grain = 13;
+  updateSurvival(surplus, 0, 24 * 60, {
+    freshwater: false,
+    protectedCargoQuantities: { grain: 1 }
+  });
+  assert.equal(surplus.cargo.grain, 1);
+
+  const emergency = createGameState({ cargoCapacity: 10 });
+  emergency.cargo.grain = 1;
+  emergency.accounts.cargoCostBasis.grain = 12;
+  const result = updateSurvival(emergency, 0, 24 * 60, {
+    freshwater: false,
+    protectedCargoQuantities: { grain: 1 }
+  });
+  assert.equal(result.starved, false);
+  assert.equal(result.foodConsumed[0].goodId, "grain");
+  assert.equal(emergency.cargo.grain, 11 / 12);
+});
+
 test("a ship drinks wine only after water runs out and tracks full wine-only days", () => {
   const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });

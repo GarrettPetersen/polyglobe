@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CANNON_SMOKE_LAYER_BEHIND,
+  CANNON_SMOKE_LAYER_FRONT,
   CANNON_SMOKE_TTL_SECONDS,
   advanceCannonSmokeBursts,
   cannonSmokePixels,
@@ -46,6 +48,27 @@ test("cannon smoke lingers long enough for successive broadsides to overlap", ()
   }
   assert.equal(bursts.length, 1);
   assert.ok(cannonSmokePixels(bursts[0]).length >= 24);
+});
+
+test("cannon smoke draws on the same side of its emitter as the firing muzzle", () => {
+  const nearSide = createCannonSmokeBurst({
+    ...CANNONBALL,
+    startY: 36,
+    smokeOcclusionY: 30
+  });
+  const farSide = createCannonSmokeBurst({
+    ...CANNONBALL,
+    startY: 24,
+    smokeOcclusionY: 30
+  });
+  const shoreward = createCannonSmokeBurst({
+    ...CANNONBALL,
+    targetY: 10
+  });
+
+  assert.equal(nearSide.drawLayer, CANNON_SMOKE_LAYER_FRONT);
+  assert.equal(farSide.drawLayer, CANNON_SMOKE_LAYER_BEHIND);
+  assert.equal(shoreward.drawLayer, CANNON_SMOKE_LAYER_BEHIND);
 });
 
 test("cannon smoke persists independently and expires at a fixed time", () => {

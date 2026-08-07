@@ -451,6 +451,15 @@ import {
 } from "./naturalistAnimalDialogue.js";
 import { openNextPortArrivalFollowup } from "./portArrivalQueue.js";
 import {
+  QUEST_CARGO_PROMPT_CHEF,
+  QUEST_CARGO_PROMPT_COLONIZATION,
+  QUEST_CARGO_PROMPT_GINGER,
+  QUEST_CARGO_PROMPT_MATCHLOCKS,
+  QUEST_CARGO_PROMPT_VIKING,
+  activeQuestCargoReservedQuantities,
+  questCargoDeliveryPromptsAtPort
+} from "./activeQuestCargo.js";
+import {
   characterSkillIdsForIdentity,
   characterSkillSummary,
   characterSkills
@@ -1643,6 +1652,8 @@ import {
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
 import {
+  CANNON_SMOKE_LAYER_BEHIND,
+  CANNON_SMOKE_LAYER_FRONT,
   advanceCannonSmokeBursts,
   cannonSmokePixels,
   createCannonSmokeBurst
@@ -14074,6 +14085,7 @@ function continuePortArrivalDialogues() {
   }
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
+    () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
     () => activePapalCommissionObjectiveIsAt(cityCall) &&
       maybeOpenPapalCommissionPortDialogue(cityCall),
     () => maybeOpenHospitallerMaltaQuestPortDialogue(cityCall),
@@ -14085,6 +14097,46 @@ function continuePortArrivalDialogues() {
     ),
     () => openPendingDiscoveryPortDialogue()
   ]);
+}
+
+function maybeOpenQuestCargoDeliveryDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.rumorText !== null) {
+    return false;
+  }
+  if (!Array.isArray(dialogueState.questCargoDeliveryPromptIds)) {
+    dialogueState.questCargoDeliveryPromptIds = [];
+  }
+  const prompted = new Set(dialogueState.questCargoDeliveryPromptIds);
+  const prompt = questCargoDeliveryPromptsAtPort(gameState, cityCall, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  }).find((candidate) => !prompted.has(candidate.id));
+  if (!prompt) return false;
+
+  if (prompt.id === QUEST_CARGO_PROMPT_VIKING) {
+    markVikingLongshipOfferSeen(gameState);
+  } else if (prompt.id === QUEST_CARGO_PROMPT_MATCHLOCKS) {
+    ensureJapaneseMatchlockGunsmith(gameState);
+    markJapaneseMatchlockOfferSeen(gameState);
+  } else if (prompt.id === QUEST_CARGO_PROMPT_GINGER) {
+    ensureCaribbeanGingerPlanter(gameState);
+    markCaribbeanGingerOfferSeen(gameState);
+  } else if (prompt.id === QUEST_CARGO_PROMPT_CHEF) {
+    ensureBanquetChef(gameState, cityCall);
+    markChefQuestOfferSeen(gameState);
+  } else if (prompt.id !== QUEST_CARGO_PROMPT_COLONIZATION) {
+    throw new Error(`Unknown quest cargo delivery prompt: ${prompt.id}`);
+  }
+
+  dialogueState.questCargoDeliveryPromptIds.push(prompt.id);
+  dialogueState.nextPortNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = prompt.nodeId;
+  dialogueState[prompt.arrivalFlag] = true;
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
 }
 
 function createRescuedTravelerHomecomingSession(cityCall, {
@@ -16854,6 +16906,12 @@ function chooseDialogueOption(optionIndex) {
       return;
     }
     closeDialogue();
+    return;
+  }
+  if (dialogueState.kind === "port" &&
+      (dialogueState.nodeId || null) !== previousNodeId &&
+      ["greeting", "root"].includes(dialogueState.nodeId) &&
+      continuePortArrivalDialogues()) {
     return;
   }
   if ((dialogueState.nodeId || null) !== previousNodeId) dialogueLayout.scrollOffset = 0;
@@ -21650,6 +21708,7 @@ function fireBroadside(sideName) {
       arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 4) * 4) * weapon.arcHeightScale,
       damage: weapon.damage,
       seed,
+      smokeOcclusionY: origin.y,
       firedDuringCombat: true,
       volleyId: sequenceBase
     };
@@ -21706,17 +21765,20 @@ function firePlayerPortableWeaponsAtWill() {
       const targetX = target.point.x + (cannonUnit(seed, 1) * 2 - 1) * jitter;
       const targetY = target.point.y + (cannonUnit(seed, 2) * 2 - 1) * jitter;
       const range = Math.hypot(targetX - startX, targetY - startY);
-      const projectile = portableCombatProjectile({
-        weapon,
-        ownerId: PLAYER_COMBAT_ID,
-        targetId: target.id,
-        startX,
-        startY,
-        targetX,
-        targetY,
-        range,
-        seed
-      });
+      const projectile = {
+        ...portableCombatProjectile({
+          weapon,
+          ownerId: PLAYER_COMBAT_ID,
+          targetId: target.id,
+          startX,
+          startY,
+          targetX,
+          targetY,
+          range,
+          seed
+        }),
+        smokeOcclusionY: origin.y
+      };
       ship.navalProjectiles.push(projectile);
       if (weapon.smokeScale > 0) addCannonSmokeBurst(projectile);
     }
@@ -22404,7 +22466,7 @@ function addCannonSplash(ball) {
 
 function drawNavalEffects(activeChart, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   if (!ship) return;
-  drawCannonSmokeBursts(cannonSmokeBursts, painter);
+  drawCannonSmokeBursts(cannonSmokeBursts, painter, CANNON_SMOKE_LAYER_BEHIND);
   drawCannonSplashes(activeChart, painter);
   drawPlayerNavalProjectiles(painter);
   drawNpcCombatSplashes(activeChart, painter);
@@ -22466,9 +22528,16 @@ function addCannonSmokeBurst(projectile) {
 
 function drawCannonSmokeBursts(
   bursts,
-  painter = CANVAS_WORLD_PRIMITIVE_PAINTER
+  painter = CANVAS_WORLD_PRIMITIVE_PAINTER,
+  drawLayer = null
 ) {
+  if (drawLayer !== null &&
+      drawLayer !== CANNON_SMOKE_LAYER_BEHIND &&
+      drawLayer !== CANNON_SMOKE_LAYER_FRONT) {
+    throw new Error(`Unknown cannon smoke render layer: ${drawLayer}`);
+  }
   for (const burst of bursts) {
+    if (drawLayer !== null && burst.drawLayer !== drawLayer) continue;
     for (const pixel of cannonSmokePixels(burst)) {
       painter.rect(
         pixel.x,
@@ -22853,6 +22922,9 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
     safePort,
     foodDurationMultiplier: perks.foodDurationMultiplier,
     waterDurationMultiplier: perks.waterDurationMultiplier,
+    protectedCargoQuantities: activeQuestCargoReservedQuantities(gameState, {
+      currentMinute
+    }),
     foodActivityMultiplier: playerShipIsRowing()
       ? ROWING_FOOD_CONSUMPTION_MULTIPLIER
       : 1
@@ -25393,17 +25465,20 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
       const startX = state.x + heading.x * lineT * 8;
       const startY = state.y + heading.y * lineT * 8;
       const range = Math.hypot(targetX - startX, targetY - startY);
-      const projectile = portableCombatProjectile({
-        weapon,
-        ownerId: state.id,
-        targetId,
-        startX,
-        startY,
-        targetX,
-        targetY,
-        range,
-        seed
-      });
+      const projectile = {
+        ...portableCombatProjectile({
+          weapon,
+          ownerId: state.id,
+          targetId,
+          startX,
+          startY,
+          targetX,
+          targetY,
+          range,
+          seed
+        }),
+        smokeOcclusionY: state.y
+      };
       npcCombatProjectiles.push(projectile);
       if (weapon.smokeScale > 0) addCannonSmokeBurst(projectile);
     }
@@ -28546,7 +28621,9 @@ function drawGpuDynamicWorld(dynamicWorld) {
   const { activeChart, nowMs, offset, shipLight, cloudCalls, renderTileIds } = dynamicWorld;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawCitySpritesWebGL(activeChart, offset, nowMs);
-    drawHullSplinterBursts(hullSplinterBursts, createGpuWorldPrimitivePainter(offset));
+    const painter = createGpuWorldPrimitivePainter(offset);
+    drawHullSplinterBursts(hullSplinterBursts, painter);
+    drawCannonSmokeBursts(cannonSmokeBursts, painter, CANNON_SMOKE_LAYER_FRONT);
   });
   measurePerformanceBenchmarkStage("render.clouds", () => {
     drawCloudLayerWebGL(cloudCalls, offset);
@@ -34416,8 +34493,18 @@ function drawLakeBattleMode(nowMs) {
   const battle = lakeBattleMode.battle;
   if (!battle) throw new Error(`Lake battle screen ${lakeBattleMode.screen} has no battle state`);
   drawLakeBattleWakes(battle);
+  drawCannonSmokeBursts(
+    battle.cannonSmokeBursts,
+    CANVAS_WORLD_PRIMITIVE_PAINTER,
+    CANNON_SMOKE_LAYER_BEHIND
+  );
   drawLakeBattleEffects(battle);
   drawLakeBattleShips(battle, nowMs);
+  drawCannonSmokeBursts(
+    battle.cannonSmokeBursts,
+    CANVAS_WORLD_PRIMITIVE_PAINTER,
+    CANNON_SMOKE_LAYER_FRONT
+  );
   drawHullSplinterBursts(battle.hullSplinterBursts);
   drawLakeBattleSinkEffects(battle, nowMs);
   const hudLayout = drawLakeBattleHud(battle);
@@ -35105,7 +35192,6 @@ function drawLakeBattleWakes(battle) {
 }
 
 function drawLakeBattleEffects(battle) {
-  drawCannonSmokeBursts(battle.cannonSmokeBursts);
   for (const projectile of battle.projectiles) {
     drawNavalProjectile(projectile, lakeBattleProjectilePoint(projectile));
   }

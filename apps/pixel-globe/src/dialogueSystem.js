@@ -277,6 +277,11 @@ export function createPortDialogueSession(city, options = {}) {
   if (options.equipmentFactorPitch !== undefined && options.equipmentFactorPitch !== null) {
     validateEquipmentFactorPitch(options.equipmentFactorPitch);
   }
+  if (options.questCargoDeliveryPromptIds !== undefined &&
+      (!Array.isArray(options.questCargoDeliveryPromptIds) ||
+       options.questCargoDeliveryPromptIds.some((id) => typeof id !== "string" || id === ""))) {
+    throw new Error("Port quest cargo delivery prompts must be string ids");
+  }
   return {
     kind: "port",
     cityTileId: city.tileId,
@@ -310,6 +315,7 @@ export function createPortDialogueSession(city, options = {}) {
     caribbeanGingerArrival: options.caribbeanGingerArrival === true,
     chefQuestArrival: options.chefQuestArrival === true,
     vikingLongshipArrival: options.vikingLongshipArrival === true,
+    questCargoDeliveryPromptIds: [...(options.questCargoDeliveryPromptIds || [])],
     colonizationApprovalStep: 0,
     marqueGrantedFactionId: null,
     tradePassPolicyId: null,
