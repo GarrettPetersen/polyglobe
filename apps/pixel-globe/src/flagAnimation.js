@@ -1,6 +1,40 @@
 export const FLAG_WAVE_FRAME_COUNT = 12;
-export const FLAG_WIND_DIRECTION_COUNT = 8;
 export const FLAG_SLACK_MAX_STRENGTH = 0.18;
+
+const FLAG_WIND_POSE_PROFILES = Object.freeze([
+  Object.freeze({
+    maxStrength: FLAG_SLACK_MAX_STRENGTH,
+    widthScale: 0.38,
+    dropScale: 0.82,
+    collapseScale: 0.55,
+    waveAmplitudePx: 0,
+    waveRate: 0
+  }),
+  Object.freeze({
+    maxStrength: 0.42,
+    widthScale: 0.58,
+    dropScale: 0.5,
+    collapseScale: 0.3,
+    waveAmplitudePx: 0,
+    waveRate: 0
+  }),
+  Object.freeze({
+    maxStrength: 0.78,
+    widthScale: 0.82,
+    dropScale: 0.2,
+    collapseScale: 0.1,
+    waveAmplitudePx: 1,
+    waveRate: 0.55
+  }),
+  Object.freeze({
+    maxStrength: Number.POSITIVE_INFINITY,
+    widthScale: 1,
+    dropScale: 0,
+    collapseScale: 0,
+    waveAmplitudePx: 1,
+    waveRate: 1
+  })
+]);
 
 export function flagWaveFrameIndex(phaseRad) {
   if (!Number.isFinite(phaseRad)) throw new Error(`Invalid flag wave phase: ${phaseRad}`);
@@ -23,12 +57,14 @@ export function flagWaveColumnOffsets(width, phaseRad, amplitudePx = 1) {
   });
 }
 
-export function flagSlackColumnLayout(width, height) {
+export function flagFabricColumnLayout(width, height, pose) {
   if (!Number.isInteger(width) || width < 1 || !Number.isInteger(height) || height < 1) {
-    throw new Error(`Invalid slack flag dimensions: ${width}x${height}`);
+    throw new Error(`Invalid flag fabric dimensions: ${width}x${height}`);
   }
-  const fabricWidth = Math.min(width, Math.max(2, Math.round(width * 0.34)));
-  const drop = Math.max(2, Math.round(height * 0.82));
+  assertFlagWindPose(pose);
+  const fabricWidth = Math.min(width, Math.max(2, Math.round(width * pose.widthScale)));
+  const drop = Math.round(height * pose.dropScale);
+  const collapse = Math.round(height * pose.collapseScale);
   const columns = Array.from({ length: fabricWidth }, (_, column) => {
     const progress = fabricWidth <= 1 ? 0 : column / (fabricWidth - 1);
     const eased = progress * progress * (3 - 2 * progress);
@@ -36,7 +72,8 @@ export function flagSlackColumnLayout(width, height) {
       sourceStart: column / fabricWidth,
       sourceEnd: (column + 1) / fabricWidth,
       x: column,
-      y: Math.round(drop * eased)
+      y: Math.round(drop * eased),
+      height: Math.max(1, height - Math.round(collapse * eased))
     });
   });
   return Object.freeze({
@@ -53,17 +90,34 @@ export function flagWindPose(flowDirectionRad, windStrength) {
   if (!Number.isFinite(windStrength) || windStrength < 0) {
     throw new Error(`Invalid flag wind strength: ${windStrength}`);
   }
-  if (windStrength <= FLAG_SLACK_MAX_STRENGTH) {
-    return Object.freeze({ slack: true, directionIndex: 0, angleRad: 0 });
-  }
-  const stepRad = Math.PI * 2 / FLAG_WIND_DIRECTION_COUNT;
-  const normalized = ((flowDirectionRad % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  const directionIndex = Math.round(normalized / stepRad) % FLAG_WIND_DIRECTION_COUNT;
+  const level = FLAG_WIND_POSE_PROFILES.findIndex((profile) => windStrength <= profile.maxStrength);
+  const profile = FLAG_WIND_POSE_PROFILES[level];
+  const horizontalFlow = Math.cos(flowDirectionRad);
+  const flyDirection = level === 0 || horizontalFlow >= -0.15 ? 1 : -1;
   return Object.freeze({
-    slack: false,
-    directionIndex,
-    angleRad: directionIndex * stepRad
+    slack: level === 0,
+    level,
+    flyDirection,
+    widthScale: profile.widthScale,
+    dropScale: profile.dropScale,
+    collapseScale: profile.collapseScale,
+    waveAmplitudePx: profile.waveAmplitudePx,
+    waveRate: profile.waveRate
   });
+}
+
+function assertFlagWindPose(pose) {
+  if (!pose || !Number.isInteger(pose.level) || pose.level < 0 || pose.level >= FLAG_WIND_POSE_PROFILES.length) {
+    throw new Error(`Invalid flag wind pose level: ${pose?.level}`);
+  }
+  if (pose.flyDirection !== -1 && pose.flyDirection !== 1) {
+    throw new Error(`Invalid flag fly direction: ${pose.flyDirection}`);
+  }
+  for (const key of ["widthScale", "dropScale", "collapseScale", "waveAmplitudePx", "waveRate"]) {
+    if (!Number.isFinite(pose[key]) || pose[key] < 0) {
+      throw new Error(`Invalid flag wind pose ${key}: ${pose[key]}`);
+    }
+  }
 }
 
 export function flagExteriorOutlineMask(rgbaPixels, width, height) {

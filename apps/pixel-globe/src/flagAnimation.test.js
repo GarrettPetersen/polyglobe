@@ -3,10 +3,9 @@ import test from "node:test";
 
 import {
   FLAG_SLACK_MAX_STRENGTH,
-  FLAG_WIND_DIRECTION_COUNT,
   FLAG_WAVE_FRAME_COUNT,
   flagExteriorOutlineMask,
-  flagSlackColumnLayout,
+  flagFabricColumnLayout,
   flagWaveColumnOffsets,
   flagWaveFrameIndex,
   flagWindPose
@@ -49,51 +48,62 @@ test("flag animation phases wrap into a finite shared frame set", () => {
   assert.ok(flagWaveFrameIndex(1.25) < FLAG_WAVE_FRAME_COUNT);
 });
 
-test("flags follow the wind in eight pixel-stable directions", () => {
-  const step = Math.PI * 2 / FLAG_WIND_DIRECTION_COUNT;
-  assert.deepEqual(flagWindPose(0, 0.7), { slack: false, directionIndex: 0, angleRad: 0 });
-  assert.deepEqual(flagWindPose(Math.PI / 2, 0.7), {
-    slack: false,
-    directionIndex: 2,
-    angleRad: step * 2
-  });
-  assert.deepEqual(flagWindPose(Math.PI, 0.7), {
-    slack: false,
-    directionIndex: 4,
-    angleRad: step * 4
-  });
-  assert.deepEqual(flagWindPose(-Math.PI / 2, 0.7), {
-    slack: false,
-    directionIndex: 6,
-    angleRad: step * 6
-  });
+test("flags project wind sideways without rotating the cloth vertically", () => {
+  const right = flagWindPose(0, 0.7);
+  const left = flagWindPose(Math.PI, 0.7);
+  const intoScreen = flagWindPose(Math.PI / 2, 0.7);
+
+  assert.equal(right.flyDirection, 1);
+  assert.equal(left.flyDirection, -1);
+  assert.equal(intoScreen.flyDirection, 1);
+  assert.equal(right.level, left.level);
+  assert.equal("angleRad" in right, false);
+  assert.equal("angleRad" in left, false);
 });
 
 test("flags hang beside the pole in weak wind", () => {
-  assert.deepEqual(flagWindPose(2.4, FLAG_SLACK_MAX_STRENGTH), {
-    slack: true,
-    directionIndex: 0,
-    angleRad: 0
-  });
+  const pose = flagWindPose(2.4, FLAG_SLACK_MAX_STRENGTH);
+  assert.equal(pose.slack, true);
+  assert.equal(pose.flyDirection, 1);
+  assert.equal(pose.waveAmplitudePx, 0);
+  assert.equal(pose.waveRate, 0);
+  assert.ok(pose.widthScale < 0.5);
+  assert.ok(pose.dropScale > 0.75);
   assert.throws(() => flagWindPose(0, -0.1), /Invalid flag wind strength/);
 });
 
 test("slack flags keep the hoist upright while the free cloth droops", () => {
   for (const [width, height] of [[10, 6], [32, 20]]) {
-    const layout = flagSlackColumnLayout(width, height);
+    const layout = flagFabricColumnLayout(width, height, flagWindPose(0, 0));
     assert.ok(layout.fabricWidth >= 2 && layout.fabricWidth < width);
     assert.deepEqual(layout.columns[0], {
       sourceStart: 0,
       sourceEnd: 1 / layout.fabricWidth,
       x: 0,
-      y: 0
+      y: 0,
+      height
     });
     assert.equal(layout.columns.at(-1).sourceEnd, 1);
     assert.equal(layout.columns.at(-1).y, layout.drop);
+    assert.ok(layout.columns.at(-1).height < height);
     assert.ok(layout.columns.every((column, index) => (
       column.x === index && (index === 0 || column.y >= layout.columns[index - 1].y)
     )));
   }
+});
+
+test("strong wind extends the full flag with a gentle one-pixel flap", () => {
+  const pose = flagWindPose(0, 1.1);
+  const layout = flagFabricColumnLayout(12, 7, pose);
+
+  assert.equal(pose.slack, false);
+  assert.equal(pose.widthScale, 1);
+  assert.equal(pose.dropScale, 0);
+  assert.equal(pose.waveAmplitudePx, 1);
+  assert.equal(pose.waveRate, 1);
+  assert.equal(layout.fabricWidth, 12);
+  assert.equal(layout.drop, 0);
+  assert.ok(layout.columns.every((column) => column.y === 0 && column.height === 7));
 });
 
 test("diplomatic outlines occupy only transparent pixels outside the complete flag", () => {
