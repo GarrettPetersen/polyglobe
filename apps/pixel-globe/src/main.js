@@ -29531,6 +29531,9 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
   });
   const correctionViewportIds = correctionSupport.viewportTileIds;
   const admissionCorrectionActive = correctionSupport.correctionActive;
+  const viewportIsFullyElasticWater = [...correctionViewportIds].every((id) => (
+    chartTileProtection[id] === 0 && chartElasticCorrectionMask[id] !== 0
+  ));
   const previousPresentation = lastPresentedOceanSwell?.layout === localLayout
     ? lastPresentedOceanSwell
     : null;
@@ -29609,7 +29612,9 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     rigidRegistrationIds: correctionSupport.viewportTileIds,
     correctElasticTilesNorthUp: admissionCorrectionActive,
     maxElasticCorrectionPx: admissionCorrectionActive
-      ? MAX_ELASTIC_FRAME_CORRECTION_PX
+      ? viewportIsFullyElasticWater
+        ? Math.hypot(SCREEN_W, SCREEN_H)
+        : MAX_ELASTIC_FRAME_CORRECTION_PX
       : 0,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     continuityMaskById: chartLandContinuityMask,

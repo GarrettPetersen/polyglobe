@@ -888,16 +888,15 @@ export function settleVisibleElasticTilesWithinMotion({
 
     const targetX = anchorPosition.x + projected.x - anchorProjected.x;
     const targetY = anchorPosition.y + projected.y - anchorProjected.y;
-    const shiftX = motionHiddenAxisShift(
-      targetX - position.x,
-      currentOffset.x - previousOffset.x,
+    const shift = motionHiddenShift({
+      desiredX: targetX - position.x,
+      desiredY: targetY - position.y,
+      presentedX: currentOffset.x - previousOffset.x,
+      presentedY: currentOffset.y - previousOffset.y,
       maximumStepPx
-    );
-    const shiftY = motionHiddenAxisShift(
-      targetY - position.y,
-      currentOffset.y - previousOffset.y,
-      maximumStepPx
-    );
+    });
+    const shiftX = shift.x;
+    const shiftY = shift.y;
     if (shiftX === 0 && shiftY === 0) continue;
     positions.set(id, {
       x: position.x + shiftX,
@@ -908,18 +907,28 @@ export function settleVisibleElasticTilesWithinMotion({
   return settled;
 }
 
-function motionHiddenAxisShift(desiredShift, presentedMotion, maximumStepPx) {
-  if (
-    Math.abs(desiredShift) < 0.5 ||
-    presentedMotion === 0 ||
-    Math.sign(desiredShift) === Math.sign(presentedMotion)
-  ) {
-    return 0;
-  }
-  return Math.sign(desiredShift) * Math.min(
-    Math.round(Math.abs(desiredShift)),
-    Math.abs(presentedMotion),
-    Math.floor(maximumStepPx)
+function motionHiddenShift({
+  desiredX,
+  desiredY,
+  presentedX,
+  presentedY,
+  maximumStepPx
+}) {
+  const desiredDistance = Math.hypot(desiredX, desiredY);
+  const presentedDistance = Math.hypot(presentedX, presentedY);
+  if (desiredDistance < 0.5 || presentedDistance < 0.5) return { x: 0, y: 0 };
+
+  // A moving swell is visual cover for a small settlement in any direction.
+  // Requiring its instantaneous axis to oppose the correction can strand a
+  // rotated chart indefinitely when the wind remains steady.
+  const motionBudget = Math.min(
+    Math.floor(maximumStepPx),
+    Math.max(1, Math.round(presentedDistance))
+  );
+  return pixelPointTowardWithinDistance(
+    { x: 0, y: 0 },
+    { x: desiredX, y: desiredY },
+    motionBudget
   );
 }
 

@@ -230,7 +230,7 @@ test("stitching corrects offscreen tiles but never a tile entering the live view
   assert.deepEqual(live.positions.get(2), { x: 48, y: 0 });
 });
 
-test("visible ocean settles only inside an opposing presented swell movement", () => {
+test("visible ocean can settle toward north-up during swell motion on any axis", () => {
   const positions = new Map([
     [0, { x: 50, y: 50 }],
     [1, { x: 72, y: 50 }],
@@ -246,7 +246,7 @@ test("visible ocean settles only inside an opposing presented swell movement", (
   const previousOffsetsById = new Map([
     [1, { x: 1, y: 0 }],
     [2, { x: 1, y: 0 }],
-    [3, { x: -1, y: 0 }]
+    [3, { x: 0, y: 1 }]
   ]);
   const currentOffsetsById = new Map([
     [1, { x: 0, y: 0 }],
@@ -270,14 +270,18 @@ test("visible ocean settles only inside an opposing presented swell movement", (
     maximumStepPx: 2
   });
 
-  assert.equal(settled, 1);
+  assert.equal(settled, 2);
   assert.deepEqual(positions.get(1), { x: 73, y: 50 });
   assert.deepEqual(positions.get(2), { x: 94, y: 50 });
-  assert.deepEqual(positions.get(3), { x: 116, y: 50 });
-  assert.equal(
-    positions.get(1).x + currentOffsetsById.get(1).x,
-    72 + previousOffsetsById.get(1).x,
-    "The permanent ocean correction must not move the displayed tile"
+  assert.deepEqual(positions.get(3), { x: 117, y: 50 });
+  assert.ok(
+    Math.hypot(
+      positions.get(3).x + currentOffsetsById.get(3).x -
+        (116 + previousOffsetsById.get(3).x),
+      positions.get(3).y + currentOffsetsById.get(3).y -
+        (50 + previousOffsetsById.get(3).y)
+    ) <= 2,
+    "The swell-hidden correction exceeded its bounded visual motion"
   );
 });
 
@@ -534,6 +538,29 @@ test("a finite Atlantic-like ocean crossing keeps readmitting hidden water towar
     Math.abs(stalePreload.exitRotationDeg) >= Math.abs(result.exitRotationDeg) + 3,
     `One-time preload cleanup unexpectedly recovered as well as repeated cleanup ` +
       `(${stalePreload.exitRotationDeg.toFixed(2)} vs ${result.exitRotationDeg.toFixed(2)} degrees)`
+  );
+});
+
+test("a badly tilted coastal chart recovers after entering open ocean with live anchor selection", () => {
+  const result = simulateFiniteOceanCrossing({
+    refreshOffscreenEachStep: true,
+    resolveNearestAnchor: true,
+    initialRotationDeg: 21
+  });
+
+  assert.ok(
+    Math.abs(result.initialRotationDeg) >= 20,
+    `Open-ocean recovery regression did not begin badly tilted ` +
+      `(${result.initialRotationDeg.toFixed(2)} degrees)`
+  );
+  assert.ok(
+    Math.abs(result.exitRotationDeg) <= 2,
+    `Open-ocean recovery retained ${result.exitRotationDeg.toFixed(2)} degrees of tilt`
+  );
+  assert.ok(
+    result.maximumAbsoluteRotationDeg <= Math.abs(result.initialRotationDeg) + 0.5,
+    `Open-ocean correction worsened tilt from ${result.initialRotationDeg.toFixed(2)} to ` +
+      `${result.maximumAbsoluteRotationDeg.toFixed(2)} degrees`
   );
 });
 
@@ -1193,6 +1220,9 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewY
     });
     const correctionViewportIds = support.viewportTileIds;
+    const viewportIsFullyElasticWater = [...correctionViewportIds].every((id) => (
+      protectionById[id] === 0 && terrainClassByTileId[id] === "water"
+    ));
     const visibleProtectedBefore = new Map();
     const visibleLandBefore = new Map();
     for (const [id, position] of positions.entries()) {
@@ -1237,7 +1267,9 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       rigidRegistrationIds: support.viewportTileIds,
       correctElasticTilesNorthUp: support.correctionActive,
       maxElasticCorrectionPx: support.correctionActive
-        ? MAX_ELASTIC_FRAME_CORRECTION_PX
+        ? viewportIsFullyElasticWater
+          ? Math.hypot(TRAVERSAL_SCREEN_W, TRAVERSAL_SCREEN_H)
+          : MAX_ELASTIC_FRAME_CORRECTION_PX
         : 0,
       maxProtectedCorrectionPx,
       continuityMaskById,
@@ -1837,7 +1869,11 @@ function simulateOceanViewportTurnover({ protectedViewport }) {
   };
 }
 
-function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
+function simulateFiniteOceanCrossing({
+  refreshOffscreenEachStep,
+  resolveNearestAnchor = false,
+  initialRotationDeg = 14
+}) {
   const columns = 80;
   const rows = 7;
   const tileSpacingX = 24;
@@ -1857,7 +1893,7 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
     }
   }
   const positions = new Map();
-  const rotation = 14 * Math.PI / 180;
+  const rotation = initialRotationDeg * Math.PI / 180;
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
 
@@ -1894,6 +1930,7 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
   const initialAnchorId = gridTileId(8, 3, columns, rows);
   const initial = measureVisibleFrameError(positions, projectedById, initialAnchorId);
   let exitRotationDeg = initial.rotationDeg;
+  let maximumAbsoluteRotationDeg = Math.abs(initial.rotationDeg);
   let elasticSteps = 0;
   let resetActive = false;
 
@@ -1908,13 +1945,24 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
       tileVisualRadius
     });
     const correctElasticTilesNorthUp = [...viewportIds].every((id) => protectionById[id] === 0);
-    const anchorId = gridTileId(centerColumn, 3, columns, rows);
-    retainLocalLayoutAnchor({
-      positions,
-      anchorId,
-      viewX: viewportWidth / 2,
-      viewY: viewportHeight / 2
-    });
+    const preferredAnchorId = gridTileId(centerColumn, 3, columns, rows);
+    const anchorId = resolveNearestAnchor
+      ? resolveLocalLayoutAnchor({
+        positions,
+        projectedById,
+        preferredAnchorId,
+        viewX: viewportWidth / 2,
+        viewY: viewportHeight / 2
+      })
+      : preferredAnchorId;
+    if (!resolveNearestAnchor) {
+      retainLocalLayoutAnchor({
+        positions,
+        anchorId,
+        viewX: viewportWidth / 2,
+        viewY: viewportHeight / 2
+      });
+    }
     if (correctElasticTilesNorthUp) {
       elasticSteps++;
     }
@@ -1951,12 +1999,17 @@ function simulateFiniteOceanCrossing({ refreshOffscreenEachStep }) {
       );
       const frame = measureVisibleFrameError(visiblePositions, projectedById, anchorId);
       exitRotationDeg = frame.rotationDeg;
+      maximumAbsoluteRotationDeg = Math.max(
+        maximumAbsoluteRotationDeg,
+        Math.abs(frame.rotationDeg)
+      );
     }
   }
 
   return {
     initialRotationDeg: initial.rotationDeg,
     exitRotationDeg,
+    maximumAbsoluteRotationDeg,
     elasticSteps
   };
 }
