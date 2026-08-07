@@ -125,6 +125,13 @@ export function dietOfWormsGossip({
   return "Martin Luther refused to recant before Emperor Charles V at the Diet of Worms, and the argument has split every tavern in Germany.";
 }
 
+export function dietOfWormsGossipPerspective(religionId) {
+  religionById(religionId);
+  if (religionId === "roman-catholic") return "catholic";
+  if (PROTESTANT_RELIGIONS.has(religionId)) return "protestant";
+  return "other";
+}
+
 export function occasionalReligiousBirthdayWish({
   speakerReligionId,
   listenerReligionId,

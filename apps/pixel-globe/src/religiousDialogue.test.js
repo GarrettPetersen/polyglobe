@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   dietOfWormsGossip,
+  dietOfWormsGossipPerspective,
   occasionalReligiousBirthdayWish,
   occasionalReligiousGreeting,
   protestantColonistReception
@@ -51,6 +52,12 @@ test("Diet of Worms gossip follows the factor's denomination and the listener's"
   assert.match(catholic, /lawful recantation/);
   assert.match(lutheran, /Scripture and conscience/);
   assert.match(cautious, /We may not agree/);
+});
+
+test("Diet of Worms gossip groups speakers by confessional perspective", () => {
+  assert.equal(dietOfWormsGossipPerspective("roman-catholic"), "catholic");
+  assert.equal(dietOfWormsGossipPerspective("lutheran"), "protestant");
+  assert.equal(dietOfWormsGossipPerspective("sunni-islam"), "other");
 });
 
 test("birthday blessings sometimes recognize shared and differing faiths", () => {

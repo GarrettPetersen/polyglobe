@@ -1279,6 +1279,8 @@ import {
 } from "./papalGossip.js";
 import { selectAccessibleFactionMissionPort } from "./missionPortSelection.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
+import { recordNpcGossipHeard, unheardNpcGossip } from "./npcGossipMemory.js";
+import { dietOfWormsGossipPerspective } from "./religiousDialogue.js";
 import {
   createPoliticsView,
   politicsMarqueMarker,
@@ -13992,7 +13994,7 @@ function openPortDialogue(cityCall) {
   if (rescuedTravelerSession || campaignSession) {
     dialogueState = rescuedTravelerSession || campaignSession;
   } else {
-    dialogueState = withPortRulerGossip(
+    dialogueState = withPortArrivalGossip(
       createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk),
       cityCall
     );
@@ -14007,17 +14009,50 @@ function openPortDialogue(cityCall) {
   dirty = true;
 }
 
-function withPortRulerGossip(session, cityCall) {
-  if (session.kind !== "port" || !cityCall.factionId) return session;
-  const rumor = unheardRegionalRulerChange(
-    gameState.memory.decisions,
-    cityCall.factionId,
-    Math.floor(weatherClockMinutes)
-  );
-  if (!rumor) return session;
-  recordRulerGossipMention(gameState.memory.decisions, rumor);
-  session.rulerRumor = rumor;
+function withPortArrivalGossip(session, cityCall) {
+  if (session.kind !== "port" || !portSessionWillShowGreeting(session)) return session;
+  const simMinute = Math.floor(weatherClockMinutes);
+  const decisions = gameState.memory.decisions;
+  const rulerRumor = cityCall.factionId
+    ? unheardNpcGossip(
+        decisions,
+        unheardRegionalRulerChange(decisions, cityCall.factionId, simMinute),
+        simMinute
+      )
+    : null;
+  if (rulerRumor) {
+    recordRulerGossipMention(decisions, rulerRumor);
+    recordNpcGossipHeard(decisions, rulerRumor, simMinute);
+    session.rulerRumor = rulerRumor;
+    return session;
+  }
+  const historicalCandidate = recentPapalGossipForPort(
+    gameState.relations.papacy,
+    cityCall,
+    simMinute
+  ) || recentHistoricalGossipForPort(cityCall, simMinute, [...cityByTileId.values()]);
+  const perspectiveId = npcGossipPerspectiveId(historicalCandidate, cityCall.character);
+  const historicalGossip = unheardNpcGossip(decisions, historicalCandidate, simMinute, perspectiveId);
+  if (historicalGossip) {
+    recordNpcGossipHeard(decisions, historicalGossip, simMinute, perspectiveId);
+    session.historicalGossip = historicalGossip;
+  }
   return session;
+}
+
+function npcGossipPerspectiveId(gossip, speakerCharacter) {
+  if (gossip === null || gossip.id !== "diet-of-worms") return null;
+  if (!speakerCharacter?.religionId) {
+    throw new Error("Diet of Worms gossip requires the speaker's religion");
+  }
+  return dietOfWormsGossipPerspective(speakerCharacter.religionId);
+}
+
+function portSessionWillShowGreeting(session) {
+  if (session.rumorText !== null) return false;
+  return session.nodeId === "greeting" ||
+    session.nextPortNodeId === "greeting" ||
+    session.postDrunkNodeId === "greeting";
 }
 
 function activePapalCommissionObjectiveIsAt(cityCall) {
@@ -15675,14 +15710,22 @@ function openShipDialogue(shipCall, options = {}) {
   const campaignRumor = enforcementDialogue || hostileHail
     ? null
     : maybeCampaignRumor(`ship:${shipCall.id}`);
+  const simMinute = Math.floor(weatherClockMinutes);
   const papalGossip = enforcementDialogue || hostileHail || campaignRumor
     ? null
-    : recentPapalGossipForCharacter(
-        gameState.relations.papacy,
-        shipCall.character,
-        Math.floor(weatherClockMinutes),
-        { interactionKey: `ship:${shipCall.id}` }
+    : unheardNpcGossip(
+        gameState.memory.decisions,
+        recentPapalGossipForCharacter(
+          gameState.relations.papacy,
+          shipCall.character,
+          simMinute,
+          { interactionKey: `ship:${shipCall.id}` }
+        ),
+        simMinute
       );
+  if (papalGossip) {
+    recordNpcGossipHeard(gameState.memory.decisions, papalGossip, simMinute);
+  }
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
     rumorText: enforcementDialogue
@@ -17479,9 +17522,8 @@ function portDialogueContext() {
     playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
     rivalTerms: portPoliticalRivalTerms(city),
     rulerRumor: dialogueState?.kind === "port" ? dialogueState.rulerRumor || null : null,
-    historicalGossip: city
-      ? recentPapalGossipForPort(gameState.relations.papacy, city, simMinute) ||
-        recentHistoricalGossipForPort(city, simMinute, [...cityByTileId.values()])
+    historicalGossip: dialogueState?.kind === "port"
+      ? dialogueState.historicalGossip || null
       : null,
     shipyard,
     sailingDistanceKm: sailingDistanceBetweenPorts,

@@ -303,6 +303,7 @@ export function createPortDialogueSession(city, options = {}) {
     equipmentFactorPitch: options.equipmentFactorPitch || null,
     equipmentFactorPitchOutcome: null,
     rulerRumor: options.rulerRumor || null,
+    historicalGossip: options.historicalGossip || null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
     japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
