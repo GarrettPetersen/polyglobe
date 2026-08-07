@@ -11,6 +11,10 @@ export const ECONOMY_REGION_IDS = Object.freeze([
   "caribbean-indigenous",
   "caribbean",
   "brazilian-coast",
+  "rio-de-la-plata",
+  "temperate-american-colony",
+  "tropical-american-colony",
+  "atlantic-island-colony",
   "andean",
   "andean-coast",
   "sub-saharan"

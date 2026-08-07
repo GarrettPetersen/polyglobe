@@ -720,6 +720,7 @@ export function colonizationWorldRecord(memory) {
           ? target.preexistingPopulation
           : 120,
     cityType: target.cityType,
+    economyRegion: target.economyRegion,
     settlementType: upgraded ? "city" : "village",
     coastalIntent: true,
     lakeIntent: false,

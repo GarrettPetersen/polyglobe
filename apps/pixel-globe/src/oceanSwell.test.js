@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   CALM_SWELL_PACKET_DURATION_MS,
   CALM_SWELL_PACKET_PERIOD_MS,
+  OCEAN_SWELL_SPATIAL_CYCLES,
   STORM_SWELL_MAX_AMPLITUDE_PX,
+  STORM_SWELL_PERIOD_MS,
   calmSwellEnvelope,
   oceanSwellOffset,
   oceanSwellState
@@ -45,6 +47,8 @@ test("storms sustain stronger wind-driven swells", () => {
   });
 
   assert.equal(state.amplitudePx, STORM_SWELL_MAX_AMPLITUDE_PX);
+  assert.ok(STORM_SWELL_PERIOD_MS >= 8000);
+  assert.ok(OCEAN_SWELL_SPATIAL_CYCLES <= 7);
 });
 
 test("visually settled water shares one terrain cache state", () => {

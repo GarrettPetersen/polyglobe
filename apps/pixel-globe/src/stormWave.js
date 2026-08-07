@@ -2,6 +2,7 @@ import { SHIP_WATERLINE_LEVEL } from "./shipWaterline.js";
 import { STORM_ACTIVE_INTENSITY } from "./stormSystem.js";
 
 export const STORM_BREAKING_WAVE_MIN_INTENSITY = STORM_ACTIVE_INTENSITY;
+export const STORM_BREAKING_WAVE_RESET_INTENSITY = STORM_ACTIVE_INTENSITY * 0.65;
 export const STORM_OVERBOARD_MIN_INTENSITY = 0.5;
 export const STORM_BREAKING_WAVE_DURATION_SECONDS = 4.8;
 export const STORM_BREAKING_WAVE_IMPACT_PROGRESS = 0.5;
@@ -10,10 +11,10 @@ export const OVERBOARD_SWIM_MAX_SECONDS = 180;
 export const OVERBOARD_FLIGHT_MIN_SECONDS = 0.72;
 export const OVERBOARD_FLIGHT_MAX_SECONDS = 1.08;
 
-const FIRST_WAVE_MIN_SECONDS = 6;
-const FIRST_WAVE_MAX_SECONDS = 11;
-const REPEAT_WAVE_MIN_SECONDS = 24;
-const REPEAT_WAVE_MAX_SECONDS = 40;
+export const FIRST_BREAKING_WAVE_MIN_SECONDS = 4;
+export const FIRST_BREAKING_WAVE_MAX_SECONDS = 7;
+export const REPEAT_BREAKING_WAVE_MIN_SECONDS = 42;
+export const REPEAT_BREAKING_WAVE_MAX_SECONDS = 62;
 const CREST_MARGIN_PX = 26;
 const CREST_SPACING_PX = 3;
 
@@ -46,10 +47,23 @@ export function updateStormWaveState(state, {
 
   let changed = false;
   let impact = null;
-  if (!eligible || intensity < STORM_BREAKING_WAVE_MIN_INTENSITY) {
+  if (intensity < STORM_BREAKING_WAVE_RESET_INTENSITY) {
     if (state.active !== null || state.secondsUntilNextWave !== null) changed = true;
     state.active = null;
     state.secondsUntilNextWave = null;
+    return { changed, impact };
+  }
+
+  if (!eligible || intensity < STORM_BREAKING_WAVE_MIN_INTENSITY) {
+    if (state.active !== null) {
+      state.active = null;
+      state.secondsUntilNextWave = randomBetween(
+        random,
+        REPEAT_BREAKING_WAVE_MIN_SECONDS,
+        REPEAT_BREAKING_WAVE_MAX_SECONDS
+      );
+      changed = true;
+    }
     return { changed, impact };
   }
 
@@ -57,7 +71,7 @@ export function updateStormWaveState(state, {
     if (state.secondsUntilNextWave === null) {
       state.secondsUntilNextWave = immediate
         ? 0
-        : randomBetween(random, FIRST_WAVE_MIN_SECONDS, FIRST_WAVE_MAX_SECONDS);
+        : randomBetween(random, FIRST_BREAKING_WAVE_MIN_SECONDS, FIRST_BREAKING_WAVE_MAX_SECONDS);
     }
     state.secondsUntilNextWave -= dt;
     if (state.secondsUntilNextWave <= 0) {
@@ -93,8 +107,8 @@ export function updateStormWaveState(state, {
     state.active = null;
     state.secondsUntilNextWave = randomBetween(
       random,
-      REPEAT_WAVE_MIN_SECONDS,
-      REPEAT_WAVE_MAX_SECONDS
+      REPEAT_BREAKING_WAVE_MIN_SECONDS,
+      REPEAT_BREAKING_WAVE_MAX_SECONDS
     );
   }
   return { changed: true, impact };

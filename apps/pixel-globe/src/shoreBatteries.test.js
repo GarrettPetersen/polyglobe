@@ -19,6 +19,8 @@ import {
   shoreBatteryPlayerResponse,
   shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
+  shoreBatteryWarWarningSeen,
+  rememberShoreBatteryWarWarning,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 
@@ -122,7 +124,9 @@ test("a remembered toll refusal suppresses another hail without forgiving a war"
     tollDemandEligible: true,
     playerHailed: false,
     playerAttackActive: false,
-    passageRefusalActive: true
+    passageRefusalActive: true,
+    warWarningSeen: false,
+    playerCombatActive: false
   });
   assert.deepEqual(hostile, { shouldHail: false, shouldEngage: false });
 
@@ -134,7 +138,9 @@ test("a remembered toll refusal suppresses another hail without forgiving a war"
     tollDemandEligible: false,
     playerHailed: false,
     playerAttackActive: false,
-    passageRefusalActive: true
+    passageRefusalActive: true,
+    warWarningSeen: false,
+    playerCombatActive: false
   });
   assert.deepEqual(war, { shouldHail: false, shouldEngage: true });
 });
@@ -148,7 +154,9 @@ test("an expired toll refusal allows the next hostile port to hail", () => {
     tollDemandEligible: true,
     playerHailed: false,
     playerAttackActive: false,
-    passageRefusalActive: false
+    passageRefusalActive: false,
+    warWarningSeen: false,
+    playerCombatActive: false
   }), { shouldHail: true, shouldEngage: false });
 });
 
@@ -159,7 +167,9 @@ test("hostile toll hails wait for docking range and ignore minor ports", () => {
     withinWeaponRange: true,
     playerHailed: false,
     playerAttackActive: false,
-    passageRefusalActive: false
+    passageRefusalActive: false,
+    warWarningSeen: false,
+    playerCombatActive: false
   };
   assert.equal(shoreBatteryPlayerResponse({
     ...base,
@@ -187,8 +197,57 @@ test("a player-declared shore attack persists without ordinary diplomatic hostil
     tollDemandEligible: false,
     playerHailed: true,
     playerAttackActive: true,
-    passageRefusalActive: false
+    passageRefusalActive: false,
+    warWarningSeen: false,
+    playerCombatActive: false
   }), { shouldHail: false, shouldEngage: true });
+});
+
+test("wartime shore warnings are remembered by faction", () => {
+  const flags = {};
+  assert.equal(shoreBatteryWarWarningSeen(flags, "france"), false);
+  assert.equal(shoreBatteryWarWarningSeen(flags, "england"), false);
+  rememberShoreBatteryWarWarning(flags, "france");
+  assert.equal(shoreBatteryWarWarningSeen(flags, "france"), true);
+  assert.equal(shoreBatteryWarWarningSeen(flags, "england"), false);
+});
+
+test("a warned faction's later batteries join combat without another hail", () => {
+  const base = {
+    playerHostile: true,
+    hostileByWar: true,
+    withinWeaponRange: true,
+    withinTollRange: false,
+    tollDemandEligible: false,
+    playerHailed: false,
+    playerAttackActive: false,
+    passageRefusalActive: false
+  };
+  assert.deepEqual(shoreBatteryPlayerResponse({
+    ...base,
+    warWarningSeen: true,
+    playerCombatActive: false
+  }), { shouldHail: false, shouldEngage: true });
+  assert.deepEqual(shoreBatteryPlayerResponse({
+    ...base,
+    warWarningSeen: false,
+    playerCombatActive: true
+  }), { shouldHail: false, shouldEngage: true });
+});
+
+test("a wartime warning does not suppress an unrelated customs hail", () => {
+  assert.deepEqual(shoreBatteryPlayerResponse({
+    playerHostile: true,
+    hostileByWar: false,
+    withinWeaponRange: true,
+    withinTollRange: true,
+    tollDemandEligible: true,
+    playerHailed: false,
+    playerAttackActive: false,
+    passageRefusalActive: false,
+    warWarningSeen: true,
+    playerCombatActive: false
+  }), { shouldHail: true, shouldEngage: false });
 });
 
 test("nearby port surrenders identify the captain, nationality, and port", () => {

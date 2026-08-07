@@ -130,6 +130,31 @@ export const COLONIAL_CITY_FOUNDINGS = Object.freeze([
   })
 ]);
 
+const COLONIZATION_ECONOMY_REGION_BY_REGION = Object.freeze({
+  acadia: "temperate-american-colony",
+  angola: "sub-saharan",
+  bermuda: "atlantic-island-colony",
+  brazil: "brazilian-coast",
+  caribbean: "caribbean",
+  carolina: "temperate-american-colony",
+  chile: "andean",
+  connecticut: "temperate-american-colony",
+  delaware: "temperate-american-colony",
+  florida: "temperate-american-colony",
+  "hudson-river": "temperate-american-colony",
+  japan: "east-asian",
+  newfoundland: "temperate-american-colony",
+  "new-england": "temperate-american-colony",
+  "new-france": "temperate-american-colony",
+  "new-netherland": "temperate-american-colony",
+  "new-spain": "mesoamerican",
+  "rio-de-la-plata": "rio-de-la-plata",
+  "spanish-east-indies": "southeast-asian",
+  "upper-peru": "andean",
+  venezuela: "tropical-american-colony",
+  virginia: "temperate-american-colony"
+});
+
 export const COLONIZATION_TARGETS = Object.freeze([
   colonizationTarget("Lima", "Peru", -12.04318, -77.02824, COLONIAL_FOUNDING_SETTLER, 1535, "spain", {
     label: "Spanish settler capital",
@@ -503,6 +528,7 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
   if (!preexistingSettlement && preexistingPopulation !== null) {
     throw new Error(`New colonization target cannot have an existing population: ${city}`);
   }
+  const cityType = details.cityType || colonizationCityType(type, factionId, country);
   return Object.freeze({
     city,
     country,
@@ -524,7 +550,8 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     label: details.label || type,
     region: details.region || null,
     waterAccess: details.waterAccess || "coastal",
-    cityType: details.cityType || colonizationCityType(type, factionId, country),
+    cityType,
+    economyRegion: colonizationEconomyRegion(details.region, details.waterAccess || "coastal", cityType),
     precolonialName: details.precolonialName || null,
     datasetCity: details.datasetCity || city,
     datasetCountry: details.datasetCountry || country,
@@ -533,6 +560,15 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     datasetSource: details.datasetSource || null,
     note: details.note || ""
   });
+}
+
+function colonizationEconomyRegion(region, waterAccess, cityType) {
+  if (region === "peru") return waterAccess === "coastal" ? "andean-coast" : "andean";
+  const economyRegion = COLONIZATION_ECONOMY_REGION_BY_REGION[region];
+  if (!economyRegion) {
+    throw new Error(`Colonization target needs an economy region mapping: ${region || cityType}`);
+  }
+  return economyRegion;
 }
 
 function colonizationForeignSettlementIds(value) {

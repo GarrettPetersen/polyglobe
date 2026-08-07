@@ -297,6 +297,7 @@ export default {
   "good.fish": "Рыба",
   "good.whaleBlubber": "Китовый жир",
   "good.beaverPelts": "Бобровые шкуры",
+  "good.hides": "Шкуры",
   "good.cheese": "Сыр",
   "good.wine": "Вино",
   "good.oliveOil": "Оливковое масло",

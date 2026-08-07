@@ -12,9 +12,13 @@ import {
   LEPANTO_SCENARIO_ID
 } from "../src/historicalBattleScenarios.js";
 import { validateShipFootprintBake } from "../src/shipFootprint.js";
+import { validateShipWakeAnchors } from "../src/shipWakeAnchors.js";
 import { SHIP_SPRITE_FRAME_SIZE, SHIP_SPRITE_HEADINGS } from "../src/shipSpriteLayout.js";
 
-const SIMULATED_SECONDS = 180;
+const SIMULATED_SECONDS = Number(process.env.HISTORICAL_BATTLE_BENCHMARK_SECONDS || 180);
+if (!Number.isFinite(SIMULATED_SECONDS) || SIMULATED_SECONDS <= 0) {
+  throw new Error(`Invalid historical battle benchmark duration: ${SIMULATED_SECONDS}`);
+}
 const STEP_COUNT = Math.round(SIMULATED_SECONDS / HISTORICAL_BATTLE_FIXED_STEP_SECONDS);
 const footprintBake = JSON.parse(readFileSync(
   new URL("../public/assets/vehicles/unity-ships/hull-footprints.json", import.meta.url),
@@ -26,11 +30,31 @@ const shipFootprints = validateShipFootprintBake(
   SHIP_SPRITE_HEADINGS,
   ["mediterranean-galley", "galleass", "galleon", "carrack", "fusta"]
 );
+const wakeAnchorBake = JSON.parse(readFileSync(
+  new URL("../public/assets/vehicles/unity-ships/wake-anchors.json", import.meta.url),
+  "utf8"
+));
+const shipWakeAnchorsBySlug = new Map([
+  "mediterranean-galley",
+  "galleass",
+  "galleon",
+  "carrack",
+  "fusta"
+].map((slug) => [
+  slug,
+  validateShipWakeAnchors(
+    slug,
+    wakeAnchorBake.ships[slug],
+    SHIP_SPRITE_HEADINGS,
+    SHIP_SPRITE_FRAME_SIZE
+  )
+]));
 const battle = createHistoricalBattle({
   scenarioId: LEPANTO_SCENARIO_ID,
   playerSideId: HOLY_LEAGUE_SIDE_ID,
   playerSquadronId: "league-center",
   shipFootprints,
+  shipWakeAnchorsBySlug,
   seed: 0x42454e43
 });
 

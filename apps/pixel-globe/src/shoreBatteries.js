@@ -11,6 +11,7 @@ export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
 
 const DISABLED_UNTIL_PREFIX = "shoreBatteryDisabledUntil:";
 const DISABLED_BY_SHIP_PREFIX = "shoreBatteryDisabledByShip:";
+const WAR_WARNING_SEEN_PREFIX = "shoreBatteryWarWarningSeen:";
 
 export function shoreBatteryId(city) {
   assertCity(city);
@@ -25,6 +26,21 @@ export function shoreBatteryGunCount(city) {
 
 export function shoreBatteryMayDemandToll(city) {
   return shoreBatteryGunCount(city) >= 2;
+}
+
+export function shoreBatteryWarWarningSeen(flags, factionId) {
+  assertFlags(flags);
+  assertFactionId(factionId);
+  const value = flags[warWarningSeenFlagKey(factionId)];
+  if (value === undefined) return false;
+  if (value !== true) throw new Error(`Invalid shore battery warning memory for ${factionId}: ${value}`);
+  return true;
+}
+
+export function rememberShoreBatteryWarWarning(flags, factionId) {
+  assertFlags(flags);
+  assertFactionId(factionId);
+  flags[warWarningSeenFlagKey(factionId)] = true;
 }
 
 export function createShoreBatteryState(city, flags, simMinute) {
@@ -200,7 +216,9 @@ export function shoreBatteryPlayerResponse({
   tollDemandEligible,
   playerHailed,
   playerAttackActive,
-  passageRefusalActive
+  passageRefusalActive,
+  warWarningSeen,
+  playerCombatActive
 }) {
   for (const [key, value] of Object.entries({
     playerHostile,
@@ -210,11 +228,15 @@ export function shoreBatteryPlayerResponse({
     tollDemandEligible,
     playerHailed,
     playerAttackActive,
-    passageRefusalActive
+    passageRefusalActive,
+    warWarningSeen,
+    playerCombatActive
   })) {
     if (typeof value !== "boolean") throw new Error(`Invalid shore battery player response ${key}: ${value}`);
   }
-  const confronted = playerHailed || passageRefusalActive;
+  const confronted = hostileByWar
+    ? playerHailed || passageRefusalActive || warWarningSeen || playerCombatActive
+    : playerHailed || passageRefusalActive;
   const shouldConfront = hostileByWar
     ? withinWeaponRange
     : tollDemandEligible && withinTollRange;
@@ -250,6 +272,10 @@ function disabledByShipFlagKey(portId) {
   return `${DISABLED_BY_SHIP_PREFIX}${portId}`;
 }
 
+function warWarningSeenFlagKey(factionId) {
+  return `${WAR_WARNING_SEEN_PREFIX}${factionId}`;
+}
+
 function disableShoreBattery(state, flags, simMinute, attackerShipLabel) {
   state.disabledUntilMinute = simMinute + SHORE_BATTERY_DISABLE_MINUTES;
   state.disabledByShipLabel = attackerShipLabel.trim();
@@ -275,6 +301,12 @@ function assertCity(city) {
 
 function assertFlags(flags) {
   if (!flags || typeof flags !== "object") throw new Error("Shore battery flags must be an object");
+}
+
+function assertFactionId(factionId) {
+  if (typeof factionId !== "string" || !factionId.trim()) {
+    throw new Error(`Invalid shore battery faction: ${factionId}`);
+  }
 }
 
 function assertMinute(value) {

@@ -83,3 +83,22 @@ test("explicit economy regions are validated", () => {
     /Unknown economy region/
   );
 });
+
+test("colonial economy regions are valid independent profiles", () => {
+  for (const economyRegion of [
+    "rio-de-la-plata",
+    "temperate-american-colony",
+    "tropical-american-colony",
+    "atlantic-island-colony"
+  ]) {
+    assert.equal(
+      economyRegionForCity({
+        city: "Test Colony",
+        country: "Test Country",
+        cityType: "mediterranean",
+        economyRegion
+      }),
+      economyRegion
+    );
+  }
+});

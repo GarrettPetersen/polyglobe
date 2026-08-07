@@ -350,6 +350,7 @@ test("timely resupply creates a discounted French city", () => {
   assert.equal(city.displayCity, "Port Royal");
   assert.equal(city.settlementType, "city");
   assert.equal(city.factionId, "france");
+  assert.equal(city.economyRegion, "temperate-american-colony");
   assert.equal(city.playerFoundedColony, true);
   assert.ok(city.purchaseDiscountMultiplier < 1);
   assert.equal(colonizationObjective(memory), null);

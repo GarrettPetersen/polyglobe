@@ -8,6 +8,7 @@ import {
   createHistoricalBattle,
   createHistoricalBattleCommand,
   drainHistoricalBattleEvents,
+  historicalBattleInterpolatedShipPose,
   historicalBattlePlayerShip,
   historicalBattleSideSummary,
   historicalBattleSnapshot,
@@ -17,6 +18,7 @@ import {
   updateHistoricalBattle
 } from "./historicalBattle.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
+import { validateShipWakeAnchors } from "./shipWakeAnchors.js";
 import { SHIP_SPRITE_FRAME_SIZE, SHIP_SPRITE_HEADINGS } from "./shipSpriteLayout.js";
 import {
   HOLY_LEAGUE_SIDE_ID,
@@ -41,12 +43,26 @@ const HISTORICAL_SHIP_FOOTPRINTS = validateShipFootprintBake(
   SHIP_SPRITE_HEADINGS,
   HISTORICAL_SHIP_SLUGS
 );
+const SHIP_WAKE_ANCHOR_BAKE = JSON.parse(readFileSync(
+  new URL("../public/assets/vehicles/unity-ships/wake-anchors.json", import.meta.url),
+  "utf8"
+));
+const HISTORICAL_SHIP_WAKE_ANCHORS = new Map(HISTORICAL_SHIP_SLUGS.map((slug) => [
+  slug,
+  validateShipWakeAnchors(
+    slug,
+    SHIP_WAKE_ANCHOR_BAKE.ships[slug],
+    SHIP_SPRITE_HEADINGS,
+    SHIP_SPRITE_FRAME_SIZE
+  )
+]));
 
 function createBattle(overrides = {}) {
   return createHistoricalBattle({
     scenarioId: LEPANTO_SCENARIO_ID,
     playerSideId: HOLY_LEAGUE_SIDE_ID,
     playerSquadronId: "league-center",
+    shipWakeAnchorsBySlug: HISTORICAL_SHIP_WAKE_ANCHORS,
     seed: 12345,
     ...overrides
   });
@@ -132,6 +148,26 @@ test("fixed-step updates are deterministic across different render frame rates",
   assert.deepEqual(historicalBattleSnapshot(fastFrames), historicalBattleSnapshot(slowFrames));
 });
 
+test("render poses interpolate between deterministic physics ticks", () => {
+  const battle = createBattle();
+  const player = historicalBattlePlayerShip(battle);
+
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+    desiredHeadingRad: 0.3,
+    rowingRequested: true
+  });
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS / 2, {
+    desiredHeadingRad: 0.3,
+    rowingRequested: true
+  });
+  const pose = historicalBattleInterpolatedShipPose(battle, player);
+
+  assert.ok(Math.abs(pose.x - (player.previousX + player.x) / 2) < 1e-9);
+  assert.ok(Math.abs(pose.y - (player.previousY + player.y) / 2) < 1e-9);
+  assert.notEqual(pose.headingRad, player.previousHeadingRad);
+  assert.notEqual(pose.headingRad, player.headingRad);
+});
+
 test("player commands are compact, quantized, and tick stamped for future networking", () => {
   const command = createHistoricalBattleCommand(17, {
     desiredHeadingRad: Math.PI / 3,
@@ -166,8 +202,16 @@ test("port and starboard cannon reloads remain independent", () => {
     fireStarboard: true
   });
 
+  const fireEvent = drainHistoricalBattleEvents(battle).find((event) => (
+    event.type === "fire" && event.shipIndex === battle.playerShipIndex && !event.weaponId
+  ));
+
   assert.equal(player.cooldowns.port, 0);
   assert.ok(player.cooldowns.starboard > 0);
+  assert.ok(fireEvent.smokeProjectiles.length > 0);
+  assert.ok(fireEvent.smokeProjectiles.every((projectile) => (
+    projectile.kind === "cannon" && Number.isInteger(projectile.seed)
+  )));
 });
 
 test("historical wind uses the shared downwind flow convention", () => {

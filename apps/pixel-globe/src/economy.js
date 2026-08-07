@@ -50,6 +50,7 @@ export const FORAGED_FOOD_GOOD_ID = "foraged-food";
 export const WINE_GOOD_ID = "wine";
 export const WHALE_BLUBBER_GOOD_ID = "whale-blubber";
 export const BEAVER_PELTS_GOOD_ID = "beaver-pelts";
+export const HIDES_GOOD_ID = "hides";
 export const CINNAMON_GOOD_ID = "cinnamon";
 export const CLOVE_GOOD_ID = "cloves";
 export const NUTMEG_GOOD_ID = "nutmeg";
@@ -89,6 +90,7 @@ export const TRADE_GOODS = Object.freeze([
   good("fish", "Fish", 10, "food"),
   good(WHALE_BLUBBER_GOOD_ID, "Whale Blubber", 240, "material", { npcTrade: false }),
   good(BEAVER_PELTS_GOOD_ID, "Beaver Pelts", 120, "luxury"),
+  good(HIDES_GOOD_ID, "Hides", 24, "material", { unitSize: 3 }),
   good("cheese", "Cheese", 14, "food"),
   good(WINE_GOOD_ID, "Wine", 18, "drink"),
   good("olive-oil", "Olive Oil", 16, "food", { initialImportStockRatio: 0 }),
@@ -199,7 +201,8 @@ const REGION_PRODUCTION = Object.freeze({
     sugar: 0.48,
     timber: 0.24,
     cotton: 0.32,
-    indigo: 0.28
+    indigo: 0.28,
+    hides: 0.38
   }),
   "brazilian-coast": rates({
     hardtack: 0.42,
@@ -208,6 +211,38 @@ const REGION_PRODUCTION = Object.freeze({
     timber: 0.9,
     cotton: 0.18,
     dyes: 0.72
+  }),
+  "rio-de-la-plata": rates({
+    hardtack: 0.5,
+    grain: 0.76,
+    fish: 0.44,
+    salt: 0.14,
+    wool: 0.24,
+    hides: 0.82
+  }),
+  "temperate-american-colony": rates({
+    hardtack: 0.52,
+    grain: 0.7,
+    fish: 0.68,
+    timber: 0.72,
+    flax: 0.16,
+    furs: 0.2
+  }),
+  "tropical-american-colony": rates({
+    hardtack: 0.46,
+    grain: 0.64,
+    fish: 0.6,
+    timber: 0.34,
+    cotton: 0.28,
+    hides: 0.42,
+    dyes: 0.12
+  }),
+  "atlantic-island-colony": rates({
+    hardtack: 0.44,
+    grain: 0.38,
+    fish: 0.88,
+    salt: 0.34,
+    timber: 0.64
   }),
   andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, dyes: 0.2 }),
   "andean-coast": rates({
@@ -223,8 +258,8 @@ const REGION_PRODUCTION = Object.freeze({
 });
 
 const REGION_DEMAND = Object.freeze({
-  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, ginger: 0.38, indigo: 0.34, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
-  mediterranean: rates({ timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, ginger: 0.24, indigo: 0.2, silk: 0.3, ivory: 0.18 }),
+  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, hides: 0.4, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, ginger: 0.38, indigo: 0.34, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
+  mediterranean: rates({ timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, hides: 0.32, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, ginger: 0.24, indigo: 0.2, silk: 0.3, ivory: 0.18 }),
   "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, "beaver-pelts": 0.18, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, ginger: 0.08, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
   "east-asian": rates({ "beaver-pelts": 0.3, pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2, gunpowder: 0.12, matchlocks: 0.42 }),
   "south-asian": rates({ cloves: 0.12, nutmeg: 0.12, silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18, gunpowder: 0.1, matchlocks: 0.18 }),
@@ -267,6 +302,53 @@ const REGION_DEMAND = Object.freeze({
     glassware: 0.28,
     salt: 0.3
   }),
+  "rio-de-la-plata": rates({
+    iron: 0.5,
+    arms: 0.42,
+    matchlocks: 0.38,
+    gunpowder: 0.34,
+    "linen-cloth": 0.32,
+    "wool-cloth": 0.3,
+    wine: 0.22,
+    "olive-oil": 0.18,
+    glassware: 0.26
+  }),
+  "temperate-american-colony": rates({
+    iron: 0.46,
+    arms: 0.38,
+    matchlocks: 0.34,
+    gunpowder: 0.3,
+    "linen-cloth": 0.32,
+    "wool-cloth": 0.3,
+    wine: 0.28,
+    "olive-oil": 0.2,
+    salt: 0.18,
+    glassware: 0.24
+  }),
+  "tropical-american-colony": rates({
+    iron: 0.5,
+    arms: 0.42,
+    matchlocks: 0.36,
+    gunpowder: 0.32,
+    "linen-cloth": 0.34,
+    "wool-cloth": 0.28,
+    wine: 0.22,
+    "olive-oil": 0.18,
+    salt: 0.22,
+    glassware: 0.28
+  }),
+  "atlantic-island-colony": rates({
+    grain: 0.24,
+    iron: 0.56,
+    arms: 0.38,
+    matchlocks: 0.34,
+    gunpowder: 0.3,
+    "linen-cloth": 0.34,
+    "wool-cloth": 0.32,
+    wine: 0.26,
+    "olive-oil": 0.2,
+    glassware: 0.26
+  }),
   andean: rates({ iron: 0.55, arms: 0.5, matchlocks: 0.45, gunpowder: 0.4, "cotton-cloth": 0.3, wine: 0.2, salt: 0.2 }),
   "andean-coast": rates({
     iron: 0.55,
@@ -283,6 +365,7 @@ const REGION_DEMAND = Object.freeze({
 const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
   "northern-european": rates({
     "beaver-pelts": 2.6,
+    hides: 1.45,
     pepper: 2.35,
     cinnamon: 4.2,
     cloves: 3.5,
@@ -299,6 +382,7 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
   }),
   mediterranean: rates({
     "beaver-pelts": 2.05,
+    hides: 1.3,
     pepper: 2.05,
     cinnamon: 3.9,
     cloves: 3.15,
@@ -376,6 +460,63 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
     "linen-cloth": 1.22,
     "cotton-cloth": 1.2,
     salt: 1.18
+  }),
+  "rio-de-la-plata": rates({
+    hides: 0.58,
+    grain: 0.78,
+    wool: 0.86,
+    arms: 1.3,
+    gunpowder: 1.38,
+    matchlocks: 1.58,
+    iron: 1.24,
+    glassware: 1.2,
+    "linen-cloth": 1.18,
+    "wool-cloth": 1.2,
+    wine: 1.12,
+    "olive-oil": 1.12
+  }),
+  "temperate-american-colony": rates({
+    fish: 0.76,
+    timber: 0.74,
+    furs: 0.68,
+    flax: 0.82,
+    arms: 1.3,
+    gunpowder: 1.38,
+    matchlocks: 1.58,
+    iron: 1.24,
+    glassware: 1.2,
+    "linen-cloth": 1.16,
+    "wool-cloth": 1.18,
+    wine: 1.12,
+    "olive-oil": 1.1
+  }),
+  "tropical-american-colony": rates({
+    hides: 0.72,
+    cotton: 0.8,
+    timber: 0.84,
+    arms: 1.3,
+    gunpowder: 1.38,
+    matchlocks: 1.58,
+    iron: 1.24,
+    glassware: 1.2,
+    "linen-cloth": 1.16,
+    "wool-cloth": 1.18,
+    wine: 1.12,
+    "olive-oil": 1.1
+  }),
+  "atlantic-island-colony": rates({
+    fish: 0.72,
+    timber: 0.68,
+    salt: 0.72,
+    arms: 1.32,
+    gunpowder: 1.4,
+    matchlocks: 1.6,
+    iron: 1.28,
+    glassware: 1.22,
+    "linen-cloth": 1.18,
+    "wool-cloth": 1.2,
+    wine: 1.14,
+    "olive-oil": 1.12
   }),
   andean: rates({ arms: 1.35, gunpowder: 1.4, matchlocks: 1.65, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
   "andean-coast": rates({
@@ -459,8 +600,8 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Mozambique", ["gold", "ivory"]),
   specialty("Mombasa", ["ivory"]),
   specialty("Mogadishu", ["cotton-cloth", "ivory"]),
-  specialty("Santo Domingo", ["sugar", INDIGO_GOOD_ID, "gold"]),
-  specialty("Havana", ["sugar", INDIGO_GOOD_ID, "gold"]),
+  specialty("Santo Domingo", ["sugar", INDIGO_GOOD_ID, "gold", HIDES_GOOD_ID]),
+  specialty("Havana", ["sugar", INDIGO_GOOD_ID, "gold", HIDES_GOOD_ID]),
   specialty("Veracruz", ["cacao", "gold"]),
   specialty("Nombre de Dios", ["gold"]),
   specialty("Panama City", ["gold"]),
@@ -486,6 +627,18 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Fukuoka", [SULFUR_GOOD_ID]),
   specialty("Kagoshima", [SULFUR_GOOD_ID]),
   specialty("Nagasaki", ["silver"]),
+  specialty("Lima", ["fish", "cotton"]),
+  specialty("Recife", ["sugar"]),
+  specialty("Salvador", ["sugar"]),
+  specialty("Asuncion", ["grain", HIDES_GOOD_ID, "cotton"]),
+  specialty("Santiago", ["grain", "wool", "copper"]),
+  specialty("Concepcion", ["grain", "fish", "timber"]),
+  specialty("Potosi", ["silver"]),
+  specialty("Zacatecas", ["silver"]),
+  specialty("Caracas", ["grain", HIDES_GOOD_ID, "cotton"]),
+  specialty("Buenos Aires", [HIDES_GOOD_ID, "grain"]),
+  specialty("St. John's", ["fish"]),
+  specialty("St. George's", ["timber", "salt"]),
   specialty("Mexico City", ["cacao", "gold"]),
   specialty("Texcoco", ["grain", "salt"]),
   specialty("Cholula", ["cotton", "dyes"]),

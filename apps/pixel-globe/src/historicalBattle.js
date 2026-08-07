@@ -50,8 +50,10 @@ import {
 import {
   createHistoricalBattleMap,
   historicalBattleMapEscapeAt,
+  historicalBattleMapPointForLonLat,
   historicalBattleMapWaterAt
 } from "./historicalBattleMap.js";
+import { updateFlatBattleShipWake } from "./flatBattleWake.js";
 
 export const HISTORICAL_BATTLE_PHASE_ACTIVE = "active";
 export const HISTORICAL_BATTLE_PHASE_FINISHED = "finished";
@@ -67,7 +69,10 @@ const ENGAGEMENT_RANGE_PX = 92;
 const FORMATION_COLUMN_SPACING_PX = 44;
 const FORMATION_ROW_SPACING_PX = 38;
 const FORMATION_REJOIN_DISTANCE_PX = 210;
-const FRIENDLY_AVOIDANCE_RADIUS_PX = 34;
+const FRIENDLY_AVOIDANCE_RADIUS_PX = 48;
+const TARGET_PRESSURE_DISTANCE_PX = 26;
+const HISTORICAL_WAKE_SIMULATION_RADIUS_PX = 520;
+const HISTORICAL_WAKE_PARTICLE_LIMIT = 72;
 const CANNON_RANGE_PX = 74;
 const CANNON_SPEED_PX = 88;
 const CANNON_SPREAD_RAD = 0.18;
@@ -85,10 +90,12 @@ export function createHistoricalBattle({
   playerSideId,
   playerSquadronId,
   shipFootprints = null,
+  shipWakeAnchorsBySlug,
   seed = 0x4c455041
 }) {
   if (!Number.isInteger(seed)) throw new Error(`Historical battle seed must be an integer: ${seed}`);
   const scenario = historicalBattleScenarioById(scenarioId);
+  requireHistoricalWakeAnchors(scenario, shipWakeAnchorsBySlug);
   const playerSide = historicalBattleSideById(scenario, playerSideId);
   historicalBattleSquadronById(playerSide, playerSquadronId);
   const map = createHistoricalBattleMap(scenario.map);
@@ -113,8 +120,20 @@ export function createHistoricalBattle({
       const squadronState = createSquadronState(sideValue, sideIndex, squadronValue, squadronIndex);
       squadronState.globalIndex = squadrons.length;
       squadrons.push(squadronState);
-      expandSquadronShips(ships, squadronState, sideValue, squadronValue, playerSideId, playerSquadronId);
+      expandSquadronShips(
+        ships,
+        map,
+        squadronState,
+        sideValue,
+        squadronValue,
+        playerSideId,
+        playerSquadronId
+      );
     }
+  }
+
+  for (const ship of ships) {
+    ship.wakeAnchors = shipWakeAnchorsBySlug.get(ship.shipSlug);
   }
 
   const playerShipIndex = ships.findIndex((ship) => ship.playerControlled);
@@ -147,6 +166,7 @@ export function createHistoricalBattle({
     designatedTargetIndex: -1,
     spatialGrid: createBattleSpatialGrid(HISTORICAL_BATTLE_SPATIAL_CELL_SIZE),
     spatialScratch: [],
+    targetPressure: new Uint16Array(ships.length),
     projectiles: [],
     events: [],
     commandLog: [],
@@ -218,6 +238,27 @@ export function historicalBattlePlayerShip(state) {
   const ship = state.ships[state.playerShipIndex];
   if (!ship) throw new Error("Historical battle player flagship is missing");
   return ship;
+}
+
+export function historicalBattleInterpolatedShipPose(state, ship) {
+  assertBattle(state);
+  if (!ship || !Number.isFinite(ship.x) || !Number.isFinite(ship.y) ||
+      !Number.isFinite(ship.headingRad) || !Number.isFinite(ship.previousX) ||
+      !Number.isFinite(ship.previousY) || !Number.isFinite(ship.previousHeadingRad)) {
+    throw new Error("Historical battle render pose requires a complete ship state");
+  }
+  const alpha = clamp(
+    state.accumulatorSeconds / HISTORICAL_BATTLE_FIXED_STEP_SECONDS,
+    0,
+    1
+  );
+  return {
+    x: ship.previousX + (ship.x - ship.previousX) * alpha,
+    y: ship.previousY + (ship.y - ship.previousY) * alpha,
+    headingRad: normalizeAngle(
+      ship.previousHeadingRad + signedAngle(ship.headingRad - ship.previousHeadingRad) * alpha
+    )
+  };
 }
 
 export function historicalBattleWindFlowDirection(state) {
@@ -354,7 +395,20 @@ function stepHistoricalBattle(state, command) {
   finishHistoricalBattleIfNeeded(state);
 }
 
-function expandSquadronShips(ships, squadronState, sideValue, squadronValue, playerSideId, playerSquadronId) {
+function expandSquadronShips(
+  ships,
+  map,
+  squadronState,
+  sideValue,
+  squadronValue,
+  playerSideId,
+  playerSquadronId
+) {
+  const anchor = historicalBattleMapPointForLonLat(
+    map,
+    squadronValue.longitudeDeg,
+    squadronValue.latitudeDeg
+  );
   let slotIndex = 0;
   for (const group of squadronValue.shipGroups) {
     for (let groupIndex = 0; groupIndex < group.count; groupIndex++) {
@@ -365,8 +419,8 @@ function expandSquadronShips(ships, squadronState, sideValue, squadronValue, pla
         squadronValue.columnSpacingPx ?? FORMATION_COLUMN_SPACING_PX
       );
       const position = projectFormationPoint(
-        squadronValue.x,
-        squadronValue.y,
+        anchor.x,
+        anchor.y,
         sideValue.headingRad,
         formation.forward,
         formation.lateral
@@ -402,6 +456,7 @@ function expandSquadronShips(ships, squadronState, sideValue, squadronValue, pla
         y: position.y,
         previousX: position.x,
         previousY: position.y,
+        previousHeadingRad: normalizeAngle(sideValue.headingRad),
         headingRad: normalizeAngle(sideValue.headingRad),
         speedPx: 0,
         targetIndex: -1,
@@ -421,7 +476,9 @@ function expandSquadronShips(ships, squadronState, sideValue, squadronValue, pla
         rowing: false,
         rowingMode: SHIP_ROWING_MODE_IDLE,
         wake: [],
-        lastWakePoint: null
+        lastWakePoint: null,
+        wakeSeedCounter: 0,
+        wakeParticleLimit: HISTORICAL_WAKE_PARTICLE_LIMIT
       });
       slotIndex += 1;
     }
@@ -470,6 +527,13 @@ function projectFormationPoint(x, y, headingRad, forward, lateral) {
 }
 
 function refreshTargets(state) {
+  state.targetPressure.fill(0);
+  for (const ship of state.ships) {
+    const target = state.ships[ship.targetIndex];
+    if (ship.active && target?.active && target.sideIndex !== ship.sideIndex) {
+      state.targetPressure[ship.targetIndex] += 1;
+    }
+  }
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
     if (!ship.active) continue;
@@ -483,7 +547,14 @@ function refreshTargets(state) {
       : Number.POSITIVE_INFINITY;
     if ((state.tick + index) % TARGET_REFRESH_TICKS !== 0) continue;
     if (currentDistance <= TARGET_SEARCH_RADIUS_PX * 0.62) continue;
+    if (current?.active && current.sideIndex !== ship.sideIndex) {
+      state.targetPressure[ship.targetIndex] = Math.max(
+        0,
+        state.targetPressure[ship.targetIndex] - 1
+      );
+    }
     ship.targetIndex = nearestEnemyIndex(state, index, TARGET_SEARCH_RADIUS_PX);
+    if (ship.targetIndex >= 0) state.targetPressure[ship.targetIndex] += 1;
   }
 }
 
@@ -494,15 +565,18 @@ function nearestEnemyIndex(state, shipIndex, radius) {
   state.metrics.spatialCandidates += state.spatialScratch.length;
   const radiusSq = radius * radius;
   let bestIndex = -1;
-  let bestDistanceSq = radiusSq;
+  let bestScore = Number.POSITIVE_INFINITY;
   for (const candidateIndex of state.spatialScratch) {
     const candidate = state.ships[candidateIndex];
     if (!candidate.active || candidate.sideIndex === ship.sideIndex) continue;
     const dx = candidate.x - ship.x;
     const dy = candidate.y - ship.y;
     const distanceSq = dx * dx + dy * dy;
-    if (distanceSq >= bestDistanceSq) continue;
-    bestDistanceSq = distanceSq;
+    if (distanceSq >= radiusSq) continue;
+    const pressure = state.targetPressure[candidateIndex];
+    const score = distanceSq + pressure * TARGET_PRESSURE_DISTANCE_PX ** 2;
+    if (score >= bestScore) continue;
+    bestScore = score;
     bestIndex = candidateIndex;
   }
   return bestIndex;
@@ -510,6 +584,7 @@ function nearestEnemyIndex(state, shipIndex, radius) {
 
 function updateShipMotion(state, command) {
   updateSquadronLeaders(state);
+  const player = state.ships[state.playerShipIndex];
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
     if (!ship.active) continue;
@@ -538,7 +613,18 @@ function updateShipMotion(state, command) {
     if (speedCapPx !== 0) {
       desiredHeading = avoidFriendlyCollisionHeading(state, index, desiredHeading);
     }
-    moveShipWithStandardPropulsion(state, ship, desiredHeading, rowingMode, speedCapPx);
+    const wakeEnabled = ship.playerControlled || (
+      player?.active &&
+      Math.hypot(ship.x - player.x, ship.y - player.y) <= HISTORICAL_WAKE_SIMULATION_RADIUS_PX
+    );
+    moveShipWithStandardPropulsion(
+      state,
+      ship,
+      desiredHeading,
+      rowingMode,
+      speedCapPx,
+      wakeEnabled
+    );
   }
 }
 
@@ -629,7 +715,8 @@ function moveShipWithStandardPropulsion(
   ship,
   desiredHeading,
   rowingMode,
-  speedCapPx = Number.POSITIVE_INFINITY
+  speedCapPx = Number.POSITIVE_INFINITY,
+  wakeEnabled = true
 ) {
   const dt = HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
   const activeCrew = activeCombatCrew(ship.crew, ship.woundedCrew);
@@ -641,6 +728,7 @@ function moveShipWithStandardPropulsion(
   });
   ship.previousX = ship.x;
   ship.previousY = ship.y;
+  ship.previousHeadingRad = ship.headingRad;
   ship.headingRad = turnToward(ship.headingRad, desiredHeading, turnRate * dt);
   const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
   const windFlow = historicalBattleWindFlowDirection(state);
@@ -678,6 +766,7 @@ function moveShipWithStandardPropulsion(
   if (historicalBattleMapWaterAt(state.map, nextX, nextY, clearance)) {
     ship.x = nextX;
     ship.y = nextY;
+    updateHistoricalShipWake(ship, dt, wakeEnabled);
     return;
   }
   ship.speedPx *= 0.28;
@@ -686,6 +775,31 @@ function moveShipWithStandardPropulsion(
     Math.atan2(state.map.height / 2 - ship.y, state.map.width / 2 - ship.x),
     turnRate * dt * 1.5
   );
+  updateHistoricalShipWake(ship, dt, wakeEnabled);
+}
+
+function updateHistoricalShipWake(ship, dt, wakeEnabled) {
+  if (wakeEnabled) {
+    updateFlatBattleShipWake(ship, dt, ship.wakeAnchors);
+    return;
+  }
+  ship.wake.length = 0;
+  ship.lastWakePoint = null;
+}
+
+function requireHistoricalWakeAnchors(scenario, anchorsBySlug) {
+  if (!(anchorsBySlug instanceof Map)) {
+    throw new Error("Historical battles require the production ship wake-anchor bake");
+  }
+  for (const side of scenario.sides) {
+    for (const squadron of side.squadrons) {
+      for (const group of squadron.shipGroups) {
+        if (!anchorsBySlug.has(group.shipSlug)) {
+          throw new Error(`Historical battle ship has no wake anchors: ${group.shipSlug}`);
+        }
+      }
+    }
+  }
 }
 
 function avoidFriendlyCollisionHeading(state, shipIndex, desiredHeading) {
@@ -734,6 +848,11 @@ function updateStrategicRetreats(state) {
 }
 
 function resolveHistoricalShipCollisions(state) {
+  const collisionBodies = new Array(state.ships.length);
+  const bodyFor = (index) => {
+    if (!collisionBodies[index]) collisionBodies[index] = collisionBody(state, state.ships[index]);
+    return collisionBodies[index];
+  };
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
     if (!ship.active) continue;
@@ -753,7 +872,7 @@ function resolveHistoricalShipCollisions(state) {
       const other = state.ships[otherIndex];
       if (!other.active) continue;
       state.metrics.collisionChecks += 1;
-      const result = resolveShipCollision(collisionBody(state, ship), collisionBody(state, other));
+      const result = resolveShipCollision(bodyFor(index), bodyFor(otherIndex));
       if (!result) continue;
       const shipX = ship.x + result.a.correctionX;
       const shipY = ship.y + result.a.correctionY;
@@ -767,8 +886,11 @@ function resolveHistoricalShipCollisions(state) {
         other.x = otherX;
         other.y = otherY;
       }
+      collisionBodies[index] = null;
+      collisionBodies[otherIndex] = null;
       ship.speedPx = result.a.vx * Math.cos(ship.headingRad) + result.a.vy * Math.sin(ship.headingRad);
       other.speedPx = result.b.vx * Math.cos(other.headingRad) + result.b.vy * Math.sin(other.headingRad);
+      if (ship.sideIndex === other.sideIndex) continue;
       if (ship.collisionCooldownSeconds > 0 || other.collisionCooldownSeconds > 0) continue;
       const shipDamage = collisionDamageAfterResistance(state, ship, result.a.damage);
       const otherDamage = collisionDamageAfterResistance(state, other, result.b.damage);
@@ -948,6 +1070,7 @@ function fireShipBroadside(state, ship, target, sideName) {
   const aimed = targetDistance <= cannonRange(ship) * 1.08 &&
     dot(sideDirection, toTarget) >= Math.cos(BROADSIDE_HALF_ANGLE_RAD);
   const trueShotIndex = accurateBroadsideShotIndex(count);
+  const smokeProjectiles = [];
   for (let index = 0; index < count; index++) {
     const trueShot = index === trueShotIndex;
     const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
@@ -962,7 +1085,7 @@ function fireShipBroadside(state, ship, target, sideName) {
     const targetX = aimed && trueShot ? target.x : startX + aim.x * projectileRange;
     const targetY = aimed && trueShot ? target.y : startY + aim.y * projectileRange;
     const actualRange = Math.hypot(targetX - startX, targetY - startY);
-    addProjectile(state, {
+    const projectile = {
       id: state.projectileSerial++,
       kind: "cannon",
       ownerIndex: state.ships.indexOf(ship),
@@ -975,15 +1098,21 @@ function fireShipBroadside(state, ship, target, sideName) {
       durationSeconds: Math.max(0.12, actualRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
       damage: ship.weapon.damage,
       hit: aimed && (trueShot || nextRandom(state) < 0.5),
-      projectileSize: 2
-    });
+      projectileSize: 2,
+      seed: (state.randomSeed ^ state.projectileSerial ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0
+    };
+    addProjectile(state, projectile);
+    if (index === 0 || index === count - 1 || index === trueShotIndex) {
+      smokeProjectiles.push(projectile);
+    }
   }
   pushBattleEvent(state, {
     type: "fire",
     shipIndex: state.ships.indexOf(ship),
     sideName,
     weaponKind: "cannon",
-    cannonCount: ship.stats.cannons
+    cannonCount: ship.stats.cannons,
+    smokeProjectiles
   });
   return true;
 }

@@ -4,8 +4,12 @@ import test from "node:test";
 import {
   OVERBOARD_SWIM_MAX_SECONDS,
   OVERBOARD_SWIM_MIN_SECONDS,
+  FIRST_BREAKING_WAVE_MAX_SECONDS,
+  FIRST_BREAKING_WAVE_MIN_SECONDS,
+  REPEAT_BREAKING_WAVE_MIN_SECONDS,
   STORM_BREAKING_WAVE_DURATION_SECONDS,
   STORM_BREAKING_WAVE_MIN_INTENSITY,
+  STORM_BREAKING_WAVE_RESET_INTENSITY,
   STORM_OVERBOARD_MIN_INTENSITY,
   createStormWaveState,
   overboardFlightLiftPx,
@@ -81,6 +85,57 @@ test("a breaking wave resolves exactly one impact", () => {
   assert.ok(first.impact);
   const second = updateStormWaveState(state, { ...options, dt: 0.1 });
   assert.equal(second.impact, null);
+});
+
+test("the first breaker arrives promptly and later fronts remain distinct", () => {
+  const state = createStormWaveState();
+  updateStormWaveState(state, {
+    dt: 0,
+    intensity: 0.9,
+    eligible: true,
+    flow: { x: 1, y: 0 },
+    random: () => 0.5
+  });
+  assert.ok(state.secondsUntilNextWave >= FIRST_BREAKING_WAVE_MIN_SECONDS);
+  assert.ok(state.secondsUntilNextWave <= FIRST_BREAKING_WAVE_MAX_SECONDS);
+
+  updateStormWaveState(state, {
+    dt: state.secondsUntilNextWave,
+    intensity: 0.9,
+    eligible: true,
+    flow: { x: 1, y: 0 },
+    random: () => 0.5
+  });
+  assert.ok(state.active);
+  updateStormWaveState(state, {
+    dt: STORM_BREAKING_WAVE_DURATION_SECONDS,
+    intensity: 0.9,
+    eligible: true,
+    flow: { x: 1, y: 0 },
+    random: () => 0.5
+  });
+  assert.equal(state.active, null);
+  assert.ok(state.secondsUntilNextWave >= REPEAT_BREAKING_WAVE_MIN_SECONDS);
+});
+
+test("brief eligibility and intensity dips pause rather than discard the first crest", () => {
+  const state = createStormWaveState();
+  const update = (overrides = {}) => updateStormWaveState(state, {
+    dt: 0,
+    intensity: 0.9,
+    eligible: true,
+    flow: { x: 1, y: 0 },
+    random: () => 0.5,
+    ...overrides
+  });
+  update();
+  const pendingSeconds = state.secondsUntilNextWave;
+  update({ dt: 2, eligible: false });
+  assert.equal(state.secondsUntilNextWave, pendingSeconds);
+  update({ dt: 2, intensity: STORM_BREAKING_WAVE_MIN_INTENSITY - 0.01 });
+  assert.equal(state.secondsUntilNextWave, pendingSeconds);
+  update({ dt: 0, intensity: STORM_BREAKING_WAVE_RESET_INTENSITY - 0.01 });
+  assert.equal(state.secondsUntilNextWave, null);
 });
 
 test("seaworthy ocean ships are dramatically safer than shallow craft", () => {

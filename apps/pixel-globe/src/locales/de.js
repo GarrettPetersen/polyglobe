@@ -297,6 +297,7 @@ export default {
   "good.fish": "Fisch",
   "good.whaleBlubber": "Waltran",
   "good.beaverPelts": "Biberfelle",
+  "good.hides": "Häute",
   "good.cheese": "Käse",
   "good.wine": "Wein",
   "good.oliveOil": "Olivenöl",

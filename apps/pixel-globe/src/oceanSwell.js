@@ -3,10 +3,10 @@ export const CALM_SWELL_PACKET_PERIOD_MS = 26000;
 export const CALM_SWELL_PACKET_DURATION_MS = 7000;
 export const CALM_SWELL_MAX_AMPLITUDE_PX = 1;
 export const STORM_SWELL_MAX_AMPLITUDE_PX = 3;
+export const STORM_SWELL_PERIOD_MS = 8000;
+export const OCEAN_SWELL_SPATIAL_CYCLES = 7;
 
-const STORM_SWELL_PERIOD_MS = 5000;
 const CALM_SWELL_WAVE_PERIOD_MS = 12000;
-const GLOBE_WAVE_CYCLES = 12;
 const PHASE_AXIS_QUANTIZATION = 64;
 const TAU = Math.PI * 2;
 
@@ -71,7 +71,7 @@ export function oceanSwellOffset(state, globePosition) {
   }
   if (state.amplitudePx <= 0) return { x: 0, y: 0 };
 
-  const spatialCycles = dot3(globePosition, state.phaseAxis) * GLOBE_WAVE_CYCLES;
+  const spatialCycles = dot3(globePosition, state.phaseAxis) * OCEAN_SWELL_SPATIAL_CYCLES;
   const displacement = Math.sin(TAU * (state.cycle - spatialCycles)) * state.amplitudePx;
   return {
     x: roundPixel(state.flow.x * displacement),

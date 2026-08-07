@@ -1154,6 +1154,8 @@ import {
   shoreBatteryPlayerResponse,
   shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
+  shoreBatteryWarWarningSeen,
+  rememberShoreBatteryWarWarning,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 import { cityCrackSegments } from "./cityDamage.js";
@@ -1694,6 +1696,7 @@ import {
   HISTORICAL_BATTLE_PHASE_ACTIVE,
   createHistoricalBattle,
   drainHistoricalBattleEvents,
+  historicalBattleInterpolatedShipPose,
   historicalBattlePlayerShip,
   historicalBattleShipAtPoint,
   historicalBattleSideSummary,
@@ -1708,6 +1711,8 @@ import {
   historicalBattleSideById
 } from "./historicalBattleScenarios.js";
 import { historicalBattleMapWaterAt } from "./historicalBattleMap.js";
+import { LAKE_BATTLE_HEX_ROW_SPACING } from "./lakeBattleMap.js";
+import { flatBattleWakeDrawCalls } from "./flatBattleWake.js";
 import {
   VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID,
   VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
@@ -3060,6 +3065,7 @@ let startMenu = null;
 let lakeBattleMode = null;
 let lakeBattleTerrainChart = null;
 let lakeBattleTerrainChartKey = "";
+const historicalBattleTerrainWindowCache = new WeakMap();
 const lakeBattleShipAssets = new Map();
 const lakeBattleShipAssetPromises = new Map();
 const telemetryMetadata = {
@@ -9384,6 +9390,7 @@ function createHistoricalBattleModeState() {
     battle: null,
     camera: null,
     sinkEffects: [],
+    cannonSmokeBursts: [],
     resultReadyAtMs: null,
     loading: false,
     error: null,
@@ -9510,12 +9517,14 @@ async function beginHistoricalBattle() {
       scenarioId: scenario.id,
       playerSideId: side.id,
       playerSquadronId: squadron.id,
-      shipFootprints: shipFootprintsBySlug
+      shipFootprints: shipFootprintsBySlug,
+      shipWakeAnchorsBySlug
     });
     const player = historicalBattlePlayerShip(mode.battle);
     mode.camera = { x: player.x, y: player.y };
     mode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
     mode.sinkEffects = [];
+    mode.cannonSmokeBursts = [];
     mode.resultReadyAtMs = null;
     mode.selectedIndex = 0;
     mode.loading = false;
@@ -9542,12 +9551,14 @@ function restartHistoricalBattle() {
     scenarioId: scenario.id,
     playerSideId: side.id,
     playerSquadronId: squadron.id,
-    shipFootprints: shipFootprintsBySlug
+    shipFootprints: shipFootprintsBySlug,
+    shipWakeAnchorsBySlug
   });
   const player = historicalBattlePlayerShip(lakeBattleMode.battle);
   lakeBattleMode.camera = { x: player.x, y: player.y };
   lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
   lakeBattleMode.sinkEffects = [];
+  lakeBattleMode.cannonSmokeBursts = [];
   lakeBattleMode.resultReadyAtMs = null;
   lakeBattleMode.selectedIndex = 0;
   clearHistoricalBattlePendingActions();
@@ -9783,6 +9794,10 @@ function updateHistoricalBattleModeFrame(dt, nowMs) {
   const battle = lakeBattleMode.battle;
   if (!battle) throw new Error("Active historical battle screen has no battle state");
   const advanced = updateHistoricalBattle(battle, dt, historicalBattleInputCommand());
+  lakeBattleMode.cannonSmokeBursts = advanceCannonSmokeBursts(
+    lakeBattleMode.cannonSmokeBursts,
+    dt
+  );
   if (advanced) {
     lakeBattleMode.pendingFirePort = false;
     lakeBattleMode.pendingFireStarboard = false;
@@ -9791,10 +9806,11 @@ function updateHistoricalBattleModeFrame(dt, nowMs) {
   processHistoricalBattleEvents(battle, nowMs);
   pruneHistoricalBattleSinkEffects(nowMs);
   const player = historicalBattlePlayerShip(battle);
-  if (!lakeBattleMode.camera) lakeBattleMode.camera = { x: player.x, y: player.y };
+  const playerPose = historicalBattleInterpolatedShipPose(battle, player);
+  if (!lakeBattleMode.camera) lakeBattleMode.camera = { x: playerPose.x, y: playerPose.y };
   const cameraCatchup = 1 - Math.exp(-dt * 9);
-  lakeBattleMode.camera.x += (player.x - lakeBattleMode.camera.x) * cameraCatchup;
-  lakeBattleMode.camera.y += (player.y - lakeBattleMode.camera.y) * cameraCatchup;
+  lakeBattleMode.camera.x += (playerPose.x - lakeBattleMode.camera.x) * cameraCatchup;
+  lakeBattleMode.camera.y += (playerPose.y - lakeBattleMode.camera.y) * cameraCatchup;
   clampHistoricalBattleCamera(lakeBattleMode.camera, battle.map);
   if (battle.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE) {
     finishHistoricalBattlePresentation(nowMs);
@@ -9892,6 +9908,17 @@ function processHistoricalBattleEvents(battle, nowMs) {
           );
         }
         attackSounds += 1;
+      }
+      if (Array.isArray(event.smokeProjectiles) && historicalBattleShipNearViewport(firingShip)) {
+        for (const projectile of event.smokeProjectiles) {
+          lakeBattleMode.cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
+        }
+        if (lakeBattleMode.cannonSmokeBursts.length > CANNON_MAX_SMOKE_BURSTS) {
+          lakeBattleMode.cannonSmokeBursts.splice(
+            0,
+            lakeBattleMode.cannonSmokeBursts.length - CANNON_MAX_SMOKE_BURSTS
+          );
+        }
       }
     } else if (event.type === "hit") {
       const hitShip = battle.ships[event.shipIndex];
@@ -24563,7 +24590,8 @@ function updateNpcCombat(dt) {
             elapsed,
             combatHailOpened || combatHailPending || illicitTradeHailOpened ||
               cartazHailOpened || suppressCaptureHails || overlayBlocksCombatHails,
-            portEntryContext
+            portEntryContext,
+            playerWasInCombat
           );
         }
       )
@@ -24921,13 +24949,16 @@ function npcCombatAttackReason(state) {
   return `${faction.name} is at war with your flag. Heave to, or we open fire!`;
 }
 
-function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
+function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playerCombatActive) {
   if (!chart || !gameState || !ship || !localLayout) return { changed: false, hailOpened: false };
   const simMinute = Math.floor(weatherClockMinutes);
   const chartOffset = chartOffsetPixels(chart);
   const flags = gameState.memory.flags;
   if (portEntryContext?.state !== gameState || portEntryContext?.simMinute !== simMinute) {
     throw new Error("Shore battery combat requires the current port-entry context");
+  }
+  if (typeof playerCombatActive !== "boolean") {
+    throw new Error(`Shore battery combat requires active-combat state: ${playerCombatActive}`);
   }
   let changed = false;
   let hailOpened = false;
@@ -24964,6 +24995,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
         state.playerHailed = true;
         nextTargets.add(PLAYER_COMBAT_ID);
       } else {
+        const warWarningSeen = shoreBatteryWarWarningSeen(flags, city.factionId);
         const playerResponse = shoreBatteryPlayerResponse({
           playerHostile,
           hostileByWar: entryStatus.hostileByWar,
@@ -24972,7 +25004,9 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
           tollDemandEligible: entryStatus.canPurchaseSafePassage && shoreBatteryMayDemandToll(city),
           playerHailed: state.playerHailed,
           playerAttackActive: state.playerAttackActive,
-          passageRefusalActive
+          passageRefusalActive,
+          warWarningSeen,
+          playerCombatActive
         });
         if (playerResponse.shouldHail) {
           if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
@@ -24983,7 +25017,14 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
             changed = true;
           }
         }
-        if (playerResponse.shouldEngage) nextTargets.add(PLAYER_COMBAT_ID);
+        if (playerResponse.shouldEngage) {
+          nextTargets.add(PLAYER_COMBAT_ID);
+          playerCombatActive = true;
+          if (entryStatus.hostileByWar && !warWarningSeen) {
+            rememberShoreBatteryWarWarning(flags, city.factionId);
+            changed = true;
+          }
+        }
       }
     }
     if (playerDistance > range + 20) {
@@ -25062,6 +25103,10 @@ function openShoreBatteryCombatHail(city, state, entryStatus) {
     canAffordToll: passageOffered && gameState.doubloons >= toll,
     simMinute: Math.floor(weatherClockMinutes)
   });
+  if (relation === DIPLOMACY_WAR && !shoreBatteryWarWarningSeen(gameState.memory.flags, city.factionId)) {
+    rememberShoreBatteryWarWarning(gameState.memory.flags, city.factionId);
+    saveVoyageNow("shore battery war warning");
+  }
   dialogueLayout = createDialogueLayoutState();
   pauseShipForOverlay();
   ensureDialoguePortraitLoaded();
@@ -34743,17 +34788,33 @@ function drawHistoricalBattleSelector(rect, label, value, detail, row, selectorK
 
 function drawHistoricalBattleField(battle, nowMs) {
   drawHistoricalBattleMap(battle.map);
+  drawHistoricalBattleWakes(battle);
+  drawHistoricalBattleCannonSmoke(CANNON_SMOKE_LAYER_BEHIND);
   drawHistoricalBattleProjectiles(battle);
   drawHistoricalBattleShips(battle, nowMs);
+  drawHistoricalBattleCannonSmoke(CANNON_SMOKE_LAYER_FRONT);
   drawHistoricalBattleSinkEffects(battle, nowMs);
   drawHistoricalBattleHud(battle);
   drawHistoricalBattleMinimap(battle);
 }
 
+function drawHistoricalBattleCannonSmoke(drawLayer) {
+  for (const burst of lakeBattleMode.cannonSmokeBursts) {
+    if (burst.drawLayer !== drawLayer) continue;
+    for (const pixel of cannonSmokePixels(burst)) {
+      const point = historicalBattleWorldToScreen(pixel);
+      const color = CANNON_SMOKE_COLORS[pixel.shade];
+      ctx.fillStyle = `rgba(${color}, ${pixel.alpha.toFixed(3)})`;
+      ctx.fillRect(Math.round(point.x), Math.round(point.y), pixel.size, pixel.size);
+    }
+  }
+}
+
 function drawHistoricalBattleMap(map) {
   const cameraValue = lakeBattleMode.camera;
   if (!cameraValue) throw new Error("Historical battle map has no camera");
-  const terrainChart = ensureHistoricalBattleTerrainChart(map);
+  const completeTerrainChart = ensureHistoricalBattleTerrainChart(map);
+  const terrainChart = historicalBattleTerrainWindow(completeTerrainChart, cameraValue);
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   const offsetX = Math.round(SCREEN_W / 2 - cameraValue.x);
@@ -34769,7 +34830,7 @@ function drawHistoricalBattleMap(map) {
   drawTerrainConnectorFaces(terrainChart.faceCalls, terrainChart, {
     viewportBounds: viewport,
     waveClockMs: waterAnimationClockMs,
-    visibleDetailCalls: []
+    visibleDetailCalls: terrainChart.faceCalls
   });
   for (const tile of terrainChart.tileCalls) {
     if (
@@ -34826,8 +34887,33 @@ function drawHistoricalBattleProjectiles(battle) {
 
 function drawHistoricalBattleShips(battle, nowMs) {
   const visible = historicalBattleVisibleShips(battle, lakeBattleMode.camera, SCREEN_W, SCREEN_H)
-    .sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
+    .sort((a, b) => (
+      historicalBattleInterpolatedShipPose(battle, a).y -
+        historicalBattleInterpolatedShipPose(battle, b).y ||
+      a.id.localeCompare(b.id)
+    ));
   for (const shipState of visible) drawHistoricalBattleShip(battle, shipState, nowMs);
+}
+
+function drawHistoricalBattleWakes(battle) {
+  ctx.save();
+  const visibleShips = historicalBattleVisibleShips(
+    battle,
+    lakeBattleMode.camera,
+    SCREEN_W,
+    SCREEN_H,
+    96
+  );
+  for (const call of flatBattleWakeDrawCalls(
+    visibleShips,
+    (x, y) => historicalBattleMapWaterAt(battle.map, x, y)
+  )) {
+    const point = historicalBattleWorldToScreen(call);
+    ctx.globalAlpha = call.alpha;
+    ctx.fillStyle = "#fffde7";
+    ctx.fillRect(Math.round(point.x), Math.round(point.y), 1, 1);
+  }
+  ctx.restore();
 }
 
 function historicalBattleShipSpriteCall(battle, shipState, nowMs, coordinateSpace = "screen") {
@@ -34847,10 +34933,13 @@ function historicalBattleShipSpriteCall(battle, shipState, nowMs, coordinateSpac
     rowingMode: shipState.rowingMode,
     bobSeed
   }, nowMs);
-  const point = coordinateSpace === "screen" ? historicalBattleWorldToScreen(shipState) : shipState;
+  const pose = coordinateSpace === "screen"
+    ? historicalBattleInterpolatedShipPose(battle, shipState)
+    : shipState;
+  const point = coordinateSpace === "screen" ? historicalBattleWorldToScreen(pose) : pose;
   const frame = headingFrameForScreenHeading({
-    x: Math.cos(shipState.headingRad),
-    y: Math.sin(shipState.headingRad)
+    x: Math.cos(pose.headingRad),
+    y: Math.sin(pose.headingRad)
   });
   const x = Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2);
   const y = Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2);
@@ -35041,6 +35130,8 @@ function buildLakeBattleTerrainChart(map) {
   const faceCalls = [];
   const tileCalls = [];
   const tileById = new Map();
+  const tileCallsByRow = new Map();
+  const faceCallsByRow = new Map();
 
   for (const cell of map.cells) {
     const row = cell.terrain;
@@ -35059,6 +35150,7 @@ function buildLakeBattleTerrainChart(map) {
       sortY: cell.y
     };
     tileCalls.push(tileCall);
+    appendRowCall(tileCallsByRow, cell.row, tileCall);
     tileById.set(cell.id, tileCall);
   }
 
@@ -35068,7 +35160,7 @@ function buildLakeBattleTerrainChart(map) {
       if (neighborId < cell.id) continue;
       const neighbor = tileById.get(neighborId);
       if (!neighbor) throw new Error(`Lake battle tile has missing neighbor: ${cell.id}/${neighborId}`);
-      faceCalls.push(makeFaceCall({
+      const faceCall = makeFaceCall({
         a: tile.id,
         b: neighbor.id,
         ax: tile.drawSurfaceX,
@@ -35081,13 +35173,73 @@ function buildLakeBattleTerrainChart(map) {
         nrow: neighbor.row,
         level: tile.level,
         nlevel: neighbor.level
-      }));
+      });
+      faceCalls.push(faceCall);
+      appendRowCall(faceCallsByRow, Math.min(cell.row, map.cellById.get(neighborId).row), faceCall);
     }
   }
 
   faceCalls.sort(compareTerrainConnectorDrawOrder);
   tileCalls.sort(compareTerrainDrawCalls);
-  return { map, tileById, faceCalls, tileCalls };
+  return { map, tileById, faceCalls, tileCalls, tileCallsByRow, faceCallsByRow };
+}
+
+function appendRowCall(rows, row, call) {
+  const calls = rows.get(row);
+  if (calls) calls.push(call);
+  else rows.set(row, [call]);
+}
+
+function historicalBattleTerrainWindow(terrainChart, cameraValue) {
+  const chunkSize = 384;
+  const chunkX = Math.floor(cameraValue.x / chunkSize);
+  const chunkY = Math.floor(cameraValue.y / chunkSize);
+  const key = `${chunkX}:${chunkY}:${SCREEN_W}:${SCREEN_H}`;
+  let cache = historicalBattleTerrainWindowCache.get(terrainChart);
+  if (!cache) {
+    cache = new Map();
+    historicalBattleTerrainWindowCache.set(terrainChart, cache);
+  }
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const margin = TILE_ART_SIZE * 2;
+  const bounds = {
+    minX: chunkX * chunkSize - SCREEN_W / 2 - margin,
+    minY: chunkY * chunkSize - SCREEN_H / 2 - margin,
+    maxX: (chunkX + 1) * chunkSize + SCREEN_W / 2 + margin,
+    maxY: (chunkY + 1) * chunkSize + SCREEN_H / 2 + margin
+  };
+  const minRow = Math.max(0, Math.floor(
+    (bounds.minY - terrainChart.map.originY) / LAKE_BATTLE_HEX_ROW_SPACING
+  ) - 1);
+  const maxRow = Math.min(terrainChart.map.rowCount - 1, Math.ceil(
+    (bounds.maxY - terrainChart.map.originY) / LAKE_BATTLE_HEX_ROW_SPACING
+  ) + 1);
+  const tileCalls = [];
+  const faceCalls = [];
+  for (let row = minRow; row <= maxRow; row++) {
+    for (const call of terrainChart.tileCallsByRow.get(row) || []) {
+      if (call.drawSurfaceX >= bounds.minX && call.drawSurfaceX <= bounds.maxX) {
+        tileCalls.push(call);
+      }
+    }
+    for (const call of terrainChart.faceCallsByRow.get(row) || []) {
+      if (Math.max(call.ax, call.bx) >= bounds.minX &&
+          Math.min(call.ax, call.bx) <= bounds.maxX) faceCalls.push(call);
+    }
+  }
+  tileCalls.sort(compareTerrainDrawCalls);
+  faceCalls.sort(compareTerrainConnectorDrawOrder);
+  const windowChart = {
+    map: terrainChart.map,
+    tileById: terrainChart.tileById,
+    tileCalls,
+    faceCalls
+  };
+  cache.set(key, windowChart);
+  if (cache.size > 12) cache.delete(cache.keys().next().value);
+  return windowChart;
 }
 
 function drawLakeBattleTerrain(terrainChart) {
@@ -35208,28 +35360,13 @@ function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
 
 function drawLakeBattleWakes(battle) {
   ctx.save();
-  for (const shipState of [battle.player, battle.enemy]) {
-    for (const wake of shipState.wake) {
-      const life = clamp(wake.age / wake.ttl, 0, 1);
-      const spread = 1 + Math.floor(life * 5);
-      const broken = (wake.seed + Math.floor(wake.age * 8)) % 4 === 0;
-      ctx.globalAlpha = (1 - life) * 0.72;
-      ctx.fillStyle = "#ffffff";
-      const port = {
-        x: Math.round(wake.x + wake.sideX * spread),
-        y: Math.round(wake.y + wake.sideY * spread)
-      };
-      const starboard = {
-        x: Math.round(wake.x - wake.sideX * spread),
-        y: Math.round(wake.y - wake.sideY * spread)
-      };
-      if (!broken && lakeBattleWaterAt(battle, port.x, port.y)) {
-        ctx.fillRect(port.x, port.y, 1, 1);
-      }
-      if (lakeBattleWaterAt(battle, starboard.x, starboard.y)) {
-        ctx.fillRect(starboard.x, starboard.y, 1, 1);
-      }
-    }
+  for (const call of flatBattleWakeDrawCalls(
+    [battle.player, battle.enemy],
+    (x, y) => lakeBattleWaterAt(battle, x, y)
+  )) {
+    ctx.globalAlpha = call.alpha;
+    ctx.fillStyle = "#fffde7";
+    ctx.fillRect(call.x, call.y, 1, 1);
   }
   ctx.restore();
 }

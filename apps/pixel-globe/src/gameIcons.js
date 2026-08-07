@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-44";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-45";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -85,6 +85,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:fish": generatedIcon("herring"),
   "good:whale-blubber": pirate(9),
   "good:beaver-pelts": generatedIcon("beaver-pelt"),
+  "good:hides": glionox(211),
   "good:cheese": alex("cheese_gouda.png"),
   "good:wine": pirate(43),
   "good:olive-oil": glionox(378),

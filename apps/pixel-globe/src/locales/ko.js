@@ -297,6 +297,7 @@ export default {
   "good.fish": "생선",
   "good.whaleBlubber": "고래 기름",
   "good.beaverPelts": "비버 모피",
+  "good.hides": "가죽",
   "good.cheese": "치즈",
   "good.wine": "포도주",
   "good.oliveOil": "올리브유",

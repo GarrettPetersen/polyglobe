@@ -69,6 +69,7 @@ import {
   SHORE_BATTERY_HIT_POINTS_PER_GUN,
   SHORE_BATTERY_RELOAD_SECONDS
 } from "./shoreBatteries.js";
+import { updateFlatBattleShipWake } from "./flatBattleWake.js";
 
 export const LAKE_BATTLE_PHASE_ACTIVE = "active";
 export const LAKE_BATTLE_PHASE_FINISHED = "finished";
@@ -259,7 +260,11 @@ export function resizeLakeBattle(state, width, height) {
   for (const ship of [state.player, state.enemy]) {
     scalePoint(ship);
     for (const wake of ship.wake) scalePoint(wake);
-    if (ship.lastWakePoint) scalePoint(ship.lastWakePoint);
+    for (const wake of ship.wake) {
+      wake.vx *= scaleX;
+      wake.vy *= scaleY;
+    }
+    ship.lastWakePoint = null;
   }
   for (const projectile of state.projectiles) {
     projectile.startX *= scaleX;
@@ -553,7 +558,8 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId, re
     navigationCourseRad: normalizeAngle(headingRad),
     navigationDecisionCooldown: 0,
     wake: [],
-    lastWakePoint: null
+    lastWakePoint: null,
+    wakeSeedCounter: 0
   };
 }
 
@@ -696,7 +702,7 @@ function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt) 
   if (ship.tackSide !== 0) {
     ship.tackRemainingPx = Math.max(0, ship.tackRemainingPx - movedDistance);
   }
-  updateShipWake(ship, dt);
+  updateFlatBattleShipWake(ship, dt);
 }
 
 function nudgeLakeBattleShipTowardClearWater(state, ship) {
@@ -718,33 +724,6 @@ function nearestLakeBattleClearancePoint(state, ship) {
     }
   }
   return null;
-}
-
-function updateShipWake(ship, dt) {
-  for (const particle of ship.wake) particle.age += dt;
-  ship.wake = ship.wake.filter((particle) => particle.age < particle.ttl);
-  if (Math.abs(ship.speedPx) < 4) {
-    ship.lastWakePoint = null;
-    return;
-  }
-  const heading = lakeBattleHeadingVector(ship);
-  const wakeDirection = ship.speedPx < 0 ? -1 : 1;
-  const point = {
-    x: ship.x - heading.x * 6 * wakeDirection,
-    y: ship.y - heading.y * 6 * wakeDirection
-  };
-  if (ship.lastWakePoint && Math.hypot(point.x - ship.lastWakePoint.x, point.y - ship.lastWakePoint.y) < 3) return;
-  ship.wake.push({
-    x: point.x,
-    y: point.y,
-    sideX: -heading.y,
-    sideY: heading.x,
-    age: 0,
-    ttl: 2.25,
-    seed: Math.round(point.x * 17 + point.y * 31) >>> 0
-  });
-  if (ship.wake.length > 80) ship.wake.splice(0, ship.wake.length - 80);
-  ship.lastWakePoint = point;
 }
 
 function moveShipInsideLake(state, ship, distance) {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import { colonizationTargetForCity } from "./colonialCities.js";
 import {
   AMBER_GOOD_ID,
   BEAVER_PELTS_GOOD_ID,
@@ -16,6 +17,7 @@ import {
   GINGER_GOOD_ID,
   GUNPOWDER_GOOD_ID,
   HARDTACK_GOOD_ID,
+  HIDES_GOOD_ID,
   LACQUERWARE_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   NAVAL_STORES_GOOD_ID,
@@ -119,7 +121,7 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [
     "hardtack", "grain", "fish", "timber", COAL_GOOD_ID, "arms", "wool-cloth", "silk-cloth", "pepper",
-    BEAVER_PELTS_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
+    BEAVER_PELTS_GOOD_ID, HIDES_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
     GINGER_GOOD_ID, INDIGO_GOOD_ID,
     AMBER_GOOD_ID, FURS_GOOD_ID, BEESWAX_GOOD_ID, NAVAL_STORES_GOOD_ID,
     PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID, LACQUERWARE_GOOD_ID, GINSENG_GOOD_ID,
@@ -155,6 +157,8 @@ test("Southeast Asia exports ginger while Caribbean colonies begin with sugar an
   assert.ok(santoDomingo.get(INDIGO_GOOD_ID).productionPerDay > 0);
   assert.ok(havana.get("sugar").productionPerDay > 0);
   assert.ok(santoDomingo.get("sugar").productionPerDay > 0);
+  assert.ok(havana.get(HIDES_GOOD_ID).productionPerDay > 0);
+  assert.ok(santoDomingo.get(HIDES_GOOD_ID).productionPerDay > 0);
   assert.equal(havana.get(GINGER_GOOD_ID).productionPerDay, 0);
   assert.equal(santoDomingo.get(GINGER_GOOD_ID).productionPerDay, 0);
   assert.ok(havana.get(INDIGO_GOOD_ID).listedForSale);
@@ -227,6 +231,65 @@ test("New World production follows geography instead of city sprite style", () =
   assert.equal(byName.get("Mexico City").economyRegion, "mesoamerican");
   assert.ok(mexicoCity.get("cacao").productionPerDay > 0);
   assert.equal(mexicoCity.get("sugar").productionPerDay, 0);
+});
+
+test("player-founded colonies use local economies instead of their founders' city artwork", () => {
+  const ports = [
+    ["Buenos Aires", "Argentina"],
+    ["Asuncion", "Paraguay"],
+    ["Caracas", "Venezuela"],
+    ["St. George's", "Bermuda"],
+    ["Recife", "Brazil"],
+    ["Potosi", "Bolivia"],
+    ["Zacatecas", "Mexico"],
+    ["Lima", "Peru"]
+  ].map(([city, country], index) => {
+    const target = colonizationTargetForCity({ city, country });
+    assert.ok(target, `missing colonization target for ${city}`);
+    return {
+      ...target,
+      tileId: 18000 + index,
+      population: 2400,
+      settlementType: "city"
+    };
+  });
+  const byName = new Map(ports.map((port) => [port.city, port]));
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+
+  const buenosAires = marketByGood(economy, byName.get("Buenos Aires"));
+  assert.equal(byName.get("Buenos Aires").economyRegion, "rio-de-la-plata");
+  assert.ok(buenosAires.get(HIDES_GOOD_ID).productionPerDay > 0);
+  assert.ok(buenosAires.get("grain").productionPerDay > 0);
+  assert.equal(buenosAires.get("wine").productionPerDay, 0);
+  assert.equal(buenosAires.get("olive-oil").productionPerDay, 0);
+
+  const asuncion = marketByGood(economy, byName.get("Asuncion"));
+  assert.equal(byName.get("Asuncion").economyRegion, "rio-de-la-plata");
+  assert.ok(asuncion.get(HIDES_GOOD_ID).productionPerDay > 0);
+  assert.equal(asuncion.get("olive-oil").productionPerDay, 0);
+
+  const caracas = marketByGood(economy, byName.get("Caracas"));
+  assert.equal(byName.get("Caracas").economyRegion, "tropical-american-colony");
+  assert.ok(caracas.get(HIDES_GOOD_ID).productionPerDay > 0);
+  assert.ok(caracas.get("grain").productionPerDay > 0);
+  assert.equal(caracas.get("wine").productionPerDay, 0);
+  assert.equal(caracas.get("olive-oil").productionPerDay, 0);
+
+  const bermuda = marketByGood(economy, byName.get("St. George's"));
+  assert.equal(byName.get("St. George's").economyRegion, "atlantic-island-colony");
+  assert.ok(bermuda.get("timber").productionPerDay > 0);
+  assert.ok(bermuda.get("salt").productionPerDay > 0);
+  assert.equal(bermuda.get("sugar").productionPerDay, 0);
+  assert.equal(bermuda.get(INDIGO_GOOD_ID).productionPerDay, 0);
+
+  assert.ok(marketByGood(economy, byName.get("Recife")).get("sugar").productionPerDay > 0);
+  assert.ok(marketByGood(economy, byName.get("Potosi")).get("silver").productionPerDay > 0);
+  assert.ok(marketByGood(economy, byName.get("Zacatecas")).get("silver").productionPerDay > 0);
+
+  const lima = marketByGood(economy, byName.get("Lima"));
+  assert.equal(byName.get("Lima").economyRegion, "andean-coast");
+  assert.ok(lima.get("fish").productionPerDay > 0);
+  assert.ok(lima.get("cotton").productionPerDay > 0);
 });
 
 test("Chinese ports do not begin a voyage with Mediterranean olive oil imports", () => {
@@ -1184,6 +1247,7 @@ test("older economy snapshots initialize newly added trade goods without changin
   executePortSale(economy, LONDON, "wool", 2);
   const snapshot = snapshotWorldEconomy(economy);
   const newGoodIds = new Set([
+    HIDES_GOOD_ID,
     AMBER_GOOD_ID,
     FURS_GOOD_ID,
     BEESWAX_GOOD_ID,

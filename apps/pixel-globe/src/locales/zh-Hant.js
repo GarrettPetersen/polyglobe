@@ -297,6 +297,7 @@ export default {
   "good.fish": "魚",
   "good.whaleBlubber": "鯨脂",
   "good.beaverPelts": "河狸皮",
+  "good.hides": "獸皮",
   "good.cheese": "起司",
   "good.wine": "葡萄酒",
   "good.oliveOil": "橄欖油",
