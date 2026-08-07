@@ -558,6 +558,7 @@ import {
   whiteWhale
 } from "./whaleSystem.js";
 import { applyWhaleTowPull, whaleTowKinematics } from "./whaleTowPhysics.js";
+import { drawWhaleTetherCurve } from "./whaleTetherCurve.js";
 import {
   WHITE_WHALE_ID,
   WHALE_SPECIES,
@@ -39804,15 +39805,7 @@ function drawWhaleRope(
   painter = CANVAS_WORLD_PRIMITIVE_PAINTER,
   bendPx = 2
 ) {
-  const dx = endX - startX;
-  const dy = endY - startY;
-  const length = Math.hypot(dx, dy);
-  const perpendicularX = length > 0 ? -dy / length : 0;
-  const perpendicularY = length > 0 ? dx / length : 1;
-  const middleX = Math.round((startX + endX) / 2 + perpendicularX * bendPx);
-  const middleY = Math.round((startY + endY) / 2 + perpendicularY * bendPx);
-  painter.line(Math.round(startX), Math.round(startY), middleX, middleY, "#6b4932");
-  painter.line(middleX, middleY, Math.round(endX), Math.round(endY), "#6b4932");
+  drawWhaleTetherCurve(startX, startY, endX, endY, bendPx, painter, "#6b4932");
 }
 
 function playerShipDrawCall(light) {
