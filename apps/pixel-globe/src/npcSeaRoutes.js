@@ -1401,6 +1401,17 @@ export function damageNpcShip(system, shipId, amount, options = {}) {
   const ship = requiredNpcShip(system, shipId);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error(`Invalid NPC ship damage: ${amount}`);
   if (!options || typeof options !== "object") throw new Error("NPC ship damage options must be an object");
+  if (shipHasCombatGrace(ship)) {
+    return {
+      hitPoints: ship.hitPoints,
+      maxHitPoints: ship.maxHitPoints,
+      damage: 0,
+      resisted: false,
+      ignoredAfterSurrender: true,
+      sunk: false,
+      shouldSurrender: false
+    };
+  }
   const bypassArmor = options.bypassArmor === true;
   const armorRoll = options.armorRoll ?? Math.random();
   const resisted = !bypassArmor && shipHullResistsDamage(shipStatsForSlug(ship.slug), {
@@ -1417,6 +1428,7 @@ export function damageNpcShip(system, shipId, amount, options = {}) {
     maxHitPoints: ship.maxHitPoints,
     damage,
     resisted,
+    ignoredAfterSurrender: false,
     sunk: ship.hitPoints <= 0,
     shouldSurrender: ship.hitPoints > 0 && ship.hitPoints <= surrenderHitPoints
   };
@@ -1479,6 +1491,7 @@ export function surrenderNpcShip(system, loserId, winnerId = null, { preserveHul
   const winner = winnerId ? requiredNpcShip(system, winnerId) : null;
   if (winner?.id === loser.id) throw new Error("An NPC ship cannot surrender to itself");
   if (typeof preserveHull !== "boolean") throw new Error(`Invalid preserve-hull option: ${preserveHull}`);
+  if (shipHasCombatGrace(loser)) throw new Error(`NPC ship already surrendered: ${loserId}`);
 
   const loot = {
     specie: Math.max(0, Math.floor(loser.specie)),

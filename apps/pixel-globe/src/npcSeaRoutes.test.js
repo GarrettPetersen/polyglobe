@@ -1419,6 +1419,28 @@ test("voluntary surrender preserves an undamaged hull", () => {
   assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
 });
 
+test("projectiles already in flight cannot make an NPC ship surrender twice", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const loser = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT && cargoUnits(ship) > 0);
+  assert.ok(loser);
+
+  const firstHit = damageNpcShip(routes, loser.id, loser.maxHitPoints - 1);
+  assert.equal(firstHit.shouldSurrender, true);
+  surrenderNpcShip(routes, loser.id);
+  const surrenderedHitPoints = loser.hitPoints;
+
+  const lateHit = damageNpcShip(routes, loser.id, 1, { bypassArmor: true });
+  assert.equal(lateHit.ignoredAfterSurrender, true);
+  assert.equal(lateHit.shouldSurrender, false);
+  assert.equal(lateHit.sunk, false);
+  assert.equal(loser.hitPoints, surrenderedHitPoints);
+  assert.throws(
+    () => surrenderNpcShip(routes, loser.id),
+    /already surrendered/
+  );
+});
+
 test("claiming a surrendered hull removes it from traffic and queues a replacement", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

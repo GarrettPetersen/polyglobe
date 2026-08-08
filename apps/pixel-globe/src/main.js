@@ -729,6 +729,7 @@ import {
   npcRoleLabel,
   npcSeaRouteHasPort,
   npcSeaRoutePortSettlementType,
+  npcShipHasCombatGrace,
   npcShipSnapshots,
   replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
@@ -22754,6 +22755,7 @@ function beginPlayerCityAttack(city) {
 }
 
 function applyPlayerNavalHit(ball, target, point) {
+  if (npcShipHasCombatGrace(npcSeaRoutes, target.id)) return;
   const disposition = ball.portable
     ? FRIENDLY_FIRE_DIRECT
     : playerCannonHitDisposition(ball, target.id, target.factionId);
@@ -22767,6 +22769,7 @@ function applyPlayerNavalHit(ball, target, point) {
     return;
   }
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
+  if (damage.ignoredAfterSurrender) return;
   const impact = { ...ball, targetX: point.x, targetY: point.y };
   if (damage.resisted && ball.kind === NAVAL_WEAPON_CANNON) {
     playArmorGlanceSound(Math.hypot(point.x - ball.startX, point.y - ball.startY));
@@ -22800,6 +22803,7 @@ function applyPlayerNavalHit(ball, target, point) {
 }
 
 function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
+  if (npcShipHasCombatGrace(npcSeaRoutes, target.id)) return;
   const woundResult = applyCrewWounds({
     totalCrew: target.stats.crewCapacity,
     woundedCrew: target.woundedCrew,
@@ -22818,6 +22822,7 @@ function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
   }, Math.random);
   if (rolledHullDamage > 0) {
     const damage = damageNpcShip(npcSeaRoutes, target.id, rolledHullDamage);
+    if (damage.ignoredAfterSurrender) return;
     appliedHullDamage = damage.damage;
     target.hitPoints = damage.hitPoints;
     if (damage.sunk) {
@@ -26179,6 +26184,7 @@ function applyNpcCombatHit(ball, targetId, point) {
   }
 
   const damage = damageNpcShip(npcSeaRoutes, targetId, ball.damage);
+  if (damage.ignoredAfterSurrender) return;
   if (damage.resisted && ball.kind === NAVAL_WEAPON_CANNON) {
     playArmorGlanceSound(Math.hypot(point.x - ball.startX, point.y - ball.startY));
   } else {
@@ -26263,6 +26269,11 @@ function addNpcCombatSplash(ball) {
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
   const strategicBeforeSurrender = npcSeaRoutes.shipById.get(loserId);
+  if (!strategicBeforeSurrender) throw new Error(`Cannot surrender missing NPC ship: ${loserId}`);
+  if (npcShipHasCombatGrace(npcSeaRoutes, loserId)) {
+    retireProjectilesForSurrenderedShip(loserId);
+    return;
+  }
   const rewardOrigin = combatEntityPoint(loserId);
   const loserWasPirate = strategicBeforeSurrender?.role === NPC_ROLE_PIRATE;
   const treasureEncounter = strategicBeforeSurrender?.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
@@ -26343,7 +26354,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     state.woundedCrew = 0;
     state.portableWeaponCooldowns = {};
   }
-  npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
+  retireProjectilesForSurrenderedShip(loserId);
   if (playerPrizeSummary) {
     if (treasureEncounter && resolveTreasurePiratePlayerDefeat(loserId, treasureEncounter, {
       sunk: false,
@@ -26357,6 +26368,13 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     });
     if (!captiveOpened) openSurrenderPrizeDecision(loserId, playerPrizeSummary);
   }
+}
+
+function retireProjectilesForSurrenderedShip(shipId) {
+  ship.navalProjectiles = ship.navalProjectiles.filter((ball) => ball.targetId !== shipId);
+  npcCombatProjectiles = npcCombatProjectiles.filter(
+    (ball) => ball.ownerId !== shipId && ball.targetId !== shipId
+  );
 }
 
 function openSurrenderPrizeDecision(npcShipId, lootSummary) {
@@ -26973,6 +26991,7 @@ function applyCombatCollisionDamage(id, amount, otherId) {
     return;
   }
   const damage = damageNpcShip(npcSeaRoutes, id, amount);
+  if (damage.ignoredAfterSurrender) return;
   const state = npcVisualShips.get(id);
   if (state) state.hitPoints = damage.hitPoints;
   if (damage.sunk) {
