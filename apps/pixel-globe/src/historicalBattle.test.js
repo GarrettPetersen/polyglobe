@@ -22,6 +22,7 @@ import {
 } from "./historicalBattle.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
 import { validateShipWakeAnchors } from "./shipWakeAnchors.js";
+import { SHIP_ROWING_MODE_PIVOT_PORT } from "./shipRowingAnimation.js";
 import { SHIP_SPRITE_FRAME_SIZE, SHIP_SPRITE_HEADINGS } from "./shipSpriteLayout.js";
 import {
   HOLY_LEAGUE_SIDE_ID,
@@ -149,6 +150,20 @@ test("fixed-step updates are deterministic across different render frame rates",
   for (let index = 0; index < 100; index++) updateHistoricalBattle(slowFrames, 1 / 20, command);
 
   assert.deepEqual(historicalBattleSnapshot(fastFrames), historicalBattleSnapshot(slowFrames));
+});
+
+test("the player flagship can pivot with opposed oar banks", () => {
+  const battle = createBattle();
+  const player = historicalBattlePlayerShip(battle);
+  const startingHeading = player.headingRad;
+
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+    desiredHeadingRad: startingHeading - Math.PI / 2,
+    rowingMode: SHIP_ROWING_MODE_PIVOT_PORT
+  });
+
+  assert.ok(player.headingRad < startingHeading);
+  assert.equal(player.speedPx, 0);
 });
 
 test("recorded commands replay to the same deterministic fleet state", () => {

@@ -28766,7 +28766,8 @@ function riverSurfaceSprites(staticLayer) {
     });
   }
   for (const call of staticLayer.riverConnectorCalls) {
-    sprites.push(riverConnectorSpriteDrawCall(call, activeChart));
+    const sprite = riverConnectorSpriteDrawCall(call, activeChart);
+    if (sprite) sprites.push(sprite);
   }
   return sprites;
 }
@@ -30560,7 +30561,12 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
 
   for (const call of riverConnectorCalls) {
     const geometry = riverConnectorGeometry(call, activeChart);
-    if (!geometry) continue;
+    if (!geometry) {
+      // Elastic chart placement can temporarily collapse adjacent river endpoints
+      // onto the same pixel. There is then no visible span to index or render.
+      riverConnectorWaterPoints.set(call, new Int32Array());
+      continue;
+    }
     const { path } = geometry;
     const waterRaster = riverConnectorWaterRaster(call, geometry);
     addWakeWaterIndexBox(buckets, {
@@ -38561,6 +38567,7 @@ function beachCenterPoint(ax, ay, mx, my, bx, by, t) {
 
 function drawRiverConnectorRaster(call, activeChart, targetCtx = ctx) {
   const drawCall = riverConnectorSpriteDrawCall(call, activeChart);
+  if (!drawCall) return;
   targetCtx.drawImage(
     drawCall.source,
     drawCall.destinationRect.x,
@@ -38573,9 +38580,10 @@ function riverConnectorSpriteDrawCall(call, activeChart) {
   if (!points) {
     throw new Error(`River connector ${call.a}:${call.b} is missing its water raster`);
   }
-  if (!(points instanceof Int32Array) || points.length === 0 || points.length % 2 !== 0) {
+  if (!(points instanceof Int32Array) || points.length % 2 !== 0) {
     throw new Error(`River connector ${call.a}:${call.b} has an invalid water raster`);
   }
+  if (points.length === 0) return null;
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;

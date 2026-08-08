@@ -849,7 +849,11 @@ function moveShipWithStandardPropulsion(
     ? normalizeShipRowingMode(rowingMode)
     : SHIP_ROWING_MODE_IDLE;
   const turnRate = shipRowingModeIsPivot(normalizedRowingMode)
-    ? oarPivotTurnRate(ship.stats, rowerRatio)
+    ? oarPivotTurnRate({
+        turnRateRad: ship.stats.turnRateRad,
+        mass: ship.stats.mass,
+        rowerRatio
+      })
     : shipTurnRate({
         turnRateRad: ship.stats.turnRateRad,
         speedRad: Math.abs(ship.speedPx) / PIXELS_PER_RADIAN,
