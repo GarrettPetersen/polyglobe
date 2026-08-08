@@ -1591,6 +1591,7 @@ import {
   RIVER_BANK_UPPER,
   shipOcclusionDepthY,
   splitRiverTerrainBanks,
+  terrainRiverBankDepthY,
   terrainOccluderMaskIntersection,
   terrainOccludersForScreenBounds
 } from "./terrainShipOcclusion.js";
@@ -42130,7 +42131,7 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
     {
       x,
       y,
-      depthY: call.sortY,
+      depthY: terrainRiverBankDepthY(call.sortY, TILE_ART_HALF, RIVER_BANK_UPPER),
       width,
       height,
       drawLayer: terrainForegroundRiverBankDrawLayer(
@@ -42144,7 +42145,7 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
     {
       x,
       y,
-      depthY: call.sortY + TILE_ART_HALF,
+      depthY: terrainRiverBankDepthY(call.sortY, TILE_ART_HALF, RIVER_BANK_LOWER),
       width,
       height,
       drawLayer: terrainForegroundRiverBankDrawLayer(

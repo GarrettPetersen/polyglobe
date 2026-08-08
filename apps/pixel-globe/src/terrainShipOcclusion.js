@@ -2,6 +2,15 @@ export const RIVER_BANK_NONE = 0;
 export const RIVER_BANK_UPPER = 1;
 export const RIVER_BANK_LOWER = 2;
 
+export function terrainRiverBankDepthY(tileDepthY, tileHalfSize, bank) {
+  if (!Number.isFinite(tileDepthY) || !Number.isFinite(tileHalfSize) || tileHalfSize <= 0) {
+    throw new Error("River terrain bank depth requires a finite tile depth and positive half-size");
+  }
+  if (bank === RIVER_BANK_UPPER) return tileDepthY - tileHalfSize;
+  if (bank === RIVER_BANK_LOWER) return tileDepthY + tileHalfSize;
+  throw new Error(`Unknown river terrain bank: ${bank}`);
+}
+
 export function splitRiverTerrainBanks(riverAlpha, width, height) {
   if (!(riverAlpha instanceof Uint8Array) || !Number.isInteger(width) || !Number.isInteger(height) ||
     width <= 0 || height <= 0 || riverAlpha.length !== width * height) {

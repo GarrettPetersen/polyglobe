@@ -10,6 +10,7 @@ import {
   RIVER_BANK_UPPER,
   shipOcclusionDepthY,
   splitRiverTerrainBanks,
+  terrainRiverBankDepthY,
   terrainOccluderMaskIntersection,
   terrainOccludersForScreenBounds
 } from "./terrainShipOcclusion.js";
@@ -29,6 +30,19 @@ test("ship terrain depth uses its bottom opaque pixel plus a visibility bias", (
   assert.equal(shipOcclusionDepthY(70, 47, 2), 119);
   assert.throws(() => shipOcclusionDepthY(70, -1, 2), /integer sprite/);
   assert.throws(() => shipOcclusionDepthY(70, 47, 1.5), /integer sprite/);
+});
+
+test("river banks bracket a ship on the river instead of hiding its sail behind the far bank", () => {
+  const tileDepthY = 100;
+  const tileHalfSize = 32;
+  const shipDepthY = shipOcclusionDepthY(45, 42, 2);
+
+  assert.ok(terrainRiverBankDepthY(tileDepthY, tileHalfSize, RIVER_BANK_UPPER) < shipDepthY);
+  assert.ok(terrainRiverBankDepthY(tileDepthY, tileHalfSize, RIVER_BANK_LOWER) > shipDepthY);
+  assert.throws(
+    () => terrainRiverBankDepthY(tileDepthY, tileHalfSize, RIVER_BANK_NONE),
+    /Unknown river terrain bank/
+  );
 });
 
 test("river terrain banks follow a diagonal river instead of a horizontal tile split", () => {
