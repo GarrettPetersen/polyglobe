@@ -15,7 +15,7 @@ import {
 
 const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
-const DEMO_PORTRAIT_EXPRESSION_LIMIT = 3;
+const DEMO_PORTRAIT_EXPRESSION_LIMIT = 2;
 const CHARACTER_MANIFEST_PATH = "assets/characters/generated/character-portraits.json";
 const FACTION_FLAG_ATLAS_PATH = "assets/factions/flags-atlas.png";
 const FACTION_FLAG_ATLAS_COLUMNS = 8;
@@ -83,6 +83,7 @@ const sharedEntries = [
   ["mountains.json", "shared/mountains.json"],
   ["discrete-weather-bake-7.bin", "shared/discrete-weather-bake-7.bin"],
   ["globe-runtime-bake-7.bin", "shared/globe-runtime-bake-7.bin"],
+  ["chart-seam-atlas-7.json", "shared/chart-seam-atlas-7.json"],
   edition === BUILD_EDITION_DEMO
     ? [
         "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
@@ -252,12 +253,16 @@ function selectDemoExpressions(character) {
   }
   const selected = new Set();
   selectFirstDemoExpression(character.expressions, selected, ["neutral"]);
-  selectFirstDemoExpression(character.expressions, selected, [
-    "overjoyed", "laughing", "happy", "pleased", "smile", "soft-smile", "knowing"
-  ]);
-  selectFirstDemoExpression(character.expressions, selected, [
-    "crying", "pained", "hurt", "sad", "afraid", "worried", "concerned", "weary", "grimace"
-  ]);
+  if (selected.size < DEMO_PORTRAIT_EXPRESSION_LIMIT) {
+    selectFirstDemoExpression(character.expressions, selected, [
+      "overjoyed", "laughing", "happy", "pleased", "smile", "soft-smile", "knowing"
+    ]);
+  }
+  if (selected.size < DEMO_PORTRAIT_EXPRESSION_LIMIT) {
+    selectFirstDemoExpression(character.expressions, selected, [
+      "crying", "pained", "hurt", "sad", "afraid", "worried", "concerned", "weary", "grimace"
+    ]);
+  }
   for (const expression of character.expressions) {
     if (selected.size >= DEMO_PORTRAIT_EXPRESSION_LIMIT) break;
     selected.add(expression);

@@ -55,6 +55,7 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/vehicles/ship-render-layers/manifest.json",
   "assets/vehicles/ship-render-layers/ship-render-layers-0.bin",
   "shared/earth-globe-cache-7.json",
+  "shared/chart-seam-atlas-7.json",
   "shared/discrete-weather-bake-7.bin",
   "shared/globe-runtime-bake-7.bin"
 ]);

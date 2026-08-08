@@ -13,6 +13,13 @@ const ICOSA_FACES = [
   [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]
 ];
 
+export function baseIcosahedronGeometry() {
+  return Object.freeze({
+    vertices: Object.freeze(ICOSA_VERTICES.map((vertex) => Object.freeze(vertex.slice()))),
+    faces: Object.freeze(ICOSA_FACES.map((face) => Object.freeze(face.slice())))
+  });
+}
+
 export function buildGeodesicGraph(subdivisions) {
   if (!Number.isInteger(subdivisions) || subdivisions < 0 || subdivisions > 8) {
     throw new Error(`Unsupported subdivision count: ${subdivisions}`);

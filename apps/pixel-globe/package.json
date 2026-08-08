@@ -87,6 +87,7 @@
     "render:steam-config": "npm run render:steam-achievements && npm run render:steam-stats",
     "render:port-sailing-distances": "node tools/build-port-sailing-distances.mjs",
     "render:land-roads": "node tools/build-land-roads.mjs",
+    "render:chart-seam-atlas": "node tools/build-chart-seam-atlas.mjs",
     "render:historical-battle-map": "node tools/build-historical-battle-map.mjs",
     "freeze:save-schema": "node tools/freeze-game-state-schema.mjs",
     "audit:landlocked-cities": "node tools/audit-landlocked-cities.mjs",
