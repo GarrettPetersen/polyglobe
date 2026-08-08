@@ -273,6 +273,7 @@ export default {
   "discoveries.globeMapped": "세계 지도 완성도",
   "discoveries.none": "아직 발견 없음",
   "politics.title": "국제 정세",
+  "politics.capital": "수도",
   "politics.ally": "동맹",
   "politics.friendly": "우호",
   "politics.war": "전쟁",

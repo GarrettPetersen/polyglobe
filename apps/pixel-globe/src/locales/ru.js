@@ -273,6 +273,7 @@ export default {
   "discoveries.globeMapped": "МИР НАНЕСЁН НА КАРТУ",
   "discoveries.none": "ОТКРЫТИЙ ПОКА НЕТ",
   "politics.title": "ПОЛИТИКА",
+  "politics.capital": "СТОЛИЦА",
   "politics.ally": "СОЮЗНИК",
   "politics.friendly": "ДРУЖБА",
   "politics.war": "ВОЙНА",

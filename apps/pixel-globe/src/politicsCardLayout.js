@@ -7,7 +7,7 @@ const CARD_MIN_WIDTH = 188;
 const CARD_MAX_COLUMNS = 4;
 const CARD_LABEL_WIDTH = 70;
 const CARD_TOKEN_WIDTH = 24;
-const CARD_RELATION_LINES = 5;
+const CARD_RELATION_LINES = 4;
 const RELATION_TEXT_COLORS = Object.freeze({
   ally: "#165a4c",
   friendly: "#4c3e24",
@@ -56,7 +56,7 @@ export function politicsCardGridLayout({
     1,
     Math.floor((cardWidth - 8 - CARD_LABEL_WIDTH) / CARD_TOKEN_WIDTH)
   );
-  const headerHeight = Math.max(15, lineHeight + 4);
+  const headerHeight = Math.max(26, lineHeight * 2 + 4);
   const cardHeight = headerHeight + CARD_RELATION_LINES * lineHeight + 4;
   const contentHeight = panelHeight - CONTENT_TOP - pagerHeight - 8 - newsHeight;
   const rows = Math.max(1, Math.floor((contentHeight + CARD_GAP) / (cardHeight + CARD_GAP)));

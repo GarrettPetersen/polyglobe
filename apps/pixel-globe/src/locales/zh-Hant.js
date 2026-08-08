@@ -273,6 +273,7 @@ export default {
   "discoveries.globeMapped": "世界測繪",
   "discoveries.none": "尚無發現",
   "politics.title": "列國政局",
+  "politics.capital": "首都",
   "politics.ally": "同盟",
   "politics.friendly": "友好",
   "politics.war": "戰爭",

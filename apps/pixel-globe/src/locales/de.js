@@ -273,6 +273,7 @@ export default {
   "discoveries.globeMapped": "WELT KARTIERT",
   "discoveries.none": "NOCH KEINE ENTDECKUNGEN",
   "politics.title": "POLITIK",
+  "politics.capital": "HAUPTSTADT",
   "politics.ally": "VERBÜNDET",
   "politics.friendly": "FREUNDLICH",
   "politics.war": "KRIEG",

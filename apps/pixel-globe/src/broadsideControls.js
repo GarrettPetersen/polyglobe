@@ -52,6 +52,28 @@ export function broadsideArcGeometry({
   };
 }
 
+export function projectBroadsideFrameToScreen({ origin, hullFootprint, offset }) {
+  if (!origin || !Number.isFinite(origin.x) || !Number.isFinite(origin.y)) {
+    throw new Error("Broadside screen projection requires a finite origin");
+  }
+  if (!offset || !Number.isFinite(offset.x) || !Number.isFinite(offset.y)) {
+    throw new Error("Broadside screen projection requires a finite offset");
+  }
+  if (!Array.isArray(hullFootprint) || hullFootprint.length < 3) {
+    throw new Error("Broadside screen projection requires a hull polygon");
+  }
+  const translate = (point) => {
+    if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+      throw new Error("Broadside screen projection received an invalid hull point");
+    }
+    return { x: point.x + offset.x, y: point.y + offset.y };
+  };
+  return {
+    origin: translate(origin),
+    hullFootprint: hullFootprint.map(translate)
+  };
+}
+
 export function broadsideHullEdgeDistance(footprint, origin, direction) {
   if (!Array.isArray(footprint) || footprint.length < 3) {
     throw new Error("Broadside hull edge requires a polygon");

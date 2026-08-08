@@ -5,7 +5,8 @@ import {
   broadsideHullEdgeDistance,
   broadsideReloadGeometry,
   hasBroadsideCannons,
-  pointInBroadsideArc
+  pointInBroadsideArc,
+  projectBroadsideFrameToScreen
 } from "./broadsideControls.js";
 
 test("broadside arcs begin on the baked hull edge instead of beyond it", () => {
@@ -107,6 +108,33 @@ test("broadside arcs can follow a freely moving ship", () => {
   assert.deepEqual(arc.origin, { x: 91, y: 173 });
   assert.equal(pointInBroadsideArc({ x: 91, y: 200 }, arc), true);
   assert.equal(pointInBroadsideArc({ x: 227.5, y: 155 }, arc), false);
+});
+
+test("broadside arcs project a distant local chart frame onto the drawn ship", () => {
+  const localOrigin = { x: 12_300, y: -8_700 };
+  const localFootprint = [
+    { x: 12_290, y: -8_703 },
+    { x: 12_310, y: -8_703 },
+    { x: 12_310, y: -8_696 },
+    { x: 12_290, y: -8_696 }
+  ];
+  const projected = projectBroadsideFrameToScreen({
+    origin: localOrigin,
+    hullFootprint: localFootprint,
+    offset: { x: 227.5 - localOrigin.x, y: 128 - localOrigin.y }
+  });
+  const arc = broadsideArcGeometry({
+    screenWidth: 455,
+    screenHeight: 256,
+    heading: { x: 0, y: -1 },
+    sideName: "starboard",
+    range: 60,
+    ...projected
+  });
+
+  assert.deepEqual(arc.origin, { x: 227.5, y: 128 });
+  assert.equal(arc.innerRadius, 10);
+  assert.equal(pointInBroadsideArc({ x: 250, y: 128 }, arc), true);
 });
 
 test("broadside reload fill advances outward through the firing sector", () => {

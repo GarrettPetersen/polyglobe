@@ -23,7 +23,10 @@ import {
   buildChartTileProtection,
   buildDirectChartProtectionComponents
 } from "./chartTileProtection.js";
+import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
+import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
+import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 
 const TRAVERSAL_SCREEN_W = 455;
 const TRAVERSAL_SCREEN_H = 256;
@@ -890,6 +893,7 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
       `${result.maxProtectedEdgeErrorPx.toFixed(2)}px of separation at ` +
       `${JSON.stringify(result.maxProtectedEdgeDetails)}`
   );
+  assertLandTraversalIsContinuous(result, "Mediterranean crossing");
   assert.ok(
     Math.abs(result.finalProtectedRotationDeg) <= 4,
     `Mediterranean coast finished at ${result.finalProtectedRotationDeg.toFixed(2)} degrees ` +
@@ -983,6 +987,30 @@ test("a south-to-north Argentina coastal traversal cannot tear adjacent land", (
       `${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
       `${JSON.stringify(result.maxProtectedEdgeDetails)}`
   );
+});
+
+test("a moving river voyage to Smolensk cannot tear visible land", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [46.5, 32.0],
+        [47.4, 34.2],
+        [49.0, 34.0],
+        [50.45, 30.52],
+        [52.0, 31.0],
+        [53.5, 32.0],
+        [54.78, 32.04]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true
+    }
+  );
+
+  assert.equal(result.visibleLandRedraws, 0);
+  assertLandTraversalIsContinuous(result, "Smolensk river voyage");
 });
 
 test("uniform land cannot masquerade as the elastic ocean correction reservoir", () => {
@@ -1150,7 +1178,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     routeWaypoints = null,
     subdivisions = 5,
     pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN,
-    chartMargin = TRAVERSAL_MARGIN
+    chartMargin = TRAVERSAL_MARGIN,
+    useGameWorld = false
   } = {}
 ) {
   const graph = buildGeodesicGraph(subdivisions);
@@ -1193,7 +1222,9 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     [25.0, -20.0],
     [38.72, -9.14]
   ], 0.1);
-  const { protectionById, terrainClassByTileId } = worldCoastProtection(graph);
+  const { protectionById, terrainClassByTileId } = useGameWorld
+    ? gameWorldProtection(graph)
+    : worldCoastProtection(graph);
   const continuityMaskById = Uint8Array.from(
     terrainClassByTileId,
     (terrainClass) => terrainClass === "land" ? 1 : 0
@@ -1218,6 +1249,10 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let maxProtectedEdgeStretch = 0;
   let maxProtectedEdgeErrorPx = 0;
   let maxProtectedEdgeDetails = null;
+  let maxLandEdgeGapPx = 0;
+  let maxLandEdgeGapDetails = null;
+  let missingVisibleLandNeighbors = 0;
+  let firstMissingVisibleLandNeighbor = null;
   let maxVisibleProtectedAdmissionShiftPx = 0;
   let visibleProtectedRedraws = 0;
   let visibleLandRedraws = 0;
@@ -1449,6 +1484,62 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     }
 
     for (const [id, position] of visiblePositions.entries()) {
+      if (terrainClassByTileId[id] === "land") {
+        const screenX = position.x - viewX + TRAVERSAL_SCREEN_W / 2;
+        const screenY = position.y - viewY + TRAVERSAL_SCREEN_H / 2;
+        const safelyInsideViewport = (
+          screenX >= 36 && screenX <= TRAVERSAL_SCREEN_W - 36 &&
+          screenY >= 36 && screenY <= TRAVERSAL_SCREEN_H - 36
+        );
+        for (const neighborId of graph.neighbors[id]) {
+          if (terrainClassByTileId[neighborId] !== "land") continue;
+          const neighbor = visiblePositions.get(neighborId);
+          if (!neighbor) {
+            if (safelyInsideViewport) {
+              missingVisibleLandNeighbors++;
+              firstMissingVisibleLandNeighbor ??= {
+                step,
+                location: directionLocation(direction),
+                ids: [id, neighborId],
+                tileLocations: [
+                  directionLocation(graphCenter(graph, id)),
+                  directionLocation(graphCenter(graph, neighborId))
+                ]
+              };
+            }
+            continue;
+          }
+          if (neighborId <= id) continue;
+          const projected = projectedById.get(id);
+          const projectedNeighbor = projectedById.get(neighborId);
+          if (!projected || !projectedNeighbor) continue;
+          const visualDistance = Math.hypot(neighbor.x - position.x, neighbor.y - position.y);
+          const projectedDistance = Math.hypot(
+            projectedNeighbor.x - projected.x,
+            projectedNeighbor.y - projected.y
+          );
+          const edgeGapPx = Math.max(0, visualDistance - projectedDistance);
+          if (edgeGapPx > maxLandEdgeGapPx) {
+            maxLandEdgeGapPx = edgeGapPx;
+            maxLandEdgeGapDetails = {
+              step,
+              location: directionLocation(direction),
+              ids: [id, neighborId],
+              protections: [protectionById[id], protectionById[neighborId]],
+              tileLocations: [
+                directionLocation(graphCenter(graph, id)),
+                directionLocation(graphCenter(graph, neighborId))
+              ],
+              admittedSteps: [
+                admittedStepById.get(id) ?? null,
+                admittedStepById.get(neighborId) ?? null
+              ],
+              visualDistance,
+              projectedDistance
+            };
+          }
+        }
+      }
       if (protectionById[id] !== 255) continue;
       for (const neighborId of graph.neighbors[id]) {
         if (neighborId <= id || protectionById[neighborId] !== 255) continue;
@@ -1504,12 +1595,34 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     maxProtectedEdgeStretch,
     maxProtectedEdgeErrorPx,
     maxProtectedEdgeDetails,
+    maxLandEdgeGapPx,
+    maxLandEdgeGapDetails,
+    missingVisibleLandNeighbors,
+    firstMissingVisibleLandNeighbor,
     maxVisibleProtectedAdmissionShiftPx,
     visibleProtectedRedraws,
     visibleLandRedraws,
     protectedEdgeSamples,
     rotationSamples
   };
+}
+
+function assertLandTraversalIsContinuous(result, label) {
+  // The terrain rasters overlap at ordinary edge lengths. Seven pixels allows
+  // three pixels of preventative correction at each endpoint plus raster
+  // rounding, while still rejecting a fully exposed inter-hex strip.
+  const maximumVisibleGapPx = 7;
+  assert.ok(
+    result.maxLandEdgeGapPx <= maximumVisibleGapPx,
+    `${label} opened a ${result.maxLandEdgeGapPx.toFixed(2)}px visible land tear at ` +
+      `${JSON.stringify(result.maxLandEdgeGapDetails)}`
+  );
+  assert.equal(
+    result.missingVisibleLandNeighbors,
+    0,
+    `${label} omitted an adjacent land tile inside the viewport at ` +
+      `${JSON.stringify(result.firstMissingVisibleLandNeighbor)}`
+  );
 }
 
 function measureProtectedComponentTilt({
@@ -1622,6 +1735,56 @@ function worldCoastProtection(graph) {
     pentagonNeedsProtection: (tileId) => terrainClassByTileId[tileId] !== "water"
   });
   return { protectionById, terrainClassByTileId };
+}
+
+function gameWorldProtection(graph) {
+  const earth = JSON.parse(readFileSync(
+    new URL("../../../examples/globe-demo/public/earth-globe-cache-7.json", import.meta.url),
+    "utf8"
+  ));
+  if (earth.subdivisions !== graph.subdivisions) {
+    throw new Error(
+      `Game-world traversal requires subdivision ${earth.subdivisions}, got ${graph.subdivisions}`
+    );
+  }
+  const earthRows = applyManualTerrainOverrides(earth.tiles, earth.subdivisions);
+  const navigation = buildWorldNavigationTopology({
+    graph,
+    earthRows,
+    earthCache: earth,
+    subdivisions: earth.subdivisions
+  });
+  const featureTileIds = new Set(
+    MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[earth.subdivisions]?.Smolensk || []
+  );
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if ((navigation.riverMasks[tileId] || 0) !== 0 ||
+        (navigation.riverToWaterMasks[tileId] || 0) !== 0) {
+      featureTileIds.add(tileId);
+    }
+  }
+  const terrainClassByTileId = earthRows.map((row) => (
+    isWaterSurfaceRow(row) ? "water" : "land"
+  ));
+  const protectionById = buildChartTileProtection({
+    graph,
+    terrainClassForTile: (tileId) => gameTerrainProtectionClass(earthRows[tileId]),
+    featureTileIds,
+    pentagonNeedsProtection: (tileId) => terrainClassByTileId[tileId] !== "water"
+  });
+  return { protectionById, terrainClassByTileId };
+}
+
+function gameTerrainProtectionClass(row) {
+  const terrain = row.t || "land";
+  const surface = isWaterSurfaceRow(row) ? "water" : "land";
+  let level = 0;
+  if (terrain === "water") level = -2;
+  else if (terrain === "lake" || terrain === "beach") level = -1;
+  else if (terrain === "mountain") level = 3;
+  else if (row.e > 0.13) level = 2;
+  else if (row.h === 1 || row.e > 0.075) level = 1;
+  return `${surface}:${terrain}:${level}`;
 }
 
 function simulateRepeatedCircuit({ centerRowForPhase, frameRotationForPhase }) {

@@ -5,7 +5,9 @@ import {
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
-  NEUTRAL_FACTION_ID
+  NEUTRAL_FACTION_ID,
+  PIRATE_FACTION_ID,
+  factionCapitalForId
 } from "./factions.js";
 import {
   diplomacyBetweenForState,
@@ -46,14 +48,26 @@ export const POLITICS_RELATION_LABELS = Object.freeze({
 
 export const POLITICS_NEWS_HISTORY_LIMIT = 5;
 
-export function createPoliticsView(gameState, simMinute = gameState?.survival?.lastMinute ?? 0) {
+export function createPoliticsView(
+  gameState,
+  simMinute = gameState?.survival?.lastMinute ?? 0,
+  cities = null
+) {
   if (!gameState || typeof gameState !== "object") throw new Error("Politics view requires game state");
   if (!Number.isFinite(simMinute) || simMinute < 0) {
     throw new Error(`Politics view requires a valid simulation minute: ${simMinute}`);
   }
   const powers = politicalPowers(gameState);
   const powerById = new Map(powers.map((power) => [power.id, power]));
-  const cards = powers.map((faction) => politicsCard(gameState, faction, powers, powerById, simMinute));
+  const capitalByFactionId = politicsCapitals(powers, cities);
+  const cards = powers.map((faction) => politicsCard(
+    gameState,
+    faction,
+    powers,
+    powerById,
+    capitalByFactionId,
+    simMinute
+  ));
   const playerFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const recentEvents = recentGameDiplomacyEvents(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const recentPapalActions = recentGamePapalActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
@@ -179,7 +193,7 @@ function standing(reputation, label) {
   };
 }
 
-function politicsCard(gameState, faction, powers, powerById, simMinute) {
+function politicsCard(gameState, faction, powers, powerById, capitalByFactionId, simMinute) {
   const ruler = rulerAtMinute(faction.id, simMinute);
   const dependencies = politicsDependencies(faction, powerById);
   const dependencyFactionIds = new Set(dependencies.map((dependency) => dependency.factionId));
@@ -198,6 +212,7 @@ function politicsCard(gameState, faction, powers, powerById, simMinute) {
   })).filter((group) => group.factionIds.length > 0);
   return Object.freeze({
     faction,
+    capital: capitalByFactionId.get(faction.id) || null,
     ruler: ruler === null
       ? null
       : Object.freeze({
@@ -213,6 +228,44 @@ function politicsCard(gameState, faction, powers, powerById, simMinute) {
     dependencies: Object.freeze(dependencies),
     relationships: Object.freeze(relationships)
   });
+}
+
+function politicsCapitals(powers, cities) {
+  const capitalByFactionId = new Map();
+  if (cities === null) {
+    for (const faction of powers) {
+      if (faction.id === PIRATE_FACTION_ID) continue;
+      const capital = factionCapitalForId(faction.id);
+      capitalByFactionId.set(faction.id, Object.freeze({
+        city: capital.city,
+        portId: null
+      }));
+    }
+    return capitalByFactionId;
+  }
+  if (!Array.isArray(cities)) throw new Error("Politics capitals require a city list");
+  const activePowerIds = new Set(powers.map((power) => power.id));
+  for (const city of cities) {
+    if (!city || typeof city !== "object") throw new Error("Politics capital city is invalid");
+    const factionId = city.capitalOfFactionId || null;
+    if (!factionId || !activePowerIds.has(factionId)) continue;
+    if (capitalByFactionId.has(factionId)) {
+      throw new Error(`Politics view found two capitals for ${factionId}`);
+    }
+    const cityName = city.displayCity || city.city;
+    if (typeof cityName !== "string" || cityName.trim() === "") {
+      throw new Error(`Politics capital for ${factionId} has no city name`);
+    }
+    capitalByFactionId.set(factionId, Object.freeze({
+      city: cityName,
+      portId: city.portId || (Number.isInteger(city.tileId) ? `city-${city.tileId}` : null)
+    }));
+  }
+  for (const faction of powers) {
+    if (faction.id === PIRATE_FACTION_ID || capitalByFactionId.has(faction.id)) continue;
+    throw new Error(`Politics view has no current capital for ${faction.id}`);
+  }
+  return capitalByFactionId;
 }
 
 function politicsDependencies(faction, powerById) {

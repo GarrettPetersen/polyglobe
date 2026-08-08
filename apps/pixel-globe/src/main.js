@@ -1624,7 +1624,8 @@ import {
   broadsideArcGeometry,
   broadsideHullEdgeDistance,
   broadsideReloadGeometry,
-  pointInBroadsideArc
+  pointInBroadsideArc,
+  projectBroadsideFrameToScreen
 } from "./broadsideControls.js";
 import {
   accurateBroadsideShotIndex,
@@ -13888,7 +13889,7 @@ function discoveriesListLayoutForPanel(panel, headerLayout = discoveriesHeaderLa
 }
 
 function openPoliticsNewsDetail() {
-  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
+  const view = currentPoliticsView();
   if (!view.latestNews) return false;
   politicsMenu.newsDetailOpen = true;
   politicsMenu.newsDetailScrollY = 0;
@@ -13923,7 +13924,7 @@ function scrollPoliticsNewsDetail(direction) {
 }
 
 function stepPoliticsPage(direction) {
-  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
+  const view = currentPoliticsView();
   const pagination = politicsCardPagination(view);
   politicsMenu.page = stepMenuIndex(politicsMenu.page, direction, pagination.page.pageCount);
   dirty = true;
@@ -22302,14 +22303,18 @@ function navalBroadsideArc(sideName, weapon = playerNavalWeapon()) {
   if (!weapon) throw new Error("Cannot draw a broadside arc without a naval weapon");
   const heading = shipScreenHeading();
   const cannonLength = Math.min(CANNON_RANGE_PX, Math.max(46, Math.min(SCREEN_W, SCREEN_H) * 0.25));
+  const projected = projectBroadsideFrameToScreen({
+    origin: { x: localLayout.viewX, y: localLayout.viewY },
+    hullFootprint: combatShipFootprint(PLAYER_COMBAT_ID),
+    offset: layoutOffsetPixels()
+  });
   return broadsideArcGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     heading,
     sideName,
     range: cannonLength * weapon.rangeScale,
-    origin: { x: localLayout.viewX, y: localLayout.viewY },
-    hullFootprint: combatShipFootprint(PLAYER_COMBAT_ID)
+    ...projected
   });
 }
 
@@ -34627,7 +34632,7 @@ function drawPoliticsMenu() {
     w: POLITICS_PANEL_W,
     h: POLITICS_PANEL_H
   });
-  const view = createPoliticsView(gameState, Math.floor(weatherClockMinutes));
+  const view = currentPoliticsView();
 
   ctx.save();
   drawPiratePaperModal(panel, 0.78);
@@ -34908,6 +34913,18 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
     headerY,
     { align: "right", color: politicsStandingColor(card.player.reputation) }
   );
+  if (card.capital) {
+    drawOptionsText(
+      fitPixelText(
+        `${uiText("politics.capital")}: ${card.capital.city.toUpperCase()}`,
+        PIXEL_FONT_SMALL_8,
+        rect.w - (titleX - rect.x) - 4
+      ),
+      titleX,
+      headerY + layout.relationLineHeight,
+      { color: PIRATE_MENU_INK_MUTED }
+    );
+  }
 
   segment.lines.forEach((line, lineIndex) => {
     const y = rect.y + layout.headerHeight + lineIndex * layout.relationLineHeight;
@@ -34937,6 +34954,15 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
       );
     });
   });
+}
+
+function currentPoliticsView() {
+  if (!(cityByTileId instanceof Map)) throw new Error("Politics view requires placed cities");
+  return createPoliticsView(
+    gameState,
+    Math.floor(weatherClockMinutes),
+    [...cityByTileId.values()]
+  );
 }
 
 function drawPoliticsRelationToken(power, x, y, lineHeight) {
@@ -37746,8 +37772,8 @@ function collectChartTiles(chartCamera, chartCenterTileId) {
     }
   }
 
+  const collectedIds = new Set(visible.map(({ id }) => id));
   if (localLayout) {
-    const collectedIds = new Set(visible.map(({ id }) => id));
     for (const [id, position] of localLayout.positions.entries()) {
       if (
         collectedIds.has(id) ||

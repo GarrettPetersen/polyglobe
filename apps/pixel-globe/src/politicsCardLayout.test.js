@@ -24,6 +24,8 @@ test("politics cards form a two-by-two desktop grid without crowding the footer"
   assert.equal(layout.cardsPerPage, 4);
   assert.equal(layout.cardWidth, 206);
   assert.equal(layout.cardHeight, 74);
+  assert.equal(layout.headerHeight, 26);
+  assert.equal(layout.maxRelationLines, 4);
   assert.equal(layout.tokensPerLine, 5);
   assert.equal(layout.relationTokenWidth, 24);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { FACTIONS, NEUTRAL_FACTION_ID } from "./factions.js";
+import { FACTIONS, FACTION_CAPITALS_1522, NEUTRAL_FACTION_ID } from "./factions.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
@@ -50,6 +50,31 @@ test("politics cards cover every non-neutral power including pirates", () => {
   assert.equal(view.cards.length, expectedIds.length);
   assert.equal(view.cards[0].faction.id, PLAYER.nationalityId);
   assert.equal(view.cards.at(-1).faction.id, "pirate");
+});
+
+test("politics cards name each nation's capital while pirates have none", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const view = createPoliticsView(state);
+
+  assert.equal(politicsCard(view, "england").capital.city, "London");
+  assert.equal(politicsCard(view, "japan").capital.city, "Kyoto");
+  assert.equal(politicsCard(view, "pirate").capital, null);
+});
+
+test("politics cards follow a restored nation's current capital", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const cities = FACTION_CAPITALS_1522.map((capital, index) => ({
+    tileId: index + 1,
+    city: capital.factionId === "hospitallers" ? "Birgu" : capital.city,
+    displayCity: capital.factionId === "hospitallers" ? "Birgu" : capital.city,
+    factionId: capital.factionId,
+    capitalOfFactionId: capital.factionId
+  }));
+  const view = createPoliticsView(state, 0, cities);
+  const birgu = cities.find((city) => city.factionId === "hospitallers");
+
+  assert.equal(politicsCard(view, "hospitallers").capital.city, "Birgu");
+  assert.equal(politicsCard(view, "hospitallers").capital.portId, `city-${birgu.tileId}`);
 });
 
 test("collapsed empires leave the active politics cards", () => {

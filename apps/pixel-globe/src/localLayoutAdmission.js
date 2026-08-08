@@ -847,6 +847,7 @@ export function admitProjectedTiles({
     liveViewportAdmissionIds,
     perEdgeLimitPx: maxContinuityCorrectionPx
   });
+  const continuityPositions = new Map(positions);
   let admitted = 0;
   for (const id of pending) {
     if (positions.has(id)) throw new Error(`Pending local layout tile ${id} already has a position`);
@@ -857,27 +858,146 @@ export function admitProjectedTiles({
     assertFinitePoint(projected, `Projected position for pending tile ${id}`);
     const protectedPoint = protectedPointById.get(id);
     const entersLiveViewport = liveViewportAdmissionIds?.has(id) ?? false;
-    positions.set(
-      id,
-      protectedPoint ??
-        admissionPointBetweenFrames(
-          projected,
-          registeredFrame,
-          translatedFrame,
-          protectionById[id],
-          entersLiveViewport ? 0 : maxElasticCorrectionPx,
-          entersLiveViewport
-            ? 0
-            : protectedCorrectionViewportIds === null || protectedCorrectionViewportIds.has(id)
-            ? maxProtectedCorrectionPx
-            : Number.POSITIVE_INFINITY,
-          continuityCorrectionLimitById?.get(id) ?? Number.POSITIVE_INFINITY
-        )
+    const framePoint = protectedPoint ?? admissionPointBetweenFrames(
+      projected,
+      registeredFrame,
+      translatedFrame,
+      protectionById[id],
+      entersLiveViewport ? 0 : maxElasticCorrectionPx,
+      entersLiveViewport
+        ? 0
+        : protectedCorrectionViewportIds === null || protectedCorrectionViewportIds.has(id)
+        ? maxProtectedCorrectionPx
+        : Number.POSITIVE_INFINITY,
+      continuityCorrectionLimitById?.get(id) ?? Number.POSITIVE_INFINITY
     );
+    const point = protectedPoint ?? continuityAnchoredAdmissionPoint({
+      id,
+      framePoint,
+      continuityPositions,
+      projectedById,
+      neighborsById,
+      protectionById,
+      continuityMaskById,
+      registeredFrame,
+      maximumSlackPx: maxContinuityCorrectionPx
+    });
+    positions.set(id, point);
+    continuityPositions.set(id, point);
     admitted++;
   }
+  reconcilePendingContinuityEdges({
+    positions,
+    projectedById,
+    pendingIds: pending,
+    neighborsById,
+    protectionById,
+    continuityMaskById,
+    registeredFrame,
+    maximumSlackPx: maxContinuityCorrectionPx
+  });
 
   return admitted;
+}
+
+function reconcilePendingContinuityEdges({
+  positions,
+  projectedById,
+  pendingIds,
+  neighborsById,
+  protectionById,
+  continuityMaskById,
+  registeredFrame,
+  maximumSlackPx
+}) {
+  if (continuityMaskById === null || maximumSlackPx <= 0) return;
+  // Pending order is a projection detail, not topology. A final pass lets a
+  // tile admitted before one of its neighbours use the complete new boundary
+  // without moving any geography that was already on screen.
+  for (let iteration = 0; iteration < 3; iteration++) {
+    let changed = false;
+    for (const id of pendingIds) {
+      if (protectionById[id] === 255 || continuityMaskById[id] === 0) continue;
+      const current = positions.get(id);
+      const reconciled = continuityAnchoredAdmissionPoint({
+        id,
+        framePoint: current,
+        continuityPositions: positions,
+        projectedById,
+        neighborsById,
+        protectionById,
+        continuityMaskById,
+        registeredFrame,
+        maximumSlackPx
+      });
+      if (reconciled.x === current.x && reconciled.y === current.y) continue;
+      positions.set(id, reconciled);
+      changed = true;
+    }
+    if (!changed) break;
+  }
+}
+
+function continuityAnchoredAdmissionPoint({
+  id,
+  framePoint,
+  continuityPositions,
+  projectedById,
+  neighborsById,
+  protectionById,
+  continuityMaskById,
+  registeredFrame,
+  maximumSlackPx
+}) {
+  if (continuityMaskById === null || continuityMaskById[id] === 0) return framePoint;
+  const neighborIds = neighborsById[id].filter((neighborId) => (
+    continuityMaskById[neighborId] === continuityMaskById[id] &&
+    continuityPositions.has(neighborId) &&
+    projectedById.has(neighborId)
+  ));
+  if (neighborIds.length === 0) return framePoint;
+  let best = null;
+  for (const anchorId of neighborIds) {
+    const adjacencyPoint = registeredPoint(projectedById.get(id), {
+      anchorPosition: continuityPositions.get(anchorId),
+      anchorProjected: projectedById.get(anchorId),
+      cos: registeredFrame.cos,
+      sin: registeredFrame.sin
+    });
+    const candidate = pixelPointTowardWithinDistance(
+      adjacencyPoint,
+      framePoint,
+      maximumSlackPx
+    );
+    const maximumEdgeError = neighborIds.reduce((largest, neighborId) => {
+      const neighbor = continuityPositions.get(neighborId);
+      const projectedNeighbor = projectedById.get(neighborId);
+      const visualDistance = Math.hypot(candidate.x - neighbor.x, candidate.y - neighbor.y);
+      const projectedDistance = Math.hypot(
+        projectedById.get(id).x - projectedNeighbor.x,
+        projectedById.get(id).y - projectedNeighbor.y
+      );
+      return Math.max(largest, Math.abs(visualDistance - projectedDistance));
+    }, 0);
+    const targetDistance = Math.hypot(candidate.x - framePoint.x, candidate.y - framePoint.y);
+    if (
+      best === null ||
+      maximumEdgeError < best.maximumEdgeError - 1e-9 ||
+      (Math.abs(maximumEdgeError - best.maximumEdgeError) <= 1e-9 &&
+        protectionById[anchorId] > best.anchorProtection) ||
+      (Math.abs(maximumEdgeError - best.maximumEdgeError) <= 1e-9 &&
+        protectionById[anchorId] === best.anchorProtection &&
+        targetDistance < best.targetDistance)
+    ) {
+      best = {
+        point: candidate,
+        maximumEdgeError,
+        anchorProtection: protectionById[anchorId],
+        targetDistance
+      };
+    }
+  }
+  return best.point;
 }
 
 function clampMagnitude(value, maximumMagnitude) {

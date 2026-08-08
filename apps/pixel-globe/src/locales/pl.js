@@ -273,6 +273,7 @@ export default {
   "discoveries.globeMapped": "ŚWIAT ZMAPOWANY",
   "discoveries.none": "BRAK ODKRYĆ",
   "politics.title": "POLITYKA",
+  "politics.capital": "STOLICA",
   "politics.ally": "SOJUSZNIK",
   "politics.friendly": "PRZYJAZNY",
   "politics.war": "WOJNA",
