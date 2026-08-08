@@ -7,6 +7,8 @@ export const TELEMETRY_LAST_SESSION_STORAGE_KEY = "marque-and-reprisal.telemetry
 export const TELEMETRY_QUEUE_STORAGE_KEY = "marque-and-reprisal.telemetry-queue";
 export const TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY =
   "marque-and-reprisal.telemetry-last-voyage-start";
+export const TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY =
+  "marque-and-reprisal.telemetry-diagnostic-cooldowns";
 
 export const TELEMETRY_CONSENT_UNKNOWN = "unknown";
 export const TELEMETRY_CONSENT_GRANTED = "granted";
@@ -118,6 +120,7 @@ export function createGameTelemetry({
       removeStorage(storage, TELEMETRY_LAST_SESSION_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY);
+      removeStorage(storage, TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY);
       return consent;
     }
     installationId = readOrCreateInstallationId(storage, randomId, now);
@@ -196,6 +199,27 @@ export function createGameTelemetry({
     reportedCrashes.add(dedupeKey);
     if (sessionId === null) sessionId = randomId();
     enqueueEvent("crash", { ...normalized, samplingWeight: TELEMETRY_EVENT_WEIGHT });
+    void flush();
+    return true;
+  }
+
+  function captureDiagnostic(error, context = {}, { key, cooldownMs } = {}) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || installationId === null) return false;
+    const diagnosticKey = requiredShortString(key, "telemetry diagnostic key");
+    if (!Number.isFinite(cooldownMs) || cooldownMs <= 0) {
+      throw new Error(`Invalid telemetry diagnostic cooldown: ${cooldownMs}`);
+    }
+    const currentTime = now();
+    const cooldowns = readDiagnosticCooldowns(storage, currentTime);
+    const lastReportedAt = cooldowns.get(diagnosticKey);
+    if (lastReportedAt !== undefined && currentTime - lastReportedAt < cooldownMs) return false;
+    if (sessionId === null) sessionId = randomId();
+    const normalized = normalizeCrash(error, context);
+    if (!enqueueEvent("diagnostic", { ...normalized, samplingWeight: TELEMETRY_EVENT_WEIGHT })) {
+      return false;
+    }
+    cooldowns.set(diagnosticKey, currentTime);
+    writeDiagnosticCooldowns(storage, cooldowns);
     void flush();
     return true;
   }
@@ -295,6 +319,7 @@ export function createGameTelemetry({
     recordVoyageStart,
     recordVoyage,
     captureCrash,
+    captureDiagnostic,
     flush
   });
 }
@@ -432,6 +457,30 @@ function readQueue(storage) {
     removeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
     return [];
   }
+}
+
+function readDiagnosticCooldowns(storage, currentTime) {
+  const serialized = readStorage(storage, TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY);
+  if (!serialized) return new Map();
+  try {
+    const entries = JSON.parse(serialized);
+    if (!Array.isArray(entries)) throw new Error("Diagnostic cooldowns must be an array");
+    const oldestRetainedAt = currentTime - 90 * 86_400_000;
+    return new Map(entries.filter(([key, reportedAt]) => (
+      typeof key === "string" && key.length > 0 && key.length <= 160 &&
+      Number.isFinite(reportedAt) && reportedAt >= oldestRetainedAt && reportedAt <= currentTime
+    )).slice(-64));
+  } catch {
+    removeStorage(storage, TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY);
+    return new Map();
+  }
+}
+
+function writeDiagnosticCooldowns(storage, cooldowns) {
+  const entries = [...cooldowns.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .slice(-64);
+  writeStorage(storage, TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY, JSON.stringify(entries));
 }
 
 function readStorage(storage, key) {

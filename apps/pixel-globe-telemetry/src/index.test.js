@@ -40,6 +40,27 @@ test("valid crash reports are hashed and written without network identity", asyn
   assert.equal(points[0].blobs[14], "Boom");
 });
 
+test("nonfatal diagnostics are stored separately from crashes", async () => {
+  const points = [];
+  const response = await worker.fetch(new Request("https://telemetry.example/v1/events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ events: [event("diagnostic", {
+      samplingWeight: 1,
+      errorName: "ProtectedChartStitchError",
+      message: "Recovered protected edge",
+      stack: "ProtectedChartStitchError: Recovered protected edge\n at main.js:1",
+      screen: "chart-stitch-recovered",
+      mainQuest: "explorer",
+      ship: "caravel"
+    })] })
+  }), environment(points));
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+  assert.equal(points[0].blobs[0], "diagnostic");
+  assert.match(points[0].blobs[12], /^[a-f0-9]{64}$/);
+});
+
 test("full-collection weights and batch sizes are enforced", async () => {
   const points = [];
   const accepted = await worker.fetch(requestFor([event("session_start", {

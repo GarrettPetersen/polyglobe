@@ -10,7 +10,8 @@ const EVENT_TYPES = new Set([
   "session_checkpoint",
   "voyage_start",
   "voyage_end",
-  "crash"
+  "crash",
+  "diagnostic"
 ]);
 const ROUTINE_EVENT_TYPES = new Set([
   "session_start",
@@ -84,14 +85,14 @@ export default {
         const installationHash = await sha256Hex(
           `${env.INSTALL_HASH_PEPPER}:${normalized.installationId}`
         );
-        const crashFingerprint = normalized.type === "crash"
+        const failureFingerprint = normalized.type === "crash" || normalized.type === "diagnostic"
           ? await sha256Hex([
               normalized.payload.errorName,
               normalized.payload.message,
               normalized.payload.stack.split("\n").slice(0, 4).join("\n")
             ].join("|"))
           : "";
-        env.EVENTS.writeDataPoint(toDataPoint(normalized, installationHash, crashFingerprint));
+        env.EVENTS.writeDataPoint(toDataPoint(normalized, installationHash, failureFingerprint));
         accepted += 1;
       }
       if (errors.length > 0) console.warn("Telemetry batch contained invalid events", errors);
@@ -187,7 +188,7 @@ function validatePayload(type, payload) {
       activePlaySeconds: numberInRange(payload.activePlaySeconds, 0, 86_400)
     };
   }
-  if (type === "crash") {
+  if (type === "crash" || type === "diagnostic") {
     return {
       samplingWeight,
       errorName: shortString(payload.errorName, 80),
@@ -275,9 +276,9 @@ function validateVoyagePayload(payload, samplingWeight) {
   };
 }
 
-function toDataPoint(event, installationHash, crashFingerprint) {
+function toDataPoint(event, installationHash, failureFingerprint) {
   const payload = event.payload;
-  const columns = eventDataColumns(event.type, payload, crashFingerprint);
+  const columns = eventDataColumns(event.type, payload, failureFingerprint);
   return {
     indexes: [installationHash],
     blobs: [
@@ -303,7 +304,7 @@ function toDataPoint(event, installationHash, crashFingerprint) {
   };
 }
 
-function eventDataColumns(type, payload, crashFingerprint) {
+function eventDataColumns(type, payload, failureFingerprint) {
   if (type === "voyage_start") {
     return {
       blobs: [
@@ -366,7 +367,7 @@ function eventDataColumns(type, payload, crashFingerprint) {
       ]
     };
   }
-  if (type === "crash") {
+  if (type === "crash" || type === "diagnostic") {
     return {
       blobs: [
         payload.mainQuest,
@@ -374,7 +375,7 @@ function eventDataColumns(type, payload, crashFingerprint) {
         payload.ship,
         "",
         "",
-        crashFingerprint,
+        failureFingerprint,
         payload.errorName,
         payload.message,
         payload.stack,

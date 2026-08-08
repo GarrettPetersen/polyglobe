@@ -5,6 +5,7 @@ import {
   TELEMETRY_CONSENT_DENIED,
   TELEMETRY_CONSENT_GRANTED,
   TELEMETRY_CONSENT_STORAGE_KEY,
+  TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY,
   TELEMETRY_INSTALLATION_STORAGE_KEY,
   TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY,
   TELEMETRY_QUEUE_STORAGE_KEY,
@@ -211,6 +212,53 @@ test("the same crash is reported only once per page session", async () => {
     requests.flatMap((request) => request.events).filter((entry) => entry.type === "crash").length,
     1
   );
+});
+
+test("nonfatal diagnostics use a persisted per-key cooldown", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "diagnostic-installation"
+  });
+  const requests = [];
+  let currentTime = 1_750_000_000_000;
+  const createTelemetry = () => createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      requests.push(JSON.parse(options.body));
+      return { ok: true };
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `diagnostic-event-${++serial}`;
+    })(),
+    now: () => currentTime,
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+  const options = { key: "protected-chart-stitch:1:2", cooldownMs: 30 * 86_400_000 };
+  const first = createTelemetry();
+  first.start();
+  assert.equal(first.captureDiagnostic(new Error("recovered stitch"), {
+    screen: "chart-stitch-recovered"
+  }, options), true);
+  assert.equal(first.captureDiagnostic(new Error("recovered stitch"), {
+    screen: "chart-stitch-recovered"
+  }, options), false);
+  await nextTask();
+
+  currentTime += 29 * 86_400_000;
+  const reloaded = createTelemetry();
+  reloaded.start();
+  assert.equal(reloaded.captureDiagnostic(new Error("recovered stitch"), {}, options), false);
+
+  currentTime += 2 * 86_400_000;
+  assert.equal(reloaded.captureDiagnostic(new Error("recovered stitch"), {}, options), true);
+  await nextTask();
+  const diagnostics = requests.flatMap((request) => request.events)
+    .filter((entry) => entry.type === "diagnostic");
+  assert.equal(diagnostics.length, 2);
+  assert.equal(storage.values.has(TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY), true);
 });
 
 test("a consenting installation retries an offline crash alongside its next routine session", async () => {

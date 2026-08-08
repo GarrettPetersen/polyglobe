@@ -3058,6 +3058,7 @@ let camera;
 let chart;
 let localLayout;
 const recoveredProtectedStitchEdges = new Set();
+const PROTECTED_STITCH_DIAGNOSTIC_COOLDOWN_MS = 30 * 86_400_000;
 let minimap;
 let captainChartMinimap;
 let themeMusic = null;
@@ -30273,6 +30274,10 @@ function recoverProtectedStitchError(error) {
     : `${error.neighborId}:${error.tileId}`;
   if (!recoveredProtectedStitchEdges.has(edgeKey)) {
     recoveredProtectedStitchEdges.add(edgeKey);
+    gameTelemetry.captureDiagnostic(error, telemetryCrashContext("chart-stitch-recovered"), {
+      key: `protected-chart-stitch:${edgeKey}`,
+      cooldownMs: PROTECTED_STITCH_DIAGNOSTIC_COOLDOWN_MS
+    });
     console.warn(
       `[pixel-globe] recovered protected chart stitch ${edgeKey}; ` +
         `using retained-frame admission`,
