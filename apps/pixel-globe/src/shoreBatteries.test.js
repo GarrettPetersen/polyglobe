@@ -6,6 +6,7 @@ import {
   SHORE_BATTERY_DISABLE_MINUTES,
   SHORE_BATTERY_HIT_POINTS_PER_GUN,
   SHORE_BATTERY_NOTICE_RADIUS_PX,
+  SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE,
   SHORE_BATTERY_RELOAD_SECONDS,
   armShoreBatteryReload,
   clearShoreBatteryCombatWounds,
@@ -16,6 +17,8 @@ import {
   shoreBatteryDisabledNotice,
   shoreBatteryGunCount,
   shoreBatteryMayDemandToll,
+  shoreBatteryMayReceivePlayerPortableFire,
+  shoreBatteryPortableImpact,
   shoreBatteryPlayerResponse,
   shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
@@ -113,6 +116,35 @@ test("shore garrisons surrender to heavy wounds and recover lesser wounds after 
   );
   assert.equal(surrender.newlyDisabled, true);
   assert.equal(battery.hitPoints, 0);
+});
+
+test("fortifications strongly resist shipboard arms and cannot be burned down by fire arrows", () => {
+  const fireArrow = shoreBatteryPortableImpact({
+    crewDamage: 1,
+    crewHitChance: 0.4,
+    crewProtectionPenetration: 0.1,
+    hullDamage: 0.25,
+    incendiary: true
+  });
+  assert.equal(fireArrow.crewHitChance, 0.4 * SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE);
+  assert.equal(fireArrow.hullDamage, 0);
+
+  const swivelShot = shoreBatteryPortableImpact({
+    crewDamage: 2,
+    crewHitChance: 0.68,
+    crewProtectionPenetration: 0.75,
+    hullDamage: 0.5,
+    incendiary: false
+  });
+  assert.equal(swivelShot.hullDamage, 0.5);
+});
+
+test("a hostile battery is not an automatic small-arms target until the player orders an attack", () => {
+  const battery = createShoreBatteryState(city, {}, 0);
+  battery.engagedTargetIds.add("player");
+  assert.equal(shoreBatteryMayReceivePlayerPortableFire(battery, "player"), false);
+  battery.playerAttackActive = true;
+  assert.equal(shoreBatteryMayReceivePlayerPortableFire(battery, "player"), true);
 });
 
 test("a remembered toll refusal suppresses another hail without forgiving a war", () => {

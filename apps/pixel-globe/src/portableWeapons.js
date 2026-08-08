@@ -284,7 +284,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
       kind: "incendiary-arrows",
       bowRangeMultiplier: 0.72,
       bowReloadMultiplier: 1.55,
-      bowHullDamage: 0.5
+      bowHullDamage: 0.25
     })
   })
 ]);

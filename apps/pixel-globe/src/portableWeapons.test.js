@@ -48,7 +48,7 @@ test("incendiary arrows trade bow range and reload speed for hull damage", () =>
     shipStats: STATS, installedCannons: 0, targetDistancePx: 20, baseRangePx: 74
   })[0].weapon;
   assert.equal(plain.hullDamage, 0);
-  assert.equal(incendiary.hullDamage, 0.5);
+  assert.equal(incendiary.hullDamage, 0.25);
   assert.equal(incendiary.incendiary, true);
   assert.ok(incendiary.rangeScale < plain.rangeScale);
   assert.ok(incendiary.reloadSeconds > plain.reloadSeconds);
@@ -70,7 +70,7 @@ test("modifier-only equipment survives inventory selection and converts owned bo
     baseRangePx: 74
   })[0];
   assert.equal(assignment.weapon.incendiary, true);
-  assert.equal(assignment.weapon.hullDamage, 0.5);
+  assert.equal(assignment.weapon.hullDamage, 0.25);
 });
 
 test("crew staffing reserves sailors and gunners before assigning small arms", () => {

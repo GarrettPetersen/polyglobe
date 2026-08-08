@@ -1152,7 +1152,9 @@ import {
   shoreBatteryId,
   shoreBatteryIsDisabled,
   shoreBatteryMayDemandToll,
+  shoreBatteryMayReceivePlayerPortableFire,
   shoreBatteryPlayerResponse,
+  shoreBatteryPortableImpact,
   shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
   shoreBatteryWarWarningSeen,
@@ -22158,7 +22160,9 @@ function nearestPlayerPortableWeaponTarget(range) {
     else if (engagement.bId === PLAYER_COMBAT_ID) candidateIds.add(engagement.aId);
   }
   for (const battery of activeVisibleShoreBatteries()) {
-    if (battery.engagedTargetIds.has(PLAYER_COMBAT_ID)) candidateIds.add(battery.id);
+    if (shoreBatteryMayReceivePlayerPortableFire(battery, PLAYER_COMBAT_ID)) {
+      candidateIds.add(battery.id);
+    }
   }
 
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
@@ -22591,23 +22595,24 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   const attackerLabel = shoreBatteryAttackerShipLabel(ball.ownerId);
   let result;
   if (ball.portable) {
+    const impact = shoreBatteryPortableImpact(ball);
     result = damageShoreBatteryCrew(
       battery,
       gameState.memory.flags,
       {
-        crewDamage: ball.crewDamage,
-        crewHitChance: ball.crewHitChance,
-        crewProtectionPenetration: ball.crewProtectionPenetration
+        crewDamage: impact.crewDamage,
+        crewHitChance: impact.crewHitChance,
+        crewProtectionPenetration: impact.crewProtectionPenetration
       },
       simMinute,
       attackerLabel,
       Math.random
     );
-    if (!result.newlyDisabled && ball.hullDamage > 0) {
+    if (!result.newlyDisabled && impact.hullDamage > 0) {
       result = damageShoreBattery(
         battery,
         gameState.memory.flags,
-        ball.hullDamage,
+        impact.hullDamage,
         simMinute,
         attackerLabel
       );

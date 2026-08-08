@@ -7,6 +7,7 @@ export const SHORE_BATTERY_RELOAD_SECONDS = 14;
 export const SHORE_BATTERY_HIT_POINTS_PER_GUN = 8;
 export const SHORE_BATTERY_GARRISON_PER_GUN = 6;
 export const SHORE_BATTERY_CREW_PROTECTION = 65;
+export const SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE = 0.25;
 export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
 
 const DISABLED_UNTIL_PREFIX = "shoreBatteryDisabledUntil:";
@@ -142,6 +143,47 @@ export function damageShoreBatteryCrew(
   state.hitPoints = 0;
   disableShoreBattery(state, flags, simMinute, attackerShipLabel);
   return { ...result, disabled: true, newlyDisabled: true };
+}
+
+export function shoreBatteryPortableImpact({
+  crewDamage,
+  crewHitChance,
+  crewProtectionPenetration = 0,
+  hullDamage,
+  incendiary
+}) {
+  if (!Number.isInteger(crewDamage) || crewDamage <= 0) {
+    throw new Error(`Invalid shore battery portable crew damage: ${crewDamage}`);
+  }
+  for (const [label, value] of [
+    ["hit chance", crewHitChance],
+    ["protection penetration", crewProtectionPenetration]
+  ]) {
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      throw new Error(`Invalid shore battery portable ${label}: ${value}`);
+    }
+  }
+  if (!Number.isFinite(hullDamage) || hullDamage < 0) {
+    throw new Error(`Invalid shore battery portable hull damage: ${hullDamage}`);
+  }
+  if (typeof incendiary !== "boolean") {
+    throw new Error(`Invalid shore battery incendiary state: ${incendiary}`);
+  }
+  return Object.freeze({
+    crewDamage,
+    crewHitChance: crewHitChance * SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE,
+    crewProtectionPenetration,
+    // Pitch arrows can catch exposed ship timber, but not batter down a fortified emplacement.
+    hullDamage: incendiary ? 0 : hullDamage
+  });
+}
+
+export function shoreBatteryMayReceivePlayerPortableFire(state, playerId) {
+  assertState(state);
+  if (typeof playerId !== "string" || !playerId) {
+    throw new Error(`Invalid shore battery player id: ${playerId}`);
+  }
+  return state.playerAttackActive && state.engagedTargetIds.has(playerId);
 }
 
 export function shoreBatteryRecoveryStatus(state, simMinute) {
