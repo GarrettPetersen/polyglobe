@@ -31,23 +31,23 @@ The score measures one-pixel color reversals, checkerboards, isolated flecks, an
 | 21 | Mediterranean Galley (`mediterranean-galley`) | 10.14 | 1.3% | 0.0% | 0.6% | 94.2% |
 | 22 | Xebec (`xebec`) | 10.09 | 3.3% | 0.7% | 5.2% | 74.3% |
 | 23 | Fusta (`fusta`) | 10.04 | 1.6% | 0.1% | 0.8% | 91.3% |
-| 24 | Sampan (`sampan`) | 9.86 | 3.6% | 0.3% | 6.9% | 67.8% |
-| 25 | Coastal Pinnace (`cutter`) | 9.71 | 1.6% | 0.1% | 2.0% | 85.9% |
-| 26 | Brigantine (`brigantine`) | 9.55 | 3.3% | 0.4% | 5.9% | 67.8% |
-| 27 | Heavy Caravel (`pirate-brig`) | 9.35 | 3.1% | 0.3% | 2.9% | 72.8% |
-| 28 | Viking Longship (`viking-longship`) | 9.33 | 2.5% | 0.2% | 2.1% | 77.5% |
-| 29 | Caravel (`caravel`) | 9.19 | 2.0% | 0.3% | 2.2% | 77.5% |
-| 30 | Lancaran (`lancaran`) | 9.01 | 6.2% | 0.5% | 2.5% | 56.2% |
-| 31 | Javanese Jong (`javanese-jong`) | 8.87 | 3.2% | 0.2% | 3.3% | 67.0% |
-| 32 | Felucca (`felucca`) | 8.63 | 0.8% | 0.0% | 0.5% | 81.7% |
-| 33 | Holk (`holk`) | 8.62 | 1.2% | 0.2% | 1.1% | 77.9% |
-| 34 | Hyeopseon (`joseon-hyeopseon`) | 8.27 | 0.8% | 0.0% | 0.3% | 78.6% |
-| 35 | Dugout Canoe (`mesoamerican-dugout-canoe`) | 8.19 | 0.9% | 0.0% | 0.0% | 77.7% |
-| 36 | Kancabash (`ottoman-coastal-trader`) | 7.48 | 1.9% | 0.2% | 2.8% | 60.0% |
-| 37 | Kelulus (`kelulus`) | 7.42 | 4.2% | 0.8% | 1.3% | 50.5% |
-| 38 | Small Cog (`small-cog`) | 7.35 | 1.8% | 0.1% | 1.2% | 62.5% |
-| 39 | Penjajap (`penjajap`) | 7.33 | 3.1% | 0.4% | 1.9% | 54.6% |
-| 40 | Small Junk (`small-junk`) | 7.17 | 1.9% | 0.1% | 4.0% | 54.8% |
-| 41 | Medium Junk (`medium-junk`) | 6.95 | 1.2% | 0.0% | 1.8% | 60.5% |
-| 42 | Large Junk (`large-junk`) | 6.67 | 1.3% | 0.1% | 1.0% | 58.8% |
-| 43 | Royal Lancaran (`royal-lancaran`) | 6.24 | 1.4% | 0.0% | 1.1% | 53.9% |
+| 24 | Lancaran (`lancaran`) | 9.98 | 4.3% | 0.4% | 2.3% | 75.1% |
+| 25 | Sampan (`sampan`) | 9.86 | 3.6% | 0.3% | 6.9% | 67.8% |
+| 26 | Penjajap (`penjajap`) | 9.72 | 3.3% | 0.7% | 1.8% | 77.2% |
+| 27 | Coastal Pinnace (`cutter`) | 9.71 | 1.6% | 0.1% | 2.0% | 85.9% |
+| 28 | Brigantine (`brigantine`) | 9.55 | 3.3% | 0.4% | 5.9% | 67.8% |
+| 29 | Heavy Caravel (`pirate-brig`) | 9.35 | 3.1% | 0.3% | 2.9% | 72.8% |
+| 30 | Viking Longship (`viking-longship`) | 9.33 | 2.5% | 0.2% | 2.1% | 77.5% |
+| 31 | Caravel (`caravel`) | 9.19 | 2.0% | 0.3% | 2.2% | 77.5% |
+| 32 | Javanese Jong (`javanese-jong`) | 8.87 | 3.2% | 0.2% | 3.3% | 67.0% |
+| 33 | Felucca (`felucca`) | 8.63 | 0.8% | 0.0% | 0.5% | 81.7% |
+| 34 | Holk (`holk`) | 8.62 | 1.2% | 0.2% | 1.1% | 77.9% |
+| 35 | Kelulus (`kelulus`) | 8.61 | 3.9% | 0.8% | 1.2% | 64.1% |
+| 36 | Hyeopseon (`joseon-hyeopseon`) | 8.27 | 0.8% | 0.0% | 0.3% | 78.6% |
+| 37 | Dugout Canoe (`mesoamerican-dugout-canoe`) | 8.19 | 0.9% | 0.0% | 0.0% | 77.7% |
+| 38 | Royal Lancaran (`royal-lancaran`) | 7.75 | 1.3% | 0.0% | 0.6% | 70.4% |
+| 39 | Kancabash (`ottoman-coastal-trader`) | 7.48 | 1.9% | 0.2% | 2.8% | 60.0% |
+| 40 | Small Cog (`small-cog`) | 7.35 | 1.8% | 0.1% | 1.2% | 62.5% |
+| 41 | Small Junk (`small-junk`) | 7.17 | 1.9% | 0.1% | 4.0% | 54.8% |
+| 42 | Medium Junk (`medium-junk`) | 6.95 | 1.2% | 0.0% | 1.8% | 60.5% |
+| 43 | Large Junk (`large-junk`) | 6.67 | 1.3% | 0.1% | 1.0% | 58.8% |

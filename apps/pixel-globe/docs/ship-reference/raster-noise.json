@@ -279,6 +279,18 @@
       "interiorPixels": 2272
     },
     {
+      "slug": "lancaran",
+      "label": "Lancaran",
+      "sourceTitle": "Procedural Lancaran",
+      "score": 9.9835,
+      "transitionRatio": 0.1865,
+      "isolatedFleckRatio": 0.0225,
+      "microReversalRatio": 0.043,
+      "checkerboardRatio": 0.0035,
+      "localColorDiversity": 0.7511,
+      "interiorPixels": 3730
+    },
+    {
       "slug": "sampan",
       "label": "Sampan",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
@@ -289,6 +301,18 @@
       "checkerboardRatio": 0.0032,
       "localColorDiversity": 0.6779,
       "interiorPixels": 1165
+    },
+    {
+      "slug": "penjajap",
+      "label": "Penjajap",
+      "sourceTitle": "Procedural Penjajap",
+      "score": 9.725,
+      "transitionRatio": 0.1587,
+      "isolatedFleckRatio": 0.0176,
+      "microReversalRatio": 0.0327,
+      "checkerboardRatio": 0.0073,
+      "localColorDiversity": 0.7719,
+      "interiorPixels": 2780
     },
     {
       "slug": "cutter",
@@ -351,18 +375,6 @@
       "interiorPixels": 3555
     },
     {
-      "slug": "lancaran",
-      "label": "Lancaran",
-      "sourceTitle": "Procedural Lancaran",
-      "score": 9.0085,
-      "transitionRatio": 0.2449,
-      "isolatedFleckRatio": 0.0249,
-      "microReversalRatio": 0.0615,
-      "checkerboardRatio": 0.005,
-      "localColorDiversity": 0.5618,
-      "interiorPixels": 3735
-    },
-    {
       "slug": "javanese-jong",
       "label": "Javanese Jong",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
@@ -399,6 +411,18 @@
       "interiorPixels": 3372
     },
     {
+      "slug": "kelulus",
+      "label": "Kelulus",
+      "sourceTitle": "Procedural Kelulus",
+      "score": 8.6115,
+      "transitionRatio": 0.1677,
+      "isolatedFleckRatio": 0.0124,
+      "microReversalRatio": 0.039,
+      "checkerboardRatio": 0.0079,
+      "localColorDiversity": 0.6411,
+      "interiorPixels": 4499
+    },
+    {
       "slug": "joseon-hyeopseon",
       "label": "Hyeopseon",
       "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
@@ -423,6 +447,18 @@
       "interiorPixels": 2073
     },
     {
+      "slug": "royal-lancaran",
+      "label": "Royal Lancaran",
+      "sourceTitle": "Procedural Royal Lancaran",
+      "score": 7.7505,
+      "transitionRatio": 0.1226,
+      "isolatedFleckRatio": 0.0063,
+      "microReversalRatio": 0.0128,
+      "checkerboardRatio": 0.0003,
+      "localColorDiversity": 0.7041,
+      "interiorPixels": 4411
+    },
+    {
       "slug": "ottoman-coastal-trader",
       "label": "Kancabash",
       "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model",
@@ -435,18 +471,6 @@
       "interiorPixels": 7651
     },
     {
-      "slug": "kelulus",
-      "label": "Kelulus",
-      "sourceTitle": "Procedural Kelulus",
-      "score": 7.4215,
-      "transitionRatio": 0.1752,
-      "isolatedFleckRatio": 0.0133,
-      "microReversalRatio": 0.0422,
-      "checkerboardRatio": 0.0081,
-      "localColorDiversity": 0.5054,
-      "interiorPixels": 4506
-    },
-    {
       "slug": "small-cog",
       "label": "Small Cog",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
@@ -457,18 +481,6 @@
       "checkerboardRatio": 0.0015,
       "localColorDiversity": 0.6249,
       "interiorPixels": 2960
-    },
-    {
-      "slug": "penjajap",
-      "label": "Penjajap",
-      "sourceTitle": "Procedural Penjajap",
-      "score": 7.326,
-      "transitionRatio": 0.215,
-      "isolatedFleckRatio": 0.0187,
-      "microReversalRatio": 0.0308,
-      "checkerboardRatio": 0.0042,
-      "localColorDiversity": 0.5461,
-      "interiorPixels": 2788
     },
     {
       "slug": "small-junk",
@@ -505,18 +517,6 @@
       "checkerboardRatio": 0.0005,
       "localColorDiversity": 0.5879,
       "interiorPixels": 5334
-    },
-    {
-      "slug": "royal-lancaran",
-      "label": "Royal Lancaran",
-      "sourceTitle": "Procedural Royal Lancaran",
-      "score": 6.238,
-      "transitionRatio": 0.127,
-      "isolatedFleckRatio": 0.0107,
-      "microReversalRatio": 0.0139,
-      "checkerboardRatio": 0.0003,
-      "localColorDiversity": 0.5391,
-      "interiorPixels": 4382
     }
   ]
 }

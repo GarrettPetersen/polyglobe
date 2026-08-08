@@ -562,7 +562,7 @@
         "w": 36,
         "h": 29
       },
-      "opaquePixels": 97
+      "opaquePixels": 98
     },
     {
       "slug": "lancaran",
@@ -572,11 +572,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 7,
-        "y": 10,
+        "y": 9,
         "w": 37,
-        "h": 29
+        "h": 30
       },
-      "opaquePixels": 105
+      "opaquePixels": 102
     },
     {
       "slug": "royal-lancaran",

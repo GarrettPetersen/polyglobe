@@ -612,5 +612,7 @@
   "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta",
   "mediterraneanGalleyGenerator": "tools/render-sail-ship-sprites.mjs --mediterranean-galley",
   "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass",
-  "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon"
+  "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon",
+  "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
+  "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus"
 }
