@@ -132,11 +132,11 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
 
   const istanbul = requiredEndpoint(bake, "Istanbul");
   const cairo = requiredEndpoint(bake, "Cairo");
-  const wuhan = requiredEndpoint(bake, "Wuhan");
+  const wuhan = requiredEndpoint(bake, "Wuchang");
   const kholmogory = requiredEndpoint(bake, "Kholmogory");
   const salerno = requiredEndpoint(bake, "Salerno");
   const lisbon = requiredEndpoint(bake, "Lisbon");
-  const tombouctou = requiredEndpoint(bake, "Tombouctou");
+  const tombouctou = requiredEndpoint(bake, "Timbuktu");
   const gao = requiredEndpoint(bake, "Gao");
   const tombouctouPort = portCities.find((port) => port.city === "Tombouctou");
   if (!tombouctouPort) throw new Error("Tombouctou must remain a dockable port city");

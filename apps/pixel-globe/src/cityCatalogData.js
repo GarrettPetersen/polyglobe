@@ -20,17 +20,45 @@ export const CITY_DATA_URL = "shared/datasets/urbanization-dominance-pruned/urba
 
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
   ["augsberg|germany", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Augsburg" }]],
+  ["bakhchiserai|ukraine", [{ throughYear: 1531, displayCity: "Salachik" }]],
+  ["bandar seri begawan|brunei", [{ throughYear: 1522, displayCity: "Kota Batu" }]],
+  ["bogota|columbia", [{ throughYear: 1537, displayCity: "Bacatá" }]],
+  ["budapest|hungary", [{ throughYear: 1872, displayCity: "Buda" }]],
+  ["chanchan|peru", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Chan Chan" }]],
+  ["diyarbakir|turkey", [{ throughYear: 1522, displayCity: "Amid" }]],
+  ["feodosia|russian federation", [{ throughYear: 1783, displayCity: "Kefe" }]],
   ["fukuoka|japan", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Hakata" }]],
+  ["guatemala city|guatemala", [{ throughYear: 1523, displayCity: "Iximché" }]],
+  ["iraklion|greece", [{ throughYear: 1669, displayCity: "Candia" }]],
+  ["kashi|china", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Kashgar" }]],
+  ["nkazargamu|nigeria", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Ngazargamu" }]],
+  ["riobamba|ecuador", [{ throughYear: 1533, displayCity: "Liribamba" }]],
+  ["seoul|republic of korea", [{ throughYear: 1910, displayCity: "Hanseong" }]],
   ["texcoco|mexico", [{ throughYear: 1522, displayCity: "Tezcoco" }]],
+  ["tombouctou|mali", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Timbuktu" }]],
+  ["tsinkiang|china", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Jinjiang" }]],
   ["merida|mexico", [{ throughYear: 1541, displayCity: "Tiho" }]],
-  ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]]
+  ["wroclaw|germany", [{ throughYear: 1945, displayCity: "Breslau" }]],
+  ["wuhan|china", [{ throughYear: 1926, displayCity: "Wuchang" }]],
+  ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]],
+  ["bay of islands village|aotearoa", [{
+    throughYear: 1768,
+    displayCity: "Pēwhairangi Village"
+  }]],
+  ["mossel bay village|south africa", [{
+    throughYear: 1600,
+    displayCity: "São Brás Village"
+  }]]
 ]);
 
 const CITY_PLACEMENT_OVERRIDES_1522 = new Map([
   // The source coordinates and stable identity remain Fukuoka/Hakata. At this
   // map resolution the eastern neighboring coastal hex keeps Hakata Bay and
   // the later Nagasaki settlement visually distinct.
-  ["fukuoka|japan", Object.freeze({ placementLat: 33.58, placementLon: 130.81 })]
+  ["fukuoka|japan", Object.freeze({ placementLat: 33.58, placementLon: 130.81 })],
+  // The dataset backcasts modern Guatemala City onto 1500. Preserve its stable
+  // identity while placing and presenting the contemporary Kaqchikel capital.
+  ["guatemala city|guatemala", Object.freeze({ placementLat: 14.735, placementLon: -90.9967 })]
 ]);
 
 export const CITY_TYPE_KEYS = Object.freeze([
@@ -162,7 +190,12 @@ function ensureManualCityRecords(bestByCity, targetYear) {
     const baseCityRecord = {
       cityId,
       city: manualSpec.city,
-      displayCity: manualSpec.displayCity || cityDisplayName(manualSpec.city, manualSpec.country, targetYear),
+      displayCity: cityDisplayName(
+        manualSpec.city,
+        manualSpec.country,
+        targetYear,
+        manualSpec.displayCity || manualSpec.city
+      ),
       country: manualSpec.country,
       lat: manualSpec.lat,
       lon: manualSpec.lon,
@@ -328,11 +361,11 @@ function normalizeCityKey(city, country) {
   return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
 }
 
-function cityDisplayName(city, country, targetYear) {
+function cityDisplayName(city, country, targetYear, fallback = city) {
   const rules = CITY_DISPLAY_NAME_OVERRIDES.get(normalizeCityKey(city, country));
-  if (!rules) return city;
+  if (!rules) return fallback;
   const rule = rules.find((item) => targetYear <= item.throughYear);
-  return rule?.displayCity || city;
+  return rule?.displayCity || fallback;
 }
 
 function cityPlacementOverride(city, country) {

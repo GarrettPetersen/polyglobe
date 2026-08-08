@@ -89,11 +89,41 @@ const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync
   "utf8"
 )));
 
-test("city catalog corrects Augsburg without changing its stable source identity", () => {
-  const augsburg = CITY_CATALOG.find((city) => city.city === "Augsberg" && city.country === "Germany");
-  assert.ok(augsburg);
-  assert.equal(augsburg.displayCity, "Augsburg");
-  assert.equal(augsburg.cityId, "augsberg|germany");
+test("city catalog presents period city names without changing stable source identities", () => {
+  const expectedNames = [
+    ["Augsberg", "Germany", "Augsburg"],
+    ["Bakhchiserai", "Ukraine", "Salachik"],
+    ["Bandar Seri Begawan", "Brunei", "Kota Batu"],
+    ["Bogota", "Columbia", "Bacatá"],
+    ["Budapest", "Hungary", "Buda"],
+    ["Chanchan", "Peru", "Chan Chan"],
+    ["Diyarbakir", "Turkey", "Amid"],
+    ["Feodosia", "Russian Federation", "Kefe"],
+    ["Guatemala City", "Guatemala", "Iximché"],
+    ["Iraklion", "Greece", "Candia"],
+    ["Kashi", "China", "Kashgar"],
+    ["Nkazargamu", "Nigeria", "Ngazargamu"],
+    ["Riobamba", "Ecuador", "Liribamba"],
+    ["Seoul", "Republic of Korea", "Hanseong"],
+    ["Tombouctou", "Mali", "Timbuktu"],
+    ["Tsinkiang", "China", "Jinjiang"],
+    ["Wroclaw", "Germany", "Breslau"],
+    ["Wuhan", "China", "Wuchang"],
+    ["Bay of Islands Village", "Aotearoa", "Pēwhairangi Village"],
+    ["Mossel Bay Village", "South Africa", "São Brás Village"]
+  ];
+  for (const [sourceName, country, displayName] of expectedNames) {
+    const city = CITY_CATALOG.find((candidate) => candidate.city === sourceName && candidate.country === country);
+    assert.ok(city, `${sourceName} should remain in the city catalog`);
+    assert.equal(city.displayCity, displayName);
+    assert.equal(city.cityId, `${sourceName.toLowerCase()}|${country.toLowerCase()}`);
+  }
+
+  const iximche = CITY_CATALOG.find((city) => city.city === "Guatemala City" && city.country === "Guatemala");
+  assert.deepEqual(
+    { lat: iximche.placementLat, lon: iximche.placementLon },
+    { lat: 14.735, lon: -90.9967 }
+  );
 });
 
 test("city catalog presents historical Hakata without changing its stable source identity", () => {

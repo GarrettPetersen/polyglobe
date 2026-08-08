@@ -126,6 +126,7 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Genova", "Italy", "genoa"],
     ["Lisbon", "Portugal", "portugal"],
     ["Beijing", "China", "ming"],
+    ["Tsinkiang", "China", "ming"],
     ["Mexico City", "Mexico", "spain"],
     ["Cuzco", "Peru", "inca"],
     ["Cairo", "Egypt", "ottoman"],

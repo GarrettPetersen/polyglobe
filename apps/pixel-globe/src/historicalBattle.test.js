@@ -162,7 +162,11 @@ test("the player flagship can pivot with opposed oar banks", () => {
     rowingMode: SHIP_ROWING_MODE_PIVOT_PORT
   });
 
-  assert.ok(player.headingRad < startingHeading);
+  const signedTurn = Math.atan2(
+    Math.sin(player.headingRad - startingHeading),
+    Math.cos(player.headingRad - startingHeading)
+  );
+  assert.ok(signedTurn < 0);
   assert.equal(player.speedPx, 0);
 });
 

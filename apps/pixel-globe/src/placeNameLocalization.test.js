@@ -14,6 +14,11 @@ test("navigation text uses established localized place names", () => {
   assert.equal(localizePlaceNames("es", "Sail from London to Seville"), "Sail from Londres to Sevilla");
   assert.equal(localizePlaceName("ja", "Hakata"), "博多");
   assert.equal(localizePlaceName("ko", "Fukuoka"), "하카타");
+  assert.equal(localizePlaceName("zh-Hans", "Wuchang"), "武昌");
+  assert.equal(localizePlaceName("zh-Hant", "Jinjiang"), "晉江");
+  assert.equal(localizePlaceName("ko", "Hanseong"), "한성");
+  assert.equal(localizePlaceName("ru", "Kashgar"), "Кашгар");
+  assert.equal(localizePlaceName("de", "Breslau"), "Breslau");
 });
 
 test("unknown and player-created place names retain their canonical spelling", () => {

@@ -631,10 +631,11 @@ export function shoreBatteryDialogueView(session, city) {
     throw new Error("Shore battery dialogue city does not match active session");
   }
   const faction = factionById(city.factionId);
+  const cityName = city.portAlias || city.displayCity || city.city;
   if (!session.passageOffered) {
     const atWar = session.relation === "war";
     return {
-      speaker: `${characterName(city.character)}, ${city.city}`,
+      speaker: `${characterName(city.character)}, ${cityName}`,
       expressionId: "angry",
       text: atWar
         ? `By order of ${session.rulerName}, ${faction.name} is at war with your flag. Armed vessels will be fired upon.`
@@ -644,7 +645,7 @@ export function shoreBatteryDialogueView(session, city) {
     };
   }
   return {
-    speaker: `${characterName(city.character)}, ${city.city}`,
+    speaker: `${characterName(city.character)}, ${cityName}`,
     expressionId: "stern",
     text: `${session.rulerName} demands ${session.toll} doubloons for ${safePassageDurationLabel()} of safe passage throughout ${faction.name}.`,
     feedback: null,

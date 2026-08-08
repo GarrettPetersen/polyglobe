@@ -245,7 +245,6 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
 
   cityRule("Lhasa", "China", NEUTRAL_FACTION_ID),
   cityRule("Kashi", "China", NEUTRAL_FACTION_ID),
-  cityRule("Tsinkiang", "China", NEUTRAL_FACTION_ID),
   cityRule("Turpan", "China", NEUTRAL_FACTION_ID),
 
   cityRule("Mexico City", "Mexico", "spain"),

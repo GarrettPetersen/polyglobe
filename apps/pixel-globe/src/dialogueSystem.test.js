@@ -286,6 +286,24 @@ test("hostile shore batteries hail before opening fire", () => {
   assert.deepEqual(selectShoreBatteryDialogueOption(session, city, 0), { closed: true, action: null });
 });
 
+test("shore battery speakers use the period city display name", () => {
+  const city = {
+    tileId: 17,
+    portId: "city-17",
+    city: "Feodosia",
+    displayCity: "Kefe",
+    factionId: "ottoman",
+    character: { name: "Kemal Reis" }
+  };
+  const session = createShoreBatteryDialogueSession(city, {
+    relation: "war",
+    playerWarship: true,
+    passageOffered: false
+  });
+
+  assert.equal(shoreBatteryDialogueView(session, city).speaker, "Kemal Reis, Kefe");
+});
+
 test("hostile shore batteries sell civilian passage for the whole empire", () => {
   const city = {
     tileId: 17,

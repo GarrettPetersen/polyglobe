@@ -1,7 +1,7 @@
 import { normalizeLanguage } from "./localization.js";
 
 const PLACE_NAMES = Object.freeze([
-  place(["Wroclaw", "Wrocław"], names("弗罗茨瓦夫", "弗羅茨瓦夫", "ヴロツワフ", "브로츠와프", "Вроцлав", {
+  place(["Wroclaw", "Wrocław", "Breslau"], names("弗罗茨瓦夫", "弗羅茨瓦夫", "ヴロツワフ", "브로츠와프", "Вроцлав", {
     es: "Breslavia", "pt-BR": "Breslávia", de: "Breslau"
   })),
   place(["Hafnarfjordur", "Hafnarfjörður"], names("哈布纳菲厄泽", "哈布納菲厄澤", "ハフナルフィヨルズゥル", "하프나르피외르뒤르", "Хабнарфьордюр")),
@@ -52,9 +52,13 @@ const PLACE_NAMES = Object.freeze([
   place(["Guangzhou"], names("广州", "廣州", "広州", "광저우", "Гуанчжоу", {
     es: "Cantón", "pt-BR": "Cantão", de: "Kanton", fr: "Canton", pl: "Kanton"
   })),
+  place(["Wuchang"], names("武昌", "武昌", "武昌", "우창", "Учан")),
+  place(["Jinjiang"], names("晋江", "晉江", "晋江", "진장", "Цзиньцзян")),
+  place(["Kashgar"], names("喀什", "喀什", "カシュガル", "카슈가르", "Кашгар")),
   place(["Seoul"], names("首尔", "首爾", "ソウル", "서울", "Сеул", {
     es: "Seúl", "pt-BR": "Seul", fr: "Séoul", pl: "Seul"
   })),
+  place(["Hanseong"], names("汉城", "漢城", "漢城", "한성", "Хансон")),
   place(["Kyoto"], names("京都", "京都", "京都", "교토", "Киото", {
     es: "Kioto", "pt-BR": "Quioto", pl: "Kioto"
   })),

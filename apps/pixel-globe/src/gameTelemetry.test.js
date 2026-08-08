@@ -150,6 +150,36 @@ test("crashes queue safely when the network is unavailable", async () => {
   assert.equal(crash.payload.message, "boom");
 });
 
+test("historical battle crashes retain their battle screen in telemetry", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "historical-battle-installation"
+  });
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async () => {
+      throw new Error("offline");
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `historical-event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+  telemetry.start();
+  assert.equal(telemetry.captureCrash(new Error("Lepanto failed"), {
+    screen: "historical-battle:active"
+  }), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const queue = JSON.parse(storage.values.get(TELEMETRY_QUEUE_STORAGE_KEY));
+  const crash = queue.find((entry) => entry.type === "crash");
+  assert.equal(crash.payload.screen, "historical-battle:active");
+  assert.equal(crash.payload.message, "Lepanto failed");
+});
+
 test("the same crash is reported only once per page session", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
