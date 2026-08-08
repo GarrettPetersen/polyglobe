@@ -9,20 +9,25 @@ import {
   normalize3
 } from "./geodesic.js";
 import {
-  chartSeamRegionForPosition,
-  chartSeamTransitionTarget,
-  parseChartSeamAtlas,
-  projectPositionInChartRegion,
-  synchronizeChartSheetPositions,
-  unprojectPositionInChartRegion
-} from "./chartSeamAtlas.js";
+  MAX_ELASTIC_FRAME_CORRECTION_PX,
+  MAX_PROTECTED_ADMISSION_SLACK_PX,
+  admitProjectedTiles,
+  refreshOffscreenLayoutTiles,
+  resolveLocalLayoutAnchor,
+  settleVisibleElasticTilesWithinMotion,
+  viewportElasticCorrectionSupport
+} from "./localLayoutAdmission.js";
 import {
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
   surfaceDetailCallsHaveSameGeometry,
   surfaceDetailLayerCoversViewport
 } from "./surfaceDetailCache.js";
-import { buildChartTileProtection, chartProtectionStats } from "./chartTileProtection.js";
+import {
+  buildDirectChartProtectionComponents,
+  buildChartTileProtection,
+  chartProtectionStats
+} from "./chartTileProtection.js";
 import { buildOpenOceanShearFillCalls } from "./oceanShearFill.js";
 import {
   alphaMaskContainsMapPoint,
@@ -2831,6 +2836,9 @@ let directionIndex;
 let earthRows;
 let earthById;
 let chartTileProtection;
+let chartDirectProtectionComponentByTileId;
+let chartLandContinuityMask;
+let chartElasticCorrectionMask;
 let mountainLandmarks;
 let worldDiscoveries = [];
 let coralReefs = [];
@@ -3047,10 +3055,6 @@ let playerNavigationRecoveryState = createPlayerShipRecoveryState();
 let camera;
 let chart;
 let localLayout;
-let chartSeamAtlas;
-let activeChartSeamRegionId = null;
-let pendingChartSeamRegionId = null;
-let chartSeamOceanTransition = null;
 let minimap;
 let captainChartMinimap;
 let themeMusic = null;
@@ -3183,6 +3187,7 @@ let lastStatusMs = 0;
 let lastOverlayMs = 0;
 let worldSpriteAnimationTick = -1;
 let waterAnimationClockMs = 0;
+let lastPresentedOceanSwell = null;
 let waterAnimationDrawTick = -1;
 let fishAnimationDrawTick = -1;
 let precipParticleDrawTick = -1;
@@ -3368,7 +3373,6 @@ async function main() {
     fetchJson(PORT_SAILING_DISTANCE_URL, "port sailing distances"),
     fetchJson(LAND_ROAD_URL, "land roads"),
     fetchEarthCache(),
-    fetchJson("shared/chart-seam-atlas-7.json", "chart seam atlas"),
     fetchBinary("shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
@@ -3397,7 +3401,6 @@ async function main() {
     loadedPortSailingDistanceData,
     loadedLandRoadData,
     earth,
-    loadedChartSeamAtlas,
     discreteWeatherBuffer,
     runtimeWeatherBuffer
   ] = loadedStartupAssets;
@@ -3499,10 +3502,6 @@ async function main() {
     graph.tileCount
   );
   directionIndex = createDirectionIndex(graph);
-  chartSeamAtlas = parseChartSeamAtlas(loadedChartSeamAtlas, {
-    subdivisions: SUBDIVISIONS,
-    earthVersion: earth.version
-  });
   earthById = earthRows;
   freshWaterSurfaceMask = buildFreshWaterSurfaceMask({
     graph,
@@ -3608,6 +3607,18 @@ async function main() {
     featureTileIds: chartProtectionFeatureTileIds(),
     pentagonNeedsProtection: (tileId) => !isWaterSurfaceRow(earthById[tileId])
   });
+  chartDirectProtectionComponentByTileId = buildDirectChartProtectionComponents({
+    graph,
+    protection: chartTileProtection
+  });
+  chartLandContinuityMask = Uint8Array.from(
+    earthRows,
+    (row) => isWaterSurfaceRow(row) ? 0 : 1
+  );
+  chartElasticCorrectionMask = Uint8Array.from(
+    earthRows,
+    (row) => isWaterSurfaceRow(row) ? 1 : 0
+  );
   const protectionStats = chartProtectionStats(chartTileProtection);
   console.info(
     `[pixel-globe] chart protection: ${protectionStats.direct} direct, ` +
@@ -3860,8 +3871,6 @@ async function main() {
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
   centerTileId = ship.tileId;
-  activeChartSeamRegionId = null;
-  pendingChartSeamRegionId = null;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   reframeWorldNorthUp("new game setup", { allowUncovered: true });
@@ -5481,10 +5490,6 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
-    if (presentPendingChartSeamTransition(nowMs)) {
-      chartRebuiltThisFrame = true;
-      dirty = true;
-    }
     measurePerformanceBenchmarkStage("chart.drift", () => measureChartDriftAtInterval(nowMs));
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
@@ -8721,8 +8726,6 @@ function placeCapturePlayerOnTile(navigableTileId) {
   applyCaptureShipHeading(ship, CAPTURE_SCENARIO.player.headingDeg);
   camera = northUpCamera(ship.position);
   centerTileId = ship.tileId;
-  activeChartSeamRegionId = null;
-  pendingChartSeamRegionId = null;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   refreshWeatherState(true);
@@ -11211,8 +11214,6 @@ async function restoreSavedVoyage(payload) {
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
   centerTileId = ship.tileId;
-  activeChartSeamRegionId = null;
-  pendingChartSeamRegionId = null;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   reconcileRestoredShipDrawnNavigation(restorePlacement.reason);
@@ -11436,8 +11437,6 @@ function placeShipAtTileCenterForRecovery(tileId) {
   ship.velocity = [0, 0, 0];
   camera = northUpCamera(ship.position, camera?.right || [1, 0, 0]);
   centerTileId = tileId;
-  activeChartSeamRegionId = null;
-  pendingChartSeamRegionId = null;
   localLayout = createLocalLayout(tileId);
   chart = buildChart(camera);
 }
@@ -19267,38 +19266,11 @@ function pointInRect(point, rect) {
 }
 
 function createLocalLayout(centerId) {
-  if (!chartSeamAtlas) throw new Error("Cannot create a chart sheet before loading its atlas");
-  if (activeChartSeamRegionId === null) {
-    const anchorPosition = ship?.position || tileCenterVector(centerId);
-    activeChartSeamRegionId = chartSeamRegionForPosition(chartSeamAtlas, anchorPosition);
-  }
-  const projectedCenter = chartSheetPointForPosition(tileCenterVector(centerId));
-  const center = { x: Math.round(projectedCenter.x), y: Math.round(projectedCenter.y) };
-  const view = ship?.position ? chartSheetPointForPosition(ship.position) : center;
   return {
-    viewX: view.x,
-    viewY: view.y,
-    positions: new Map([[centerId, center]])
+    viewX: 0,
+    viewY: 0,
+    positions: new Map([[centerId, { x: 0, y: 0 }]])
   };
-}
-
-function chartSheetPointForPosition(position, regionId = activeChartSeamRegionId) {
-  if (!chartSeamAtlas) throw new Error("Cannot project a chart point before loading its atlas");
-  if (!Number.isInteger(regionId)) throw new Error(`Cannot project without an active chart sheet: ${regionId}`);
-  const point = projectPositionInChartRegion(chartSeamAtlas, regionId, position);
-  return {
-    x: point.x * PIXELS_PER_RADIAN,
-    y: point.y * PIXELS_PER_RADIAN
-  };
-}
-
-function globePositionForChartSheetPoint(x, y, regionId = activeChartSeamRegionId) {
-  if (!chartSeamAtlas) throw new Error("Cannot unproject a chart point before loading its atlas");
-  if (!Number.isInteger(regionId)) throw new Error(`Cannot unproject without an active chart sheet: ${regionId}`);
-  return unprojectPositionInChartRegion(chartSeamAtlas, regionId, {
-    x: x / PIXELS_PER_RADIAN,
-    y: y / PIXELS_PER_RADIAN
-  });
 }
 
 function measureChartDriftAtInterval(nowMs) {
@@ -19312,17 +19284,19 @@ function measureCurrentChartNorthUpDrift() {
     chartNorthUpDrift = measureChartNorthUpDrift([]);
     return chartNorthUpDrift;
   }
+  const northUp = northUpCamera(ship.position, camera.right);
   const drawOffset = layoutOffsetPixels();
   const samples = [];
   for (const call of chart.driftSampleCalls) {
     const localX = call.x + drawOffset.x - SCREEN_W / 2;
     const localY = call.y + drawOffset.y - SCREEN_H / 2;
-    const projected = chartSheetPointForPosition(tileCenterVector(call.id));
+    const projected = projectDirectionFor(tileCenterVector(call.id), northUp, false);
+    if (!projected) continue;
     samples.push({
       localX,
       localY,
-      northX: Math.round(projected.x) - localLayout.viewX,
-      northY: Math.round(projected.y) - localLayout.viewY
+      northX: projected.x - SCREEN_W / 2,
+      northY: projected.y - SCREEN_H / 2
     });
   }
   chartNorthUpDrift = measureChartNorthUpDrift(samples);
@@ -19334,13 +19308,12 @@ function prepareNorthUpWorldBehindCover() {
   const coverIsActive = opaqueWorldCoverIsActive();
   if (coverIsActive && !chartReframeCoverWasActive && ship && camera && chart && localLayout) {
     const drift = measureCurrentChartNorthUpDrift();
-    const pendingSheetChange = pendingChartSeamRegionId !== null;
-    if (pendingSheetChange || chartShouldReframeOnCoverOpen({
+    if (chartShouldReframeOnCoverOpen({
       coverIsActive,
       coverWasActive: chartReframeCoverWasActive,
       drift
     })) {
-      reframeWorldNorthUp(pendingSheetChange ? "chart sheet changed behind cover" : "opaque screen opened");
+      reframeWorldNorthUp("opaque screen opened");
     }
   }
   chartReframeCoverWasActive = coverIsActive;
@@ -19384,8 +19357,6 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   const priorCenterTileId = centerTileId;
   const priorLocalLayout = localLayout;
   const priorChart = chart;
-  const priorSeamRegionId = activeChartSeamRegionId;
-  const priorPendingSeamRegionId = pendingChartSeamRegionId;
   const playerTileId = ship.tileId;
   const playerPosition = captureChartReframePosition(ship.position, "player");
   const npcStates = [...npcVisualShips.values()];
@@ -19396,12 +19367,10 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   const playerProjectilePositions = captureProjectileGlobePositions(ship.navalProjectiles);
   const npcProjectilePositions = captureProjectileGlobePositions(npcCombatProjectiles);
 
-  activeChartSeamRegionId = chartSeamRegionForPosition(chartSeamAtlas, ship.position);
-  pendingChartSeamRegionId = null;
   camera = northUpCamera(ship.position, camera.right);
   const layoutAnchorTileId = findNearestTileId(graph, directionIndex, ship.position);
   centerTileId = ship.tileId;
-  localLayout = createNorthUpLocalLayout(layoutAnchorTileId);
+  localLayout = createNorthUpLocalLayout(layoutAnchorTileId, camera);
   chart = buildChart(camera);
   const candidateDrift = measureCurrentChartNorthUpDrift();
   if (!chartReframeCandidateIsNorthUp(candidateDrift)) {
@@ -19409,8 +19378,6 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
     centerTileId = priorCenterTileId;
     localLayout = priorLocalLayout;
     chart = priorChart;
-    activeChartSeamRegionId = priorSeamRegionId;
-    pendingChartSeamRegionId = priorPendingSeamRegionId;
     chartNorthUpDrift = driftBefore;
     window.__PIXEL_GLOBE_CHART_DRIFT__ = driftBefore;
     chartDriftMeasuredAtMs = lastFrameMs;
@@ -19423,7 +19390,6 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
     );
     return false;
   }
-  synchronizeActiveChartSeamRegion();
   if (ship.tileId !== playerTileId) {
     throw new Error(`Chart reframe changed the player's tile from ${playerTileId} to ${ship.tileId}`);
   }
@@ -19453,8 +19419,22 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   return true;
 }
 
-function createNorthUpLocalLayout(tileId) {
-  return createLocalLayout(tileId);
+function createNorthUpLocalLayout(tileId, frame) {
+  const projected = projectTileCenterFor(tileId, frame);
+  if (!projected) {
+    throw new Error(`Cannot project north-up layout anchor tile ${tileId}`);
+  }
+  return {
+    viewX: 0,
+    viewY: 0,
+    positions: new Map([[
+      tileId,
+      {
+        x: projected.x - Math.round(SCREEN_W / 2),
+        y: projected.y - Math.round(SCREEN_H / 2)
+      }
+    ]])
+  };
 }
 
 function reprojectNpcVisualPositions(states) {
@@ -19507,7 +19487,20 @@ function chartPointToGlobeDirection(x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     throw new Error(`Cannot unproject invalid chart point: ${x},${y}`);
   }
-  return globePositionForChartSheetPoint(x, y);
+  const tangentX = (x - localLayout.viewX) / PIXELS_PER_RADIAN;
+  const tangentY = -(y - localLayout.viewY) / PIXELS_PER_RADIAN;
+  const angle = Math.hypot(tangentX, tangentY);
+  if (angle <= 1e-12) return camera.center.slice();
+  const tangent = [
+    (camera.right[0] * tangentX + camera.up[0] * tangentY) / angle,
+    (camera.right[1] * tangentX + camera.up[1] * tangentY) / angle,
+    (camera.right[2] * tangentX + camera.up[2] * tangentY) / angle
+  ];
+  return normalize3([
+    camera.center[0] * Math.cos(angle) + tangent[0] * Math.sin(angle),
+    camera.center[1] * Math.cos(angle) + tangent[1] * Math.sin(angle),
+    camera.center[2] * Math.cos(angle) + tangent[2] * Math.sin(angle)
+  ]);
 }
 
 function reprojectProjectileGlobePositions(entries) {
@@ -19522,7 +19515,12 @@ function reprojectProjectileGlobePositions(entries) {
 }
 
 function globeDirectionToChartPoint(direction) {
-  return chartSheetPointForPosition(direction);
+  const projected = projectDirectionFor(direction, camera, false);
+  if (!projected) throw new Error("North-up chart could not reproject an active projectile");
+  return {
+    x: projected.x - SCREEN_W / 2 + localLayout.viewX,
+    y: projected.y - SCREEN_H / 2 + localLayout.viewY
+  };
 }
 
 function clearLocalChartTransientEffects() {
@@ -21425,12 +21423,7 @@ function vesselOccupancyAtPosition(position, tileId, localPoint, centerNav, head
     : [forward];
 
   for (const sampleVector of sampleVectors) {
-    const samplePoint = localShipCollisionSamplePoint(
-      sampleVector,
-      sampleRadiusPx,
-      localPoint,
-      position
-    );
+    const samplePoint = localShipCollisionSamplePoint(sampleVector, sampleRadiusPx, localPoint);
     const collisionTile = localCollisionTileAtPoint(samplePoint.x, samplePoint.y);
     if (!collisionTile) return { ok: false };
     const sampleTileId = collisionTile.tileId;
@@ -21440,13 +21433,11 @@ function vesselOccupancyAtPosition(position, tileId, localPoint, centerNav, head
   return { ok: true };
 }
 
-function localShipCollisionSamplePoint(sampleVector, distancePx, localPoint, position) {
+function localShipCollisionSamplePoint(sampleVector, distancePx, localPoint) {
   if (!localLayout || !camera) throw new Error("Cannot sample rendered ship collision without a local layout and camera");
-  const screenDirection = tangentToScreenDirectionAtPosition(sampleVector, position);
-  if (!screenDirection) throw new Error("Cannot project a ship collision sample direction");
   return {
-    x: localPoint.x + screenDirection.x * distancePx,
-    y: localPoint.y + screenDirection.y * distancePx
+    x: localPoint.x + dot3(sampleVector, camera.right) * distancePx,
+    y: localPoint.y - dot3(sampleVector, camera.up) * distancePx
   };
 }
 
@@ -21581,8 +21572,15 @@ function drawnNavigationTileRaster(call) {
 
 function localCollisionPointForPosition(fromPosition, position) {
   if (!localLayout || !camera) throw new Error("Cannot compute local ship collision without a local layout and camera");
-  void fromPosition;
-  return chartSheetPointForPosition(position);
+  const delta = [
+    position[0] - fromPosition[0],
+    position[1] - fromPosition[1],
+    position[2] - fromPosition[2]
+  ];
+  return {
+    x: localLayout.viewX + dot3(delta, camera.right) * PIXELS_PER_RADIAN,
+    y: localLayout.viewY - dot3(delta, camera.up) * PIXELS_PER_RADIAN
+  };
 }
 
 function localCollisionTileIdAtPoint(x, y, label) {
@@ -21637,15 +21635,33 @@ function globePositionForLocalPoint(tileId, x, y) {
   if (!localLayout || !camera) throw new Error("Cannot resolve a globe position without a local layout and camera");
   const layout = localLayout.positions.get(tileId);
   if (!layout) throw new Error(`Cannot resolve globe position for missing local tile: ${tileId}`);
-  return globePositionForChartSheetPoint(x, y);
+
+  const center = tileCenterVector(tileId);
+  const dx = (x - layout.x) / PIXELS_PER_RADIAN;
+  const dy = -(y - layout.y) / PIXELS_PER_RADIAN;
+  const tangentOffset = [
+    camera.right[0] * dx + camera.up[0] * dy,
+    camera.right[1] * dx + camera.up[1] * dy,
+    camera.right[2] * dx + camera.up[2] * dy
+  ];
+  return normalize3([
+    center[0] + tangentOffset[0],
+    center[1] + tangentOffset[1],
+    center[2] + tangentOffset[2]
+  ]);
 }
 
 function applyShipMove(position, tileId) {
   const previousPosition = ship.position;
-  const previousPoint = { x: localLayout.viewX, y: localLayout.viewY };
-  const nextPoint = chartSheetPointForPosition(position);
-  localLayout.viewX = nextPoint.x;
-  localLayout.viewY = nextPoint.y;
+  const delta = [
+    position[0] - previousPosition[0],
+    position[1] - previousPosition[1],
+    position[2] - previousPosition[2]
+  ];
+  const dx = dot3(delta, camera.right);
+  const dy = dot3(delta, camera.up);
+
+  moveLocalView(dx, dy);
   const collisionTileId = localCollisionTileIdAtPoint(
     localLayout.viewX,
     localLayout.viewY,
@@ -21663,8 +21679,8 @@ function applyShipMove(position, tileId) {
   const drawnTileId = drawnNav.tileId;
   if (drawnTileId !== tileId && drawnNav.kind !== "river" && !canShipMoveBetween(tileId, drawnTileId, ship.heading)) {
     const priorNav = shipNavigabilityAtLocalPoint(
-      previousPoint.x,
-      previousPoint.y,
+      localLayout.viewX - dx * PIXELS_PER_RADIAN,
+      localLayout.viewY + dy * PIXELS_PER_RADIAN,
       tileId,
       previousPosition
     );
@@ -21684,134 +21700,6 @@ function applyShipMove(position, tileId) {
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
   camera = northUpCamera(ship.position, camera.right);
   centerTileId = ship.tileId;
-  updatePendingChartSeamTransition(drawnNav.kind);
-}
-
-function synchronizeActiveChartSeamRegion() {
-  if (!chartSeamAtlas || !ship?.position) return false;
-  activeChartSeamRegionId = chartSeamRegionForPosition(chartSeamAtlas, ship.position);
-  pendingChartSeamRegionId = null;
-  return true;
-}
-
-function updatePendingChartSeamTransition(navigationKind) {
-  if (!chartSeamAtlas || !ship?.position || lakeBattleMode) return false;
-  if (activeChartSeamRegionId === null) synchronizeActiveChartSeamRegion();
-  if (navigationKind === "river" || navigationKind === "lake") {
-    pendingChartSeamRegionId = null;
-    return false;
-  }
-  const targetRegionId = chartSeamTransitionTarget(
-    chartSeamAtlas,
-    activeChartSeamRegionId,
-    ship.position,
-    { navigationKind }
-  );
-  if (targetRegionId === null) {
-    if (navigationKind === "openWater" &&
-        chartSeamRegionForPosition(chartSeamAtlas, ship.position) === activeChartSeamRegionId) {
-      pendingChartSeamRegionId = null;
-    }
-    return false;
-  }
-  pendingChartSeamRegionId = targetRegionId;
-  return true;
-}
-
-function presentPendingChartSeamTransition(nowMs) {
-  if (pendingChartSeamRegionId === null || !ship || !chart || !localLayout) return false;
-  if (
-    startMenu || gameOverReason || playerIntroModal || captainAlertModal || dialogueState ||
-    menusAreOpen() || goldTreasureSequence
-  ) return false;
-  const actualRegionId = chartSeamRegionForPosition(chartSeamAtlas, ship.position);
-  if (actualRegionId === activeChartSeamRegionId) {
-    pendingChartSeamRegionId = null;
-    return false;
-  }
-  pendingChartSeamRegionId = actualRegionId;
-  const priorRegionId = activeChartSeamRegionId;
-  if (chartViewportIsFeaturelessOcean()) {
-    const snapshot = captureChartSeamTransitionSnapshot();
-    if (!reframeWorldNorthUp(
-      `ocean seam ${priorRegionId}->${actualRegionId}`,
-      { allowUncovered: true }
-    )) {
-      throw new Error(`Could not reframe open-ocean chart seam ${priorRegionId}->${actualRegionId}`);
-    }
-    chartSeamOceanTransition = snapshot
-      ? { snapshot, startedAtMs: nowMs, durationMs: 320 }
-      : null;
-    dirty = true;
-    return true;
-  }
-  // A coastline, river mouth, island, or visible ice field is never moved in
-  // front of the player. Keep using the current sheet until clear ocean or an
-  // opaque screen gives us cover for the atomic reprojection.
-  return false;
-}
-
-function chartViewportIsFeaturelessOcean() {
-  const offset = chartOffsetPixels(chart);
-  let visibleCount = 0;
-  for (const call of chart.tileCalls) {
-    if (!chartTileCallNearViewport(call, offset)) continue;
-    visibleCount++;
-    if (
-      !isWaterSurfaceRow(call.row) ||
-      chartTileProtection[call.id] !== 0 ||
-      tileHasSurfaceIce(call.id)
-    ) return false;
-  }
-  return visibleCount > 0;
-}
-
-function captureChartSeamTransitionSnapshot() {
-  if (typeof document?.createElement !== "function" || canvas.width <= 0 || canvas.height <= 0) {
-    return null;
-  }
-  const snapshot = document.createElement("canvas");
-  snapshot.width = canvas.width;
-  snapshot.height = canvas.height;
-  const snapshotCtx = snapshot.getContext("2d");
-  if (!snapshotCtx) throw new Error("Could not capture the previous ocean chart sheet");
-  snapshotCtx.imageSmoothingEnabled = false;
-  snapshotCtx.drawImage(canvas, 0, 0);
-  return snapshot;
-}
-
-function drawChartSeamOceanTransition(nowMs) {
-  const transition = chartSeamOceanTransition;
-  if (!transition) return;
-  const progress = clamp(
-    (nowMs - transition.startedAtMs) / transition.durationMs,
-    0,
-    1
-  );
-  if (progress >= 1) {
-    chartSeamOceanTransition = null;
-    return;
-  }
-  ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha = (1 - progress) ** 2;
-  const stripHeight = 4;
-  for (let y = 0; y < SCREEN_H; y += stripHeight) {
-    const waveX = Math.round(Math.sin(y * 0.12 + progress * Math.PI * 2) * 2 * (1 - progress));
-    ctx.drawImage(
-      transition.snapshot,
-      0,
-      y,
-      SCREEN_W,
-      Math.min(stripHeight, SCREEN_H - y),
-      waveX,
-      y,
-      SCREEN_W,
-      Math.min(stripHeight, SCREEN_H - y)
-    );
-  }
-  ctx.restore();
-  dirty = true;
 }
 
 function shipCollisionNormal(position, blockedTileId, fallbackStep) {
@@ -21832,12 +21720,20 @@ function localCollisionNormalForTile(tileId, position) {
   const dx = layout.x - localLayout.viewX;
   const dy = layout.y - localLayout.viewY;
   if (Math.hypot(dx, dy) < 1e-6) return null;
-  return screenDirectionToTangent({ x: dx, y: dy }, position, ship.heading);
+  return normalizeOrNull(projectTangentVector([
+    camera.right[0] * dx - camera.up[0] * dy,
+    camera.right[1] * dx - camera.up[1] * dy,
+    camera.right[2] * dx - camera.up[2] * dy
+  ], position));
 }
 
 function localNormalToTangent(normal, position) {
   if (!normal || !camera) return null;
-  return screenDirectionToTangent(normal, position, ship.heading);
+  return normalizeOrNull(projectTangentVector([
+    camera.right[0] * normal.x - camera.up[0] * normal.y,
+    camera.right[1] * normal.x - camera.up[1] * normal.y,
+    camera.right[2] * normal.x - camera.up[2] * normal.y
+  ], position));
 }
 
 function canShipMoveBetween(fromTileId, toTileId, movementDirection = null) {
@@ -21957,6 +21853,11 @@ function isWorldReachableNavigationTile(tileId) {
 
 function shipTileHasRiver(tileId) {
   return (riverMasks?.[tileId] || 0) !== 0;
+}
+
+function moveLocalView(dx, dy) {
+  localLayout.viewX += dx * PIXELS_PER_RADIAN;
+  localLayout.viewY -= dy * PIXELS_PER_RADIAN;
 }
 
 function updateShipWake(dt) {
@@ -28006,44 +27907,33 @@ function localPointForKnownTileVector(vector, tileId) {
   }
   const layout = localLayout.positions.get(tileId);
   if (!layout) return null;
-  const point = chartSheetPointForPosition(vector);
+  const center = tileCenterVector(tileId);
+  const delta = [
+    vector[0] - center[0],
+    vector[1] - center[1],
+    vector[2] - center[2]
+  ];
   return {
-    x: point.x,
-    y: point.y,
+    x: layout.x + dot3(delta, camera.right) * PIXELS_PER_RADIAN,
+    y: layout.y - dot3(delta, camera.up) * PIXELS_PER_RADIAN,
     tileId
   };
 }
 
 function screenDirectionToTangent(direction, position, fallback) {
-  const origin = chartSheetPointForPosition(position);
-  const target = globePositionForChartSheetPoint(
-    origin.x + direction.x,
-    origin.y + direction.y
-  );
   return normalizeOrNull(projectTangentVector([
-    target[0] - position[0],
-    target[1] - position[1],
-    target[2] - position[2]
+    camera.right[0] * direction.x - camera.up[0] * direction.y,
+    camera.right[1] * direction.x - camera.up[1] * direction.y,
+    camera.right[2] * direction.x - camera.up[2] * direction.y
   ], position)) || normalizeTangentOrFallback(fallback, position, WORLD_NORTH);
 }
 
 function tangentToScreenDirection(direction) {
-  if (!ship?.position) return null;
-  return tangentToScreenDirectionAtPosition(direction, ship.position);
-}
-
-function tangentToScreenDirectionAtPosition(direction, position) {
   if (!camera) return null;
-  const tangent = normalizeOrNull(projectTangentVector(direction, position));
-  if (!tangent) return null;
-  const origin = chartSheetPointForPosition(position);
-  const step = normalize3([
-    position[0] + tangent[0] / PIXELS_PER_RADIAN,
-    position[1] + tangent[1] / PIXELS_PER_RADIAN,
-    position[2] + tangent[2] / PIXELS_PER_RADIAN
-  ]);
-  const target = chartSheetPointForPosition(step);
-  return normalizeScreenVector({ x: target.x - origin.x, y: target.y - origin.y });
+  return normalizeScreenVector({
+    x: dot3(direction, camera.right),
+    y: -dot3(direction, camera.up)
+  });
 }
 
 function riverGatewayDirectionAtLocalPoint(x, y, currentKind, desiredDirection) {
@@ -28852,6 +28742,11 @@ function drawDayNightWorld(layers, nowMs) {
     }
   });
   worldRenderer.endFrame();
+  lastPresentedOceanSwell = {
+    layout: localLayout,
+    swell,
+    surfaceIceRevision: surfaceIceSettledRevision
+  };
 }
 
 function drawCachedWorldLayer(key, layer, offset, revision) {
@@ -29197,7 +29092,6 @@ function render(nowMs) {
   drawAchievementNotice(nowMs);
   drawSavePersistenceWarning();
   drawStormLightningFlash(nowMs);
-  drawChartSeamOceanTransition(nowMs);
   if (telemetryConsentModal) drawTelemetryConsentModal();
   if (frameRateOverlayEnabled) drawFrameRateOverlay();
   if (CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
@@ -30243,24 +30137,141 @@ function layoutOffsetPixels() {
 }
 
 function chartProjectionOffsetPixels(activeChart) {
-  void activeChart;
-  const projectedCenter = chartSheetPointForPosition(camera.center);
-  const x = Math.round(projectedCenter.x - localLayout.viewX);
-  const y = Math.round(projectedCenter.y - localLayout.viewY);
+  const projectedCenter = projectDirectionFor(camera.center, activeChart, false);
+  if (!projectedCenter) return { x: 0, y: 0, magnitude: Infinity };
+  const x = Math.round(SCREEN_W / 2 - projectedCenter.x);
+  const y = Math.round(SCREEN_H / 2 - projectedCenter.y);
   return { x, y, magnitude: Math.hypot(x, y) };
 }
 
 function syncLocalLayout(projectedVisible, chartCenterTileId) {
-  void chartCenterTileId;
   const visibleAuthoritativePositions = captureVisibleAuthoritativeTilePositions();
-  synchronizeChartSheetPositions(localLayout.positions, projectedVisible);
+  const projectedById = new Map(projectedVisible.map((item) => [item.id, item]));
+  const admissionAnchorId = resolveLocalLayoutAnchor({
+    positions: localLayout.positions,
+    projectedById,
+    preferredAnchorId: chartCenterTileId,
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY
+  });
+  const correctionSupport = viewportElasticCorrectionSupport({
+    projectedTiles: projectedVisible,
+    protectionById: chartTileProtection,
+    elasticityMaskById: chartElasticCorrectionMask,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    tileVisualRadius: TILE_ART_HALF,
+    authoritativePositions: localLayout.positions,
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY
+  });
+  const correctionViewportIds = correctionSupport.viewportTileIds;
+  const admissionCorrectionActive = correctionSupport.correctionActive;
+  const viewportIsFullyElasticWater = [...correctionViewportIds].every((id) => (
+    chartTileProtection[id] === 0 && chartElasticCorrectionMask[id] !== 0
+  ));
+  const previousPresentation = lastPresentedOceanSwell?.layout === localLayout
+    ? lastPresentedOceanSwell
+    : null;
+  if (
+    admissionCorrectionActive &&
+    previousPresentation &&
+    previousPresentation.surfaceIceRevision === surfaceIceSettledRevision
+  ) {
+    const currentSwell = currentOceanSwellPresentation();
+    const movableTileIds = new Set();
+    const previousOffsetsById = new Map();
+    const currentOffsetsById = new Map();
+    for (const id of correctionSupport.elasticTileIds) {
+      if (
+        !isWaterSurfaceRow(earthById[id]) ||
+        tileHasSurfaceIce(id)
+      ) continue;
+      movableTileIds.add(id);
+      const globePosition = tileCenterVector(id);
+      previousOffsetsById.set(id, oceanSwellOffset(previousPresentation.swell, globePosition));
+      currentOffsetsById.set(id, oceanSwellOffset(currentSwell, globePosition));
+    }
+    settleVisibleElasticTilesWithinMotion({
+      positions: localLayout.positions,
+      projectedById,
+      protectionById: chartTileProtection,
+      movableTileIds,
+      previousOffsetsById,
+      currentOffsetsById,
+      anchorId: admissionAnchorId,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H,
+      tileVisualRadius: TILE_ART_HALF,
+      viewX: localLayout.viewX,
+      viewY: localLayout.viewY,
+      maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
+    });
+    // One displayed-to-current motion interval may hide settlement only once.
+    lastPresentedOceanSwell = null;
+  } else if (
+    previousPresentation &&
+    previousPresentation.surfaceIceRevision !== surfaceIceSettledRevision
+  ) {
+    lastPresentedOceanSwell = null;
+  }
+  refreshOffscreenLayoutTiles({
+    positions: localLayout.positions,
+    projectedTiles: projectedVisible,
+    protectionById: chartTileProtection,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    tileVisualRadius: LOCAL_LAYOUT_RETENTION_MARGIN_PX,
+    anchorId: admissionAnchorId,
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY
+  });
+
+  const pending = new Set();
+  for (const item of projectedVisible) {
+    if (!localLayout.positions.has(item.id)) pending.add(item.id);
+  }
+
+  pending.delete(admissionAnchorId);
+
+  admitProjectedTiles({
+    positions: localLayout.positions,
+    projectedById,
+    pendingIds: pending,
+    anchorId: admissionAnchorId,
+    neighborsById: graph.neighbors,
+    protectionById: chartTileProtection,
+    directProtectionComponentById: chartDirectProtectionComponentByTileId,
+    registrationIds: admissionCorrectionActive
+      ? correctionSupport.elasticTileIds
+      : correctionSupport.viewportTileIds,
+    rigidRegistrationIds: correctionSupport.viewportTileIds,
+    correctElasticTilesNorthUp: admissionCorrectionActive,
+    maxElasticCorrectionPx: admissionCorrectionActive
+      ? viewportIsFullyElasticWater
+        ? Math.hypot(SCREEN_W, SCREEN_H)
+        : MAX_ELASTIC_FRAME_CORRECTION_PX
+      : 0,
+    maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    continuityMaskById: chartLandContinuityMask,
+    maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    protectedCorrectionViewportIds: correctionViewportIds,
+    liveViewportAdmissionIds: correctionViewportIds
+  });
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
 }
 
 function captureVisibleAuthoritativeTilePositions() {
   const captured = new Map();
   for (const [id, position] of localLayout.positions.entries()) {
-    if (!localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX)) continue;
+    const row = earthById[id];
+    const canSettleInsideSwell = isWaterSurfaceRow(row) &&
+      chartTileProtection[id] === 0 &&
+      !tileHasSurfaceIce(id);
+    if (
+      canSettleInsideSwell ||
+      !localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX)
+    ) continue;
     captured.set(id, { x: position.x, y: position.y });
   }
   return captured;
@@ -30306,9 +30317,6 @@ function localLayoutPositionOverlapsViewport(position, paddingPx) {
 }
 
 function buildChart(anchorCamera) {
-  if (activeChartSeamRegionId === null && chartSeamAtlas && ship?.position) {
-    synchronizeActiveChartSeamRegion();
-  }
   const chartCamera = {
     center: anchorCamera.center.slice(),
     right: anchorCamera.right.slice(),
@@ -37752,7 +37760,7 @@ function collectChartTiles(chartCamera, chartCenterTileId) {
     const p = projectTileCenterFor(id, chartCamera);
     if (!p) continue;
     if (p.x >= -CHART_MARGIN && p.x <= SCREEN_W + CHART_MARGIN && p.y >= -CHART_MARGIN && p.y <= SCREEN_H + CHART_MARGIN) {
-      visible.push({ id, ...p });
+      visible.push({ id, x: p.x, y: p.y });
     }
 
     if (p.x >= -CHART_MARGIN * 1.2 && p.x <= SCREEN_W + CHART_MARGIN * 1.2 && p.y >= -CHART_MARGIN * 1.2 && p.y <= SCREEN_H + CHART_MARGIN * 1.2) {
@@ -37775,7 +37783,7 @@ function collectChartTiles(chartCamera, chartCenterTileId) {
       if (!projected) {
         throw new Error(`Cannot retain visible local tile in chart projection: ${id}`);
       }
-      visible.push({ id, ...projected });
+      visible.push({ id, x: projected.x, y: projected.y });
       collectedIds.add(id);
     }
   }
@@ -37784,17 +37792,8 @@ function collectChartTiles(chartCamera, chartCenterTileId) {
 }
 
 function projectTileCenterFor(id, view) {
-  void view;
   const center = graphCenter(graph, id, scratchVec);
-  const layout = chartSheetPointForPosition(center);
-  const layoutX = Math.round(layout.x);
-  const layoutY = Math.round(layout.y);
-  return {
-    x: Math.round(SCREEN_W / 2 + layoutX - localLayout.viewX),
-    y: Math.round(SCREEN_H / 2 + layoutY - localLayout.viewY),
-    layoutX,
-    layoutY
-  };
+  return projectDirectionFor(center, view, true);
 }
 
 const scratchVec = [0, 0, 0];

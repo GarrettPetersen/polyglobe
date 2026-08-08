@@ -31,9 +31,6 @@ function resolveStaticPath(urlPath) {
   if (urlPath === "/earth-globe-cache-7.json" || urlPath === "/shared/earth-globe-cache-7.json") {
     return join(sharedDataRoot, "earth-globe-cache-7.json");
   }
-  if (urlPath === "/shared/chart-seam-atlas-7.json") {
-    return join(sharedDataRoot, "chart-seam-atlas-7.json");
-  }
   if (urlPath === "/shared/mountains.json") {
     return join(sharedDataRoot, "mountains.json");
   }
