@@ -60,6 +60,7 @@ import {
   quadraticBezierTangent
 } from "./pixelBezier.js";
 import { projectedRiverEdgeDirection } from "./riverEdgeProjection.js";
+import { riverConnectorRasterKey } from "./riverConnectorRasterCache.js";
 import { approximateOceanRumorTileId } from "./oceanRumorSearch.js";
 import {
   CREW_STATUS_ICON_HEIGHT,
@@ -30548,7 +30549,7 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
   const buckets = new Map();
   const tileRows = new Map();
   const riverPaths = new Map();
-  const riverConnectorWaterPoints = new WeakMap();
+  const riverConnectorWaterPoints = new Map();
   const riverTileWaterPoints = new Map();
   for (const [drawOrder, call] of tileCalls.entries()) {
     addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
@@ -30564,7 +30565,7 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
     if (!geometry) {
       // Elastic chart placement can temporarily collapse adjacent river endpoints
       // onto the same pixel. There is then no visible span to index or render.
-      riverConnectorWaterPoints.set(call, new Int32Array());
+      riverConnectorWaterPoints.set(riverConnectorRasterKey(call), new Int32Array());
       continue;
     }
     const { path } = geometry;
@@ -30581,7 +30582,7 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
       path,
       waterPixels: waterRaster.keys
     });
-    riverConnectorWaterPoints.set(call, waterRaster.points);
+    riverConnectorWaterPoints.set(riverConnectorRasterKey(call), waterRaster.points);
     riverPaths.set(`connector:${call.a}:${call.b}`, Object.freeze({
       path,
       pathOffsetX: 0,
@@ -38576,7 +38577,9 @@ function drawRiverConnectorRaster(call, activeChart, targetCtx = ctx) {
 }
 
 function riverConnectorSpriteDrawCall(call, activeChart) {
-  const points = activeChart?.waterIndex?.riverConnectorWaterPoints?.get(call);
+  const points = activeChart?.waterIndex?.riverConnectorWaterPoints?.get(
+    riverConnectorRasterKey(call)
+  );
   if (!points) {
     throw new Error(`River connector ${call.a}:${call.b} is missing its water raster`);
   }
@@ -38702,7 +38705,9 @@ function visibleRiverWaterPixelRaster(activeChart, tileCalls, riverConnectorCall
     pointGroups.push(cachedRiverTileWaterPoints(call, activeChart, mask));
   }
   for (const call of riverConnectorCalls) {
-    const points = activeChart.waterIndex.riverConnectorWaterPoints.get(call);
+    const points = activeChart.waterIndex.riverConnectorWaterPoints.get(
+      riverConnectorRasterKey(call)
+    );
     if (!points) {
       throw new Error(`Visible river connector ${call.a}:${call.b} is missing its raster cache`);
     }

@@ -8,6 +8,9 @@ export const MAX_ELASTIC_FRAME_CORRECTION_PX = 29;
 export const MAX_PROTECTED_ADMISSION_SLACK_PX = 3;
 const MAX_ELASTIC_ROTATION_CORRECTION_RAD = Math.PI;
 const MIN_ELASTIC_CORRECTION_TILES = 3;
+// Two independently admitted endpoints may each use the protected slack;
+// integer raster placement supplies the remaining two-pixel tolerance.
+const MAX_PROTECTED_STITCH_ERROR_PX = MAX_PROTECTED_ADMISSION_SLACK_PX * 2 + 2.1;
 
 function registeredProjectionFrame(positions, projectedById, anchorId, registrationIds) {
   const anchorPosition = positions.get(anchorId);
@@ -180,12 +183,141 @@ function directlyProtectedAdmissionPoints({
   neighborsById,
   protectionById,
   directProtectionComponentById,
+  rigidRegistrationIds,
+  fallbackFrame,
   targetFrame,
-  maxProtectedCorrectionPx
+  maxProtectedCorrectionPx,
+  liveViewportAdmissionIds
 }) {
   const pendingDirectIds = new Set(pending.filter((id) => protectionById[id] === 255));
   if (pendingDirectIds.size === 0) return new Map();
+  if (maxProtectedCorrectionPx === 0) {
+    return rigidProtectedAdmissionPoints({
+      positions,
+      projectedById,
+      pendingDirectIds,
+      neighborsById,
+      protectionById,
+      directProtectionComponentById,
+      targetFrame
+    });
+  }
 
+  const livePendingIds = liveViewportAdmissionIds === null
+    ? pendingDirectIds
+    : new Set([...pendingDirectIds].filter((id) => liveViewportAdmissionIds.has(id)));
+  const hiddenPendingIds = new Set(
+    [...pendingDirectIds].filter((id) => !livePendingIds.has(id))
+  );
+  const components = [livePendingIds, hiddenPendingIds].flatMap((ids) => (
+    ids.size === 0
+      ? []
+      : pendingDirectComponentsByAdjacency({ neighborsById, pendingDirectIds: ids })
+  ));
+  const workingPositions = new Map(positions);
+  const pointByPendingId = new Map();
+  for (const pendingComponentIds of components) {
+    validatePendingDirectComponent({
+      pendingComponentIds,
+      directProtectionComponentById
+    });
+    const retainedIds = protectedRetainedComponentIds({
+      positions: workingPositions,
+      projectedById,
+      pendingIds: pendingComponentIds,
+      neighborsById,
+      protectionById,
+      rigidRegistrationIds
+    });
+    const entersLiveViewport = livePendingIds.has(pendingComponentIds[0]);
+    let componentFrame = targetFrame;
+    if (entersLiveViewport && retainedIds.length === 1) {
+      const retainedId = retainedIds[0];
+      componentFrame = {
+        anchorPosition: workingPositions.get(retainedId),
+        anchorProjected: projectedById.get(retainedId),
+        cos: fallbackFrame.cos,
+        sin: fallbackFrame.sin
+      };
+    } else if (entersLiveViewport && retainedIds.length > 1) {
+      componentFrame = registeredProjectionFrame(
+        workingPositions,
+        projectedById,
+        retainedIds[0],
+        new Set(retainedIds)
+      );
+    }
+    if (retainedIds.length > 0) {
+      componentFrame = boundaryFittedFrame({
+        positions: workingPositions,
+        projectedById,
+        pending: pendingComponentIds,
+        neighborsById,
+        protectionById,
+        rotation: entersLiveViewport
+          ? Math.atan2(componentFrame.sin, componentFrame.cos)
+          : Math.atan2(targetFrame.sin, targetFrame.cos),
+        fallbackFrame: componentFrame,
+        directProtectedBoundariesOnly: true
+      });
+    }
+    const componentRotation = Math.atan2(componentFrame.sin, componentFrame.cos);
+    const targetRotation = Math.atan2(targetFrame.sin, targetFrame.cos);
+    const rotationCorrection = clampMagnitude(
+      normalizeRadians(targetRotation - componentRotation),
+      protectedRotationCorrectionLimit({
+        pendingComponentIds,
+        projectedById,
+        neighborsById,
+        protectionById,
+        maximumEdgeShiftPx: maxProtectedCorrectionPx
+      })
+    );
+    if (Math.abs(rotationCorrection) > 1e-9) {
+      componentFrame = boundaryFittedFrame({
+        positions: workingPositions,
+        projectedById,
+        pending: pendingComponentIds,
+        neighborsById,
+        protectionById,
+        rotation: componentRotation + rotationCorrection,
+        fallbackFrame: componentFrame,
+        directProtectedBoundariesOnly: retainedIds.length > 0
+      });
+    }
+    const componentPoints = new Map();
+    for (const id of pendingComponentIds) {
+      const projected = projectedById.get(id);
+      assertFinitePoint(projected, `Projected protected tile ${id}`);
+      componentPoints.set(id, registeredPoint(projected, componentFrame));
+    }
+    relaxProtectedComponentEdges({
+      componentPoints,
+      pendingComponentIds,
+      positions: workingPositions,
+      projectedById,
+      neighborsById,
+      protectionById,
+      targetFrame: componentFrame,
+      maximumEdgeErrorPx: maxProtectedCorrectionPx
+    });
+    for (const [id, point] of componentPoints) {
+      pointByPendingId.set(id, point);
+      workingPositions.set(id, point);
+    }
+  }
+  return pointByPendingId;
+}
+
+function rigidProtectedAdmissionPoints({
+  positions,
+  projectedById,
+  pendingDirectIds,
+  neighborsById,
+  protectionById,
+  directProtectionComponentById,
+  targetFrame
+}) {
   const components = pendingDirectComponentsByAdjacency({
     neighborsById,
     pendingDirectIds
@@ -220,21 +352,9 @@ function directlyProtectedAdmissionPoints({
         protectionById,
         fallbackFrame: targetFrame
       });
-      const source = registeredPoint(projected, adjacencyFrame);
-      const target = registeredPoint(projected, targetFrame);
-      const corrected = immediateNeighborIds.length === 0
-        ? target
-        : protectedPointWithinAdjacencyCircle({
-          source,
-          target,
-          maximumDistance: maxProtectedCorrectionPx,
-          immediateNeighborIds,
-          workingPositions,
-          projectedById,
-          projected
-        });
-      pointByPendingId.set(id, corrected);
-      workingPositions.set(id, corrected);
+      const point = registeredPoint(projected, adjacencyFrame);
+      pointByPendingId.set(id, point);
+      workingPositions.set(id, point);
     }
   }
   return pointByPendingId;
@@ -316,60 +436,126 @@ function protectedAdjacencyFrame({
   );
 }
 
-function protectedPointWithinAdjacencyCircle({
-  source,
-  target,
-  maximumDistance,
-  immediateNeighborIds,
-  workingPositions,
+function protectedRotationCorrectionLimit({
+  pendingComponentIds,
   projectedById,
-  projected
+  neighborsById,
+  protectionById,
+  maximumEdgeShiftPx
 }) {
-  if (maximumDistance <= 0) return source;
-  const radius = Math.floor(maximumDistance);
-  let best = null;
-  for (let offsetY = -radius; offsetY <= radius; offsetY++) {
-    for (let offsetX = -radius; offsetX <= radius; offsetX++) {
-      if (Math.hypot(offsetX, offsetY) > maximumDistance) continue;
-      const candidate = { x: source.x + offsetX, y: source.y + offsetY };
-      let maximumSeparation = 0;
-      for (const neighborId of immediateNeighborIds) {
-        const neighborPosition = workingPositions.get(neighborId);
-        const neighborProjected = projectedById.get(neighborId);
-        const expectedDistance = Math.hypot(
-          projected.x - neighborProjected.x,
-          projected.y - neighborProjected.y
-        );
-        maximumSeparation = Math.max(
-          maximumSeparation,
-          Math.max(
-            0,
-            Math.hypot(
-              candidate.x - neighborPosition.x,
-              candidate.y - neighborPosition.y
-            ) - expectedDistance
-          )
-        );
-      }
-      const score = [
-        Math.max(0, maximumSeparation - maximumDistance),
-        Math.hypot(candidate.x - target.x, candidate.y - target.y),
-        maximumSeparation
-      ];
-      if (!best || compareNumericTuples(score, best.score) < 0) {
-        best = { point: candidate, score };
-      }
+  if (maximumEdgeShiftPx <= 0) return 0;
+  let maximumEdgeLength = 0;
+  const pendingSet = new Set(pendingComponentIds);
+  for (const id of pendingComponentIds) {
+    for (const neighborId of neighborsById[id]) {
+      if (
+        protectionById[neighborId] !== 255 ||
+        !projectedById.has(neighborId) ||
+        (pendingSet.has(neighborId) && neighborId < id)
+      ) continue;
+      maximumEdgeLength = Math.max(maximumEdgeLength, Math.hypot(
+        projectedById.get(id).x - projectedById.get(neighborId).x,
+        projectedById.get(id).y - projectedById.get(neighborId).y
+      ));
     }
   }
-  if (!best) throw new Error("Protected adjacency circle produced no pixel candidates");
-  return best.point;
+  if (maximumEdgeLength <= 1e-9) return 0;
+  return 2 * Math.asin(Math.min(1, maximumEdgeShiftPx / (2 * maximumEdgeLength)));
 }
 
-function compareNumericTuples(left, right) {
-  for (let index = 0; index < left.length; index++) {
-    if (left[index] !== right[index]) return left[index] - right[index];
+function normalizeRadians(value) {
+  let normalized = value;
+  while (normalized <= -Math.PI) normalized += Math.PI * 2;
+  while (normalized > Math.PI) normalized -= Math.PI * 2;
+  return normalized;
+}
+
+function relaxProtectedComponentEdges({
+  componentPoints,
+  pendingComponentIds,
+  positions,
+  projectedById,
+  neighborsById,
+  protectionById,
+  targetFrame,
+  maximumEdgeErrorPx
+}) {
+  const pendingSet = new Set(pendingComponentIds);
+  const edgeConstraints = [];
+  for (const id of pendingComponentIds) {
+    for (const neighborId of neighborsById[id]) {
+      if (
+        protectionById[neighborId] !== 255 ||
+        !projectedById.has(neighborId) ||
+        (!pendingSet.has(neighborId) && !positions.has(neighborId)) ||
+        (pendingSet.has(neighborId) && neighborId < id)
+      ) continue;
+      const projectedDx = projectedById.get(id).x - projectedById.get(neighborId).x;
+      const projectedDy = projectedById.get(id).y - projectedById.get(neighborId).y;
+      edgeConstraints.push({
+        id,
+        neighborId,
+        neighborIsPending: pendingSet.has(neighborId),
+        expectedDistance: Math.hypot(projectedDx, projectedDy),
+        expectedDx: projectedDx * targetFrame.cos - projectedDy * targetFrame.sin,
+        expectedDy: projectedDx * targetFrame.sin + projectedDy * targetFrame.cos
+      });
+    }
   }
-  return 0;
+  if (edgeConstraints.length === 0) return;
+  // Keep a little headroom for integer-pixel rounding and for components
+  // constrained by more than one retained coastline boundary.
+  const allowedError = Math.max(0, maximumEdgeErrorPx - 1);
+  for (let iteration = 0; iteration < 96; iteration++) {
+    let maximumViolation = 0;
+    const reverse = iteration % 2 === 1;
+    for (let edgeIndex = 0; edgeIndex < edgeConstraints.length; edgeIndex++) {
+      const constraint = edgeConstraints[
+        reverse ? edgeConstraints.length - edgeIndex - 1 : edgeIndex
+      ];
+      const point = componentPoints.get(constraint.id);
+      const neighbor = constraint.neighborIsPending
+        ? componentPoints.get(constraint.neighborId)
+        : positions.get(constraint.neighborId);
+      const errorX = point.x - neighbor.x - constraint.expectedDx;
+      const errorY = point.y - neighbor.y - constraint.expectedDy;
+      const error = Math.hypot(errorX, errorY);
+      const violation = error - allowedError;
+      if (violation <= 0) continue;
+      maximumViolation = Math.max(maximumViolation, violation);
+      const correctionScale = violation / error;
+      const moveScale = constraint.neighborIsPending ? 0.5 : 1;
+      point.x -= errorX * correctionScale * moveScale;
+      point.y -= errorY * correctionScale * moveScale;
+      if (constraint.neighborIsPending) {
+        neighbor.x += errorX * correctionScale * moveScale;
+        neighbor.y += errorY * correctionScale * moveScale;
+      }
+    }
+    if (maximumViolation < 0.05) break;
+  }
+  for (const [id, point] of componentPoints) {
+    componentPoints.set(id, {
+      x: roundPixel(point.x),
+      y: roundPixel(point.y)
+    });
+  }
+  for (const constraint of edgeConstraints) {
+    const point = componentPoints.get(constraint.id);
+    const neighbor = constraint.neighborIsPending
+      ? componentPoints.get(constraint.neighborId)
+      : positions.get(constraint.neighborId);
+    const error = Math.abs(
+      Math.hypot(point.x - neighbor.x, point.y - neighbor.y) - constraint.expectedDistance
+    );
+    if (error > MAX_PROTECTED_STITCH_ERROR_PX) {
+      throw new Error(
+        `Protected chart edge ${constraint.id}:${constraint.neighborId} cannot be stitched ` +
+          `within ${MAX_PROTECTED_STITCH_ERROR_PX.toFixed(2)}px ` +
+          `(error ${error.toFixed(2)}px)`
+      );
+    }
+  }
 }
 
 function gradedContinuityCorrectionLimits({
@@ -486,6 +672,48 @@ function validatePendingDirectComponent({
     }
   }
   return expectedComponentId;
+}
+
+function protectedRetainedComponentIds({
+  positions,
+  projectedById,
+  pendingIds,
+  neighborsById,
+  protectionById,
+  rigidRegistrationIds
+}) {
+  const pendingSet = new Set(pendingIds);
+  const retainedIds = new Set();
+  const queue = [];
+  for (const pendingId of pendingIds) {
+    for (const neighborId of neighborsById[pendingId]) {
+      if (
+        pendingSet.has(neighborId) ||
+        protectionById[neighborId] !== 255 ||
+        !positions.has(neighborId) ||
+        !projectedById.has(neighborId) ||
+        (rigidRegistrationIds && !rigidRegistrationIds.has(neighborId))
+      ) continue;
+      retainedIds.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
+    for (const neighborId of neighborsById[id]) {
+      if (
+        retainedIds.has(neighborId) ||
+        pendingSet.has(neighborId) ||
+        protectionById[neighborId] !== 255 ||
+        !positions.has(neighborId) ||
+        !projectedById.has(neighborId) ||
+        (rigidRegistrationIds && !rigidRegistrationIds.has(neighborId))
+      ) continue;
+      retainedIds.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  return [...retainedIds];
 }
 
 export function admitProjectedTiles({
@@ -605,8 +833,11 @@ export function admitProjectedTiles({
     neighborsById,
     protectionById,
     directProtectionComponentById,
+    rigidRegistrationIds,
+    fallbackFrame: registeredFrame,
     targetFrame: translatedFrame,
-    maxProtectedCorrectionPx
+    maxProtectedCorrectionPx,
+    liveViewportAdmissionIds
   });
   const continuityCorrectionLimitById = gradedContinuityCorrectionLimits({
     pendingIds: pending,
