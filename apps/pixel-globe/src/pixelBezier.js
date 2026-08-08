@@ -1,4 +1,7 @@
-const QUADRATIC_BEZIER_PROBE_SEGMENTS = 20;
+// River curves span only a few logical pixels. Eight cached segments keep the
+// closest-point error sub-pixel while avoiding twenty projections per ship
+// probe on every navigation step.
+const QUADRATIC_BEZIER_PROBE_SEGMENTS = 8;
 const quadraticBezierGeometryCache = new WeakMap();
 
 export function quadraticBezierPoint(path, t) {

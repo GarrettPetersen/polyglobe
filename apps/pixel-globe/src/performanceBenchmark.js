@@ -166,6 +166,7 @@ function distribution(values) {
   const sorted = [...values].sort((a, b) => a - b);
   const total = sorted.reduce((sum, value) => sum + value, 0);
   return Object.freeze({
+    count: sorted.length,
     mean: roundTo(total / sorted.length, 3),
     p50: roundTo(percentile(sorted, 0.5), 3),
     p95: roundTo(percentile(sorted, 0.95), 3),

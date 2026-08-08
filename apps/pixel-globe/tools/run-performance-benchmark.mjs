@@ -135,7 +135,7 @@ function printReport(report, output) {
       `  CPU time: ${report.cpuTimeMs.mean} ms mean, ${report.cpuTimeMs.p95} ms p95`,
       `  Stages: ${Object.entries(report.stages || {})
         .sort((a, b) => b[1].mean - a[1].mean)
-        .map(([name, timing]) => `${name} ${timing.mean} ms`)
+        .map(([name, timing]) => `${name} ${timing.mean} ms/${timing.count}x`)
         .join(", ")}`,
       `  Long frames: ${report.longFrames.over20Ms} >20 ms, ${report.longFrames.over33Ms} >33 ms, ` +
         `${report.longFrames.over50Ms} >50 ms`,

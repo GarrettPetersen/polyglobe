@@ -1324,10 +1324,11 @@ import {
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
+import { riverBankTerrainCalls } from "./riverBankOutline.js";
 import {
-  riverBankTerrainCalls,
-  visibleRiverBankPixelsFromRows
-} from "./riverBankOutline.js";
+  createRiverWaterRaster,
+  riverBankPointsFromRaster
+} from "./riverBankRaster.js";
 import {
   dayNightPaletteVariant,
   prepareDayNightPalette
@@ -1992,8 +1993,8 @@ const WIND_INDICATOR_TURN_RATE_RAD = Math.PI * 1.35;
 const WIND_INDICATOR_STRENGTH_LERP_PER_SECOND = 2.4;
 const WIND_INDICATOR_WARNING_LERP_PER_SECOND = 8;
 const WIND_INDICATOR_STALL_PULSE_MS = 900;
-const RIVER_HIGHLIGHT_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 125;
+const BEACH_WAVE_REDRAW_MS = 250;
 const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 125;
 const PRECIP_PARTICLE_REDRAW_MS = 80;
@@ -2784,13 +2785,9 @@ const coralReefWaterMaskCache = new WeakMap();
 const coralReefBeachPixelCache = new WeakMap();
 const coralReefMaskedSpriteCache = new WeakMap();
 const surfaceDetailLayerCache = new WeakMap();
-const surfaceDetailRiverLayerCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
 const TERRAIN_CONNECTOR_LAYER_MARGIN_PX = 128;
 const WATER_FOREGROUND_LAYER_MARGIN_PX = 160;
-const SURFACE_DETAIL_REDRAW_MS = 500;
-const SURFACE_DETAIL_RIVER_FRAME_COUNT = RIVER_HIGHLIGHT_FRAME_MS * 2 /
-  SURFACE_DETAIL_REDRAW_MS;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
 const pixelTextWidthCache = new Map();
@@ -2925,6 +2922,7 @@ let worldClockProcessedMinutes = null;
 let worldSimulationScheduler = createWorldSimulationScheduler();
 let distantWorldWorkerClient = null;
 const pendingDistantWorldEvents = [];
+let distantWorldApplyState = null;
 const worldSpatialIndex = createSpatialHash({ cellSize: 32 });
 let worldSpatialChart = null;
 let worldSpatialWildlifeChart = null;
@@ -2959,7 +2957,11 @@ const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
 const stormWaveWashMaskCache = new WeakMap();
 const shipTerrainRiverBankCache = new Map();
+const shipTerrainRiverBankLayerCache = new WeakMap();
 const riverTileLocalWaterPointCache = new Map();
+const riverConnectorSpriteCache = new Map();
+const riverSurfaceBatchKeyByLayer = new WeakMap();
+let nextRiverSurfaceBatchKey = 1;
 const wavingFactionFlagAtlasCache = new Map();
 const landRoadLayerCache = new WeakMap();
 const terrainImagePixelCache = new WeakMap();
@@ -5448,6 +5450,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     gameOver: Boolean(gameOverReason),
     goldTreasureActive: Boolean(goldTreasureSequence)
   });
+  let chartRebuiltThisFrame = false;
   if (!simulationPaused) {
     advanceActivePlayTime(gameState, dt);
     if (!CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
@@ -5480,7 +5483,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateColonizationQuest()) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
-    measurePerformanceBenchmarkStage("chart", () => ensureChart());
+    chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
     measurePerformanceBenchmarkStage("chart.drift", () => measureChartDriftAtInterval(nowMs));
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
@@ -5507,7 +5510,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     schedulePeriodicAutosave(nowMs);
   }
   if (!simulationPaused && updateWorldSpriteAnimation(nowMs)) dirty = true;
-  if (shouldRenderFrame({
+  const renderDue = shouldRenderFrame({
     forceRender,
     dirty,
     continuousAnimation: Boolean(startMenu),
@@ -5515,12 +5518,13 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     nowMs,
     lastStatusMs,
     statusIntervalMs: 1000
-  })) {
+  });
+  if (renderDue && (!chartRebuiltThisFrame || forceRender)) {
     dirty = false;
     measurePerformanceBenchmarkStage("render", () => render(nowMs));
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
-  } else if (!simulationPaused && !startMenu && !creditsMenu.isOpen && !playerIntroModal &&
+  } else if (!renderDue && !simulationPaused && !startMenu && !creditsMenu.isOpen && !playerIntroModal &&
       nowMs - lastOverlayMs > 250) {
     if (minimapShouldBeVisible()) drawMinimap(nowMs);
     drawSurvivalMeters();
@@ -24111,6 +24115,7 @@ function resetDistantWorldWorkerSchedule() {
     throw new Error("Cannot schedule the distant world before its systems exist");
   }
   pendingDistantWorldEvents.length = 0;
+  distantWorldApplyState = null;
   distantWorldWorkerClient.reset({
     economyMinute: nextWorldEconomyEventMinute(worldEconomy),
     maintenanceMinute: nextDistantWorldMaintenanceMinute(weatherClockMinutes),
@@ -24258,7 +24263,9 @@ function updateNpcShips(dt) {
   if (!distantWorldWorkerClient) {
     throw new Error("NPC simulation requires the distant-world worker");
   }
-  distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
+  if (!distantWorldApplyState && pendingDistantWorldEvents.length === 0) {
+    distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
+  }
   const scheduled = measurePerformanceBenchmarkStage(
     "npcShips.scheduled",
     () => worldSimulationScheduler.advance(dt)
@@ -24266,10 +24273,13 @@ function updateNpcShips(dt) {
   let scheduledChanged = false;
   for (const result of scheduled.values()) scheduledChanged ||= result.changed;
   let distantChanged = false;
-  if (pendingDistantWorldEvents.length > 0) {
+  if (!distantWorldApplyState && pendingDistantWorldEvents.length > 0) {
+    distantWorldApplyState = createDistantWorldApplyState(pendingDistantWorldEvents.shift());
+  }
+  if (distantWorldApplyState) {
     distantChanged = measurePerformanceBenchmarkStage(
       "npcShips.workerApply",
-      () => applyDistantWorldSimulationResult(pendingDistantWorldEvents.shift())
+      () => advanceDistantWorldSimulationApply()
     );
   }
   return distantChanged || scheduledChanged;
@@ -24307,7 +24317,7 @@ function distantWorldRuntimeState() {
   };
 }
 
-function applyDistantWorldSimulationResult(event) {
+function createDistantWorldApplyState(event) {
   const result = event?.simulation;
   if (!result?.before || !result?.after || !Array.isArray(result.foreignPortCalls) ||
       !Array.isArray(result.protectedNpcShipIds) || !Array.isArray(result.changedParts)) {
@@ -24317,35 +24327,96 @@ function applyDistantWorldSimulationResult(event) {
   if (result.changedParts.some((key) => !validParts.has(key))) {
     throw new Error(`Distant-world worker returned an unknown changed part: ${result.changedParts}`);
   }
-  const current = {};
-  if (result.changedParts.includes("economy")) {
-    current.economy = snapshotWorldEconomy(worldEconomy);
-  }
-  if (result.changedParts.includes("landTrade")) {
-    current.landTrade = snapshotLandTradeSystem(landTradeSystem);
-  }
-  if (result.changedParts.includes("npcRoutes")) {
-    current.npcRoutes = snapshotNpcSeaRouteStrategicSystem(npcSeaRoutes);
-  }
-  const protectedNpcShipIds = new Set(result.protectedNpcShipIds);
-  const comparableCurrent = distantWorldSnapshotsWithoutNpcShips(current, protectedNpcShipIds);
-  const comparableBefore = distantWorldSnapshotsWithoutNpcShips(result.before, protectedNpcShipIds);
-  if (result.changedParts.some((key) => (
-    !distantWorldValuesEqual(comparableCurrent[key], comparableBefore[key])
-  ))) {
-    const changedParts = result.changedParts
-      .filter((key) => !distantWorldValuesEqual(comparableCurrent[key], comparableBefore[key]));
-    console.info(
-      `[pixel-globe] discarded stale distant-world result after local ${changedParts.join("/")} changed`
-    );
-    resetDistantWorldWorkerSchedule();
+  return {
+    result,
+    phase: "snapshot",
+    partIndex: 0,
+    current: {},
+    comparableCurrent: {},
+    comparableBefore: {},
+    staleParts: [],
+    visualFleetChanged: false
+  };
+}
+
+function advanceDistantWorldSimulationApply() {
+  const state = distantWorldApplyState;
+  if (!state) throw new Error("Distant-world apply advanced without pending state");
+  const { result } = state;
+  if (result.changedParts.length === 0) return finishDistantWorldSimulationApply(state);
+  const key = result.changedParts[state.partIndex];
+  if (!key) throw new Error(`Distant-world apply lost part ${state.partIndex}`);
+
+  if (state.phase === "snapshot") {
+    state.current[key] = snapshotCurrentDistantWorldPart(key);
+    state.phase = "compare";
     return false;
   }
-  if (result.changedParts.includes("economy")) {
-    restoreWorldEconomy(worldEconomy, result.after.economy, { seedKey: gameState.voyageSeed });
+  if (state.phase === "compare") {
+    const protectedNpcShipIds = new Set(result.protectedNpcShipIds);
+    state.comparableCurrent[key] = distantWorldPartWithoutNpcShips(
+      key,
+      state.current[key],
+      protectedNpcShipIds
+    );
+    state.comparableBefore[key] = distantWorldPartWithoutNpcShips(
+      key,
+      result.before[key],
+      protectedNpcShipIds
+    );
+    if (!distantWorldValuesEqual(state.comparableCurrent[key], state.comparableBefore[key])) {
+      state.staleParts.push(key);
+    }
+    state.partIndex++;
+    if (state.partIndex < result.changedParts.length) {
+      state.phase = "snapshot";
+      return false;
+    }
+    if (state.staleParts.length > 0) {
+      const changedParts = state.staleParts;
+      distantWorldApplyState = null;
+      console.info(
+        `[pixel-globe] discarded stale distant-world result after local ${changedParts.join("/")} changed`
+      );
+      resetDistantWorldWorkerSchedule();
+      return false;
+    }
+    state.phase = "restore";
+    state.partIndex = 0;
+    return false;
   }
-  if (result.changedParts.includes("landTrade")) {
-    restoreLandTradeSystem(landTradeSystem, result.after.landTrade, {
+  if (state.phase !== "restore") {
+    throw new Error(`Unknown distant-world apply phase: ${state.phase}`);
+  }
+  restoreDistantWorldPart(key, result.after[key], result.protectedNpcShipIds, state);
+  state.partIndex++;
+  if (state.partIndex < result.changedParts.length) return false;
+  return finishDistantWorldSimulationApply(state);
+}
+
+function snapshotCurrentDistantWorldPart(key) {
+  if (key === "economy") return snapshotWorldEconomy(worldEconomy);
+  if (key === "landTrade") return snapshotLandTradeSystem(landTradeSystem);
+  if (key === "npcRoutes") return snapshotNpcSeaRouteStrategicSystem(npcSeaRoutes);
+  throw new Error(`Cannot snapshot unknown distant-world part: ${key}`);
+}
+
+function distantWorldPartWithoutNpcShips(key, snapshot, shipIds) {
+  if (key !== "npcRoutes") return snapshot;
+  if (!snapshot) throw new Error("Distant-world NPC comparison requires a route snapshot");
+  return {
+    ...snapshot,
+    ships: snapshot.ships.filter((entry) => !shipIds.has(entry.id))
+  };
+}
+
+function restoreDistantWorldPart(key, snapshot, protectedNpcShipIds, state) {
+  if (key === "economy") {
+    restoreWorldEconomy(worldEconomy, snapshot, { seedKey: gameState.voyageSeed });
+    return;
+  }
+  if (key === "landTrade") {
+    restoreLandTradeSystem(landTradeSystem, snapshot, {
       seedKey: gameState.voyageSeed,
       relationBetween: currentDiplomacyBetween,
       foreignSettlementExpulsions: gameState.relations.foreignSettlementExpulsions,
@@ -24354,30 +24425,28 @@ function applyDistantWorldSimulationResult(event) {
       ),
       suzeraintyMemory: gameState.relations.diplomacy.suzerainties
     });
+    return;
   }
-  let visualFleetChanged = false;
-  if (result.changedParts.includes("npcRoutes")) {
-    applyNpcSeaRouteSimulationSnapshot(npcSeaRoutes, result.after.npcRoutes, {
-      preserveShipIds: result.protectedNpcShipIds
+  if (key === "npcRoutes") {
+    applyNpcSeaRouteSimulationSnapshot(npcSeaRoutes, snapshot, {
+      preserveShipIds: protectedNpcShipIds
     });
-    visualFleetChanged = releaseNpcVisualStatesWithoutStrategicState();
+    state.visualFleetChanged = releaseNpcVisualStatesWithoutStrategicState();
+    return;
   }
+  throw new Error(`Cannot restore unknown distant-world part: ${key}`);
+}
+
+function finishDistantWorldSimulationApply(state) {
+  if (state !== distantWorldApplyState) {
+    throw new Error("Distant-world apply finished with stale state");
+  }
+  const { result } = state;
   for (const call of result.foreignPortCalls) {
     recordNpcDiplomaticPortCall(call.visitorFactionId, call.hostFactionId, call.minute);
   }
-  return Boolean(result.changed || visualFleetChanged || result.foreignPortCalls.length > 0);
-}
-
-function distantWorldSnapshotsWithoutNpcShips(snapshot, shipIds) {
-  if (!(shipIds instanceof Set)) throw new Error("Distant-world protection requires a ship-id set");
-  if (!snapshot.npcRoutes) return snapshot;
-  return {
-    ...snapshot,
-    npcRoutes: {
-      ...snapshot.npcRoutes,
-      ships: snapshot.npcRoutes.ships.filter((entry) => !shipIds.has(entry.id))
-    }
-  };
+  distantWorldApplyState = null;
+  return Boolean(result.changed || state.visualFleetChanged || result.foreignPortCalls.length > 0);
 }
 
 function updateNpcVisualShips(dt) {
@@ -28605,11 +28674,9 @@ function drawDayNightWorld(layers, nowMs) {
         layers.offset,
         layers.surface.static.weatherRevision
       );
-      drawCachedWorldLayer(
-        `surface-details-rivers-${layers.surface.rivers.frameIndex}`,
-        layers.surface.rivers,
-        layers.offset,
-        layers.surface.rivers.revision
+      measurePerformanceBenchmarkStage(
+        "render.terrain.surface.rivers",
+        () => drawRiverSurfaceAtlas(layers.surface.static, layers.offset)
       );
     },
     waterEffects: () => {
@@ -28661,6 +28728,47 @@ function drawCachedWorldLayer(key, layer, offset, revision) {
       height: layer.canvas.height
     }
   });
+}
+
+function drawRiverSurfaceAtlas(staticLayer, offset) {
+  let batchKey = riverSurfaceBatchKeyByLayer.get(staticLayer);
+  if (!batchKey) {
+    batchKey = `river-surface-${nextRiverSurfaceBatchKey++}`;
+    riverSurfaceBatchKeyByLayer.set(staticLayer, batchKey);
+  }
+  worldRenderer.drawPersistentAtlasSprites({
+    key: batchKey,
+    revision: 0,
+    offset,
+    createSprites: () => riverSurfaceSprites(staticLayer)
+  });
+}
+
+function riverSurfaceSprites(staticLayer) {
+  const activeChart = staticLayer.sourceChart;
+  if (!activeChart?.waterIndex) {
+    throw new Error("River surface atlas requires its source chart");
+  }
+  const sprites = [];
+  for (const call of staticLayer.tileCalls) {
+    const mask = riverMasks?.[call.id] || 0;
+    if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
+    const source = riverSpriteForTile(call, activeChart, mask);
+    if (!source) continue;
+    sprites.push({
+      source,
+      destinationRect: {
+        x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
+        y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
+        width: source.width,
+        height: source.height
+      }
+    });
+  }
+  for (const call of staticLayer.riverConnectorCalls) {
+    sprites.push(riverConnectorSpriteDrawCall(call, activeChart));
+  }
+  return sprites;
 }
 
 function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs, swell) {
@@ -29068,11 +29176,10 @@ function surfaceDetailLayer(activeChart, offset) {
     maxX: SCREEN_W - offset.x,
     maxY: SCREEN_H - offset.y
   };
-  const redrawTick = Math.floor(waterAnimationClockMs / SURFACE_DETAIL_REDRAW_MS);
   const cacheKey = worldChartRenderCacheKey(activeChart);
   let cached = surfaceDetailLayerCache.get(cacheKey);
   const chartGeometryChanged = Boolean(cached && cached.chart !== activeChart &&
-    !cachedSurfaceDetailGeometryMatchesChart(cached, activeChart));
+    !cachedSurfaceDetailGeometryMatchesChart(cached, activeChart, viewport));
   if (
     !cached ||
     chartGeometryChanged ||
@@ -29094,30 +29201,35 @@ function surfaceDetailLayer(activeChart, offset) {
     cached.chart = activeChart;
   }
 
-  return {
-    static: cached,
-    rivers: measurePerformanceBenchmarkStage(
-      "render.terrain.surface.rivers",
-      () => surfaceDetailRiverLayer(activeChart, cached, redrawTick)
-    )
-  };
+  return { static: cached };
 }
 
-function cachedSurfaceDetailGeometryMatchesChart(cached, activeChart) {
+function cachedSurfaceDetailGeometryMatchesChart(cached, activeChart, viewport) {
   if (!cached || !activeChart) return false;
+  const viewportLayer = {
+    x: viewport.minX,
+    y: viewport.minY,
+    width: viewport.maxX - viewport.minX,
+    height: viewport.maxY - viewport.minY
+  };
+  const cachedCalls = surfaceDetailCallsForLayer({
+    tileCalls: cached.tileCalls,
+    riverConnectorCalls: cached.riverConnectorCalls,
+    layer: viewportLayer,
+    margin: TILE_ART_SIZE
+  });
   const currentCalls = surfaceDetailCallsForLayer({
     tileCalls: activeChart.tileCalls,
     riverConnectorCalls: activeChart.riverConnectorCalls,
-    layer: {
-      x: cached.x,
-      y: cached.y,
-      width: cached.canvas.width,
-      height: cached.canvas.height
-    },
+    layer: viewportLayer,
     margin: TILE_ART_SIZE
   });
+  cachedCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(
+    cached.sourceChart,
+    cachedCalls
+  );
   currentCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, currentCalls);
-  return surfaceDetailCallsHaveSameGeometry(cached, currentCalls);
+  return surfaceDetailCallsHaveSameGeometry(cachedCalls, currentCalls);
 }
 
 function surfaceDetailRiverGeometryKey(activeChart, calls) {
@@ -29173,19 +29285,20 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
     })
   );
   const riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, calls);
-  const riverWaterPixelRows = measurePerformanceBenchmarkStage(
+  const riverWaterRaster = measurePerformanceBenchmarkStage(
     "render.terrain.surface.riverBanks.waterPixels",
-    () => visibleRiverWaterPixelRows(
+    () => visibleRiverWaterPixelRaster(
       activeChart,
       calls.tileCalls,
-      calls.riverConnectorCalls
+      calls.riverConnectorCalls,
+      layerBounds
     )
   );
   const riverBankPixels = measurePerformanceBenchmarkStage(
     "render.terrain.surface.riverBanks",
     () => visibleRiverBankDrawPixels(
       activeChart,
-      riverWaterPixelRows
+      riverWaterRaster
     )
   );
   const previousCtx = ctx;
@@ -29211,60 +29324,16 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
     x,
     y,
     chart: activeChart,
+    sourceChart: activeChart,
     tileCalls: calls.tileCalls,
     riverConnectorCalls: calls.riverConnectorCalls,
     riverGeometryKey,
-    riverWaterPixelRows,
+    riverWaterRaster,
     riverBankPixels,
     weatherDayIndex: weatherMaskDayIndex,
     iceRevision: surfaceIceSettledRevision,
     weatherRevision: `${weatherMaskDayIndex}:${surfaceIceSettledRevision}`
   };
-}
-
-function surfaceDetailRiverLayer(activeChart, staticLayer, redrawTick) {
-  const cacheKey = worldChartRenderCacheKey(activeChart);
-  let cached = surfaceDetailRiverLayerCache.get(cacheKey);
-  if (cached?.staticLayer !== staticLayer) {
-    cached = { staticLayer, frames: new Map() };
-    surfaceDetailRiverLayerCache.set(cacheKey, cached);
-  }
-  const frameIndex = redrawTick % SURFACE_DETAIL_RIVER_FRAME_COUNT;
-  const existing = cached.frames.get(frameIndex);
-  if (existing) return existing;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = staticLayer.canvas.width;
-  canvas.height = staticLayer.canvas.height;
-  const layerCtx = canvas.getContext("2d");
-  if (!layerCtx) throw new Error("Could not create cached river surface layer");
-  layerCtx.imageSmoothingEnabled = false;
-  layerCtx.translate(-staticLayer.x, -staticLayer.y);
-
-  for (const call of staticLayer.tileCalls) {
-    const mask = riverMasks?.[call.id] || 0;
-    if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
-    const source = riverSpriteForTile(call, activeChart, mask);
-    if (!source) continue;
-    layerCtx.drawImage(
-      source,
-      Math.round(call.drawSurfaceX - TILE_ART_HALF),
-      Math.round(call.drawSurfaceY - TILE_ART_HALF)
-    );
-  }
-  for (const call of staticLayer.riverConnectorCalls) {
-    drawRiverConnector(call, activeChart, layerCtx);
-  }
-  const layer = Object.freeze({
-    canvas,
-    x: staticLayer.x,
-    y: staticLayer.y,
-    staticLayer,
-    frameIndex,
-    revision: `${staticLayer.weatherRevision}:${frameIndex}`
-  });
-  cached.frames.set(frameIndex, layer);
-  return layer;
 }
 
 function drawStormShipStrike(nowMs) {
@@ -29506,7 +29575,7 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   try {
     layerCtx.globalCompositeOperation = "destination-out";
     for (const call of tileCalls) drawRiver(call, activeChart);
-    for (const call of calls.riverConnectorCalls) drawRiverConnector(call, activeChart);
+    for (const call of calls.riverConnectorCalls) drawRiverConnectorRaster(call, activeChart);
     layerCtx.globalCompositeOperation = "source-over";
     drawRiverBankPixels(staticSurface.riverBankPixels);
   } finally {
@@ -29802,7 +29871,9 @@ function worldDiscoveryLocalPoint(discovery, activeChart) {
 function ensureChart() {
   if (!chart || !chart.visibleSet.has(centerTileId) || !localLayout.positions.has(centerTileId) || chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX) {
     chart = buildChart(camera);
+    return true;
   }
+  return false;
 }
 
 function gameStateHasDiscovery(state, discoveryId) {
@@ -37710,10 +37781,11 @@ function drawTerrainConnectorDynamicDetails(targetCtx, entry, waveClockMs) {
 function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls = null) {
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const cached = terrainConnectorDynamicLayerCache.get(cacheKey);
+  const beachWaveTick = Math.floor(waterAnimationClockMs / BEACH_WAVE_REDRAW_MS);
   if (
     cached?.baseLayer === baseLayer &&
     cached.visibleFaceCalls === visibleFaceCalls &&
-    cached.waterTick === waterAnimationDrawTick
+    cached.beachWaveTick === beachWaveTick
   ) return cached.layer;
 
   const reusable = cached?.baseLayer === baseLayer && cached.visibleFaceCalls === visibleFaceCalls
@@ -37733,7 +37805,11 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
   layerCtx.imageSmoothingEnabled = false;
   layerCtx.translate(-bounds.x, -bounds.y);
   for (const entry of entries) {
-    drawTerrainConnectorDynamicDetails(layerCtx, entry, waterAnimationClockMs);
+    drawTerrainConnectorDynamicDetails(
+      layerCtx,
+      entry,
+      beachWaveTick * BEACH_WAVE_REDRAW_MS
+    );
   }
   const layer = reusable || Object.freeze({
     canvas,
@@ -37743,7 +37819,7 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
   terrainConnectorDynamicLayerCache.set(cacheKey, {
     baseLayer,
     visibleFaceCalls,
-    waterTick: waterAnimationDrawTick,
+    beachWaveTick,
     layer
   });
   return layer;
@@ -38483,27 +38559,62 @@ function beachCenterPoint(ax, ay, mx, my, bx, by, t) {
   };
 }
 
-function drawRiverConnector(call, activeChart, targetCtx = ctx) {
-  const geometry = riverConnectorGeometry(call, activeChart);
-  if (!geometry) return;
-  const { path, a, b } = geometry;
-  const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
-  const frameId = call.aWater ? call.b : call.a;
-  const frame = riverHighlightFrameFor(frameId);
-  const colors = riverPaletteForTile(frameId, frame);
-  const mainColor = colors.base;
+function drawRiverConnectorRaster(call, activeChart, targetCtx = ctx) {
+  const drawCall = riverConnectorSpriteDrawCall(call, activeChart);
+  targetCtx.drawImage(
+    drawCall.source,
+    drawCall.destinationRect.x,
+    drawCall.destinationRect.y
+  );
+}
 
-  drawPixelBezierStroke(targetCtx, path, mainColor, RIVER_CONNECTOR_RADIUS_PX);
-  drawRiverConnectorMouthFlare(targetCtx, call, path, mainColor);
-  drawPixelBrush(targetCtx, a.x, a.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
-  drawPixelBrush(targetCtx, b.x, b.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
-  if (call.aMouth && call.bWater) {
-    drawPixelBrush(targetCtx, b.x, b.y, RIVER_MOUTH_RADIUS_PX, mainColor);
+function riverConnectorSpriteDrawCall(call, activeChart) {
+  const points = activeChart?.waterIndex?.riverConnectorWaterPoints?.get(call);
+  if (!points) {
+    throw new Error(`River connector ${call.a}:${call.b} is missing its water raster`);
   }
-  if (call.bMouth && call.aWater) {
-    drawPixelBrush(targetCtx, a.x, a.y, RIVER_MOUTH_RADIUS_PX, mainColor);
+  if (!(points instanceof Int32Array) || points.length === 0 || points.length % 2 !== 0) {
+    throw new Error(`River connector ${call.a}:${call.b} has an invalid water raster`);
   }
-  drawRiverSparkles(targetCtx, path, frame, seed, colors.light);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let index = 0; index < points.length; index += 2) {
+    minX = Math.min(minX, points[index]);
+    minY = Math.min(minY, points[index + 1]);
+    maxX = Math.max(maxX, points[index]);
+    maxY = Math.max(maxY, points[index + 1]);
+  }
+  const frameId = call.aWater ? call.b : call.a;
+  const color = riverBaseColorForTile(frameId);
+  const width = maxX - minX + 1;
+  const height = maxY - minY + 1;
+  const shape = [];
+  for (let index = 0; index < points.length; index += 2) {
+    shape.push(points[index] - minX, points[index + 1] - minY);
+  }
+  const key = `${color}|${width}x${height}|${shape.join(",")}`;
+  let source = riverConnectorSpriteCache.get(key);
+  if (!source) {
+    if (riverConnectorSpriteCache.size >= RIVER_SPRITE_CACHE_LIMIT) {
+      riverConnectorSpriteCache.clear();
+    }
+    source = document.createElement("canvas");
+    source.width = width;
+    source.height = height;
+    const sourceCtx = source.getContext("2d");
+    if (!sourceCtx) throw new Error("Could not create a river connector sprite");
+    sourceCtx.fillStyle = color;
+    for (let index = 0; index < shape.length; index += 2) {
+      sourceCtx.fillRect(shape[index], shape[index + 1], 1, 1);
+    }
+    riverConnectorSpriteCache.set(key, source);
+  }
+  return {
+    source,
+    destinationRect: { x: minX, y: minY, width, height }
+  };
 }
 
 function riverConnectorWaterRaster(call, geometry) {
@@ -38572,37 +38683,24 @@ function drawRiverBankPixels(pixels) {
   }
 }
 
-function visibleRiverWaterPixelRows(activeChart, tileCalls, riverConnectorCalls) {
+function visibleRiverWaterPixelRaster(activeChart, tileCalls, riverConnectorCalls, bounds) {
   if (!Array.isArray(tileCalls) || !Array.isArray(riverConnectorCalls)) {
     throw new Error("Visible river water requires tile and connector calls");
   }
-  const rows = new Map();
-  const addWaterPixel = (x, y) => {
-    let row = rows.get(y);
-    if (!row) {
-      row = new Set();
-      rows.set(y, row);
-    }
-    row.add(x);
-  };
+  const pointGroups = [];
   for (const call of tileCalls) {
     const mask = riverMasks?.[call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
-    const points = cachedRiverTileWaterPoints(call, activeChart, mask);
-    for (let index = 0; index < points.length; index += 2) {
-      addWaterPixel(points[index], points[index + 1]);
-    }
+    pointGroups.push(cachedRiverTileWaterPoints(call, activeChart, mask));
   }
   for (const call of riverConnectorCalls) {
     const points = activeChart.waterIndex.riverConnectorWaterPoints.get(call);
     if (!points) {
       throw new Error(`Visible river connector ${call.a}:${call.b} is missing its raster cache`);
     }
-    for (let index = 0; index < points.length; index += 2) {
-      addWaterPixel(points[index], points[index + 1]);
-    }
+    pointGroups.push(points);
   }
-  return rows;
+  return createRiverWaterRaster(bounds, pointGroups);
 }
 
 function cachedRiverTileWaterPoints(call, activeChart, mask) {
@@ -38647,22 +38745,21 @@ function riverTileWaterShapeKey(call, activeChart, mask) {
   return `${hashInt(call.id) & 15}|${endpoints}`;
 }
 
-function visibleRiverBankDrawPixels(activeChart, waterPixelRows) {
-  if (!(waterPixelRows instanceof Map)) {
-    throw new Error("Riverbank pixels require visible river water rows");
-  }
+function visibleRiverBankDrawPixels(activeChart, waterRaster) {
   const shadeCache = new Map();
   const pixels = [];
-  const bankPixels = measurePerformanceBenchmarkStage(
+  const bankPoints = measurePerformanceBenchmarkStage(
     "render.terrain.surface.riverBanks.outline",
-    () => visibleRiverBankPixelsFromRows(waterPixelRows)
+    () => riverBankPointsFromRaster(waterRaster)
   );
   const terrainRaster = measurePerformanceBenchmarkStage(
     "render.terrain.surface.riverBanks.terrainRaster",
-    () => terrainRasterForRiverBanks(activeChart, bankPixels)
+    () => terrainRasterForRiverBanks(activeChart, bankPoints)
   );
   measurePerformanceBenchmarkStage("render.terrain.surface.riverBanks.shade", () => {
-    for (const { x, y } of bankPixels) {
+    for (let index = 0; index < bankPoints.length; index += 2) {
+      const x = bankPoints[index];
+      const y = bankPoints[index + 1];
       const sourceHex = terrainRasterHexAtPoint(terrainRaster, x, y);
       if (!sourceHex) continue;
       let shade = shadeCache.get(sourceHex);
@@ -38676,20 +38773,24 @@ function visibleRiverBankDrawPixels(activeChart, waterPixelRows) {
   return Object.freeze(pixels);
 }
 
-function terrainRasterForRiverBanks(activeChart, bankPixels) {
-  if (!Array.isArray(bankPixels)) throw new Error("Riverbank terrain raster requires bank pixels");
-  if (bankPixels.length === 0) {
+function terrainRasterForRiverBanks(activeChart, bankPoints) {
+  if (!(bankPoints instanceof Int32Array) || bankPoints.length % 2 !== 0) {
+    throw new Error("Riverbank terrain raster requires packed bank points");
+  }
+  if (bankPoints.length === 0) {
     return Object.freeze({ x: 0, y: 0, width: 1, height: 1, data: new Uint8ClampedArray(4) });
   }
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const pixel of bankPixels) {
-    minX = Math.min(minX, pixel.x);
-    minY = Math.min(minY, pixel.y);
-    maxX = Math.max(maxX, pixel.x);
-    maxY = Math.max(maxY, pixel.y);
+  for (let index = 0; index < bankPoints.length; index += 2) {
+    const pointX = bankPoints[index];
+    const pointY = bankPoints[index + 1];
+    minX = Math.min(minX, pointX);
+    minY = Math.min(minY, pointY);
+    maxX = Math.max(maxX, pointX);
+    maxY = Math.max(maxY, pointY);
   }
   const x = Math.floor(minX);
   const y = Math.floor(minY);
@@ -39544,16 +39645,15 @@ function cloudAnchorOffset(seed) {
 function riverSpriteForTile(call, activeChart, mask) {
   const endpoints = riverEndpointsForTile(call, activeChart, mask);
   if (endpoints.length === 0) return null;
-  const frame = riverHighlightFrameFor(call.id);
   const variant = hashInt(call.id) & 15;
   const latitudeBand = waterLatitudeBandForTile(call.id);
   const endpointKey = endpoints.map((p) => `${p.x},${p.y},${p.mouth ? 1 : 0}`).join(";");
-  const key = `${latitudeBand}|${frame}|${variant}|${endpointKey}`;
+  const key = `${latitudeBand}|${variant}|${endpointKey}`;
   const cached = riverSpriteCache.get(key);
   if (cached) return cached;
   if (riverSpriteCache.size > RIVER_SPRITE_CACHE_LIMIT) riverSpriteCache = new Map();
 
-  const sprite = generateRiverSprite(endpoints, frame, variant, latitudeBand);
+  const sprite = generateRiverSprite(endpoints, variant, latitudeBand);
   riverSpriteCache.set(key, sprite);
   return sprite;
 }
@@ -39610,15 +39710,14 @@ function riverEdgeScreenDirection(call, activeChart, edge) {
   });
 }
 
-function generateRiverSprite(endpoints, frame, variant, latitudeBand) {
+function generateRiverSprite(endpoints, variant, latitudeBand) {
   const sprite = document.createElement("canvas");
   sprite.width = TILE_ART_SIZE;
   sprite.height = TILE_ART_SIZE;
   const spriteCtx = sprite.getContext("2d");
   if (!spriteCtx) throw new Error("Could not create river sprite canvas");
   spriteCtx.imageSmoothingEnabled = false;
-  const colors = riverPaletteForBand(latitudeBand, frame);
-  const mainColor = colors.base;
+  const mainColor = riverBaseColorForBand(latitudeBand);
   const cx = TILE_ART_HALF;
   const cy = TILE_ART_HALF;
   const paths = riverBezierPaths(endpoints, variant);
@@ -39633,9 +39732,6 @@ function generateRiverSprite(endpoints, frame, variant, latitudeBand) {
     if (endpoint.mouth) drawPixelBrush(spriteCtx, endpoint.x, endpoint.y, RIVER_MOUTH_RADIUS_PX, mainColor);
   }
 
-  for (const path of paths) {
-    drawRiverSparkles(spriteCtx, path, frame, variant, colors.light);
-  }
   return sprite;
 }
 
@@ -39690,14 +39786,6 @@ function drawPixelBezierStroke(targetCtx, path, color, radius) {
   });
 }
 
-function drawRiverConnectorMouthFlare(targetCtx, call, path, color) {
-  const wideAtStart = riverConnectorMouthWideAtStart(call);
-  if (wideAtStart === null) return;
-  forEachRiverMouthFlareSample(path, wideAtStart, (x, y, radius) => {
-    drawPixelBrush(targetCtx, x, y, Math.round(radius), color);
-  });
-}
-
 function drawRiverTileMouthFlares(targetCtx, paths, endpoints, color) {
   forEachRiverTileMouthFlare(paths, endpoints, (path, wideAtStart) => {
     forEachRiverMouthFlareSample(path, wideAtStart, (x, y, radius) => {
@@ -39738,17 +39826,6 @@ function forEachRiverMouthFlareSample(path, wideAtStart, visit, narrowRadius = R
     const point = quadraticBezierPoint(path, t);
     const radius = narrowRadius + (RIVER_MOUTH_RADIUS_PX - narrowRadius) * flare;
     visit(point.x, point.y, radius);
-  }
-}
-
-function drawRiverSparkles(targetCtx, path, frame, seed, color) {
-  const points = [];
-  forEachPixelOnBezier(path, (x, y) => points.push({ x, y }));
-  const phase = (frame - 1) * 3 + (hashInt(seed) % 3);
-  targetCtx.fillStyle = color;
-  for (let i = 3 + phase; i < points.length - 1; i += 7) {
-    const p = points[i];
-    targetCtx.fillRect(p.x, p.y, 1, 1);
   }
 }
 
@@ -39888,16 +39965,12 @@ function waterLatitudePixelHex(sourceHex, latitudeBand, depthIndex) {
   return mapped;
 }
 
-function riverPaletteForTile(id, frame) {
-  return riverPaletteForBand(waterLatitudeBandForTile(id), frame);
+function riverBaseColorForTile(id) {
+  return riverBaseColorForBand(waterLatitudeBandForTile(id));
 }
 
-function riverPaletteForBand(latitudeBand, frame) {
-  const source = riverColors.frames[frame - 1] || riverColors.frames[0];
-  return {
-    base: waterLatitudePixelHex(riverColors.base, latitudeBand, 0),
-    light: waterLatitudePixelHex(source.light, latitudeBand, 0)
-  };
+function riverBaseColorForBand(latitudeBand) {
+  return waterLatitudePixelHex(riverColors.base, latitudeBand, 0);
 }
 
 function terrainSpriteColor(key) {
@@ -41960,37 +42033,43 @@ function shipForegroundTerrainDrawOrder(activeChart) {
   }
   const offset = chartOffsetPixels(activeChart);
   const cacheKey = worldChartRenderCacheKey(activeChart);
-  const surfaceLayer = surfaceDetailLayerCache.get(cacheKey);
-  if (!surfaceLayer?.riverWaterPixelRows) {
-    throw new Error("Ship foreground terrain requires the current surface detail layer");
-  }
+  const tileCalls = renderCallWindow(activeChart, offset).tileCalls;
   let cached = shipTerrainOcclusionIndexCache.get(cacheKey);
-  if (!cached || cached.weatherDayIndex !== weatherMaskDayIndex ||
-      cached.surfaceLayer !== surfaceLayer) {
-    const occluders = [];
-    const landmarkTileIds = new Set(worldDiscoveries
-      .filter((discovery) => discovery.spriteKey && !discovery.underwater)
-      .map((discovery) => discovery.spriteTileId));
-    for (const call of surfaceLayer.tileCalls) {
-      if (isWaterSurfaceRow(call.row) || landmarkTileIds.has(call.id)) continue;
-      for (const image of terrainOccludingLayerImagesForTile(call.row, call.id)) {
-        occluders.push(...terrainForegroundDrawLayers(
-          call,
-          image,
-          activeChart,
-          surfaceLayer.riverWaterPixelRows
-        ));
+  const geometryChanged = Boolean(
+    cached && cached.chart !== activeChart &&
+    !shipTerrainTileCallsHaveSameGeometry(cached, tileCalls, activeChart)
+  );
+  if (!cached || cached.weatherDayIndex !== weatherMaskDayIndex || geometryChanged) {
+    cached = measurePerformanceBenchmarkStage("render.vessels.ships.terrain.rebuild", () => {
+      const occluders = [];
+      const landmarkTileIds = new Set(worldDiscoveries
+        .filter((discovery) => discovery.spriteKey && !discovery.underwater)
+        .map((discovery) => discovery.spriteTileId));
+      for (const call of tileCalls) {
+        if (isWaterSurfaceRow(call.row) || landmarkTileIds.has(call.id)) continue;
+        for (const image of terrainOccludingLayerImagesForTile(call.row, call.id)) {
+          occluders.push(...terrainForegroundDrawLayers(call, image, activeChart));
+        }
       }
-    }
-    cached = {
-      chart: activeChart,
-      surfaceLayer,
-      weatherDayIndex: weatherMaskDayIndex,
-      index: createTerrainOcclusionIndex(occluders)
-    };
+      return {
+        chart: activeChart,
+        tileCalls,
+        riverGeometryKey: surfaceDetailRiverGeometryKey(activeChart, {
+          tileCalls,
+          riverConnectorCalls: []
+        }),
+        weatherDayIndex: weatherMaskDayIndex,
+        index: createTerrainOcclusionIndex(occluders)
+      };
+    });
     shipTerrainOcclusionIndexCache.set(cacheKey, cached);
   } else if (cached.chart !== activeChart) {
     cached.chart = activeChart;
+    cached.tileCalls = tileCalls;
+    cached.riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, {
+      tileCalls,
+      riverConnectorCalls: []
+    });
   }
   return {
     occludersForBounds: (bounds) => terrainOccludersForScreenBounds(cached.index, bounds, offset),
@@ -41998,10 +42077,26 @@ function shipForegroundTerrainDrawOrder(activeChart) {
   };
 }
 
-function terrainForegroundDrawLayers(call, image, activeChart, riverWaterPixelRows) {
-  if (!(riverWaterPixelRows instanceof Map)) {
-    throw new Error(`Terrain foreground tile ${call.id} requires visible river water rows`);
+function shipTerrainTileCallsHaveSameGeometry(cachedState, currentCalls, activeChart) {
+  const cachedCalls = cachedState?.tileCalls;
+  if (!Array.isArray(cachedCalls) || !Array.isArray(currentCalls)) return false;
+  if (cachedCalls.length !== currentCalls.length) return false;
+  for (let index = 0; index < cachedCalls.length; index++) {
+    const cached = cachedCalls[index];
+    const current = currentCalls[index];
+    if (
+      cached.id !== current.id || cached.row !== current.row || cached.level !== current.level ||
+      cached.drawSurfaceX !== current.drawSurfaceX ||
+      cached.drawSurfaceY !== current.drawSurfaceY || cached.sortY !== current.sortY
+    ) return false;
   }
+  return cachedState.riverGeometryKey === surfaceDetailRiverGeometryKey(activeChart, {
+    tileCalls: currentCalls,
+    riverConnectorCalls: []
+  });
+}
+
+function terrainForegroundDrawLayers(call, image, activeChart) {
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const width = image.naturalWidth || image.width;
@@ -42018,10 +42113,6 @@ function terrainForegroundDrawLayers(call, image, activeChart, riverWaterPixelRo
     }];
   }
 
-  const bankSplit = terrainRiverBankSplit(call, activeChart, riverMask);
-  if (bankSplit.width !== width || bankSplit.height !== height) {
-    throw new Error(`River bank and terrain sprite dimensions disagree on tile ${call.id}`);
-  }
   return [
     {
       x,
@@ -42033,8 +42124,8 @@ function terrainForegroundDrawLayers(call, image, activeChart, riverWaterPixelRo
         call,
         image,
         RIVER_BANK_UPPER,
-        bankSplit,
-        riverWaterPixelRows
+        activeChart,
+        riverMask
       )
     },
     {
@@ -42047,8 +42138,8 @@ function terrainForegroundDrawLayers(call, image, activeChart, riverWaterPixelRo
         call,
         image,
         RIVER_BANK_LOWER,
-        bankSplit,
-        riverWaterPixelRows
+        activeChart,
+        riverMask
       )
     }
   ];
@@ -42070,54 +42161,78 @@ function terrainForegroundRiverBankDrawLayer(
   call,
   image,
   bank,
-  bankSplit,
-  riverWaterPixelRows
+  activeChart,
+  riverMask
 ) {
   return {
     image: null,
-    create: () => createTerrainForegroundRiverBankImage(
+    create: () => terrainForegroundRiverBankImage(
       call,
       image,
       bank,
-      bankSplit,
-      riverWaterPixelRows
+      activeChart,
+      riverMask
     )
   };
 }
 
-function createTerrainForegroundRiverBankImage(
+function terrainForegroundRiverBankImage(
   call,
   image,
   bank,
-  bankSplit,
-  riverWaterPixelRows
+  activeChart,
+  riverMask
 ) {
   if (bank !== RIVER_BANK_UPPER && bank !== RIVER_BANK_LOWER) {
     throw new Error(`Unknown river bank layer: ${bank}`);
   }
-  const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
-  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  const shapeKey = riverTileWaterShapeKey(call, activeChart, riverMask);
+  let imageLayers = shipTerrainRiverBankLayerCache.get(image);
+  if (!imageLayers) {
+    imageLayers = new Map();
+    shipTerrainRiverBankLayerCache.set(image, imageLayers);
+  }
+  const cacheKey = `${shapeKey}:${bank}`;
+  const cached = imageLayers.get(cacheKey);
+  if (cached) return cached;
+  const bankSplit = terrainRiverBankSplit(call, activeChart, riverMask);
+  const imageWidth = image.naturalWidth || image.width;
+  const imageHeight = image.naturalHeight || image.height;
+  if (bankSplit.width !== imageWidth || bankSplit.height !== imageHeight) {
+    throw new Error(`River bank and terrain sprite dimensions disagree on tile ${call.id}`);
+  }
+  cachedRiverTileWaterPoints(call, activeChart, riverMask);
+  const localWaterPoints = riverTileLocalWaterPointCache.get(shapeKey);
+  if (!localWaterPoints) {
+    throw new Error(`River tile ${call.id} did not produce local water points`);
+  }
   const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth || image.width;
-  canvas.height = image.naturalHeight || image.height;
+  canvas.width = imageWidth;
+  canvas.height = imageHeight;
   const layerCtx = canvas.getContext("2d", { willReadFrequently: true });
   if (!layerCtx) throw new Error(`Could not create terrain foreground layer for tile ${call.id}`);
   layerCtx.imageSmoothingEnabled = false;
   layerCtx.drawImage(image, 0, 0);
   const imageData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
+  const waterMask = new Uint8Array(canvas.width * canvas.height);
+  for (let index = 0; index < localWaterPoints.length; index += 2) {
+    const px = localWaterPoints[index];
+    const py = localWaterPoints[index + 1];
+    if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
+    waterMask[px + py * canvas.width] = 1;
+  }
   for (let py = 0; py < canvas.height; py++) {
-    const localY = y + py;
-    const waterXs = riverWaterPixelRows.get(localY);
     for (let px = 0; px < canvas.width; px++) {
       const pixelIndex = py * canvas.width + px;
       const dataIndex = pixelIndex * 4;
       const keep = bankSplit.banks[pixelIndex] === bank && imageData.data[dataIndex + 3] !== 0 &&
-        !waterXs?.has(x + px);
+        waterMask[pixelIndex] === 0;
       if (!keep) imageData.data[dataIndex + 3] = 0;
     }
   }
   layerCtx.clearRect(0, 0, canvas.width, canvas.height);
   layerCtx.putImageData(imageData, 0, 0);
+  imageLayers.set(cacheKey, canvas);
   return canvas;
 }
 
@@ -47434,11 +47549,6 @@ function waterSpriteForTile(id, explicitBand = null) {
 
 function waterTextureVariantFor(id) {
   return (hashInt(id) & 1) + 1;
-}
-
-function riverHighlightFrameFor(id) {
-  const staggerMs = hashInt(id) % RIVER_HIGHLIGHT_FRAME_MS;
-  return (Math.floor((waterAnimationClockMs + staggerMs) / RIVER_HIGHLIGHT_FRAME_MS) % 2) + 1;
 }
 
 function terrainLevel(row, id) {
