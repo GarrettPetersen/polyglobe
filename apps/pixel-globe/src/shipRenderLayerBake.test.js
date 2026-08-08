@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   SHIP_RENDER_LAYER_BAKE_VERSION,
   bakeShipRenderLayerSheet,
   validateShipRenderLayerManifest
 } from "./shipRenderLayerBake.js";
+import { SHIP_STATS } from "./shipStats.js";
 
 test("ship render-layer bake separates only the exposed bottom hull", () => {
   const color = new Uint8ClampedArray(3 * 3 * 4);
@@ -95,5 +97,19 @@ test("ship render-layer manifest validates its full roster and bounds", () => {
   assert.throws(
     () => validateShipRenderLayerManifest(manifest, ["cutter", "dhow"]),
     /roster mismatch/
+  );
+});
+
+test("committed ship render-layer manifest matches the production ship roster", async () => {
+  const manifest = JSON.parse(await readFile(
+    new URL("../public/assets/vehicles/ship-render-layers/manifest.json", import.meta.url),
+    "utf8"
+  ));
+  assert.equal(
+    validateShipRenderLayerManifest(
+      manifest,
+      SHIP_STATS.map((stats) => stats.slug)
+    ),
+    manifest
   );
 });
