@@ -937,6 +937,7 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
   const result = resolveNavalProjectileImpact({
     projectile: {
       damage: projectile.damage,
+      hullHitChance: weapon?.hullHitChance ?? 1,
       crewDamage: weapon?.crewDamage || 0,
       crewHitChance: weapon?.crewHitChance || 0,
       crewProtectionPenetration: weapon?.crewProtectionPenetration || 0

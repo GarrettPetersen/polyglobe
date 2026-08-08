@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  INCENDIARY_ARROW_HULL_HIT_CHANCE,
   COMPOSITE_BOWS_ITEM_ID,
   CROSSBOWS_ITEM_ID,
   ENGLISH_LONGBOWS_ITEM_ID,
@@ -49,6 +50,7 @@ test("incendiary arrows trade bow range and reload speed for hull damage", () =>
   })[0].weapon;
   assert.equal(plain.hullDamage, 0);
   assert.equal(incendiary.hullDamage, 0.25);
+  assert.equal(incendiary.hullHitChance, INCENDIARY_ARROW_HULL_HIT_CHANCE);
   assert.equal(incendiary.incendiary, true);
   assert.ok(incendiary.rangeScale < plain.rangeScale);
   assert.ok(incendiary.reloadSeconds > plain.reloadSeconds);
@@ -71,6 +73,7 @@ test("modifier-only equipment survives inventory selection and converts owned bo
   })[0];
   assert.equal(assignment.weapon.incendiary, true);
   assert.equal(assignment.weapon.hullDamage, 0.25);
+  assert.equal(assignment.weapon.hullHitChance, INCENDIARY_ARROW_HULL_HIT_CHANCE);
 });
 
 test("crew staffing reserves sailors and gunners before assigning small arms", () => {

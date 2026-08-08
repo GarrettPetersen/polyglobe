@@ -24,6 +24,7 @@ export const WHEELLOCK_PISTOLS_ITEM_ID = "wheellock-pistol";
 export const SWIVEL_GUN_ITEM_ID = "swivel-gun";
 export const INCENDIARY_ARROWS_ITEM_ID = "incendiary-arrows";
 export const VIKING_BOWS_ITEM_ID = "viking-bows";
+export const INCENDIARY_ARROW_HULL_HIT_CHANCE = 0.2;
 const PORTABLE_WEAPON_RATING_CREW = 5;
 
 const EUROPEAN_FACTIONS = new Set([
@@ -87,6 +88,7 @@ function portableItem({
 function weaponSpec(itemId, {
   animationKind,
   hullDamage,
+  hullHitChance = 1,
   crewDamage,
   crewHitChance,
   rangeScale,
@@ -104,6 +106,7 @@ function weaponSpec(itemId, {
     itemId,
     animationKind,
     hullDamage,
+    hullHitChance,
     crewDamage,
     crewHitChance,
     rangeScale,
@@ -284,7 +287,8 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
       kind: "incendiary-arrows",
       bowRangeMultiplier: 0.72,
       bowReloadMultiplier: 1.55,
-      bowHullDamage: 0.25
+      bowHullDamage: 0.25,
+      bowHullHitChance: INCENDIARY_ARROW_HULL_HIT_CHANCE
     })
   })
 ]);
@@ -506,6 +510,7 @@ function applyIncendiaryArrows(weapon) {
     rangeScale: weapon.rangeScale * modifier.bowRangeMultiplier,
     reloadSeconds: weapon.reloadSeconds * modifier.bowReloadMultiplier,
     hullDamage: Math.max(weapon.hullDamage, modifier.bowHullDamage),
+    hullHitChance: modifier.bowHullHitChance,
     incendiary: true
   });
 }
@@ -516,7 +521,10 @@ function portableWeaponScore(weapon, targetCrewProtection = 0) {
     targetCrewProtection,
     weapon.crewProtectionPenetration
   );
-  return (weapon.crewDamage * effectiveHitChance + weapon.hullDamage * 1.5) / weapon.reloadSeconds;
+  return (
+    weapon.crewDamage * effectiveHitChance +
+    weapon.hullDamage * weapon.hullHitChance * 1.5
+  ) / weapon.reloadSeconds;
 }
 
 function factionUsesMatchlocks(factionId, cityType) {
@@ -529,12 +537,12 @@ function validatePortableWeaponSpec(spec) {
   if (![PORTABLE_PROJECTILE_ARROW, PORTABLE_PROJECTILE_BULLET, PORTABLE_PROJECTILE_CANNON].includes(spec.animationKind)) {
     throw new Error(`Invalid portable weapon animation: ${spec.itemId}`);
   }
-  for (const key of ["hullDamage", "crewDamage", "crewHitChance", "rangeScale", "speedScale", "arcHeightScale", "reloadSeconds", "crewProtectionPenetration", "smokeScale"]) {
+  for (const key of ["hullDamage", "hullHitChance", "crewDamage", "crewHitChance", "rangeScale", "speedScale", "arcHeightScale", "reloadSeconds", "crewProtectionPenetration", "smokeScale"]) {
     if (!Number.isFinite(spec[key]) || spec[key] < 0) throw new Error(`Invalid portable weapon ${key}: ${spec.itemId}`);
   }
   if (!Number.isInteger(spec.crewDamage) || spec.crewDamage <= 0 ||
       !Number.isInteger(spec.projectileSize) || spec.projectileSize <= 0 ||
-      spec.crewHitChance > 1 || spec.crewProtectionPenetration > 1 ||
+      spec.hullHitChance > 1 || spec.crewHitChance > 1 || spec.crewProtectionPenetration > 1 ||
       spec.rangeScale <= 0 || spec.speedScale <= 0 || spec.reloadSeconds <= 0) {
     throw new Error(`Invalid portable weapon combat values: ${spec.itemId}`);
   }

@@ -1286,6 +1286,8 @@ function firePortableWeapons(state, ship, target, targetDistance) {
       duration: Math.max(0.12, range / (CANNON_SPEED_PX * weapon.speedScale)),
       arcHeight: weapon.animationKind === "arrow" ? 4 : 1,
       damage: weapon.hullDamage * share,
+      hullHitChance: weapon.hullHitChance,
+      hullDamageAttempts: share,
       crewDamage: weapon.crewDamage * share,
       projectileSize: weapon.projectileSize,
       crewHitChance: weapon.crewHitChance,

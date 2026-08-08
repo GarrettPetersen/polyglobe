@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveNavalProjectileImpact } from "./navalCombatResolution.js";
+import {
+  projectileHullDamage,
+  resolveNavalProjectileImpact
+} from "./navalCombatResolution.js";
 
 const TARGET_STATS = Object.freeze({
   slug: "test-ship",
@@ -82,4 +85,18 @@ test("targets without hull resistance still use the shared wound rules", () => {
 
   assert.equal(result.hitPoints, 2);
   assert.equal(result.resisted, false);
+});
+
+test("incendiary hull damage only applies on a successful ignition roll", () => {
+  assert.equal(projectileHullDamage({ damage: 0.25, hullHitChance: 0.2 }, () => 0.19), 0.25);
+  assert.equal(projectileHullDamage({ damage: 0.25, hullHitChance: 0.2 }, () => 0.2), 0);
+});
+
+test("aggregated volleys roll each represented fire arrow independently", () => {
+  const rolls = [0.1, 0.3, 0.05, 0.9];
+  assert.equal(projectileHullDamage({
+    damage: 1,
+    hullHitChance: 0.2,
+    hullDamageAttempts: 4
+  }, () => rolls.shift()), 0.5);
 });

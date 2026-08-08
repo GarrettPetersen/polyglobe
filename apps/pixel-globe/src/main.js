@@ -1657,6 +1657,7 @@ import {
   clearCombatWounds,
   crewWoundsForceSurrender
 } from "./combatWounds.js";
+import { projectileHullDamage } from "./navalCombatResolution.js";
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
 import {
@@ -22197,6 +22198,7 @@ function portableCombatProjectile({ weapon, ownerId, targetId, startX, startY, t
     arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 4) * weapon.arcHeightScale,
     damage: weapon.hullDamage,
     hullDamage: weapon.hullDamage,
+    hullHitChance: weapon.hullHitChance,
     crewDamage: weapon.crewDamage,
     crewHitChance: weapon.crewHitChance,
     crewProtectionPenetration: weapon.crewProtectionPenetration,
@@ -22608,11 +22610,15 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
       attackerLabel,
       Math.random
     );
-    if (!result.newlyDisabled && impact.hullDamage > 0) {
+    const rolledHullDamage = projectileHullDamage({
+      damage: impact.hullDamage,
+      hullHitChance: impact.hullHitChance
+    }, Math.random);
+    if (!result.newlyDisabled && rolledHullDamage > 0) {
       result = damageShoreBattery(
         battery,
         gameState.memory.flags,
-        impact.hullDamage,
+        rolledHullDamage,
         simMinute,
         attackerLabel
       );
@@ -22794,30 +22800,42 @@ function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
   });
   target.woundedCrew = woundResult.woundedCrew;
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
-  emitCaptureEvent("projectile-hit", {
-    ownerId: ball.ownerId,
-    targetId: target.id,
-    weapon: ball.weaponId,
+  let appliedHullDamage = 0;
+  const rolledHullDamage = projectileHullDamage({
     damage: ball.hullDamage,
-    crewWounds: woundResult.newWounds,
-    remainingHitPoints: target.hitPoints
-  });
-  if (ball.hullDamage > 0) {
-    const damage = damageNpcShip(npcSeaRoutes, target.id, ball.hullDamage);
+    hullHitChance: ball.hullHitChance
+  }, Math.random);
+  if (rolledHullDamage > 0) {
+    const damage = damageNpcShip(npcSeaRoutes, target.id, rolledHullDamage);
+    appliedHullDamage = damage.damage;
     target.hitPoints = damage.hitPoints;
     if (damage.sunk) {
+      emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
       handleNpcSinking(target.id, winnerId);
       return;
     }
     addHullSplinterBurst(ball, point);
     if (damage.shouldSurrender) {
+      emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
       handleNpcSurrender(target.id, winnerId);
       return;
     }
   }
+  emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
   if (crewWoundsForceSurrender(target.stats.crewCapacity, target.woundedCrew)) {
     handleNpcSurrender(target.id, winnerId);
   }
+}
+
+function emitPortableWeaponHitCapture(ball, target, crewWounds, damage) {
+  emitCaptureEvent("projectile-hit", {
+    ownerId: ball.ownerId,
+    targetId: target.id,
+    weapon: ball.weaponId,
+    damage,
+    crewWounds,
+    remainingHitPoints: target.hitPoints
+  });
 }
 
 function addCannonSplash(ball) {
@@ -26193,12 +26211,18 @@ function applyPortableWeaponHitToPlayer(ball, point) {
       expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
     };
   }
-  if (ball.hullDamage > 0) {
+  let appliedHullDamage = 0;
+  const rolledHullDamage = projectileHullDamage({
+    damage: ball.hullDamage,
+    hullHitChance: ball.hullHitChance
+  }, Math.random);
+  if (rolledHullDamage > 0) {
     const resisted = playerHullDamageWasResisted(ball.incendiary ? "FIRE ARROW" : "SWIVEL SHOT", {
       notify: false
     });
     if (!resisted) {
-      ship.hitPoints = Math.max(0, ship.hitPoints - ball.hullDamage);
+      appliedHullDamage = rolledHullDamage;
+      ship.hitPoints = Math.max(0, ship.hitPoints - rolledHullDamage);
       const lossOutcome = resolvePlayerDamageLoss({
         sinkingReason: "Your ship was sunk in battle.",
         crewLossReason: "The last of the crew fell in battle."
@@ -26210,7 +26234,7 @@ function applyPortableWeaponHitToPlayer(ball, point) {
     ownerId: ball.ownerId,
     targetId: PLAYER_COMBAT_ID,
     weapon: ball.weaponId,
-    damage: ball.hullDamage,
+    damage: appliedHullDamage,
     crewWounds: woundResult.newWounds,
     remainingHitPoints: ship.hitPoints
   });

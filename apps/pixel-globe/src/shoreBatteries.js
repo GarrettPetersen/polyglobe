@@ -150,7 +150,7 @@ export function shoreBatteryPortableImpact({
   crewHitChance,
   crewProtectionPenetration = 0,
   hullDamage,
-  incendiary
+  hullHitChance = 1
 }) {
   if (!Number.isInteger(crewDamage) || crewDamage <= 0) {
     throw new Error(`Invalid shore battery portable crew damage: ${crewDamage}`);
@@ -166,15 +166,15 @@ export function shoreBatteryPortableImpact({
   if (!Number.isFinite(hullDamage) || hullDamage < 0) {
     throw new Error(`Invalid shore battery portable hull damage: ${hullDamage}`);
   }
-  if (typeof incendiary !== "boolean") {
-    throw new Error(`Invalid shore battery incendiary state: ${incendiary}`);
+  if (!Number.isFinite(hullHitChance) || hullHitChance < 0 || hullHitChance > 1) {
+    throw new Error(`Invalid shore battery portable hull hit chance: ${hullHitChance}`);
   }
   return Object.freeze({
     crewDamage,
     crewHitChance: crewHitChance * SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE,
     crewProtectionPenetration,
-    // Pitch arrows can catch exposed ship timber, but not batter down a fortified emplacement.
-    hullDamage: incendiary ? 0 : hullDamage
+    hullDamage,
+    hullHitChance
   });
 }
 

@@ -30,10 +30,11 @@ export function resolveNavalProjectileImpact({
     newWounds = wounds.newWounds;
   }
 
-  const canDamageHull = projectile.damage > 0;
+  const rolledHullDamage = projectileHullDamage(projectile, random);
+  const canDamageHull = rolledHullDamage > 0;
   const resisted = canDamageHull && allowHullResistance &&
     shipHullResistsDamage(target.stats, { roll: random() });
-  const damage = canDamageHull && !resisted ? projectile.damage : 0;
+  const damage = canDamageHull && !resisted ? rolledHullDamage : 0;
   const hitPoints = Math.max(0, target.hitPoints - damage);
   const surrendered = target.surrendered === true ||
     crewWoundsForceSurrender(target.crew, woundedCrew);
@@ -46,6 +47,33 @@ export function resolveNavalProjectileImpact({
     resisted,
     surrendered
   });
+}
+
+export function projectileHullDamage(projectile, random) {
+  if (!projectile || typeof projectile !== "object") {
+    throw new Error("Hull damage roll requires a projectile");
+  }
+  if (typeof random !== "function") throw new Error("Hull damage roll requires a random source");
+  if (!Number.isFinite(projectile.damage) || projectile.damage < 0) {
+    throw new Error(`Invalid projectile hull damage: ${projectile.damage}`);
+  }
+  const hitChance = projectile.hullHitChance ?? 1;
+  if (!Number.isFinite(hitChance) || hitChance < 0 || hitChance > 1) {
+    throw new Error(`Invalid projectile hull hit chance: ${hitChance}`);
+  }
+  const attempts = projectile.hullDamageAttempts ?? 1;
+  if (!Number.isInteger(attempts) || attempts <= 0) {
+    throw new Error(`Invalid projectile hull damage attempts: ${attempts}`);
+  }
+  if (projectile.damage === 0 || hitChance === 0) return 0;
+  if (hitChance === 1) return projectile.damage;
+
+  const damagePerAttempt = projectile.damage / attempts;
+  let hits = 0;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (random() < hitChance) hits += 1;
+  }
+  return damagePerAttempt * hits;
 }
 
 function validateProjectile(projectile) {
@@ -62,6 +90,10 @@ function validateProjectile(projectile) {
   }
   if (projectile.crewHitChance > 1 || projectile.crewProtectionPenetration > 1) {
     throw new Error("Naval projectile crew probabilities must be at most one");
+  }
+  const hullHitChance = projectile.hullHitChance ?? 1;
+  if (!Number.isFinite(hullHitChance) || hullHitChance < 0 || hullHitChance > 1) {
+    throw new Error(`Invalid naval projectile hull hit chance: ${hullHitChance}`);
   }
 }
 

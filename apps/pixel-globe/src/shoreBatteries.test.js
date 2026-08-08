@@ -118,23 +118,24 @@ test("shore garrisons surrender to heavy wounds and recover lesser wounds after 
   assert.equal(battery.hitPoints, 0);
 });
 
-test("fortifications strongly resist shipboard arms and cannot be burned down by fire arrows", () => {
+test("fortifications protect their garrisons while retaining portable hull hit chances", () => {
   const fireArrow = shoreBatteryPortableImpact({
     crewDamage: 1,
     crewHitChance: 0.4,
     crewProtectionPenetration: 0.1,
     hullDamage: 0.25,
-    incendiary: true
+    hullHitChance: 0.2
   });
   assert.equal(fireArrow.crewHitChance, 0.4 * SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE);
-  assert.equal(fireArrow.hullDamage, 0);
+  assert.equal(fireArrow.hullDamage, 0.25);
+  assert.equal(fireArrow.hullHitChance, 0.2);
 
   const swivelShot = shoreBatteryPortableImpact({
     crewDamage: 2,
     crewHitChance: 0.68,
     crewProtectionPenetration: 0.75,
     hullDamage: 0.5,
-    incendiary: false
+    hullHitChance: 1
   });
   assert.equal(swivelShot.hullDamage, 0.5);
 });
