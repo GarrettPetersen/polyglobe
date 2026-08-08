@@ -214,7 +214,7 @@ test("the same crash is reported only once per page session", async () => {
   );
 });
 
-test("nonfatal diagnostics use a persisted per-key cooldown", async () => {
+test("protected stitch diagnostics use one persisted installation-wide cooldown", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
     [TELEMETRY_INSTALLATION_STORAGE_KEY]: "diagnostic-installation"
@@ -236,13 +236,13 @@ test("nonfatal diagnostics use a persisted per-key cooldown", async () => {
     clearIntervalImpl() {},
     metadata: metadata()
   });
-  const options = { key: "protected-chart-stitch:1:2", cooldownMs: 30 * 86_400_000 };
+  const options = { key: "protected-chart-stitch", cooldownMs: 30 * 86_400_000 };
   const first = createTelemetry();
   first.start();
   assert.equal(first.captureDiagnostic(new Error("recovered stitch"), {
     screen: "chart-stitch-recovered"
   }, options), true);
-  assert.equal(first.captureDiagnostic(new Error("recovered stitch"), {
+  assert.equal(first.captureDiagnostic(new Error("different recovered edge"), {
     screen: "chart-stitch-recovered"
   }, options), false);
   await nextTask();

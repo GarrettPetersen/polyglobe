@@ -30275,7 +30275,7 @@ function recoverProtectedStitchError(error) {
   if (!recoveredProtectedStitchEdges.has(edgeKey)) {
     recoveredProtectedStitchEdges.add(edgeKey);
     gameTelemetry.captureDiagnostic(error, telemetryCrashContext("chart-stitch-recovered"), {
-      key: `protected-chart-stitch:${edgeKey}`,
+      key: "protected-chart-stitch",
       cooldownMs: PROTECTED_STITCH_DIAGNOSTIC_COOLDOWN_MS
     });
     console.warn(
