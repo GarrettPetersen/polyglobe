@@ -3161,6 +3161,45 @@ test("a rumor queued before an active delivery cannot trap Back in a quest self-
   assert.equal(session.nodeId, "root");
 });
 
+test("no-work Back returns to the city menu after an arrival continuation", () => {
+  const city = {
+    tileId: 25,
+    city: "Faro",
+    displayCity: "Faro",
+    country: "Portugal",
+    cityType: "mediterranean",
+    routeRegion: "mediterranean",
+    factionId: "portugal",
+    population: 8000,
+    lat: 37.02,
+    lon: -7.93,
+    character: { name: "Diogo Vaz" }
+  };
+  const ports = [city];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "greeting",
+    nextPortNodeId: "greeting",
+    admittedToPort: true
+  });
+
+  selectPortDialogueOption(session, city, gameState, economy, ports, 0);
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.nextPortNodeId, null);
+
+  const root = portDialogueView(session, city, gameState, economy, ports);
+  const workIndex = root.options.findIndex((entry) => entry.label === "Ask about work");
+  assert.ok(workIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, ports, workIndex);
+
+  const unavailable = portDialogueView(session, city, gameState, economy, ports);
+  assert.match(unavailable.text, /No sealed packets/);
+  const backIndex = unavailable.options.findIndex((entry) => entry.label === "Back");
+  selectPortDialogueOption(session, city, gameState, economy, ports, backIndex);
+  assert.equal(session.nodeId, "root");
+});
+
 test("shipyards show a full vessel presentation and enforce the asking price", () => {
   const city = {
     tileId: 10,

@@ -20,6 +20,7 @@ import {
   PIRATE_HIDEOUT_REPUTATION_REQUIRED,
   PIRATE_REPUTATION_GAIN_PER_PIRACY,
   PIRATE_START_REPUTATION,
+  SELF_DEFENSE_REPUTATION_PENALTY,
   SHIP_ATTACK_REPUTATION_PENALTY,
   TRADE_PASS_REPUTATION_REQUIRED,
   TRADE_REPUTATION_GAIN,
@@ -55,6 +56,7 @@ import {
   refuseFactionSafePassage,
   recordAttackAgainstFaction,
   recordPiracyAgainstFaction,
+  recordSelfDefenseAgainstFaction,
   validateGameState
 } from "./gameState.js";
 import {
@@ -614,6 +616,26 @@ test("friendly fire causes a small local penalty without revoking diplomatic pap
   assert.equal(factionSafePassageStatus(state, "france", 100).active, true);
   assert.equal(hasLetterOfMarqueFrom(state, "france"), true);
   assert.equal(state.memory.decisions["reputation.friendly-fire.france"], 1);
+  assert.equal(state.memory.decisions["reputation.attack.france"], undefined);
+  assert.equal(state.memory.decisions["reputation.piracy.france"], undefined);
+});
+
+test("self-defense causes only a token local penalty without revoking diplomatic papers", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const before = factionReputation(state, "france");
+  state.relations.safePassageUntilMinute.france = 2_000;
+  state.relations.lettersOfMarque.france = {
+    factionId: "france",
+    simMinute: 10
+  };
+
+  const result = recordSelfDefenseAgainstFaction(state, "france");
+
+  assert.equal(result.delta, SELF_DEFENSE_REPUTATION_PENALTY);
+  assert.equal(result.after, before + SELF_DEFENSE_REPUTATION_PENALTY);
+  assert.equal(factionSafePassageStatus(state, "france", 100).active, true);
+  assert.equal(hasLetterOfMarqueFrom(state, "france"), true);
+  assert.equal(state.memory.decisions["reputation.self-defense.france"], 1);
   assert.equal(state.memory.decisions["reputation.attack.france"], undefined);
   assert.equal(state.memory.decisions["reputation.piracy.france"], undefined);
 });

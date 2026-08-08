@@ -1313,10 +1313,7 @@ export function selectPortDialogueOption(
   }
   if (action.type === "close") return { closed: true };
   if (action.type === "node") {
-    const consumesRumorContinuation = session.nodeId === "greeting" &&
-      session.rumorText !== null &&
-      action.nodeId === (session.nextPortNodeId || "root");
-    if (consumesRumorContinuation) {
+    if (session.nodeId === "greeting") {
       session.rumorText = null;
       session.nextPortNodeId = null;
     }

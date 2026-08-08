@@ -324,6 +324,7 @@ export const ONBOARDING_DELIVERY_SCENARIOS = Object.freeze([
 ]);
 export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
 export const FRIENDLY_FIRE_REPUTATION_PENALTY = -3;
+export const SELF_DEFENSE_REPUTATION_PENALTY = -1;
 export const PIRACY_ALLY_REPUTATION_PENALTY = -10;
 export const PIRACY_FRIENDLY_REPUTATION_PENALTY = -5;
 export const PIRACY_HOME_REPUTATION_PENALTY = -8;
@@ -3714,6 +3715,19 @@ export function recordFriendlyFireAgainstFaction(state, factionId) {
   const after = adjustFactionReputation(state, id, FRIENDLY_FIRE_REPUTATION_PENALTY);
   const delta = roundReputation(after - before);
   if (delta !== 0) recordDecision(state, `reputation.friendly-fire.${id}`, 1);
+  return { factionId: id, before, after, delta };
+}
+
+export function recordSelfDefenseAgainstFaction(state, factionId) {
+  assertGameState(state);
+  const id = assertFactionId(factionId);
+  const before = factionReputation(state, id);
+  if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
+    return { factionId: id, before, after: before, delta: 0 };
+  }
+  const after = adjustFactionReputation(state, id, SELF_DEFENSE_REPUTATION_PENALTY);
+  const delta = roundReputation(after - before);
+  if (delta !== 0) recordDecision(state, `reputation.self-defense.${id}`, 1);
   return { factionId: id, before, after, delta };
 }
 

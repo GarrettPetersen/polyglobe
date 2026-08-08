@@ -1,8 +1,8 @@
 export const FRIENDLY_FIRE_DIRECT = "direct";
 export const FRIENDLY_FIRE_WARNING = "warning";
 export const FRIENDLY_FIRE_SAME_VOLLEY = "same-volley";
-export const FRIENDLY_FIRE_ESCALATE = "escalate";
-export const FRIENDLY_FIRE_WARNING_LIMIT_PER_FACTION = 3;
+export const FRIENDLY_FIRE_FORGIVEN = "forgiven";
+export const FRIENDLY_FIRE_WARNING_LIMIT_PER_FACTION = 1;
 
 export function classifyPlayerCannonHit(incidentsByFaction, {
   factionId,
@@ -41,7 +41,7 @@ export function classifyPlayerCannonHit(incidentsByFaction, {
   }
   if (incident.lastVolleyId === volleyId) return FRIENDLY_FIRE_SAME_VOLLEY;
   if (incident.warningCount >= FRIENDLY_FIRE_WARNING_LIMIT_PER_FACTION) {
-    return FRIENDLY_FIRE_ESCALATE;
+    return FRIENDLY_FIRE_FORGIVEN;
   }
   incidentsByFaction.set(factionId, Object.freeze({
     lastVolleyId: volleyId,

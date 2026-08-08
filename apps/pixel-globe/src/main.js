@@ -387,6 +387,7 @@ import {
   recordAttackAgainstFaction,
   recordDiscovery,
   recordFriendlyFireAgainstFaction,
+  recordSelfDefenseAgainstFaction,
   reconcileFactionReputationAfterPlayerVassalage,
   recordPiracyAgainstFaction,
   beginIllicitTradeEnforcementCombat,
@@ -1137,6 +1138,7 @@ import {
 } from "./shipCombat.js";
 import {
   FRIENDLY_FIRE_DIRECT,
+  FRIENDLY_FIRE_FORGIVEN,
   FRIENDLY_FIRE_SAME_VOLLEY,
   FRIENDLY_FIRE_WARNING,
   classifyPlayerCannonHit,
@@ -2910,6 +2912,7 @@ const npcVisualSnapshotCache = createNpcShipSnapshotCache({
 });
 const shipCombatState = createShipCombatState();
 const playerFriendlyFireIncidents = new Map();
+const playerFriendlyFirePenaltyFactionIds = new Set();
 const shipCollisionCooldowns = new Map();
 const shipCombatEntryCollisionGrace = new Map();
 let pendingNpcCombatHailId = null;
@@ -11193,6 +11196,7 @@ async function restoreSavedVoyage(payload) {
   pendingNpcCombatHailId = null;
   shipCombatState.engagements.clear();
   clearFriendlyFireIncidents(playerFriendlyFireIncidents);
+  playerFriendlyFirePenaltyFactionIds.clear();
   shipCollisionCooldowns.clear();
   shipCombatEntryCollisionGrace.clear();
   playerHaulBlockedSeconds = 0;
@@ -17597,6 +17601,7 @@ function applyShipDialogueAction(npcShipId, action) {
     return;
   }
   if (action.type === "surrender") {
+    recordPlayerAttackConsequences(npcShipId);
     handleNpcSurrender(npcShipId, PLAYER_COMBAT_ID, { preserveHull: true });
     return;
   }
@@ -17765,6 +17770,17 @@ function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
       dirty = true;
     }
   }
+}
+
+function recordPlayerSelfDefenseConsequences(npcShipId, fallbackFactionId = null) {
+  if (!gameState) return null;
+  const strategic = npcSeaRoutes?.shipById?.get(npcShipId);
+  if (strategic?.encounter?.kind === "colonization-defense") return null;
+  const state = npcVisualShips.get(npcShipId);
+  if (state?.playerAttackRecorded) return null;
+  const factionId = state?.factionId || strategic?.factionId || fallbackFactionId;
+  if (!factionId || factionId === PIRATE_FACTION_ID || factionId === NEUTRAL_FACTION_ID) return null;
+  return recordSelfDefenseAgainstFaction(gameState, factionId);
 }
 
 function clampDialogueSelection() {
@@ -22412,7 +22428,10 @@ function updateNavalWeapons(dt) {
     const cannonVolleyInFlight = ship.navalProjectiles.some((ball) => (
       ball.kind === NAVAL_WEAPON_CANNON && ball.firedDuringCombat === true
     ));
-    if (!cannonVolleyInFlight) clearFriendlyFireIncidents(playerFriendlyFireIncidents);
+    if (!cannonVolleyInFlight) {
+      clearFriendlyFireIncidents(playerFriendlyFireIncidents);
+      playerFriendlyFirePenaltyFactionIds.clear();
+    }
   }
   const activeCrew = activeCombatCrew(gameState?.ship?.crew || 0, ship.woundedCrew);
   const installedCannons = gameState?.ship?.cannons || 0;
@@ -22581,7 +22600,7 @@ function playerCannonHitDisposition(ball, targetId, factionId) {
 }
 
 function recordPlayerFriendlyFireWarning(factionId) {
-  const result = recordFriendlyFireAgainstFaction(gameState, factionId);
+  const result = recordPlayerAccidentalDamagePenalty(factionId);
   if (result.delta === 0) {
     showSurvivalNotice("STRAY SHOT - HOLD YOUR FIRE", "warn");
   } else {
@@ -22593,8 +22612,18 @@ function recordPlayerFriendlyFireWarning(factionId) {
   saveVoyageNow("friendly fire warning");
 }
 
+function recordPlayerAccidentalDamagePenalty(factionId) {
+  if (playerFriendlyFirePenaltyFactionIds.has(factionId)) {
+    const reputation = factionReputation(gameState, factionId);
+    return { factionId, before: reputation, after: reputation, delta: 0 };
+  }
+  playerFriendlyFirePenaltyFactionIds.add(factionId);
+  return recordFriendlyFireAgainstFaction(gameState, factionId);
+}
+
 function friendlyFireDispositionIsAccidental(disposition) {
-  return disposition === FRIENDLY_FIRE_WARNING || disposition === FRIENDLY_FIRE_SAME_VOLLEY;
+  return disposition === FRIENDLY_FIRE_WARNING || disposition === FRIENDLY_FIRE_SAME_VOLLEY ||
+    disposition === FRIENDLY_FIRE_FORGIVEN;
 }
 
 function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
@@ -22646,15 +22675,14 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     );
     addHullSplinterBurst(ball, point);
   }
+  if (hitByPlayer && disposition === FRIENDLY_FIRE_WARNING) {
+    recordPlayerFriendlyFireWarning(battery.factionId);
+  }
   if (!result.newlyDisabled) {
-    if (hitByPlayer && disposition === FRIENDLY_FIRE_WARNING) {
-      recordPlayerFriendlyFireWarning(battery.factionId);
-    }
     return;
   }
-  if (hitByPlayer && accidentalFriendlyFire) beginPlayerInitiatedShoreCombat(battery);
   destroyShoreBatteryGunpowderStore(battery);
-  if (hitByPlayer) {
+  if (hitByPlayer && !accidentalFriendlyFire) {
     const city = chartPortCallById(battery.portId);
     if (!city) throw new Error(`Disabled player target has no port: ${battery.portId}`);
     markPlayerPortAssault(gameState.memory.flags, city, battery.disabledUntilMinute);
@@ -22789,16 +22817,14 @@ function applyPlayerNavalHit(ball, target, point) {
     if (disposition === FRIENDLY_FIRE_WARNING) recordPlayerFriendlyFireWarning(target.factionId);
     return;
   }
-  if (accidentalFriendlyFire && (damage.sunk || damage.shouldSurrender)) {
-    beginPlayerInitiatedCombat(target.id);
-  }
-  if (disposition === FRIENDLY_FIRE_WARNING && !damage.sunk && !damage.shouldSurrender) {
+  if (disposition === FRIENDLY_FIRE_WARNING) {
     recordPlayerFriendlyFireWarning(target.factionId);
   }
-  if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
+  const winnerId = accidentalFriendlyFire ? null : PLAYER_COMBAT_ID;
+  if (damage.sunk) handleNpcSinking(target.id, winnerId);
   else {
     addHullSplinterBurst(ball, point);
-    if (damage.shouldSurrender) handleNpcSurrender(target.id, PLAYER_COMBAT_ID);
+    if (damage.shouldSurrender) handleNpcSurrender(target.id, winnerId);
   }
 }
 
@@ -26279,6 +26305,9 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   const treasureEncounter = strategicBeforeSurrender?.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
     ? { ...strategicBeforeSurrender.encounter }
     : null;
+  const selfDefenseResult = winnerId === PLAYER_COMBAT_ID
+    ? recordPlayerSelfDefenseConsequences(loserId, strategicBeforeSurrender.factionId)
+    : null;
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
   if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
     surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
@@ -26286,12 +26315,10 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     return;
   }
   let playerPrizeSummary = null;
-  const npcWinnerId = npcPrizeRecipientId(
-    winnerId,
-    npcSeaRoutes.shipById,
-    shoreBatteryStates
-  );
-  const wonByShoreBattery = shoreBatteryStates.has(winnerId);
+  const npcWinnerId = winnerId === null
+    ? null
+    : npcPrizeRecipientId(winnerId, npcSeaRoutes.shipById, shoreBatteryStates);
+  const wonByShoreBattery = winnerId !== null && shoreBatteryStates.has(winnerId);
   const loserFactionId =
     npcSeaRoutes.shipById.get(loserId)?.factionId ||
     npcVisualShips.get(loserId)?.factionId ||
@@ -26303,7 +26330,6 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
       random: Math.random,
       context: { simMinute: weatherClockMinutes }
     });
-    if (loserFactionId) recordPlayerAttackConsequences(loserId, loserFactionId);
     syncShipCargoFromGameState();
     if (loot.specie > 0) playCoinClinkSound();
     const cargoQuantity = Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0);
@@ -26355,6 +26381,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     state.portableWeaponCooldowns = {};
   }
   retireProjectilesForSurrenderedShip(loserId);
+  if (selfDefenseResult?.delta) saveVoyageNow("defended against an attacking ship");
   if (playerPrizeSummary) {
     if (treasureEncounter && resolveTreasurePiratePlayerDefeat(loserId, treasureEncounter, {
       sunk: false,
@@ -26406,6 +26433,9 @@ function handleNpcSinking(loserId, winnerId, { accidentalPlayerCollision = false
     ? { ...strategic.encounter }
     : null;
   const playerVictory = winnerId === PLAYER_COMBAT_ID && !accidentalPlayerCollision;
+  const selfDefenseResult = playerVictory
+    ? recordPlayerSelfDefenseConsequences(loserId, strategic.factionId)
+    : null;
   let accidentalCollisionRecorded = false;
   if (playerVictory) recordPlayerShipVictory();
   const visualState = npcVisualShips.get(loserId);
@@ -26427,11 +26457,9 @@ function handleNpcSinking(loserId, winnerId, { accidentalPlayerCollision = false
       })
     : null;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
-  if (playerVictory) {
-    recordPlayerAttackConsequences(loserId, factionId);
-  } else if (accidentalPlayerCollision) {
-    recordFriendlyFireAgainstFaction(gameState, factionId);
-    accidentalCollisionRecorded = true;
+  if (accidentalPlayerCollision) {
+    const result = recordPlayerAccidentalDamagePenalty(factionId);
+    accidentalCollisionRecorded = result.delta !== 0;
   }
   clearCombatForShip(loserId);
   npcVisualShips.delete(loserId);
@@ -26442,6 +26470,7 @@ function handleNpcSinking(loserId, winnerId, { accidentalPlayerCollision = false
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
   };
   if (accidentalCollisionRecorded) saveVoyageNow("friendly ship lost in an accidental collision");
+  if (selfDefenseResult?.delta) saveVoyageNow("defended against an attacking ship");
   if (itemGift) {
     presentMissionItemGift(itemGift, null, rewardOrigin);
     saveVoyageNow("equipment salvaged from sunken ship");
@@ -26993,14 +27022,22 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   const damage = damageNpcShip(npcSeaRoutes, id, amount);
   if (damage.ignoredAfterSurrender) return;
   const state = npcVisualShips.get(id);
+  const accidentalPlayerCollision = playerCollisionWithNpcIsAccidental(id, otherId);
   if (state) state.hitPoints = damage.hitPoints;
   if (damage.sunk) {
     handleNpcSinking(id, otherId, {
-      accidentalPlayerCollision: playerCollisionWithNpcIsAccidental(id, otherId)
+      accidentalPlayerCollision
     });
     return;
   }
   if (!damage.shouldSurrender || !state) return;
+  if (accidentalPlayerCollision) {
+    const result = recordPlayerAccidentalDamagePenalty(state.factionId);
+    const npcWinnerId = state.combatTargetId === PLAYER_COMBAT_ID ? null : state.combatTargetId;
+    handleNpcSurrender(id, npcWinnerId);
+    if (result.delta !== 0) saveVoyageNow("friendly ship disabled in an accidental collision");
+    return;
+  }
   const directEnemy = shipCombatState.engagements.has(engagementKey(id, otherId));
   const winnerId = directEnemy ? otherId : state.combatTargetId;
   if (winnerId) handleNpcSurrender(id, winnerId);
