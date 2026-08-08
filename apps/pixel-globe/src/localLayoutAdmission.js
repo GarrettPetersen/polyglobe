@@ -12,6 +12,20 @@ const MIN_ELASTIC_CORRECTION_TILES = 3;
 // integer raster placement supplies the remaining two-pixel tolerance.
 const MAX_PROTECTED_STITCH_ERROR_PX = MAX_PROTECTED_ADMISSION_SLACK_PX * 2 + 2.1;
 
+export class ProtectedChartStitchError extends Error {
+  constructor({ tileId, neighborId, maximumErrorPx, actualErrorPx }) {
+    super(
+      `Protected chart edge ${tileId}:${neighborId} cannot be stitched ` +
+        `within ${maximumErrorPx.toFixed(2)}px (error ${actualErrorPx.toFixed(2)}px)`
+    );
+    this.name = this.constructor.name;
+    this.tileId = tileId;
+    this.neighborId = neighborId;
+    this.maximumErrorPx = maximumErrorPx;
+    this.actualErrorPx = actualErrorPx;
+  }
+}
+
 function registeredProjectionFrame(positions, projectedById, anchorId, registrationIds) {
   const anchorPosition = positions.get(anchorId);
   const anchorProjected = projectedById.get(anchorId);
@@ -549,11 +563,12 @@ function relaxProtectedComponentEdges({
       Math.hypot(point.x - neighbor.x, point.y - neighbor.y) - constraint.expectedDistance
     );
     if (error > MAX_PROTECTED_STITCH_ERROR_PX) {
-      throw new Error(
-        `Protected chart edge ${constraint.id}:${constraint.neighborId} cannot be stitched ` +
-          `within ${MAX_PROTECTED_STITCH_ERROR_PX.toFixed(2)}px ` +
-          `(error ${error.toFixed(2)}px)`
-      );
+      throw new ProtectedChartStitchError({
+        tileId: constraint.id,
+        neighborId: constraint.neighborId,
+        maximumErrorPx: MAX_PROTECTED_STITCH_ERROR_PX,
+        actualErrorPx: error
+      });
     }
   }
 }
@@ -732,7 +747,8 @@ export function admitProjectedTiles({
   continuityMaskById = null,
   maxContinuityCorrectionPx = 0,
   protectedCorrectionViewportIds = null,
-  liveViewportAdmissionIds = null
+  liveViewportAdmissionIds = null,
+  recoverProtectedStitchError = null
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
@@ -785,6 +801,12 @@ export function admitProjectedTiles({
   if (liveViewportAdmissionIds !== null && !(liveViewportAdmissionIds instanceof Set)) {
     throw new Error("Live viewport admission ids must be a set");
   }
+  if (
+    recoverProtectedStitchError !== null &&
+    typeof recoverProtectedStitchError !== "function"
+  ) {
+    throw new Error("Protected chart stitch recovery must be a function");
+  }
   const pending = [...pendingIds];
   if (new Set(pending).size !== pending.length) {
     throw new Error("Local layout admission received duplicate pending tiles");
@@ -826,7 +848,7 @@ export function admitProjectedTiles({
     fallbackFrame: translatedFallbackFrame,
     elasticBoundariesOnly: correctElasticTilesNorthUp
   });
-  const protectedPointById = directlyProtectedAdmissionPoints({
+  const protectedAdmissionArgs = {
     positions,
     projectedById,
     pending,
@@ -838,7 +860,26 @@ export function admitProjectedTiles({
     targetFrame: translatedFrame,
     maxProtectedCorrectionPx,
     liveViewportAdmissionIds
-  });
+  };
+  let protectedPointById;
+  try {
+    protectedPointById = directlyProtectedAdmissionPoints(protectedAdmissionArgs);
+  } catch (error) {
+    if (
+      !(error instanceof ProtectedChartStitchError) ||
+      !recoverProtectedStitchError ||
+      recoverProtectedStitchError(error) !== true
+    ) {
+      throw error;
+    }
+    // The failed solve only touched temporary component positions. Re-admit
+    // protected geometry in the retained frame, without the preventative
+    // north-up nudge that made this water boundary over-constrained.
+    protectedPointById = directlyProtectedAdmissionPoints({
+      ...protectedAdmissionArgs,
+      maxProtectedCorrectionPx: 0
+    });
+  }
   const continuityCorrectionLimitById = gradedContinuityCorrectionLimits({
     pendingIds: pending,
     positions,

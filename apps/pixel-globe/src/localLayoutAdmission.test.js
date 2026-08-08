@@ -11,6 +11,7 @@ import {
 import {
   MAX_ELASTIC_FRAME_CORRECTION_PX,
   MAX_PROTECTED_ADMISSION_SLACK_PX,
+  ProtectedChartStitchError,
   admitProjectedTiles,
   refreshOffscreenLayoutTiles,
   projectedViewportTileIds,
@@ -353,6 +354,89 @@ test("new protected geometry stays within its three-pixel admission circle", () 
     assert.deepEqual(corrected.positions.get(id), rigid.positions.get(id));
     assert.deepEqual(live.positions.get(id), rigid.positions.get(id));
   }
+});
+
+test("an over-constrained protected water stitch can use retained-frame admission", () => {
+  const topology = admissionTopology(3, [[0, 2], [1, 2]], 255);
+  const projectedById = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 12, y: 20 }]
+  ]);
+  const admissionArgs = {
+    projectedById,
+    pendingIds: [2],
+    anchorId: 0,
+    ...topology,
+    directProtectionComponentById: new Int32Array([0, 0, 0]),
+    registrationIds: new Set([0, 1]),
+    rigidRegistrationIds: new Set([0, 1]),
+    correctElasticTilesNorthUp: true,
+    maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    liveViewportAdmissionIds: new Set([2])
+  };
+  const strictPositions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 55, y: 0 }]
+  ]);
+
+  assert.throws(
+    () => admitProjectedTiles({ positions: strictPositions, ...admissionArgs }),
+    ProtectedChartStitchError
+  );
+  assert.equal(strictPositions.has(2), false);
+
+  const recoveredPositions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 55, y: 0 }]
+  ]);
+  let recoveredError = null;
+  const admitted = admitProjectedTiles({
+    positions: recoveredPositions,
+    ...admissionArgs,
+    recoverProtectedStitchError: (error) => {
+      recoveredError = error;
+      return true;
+    }
+  });
+
+  assert.equal(admitted, 1);
+  assert.equal(recoveredError instanceof ProtectedChartStitchError, true);
+  assert.equal(recoveredError.tileId, 2);
+  assert.equal(recoveredError.neighborId, 1);
+  assert.deepEqual(recoveredPositions.get(0), { x: 0, y: 0 });
+  assert.deepEqual(recoveredPositions.get(1), { x: 55, y: 0 });
+  assert.deepEqual(recoveredPositions.get(2), { x: 12, y: 20 });
+});
+
+test("declining protected stitch recovery preserves the strict failure", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 55, y: 0 }]
+  ]);
+
+  assert.throws(
+    () => admitProjectedTiles({
+      positions,
+      projectedById: new Map([
+        [0, { x: 0, y: 0 }],
+        [1, { x: 24, y: 0 }],
+        [2, { x: 12, y: 20 }]
+      ]),
+      pendingIds: [2],
+      anchorId: 0,
+      ...admissionTopology(3, [[0, 2], [1, 2]], 255),
+      directProtectionComponentById: new Int32Array([0, 0, 0]),
+      registrationIds: new Set([0, 1]),
+      rigidRegistrationIds: new Set([0, 1]),
+      correctElasticTilesNorthUp: true,
+      maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+      liveViewportAdmissionIds: new Set([2]),
+      recoverProtectedStitchError: () => false
+    }),
+    ProtectedChartStitchError
+  );
+  assert.equal(positions.has(2), false);
 });
 
 test("protected coastline entering beside corrected ocean keeps its component rigid", () => {
