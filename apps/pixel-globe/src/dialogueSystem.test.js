@@ -1571,6 +1571,46 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   assert.equal(recommended.goodLabel, "Silver");
 });
 
+test("post-purchase trade advice uses the blended ledger cost basis", () => {
+  const origin = {
+    tileId: 210,
+    city: "Istanbul",
+    country: "Turkey",
+    cityType: "islamic-desert",
+    lat: 41.01,
+    lon: 28.98,
+    population: 180000,
+    factionId: "neutral"
+  };
+  const destination = {
+    tileId: 211,
+    city: "Bursa",
+    country: "Turkey",
+    cityType: "islamic-desert",
+    lat: 40.19,
+    lon: 29.06,
+    population: 70000,
+    factionId: "neutral"
+  };
+  const economy = createWorldEconomy({ ports: [origin, destination], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.fish = 2;
+  gameState.accounts.cargoCostBasis.fish = 10000;
+
+  const recommendation = bestPurchasedTradeRoute({
+    purchases: {
+      fish: { goodId: "fish", quantity: 1, cost: 1 }
+    },
+    originCity: origin,
+    gameState,
+    economy,
+    portCities: [destination],
+    sailingDistanceKm: testSailingDistances([[origin, destination, 140]])
+  });
+
+  assert.equal(recommendation, null);
+});
+
 test("leaving the buy screen without a purchase returns directly to port business", () => {
   const city = {
     tileId: 104,
@@ -1757,7 +1797,7 @@ test("leaving the sell screen without a sale recommends a market for held trade 
   );
 });
 
-test("held-cargo price advice survives an unprofitable cost basis", () => {
+test("held-cargo price advice does not recommend a loss-making destination", () => {
   const ternate = {
     tileId: 205,
     city: "Ternate",
@@ -1792,8 +1832,67 @@ test("held-cargo price advice survives an unprofitable cost basis", () => {
     sailingDistanceKm: testSailingDistances([[ternate, london, 14200]])
   });
 
-  assert.equal(result.tradeTip.goodLabel, "Cloves");
+  assert.deepEqual(result, { closed: false });
+  assert.equal(session.tradeTip, null);
+  assert.equal(session.nodeId, "root");
+});
+
+test("held-cargo price advice prefers a distant profit over a nearby loss", () => {
+  const origin = {
+    tileId: 207,
+    city: "Istanbul",
+    country: "Ottoman Empire",
+    cityType: "islamic-desert",
+    lat: 41.01,
+    lon: 28.98,
+    population: 180000,
+    factionId: "neutral",
+    character: { name: "Kemal Reis" }
+  };
+  const nearby = {
+    tileId: 208,
+    city: "Bursa",
+    country: "Ottoman Empire",
+    cityType: "islamic-desert",
+    lat: 40.19,
+    lon: 29.06,
+    population: 70000,
+    factionId: "neutral"
+  };
+  const distant = {
+    tileId: 209,
+    city: "London",
+    country: "England",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000,
+    factionId: "neutral"
+  };
+  const ports = [origin, nearby, distant];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  economy.portStates.get(origin.tileId).goods.get("fish").stock *= 100;
+  economy.portStates.get(nearby.tileId).goods.get("fish").stock *= 100;
+  economy.portStates.get(distant.tileId).goods.get("fish").stock = 0;
+  const nearbyRevenue = quotePortPurchase(economy, nearby, "fish", 1);
+  const distantRevenue = quotePortPurchase(economy, distant, "fish", 1);
+  assert.ok(distantRevenue > nearbyRevenue);
+
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.fish = 1;
+  gameState.accounts.cargoCostBasis.fish = (nearbyRevenue + distantRevenue) / 2;
+  const session = createPortDialogueSession(origin, { initialNodeId: "sell" });
+  const market = portDialogueView(session, origin, gameState, economy, ports);
+  const backIndex = dialogueBackOptionIndex(market);
+  const result = selectPortDialogueOption(session, origin, gameState, economy, ports, backIndex, {
+    sailingDistanceKm: testSailingDistances([
+      [origin, nearby, 140],
+      [origin, distant, 3600]
+    ])
+  });
+
   assert.equal(result.tradeTip.destinationName, "London");
+  assert.ok(result.tradeTip.expectedPnl > 0);
   assert.equal(session.nodeId, "trade-tip");
 });
 

@@ -72,6 +72,7 @@ export function surfaceDetailCallsForLayer({
 export function surfaceDetailCallsHaveSameGeometry(left, right) {
   validateSurfaceDetailCallSet(left, "cached");
   validateSurfaceDetailCallSet(right, "current");
+  if (left.riverGeometryKey !== right.riverGeometryKey) return false;
   if (left.tileCalls.length !== right.tileCalls.length ||
       left.riverConnectorCalls.length !== right.riverConnectorCalls.length) {
     return false;

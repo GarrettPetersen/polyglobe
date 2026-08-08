@@ -188,3 +188,20 @@ test("surface detail cache invalidates when a newly drawn river enters its bound
   };
   assert.equal(surfaceDetailCallsHaveSameGeometry(cached, current), false);
 });
+
+test("surface detail cache invalidates when river shapes change inside stable tiles", () => {
+  const calls = {
+    tileCalls: [{
+      id: 7,
+      drawSurfaceX: 400,
+      drawSurfaceY: 120,
+      level: 0,
+      row: { t: "land", e: "grass" }
+    }],
+    riverConnectorCalls: []
+  };
+  const cached = { ...calls, riverGeometryKey: "tile:7:10,16;22,16" };
+  const current = { ...calls, riverGeometryKey: "tile:7:9,16;22,16" };
+
+  assert.equal(surfaceDetailCallsHaveSameGeometry(cached, current), false);
+});

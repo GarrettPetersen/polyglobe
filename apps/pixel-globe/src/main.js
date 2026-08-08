@@ -29116,7 +29116,34 @@ function cachedSurfaceDetailGeometryMatchesChart(cached, activeChart) {
     },
     margin: TILE_ART_SIZE
   });
+  currentCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, currentCalls);
   return surfaceDetailCallsHaveSameGeometry(cached, currentCalls);
+}
+
+function surfaceDetailRiverGeometryKey(activeChart, calls) {
+  const parts = [];
+  for (const call of calls.tileCalls) {
+    const mask = riverMasks?.[call.id] || 0;
+    if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
+    const endpoints = riverEndpointsForTile(call, activeChart, mask)
+      .map((point) => `${point.x},${point.y},${point.mouth ? 1 : 0}`)
+      .join(";");
+    parts.push(`tile:${call.id}:${endpoints}`);
+  }
+  for (const call of calls.riverConnectorCalls) {
+    const geometry = riverConnectorGeometry(call, activeChart);
+    if (!geometry) {
+      parts.push(`connector:${call.a}:${call.b}:none`);
+      continue;
+    }
+    const { path, a, b } = geometry;
+    parts.push(
+      `connector:${call.a}:${call.b}:` +
+      `${path.x0},${path.y0},${path.cx},${path.cy},${path.x1},${path.y1}:` +
+      `${a.x},${a.y},${b.x},${b.y}`
+    );
+  }
+  return parts.join("|");
 }
 
 function createStaticSurfaceDetailLayer(activeChart, viewport) {
@@ -29145,6 +29172,7 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
       margin: TILE_ART_SIZE
     })
   );
+  const riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, calls);
   const riverWaterPixelRows = measurePerformanceBenchmarkStage(
     "render.terrain.surface.riverBanks.waterPixels",
     () => visibleRiverWaterPixelRows(
@@ -29185,6 +29213,7 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
     chart: activeChart,
     tileCalls: calls.tileCalls,
     riverConnectorCalls: calls.riverConnectorCalls,
+    riverGeometryKey,
     riverWaterPixelRows,
     riverBankPixels,
     weatherDayIndex: weatherMaskDayIndex,

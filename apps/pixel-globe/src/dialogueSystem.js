@@ -4158,6 +4158,11 @@ export function bestPurchasedTradeRoute({
       throw new Error("Trade-route purchase cost must be non-negative");
     }
     const good = tradeGoodById(purchase.goodId);
+    const heldBasis = cargoCostBasis(gameState, good.id);
+    const heldQuantity = gameState.cargo[good.id] || 0;
+    const expectedCost = heldBasis.known && heldQuantity >= purchase.quantity
+      ? heldBasis.average * purchase.quantity
+      : purchase.cost;
     const candidates = [];
     for (const destination of portCities) {
       if (!includeLocalMarket && destination.tileId === originCity.tileId) continue;
@@ -4177,7 +4182,8 @@ export function bestPurchasedTradeRoute({
         purchase.quantity,
         terms.saleMultiplier
       );
-      const pnl = revenue - purchase.cost;
+      const pnl = revenue - expectedCost;
+      if (pnl <= 0) continue;
       const localMarket = destination.tileId === originCity.tileId;
       const distanceKm = localMarket ? 0 : sailingDistanceKm(originCity, destination);
       if (distanceKm === null) continue;
@@ -4207,7 +4213,7 @@ export function bestPurchasedTradeRoute({
       if (betterTradeTip(candidate, best)) best = candidate;
     }
   }
-  return best?.expectedPnl > 0 ? best : null;
+  return best;
 }
 
 function bestHeldCargoTradeRoute({
@@ -4223,13 +4229,13 @@ function bestHeldCargoTradeRoute({
     if (row.good.sellable === false) continue;
     const quantity = marketTradeLotCount(row.quantity);
     if (quantity <= 0) continue;
+    const basis = cargoCostBasis(gameState, row.good.id);
     purchases[row.good.id] = {
       goodId: row.good.id,
-      // Advice after declining a sale compares the price of one trade lot. It
-      // must not disappear because the captain originally overpaid or because
-      // another port cannot afford the entire hold in one transaction.
+      // Advice after declining a sale compares one trade lot so a port need
+      // not afford the whole hold, but it must still respect known P/L.
       quantity: 1,
-      cost: 0
+      cost: basis.known ? basis.average : 0
     };
   }
   if (Object.keys(purchases).length === 0) return null;
