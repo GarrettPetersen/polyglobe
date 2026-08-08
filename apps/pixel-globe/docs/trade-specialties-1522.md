@@ -14,7 +14,7 @@ These goods are deliberately less lucrative than intercontinental spices:
 | Paper and printed books | Chinese paper centers and European printing cities |
 | Ginseng | Kaesong and Seoul |
 | Lacquerware | Kyoto, Sakai, and Gyeongju |
-| Sulfur | Kagoshima, Fukuoka, and Yamaguchi |
+| Sulfur | Kagoshima, Hakata, and Yamaguchi |
 
 The Baltic loop sends grain, timber, amber, furs, wax, metals, and naval stores toward
 western commercial ports, while cloth, salt, wine, arms, and books move east. The East

@@ -12,6 +12,8 @@ test("navigation text uses established localized place names", () => {
   );
   assert.equal(localizePlaceNames("ja", "Sail from Lisbon to Venice"), "Sail from リスボン to ヴェネツィア");
   assert.equal(localizePlaceNames("es", "Sail from London to Seville"), "Sail from Londres to Sevilla");
+  assert.equal(localizePlaceName("ja", "Hakata"), "博多");
+  assert.equal(localizePlaceName("ko", "Fukuoka"), "하카타");
 });
 
 test("unknown and player-created place names retain their canonical spelling", () => {

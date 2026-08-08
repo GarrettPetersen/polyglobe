@@ -106,8 +106,17 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
     occupiedCities: cityByTileId.values()
   });
   const nagasakiVillage = portCities.find((port) => port.city === "Nagasaki" && port.country === "Japan");
+  const hakata = portCities.find((port) => port.city === "Fukuoka" && port.country === "Japan");
   const nagasakiTarget = colonyTargets.find((target) => target.city === "Nagasaki" && target.country === "Japan");
   assert.ok(nagasakiVillage, "Nagasaki village should be a baked port");
+  assert.ok(hakata, "historical Hakata should remain a baked Japanese port");
+  assert.equal(hakata.displayCity, "Hakata");
+  assert.equal(hakata.tileId, 65406, "Hakata should use the open coastal hex east of Nagasaki");
+  assert.equal(
+    graph.neighbors[nagasakiVillage.tileId].includes(hakata.tileId),
+    false,
+    "Hakata and Nagasaki should not occupy neighboring city hexes"
+  );
   assert.equal(nagasakiTarget?.tileId, nagasakiVillage.tileId);
   assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [
     ...portCities,

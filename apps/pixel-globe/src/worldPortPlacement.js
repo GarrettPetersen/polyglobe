@@ -12,11 +12,11 @@ export function placeCityCatalogOnWorld(options) {
   if (!Array.isArray(cities)) throw new Error("City placement requires a city catalog array");
   const placed = new Map();
   for (const city of cities) {
-    validateCoordinates(city, `city ${city?.city || "unknown"}`);
+    const placement = cityPlacementCoordinates(city);
     const startId = findNearestTileId(
       options.graph,
       options.directionIndex,
-      latLonToDirection(city.lat, city.lon)
+      latLonToDirection(placement.lat, placement.lon)
     );
     const predicate = cityPlacementPredicate(options, city);
     if (city.islandSettlement && !predicate(startId)) {
@@ -41,6 +41,19 @@ export function placeCityCatalogOnWorld(options) {
     placed.set(tileId, { ...city, tileId });
   }
   return placed;
+}
+
+function cityPlacementCoordinates(city) {
+  const hasLat = city?.placementLat !== undefined;
+  const hasLon = city?.placementLon !== undefined;
+  if (hasLat !== hasLon) {
+    throw new Error(`City placement override requires both latitude and longitude: ${city?.city || "unknown"}`);
+  }
+  const placement = hasLat
+    ? { lat: city.placementLat, lon: city.placementLon }
+    : city;
+  validateCoordinates(placement, `city ${city?.city || "unknown"}`);
+  return placement;
 }
 
 export function placeColonizationTargetsOnWorld({

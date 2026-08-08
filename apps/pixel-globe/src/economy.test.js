@@ -96,6 +96,17 @@ test("city catalog corrects Augsburg without changing its stable source identity
   assert.equal(augsburg.cityId, "augsberg|germany");
 });
 
+test("city catalog presents historical Hakata without changing its stable source identity", () => {
+  const hakata = CITY_CATALOG.find((city) => city.city === "Fukuoka" && city.country === "Japan");
+  assert.ok(hakata);
+  assert.equal(hakata.displayCity, "Hakata");
+  assert.equal(hakata.cityId, "fukuoka|japan");
+  assert.deepEqual(
+    { lat: hakata.placementLat, lon: hakata.placementLon },
+    { lat: 33.58, lon: 130.81 }
+  );
+});
+
 test("voyage seeds vary initial markets while remaining deterministic", () => {
   const first = createWorldEconomy({
     ports: [LONDON, GOA, TERNATE],

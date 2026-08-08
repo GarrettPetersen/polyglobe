@@ -20,9 +20,17 @@ export const CITY_DATA_URL = "shared/datasets/urbanization-dominance-pruned/urba
 
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
   ["augsberg|germany", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Augsburg" }]],
+  ["fukuoka|japan", [{ throughYear: Number.POSITIVE_INFINITY, displayCity: "Hakata" }]],
   ["texcoco|mexico", [{ throughYear: 1522, displayCity: "Tezcoco" }]],
   ["merida|mexico", [{ throughYear: 1541, displayCity: "Tiho" }]],
   ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]]
+]);
+
+const CITY_PLACEMENT_OVERRIDES_1522 = new Map([
+  // The source coordinates and stable identity remain Fukuoka/Hakata. At this
+  // map resolution the eastern neighboring coastal hex keeps Hakata Bay and
+  // the later Nagasaki settlement visually distinct.
+  ["fukuoka|japan", Object.freeze({ placementLat: 33.58, placementLon: 130.81 })]
 ]);
 
 export const CITY_TYPE_KEYS = Object.freeze([
@@ -124,6 +132,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
     const baseCityRecord = {
       ...observation,
       displayCity: cityDisplayName(observation.city, observation.country, targetYear),
+      ...cityPlacementOverride(observation.city, observation.country),
       cityType: cityTypeForCity(observation.country, observation.lat, observation.lon)
     };
     const cityRecord = withColonialFounding({
@@ -324,6 +333,10 @@ function cityDisplayName(city, country, targetYear) {
   if (!rules) return city;
   const rule = rules.find((item) => targetYear <= item.throughYear);
   return rule?.displayCity || city;
+}
+
+function cityPlacementOverride(city, country) {
+  return CITY_PLACEMENT_OVERRIDES_1522.get(normalizeCityKey(city, country)) || {};
 }
 
 export function cityTypeForCity(country, lat, lon) {

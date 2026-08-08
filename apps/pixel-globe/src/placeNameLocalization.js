@@ -59,6 +59,7 @@ const PLACE_NAMES = Object.freeze([
     es: "Kioto", "pt-BR": "Quioto", pl: "Kioto"
   })),
   place(["Edo"], names("江户", "江戶", "江戸", "에도", "Эдо")),
+  place(["Hakata", "Fukuoka"], names("博多", "博多", "博多", "하카타", "Хаката")),
   place(["Nagasaki"], names("长崎", "長崎", "長崎", "나가사키", "Нагасаки")),
   place(["Malacca"], names("马六甲", "馬六甲", "マラッカ", "말라카", "Малакка", {
     es: "Malaca", "pt-BR": "Malaca", de: "Malakka", pl: "Malakka"
