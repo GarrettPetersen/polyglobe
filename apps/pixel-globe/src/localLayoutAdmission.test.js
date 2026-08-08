@@ -20,6 +20,7 @@ import {
   settleVisibleElasticTilesWithinMotion,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
+import { predictiveAdmissionProjection } from "./chartAdmissionProjection.js";
 import {
   buildChartTileProtection,
   buildDirectChartProtectionComponents
@@ -1454,9 +1455,19 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       .filter((id) => !positions.has(id));
     const centerPendingIndex = pendingIds.indexOf(admissionAnchorId);
     if (centerPendingIndex >= 0) pendingIds.splice(centerPendingIndex, 1);
+    const admissionProjectedById = predictiveAdmissionProjection({
+      projectedTiles,
+      directionForTile: (id) => graphCenter(graph, id),
+      camera,
+      viewportWidth: TRAVERSAL_SCREEN_W,
+      viewportHeight: TRAVERSAL_SCREEN_H,
+      tileVisualRadius: 18,
+      pixelsPerRadian,
+      maximumLookaheadPx: chartMargin
+    });
     const admissionArgs = {
       positions,
-      projectedById,
+      projectedById: admissionProjectedById,
       pendingIds,
       anchorId: admissionAnchorId,
       neighborsById: graph.neighbors,

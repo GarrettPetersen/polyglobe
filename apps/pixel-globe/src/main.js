@@ -18,6 +18,7 @@ import {
   settleVisibleElasticTilesWithinMotion,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
+import { predictiveAdmissionProjection } from "./chartAdmissionProjection.js";
 import {
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
@@ -1849,6 +1850,7 @@ const VIEW_MARGIN = 58;
 const CHART_REBUILD_RADIUS_PX = 28;
 const CHART_LOOKAHEAD_MARGIN = 96;
 const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE + CHART_LOOKAHEAD_MARGIN;
+const CHART_ADMISSION_LOOKAHEAD_PX = CHART_LOOKAHEAD_MARGIN;
 const MAX_CHART_TILES = 5200;
 const START_LAT_DEG = 41.98;
 const START_LON_DEG = 18.91;
@@ -30238,10 +30240,20 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
   }
 
   pending.delete(admissionAnchorId);
+  const admissionProjectedById = predictiveAdmissionProjection({
+    projectedTiles: projectedVisible,
+    directionForTile: tileCenterVector,
+    camera,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    tileVisualRadius: TILE_ART_HALF,
+    pixelsPerRadian: PIXELS_PER_RADIAN,
+    maximumLookaheadPx: CHART_ADMISSION_LOOKAHEAD_PX
+  });
 
   admitProjectedTiles({
     positions: localLayout.positions,
-    projectedById,
+    projectedById: admissionProjectedById,
     pendingIds: pending,
     anchorId: admissionAnchorId,
     neighborsById: graph.neighbors,
