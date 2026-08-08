@@ -143,11 +143,12 @@ export function createHistoricalBattle({
     if (squadron.leaderIndex < 0) throw new Error(`Historical squadron has no leader: ${squadron.id}`);
   }
 
+  const initialWind = historicalBattleWindAt(scenario.map.wind, 0);
   const state = {
     version: 2,
     scenario,
     map,
-    wind: Object.freeze({ ...scenario.map.wind }),
+    wind: { ...initialWind },
     shipFootprints,
     playerSideId,
     playerSquadronId,
@@ -266,6 +267,46 @@ export function historicalBattleWindFlowDirection(state) {
   return normalizeAngle(state.wind.directionRad + Math.PI);
 }
 
+export function historicalBattleWindAt(windSpec, elapsedSeconds) {
+  if (!Number.isFinite(windSpec?.directionRad) || !Number.isFinite(windSpec?.strength)) {
+    throw new Error("Historical battle wind schedule requires an initial wind");
+  }
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+    throw new Error(`Invalid historical battle wind time: ${elapsedSeconds}`);
+  }
+  const shift = windSpec.shift;
+  if (!shift || elapsedSeconds <= shift.beginsAtSeconds) {
+    return Object.freeze({
+      directionRad: normalizeAngle(windSpec.directionRad),
+      strength: windSpec.strength
+    });
+  }
+  if (elapsedSeconds < shift.reversesAtSeconds) {
+    const progress = smoothstep01(
+      (elapsedSeconds - shift.beginsAtSeconds) /
+      (shift.reversesAtSeconds - shift.beginsAtSeconds)
+    );
+    return Object.freeze({
+      directionRad: normalizeAngle(windSpec.directionRad),
+      strength: lerp(windSpec.strength, shift.lullStrength, progress)
+    });
+  }
+  if (elapsedSeconds < shift.completesAtSeconds) {
+    const progress = smoothstep01(
+      (elapsedSeconds - shift.reversesAtSeconds) /
+      (shift.completesAtSeconds - shift.reversesAtSeconds)
+    );
+    return Object.freeze({
+      directionRad: normalizeAngle(shift.directionRad),
+      strength: lerp(shift.lullStrength, shift.strength, progress)
+    });
+  }
+  return Object.freeze({
+    directionRad: normalizeAngle(shift.directionRad),
+    strength: shift.strength
+  });
+}
+
 export function historicalBattleSideSummary(state, sideId) {
   assertBattle(state);
   const found = state.sides.find((side) => side.id === sideId);
@@ -380,6 +421,9 @@ export function historicalBattleSnapshot(state) {
 function stepHistoricalBattle(state, command) {
   state.tick += 1;
   state.elapsedSeconds += HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
+  const wind = historicalBattleWindAt(state.scenario.map.wind, state.elapsedSeconds);
+  state.wind.directionRad = wind.directionRad;
+  state.wind.strength = wind.strength;
   state.metrics.fixedSteps += 1;
   applySquadronCommand(state, command);
   applyUnitCommand(state, command.unitCommand);
@@ -1469,6 +1513,15 @@ function roundSnapshot(value) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function lerp(start, end, progress) {
+  return start + (end - start) * progress;
+}
+
+function smoothstep01(value) {
+  const clamped = clamp(value, 0, 1);
+  return clamped * clamped * (3 - 2 * clamped);
 }
 
 function assertBattle(state) {

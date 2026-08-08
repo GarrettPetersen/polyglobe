@@ -19,9 +19,18 @@ const LEPANTO_SCENARIO = scenario({
     height: 5920,
     latitudeDeg: 38.2,
     wind: {
-      // The morning breeze initially favoured the westbound Ottoman fleet.
+      // An east wind aided the westbound Ottomans, then lulled and reversed
+      // shortly before contact so a light west wind favoured the Holy League.
       directionRad: 0,
-      strength: 0.44
+      strength: 0.32,
+      shift: {
+        beginsAtSeconds: 8,
+        reversesAtSeconds: 14,
+        completesAtSeconds: 20,
+        directionRad: Math.PI,
+        strength: 0.3,
+        lullStrength: 0.04
+      }
     },
     escape: {
       sideId: OTTOMAN_SIDE_ID,
@@ -141,6 +150,7 @@ function scenario(value) {
   if (!Number.isInteger(value.map?.width) || !Number.isInteger(value.map?.height)) {
     throw new Error(`Historical battle map dimensions are invalid: ${value.id}`);
   }
+  assertHistoricalWind(value.map.wind, value.id);
   if (!Array.isArray(value.sides) || value.sides.length !== 2) {
     throw new Error(`Historical battle must have exactly two sides: ${value.id}`);
   }
@@ -150,6 +160,26 @@ function scenario(value) {
     ids.add(sideValue.id);
   }
   return deepFreeze(value);
+}
+
+function assertHistoricalWind(wind, scenarioId) {
+  if (!Number.isFinite(wind?.directionRad) || !Number.isFinite(wind?.strength) ||
+      wind.strength < 0 || wind.strength > 1) {
+    throw new Error(`Historical battle wind is invalid: ${scenarioId}`);
+  }
+  if (wind.shift === undefined) return;
+  const shift = wind.shift;
+  if (!Number.isFinite(shift.beginsAtSeconds) || shift.beginsAtSeconds < 0 ||
+      !Number.isFinite(shift.reversesAtSeconds) ||
+      shift.reversesAtSeconds <= shift.beginsAtSeconds ||
+      !Number.isFinite(shift.completesAtSeconds) ||
+      shift.completesAtSeconds <= shift.reversesAtSeconds ||
+      !Number.isFinite(shift.directionRad) ||
+      !Number.isFinite(shift.strength) || shift.strength < 0 || shift.strength > 1 ||
+      !Number.isFinite(shift.lullStrength) || shift.lullStrength < 0 ||
+      shift.lullStrength > Math.min(wind.strength, shift.strength)) {
+    throw new Error(`Historical battle wind shift is invalid: ${scenarioId}`);
+  }
 }
 
 function side(value) {

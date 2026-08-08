@@ -14,6 +14,7 @@ import {
   historicalBattleSnapshot,
   historicalBattleSquadronSummary,
   historicalBattleVisibleShips,
+  historicalBattleWindAt,
   historicalBattleWindFlowDirection,
   updateHistoricalBattle
 } from "./historicalBattle.js";
@@ -218,6 +219,22 @@ test("historical wind uses the shared downwind flow convention", () => {
   const battle = createBattle();
 
   assert.equal(historicalBattleWindFlowDirection(battle), Math.PI);
+});
+
+test("Lepanto's east wind lulls and reverses before the fleets make contact", () => {
+  const battle = createBattle();
+  const windSpec = battle.scenario.map.wind;
+  const opening = historicalBattleWindAt(windSpec, 0);
+  const lull = historicalBattleWindAt(windSpec, windSpec.shift.reversesAtSeconds);
+  const contact = historicalBattleWindAt(windSpec, windSpec.shift.completesAtSeconds);
+
+  assert.equal(opening.directionRad, 0);
+  assert.equal(opening.strength, 0.32);
+  assert.equal(lull.directionRad, Math.PI);
+  assert.equal(lull.strength, 0.04);
+  assert.equal(contact.directionRad, Math.PI);
+  assert.equal(contact.strength, 0.3);
+  assert.equal((contact.directionRad + Math.PI) % (Math.PI * 2), 0);
 });
 
 test("baked hull radii keep large ships in the collision broad phase", () => {
