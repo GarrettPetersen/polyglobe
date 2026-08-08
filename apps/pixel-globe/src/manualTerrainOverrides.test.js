@@ -15,6 +15,7 @@ import { isWaterSurfaceRow } from "./terrainSurface.js";
 const SUBDIVISIONS = 7;
 const GULF_OF_KHAMBHAT_TILE_ID = 38891;
 const GULF_OF_KHAMBHAT_OUTLET_TILE_ID = 38903;
+const COOK_STRAIT_TILE_ID = 88775;
 const MOZAMBIQUE_ISLAND_TILE_ID = 125893;
 const MOZAMBIQUE_CHANNEL_TILE_IDS = Object.freeze([31618, 125890, 125896]);
 const LAKE_MALAWI_GAP_TILE_IDS = Object.freeze([124778, 7886, 31571]);
@@ -107,6 +108,7 @@ test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", as
     [
       GULF_OF_KHAMBHAT_TILE_ID,
       GULF_OF_KHAMBHAT_OUTLET_TILE_ID,
+      COOK_STRAIT_TILE_ID,
       ...MOZAMBIQUE_CHANNEL_TILE_IDS
     ]
   );
@@ -120,6 +122,40 @@ test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", as
   assert.equal(correctedRows[38890], earth.tiles[38890]);
   assert.ok(Math.abs(graph.latDeg[GULF_OF_KHAMBHAT_TILE_ID] - 22.2082) < 0.01);
   assert.ok(Math.abs(graph.lonDeg[GULF_OF_KHAMBHAT_TILE_ID] - 72.5391) < 0.01);
+});
+
+test("Cook Strait separates New Zealand's North and South Islands", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+
+  assert.equal(earth.tiles[COOK_STRAIT_TILE_ID].t, "oceanic");
+  assert.equal(earth.tiles[COOK_STRAIT_TILE_ID].m, 1120);
+  assert.deepEqual(correctedRows[COOK_STRAIT_TILE_ID], {
+    id: COOK_STRAIT_TILE_ID,
+    t: "beach",
+    e: -0.20500000000000002,
+    o: 1
+  });
+  assert.equal(isWaterSurfaceRow(correctedRows[COOK_STRAIT_TILE_ID]), true);
+  assert.ok(Math.abs(graph.latDeg[COOK_STRAIT_TILE_ID] - -41.333) < 0.01);
+  assert.ok(Math.abs(graph.lonDeg[COOK_STRAIT_TILE_ID] - 174.191) < 0.01);
+
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    const landmassId = correctedRows[tileId].m;
+    if (landmassId !== 1110 && landmassId !== 1120) continue;
+    for (const neighborId of graph.neighbors[tileId]) {
+      const neighborLandmassId = correctedRows[neighborId].m;
+      assert.notEqual(
+        neighborLandmassId,
+        landmassId === 1110 ? 1120 : 1110,
+        `New Zealand islands still touch at ${tileId}:${neighborId}`
+      );
+    }
+  }
 });
 
 test("Lake Malawi terrain gaps are restored as one continuous lake", async () => {
