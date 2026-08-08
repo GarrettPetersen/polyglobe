@@ -3,7 +3,7 @@ import {
   queryBattleSpatialGrid,
   rebuildBattleSpatialGrid
 } from "./battleSpatialGrid.js";
-import { activeCombatCrew, applyCrewWounds, crewWoundsForceSurrender } from "./combatWounds.js";
+import { activeCombatCrew, crewWoundsForceSurrender } from "./combatWounds.js";
 import {
   STANDARD_CANNON_EQUIPMENT_ID,
   cannonWeaponWithEquipment
@@ -18,6 +18,9 @@ import {
   portableWeaponItemById
 } from "./portableWeapons.js";
 import { resolveShipCollision } from "./shipCollision.js";
+import { resolveNavalProjectileImpact } from "./navalCombatResolution.js";
+import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
+import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
   shipFootprintFrame,
@@ -30,6 +33,7 @@ import {
   SHIP_ROWING_MODE_IDLE,
   normalizeShipRowingMode,
   shipRowingModeIsActive,
+  shipRowingModeIsPivot,
   shipRowingModeThrustDirection
 } from "./shipRowingAnimation.js";
 import {
@@ -41,7 +45,7 @@ import {
   shipPropulsionPerformance
 } from "./shipPropulsion.js";
 import { shipHullResistsDamage, shipStatsForSlug } from "./shipStats.js";
-import { shipTurnRate } from "./shipTurning.js";
+import { oarPivotTurnRate, shipTurnRate } from "./shipTurning.js";
 import {
   historicalBattleScenarioById,
   historicalBattleSideById,
@@ -59,6 +63,7 @@ export const HISTORICAL_BATTLE_PHASE_ACTIVE = "active";
 export const HISTORICAL_BATTLE_PHASE_FINISHED = "finished";
 export const HISTORICAL_BATTLE_FIXED_STEP_SECONDS = 1 / 20;
 export const HISTORICAL_BATTLE_SPATIAL_CELL_SIZE = 48;
+export const HISTORICAL_BATTLE_REPLAY_VERSION = 1;
 
 const PIXELS_PER_RADIAN = 2450;
 const MAX_FRAME_SECONDS = 0.25;
@@ -75,9 +80,13 @@ const HISTORICAL_WAKE_SIMULATION_RADIUS_PX = 520;
 const HISTORICAL_WAKE_PARTICLE_LIMIT = 72;
 const CANNON_RANGE_PX = 74;
 const CANNON_SPEED_PX = 88;
+const CANNON_ARC_HEIGHT_PX = 13;
 const CANNON_SPREAD_RAD = 0.18;
 const BROADSIDE_HALF_ANGLE_RAD = 0.62;
 const MAX_PROJECTILES = 1600;
+const MAX_EFFECTS = 512;
+const SPLASH_TTL_SECONDS = 0.46;
+const IMPACT_TTL_SECONDS = 0.32;
 const MAX_EVENTS = 2048;
 const MAX_PORTABLE_VISUAL_PROJECTILES = 6;
 const BATTLE_TIME_LIMIT_SECONDS = 24 * 60;
@@ -159,6 +168,7 @@ export function createHistoricalBattle({
     elapsedSeconds: 0,
     accumulatorSeconds: 0,
     tick: 0,
+    initialSeed: seed >>> 0,
     randomSeed: seed >>> 0,
     projectileSerial: 1,
     ships,
@@ -169,6 +179,9 @@ export function createHistoricalBattle({
     spatialScratch: [],
     targetPressure: new Uint16Array(ships.length),
     projectiles: [],
+    hullSplinterBursts: [],
+    splashes: [],
+    impacts: [],
     events: [],
     commandLog: [],
     metrics: {
@@ -203,7 +216,73 @@ export function updateHistoricalBattle(state, dt, input = {}) {
     advanced = true;
     if (state.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE) break;
   }
-  if (advanced && commandHasPlayerIntent(command)) appendCommandLog(state, command);
+  if (advanced) appendCommandLog(state, command);
+  return advanced;
+}
+
+export function createHistoricalBattleReplay(state) {
+  assertBattle(state);
+  return Object.freeze({
+    version: HISTORICAL_BATTLE_REPLAY_VERSION,
+    scenarioId: state.scenario.id,
+    playerSideId: state.playerSideId,
+    playerSquadronId: state.playerSquadronId,
+    seed: state.initialSeed,
+    commands: Object.freeze(state.commandLog.map((command) => Object.freeze({
+      ...command,
+      unitCommand: command.unitCommand ? Object.freeze({ ...command.unitCommand }) : null
+    })))
+  });
+}
+
+export function validateHistoricalBattleReplay(replay) {
+  if (!replay || typeof replay !== "object" ||
+      replay.version !== HISTORICAL_BATTLE_REPLAY_VERSION) {
+    throw new Error(`Unsupported historical battle replay: ${replay?.version ?? "missing"}`);
+  }
+  for (const [key, value] of [
+    ["scenario", replay.scenarioId],
+    ["side", replay.playerSideId],
+    ["squadron", replay.playerSquadronId]
+  ]) {
+    if (typeof value !== "string" || value.length === 0) {
+      throw new Error(`Historical battle replay has no ${key}`);
+    }
+  }
+  if (!Number.isInteger(replay.seed)) {
+    throw new Error(`Historical battle replay has an invalid seed: ${replay.seed}`);
+  }
+  if (!Array.isArray(replay.commands)) throw new Error("Historical battle replay commands are missing");
+  let previousTick = -1;
+  for (const command of replay.commands) {
+    validateHistoricalBattleCommand(command);
+    if (command.tick <= previousTick) {
+      throw new Error(`Historical battle replay commands are out of order at tick ${command.tick}`);
+    }
+    previousTick = command.tick;
+  }
+  return replay;
+}
+
+export function updateHistoricalBattleReplay(state, dt, replay) {
+  assertBattle(state);
+  validateHistoricalBattleReplay(replay);
+  if (state.scenario.id !== replay.scenarioId || state.playerSideId !== replay.playerSideId ||
+      state.playerSquadronId !== replay.playerSquadronId || state.initialSeed !== (replay.seed >>> 0)) {
+    throw new Error("Historical battle replay setup does not match the battle");
+  }
+  if (!Number.isFinite(dt) || dt < 0 || dt > MAX_FRAME_SECONDS) {
+    throw new Error(`Invalid historical replay frame time: ${dt}`);
+  }
+  if (state.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE || dt === 0) return false;
+  state.accumulatorSeconds = Math.min(MAX_ACCUMULATED_SECONDS, state.accumulatorSeconds + dt);
+  let advanced = false;
+  while (state.accumulatorSeconds + 1e-9 >= HISTORICAL_BATTLE_FIXED_STEP_SECONDS) {
+    stepHistoricalBattle(state, replayCommandAtTick(replay.commands, state.tick));
+    state.accumulatorSeconds -= HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
+    advanced = true;
+    if (state.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE) break;
+  }
   return advanced;
 }
 
@@ -435,6 +514,7 @@ function stepHistoricalBattle(state, command) {
   if (state.tick % 2 === 0) resolveHistoricalShipCollisions(state);
   updateShipWeapons(state, command);
   updateBattleProjectiles(state);
+  updateHistoricalBattleEffects(state);
   recountHistoricalBattleSides(state);
   finishHistoricalBattleIfNeeded(state);
 }
@@ -765,11 +845,16 @@ function moveShipWithStandardPropulsion(
   const dt = HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
   const activeCrew = activeCombatCrew(ship.crew, ship.woundedCrew);
   const rowerRatio = rowingCrewRatio(activeCrew, ship.stats.crewCapacity);
-  const turnRate = shipTurnRate({
-    turnRateRad: ship.stats.turnRateRad,
-    speedRad: Math.abs(ship.speedPx) / PIXELS_PER_RADIAN,
-    topSpeedRad: ship.stats.topSpeedRad
-  });
+  const normalizedRowingMode = shipCanUseOars(ship.stats)
+    ? normalizeShipRowingMode(rowingMode)
+    : SHIP_ROWING_MODE_IDLE;
+  const turnRate = shipRowingModeIsPivot(normalizedRowingMode)
+    ? oarPivotTurnRate(ship.stats, rowerRatio)
+    : shipTurnRate({
+        turnRateRad: ship.stats.turnRateRad,
+        speedRad: Math.abs(ship.speedPx) / PIXELS_PER_RADIAN,
+        topSpeedRad: ship.stats.topSpeedRad
+      });
   ship.previousX = ship.x;
   ship.previousY = ship.y;
   ship.previousHeadingRad = ship.headingRad;
@@ -777,10 +862,9 @@ function moveShipWithStandardPropulsion(
   const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
   const windFlow = historicalBattleWindFlowDirection(state);
   const alignment = clamp(heading.x * Math.cos(windFlow) + heading.y * Math.sin(windFlow), -1, 1);
-  const sailEfficiency = sailingEfficiencyForAlignment(ship.stats, alignment);
-  const normalizedRowingMode = shipCanUseOars(ship.stats)
-    ? normalizeShipRowingMode(rowingMode)
-    : SHIP_ROWING_MODE_IDLE;
+  const sailEfficiency = shipRowingModeIsPivot(normalizedRowingMode)
+    ? 0
+    : sailingEfficiencyForAlignment(ship.stats, alignment);
   const thrustDirection = shipRowingModeThrustDirection(normalizedRowingMode);
   const propulsion = shipPropulsionPerformance(ship.stats, {
     windStrength: state.wind.strength,
@@ -1141,7 +1225,10 @@ function fireShipBroadside(state, ship, target, sideName) {
       ageSeconds: 0,
       durationSeconds: Math.max(0.12, actualRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
       damage: ship.weapon.damage,
-      hit: aimed && (trueShot || nextRandom(state) < 0.5),
+      crewDamage: 0,
+      crewHitChance: 0,
+      crewProtectionPenetration: 0,
+      arcHeight: CANNON_ARC_HEIGHT_PX,
       projectileSize: 2,
       seed: (state.randomSeed ^ state.projectileSerial ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0
     };
@@ -1191,14 +1278,16 @@ function firePortableWeapons(state, ship, target, targetDistance) {
         startY: ship.y,
         targetX,
         targetY,
-        ageSeconds: 0,
-        durationSeconds: Math.max(0.12, range / (CANNON_SPEED_PX * weapon.speedScale)),
-        damage: weapon.hullDamage * share,
-        crewDamage: weapon.crewDamage * share,
-        hit: true,
-        projectileSize: weapon.projectileSize,
-        crewHitChance: weapon.crewHitChance,
-        crewProtectionPenetration: weapon.crewProtectionPenetration
+      age: 0,
+      duration: Math.max(0.12, range / (CANNON_SPEED_PX * weapon.speedScale)),
+      arcHeight: weapon.animationKind === "arrow" ? 4 : 1,
+      damage: weapon.hullDamage * share,
+      crewDamage: weapon.crewDamage * share,
+      projectileSize: weapon.projectileSize,
+      crewHitChance: weapon.crewHitChance,
+      crewProtectionPenetration: weapon.crewProtectionPenetration,
+      incendiary: weapon.incendiary === true,
+      seed: (state.randomSeed ^ state.projectileSerial ^ Math.imul(index + 1, 0x85ebca6b)) >>> 0
       });
     }
     pushBattleEvent(state, {
@@ -1214,6 +1303,12 @@ function firePortableWeapons(state, ship, target, targetDistance) {
 }
 
 function addProjectile(state, projectile) {
+  if (projectile.ageSeconds !== undefined || projectile.durationSeconds !== undefined) {
+    projectile.age = projectile.ageSeconds ?? 0;
+    projectile.duration = projectile.durationSeconds;
+    delete projectile.ageSeconds;
+    delete projectile.durationSeconds;
+  }
   state.projectiles.push(projectile);
   if (state.projectiles.length > MAX_PROJECTILES) {
     state.projectiles.splice(0, state.projectiles.length - MAX_PROJECTILES);
@@ -1223,45 +1318,116 @@ function addProjectile(state, projectile) {
 function updateBattleProjectiles(state) {
   const survivors = [];
   for (const projectile of state.projectiles) {
-    projectile.ageSeconds += HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
-    if (projectile.ageSeconds < projectile.durationSeconds) {
+    const previousPoint = navalProjectilePoint(projectile);
+    projectile.age = Math.min(
+      projectile.duration,
+      projectile.age + HISTORICAL_BATTLE_FIXED_STEP_SECONDS
+    );
+    const point = navalProjectilePoint(projectile);
+    const hit = projectile.kind === "cannon"
+      ? firstHistoricalProjectileHit(state, projectile, previousPoint, point)
+      : null;
+    if (hit) {
+      applyHistoricalProjectileHit(state, projectile, hit.target.shipIndex, hit);
+      continue;
+    }
+    if (projectile.age < projectile.duration) {
       survivors.push(projectile);
       continue;
     }
-    const target = state.ships[projectile.targetIndex];
-    if (!projectile.hit || !target?.active) continue;
-    let newWounds = 0;
-    if (projectile.crewDamage > 0) {
-      const result = applyCrewWounds({
-        totalCrew: target.crew,
-        woundedCrew: target.woundedCrew,
-        crewDamage: projectile.crewDamage,
-        hitChance: projectile.crewHitChance,
-        crewProtection: target.stats.crewProtection,
-        crewProtectionPenetration: projectile.crewProtectionPenetration,
-        random: () => nextRandom(state)
-      });
-      target.woundedCrew = result.woundedCrew;
-      newWounds = result.newWounds;
-      target.surrendered = crewWoundsForceSurrender(target.crew, target.woundedCrew);
+    if (projectile.kind !== "cannon") {
+      const target = state.ships[projectile.targetIndex];
+      if (target?.active) applyHistoricalProjectileHit(state, projectile, projectile.targetIndex, point);
+      continue;
     }
-    const resisted = projectile.damage > 0 &&
-      shipHullResistsDamage(target.stats, { roll: nextRandom(state) });
-    const damage = projectile.damage > 0 && !resisted ? projectile.damage : 0;
-    target.hitPoints = Math.max(0, target.hitPoints - damage);
-    pushBattleEvent(state, {
-      type: "hit",
-      shipIndex: projectile.targetIndex,
-      ownerIndex: projectile.ownerIndex,
-      weaponKind: projectile.kind,
-      weaponId: projectile.weaponId || null,
-      damage,
-      newWounds,
-      resisted
-    });
-    resolveShipDefeat(state, target);
+    if (projectile.kind === "cannon") {
+      state.splashes.push({
+        x: Math.round(projectile.targetX),
+        y: Math.round(projectile.targetY),
+        age: 0,
+        ttl: SPLASH_TTL_SECONDS,
+        seed: projectile.seed
+      });
+    }
   }
   state.projectiles = survivors;
+  trimHistoricalEffects(state);
+}
+
+function firstHistoricalProjectileHit(state, projectile, start, end) {
+  const midpointX = (start.x + end.x) / 2;
+  const midpointY = (start.y + end.y) / 2;
+  const radius = Math.hypot(end.x - start.x, end.y - start.y) / 2 + state.maxCollisionRadius;
+  queryBattleSpatialGrid(state.spatialGrid, midpointX, midpointY, radius, state.spatialScratch);
+  const targets = [];
+  for (const shipIndex of state.spatialScratch) {
+    if (shipIndex === projectile.ownerIndex) continue;
+    const ship = state.ships[shipIndex];
+    if (!ship?.active) continue;
+    targets.push({
+      id: ship.id,
+      x: ship.x,
+      y: ship.y,
+      shipIndex,
+      footprint: historicalShipWorldFootprint(state, ship)
+    });
+  }
+  return firstNavalProjectileHit(start, end, targets);
+}
+
+function applyHistoricalProjectileHit(state, projectile, shipIndex, point) {
+  const target = state.ships[shipIndex];
+  if (!target?.active) return false;
+  const result = resolveNavalProjectileImpact({
+    projectile,
+    target,
+    random: () => nextRandom(state)
+  });
+  target.hitPoints = result.hitPoints;
+  target.woundedCrew = result.woundedCrew;
+  target.surrendered = result.surrendered;
+  if (result.damage > 0 && target.hitPoints > 0 &&
+      (projectile.kind === "cannon" || projectile.kind === "arrow")) {
+    state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
+  }
+  state.impacts.push({
+    x: Math.round(point.x),
+    y: Math.round(point.y),
+    age: 0,
+    ttl: IMPACT_TTL_SECONDS,
+    seed: projectile.seed,
+    kind: projectile.kind
+  });
+  pushBattleEvent(state, {
+    type: "hit",
+    shipIndex,
+    ownerIndex: projectile.ownerIndex,
+    weaponKind: projectile.kind,
+    weaponId: projectile.weaponId || null,
+    damage: result.damage,
+    newWounds: result.newWounds,
+    resisted: result.resisted,
+    surrendered: result.surrendered
+  });
+  resolveShipDefeat(state, target);
+  return true;
+}
+
+function updateHistoricalBattleEffects(state) {
+  state.hullSplinterBursts = advanceHullSplinterBursts(
+    state.hullSplinterBursts,
+    HISTORICAL_BATTLE_FIXED_STEP_SECONDS
+  );
+  for (const effect of state.splashes) effect.age += HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
+  for (const effect of state.impacts) effect.age += HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
+  state.splashes = state.splashes.filter((effect) => effect.age < effect.ttl);
+  state.impacts = state.impacts.filter((effect) => effect.age < effect.ttl);
+}
+
+function trimHistoricalEffects(state) {
+  for (const effects of [state.hullSplinterBursts, state.splashes, state.impacts]) {
+    if (effects.length > MAX_EFFECTS) effects.splice(0, effects.length - MAX_EFFECTS);
+  }
 }
 
 function resolveShipDefeat(state, ship) {
@@ -1452,16 +1618,57 @@ function commandWithoutOneShotActions(command) {
   });
 }
 
-function commandHasPlayerIntent(command) {
-  return command.desiredHeadingQ !== null || command.rowingRequested ||
-    command.firePort || command.fireStarboard || command.squadronOrder !== null ||
-    command.unitCommand !== null;
-}
-
 function appendCommandLog(state, command) {
   const previous = state.commandLog[state.commandLog.length - 1];
-  if (previous && JSON.stringify(previous) === JSON.stringify(command)) return;
+  const hasOneShotAction = command.firePort || command.fireStarboard ||
+    command.squadronOrder !== null || command.unitCommand !== null;
+  if (previous && !hasOneShotAction && commandsSharePersistentIntent(previous, command)) return;
   state.commandLog.push(command);
+}
+
+function commandsSharePersistentIntent(a, b) {
+  return a.desiredHeadingQ === b.desiredHeadingQ &&
+    a.rowingRequested === b.rowingRequested &&
+    a.rowingMode === b.rowingMode;
+}
+
+function replayCommandAtTick(commands, tick) {
+  let low = 0;
+  let high = commands.length - 1;
+  let found = null;
+  while (low <= high) {
+    const middle = (low + high) >>> 1;
+    const command = commands[middle];
+    if (command.tick <= tick) {
+      found = command;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  if (!found) return createHistoricalBattleCommand(tick);
+  return found.tick === tick
+    ? found
+    : Object.freeze({ ...commandWithoutOneShotActions(found), tick });
+}
+
+function validateHistoricalBattleCommand(command) {
+  if (!command || typeof command !== "object" || !Number.isInteger(command.tick) || command.tick < 0) {
+    throw new Error(`Historical battle replay has an invalid command tick: ${command?.tick}`);
+  }
+  if (command.desiredHeadingQ !== null &&
+      (!Number.isInteger(command.desiredHeadingQ) || command.desiredHeadingQ < 0 ||
+       command.desiredHeadingQ > 65535)) {
+    throw new Error(`Historical battle replay has an invalid heading: ${command.desiredHeadingQ}`);
+  }
+  if (typeof command.rowingRequested !== "boolean" ||
+      typeof command.firePort !== "boolean" || typeof command.fireStarboard !== "boolean") {
+    throw new Error("Historical battle replay command flags are invalid");
+  }
+  normalizeShipRowingMode(command.rowingMode);
+  normalizeSquadronOrder(command.squadronOrder);
+  normalizeUnitCommand(command.unitCommand);
+  return command;
 }
 
 function pushBattleEvent(state, event) {

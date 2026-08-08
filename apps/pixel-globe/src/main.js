@@ -1694,6 +1694,7 @@ import {
 import { lakeBattleHudLayout } from "./lakeBattleHud.js";
 import {
   HISTORICAL_BATTLE_PHASE_ACTIVE,
+  createHistoricalBattleReplay,
   createHistoricalBattle,
   drainHistoricalBattleEvents,
   historicalBattleInterpolatedShipPose,
@@ -1703,8 +1704,16 @@ import {
   historicalBattleSquadronSummary,
   historicalBattleVisibleShips,
   historicalBattleWindFlowDirection,
-  updateHistoricalBattle
+  updateHistoricalBattle,
+  updateHistoricalBattleReplay
 } from "./historicalBattle.js";
+import {
+  createHistoricalBattleRecords,
+  historicalBattleRecordKey,
+  readHistoricalBattleRecords,
+  recordHistoricalBattleResult,
+  writeHistoricalBattleRecords
+} from "./historicalBattleRecords.js";
 import {
   HISTORICAL_BATTLE_SCENARIOS,
   historicalBattleScenarioById,
@@ -2239,7 +2248,6 @@ const HISTORICAL_BATTLE_PAUSE_ACTIONS = Object.freeze([
   "OPTIONS",
   "START MENU"
 ]);
-const HISTORICAL_BATTLE_RESULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE BATTLE", "START MENU"]);
 const AUTOSAVE_INTERVAL_MS = 30000;
 const AUTOSAVE_MAX_IDLE_DELAY_MS = 10000;
 const SAVE_REASON_QUEST_DECISION = "quest decision";
@@ -3088,6 +3096,12 @@ const gameTelemetry = createGameTelemetry({
 });
 let localSaveResult = { status: "empty", save: null, error: null };
 let voyageHistoryResult = { status: "ready", records: [], error: null };
+let historicalBattleRecordsResult = {
+  status: "ready",
+  records: createHistoricalBattleRecords(),
+  error: null
+};
+let historicalBattleRecords = historicalBattleRecordsResult.records;
 let achievementProfileResult = { status: "ready", profile: createAchievementProfile(), error: null };
 let achievementProfile = achievementProfileResult.profile;
 let achievementPlatformSyncPromise = Promise.resolve();
@@ -3423,6 +3437,16 @@ async function main() {
   if (voyageHistoryResult.status === "invalid") {
     console.warn("[pixel-globe] past voyage history is unavailable", voyageHistoryResult.error);
   }
+  historicalBattleRecordsResult = CAPTURE_SCENARIO
+    ? { status: "ready", records: createHistoricalBattleRecords(), error: null }
+    : readHistoricalBattleRecords();
+  historicalBattleRecords = historicalBattleRecordsResult.records;
+  if (historicalBattleRecordsResult.status === "invalid") {
+    console.error(
+      "[pixel-globe] historical battle records are unavailable",
+      historicalBattleRecordsResult.error
+    );
+  }
   achievementProfileResult = CAPTURE_SCENARIO
     ? { status: "ready", profile: createAchievementProfile(), error: null }
     : readAchievementProfile();
@@ -3442,7 +3466,8 @@ async function main() {
     queueAchievementPlatformSync(steamStatValues(
       achievementProfile,
       createVoyageAchievementProgress(),
-      currentAchievementSnapshot()
+      currentAchievementSnapshot(),
+      historicalBattleRecords
     ));
   }
   if (earth.subdivisions !== SUBDIVISIONS) {
@@ -9404,7 +9429,10 @@ function createHistoricalBattleModeState() {
     pendingFireStarboard: false,
     pendingUnitCommand: null,
     selectedShipIndex: -1,
-    commandRects: []
+    commandSelectedIndex: 0,
+    commandRects: [],
+    replay: null,
+    resultRecorded: false
   };
 }
 
@@ -9526,6 +9554,8 @@ async function beginHistoricalBattle() {
     mode.sinkEffects = [];
     mode.cannonSmokeBursts = [];
     mode.resultReadyAtMs = null;
+    mode.replay = null;
+    mode.resultRecorded = false;
     mode.selectedIndex = 0;
     mode.loading = false;
     mode.pauseButtonRect = null;
@@ -9536,13 +9566,13 @@ async function beginHistoricalBattle() {
   } catch (error) {
     if (lakeBattleMode !== mode) return;
     mode.loading = false;
-    mode.error ||= "BATTLE COULD NOT START";
+    mode.error ||= uiText("historical.couldNotStart");
     console.error("[pixel-globe] historical battle could not start", error);
   }
   dirty = true;
 }
 
-function restartHistoricalBattle() {
+function restartHistoricalBattle({ replay = null } = {}) {
   if (lakeBattleMode?.kind !== "historical") return;
   const scenario = selectedHistoricalBattleScenario();
   const side = selectedHistoricalBattleSide();
@@ -9552,7 +9582,8 @@ function restartHistoricalBattle() {
     playerSideId: side.id,
     playerSquadronId: squadron.id,
     shipFootprints: shipFootprintsBySlug,
-    shipWakeAnchorsBySlug
+    shipWakeAnchorsBySlug,
+    ...(replay ? { seed: replay.seed } : {})
   });
   const player = historicalBattlePlayerShip(lakeBattleMode.battle);
   lakeBattleMode.camera = { x: player.x, y: player.y };
@@ -9560,6 +9591,8 @@ function restartHistoricalBattle() {
   lakeBattleMode.sinkEffects = [];
   lakeBattleMode.cannonSmokeBursts = [];
   lakeBattleMode.resultReadyAtMs = null;
+  lakeBattleMode.replay = replay;
+  lakeBattleMode.resultRecorded = false;
   lakeBattleMode.selectedIndex = 0;
   clearHistoricalBattlePendingActions();
   keys.clear();
@@ -9577,6 +9610,8 @@ function returnHistoricalBattleToSetup() {
   lakeBattleMode.resultReadyAtMs = null;
   lakeBattleMode.selectedIndex = HISTORICAL_BATTLE_SETUP_SCENARIO_ROW;
   lakeBattleMode.error = null;
+  lakeBattleMode.replay = null;
+  lakeBattleMode.resultRecorded = false;
   clearHistoricalBattlePendingActions();
   combatMusicUntilMs = 0;
   keys.clear();
@@ -9595,6 +9630,7 @@ function clearHistoricalBattlePendingActions() {
   lakeBattleMode.pendingFireStarboard = false;
   lakeBattleMode.pendingUnitCommand = null;
   lakeBattleMode.selectedShipIndex = -1;
+  lakeBattleMode.commandSelectedIndex = 0;
   lakeBattleMode.commandRects = [];
 }
 
@@ -9793,12 +9829,14 @@ function updateHistoricalBattleModeFrame(dt, nowMs) {
   if (lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
   const battle = lakeBattleMode.battle;
   if (!battle) throw new Error("Active historical battle screen has no battle state");
-  const advanced = updateHistoricalBattle(battle, dt, historicalBattleInputCommand());
+  const advanced = lakeBattleMode.replay
+    ? updateHistoricalBattleReplay(battle, dt, lakeBattleMode.replay)
+    : updateHistoricalBattle(battle, dt, historicalBattleInputCommand());
   lakeBattleMode.cannonSmokeBursts = advanceCannonSmokeBursts(
     lakeBattleMode.cannonSmokeBursts,
     dt
   );
-  if (advanced) {
+  if (advanced && !lakeBattleMode.replay) {
     lakeBattleMode.pendingFirePort = false;
     lakeBattleMode.pendingFireStarboard = false;
     lakeBattleMode.pendingUnitCommand = null;
@@ -9835,7 +9873,10 @@ function historicalBattleInputCommand() {
     const px = pointerSteering.point.x - screenPoint.x;
     const py = pointerSteering.point.y - screenPoint.y;
     if (Math.hypot(px, py) >= POINTER_STEERING_DEADZONE_PX) {
-      return { desiredHeadingRad: Math.atan2(py, px), rowingRequested: true, ...oneShotActions };
+      return {
+        ...historicalBattleDirectionalInputCommand(battle, Math.atan2(py, px)),
+        ...oneShotActions
+      };
     }
   }
   const intent = steeringIntentForScheme({
@@ -9847,40 +9888,106 @@ function historicalBattleInputCommand() {
     controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
-  if (intent.relativeBackward) {
+  const canRow = shipCanUseOars(player.stats);
+  if (intent.relativeBackward && canRow) {
     return {
-      desiredHeadingRad: normalizeAngleRad(player.headingRad + Math.PI),
-      rowingRequested: true,
+      desiredHeadingRad: player.headingRad,
+      rowingMode: SHIP_ROWING_MODE_ASTERN,
       ...oneShotActions
     };
   }
   if (intent.relativeTurn !== 0) {
     return {
       desiredHeadingRad: relativeHeadingAngle(player.headingRad, intent.relativeTurn),
-      rowingRequested: intent.relativeForward || Math.abs(player.speedPx) < 2,
+      rowingMode: intent.relativeForward
+        ? (canRow ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE)
+        : canRow
+          ? (intent.relativeTurn > 0
+              ? SHIP_ROWING_MODE_PIVOT_STARBOARD
+              : SHIP_ROWING_MODE_PIVOT_PORT)
+          : SHIP_ROWING_MODE_IDLE,
       ...oneShotActions
     };
   }
   if (intent.relativeForward) {
-    return { desiredHeadingRad: player.headingRad, rowingRequested: true, ...oneShotActions };
+    return {
+      desiredHeadingRad: player.headingRad,
+      rowingMode: canRow ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE,
+      ...oneShotActions
+    };
   }
   if (intent.absoluteX === 0 && intent.absoluteY === 0) {
-    return { desiredHeadingRad: null, rowingRequested: false, ...oneShotActions };
+    return { desiredHeadingRad: null, rowingMode: SHIP_ROWING_MODE_IDLE, ...oneShotActions };
   }
   return {
-    desiredHeadingRad: Math.atan2(-intent.absoluteY, intent.absoluteX),
-    rowingRequested: true,
+    ...historicalBattleDirectionalInputCommand(
+      battle,
+      Math.atan2(-intent.absoluteY, intent.absoluteX)
+    ),
     ...oneShotActions
   };
 }
 
+function historicalBattleDirectionalInputCommand(battle, desiredHeadingRad) {
+  const player = historicalBattlePlayerShip(battle);
+  if (!shipCanUseOars(player.stats)) {
+    return { desiredHeadingRad, rowingMode: SHIP_ROWING_MODE_IDLE };
+  }
+  const turn = Math.atan2(
+    Math.sin(desiredHeadingRad - player.headingRad),
+    Math.cos(desiredHeadingRad - player.headingRad)
+  );
+  if (Math.cos(turn) <= -Math.cos(35 * Math.PI / 180)) {
+    return { desiredHeadingRad: player.headingRad, rowingMode: SHIP_ROWING_MODE_ASTERN };
+  }
+  const speedRatio = Math.abs(player.speedPx) / (player.stats.topSpeedRad * PIXELS_PER_RADIAN);
+  if (speedRatio <= 0.2 && Math.abs(turn) > 20 * Math.PI / 180) {
+    return {
+      desiredHeadingRad,
+      rowingMode: turn > 0 ? SHIP_ROWING_MODE_PIVOT_STARBOARD : SHIP_ROWING_MODE_PIVOT_PORT
+    };
+  }
+  return { desiredHeadingRad, rowingMode: SHIP_ROWING_MODE_AHEAD };
+}
+
 function fireHistoricalBattlePlayerBroadside(sideName) {
   const battle = lakeBattleMode?.kind === "historical" ? lakeBattleMode.battle : null;
-  if (!battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
+  if (!battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE || lakeBattleMode.replay) {
+    return false;
+  }
   if (sideName !== "port" && sideName !== "starboard") {
     throw new Error(`Unknown historical battle broadside: ${sideName}`);
   }
   lakeBattleMode[sideName === "port" ? "pendingFirePort" : "pendingFireStarboard"] = true;
+  dirty = true;
+  return true;
+}
+
+function cycleHistoricalBattleCommandTarget() {
+  const battle = lakeBattleMode?.kind === "historical" ? lakeBattleMode.battle : null;
+  if (!battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE || lakeBattleMode.replay) {
+    return false;
+  }
+  const candidates = historicalBattleVisibleShips(
+    battle,
+    lakeBattleMode.camera,
+    SCREEN_W,
+    SCREEN_H
+  ).filter((shipState) => shipState.active && !shipState.playerControlled)
+    .sort((a, b) => a.sideIndex - b.sideIndex || a.id.localeCompare(b.id));
+  if (candidates.length === 0) {
+    lakeBattleMode.selectedShipIndex = -1;
+    lakeBattleMode.commandSelectedIndex = 0;
+    lakeBattleMode.commandRects = [];
+    dirty = true;
+    return false;
+  }
+  const current = battle.ships[lakeBattleMode.selectedShipIndex];
+  const currentIndex = candidates.indexOf(current);
+  const next = candidates[(currentIndex + 1) % candidates.length];
+  lakeBattleMode.selectedShipIndex = battle.ships.indexOf(next);
+  lakeBattleMode.commandSelectedIndex = 0;
+  lakeBattleMode.commandRects = [];
   dirty = true;
   return true;
 }
@@ -9925,7 +10032,13 @@ function processHistoricalBattleEvents(battle, nowMs) {
       if (!hitShip) throw new Error(`Historical battle hit event lost ship ${event.shipIndex}`);
       const distance = Math.hypot(hitShip.x - player.x, hitShip.y - player.y);
       if (distance <= Math.max(SCREEN_W, SCREEN_H) && impactSounds < 4) {
-        playCannonImpactSound(Math.max(8, 18 - distance / 30));
+        if (event.weaponKind === NAVAL_WEAPON_ARROW) playArrowHitSound();
+        else if (event.resisted) playArmorGlanceSound(distance);
+        else if (event.weaponKind === NAVAL_WEAPON_CANNON) {
+          playCannonImpactSound(Math.max(8, 18 - distance / 30));
+        } else {
+          playArrowHitSound();
+        }
         impactSounds += 1;
       }
     } else if (event.type === "sunk") {
@@ -9938,13 +10051,117 @@ function processHistoricalBattleEvents(battle, nowMs) {
           effect: createHistoricalBattleShipSinkEffect(battle, sunkShip, nowMs)
         });
       }
-    } else if (event.type === "collision" || event.type === "escaped" ||
-               event.type === "surrendered" || event.type === "finished") {
+    } else if (event.type === "finished") {
+      recordCompletedHistoricalBattle(battle);
+    } else if (event.type === "collision") {
+      const collisionShip = battle.ships[event.shipIndex];
+      if (collisionShip && historicalBattleShipNearViewport(collisionShip) && impactSounds < 4) {
+        playCannonImpactSound(8);
+        impactSounds += 1;
+      }
+    } else if (event.type === "escaped" || event.type === "surrendered") {
       // Their visible state and the result screen present these aggregate fleet events.
     } else {
       throw new Error(`Unknown historical battle event: ${event.type}`);
     }
   }
+}
+
+function recordCompletedHistoricalBattle(battle) {
+  if (lakeBattleMode.resultRecorded || lakeBattleMode.replay) return false;
+  if (!historicalBattleRecords) {
+    throw new Error("Cannot record a historical battle while its records are unavailable");
+  }
+  const enemy = battle.sides.find((side) => side.id !== battle.playerSideId);
+  if (!enemy) throw new Error("Completed historical battle has no enemy side");
+  const result = {
+    scenarioId: battle.scenario.id,
+    playerSideId: battle.playerSideId,
+    playerSquadronId: battle.playerSquadronId,
+    outcome: battle.outcome,
+    enemyShipsDefeated: enemy.sunkShips + enemy.surrenderedShips,
+    durationSeconds: battle.elapsedSeconds,
+    endedAt: Date.now()
+  };
+  recordHistoricalBattleResult(
+    historicalBattleRecords,
+    result,
+    createHistoricalBattleReplay(battle)
+  );
+  writeHistoricalBattleRecords(historicalBattleRecords);
+  historicalBattleRecordsResult = {
+    status: "ready",
+    records: historicalBattleRecords,
+    error: null
+  };
+  lakeBattleMode.resultRecorded = true;
+  if (achievementProfile) {
+    queueAchievementPlatformSync(steamStatValues(
+      achievementProfile,
+      createVoyageAchievementProgress(),
+      currentAchievementSnapshot(),
+      historicalBattleRecords
+    ));
+  }
+  window.dispatchEvent(new CustomEvent("marque:historical-battle-complete", {
+    detail: Object.freeze({ ...result })
+  }));
+  return true;
+}
+
+function historicalBattleResultActions() {
+  const actions = ["REMATCH"];
+  if (historicalBattleRecords?.latestReplay) actions.push("WATCH REPLAY");
+  actions.push("CHOOSE BATTLE", "START MENU");
+  return actions;
+}
+
+function historicalBattleScenarioText(scenario, field) {
+  return uiText(["historical", "scenario", scenario.id, field].join("."));
+}
+
+function historicalBattleSideText(side) {
+  return uiText(`historical.side.${side.id}`);
+}
+
+function historicalBattleSquadronText(squadron) {
+  return uiText(`historical.squadron.${squadron.id}`);
+}
+
+function historicalBattleShipsText(count) {
+  return uiText("historical.shipsCount", { count });
+}
+
+function selectedHistoricalBattleRecordText(scenario, side) {
+  if (!historicalBattleRecords) return null;
+  const record = historicalBattleRecords.byScenarioSide[
+    historicalBattleRecordKey(scenario.id, side.id)
+  ];
+  return uiText("historical.record", {
+    wins: record?.victories || 0,
+    losses: record?.defeats || 0,
+    draws: record?.draws || 0
+  });
+}
+
+function watchLatestHistoricalBattleReplay() {
+  const replay = historicalBattleRecords?.latestReplay;
+  if (!replay) throw new Error("No historical battle replay is available");
+  const scenarioIndex = HISTORICAL_BATTLE_SCENARIOS.findIndex(
+    (scenario) => scenario.id === replay.scenarioId
+  );
+  if (scenarioIndex < 0) throw new Error(`Replay scenario is missing: ${replay.scenarioId}`);
+  const scenario = HISTORICAL_BATTLE_SCENARIOS[scenarioIndex];
+  const sideIndex = scenario.sides.findIndex((side) => side.id === replay.playerSideId);
+  if (sideIndex < 0) throw new Error(`Replay side is missing: ${replay.playerSideId}`);
+  const squadronIndex = scenario.sides[sideIndex].squadrons.findIndex(
+    (squadron) => squadron.id === replay.playerSquadronId
+  );
+  if (squadronIndex < 0) throw new Error(`Replay squadron is missing: ${replay.playerSquadronId}`);
+  lakeBattleMode.scenarioIndex = scenarioIndex;
+  lakeBattleMode.sideIndex = sideIndex;
+  lakeBattleMode.squadronIndex = squadronIndex;
+  restartHistoricalBattle({ replay });
 }
 
 function historicalBattleShipNearViewport(shipState) {
@@ -10172,6 +10389,7 @@ function handleLakeBattlePointerDown(pointerId, point) {
       dirty = true;
       return;
     }
+    if (lakeBattleMode.replay) return;
     const broadside = lakeBattleBroadsideSideAtPoint(point);
     dispatchSailingPointerAction({
       type: broadside ? WORLD_POINTER_ACTION.BROADSIDE : WORLD_POINTER_ACTION.STEER,
@@ -10334,6 +10552,7 @@ function handleHistoricalBattlePointerDown(pointerId, point) {
         action: command.action
       };
       lakeBattleMode.selectedShipIndex = -1;
+      lakeBattleMode.commandSelectedIndex = 0;
       lakeBattleMode.commandRects = [];
       dirty = true;
       return;
@@ -10347,10 +10566,12 @@ function handleHistoricalBattlePointerDown(pointerId, point) {
     );
     if (selectedShip && !selectedShip.playerControlled) {
       lakeBattleMode.selectedShipIndex = lakeBattleMode.battle.ships.indexOf(selectedShip);
+      lakeBattleMode.commandSelectedIndex = 0;
       dirty = true;
       return;
     }
     lakeBattleMode.selectedShipIndex = -1;
+    lakeBattleMode.commandSelectedIndex = 0;
     lakeBattleMode.commandRects = [];
     const broadside = historicalBattleBroadsideSideAtPoint(point);
     dispatchSailingPointerAction({
@@ -10364,7 +10585,7 @@ function handleHistoricalBattlePointerDown(pointerId, point) {
   }
   const actions = lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED
     ? HISTORICAL_BATTLE_PAUSE_ACTIONS
-    : HISTORICAL_BATTLE_RESULT_ACTIONS;
+    : historicalBattleResultActions();
   for (let index = 0; index < lakeBattleMode.actionRects.length; index++) {
     if (!pointInRect(point, lakeBattleMode.actionRects[index])) continue;
     lakeBattleMode.selectedIndex = index;
@@ -10388,6 +10609,12 @@ function handleHistoricalBattlePointerMove(event, point) {
       pointerSteering.active && pointerSteering.pointerId === event.pointerId) {
     event.preventDefault();
     updatePointerSteering(point);
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+    for (let index = 0; index < lakeBattleMode.commandRects.length; index++) {
+      if (pointInRect(point, lakeBattleMode.commandRects[index].rect)) {
+        lakeBattleMode.commandSelectedIndex = index;
+      }
+    }
   } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
     for (let row = 0; row < lakeBattleMode.rowRects.length; row++) {
       if (pointInRect(point, lakeBattleMode.rowRects[row])) lakeBattleMode.selectedIndex = row;
@@ -10408,17 +10635,49 @@ function handleHistoricalBattleKeyDown(event, keyAction) {
     return;
   }
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
-    if (keyAction === KEY_ACTION.CAPTAIN_MENU) {
+    if (event.key === "Escape" && lakeBattleMode.selectedShipIndex >= 0) {
+      lakeBattleMode.selectedShipIndex = -1;
+      lakeBattleMode.commandSelectedIndex = 0;
+      lakeBattleMode.commandRects = [];
+    } else if (keyAction === KEY_ACTION.CAPTAIN_MENU || event.key === "Escape") {
       lakeBattleMode.screen = LAKE_BATTLE_SCREEN_PAUSED;
       lakeBattleMode.selectedIndex = 0;
       clearHistoricalBattlePendingActions();
       keys.clear();
       clearPointerSteering();
-    } else if (keyAction === KEY_ACTION.FIRE_PORT || keyAction === KEY_ACTION.FIRE_STARBOARD) {
+    } else if (lakeBattleMode.selectedShipIndex >= 0 &&
+               (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      const selectedShip = lakeBattleMode.battle.ships[lakeBattleMode.selectedShipIndex];
+      const commandCount = historicalBattleCommandActions(
+        lakeBattleMode.battle,
+        selectedShip
+      ).length;
+      lakeBattleMode.commandSelectedIndex = stepMenuIndex(
+        lakeBattleMode.commandSelectedIndex,
+        event.key === "ArrowDown" ? 1 : -1,
+        commandCount
+      );
+    } else if (lakeBattleMode.selectedShipIndex >= 0 &&
+               (event.key === "Enter" || event.key === " ")) {
+      const selectedShip = lakeBattleMode.battle.ships[lakeBattleMode.selectedShipIndex];
+      const command = historicalBattleCommandActions(
+        lakeBattleMode.battle,
+        selectedShip
+      )[lakeBattleMode.commandSelectedIndex];
+      if (!command) throw new Error("Historical battle command menu has no selected command");
+      lakeBattleMode.pendingUnitCommand = {
+        shipIndex: lakeBattleMode.selectedShipIndex,
+        action: command.action
+      };
+      lakeBattleMode.selectedShipIndex = -1;
+      lakeBattleMode.commandSelectedIndex = 0;
+      lakeBattleMode.commandRects = [];
+    } else if (!lakeBattleMode.replay &&
+               (keyAction === KEY_ACTION.FIRE_PORT || keyAction === KEY_ACTION.FIRE_STARBOARD)) {
       if (!event.repeat) fireHistoricalBattlePlayerBroadside(
         keyAction === KEY_ACTION.FIRE_PORT ? "port" : "starboard"
       );
-    } else if (isSteeringKeyAction(keyAction)) {
+    } else if (!lakeBattleMode.replay && isSteeringKeyAction(keyAction)) {
       keys.press(event.code, keyAction);
     }
     dirty = true;
@@ -10426,7 +10685,7 @@ function handleHistoricalBattleKeyDown(event, keyAction) {
   }
   const actions = lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED
     ? HISTORICAL_BATTLE_PAUSE_ACTIONS
-    : HISTORICAL_BATTLE_RESULT_ACTIONS;
+    : historicalBattleResultActions();
   handleHistoricalBattleActionMenuKeyDown(event.key, actions);
 }
 
@@ -10491,6 +10750,8 @@ function activateHistoricalBattleAction(action) {
     lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
   } else if (action === "RESTART" || action === "REMATCH") {
     restartHistoricalBattle();
+  } else if (action === "WATCH REPLAY") {
+    watchLatestHistoricalBattleReplay();
   } else if (action === "CHOOSE BATTLE") {
     returnHistoricalBattleToSetup();
   } else if (action === "OPTIONS") {
@@ -11410,7 +11671,12 @@ function syncAchievementsFromGameState(event = null) {
       }
     }
   }
-  queueAchievementPlatformSync(steamStatValues(achievementProfile, progress, snapshot));
+  queueAchievementPlatformSync(steamStatValues(
+    achievementProfile,
+    progress,
+    snapshot,
+    historicalBattleRecords
+  ));
   return result.newlyUnlocked;
 }
 
@@ -20278,7 +20544,9 @@ function handleControllerAction(action) {
   if (action === "firePort" || action === "fireStarboard") {
     if (lakeBattleMode) {
       if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
-        fireLakeBattlePlayerBroadside(action === "firePort" ? "port" : "starboard");
+        const sideName = action === "firePort" ? "port" : "starboard";
+        if (lakeBattleMode.kind === "historical") fireHistoricalBattlePlayerBroadside(sideName);
+        else fireLakeBattlePlayerBroadside(sideName);
       }
       return;
     }
@@ -20333,6 +20601,11 @@ function handleControllerAction(action) {
     return;
   }
   if (action === "cycleTarget") {
+    if (lakeBattleMode?.kind === "historical" &&
+        lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE && !lakeBattleMode.replay) {
+      cycleHistoricalBattleCommandTarget();
+      return;
+    }
     if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason && !lakeBattleMode) {
       cycleControllerInteractionTarget();
     }
@@ -20365,6 +20638,15 @@ function handleControllerAction(action) {
       cancelControllerKeyBindingCapture();
       return;
     }
+    if (lakeBattleMode?.kind === "historical" &&
+        lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE &&
+        lakeBattleMode.selectedShipIndex >= 0) {
+      lakeBattleMode.selectedShipIndex = -1;
+      lakeBattleMode.commandSelectedIndex = 0;
+      lakeBattleMode.commandRects = [];
+      dirty = true;
+      return;
+    }
     if (lakeBattleMode?.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
       dispatchControllerKey("Escape", KEY_ACTION.CAPTAIN_MENU);
       return;
@@ -20373,6 +20655,7 @@ function handleControllerAction(action) {
     return;
   }
   if (lakeBattleMode?.screen === LAKE_BATTLE_SCREEN_ACTIVE &&
+      !(lakeBattleMode.kind === "historical" && lakeBattleMode.selectedShipIndex >= 0) &&
       ["up", "down", "left", "right"].includes(action)) {
     return;
   }
@@ -20404,6 +20687,9 @@ function controllerUiIsActive() {
 
 function controllerDirectionalUiIsActive() {
   if (!controllerUiIsActive()) return false;
+  if (lakeBattleMode?.kind === "historical" &&
+      lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE &&
+      lakeBattleMode.selectedShipIndex >= 0) return true;
   return !(lakeBattleMode?.screen === LAKE_BATTLE_SCREEN_ACTIVE && !optionsMenu.isOpen);
 }
 
@@ -21912,7 +22198,7 @@ function portableCombatProjectile({ weapon, ownerId, targetId, startX, startY, t
 }
 
 function drawCombatBroadsideControls() {
-  if (!ship || !localLayout || portWaitState || !playerHasCombatEngagement() || dialogueState || menusAreOpen() || gameOverReason) return;
+  if (!ship || !localLayout || !playerHasCombatEngagement()) return;
   const weapon = playerNavalWeapon();
   if (!navalWeaponUsesBroadside(weapon)) return;
   for (const sideName of ["port", "starboard"]) {
@@ -21950,7 +22236,9 @@ function drawBroadsideReloadIndicator(arc, cooldown, reloadSeconds, hasTarget, c
   }
 
   traceBroadsideSector(arc, arc.outerRadius);
-  ctx.strokeStyle = ready ? (hasTarget ? "#fff4a8" : "#f9c22b") : "#625565";
+  ctx.strokeStyle = ready
+    ? (hasTarget ? "#fff4a8" : "#f9c22b")
+    : "#d3ad6a";
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -34630,16 +34918,16 @@ function drawHistoricalBattleMode(nowMs) {
     drawHistoricalBattleCommandMenu(battle);
     drawLakeBattlePauseButton(historicalBattlePauseButtonRect());
   } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED) {
-    drawLakeBattleActionOverlay("BATTLE PAUSED", HISTORICAL_BATTLE_PAUSE_ACTIONS);
+    drawLakeBattleActionOverlay(uiText("historical.paused"), HISTORICAL_BATTLE_PAUSE_ACTIONS);
   } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
     // The last visible wreck finishes sinking before the result replaces the battle.
   } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_RESULT) {
     const title = battle.outcome === "victory"
-      ? "VICTORY"
+      ? uiText("historical.victory")
       : battle.outcome === "defeat"
-        ? "DEFEAT"
-        : "DRAW";
-    drawLakeBattleActionOverlay(title, HISTORICAL_BATTLE_RESULT_ACTIONS);
+        ? uiText("historical.defeat")
+        : uiText("historical.draw");
+    drawLakeBattleActionOverlay(title, historicalBattleResultActions());
   } else {
     throw new Error(`Unknown historical battle screen: ${lakeBattleMode.screen}`);
   }
@@ -34652,13 +34940,12 @@ function drawHistoricalBattleCommandMenu(battle) {
     lakeBattleMode.commandRects = [];
     return;
   }
-  const actions = shipState.sideId === battle.playerSideId
-    ? [
-        { action: "follow", label: "FOLLOW ME" },
-        { action: "attack", label: "ATTACK" },
-        { action: "retreat", label: "RETREAT" }
-      ]
-    : [{ action: "target", label: "TARGET SHIP" }];
+  const actions = historicalBattleCommandActions(battle, shipState);
+  lakeBattleMode.commandSelectedIndex = clamp(
+    lakeBattleMode.commandSelectedIndex,
+    0,
+    actions.length - 1
+  );
   const point = historicalBattleWorldToScreen(shipState);
   const width = 74;
   const height = 17;
@@ -34670,20 +34957,33 @@ function drawHistoricalBattleCommandMenu(battle) {
     ...entry,
     rect: { x, y: y + index * (height + gap), w: width, h: height }
   }));
-  for (const entry of lakeBattleMode.commandRects) {
+  for (let index = 0; index < lakeBattleMode.commandRects.length; index++) {
+    const entry = lakeBattleMode.commandRects[index];
     drawShipInfoArrowButton(
       entry.rect,
       entry.label,
-      pointInRect(lakeBattleMode.hoverPoint, entry.rect)
+      index === lakeBattleMode.commandSelectedIndex ||
+        pointInRect(lakeBattleMode.hoverPoint, entry.rect)
     );
   }
+}
+
+function historicalBattleCommandActions(battle, shipState) {
+  if (!shipState?.active || shipState.playerControlled) return [];
+  return shipState.sideId === battle.playerSideId
+    ? [
+        { action: "follow", label: uiText("historical.command.follow") },
+        { action: "attack", label: uiText("historical.command.attack") },
+        { action: "retreat", label: uiText("historical.command.retreat") }
+      ]
+    : [{ action: "target", label: uiText("historical.command.target") }];
 }
 
 function drawHistoricalBattleSetup() {
   const panel = lakeBattleSetupPanelRect();
   ctx.save();
   drawPiratePaperModal(panel, 0.78);
-  drawOptionsText("HISTORICAL BATTLES", panel.x + panel.w / 2, panel.y + 9, {
+  drawOptionsText(uiText("start.historicalBattles"), panel.x + panel.w / 2, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
@@ -34709,39 +35009,42 @@ function drawHistoricalBattleSetup() {
   const scenario = selectedHistoricalBattleScenario();
   const side = selectedHistoricalBattleSide();
   const squadron = selectedHistoricalBattleSquadron();
+  const record = selectedHistoricalBattleRecordText(scenario, side);
   drawHistoricalBattleSelector(
     selectorRects[0],
-    "BATTLE",
-    scenario.title,
-    `${scenario.date} / ${scenario.location}`,
+    uiText("historical.battle"),
+    historicalBattleScenarioText(scenario, "title"),
+    `${historicalBattleScenarioText(scenario, "date")} / ${historicalBattleScenarioText(scenario, "location")}`,
     HISTORICAL_BATTLE_SETUP_SCENARIO_ROW,
     "scenario"
   );
   drawHistoricalBattleSelector(
     selectorRects[1],
-    "SIDE",
-    side.name,
-    `${side.squadrons.reduce((total, entry) => total + entry.count, 0)} SHIPS`,
+    uiText("historical.side"),
+    historicalBattleSideText(side),
+    `${historicalBattleShipsText(side.squadrons.reduce((total, entry) => total + entry.count, 0))}${record ? ` / ${record}` : ""}`,
     HISTORICAL_BATTLE_SETUP_SIDE_ROW,
     "side"
   );
   drawHistoricalBattleSelector(
     selectorRects[2],
-    "SQUADRON",
-    squadron.name,
-    `${squadron.count} SHIPS / ${squadron.commander}`,
+    uiText("historical.squadron"),
+    historicalBattleSquadronText(squadron),
+    `${historicalBattleShipsText(squadron.count)} / ${squadron.commander}`,
     HISTORICAL_BATTLE_SETUP_SQUADRON_ROW,
     "squadron"
   );
   drawStartMenuButton(
     beginRect,
-    lakeBattleMode.loading ? "LOADING FLEETS..." : "TAKE COMMAND",
+    lakeBattleMode.loading
+      ? uiText("historical.loadingFleets")
+      : uiText("historical.takeCommand"),
     lakeBattleMode.selectedIndex === HISTORICAL_BATTLE_SETUP_BEGIN_ROW,
     "action:attack"
   );
   drawStartMenuButton(
     backRect,
-    "BACK",
+    uiText("common.back"),
     lakeBattleMode.selectedIndex === HISTORICAL_BATTLE_SETUP_BACK_ROW,
     "action:back"
   );
@@ -34790,9 +35093,10 @@ function drawHistoricalBattleField(battle, nowMs) {
   drawHistoricalBattleMap(battle.map);
   drawHistoricalBattleWakes(battle);
   drawHistoricalBattleCannonSmoke(CANNON_SMOKE_LAYER_BEHIND);
-  drawHistoricalBattleProjectiles(battle);
+  drawHistoricalBattleEffects(battle);
   drawHistoricalBattleShips(battle, nowMs);
   drawHistoricalBattleCannonSmoke(CANNON_SMOKE_LAYER_FRONT);
+  drawHullSplinterBursts(battle.hullSplinterBursts, HISTORICAL_BATTLE_EFFECT_PAINTER);
   drawHistoricalBattleSinkEffects(battle, nowMs);
   drawHistoricalBattleHud(battle);
   drawHistoricalBattleMinimap(battle);
@@ -34868,22 +35172,44 @@ function drawHistoricalBattleArenaBoundary(map) {
 
 function drawHistoricalBattleProjectiles(battle) {
   for (const projectile of battle.projectiles) {
-    const t = clamp(projectile.ageSeconds / projectile.durationSeconds, 0, 1);
-    const point = historicalBattleWorldToScreen({
-      x: projectile.startX + (projectile.targetX - projectile.startX) * t,
-      y: projectile.startY + (projectile.targetY - projectile.startY) * t
+    const worldPoint = navalProjectilePoint(projectile);
+    const screenPoint = historicalBattleWorldToScreen({
+      x: worldPoint.x,
+      y: worldPoint.y - worldPoint.z
     });
-    if (point.x < -2 || point.x > SCREEN_W + 2 || point.y < -2 || point.y > SCREEN_H + 2) continue;
-    const size = projectile.projectileSize || (projectile.kind === "cannon" ? 2 : 1);
-    ctx.fillStyle = projectile.kind === "arrow" ? "#4c3e24" : "#2e222f";
-    ctx.fillRect(
-      Math.round(point.x) - Math.floor(size / 2),
-      Math.round(point.y) - Math.floor(size / 2),
-      size,
-      size
-    );
+    if (screenPoint.x < -2 || screenPoint.x > SCREEN_W + 2 ||
+        screenPoint.y < -2 || screenPoint.y > SCREEN_H + 2) continue;
+    drawNavalProjectile(projectile, worldPoint, HISTORICAL_BATTLE_EFFECT_PAINTER);
   }
 }
+
+function drawHistoricalBattleEffects(battle) {
+  drawHistoricalBattleProjectiles(battle);
+  for (const splash of battle.splashes) {
+    const point = historicalBattleWorldToScreen(splash);
+    const life = clamp(splash.age / splash.ttl, 0, 1);
+    ctx.globalAlpha = (1 - life) * 0.82;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(Math.round(point.x) - 1, Math.round(point.y), 3, 1);
+    ctx.fillRect(Math.round(point.x), Math.round(point.y) - 2, 1, 4);
+  }
+  for (const impact of battle.impacts) {
+    const point = historicalBattleWorldToScreen(impact);
+    const life = clamp(impact.age / impact.ttl, 0, 1);
+    ctx.globalAlpha = 1 - life;
+    ctx.fillStyle = impact.kind === NAVAL_WEAPON_ARROW ? "#ffffff" : "#f9c22b";
+    ctx.fillRect(Math.round(point.x), Math.round(point.y), 2, 2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+const HISTORICAL_BATTLE_EFFECT_PAINTER = Object.freeze({
+  rect(x, y, width, height, color) {
+    const point = historicalBattleWorldToScreen({ x, y });
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(point.x), Math.round(point.y), width, height);
+  }
+});
 
 function drawHistoricalBattleShips(battle, nowMs) {
   const visible = historicalBattleVisibleShips(battle, lakeBattleMode.camera, SCREEN_W, SCREEN_H)
@@ -34981,7 +35307,31 @@ function drawHistoricalBattleShip(battle, shipState, nowMs) {
     call.combatAllegiance,
     battle.wind
   );
+  if (!shipState.playerControlled || shipHullIsDamaged(shipState.hitPoints, shipState.maxHitPoints)) {
+    drawHistoricalBattleShipHullBar(
+      shipState,
+      call,
+      shipState.playerControlled
+        ? PLAYER_SHIP_COMBAT_COLOR
+        : shipCombatAllegianceColor(call.combatAllegiance)
+    );
+  }
   ctx.restore();
+}
+
+function drawHistoricalBattleShipHullBar(shipState, call, color) {
+  const layout = shipHullBarLayout({
+    x: call.x,
+    y: call.y,
+    frameSize: SHIP_SHEET_FRAME_SIZE,
+    hitPoints: shipState.hitPoints,
+    maxHitPoints: shipState.maxHitPoints
+  });
+  ctx.fillStyle = "#2e222f";
+  ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
+  if (layout.fillWidth <= 0) return;
+  ctx.fillStyle = color;
+  ctx.fillRect(layout.x + 1, layout.y + 1, layout.fillWidth, 1);
 }
 
 function drawHistoricalBattleSinkEffects(battle, nowMs) {
@@ -35041,26 +35391,150 @@ function drawHistoricalBattleHud(battle) {
   const panelWidth = Math.min(154, Math.floor((SCREEN_W - 38) / 2));
   drawHistoricalBattleStrengthPanel(playerSide, 4, 4, panelWidth, false);
   drawHistoricalBattleStrengthPanel(enemySide, SCREEN_W - panelWidth - 32, 4, panelWidth, true);
+  drawHistoricalBattlePlayerStatus(battle, 4, 31, panelWidth);
   const squadron = historicalBattleSquadronSummary(battle, battle.playerSquadronId);
-  const label = `${squadron.name.toUpperCase()} ${squadron.remainingShips}/${squadron.startingShips}`;
+  const scenarioSquadron = battle.scenario.sides
+    .flatMap((side) => side.squadrons)
+    .find((entry) => entry.id === squadron.id);
+  if (!scenarioSquadron) throw new Error(`Historical battle HUD lost squadron ${squadron.id}`);
+  const label = `${historicalBattleSquadronText(scenarioSquadron).toUpperCase()} ` +
+    `${squadron.remainingShips}/${squadron.startingShips}`;
   const width = Math.min(SCREEN_W - 16, measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 12);
-  ctx.fillStyle = "rgba(21, 29, 32, 0.78)";
-  ctx.fillRect(4, SCREEN_H - 19, width, 15);
+  drawHistoricalBattleHudPanel({ x: 4, y: SCREEN_H - 19, w: width, h: 15 });
   drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, width - 8), 8, SCREEN_H - 15, {
     font: PIXEL_FONT_SMALL_8,
-    color: "#f6e6c3"
+    color: PIRATE_MENU_INK
+  });
+  if (lakeBattleMode.replay) {
+    const replayLabel = uiText("historical.replay");
+    const replayWidth = measurePixelTextWidth(replayLabel, PIXEL_FONT_SMALL_8) + 10;
+    const replayX = Math.floor((SCREEN_W - replayWidth) / 2);
+    drawHistoricalBattleHudPanel({ x: replayX, y: 4, w: replayWidth, h: 15 });
+    drawOptionsText(replayLabel, SCREEN_W / 2, 8, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center",
+      color: PIRATE_MENU_INK
+    });
+  }
+}
+
+function drawHistoricalBattleHudPanel(rect, accentColor = PIRATE_MENU_CHART_LINE) {
+  drawPirateHudPanel(rect);
+  ctx.fillStyle = accentColor;
+  ctx.fillRect(rect.x + 1, rect.y + 1, rect.w - 2, 1);
+}
+
+function drawHistoricalBattlePlayerStatus(battle, x, y, width) {
+  const player = historicalBattlePlayerShip(battle);
+  const activeCrew = activeCombatCrew(player.crew, player.woundedCrew);
+  drawHistoricalBattleHudPanel(
+    { x, y, w: width, h: 61 },
+    PLAYER_SHIP_COMBAT_COLOR
+  );
+  const valueRight = x + width - 5;
+  drawOptionsText(
+    fitPixelText(uiText("historical.hull"), PIXEL_FONT_SMALL_8, 38),
+    x + 4,
+    y + 4,
+    { font: PIXEL_FONT_SMALL_8, color: PIRATE_MENU_INK_MUTED }
+  );
+  drawOptionsText(
+    `${player.hitPoints}/${player.maxHitPoints}`,
+    valueRight,
+    y + 4,
+    { font: PIXEL_FONT_LATIN_SMALL_8, align: "right", color: PIRATE_MENU_INK }
+  );
+  drawHistoricalBattlePlayerHullBar(player, x + 44, y + 6, width - 82);
+  drawHistoricalBattleCrewStatus(player, activeCrew, x + 4, y + 18, width - 8);
+  drawOptionsText(
+    fitPixelText(uiText("historical.wounded"), PIXEL_FONT_SMALL_8, width - 29),
+    x + 4,
+    y + 30,
+    {
+      font: PIXEL_FONT_SMALL_8,
+      color: player.woundedCrew > 0 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+    }
+  );
+  drawOptionsText(
+    `${player.woundedCrew}`,
+    valueRight,
+    y + 30,
+    {
+      font: PIXEL_FONT_LATIN_SMALL_8,
+      align: "right",
+      color: player.woundedCrew > 0 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK
+    }
+  );
+  drawHistoricalReloadBar(player, "port", x + 4, y + 53, Math.floor((width - 13) / 2));
+  drawHistoricalReloadBar(
+    player,
+    "starboard",
+    x + 9 + Math.floor((width - 13) / 2),
+    y + 53,
+    Math.floor((width - 13) / 2)
+  );
+}
+
+function drawHistoricalBattlePlayerHullBar(player, x, y, width) {
+  const fill = Math.round((width - 2) * clamp(player.hitPoints / player.maxHitPoints, 0, 1));
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
+  ctx.fillRect(x, y, width, 5);
+  if (fill <= 0) return;
+  ctx.fillStyle = player.hitPoints / player.maxHitPoints <= 0.25
+    ? PIRATE_MENU_DANGER
+    : PLAYER_SHIP_COMBAT_COLOR;
+  ctx.fillRect(x + 1, y + 1, fill, 3);
+}
+
+function drawHistoricalBattleCrewStatus(player, activeCrew, x, y, width) {
+  if (!statusPersonImages) throw new Error("Historical battle HUD requires crew status sprites");
+  const activeImage = statusPersonImages.get("crew")?.[0];
+  if (!activeImage) throw new Error("Historical battle HUD is missing its active crew sprite");
+  const value = `${activeCrew}/${player.crew}`;
+  const valueWidth = measurePixelTextWidth(value, PIXEL_FONT_LATIN_SMALL_8);
+  const availableWidth = width - valueWidth - 5;
+  const visibleIcons = Math.min(player.crew, Math.max(1, Math.floor(availableWidth / 4)));
+  const activeIcons = player.crew <= visibleIcons
+    ? activeCrew
+    : Math.round(visibleIcons * activeCrew / player.crew);
+  for (let index = 0; index < visibleIcons; index++) {
+    ctx.globalAlpha = index < activeIcons ? 1 : 0.28;
+    ctx.drawImage(activeImage, x + index * 4, y);
+  }
+  ctx.globalAlpha = 1;
+  drawOptionsText(value, x + width, y - 1, {
+    font: PIXEL_FONT_LATIN_SMALL_8,
+    align: "right",
+    color: PIRATE_MENU_INK
   });
 }
 
+function drawHistoricalReloadBar(player, sideName, x, y, width) {
+  const ready = player.weapon
+    ? 1 - clamp(player.cooldowns[sideName] / player.weapon.reloadSeconds, 0, 1)
+    : 0;
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
+  ctx.fillRect(x, y, width, 5);
+  ctx.fillStyle = ready >= 1 ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED;
+  ctx.fillRect(x + 1, y + 1, Math.floor((width - 2) * ready), 3);
+  drawOptionsText(
+    uiText(sideName === "port" ? "historical.portShort" : "historical.starboardShort"),
+    x + Math.floor(width / 2),
+    y - 8,
+    { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK_MUTED }
+  );
+}
+
 function drawHistoricalBattleStrengthPanel(side, x, y, width, alignRight) {
-  ctx.fillStyle = "rgba(21, 29, 32, 0.78)";
-  ctx.fillRect(x, y, width, 25);
-  drawOptionsText(fitPixelText(side.name.toUpperCase(), PIXEL_FONT_SMALL_8, width - 8), alignRight ? x + width - 4 : x + 4, y + 4, {
+  drawHistoricalBattleHudPanel({ x, y, w: width, h: 25 }, side.color);
+  const scenarioSide = selectedHistoricalBattleScenario().sides.find((entry) => entry.id === side.id);
+  if (!scenarioSide) throw new Error(`Historical battle HUD lost side ${side.id}`);
+  drawOptionsText(fitPixelText(historicalBattleSideText(scenarioSide).toUpperCase(), PIXEL_FONT_SMALL_8, width - 8), alignRight ? x + width - 4 : x + 4, y + 4, {
     font: PIXEL_FONT_SMALL_8,
     align: alignRight ? "right" : "left",
-    color: "#f6e6c3"
+    color: PIRATE_MENU_INK
   });
-  drawOptionsText(`${side.remainingShips}/${side.startingShips} SHIPS`, alignRight ? x + width - 4 : x + 4, y + 14, {
+  drawOptionsText(`${side.remainingShips}/${side.startingShips} ${uiText("historical.ships")}`, alignRight ? x + width - 4 : x + 4, y + 14, {
     font: PIXEL_FONT_SMALL_8,
     align: alignRight ? "right" : "left",
     color: side.color
@@ -35663,7 +36137,20 @@ function drawLakeBattleActionOverlay(title, actions) {
 }
 
 function lakeBattleActionLabel(action) {
-  return action === "CHOOSE BATTLE" ? uiText("battle.choose") : action;
+  if (lakeBattleMode?.kind !== "historical") {
+    return action === "CHOOSE BATTLE" ? uiText("battle.choose") : action;
+  }
+  const key = {
+    "RESUME": "historical.resume",
+    "RESTART": "historical.restart",
+    "REMATCH": "historical.rematch",
+    "WATCH REPLAY": "historical.watchReplay",
+    "CHOOSE BATTLE": "battle.choose",
+    "OPTIONS": "options.title",
+    "START MENU": "historical.startMenu"
+  }[action];
+  if (!key) throw new Error(`Historical battle action has no localization: ${action}`);
+  return uiText(key);
 }
 
 function drawStartMenu(nowMs) {

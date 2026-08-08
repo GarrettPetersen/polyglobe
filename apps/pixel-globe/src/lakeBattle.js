@@ -11,7 +11,7 @@ import {
   portableWeaponItemById,
   representativePortableWeaponItemIdsForShip
 } from "./portableWeapons.js";
-import { activeCombatCrew, applyCrewWounds, crewWoundsForceSurrender } from "./combatWounds.js";
+import { activeCombatCrew, crewWoundsForceSurrender } from "./combatWounds.js";
 import {
   STANDARD_CANNON_EQUIPMENT_ID,
   cannonWeaponWithEquipment
@@ -19,6 +19,7 @@ import {
 import { advanceCannonSmokeBursts, createCannonSmokeBurst } from "./cannonSmoke.js";
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import { resolveShipCollision } from "./shipCollision.js";
+import { resolveNavalProjectileImpact } from "./navalCombatResolution.js";
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
@@ -927,29 +928,27 @@ function lakeBattleProjectileTarget(state, projectile) {
 }
 
 function applyLakeBattleProjectileHit(state, projectile, target, point) {
-  let newWounds = 0;
-  if (projectile.portable) {
-    const weapon = portableWeaponItemById(projectile.weaponId).weapon;
-    if (!weapon) throw new Error(`Lake battle portable projectile has no weapon: ${projectile.weaponId}`);
-    const woundResult = applyCrewWounds({
-      totalCrew: target.crew,
-      woundedCrew: target.woundedCrew,
-      crewDamage: weapon.crewDamage,
-      hitChance: weapon.crewHitChance,
-      crewProtection: target.stats.crewProtection,
-      crewProtectionPenetration: weapon.crewProtectionPenetration,
-      random: () => nextBattleRandom(state)
-    });
-    target.woundedCrew = woundResult.woundedCrew;
-    newWounds = woundResult.newWounds;
-    target.surrendered = crewWoundsForceSurrender(target.crew, target.woundedCrew);
+  const weapon = projectile.portable
+    ? portableWeaponItemById(projectile.weaponId).weapon
+    : null;
+  if (projectile.portable && !weapon) {
+    throw new Error(`Lake battle portable projectile has no weapon: ${projectile.weaponId}`);
   }
-  const canDamageHull = projectile.damage > 0;
-  const resisted = canDamageHull && target.kind !== "city" &&
-    shipHullResistsDamage(target.stats, { roll: nextBattleRandom(state) });
-  const damage = canDamageHull && !resisted ? projectile.damage : 0;
-  target.hitPoints = Math.max(0, target.hitPoints - damage);
-  if (damage > 0 && target.hitPoints > 0) {
+  const result = resolveNavalProjectileImpact({
+    projectile: {
+      damage: projectile.damage,
+      crewDamage: weapon?.crewDamage || 0,
+      crewHitChance: weapon?.crewHitChance || 0,
+      crewProtectionPenetration: weapon?.crewProtectionPenetration || 0
+    },
+    target,
+    allowHullResistance: target.kind !== "city",
+    random: () => nextBattleRandom(state)
+  });
+  target.woundedCrew = result.woundedCrew;
+  target.surrendered = result.surrendered;
+  target.hitPoints = result.hitPoints;
+  if (result.damage > 0 && target.hitPoints > 0) {
     state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
   }
   state.impacts.push({
@@ -965,9 +964,9 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
     shipId: target.id,
     weaponKind: projectile.kind,
     weaponId: projectile.weaponId || null,
-    damage,
-    resisted,
-    newWounds,
+    damage: result.damage,
+    resisted: result.resisted,
+    newWounds: result.newWounds,
     surrendered: target.surrendered
   });
 }

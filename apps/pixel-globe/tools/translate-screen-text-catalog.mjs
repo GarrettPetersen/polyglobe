@@ -7,6 +7,7 @@ import { SCREEN_TEXT_TEMPLATES } from "../src/screenTextCatalog.js";
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUTPUT_ROOT = path.join(APP_ROOT, "src/locales/screen");
 const BATCH_CHARACTER_LIMIT = 3_200;
+const PRUNE_ONLY = process.argv.includes("--prune-only");
 const LOCALES = Object.freeze([
   { id: "zh-Hans", serviceCode: "zh-CN", fileName: "zh-Hans.js" },
   { id: "ru", serviceCode: "ru", fileName: "ru.js" },
@@ -369,10 +370,10 @@ await mkdir(OUTPUT_ROOT, { recursive: true });
 for (const locale of LOCALES) {
   const outputPath = path.join(OUTPUT_ROOT, locale.fileName);
   const existing = await readExistingCatalog(outputPath);
-  const missing = SCREEN_TEXT_TEMPLATES.filter((source) => (
+  const missing = PRUNE_ONLY ? [] : SCREEN_TEXT_TEMPLATES.filter((source) => (
     typeof existing[source] !== "string" || needsTranslationRefresh(source)
   ));
-  process.stdout.write(`${locale.id}: translating ${missing.length} missing templates\n`);
+  process.stdout.write(`${locale.id}: ${PRUNE_ONLY ? "pruning" : `translating ${missing.length} missing templates`}\n`);
   const translated = missing.length > 0
     ? await translateTemplates(missing, locale)
     : {};

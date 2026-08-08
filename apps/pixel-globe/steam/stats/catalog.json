@@ -4,7 +4,7 @@
     "src/steamStats.js",
     "src/achievements.js"
   ],
-  "statCount": 13,
+  "statCount": 18,
   "achievementProgressCount": 29,
   "stats": [
     {
@@ -162,6 +162,71 @@
       "defaultValue": 0,
       "aggregated": false,
       "sourceAchievementId": "shipshape"
+    },
+    {
+      "apiName": "HISTORICAL_BATTLES_PLAYED",
+      "displayName": "Historical battles played",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 1000000,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": null,
+      "historicalMetric": "played"
+    },
+    {
+      "apiName": "HISTORICAL_BATTLES_WON",
+      "displayName": "Historical battles won",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 1000000,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": null,
+      "historicalMetric": "victories"
+    },
+    {
+      "apiName": "MAX_HISTORICAL_ENEMIES_DEFEATED",
+      "displayName": "Most enemies defeated in a historical battle",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 1000,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": null,
+      "historicalMetric": "maxEnemyShipsDefeated"
+    },
+    {
+      "apiName": "LEPANTO_HOLY_LEAGUE_WINS",
+      "displayName": "Lepanto victories as the Holy League",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 1000000,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": null,
+      "historicalMetric": "lepantoHolyLeagueWins"
+    },
+    {
+      "apiName": "LEPANTO_OTTOMAN_WINS",
+      "displayName": "Lepanto victories as the Ottoman Empire",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 1000000,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": null,
+      "historicalMetric": "lepantoOttomanWins"
     }
   ],
   "achievementProgress": [

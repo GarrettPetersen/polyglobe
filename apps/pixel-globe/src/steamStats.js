@@ -29,7 +29,15 @@ export const STEAM_STAT_CATALOG = Object.freeze([
   stat("MAX_VOYAGE_NAMED_CREW", "Most named crewmates aboard",
     ACHIEVEMENT_IDS.A_FINE_COMPANY, 3),
   stat("MAX_VOYAGE_SPECIAL_EQUIPMENT", "Most special equipment owned",
-    ACHIEVEMENT_IDS.SHIPSHAPE, 3)
+    ACHIEVEMENT_IDS.SHIPSHAPE, 3),
+  historicalStat("HISTORICAL_BATTLES_PLAYED", "Historical battles played", "played", 1_000_000),
+  historicalStat("HISTORICAL_BATTLES_WON", "Historical battles won", "victories", 1_000_000),
+  historicalStat("MAX_HISTORICAL_ENEMIES_DEFEATED", "Most enemies defeated in a historical battle",
+    "maxEnemyShipsDefeated", 1_000),
+  historicalStat("LEPANTO_HOLY_LEAGUE_WINS", "Lepanto victories as the Holy League",
+    "lepantoHolyLeagueWins", 1_000_000),
+  historicalStat("LEPANTO_OTTOMAN_WINS", "Lepanto victories as the Ottoman Empire",
+    "lepantoOttomanWins", 1_000_000)
 ]);
 
 export const STEAM_ACHIEVEMENT_PROGRESS = Object.freeze({
@@ -79,14 +87,16 @@ for (const [achievementId, binding] of Object.entries(STEAM_ACHIEVEMENT_PROGRESS
   }
 }
 
-export function steamStatValues(profile, voyageProgress, snapshot) {
+export function steamStatValues(profile, voyageProgress, snapshot, historicalBattleRecords = null) {
   const values = Object.fromEntries(STEAM_STAT_CATALOG.map((entry) => {
-    const current = achievementProgress(
-      profile,
-      voyageProgress,
-      snapshot,
-      entry.sourceAchievementId
-    ).value;
+    const current = entry.historicalMetric
+      ? historicalBattleMetricValue(historicalBattleRecords, entry.historicalMetric)
+      : achievementProgress(
+          profile,
+          voyageProgress,
+          snapshot,
+          entry.sourceAchievementId
+        ).value;
     const unlockedFloor = Object.entries(STEAM_ACHIEVEMENT_PROGRESS)
       .filter(([, binding]) => binding.statApiName === entry.apiName)
       .reduce((highest, [achievementId, binding]) => (
@@ -125,6 +135,33 @@ function stat(apiName, displayName, sourceAchievementId, maxValue) {
     aggregated: false,
     sourceAchievementId
   });
+}
+
+function historicalStat(apiName, displayName, historicalMetric, maxValue) {
+  if (typeof historicalMetric !== "string" || historicalMetric.length === 0) {
+    throw new Error(`Historical Steam stat metric is missing: ${apiName}`);
+  }
+  return Object.freeze({
+    ...stat(apiName, displayName, null, maxValue),
+    historicalMetric
+  });
+}
+
+function historicalBattleMetricValue(records, metric) {
+  if (records === null || records === undefined) return 0;
+  if (!records.byScenarioSide || typeof records.byScenarioSide !== "object") {
+    throw new Error("Historical Steam stats require valid battle records");
+  }
+  if (metric === "played" || metric === "victories" || metric === "maxEnemyShipsDefeated") {
+    return records[metric];
+  }
+  if (metric === "lepantoHolyLeagueWins") {
+    return records.byScenarioSide["lepanto-1571:holy-league"]?.victories || 0;
+  }
+  if (metric === "lepantoOttomanWins") {
+    return records.byScenarioSide["lepanto-1571:ottoman-empire"]?.victories || 0;
+  }
+  throw new Error(`Unknown historical Steam stat metric: ${metric}`);
 }
 
 function progress(statApiName, unlockValue) {

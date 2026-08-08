@@ -7,6 +7,7 @@ import {
   HISTORICAL_BATTLE_PHASE_ACTIVE,
   createHistoricalBattle,
   createHistoricalBattleCommand,
+  createHistoricalBattleReplay,
   drainHistoricalBattleEvents,
   historicalBattleInterpolatedShipPose,
   historicalBattlePlayerShip,
@@ -16,7 +17,8 @@ import {
   historicalBattleVisibleShips,
   historicalBattleWindAt,
   historicalBattleWindFlowDirection,
-  updateHistoricalBattle
+  updateHistoricalBattle,
+  updateHistoricalBattleReplay
 } from "./historicalBattle.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
 import { validateShipWakeAnchors } from "./shipWakeAnchors.js";
@@ -147,6 +149,34 @@ test("fixed-step updates are deterministic across different render frame rates",
   for (let index = 0; index < 100; index++) updateHistoricalBattle(slowFrames, 1 / 20, command);
 
   assert.deepEqual(historicalBattleSnapshot(fastFrames), historicalBattleSnapshot(slowFrames));
+});
+
+test("recorded commands replay to the same deterministic fleet state", () => {
+  const original = createBattle({ shipFootprints: HISTORICAL_SHIP_FOOTPRINTS });
+  const inputs = Array.from({ length: 120 }, (_, tick) => ({
+    desiredHeadingRad: tick < 40 ? 0.05 : tick < 80 ? null : -0.08,
+    rowingRequested: tick < 90,
+    firePort: tick === 24,
+    fireStarboard: tick === 64
+  }));
+  for (const input of inputs) {
+    updateHistoricalBattle(original, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, input);
+  }
+  const replay = createHistoricalBattleReplay(original);
+  const replayed = createBattle({
+    shipFootprints: HISTORICAL_SHIP_FOOTPRINTS,
+    seed: replay.seed
+  });
+  for (let tick = 0; tick < inputs.length; tick++) {
+    updateHistoricalBattleReplay(
+      replayed,
+      HISTORICAL_BATTLE_FIXED_STEP_SECONDS,
+      replay
+    );
+  }
+
+  assert.ok(replay.commands.some((command) => command.desiredHeadingQ === null));
+  assert.deepEqual(historicalBattleSnapshot(replayed), historicalBattleSnapshot(original));
 });
 
 test("render poses interpolate between deterministic physics ticks", () => {

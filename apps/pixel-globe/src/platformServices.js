@@ -4,6 +4,7 @@ export const PLATFORM_CLOUD_STORAGE_KEYS = Object.freeze([
   "marque-and-reprisal.save",
   "marque-and-reprisal.achievements",
   "marque-and-reprisal.voyage-history",
+  "marque-and-reprisal.historical-battle-records",
   "marque-and-reprisal.key-bindings",
   "pixel_globe_language",
   "pixel_globe_controller_glyphs",

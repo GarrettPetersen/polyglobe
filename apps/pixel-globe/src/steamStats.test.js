@@ -13,9 +13,10 @@ import {
   steamAchievementProgressBinding,
   steamStatValues
 } from "./steamStats.js";
+import { createHistoricalBattleRecords } from "./historicalBattleRecords.js";
 
 test("Steam stats are unique bounded client-side high-water integers", () => {
-  assert.equal(STEAM_STAT_CATALOG.length, 13);
+  assert.equal(STEAM_STAT_CATALOG.length, 18);
   assert.equal(
     new Set(STEAM_STAT_CATALOG.map((entry) => entry.apiName)).size,
     STEAM_STAT_CATALOG.length
@@ -84,6 +85,40 @@ test("Steam discovery stats retain the local best voyage after that voyage ends"
   );
 
   assert.equal(values.MAX_VOYAGE_DISCOVERIES, 27);
+});
+
+test("historical battle records feed standalone Steam stats without achievements", () => {
+  const records = createHistoricalBattleRecords();
+  records.played = 3;
+  records.victories = 2;
+  records.defeats = 1;
+  records.maxEnemyShipsDefeated = 173;
+  records.byScenarioSide["lepanto-1571:holy-league"] = {
+    played: 2,
+    victories: 2,
+    defeats: 0,
+    draws: 0,
+    maxEnemyShipsDefeated: 173
+  };
+  records.byScenarioSide["lepanto-1571:ottoman-empire"] = {
+    played: 1,
+    victories: 0,
+    defeats: 1,
+    draws: 0,
+    maxEnemyShipsDefeated: 61
+  };
+  const values = steamStatValues(
+    createAchievementProfile(),
+    createVoyageAchievementProgress(),
+    snapshot(),
+    records
+  );
+
+  assert.equal(values.HISTORICAL_BATTLES_PLAYED, 3);
+  assert.equal(values.HISTORICAL_BATTLES_WON, 2);
+  assert.equal(values.MAX_HISTORICAL_ENEMIES_DEFEATED, 173);
+  assert.equal(values.LEPANTO_HOLY_LEAGUE_WINS, 2);
+  assert.equal(values.LEPANTO_OTTOMAN_WINS, 0);
 });
 
 function snapshot(overrides = {}) {

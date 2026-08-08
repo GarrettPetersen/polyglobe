@@ -304,6 +304,7 @@ const MENU_LABEL_ICON_IDS = Object.freeze({
   RESUME: "action:resume",
   RESTART: "action:restart",
   REMATCH: "action:attack",
+  "WATCH REPLAY": "action:resume",
   "CHOOSE SHIPS": "action:choose-ships",
   "CHOOSE BATTLE": "menu:map",
   OPTIONS: "menu:options",
