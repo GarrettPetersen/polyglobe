@@ -369,6 +369,20 @@
       "opaquePixels": 124
     },
     {
+      "slug": "joseon-hyeopseon",
+      "label": "Hyeopseon",
+      "source": "public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings.png",
+      "output": "public/assets/ui/ship-icons/joseon-hyeopseon.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 17,
+        "w": 26,
+        "h": 22
+      },
+      "opaquePixels": 141
+    },
+    {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
       "source": "public/assets/vehicles/unity-ships/joseon-panokseon-32-headings.png",

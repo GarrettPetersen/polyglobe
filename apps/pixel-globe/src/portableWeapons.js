@@ -41,7 +41,8 @@ const JAPANESE_SHIP_SLUGS = new Set([
   "japanese-kuribune", "japanese-kobaya", "japanese-sekibune", "japanese-atakebune"
 ]);
 const EAST_ASIAN_SHIP_SLUGS = new Set([
-  "sampan", "small-junk", "medium-junk", "large-junk", "joseon-turtle-ship", "joseon-panokseon"
+  "sampan", "small-junk", "medium-junk", "large-junk", "joseon-turtle-ship",
+  "joseon-hyeopseon", "joseon-panokseon"
 ]);
 const ISLAMIC_AND_INDIAN_OCEAN_SHIP_SLUGS = new Set([
   "dhow", "ocean-dhow", "felucca", "xebec", "ottoman-coastal-trader"

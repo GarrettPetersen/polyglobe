@@ -40,6 +40,7 @@ For development, `?startShip={slug}` starts a new voyage with any roster ship. T
 | Galleass | `galleass` | Russian 22-bank Baltic galley | sixteenth-century Mediterranean galleass | Medium | The complete three-sail rig is retained at a larger scale for a broad, heavily armed floating gun platform. |
 | Javanese Jong | `javanese-jong` | Ship Small 7 | large Javanese jong | Medium | The source proportions are lengthened and broadened so its deep hull reads in the exceptional 600-capacity merchant tier. Twin quarter rudders are anchored to stern geometry and added procedurally to every heading, lighting mask, shadow, sinking layer, and side view. Contemporary evidence supports large jongs commonly exceeding Portuguese ships in Southeast Asian waters, with roughly 400–500-ton average burthen and exceptional vessels reaching about 1,000 tons. |
 | Turtle Ship | `joseon-turtle-ship` | Geobukseon (Turtle Ship) | early Joseon armored oar-and-sail warship | High | Joseon-specific cannon warship with procedurally baked working oars. |
+| Hyeopseon | `joseon-hyeopseon` | Panok ship (Panokseon) derivative | light Joseon fleet companion and scout | Medium | The documented medium companion vessel is represented conservatively with a smaller, lighter-timber Panokseon derivative, its aft mast removed and four representative animated oars fitted per side. |
 | Panokseon | `joseon-panokseon` | Panok ship (Panokseon) | Joseon decked oar-and-sail warship lineage | Medium | Available from 1522 as a representative of earlier Joseon decked oar-and-sail predecessors; the mature named type is documented later. The source model's static paddles are replaced with procedurally baked working oars. |
 | Umi-bune | `japanese-kuribune` | Kamakura Period Umi-Bune Japanese Boat | small Japanese coastal cargo vessel | Medium | The legacy filename slug remains for save compatibility. The source model's eight static stern oars are replaced with four animated oars for a clearer gameplay silhouette. |
 | Kobaya | `japanese-kobaya` | Japanese Boat: Kobaya 3D Model | light Japanese scout and fighting boat | Medium | Purchased BOOTH reconstruction. Its 20 static oars are replaced with eight animated oars—four per side—and its shields, hull, rudder, and flags receive game-readable wood and cloth textures. |
@@ -88,6 +89,7 @@ Cargo capacity is checked against both the average opaque area of the 32-heading
 | Coastal Pinnace | `cutter` | 4 | 0.028 | 0.035 | 32deg | 3.25 | 60 | 30 |
 | Lateen Barque | `ketch` | 4 | 0.024 | 0.035 | 34deg | 2.85 | 75 | 60 |
 | Turtle Ship | `joseon-turtle-ship` | 30 | 0.017 | 0.034 | 50deg | 1.85 | 45 | 90 |
+| Hyeopseon | `joseon-hyeopseon` | 4 | 0.026 | 0.040 | 48deg | 2.95 | 12 | 65 |
 | Panokseon | `joseon-panokseon` | 20 | 0.020 | 0.035 | 52deg | 2.20 | 28 | 150 |
 | Umi-bune | `japanese-kuribune` | 0 | 0.028 | 0.034 | 42deg | 3.30 | 5 | 55 |
 | Kobaya | `japanese-kobaya` | 0 (arrows) | 0.027 | 0.038 | 42deg | 3.15 | 9 | 65 |

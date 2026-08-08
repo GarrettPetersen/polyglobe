@@ -36,6 +36,7 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Viking Longship | 3 | 76 | 79 | 0.000 |
 | Brigantine | 2 | 85 | 87 | 0.000 |
 | Galleon | 2 | 83 | 85 | 0.000 |
+| Hyeopseon | 2 | 79 | 81 | -0.265 |
 | Royal Lancaran | 2 | 68 | 70 | 0.040 |
 | Small Junk | 2 | 81 | 83 | 0.000 |
 | Umi-bune | 2 | 65 | 67 | -0.018 |

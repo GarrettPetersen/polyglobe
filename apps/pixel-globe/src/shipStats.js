@@ -9,6 +9,7 @@ export const SHIP_UPWIND_FORGIVENESS_DEG = 8;
 export const MEDITERRANEAN_GALLEY_SLUG = "mediterranean-galley";
 export const GALLEASS_SLUG = "galleass";
 export const FUSTA_SLUG = "fusta";
+export const JOSEON_HYEOPSEON_SLUG = "joseon-hyeopseon";
 export const JAPANESE_UMI_BUNE_SLUG = "japanese-kuribune";
 export const JAPANESE_KOBAYA_SLUG = "japanese-kobaya";
 export const JAPANESE_SEKIBUNE_SLUG = "japanese-sekibune";
@@ -57,6 +58,7 @@ const SHIP_CREW_PROTECTION = Object.freeze({
   galleass: 55,
   fusta: 12,
   "joseon-turtle-ship": 100,
+  [JOSEON_HYEOPSEON_SLUG]: 30,
   "joseon-panokseon": 65,
   "japanese-kuribune": 8,
   "japanese-kobaya": 35,
@@ -104,6 +106,7 @@ const SHIP_LABELS = Object.freeze({
   [GALLEASS_SLUG]: "Galleass",
   [FUSTA_SLUG]: "Fusta",
   "joseon-turtle-ship": "Turtle Ship",
+  [JOSEON_HYEOPSEON_SLUG]: "Hyeopseon",
   "joseon-panokseon": "Panokseon",
   // Keep the legacy slug for save compatibility; the source vessel is an umi-bune.
   "japanese-kuribune": "Umi-bune",
@@ -153,6 +156,8 @@ const rawShipStats = [
   // A fusta is a light one-masted galley: quick under oars, cramped, and lightly armed.
   stats(FUSTA_SLUG, 2, 0.031, 0.041, 35, 3.20, 90, 42, 4, SHIP_PROPULSION_OAR_SAIL, 0, 12),
   stats("joseon-turtle-ship", 30, 0.017, 0.034, 50, 1.85, 450, 90, 9, SHIP_PROPULSION_OAR_SAIL, 40),
+  // A Hyeopseon is the lighter fleet companion recorded beside Yi Sun-sin's Panokseon.
+  stats(JOSEON_HYEOPSEON_SLUG, 4, 0.026, 0.040, 48, 2.95, 120, 65, 6, SHIP_PROPULSION_OAR_SAIL, 0, 18),
   stats("joseon-panokseon", 20, 0.020, 0.035, 52, 2.20, 280, 150, 7, SHIP_PROPULSION_OAR_SAIL),
   stats("japanese-kuribune", 0, 0.028, 0.034, 42, 3.30, 50, 55, 5, SHIP_PROPULSION_OAR_SAIL),
   stats("japanese-kobaya", 0, 0.027, 0.038, 0, 3.15, 90, 65, 6, SHIP_PROPULSION_OAR),

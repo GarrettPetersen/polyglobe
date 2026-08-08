@@ -4399,6 +4399,150 @@
           "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-5-32-headings-sink-depth.png"
         ]
       }
+    },
+    {
+      "slug": "joseon-hyeopseon",
+      "label": "Hyeopseon",
+      "category": "light Joseon warship",
+      "assetLabel": "Panok ship derivative",
+      "identifiedType": "light Joseon fleet companion and scout",
+      "identificationConfidence": "medium",
+      "identificationNotes": "The documented medium Hyeopseon is represented conservatively with the credited Panokseon source model at a smaller scale, its aft mast removed, a lighter timber palette, and four representative animated oars per side.",
+      "removedSourceMeshes": [
+        {
+          "nodeName": "Object_9",
+          "parentName": "Object_4",
+          "positionCount": 2544
+        },
+        {
+          "nodeName": "Object_13",
+          "parentName": "Object_4",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Object_84",
+          "parentName": "Object_4",
+          "positionCount": 480
+        },
+        {
+          "nodeName": "Object_85",
+          "parentName": "Object_4",
+          "positionCount": 340
+        }
+      ],
+      "creator": "Heat Of Fusion, with JJakgwi",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/joseon-panokseon/scene.gltf",
+      "sourceTexture": null,
+      "sourceMaxDim": 23.1451,
+      "targetModelMaxDim": 1.72,
+      "frameScale": 0.62,
+      "turntableAnchor": {
+        "x": 23.5,
+        "y": 29.9855
+      },
+      "scaleMode": "light-joseon-panokseon-derivative",
+      "waterlineY": -0.6073859051565584,
+      "waterlineOffsetY": -0.265,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 1,
+        "dominantLengthRatio": 1,
+        "hullIntervalMinY": -0.682044,
+        "hullIntervalMaxY": 0.682044
+      },
+      "encodedWaterlineY": -0.607386,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.675223,
+      "sinkHeightMax": 0.682044,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": -0.003748,
+        "y": 0.682044,
+        "z": 0.471495
+      },
+      "stats": {
+        "slug": "joseon-hyeopseon",
+        "cannons": 4,
+        "accelerationRad": 0.026,
+        "topSpeedRad": 0.034,
+        "upwindStallAngleDeg": 40,
+        "upwindStallAngleRad": 0.6981317007977318,
+        "turnRateRad": 2.95,
+        "mass": 120,
+        "crewCapacity": 18,
+        "hitPoints": 12,
+        "cargoCapacity": 65,
+        "seaworthiness": 6,
+        "armor": 0,
+        "crewProtection": 30,
+        "propulsion": "oar-sail"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-5-32-headings-sink-depth.png"
+        ],
+        "pivotPortAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-5-32-headings.png"
+        ],
+        "pivotPortSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-5-32-headings-sink-depth.png"
+        ],
+        "pivotStarboardAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-5-32-headings.png"
+        ],
+        "pivotStarboardSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-5-32-headings-sink-depth.png"
+        ]
+      }
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -4421,5 +4565,6 @@
   "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
   "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
   "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong",
-  "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta"
+  "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta",
+  "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon"
 }

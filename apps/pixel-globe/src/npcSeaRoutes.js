@@ -173,6 +173,8 @@ export const PIRATE_SHIP_SLUGS = Object.freeze([
   "galleon"
 ]);
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
+const JOSEON_HYEOPSEON_SLUG = "joseon-hyeopseon";
+const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
 const KELULUS_SLUG = "kelulus";
@@ -180,10 +182,12 @@ const PENJAJAP_SLUG = "penjajap";
 const LANCARAN_SLUG = "lancaran";
 const ROYAL_LANCARAN_SLUG = "royal-lancaran";
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
-const EAST_ASIAN_FACTION_WARSHIPS = Object.freeze({
-  joseon: JOSEON_TURTLE_SHIP_SLUG,
-  japan: JAPANESE_SEKIBUNE_SLUG
-});
+const JOSEON_WARSHIP_SLUGS = Object.freeze([
+  JOSEON_HYEOPSEON_SLUG,
+  JOSEON_HYEOPSEON_SLUG,
+  JOSEON_PANOKSEON_SLUG,
+  JOSEON_TURTLE_SHIP_SLUG
+]);
 
 const WHALER_PROFILES = Object.freeze([
   whalerProfile(
@@ -416,7 +420,7 @@ export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
   ]),
   ...WHALER_PROFILES.flatMap((profileSpec) => profileSpec.whalerSlugs),
   ...PIRATE_SHIP_SLUGS,
-  ...Object.values(EAST_ASIAN_FACTION_WARSHIPS),
+  ...JOSEON_WARSHIP_SLUGS,
   ...JAPANESE_SHIP_SLUGS,
   PORTUGUESE_CARRACK_SLUG,
   OTTOMAN_COASTAL_TRADER_SLUG,
@@ -1775,14 +1779,11 @@ function npcShipSlugForRole(profileSpec, role, seed, factionId) {
     const pool = profileSlugsForRole(profileSpec, role, factionId);
     return weightedCheapShipSlug(pool, hashString32(`${seed}|${role}|japanese-hull`));
   }
-  const nationalWarship = EAST_ASIAN_FACTION_WARSHIPS[factionId];
-  if (
-    role === NPC_ROLE_WARSHIP &&
-    profileSpec.id === "east-asia" &&
-    nationalWarship &&
-    hashUnit(`${seed}|national-warship`) < 0.4
-  ) {
-    return nationalWarship;
+  if (factionId === "joseon" && role === NPC_ROLE_WARSHIP && profileSpec.id === "east-asia") {
+    const roll = hashUnit(`${seed}|joseon-warship-class`);
+    if (roll < 0.5) return JOSEON_HYEOPSEON_SLUG;
+    if (roll < 0.85) return JOSEON_PANOKSEON_SLUG;
+    return JOSEON_TURTLE_SHIP_SLUG;
   }
   if (
     role === NPC_ROLE_WARSHIP &&
@@ -1820,13 +1821,11 @@ function profileSlugsForRole(profileSpec, role, factionId = null) {
       return [JAPANESE_UMI_BUNE_SLUG];
     }
   }
-  if (role === NPC_ROLE_PIRATE) return PIRATE_SHIP_SLUGS;
-  if (role === NPC_ROLE_WARSHIP) {
-    const nationalWarship = EAST_ASIAN_FACTION_WARSHIPS[factionId];
-    return nationalWarship && profileSpec.id === "east-asia"
-      ? [...profileSpec.warshipSlugs, nationalWarship]
-      : profileSpec.warshipSlugs;
+  if (factionId === "joseon" && role === NPC_ROLE_WARSHIP && profileSpec.id === "east-asia") {
+    return JOSEON_WARSHIP_SLUGS;
   }
+  if (role === NPC_ROLE_PIRATE) return PIRATE_SHIP_SLUGS;
+  if (role === NPC_ROLE_WARSHIP) return profileSpec.warshipSlugs;
   if (role === NPC_ROLE_FISHERMAN) return profileSpec.fisherSlugs;
   if (role === NPC_ROLE_WHALER) return profileSpec.whalerSlugs;
   return profileSpec.merchantSlugs;

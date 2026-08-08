@@ -329,6 +329,36 @@
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/javanese-jong-waterline.png"
     },
     {
+      "slug": "joseon-hyeopseon",
+      "label": "Hyeopseon",
+      "waterlineY": -0.6073859051565584,
+      "waterlineOffsetY": -0.265,
+      "sideViewWaterlineY": 79,
+      "lowestOpaquePixelY": 81,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
+      "oarPivotCount": 8,
+      "oarPivotPixels": [
+        {
+          "x": 79,
+          "y": 75
+        },
+        {
+          "x": 90,
+          "y": 75
+        },
+        {
+          "x": 102,
+          "y": 75
+        },
+        {
+          "x": 113,
+          "y": 75
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/joseon-hyeopseon-waterline.png"
+    },
+    {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
       "waterlineY": -0.8118416173605141,

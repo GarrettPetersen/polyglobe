@@ -39,6 +39,7 @@ import {
 } from "../src/modelCredits.js";
 import {
   FUSTA_SLUG,
+  JOSEON_HYEOPSEON_SLUG,
   SHIP_STATS,
   shipStatsForSlug,
   validateShipStatsForSlugs
@@ -50,6 +51,7 @@ import {
   galleassHullColor,
   mediterraneanGalleyHullColor
 } from "../src/mediterraneanGalleyColors.js";
+import { hyeopseonHullColor } from "../src/joseonShipColors.js";
 import {
   SHIP_DECK_NORMAL_Y,
   SHIP_MIN_RASTER_WATERLINE_DEPTH,
@@ -273,6 +275,24 @@ const joseonPanokseonStaticOarMeshes = Object.freeze([
     nodeName: "Object_9",
     parentName: "Object_4",
     positionCount: 2544
+  })
+]);
+const joseonHyeopseonRemovedMeshes = Object.freeze([
+  ...joseonPanokseonStaticOarMeshes,
+  Object.freeze({
+    nodeName: "Object_13",
+    parentName: "Object_4",
+    positionCount: 48
+  }),
+  Object.freeze({
+    nodeName: "Object_84",
+    parentName: "Object_4",
+    positionCount: 480
+  }),
+  Object.freeze({
+    nodeName: "Object_85",
+    parentName: "Object_4",
+    positionCount: 340
   })
 ]);
 const unityFleetExcludedModels = new Map([
@@ -3425,6 +3445,7 @@ function productionShipRenderConfigs() {
       FUSTA_SLUG,
       "galleass",
       "joseon-turtle-ship",
+      JOSEON_HYEOPSEON_SLUG,
       "joseon-panokseon",
       "japanese-kuribune",
       "japanese-kobaya",
@@ -3738,6 +3759,63 @@ function joseonTurtleShipTrianglesForFrame(hullTriangles, frameIndex, waterlineY
       frameIndex,
       waterlineY,
       proceduralOarConfig("joseon-turtle-ship"),
+      rowingMode
+    )
+  ];
+}
+
+function joseonHyeopseonConfig() {
+  const slug = JOSEON_HYEOPSEON_SLUG;
+  return {
+    slug,
+    label: "Hyeopseon",
+    category: "light Joseon warship",
+    assetLabel: "Panok ship derivative",
+    identifiedType: "light Joseon fleet companion and scout",
+    identificationConfidence: "medium",
+    identificationNotes:
+      "The documented medium Hyeopseon is represented conservatively with the credited Panokseon " +
+      "source model at a smaller scale, its aft mast removed, a lighter timber palette, and four " +
+      "representative animated oars per side.",
+    ...JOSEON_PANOKSEON_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(joseonPanokseonSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 1.72,
+    frameScale: 0.62,
+    flagAnchorMaxSnapDistancePx: 6,
+    sideViewTargetModelMaxDim: 1.54,
+    scaleMode: "light-joseon-panokseon-derivative",
+    colorTransform: hyeopseonHullColor,
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    waterlineBoundsRatio: 0.249,
+    waterlineOffsetY: -0.265,
+    wakeWaterlineBand: 0.2,
+    skipSelfShadowMaps: true,
+    collectOptions: {
+      requiredExcludedMeshes: joseonHyeopseonRemovedMeshes,
+      transformPoint: orientPanokseonPoint
+    },
+    animationFrameCount: SHIP_ROWING_FRAME_COUNT,
+    animationTrianglesForFrame: joseonHyeopseonTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/joseon-hyeopseon-rowing-frames.png"
+    ),
+    orientationReviewPath: join(
+      appRoot,
+      "docs/ship-reference/joseon-hyeopseon-cardinal-headings.png"
+    )
+  };
+}
+
+function joseonHyeopseonTrianglesForFrame(hullTriangles, frameIndex, waterlineY, rowingMode) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(
+      frameIndex,
+      waterlineY,
+      proceduralOarConfig(JOSEON_HYEOPSEON_SLUG),
       rowingMode
     )
   ];
@@ -4622,6 +4700,16 @@ function proceduralOarConfig(slug) {
     shaftRadius: 0.032,
     bladeRadius: 0.052
   };
+  if (slug === JOSEON_HYEOPSEON_SLUG) return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.37, 0.37, 4),
+    pivotYOffset: 0.075,
+    pivotHalfBeam: 0.23,
+    shaftLength: 0.27,
+    bladeLength: 0.085,
+    shaftRadius: 0.023,
+    bladeRadius: 0.038
+  };
   if (slug === "joseon-panokseon") return {
     kind: "bank",
     bankPositions: evenBankPositions(-0.5, 0.5, 6),
@@ -4995,6 +5083,18 @@ async function renderJoseonTurtleShip() {
   console.log(config.animationContactSheetPath);
 }
 
+async function renderJoseonHyeopseon() {
+  const config = joseonHyeopseonConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "joseonHyeopseonGenerator",
+    "--joseon-hyeopseon"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+  console.log(config.orientationReviewPath);
+}
+
 async function renderJoseonPanokseon() {
   const config = joseonPanokseonConfig();
   const result = await renderStandaloneShip(
@@ -5212,6 +5312,7 @@ function standaloneShipConfigForSlug(slug) {
   if (slug === FUSTA_SLUG) return fustaConfig();
   if (slug === "galleass") return galleassConfig();
   if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
+  if (slug === JOSEON_HYEOPSEON_SLUG) return joseonHyeopseonConfig();
   if (slug === "joseon-panokseon") return joseonPanokseonConfig();
   if (slug === "japanese-kuribune") return japaneseKuribuneConfig();
   if (slug === "japanese-kobaya") return japaneseKobayaConfig();
@@ -5767,6 +5868,7 @@ async function renderAllProductionShips() {
     "--fusta",
     "--galleass",
     "--joseon-turtle-ship",
+    "--joseon-hyeopseon",
     "--joseon-panokseon",
     "--japanese-kuribune",
     "--japanese-kobaya",
@@ -5982,6 +6084,10 @@ async function main() {
   }
   if (args.has("--joseon-turtle-ship")) {
     await renderJoseonTurtleShip();
+    return;
+  }
+  if (args.has("--joseon-hyeopseon")) {
+    await renderJoseonHyeopseon();
     return;
   }
   if (args.has("--joseon-panokseon")) {

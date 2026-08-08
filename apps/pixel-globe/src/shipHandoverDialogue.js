@@ -53,6 +53,8 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
     "a great broad-beamed galley enlarged into a floating gun platform, sacrificing the ordinary galley's speed for heavy artillery and a powerful fighting crew",
   "joseon-turtle-ship":
     "a roofed Joseon warship of the late sixteenth century, remembered for fighting in Admiral Yi Sun-sin's fleets among Korea's narrow tidal seas",
+  "joseon-hyeopseon":
+    "a light Joseon fleet companion used for scouting, messages, and support alongside the heavier Panokseon of Admiral Yi Sun-sin's navy",
   "joseon-panokseon":
     "a broad-decked Joseon warship whose sturdy hull and elevated fighting platform were well matched to Korea's shallow, strongly tidal coasts",
   "japanese-kuribune":

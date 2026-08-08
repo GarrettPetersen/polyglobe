@@ -1,6 +1,7 @@
 import {
   FUSTA_SLUG,
   GALLEASS_SLUG,
+  JOSEON_HYEOPSEON_SLUG,
   MEDITERRANEAN_GALLEY_SLUG,
   SHIP_PROPULSION_SAIL,
   SHIP_STATS
@@ -26,6 +27,7 @@ export const SHIP_ROWING_ANIMATION_SPECS = new Map([
   [MEDITERRANEAN_GALLEY_SLUG, rowingSpec(125, 0.14, 0.88)],
   [GALLEASS_SLUG, rowingSpec(150, 0.16, 0.76)],
   ["joseon-turtle-ship", rowingSpec(123, 0.14, 0.92)],
+  [JOSEON_HYEOPSEON_SLUG, rowingSpec(117, 0.13, 0.98)],
   ["joseon-panokseon", rowingSpec(125, 0.14, 0.90)],
   ["japanese-kuribune", rowingSpec(116, 0.11, 1.00)],
   ["japanese-kobaya", rowingSpec(116, 0.12, 1.02)],

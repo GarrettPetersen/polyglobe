@@ -592,10 +592,25 @@
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
       "sourceTitle": "Russian 22-bank Baltic galley"
+    },
+    {
+      "slug": "joseon-hyeopseon",
+      "label": "Hyeopseon",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/joseon-panokseon/scene.gltf",
+      "sourceMaxDim": 23.1451,
+      "targetModelMaxDim": 1.54,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/joseon-hyeopseon.png",
+      "creator": "Heat Of Fusion, with JJakgwi",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船"
     }
   ],
   "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong",
   "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta",
   "mediterraneanGalleyGenerator": "tools/render-sail-ship-sprites.mjs --mediterranean-galley",
-  "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass"
+  "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass",
+  "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon"
 }

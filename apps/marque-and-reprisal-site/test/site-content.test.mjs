@@ -183,7 +183,7 @@ test("ship roster rotates the real game sprites with a consistent lighting bake"
   );
   const client = await readFile(path.join(appRoot, "src/assets/scripts/site.js"), "utf8");
 
-  assert.equal(shipRoster.length, 41);
+  assert.equal(shipRoster.length, 42);
   assert.equal(new Set(shipRoster.map(({ slug }) => slug)).size, shipRoster.length);
   assert.equal((page.match(/class='ship-entry'/g) || []).length, shipRoster.length);
   assert.equal((page.match(/data-ship-turntable/g) || []).length, shipRoster.length);

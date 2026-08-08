@@ -1,6 +1,7 @@
 import {
   FUSTA_SLUG,
   GALLEASS_SLUG,
+  JOSEON_HYEOPSEON_SLUG,
   JAPANESE_SHIP_SLUGS,
   JAPANESE_UMI_BUNE_SLUG,
   shipLabelForSlug,
@@ -36,6 +37,7 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
   "nusantaran-outrigger": 4000,
   kelulus: 4200,
   [FUSTA_SLUG]: 3200,
+  [JOSEON_HYEOPSEON_SLUG]: 9000,
   penjajap: 7000,
   lancaran: 18000,
   "royal-lancaran": 42000,
@@ -44,7 +46,12 @@ const ACCESSIBLE_SHIP_PRICES = Object.freeze({
 });
 
 const FACTION_SHIPS = Object.freeze({
-  joseon: Object.freeze([JOSEON_TURTLE_SHIP_SLUG, JOSEON_PANOKSEON_SLUG]),
+  joseon: Object.freeze([
+    JOSEON_HYEOPSEON_SLUG,
+    JOSEON_HYEOPSEON_SLUG,
+    JOSEON_PANOKSEON_SLUG,
+    JOSEON_TURTLE_SHIP_SLUG
+  ]),
   japan: JAPANESE_SHIP_SLUGS,
   spain: Object.freeze([SPANISH_NAO_SLUG]),
   portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),

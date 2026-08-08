@@ -87,6 +87,18 @@ const PACIFIC_PORTS = Object.freeze([
   port(23, "Tahiti Village", "French Polynesia", "polynesian", -17.55, -149.56, 3000, "neutral")
 ]);
 
+const JOSEON_PORTS = Object.freeze([
+  ...PORTS,
+  port(24, "Seoul", "Korea", "east-asian", 37.57, 126.98, 110000, "joseon"),
+  port(25, "Busan", "Korea", "east-asian", 35.18, 129.08, 50000, "joseon"),
+  port(26, "Tongyeong", "Korea", "east-asian", 34.85, 128.43, 30000, "joseon"),
+  port(27, "Yeosu", "Korea", "east-asian", 34.76, 127.66, 28000, "joseon"),
+  port(28, "Jeju", "Korea", "east-asian", 33.5, 126.53, 22000, "joseon"),
+  port(29, "Nampo", "Korea", "east-asian", 38.74, 125.41, 25000, "joseon"),
+  port(90, "Fukuoka", "Japan", "east-asian", 33.59, 130.4, 55000, "japan"),
+  port(91, "Dalian", "China", "east-asian", 38.91, 121.61, 45000, "ming")
+]);
+
 const MESOAMERICAN_PORTS = Object.freeze([
   nativeVillage(port(30, "Xicalango", "Mexico", "mesoamerican", 18.65, -91.82, 2800, "neutral")),
   nativeVillage(port(31, "Chakan Putum", "Mexico", "mesoamerican", 19.35, -90.72, 2400, "neutral")),
@@ -117,6 +129,31 @@ test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("fusta"));
   assert.ok(NPC_SHIP_SLUGS.includes("galleass"));
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
+});
+
+test("Joseon waters field Hyeopseon alongside the heavier national warships", () => {
+  const economy = createWorldEconomy({ ports: JOSEON_PORTS, startMinute: 0, seedKey: "hyeopseon" });
+  const routes = createNpcSeaRouteSystem({
+    ports: JOSEON_PORTS,
+    startMinute: 0,
+    economy,
+    seedKey: "hyeopseon"
+  });
+  const joseonWarships = routes.ships
+    .filter((ship) => (
+      ship.factionId === "joseon" &&
+      ship.role === NPC_ROLE_WARSHIP &&
+      ship.profileId === "east-asia"
+    ));
+  const warshipSlugs = joseonWarships.map((ship) => ship.slug);
+
+  assert.ok(joseonWarships.length > 0);
+  assert.ok(joseonWarships.every((ship) => ship.slugs.includes("joseon-hyeopseon")));
+  assert.ok(warshipSlugs.every((slug) => [
+    "joseon-hyeopseon",
+    "joseon-panokseon",
+    "joseon-turtle-ship"
+  ].includes(slug)));
 });
 
 test("nearby NPC snapshot work is sliced while priority ships refresh immediately", () => {

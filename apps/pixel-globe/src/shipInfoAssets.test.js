@@ -51,6 +51,7 @@ const GALLEASS_SLUG = "galleass";
 const MESOAMERICAN_CANOE_SLUG = "mesoamerican-dugout-canoe";
 const VIKING_LONGSHIP_SLUG = "viking-longship";
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
+const JOSEON_HYEOPSEON_SLUG = "joseon-hyeopseon";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const JAPANESE_KURIBUNE_SLUG = "japanese-kuribune";
@@ -645,6 +646,25 @@ test("the Joseon Panokseon replaces its static paddles with six working phases",
     frames.push(await readFile(path));
   }
   assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, SHIP_ROWING_FRAME_COUNT);
+});
+
+test("the Hyeopseon is a smaller single-masted Panokseon derivative", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const hyeopseon = manifest.ships.find((ship) => ship.slug === JOSEON_HYEOPSEON_SLUG);
+  const panokseon = manifest.ships.find((ship) => ship.slug === JOSEON_PANOKSEON_SLUG);
+
+  assert.ok(hyeopseon, "Hyeopseon manifest entry");
+  assert.ok(panokseon, "Panokseon manifest entry");
+  assert.equal(hyeopseon.sourceModel, panokseon.sourceModel);
+  assert.equal(hyeopseon.creator, panokseon.creator);
+  assert.ok(hyeopseon.targetModelMaxDim < panokseon.targetModelMaxDim * 0.8);
+  assert.deepEqual(
+    hyeopseon.removedSourceMeshes.map(({ nodeName }) => nodeName),
+    ["Object_9", "Object_13", "Object_84", "Object_85"]
+  );
+  assert.equal(hyeopseon.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
+  const sideView = await loadImage(join(sideViewRoot, `${JOSEON_HYEOPSEON_SLUG}.png`));
+  assert.ok(opaqueImageBounds(sideView).width > opaqueImageBounds(sideView).height);
 });
 
 test("the Japanese Atakebune replaces its static oars with six working phases", async () => {

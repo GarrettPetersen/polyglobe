@@ -6,37 +6,37 @@
       "slug": "ketch",
       "label": "Lateen Barque",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 13.932,
-      "transitionRatio": 0.3158,
-      "isolatedFleckRatio": 0.0898,
-      "microReversalRatio": 0.06,
-      "checkerboardRatio": 0.0194,
-      "localColorDiversity": 0.8951,
-      "interiorPixels": 2650
+      "score": 14.3585,
+      "transitionRatio": 0.3179,
+      "isolatedFleckRatio": 0.1028,
+      "microReversalRatio": 0.0621,
+      "checkerboardRatio": 0.0154,
+      "localColorDiversity": 0.9123,
+      "interiorPixels": 2149
     },
     {
       "slug": "dhow",
       "label": "Dhow",
       "sourceTitle": "Dhow",
-      "score": 12.9845,
-      "transitionRatio": 0.2319,
-      "isolatedFleckRatio": 0.0321,
-      "microReversalRatio": 0.0474,
-      "checkerboardRatio": 0.0087,
-      "localColorDiversity": 0.9992,
-      "interiorPixels": 996
+      "score": 13.169,
+      "transitionRatio": 0.197,
+      "isolatedFleckRatio": 0.032,
+      "microReversalRatio": 0.0547,
+      "checkerboardRatio": 0.0033,
+      "localColorDiversity": 0.9985,
+      "interiorPixels": 782
     },
     {
       "slug": "fishing-lugger",
       "label": "Fishing Barque",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 12.455,
-      "transitionRatio": 0.1315,
-      "isolatedFleckRatio": 0.0338,
-      "microReversalRatio": 0.0608,
+      "score": 12.739,
+      "transitionRatio": 0.1547,
+      "isolatedFleckRatio": 0.026,
+      "microReversalRatio": 0.069,
       "checkerboardRatio": 0,
-      "localColorDiversity": 0.9043,
-      "interiorPixels": 769
+      "localColorDiversity": 0.9114,
+      "interiorPixels": 616
     },
     {
       "slug": "japanese-kuribune",
@@ -51,6 +51,30 @@
       "interiorPixels": 1038
     },
     {
+      "slug": "carrack",
+      "label": "Carrack",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 12.398,
+      "transitionRatio": 0.2795,
+      "isolatedFleckRatio": 0.0618,
+      "microReversalRatio": 0.056,
+      "checkerboardRatio": 0.0066,
+      "localColorDiversity": 0.8477,
+      "interiorPixels": 5601
+    },
+    {
+      "slug": "ship-of-the-line",
+      "label": "Great Carrack",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 12.382,
+      "transitionRatio": 0.2668,
+      "isolatedFleckRatio": 0.0807,
+      "microReversalRatio": 0.0459,
+      "checkerboardRatio": 0.0027,
+      "localColorDiversity": 0.8635,
+      "interiorPixels": 6245
+    },
+    {
       "slug": "japanese-sekibune",
       "label": "Sekibune",
       "sourceTitle": "Japanese Boat: Sekibune 3D Model",
@@ -61,18 +85,6 @@
       "checkerboardRatio": 0.009,
       "localColorDiversity": 0.9609,
       "interiorPixels": 5925
-    },
-    {
-      "slug": "ship-of-the-line",
-      "label": "Great Carrack",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 12.101,
-      "transitionRatio": 0.2584,
-      "isolatedFleckRatio": 0.0774,
-      "microReversalRatio": 0.0449,
-      "checkerboardRatio": 0.0035,
-      "localColorDiversity": 0.8445,
-      "interiorPixels": 7119
     },
     {
       "slug": "portuguese-carrack",
@@ -99,18 +111,6 @@
       "interiorPixels": 10079
     },
     {
-      "slug": "carrack",
-      "label": "Carrack",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 11.7705,
-      "transitionRatio": 0.2653,
-      "isolatedFleckRatio": 0.056,
-      "microReversalRatio": 0.0523,
-      "checkerboardRatio": 0.0062,
-      "localColorDiversity": 0.8142,
-      "interiorPixels": 6656
-    },
-    {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
       "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
@@ -126,13 +126,13 @@
       "slug": "spanish-nao",
       "label": "Spanish Nao",
       "sourceTitle": "Nao Victoria Galleon Ship",
-      "score": 11.3755,
-      "transitionRatio": 0.1849,
-      "isolatedFleckRatio": 0.038,
-      "microReversalRatio": 0.0354,
-      "checkerboardRatio": 0.0053,
-      "localColorDiversity": 0.889,
-      "interiorPixels": 6574
+      "score": 11.3945,
+      "transitionRatio": 0.1875,
+      "isolatedFleckRatio": 0.0392,
+      "microReversalRatio": 0.035,
+      "checkerboardRatio": 0.0047,
+      "localColorDiversity": 0.8918,
+      "interiorPixels": 6021
     },
     {
       "slug": "japanese-atakebune",
@@ -147,16 +147,28 @@
       "interiorPixels": 9782
     },
     {
+      "slug": "square-rigged-caravel",
+      "label": "Square-Rigged Caravel",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 11.1915,
+      "transitionRatio": 0.2494,
+      "isolatedFleckRatio": 0.0247,
+      "microReversalRatio": 0.0543,
+      "checkerboardRatio": 0.0068,
+      "localColorDiversity": 0.8084,
+      "interiorPixels": 5944
+    },
+    {
       "slug": "fluyt",
       "label": "Urca",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 11.1095,
-      "transitionRatio": 0.1697,
-      "isolatedFleckRatio": 0.0262,
-      "microReversalRatio": 0.0412,
-      "checkerboardRatio": 0.0063,
-      "localColorDiversity": 0.8574,
-      "interiorPixels": 6146
+      "score": 11.016,
+      "transitionRatio": 0.1561,
+      "isolatedFleckRatio": 0.0209,
+      "microReversalRatio": 0.0392,
+      "checkerboardRatio": 0.0044,
+      "localColorDiversity": 0.8724,
+      "interiorPixels": 5358
     },
     {
       "slug": "galleon",
@@ -181,18 +193,6 @@
       "checkerboardRatio": 0.0016,
       "localColorDiversity": 0.9992,
       "interiorPixels": 6171
-    },
-    {
-      "slug": "mediterranean-galley",
-      "label": "Mediterranean Galley",
-      "sourceTitle": "Russian 22-bank Baltic galley",
-      "score": 10.775,
-      "transitionRatio": 0.1337,
-      "isolatedFleckRatio": 0.0048,
-      "microReversalRatio": 0.015,
-      "checkerboardRatio": 0.0008,
-      "localColorDiversity": 0.9984,
-      "interiorPixels": 4813
     },
     {
       "slug": "nusantaran-outrigger",
@@ -231,52 +231,100 @@
       "interiorPixels": 1795
     },
     {
-      "slug": "square-rigged-caravel",
-      "label": "Square-Rigged Caravel",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 10.482,
-      "transitionRatio": 0.241,
-      "isolatedFleckRatio": 0.0267,
-      "microReversalRatio": 0.0456,
-      "checkerboardRatio": 0.0052,
-      "localColorDiversity": 0.7766,
-      "interiorPixels": 7069
-    },
-    {
       "slug": "galleass",
       "label": "Galleass",
       "sourceTitle": "Russian 22-bank Baltic galley",
-      "score": 10.4795,
-      "transitionRatio": 0.1241,
-      "isolatedFleckRatio": 0.0061,
+      "score": 10.4815,
+      "transitionRatio": 0.1233,
+      "isolatedFleckRatio": 0.0062,
       "microReversalRatio": 0.0162,
-      "checkerboardRatio": 0.0023,
-      "localColorDiversity": 0.9571,
+      "checkerboardRatio": 0.0025,
+      "localColorDiversity": 0.9566,
       "interiorPixels": 8925
+    },
+    {
+      "slug": "mediterranean-galley",
+      "label": "Mediterranean Galley",
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "score": 10.141,
+      "transitionRatio": 0.1137,
+      "isolatedFleckRatio": 0.0064,
+      "microReversalRatio": 0.0132,
+      "checkerboardRatio": 0,
+      "localColorDiversity": 0.9419,
+      "interiorPixels": 4813
     },
     {
       "slug": "xebec",
       "label": "Xebec",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 9.6355,
-      "transitionRatio": 0.218,
-      "isolatedFleckRatio": 0.0505,
-      "microReversalRatio": 0.0305,
-      "checkerboardRatio": 0.0042,
-      "localColorDiversity": 0.7148,
-      "interiorPixels": 4714
+      "score": 10.0925,
+      "transitionRatio": 0.2238,
+      "isolatedFleckRatio": 0.0517,
+      "microReversalRatio": 0.0325,
+      "checkerboardRatio": 0.0068,
+      "localColorDiversity": 0.7426,
+      "interiorPixels": 3926
+    },
+    {
+      "slug": "fusta",
+      "label": "Fusta",
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "score": 10.0355,
+      "transitionRatio": 0.1477,
+      "isolatedFleckRatio": 0.0084,
+      "microReversalRatio": 0.0157,
+      "checkerboardRatio": 0.0014,
+      "localColorDiversity": 0.9126,
+      "interiorPixels": 2272
     },
     {
       "slug": "sampan",
       "label": "Sampan",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 9.524,
-      "transitionRatio": 0.2856,
-      "isolatedFleckRatio": 0.0594,
-      "microReversalRatio": 0.0357,
-      "checkerboardRatio": 0.0075,
-      "localColorDiversity": 0.6542,
-      "interiorPixels": 1414
+      "score": 9.8575,
+      "transitionRatio": 0.2877,
+      "isolatedFleckRatio": 0.0687,
+      "microReversalRatio": 0.0361,
+      "checkerboardRatio": 0.0032,
+      "localColorDiversity": 0.6779,
+      "interiorPixels": 1165
+    },
+    {
+      "slug": "cutter",
+      "label": "Coastal Pinnace",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 9.71,
+      "transitionRatio": 0.1192,
+      "isolatedFleckRatio": 0.0197,
+      "microReversalRatio": 0.0157,
+      "checkerboardRatio": 0.0007,
+      "localColorDiversity": 0.8592,
+      "interiorPixels": 2239
+    },
+    {
+      "slug": "brigantine",
+      "label": "Brigantine",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 9.552,
+      "transitionRatio": 0.3341,
+      "isolatedFleckRatio": 0.0586,
+      "microReversalRatio": 0.0334,
+      "checkerboardRatio": 0.0038,
+      "localColorDiversity": 0.6782,
+      "interiorPixels": 5600
+    },
+    {
+      "slug": "pirate-brig",
+      "label": "Heavy Caravel",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 9.346,
+      "transitionRatio": 0.2407,
+      "isolatedFleckRatio": 0.029,
+      "microReversalRatio": 0.0315,
+      "checkerboardRatio": 0.0027,
+      "localColorDiversity": 0.7281,
+      "interiorPixels": 6859
     },
     {
       "slug": "viking-longship",
@@ -294,37 +342,13 @@
       "slug": "caravel",
       "label": "Caravel",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 9.238,
-      "transitionRatio": 0.2036,
-      "isolatedFleckRatio": 0.0298,
-      "microReversalRatio": 0.0232,
-      "checkerboardRatio": 0.0032,
-      "localColorDiversity": 0.7518,
-      "interiorPixels": 4158
-    },
-    {
-      "slug": "cutter",
-      "label": "Coastal Pinnace",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 9.156,
-      "transitionRatio": 0.117,
-      "isolatedFleckRatio": 0.0166,
-      "microReversalRatio": 0.0112,
-      "checkerboardRatio": 0.0006,
-      "localColorDiversity": 0.8305,
-      "interiorPixels": 2713
-    },
-    {
-      "slug": "brigantine",
-      "label": "Brigantine",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 9.0725,
-      "transitionRatio": 0.3126,
-      "isolatedFleckRatio": 0.0503,
-      "microReversalRatio": 0.0319,
+      "score": 9.1875,
+      "transitionRatio": 0.1992,
+      "isolatedFleckRatio": 0.0217,
+      "microReversalRatio": 0.0203,
       "checkerboardRatio": 0.0034,
-      "localColorDiversity": 0.6546,
-      "interiorPixels": 6795
+      "localColorDiversity": 0.7755,
+      "interiorPixels": 3555
     },
     {
       "slug": "lancaran",
@@ -339,28 +363,52 @@
       "interiorPixels": 3735
     },
     {
-      "slug": "pirate-brig",
-      "label": "Heavy Caravel",
+      "slug": "javanese-jong",
+      "label": "Javanese Jong",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 8.8975,
-      "transitionRatio": 0.2326,
-      "isolatedFleckRatio": 0.029,
-      "microReversalRatio": 0.0277,
-      "checkerboardRatio": 0.0018,
-      "localColorDiversity": 0.7026,
-      "interiorPixels": 8284
+      "score": 8.87,
+      "transitionRatio": 0.1894,
+      "isolatedFleckRatio": 0.0333,
+      "microReversalRatio": 0.032,
+      "checkerboardRatio": 0.0024,
+      "localColorDiversity": 0.6704,
+      "interiorPixels": 7086
     },
     {
       "slug": "felucca",
       "label": "Felucca",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 8.3075,
-      "transitionRatio": 0.0583,
-      "isolatedFleckRatio": 0.0014,
-      "microReversalRatio": 0.0063,
+      "score": 8.629,
+      "transitionRatio": 0.0475,
+      "isolatedFleckRatio": 0.0053,
+      "microReversalRatio": 0.0078,
       "checkerboardRatio": 0,
-      "localColorDiversity": 0.7996,
-      "interiorPixels": 2098
+      "localColorDiversity": 0.8172,
+      "interiorPixels": 1699
+    },
+    {
+      "slug": "holk",
+      "label": "Holk",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 8.618,
+      "transitionRatio": 0.1022,
+      "isolatedFleckRatio": 0.011,
+      "microReversalRatio": 0.0122,
+      "checkerboardRatio": 0.0022,
+      "localColorDiversity": 0.7794,
+      "interiorPixels": 3372
+    },
+    {
+      "slug": "joseon-hyeopseon",
+      "label": "Hyeopseon",
+      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
+      "score": 8.2665,
+      "transitionRatio": 0.0409,
+      "isolatedFleckRatio": 0.0028,
+      "microReversalRatio": 0.0077,
+      "checkerboardRatio": 0,
+      "localColorDiversity": 0.7864,
+      "interiorPixels": 5970
     },
     {
       "slug": "mesoamerican-dugout-canoe",
@@ -375,18 +423,6 @@
       "interiorPixels": 2073
     },
     {
-      "slug": "kelulus",
-      "label": "Kelulus",
-      "sourceTitle": "Procedural Kelulus",
-      "score": 7.562,
-      "transitionRatio": 0.183,
-      "isolatedFleckRatio": 0.0146,
-      "microReversalRatio": 0.0432,
-      "checkerboardRatio": 0.0084,
-      "localColorDiversity": 0.5116,
-      "interiorPixels": 4672
-    },
-    {
       "slug": "ottoman-coastal-trader",
       "label": "Kancabash",
       "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model",
@@ -397,6 +433,30 @@
       "checkerboardRatio": 0.0024,
       "localColorDiversity": 0.6003,
       "interiorPixels": 7651
+    },
+    {
+      "slug": "kelulus",
+      "label": "Kelulus",
+      "sourceTitle": "Procedural Kelulus",
+      "score": 7.4215,
+      "transitionRatio": 0.1752,
+      "isolatedFleckRatio": 0.0133,
+      "microReversalRatio": 0.0422,
+      "checkerboardRatio": 0.0081,
+      "localColorDiversity": 0.5054,
+      "interiorPixels": 4506
+    },
+    {
+      "slug": "small-cog",
+      "label": "Small Cog",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "score": 7.346,
+      "transitionRatio": 0.1003,
+      "isolatedFleckRatio": 0.0118,
+      "microReversalRatio": 0.0183,
+      "checkerboardRatio": 0.0015,
+      "localColorDiversity": 0.6249,
+      "interiorPixels": 2960
     },
     {
       "slug": "penjajap",
@@ -411,52 +471,40 @@
       "interiorPixels": 2788
     },
     {
-      "slug": "small-cog",
-      "label": "Small Cog",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 7.0055,
-      "transitionRatio": 0.0979,
-      "isolatedFleckRatio": 0.0091,
-      "microReversalRatio": 0.0188,
-      "checkerboardRatio": 0.0015,
-      "localColorDiversity": 0.594,
-      "interiorPixels": 3642
-    },
-    {
       "slug": "small-junk",
       "label": "Small Junk",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 6.861,
-      "transitionRatio": 0.1764,
-      "isolatedFleckRatio": 0.0376,
-      "microReversalRatio": 0.019,
-      "checkerboardRatio": 0.001,
-      "localColorDiversity": 0.5229,
-      "interiorPixels": 4098
+      "score": 7.172,
+      "transitionRatio": 0.1757,
+      "isolatedFleckRatio": 0.0399,
+      "microReversalRatio": 0.0191,
+      "checkerboardRatio": 0.0013,
+      "localColorDiversity": 0.5482,
+      "interiorPixels": 3405
     },
     {
       "slug": "medium-junk",
       "label": "Medium Junk",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 6.5975,
-      "transitionRatio": 0.1403,
-      "isolatedFleckRatio": 0.0132,
-      "microReversalRatio": 0.0113,
+      "score": 6.9455,
+      "transitionRatio": 0.1505,
+      "isolatedFleckRatio": 0.0176,
+      "microReversalRatio": 0.0121,
       "checkerboardRatio": 0,
-      "localColorDiversity": 0.5825,
-      "interiorPixels": 5994
+      "localColorDiversity": 0.6049,
+      "interiorPixels": 5060
     },
     {
       "slug": "large-junk",
       "label": "Large Junk",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
-      "score": 6.474,
-      "transitionRatio": 0.1629,
-      "isolatedFleckRatio": 0.0114,
-      "microReversalRatio": 0.0142,
-      "checkerboardRatio": 0.0008,
-      "localColorDiversity": 0.5587,
-      "interiorPixels": 6343
+      "score": 6.6745,
+      "transitionRatio": 0.1636,
+      "isolatedFleckRatio": 0.0099,
+      "microReversalRatio": 0.013,
+      "checkerboardRatio": 0.0005,
+      "localColorDiversity": 0.5879,
+      "interiorPixels": 5334
     },
     {
       "slug": "royal-lancaran",

@@ -10,6 +10,7 @@ const LOCAL_SHIP_SLUGS_BY_CITY_TYPE = Object.freeze({
     "medium-junk",
     "large-junk",
     "joseon-turtle-ship",
+    "joseon-hyeopseon",
     "joseon-panokseon",
     "japanese-kuribune",
     "japanese-kobaya",

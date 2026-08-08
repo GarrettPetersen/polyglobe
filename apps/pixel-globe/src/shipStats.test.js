@@ -222,6 +222,21 @@ test("the Panokseon represents the Joseon decked oar-and-sail warship lineage", 
   assert.ok(panokseon.cargoCapacity > shipStatsForSlug("joseon-turtle-ship").cargoCapacity);
 });
 
+test("the Hyeopseon is a light Joseon fleet companion below the Panokseon", () => {
+  const hyeopseon = shipStatsForSlug("joseon-hyeopseon");
+  const panokseon = shipStatsForSlug("joseon-panokseon");
+
+  assert.equal(shipLabelForSlug(hyeopseon.slug), "Hyeopseon");
+  assert.equal(hyeopseon.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(hyeopseon.cannons, 4);
+  assert.equal(hyeopseon.crewCapacity, 18);
+  assert.ok(hyeopseon.mass < panokseon.mass);
+  assert.ok(hyeopseon.cargoCapacity < panokseon.cargoCapacity);
+  assert.ok(hyeopseon.topSpeedRad > panokseon.topSpeedRad);
+  assert.ok(hyeopseon.turnRateRad > panokseon.turnRateRad);
+  assert.ok(hyeopseon.crewProtection < panokseon.crewProtection);
+});
+
 test("the Japanese Atakebune is a slow heavy coastal oar-and-sail fortress", () => {
   const atakebune = shipStatsForSlug("japanese-atakebune");
 
