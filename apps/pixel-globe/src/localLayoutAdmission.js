@@ -874,7 +874,7 @@ export function admitProjectedTiles({
     }
     // The failed solve only touched temporary component positions. Re-admit
     // protected geometry in the retained frame, without the preventative
-    // north-up nudge that made this water boundary over-constrained.
+    // north-up nudge that made this protected boundary over-constrained.
     protectedPointById = directlyProtectedAdmissionPoints({
       ...protectedAdmissionArgs,
       maxProtectedCorrectionPx: 0

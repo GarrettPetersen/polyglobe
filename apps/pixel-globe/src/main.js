@@ -3057,7 +3057,7 @@ let playerNavigationRecoveryState = createPlayerShipRecoveryState();
 let camera;
 let chart;
 let localLayout;
-const recoveredProtectedWaterStitchEdges = new Set();
+const recoveredProtectedStitchEdges = new Set();
 let minimap;
 let captainChartMinimap;
 let themeMusic = null;
@@ -30261,26 +30261,20 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     protectedCorrectionViewportIds: correctionViewportIds,
     liveViewportAdmissionIds: correctionViewportIds,
-    recoverProtectedStitchError: recoverProtectedWaterStitchError
+    recoverProtectedStitchError
   });
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
 }
 
-function recoverProtectedWaterStitchError(error) {
+function recoverProtectedStitchError(error) {
   if (!(error instanceof ProtectedChartStitchError)) return false;
-  if (
-    !isWaterSurfaceRow(earthById[error.tileId]) ||
-    !isWaterSurfaceRow(earthById[error.neighborId])
-  ) {
-    return false;
-  }
   const edgeKey = error.tileId < error.neighborId
     ? `${error.tileId}:${error.neighborId}`
     : `${error.neighborId}:${error.tileId}`;
-  if (!recoveredProtectedWaterStitchEdges.has(edgeKey)) {
-    recoveredProtectedWaterStitchEdges.add(edgeKey);
+  if (!recoveredProtectedStitchEdges.has(edgeKey)) {
+    recoveredProtectedStitchEdges.add(edgeKey);
     console.warn(
-      `[pixel-globe] recovered protected water chart stitch ${edgeKey}; ` +
+      `[pixel-globe] recovered protected chart stitch ${edgeKey}; ` +
         `using retained-frame admission`,
       error
     );

@@ -356,7 +356,7 @@ test("new protected geometry stays within its three-pixel admission circle", () 
   }
 });
 
-test("an over-constrained protected water stitch can use retained-frame admission", () => {
+test("an over-constrained protected stitch can use retained-frame admission", () => {
   const topology = admissionTopology(3, [[0, 2], [1, 2]], 255);
   const projectedById = new Map([
     [0, { x: 0, y: 0 }],
