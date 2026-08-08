@@ -9,6 +9,7 @@ import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
 import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { roadTileIsPassable } from "./roadTerrain.js";
+import { terrainRowsNeedLandmassChannel } from "./terrainSurface.js";
 import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 import { placeCityCatalogOnWorld } from "./worldPortPlacement.js";
 
@@ -63,6 +64,11 @@ test("baked land roads use adjacent, passable land tiles and connect Aleppo west
       const a = route.tileIds[index - 1];
       const b = route.tileIds[index];
       assert.ok(graph.neighbors[a].includes(b), `${route.id} skips from ${a} to ${b}`);
+      assert.equal(
+        terrainRowsNeedLandmassChannel(earthRows[a], earthRows[b]),
+        false,
+        `${route.id} crosses the water channel between landmasses ${a} and ${b}`
+      );
     }
     for (const tileId of route.tileIds.slice(1, -1)) {
       assert.equal(roadTileIsPassable(earthRows[tileId], {

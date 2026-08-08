@@ -37,6 +37,22 @@ export function rasterizeDrawnNavigationChunk({
   const orderedTiles = candidates
     .filter((entry) => entry?.kind === "tile")
     .sort((a, b) => a.drawOrder - b.drawOrder);
+  const landmassChannels = candidates.filter((entry) => entry?.kind === "landmassChannel");
+
+  for (const entry of landmassChannels) {
+    overlayTileRaster({
+      raster: entry.raster,
+      tileId: entry.waterTileId,
+      navigable: isWaterTile(entry.waterTileId) && isUsableWaterTile(entry.waterTileId),
+      sourceValue: 3,
+      rasterOriginX,
+      rasterOriginY,
+      rasterSize,
+      tileIds,
+      water,
+      source
+    });
+  }
 
   for (const entry of orderedTiles) {
     const raster = tileRaster(entry.call);
@@ -44,6 +60,7 @@ export function rasterizeDrawnNavigationChunk({
       raster,
       tileId: entry.call.id,
       navigable: isWaterTile(entry.call.id) && isUsableWaterTile(entry.call.id),
+      sourceValue: 1,
       rasterOriginX,
       rasterOriginY,
       rasterSize,
@@ -113,7 +130,11 @@ export function drawnNavigationFieldPoint(chunk, x, y) {
   return Object.freeze({
     tileId,
     water: chunk.water[index] === 1,
-    source: chunk.source[index] === 1 ? "opaque-sprite" : "connector-gap",
+    source: chunk.source[index] === 1
+      ? "opaque-sprite"
+      : chunk.source[index] === 3
+        ? "landmass-channel"
+        : "connector-gap",
     clearancePx: chunk.clearance[index],
     flow: chunk.flowX[index] === 0 && chunk.flowY[index] === 0
       ? null
@@ -125,6 +146,7 @@ function overlayTileRaster({
   raster,
   tileId,
   navigable,
+  sourceValue,
   rasterOriginX,
   rasterOriginY,
   rasterSize,
@@ -145,7 +167,7 @@ function overlayTileRaster({
       const index = x + y * rasterSize;
       tileIds[index] = tileId;
       water[index] = navigable ? 1 : 0;
-      source[index] = 1;
+      source[index] = sourceValue;
     }
   }
 }

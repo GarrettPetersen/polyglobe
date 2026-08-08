@@ -1550,6 +1550,7 @@ import {
   isWhaleSwimmableOceanRow,
   isWaterSurfaceRow,
   terrainRowsFormFrozenWaterBoundary,
+  terrainRowsNeedLandmassChannel,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
 import {
@@ -21551,7 +21552,7 @@ function drawnNavigationFieldCandidates(activeChart, originX, originY, size) {
       const bucket = activeChart.waterIndex.buckets.get(wakeWaterBucketKey(bx, by));
       if (!bucket) continue;
       for (const entry of bucket) {
-        if (entry.kind !== "tile" || seen.has(entry)) continue;
+        if ((entry.kind !== "tile" && entry.kind !== "landmassChannel") || seen.has(entry)) continue;
         seen.add(entry);
         candidates.push(entry);
       }
@@ -29578,6 +29579,7 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   for (const entry of connectorLayer.entries) {
     if (
       isCoastFace(entry.call) ||
+      isLandmassChannelFace(entry.call) ||
       isWaterSurfaceRow(entry.call.row) &&
       isWaterSurfaceRow(entry.call.nrow)
     ) continue;
@@ -30447,7 +30449,7 @@ function buildChart(anchorCamera) {
     halfWidth: SCREEN_W / 2 + VIEW_MARGIN,
     halfHeight: SCREEN_H / 2 + VIEW_MARGIN
   });
-  const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, {
+  const waterIndex = buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, {
     tileById,
     right: chartCamera.right,
     up: chartCamera.up
@@ -30605,7 +30607,7 @@ function riverPixelsForCityPlacement(tileCall, activeChart) {
   return pixels;
 }
 
-function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
+function buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, activeChart) {
   const buckets = new Map();
   const tileRows = new Map();
   const riverPaths = new Map();
@@ -30618,6 +30620,24 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
       call
     });
     addWakeWaterTileIndexCall(tileRows, call.drawSurfaceX, call.drawSurfaceY, call);
+  }
+
+  for (const call of faceCalls) {
+    if (!isLandmassChannelFace(call)) continue;
+    const geometry = terrainConnectorGeometry(call, activeChart);
+    if (!geometry) continue;
+    const raster = terrainConnectorAlphaRaster(call, geometry);
+    addWakeWaterIndexBox(buckets, {
+      minX: raster.x,
+      maxX: raster.x + raster.width - 1,
+      minY: raster.y,
+      maxY: raster.y + raster.height - 1
+    }, {
+      kind: "landmassChannel",
+      call,
+      waterTileId: landmassChannelWaterTileId(call, activeChart),
+      raster
+    });
   }
 
   for (const call of riverConnectorCalls) {
@@ -38157,7 +38177,9 @@ function terrainConnectorGeometry(call, activeChart) {
   const nx = -uy;
   const ny = ux;
   const width = FACE_HALF_WIDTH + Math.min(2, Math.abs(call.nlevel - call.level));
-  const endpointWidth = width + (isCoastFace(call) ? COAST_FACE_ENDPOINT_OVERLAP_PX : 0);
+  const endpointWidth = width + (
+    isCoastFace(call) || isLandmassChannelFace(call) ? COAST_FACE_ENDPOINT_OVERLAP_PX : 0
+  );
   const ax = sourceAx;
   const ay = sourceAy;
   const bx = sourceBx;
@@ -38187,9 +38209,50 @@ function terrainConnectorGeometry(call, activeChart) {
   };
 }
 
+function terrainConnectorAlphaRaster(call, geometry) {
+  const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
+  const spans = terrainConnectorRasterSpans(geometry.polygon, seed);
+  const x = Math.min(...spans.map((span) => span.x));
+  const y = Math.min(...spans.map((span) => span.y));
+  const right = Math.max(...spans.map((span) => span.x + span.width));
+  const bottom = Math.max(...spans.map((span) => span.y + 1));
+  const width = right - x;
+  const height = bottom - y;
+  const alpha = new Uint8Array(width * height);
+  for (const span of spans) {
+    alpha.fill(255, span.x - x + (span.y - y) * width, span.x - x + span.width + (span.y - y) * width);
+  }
+  return { x, y, width, height, alpha };
+}
+
+function landmassChannelWaterTileId(call, activeChart) {
+  const candidates = new Set([...graph.neighbors[call.a], ...graph.neighbors[call.b]]);
+  const midpointX = (call.ax + call.bx) * 0.5;
+  const midpointY = (call.ay + call.by) * 0.5;
+  const waterTiles = [...candidates]
+    .filter((tileId) => isWaterSurfaceRow(earthById[tileId]))
+    .map((tileId) => ({ tileId, tileCall: activeChart.tileById.get(tileId) }))
+    .sort((a, b) => {
+      const aDistance = a.tileCall
+        ? Math.hypot(a.tileCall.drawSurfaceX - midpointX, a.tileCall.drawSurfaceY - midpointY)
+        : Infinity;
+      const bDistance = b.tileCall
+        ? Math.hypot(b.tileCall.drawSurfaceX - midpointX, b.tileCall.drawSurfaceY - midpointY)
+        : Infinity;
+      return aDistance - bDistance || a.tileId - b.tileId;
+    });
+  if (waterTiles.length === 0) {
+    throw new Error(`Landmass channel ${call.a}:${call.b} has no adjacent water tile`);
+  }
+  return waterTiles[0].tileId;
+}
+
 function drawTerrainConnectorStaticDetails(targetCtx, entry) {
   const { call, geometry } = entry;
   const { ax, ay, bx, by, mx, my, nx, ny, width } = geometry;
+  if (isLandmassChannelFace(call)) {
+    return;
+  }
   if (isCoastFace(call)) {
     drawBeachStaticDetails(targetCtx, call, ax, ay, bx, by, nx, ny, width);
   } else if (
@@ -47536,6 +47599,7 @@ function windDirectionName(directionRad) {
 }
 
 function faceColorFor(call) {
+  if (isLandmassChannelFace(call)) return landmassChannelFaceColor(call);
   if (isCoastFace(call)) return beachFaceColor(call);
   const mountain = mountainFaceInfo(call);
   if (mountain?.bothMountain) {
@@ -47580,6 +47644,18 @@ function mountainFaceInfo(call) {
 
 function isCoastFace(call) {
   return terrainRowsNeedBeach(call.row, call.nrow);
+}
+
+function isLandmassChannelFace(call) {
+  return terrainRowsNeedLandmassChannel(call.row, call.nrow);
+}
+
+function landmassChannelFaceColor(call) {
+  const row = {
+    t: "beach",
+    latitudeDeg: (graph.latDeg[call.a] + graph.latDeg[call.b]) * 0.5
+  };
+  return terrainColorForTile(row, call.a);
 }
 
 function beachFaceColor(call) {

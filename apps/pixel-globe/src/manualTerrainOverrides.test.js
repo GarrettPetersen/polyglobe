@@ -10,7 +10,10 @@ import {
   applyManualTerrainOverrides,
   assertManualShallowWaterReachesOcean
 } from "./manualTerrainOverrides.js";
-import { isWaterSurfaceRow } from "./terrainSurface.js";
+import {
+  isWaterSurfaceRow,
+  terrainRowsNeedLandmassChannel
+} from "./terrainSurface.js";
 
 const SUBDIVISIONS = 7;
 const GULF_OF_KHAMBHAT_TILE_ID = 38891;
@@ -21,7 +24,75 @@ const MOZAMBIQUE_CHANNEL_TILE_IDS = Object.freeze([31618, 125890, 125896]);
 const LAKE_MALAWI_GAP_TILE_IDS = Object.freeze([124778, 7886, 31571]);
 const ITALY_SALENTO_TILE_ID = 98761;
 const ITALY_ADJOINING_LAND_TILE_ID = 98762;
+const AUDITED_DISTINCT_LANDMASS_EDGES = Object.freeze([
+  "5726:90803",
+  "22769:90803",
+  "90803:90804",
+  "5774:91681",
+  "23005:91735",
+  "91735:91737",
+  "24775:98751",
+  "98751:98873",
+  "31305:124671",
+  "124671:124672",
+  "136831:136832"
+]);
 const repoRoot = new URL("../../../", import.meta.url);
+
+test("audited landmass channels separate distinct land while every landmass stays connected", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+  const tilesByLandmassId = new Map();
+  const distinctLandmassEdges = [];
+
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    const row = correctedRows[tileId];
+    if (isWaterSurfaceRow(row) || !Number.isInteger(row.m)) continue;
+    const tiles = tilesByLandmassId.get(row.m) || [];
+    tiles.push(tileId);
+    tilesByLandmassId.set(row.m, tiles);
+
+    for (const neighborId of graph.neighbors[tileId]) {
+      if (neighborId <= tileId) continue;
+      const neighborRow = correctedRows[neighborId];
+      if (!terrainRowsNeedLandmassChannel(row, neighborRow)) continue;
+      distinctLandmassEdges.push(`${tileId}:${neighborId}`);
+      assert.ok(
+        graph.neighbors[tileId].some((id) => isWaterSurfaceRow(correctedRows[id])),
+        `audited landmass-channel endpoint ${tileId} must retain a water neighbor`
+      );
+      assert.ok(
+        graph.neighbors[neighborId].some((id) => isWaterSurfaceRow(correctedRows[id])),
+        `audited landmass-channel endpoint ${neighborId} must retain a water neighbor`
+      );
+    }
+  }
+
+  assert.deepEqual(distinctLandmassEdges.sort(), [...AUDITED_DISTINCT_LANDMASS_EDGES].sort());
+
+  for (const [landmassId, tileIds] of tilesByLandmassId) {
+    const expected = new Set(tileIds);
+    const seen = new Set([tileIds[0]]);
+    const pending = [tileIds[0]];
+    while (pending.length > 0) {
+      const tileId = pending.pop();
+      for (const neighborId of graph.neighbors[tileId]) {
+        if (!expected.has(neighborId) || seen.has(neighborId)) continue;
+        seen.add(neighborId);
+        pending.push(neighborId);
+      }
+    }
+    assert.equal(
+      seen.size,
+      expected.size,
+      `landmass ${landmassId} is split into disconnected components`
+    );
+  }
+});
 
 test("Italy's Salento heel is restored as connected Mediterranean land", async () => {
   const earth = JSON.parse(await readFile(

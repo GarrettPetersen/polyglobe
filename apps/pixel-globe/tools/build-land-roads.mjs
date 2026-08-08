@@ -6,6 +6,7 @@ import { buildGeodesicGraph, createDirectionIndex } from "../src/geodesic.js";
 import { LAND_ROAD_FORMAT, LAND_ROAD_VERSION, parseLandRoadNetwork } from "../src/landRoadNetwork.js";
 import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import { roadTerrainPenalty, roadTileIsPassable } from "../src/roadTerrain.js";
+import { terrainRowsNeedLandmassChannel } from "../src/terrainSurface.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
 import { placeCityCatalogOnWorld } from "../src/worldPortPlacement.js";
 import { graphEdgeDistanceKm, MinDistanceHeap } from "../src/weightedGraphSearch.js";
@@ -160,6 +161,7 @@ function weightedLandPaths({ graph, earthRows, riverMasks, namedPeakTileIds, ori
       continue;
     }
     for (const neighborId of graph.neighbors[current.tileId]) {
+      if (terrainRowsNeedLandmassChannel(earthRows[current.tileId], earthRows[neighborId])) continue;
       const isEndpoint = neighborId === origin.tileId || targetByTileId.has(neighborId);
       if (!isEndpoint && !roadTileIsPassable(earthRows[neighborId], {
         namedPeak: namedPeakTileIds.has(neighborId),

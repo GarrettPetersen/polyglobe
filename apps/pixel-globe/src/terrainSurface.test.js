@@ -10,6 +10,7 @@ import {
   isWhaleSwimmableOceanRow,
   isWaterSurfaceRow,
   terrainRowsFormFrozenWaterBoundary,
+  terrainRowsNeedLandmassChannel,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
 
@@ -78,6 +79,25 @@ test("every ordinary water-to-land connector is beach in either row order", () =
   }
   assert.equal(terrainRowsNeedBeach({ t: "water" }, { t: "lake" }), false);
   assert.equal(terrainRowsNeedBeach({ t: "land" }, { t: "forest" }), false);
+});
+
+test("different landmass ids always create a water channel between land rasters", () => {
+  assert.equal(
+    terrainRowsNeedLandmassChannel({ t: "forest", m: 57 }, { t: "grass", m: 1287 }),
+    true
+  );
+  assert.equal(
+    terrainRowsNeedLandmassChannel({ t: "forest", m: 57 }, { t: "grass", m: 57 }),
+    false
+  );
+  assert.equal(
+    terrainRowsNeedLandmassChannel({ t: "water", m: 57 }, { t: "grass", m: 1287 }),
+    false
+  );
+  assert.equal(
+    terrainRowsNeedLandmassChannel({ t: "forest" }, { t: "grass", m: 1287 }),
+    false
+  );
 });
 
 test("polar ice boundaries never create sandy beaches", () => {

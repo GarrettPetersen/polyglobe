@@ -41,6 +41,11 @@ export function terrainRowsNeedBeach(rowA, rowB) {
   return !isFrozenShoreRow(shoreRow);
 }
 
+export function terrainRowsNeedLandmassChannel(rowA, rowB) {
+  if (isWaterSurfaceRow(rowA) || isWaterSurfaceRow(rowB)) return false;
+  return Number.isInteger(rowA?.m) && Number.isInteger(rowB?.m) && rowA.m !== rowB.m;
+}
+
 export function terrainRowsFormFrozenWaterBoundary(rowA, rowB) {
   const aIsWater = isWaterSurfaceRow(rowA);
   const bIsWater = isWaterSurfaceRow(rowB);
@@ -49,7 +54,10 @@ export function terrainRowsFormFrozenWaterBoundary(rowA, rowB) {
 }
 
 export function compareTerrainConnectorDrawOrder(a, b) {
-  const coastOrder = Number(terrainRowsNeedBeach(a.row, a.nrow)) -
-    Number(terrainRowsNeedBeach(b.row, b.nrow));
-  return coastOrder || a.sortY - b.sortY || a.a - b.a || a.b - b.b;
+  const waterConnectorOrder = Number(
+    terrainRowsNeedBeach(a.row, a.nrow) || terrainRowsNeedLandmassChannel(a.row, a.nrow)
+  ) - Number(
+    terrainRowsNeedBeach(b.row, b.nrow) || terrainRowsNeedLandmassChannel(b.row, b.nrow)
+  );
+  return waterConnectorOrder || a.sortY - b.sortY || a.a - b.a || a.b - b.b;
 }

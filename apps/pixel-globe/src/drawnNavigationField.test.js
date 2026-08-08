@@ -21,8 +21,24 @@ function tile(id, drawOrder, x, y, pixels, water = false) {
   };
 }
 
+function landmassChannel(waterTileId, x, y, width, pixels) {
+  return {
+    kind: "landmassChannel",
+    waterTileId,
+    raster: {
+      x,
+      y,
+      width,
+      height: 1,
+      alpha: Uint8Array.from(pixels)
+    }
+  };
+}
+
 function rasterize(tiles, options = {}) {
-  const byId = new Map(tiles.map((entry) => [entry.call.id, entry]));
+  const byId = new Map(
+    tiles.filter((entry) => entry.kind === "tile").map((entry) => [entry.call.id, entry])
+  );
   return rasterizeDrawnNavigationChunk({
     originX: 0,
     originY: 0,
@@ -58,6 +74,21 @@ test("transparent connector gaps inherit nearby usable water", () => {
   assert.equal(point.tileId, 4);
   assert.equal(point.water, true);
   assert.equal(point.source, "connector-gap");
+});
+
+test("a different-landmass connector is water beneath its land endpoint sprites", () => {
+  const opaque = new Array(9).fill(255);
+  const waterReference = tile(40, 0, 0, 0, new Array(9).fill(0), true);
+  const chunk = rasterize([
+    waterReference,
+    landmassChannel(40, 2, 3, 5, [255, 255, 255, 255, 255]),
+    tile(41, 1, 1, 2, opaque, false),
+    tile(42, 2, 5, 2, opaque, false)
+  ]);
+  assert.equal(drawnNavigationFieldPoint(chunk, 2, 3).water, false);
+  assert.equal(drawnNavigationFieldPoint(chunk, 4, 3).water, true);
+  assert.equal(drawnNavigationFieldPoint(chunk, 4, 3).source, "landmass-channel");
+  assert.equal(drawnNavigationFieldPoint(chunk, 6, 3).water, false);
 });
 
 test("a transparent mountain at Musandam cannot become a water bridge", () => {
