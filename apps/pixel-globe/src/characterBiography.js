@@ -92,6 +92,8 @@ export function characterWithBiography(character, {
   referenceYear = CHARACTER_BIOGRAPHY_REFERENCE_YEAR,
   referenceMonth = CHARACTER_BIOGRAPHY_REFERENCE_MONTH,
   referenceDay = CHARACTER_BIOGRAPHY_REFERENCE_DAY,
+  minimumAge = 5,
+  maximumAge = 90,
   nationalityId = character?.nationalityId ?? null,
   nationalityName = character?.nationalityName ?? null,
   nationalityAdjective = character?.nationalityAdjective ?? null,
@@ -106,8 +108,12 @@ export function characterWithBiography(character, {
   if (sex !== "female" && sex !== "male") {
     throw new Error(`Character biography requires an explicit sex: ${sex}`);
   }
+  if (!Number.isInteger(minimumAge) || !Number.isInteger(maximumAge) ||
+      minimumAge < 0 || maximumAge < minimumAge) {
+    throw new Error(`Character biography has invalid age bounds: ${minimumAge}-${maximumAge}`);
+  }
   const ageEstimate = character.age;
-  if (!Number.isInteger(ageEstimate) || ageEstimate < 5 || ageEstimate > 90) {
+  if (!Number.isInteger(ageEstimate) || ageEstimate < minimumAge || ageEstimate > maximumAge) {
     throw new Error(`Character biography has invalid portrait age estimate: ${ageEstimate}`);
   }
   const birthDate = character.birthDate

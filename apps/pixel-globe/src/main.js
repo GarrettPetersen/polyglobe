@@ -34059,6 +34059,7 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
 
 function aboardCharacterWithBiography(character) {
   if (!character || typeof character !== "object") throw new Error("Aboard biography requires a character");
+  const isAnimalCompanion = character.role === "ship-animal-companion";
   const homeTileId = Number.isInteger(character.homePortTileId)
     ? character.homePortTileId
     : Number.isInteger(character.originPortTileId) ? character.originPortTileId : null;
@@ -34069,9 +34070,10 @@ function aboardCharacterWithBiography(character) {
     ...character,
     homePortCountry: character.homePortCountry || homePort?.country || null
   }, {
-    identityKey: character.role === "ship-animal-companion"
+    identityKey: isAnimalCompanion
       ? `${character.id || character.name}|${gameState.voyageSeed}`
       : character.id || character.name,
+    minimumAge: isAnimalCompanion ? 0 : 5,
     nationalityId: character.nationalityId ?? nationality?.id ?? null,
     nationalityName: character.nationalityName ?? (sovereign ? nationality.name : null),
     nationalityAdjective: character.nationalityAdjective ?? (sovereign ? nationality.adjective : null),

@@ -26,6 +26,28 @@ test("biographies preserve the portrait age estimate on the voyage start date", 
   assert.equal(characterNationalityLabel(character), "Chinese");
 });
 
+test("animal biography callers can use species-appropriate ages without weakening human defaults", () => {
+  assert.throws(() => characterWithBiography({
+    id: "young-human",
+    name: "Young Human",
+    sex: "male",
+    age: 4,
+    nameCulture: "english"
+  }), /invalid portrait age estimate: 4/);
+
+  const raccoon = characterWithBiography({
+    id: "companion:raccoon",
+    name: "Raccoon",
+    sex: "male",
+    age: 4,
+    nameCulture: "nahua"
+  }, {
+    minimumAge: 0
+  });
+  assert.equal(raccoon.age, 4);
+  assert.match(raccoon.birthDateLabel, /^\d{1,2} [A-Z][a-z]+ 151\d$/);
+});
+
 test("ages advance on the birthday rather than at the turn of the year", () => {
   const character = characterWithBiography({
     id: "ana",
