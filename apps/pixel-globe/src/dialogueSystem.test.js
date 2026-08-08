@@ -15,6 +15,7 @@ import {
   createShipDialogueSession,
   passengerDialogueView,
   portDialogueView,
+  prepareDamageSurrenderDialogue,
   prepareSurrenderPrizeDialogue,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
@@ -631,6 +632,50 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
     action: { type: "capture-surrendered-ship" }
   });
   assert.equal(acceptingSession.nodeId, "capture-loading");
+});
+
+test("a damage-induced surrender can be accepted or mercifully released", () => {
+  const ship = {
+    id: "damaged-merchant",
+    slug: "small-cog",
+    hitPoints: 1,
+    maxHitPoints: 7,
+    roleLabel: "Merchant",
+    faction: { adjective: "French" },
+    character: { name: "Jeanne Martin" },
+    combatGrace: true,
+    playerAttackIsPiracy: true
+  };
+  const accidental = prepareDamageSurrenderDialogue(null, ship, { cause: "accidental" });
+  const choice = shipDialogueView(accidental, ship);
+
+  assert.match(choice.text, /unintended/i);
+  assert.deepEqual(choice.options.map((entry) => entry.label), [
+    "Accept surrender",
+    "Apologize and release"
+  ]);
+  assert.deepEqual(selectShipDialogueOption(accidental, ship, 1), {
+    closed: true,
+    action: { type: "release-damage-surrender" }
+  });
+
+  const exploit = prepareDamageSurrenderDialogue(null, ship, { cause: "accidental" });
+  assert.deepEqual(selectShipDialogueOption(exploit, ship, 0), { closed: false, action: null });
+  assert.equal(exploit.nodeId, "piracy-warning");
+  assert.deepEqual(selectShipDialogueOption(exploit, ship, 1), {
+    closed: false,
+    action: { type: "accept-damage-surrender" }
+  });
+
+  const defensive = prepareDamageSurrenderDialogue(null, ship, { cause: "self-defense" });
+  assert.deepEqual(shipDialogueView(defensive, ship).options.map((entry) => entry.label), [
+    "Accept surrender",
+    "Show mercy and release"
+  ]);
+  assert.deepEqual(selectShipDialogueOption(defensive, ship, 0), {
+    closed: false,
+    action: { type: "accept-damage-surrender" }
+  });
 });
 
 test("a surrendered prize cannot replace the player with a hold that is too small", () => {

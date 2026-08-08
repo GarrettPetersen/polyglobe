@@ -21,6 +21,7 @@ import {
   PIRATE_REPUTATION_GAIN_PER_PIRACY,
   PIRATE_START_REPUTATION,
   SELF_DEFENSE_REPUTATION_PENALTY,
+  SHIP_MERCY_REPUTATION_GAIN,
   SHIP_ATTACK_REPUTATION_PENALTY,
   TRADE_PASS_REPUTATION_REQUIRED,
   TRADE_REPUTATION_GAIN,
@@ -57,6 +58,7 @@ import {
   recordAttackAgainstFaction,
   recordPiracyAgainstFaction,
   recordSelfDefenseAgainstFaction,
+  recordShipMercyForFaction,
   validateGameState
 } from "./gameState.js";
 import {
@@ -638,6 +640,31 @@ test("self-defense causes only a token local penalty without revoking diplomatic
   assert.equal(state.memory.decisions["reputation.self-defense.france"], 1);
   assert.equal(state.memory.decisions["reputation.attack.france"], undefined);
   assert.equal(state.memory.decisions["reputation.piracy.france"], undefined);
+});
+
+test("releasing a surrendered ship earns mercy standing even with pirates", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const frenchBefore = factionReputation(state, "france");
+  const pirateBefore = factionReputation(state, "pirate");
+
+  const french = recordShipMercyForFaction(state, "france");
+  const pirate = recordShipMercyForFaction(state, "pirate");
+
+  assert.equal(french.delta, SHIP_MERCY_REPUTATION_GAIN);
+  assert.equal(french.after, frenchBefore + SHIP_MERCY_REPUTATION_GAIN);
+  assert.equal(pirate.delta, SHIP_MERCY_REPUTATION_GAIN);
+  assert.equal(pirate.after, pirateBefore + SHIP_MERCY_REPUTATION_GAIN);
+  assert.equal(state.memory.decisions["reputation.ship-mercy.france"], 1);
+  assert.equal(state.memory.decisions["reputation.ship-mercy.pirate"], 1);
+
+  let furtherReleases = 0;
+  while (!pirateHideoutsVisibleToPlayer(state) && furtherReleases < 100) {
+    recordShipMercyForFaction(state, "pirate");
+    furtherReleases += 1;
+  }
+  assert.ok(furtherReleases > 0);
+  assert.ok(furtherReleases < 100);
+  assert.equal(pirateHideoutsVisibleToPlayer(state), true);
 });
 
 test("letters of marque require capital standing and ship strength", () => {

@@ -595,6 +595,20 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
   return target;
 }
 
+export function prepareDamageSurrenderDialogue(session, ship, { cause } = {}) {
+  const target = session || createShipDialogueSession(ship);
+  assertShipDialogueSubject(target, ship);
+  if (!ship.combatGrace) throw new Error("Damage surrender requires a protected defeated ship");
+  if (!["accidental", "self-defense", "deliberate"].includes(cause)) {
+    throw new Error(`Invalid damage surrender cause: ${cause}`);
+  }
+  target.nodeId = "damage-surrender-choice";
+  target.selectedIndex = 0;
+  target.feedback = null;
+  target.surrenderCause = cause;
+  return target;
+}
+
 export function createShoreBatteryDialogueSession(city, context = {}) {
   if (!city?.character) throw new Error("Shore battery hail requires a city character");
   if (context.relation !== "hostile" && context.relation !== "war") {
@@ -787,6 +801,23 @@ function shipDialogueContentView(session, ship) {
       text: "Enough. Our colors are struck. Spare my crew, and your people may take the cargo and inspect the ship.",
       feedback: null,
       options: [option("Review the prize", { type: "review-surrendered-prize" })]
+    };
+  }
+  if (session.nodeId === "damage-surrender-choice") {
+    const accidental = session.surrenderCause === "accidental";
+    return {
+      speaker,
+      expressionId: "afraid",
+      text: accidental
+        ? "Our colors are struck. If that blow was unintended, say so and let us make for port."
+        : "Enough. Our colors are struck. Will you take us as a prize, or let us go?",
+      feedback: null,
+      options: [
+        option("Accept surrender", { type: "accept-damage-surrender" }),
+        option(accidental ? "Apologize and release" : "Show mercy and release", {
+          type: "release-damage-surrender"
+        })
+      ]
     };
   }
   if (session.nodeId === "prize-choice" || session.nodeId === "capture-confirm") {
@@ -1100,6 +1131,21 @@ function applyShipDialogueAction(session, ship, action) {
     session.selectedIndex = 0;
     return { closed: false, action: { type: "surrender" } };
   }
+  if (action.type === "accept-damage-surrender") {
+    const confirmedPiracy = session.nodeId === "piracy-warning" && session.piracyWarningAccepted === true;
+    if (session.nodeId !== "damage-surrender-choice" && !confirmedPiracy) {
+      throw new Error("Damage surrender accepted outside its choice");
+    }
+    session.nodeId = "surrender-resolving";
+    session.selectedIndex = 0;
+    return { closed: false, action: { type: "accept-damage-surrender" } };
+  }
+  if (action.type === "release-damage-surrender") {
+    if (session.nodeId !== "damage-surrender-choice") {
+      throw new Error("Damage surrender released outside its choice");
+    }
+    return { closed: true, action: { type: "release-damage-surrender" } };
+  }
   if (action.type === "review-surrendered-prize") {
     session.nodeId = "prize-choice";
     session.selectedIndex = 0;
@@ -1122,18 +1168,21 @@ function applyShipDialogueAction(session, ship, action) {
 }
 
 function shipHostileActionNeedsPiracyWarning(session, ship, action) {
+  if (action.type === "accept-damage-surrender" && session.surrenderCause !== "accidental") return false;
   return isHostileShipAction(action.type) &&
     ship.playerAttackIsPiracy === true &&
     session.piracyWarningAccepted !== true;
 }
 
 function isHostileShipAction(actionType) {
-  return actionType === "threaten" || actionType === "surrender" || actionType === "attack";
+  return actionType === "threaten" || actionType === "surrender" || actionType === "attack" ||
+    actionType === "accept-damage-surrender";
 }
 
 function piracyProceedLabel(actionType) {
   if (actionType === "threaten") return "Demand surrender anyway";
   if (actionType === "surrender") return "Take prize anyway";
+  if (actionType === "accept-damage-surrender") return "Take prize anyway";
   if (actionType === "attack") return "Attack anyway";
   return "Proceed anyway";
 }

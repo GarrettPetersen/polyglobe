@@ -18,6 +18,7 @@ import {
   applyNpcSeaRouteSimulationSnapshot,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
+  claimSurrenderedNpcShipLoot,
   configureNpcEncounter,
   configureNpcRouteEncounter,
   createNpcShipSnapshotCache,
@@ -1417,6 +1418,27 @@ test("voluntary surrender preserves an undamaged hull", () => {
 
   assert.equal(loser.hitPoints, hullBefore);
   assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+});
+
+test("a merciful surrender leaves stores aboard until the player accepts the prize", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const loser = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT && cargoUnits(ship) > 0);
+  assert.ok(loser);
+  const specie = loser.specie;
+  const cargo = { ...loser.cargo };
+
+  surrenderNpcShip(routes, loser.id, null, { retainLoot: true });
+
+  assert.equal(loser.specie, specie);
+  assert.deepEqual(loser.cargo, cargo);
+  assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+
+  const claimed = claimSurrenderedNpcShipLoot(routes, loser.id);
+  assert.deepEqual(claimed, { specie, cargo });
+  assert.equal(loser.specie, 0);
+  assert.deepEqual(loser.cargo, {});
+  assert.throws(() => claimSurrenderedNpcShipLoot(routes, "missing"), /missing/i);
 });
 
 test("projectiles already in flight cannot make an NPC ship surrender twice", () => {

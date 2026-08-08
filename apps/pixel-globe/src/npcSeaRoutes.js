@@ -1486,25 +1486,44 @@ function removeNpcShipForReplacement(system, ship, clockMinutes) {
   return { ship, replacement, delayDays, port: replacementPort };
 }
 
-export function surrenderNpcShip(system, loserId, winnerId = null, { preserveHull = false } = {}) {
+export function surrenderNpcShip(system, loserId, winnerId = null, {
+  preserveHull = false,
+  retainLoot = false
+} = {}) {
   const loser = requiredNpcShip(system, loserId);
   const winner = winnerId ? requiredNpcShip(system, winnerId) : null;
   if (winner?.id === loser.id) throw new Error("An NPC ship cannot surrender to itself");
   if (typeof preserveHull !== "boolean") throw new Error(`Invalid preserve-hull option: ${preserveHull}`);
+  if (typeof retainLoot !== "boolean") throw new Error(`Invalid retain-loot option: ${retainLoot}`);
+  if (winner && retainLoot) throw new Error("An NPC prize recipient cannot leave loot aboard");
   if (shipHasCombatGrace(loser)) throw new Error(`NPC ship already surrendered: ${loserId}`);
 
   const loot = {
     specie: Math.max(0, Math.floor(loser.specie)),
     cargo: { ...loser.cargo }
   };
-  if (winner) receiveNpcLoot(winner, loot);
-
-  loser.specie = 0;
-  loser.cargo = {};
-  loser.cargoCost = {};
+  if (!retainLoot) {
+    if (winner) receiveNpcLoot(winner, loot);
+    loser.specie = 0;
+    loser.cargo = {};
+    loser.cargoCost = {};
+  }
   loser.graceUntilPortVisit = Number.MAX_SAFE_INTEGER;
   if (loser.role === NPC_ROLE_PIRATE) loser.seekingHideout = true;
   if (!preserveHull) loser.hitPoints = Math.max(1, Math.round(loser.maxHitPoints * 0.18));
+  return loot;
+}
+
+export function claimSurrenderedNpcShipLoot(system, shipId) {
+  const ship = requiredNpcShip(system, shipId);
+  if (!shipHasCombatGrace(ship)) throw new Error(`NPC ship has not surrendered: ${shipId}`);
+  const loot = {
+    specie: Math.max(0, Math.floor(ship.specie)),
+    cargo: { ...ship.cargo }
+  };
+  ship.specie = 0;
+  ship.cargo = {};
+  ship.cargoCost = {};
   return loot;
 }
 

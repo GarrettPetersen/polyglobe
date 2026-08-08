@@ -388,6 +388,7 @@ import {
   recordDiscovery,
   recordFriendlyFireAgainstFaction,
   recordSelfDefenseAgainstFaction,
+  recordShipMercyForFaction,
   reconcileFactionReputationAfterPlayerVassalage,
   recordPiracyAgainstFaction,
   beginIllicitTradeEnforcementCombat,
@@ -691,6 +692,7 @@ import {
   createShipDialogueSession,
   passengerDialogueView,
   portDialogueView,
+  prepareDamageSurrenderDialogue,
   prepareSurrenderPrizeDialogue,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
@@ -718,6 +720,7 @@ import {
   applyNpcSeaRouteSimulationSnapshot,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
+  claimSurrenderedNpcShipLoot,
   configureCaptureEncounter,
   configureNpcEncounter,
   configureNpcRouteEncounter,
@@ -17600,6 +17603,14 @@ function applyShipDialogueAction(npcShipId, action) {
     saveVoyageNow("received emergency provisions at sea");
     return;
   }
+  if (action.type === "accept-damage-surrender") {
+    acceptDamageSurrender(npcShipId);
+    return;
+  }
+  if (action.type === "release-damage-surrender") {
+    releaseDamageSurrender(npcShipId);
+    return;
+  }
   if (action.type === "surrender") {
     recordPlayerAttackConsequences(npcShipId);
     handleNpcSurrender(npcShipId, PLAYER_COMBAT_ID, { preserveHull: true });
@@ -17614,6 +17625,53 @@ function applyShipDialogueAction(npcShipId, action) {
     return;
   }
   throw new Error(`Unknown ship dialogue result action: ${action.type}`);
+}
+
+function acceptDamageSurrender(npcShipId) {
+  const session = dialogueState;
+  if (
+    !session ||
+    session.kind !== "ship" ||
+    session.npcShipId !== npcShipId ||
+    session.nodeId !== "surrender-resolving"
+  ) {
+    throw new Error(`Invalid damaged surrender acceptance: ${npcShipId}`);
+  }
+  if (session.surrenderCause === "accidental") recordPlayerAttackConsequences(npcShipId);
+  const strategic = npcSeaRoutes.shipById.get(npcShipId);
+  if (!strategic) throw new Error(`Accepted surrendered ship no longer exists: ${npcShipId}`);
+  const rewardOrigin = combatEntityPoint(npcShipId);
+  const loot = claimSurrenderedNpcShipLoot(npcSeaRoutes, npcShipId);
+  const summary = receivePlayerSurrenderedShipLoot(strategic, loot, rewardOrigin);
+  saveVoyageNow("accepted damaged ship surrender");
+  continuePlayerSurrenderOutcome(npcShipId, summary);
+}
+
+function releaseDamageSurrender(npcShipId) {
+  const session = dialogueState;
+  if (
+    !session ||
+    session.kind !== "ship" ||
+    session.npcShipId !== npcShipId ||
+    session.nodeId !== "damage-surrender-choice"
+  ) {
+    throw new Error(`Invalid damaged surrender release: ${npcShipId}`);
+  }
+  const strategic = npcSeaRoutes.shipById.get(npcShipId);
+  if (!strategic || !npcShipHasCombatGrace(npcSeaRoutes, npcShipId)) {
+    throw new Error(`Released surrendered ship is no longer protected: ${npcShipId}`);
+  }
+  const hideoutsWereVisible = pirateHideoutsVisibleToPlayer(gameState);
+  recordShipMercyForFaction(gameState, strategic.factionId);
+  const hideoutsRevealed = !hideoutsWereVisible && pirateHideoutsVisibleToPlayer(gameState);
+  if (hideoutsRevealed) chart = null;
+  showSurvivalNotice(
+    hideoutsRevealed
+      ? "PIRATE HIDEOUTS REVEALED"
+      : "MERCY SHOWN",
+    "good"
+  );
+  saveVoyageNow("released a surrendered ship");
 }
 
 async function captureSurrenderedShip(npcShipId) {
@@ -22824,7 +22882,12 @@ function applyPlayerNavalHit(ball, target, point) {
   if (damage.sunk) handleNpcSinking(target.id, winnerId);
   else {
     addHullSplinterBurst(ball, point);
-    if (damage.shouldSurrender) handleNpcSurrender(target.id, winnerId);
+    if (damage.shouldSurrender) {
+      handleNpcSurrender(target.id, PLAYER_COMBAT_ID, {
+        damageInduced: true,
+        accidentalPlayerDamage: accidentalFriendlyFire
+      });
+    }
   }
 }
 
@@ -22859,13 +22922,17 @@ function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
     addHullSplinterBurst(ball, point);
     if (damage.shouldSurrender) {
       emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
-      handleNpcSurrender(target.id, winnerId);
+      handleNpcSurrender(target.id, winnerId, {
+        damageInduced: winnerId === PLAYER_COMBAT_ID
+      });
       return;
     }
   }
   emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
   if (crewWoundsForceSurrender(target.stats.crewCapacity, target.woundedCrew)) {
-    handleNpcSurrender(target.id, winnerId);
+    handleNpcSurrender(target.id, winnerId, {
+      damageInduced: winnerId === PLAYER_COMBAT_ID
+    });
   }
 }
 
@@ -26305,10 +26372,24 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   const treasureEncounter = strategicBeforeSurrender?.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
     ? { ...strategicBeforeSurrender.encounter }
     : null;
-  const selfDefenseResult = winnerId === PLAYER_COMBAT_ID
+  const damageInduced = options.damageInduced === true;
+  const accidentalPlayerDamage = options.accidentalPlayerDamage === true;
+  if (accidentalPlayerDamage && !damageInduced) {
+    throw new Error("Accidental player surrender must be damage-induced");
+  }
+  const playerWon = winnerId === PLAYER_COMBAT_ID;
+  const playerAttackRecorded = npcVisualShips.get(loserId)?.playerAttackRecorded === true;
+  const surrenderCause = !playerWon || !damageInduced
+    ? null
+    : accidentalPlayerDamage
+      ? "accidental"
+      : playerAttackRecorded
+        ? "deliberate"
+        : "self-defense";
+  const selfDefenseResult = surrenderCause === "self-defense"
     ? recordPlayerSelfDefenseConsequences(loserId, strategicBeforeSurrender.factionId)
     : null;
-  if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
+  if (playerWon) recordPlayerShipVictory();
   if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
     surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
     resolveColonizationDefenseAttacker(loserId, "CANOE DRIVEN OFF");
@@ -26323,29 +26404,12 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     npcSeaRoutes.shipById.get(loserId)?.factionId ||
     npcVisualShips.get(loserId)?.factionId ||
     null;
-  const loot = surrenderNpcShip(npcSeaRoutes, loserId, npcWinnerId, options);
-  if (winnerId === PLAYER_COMBAT_ID) {
-    const received = receiveSurrenderedLoot(gameState, loot, { simMinute: weatherClockMinutes });
-    const itemGift = maybeGrantDefeatedShipPerkItem(gameState, strategicBeforeSurrender, {
-      random: Math.random,
-      context: { simMinute: weatherClockMinutes }
-    });
-    syncShipCargoFromGameState();
-    if (loot.specie > 0) playCoinClinkSound();
-    const cargoQuantity = Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0);
-    combatNotice = {
-      text: `SHIP SURRENDERED  +${received.specie} DB${cargoQuantity > 0 ? `  +${cargoQuantity} CARGO` : ""}`,
-      expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
-    };
-    playerPrizeSummary = {
-      specie: received.specie,
-      cargo: received.cargo,
-      remainingCargo: received.remainingCargo
-    };
-    if (itemGift) {
-      presentMissionItemGift(itemGift, null, rewardOrigin);
-      saveVoyageNow("equipment seized from surrendered ship");
-    }
+  const loot = surrenderNpcShip(npcSeaRoutes, loserId, npcWinnerId, {
+    preserveHull: options.preserveHull === true,
+    retainLoot: playerWon && damageInduced
+  });
+  if (playerWon && !damageInduced) {
+    playerPrizeSummary = receivePlayerSurrenderedShipLoot(strategicBeforeSurrender, loot, rewardOrigin);
   } else if (wonByShoreBattery) {
     const battery = shoreBatteryStates.get(winnerId);
     const captain = npcShipCaptains.get(loserId);
@@ -26382,19 +26446,56 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   }
   retireProjectilesForSurrenderedShip(loserId);
   if (selfDefenseResult?.delta) saveVoyageNow("defended against an attacking ship");
-  if (playerPrizeSummary) {
-    if (treasureEncounter && resolveTreasurePiratePlayerDefeat(loserId, treasureEncounter, {
-      sunk: false,
-      onComplete: () => openSurrenderPrizeDecision(loserId, playerPrizeSummary)
-    })) {
-      return;
-    }
-    const captiveOpened = loserWasPirate && maybeOpenPirateCaptiveQuest(loserId, {
-      npcShipId: loserId,
-      lootSummary: playerPrizeSummary
-    });
-    if (!captiveOpened) openSurrenderPrizeDecision(loserId, playerPrizeSummary);
+  if (surrenderCause) {
+    openDamageSurrenderDecision(loserId, surrenderCause);
+    return;
   }
+  if (playerPrizeSummary) {
+    continuePlayerSurrenderOutcome(loserId, playerPrizeSummary, { loserWasPirate, treasureEncounter });
+  }
+}
+
+function receivePlayerSurrenderedShipLoot(strategic, loot, rewardOrigin) {
+  const received = receiveSurrenderedLoot(gameState, loot, { simMinute: weatherClockMinutes });
+  const itemGift = maybeGrantDefeatedShipPerkItem(gameState, strategic, {
+    random: Math.random,
+    context: { simMinute: weatherClockMinutes }
+  });
+  syncShipCargoFromGameState();
+  if (loot.specie > 0) playCoinClinkSound();
+  const cargoQuantity = Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0);
+  combatNotice = {
+    text: `SHIP SURRENDERED  +${received.specie} DB${cargoQuantity > 0 ? `  +${cargoQuantity} CARGO` : ""}`,
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
+  };
+  if (itemGift) {
+    presentMissionItemGift(itemGift, null, rewardOrigin);
+    saveVoyageNow("equipment seized from surrendered ship");
+  }
+  return {
+    specie: received.specie,
+    cargo: received.cargo,
+    remainingCargo: received.remainingCargo
+  };
+}
+
+function continuePlayerSurrenderOutcome(npcShipId, lootSummary, context = {}) {
+  const strategic = npcSeaRoutes.shipById.get(npcShipId);
+  if (!strategic) throw new Error(`Surrendered prize no longer exists: ${npcShipId}`);
+  const treasureEncounter = context.treasureEncounter ||
+    (strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND ? { ...strategic.encounter } : null);
+  const loserWasPirate = context.loserWasPirate ?? strategic.role === NPC_ROLE_PIRATE;
+  if (treasureEncounter && resolveTreasurePiratePlayerDefeat(npcShipId, treasureEncounter, {
+    sunk: false,
+    onComplete: () => openSurrenderPrizeDecision(npcShipId, lootSummary)
+  })) {
+    return;
+  }
+  const captiveOpened = loserWasPirate && maybeOpenPirateCaptiveQuest(npcShipId, {
+    npcShipId,
+    lootSummary
+  });
+  if (!captiveOpened) openSurrenderPrizeDecision(npcShipId, lootSummary);
 }
 
 function retireProjectilesForSurrenderedShip(shipId) {
@@ -26402,6 +26503,20 @@ function retireProjectilesForSurrenderedShip(shipId) {
   npcCombatProjectiles = npcCombatProjectiles.filter(
     (ball) => ball.ownerId !== shipId && ball.targetId !== shipId
   );
+}
+
+function openDamageSurrenderDecision(npcShipId, cause) {
+  const existingSession = dialogueState?.kind === "ship" && dialogueState.npcShipId === npcShipId
+    ? dialogueState
+    : null;
+  if (dialogueState && !existingSession) {
+    throw new Error(`Cannot open damaged surrender while ${dialogueState.kind} dialogue is active`);
+  }
+  const surrenderedShip = dialogueShipForId(npcShipId);
+  dialogueState = prepareDamageSurrenderDialogue(existingSession, surrenderedShip, { cause });
+  dialogueLayout = createDialogueLayoutState();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
 }
 
 function openSurrenderPrizeDecision(npcShipId, lootSummary) {
@@ -27033,14 +27148,20 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   if (!damage.shouldSurrender || !state) return;
   if (accidentalPlayerCollision) {
     const result = recordPlayerAccidentalDamagePenalty(state.factionId);
-    const npcWinnerId = state.combatTargetId === PLAYER_COMBAT_ID ? null : state.combatTargetId;
-    handleNpcSurrender(id, npcWinnerId);
+    handleNpcSurrender(id, PLAYER_COMBAT_ID, {
+      damageInduced: true,
+      accidentalPlayerDamage: true
+    });
     if (result.delta !== 0) saveVoyageNow("friendly ship disabled in an accidental collision");
     return;
   }
   const directEnemy = shipCombatState.engagements.has(engagementKey(id, otherId));
   const winnerId = directEnemy ? otherId : state.combatTargetId;
-  if (winnerId) handleNpcSurrender(id, winnerId);
+  if (winnerId) {
+    handleNpcSurrender(id, winnerId, {
+      damageInduced: winnerId === PLAYER_COMBAT_ID
+    });
+  }
 }
 
 function playerCollisionWithNpcIsAccidental(npcShipId, otherId) {
