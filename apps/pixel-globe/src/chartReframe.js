@@ -107,19 +107,25 @@ export function measureChartNorthUpDrift(samples) {
   const sin = Math.sin(rotationRad);
   let squaredDistortion = 0;
   let maxDistortionPx = 0;
-  for (const sample of validated) {
+  let worstDistortionSampleIndex = -1;
+  for (let index = 0; index < validated.length; index++) {
+    const sample = validated[index];
     const expectedX = sample.northX * cos - sample.northY * sin;
     const expectedY = sample.northX * sin + sample.northY * cos;
     const distortion = Math.hypot(sample.localX - expectedX, sample.localY - expectedY);
     squaredDistortion += distortion * distortion;
-    maxDistortionPx = Math.max(maxDistortionPx, distortion);
+    if (distortion > Math.max(maxDistortionPx, 1e-9)) {
+      maxDistortionPx = distortion;
+      worstDistortionSampleIndex = index;
+    }
   }
 
   const metrics = Object.freeze({
     sampleCount: validated.length,
     rotationDeg: rotationRad * 180 / Math.PI,
     rmsDistortionPx: Math.sqrt(squaredDistortion / validated.length),
-    maxDistortionPx
+    maxDistortionPx,
+    worstDistortionSampleIndex
   });
   return Object.freeze({
     ...metrics,
@@ -159,6 +165,7 @@ function emptyChartDrift() {
     rotationDeg: 0,
     rmsDistortionPx: 0,
     maxDistortionPx: 0,
+    worstDistortionSampleIndex: -1,
     needsReframe: false
   });
 }

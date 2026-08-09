@@ -30,7 +30,10 @@ import {
   buildChartTileProtection,
   chartProtectionStats
 } from "./chartTileProtection.js";
-import { buildOpenOceanShearFillCalls } from "./oceanShearFill.js";
+import {
+  buildLandShearFillCalls,
+  buildOpenOceanShearFillCalls
+} from "./oceanShearFill.js";
 import {
   alphaMaskContainsMapPoint,
   forEachPixelBrushPoint,
@@ -1588,6 +1591,22 @@ import {
   gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
 import {
+  measureVisibleLandTear
+} from "./chartVisualFault.js";
+import { chooseChartVisualRepair } from "./chartVisualRepairPolicy.js";
+import {
+  chartRepairCloudFullyCoversCircle,
+  chartRepairCloudTargetContainsCircle,
+  chartRepairCloudBankFrame,
+  createChartRepairCloudBank
+} from "./chartRepairCloudBank.js";
+import {
+  chartFogFullyCoversCircle,
+  chartRepairFogFrame,
+  createChartRepairFog,
+  polarChartFogFrame
+} from "./chartRepairFog.js";
+import {
   partitionVisualStateReprojections,
   resolveVisualStateReprojection
 } from "./visualStateReprojection.js";
@@ -2050,6 +2069,8 @@ const CLOUD_FADE_RATIO = 0.22;
 const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const CLOUD_VISUAL_ALTITUDE_RATIO = 0.72;
+const CHART_REPAIR_CLOUD_COOLDOWN_MS = 20_000;
+const CHART_REPAIR_TILE_VISUAL_RADIUS_PX = TILE_ART_HALF + 3;
 const CLOUD_VIEWPORT_MARGIN_PX =
   CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
@@ -3179,8 +3200,13 @@ const cityShadowSpriteCache = new Map();
 const cityShadowWebglSpriteCache = new Map();
 let centerTileId = 0;
 let chartNorthUpDrift = measureChartNorthUpDrift([]);
+let chartWorstDistortionPoint = Object.freeze({ x: SCREEN_W / 2, y: SCREEN_H / 2 });
 let chartReframeCoverWasActive = false;
 let chartDriftMeasuredAtMs = -Infinity;
+let chartRepairCloudBank = null;
+let chartRepairFog = null;
+let chartRepairCooldownUntilMs = -Infinity;
+let chartVisualRepairStats = createChartVisualRepairStats();
 let playerWindState = null;
 let windIndicatorState = null;
 let shipyardPurchaseListingId = null;
@@ -5503,7 +5529,12 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
-    measurePerformanceBenchmarkStage("chart.drift", () => measureChartDriftAtInterval(nowMs));
+    const chartRepairCheckIsDue = nowMs - chartDriftMeasuredAtMs >= 1000;
+    const chartDrift = measurePerformanceBenchmarkStage(
+      "chart.drift",
+      () => measureChartDriftAtInterval(nowMs)
+    );
+    if (chartRepairCheckIsDue && maybeStartChartVisualRepair(nowMs, chartDrift)) dirty = true;
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
@@ -5517,6 +5548,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     })) dirty = true;
     recordCapturePosition(nowMs);
   }
+  if (updateChartVisualRepair(nowMs)) dirty = true;
   if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   if (updateStatusPersonParticles(nowMs)) dirty = true;
@@ -8062,6 +8094,7 @@ function setupPerformanceBenchmark() {
   dialogueState = null;
   dialogueShipMotionPause = null;
   resetDistantWorldWorkerSchedule();
+  chartVisualRepairStats = createChartVisualRepairStats();
   lastFrameMs = performance.now();
   performanceBenchmarkState = createPerformanceBenchmarkState(PERFORMANCE_BENCHMARK, lastFrameMs);
   performanceBenchmarkState.stagedCartCount = stagedCartCount;
@@ -8126,6 +8159,8 @@ function performanceBenchmarkSceneSnapshot(state) {
       0
     ),
     chartFaces: chart.faceCalls.length,
+    chartDrift: Object.freeze({ ...chartNorthUpDrift }),
+    playerLatitudeDeg: Math.round(latitudeDegForDirection(ship.position) * 100) / 100,
     visibleCities: chart.cityCalls.length,
     cloudSprites: renderedCloudSpriteCount,
     precipitationParticles: precipParticles.length,
@@ -8140,6 +8175,7 @@ function performanceBenchmarkSceneSnapshot(state) {
     gpuRenderedPlayerShip: gpuShipDrawCommands.some(
       (command) => command.kind === "ship" && command.drawCall.kind === "player"
     ),
+    chartVisualRepairs: Object.freeze({ ...chartVisualRepairStats }),
     gpuRenderer: worldRenderer.stats()
   };
 }
@@ -19363,6 +19399,7 @@ function measureChartDriftAtInterval(nowMs) {
 function measureCurrentChartNorthUpDrift() {
   if (!ship || !camera || !chart || !localLayout) {
     chartNorthUpDrift = measureChartNorthUpDrift([]);
+    chartWorstDistortionPoint = Object.freeze({ x: SCREEN_W / 2, y: SCREEN_H / 2 });
     return chartNorthUpDrift;
   }
   const northUp = northUpCamera(ship.position, camera.right);
@@ -19381,8 +19418,270 @@ function measureCurrentChartNorthUpDrift() {
     });
   }
   chartNorthUpDrift = measureChartNorthUpDrift(samples);
+  const worstSample = samples[chartNorthUpDrift.worstDistortionSampleIndex] || null;
+  chartWorstDistortionPoint = Object.freeze(worstSample
+    ? { x: worstSample.localX + SCREEN_W / 2, y: worstSample.localY + SCREEN_H / 2 }
+    : { x: SCREEN_W / 2, y: SCREEN_H / 2 });
   window.__PIXEL_GLOBE_CHART_DRIFT__ = chartNorthUpDrift;
   return chartNorthUpDrift;
+}
+
+function measureCurrentVisibleLandTear() {
+  if (!chart || !localLayout) {
+    return Object.freeze({
+      extraPx: 0,
+      tileIds: Object.freeze([]),
+      screenX: SCREEN_W / 2,
+      screenY: SCREEN_H / 2
+    });
+  }
+  return measureVisibleLandTear({
+    faceCalls: chart.faceCalls,
+    tileById: chart.tileById,
+    offset: layoutOffsetPixels(),
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    isLandTile: (call) => !isWaterSurfaceRow(call.row)
+  });
+}
+
+function maybeStartChartVisualRepair(nowMs, drift) {
+  if (
+    !ship || !camera || !chart || !localLayout || lakeBattleMode ||
+    chartRepairCloudBank || chartRepairFog ||
+    nowMs < chartRepairCooldownUntilMs ||
+    opaqueWorldCoverIsActive()
+  ) return false;
+
+  const landTear = measureCurrentVisibleLandTear();
+  let repair = chooseChartVisualRepair({
+    drift,
+    landTear,
+    distortionPoint: chartWorstDistortionPoint,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H
+  });
+  if (repair.kind === "none") return false;
+  const polarFog = currentPolarChartFogFrame();
+  if (
+    repair.fault && polarFog &&
+    chartFogFullyCoversCircle(
+      polarFog,
+      repair.fault.x,
+      repair.fault.y,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    )
+  ) {
+    repair = chooseChartVisualRepair({
+      drift,
+      landTear,
+      distortionPoint: chartWorstDistortionPoint,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H,
+      polarFogCoversFault: true
+    });
+  }
+  if (repair.kind === "polar-fog") {
+    const repaired = repairFogCoveredChartTiles(polarFog, "polar fog");
+    chartRepairCooldownUntilMs = nowMs + CHART_REPAIR_CLOUD_COOLDOWN_MS;
+    return repaired > 0;
+  }
+
+  if (repair.kind === "closing-fog") {
+    chartRepairFog = {
+      animation: createChartRepairFog({
+        nowMs,
+        viewportWidth: SCREEN_W,
+        viewportHeight: SCREEN_H,
+        focusX: SCREEN_W / 2,
+        focusY: SCREEN_H / 2
+      }),
+      repaired: false
+    };
+    chartVisualRepairStats.closingFogsStarted++;
+    return true;
+  }
+
+  const wind = playerWindState ? windForShip() : { directionRad: 0, strength: 0.2 };
+  const windFlow = screenWindFlowVector(wind);
+  const localRepair = repair.kind === "partial-cloud";
+  const localFault = repair.fault || { x: SCREEN_W / 2, y: SCREEN_H / 2, sizePx: 0 };
+  const repairSpan = Math.max(
+    72,
+    Math.min(164, localFault.sizePx + TILE_ART_SIZE * 2)
+  );
+  chartRepairCloudBank = {
+    animation: createChartRepairCloudBank({
+      nowMs,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H,
+      directionX: windFlow.x,
+      directionY: windFlow.y,
+      windStrength: wind.strength,
+      ...(localRepair ? {
+        targetX: localFault.x,
+        targetY: localFault.y,
+        targetWidth: repairSpan,
+        targetHeight: repairSpan
+      } : {})
+    }),
+    mode: localRepair ? "local" : "full",
+    repaired: false
+  };
+  chartVisualRepairStats.cloudBanksStarted++;
+  if (localRepair) chartVisualRepairStats.partialCloudBanksStarted++;
+  return true;
+}
+
+function updateChartVisualRepair(nowMs) {
+  let changed = false;
+  if (chartRepairCloudBank) {
+    const state = chartRepairCloudBank;
+    const frame = chartRepairCloudBankFrame(state.animation, nowMs);
+    if (state.mode === "full" && frame.coversViewport && !state.repaired) {
+      state.repaired = true;
+      if (reframeWorldNorthUp("cloud bank", { allowUncovered: true })) {
+        chartVisualRepairStats.cloudReframesCompleted++;
+      }
+    } else if (state.mode === "local" && frame.coversTarget && !state.repaired) {
+      state.repaired = true;
+      const replaced = repairCloudCoveredChartTiles(frame, "local cloud bank");
+      if (replaced > 0) chartVisualRepairStats.partialCloudRedrawsCompleted++;
+    }
+    if (frame.finished) {
+      chartRepairCloudBank = null;
+      chartRepairCooldownUntilMs = nowMs + CHART_REPAIR_CLOUD_COOLDOWN_MS;
+    }
+    changed = true;
+  }
+  if (chartRepairFog) {
+    const state = chartRepairFog;
+    const frame = chartRepairFogFrame(state.animation, nowMs);
+    if (frame.progress >= 0.48 && !state.repaired) {
+      state.repaired = true;
+      repairFogCoveredChartTiles(frame, "closing fog");
+    }
+    if (frame.finished) {
+      chartRepairFog = null;
+      chartRepairCooldownUntilMs = nowMs + CHART_REPAIR_CLOUD_COOLDOWN_MS;
+    }
+    changed = true;
+  }
+  return changed;
+}
+
+function currentPolarChartFogFrame() {
+  if (!ship) return null;
+  return polarChartFogFrame({
+    latitudeDeg: latitudeDegForDirection(ship.position),
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    focusX: SCREEN_W / 2,
+    focusY: SCREEN_H / 2
+  });
+}
+
+function activeChartFogFrames(nowMs = lastFrameMs) {
+  const frames = [];
+  const polar = currentPolarChartFogFrame();
+  if (polar) frames.push(polar);
+  if (chartRepairFog) frames.push(chartRepairFogFrame(chartRepairFog.animation, nowMs));
+  return frames;
+}
+
+function chartVisualCoverFullyCoversLocalPosition(
+  position,
+  radiusPx = CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+) {
+  if (!position || !localLayout) return false;
+  const screenX = position.x + SCREEN_W / 2 - localLayout.viewX;
+  const screenY = position.y + SCREEN_H / 2 - localLayout.viewY;
+  if (activeChartFogFrames().some((frame) => (
+    chartFogFullyCoversCircle(frame, screenX, screenY, radiusPx)
+  ))) return true;
+  if (!chartRepairCloudBank) return false;
+  const cloudFrame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, lastFrameMs);
+  return chartRepairCloudFullyCoversCircle(cloudFrame, screenX, screenY, radiusPx);
+}
+
+function repairFogCoveredChartTiles(frame, reason) {
+  const removedCount = repairCoveredChartTiles({
+    reason,
+    fullyCoversCircle: (x, y, radius) => chartFogFullyCoversCircle(frame, x, y, radius)
+  });
+  if (removedCount === 0) return 0;
+  chartVisualRepairStats.fogRedrawsCompleted++;
+  chartVisualRepairStats.fogTilesReplaced += removedCount;
+  if (reason === "polar fog") chartVisualRepairStats.polarFogRedrawsCompleted++;
+  return removedCount;
+}
+
+function repairCloudCoveredChartTiles(frame, reason) {
+  const removedCount = repairCoveredChartTiles({
+    reason,
+    fullyCoversCircle: (x, y, radius) => (
+      chartRepairCloudTargetContainsCircle(frame, x, y, radius)
+    )
+  });
+  chartVisualRepairStats.cloudTilesReplaced += removedCount;
+  return removedCount;
+}
+
+function repairCoveredChartTiles({ reason, fullyCoversCircle }) {
+  if (!ship || !camera || !chart || !localLayout) return 0;
+  if (typeof fullyCoversCircle !== "function") {
+    throw new Error(`Covered chart repair ${reason} requires a coverage predicate`);
+  }
+  const offset = layoutOffsetPixels();
+  const hiddenNpcStates = [...npcVisualShips.values()].filter((state) => (
+    fullyCoversCircle(
+      state.x + offset.x,
+      state.y + offset.y,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    )
+  ));
+  let removedCount = 0;
+  let repairedChart = null;
+  mutateChartPositionsBehindVisualCover(reason, () => {
+    for (const [id, position] of [...localLayout.positions.entries()]) {
+      if (id === ship.tileId || id === centerTileId) continue;
+      if (!fullyCoversCircle(
+        position.x + offset.x,
+        position.y + offset.y,
+        CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+      )) continue;
+      localLayout.positions.delete(id);
+      removedCount++;
+    }
+    if (removedCount > 0) repairedChart = buildChart(camera);
+  });
+  if (removedCount === 0) return 0;
+
+  chart = repairedChart;
+  if (hiddenNpcStates.length > 0) reprojectNpcVisualPositions(hiddenNpcStates);
+  invalidateFishSchoolRenderCaches();
+  chartNorthUpDrift = measureCurrentChartNorthUpDrift();
+  chartDriftMeasuredAtMs = lastFrameMs;
+  console.info(
+    `[pixel-globe] chart repaired behind ${reason}: ` +
+      `${removedCount} hidden tiles, ${hiddenNpcStates.length} hidden NPC ships`
+  );
+  dirty = true;
+  return removedCount;
+}
+
+function createChartVisualRepairStats() {
+  return {
+    cloudBanksStarted: 0,
+    partialCloudBanksStarted: 0,
+    cloudReframesCompleted: 0,
+    partialCloudRedrawsCompleted: 0,
+    cloudTilesReplaced: 0,
+    closingFogsStarted: 0,
+    fogRedrawsCompleted: 0,
+    polarFogRedrawsCompleted: 0,
+    fogTilesReplaced: 0
+  };
 }
 
 function prepareNorthUpWorldBehindCover() {
@@ -19438,6 +19737,7 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   const priorCenterTileId = centerTileId;
   const priorLocalLayout = localLayout;
   const priorChart = chart;
+  const priorWorstDistortionPoint = chartWorstDistortionPoint;
   const playerTileId = ship.tileId;
   const playerPosition = captureChartReframePosition(ship.position, "player");
   const npcStates = [...npcVisualShips.values()];
@@ -19460,6 +19760,7 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
     localLayout = priorLocalLayout;
     chart = priorChart;
     chartNorthUpDrift = driftBefore;
+    chartWorstDistortionPoint = priorWorstDistortionPoint;
     window.__PIXEL_GLOBE_CHART_DRIFT__ = driftBefore;
     chartDriftMeasuredAtMs = lastFrameMs;
     console.warn(
@@ -28852,14 +29153,10 @@ function drawDayNightWorld(layers, nowMs) {
   });
   renderWorldLayerStack({
     oceanGapFill: () => {
-      if (layers.oceanShearFillCalls.length === 0) return;
-      drawTerrainAtlasTiles(
-        layers.oceanShearFillCalls,
-        layers.activeChart,
-        layers.offset,
-        nowMs,
-        swell
-      );
+      for (const fillCalls of [layers.oceanShearFillCalls, layers.landShearFillCalls]) {
+        if (fillCalls.length === 0) continue;
+        drawTerrainAtlasTiles(fillCalls, layers.activeChart, layers.offset, nowMs, swell);
+      }
     },
     connectorBase: () => {
       drawCachedWorldLayer(
@@ -29161,6 +29458,7 @@ function render(nowMs) {
       offset,
       activeChart: chart,
       oceanShearFillCalls: renderWindow.oceanShearFillCalls,
+      landShearFillCalls: renderWindow.landShearFillCalls,
       connectors,
       connectorWaves: measurePerformanceBenchmarkStage(
         "render.terrain.connectorWaves",
@@ -29216,6 +29514,7 @@ function render(nowMs) {
   };
   measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
     drawDayNightWorld(cachedWorldLayers, nowMs);
+    drawChartRepairOcclusion(nowMs);
     drawStormScreenPrecipitation(nowMs);
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
@@ -29372,6 +29671,9 @@ function renderCallWindow(activeChart, offset) {
   const oceanShearFillCalls = activeChart.oceanShearFillCalls.filter(
     (call) => chartTileCallNearViewport(call, windowOffset, margin)
   );
+  const landShearFillCalls = activeChart.landShearFillCalls.filter(
+    (call) => chartTileCallNearViewport(call, windowOffset, margin)
+  );
   const result = {
     cellX,
     cellY,
@@ -29379,6 +29681,7 @@ function renderCallWindow(activeChart, offset) {
     screenHeight: SCREEN_H,
     tileCalls,
     oceanShearFillCalls,
+    landShearFillCalls,
     terrainCalls: tileCalls,
     tileIds: new Set(tileCalls.map((call) => call.id)),
     faceCalls: activeChart.faceCalls.filter(
@@ -30376,20 +30679,22 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
       previousOffsetsById.set(id, oceanSwellOffset(previousPresentation.swell, globePosition));
       currentOffsetsById.set(id, oceanSwellOffset(currentSwell, globePosition));
     }
-    settleVisibleElasticTilesWithinMotion({
-      positions: localLayout.positions,
-      projectedById,
-      protectionById: chartTileProtection,
-      movableTileIds,
-      previousOffsetsById,
-      currentOffsetsById,
-      anchorId: admissionAnchorId,
-      viewportWidth: SCREEN_W,
-      viewportHeight: SCREEN_H,
-      tileVisualRadius: TILE_ART_HALF,
-      viewX: localLayout.viewX,
-      viewY: localLayout.viewY,
-      maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
+    mutateChartPositionsBehindVisualCover("ocean swell", () => {
+      settleVisibleElasticTilesWithinMotion({
+        positions: localLayout.positions,
+        projectedById,
+        protectionById: chartTileProtection,
+        movableTileIds,
+        previousOffsetsById,
+        currentOffsetsById,
+        anchorId: admissionAnchorId,
+        viewportWidth: SCREEN_W,
+        viewportHeight: SCREEN_H,
+        tileVisualRadius: TILE_ART_HALF,
+        viewX: localLayout.viewX,
+        viewY: localLayout.viewY,
+        maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
+      });
     });
     // One displayed-to-current motion interval may hide settlement only once.
     lastPresentedOceanSwell = null;
@@ -30478,18 +30783,33 @@ function recoverProtectedStitchError(error) {
 
 function captureVisibleAuthoritativeTilePositions() {
   const captured = new Map();
+  const swellCanConcealSettlement = lastPresentedOceanSwell?.layout === localLayout;
   for (const [id, position] of localLayout.positions.entries()) {
     const row = earthById[id];
-    const canSettleInsideSwell = isWaterSurfaceRow(row) &&
+    const canSettleInsideSwell = swellCanConcealSettlement && isWaterSurfaceRow(row) &&
       chartTileProtection[id] === 0 &&
       !tileHasSurfaceIce(id);
     if (
       canSettleInsideSwell ||
+      chartVisualCoverFullyCoversLocalPosition(position) ||
       !localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX)
     ) continue;
     captured.set(id, { x: position.x, y: position.y });
   }
   return captured;
+}
+
+function mutateChartPositionsBehindVisualCover(reason, mutation) {
+  if (typeof reason !== "string" || reason.length === 0) {
+    throw new Error("Concealed chart mutation requires a reason");
+  }
+  if (typeof mutation !== "function") {
+    throw new Error(`Concealed chart mutation ${reason} requires a function`);
+  }
+  const visibleAuthoritativePositions = captureVisibleAuthoritativeTilePositions();
+  const result = mutation();
+  assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
+  return result;
 }
 
 function assertVisibleAuthoritativeTilePositionsUnchanged(captured) {
@@ -30511,7 +30831,10 @@ function cullLocalLayout(projectedVisible) {
   const visibleIds = new Set(projectedVisible.map((item) => item.id));
   for (const [id, position] of localLayout.positions.entries()) {
     if (visibleIds.has(id)) continue;
-    if (localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX)) {
+    if (
+      localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX) &&
+      !chartVisualCoverFullyCoversLocalPosition(position)
+    ) {
       throw new Error(`Chart rebuild attempted to discard visible local tile: ${id}`);
     }
     localLayout.positions.delete(id);
@@ -30631,6 +30954,11 @@ function buildChart(anchorCamera) {
     tileById,
     isOpenOceanTile: (call) => call.row?.t === "water"
   });
+  const landShearFillCalls = buildLandShearFillCalls({
+    faceCalls,
+    tileById,
+    isLandTile: (call) => !isWaterSurfaceRow(call.row)
+  });
   const driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {
     viewX: localLayout.viewX,
     viewY: localLayout.viewY,
@@ -30666,6 +30994,7 @@ function buildChart(anchorCamera) {
     waterIndex,
     faceCalls,
     oceanShearFillCalls,
+    landShearFillCalls,
     riverConnectorCalls,
     tileCalls,
     driftSampleCalls,
@@ -39595,6 +39924,128 @@ function drawStormScreenSnow(nowMs, intensity) {
     ctx.fillRect(x, y, 1, 1);
     if ((seed & 7) === 0) ctx.fillRect(x + 1, y, 1, 1);
   }
+}
+
+function drawChartRepairOcclusion(nowMs) {
+  const polarFog = currentPolarChartFogFrame();
+  if (polarFog) drawChartFogFrame(polarFog, { texturedEdge: true });
+  if (chartRepairFog) {
+    drawChartFogFrame(chartRepairFogFrame(chartRepairFog.animation, nowMs), {
+      texturedEdge: true
+    });
+  }
+  if (chartRepairCloudBank) {
+    drawChartRepairCloudBank(chartRepairCloudBankFrame(
+      chartRepairCloudBank.animation,
+      nowMs
+    ));
+  }
+}
+
+function drawChartFogFrame(frame, { texturedEdge = false } = {}) {
+  if (!frame || frame.clearRadius >= Math.hypot(SCREEN_W, SCREEN_H) * 1.15) return;
+  const color = chartFogColor();
+  const gradient = ctx.createRadialGradient(
+    frame.focusX,
+    frame.focusY,
+    Math.max(0, frame.clearRadius),
+    frame.focusX,
+    frame.focusY,
+    Math.max(frame.clearRadius + 1, frame.opaqueRadius)
+  );
+  gradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+  gradient.addColorStop(0.58, `rgba(${color.r}, ${color.g}, ${color.b}, 0.78)`);
+  gradient.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 1)`);
+  ctx.save();
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  if (texturedEdge) drawChartFogEdgeClouds(frame);
+  ctx.restore();
+}
+
+function drawChartFogEdgeClouds(frame) {
+  if (!cloudSpriteSheet || frame.clearRadius > Math.hypot(SCREEN_W, SCREEN_H) * 0.8) return;
+  const frameCount = Math.max(1, Math.floor(cloudSpriteSheet.width / CLOUD_SPRITE_FRAME_SIZE));
+  const radius = (frame.clearRadius + frame.opaqueRadius) / 2;
+  const count = 14;
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = 0.28;
+  for (let index = 0; index < count; index++) {
+    const angle = index / count * Math.PI * 2;
+    const radialJitter = Math.sin(index * 2.399963) * 5;
+    const x = Math.round(
+      frame.focusX + Math.cos(angle) * (radius + radialJitter) - CLOUD_SPRITE_FRAME_SIZE / 2
+    );
+    const y = Math.round(
+      frame.focusY + Math.sin(angle) * (radius + radialJitter) - CLOUD_SPRITE_FRAME_SIZE / 2
+    );
+    const sourceX = index % frameCount * CLOUD_SPRITE_FRAME_SIZE;
+    ctx.drawImage(
+      cloudSpriteSheet,
+      sourceX,
+      0,
+      CLOUD_SPRITE_FRAME_SIZE,
+      CLOUD_SPRITE_FRAME_SIZE,
+      x,
+      y,
+      CLOUD_SPRITE_FRAME_SIZE,
+      CLOUD_SPRITE_FRAME_SIZE
+    );
+  }
+}
+
+function drawChartRepairCloudBank(frame) {
+  if (!frame) return;
+  const color = chartFogColor();
+  ctx.save();
+  ctx.translate(frame.centerX, frame.centerY);
+  ctx.rotate(frame.angleRad);
+  ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+  ctx.fillRect(
+    -frame.solidHalfDepth,
+    -frame.halfSpan,
+    frame.solidHalfDepth * 2,
+    frame.halfSpan * 2
+  );
+  if (cloudSpriteSheet) {
+    const frameCount = Math.max(1, Math.floor(cloudSpriteSheet.width / CLOUD_SPRITE_FRAME_SIZE));
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 0.94;
+    const step = Math.max(18, Math.round(CLOUD_SPRITE_FRAME_SIZE * 0.62));
+    let spriteIndex = 0;
+    for (let y = -frame.halfSpan; y <= frame.halfSpan; y += step) {
+      const sourceX = spriteIndex % frameCount * CLOUD_SPRITE_FRAME_SIZE;
+      for (const side of [-1, 1]) {
+        const x = side < 0
+          ? -frame.solidHalfDepth - CLOUD_SPRITE_FRAME_SIZE * 0.72
+          : frame.solidHalfDepth - CLOUD_SPRITE_FRAME_SIZE * 0.28;
+        ctx.drawImage(
+          cloudSpriteSheet,
+          sourceX,
+          0,
+          CLOUD_SPRITE_FRAME_SIZE,
+          CLOUD_SPRITE_FRAME_SIZE,
+          Math.round(x),
+          Math.round(y - CLOUD_SPRITE_FRAME_SIZE / 2),
+          CLOUD_SPRITE_FRAME_SIZE,
+          CLOUD_SPRITE_FRAME_SIZE
+        );
+      }
+      spriteIndex++;
+    }
+  }
+  ctx.restore();
+}
+
+function chartFogColor() {
+  const light = localDayNightLight();
+  const night = clamp(light.night || 0, 0, 1);
+  const sunset = clamp(light.sunset || 0, 0, 1) * (1 - night);
+  return {
+    r: Math.round(236 - night * 112 - sunset * 28),
+    g: Math.round(243 - night * 114 - sunset * 34),
+    b: Math.round(237 - night * 93 - sunset * 16)
+  };
 }
 
 function drawStormEdgeFog(nowMs) {

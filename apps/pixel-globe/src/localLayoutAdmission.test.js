@@ -35,6 +35,27 @@ const TRAVERSAL_SCREEN_H = 256;
 const TRAVERSAL_MARGIN = 72;
 const TRAVERSAL_PIXELS_PER_RADIAN = 620;
 const TRAVERSAL_REBUILD_DISTANCE_PX = 28;
+const PRINT_CHART_BENCHMARK = process.env.PIXEL_GLOBE_PRINT_CHART_BENCHMARK === "1";
+
+function reportChartBenchmark(label, result) {
+  if (!PRINT_CHART_BENCHMARK) return;
+  const metrics = {
+    movementFrames: result.movementFrames,
+    chartBuilds: result.chartBuilds,
+    maxRotationDeg: result.maxRotationDeg,
+    maxProtectedRotationDeg: result.maxProtectedRotationDeg,
+    finalProtectedRotationDeg: result.finalProtectedRotationDeg,
+    maxProtectedEdgeErrorPx: result.maxProtectedEdgeErrorPx,
+    maxLandEdgeGapPx: result.maxLandEdgeGapPx,
+    maxLandEdgeGapDetails: result.maxLandEdgeGapPx > 7
+      ? result.maxLandEdgeGapDetails
+      : undefined,
+    missingVisibleLandNeighbors: result.missingVisibleLandNeighbors,
+    visibleProtectedRedraws: result.visibleProtectedRedraws,
+    visibleLandRedraws: result.visibleLandRedraws
+  };
+  console.log(`[chart-benchmark] ${label} ${JSON.stringify(metrics)}`);
+}
 
 test("new tiles use their exact projected shape in the retained chart frame", () => {
   const positions = new Map([
@@ -888,6 +909,7 @@ test("successive high-latitude chart rebuilds keep newly entering neighbors atta
 
 test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geography", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage();
+  reportChartBenchmark("world-circuit", result);
 
   assert.ok(
     result.movementFrames >= 3000,
@@ -947,6 +969,7 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
       chartMargin: 218
     }
   );
+  reportChartBenchmark("mediterranean", result);
 
   assert.ok(
     result.movementFrames >= 400,
@@ -1022,6 +1045,7 @@ test("a moving Scandinavia coastal traversal stays north-up without tearing land
       chartMargin: 218
     }
   );
+  reportChartBenchmark("scandinavia", result);
   assert.equal(result.visibleProtectedRedraws, 0);
   assert.equal(result.visibleLandRedraws, 0);
   assert.ok(
@@ -1059,6 +1083,7 @@ test("a south-to-north Argentina coastal traversal cannot tear adjacent land", (
       chartMargin: 218
     }
   );
+  reportChartBenchmark("argentina", result);
 
   assert.equal(result.visibleProtectedRedraws, 0);
   assert.equal(result.visibleLandRedraws, 0);
@@ -1093,6 +1118,7 @@ test("a moving river voyage to Smolensk cannot tear visible land", () => {
       useGameWorld: true
     }
   );
+  reportChartBenchmark("smolensk", result);
 
   assert.equal(result.visibleLandRedraws, 0);
   assertLandTraversalIsContinuous(result, "Smolensk river voyage");

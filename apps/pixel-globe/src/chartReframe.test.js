@@ -55,6 +55,7 @@ test("chart drift separates rotation from residual distortion", () => {
   assert.ok(Math.abs(metrics.rotationDeg - 3) < 1e-9);
   assert.ok(metrics.rmsDistortionPx < 1e-9);
   assert.ok(metrics.maxDistortionPx < 1e-9);
+  assert.equal(metrics.worstDistortionSampleIndex, -1);
   assert.equal(metrics.needsReframe, true);
 });
 
@@ -114,6 +115,7 @@ test("organic local distortion marks a chart for reframing", () => {
 
   assert.equal(metrics.needsReframe, true);
   assert.ok(metrics.rmsDistortionPx >= 1.5);
+  assert.equal(metrics.worstDistortionSampleIndex, 2);
 });
 
 test("a fresh north-up chart remains below every correction threshold", () => {

@@ -140,6 +140,13 @@ function printReport(report, output) {
       `  Long frames: ${report.longFrames.over20Ms} >20 ms, ${report.longFrames.over33Ms} >33 ms, ` +
         `${report.longFrames.over50Ms} >50 ms`,
       `  Estimated skipped frames: ${report.estimatedSkippedFrames}`,
+      `  Chart repairs: ${report.scene.chartVisualRepairs.cloudBanksStarted} cloud banks, ` +
+        `${report.scene.chartVisualRepairs.partialCloudBanksStarted} partial, ` +
+        `${report.scene.chartVisualRepairs.cloudReframesCompleted} cloud reframes, ` +
+        `${report.scene.chartVisualRepairs.partialCloudRedrawsCompleted} partial redraws, ` +
+        `${report.scene.chartVisualRepairs.closingFogsStarted} closing fogs, ` +
+        `${report.scene.chartVisualRepairs.polarFogRedrawsCompleted} polar fog redraws, ` +
+        `${report.scene.chartVisualRepairs.fogTilesReplaced} fog-hidden tiles replaced`,
       `  Ready in: ${report.pageReadyMs} ms; CPU throttle: ${report.cpuThrottle}x; ` +
         `browser: ${report.headless ? "headless" : "headed"}`,
       `  Report: ${output}`
