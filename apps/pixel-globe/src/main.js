@@ -1606,6 +1606,7 @@ import {
   assertChartReframePositionPreserved,
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
+  constrainChartRepairToTopology,
   createExactNorthUpLayout,
   createExactNorthUpRepairPlan,
   interpolateChartRepairPlan,
@@ -1634,11 +1635,13 @@ import {
   CHART_REPAIR_CLOUD_SPRITE_ALPHA,
   chartRepairCloudFullyCoversCircle,
   chartRepairCloudBankFrame,
-  chartRepairCloudMayFullyCoverCircle,
+  chartRepairCloudMayMostlyCoverCircle,
+  chartRepairCloudMostlyCoversCircle,
   createChartRepairCloudBank,
   slowedChartRepairCloudSpeed
 } from "./chartRepairCloudBank.js";
 import {
+  chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
   chartRepairFogFrame,
   chartRepairFogWindPresence,
@@ -2944,7 +2947,7 @@ let earthRows;
 let earthById;
 let chartTileProtection;
 let chartDirectProtectionComponentByTileId;
-let chartLandContinuityMask;
+let chartSurfaceContinuityMask;
 let chartElasticCorrectionMask;
 let mountainLandmarks;
 let worldDiscoveries = [];
@@ -3283,6 +3286,7 @@ const cityShadowSpriteCache = new Map();
 const cityShadowWebglSpriteCache = new Map();
 let centerTileId = 0;
 let chartNorthUpDrift = measureChartNorthUpDrift([]);
+let chartVisibleNorthUpDrift = chartNorthUpDrift;
 let chartWorstDistortionPoint = Object.freeze({ x: SCREEN_W / 2, y: SCREEN_H / 2 });
 let chartWorstVisibleTerrainTear = Object.freeze({
   extraPx: 0,
@@ -3292,11 +3296,14 @@ let chartWorstVisibleTerrainTear = Object.freeze({
   screenX: SCREEN_W / 2,
   screenY: SCREEN_H / 2
 });
+let chartDiagnosticTerrainTear = chartWorstVisibleTerrainTear;
 let chartReframeCoverWasActive = false;
 let chartDriftMeasuredAtMs = -Infinity;
 let chartRepairCloudBank = null;
 let chartRepairFog = null;
 let chartRepairHeatHaze = null;
+let chartRepairSwellUntilMs = -Infinity;
+let polarChartRepairPressure = 0;
 let chartRepairCooldownUntilMs = -Infinity;
 let chartRepairPendingConfirmation = null;
 let chartVisualRepairStats = createChartVisualRepairStats();
@@ -3760,9 +3767,9 @@ async function main() {
     graph,
     protection: chartTileProtection
   });
-  chartLandContinuityMask = Uint8Array.from(
+  chartSurfaceContinuityMask = Uint8Array.from(
     earthRows,
-    (row) => isWaterSurfaceRow(row) ? 0 : 1
+    (row) => isWaterSurfaceRow(row) ? 1 : 2
   );
   chartElasticCorrectionMask = Uint8Array.from(
     earthRows,
@@ -19728,9 +19735,12 @@ function createLocalLayout(centerId) {
 }
 
 function measureChartDriftAtInterval(nowMs) {
-  if (nowMs - chartDriftMeasuredAtMs < 1000) return chartNorthUpDrift;
+  if (nowMs - chartDriftMeasuredAtMs < 1000) return chartVisibleNorthUpDrift;
   chartDriftMeasuredAtMs = nowMs;
-  return measureCurrentChartNorthUpDrift();
+  measureCurrentChartNorthUpDrift();
+  chartVisibleNorthUpDrift = measureCurrentUnobscuredChartNorthUpDrift();
+  chartDiagnosticTerrainTear = measureCurrentUnobscuredTerrainTear();
+  return chartVisibleNorthUpDrift;
 }
 
 function measureCurrentChartNorthUpDrift() {
@@ -19761,6 +19771,69 @@ function measureCurrentChartNorthUpDrift() {
     : { x: SCREEN_W / 2, y: SCREEN_H / 2 });
   window.__PIXEL_GLOBE_CHART_DRIFT__ = chartNorthUpDrift;
   return chartNorthUpDrift;
+}
+
+function measureCurrentUnobscuredChartNorthUpDrift() {
+  const fogFrames = activeChartFogFrames();
+  if (fogFrames.length === 0 || !chart || !localLayout || !camera || !ship) {
+    return chartNorthUpDrift;
+  }
+  const drawOffset = layoutOffsetPixels();
+  const unobscuredCalls = chart.tileCalls.filter((call) => {
+    const x = call.x + drawOffset.x;
+    const y = call.y + drawOffset.y;
+    return x >= -TILE_ART_HALF && x <= SCREEN_W + TILE_ART_HALF &&
+      y >= -TILE_ART_HALF && y <= SCREEN_H + TILE_ART_HALF &&
+      !fogFrames.some((frame) => chartFogConcealsCircleForRepair(
+        frame,
+        x,
+        y,
+        CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+      ));
+  });
+  const calls = selectRepresentativeChartDriftCalls(unobscuredCalls, {
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY,
+    halfWidth: SCREEN_W / 2 + TILE_ART_HALF,
+    halfHeight: SCREEN_H / 2 + TILE_ART_HALF
+  });
+  const northUp = northUpCamera(ship.position, camera.right);
+  const samples = [];
+  for (const call of calls) {
+    const projected = projectDirectionFor(tileCenterVector(call.id), northUp, false);
+    if (!projected) continue;
+    samples.push({
+      localX: call.x + drawOffset.x - SCREEN_W / 2,
+      localY: call.y + drawOffset.y - SCREEN_H / 2,
+      northX: projected.x - SCREEN_W / 2,
+      northY: projected.y - SCREEN_H / 2
+    });
+  }
+  return measureChartNorthUpDrift(samples);
+}
+
+function measureCurrentUnobscuredTerrainTear() {
+  const fogFrames = activeChartFogFrames();
+  if (fogFrames.length === 0 || !chart || !localLayout) {
+    return chartWorstVisibleTerrainTear;
+  }
+  const offset = layoutOffsetPixels();
+  const faceCalls = chart.faceCalls.filter((face) => {
+    const a = chart.tileById.get(face.a);
+    const b = chart.tileById.get(face.b);
+    if (!a || !b) return false;
+    const x = (a.x + b.x) / 2 + offset.x;
+    const y = (a.y + b.y) / 2 + offset.y;
+    return !fogFrames.some((frame) => chartFogConcealsCircleForRepair(frame, x, y, 0));
+  });
+  return measureVisibleTerrainTear({
+    faceCalls,
+    tileById: chart.tileById,
+    offset,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    surfaceForTile: (call) => isWaterSurfaceRow(call.row) ? "water" : "land"
+  });
 }
 
 function measureCurrentVisibleTerrainTear() {
@@ -19837,15 +19910,39 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   const opaqueCover = opaqueWorldCoverIsActive();
   if (opaqueCover) chartRepairPendingConfirmation = null;
   if (
-    !ship || !camera || !chart || !localLayout || lakeBattleMode ||
-    chartRepairCloudBank || chartRepairFog || chartRepairHeatHaze ||
-    opaqueCover
+    !ship || !camera || !chart || !localLayout || lakeBattleMode || opaqueCover
   ) return false;
 
   const terrainTear = measureCurrentVisibleTerrainTear();
+  updatePolarChartRepairPressure(drift, terrainTear);
   const distortionSurface = chartSurfaceAtScreenPoint(chartWorstDistortionPoint);
   const swellRepairAvailable = chartViewportIsFullyElasticOpenOcean() ||
     chartFaultCanUseOceanSwell(drift, terrainTear);
+  if (
+    swellRepairAvailable &&
+    chartFaultNeedsCloudRepair({ drift, terrainTear })
+  ) {
+    chartRepairSwellUntilMs = Math.max(chartRepairSwellUntilMs, nowMs + 12_000);
+    chartRepairPendingConfirmation = null;
+    return true;
+  }
+  const polarFog = currentPolarChartFogFrame();
+  if (
+    polarFog && !chartRepairCloudBank && !chartRepairFog && !chartRepairHeatHaze
+  ) {
+    const repaired = repairFogCoveredChartTiles(
+      polarFog,
+      "polar fog",
+      null,
+      MAX_PROTECTED_ADMISSION_SLACK_PX
+    );
+    if (repaired > 0) {
+      chartRepairPendingConfirmation = null;
+      return true;
+    }
+  }
+  if (chartRepairCloudBank || chartRepairFog || chartRepairHeatHaze) return false;
+
   let candidate = chooseChartVisualRepair({
     drift,
     terrainTear,
@@ -19870,7 +19967,6 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       heatHazeAvailable: true
     });
   }
-  const polarFog = currentPolarChartFogFrame();
   if (
     candidate.fault && polarFog &&
     chartFogObscuresCircle(
@@ -20117,8 +20213,28 @@ function currentPolarChartFogFrame() {
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     focusX: SCREEN_W / 2,
-    focusY: SCREEN_H / 2
+    focusY: SCREEN_H / 2,
+    repairPressure: polarChartRepairPressure
   });
+}
+
+function updatePolarChartRepairPressure(drift, terrainTear) {
+  const latitudeDeg = ship ? Math.abs(latitudeDegForDirection(ship.position)) : 0;
+  const rotationPressure = Math.min(1, Math.abs(drift?.rotationDeg || 0) / 6);
+  const tearPressure = Math.min(1, Math.max(
+    terrainTear?.extraPx || 0,
+    terrainTear?.compressionPx || 0
+  ) / 18);
+  const target = Math.max(rotationPressure, tearPressure);
+  if (latitudeDeg <= 58 && target === 0) {
+    polarChartRepairPressure = Math.max(0, polarChartRepairPressure - 0.04);
+    return;
+  }
+  const maximumStep = target > polarChartRepairPressure ? 0.12 : 0.04;
+  polarChartRepairPressure += Math.max(
+    -maximumStep,
+    Math.min(maximumStep, target - polarChartRepairPressure)
+  );
 }
 
 function activeChartFogFrames(nowMs = lastFrameMs) {
@@ -20203,15 +20319,24 @@ function repairChartTilesWithinHeatHaze(frame) {
   return repairPlan.size;
 }
 
-function repairFogCoveredChartTiles(frame, reason, repairedTileIds = null) {
+function repairFogCoveredChartTiles(
+  frame,
+  reason,
+  repairedTileIds = null,
+  maximumStepPx = 1
+) {
   if (repairedTileIds !== null && !(repairedTileIds instanceof Set)) {
     throw new Error(`Chart fog repair ${reason} requires a repaired tile set`);
   }
   const repair = repairCoveredChartTiles({
     reason,
-    fullyCoversCircle: (x, y, radius) => chartFogObscuresCircle(frame, x, y, radius),
-    shouldRepairTile: (id) => repairedTileIds === null || !repairedTileIds.has(id),
-    maximumStepPx: 1
+    fullyCoversCircle: (x, y, radius) => (
+      chartFogConcealsCircleForRepair(frame, x, y, radius)
+    ),
+    instantlyCoversCircle: (x, y, radius) => (
+      chartFogObscuresCircle(frame, x, y, radius)
+    ),
+    maximumStepPx
   });
   if (repairedTileIds) {
     for (const id of repair.completedTileIds) repairedTileIds.add(id);
@@ -20231,12 +20356,30 @@ function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan
   if (!(repairPlan instanceof Map)) {
     throw new Error(`Chart cloud repair ${reason} requires a grouped position plan`);
   }
+  const offset = layoutOffsetPixels();
+  const coveredTileIds = new Set();
+  for (const [id, position] of localLayout.positions.entries()) {
+    if (id === ship?.tileId || id === centerTileId) continue;
+    if (!chartRepairCloudMostlyCoversCircle(
+      frame,
+      position.x + offset.x,
+      position.y + offset.y,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    )) continue;
+    coveredTileIds.add(id);
+  }
+  const currentTargets = planConcealedChartTileRepairs(coveredTileIds);
+  for (const [id, target] of currentTargets) repairPlan.set(id, target);
+
   const repair = repairCoveredChartTiles({
     reason,
     fullyCoversCircle: (x, y, radius) => (
+      chartRepairCloudMostlyCoversCircle(frame, x, y, radius)
+    ),
+    instantlyCoversCircle: (x, y, radius) => (
       chartRepairCloudFullyCoversCircle(frame, x, y, radius)
     ),
-    shouldRepairTile: (id) => !repairedTileIds.has(id) && repairPlan.has(id),
+    shouldRepairTile: (id) => repairPlan.has(id),
     repairPlan,
     maximumStepPx: 1
   });
@@ -20248,6 +20391,7 @@ function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan
 function repairCoveredChartTiles({
   reason,
   fullyCoversCircle,
+  instantlyCoversCircle = null,
   shouldRepairTile = () => true,
   repairPlan = null,
   maximumStepPx = 1
@@ -20257,6 +20401,9 @@ function repairCoveredChartTiles({
   }
   if (typeof fullyCoversCircle !== "function") {
     throw new Error(`Covered chart repair ${reason} requires a coverage predicate`);
+  }
+  if (instantlyCoversCircle !== null && typeof instantlyCoversCircle !== "function") {
+    throw new Error(`Covered chart repair ${reason} has invalid instant coverage`);
   }
   if (typeof shouldRepairTile !== "function") {
     throw new Error(`Covered chart repair ${reason} requires a tile selection predicate`);
@@ -20276,15 +20423,25 @@ function repairCoveredChartTiles({
     )
   ));
   const removedIds = [];
+  const instantlyCoveredIds = new Set();
   for (const [id, position] of localLayout.positions.entries()) {
     if (id === ship.tileId || id === centerTileId) continue;
     if (!shouldRepairTile(id)) continue;
+    if (!localLayoutPositionOverlapsViewport(
+      position,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    )) continue;
     if (!fullyCoversCircle(
       position.x + offset.x,
       position.y + offset.y,
       CHART_REPAIR_TILE_VISUAL_RADIUS_PX
     )) continue;
     removedIds.push(id);
+    if (instantlyCoversCircle?.(
+      position.x + offset.x,
+      position.y + offset.y,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    )) instantlyCoveredIds.add(id);
   }
   if (removedIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
 
@@ -20292,20 +20449,53 @@ function repairCoveredChartTiles({
   const effectiveRepairPlan = repairPlan ?? planConcealedChartTileRepairs(concealedTileIds);
   const repairableIds = removedIds.filter((id) => effectiveRepairPlan.has(id));
   if (repairableIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
+  const gradualIds = new Set(
+    repairableIds.filter((id) => !instantlyCoveredIds.has(id))
+  );
   const interpolated = interpolateChartRepairPlan({
     positions: localLayout.positions,
     targetsById: effectiveRepairPlan,
-    tileIds: new Set(repairableIds),
+    tileIds: gradualIds,
     maximumStepPx
   });
-  const movedTileIds = [...interpolated.nextPositions.keys()];
+  const proposedPositions = new Map(interpolated.nextPositions);
+  const instantPositions = new Map();
+  for (const id of instantlyCoveredIds) {
+    const target = effectiveRepairPlan.get(id);
+    if (target) instantPositions.set(id, target);
+  }
+  const topologyIds = new Set([
+    ...proposedPositions.keys(),
+    ...instantPositions.keys()
+  ]);
+  for (const id of [...topologyIds]) {
+    for (const neighborId of graph.neighbors[id]) {
+      if (localLayout.positions.has(neighborId)) topologyIds.add(neighborId);
+    }
+  }
+  const positionsAfterInstantRepair = new Map(localLayout.positions);
+  for (const [id, position] of instantPositions) positionsAfterInstantRepair.set(id, position);
+  const constrainedGradualPositions = constrainChartRepairToTopology({
+    positions: positionsAfterInstantRepair,
+    proposedPositions,
+    referencePositions: exactNorthUpProjectedPositions(topologyIds),
+    neighborsById: graph.neighbors,
+    surfaceMaskById: chartSurfaceContinuityMask,
+    landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2
+  });
+  const constrainedPositions = new Map([
+    ...instantPositions,
+    ...constrainedGradualPositions
+  ]);
+  const movedTileIds = [...constrainedPositions.keys()];
   if (movedTileIds.length === 0) {
     return { movedTileIds, completedTileIds: [...interpolated.completedTileIds] };
   }
   const movingTileIds = new Set(movedTileIds);
   let repairedChart = null;
   mutateChartPositionsBehindVisualCover(reason, (positionLocks) => {
-    for (const [id, position] of interpolated.nextPositions.entries()) {
+    for (const [id, position] of constrainedPositions.entries()) {
       if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
         throw new Error(`Chart repair plan ${reason} has malformed tile ${id}`);
       }
@@ -20327,7 +20517,11 @@ function repairCoveredChartTiles({
   dirty = true;
   return {
     movedTileIds,
-    completedTileIds: [...interpolated.completedTileIds]
+    completedTileIds: movedTileIds.filter((id) => {
+      const position = constrainedPositions.get(id);
+      const target = effectiveRepairPlan.get(id);
+      return position?.x === target?.x && position?.y === target?.y;
+    })
   };
 }
 
@@ -20337,7 +20531,7 @@ function chartTilesInCloudRepairPath(animation) {
   const tileIds = new Set();
   for (const [id, position] of localLayout.positions.entries()) {
     if (id === ship?.tileId || id === centerTileId) continue;
-    if (!chartRepairCloudMayFullyCoverCircle(
+    if (!chartRepairCloudMayMostlyCoverCircle(
       animation,
       position.x + offset.x,
       position.y + offset.y,
@@ -20574,6 +20768,8 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   chartRepairCloudBank = null;
   chartRepairFog = null;
   chartRepairHeatHaze = null;
+  chartRepairSwellUntilMs = -Infinity;
+  polarChartRepairPressure = 0;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = lastFrameMs + CHART_REPAIR_WEATHER_COOLDOWN_MS;
   clearLocalChartTransientEffects();
@@ -30542,7 +30738,9 @@ function terrainPersistentSprites(tileCalls, activeChart, nowMs, swell) {
 function currentOceanSwellPresentation() {
   const wind = playerWindState ? windForShip() : { directionRad: 0 };
   const stormStart = STORM_ACTIVE_INTENSITY * 0.45;
-  const stormStrength = smoothstep(stormStart, 1, playerStormIntensity());
+  const naturalStormStrength = smoothstep(stormStart, 1, playerStormIntensity());
+  const repairStrength = lastFrameMs < chartRepairSwellUntilMs ? 0.05 : 0;
+  const stormStrength = Math.max(naturalStormStrength, repairStrength);
   return oceanSwellState({
     nowMs: waterAnimationClockMs,
     stormStrength,
@@ -31858,7 +32056,6 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
     ? lastPresentedOceanSwell
     : null;
   if (
-    admissionCorrectionActive &&
     previousPresentation &&
     previousPresentation.surfaceIceRevision === surfaceIceSettledRevision
   ) {
@@ -31922,7 +32119,8 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
   });
   admitMissingLocalLayoutTiles({
     positions: localLayout.positions,
-    admissionContext
+    admissionContext,
+    concealedAdmissionIds: fogConcealedAdmissionIds(admissionContext)
   });
   if (positionLocks) {
     for (const [id, position] of positionLocks.entries()) {
@@ -31930,6 +32128,21 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
     }
   }
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
+}
+
+function fogConcealedAdmissionIds(admissionContext) {
+  const fogFrames = activeChartFogFrames();
+  if (fogFrames.length === 0) return null;
+  const concealed = new Set();
+  for (const [id, projected] of admissionContext.admissionProjectedById) {
+    if (fogFrames.some((frame) => chartFogConcealsCircleForRepair(
+      frame,
+      projected.x,
+      projected.y,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    ))) concealed.add(id);
+  }
+  return concealed;
 }
 
 function exactNorthUpProjectedPositions(tileIds) {
@@ -32055,7 +32268,7 @@ function admitMissingLocalLayoutTiles({
         : MAX_ELASTIC_FRAME_CORRECTION_PX
       : 0,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
-    continuityMaskById: chartLandContinuityMask,
+    continuityMaskById: chartSurfaceContinuityMask,
     maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     protectedCorrectionViewportIds: correctionViewportIds,
     liveViewportAdmissionIds,
@@ -49594,7 +49807,7 @@ function drawFrameRateOverlay() {
   const tilt = Math.abs(drift.rotationDeg) < 0.05
     ? "0.0"
     : `${drift.rotationDeg > 0 ? "+" : ""}${drift.rotationDeg.toFixed(1)}`;
-  const tearPx = chartWorstVisibleTerrainTear.extraPx;
+  const tearPx = chartDiagnosticTerrainTear.extraPx;
   const fpsLabel = `FPS ${value}`;
   const tiltLabel = `TILT ${tilt} DEG`;
   const tearLabel = `TEAR ${tearPx.toFixed(1)} PX`;

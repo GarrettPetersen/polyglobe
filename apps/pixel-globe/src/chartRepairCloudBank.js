@@ -1,6 +1,7 @@
 const CLOUD_BANK_START_MARGIN_PX = 32;
 const CLOUD_SPRITE_HALF_SIZE_PX = 32;
 const CLOUD_REPAIR_CORE_RADIUS_PX = 31;
+const CLOUD_REPAIR_VISIBLE_RADIUS_WEIGHT = 0.35;
 const CLOUD_CROSSWIND_SPACING_PX = 44;
 const CLOUD_BANK_MAX_SPRITES = 5;
 const CLOUD_BANK_SPEED_DIVISOR = 3;
@@ -129,13 +130,39 @@ export function chartRepairCloudFullyCoversCircle(frame, x, y, radius = 0) {
   ));
 }
 
+export function chartRepairCloudMostlyCoversCircle(frame, x, y, radius = 0) {
+  if (!frame) return false;
+  validateCloudCoveragePoint(x, y, radius, "repair coverage");
+  const centerTolerance = CLOUD_REPAIR_CORE_RADIUS_PX -
+    radius * CLOUD_REPAIR_VISIBLE_RADIUS_WEIGHT;
+  return frame.clouds.some((cloud) => (
+    Math.hypot(x - cloud.x, y - cloud.y) <= centerTolerance
+  ));
+}
+
 export function chartRepairCloudMayFullyCoverCircle(bank, x, y, radius = 0) {
   if (!bank) return false;
-  for (const [label, value] of Object.entries({ x, y, radius })) {
-    if (!Number.isFinite(value)) throw new Error(`Chart cloud path has invalid ${label}`);
-  }
-  if (radius < 0) throw new Error(`Chart cloud path radius cannot be negative: ${radius}`);
+  validateCloudCoveragePoint(x, y, radius, "path");
   const centerTolerance = CLOUD_REPAIR_CORE_RADIUS_PX - radius;
+  return cloudPathPassesWithin(bank, x, y, centerTolerance);
+}
+
+export function chartRepairCloudMayMostlyCoverCircle(bank, x, y, radius = 0) {
+  if (!bank) return false;
+  validateCloudCoveragePoint(x, y, radius, "repair path");
+  const centerTolerance = CLOUD_REPAIR_CORE_RADIUS_PX -
+    radius * CLOUD_REPAIR_VISIBLE_RADIUS_WEIGHT;
+  return cloudPathPassesWithin(bank, x, y, centerTolerance);
+}
+
+function validateCloudCoveragePoint(x, y, radius, subject) {
+  for (const [label, value] of Object.entries({ x, y, radius })) {
+    if (!Number.isFinite(value)) throw new Error(`Chart cloud ${subject} has invalid ${label}`);
+  }
+  if (radius < 0) throw new Error(`Chart cloud ${subject} radius cannot be negative: ${radius}`);
+}
+
+function cloudPathPassesWithin(bank, x, y, centerTolerance) {
   if (centerTolerance < 0) return false;
   return bank.cloudOffsets.some((offset) => {
     const centerX = bank.targetX - bank.dy * offset.span + bank.dx * offset.depth;

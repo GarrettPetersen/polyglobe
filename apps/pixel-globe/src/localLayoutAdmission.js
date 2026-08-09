@@ -891,6 +891,12 @@ export function admitProjectedTiles({
     perEdgeLimitPx: maxContinuityCorrectionPx
   });
   const continuityPositions = new Map(positions);
+  // A pending tile can be encountered before an adjacent protected tile in
+  // projection order. Seed the solved protected points up front so admission
+  // never compresses same-surface neighbors merely because of array order.
+  for (const [id, point] of protectedPointById) {
+    continuityPositions.set(id, point);
+  }
   let admitted = 0;
   for (const id of pending) {
     if (positions.has(id)) throw new Error(`Pending local layout tile ${id} already has a position`);

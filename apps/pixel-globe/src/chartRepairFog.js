@@ -110,14 +110,16 @@ export function polarChartFogFrame({
   viewportWidth,
   viewportHeight,
   focusX,
-  focusY
+  focusY,
+  repairPressure = 0
 }) {
   for (const [label, value] of Object.entries({
     latitudeDeg,
     viewportWidth,
     viewportHeight,
     focusX,
-    focusY
+    focusY,
+    repairPressure
   })) {
     if (!Number.isFinite(value)) throw new Error(`Polar chart fog has invalid ${label}`);
   }
@@ -126,7 +128,10 @@ export function polarChartFogFrame({
     PERMANENT_POLAR_CAP_LATITUDE_DEG,
     Math.abs(latitudeDeg)
   );
-  if (polarAmount <= 0) return null;
+  if (repairPressure < 0 || repairPressure > 1) {
+    throw new Error(`Polar chart fog has invalid repair pressure: ${repairPressure}`);
+  }
+  if (polarAmount <= 0 && repairPressure <= 0) return null;
   const maximumClearRadius = Math.max(
     Math.hypot(focusX, focusY),
     Math.hypot(viewportWidth - focusX, focusY),
@@ -134,12 +139,16 @@ export function polarChartFogFrame({
     Math.hypot(viewportWidth - focusX, viewportHeight - focusY)
   ) + 30;
   const minimumDimension = Math.min(viewportWidth, viewportHeight);
-  const minimumClearRadius = Math.max(62, minimumDimension * 0.43);
+  const naturalMinimumClearRadius = Math.max(62, minimumDimension * 0.43);
+  const repairMinimumClearRadius = Math.max(58, minimumDimension * 0.23);
+  const minimumClearRadius = naturalMinimumClearRadius +
+    (repairMinimumClearRadius - naturalMinimumClearRadius) * repairPressure;
+  const effectiveConcealment = Math.max(polarAmount, repairPressure);
   const clearRadius = maximumClearRadius +
-    (minimumClearRadius - maximumClearRadius) * polarAmount;
+    (minimumClearRadius - maximumClearRadius) * effectiveConcealment;
   return Object.freeze({
     progress: 1,
-    concealment: polarAmount,
+    concealment: effectiveConcealment,
     edgeOpacity: 1,
     focusX,
     focusY,
@@ -149,7 +158,8 @@ export function polarChartFogFrame({
     denseFogRadius: clearRadius + 34,
     repairReady: true,
     finished: false,
-    polarAmount
+    polarAmount,
+    repairPressure
   });
 }
 
@@ -164,6 +174,33 @@ export function chartFogObscuresCircle(frame, x, y, radius = 0) {
   }
   if (frame.edgeOpacity < CHART_FOG_REDRAW_CONCEALMENT) return false;
   return Math.hypot(x - frame.focusX, y - frame.focusY) - radius >= frame.denseFogRadius;
+}
+
+export function chartFogConcealsCircleForRepair(frame, x, y, radius = 0) {
+  if (!frame) return false;
+  for (const [label, value] of Object.entries({ x, y, radius })) {
+    if (!Number.isFinite(value)) throw new Error(`Chart fog repair coverage has invalid ${label}`);
+  }
+  if (radius < 0) {
+    throw new Error(`Chart fog repair coverage radius cannot be negative: ${radius}`);
+  }
+  if (frame.repairReady !== true) return false;
+  if (
+    !Number.isFinite(frame.clearRadius) ||
+    !Number.isFinite(frame.raggednessPx) ||
+    frame.raggednessPx < 0
+  ) {
+    throw new Error("Chart fog repair coverage requires valid fog geometry");
+  }
+  // Full-opacity fog can replace a tile immediately. The visible, ragged fog
+  // band can still conceal a one-pixel interpolation step, so it should not
+  // wait for the whole fade band to become dense before repairing the chart.
+  // The tile may remain partially legible at this boundary, which is why the
+  // caller must interpolate rather than replace it. Requiring its full visual
+  // radius to enter the band made polar fog incapable of repairing landscape
+  // viewports: a 42px tile could not fit between the clear center and screen.
+  return Math.hypot(x - frame.focusX, y - frame.focusY) >=
+    frame.clearRadius + frame.raggednessPx;
 }
 
 export function chartFogPixelDensity(frame, x, y) {

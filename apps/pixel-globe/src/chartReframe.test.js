@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  constrainChartRepairToTopology,
   assertChartReframePositionPreserved,
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
@@ -89,6 +90,38 @@ test("concealed chart repairs approach north-up targets in monotonic pixel steps
   assert.deepEqual(result.nextPositions.get(2), { x: 5, y: 7 });
   assert.equal(result.nextPositions.has(3), false);
   assert.deepEqual([...result.completedTileIds], [2]);
+});
+
+test("concealed repair groups cannot pull away from a clear neighbor", () => {
+  const positions = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 24, y: 0 }],
+    [3, { x: 48, y: 0 }]
+  ]);
+  const constrained = constrainChartRepairToTopology({
+    positions,
+    proposedPositions: new Map([
+      [1, { x: 0, y: 3 }],
+      [2, { x: 24, y: 3 }]
+    ]),
+    referencePositions: positions,
+    neighborsById: [
+      [2],
+      [1, 3],
+      [2]
+    ],
+    surfaceMaskById: Uint8Array.from([2, 2, 2]),
+    landSlackPx: 3,
+    waterSlackPx: 6
+  });
+
+  assert.deepEqual(constrained.get(1), { x: 0, y: 3 });
+  assert.deepEqual(constrained.get(2), { x: 24, y: 3 });
+  const clearBoundaryError = Math.hypot(
+    48 - constrained.get(2).x - 24,
+    0 - constrained.get(2).y
+  );
+  assert.ok(clearBoundaryError <= 3);
 });
 
 test("a visible position lock remains in a rebuild that projects it off-screen", () => {

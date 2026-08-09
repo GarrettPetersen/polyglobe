@@ -105,6 +105,132 @@ export function interpolateChartRepairPlan({
   return { nextPositions, completedTileIds };
 }
 
+export function constrainChartRepairToTopology({
+  positions,
+  proposedPositions,
+  referencePositions,
+  neighborsById,
+  surfaceMaskById,
+  landSlackPx = 3,
+  waterSlackPx = 6
+}) {
+  if (!(positions instanceof Map) || !(proposedPositions instanceof Map) ||
+      !(referencePositions instanceof Map)) {
+    throw new Error("Topology-constrained chart repair requires position maps");
+  }
+  if (!Array.isArray(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
+    throw new Error("Topology-constrained chart repair requires chart topology");
+  }
+  for (const [label, value] of Object.entries({ landSlackPx, waterSlackPx })) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Topology-constrained chart repair has invalid ${label}: ${value}`);
+    }
+  }
+  if (proposedPositions.size === 0) return new Map();
+
+  const candidate = new Map(
+    [...proposedPositions].filter(([id]) => positions.has(id))
+  );
+  for (let iteration = 0; iteration < 16; iteration++) {
+    const violations = chartRepairTopologyViolations({
+      positions,
+      candidate,
+      referencePositions,
+      neighborsById,
+      surfaceMaskById,
+      landSlackPx,
+      waterSlackPx
+    });
+    if (violations.size === 0) return candidate;
+    let changed = false;
+    for (const id of violations) {
+      const current = positions.get(id);
+      const proposed = candidate.get(id);
+      if (!current || !proposed) continue;
+      const reduced = {
+        x: Math.round((current.x + proposed.x) / 2),
+        y: Math.round((current.y + proposed.y) / 2)
+      };
+      if (reduced.x === current.x && reduced.y === current.y) candidate.delete(id);
+      else candidate.set(id, reduced);
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  // A covered group may have incompatible fixed boundaries. Never return an
+  // unresolved move: repeated repair ticks would otherwise accumulate a tear.
+  while (candidate.size > 0) {
+    const violations = chartRepairTopologyViolations({
+      positions,
+      candidate,
+      referencePositions,
+      neighborsById,
+      surfaceMaskById,
+      landSlackPx,
+      waterSlackPx
+    });
+    if (violations.size === 0) break;
+    for (const id of violations) candidate.delete(id);
+  }
+  return candidate;
+}
+
+function chartRepairTopologyViolations({
+  positions,
+  candidate,
+  referencePositions,
+  neighborsById,
+  surfaceMaskById,
+  landSlackPx,
+  waterSlackPx
+}) {
+  const violations = new Set();
+  for (const id of candidate.keys()) {
+    const reference = referencePositions.get(id);
+    if (!reference || !Array.isArray(neighborsById[id])) continue;
+    for (const neighborId of neighborsById[id]) {
+      if (neighborId < id && candidate.has(neighborId)) continue;
+      const current = positions.get(id);
+      const currentNeighbor = positions.get(neighborId);
+      const referenceNeighbor = referencePositions.get(neighborId);
+      if (!current || !currentNeighbor || !referenceNeighbor) continue;
+      const next = candidate.get(id) ?? current;
+      const nextNeighbor = candidate.get(neighborId) ?? currentNeighbor;
+      const currentError = chartEdgeVectorError(
+        current,
+        currentNeighbor,
+        reference,
+        referenceNeighbor
+      );
+      const nextError = chartEdgeVectorError(
+        next,
+        nextNeighbor,
+        reference,
+        referenceNeighbor
+      );
+      const waterEdge = surfaceMaskById[id] === 1 && surfaceMaskById[neighborId] === 1;
+      const allowedError = waterEdge ? waterSlackPx : landSlackPx;
+      if (currentError <= allowedError + 1e-9) {
+        if (nextError > allowedError + 1e-9) {
+          violations.add(id);
+          if (candidate.has(neighborId)) violations.add(neighborId);
+        }
+      } else if (nextError > currentError + 1e-9) {
+        violations.add(id);
+        if (candidate.has(neighborId)) violations.add(neighborId);
+      }
+    }
+  }
+  return violations;
+}
+
+function chartEdgeVectorError(a, b, referenceA, referenceB) {
+  return Math.hypot(
+    (b.x - a.x) - (referenceB.x - referenceA.x),
+    (b.y - a.y) - (referenceB.y - referenceA.y)
+  );
+}
+
 export function retainPositionLockedProjectedTiles({
   projectedTiles,
   positionLocks,

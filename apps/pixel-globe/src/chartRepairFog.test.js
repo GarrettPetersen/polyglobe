@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CHART_FOG_REDRAW_CONCEALMENT,
+  chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
   chartFogPixelDensity,
   chartRepairFogFrame,
@@ -175,6 +176,8 @@ test("polar fog preserves a clear navigable center and hides the chart edge", ()
   assert.ok(fog.clearRadius >= 100 && fog.clearRadius <= 112);
   assert.equal(chartFogObscuresCircle(fog, 227, 128, 12), false);
   assert.equal(chartFogObscuresCircle(fog, 10, 10, 12), true);
+  assert.equal(chartFogConcealsCircleForRepair(fog, 227, 128, 12), false);
+  assert.equal(chartFogConcealsCircleForRepair(fog, 50, 50, 12), true);
   assert.equal(polarChartFogFrame({
     latitudeDeg: 50,
     viewportWidth: 455,
@@ -182,4 +185,34 @@ test("polar fog preserves a clear navigable center and hides the chart edge", ()
     focusX: 227,
     focusY: 128
   }), null);
+});
+
+test("polar fog tightens its clear window under chart repair pressure", () => {
+  const base = {
+    latitudeDeg: 66,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    focusX: 227,
+    focusY: 128
+  };
+  const ordinary = polarChartFogFrame(base);
+  const repairing = polarChartFogFrame({ ...base, repairPressure: 0.9 });
+
+  assert.ok(repairing.clearRadius < ordinary.clearRadius - 60);
+  assert.equal(repairing.polarAmount, ordinary.polarAmount);
+  assert.equal(repairing.repairPressure, 0.9);
+});
+
+test("fog permits gradual repair in its visible band before full concealment", () => {
+  const fog = polarChartFogFrame({
+    latitudeDeg: 70,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    focusX: 227,
+    focusY: 128
+  });
+  const repairBandX = fog.focusX - fog.clearRadius - fog.raggednessPx - 14;
+
+  assert.equal(chartFogConcealsCircleForRepair(fog, repairBandX, fog.focusY, 12), true);
+  assert.equal(chartFogObscuresCircle(fog, repairBandX, fog.focusY, 12), false);
 });
