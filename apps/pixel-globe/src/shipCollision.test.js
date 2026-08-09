@@ -2,9 +2,80 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  advanceCollisionMomentum,
   resolveShipCollision,
   separateTouchingShips
 } from "./shipCollision.js";
+
+test("collision momentum integrates displacement while water resistance damps velocity", () => {
+  const dampingPerSecond = Math.log(2);
+  const result = advanceCollisionMomentum([10, 0], 1, {
+    dampingPerSecond,
+    minimumSpeed: 0.01
+  });
+
+  assert.equal(result.active, true);
+  assert.ok(Math.abs(result.velocity[0] - 5) < 1e-9);
+  assert.ok(Math.abs(result.displacement[0] - 5 / Math.log(2)) < 1e-9);
+  assert.equal(result.velocity[1], 0);
+  assert.equal(result.displacement[1], 0);
+});
+
+test("collision momentum supports globe-space tangent vectors", () => {
+  const result = advanceCollisionMomentum([0.01, -0.02, 0.03], 0.25, {
+    dampingPerSecond: 0.5,
+    minimumSpeed: 1e-6
+  });
+
+  assert.equal(result.velocity.length, 3);
+  assert.equal(result.displacement.length, 3);
+  assert.ok(result.velocity.every(Number.isFinite));
+  assert.ok(result.displacement.every(Number.isFinite));
+});
+
+test("collision momentum comes to rest below its physical cutoff", () => {
+  const result = advanceCollisionMomentum([0.02, 0], 1, {
+    dampingPerSecond: 2,
+    minimumSpeed: 0.05
+  });
+
+  assert.equal(result.active, false);
+  assert.deepEqual(result.velocity, [0, 0]);
+  assert.deepEqual(result.displacement, [0, 0]);
+});
+
+test("both collision bodies retain momentum and keep separating after impact", () => {
+  const collision = resolveShipCollision(
+    body("ship-a", -4, 0, 6, 0, 100, 1, 0),
+    body("ship-b", 4, 0, -2, 0, 100, -1, 0)
+  );
+  const a = advanceCollisionMomentum([collision.a.vx, collision.a.vy], 0.5, {
+    dampingPerSecond: 0.62,
+    minimumSpeed: 0.01
+  });
+  const b = advanceCollisionMomentum([collision.b.vx, collision.b.vy], 0.5, {
+    dampingPerSecond: 0.62,
+    minimumSpeed: 0.01
+  });
+
+  assert.ok(b.displacement[0] > a.displacement[0], JSON.stringify({ a, b }));
+  assert.ok(Math.abs(a.velocity[0]) > 0);
+  assert.ok(Math.abs(b.velocity[0]) > 0);
+});
+
+test("a light iceberg carries more collision momentum than a massive iceberg", () => {
+  const ship = body("ship", -4, 0, 20, 0, 155, 1, 0);
+  const small = resolveShipCollision(
+    ship,
+    body("small-iceberg", 4, 0, 0, 0, 220, 1, 0)
+  );
+  const large = resolveShipCollision(
+    ship,
+    body("large-iceberg", 4, 0, 0, 0, 2100, 1, 0)
+  );
+
+  assert.ok(small.b.vx > large.b.vx, JSON.stringify({ small, large }));
+});
 
 test("colliding ships exchange momentum and separate along the impact normal", () => {
   const result = resolveShipCollision(

@@ -232,6 +232,7 @@ import {
   shipRowingModeThrustDirection
 } from "./shipRowingAnimation.js";
 import {
+  SHIP_DRAG_PER_SECOND,
   SHIP_MINIMUM_POWERED_SPEED_RAD,
   ROWING_FOOD_CONSUMPTION_MULTIPLIER,
   rowingCrewRatio,
@@ -1190,6 +1191,7 @@ import {
   fireSoundPresence
 } from "./fireEffects.js";
 import {
+  advanceCollisionMomentum,
   resolveShipCollision,
   separateTouchingShips
 } from "./shipCollision.js";
@@ -2003,8 +2005,10 @@ const NPC_COMBAT_MAX_PROJECTILES = 180;
 const SHIP_COLLISION_DAMAGE_COOLDOWN_SECONDS = 0.72;
 const SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS = 1.2;
 const SHIP_COMBAT_ENTRY_SEPARATION_PX = 3;
-const NPC_COLLISION_VELOCITY_DAMPING = 2.6;
+const NPC_COLLISION_VELOCITY_DAMPING = SHIP_DRAG_PER_SECOND;
 const NPC_COLLISION_VELOCITY_MIN_PX = 0.12;
+const ICEBERG_COLLISION_VELOCITY_DAMPING = SHIP_DRAG_PER_SECOND * 0.45;
+const ICEBERG_COLLISION_VELOCITY_MIN_RAD = 0.05 / PIXELS_PER_RADIAN;
 const NPC_SHIP_FLAG_W = 10;
 const NPC_SHIP_FLAG_H = 6;
 const NPC_SHIP_FLAG_POLE_H = 10;
@@ -2969,6 +2973,7 @@ const whaleVisualPresentations = new Map();
 let icebergSpawnCandidates = [];
 let activeIcebergSpawnCandidatesDay = -1;
 let activeIcebergSpawnCandidates = [];
+const icebergCollisionMomentum = new Map();
 let ambientAudioUpdateAccumulator = 0;
 let ambientAudioContextAccumulator = 0;
 let ambientAudioWildlifeAccumulator = 0;
@@ -3836,6 +3841,7 @@ async function main() {
   icebergSpawnCandidates = buildIcebergSpawnCandidates();
   activeIcebergSpawnCandidatesDay = -1;
   activeIcebergSpawnCandidates = [];
+  icebergCollisionMomentum.clear();
   minimap = buildMinimap();
   captainChartMinimap = null;
   ship = createShip(
@@ -5634,7 +5640,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       () => measureChartDriftAtInterval(nowMs)
     );
     if (chartRepairCheckIsDue && maybeStartChartVisualRepair(nowMs, chartDrift)) dirty = true;
-    if (measurePerformanceBenchmarkStage("icebergs", updateIcebergs)) dirty = true;
+    if (measurePerformanceBenchmarkStage("icebergs", () => updateIcebergs(dt))) dirty = true;
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
@@ -11238,6 +11244,7 @@ async function restoreSavedVoyage(payload) {
   refreshWeatherState(true);
   activeIcebergSpawnCandidatesDay = -1;
   activeIcebergSpawnCandidates = [];
+  icebergCollisionMomentum.clear();
   ensureIcebergPopulation(gameState);
 
   const savedPosition = normalize3(savedShip.position.slice());
@@ -27484,6 +27491,7 @@ function updateIcebergShipCollisions() {
 
       applyVesselIcebergSeparation(vesselId, iceberg, point, collision);
       applyCombatCollisionVelocity(vesselId, collision.a.vx, collision.a.vy);
+      applyIcebergCollisionVelocity(iceberg, collision.b.vx, collision.b.vy);
       const vesselDamage = Math.max(collision.a.damage, collision.b.damage);
       if ((shipCollisionCooldowns.get(pair) || 0) <= 0 && vesselDamage > 0) {
         applyCombatCollisionDamage(vesselId, vesselDamage, iceberg.id);
@@ -27501,18 +27509,33 @@ function icebergCollisionBody(iceberg, point) {
   const heading = npcShipScreenHeading(iceberg.heading);
   const frame = shipFootprintFrame(requiredIcebergFootprints(iceberg.variantId), heading);
   const variant = icebergVariantById(iceberg.variantId);
+  const collisionVelocity = icebergCollisionMomentum.get(iceberg) || [0, 0, 0];
   return {
     id: iceberg.id,
     x: point.x,
     y: point.y,
-    vx: 0,
-    vy: 0,
+    vx: dot3(collisionVelocity, camera.right) * PIXELS_PER_RADIAN,
+    vy: -dot3(collisionVelocity, camera.up) * PIXELS_PER_RADIAN,
     headingX: heading.x,
     headingY: heading.y,
     mass: variant.mass,
     footprint: translatedShipFootprint(frame, point.x, point.y),
     radius: shipFootprintRadius(frame)
   };
+}
+
+function applyIcebergCollisionVelocity(iceberg, vx, vy) {
+  const scale = 1 / PIXELS_PER_RADIAN;
+  const velocity = projectTangentVector([
+    camera.right[0] * vx * scale - camera.up[0] * vy * scale,
+    camera.right[1] * vx * scale - camera.up[1] * vy * scale,
+    camera.right[2] * vx * scale - camera.up[2] * vy * scale
+  ], iceberg.position);
+  if (vectorLength(velocity) < ICEBERG_COLLISION_VELOCITY_MIN_RAD) {
+    icebergCollisionMomentum.delete(iceberg);
+  } else {
+    icebergCollisionMomentum.set(iceberg, velocity);
+  }
 }
 
 function applyVesselIcebergSeparation(vesselId, iceberg, point, collision) {
@@ -27940,25 +27963,33 @@ function npcLocalCombatResponseSpeedPx(state, heading) {
 }
 
 function applyNpcCollisionDrift(state, dt) {
-  const speed = Math.hypot(state.collisionVelocityX, state.collisionVelocityY);
-  if (speed < NPC_COLLISION_VELOCITY_MIN_PX) {
+  const momentum = advanceCollisionMomentum(
+    [state.collisionVelocityX, state.collisionVelocityY],
+    dt,
+    {
+      dampingPerSecond: NPC_COLLISION_VELOCITY_DAMPING,
+      minimumSpeed: NPC_COLLISION_VELOCITY_MIN_PX
+    }
+  );
+  state.collisionVelocityX = momentum.velocity[0];
+  state.collisionVelocityY = momentum.velocity[1];
+  if (!momentum.active) {
     state.collisionVelocityX = 0;
     state.collisionVelocityY = 0;
     return false;
   }
+  const distance = Math.hypot(...momentum.displacement);
+  if (distance <= 1e-4) return false;
   const direction = {
-    x: state.collisionVelocityX / speed,
-    y: state.collisionVelocityY / speed
+    x: momentum.displacement[0] / distance,
+    y: momentum.displacement[1] / distance
   };
   const move = attemptNpcVisualStep(
     state,
     direction,
-    Math.min(NPC_VISUAL_MAX_STEP_PX, speed * dt),
+    Math.min(NPC_VISUAL_MAX_STEP_PX, distance),
     state.heading
   );
-  const damping = Math.exp(-NPC_COLLISION_VELOCITY_DAMPING * dt);
-  state.collisionVelocityX *= damping;
-  state.collisionVelocityY *= damping;
   if (!move?.ok) {
     state.collisionVelocityX = 0;
     state.collisionVelocityY = 0;
@@ -29428,12 +29459,13 @@ function ensureIcebergPopulation(state) {
   console.info(`[pixel-globe] icebergs: ${memory.individuals.length} drifting hazards seeded`);
 }
 
-function updateIcebergs() {
+function updateIcebergs(dt) {
   const memory = gameState?.memory?.icebergs;
   if (!memory) return false;
+  const collisionChanged = advanceIcebergCollisionDrift(memory, dt);
   if (memory.lastAdvanceMinute !== null &&
       weatherClockMinutes - memory.lastAdvanceMinute < ICEBERG_ADVANCE_INTERVAL_MINUTES) {
-    return false;
+    return collisionChanged;
   }
   const result = advanceIcebergMemory(memory, {
     currentMinute: weatherClockMinutes,
@@ -29443,7 +29475,60 @@ function updateIcebergs() {
     targetCount: ICEBERG_POPULATION_TARGET
   });
   if (result.changed) worldSpatialWildlifeChart = null;
-  return result.changed;
+  if (icebergCollisionMomentum.size > 0) {
+    const livingIcebergs = new Set(memory.individuals);
+    for (const iceberg of icebergCollisionMomentum.keys()) {
+      if (!livingIcebergs.has(iceberg)) icebergCollisionMomentum.delete(iceberg);
+    }
+  }
+  return collisionChanged || result.changed;
+}
+
+function advanceIcebergCollisionDrift(memory, dt) {
+  if (icebergCollisionMomentum.size === 0) return false;
+  const livingIcebergs = new Set(memory.individuals);
+  let changed = false;
+  for (const [iceberg, velocity] of icebergCollisionMomentum) {
+    if (!livingIcebergs.has(iceberg)) {
+      icebergCollisionMomentum.delete(iceberg);
+      continue;
+    }
+    const momentum = advanceCollisionMomentum(velocity, dt, {
+      dampingPerSecond: ICEBERG_COLLISION_VELOCITY_DAMPING,
+      minimumSpeed: ICEBERG_COLLISION_VELOCITY_MIN_RAD
+    });
+    if (!momentum.active) {
+      icebergCollisionMomentum.delete(iceberg);
+      continue;
+    }
+    const displacement = projectTangentVector(momentum.displacement, iceberg.position);
+    if (vectorLength(displacement) <= 1e-10) {
+      icebergCollisionMomentum.set(iceberg, momentum.velocity);
+      continue;
+    }
+    const position = normalize3([
+      iceberg.position[0] + displacement[0],
+      iceberg.position[1] + displacement[1],
+      iceberg.position[2] + displacement[2]
+    ]);
+    const environment = icebergEnvironmentAtPosition(position);
+    if (!environment.navigable || environment.frozen) {
+      icebergCollisionMomentum.delete(iceberg);
+      continue;
+    }
+    iceberg.position = position;
+    iceberg.tileId = environment.tileId;
+    iceberg.heading = normalizeTangentOrFallback(displacement, position, iceberg.heading);
+    const nextVelocity = projectTangentVector(momentum.velocity, position);
+    if (vectorLength(nextVelocity) < ICEBERG_COLLISION_VELOCITY_MIN_RAD) {
+      icebergCollisionMomentum.delete(iceberg);
+    } else {
+      icebergCollisionMomentum.set(iceberg, nextVelocity);
+    }
+    changed = true;
+  }
+  if (changed) worldSpatialWildlifeChart = null;
+  return changed;
 }
 
 function icebergEnvironmentAtPosition(position) {

@@ -3,6 +3,42 @@ import { shipFootprintCollision } from "./shipFootprint.js";
 export const SHIP_COLLISION_RESTITUTION = 0.48;
 export const SHIP_COLLISION_MIN_DAMAGE_SPEED_PX = 1.5;
 
+export function advanceCollisionMomentum(
+  velocity,
+  dt,
+  { dampingPerSecond, minimumSpeed }
+) {
+  validateMomentumVector(velocity);
+  if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid collision momentum dt: ${dt}`);
+  if (!Number.isFinite(dampingPerSecond) || dampingPerSecond < 0) {
+    throw new Error(`Invalid collision momentum damping: ${dampingPerSecond}`);
+  }
+  if (!Number.isFinite(minimumSpeed) || minimumSpeed < 0) {
+    throw new Error(`Invalid collision momentum minimum speed: ${minimumSpeed}`);
+  }
+
+  const speed = Math.hypot(...velocity);
+  if (speed < minimumSpeed) {
+    return {
+      active: false,
+      displacement: velocity.map(() => 0),
+      velocity: velocity.map(() => 0)
+    };
+  }
+
+  const damping = Math.exp(-dampingPerSecond * dt);
+  const displacementScale = dampingPerSecond > 0
+    ? (1 - damping) / dampingPerSecond
+    : dt;
+  const nextVelocity = velocity.map((value) => value * damping);
+  if (Math.hypot(...nextVelocity) < minimumSpeed) nextVelocity.fill(0);
+  return {
+    active: true,
+    displacement: velocity.map((value) => value * displacementScale),
+    velocity: nextVelocity
+  };
+}
+
 const BOW_HIT_VULNERABILITY = 0.55;
 const SIDE_HIT_VULNERABILITY = 1.55;
 const STERN_HIT_VULNERABILITY = 1.1;
@@ -148,6 +184,12 @@ function validateBody(body) {
   }
   if (Math.hypot(body.headingX, body.headingY) <= 1e-6) throw new Error(`Invalid heading for collision ship ${body.id}`);
   return body;
+}
+
+function validateMomentumVector(velocity) {
+  if (!Array.isArray(velocity) || velocity.length < 2 || !velocity.every(Number.isFinite)) {
+    throw new Error("Collision momentum requires a finite vector with at least two dimensions");
+  }
 }
 
 function clamp(value, min, max) {
