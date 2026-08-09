@@ -973,7 +973,7 @@ import {
   stepMenuIndex,
   toggleBinaryConfirmationIndex
 } from "./menuNavigation.js";
-import { fittedStackedMenuRows } from "./stackedMenuLayout.js";
+import { fittedStackedMenuRows, scrollableStackedMenuRows } from "./stackedMenuLayout.js";
 import {
   GAME_ICON_ASSET_VERSION,
   GAME_ICON_SIZE,
@@ -2426,7 +2426,7 @@ const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 234;
+const OPTIONS_PANEL_H = 282;
 const OPTIONS_ROW_H = 22;
 const OPTIONS_ROW_COUNT = 11;
 const OPTIONS_ROW_FULLSCREEN = 0;
@@ -5881,6 +5881,10 @@ function createOptionsMenuState() {
     panelRect: null,
     closeButtonRect: null,
     rowRects: [],
+    scrollOffset: 0,
+    visibleRowCount: OPTIONS_ROW_COUNT,
+    scrollUpRect: null,
+    scrollDownRect: null,
     sliderRects: {},
     sliderHitRects: {},
     muteRect: null,
@@ -12167,6 +12171,7 @@ function openOptionsMenu() {
   optionsMenu.isOpen = true;
   optionsMenu.view = "settings";
   optionsMenu.selectedIndex = 0;
+  optionsMenu.scrollOffset = 0;
   optionsMenu.activeSliderKey = null;
   optionsMenu.bindingCapture = null;
   optionsMenu.bindingFeedback = null;
@@ -12447,6 +12452,8 @@ function closeOptionsMenu() {
   optionsMenu.panelRect = null;
   optionsMenu.closeButtonRect = null;
   optionsMenu.rowRects = [];
+  optionsMenu.scrollUpRect = null;
+  optionsMenu.scrollDownRect = null;
   optionsMenu.sliderRects = {};
   optionsMenu.sliderHitRects = {};
   optionsMenu.muteRect = null;
@@ -13545,6 +13552,19 @@ function handleOptionsPointerDown(point) {
     closeOptionsMenu();
     return;
   }
+  if (pointInRect(point, optionsMenu.scrollUpRect)) {
+    optionsMenu.selectedIndex = Math.max(0, optionsMenu.scrollOffset - 1);
+    dirty = true;
+    return;
+  }
+  if (pointInRect(point, optionsMenu.scrollDownRect)) {
+    optionsMenu.selectedIndex = Math.min(
+      OPTIONS_ROW_COUNT - 1,
+      optionsMenu.scrollOffset + optionsMenu.visibleRowCount
+    );
+    dirty = true;
+    return;
+  }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_FULLSCREEN])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_FULLSCREEN;
     void toggleFullscreenMode();
@@ -14471,6 +14491,16 @@ function handleCanvasWheel(event) {
       event.preventDefault();
       stepCaptainJournalScroll(event.deltaY > 0 ? 1 : -1);
     }
+    return;
+  }
+  if (owner === INTERACTION_INPUT.OPTIONS && optionsMenu.view === "settings") {
+    event.preventDefault();
+    optionsMenu.selectedIndex = stepMenuIndex(
+      optionsMenu.selectedIndex,
+      event.deltaY > 0 ? 1 : -1,
+      OPTIONS_ROW_COUNT
+    );
+    dirty = true;
     return;
   }
   if (owner === INTERACTION_INPUT.ABOARD) {
@@ -38725,71 +38755,74 @@ function drawOptionsMenu() {
   });
 
   const rowX = panelX + 10;
-  const rowW = panel.w - 20;
   const firstRowY = panelY + 34;
-  const rowLayout = fittedStackedMenuRows({
+  const rowEndY = panelY + panel.h - 8;
+  const rowLayout = scrollableStackedMenuRows({
     startY: firstRowY,
-    endY: panelY + panel.h - 8,
+    endY: rowEndY,
     rowCount: OPTIONS_ROW_COUNT,
+    selectedIndex: optionsMenu.selectedIndex,
+    scrollOffset: optionsMenu.scrollOffset,
     preferredRowHeight: OPTIONS_ROW_H - 2,
     minimumRowHeight: GAME_ICON_SIZE + 2,
     preferredGap: 2,
     minimumGap: 1
   });
-  const rowRects = rowLayout.rows.map((row) => ({
-    x: rowX,
-    y: row.y,
-    w: rowW,
-    h: row.h
-  }));
-  const [
-    fullscreenRow,
-    musicRow,
-    sfxRow,
-    muteRow,
-    languageRow,
-    controlSchemeRow,
-    controllerIconsRow,
-    controlsRow,
-    diagnosticModeRow,
-    telemetryRow,
-    startMenuRow
-  ] = rowRects;
-  optionsMenu.rowRects = [
-    fullscreenRow,
-    musicRow,
-    sfxRow,
-    muteRow,
-    languageRow,
-    controlSchemeRow,
-    controllerIconsRow,
-    controlsRow,
-    diagnosticModeRow,
-    telemetryRow,
-    startMenuRow
-  ];
+  optionsMenu.scrollOffset = rowLayout.scrollOffset;
+  optionsMenu.visibleRowCount = rowLayout.visibleCount;
+  const scrollable = rowLayout.visibleCount < OPTIONS_ROW_COUNT;
+  const scrollGutterW = scrollable ? 22 : 0;
+  const rowW = panel.w - 20 - scrollGutterW;
+  optionsMenu.rowRects = Array(OPTIONS_ROW_COUNT).fill(null);
+  optionsMenu.sliderRects = {};
+  optionsMenu.sliderHitRects = {};
+  optionsMenu.muteRect = null;
+  for (const row of rowLayout.rows) {
+    const rect = { x: rowX, y: row.y, w: rowW, h: row.h };
+    optionsMenu.rowRects[row.index] = rect;
+    drawOptionsSettingsRow(row.index, rect);
+  }
 
-  drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
-  drawOptionsVolumeRow(musicRow, uiText("options.music"), "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
-  drawOptionsVolumeRow(sfxRow, uiText("options.sfx"), "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
-  drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
-  drawOptionsLanguageRow(languageRow, optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE);
-  drawOptionsControlSchemeRow(
-    controlSchemeRow,
-    optionsMenu.selectedIndex === OPTIONS_ROW_CONTROL_SCHEME
-  );
-  drawOptionsControllerIconsRow(
-    controllerIconsRow,
-    optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS
-  );
-  drawOptionsControlsRow(controlsRow, optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS);
-  drawOptionsDiagnosticModeRow(
-    diagnosticModeRow,
-    optionsMenu.selectedIndex === OPTIONS_ROW_DIAGNOSTIC_MODE
-  );
-  drawOptionsTelemetryRow(telemetryRow, optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY);
-  drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
+  const scrollButtonX = rowX + rowW + 3;
+  optionsMenu.scrollUpRect = rowLayout.canScrollUp
+    ? { x: scrollButtonX, y: firstRowY, w: 18, h: 20 }
+    : null;
+  optionsMenu.scrollDownRect = rowLayout.canScrollDown
+    ? { x: scrollButtonX, y: rowEndY - 20, w: 18, h: 20 }
+    : null;
+  if (optionsMenu.scrollUpRect) {
+    drawOptionsArrowButton(
+      optionsMenu.scrollUpRect,
+      "^",
+      pointInRect(optionsMenu.hoverPoint, optionsMenu.scrollUpRect)
+    );
+  }
+  if (optionsMenu.scrollDownRect) {
+    drawOptionsArrowButton(
+      optionsMenu.scrollDownRect,
+      "v",
+      pointInRect(optionsMenu.hoverPoint, optionsMenu.scrollDownRect)
+    );
+  }
   ctx.restore();
+}
+
+function drawOptionsSettingsRow(index, rowRect) {
+  const highlighted = optionsMenu.selectedIndex === index;
+  if (index === OPTIONS_ROW_FULLSCREEN) drawOptionsFullscreenRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_MUSIC) {
+    drawOptionsVolumeRow(rowRect, uiText("options.music"), "music", optionsMenu.musicVolume, highlighted);
+  } else if (index === OPTIONS_ROW_SFX) {
+    drawOptionsVolumeRow(rowRect, uiText("options.sfx"), "sfx", optionsMenu.sfxVolume, highlighted);
+  } else if (index === OPTIONS_ROW_MUTE) drawOptionsMuteRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_LANGUAGE) drawOptionsLanguageRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_CONTROL_SCHEME) drawOptionsControlSchemeRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_CONTROLLER_ICONS) drawOptionsControllerIconsRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_CONTROLS) drawOptionsControlsRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_DIAGNOSTIC_MODE) drawOptionsDiagnosticModeRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_TELEMETRY) drawOptionsTelemetryRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_START_MENU) drawOptionsStartMenuRow(rowRect, highlighted);
+  else throw new Error(`Unknown options settings row: ${index}`);
 }
 
 function drawControlSchemeMenu() {
