@@ -1,3 +1,5 @@
+import { interpolateChartRepairPlan } from "./chartReframe.js";
+
 const HEAT_HAZE_FORMATION_DURATION_MS = 18_000;
 const HEAT_HAZE_HOLD_DURATION_MS = 24_000;
 const HEAT_HAZE_CLEARING_DURATION_MS = 18_000;
@@ -122,27 +124,20 @@ export function planChartHeatHazeSettlement({
     throw new Error("Chart repair heat haze settlement requires finite motion bounds");
   }
   if (!frame?.repairReady) return new Map();
-  const step = Math.max(1, Math.floor(maximumStepPx));
-  const plan = new Map();
+  const eligibleTileIds = new Set();
   for (const id of tileIds) {
     const position = positions.get(id);
     const target = targetsById.get(id);
     if (!position || !target) continue;
     if (chartRepairHeatHazePixelOffset(frame, position.y + screenOffsetY) === 0) continue;
-    const dx = target.x - position.x;
-    const dy = target.y - position.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance < 0.5) continue;
-    const scale = Math.min(1, step / distance);
-    let x = position.x + Math.round(dx * scale);
-    let y = position.y + Math.round(dy * scale);
-    if (x === position.x && y === position.y) {
-      if (Math.abs(dx) >= Math.abs(dy)) x += Math.sign(dx);
-      else y += Math.sign(dy);
-    }
-    plan.set(id, Object.freeze({ x, y }));
+    eligibleTileIds.add(id);
   }
-  return plan;
+  return interpolateChartRepairPlan({
+    positions,
+    targetsById,
+    tileIds: eligibleTileIds,
+    maximumStepPx: Math.max(1, Math.floor(maximumStepPx))
+  }).nextPositions;
 }
 
 function clamp01(value) {

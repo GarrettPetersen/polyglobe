@@ -6,8 +6,10 @@ import {
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
   chartNorthUpDriftExceedsThreshold,
+  createExactNorthUpRepairPlan,
   createExactNorthUpLayout,
   exactNorthUpLayoutPosition,
+  interpolateChartRepairPlan,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
   selectRepresentativeChartDriftCalls
@@ -45,6 +47,47 @@ test("partial concealed repairs target the same field as a fresh north-up redraw
     viewportWidth: 200,
     viewportHeight: 120
   }), { x: fresh.x + 37, y: fresh.y - 12 });
+});
+
+test("concealed repair projects retained tiles outside the fresh viewport collection", () => {
+  const retainedPositions = new Map([
+    [10, { x: 10, y: 10 }],
+    [50350, { x: 220, y: 15 }],
+    [99, { x: -40, y: 30 }]
+  ]);
+  const plan = createExactNorthUpRepairPlan({
+    tileIds: new Set([50350, 99]),
+    retainedPositions,
+    projectTile: (id) => id === 50350 ? { x: 188, y: 42 } : null,
+    viewX: 20,
+    viewY: -5,
+    viewportWidth: 200,
+    viewportHeight: 120
+  });
+
+  assert.deepEqual(plan.get(50350), { x: 108, y: -23 });
+  assert.equal(plan.has(99), false);
+});
+
+test("concealed chart repairs approach north-up targets in monotonic pixel steps", () => {
+  const result = interpolateChartRepairPlan({
+    positions: new Map([
+      [1, { x: 10, y: 20 }],
+      [2, { x: 4, y: 7 }],
+      [3, { x: 0, y: 0 }]
+    ]),
+    targetsById: new Map([
+      [1, { x: 14, y: 17 }],
+      [2, { x: 5, y: 7 }]
+    ]),
+    tileIds: new Set([1, 2, 3]),
+    maximumStepPx: 1
+  });
+
+  assert.deepEqual(result.nextPositions.get(1), { x: 11, y: 19 });
+  assert.deepEqual(result.nextPositions.get(2), { x: 5, y: 7 });
+  assert.equal(result.nextPositions.has(3), false);
+  assert.deepEqual([...result.completedTileIds], [2]);
 });
 
 test("chart reframing preserves exact player and NPC globe positions", () => {

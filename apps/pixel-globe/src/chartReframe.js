@@ -29,6 +29,82 @@ export function exactNorthUpLayoutPosition({
   };
 }
 
+export function createExactNorthUpRepairPlan({
+  tileIds,
+  retainedPositions,
+  projectTile,
+  viewX,
+  viewY,
+  viewportWidth,
+  viewportHeight,
+  excludedTileId = null
+}) {
+  if (!(tileIds instanceof Set) || !(retainedPositions instanceof Map)) {
+    throw new Error("Exact north-up repair planning requires retained tiles");
+  }
+  if (typeof projectTile !== "function") {
+    throw new Error("Exact north-up repair planning requires a projection function");
+  }
+  const plan = new Map();
+  for (const id of tileIds) {
+    if (!retainedPositions.has(id) || id === excludedTileId) continue;
+    const projected = projectTile(id);
+    if (!projected) continue;
+    plan.set(id, Object.freeze(exactNorthUpLayoutPosition({
+      projected,
+      viewX,
+      viewY,
+      viewportWidth,
+      viewportHeight
+    })));
+  }
+  return plan;
+}
+
+export function interpolateChartRepairPlan({
+  positions,
+  targetsById,
+  tileIds,
+  maximumStepPx = 1
+}) {
+  if (!(positions instanceof Map) || !(targetsById instanceof Map) || !(tileIds instanceof Set)) {
+    throw new Error("Chart repair interpolation requires position and target maps plus tile ids");
+  }
+  if (!Number.isInteger(maximumStepPx) || maximumStepPx <= 0) {
+    throw new Error(`Chart repair interpolation has invalid pixel step: ${maximumStepPx}`);
+  }
+  const nextPositions = new Map();
+  const completedTileIds = new Set();
+  for (const id of tileIds) {
+    const position = positions.get(id);
+    const target = targetsById.get(id);
+    if (!position || !target) continue;
+    for (const [label, value] of Object.entries({
+      positionX: position.x,
+      positionY: position.y,
+      targetX: target.x,
+      targetY: target.y
+    })) {
+      if (!Number.isFinite(value)) {
+        throw new Error(`Chart repair interpolation has invalid ${label} for tile ${id}`);
+      }
+    }
+    const dx = target.x - position.x;
+    const dy = target.y - position.y;
+    if (dx === 0 && dy === 0) {
+      completedTileIds.add(id);
+      continue;
+    }
+    const next = Object.freeze({
+      x: position.x + Math.sign(dx) * Math.min(Math.abs(dx), maximumStepPx),
+      y: position.y + Math.sign(dy) * Math.min(Math.abs(dy), maximumStepPx)
+    });
+    nextPositions.set(id, next);
+    if (next.x === target.x && next.y === target.y) completedTileIds.add(id);
+  }
+  return { nextPositions, completedTileIds };
+}
+
 export function selectRepresentativeChartDriftCalls(calls, viewport) {
   if (!Array.isArray(calls)) throw new Error("Chart drift calls must be an array");
   const { viewX, viewY, halfWidth, halfHeight } = viewport || {};

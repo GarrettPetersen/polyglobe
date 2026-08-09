@@ -1599,7 +1599,8 @@ import {
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
   createExactNorthUpLayout,
-  exactNorthUpLayoutPosition,
+  createExactNorthUpRepairPlan,
+  interpolateChartRepairPlan,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
   selectRepresentativeChartDriftCalls
@@ -20070,20 +20071,21 @@ function repairFogCoveredChartTiles(frame, reason, repairedTileIds = null) {
   if (repairedTileIds !== null && !(repairedTileIds instanceof Set)) {
     throw new Error(`Chart fog repair ${reason} requires a repaired tile set`);
   }
-  const removedIds = repairCoveredChartTiles({
+  const repair = repairCoveredChartTiles({
     reason,
     fullyCoversCircle: (x, y, radius) => chartFogObscuresCircle(frame, x, y, radius),
-    shouldRepairTile: (id) => repairedTileIds === null || !repairedTileIds.has(id)
+    shouldRepairTile: (id) => repairedTileIds === null || !repairedTileIds.has(id),
+    maximumStepPx: 1
   });
   if (repairedTileIds) {
-    for (const id of removedIds) repairedTileIds.add(id);
+    for (const id of repair.completedTileIds) repairedTileIds.add(id);
   }
-  const removedCount = removedIds.length;
-  if (removedCount === 0) return 0;
+  const movedCount = repair.movedTileIds.length;
+  if (movedCount === 0) return 0;
   chartVisualRepairStats.fogRedrawsCompleted++;
-  chartVisualRepairStats.fogTilesReplaced += removedCount;
+  chartVisualRepairStats.fogTilesReplaced += repair.completedTileIds.length;
   if (reason === "polar fog") chartVisualRepairStats.polarFogRedrawsCompleted++;
-  return removedCount;
+  return movedCount;
 }
 
 function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan) {
@@ -20093,27 +20095,30 @@ function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan
   if (!(repairPlan instanceof Map)) {
     throw new Error(`Chart cloud repair ${reason} requires a grouped position plan`);
   }
-  const removedIds = repairCoveredChartTiles({
+  const repair = repairCoveredChartTiles({
     reason,
     fullyCoversCircle: (x, y, radius) => (
       chartRepairCloudFullyCoversCircle(frame, x, y, radius)
     ),
     shouldRepairTile: (id) => !repairedTileIds.has(id) && repairPlan.has(id),
-    repairPlan
+    repairPlan,
+    maximumStepPx: 1
   });
-  for (const id of removedIds) repairedTileIds.add(id);
-  const removedCount = removedIds.length;
-  chartVisualRepairStats.cloudTilesReplaced += removedCount;
-  return removedCount;
+  for (const id of repair.completedTileIds) repairedTileIds.add(id);
+  chartVisualRepairStats.cloudTilesReplaced += repair.completedTileIds.length;
+  return repair.movedTileIds.length;
 }
 
 function repairCoveredChartTiles({
   reason,
   fullyCoversCircle,
   shouldRepairTile = () => true,
-  repairPlan = null
+  repairPlan = null,
+  maximumStepPx = 1
 }) {
-  if (!ship || !camera || !chart || !localLayout) return [];
+  if (!ship || !camera || !chart || !localLayout) {
+    return { movedTileIds: [], completedTileIds: [] };
+  }
   if (typeof fullyCoversCircle !== "function") {
     throw new Error(`Covered chart repair ${reason} requires a coverage predicate`);
   }
@@ -20122,6 +20127,9 @@ function repairCoveredChartTiles({
   }
   if (repairPlan !== null && !(repairPlan instanceof Map)) {
     throw new Error(`Covered chart repair ${reason} requires a position plan as a map`);
+  }
+  if (!Number.isInteger(maximumStepPx) || maximumStepPx <= 0) {
+    throw new Error(`Covered chart repair ${reason} requires a positive pixel step`);
   }
   const offset = layoutOffsetPixels();
   const hiddenNpcStates = [...npcVisualShips.values()].filter((state) => (
@@ -20142,22 +20150,34 @@ function repairCoveredChartTiles({
     )) continue;
     removedIds.push(id);
   }
-  if (removedIds.length === 0) return removedIds;
+  if (removedIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
 
   const concealedTileIds = new Set(removedIds);
   const effectiveRepairPlan = repairPlan ?? planConcealedChartTileRepairs(concealedTileIds);
+  const repairableIds = removedIds.filter((id) => effectiveRepairPlan.has(id));
+  if (repairableIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
+  const interpolated = interpolateChartRepairPlan({
+    positions: localLayout.positions,
+    targetsById: effectiveRepairPlan,
+    tileIds: new Set(repairableIds),
+    maximumStepPx
+  });
+  const movedTileIds = [...interpolated.nextPositions.keys()];
+  if (movedTileIds.length === 0) {
+    return { movedTileIds, completedTileIds: [...interpolated.completedTileIds] };
+  }
+  const movingTileIds = new Set(movedTileIds);
   let repairedChart = null;
   mutateChartPositionsBehindVisualCover(reason, (positionLocks) => {
-    for (const id of removedIds) {
-      const position = effectiveRepairPlan.get(id);
-      if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
-        throw new Error(`Chart repair plan ${reason} is missing tile ${id}`);
+    for (const [id, position] of interpolated.nextPositions.entries()) {
+      if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+        throw new Error(`Chart repair plan ${reason} has malformed tile ${id}`);
       }
       localLayout.positions.set(id, { x: position.x, y: position.y });
       positionLocks.set(id, { x: position.x, y: position.y });
     }
     repairedChart = buildChart(camera, positionLocks);
-  }, concealedTileIds);
+  }, movingTileIds);
 
   chart = repairedChart;
   if (hiddenNpcStates.length > 0) reprojectNpcVisualPositions(hiddenNpcStates);
@@ -20166,10 +20186,13 @@ function repairCoveredChartTiles({
   chartDriftMeasuredAtMs = lastFrameMs;
   console.info(
     `[pixel-globe] chart repaired behind ${reason}: ` +
-      `${removedIds.length} hidden tiles, ${hiddenNpcStates.length} hidden NPC ships`
+      `${movedTileIds.length} hidden tiles, ${hiddenNpcStates.length} hidden NPC ships`
   );
   dirty = true;
-  return removedIds;
+  return {
+    movedTileIds,
+    completedTileIds: [...interpolated.completedTileIds]
+  };
 }
 
 function chartTilesInCloudRepairPath(animation) {
@@ -20195,35 +20218,16 @@ function planConcealedChartTileRepairs(tileIds) {
   }
   if (!camera || !localLayout || tileIds.size === 0) return new Map();
   const northUp = northUpCamera(ship.position, camera.right);
-  const chartCamera = {
-    center: northUp.center.slice(),
-    right: northUp.right.slice(),
-    up: northUp.up.slice()
-  };
-  const chartCenterTileId = findNearestTileId(graph, directionIndex, chartCamera.center);
-  const projectedVisible = collectChartTiles(chartCamera, chartCenterTileId);
-  const projectedIds = new Set(projectedVisible.map((item) => item.id));
-  const plannedTileIds = new Set([...tileIds].filter((id) => (
-    id !== chartCenterTileId &&
-    projectedIds.has(id) &&
-    localLayout.positions.has(id)
-  )));
-  if (plannedTileIds.size === 0) return new Map();
-
-  const projectedById = new Map(projectedVisible.map((tile) => [tile.id, tile]));
-  const repairPlan = new Map();
-  for (const id of plannedTileIds) {
-    const projected = projectedById.get(id);
-    if (!projected) throw new Error(`Concealed chart repair could not project tile ${id}`);
-    repairPlan.set(id, Object.freeze(exactNorthUpLayoutPosition({
-      projected,
-      viewX: localLayout.viewX,
-      viewY: localLayout.viewY,
-      viewportWidth: SCREEN_W,
-      viewportHeight: SCREEN_H
-    })));
-  }
-  return repairPlan;
+  return createExactNorthUpRepairPlan({
+    tileIds,
+    retainedPositions: localLayout.positions,
+    projectTile: (id) => projectTileCenterFor(id, northUp),
+    viewX: localLayout.viewX,
+    viewY: localLayout.viewY,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    excludedTileId: centerTileId
+  });
 }
 
 function chartViewportIsFullyElasticOpenOcean() {
