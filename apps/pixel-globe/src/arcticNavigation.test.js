@@ -5,6 +5,7 @@ import test from "node:test";
 import { cityHasPortAccess } from "./cityPortAccess.js";
 import { buildGeodesicGraph } from "./geodesic.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
+import { PERMANENT_POLAR_CAP_LATITUDE_DEG } from "./polarChartPresentation.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 import {
   WEATHER_DAYS,
@@ -14,7 +15,6 @@ import {
 import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 
 const SUBDIVISIONS = 7;
-const PERMANENT_POLAR_CAP_LATITUDE = 74;
 const KHOLMOGORY_CITY_TILE_ID = 55603;
 const OB_GULF_TILE_ID = 59279;
 const INLAND_OB_RIVER_TILE_ID = 239;
@@ -39,7 +39,7 @@ test("the permanent polar cap blocks both poles without sealing western Arctic p
 
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
     const latitude = graph.latDeg[tileId];
-    if (Math.abs(latitude) >= PERMANENT_POLAR_CAP_LATITUDE) {
+    if (Math.abs(latitude) >= PERMANENT_POLAR_CAP_LATITUDE_DEG) {
       assert.ok(
         earthRows[tileId].t === "ice" || earthRows[tileId].t === "ice_cap",
         `polar cap tile ${tileId} at ${latitude} degrees is ${earthRows[tileId].t}`
@@ -54,8 +54,8 @@ test("the permanent polar cap blocks both poles without sealing western Arctic p
 
   assert.ok(northCapTileCount > 0);
   assert.ok(southCapTileCount > 0);
-  assert.ok(northernmostNavigableLatitude < PERMANENT_POLAR_CAP_LATITUDE);
-  assert.ok(southernmostNavigableLatitude > -PERMANENT_POLAR_CAP_LATITUDE);
+  assert.ok(northernmostNavigableLatitude < PERMANENT_POLAR_CAP_LATITUDE_DEG);
+  assert.ok(southernmostNavigableLatitude > -PERMANENT_POLAR_CAP_LATITUDE_DEG);
   assert.equal(earthRows[NORTH_POLE_TILE_ID].t, "ice");
   assert.equal(earthRows[SOUTH_POLE_TILE_ID].t, "ice_cap");
   assert.equal(topology.reachableNavigationMask[NORTH_POLE_TILE_ID], 0);

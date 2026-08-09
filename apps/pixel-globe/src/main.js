@@ -1577,6 +1577,10 @@ import {
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
 import {
+  isBeyondPermanentPolarCap,
+  polarChartTerrainRow
+} from "./polarChartPresentation.js";
+import {
   createPlayerShipRecoveryState,
   findNearestShipPlacement,
   restoredShipPlacementPlan,
@@ -30181,6 +30185,7 @@ function riverSurfaceSprites(staticLayer) {
   }
   const sprites = [];
   for (const call of staticLayer.tileCalls) {
+    if (call.polarEmpty) continue;
     const mask = riverMasks?.[call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
     const source = riverSpriteForTile(call, activeChart, mask);
@@ -30672,6 +30677,7 @@ function cachedSurfaceDetailGeometryMatchesChart(cached, activeChart, viewport) 
 function surfaceDetailRiverGeometryKey(activeChart, calls) {
   const parts = [];
   for (const call of calls.tileCalls) {
+    if (call.polarEmpty) continue;
     const mask = riverMasks?.[call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
     const endpoints = riverEndpointsForTile(call, activeChart, mask)
@@ -31299,7 +31305,7 @@ function drawOutlineSource(targetCtx, image, sourceX, sourceY, sourceW, sourceH,
 function worldDiscoveryLocalPoint(discovery, activeChart) {
   const tileId = discovery.spriteTileId ?? discovery.tileId;
   const call = activeChart.tileById.get(tileId);
-  if (!call) return null;
+  if (!call || call.polarEmpty) return null;
   return {
     x: call.drawSurfaceX,
     y: call.drawSurfaceY
@@ -31878,7 +31884,9 @@ function buildChart(anchorCamera, positionLocks = null) {
   for (const item of projectedVisible) {
     const position = localLayout.positions.get(item.id);
     if (!position) throw new Error(`Missing local layout for visible tile: ${item.id}`);
-    const row = earthById[item.id];
+    const sourceRow = earthById[item.id];
+    const polarEmpty = isBeyondPermanentPolarCap(graph.latDeg[item.id]);
+    const row = polarChartTerrainRow(sourceRow, graph.latDeg[item.id]);
     const level = terrainLevel(row, item.id);
     const surface = { x: position.x, y: position.y - level * 3 };
     const tileCall = {
@@ -31886,6 +31894,7 @@ function buildChart(anchorCamera, positionLocks = null) {
       x: position.x,
       y: position.y,
       row,
+      polarEmpty,
       level,
       surface,
       drawSurfaceX: surface.x,
@@ -31897,10 +31906,12 @@ function buildChart(anchorCamera, positionLocks = null) {
     };
     tileCalls.push(tileCall);
     tileById.set(item.id, tileCall);
-    const city = cityByTileId.get(item.id);
-    if (city) citySpecs.push({ city, tileCall });
-    const pirateHideout = visiblePirateHideouts?.get(item.id);
-    if (pirateHideout) citySpecs.push({ city: pirateHideout, tileCall });
+    if (!polarEmpty) {
+      const city = cityByTileId.get(item.id);
+      if (city) citySpecs.push({ city, tileCall });
+      const pirateHideout = visiblePirateHideouts?.get(item.id);
+      if (pirateHideout) citySpecs.push({ city: pirateHideout, tileCall });
+    }
 
     const neighbors = graph.neighbors[item.id];
     for (const nid of neighbors) {
@@ -31908,7 +31919,8 @@ function buildChart(anchorCamera, positionLocks = null) {
       if (nid < item.id) continue;
       const nLayout = localLayout.positions.get(nid);
       if (!nLayout) throw new Error(`Missing local layout for visible neighbor: ${nid}`);
-      const nrow = earthById[nid];
+      const nPolarEmpty = isBeyondPermanentPolarCap(graph.latDeg[nid]);
+      const nrow = polarChartTerrainRow(earthById[nid], graph.latDeg[nid]);
       const nlevel = terrainLevel(nrow, nid);
       const nSurfaceY = nLayout.y - nlevel * 3;
       if (!segmentNearScreen(surface.x + drawOffset.x, surface.y + drawOffset.y, nLayout.x + drawOffset.x, nSurfaceY + drawOffset.y, CHART_MARGIN)) continue;
@@ -31926,20 +31938,22 @@ function buildChart(anchorCamera, positionLocks = null) {
         level,
         nlevel
       }));
-      const riverConnector = makeRiverConnectorCall({
-        a: item.id,
-        b: nid,
-        ax: surface.x,
-        ay: surface.y,
-        aSortY: position.y,
-        bx: nLayout.x,
-        by: nSurfaceY,
-        bSortY: nLayout.y,
-        row,
-        nrow,
-        level,
-        nlevel
-      });
+      const riverConnector = polarEmpty || nPolarEmpty
+        ? null
+        : makeRiverConnectorCall({
+            a: item.id,
+            b: nid,
+            ax: surface.x,
+            ay: surface.y,
+            aSortY: position.y,
+            bx: nLayout.x,
+            by: nSurfaceY,
+            bSortY: nLayout.y,
+            row,
+            nrow,
+            level,
+            nlevel
+          });
       if (riverConnector) riverConnectorCalls.push(riverConnector);
     }
   }
@@ -31960,8 +31974,8 @@ function buildChart(anchorCamera, positionLocks = null) {
   const driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {
     viewX: localLayout.viewX,
     viewY: localLayout.viewY,
-    halfWidth: SCREEN_W / 2 + VIEW_MARGIN,
-    halfHeight: SCREEN_H / 2 + VIEW_MARGIN
+    halfWidth: SCREEN_W / 2 + TILE_ART_HALF,
+    halfHeight: SCREEN_H / 2 + TILE_ART_HALF
   });
   const waterIndex = buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, {
     tileById,
@@ -39985,6 +39999,7 @@ function cachedLandRoadLayer(activeChart, requiredTileIds) {
       const a = activeChart.tileById.get(segment.a);
       const b = activeChart.tileById.get(segment.b);
       if (!a || !b) continue;
+      if (a.polarEmpty || b.polarEmpty) continue;
       roadSegments.push({
         id: segment.id,
         path: landRoadSegmentPath(a, b, segment.a, segment.b)
@@ -40361,6 +40376,7 @@ function visibleRiverWaterPixelRaster(activeChart, tileCalls, riverConnectorCall
   }
   const pointGroups = [];
   for (const call of tileCalls) {
+    if (call.polarEmpty) continue;
     const mask = riverMasks?.[call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(call.row)) continue;
     pointGroups.push(cachedRiverTileWaterPoints(call, activeChart, mask));
@@ -49404,10 +49420,9 @@ function spriteForTerrain(row, id) {
 
   if (t === "water") return waterSpriteForTile(id, row.waterDepthBand);
   if (t === "lake" || t === "beach") return `water_shallow_0${waterTextureVariantFor(id)}`;
+  if (t.includes("ice")) return "snow_01";
   if (isMountainPeakTile(id)) return snowyMountainVariant(id);
   if (t === "mountain") return mountainVariant(id);
-  if (t.includes("ice_cap")) return "snow_01";
-  if (t === "ice") return "snow_01";
   if (t.includes("tundra") || t === "snow") return "snow_01";
   if (row.e > 0.13) return "earth_stone";
   if (row.h === 1) return hillSpriteForTerrain(row, id);

@@ -1,4 +1,5 @@
 import { fogLayerRgba } from "./stormPresentation.js";
+import { PERMANENT_POLAR_CAP_LATITUDE_DEG } from "./polarChartPresentation.js";
 
 export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
 
@@ -120,7 +121,11 @@ export function polarChartFogFrame({
   })) {
     if (!Number.isFinite(value)) throw new Error(`Polar chart fog has invalid ${label}`);
   }
-  const polarAmount = smoothstep(58, 74, Math.abs(latitudeDeg));
+  const polarAmount = smoothstep(
+    58,
+    PERMANENT_POLAR_CAP_LATITUDE_DEG,
+    Math.abs(latitudeDeg)
+  );
   if (polarAmount <= 0) return null;
   const maximumClearRadius = Math.max(
     Math.hypot(focusX, focusY),
