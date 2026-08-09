@@ -5,6 +5,9 @@ export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze([
     38891, // Gulf of Khambhat at Cambay's historical harbor.
     38903, // Outlet from the inner gulf to the existing Arabian Sea coast.
+    98867, // Western Gulf of Corinth, opening from the Gulf of Patras.
+    24803, // Central Gulf of Corinth.
+    98890, // Eastern Gulf of Corinth, stopping west of the historical isthmus.
     88775, // Cook Strait between New Zealand's North and South Islands.
     31618, // Mozambique's southwest island channel.
     125890, // Mozambique's northwest island channel.

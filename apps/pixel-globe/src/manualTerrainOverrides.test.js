@@ -18,6 +18,9 @@ import {
 const SUBDIVISIONS = 7;
 const GULF_OF_KHAMBHAT_TILE_ID = 38891;
 const GULF_OF_KHAMBHAT_OUTLET_TILE_ID = 38903;
+const GULF_OF_CORINTH_TILE_IDS = Object.freeze([98867, 24803, 98890]);
+const GULF_OF_PATRAS_TILE_ID = 24804;
+const CORINTH_ISTHMUS_TILE_ID = 24795;
 const COOK_STRAIT_TILE_ID = 88775;
 const MOZAMBIQUE_ISLAND_TILE_ID = 125893;
 const MOZAMBIQUE_CHANNEL_TILE_IDS = Object.freeze([31618, 125890, 125896]);
@@ -179,6 +182,7 @@ test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", as
     [
       GULF_OF_KHAMBHAT_TILE_ID,
       GULF_OF_KHAMBHAT_OUTLET_TILE_ID,
+      ...GULF_OF_CORINTH_TILE_IDS,
       COOK_STRAIT_TILE_ID,
       ...MOZAMBIQUE_CHANNEL_TILE_IDS
     ]
@@ -193,6 +197,32 @@ test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", as
   assert.equal(correctedRows[38890], earth.tiles[38890]);
   assert.ok(Math.abs(graph.latDeg[GULF_OF_KHAMBHAT_TILE_ID] - 22.2082) < 0.01);
   assert.ok(Math.abs(graph.lonDeg[GULF_OF_KHAMBHAT_TILE_ID] - 72.5391) < 0.01);
+});
+
+test("the Gulf of Corinth opens from Patras while the Corinthian isthmus remains land", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+  const gulfChain = [GULF_OF_PATRAS_TILE_ID, ...GULF_OF_CORINTH_TILE_IDS];
+
+  for (let index = 0; index < gulfChain.length; index++) {
+    const tileId = gulfChain[index];
+    assert.equal(isWaterSurfaceRow(correctedRows[tileId]), true, `Gulf tile ${tileId} must be water`);
+    if (index > 0) {
+      assert.equal(
+        graph.neighbors[gulfChain[index - 1]].includes(tileId),
+        true,
+        `Gulf of Corinth breaks between ${gulfChain[index - 1]} and ${tileId}`
+      );
+    }
+  }
+  assert.equal(isWaterSurfaceRow(correctedRows[CORINTH_ISTHMUS_TILE_ID]), false);
+  assert.equal(correctedRows[CORINTH_ISTHMUS_TILE_ID].m, 57);
+  assert.ok(Math.abs(graph.latDeg[GULF_OF_CORINTH_TILE_IDS[1]] - 38.2248) < 0.01);
+  assert.ok(Math.abs(graph.lonDeg[GULF_OF_CORINTH_TILE_IDS[1]] - 22.1260) < 0.01);
 });
 
 test("Cook Strait separates New Zealand's North and South Islands", async () => {
