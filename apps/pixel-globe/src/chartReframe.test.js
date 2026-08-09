@@ -7,6 +7,7 @@ import {
   chartReframeCandidateIsNorthUp,
   chartNorthUpDriftExceedsThreshold,
   createExactNorthUpLayout,
+  exactNorthUpLayoutPosition,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
   selectRepresentativeChartDriftCalls
@@ -25,6 +26,25 @@ test("an exact hidden reframe discards prior tears and follows fresh projection"
     [12, { x: 31, y: 39 }]
   ]);
   assert.deepEqual({ viewX: layout.viewX, viewY: layout.viewY }, { viewX: 0, viewY: 0 });
+});
+
+test("partial concealed repairs target the same field as a fresh north-up redraw", () => {
+  const projected = { id: 11, x: 142, y: 80 };
+  const fresh = createExactNorthUpLayout([projected], 200, 120).positions.get(11);
+  assert.deepEqual(exactNorthUpLayoutPosition({
+    projected,
+    viewX: 0,
+    viewY: 0,
+    viewportWidth: 200,
+    viewportHeight: 120
+  }), fresh);
+  assert.deepEqual(exactNorthUpLayoutPosition({
+    projected,
+    viewX: 37,
+    viewY: -12,
+    viewportWidth: 200,
+    viewportHeight: 120
+  }), { x: fresh.x + 37, y: fresh.y - 12 });
 });
 
 test("chart reframing preserves exact player and NPC globe positions", () => {

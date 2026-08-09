@@ -2,6 +2,7 @@ const SWELL_PASS_WEIGHT = 0.08;
 const PARTIAL_CLOUD_WEIGHT = 0.8;
 const FULL_CLOUD_WEIGHT = 3;
 const CLOSING_FOG_WEIGHT = 6;
+const HEAT_HAZE_WEIGHT = 2;
 const FOG_DEPTH_WEIGHT = 2;
 const VIEWPORT_COVER_WEIGHT = 0.25;
 
@@ -15,6 +16,7 @@ export function chartVisualRepairBurden(stats) {
     "cloudBanksStarted",
     "partialCloudBanksStarted",
     "closingFogsStarted",
+    "heatHazesStarted",
     "maximumFogDepthRatio",
     "cloudTargetViewportEquivalents"
   ]) {
@@ -33,6 +35,7 @@ export function chartVisualRepairBurden(stats) {
     values.partialCloudBanksStarted * PARTIAL_CLOUD_WEIGHT +
     fullCloudBanks * FULL_CLOUD_WEIGHT +
     values.closingFogsStarted * CLOSING_FOG_WEIGHT +
+    values.heatHazesStarted * HEAT_HAZE_WEIGHT +
     values.maximumFogDepthRatio * FOG_DEPTH_WEIGHT +
     values.cloudTargetViewportEquivalents * VIEWPORT_COVER_WEIGHT;
   return Object.freeze({

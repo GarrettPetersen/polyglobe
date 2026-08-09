@@ -11,10 +11,13 @@ test("chart repair burden treats subtle swell corrections as cheaper than obscur
   });
   const fog = chartVisualRepairBurden({
     closingFogsStarted: 1,
+    heatHazesStarted: 0,
     maximumFogDepthRatio: 0.75
   });
+  const haze = chartVisualRepairBurden({ heatHazesStarted: 1 });
 
   assert.ok(swells.burdenScore < cloud.burdenScore);
+  assert.ok(haze.burdenScore < cloud.burdenScore);
   assert.ok(cloud.burdenScore < fog.burdenScore);
 });
 

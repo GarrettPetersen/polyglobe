@@ -1599,6 +1599,7 @@ import {
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
   createExactNorthUpLayout,
+  exactNorthUpLayoutPosition,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
   selectRepresentativeChartDriftCalls
@@ -1636,6 +1637,13 @@ import {
   fillChartFogMaskPixels,
   polarChartFogFrame
 } from "./chartRepairFog.js";
+import {
+  chartRepairHeatHazeFrame,
+  chartRepairHeatHazeIsPlausible,
+  chartRepairHeatHazePixelOffset,
+  createChartRepairHeatHaze,
+  planChartHeatHazeSettlement
+} from "./chartRepairHeatHaze.js";
 import {
   partitionVisualStateReprojections,
   resolveVisualStateReprojection
@@ -2111,6 +2119,7 @@ const CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS = 120;
 const CHART_REPAIR_CLOUD_SPEED_SCALE = 0.22;
 const CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND = 7;
 const CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS = 240;
+const CHART_REPAIR_HEAT_HAZE_TILE_SCAN_INTERVAL_MS = 900;
 const CHART_REPAIR_TILE_VISUAL_RADIUS_PX = TILE_ART_HALF + 3;
 const CLOUD_VIEWPORT_MARGIN_PX =
   CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
@@ -3261,6 +3270,7 @@ let chartNorthUpDrift = measureChartNorthUpDrift([]);
 let chartWorstDistortionPoint = Object.freeze({ x: SCREEN_W / 2, y: SCREEN_H / 2 });
 let chartWorstVisibleTerrainTear = Object.freeze({
   extraPx: 0,
+  signedExtraPx: 0,
   tileIds: Object.freeze([]),
   surface: null,
   screenX: SCREEN_W / 2,
@@ -3270,6 +3280,7 @@ let chartReframeCoverWasActive = false;
 let chartDriftMeasuredAtMs = -Infinity;
 let chartRepairCloudBank = null;
 let chartRepairFog = null;
+let chartRepairHeatHaze = null;
 let chartRepairCooldownUntilMs = -Infinity;
 let chartRepairPendingConfirmation = null;
 let chartVisualRepairStats = createChartVisualRepairStats();
@@ -19619,6 +19630,7 @@ function measureCurrentVisibleTerrainTear() {
   if (!chart || !localLayout) {
     chartWorstVisibleTerrainTear = Object.freeze({
       extraPx: 0,
+      signedExtraPx: 0,
       tileIds: Object.freeze([]),
       surface: null,
       screenX: SCREEN_W / 2,
@@ -19689,7 +19701,7 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   if (opaqueCover) chartRepairPendingConfirmation = null;
   if (
     !ship || !camera || !chart || !localLayout || lakeBattleMode ||
-    chartRepairCloudBank || chartRepairFog ||
+    chartRepairCloudBank || chartRepairFog || chartRepairHeatHaze ||
     opaqueCover
   ) return false;
 
@@ -19706,6 +19718,21 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     swellRepairAvailable,
     distortionSurface
   });
+  const heatHazeAvailable = Boolean(
+    candidate.fault && chartRepairHeatHazeIsPlausibleAt(candidate.fault)
+  );
+  if (heatHazeAvailable) {
+    candidate = chooseChartVisualRepair({
+      drift,
+      terrainTear,
+      distortionPoint: chartWorstDistortionPoint,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H,
+      swellRepairAvailable,
+      distortionSurface,
+      heatHazeAvailable: true
+    });
+  }
   const polarFog = currentPolarChartFogFrame();
   if (
     candidate.fault && polarFog &&
@@ -19724,7 +19751,8 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       viewportHeight: SCREEN_H,
       swellRepairAvailable,
       distortionSurface,
-      polarFogCoversFault: true
+      polarFogCoversFault: true,
+      heatHazeAvailable
     });
   }
   if (candidate.kind !== "polar-fog" && nowMs < chartRepairCooldownUntilMs) {
@@ -19762,6 +19790,20 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     };
     chartVisualRepairStats.closingFogsStarted++;
     chartVisualRepairStats.closingFogSecondsScheduled += animation.durationMs / 1000;
+    chartRepairPendingConfirmation = null;
+    return true;
+  }
+
+  if (repair.kind === "heat-haze") {
+    const animation = createChartRepairHeatHaze({ nowMs });
+    chartRepairHeatHaze = {
+      animation,
+      nextTileRepairAtMs: nowMs,
+      repairedCount: 0,
+      release: null
+    };
+    chartVisualRepairStats.heatHazesStarted++;
+    chartVisualRepairStats.heatHazeSecondsScheduled += animation.durationMs / 1000;
     chartRepairPendingConfirmation = null;
     return true;
   }
@@ -19875,7 +19917,60 @@ function updateChartVisualRepair(nowMs) {
     }
     changed = true;
   }
+  if (chartRepairHeatHaze) {
+    const state = chartRepairHeatHaze;
+    const frame = chartRepairHeatHazeFrame(state.animation, nowMs, state.release);
+    if (
+      state.release === null &&
+      frame.repairReady &&
+      nowMs >= state.nextTileRepairAtMs
+    ) {
+      state.nextTileRepairAtMs = nowMs + CHART_REPAIR_HEAT_HAZE_TILE_SCAN_INTERVAL_MS;
+      const repairedCount = repairChartTilesWithinHeatHaze(frame);
+      state.repairedCount += repairedCount;
+      if (repairedCount > 0) {
+        chartVisualRepairStats.heatHazeRepairPasses++;
+        chartVisualRepairStats.heatHazeTilesSettled += repairedCount;
+        if (!currentChartVisualFaultNeedsRepair()) {
+          state.release = {
+            startedAtMs: nowMs,
+            startStrength: frame.strength
+          };
+        }
+      }
+    }
+    if (frame.finished) {
+      chartRepairHeatHaze = null;
+      chartRepairCooldownUntilMs = nowMs + CHART_REPAIR_WEATHER_COOLDOWN_MS;
+    }
+    changed = true;
+  }
   return changed;
+}
+
+function chartRepairHeatHazeIsPlausibleAt(fault) {
+  if (!fault || !chart || !localLayout) return false;
+  const offset = layoutOffsetPixels();
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const call of chart.tileCalls) {
+    if (isWaterSurfaceRow(call.row)) continue;
+    const x = call.drawSurfaceX + offset.x;
+    const y = call.drawSurfaceY + offset.y;
+    const distance = Math.hypot(x - fault.x, y - fault.y);
+    if (distance >= nearestDistance) continue;
+    nearest = call;
+    nearestDistance = distance;
+  }
+  if (!nearest || nearestDistance > Math.max(SCREEN_W, SCREEN_H) * 0.55) return false;
+  const flags = weatherFlagsForTile(nearest.id);
+  return chartRepairHeatHazeIsPlausible({
+    terrainKind: nearest.row.t || "unknown",
+    latitudeDeg: graph.latDeg[nearest.id],
+    raining: (flags & TILE_DAY_RAIN) !== 0,
+    snowing: (flags & TILE_DAY_SNOW_FALL) !== 0,
+    stormIntensity: stormIntensityForTile(nearest.id)
+  });
 }
 
 function currentPolarChartFogFrame() {
@@ -19913,9 +20008,62 @@ function chartVisualCoverFullyCoversLocalPosition(
   if (activeChartFogFrames().some((frame) => (
     chartFogObscuresCircle(frame, screenX, screenY, radiusPx)
   ))) return true;
+  if (chartRepairHeatHaze) {
+    const hazeFrame = chartRepairHeatHazeFrame(
+      chartRepairHeatHaze.animation,
+      lastFrameMs,
+      chartRepairHeatHaze.release
+    );
+    if (
+      hazeFrame.repairReady &&
+      chartRepairHeatHazePixelOffset(hazeFrame, screenY) !== 0
+    ) return true;
+  }
   if (!chartRepairCloudBank) return false;
   const cloudFrame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, lastFrameMs);
   return chartRepairCloudFullyCoversCircle(cloudFrame, screenX, screenY, radiusPx);
+}
+
+function repairChartTilesWithinHeatHaze(frame) {
+  if (!ship || !camera || !chart || !localLayout || !frame.repairReady) return 0;
+  const offset = layoutOffsetPixels();
+  const tileIds = new Set();
+  for (const [id, position] of localLayout.positions.entries()) {
+    if (id === ship.tileId || id === centerTileId) continue;
+    if (!localLayoutPositionOverlapsViewport(position, CHART_REPAIR_TILE_VISUAL_RADIUS_PX)) {
+      continue;
+    }
+    if (chartRepairHeatHazePixelOffset(frame, position.y + offset.y) === 0) continue;
+    tileIds.add(id);
+  }
+  if (tileIds.size === 0) return 0;
+  const targetsById = planConcealedChartTileRepairs(tileIds);
+  const repairPlan = planChartHeatHazeSettlement({
+    positions: localLayout.positions,
+    targetsById,
+    tileIds,
+    screenOffsetY: offset.y,
+    frame,
+    maximumStepPx: 1
+  });
+  if (repairPlan.size === 0) return 0;
+
+  const repairedTileIds = new Set(repairPlan.keys());
+  let repairedChart = null;
+  mutateChartPositionsBehindVisualCover("heat haze", (positionLocks) => {
+    for (const [id, position] of repairPlan.entries()) {
+      localLayout.positions.set(id, { x: position.x, y: position.y });
+      positionLocks.set(id, { x: position.x, y: position.y });
+    }
+    repairedChart = buildChart(camera, positionLocks);
+  }, repairedTileIds);
+  chart = repairedChart;
+  reprojectNpcVisualPositions([...npcVisualShips.values()]);
+  invalidateFishSchoolRenderCaches();
+  chartNorthUpDrift = measureCurrentChartNorthUpDrift();
+  chartDriftMeasuredAtMs = lastFrameMs;
+  dirty = true;
+  return repairPlan.size;
 }
 
 function repairFogCoveredChartTiles(frame, reason, repairedTileIds = null) {
@@ -19997,19 +20145,16 @@ function repairCoveredChartTiles({
   if (removedIds.length === 0) return removedIds;
 
   const concealedTileIds = new Set(removedIds);
+  const effectiveRepairPlan = repairPlan ?? planConcealedChartTileRepairs(concealedTileIds);
   let repairedChart = null;
   mutateChartPositionsBehindVisualCover(reason, (positionLocks) => {
-    if (repairPlan) {
-      for (const id of removedIds) {
-        const position = repairPlan.get(id);
-        if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
-          throw new Error(`Chart repair plan ${reason} is missing tile ${id}`);
-        }
-        localLayout.positions.set(id, { x: position.x, y: position.y });
-        positionLocks.set(id, { x: position.x, y: position.y });
+    for (const id of removedIds) {
+      const position = effectiveRepairPlan.get(id);
+      if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+        throw new Error(`Chart repair plan ${reason} is missing tile ${id}`);
       }
-    } else {
-      for (const id of removedIds) localLayout.positions.delete(id);
+      localLayout.positions.set(id, { x: position.x, y: position.y });
+      positionLocks.set(id, { x: position.x, y: position.y });
     }
     repairedChart = buildChart(camera, positionLocks);
   }, concealedTileIds);
@@ -20049,10 +20194,11 @@ function planConcealedChartTileRepairs(tileIds) {
     throw new Error("Concealed chart repair planning requires tile ids as a set");
   }
   if (!camera || !localLayout || tileIds.size === 0) return new Map();
+  const northUp = northUpCamera(ship.position, camera.right);
   const chartCamera = {
-    center: camera.center.slice(),
-    right: camera.right.slice(),
-    up: camera.up.slice()
+    center: northUp.center.slice(),
+    right: northUp.right.slice(),
+    up: northUp.up.slice()
   };
   const chartCenterTileId = findNearestTileId(graph, directionIndex, chartCamera.center);
   const projectedVisible = collectChartTiles(chartCamera, chartCenterTileId);
@@ -20064,29 +20210,18 @@ function planConcealedChartTileRepairs(tileIds) {
   )));
   if (plannedTileIds.size === 0) return new Map();
 
-  const plannedPositions = new Map([...localLayout.positions].map(([id, position]) => [
-    id,
-    { x: position.x, y: position.y }
-  ]));
-  for (const id of plannedTileIds) plannedPositions.delete(id);
-  const admissionContext = createLocalLayoutAdmissionContext({
-    positions: plannedPositions,
-    projectedVisible,
-    chartCenterTileId
-  });
-  admitMissingLocalLayoutTiles({
-    positions: plannedPositions,
-    admissionContext,
-    pendingIds: plannedTileIds,
-    concealedAdmissionIds: plannedTileIds,
-    forceNorthUpCorrection: true
-  });
-
+  const projectedById = new Map(projectedVisible.map((tile) => [tile.id, tile]));
   const repairPlan = new Map();
   for (const id of plannedTileIds) {
-    const position = plannedPositions.get(id);
-    if (!position) throw new Error(`Concealed chart repair could not plan tile ${id}`);
-    repairPlan.set(id, Object.freeze({ x: position.x, y: position.y }));
+    const projected = projectedById.get(id);
+    if (!projected) throw new Error(`Concealed chart repair could not project tile ${id}`);
+    repairPlan.set(id, Object.freeze(exactNorthUpLayoutPosition({
+      projected,
+      viewX: localLayout.viewX,
+      viewY: localLayout.viewY,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H
+    })));
   }
   return repairPlan;
 }
@@ -20166,6 +20301,10 @@ function createChartVisualRepairStats() {
     cloudTilesReplaced: 0,
     closingFogsStarted: 0,
     closingFogSecondsScheduled: 0,
+    heatHazesStarted: 0,
+    heatHazeSecondsScheduled: 0,
+    heatHazeRepairPasses: 0,
+    heatHazeTilesSettled: 0,
     maximumFogDepthRatio: 0,
     fogRedrawsCompleted: 0,
     polarFogRedrawsCompleted: 0,
@@ -20294,6 +20433,7 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   reprojectProjectileGlobePositions(npcProjectilePositions);
   chartRepairCloudBank = null;
   chartRepairFog = null;
+  chartRepairHeatHaze = null;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = lastFrameMs + CHART_REPAIR_WEATHER_COOLDOWN_MS;
   clearLocalChartTransientEffects();
@@ -30147,7 +30287,10 @@ function drawDayNightWorld(layers, nowMs) {
       drawGpuDynamicWorld(layers.dynamicWorld);
     }
   });
-  worldRenderer.endFrame({ repairCloudBlur: chartRepairCloudBlurEffect(nowMs) });
+  worldRenderer.endFrame({
+    repairCloudBlur: chartRepairCloudBlurEffect(nowMs),
+    heatHaze: chartRepairHeatHazeEffect(nowMs)
+  });
   lastPresentedOceanSwell = {
     layout: localLayout,
     swell,
@@ -31593,10 +31736,14 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
       previousOffsetsById.set(id, oceanSwellOffset(previousPresentation.swell, globePosition));
       currentOffsetsById.set(id, oceanSwellOffset(currentSwell, globePosition));
     }
+    const northUpProjectedById = exactNorthUpProjectedPositions(new Set([
+      admissionAnchorId,
+      ...movableTileIds
+    ]));
     const settledTileCount = mutateChartPositionsBehindVisualCover("ocean swell", () => (
       settleVisibleElasticTilesWithinMotion({
         positions: localLayout.positions,
-        projectedById,
+        projectedById: northUpProjectedById,
         protectionById: chartTileProtection,
         movableTileIds,
         previousOffsetsById,
@@ -31643,6 +31790,21 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
     }
   }
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
+}
+
+function exactNorthUpProjectedPositions(tileIds) {
+  if (!(tileIds instanceof Set)) {
+    throw new Error("Exact north-up projection requires tile ids as a set");
+  }
+  if (!ship || !camera) return new Map();
+  const frame = northUpCamera(ship.position, camera.right);
+  const projectedById = new Map();
+  for (const id of tileIds) {
+    const projected = projectTileCenterFor(id, frame);
+    if (!projected) throw new Error(`Cannot project north-up repair tile ${id}`);
+    projectedById.set(id, projected);
+  }
+  return projectedById;
 }
 
 function createLocalLayoutAdmissionContext({
@@ -40977,6 +41139,22 @@ function chartRepairCloudBlurEffect(nowMs) {
   });
 }
 
+function chartRepairHeatHazeEffect(nowMs) {
+  if (!chartRepairHeatHaze) return null;
+  const frame = chartRepairHeatHazeFrame(
+    chartRepairHeatHaze.animation,
+    nowMs,
+    chartRepairHeatHaze.release
+  );
+  if (frame.strength <= 0) return null;
+  return Object.freeze({
+    strength: frame.strength,
+    phaseRad: frame.phaseRad,
+    wavelengthPx: frame.wavelengthPx,
+    amplitudePx: frame.amplitudePx
+  });
+}
+
 function drawChartFogFrame(frame) {
   if (!frame || frame.edgeOpacity <= 0) return;
   ctx.save();
@@ -49142,7 +49320,7 @@ function drawFrameRateOverlay() {
   const tilt = Math.abs(drift.rotationDeg) < 0.05
     ? "0.0"
     : `${drift.rotationDeg > 0 ? "+" : ""}${drift.rotationDeg.toFixed(1)}`;
-  const tearPx = Math.max(0, chartWorstVisibleTerrainTear.extraPx);
+  const tearPx = chartWorstVisibleTerrainTear.extraPx;
   const fpsLabel = `FPS ${value}`;
   const tiltLabel = `TILT ${tilt} DEG`;
   const tearLabel = `TEAR ${tearPx.toFixed(1)} PX`;

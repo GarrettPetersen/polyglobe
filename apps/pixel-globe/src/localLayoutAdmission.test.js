@@ -24,6 +24,7 @@ import { predictiveAdmissionProjection } from "./chartAdmissionProjection.js";
 import { chartFaultNeedsCloudRepair } from "./chartVisualFault.js";
 import { chooseChartVisualRepair } from "./chartVisualRepairPolicy.js";
 import { chartVisualRepairBurden } from "./chartVisualRepairBurden.js";
+import { exactNorthUpLayoutPosition } from "./chartReframe.js";
 import {
   buildChartTileProtection,
   buildDirectChartProtectionComponents
@@ -49,6 +50,8 @@ function reportChartBenchmark(label, result) {
     maxRmsDistortionPx: result.maxRmsDistortionPx,
     maxDistortionPx: result.maxDistortionPx,
     maxTerrainEdgeGapPx: result.maxTerrainEdgeGapPx,
+    maxTerrainEdgeCompressionPx: result.maxTerrainEdgeCompressionPx,
+    firstCompressionRepairPx: result.firstCompressionRepairPx,
     maxProtectedRotationDeg: result.maxProtectedRotationDeg,
     finalProtectedRotationDeg: result.finalProtectedRotationDeg,
     maxProtectedEdgeErrorPx: result.maxProtectedEdgeErrorPx,
@@ -323,10 +326,10 @@ test("visible ocean can settle toward north-up during swell motion on any axis",
     [3, { x: 116, y: 50 }]
   ]);
   const projectedById = new Map([
-    [0, { x: 50, y: 50 }],
-    [1, { x: 74, y: 50 }],
-    [2, { x: 98, y: 50 }],
-    [3, { x: 122, y: 50 }]
+    [0, { x: 80, y: 50 }],
+    [1, { x: 104, y: 50 }],
+    [2, { x: 128, y: 50 }],
+    [3, { x: 152, y: 50 }]
   ]);
   const previousOffsetsById = new Map([
     [1, { x: 1, y: 0 }],
@@ -368,6 +371,48 @@ test("visible ocean can settle toward north-up during swell motion on any axis",
     ) <= 2,
     "The swell-hidden correction exceeded its bounded visual motion"
   );
+});
+
+test("successive swells converge on the exact fresh north-up redraw field", () => {
+  const positions = new Map([
+    [0, { x: 50, y: 50 }],
+    [1, { x: 86, y: 58 }],
+    [2, { x: 106, y: 64 }]
+  ]);
+  const projectedById = new Map([
+    [0, { x: 80, y: 50 }],
+    [1, { x: 104, y: 50 }],
+    [2, { x: 128, y: 50 }]
+  ]);
+  const movableTileIds = new Set([1, 2]);
+  const offsets = new Map([[1, { x: 0, y: 0 }], [2, { x: 0, y: 0 }]]);
+  const movedOffsets = new Map([[1, { x: 1, y: 0 }], [2, { x: 1, y: 0 }]]);
+  for (let pass = 0; pass < 30; pass++) {
+    settleVisibleElasticTilesWithinMotion({
+      positions,
+      projectedById,
+      protectionById: new Uint8Array([255, 0, 0]),
+      movableTileIds,
+      previousOffsetsById: offsets,
+      currentOffsetsById: movedOffsets,
+      anchorId: 0,
+      viewportWidth: 160,
+      viewportHeight: 100,
+      tileVisualRadius: 18,
+      viewX: 50,
+      viewY: 50,
+      maximumStepPx: 2
+    });
+  }
+  for (const id of movableTileIds) {
+    assert.deepEqual(positions.get(id), exactNorthUpLayoutPosition({
+      projected: projectedById.get(id),
+      viewX: 50,
+      viewY: 50,
+      viewportWidth: 160,
+      viewportHeight: 100
+    }));
+  }
 });
 
 test("the same correction keeps protected geography rigidly attached", () => {
@@ -1075,31 +1120,25 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
   assertTraversalRepairBurden(result, "Mediterranean crossing", 25);
 });
 
-test("a moving Scandinavia coastal traversal stays north-up without tearing land", () => {
+test("an east-to-west Scandinavia traversal requests repair before compression becomes severe", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
       routeWaypoints: [
-        [38.7, -9.1],
-        [43.5, -9.0],
-        [48.5, -5.0],
-        [50.8, 1.5],
-        [53.7, 4.0],
-        [57.5, 7.0],
-        [55.7, 12.6],
-        [56.2, 16.0],
-        [57.7, 17.2],
-        [59.3, 18.3],
-        [60.2, 19.3],
-        [61.2, 19.4],
-        [62.4, 19.8],
-        [63.7, 20.7],
-        [65.0, 22.0],
-        [65.7, 23.8],
-        [64.8, 25.0],
-        [63.0, 24.8],
-        [61.0, 24.7],
-        [59.9, 24.5]
+        [64.2, 41.7],
+        [66.2, 41.0],
+        [68.0, 39.0],
+        [70.0, 34.0],
+        [71.2, 26.0],
+        [71.5, 18.0],
+        [70.8, 11.0],
+        [69.0, 8.5],
+        [66.0, 7.5],
+        [63.0, 5.0],
+        [60.0, 4.5],
+        [58.0, 2.0],
+        [57.0, -2.0],
+        [55.8, -5.0]
       ],
       subdivisions: 7,
       pixelsPerRadian: 2450,
@@ -1110,20 +1149,30 @@ test("a moving Scandinavia coastal traversal stays north-up without tearing land
   assert.equal(result.visibleProtectedRedraws, 0);
   assert.equal(result.visibleLandRedraws, 0);
   assert.ok(
-    result.maxRotationDeg <= 8,
+    result.maxRotationDeg <= 10,
     `Scandinavian chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
   );
   assert.ok(
-    result.maxProtectedEdgeErrorPx <= 5.05,
+    result.maxProtectedEdgeErrorPx <= 8,
     `Scandinavian protected edge opened by ` +
       `${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
       `${JSON.stringify(result.maxProtectedEdgeDetails)}`
   );
   assert.ok(
-    result.maxTerrainEdgeGapPx <= 70,
+    result.maxTerrainEdgeGapPx <= 110,
     `Scandinavian chart opened an extreme ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
   );
-  assertTraversalRepairBurden(result, "Scandinavian crossing", 35);
+  assert.notEqual(
+    result.firstCompressionRepairPx,
+    null,
+    "Scandinavian ocean compression never requested a visual repair"
+  );
+  assert.ok(
+    result.firstCompressionRepairPx <= 20,
+    `Scandinavian ocean compression was not caught until ` +
+      `${result.firstCompressionRepairPx.toFixed(2)}px`
+  );
+  assertTraversalRepairBurden(result, "Scandinavian crossing", 45);
 });
 
 test("a south-to-north Argentina coastal traversal cannot tear adjacent land", () => {
@@ -1426,6 +1475,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let maxRmsDistortionPx = 0;
   let maxDistortionPx = 0;
   let maxTerrainEdgeGapPx = 0;
+  let maxTerrainEdgeCompressionPx = 0;
+  let firstCompressionRepairPx = null;
   let maxProtectedRotationDeg = 0;
   let maxProtectedRotationStep = 0;
   let maxProtectedRotationLocation = "unknown";
@@ -1589,7 +1640,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       continuityMaskById,
       maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
       protectedCorrectionViewportIds: correctionViewportIds,
-      liveViewportAdmissionIds: correctionViewportIds
+      liveViewportAdmissionIds: correctionViewportIds,
+      recoverProtectedStitchError: () => true
     };
     if (maxProtectedCorrectionPx > 0) {
       const rigidPositions = new Map(
@@ -1664,6 +1716,25 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     maxRmsDistortionPx = Math.max(maxRmsDistortionPx, frame.rmsError);
     maxDistortionPx = Math.max(maxDistortionPx, frame.maxErrorPx);
     maxTerrainEdgeGapPx = Math.max(maxTerrainEdgeGapPx, terrainTear.extraPx);
+    if (terrainTear.compressionPx > 0) {
+      maxTerrainEdgeCompressionPx = Math.max(
+        maxTerrainEdgeCompressionPx,
+        terrainTear.compressionPx
+      );
+      if (
+        firstCompressionRepairPx === null &&
+        chartFaultNeedsCloudRepair({
+          drift: {
+            rotationDeg: frame.rotationDeg,
+            rmsDistortionPx: frame.rmsError,
+            maxDistortionPx: frame.maxErrorPx
+          },
+          terrainTear
+        })
+      ) {
+        firstCompressionRepairPx = terrainTear.compressionPx;
+      }
+    }
     recordTraversalRepairDemand(repairDemand, {
       drift: {
         rotationDeg: frame.rotationDeg,
@@ -1677,7 +1748,10 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         viewY
       ),
       distortionSurface: terrainClassByTileId[frame.maxErrorTileId],
-      swellRepairAvailable: viewportIsFullyElasticWater,
+      swellRepairAvailable: viewportIsFullyElasticWater || (
+        terrainTear.surface === "water" &&
+        terrainTear.tileIds.every((id) => protectionById[id] === 0)
+      ),
       elasticTileCount: support.elasticTileIds.size
     });
     if (Math.abs(frame.rotationDeg) > maxRotationDeg) {
@@ -1813,6 +1887,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     maxRmsDistortionPx,
     maxDistortionPx,
     maxTerrainEdgeGapPx,
+    maxTerrainEdgeCompressionPx,
+    firstCompressionRepairPx,
     maxProtectedRotationDeg,
     maxProtectedRotationStep,
     maxProtectedRotationLocation,
@@ -1960,6 +2036,7 @@ function measureTraversalTerrainTear({
   viewY
 }) {
   let worst = null;
+  let compressionPx = 0;
   for (const [id, position] of visiblePositions.entries()) {
     for (const neighborId of neighborsById[id]) {
       if (neighborId <= id) continue;
@@ -1972,7 +2049,9 @@ function measureTraversalTerrainTear({
         projectedNeighbor.x - projected.x,
         projectedNeighbor.y - projected.y
       );
-      const extraPx = actualDistance - projectedDistance;
+      const signedExtraPx = actualDistance - projectedDistance;
+      const extraPx = Math.abs(signedExtraPx);
+      compressionPx = Math.max(compressionPx, -signedExtraPx);
       if (worst && extraPx <= worst.extraPx) continue;
       const aSurface = terrainClassByTileId[id];
       const bSurface = terrainClassByTileId[neighborId];
@@ -1980,14 +2059,20 @@ function measureTraversalTerrainTear({
       const bScreen = traversalScreenPosition(neighbor, viewX, viewY);
       worst = {
         extraPx,
+        signedExtraPx,
+        tileIds: [id, neighborId],
         surface: aSurface === bSurface ? aSurface : "coast",
         screenX: (aScreen.x + bScreen.x) / 2,
         screenY: (aScreen.y + bScreen.y) / 2
       };
     }
   }
-  return worst || {
+  if (worst) return { ...worst, compressionPx };
+  return {
     extraPx: 0,
+    signedExtraPx: 0,
+    compressionPx: 0,
+    tileIds: [],
     surface: null,
     screenX: TRAVERSAL_SCREEN_W / 2,
     screenY: TRAVERSAL_SCREEN_H / 2

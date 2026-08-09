@@ -165,6 +165,11 @@ uniform vec3 u_repairClouds[5];
 uniform vec2 u_repairCloudMaskSize;
 uniform float u_repairCloudSpriteSize;
 uniform float u_repairCloudBlurStrength;
+uniform bool u_heatHaze;
+uniform float u_heatHazeStrength;
+uniform float u_heatHazePhase;
+uniform float u_heatHazeWavelength;
+uniform float u_heatHazeAmplitude;
 
 in vec2 v_texCoord;
 out vec4 outColor;
@@ -219,16 +224,23 @@ float repairCloudMaskAlpha(vec2 screenPixel) {
 
 void main() {
   ivec2 sceneSize = textureSize(u_scene, 0);
-  ivec2 sceneCoordinate = clamp(
+  ivec2 outputCoordinate = clamp(
     ivec2(floor(v_texCoord * vec2(sceneSize))),
     ivec2(0),
     sceneSize - ivec2(1)
   );
+  ivec2 sceneCoordinate = outputCoordinate;
+  if (u_heatHaze) {
+    float screenY = float(sceneSize.y - 1 - outputCoordinate.y);
+    float wave = sin(screenY / u_heatHazeWavelength * 6.28318530718 + u_heatHazePhase);
+    int offsetX = int(round(wave * u_heatHazeAmplitude * u_heatHazeStrength));
+    sceneCoordinate.x = clamp(sceneCoordinate.x + offsetX, 0, sceneSize.x - 1);
+  }
   vec4 source = texelFetch(u_scene, sceneCoordinate, 0);
   if (u_repairCloudBlur) {
     vec2 screenPixel = vec2(
-      float(sceneCoordinate.x) + 0.5,
-      float(sceneSize.y - 1 - sceneCoordinate.y) + 0.5
+      float(outputCoordinate.x) + 0.5,
+      float(sceneSize.y - 1 - outputCoordinate.y) + 0.5
     );
     float blur = repairCloudMaskAlpha(screenPixel) * u_repairCloudBlurStrength;
     if (blur > 0.0) {
@@ -621,7 +633,12 @@ export function createWorldWebGL2Renderer({
     repairClouds: requiredUniform(gl, presentProgram, "u_repairClouds[0]"),
     repairCloudMaskSize: requiredUniform(gl, presentProgram, "u_repairCloudMaskSize"),
     repairCloudSpriteSize: requiredUniform(gl, presentProgram, "u_repairCloudSpriteSize"),
-    repairCloudBlurStrength: requiredUniform(gl, presentProgram, "u_repairCloudBlurStrength")
+    repairCloudBlurStrength: requiredUniform(gl, presentProgram, "u_repairCloudBlurStrength"),
+    heatHaze: requiredUniform(gl, presentProgram, "u_heatHaze"),
+    heatHazeStrength: requiredUniform(gl, presentProgram, "u_heatHazeStrength"),
+    heatHazePhase: requiredUniform(gl, presentProgram, "u_heatHazePhase"),
+    heatHazeWavelength: requiredUniform(gl, presentProgram, "u_heatHazeWavelength"),
+    heatHazeAmplitude: requiredUniform(gl, presentProgram, "u_heatHazeAmplitude")
   };
   const sceneVertexBuffer = requiredBuffer(gl, "world scene vertex buffer");
   const bitMaskVertexBuffer = requiredBuffer(gl, "world bit-mask vertex buffer");
@@ -698,6 +715,7 @@ export function createWorldWebGL2Renderer({
   let frameTimeMs = 0;
   let frameGrade = false;
   let frameRepairCloudBlur = null;
+  let frameHeatHaze = null;
   let repairCloudMaskSource = null;
   const repairCloudUniformData = new Float32Array(MAX_REPAIR_CLOUD_BLUR_SPRITES * 3);
   let atlasSourceCount = 0;
@@ -1441,6 +1459,25 @@ export function createWorldWebGL2Renderer({
     frameRepairCloudBlur = effect;
   }
 
+  function setHeatHaze(effect) {
+    if (effect === null) {
+      frameHeatHaze = null;
+      return;
+    }
+    if (!effect) throw new Error("World heat haze requires an effect");
+    validateUnitInterval(effect.strength, "world heat haze strength");
+    for (const [label, value] of Object.entries({
+      phase: effect.phaseRad,
+      wavelength: effect.wavelengthPx,
+      amplitude: effect.amplitudePx
+    })) {
+      if (!Number.isFinite(value) || (label !== "phase" && value <= 0)) {
+        throw new Error(`World heat haze has invalid ${label}: ${value}`);
+      }
+    }
+    frameHeatHaze = effect;
+  }
+
   function presentScene(framebuffer) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.viewport(0, 0, sceneWidth, sceneHeight);
@@ -1455,6 +1492,12 @@ export function createWorldWebGL2Renderer({
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, repairCloudMaskTexture);
     gl.uniform1i(presentLocations.grade, frameGrade ? 1 : 0);
+    const haze = frameHeatHaze;
+    gl.uniform1i(presentLocations.heatHaze, haze ? 1 : 0);
+    gl.uniform1f(presentLocations.heatHazeStrength, haze?.strength ?? 0);
+    gl.uniform1f(presentLocations.heatHazePhase, haze?.phaseRad ?? 0);
+    gl.uniform1f(presentLocations.heatHazeWavelength, haze?.wavelengthPx ?? 1);
+    gl.uniform1f(presentLocations.heatHazeAmplitude, haze?.amplitudePx ?? 0);
     const effect = frameRepairCloudBlur;
     gl.uniform1i(presentLocations.repairCloudBlur, effect ? 1 : 0);
     gl.uniform1i(presentLocations.repairCloudCount, effect?.clouds.length ?? 0);
@@ -1483,9 +1526,10 @@ export function createWorldWebGL2Renderer({
     drawCalls++;
   }
 
-  function endFrame({ repairCloudBlur = null } = {}) {
+  function endFrame({ repairCloudBlur = null, heatHaze = null } = {}) {
     flushBatches();
     setRepairCloudBlur(repairCloudBlur);
+    setHeatHaze(heatHaze);
     presentScene(null);
     return canvas;
   }

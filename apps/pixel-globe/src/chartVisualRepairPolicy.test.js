@@ -27,12 +27,12 @@ test("elastic open ocean leaves correction to the swell", () => {
   }), "none");
 });
 
-test("open-ocean faults never escalate to weather even without a swell presentation", () => {
+test("protected-water faults use weather when swell repair is unavailable", () => {
   assert.equal(repairKind({
     drift: { ...calm, rotationDeg: 20, maxDistortionPx: 40 },
     terrainTear: { extraPx: 40, surface: "water", screenX: 430, screenY: 20 },
     distortionSurface: "water"
-  }), "none");
+  }), "closing-fog");
 });
 
 test("large sustained-looking land rotation targets a sparse cloud repair group", () => {
@@ -62,6 +62,14 @@ test("a severe distant tear closes the fog around the player", () => {
     drift: calm,
     terrainTear: { extraPx: 40, surface: "land", screenX: 430, screenY: 20 }
   }), "closing-fog");
+});
+
+test("a severe distant tear uses heat haze instead of implausible desert fog", () => {
+  assert.equal(repairKind({
+    drift: calm,
+    terrainTear: { extraPx: 40, surface: "land", screenX: 430, screenY: 20 },
+    heatHazeAvailable: true
+  }), "heat-haze");
 });
 
 test("persistent polar fog repairs faults it already fully hides", () => {
@@ -129,7 +137,8 @@ function repairKind({
   terrainTear,
   polarFogCoversFault = false,
   swellRepairAvailable = false,
-  distortionSurface = "land"
+  distortionSurface = "land",
+  heatHazeAvailable = false
 }) {
   return chooseChartVisualRepair({
     ...viewport,
@@ -138,6 +147,7 @@ function repairKind({
     distortionPoint: { x: 400, y: 40 },
     swellRepairAvailable,
     distortionSurface,
-    polarFogCoversFault
+    polarFogCoversFault,
+    heatHazeAvailable
   }).kind;
 }

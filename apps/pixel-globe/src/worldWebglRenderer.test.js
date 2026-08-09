@@ -61,6 +61,12 @@ test("repair clouds blur only their alpha silhouettes on the logical pixel grid"
   assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /textureLod|textureGrad/);
 });
 
+test("heat haze refracts the world with integer logical-pixel row offsets", () => {
+  assert.match(PRESENT_FRAGMENT_SHADER, /int offsetX = int\(round\(wave \*/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /sceneCoordinate\.x = clamp\(sceneCoordinate\.x \+ offsetX/);
+  assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /texture\(u_scene/);
+});
+
 test("texture atlas allocation is deterministic and starts a new shelf", () => {
   const allocator = new TextureAtlasAllocator(32, 32, 1);
   assert.deepEqual(allocator.allocate(10, 5), { x: 1, y: 1, width: 10, height: 5 });

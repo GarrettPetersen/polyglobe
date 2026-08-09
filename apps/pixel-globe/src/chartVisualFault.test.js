@@ -49,6 +49,24 @@ test("coastal gaps participate in tear detection", () => {
   assert.equal(result.surface, "coast");
 });
 
+test("compressed navigable spacing participates in tear detection", () => {
+  const result = measureVisibleTerrainTear({
+    faceCalls: [{ a: 0, b: 1 }],
+    tileById: new Map([
+      [0, tile(0, 10, 20, 10, 20, "water")],
+      [1, tile(1, 18, 20, 30, 20, "water")]
+    ]),
+    offset: { x: 0, y: 0 },
+    viewportWidth: 100,
+    viewportHeight: 60,
+    surfaceForTile: (entry) => entry.surface
+  });
+
+  assert.equal(result.extraPx, 12);
+  assert.equal(result.signedExtraPx, -12);
+  assert.equal(result.surface, "water");
+});
+
 test("large tilt, distortion, or visible tear requests cloud repair", () => {
   const calm = { rotationDeg: 0, rmsDistortionPx: 0, maxDistortionPx: 0 };
   const attached = { extraPx: 0 };

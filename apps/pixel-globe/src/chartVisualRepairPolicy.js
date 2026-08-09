@@ -13,7 +13,8 @@ export function chooseChartVisualRepair({
   viewportHeight,
   swellRepairAvailable,
   distortionSurface,
-  polarFogCoversFault = false
+  polarFogCoversFault = false,
+  heatHazeAvailable = false
 }) {
   if (!drift || !terrainTear || !distortionPoint) {
     throw new Error("Chart visual repair policy requires drift, tear, and distortion metrics");
@@ -31,14 +32,16 @@ export function chooseChartVisualRepair({
   if (typeof swellRepairAvailable !== "boolean") {
     throw new Error("Chart visual repair policy requires an explicit swell-repair state");
   }
+  if (typeof heatHazeAvailable !== "boolean") {
+    throw new Error("Chart visual repair policy requires an explicit heat-haze state");
+  }
   if (![null, "water", "land", "coast"].includes(distortionSurface)) {
     throw new Error(`Chart visual repair policy has invalid distortion surface: ${distortionSurface}`);
   }
 
   if (swellRepairAvailable) return Object.freeze({ kind: "none" });
 
-  const tear = terrainTear.extraPx >= CHART_WEATHER_REPAIR_TERRAIN_TEAR_PX &&
-    terrainTear.surface !== "water";
+  const tear = terrainTear.extraPx >= CHART_WEATHER_REPAIR_TERRAIN_TEAR_PX;
   const rotation = Math.abs(drift.rotationDeg) >= CHART_WEATHER_REPAIR_ROTATION_DEG;
   const distortion = drift.rmsDistortionPx >= CHART_WEATHER_REPAIR_RMS_PX ||
     drift.maxDistortionPx >= CHART_WEATHER_REPAIR_MAX_DISTORTION_PX;
@@ -58,9 +61,10 @@ export function chooseChartVisualRepair({
         surface: distortionSurface
       };
 
-  // Open water is corrected by the swell presentation. Weather concealment is
-  // reserved for rigid geography that cannot move beneath a wave.
-  if (fault.surface === "water" || fault.surface === null) {
+  // Open water is corrected by the swell presentation. Protected waterways
+  // can still need weather cover when the swell solver explicitly declined
+  // the fault.
+  if (fault.surface === null) {
     return Object.freeze({ kind: "none" });
   }
 
@@ -80,7 +84,10 @@ export function chooseChartVisualRepair({
     fault.sizePx >= CHART_REPAIR_CLOSING_FOG_TEAR_PX &&
     distanceFromPlayer >= Math.min(viewportWidth, viewportHeight) * 0.3
   ) {
-    return Object.freeze({ kind: "closing-fog", fault });
+    return Object.freeze({
+      kind: heatHazeAvailable ? "heat-haze" : "closing-fog",
+      fault
+    });
   }
   return Object.freeze({ kind: "partial-cloud", fault });
 }
@@ -117,9 +124,9 @@ function chartWeatherRepairConfirmationKey(candidate) {
     !fault ||
     !Number.isFinite(fault.x) ||
     !Number.isFinite(fault.y) ||
-    !["land", "coast"].includes(fault.surface)
+    !["land", "water", "coast"].includes(fault.surface)
   ) {
-    throw new Error(`Chart weather repair ${candidate.kind} requires a land or coast fault`);
+    throw new Error(`Chart weather repair ${candidate.kind} requires a terrain fault`);
   }
   const neighborhoodSizePx = 96;
   return [

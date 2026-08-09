@@ -149,6 +149,10 @@ function printReport(report, output) {
         `${report.scene.chartVisualRepairs.cloudTilesReplaced} cloud-hidden tiles replaced, ` +
         `${report.scene.chartVisualRepairs.closingFogsStarted} closing fogs, ` +
         `${report.scene.chartVisualRepairs.closingFogSecondsScheduled.toFixed(1)} fog-seconds, ` +
+        `${report.scene.chartVisualRepairs.heatHazesStarted} heat hazes, ` +
+        `${report.scene.chartVisualRepairs.heatHazeSecondsScheduled.toFixed(1)} haze-seconds, ` +
+        `${report.scene.chartVisualRepairs.heatHazeRepairPasses} haze passes / ` +
+        `${report.scene.chartVisualRepairs.heatHazeTilesSettled} haze-settled tiles, ` +
         `${Math.round(report.scene.chartVisualRepairs.maximumFogDepthRatio * 100)}% max fog depth, ` +
         `${report.scene.chartVisualRepairs.polarFogRedrawsCompleted} polar fog redraws, ` +
         `${report.scene.chartVisualRepairs.fogTilesReplaced} fog-hidden tiles replaced, ` +

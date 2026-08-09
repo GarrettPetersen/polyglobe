@@ -1,3 +1,5 @@
+import { exactNorthUpLayoutPosition } from "./chartReframe.js";
+
 function assertFinitePoint(point, label) {
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
     throw new Error(`${label} must have finite x/y coordinates`);
@@ -1250,10 +1252,11 @@ export function settleVisibleElasticTilesWithinMotion({
     }
   }
   assertFinitePoint({ x: viewX, y: viewY }, "Motion-hidden chart view position");
-  const anchorPosition = positions.get(anchorId);
-  const anchorProjected = projectedById.get(anchorId);
-  assertFinitePoint(anchorPosition, `Motion-hidden chart anchor position ${anchorId}`);
-  assertFinitePoint(anchorProjected, `Motion-hidden chart projected anchor ${anchorId}`);
+  assertFinitePoint(positions.get(anchorId), `Motion-hidden chart anchor position ${anchorId}`);
+  assertFinitePoint(
+    projectedById.get(anchorId),
+    `Motion-hidden chart projected anchor ${anchorId}`
+  );
 
   let settled = 0;
   for (const id of movableTileIds) {
@@ -1278,11 +1281,16 @@ export function settleVisibleElasticTilesWithinMotion({
       tileVisualRadius
     )) continue;
 
-    const targetX = anchorPosition.x + projected.x - anchorProjected.x;
-    const targetY = anchorPosition.y + projected.y - anchorProjected.y;
+    const target = exactNorthUpLayoutPosition({
+      projected,
+      viewX,
+      viewY,
+      viewportWidth,
+      viewportHeight
+    });
     const shift = motionHiddenShift({
-      desiredX: targetX - position.x,
-      desiredY: targetY - position.y,
+      desiredX: target.x - position.x,
+      desiredY: target.y - position.y,
       presentedX: currentOffset.x - previousOffset.x,
       presentedY: currentOffset.y - previousOffset.y,
       maximumStepPx

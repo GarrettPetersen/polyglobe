@@ -54,10 +54,12 @@ export function measureVisibleTerrainTear({
     if (projectedDistance < 1) {
       throw new Error(`Visible land edge ${a.id}:${b.id} has invalid projected spacing`);
     }
-    const extraPx = actualDistance - projectedDistance;
+    const signedExtraPx = actualDistance - projectedDistance;
+    const extraPx = Math.abs(signedExtraPx);
     if (worst !== null && extraPx <= worst.extraPx) continue;
     worst = Object.freeze({
       extraPx,
+      signedExtraPx,
       tileIds: Object.freeze([a.id, b.id]),
       surface: aSurface === bSurface ? aSurface : "coast",
       screenX: (ax + bx) / 2,
@@ -66,6 +68,7 @@ export function measureVisibleTerrainTear({
   }
   return worst ?? Object.freeze({
     extraPx: 0,
+    signedExtraPx: 0,
     tileIds: Object.freeze([]),
     surface: null,
     screenX: viewportWidth / 2,
