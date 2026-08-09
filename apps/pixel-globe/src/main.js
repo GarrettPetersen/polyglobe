@@ -236,6 +236,7 @@ import {
   SHIP_MINIMUM_POWERED_SPEED_RAD,
   ROWING_FOOD_CONSUMPTION_MULTIPLIER,
   rowingCrewRatio,
+  sailWindSpeedFactor,
   sailingEfficiencyForAlignment,
   shipCanUseOars,
   shipDirectionalTranslationAllowed,
@@ -2085,6 +2086,7 @@ const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const CLOUD_VISUAL_ALTITUDE_RATIO = 0.72;
 const CHART_REPAIR_CLOUD_COOLDOWN_MS = 20_000;
+const CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS = 120;
 const CHART_REPAIR_TILE_VISUAL_RADIUS_PX = TILE_ART_HALF + 3;
 const CLOUD_VIEWPORT_MARGIN_PX =
   CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
@@ -19642,6 +19644,10 @@ function maybeStartChartVisualRepair(nowMs, drift) {
 
   const wind = playerWindState ? windForShip() : { directionRad: 0, strength: 0.2 };
   const windFlow = screenWindFlowVector(wind);
+  const cloudSpeedPxPerSecond = Math.max(
+    SHIP_MINIMUM_POWERED_SPEED_RAD,
+    currentPlayerEffectiveShipStats().topSpeedRad * sailWindSpeedFactor(wind.strength)
+  ) * PIXELS_PER_RADIAN;
   const localRepair = repair.kind === "partial-cloud";
   const localFault = repair.fault || { x: SCREEN_W / 2, y: SCREEN_H / 2, sizePx: 0 };
   const repairSpan = Math.max(
@@ -19655,7 +19661,7 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       viewportHeight: SCREEN_H,
       directionX: windFlow.x,
       directionY: windFlow.y,
-      windStrength: wind.strength,
+      speedPxPerSecond: cloudSpeedPxPerSecond,
       ...(localRepair ? {
         targetX: localFault.x,
         targetY: localFault.y,
@@ -19664,7 +19670,9 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       } : {})
     }),
     mode: localRepair ? "local" : "full",
-    repaired: false
+    nextTileRepairAtMs: nowMs,
+    repairedTileIds: new Set(),
+    repairedCount: 0
   };
   chartVisualRepairStats.cloudBanksStarted++;
   if (localRepair) chartVisualRepairStats.partialCloudBanksStarted++;
@@ -19676,17 +19684,20 @@ function updateChartVisualRepair(nowMs) {
   if (chartRepairCloudBank) {
     const state = chartRepairCloudBank;
     const frame = chartRepairCloudBankFrame(state.animation, nowMs);
-    if (state.mode === "full" && frame.coversViewport && !state.repaired) {
-      state.repaired = true;
-      if (reframeWorldNorthUp("cloud bank", { allowUncovered: true })) {
-        chartVisualRepairStats.cloudReframesCompleted++;
-      }
-    } else if (state.mode === "local" && frame.coversTarget && !state.repaired) {
-      state.repaired = true;
-      const replaced = repairCloudCoveredChartTiles(frame, "local cloud bank");
-      if (replaced > 0) chartVisualRepairStats.partialCloudRedrawsCompleted++;
+    if (nowMs >= state.nextTileRepairAtMs || frame.finished) {
+      state.nextTileRepairAtMs = nowMs + CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS;
+      state.repairedCount += repairCloudCoveredChartTiles(
+        frame,
+        state.mode === "local" ? "local cloud bank" : "cloud bank",
+        state.repairedTileIds,
+        state.mode === "local"
+      );
     }
     if (frame.finished) {
+      if (state.repairedCount > 0) {
+        if (state.mode === "local") chartVisualRepairStats.partialCloudRedrawsCompleted++;
+        else chartVisualRepairStats.cloudReframesCompleted++;
+      }
       chartRepairCloudBank = null;
       chartRepairCooldownUntilMs = nowMs + CHART_REPAIR_CLOUD_COOLDOWN_MS;
     }
@@ -19743,10 +19754,11 @@ function chartVisualCoverFullyCoversLocalPosition(
 }
 
 function repairFogCoveredChartTiles(frame, reason) {
-  const removedCount = repairCoveredChartTiles({
+  const removedIds = repairCoveredChartTiles({
     reason,
     fullyCoversCircle: (x, y, radius) => chartFogFullyCoversCircle(frame, x, y, radius)
   });
+  const removedCount = removedIds.length;
   if (removedCount === 0) return 0;
   chartVisualRepairStats.fogRedrawsCompleted++;
   chartVisualRepairStats.fogTilesReplaced += removedCount;
@@ -19754,21 +19766,34 @@ function repairFogCoveredChartTiles(frame, reason) {
   return removedCount;
 }
 
-function repairCloudCoveredChartTiles(frame, reason) {
-  const removedCount = repairCoveredChartTiles({
+function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, limitToTarget) {
+  if (!(repairedTileIds instanceof Set)) {
+    throw new Error(`Chart cloud repair ${reason} requires a repaired tile set`);
+  }
+  if (typeof limitToTarget !== "boolean") {
+    throw new Error(`Chart cloud repair ${reason} requires an explicit target policy`);
+  }
+  const removedIds = repairCoveredChartTiles({
     reason,
     fullyCoversCircle: (x, y, radius) => (
-      chartRepairCloudTargetContainsCircle(frame, x, y, radius)
-    )
+      chartRepairCloudFullyCoversCircle(frame, x, y, radius) &&
+      (!limitToTarget || chartRepairCloudTargetContainsCircle(frame, x, y, radius))
+    ),
+    shouldRepairTile: (id) => !repairedTileIds.has(id)
   });
+  for (const id of removedIds) repairedTileIds.add(id);
+  const removedCount = removedIds.length;
   chartVisualRepairStats.cloudTilesReplaced += removedCount;
   return removedCount;
 }
 
-function repairCoveredChartTiles({ reason, fullyCoversCircle }) {
-  if (!ship || !camera || !chart || !localLayout) return 0;
+function repairCoveredChartTiles({ reason, fullyCoversCircle, shouldRepairTile = () => true }) {
+  if (!ship || !camera || !chart || !localLayout) return [];
   if (typeof fullyCoversCircle !== "function") {
     throw new Error(`Covered chart repair ${reason} requires a coverage predicate`);
+  }
+  if (typeof shouldRepairTile !== "function") {
+    throw new Error(`Covered chart repair ${reason} requires a tile selection predicate`);
   }
   const offset = layoutOffsetPixels();
   const hiddenNpcStates = [...npcVisualShips.values()].filter((state) => (
@@ -19778,22 +19803,23 @@ function repairCoveredChartTiles({ reason, fullyCoversCircle }) {
       CHART_REPAIR_TILE_VISUAL_RADIUS_PX
     )
   ));
-  let removedCount = 0;
+  const removedIds = [];
   let repairedChart = null;
   mutateChartPositionsBehindVisualCover(reason, () => {
     for (const [id, position] of [...localLayout.positions.entries()]) {
       if (id === ship.tileId || id === centerTileId) continue;
+      if (!shouldRepairTile(id)) continue;
       if (!fullyCoversCircle(
         position.x + offset.x,
         position.y + offset.y,
         CHART_REPAIR_TILE_VISUAL_RADIUS_PX
       )) continue;
       localLayout.positions.delete(id);
-      removedCount++;
+      removedIds.push(id);
     }
-    if (removedCount > 0) repairedChart = buildChart(camera);
+    if (removedIds.length > 0) repairedChart = buildChart(camera);
   });
-  if (removedCount === 0) return 0;
+  if (removedIds.length === 0) return removedIds;
 
   chart = repairedChart;
   if (hiddenNpcStates.length > 0) reprojectNpcVisualPositions(hiddenNpcStates);
@@ -19802,10 +19828,10 @@ function repairCoveredChartTiles({ reason, fullyCoversCircle }) {
   chartDriftMeasuredAtMs = lastFrameMs;
   console.info(
     `[pixel-globe] chart repaired behind ${reason}: ` +
-      `${removedCount} hidden tiles, ${hiddenNpcStates.length} hidden NPC ships`
+      `${removedIds.length} hidden tiles, ${hiddenNpcStates.length} hidden NPC ships`
   );
   dirty = true;
-  return removedCount;
+  return removedIds;
 }
 
 function createChartVisualRepairStats() {
@@ -40468,27 +40494,23 @@ function drawChartRepairCloudBank(frame) {
   if (cloudSpriteSheet) {
     const frameCount = Math.max(1, Math.floor(cloudSpriteSheet.width / CLOUD_SPRITE_FRAME_SIZE));
     ctx.imageSmoothingEnabled = false;
-    ctx.globalAlpha = 0.94;
-    const step = Math.max(18, Math.round(CLOUD_SPRITE_FRAME_SIZE * 0.62));
+    ctx.globalAlpha = 1;
+    const step = Math.max(18, Math.round(CLOUD_SPRITE_FRAME_SIZE * 0.5));
     let spriteIndex = 0;
     for (let y = -frame.halfSpan; y <= frame.halfSpan; y += step) {
       const sourceX = spriteIndex % frameCount * CLOUD_SPRITE_FRAME_SIZE;
-      for (const side of [-1, 1]) {
-        const x = side < 0
-          ? -frame.solidHalfDepth - CLOUD_SPRITE_FRAME_SIZE * 0.72
-          : frame.solidHalfDepth - CLOUD_SPRITE_FRAME_SIZE * 0.28;
-        ctx.drawImage(
-          cloudSpriteSheet,
-          sourceX,
-          0,
-          CLOUD_SPRITE_FRAME_SIZE,
-          CLOUD_SPRITE_FRAME_SIZE,
-          Math.round(x),
-          Math.round(y - CLOUD_SPRITE_FRAME_SIZE / 2),
-          CLOUD_SPRITE_FRAME_SIZE,
-          CLOUD_SPRITE_FRAME_SIZE
-        );
-      }
+      const depthJitter = Math.round(Math.sin(spriteIndex * 2.399963) * 6);
+      ctx.drawImage(
+        cloudSpriteSheet,
+        sourceX,
+        0,
+        CLOUD_SPRITE_FRAME_SIZE,
+        CLOUD_SPRITE_FRAME_SIZE,
+        -Math.round(CLOUD_SPRITE_FRAME_SIZE / 2) + depthJitter,
+        Math.round(y - CLOUD_SPRITE_FRAME_SIZE / 2),
+        CLOUD_SPRITE_FRAME_SIZE,
+        CLOUD_SPRITE_FRAME_SIZE
+      );
       spriteIndex++;
     }
   }

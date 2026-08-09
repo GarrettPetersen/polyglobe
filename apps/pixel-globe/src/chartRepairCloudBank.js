@@ -1,6 +1,6 @@
 const CLOUD_BANK_EDGE_MARGIN_PX = 64;
 const CLOUD_BANK_START_MARGIN_PX = 32;
-const CLOUD_BANK_SOFT_EDGE_PX = 18;
+const CLOUD_BANK_SOLID_HALF_DEPTH_PX = 30;
 
 export function createChartRepairCloudBank({
   nowMs,
@@ -8,7 +8,7 @@ export function createChartRepairCloudBank({
   viewportHeight,
   directionX,
   directionY,
-  windStrength,
+  speedPxPerSecond,
   targetX = viewportWidth / 2,
   targetY = viewportHeight / 2,
   targetWidth = viewportWidth,
@@ -20,7 +20,7 @@ export function createChartRepairCloudBank({
     viewportHeight,
     directionX,
     directionY,
-    windStrength,
+    speedPxPerSecond,
     targetX,
     targetY,
     targetWidth,
@@ -34,6 +34,9 @@ export function createChartRepairCloudBank({
   if (targetWidth <= 0 || targetHeight <= 0) {
     throw new Error("Chart repair cloud bank requires a non-empty target");
   }
+  if (speedPxPerSecond <= 0) {
+    throw new Error("Chart repair cloud bank speed must be positive");
+  }
   const directionLength = Math.hypot(directionX, directionY);
   if (directionLength < 1e-6) {
     throw new Error("Chart repair cloud bank direction cannot be zero");
@@ -42,31 +45,26 @@ export function createChartRepairCloudBank({
   const dy = directionY / directionLength;
   const viewportDepth = Math.abs(dx) * viewportWidth / 2 +
     Math.abs(dy) * viewportHeight / 2;
-  const targetDepth = Math.abs(dx) * targetWidth / 2 + Math.abs(dy) * targetHeight / 2;
   const targetSpan = Math.abs(dy) * targetWidth / 2 + Math.abs(dx) * targetHeight / 2;
-  const halfDepth = targetDepth + CLOUD_BANK_EDGE_MARGIN_PX + CLOUD_BANK_SOFT_EDGE_PX;
   const halfSpan = targetSpan + CLOUD_BANK_EDGE_MARGIN_PX;
   const targetOffsetDepth = Math.abs(
     (targetX - viewportWidth / 2) * dx + (targetY - viewportHeight / 2) * dy
   );
-  const travelLimit = viewportDepth + targetOffsetDepth + halfDepth + CLOUD_BANK_START_MARGIN_PX;
-  const speedPxPerSecond = 160 + Math.max(0, Math.min(1.2, windStrength)) * 110;
+  const travelLimit = viewportDepth + targetOffsetDepth +
+    CLOUD_BANK_SOLID_HALF_DEPTH_PX + CLOUD_BANK_START_MARGIN_PX;
   return Object.freeze({
     startedAtMs: nowMs,
     durationMs: travelLimit * 2 / speedPxPerSecond * 1000,
-    viewportWidth,
-    viewportHeight,
     dx,
     dy,
     targetX,
     targetY,
     targetWidth,
     targetHeight,
-    targetDepth,
-    targetSpan,
-    halfDepth,
+    solidHalfDepth: CLOUD_BANK_SOLID_HALF_DEPTH_PX,
     halfSpan,
-    travelLimit
+    travelLimit,
+    speedPxPerSecond
   });
 }
 
@@ -76,16 +74,6 @@ export function chartRepairCloudBankFrame(bank, nowMs) {
   }
   const progress = Math.max(0, Math.min(1, (nowMs - bank.startedAtMs) / bank.durationMs));
   const travel = -bank.travelLimit + bank.travelLimit * 2 * progress;
-  const solidHalfDepth = bank.halfDepth - CLOUD_BANK_SOFT_EDGE_PX;
-  const viewportDepth = (
-    Math.abs(bank.dx) * bank.viewportWidth / 2 +
-    Math.abs(bank.dy) * bank.viewportHeight / 2
-  );
-  const viewportSpan = (
-    Math.abs(bank.dy) * bank.viewportWidth / 2 +
-    Math.abs(bank.dx) * bank.viewportHeight / 2
-  );
-  const fullCoverDepth = solidHalfDepth - viewportDepth;
   return Object.freeze({
     progress,
     centerX: bank.targetX + bank.dx * travel,
@@ -97,14 +85,8 @@ export function chartRepairCloudBankFrame(bank, nowMs) {
     targetWidth: bank.targetWidth,
     targetHeight: bank.targetHeight,
     angleRad: Math.atan2(bank.dy, bank.dx),
-    halfDepth: bank.halfDepth,
-    solidHalfDepth,
+    solidHalfDepth: bank.solidHalfDepth,
     halfSpan: bank.halfSpan,
-    coversTarget: Math.abs(travel) <= solidHalfDepth - bank.targetDepth,
-    coversViewport: bank.targetX === bank.viewportWidth / 2 &&
-      bank.targetY === bank.viewportHeight / 2 &&
-      bank.halfSpan >= viewportSpan &&
-      Math.abs(travel) <= fullCoverDepth,
     finished: progress >= 1
   });
 }

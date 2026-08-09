@@ -14,6 +14,7 @@ import {
   SHIP_MINIMUM_POWERED_SPEED_RAD,
   SHIP_STALLED_DRAG_MULTIPLIER,
   rowingCrewRatio,
+  sailWindSpeedFactor,
   sailingEfficiencyForAlignment,
   shipCanUseOars,
   shipDirectionalTranslationAllowed,
@@ -22,6 +23,12 @@ import {
   shipPropulsionPerformance,
   shipVelocityLimitAfterPropulsion
 } from "./shipPropulsion.js";
+
+test("wind-driven speed approaches hull speed without exceeding it", () => {
+  assert.equal(sailWindSpeedFactor(0), 0.28);
+  assert.equal(sailWindSpeedFactor(1), 1);
+  assert.equal(sailWindSpeedFactor(2), 1);
+});
 
 test("world and lake sailing share one drag curve", () => {
   assert.equal(shipDragFactor(false, 1), Math.exp(-SHIP_DRAG_PER_SECOND));

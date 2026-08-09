@@ -17,6 +17,13 @@ export const SHIP_MINIMUM_POWERED_SPEED_RAD = 0.006;
 export const SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD = Math.PI / 15;
 export const SAIL_CLOSE_HAULED_EFFICIENCY = 0.46;
 
+export function sailWindSpeedFactor(windStrength) {
+  if (!Number.isFinite(windStrength) || windStrength < 0) {
+    throw new Error(`Invalid sailing wind strength: ${windStrength}`);
+  }
+  return Math.min(1, 0.28 + windStrength * 0.72);
+}
+
 export function sailingEfficiencyForAlignment(stats, alignment) {
   if (!stats || !Number.isFinite(stats.upwindStallAngleRad)) {
     throw new Error("Sailing efficiency requires valid ship stats");
@@ -116,7 +123,7 @@ export function shipPropulsionPerformance(stats, {
     });
   }
 
-  const windFactor = 0.28 + windStrength * 0.72;
+  const windFactor = sailWindSpeedFactor(windStrength);
   const sailSpeedFloor = stats.propulsion === SHIP_PROPULSION_OAR_SAIL
     ? 0
     : minimumSailSpeed;
