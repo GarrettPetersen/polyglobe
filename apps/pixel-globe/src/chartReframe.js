@@ -105,6 +105,32 @@ export function interpolateChartRepairPlan({
   return { nextPositions, completedTileIds };
 }
 
+export function retainPositionLockedProjectedTiles({
+  projectedTiles,
+  positionLocks,
+  projectTile,
+  fallbackProjection
+}) {
+  if (!Array.isArray(projectedTiles) || !(positionLocks instanceof Map)) {
+    throw new Error("Position-locked chart projection requires tiles and position locks");
+  }
+  if (typeof projectTile !== "function" || typeof fallbackProjection !== "function") {
+    throw new Error("Position-locked chart projection requires projection functions");
+  }
+  const retained = projectedTiles.slice();
+  const retainedIds = new Set(retained.map((tile) => tile.id));
+  for (const [id, position] of positionLocks.entries()) {
+    if (retainedIds.has(id)) continue;
+    const projected = projectTile(id) ?? fallbackProjection(position);
+    if (!projected || !Number.isFinite(projected.x) || !Number.isFinite(projected.y)) {
+      throw new Error(`Position-locked chart tile ${id} has no finite projection`);
+    }
+    retained.push({ id, x: projected.x, y: projected.y });
+    retainedIds.add(id);
+  }
+  return retained;
+}
+
 export function selectRepresentativeChartDriftCalls(calls, viewport) {
   if (!Array.isArray(calls)) throw new Error("Chart drift calls must be an array");
   const { viewX, viewY, halfWidth, halfHeight } = viewport || {};

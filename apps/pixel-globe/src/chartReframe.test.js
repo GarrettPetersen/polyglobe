@@ -12,6 +12,7 @@ import {
   interpolateChartRepairPlan,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
+  retainPositionLockedProjectedTiles,
   selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
 
@@ -88,6 +89,23 @@ test("concealed chart repairs approach north-up targets in monotonic pixel steps
   assert.deepEqual(result.nextPositions.get(2), { x: 5, y: 7 });
   assert.equal(result.nextPositions.has(3), false);
   assert.deepEqual([...result.completedTileIds], [2]);
+});
+
+test("a visible position lock remains in a rebuild that projects it off-screen", () => {
+  const retained = retainPositionLockedProjectedTiles({
+    projectedTiles: [{ id: 10, x: 50, y: 30 }],
+    positionLocks: new Map([
+      [10, { x: 0, y: 0 }],
+      [50483, { x: -18, y: 42 }]
+    ]),
+    projectTile: () => null,
+    fallbackProjection: (position) => ({ x: position.x + 100, y: position.y + 60 })
+  });
+
+  assert.deepEqual(retained, [
+    { id: 10, x: 50, y: 30 },
+    { id: 50483, x: 82, y: 102 }
+  ]);
 });
 
 test("chart reframing preserves exact player and NPC globe positions", () => {

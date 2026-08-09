@@ -1603,6 +1603,7 @@ import {
   interpolateChartRepairPlan,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
+  retainPositionLockedProjectedTiles,
   selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
 import {
@@ -31954,6 +31955,7 @@ function captureVisibleAuthoritativeTilePositions(concealedTileIds = null) {
   const captured = new Map();
   const swellCanConcealSettlement = lastPresentedOceanSwell?.layout === localLayout;
   for (const [id, position] of localLayout.positions.entries()) {
+    if (chart?.visibleSet && !chart.visibleSet.has(id)) continue;
     if (concealedTileIds?.has(id)) continue;
     const row = earthById[id];
     const canSettleInsideSwell = swellCanConcealSettlement && isWaterSurfaceRow(row) &&
@@ -32039,7 +32041,18 @@ function buildChart(anchorCamera, positionLocks = null) {
     up: anchorCamera.up.slice()
   };
   const chartCenterTileId = findNearestTileId(graph, directionIndex, chartCamera.center);
-  const projectedVisible = collectChartTiles(chartCamera, chartCenterTileId);
+  let projectedVisible = collectChartTiles(chartCamera, chartCenterTileId);
+  if (positionLocks) {
+    projectedVisible = retainPositionLockedProjectedTiles({
+      projectedTiles: projectedVisible,
+      positionLocks,
+      projectTile: (id) => projectTileCenterFor(id, chartCamera),
+      fallbackProjection: (position) => ({
+        x: position.x + SCREEN_W / 2 - localLayout.viewX,
+        y: position.y + SCREEN_H / 2 - localLayout.viewY
+      })
+    });
+  }
   syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks);
   cullLocalLayout(projectedVisible);
   const drawOffset = layoutOffsetPixels();
