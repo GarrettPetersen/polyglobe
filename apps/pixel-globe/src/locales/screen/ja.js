@@ -2673,7 +2673,7 @@ export default Object.freeze({
   "the Habitation, palisade, storehouse, and river wharf": "住居、柵、倉庫、川の埠頭",
   "The harbor and farms will both depend on imported metal. Add": "港も農場も輸入金属に依存することになる。追加",
   "The harbor clerk's calendar and our log disagree by a whole day. We sailed around the world and carried our old reckoning all the way with us!": "港湾職員のカレンダーと私たちの記録は丸一日違います。私たちは世界中を航海し、昔の計算をずっと持ち続けました。",
-  "The harbor guns are silent, but you need at least {0} crew aboard a large warship to land a viable assault force.": "港の大砲は音を立てませんが、実行可能な攻撃部隊を上陸させるには、大型軍艦に少なくとも {0} 人の乗組員が乗らなければなりません。",
+  "You think to take {0} with that handful? Bring fewer than {1} fighting hands ashore, and we will drive every one of you into the sea.": "その程度の人数で{0}を奪えると思うか？ {1}人にも満たぬ兵で上陸すれば、一人残らず海へ叩き返してやる。",
   "The harbor guns are silent. {0} is exposed to plunder, though no sovereign will recognize its annexation.": "港の大砲は沈黙している。 {0} は略奪にさらされていますが、その併合を認める主権者はいません。",
   "The harbor guns are silent. {0} is exposed, but {1} still bars the quays.": "港の大砲は沈黙している。 {0} は露出していますが、{1} は依然として岸壁を遮断しています。",
   "The harbor is full of fishing stages and foreign sails. We will add a permanent English station without pretending we were first to use St. John's.": "港には釣りステージと外国の帆がいっぱいです。私たちが最初にセントジョンズを利用したふりをすることなく、常設の英語ステーションを追加します。",

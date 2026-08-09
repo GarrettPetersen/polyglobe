@@ -2673,7 +2673,7 @@ export default Object.freeze({
   "the Habitation, palisade, storehouse, and river wharf": "거주지, 방어벽, 창고 및 강 부두",
   "The harbor and farms will both depend on imported metal. Add": "항구와 농장은 모두 수입 금속에 의존할 것입니다. 추가",
   "The harbor clerk's calendar and our log disagree by a whole day. We sailed around the world and carried our old reckoning all the way with us!": "항만 직원의 달력과 우리의 일지가 하루 종일 일치하지 않습니다. 우리는 전 세계를 항해하며 우리의 오래된 계산법을 계속 가지고 다녔습니다!",
-  "The harbor guns are silent, but you need at least {0} crew aboard a large warship to land a viable assault force.": "항만 총은 조용하지만, 실행 가능한 공격 부대를 착륙시키려면 대형 군함에 탑승한 최소 {0} 승무원이 필요합니다.",
+  "You think to take {0} with that handful? Bring fewer than {1} fighting hands ashore, and we will drive every one of you into the sea.": "{0}? 그 한 줌의 병력으로 빼앗을 셈인가? 전투원이 {1}명도 안 된다면 모조리 바다로 몰아넣겠다.",
   "The harbor guns are silent. {0} is exposed to plunder, though no sovereign will recognize its annexation.": "항구 총은 조용합니다. {0}은 약탈의 위험에 노출되어 있지만 어떤 군주도 그 합병을 인정하지 않습니다.",
   "The harbor guns are silent. {0} is exposed, but {1} still bars the quays.": "항구 총은 조용합니다. {0}은 노출되어 있지만 {1}은 여전히 ​​부두를 막고 있습니다.",
   "The harbor is full of fishing stages and foreign sails. We will add a permanent English station without pretending we were first to use St. John's.": "항구에는 낚시터와 외국 돛이 가득합니다. 우리는 St. John's를 처음 사용한 척하지 않고 영구 영어 방송국을 추가할 것입니다.",

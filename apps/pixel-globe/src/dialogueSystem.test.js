@@ -2561,7 +2561,10 @@ test("a disabled enemy harbor never admits an ineligible captain in disguise", (
   };
 
   const view = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.match(view.text, /need at least 20 crew/);
+  assert.equal(
+    view.text,
+    "You think to take Calais with that handful? Bring fewer than 20 fighting hands ashore, and we will drive every one of you into the sea."
+  );
   assert.deepEqual(view.options.map((entry) => entry.label), ["Leave"]);
 });
 

@@ -2738,7 +2738,7 @@ function barredPortView(city, context) {
       : attack?.commissioned && !batteryDisabled
       ? `Your commission is known. ${cityLabel(city)} has closed its gates and trained its harbor batteries on your ship.`
       : batteryDisabled || conquest?.playerAssaultActive
-      ? `The harbor guns are silent, but you need at least ${conquest.minimumCrew} crew aboard a large warship to land a viable assault force.`
+      ? `You think to take ${cityLabel(city)} with that handful? Bring fewer than ${conquest.minimumCrew} fighting hands ashore, and we will drive every one of you into the sea.`
       : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
     feedback: null,
     options

@@ -2673,7 +2673,7 @@ export default Object.freeze({
   "the Habitation, palisade, storehouse, and river wharf": "住宅區、柵欄、倉庫和河碼頭",
   "The harbor and farms will both depend on imported metal. Add": "港口和農場都將依賴進口金屬。添加",
   "The harbor clerk's calendar and our log disagree by a whole day. We sailed around the world and carried our old reckoning all the way with us!": "港口職員的日曆和我們的日誌不一致一整天。我們環遊世界，一路帶著我們的舊帳！",
-  "The harbor guns are silent, but you need at least {0} crew aboard a large warship to land a viable assault force.": "港口的砲是無聲的，但你至少需要 {0} 名船員登上一艘大型戰艦，才能派出一支可行的突擊部隊登陸。",
+  "You think to take {0} with that handful? Bring fewer than {1} fighting hands ashore, and we will drive every one of you into the sea.": "就憑這幾個人也想拿下{0}？帶不到{1}名戰士上岸，我們會把你們一個不剩地趕回海裡。",
   "The harbor guns are silent. {0} is exposed to plunder, though no sovereign will recognize its annexation.": "港口的砲台寂靜無聲。 {0} 面臨掠奪的風險，但沒有一個主權國家會承認它的吞併。",
   "The harbor guns are silent. {0} is exposed, but {1} still bars the quays.": "港口的砲台寂靜無聲。 {0} 已暴露，但 {1} 仍封鎖碼頭。",
   "The harbor is full of fishing stages and foreign sails. We will add a permanent English station without pretending we were first to use St. John's.": "港口佈滿了釣魚台和外國帆船。我們將增加一個永久性的英語電台，而不會假裝我們是第一個使用聖約翰電台的。",
