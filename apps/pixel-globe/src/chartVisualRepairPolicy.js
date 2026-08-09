@@ -1,7 +1,10 @@
-export const CHART_WEATHER_REPAIR_ROTATION_DEG = 8;
-export const CHART_WEATHER_REPAIR_RMS_PX = 10;
-export const CHART_WEATHER_REPAIR_MAX_DISTORTION_PX = 22;
-export const CHART_WEATHER_REPAIR_TERRAIN_TEAR_PX = 14;
+import {
+  CHART_CLOUD_REPAIR_MAX_DISTORTION_PX,
+  CHART_CLOUD_REPAIR_RMS_PX,
+  CHART_CLOUD_REPAIR_ROTATION_DEG,
+  CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX
+} from "./chartVisualFault.js";
+
 export const CHART_REPAIR_CLOSING_FOG_TEAR_PX = 32;
 export const CHART_WEATHER_REPAIR_CONFIRMATION_MS = 10_000;
 
@@ -41,10 +44,10 @@ export function chooseChartVisualRepair({
 
   if (swellRepairAvailable) return Object.freeze({ kind: "none" });
 
-  const tear = terrainTear.extraPx >= CHART_WEATHER_REPAIR_TERRAIN_TEAR_PX;
-  const rotation = Math.abs(drift.rotationDeg) >= CHART_WEATHER_REPAIR_ROTATION_DEG;
-  const distortion = drift.rmsDistortionPx >= CHART_WEATHER_REPAIR_RMS_PX ||
-    drift.maxDistortionPx >= CHART_WEATHER_REPAIR_MAX_DISTORTION_PX;
+  const tear = terrainTear.extraPx >= CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX;
+  const rotation = Math.abs(drift.rotationDeg) >= CHART_CLOUD_REPAIR_ROTATION_DEG;
+  const distortion = drift.rmsDistortionPx >= CHART_CLOUD_REPAIR_RMS_PX ||
+    drift.maxDistortionPx >= CHART_CLOUD_REPAIR_MAX_DISTORTION_PX;
   if (!tear && !rotation && !distortion) return Object.freeze({ kind: "none" });
 
   const fault = tear
@@ -70,7 +73,7 @@ export function chooseChartVisualRepair({
 
   if (rotation && !tear) {
     return Object.freeze({
-      kind: "full-cloud",
+      kind: heatHazeAvailable ? "heat-haze" : "full-cloud",
       fault: Object.freeze(fault)
     });
   }

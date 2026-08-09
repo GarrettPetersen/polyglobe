@@ -581,7 +581,8 @@ function gradedContinuityCorrectionLimits({
   neighborsById,
   continuityMaskById,
   liveViewportAdmissionIds,
-  perEdgeLimitPx
+  perEdgeLimitPx,
+  perClassLimitPx
 }) {
   if (continuityMaskById === null) return null;
   const pendingSet = new Set(pendingIds);
@@ -591,7 +592,7 @@ function gradedContinuityCorrectionLimits({
     if (continuityMaskById[id] === 0) continue;
     const touchesRetainedContinuousTile = neighborsById[id].some((neighborId) => (
       !pendingSet.has(neighborId) &&
-      continuityMaskById[neighborId] !== 0 &&
+      continuityMaskById[neighborId] === continuityMaskById[id] &&
       positions.has(neighborId)
     ));
     if (!touchesRetainedContinuousTile && !liveViewportAdmissionIds?.has(id)) continue;
@@ -604,7 +605,7 @@ function gradedContinuityCorrectionLimits({
     for (const neighborId of neighborsById[id]) {
       if (
         !pendingSet.has(neighborId) ||
-        continuityMaskById[neighborId] === 0 ||
+        continuityMaskById[neighborId] !== continuityMaskById[id] ||
         distanceById.has(neighborId)
       ) continue;
       distanceById.set(neighborId, nextDistance);
@@ -618,9 +619,24 @@ function gradedContinuityCorrectionLimits({
       : liveViewportAdmissionIds?.has(id)
       ? 0
       : distanceById.has(id)
-      ? perEdgeLimitPx * (distanceById.get(id) + 1)
+      ? continuityCorrectionLimitForId({
+          id,
+          continuityMaskById,
+          defaultLimitPx: perEdgeLimitPx,
+          perClassLimitPx
+        }) * (distanceById.get(id) + 1)
       : Number.POSITIVE_INFINITY
   ]));
+}
+
+function continuityCorrectionLimitForId({
+  id,
+  continuityMaskById,
+  defaultLimitPx,
+  perClassLimitPx
+}) {
+  if (continuityMaskById === null || perClassLimitPx === null) return defaultLimitPx;
+  return perClassLimitPx.get(continuityMaskById[id]) ?? defaultLimitPx;
 }
 
 function pixelPointTowardWithinDistance(origin, target, maximumDistance) {
@@ -748,6 +764,7 @@ export function admitProjectedTiles({
   maxProtectedCorrectionPx = 0,
   continuityMaskById = null,
   maxContinuityCorrectionPx = 0,
+  continuityCorrectionLimitsByClass = null,
   protectedCorrectionViewportIds = null,
   liveViewportAdmissionIds = null,
   recoverProtectedStitchError = null
@@ -793,6 +810,21 @@ export function admitProjectedTiles({
     throw new Error(
       `Local layout continuity correction limit must be non-negative: ${maxContinuityCorrectionPx}`
     );
+  }
+  if (continuityCorrectionLimitsByClass !== null) {
+    if (!(continuityCorrectionLimitsByClass instanceof Map)) {
+      throw new Error("Local layout continuity correction class limits must be a map");
+    }
+    for (const [classId, limitPx] of continuityCorrectionLimitsByClass) {
+      if (!Number.isInteger(classId) || classId <= 0 || classId > 255) {
+        throw new Error(`Local layout continuity class must be in 1..255: ${classId}`);
+      }
+      if (!Number.isFinite(limitPx) || limitPx < 0) {
+        throw new Error(
+          `Local layout continuity class ${classId} has invalid correction limit: ${limitPx}`
+        );
+      }
+    }
   }
   if (
     protectedCorrectionViewportIds !== null &&
@@ -888,7 +920,8 @@ export function admitProjectedTiles({
     neighborsById,
     continuityMaskById,
     liveViewportAdmissionIds,
-    perEdgeLimitPx: maxContinuityCorrectionPx
+    perEdgeLimitPx: maxContinuityCorrectionPx,
+    perClassLimitPx: continuityCorrectionLimitsByClass
   });
   const continuityPositions = new Map(positions);
   // A pending tile can be encountered before an adjacent protected tile in
@@ -907,6 +940,12 @@ export function admitProjectedTiles({
     assertFinitePoint(projected, `Projected position for pending tile ${id}`);
     const protectedPoint = protectedPointById.get(id);
     const entersLiveViewport = liveViewportAdmissionIds?.has(id) ?? false;
+    const continuityCorrectionLimitPx = continuityCorrectionLimitForId({
+      id,
+      continuityMaskById,
+      defaultLimitPx: maxContinuityCorrectionPx,
+      perClassLimitPx: continuityCorrectionLimitsByClass
+    });
     const framePoint = protectedPoint ?? admissionPointBetweenFrames(
       projected,
       registeredFrame,
@@ -929,7 +968,7 @@ export function admitProjectedTiles({
       protectionById,
       continuityMaskById,
       registeredFrame,
-      maximumSlackPx: maxContinuityCorrectionPx
+      maximumSlackPx: continuityCorrectionLimitPx
     });
     positions.set(id, point);
     continuityPositions.set(id, point);
@@ -943,7 +982,8 @@ export function admitProjectedTiles({
     protectionById,
     continuityMaskById,
     registeredFrame,
-    maximumSlackPx: maxContinuityCorrectionPx
+    defaultMaximumSlackPx: maxContinuityCorrectionPx,
+    maximumSlackPxByClass: continuityCorrectionLimitsByClass
   });
 
   return admitted;
@@ -957,9 +997,13 @@ function reconcilePendingContinuityEdges({
   protectionById,
   continuityMaskById,
   registeredFrame,
-  maximumSlackPx
+  defaultMaximumSlackPx,
+  maximumSlackPxByClass
 }) {
-  if (continuityMaskById === null || maximumSlackPx <= 0) return;
+  if (
+    continuityMaskById === null ||
+    (defaultMaximumSlackPx <= 0 && maximumSlackPxByClass === null)
+  ) return;
   // Pending order is a projection detail, not topology. A final pass lets a
   // tile admitted before one of its neighbours use the complete new boundary
   // without moving any geography that was already on screen.
@@ -968,6 +1012,13 @@ function reconcilePendingContinuityEdges({
     for (const id of pendingIds) {
       if (protectionById[id] === 255 || continuityMaskById[id] === 0) continue;
       const current = positions.get(id);
+      const maximumSlackPx = continuityCorrectionLimitForId({
+        id,
+        continuityMaskById,
+        defaultLimitPx: defaultMaximumSlackPx,
+        perClassLimitPx: maximumSlackPxByClass
+      });
+      if (maximumSlackPx <= 0) continue;
       const reconciled = continuityAnchoredAdmissionPoint({
         id,
         framePoint: current,

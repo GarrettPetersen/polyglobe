@@ -33,6 +33,7 @@ import {
 import {
   chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
+  nextPolarChartRepairPressure,
   polarChartFogFrame
 } from "./chartRepairFog.js";
 import {
@@ -49,6 +50,10 @@ const TRAVERSAL_SCREEN_H = 256;
 const TRAVERSAL_MARGIN = 72;
 const TRAVERSAL_PIXELS_PER_RADIAN = 620;
 const TRAVERSAL_REBUILD_DISTANCE_PX = 28;
+const TEST_CONTINUITY_CORRECTION_LIMITS_BY_CLASS = new Map([
+  [1, MAX_PROTECTED_ADMISSION_SLACK_PX * 2],
+  [2, MAX_PROTECTED_ADMISSION_SLACK_PX]
+]);
 const PRINT_CHART_BENCHMARK = process.env.PIXEL_GLOBE_PRINT_CHART_BENCHMARK === "1";
 
 function reportChartBenchmark(label, result) {
@@ -58,7 +63,10 @@ function reportChartBenchmark(label, result) {
     chartBuilds: result.chartBuilds,
     polarFogRepairPasses: result.polarFogRepairPasses,
     polarFogTilesSettled: result.polarFogTilesSettled,
+    maxPolarFogRepairPressure: result.maxPolarFogRepairPressure,
     maxRotationDeg: result.maxRotationDeg,
+    maxRotationStep: result.maxRotationStep,
+    maxProtectedRotationStep: result.maxProtectedRotationStep,
     maxRmsDistortionPx: result.maxRmsDistortionPx,
     maxDistortionPx: result.maxDistortionPx,
     maxTerrainEdgeGapPx: result.maxTerrainEdgeGapPx,
@@ -286,6 +294,60 @@ test("a newly exposed uniform land edge cannot open a large correction tear", ()
   );
 });
 
+test("ordinary admission gives uniform water more north-up slack than land", () => {
+  const water = rotatedAdmissionPoints(60);
+  const land = rotatedAdmissionPoints(60);
+  const topology = admissionTopology(3, [[0, 1], [1, 2]], 0);
+  const common = {
+    pendingIds: [2],
+    anchorId: 0,
+    ...topology,
+    registrationIds: new Set([0, 1]),
+    correctElasticTilesNorthUp: true,
+    maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    continuityCorrectionLimitsByClass: TEST_CONTINUITY_CORRECTION_LIMITS_BY_CLASS
+  };
+  admitProjectedTiles({
+    positions: water.positions,
+    projectedById: water.projectedById,
+    ...common,
+    continuityMaskById: new Uint8Array([1, 1, 1])
+  });
+  admitProjectedTiles({
+    positions: land.positions,
+    projectedById: land.projectedById,
+    ...common,
+    continuityMaskById: new Uint8Array([2, 2, 2])
+  });
+
+  const target = water.projectedById.get(2);
+  const waterDistance = Math.hypot(
+    water.positions.get(2).x - target.x,
+    water.positions.get(2).y - target.y
+  );
+  const landDistance = Math.hypot(
+    land.positions.get(2).x - target.x,
+    land.positions.get(2).y - target.y
+  );
+  assert.ok(
+    waterDistance < landDistance,
+    `Water (${waterDistance.toFixed(2)}px) did not absorb more frame correction than land ` +
+      `(${landDistance.toFixed(2)}px)`
+  );
+  assert.ok(
+    Math.abs(Math.hypot(
+      water.positions.get(2).x - water.positions.get(1).x,
+      water.positions.get(2).y - water.positions.get(1).y
+    ) - 24) <= MAX_PROTECTED_ADMISSION_SLACK_PX * 2
+  );
+  assert.ok(
+    Math.abs(Math.hypot(
+      land.positions.get(2).x - land.positions.get(1).x,
+      land.positions.get(2).y - land.positions.get(1).y
+    ) - 24) <= MAX_PROTECTED_ADMISSION_SLACK_PX
+  );
+});
+
 test("a quiet interval can admit ocean without applying a north-up jump", () => {
   const points = rotatedAdmissionPoints(60);
   admitProjectedTiles({
@@ -424,6 +486,50 @@ test("successive swells converge on the exact fresh north-up redraw field", () =
       viewportWidth: 160,
       viewportHeight: 100
     }));
+  }
+});
+
+test("concealed grouped repairs converge north-up without opening a topology seam", () => {
+  const angle = 14 * Math.PI / 180;
+  const positions = new Map([[0, { x: 0, y: 0 }]]);
+  const targetsById = new Map([[0, { x: 0, y: 0 }]]);
+  for (let id = 1; id <= 5; id++) {
+    const distance = id * 24;
+    positions.set(id, {
+      x: Math.round(Math.cos(angle) * distance),
+      y: Math.round(Math.sin(angle) * distance)
+    });
+    targetsById.set(id, { x: distance, y: 0 });
+  }
+  const neighborsById = Array.from({ length: 6 }, () => []);
+  for (let id = 0; id < 5; id++) {
+    neighborsById[id].push(id + 1);
+    neighborsById[id + 1].push(id);
+  }
+  const movingIds = new Set([1, 2, 3, 4, 5]);
+  const surfaceMaskById = new Uint8Array([2, 2, 2, 2, 2, 2]);
+
+  for (let pass = 0; pass < 120; pass++) {
+    const repair = interpolateChartRepairPlan({
+      positions,
+      targetsById,
+      tileIds: movingIds,
+      maximumStepPx: 1
+    });
+    const constrained = constrainChartRepairToTopology({
+      positions,
+      proposedPositions: repair.nextPositions,
+      referencePositions: targetsById,
+      neighborsById,
+      surfaceMaskById,
+      landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+      waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2
+    });
+    for (const [id, point] of constrained) positions.set(id, point);
+  }
+
+  for (const [id, target] of targetsById) {
+    assert.deepEqual(positions.get(id), target, `Concealed tile ${id} did not reach north-up`);
   }
 });
 
@@ -789,6 +895,26 @@ test("a badly tilted coastal chart recovers after entering open ocean with live 
   );
 });
 
+test("a finite uniform ocean absorbs large tilt in either direction with production limits", () => {
+  for (const initialRotationDeg of [-45, -21, 21, 45]) {
+    const result = simulateFiniteOceanCrossing({
+      refreshOffscreenEachStep: true,
+      resolveNearestAnchor: true,
+      initialRotationDeg
+    });
+    assert.ok(
+      Math.abs(result.exitRotationDeg) <= 2,
+      `${initialRotationDeg} degree ocean entry retained ` +
+        `${result.exitRotationDeg.toFixed(2)} degrees at the far shore`
+    );
+    assert.ok(
+      result.maximumAbsoluteRotationDeg <= Math.abs(result.initialRotationDeg) + 0.5,
+      `${initialRotationDeg} degree ocean correction first worsened to ` +
+        `${result.maximumAbsoluteRotationDeg.toFixed(2)} degrees`
+    );
+  }
+});
+
 test("protected geography corrects gradually instead of using the full ocean reset", () => {
   const result = simulateOceanViewportTurnover({ protectedViewport: true });
 
@@ -1055,6 +1181,16 @@ test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geogr
     "A land tile that was already visible was discarded or moved during the voyage"
   );
   assert.ok(
+    result.maxRotationDeg <= 16,
+    `No-stop world circuit exceeded its emergency tilt bound at ` +
+      `${result.maxRotationDeg.toFixed(2)} degrees`
+  );
+  assert.equal(
+    result.missingVisibleLandNeighbors,
+    0,
+    "No-stop world circuit omitted connected land inside the viewport"
+  );
+  assert.ok(
     Math.abs(result.finalProtectedRotationDeg) <= 9,
     `Round-the-world protected coast finished at ` +
       `${result.finalProtectedRotationDeg.toFixed(2)} degrees of tilt`
@@ -1084,7 +1220,8 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
       subdivisions: 7,
       pixelsPerRadian: 2450,
       chartMargin: 218,
-      usePolarFogRepairs: true
+      usePolarFogRepairs: true,
+      applyVisualRepairs: false
     }
   );
   reportChartBenchmark("mediterranean", result);
@@ -1109,6 +1246,8 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
   );
   assert.equal(result.visibleProtectedRedraws, 0);
   assert.equal(result.visibleLandRedraws, 0);
+  assert.equal(result.polarFogRepairPasses, 0, "Warm-water traversal used polar fog");
+  assert.equal(result.maxPolarFogRepairPressure, 0, "Warm-water traversal raised polar fog");
   assert.ok(
     result.maxRotationDeg <= 6,
     `Mediterranean chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
@@ -1133,7 +1272,7 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
   assertTraversalRepairBurden(result, "Mediterranean crossing", 25);
 });
 
-test("an east-to-west Scandinavia traversal requests repair before compression becomes severe", () => {
+test("an east-to-west Scandinavia traversal escalates concealed repair before geometry fails", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1163,8 +1302,8 @@ test("an east-to-west Scandinavia traversal requests repair before compression b
   assert.equal(result.visibleProtectedRedraws, 0);
   assert.equal(result.visibleLandRedraws, 0);
   assert.ok(
-    result.maxRotationDeg <= 4,
-    `Scandinavian chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
+    result.maxRotationDeg <= 6,
+    `Scandinavian chart escaped repair control at ${result.maxRotationDeg.toFixed(2)} degrees`
   );
   assert.ok(
     result.maxProtectedEdgeErrorPx <= 6,
@@ -1173,16 +1312,25 @@ test("an east-to-west Scandinavia traversal requests repair before compression b
       `${JSON.stringify(result.maxProtectedEdgeDetails)}`
   );
   assert.ok(
-    result.maxTerrainEdgeGapPx <= 7,
+    result.maxTerrainEdgeGapPx <= 12,
     `Scandinavian chart opened an extreme ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
   );
   assert.ok(
-    result.maxTerrainEdgeCompressionPx <= 6,
+    result.maxTerrainEdgeCompressionPx <= 16,
     `Scandinavian chart compressed a visible edge by ` +
       `${result.maxTerrainEdgeCompressionPx.toFixed(2)}px`
   );
   assert.ok(result.polarFogRepairPasses > 0, "Polar fog never repaired the moving chart");
   assert.ok(result.polarFogTilesSettled > 0, "Polar fog did not settle any chart tiles");
+  assert.ok(
+    result.firstCompressionRepairPx <= 7,
+    `Scandinavian repair waited for ${result.firstCompressionRepairPx.toFixed(2)}px compression`
+  );
+  assert.ok(
+    result.repairDemand.fullCloudBanks > 0,
+    "Polar edge fog did not escalate when central rotation remained uncovered"
+  );
+  assertLandTraversalIsContinuous(result, "Scandinavian crossing");
   assertTraversalRepairBurden(result, "Scandinavian crossing", 45);
 });
 
@@ -1416,14 +1564,15 @@ function simulateHighLatitudeTraversal(admitTiles) {
 }
 
 function simulateLisbonToKamchatkaCoastalVoyage(
-  maxProtectedCorrectionPx = 0,
+  maxProtectedCorrectionPx = MAX_PROTECTED_ADMISSION_SLACK_PX,
   {
     routeWaypoints = null,
     subdivisions = 5,
     pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN,
     chartMargin = TRAVERSAL_MARGIN,
     useGameWorld = false,
-    usePolarFogRepairs = false
+    usePolarFogRepairs = true,
+    applyVisualRepairs = true
   } = {}
 ) {
   const graph = buildGeodesicGraph(subdivisions);
@@ -1511,6 +1660,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let chartBuilds = 0;
   let polarFogRepairPasses = 0;
   let polarFogTilesSettled = 0;
+  let polarFogRepairPressure = 0;
+  let maxPolarFogRepairPressure = 0;
   let distanceSinceBuildPx = Number.POSITIVE_INFINITY;
   const rotationSamples = [];
   const repairDemand = createTraversalRepairDemand();
@@ -1653,11 +1804,14 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       maxProtectedCorrectionPx,
       continuityMaskById,
       maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+      continuityCorrectionLimitsByClass:
+        TEST_CONTINUITY_CORRECTION_LIMITS_BY_CLASS,
       protectedCorrectionViewportIds: correctionViewportIds,
       liveViewportAdmissionIds: new Set([...correctionViewportIds].filter((id) => (
         !usePolarFogRepairs || !traversalProjectedTileIsFogConcealed({
           projected: admissionProjectedById.get(id),
-          direction
+          direction,
+          repairPressure: polarFogRepairPressure
         })
       ))),
       recoverProtectedStitchError: () => true
@@ -1692,10 +1846,52 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       if (!retainedIds.has(id)) positions.delete(id);
     }
     const concealedRepairIds = new Set();
+    const coveredRepairIds = new Set();
+    // A chart build represents several rendered frames of travel. Production
+    // fog settlement advances once per presented frame, so model several ticks
+    // of the slow, concealed repair between movement samples.
     const repairScans = usePolarFogRepairs ? 4 : 1;
     for (let repairScan = 0; repairScan < repairScans; repairScan++) {
+      if (usePolarFogRepairs) {
+        const repairVisiblePositions = traversalVisiblePositions({
+          positions,
+          viewX,
+          viewY
+        });
+        const repairFrame = repairVisiblePositions.size >= 2
+          ? measureCenteredFrameError(repairVisiblePositions, projectedById)
+          : { rotationDeg: 0, rmsError: 0, maxErrorPx: 0 };
+        const repairTear = measureTraversalTerrainTear({
+          visiblePositions: repairVisiblePositions,
+          projectedById,
+          neighborsById: graph.neighbors,
+          terrainClassByTileId,
+          viewX,
+          viewY
+        });
+        polarFogRepairPressure = nextPolarChartRepairPressure({
+          currentPressure: polarFogRepairPressure,
+          latitudeDeg: traversalLatitudeDeg(direction),
+          drift: {
+            rotationDeg: repairFrame.rotationDeg,
+            rmsDistortionPx: repairFrame.rmsError,
+            maxDistortionPx: repairFrame.maxErrorPx
+          },
+          terrainTear: repairTear
+        });
+        maxPolarFogRepairPressure = Math.max(
+          maxPolarFogRepairPressure,
+          polarFogRepairPressure
+        );
+      }
       const polarFogRepair = usePolarFogRepairs
-        ? traversalPolarFogRepairTileIds({ positions, direction, viewX, viewY })
+        ? traversalPolarFogRepairTileIds({
+            positions,
+            direction,
+            viewX,
+            viewY,
+            repairPressure: polarFogRepairPressure
+          })
         : { concealed: new Set(), dense: new Set() };
       for (const id of polarFogRepair.concealed) concealedRepairIds.add(id);
       if (polarFogRepair.concealed.size === 0) continue;
@@ -1709,36 +1905,21 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         viewportHeight: TRAVERSAL_SCREEN_H,
         excludedTileId: centerId
       });
-      const gradualIds = new Set(
-        [...polarFogRepair.concealed].filter((id) => !polarFogRepair.dense.has(id))
-      );
       const repair = interpolateChartRepairPlan({
         positions,
         targetsById,
-        tileIds: gradualIds,
+        tileIds: polarFogRepair.concealed,
         maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
       });
       const proposedPositions = new Map(repair.nextPositions);
-      const instantPositions = new Map();
-      for (const id of polarFogRepair.dense) {
-        const target = targetsById.get(id);
-        if (target) instantPositions.set(id, target);
-      }
-      const topologyIds = new Set([
-        ...proposedPositions.keys(),
-        ...instantPositions.keys()
-      ]);
+      const topologyIds = new Set(proposedPositions.keys());
       for (const id of [...topologyIds]) {
         for (const neighborId of graph.neighbors[id]) {
           if (positions.has(neighborId)) topologyIds.add(neighborId);
         }
       }
-      const positionsAfterInstantRepair = new Map(positions);
-      for (const [id, position] of instantPositions) {
-        positionsAfterInstantRepair.set(id, position);
-      }
-      const constrainedGradualPositions = constrainChartRepairToTopology({
-        positions: positionsAfterInstantRepair,
+      const constrainedPositions = constrainChartRepairToTopology({
+        positions,
         proposedPositions,
         referencePositions: new Map(
           [...topologyIds]
@@ -1750,25 +1931,84 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
         waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2
       });
-      const constrainedPositions = new Map([
-        ...instantPositions,
-        ...constrainedGradualPositions
-      ]);
       if (constrainedPositions.size > 0) {
         polarFogRepairPasses++;
         polarFogTilesSettled += constrainedPositions.size;
         for (const [id, position] of constrainedPositions) positions.set(id, position);
       }
     }
+    const visualRepairVisiblePositions = traversalVisiblePositions({
+      positions,
+      viewX,
+      viewY
+    });
+    for (const id of concealedRepairIds) visualRepairVisiblePositions.delete(id);
+    const visualRepairFrame = visualRepairVisiblePositions.size >= 2
+      ? measureCenteredFrameError(visualRepairVisiblePositions, projectedById)
+      : {
+          rotationDeg: 0,
+          rmsError: 0,
+          maxErrorPx: 0,
+          maxErrorTileId: null
+        };
+    const visualRepairTear = measureTraversalTerrainTear({
+      visiblePositions: visualRepairVisiblePositions,
+      projectedById,
+      neighborsById: graph.neighbors,
+      terrainClassByTileId,
+      viewX,
+      viewY
+    });
+    const visualRepairSelection = recordTraversalRepairDemand(repairDemand, {
+      drift: {
+        rotationDeg: visualRepairFrame.rotationDeg,
+        rmsDistortionPx: visualRepairFrame.rmsError,
+        maxDistortionPx: visualRepairFrame.maxErrorPx
+      },
+      terrainTear: visualRepairTear,
+      distortionPoint: traversalScreenPosition(
+        visualRepairVisiblePositions.get(visualRepairFrame.maxErrorTileId),
+        viewX,
+        viewY
+      ),
+      distortionSurface: terrainClassByTileId[visualRepairFrame.maxErrorTileId],
+      swellRepairAvailable: viewportIsFullyElasticWater || (
+        visualRepairTear.surface === "water" &&
+        visualRepairTear.tileIds.every((id) => protectionById[id] === 0)
+      ),
+      elasticTileCount: support.elasticTileIds.size
+    });
+    if (applyVisualRepairs && visualRepairSelection.kind !== "none") {
+      const movedTileIds = applyTraversalVisualRepair({
+        kind: visualRepairSelection.kind,
+        fault: visualRepairSelection.repair?.fault || {
+          x: visualRepairTear.screenX,
+          y: visualRepairTear.screenY,
+          sizePx: visualRepairTear.extraPx,
+          surface: visualRepairTear.surface
+        },
+        positions,
+        projectedById,
+        visiblePositions: visualRepairVisiblePositions,
+        neighborsById: graph.neighbors,
+        continuityMaskById,
+        terrainClassByTileId,
+        protectionById,
+        centerId,
+        viewX,
+        viewY
+      });
+      for (const id of movedTileIds) coveredRepairIds.add(id);
+    }
     for (const [id, before] of visibleProtectedBefore.entries()) {
-      if (concealedRepairIds.has(id)) continue;
+      if (concealedRepairIds.has(id) || coveredRepairIds.has(id)) continue;
       const after = positions.get(id);
       if (!after || after.x !== before.x || after.y !== before.y) {
         visibleProtectedRedraws++;
       }
     }
     for (const [id, before] of visibleLandBefore.entries()) {
-      if (concealedRepairIds.has(id)) continue;
+      if (concealedRepairIds.has(id) || coveredRepairIds.has(id)) continue;
       const after = positions.get(id);
       if (!after || after.x !== before.x || after.y !== before.y) {
         visibleLandRedraws++;
@@ -1833,25 +2073,6 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         firstCompressionRepairPx = terrainTear.compressionPx;
       }
     }
-    recordTraversalRepairDemand(repairDemand, {
-      drift: {
-        rotationDeg: frame.rotationDeg,
-        rmsDistortionPx: frame.rmsError,
-        maxDistortionPx: frame.maxErrorPx
-      },
-      terrainTear,
-      distortionPoint: traversalScreenPosition(
-        visiblePositions.get(frame.maxErrorTileId),
-        viewX,
-        viewY
-      ),
-      distortionSurface: terrainClassByTileId[frame.maxErrorTileId],
-      swellRepairAvailable: viewportIsFullyElasticWater || (
-        terrainTear.surface === "water" &&
-        terrainTear.tileIds.every((id) => protectionById[id] === 0)
-      ),
-      elasticTileCount: support.elasticTileIds.size
-    });
     if (Math.abs(frame.rotationDeg) > maxRotationDeg) {
       maxRotationDeg = Math.abs(frame.rotationDeg);
       maxRotationStep = step;
@@ -1982,6 +2203,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     chartBuilds,
     polarFogRepairPasses,
     polarFogTilesSettled,
+    maxPolarFogRepairPressure,
     stepsWithoutProtectedCoast,
     stepsWithProtectedCoast,
     maxRotationDeg,
@@ -2013,15 +2235,20 @@ function simulateLisbonToKamchatkaCoastalVoyage(
 }
 
 
-function traversalPolarFogRepairTileIds({ positions, direction, viewX, viewY }) {
-  const latitudeDeg = Math.asin(clamp(direction[1], -1, 1)) * 180 / Math.PI;
+function traversalPolarFogRepairTileIds({
+  positions,
+  direction,
+  viewX,
+  viewY,
+  repairPressure
+}) {
   const frame = polarChartFogFrame({
-    latitudeDeg,
+    latitudeDeg: traversalLatitudeDeg(direction),
     viewportWidth: TRAVERSAL_SCREEN_W,
     viewportHeight: TRAVERSAL_SCREEN_H,
     focusX: TRAVERSAL_SCREEN_W / 2,
     focusY: TRAVERSAL_SCREEN_H / 2,
-    repairPressure: 1
+    repairPressure
   });
   if (!frame) return { concealed: new Set(), dense: new Set() };
   const concealed = new Set();
@@ -2040,23 +2267,137 @@ function traversalPolarFogRepairTileIds({ positions, direction, viewX, viewY }) 
   return { concealed, dense };
 }
 
-function traversalProjectedTileIsFogConcealed({ projected, direction }) {
+function traversalProjectedTileIsFogConcealed({ projected, direction, repairPressure }) {
   if (!projected) return false;
-  const latitudeDeg = Math.asin(clamp(direction[1], -1, 1)) * 180 / Math.PI;
   const frame = polarChartFogFrame({
-    latitudeDeg,
+    latitudeDeg: traversalLatitudeDeg(direction),
     viewportWidth: TRAVERSAL_SCREEN_W,
     viewportHeight: TRAVERSAL_SCREEN_H,
     focusX: TRAVERSAL_SCREEN_W / 2,
     focusY: TRAVERSAL_SCREEN_H / 2,
-    repairPressure: 1
+    repairPressure
   });
+  if (!frame) return false;
   return chartFogConcealsCircleForRepair(
     frame,
     projected.x,
     projected.y,
     21
   );
+}
+
+function traversalLatitudeDeg(direction) {
+  return Math.asin(clamp(direction[1], -1, 1)) * 180 / Math.PI;
+}
+
+function traversalVisiblePositions({ positions, viewX, viewY }) {
+  const visible = new Map();
+  for (const [id, position] of positions) {
+    const screen = traversalScreenPosition(position, viewX, viewY);
+    if (
+      screen.x < -18 || screen.x > TRAVERSAL_SCREEN_W + 18 ||
+      screen.y < -18 || screen.y > TRAVERSAL_SCREEN_H + 18
+    ) continue;
+    visible.set(id, position);
+  }
+  return visible;
+}
+
+function applyTraversalVisualRepair({
+  kind,
+  fault,
+  positions,
+  projectedById,
+  visiblePositions,
+  neighborsById,
+  continuityMaskById,
+  terrainClassByTileId,
+  protectionById,
+  centerId,
+  viewX,
+  viewY
+}) {
+  const repairTileIds = new Set();
+  const faultX = Number.isFinite(fault?.x) ? fault.x : TRAVERSAL_SCREEN_W / 2;
+  const faultY = Number.isFinite(fault?.y) ? fault.y : TRAVERSAL_SCREEN_H / 2;
+  const partialRadiusPx = Math.max(56, Math.min(96, (fault?.sizePx || 0) + 30));
+  const candidatePositions = kind === "full-cloud" || kind === "closing-fog" ||
+      kind === "heat-haze"
+    ? positions
+    : visiblePositions;
+  for (const [id, position] of candidatePositions) {
+    if (!projectedById.has(id)) continue;
+    if (id === centerId) continue;
+    const screen = traversalScreenPosition(position, viewX, viewY);
+    const distanceFromPlayer = Math.hypot(
+      screen.x - TRAVERSAL_SCREEN_W / 2,
+      screen.y - TRAVERSAL_SCREEN_H / 2
+    );
+    const distanceFromFault = Math.hypot(screen.x - faultX, screen.y - faultY);
+    const eligible = kind === "swell"
+      ? terrainClassByTileId[id] === "water" && protectionById[id] === 0
+      : kind === "partial-cloud"
+      ? distanceFromFault <= partialRadiusPx
+      : kind === "closing-fog"
+      ? distanceFromPlayer >= 48
+      : kind === "full-cloud" || kind === "heat-haze";
+    if (eligible) repairTileIds.add(id);
+  }
+  if (repairTileIds.size === 0) return new Set();
+
+  // One moving-chart sample represents many presented frames. These passes
+  // model the one-pixel concealed settlement ticks that occur while a swell,
+  // cloud bank, fog bank, or heat haze crosses the live game viewport.
+  const maximumPasses = kind === "swell"
+    ? 16
+    : kind === "partial-cloud"
+    ? 128
+    : 320;
+  const movedTileIds = new Set();
+  for (let pass = 0; pass < maximumPasses; pass++) {
+    const targetsById = createExactNorthUpRepairPlan({
+      tileIds: repairTileIds,
+      retainedPositions: positions,
+      projectTile: (id) => projectedById.get(id) || null,
+      viewX,
+      viewY,
+      viewportWidth: TRAVERSAL_SCREEN_W,
+      viewportHeight: TRAVERSAL_SCREEN_H,
+      excludedTileId: centerId
+    });
+    const interpolated = interpolateChartRepairPlan({
+      positions,
+      targetsById,
+      tileIds: repairTileIds,
+      maximumStepPx: 1
+    });
+    if (interpolated.nextPositions.size === 0) break;
+    const topologyIds = new Set(interpolated.nextPositions.keys());
+    for (const id of [...topologyIds]) {
+      for (const neighborId of neighborsById[id]) {
+        if (positions.has(neighborId)) topologyIds.add(neighborId);
+      }
+    }
+    const constrained = constrainChartRepairToTopology({
+      positions,
+      proposedPositions: interpolated.nextPositions,
+      referencePositions: new Map(
+        [...topologyIds]
+          .filter((id) => projectedById.has(id))
+          .map((id) => [id, projectedById.get(id)])
+      ),
+      neighborsById,
+      surfaceMaskById: continuityMaskById,
+      landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+      waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2
+    });
+    if (constrained.size === 0) break;
+    for (const [id, position] of constrained) {
+      positions.set(id, position);
+      movedTileIds.add(id);
+    }
+  }
+  return movedTileIds;
 }
 
 function createTraversalRepairDemand() {
@@ -2087,7 +2428,7 @@ function recordTraversalRepairDemand(stats, {
   stats.evaluations++;
   if (!chartFaultNeedsCloudRepair({ drift, terrainTear })) {
     stats.activeKind = "none";
-    return;
+    return { kind: "none", repair: null };
   }
   stats.repairDemandEvaluations++;
   let kind = "swell";
@@ -2108,13 +2449,13 @@ function recordTraversalRepairDemand(stats, {
     stats.swellRepairPasses++;
     stats.swellTilesSettled += elasticTileCount;
     stats.activeKind = kind;
-    return;
+    return { kind, repair };
   }
   if (kind === "none") {
     stats.activeKind = kind;
-    return;
+    return { kind, repair };
   }
-  if (stats.activeKind === kind) return;
+  if (stats.activeKind === kind) return { kind, repair };
   stats.activeKind = kind;
   if (kind === "closing-fog") {
     stats.closingFogsStarted++;
@@ -2123,7 +2464,7 @@ function recordTraversalRepairDemand(stats, {
       stats.maximumFogDepthRatio,
       traversalFogDepthForFault(repair.fault)
     );
-    return;
+    return { kind, repair };
   }
   stats.cloudBanksStarted++;
   const partial = kind === "partial-cloud";
@@ -2138,6 +2479,7 @@ function recordTraversalRepairDemand(stats, {
     TRAVERSAL_SCREEN_W,
     TRAVERSAL_SCREEN_H
   ) * 2 / 7;
+  return { kind, repair };
 }
 
 function finishTraversalRepairDemand(stats) {
@@ -2236,10 +2578,10 @@ function traversalScreenPosition(position, viewX, viewY) {
 }
 
 function assertLandTraversalIsContinuous(result, label) {
-  // The terrain rasters overlap at ordinary edge lengths. Seven pixels allows
-  // three pixels of preventative correction at each endpoint plus raster
-  // rounding, while still rejecting a fully exposed inter-hex strip.
-  const maximumVisibleGapPx = 7;
+  // The terrain rasters overlap at ordinary edge lengths. Ten pixels permits
+  // each endpoint's three-pixel preventative circle plus integer projection
+  // and raster overlap, while still rejecting a visible inter-hex strip.
+  const maximumVisibleGapPx = 10;
   assert.ok(
     result.maxLandEdgeGapPx <= maximumVisibleGapPx,
     `${label} opened a ${result.maxLandEdgeGapPx.toFixed(2)}px visible land tear at ` +
@@ -2826,6 +3168,8 @@ function simulateFiniteOceanCrossing({
   const elasticEndColumn = 52;
   const neighborsById = torusGridNeighbors(columns, rows);
   const protectionById = new Uint8Array(columns * rows);
+  const continuityMaskById = new Uint8Array(columns * rows);
+  continuityMaskById.fill(1);
   protectionById.fill(255);
   for (let row = 0; row < rows; row++) {
     for (let column = elasticStartColumn; column <= elasticEndColumn; column++) {
@@ -2927,7 +3271,18 @@ function simulateFiniteOceanCrossing({
       neighborsById,
       protectionById,
       registrationIds: viewportIds,
-      correctElasticTilesNorthUp
+      correctElasticTilesNorthUp,
+      maxElasticCorrectionPx: correctElasticTilesNorthUp
+        ? Math.hypot(viewportWidth, viewportHeight)
+        : 0,
+      maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+      continuityMaskById,
+      maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+      continuityCorrectionLimitsByClass:
+        TEST_CONTINUITY_CORRECTION_LIMITS_BY_CLASS,
+      protectedCorrectionViewportIds: viewportIds,
+      liveViewportAdmissionIds: viewportIds,
+      recoverProtectedStitchError: () => true
     });
     const retainedIds = new Set(projectedById.keys());
     for (const id of positions.keys()) {

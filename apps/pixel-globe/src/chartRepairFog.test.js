@@ -10,6 +10,7 @@ import {
   createChartFogMaskField,
   createChartRepairFog,
   fillChartFogMaskPixels,
+  nextPolarChartRepairPressure,
   polarChartFogFrame
 } from "./chartRepairFog.js";
 
@@ -201,6 +202,40 @@ test("polar fog tightens its clear window under chart repair pressure", () => {
   assert.ok(repairing.clearRadius < ordinary.clearRadius - 60);
   assert.equal(repairing.polarAmount, ordinary.polarAmount);
   assert.equal(repairing.repairPressure, 0.9);
+  assert.equal(polarChartFogFrame({
+    ...base,
+    latitudeDeg: 30,
+    repairPressure: 1
+  }), null);
+});
+
+test("polar repair pressure rises only where polar fog is climatically plausible", () => {
+  const metrics = {
+    drift: { rotationDeg: 12 },
+    terrainTear: { extraPx: 20, compressionPx: 4 }
+  };
+  assert.equal(nextPolarChartRepairPressure({
+    currentPressure: 0,
+    latitudeDeg: 30,
+    ...metrics
+  }), 0);
+  assert.equal(nextPolarChartRepairPressure({
+    currentPressure: 0,
+    latitudeDeg: 67,
+    ...metrics
+  }), 0.12);
+  assert.equal(nextPolarChartRepairPressure({
+    currentPressure: 0,
+    latitudeDeg: 67,
+    drift: { rotationDeg: 0 },
+    terrainTear: { extraPx: 0 }
+  }) > 0, true);
+  assert.equal(nextPolarChartRepairPressure({
+    currentPressure: 0.5,
+    latitudeDeg: 30,
+    drift: { rotationDeg: 0 },
+    terrainTear: { extraPx: 0, compressionPx: 0 }
+  }), 0.46);
 });
 
 test("fog permits gradual repair in its visible band before full concealment", () => {

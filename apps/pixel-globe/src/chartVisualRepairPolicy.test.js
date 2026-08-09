@@ -43,11 +43,27 @@ test("large sustained-looking land rotation targets a sparse cloud repair group"
   }), "full-cloud");
 });
 
+test("hot dry rotation uses ambient heat haze before summoning clouds", () => {
+  assert.equal(repairKind({
+    drift: { ...calm, rotationDeg: 13 },
+    terrainTear: attachedTerrain,
+    distortionSurface: "land",
+    heatHazeAvailable: true
+  }), "heat-haze");
+});
+
 test("minor local faults do not summon last-resort weather", () => {
   assert.equal(repairKind({
     drift: calm,
-    terrainTear: { extraPx: 9, surface: "land", screenX: 250, screenY: 130 }
+    terrainTear: { extraPx: 7, surface: "land", screenX: 250, screenY: 130 }
   }), "none");
+});
+
+test("the first actionable terrain fault receives a repair instead of a policy gap", () => {
+  assert.equal(repairKind({
+    drift: calm,
+    terrainTear: { extraPx: 8, surface: "land", screenX: 250, screenY: 130 }
+  }), "partial-cloud");
 });
 
 test("a material local tear receives a partial cloud rather than a full-screen effect", () => {

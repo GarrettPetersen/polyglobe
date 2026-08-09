@@ -1648,6 +1648,7 @@ import {
   createChartFogMaskField,
   createChartRepairFog,
   fillChartFogMaskPixels,
+  nextPolarChartRepairPressure,
   polarChartFogFrame
 } from "./chartRepairFog.js";
 import {
@@ -2134,6 +2135,10 @@ const CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND = 7;
 const CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS = 240;
 const CHART_REPAIR_HEAT_HAZE_TILE_SCAN_INTERVAL_MS = 900;
 const CHART_REPAIR_TILE_VISUAL_RADIUS_PX = TILE_ART_HALF + 3;
+const CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS = new Map([
+  [1, MAX_PROTECTED_ADMISSION_SLACK_PX * 2],
+  [2, MAX_PROTECTED_ADMISSION_SLACK_PX]
+]);
 const CLOUD_VIEWPORT_MARGIN_PX =
   CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
@@ -20220,21 +20225,12 @@ function currentPolarChartFogFrame() {
 
 function updatePolarChartRepairPressure(drift, terrainTear) {
   const latitudeDeg = ship ? Math.abs(latitudeDegForDirection(ship.position)) : 0;
-  const rotationPressure = Math.min(1, Math.abs(drift?.rotationDeg || 0) / 6);
-  const tearPressure = Math.min(1, Math.max(
-    terrainTear?.extraPx || 0,
-    terrainTear?.compressionPx || 0
-  ) / 18);
-  const target = Math.max(rotationPressure, tearPressure);
-  if (latitudeDeg <= 58 && target === 0) {
-    polarChartRepairPressure = Math.max(0, polarChartRepairPressure - 0.04);
-    return;
-  }
-  const maximumStep = target > polarChartRepairPressure ? 0.12 : 0.04;
-  polarChartRepairPressure += Math.max(
-    -maximumStep,
-    Math.min(maximumStep, target - polarChartRepairPressure)
-  );
+  polarChartRepairPressure = nextPolarChartRepairPressure({
+    currentPressure: polarChartRepairPressure,
+    latitudeDeg,
+    drift,
+    terrainTear
+  });
 }
 
 function activeChartFogFrames(nowMs = lastFrameMs) {
@@ -20291,13 +20287,28 @@ function repairChartTilesWithinHeatHaze(frame) {
   }
   if (tileIds.size === 0) return 0;
   const targetsById = planConcealedChartTileRepairs(tileIds);
-  const repairPlan = planChartHeatHazeSettlement({
+  const proposedRepairPlan = planChartHeatHazeSettlement({
     positions: localLayout.positions,
     targetsById,
     tileIds,
     screenOffsetY: offset.y,
     frame,
     maximumStepPx: 1
+  });
+  const topologyIds = new Set(proposedRepairPlan.keys());
+  for (const id of [...topologyIds]) {
+    for (const neighborId of graph.neighbors[id]) {
+      if (localLayout.positions.has(neighborId)) topologyIds.add(neighborId);
+    }
+  }
+  const repairPlan = constrainChartRepairToTopology({
+    positions: localLayout.positions,
+    proposedPositions: proposedRepairPlan,
+    referencePositions: exactNorthUpProjectedPositions(topologyIds),
+    neighborsById: graph.neighbors,
+    surfaceMaskById: chartSurfaceContinuityMask,
+    landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2
   });
   if (repairPlan.size === 0) return 0;
 
@@ -20332,9 +20343,6 @@ function repairFogCoveredChartTiles(
     reason,
     fullyCoversCircle: (x, y, radius) => (
       chartFogConcealsCircleForRepair(frame, x, y, radius)
-    ),
-    instantlyCoversCircle: (x, y, radius) => (
-      chartFogObscuresCircle(frame, x, y, radius)
     ),
     maximumStepPx
   });
@@ -20376,9 +20384,6 @@ function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan
     fullyCoversCircle: (x, y, radius) => (
       chartRepairCloudMostlyCoversCircle(frame, x, y, radius)
     ),
-    instantlyCoversCircle: (x, y, radius) => (
-      chartRepairCloudFullyCoversCircle(frame, x, y, radius)
-    ),
     shouldRepairTile: (id) => repairPlan.has(id),
     repairPlan,
     maximumStepPx: 1
@@ -20391,7 +20396,6 @@ function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan
 function repairCoveredChartTiles({
   reason,
   fullyCoversCircle,
-  instantlyCoversCircle = null,
   shouldRepairTile = () => true,
   repairPlan = null,
   maximumStepPx = 1
@@ -20401,9 +20405,6 @@ function repairCoveredChartTiles({
   }
   if (typeof fullyCoversCircle !== "function") {
     throw new Error(`Covered chart repair ${reason} requires a coverage predicate`);
-  }
-  if (instantlyCoversCircle !== null && typeof instantlyCoversCircle !== "function") {
-    throw new Error(`Covered chart repair ${reason} has invalid instant coverage`);
   }
   if (typeof shouldRepairTile !== "function") {
     throw new Error(`Covered chart repair ${reason} requires a tile selection predicate`);
@@ -20423,7 +20424,6 @@ function repairCoveredChartTiles({
     )
   ));
   const removedIds = [];
-  const instantlyCoveredIds = new Set();
   for (const [id, position] of localLayout.positions.entries()) {
     if (id === ship.tileId || id === centerTileId) continue;
     if (!shouldRepairTile(id)) continue;
@@ -20437,11 +20437,6 @@ function repairCoveredChartTiles({
       CHART_REPAIR_TILE_VISUAL_RADIUS_PX
     )) continue;
     removedIds.push(id);
-    if (instantlyCoversCircle?.(
-      position.x + offset.x,
-      position.y + offset.y,
-      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
-    )) instantlyCoveredIds.add(id);
   }
   if (removedIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
 
@@ -20449,34 +20444,21 @@ function repairCoveredChartTiles({
   const effectiveRepairPlan = repairPlan ?? planConcealedChartTileRepairs(concealedTileIds);
   const repairableIds = removedIds.filter((id) => effectiveRepairPlan.has(id));
   if (repairableIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
-  const gradualIds = new Set(
-    repairableIds.filter((id) => !instantlyCoveredIds.has(id))
-  );
   const interpolated = interpolateChartRepairPlan({
     positions: localLayout.positions,
     targetsById: effectiveRepairPlan,
-    tileIds: gradualIds,
+    tileIds: new Set(repairableIds),
     maximumStepPx
   });
   const proposedPositions = new Map(interpolated.nextPositions);
-  const instantPositions = new Map();
-  for (const id of instantlyCoveredIds) {
-    const target = effectiveRepairPlan.get(id);
-    if (target) instantPositions.set(id, target);
-  }
-  const topologyIds = new Set([
-    ...proposedPositions.keys(),
-    ...instantPositions.keys()
-  ]);
+  const topologyIds = new Set(proposedPositions.keys());
   for (const id of [...topologyIds]) {
     for (const neighborId of graph.neighbors[id]) {
       if (localLayout.positions.has(neighborId)) topologyIds.add(neighborId);
     }
   }
-  const positionsAfterInstantRepair = new Map(localLayout.positions);
-  for (const [id, position] of instantPositions) positionsAfterInstantRepair.set(id, position);
-  const constrainedGradualPositions = constrainChartRepairToTopology({
-    positions: positionsAfterInstantRepair,
+  const constrainedPositions = constrainChartRepairToTopology({
+    positions: localLayout.positions,
     proposedPositions,
     referencePositions: exactNorthUpProjectedPositions(topologyIds),
     neighborsById: graph.neighbors,
@@ -20484,10 +20466,6 @@ function repairCoveredChartTiles({
     landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2
   });
-  const constrainedPositions = new Map([
-    ...instantPositions,
-    ...constrainedGradualPositions
-  ]);
   const movedTileIds = [...constrainedPositions.keys()];
   if (movedTileIds.length === 0) {
     return { movedTileIds, completedTileIds: [...interpolated.completedTileIds] };
@@ -32270,6 +32248,8 @@ function admitMissingLocalLayoutTiles({
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     continuityMaskById: chartSurfaceContinuityMask,
     maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    continuityCorrectionLimitsByClass:
+      CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS,
     protectedCorrectionViewportIds: correctionViewportIds,
     liveViewportAdmissionIds,
     recoverProtectedStitchError

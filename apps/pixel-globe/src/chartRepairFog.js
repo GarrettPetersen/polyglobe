@@ -2,6 +2,7 @@ import { fogLayerRgba } from "./stormPresentation.js";
 import { PERMANENT_POLAR_CAP_LATITUDE_DEG } from "./polarChartPresentation.js";
 
 export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
+const POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG = 54;
 
 export function createChartRepairFog({
   nowMs,
@@ -131,7 +132,13 @@ export function polarChartFogFrame({
   if (repairPressure < 0 || repairPressure > 1) {
     throw new Error(`Polar chart fog has invalid repair pressure: ${repairPressure}`);
   }
-  if (polarAmount <= 0 && repairPressure <= 0) return null;
+  // Repair pressure may carry an existing polar bank a little farther toward
+  // temperate water while its concealed geometry finishes settling. It may
+  // never originate in an otherwise implausible climate.
+  if (
+    polarAmount <= 0 &&
+    (repairPressure <= 0 || Math.abs(latitudeDeg) < POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG)
+  ) return null;
   const maximumClearRadius = Math.max(
     Math.hypot(focusX, focusY),
     Math.hypot(viewportWidth - focusX, focusY),
@@ -140,7 +147,10 @@ export function polarChartFogFrame({
   ) + 30;
   const minimumDimension = Math.min(viewportWidth, viewportHeight);
   const naturalMinimumClearRadius = Math.max(62, minimumDimension * 0.43);
-  const repairMinimumClearRadius = Math.max(58, minimumDimension * 0.23);
+  // Under severe chart pressure, polar fog acts like a tighter camera crop:
+  // only the ship's immediate navigational neighborhood remains fixed while
+  // the concealed ring converges on the exact north-up projection.
+  const repairMinimumClearRadius = Math.max(48, minimumDimension * 0.2);
   const minimumClearRadius = naturalMinimumClearRadius +
     (repairMinimumClearRadius - naturalMinimumClearRadius) * repairPressure;
   const effectiveConcealment = Math.max(polarAmount, repairPressure);
@@ -161,6 +171,54 @@ export function polarChartFogFrame({
     polarAmount,
     repairPressure
   });
+}
+
+export function nextPolarChartRepairPressure({
+  currentPressure,
+  latitudeDeg,
+  drift,
+  terrainTear
+}) {
+  if (!drift || !terrainTear) {
+    throw new Error("Polar chart repair pressure requires drift and terrain metrics");
+  }
+  const terrainCompressionPx = terrainTear.compressionPx ?? 0;
+  for (const [label, value] of Object.entries({
+    currentPressure,
+    latitudeDeg,
+    rotationDeg: drift.rotationDeg,
+    terrainTearPx: terrainTear.extraPx,
+    terrainCompressionPx
+  })) {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Polar chart repair pressure has invalid ${label}: ${value}`);
+    }
+  }
+  if (currentPressure < 0 || currentPressure > 1) {
+    throw new Error(`Polar chart repair pressure must be in 0..1: ${currentPressure}`);
+  }
+  const rotationPressure = Math.min(1, Math.abs(drift.rotationDeg) / 6);
+  const tearPressure = Math.min(1, Math.max(
+    terrainTear.extraPx,
+    terrainCompressionPx
+  ) / 18);
+  const latitudePressure = smoothstep(
+    58,
+    PERMANENT_POLAR_CAP_LATITUDE_DEG,
+    Math.abs(latitudeDeg)
+  );
+  const polarRepairEligible = Math.abs(latitudeDeg) > 58 || (
+    currentPressure > 0 &&
+    Math.abs(latitudeDeg) >= POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG
+  );
+  const target = polarRepairEligible
+    ? Math.max(latitudePressure, rotationPressure, tearPressure)
+    : 0;
+  const maximumStep = target > currentPressure ? 0.12 : 0.04;
+  return currentPressure + Math.max(
+    -maximumStep,
+    Math.min(maximumStep, target - currentPressure)
+  );
 }
 
 export function chartFogObscuresCircle(frame, x, y, radius = 0) {
