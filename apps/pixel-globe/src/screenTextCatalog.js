@@ -2436,6 +2436,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Tamoio Confederation",
   "Tarred Hemp Rigging",
   "Tawantinsuyu",
+  "TEAR {0} PX",
   "Temple guild honorarium",
   "Temple of the Khmer",
   "temple steward",

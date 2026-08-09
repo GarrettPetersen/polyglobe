@@ -125,6 +125,62 @@ test("icebergs refuse to drift onto frozen or unnavigable water", () => {
   validateIcebergMemory(memory);
 });
 
+test("icebergs trapped by sea ice are ejected once into open water", () => {
+  const memory = createIcebergMemory();
+  seedIcebergPopulation(memory, CANDIDATES, { count: 1, seedKey: "eject" });
+  const iceberg = memory.individuals[0];
+  const trappedPosition = iceberg.position;
+  const openPosition = [0, 1, 0];
+  let ejectionCalls = 0;
+  const result = advanceIcebergMemory(memory, {
+    currentMinute: ICEBERG_ADVANCE_INTERVAL_MINUTES,
+    environmentAtPosition: (position) => ({
+      tileId: position === trappedPosition ? 2 : 8,
+      navigable: true,
+      frozen: position === trappedPosition,
+      windDirectionRad: 0,
+      windStrength: 0,
+      waterTemperatureC: -1
+    }),
+    ejectionCandidateForIceberg: () => {
+      ejectionCalls += 1;
+      return {
+        sourceIceTileId: 2,
+        tileId: 8,
+        position: openPosition,
+        heading: [1, 0, 0]
+      };
+    },
+    spawnCandidates: CANDIDATES,
+    seedKey: "eject",
+    targetCount: 1
+  });
+  assert.equal(ejectionCalls, 1);
+  assert.deepEqual(result.ejectedIds, [iceberg.id]);
+  assert.deepEqual(iceberg.position, openPosition);
+  assert.deepEqual(iceberg.heading, [1, 0, 0]);
+});
+
+test("iceberg ejection rejects another frozen destination", () => {
+  const memory = createIcebergMemory();
+  seedIcebergPopulation(memory, CANDIDATES, { count: 1, seedKey: "bad-eject" });
+  assert.throws(() => advanceIcebergMemory(memory, {
+    currentMinute: ICEBERG_ADVANCE_INTERVAL_MINUTES,
+    environmentAtPosition: () => ({
+      tileId: 2,
+      navigable: true,
+      frozen: true,
+      windDirectionRad: 0,
+      windStrength: 0,
+      waterTemperatureC: -1
+    }),
+    ejectionCandidateForIceberg: () => CANDIDATES[1],
+    spawnCandidates: CANDIDATES,
+    seedKey: "bad-eject",
+    targetCount: 1
+  }), /ejection candidate is not open water/i);
+});
+
 function fixedEnvironment(overrides = {}) {
   return () => ({
     tileId: 2,

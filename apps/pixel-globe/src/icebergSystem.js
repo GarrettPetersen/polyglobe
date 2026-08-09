@@ -85,6 +85,7 @@ export function seedIcebergPopulation(memory, candidates, {
 export function advanceIcebergMemory(memory, {
   currentMinute,
   environmentAtPosition,
+  ejectionCandidateForIceberg = null,
   spawnCandidates,
   seedKey = "icebergs",
   targetCount = ICEBERG_POPULATION_TARGET
@@ -93,6 +94,9 @@ export function advanceIcebergMemory(memory, {
   assertMinute(currentMinute);
   if (typeof environmentAtPosition !== "function") {
     throw new Error("Iceberg simulation requires an environment resolver");
+  }
+  if (ejectionCandidateForIceberg !== null && typeof ejectionCandidateForIceberg !== "function") {
+    throw new Error("Iceberg simulation ejection resolver must be a function");
   }
   validateCandidates(spawnCandidates);
   if (typeof seedKey !== "string" || seedKey.trim() === "") {
@@ -107,15 +111,36 @@ export function advanceIcebergMemory(memory, {
   }
   const elapsedMinutes = currentMinute - memory.lastAdvanceMinute;
   if (elapsedMinutes < ICEBERG_ADVANCE_INTERVAL_MINUTES) {
-    return Object.freeze({ changed: false, meltedIds: Object.freeze([]), spawnedIds: Object.freeze([]) });
+    return Object.freeze({
+      changed: false,
+      meltedIds: Object.freeze([]),
+      ejectedIds: Object.freeze([]),
+      spawnedIds: Object.freeze([])
+    });
   }
 
   const elapsedDays = elapsedMinutes / MINUTES_PER_DAY;
   const survivors = [];
   const meltedIds = [];
+  const ejectedIds = [];
   let changed = false;
   for (const iceberg of memory.individuals) {
-    const environment = validateEnvironment(environmentAtPosition(iceberg.position));
+    let environment = validateEnvironment(environmentAtPosition(iceberg.position));
+    let wasEjected = false;
+    if ((!environment.navigable || environment.frozen) && ejectionCandidateForIceberg) {
+      const candidate = validateCandidate(ejectionCandidateForIceberg(iceberg));
+      const destination = validateEnvironment(environmentAtPosition(candidate.position));
+      if (!destination.navigable || destination.frozen) {
+        throw new Error(`Iceberg ejection candidate is not open water: ${iceberg.id}/${candidate.tileId}`);
+      }
+      iceberg.position = candidate.position.slice();
+      iceberg.tileId = destination.tileId;
+      if (candidate.heading) iceberg.heading = candidate.heading.slice();
+      environment = destination;
+      ejectedIds.push(iceberg.id);
+      wasEjected = true;
+      changed = true;
+    }
     const variant = icebergVariantById(iceberg.variantId);
     const warmDegrees = Math.max(0, environment.waterTemperatureC - 1.5);
     const melted = warmDegrees * elapsedDays * variant.meltPerWarmDegreeDay;
@@ -134,7 +159,7 @@ export function advanceIcebergMemory(memory, {
       changed = true;
     }
 
-    const moved = driftIceberg(
+    const moved = !wasEjected && driftIceberg(
       iceberg,
       icebergVariantById(iceberg.variantId),
       environment,
@@ -162,6 +187,7 @@ export function advanceIcebergMemory(memory, {
   return Object.freeze({
     changed,
     meltedIds: Object.freeze(meltedIds),
+    ejectedIds: Object.freeze(ejectedIds),
     spawnedIds: Object.freeze(spawnedIds)
   });
 }
@@ -196,7 +222,7 @@ function spawnIceberg(memory, candidates, seed, index) {
   const candidate = candidates[candidateIndex];
   const variant = weightedVariant(hashUnit(seed ^ Math.imul(index + 1, 0x85ebca6b)));
   const headingAngle = hashUnit(seed ^ Math.imul(index + 1, 0xc2b2ae35)) * Math.PI * 2;
-  const heading = tangentDirection(candidate.position, headingAngle);
+  const heading = candidate.heading?.slice() || tangentDirection(candidate.position, headingAngle);
   const iceberg = {
     id: `iceberg-${memory.nextId++}`,
     variantId: variant.id,
@@ -279,14 +305,18 @@ function validateIceberg(iceberg) {
 
 function validateCandidates(candidates) {
   if (!Array.isArray(candidates)) throw new Error("Iceberg spawning requires candidate waters");
-  for (const candidate of candidates) {
-    if (!candidate || !Number.isInteger(candidate.sourceIceTileId) || candidate.sourceIceTileId < 0 ||
-        !Number.isInteger(candidate.tileId) || candidate.tileId < 0) {
-      throw new Error("Iceberg candidate requires source and open-water tile ids");
-    }
-    validateVector(candidate.position, "iceberg candidate position");
-  }
+  for (const candidate of candidates) validateCandidate(candidate);
   return candidates;
+}
+
+function validateCandidate(candidate) {
+  if (!candidate || !Number.isInteger(candidate.sourceIceTileId) || candidate.sourceIceTileId < 0 ||
+      !Number.isInteger(candidate.tileId) || candidate.tileId < 0) {
+    throw new Error("Iceberg candidate requires source and open-water tile ids");
+  }
+  validateVector(candidate.position, "iceberg candidate position");
+  if (candidate.heading !== undefined) validateVector(candidate.heading, "iceberg candidate heading");
+  return candidate;
 }
 
 function validateEnvironment(environment) {

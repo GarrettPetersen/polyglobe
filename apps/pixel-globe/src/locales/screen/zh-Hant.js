@@ -2436,6 +2436,7 @@ export default Object.freeze({
   "Tamoio Confederation": "塔莫尤聯盟",
   "Tarred Hemp Rigging": "焦油麻索具",
   "Tawantinsuyu": "塔萬廷蘇尤",
+  "TEAR {0} PX": "撕裂 {0} PX",
   "Temple guild honorarium": "寺廟行會酬金",
   "Temple of the Khmer": "高棉寺廟",
   "temple steward": "寺廟管家",

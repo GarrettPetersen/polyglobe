@@ -1,6 +1,9 @@
-const CLOUD_BANK_EDGE_MARGIN_PX = 64;
 const CLOUD_BANK_START_MARGIN_PX = 32;
-const CLOUD_BANK_SOLID_HALF_DEPTH_PX = 30;
+const CLOUD_SPRITE_HALF_SIZE_PX = 32;
+const CLOUD_REPAIR_CORE_RADIUS_PX = 31;
+const CLOUD_CROSSWIND_SPACING_PX = 44;
+const CLOUD_BANK_MAX_SPRITES = 5;
+const CLOUD_BANK_SPEED_DIVISOR = 3;
 
 export function createChartRepairCloudBank({
   nowMs,
@@ -45,13 +48,21 @@ export function createChartRepairCloudBank({
   const dy = directionY / directionLength;
   const viewportDepth = Math.abs(dx) * viewportWidth / 2 +
     Math.abs(dy) * viewportHeight / 2;
-  const targetSpan = Math.abs(dy) * targetWidth / 2 + Math.abs(dx) * targetHeight / 2;
-  const halfSpan = targetSpan + CLOUD_BANK_EDGE_MARGIN_PX;
   const targetOffsetDepth = Math.abs(
     (targetX - viewportWidth / 2) * dx + (targetY - viewportHeight / 2) * dy
   );
   const travelLimit = viewportDepth + targetOffsetDepth +
-    CLOUD_BANK_SOLID_HALF_DEPTH_PX + CLOUD_BANK_START_MARGIN_PX;
+    CLOUD_SPRITE_HALF_SIZE_PX + CLOUD_BANK_START_MARGIN_PX;
+  const crosswindTargetSpan = Math.abs(dy) * targetWidth + Math.abs(dx) * targetHeight;
+  const cloudCount = sparseCloudCount(crosswindTargetSpan);
+  const cloudOffsets = Object.freeze(Array.from({ length: cloudCount }, (_, index) => {
+    const centeredIndex = index - (cloudCount - 1) / 2;
+    return Object.freeze({
+      span: centeredIndex * CLOUD_CROSSWIND_SPACING_PX,
+      depth: staggeredDepth(centeredIndex),
+      variantIndex: index
+    });
+  }));
   return Object.freeze({
     startedAtMs: nowMs,
     durationMs: travelLimit * 2 / speedPxPerSecond * 1000,
@@ -61,11 +72,17 @@ export function createChartRepairCloudBank({
     targetY,
     targetWidth,
     targetHeight,
-    solidHalfDepth: CLOUD_BANK_SOLID_HALF_DEPTH_PX,
-    halfSpan,
     travelLimit,
-    speedPxPerSecond
+    speedPxPerSecond,
+    cloudOffsets
   });
+}
+
+export function slowedChartRepairCloudSpeed(speedPxPerSecond) {
+  if (!Number.isFinite(speedPxPerSecond) || speedPxPerSecond <= 0) {
+    throw new Error(`Chart repair cloud speed must be positive: ${speedPxPerSecond}`);
+  }
+  return speedPxPerSecond / CLOUD_BANK_SPEED_DIVISOR;
 }
 
 export function chartRepairCloudBankFrame(bank, nowMs) {
@@ -74,31 +91,26 @@ export function chartRepairCloudBankFrame(bank, nowMs) {
   }
   const progress = Math.max(0, Math.min(1, (nowMs - bank.startedAtMs) / bank.durationMs));
   const travel = -bank.travelLimit + bank.travelLimit * 2 * progress;
+  const centerX = bank.targetX + bank.dx * travel;
+  const centerY = bank.targetY + bank.dy * travel;
+  const clouds = Object.freeze(bank.cloudOffsets.map((offset) => Object.freeze({
+    x: centerX - bank.dy * offset.span + bank.dx * offset.depth,
+    y: centerY + bank.dx * offset.span + bank.dy * offset.depth,
+    variantIndex: offset.variantIndex
+  })));
   return Object.freeze({
     progress,
-    centerX: bank.targetX + bank.dx * travel,
-    centerY: bank.targetY + bank.dy * travel,
+    centerX,
+    centerY,
     dx: bank.dx,
     dy: bank.dy,
     targetX: bank.targetX,
     targetY: bank.targetY,
     targetWidth: bank.targetWidth,
     targetHeight: bank.targetHeight,
-    angleRad: Math.atan2(bank.dy, bank.dx),
-    solidHalfDepth: bank.solidHalfDepth,
-    halfSpan: bank.halfSpan,
+    clouds,
     finished: progress >= 1
   });
-}
-
-export function chartRepairCloudTargetContainsCircle(frame, x, y, radius = 0) {
-  if (!frame) return false;
-  for (const [label, value] of Object.entries({ x, y, radius })) {
-    if (!Number.isFinite(value)) throw new Error(`Chart cloud target has invalid ${label}`);
-  }
-  if (radius < 0) throw new Error(`Chart cloud target radius cannot be negative: ${radius}`);
-  return Math.abs(x - frame.targetX) + radius <= frame.targetWidth / 2 &&
-    Math.abs(y - frame.targetY) + radius <= frame.targetHeight / 2;
 }
 
 export function chartRepairCloudFullyCoversCircle(frame, x, y, radius = 0) {
@@ -107,21 +119,43 @@ export function chartRepairCloudFullyCoversCircle(frame, x, y, radius = 0) {
     if (!Number.isFinite(value)) throw new Error(`Chart cloud coverage has invalid ${label}`);
   }
   if (radius < 0) throw new Error(`Chart cloud coverage radius cannot be negative: ${radius}`);
-  const deltaX = x - frame.centerX;
-  const deltaY = y - frame.centerY;
-  const depth = deltaX * frame.dx + deltaY * frame.dy;
-  const span = -deltaX * frame.dy + deltaY * frame.dx;
-  return Math.abs(depth) + radius <= frame.solidHalfDepth &&
-    Math.abs(span) + radius <= frame.halfSpan;
+  const centerTolerance = CLOUD_REPAIR_CORE_RADIUS_PX - radius;
+  if (centerTolerance < 0) return false;
+  return frame.clouds.some((cloud) => (
+    Math.hypot(x - cloud.x, y - cloud.y) <= centerTolerance
+  ));
 }
 
-export function chartRepairCloudSpriteCenter(frame, span, depth = 0) {
-  if (!frame) throw new Error("Chart cloud sprite placement requires a frame");
-  for (const [label, value] of Object.entries({ span, depth })) {
-    if (!Number.isFinite(value)) throw new Error(`Chart cloud sprite has invalid ${label}`);
+export function chartRepairCloudMayFullyCoverCircle(bank, x, y, radius = 0) {
+  if (!bank) return false;
+  for (const [label, value] of Object.entries({ x, y, radius })) {
+    if (!Number.isFinite(value)) throw new Error(`Chart cloud path has invalid ${label}`);
   }
-  return Object.freeze({
-    x: frame.centerX - frame.dy * span + frame.dx * depth,
-    y: frame.centerY + frame.dx * span + frame.dy * depth
+  if (radius < 0) throw new Error(`Chart cloud path radius cannot be negative: ${radius}`);
+  const centerTolerance = CLOUD_REPAIR_CORE_RADIUS_PX - radius;
+  if (centerTolerance < 0) return false;
+  return bank.cloudOffsets.some((offset) => {
+    const centerX = bank.targetX - bank.dy * offset.span + bank.dx * offset.depth;
+    const centerY = bank.targetY + bank.dx * offset.span + bank.dy * offset.depth;
+    const along = (x - centerX) * bank.dx + (y - centerY) * bank.dy;
+    const clampedAlong = Math.max(-bank.travelLimit, Math.min(bank.travelLimit, along));
+    const nearestX = centerX + bank.dx * clampedAlong;
+    const nearestY = centerY + bank.dy * clampedAlong;
+    return Math.hypot(x - nearestX, y - nearestY) <= centerTolerance;
   });
+}
+
+function sparseCloudCount(crosswindTargetSpan) {
+  const desired = Math.max(1, Math.ceil(crosswindTargetSpan / 110));
+  const oddCount = desired % 2 === 0 ? desired + 1 : desired;
+  return Math.min(CLOUD_BANK_MAX_SPRITES, oddCount);
+}
+
+function staggeredDepth(centeredIndex) {
+  if (centeredIndex === 0) return 0;
+  if (centeredIndex === -2) return -16;
+  if (centeredIndex === -1) return 20;
+  if (centeredIndex === 1) return -22;
+  if (centeredIndex === 2) return 17;
+  throw new Error(`Chart repair cloud has unsupported stagger index: ${centeredIndex}`);
 }

@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   chartRepairCloudFullyCoversCircle,
-  chartRepairCloudSpriteCenter,
-  chartRepairCloudTargetContainsCircle,
   chartRepairCloudBankFrame,
-  createChartRepairCloudBank
+  chartRepairCloudMayFullyCoverCircle,
+  createChartRepairCloudBank,
+  slowedChartRepairCloudSpeed
 } from "./chartRepairCloudBank.js";
 
-test("cloud sprites follow the front without inheriting its rotation", () => {
+test("repair clouds are sparse, staggered, and never carry a rotation", () => {
   const bank = createChartRepairCloudBank({
     nowMs: 0,
     viewportWidth: 455,
@@ -18,13 +18,14 @@ test("cloud sprites follow the front without inheriting its rotation", () => {
     speedPxPerSecond: 12
   });
   const frame = chartRepairCloudBankFrame(bank, bank.durationMs / 2);
-  const center = chartRepairCloudSpriteCenter(frame, 20, 5);
 
-  assert.ok(center.x < frame.centerX);
-  assert.ok(center.y > frame.centerY);
+  assert.ok(frame.clouds.length >= 1 && frame.clouds.length <= 5);
+  assert.equal(Object.hasOwn(frame, "angleRad"), false);
+  assert.equal(frame.clouds.some((cloud) => cloud.x !== frame.centerX), true);
+  assert.equal(frame.clouds.some((cloud) => cloud.y !== frame.centerY), true);
 });
 
-test("a narrow repair cloud front crosses without covering the viewport", () => {
+test("sparse repair clouds conceal their own pixels without an invisible solid front", () => {
   const bank = createChartRepairCloudBank({
     nowMs: 1000,
     viewportWidth: 455,
@@ -39,8 +40,8 @@ test("a narrow repair cloud front crosses without covering the viewport", () => 
 
   assert.equal(chartRepairCloudFullyCoversCircle(entering, 227.5, 128, 18), false);
   assert.equal(chartRepairCloudFullyCoversCircle(covered, 227.5, 128, 18), true);
-  assert.equal(chartRepairCloudFullyCoversCircle(covered, 280, 128, 18), false);
-  assert.ok(covered.solidHalfDepth * 2 < 455 / 4);
+  assert.equal(chartRepairCloudFullyCoversCircle(covered, 260, 128, 18), false);
+  assert.equal(chartRepairCloudFullyCoversCircle(covered, 400, 20, 0), false);
   assert.equal(departed.finished, true);
   assert.ok(bank.durationMs > 10_000 && bank.durationMs < 20_000);
 });
@@ -57,6 +58,8 @@ test("a ship-scale travel speed controls the cloud crossing time", () => {
   const brisk = createChartRepairCloudBank({ ...base, speedPxPerSecond: 60 });
   assert.ok(brisk.durationMs < calm.durationMs);
   assert.equal(calm.durationMs / brisk.durationMs, 2.5);
+  assert.equal(slowedChartRepairCloudSpeed(60), 20);
+  assert.throws(() => slowedChartRepairCloudSpeed(0), /positive/);
 });
 
 test("a local cloud bank covers only its requested repair neighborhood", () => {
@@ -76,11 +79,28 @@ test("a local cloud bank covers only its requested repair neighborhood", () => {
 
   assert.equal(chartRepairCloudFullyCoversCircle(covered, 80, 80, 18), true);
   assert.equal(chartRepairCloudFullyCoversCircle(covered, 400, 220, 18), false);
-  assert.equal(chartRepairCloudTargetContainsCircle(covered, 80, 80, 18), true);
-  assert.equal(chartRepairCloudTargetContainsCircle(covered, 125, 80, 18), false);
 });
 
-test("a ship-speed cloud front fully conceals every tile center as it passes", () => {
+test("a cloud path identifies the complete repair group before crossing it", () => {
+  const bank = createChartRepairCloudBank({
+    nowMs: 0,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    directionX: 1,
+    directionY: 0,
+    speedPxPerSecond: 36,
+    targetX: 80,
+    targetY: 80,
+    targetWidth: 70,
+    targetHeight: 56
+  });
+
+  assert.equal(chartRepairCloudMayFullyCoverCircle(bank, 20, 80, 18), true);
+  assert.equal(chartRepairCloudMayFullyCoverCircle(bank, 220, 80, 18), true);
+  assert.equal(chartRepairCloudMayFullyCoverCircle(bank, 80, 130, 18), false);
+});
+
+test("a sparse cloud group leaves most of the viewport uncovered", () => {
   const bank = createChartRepairCloudBank({
     nowMs: 0,
     viewportWidth: 455,
@@ -89,15 +109,9 @@ test("a ship-speed cloud front fully conceals every tile center as it passes", (
     directionY: 0.2,
     speedPxPerSecond: 100
   });
-  const centers = [];
-  for (let y = 18; y <= 238; y += 36) {
-    for (let x = 18; x <= 437; x += 36) centers.push({ x, y, covered: false });
-  }
-  for (let nowMs = 0; nowMs <= bank.durationMs + 120; nowMs += 120) {
-    const frame = chartRepairCloudBankFrame(bank, nowMs);
-    for (const center of centers) {
-      center.covered ||= chartRepairCloudFullyCoversCircle(frame, center.x, center.y, 21);
-    }
-  }
-  assert.equal(centers.filter((center) => !center.covered).length, 0);
+  const frame = chartRepairCloudBankFrame(bank, bank.durationMs / 2);
+  const covered = Array.from({ length: 12 }, (_, index) => (
+    chartRepairCloudFullyCoversCircle(frame, 20 + index * 36, 30, 0)
+  )).filter(Boolean).length;
+  assert.ok(covered < 4);
 });

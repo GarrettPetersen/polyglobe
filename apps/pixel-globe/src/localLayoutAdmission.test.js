@@ -114,6 +114,58 @@ test("layout translation does not alter the projected shape with one retained ti
   assert.deepEqual(positions.get(2), { x: 160, y: 190 });
 });
 
+test("a concealed repair group is not constrained by its own unrevealed tiles", () => {
+  const neighborsById = [[1, 3], [0, 2], [1], [0]];
+  const protectionById = new Uint8Array(4);
+  const projectedById = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 48, y: 0 }],
+    [3, { x: 0, y: 24 }]
+  ]);
+  const originalPositions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 17, y: 17 }],
+    [2, { x: 34, y: 34 }],
+    [3, { x: 0, y: 24 }]
+  ]);
+  const admissionOptions = {
+    projectedById,
+    anchorId: 0,
+    neighborsById,
+    protectionById,
+    registrationIds: new Set([0, 3]),
+    rigidRegistrationIds: new Set([0, 3]),
+    correctElasticTilesNorthUp: true,
+    maxElasticCorrectionPx: 100,
+    maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    continuityMaskById: new Uint8Array(4),
+    maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    protectedCorrectionViewportIds: new Set([0, 1, 2, 3]),
+    liveViewportAdmissionIds: new Set()
+  };
+
+  const sequentialPositions = new Map(originalPositions);
+  sequentialPositions.delete(1);
+  admitProjectedTiles({
+    ...admissionOptions,
+    positions: sequentialPositions,
+    pendingIds: [1]
+  });
+  assert.deepEqual(sequentialPositions.get(1), { x: 17, y: 17 });
+
+  const groupedPositions = new Map(originalPositions);
+  groupedPositions.delete(1);
+  groupedPositions.delete(2);
+  admitProjectedTiles({
+    ...admissionOptions,
+    positions: groupedPositions,
+    pendingIds: [1, 2]
+  });
+  assert.deepEqual(groupedPositions.get(1), { x: 24, y: 0 });
+  assert.deepEqual(groupedPositions.get(2), { x: 48, y: 0 });
+});
+
 test("high-latitude tangent frame rotation cannot tear adjacent tiles apart", () => {
   const angle = 28 * Math.PI / 180;
   const cos = Math.cos(angle);
@@ -1624,6 +1676,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         viewX,
         viewY
       ),
+      distortionSurface: terrainClassByTileId[frame.maxErrorTileId],
       swellRepairAvailable: viewportIsFullyElasticWater,
       elasticTileCount: support.elasticTileIds.size
     });
@@ -1803,6 +1856,7 @@ function recordTraversalRepairDemand(stats, {
   drift,
   terrainTear,
   distortionPoint,
+  distortionSurface,
   swellRepairAvailable,
   elasticTileCount
 }) {
@@ -1821,13 +1875,18 @@ function recordTraversalRepairDemand(stats, {
       distortionPoint,
       viewportWidth: TRAVERSAL_SCREEN_W,
       viewportHeight: TRAVERSAL_SCREEN_H,
-      swellRepairAvailable: false
+      swellRepairAvailable: false,
+      distortionSurface
     });
     kind = repair.kind;
   }
   if (kind === "swell") {
     stats.swellRepairPasses++;
     stats.swellTilesSettled += elasticTileCount;
+    stats.activeKind = kind;
+    return;
+  }
+  if (kind === "none") {
     stats.activeKind = kind;
     return;
   }

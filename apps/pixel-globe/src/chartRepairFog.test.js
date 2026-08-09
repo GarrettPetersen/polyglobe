@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   chartFogFullyCoversCircle,
+  chartFogPixelDensity,
   chartRepairFogFrame,
   chartRepairFogWindPresence,
+  createChartFogMaskField,
   createChartRepairFog,
+  fillChartFogMaskPixels,
   polarChartFogFrame
 } from "./chartRepairFog.js";
 
@@ -22,7 +25,9 @@ test("repair fog progressively hides distant geography before clearing", () => {
   const closed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs);
   const cleared = chartRepairFogFrame(fog, 100 + fog.durationMs);
 
-  assert.ok(fog.durationMs > 40_000);
+  assert.ok(fog.formationDurationMs >= 60_000);
+  assert.ok(fog.clearingDurationMs >= 50_000);
+  assert.ok(fog.durationMs > 100_000);
   assert.equal(open.edgeOpacity, 0);
   assert.ok(open.clearRadius > 290);
   assert.equal(chartFogFullyCoversCircle(rim, 227, 128, 12), false);
@@ -31,6 +36,45 @@ test("repair fog progressively hides distant geography before clearing", () => {
   assert.ok(Math.abs(closed.clearRadius - fog.minimumClearRadius) < 1e-9);
   assert.equal(closed.repairReady, true);
   assert.equal(cleared.finished, true);
+});
+
+test("repair fog has a stable ragged pixel edge rather than a perfect circle", () => {
+  const fog = createChartRepairFog({
+    nowMs: 0,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    focusX: 227,
+    focusY: 128
+  });
+  const frame = chartRepairFogFrame(fog, fog.formationDurationMs);
+  const densities = new Set();
+  for (let degrees = 0; degrees < 360; degrees += 10) {
+    const angle = degrees / 180 * Math.PI;
+    const radius = frame.clearRadius + frame.fadeBandPx * 0.35;
+    densities.add(chartFogPixelDensity(
+      frame,
+      Math.round(frame.focusX + Math.cos(angle) * radius),
+      Math.round(frame.focusY + Math.sin(angle) * radius)
+    ));
+  }
+
+  assert.ok(densities.size >= 3);
+  assert.equal(chartFogPixelDensity(frame, frame.focusX, frame.focusY), 0);
+  assert.equal(chartFogPixelDensity(frame, 0, 0), 1);
+  const pixels = new Uint8ClampedArray(16 * 9 * 4);
+  const field = createChartFogMaskField({
+    width: 16,
+    height: 9,
+    focusX: frame.focusX,
+    focusY: frame.focusY,
+    pixelSize: 4
+  });
+  assert.equal(fillChartFogMaskPixels(pixels, 16, 9, frame, 4, field), pixels);
+  assert.ok(pixels.some((value, index) => index % 4 === 3 && value > 0));
+  assert.throws(
+    () => fillChartFogMaskPixels(pixels, 16, 9, frame, 4, { ...field, width: 15 }),
+    /does not match/
+  );
 });
 
 test("repair fog can clear early after an outer-ring repair is sufficient", () => {

@@ -2436,6 +2436,7 @@ export default Object.freeze({
   "Tamoio Confederation": "Tamoio-Konföderation",
   "Tarred Hemp Rigging": "Takelage aus geteertem Hanf",
   "Tawantinsuyu": "Tawantinsuyu",
+  "TEAR {0} PX": "RISS {0} PX",
   "Temple guild honorarium": "Honorar der Tempelgilde",
   "Temple of the Khmer": "Tempel der Khmer",
   "temple steward": "Tempelverwalter",
