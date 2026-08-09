@@ -16,6 +16,7 @@ function classify(incidents, overrides = {}) {
     factionId: "france",
     volleyId: 7,
     targetAlreadyEngaged: false,
+    targetIsCombatAlly: false,
     firedDuringCombat: true,
     targetAlreadyHostile: false,
     ...overrides
@@ -39,6 +40,18 @@ test("aimed and already-hostile cannon hits remain direct attacks", () => {
   assert.equal(classify(incidents, { targetAlreadyEngaged: true }), FRIENDLY_FIRE_DIRECT);
   assert.equal(classify(incidents, { firedDuringCombat: false }), FRIENDLY_FIRE_DIRECT);
   assert.equal(classify(incidents, { targetAlreadyHostile: true }), FRIENDLY_FIRE_DIRECT);
+  assert.equal(incidents.size, 0);
+});
+
+test("ships fighting the same enemy are always treated as accidental friendly fire", () => {
+  const incidents = new Map();
+
+  assert.equal(classify(incidents, {
+    targetAlreadyEngaged: true,
+    targetIsCombatAlly: true,
+    firedDuringCombat: false,
+    targetAlreadyHostile: true
+  }), FRIENDLY_FIRE_FORGIVEN);
   assert.equal(incidents.size, 0);
 });
 

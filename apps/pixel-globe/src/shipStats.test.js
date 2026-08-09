@@ -9,6 +9,7 @@ import {
   SHIP_UPWIND_FORGIVENESS_DEG,
   reconcileShipHullForCurrentStats,
   shipHullResistsDamage,
+  shipLabelForProse,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
@@ -33,6 +34,14 @@ test("later asset silhouettes use period-appropriate game identities", () => {
     assert.equal(shipStatsForSlug(slug).slug, slug);
     assert.equal(shipLabelForSlug(slug), label);
   }
+});
+
+test("ship labels have grammatical prose forms without corrupting proper adjectives", () => {
+  assert.equal(shipLabelForProse("square-rigged-caravel"), "square-rigged caravel");
+  assert.equal(shipLabelForProse("spanish-nao"), "Spanish nao");
+  assert.equal(shipLabelForProse("javanese-jong"), "Javanese jong");
+  assert.equal(shipLabelForProse("mediterranean-galley"), "Mediterranean galley");
+  assert.equal(shipLabelForProse("brigantine"), "brigantine");
 });
 
 test("the Holk and Javanese Jong fill distinct regional cargo niches", () => {

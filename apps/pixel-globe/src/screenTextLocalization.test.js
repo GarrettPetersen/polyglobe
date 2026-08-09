@@ -29,6 +29,16 @@ test("ordinary screen text stays concise enough to read instead of skip", () => 
   assert.deepEqual(overlong, []);
 });
 
+test("prose-form ship labels retain their localized vessel names", () => {
+  for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
+    assert.equal(
+      localizeText(language, "square-rigged caravel"),
+      screenTextTranslationCatalog(language)["Square-Rigged Caravel"],
+      language
+    );
+  }
+});
+
 test("normal game text cannot be written to the screen in English-only form", () => {
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     const catalog = screenTextTranslationCatalog(language);

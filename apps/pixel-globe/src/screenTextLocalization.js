@@ -9,6 +9,7 @@ import FRENCH from "./locales/screen/fr.js";
 import POLISH from "./locales/screen/pl.js";
 import CHINESE_TRADITIONAL from "./locales/screen/zh-Hant.js";
 import KOREAN from "./locales/screen/ko.js";
+import { SHIP_STATS, shipLabelForSlug } from "./shipStats.js";
 
 const TRANSLATIONS = Object.freeze({
   "zh-Hans": CHINESE_SIMPLIFIED,
@@ -24,6 +25,9 @@ const TRANSLATIONS = Object.freeze({
 });
 
 const compiledByLanguage = new Map();
+const CASE_INSENSITIVE_EXACT_SOURCES = new Set(
+  SHIP_STATS.map(({ slug }) => shipLabelForSlug(slug))
+);
 
 export function localizeGameplayScreenText(language, text, localizeCapture) {
   if (language === "en" || text.length === 0) return text;
@@ -32,6 +36,8 @@ export function localizeGameplayScreenText(language, text, localizeCapture) {
   if (exact !== undefined) return exact;
   const uppercaseExact = compiled.uppercaseExact.get(text);
   if (uppercaseExact !== undefined) return uppercaseExact;
+  const caseInsensitiveExact = compiled.caseInsensitiveExact.get(text.toLocaleLowerCase("en"));
+  if (caseInsensitiveExact !== undefined) return caseInsensitiveExact;
   for (const entry of compiled.patterns) {
     const match = entry.expression.exec(text);
     if (!match) continue;
@@ -70,6 +76,7 @@ function compiledCatalog(language) {
 function compileCatalog(catalog, language) {
   const exact = new Map();
   const uppercaseExact = new Map();
+  const caseInsensitiveExact = new Map();
   const patterns = [];
   for (const source of SCREEN_TEXT_TEMPLATES) {
     const translation = catalog[source];
@@ -79,6 +86,9 @@ function compileCatalog(catalog, language) {
     if (!source.includes("{0}")) {
       exact.set(source, translation);
       uppercaseExact.set(source.toLocaleUpperCase("en"), translation.toLocaleUpperCase(language));
+      if (CASE_INSENSITIVE_EXACT_SOURCES.has(source)) {
+        caseInsensitiveExact.set(source.toLocaleLowerCase("en"), translation);
+      }
       continue;
     }
     patterns.push(Object.freeze({
@@ -89,7 +99,7 @@ function compileCatalog(catalog, language) {
     }));
   }
   patterns.sort((left, right) => right.specificity - left.specificity);
-  return Object.freeze({ exact, uppercaseExact, patterns: Object.freeze(patterns) });
+  return Object.freeze({ exact, uppercaseExact, caseInsensitiveExact, patterns: Object.freeze(patterns) });
 }
 
 function templateExpression(template) {

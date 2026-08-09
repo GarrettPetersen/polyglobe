@@ -246,7 +246,10 @@ function shouldTellShipyardRumor(personalityId, topic, rumor, seed) {
 }
 
 function shipyardRumorLine(personalityId, rumor) {
-  const hull = lowerFirst(rumor.shipLabel);
+  if (typeof rumor.shipProseLabel !== "string" || rumor.shipProseLabel === "") {
+    throw new Error("Shipyard rumor requires a prose-form ship label");
+  }
+  const hull = rumor.shipProseLabel;
   if (personalityId === "austere") return `Shipyard report: a new ${hull} is for sale in ${rumor.portName}.`;
   if (personalityId === "enterprising") return `There is profit in news: a new ${hull} is for sale in ${rumor.portName}.`;
   if (personalityId === "reflective") return `Word travels ahead of wakes. A new ${hull} is for sale in ${rumor.portName}.`;

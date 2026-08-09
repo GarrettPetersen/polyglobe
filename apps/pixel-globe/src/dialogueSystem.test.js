@@ -3473,11 +3473,12 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
       portId: 11,
       portName: "Porto",
       shipLabel: "Brigantine",
+      shipProseLabel: "brigantine",
       distanceKm: 312
     }
   });
 
-  assert.equal(view.text, "I heard a rumour of a new Brigantine for sale at Porto.");
+  assert.equal(view.text, "I heard a rumour of a new brigantine for sale at Porto.");
   assert.equal(view.options[0].label, "Set a heading for Porto");
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
@@ -3486,6 +3487,7 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
         portId: 11,
         portName: "Porto",
         shipLabel: "Brigantine",
+        shipProseLabel: "brigantine",
         distanceKm: 312
       }
     }),

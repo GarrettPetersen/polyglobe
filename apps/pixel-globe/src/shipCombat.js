@@ -352,6 +352,32 @@ export function engagementKey(aId, bId) {
   return aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`;
 }
 
+export function combatantsShareEnemy(state, aId, bId) {
+  if (!state?.engagements || !(state.engagements instanceof Map)) {
+    throw new Error("Shared-enemy attribution requires ship combat state");
+  }
+  if (typeof aId !== "string" || aId === "" || typeof bId !== "string" || bId === "") {
+    throw new Error("Shared-enemy attribution requires two combatant ids");
+  }
+  if (aId === bId) return false;
+
+  const aEnemies = new Set();
+  for (const engagement of state.engagements.values()) {
+    if (engagement.aId === aId) aEnemies.add(engagement.bId);
+    else if (engagement.bId === aId) aEnemies.add(engagement.aId);
+  }
+  if (aEnemies.size === 0) return false;
+  for (const engagement of state.engagements.values()) {
+    const bEnemy = engagement.aId === bId
+      ? engagement.bId
+      : engagement.bId === bId
+        ? engagement.aId
+        : null;
+    if (bEnemy !== null && aEnemies.has(bEnemy)) return true;
+  }
+  return false;
+}
+
 export function playerCombatAllegiance(
   playerFactionId,
   otherFactionId,

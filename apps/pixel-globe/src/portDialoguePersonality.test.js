@@ -61,7 +61,7 @@ test("a remarkable first arrival takes priority over routine rumors", () => {
     localFlavor: "A sea-going carrack has reached Kabara by the Niger.",
     prioritizeLocalFlavor: true,
     nearbyShips: { merchants: 4 },
-    shipyardRumor: { shipLabel: "Brigantine", portName: "Lisbon" }
+    shipyardRumor: { shipLabel: "Brigantine", shipProseLabel: "brigantine", portName: "Lisbon" }
   });
 
   assert.match(presentation.text, /Kabara by the Niger/i);
@@ -137,11 +137,27 @@ test("gossipy factors report nearby new shipyard listings", () => {
     personalityId: "gossipy",
     cityName: "Porto",
     localFlavor: "The harbor is busy.",
-    shipyardRumor: { shipLabel: "Brigantine", portName: "Lisbon" }
+    shipyardRumor: { shipLabel: "Brigantine", shipProseLabel: "brigantine", portName: "Lisbon" }
   });
 
   assert.match(presentation.text, /new brigantine for sale in Lisbon/i);
   assert.equal(presentation.expressionId, "pleased");
+});
+
+test("compound ship names use sentence capitalization in shipyard rumors", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "gossipy",
+    cityName: "Porto",
+    localFlavor: "The harbor is busy.",
+    shipyardRumor: {
+      shipLabel: "Square-Rigged Caravel",
+      shipProseLabel: "square-rigged caravel",
+      portName: "Lisbon"
+    }
+  });
+
+  assert.match(presentation.text, /a new square-rigged caravel for sale in Lisbon/);
+  assert.doesNotMatch(presentation.text, /square-Rigged|Caravel/);
 });
 
 test("regional succession news takes priority over ordinary port gossip", () => {
@@ -149,7 +165,7 @@ test("regional succession news takes priority over ordinary port gossip", () => 
     personalityId: "gossipy",
     cityName: "Istanbul",
     localFlavor: "The harbor is busy.",
-    shipyardRumor: { shipLabel: "Brigantine", portName: "Venice" },
+    shipyardRumor: { shipLabel: "Brigantine", shipProseLabel: "brigantine", portName: "Venice" },
     rulerRumor: {
       factionId: "safavid",
       displayName: "Shah Tahmasp I",

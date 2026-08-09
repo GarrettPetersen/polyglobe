@@ -18,7 +18,7 @@ import {
   shipyardRumorForPort,
   snapshotWorldShipyards
 } from "./shipyards.js";
-import { JAPANESE_SHIP_SLUGS } from "./shipStats.js";
+import { JAPANESE_SHIP_SLUGS, shipLabelForProse } from "./shipStats.js";
 
 const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14, "portugal");
 const PORTO = port(2, "Porto", "northern-european", 65000, 41.15, -8.61);
@@ -286,6 +286,7 @@ test("empty shipyards can name the nearest active vessel sale worldwide", () => 
 
   assert.equal(listing.portName, "Porto");
   assert.equal(listing.shipSlug, portoYard.listing.shipSlug);
+  assert.equal(listing.shipProseLabel, shipLabelForProse(listing.shipSlug));
   assert.ok(listing.distanceKm < 400);
 });
 

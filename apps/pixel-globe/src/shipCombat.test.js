@@ -11,6 +11,7 @@ import {
   PIRATE_PLAYER_DETECTION_RADIUS_PX,
   WARSHIP_PIRATE_DISENGAGE_RADIUS_PX,
   WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX,
+  combatantsShareEnemy,
   createShipCombatState,
   forceShipEngagement,
   npcPrizeRecipientId,
@@ -122,8 +123,9 @@ test("a nearby armed ally joins the player's fight against a shared enemy", () =
     90,
     10
   );
+  const state = createShipCombatState();
   const result = updateShipCombatState(
-    createShipCombatState(),
+    state,
     [player, enemy, ally],
     threePowerWar
   );
@@ -135,6 +137,7 @@ test("a nearby armed ally joins the player's fight against a shared enemy", () =
     result.startedEngagements.some((engagement) => engagement.alliedReinforcement === true),
     true
   );
+  assert.equal(combatantsShareEnemy(state, player.id, ally.id), true);
 });
 
 test("an armed allied merchant fights when reinforcing the player", () => {

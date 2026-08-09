@@ -126,6 +126,15 @@ const SHIP_LABELS = Object.freeze({
   // Keep the legacy slug for save compatibility; use the period Ottoman vessel name in-game.
   "ottoman-coastal-trader": "Kancabash"
 });
+const SHIP_PROSE_PROPER_WORDS = new Set([
+  "Javanese",
+  "Mediterranean",
+  "Nusantaran",
+  "Polynesian",
+  "Portuguese",
+  "Spanish",
+  "Viking"
+]);
 
 const rawShipStats = [
   stats("fishing-lugger", 0, 0.021, 0.028, 48, 2.90, 35, 18, 3),
@@ -225,6 +234,12 @@ export function shipLabelForSlug(slug) {
   const label = SHIP_LABELS[slug];
   if (!label) throw new Error(`Missing ship label for ship type: ${slug}`);
   return label;
+}
+
+export function shipLabelForProse(slug) {
+  return shipLabelForSlug(slug).replace(/[A-Za-z]+/g, (word) => (
+    SHIP_PROSE_PROPER_WORDS.has(word) ? word : word.toLowerCase()
+  ));
 }
 
 export function validateShipStatsForSlugs(slugs) {

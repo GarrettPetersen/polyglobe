@@ -8,6 +8,7 @@ export function classifyPlayerCannonHit(incidentsByFaction, {
   factionId,
   volleyId,
   targetAlreadyEngaged,
+  targetIsCombatAlly,
   firedDuringCombat,
   targetAlreadyHostile
 }) {
@@ -17,10 +18,11 @@ export function classifyPlayerCannonHit(incidentsByFaction, {
   if (typeof factionId !== "string" || factionId.length === 0) {
     throw new Error(`Friendly-fire classification requires a faction: ${factionId}`);
   }
-  if (typeof targetAlreadyEngaged !== "boolean" || typeof firedDuringCombat !== "boolean" ||
-      typeof targetAlreadyHostile !== "boolean") {
+  if (typeof targetAlreadyEngaged !== "boolean" || typeof targetIsCombatAlly !== "boolean" ||
+      typeof firedDuringCombat !== "boolean" || typeof targetAlreadyHostile !== "boolean") {
     throw new Error("Friendly-fire classification requires explicit combat flags");
   }
+  if (targetIsCombatAlly) return FRIENDLY_FIRE_FORGIVEN;
   if (targetAlreadyEngaged || !firedDuringCombat || targetAlreadyHostile) {
     return FRIENDLY_FIRE_DIRECT;
   }

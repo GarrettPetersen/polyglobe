@@ -3838,11 +3838,15 @@ function shipyardView(session, city, gameState, context) {
     if (nearestListing && !Number.isInteger(nearestListing.portId)) {
       throw new Error(`Nearest shipyard listing requires a port tile id: ${nearestListing.portId}`);
     }
+    if (nearestListing && (typeof nearestListing.shipProseLabel !== "string" ||
+        nearestListing.shipProseLabel === "")) {
+      throw new Error("Nearest shipyard listing requires a prose-form ship label");
+    }
     return {
       speaker: speakerName(city),
       expressionId: "neutral",
       text: nearestListing
-        ? `I heard a rumour of a new ${nearestListing.shipLabel} for sale at ${nearestListing.portName}.`
+        ? `I heard a rumour of a new ${nearestListing.shipProseLabel} for sale at ${nearestListing.portName}.`
         : city.isPirateHideout
           ? "The hidden slips can patch any hull, but there is no captured vessel for sale today. No shipyard currently has a vessel for sale."
           : yard?.famous

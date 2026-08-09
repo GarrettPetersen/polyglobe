@@ -1142,6 +1142,7 @@ import {
   COMBAT_MODE_FLEE,
   COMBAT_DETECTION_RADIUS_PX,
   PLAYER_COMBAT_ID,
+  combatantsShareEnemy,
   createShipCombatState,
   engagementKey,
   forceShipEngagement,
@@ -23088,11 +23089,16 @@ function playerCannonHitDisposition(ball, targetId, factionId) {
     factionId,
     volleyId: ball.volleyId,
     targetAlreadyEngaged: combatEngagementIsActive(PLAYER_COMBAT_ID, targetId),
+    targetIsCombatAlly: playerSharesCombatEnemyWith(targetId),
     firedDuringCombat: ball.firedDuringCombat === true,
     targetAlreadyHostile: factionId === PIRATE_FACTION_ID ||
       factionReputation(gameState, factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD ||
       diplomacy === DIPLOMACY_HOSTILE || diplomacy === DIPLOMACY_WAR
   });
+}
+
+function playerSharesCombatEnemyWith(targetId) {
+  return combatantsShareEnemy(shipCombatState, PLAYER_COMBAT_ID, targetId);
 }
 
 function recordPlayerFriendlyFireWarning(factionId) {
@@ -23281,7 +23287,9 @@ function beginPlayerCityAttack(city) {
 function applyPlayerNavalHit(ball, target, point) {
   if (npcShipHasCombatGrace(npcSeaRoutes, target.id)) return;
   const disposition = ball.portable
-    ? FRIENDLY_FIRE_DIRECT
+    ? playerSharesCombatEnemyWith(target.id)
+      ? FRIENDLY_FIRE_FORGIVEN
+      : FRIENDLY_FIRE_DIRECT
     : playerCannonHitDisposition(ball, target.id, target.factionId);
   const accidentalFriendlyFire = friendlyFireDispositionIsAccidental(disposition);
   if (!accidentalFriendlyFire &&
@@ -23289,7 +23297,12 @@ function applyPlayerNavalHit(ball, target, point) {
     beginPlayerInitiatedCombat(target.id);
   }
   if (ball.portable) {
-    applyPortableWeaponHitToNpc(ball, target, point, PLAYER_COMBAT_ID);
+    applyPortableWeaponHitToNpc(
+      ball,
+      target,
+      point,
+      accidentalFriendlyFire ? null : PLAYER_COMBAT_ID
+    );
     return;
   }
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
@@ -26997,7 +27010,13 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
   dirty = true;
 }
 
-function handleNpcSinking(loserId, winnerId, { accidentalPlayerCollision = false } = {}) {
+function handleNpcSinking(loserId, winnerId, {
+  accidentalPlayerCollision = false,
+  forgivenPlayerCollision = false
+} = {}) {
+  if (forgivenPlayerCollision && !accidentalPlayerCollision) {
+    throw new Error("A forgiven player collision must also be accidental");
+  }
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
   const rewardOrigin = combatEntityPoint(loserId);
@@ -27030,7 +27049,7 @@ function handleNpcSinking(loserId, winnerId, { accidentalPlayerCollision = false
       })
     : null;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
-  if (accidentalPlayerCollision) {
+  if (accidentalPlayerCollision && !forgivenPlayerCollision) {
     const result = recordPlayerAccidentalDamagePenalty(factionId);
     accidentalCollisionRecorded = result.delta !== 0;
   }
@@ -27704,16 +27723,23 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   const damage = damageNpcShip(npcSeaRoutes, id, amount);
   if (damage.ignoredAfterSurrender) return;
   const state = npcVisualShips.get(id);
+  const forgivenPlayerCollision = otherId === PLAYER_COMBAT_ID &&
+    playerSharesCombatEnemyWith(id);
   const accidentalPlayerCollision = playerCollisionWithNpcIsAccidental(id, otherId);
   if (state) state.hitPoints = damage.hitPoints;
   if (damage.sunk) {
     handleNpcSinking(id, otherId, {
-      accidentalPlayerCollision
+      accidentalPlayerCollision,
+      forgivenPlayerCollision
     });
     return;
   }
   if (!damage.shouldSurrender || !state) return;
   if (accidentalPlayerCollision) {
+    if (forgivenPlayerCollision) {
+      handleNpcSurrender(id, null);
+      return;
+    }
     const result = recordPlayerAccidentalDamagePenalty(state.factionId);
     handleNpcSurrender(id, PLAYER_COMBAT_ID, {
       damageInduced: true,
@@ -27735,6 +27761,7 @@ function playerCollisionWithNpcIsAccidental(npcShipId, otherId) {
   if (otherId !== PLAYER_COMBAT_ID) return false;
   const npcShip = npcSeaRoutes.shipById.get(npcShipId);
   if (!npcShip) throw new Error(`Cannot classify collision with missing NPC ship: ${npcShipId}`);
+  if (playerSharesCombatEnemyWith(npcShipId)) return true;
   if (combatEngagementIsActive(PLAYER_COMBAT_ID, npcShipId)) return false;
   if (npcShip.factionId === PIRATE_FACTION_ID) return false;
   if (factionReputation(gameState, npcShip.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD) return false;

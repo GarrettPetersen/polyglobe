@@ -4,6 +4,7 @@ import {
   JOSEON_HYEOPSEON_SLUG,
   JAPANESE_SHIP_SLUGS,
   JAPANESE_UMI_BUNE_SLUG,
+  shipLabelForProse,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
@@ -297,6 +298,7 @@ export function nearestShipyardListingForPort(
     portName: nearest.yard.portName,
     shipSlug: nearest.listing.shipSlug,
     shipLabel: nearest.listing.shipLabel,
+    shipProseLabel: shipLabelForProse(nearest.listing.shipSlug),
     price: nearest.listing.price,
     distanceKm: Math.round(nearest.distanceKm)
   });
