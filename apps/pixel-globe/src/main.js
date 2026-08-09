@@ -1619,6 +1619,8 @@ import {
 } from "./chartVisualRepairPolicy.js";
 import { chartVisualRepairBurden } from "./chartVisualRepairBurden.js";
 import {
+  CHART_REPAIR_CLOUD_BLUR_STRENGTH,
+  CHART_REPAIR_CLOUD_SPRITE_ALPHA,
   chartRepairCloudFullyCoversCircle,
   chartRepairCloudBankFrame,
   chartRepairCloudMayFullyCoverCircle,
@@ -30139,7 +30141,7 @@ function drawDayNightWorld(layers, nowMs) {
       drawGpuDynamicWorld(layers.dynamicWorld);
     }
   });
-  worldRenderer.endFrame();
+  worldRenderer.endFrame({ repairCloudBlur: chartRepairCloudBlurEffect(nowMs) });
   lastPresentedOceanSwell = {
     layout: localLayout,
     swell,
@@ -40958,6 +40960,17 @@ function drawChartRepairOcclusion(nowMs) {
   }
 }
 
+function chartRepairCloudBlurEffect(nowMs) {
+  if (!chartRepairCloudBank || !cloudSpriteSheet) return null;
+  const frame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, nowMs);
+  return Object.freeze({
+    source: cloudSpriteSheet,
+    spriteSize: CLOUD_SPRITE_FRAME_SIZE,
+    strength: CHART_REPAIR_CLOUD_BLUR_STRENGTH,
+    clouds: frame.clouds
+  });
+}
+
 function drawChartFogFrame(frame) {
   if (!frame || frame.edgeOpacity <= 0) return;
   ctx.save();
@@ -41041,7 +41054,7 @@ function drawChartRepairCloudBank(frame) {
     ctx.save();
     const frameCount = Math.max(1, Math.floor(cloudSpriteSheet.width / CLOUD_SPRITE_FRAME_SIZE));
     ctx.imageSmoothingEnabled = false;
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = CHART_REPAIR_CLOUD_SPRITE_ALPHA;
     for (const cloud of frame.clouds) {
       const sourceX = cloud.variantIndex % frameCount * CLOUD_SPRITE_FRAME_SIZE;
       ctx.drawImage(

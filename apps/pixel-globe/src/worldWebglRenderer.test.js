@@ -4,6 +4,7 @@ import {
   ALPHA_MASK_FRAGMENT_SHADER,
   BIT_MASK_FRAGMENT_SHADER,
   LruChunkKeys,
+  PRESENT_FRAGMENT_SHADER,
   PagedTextureAtlasAllocator,
   TextureAtlasAllocator,
   WORLD_SCENE_FRAGMENT_SHADER,
@@ -44,6 +45,20 @@ test("underwater refraction stays anchored to sprite pixels while the camera mov
     /sourcePixelY = floor\(v_texCoord\.y \* u_textureSize\.y\)/
   );
   assert.doesNotMatch(WORLD_SCENE_FRAGMENT_SHADER, /gl_FragCoord/);
+});
+
+test("repair clouds blur only their alpha silhouettes on the logical pixel grid", () => {
+  assert.match(
+    PRESENT_FRAGMENT_SHADER,
+    /texture\(u_repairCloudMask, maskPixel \/ u_repairCloudMaskSize\)\.a/
+  );
+  assert.match(PRESENT_FRAGMENT_SHADER, /vec3 pixelGridBlur\(/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /texelFetch\(u_scene/);
+  assert.match(
+    PRESENT_FRAGMENT_SHADER,
+    /repairCloudMaskAlpha\(screenPixel\) \* u_repairCloudBlurStrength/
+  );
+  assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /textureLod|textureGrad/);
 });
 
 test("texture atlas allocation is deterministic and starts a new shelf", () => {

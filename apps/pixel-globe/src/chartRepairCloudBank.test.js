@@ -1,12 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CHART_REPAIR_CLOUD_BLUR_STRENGTH,
+  CHART_REPAIR_CLOUD_SPRITE_ALPHA,
   chartRepairCloudFullyCoversCircle,
   chartRepairCloudBankFrame,
   chartRepairCloudMayFullyCoverCircle,
   createChartRepairCloudBank,
   slowedChartRepairCloudSpeed
 } from "./chartRepairCloudBank.js";
+
+test("repair clouds trade opacity for a silhouette-clipped world blur", () => {
+  assert.ok(CHART_REPAIR_CLOUD_SPRITE_ALPHA > 0.3);
+  assert.ok(CHART_REPAIR_CLOUD_SPRITE_ALPHA < 0.7);
+  assert.ok(CHART_REPAIR_CLOUD_BLUR_STRENGTH > 0.8);
+  assert.ok(CHART_REPAIR_CLOUD_BLUR_STRENGTH < 1);
+});
 
 test("repair clouds are sparse, staggered, and never carry a rotation", () => {
   const bank = createChartRepairCloudBank({

@@ -152,12 +152,19 @@ void main() {
 }
 `;
 
-const PRESENT_FRAGMENT_SHADER = `#version 300 es
+export const PRESENT_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
 uniform sampler2D u_scene;
 uniform sampler2D u_palette;
+uniform sampler2D u_repairCloudMask;
 uniform bool u_grade;
+uniform bool u_repairCloudBlur;
+uniform int u_repairCloudCount;
+uniform vec3 u_repairClouds[5];
+uniform vec2 u_repairCloudMaskSize;
+uniform float u_repairCloudSpriteSize;
+uniform float u_repairCloudBlurStrength;
 
 in vec2 v_texCoord;
 out vec4 outColor;
@@ -173,8 +180,61 @@ vec3 paletteGrade(vec3 source) {
   ).rgb;
 }
 
+vec3 scenePixel(ivec2 coordinate, ivec2 sceneSize) {
+  return texelFetch(
+    u_scene,
+    clamp(coordinate, ivec2(0), sceneSize - ivec2(1)),
+    0
+  ).rgb;
+}
+
+vec3 pixelGridBlur(ivec2 coordinate, ivec2 sceneSize) {
+  vec3 sum = scenePixel(coordinate, sceneSize) * 4.0;
+  sum += scenePixel(coordinate + ivec2(-2, 0), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(2, 0), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(0, -2), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(0, 2), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(-2, -2), sceneSize);
+  sum += scenePixel(coordinate + ivec2(2, -2), sceneSize);
+  sum += scenePixel(coordinate + ivec2(-2, 2), sceneSize);
+  sum += scenePixel(coordinate + ivec2(2, 2), sceneSize);
+  return sum / 16.0;
+}
+
+float repairCloudMaskAlpha(vec2 screenPixel) {
+  float alpha = 0.0;
+  for (int index = 0; index < 5; index++) {
+    if (index >= u_repairCloudCount) break;
+    vec3 cloud = u_repairClouds[index];
+    vec2 local = (screenPixel - cloud.xy) / u_repairCloudSpriteSize + 0.5;
+    if (local.x < 0.0 || local.x >= 1.0 || local.y < 0.0 || local.y >= 1.0) continue;
+    vec2 maskPixel = vec2(
+      cloud.z * u_repairCloudSpriteSize + local.x * u_repairCloudSpriteSize,
+      local.y * u_repairCloudSpriteSize
+    );
+    alpha = max(alpha, texture(u_repairCloudMask, maskPixel / u_repairCloudMaskSize).a);
+  }
+  return alpha;
+}
+
 void main() {
-  vec4 source = texture(u_scene, v_texCoord);
+  ivec2 sceneSize = textureSize(u_scene, 0);
+  ivec2 sceneCoordinate = clamp(
+    ivec2(floor(v_texCoord * vec2(sceneSize))),
+    ivec2(0),
+    sceneSize - ivec2(1)
+  );
+  vec4 source = texelFetch(u_scene, sceneCoordinate, 0);
+  if (u_repairCloudBlur) {
+    vec2 screenPixel = vec2(
+      float(sceneCoordinate.x) + 0.5,
+      float(sceneSize.y - 1 - sceneCoordinate.y) + 0.5
+    );
+    float blur = repairCloudMaskAlpha(screenPixel) * u_repairCloudBlurStrength;
+    if (blur > 0.0) {
+      source.rgb = mix(source.rgb, pixelGridBlur(sceneCoordinate, sceneSize), blur);
+    }
+  }
   if (u_grade) source.rgb = paletteGrade(source.rgb);
   outColor = source;
 }
@@ -188,6 +248,7 @@ const INITIAL_ATLAS_QUAD_CAPACITY = 1024;
 const DEFAULT_ATLAS_SIZE = 4096;
 const DEFAULT_CHUNK_CACHE_LIMIT = 24;
 const DEFAULT_PERSISTENT_BATCH_CACHE_LIMIT = 48;
+const MAX_REPAIR_CLOUD_BLUR_SPRITES = 5;
 
 export class TextureAtlasAllocator {
   constructor(width, height, padding = 1) {
@@ -553,7 +614,14 @@ export function createWorldWebGL2Renderer({
     texCoord: requiredAttribute(gl, presentProgram, "a_texCoord"),
     scene: requiredUniform(gl, presentProgram, "u_scene"),
     palette: requiredUniform(gl, presentProgram, "u_palette"),
-    grade: requiredUniform(gl, presentProgram, "u_grade")
+    repairCloudMask: requiredUniform(gl, presentProgram, "u_repairCloudMask"),
+    grade: requiredUniform(gl, presentProgram, "u_grade"),
+    repairCloudBlur: requiredUniform(gl, presentProgram, "u_repairCloudBlur"),
+    repairCloudCount: requiredUniform(gl, presentProgram, "u_repairCloudCount"),
+    repairClouds: requiredUniform(gl, presentProgram, "u_repairClouds[0]"),
+    repairCloudMaskSize: requiredUniform(gl, presentProgram, "u_repairCloudMaskSize"),
+    repairCloudSpriteSize: requiredUniform(gl, presentProgram, "u_repairCloudSpriteSize"),
+    repairCloudBlurStrength: requiredUniform(gl, presentProgram, "u_repairCloudBlurStrength")
   };
   const sceneVertexBuffer = requiredBuffer(gl, "world scene vertex buffer");
   const bitMaskVertexBuffer = requiredBuffer(gl, "world bit-mask vertex buffer");
@@ -587,6 +655,20 @@ export function createWorldWebGL2Renderer({
     gl.UNSIGNED_BYTE,
     new Uint8Array([0, 0, 0, 255])
   );
+  gl.activeTexture(gl.TEXTURE2);
+  const repairCloudMaskTexture = createNearestTexture(gl);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    1,
+    1,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([0, 0, 0, 0])
+  );
+  gl.activeTexture(gl.TEXTURE0);
   const atlasAllocator = new PagedTextureAtlasAllocator(atlasSize, atlasSize);
   const atlasPages = [];
   const atlasEntries = new WeakMap();
@@ -615,6 +697,9 @@ export function createWorldWebGL2Renderer({
   let paletteKey = null;
   let frameTimeMs = 0;
   let frameGrade = false;
+  let frameRepairCloudBlur = null;
+  let repairCloudMaskSource = null;
+  const repairCloudUniformData = new Float32Array(MAX_REPAIR_CLOUD_BLUR_SPRITES * 3);
   let atlasSourceCount = 0;
   let drawCalls = 0;
   let uploadedChunks = 0;
@@ -656,6 +741,7 @@ export function createWorldWebGL2Renderer({
     configureAttribute(gl, presentLocations.texCoord, 2, 4 * 4, 2 * 4);
     gl.uniform1i(presentLocations.scene, 0);
     gl.uniform1i(presentLocations.palette, 1);
+    gl.uniform1i(presentLocations.repairCloudMask, 2);
   }
 
   function configureBitMaskAttributes() {
@@ -1313,6 +1399,48 @@ export function createWorldWebGL2Renderer({
     drawCalls++;
   }
 
+  function setRepairCloudBlur(effect) {
+    if (effect === null) {
+      frameRepairCloudBlur = null;
+      return;
+    }
+    if (!effect || !Array.isArray(effect.clouds)) {
+      throw new Error("World repair-cloud blur requires cloud positions");
+    }
+    validateCanvasSource(effect.source, "world repair-cloud mask");
+    if (!Number.isFinite(effect.spriteSize) || effect.spriteSize <= 0) {
+      throw new Error(`World repair-cloud blur has invalid sprite size: ${effect.spriteSize}`);
+    }
+    validateUnitInterval(effect.strength, "world repair-cloud blur strength");
+    if (effect.clouds.length === 0 || effect.clouds.length > MAX_REPAIR_CLOUD_BLUR_SPRITES) {
+      throw new Error(`World repair-cloud blur has invalid cloud count: ${effect.clouds.length}`);
+    }
+    for (const cloud of effect.clouds) {
+      if (
+        !Number.isFinite(cloud?.x) ||
+        !Number.isFinite(cloud?.y) ||
+        !Number.isInteger(cloud?.variantIndex) ||
+        cloud.variantIndex < 0
+      ) {
+        throw new Error("World repair-cloud blur received a malformed cloud");
+      }
+    }
+    if (repairCloudMaskSource !== effect.source) {
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, repairCloudMaskTexture);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        effect.source
+      );
+      repairCloudMaskSource = effect.source;
+    }
+    frameRepairCloudBlur = effect;
+  }
+
   function presentScene(framebuffer) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.viewport(0, 0, sceneWidth, sceneHeight);
@@ -1324,14 +1452,40 @@ export function createWorldWebGL2Renderer({
     gl.bindTexture(gl.TEXTURE_2D, sceneTexture);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, repairCloudMaskTexture);
     gl.uniform1i(presentLocations.grade, frameGrade ? 1 : 0);
+    const effect = frameRepairCloudBlur;
+    gl.uniform1i(presentLocations.repairCloudBlur, effect ? 1 : 0);
+    gl.uniform1i(presentLocations.repairCloudCount, effect?.clouds.length ?? 0);
+    repairCloudUniformData.fill(0);
+    if (effect) {
+      const maskWidth = effect.source.width || effect.source.naturalWidth;
+      const maskHeight = effect.source.height || effect.source.naturalHeight;
+      for (let index = 0; index < effect.clouds.length; index++) {
+        const cloud = effect.clouds[index];
+        const offset = index * 3;
+        repairCloudUniformData[offset] = cloud.x;
+        repairCloudUniformData[offset + 1] = cloud.y;
+        repairCloudUniformData[offset + 2] = cloud.variantIndex;
+      }
+      gl.uniform2f(presentLocations.repairCloudMaskSize, maskWidth, maskHeight);
+      gl.uniform1f(presentLocations.repairCloudSpriteSize, effect.spriteSize);
+      gl.uniform1f(presentLocations.repairCloudBlurStrength, effect.strength);
+    } else {
+      gl.uniform2f(presentLocations.repairCloudMaskSize, 1, 1);
+      gl.uniform1f(presentLocations.repairCloudSpriteSize, 1);
+      gl.uniform1f(presentLocations.repairCloudBlurStrength, 0);
+    }
+    gl.uniform3fv(presentLocations.repairClouds, repairCloudUniformData);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.enable(gl.BLEND);
     drawCalls++;
   }
 
-  function endFrame() {
+  function endFrame({ repairCloudBlur = null } = {}) {
     flushBatches();
+    setRepairCloudBlur(repairCloudBlur);
     presentScene(null);
     return canvas;
   }

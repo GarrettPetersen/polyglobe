@@ -5,6 +5,9 @@ const CLOUD_CROSSWIND_SPACING_PX = 44;
 const CLOUD_BANK_MAX_SPRITES = 5;
 const CLOUD_BANK_SPEED_DIVISOR = 3;
 
+export const CHART_REPAIR_CLOUD_SPRITE_ALPHA = 0.62;
+export const CHART_REPAIR_CLOUD_BLUR_STRENGTH = 0.88;
+
 export function createChartRepairCloudBank({
   nowMs,
   viewportWidth,
