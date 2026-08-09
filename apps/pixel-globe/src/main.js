@@ -1112,6 +1112,13 @@ import {
   resetFrameRateMeter,
   sampleFrameRate
 } from "./frameRateMeter.js";
+import {
+  handleRuntimeDiagnosticAssertion,
+  isRuntimeDiagnosticAssertionError,
+  loadDiagnosticMode,
+  persistDiagnosticMode
+} from "./diagnosticMode.js";
+import { copyCrashReport, formatCrashReport } from "./crashReport.js";
 import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { questJournalWindow, steppedQuestJournalScroll } from "./questJournalLayout.js";
 import {
@@ -2421,7 +2428,7 @@ const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 234;
 const OPTIONS_ROW_H = 22;
-const OPTIONS_ROW_COUNT = 10;
+const OPTIONS_ROW_COUNT = 11;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
@@ -2430,8 +2437,9 @@ const OPTIONS_ROW_LANGUAGE = 4;
 const OPTIONS_ROW_CONTROL_SCHEME = 5;
 const OPTIONS_ROW_CONTROLLER_ICONS = 6;
 const OPTIONS_ROW_CONTROLS = 7;
-const OPTIONS_ROW_TELEMETRY = 8;
-const OPTIONS_ROW_START_MENU = 9;
+const OPTIONS_ROW_DIAGNOSTIC_MODE = 8;
+const OPTIONS_ROW_TELEMETRY = 9;
+const OPTIONS_ROW_START_MENU = 10;
 const CONTROL_SCHEME_PANEL_W = 342;
 const CONTROL_SCHEME_PANEL_H = 218;
 const TELEMETRY_CONSENT_PANEL_W = 360;
@@ -2788,8 +2796,13 @@ const SNOW_GENERATED_SALT = 0x534e4f57;
 
 const canvas = document.getElementById("view");
 const shell = document.querySelector(".shell");
-if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
-  throw new Error("Marque & Reprisal requires its shell and responsive canvas");
+const crashCopyButton = document.getElementById("crash-copy-button");
+if (
+  !(canvas instanceof HTMLCanvasElement) ||
+  !(shell instanceof HTMLElement) ||
+  !(crashCopyButton instanceof HTMLButtonElement)
+) {
+  throw new Error("Marque & Reprisal requires its shell, canvas, and crash-report control");
 }
 const screenCtx = canvas.getContext("2d", { alpha: true });
 if (!screenCtx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
@@ -3297,8 +3310,11 @@ let lastSessionFrameMs = lastFrameMs;
 let nextGameFrameMs = null;
 let regularGameLoopStarted = false;
 const sessionActivityState = createSessionActivityState(lastFrameMs);
-let frameRateOverlayEnabled = false;
+let diagnosticModeEnabled = loadDiagnosticMode(gameStorage);
 const frameRateMeter = createFrameRateMeter();
+let displayedCrashReport = null;
+let fatalControllerPollActive = false;
+let fatalControllerConfirmPressed = false;
 let performanceBenchmarkState = null;
 let worldRenderCount = 0;
 let lastStatusMs = 0;
@@ -3345,16 +3361,26 @@ document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
 document.addEventListener("visibilitychange", resetSessionFrameClock);
 screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 window.addEventListener("pagehide", () => gameTelemetry.stop());
+crashCopyButton.addEventListener("click", () => void copyDisplayedCrashReport());
 window.addEventListener("error", (event) => {
-  if (event.error) gameTelemetry.captureCrash(event.error, telemetryCrashContext());
+  if (event.error && !isRuntimeDiagnosticAssertionError(event.error)) {
+    gameTelemetry.captureCrash(event.error, telemetryCrashContext());
+  }
 });
 window.addEventListener("unhandledrejection", (event) => {
-  gameTelemetry.captureCrash(event.reason, telemetryCrashContext());
+  if (!isRuntimeDiagnosticAssertionError(event.reason)) {
+    gameTelemetry.captureCrash(event.reason, telemetryCrashContext());
+  }
 });
 steamPlatformBridge?.onPauseRequested(handleSteamPlatformPauseRequest);
 
 window.addEventListener("keydown", (event) => {
   noteCurrentSessionActivity();
+  if (displayedCrashReport && ["Enter", " ", "c", "C"].includes(event.key)) {
+    event.preventDefault();
+    if (!event.repeat) void copyDisplayedCrashReport();
+    return;
+  }
   if (telemetryConsentModal) {
     sailingTutorialInputMode = "keyboard";
     handleTelemetryConsentKeyDown(event);
@@ -3382,7 +3408,7 @@ window.addEventListener("keydown", (event) => {
   }
   if (!cheatCodeInput.active && isFrameRateToggleKey(event)) {
     event.preventDefault();
-    if (!event.repeat) toggleFrameRateOverlay();
+    if (!event.repeat) toggleDiagnosticMode();
     return;
   }
   if (handleCheatCodeKeyDown(event)) return;
@@ -5567,7 +5593,9 @@ function loop(nowMs) {
     runFrame(nowMs);
   } catch (error) {
     console.error(error);
-    gameTelemetry.captureCrash(error, telemetryCrashContext());
+    if (!isRuntimeDiagnosticAssertionError(error)) {
+      gameTelemetry.captureCrash(error, telemetryCrashContext());
+    }
     if (CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
       window.__PIXEL_GLOBE_CAPTURE_ERROR__ = error instanceof Error ? error.message : String(error);
     }
@@ -5627,7 +5655,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     pendingWorldSimulationError = null;
     throw error;
   }
-  if (frameRateOverlayEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
+  if (diagnosticModeEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   const sessionFrameSeconds = Math.max(0, (nowMs - lastSessionFrameMs) / 1000);
@@ -12810,6 +12838,8 @@ function handleOptionsKeyDown(event) {
         optionsMenu.controllerGlyphPreference,
         direction
       ));
+    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_DIAGNOSTIC_MODE) {
+      setDiagnosticMode(!diagnosticModeEnabled);
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY) {
       toggleAnonymousTelemetry();
     }
@@ -12826,6 +12856,9 @@ function handleOptionsKeyDown(event) {
       setControllerGlyphPreference(nextControllerGlyphPreference(optionsMenu.controllerGlyphPreference));
     }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS) openKeyBindingsMenu();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_DIAGNOSTIC_MODE) {
+      setDiagnosticMode(!diagnosticModeEnabled);
+    }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY) toggleAnonymousTelemetry();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) activateOptionsExitRow();
     return;
@@ -13546,6 +13579,11 @@ function handleOptionsPointerDown(point) {
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROLS])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_CONTROLS;
     openKeyBindingsMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_DIAGNOSTIC_MODE])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_DIAGNOSTIC_MODE;
+    setDiagnosticMode(!diagnosticModeEnabled);
     return;
   }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_TELEMETRY])) {
@@ -30650,7 +30688,7 @@ function render(nowMs) {
   drawSavePersistenceWarning();
   drawStormLightningFlash(nowMs);
   if (telemetryConsentModal) drawTelemetryConsentModal();
-  if (frameRateOverlayEnabled) drawFrameRateOverlay();
+  if (diagnosticModeEnabled) drawFrameRateOverlay();
   if (CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
     screenCtx.save();
     screenCtx.globalCompositeOperation = "destination-over";
@@ -31939,11 +31977,13 @@ function recoverProtectedStitchError(error) {
       key: "protected-chart-stitch",
       cooldownMs: PROTECTED_STITCH_DIAGNOSTIC_COOLDOWN_MS
     });
-    console.warn(
-      `[pixel-globe] recovered protected chart stitch ${edgeKey}; ` +
-        `using retained-frame admission`,
-      error
-    );
+    if (diagnosticModeEnabled) {
+      console.warn(
+        `[pixel-globe] recovered protected chart stitch ${edgeKey}; ` +
+          `using retained-frame admission`,
+        error
+      );
+    }
   }
   return true;
 }
@@ -31990,31 +32030,56 @@ function mutateChartPositionsBehindVisualCover(reason, mutation, concealedTileId
 }
 
 function assertVisibleAuthoritativeTilePositionsUnchanged(captured) {
+  let firstViolation = null;
   for (const [id, previous] of captured.entries()) {
     const current = localLayout.positions.get(id);
     if (!current) {
-      throw new Error(`Live chart rebuild discarded visible authoritative tile: ${id}`);
+      firstViolation ||= `Live chart rebuild discarded visible authoritative tile: ${id}`;
+      localLayout.positions.set(id, { x: previous.x, y: previous.y });
+      continue;
     }
     if (current.x !== previous.x || current.y !== previous.y) {
-      throw new Error(
+      firstViolation ||= (
         `Live chart rebuild moved visible authoritative tile ${id}: ` +
-        `${previous.x},${previous.y} -> ${current.x},${current.y}`
+          `${previous.x},${previous.y} -> ${current.x},${current.y}`
       );
+      localLayout.positions.set(id, { x: previous.x, y: previous.y });
     }
   }
+  if (firstViolation) {
+    reportRuntimeDiagnosticAssertion(firstViolation, "chart-visible-authority");
+  }
+}
+
+function reportRuntimeDiagnosticAssertion(message, diagnosticKey) {
+  return handleRuntimeDiagnosticAssertion({
+    message,
+    diagnosticKey,
+    diagnosticMode: diagnosticModeEnabled,
+    report: (error, options) => gameTelemetry.captureDiagnostic(
+      error,
+      telemetryCrashContext("runtime-assertion"),
+      options
+    )
+  });
 }
 
 function cullLocalLayout(projectedVisible) {
   const visibleIds = new Set(projectedVisible.map((item) => item.id));
+  let firstViolation = null;
   for (const [id, position] of localLayout.positions.entries()) {
     if (visibleIds.has(id)) continue;
     if (
       localLayoutPositionOverlapsViewport(position, LOCAL_LAYOUT_RETENTION_MARGIN_PX) &&
       !chartVisualCoverFullyCoversLocalPosition(position)
     ) {
-      throw new Error(`Chart rebuild attempted to discard visible local tile: ${id}`);
+      firstViolation ||= `Chart rebuild attempted to discard visible local tile: ${id}`;
+      continue;
     }
     localLayout.positions.delete(id);
+  }
+  if (firstViolation) {
+    reportRuntimeDiagnosticAssertion(firstViolation, "chart-visible-cull");
   }
 }
 
@@ -38686,6 +38751,7 @@ function drawOptionsMenu() {
     controlSchemeRow,
     controllerIconsRow,
     controlsRow,
+    diagnosticModeRow,
     telemetryRow,
     startMenuRow
   ] = rowRects;
@@ -38698,6 +38764,7 @@ function drawOptionsMenu() {
     controlSchemeRow,
     controllerIconsRow,
     controlsRow,
+    diagnosticModeRow,
     telemetryRow,
     startMenuRow
   ];
@@ -38716,6 +38783,10 @@ function drawOptionsMenu() {
     optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS
   );
   drawOptionsControlsRow(controlsRow, optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS);
+  drawOptionsDiagnosticModeRow(
+    diagnosticModeRow,
+    optionsMenu.selectedIndex === OPTIONS_ROW_DIAGNOSTIC_MODE
+  );
   drawOptionsTelemetryRow(telemetryRow, optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY);
   drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
   ctx.restore();
@@ -39314,6 +39385,29 @@ function drawOptionsTelemetryRow(rowRect, highlighted) {
       font,
       align: "right",
       color: enabled ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED
+    }
+  );
+}
+
+function drawOptionsDiagnosticModeRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  const font = PIXEL_FONT_SMALL_8;
+  const value = `< ${uiText(diagnosticModeEnabled ? "telemetry.on" : "telemetry.off")} >`;
+  const valueWidth = Math.min(58, Math.max(34, measurePixelTextWidth(value, font)));
+  drawOptionsText(
+    fitPixelText(uiText("options.diagnosticMode"), font, rowRect.w - valueWidth - 22),
+    rowRect.x + 8,
+    controlTextY(rowRect, font),
+    { font, color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    fitPixelText(value, font, valueWidth),
+    rowRect.x + rowRect.w - 8,
+    controlTextY(rowRect, font),
+    {
+      font,
+      align: "right",
+      color: diagnosticModeEnabled ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED
     }
   );
 }
@@ -49322,11 +49416,15 @@ function dialoguePortraitImage(character, expression) {
   return displayFrame;
 }
 
-function toggleFrameRateOverlay() {
-  frameRateOverlayEnabled = !frameRateOverlayEnabled;
-  if (frameRateOverlayEnabled) measureCurrentVisibleTerrainTear();
+function setDiagnosticMode(enabled) {
+  diagnosticModeEnabled = persistDiagnosticMode(gameStorage, enabled);
+  if (diagnosticModeEnabled) measureCurrentVisibleTerrainTear();
   resetFrameRateMeter(frameRateMeter);
   dirty = true;
+}
+
+function toggleDiagnosticMode() {
+  setDiagnosticMode(!diagnosticModeEnabled);
 }
 
 function drawFrameRateOverlay() {
@@ -49783,6 +49881,56 @@ function drawFatalError(err, heading = "Prototype failed to start") {
   const lines = String(err?.message || err).match(/.{1,70}/g) || ["Unknown error"];
   drawPixelText(heading, 8, 14, { font: PIXEL_FONT_SMALL_8 });
   for (let i = 0; i < lines.length; i++) drawPixelText(lines[i], 8, 28 + i * 10, { font: PIXEL_FONT_SMALL_8 });
+  displayedCrashReport = formatCrashReport({
+    error: err,
+    heading,
+    occurredAt: new Date().toISOString(),
+    metadata: telemetryMetadata,
+    context: telemetryCrashContext(),
+    language: currentLanguage,
+    viewport: { width: SCREEN_W, height: SCREEN_H },
+    userAgent: navigator.userAgent || "unknown"
+  });
+  crashCopyButton.hidden = false;
+  crashCopyButton.dataset.state = "ready";
+  crashCopyButton.textContent = uiText("crash.copyDetails");
+  crashCopyButton.focus({ preventScroll: true });
+  startFatalControllerPoll();
+}
+
+async function copyDisplayedCrashReport() {
+  if (!displayedCrashReport) return false;
+  try {
+    await copyCrashReport(displayedCrashReport);
+    crashCopyButton.dataset.state = "copied";
+    crashCopyButton.textContent = uiText("crash.copied");
+    return true;
+  } catch (error) {
+    crashCopyButton.dataset.state = "failed";
+    crashCopyButton.textContent = uiText("crash.copyFailed");
+    if (diagnosticModeEnabled) console.error("Could not copy crash report", error);
+    return false;
+  }
+}
+
+function startFatalControllerPoll() {
+  if (fatalControllerPollActive) return;
+  fatalControllerPollActive = true;
+  requestAnimationFrame(pollFatalController);
+}
+
+function pollFatalController() {
+  if (!displayedCrashReport) {
+    fatalControllerPollActive = false;
+    fatalControllerConfirmPressed = false;
+    return;
+  }
+  const confirmPressed = [...(navigator.getGamepads?.() || [])].some((gamepad) => (
+    gamepad?.connected && gamepad.buttons?.[0]?.pressed
+  ));
+  if (confirmPressed && !fatalControllerConfirmPressed) void copyDisplayedCrashReport();
+  fatalControllerConfirmPressed = confirmPressed;
+  requestAnimationFrame(pollFatalController);
 }
 
 function hashInt(n) {

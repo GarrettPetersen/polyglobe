@@ -154,6 +154,36 @@ canvas {
   line-height: 1.5;
 }
 
+.crash-copy-button {
+  position: absolute;
+  z-index: 200;
+  left: 50%;
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 14px));
+  transform: translateX(-50%);
+  min-width: min(260px, calc(100vw - 28px));
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 3px solid #725137;
+  border-radius: 0;
+  color: #2f241c;
+  background: #f1ddb0;
+  box-shadow: 0 0 0 2px #d0ae72;
+  font: 10px/1.4 "Silkscreen", monospace;
+  cursor: pointer;
+}
+
+.crash-copy-button:hover,
+.crash-copy-button:focus-visible {
+  outline: 2px solid #fbb954;
+  outline-offset: 2px;
+  background: #fbb954;
+}
+
+.crash-copy-button[data-state="failed"] {
+  color: #fff1c7;
+  background: #9e3e36;
+}
+
 @keyframes loading-wake {
   0% { opacity: 0.35; }
   50% { opacity: 1; }
