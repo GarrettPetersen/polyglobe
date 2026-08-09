@@ -4447,6 +4447,65 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
   assert.equal(result.missionItemGift, null);
 });
 
+test("completing a packet rolls the destination's next job without re-entering port", () => {
+  const origin = {
+    tileId: 76,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    factionId: "portugal",
+    cityType: "mediterranean",
+    routeRegion: "mediterranean",
+    lat: 38.72,
+    lon: -9.14,
+    character: { name: "Fernao da Cunha" }
+  };
+  const destination = {
+    ...origin,
+    tileId: 77,
+    city: "Porto",
+    displayCity: "Porto",
+    lat: 41.15,
+    lon: -8.61
+  };
+  const ports = [origin, destination];
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  deliveryOfferForCity(gameState, origin, ports, { spawnChance: 1, simMinute: 0 });
+  acceptQuest(gameState, questStateForCity(gameState, origin, ports).quest);
+  const session = createPortArrivalDialogueSession(destination, {
+    openDeliveryMission: true
+  });
+  const delivery = portDialogueView(session, destination, gameState, economy, ports);
+  const completeIndex = delivery.options.findIndex(
+    (entry) => entry.action.type === "complete-quest"
+  );
+
+  const result = selectPortDialogueOption(
+    session,
+    destination,
+    gameState,
+    economy,
+    ports,
+    completeIndex,
+    { simMinute: 0 }
+  );
+
+  assert.equal(session.nodeId, "root");
+  assert.equal(result.nextDeliveryOffer?.originTileId, destination.tileId);
+  assert.equal(questStateForCity(gameState, destination, ports).kind, "available");
+
+  const root = portDialogueView(session, destination, gameState, economy, ports);
+  const workIndex = root.options.findIndex((entry) => entry.label === "Ask about work");
+  selectPortDialogueOption(session, destination, gameState, economy, ports, workIndex);
+  assert.equal(session.nodeId, "quest");
+  const nextJob = portDialogueView(session, destination, gameState, economy, ports);
+  assert.equal(
+    nextJob.options.find((entry) => entry.action.type === "accept-quest")?.action.quest.id,
+    result.nextDeliveryOffer.id
+  );
+});
+
 test("only admitted port sessions carry automatic departure services", () => {
   const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
   const barred = createPortDialogueSession(city, { initialNodeId: "barred" });

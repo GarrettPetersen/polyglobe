@@ -89,6 +89,16 @@ export function chartRepairFogFrame(fog, nowMs, release = null) {
   });
 }
 
+export function chartRepairFogWindPresence(frame) {
+  if (!frame || !Number.isFinite(frame.concealment)) {
+    throw new Error("Chart repair fog wind requires a valid fog frame");
+  }
+  if (frame.concealment < 0 || frame.concealment > 1) {
+    throw new Error(`Chart repair fog wind has invalid concealment: ${frame.concealment}`);
+  }
+  return smoothstep(0.06, 1, frame.concealment);
+}
+
 export function polarChartFogFrame({
   latitudeDeg,
   viewportWidth,

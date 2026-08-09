@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   chartFogFullyCoversCircle,
   chartRepairFogFrame,
+  chartRepairFogWindPresence,
   createChartRepairFog,
   polarChartFogFrame
 } from "./chartRepairFog.js";
@@ -53,6 +54,28 @@ test("repair fog can clear early after an outer-ring repair is sufficient", () =
 
   assert.ok(clearing.concealment < forming.concealment);
   assert.equal(cleared.finished, true);
+});
+
+test("repair fog wind rises and falls with the visible haze", () => {
+  const fog = createChartRepairFog({
+    nowMs: 0,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    focusX: 227,
+    focusY: 128
+  });
+  const open = chartRepairFogFrame(fog, 0);
+  const forming = chartRepairFogFrame(fog, fog.formationDurationMs / 2);
+  const closed = chartRepairFogFrame(fog, fog.formationDurationMs);
+  const clearing = chartRepairFogFrame(
+    fog,
+    fog.formationDurationMs + fog.holdDurationMs + fog.clearingDurationMs / 2
+  );
+
+  assert.equal(chartRepairFogWindPresence(open), 0);
+  assert.ok(chartRepairFogWindPresence(forming) > 0);
+  assert.equal(chartRepairFogWindPresence(closed), 1);
+  assert.ok(chartRepairFogWindPresence(clearing) < chartRepairFogWindPresence(closed));
 });
 
 test("polar fog preserves a clear navigable center and hides the chart edge", () => {

@@ -20,6 +20,7 @@ import {
   completeQuest,
   createMarketUndoSnapshot,
   declineEquipmentFactorPitch,
+  deliveryOfferForCity,
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
   futurePermanentCrewFloor,
@@ -2200,6 +2201,11 @@ export function selectPortDialogueOption(
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
+    const nextDeliveryOffer = quest.kind === "delivery"
+      ? deliveryOfferForCity(gameState, city, portCities, {
+          simMinute: context.simMinute ?? 0
+        })
+      : null;
     const missionItemGift = quest.kind === "delivery"
       ? null
       : maybeGrantMissionPerkItem(gameState, city, {
@@ -2220,7 +2226,7 @@ export function selectPortDialogueOption(
     session.nodeId = session.nextPortNodeId || "root";
     session.nextPortNodeId = null;
     session.selectedIndex = 0;
-    return { closed: false, missionItemGift };
+    return { closed: false, missionItemGift, nextDeliveryOffer };
   }
   if (action.type === "request-marque") {
     const result = grantLetterOfMarque(gameState, city, context.shipPower || 0, context);

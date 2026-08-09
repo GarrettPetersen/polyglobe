@@ -1620,6 +1620,7 @@ import {
 import {
   chartFogFullyCoversCircle,
   chartRepairFogFrame,
+  chartRepairFogWindPresence,
   createChartRepairFog,
   polarChartFogFrame
 } from "./chartRepairFog.js";
@@ -7707,6 +7708,13 @@ function updateAmbientAudio(dt) {
     });
   }
   const { shore, sailing, storm, fire } = ambientAudioContext;
+  const repairFogWind = chartRepairFog
+    ? chartRepairFogWindPresence(chartRepairFogFrame(
+      chartRepairFog.animation,
+      lastFrameMs,
+      chartRepairFog.release
+    ))
+    : 0;
   updateRowingStrokeAudio(elapsed, sailing.rowing);
   let changed = false;
   changed = updateAmbientLoop(
@@ -7737,7 +7745,7 @@ function updateAmbientAudio(dt) {
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.winterWind,
-    sailing.winterWind * SFX_WINTER_WIND_MAX_VOLUME,
+    Math.max(sailing.winterWind, repairFogWind) * SFX_WINTER_WIND_MAX_VOLUME,
     SFX_WINTER_WIND_MAX_VOLUME,
     elapsed,
     SFX_WIND_FADE_PER_SECOND
