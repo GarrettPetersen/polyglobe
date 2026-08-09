@@ -27,6 +27,7 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.ok(captureScenarioIds().includes("icosahedron-earth"));
   assert.ok(captureScenarioIds().includes("icosahedron-earth-broll"));
   assert.ok(captureScenarioIds().includes("icosahedron-earth-cape-horn"));
+  assert.ok(captureScenarioIds().includes("iceberg-drift"));
   assert.ok(captureScenarioIds().includes("turtle-ship-war"));
   assert.ok(captureScenarioIds().includes("land-trade"));
   assert.ok(captureScenarioIds().includes("great-barrier-reef"));
@@ -36,6 +37,13 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.equal(captureScenarioFromSearch(""), null);
   assert.equal(captureScenarioFromSearch("?capture=turtle-ship-war").player.factionId, "joseon");
   assert.throws(() => captureScenarioFromSearch("?capture=missing"), /Unknown capture scenario/);
+});
+
+test("iceberg QA stages the largest waterline bake beside a polar vessel", () => {
+  const scenario = captureScenarioFromSearch("?capture=iceberg-drift");
+  assert.equal(scenario.icebergs.length, 1);
+  assert.equal(scenario.icebergs[0].variantId, "iceberg-large");
+  assert.ok(Math.abs(scenario.icebergs[0].lon - scenario.player.lon) < 0.25);
 });
 
 test("cloud benchmark fixes a cloud-heavy northern Aegean date and camera", () => {

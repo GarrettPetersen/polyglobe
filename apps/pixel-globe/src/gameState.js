@@ -85,6 +85,7 @@ import {
 } from "./portEquipment.js";
 import { BASIC_WHALE_HARPOON_ID, whaleHarpoonById } from "./whaleHarpoons.js";
 import { createWhaleMemory, validateWhaleMemory } from "./whaleSystem.js";
+import { createIcebergMemory, validateIcebergMemory } from "./icebergSystem.js";
 import {
   adjustDiplomaticStance,
   advanceWorldDiplomacy,
@@ -268,7 +269,7 @@ import {
 import { validateVoyageStartProfile } from "./voyageStartProfile.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 58;
+export const GAME_STATE_VERSION = 59;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -532,6 +533,7 @@ export function createGameState({
       conquest: createPortConquestMemory(),
       achievements: createVoyageAchievementProgress(),
       whales: createWhaleMemory(),
+      icebergs: createIcebergMemory(),
       campaignGoal: playerCharacterSupportsCampaignGoal(normalizedPlayerCharacter)
         ? createCampaignGoal({ playerCharacter: normalizedPlayerCharacter, startMinute, type: resolvedCampaignGoalType })
         : null,
@@ -556,7 +558,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -714,6 +716,7 @@ export function migrateGameState(state, shipStats) {
       conquest: migrateConquestFactionReferences(state.memory?.conquest || createPortConquestMemory()),
       achievements: migrateVoyageAchievementProgress(state.memory?.achievements),
       whales: state.memory?.whales?.version === 2 ? state.memory.whales : createWhaleMemory(),
+      icebergs: state.memory?.icebergs?.version === 1 ? state.memory.icebergs : createIcebergMemory(),
       campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(migratedPlayerCharacter)
         ? createCampaignGoal({ playerCharacter: migratedPlayerCharacter, startMinute: savedGameStartMinute(state) })
         : null),
@@ -6111,6 +6114,7 @@ function assertGameState(state) {
   validatePortConquestMemory(state.memory.conquest);
   validateVoyageAchievementProgress(state.memory.achievements);
   validateWhaleMemory(state.memory.whales);
+  validateIcebergMemory(state.memory.icebergs);
   validateAnimalEncounterMemory(state.memory.animals);
   validateAnimalCompanionMemory(state.memory.animalCompanions);
   if (state.memory.campaignGoal === null) {

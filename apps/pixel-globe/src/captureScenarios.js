@@ -1,4 +1,5 @@
 import { factionById } from "./factions.js";
+import { ICEBERG_VARIANTS } from "./icebergSystem.js";
 import { NPC_SHIP_SLUGS } from "./npcSeaRoutes.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -68,6 +69,25 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: { day: 350, hour: 17, minute: 20, timeScale: 180 },
     diplomacy: [],
     encounters: []
+  }),
+  "iceberg-drift": scenario({
+    id: "iceberg-drift",
+    title: "Large Iceberg",
+    seed: "iceberg-drift-qa-v1",
+    player: {
+      factionId: "denmark-norway",
+      shipSlug: "fishing-lugger",
+      lat: 55,
+      lon: -40.15,
+      headingDeg: 0,
+      activePlaySeconds: 60
+    },
+    world: { day: 196, hour: 13, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: [],
+    icebergs: [
+      { variantId: "iceberg-large", lat: 55, lon: -39.98, headingDeg: 210 }
+    ]
   }),
   "turtle-ship-war": scenario({
     id: "turtle-ship-war",
@@ -732,6 +752,18 @@ export function validateCaptureScenario(value) {
     }
     if (encounter.replaceOnSink !== undefined && typeof encounter.replaceOnSink !== "boolean") {
       throw new Error(`Invalid capture encounter replacement flag: ${encounter.id}`);
+    }
+  }
+  if (value.icebergs !== undefined) {
+    if (!Array.isArray(value.icebergs)) throw new Error("Capture scenario icebergs must be an array");
+    const variantIds = new Set(ICEBERG_VARIANTS.map((variant) => variant.id));
+    for (const iceberg of value.icebergs) {
+      if (!iceberg || !variantIds.has(iceberg.variantId)) {
+        throw new Error(`Invalid capture iceberg variant: ${iceberg?.variantId}`);
+      }
+      numberInRange(iceberg.lat, -89.999, 89.999, "capture iceberg latitude");
+      numberInRange(iceberg.lon, -180, 180, "capture iceberg longitude");
+      numberInRange(iceberg.headingDeg, 0, 360, "capture iceberg heading");
     }
   }
   if (value.sequence !== undefined) validateCaptureSequence(value.sequence);

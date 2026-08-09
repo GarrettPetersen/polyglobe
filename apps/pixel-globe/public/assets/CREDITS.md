@@ -62,6 +62,7 @@
 - Jungle Jim - "Cartoon Horse with animations" (CC BY 4.0)
 - Filip - "Wooden Cart" (CC BY 4.0)
 - Romulogan - "LowPoly Llama" (CC BY 4.0)
+- S. Paul Michael - "Iceberg 1" (CC BY 3.0)
 
 ## Sound Effects
 - Alex Jauk

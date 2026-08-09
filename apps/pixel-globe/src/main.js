@@ -579,6 +579,14 @@ import {
   whaleSurfaceExposure,
   whiteWhale
 } from "./whaleSystem.js";
+import {
+  ICEBERG_ADVANCE_INTERVAL_MINUTES,
+  ICEBERG_POPULATION_TARGET,
+  ICEBERG_VARIANTS,
+  advanceIcebergMemory,
+  icebergVariantById,
+  seedIcebergPopulation
+} from "./icebergSystem.js";
 import { applyWhaleTowPull, whaleTowKinematics } from "./whaleTowPhysics.js";
 import { drawWhaleTetherCurve } from "./whaleTetherCurve.js";
 import {
@@ -1192,7 +1200,8 @@ import {
   shipFootprintPerimeterSamples,
   shipFootprintRadius,
   translatedShipFootprint,
-  validateShipFootprintBake
+  validateShipFootprintBake,
+  validateShipFootprintFrames
 } from "./shipFootprint.js";
 import { validateShipFlagAnchorBake } from "./shipFlagAnchors.js";
 import { shipFlagDiplomacyOutlineColor } from "./shipFlagDiplomacy.js";
@@ -1973,7 +1982,8 @@ const WORLD_SPATIAL_KIND = Object.freeze({
   PORT: "port",
   SHORE_BATTERY: "shore-battery",
   FISH_SCHOOL: "fish-school",
-  WHALE: "whale"
+  WHALE: "whale",
+  ICEBERG: "iceberg"
 });
 // Ordinary traffic needs only a 4 Hz physics target because presentation interpolates
 // between updates. Combat, storms, and collisions remain on the 24 Hz coordinator.
@@ -2081,6 +2091,8 @@ const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.js
 const SHIP_FLAG_ANCHORS_URL = `assets/vehicles/unity-ships/flag-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_RENDER_LAYERS_URL =
   `assets/vehicles/ship-render-layers/manifest.json?v=${VEHICLE_ASSET_VERSION}`;
+const ICEBERG_ASSET_VERSION = "iceberg-1";
+const ICEBERG_MANIFEST_URL = `assets/icebergs/manifest.json?v=${ICEBERG_ASSET_VERSION}`;
 const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
@@ -2627,6 +2639,7 @@ const WHALE_HARPOON_PROJECTILE_SECONDS = 0.52;
 const WHALE_HARPOON_ARC_PX = 3;
 const WHALE_BLOW_DURATION_MS = WHALE_BLOW_DURATION_SECONDS * 1000;
 const WHALE_SUBMERGED_ALPHA = 0.34;
+const ICEBERG_SUBMERGED_ALPHA = 0.42;
 const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const WHALE_SIMULATION_INTERVAL_SECONDS = 0.25;
@@ -2813,7 +2826,7 @@ const shipSinkPixelCache = new WeakMap();
 const shipRenderLayerFramesByImage = new WeakMap();
 const shipRenderLayerBundlePromises = new Map();
 const shipWaterlineFrameCanvasCache = new WeakMap();
-const whaleRenderSourceCache = new WeakMap();
+const submergedObjectRenderSourceCache = new WeakMap();
 const floatingShipFrameAtlasCache = new WeakMap();
 const FLOATING_SHIP_FRAME_CACHE_LIMIT = 48;
 const FLOATING_SHIP_FRAME_ATLAS_COLUMNS = 8;
@@ -2900,6 +2913,8 @@ let shipWakeAnchorsBySlug;
 let shipFootprintsBySlug;
 let shipFlagAnchorsBySlug;
 let shipRenderLayerManifest;
+let icebergManifest;
+let icebergFootprintsBySlug;
 let shipLighting;
 const shipInfoImages = new Map();
 const shipInfoImagePromises = new Map();
@@ -2920,6 +2935,7 @@ let shipLightingAssetStore;
 let shipRenderLayerAssetStore;
 let rowingShipAssetStore;
 let whaleAssetStore;
+let icebergAssetStore;
 let landVehicleAssetStore;
 let worldAnimationAssetStore;
 let pendingWorldAssetError = null;
@@ -2950,6 +2966,9 @@ let shoreBatteryUpdateAccumulator = 0;
 let whaleSimulationAccumulator = 0;
 let whaleBackgroundMovementBucket = 0;
 const whaleVisualPresentations = new Map();
+let icebergSpawnCandidates = [];
+let activeIcebergSpawnCandidatesDay = -1;
+let activeIcebergSpawnCandidates = [];
 let ambientAudioUpdateAccumulator = 0;
 let ambientAudioContextAccumulator = 0;
 let ambientAudioWildlifeAccumulator = 0;
@@ -3398,6 +3417,7 @@ async function main() {
     loadShipFootprints(),
     loadShipFlagAnchors(),
     loadShipRenderLayerManifest(),
+    loadIcebergManifest(),
     loadGameIconAtlas(),
     loadCloudSpriteSheet(),
     loadWorldDiscoveryImages(),
@@ -3426,6 +3446,7 @@ async function main() {
     loadedShipFootprints,
     loadedShipFlagAnchors,
     loadedShipRenderLayerManifest,
+    loadedIcebergManifest,
     loadedGameIconAtlas,
     loadedCloudSpriteSheet,
     loadedWorldDiscoveryImages,
@@ -3451,6 +3472,8 @@ async function main() {
   shipFootprintsBySlug = loadedShipFootprints;
   shipFlagAnchorsBySlug = loadedShipFlagAnchors;
   shipRenderLayerManifest = loadedShipRenderLayerManifest;
+  icebergManifest = loadedIcebergManifest.manifest;
+  icebergFootprintsBySlug = loadedIcebergManifest.footprintsBySlug;
   shipLighting = null;
   gameIconAtlasImage = loadedGameIconAtlas;
   gameIconOutlineAtlasImage = createGameIconOutlineAtlas(loadedGameIconAtlas);
@@ -3810,6 +3833,9 @@ async function main() {
     snow: new Uint8Array(graph.tileCount)
   };
   refreshWeatherState(true);
+  icebergSpawnCandidates = buildIcebergSpawnCandidates();
+  activeIcebergSpawnCandidatesDay = -1;
+  activeIcebergSpawnCandidates = [];
   minimap = buildMinimap();
   captainChartMinimap = null;
   ship = createShip(
@@ -3843,6 +3869,8 @@ async function main() {
   pendingFetchQuestCaptainDialogues.length = 0;
   consumedLandedSeagullIds.clear();
   ensureWhalePopulation(gameState);
+  ensureIcebergPopulation(gameState);
+  if (CAPTURE_SCENARIO) applyCaptureIcebergs(gameState, CAPTURE_SCENARIO.icebergs || []);
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   initializeFetchQuestReadiness();
   familyDebtReturnReminderDelivered = false;
@@ -3960,6 +3988,16 @@ async function loadInitialNearbyWorldAssets() {
   }
   for (const slug of whaleSlugs) requests.push(whaleAssetStore.request(slug));
 
+  const icebergSlugs = new Set();
+  for (const iceberg of gameState.memory.icebergs.individuals) {
+    if (!chart.visibleSet.has(iceberg.tileId)) continue;
+    const point = localPointForKnownTileVector(iceberg.position, iceberg.tileId);
+    if (!point) continue;
+    const screenPoint = { x: point.x + offset.x, y: point.y + offset.y };
+    if (pointNearScreen(screenPoint, SHIP_SHEET_FRAME_SIZE)) icebergSlugs.add(iceberg.variantId);
+  }
+  for (const slug of icebergSlugs) requests.push(icebergAssetStore.request(slug));
+
   const visibleCarts = visibleLandCartSnapshots(
     landTradeSystem,
     weatherClockMinutes,
@@ -3973,7 +4011,8 @@ async function loadInitialNearbyWorldAssets() {
   await Promise.all(requests);
   console.info(
     `[pixel-globe] initial resident world assets: ${shipSlugs.size} nearby ship hulls, ` +
-    `${whaleSlugs.size} nearby whale species, ${visibleCarts.length} nearby land traders`
+    `${whaleSlugs.size} nearby whale species, ${icebergSlugs.size} iceberg sizes, ` +
+    `${visibleCarts.length} nearby land traders`
   );
 }
 
@@ -4237,7 +4276,7 @@ const WORLD_ANIMATION_ASSET = Object.freeze({
 function initializeWorldAssetStores() {
   if (shipSpriteAssetStore || shipLightingAssetStore || shipRenderLayerAssetStore ||
       rowingShipAssetStore ||
-      whaleAssetStore || landVehicleAssetStore || worldAnimationAssetStore) {
+      whaleAssetStore || icebergAssetStore || landVehicleAssetStore || worldAnimationAssetStore) {
     throw new Error("World asset stores are already initialized");
   }
   shipSpriteAssetStore = createOnDemandAssetStore({
@@ -4259,6 +4298,10 @@ function initializeWorldAssetStores() {
   whaleAssetStore = createOnDemandAssetStore({
     label: "whale sprite",
     load: loadWhaleAssetsForSlug
+  });
+  icebergAssetStore = createOnDemandAssetStore({
+    label: "iceberg sprite",
+    load: loadIcebergAssetsForSlug
   });
   landVehicleAssetStore = createOnDemandAssetStore({
     label: "horse-cart animation",
@@ -4463,7 +4506,27 @@ async function loadWhaleAssetsForSlug(slug) {
   ]);
   validateShipSpriteSheet(image, `${slug} sprite sheet`);
   validateShipSpriteSheet(sinkDepthImage, `${slug} sink-depth sheet`);
-  prebakeWhaleRenderSource(image, sinkDepthImage, slug);
+  prebakeSubmergedObjectRenderSource(image, sinkDepthImage, slug);
+  return Object.freeze({ image, sinkDepthImage });
+}
+
+async function loadIcebergAssetsForSlug(slug) {
+  if (!icebergManifest?.variantsBySlug?.has(slug)) {
+    throw new Error(`Unknown iceberg asset slug: ${slug}`);
+  }
+  const [image, sinkDepthImage] = await Promise.all([
+    loadAssetImage(
+      `assets/icebergs/${slug}-32-headings.png?v=${ICEBERG_ASSET_VERSION}`,
+      `${slug} sprite sheet`
+    ),
+    loadAssetImage(
+      `assets/icebergs/${slug}-32-headings-sink-depth.png?v=${ICEBERG_ASSET_VERSION}`,
+      `${slug} sink-depth sheet`
+    )
+  ]);
+  validateShipSpriteSheet(image, `${slug} sprite sheet`);
+  validateShipSpriteSheet(sinkDepthImage, `${slug} sink-depth sheet`);
+  prebakeSubmergedObjectRenderSource(image, sinkDepthImage, slug);
   return Object.freeze({ image, sinkDepthImage });
 }
 
@@ -4609,6 +4672,36 @@ async function loadShipRenderLayerManifest() {
   );
 }
 
+async function loadIcebergManifest() {
+  const manifest = await fetchJson(ICEBERG_MANIFEST_URL, "iceberg sprite manifest");
+  if (!manifest || manifest.frameSize !== SHIP_SHEET_FRAME_SIZE ||
+      manifest.headings !== SHIP_HEADING_COUNT || manifest.sheetCols !== SHIP_SHEET_COLS) {
+    throw new Error("Iceberg sprite manifest has incompatible dimensions");
+  }
+  if (!Array.isArray(manifest.variants)) throw new Error("Iceberg sprite manifest requires variants");
+  const expected = new Set(ICEBERG_VARIANTS.map((variant) => variant.id));
+  const variantsBySlug = new Map();
+  const footprintsBySlug = new Map();
+  for (const variant of manifest.variants) {
+    if (!expected.delete(variant.slug)) {
+      throw new Error(`Iceberg sprite manifest contains an unexpected variant: ${variant.slug}`);
+    }
+    variantsBySlug.set(variant.slug, variant);
+    footprintsBySlug.set(variant.slug, validateShipFootprintFrames(
+      variant.slug,
+      variant.hullFootprints,
+      SHIP_HEADING_COUNT
+    ));
+  }
+  if (expected.size > 0) {
+    throw new Error(`Iceberg sprite manifest is missing: ${[...expected].join(", ")}`);
+  }
+  return Object.freeze({
+    manifest: Object.freeze({ ...manifest, variantsBySlug }),
+    footprintsBySlug
+  });
+}
+
 function requiredShipFlagAnchor(slug, frame, rowingFrameIndex) {
   const anchorSet = shipFlagAnchorsBySlug?.get(slug);
   if (!anchorSet) throw new Error(`Missing baked flag anchors for ship: ${slug}`);
@@ -4626,6 +4719,12 @@ function requiredShipFlagAnchor(slug, frame, rowingFrameIndex) {
 function requiredShipFootprints(slug) {
   const footprints = shipFootprintsBySlug?.get(slug);
   if (!footprints) throw new Error(`Missing baked hull footprints for ship: ${slug}`);
+  return footprints;
+}
+
+function requiredIcebergFootprints(slug) {
+  const footprints = icebergFootprintsBySlug?.get(slug);
+  if (!footprints) throw new Error(`Missing baked hull footprint for iceberg: ${slug}`);
   return footprints;
 }
 
@@ -5535,6 +5634,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       () => measureChartDriftAtInterval(nowMs)
     );
     if (chartRepairCheckIsDue && maybeStartChartVisualRepair(nowMs, chartDrift)) dirty = true;
+    if (measurePerformanceBenchmarkStage("icebergs", updateIcebergs)) dirty = true;
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
@@ -8055,15 +8155,42 @@ function capturePlayerCharacter(character, scenarioValue) {
 
 function applyCaptureShipHeading(playerShip, headingDeg) {
   if (!playerShip?.position) throw new Error("Cannot set capture heading before creating the player ship");
-  const frame = northUpCamera(playerShip.position);
+  const heading = captureHeadingVector(playerShip.position, headingDeg);
+  playerShip.heading = heading;
+  playerShip.targetHeading = heading.slice();
+}
+
+function captureHeadingVector(position, headingDeg) {
+  const frame = northUpCamera(position);
   const radians = headingDeg * Math.PI / 180;
-  const heading = normalizeTangentOrFallback([
+  return normalizeTangentOrFallback([
     frame.right[0] * Math.cos(radians) + frame.up[0] * Math.sin(radians),
     frame.right[1] * Math.cos(radians) + frame.up[1] * Math.sin(radians),
     frame.right[2] * Math.cos(radians) + frame.up[2] * Math.sin(radians)
-  ], playerShip.position, frame.right);
-  playerShip.heading = heading;
-  playerShip.targetHeading = heading.slice();
+  ], position, frame.right);
+}
+
+function applyCaptureIcebergs(state, specs = []) {
+  if (specs.length === 0) return;
+  const memory = state?.memory?.icebergs;
+  if (!memory || memory.individuals.length < specs.length) {
+    throw new Error("Capture iceberg staging requires a seeded iceberg population");
+  }
+  for (let index = 0; index < specs.length; index++) {
+    const spec = specs[index];
+    const position = latLonToDirection(spec.lat, spec.lon);
+    const environment = icebergEnvironmentAtPosition(position);
+    if (!environment.navigable || environment.frozen) {
+      throw new Error(`Capture iceberg is not in open navigable water: ${spec.lat},${spec.lon}`);
+    }
+    Object.assign(memory.individuals[index], {
+      variantId: spec.variantId,
+      tileId: environment.tileId,
+      position,
+      heading: captureHeadingVector(position, spec.headingDeg),
+      integrity: 1
+    });
+  }
 }
 
 function applyCaptureDiplomacy(state, relations) {
@@ -11109,6 +11236,9 @@ async function restoreSavedVoyage(payload) {
   weatherParts = weatherClockParts(weatherClockMinutes);
   refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
+  activeIcebergSpawnCandidatesDay = -1;
+  activeIcebergSpawnCandidates = [];
+  ensureIcebergPopulation(gameState);
 
   const savedPosition = normalize3(savedShip.position.slice());
   const positionTileId = findNearestTileId(graph, directionIndex, savedPosition);
@@ -24501,7 +24631,11 @@ function createWorldSimulationScheduler() {
       maxAccumulatedSteps: 1,
       update: (dt) => measurePerformanceBenchmarkStage(
         "npcShips.visual.collisions",
-        () => updateCombatShipCollisions(dt)
+        () => {
+          const shipCollisionChanged = updateCombatShipCollisions(dt);
+          const icebergCollisionChanged = updateIcebergShipCollisions();
+          return shipCollisionChanged || icebergCollisionChanged;
+        }
       )
     },
     {
@@ -24646,6 +24780,7 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
   if (!chart || !localLayout || !gameState) {
     worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.FISH_SCHOOL, []);
     worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.WHALE, []);
+    worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.ICEBERG, []);
     worldSpatialWildlifeChart = null;
     responsiveWhaleIds = new Set();
     return;
@@ -24677,6 +24812,20 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
     });
   }
   worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.WHALE, whaleEntries);
+  const icebergEntries = [];
+  for (const iceberg of gameState.memory.icebergs?.individuals || []) {
+    if (!chart.visibleSet.has(iceberg.tileId)) continue;
+    const point = localPointForKnownTileVector(iceberg.position, iceberg.tileId);
+    if (!point) continue;
+    icebergEntries.push({
+      id: iceberg.id,
+      x: point.x,
+      y: point.y,
+      radius: icebergVariantById(iceberg.variantId).radiusPx,
+      value: iceberg
+    });
+  }
+  worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.ICEBERG, icebergEntries);
   responsiveWhaleIds = new Set(whaleEntries.map((entry) => entry.value.id));
   worldSpatialWildlifeChart = chart;
 }
@@ -24686,6 +24835,7 @@ function worldSpatialMatches(x, y, radius, kinds) {
   if (worldSpatialChart !== chart) refreshWorldSpatialFastEntries();
   const needsWildlife = kinds.some((kind) => (
     kind === WORLD_SPATIAL_KIND.FISH_SCHOOL || kind === WORLD_SPATIAL_KIND.WHALE
+      || kind === WORLD_SPATIAL_KIND.ICEBERG
   ));
   if (needsWildlife && worldSpatialWildlifeChart !== chart) {
     refreshWorldSpatialWildlifeEntries(lastFrameMs);
@@ -27301,6 +27451,99 @@ function updateCombatShipCollisions(dt) {
   return changed;
 }
 
+function updateIcebergShipCollisions() {
+  if (!ship || gameOverReason || !gameState?.memory?.icebergs || !chart || !localLayout) return false;
+  let changed = false;
+  const checkedPairs = new Set();
+  for (const iceberg of gameState.memory.icebergs.individuals) {
+    if (!chart.visibleSet.has(iceberg.tileId)) continue;
+    const point = localPointForKnownTileVector(iceberg.position, iceberg.tileId);
+    if (!point) continue;
+    const icebergBody = icebergCollisionBody(iceberg, point);
+    const neighbors = worldSpatialMatches(
+      point.x,
+      point.y,
+      icebergBody.radius + SHIP_COLLISION_RADIUS_PX,
+      [WORLD_SPATIAL_KIND.PLAYER, WORLD_SPATIAL_KIND.NPC_SHIP]
+    );
+    for (const match of neighbors) {
+      const vesselId = match.entry.kind === WORLD_SPATIAL_KIND.PLAYER
+        ? PLAYER_COMBAT_ID
+        : match.entry.value.id;
+      const pair = engagementKey(vesselId, iceberg.id);
+      if (checkedPairs.has(pair)) continue;
+      checkedPairs.add(pair);
+      const vesselBody = combatCollisionBody(vesselId);
+      if (!vesselBody) continue;
+      const dx = icebergBody.x - vesselBody.x;
+      const dy = icebergBody.y - vesselBody.y;
+      const range = vesselBody.radius + icebergBody.radius;
+      if (dx * dx + dy * dy > range * range) continue;
+      const collision = resolveShipCollision(vesselBody, icebergBody);
+      if (!collision) continue;
+
+      applyVesselIcebergSeparation(vesselId, iceberg, point, collision);
+      applyCombatCollisionVelocity(vesselId, collision.a.vx, collision.a.vy);
+      const vesselDamage = Math.max(collision.a.damage, collision.b.damage);
+      if ((shipCollisionCooldowns.get(pair) || 0) <= 0 && vesselDamage > 0) {
+        applyCombatCollisionDamage(vesselId, vesselDamage, iceberg.id);
+        shipCollisionCooldowns.set(pair, SHIP_COLLISION_DAMAGE_COOLDOWN_SECONDS);
+        playCannonImpactSound(0);
+      }
+      changed = true;
+      if (gameOverReason) return true;
+    }
+  }
+  return changed;
+}
+
+function icebergCollisionBody(iceberg, point) {
+  const heading = npcShipScreenHeading(iceberg.heading);
+  const frame = shipFootprintFrame(requiredIcebergFootprints(iceberg.variantId), heading);
+  const variant = icebergVariantById(iceberg.variantId);
+  return {
+    id: iceberg.id,
+    x: point.x,
+    y: point.y,
+    vx: 0,
+    vy: 0,
+    headingX: heading.x,
+    headingY: heading.y,
+    mass: variant.mass,
+    footprint: translatedShipFootprint(frame, point.x, point.y),
+    radius: shipFootprintRadius(frame)
+  };
+}
+
+function applyVesselIcebergSeparation(vesselId, iceberg, point, collision) {
+  if (vesselId === PLAYER_COMBAT_ID) {
+    return applyIcebergCollisionCorrection(
+      iceberg,
+      point,
+      collision.b.correctionX - collision.a.correctionX,
+      collision.b.correctionY - collision.a.correctionY
+    );
+  }
+  applyNpcCollisionCorrection(vesselId, collision.a.correctionX, collision.a.correctionY);
+  return applyIcebergCollisionCorrection(
+    iceberg,
+    point,
+    collision.b.correctionX,
+    collision.b.correctionY
+  );
+}
+
+function applyIcebergCollisionCorrection(iceberg, point, dx, dy) {
+  if (Math.hypot(dx, dy) <= 1e-4) return false;
+  const position = globePositionForLocalPoint(iceberg.tileId, point.x + dx, point.y + dy);
+  const environment = icebergEnvironmentAtPosition(position);
+  if (!environment.navigable || environment.frozen) return false;
+  iceberg.position = position;
+  iceberg.tileId = environment.tileId;
+  worldSpatialWildlifeChart = null;
+  return true;
+}
+
 function updateShipCombatEntryCollisionGrace(dt) {
   for (const [id, remaining] of [...shipCombatEntryCollisionGrace.entries()]) {
     const next = remaining - dt;
@@ -28679,6 +28922,8 @@ function refreshWeatherState(force) {
   fillIceMaskForDay(runtimeWeather.seaIceCycle, weatherParts.dayIndex, seaIceMask);
   fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, weatherParts.dayIndex, freshwaterIceMask);
   fillSnowGroundMaskForDay(weatherParts.dayIndex, snowGroundMask);
+  activeIcebergSpawnCandidatesDay = -1;
+  activeIcebergSpawnCandidates = [];
   surfaceIceTransition = null;
   surfaceIceTransitionDrawStage = SURFACE_ICE_TRANSITION_STAGE_COUNT;
   pendingSurfaceIceEntrapmentTileId = null;
@@ -28750,6 +28995,8 @@ function advancePendingWeatherMaskRefresh(nowMs) {
   [snowGroundMask, weatherMaskScratch.snow] = [weatherMaskScratch.snow, snowGroundMask];
   weatherMaskDayIndex = refresh.dayIndex;
   pendingWeatherMaskRefresh = null;
+  activeIcebergSpawnCandidatesDay = -1;
+  activeIcebergSpawnCandidates = [];
   surfaceIceTransition = createSurfaceIceTransition({
     startedAtMs: nowMs,
     fromSeaMask: previousSeaIceMask,
@@ -29120,6 +29367,105 @@ function ensureWhalePopulation(state) {
     seedKey: state.voyageSeed
   });
   console.info(`[pixel-globe] whales: ${memory.individuals.length} multi-species individuals seeded`);
+}
+
+function buildIcebergSpawnCandidates() {
+  const cycle = runtimeWeather?.seaIceCycle;
+  if (!cycle) throw new Error("Iceberg spawning requires the sea-ice weather bake");
+  const sourceTileIds = new Set([
+    ...cycle.northAlwaysTileIds,
+    ...cycle.northSeasonalTileIds,
+    ...cycle.southAlwaysTileIds,
+    ...cycle.southSeasonalTileIds
+  ]);
+  const candidatesByTarget = new Map();
+  for (const sourceIceTileId of sourceTileIds) {
+    for (const tileId of graph.neighbors[sourceIceTileId] || []) {
+      if (earthById[tileId]?.t !== "water" || oceanReachableNavigationMask[tileId] !== 1) continue;
+      if (!candidatesByTarget.has(tileId)) {
+        candidatesByTarget.set(tileId, Object.freeze({
+          sourceIceTileId,
+          tileId,
+          position: Object.freeze(tileCenterVector(tileId))
+        }));
+      }
+    }
+  }
+  const candidates = Object.freeze([...candidatesByTarget.values()]);
+  if (candidates.length === 0) throw new Error("Sea-ice bake exposes no iceberg calving waters");
+  console.info(`[pixel-globe] icebergs: ${candidates.length} polar calving waters indexed`);
+  return candidates;
+}
+
+function currentIcebergSpawnCandidates() {
+  if (activeIcebergSpawnCandidatesDay === weatherParts.dayIndex) {
+    return activeIcebergSpawnCandidates;
+  }
+  activeIcebergSpawnCandidates = icebergSpawnCandidates.filter((candidate) => (
+    seaIceMask[candidate.sourceIceTileId] && !seaIceMask[candidate.tileId]
+  ));
+  if (activeIcebergSpawnCandidates.length === 0) {
+    activeIcebergSpawnCandidates = icebergSpawnCandidates.filter((candidate) => (
+      !seaIceMask[candidate.tileId]
+    ));
+  }
+  activeIcebergSpawnCandidatesDay = weatherParts.dayIndex;
+  if (activeIcebergSpawnCandidates.length === 0) {
+    throw new Error(`Polar ice history exposes no open calving water on weather day ${weatherParts.dayIndex}`);
+  }
+  return activeIcebergSpawnCandidates;
+}
+
+function ensureIcebergPopulation(state) {
+  const memory = state?.memory?.icebergs;
+  if (!memory) throw new Error("Iceberg population requires voyage memory");
+  if (memory.individuals.length > 0) return;
+  seedIcebergPopulation(memory, currentIcebergSpawnCandidates(), {
+    startMinute: weatherClockMinutes,
+    seedKey: state.voyageSeed,
+    count: ICEBERG_POPULATION_TARGET
+  });
+  console.info(`[pixel-globe] icebergs: ${memory.individuals.length} drifting hazards seeded`);
+}
+
+function updateIcebergs() {
+  const memory = gameState?.memory?.icebergs;
+  if (!memory) return false;
+  if (memory.lastAdvanceMinute !== null &&
+      weatherClockMinutes - memory.lastAdvanceMinute < ICEBERG_ADVANCE_INTERVAL_MINUTES) {
+    return false;
+  }
+  const result = advanceIcebergMemory(memory, {
+    currentMinute: weatherClockMinutes,
+    environmentAtPosition: icebergEnvironmentAtPosition,
+    spawnCandidates: currentIcebergSpawnCandidates(),
+    seedKey: gameState.voyageSeed,
+    targetCount: ICEBERG_POPULATION_TARGET
+  });
+  if (result.changed) worldSpatialWildlifeChart = null;
+  return result.changed;
+}
+
+function icebergEnvironmentAtPosition(position) {
+  const tileId = findNearestTileId(graph, directionIndex, position);
+  const latitudeDeg = latitudeDegForDirection(position);
+  const longitudeDeg = longitudeDegForDirection(position);
+  const wind = windAtCoordinates(latitudeDeg, longitudeDeg, tileId);
+  return {
+    tileId,
+    navigable: earthById[tileId]?.t === "water" && oceanReachableNavigationMask[tileId] === 1,
+    frozen: Boolean(seaIceMask[tileId]),
+    windDirectionRad: wind.directionRad,
+    windStrength: wind.strength,
+    waterTemperatureC: estimatedSeaSurfaceTemperatureC(latitudeDeg, weatherParts.dayIndex)
+  };
+}
+
+function estimatedSeaSurfaceTemperatureC(latitudeDeg, dayIndex) {
+  const latitude = Math.abs(latitudeDeg);
+  const hemisphericSeason = Math.cos((dayIndex - 172) / WEATHER_DAYS * Math.PI * 2) *
+    Math.sign(latitudeDeg || 1);
+  return 26 - latitude * 0.43 + hemisphericSeason * 8;
 }
 
 function scaleVector(v, scale) {
@@ -42296,6 +42642,10 @@ function drawShips(activeChart, playerLight, nowMs) {
           if (call) calls.push(call);
         }
       }
+      for (const iceberg of gameState?.memory?.icebergs?.individuals || []) {
+        const call = icebergDrawCall(iceberg, activeChart);
+        if (call) calls.push(call);
+      }
       for (const entry of worldShipSinkEffects) {
         const offset = entry.space === "chart" ? chartOffsetPixels(activeChart) : { x: 0, y: 0 };
         calls.push({
@@ -42325,6 +42675,10 @@ function drawShips(activeChart, playerLight, nowMs) {
         });
         continue;
       }
+      if (call.kind === "iceberg") {
+        gpuShipDrawCommands.push({ kind: "iceberg", drawCall: call, nowMs });
+        continue;
+      }
       const prepared = preparedById.get(call.id);
       if (!prepared) throw new Error(`GPU ship plan lost prepared draw call: ${call.id}`);
       gpuShipDrawCommands.push({ kind: "ship", ...prepared });
@@ -42351,6 +42705,10 @@ function drawGpuShipCommands() {
         command.nowMs,
         painter
       );
+      continue;
+    }
+    if (command.kind === "iceberg") {
+      drawGpuIceberg(command.drawCall, command.nowMs);
       continue;
     }
     const { drawCall, layers, foreground, nowMs } = command;
@@ -43046,7 +43404,7 @@ function drawWhalesWebGL(nowMs) {
       continue;
     }
     const exposure = whaleSurfaceExposure(call.whale);
-    const layers = whaleRenderLayers(images, call.frame, exposure);
+    const layers = submergedObjectRenderLayers(images, call.frame, exposure, "Whale");
     const size = SHIP_SHEET_FRAME_SIZE * call.scale;
     const originY = Math.round(call.y + (1 - exposure) * 3);
     const destinationRect = {
@@ -43065,15 +43423,15 @@ function drawWhalesWebGL(nowMs) {
   }
 }
 
-function prebakeWhaleRenderSource(image, sinkDepthImage, slug) {
+function prebakeSubmergedObjectRenderSource(image, sinkDepthImage, slug) {
   if (image.width !== sinkDepthImage.width || image.height !== sinkDepthImage.height) {
-    throw new Error(`Whale render sheets disagree for ${slug}: ${image.width}x${image.height} vs ` +
+    throw new Error(`Submerged render sheets disagree for ${slug}: ${image.width}x${image.height} vs ` +
       `${sinkDepthImage.width}x${sinkDepthImage.height}`);
   }
-  let depthImages = whaleRenderSourceCache.get(image);
+  let depthImages = submergedObjectRenderSourceCache.get(image);
   if (!depthImages) {
     depthImages = new WeakMap();
-    whaleRenderSourceCache.set(image, depthImages);
+    submergedObjectRenderSourceCache.set(image, depthImages);
   }
   if (depthImages.has(sinkDepthImage)) return;
   const colorCanvas = document.createElement("canvas");
@@ -43084,7 +43442,7 @@ function prebakeWhaleRenderSource(image, sinkDepthImage, slug) {
   depthCanvas.width = sinkDepthImage.width;
   depthCanvas.height = sinkDepthImage.height;
   const depthCtx = depthCanvas.getContext("2d", { willReadFrequently: true, colorSpace: "srgb" });
-  if (!colorCtx || !depthCtx) throw new Error(`Could not sample whale render sheets for ${slug}`);
+  if (!colorCtx || !depthCtx) throw new Error(`Could not sample submerged render sheets for ${slug}`);
   colorCtx.imageSmoothingEnabled = false;
   depthCtx.imageSmoothingEnabled = false;
   colorCtx.drawImage(image, 0, 0);
@@ -43098,17 +43456,17 @@ function prebakeWhaleRenderSource(image, sinkDepthImage, slug) {
   });
 }
 
-function whaleRenderLayers(images, frame, exposure) {
+function submergedObjectRenderLayers(images, frame, exposure, label) {
   if (!Number.isInteger(frame) || frame < 0 || frame >= SHIP_HEADING_COUNT) {
-    throw new Error(`Whale render received an invalid heading frame: ${frame}`);
+    throw new Error(`${label} render received an invalid heading frame: ${frame}`);
   }
   const exposureStep = clamp(
     Math.round(exposure * WHALE_RENDER_EXPOSURE_STEPS),
     0,
     WHALE_RENDER_EXPOSURE_STEPS
   );
-  const source = whaleRenderSourceCache.get(images.image)?.get(images.sinkDepthImage);
-  if (!source) throw new Error("Whale render source was not pre-baked");
+  const source = submergedObjectRenderSourceCache.get(images.image)?.get(images.sinkDepthImage);
+  if (!source) throw new Error(`${label} render source was not pre-baked`);
   const key = frame * (WHALE_RENDER_EXPOSURE_STEPS + 1) + exposureStep;
   const cached = source.frames.get(key);
   if (cached) return cached;
@@ -43120,7 +43478,7 @@ function whaleRenderLayers(images, frame, exposure) {
   const aboveCtx = above.getContext("2d");
   const submergedCtx = submerged.getContext("2d");
   if (!aboveCtx || !submergedCtx) {
-    throw new Error(`Could not create whale render layers for ${source.slug}`);
+    throw new Error(`Could not create ${label.toLowerCase()} render layers for ${source.slug}`);
   }
   const aboveData = aboveCtx.createImageData(SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
   const submergedData = submergedCtx.createImageData(SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
@@ -43136,7 +43494,7 @@ function whaleRenderLayers(images, frame, exposure) {
       const depthAlpha = source.depthData[sheetOffset + 3];
       if ((alpha === 0) !== (depthAlpha === 0)) {
         throw new Error(
-          `Whale sprite and sink-depth alpha disagree for ${source.slug} frame ${frame} at ${x},${y}`
+          `${label} sprite and sink-depth alpha disagree for ${source.slug} frame ${frame} at ${x},${y}`
         );
       }
       if (alpha === 0) continue;
@@ -43156,7 +43514,7 @@ function whaleRenderLayers(images, frame, exposure) {
     }
   }
   if (visiblePixels === 0) {
-    throw new Error(`Whale render frame contains no visible pixels: ${source.slug}/${frame}`);
+    throw new Error(`${label} render frame contains no visible pixels: ${source.slug}/${frame}`);
   }
   aboveCtx.putImageData(aboveData, 0, 0);
   submergedCtx.putImageData(submergedData, 0, 0);
@@ -43300,6 +43658,63 @@ function drawWhaleRope(
   bendPx = 2
 ) {
   drawWhaleTetherCurve(startX, startY, endX, endY, bendPx, painter, "#6b4932");
+}
+
+function icebergDrawCall(iceberg, activeChart) {
+  if (!activeChart?.visibleSet.has(iceberg.tileId) || !localLayout || !camera) return null;
+  const point = localPointForKnownTileVector(iceberg.position, iceberg.tileId);
+  if (!point) return null;
+  const offset = chartOffsetPixels(activeChart);
+  const screenPoint = { x: point.x + offset.x, y: point.y + offset.y };
+  if (!pointNearScreen(screenPoint, SHIP_SHEET_FRAME_SIZE)) return null;
+  const asset = icebergAssetStore?.peek(iceberg.variantId);
+  if (!asset) {
+    queueIcebergAssets(iceberg.variantId, `visible iceberg ${iceberg.id}`);
+    return null;
+  }
+  const heading = npcShipScreenHeading(iceberg.heading);
+  return {
+    id: iceberg.id,
+    kind: "iceberg",
+    tileId: iceberg.tileId,
+    variantId: iceberg.variantId,
+    bobSeed: iceberg.seed,
+    frame: headingFrameForScreenHeading(heading),
+    x: Math.round(screenPoint.x - SHIP_SHEET_FRAME_SIZE / 2),
+    y: Math.round(screenPoint.y - SHIP_SHEET_FRAME_SIZE / 2),
+    depthY: screenPoint.y,
+    sortY: screenPoint.y + SHIP_SHEET_FRAME_SIZE / 2,
+    img: asset.image,
+    sinkDepthImg: asset.sinkDepthImage
+  };
+}
+
+function queueIcebergAssets(slug, context) {
+  if (!icebergAssetStore) throw new Error("Iceberg asset store is not initialized");
+  observeWorldAssetRequest(icebergAssetStore.request(slug), context);
+}
+
+function drawGpuIceberg(call, nowMs) {
+  const drawCall = stormBobbedShipCall(call, nowMs);
+  const layers = submergedObjectRenderLayers(
+    { image: drawCall.img, sinkDepthImage: drawCall.sinkDepthImg },
+    drawCall.frame,
+    1,
+    "Iceberg"
+  );
+  const destinationRect = {
+    x: drawCall.x,
+    y: drawCall.y,
+    width: SHIP_SHEET_FRAME_SIZE,
+    height: SHIP_SHEET_FRAME_SIZE
+  };
+  worldRenderer.drawAtlasSprite({
+    source: layers.submerged,
+    destinationRect,
+    alpha: ICEBERG_SUBMERGED_ALPHA,
+    refractionPx: reducedMotionPreferred ? 0 : 1
+  });
+  worldRenderer.drawAtlasSprite({ source: layers.above, destinationRect });
 }
 
 function playerShipDrawCall(light) {

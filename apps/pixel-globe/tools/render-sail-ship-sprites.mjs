@@ -13,6 +13,7 @@ import {
   CYC3W_SAILING_SHIP_MODEL_CREDIT,
   GOGIART_DHOW_MODEL_CREDIT,
   HUMPBACK_WHALE_MODEL_CREDIT,
+  ICEBERG_MODEL_CREDIT,
   JAPANESE_ATAKEBUNE_MODEL_CREDIT,
   JAPANESE_KOBAYA_MODEL_CREDIT,
   JAPANESE_KURIBUNE_MODEL_CREDIT,
@@ -129,10 +130,12 @@ const spermWhaleSourceRoot = join(shipSourceRoot, "sketchfab/sperm-whale");
 const cartoonHorseSourceRoot = join(shipSourceRoot, "sketchfab/cartoon-horse-with-animations");
 const woodenCartSourceRoot = join(shipSourceRoot, "sketchfab/wooden-cart");
 const lowpolyLlamaSourceRoot = join(shipSourceRoot, "sketchfab/lowpoly-llama-romulogan");
+const icebergSourceRoot = join(shipSourceRoot, "poly-pizza/iceberg-1");
 const kelulusSourceRoot = join(shipSourceRoot, "procedural/kelulus");
 const proceduralShipSourceRoot = join(shipSourceRoot, "procedural");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const animalOutputRoot = join(appRoot, "public/assets/animals");
+const icebergOutputRoot = join(appRoot, "public/assets/icebergs");
 const horseCartOutputRoot = join(outputRoot, "horse-cart");
 const llamaCaravanOutputRoot = join(outputRoot, "llama-caravan");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
@@ -140,6 +143,7 @@ const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
 const waterlineReviewOutputRoot = join(appRoot, "docs/ship-reference/waterlines");
 const kelulusReferenceOutputRoot = join(appRoot, "docs/ship-reference/kelulus");
+const icebergReferenceOutputRoot = join(appRoot, "docs/iceberg-reference");
 
 const frameSize = integerEnv("PIXEL_GLOBE_SHIP_FRAME_SIZE", SHIP_SPRITE_FRAME_SIZE);
 const headings = SHIP_SPRITE_HEADINGS;
@@ -5277,6 +5281,86 @@ function whiteWhaleColor(color) {
   return { r: value, g: clamp255(value + 3), b: clamp255(value + 5), a: color.a ?? 255 };
 }
 
+const ICEBERG_VARIANTS = Object.freeze([
+  Object.freeze({
+    slug: "iceberg-small",
+    label: "Small Iceberg",
+    targetModelMaxDim: 1.05,
+    transform: icebergShapeTransform({ x: 0.78, z: 1.12, yaw: -0.22 })
+  }),
+  Object.freeze({
+    slug: "iceberg-medium",
+    label: "Medium Iceberg",
+    targetModelMaxDim: 1.58,
+    transform: icebergShapeTransform({ x: 1.08, z: 0.9, yaw: 0.14 })
+  }),
+  Object.freeze({
+    slug: "iceberg-large",
+    label: "Large Iceberg",
+    targetModelMaxDim: 2.3,
+    transform: icebergShapeTransform({ x: 1, z: 1, yaw: 0 })
+  })
+]);
+
+function icebergShapeTransform({ x: xScale, z: zScale, yaw }) {
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  return (point) => {
+    const x = point.x * xScale;
+    const z = point.z * zScale;
+    point.x = x * cos + z * sin;
+    point.z = -x * sin + z * cos;
+    return point;
+  };
+}
+
+function icebergRenderConfig(spec) {
+  return {
+    slug: spec.slug,
+    label: spec.label,
+    category: "iceberg",
+    ...ICEBERG_MODEL_CREDIT,
+    modelPath: join(icebergSourceRoot, "iceberg-1.glb"),
+    outputDir: icebergOutputRoot,
+    outputPrefix: `${spec.slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    targetModelMaxDim: spec.targetModelMaxDim,
+    waterlineBoundsRatio: 0.6,
+    exactSinkDepth: true,
+    skipSelfShadowMaps: true,
+    scaleMode: "shared-iceberg-scale",
+    collectOptions: { transformPoint: spec.transform }
+  };
+}
+
+async function renderIcebergs() {
+  const configs = ICEBERG_VARIANTS.map(icebergRenderConfig);
+  for (const config of configs) config.sourceMaxDim = await measureSourceMaxDim(config.modelPath);
+  const bounds = [];
+  for (const config of configs) bounds.push(...await measureRenderedBounds(config));
+  const sharedFrameScale = fixedFrameScale(bounds);
+  for (const config of configs) config.frameScale = sharedFrameScale;
+
+  const icebergs = [];
+  mkdirSync(icebergReferenceOutputRoot, { recursive: true });
+  for (const config of configs) {
+    console.log(`render ${config.slug}`);
+    const rendered = await renderShipSpriteSet(config);
+    const reviewPath = join(icebergReferenceOutputRoot, `${config.slug}-cardinal-headings.png`);
+    writeShipOrientationReview(rendered.sheet, { label: config.label, outputPath: reviewPath });
+    const { sheet, wakeAnchors, flagAnchors, flagAnchorSelection, flagAnchorModelPoint, ...entry } = rendered;
+    icebergs.push(entry);
+  }
+  const manifestPath = join(icebergOutputRoot, "manifest.json");
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --icebergs",
+    frameSize,
+    headings,
+    sheetCols,
+    variants: icebergs
+  }, null, 2)}\n`);
+  console.log(manifestPath);
+}
+
 async function renderWhales() {
   const animals = [];
   for (const config of WHALE_RENDER_CONFIGS) {
@@ -6028,6 +6112,10 @@ async function main() {
   }
   if (args.has("--whales") || args.has("--north-atlantic-right-whale")) {
     await renderWhales();
+    return;
+  }
+  if (args.has("--icebergs")) {
+    await renderIcebergs();
     return;
   }
   if (args.has("--waterline-review")) {

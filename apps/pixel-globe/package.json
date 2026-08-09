@@ -45,6 +45,7 @@
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
     "render:ship-layers": "node tools/bake-ship-render-layers.mjs",
     "render:whales": "node tools/render-sail-ship-sprites.mjs --whales",
+    "render:icebergs": "node tools/render-sail-ship-sprites.mjs --icebergs",
     "render:horse-cart": "node tools/render-sail-ship-sprites.mjs --horse-cart",
     "render:llama-caravan": "node tools/render-sail-ship-sprites.mjs --llama-caravan",
     "render:all-ships": "node tools/render-sail-ship-sprites.mjs --all-production-ships",
