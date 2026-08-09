@@ -973,7 +973,7 @@ import {
   stepMenuIndex,
   toggleBinaryConfirmationIndex
 } from "./menuNavigation.js";
-import { fittedStackedMenuRows, scrollableStackedMenuRows } from "./stackedMenuLayout.js";
+import { scrollableStackedMenuRows } from "./stackedMenuLayout.js";
 import {
   GAME_ICON_ASSET_VERSION,
   GAME_ICON_SIZE,
@@ -5898,6 +5898,10 @@ function createOptionsMenuState() {
     bindingResetRect: null,
     bindingPreviousRect: null,
     bindingNextRect: null,
+    bindingScrollOffset: 0,
+    bindingVisibleRowCount: KEY_BINDINGS_PAGE_SIZE,
+    bindingScrollUpRect: null,
+    bindingScrollDownRect: null,
     controlSchemeSelectedIndex: 0,
     controlSchemeOptionRects: [],
     controlSchemeBackRect: null
@@ -5962,6 +5966,11 @@ function createStartMenuState() {
   return {
     selectedIndex: 0,
     buttonRects: [],
+    hoverPoint: null,
+    scrollOffset: 0,
+    visibleRowCount: 1,
+    scrollUpRect: null,
+    scrollDownRect: null,
     isLoading: false,
     message: localSaveResult.status === "invalid" ? "SAVE COULD NOT BE READ" : "",
     newGameConfirmation: null
@@ -12462,6 +12471,8 @@ function closeOptionsMenu() {
   optionsMenu.bindingResetRect = null;
   optionsMenu.bindingPreviousRect = null;
   optionsMenu.bindingNextRect = null;
+  optionsMenu.bindingScrollUpRect = null;
+  optionsMenu.bindingScrollDownRect = null;
   optionsMenu.controlSchemeOptionRects = [];
   optionsMenu.controlSchemeBackRect = null;
   optionsMenu.returnError = null;
@@ -12961,6 +12972,7 @@ function handleKeyBindingsKeyDown(event) {
 function openKeyBindingsMenu() {
   optionsMenu.view = "bindings";
   optionsMenu.bindingPage = Math.floor(optionsMenu.bindingSelectedIndex / KEY_BINDINGS_PAGE_SIZE);
+  optionsMenu.bindingScrollOffset = 0;
   optionsMenu.bindingCapture = null;
   optionsMenu.bindingFeedback = null;
   optionsMenu.activeSliderKey = null;
@@ -13011,6 +13023,8 @@ function closeKeyBindingsMenu() {
   optionsMenu.bindingResetRect = null;
   optionsMenu.bindingPreviousRect = null;
   optionsMenu.bindingNextRect = null;
+  optionsMenu.bindingScrollUpRect = null;
+  optionsMenu.bindingScrollDownRect = null;
   dirty = true;
 }
 
@@ -13039,6 +13053,7 @@ function stepKeyBindingsPage(direction) {
     KEY_ACTION_DEFINITIONS.length - 1,
     optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE
   );
+  optionsMenu.bindingScrollOffset = 0;
   optionsMenu.bindingFeedback = null;
   dirty = true;
 }
@@ -13639,6 +13654,28 @@ function handleKeyBindingsPointerDown(point) {
     closeOptionsMenu();
     return;
   }
+  if (pointInRect(point, optionsMenu.bindingScrollUpRect)) {
+    const firstIndex = optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE;
+    optionsMenu.bindingSelectedIndex = firstIndex + Math.max(
+      0,
+      optionsMenu.bindingScrollOffset - 1
+    );
+    dirty = true;
+    return;
+  }
+  if (pointInRect(point, optionsMenu.bindingScrollDownRect)) {
+    const firstIndex = optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE;
+    const pageRowCount = Math.min(
+      KEY_BINDINGS_PAGE_SIZE,
+      KEY_ACTION_DEFINITIONS.length - firstIndex
+    );
+    optionsMenu.bindingSelectedIndex = firstIndex + Math.min(
+      pageRowCount - 1,
+      optionsMenu.bindingScrollOffset + optionsMenu.bindingVisibleRowCount
+    );
+    dirty = true;
+    return;
+  }
   if (pointInRect(point, optionsMenu.bindingBackRect)) {
     closeKeyBindingsMenu();
     return;
@@ -13669,6 +13706,19 @@ function handleStartMenuPointerDown(point) {
     return;
   }
   updateStartMenuSelectionFromPoint(point);
+  if (pointInRect(point, startMenu.scrollUpRect)) {
+    startMenu.selectedIndex = Math.max(0, startMenu.scrollOffset - 1);
+    dirty = true;
+    return;
+  }
+  if (pointInRect(point, startMenu.scrollDownRect)) {
+    startMenu.selectedIndex = Math.min(
+      startMenuActions().length - 1,
+      startMenu.scrollOffset + startMenu.visibleRowCount
+    );
+    dirty = true;
+    return;
+  }
   for (let i = 0; i < startMenu.buttonRects.length; i++) {
     if (!pointInRect(point, startMenu.buttonRects[i])) continue;
     startMenu.selectedIndex = i;
@@ -14271,6 +14321,7 @@ function updateOptionsSelectionFromPoint(point) {
 }
 
 function updateStartMenuSelectionFromPoint(point) {
+  startMenu.hoverPoint = point;
   for (let i = 0; i < startMenu.buttonRects.length; i++) {
     if (!pointInRect(point, startMenu.buttonRects[i])) continue;
     startMenu.selectedIndex = i;
@@ -14499,6 +14550,21 @@ function handleCanvasWheel(event) {
       optionsMenu.selectedIndex,
       event.deltaY > 0 ? 1 : -1,
       OPTIONS_ROW_COUNT
+    );
+    dirty = true;
+    return;
+  }
+  if (owner === INTERACTION_INPUT.OPTIONS && optionsMenu.view === "bindings") {
+    event.preventDefault();
+    stepKeyBindingSelection(event.deltaY > 0 ? 1 : -1);
+    return;
+  }
+  if (owner === INTERACTION_INPUT.START_MENU && !startMenu.newGameConfirmation) {
+    event.preventDefault();
+    startMenu.selectedIndex = stepMenuIndex(
+      startMenu.selectedIndex,
+      event.deltaY > 0 ? 1 : -1,
+      startMenuActions().length
     );
     dirty = true;
     return;
@@ -38176,6 +38242,7 @@ function lakeBattleActionLabel(action) {
 
 function drawStartMenu(nowMs) {
   const actions = startMenuActions();
+  startMenu.selectedIndex = clampMenuIndex(startMenu.selectedIndex, actions.length);
   const denseActions = actions.length >= 5;
   const desiredPanelHeight = denseActions
     ? START_MENU_PANEL_H
@@ -38221,31 +38288,60 @@ function drawStartMenu(nowMs) {
   });
 
   const labels = actions.map((action) => action.label);
-  const buttonWidth = startMenuButtonWidth(actions, panel.w);
   const firstButtonY = panel.y + (denseActions ? 68 : 76);
   const buttonAreaBottom = panel.y + panel.h - 10 - (startMenu.message ? 16 : 0);
-  const buttonLayout = fittedStackedMenuRows({
+  const buttonLayout = scrollableStackedMenuRows({
     startY: firstButtonY,
     endY: buttonAreaBottom,
     rowCount: actions.length,
+    selectedIndex: startMenu.selectedIndex,
+    scrollOffset: startMenu.scrollOffset,
     preferredRowHeight: denseActions ? 24 : START_MENU_BUTTON_H,
     minimumRowHeight: GAME_ICON_SIZE + 2,
     preferredGap: denseActions ? 3 : START_MENU_BUTTON_GAP,
     minimumGap: 1
   });
-  startMenu.buttonRects = buttonLayout.rows.map((row) => ({
-    x: panel.x + Math.floor((panel.w - buttonWidth) / 2),
-    y: row.y,
-    w: buttonWidth,
-    h: row.h
-  }));
-
-  for (let i = 0; i < labels.length; i++) {
+  startMenu.scrollOffset = buttonLayout.scrollOffset;
+  startMenu.visibleRowCount = buttonLayout.visibleCount;
+  const scrollable = buttonLayout.visibleCount < actions.length;
+  const scrollGutterW = scrollable ? 28 : 0;
+  const buttonAreaW = panel.w - scrollGutterW;
+  const buttonWidth = startMenuButtonWidth(actions, buttonAreaW);
+  startMenu.buttonRects = Array(actions.length).fill(null);
+  for (const row of buttonLayout.rows) {
+    const rect = {
+      x: panel.x + Math.floor((buttonAreaW - buttonWidth) / 2),
+      y: row.y,
+      w: buttonWidth,
+      h: row.h
+    };
+    startMenu.buttonRects[row.index] = rect;
     drawStartMenuButton(
-      startMenu.buttonRects[i],
-      labels[i],
-      startMenu.selectedIndex === i,
-      startMenuIconId(actions[i].id)
+      rect,
+      labels[row.index],
+      startMenu.selectedIndex === row.index,
+      startMenuIconId(actions[row.index].id)
+    );
+  }
+  const scrollButtonX = panel.x + panel.w - 26;
+  startMenu.scrollUpRect = buttonLayout.canScrollUp
+    ? { x: scrollButtonX, y: firstButtonY, w: 18, h: 20 }
+    : null;
+  startMenu.scrollDownRect = buttonLayout.canScrollDown
+    ? { x: scrollButtonX, y: buttonAreaBottom - 20, w: 18, h: 20 }
+    : null;
+  if (startMenu.scrollUpRect) {
+    drawOptionsArrowButton(
+      startMenu.scrollUpRect,
+      "^",
+      pointInRect(startMenu.hoverPoint, startMenu.scrollUpRect)
+    );
+  }
+  if (startMenu.scrollDownRect) {
+    drawOptionsArrowButton(
+      startMenu.scrollDownRect,
+      "v",
+      pointInRect(startMenu.hoverPoint, startMenu.scrollDownRect)
     );
   }
   if (startMenu.message) {
@@ -39068,30 +39164,37 @@ function drawKeyBindingsMenu() {
   });
 
   const rowX = panel.x + 8;
-  const rowW = panel.w - 16;
-  const actionW = Math.min(132, Math.max(100, Math.floor(rowW * 0.35)));
-  const slotGap = 4;
-  const slotW = Math.floor((rowW - actionW - slotGap * 2) / 2);
   const firstRowY = panel.y + 35;
   const buttonY = panel.y + panel.h - 31;
   const feedbackY = buttonY - 14;
-  const bindingRowLayout = fittedStackedMenuRows({
+  const firstIndex = optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE;
+  const definitions = KEY_ACTION_DEFINITIONS.slice(firstIndex, firstIndex + KEY_BINDINGS_PAGE_SIZE);
+  const selectedPageIndex = optionsMenu.bindingSelectedIndex - firstIndex;
+  const bindingRowLayout = scrollableStackedMenuRows({
     startY: firstRowY,
     endY: feedbackY - 8,
-    rowCount: KEY_BINDINGS_PAGE_SIZE,
+    rowCount: definitions.length,
+    selectedIndex: selectedPageIndex,
+    scrollOffset: optionsMenu.bindingScrollOffset,
     preferredRowHeight: KEY_BINDINGS_ROW_H,
     minimumRowHeight: GAME_ICON_SIZE + 2,
     preferredGap: 1,
     minimumGap: 0
   });
-  const firstIndex = optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE;
-  const definitions = KEY_ACTION_DEFINITIONS.slice(firstIndex, firstIndex + KEY_BINDINGS_PAGE_SIZE);
+  optionsMenu.bindingScrollOffset = bindingRowLayout.scrollOffset;
+  optionsMenu.bindingVisibleRowCount = bindingRowLayout.visibleCount;
+  const scrollable = bindingRowLayout.visibleCount < definitions.length;
+  const scrollGutterW = scrollable ? 22 : 0;
+  const rowW = panel.w - 16 - scrollGutterW;
+  const actionW = Math.min(132, Math.max(100, Math.floor(rowW * 0.35)));
+  const slotGap = 4;
+  const slotW = Math.floor((rowW - actionW - slotGap * 2) / 2);
   optionsMenu.bindingSlotRects = [];
 
-  for (let pageIndex = 0; pageIndex < definitions.length; pageIndex += 1) {
+  for (const row of bindingRowLayout.rows) {
+    const pageIndex = row.index;
     const actionIndex = firstIndex + pageIndex;
     const definition = definitions[pageIndex];
-    const row = bindingRowLayout.rows[pageIndex];
     const rowY = row.y;
     const rowH = row.h;
     if (pageIndex % 2 === 1) {
@@ -39136,6 +39239,28 @@ function drawKeyBindingsMenu() {
       );
       optionsMenu.bindingSlotRects.push({ actionIndex, slotIndex, rect });
     }
+  }
+
+  const scrollButtonX = rowX + rowW + 3;
+  optionsMenu.bindingScrollUpRect = bindingRowLayout.canScrollUp
+    ? { x: scrollButtonX, y: firstRowY, w: 18, h: 20 }
+    : null;
+  optionsMenu.bindingScrollDownRect = bindingRowLayout.canScrollDown
+    ? { x: scrollButtonX, y: feedbackY - 28, w: 18, h: 20 }
+    : null;
+  if (optionsMenu.bindingScrollUpRect) {
+    drawOptionsArrowButton(
+      optionsMenu.bindingScrollUpRect,
+      "^",
+      pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingScrollUpRect)
+    );
+  }
+  if (optionsMenu.bindingScrollDownRect) {
+    drawOptionsArrowButton(
+      optionsMenu.bindingScrollDownRect,
+      "v",
+      pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingScrollDownRect)
+    );
   }
 
   if (controllerPromptsVisible() && !optionsMenu.bindingFeedback) {

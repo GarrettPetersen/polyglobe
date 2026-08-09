@@ -108,3 +108,39 @@ test("tall phone options menu shows all eleven rows without scrolling", () => {
   assert.equal(layout.canScrollUp, false);
   assert.equal(layout.canScrollDown, false);
 });
+
+test("an unexpectedly short start menu keeps readable rows and scrolls selection", () => {
+  const layout = scrollableStackedMenuRows({
+    startY: 68,
+    endY: 148,
+    rowCount: 7,
+    selectedIndex: 6,
+    scrollOffset: 0,
+    preferredRowHeight: 24,
+    minimumRowHeight: 18,
+    preferredGap: 3,
+    minimumGap: 1
+  });
+
+  assert.equal(layout.visibleCount, 4);
+  assert.equal(layout.scrollOffset, 3);
+  assert.deepEqual(layout.rows.map((row) => row.index), [3, 4, 5, 6]);
+});
+
+test("an unexpectedly short key-binding page scrolls instead of failing", () => {
+  const layout = scrollableStackedMenuRows({
+    startY: 35,
+    endY: 105,
+    rowCount: 7,
+    selectedIndex: 6,
+    scrollOffset: 0,
+    preferredRowHeight: 23,
+    minimumRowHeight: 18,
+    preferredGap: 1,
+    minimumGap: 0
+  });
+
+  assert.equal(layout.visibleCount, 3);
+  assert.equal(layout.scrollOffset, 4);
+  assert.deepEqual(layout.rows.map((row) => row.index), [4, 5, 6]);
+});
