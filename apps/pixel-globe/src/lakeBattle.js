@@ -20,7 +20,11 @@ import { advanceCannonSmokeBursts, createCannonSmokeBurst } from "./cannonSmoke.
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import { resolveShipCollision } from "./shipCollision.js";
 import { resolveNavalProjectileImpact } from "./navalCombatResolution.js";
-import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
+import {
+  firstNavalProjectileHit,
+  navalProjectileMayHitBystanders,
+  navalProjectilePoint
+} from "./navalProjectile.js";
 import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
   pointInShipFootprint,
@@ -868,7 +872,7 @@ function updateProjectiles(state, dt) {
   for (const projectile of state.projectiles) {
     const previousAge = projectile.age;
     projectile.age = Math.min(projectile.duration, projectile.age + dt);
-    if (projectile.kind === NAVAL_WEAPON_CANNON) {
+    if (projectile.kind === NAVAL_WEAPON_CANNON && navalProjectileMayHitBystanders(projectile)) {
       const target = lakeBattleProjectileTarget(state, projectile);
       const hit = target.hitPoints > 0
         ? firstNavalProjectileHit(

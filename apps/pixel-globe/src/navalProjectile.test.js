@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
+import {
+  firstNavalProjectileHit,
+  navalProjectileMayHitBystanders,
+  navalProjectilePoint
+} from "./navalProjectile.js";
 
 test("naval projectile points follow their declared pixel arc", () => {
   const projectile = {
@@ -51,6 +55,14 @@ test("ships outside the swept path are not hit", () => {
   ), null);
 });
 
+test("portable weapons stay locked to their selected enemy while full cannons can hit bystanders", () => {
+  assert.equal(navalProjectileMayHitBystanders({ kind: "cannon" }), true);
+  assert.equal(navalProjectileMayHitBystanders({ kind: "cannon", portable: false }), true);
+  assert.equal(navalProjectileMayHitBystanders({ kind: "arrow", portable: true }), false);
+  assert.equal(navalProjectileMayHitBystanders({ kind: "bullet", portable: true }), false);
+  assert.equal(navalProjectileMayHitBystanders({ kind: "cannon", portable: true }), false);
+});
+
 test("projectile collision input fails loudly when malformed", () => {
   assert.throws(
     () => firstNavalProjectileHit({ x: 0, y: 0 }, { x: 1, y: 1 }, [{ id: "bad", x: 0, y: 0, radius: 0 }]),
@@ -59,5 +71,9 @@ test("projectile collision input fails loudly when malformed", () => {
   assert.throws(
     () => navalProjectilePoint({ duration: 0 }),
     /Invalid naval projectile startX/
+  );
+  assert.throws(
+    () => navalProjectileMayHitBystanders(null),
+    /requires a projectile/
   );
 });

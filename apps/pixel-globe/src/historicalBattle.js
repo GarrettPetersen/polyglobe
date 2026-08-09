@@ -19,7 +19,11 @@ import {
 } from "./portableWeapons.js";
 import { resolveShipCollision } from "./shipCollision.js";
 import { resolveNavalProjectileImpact } from "./navalCombatResolution.js";
-import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
+import {
+  firstNavalProjectileHit,
+  navalProjectileMayHitBystanders,
+  navalProjectilePoint
+} from "./navalProjectile.js";
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
@@ -1275,6 +1279,7 @@ function firePortableWeapons(state, ship, target, targetDistance) {
       addProjectile(state, {
         id: state.projectileSerial++,
         kind: weapon.animationKind,
+        portable: true,
         weaponId: weapon.itemId,
         ownerIndex: state.ships.indexOf(ship),
         targetIndex: state.ships.indexOf(target),
@@ -1330,7 +1335,7 @@ function updateBattleProjectiles(state) {
       projectile.age + HISTORICAL_BATTLE_FIXED_STEP_SECONDS
     );
     const point = navalProjectilePoint(projectile);
-    const hit = projectile.kind === "cannon"
+    const hit = projectile.kind === "cannon" && navalProjectileMayHitBystanders(projectile)
       ? firstHistoricalProjectileHit(state, projectile, previousPoint, point)
       : null;
     if (hit) {
@@ -1341,7 +1346,7 @@ function updateBattleProjectiles(state) {
       survivors.push(projectile);
       continue;
     }
-    if (projectile.kind !== "cannon") {
+    if (!navalProjectileMayHitBystanders(projectile)) {
       const target = state.ships[projectile.targetIndex];
       if (target?.active) applyHistoricalProjectileHit(state, projectile, projectile.targetIndex, point);
       continue;

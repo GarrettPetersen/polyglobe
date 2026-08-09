@@ -10,6 +10,13 @@ export function navalProjectilePoint(projectile, age = projectile?.age) {
   };
 }
 
+export function navalProjectileMayHitBystanders(projectile) {
+  if (!projectile || typeof projectile !== "object") {
+    throw new Error("Naval projectile bystander policy requires a projectile");
+  }
+  return projectile.portable !== true;
+}
+
 export function firstNavalProjectileHit(start, end, targets) {
   validatePoint(start, "start");
   validatePoint(end, "end");

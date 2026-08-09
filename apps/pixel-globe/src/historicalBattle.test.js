@@ -139,6 +139,12 @@ test("portable fire events retain the weapon identity needed by shared audio", (
   assert.equal(event.weaponId, "matchlock-arquebuses");
   assert.equal(event.weaponKind, "bullet");
   assert.ok(event.count >= 1);
+  assert.equal(
+    battle.projectiles.find((projectile) => (
+      projectile.ownerIndex === shooterIndex && projectile.weaponId === event.weaponId
+    ))?.portable,
+    true
+  );
 });
 
 test("fixed-step updates are deterministic across different render frame rates", () => {

@@ -1717,7 +1717,11 @@ import {
   crewWoundsForceSurrender
 } from "./combatWounds.js";
 import { projectileHullDamage } from "./navalCombatResolution.js";
-import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
+import {
+  firstNavalProjectileHit,
+  navalProjectileMayHitBystanders,
+  navalProjectilePoint
+} from "./navalProjectile.js";
 import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
 import {
   CANNON_SMOKE_LAYER_BEHIND,
@@ -23343,6 +23347,7 @@ function updateNavalWeapons(dt) {
       ball.age = Math.min(ball.duration, ball.age + dt);
       if (
         ball.kind === NAVAL_WEAPON_CANNON &&
+        navalProjectileMayHitBystanders(ball) &&
         resolvePlayerCannonPathHit(ball, previousAge)
       ) {
         continue;
@@ -26935,6 +26940,7 @@ function updateNpcCombatProjectiles(dt) {
     const previousAge = ball.age;
     ball.age = Math.min(ball.duration, ball.age + dt);
     if (ball.kind === NAVAL_WEAPON_CANNON &&
+        navalProjectileMayHitBystanders(ball) &&
         resolveNpcCannonPathHit(ball, previousAge)) {
       changed = true;
       continue;
