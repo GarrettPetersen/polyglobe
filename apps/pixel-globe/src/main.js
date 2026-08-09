@@ -587,7 +587,8 @@ import {
   ICEBERG_VARIANTS,
   advanceIcebergMemory,
   icebergVariantById,
-  seedIcebergPopulation
+  seedIcebergPopulation,
+  transportIcebergHeading
 } from "./icebergSystem.js";
 import { applyWhaleTowPull, whaleTowKinematics } from "./whaleTowPhysics.js";
 import { drawWhaleTetherCurve } from "./whaleTetherCurve.js";
@@ -30292,7 +30293,7 @@ function advanceIcebergCollisionDrift(memory, dt) {
     }
     iceberg.position = position;
     iceberg.tileId = environment.tileId;
-    iceberg.heading = normalizeTangentOrFallback(displacement, position, iceberg.heading);
+    iceberg.heading = transportIcebergHeading(iceberg.heading, position, displacement);
     const nextVelocity = projectTangentVector(momentum.velocity, position);
     if (vectorLength(nextVelocity) < ICEBERG_COLLISION_VELOCITY_MIN_RAD) {
       icebergCollisionMomentum.delete(iceberg);

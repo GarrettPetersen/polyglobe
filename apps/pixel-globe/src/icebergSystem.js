@@ -254,10 +254,21 @@ function driftIceberg(iceberg, variant, environment, elapsedDays, environmentAtP
     if (!destination.navigable || destination.frozen) continue;
     iceberg.position = position;
     iceberg.tileId = destination.tileId;
-    iceberg.heading = direction;
+    iceberg.heading = transportIcebergHeading(iceberg.heading, position, direction);
     return true;
   }
   return false;
+}
+
+export function transportIcebergHeading(heading, position, fallback) {
+  validateVector(heading, "iceberg transported heading");
+  validateVector(position, "iceberg transported position");
+  validateVector(fallback, "iceberg transported fallback");
+  const projected = projectTangent(heading, position);
+  if (vectorLength(projected) > 1e-10) return normalize(projected);
+  const projectedFallback = projectTangent(fallback, position);
+  if (vectorLength(projectedFallback) > 1e-10) return normalize(projectedFallback);
+  throw new Error("Iceberg heading cannot be transported onto its position");
 }
 
 function tangentDirection(position, angle) {
@@ -341,6 +352,23 @@ function validateVector(vector, label) {
   if (!Array.isArray(vector) || vector.length !== 3 || !vector.every(Number.isFinite)) {
     throw new Error(`Invalid ${label}`);
   }
+}
+
+function projectTangent(vector, normal) {
+  const radial = dot(vector, normal);
+  return [
+    vector[0] - normal[0] * radial,
+    vector[1] - normal[1] * radial,
+    vector[2] - normal[2] * radial
+  ];
+}
+
+function dot(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function vectorLength(vector) {
+  return Math.hypot(vector[0], vector[1], vector[2]);
 }
 
 function assertMinute(minute) {
