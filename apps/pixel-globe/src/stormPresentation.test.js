@@ -8,6 +8,7 @@ import {
   STORM_PASSAGE_ENTERED,
   createStormPassageState,
   fillStormEdgeFogPixels,
+  fogLayerRgba,
   firstStormDialogueKind,
   markStormClearanceDelivered,
   markStormWarningDelivered,
@@ -115,6 +116,14 @@ test("storm fog fades in smoothly and reaches full strength", () => {
   const severe = stormFogStrength(0.45, 0.12, 0.6);
   assert.ok(moderate > 0.45 && moderate < severe);
   assert.equal(stormFogStrength(0.6, 0.12, 0.6), 1);
+});
+
+test("fog layers use three translucent shades shared by weather effects", () => {
+  assert.deepEqual(fogLayerRgba(0), [0, 0, 0, 0]);
+  assert.deepEqual(fogLayerRgba(0.2), [137, 153, 157, 93]);
+  assert.deepEqual(fogLayerRgba(0.6), [169, 182, 181, 150]);
+  assert.deepEqual(fogLayerRgba(1), [199, 204, 195, 208]);
+  assert.throws(() => fogLayerRgba(1.1), /between zero and one/);
 });
 
 test("storm fog is deterministic, pixelated, and limited to screen edges", () => {

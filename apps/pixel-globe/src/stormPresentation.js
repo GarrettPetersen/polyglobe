@@ -3,11 +3,21 @@ export const STORM_PASSAGE_CLEARED = "cleared";
 export const FIRST_STORM_DIALOGUE_WARNING = "warning";
 export const FIRST_STORM_DIALOGUE_CLEARANCE = "clearance";
 
-const FOG_COLORS = Object.freeze([
-  Object.freeze([137, 153, 157]),
-  Object.freeze([169, 182, 181]),
-  Object.freeze([199, 204, 195])
+const FOG_LAYER_RGBA = Object.freeze([
+  Object.freeze([0, 0, 0, 0]),
+  Object.freeze([137, 153, 157, 93]),
+  Object.freeze([169, 182, 181, 122]),
+  Object.freeze([169, 182, 181, 150]),
+  Object.freeze([199, 204, 195, 179]),
+  Object.freeze([199, 204, 195, 208])
 ]);
+
+export function fogLayerRgba(density) {
+  if (!Number.isFinite(density) || density < 0 || density > 1) {
+    throw new Error(`Fog layer density must be between zero and one: ${density}`);
+  }
+  return FOG_LAYER_RGBA[Math.ceil(density * 5)];
+}
 
 export function createStormPassageState(active = false) {
   if (typeof active !== "boolean") throw new Error(`Storm passage active state must be boolean: ${active}`);
@@ -139,13 +149,12 @@ export function fillStormEdgeFogPixels(pixels, width, height, seed = 0x464f4721)
         if (fogNoise(Math.floor(x / 2), y, seed ^ 0x2c1b3c6d) > fringeCoverage) continue;
       }
 
-      const shade = density >= 0.7 ? 2 : density >= 0.34 ? 1 : 0;
-      const color = FOG_COLORS[shade];
+      const color = fogLayerRgba(density);
       const offset = (y * width + x) * 4;
       pixels[offset] = color[0];
       pixels[offset + 1] = color[1];
       pixels[offset + 2] = color[2];
-      pixels[offset + 3] = Math.round(64 + Math.ceil(density * 5) / 5 * 144);
+      pixels[offset + 3] = color[3];
     }
   }
   return depth;

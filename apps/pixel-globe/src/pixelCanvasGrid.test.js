@@ -6,22 +6,14 @@ function source(relativePath) {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8");
 }
 
-test("runtime blur stays on the native logical pixel grid", () => {
+test("runtime effects never bypass the native logical pixel grid", () => {
   const main = source("./main.js");
   const filterAssignments = [...main.matchAll(/\b\w+\.filter\s*=/g)]
     .map((match) => match[0]);
 
-  assert.deepEqual(filterAssignments, ["hazeContext.filter ="]);
-  assert.match(
-    main,
-    /worldRenderer\.canvas\.width !== SCREEN_W[\s\S]+Chart repair blur must remain on the logical pixel canvas/
-  );
-  assert.match(main, /hazeContext\.setTransform\(1, 0, 0, 1, 0, 0\)/);
-  assert.match(
-    main,
-    /hazeContext\.drawImage\(worldRenderer\.canvas, 0, 0, SCREEN_W, SCREEN_H\)/
-  );
-  assert.match(main, /ctx\.drawImage\(chartRepairFogCanvas, 0, 0\)/);
+  assert.deepEqual(filterAssignments, []);
+  assert.match(main, /const CHART_REPAIR_FOG_MASK_PIXEL_SIZE = 1/);
+  assert.match(main, /ctx\.imageSmoothingEnabled = false;[\s\S]+ctx\.drawImage\(chartFogRaggedTexture\(frame\), 0, 0, SCREEN_W, SCREEN_H\)/);
   assert.doesNotMatch(main, /(?:style\.filter|backdropFilter)\s*=/);
 });
 

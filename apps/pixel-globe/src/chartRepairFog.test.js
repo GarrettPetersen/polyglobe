@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  chartFogFullyCoversCircle,
+  CHART_FOG_REDRAW_CONCEALMENT,
+  chartFogObscuresCircle,
   chartFogPixelDensity,
   chartRepairFogFrame,
   chartRepairFogWindPresence,
@@ -22,6 +23,7 @@ test("repair fog progressively hides distant geography before clearing", () => {
   const open = chartRepairFogFrame(fog, 100);
   const rim = chartRepairFogFrame(fog, 100 + fog.formationDurationMs / 2);
   const nearlyClosed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs * 0.999);
+  const redrawReady = chartRepairFogFrame(fog, 100 + fog.formationDurationMs * 0.75);
   const closed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs);
   const cleared = chartRepairFogFrame(fog, 100 + fog.durationMs);
 
@@ -30,9 +32,12 @@ test("repair fog progressively hides distant geography before clearing", () => {
   assert.ok(fog.durationMs > 100_000);
   assert.equal(open.edgeOpacity, 0);
   assert.ok(open.clearRadius > 290);
-  assert.equal(chartFogFullyCoversCircle(rim, 227, 128, 12), false);
-  assert.equal(chartFogFullyCoversCircle(rim, 4, 4, 4), false);
-  assert.equal(chartFogFullyCoversCircle(nearlyClosed, 4, 4, 4), true);
+  assert.equal(chartFogObscuresCircle(rim, 227, 128, 12), false);
+  assert.equal(chartFogObscuresCircle(rim, 4, 4, 4), false);
+  assert.ok(redrawReady.edgeOpacity >= CHART_FOG_REDRAW_CONCEALMENT);
+  assert.equal(redrawReady.repairReady, true);
+  assert.ok(redrawReady.edgeOpacity < 0.995);
+  assert.equal(chartFogObscuresCircle(nearlyClosed, 4, 4, 4), true);
   assert.ok(Math.abs(closed.clearRadius - fog.minimumClearRadius) < 1e-9);
   assert.equal(closed.repairReady, true);
   assert.equal(cleared.finished, true);
@@ -75,6 +80,41 @@ test("repair fog has a stable ragged pixel edge rather than a perfect circle", (
     () => fillChartFogMaskPixels(pixels, 16, 9, frame, 4, { ...field, width: 15 }),
     /does not match/
   );
+});
+
+test("repair fog shares the storm fog layers and never hides the world completely", () => {
+  const width = 455;
+  const height = 256;
+  const pixelSize = 1;
+  const fog = createChartRepairFog({
+    nowMs: 0,
+    viewportWidth: width * pixelSize,
+    viewportHeight: height * pixelSize,
+    focusX: width * pixelSize / 2,
+    focusY: height * pixelSize / 2
+  });
+  const frame = chartRepairFogFrame(fog, fog.formationDurationMs);
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  const field = createChartFogMaskField({
+    width,
+    height,
+    focusX: frame.focusX,
+    focusY: frame.focusY,
+    pixelSize
+  });
+  fillChartFogMaskPixels(pixels, width, height, frame, pixelSize, field);
+
+  const colors = new Set();
+  let maximumAlpha = 0;
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    const alpha = pixels[offset + 3];
+    if (alpha === 0) continue;
+    colors.add(`${pixels[offset]},${pixels[offset + 1]},${pixels[offset + 2]}`);
+    maximumAlpha = Math.max(maximumAlpha, alpha);
+  }
+  assert.ok(colors.size >= 3);
+  assert.equal(maximumAlpha, 208);
+  assert.ok(maximumAlpha < 255);
 });
 
 test("repair fog can clear early after an outer-ring repair is sufficient", () => {
@@ -133,8 +173,8 @@ test("polar fog preserves a clear navigable center and hides the chart edge", ()
 
   assert.ok(fog);
   assert.ok(fog.clearRadius >= 100 && fog.clearRadius <= 112);
-  assert.equal(chartFogFullyCoversCircle(fog, 227, 128, 12), false);
-  assert.equal(chartFogFullyCoversCircle(fog, 10, 10, 12), true);
+  assert.equal(chartFogObscuresCircle(fog, 227, 128, 12), false);
+  assert.equal(chartFogObscuresCircle(fog, 10, 10, 12), true);
   assert.equal(polarChartFogFrame({
     latitudeDeg: 50,
     viewportWidth: 455,

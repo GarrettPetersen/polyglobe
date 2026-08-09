@@ -1,3 +1,7 @@
+import { fogLayerRgba } from "./stormPresentation.js";
+
+export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
+
 export function createChartRepairFog({
   nowMs,
   viewportWidth,
@@ -79,14 +83,13 @@ export function chartRepairFogFrame(fog, nowMs, release = null) {
     progress: clamp01(elapsedMs / fog.durationMs),
     concealment,
     edgeOpacity,
-    blurPx: concealment * 1.5,
     focusX: fog.focusX,
     focusY: fog.focusY,
     clearRadius,
     fadeBandPx: fog.fadeBandPx,
     raggednessPx: 13,
-    opaqueRadius: clearRadius + fog.fadeBandPx + 13,
-    repairReady: edgeOpacity >= 0.995 && !finished,
+    denseFogRadius: clearRadius + fog.fadeBandPx + 13,
+    repairReady: edgeOpacity >= CHART_FOG_REDRAW_CONCEALMENT && !finished,
     finished
   });
 }
@@ -133,20 +136,19 @@ export function polarChartFogFrame({
     progress: 1,
     concealment: polarAmount,
     edgeOpacity: 1,
-    blurPx: 0,
     focusX,
     focusY,
     clearRadius,
     fadeBandPx: 24,
     raggednessPx: 10,
-    opaqueRadius: clearRadius + 34,
+    denseFogRadius: clearRadius + 34,
     repairReady: true,
     finished: false,
     polarAmount
   });
 }
 
-export function chartFogFullyCoversCircle(frame, x, y, radius = 0) {
+export function chartFogObscuresCircle(frame, x, y, radius = 0) {
   if (!frame) return false;
   for (const [label, value] of Object.entries({ x, y, radius })) {
     if (!Number.isFinite(value)) throw new Error(`Chart fog coverage has invalid ${label}`);
@@ -155,8 +157,8 @@ export function chartFogFullyCoversCircle(frame, x, y, radius = 0) {
   if (!Number.isFinite(frame.edgeOpacity) || frame.edgeOpacity < 0 || frame.edgeOpacity > 1) {
     throw new Error(`Chart fog coverage has invalid edge opacity: ${frame.edgeOpacity}`);
   }
-  if (frame.edgeOpacity < 0.995) return false;
-  return Math.hypot(x - frame.focusX, y - frame.focusY) - radius >= frame.opaqueRadius;
+  if (frame.edgeOpacity < CHART_FOG_REDRAW_CONCEALMENT) return false;
+  return Math.hypot(x - frame.focusX, y - frame.focusY) - radius >= frame.denseFogRadius;
 }
 
 export function chartFogPixelDensity(frame, x, y) {
@@ -257,13 +259,13 @@ export function fillChartFogMaskPixels(
             x * pixelSize + pixelSize / 2,
             y * pixelSize + pixelSize / 2
           );
-      const alpha = Math.round(density * 255);
-      if (alpha === 0) continue;
+      const color = fogLayerRgba(density);
+      if (color[3] === 0) continue;
       const offset = index * 4;
-      pixels[offset] = 255;
-      pixels[offset + 1] = 255;
-      pixels[offset + 2] = 255;
-      pixels[offset + 3] = alpha;
+      pixels[offset] = color[0];
+      pixels[offset + 1] = color[1];
+      pixels[offset + 2] = color[2];
+      pixels[offset + 3] = color[3];
     }
   }
   return pixels;

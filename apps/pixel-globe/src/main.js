@@ -1622,7 +1622,7 @@ import {
   slowedChartRepairCloudSpeed
 } from "./chartRepairCloudBank.js";
 import {
-  chartFogFullyCoversCircle,
+  chartFogObscuresCircle,
   chartRepairFogFrame,
   chartRepairFogWindPresence,
   createChartFogMaskField,
@@ -2873,14 +2873,12 @@ let nextTerrainPersistentBatchKey = 1;
 const surfaceIceTransitionSpriteCache = new WeakMap();
 const RENDER_CALL_WINDOW_STEP_PX = 64;
 let stormEdgeFogCanvas = null;
-let chartRepairFogCanvas = null;
-let chartRepairFogContext = null;
 let chartRepairFogMaskCanvas = null;
 let chartRepairFogMaskContext = null;
 let chartRepairFogMaskKey = "";
 let chartRepairFogMaskField = null;
 let chartRepairFogMaskFieldKey = "";
-const CHART_REPAIR_FOG_MASK_PIXEL_SIZE = 4;
+const CHART_REPAIR_FOG_MASK_PIXEL_SIZE = 1;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
 const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
@@ -19701,7 +19699,7 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   const polarFog = currentPolarChartFogFrame();
   if (
     candidate.fault && polarFog &&
-    chartFogFullyCoversCircle(
+    chartFogObscuresCircle(
       polarFog,
       candidate.fault.x,
       candidate.fault.y,
@@ -19903,7 +19901,7 @@ function chartVisualCoverFullyCoversLocalPosition(
   const screenX = position.x + SCREEN_W / 2 - localLayout.viewX;
   const screenY = position.y + SCREEN_H / 2 - localLayout.viewY;
   if (activeChartFogFrames().some((frame) => (
-    chartFogFullyCoversCircle(frame, screenX, screenY, radiusPx)
+    chartFogObscuresCircle(frame, screenX, screenY, radiusPx)
   ))) return true;
   if (!chartRepairCloudBank) return false;
   const cloudFrame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, lastFrameMs);
@@ -19916,7 +19914,7 @@ function repairFogCoveredChartTiles(frame, reason, repairedTileIds = null) {
   }
   const removedIds = repairCoveredChartTiles({
     reason,
-    fullyCoversCircle: (x, y, radius) => chartFogFullyCoversCircle(frame, x, y, radius),
+    fullyCoversCircle: (x, y, radius) => chartFogObscuresCircle(frame, x, y, radius),
     shouldRepairTile: (id) => repairedTileIds === null || !repairedTileIds.has(id)
   });
   if (repairedTileIds) {
@@ -40930,10 +40928,11 @@ function drawChartRepairOcclusion(nowMs) {
   const polarFog = currentPolarChartFogFrame();
   if (polarFog) drawChartFogFrame(polarFog);
   if (chartRepairFog) {
-    drawChartFogFrame(
-      chartRepairFogFrame(chartRepairFog.animation, nowMs, chartRepairFog.release),
-      { blurWorld: true }
-    );
+    drawChartFogFrame(chartRepairFogFrame(
+      chartRepairFog.animation,
+      nowMs,
+      chartRepairFog.release
+    ));
   }
   if (chartRepairCloudBank) {
     drawChartRepairCloudBank(chartRepairCloudBankFrame(
@@ -40943,64 +40942,16 @@ function drawChartRepairOcclusion(nowMs) {
   }
 }
 
-function drawChartFogFrame(frame, { blurWorld = false } = {}) {
+function drawChartFogFrame(frame) {
   if (!frame || frame.edgeOpacity <= 0) return;
-  if (blurWorld) {
-    drawChartRepairHaze(frame);
-    return;
-  }
-  const hazeContext = chartRepairFogPainter();
-  const color = chartFogColor();
-  hazeContext.clearRect(0, 0, SCREEN_W, SCREEN_H);
-  hazeContext.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-  hazeContext.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.save();
-  hazeContext.globalCompositeOperation = "destination-in";
-  hazeContext.imageSmoothingEnabled = false;
-  hazeContext.drawImage(chartFogRaggedMask(frame), 0, 0, SCREEN_W, SCREEN_H);
-  hazeContext.globalCompositeOperation = "source-over";
-  ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha = frame.edgeOpacity;
-  ctx.drawImage(chartRepairFogCanvas, 0, 0);
-  ctx.restore();
-}
-
-function drawChartRepairHaze(frame) {
-  const hazeContext = chartRepairFogPainter();
-  if (
-    worldRenderer.canvas.width !== SCREEN_W ||
-    worldRenderer.canvas.height !== SCREEN_H ||
-    chartRepairFogCanvas.width !== SCREEN_W ||
-    chartRepairFogCanvas.height !== SCREEN_H
-  ) {
-    throw new Error("Chart repair blur must remain on the logical pixel canvas");
-  }
-  hazeContext.clearRect(0, 0, SCREEN_W, SCREEN_H);
-  hazeContext.save();
-  // The filter samples logical pixels and writes back to the same logical grid.
-  // CSS and GPU presentation then enlarge those finished pixels with nearest-neighbor.
-  hazeContext.setTransform(1, 0, 0, 1, 0, 0);
-  hazeContext.filter = `blur(${frame.blurPx.toFixed(2)}px)`;
-  hazeContext.drawImage(worldRenderer.canvas, 0, 0, SCREEN_W, SCREEN_H);
-  hazeContext.restore();
-
-  const color = chartFogColor();
-  hazeContext.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.84)`;
-  hazeContext.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  hazeContext.save();
-  hazeContext.globalCompositeOperation = "destination-in";
-  hazeContext.imageSmoothingEnabled = false;
-  hazeContext.drawImage(chartFogRaggedMask(frame), 0, 0, SCREEN_W, SCREEN_H);
-  hazeContext.restore();
-
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.globalAlpha = frame.edgeOpacity;
-  ctx.drawImage(chartRepairFogCanvas, 0, 0);
+  ctx.drawImage(chartFogRaggedTexture(frame), 0, 0, SCREEN_W, SCREEN_H);
   ctx.restore();
 }
 
-function chartFogRaggedMask(frame) {
+function chartFogRaggedTexture(frame) {
   const maskWidth = Math.ceil(SCREEN_W / CHART_REPAIR_FOG_MASK_PIXEL_SIZE);
   const maskHeight = Math.ceil(SCREEN_H / CHART_REPAIR_FOG_MASK_PIXEL_SIZE);
   if (!chartRepairFogMaskCanvas) {
@@ -41068,25 +41019,6 @@ function chartFogRaggedMask(frame) {
   return chartRepairFogMaskCanvas;
 }
 
-function chartRepairFogPainter() {
-  if (!chartRepairFogCanvas) {
-    chartRepairFogCanvas = document.createElement("canvas");
-    chartRepairFogContext = chartRepairFogCanvas.getContext("2d", { alpha: true });
-    if (!chartRepairFogContext || !("filter" in chartRepairFogContext)) {
-      throw new Error("Chart repair fog requires a filter-capable 2D canvas");
-    }
-  }
-  if (chartRepairFogCanvas.width !== SCREEN_W || chartRepairFogCanvas.height !== SCREEN_H) {
-    chartRepairFogCanvas.width = SCREEN_W;
-    chartRepairFogCanvas.height = SCREEN_H;
-  }
-  if (!chartRepairFogContext) {
-    throw new Error("Chart repair fog lost its drawing context");
-  }
-  chartRepairFogContext.imageSmoothingEnabled = false;
-  return chartRepairFogContext;
-}
-
 function drawChartRepairCloudBank(frame) {
   if (!frame) return;
   if (cloudSpriteSheet) {
@@ -41110,17 +41042,6 @@ function drawChartRepairCloudBank(frame) {
     }
     ctx.restore();
   }
-}
-
-function chartFogColor() {
-  const light = localDayNightLight();
-  const night = clamp(light.night || 0, 0, 1);
-  const sunset = clamp(light.sunset || 0, 0, 1) * (1 - night);
-  return {
-    r: Math.round(236 - night * 112 - sunset * 28),
-    g: Math.round(243 - night * 114 - sunset * 34),
-    b: Math.round(237 - night * 93 - sunset * 16)
-  };
 }
 
 function drawStormEdgeFog(nowMs) {
