@@ -187,7 +187,7 @@ const FLOATS_PER_QUAD = FLOATS_PER_VERTEX * VERTICES_PER_QUAD;
 const INITIAL_ATLAS_QUAD_CAPACITY = 1024;
 const DEFAULT_ATLAS_SIZE = 4096;
 const DEFAULT_CHUNK_CACHE_LIMIT = 24;
-const DEFAULT_PERSISTENT_BATCH_CACHE_LIMIT = 96;
+const DEFAULT_PERSISTENT_BATCH_CACHE_LIMIT = 48;
 
 export class TextureAtlasAllocator {
   constructor(width, height, padding = 1) {
@@ -950,12 +950,6 @@ export function createWorldWebGL2Renderer({
     }
 
     let batch = persistentBatches.get(key);
-    if (!batch || batch.revision !== revision) {
-      if (batch) deletePersistentBatch(batch);
-      batch = createPersistentBatch(key, revision, createSprites());
-      persistentBatches.set(key, batch);
-      persistentBatchRebuilds++;
-    }
     const evictedKey = persistentBatchLru.touch(key);
     if (evictedKey !== null) {
       const evicted = persistentBatches.get(evictedKey);
@@ -964,6 +958,12 @@ export function createWorldWebGL2Renderer({
       }
       deletePersistentBatch(evicted);
       persistentBatches.delete(evictedKey);
+    }
+    if (!batch || batch.revision !== revision) {
+      if (batch) deletePersistentBatch(batch);
+      batch = createPersistentBatch(key, revision, createSprites());
+      persistentBatches.set(key, batch);
+      persistentBatchRebuilds++;
     }
 
     for (const group of batch.groups) {

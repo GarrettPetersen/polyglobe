@@ -15,6 +15,14 @@ test("stable charts do not summon concealment effects", () => {
   assert.equal(repairKind({ drift: calm, landTear: attachedLand }), "none");
 });
 
+test("elastic open ocean leaves correction to the swell", () => {
+  assert.equal(repairKind({
+    drift: { ...calm, rotationDeg: 20 },
+    landTear: { extraPx: 40, screenX: 430, screenY: 20 },
+    swellRepairAvailable: true
+  }), "none");
+});
+
 test("large rotation alone requires a full moving cloud bank", () => {
   assert.equal(repairKind({
     drift: { ...calm, rotationDeg: 13 },
@@ -44,12 +52,18 @@ test("persistent polar fog repairs faults it already fully hides", () => {
   }), "polar-fog");
 });
 
-function repairKind({ drift, landTear, polarFogCoversFault = false }) {
+function repairKind({
+  drift,
+  landTear,
+  polarFogCoversFault = false,
+  swellRepairAvailable = false
+}) {
   return chooseChartVisualRepair({
     ...viewport,
     drift,
     landTear,
     distortionPoint: { x: 400, y: 40 },
+    swellRepairAvailable,
     polarFogCoversFault
   }).kind;
 }

@@ -7,7 +7,7 @@ import {
   polarChartFogFrame
 } from "./chartRepairFog.js";
 
-test("repair fog leaves the ship visible while making distant geography opaque", () => {
+test("repair fog progressively hides distant geography before clearing", () => {
   const fog = createChartRepairFog({
     nowMs: 100,
     viewportWidth: 455,
@@ -16,13 +16,39 @@ test("repair fog leaves the ship visible while making distant geography opaque",
     focusY: 128
   });
   const open = chartRepairFogFrame(fog, 100);
-  const closed = chartRepairFogFrame(fog, 100 + fog.durationMs / 2);
+  const rim = chartRepairFogFrame(fog, 100 + fog.formationDurationMs / 2);
+  const closed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs);
   const cleared = chartRepairFogFrame(fog, 100 + fog.durationMs);
 
-  assert.ok(open.clearRadius > 500);
-  assert.equal(closed.clearRadius, 34);
-  assert.equal(closed.opaqueRadius, 62);
+  assert.equal(open.edgeOpacity, 0);
+  assert.ok(open.clearRadius > 290);
+  assert.equal(chartFogFullyCoversCircle(rim, 227, 128, 12), false);
+  assert.equal(chartFogFullyCoversCircle(rim, 4, 4, 4), true);
+  assert.ok(Math.abs(closed.clearRadius - fog.minimumClearRadius) < 1e-9);
   assert.equal(closed.repairReady, true);
+  assert.equal(cleared.finished, true);
+});
+
+test("repair fog can clear early after an outer-ring repair is sufficient", () => {
+  const fog = createChartRepairFog({
+    nowMs: 0,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    focusX: 227,
+    focusY: 128
+  });
+  const releaseAtMs = fog.formationDurationMs / 2;
+  const forming = chartRepairFogFrame(fog, releaseAtMs);
+  const clearing = chartRepairFogFrame(fog, releaseAtMs + fog.clearingDurationMs / 2, {
+    startedAtMs: releaseAtMs,
+    startLevel: forming.concealment
+  });
+  const cleared = chartRepairFogFrame(fog, releaseAtMs + fog.clearingDurationMs, {
+    startedAtMs: releaseAtMs,
+    startLevel: forming.concealment
+  });
+
+  assert.ok(clearing.concealment < forming.concealment);
   assert.equal(cleared.finished, true);
 });
 

@@ -12,6 +12,7 @@ export function chooseChartVisualRepair({
   distortionPoint,
   viewportWidth,
   viewportHeight,
+  swellRepairAvailable,
   polarFogCoversFault = false
 }) {
   if (!drift || !landTear || !distortionPoint) {
@@ -27,6 +28,11 @@ export function chooseChartVisualRepair({
       throw new Error(`Chart visual repair policy has invalid ${label}: ${value}`);
     }
   }
+  if (typeof swellRepairAvailable !== "boolean") {
+    throw new Error("Chart visual repair policy requires an explicit swell-repair state");
+  }
+
+  if (swellRepairAvailable) return Object.freeze({ kind: "none" });
 
   if (chartRotationNeedsFullCloudRepair(drift)) {
     return Object.freeze({ kind: "full-cloud" });
