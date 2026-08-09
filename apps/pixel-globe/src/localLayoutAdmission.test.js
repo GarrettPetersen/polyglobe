@@ -21,6 +21,9 @@ import {
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 import { predictiveAdmissionProjection } from "./chartAdmissionProjection.js";
+import { chartFaultNeedsCloudRepair } from "./chartVisualFault.js";
+import { chooseChartVisualRepair } from "./chartVisualRepairPolicy.js";
+import { chartVisualRepairBurden } from "./chartVisualRepairBurden.js";
 import {
   buildChartTileProtection,
   buildDirectChartProtectionComponents
@@ -43,6 +46,9 @@ function reportChartBenchmark(label, result) {
     movementFrames: result.movementFrames,
     chartBuilds: result.chartBuilds,
     maxRotationDeg: result.maxRotationDeg,
+    maxRmsDistortionPx: result.maxRmsDistortionPx,
+    maxDistortionPx: result.maxDistortionPx,
+    maxTerrainEdgeGapPx: result.maxTerrainEdgeGapPx,
     maxProtectedRotationDeg: result.maxProtectedRotationDeg,
     finalProtectedRotationDeg: result.finalProtectedRotationDeg,
     maxProtectedEdgeErrorPx: result.maxProtectedEdgeErrorPx,
@@ -52,7 +58,8 @@ function reportChartBenchmark(label, result) {
       : undefined,
     missingVisibleLandNeighbors: result.missingVisibleLandNeighbors,
     visibleProtectedRedraws: result.visibleProtectedRedraws,
-    visibleLandRedraws: result.visibleLandRedraws
+    visibleLandRedraws: result.visibleLandRedraws,
+    repairDemand: result.repairDemand
   };
   console.log(`[chart-benchmark] ${label} ${JSON.stringify(metrics)}`);
 }
@@ -943,6 +950,7 @@ test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geogr
     `Round-the-world protected coast finished at ` +
       `${result.finalProtectedRotationDeg.toFixed(2)} degrees of tilt`
   );
+  assertTraversalRepairBurden(result, "Round-the-world coastal voyage", 100);
 });
 
 test("a coast-heavy Mediterranean crossing keeps protected geography north-up", () => {
@@ -1012,6 +1020,7 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
         `${sample.step}:${sample.protected.toFixed(1)}`
       )).join("/")})`
   );
+  assertTraversalRepairBurden(result, "Mediterranean crossing", 25);
 });
 
 test("a moving Scandinavia coastal traversal stays north-up without tearing land", () => {
@@ -1058,6 +1067,11 @@ test("a moving Scandinavia coastal traversal stays north-up without tearing land
       `${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
       `${JSON.stringify(result.maxProtectedEdgeDetails)}`
   );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 70,
+    `Scandinavian chart opened an extreme ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertTraversalRepairBurden(result, "Scandinavian crossing", 35);
 });
 
 test("a south-to-north Argentina coastal traversal cannot tear adjacent land", () => {
@@ -1097,6 +1111,11 @@ test("a south-to-north Argentina coastal traversal cannot tear adjacent land", (
       `${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
       `${JSON.stringify(result.maxProtectedEdgeDetails)}`
   );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 30,
+    `Argentina chart opened an extreme ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertTraversalRepairBurden(result, "Argentina crossing", 30);
 });
 
 test("a moving river voyage to Smolensk cannot tear visible land", () => {
@@ -1122,6 +1141,7 @@ test("a moving river voyage to Smolensk cannot tear visible land", () => {
 
   assert.equal(result.visibleLandRedraws, 0);
   assertLandTraversalIsContinuous(result, "Smolensk river voyage");
+  assertTraversalRepairBurden(result, "Smolensk river voyage", 5);
 });
 
 test("uniform land cannot masquerade as the elastic ocean correction reservoir", () => {
@@ -1351,6 +1371,9 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let viewX = TRAVERSAL_SCREEN_W / 2;
   let viewY = TRAVERSAL_SCREEN_H / 2;
   let maxRotationDeg = 0;
+  let maxRmsDistortionPx = 0;
+  let maxDistortionPx = 0;
+  let maxTerrainEdgeGapPx = 0;
   let maxProtectedRotationDeg = 0;
   let maxProtectedRotationStep = 0;
   let maxProtectedRotationLocation = "unknown";
@@ -1373,6 +1396,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let chartBuilds = 0;
   let distanceSinceBuildPx = Number.POSITIVE_INFINITY;
   const rotationSamples = [];
+  const repairDemand = createTraversalRepairDemand();
 
   for (let step = 0; step < route.length; step++) {
     const direction = route[step];
@@ -1577,6 +1601,32 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     if (visibleProtectedTiles === 0) stepsWithoutProtectedCoast++;
     else stepsWithProtectedCoast++;
     const frame = measureCenteredFrameError(visiblePositions, projectedById);
+    const terrainTear = measureTraversalTerrainTear({
+      visiblePositions,
+      projectedById,
+      neighborsById: graph.neighbors,
+      terrainClassByTileId,
+      viewX,
+      viewY
+    });
+    maxRmsDistortionPx = Math.max(maxRmsDistortionPx, frame.rmsError);
+    maxDistortionPx = Math.max(maxDistortionPx, frame.maxErrorPx);
+    maxTerrainEdgeGapPx = Math.max(maxTerrainEdgeGapPx, terrainTear.extraPx);
+    recordTraversalRepairDemand(repairDemand, {
+      drift: {
+        rotationDeg: frame.rotationDeg,
+        rmsDistortionPx: frame.rmsError,
+        maxDistortionPx: frame.maxErrorPx
+      },
+      terrainTear,
+      distortionPoint: traversalScreenPosition(
+        visiblePositions.get(frame.maxErrorTileId),
+        viewX,
+        viewY
+      ),
+      swellRepairAvailable: viewportIsFullyElasticWater,
+      elasticTileCount: support.elasticTileIds.size
+    });
     if (Math.abs(frame.rotationDeg) > maxRotationDeg) {
       maxRotationDeg = Math.abs(frame.rotationDeg);
       maxRotationStep = step;
@@ -1707,6 +1757,9 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     stepsWithoutProtectedCoast,
     stepsWithProtectedCoast,
     maxRotationDeg,
+    maxRmsDistortionPx,
+    maxDistortionPx,
+    maxTerrainEdgeGapPx,
     maxProtectedRotationDeg,
     maxProtectedRotationStep,
     maxProtectedRotationLocation,
@@ -1724,7 +1777,169 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     visibleProtectedRedraws,
     visibleLandRedraws,
     protectedEdgeSamples,
-    rotationSamples
+    rotationSamples,
+    repairDemand: finishTraversalRepairDemand(repairDemand)
+  };
+}
+
+function createTraversalRepairDemand() {
+  return {
+    evaluations: 0,
+    repairDemandEvaluations: 0,
+    activeKind: "none",
+    swellRepairPasses: 0,
+    swellTilesSettled: 0,
+    cloudBanksStarted: 0,
+    partialCloudBanksStarted: 0,
+    cloudBankSecondsScheduled: 0,
+    cloudTargetViewportEquivalents: 0,
+    closingFogsStarted: 0,
+    closingFogSecondsScheduled: 0,
+    maximumFogDepthRatio: 0
+  };
+}
+
+function recordTraversalRepairDemand(stats, {
+  drift,
+  terrainTear,
+  distortionPoint,
+  swellRepairAvailable,
+  elasticTileCount
+}) {
+  stats.evaluations++;
+  if (!chartFaultNeedsCloudRepair({ drift, terrainTear })) {
+    stats.activeKind = "none";
+    return;
+  }
+  stats.repairDemandEvaluations++;
+  let kind = "swell";
+  let repair = null;
+  if (!swellRepairAvailable) {
+    repair = chooseChartVisualRepair({
+      drift,
+      terrainTear,
+      distortionPoint,
+      viewportWidth: TRAVERSAL_SCREEN_W,
+      viewportHeight: TRAVERSAL_SCREEN_H,
+      swellRepairAvailable: false
+    });
+    kind = repair.kind;
+  }
+  if (kind === "swell") {
+    stats.swellRepairPasses++;
+    stats.swellTilesSettled += elasticTileCount;
+    stats.activeKind = kind;
+    return;
+  }
+  if (stats.activeKind === kind) return;
+  stats.activeKind = kind;
+  if (kind === "closing-fog") {
+    stats.closingFogsStarted++;
+    stats.closingFogSecondsScheduled += 41.8;
+    stats.maximumFogDepthRatio = Math.max(
+      stats.maximumFogDepthRatio,
+      traversalFogDepthForFault(repair.fault)
+    );
+    return;
+  }
+  stats.cloudBanksStarted++;
+  const partial = kind === "partial-cloud";
+  if (partial) stats.partialCloudBanksStarted++;
+  const span = partial
+    ? Math.max(72, Math.min(164, repair.fault.sizePx + 36))
+    : Math.hypot(TRAVERSAL_SCREEN_W, TRAVERSAL_SCREEN_H);
+  stats.cloudTargetViewportEquivalents += partial
+    ? span * span / (TRAVERSAL_SCREEN_W * TRAVERSAL_SCREEN_H)
+    : 1;
+  stats.cloudBankSecondsScheduled += Math.hypot(
+    TRAVERSAL_SCREEN_W,
+    TRAVERSAL_SCREEN_H
+  ) * 2 / 7;
+}
+
+function finishTraversalRepairDemand(stats) {
+  const burden = chartVisualRepairBurden(stats);
+  const demandRatio = stats.evaluations > 0
+    ? stats.repairDemandEvaluations / stats.evaluations
+    : 0;
+  return Object.freeze({
+    ...stats,
+    activeKind: undefined,
+    repairDemandRatio: Math.round(demandRatio * 1000) / 1000,
+    fullCloudBanks: burden.fullCloudBanks,
+    burdenScore: Math.round((burden.burdenScore + demandRatio * 5) * 100) / 100
+  });
+}
+
+function traversalFogDepthForFault(fault) {
+  const focusX = TRAVERSAL_SCREEN_W / 2;
+  const focusY = TRAVERSAL_SCREEN_H / 2;
+  const fadeBandPx = 42;
+  const maximumClearRadius = Math.max(
+    Math.hypot(focusX, focusY),
+    Math.hypot(TRAVERSAL_SCREEN_W - focusX, focusY),
+    Math.hypot(focusX, TRAVERSAL_SCREEN_H - focusY),
+    Math.hypot(TRAVERSAL_SCREEN_W - focusX, TRAVERSAL_SCREEN_H - focusY)
+  ) + fadeBandPx;
+  const minimumClearRadius = Math.max(
+    42,
+    Math.min(TRAVERSAL_SCREEN_W, TRAVERSAL_SCREEN_H) * 0.18
+  );
+  const faultDistance = Math.hypot(fault.x - focusX, fault.y - focusY);
+  const geometryDepth = (
+    maximumClearRadius + fadeBandPx - (faultDistance - 21)
+  ) / (maximumClearRadius - minimumClearRadius);
+  return Math.max(0.995, Math.min(1, geometryDepth));
+}
+
+function measureTraversalTerrainTear({
+  visiblePositions,
+  projectedById,
+  neighborsById,
+  terrainClassByTileId,
+  viewX,
+  viewY
+}) {
+  let worst = null;
+  for (const [id, position] of visiblePositions.entries()) {
+    for (const neighborId of neighborsById[id]) {
+      if (neighborId <= id) continue;
+      const neighbor = visiblePositions.get(neighborId);
+      const projected = projectedById.get(id);
+      const projectedNeighbor = projectedById.get(neighborId);
+      if (!neighbor || !projected || !projectedNeighbor) continue;
+      const actualDistance = Math.hypot(neighbor.x - position.x, neighbor.y - position.y);
+      const projectedDistance = Math.hypot(
+        projectedNeighbor.x - projected.x,
+        projectedNeighbor.y - projected.y
+      );
+      const extraPx = actualDistance - projectedDistance;
+      if (worst && extraPx <= worst.extraPx) continue;
+      const aSurface = terrainClassByTileId[id];
+      const bSurface = terrainClassByTileId[neighborId];
+      const aScreen = traversalScreenPosition(position, viewX, viewY);
+      const bScreen = traversalScreenPosition(neighbor, viewX, viewY);
+      worst = {
+        extraPx,
+        surface: aSurface === bSurface ? aSurface : "coast",
+        screenX: (aScreen.x + bScreen.x) / 2,
+        screenY: (aScreen.y + bScreen.y) / 2
+      };
+    }
+  }
+  return worst || {
+    extraPx: 0,
+    surface: null,
+    screenX: TRAVERSAL_SCREEN_W / 2,
+    screenY: TRAVERSAL_SCREEN_H / 2
+  };
+}
+
+function traversalScreenPosition(position, viewX, viewY) {
+  if (!position) return { x: TRAVERSAL_SCREEN_W / 2, y: TRAVERSAL_SCREEN_H / 2 };
+  return {
+    x: position.x - viewX + TRAVERSAL_SCREEN_W / 2,
+    y: position.y - viewY + TRAVERSAL_SCREEN_H / 2
   };
 }
 
@@ -1743,6 +1958,15 @@ function assertLandTraversalIsContinuous(result, label) {
     0,
     `${label} omitted an adjacent land tile inside the viewport at ` +
       `${JSON.stringify(result.firstMissingVisibleLandNeighbor)}`
+  );
+}
+
+function assertTraversalRepairBurden(result, label, maximumScore) {
+  assert.ok(
+    result.repairDemand.burdenScore <= maximumScore,
+    `${label} required excessive visual concealment: ` +
+      `${result.repairDemand.burdenScore.toFixed(2)} > ${maximumScore}; ` +
+      `${JSON.stringify(result.repairDemand)}`
   );
 }
 
@@ -2536,14 +2760,24 @@ function measureCenteredFrameError(positions, projectedById) {
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
   let squaredError = 0;
-  for (const { projectedVector, layoutVector } of vectors) {
+  let maxErrorPx = 0;
+  let maxErrorTileId = samples[0]?.projected?.id ?? null;
+  for (let index = 0; index < vectors.length; index++) {
+    const { projectedVector, layoutVector } = vectors[index];
     const expectedX = projectedVector.x * cos - projectedVector.y * sin;
     const expectedY = projectedVector.x * sin + projectedVector.y * cos;
-    squaredError += (layoutVector.x - expectedX) ** 2 + (layoutVector.y - expectedY) ** 2;
+    const errorPx = Math.hypot(layoutVector.x - expectedX, layoutVector.y - expectedY);
+    squaredError += errorPx ** 2;
+    if (errorPx > maxErrorPx) {
+      maxErrorPx = errorPx;
+      maxErrorTileId = samples[index].projected.id;
+    }
   }
   return {
     rotationDeg: rotation * 180 / Math.PI,
-    rmsError: Math.sqrt(squaredError / vectors.length)
+    rmsError: Math.sqrt(squaredError / vectors.length),
+    maxErrorPx,
+    maxErrorTileId
   };
 }
 

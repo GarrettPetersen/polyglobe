@@ -2,10 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   chartRepairCloudFullyCoversCircle,
+  chartRepairCloudSpriteCenter,
   chartRepairCloudTargetContainsCircle,
   chartRepairCloudBankFrame,
   createChartRepairCloudBank
 } from "./chartRepairCloudBank.js";
+
+test("cloud sprites follow the front without inheriting its rotation", () => {
+  const bank = createChartRepairCloudBank({
+    nowMs: 0,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    directionX: 1,
+    directionY: 1,
+    speedPxPerSecond: 12
+  });
+  const frame = chartRepairCloudBankFrame(bank, bank.durationMs / 2);
+  const center = chartRepairCloudSpriteCenter(frame, 20, 5);
+
+  assert.ok(center.x < frame.centerX);
+  assert.ok(center.y > frame.centerY);
+});
 
 test("a narrow repair cloud front crosses without covering the viewport", () => {
   const bank = createChartRepairCloudBank({

@@ -17,13 +17,16 @@ test("repair fog progressively hides distant geography before clearing", () => {
   });
   const open = chartRepairFogFrame(fog, 100);
   const rim = chartRepairFogFrame(fog, 100 + fog.formationDurationMs / 2);
+  const nearlyClosed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs * 0.999);
   const closed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs);
   const cleared = chartRepairFogFrame(fog, 100 + fog.durationMs);
 
+  assert.ok(fog.durationMs > 40_000);
   assert.equal(open.edgeOpacity, 0);
   assert.ok(open.clearRadius > 290);
   assert.equal(chartFogFullyCoversCircle(rim, 227, 128, 12), false);
-  assert.equal(chartFogFullyCoversCircle(rim, 4, 4, 4), true);
+  assert.equal(chartFogFullyCoversCircle(rim, 4, 4, 4), false);
+  assert.equal(chartFogFullyCoversCircle(nearlyClosed, 4, 4, 4), true);
   assert.ok(Math.abs(closed.clearRadius - fog.minimumClearRadius) < 1e-9);
   assert.equal(closed.repairReady, true);
   assert.equal(cleared.finished, true);

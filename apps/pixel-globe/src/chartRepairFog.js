@@ -24,9 +24,9 @@ export function createChartRepairFog({
     Math.hypot(focusX, viewportHeight - focusY),
     Math.hypot(viewportWidth - focusX, viewportHeight - focusY)
   ) + fadeBandPx;
-  const formationDurationMs = 12_000;
+  const formationDurationMs = 24_000;
   const holdDurationMs = 1_800;
-  const clearingDurationMs = 7_000;
+  const clearingDurationMs = 16_000;
   return Object.freeze({
     startedAtMs: nowMs,
     durationMs: formationDurationMs + holdDurationMs + clearingDurationMs,
@@ -72,7 +72,7 @@ export function chartRepairFogFrame(fog, nowMs, release = null) {
     concealment = 1 - smoothstep01(releaseProgress);
     finished = releaseProgress >= 1;
   }
-  const edgeOpacity = clamp01(concealment * 2.2);
+  const edgeOpacity = concealment;
   const clearRadius = fog.maximumClearRadius +
     (fog.minimumClearRadius - fog.maximumClearRadius) * concealment;
   return Object.freeze({

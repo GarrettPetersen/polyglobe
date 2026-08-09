@@ -6,10 +6,26 @@ import {
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
   chartNorthUpDriftExceedsThreshold,
+  createExactNorthUpLayout,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
   selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
+
+test("an exact hidden reframe discards prior tears and follows fresh projection", () => {
+  const layout = createExactNorthUpLayout([
+    { id: 10, x: 120, y: 80 },
+    { id: 11, x: 142, y: 80 },
+    { id: 12, x: 131, y: 99 }
+  ], 200, 120);
+
+  assert.deepEqual([...layout.positions.entries()], [
+    [10, { x: 20, y: 20 }],
+    [11, { x: 42, y: 20 }],
+    [12, { x: 31, y: 39 }]
+  ]);
+  assert.deepEqual({ viewX: layout.viewX, viewY: layout.viewY }, { viewX: 0, viewY: 0 });
+});
 
 test("chart reframing preserves exact player and NPC globe positions", () => {
   const position = directionAt(31.2, 121.5);

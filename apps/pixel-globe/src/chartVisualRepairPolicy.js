@@ -1,21 +1,21 @@
 import {
   chartDistortionNeedsRepair,
   chartRotationNeedsFullCloudRepair,
-  landTearNeedsRepair
+  terrainTearNeedsRepair
 } from "./chartVisualFault.js";
 
 export const CHART_REPAIR_CLOSING_FOG_TEAR_PX = 18;
 
 export function chooseChartVisualRepair({
   drift,
-  landTear,
+  terrainTear,
   distortionPoint,
   viewportWidth,
   viewportHeight,
   swellRepairAvailable,
   polarFogCoversFault = false
 }) {
-  if (!drift || !landTear || !distortionPoint) {
+  if (!drift || !terrainTear || !distortionPoint) {
     throw new Error("Chart visual repair policy requires drift, tear, and distortion metrics");
   }
   for (const [label, value] of Object.entries({
@@ -37,12 +37,12 @@ export function chooseChartVisualRepair({
   if (chartRotationNeedsFullCloudRepair(drift)) {
     return Object.freeze({ kind: "full-cloud" });
   }
-  const tear = landTearNeedsRepair(landTear);
+  const tear = terrainTearNeedsRepair(terrainTear);
   const distortion = chartDistortionNeedsRepair(drift);
   if (!tear && !distortion) return Object.freeze({ kind: "none" });
 
   const fault = tear
-    ? { x: landTear.screenX, y: landTear.screenY, sizePx: landTear.extraPx }
+    ? { x: terrainTear.screenX, y: terrainTear.screenY, sizePx: terrainTear.extraPx }
     : { x: distortionPoint.x, y: distortionPoint.y, sizePx: drift.maxDistortionPx };
   if (polarFogCoversFault) return Object.freeze({ kind: "polar-fog", fault });
 

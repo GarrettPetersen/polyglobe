@@ -50,14 +50,10 @@ export function gameOverReframeCoverIsOpaque({
 
 export function chartShouldReframeOnCoverOpen({
   coverIsActive,
-  coverWasActive,
-  drift
+  coverWasActive
 }) {
   if (typeof coverIsActive !== "boolean" || typeof coverWasActive !== "boolean") {
     throw new Error("Chart cover reframe policy requires boolean cover state");
   }
-  if (!drift || typeof drift.needsReframe !== "boolean") {
-    throw new Error("Chart cover reframe policy requires measured drift");
-  }
-  return coverIsActive && !coverWasActive && drift.needsReframe;
+  return coverIsActive && !coverWasActive;
 }

@@ -69,6 +69,29 @@ export function assertChartReframePositionPreserved(captured, position) {
   }
 }
 
+export function createExactNorthUpLayout(projectedTiles, viewportWidth, viewportHeight) {
+  if (!Array.isArray(projectedTiles) || projectedTiles.length === 0) {
+    throw new Error("Exact north-up layout requires projected tiles");
+  }
+  if (!Number.isFinite(viewportWidth) || viewportWidth <= 0 ||
+      !Number.isFinite(viewportHeight) || viewportHeight <= 0) {
+    throw new Error("Exact north-up layout requires a positive viewport");
+  }
+  const halfWidth = Math.round(viewportWidth / 2);
+  const halfHeight = Math.round(viewportHeight / 2);
+  const positions = new Map();
+  for (const tile of projectedTiles) {
+    if (!Number.isInteger(tile?.id) || !Number.isFinite(tile.x) || !Number.isFinite(tile.y)) {
+      throw new Error("Exact north-up layout received an invalid projected tile");
+    }
+    positions.set(tile.id, {
+      x: tile.x - halfWidth,
+      y: tile.y - halfHeight
+    });
+  }
+  return { viewX: 0, viewY: 0, positions };
+}
+
 export function northUpProjectionIsStable(position) {
   const normalized = validatedUnitVector(position, "north-up camera position");
   return Math.hypot(normalized[0], normalized[2]) >= NORTH_UP_POLE_TANGENT_EPSILON;

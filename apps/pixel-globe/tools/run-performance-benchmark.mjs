@@ -142,11 +142,19 @@ function printReport(report, output) {
       `  Estimated skipped frames: ${report.estimatedSkippedFrames}`,
       `  Chart repairs: ${report.scene.chartVisualRepairs.cloudBanksStarted} cloud banks, ` +
         `${report.scene.chartVisualRepairs.partialCloudBanksStarted} partial, ` +
+        `${report.scene.chartVisualRepairs.cloudBankSecondsScheduled.toFixed(1)} cloud-seconds, ` +
+        `${report.scene.chartVisualRepairs.cloudTargetViewportEquivalents.toFixed(2)} viewport-equivalents, ` +
         `${report.scene.chartVisualRepairs.cloudReframesCompleted} cloud reframes, ` +
         `${report.scene.chartVisualRepairs.partialCloudRedrawsCompleted} partial redraws, ` +
+        `${report.scene.chartVisualRepairs.cloudTilesReplaced} cloud-hidden tiles replaced, ` +
         `${report.scene.chartVisualRepairs.closingFogsStarted} closing fogs, ` +
+        `${report.scene.chartVisualRepairs.closingFogSecondsScheduled.toFixed(1)} fog-seconds, ` +
+        `${Math.round(report.scene.chartVisualRepairs.maximumFogDepthRatio * 100)}% max fog depth, ` +
         `${report.scene.chartVisualRepairs.polarFogRedrawsCompleted} polar fog redraws, ` +
-        `${report.scene.chartVisualRepairs.fogTilesReplaced} fog-hidden tiles replaced`,
+        `${report.scene.chartVisualRepairs.fogTilesReplaced} fog-hidden tiles replaced, ` +
+        `${report.scene.chartVisualRepairs.swellRepairPasses} swell passes / ` +
+        `${report.scene.chartVisualRepairs.swellTilesSettled} tiles, ` +
+        `burden ${report.scene.chartVisualRepairs.burdenScore}`,
       `  Ready in: ${report.pageReadyMs} ms; CPU throttle: ${report.cpuThrottle}x; ` +
         `browser: ${report.headless ? "headless" : "headed"}`,
       `  Report: ${output}`

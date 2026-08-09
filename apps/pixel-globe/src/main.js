@@ -1594,6 +1594,7 @@ import {
   assertChartReframePositionPreserved,
   captureChartReframePosition,
   chartReframeCandidateIsNorthUp,
+  createExactNorthUpLayout,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
   selectRepresentativeChartDriftCalls
@@ -1605,13 +1606,15 @@ import {
 } from "./chartReframeCover.js";
 import {
   chartRotationNeedsFullCloudRepair,
-  landTearNeedsRepair,
-  measureVisibleLandTear
+  measureVisibleTerrainTear,
+  terrainTearNeedsRepair
 } from "./chartVisualFault.js";
 import { chooseChartVisualRepair } from "./chartVisualRepairPolicy.js";
+import { chartVisualRepairBurden } from "./chartVisualRepairBurden.js";
 import {
   chartRepairCloudFullyCoversCircle,
   chartRepairCloudBankFrame,
+  chartRepairCloudSpriteCenter,
   createChartRepairCloudBank
 } from "./chartRepairCloudBank.js";
 import {
@@ -2088,6 +2091,8 @@ const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const CLOUD_VISUAL_ALTITUDE_RATIO = 0.72;
 const CHART_REPAIR_CLOUD_COOLDOWN_MS = 20_000;
 const CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS = 120;
+const CHART_REPAIR_CLOUD_SPEED_SCALE = 0.22;
+const CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND = 7;
 const CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS = 240;
 const CHART_REPAIR_TILE_VISUAL_RADIUS_PX = TILE_ART_HALF + 3;
 const CLOUD_VIEWPORT_MARGIN_PX =
@@ -8315,7 +8320,10 @@ function performanceBenchmarkSceneSnapshot(state) {
     gpuRenderedPlayerShip: gpuShipDrawCommands.some(
       (command) => command.kind === "ship" && command.drawCall.kind === "player"
     ),
-    chartVisualRepairs: Object.freeze({ ...chartVisualRepairStats }),
+    chartVisualRepairs: Object.freeze({
+      ...chartVisualRepairStats,
+      ...chartVisualRepairBurden(chartVisualRepairStats)
+    }),
     gpuRenderer: worldRenderer.stats()
   };
 }
@@ -19570,22 +19578,23 @@ function measureCurrentChartNorthUpDrift() {
   return chartNorthUpDrift;
 }
 
-function measureCurrentVisibleLandTear() {
+function measureCurrentVisibleTerrainTear() {
   if (!chart || !localLayout) {
     return Object.freeze({
       extraPx: 0,
       tileIds: Object.freeze([]),
+      surface: null,
       screenX: SCREEN_W / 2,
       screenY: SCREEN_H / 2
     });
   }
-  return measureVisibleLandTear({
+  return measureVisibleTerrainTear({
     faceCalls: chart.faceCalls,
     tileById: chart.tileById,
     offset: layoutOffsetPixels(),
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
-    isLandTile: (call) => !isWaterSurfaceRow(call.row)
+    surfaceForTile: (call) => isWaterSurfaceRow(call.row) ? "water" : "land"
   });
 }
 
@@ -19597,12 +19606,12 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     opaqueWorldCoverIsActive()
   ) return false;
 
-  const landTear = measureCurrentVisibleLandTear();
+  const terrainTear = measureCurrentVisibleTerrainTear();
   const swellRepairAvailable = chartViewportIsFullyElasticOpenOcean() ||
-    chartFaultCanUseOceanSwell(drift, landTear);
+    chartFaultCanUseOceanSwell(drift, terrainTear);
   let repair = chooseChartVisualRepair({
     drift,
-    landTear,
+    terrainTear,
     distortionPoint: chartWorstDistortionPoint,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
@@ -19621,7 +19630,7 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   ) {
     repair = chooseChartVisualRepair({
       drift,
-      landTear,
+      terrainTear,
       distortionPoint: chartWorstDistortionPoint,
       viewportWidth: SCREEN_W,
       viewportHeight: SCREEN_H,
@@ -19636,50 +19645,57 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   }
 
   if (repair.kind === "closing-fog") {
+    const animation = createChartRepairFog({
+      nowMs,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H,
+      focusX: SCREEN_W / 2,
+      focusY: SCREEN_H / 2
+    });
     chartRepairFog = {
-      animation: createChartRepairFog({
-        nowMs,
-        viewportWidth: SCREEN_W,
-        viewportHeight: SCREEN_H,
-        focusX: SCREEN_W / 2,
-        focusY: SCREEN_H / 2
-      }),
+      animation,
       nextTileRepairAtMs: nowMs,
       repairedTileIds: new Set(),
       repairedCount: 0,
       release: null
     };
     chartVisualRepairStats.closingFogsStarted++;
+    chartVisualRepairStats.closingFogSecondsScheduled += animation.durationMs / 1000;
     return true;
   }
 
   const wind = playerWindState ? windForShip() : { directionRad: 0, strength: 0.2 };
   const windFlow = screenWindFlowVector(wind);
-  const cloudSpeedPxPerSecond = Math.max(
+  const windDrivenCloudSpeedPxPerSecond = Math.max(
     SHIP_MINIMUM_POWERED_SPEED_RAD,
     currentPlayerEffectiveShipStats().topSpeedRad * sailWindSpeedFactor(wind.strength)
   ) * PIXELS_PER_RADIAN;
+  const cloudSpeedPxPerSecond = Math.max(
+    CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND,
+    windDrivenCloudSpeedPxPerSecond * CHART_REPAIR_CLOUD_SPEED_SCALE
+  );
   const localRepair = repair.kind === "partial-cloud";
   const localFault = repair.fault || { x: SCREEN_W / 2, y: SCREEN_H / 2, sizePx: 0 };
   const repairSpan = Math.max(
     72,
     Math.min(164, localFault.sizePx + TILE_ART_SIZE * 2)
   );
+  const animation = createChartRepairCloudBank({
+    nowMs,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    directionX: windFlow.x,
+    directionY: windFlow.y,
+    speedPxPerSecond: cloudSpeedPxPerSecond,
+    ...(localRepair ? {
+      targetX: localFault.x,
+      targetY: localFault.y,
+      targetWidth: repairSpan,
+      targetHeight: repairSpan
+    } : {})
+  });
   chartRepairCloudBank = {
-    animation: createChartRepairCloudBank({
-      nowMs,
-      viewportWidth: SCREEN_W,
-      viewportHeight: SCREEN_H,
-      directionX: windFlow.x,
-      directionY: windFlow.y,
-      speedPxPerSecond: cloudSpeedPxPerSecond,
-      ...(localRepair ? {
-        targetX: localFault.x,
-        targetY: localFault.y,
-        targetWidth: repairSpan,
-        targetHeight: repairSpan
-      } : {})
-    }),
+    animation,
     mode: localRepair ? "local" : "full",
     nextTileRepairAtMs: nowMs,
     repairedTileIds: new Set(),
@@ -19687,6 +19703,9 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   };
   chartVisualRepairStats.cloudBanksStarted++;
   if (localRepair) chartVisualRepairStats.partialCloudBanksStarted++;
+  chartVisualRepairStats.cloudBankSecondsScheduled += animation.durationMs / 1000;
+  chartVisualRepairStats.cloudTargetViewportEquivalents +=
+    animation.targetWidth * animation.targetHeight / (SCREEN_W * SCREEN_H);
   return true;
 }
 
@@ -19716,6 +19735,15 @@ function updateChartVisualRepair(nowMs) {
   if (chartRepairFog) {
     const state = chartRepairFog;
     const frame = chartRepairFogFrame(state.animation, nowMs, state.release);
+    const fogRadiusRange = state.animation.maximumClearRadius -
+      state.animation.minimumClearRadius;
+    const fogDepthRatio = fogRadiusRange > 0
+      ? (state.animation.maximumClearRadius - frame.clearRadius) / fogRadiusRange
+      : 0;
+    chartVisualRepairStats.maximumFogDepthRatio = Math.max(
+      chartVisualRepairStats.maximumFogDepthRatio,
+      fogDepthRatio
+    );
     if (
       state.release === null &&
       frame.repairReady &&
@@ -19889,22 +19917,22 @@ function chartViewportIsFullyElasticOpenOcean() {
 function currentChartVisualFaultNeedsRepair() {
   chartNorthUpDrift = measureCurrentChartNorthUpDrift();
   chartDriftMeasuredAtMs = lastFrameMs;
-  const landTear = measureCurrentVisibleLandTear();
+  const terrainTear = measureCurrentVisibleTerrainTear();
   return chooseChartVisualRepair({
     drift: chartNorthUpDrift,
-    landTear,
+    terrainTear,
     distortionPoint: chartWorstDistortionPoint,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     swellRepairAvailable: chartViewportIsFullyElasticOpenOcean() ||
-      chartFaultCanUseOceanSwell(chartNorthUpDrift, landTear)
+      chartFaultCanUseOceanSwell(chartNorthUpDrift, terrainTear)
   }).kind !== "none";
 }
 
-function chartFaultCanUseOceanSwell(drift, landTear) {
+function chartFaultCanUseOceanSwell(drift, terrainTear) {
   if (
     !chart || !localLayout ||
-    landTearNeedsRepair(landTear) ||
+    (terrainTearNeedsRepair(terrainTear) && terrainTear.surface !== "water") ||
     chartRotationNeedsFullCloudRepair(drift)
   ) return false;
   const offset = layoutOffsetPixels();
@@ -19933,12 +19961,18 @@ function chartFaultCanUseOceanSwell(drift, landTear) {
 
 function createChartVisualRepairStats() {
   return {
+    swellRepairPasses: 0,
+    swellTilesSettled: 0,
     cloudBanksStarted: 0,
     partialCloudBanksStarted: 0,
+    cloudBankSecondsScheduled: 0,
+    cloudTargetViewportEquivalents: 0,
     cloudReframesCompleted: 0,
     partialCloudRedrawsCompleted: 0,
     cloudTilesReplaced: 0,
     closingFogsStarted: 0,
+    closingFogSecondsScheduled: 0,
+    maximumFogDepthRatio: 0,
     fogRedrawsCompleted: 0,
     polarFogRedrawsCompleted: 0,
     fogTilesReplaced: 0
@@ -19948,11 +19982,9 @@ function createChartVisualRepairStats() {
 function prepareNorthUpWorldBehindCover() {
   const coverIsActive = opaqueWorldCoverIsActive();
   if (coverIsActive && !chartReframeCoverWasActive && ship && camera && chart && localLayout) {
-    const drift = measureCurrentChartNorthUpDrift();
     if (chartShouldReframeOnCoverOpen({
       coverIsActive,
-      coverWasActive: chartReframeCoverWasActive,
-      drift
+      coverWasActive: chartReframeCoverWasActive
     })) {
       reframeWorldNorthUp("opaque screen opened");
     }
@@ -19994,6 +20026,7 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   }
 
   const driftBefore = measureCurrentChartNorthUpDrift();
+  const terrainTearBefore = measureCurrentVisibleTerrainTear();
   const priorCamera = camera;
   const priorCenterTileId = centerTileId;
   const priorLocalLayout = localLayout;
@@ -20014,8 +20047,28 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   centerTileId = ship.tileId;
   localLayout = createNorthUpLocalLayout(layoutAnchorTileId, camera);
   chart = buildChart(camera);
-  const candidateDrift = measureCurrentChartNorthUpDrift();
-  if (!chartReframeCandidateIsNorthUp(candidateDrift)) {
+  let candidateDrift = measureCurrentChartNorthUpDrift();
+  let candidateTerrainTear = measureCurrentVisibleTerrainTear();
+  let usedExactProjection = false;
+  if (
+    !chartReframeCandidateIsNorthUp(candidateDrift) ||
+    terrainTearNeedsRepair(candidateTerrainTear)
+  ) {
+    localLayout = createNorthUpLocalLayout(layoutAnchorTileId, camera);
+    localLayout = createExactNorthUpLayout(
+      collectChartTiles(camera, layoutAnchorTileId),
+      SCREEN_W,
+      SCREEN_H
+    );
+    chart = buildChart(camera);
+    candidateDrift = measureCurrentChartNorthUpDrift();
+    candidateTerrainTear = measureCurrentVisibleTerrainTear();
+    usedExactProjection = true;
+  }
+  if (
+    !chartReframeCandidateIsNorthUp(candidateDrift) ||
+    terrainTearNeedsRepair(candidateTerrainTear)
+  ) {
     camera = priorCamera;
     centerTileId = priorCenterTileId;
     localLayout = priorLocalLayout;
@@ -20029,7 +20082,9 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
         `${driftBefore.rotationDeg.toFixed(2)}deg -> ` +
         `${candidateDrift.rotationDeg.toFixed(2)}deg rotation, ` +
         `${driftBefore.rmsDistortionPx.toFixed(2)}px -> ` +
-        `${candidateDrift.rmsDistortionPx.toFixed(2)}px RMS`
+        `${candidateDrift.rmsDistortionPx.toFixed(2)}px RMS, ` +
+        `${terrainTearBefore.extraPx.toFixed(2)}px -> ` +
+        `${candidateTerrainTear.extraPx.toFixed(2)}px terrain gap`
     );
     return false;
   }
@@ -20043,6 +20098,9 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   }
   reprojectProjectileGlobePositions(playerProjectilePositions);
   reprojectProjectileGlobePositions(npcProjectilePositions);
+  chartRepairCloudBank = null;
+  chartRepairFog = null;
+  chartRepairCooldownUntilMs = lastFrameMs + CHART_REPAIR_CLOUD_COOLDOWN_MS;
   clearLocalChartTransientEffects();
 
   chartNorthUpDrift = candidateDrift;
@@ -20054,6 +20112,9 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
       `${candidateDrift.rotationDeg.toFixed(2)}deg rotation, ` +
       `${driftBefore.rmsDistortionPx.toFixed(2)}px -> ` +
       `${candidateDrift.rmsDistortionPx.toFixed(2)}px RMS, ` +
+      `${terrainTearBefore.extraPx.toFixed(2)}px -> ` +
+      `${candidateTerrainTear.extraPx.toFixed(2)}px terrain gap, ` +
+      `${usedExactProjection ? "exact fallback, " : ""}` +
       `${npcStates.length} NPC ships, ` +
       `${gameState?.memory?.whales?.individuals?.length || 0} whales, ` +
       `${landTradeSystem?.carts?.length || 0} carts`
@@ -31263,7 +31324,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
       previousOffsetsById.set(id, oceanSwellOffset(previousPresentation.swell, globePosition));
       currentOffsetsById.set(id, oceanSwellOffset(currentSwell, globePosition));
     }
-    mutateChartPositionsBehindVisualCover("ocean swell", () => {
+    const settledTileCount = mutateChartPositionsBehindVisualCover("ocean swell", () => (
       settleVisibleElasticTilesWithinMotion({
         positions: localLayout.positions,
         projectedById,
@@ -31278,8 +31339,12 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
         viewX: localLayout.viewX,
         viewY: localLayout.viewY,
         maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
-      });
-    });
+      })
+    ));
+    if (settledTileCount > 0) {
+      chartVisualRepairStats.swellRepairPasses++;
+      chartVisualRepairStats.swellTilesSettled += settledTileCount;
+    }
     // One displayed-to-current motion interval may hide settlement only once.
     lastPresentedOceanSwell = null;
   } else if (
@@ -40641,7 +40706,9 @@ function drawChartRepairCloudBank(frame) {
     frame.solidHalfDepth * 2,
     frame.halfSpan * 2
   );
+  ctx.restore();
   if (cloudSpriteSheet) {
+    ctx.save();
     const frameCount = Math.max(1, Math.floor(cloudSpriteSheet.width / CLOUD_SPRITE_FRAME_SIZE));
     ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = 1;
@@ -40650,21 +40717,22 @@ function drawChartRepairCloudBank(frame) {
     for (let y = -frame.halfSpan; y <= frame.halfSpan; y += step) {
       const sourceX = spriteIndex % frameCount * CLOUD_SPRITE_FRAME_SIZE;
       const depthJitter = Math.round(Math.sin(spriteIndex * 2.399963) * 6);
+      const center = chartRepairCloudSpriteCenter(frame, y, depthJitter);
       ctx.drawImage(
         cloudSpriteSheet,
         sourceX,
         0,
         CLOUD_SPRITE_FRAME_SIZE,
         CLOUD_SPRITE_FRAME_SIZE,
-        -Math.round(CLOUD_SPRITE_FRAME_SIZE / 2) + depthJitter,
-        Math.round(y - CLOUD_SPRITE_FRAME_SIZE / 2),
+        Math.round(center.x - CLOUD_SPRITE_FRAME_SIZE / 2),
+        Math.round(center.y - CLOUD_SPRITE_FRAME_SIZE / 2),
         CLOUD_SPRITE_FRAME_SIZE,
         CLOUD_SPRITE_FRAME_SIZE
       );
       spriteIndex++;
     }
+    ctx.restore();
   }
-  ctx.restore();
 }
 
 function chartFogColor() {

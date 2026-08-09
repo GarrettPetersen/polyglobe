@@ -114,3 +114,14 @@ export function chartRepairCloudFullyCoversCircle(frame, x, y, radius = 0) {
   return Math.abs(depth) + radius <= frame.solidHalfDepth &&
     Math.abs(span) + radius <= frame.halfSpan;
 }
+
+export function chartRepairCloudSpriteCenter(frame, span, depth = 0) {
+  if (!frame) throw new Error("Chart cloud sprite placement requires a frame");
+  for (const [label, value] of Object.entries({ span, depth })) {
+    if (!Number.isFinite(value)) throw new Error(`Chart cloud sprite has invalid ${label}`);
+  }
+  return Object.freeze({
+    x: frame.centerX - frame.dy * span + frame.dx * depth,
+    y: frame.centerY + frame.dx * span + frame.dy * depth
+  });
+}

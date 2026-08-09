@@ -17,21 +17,18 @@ test("full notebook pages and admitted port dialogue can hide a correction", () 
   assert.equal(chartReframeCoverIsOpaque({ fullPortDialogue: true }), true);
 });
 
-test("opening opaque cover only reframes a chart that actually drifted", () => {
+test("opening opaque cover always heals the hidden chart once", () => {
   assert.equal(chartShouldReframeOnCoverOpen({
     coverIsActive: true,
-    coverWasActive: false,
-    drift: { needsReframe: false }
-  }), false);
-  assert.equal(chartShouldReframeOnCoverOpen({
-    coverIsActive: true,
-    coverWasActive: false,
-    drift: { needsReframe: true }
+    coverWasActive: false
   }), true);
   assert.equal(chartShouldReframeOnCoverOpen({
     coverIsActive: true,
-    coverWasActive: true,
-    drift: { needsReframe: true }
+    coverWasActive: true
+  }), false);
+  assert.equal(chartShouldReframeOnCoverOpen({
+    coverIsActive: false,
+    coverWasActive: false
   }), false);
 });
 
