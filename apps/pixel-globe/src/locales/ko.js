@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "식수 부족",
   "status.sunset": "일몰",
   "status.sunrise": "일출",
+  "status.whaleSpeciesExtinctBlubber": "멸종한 종: {species}  고래기름 +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "멸종한 종: {species}  화물칸 가득 참",
   "storm.manOverboardLabel": "선원 추락",
   "storm.manOverboardFirst": "급히 돌려라! 큰 파도가 선원들을 휩쓸어 갔다. 바다가 삼키기 전에 배를 가까이 대라.",
   "storm.manOverboardNoticeOne": "선원 추락",

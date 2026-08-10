@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "QUEDA POCA AGUA POTABLE",
   "status.sunset": "PUESTA DE SOL",
   "status.sunrise": "AMANECER",
+  "status.whaleSpeciesExtinctBlubber": "ESPECIE EXTINTA: {species}  GRASA +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "ESPECIE EXTINTA: {species}  BODEGA LLENA",
   "storm.manOverboardLabel": "HOMBRE AL AGUA",
   "storm.manOverboardFirst": "¡Todo el timón! Una rompiente ha barrido tripulantes por la borda. Acerquémonos antes de que se los lleve el mar.",
   "storm.manOverboardNoticeOne": "HOMBRE AL AGUA",

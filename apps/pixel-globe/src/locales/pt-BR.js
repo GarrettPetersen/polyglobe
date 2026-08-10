@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "ÁGUA POTÁVEL BAIXA",
   "status.sunset": "PÔR DO SOL",
   "status.sunrise": "NASCER DO SOL",
+  "status.whaleSpeciesExtinctBlubber": "ESPÉCIE EXTINTA: {species}  ÓLEO +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "ESPÉCIE EXTINTA: {species}  PORÃO CHEIO",
   "storm.manOverboardLabel": "HOMEM AO MAR",
   "storm.manOverboardFirst": "Leme todo! Uma vaga lançou tripulantes ao mar. Aproxime o navio antes que o mar os leve.",
   "storm.manOverboardNoticeOne": "HOMEM AO MAR",

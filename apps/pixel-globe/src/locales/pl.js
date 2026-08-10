@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "MAŁO WODY PITNEJ",
   "status.sunset": "ZACHÓD SŁOŃCA",
   "status.sunrise": "WSCHÓD SŁOŃCA",
+  "status.whaleSpeciesExtinctBlubber": "GATUNEK WYMARŁ: {species}  TRAN +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "GATUNEK WYMARŁ: {species}  ŁADOWNIA PEŁNA",
   "storm.manOverboardLabel": "CZŁOWIEK ZA BURTĄ",
   "storm.manOverboardFirst": "Ster na burtę! Fala zmyła załogantów za burtę. Podejdźmy do nich, nim zabierze ich morze.",
   "storm.manOverboardNoticeOne": "CZŁOWIEK ZA BURTĄ",

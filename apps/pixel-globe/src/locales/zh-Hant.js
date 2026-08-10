@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "飲用水不足",
   "status.sunset": "日落",
   "status.sunrise": "日出",
+  "status.whaleSpeciesExtinctBlubber": "物種滅絕：{species}  鯨脂 +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "物種滅絕：{species}  船艙已滿",
   "storm.manOverboardLabel": "有人落水",
   "storm.manOverboardFirst": "快轉舵！巨浪把船員捲下海了。快靠過去，別讓大海吞沒他們。",
   "storm.manOverboardNoticeOne": "有人落水",

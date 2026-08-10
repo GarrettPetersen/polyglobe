@@ -567,6 +567,7 @@ import {
   cutWhaleLoose,
   exhaustTetheredWhale,
   killExhaustedWhale,
+  livingWhaleCountForSpecies,
   seedWhalePopulation,
   tetherWhale,
   underwaterWhaleSongPresence,
@@ -19291,16 +19292,30 @@ function landWhaleKillingBlow() {
   if (whale !== quarry) throw new Error(`Whale hunt changed during the killing blow: ${hunt.whaleId}`);
   playWhaleKillSound();
   const label = whaleDisplayLabel(whale);
+  const speciesExtinct = livingWhaleCountForSpecies(
+    gameState.memory.whales,
+    whale.speciesId
+  ) === 0;
   const result = receiveWhaleBlubber(
     gameState,
     whaleBlubberYield(whale),
     { simMinute: Math.floor(weatherClockMinutes), speciesLabel: label }
   );
   showSurvivalNotice(
-    result.quantity > 0
-      ? `${label.toUpperCase()} TAKEN  +${result.quantity} WHALE BLUBBER`
-      : `${label.toUpperCase()} TAKEN  HOLD FULL`,
-    "good"
+    speciesExtinct
+      ? uiText(
+          result.quantity > 0
+            ? "status.whaleSpeciesExtinctBlubber"
+            : "status.whaleSpeciesExtinctHoldFull",
+          {
+            species: renderedUiText(label).toUpperCase(),
+            quantity: result.quantity
+          }
+        )
+      : result.quantity > 0
+        ? `${label.toUpperCase()} TAKEN  +${result.quantity} WHALE BLUBBER`
+        : `${label.toUpperCase()} TAKEN  HOLD FULL`,
+    speciesExtinct ? "warn" : "good"
   );
   syncShipCargoFromGameState();
   syncAchievementsFromGameState({ type: "whale-killed" });

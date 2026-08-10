@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "TRINKWASSER KNAPP",
   "status.sunset": "SONNENUNTERGANG",
   "status.sunrise": "SONNENAUFGANG",
+  "status.whaleSpeciesExtinctBlubber": "ART AUSGESTORBEN: {species}  TRAN +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "ART AUSGESTORBEN: {species}  LADERAUM VOLL",
   "storm.manOverboardLabel": "MANN ÜBER BORD",
   "storm.manOverboardFirst": "Hart Ruder! Eine Sturzsee hat Besatzung über Bord gespült. Längsseits, bevor die See sie holt.",
   "storm.manOverboardNoticeOne": "MANN ÜBER BORD",

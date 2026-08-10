@@ -15,6 +15,7 @@ import {
   exhaustTetheredWhale,
   harvestWhaleForNpc,
   killExhaustedWhale,
+  livingWhaleCountForSpecies,
   seedWhalePopulation,
   tetherWhale,
   underwaterWhaleSongPresence,
@@ -194,6 +195,24 @@ test("a secured whale tows until exhausted, then can be killed or released", () 
   cutWhaleLoose(releasedMemory);
   assert.equal(releasedMemory.activeHunt, null);
   assert.equal(released.phase, "diving");
+});
+
+test("killing the last living member makes a whale species extinct", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const speciesId = WHALE_SPECIES_BLUE;
+  const living = memory.individuals.filter((whale) => whale.speciesId === speciesId);
+  assert.equal(living.length, 1);
+  const whale = living[0];
+  whale.phase = WHALE_PHASE_RISING;
+  whale.phaseElapsedSeconds = 1;
+  whale.phaseDurationSeconds = 2;
+
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+  exhaustTetheredWhale(memory);
+  assert.equal(livingWhaleCountForSpecies(memory, speciesId), 1);
+  killExhaustedWhale(memory);
+  assert.equal(livingWhaleCountForSpecies(memory, speciesId), 0);
 });
 
 test("an authored hunt can use the same exhausted state transition as a completed tow", () => {

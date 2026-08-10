@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "EAU POTABLE FAIBLE",
   "status.sunset": "COUCHER DU SOLEIL",
   "status.sunrise": "LEVER DU SOLEIL",
+  "status.whaleSpeciesExtinctBlubber": "ESPÈCE ÉTEINTE : {species}  GRAISSE +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "ESPÈCE ÉTEINTE : {species}  CALE PLEINE",
   "storm.manOverboardLabel": "HOMME À LA MER",
   "storm.manOverboardFirst": "La barre toute ! Une lame a emporté des nôtres. Ramenons le navire avant que la mer ne les prenne.",
   "storm.manOverboardNoticeOne": "HOMME À LA MER",

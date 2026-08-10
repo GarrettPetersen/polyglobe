@@ -510,6 +510,16 @@ export function whaleById(memory, whaleId) {
   return whale;
 }
 
+export function livingWhaleCountForSpecies(memory, speciesId) {
+  validateWhaleMemory(memory);
+  whaleSpeciesById(speciesId);
+  return memory.individuals.reduce((count, whale) => (
+    whale.speciesId === speciesId && whale.phase !== WHALE_PHASE_DEAD
+      ? count + 1
+      : count
+  ), 0);
+}
+
 export function whiteWhale(memory) {
   return whaleById(memory, WHITE_WHALE_ID);
 }

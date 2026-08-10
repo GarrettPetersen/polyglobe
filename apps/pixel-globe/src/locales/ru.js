@@ -467,6 +467,8 @@ export default {
   "status.drinkableWaterLow": "МАЛО ПИТЬЕВОЙ ВОДЫ",
   "status.sunset": "ЗАКАТ",
   "status.sunrise": "РАССВЕТ",
+  "status.whaleSpeciesExtinctBlubber": "ВИД ВЫМЕР: {species}  ВОРВАНЬ +{quantity}",
+  "status.whaleSpeciesExtinctHoldFull": "ВИД ВЫМЕР: {species}  ТРЮМ ПОЛОН",
   "storm.manOverboardLabel": "ЧЕЛОВЕК ЗА БОРТОМ",
   "storm.manOverboardFirst": "Руль на борт! Волна смыла людей за борт. Подведите судно, пока море их не унесло.",
   "storm.manOverboardNoticeOne": "ЧЕЛОВЕК ЗА БОРТОМ",
