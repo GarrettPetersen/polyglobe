@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  SHIP_TURN_MOMENTUM_FOLLOW_RATIO,
   contactPushOffVelocity,
   oarPivotTurnRate,
   shipDirectionMakesForwardProgress,
   shipTurnRate,
+  steerShipMomentumThroughTurn,
   updateBoundaryContactLatch
 } from "./shipTurning.js";
 
@@ -96,6 +98,40 @@ test("opposed oar banks pivot small craft faster than heavy galleasses", () => {
   assert.equal(oarPivotTurnRate({ turnRateRad: 2, mass: 90, rowerRatio: 0 }), 0);
 });
 
+test("a moving ship bends its momentum through a turn without hitting an invisible wall", () => {
+  const turn = 20 * Math.PI / 180;
+  const velocity = [0.01, 0, 0];
+  const steered = steerShipMomentumThroughTurn({
+    velocity,
+    previousHeading: [1, 0, 0],
+    nextHeading: [Math.cos(turn), Math.sin(turn), 0],
+    surfaceNormal: [0, 0, 1]
+  });
+  const velocityTurn = Math.atan2(steered[1], steered[0]);
+
+  assert.ok(Math.abs(Math.hypot(...steered) - Math.hypot(...velocity)) < 1e-12);
+  assert.ok(velocityTurn > 0);
+  assert.ok(velocityTurn < turn);
+  assert.ok(Math.abs(velocityTurn - turn * SHIP_TURN_MOMENTUM_FOLLOW_RATIO) < 1e-12);
+});
+
+test("an oar pivot can rotate the hull without manufacturing momentum", () => {
+  const velocity = [0.004, 0, 0];
+  assert.deepEqual(steerShipMomentumThroughTurn({
+    velocity,
+    previousHeading: [1, 0, 0],
+    nextHeading: [0, 1, 0],
+    surfaceNormal: [0, 0, 1],
+    followRatio: 0
+  }), velocity);
+  assert.deepEqual(steerShipMomentumThroughTurn({
+    velocity: [0, 0, 0],
+    previousHeading: [1, 0, 0],
+    nextHeading: [0, 1, 0],
+    surfaceNormal: [0, 0, 1]
+  }), [0, 0, 0]);
+});
+
 test("pushing away from a bank removes bankward momentum and guarantees escape speed", () => {
   assert.deepEqual(contactPushOffVelocity({
     velocity: [0.003, 0.001, 0],
@@ -145,4 +181,11 @@ test("turning helpers reject invalid motion data", () => {
     obstacleNormal: [1, 0, 0],
     minimumEscapeSpeedRad: 0.001
   }), /normalized/);
+  assert.throws(() => steerShipMomentumThroughTurn({
+    velocity: [0.01, 0, 0],
+    previousHeading: [1, 0, 0],
+    nextHeading: [0, 1, 0],
+    surfaceNormal: [0, 0, 1],
+    followRatio: 1.1
+  }), /between zero and one/);
 });

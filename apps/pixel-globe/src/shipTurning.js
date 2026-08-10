@@ -1,5 +1,6 @@
 export const SHIP_MINIMUM_RUDDER_AUTHORITY = 0.25;
 export const SHIP_MINIMUM_FORWARD_PROGRESS_ALIGNMENT = 0.01;
+export const SHIP_TURN_MOMENTUM_FOLLOW_RATIO = 0.82;
 export const OAR_PIVOT_BASE_TURN_RATIO = 0.72;
 export const OAR_PIVOT_REFERENCE_MASS = 90;
 export const OAR_PIVOT_MINIMUM_MASS_SCALE = 0.4;
@@ -35,6 +36,53 @@ export function oarPivotTurnRate({ turnRateRad, mass, rowerRatio }) {
     Math.min(1, Math.sqrt(OAR_PIVOT_REFERENCE_MASS / mass))
   );
   return turnRateRad * OAR_PIVOT_BASE_TURN_RATIO * massScale * Math.sqrt(rowerRatio);
+}
+
+export function steerShipMomentumThroughTurn({
+  velocity,
+  previousHeading,
+  nextHeading,
+  surfaceNormal,
+  followRatio = SHIP_TURN_MOMENTUM_FOLLOW_RATIO
+}) {
+  assertVector3("Ship turning velocity", velocity);
+  assertUnitVector3("Ship previous heading", previousHeading);
+  assertUnitVector3("Ship next heading", nextHeading);
+  assertUnitVector3("Ship surface normal", surfaceNormal);
+  if (!Number.isFinite(followRatio) || followRatio < 0 || followRatio > 1) {
+    throw new Error("Ship momentum turn follow ratio must be between zero and one");
+  }
+
+  const speed = Math.hypot(...velocity);
+  if (speed <= 1e-12 || followRatio === 0) return velocity.slice();
+  const signedHeadingTurn = Math.atan2(
+    dot3(surfaceNormal, cross3(previousHeading, nextHeading)),
+    clamp(dot3(previousHeading, nextHeading), -1, 1)
+  );
+  if (Math.abs(signedHeadingTurn) <= 1e-12) return velocity.slice();
+
+  const angle = signedHeadingTurn * followRatio;
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  const axisCrossVelocity = cross3(surfaceNormal, velocity);
+  const axisVelocity = dot3(surfaceNormal, velocity);
+  const rotated = [
+    velocity[0] * cosine + axisCrossVelocity[0] * sine + surfaceNormal[0] * axisVelocity * (1 - cosine),
+    velocity[1] * cosine + axisCrossVelocity[1] * sine + surfaceNormal[1] * axisVelocity * (1 - cosine),
+    velocity[2] * cosine + axisCrossVelocity[2] * sine + surfaceNormal[2] * axisVelocity * (1 - cosine)
+  ];
+  const normalSpeed = dot3(rotated, surfaceNormal);
+  const tangent = [
+    rotated[0] - surfaceNormal[0] * normalSpeed,
+    rotated[1] - surfaceNormal[1] * normalSpeed,
+    rotated[2] - surfaceNormal[2] * normalSpeed
+  ];
+  const tangentSpeed = Math.hypot(...tangent);
+  if (tangentSpeed <= 1e-12) {
+    throw new Error("Ship momentum turn collapsed its tangent velocity");
+  }
+  const speedScale = speed / tangentSpeed;
+  return tangent.map((component) => component * speedScale);
 }
 
 export function updateBoundaryContactLatch({
@@ -137,4 +185,16 @@ function assertOptionalContact(label, contact) {
 
 function dot3(a, b) {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function cross3(a, b) {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0]
+  ];
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }

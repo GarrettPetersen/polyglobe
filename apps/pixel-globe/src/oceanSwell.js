@@ -3,12 +3,12 @@ export const CALM_SWELL_PACKET_PERIOD_MS = 26000;
 export const CALM_SWELL_PACKET_DURATION_MS = 7000;
 export const CALM_SWELL_MAX_AMPLITUDE_PX = 1;
 export const STORM_SWELL_MAX_AMPLITUDE_PX = 3;
-export const STORM_SWELL_PERIOD_MS = 8000;
+export const CALM_SWELL_WAVE_PERIOD_MS = 8500;
+export const STORM_SWELL_PERIOD_MS = 6500;
 export const OCEAN_SWELL_SPATIAL_CYCLES = 7;
 export const CALM_SWELL_BAND_WIDTH = 0.18;
 export const STORM_SWELL_BAND_WIDTH = 0.26;
 
-const CALM_SWELL_WAVE_PERIOD_MS = 12000;
 const PHASE_AXIS_QUANTIZATION = 64;
 const TAU = Math.PI * 2;
 
@@ -62,7 +62,8 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
     }),
     frame: cachedFrame,
     phaseAxis: Object.freeze(cachedPhaseAxis),
-    stormStrength
+    stormStrength,
+    travelPeriodMs: periodMs
   });
 }
 

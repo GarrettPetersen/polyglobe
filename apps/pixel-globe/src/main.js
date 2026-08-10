@@ -836,6 +836,7 @@ import {
   oarPivotTurnRate,
   shipDirectionMakesForwardProgress,
   shipTurnRate,
+  steerShipMomentumThroughTurn,
   updateBoundaryContactLatch
 } from "./shipTurning.js";
 import {
@@ -22437,7 +22438,8 @@ function updateSailing(dt) {
   const previousHeading = ship.heading;
   if (steeringHeading) {
     ship.targetHeading = steeringHeading;
-    const turnRate = shipRowingModeIsPivot(input.rowingMode)
+    const pivoting = shipRowingModeIsPivot(input.rowingMode);
+    const turnRate = pivoting
       ? oarPivotTurnRate({
           turnRateRad: effectiveStats.turnRateRad,
           mass: effectiveStats.mass,
@@ -22457,6 +22459,14 @@ function updateSailing(dt) {
       ship.position,
       turnRate * dt
     );
+    if (!pivoting && dot3(previousHeading, ship.heading) < 1 - 1e-12) {
+      ship.velocity = steerShipMomentumThroughTurn({
+        velocity: ship.velocity,
+        previousHeading,
+        nextHeading: ship.heading,
+        surfaceNormal: ship.position
+      });
+    }
   } else {
     ship.targetHeading = ship.heading;
   }

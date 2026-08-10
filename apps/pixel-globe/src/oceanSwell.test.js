@@ -5,6 +5,7 @@ import {
   CALM_SWELL_BAND_WIDTH,
   CALM_SWELL_PACKET_DURATION_MS,
   CALM_SWELL_PACKET_PERIOD_MS,
+  CALM_SWELL_WAVE_PERIOD_MS,
   OCEAN_SWELL_SPATIAL_CYCLES,
   STORM_SWELL_MAX_AMPLITUDE_PX,
   STORM_SWELL_BAND_WIDTH,
@@ -39,6 +40,8 @@ test("calm ocean swells arrive as brief low-amplitude packets", () => {
     flowDirectionRad: 0
   });
   assert.equal(crest.amplitudePx, 1);
+  assert.equal(crest.travelPeriodMs, CALM_SWELL_WAVE_PERIOD_MS);
+  assert.ok(CALM_SWELL_PACKET_DURATION_MS < CALM_SWELL_PACKET_PERIOD_MS);
 });
 
 test("storms sustain stronger wind-driven swells", () => {
@@ -49,7 +52,9 @@ test("storms sustain stronger wind-driven swells", () => {
   });
 
   assert.equal(state.amplitudePx, STORM_SWELL_MAX_AMPLITUDE_PX);
-  assert.ok(STORM_SWELL_PERIOD_MS >= 8000);
+  assert.equal(state.travelPeriodMs, STORM_SWELL_PERIOD_MS);
+  assert.ok(STORM_SWELL_PERIOD_MS < CALM_SWELL_WAVE_PERIOD_MS);
+  assert.ok(CALM_SWELL_WAVE_PERIOD_MS <= 8500);
   assert.ok(OCEAN_SWELL_SPATIAL_CYCLES <= 7);
   assert.equal(state.bandWidth, Math.round(STORM_SWELL_BAND_WIDTH * 64) / 64);
 });
@@ -106,7 +111,7 @@ test("swell phase is anchored to globe position rather than screen position", ()
 });
 
 test("swell phase advances along the wind axis rather than across it", () => {
-  const state = swellState({ nowMs: 3500, stormStrength: 1, flowDirectionRad: 0 });
+  const state = swellState({ nowMs: 500, stormStrength: 1, flowDirectionRad: 0 });
   const origin = oceanSwellOffset(state, [0, 1, 0]);
   const alongWind = oceanSwellOffset(state, [0.04, Math.sqrt(1 - 0.04 ** 2), 0]);
   const acrossWind = oceanSwellOffset(state, [0, Math.sqrt(1 - 0.04 ** 2), 0.04]);
