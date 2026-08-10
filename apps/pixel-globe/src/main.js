@@ -15170,7 +15170,9 @@ function withPortArrivalGossip(session, cityCall) {
   const rulerRumor = cityCall.factionId
     ? unheardNpcGossip(
         decisions,
-        unheardRegionalRulerChange(decisions, cityCall.factionId, simMinute),
+        unheardRegionalRulerChange(decisions, cityCall.factionId, simMinute, {
+          excludedFactionIds: gameState.memory.conquest.collapsedFactionIds
+        }),
         simMinute
       )
     : null;
@@ -15184,7 +15186,7 @@ function withPortArrivalGossip(session, cityCall) {
     gameState.relations.papacy,
     cityCall,
     simMinute
-  ) || recentHistoricalGossipForPort(cityCall, simMinute, [...cityByTileId.values()]);
+  ) || recentHistoricalGossipForPort(cityCall, simMinute, historicalGossipWorldState());
   const perspectiveId = npcGossipPerspectiveId(historicalCandidate, cityCall.character);
   const historicalGossip = unheardNpcGossip(decisions, historicalCandidate, simMinute, perspectiveId);
   if (historicalGossip) {
@@ -15192,6 +15194,17 @@ function withPortArrivalGossip(session, cityCall) {
     session.historicalGossip = historicalGossip;
   }
   return session;
+}
+
+function historicalGossipWorldState() {
+  return {
+    worldCities: [...cityByTileId.values()],
+    collapsedFactionIds: gameState.memory.conquest.collapsedFactionIds,
+    diplomacy: gameState.relations.diplomacy,
+    papacy: gameState.relations.papacy,
+    tradeAccessGrants: gameState.relations.tradeAccessGrants,
+    foreignSettlementExpulsions: gameState.relations.foreignSettlementExpulsions
+  };
 }
 
 function npcGossipPerspectiveId(gossip, speakerCharacter) {

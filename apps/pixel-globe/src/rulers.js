@@ -224,9 +224,18 @@ export function rulerChangesBetween(fromMinute, toMinute) {
   return ALL_RULER_CHANGES.filter((event) => event.fromMinute > fromMinute && event.fromMinute <= toMinute);
 }
 
-export function recentRegionalRulerChange(factionId, simMinute, maxAgeDays = RULER_GOSSIP_DAYS) {
+export function recentRegionalRulerChange(
+  factionId,
+  simMinute,
+  {
+    maxAgeDays = RULER_GOSSIP_DAYS,
+    excludedFactionIds = []
+  } = {}
+) {
   assertSimMinute(simMinute);
   if (!Number.isFinite(maxAgeDays) || maxAgeDays < 0) throw new Error(`Invalid ruler gossip age: ${maxAgeDays}`);
+  if (!Array.isArray(excludedFactionIds)) throw new Error("Excluded ruler-news factions must be an array");
+  const excluded = new Set(excludedFactionIds.map((id) => factionById(id).id));
   if (factionId === NEUTRAL_FACTION_ID || factionId === PIRATE_FACTION_ID) return null;
   factionById(factionId);
   const regionalIds = REGIONAL_FACTION_IDS.get(factionId);
@@ -237,6 +246,7 @@ export function recentRegionalRulerChange(factionId, simMinute, maxAgeDays = RUL
     if (event.fromMinute > simMinute) continue;
     if (event.fromMinute < earliestMinute) break;
     if (!regionalIds.has(event.factionId)) continue;
+    if (excluded.has(event.factionId)) continue;
     return Object.freeze({
       ...event,
       daysAgo: Math.floor((simMinute - event.fromMinute) / WEATHER_MINUTES_PER_DAY)
@@ -245,9 +255,9 @@ export function recentRegionalRulerChange(factionId, simMinute, maxAgeDays = RUL
   return null;
 }
 
-export function unheardRegionalRulerChange(decisions, factionId, simMinute) {
+export function unheardRegionalRulerChange(decisions, factionId, simMinute, options = {}) {
   assertRulerGossipDecisions(decisions);
-  const event = recentRegionalRulerChange(factionId, simMinute);
+  const event = recentRegionalRulerChange(factionId, simMinute, options);
   if (!event) return null;
   return rulerGossipMentionCount(decisions, event) < RULER_GOSSIP_MENTION_LIMIT
     ? event

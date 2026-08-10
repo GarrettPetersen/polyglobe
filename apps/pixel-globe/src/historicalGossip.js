@@ -1,8 +1,35 @@
-import { factionById } from "./factions.js";
+import {
+  DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
+  DIPLOMACY_NEUTRAL,
+  DIPLOMACY_WAR,
+  factionById
+} from "./factions.js";
+import {
+  activeForeignSettlements,
+  foreignSettlementById,
+  validateForeignSettlementExpulsionMemory
+} from "./foreignSettlements.js";
+import { validatePapalPolitics } from "./papalPolitics.js";
+import {
+  sovereignTradeGrantedToFaction,
+  sovereignTradePolicyById,
+  validateSovereignTradeGrantMemory
+} from "./sovereignTradeAccess.js";
+import { suzeraintyTradePrivilege } from "./suzerainty.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
+import { validateWorldDiplomacy, worldDiplomacyBetween } from "./worldDiplomacy.js";
 
 const START_YEAR = 1522;
 const MONTH_LENGTHS = Object.freeze([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
+const DIPLOMACY_RELATIONS = new Set([
+  DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
+  DIPLOMACY_NEUTRAL,
+  DIPLOMACY_WAR
+]);
 
 export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
   historicalEvent({
@@ -43,6 +70,8 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1523, 7, 1],
     countries: ["China", "Republic of Korea", "Japan"],
     factionIds: ["ming", "joseon", "japan"],
+    requiredActiveFactionIds: ["ming", "portugal"],
+    requiredClosedTrade: closedTrade("ming-maritime-prohibition", "portugal"),
     place: "the Chinese coast",
     report: "the Jiajing court has driven the Portuguese from lawful Chinese trade, though smugglers still test the southern coast",
     tradeImpact: "Silk now changes hands through quieter and dearer channels.",
@@ -54,6 +83,12 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1524, 1, 1],
     countries: ["Indonesia"],
     factionIds: ["ternate", "tidore", "spain", "portugal"],
+    requiredActiveFactionIds: ["ternate", "tidore", "spain", "portugal"],
+    requiredRelations: [
+      relation("spain", "tidore", [DIPLOMACY_FRIENDLY, DIPLOMACY_ALLY]),
+      relation("portugal", "ternate", [DIPLOMACY_NEUTRAL, DIPLOMACY_FRIENDLY, DIPLOMACY_ALLY])
+    ],
+    requiredForeignSettlementId: "portuguese-ternate",
     place: "the Moluccas",
     report: "Castilian survivors have sworn friendship with Sultan al-Mansur of Tidore while Portugal fortifies its position beside rival Ternate",
     tradeImpact: "Clove merchants now weigh every cargo against two sultans and two foreign crowns.",
@@ -65,6 +100,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1524, 1, 1],
     countries: ["Spain", "Portugal"],
     factionIds: ["spain", "portugal"],
+    requiredActiveFactionIds: ["spain"],
     place: "Sanlucar de Barrameda",
     report: "Juan Sebastian Elcano has returned aboard Victoria after sailing all the way around the world",
     tradeImpact: "Every spice merchant now has a fresh opinion about routes to the Moluccas.",
@@ -88,6 +124,9 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1526, 3, 1],
     countries: ["France", "Italy", "Belgium", "Netherlands", "Germany", "Austria", "Spain"],
     factionIds: ["france", "habsburg", "spain", "venice", "genoa", "papal-states"],
+    requiredActiveFactionIds: ["france", "habsburg"],
+    requiredRelations: [relation("france", "habsburg", [DIPLOMACY_WAR])],
+    requiredCityController: cityController("Pavia", "Italy", "habsburg"),
     place: "Pavia",
     report: "King Francis I has been captured after the French defeat at Pavia",
     tradeImpact: "Couriers, lenders, and armorers are all charging wartime prices.",
@@ -99,6 +138,8 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1527, 5, 1],
     countries: ["India", "Pakistan", "Bangladesh"],
     factionIds: ["delhi", "gujarat", "bengal", "vijayanagara"],
+    requiredActiveFactionIds: ["delhi"],
+    requiredCityController: cityController("Delhi", "India", "delhi"),
     place: "Panipat",
     report: "Babur's smaller army has broken the Lodi host at Panipat with field guns and disciplined ranks",
     tradeImpact: "North Indian caravans are waiting to learn whose coin and customs will prevail.",
@@ -110,6 +151,9 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1527, 9, 1],
     countries: ["Hungary", "Austria", "Germany", "Poland", "Turkey", "Croatia", "Romania"],
     factionIds: ["hungary", "habsburg", "ottoman", "poland-lithuania"],
+    requiredActiveFactionIds: ["hungary", "ottoman"],
+    requiredRelations: [relation("hungary", "ottoman", [DIPLOMACY_WAR])],
+    requiredCityController: cityController("Buda", "Hungary", "hungary"),
     place: "Mohacs",
     report: "the Hungarian army has been shattered at Mohacs and King Louis II is dead",
     tradeImpact: "Danube traffic is nervous, and every border fortress wants provisions.",
@@ -121,6 +165,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1528, 1, 1],
     countries: ["Japan", "China", "Republic of Korea"],
     factionIds: ["japan", "ming", "joseon"],
+    requiredActiveFactionIds: ["japan"],
     place: "Iwami",
     report: "rich silver has been found in the mountains of Iwami, and rival lords are already watching the roads",
     tradeImpact: "Merchants expect Japanese silver to draw silk and porcelain eastward.",
@@ -132,6 +177,9 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1528, 6, 1],
     countries: ["Italy", "France", "Spain", "Germany", "Austria"],
     factionIds: ["papal-states", "habsburg", "spain", "france", "venice", "genoa"],
+    requiredActiveFactionIds: ["papal-states", "habsburg"],
+    requiredRelations: [relation("papal-states", "habsburg", [DIPLOMACY_WAR])],
+    requiredCityController: cityController("Rome", "Italy", "papal-states"),
     place: "Rome",
     report: "mutinous imperial troops have stormed and sacked Rome while the Pope shelters in Castel Sant'Angelo",
     tradeImpact: "Bankers and church agents are moving valuables out of exposed cities.",
@@ -143,6 +191,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1531, 1, 1],
     countries: ["Ethiopia", "Somalia", "Yemen", "Oman", "Mozambique"],
     factionIds: ["ethiopia", "ottoman", "portugal"],
+    requiredActiveFactionIds: ["ethiopia"],
     place: "the Horn of Africa",
     report: "Imam Ahmad's armies are pressing into Ethiopia, and both Red Sea shores expect a longer war",
     tradeImpact: "Weapons, horses, and grain are commanding dangerous prices along the Red Sea.",
@@ -154,6 +203,9 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1531, 1, 1],
     countries: ["Austria", "Germany", "Hungary", "Turkey", "Poland", "Italy"],
     factionIds: ["habsburg", "hungary", "ottoman", "poland-lithuania", "venice"],
+    requiredActiveFactionIds: ["habsburg", "ottoman"],
+    requiredRelations: [relation("habsburg", "ottoman", [DIPLOMACY_WAR])],
+    requiredCityController: cityController("Vienna", "Austria", "habsburg"),
     place: "Vienna",
     report: "Suleiman's army has besieged Vienna but withdrawn without taking the city",
     tradeImpact: "The Danube ports are rebuilding walls and buying powder before anything else.",
@@ -165,6 +217,8 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1536, 1, 1],
     countries: ["United Kingdom", "Ireland", "France", "Belgium", "Netherlands", "Italy"],
     factionIds: ["england", "scotland", "france", "habsburg", "papal-states"],
+    requiredActiveFactionIds: ["england"],
+    requiresEnglishReformation: true,
     place: "England",
     report: "Parliament has declared King Henry VIII supreme head of the English church, rejecting papal authority",
     tradeImpact: "Church lands, loyalties, and contracts are all being reconsidered.",
@@ -176,6 +230,12 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1545, 1, 1],
     countries: ["Japan", "China", "Republic of Korea", "Portugal"],
     factionIds: ["japan", "ming", "joseon", "portugal"],
+    requiredActiveFactionIds: ["japan", "portugal"],
+    requiredRelations: [relation(
+      "japan",
+      "portugal",
+      [DIPLOMACY_NEUTRAL, DIPLOMACY_FRIENDLY, DIPLOMACY_ALLY]
+    )],
     place: "Tanegashima",
     report: "Portuguese merchants have landed at Tanegashima carrying unfamiliar matchlock guns",
     tradeImpact: "Smiths and warlords are bidding against one another for a weapon they mean to copy.",
@@ -187,6 +247,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1547, 1, 1],
     countries: ["Italy", "Germany", "Austria", "France", "Spain", "Portugal", "Poland"],
     factionIds: ["papal-states", "habsburg", "france", "spain", "portugal", "poland-lithuania"],
+    requiredActiveFactionIds: ["papal-states"],
     place: "Trent",
     report: "bishops have assembled at Trent to answer the Reformation and settle Catholic doctrine",
     tradeImpact: "Printers, scholars, and church envoys are crowding the Alpine roads.",
@@ -198,6 +259,8 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1550, 1, 1],
     countries: ["Thailand", "Myanmar", "Malaysia"],
     factionIds: ["ayutthaya"],
+    requiredActiveFactionIds: ["ayutthaya"],
+    requiredCityController: cityController("Ayutthaya", "Thailand", "ayutthaya"),
     place: "Ayutthaya",
     report: "the Toungoo invasion has failed to take Ayutthaya, though Queen Suriyothai was killed defending the royal army",
     tradeImpact: "The northern roads want elephants, rice, weapons, and guards in equal measure.",
@@ -207,7 +270,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
 
 validateHistoricalGossipEvents();
 
-export function recentHistoricalGossipForPort(city, simMinute, worldCities) {
+export function recentHistoricalGossipForPort(city, simMinute, worldState) {
   if (!city || typeof city !== "object") throw new Error("Historical gossip requires a port city");
   if (typeof city.country !== "string" || city.country.trim() === "") {
     throw new Error("Historical gossip requires the port's country");
@@ -219,11 +282,11 @@ export function recentHistoricalGossipForPort(city, simMinute, worldCities) {
   if (!Number.isFinite(simMinute) || simMinute < 0) {
     throw new Error(`Invalid historical gossip minute: ${simMinute}`);
   }
-  if (!Array.isArray(worldCities)) throw new Error("Historical gossip requires the live city catalog");
+  validateHistoricalWorldState(worldState);
   for (let index = HISTORICAL_GOSSIP_EVENTS.length - 1; index >= 0; index -= 1) {
     const event = HISTORICAL_GOSSIP_EVENTS[index];
     if (simMinute < event.fromMinute || simMinute >= event.untilMinute) continue;
-    if (!cityControllerRequirementMet(event.requiredCityController, worldCities)) continue;
+    if (!historicalWorldRequirementsMet(event, worldState)) continue;
     if (event.countries.includes(city.country) || event.factionIds.includes(city.factionId)) return event;
   }
   return null;
@@ -236,6 +299,11 @@ function historicalEvent({
   countries = [],
   factionIds = [],
   requiredCityController = null,
+  requiredActiveFactionIds = [],
+  requiredRelations = [],
+  requiredClosedTrade = null,
+  requiredForeignSettlementId = null,
+  requiresEnglishReformation = false,
   place,
   report,
   tradeImpact,
@@ -246,7 +314,14 @@ function historicalEvent({
     throw new Error(`Historical gossip event ${id} has no regional audience`);
   }
   for (const factionId of factionIds) factionById(factionId);
+  for (const factionId of requiredActiveFactionIds) factionById(factionId);
   if (requiredCityController !== null) validateCityController(requiredCityController);
+  for (const requirement of requiredRelations) validateRelationRequirement(requirement);
+  if (requiredClosedTrade !== null) validateClosedTradeRequirement(requiredClosedTrade);
+  if (requiredForeignSettlementId !== null) foreignSettlementById(requiredForeignSettlementId);
+  if (typeof requiresEnglishReformation !== "boolean") {
+    throw new Error(`Historical gossip event ${id} has invalid English Reformation requirement`);
+  }
   for (const [label, value] of Object.entries({ place, report, tradeImpact, reflection })) {
     if (typeof value !== "string" || value.trim() === "") throw new Error(`Historical gossip event ${id} has no ${label}`);
   }
@@ -261,11 +336,132 @@ function historicalEvent({
     countries: Object.freeze([...new Set(countries)]),
     factionIds: Object.freeze([...new Set(factionIds)]),
     requiredCityController,
+    requiredActiveFactionIds: Object.freeze([...new Set(requiredActiveFactionIds)]),
+    requiredRelations: Object.freeze([...requiredRelations]),
+    requiredClosedTrade,
+    requiredForeignSettlementId,
+    requiresEnglishReformation,
     place,
     report,
     tradeImpact,
     reflection
   });
+}
+
+function relation(factionAId, factionBId, allowedRelations) {
+  const requirement = Object.freeze({
+    factionAId,
+    factionBId,
+    allowedRelations: Object.freeze([...allowedRelations])
+  });
+  validateRelationRequirement(requirement);
+  return requirement;
+}
+
+function validateRelationRequirement(requirement) {
+  if (!requirement || typeof requirement !== "object") {
+    throw new Error("Historical gossip relation requirement must be an object");
+  }
+  factionById(requirement.factionAId);
+  factionById(requirement.factionBId);
+  if (!Array.isArray(requirement.allowedRelations) || requirement.allowedRelations.length === 0) {
+    throw new Error("Historical gossip relation requirement needs allowed relations");
+  }
+  for (const relationId of requirement.allowedRelations) {
+    if (!DIPLOMACY_RELATIONS.has(relationId)) {
+      throw new Error(`Historical gossip has invalid required relation: ${relationId}`);
+    }
+  }
+}
+
+function closedTrade(policyId, factionId) {
+  const requirement = Object.freeze({ policyId, factionId });
+  validateClosedTradeRequirement(requirement);
+  return requirement;
+}
+
+function validateClosedTradeRequirement(requirement) {
+  if (!requirement || typeof requirement !== "object") {
+    throw new Error("Historical gossip closed-trade requirement must be an object");
+  }
+  sovereignTradePolicyById(requirement.policyId);
+  factionById(requirement.factionId);
+}
+
+function validateHistoricalWorldState(worldState) {
+  if (!worldState || typeof worldState !== "object") {
+    throw new Error("Historical gossip requires live world state");
+  }
+  if (!Array.isArray(worldState.worldCities)) {
+    throw new Error("Historical gossip requires the live city catalog");
+  }
+  if (!Array.isArray(worldState.collapsedFactionIds)) {
+    throw new Error("Historical gossip requires collapsed faction memory");
+  }
+  for (const factionId of worldState.collapsedFactionIds) factionById(factionId);
+  validateWorldDiplomacy(worldState.diplomacy);
+  validatePapalPolitics(worldState.papacy);
+  validateSovereignTradeGrantMemory(worldState.tradeAccessGrants);
+  validateForeignSettlementExpulsionMemory(worldState.foreignSettlementExpulsions);
+}
+
+function historicalWorldRequirementsMet(event, worldState) {
+  const collapsedFactionIds = new Set(worldState.collapsedFactionIds);
+  if (event.requiredActiveFactionIds.some((factionId) => collapsedFactionIds.has(factionId))) {
+    return false;
+  }
+  if (!cityControllerRequirementMet(event.requiredCityController, worldState.worldCities)) {
+    return false;
+  }
+  for (const requirement of event.requiredRelations) {
+    const current = worldDiplomacyBetween(
+      worldState.diplomacy,
+      requirement.factionAId,
+      requirement.factionBId
+    );
+    if (!requirement.allowedRelations.includes(current)) return false;
+  }
+  if (event.requiredClosedTrade !== null && tradeIsOpen(
+    event.requiredClosedTrade,
+    worldState
+  )) {
+    return false;
+  }
+  if (event.requiredForeignSettlementId !== null && !foreignSettlementIsActive(
+    event.requiredForeignSettlementId,
+    worldState
+  )) {
+    return false;
+  }
+  return !event.requiresEnglishReformation || worldState.papacy.englishReformationApplied;
+}
+
+function tradeIsOpen(requirement, worldState) {
+  const policy = sovereignTradePolicyById(requirement.policyId);
+  const privilege = suzeraintyTradePrivilege(
+    worldState.diplomacy.suzerainties,
+    requirement.factionId,
+    policy.hostFactionId
+  );
+  return sovereignTradeGrantedToFaction(
+    worldState.tradeAccessGrants,
+    requirement.policyId,
+    requirement.factionId
+  ) || privilege?.sovereignMarketAccess === true;
+}
+
+function foreignSettlementIsActive(settlementId, worldState) {
+  const settlement = foreignSettlementById(settlementId);
+  const matches = worldState.worldCities.filter((city) => (
+    city?.city === settlement.city && city?.country === settlement.country
+  ));
+  if (matches.length !== 1) {
+    throw new Error(
+      `Historical gossip requires exactly one ${settlement.city}, ${settlement.country}; found ${matches.length}`
+    );
+  }
+  return activeForeignSettlements(matches[0], worldState.foreignSettlementExpulsions)
+    .some((entry) => entry.id === settlementId);
 }
 
 function cityController(city, country, factionId) {

@@ -93,6 +93,15 @@ test("regional ruler gossip reaches nearby courts but not distant ones", () => {
   assert.equal(recentRegionalRulerChange("ottoman", changeMinute + 181 * 1440), null);
 });
 
+test("regional ruler gossip skips successions in annexed states", () => {
+  const changeMinute = gameMinuteForDate(1524, 5, 23);
+  const rumor = recentRegionalRulerChange("ottoman", changeMinute + 10 * 1440, {
+    excludedFactionIds: ["safavid"]
+  });
+
+  assert.notEqual(rumor?.factionId, "safavid");
+});
+
 test("each ruler change is mentioned at most twice across the voyage", () => {
   const decisions = {};
   const changeMinute = gameMinuteForDate(1523, 1, 20);
