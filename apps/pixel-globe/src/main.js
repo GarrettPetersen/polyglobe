@@ -975,6 +975,7 @@ import {
   toggleBinaryConfirmationIndex
 } from "./menuNavigation.js";
 import { scrollableStackedMenuRows } from "./stackedMenuLayout.js";
+import { optionsVolumeRowLayout } from "./optionsVolumeLayout.js";
 import {
   GAME_ICON_ASSET_VERSION,
   GAME_ICON_SIZE,
@@ -2688,6 +2689,7 @@ const SFX_SEAGULLS_MAX_VOLUME = 0.1;
 const SFX_SHORE_WAVES_MAX_VOLUME = 0.16;
 const SFX_HARSH_WIND_MAX_VOLUME = 0.12;
 const SFX_WINTER_WIND_MAX_VOLUME = 0.11;
+const SFX_FOG_WIND_MAX_VOLUME = 0.36;
 const SFX_DESERT_WIND_MAX_VOLUME = 0.1;
 const SFX_STORM_MAX_VOLUME = 0.42;
 const SFX_SAIL_FLAP_MAX_VOLUME = 0.52;
@@ -3348,6 +3350,7 @@ let chartRepairFog = null;
 let chartRepairHeatHaze = null;
 let chartRepairSwellUntilMs = -Infinity;
 let polarChartRepairPressure = 0;
+let polarChartRepairPressureUpdatedAtMs = null;
 let chartRepairCooldownUntilMs = -Infinity;
 let chartRepairPendingConfirmation = null;
 let polarFogNextTileRepairAtMs = 0;
@@ -7562,8 +7565,7 @@ function ensureAmbientPlaylistStarted(playlist, nowMs) {
 }
 
 function applyThemeAudioSettings() {
-  const musicVolume = CAPTURE_SCENARIO ? 0 : clamp(optionsMenu.musicVolume, 0, 1);
-  if (themeMusic) themeMusic.setOutput(musicVolume, optionsMenu.muted);
+  applyThemeMusicSettings();
   if (soundEffects) {
     for (const audio of [
       ...soundEffects.cannon,
@@ -7591,6 +7593,14 @@ function applyThemeAudioSettings() {
     }
     applyAmbientAudioSettings();
   }
+}
+
+function applyThemeMusicSettings() {
+  const fogPresence = currentChartFogAudioPresence();
+  const musicVolume = CAPTURE_SCENARIO
+    ? 0
+    : clamp(optionsMenu.musicVolume, 0, 1) * (1 - fogPresence);
+  if (themeMusic) themeMusic.setOutput(musicVolume, optionsMenu.muted);
 }
 
 function applyAmbientAudioSettings() {
@@ -7861,13 +7871,7 @@ function updateAmbientAudio(dt) {
     });
   }
   const { shore, sailing, storm, fire } = ambientAudioContext;
-  const repairFogWind = chartRepairFog
-    ? chartRepairFogWindPresence(chartRepairFogFrame(
-      chartRepairFog.animation,
-      lastFrameMs,
-      chartRepairFog.release
-    ))
-    : 0;
+  const repairFogWind = currentChartFogAudioPresence();
   updateRowingStrokeAudio(elapsed, sailing.rowing);
   let changed = false;
   changed = updateAmbientLoop(
@@ -7898,8 +7902,11 @@ function updateAmbientAudio(dt) {
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.winterWind,
-    Math.max(sailing.winterWind, repairFogWind) * SFX_WINTER_WIND_MAX_VOLUME,
-    SFX_WINTER_WIND_MAX_VOLUME,
+    Math.max(
+      sailing.winterWind * SFX_WINTER_WIND_MAX_VOLUME,
+      repairFogWind * SFX_FOG_WIND_MAX_VOLUME
+    ),
+    SFX_FOG_WIND_MAX_VOLUME,
     elapsed,
     SFX_WIND_FADE_PER_SECOND
   ) || changed;
@@ -7947,6 +7954,7 @@ function updateAmbientAudio(dt) {
     SFX_WHALE_SONG_FADE_PER_SECOND
   ) || changed;
   if (changed) applyAmbientAudioSettings();
+  applyThemeMusicSettings();
 }
 
 function updateRowingStrokeAudio(dt, active) {
@@ -8594,6 +8602,7 @@ function injectChartRecoveryDiagnosticTilt(tiltDeg) {
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = -Infinity;
   polarChartRepairPressure = 0;
+  polarChartRepairPressureUpdatedAtMs = null;
   chartReframeDialogueTrigger = createChartReframeDialogueTrigger();
   chartVisualRepairStats = createChartVisualRepairStats();
   chart = buildChart(camera, positionLocks);
@@ -20559,7 +20568,7 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   // Fog may conceal the worst geometry before it has repaired it. Keep its
   // pressure tied to the complete drawn chart so the clear window continues
   // tightening until those hidden tiles actually settle north-up.
-  updatePolarChartRepairPressure(chartNorthUpDrift, terrainTear);
+  updatePolarChartRepairPressure(chartNorthUpDrift, terrainTear, nowMs);
   const distortionSurface = chartSurfaceAtScreenPoint(chartWorstDistortionPoint);
   const swellRepairAvailable = chartViewportIsFullyElasticOpenOcean() ||
     chartFaultCanUseOceanSwell(drift, terrainTear);
@@ -20878,13 +20887,18 @@ function currentPolarChartFogFrame() {
   });
 }
 
-function updatePolarChartRepairPressure(drift, terrainTear) {
+function updatePolarChartRepairPressure(drift, terrainTear, nowMs) {
   const latitudeDeg = ship ? Math.abs(latitudeDegForDirection(ship.position)) : 0;
+  const elapsedSeconds = polarChartRepairPressureUpdatedAtMs === null
+    ? 0
+    : clamp((nowMs - polarChartRepairPressureUpdatedAtMs) / 1000, 0, 1);
+  polarChartRepairPressureUpdatedAtMs = nowMs;
   polarChartRepairPressure = nextPolarChartRepairPressure({
     currentPressure: polarChartRepairPressure,
     latitudeDeg,
     drift,
-    terrainTear
+    terrainTear,
+    elapsedSeconds
   });
 }
 
@@ -20900,6 +20914,14 @@ function activeChartFogFrames(nowMs = lastFrameMs) {
     ));
   }
   return frames;
+}
+
+function currentChartFogAudioPresence(nowMs = lastFrameMs) {
+  let presence = 0;
+  for (const frame of activeChartFogFrames(nowMs)) {
+    presence = Math.max(presence, chartRepairFogWindPresence(frame));
+  }
+  return presence;
 }
 
 function chartVisualCoverFullyCoversLocalPosition(
@@ -21517,6 +21539,7 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   chartRepairHeatHaze = null;
   chartRepairSwellUntilMs = -Infinity;
   polarChartRepairPressure = 0;
+  polarChartRepairPressureUpdatedAtMs = null;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = lastFrameMs + CHART_REPAIR_WEATHER_COOLDOWN_MS;
   clearLocalChartTransientEffects();
@@ -40635,19 +40658,31 @@ function drawOptionsCloseButton(rect, hovered) {
 
 function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText(label, rowRect.x + 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_DIALOGUE_8,
-    color: PIRATE_MENU_INK
+  const font = PIXEL_FONT_DIALOGUE_8;
+  const percentText = `${Math.round(value * 100)}%`;
+  const layout = optionsVolumeRowLayout({
+    rowX: rowRect.x,
+    rowWidth: rowRect.w,
+    labelWidth: measurePixelTextWidth(label, font),
+    valueWidth: measurePixelTextWidth(percentText, font)
   });
+  drawOptionsText(
+    fitPixelText(label, font, layout.labelMaxWidth),
+    rowRect.x + 8,
+    controlTextY(rowRect),
+    {
+      font,
+      color: PIRATE_MENU_INK
+    }
+  );
 
-  const sliderW = 70;
+  const sliderW = layout.sliderWidth;
   const sliderH = 10;
-  const sliderX = rowRect.x + 66;
+  const sliderX = layout.sliderX;
   const sliderY = rowRect.y + Math.floor((rowRect.h - sliderH) / 2);
   optionsMenu.sliderRects[sliderKey] = { x: sliderX, y: sliderY, w: sliderW, h: sliderH };
   optionsMenu.sliderHitRects[sliderKey] = { x: sliderX - 3, y: rowRect.y, w: sliderW + 6, h: rowRect.h };
 
-  const percent = Math.round(value * 100);
   ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
   ctx.fillRect(sliderX, sliderY, sliderW, sliderH);
   ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
@@ -40662,8 +40697,8 @@ function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   ctx.fillStyle = PIRATE_MENU_INK;
   ctx.fillRect(knobX, sliderY - 1, 2, sliderH + 2);
 
-  drawOptionsText(`${percent}%`, rowRect.x + rowRect.w - 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_DIALOGUE_8,
+  drawOptionsText(percentText, layout.valueRight, controlTextY(rowRect), {
+    font,
     align: "right",
     color: PIRATE_MENU_INK
   });

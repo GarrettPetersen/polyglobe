@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CALM_SWELL_BAND_WIDTH,
   CALM_SWELL_PACKET_DURATION_MS,
   CALM_SWELL_PACKET_PERIOD_MS,
   OCEAN_SWELL_SPATIAL_CYCLES,
   STORM_SWELL_MAX_AMPLITUDE_PX,
+  STORM_SWELL_BAND_WIDTH,
   STORM_SWELL_PERIOD_MS,
   calmSwellEnvelope,
   oceanSwellOffset,
@@ -49,6 +51,24 @@ test("storms sustain stronger wind-driven swells", () => {
   assert.equal(state.amplitudePx, STORM_SWELL_MAX_AMPLITUDE_PX);
   assert.ok(STORM_SWELL_PERIOD_MS >= 8000);
   assert.ok(OCEAN_SWELL_SPATIAL_CYCLES <= 7);
+  assert.equal(state.bandWidth, Math.round(STORM_SWELL_BAND_WIDTH * 64) / 64);
+});
+
+test("swell motion travels in distinct bands with settled water between them", () => {
+  const state = swellState({ nowMs: 2800, stormStrength: 1, flowDirectionRad: 0 });
+  let moving = 0;
+  let settled = 0;
+  for (let index = 0; index <= 200; index++) {
+    const x = -1 + index / 100;
+    const y = Math.sqrt(Math.max(0, 1 - x * x));
+    const offset = oceanSwellOffset(state, [x, y, 0]);
+    if (offset.x === 0 && offset.y === 0) settled++;
+    else moving++;
+  }
+
+  assert.ok(moving > 0);
+  assert.ok(settled > moving);
+  assert.ok(CALM_SWELL_BAND_WIDTH < STORM_SWELL_BAND_WIDTH);
 });
 
 test("visually settled water shares one terrain cache state", () => {

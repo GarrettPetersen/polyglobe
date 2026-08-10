@@ -5,6 +5,8 @@ export const CALM_SWELL_MAX_AMPLITUDE_PX = 1;
 export const STORM_SWELL_MAX_AMPLITUDE_PX = 3;
 export const STORM_SWELL_PERIOD_MS = 8000;
 export const OCEAN_SWELL_SPATIAL_CYCLES = 7;
+export const CALM_SWELL_BAND_WIDTH = 0.18;
+export const STORM_SWELL_BAND_WIDTH = 0.26;
 
 const CALM_SWELL_WAVE_PERIOD_MS = 12000;
 const PHASE_AXIS_QUANTIZATION = 64;
@@ -39,6 +41,8 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
     16
   );
   const amplitudeBin = Math.round(amplitudePx * 4);
+  const bandWidth = lerp(CALM_SWELL_BAND_WIDTH, STORM_SWELL_BAND_WIDTH, stormStrength);
+  const bandWidthBin = Math.round(bandWidth * PHASE_AXIS_QUANTIZATION);
   const settled = amplitudeBin === 0;
   const cachedFrame = settled ? 0 : frame;
   const cachedDirectionBin = settled ? 0 : directionBin;
@@ -49,7 +53,8 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
   ).join(":");
   return Object.freeze({
     amplitudePx: amplitudeBin / 4,
-    cacheKey: `${cachedFrame}:${cachedDirectionBin}:${amplitudeBin}:${phaseAxisKey}`,
+    bandWidth: bandWidthBin / PHASE_AXIS_QUANTIZATION,
+    cacheKey: `${cachedFrame}:${cachedDirectionBin}:${amplitudeBin}:${bandWidthBin}:${phaseAxisKey}`,
     cycle: settled ? 0 : cachedFrame / OCEAN_SWELL_FRAME_COUNT,
     flow: Object.freeze({
       x: Math.cos(cachedDirectionRad),
@@ -62,7 +67,8 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
 }
 
 export function oceanSwellOffset(state, globePosition) {
-  if (!state || !Number.isFinite(state.amplitudePx) || !Number.isFinite(state.cycle)) {
+  if (!state || !Number.isFinite(state.amplitudePx) || !Number.isFinite(state.cycle) ||
+      !Number.isFinite(state.bandWidth) || state.bandWidth <= 0 || state.bandWidth >= 1) {
     throw new Error("Ocean swell offset requires a valid swell state");
   }
   if (!Array.isArray(globePosition) || globePosition.length !== 3 ||
@@ -72,7 +78,11 @@ export function oceanSwellOffset(state, globePosition) {
   if (state.amplitudePx <= 0) return { x: 0, y: 0 };
 
   const spatialCycles = dot3(globePosition, state.phaseAxis) * OCEAN_SWELL_SPATIAL_CYCLES;
-  const displacement = Math.sin(TAU * (state.cycle - spatialCycles)) * state.amplitudePx;
+  const bandPhase = modulo(state.cycle - spatialCycles, 1);
+  if (bandPhase >= state.bandWidth) return { x: 0, y: 0 };
+  const bandProgress = bandPhase / state.bandWidth;
+  const bandEnvelope = Math.sin(Math.PI * bandProgress) ** 2;
+  const displacement = Math.sin(TAU * bandProgress) * bandEnvelope * state.amplitudePx;
   return {
     x: roundPixel(state.flow.x * displacement),
     y: roundPixel(state.flow.y * displacement)

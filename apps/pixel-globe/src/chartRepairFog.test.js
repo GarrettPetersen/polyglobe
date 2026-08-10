@@ -29,9 +29,9 @@ test("repair fog progressively hides distant geography before clearing", () => {
   const closed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs);
   const cleared = chartRepairFogFrame(fog, 100 + fog.durationMs);
 
-  assert.ok(fog.formationDurationMs >= 60_000);
-  assert.ok(fog.clearingDurationMs >= 50_000);
-  assert.ok(fog.durationMs > 100_000);
+  assert.ok(fog.formationDurationMs >= 100_000);
+  assert.ok(fog.clearingDurationMs >= 120_000);
+  assert.ok(fog.durationMs > 220_000);
   assert.equal(open.edgeOpacity, 0);
   assert.ok(open.clearRadius > 290);
   assert.equal(chartFogObscuresCircle(rim, 227, 128, 12), false);
@@ -78,6 +78,25 @@ test("repair fog has a stable ragged pixel edge rather than a perfect circle", (
   });
   assert.equal(fillChartFogMaskPixels(pixels, 16, 9, frame, 4, field), pixels);
   assert.ok(pixels.some((value, index) => index % 4 === 3 && value > 0));
+  let maximumNeighborEdgeDelta = 0;
+  for (let y = 0; y < field.height; y++) {
+    for (let x = 0; x < field.width; x++) {
+      const index = x + y * field.width;
+      if (x > 0) {
+        maximumNeighborEdgeDelta = Math.max(
+          maximumNeighborEdgeDelta,
+          Math.abs(field.edgeUnits[index] - field.edgeUnits[index - 1])
+        );
+      }
+      if (y > 0) {
+        maximumNeighborEdgeDelta = Math.max(
+          maximumNeighborEdgeDelta,
+          Math.abs(field.edgeUnits[index] - field.edgeUnits[index - field.width])
+        );
+      }
+    }
+  }
+  assert.ok(maximumNeighborEdgeDelta < 0.25);
   assert.throws(
     () => fillChartFogMaskPixels(pixels, 16, 9, frame, 4, { ...field, width: 15 }),
     /does not match/
@@ -218,25 +237,29 @@ test("polar repair pressure rises only where polar fog is climatically plausible
   assert.equal(nextPolarChartRepairPressure({
     currentPressure: 0,
     latitudeDeg: 30,
+    elapsedSeconds: 0.5,
     ...metrics
   }), 0);
   assert.equal(nextPolarChartRepairPressure({
     currentPressure: 0,
     latitudeDeg: 67,
+    elapsedSeconds: 0.5,
     ...metrics
-  }), 0.3);
+  }), 0.012);
   assert.equal(nextPolarChartRepairPressure({
     currentPressure: 0,
     latitudeDeg: 67,
+    elapsedSeconds: 0.5,
     drift: { rotationDeg: 0 },
     terrainTear: { extraPx: 0 }
   }) > 0, true);
   assert.equal(nextPolarChartRepairPressure({
     currentPressure: 0.5,
     latitudeDeg: 30,
+    elapsedSeconds: 0.5,
     drift: { rotationDeg: 0 },
     terrainTear: { extraPx: 0, compressionPx: 0 }
-  }), 0.46);
+  }), 0.495);
 });
 
 test("fog permits gradual repair in its visible band before full concealment", () => {

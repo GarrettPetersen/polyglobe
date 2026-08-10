@@ -30,9 +30,9 @@ export function createChartRepairFog({
     Math.hypot(focusX, viewportHeight - focusY),
     Math.hypot(viewportWidth - focusX, viewportHeight - focusY)
   ) + fadeBandPx;
-  const formationDurationMs = 60_000;
-  const holdDurationMs = 2_400;
-  const clearingDurationMs = 50_000;
+  const formationDurationMs = 100_000;
+  const holdDurationMs = 8_000;
+  const clearingDurationMs = 120_000;
   return Object.freeze({
     startedAtMs: nowMs,
     durationMs: formationDurationMs + holdDurationMs + clearingDurationMs,
@@ -177,7 +177,8 @@ export function nextPolarChartRepairPressure({
   currentPressure,
   latitudeDeg,
   drift,
-  terrainTear
+  terrainTear,
+  elapsedSeconds
 }) {
   if (!drift || !terrainTear) {
     throw new Error("Polar chart repair pressure requires drift and terrain metrics");
@@ -186,6 +187,7 @@ export function nextPolarChartRepairPressure({
   for (const [label, value] of Object.entries({
     currentPressure,
     latitudeDeg,
+    elapsedSeconds,
     rotationDeg: drift.rotationDeg,
     terrainTearPx: terrainTear.extraPx,
     terrainCompressionPx
@@ -215,9 +217,13 @@ export function nextPolarChartRepairPressure({
     ? Math.max(latitudePressure, rotationPressure, tearPressure)
     : 0;
   const severeDistortion = Math.max(rotationPressure, tearPressure) >= 0.75;
-  const maximumStep = target > currentPressure
-    ? severeDistortion ? 0.3 : 0.12
-    : 0.04;
+  if (elapsedSeconds < 0) {
+    throw new Error(`Polar chart repair pressure elapsed time cannot be negative: ${elapsedSeconds}`);
+  }
+  const ratePerSecond = target > currentPressure
+    ? severeDistortion ? 0.024 : 0.014
+    : 0.01;
+  const maximumStep = ratePerSecond * elapsedSeconds;
   return currentPressure + Math.max(
     -maximumStep,
     Math.min(maximumStep, target - currentPressure)
@@ -406,10 +412,28 @@ function fogBandDensity(frame, distance, edgeOffset) {
 }
 
 function chartFogEdgeUnit(x, y) {
-  const broad = Math.sin(x * 0.041 + y * 0.019) * 0.48;
-  const ripple = Math.sin(x * 0.113 - y * 0.067) * 0.24;
-  const block = (fogNoise(Math.floor(x / 13), Math.floor(y / 13)) - 0.5) * 0.56;
-  return broad + ripple + block;
+  const broad = (smoothFogNoise(x / 47, y / 47, 0x170f6a21) - 0.5) * 1.12;
+  const middle = (smoothFogNoise(x / 23, y / 23, 0x5a19c3e7) - 0.5) * 0.58;
+  const fine = (smoothFogNoise(x / 9, y / 9, 0x2c1b3c6d) - 0.5) * 0.24;
+  return Math.max(-1, Math.min(1, broad + middle + fine));
+}
+
+function smoothFogNoise(x, y, seed) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const tx = smoothstep01(x - x0);
+  const ty = smoothstep01(y - y0);
+  const top = lerp(
+    fogNoise(x0, y0, seed),
+    fogNoise(x0 + 1, y0, seed),
+    tx
+  );
+  const bottom = lerp(
+    fogNoise(x0, y0 + 1, seed),
+    fogNoise(x0 + 1, y0 + 1, seed),
+    tx
+  );
+  return lerp(top, bottom, ty);
 }
 
 function smoothstep(edge0, edge1, value) {
@@ -424,6 +448,10 @@ function smoothstep01(value) {
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
 }
 
 function fogNoise(x, y, seed = 0x464f4721) {

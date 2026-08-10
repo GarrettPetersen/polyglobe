@@ -1970,7 +1970,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
             rmsDistortionPx: repairFrame.rmsError,
             maxDistortionPx: repairFrame.maxErrorPx
           },
-          terrainTear: repairTear
+          terrainTear: repairTear,
+          elapsedSeconds: 0.24
         });
         maxPolarFogRepairPressure = Math.max(
           maxPolarFogRepairPressure,
