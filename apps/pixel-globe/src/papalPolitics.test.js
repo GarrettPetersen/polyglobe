@@ -3,6 +3,8 @@ import test from "node:test";
 
 import { createWorldDiplomacy, worldDiplomacyBetween } from "./worldDiplomacy.js";
 import {
+  PAPAL_COMMISSION_ALMS,
+  PAPAL_COMMISSION_RELIEF,
   PAPAL_ACTION_EXCOMMUNICATION,
   PAPAL_MATTER_AVAILABLE,
   PAPAL_MATTER_COMMISSIONED,
@@ -11,10 +13,12 @@ import {
   advancePapalPolitics,
   completePapalCommission,
   createPapalPolitics,
+  declinePapalCommission,
   imposePapalAction,
   migratePapalPolitics,
   papalCommissionEligibility,
-  papalCommissionObjective
+  papalCommissionObjective,
+  papalActionNotice
 } from "./papalPolitics.js";
 import { ENGLISH_REFORMATION_MINUTE } from "./rulers.js";
 import { advanceGamePolitics, createGameState } from "./gameState.js";
@@ -101,8 +105,91 @@ test("version 1 Papal memory migrates with no invented pending matter", () => {
   legacy.version = 1;
   delete legacy.pendingMatter;
   const migrated = migratePapalPolitics(legacy);
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
   assert.equal(migrated.pendingMatter, null);
+});
+
+test("Papal alms and war relief enter the same optional autonomous queue", () => {
+  const alms = pendingMatterForKind(PAPAL_COMMISSION_ALMS);
+  assert.deepEqual(
+    alms.papacy.pendingMatter.cargoRequirements.map(({ goodId, quantity }) => [goodId, quantity]),
+    [["grain", 10]]
+  );
+  assert.equal(declinePapalCommission(alms.papacy), true);
+  const almsResolution = advancePapalPolitics(
+    alms.papacy,
+    alms.diplomacy,
+    alms.papacy.pendingMatter.autonomousDecisionMinute
+  );
+  assert.equal(almsResolution.actions[0].logistics.kind, PAPAL_COMMISSION_ALMS);
+  assert.match(papalActionNotice(almsResolution.actions[0]), /sends grain alms to/i);
+
+  const relief = pendingMatterForKind(PAPAL_COMMISSION_RELIEF);
+  assert.ok(relief.papacy.pendingMatter.beneficiaryFactionId);
+  assert.deepEqual(
+    relief.papacy.pendingMatter.cargoRequirements.map(({ goodId, quantity }) => [goodId, quantity]),
+    [["grain", 8], ["gunpowder", 3]]
+  );
+  assert.equal(declinePapalCommission(relief.papacy), true);
+  const reliefResolution = advancePapalPolitics(
+    relief.papacy,
+    relief.diplomacy,
+    relief.papacy.pendingMatter.autonomousDecisionMinute
+  );
+  assert.equal(reliefResolution.actions[0].logistics.kind, PAPAL_COMMISSION_RELIEF);
+  assert.match(papalActionNotice(reliefResolution.actions[0]), /relief reaches .* against/i);
+});
+
+test("Papal transport commissions cannot advance before their cargo arrives", () => {
+  const { papacy, diplomacy } = pendingMatterForKind(PAPAL_COMMISSION_ALMS);
+  const matter = papacy.pendingMatter;
+  const context = {
+    playerFactionId: "spain",
+    playerReligionId: "roman-catholic",
+    papalReputation: 20
+  };
+  acceptPapalCommission(papacy, diplomacy, {
+    ...context,
+    simMinute: papacy.lastUpdateMinute,
+    originTileId: 1,
+    itinerary: [{
+      tileId: 2,
+      portName: "Relief Port",
+      factionId: matter.targetFactionId,
+      purpose: "deliver-alms"
+    }],
+    rewardDoubloons: 500,
+    nuncio: { id: "nuncio-alms", name: "Monsignor Alms" }
+  });
+
+  assert.throws(
+    () => advancePapalCommissionAtPort(papacy, {
+      tileId: 2,
+      simMinute: papacy.lastUpdateMinute + 1
+    }),
+    /cargo is incomplete/
+  );
+  advancePapalCommissionAtPort(papacy, {
+    tileId: 2,
+    simMinute: papacy.lastUpdateMinute + 1,
+    cargoComplete: true
+  });
+  assert.equal(papalCommissionObjective(papacy).kind, "return-to-rome");
+});
+
+test("version 2 Papal transport matters gain cargo without losing their queue position", () => {
+  const { papacy } = pendingMatterForKind(PAPAL_COMMISSION_RELIEF);
+  const legacy = structuredClone(papacy);
+  legacy.version = 2;
+  delete legacy.pendingMatter.cargoRequirements;
+
+  const migrated = migratePapalPolitics(legacy);
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.pendingMatter.id, papacy.pendingMatter.id);
+  assert.deepEqual(
+    migrated.pendingMatter.cargoRequirements.map(({ goodId, quantity }) => [goodId, quantity]),
+    [["grain", 8], ["gunpowder", 3]]
+  );
 });
 
 test("an excommunication changes papal relations and records the targeted ruler", () => {
@@ -137,3 +224,14 @@ test("the 1534 settlement converts English Catholics aboard to Anglicanism once"
   const repeated = advanceGamePolitics(state, ENGLISH_REFORMATION_MINUTE + 1);
   assert.equal(repeated.englishReformation, false);
 });
+
+function pendingMatterForKind(commissionKind) {
+  for (let index = 0; index < 500; index += 1) {
+    const seedKey = `papal-${commissionKind}-${index}`;
+    const papacy = createPapalPolitics({ seedKey });
+    const diplomacy = createWorldDiplomacy({ seedKey });
+    advancePapalPolitics(papacy, diplomacy, papacy.nextActionMinute);
+    if (papacy.pendingMatter?.commissionKind === commissionKind) return { papacy, diplomacy };
+  }
+  throw new Error(`Could not generate Papal commission kind: ${commissionKind}`);
+}

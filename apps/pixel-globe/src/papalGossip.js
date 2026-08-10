@@ -4,6 +4,8 @@ import {
   PAPAL_ACTION_CRUSADE,
   PAPAL_ACTION_EXCOMMUNICATION,
   PAPAL_ACTION_FAVOUR,
+  PAPAL_COMMISSION_ALMS,
+  PAPAL_COMMISSION_RELIEF,
   validatePapalPolitics
 } from "./papalPolitics.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
@@ -69,6 +71,25 @@ function recentPapalGossip(memory, simMinute) {
 
 function papalGossipForAction(action) {
   const target = factionById(action.targetFactionId);
+  if (action.logistics?.kind === PAPAL_COMMISSION_RELIEF) {
+    const recipient = factionById(action.logistics.recipientFactionId);
+    const opponent = factionById(action.logistics.opponentFactionId);
+    return gossip({
+      action,
+      report: `${action.popeName} has sent grain, powder, and a nuncio to ${recipient.name} against ${opponent.name}`,
+      tradeImpact: "Relief buyers are seeking grain, powder, ships, and trustworthy captains.",
+      reflection: "A bull may summon princes, but a hungry garrison still needs ships and stores."
+    });
+  }
+  if (action.logistics?.kind === PAPAL_COMMISSION_ALMS) {
+    const recipient = factionById(action.logistics.recipientFactionId);
+    return gossip({
+      action,
+      report: `${action.popeName} has sent grain alms to the poor of ${recipient.name}`,
+      tradeImpact: "Church agents are buying grain and hiring honest carriers.",
+      reflection: "Mercy travels by the same roads and sea lanes as commerce."
+    });
+  }
   if (action.kind === PAPAL_ACTION_FAVOUR) {
     return gossip({
       action,

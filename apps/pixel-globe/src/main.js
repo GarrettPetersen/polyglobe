@@ -376,6 +376,7 @@ import {
   receiveTreasureCargo,
   receiveEmergencyShipAid,
   receiveFishCatch,
+  deliverQuestCargoRequirement,
   receiveQuestPayment,
   receiveScavengedTradeGood,
   receiveWhaleBlubber,
@@ -1304,6 +1305,7 @@ import {
   imposePapalAction,
   papalActionNotice,
   papalCommissionEligibility,
+  papalCommissionCargoRequirements,
   papalCommissionLabel,
   papalCommissionObjective,
   papalExcommunicationTargetCandidates,
@@ -1339,6 +1341,7 @@ import {
   GINGER_GOOD_ID,
   GUNPOWDER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
+  addPortGoodStock,
   addWorldEconomyPort,
   connectNearbyPortMarkets,
   consumePortGoodStock,
@@ -1354,6 +1357,10 @@ import {
   worldEconomyHasPort,
   worldEconomyPortSettlementType
 } from "./economy.js";
+import {
+  questCargoDeliverableQuantity,
+  questCargoDeliveryProgress
+} from "./questCargoDeliveries.js";
 import {
   darkerResurrect64Hex,
   waterDepthIndexForSpriteKey,
@@ -15750,7 +15757,7 @@ function maybeOpenPapalCommissionPortDialogue(cityCall) {
     if (!objective || objective.destination.tileId !== cityCall.tileId) return false;
     return objective.kind === "return-to-rome"
       ? completePapalCommissionAtRome(cityCall, matter)
-      : openPapalCommissionAudience(cityCall, matter, objective.destination);
+      : openPapalCommissionDestination(cityCall, matter, objective.destination);
   }
   if (cityCall.factionId !== "papal-states" || cityCall.city !== "Rome" ||
       matter.playerOfferStatus !== null) {
@@ -15774,6 +15781,7 @@ function maybeOpenPapalCommissionPortDialogue(cityCall) {
       speakerCharacter: nuncio,
       expressionId: eligibility.eligible ? "attentive" : "stern",
       message: papalCommissionOfferText(matter, Math.floor(weatherClockMinutes), {
+        destinationName: itinerary[0].portName,
         rhodesStillHospitaller
       })
     })
@@ -15797,7 +15805,7 @@ function maybeOpenPapalCommissionPortDialogue(cityCall) {
   const opened = startCharacterAlertSequence(steps, () => {
     const choiceOpened = openCharacterChoiceAlertModal(
       nuncio,
-      `${papalCommissionLabel(matter.commissionKind)}. Will you carry the nuncio and his briefs?`,
+      `${papalCommissionLabel(matter.commissionKind)}. Will you accept this commission?`,
       [
         {
           label: "Accept the commission",
@@ -15844,7 +15852,7 @@ function papalCommissionItinerary(matter) {
   const targetFactionIds = matter.commissionKind === PAPAL_COMMISSION_PEACE
     ? [matter.targetFactionId, matter.partnerFactionId]
     : matter.commissionKind === PAPAL_COMMISSION_RELIEF
-      ? [matter.beneficiaryFactionId || "venice"]
+      ? [matter.beneficiaryFactionId]
       : [matter.targetFactionId];
   const destinations = [];
   for (const factionId of targetFactionIds) {
@@ -15959,6 +15967,105 @@ function declinePapalCommissionOffer(nuncio) {
   if (!opened) throw new Error("Papal commission decline dialogue could not open");
 }
 
+function openPapalCommissionDestination(cityCall, matter, destination) {
+  const cargo = papalCommissionCargoStatus(destination);
+  if (!cargo.required || cargo.complete) {
+    return openPapalCommissionAudience(cityCall, matter, destination);
+  }
+  return maybeDeliverPapalCommissionCargo(cityCall, matter, destination, cargo);
+}
+
+function maybeDeliverPapalCommissionCargo(cityCall, matter, destination, before) {
+  const promptKey = papalCommissionCargoPromptKey(matter, before);
+  if (dialogueState.papalCommissionCargoPromptKey === promptKey) return false;
+
+  const deliveries = before.requirements
+    .filter((entry) => entry.deliverable > 0)
+    .map((entry) => {
+      const delivery = deliverQuestCargoRequirement(
+        gameState,
+        cityCall,
+        entry.requirement.goodId,
+        entry.requirement.quantity,
+        entry.requirement.id,
+        portDialogueContext()
+      );
+      addPortGoodStock(economy, cityCall, delivery.good.id, delivery.quantity);
+      return delivery;
+    });
+  const after = papalCommissionCargoStatus(destination);
+  dialogueState.papalCommissionCargoPromptKey = papalCommissionCargoPromptKey(matter, after);
+
+  const nuncio = matter.commission.nuncio;
+  const message = after.complete
+    ? `The last stores are ashore at ${destination.portName}. The nuncio may now present his briefs.`
+    : deliveries.length > 0
+      ? `These stores are received. Still required: ${papalCommissionCargoList(after.incomplete)}.`
+      : `The promised stores have not arrived. Still required: ${papalCommissionCargoList(after.incomplete)}.`;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: after.complete ? "pleased" : "stern",
+      message
+    })
+  ], () => {
+    saveVoyageNow(after.complete
+      ? `delivered Papal cargo at ${cityCall.city}`
+      : `partly delivered Papal cargo at ${cityCall.city}`);
+    dirty = true;
+    if (after.complete) openPapalCommissionAudience(cityCall, matter, destination);
+  });
+  if (!opened) throw new Error("Papal cargo delivery dialogue could not open");
+  return true;
+}
+
+function papalCommissionCargoStatus(destination) {
+  const requirements = papalCommissionCargoRequirements(gameState.relations.papacy)
+    .filter((requirement) => requirement.destinationOrder === destination.order)
+    .map((requirement) => {
+      const progress = questCargoDeliveryProgress(
+        gameState,
+        requirement.id,
+        requirement.quantity
+      );
+      return Object.freeze({
+        requirement,
+        progress,
+        deliverable: questCargoDeliverableQuantity(
+          gameState,
+          requirement.id,
+          requirement.quantity,
+          gameState.cargo[requirement.goodId] || 0
+        )
+      });
+    });
+  const incomplete = requirements.filter((entry) => !entry.progress.complete);
+  return Object.freeze({
+    required: requirements.length > 0,
+    complete: requirements.length === 0 || incomplete.length === 0,
+    requirements: Object.freeze(requirements),
+    incomplete: Object.freeze(incomplete)
+  });
+}
+
+function papalCommissionCargoPromptKey(matter, status) {
+  return `${matter.id}|${status.requirements.map((entry) => (
+    `${entry.requirement.id}:${entry.progress.deliveredQuantity}:${entry.deliverable}`
+  )).join("|")}`;
+}
+
+function papalCommissionCargoList(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error("Papal cargo list requires outstanding stores");
+  }
+  return entries.map((entry) => {
+    const remaining = entry.progress.remainingQuantity;
+    return `${tradeGoodById(entry.requirement.goodId).label} x${remaining}`;
+  }).join(", ");
+}
+
 function openPapalCommissionAudience(cityCall, matter, destination) {
   const finalAudience = matter.commission.nextStopIndex === matter.commission.itinerary.length - 1;
   const nuncio = matter.commission.nuncio;
@@ -15981,7 +16088,8 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
   if (!finalAudience) {
     advancePapalCommissionAtPort(gameState.relations.papacy, {
       tileId: cityCall.tileId,
-      simMinute: Math.floor(weatherClockMinutes)
+      simMinute: Math.floor(weatherClockMinutes),
+      cargoComplete: papalCommissionCargoStatus(destination).complete
     });
     const opened = startCharacterAlertSequence(steps, () => {
       saveVoyageNow(`completed Papal audience at ${cityCall.city}`);
@@ -16012,7 +16120,8 @@ function finishPapalCommissionAudience(cityCall, matter, recommendation) {
   advancePapalCommissionAtPort(gameState.relations.papacy, {
     tileId: cityCall.tileId,
     simMinute: Math.floor(weatherClockMinutes),
-    recommendation
+    recommendation,
+    cargoComplete: papalCommissionCargoStatus(destination).complete
   });
   const nuncio = matter.commission.nuncio;
   const opened = startCharacterAlertSequence([
@@ -16047,6 +16156,7 @@ function completePapalCommissionAtRome(rome, matter) {
     { simMinute: Math.floor(weatherClockMinutes) }
   );
   clearPapalCommissionSafePassage(completion);
+  clearPapalCommissionCargoProgress(completion);
   receiveQuestPayment(
     gameState,
     rome,
@@ -16085,6 +16195,12 @@ function clearPapalCommissionSafePassage(result) {
     if (gameState.relations.safePassageUntilMinute[factionId] === result.safePassageUntilMinute) {
       delete gameState.relations.safePassageUntilMinute[factionId];
     }
+  }
+}
+
+function clearPapalCommissionCargoProgress(result) {
+  for (const requirement of result.cargoRequirements || []) {
+    delete gameState.memory.quests.cargoDeliveries[requirement.id];
   }
 }
 
@@ -16713,6 +16829,7 @@ function settleCapitalCaptureDiplomacy(event, roll) {
     });
     if (papalResult.interruptedCommission) {
       clearPapalCommissionSafePassage(papalResult.interruptedCommission);
+      clearPapalCommissionCargoProgress(papalResult.interruptedCommission);
     }
   }
   return treaty;
@@ -25415,6 +25532,7 @@ function updateWorldDiplomacy() {
   }
   if (result.papalCommissionRevoked) {
     clearPapalCommissionSafePassage(result.papalCommissionRevoked);
+    clearPapalCommissionCargoProgress(result.papalCommissionRevoked);
     showSurvivalNotice(
       result.papalCommissionRevoked.reason === "commission-expired"
         ? "PAPAL LEGATION EXPIRED - ROME ACTS WITHOUT US"
@@ -34582,12 +34700,18 @@ function questJournalEntries() {
   if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
     const objective = papalCommissionObjective(gameState.relations.papacy);
     if (!objective) throw new Error("Active Papal commission has no journal objective");
+    const cargo = objective.kind === "destination"
+      ? papalCommissionCargoStatus(objective.destination)
+      : null;
     entries.push({
       id: `papal:${papalMatter.id}`,
       title: papalCommissionLabel(papalMatter.commissionKind).toUpperCase(),
       nextStep: objective.kind === "return-to-rome"
         ? "RETURN THE SEALED REPLIES TO ROME"
-        : `CARRY THE PAPAL LEGATION TO ${objective.destination.portName.toUpperCase()}`,
+        : cargo?.required && !cargo.complete
+          ? `DELIVER ${papalCommissionCargoList(cargo.incomplete).toUpperCase()} TO ` +
+            objective.destination.portName.toUpperCase()
+          : `CARRY THE PAPAL LEGATION TO ${objective.destination.portName.toUpperCase()}`,
       style: QUEST_NAVIGATION_STYLE
     });
   }

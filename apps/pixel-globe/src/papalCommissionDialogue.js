@@ -1,5 +1,6 @@
 import { factionById } from "./factions.js";
 import {
+  PAPAL_COMMISSION_ALMS,
   PAPAL_COMMISSION_ADMONITION,
   PAPAL_COMMISSION_COMMENDATION,
   PAPAL_COMMISSION_PEACE,
@@ -10,17 +11,27 @@ import {
 } from "./papalPolitics.js";
 import { rulerAtMinute } from "./rulers.js";
 
-export function papalCommissionOfferText(matter, simMinute, { rhodesStillHospitaller = false } = {}) {
+export function papalCommissionOfferText(matter, simMinute, {
+  destinationName = null,
+  rhodesStillHospitaller = false
+} = {}) {
   validateMatterView(matter);
   const target = factionById(matter.targetFactionId);
   const ruler = rulerAtMinute(matter.targetFactionId, simMinute);
   if (!ruler) throw new Error(`Papal commission target has no ruler: ${matter.targetFactionId}`);
   if (matter.commissionKind === PAPAL_COMMISSION_RELIEF) {
-    return rhodesStillHospitaller
-      ? `Rhodes still stands before the Ottoman sea, but its defenders cannot live on courage alone. ` +
-        "His Holiness requires a trusted captain to carry sealed pleas for relief."
-      : `The eastern sea is hard pressed by ${target.name}. His Holiness requires a trusted captain ` +
-        "to carry sealed pleas for relief before another Christian harbor is lost.";
+    if (!matter.beneficiaryFactionId) throw new Error("Papal war relief has no beneficiary");
+    const beneficiary = factionById(matter.beneficiaryFactionId);
+    const cargo = cargoBrief(matter);
+    return rhodesStillHospitaller && matter.beneficiaryFactionId === "hospitallers"
+      ? `Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders. ` +
+        `Carry ${cargo} and a Papal nuncio to ${requiredDestinationName(destinationName)}.`
+      : `${beneficiary.name} is hard pressed by ${target.name}. Carry ${cargo} and a Papal nuncio ` +
+        `to ${requiredDestinationName(destinationName)} before another Christian harbor is lost.`;
+  }
+  if (matter.commissionKind === PAPAL_COMMISSION_ALMS) {
+    return `Rome's almoners have gathered ${cargoBrief(matter)} for the poor at ` +
+      `${requiredDestinationName(destinationName)}. Carry the grain and a nuncio to oversee its distribution.`;
   }
   if (matter.commissionKind === PAPAL_COMMISSION_PEACE) {
     const partner = factionById(matter.partnerFactionId);
@@ -71,7 +82,11 @@ export function papalCommissionAudienceText(matter, destination, { finalAudience
     return opening + " Both courts have now spoken. Rome will act upon the counsel you carry home.";
   }
   if (matter.commissionKind === PAPAL_COMMISSION_RELIEF) {
-    return opening + " The answer makes plain both the danger and the price of relief.";
+    return opening + " The grain is counted into the granaries and the gunpowder into the magazines. " +
+      "The answer makes plain both the danger and the price of further relief.";
+  }
+  if (matter.commissionKind === PAPAL_COMMISSION_ALMS) {
+    return opening + " The grain is weighed beneath the nuncio's seal and passed to local almoners.";
   }
   if (matter.commissionKind === PAPAL_COMMISSION_REFORM) {
     return opening + " The reply admits much, denies more, and leaves the final counsel to you.";
@@ -102,6 +117,10 @@ export function papalCommissionRecommendationChoices(matter) {
     [PAPAL_COMMISSION_RELIEF]: [
       ["Call Christendom to arms", "firm"],
       ["Seek a truce", "moderate"]
+    ],
+    [PAPAL_COMMISSION_ALMS]: [
+      ["Praise the local stewards", "firm"],
+      ["Ask Rome for further alms", "moderate"]
     ]
   }[matter.commissionKind];
   if (!choices) throw new Error(`Missing Papal recommendation choices: ${matter.commissionKind}`);
@@ -113,8 +132,12 @@ export function papalCommissionRecommendationChoices(matter) {
 
 export function papalCommissionAcceptedText(matter, destinationName) {
   validateMatterView(matter);
+  const cargoInstruction = matter.cargoRequirements.length > 0
+    ? ` Procure ${cargoBrief(matter)} for the mission.`
+    : "";
   return `${papalCommissionLabel(matter.commissionKind)} accepted. Monsignor ` +
-    `${matter.commission.nuncio.name} comes aboard with the briefs. Set a course for ${destinationName}.`;
+    `${matter.commission.nuncio.name} comes aboard with the briefs.${cargoInstruction} ` +
+    `Set a course for ${destinationName}.`;
 }
 
 export function papalCommissionCompletionText(completion) {
@@ -130,4 +153,29 @@ function validateMatterView(matter) {
       typeof matter.targetFactionId !== "string") {
     throw new Error("Papal commission dialogue requires a pending matter");
   }
+  if (!Array.isArray(matter.cargoRequirements)) {
+    throw new Error("Papal commission dialogue requires cargo requirements");
+  }
+}
+
+function cargoBrief(matter) {
+  if (matter.cargoRequirements.length === 0) return "no cargo";
+  return matter.cargoRequirements.map((requirement) => {
+    const label = requirement.goodId === "grain"
+      ? "grain"
+      : requirement.goodId === "gunpowder"
+        ? "gunpowder"
+        : null;
+    if (!label || !Number.isInteger(requirement.quantity) || requirement.quantity <= 0) {
+      throw new Error("Papal commission has invalid cargo for dialogue");
+    }
+    return `${requirement.quantity} cargoes of ${label}`;
+  }).join(" and ");
+}
+
+function requiredDestinationName(destinationName) {
+  if (typeof destinationName !== "string" || destinationName.trim() === "") {
+    throw new Error("Papal transport commission requires a destination name");
+  }
+  return destinationName;
 }

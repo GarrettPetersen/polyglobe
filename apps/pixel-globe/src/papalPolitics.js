@@ -25,7 +25,7 @@ import {
   isRomanCatholicReligion
 } from "./religiousAttitudes.js";
 
-export const PAPAL_POLITICS_VERSION = 2;
+export const PAPAL_POLITICS_VERSION = 3;
 export const PAPAL_FACTION_ID = "papal-states";
 export const PAPAL_ACTION_FAVOUR = "papal-favour";
 export const PAPAL_ACTION_EXCOMMUNICATION = "papal-excommunication";
@@ -36,8 +36,12 @@ export const PAPAL_COMMISSION_COMMENDATION = "commendation";
 export const PAPAL_COMMISSION_PEACE = "peace";
 export const PAPAL_COMMISSION_REFORM = "reform";
 export const PAPAL_COMMISSION_RELIEF = "relief";
+export const PAPAL_COMMISSION_ALMS = "alms";
 export const PAPAL_MATTER_AVAILABLE = "available";
 export const PAPAL_MATTER_COMMISSIONED = "commissioned";
+export const PAPAL_RELIEF_GRAIN_QUANTITY = 8;
+export const PAPAL_RELIEF_GUNPOWDER_QUANTITY = 3;
+export const PAPAL_ALMS_GRAIN_QUANTITY = 10;
 
 const MINUTES_PER_DAY = 24 * 60;
 const PAPAL_MIN_ACTION_DAYS = 300;
@@ -54,8 +58,14 @@ const PAPAL_COMMISSION_KINDS = new Set([
   PAPAL_COMMISSION_COMMENDATION,
   PAPAL_COMMISSION_PEACE,
   PAPAL_COMMISSION_REFORM,
-  PAPAL_COMMISSION_RELIEF
+  PAPAL_COMMISSION_RELIEF,
+  PAPAL_COMMISSION_ALMS
 ]);
+const PAPAL_LOGISTICS_KINDS = new Set([
+  PAPAL_COMMISSION_RELIEF,
+  PAPAL_COMMISSION_ALMS
+]);
+const PAPAL_LOGISTICS_GOOD_IDS = new Set(["grain", "gunpowder"]);
 const PAPAL_ACTION_KINDS = new Set([
   PAPAL_ACTION_FAVOUR,
   PAPAL_ACTION_EXCOMMUNICATION,
@@ -89,14 +99,29 @@ export function createPapalPolitics({ startMinute = 0, seedKey = "papacy" } = {}
 
 export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papacy" } = {}) {
   if (memory === undefined || memory === null) return createPapalPolitics({ startMinute, seedKey });
-  if (memory?.version === 1) {
-    return validatePapalPolitics({
-      ...memory,
-      version: PAPAL_POLITICS_VERSION,
+  let migrated = memory;
+  if (migrated?.version === 1) {
+    migrated = {
+      ...migrated,
+      version: 2,
       pendingMatter: null
-    });
+    };
   }
-  return validatePapalPolitics(memory);
+  if (migrated?.version === 2) {
+    migrated = {
+      ...migrated,
+      version: PAPAL_POLITICS_VERSION,
+      history: migrated.history.map((action) => ({ ...action, logistics: null })),
+      pendingMatter: migrated.pendingMatter ? {
+        ...migrated.pendingMatter,
+        cargoRequirements: papalCargoRequirements(
+          migrated.pendingMatter.id,
+          migrated.pendingMatter.commissionKind
+        )
+      } : null
+    };
+  }
+  return validatePapalPolitics(migrated);
 }
 
 export function validatePapalPolitics(memory) {
@@ -265,7 +290,8 @@ export function papalCommissionEligibility(memory, diplomacy, {
       PAPAL_COMMISSION_CATHOLIC_REPUTATION
     );
   }
-  if (![PAPAL_COMMISSION_PEACE, PAPAL_COMMISSION_RELIEF].includes(matter.commissionKind)) {
+  if (![PAPAL_COMMISSION_PEACE, PAPAL_COMMISSION_RELIEF, PAPAL_COMMISSION_ALMS]
+    .includes(matter.commissionKind)) {
     return eligibility(false, "doctrinal-office-reserved");
   }
   if (isChristianReligion(playerReligionId)) {
@@ -380,10 +406,20 @@ export function papalCommissionObjective(memory) {
       });
 }
 
+export function papalCommissionCargoRequirements(memory) {
+  validatePapalPolitics(memory);
+  const matter = memory.pendingMatter;
+  if (!matter || matter.status !== PAPAL_MATTER_COMMISSIONED) return Object.freeze([]);
+  return Object.freeze(matter.cargoRequirements.map((requirement) => Object.freeze({
+    ...requirement
+  })));
+}
+
 export function advancePapalCommissionAtPort(memory, {
   tileId,
   simMinute,
-  recommendation = null
+  recommendation = null,
+  cargoComplete = false
 }) {
   validatePapalPolitics(memory);
   assertMinute(simMinute, "papal commission port visit");
@@ -393,7 +429,16 @@ export function advancePapalCommissionAtPort(memory, {
   if (recommendation !== null && !["firm", "moderate"].includes(recommendation)) {
     throw new Error(`Invalid Papal commission recommendation: ${recommendation}`);
   }
+  if (typeof cargoComplete !== "boolean") {
+    throw new Error("Papal commission cargo completion must be boolean");
+  }
   const commission = memory.pendingMatter.commission;
+  const cargoRequired = memory.pendingMatter.cargoRequirements.some((requirement) => (
+    requirement.destinationOrder === commission.nextStopIndex
+  ));
+  if (cargoRequired && !cargoComplete) {
+    throw new Error(`Papal commission cargo is incomplete at itinerary stop ${commission.nextStopIndex}`);
+  }
   commission.itinerary[commission.nextStopIndex].visitedMinute = simMinute;
   commission.nextStopIndex += 1;
   if (recommendation !== null) commission.recommendation = recommendation;
@@ -425,6 +470,9 @@ export function completePapalCommission(memory, diplomacy, { simMinute }) {
       ...new Set(matter.commission.itinerary.map((entry) => entry.factionId))
     ]),
     safePassageUntilMinute: matter.commission.deadlineMinute,
+    cargoRequirements: Object.freeze(matter.cargoRequirements.map((requirement) => Object.freeze({
+      ...requirement
+    }))),
     action: result.action,
     diplomacyEvents: result.diplomacyEvents
   });
@@ -439,15 +487,28 @@ export function papalCommissionLabel(kind) {
     [PAPAL_COMMISSION_COMMENDATION]: "Papal Commendation",
     [PAPAL_COMMISSION_PEACE]: "Papal Peace Commission",
     [PAPAL_COMMISSION_REFORM]: "Papal Reform Commission",
-    [PAPAL_COMMISSION_RELIEF]: "Papal Relief Commission"
+    [PAPAL_COMMISSION_RELIEF]: "Papal War Relief",
+    [PAPAL_COMMISSION_ALMS]: "Papal Alms Mission"
   }[kind];
 }
 
 export function papalMatterNotice(matter) {
   const view = matter?.commissionKind ? matter : papalMatterView(matter);
   const target = factionById(view.targetFactionId);
+  if (view.commissionKind === PAPAL_COMMISSION_RELIEF) {
+    if (!view.beneficiaryFactionId) throw new Error("Papal war relief has no beneficiary");
+    const beneficiary = factionById(view.beneficiaryFactionId);
+    return view.status === PAPAL_MATTER_COMMISSIONED
+      ? `PAPAL RELIEF UNDERWAY FOR ${beneficiary.shortName.toUpperCase()} AGAINST ${target.shortName.toUpperCase()}`
+      : `ROME DELIBERATES RELIEF FOR ${beneficiary.shortName.toUpperCase()} AGAINST ${target.shortName.toUpperCase()}`;
+  }
+  if (view.commissionKind === PAPAL_COMMISSION_ALMS) {
+    return view.status === PAPAL_MATTER_COMMISSIONED
+      ? `PAPAL GRAIN ALMS UNDERWAY FOR ${target.shortName.toUpperCase()}`
+      : `ROME PREPARES GRAIN ALMS FOR ${target.shortName.toUpperCase()}`;
+  }
   if (view.status === PAPAL_MATTER_COMMISSIONED) {
-    return `${papalCommissionLabel(view.commissionKind).toUpperCase()} UNDERWAY FOR ${target.shortName.toUpperCase()}`;
+    return `${papalCommissionLabel(view.commissionKind).toUpperCase()} UNDERWAY CONCERNING ${target.shortName.toUpperCase()}`;
   }
   return `ROME DELIBERATES A ${papalCommissionLabel(view.commissionKind).toUpperCase()} CONCERNING ${target.shortName.toUpperCase()}`;
 }
@@ -459,8 +520,11 @@ export function imposePapalAction(memory, diplomacy, {
   source = "rome-peace-treaty"
 }) {
   const interruptedCommission = memory.pendingMatter?.status === PAPAL_MATTER_COMMISSIONED
-    ? Object.freeze({
+      ? Object.freeze({
         matterId: memory.pendingMatter.id,
+        cargoRequirements: Object.freeze(memory.pendingMatter.cargoRequirements.map((requirement) =>
+          Object.freeze({ ...requirement })
+        )),
         safePassageFactionIds: Object.freeze([
           ...new Set(memory.pendingMatter.commission.itinerary.map((entry) => entry.factionId))
         ]),
@@ -498,6 +562,15 @@ export function papalExcommunicationTargetCandidates(diplomacy, winnerFactionId,
 export function papalActionNotice(action) {
   validatePapalAction(action);
   const target = factionById(action.targetFactionId);
+  if (action.logistics?.kind === PAPAL_COMMISSION_RELIEF) {
+    const recipient = factionById(action.logistics.recipientFactionId);
+    const opponent = factionById(action.logistics.opponentFactionId);
+    return `PAPAL RELIEF REACHES ${recipient.shortName.toUpperCase()} AGAINST ${opponent.shortName.toUpperCase()}`;
+  }
+  if (action.logistics?.kind === PAPAL_COMMISSION_ALMS) {
+    const recipient = factionById(action.logistics.recipientFactionId);
+    return `ROME SENDS GRAIN ALMS TO ${recipient.shortName.toUpperCase()}`;
+  }
   if (action.kind === PAPAL_ACTION_FAVOUR) {
     return `${action.popeName.toUpperCase()} ISSUES A BULL IN FAVOUR OF ${target.shortName.toUpperCase()}`;
   }
@@ -518,7 +591,13 @@ export function convertEnglishCatholicCharacter(character) {
   return Object.freeze({ ...character, religionId: "anglican" });
 }
 
-function enactPapalAction(memory, diplomacy, { kind, targetFactionId, simMinute, source }) {
+function enactPapalAction(memory, diplomacy, {
+  kind,
+  targetFactionId,
+  simMinute,
+  source,
+  logistics = null
+}) {
   validatePapalPolitics(memory);
   validateWorldDiplomacy(diplomacy);
   if (!PAPAL_ACTION_KINDS.has(kind)) throw new Error(`Invalid papal action kind: ${kind}`);
@@ -532,6 +611,7 @@ function enactPapalAction(memory, diplomacy, { kind, targetFactionId, simMinute,
   if (typeof source !== "string" || source.trim() === "") {
     throw new Error("Papal action requires a source");
   }
+  if (logistics !== null) validatePapalLogistics(logistics);
   const pope = rulerAtMinute(PAPAL_FACTION_ID, simMinute);
   const targetRuler = rulerAtMinute(targetFactionId, simMinute);
   if (!pope || !targetRuler) throw new Error("Papal action requires current rulers");
@@ -577,7 +657,8 @@ function enactPapalAction(memory, diplomacy, { kind, targetFactionId, simMinute,
     popeName: pope.displayName,
     respondingFactionIds: Object.freeze(respondingFactionIds),
     simMinute,
-    source
+    source,
+    logistics
   });
   if (kind === PAPAL_ACTION_EXCOMMUNICATION) {
     memory.excommunications[targetFactionId] = {
@@ -612,11 +693,8 @@ function chooseScheduledPapalAction(memory, diplomacy, simMinute) {
         !isRomanCatholicReligion(ruler.religionId)) {
       candidates.push({ kind: PAPAL_ACTION_CONDEMNATION, targetFactionId: faction.id, weight: 2 });
     }
-    if (isMuslimReligion(ruler.religionId) && (
-      papalRelation === DIPLOMACY_HOSTILE ||
-      papalRelation === DIPLOMACY_WAR ||
-      isAtWarWithCatholicPower(diplomacy, faction.id, simMinute)
-    )) {
+    if (isMuslimReligion(ruler.religionId) &&
+        isAtWarWithCatholicPower(diplomacy, faction.id, simMinute)) {
       candidates.push({ kind: PAPAL_ACTION_CRUSADE, targetFactionId: faction.id, weight: 3 });
     }
   }
@@ -657,6 +735,12 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
   } else if (proposal.kind === PAPAL_ACTION_CRUSADE) {
     commissionKind = PAPAL_COMMISSION_RELIEF;
     beneficiaryFactionId = catholicEnemyOf(diplomacy, proposal.targetFactionId, simMinute);
+    if (!beneficiaryFactionId) {
+      throw new Error(`Papal relief target has no Catholic belligerent: ${proposal.targetFactionId}`);
+    }
+  } else if (proposal.kind === PAPAL_ACTION_FAVOUR &&
+      papalRandom(memory, memory.sequence, `alms|${simMinute}|${targetFactionId}`) < 0.45) {
+    commissionKind = PAPAL_COMMISSION_ALMS;
   } else if (proposal.kind === PAPAL_ACTION_EXCOMMUNICATION ||
       proposal.kind === PAPAL_ACTION_CONDEMNATION) {
     commissionKind = PAPAL_COMMISSION_ADMONITION;
@@ -669,14 +753,16 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
     commissionKind = PAPAL_COMMISSION_COMMENDATION;
   }
 
+  const id = `papal-matter-${memory.sequence}-${simMinute}`;
   const matter = {
-    id: `papal-matter-${memory.sequence}-${simMinute}`,
+    id,
     status: PAPAL_MATTER_AVAILABLE,
     commissionKind,
     actionKind,
     targetFactionId,
     partnerFactionId,
     beneficiaryFactionId,
+    cargoRequirements: papalCargoRequirements(id, commissionKind),
     createdMinute: simMinute,
     autonomousDecisionMinute: simMinute + PAPAL_MATTER_DECISION_DAYS * MINUTES_PER_DAY,
     playerOfferStatus: null,
@@ -734,13 +820,29 @@ function enactPapalMatter(memory, diplomacy, matter, {
       ));
     }
   }
+  const logisticsRecipientFactionId = matter.commissionKind === PAPAL_COMMISSION_RELIEF
+    ? matter.beneficiaryFactionId
+    : matter.commissionKind === PAPAL_COMMISSION_ALMS
+      ? matter.targetFactionId
+      : null;
+  const logistics = logisticsRecipientFactionId ? Object.freeze({
+    kind: matter.commissionKind,
+    recipientFactionId: logisticsRecipientFactionId,
+    opponentFactionId: matter.commissionKind === PAPAL_COMMISSION_RELIEF
+      ? matter.targetFactionId
+      : null,
+    cargoRequirements: Object.freeze(matter.cargoRequirements.map((requirement) => Object.freeze({
+      ...requirement
+    })))
+  }) : null;
   const result = enactPapalAction(memory, diplomacy, {
     kind: actionKind,
     targetFactionId,
     simMinute,
     source: matter.commissionKind === PAPAL_COMMISSION_REFORM && source === "player-papal-commission"
       ? "player-papal-reform"
-      : source
+      : source,
+    logistics
   });
   return Object.freeze({
     action: result.action,
@@ -792,6 +894,9 @@ function revokePapalCommission(memory, simMinute, reason) {
   const revoked = Object.freeze({
     matterId: matter.id,
     commissionKind: matter.commissionKind,
+    cargoRequirements: Object.freeze(matter.cargoRequirements.map((requirement) => Object.freeze({
+      ...requirement
+    }))),
     reason,
     simMinute,
     safePassageFactionIds: Object.freeze([
@@ -854,6 +959,16 @@ function validatePapalMatter(matter) {
         throw new Error(`Papal matter ${label} repeats its target`);
       }
     }
+  }
+  if (!Array.isArray(matter.cargoRequirements)) {
+    throw new Error("Papal matter requires cargo requirements");
+  }
+  matter.cargoRequirements.forEach((requirement) => validatePapalCargoRequirement(requirement));
+  if (matter.commissionKind === PAPAL_COMMISSION_RELIEF && matter.beneficiaryFactionId === null) {
+    throw new Error("Papal war relief requires a beneficiary");
+  }
+  if (PAPAL_LOGISTICS_KINDS.has(matter.commissionKind) !== (matter.cargoRequirements.length > 0)) {
+    throw new Error(`Papal ${matter.commissionKind} cargo requirements are inconsistent`);
   }
   assertMinute(matter.createdMinute, "Papal matter creation");
   assertMinute(matter.autonomousDecisionMinute, "Papal matter decision");
@@ -983,6 +1098,65 @@ function validatePapalAction(action) {
   if (typeof action.source !== "string" || action.source === "") {
     throw new Error("Papal action requires a source");
   }
+  if (action.logistics !== null) validatePapalLogistics(action.logistics);
+}
+
+function papalCargoRequirements(matterId, commissionKind) {
+  if (commissionKind === PAPAL_COMMISSION_RELIEF) {
+    return Object.freeze([
+      papalCargoRequirement(matterId, "grain", PAPAL_RELIEF_GRAIN_QUANTITY, 0),
+      papalCargoRequirement(matterId, "gunpowder", PAPAL_RELIEF_GUNPOWDER_QUANTITY, 0)
+    ]);
+  }
+  if (commissionKind === PAPAL_COMMISSION_ALMS) {
+    return Object.freeze([
+      papalCargoRequirement(matterId, "grain", PAPAL_ALMS_GRAIN_QUANTITY, 0)
+    ]);
+  }
+  return Object.freeze([]);
+}
+
+function papalCargoRequirement(matterId, goodId, quantity, destinationOrder) {
+  const requirement = Object.freeze({
+    id: `papal.${matterId}.${goodId}`,
+    goodId,
+    quantity,
+    destinationOrder
+  });
+  validatePapalCargoRequirement(requirement);
+  return requirement;
+}
+
+function validatePapalCargoRequirement(requirement) {
+  if (!requirement || typeof requirement !== "object" || Array.isArray(requirement) ||
+      typeof requirement.id !== "string" || requirement.id.trim() === "" ||
+      !PAPAL_LOGISTICS_GOOD_IDS.has(requirement.goodId) ||
+      !Number.isInteger(requirement.quantity) || requirement.quantity <= 0 ||
+      !Number.isInteger(requirement.destinationOrder) || requirement.destinationOrder < 0) {
+    throw new Error("Invalid Papal cargo requirement");
+  }
+  return requirement;
+}
+
+function validatePapalLogistics(logistics) {
+  if (!logistics || typeof logistics !== "object" || Array.isArray(logistics) ||
+      !PAPAL_LOGISTICS_KINDS.has(logistics.kind)) {
+    throw new Error("Invalid Papal logistics record");
+  }
+  assertFactionId(logistics.recipientFactionId);
+  if (logistics.kind === PAPAL_COMMISSION_RELIEF) {
+    assertFactionId(logistics.opponentFactionId);
+    if (logistics.opponentFactionId === logistics.recipientFactionId) {
+      throw new Error("Papal war relief repeats its opponent as recipient");
+    }
+  } else if (logistics.opponentFactionId !== null) {
+    throw new Error("Papal alms cannot name a military opponent");
+  }
+  if (!Array.isArray(logistics.cargoRequirements) || logistics.cargoRequirements.length === 0) {
+    throw new Error("Papal logistics requires cargo");
+  }
+  logistics.cargoRequirements.forEach((requirement) => validatePapalCargoRequirement(requirement));
+  return logistics;
 }
 
 function assertMinute(value, label) {

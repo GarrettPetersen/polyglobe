@@ -1060,6 +1060,22 @@ export function consumePortGoodStock(economy, city, goodId, quantity) {
   return removePortGoodStock(economy, city, goodId, quantity);
 }
 
+export function addPortGoodStock(economy, city, goodId, quantity) {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error(`Invalid port stock addition: ${goodId}=${quantity}`);
+  }
+  const port = requiredPortState(economy, city);
+  const state = port.goods.get(tradeGoodById(goodId).id);
+  if (!state) throw new Error(`${port.name} has no stock record for ${goodId}`);
+  state.stock += quantity;
+  invalidateWorldMarketMedianCache(economy);
+  return Object.freeze({
+    goodId,
+    quantity,
+    stock: Math.floor(state.stock)
+  });
+}
+
 export function destroyPortGoodStock(economy, city, goodId) {
   return removePortGoodStock(economy, city, goodId, null);
 }

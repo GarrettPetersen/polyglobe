@@ -21,7 +21,14 @@ import {
   landColonists
 } from "./colonizationQuest.js";
 import { createGameState } from "./gameState.js";
+import {
+  PAPAL_COMMISSION_ALMS,
+  acceptPapalCommission,
+  advancePapalPolitics,
+  createPapalPolitics
+} from "./papalPolitics.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { createWorldDiplomacy } from "./worldDiplomacy.js";
 import {
   VIKING_LONGSHIP_PORT_CITY,
   deliverVikingLongshipQuestCargo,
@@ -126,3 +133,40 @@ test("colony resupply cargo is protected and offered immediately on return", () 
     [QUEST_CARGO_PROMPT_COLONIZATION]
   );
 });
+
+test("accepted Papal transport cargo is protected with other quest provisions", () => {
+  const state = game();
+  const { papacy, diplomacy } = pendingPapalAlms();
+  state.relations.papacy = papacy;
+  state.relations.diplomacy = diplomacy;
+  acceptPapalCommission(papacy, diplomacy, {
+    playerFactionId: "spain",
+    playerReligionId: "roman-catholic",
+    papalReputation: 20,
+    simMinute: papacy.lastUpdateMinute,
+    originTileId: 1,
+    itinerary: [{
+      tileId: 2,
+      portName: "Relief Port",
+      factionId: papacy.pendingMatter.targetFactionId,
+      purpose: "deliver-alms"
+    }],
+    rewardDoubloons: 500,
+    nuncio: { id: "nuncio-cargo", name: "Monsignor Cargo" }
+  });
+
+  assert.deepEqual(activeQuestCargoReservedQuantities(state), { grain: 10 });
+});
+
+function pendingPapalAlms() {
+  for (let index = 0; index < 500; index += 1) {
+    const seedKey = `active-cargo-papal-alms-${index}`;
+    const papacy = createPapalPolitics({ seedKey });
+    const diplomacy = createWorldDiplomacy({ seedKey });
+    advancePapalPolitics(papacy, diplomacy, papacy.nextActionMinute);
+    if (papacy.pendingMatter?.commissionKind === PAPAL_COMMISSION_ALMS) {
+      return { papacy, diplomacy };
+    }
+  }
+  throw new Error("Could not generate a Papal alms matter for cargo test");
+}

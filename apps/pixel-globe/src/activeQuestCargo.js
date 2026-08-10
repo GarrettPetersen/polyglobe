@@ -29,6 +29,8 @@ import {
   VIKING_LONGSHIP_PORT_COUNTRY,
   vikingLongshipQuestState
 } from "./vikingLongshipQuest.js";
+import { papalCommissionCargoRequirements } from "./papalPolitics.js";
+import { questCargoDeliveryProgress } from "./questCargoDeliveries.js";
 
 export const QUEST_CARGO_PROMPT_VIKING = "viking-longship";
 export const QUEST_CARGO_PROMPT_MATCHLOCKS = "japanese-matchlocks";
@@ -126,6 +128,11 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
       colonization.resupply.goodId,
       colonization.resupply.remaining
     );
+  }
+
+  for (const requirement of papalCommissionCargoRequirements(state.relations.papacy)) {
+    const progress = questCargoDeliveryProgress(state, requirement.id, requirement.quantity);
+    add(requirement.id, requirement.goodId, progress.remainingQuantity);
   }
 
   return Object.freeze(requirements);

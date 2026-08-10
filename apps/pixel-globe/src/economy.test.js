@@ -28,6 +28,7 @@ import {
   SULFUR_GOOD_ID,
   TRADE_GOODS,
   WINE_GOOD_ID,
+  addPortGoodStock,
   addWorldEconomyPort,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
@@ -46,6 +47,7 @@ import {
   quotePortSale,
   replaceWorldEconomyPort,
   restoreWorldEconomy,
+  snapshotPortTradeState,
   snapshotWorldEconomy,
   tradeGoodById,
   worldEconomyPortSettlementType,
@@ -1068,6 +1070,16 @@ test("world market median cache invalidates when a port market changes", () => {
   const after = worldMarketPriceComparison(economy, LONDON, "grain", "buy");
   assert.notEqual(after.worldPrice, before.worldPrice);
   assert.equal(after.worldPrice, after.localPrice);
+});
+
+test("mission cargo delivered to a port joins its live market stock", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const before = snapshotPortTradeState(economy, LONDON).stocks.grain;
+
+  const addition = addPortGoodStock(economy, LONDON, "grain", 8);
+
+  assert.equal(addition.quantity, 8);
+  assert.equal(snapshotPortTradeState(economy, LONDON).stocks.grain, before + 8);
 });
 
 test("other long-haul prestige goods support profitable world-spanning routes", () => {
