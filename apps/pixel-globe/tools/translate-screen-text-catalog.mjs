@@ -125,6 +125,9 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedShipTypeOverrides(),
+  "Do you think the fish smell us coming, or have they gone mercifully numb?": Object.freeze({
+    "zh-Hans": "你觉得鱼儿闻到我们来了，还是已经麻木得不知害怕了？"
+  }),
   "Heave to. Customs officers at {0} traced illicit trade to this vessel. Pay the fine, surrender the unlicensed cargo, or answer to our guns.": Object.freeze({
     "zh-Hans": "停船受检。{0}海关已查明这艘船参与走私。缴纳罚款、交出违禁货物，否则我们就开火。",
     ru: "Лечь в дрейф! Таможня в {0} установила, что это судно вело контрабандную торговлю. Уплатите штраф, сдайте незаконный груз — или мы откроем огонь.",
@@ -377,7 +380,9 @@ for (const locale of LOCALES) {
   const outputPath = path.join(OUTPUT_ROOT, locale.fileName);
   const existing = await readExistingCatalog(outputPath);
   const missing = PRUNE_ONLY ? [] : SCREEN_TEXT_TEMPLATES.filter((source) => (
-    typeof existing[source] !== "string" || needsTranslationRefresh(source)
+    typeof existing[source] !== "string" ||
+    needsTranslationRefresh(source) ||
+    (existing[source] === source && requiresTranslatedProse(source))
   ));
   process.stdout.write(`${locale.id}: ${PRUNE_ONLY ? "pruning" : `translating ${missing.length} missing templates`}\n`);
   const translated = missing.length > 0
@@ -416,6 +421,21 @@ async function translateTemplates(templates, locale) {
       let translation = restoreProtectedText(entries[entryIndex].trim());
       translation = await repairChangedPlaceholders(source, translation, locale);
       translation = extractContextualTranslation(source, translation);
+      if (
+        translation === source &&
+        requiresTranslatedProse(source) &&
+        !REVIEWED_OVERRIDES[source]?.[locale.id]
+      ) {
+        translation = restoreProtectedText(await translatePlainText(
+          translationSource(source),
+          locale
+        ));
+        translation = await repairChangedPlaceholders(source, translation, locale);
+        translation = extractContextualTranslation(source, translation);
+        if (translation === source) {
+          throw new Error(`${locale.id} translation service left prose in English: ${source}`);
+        }
+      }
       if (isUppercaseDisplayText(source)) translation = translation.toLocaleUpperCase(locale.id);
       output[source] = translation;
     }
@@ -423,6 +443,13 @@ async function translateTemplates(templates, locale) {
   }
   process.stdout.write("\n");
   return output;
+}
+
+function requiresTranslatedProse(value) {
+  if (/MARQUE-AND-REPRISAL\.COM/i.test(value)) return false;
+  if (/\b(?:Dogica|Galmuri11)\b/.test(value)) return false;
+  if (!/\s/.test(value)) return false;
+  return (value.match(/[A-Za-z]{2,}/g) || []).length >= 3;
 }
 
 async function repairChangedPlaceholders(source, translation, locale) {

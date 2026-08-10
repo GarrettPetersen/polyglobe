@@ -722,7 +722,7 @@ function protectedRetainedComponentIds({
     for (const neighborId of neighborsById[pendingId]) {
       if (
         pendingSet.has(neighborId) ||
-        protectionById[neighborId] !== 255 ||
+        protectionById[neighborId] === 0 ||
         !positions.has(neighborId) ||
         !projectedById.has(neighborId) ||
         (rigidRegistrationIds && !rigidRegistrationIds.has(neighborId))
@@ -939,7 +939,6 @@ export function admitProjectedTiles({
     const projected = projectedById.get(id);
     assertFinitePoint(projected, `Projected position for pending tile ${id}`);
     const protectedPoint = protectedPointById.get(id);
-    const entersLiveViewport = liveViewportAdmissionIds?.has(id) ?? false;
     const continuityCorrectionLimitPx = continuityCorrectionLimitForId({
       id,
       continuityMaskById,
@@ -951,10 +950,8 @@ export function admitProjectedTiles({
       registeredFrame,
       translatedFrame,
       protectionById[id],
-      entersLiveViewport ? 0 : maxElasticCorrectionPx,
-      entersLiveViewport
-        ? 0
-        : protectedCorrectionViewportIds === null || protectedCorrectionViewportIds.has(id)
+      maxElasticCorrectionPx,
+      protectedCorrectionViewportIds === null || protectedCorrectionViewportIds.has(id)
         ? maxProtectedCorrectionPx
         : Number.POSITIVE_INFINITY,
       continuityCorrectionLimitById?.get(id) ?? Number.POSITIVE_INFINITY
@@ -1271,7 +1268,7 @@ export function resolveLocalLayoutAnchor({
   return preferredAnchorId;
 }
 
-export function settleVisibleElasticTilesWithinMotion({
+export function planVisibleElasticTilesWithinMotion({
   positions,
   projectedById,
   protectionById,
@@ -1315,7 +1312,7 @@ export function settleVisibleElasticTilesWithinMotion({
     `Motion-hidden chart projected anchor ${anchorId}`
   );
 
-  let settled = 0;
+  const proposedPositions = new Map();
   for (const id of movableTileIds) {
     if (id === anchorId || protectionById[id] !== 0) continue;
     const position = positions.get(id);
@@ -1355,13 +1352,12 @@ export function settleVisibleElasticTilesWithinMotion({
     const shiftX = shift.x;
     const shiftY = shift.y;
     if (shiftX === 0 && shiftY === 0) continue;
-    positions.set(id, {
+    proposedPositions.set(id, {
       x: position.x + shiftX,
       y: position.y + shiftY
     });
-    settled++;
   }
-  return settled;
+  return proposedPositions;
 }
 
 function motionHiddenShift({

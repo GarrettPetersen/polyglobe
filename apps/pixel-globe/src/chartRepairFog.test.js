@@ -197,11 +197,12 @@ test("polar fog tightens its clear window under chart repair pressure", () => {
     focusY: 128
   };
   const ordinary = polarChartFogFrame(base);
-  const repairing = polarChartFogFrame({ ...base, repairPressure: 0.9 });
+  const repairing = polarChartFogFrame({ ...base, repairPressure: 1 });
 
-  assert.ok(repairing.clearRadius < ordinary.clearRadius - 60);
+  assert.ok(repairing.clearRadius < ordinary.clearRadius - 75);
+  assert.ok(repairing.clearRadius < 30);
   assert.equal(repairing.polarAmount, ordinary.polarAmount);
-  assert.equal(repairing.repairPressure, 0.9);
+  assert.equal(repairing.repairPressure, 1);
   assert.equal(polarChartFogFrame({
     ...base,
     latitudeDeg: 30,
@@ -223,7 +224,7 @@ test("polar repair pressure rises only where polar fog is climatically plausible
     currentPressure: 0,
     latitudeDeg: 67,
     ...metrics
-  }), 0.12);
+  }), 0.3);
   assert.equal(nextPolarChartRepairPressure({
     currentPressure: 0,
     latitudeDeg: 67,

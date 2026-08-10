@@ -7,14 +7,15 @@ import {
   gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
 
-test("compact at-sea dialogue does not qualify as hidden chart cover", () => {
+test("live sailing without dialogue does not qualify as hidden chart cover", () => {
   assert.equal(chartReframeCoverIsOpaque({}), false);
   assert.equal(chartReframeCoverIsOpaque({ fullPortDialogue: false }), false);
 });
 
-test("full notebook pages and admitted port dialogue can hide a correction", () => {
+test("blocking dialogue and full notebook pages can hide a correction", () => {
   assert.equal(chartReframeCoverIsOpaque({ captainMenu: true }), true);
   assert.equal(chartReframeCoverIsOpaque({ fullPortDialogue: true }), true);
+  assert.equal(chartReframeCoverIsOpaque({ blockingDialogue: true }), true);
 });
 
 test("opening opaque cover always heals the hidden chart once", () => {

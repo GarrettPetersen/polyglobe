@@ -31,7 +31,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
       shipSlug: "portuguese-carrack",
       lat: 58.283,
       lon: 0,
-      headingDeg: 90,
+      headingDeg: 0,
       activePlaySeconds: 60
     },
     world: { day: 196, hour: 13, minute: 20, timeScale: 180 },
@@ -76,7 +76,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "iceberg-drift-qa-v1",
     player: {
       factionId: "denmark-norway",
-      shipSlug: "fishing-lugger",
+      shipSlug: "viking-longship",
       lat: 55,
       lon: -40.15,
       headingDeg: 0,
@@ -88,6 +88,38 @@ const CAPTURE_SCENARIOS = Object.freeze({
     icebergs: [
       { variantId: "iceberg-large", lat: 55, lon: -39.98, headingDeg: 210 }
     ]
+  }),
+  "diagnostic-chart-recovery-ocean": scenario({
+    id: "diagnostic-chart-recovery-ocean",
+    title: "chart-recovery-ocean",
+    seed: "diagnostic-chart-recovery-ocean-v1",
+    player: {
+      factionId: "portugal",
+      shipSlug: "caravel",
+      lat: 0,
+      lon: -30,
+      headingDeg: 90,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 13, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
+  "diagnostic-chart-recovery-scandinavia": scenario({
+    id: "diagnostic-chart-recovery-scandinavia",
+    title: "chart-recovery-scandinavia",
+    seed: "diagnostic-chart-recovery-scandinavia-v1",
+    player: {
+      factionId: "denmark-norway",
+      shipSlug: "viking-longship",
+      lat: 68,
+      lon: 8,
+      headingDeg: 205,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 13, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
   }),
   "turtle-ship-war": scenario({
     id: "turtle-ship-war",

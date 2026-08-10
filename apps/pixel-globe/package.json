@@ -31,6 +31,7 @@
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
     "benchmark:gibraltar": "node tools/run-performance-benchmark.mjs --benchmark gibraltar-hotspot",
     "benchmark:chart": "PIXEL_GLOBE_PRINT_CHART_BENCHMARK=1 node --test --test-name-pattern='moving Lisbon|Mediterranean crossing|Scandinavia traversal|Argentina coastal|Smolensk' src/localLayoutAdmission.test.js",
+    "diagnostic:chart-recovery": "node tools/run-chart-recovery-diagnostic.mjs",
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",
     "capture:trailer": "node tools/capture-trailer-clips.mjs",
     "capture:steam-screenshots": "node tools/capture-steam-screenshots.mjs",

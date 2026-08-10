@@ -150,7 +150,7 @@ export function polarChartFogFrame({
   // Under severe chart pressure, polar fog acts like a tighter camera crop:
   // only the ship's immediate navigational neighborhood remains fixed while
   // the concealed ring converges on the exact north-up projection.
-  const repairMinimumClearRadius = Math.max(48, minimumDimension * 0.2);
+  const repairMinimumClearRadius = Math.max(28, minimumDimension * 0.11);
   const minimumClearRadius = naturalMinimumClearRadius +
     (repairMinimumClearRadius - naturalMinimumClearRadius) * repairPressure;
   const effectiveConcealment = Math.max(polarAmount, repairPressure);
@@ -214,7 +214,10 @@ export function nextPolarChartRepairPressure({
   const target = polarRepairEligible
     ? Math.max(latitudePressure, rotationPressure, tearPressure)
     : 0;
-  const maximumStep = target > currentPressure ? 0.12 : 0.04;
+  const severeDistortion = Math.max(rotationPressure, tearPressure) >= 0.75;
+  const maximumStep = target > currentPressure
+    ? severeDistortion ? 0.3 : 0.12
+    : 0.04;
   return currentPressure + Math.max(
     -maximumStep,
     Math.min(maximumStep, target - currentPressure)

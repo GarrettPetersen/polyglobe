@@ -105,6 +105,286 @@ export function interpolateChartRepairPlan({
   return { nextPositions, completedTileIds };
 }
 
+export function planChartSettlementTowardTargets({
+  positions,
+  targetsById,
+  tileIds,
+  maximumStepPx = 1,
+  maximumStepPxById = null,
+  referencePositions,
+  neighborsById,
+  surfaceMaskById,
+  landSlackPx = 3,
+  waterSlackPx = 6
+}) {
+  if (!(positions instanceof Map) || !(targetsById instanceof Map) ||
+      !(tileIds instanceof Set) || !(referencePositions instanceof Map)) {
+    throw new Error("Unified chart settlement requires position, target, and reference maps");
+  }
+  if (maximumStepPx !== Number.POSITIVE_INFINITY &&
+      (!Number.isInteger(maximumStepPx) || maximumStepPx <= 0)) {
+    throw new Error(`Unified chart settlement has invalid pixel step: ${maximumStepPx}`);
+  }
+  if (maximumStepPxById !== null && !(maximumStepPxById instanceof Map)) {
+    throw new Error("Unified chart settlement per-tile steps must be a map");
+  }
+  if (!Array.isArray(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
+    throw new Error("Unified chart settlement requires chart topology");
+  }
+  const movableIds = [...tileIds].filter((id) => (
+    positions.has(id) && targetsById.has(id) && referencePositions.has(id)
+  ));
+  const movableSet = new Set(movableIds);
+  const originalPositions = new Map(movableIds.map((id) => {
+    const position = positions.get(id);
+    return [id, { x: position.x, y: position.y }];
+  }));
+  const boundedTargets = new Map(movableIds.map((id) => {
+    const original = originalPositions.get(id);
+    const target = targetsById.get(id);
+    const tileMaximumStepPx = chartSettlementStepForId({
+      id,
+      maximumStepPx,
+      maximumStepPxById
+    });
+    return [id, tileMaximumStepPx === Number.POSITIVE_INFINITY
+      ? { x: target.x, y: target.y }
+      : {
+          x: clampNumber(
+            target.x,
+            original.x - tileMaximumStepPx,
+            original.x + tileMaximumStepPx
+          ),
+          y: clampNumber(
+            target.y,
+            original.y - tileMaximumStepPx,
+            original.y + tileMaximumStepPx
+          )
+      }];
+  }));
+  const working = new Map([...positions].map(([id, position]) => (
+    [id, { x: position.x, y: position.y }]
+  )));
+  const edges = chartSettlementEdges({
+    movableIds,
+    movableSet,
+    positions,
+    referencePositions,
+    neighborsById,
+    surfaceMaskById,
+    landSlackPx,
+    waterSlackPx
+  });
+
+  for (let iteration = 0; iteration < 16; iteration++) {
+    const orderedIds = iteration % 2 === 0 ? movableIds : [...movableIds].reverse();
+    for (const id of orderedIds) {
+      const point = working.get(id);
+      const target = boundedTargets.get(id);
+      point.x += (target.x - point.x) * 0.35;
+      point.y += (target.y - point.y) * 0.35;
+      clampChartSettlementPoint({
+        point,
+        original: originalPositions.get(id),
+        maximumStepPx: chartSettlementStepForId({
+          id,
+          maximumStepPx,
+          maximumStepPxById
+        })
+      });
+    }
+    relaxChartSettlementEdges({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumStepPx,
+      maximumStepPxById,
+      reverse: iteration % 2 === 1
+    });
+  }
+  // Finish with constraint-only passes so target attraction cannot leave the
+  // final frame with a boundary violation.
+  for (let iteration = 0; iteration < 64; iteration++) {
+    const maximumViolationPx = relaxChartSettlementEdges({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumStepPx,
+      maximumStepPxById,
+      reverse: iteration % 2 === 1
+    });
+    if (maximumViolationPx < 0.05) break;
+  }
+
+  const settledPositions = new Map();
+  for (const id of movableIds) {
+    const original = originalPositions.get(id);
+    const point = working.get(id);
+    const settled = { x: Math.round(point.x), y: Math.round(point.y) };
+    clampChartSettlementPoint({
+      point: settled,
+      original,
+      maximumStepPx: chartSettlementStepForId({
+        id,
+        maximumStepPx,
+        maximumStepPxById
+      })
+    });
+    settled.x = Math.round(settled.x);
+    settled.y = Math.round(settled.y);
+    if (settled.x !== original.x || settled.y !== original.y) {
+      settledPositions.set(id, settled);
+    }
+  }
+  const completedTileIds = new Set();
+  for (const [id, position] of settledPositions) {
+    const target = targetsById.get(id);
+    if (target && position.x === target.x && position.y === target.y) {
+      completedTileIds.add(id);
+    }
+  }
+  let worstEdge = null;
+  for (const edge of edges) {
+    const a = settledPositions.get(edge.id) ?? positions.get(edge.id);
+    const b = settledPositions.get(edge.neighborId) ?? positions.get(edge.neighborId);
+    const errorPx = Math.hypot(
+      b.x - a.x - edge.expectedDx,
+      b.y - a.y - edge.expectedDy
+    );
+    if (worstEdge && worstEdge.errorPx >= errorPx) continue;
+    worstEdge = Object.freeze({
+      tileId: edge.id,
+      neighborId: edge.neighborId,
+      errorPx,
+      allowedErrorPx: edge.allowedError,
+      tileMovable: movableSet.has(edge.id),
+      neighborMovable: movableSet.has(edge.neighborId)
+    });
+  }
+  return Object.freeze({ settledPositions, completedTileIds, worstEdge });
+}
+
+function chartSettlementEdges({
+  movableIds,
+  movableSet,
+  positions,
+  referencePositions,
+  neighborsById,
+  surfaceMaskById,
+  landSlackPx,
+  waterSlackPx
+}) {
+  const edges = [];
+  for (const id of movableIds) {
+    for (const neighborId of neighborsById[id] || []) {
+      if (neighborId < id && movableSet.has(neighborId)) continue;
+      if (!positions.has(neighborId) || !referencePositions.has(neighborId)) continue;
+      const reference = referencePositions.get(id);
+      const referenceNeighbor = referencePositions.get(neighborId);
+      edges.push(Object.freeze({
+        id,
+        neighborId,
+        expectedDx: referenceNeighbor.x - reference.x,
+        expectedDy: referenceNeighbor.y - reference.y,
+        allowedError: surfaceMaskById[id] === 1 && surfaceMaskById[neighborId] === 1
+          ? waterSlackPx
+          : landSlackPx
+      }));
+    }
+  }
+  return edges;
+}
+
+function relaxChartSettlementEdges({
+  working,
+  originalPositions,
+  movableSet,
+  edges,
+  maximumStepPx,
+  maximumStepPxById,
+  reverse
+}) {
+  let maximumViolationPx = 0;
+  for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
+    const edge = edges[reverse ? edges.length - edgeIndex - 1 : edgeIndex];
+    const a = working.get(edge.id);
+    const b = working.get(edge.neighborId);
+    const errorX = b.x - a.x - edge.expectedDx;
+    const errorY = b.y - a.y - edge.expectedDy;
+    const error = Math.hypot(errorX, errorY);
+    if (error <= edge.allowedError + 1e-9) continue;
+    maximumViolationPx = Math.max(maximumViolationPx, error - edge.allowedError);
+    const correctionScale = (error - edge.allowedError) / error;
+    const aMovable = movableSet.has(edge.id);
+    const bMovable = movableSet.has(edge.neighborId);
+    if (!aMovable && !bMovable) continue;
+    const aShare = aMovable && bMovable ? 0.5 : aMovable ? 1 : 0;
+    const bShare = aMovable && bMovable ? 0.5 : bMovable ? 1 : 0;
+    if (aShare > 0) {
+      a.x += errorX * correctionScale * aShare;
+      a.y += errorY * correctionScale * aShare;
+      clampChartSettlementPoint({
+        point: a,
+        original: originalPositions.get(edge.id),
+        maximumStepPx: chartSettlementStepForId({
+          id: edge.id,
+          maximumStepPx,
+          maximumStepPxById
+        })
+      });
+    }
+    if (bShare > 0) {
+      b.x -= errorX * correctionScale * bShare;
+      b.y -= errorY * correctionScale * bShare;
+      clampChartSettlementPoint({
+        point: b,
+        original: originalPositions.get(edge.neighborId),
+        maximumStepPx: chartSettlementStepForId({
+          id: edge.neighborId,
+          maximumStepPx,
+          maximumStepPxById
+        })
+      });
+    }
+  }
+  return maximumViolationPx;
+}
+
+function chartSettlementStepForId({ id, maximumStepPx, maximumStepPxById }) {
+  const value = maximumStepPxById?.get(id) ?? maximumStepPx;
+  if (
+    value !== Number.POSITIVE_INFINITY &&
+    (!Number.isInteger(value) || value <= 0)
+  ) {
+    throw new Error(`Unified chart settlement has invalid pixel step for tile ${id}: ${value}`);
+  }
+  return value;
+}
+
+function clampChartSettlementPoint({
+  point,
+  original,
+  maximumStepPx
+}) {
+  if (!original || maximumStepPx === Number.POSITIVE_INFINITY) return;
+  point.x = clampNumber(
+    point.x,
+    original.x - maximumStepPx,
+    original.x + maximumStepPx
+  );
+  point.y = clampNumber(
+    point.y,
+    original.y - maximumStepPx,
+    original.y + maximumStepPx
+  );
+}
+
+function clampNumber(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
 export function constrainChartRepairToTopology({
   positions,
   proposedPositions,
@@ -208,14 +488,27 @@ function chartRepairTopologyViolations({
         reference,
         referenceNeighbor
       );
+      const currentLengthError = chartEdgeLengthError(
+        current,
+        currentNeighbor,
+        reference,
+        referenceNeighbor
+      );
+      const nextLengthError = chartEdgeLengthError(
+        next,
+        nextNeighbor,
+        reference,
+        referenceNeighbor
+      );
       const waterEdge = surfaceMaskById[id] === 1 && surfaceMaskById[neighborId] === 1;
       const allowedError = waterEdge ? waterSlackPx : landSlackPx;
-      if (currentError <= allowedError + 1e-9) {
-        if (nextError > allowedError + 1e-9) {
-          violations.add(id);
-          if (candidate.has(neighborId)) violations.add(neighborId);
-        }
-      } else if (nextError > currentError + 1e-9) {
+      const vectorViolation = currentError <= allowedError + 1e-9
+        ? nextError > allowedError + 1e-9
+        : nextError > currentError + 1e-9;
+      const lengthViolation = currentLengthError <= allowedError + 1e-9
+        ? nextLengthError > allowedError + 1e-9
+        : nextLengthError > currentLengthError + 1e-9;
+      if (vectorViolation || lengthViolation) {
         violations.add(id);
         if (candidate.has(neighborId)) violations.add(neighborId);
       }
@@ -228,6 +521,13 @@ function chartEdgeVectorError(a, b, referenceA, referenceB) {
   return Math.hypot(
     (b.x - a.x) - (referenceB.x - referenceA.x),
     (b.y - a.y) - (referenceB.y - referenceA.y)
+  );
+}
+
+function chartEdgeLengthError(a, b, referenceA, referenceB) {
+  return Math.abs(
+    Math.hypot(b.x - a.x, b.y - a.y) -
+      Math.hypot(referenceB.x - referenceA.x, referenceB.y - referenceA.y)
   );
 }
 

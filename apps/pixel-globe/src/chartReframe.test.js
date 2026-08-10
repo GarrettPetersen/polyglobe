@@ -13,9 +13,87 @@ import {
   interpolateChartRepairPlan,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
+  planChartSettlementTowardTargets,
   retainPositionLockedProjectedTiles,
   selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
+
+test("unified chart settlement pulls a torn adjacent pair back together", () => {
+  const positions = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 80, y: 0 }]
+  ]);
+  const targetsById = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 24, y: 0 }]
+  ]);
+  const result = planChartSettlementTowardTargets({
+    positions,
+    targetsById,
+    tileIds: new Set([1, 2]),
+    maximumStepPx: Number.POSITIVE_INFINITY,
+    referencePositions: targetsById,
+    neighborsById: [[], [2], [1]],
+    surfaceMaskById: Uint8Array.from([0, 2, 2]),
+    landSlackPx: 3,
+    waterSlackPx: 6
+  });
+  const a = result.settledPositions.get(1) ?? positions.get(1);
+  const b = result.settledPositions.get(2) ?? positions.get(2);
+
+  assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - 24) <= 3);
+  assert.ok(result.worstEdge.errorPx <= result.worstEdge.allowedErrorPx + 1);
+});
+
+test("unified chart settlement pushes compressed adjacent tiles apart", () => {
+  const positions = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 5, y: 0 }]
+  ]);
+  const targetsById = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 24, y: 0 }]
+  ]);
+  const result = planChartSettlementTowardTargets({
+    positions,
+    targetsById,
+    tileIds: new Set([1, 2]),
+    maximumStepPx: Number.POSITIVE_INFINITY,
+    referencePositions: targetsById,
+    neighborsById: [[], [2], [1]],
+    surfaceMaskById: Uint8Array.from([0, 2, 2]),
+    landSlackPx: 3,
+    waterSlackPx: 6
+  });
+  const a = result.settledPositions.get(1) ?? positions.get(1);
+  const b = result.settledPositions.get(2) ?? positions.get(2);
+
+  assert.ok(Math.hypot(b.x - a.x, b.y - a.y) >= 21);
+});
+
+test("unified chart settlement respects a concealed tile's pixel budget", () => {
+  const positions = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 40, y: 0 }]
+  ]);
+  const targetsById = new Map([[2, { x: 24, y: 0 }]]);
+  const result = planChartSettlementTowardTargets({
+    positions,
+    targetsById,
+    tileIds: new Set([2]),
+    maximumStepPx: 1,
+    referencePositions: new Map([
+      [1, { x: 0, y: 0 }],
+      [2, { x: 24, y: 0 }]
+    ]),
+    neighborsById: [[], [2], [1]],
+    surfaceMaskById: Uint8Array.from([0, 2, 2]),
+    landSlackPx: 3,
+    waterSlackPx: 6
+  });
+
+  assert.deepEqual(result.settledPositions.get(2), { x: 39, y: 0 });
+});
 
 test("an exact hidden reframe discards prior tears and follows fresh projection", () => {
   const layout = createExactNorthUpLayout([
@@ -122,6 +200,29 @@ test("concealed repair groups cannot pull away from a clear neighbor", () => {
     0 - constrained.get(2).y
   );
   assert.ok(clearBoundaryError <= 3);
+});
+
+test("a north-up repair cannot improve rotation by stretching a neighbor edge", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 3, y: 21 }]
+  ]);
+  const constrained = constrainChartRepairToTopology({
+    positions,
+    proposedPositions: new Map([[1, { x: 4, y: 20 }]]),
+    referencePositions: new Map([
+      [0, { x: 0, y: 0 }],
+      [1, { x: 24, y: 0 }]
+    ]),
+    neighborsById: [[1], [0]],
+    surfaceMaskById: Uint8Array.from([2, 2]),
+    landSlackPx: 3,
+    waterSlackPx: 6
+  });
+
+  assert.notDeepEqual(constrained.get(1), { x: 4, y: 20 });
+  const accepted = constrained.get(1);
+  assert.ok(Math.abs(Math.hypot(accepted.x, accepted.y) - 24) <= 3);
 });
 
 test("a visible position lock remains in a rebuild that projects it off-screen", () => {

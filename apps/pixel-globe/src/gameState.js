@@ -267,9 +267,14 @@ import {
   validateQuestCargoDeliveryMemory
 } from "./questCargoDeliveries.js";
 import { validateVoyageStartProfile } from "./voyageStartProfile.js";
+import {
+  createChartReframeDialogueMemory,
+  migrateChartReframeDialogueMemory,
+  validateChartReframeDialogueMemory
+} from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 59;
+export const GAME_STATE_VERSION = 60;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -499,6 +504,7 @@ export function createGameState({
       birthdays: createBirthdayMemory(),
       specialEquipmentOffers: createSpecialEquipmentOfferMemory(),
       illicitTradeEnforcement: createIllicitTradeEnforcementMemory(),
+      chartReframeDialogue: createChartReframeDialogueMemory(),
       navigation: {
         lastLongitudeDeg: null,
         cumulativeLongitudeDeg: 0,
@@ -558,7 +564,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -674,6 +680,9 @@ export function migrateGameState(state, shipStats) {
       specialEquipmentOffers: state.memory?.specialEquipmentOffers || createSpecialEquipmentOfferMemory(),
       illicitTradeEnforcement: migrateIllicitTradeEnforcementMemory(
         state.memory?.illicitTradeEnforcement
+      ),
+      chartReframeDialogue: migrateChartReframeDialogueMemory(
+        state.memory?.chartReframeDialogue
       ),
       animals: state.memory?.animals || createAnimalEncounterMemory(),
       animalCompanions: migrateAnimalCompanionMemory(savedAnimalCompanions, {
@@ -6100,6 +6109,7 @@ function assertGameState(state) {
   validateBirthdayMemory(state.memory.birthdays);
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
   validateIllicitTradeEnforcementMemory(state.memory.illicitTradeEnforcement);
+  validateChartReframeDialogueMemory(state.memory.chartReframeDialogue);
   assertCargoReservations(state.memory.cargoReservations);
   assertMissionItemGifts(state.memory.missionItemGifts);
   validateQuestCargoDeliveryMemory(state.memory.quests?.cargoDeliveries);

@@ -12,7 +12,8 @@ export function chartReframeCoverIsOpaque({
   shipInfoMenu = false,
   politicsMenu = false,
   navigationMenu = false,
-  aboardMenu = false
+  aboardMenu = false,
+  blockingDialogue = false
 } = {}) {
   return Boolean(
     startMenu ||
@@ -28,7 +29,8 @@ export function chartReframeCoverIsOpaque({
     shipInfoMenu ||
     politicsMenu ||
     navigationMenu ||
-    aboardMenu
+    aboardMenu ||
+    blockingDialogue
   );
 }
 
