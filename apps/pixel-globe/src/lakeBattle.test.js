@@ -124,6 +124,23 @@ test("a city is a stationary coastal enemy with a two-shot shore battery", () =>
   assert.ok(battle.enemy.x >= 36 && battle.enemy.x <= battle.width - 36);
 });
 
+test("a city garrison fires portable weapons at close range without ship cargo stats", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: LAKE_BATTLE_CITY_SLUG
+  });
+  battle.player.x = battle.enemy.x;
+  battle.player.y = battle.enemy.y + 24;
+
+  assert.equal("cargoCapacity" in battle.enemy.stats, false);
+  assert.equal(fireLakeBattlePortableWeapons(battle, LAKE_BATTLE_ENEMY_ID), true);
+  assert.ok(battle.projectiles.some((projectile) => (
+    projectile.ownerId === LAKE_BATTLE_ENEMY_ID && projectile.portable
+  )));
+});
+
 test("native canoe crews automatically fire portable bows in any direction", () => {
   for (const playerSlug of ["polynesian-voyaging-canoe", "mesoamerican-dugout-canoe"]) {
     const battle = createLakeBattle({

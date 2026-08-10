@@ -24,7 +24,7 @@ export function shipLoadoutPreset(loadoutId) {
 }
 
 export function shipCrewCapacity(stats) {
-  requireShipStats(stats);
+  requireShipOperatingStats(stats);
   if (Number.isInteger(stats.crewCapacity) && stats.crewCapacity > 0) return stats.crewCapacity;
   return Math.max(2, Math.round(stats.mass / 12 + stats.cannons * 0.75));
 }
@@ -39,7 +39,7 @@ export function crewHoldSpace(crew) {
 }
 
 export function shipLoadoutPlan(stats, loadoutId, options = {}) {
-  requireShipStats(stats);
+  requireShipLoadoutStats(stats);
   const selected = shipLoadoutPreset(loadoutId);
   const crewCapacity = shipCrewCapacity(stats);
   const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
@@ -83,7 +83,7 @@ export function shipLoadoutPlan(stats, loadoutId, options = {}) {
 }
 
 export function shipCustomLoadoutDraft(stats, currentPlan = null, options = {}) {
-  requireShipStats(stats);
+  requireShipLoadoutStats(stats);
   const base = currentPlan || shipLoadoutPlan(stats, "balanced");
   const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
   const draft = {
@@ -107,7 +107,7 @@ export function setShipCustomLoadoutValue(stats, draft, key, value, options = {}
 }
 
 export function shipCustomLoadoutBounds(stats, draft, key, options = {}) {
-  requireShipStats(stats);
+  requireShipLoadoutStats(stats);
   requireCustomDraft(draft);
   if (!CUSTOM_LOADOUT_FIELDS.includes(key)) throw new Error(`Unknown custom loadout field: ${key}`);
   const cargoCapacity = stats.cargoCapacity;
@@ -135,7 +135,7 @@ export function shipCustomLoadoutBounds(stats, draft, key, options = {}) {
 }
 
 export function shipCustomLoadoutPlan(stats, draft, options = {}) {
-  requireShipStats(stats);
+  requireShipLoadoutStats(stats);
   requireCustomDraft(draft);
   const crewCapacity = shipCrewCapacity(stats);
   const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
@@ -256,11 +256,21 @@ function clampInteger(value, min, max, label) {
   return Math.max(min, Math.min(max, value));
 }
 
-function requireShipStats(stats) {
-  if (!stats || !Number.isInteger(stats.cargoCapacity) || stats.cargoCapacity < 0) {
-    throw new Error("Ship loadout requires cargo capacity");
+function requireShipOperatingStats(stats) {
+  if (!stats || typeof stats !== "object" ||
+      !Number.isInteger(stats.cannons) || stats.cannons < 0 ||
+      !Number.isInteger(stats.mass) || stats.mass <= 0) {
+    throw new Error("Ship operating crew requires cannon and mass stats");
   }
-  if (!Number.isInteger(stats.cannons) || stats.cannons < 0 || !Number.isInteger(stats.mass) || stats.mass <= 0) {
-    throw new Error("Ship loadout requires cannon and mass stats");
+  if (stats.crewCapacity !== undefined &&
+      (!Number.isInteger(stats.crewCapacity) || stats.crewCapacity <= 0)) {
+    throw new Error(`Invalid ship crew capacity: ${stats.crewCapacity}`);
+  }
+}
+
+function requireShipLoadoutStats(stats) {
+  requireShipOperatingStats(stats);
+  if (!Number.isInteger(stats.cargoCapacity) || stats.cargoCapacity < 0) {
+    throw new Error("Ship loadout requires cargo capacity");
   }
 }

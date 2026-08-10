@@ -5672,10 +5672,17 @@ function telemetryCrashContext(screenOverride = null) {
                         startMenu ? "start-menu" :
                           anchored ? "anchored" : "sailing"
   );
+  const battleShipSlug = lakeBattleMode?.kind === "historical"
+    ? lakeBattleMode.battle?.ships?.[lakeBattleMode.battle.playerShipIndex]?.slug
+    : lakeBattleMode?.battle?.player?.slug || (
+      lakeBattleMode?.kind === "skirmish"
+        ? LAKE_BATTLE_SHIP_SLUGS[lakeBattleMode.playerIndex]
+        : null
+    );
   return {
     screen,
     mainQuest: gameState?.memory?.campaignGoal?.type || "none",
-    ship: ship?.typeSlug || gameState?.ship?.slug || "none",
+    ship: battleShipSlug || ship?.typeSlug || gameState?.ship?.slug || "none",
     redact: [gameState?.playerCharacter?.name].filter(Boolean)
   };
 }
