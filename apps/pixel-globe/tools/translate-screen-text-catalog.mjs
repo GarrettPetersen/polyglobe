@@ -125,6 +125,54 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedShipTypeOverrides(),
+  "{0}'s court is raising privateers for the war against {1}. Accept this letter of marque, and you may lawfully prize the ships and cargo of every power at war with {2}: {3}.": Object.freeze({
+    "zh-Hans": "{0}的宫廷正在为对{1}的战争招募私掠船长。接受这份私掠许可证后，你便可合法捕获与{2}交战的所有势力之船只与货物：{3}。",
+    ru: "Двор {0} набирает каперов для войны против {1}. Примите каперскую грамоту, и вы сможете законно захватывать корабли и грузы всех держав, воюющих с {2}: {3}.",
+    es: "La corte de {0} está reclutando corsarios para la guerra contra {1}. Acepta esta patente de corso y podrás apresar legalmente los barcos y cargamentos de toda potencia en guerra con {2}: {3}.",
+    "pt-BR": "A corte de {0} está recrutando corsários para a guerra contra {1}. Aceite esta carta de corso e poderá apresar legalmente os navios e cargas de toda potência em guerra com {2}: {3}.",
+    ja: "{0}の宮廷は{1}との戦争のため私掠船長を募っている。この私掠免許状を受け取れば、{2}と交戦中のすべての勢力の船と積荷を合法的に拿捕できる：{3}。",
+    de: "Der Hof von {0} wirbt Kaperfahrer für den Krieg gegen {1} an. Nehmt diesen Kaperbrief an, und Ihr dürft Schiffe und Ladung jeder Macht, die mit {2} im Krieg liegt, rechtmäßig als Prise nehmen: {3}.",
+    fr: "La cour de {0} recrute des corsaires pour la guerre contre {1}. Acceptez cette lettre de marque et vous pourrez légalement saisir les navires et cargaisons de toute puissance en guerre contre {2} : {3}.",
+    pl: "Dwór {0} werbuje kaprów do wojny przeciwko {1}. Przyjmij ten list kaperski, a będziesz mógł zgodnie z prawem zajmować statki i ładunki każdego państwa będącego w stanie wojny z {2}: {3}.",
+    "zh-Hant": "{0}的宮廷正在為對{1}的戰爭招募私掠船長。接受這份私掠許可證後，你便可合法捕獲與{2}交戰的所有勢力之船隻與貨物：{3}。",
+    ko: "{0}의 조정은 {1}과의 전쟁에 나설 사략선을 모집하고 있다. 이 사략 허가장을 받으면 {2}에 맞서 싸우는 모든 세력의 선박과 화물을 합법적으로 나포할 수 있다: {3}."
+  }),
+  "Accept the letter of marque": Object.freeze({
+    "zh-Hans": "接受私掠许可证",
+    ru: "Принять каперскую грамоту",
+    es: "Aceptar la patente de corso",
+    "pt-BR": "Aceitar a carta de corso",
+    ja: "私掠免許状を受け取る",
+    de: "Kaperbrief annehmen",
+    fr: "Accepter la lettre de marque",
+    pl: "Przyjmij list kaperski",
+    "zh-Hant": "接受私掠許可證",
+    ko: "사략 허가장 받기"
+  }),
+  "By {0}'s authority, your commission now covers every enemy of {1}: {2}. Keep it with your papers.": Object.freeze({
+    "zh-Hans": "奉{0}之命，你的委任现在适用于{1}的所有敌人：{2}。请将它与船只文书一同保管。",
+    ru: "По воле {0} ваша каперская грамота теперь действует против всех врагов {1}: {2}. Храните ее среди судовых бумаг.",
+    es: "Por autoridad de {0}, tu patente abarca ahora a todos los enemigos de {1}: {2}. Guárdala con los papeles del barco.",
+    "pt-BR": "Pela autoridade de {0}, sua carta agora abrange todos os inimigos de {1}: {2}. Guarde-a com os documentos do navio.",
+    ja: "{0}の権威により、この免許状は{1}のすべての敵に対して有効となった：{2}。船の書類とともに保管せよ。",
+    de: "Mit {0}s Vollmacht gilt Euer Kaperbrief nun gegen alle Feinde von {1}: {2}. Verwahrt ihn bei den Schiffspapieren.",
+    fr: "Par l'autorité de {0}, votre commission couvre désormais tous les ennemis de {1} : {2}. Gardez-la avec les papiers du navire.",
+    pl: "Z upoważnienia {0} twój list kaperski obejmuje teraz wszystkich wrogów {1}: {2}. Przechowuj go z dokumentami okrętowymi.",
+    "zh-Hant": "奉{0}之命，你的委任現在適用於{1}的所有敵人：{2}。請將它與船隻文書一同保管。",
+    ko: "{0}의 권위로, 이제 이 허가장은 {1}의 모든 적에게 적용된다: {2}. 선박 문서와 함께 보관하라."
+  }),
+  "Very well. The commission remains available while {0} is at war. Ask me if you reconsider.": Object.freeze({
+    "zh-Hans": "很好。只要{0}仍在交战，这份委任就继续有效。若你改变主意，来找我。",
+    ru: "Хорошо. Пока {0} ведет войну, предложение остается в силе. Обратитесь ко мне, если передумаете.",
+    es: "Así sea. La patente seguirá disponible mientras {0} esté en guerra. Pregúntame si cambias de opinión.",
+    "pt-BR": "Muito bem. A carta continuará disponível enquanto {0} estiver em guerra. Fale comigo se mudar de ideia.",
+    ja: "承知した。{0}が戦争中である限り、この申し出は有効だ。気が変わったら声をかけてくれ。",
+    de: "Wie Ihr wünscht. Solange {0} Krieg führt, bleibt das Angebot bestehen. Sprecht mich an, falls Ihr es Euch anders überlegt.",
+    fr: "Très bien. La commission restera disponible tant que {0} sera en guerre. Revenez me voir si vous changez d'avis.",
+    pl: "Dobrze. Dopóki {0} prowadzi wojnę, oferta pozostaje aktualna. Powiedz mi, jeśli zmienisz zdanie.",
+    "zh-Hant": "很好。只要{0}仍在交戰，這份委任就繼續有效。若你改變主意，來找我。",
+    ko: "좋다. {0}이 전쟁 중인 동안 이 허가장은 계속 신청할 수 있다. 마음이 바뀌면 말하라."
+  }),
   "Do you think the fish smell us coming, or have they gone mercifully numb?": Object.freeze({
     "zh-Hans": "你觉得鱼儿闻到我们来了，还是已经麻木得不知害怕了？"
   }),

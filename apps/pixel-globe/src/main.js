@@ -360,6 +360,7 @@ import {
   pirateHideoutsVisibleToPlayer,
   prepareHighValueMissionPerkItem,
   prepareEquipmentFactorPitch,
+  prepareProactiveLetterOfMarque,
   portMemory,
   portEntryStatus,
   portugueseCartazInspectionStatus,
@@ -15220,6 +15221,17 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       arrivedDrunk,
       drunkVariant,
       chefQuestApproach: true
+    });
+  }
+  const letterOfMarqueFactorOffer = !openDeliveryMission
+    ? prepareProactiveLetterOfMarque(gameState, cityCall, playerShipPrivateeringPower())
+    : null;
+  if (letterOfMarqueFactorOffer) {
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      letterOfMarqueFactorOffer
     });
   }
   const equipmentFactorPitch = !openDeliveryMission

@@ -58,6 +58,7 @@ import {
   playerTradeTerms,
   portMemory,
   portEntryStatus,
+  prepareProactiveLetterOfMarque,
   purchasePerkItem,
   questStateForCity,
   visitPort
@@ -2887,6 +2888,101 @@ test("a factor can proactively fit an affordable equipment upgrade", () => {
   assert.equal(gameState.inventory.fishingNetId, "drift-net");
   assert.equal(gameState.doubloons, 1000);
   assert.match(portDialogueView(session, city, gameState, economy, [city]).text, /aboard and ready/);
+});
+
+test("a capital factor proactively offers a qualified captain a wartime letter of marque", () => {
+  const city = {
+    tileId: 1,
+    portId: "london",
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 90000,
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  adjustFactionReputation(gameState, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  const factorOffer = prepareProactiveLetterOfMarque(
+    gameState,
+    city,
+    LETTER_OF_MARQUE_POWER_REQUIRED
+  );
+  const session = createPortArrivalDialogueSession(city, {
+    letterOfMarqueFactorOffer: factorOffer
+  });
+  const context = { shipPower: LETTER_OF_MARQUE_POWER_REQUIRED, simMinute: 120 };
+
+  const offer = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(offer.text, /King Henry VIII's court is raising privateers/i);
+  assert.match(offer.text, /war against France/i);
+  assert.match(offer.text, /every power at war with England: France/i);
+  assert.equal(offer.options[0].label, "Accept the letter of marque");
+
+  const result = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    0,
+    context
+  );
+  assert.equal(result.letterOfMarque.grantedNow, true);
+  assert.equal(hasLetterOfMarqueFrom(gameState, "england"), true);
+  const followup = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(followup.text, /commission now covers every enemy of England: France/i);
+  assert.equal(followup.options[0].label, "Continue");
+});
+
+test("declining a proactive marque offer leaves the ordinary request available", () => {
+  const city = {
+    tileId: 1,
+    portId: "london",
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 90000,
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  adjustFactionReputation(gameState, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  const session = createPortArrivalDialogueSession(city, {
+    letterOfMarqueFactorOffer: prepareProactiveLetterOfMarque(
+      gameState,
+      city,
+      LETTER_OF_MARQUE_POWER_REQUIRED
+    )
+  });
+  const context = { shipPower: LETTER_OF_MARQUE_POWER_REQUIRED, simMinute: 120 };
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 1, context);
+  assert.equal(hasLetterOfMarqueFrom(gameState, "england"), false);
+  const followup = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(followup.text, /remains available while England is at war/i);
 });
 
 test("a declined factor offer points the player back to the equipment store", () => {

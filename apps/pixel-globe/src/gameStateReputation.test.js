@@ -47,6 +47,7 @@ import {
   playerPortDisguiseSuccessChance,
   playerPortAttackStatus,
   playerShipIsWarship,
+  prepareProactiveLetterOfMarque,
   recordFriendlyFireAgainstFaction,
   reconcileFactionReputationAfterPlayerVassalage,
   playerTradeAccess,
@@ -63,7 +64,9 @@ import {
 } from "./gameState.js";
 import {
   WORLD_DIPLOMACY_VERSION,
+  declareDiplomaticWar,
   establishDiplomaticSuzerainty,
+  makeFactionPeaceWithAllEnemies,
   makeDiplomaticPeace
 } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -697,6 +700,73 @@ test("a letter of marque authorizes privateering against the issuer's war enemie
 
   makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200 * 24 * 60);
   assert.equal(hasPrivateeringAuthorityAgainst(state, "france"), false);
+});
+
+test("a qualified captain receives one proactive marque offer only while the issuer is at war", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  adjustFactionReputation(state, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+
+  const offer = prepareProactiveLetterOfMarque(
+    state,
+    LONDON_CAPITAL,
+    LETTER_OF_MARQUE_POWER_REQUIRED
+  );
+  assert.equal(offer.factionId, "england");
+  assert.equal(offer.primaryEnemyFactionId, "france");
+  assert.deepEqual(offer.enemyFactionIds, ["france"]);
+  assert.equal(
+    prepareProactiveLetterOfMarque(state, LONDON_CAPITAL, LETTER_OF_MARQUE_POWER_REQUIRED),
+    null
+  );
+
+  const ottoman = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  adjustFactionReputation(
+    ottoman,
+    "ottoman",
+    LETTER_OF_MARQUE_REPUTATION_REQUIRED - factionReputation(ottoman, "ottoman")
+  );
+  const ottomanOffer = prepareProactiveLetterOfMarque(ottoman, {
+    ...port(3, "Istanbul", "Turkey", "mediterranean", 400000, "ottoman"),
+    isFactionCapital: true,
+    capitalOfFactionId: "ottoman"
+  }, LETTER_OF_MARQUE_POWER_REQUIRED);
+  assert.ok(ottomanOffer.enemyFactionIds.length > 1);
+  for (const enemyFactionId of ["portugal", "hungary", "hospitallers", "safavid"]) {
+    assert.ok(ottomanOffer.enemyFactionIds.includes(enemyFactionId));
+  }
+
+  const newConflict = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  adjustFactionReputation(newConflict, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  declareDiplomaticWar(
+    newConflict.relations.diplomacy,
+    "england",
+    "morocco",
+    200 * 24 * 60
+  );
+  const newConflictOffer = prepareProactiveLetterOfMarque(
+    newConflict,
+    LONDON_CAPITAL,
+    LETTER_OF_MARQUE_POWER_REQUIRED
+  );
+  assert.equal(newConflictOffer.primaryEnemyFactionId, "morocco");
+  assert.ok(newConflictOffer.enemyFactionIds.includes("france"));
+  assert.ok(newConflictOffer.enemyFactionIds.includes("morocco"));
+
+  const peaceful = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  adjustFactionReputation(peaceful, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  makeFactionPeaceWithAllEnemies(
+    peaceful.relations.diplomacy,
+    "england",
+    200 * 24 * 60
+  );
+  assert.equal(
+    prepareProactiveLetterOfMarque(
+      peaceful,
+      LONDON_CAPITAL,
+      LETTER_OF_MARQUE_POWER_REQUIRED
+    ),
+    null
+  );
 });
 
 test("attacking the power that issued a letter of marque revokes it", () => {

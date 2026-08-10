@@ -283,6 +283,9 @@ export function createPortDialogueSession(city, options = {}) {
   if (options.equipmentFactorPitch !== undefined && options.equipmentFactorPitch !== null) {
     validateEquipmentFactorPitch(options.equipmentFactorPitch);
   }
+  if (options.letterOfMarqueFactorOffer !== undefined && options.letterOfMarqueFactorOffer !== null) {
+    validateLetterOfMarqueFactorOffer(options.letterOfMarqueFactorOffer);
+  }
   if (options.questCargoDeliveryPromptIds !== undefined &&
       (!Array.isArray(options.questCargoDeliveryPromptIds) ||
        options.questCargoDeliveryPromptIds.some((id) => typeof id !== "string" || id === ""))) {
@@ -314,6 +317,8 @@ export function createPortDialogueSession(city, options = {}) {
     specialEquipmentOffer: null,
     equipmentFactorPitch: options.equipmentFactorPitch || null,
     equipmentFactorPitchOutcome: null,
+    letterOfMarqueFactorOffer: options.letterOfMarqueFactorOffer || null,
+    letterOfMarqueFactorOfferOutcome: null,
     rulerRumor: options.rulerRumor || null,
     historicalGossip: options.historicalGossip || null,
     rumorText: options.rumorText || null,
@@ -430,6 +435,17 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       postDrunkNodeId: arrivedDrunk ? "equipment-factor-offer" : null,
       drunkVariant,
       equipmentFactorPitch: options.equipmentFactorPitch,
+      admittedToPort: true
+    });
+  }
+  if (options.letterOfMarqueFactorOffer) {
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    return createPortDialogueSession(city, {
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "marque-factor-offer",
+      nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? "marque-factor-offer" : null,
+      drunkVariant,
+      letterOfMarqueFactorOffer: options.letterOfMarqueFactorOffer,
       admittedToPort: true
     });
   }
@@ -1245,6 +1261,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "equipment-factor-followup") {
     return equipmentFactorFollowupView(session, city);
+  }
+  if (session.nodeId === "marque-factor-offer") {
+    return letterOfMarqueFactorOfferView(session, city, gameState, context);
+  }
+  if (session.nodeId === "marque-factor-followup") {
+    return letterOfMarqueFactorFollowupView(session, city, gameState, context);
   }
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy, context);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
@@ -2104,6 +2126,27 @@ export function selectPortDialogueOption(
     declineEquipmentFactorPitch(gameState, pitch, context.simMinute);
     session.equipmentFactorPitchOutcome = "declined";
     session.nodeId = "equipment-factor-followup";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "accept-marque-factor-offer") {
+    const offer = validateLetterOfMarqueFactorOffer(session.letterOfMarqueFactorOffer);
+    const result = grantLetterOfMarque(gameState, city, context.shipPower || 0, context);
+    if (!result.grantedNow || result.factionId !== offer.factionId) {
+      throw new Error(`Proactive letter of marque was not granted by ${offer.factionId}`);
+    }
+    session.marqueGrantedFactionId = result.factionId;
+    session.letterOfMarqueFactorOfferOutcome = "accepted";
+    session.nodeId = "marque-factor-followup";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false, letterOfMarque: result };
+  }
+  if (action.type === "decline-marque-factor-offer") {
+    validateLetterOfMarqueFactorOffer(session.letterOfMarqueFactorOffer);
+    session.letterOfMarqueFactorOfferOutcome = "declined";
+    session.nodeId = "marque-factor-followup";
     session.selectedIndex = 0;
     session.feedback = null;
     return { closed: false };
@@ -3712,6 +3755,77 @@ function equipmentFactorFollowupView(session, city) {
       option("Continue", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
     ]
   };
+}
+
+function letterOfMarqueFactorOfferView(session, city, gameState, context) {
+  const offer = validateLetterOfMarqueFactorOffer(session.letterOfMarqueFactorOffer);
+  const status = letterOfMarqueStatus(gameState, city, context.shipPower || 0);
+  if (!status.available || !status.eligible || status.factionId !== offer.factionId) {
+    throw new Error(`Proactive letter of marque is no longer available from ${offer.factionId}`);
+  }
+  const ruler = rulerAtMinute(offer.factionId, context.simMinute ?? 0);
+  if (!ruler) throw new Error(`Letter of marque faction has no ruler: ${offer.factionId}`);
+  return {
+    speaker: speakerName(city),
+    expressionId: "attentive",
+    text: `${ruler.displayName}'s court is raising privateers for the war against ${factionNounPhrase(offer.primaryEnemyFactionId)}. Accept this letter of marque, and you may lawfully prize the ships and cargo of every power at war with ${factionNounPhrase(offer.factionId)}: ${letterOfMarqueEnemyList(offer)}.`,
+    feedback: null,
+    options: [
+      option("Accept the letter of marque", { type: "accept-marque-factor-offer" }),
+      option("Not now", { type: "decline-marque-factor-offer" })
+    ]
+  };
+}
+
+function letterOfMarqueFactorFollowupView(session, city, gameState, context) {
+  const offer = validateLetterOfMarqueFactorOffer(session.letterOfMarqueFactorOffer);
+  if (!["accepted", "declined"].includes(session.letterOfMarqueFactorOfferOutcome)) {
+    throw new Error("Letter of marque factor follow-up requires a decision");
+  }
+  const ruler = rulerAtMinute(offer.factionId, context.simMinute ?? 0);
+  if (!ruler) throw new Error(`Letter of marque faction has no ruler: ${offer.factionId}`);
+  return {
+    speaker: speakerName(city),
+    expressionId: session.letterOfMarqueFactorOfferOutcome === "accepted" ? "pleased" : "neutral",
+    text: session.letterOfMarqueFactorOfferOutcome === "accepted"
+      ? `By ${ruler.displayName}'s authority, your commission now covers every enemy of ${factionNounPhrase(offer.factionId)}: ${letterOfMarqueEnemyList(offer)}. Keep it with your papers.`
+      : `Very well. The commission remains available while ${factionNounPhrase(offer.factionId)} is at war. Ask me if you reconsider.`,
+    feedback: null,
+    options: [
+      option("Continue", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    ]
+  };
+}
+
+function validateLetterOfMarqueFactorOffer(offer) {
+  if (!offer || typeof offer !== "object" || Array.isArray(offer)) {
+    throw new Error("Letter of marque factor offer must be an object");
+  }
+  factionById(offer.factionId);
+  factionById(offer.primaryEnemyFactionId);
+  if (!Array.isArray(offer.enemyFactionIds) || offer.enemyFactionIds.length === 0) {
+    throw new Error("Letter of marque factor offer requires war enemies");
+  }
+  const enemyFactionIds = new Set();
+  for (const factionId of offer.enemyFactionIds) {
+    factionById(factionId);
+    if (factionId === offer.factionId || enemyFactionIds.has(factionId)) {
+      throw new Error(`Invalid letter of marque enemy: ${factionId}`);
+    }
+    enemyFactionIds.add(factionId);
+  }
+  if (!enemyFactionIds.has(offer.primaryEnemyFactionId)) {
+    throw new Error("Letter of marque principal conflict is not an active war");
+  }
+  return offer;
+}
+
+function letterOfMarqueEnemyList(offer) {
+  const labels = validateLetterOfMarqueFactorOffer(offer).enemyFactionIds
+    .map((factionId) => factionNounPhrase(factionId));
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
 }
 
 function equipmentStockLabel(stock, catalog, specialist) {

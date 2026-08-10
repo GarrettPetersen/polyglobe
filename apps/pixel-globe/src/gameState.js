@@ -3882,6 +3882,51 @@ export function letterOfMarqueStatus(state, city, shipPower = 0) {
   };
 }
 
+export function prepareProactiveLetterOfMarque(state, city, shipPower = 0) {
+  const status = letterOfMarqueStatus(state, city, shipPower);
+  if (!status.available || !status.eligible) return null;
+  const enemyFactionIds = FACTIONS
+    .map((faction) => faction.id)
+    .filter((factionId) => (
+      factionId !== status.factionId &&
+      factionId !== NEUTRAL_FACTION_ID &&
+      factionId !== PIRATE_FACTION_ID &&
+      worldDiplomacyBetween(
+        state.relations.diplomacy,
+        status.factionId,
+        factionId
+      ) === DIPLOMACY_WAR
+    ));
+  if (enemyFactionIds.length === 0) return null;
+  const decisionKey = `marque.factor-offer.${status.factionId}`;
+  if ((state.memory.decisions[decisionKey] || 0) > 0) return null;
+  recordDecision(state, decisionKey, 1);
+  return Object.freeze({
+    factionId: status.factionId,
+    primaryEnemyFactionId: motivatingMarqueEnemyFactionId(
+      state.relations.diplomacy,
+      status.factionId,
+      enemyFactionIds
+    ),
+    enemyFactionIds: Object.freeze(enemyFactionIds)
+  });
+}
+
+function motivatingMarqueEnemyFactionId(diplomacy, factionId, enemyFactionIds) {
+  const activeEnemies = new Set(enemyFactionIds);
+  for (let index = diplomacy.history.length - 1; index >= 0; index -= 1) {
+    const event = diplomacy.history[index];
+    if (event.kind !== "war" && event.kind !== "alliance-war") continue;
+    if (event.factionAId === factionId && activeEnemies.has(event.factionBId)) {
+      return event.factionBId;
+    }
+    if (event.factionBId === factionId && activeEnemies.has(event.factionAId)) {
+      return event.factionAId;
+    }
+  }
+  return enemyFactionIds[0];
+}
+
 export function grantLetterOfMarque(state, city, shipPower = 0, context = {}) {
   const status = letterOfMarqueStatus(state, city, shipPower);
   if (!status.available) throw new Error(status.reason);
