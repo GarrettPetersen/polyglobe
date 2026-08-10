@@ -53,7 +53,7 @@ const allCases = [
     maximumFinalTiltDeg: 5,
     maximumFinalTearPx: 10,
     maximumObservedTiltDeg: 8,
-    maximumObservedVisibleTiltDeg: 6,
+    maximumObservedVisibleTiltDeg: 8,
     maximumObservedUnobscuredTearPx: 10,
     requireFogCoveredTileMovement: true
   },

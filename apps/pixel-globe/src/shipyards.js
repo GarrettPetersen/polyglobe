@@ -8,6 +8,7 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
+import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const SHIPYARD_SNAPSHOT_VERSION = 2;
@@ -53,7 +54,7 @@ const FACTION_SHIPS = Object.freeze({
     JOSEON_PANOKSEON_SLUG,
     JOSEON_TURTLE_SHIP_SLUG
   ]),
-  japan: JAPANESE_SHIP_SLUGS,
+  ...Object.fromEntries(JAPANESE_POLITY_FACTION_IDS.map((factionId) => [factionId, JAPANESE_SHIP_SLUGS])),
   spain: Object.freeze([SPANISH_NAO_SLUG]),
   portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),
   ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG]),
@@ -343,7 +344,7 @@ function shipPoolForYard(yard) {
   const regionalPool = REGION_SHIP_POOLS[yard.cityType];
   if (!regionalPool) return null;
   const factionShips = FACTION_SHIPS[yard.factionId];
-  if (yard.factionId === "japan") return factionShips;
+  if (factionShips && JAPANESE_POLITY_FACTION_IDS.includes(yard.factionId)) return factionShips;
   if (factionShips) return [...regionalPool, ...factionShips];
   return regionalPool;
 }

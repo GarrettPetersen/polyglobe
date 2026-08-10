@@ -26,7 +26,7 @@ export const SOVEREIGN_TRADE_ACCESS_POLICIES = Object.freeze([
     hostFactionId: "ming",
     appliesTo: "Ming ports",
     endMinute: MING_TRADE_RESTRICTION_END_MINUTE,
-    defaultGrantedFactionIds: ["joseon"],
+    defaultGrantedFactionIds: ["joseon", "ryukyu"],
     illicitMarketSuccessChance: 0.55,
     illicitMarketReputationPenalty: 8,
     closedMarketText: "The Ming maritime prohibition closes this market to unauthorized foreign cargo.",
@@ -194,13 +194,19 @@ export function migrateSovereignTradeGrantMemory(memory, legacyMingFactionIds = 
     }
     for (const policy of SOVEREIGN_TRADE_ACCESS_POLICIES) {
       if (memory[policy.id] !== undefined) {
-        migrated[policy.id] = normalizeForeignGrantFactionIds(policy, memory[policy.id]);
+        migrated[policy.id] = normalizeForeignGrantFactionIds(policy, [
+          ...policy.defaultGrantedFactionIds,
+          ...memory[policy.id]
+        ]);
       }
     }
   } else if (legacyMingFactionIds !== null && legacyMingFactionIds !== undefined) {
     migrated[MING_TRADE_POLICY_ID] = normalizeForeignGrantFactionIds(
       sovereignTradePolicyById(MING_TRADE_POLICY_ID),
-      legacyMingFactionIds
+      [
+        ...sovereignTradePolicyById(MING_TRADE_POLICY_ID).defaultGrantedFactionIds,
+        ...legacyMingFactionIds
+      ]
     );
   }
   validateSovereignTradeGrantMemory(migrated);

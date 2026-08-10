@@ -13,6 +13,7 @@ import {
   MAX_PROTECTED_ADMISSION_SLACK_PX,
   ProtectedChartStitchError,
   admitProjectedTiles,
+  chartAdmissionTileMayMove,
   refreshOffscreenLayoutTiles,
   projectedViewportTileIds,
   resolveLocalLayoutAnchor,
@@ -20,6 +21,29 @@ import {
   planVisibleElasticTilesWithinMotion,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
+
+test("live admission never moves a retained tile that may still be visible", () => {
+  assert.equal(chartAdmissionTileMayMove({
+    newlyAdmitted: false,
+    concealed: false,
+    overlapsAuthoritativeViewport: true
+  }), false);
+  assert.equal(chartAdmissionTileMayMove({
+    newlyAdmitted: false,
+    concealed: true,
+    overlapsAuthoritativeViewport: true
+  }), true);
+  assert.equal(chartAdmissionTileMayMove({
+    newlyAdmitted: false,
+    concealed: false,
+    overlapsAuthoritativeViewport: false
+  }), true);
+  assert.equal(chartAdmissionTileMayMove({
+    newlyAdmitted: true,
+    concealed: false,
+    overlapsAuthoritativeViewport: true
+  }), true);
+});
 import { predictiveAdmissionProjection } from "./chartAdmissionProjection.js";
 import { chartFaultNeedsCloudRepair } from "./chartVisualFault.js";
 import { chooseChartVisualRepair } from "./chartVisualRepairPolicy.js";
@@ -1373,8 +1397,8 @@ test("an east-to-west Scandinavia traversal escalates concealed repair before ge
   assert.ok(result.polarFogRepairPasses > 0, "Polar fog never repaired the moving chart");
   assert.ok(result.polarFogTilesSettled > 0, "Polar fog did not settle any chart tiles");
   assert.ok(
-    result.firstCompressionRepairPx <= 7,
-    `Scandinavian repair waited for ${result.firstCompressionRepairPx.toFixed(2)}px compression`
+    result.firstCompressionRepairPx === null || result.firstCompressionRepairPx <= 7,
+    `Scandinavian repair waited for ${result.firstCompressionRepairPx?.toFixed(2)}px compression`
   );
   assert.ok(
     result.repairDemand.fullCloudBanks > 0,

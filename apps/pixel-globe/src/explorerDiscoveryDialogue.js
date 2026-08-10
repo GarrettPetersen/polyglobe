@@ -59,6 +59,10 @@ const WORLD_REPORTS = new Map(Object.entries({
     "Machu Picchu grips a narrow ridge above the river clouds. Terraces hold the slopes in place, while fitted walls shed the mountain rain without sinking or splitting.",
     "The builders did not conquer the ridge by flattening it; they learned its shape. Your plan should show where their stone follows the mountain rather than fighting it."
   ),
+  "landmark-moai-of-rapa-nui": exchange(
+    "Along the coasts of Rapa Nui, colossal stone ancestors stand upon ahu with their backs to the sea, watching over the settlements. At Rano Raraku, others remain half-carved in the quarry.",
+    "Then they are not figures staring across empty water, but ancestors keeping watch over their descendants. Record the platforms and the roads from the quarry; stone can map a people's memory."
+  ),
   "landmark-niagara-falls": exchange(
     "The Niagara River seems broad and calm until its whole width falls away. The thunder reaches you first, then the spray, and only then the white wall of water itself.",
     "A waterfall vast enough to announce itself beyond sight. Mark the portage well. Such power is a wonder to behold and a deadly fact for every navigator."

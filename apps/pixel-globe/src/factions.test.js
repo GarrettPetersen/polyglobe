@@ -100,6 +100,12 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("tidore", "spain"), DIPLOMACY_FRIENDLY);
   assert.equal(diplomacyBetween("tidore", "portugal"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ternate", "ayutthaya"), DIPLOMACY_NEUTRAL);
+  assert.equal(diplomacyBetween("ottoman", "wallachia"), DIPLOMACY_HOSTILE);
+  assert.equal(diplomacyBetween("ottoman", "moldavia"), DIPLOMACY_NEUTRAL);
+  assert.equal(diplomacyBetween("ottoman", "hejaz"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("ottoman", "ragusa"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("ming", "ryukyu"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("japan", "ainu"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("inca", "muscovy"), DIPLOMACY_NEUTRAL);
   for (const faction of FACTIONS) {
     if (faction.id !== PIRATE_FACTION_ID) {
@@ -144,7 +150,13 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Tidore", "Indonesia", "tidore"],
     ["Makian Village", "Indonesia", "tidore"],
     ["Gane Village", "Indonesia", "tidore"],
-    ["Rhodes", "Greece", "hospitallers"]
+    ["Rhodes", "Greece", "hospitallers"],
+    ["Braila", "Romania", "wallachia"],
+    ["Galati", "Romania", "moldavia"],
+    ["Ragusa", "Croatia", "ragusa"],
+    ["Jeddah", "Saudi Arabia", "hejaz"],
+    ["Naha", "Japan", "ryukyu"],
+    ["Akkeshi Kotan", "Japan", "ainu"]
   ];
   for (const [city, country, factionId] of cases) {
     assert.equal(factionIdForCity1522({ city, country }), factionId, `${city}, ${country}`);

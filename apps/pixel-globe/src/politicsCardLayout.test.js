@@ -82,6 +82,24 @@ test("politics card segments preserve every relationship and compress universal 
   assert.equal(segments[1].lines[0].allPowers, true);
 });
 
+test("politics card segments keep tribute-paying and non-paying protected subjects distinct", () => {
+  const ottoman = card({
+    dependencies: [
+      dependency("autonomous-vassal", "suzerain", "wallachia", { tribute: true }),
+      dependency("autonomous-vassal", "suzerain", "crimea", { tribute: false })
+    ]
+  });
+  const [segment] = politicsCardSegments([ottoman], {
+    tokensPerLine: 4,
+    maxRelationLines: 4,
+    powerCount: 8
+  });
+
+  assert.equal(segment.lines.length, 2);
+  assert.deepEqual(segment.lines.map((line) => line.factionIds), [["wallachia"], ["crimea"]]);
+  assert.deepEqual(segment.lines.map((line) => line.terms.tribute), [true, false]);
+});
+
 test("an unusually entangled country continues onto another card without dropping ties", () => {
   const tangled = card({
     relationships: [
@@ -133,6 +151,21 @@ function card({ dependencies = [], relationships = [] }) {
 
 function relationship(relation, factionIds) {
   return { relation, factionIds };
+}
+
+function dependency(kind, role, factionId, overrides = {}) {
+  return {
+    kind,
+    role,
+    factionId,
+    terms: {
+      foreignPolicy: "independent",
+      tribute: false,
+      mutualDefense: true,
+      offensiveWarObligation: false,
+      ...overrides
+    }
+  };
 }
 
 function ids(prefix, count) {

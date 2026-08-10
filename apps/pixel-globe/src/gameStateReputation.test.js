@@ -288,8 +288,30 @@ test("version 8 game states retain version 1 diplomacy history during migration"
   const restored = migrateGameState(saved, stats);
 
   assert.equal(restored.relations.diplomacy.version, WORLD_DIPLOMACY_VERSION);
-  const { contacts, ...withoutContacts } = restored.relations.diplomacy;
-  assert.deepEqual({ ...withoutContacts, version: 1 }, before);
+  const { contacts, overrides, ...withoutContacts } = restored.relations.diplomacy;
+  assert.deepEqual(overrides, {
+    "ainu|japan": "neutral",
+    "ainu|kakizaki": "neutral",
+    "ando|japan": "neutral",
+    "ando|kakizaki": "neutral",
+    "hejaz|ottoman": "neutral",
+    "hosokawa|japan": "neutral",
+    "hosokawa|ouchi": "neutral",
+    "japan|kakizaki": "neutral",
+    "japan|nagao": "neutral",
+    "japan|ouchi": "neutral",
+    "japan|ryukyu": "neutral",
+    "japan|shimazu": "neutral",
+    "japan|shoni": "neutral",
+    "japan|so": "neutral",
+    "joseon|so": "neutral",
+    "ming|ryukyu": "neutral",
+    "ottoman|ragusa": "neutral",
+    "ottoman|wallachia": "neutral",
+    "ouchi|shoni": "neutral"
+  });
+  const { overrides: _legacyOverrides, ...beforeWithoutOverrides } = before;
+  assert.deepEqual({ ...withoutContacts, version: 1 }, beforeWithoutOverrides);
 });
 
 test("version 9 game states preserve passage and gain diplomatic contacts", () => {
@@ -327,7 +349,7 @@ test("version 10 game states gain the historically licensed trade defaults", () 
   const restored = migrateGameState(saved, stats);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
-  assert.deepEqual(restored.relations.tradeAccessGrants[MING_TRADE_POLICY_ID], ["joseon"]);
+  assert.deepEqual(restored.relations.tradeAccessGrants[MING_TRADE_POLICY_ID], ["joseon", "ryukyu"]);
   assert.deepEqual(restored.relations.tradeAccessGrants[JOSEON_TRADE_POLICY_ID], ["japan", "ming"]);
   assert.deepEqual(restored.relations.tradeAccessGrants[SPANISH_INDIES_TRADE_POLICY_ID], []);
 });
@@ -426,8 +448,31 @@ test("older voyages gain neutral standing with newly added sovereigns", () => {
   assert.equal(restored.relations.safePassageRefusalUntilMinute.portugal, 12345);
   assert.deepEqual(
     restored.relations.tradeAccessGrants[MING_TRADE_POLICY_ID],
-    ["england", "joseon"]
+    ["england", "joseon", "ryukyu"]
   );
+  validateGameState(restored);
+});
+
+test("older voyages preserve conquest while introducing compatible politics", () => {
+  const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  saved.version = 61;
+  saved.relations.diplomacy.version = 5;
+  saved.relations.diplomacy.overrides["england|france"] = "friendly";
+  saved.memory.conquest.collapsedFactionIds.push("ottoman");
+  saved.memory.conquest.portFactionOverrides["saved-conquest-port"] = "portugal";
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.relations.diplomacy.overrides["england|france"], "friendly");
+  assert.equal(restored.relations.diplomacy.overrides["ottoman|wallachia"], "neutral");
+  assert.equal(restored.memory.conquest.portFactionOverrides["saved-conquest-port"], "portugal");
+  assert.equal(restored.memory.conquest.collapsedFactionIds.includes("ottoman"), true);
+  assert.equal(restored.relations.diplomacy.suzerainties.byVassalId.wallachia, undefined);
+  assert.equal(restored.relations.diplomacy.suzerainties.byVassalId.crimea, undefined);
+  assert.equal(restored.relations.diplomacy.suzerainties.byVassalId.ryukyu.suzerainFactionId, "ming");
+  for (const factionId of ["wallachia", "moldavia", "ragusa", "hejaz", "ryukyu", "ainu"]) {
+    assert.equal(restored.relations.factionReputation[factionId], 0);
+  }
   validateGameState(restored);
 });
 

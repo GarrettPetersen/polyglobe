@@ -90,7 +90,10 @@ import {
   adjustDiplomaticStance,
   advanceWorldDiplomacy,
   createWorldDiplomacy,
+  diplomacyPairKey,
+  establishDiplomaticSuzerainty,
   recordDiplomaticPortCall,
+  releaseDiplomaticVassal,
   migrateWorldDiplomacy,
   recentDiplomacyEvents,
   validateWorldDiplomacy,
@@ -108,10 +111,36 @@ import {
   validatePapalPolitics
 } from "./papalPolitics.js";
 import {
+  advanceCourtPolitics,
+  commissionCourtMatter,
+  completeCourtCommission,
+  createCourtPolitics,
+  deliverCourtCommission,
+  migrateCourtPolitics,
+  nextCourtPoliticsMinute,
+  recentCourtActions,
+  validateCourtPolitics
+} from "./courtPolitics.js";
+import {
   foreignPolicyPrincipal,
+  SUZERAINTY_KIND_TRIBUTARY,
   suzerainForFaction,
   suzeraintyTradePrivilege
 } from "./suzerainty.js";
+import {
+  COURT_ENVOY_QUEST_KIND,
+  STATUS_ENVOY_QUEST_KIND,
+  TRIBUTE_ENVOY_QUEST_KIND,
+  WOKOU_HUNT_QUEST_KIND,
+  isCourtEnvoyQuest,
+  isStatusEnvoyQuest,
+  isTributeEnvoyQuest,
+  resolveDiplomaticStatusProposal,
+  statusProposalText,
+  tributeCargoHeld,
+  tributeCargoSpace,
+  tributeSaleTheftStatus as calculateTributeSaleTheftStatus
+} from "./diplomaticMissions.js";
 import {
   createForeignSettlementExpulsionMemory,
   expelHostileForeignSettlements,
@@ -274,7 +303,7 @@ import {
 } from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 61;
+export const GAME_STATE_VERSION = 64;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -298,6 +327,10 @@ export const CAPTURE_PORT_MISSION_REPUTATION_GAIN = 10;
 export const CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN = 30;
 export const CAPTURE_PORT_MISSION_SPAWN_CHANCE = 0.35;
 export const CAPTURE_PORT_MISSION_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
+export const WOKOU_HUNT_MISSION_SPAWN_CHANCE = 0.28;
+export const WOKOU_HUNT_MISSION_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
+export const WOKOU_HUNT_REPUTATION_REQUIRED = 10;
+export const WOKOU_HUNT_REPUTATION_GAIN = 8;
 export const CAPTURE_PORT_MISSION_MAX_DISTANCE_KM = 6000;
 export const CAPTURE_CAPITAL_MISSION_MAX_DISTANCE_KM = 10000;
 export const CAPTURE_CAPITAL_MISSION_MAX_REMAINING_PORTS = 2;
@@ -371,7 +404,13 @@ const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_MINUTES = FACTION_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_REFUSAL_MINUTES = FACTION_SAFE_PASSAGE_REFUSAL_DAYS * MINUTES_PER_DAY;
 const ENVOY_SAFE_PASSAGE_MINUTES = ENVOY_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
-const ENVOY_QUEST_KINDS = new Set(["friendly-envoy", "hostile-envoy"]);
+const ENVOY_QUEST_KINDS = new Set([
+  "friendly-envoy",
+  "hostile-envoy",
+  TRIBUTE_ENVOY_QUEST_KIND,
+  COURT_ENVOY_QUEST_KIND,
+  STATUS_ENVOY_QUEST_KIND
+]);
 const FRESH_WATER_USE_PER_DAY = FRESH_WATER_CAPACITY / FRESH_WATER_DAYS;
 
 export const SHIP_ITEM_CATALOG = Object.freeze([
@@ -489,6 +528,10 @@ export function createGameState({
       papacy: createPapalPolitics({
         startMinute,
         seedKey: resolvedVoyageSeed
+      }),
+      courts: createCourtPolitics({
+        startMinute,
+        seedKey: resolvedVoyageSeed
       })
     },
     memory: {
@@ -516,11 +559,14 @@ export function createGameState({
         active: null,
         passengerActive: null,
         completed: {},
+        failed: {},
         onboardingDeliveriesCompleted: 0,
         deliveryOffers: {},
         deliveryRolls: {},
         capturePortOffers: {},
         capturePortRolls: {},
+        courtMissionOffers: {},
+        courtMissionRolls: {},
         passengerOffers: {},
         passengerRolls: {},
         vikingLongshipRolls: {},
@@ -564,7 +610,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -592,13 +638,24 @@ export function migrateGameState(state, shipStats) {
   const migrationVoyageSeed = typeof state.voyageSeed === "string" && state.voyageSeed.trim() !== ""
     ? state.voyageSeed
     : worldDiplomacySeedKey(state.playerCharacter, savedGameStartMinute(state));
+  const migratedConquest = migrateConquestFactionReferences(
+    state.memory?.conquest || createPortConquestMemory()
+  );
+  const diplomacyMigrationContext = {
+    inactiveFactionIds: migratedConquest.collapsedFactionIds,
+    neutralizeIntroducedFactions: true
+  };
   const migratedDiplomacy = state.relations.diplomacy
-    ? migrateWorldDiplomacy(state.relations.diplomacy)
-    : createWorldDiplomacy({
+    ? migrateWorldDiplomacy(state.relations.diplomacy, diplomacyMigrationContext)
+    : migrateWorldDiplomacy(createWorldDiplomacy({
         startMinute: savedGameStartMinute(state),
         seedKey: migrationVoyageSeed
-      });
+      }), diplomacyMigrationContext);
   const migratedPapacy = migratePapalPolitics(state.relations.papacy, {
+    startMinute: savedGameStartMinute(state),
+    seedKey: migrationVoyageSeed
+  });
+  const migratedCourts = migrateCourtPolitics(state.relations.courts, {
     startMinute: savedGameStartMinute(state),
     seedKey: migrationVoyageSeed
   });
@@ -670,7 +727,8 @@ export function migrateGameState(state, shipStats) {
         state.relations.foreignSettlementExpulsions
       ),
       diplomacy: migratedDiplomacy,
-      papacy: migratedPapacy
+      papacy: migratedPapacy,
+      courts: migratedCourts
     },
     memory: {
       ...migratedMemoryBase,
@@ -692,10 +750,13 @@ export function migrateGameState(state, shipStats) {
         ...migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
           migrateConcurrentQuestMemory(migrateRetiredFactionReferences(state.memory?.quests))
         )),
+        failed: state.memory?.quests?.failed || {},
         cargoDeliveries: state.memory?.quests?.cargoDeliveries ||
           createQuestCargoDeliveryMemory(),
         capturePortOffers: state.memory?.quests?.capturePortOffers || {},
         capturePortRolls: state.memory?.quests?.capturePortRolls || {},
+        courtMissionOffers: state.memory?.quests?.courtMissionOffers || {},
+        courtMissionRolls: state.memory?.quests?.courtMissionRolls || {},
         japaneseMatchlocks: state.memory?.quests?.japaneseMatchlocks ||
           createJapaneseMatchlockQuestMemory(),
         caribbeanGinger: state.memory?.quests?.caribbeanGinger ||
@@ -722,7 +783,7 @@ export function migrateGameState(state, shipStats) {
       cargoReservations: state.memory?.cargoReservations || {},
       missionItemGifts: state.memory?.missionItemGifts || {},
       colonization: migrateColonizationQuestMemory(state.memory?.colonization),
-      conquest: migrateConquestFactionReferences(state.memory?.conquest || createPortConquestMemory()),
+      conquest: migratedConquest,
       achievements: migrateVoyageAchievementProgress(state.memory?.achievements),
       whales: state.memory?.whales?.version === 2 ? state.memory.whales : createWhaleMemory(),
       icebergs: state.memory?.icebergs?.version === 1 ? state.memory.icebergs : createIcebergMemory(),
@@ -984,16 +1045,17 @@ export function advanceGameDiplomacy(state, currentMinute) {
 }
 
 export function nextGamePoliticsMinute(state) {
-  if (!state?.relations?.diplomacy || !state?.relations?.papacy) {
+  if (!state?.relations?.diplomacy || !state?.relations?.papacy || !state?.relations?.courts) {
     throw new Error("Game state has no scheduled politics");
   }
   return Math.min(
     state.relations.diplomacy.nextEventMinute,
-    nextPapalPoliticsMinute(state.relations.papacy)
+    nextPapalPoliticsMinute(state.relations.papacy),
+    nextCourtPoliticsMinute(state.relations.courts)
   );
 }
 
-export function advanceGamePolitics(state, currentMinute) {
+export function advanceGamePolitics(state, currentMinute, { portCities = [] } = {}) {
   assertGameState(state);
   assertSimulationMinute(currentMinute);
   const papal = advancePapalPolitics(state.relations.papacy, state.relations.diplomacy, currentMinute, {
@@ -1004,6 +1066,12 @@ export function advanceGamePolitics(state, currentMinute) {
       papalReputation: factionReputation(state, "papal-states")
     } : null
   });
+  const courts = advanceCourtPolitics(
+    state.relations.courts,
+    state.relations.diplomacy,
+    currentMinute,
+    { portCities }
+  );
   const diplomacyEvents = advanceWorldDiplomacy(
     state.relations.diplomacy,
     currentMinute,
@@ -1028,10 +1096,16 @@ export function advanceGamePolitics(state, currentMinute) {
     }
   }
   return Object.freeze({
-    diplomacyEvents: Object.freeze([...diplomacyEvents, ...papal.diplomacyEvents]),
+    diplomacyEvents: Object.freeze([
+      ...diplomacyEvents,
+      ...papal.diplomacyEvents,
+      ...courts.diplomacyEvents
+    ]),
     papalActions: papal.actions,
     papalMattersOpened: papal.mattersOpened,
     papalCommissionRevoked: papal.commissionRevoked,
+    courtActions: courts.actions,
+    courtMattersOpened: courts.mattersOpened,
     englishReformation: papal.englishReformation,
     englishReformationConversions
   });
@@ -1048,6 +1122,11 @@ export function recentGamePapalActions(state, limit = 3) {
     throw new Error(`Invalid papal action history limit: ${limit}`);
   }
   return Object.freeze(state.relations.papacy.history.slice(0, limit));
+}
+
+export function recentGameCourtActions(state, limit = 3) {
+  assertGameState(state);
+  return recentCourtActions(state.relations.courts, limit);
 }
 
 export function recordDiscovery(state, discovery) {
@@ -1421,11 +1500,25 @@ function playerWorldDiplomacyInfluence(state) {
     homeFactionId !== PIRATE_FACTION_ID &&
     factionReputation(state, homeFactionId) > HOSTILE_PORT_REPUTATION_THRESHOLD
   );
+  const activeDiplomaticQuest = state.memory.quests?.active || null;
+  const lockedPairKeys = [];
+  if (isStatusEnvoyQuest(activeDiplomaticQuest)) {
+    lockedPairKeys.push(diplomacyPairKey(
+      activeDiplomaticQuest.statusProposal.vassalFactionId,
+      activeDiplomaticQuest.statusProposal.suzerainFactionId
+    ));
+  } else if (isTributeEnvoyQuest(activeDiplomaticQuest)) {
+    lockedPairKeys.push(diplomacyPairKey(
+      activeDiplomaticQuest.originFactionId,
+      activeDiplomaticQuest.targetFactionId
+    ));
+  }
   return {
     homeFactionId,
     homeFactionInGoodStanding,
     reputation: state.relations.factionReputation,
-    decisions: state.memory.decisions
+    decisions: state.memory.decisions,
+    lockedPairKeys
   };
 }
 
@@ -3265,17 +3358,75 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     throw new Error(`Envoy negotiations belong in ${active.targetName}, not ${cityLabel(city)}`);
   }
   assertSimulationMinute(context.simMinute);
-  const direction = active.kind === "friendly-envoy" ? "improve" : "worsen";
-  const events = adjustDiplomaticStance(
-    state.relations.diplomacy,
-    active.originFactionId,
-    active.targetFactionId,
-    direction,
-    context.simMinute,
-    { homeFactionId: state.playerCharacter?.nationalityId || null }
-  );
   if (!Array.isArray(context.portCities)) {
     throw new Error("Envoy negotiations require the current port list");
+  }
+  let events = [];
+  let statusResolution = null;
+  let tributeCargo = null;
+  if (isTributeEnvoyQuest(active)) {
+    if (!tributeCargoHeld(state, active)) {
+      throw new Error(`Sealed tribute cargo is missing for ${active.id}`);
+    }
+    tributeCargo = active.tributeCargoRequirements.map((requirement) => {
+      state.cargo[requirement.goodId] -= requirement.quantity;
+      if (state.cargo[requirement.goodId] <= 0) {
+        delete state.cargo[requirement.goodId];
+        delete state.accounts.cargoCostBasis[requirement.goodId];
+      }
+      return { ...requirement };
+    });
+    active.tributeDelivered = true;
+    active.dialogue.negotiation =
+      `${active.targetRulerName}'s officers accept the sealed tribute and enter it in the court register. ` +
+      `The formal receipt may now be carried home.`;
+  } else if (isStatusEnvoyQuest(active)) {
+    statusResolution = resolveDiplomaticStatusProposal(
+      state,
+      active,
+      context.portCities,
+      (factionAId, factionBId) => diplomacyBetweenForState(state, factionAId, factionBId)
+    );
+    if (statusResolution.accepted) {
+      const event = statusResolution.type === "seek-independence"
+        ? releaseDiplomaticVassal(state.relations.diplomacy, {
+            vassalFactionId: statusResolution.vassalFactionId,
+            simMinute: context.simMinute,
+            source: "envoy-treaty",
+            relation: statusResolution.type === "offer-protection" ||
+              statusResolution.type === "offer-submission"
+              ? DIPLOMACY_FRIENDLY
+              : DIPLOMACY_NEUTRAL
+          })
+        : establishDiplomaticSuzerainty(state.relations.diplomacy, {
+            vassalFactionId: statusResolution.vassalFactionId,
+            suzerainFactionId: statusResolution.suzerainFactionId,
+            kind: statusResolution.desiredKind || SUZERAINTY_KIND_TRIBUTARY,
+            simMinute: context.simMinute,
+            source: "envoy-treaty",
+            relation: DIPLOMACY_NEUTRAL
+          });
+      if (event) events.push(event);
+      active.dialogue.negotiation = `${statusProposalText(statusResolution)} The court accepts the articles.`;
+    } else {
+      active.dialogue.negotiation = `${statusProposalText(statusResolution)} The court refuses the articles.`;
+    }
+  } else if (isCourtEnvoyQuest(active)) {
+    deliverCourtCommission(state.relations.courts, {
+      matterId: active.courtMatterId,
+      questId: active.id,
+      simMinute: context.simMinute
+    });
+  } else {
+    const direction = active.kind === "friendly-envoy" ? "improve" : "worsen";
+    events = adjustDiplomaticStance(
+      state.relations.diplomacy,
+      active.originFactionId,
+      active.targetFactionId,
+      direction,
+      context.simMinute,
+      { homeFactionId: state.playerCharacter?.nationalityId || null }
+    );
   }
   const foreignSettlementExpulsions = expelHostileForeignSettlements({
     memory: state.relations.foreignSettlementExpulsions,
@@ -3287,7 +3438,11 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
   });
   const targetReputationDelta = active.kind === "friendly-envoy"
     ? ENVOY_TARGET_FRIENDLY_REPUTATION
-    : ENVOY_TARGET_HOSTILE_REPUTATION;
+    : active.kind === "hostile-envoy"
+      ? ENVOY_TARGET_HOSTILE_REPUTATION
+      : isStatusEnvoyQuest(active)
+        ? statusResolution.accepted ? 5 : -2
+        : 4;
   adjustFactionReputation(state, active.targetFactionId, targetReputationDelta);
   const tradeAccessOpenedFactionId = active.kind === "friendly-envoy"
     ? tradeAccessOpeningFactionId(state, active)
@@ -3310,6 +3465,8 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     quest: active,
     events,
     foreignSettlementExpulsions,
+    statusResolution,
+    tributeCargo,
     targetReputationDelta,
     tradeAccessOpened,
     tradeAccessPolicyId: tradeAccessOpened ? active.tradeAccessPolicyId : null,
@@ -4873,6 +5030,95 @@ function capturePortMissionSpawnChance(value) {
   return chance;
 }
 
+export function isWokouHuntQuest(quest) {
+  return quest?.kind === WOKOU_HUNT_QUEST_KIND;
+}
+
+export function wokouHuntMissionOfferForCity(state, city, portCities, context = {}) {
+  assertGameState(state);
+  if (!Array.isArray(portCities)) throw new Error("Wokou commissions require a port list");
+  const quests = questMemory(state);
+  const existing = pendingWokouHuntMissionOfferForCity(state, city);
+  if (existing || quests.active || quests.passengerActive) return existing;
+  const factionId = currentSovereignCapitalFactionId(city);
+  if (!["ming", "japan"].includes(factionId)) return null;
+  if (factionReputation(state, factionId) < WOKOU_HUNT_REPUTATION_REQUIRED) return null;
+  const patrolNames = factionId === "ming"
+    ? ["Ningbo", "Fuzhou", "Guangzhou"]
+    : ["Nagasaki", "Yamaguchi", "Kagoshima"];
+  const candidates = portCities.filter((port) => (
+    patrolNames.includes(port.displayCity || port.city) && Number.isInteger(port.tileId)
+  ));
+  if (candidates.length === 0) return null;
+  const simMinute = context.simMinute ?? 0;
+  assertSimulationMinute(simMinute);
+  const period = Math.floor(simMinute / WOKOU_HUNT_MISSION_ROLL_PERIOD_MINUTES);
+  const rollKey = `${cityKey(city)}|${period}|wokou`;
+  if (quests.courtMissionRolls[rollKey]) return null;
+  quests.courtMissionRolls[rollKey] = true;
+  pruneQuestRolls(quests.courtMissionRolls);
+  const chance = context.spawnChance ?? WOKOU_HUNT_MISSION_SPAWN_CHANCE;
+  if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
+    throw new Error(`Invalid wokou commission spawn chance: ${chance}`);
+  }
+  if (chance < 1 && seededFraction(`${state.voyageSeed}|${rollKey}|spawn`) >= chance) return null;
+  const patrolPort = candidates[hashString32(`${state.voyageSeed}|${rollKey}|patrol`) % candidates.length];
+  const ruler = rulerAtMinute(factionId, simMinute);
+  if (!ruler) throw new Error(`Wokou commission has no ruler for ${factionId}`);
+  const reward = 700 + hashString32(`${rollKey}|reward`) % 401;
+  const offer = {
+    id: `wokou-hunt-${factionId}-${city.tileId}-${patrolPort.tileId}-${period}`,
+    kind: WOKOU_HUNT_QUEST_KIND,
+    stage: "hunt",
+    originKey: cityKey(city),
+    originTileId: city.tileId,
+    originName: cityLabel(city),
+    originCountry: city.country || "",
+    originFactionId: factionId,
+    originRulerName: ruler.displayName,
+    patrolKey: cityKey(patrolPort),
+    patrolTileId: patrolPort.tileId,
+    patrolName: cityLabel(patrolPort),
+    destinationKey: cityKey(patrolPort),
+    destinationTileId: patrolPort.tileId,
+    destinationName: cityLabel(patrolPort),
+    destinationCountry: patrolPort.country || "",
+    targetShipId: `wokou-commission-${factionId}-${period}`,
+    targetShipSlug: factionId === "japan" ? "japanese-kobaya" : "small-junk",
+    reward,
+    offerPeriod: period,
+    offerText: factionId === "ming"
+      ? `${ruler.displayName}'s coastal officers seek a captain to hunt the wokou reported near ${cityLabel(patrolPort)}. Sink or force their surrender, then return for ${reward} db. Pirates require no marque.`
+      : `${ruler.displayName}'s council seeks a captain to hunt the wokou raiding near ${cityLabel(patrolPort)}. Sink or force their surrender, then return for ${reward} db. Pirates require no marque.`
+  };
+  quests.courtMissionOffers[offer.originKey] = offer;
+  return offer;
+}
+
+export function pendingWokouHuntMissionOfferForCity(state, city) {
+  if (!state || !city) return null;
+  const quests = questMemory(state);
+  const offer = quests.courtMissionOffers[cityKey(city)] || null;
+  if (!offer || quests.completed[offer.id] || quests.failed[offer.id]) return null;
+  return offer;
+}
+
+export function recordWokouHuntVictory(state, shipId, context = {}) {
+  assertGameState(state);
+  const active = questMemory(state).active;
+  if (!isWokouHuntQuest(active) || active.stage !== "hunt" || active.targetShipId !== shipId) {
+    return null;
+  }
+  active.stage = "return";
+  active.defeatedAtMinute = context.simMinute ?? 0;
+  active.destinationKey = active.originKey;
+  active.destinationTileId = active.originTileId;
+  active.destinationName = active.originName;
+  active.destinationCountry = active.originCountry;
+  recordDecision(state, `quest.wokou.defeated.${active.id}`, 1);
+  return active;
+}
+
 export function deliveryOfferForCity(state, city, portCities, context = {}) {
   assertGameState(state);
   const quests = questMemory(state);
@@ -4928,6 +5174,7 @@ export function reconcileQuestPortTiles(state, portCities) {
     updates += reconcileQuestEndpoint(quest, "destination", portCities);
     if (isEnvoyQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
     if (isCaptureCommissionQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
+    if (isWokouHuntQuest(quest)) updates += reconcileQuestEndpoint(quest, "patrol", portCities);
   };
 
   reconcile(quests.active);
@@ -4944,6 +5191,12 @@ export function reconcileQuestPortTiles(state, portCities) {
     offers[offer?.originKey || storedKey] = offer;
   }
   quests.passengerOffers = offers;
+  const courtOffers = {};
+  for (const [storedKey, offer] of Object.entries(quests.courtMissionOffers)) {
+    reconcile(offer);
+    courtOffers[offer?.originKey || storedKey] = offer;
+  }
+  quests.courtMissionOffers = courtOffers;
 
   const reconciledWaypoints = [];
   for (const waypoint of state.memory.navigation.optionalWaypoints) {
@@ -5026,6 +5279,15 @@ export function questStateForCity(state, city, portCities) {
   const quests = questMemory(state);
   const active = quests.active;
   if (active) {
+    if (isWokouHuntQuest(active)) {
+      if (active.stage === "return" && active.originTileId === city.tileId) {
+        return { kind: "ready-to-complete", quest: active };
+      }
+      if (active.originTileId === city.tileId || active.patrolTileId === city.tileId) {
+        return { kind: "in-progress-here", quest: active };
+      }
+      return { kind: "busy", quest: active };
+    }
     if (isCaptureCommissionQuest(active)) {
       if (active.stage === "return" && active.originTileId === city.tileId) {
         return { kind: "ready-to-complete", quest: active };
@@ -5040,13 +5302,14 @@ export function questStateForCity(state, city, portCities) {
     return { kind: "busy", quest: active };
   }
   const offer = pendingCapturePortMissionOfferForCity(state, city) ||
+    pendingWokouHuntMissionOfferForCity(state, city) ||
     pendingDeliveryOfferForCity(state, city);
   return offer
     ? { kind: "available", quest: offer }
     : { kind: "unavailable", quest: null };
 }
 
-export function acceptQuest(state, quest) {
+export function acceptQuest(state, quest, context = {}) {
   assertGameState(state);
   const quests = questMemory(state);
   if (quests.completed[quest.id]) throw new Error(`Quest already completed: ${quest.id}`);
@@ -5071,13 +5334,75 @@ export function acceptQuest(state, quest) {
       { traveler: true }
     )
   } : quest.passenger;
+  if (isTributeEnvoyQuest(quest)) {
+    const requiredSpace = tributeCargoSpace(quest.tributeCargoRequirements);
+    if (cargoFree(state) < requiredSpace) {
+      throw new Error(`Tribute mission requires ${requiredSpace} free cargo space`);
+    }
+    for (const requirement of quest.tributeCargoRequirements) {
+      tradeGoodById(requirement.goodId);
+      state.cargo[requirement.goodId] = (state.cargo[requirement.goodId] || 0) + requirement.quantity;
+      state.accounts.cargoCostBasis[requirement.goodId] =
+        state.accounts.cargoCostBasis[requirement.goodId] || 0;
+    }
+  }
+  if (isCourtEnvoyQuest(quest) && quest.courtMatterId) {
+    assertSimulationMinute(context.simMinute);
+    commissionCourtMatter(state.relations.courts, {
+      matterId: quest.courtMatterId,
+      questId: quest.id,
+      acceptedMinute: context.simMinute
+    });
+  }
   quests[passengerSlot ? "passengerActive" : "active"] = { ...quest, passenger };
   if ((quest.kind === "passenger" || isEnvoyQuest(quest)) && quest.originKey) {
     delete quests.passengerOffers[quest.originKey];
   }
   if (quest.kind === "delivery" && quest.originKey) delete quests.deliveryOffers[quest.originKey];
   if (isCaptureCommissionQuest(quest) && quest.originKey) delete quests.capturePortOffers[quest.originKey];
+  if (isWokouHuntQuest(quest) && quest.originKey) delete quests.courtMissionOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
+  return quests[passengerSlot ? "passengerActive" : "active"];
+}
+
+export function tributeSaleTheftStatus(state, goodId, quantity) {
+  assertGameState(state);
+  tradeGoodById(goodId);
+  return calculateTributeSaleTheftStatus(state, goodId, quantity);
+}
+
+export function recordTributeTheft(state, theft, context = {}) {
+  assertGameState(state);
+  const quests = questMemory(state);
+  const active = quests.active;
+  if (!theft || !isTributeEnvoyQuest(active) || active.id !== theft.questId) {
+    throw new Error("Tribute theft does not match the active diplomatic mission");
+  }
+  const requirement = active.tributeCargoRequirements.find((entry) => entry.goodId === theft.goodId);
+  if (!requirement || !Number.isInteger(theft.stolenQuantity) || theft.stolenQuantity <= 0 ||
+      theft.stolenQuantity > requirement.quantity) {
+    throw new Error("Invalid sealed tribute quantity in theft record");
+  }
+  const originStanding = adjustFactionReputation(state, active.originFactionId, theft.originPenalty);
+  const suzerainStanding = active.targetFactionId === active.originFactionId
+    ? originStanding
+    : adjustFactionReputation(state, active.targetFactionId, theft.suzerainPenalty);
+  active.tributeStolen = true;
+  quests.failed[active.id] = {
+    reason: "tribute-theft",
+    simMinute: context.simMinute ?? 0,
+    goodId: theft.goodId,
+    quantity: theft.stolenQuantity
+  };
+  quests.active = null;
+  recordDecision(state, `quest.fail.tribute-theft.${active.id}`, 1);
+  return {
+    quest: active,
+    originStanding,
+    suzerainStanding,
+    originPenalty: theft.originPenalty,
+    suzerainPenalty: theft.suzerainPenalty
+  };
 }
 
 export function completeQuest(state, city, context = {}) {
@@ -5103,6 +5428,25 @@ export function completeQuest(state, city, context = {}) {
   }
   if (isCaptureCommissionQuest(active) && active.stage !== "return") {
     throw new Error(`Capture-port commission must be won before reporting home: ${active.id}`);
+  }
+  if (isWokouHuntQuest(active) && active.stage !== "return") {
+    throw new Error(`Wokou commission must be won before reporting home: ${active.id}`);
+  }
+  if (isCourtEnvoyQuest(active) && active.courtMatterId) {
+    assertSimulationMinute(context.simMinute);
+    if (!Array.isArray(context.portCities)) {
+      throw new Error("Court commission completion requires the current port list");
+    }
+    active.courtResolution = completeCourtCommission(
+      state.relations.courts,
+      state.relations.diplomacy,
+      {
+        matterId: active.courtMatterId,
+        questId: active.id,
+        simMinute: context.simMinute,
+        portCities: context.portCities
+      }
+    );
   }
   state.doubloons += active.reward;
   quests.completed[active.id] = true;
@@ -5134,6 +5478,10 @@ export function completeQuest(state, city, context = {}) {
     adjustFactionReputation(state, active.originFactionId, reputationGain);
     recordDecision(state, `reputation.${active.kind}.${active.originFactionId}`, 1);
   }
+  if (isWokouHuntQuest(active)) {
+    adjustFactionReputation(state, active.originFactionId, WOKOU_HUNT_REPUTATION_GAIN);
+    recordDecision(state, `reputation.wokou-hunt.${active.originFactionId}`, 1);
+  }
   recordLedgerEntry(state, city, context, {
     kind: "income",
     description: active.kind === "passenger"
@@ -5142,7 +5490,9 @@ export function completeQuest(state, city, context = {}) {
         ? "Diplomatic mission"
         : isCaptureCommissionQuest(active)
           ? `Crown commission: captured ${active.targetName}`
-          : "Delivery reward",
+          : isWokouHuntQuest(active)
+            ? "Wokou suppression commission"
+            : "Delivery reward",
     goodId: null,
     quantity: 1,
     amount: active.reward,
@@ -6157,6 +6507,7 @@ function assertGameState(state) {
   validateChartReframeDialogueMemory(state.memory.chartReframeDialogue);
   assertCargoReservations(state.memory.cargoReservations);
   assertMissionItemGifts(state.memory.missionItemGifts);
+  assertDiplomaticQuestMemory(state.memory.quests);
   validateQuestCargoDeliveryMemory(state.memory.quests?.cargoDeliveries);
   validateJapaneseMatchlockQuestMemory(state.memory.quests?.japaneseMatchlocks);
   validateCaribbeanGingerQuestMemory(state.memory.quests?.caribbeanGinger);
@@ -6349,6 +6700,7 @@ function questMemory(state) {
   const quests = state.memory.quests;
   if (quests.passengerActive === undefined) quests.passengerActive = null;
   if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
+  if (!quests.failed || typeof quests.failed !== "object") quests.failed = {};
   if (!Number.isInteger(quests.onboardingDeliveriesCompleted) || quests.onboardingDeliveriesCompleted < 0) {
     quests.onboardingDeliveriesCompleted = inferredOnboardingDeliveryProgress(state, quests);
   }
@@ -6364,9 +6716,69 @@ function questMemory(state) {
   if (!quests.capturePortRolls || typeof quests.capturePortRolls !== "object") {
     quests.capturePortRolls = {};
   }
+  if (!quests.courtMissionOffers || typeof quests.courtMissionOffers !== "object") {
+    quests.courtMissionOffers = {};
+  }
+  if (!quests.courtMissionRolls || typeof quests.courtMissionRolls !== "object") {
+    quests.courtMissionRolls = {};
+  }
   if (!quests.passengerOffers || typeof quests.passengerOffers !== "object") quests.passengerOffers = {};
   if (!quests.passengerRolls || typeof quests.passengerRolls !== "object") quests.passengerRolls = {};
   return quests;
+}
+
+function assertDiplomaticQuestMemory(quests) {
+  if (!quests || typeof quests !== "object" || Array.isArray(quests)) {
+    throw new Error("Game state quest memory must be an object");
+  }
+  for (const field of ["completed", "failed", "courtMissionOffers", "courtMissionRolls"]) {
+    if (!quests[field] || typeof quests[field] !== "object" || Array.isArray(quests[field])) {
+      throw new Error(`Game state quest ${field} must be an object`);
+    }
+  }
+  const diplomaticQuests = [
+    quests.active,
+    ...Object.values(quests.passengerOffers || {}),
+    ...Object.values(quests.courtMissionOffers)
+  ].filter((quest) => (
+    isTributeEnvoyQuest(quest)
+    || isCourtEnvoyQuest(quest)
+    || isStatusEnvoyQuest(quest)
+    || isWokouHuntQuest(quest)
+  ));
+  for (const quest of diplomaticQuests) {
+    if (typeof quest.id !== "string" || quest.id === "") {
+      throw new Error("Diplomatic quest requires an id");
+    }
+    if (isTributeEnvoyQuest(quest)) {
+      if (!Array.isArray(quest.tributeCargoRequirements) || quest.tributeCargoRequirements.length === 0) {
+        throw new Error(`Tribute quest requires sealed cargo: ${quest.id}`);
+      }
+      for (const requirement of quest.tributeCargoRequirements) {
+        tradeGoodById(requirement.goodId);
+        if (!Number.isInteger(requirement.quantity) || requirement.quantity <= 0) {
+          throw new Error(`Invalid tribute cargo quantity: ${quest.id}/${requirement.goodId}`);
+        }
+      }
+    }
+    if (isStatusEnvoyQuest(quest) && !quest.statusProposal) {
+      throw new Error(`Status envoy requires proposed terms: ${quest.id}`);
+    }
+    if (isCourtEnvoyQuest(quest) && (
+      (quest.courtMatterId === undefined) !== (quest.courtAuthorityFactionId === undefined) ||
+      (quest.courtMatterId !== undefined && (
+        typeof quest.courtMatterId !== "string" || quest.courtMatterId === "" ||
+        typeof quest.courtAuthorityFactionId !== "string" || quest.courtAuthorityFactionId === ""
+      ))
+    )) {
+      throw new Error(`Court envoy has an incomplete scheduled matter: ${quest.id}`);
+    }
+    if (isWokouHuntQuest(quest) && (
+      typeof quest.targetShipId !== "string" || !Number.isInteger(quest.patrolTileId)
+    )) {
+      throw new Error(`Wokou quest requires a target ship and patrol port: ${quest.id}`);
+    }
+  }
 }
 
 function inferredOnboardingDeliveryProgress(state, quests) {
@@ -6423,6 +6835,8 @@ function assertWorldDiplomacyState(state) {
   validateWorldDiplomacy(state.relations.diplomacy);
   if (!state.relations.papacy) throw new Error("Game state requires papal politics");
   validatePapalPolitics(state.relations.papacy);
+  if (!state.relations.courts) throw new Error("Game state requires court politics");
+  validateCourtPolitics(state.relations.courts);
 }
 
 function savedGameStartMinute(state) {

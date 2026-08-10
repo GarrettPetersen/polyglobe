@@ -8,6 +8,7 @@ import {
   advanceChartReframeDialogueTrigger,
   chartDialogueRegionTags,
   chartReframeDialogueCooldownElapsed,
+  chartReframeDialoguePortraitStage,
   createChartReframeDialogueMemory,
   createChartReframeDialogueTrigger,
   formatChartReframeDialogueMessage,
@@ -16,6 +17,20 @@ import {
   selectChartReframeDialogue,
   validateChartReframeDialogueMemory
 } from "./chartReframeDialogue.js";
+
+test("a crewmate speaking during a chart reframe remains paired with the captain", () => {
+  const captain = { id: "captain" };
+  const crewmate = { id: "crewmate" };
+  assert.deepEqual(chartReframeDialoguePortraitStage({
+    captain,
+    counterpart: crewmate,
+    speaker: crewmate
+  }), {
+    leftCharacter: captain,
+    rightCharacter: crewmate,
+    speakerCharacter: crewmate
+  });
+});
 
 test("last-resort chart dialogue has several dozen conditional situations", () => {
   assert.ok(CHART_REFRAME_DIALOGUES.length >= 40);

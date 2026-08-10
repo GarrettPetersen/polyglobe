@@ -14,6 +14,23 @@ const MIN_ELASTIC_CORRECTION_TILES = 3;
 // integer raster placement supplies the remaining two-pixel tolerance.
 const MAX_PROTECTED_STITCH_ERROR_PX = MAX_PROTECTED_ADMISSION_SLACK_PX * 2 + 2.1;
 
+export function chartAdmissionTileMayMove({
+  newlyAdmitted = false,
+  concealed = false,
+  overlapsAuthoritativeViewport
+}) {
+  for (const [label, value] of Object.entries({
+    newlyAdmitted,
+    concealed,
+    overlapsAuthoritativeViewport
+  })) {
+    if (typeof value !== "boolean") {
+      throw new Error(`Chart admission ${label} must be boolean`);
+    }
+  }
+  return newlyAdmitted || concealed || !overlapsAuthoritativeViewport;
+}
+
 export class ProtectedChartStitchError extends Error {
   constructor({ tileId, neighborId, maximumErrorPx, actualErrorPx }) {
     super(

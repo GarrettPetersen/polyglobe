@@ -31,6 +31,7 @@ import {
 } from "./vikingLongshipQuest.js";
 import { papalCommissionCargoRequirements } from "./papalPolitics.js";
 import { questCargoDeliveryProgress } from "./questCargoDeliveries.js";
+import { isTributeEnvoyQuest } from "./diplomaticMissions.js";
 
 export const QUEST_CARGO_PROMPT_VIKING = "viking-longship";
 export const QUEST_CARGO_PROMPT_MATCHLOCKS = "japanese-matchlocks";
@@ -69,6 +70,13 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
     }
     if (remainingQuantity > 0) requirements.push(Object.freeze({ id, goodId, remainingQuantity }));
   };
+
+  const activeQuest = state.memory?.quests?.active;
+  if (isTributeEnvoyQuest(activeQuest) && activeQuest.stage === "outbound") {
+    for (const requirement of activeQuest.tributeCargoRequirements) {
+      add(`tribute.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);
+    }
+  }
 
   const viking = vikingLongshipQuestState(state, {
     city: VIKING_LONGSHIP_PORT_CITY,

@@ -63,6 +63,16 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1523, 1, 1, "Ghazi I Giray", "Khan"),
     ruler(1524, 1, 1, "Saadet I Giray", "Khan")
   ],
+  wallachia: [ruler(1522, 1, 1, "Radu of Afumati", "Prince")],
+  moldavia: [
+    ruler(1522, 1, 1, "Stephen IV", "Prince"),
+    ruler(1527, 1, 14, "Peter IV Rares", "Prince")
+  ],
+  ragusa: [ruler(1522, 1, 1, "Ragusan Senate", "Council")],
+  hejaz: [
+    ruler(1522, 1, 1, "Barakat II", "Sharif"),
+    yearRuler(1525, "Abu Numayy II", "Sharif")
+  ],
   "poland-lithuania": [
     ruler(1522, 1, 1, "Sigismund I", "King"),
     ruler(1548, 4, 1, "Sigismund II Augustus", "King")
@@ -136,6 +146,31 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1522, 1, 1, "Ashikaga Yoshiharu", "Shogun"),
     yearRuler(1546, "Ashikaga Yoshiteru", "Shogun")
   ],
+  hosokawa: [
+    ruler(1522, 1, 1, "Hosokawa Takakuni", "Kanrei"),
+    yearRuler(1531, "Hosokawa Harumoto", "Lord")
+  ],
+  ouchi: [
+    ruler(1522, 1, 1, "Ouchi Yoshioki", "Lord"),
+    yearRuler(1529, "Ouchi Yoshitaka", "Lord")
+  ],
+  shimazu: [ruler(1522, 1, 1, "Shimazu Katsuhisa", "Lord")],
+  so: [ruler(1522, 1, 1, "So Morinaga", "Lord")],
+  shoni: [
+    ruler(1522, 1, 1, "Shoni Sukemoto", "Lord"),
+    yearRuler(1532, "Shoni Tokinao", "Lord")
+  ],
+  nagao: [
+    ruler(1522, 1, 1, "Nagao Tamekage", "Deputy Governor"),
+    yearRuler(1536, "Nagao Harukage", "Lord")
+  ],
+  ando: [ruler(1522, 1, 1, "Ando Kiyosue", "Lord")],
+  kakizaki: [ruler(1522, 1, 1, "Kakizaki Yoshihiro", "Lord")],
+  ryukyu: [
+    ruler(1522, 1, 1, "Sho Shin", "King"),
+    yearRuler(1527, "Sho Sei", "King")
+  ],
+  ainu: [ruler(1522, 1, 1, "Kotan Elders", "Council")],
   joseon: [
     ruler(1522, 1, 1, "Jungjong", "King"),
     ruler(1544, 11, 29, "Injong", "King"),
@@ -162,6 +197,10 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
   safavid: faith("shia-islam", 1),
   muscovy: faith("eastern-orthodox", 0.94),
   crimea: faith("sunni-islam", 0.78),
+  wallachia: faith("eastern-orthodox", 0.9),
+  moldavia: faith("eastern-orthodox", 0.91),
+  ragusa: faith("roman-catholic", 0.78),
+  hejaz: faith("sunni-islam", 0.96),
   "poland-lithuania": faith("roman-catholic", 0.79),
   sweden: faith("roman-catholic", 0.72),
   "denmark-norway": faith("roman-catholic", 0.68),
@@ -176,6 +215,16 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
   ternate: faith("sunni-islam", 0.82),
   tidore: faith("sunni-islam", 0.82),
   japan: faith("kami-buddhist", 0.73),
+  hosokawa: faith("kami-buddhist", 0.72),
+  ouchi: faith("kami-buddhist", 0.78),
+  shimazu: faith("kami-buddhist", 0.8),
+  so: faith("kami-buddhist", 0.7),
+  shoni: faith("kami-buddhist", 0.74),
+  nagao: faith("kami-buddhist", 0.76),
+  ando: faith("kami-buddhist", 0.69),
+  kakizaki: faith("kami-buddhist", 0.67),
+  ryukyu: faith("kami-buddhist", 0.82),
+  ainu: faith("ainu-traditional", 0.9),
   joseon: faith("korean-traditional", 0.84)
 });
 
@@ -188,14 +237,17 @@ const RULER_FAITH_OVERRIDES = Object.freeze({
 
 const REGIONAL_GROUPS = Object.freeze([
   ["england", "scotland", "france", "spain", "portugal", "habsburg", "sweden", "denmark-norway"],
-  ["habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania"],
-  ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "morocco", "safavid", "hormuz"],
+  ["habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania", "wallachia", "moldavia", "ragusa"],
+  ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "morocco", "safavid", "hormuz", "hejaz", "ragusa"],
   ["muscovy", "crimea", "poland-lithuania", "sweden", "denmark-norway", "habsburg", "hungary", "ottoman"],
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],
   ["vijayanagara", "gujarat", "bengal", "delhi", "portugal", "safavid"],
   ["ayutthaya", "ming", "bengal", "portugal", "spain", "ternate", "tidore"],
-  ["ming", "japan", "joseon", "ayutthaya"],
+  [
+    "ming", "japan", "hosokawa", "ouchi", "shimazu", "so", "shoni", "nagao",
+    "ando", "kakizaki", "ryukyu", "ainu", "joseon", "ayutthaya"
+  ],
   ["inca", "spain", "portugal"]
 ]);
 

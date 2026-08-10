@@ -54,6 +54,20 @@ test("demo chefs request only ingredients sold inside the accessible region", ()
   }), null);
 });
 
+test("rice can satisfy the chef quest's staple course", () => {
+  const state = game();
+  const quest = maybeSpawnChefQuest(state, city, {
+    simMinute: 0,
+    spawnChance: 1,
+    availableIngredientGoodIds: new Set(["rice", "pepper", "wine", "olive-oil"])
+  });
+
+  assert.deepEqual(
+    quest.ingredients.map((ingredient) => ingredient.goodId),
+    ["rice", "pepper", "wine", "olive-oil"]
+  );
+});
+
 test("delivering every ingredient advances to a persistent recruitment", () => {
   const state = game();
   const quest = maybeSpawnChefQuest(state, city, { simMinute: 0, spawnChance: 1 });

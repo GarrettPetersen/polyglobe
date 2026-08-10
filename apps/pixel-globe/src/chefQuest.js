@@ -1,4 +1,4 @@
-import { tradeGoodById } from "./economy.js";
+import { RICE_GOOD_ID, tradeGoodById } from "./economy.js";
 import { hasPermanentCrewBerth } from "./namedCrew.js";
 import {
   questCargoDeliverableQuantity,
@@ -22,7 +22,7 @@ const STAGES = new Set([
 ]);
 
 const INGREDIENT_GROUPS = Object.freeze([
-  Object.freeze(["fish", "grain", "cheese"]),
+  Object.freeze(["fish", "grain", RICE_GOOD_ID, "cheese"]),
   Object.freeze(["ginger", "cloves", "pepper", "cinnamon", "nutmeg"]),
   Object.freeze(["wine", "tea"]),
   Object.freeze(["sugar", "olive-oil"])

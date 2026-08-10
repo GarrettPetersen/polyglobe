@@ -15,6 +15,7 @@ import {
   hasPersonalTradePass,
   hasLetterOfMarqueFrom,
   recentGameDiplomacyEvents,
+  recentGameCourtActions,
   recentGamePapalActions,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
@@ -23,6 +24,11 @@ import {
   papalMatterNotice,
   papalPendingMatter
 } from "./papalPolitics.js";
+import {
+  courtActionNotice,
+  courtMatterNotice,
+  courtPendingMatter
+} from "./courtPolitics.js";
 import { rulerAtMinute } from "./rulers.js";
 import { religionById } from "./characterReligion.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
@@ -33,6 +39,7 @@ import {
   SUZERAINTY_KIND_TRIBUTARY,
   SUZERAINTY_KIND_VASSAL,
   dependentsOf,
+  suzeraintyTermsForRelationship,
   suzeraintyTradePrivilege,
   suzeraintyForVassal
 } from "./suzerainty.js";
@@ -71,13 +78,23 @@ export function createPoliticsView(
   const playerFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const recentEvents = recentGameDiplomacyEvents(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const recentPapalActions = recentGamePapalActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
+  const recentCourtActions = recentGameCourtActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const pendingPapalMatter = papalPendingMatter(gameState.relations.papacy);
-  const newsHistory = recentPoliticsNews({ recentEvents, recentPapalActions, pendingPapalMatter });
+  const pendingCourtMatter = courtPendingMatter(gameState.relations.courts);
+  const newsHistory = recentPoliticsNews({
+    recentEvents,
+    recentPapalActions,
+    recentCourtActions,
+    pendingPapalMatter,
+    pendingCourtMatter
+  });
   return {
     powers,
     recentEvents,
     recentPapalActions,
+    recentCourtActions,
     pendingPapalMatter,
+    pendingCourtMatter,
     newsHistory,
     latestNews: newsHistory[0] || null,
     cards: orderPoliticsCards(cards, playerFactionId)
@@ -89,7 +106,8 @@ export function latestPoliticsNews(view) {
 }
 
 export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
-  if (!view || !Array.isArray(view.recentEvents) || !Array.isArray(view.recentPapalActions)) {
+  if (!view || !Array.isArray(view.recentEvents) || !Array.isArray(view.recentPapalActions) ||
+      (view.recentCourtActions !== undefined && !Array.isArray(view.recentCourtActions))) {
     throw new Error("Politics news requires diplomacy and papal histories");
   }
   if (!Number.isInteger(limit) || limit <= 0) {
@@ -109,6 +127,13 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
       tone: "warn",
       text: papalActionNotice(action),
       tiePriority: 1
+    })),
+    ...(view.recentCourtActions || []).map((action) => ({
+      source: "court",
+      simMinute: action.simMinute,
+      tone: "warn",
+      text: courtActionNotice(action),
+      tiePriority: 2
     }))
   ];
   const matter = view.pendingPapalMatter || null;
@@ -118,7 +143,17 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
       simMinute: matter.commission?.acceptedMinute ?? matter.createdMinute,
       tone: matter.status === "commissioned" ? "good" : "warn",
       text: papalMatterNotice(matter),
-      tiePriority: 2
+      tiePriority: 3
+    });
+  }
+  const courtMatter = view.pendingCourtMatter || null;
+  if (courtMatter) {
+    entries.push({
+      source: "court-matter",
+      simMinute: courtMatter.commission?.acceptedMinute ?? courtMatter.createdMinute,
+      tone: courtMatter.status === "commissioned" ? "good" : "warn",
+      text: courtMatterNotice(courtMatter),
+      tiePriority: 3
     });
   }
   return Object.freeze(entries
@@ -141,10 +176,12 @@ export function politicalPowers(gameState = null) {
         code: factionCode(faction),
         suzerainFactionId: relationship?.suzerainFactionId || null,
         suzeraintyKind: relationship?.kind || null,
+        dependencyTerms: relationship ? suzeraintyTermsForRelationship(relationship) : null,
         dependentRelationships: suzerainties
           ? dependentsOf(suzerainties, faction.id).map((entry) => Object.freeze({
             factionId: entry.vassalFactionId,
-            kind: entry.kind
+            kind: entry.kind,
+            terms: suzeraintyTermsForRelationship(entry)
           }))
           : []
       };
@@ -237,7 +274,7 @@ function politicsCapitals(powers, cities) {
       if (faction.id === PIRATE_FACTION_ID) continue;
       const capital = factionCapitalForId(faction.id);
       capitalByFactionId.set(faction.id, Object.freeze({
-        city: capital.city,
+        city: capital.seatCity,
         portId: null
       }));
     }
@@ -252,7 +289,7 @@ function politicsCapitals(powers, cities) {
     if (capitalByFactionId.has(factionId)) {
       throw new Error(`Politics view found two capitals for ${factionId}`);
     }
-    const cityName = city.displayCity || city.city;
+    const cityName = city.capitalSeatName || city.displayCity || city.city;
     if (typeof cityName !== "string" || cityName.trim() === "") {
       throw new Error(`Politics capital for ${factionId} has no city name`);
     }
@@ -277,6 +314,7 @@ function politicsDependencies(faction, powerById) {
     dependencies.push(Object.freeze({
       kind: faction.suzeraintyKind,
       role: faction.suzeraintyKind === SUZERAINTY_KIND_PERSONAL_UNION ? "member" : "subject",
+      terms: faction.dependencyTerms,
       factionId: faction.suzerainFactionId
     }));
   }
@@ -286,6 +324,7 @@ function politicsDependencies(faction, powerById) {
     dependencies.push(Object.freeze({
       kind: dependent.kind,
       role: dependent.kind === SUZERAINTY_KIND_PERSONAL_UNION ? "member" : "suzerain",
+      terms: dependent.terms,
       factionId: dependent.factionId
     }));
   }
@@ -357,5 +396,15 @@ function factionCode(faction) {
   if (faction.id === "pirate") return "PX";
   if (faction.id === "habsburg") return "HB";
   if (faction.id === "ottoman") return "OT";
+  if (faction.id === "hormuz") return "HZ";
+  if (faction.id === "hospitallers") return "KH";
+  if (faction.id === "hosokawa") return "HS";
+  if (faction.id === "songhai") return "SG";
+  if (faction.id === "shimazu") return "SZ";
+  if (faction.id === "shoni") return "SN";
+  if (faction.id === "wallachia") return "WL";
+  if (faction.id === "moldavia") return "MD";
+  if (faction.id === "ragusa") return "RG";
+  if (faction.id === "hejaz") return "HJ";
   return faction.id.slice(0, 2).toUpperCase();
 }

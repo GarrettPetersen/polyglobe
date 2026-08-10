@@ -5,21 +5,89 @@ import {
 } from "./factions.js";
 
 export const SUZERAINTY_KIND_VASSAL = "vassal";
+export const SUZERAINTY_KIND_AUTONOMOUS_VASSAL = "autonomous-vassal";
 export const SUZERAINTY_KIND_TRIBUTARY = "tributary";
 export const SUZERAINTY_KIND_PERSONAL_UNION = "personal-union";
 export const SUZERAINTY_HISTORY_LIMIT = 32;
 
 const SUZERAINTY_KINDS = new Set([
   SUZERAINTY_KIND_VASSAL,
+  SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
   SUZERAINTY_KIND_TRIBUTARY,
   SUZERAINTY_KIND_PERSONAL_UNION
 ]);
 
+const SUZERAINTY_TERMS = Object.freeze({
+  [SUZERAINTY_KIND_PERSONAL_UNION]: terms({
+    foreignPolicy: "shared",
+    tribute: false,
+    mutualDefense: true,
+    offensiveWarObligation: true,
+    suzerainCustomsRate: 0.02,
+    subjectCustomsRate: 0.02,
+    sovereignMarketAccess: false
+  }),
+  [SUZERAINTY_KIND_VASSAL]: terms({
+    foreignPolicy: "shared",
+    tribute: true,
+    mutualDefense: true,
+    offensiveWarObligation: true,
+    suzerainCustomsRate: 0.02,
+    subjectCustomsRate: 0.05,
+    sovereignMarketAccess: true
+  }),
+  [SUZERAINTY_KIND_AUTONOMOUS_VASSAL]: terms({
+    foreignPolicy: "independent",
+    tribute: true,
+    mutualDefense: true,
+    offensiveWarObligation: false,
+    suzerainCustomsRate: 0.02,
+    subjectCustomsRate: 0.05,
+    sovereignMarketAccess: true
+  }),
+  [SUZERAINTY_KIND_TRIBUTARY]: terms({
+    foreignPolicy: "independent",
+    tribute: true,
+    mutualDefense: false,
+    offensiveWarObligation: false,
+    suzerainCustomsRate: 0.02,
+    subjectCustomsRate: 0.02,
+    sovereignMarketAccess: false
+  })
+});
+
 export const INITIAL_SUZERAINTIES_1522 = Object.freeze([
   initialSuzerainty("spain", "habsburg", SUZERAINTY_KIND_PERSONAL_UNION),
   initialSuzerainty("hormuz", "portugal", SUZERAINTY_KIND_VASSAL),
-  initialSuzerainty("crimea", "ottoman", SUZERAINTY_KIND_VASSAL),
-  initialSuzerainty("joseon", "ming", SUZERAINTY_KIND_TRIBUTARY)
+  initialSuzerainty("crimea", "ottoman", SUZERAINTY_KIND_AUTONOMOUS_VASSAL, {
+    tribute: false,
+    offensiveWarObligation: true
+  }),
+  initialSuzerainty("wallachia", "ottoman", SUZERAINTY_KIND_AUTONOMOUS_VASSAL),
+  initialSuzerainty("moldavia", "ottoman", SUZERAINTY_KIND_AUTONOMOUS_VASSAL),
+  initialSuzerainty("hejaz", "ottoman", SUZERAINTY_KIND_AUTONOMOUS_VASSAL, {
+    tribute: false
+  }),
+  initialSuzerainty("ragusa", "ottoman", SUZERAINTY_KIND_TRIBUTARY),
+  initialSuzerainty("joseon", "ming", SUZERAINTY_KIND_TRIBUTARY),
+  initialSuzerainty("ryukyu", "ming", SUZERAINTY_KIND_TRIBUTARY),
+  ...[
+    "hosokawa", "ouchi", "shimazu", "so", "shoni", "nagao", "ando"
+  ].map((factionId) => initialSuzerainty(
+    factionId,
+    "japan",
+    SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
+    {
+      tribute: false,
+      mutualDefense: false,
+      sovereignMarketAccess: false
+    }
+  )),
+  initialSuzerainty("kakizaki", "ando", SUZERAINTY_KIND_AUTONOMOUS_VASSAL, {
+    tribute: false,
+    mutualDefense: false,
+    sovereignMarketAccess: false
+  })
 ]);
 
 export function createSuzeraintyMemory(startMinute = 0) {
@@ -37,12 +105,45 @@ export function createSuzeraintyMemory(startMinute = 0) {
   };
 }
 
-export function migrateSuzeraintyMemory(memory, startMinute = 0) {
-  if (memory == null) return createSuzeraintyMemory(startMinute);
-  return validateSuzeraintyMemory({
-    byVassalId: memory.byVassalId || {},
-    history: memory.history || []
-  });
+export function migrateSuzeraintyMemory(memory, startMinute = 0, { inactiveFactionIds = [] } = {}) {
+  const inactive = validatedFactionSet(inactiveFactionIds, "inactive suzerainty faction");
+  const source = memory == null ? createSuzeraintyMemory(startMinute) : memory;
+  const migrated = {
+    byVassalId: Object.fromEntries(Object.entries(source.byVassalId || {})
+      .map(([factionId, entry]) => [factionId, relationship(entry)])
+      .filter(([, entry]) => (
+        !inactive.has(entry.vassalFactionId) && !inactive.has(entry.suzerainFactionId)
+      ))),
+    history: source.history || []
+  };
+  const historicallyChanged = new Set(migrated.history.map((event) => event.vassalFactionId));
+  for (const initial of INITIAL_SUZERAINTIES_1522) {
+    if (inactive.has(initial.vassalFactionId) || inactive.has(initial.suzerainFactionId)) continue;
+    const existing = migrated.byVassalId[initial.vassalFactionId];
+    if (existing?.source === "historical-1522") {
+      migrated.byVassalId[initial.vassalFactionId] = relationship({
+        ...initial,
+        establishedMinute: existing.establishedMinute,
+        source: existing.source
+      });
+    } else if (!existing && !historicallyChanged.has(initial.vassalFactionId)) {
+      migrated.byVassalId[initial.vassalFactionId] = relationship({
+        ...initial,
+        establishedMinute: startMinute,
+        source: "historical-1522"
+      });
+    }
+  }
+  return validateSuzeraintyMemory(migrated);
+}
+
+function validatedFactionSet(factionIds, label) {
+  if (!Array.isArray(factionIds) && !(factionIds instanceof Set)) {
+    throw new Error(`${label} ids must be an array or set`);
+  }
+  const validated = new Set();
+  for (const factionId of factionIds) validated.add(assertFactionId(factionId));
+  return validated;
 }
 
 export function validateSuzeraintyMemory(memory) {
@@ -59,9 +160,7 @@ export function validateSuzeraintyMemory(memory) {
       throw new Error(`Suzerainty key does not match its vassal: ${vassalFactionId}`);
     }
   }
-  for (const factionId of Object.keys(memory.byVassalId)) {
-    foreignPolicyPrincipal(memory, factionId);
-  }
+  for (const factionId of Object.keys(memory.byVassalId)) dependencyPrincipal(memory, factionId);
   if (!Array.isArray(memory.history) || memory.history.length > SUZERAINTY_HISTORY_LIMIT) {
     throw new Error("Invalid suzerainty history");
   }
@@ -81,7 +180,10 @@ export function suzerainForFaction(memory, factionId) {
 
 export function vassalsOf(memory, suzerainFactionId) {
   return dependentsOf(memory, suzerainFactionId)
-    .filter((entry) => entry.kind !== SUZERAINTY_KIND_PERSONAL_UNION)
+    .filter((entry) => [
+      SUZERAINTY_KIND_VASSAL,
+      SUZERAINTY_KIND_AUTONOMOUS_VASSAL
+    ].includes(entry.kind))
     .map((entry) => entry.vassalFactionId);
 }
 
@@ -98,12 +200,47 @@ export function foreignPolicyPrincipal(memory, factionId) {
   assertFactionId(factionId);
   let current = factionId;
   const visited = new Set();
-  while (memory.byVassalId[current]) {
+  while (memory.byVassalId[current] &&
+      suzeraintyTermsForRelationship(memory.byVassalId[current]).foreignPolicy === "shared") {
     if (visited.has(current)) throw new Error(`Suzerainty cycle includes ${current}`);
     visited.add(current);
     current = memory.byVassalId[current].suzerainFactionId;
   }
   return current;
+}
+
+export function suzeraintyTermsForKind(kind) {
+  assertKind(kind);
+  return SUZERAINTY_TERMS[kind];
+}
+
+export function suzeraintyTermsForRelationship(entry) {
+  validateRelationship(entry);
+  return entry.terms;
+}
+
+export function defensivePartnersOf(memory, factionId) {
+  assertSuzeraintyMemoryShape(memory);
+  assertFactionId(factionId);
+  const partners = [];
+  const own = memory.byVassalId[factionId];
+  if (own && suzeraintyTermsForRelationship(own).mutualDefense) {
+    partners.push(own.suzerainFactionId);
+  }
+  for (const dependent of dependentsOf(memory, factionId)) {
+    if (suzeraintyTermsForRelationship(dependent).mutualDefense) {
+      partners.push(dependent.vassalFactionId);
+    }
+  }
+  return Object.freeze([...new Set(partners)].sort());
+}
+
+export function offensivePartnersOf(memory, factionId) {
+  assertSuzeraintyMemoryShape(memory);
+  assertFactionId(factionId);
+  return Object.freeze(dependentsOf(memory, factionId)
+    .filter((entry) => suzeraintyTermsForRelationship(entry).offensiveWarObligation)
+    .map((entry) => entry.vassalFactionId));
 }
 
 export function directSuzeraintyBetween(memory, factionAId, factionBId) {
@@ -120,6 +257,7 @@ export function establishSuzerainty(memory, {
   vassalFactionId,
   suzerainFactionId,
   kind = SUZERAINTY_KIND_VASSAL,
+  termOverrides = {},
   simMinute,
   source = "peace-treaty"
 }) {
@@ -132,7 +270,7 @@ export function establishSuzerainty(memory, {
   assertKind(kind);
   assertMinute(simMinute, "suzerainty establishment minute");
   assertSource(source);
-  if (foreignPolicyPrincipal(memory, suzerainFactionId) === vassalFactionId) {
+  if (dependencyPrincipal(memory, suzerainFactionId) === vassalFactionId) {
     throw new Error(`Suzerainty would create a cycle: ${vassalFactionId}/${suzerainFactionId}`);
   }
   const previous = memory.byVassalId[vassalFactionId] || null;
@@ -140,6 +278,7 @@ export function establishSuzerainty(memory, {
     vassalFactionId,
     suzerainFactionId,
     kind,
+    termOverrides,
     establishedMinute: simMinute,
     source
   });
@@ -226,14 +365,16 @@ export function suzeraintyTradePrivilege(memory, traderFactionId, portFactionId)
   const direct = directSuzeraintyBetween(memory, traderFactionId, portFactionId);
   if (!direct) return null;
   const traderIsSuzerain = traderFactionId === direct.suzerainFactionId;
-  const reciprocalPrivilege = [
-    SUZERAINTY_KIND_TRIBUTARY,
-    SUZERAINTY_KIND_PERSONAL_UNION
-  ].includes(direct.kind);
+  const relationshipTerms = suzeraintyTermsForRelationship(direct);
   return Object.freeze({
-    customsRate: reciprocalPrivilege || traderIsSuzerain ? 0.02 : 0.05,
-    // Shared dynasties and tribute did not merge crown monopolies; a ruling suzerain could compel access.
-    sovereignMarketAccess: direct.kind === SUZERAINTY_KIND_VASSAL && traderIsSuzerain,
+    customsRate: traderIsSuzerain
+      ? relationshipTerms.suzerainCustomsRate
+      : relationshipTerms.subjectCustomsRate,
+    sovereignMarketAccess: relationshipTerms.sovereignMarketAccess && traderIsSuzerain,
+    foreignPolicy: relationshipTerms.foreignPolicy,
+    tribute: relationshipTerms.tribute,
+    mutualDefense: relationshipTerms.mutualDefense,
+    offensiveWarObligation: relationshipTerms.offensiveWarObligation,
     kind: direct.kind,
     traderIsSuzerain,
     vassalFactionId: direct.vassalFactionId,
@@ -241,21 +382,48 @@ export function suzeraintyTradePrivilege(memory, traderFactionId, portFactionId)
   });
 }
 
-function initialSuzerainty(vassalFactionId, suzerainFactionId, kind) {
-  return Object.freeze({ vassalFactionId, suzerainFactionId, kind });
+function dependencyPrincipal(memory, factionId) {
+  let current = factionId;
+  const visited = new Set();
+  while (memory.byVassalId[current]) {
+    if (visited.has(current)) throw new Error(`Suzerainty cycle includes ${current}`);
+    visited.add(current);
+    current = memory.byVassalId[current].suzerainFactionId;
+  }
+  return current;
+}
+
+function terms(details) {
+  return Object.freeze(details);
+}
+
+function initialSuzerainty(vassalFactionId, suzerainFactionId, kind, termOverrides = {}) {
+  return Object.freeze({
+    vassalFactionId,
+    suzerainFactionId,
+    kind,
+    termOverrides: Object.freeze({ ...termOverrides })
+  });
 }
 
 function relationship({
   vassalFactionId,
   suzerainFactionId,
   kind,
+  terms: savedTerms,
+  termOverrides = {},
   establishedMinute,
   source
 }) {
+  const relationshipTerms = normalizeTerms(kind, savedTerms || {
+    ...suzeraintyTermsForKind(kind),
+    ...termOverrides
+  });
   return {
     vassalFactionId,
     suzerainFactionId,
     kind,
+    terms: relationshipTerms,
     establishedMinute,
     source
   };
@@ -271,6 +439,7 @@ function validateRelationship(entry) {
     throw new Error("A faction cannot be its own suzerain");
   }
   assertKind(entry.kind);
+  normalizeTerms(entry.kind, entry.terms);
   assertMinute(entry.establishedMinute, "suzerainty establishment minute");
   assertSource(entry.source);
 }
@@ -319,6 +488,36 @@ function assertSovereignFaction(factionId, label) {
 
 function assertKind(kind) {
   if (!SUZERAINTY_KINDS.has(kind)) throw new Error(`Invalid suzerainty kind: ${kind}`);
+}
+
+function normalizeTerms(kind, value) {
+  assertKind(kind);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`Suzerainty ${kind} requires constitutional terms`);
+  }
+  const normalized = {
+    foreignPolicy: value.foreignPolicy,
+    tribute: value.tribute,
+    mutualDefense: value.mutualDefense,
+    offensiveWarObligation: value.offensiveWarObligation,
+    suzerainCustomsRate: value.suzerainCustomsRate,
+    subjectCustomsRate: value.subjectCustomsRate,
+    sovereignMarketAccess: value.sovereignMarketAccess
+  };
+  if (!["shared", "independent"].includes(normalized.foreignPolicy)) {
+    throw new Error(`Invalid ${kind} foreign policy: ${normalized.foreignPolicy}`);
+  }
+  for (const field of ["tribute", "mutualDefense", "offensiveWarObligation", "sovereignMarketAccess"]) {
+    if (typeof normalized[field] !== "boolean") {
+      throw new Error(`Invalid ${kind} constitutional term: ${field}`);
+    }
+  }
+  for (const field of ["suzerainCustomsRate", "subjectCustomsRate"]) {
+    if (!Number.isFinite(normalized[field]) || normalized[field] < 0 || normalized[field] > 0.25) {
+      throw new Error(`Invalid ${kind} constitutional term: ${field}`);
+    }
+  }
+  return Object.freeze(normalized);
 }
 
 function assertMinute(value, label) {

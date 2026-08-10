@@ -124,6 +124,54 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "{0}'s coastal officers seek a captain to hunt the wokou reported near {1}. Sink or force their surrender, then return for {2} db. Pirates require no marque.": Object.freeze({
+    ja: "{0}の沿海官は、{1}付近に出没する倭寇を討つ船長を求めている。沈めるか降伏させ、戻れば{2} DBを支払う。海賊討伐に私掠免許状は要らない。",
+    "zh-Hans": "{0}的沿海官员正在征募船长，讨伐出没于{1}附近的倭寇。击沉或迫降他们，再回此地复命，赏金{2} DB。讨伐海盗无需私掠许可证。",
+    "zh-Hant": "{0}的沿海官員正在徵募船長，討伐出沒於{1}附近的倭寇。擊沉或迫降他們，再回此地覆命，賞金{2} DB。討伐海盜無需私掠許可證。",
+    ko: "{0}의 해안 관리는 {1} 근처에 출몰하는 왜구를 토벌할 선장을 찾고 있다. 침몰시키거나 항복시킨 뒤 돌아오면 {2} DB를 지급한다. 해적 토벌에는 사략 면허장이 필요 없다."
+  }),
+  "{0}'s council seeks a captain to hunt the wokou raiding near {1}. Sink or force their surrender, then return for {2} db. Pirates require no marque.": Object.freeze({
+    ja: "{0}の評定は、{1}付近を荒らす倭寇を討つ船長を求めている。沈めるか降伏させ、戻れば{2} DBを支払う。海賊討伐に私掠免許状は要らない。",
+    "zh-Hans": "{0}的评定所正在征募船长，讨伐{1}附近的倭寇。击沉或迫降他们，再回来领取{2} DB。讨伐海盗无需私掠许可证。",
+    "zh-Hant": "{0}的評定所正在徵募船長，討伐{1}附近的倭寇。擊沉或迫降他們，再回來領取{2} DB。討伐海盜無需私掠許可證。",
+    ko: "{0}의 평정은 {1} 근처를 약탈하는 왜구를 토벌할 선장을 찾고 있다. 침몰시키거나 항복시킨 뒤 돌아오면 {2} DB를 지급한다. 해적 토벌에는 사략 면허장이 필요 없다."
+  }),
+  "{0}'s council needs a sealed order carried to {1} and the local reply returned to Kyoto. The bakufu will pay {2} db.": Object.freeze({
+    ja: "{0}の評定は、封印した御教書を{1}へ届け、現地の返書を京都へ持ち帰るよう命じている。幕府は{2} DBを支払う。",
+    "zh-Hans": "{0}的评定所命你将封缄御教书送往{1}，再把当地回书带回京都。幕府将支付{2} DB。",
+    "zh-Hant": "{0}的評定所命你將封緘御教書送往{1}，再把當地回書帶回京都。幕府將支付{2} DB。",
+    ko: "{0}의 평정은 봉인된 명령서를 {1}에 전하고 현지의 답서를 교토로 가져오라고 명한다. 막부는 {2} DB를 지급한다."
+  }),
+  "{0}'s secretariat requires a memorial carried to {1} and its answer returned to Beijing. The court will pay {2} db.": Object.freeze({
+    ja: "{0}の官署は、奏疏を{1}へ届け、その返答を北京へ持ち帰るよう命じている。朝廷は{2} DBを支払う。",
+    "zh-Hans": "{0}的官署命你将奏疏送往{1}，再把答复带回北京。朝廷将支付{2} DB。",
+    "zh-Hant": "{0}的官署命你將奏疏送往{1}，再把答覆帶回北京。朝廷將支付{2} DB。",
+    ko: "{0}의 관청은 상소문을 {1}에 전하고 그 답서를 베이징으로 가져오라고 명한다. 조정은 {2} DB를 지급한다."
+  }),
+  "{0} offers tribute and allegiance to {1} in return for recognition and protection.": Object.freeze({
+    ja: "{0}は、承認と保護を受ける代わりに、{1}へ朝貢し臣従することを申し出る。",
+    "zh-Hans": "{0}提出向{1}进贡并称臣，以换取承认和保护。",
+    "zh-Hant": "{0}提出向{1}進貢並稱臣，以換取承認和保護。",
+    ko: "{0}은 승인과 보호를 받는 대가로 {1}에 조공하고 복속하겠다고 제안한다."
+  }),
+  "Those {0} are sealed tribute, not your cargo. Selling {1} is theft from the court. Your mission will fail and your standing will fall {2} with {3}{4}.": Object.freeze({
+    ja: "その{0}は封印された貢物で、あなたの積荷ではない。{1}を売れば朝廷からの窃盗となる。任務は失敗し、{3}での評判が{2}下がる{4}。",
+    "zh-Hans": "这些{0}是封缄贡品，不是你的货物。出售{1}就是盗取朝廷财物。任务将失败，你在{3}的声望会降低{2}{4}。",
+    "zh-Hant": "這些{0}是封緘貢品，不是你的貨物。出售{1}就是盜取朝廷財物。任務將失敗，你在{3}的聲望會降低{2}{4}。",
+    ko: "이 {0}은 봉인된 공물이지 당신의 화물이 아니다. {1}을 팔면 조정의 재물을 훔치는 셈이다. 임무는 실패하고 {3}에서의 평판이 {2}만큼 떨어진다{4}."
+  }),
+  "By imperial order, this memorial is presented for entry and reply.": Object.freeze({
+    ja: "勅命により、この奏疏を記録に納め、返答を賜るため提出する。",
+    "zh-Hans": "奉圣旨，谨呈此奏疏，请登记并作答。",
+    "zh-Hant": "奉聖旨，謹呈此奏疏，請登記並作答。",
+    ko: "황명에 따라 이 상소문을 접수하고 답하도록 올린다."
+  }),
+  "This memorial concerns coastal order, licensed trade, and the conduct of local officials.": Object.freeze({
+    ja: "この奏疏は、沿海の秩序、許可貿易、地方官の振る舞いに関するものだ。",
+    "zh-Hans": "此奏疏事关海防秩序、持照贸易与地方官员的操守。",
+    "zh-Hant": "此奏疏事關海防秩序、持照貿易與地方官員的操守。",
+    ko: "이 상소문은 해안 질서, 허가 무역, 지방 관리의 행실에 관한 것이다."
+  }),
   ...reviewedShipTypeOverrides(),
   "{0}'s court is raising privateers for the war against {1}. Accept this letter of marque, and you may lawfully prize the ships and cargo of every power at war with {2}: {3}.": Object.freeze({
     "zh-Hans": "{0}的宫廷正在为对{1}的战争招募私掠船长。接受这份私掠许可证后，你便可合法捕获与{2}交战的所有势力之船只与货物：{3}。",

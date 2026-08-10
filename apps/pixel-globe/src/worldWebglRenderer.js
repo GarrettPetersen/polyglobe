@@ -499,6 +499,7 @@ export function allocateWorldSceneTexture(gl, {
   if (!texture || !framebuffer) {
     throw new Error("World scene texture allocation requires a texture and framebuffer");
   }
+  assertWorldWebGLContextAvailable(gl);
   if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
     throw new Error(`Invalid world scene texture dimensions: ${width}x${height}`);
   }
@@ -562,7 +563,26 @@ export function allocateWorldSceneTexture(gl, {
     failures.push(`${candidate.id}:${status}`);
   }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  assertWorldWebGLContextAvailable(gl);
   throw new Error(`World scene framebuffer is incomplete: ${failures.join(", ")}`);
+}
+
+export class WorldWebGLContextLostError extends Error {
+  constructor() {
+    super("World graphics context was lost");
+    this.name = this.constructor.name;
+  }
+}
+
+export function isWorldWebGLContextLostError(error) {
+  return error instanceof WorldWebGLContextLostError ||
+    error?.name === "WorldWebGLContextLostError";
+}
+
+function assertWorldWebGLContextAvailable(gl) {
+  if (typeof gl.isContextLost === "function" && gl.isContextLost()) {
+    throw new WorldWebGLContextLostError();
+  }
 }
 
 export function createWorldWebGL2Renderer({
@@ -813,6 +833,7 @@ export function createWorldWebGL2Renderer({
   }
 
   function beginFrame({ width, height, clearColor, paletteVariant = null, timeMs = 0 }) {
+    assertWorldWebGLContextAvailable(gl);
     resize(width, height);
     validateColor(clearColor, "World renderer clear color");
     if (!Number.isFinite(timeMs)) throw new Error(`Invalid world renderer time: ${timeMs}`);

@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-45";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-46";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -82,6 +82,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:fresh-water": nikoichu("Weather_Water_Droplet_Liquid_Rain_Element_Big.png", ICON_COLOR.dialogue),
   "good:foraged-food": alex("fruit_apple.png"),
   "good:grain": paperOutlined(keifoo("grains_png/wheat.png")),
+  "good:rice": paperOutlined(keifoo("grains_png/rice.png")),
   "good:fish": generatedIcon("herring"),
   "good:whale-blubber": pirate(9),
   "good:beaver-pelts": generatedIcon("beaver-pelt"),
@@ -187,6 +188,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "religion:african-traditional": nikoichu("Map_Markers_Tree_Forest_Decidous_1.png", ICON_COLOR.timber),
   "religion:polynesian-traditional": nikoichu("Map_Markers_Tree_Forest_Palm_Beach.png", ICON_COLOR.sea),
   "religion:austronesian-traditional": nikoichu("Weather_Nature_Leaf_Autumn_Fall_Element.png", ICON_COLOR.success),
+  "religion:ainu-traditional": nikoichu("Weather_Nature_Leaf_Autumn_Fall_Element.png", ICON_COLOR.timber),
 
   ...SHIP_MENU_ICON_SOURCES,
 
@@ -421,6 +423,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "accept-marque-factor-offer": "action:letter",
   "decline-marque-factor-offer": "action:back",
   "decline-quest-cargo-tip": "action:back",
+  "confirm-tribute-theft": "action:sell",
+  "cancel-tribute-theft": "action:back",
   buy: "action:buy",
   "accept-quest": "action:quest",
   "accept-passenger": "action:passenger",

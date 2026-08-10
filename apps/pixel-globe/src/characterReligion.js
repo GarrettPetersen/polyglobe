@@ -27,7 +27,8 @@ export const RELIGION_CATALOG = Object.freeze([
   religion("american-traditional", "Local American traditional", "religion:north-american-traditional"),
   religion("african-traditional", "African traditional", "religion:african-traditional"),
   religion("polynesian-traditional", "Polynesian traditional", "religion:polynesian-traditional"),
-  religion("austronesian-traditional", "Austronesian traditional", "religion:austronesian-traditional")
+  religion("austronesian-traditional", "Austronesian traditional", "religion:austronesian-traditional"),
+  religion("ainu-traditional", "Ainu traditional", "religion:ainu-traditional")
 ]);
 
 const RELIGIONS_BY_ID = new Map(RELIGION_CATALOG.map((entry) => [entry.id, entry]));
@@ -238,7 +239,10 @@ export function religionCandidatesForHome(homePort) {
   }
 
   if (nameCulture === "tatar") return choices(["sunni-islam", 1]);
-  if (country === "Japan" || factionId === "japan") return choices(["kami-buddhist", 1]);
+  if (factionId === "ainu" || nameCulture === "ainu") return choices(["ainu-traditional", 1]);
+  if (country === "Japan" || factionId === "japan" || factionId === "ryukyu") {
+    return choices(["kami-buddhist", 1]);
+  }
   if (country === "Republic of Korea" || country === "Dem. People's Republic of Korea" || factionId === "joseon") {
     return choices(["korean-traditional", 3], ["mahayana-buddhism", 2]);
   }
@@ -361,6 +365,8 @@ export function religionCandidatesForHome(homePort) {
     return choices(["chinese-traditional", 2], ["daoism", 1], ["mahayana-buddhism", 1]);
   }
   if (nameCulture === "japanese") return choices(["kami-buddhist", 1]);
+  if (nameCulture === "ryukyuan") return choices(["kami-buddhist", 1]);
+  if (nameCulture === "ainu") return choices(["ainu-traditional", 1]);
   if (nameCulture === "korean") return choices(["korean-traditional", 3], ["mahayana-buddhism", 2]);
   if (["bengali", "gujarati", "malayali", "northIndian", "southAsian", "southIndian"].includes(nameCulture)) {
     return choices(["hinduism", 4], ["sunni-islam", 1], ["jainism", 1]);

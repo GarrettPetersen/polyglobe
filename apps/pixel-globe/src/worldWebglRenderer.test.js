@@ -248,6 +248,21 @@ test("world scene texture reports every rejected framebuffer format", () => {
   assert.equal(gl.lastFramebuffer, null);
 });
 
+test("a lost graphics context is distinguished from unsupported framebuffer formats", () => {
+  const gl = framebufferGl([36061]);
+  gl.isContextLost = () => true;
+  assert.throws(
+    () => allocateWorldSceneTexture(gl, {
+      texture: {},
+      framebuffer: {},
+      width: 455,
+      height: 256
+    }),
+    { name: "WorldWebGLContextLostError", message: "World graphics context was lost" }
+  );
+  assert.deepEqual(gl.internalFormats, []);
+});
+
 function framebufferGl(statuses) {
   const remainingStatuses = [...statuses];
   return {

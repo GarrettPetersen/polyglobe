@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-45",
+  "version": "resurrect-icons-46",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 48,
@@ -18,9 +18,21 @@
       "paperOutline": true
     },
     {
-      "id": "good:whale-blubber",
+      "id": "good:rice",
       "rect": {
         "x": 16,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null,
+      "paperOutline": true
+    },
+    {
+      "id": "good:whale-blubber",
+      "rect": {
+        "x": 32,
         "y": 0,
         "w": 16,
         "h": 16
@@ -31,7 +43,7 @@
     {
       "id": "good:hides",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 0,
         "w": 16,
         "h": 16
@@ -42,7 +54,7 @@
     {
       "id": "good:wine",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 0,
         "w": 16,
         "h": 16
@@ -53,7 +65,7 @@
     {
       "id": "good:olive-oil",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 0,
         "w": 16,
         "h": 16
@@ -64,7 +76,7 @@
     {
       "id": "good:salt",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 0,
         "w": 16,
         "h": 16
@@ -76,7 +88,7 @@
     {
       "id": "good:sugar",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 0,
         "w": 16,
         "h": 16
@@ -88,7 +100,7 @@
     {
       "id": "good:timber",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 0,
         "w": 16,
         "h": 16
@@ -99,7 +111,7 @@
     {
       "id": "good:wool",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 0,
         "w": 16,
         "h": 16
@@ -110,7 +122,7 @@
     {
       "id": "good:cotton",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 0,
         "w": 16,
         "h": 16
@@ -121,7 +133,7 @@
     {
       "id": "good:flax",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 0,
         "w": 16,
         "h": 16
@@ -132,7 +144,7 @@
     {
       "id": "good:iron",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 0,
         "w": 16,
         "h": 16
@@ -143,7 +155,7 @@
     {
       "id": "good:copper",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 0,
         "w": 16,
         "h": 16
@@ -154,7 +166,7 @@
     {
       "id": "good:tin",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 0,
         "w": 16,
         "h": 16
@@ -165,7 +177,7 @@
     {
       "id": "good:amber",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 0,
         "w": 16,
         "h": 16
@@ -176,17 +188,6 @@
     {
       "id": "good:furs",
       "rect": {
-        "x": 240,
-        "y": 0,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "glionox",
-      "assetPath": null
-    },
-    {
-      "id": "good:beeswax",
-      "rect": {
         "x": 0,
         "y": 16,
         "w": 16,
@@ -196,7 +197,7 @@
       "assetPath": null
     },
     {
-      "id": "good:naval-stores",
+      "id": "good:beeswax",
       "rect": {
         "x": 16,
         "y": 16,
@@ -207,7 +208,7 @@
       "assetPath": null
     },
     {
-      "id": "good:sulfur",
+      "id": "good:naval-stores",
       "rect": {
         "x": 32,
         "y": 16,
@@ -218,9 +219,20 @@
       "assetPath": null
     },
     {
-      "id": "good:arms",
+      "id": "good:sulfur",
       "rect": {
         "x": 48,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:arms",
+      "rect": {
+        "x": 64,
         "y": 16,
         "w": 16,
         "h": 16
@@ -231,7 +243,7 @@
     {
       "id": "good:linen-cloth",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 16,
         "w": 16,
         "h": 16
@@ -243,7 +255,7 @@
     {
       "id": "good:wool-cloth",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 16,
         "w": 16,
         "h": 16
@@ -254,7 +266,7 @@
     {
       "id": "good:cotton-cloth",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 16,
         "w": 16,
         "h": 16
@@ -265,7 +277,7 @@
     {
       "id": "good:paper",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 16,
         "w": 16,
         "h": 16
@@ -276,7 +288,7 @@
     {
       "id": "good:printed-books",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 16,
         "w": 16,
         "h": 16
@@ -287,7 +299,7 @@
     {
       "id": "good:silk",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 16,
         "w": 16,
         "h": 16
@@ -298,7 +310,7 @@
     {
       "id": "good:silk-cloth",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 16,
         "w": 16,
         "h": 16
@@ -309,7 +321,7 @@
     {
       "id": "good:lacquerware",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 16,
         "w": 16,
         "h": 16
@@ -320,7 +332,7 @@
     {
       "id": "good:ginseng",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 16,
         "w": 16,
         "h": 16
@@ -331,7 +343,7 @@
     {
       "id": "good:pepper",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 16,
         "w": 16,
         "h": 16
@@ -342,7 +354,7 @@
     {
       "id": "good:cloves",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 16,
         "w": 16,
         "h": 16
@@ -353,8 +365,8 @@
     {
       "id": "good:nutmeg",
       "rect": {
-        "x": 240,
-        "y": 16,
+        "x": 0,
+        "y": 32,
         "w": 16,
         "h": 16
       },
@@ -364,7 +376,7 @@
     {
       "id": "good:cacao",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 32,
         "w": 16,
         "h": 16
@@ -375,7 +387,7 @@
     {
       "id": "good:dyes",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 32,
         "w": 16,
         "h": 16
@@ -386,7 +398,7 @@
     {
       "id": "good:indigo",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 32,
         "w": 16,
         "h": 16
@@ -397,7 +409,7 @@
     {
       "id": "good:porcelain",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 32,
         "w": 16,
         "h": 16
@@ -408,7 +420,7 @@
     {
       "id": "good:glassware",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 32,
         "w": 16,
         "h": 16
@@ -419,7 +431,7 @@
     {
       "id": "good:carpets",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 32,
         "w": 16,
         "h": 16
@@ -430,7 +442,7 @@
     {
       "id": "good:artwork",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 32,
         "w": 16,
         "h": 16
@@ -441,7 +453,7 @@
     {
       "id": "good:perfume",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 32,
         "w": 16,
         "h": 16
@@ -452,7 +464,7 @@
     {
       "id": "good:ivory",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 32,
         "w": 16,
         "h": 16
@@ -463,7 +475,7 @@
     {
       "id": "good:silver",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 32,
         "w": 16,
         "h": 16
@@ -474,7 +486,7 @@
     {
       "id": "good:gold",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 32,
         "w": 16,
         "h": 16
@@ -485,7 +497,7 @@
     {
       "id": "good:gunpowder",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 32,
         "w": 16,
         "h": 16
@@ -496,7 +508,7 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 32,
         "w": 16,
         "h": 16
@@ -507,7 +519,7 @@
     {
       "id": "good:coal",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 32,
         "w": 16,
         "h": 16

@@ -1158,6 +1158,22 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "The khan returned from Moscow with captives and glory. Your family's wagons returned empty.",
     "We provisioned the great raid of 1521 on promises of a share. The court celebrated; its suppliers were left to their creditors."
   ),
+  wallachia: debtOrigin(
+    "Princes change in Targoviste. A sealed debt survives every throne.",
+    "Our house provisioned one claimant before another took the princely seat. The claimant fled; his creditors found us."
+  ),
+  moldavia: debtOrigin(
+    "Moldavia pays tribute southward. Your family may begin by paying what it owes here.",
+    "We supplied horses and grain when the frontier rose in alarm. The court settled with the Sultan before it settled with us."
+  ),
+  ragusa: debtOrigin(
+    "Ragusa pays for peace with every great power. Your family merely added one more payment.",
+    "We guaranteed a caravan under the Republic's seal. Its cargo vanished inland, while the guarantee returned to our door."
+  ),
+  hejaz: debtOrigin(
+    "Pilgrims bring coin to Jeddah. None of it cancels your father's bond.",
+    "We fitted ships to guard the pilgrim road when new masters came from Egypt. The service ended; its loans did not."
+  ),
   "poland-lithuania": debtOrigin(
     "The Prussian truce rested the cavalry. It did nothing for their guarantors.",
     "We raised that cavalry on a royal warrant. Peace came before the treasury found our name."
@@ -1214,6 +1230,46 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "The Hosokawa changed sides. The terms of this note did not.",
     "Our house backed the wrong side at Funaokayama. The survivors changed allegiance; our creditors changed the seal."
   ),
+  hosokawa: debtOrigin(
+    "Kyoto's offices reward a quick change of allegiance. Creditors prefer consistency.",
+    "Our house financed Takakuni's return to power. His victory restored the council, but not our purse."
+  ),
+  ouchi: debtOrigin(
+    "Yamaguchi can imitate Kyoto in every art except forgiving a debt.",
+    "We equipped an Ouchi expedition eastward. The army returned with honors and left us its accounts."
+  ),
+  shimazu: debtOrigin(
+    "Satsuma's divided branches agree on at least one thing: your bond is valid.",
+    "We pledged the estate during the Shimazu succession quarrel. Peace changed the lord, not the lender."
+  ),
+  so: debtOrigin(
+    "Tsushima lives between two courts. Your debt found recognition in both.",
+    "We financed licensed trade with Joseon after the Three Ports rising. The permits returned; the cargo did not."
+  ),
+  shoni: debtOrigin(
+    "The Ouchi press into northern Kyushu. I merely press this claim.",
+    "Our family provisioned the Shoni defense against Yamaguchi. Defeat consumed the stores and spared the mortgage."
+  ),
+  nagao: debtOrigin(
+    "Echigo's governor and deputy may dispute authority. Neither disputes my seal.",
+    "We backed the Nagao campaigns that made Kasugayama powerful. Soldiers were paid before suppliers."
+  ),
+  ando: debtOrigin(
+    "Hiyama grows rich on northern trade. Your family managed to owe money on every voyage.",
+    "We advanced rice and iron for the Ezo trade. One bad season turned an account into an inheritance."
+  ),
+  kakizaki: debtOrigin(
+    "Kaminokuni stands by trade and Ando favor. Your bond enjoys firmer foundations.",
+    "We borrowed to fortify the southern Ezo settlements and bargain for peace. The peace held longer than our purse."
+  ),
+  ryukyu: debtOrigin(
+    "Naha's tribute ships return laden from China. Yours returned with this note.",
+    "We financed a voyage from Shuri to Fujian. Storms took the cargo, but the court tally still named our house."
+  ),
+  ainu: debtOrigin(
+    "The southern traders remember every iron blade they advanced. They remember your household best.",
+    "We borrowed iron and rice against the next season's catch. The fish ran thin, and the account grew fat."
+  ),
   joseon: debtOrigin(
     "The court erased a reformer's office. It left the family obligations untouched.",
     "A cousin signed their memorials before the purge. Saving the clan lands cost everything else."
@@ -1239,6 +1295,10 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   safavid: "Ottoman armies close one road and Portuguese cannon command another at Hormuz. Knowledge may reveal a third.",
   muscovy: "Novgorod's merchants know the Baltic by price and rumor. I want bearings that reach beyond their counting houses.",
   crimea: "Ottoman galleys hold the southern coast while our riders know the northern steppe. I want a Crimean chart of the seas between and beyond them.",
+  wallachia: "The Danube carries Ottoman, Hungarian, and Black Sea news past our shore. I want to know the waters beyond their quarrels.",
+  moldavia: "Merchants reach us from the Black Sea and Poland with maps that agree on very little. Bring me a captain's evidence.",
+  ragusa: "Our republic lives by knowing every harbor between east and west. I want that knowledge to reach beyond the Adriatic.",
+  hejaz: "Pilgrims reach Jeddah from seas our own pilots seldom cross. I want their scattered routes joined into one true chart.",
   "poland-lithuania": "Danzig hears of western lands and eastern seas from a dozen tongues. I want one captain's measured account.",
   sweden: "Gustav Eriksson buys ships to break the Union, but a free kingdom will need charts as much as cannon. I would have Sweden look beyond this war.",
   "denmark-norway": "Our sagas remember western shores, while the king's ships fight over Sweden. I would rather recover the horizon than another crown.",
@@ -1253,6 +1313,16 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   ternate: "Portuguese stone rises beside our clove groves while Castilian sails favor Tidore. I want a Ternatan account of the world both crowns claim.",
   tidore: "Castilian survivors reached our island with tales of an ocean beyond the Moluccas, while Portugal arms Ternate. I want a Tidorese account no foreign crown can keep from us.",
   japan: "Ming merchants and island pilots carry fragments of distant coasts. I want them joined before rumor distorts them further.",
+  hosokawa: "Sakai's merchants see farther than Kyoto's courtiers. I want their scattered routes made into one useful chart.",
+  ouchi: "Yamaguchi receives scholars, merchants, and Ming envoys. Their maps ought to meet before their quarrels do.",
+  shimazu: "Satsuma faces the southern islands and the routes beyond them. I want a chart worthy of that horizon.",
+  so: "Tsushima pilots cross between Japan and Joseon as others cross a harbor. Show me where those roads lead beyond both courts.",
+  shoni: "Hakata hears news from every shore of the eastern sea. I want measured bearings instead of a merchant's boast.",
+  nagao: "The Sea of Japan brings northern pilots and western traders to Echigo. Join their coastlines into one account.",
+  ando: "Our ships trade from Dewa into Ezo while southern maps fade into rumor. Carry northern knowledge around the world.",
+  kakizaki: "Kaminokuni looks north into Ainu waters and south toward Japan. Sail far enough to place both on one honest chart.",
+  ryukyu: "Naha receives ships from China, Japan, Korea, and the southern seas. Shuri should possess a chart worthy of that crossroads.",
+  ainu: "Southern traders know one coast and our fishers another. Sail far enough to show how all those waters join.",
   joseon: "Our old world maps reach far beyond Joseon, but copied names are not witnessed places. A captain can test what scholars inherited."
 });
 

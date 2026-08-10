@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fetchStaticAsset } from "./staticAssetFetch.js";
+import {
+  StaticAssetNetworkError,
+  fetchStaticAsset,
+  isTransientStaticAssetError
+} from "./staticAssetFetch.js";
 
 function response(status) {
   return {
@@ -68,4 +72,24 @@ test("static asset fetch reports the failed asset after exhausting retries", asy
     }),
     /Failed to load globe runtime bake chunk manifest after 2 attempts: Failed to fetch/
   );
+});
+
+test("exhausted network and server failures remain identifiable through wrapped causes", async () => {
+  const networkError = await fetchStaticAsset("/ship.bin", {
+    label: "ship bundle",
+    fetchImpl: async () => { throw new TypeError("Failed to fetch"); },
+    attempts: 1,
+    retryDelayMs: 0
+  }).catch((error) => error);
+  assert.ok(networkError instanceof StaticAssetNetworkError);
+  assert.equal(isTransientStaticAssetError(new Error("wrapped", { cause: networkError })), true);
+
+  const serverError = await fetchStaticAsset("/ship.bin", {
+    label: "ship bundle",
+    fetchImpl: async () => response(503),
+    attempts: 1,
+    retryDelayMs: 0
+  }).catch((error) => error);
+  assert.ok(serverError instanceof StaticAssetNetworkError);
+  assert.equal(serverError.status, 503);
 });

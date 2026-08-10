@@ -4,6 +4,38 @@ export const CHART_REFRAME_DIALOGUE_CATASTROPHIC_COOLDOWN_MINUTES = 3 * 24 * 60;
 export const CHART_REFRAME_DIALOGUE_CONFIRMATION_MS = 20_000;
 export const CHART_REFRAME_DIALOGUE_CATASTROPHIC_CONFIRMATION_MS = 6_000;
 
+export function chartReframeDialoguePortraitStage({ captain, counterpart = null, speaker }) {
+  for (const [label, character] of Object.entries({ captain, speaker })) {
+    if (!character || typeof character.id !== "string" || character.id.length === 0) {
+      throw new Error(`Chart reframe dialogue requires a valid ${label}`);
+    }
+  }
+  if (counterpart === null) {
+    if (speaker.id !== captain.id) {
+      throw new Error(`Chart reframe dialogue speaker ${speaker.id} has no counterpart`);
+    }
+    return Object.freeze({
+      leftCharacter: speaker,
+      rightCharacter: null,
+      speakerCharacter: speaker
+    });
+  }
+  if (typeof counterpart.id !== "string" || counterpart.id.length === 0) {
+    throw new Error("Chart reframe dialogue requires a valid counterpart");
+  }
+  if (counterpart.id === captain.id) {
+    throw new Error(`Chart reframe dialogue participants must be distinct: ${captain.id}`);
+  }
+  if (![captain.id, counterpart.id].includes(speaker.id)) {
+    throw new Error(`Chart reframe dialogue speaker ${speaker.id} is outside the staged pair`);
+  }
+  return Object.freeze({
+    leftCharacter: captain,
+    rightCharacter: counterpart,
+    speakerCharacter: speaker
+  });
+}
+
 const RECENT_DIALOGUE_LIMIT = 12;
 const RECENT_CATEGORY_LIMIT = 4;
 const RECENT_PORT_LIMIT = 4;

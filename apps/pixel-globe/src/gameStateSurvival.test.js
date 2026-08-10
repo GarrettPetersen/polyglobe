@@ -5,6 +5,7 @@ import {
   BEAVER_PELTS_GOOD_ID,
   FORAGED_FOOD_GOOD_ID,
   FRESH_WATER_GOOD_ID,
+  RICE_GOOD_ID,
   WINE_GOOD_ID,
   createWorldEconomy
 } from "./economy.js";
@@ -327,6 +328,19 @@ test("survival consumes edible cargo by base replacement value", () => {
   assert.equal(state.cargo.grain, 23 / 12);
   assert.equal(state.cargo.wine, 1);
   assert.ok(state.survival.freshWater < FRESH_WATER_CAPACITY);
+});
+
+test("rice supplies twelve edible rations per cargo unit", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.cargo[RICE_GOOD_ID] = 1;
+  state.accounts.cargoCostBasis[RICE_GOOD_ID] = 9;
+
+  const result = updateSurvival(state, 0, 24 * 60, { freshwater: false });
+
+  assert.equal(result.starved, false);
+  assert.equal(result.foodConsumed[0].goodId, RICE_GOOD_ID);
+  assert.equal(state.cargo[RICE_GOOD_ID], 11 / 12);
+  assert.equal(foodRationsForCargoQuantity(1), 12);
 });
 
 test("water-duration perks reduce drinking-water consumption", () => {

@@ -70,6 +70,14 @@ test("every translated catalog covers the complete English key set", () => {
   assert.equal(translate(LANGUAGE_KOREAN, "options.language"), "언어");
 });
 
+test("rice cargo localizes across its principal Asian languages", () => {
+  assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "Rice"), "大米");
+  assert.equal(localizeText(LANGUAGE_CHINESE_TRADITIONAL, "Rice"), "稻米");
+  assert.equal(localizeText(LANGUAGE_JAPANESE, "Rice"), "米");
+  assert.equal(localizeText(LANGUAGE_KOREAN, "Rice"), "쌀");
+  assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "sealed rice tribute"), "封缄的贡米");
+});
+
 test("first-day sunset and sunrise notices are localized everywhere", () => {
   for (const { id } of SUPPORTED_LANGUAGES) {
     for (const key of ["status.sunset", "status.sunrise"]) {

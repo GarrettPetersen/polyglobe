@@ -9,6 +9,7 @@ export const NIAGARA_FALLS_DISCOVERY_ID = "landmark-niagara-falls";
 export const NIAGARA_FALLS_DISCOVERY_RADIUS_PX = 60;
 export const VICTORIA_FALLS_DISCOVERY_ID = "landmark-victoria-falls";
 export const VICTORIA_FALLS_DISCOVERY_RADIUS_PX = 48;
+export const MOAI_DISCOVERY_ID = "landmark-moai-of-rapa-nui";
 export const EL_DORADO_DISCOVERY_ID = "legend-el-dorado";
 export const EL_DORADO_DISCOVERY_LAT = -3.7437;
 export const EL_DORADO_DISCOVERY_LON = -73.2516;
@@ -119,6 +120,12 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     region: "americas",
     captainDialogue: "A citadel among the clouds. How did they raise stone so high?"
   }),
+  landmark("moai-of-rapa-nui", "The Moai of Rapa Nui", "The ancestor figures of Rapa Nui",
+    -27.1258, -109.2767, 85, {
+    region: "oceania",
+    spriteKey: "moai",
+    captainDialogue: "Colossal stone ancestors stand watch over Rapa Nui. How did one island raise so many?"
+  }),
   waterFeature("niagara-falls", "Niagara Falls", "The thunder of the waters", 43.0828, -79.0742,
     NIAGARA_FALLS_DISCOVERY_RADIUS_PX, {
     region: "americas",
@@ -199,13 +206,18 @@ export function isDiscoveryNovelToCharacter(discovery, playerCharacter) {
 
 export function buildWorldDiscoveries(graph, directionIndex, placement) {
   if (!graph || !directionIndex) throw new Error("Cannot place world discoveries without a geodesic graph");
+  validateLandmarkPlacement(graph, placement);
+  const reusablePlacement = {
+    ...placement,
+    cityTileIds: new Set(placement.cityTileIds)
+  };
   const navigationDistances = WORLD_DISCOVERY_SPECS.map((spec) => {
     const direction = latLonToDirection(spec.lat, spec.lon);
     const routeDirections = routeDirectionsForSpec(spec);
     const discoveryDirections = routeDirections.length > 0 ? routeDirections : [direction];
     const navigationDistancePx = Math.min(
       ...discoveryDirections.map((discoveryDirection) =>
-        nearestNavigableDistancePx(discoveryDirection, graph, placement)
+        nearestNavigableDistancePx(discoveryDirection, graph, reusablePlacement)
       )
     );
     return { spec, direction, routeDirections, navigationDistancePx };
@@ -224,8 +236,8 @@ export function buildWorldDiscoveries(graph, directionIndex, placement) {
     const tileId = findNearestTileId(graph, directionIndex, direction);
     const spriteTileId = spec.spriteKey
       ? spec.underwater
-        ? findNearestNavigableTile(direction, graph, placement)
-        : findDedicatedLandmarkTile(spec, tileId, graph, placement)
+        ? findNearestNavigableTile(direction, graph, reusablePlacement)
+        : findDedicatedLandmarkTile(spec, tileId, graph, reusablePlacement)
       : null;
     return Object.freeze({
       ...spec,

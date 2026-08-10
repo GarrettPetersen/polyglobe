@@ -30,6 +30,7 @@ import {
   isCaptureCapitalQuest,
   isCaptureCommissionQuest,
   isEnvoyQuest,
+  isWokouHuntQuest,
   letterOfMarqueStatus,
   maybeGrantMissionPerkItem,
   negotiateEnvoyQuest,
@@ -53,12 +54,14 @@ import {
   purchaseWhaleHarpoon,
   questStateForCity,
   receiveQuestPayment,
+  recordTributeTheft,
   releaseCargoSpace,
   reserveCargoSpace,
   restoreMarketUndoSnapshot,
   restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
-  sellGood
+  sellGood,
+  tributeSaleTheftStatus
 } from "./gameState.js";
 import { captureCapitalPoliticalContext } from "./captureCommissionDialogue.js";
 import {
@@ -311,6 +314,7 @@ export function createPortDialogueSession(city, options = {}) {
     marketUndoNodeId: null,
     marketUndoSnapshot: null,
     marketUndoIllicitTradeVisit: null,
+    pendingTributeTheft: null,
     tradeTip: null,
     questCargoTip: null,
     shipHandover: null,
@@ -462,7 +466,7 @@ export function createPortArrivalDialogueSession(city, options = {}) {
 
 export function deliveryMissionShouldOpenOnArrival(gameState, city, portCities) {
   const state = questStateForCity(gameState, city, portCities);
-  if (isCaptureCommissionQuest(state.quest)) {
+  if (isCaptureCommissionQuest(state.quest) || isWokouHuntQuest(state.quest)) {
     return state.kind === "available" || state.kind === "ready-to-complete";
   }
   return state.quest?.kind === "delivery" &&
@@ -1269,6 +1273,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return letterOfMarqueFactorFollowupView(session, city, gameState, context);
   }
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy, context);
+  if (session.nodeId === "tribute-theft-warning") {
+    return tributeTheftWarningView(session, city, gameState);
+  }
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
@@ -2199,16 +2206,42 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "sell" || action.type === "sell-all") {
-    ensureMarketUndoSession(session, "sell", gameState, economy, city);
     const quantity = action.type === "sell-all" ? action.quantity : 1;
-    const result = sellGood(gameState, economy, city, action.goodId, quantity, tradeContext(session, context));
-    session.marketSales += result.quantity;
-    recordIllicitMarketTransaction(session, result, "sell");
-    const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
-    session.feedback = result.quantity === 1
-      ? `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`
-      : `Sold ${result.good.label} x${result.quantity} for ${result.price} db. P/L ${pnl}.`;
-    return { closed: false, marketSale: result };
+    const theft = tributeSaleTheftStatus(gameState, action.goodId, quantity);
+    if (theft) {
+      session.pendingTributeTheft = { action: { ...action, quantity }, theft };
+      session.nodeId = "tribute-theft-warning";
+      session.selectedIndex = 0;
+      session.feedback = null;
+      return { closed: false };
+    }
+    return executeMarketSale(session, city, gameState, economy, action.goodId, quantity, context);
+  }
+  if (action.type === "confirm-tribute-theft") {
+    const pending = session.pendingTributeTheft;
+    if (!pending) throw new Error("No sealed tribute sale is awaiting confirmation");
+    const result = executeMarketSale(
+      session,
+      city,
+      gameState,
+      economy,
+      pending.action.goodId,
+      pending.action.quantity,
+      context
+    );
+    const theftResult = recordTributeTheft(gameState, pending.theft, context);
+    clearMarketUndoSession(session);
+    session.pendingTributeTheft = null;
+    session.nodeId = "sell";
+    session.feedback = `The sealed tribute was sold. Your diplomatic mission has failed.`;
+    return { ...result, tributeTheft: theftResult };
+  }
+  if (action.type === "cancel-tribute-theft") {
+    session.pendingTributeTheft = null;
+    session.nodeId = "sell";
+    session.selectedIndex = 0;
+    session.feedback = "The sealed tribute remains aboard.";
+    return { closed: false };
   }
   if (action.type === "undo-market") {
     if (session.marketUndoNodeId !== session.nodeId || !session.marketUndoSnapshot) {
@@ -2230,17 +2263,19 @@ export function selectPortDialogueOption(
     return { closed: false, marketUndo: restored };
   }
   if (action.type === "accept-quest") {
-    acceptQuest(gameState, action.quest);
+    const acceptedQuest = acceptQuest(gameState, action.quest, context);
     session.feedback = isCaptureCommissionQuest(action.quest)
       ? isCaptureCapitalQuest(action.quest)
         ? `Final commission accepted. Capture ${action.quest.targetName} and compel a general peace.`
         : `Commission accepted. Capture ${action.quest.targetName} for ${action.quest.originFactionName}.`
+      : isWokouHuntQuest(action.quest)
+        ? `Commission accepted. Hunt the wokou near ${action.quest.patrolName}.`
       : action.quest.kind === "passenger"
         ? `Accepted passage to ${action.quest.destinationName}.`
         : `Accepted delivery to ${action.quest.destinationName}.`;
     session.nodeId = "quest";
     session.selectedIndex = 0;
-    return { closed: false };
+    return { closed: false, acceptedQuest };
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
@@ -2330,7 +2365,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
     }
     return {
       speaker: `${characterName(city.character)}, local official`,
-      expressionId: quest.kind === "friendly-envoy" ? "attentive" : "stern",
+      expressionId: quest.kind === "hostile-envoy" ? "stern" : "attentive",
       text: quest.dialogue?.negotiation ||
         "Our court has heard the envoy's terms. The formal answer may now be carried home.",
       feedback: session.feedback,
@@ -2342,7 +2377,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
   if (active?.id === quest.id && isEnvoyQuest(quest) && quest.stage === "outbound" && quest.targetTileId === city.tileId) {
     return {
       speaker,
-      expressionId: quest.kind === "friendly-envoy" ? "attentive" : "stern",
+      expressionId: quest.kind === "hostile-envoy" ? "stern" : "attentive",
       text: quest.dialogue?.negotiationOpening ||
         `I come under ${quest.originRulerName || "my ruler"}'s seal to present our terms before this court.`,
       feedback: session.feedback,
@@ -2473,7 +2508,7 @@ export function selectPassengerDialogueOption(
   if (action.type === "close") return { closed: true, action: null };
   if (action.type === "open-port") return { closed: false, action: { type: "open-port" } };
   if (action.type === "accept-passenger") {
-    acceptQuest(gameState, quest);
+    acceptQuest(gameState, quest, context);
     return { closed: true, action: null };
   }
   if (action.type === "negotiate-envoy") {
@@ -4501,6 +4536,18 @@ function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
   beginMarketUndoSession(session, nodeId, gameState, economy, city);
 }
 
+function executeMarketSale(session, city, gameState, economy, goodId, quantity, context) {
+  ensureMarketUndoSession(session, "sell", gameState, economy, city);
+  const result = sellGood(gameState, economy, city, goodId, quantity, tradeContext(session, context));
+  session.marketSales += result.quantity;
+  recordIllicitMarketTransaction(session, result, "sell");
+  const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
+  session.feedback = result.quantity === 1
+    ? `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`
+    : `Sold ${result.good.label} x${result.quantity} for ${result.price} db. P/L ${pnl}.`;
+  return { closed: false, marketSale: result };
+}
+
 function clearMarketUndoSession(session) {
   session.marketUndoNodeId = null;
   session.marketUndoSnapshot = null;
@@ -4767,6 +4814,33 @@ function sellView(session, city, gameState, economy, context) {
   };
 }
 
+function tributeTheftWarningView(session, city, gameState) {
+  const pending = session.pendingTributeTheft;
+  if (!pending) throw new Error("Tribute theft warning has no pending sale");
+  const quest = gameState.memory?.quests?.active;
+  if (!quest || quest.id !== pending.theft.questId) {
+    throw new Error("Tribute theft warning no longer matches the active mission");
+  }
+  const good = tradeGoodById(pending.theft.goodId);
+  const origin = factionById(pending.theft.originFactionId).name;
+  const suzerain = factionById(pending.theft.suzerainFactionId).name;
+  const secondPenalty = pending.theft.originFactionId === pending.theft.suzerainFactionId
+    ? ""
+    : ` and ${formatSignedReputation(pending.theft.suzerainPenalty)} with ${suzerain}`;
+  return {
+    speaker: speakerName(city),
+    expressionId: "stern",
+    text: `Those ${good.label.toLowerCase()} are sealed tribute, not your cargo. Selling ` +
+      `${pending.theft.stolenQuantity} is theft from the court. Your mission will fail and your standing ` +
+      `will fall ${formatSignedReputation(pending.theft.originPenalty)} with ${origin}${secondPenalty}.`,
+    feedback: session.feedback,
+    options: [
+      option(`Sell the sealed ${good.label.toLowerCase()}`, { type: "confirm-tribute-theft" }),
+      option("Keep the tribute aboard", { type: "cancel-tribute-theft" })
+    ]
+  };
+}
+
 function marketSaleGoodIds(session, gameState) {
   const saleGoodIds = cargoRows(gameState)
     .filter((cargo) => cargo.good.sellable !== false && cargo.quantity >= 1)
@@ -4822,6 +4896,9 @@ function questView(session, city, gameState, portCities) {
   const questState = questStateForCity(gameState, city, portCities);
   if (isCaptureCommissionQuest(questState.quest)) {
     return captureCommissionQuestView(session, questState, returnNodeId);
+  }
+  if (isWokouHuntQuest(questState.quest)) {
+    return wokouHuntQuestView(session, questState, returnNodeId);
   }
   if (questState.kind === "ready-to-complete") {
     if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
@@ -4933,6 +5010,47 @@ function questView(session, city, gameState, portCities) {
     options: [
       option("Back", { type: "node", nodeId: returnNodeId })
     ]
+  };
+}
+
+function wokouHuntQuestView(session, questState, returnNodeId) {
+  const quest = questState.quest;
+  const back = option("Back", { type: "node", nodeId: returnNodeId });
+  if (questState.kind === "available") {
+    return {
+      speaker: `${quest.originRulerName}'s coastal commissioner`,
+      expressionId: "stern",
+      text: quest.offerText,
+      feedback: session.feedback,
+      options: [
+        option(`Accept: hunt wokou near ${quest.patrolName}`, {
+          type: "accept-quest",
+          quest
+        }, { detail: `${quest.reward} db` }),
+        back
+      ]
+    };
+  }
+  if (questState.kind === "ready-to-complete") {
+    return {
+      speaker: `${quest.originRulerName}'s coastal commissioner`,
+      expressionId: "pleased",
+      text: `The wokou vessel is broken and lawful shipping has one danger fewer. The court will honor its promise.`,
+      feedback: session.feedback,
+      options: [
+        option(`Report the victory  ${quest.reward} db`, { type: "complete-quest" }),
+        back
+      ]
+    };
+  }
+  return {
+    speaker: `${quest.originRulerName}'s coastal commissioner`,
+    expressionId: "stern",
+    text: quest.stage === "return"
+      ? `The wokou are defeated. Return to ${quest.originName} for the court's reward.`
+      : `Patrol the waters near ${quest.patrolName}. Sink the marked wokou vessel or force its surrender. Pirates require no letter of marque.`,
+    feedback: session.feedback,
+    options: [back]
   };
 }
 
@@ -5326,6 +5444,7 @@ function characterName(character) {
 function questExpressionId(quest) {
   if (quest?.kind === "friendly-envoy") return "attentive";
   if (quest?.kind === "hostile-envoy") return "stern";
+  if (isEnvoyQuest(quest)) return "attentive";
   if (quest?.scenarioId === "shipwrecked-sailor") return "afraid";
   if (quest?.scenarioId === "return-home" || quest?.scenarioId === "family-letter") return "sad";
   if (quest?.scenarioId === HAJJ_PASSENGER_SCENARIO_ID) return "attentive";

@@ -19,6 +19,7 @@ import {
   createWorldDiplomacy,
   declareDiplomaticWar,
   diplomaticContactBetween,
+  diplomacyPairKey,
   diplomacyEventNotice,
   makeFactionPeaceWithAllEnemies,
   makeDiplomaticPeace,
@@ -44,12 +45,37 @@ test("world diplomacy begins from the historical 1522 matrix", () => {
   assert.ok(state.nextEventMinute >= 100 + DIPLOMACY_MIN_EVENT_DAYS * DAY);
 });
 
-test("vassals keep an internal stance while sharing their suzerain's foreign policy", () => {
+test("integrated and autonomous subjects have distinct foreign policies", () => {
   const state = createWorldDiplomacy({ startMinute: 0, seedKey: "vassal-policy" });
   assert.equal(rawWorldDiplomacyBetween(state, "crimea", "ottoman"), DIPLOMACY_FRIENDLY);
-  assert.equal(worldDiplomacyBetween(state, "crimea", "portugal"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "crimea", "portugal"), DIPLOMACY_NEUTRAL);
   assert.equal(worldDiplomacyBetween(state, "ottoman", "portugal"), DIPLOMACY_WAR);
-  assert.equal(worldDiplomacyBetween(state, "hormuz", "crimea"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "hormuz", "crimea"), DIPLOMACY_NEUTRAL);
+  assert.equal(worldDiplomacyBetween(state, "hormuz", "ottoman"), DIPLOMACY_WAR);
+});
+
+test("autonomous subjects answer defensive wars while tributaries do not", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "dependency-defense" });
+  const events = declareDiplomaticWar(state, "france", "wallachia", 200 * DAY);
+  assert.equal(worldDiplomacyBetween(state, "ottoman", "france"), DIPLOMACY_WAR);
+  assert.equal(events.some((event) => (
+    event.kind === "alliance-war" && event.factionAId === "ottoman" &&
+    event.reason === "mutual-defense"
+  )), true);
+
+  const tributaryState = createWorldDiplomacy({ startMinute: 0, seedKey: "tributary-defense" });
+  declareDiplomaticWar(tributaryState, "france", "ryukyu", 200 * DAY);
+  assert.notEqual(worldDiplomacyBetween(tributaryState, "ming", "france"), DIPLOMACY_WAR);
+});
+
+test("Crimea answers an Ottoman offensive obligation without surrendering its foreign policy", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "crimean-war-obligation" });
+  const events = declareDiplomaticWar(state, "ottoman", "france", 200 * DAY);
+  assert.equal(worldDiplomacyBetween(state, "crimea", "france"), DIPLOMACY_WAR);
+  assert.equal(events.some((event) => (
+    event.kind === "alliance-war" && event.factionAId === "crimea" &&
+    event.reason === "war-obligation"
+  )), true);
 });
 
 test("Charles V's crowns remain separate inside a shared dynastic foreign policy", () => {
@@ -82,13 +108,43 @@ test("version 1 diplomacy migrates without changing its simulation state", () =>
   delete saved.contacts;
   const before = JSON.parse(JSON.stringify(saved));
 
-  const migrated = migrateWorldDiplomacy(saved);
+  const migrated = migrateWorldDiplomacy(saved, { neutralizeIntroducedFactions: false });
 
   assert.equal(migrated.version, WORLD_DIPLOMACY_VERSION);
   assert.deepEqual(migrated.contacts, {});
   const { contacts, ...withoutContacts } = migrated;
   assert.deepEqual({ ...withoutContacts, version: 1 }, before);
   assert.throws(() => migrateWorldDiplomacy({ version: 0 }), /Unsupported world diplomacy version/);
+});
+
+test("legacy voyages introduce new powers without surprise diplomatic changes", () => {
+  const saved = createWorldDiplomacy({ startMinute: 100, seedKey: "pre-vassal-gradations" });
+  saved.version = 5;
+
+  const migrated = migrateWorldDiplomacy(saved);
+
+  assert.equal(rawWorldDiplomacyBetween(migrated, "ottoman", "wallachia"), DIPLOMACY_NEUTRAL);
+  assert.equal(rawWorldDiplomacyBetween(migrated, "ottoman", "hejaz"), DIPLOMACY_NEUTRAL);
+  assert.equal(rawWorldDiplomacyBetween(migrated, "ming", "ryukyu"), DIPLOMACY_NEUTRAL);
+  assert.equal(rawWorldDiplomacyBetween(migrated, "japan", "ainu"), DIPLOMACY_NEUTRAL);
+  assert.equal(rawWorldDiplomacyBetween(migrated, PIRATE_FACTION_ID, "ryukyu"), DIPLOMACY_WAR);
+});
+
+test("legacy diplomacy omits dependencies attached to collapsed powers", () => {
+  const saved = createWorldDiplomacy({ startMinute: 100, seedKey: "collapsed-suzerain" });
+  saved.version = 5;
+
+  const migrated = migrateWorldDiplomacy(saved, { inactiveFactionIds: ["ottoman", "ming"] });
+
+  for (const relationship of Object.values(migrated.suzerainties.byVassalId)) {
+    assert.equal(relationship.vassalFactionId === "ottoman", false);
+    assert.equal(relationship.suzerainFactionId === "ottoman", false);
+    assert.equal(relationship.vassalFactionId === "ming", false);
+    assert.equal(relationship.suzerainFactionId === "ming", false);
+  }
+  assert.equal(migrated.suzerainties.byVassalId.ryukyu, undefined);
+  assert.equal(migrated.suzerainties.byVassalId.wallachia, undefined);
+  assert.equal(migrated.suzerainties.byVassalId.spain.suzerainFactionId, "habsburg");
 });
 
 test("version 2 diplomacy gains an empty contact ledger", () => {
@@ -167,6 +223,18 @@ test("no port contact means no procedural diplomatic events", () => {
 
   assert.deepEqual(events, []);
   assert.deepEqual(state.overrides, {});
+});
+
+test("a live envoy negotiation freezes only its constitutional relationship", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "sealed-negotiation" });
+  recordDiplomaticPortCall(state, "england", "france", 10);
+
+  const events = advanceWorldDiplomacy(state, state.nextEventMinute, {
+    lockedPairKeys: [diplomacyPairKey("england", "france")]
+  });
+
+  assert.deepEqual(events, []);
+  assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_WAR);
 });
 
 test("wars can end in peace and later relation changes obey pair cooldowns", () => {

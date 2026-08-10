@@ -216,17 +216,22 @@ export function nextPolarChartRepairPressure({
   const target = polarRepairEligible
     ? Math.max(latitudePressure, rotationPressure, tearPressure)
     : 0;
+  // Natural polar fog is already visible cover. Preserve that displayed
+  // concealment as repair pressure before the ship sails toward clearer
+  // latitudes, otherwise the bank can retreat faster than its hidden tiles
+  // settle and reveal an unfinished chart.
+  const effectiveCurrentPressure = Math.max(currentPressure, latitudePressure);
   const severeDistortion = Math.max(rotationPressure, tearPressure) >= 0.75;
   if (elapsedSeconds < 0) {
     throw new Error(`Polar chart repair pressure elapsed time cannot be negative: ${elapsedSeconds}`);
   }
-  const ratePerSecond = target > currentPressure
+  const ratePerSecond = target > effectiveCurrentPressure
     ? severeDistortion ? 0.024 : 0.014
     : 0.01;
   const maximumStep = ratePerSecond * elapsedSeconds;
-  return currentPressure + Math.max(
+  return effectiveCurrentPressure + Math.max(
     -maximumStep,
-    Math.min(maximumStep, target - currentPressure)
+    Math.min(maximumStep, target - effectiveCurrentPressure)
   );
 }
 

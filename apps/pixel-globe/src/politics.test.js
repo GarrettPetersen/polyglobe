@@ -108,7 +108,7 @@ test("politics keeps vassal status visibly separate from diplomatic stance", () 
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
   const hormuz = politicsCard(view, "hormuz");
-  assert.deepEqual(hormuz.dependencies, [{
+  assert.deepEqual(dependencySummaries(hormuz), [{
     kind: "vassal",
     role: "subject",
     factionId: "portugal"
@@ -121,12 +121,12 @@ test("the Habsburg personal union is not presented as Spanish vassalage", () => 
   const view = createPoliticsView(state);
   const spain = politicsCard(view, "spain");
   const habsburg = politicsCard(view, "habsburg");
-  assert.deepEqual(spain.dependencies, [{
+  assert.deepEqual(dependencySummaries(spain), [{
     kind: "personal-union",
     role: "member",
     factionId: "habsburg"
   }]);
-  assert.deepEqual(habsburg.dependencies, [{
+  assert.deepEqual(dependencySummaries(habsburg), [{
     kind: "personal-union",
     role: "member",
     factionId: "spain"
@@ -138,16 +138,25 @@ test("the politics cards distinguish tributaries from vassals and unions", () =>
   const view = createPoliticsView(state);
   const joseon = politicsCard(view, "joseon");
   const ming = politicsCard(view, "ming");
-  assert.deepEqual(joseon.dependencies, [{
+  assert.deepEqual(dependencySummaries(joseon), [{
     kind: "tributary",
     role: "subject",
     factionId: "ming"
   }]);
-  assert.deepEqual(ming.dependencies, [{
-    kind: "tributary",
-    role: "suzerain",
-    factionId: "joseon"
+  assert.deepEqual(dependencySummaries(ming), [
+    { kind: "tributary", role: "suzerain", factionId: "joseon" },
+    { kind: "tributary", role: "suzerain", factionId: "ryukyu" }
+  ]);
+  const wallachia = politicsCard(view, "wallachia");
+  const crimea = politicsCard(view, "crimea");
+  assert.deepEqual(dependencySummaries(wallachia), [{
+    kind: "autonomous-vassal",
+    role: "subject",
+    factionId: "ottoman"
   }]);
+  assert.equal(wallachia.dependencies[0].terms.foreignPolicy, "independent");
+  assert.equal(wallachia.dependencies[0].terms.tribute, true);
+  assert.equal(crimea.dependencies[0].terms.tribute, false);
 });
 
 test("politics trade codes expose duties and protected-market access", () => {
@@ -292,8 +301,10 @@ test("politics view independently marks every faction that granted a letter of m
 });
 
 test("political power codes are compact for card relationship tokens", () => {
-  assert.ok(politicalPowers().every((faction) => faction.code.length <= 2));
-  assert.equal(politicalPowers().find((faction) => faction.id === "pirate").code, "PX");
+  const powers = politicalPowers();
+  assert.ok(powers.every((faction) => faction.code.length <= 2));
+  assert.equal(new Set(powers.map((faction) => faction.code)).size, powers.length);
+  assert.equal(powers.find((faction) => faction.id === "pirate").code, "PX");
 });
 
 test("player standing labels summarize reputation ranges", () => {
@@ -311,4 +322,8 @@ function politicsCard(view, factionId) {
 
 function relationshipFactionIds(card, relation) {
   return card.relationships.find((group) => group.relation === relation)?.factionIds || [];
+}
+
+function dependencySummaries(card) {
+  return card.dependencies.map(({ kind, role, factionId }) => ({ kind, role, factionId }));
 }

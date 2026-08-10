@@ -3,7 +3,8 @@ import { characterWithBiography } from "./characterBiography.js";
 import {
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
-  factionById
+  factionById,
+  isJapanesePolityFaction
 } from "./factions.js";
 import {
   FUSTA_SLUG,
@@ -56,6 +57,9 @@ const EUROPEAN_FACTIONS = new Set([
   "portugal",
   "habsburg",
   "hungary",
+  "wallachia",
+  "moldavia",
+  "ragusa",
   "venice",
   "genoa",
   "papal-states",
@@ -65,7 +69,10 @@ const EUROPEAN_FACTIONS = new Set([
   "sweden",
   "denmark-norway"
 ]);
-const EAST_ASIAN_FACTIONS = new Set(["ming", "japan", "joseon"]);
+const EAST_ASIAN_FACTIONS = new Set([
+  "ming", "japan", "hosokawa", "ouchi", "shimazu", "so", "shoni", "nagao", "ando",
+  "kakizaki", "ryukyu", "ainu", "joseon"
+]);
 const INDIAN_FACTIONS = new Set([
   "hormuz",
   "safavid",
@@ -75,7 +82,7 @@ const INDIAN_FACTIONS = new Set([
   "delhi"
 ]);
 const SOUTHEAST_ASIAN_FACTIONS = new Set(["ayutthaya", "ternate", "tidore"]);
-const ISLAMIC_MEDITERRANEAN_FACTIONS = new Set(["ottoman", "morocco", "crimea"]);
+const ISLAMIC_MEDITERRANEAN_FACTIONS = new Set(["ottoman", "morocco", "crimea", "hejaz"]);
 const ISLAMIC_MEDITERRANEAN_MAX_LONGITUDE = 40;
 const PLAYER_HOME_EXCLUDED_CITY_TYPES = new Set(["mesoamerican", "andean", "sub-saharan"]);
 
@@ -108,12 +115,12 @@ export function playerStarterShipForFaction(factionId, {
   const roster = whaling
     ? PLAYER_WHALING_STARTER_SHIPS
     : armed ? PLAYER_ARMED_STARTER_SHIPS : PLAYER_STARTER_SHIPS;
-  let slug = factionId === "japan"
+  let slug = isJapanesePolityFaction(factionId)
     ? (armed
       ? JAPANESE_ATAKEBUNE_SLUG
       : whaling ? JAPANESE_KOBAYA_SLUG : JAPANESE_UMI_BUNE_SLUG)
     : roster[region];
-  if (factionId !== "japan" && startArea === "mediterranean" && !whaling) {
+  if (!isJapanesePolityFaction(factionId) && startArea === "mediterranean" && !whaling) {
     const localStarters = armed
       ? [FUSTA_SLUG]
       : ISLAMIC_MEDITERRANEAN_FACTIONS.has(factionId)
@@ -124,7 +131,7 @@ export function playerStarterShipForFaction(factionId, {
       : localStarters[0];
   }
   if (!slug) throw new Error(`No ${whaling ? "whaling " : armed ? "armed " : ""}starter ship for ${factionId}`);
-  if (factionId === "japan" && !JAPANESE_SHIP_SLUGS.includes(slug)) {
+  if (isJapanesePolityFaction(factionId) && !JAPANESE_SHIP_SLUGS.includes(slug)) {
     throw new Error(`Japanese captain received a non-Japanese starter ship: ${slug}`);
   }
   const stats = shipStatsForSlug(slug);

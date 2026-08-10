@@ -12,19 +12,23 @@ import {
 } from "./factions.js";
 import {
   createSuzeraintyMemory,
+  defensivePartnersOf,
   directSuzeraintyBetween,
   establishSuzerainty,
   foreignPolicyPrincipal,
   migrateSuzeraintyMemory,
+  offensivePartnersOf,
   releaseFactionPersonalUnions,
   releaseFactionSuzerainties,
   releaseVassal,
   SUZERAINTY_KIND_PERSONAL_UNION,
+  SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
+  SUZERAINTY_KIND_TRIBUTARY,
   suzerainForFaction,
   validateSuzeraintyMemory
 } from "./suzerainty.js";
 
-export const WORLD_DIPLOMACY_VERSION = 5;
+export const WORLD_DIPLOMACY_VERSION = 7;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -45,6 +49,22 @@ const SOVEREIGN_FACTIONS = FACTIONS.filter((faction) => (
   faction.id !== NEUTRAL_FACTION_ID && faction.id !== PIRATE_FACTION_ID
 ));
 const FACTIONS_BY_ID = new Map(FACTIONS.map((faction) => [faction.id, faction]));
+const DIPLOMACY_INTRODUCED_FACTION_IDS = Object.freeze([
+  "wallachia",
+  "moldavia",
+  "ragusa",
+  "hejaz",
+  "ryukyu",
+  "ainu",
+  "hosokawa",
+  "ouchi",
+  "shimazu",
+  "so",
+  "shoni",
+  "nagao",
+  "ando",
+  "kakizaki"
+]);
 
 export function createWorldDiplomacy({ startMinute = 0, seedKey = "world" } = {}) {
   assertMinute(startMinute, "diplomacy start minute");
@@ -95,23 +115,51 @@ export function validateWorldDiplomacy(state) {
   return state;
 }
 
-export function migrateWorldDiplomacy(state) {
+export function migrateWorldDiplomacy(state, {
+  inactiveFactionIds = [],
+  neutralizeIntroducedFactions = state?.version < WORLD_DIPLOMACY_VERSION
+} = {}) {
   if (!state || typeof state !== "object") {
     throw new Error("World diplomacy migration requires a saved state");
   }
-  if (state.version === WORLD_DIPLOMACY_VERSION) return validateWorldDiplomacy(state);
-  if (![1, 2, 3, 4].includes(state.version)) {
+  const inactiveFactionCount = Array.isArray(inactiveFactionIds)
+    ? inactiveFactionIds.length
+    : inactiveFactionIds instanceof Set
+      ? inactiveFactionIds.size
+      : null;
+  if (inactiveFactionCount === null) {
+    throw new Error("Inactive diplomacy faction ids must be an array or set");
+  }
+  const hasContextualMigration = inactiveFactionCount > 0 || neutralizeIntroducedFactions;
+  if (state.version === WORLD_DIPLOMACY_VERSION && !hasContextualMigration) {
+    return validateWorldDiplomacy(state);
+  }
+  if (![1, 2, 3, 4, 5, 6, WORLD_DIPLOMACY_VERSION].includes(state.version)) {
     throw new Error(`Unsupported world diplomacy version: ${state.version ?? "missing"}`);
   }
+  const migratedOverrides = removeRetiredFactionPairs(state.overrides);
+  if (neutralizeIntroducedFactions) neutralizeNewFactionDefaults(migratedOverrides);
   return validateWorldDiplomacy({
     ...state,
     version: WORLD_DIPLOMACY_VERSION,
-    overrides: removeRetiredFactionPairs(state.overrides),
+    overrides: migratedOverrides,
     pairLastChangedMinute: removeRetiredFactionPairs(state.pairLastChangedMinute),
     contacts: state.version < 3 ? {} : removeRetiredFactionPairs(state.contacts),
-    suzerainties: migrateSuzeraintyMemory(state.suzerainties, state.startMinute),
+    suzerainties: migrateSuzeraintyMemory(state.suzerainties, state.startMinute, {
+      inactiveFactionIds
+    }),
     history: state.history.filter((event) => !diplomacyEventUsesRetiredFaction(event))
   });
+}
+
+function neutralizeNewFactionDefaults(overrides) {
+  for (const factionId of DIPLOMACY_INTRODUCED_FACTION_IDS) {
+    for (const other of SOVEREIGN_FACTIONS) {
+      if (other.id === factionId || diplomacyBetween(factionId, other.id) === DIPLOMACY_NEUTRAL) continue;
+      overrides[diplomacyPairKey(factionId, other.id)] = DIPLOMACY_NEUTRAL;
+    }
+  }
+  return overrides;
 }
 
 function removeRetiredFactionPairs(table) {
@@ -288,12 +336,21 @@ export function declareDiplomaticWar(state, attackerId, defenderId, simMinute, i
   }
 
   const calls = [
+    ...defensivePartnersOf(state.suzerainties, defenderId)
+      .map((allyId) => ({ allyId, enemyId: attackerId, chance: 1, reason: "mutual-defense" })),
+    ...offensivePartnersOf(state.suzerainties, attackerId)
+      .map((allyId) => ({ allyId, enemyId: defenderId, chance: 1, reason: "war-obligation" })),
     ...alliesOf(state, defenderId).map((allyId) => ({ allyId, enemyId: attackerId, chance: 0.72 })),
     ...alliesOf(state, attackerId).map((allyId) => ({ allyId, enemyId: defenderId, chance: 0.58 }))
   ];
+  const calledPairs = new Set();
   for (let index = 0; index < calls.length; index++) {
-    const { allyId, enemyId, chance } = calls[index];
-    if (allyId === enemyId || worldDiplomacyBetween(state, allyId, enemyId) !== DIPLOMACY_NEUTRAL) continue;
+    const { allyId, enemyId, chance, reason = "alliance" } = calls[index];
+    const callKey = diplomacyPairKey(allyId, enemyId);
+    if (calledPairs.has(callKey)) continue;
+    calledPairs.add(callKey);
+    const currentRelation = worldDiplomacyBetween(state, allyId, enemyId);
+    if (allyId === enemyId || currentRelation === DIPLOMACY_WAR || currentRelation === DIPLOMACY_ALLY) continue;
     if (pairIsCoolingDown(state, allyId, enemyId, simMinute)) continue;
     const roll = diplomacyRandom(state, state.sequence, `alliance|${attackerId}|${defenderId}|${allyId}|${index}`);
     if (roll >= chance) continue;
@@ -306,7 +363,7 @@ export function declareDiplomaticWar(state, attackerId, defenderId, simMinute, i
       factionBId: enemyId,
       causeFactionAId: attackerId,
       causeFactionBId: defenderId,
-      reason: "alliance",
+      reason,
       headline: `${factionName(allyId)} enters the war against ${factionName(enemyId)}.`
     }));
   }
@@ -426,10 +483,54 @@ export function establishDiplomaticSuzerainty(state, {
     factionBId: principalId,
     relationshipKind: relationshipEvent.relationshipKind,
     reason: source,
-    headline: `${factionName(vassalFactionId)} accepts ${factionName(principalId)} as suzerain.`
+    headline: suzeraintyHeadline(kind, vassalFactionId, principalId)
   });
   recordDiplomacyEvents(state, [event]);
   return event;
+}
+
+export function releaseDiplomaticVassal(state, {
+  vassalFactionId,
+  simMinute,
+  source = "envoy-treaty",
+  relation = DIPLOMACY_NEUTRAL
+}) {
+  validateWorldDiplomacy(state);
+  assertFactionId(vassalFactionId);
+  assertMinute(simMinute, "diplomatic independence minute");
+  if (!RELATIONS.has(relation) || relation === DIPLOMACY_WAR) {
+    throw new Error(`Invalid post-independence relation: ${relation}`);
+  }
+  const existing = state.suzerainties.byVassalId[vassalFactionId];
+  if (!existing) return null;
+  const suzerainFactionId = existing.suzerainFactionId;
+  releaseVassal(state.suzerainties, { vassalFactionId, simMinute, source });
+  setDynamicRelation(state, vassalFactionId, suzerainFactionId, relation, simMinute);
+  const event = diplomacyEvent({
+    state,
+    simMinute,
+    kind: "independence",
+    factionAId: vassalFactionId,
+    factionBId: suzerainFactionId,
+    relationshipKind: existing.kind,
+    reason: source,
+    headline: `${factionName(vassalFactionId)} is released from ${factionName(suzerainFactionId)}'s overlordship.`
+  });
+  recordDiplomacyEvents(state, [event]);
+  return event;
+}
+
+function suzeraintyHeadline(kind, subjectId, suzerainId) {
+  if (kind === SUZERAINTY_KIND_PERSONAL_UNION) {
+    return `${factionName(subjectId)} enters a personal union with ${factionName(suzerainId)}.`;
+  }
+  if (kind === SUZERAINTY_KIND_TRIBUTARY) {
+    return `${factionName(subjectId)} agrees to pay tribute to ${factionName(suzerainId)}.`;
+  }
+  if (kind === SUZERAINTY_KIND_AUTONOMOUS_VASSAL) {
+    return `${factionName(subjectId)} accepts ${factionName(suzerainId)} as protector while retaining its own foreign policy.`;
+  }
+  return `${factionName(subjectId)} accepts ${factionName(suzerainId)} as suzerain.`;
 }
 
 export function dissolveFactionDiplomaticSuzerainties(state, factionId, simMinute, source = "annexation") {
@@ -497,8 +598,16 @@ export function diplomacyEventNotice(event) {
   if (event.kind === "relations-improve") return `RELATIONS IMPROVE: ${a} / ${b}`;
   if (event.kind === "relations-worsen") return `RELATIONS WORSEN: ${a} / ${b}`;
   if (event.kind === "alliance-war") return `ALLY JOINS WAR: ${a} / ${b}`;
-  if (event.kind === "vassalage") return `VASSALAGE: ${a} / ${b}`;
+  if (event.kind === "vassalage") {
+    if (event.relationshipKind === SUZERAINTY_KIND_TRIBUTARY) return `TRIBUTE: ${a} / ${b}`;
+    if (event.relationshipKind === SUZERAINTY_KIND_AUTONOMOUS_VASSAL) {
+      return `PROTECTORATE: ${a} / ${b}`;
+    }
+    if (event.relationshipKind === SUZERAINTY_KIND_PERSONAL_UNION) return `UNION: ${a} / ${b}`;
+    return `VASSALAGE: ${a} / ${b}`;
+  }
   if (event.kind === "rebellion") return `REBELLION: ${a} / ${b}`;
+  if (event.kind === "independence") return `INDEPENDENCE: ${a} / ${b}`;
   if (event.kind === "union-dissolved") return `UNION DISSOLVED: ${a} / ${b}`;
   return `WAR: ${a} / ${b}`;
 }
@@ -524,6 +633,7 @@ function chooseDiplomacyEvent(state, eventMinute, influence) {
           diplomacyPairKey(factionAId, factionBId)) {
         continue;
       }
+      if (diplomacyPairIsLocked(influence, factionAId, factionBId)) continue;
       if (pairIsCoolingDown(state, factionAId, factionBId, eventMinute)) continue;
       const relation = worldDiplomacyBetween(state, factionAId, factionBId);
       const contact = state.contacts[diplomacyPairKey(factionAId, factionBId)];
@@ -550,6 +660,12 @@ function chooseDiplomacyEvent(state, eventMinute, influence) {
     }
   }
   return weightedChoice(candidates, diplomacyRandom(state, state.sequence, "primary-event"));
+}
+
+function diplomacyPairIsLocked(influence, factionAId, factionBId) {
+  const locked = influence?.lockedPairKeys || [];
+  if (!Array.isArray(locked)) throw new Error("Diplomatic influence locks must be an array");
+  return locked.includes(diplomacyPairKey(factionAId, factionBId));
 }
 
 function setDynamicRelation(state, factionAId, factionBId, relation, simMinute) {
@@ -740,6 +856,7 @@ function validateDiplomacyEvent(event) {
     "relations-worsen",
     "vassalage",
     "rebellion",
+    "independence",
     "union-dissolved"
   ].includes(event.kind)) {
     throw new Error(`Invalid diplomacy history event kind: ${event.kind}`);

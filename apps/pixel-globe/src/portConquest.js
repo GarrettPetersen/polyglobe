@@ -11,6 +11,8 @@ export const PORT_CONQUEST_CAPITAL_TREASURY_BONUS = 2500;
 export const CAPITAL_PEACE_ANNEXATION_CITY_LIMIT = 3;
 export const CAPITAL_PEACE_TERM_ANNEXATION = "annexation";
 export const CAPITAL_PEACE_TERM_VASSALAGE = "vassalage";
+export const CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE = "autonomous-vassalage";
+export const CAPITAL_PEACE_TERM_TRIBUTARY = "tributary-status";
 export const CAPITAL_PEACE_TERM_CONCESSIONS = "territorial-concessions";
 export const CAPITAL_PEACE_TERM_PAPAL_FAVOUR = "papal-favour";
 export const CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION = "papal-excommunication";
@@ -20,6 +22,8 @@ const PORT_CONQUEST_TREATY_LIMIT = 40;
 const CAPITAL_PEACE_TERMS = new Set([
   CAPITAL_PEACE_TERM_ANNEXATION,
   CAPITAL_PEACE_TERM_VASSALAGE,
+  CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE,
+  CAPITAL_PEACE_TERM_TRIBUTARY,
   CAPITAL_PEACE_TERM_CONCESSIONS,
   CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
   CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION
@@ -283,6 +287,8 @@ export function capitalPeaceTreatyOptions(memory, ports, captureEvent, {
     ...decisionFactors,
     terms: Object.freeze([
       CAPITAL_PEACE_TERM_VASSALAGE,
+      CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE,
+      CAPITAL_PEACE_TERM_TRIBUTARY,
       ...(concessionCandidates.length > 0 ? [CAPITAL_PEACE_TERM_CONCESSIONS] : []),
       ...(annexationAllowed ? [CAPITAL_PEACE_TERM_ANNEXATION] : [])
     ])
@@ -308,6 +314,10 @@ export function chooseCapitalPeaceSettlement(memory, ports, captureEvent, roll =
     : 0;
   const vassalageWeight = 2 + options.occupationRatio * 2 + winnerStrength * 2 +
     (options.losingCityCount <= 6 ? 0.8 : 0);
+  const autonomousVassalageWeight = 2.4 + (1 - options.occupationRatio) * 1.4 +
+    Math.min(2.5, options.losingCityCount * 0.22) + winnerStrength;
+  const tributaryWeight = 1.5 + (1 - options.occupationRatio) * 2.2 +
+    Math.min(3, options.losingCityCount * 0.3) + (1 - winnerStrength);
   const concessionsWeight = options.concessionAvailable
     ? 2 + Math.max(0, options.losingCityCount - CAPITAL_PEACE_ANNEXATION_CITY_LIMIT) * 0.65 +
       (1 - options.occupationRatio) * 2
@@ -315,6 +325,8 @@ export function chooseCapitalPeaceSettlement(memory, ports, captureEvent, roll =
   const weightedTerms = [
     [CAPITAL_PEACE_TERM_ANNEXATION, annexationWeight],
     [CAPITAL_PEACE_TERM_VASSALAGE, vassalageWeight],
+    [CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE, autonomousVassalageWeight],
+    [CAPITAL_PEACE_TERM_TRIBUTARY, tributaryWeight],
     [CAPITAL_PEACE_TERM_CONCESSIONS, concessionsWeight]
   ].filter(([, weight]) => weight > 0);
   const totalWeight = weightedTerms.reduce((sum, [, weight]) => sum + weight, 0);

@@ -142,6 +142,18 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "baltic",
     marketGoods: ["fish", "timber", "furs"]
   }),
+  manualCity1522("Braila", "Romania", 45.2692, 27.9575, 6000, {
+    cityType: "mediterranean",
+    manualRegion: "lower-danube",
+    requiredTradePort: true,
+    marketGoods: ["grain", "wool", "timber"]
+  }),
+  manualCity1522("Galati", "Romania", 45.4353, 28.008, 5000, {
+    cityType: "mediterranean",
+    manualRegion: "lower-danube",
+    requiredTradePort: true,
+    marketGoods: ["grain", "fish", "timber"]
+  }),
   manualCity1522("Malacca", "Malaysia", 2.1896, 102.2501, 90000, {
     manualRegion: "strait-of-malacca"
   }),
@@ -270,7 +282,7 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "southeast-asian",
     manualRegion: "south-china-sea",
     islandSettlement: true,
-    marketGoods: ["cotton", "beeswax", "fish"]
+    marketGoods: ["rice", "cotton", "beeswax"]
   }),
   manualCity1522("San Juan", "Puerto Rico", 18.4655, -66.1057, 4000, {
     cityType: "mediterranean",
@@ -295,13 +307,49 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   manualVillage1522("Edo", "Japan", 35.6896, 139.692, 1500, {
     cityType: "east-asian",
     manualRegion: "edo-bay",
-    marketGoods: ["fish", "grain", "timber"]
+    marketGoods: ["fish", "rice", "timber"]
   }),
   manualVillage1522("Nagasaki", "Japan", 32.752558, 129.878192, 600, {
     cityType: "east-asian",
     manualRegion: "nagasaki-village",
     playerHomeExcluded: true,
     marketGoods: ["fish", "timber", "salt"]
+  }),
+  manualCity1522("Tsuchizaki Minato", "Japan", 39.7583, 140.0575, 3500, {
+    cityType: "east-asian",
+    manualRegion: "sea-of-japan",
+    marketGoods: ["fish", "timber", "naval-stores"]
+  }),
+  manualCity1522("Naoetsu", "Japan", 37.184, 138.242, 4500, {
+    cityType: "east-asian",
+    manualRegion: "sea-of-japan",
+    marketGoods: ["rice", "fish", "salt"]
+  }),
+  manualVillage1522("Kaminokuni", "Japan", 41.802, 140.121, 1200, {
+    cityType: "east-asian",
+    manualRegion: "southern-ezo",
+    islandSettlement: true,
+    marketGoods: ["fish", "furs", "timber"]
+  }),
+  manualVillage1522("Akkeshi Kotan", "Japan", 43.0356, 144.8469, 1000, {
+    cityType: "east-asian",
+    manualRegion: "ainu-mosir",
+    islandSettlement: true,
+    playerHomeExcluded: true,
+    marketGoods: ["fish", "furs", "timber"]
+  }),
+  manualCity1522("Tsushima Fuchu", "Japan", 34.203, 129.287, 3000, {
+    displayCity: "Tsushima Fuchū",
+    cityType: "east-asian",
+    manualRegion: "tsushima",
+    islandSettlement: true,
+    marketGoods: ["fish", "salt", "timber"]
+  }),
+  manualCity1522("Naha", "Japan", 26.2124, 127.6809, 8000, {
+    cityType: "east-asian",
+    manualRegion: "ryukyu-islands",
+    islandSettlement: true,
+    marketGoods: ["rice", "sulfur", "lacquerware"]
   }),
   manualVillage1522("Banda Village", "Indonesia", -4.5234, 129.9002, 3500, {
     cityType: "southeast-asian",
@@ -624,7 +672,7 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "southeast-asian",
     manualRegion: "explorer-encounters",
     islandSettlement: true,
-    marketGoods: ["fish", "cotton", "sugar"]
+    marketGoods: ["fish", "rice", "cotton"]
   }),
   manualVillage1522("Vaitahu Village", "French Polynesia", -9.9372, -139.111, 900, {
     cityType: "polynesian",

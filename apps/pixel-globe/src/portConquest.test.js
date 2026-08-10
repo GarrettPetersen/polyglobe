@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CAPITAL_PEACE_TERM_ANNEXATION,
+  CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE,
   CAPITAL_PEACE_TERM_CONCESSIONS,
   CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
+  CAPITAL_PEACE_TERM_TRIBUTARY,
   CAPITAL_PEACE_TERM_VASSALAGE,
   PORT_CONQUEST_MIN_CREW,
   applyPortConquestOwnership,
@@ -234,8 +236,18 @@ test("inland cities count against annexation even when the defeated power has fe
       0.2,
       { cities: [capital, porto, ...inlandCities] }
     ).term,
-    CAPITAL_PEACE_TERM_VASSALAGE
+    CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE
   );
+});
+
+test("capital peace can impose graded dependency terms", () => {
+  const memory = createPortConquestMemory();
+  const capital = city({ isFactionCapital: true, capitalOfFactionId: "portugal" });
+  const event = recordPortCapture(memory, capital, "england", 400, "npc");
+  const options = capitalPeaceTreatyOptions(memory, [capital], event);
+  assert.equal(options.terms.includes(CAPITAL_PEACE_TERM_VASSALAGE), true);
+  assert.equal(options.terms.includes(CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE), true);
+  assert.equal(options.terms.includes(CAPITAL_PEACE_TERM_TRIBUTARY), true);
 });
 
 test("decisive occupations can demand several coherent territorial concessions", () => {

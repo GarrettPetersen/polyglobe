@@ -1,6 +1,7 @@
 import { portEquipmentProsperity } from "./portEquipment.js";
 import { perkEffectLabels, validatePerkSource } from "./perkSystem.js";
 import { MATCHLOCKS_GOOD_ID, portMarket } from "./economy.js";
+import { isJapanesePolityFaction } from "./factions.js";
 import {
   MATCHLOCK_ARQUEBUSES_ITEM_ID,
   PORTABLE_WEAPON_ITEMS,
@@ -201,7 +202,7 @@ function itemMatchesPortRegion(entry, city) {
 
 function portHasRegion(city, region) {
   if (!city || typeof city !== "object") return false;
-  if (region === "japan") return city.factionId === "japan";
+  if (region === "japan") return isJapanesePolityFaction(city.factionId);
   if (region === "south-asia") return SOUTH_ASIAN_FACTIONS.has(city.factionId) || city.cityType === "south-asian";
   if (region === "europe") return EUROPEAN_FACTIONS.has(city.factionId);
   if (region === "england") return city.factionId === "england" || city.factionId === "scotland";

@@ -155,6 +155,17 @@ const CULTURES = Object.freeze({
     ["Abe", "Fujiwara", "Hojo", "Mori", "Oda", "Saito", "Shimazu", "Takeda", "Tokugawa", "Uesugi", "Yamamoto", "Yoshida"],
     "family-first"
   ),
+  ryukyuan: culture(
+    ["Choken", "Choshin", "Kanemaru", "Kochi", "Seishun", "Seisho", "Shin", "Urasoe"],
+    ["Manabe", "Mao", "Momoto", "Oto", "Umitukugani", "Urasoe", "Yona", "Yoshi"],
+    ["Ba", "Gushikawa", "Kin", "Kume", "Mao", "Nago", "Sai", "Sho"],
+    "family-first"
+  ),
+  ainu: culture(
+    ["Cikap", "Hucire", "Ikatobefu", "Koshamain", "Onibishi", "Samkusaynu", "Shakushain", "Tosaranku"],
+    ["Chikamaha", "Imekanu", "Kannari", "Monashinouku", "Peramonkoro", "Retar", "Sayo", "Tureshipa"],
+    ["Akan", "Akkeshi", "Hidaka", "Ishikari", "Kushiro", "Nemuro", "Saru", "Tokachi"]
+  ),
   korean: culture(
     ["Dong", "Gyeom", "Hwan", "Jin", "Jun", "Min", "Seong", "Sik", "Su", "Tae", "Won", "Yeong"],
     ["Eun", "Hwa", "Hye", "Ji", "Mi", "Ok", "Seon", "Suk", "Sun", "Yeon", "Yeong", "Yun"],
@@ -551,7 +562,9 @@ const CITY_CULTURES = new Map([
   ["gumarcaj", "maya"],
   ["guatemala city", "maya"],
   ["tzintzuntzan", "purepecha"],
-  ["veracruz", "spanish"]
+  ["veracruz", "spanish"],
+  ["naha", "ryukyuan"],
+  ["akkeshi kotan", "ainu"]
 ]);
 
 const FACTION_CULTURES = new Map([
@@ -573,6 +586,10 @@ const FACTION_CULTURES = new Map([
   ["muscovy", "russian"],
   ["poland-lithuania", "polish"],
   ["crimea", "crimeanTatar"],
+  ["wallachia", "romanian"],
+  ["moldavia", "romanian"],
+  ["ragusa", "slavic"],
+  ["hejaz", "arabic"],
   ["sweden", "nordic"],
   ["denmark-norway", "nordic"],
   ["songhai", "mande"],
@@ -587,6 +604,16 @@ const FACTION_CULTURES = new Map([
   ["ternate", "malukan"],
   ["tidore", "malukan"],
   ["japan", "japanese"],
+  ["hosokawa", "japanese"],
+  ["ouchi", "japanese"],
+  ["shimazu", "japanese"],
+  ["so", "japanese"],
+  ["shoni", "japanese"],
+  ["nagao", "japanese"],
+  ["ando", "japanese"],
+  ["kakizaki", "japanese"],
+  ["ryukyu", "ryukyuan"],
+  ["ainu", "ainu"],
   ["joseon", "korean"]
 ]);
 

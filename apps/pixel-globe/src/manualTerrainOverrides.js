@@ -38,6 +38,24 @@ export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
       elevation: -0.03629907425729602,
       landmassId: 57
     }),
+    // Okinawa (Naha). The base bake misclassifies the island's southwest tile
+    // as a lake while retaining the northeast tile as landmass 555.
+    Object.freeze({
+      tileId: 64993,
+      sourceTerrain: "lake",
+      terrainType: "humid_subtropical_hot",
+      elevation: -0.03,
+      landmassId: 555
+    }),
+    // Tsushima (Fuchu). Its southern settlement tile belongs to the same
+    // island as the surviving northern land tile in the base bake.
+    Object.freeze({
+      tileId: 65413,
+      sourceTerrain: "lake",
+      terrainType: "humid_subtropical_hot",
+      elevation: -0.03,
+      landmassId: 504
+    }),
     // Banda Islands
     Object.freeze({
       tileId: 91800,
@@ -126,12 +144,28 @@ export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
       elevation: -0.042,
       landmassId: 1280
     }),
-    // Rapa Nui
+    // Rapa Nui village
     Object.freeze({
       tileId: 141773,
       sourceTerrain: "water",
       terrainType: "tropical_savanna",
       elevation: -0.02,
+      landmassId: 1281
+    }),
+    // Eastern Rapa Nui, separating the village from the monument grounds.
+    Object.freeze({
+      tileId: 141771,
+      sourceTerrain: "water",
+      terrainType: "tropical_savanna",
+      elevation: -0.024,
+      landmassId: 1281
+    }),
+    // The Moai grounds on Rapa Nui's eastern end.
+    Object.freeze({
+      tileId: 8932,
+      sourceTerrain: "water",
+      terrainType: "tropical_savanna",
+      elevation: -0.026,
       landmassId: 1281
     }),
     // Guanahani

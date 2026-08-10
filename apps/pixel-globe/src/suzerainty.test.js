@@ -2,16 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
   SUZERAINTY_KIND_PERSONAL_UNION,
   SUZERAINTY_KIND_TRIBUTARY,
   createSuzeraintyMemory,
   directSuzeraintyBetween,
+  defensivePartnersOf,
   establishSuzerainty,
   foreignPolicyPrincipal,
+  migrateSuzeraintyMemory,
+  offensivePartnersOf,
   releaseFactionSuzerainties,
   releaseFactionPersonalUnions,
   releaseVassal,
   suzerainForFaction,
+  suzeraintyTermsForRelationship,
   suzeraintyTradePrivilege,
   validateSuzeraintyMemory,
   vassalsOf
@@ -25,14 +30,41 @@ test("the 1522 world begins with historically grounded suzerainties", () => {
   assert.equal(suzerainForFaction(memory, "spain"), "habsburg");
   assert.equal(directSuzeraintyBetween(memory, "ming", "joseon").kind, SUZERAINTY_KIND_TRIBUTARY);
   assert.equal(
+    directSuzeraintyBetween(memory, "ottoman", "wallachia").kind,
+    SUZERAINTY_KIND_AUTONOMOUS_VASSAL
+  );
+  assert.equal(
     directSuzeraintyBetween(memory, "spain", "habsburg").kind,
     SUZERAINTY_KIND_PERSONAL_UNION
   );
-  assert.equal(foreignPolicyPrincipal(memory, "crimea"), "ottoman");
+  assert.equal(foreignPolicyPrincipal(memory, "crimea"), "crimea");
   assert.equal(foreignPolicyPrincipal(memory, "spain"), "habsburg");
   assert.deepEqual(vassalsOf(memory, "portugal"), ["hormuz"]);
   assert.equal(vassalsOf(memory, "habsburg").includes("spain"), false);
+  assert.equal(vassalsOf(memory, "ming").includes("joseon"), false);
+  assert.deepEqual(defensivePartnersOf(memory, "wallachia"), ["ottoman"]);
+  assert.equal(defensivePartnersOf(memory, "ryukyu").includes("ming"), false);
+  assert.equal(suzeraintyTermsForRelationship(memory.byVassalId.wallachia).tribute, true);
+  assert.equal(suzeraintyTermsForRelationship(memory.byVassalId.crimea).tribute, false);
+  assert.equal(suzeraintyTermsForRelationship(memory.byVassalId.hejaz).tribute, false);
+  assert.deepEqual(offensivePartnersOf(memory, "ottoman"), ["crimea"]);
+  assert.deepEqual(offensivePartnersOf(memory, "portugal"), ["hormuz"]);
   validateSuzeraintyMemory(JSON.parse(JSON.stringify(memory)));
+});
+
+test("legacy suzerainties do not revive collapsed powers or their dependencies", () => {
+  const saved = createSuzeraintyMemory(0);
+  const migrated = migrateSuzeraintyMemory(saved, 0, {
+    inactiveFactionIds: ["ottoman"]
+  });
+
+  assert.equal(migrated.byVassalId.crimea, undefined);
+  assert.equal(migrated.byVassalId.wallachia, undefined);
+  assert.equal(migrated.byVassalId.moldavia, undefined);
+  assert.equal(migrated.byVassalId.hejaz, undefined);
+  assert.equal(migrated.byVassalId.ragusa, undefined);
+  assert.equal(suzerainForFaction(migrated, "joseon"), "ming");
+  assert.equal(suzerainForFaction(migrated, "spain"), "habsburg");
 });
 
 test("vassal customs favor the suzerain while tribute trade is reciprocal", () => {

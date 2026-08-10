@@ -152,10 +152,16 @@ test("generic fish cargo uses the native-size herring art", () => {
   });
 });
 
-test("grain and scavenged food use full-size cargo art", async () => {
+test("grain, rice, and scavenged food use full-size cargo art", async () => {
   assert.deepEqual(GAME_ICON_SOURCES["good:grain"], {
     packId: "keifoo",
     entry: "99_ingredients/ingredients_png/grains_png/wheat.png",
+    crop: null,
+    paperOutline: true
+  });
+  assert.deepEqual(GAME_ICON_SOURCES["good:rice"], {
+    packId: "keifoo",
+    entry: "99_ingredients/ingredients_png/grains_png/rice.png",
     crop: null,
     paperOutline: true
   });
@@ -172,6 +178,11 @@ test("grain and scavenged food use full-size cargo art", async () => {
       `${iconId} incorrectly uses a compact HUD sprite`
     );
   }
+  const riceHudIcon = await loadImage(join(appRoot, "public/assets/misc/rice.png"));
+  assert.deepEqual(
+    { width: riceHudIcon.width, height: riceHudIcon.height },
+    { width: 6, height: 6 }
+  );
 });
 
 test("interface controls use varied dark Resurrect colors without outlines", () => {

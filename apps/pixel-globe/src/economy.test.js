@@ -25,6 +25,7 @@ import {
   INDIGO_GOOD_ID,
   PAPER_GOOD_ID,
   PRINTED_BOOKS_GOOD_ID,
+  RICE_GOOD_ID,
   SULFUR_GOOD_ID,
   TRADE_GOODS,
   WINE_GOOD_ID,
@@ -77,6 +78,7 @@ const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "vi
 const COLOMBO = port(9, "Colombo", "Sri Lanka", "south-asian", 12000);
 const MALACCA = port(10, "Malacca", "Malaysia", "southeast-asian", 90000);
 const KYOTO = port(11, "Kyoto", "Japan", "east-asian", 100000);
+const AYUTTHAYA = port(14, "Ayutthaya", "Thailand", "southeast-asian", 90000);
 const HAVANA = port(12, "Havana", "Cuba", "mediterranean", 8000);
 const SANTO_DOMINGO = port(13, "Santo Domingo", "Dominican Republic", "mediterranean", 20000);
 const CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
@@ -163,7 +165,7 @@ test("voyage seeds vary initial markets while remaining deterministic", () => {
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [
-    "hardtack", "grain", "fish", "timber", COAL_GOOD_ID, "arms", "wool-cloth", "silk-cloth", "pepper",
+    "hardtack", "grain", RICE_GOOD_ID, "fish", "timber", COAL_GOOD_ID, "arms", "wool-cloth", "silk-cloth", "pepper",
     BEAVER_PELTS_GOOD_ID, HIDES_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
     GINGER_GOOD_ID, INDIGO_GOOD_ID,
     AMBER_GOOD_ID, FURS_GOOD_ID, BEESWAX_GOOD_ID, NAVAL_STORES_GOOD_ID,
@@ -180,6 +182,27 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   assert.equal(coal.initialImportStockRatio, 0.08);
   assert.equal(ids.has("spices"), false);
   assert.equal(ids.size, TRADE_GOODS.length);
+});
+
+test("rice is an edible Asian staple with especially strong production at rice ports", () => {
+  const economy = createWorldEconomy({
+    ports: [LONDON, GOA, MALACCA, GUANGZHOU, AYUTTHAYA],
+    startMinute: 0
+  });
+  const rice = tradeGoodById(RICE_GOOD_ID);
+
+  assert.equal(rice.category, "food");
+  assert.equal(rice.unitSize, 1);
+  assert.equal(marketByGood(economy, LONDON).get(RICE_GOOD_ID).productionPerDay, 0);
+  for (const city of [GOA, MALACCA, GUANGZHOU, AYUTTHAYA]) {
+    const market = marketByGood(economy, city).get(RICE_GOOD_ID);
+    assert.ok(market.productionPerDay > 0, city.city);
+    assert.equal(market.listedForSale, true, city.city);
+  }
+  assert.ok(
+    marketByGood(economy, AYUTTHAYA).get(RICE_GOOD_ID).productionPerDay >
+      marketByGood(economy, MALACCA).get(RICE_GOOD_ID).productionPerDay
+  );
 });
 
 test("Southeast Asia exports ginger while Caribbean colonies begin with sugar and indigo", () => {
@@ -1309,6 +1332,7 @@ test("older economy snapshots initialize newly added trade goods without changin
     PRINTED_BOOKS_GOOD_ID,
     LACQUERWARE_GOOD_ID,
     GINSENG_GOOD_ID,
+    RICE_GOOD_ID,
     SULFUR_GOOD_ID,
     COAL_GOOD_ID
   ]);

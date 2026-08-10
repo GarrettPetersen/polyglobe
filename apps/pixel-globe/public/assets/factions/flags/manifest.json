@@ -13,12 +13,13 @@
     "period-ceremonial-reconstruction": "Period ceremonial devices combined into a game identifier.",
     "period-emblem": "Contemporary state, city, or dynastic emblem rendered as a banner.",
     "documented-royal-standard": "A royal standard described in early colonial-era textual evidence.",
+    "dynastic-heraldry": "A ruling dynasty's documented emblem, adapted into a compact game banner.",
+    "period-royal-standard": "A traditional royal standard rather than a national flag.",
     "period-regional-emblem": "A period regional device used as the closest dynastic equivalent.",
     "period-banner-tradition": "A reconstruction from a documented period banner tradition.",
     "period-numismatic-emblem": "Exact-period coin imagery used where no flag survives.",
     "later-traditional-ensign": "The earliest known later ensign, clearly marked as post-1522.",
     "period-clan-heraldry": "Contemporary clan arms used in place of a national flag.",
-    "period-royal-standard": "A traditional royal standard rather than a national flag.",
     "reconstruction": "No secure period flag survives; the image is an explicit game reconstruction."
   },
   "factions": [
@@ -322,6 +323,70 @@
       ]
     },
     {
+      "id": "wallachia",
+      "factionName": "Principality of Wallachia",
+      "width": 32,
+      "height": 20,
+      "file": "wallachia.png",
+      "evidence": "period-heraldry",
+      "representation": "Wallachian eagle",
+      "accuracyNote": "The eagle was the established device of Wallachian princely seals. The field and compact cross are reconstructed for legibility at game scale.",
+      "sources": [
+        {
+          "label": "Wallachian heraldry",
+          "url": "https://en.wikipedia.org/wiki/Coat_of_arms_of_Wallachia"
+        }
+      ]
+    },
+    {
+      "id": "moldavia",
+      "factionName": "Principality of Moldavia",
+      "width": 32,
+      "height": 20,
+      "file": "moldavia.png",
+      "evidence": "period-heraldry",
+      "representation": "Moldavian aurochs",
+      "accuracyNote": "The aurochs head was the established emblem of the Moldavian principality and appears on medieval seals and coinage.",
+      "sources": [
+        {
+          "label": "Moldavian heraldry",
+          "url": "https://en.wikipedia.org/wiki/Coat_of_arms_of_Moldavia"
+        }
+      ]
+    },
+    {
+      "id": "ragusa",
+      "factionName": "Republic of Ragusa",
+      "width": 32,
+      "height": 20,
+      "file": "ragusa.png",
+      "evidence": "period-heraldry",
+      "representation": "Ragusan red and silver bars",
+      "accuracyNote": "The Republic used the red and silver bars of its civic arms. This rectangular maritime rendering is a period-heraldic identifier rather than a modern national flag.",
+      "sources": [
+        {
+          "label": "Republic of Ragusa heraldry",
+          "url": "https://en.wikipedia.org/wiki/Republic_of_Ragusa"
+        }
+      ]
+    },
+    {
+      "id": "hejaz",
+      "factionName": "Sharifate of Mecca",
+      "width": 32,
+      "height": 20,
+      "file": "hejaz.png",
+      "evidence": "reconstruction",
+      "representation": "Sharifian Mecca standard",
+      "accuracyNote": "No secure 1522 state flag was found for the Sharifate. This restrained green, gold, and white standard identifies the holy cities without using the later Arab Revolt flag.",
+      "sources": [
+        {
+          "label": "Sharifate of Mecca",
+          "url": "https://en.wikipedia.org/wiki/Sharifate_of_Mecca"
+        }
+      ]
+    },
+    {
       "id": "poland-lithuania",
       "factionName": "Polish-Lithuanian Union",
       "width": 32,
@@ -554,6 +619,166 @@
         {
           "label": "Ashikaga clan futatsuhikiryo",
           "url": "https://www.paxhistoria.co/flags/6a77b848-9ef3-444f-b1be-7f3166b633e4"
+        }
+      ]
+    },
+    {
+      "id": "hosokawa",
+      "factionName": "Hosokawa House",
+      "width": 32,
+      "height": 20,
+      "file": "hosokawa.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "Hosokawa nine-stars mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "ouchi",
+      "factionName": "Ouchi House",
+      "width": 32,
+      "height": 20,
+      "file": "ouchi.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "Ouchi diamond mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "shimazu",
+      "factionName": "Shimazu House",
+      "width": 32,
+      "height": 20,
+      "file": "shimazu.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "Shimazu cross-in-circle mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "so",
+      "factionName": "So House",
+      "width": 32,
+      "height": 20,
+      "file": "so.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "So four-eyes mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "shoni",
+      "factionName": "Shoni House",
+      "width": 32,
+      "height": 20,
+      "file": "shoni.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "Shoni knot mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "nagao",
+      "factionName": "Echigo Nagao House",
+      "width": 32,
+      "height": 20,
+      "file": "nagao.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "Nagao nine-suns mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "ando",
+      "factionName": "Ando House",
+      "width": 32,
+      "height": 20,
+      "file": "ando.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "Ando rising-sun mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "kakizaki",
+      "factionName": "Kakizaki House",
+      "width": 32,
+      "height": 20,
+      "file": "kakizaki.png",
+      "evidence": "period-clan-heraldry",
+      "representation": "Kakizaki crossed-diamond mon",
+      "accuracyNote": "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+      "sources": [
+        {
+          "label": "Japanese heraldic emblems",
+          "url": "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670"
+        }
+      ]
+    },
+    {
+      "id": "ryukyu",
+      "factionName": "Kingdom of Ryukyu",
+      "width": 32,
+      "height": 20,
+      "file": "ryukyu.png",
+      "evidence": "dynastic-heraldry",
+      "representation": "Sho dynasty hidari-gomon",
+      "accuracyNote": "The threefold swirling crest is associated with the Sho dynasty. Its use as a rectangular royal maritime banner is a game-facing reconstruction.",
+      "sources": [
+        {
+          "label": "Ryukyu Kingdom",
+          "url": "https://oki-park.jp/shurijo/en/info/6466/6467"
+        }
+      ]
+    },
+    {
+      "id": "ainu",
+      "factionName": "Ainu Communities",
+      "width": 32,
+      "height": 20,
+      "file": "ainu.png",
+      "evidence": "reconstruction",
+      "representation": "Ainu textile-motif identifier",
+      "accuracyNote": "Ainu communities had no centralized state flag. This is explicitly a game identifier built from traditional angular textile motifs, not a claimed historical national banner.",
+      "sources": [
+        {
+          "label": "Hokkaido Museum Ainu culture overview",
+          "url": "https://www.hm.pref.hokkaido.lg.jp/wp-content/themes/hokkaidomuseum/images/forign_pdf/ENG-1-3.pdf"
         }
       ]
     },

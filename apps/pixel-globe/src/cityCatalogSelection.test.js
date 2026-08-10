@@ -264,7 +264,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const mecca = placed.find((city) => city.city === "Mecca" && city.country === "Saudi Arabia");
   assert.ok(mecca, "expected Mecca to remain in the 1522 city catalog");
   assert.equal(mecca.dockable, false, "Mecca should be inland, with Jeddah as its sea gateway");
-  assert.equal(mecca.factionId, "ottoman", "Mecca should reflect Ottoman rule of the Hejaz in 1522");
+  assert.equal(mecca.factionId, "hejaz", "Mecca should retain its Sharif under Ottoman protection in 1522");
   for (const city of [
     "Bristol",
     "Exeter",
@@ -291,10 +291,10 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(edo, "Edo should be a dockable village in Tokyo Bay");
   assert.equal(edo.settlementType, "village");
   assert.equal(edo.factionId, "japan");
-  assert.deepEqual(edo.marketGoods, ["fish", "grain", "timber"]);
+  assert.deepEqual(edo.marketGoods, ["fish", "rice", "timber"]);
   assert.ok(nagasaki, "Nagasaki should begin as a dockable Japanese fishing village");
   assert.equal(nagasaki.settlementType, "village");
-  assert.equal(nagasaki.factionId, "japan");
+  assert.equal(nagasaki.factionId, "shoni");
   assert.equal(nagasaki.population, 600);
   assert.deepEqual(nagasaki.marketGoods, ["fish", "timber", "salt"]);
   assert.equal(greatLakesVillages.length, 1, "the Great Lakes should have one dockable Wendat village");

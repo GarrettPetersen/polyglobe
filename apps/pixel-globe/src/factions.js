@@ -36,6 +36,10 @@ export const FACTIONS = Object.freeze([
   faction("safavid", "Safavid Empire", "Safavid Persia", "Safavid", "empire"),
   faction("muscovy", "Grand Duchy of Muscovy", "Muscovy", "Muscovite", "duchy"),
   faction("crimea", "Crimean Khanate", "Crimea", "Crimean", "khanate"),
+  faction("wallachia", "Principality of Wallachia", "Wallachia", "Wallachian", "principality"),
+  faction("moldavia", "Principality of Moldavia", "Moldavia", "Moldavian", "principality"),
+  faction("ragusa", "Republic of Ragusa", "Ragusa", "Ragusan", "republic"),
+  faction("hejaz", "Sharifate of Mecca", "Hejaz", "Hejaz", "sharifate", "the"),
   faction("poland-lithuania", "Polish-Lithuanian Union", "Poland-Lithuania", "Polish-Lithuanian", "union"),
   faction("sweden", "Kingdom of Sweden", "Sweden", "Swedish", "kingdom"),
   faction("denmark-norway", "Denmark-Norway", "Denmark-Norway", "Dano-Norwegian", "union"),
@@ -50,8 +54,28 @@ export const FACTIONS = Object.freeze([
   faction("ternate", "Sultanate of Ternate", "Ternate", "Ternatan", "sultanate"),
   faction("tidore", "Sultanate of Tidore", "Tidore", "Tidorese", "sultanate"),
   faction("japan", "Ashikaga Japan", "Japan", "Japanese", "shogunate"),
+  faction("hosokawa", "Hosokawa House", "Hosokawa", "Hosokawa", "daimyo"),
+  faction("ouchi", "Ouchi House", "Ouchi", "Ouchi", "daimyo"),
+  faction("shimazu", "Shimazu House", "Shimazu", "Shimazu", "daimyo"),
+  faction("so", "So House", "So", "So", "daimyo"),
+  faction("shoni", "Shoni House", "Shoni", "Shoni", "daimyo"),
+  faction("nagao", "Echigo Nagao House", "Nagao", "Nagao", "daimyo"),
+  faction("ando", "Ando House", "Ando", "Ando", "daimyo"),
+  faction("kakizaki", "Kakizaki House", "Kakizaki", "Kakizaki", "daimyo"),
+  faction("ryukyu", "Kingdom of Ryukyu", "Ryukyu", "Ryukyuan", "kingdom"),
+  faction("ainu", "Ainu Communities", "Ainu Mosir", "Ainu", "communities"),
   faction("joseon", "Joseon", "Joseon", "Joseon", "kingdom")
 ]);
+
+export const JAPANESE_POLITY_FACTION_IDS = Object.freeze([
+  "japan", "hosokawa", "ouchi", "shimazu", "so", "shoni", "nagao", "ando", "kakizaki"
+]);
+
+const JAPANESE_POLITY_FACTION_ID_SET = new Set(JAPANESE_POLITY_FACTION_IDS);
+
+export function isJapanesePolityFaction(factionId) {
+  return JAPANESE_POLITY_FACTION_ID_SET.has(factionId);
+}
 
 const FACTIONS_BY_ID = new Map(FACTIONS.map((item) => [item.id, item]));
 const RETIRED_FACTION_SUCCESSORS_1522 = Object.freeze({ aztec: "spain" });
@@ -83,6 +107,10 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
     population: 7000
   }),
   capital("crimea", "Bakhchiserai", "Ukraine"),
+  capital("wallachia", "Braila", "Romania", { seatCity: "Targoviste" }),
+  capital("moldavia", "Galati", "Romania", { seatCity: "Suceava" }),
+  capital("ragusa", "Ragusa", "Croatia"),
+  capital("hejaz", "Jeddah", "Saudi Arabia", { seatCity: "Mecca" }),
   capital("poland-lithuania", "Krakow", "Poland"),
   capital("sweden", "Soderkoping", "Sweden"),
   capital("denmark-norway", "Roskilde", "Denmark"),
@@ -101,6 +129,16 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("ternate", "Ternate", "Indonesia"),
   capital("tidore", "Tidore", "Indonesia"),
   capital("japan", "Kyoto", "Japan"),
+  capital("hosokawa", "Sakai", "Japan"),
+  capital("ouchi", "Yamaguchi", "Japan"),
+  capital("shimazu", "Kagoshima", "Japan"),
+  capital("so", "Tsushima Fuchu", "Japan"),
+  capital("shoni", "Nagasaki", "Japan"),
+  capital("nagao", "Naoetsu", "Japan", { seatCity: "Kasugayama" }),
+  capital("ando", "Tsuchizaki Minato", "Japan", { seatCity: "Hiyama" }),
+  capital("kakizaki", "Kaminokuni", "Japan"),
+  capital("ryukyu", "Naha", "Japan", { seatCity: "Shuri" }),
+  capital("ainu", "Akkeshi Kotan", "Japan"),
   capital("joseon", "Seoul", "Republic of Korea")
 ]);
 
@@ -147,10 +185,24 @@ const FRIENDSHIPS_1522 = Object.freeze([
   ["portugal", "ayutthaya"],
   ["ottoman", "gujarat"],
   ["ottoman", "crimea"],
+  ["ottoman", "hejaz"],
+  ["ottoman", "ragusa"],
   ["ming", "ayutthaya"],
+  ["ming", "ryukyu"],
   ["spain", "tidore"],
   ["habsburg", "tidore"],
   ["japan", "joseon"],
+  ["japan", "ryukyu"],
+  ["japan", "hosokawa"],
+  ["japan", "ouchi"],
+  ["japan", "shimazu"],
+  ["japan", "so"],
+  ["japan", "shoni"],
+  ["japan", "nagao"],
+  ["japan", "ando"],
+  ["japan", "kakizaki"],
+  ["so", "joseon"],
+  ["ando", "kakizaki"],
   ["bengal", "ayutthaya"]
 ]);
 
@@ -158,11 +210,16 @@ const HOSTILITIES_1522 = Object.freeze([
   ["ottoman", "habsburg"],
   ["ottoman", "spain"],
   ["ottoman", "papal-states"],
+  ["ottoman", "wallachia"],
   ["venice", "genoa"],
   ["spain", "morocco"],
   ["habsburg", "morocco"],
   ["sweden", "habsburg"],
   ["ming", "japan"],
+  ["japan", "ainu"],
+  ["ouchi", "hosokawa"],
+  ["ouchi", "shoni"],
+  ["kakizaki", "ainu"],
   ["bengal", "delhi"],
   ["ternate", "spain"],
   ["ternate", "habsburg"],
@@ -227,7 +284,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   // Charles V did not grant Malta to the displaced Hospitallers until 1530.
   // In 1522 Birgu remains Spanish while the order still rules Rhodes.
   cityRule("Birgu", "Malta", "spain"),
-  cityRule("Ragusa", "Croatia", NEUTRAL_FACTION_ID),
+  cityRule("Ragusa", "Croatia", "ragusa"),
 
   cityRule("Kerkira", "Greece", "venice"),
   cityRule("Gortyn", "Greece", "venice"),
@@ -255,8 +312,22 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Veracruz", "Mexico", "spain"),
 
   cityRule("Baghdad", "Iraq", "safavid"),
-  cityRule("Jeddah", "Saudi Arabia", "ottoman"),
-  cityRule("Mecca", "Saudi Arabia", "ottoman"),
+  cityRule("Jeddah", "Saudi Arabia", "hejaz"),
+  cityRule("Mecca", "Saudi Arabia", "hejaz"),
+  cityRule("Braila", "Romania", "wallachia"),
+  cityRule("Galati", "Romania", "moldavia"),
+
+  cityRule("Naha", "Japan", "ryukyu"),
+  cityRule("Akkeshi Kotan", "Japan", "ainu"),
+  cityRule("Sakai", "Japan", "hosokawa"),
+  cityRule("Yamaguchi", "Japan", "ouchi"),
+  cityRule("Fukuoka", "Japan", "ouchi"),
+  cityRule("Kagoshima", "Japan", "shimazu"),
+  cityRule("Tsushima Fuchu", "Japan", "so"),
+  cityRule("Nagasaki", "Japan", "shoni"),
+  cityRule("Naoetsu", "Japan", "nagao"),
+  cityRule("Tsuchizaki Minato", "Japan", "ando"),
+  cityRule("Kaminokuni", "Japan", "kakizaki"),
 
   cityRule("Sarai", "Russian Federation", NEUTRAL_FACTION_ID),
   cityRule("Astrakhan", "Russian Federation", NEUTRAL_FACTION_ID),
@@ -404,6 +475,7 @@ export function markFactionCapitalsOnPorts(ports) {
     }
     port.isFactionCapital = true;
     port.capitalOfFactionId = capitalSpec.factionId;
+    port.capitalSeatName = capitalSpec.seatCity;
     capitalPorts.set(capitalSpec.factionId, port);
   }
 
@@ -450,7 +522,8 @@ function capital(factionId, city, country, details = {}) {
     country,
     lat: details.lat,
     lon: details.lon,
-    population: details.population
+    population: details.population,
+    seatCity: details.seatCity || city
   });
 }
 

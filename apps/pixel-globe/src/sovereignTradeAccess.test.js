@@ -19,6 +19,7 @@ import {
   createSovereignTradeGrantMemory,
   evaluateSovereignTradeAccess,
   grantPersonalTradePass,
+  migrateSovereignTradeGrantMemory,
   personalTradePassGranted,
   resolveSovereignIllicitMarketAttempt,
   sovereignTradeGrantedToFaction,
@@ -71,6 +72,7 @@ test("the Indies monopoly follows Spanish conquest rather than a fixed colonial 
 test("default permissions preserve tribute and licensed regional traffic", () => {
   const grants = createSovereignTradeGrantMemory();
   assert.equal(sovereignTradeGrantedToFaction(grants, MING_TRADE_POLICY_ID, "joseon"), true);
+  assert.equal(sovereignTradeGrantedToFaction(grants, MING_TRADE_POLICY_ID, "ryukyu"), true);
   assert.equal(sovereignTradeGrantedToFaction(grants, MING_TRADE_POLICY_ID, "england"), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, JOSEON_TRADE_POLICY_ID, "ming"), true);
   assert.equal(sovereignTradeGrantedToFaction(grants, JOSEON_TRADE_POLICY_ID, "japan"), true);
@@ -78,6 +80,16 @@ test("default permissions preserve tribute and licensed regional traffic", () =>
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "spain"), true);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "habsburg"), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "portugal"), false);
+});
+
+test("saved Ming grants gain newly recognized historical tributary exemptions", () => {
+  const migrated = migrateSovereignTradeGrantMemory({
+    [MING_TRADE_POLICY_ID]: ["joseon"],
+    [JOSEON_TRADE_POLICY_ID]: ["japan", "ming"],
+    [SPANISH_INDIES_TRADE_POLICY_ID]: []
+  });
+
+  assert.equal(sovereignTradeGrantedToFaction(migrated, MING_TRADE_POLICY_ID, "ryukyu"), true);
 });
 
 test("Charles V's dynastic union does not open the Castilian Indies monopoly", () => {

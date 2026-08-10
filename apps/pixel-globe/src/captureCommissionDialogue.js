@@ -24,6 +24,10 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
   safavid: "The Safavid court still commands Persia's royal roads and the loyalty of its warrior households.",
   muscovy: "The Muscovite court still gathers the northern rivers and frontier garrisons beneath one authority.",
   crimea: "The Crimean court still commands the steppe roads and the northern shores of the Black Sea.",
+  wallachia: "The Wallachian court still commands the lower Danube crossings and the loyalty of its boyars.",
+  moldavia: "The Moldavian court still commands the eastern Carpathian passes and the fortresses above the Danube.",
+  ragusa: "The Ragusan councils still guard the Adriatic customs, merchant fleet, and republic's careful diplomacy.",
+  hejaz: "The Sharif's court still guards the Holy Cities and the pilgrimage roads of the Hejaz.",
   "poland-lithuania": "The union's court still joins Baltic trade, broad riverlands, and powerful frontier hosts.",
   sweden: "The Swedish regency still binds the rebel ports, mining country, and a fleet bought on Lubeck credit.",
   "denmark-norway": "The Dano-Norwegian court still commands the Sound dues and the sea roads of the north.",
@@ -38,7 +42,17 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
   ternate: "The Ternatan court still commands clove islands whose harvest can finance another fleet.",
   tidore: "The Tidorese court still commands clove islands and alliances across the eastern archipelago.",
   japan: "The Japanese court still lends legitimacy to the lords, ports, and sea roads of the archipelago.",
-  joseon: "The Joseon court still commands the royal granaries, coastal defenses, and the peninsula's officials."
+  hosokawa: "The Hosokawa council still commands Sakai's wealth and its claim to direct the shogunate.",
+  ouchi: "The Ouchi court still commands Yamaguchi, western sea roads, and privileged traffic with Ming China.",
+  shimazu: "The Shimazu house still commands Satsuma's warriors and the southern approaches to the archipelago.",
+  so: "The So house still commands Tsushima's straits, pilots, and licensed trade with Joseon.",
+  shoni: "The Shoni house still claims northern Kyushu through Hakata's merchants and Dazaifu's old authority.",
+  nagao: "The Nagao house still commands Echigo's coast, Kasugayama, and the roads across the northern mountains.",
+  ando: "The Ando house still commands the northern ports and much of the trade between Honshu and Ezo.",
+  kakizaki: "The Kakizaki house still holds the southern Ezo settlements through forts, trade, and Ando patronage.",
+  joseon: "The Joseon court still commands the royal granaries, coastal defenses, and the peninsula's officials.",
+  ryukyu: "The Ryukyuan court at Shuri still binds the island lords and the kingdom's maritime trade together.",
+  ainu: "The kotan elders still command the coastal hunting grounds and the loyalty of their trading households."
 });
 
 const PAIR_GRIEVANCES = Object.freeze({
@@ -54,6 +68,12 @@ const PAIR_GRIEVANCES = Object.freeze({
   "hospitallers>ottoman": "Suleiman has gathered a great armada to extinguish the Order's island stronghold.",
   "japan>joseon": "Joseon closed the Three Ports after the rising and sharply curtailed Tsushima's licensed trade.",
   "joseon>japan": "Japanese residents rose in the Three Ports, while raiders continue to trouble Joseon's coast.",
+  "ouchi>hosokawa": "The Ouchi challenge Hosokawa control of the shogunal government and the wealth of Sakai.",
+  "hosokawa>ouchi": "The Ouchi intervention in Kyoto threatens Hosokawa authority over the shogunal government.",
+  "ouchi>shoni": "The Shoni claim northern Kyushu against Ouchi armies and the merchants who support them.",
+  "shoni>ouchi": "Ouchi expansion from Yamaguchi presses upon the Shoni lands and Hakata's trade.",
+  "kakizaki>ainu": "Kakizaki forts and trading terms press upon the Ainu communities of southern Ezo.",
+  "ainu>kakizaki": "Kakizaki forts and merchants encroach upon Ainu fisheries, hunting grounds, and trade.",
   "portugal>ming": "Ming officials expelled the Portuguese from Tunmen and closed the China coast to their fleet.",
   "ming>portugal": "Portuguese captains fortified Tunmen without leave and resisted the lawful order to depart.",
   "muscovy>poland-lithuania": "Poland-Lithuania holds Smolensk and contests the borderlands claimed by Muscovy.",

@@ -75,12 +75,23 @@ export function createOnDemandAssetStore({ label, load }) {
       .map(([key]) => key);
   }
 
+  function clearErrors() {
+    let cleared = 0;
+    for (const [key, record] of records.entries()) {
+      if (record.status !== "error") continue;
+      records.delete(key);
+      cleared++;
+    }
+    return cleared;
+  }
+
   return Object.freeze({
     request,
     requestAll,
     peek,
     require: requireAsset,
     status,
-    residentKeys
+    residentKeys,
+    clearErrors
   });
 }

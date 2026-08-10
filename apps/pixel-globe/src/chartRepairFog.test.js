@@ -240,12 +240,13 @@ test("polar repair pressure rises only where polar fog is climatically plausible
     elapsedSeconds: 0.5,
     ...metrics
   }), 0);
-  assert.equal(nextPolarChartRepairPressure({
+  const inheritedPolarCover = nextPolarChartRepairPressure({
     currentPressure: 0,
     latitudeDeg: 67,
     elapsedSeconds: 0.5,
     ...metrics
-  }), 0.012);
+  });
+  assert.ok(inheritedPolarCover > 0.5 && inheritedPolarCover < 0.75);
   assert.equal(nextPolarChartRepairPressure({
     currentPressure: 0,
     latitudeDeg: 67,

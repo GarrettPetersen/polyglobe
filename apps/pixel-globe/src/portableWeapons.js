@@ -1,5 +1,6 @@
 import { shipMinimumCrew } from "./shipLoadouts.js";
 import { effectiveCrewHitChance } from "./combatWounds.js";
+import { isJapanesePolityFaction } from "./factions.js";
 import {
   GRAMMATICAL_NUMBER_PLURAL,
   GRAMMATICAL_NUMBER_SINGULAR,
@@ -363,7 +364,7 @@ export function regionalStarterPortableWeaponItemIds({ factionId, cityType = nul
   if (factionId === "england" || factionId === "scotland") {
     return Object.freeze([ENGLISH_LONGBOWS_ITEM_ID]);
   }
-  if (factionId === "japan") return Object.freeze([YUMI_ITEM_ID]);
+  if (isJapanesePolityFaction(factionId)) return Object.freeze([YUMI_ITEM_ID]);
   if (EAST_ASIAN_CROSSBOW_FACTIONS.has(factionId)) return Object.freeze([CROSSBOWS_ITEM_ID]);
   if (ISLAMIC_BOW_FACTIONS.has(factionId) || SOUTH_ASIAN_FACTIONS.has(factionId) ||
       ["south-asian", "southeast-asian", "islamic-desert"].includes(cityType)) {

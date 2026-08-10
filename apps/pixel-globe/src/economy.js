@@ -47,6 +47,7 @@ const WORLD_MARKET_MEDIAN_CACHE = new WeakMap();
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
 export const FORAGED_FOOD_GOOD_ID = "foraged-food";
+export const RICE_GOOD_ID = "rice";
 export const WINE_GOOD_ID = "wine";
 export const WHALE_BLUBBER_GOOD_ID = "whale-blubber";
 export const BEAVER_PELTS_GOOD_ID = "beaver-pelts";
@@ -87,6 +88,7 @@ export const TRADE_GOODS = Object.freeze([
     sellable: false
   }),
   good("grain", "Grain", 8, "food"),
+  good(RICE_GOOD_ID, "Rice", 9, "food", { initialImportStockRatio: 0.08 }),
   good("fish", "Fish", 10, "food"),
   good(WHALE_BLUBBER_GOOD_ID, "Whale Blubber", 240, "material", { npcTrade: false }),
   good(BEAVER_PELTS_GOOD_ID, "Beaver Pelts", 120, "luxury"),
@@ -165,9 +167,9 @@ const REGION_PRODUCTION = Object.freeze({
   "northern-european": rates({ hardtack: 0.75, fish: 0.38, timber: 0.42, wool: 0.3, flax: 0.22, iron: 0.12, gunpowder: 0.04 }),
   mediterranean: rates({ hardtack: 0.7, grain: 0.7, fish: 0.35, wine: 0.62, "olive-oil": 0.56, salt: 0.2, gunpowder: 0.06 }),
   "islamic-desert": rates({ hardtack: 0.55, cotton: 0.38, "cotton-cloth": 0.16, carpets: 0.14, perfume: 0.1, gunpowder: 0.05 }),
-  "east-asian": rates({ hardtack: 0.55, grain: 0.7 }),
-  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 0.48, "cotton-cloth": 0.2, ginger: 0.12, dyes: 0.16, sugar: 0.12, gunpowder: 0.03 }),
-  "southeast-asian": rates({ hardtack: 0.55, fish: 0.5, timber: 0.4, sugar: 0.22, ginger: 0.18, dyes: 0.1, indigo: 0.08, gunpowder: 0.02 }),
+  "east-asian": rates({ hardtack: 0.55, grain: 0.2, rice: 0.72 }),
+  "south-asian": rates({ hardtack: 0.6, grain: 0.3, rice: 0.52, cotton: 0.48, "cotton-cloth": 0.2, ginger: 0.12, dyes: 0.16, sugar: 0.12, gunpowder: 0.03 }),
+  "southeast-asian": rates({ hardtack: 0.55, rice: 0.68, fish: 0.5, timber: 0.4, sugar: 0.22, ginger: 0.18, dyes: 0.1, indigo: 0.08, gunpowder: 0.02 }),
   polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
   mesoamerican: rates({
     hardtack: 0.45,
@@ -607,17 +609,19 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Panama City", ["gold"]),
   specialty("Beijing", [COAL_GOOD_ID, PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Taiyuan", [COAL_GOOD_ID]),
-  specialty("Hangzhou", ["silk", "silk-cloth"]),
+  specialty("Hangzhou", [RICE_GOOD_ID, "silk", "silk-cloth"]),
   specialty("Suzhou", ["silk", "silk-cloth"]),
   specialty("Jingdezhen", ["porcelain"]),
   specialty("Guangzhou", ["porcelain", "silk", "tea", GINGER_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Fuzhou", ["tea", PAPER_GOOD_ID, "porcelain"]),
   specialty("Tsinkiang", ["tea", "porcelain"]),
-  specialty("Nanjing", ["silk-cloth", PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Nanjing", [RICE_GOOD_ID, "silk-cloth", PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Chengdu", ["silk", PAPER_GOOD_ID]),
   specialty("Kaifeng", [PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID]),
   specialty("Xian", [PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID]),
-  specialty("Changsha", ["tea"]),
+  specialty("Changsha", [RICE_GOOD_ID, "tea"]),
+  specialty("Ayutthaya", [RICE_GOOD_ID]),
+  specialty("Pegu", [RICE_GOOD_ID]),
   specialty("Kaesong", [GINSENG_GOOD_ID, PAPER_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Seoul", [GINSENG_GOOD_ID, PAPER_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Gyeongju", [PAPER_GOOD_ID, LACQUERWARE_GOOD_ID]),

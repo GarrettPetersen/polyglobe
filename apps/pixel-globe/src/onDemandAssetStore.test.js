@@ -50,6 +50,22 @@ test("asset failures stay visible and are not silently retried", async () => {
   assert.equal(calls, 1);
 });
 
+test("failed assets retry only after an explicit error reset", async () => {
+  let calls = 0;
+  const store = createOnDemandAssetStore({
+    label: "ship",
+    load: async () => {
+      calls++;
+      if (calls === 1) throw new Error("offline");
+      return { ready: true };
+    }
+  });
+  await assert.rejects(store.request("galleon"), /offline/);
+  assert.equal(store.clearErrors(), 1);
+  assert.deepEqual(await store.request("galleon"), { ready: true });
+  assert.equal(calls, 2);
+});
+
 test("requestAll preserves requested order while deduplicating keys", async () => {
   const calls = [];
   const store = createOnDemandAssetStore({

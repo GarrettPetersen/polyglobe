@@ -95,6 +95,18 @@ const RESEARCH = Object.freeze([
   research("crimea", "period-emblem", "Giray tamga", "The Giray dynasty's tarak tamga is the strongest period identifier for the Crimean Khanate. The blue field is a game-facing banner reconstruction.", [
     source("Crimean Tatar tamga", "https://en.wikipedia.org/wiki/Taraq_Tamga")
   ]),
+  research("wallachia", "period-heraldry", "Wallachian eagle", "The eagle was the established device of Wallachian princely seals. The field and compact cross are reconstructed for legibility at game scale.", [
+    source("Wallachian heraldry", "https://en.wikipedia.org/wiki/Coat_of_arms_of_Wallachia")
+  ]),
+  research("moldavia", "period-heraldry", "Moldavian aurochs", "The aurochs head was the established emblem of the Moldavian principality and appears on medieval seals and coinage.", [
+    source("Moldavian heraldry", "https://en.wikipedia.org/wiki/Coat_of_arms_of_Moldavia")
+  ]),
+  research("ragusa", "period-heraldry", "Ragusan red and silver bars", "The Republic used the red and silver bars of its civic arms. This rectangular maritime rendering is a period-heraldic identifier rather than a modern national flag.", [
+    source("Republic of Ragusa heraldry", "https://en.wikipedia.org/wiki/Republic_of_Ragusa")
+  ]),
+  research("hejaz", "reconstruction", "Sharifian Mecca standard", "No secure 1522 state flag was found for the Sharifate. This restrained green, gold, and white standard identifies the holy cities without using the later Arab Revolt flag.", [
+    source("Sharifate of Mecca", "https://en.wikipedia.org/wiki/Sharifate_of_Mecca")
+  ]),
   research("poland-lithuania", "period-heraldry", "White Eagle and Pahonia", "A paired heraldic banner for the Jagiellonian union, combining the Polish White Eagle and Lithuanian mounted Pursuer.", [
     source("Golden Age of the Jagiellonians", "https://zlotaepoka.ossolineum.pl/en/")
   ]),
@@ -139,6 +151,28 @@ const RESEARCH = Object.freeze([
   ]),
   research("japan", "period-clan-heraldry", "Ashikaga futatsuhikiryo mon", "The two-bar roundel is the Ashikaga clan crest, used here as shogunal heraldry rather than a Japanese national flag.", [
     source("Ashikaga clan futatsuhikiryo", "https://www.paxhistoria.co/flags/6a77b848-9ef3-444f-b1be-7f3166b633e4")
+  ]),
+  ...[
+    ["hosokawa", "Hosokawa nine-stars mon"],
+    ["ouchi", "Ouchi diamond mon"],
+    ["shimazu", "Shimazu cross-in-circle mon"],
+    ["so", "So four-eyes mon"],
+    ["shoni", "Shoni knot mon"],
+    ["nagao", "Nagao nine-suns mon"],
+    ["ando", "Ando rising-sun mon"],
+    ["kakizaki", "Kakizaki crossed-diamond mon"]
+  ].map(([id, title]) => research(
+    id,
+    "period-clan-heraldry",
+    title,
+    "A simplified clan mon on a field, used as a compact maritime allegiance marker rather than a claim that the house flew a modern national flag.",
+    [source("Japanese heraldic emblems", "https://ndlsearch.ndl.go.jp/en/books/R100000002-I000000500670")]
+  )),
+  research("ryukyu", "dynastic-heraldry", "Sho dynasty hidari-gomon", "The threefold swirling crest is associated with the Sho dynasty. Its use as a rectangular royal maritime banner is a game-facing reconstruction.", [
+    source("Ryukyu Kingdom", "https://oki-park.jp/shurijo/en/info/6466/6467")
+  ]),
+  research("ainu", "reconstruction", "Ainu textile-motif identifier", "Ainu communities had no centralized state flag. This is explicitly a game identifier built from traditional angular textile motifs, not a claimed historical national banner.", [
+    source("Hokkaido Museum Ainu culture overview", "https://www.hm.pref.hokkaido.lg.jp/wp-content/themes/hokkaidomuseum/images/forign_pdf/ENG-1-3.pdf")
   ]),
   research("joseon", "period-royal-standard", "Yellow Dragon Flag", "Joseon used a four-clawed dragon flag in royal processions. It represents the king's authority, not a modern Korean national flag.", [
     source("Korean dragon flag tradition", "https://smarthistory.org/korean-national-flag/"),
@@ -421,6 +455,31 @@ const DRAWERS = Object.freeze({
     s.line(22, 14, 16, 17, C.gold, 2);
     return s;
   },
+  wallachia: () => {
+    const s = base(C.gold);
+    eagle(s, 15, 11, C.black);
+    s.rect(23, 4, 2, 7, C.red);
+    s.rect(20, 6, 7, 2, C.red);
+    return s;
+  },
+  moldavia: () => {
+    const s = base(C.darkRed);
+    aurochsHead(s, 16, 10, C.gold);
+    return s;
+  },
+  ragusa: () => {
+    const s = base(C.cream);
+    for (let y = 0; y < FLAG_H; y += 6) s.rect(0, y, FLAG_W, 3, C.red);
+    return s;
+  },
+  hejaz: () => {
+    const s = base(C.darkGreen);
+    s.rect(0, 0, FLAG_W, 2, C.cream);
+    s.rect(0, FLAG_H - 2, FLAG_W, 2, C.cream);
+    crescent(s, 15, 10, C.gold, C.darkGreen, 6);
+    s.pixel(23, 10, C.cream);
+    return s;
+  },
   "poland-lithuania": () => {
     const s = base(C.red);
     s.rect(15, 0, 2, FLAG_H, C.cream);
@@ -531,6 +590,75 @@ const DRAWERS = Object.freeze({
     s.rect(11, 11, 10, 2, C.black);
     return s;
   },
+  hosokawa: () => clanMon(C.darkBlue, (s) => {
+    for (const [x, y] of [[12, 6], [16, 6], [20, 6], [12, 10], [16, 10], [20, 10], [12, 14], [16, 14], [20, 14]]) {
+      s.circle(x, y, 1, C.white);
+    }
+  }),
+  ouchi: () => clanMon(C.gold, (s) => {
+    s.line(16, 3, 7, 10, C.darkRed, 2);
+    s.line(7, 10, 16, 17, C.darkRed, 2);
+    s.line(16, 17, 25, 10, C.darkRed, 2);
+    s.line(25, 10, 16, 3, C.darkRed, 2);
+    s.circle(16, 10, 2, C.darkRed);
+  }),
+  shimazu: () => clanMon(C.cream, (s) => {
+    s.circle(16, 10, 7, C.black);
+    s.circle(16, 10, 5, C.cream);
+    s.rect(15, 5, 2, 10, C.black);
+    s.rect(11, 9, 10, 2, C.black);
+  }),
+  so: () => clanMon(C.darkGreen, (s) => {
+    for (const [x, y] of [[12, 7], [20, 7], [12, 13], [20, 13]]) {
+      s.circle(x, y, 2, C.white);
+      s.pixel(x, y, C.darkGreen);
+    }
+  }),
+  shoni: () => clanMon(C.purple, (s) => {
+    s.circle(16, 10, 7, C.white);
+    s.circle(16, 10, 4, C.purple);
+    s.rect(9, 9, 14, 2, C.white);
+    s.rect(15, 3, 2, 14, C.white);
+  }),
+  nagao: () => clanMon(C.blue, (s) => {
+    s.circle(16, 10, 3, C.gold);
+    for (const [x, y] of [[16, 4], [21, 6], [23, 10], [21, 14], [16, 16], [11, 14], [9, 10], [11, 6]]) {
+      s.pixel(x, y, C.gold);
+    }
+  }),
+  ando: () => clanMon(C.ink, (s) => {
+    s.circle(16, 11, 6, C.brightRed);
+    s.rect(7, 4, 18, 6, C.ink);
+    for (let x = 10; x <= 22; x += 3) s.line(x, 10, 16, 5, C.gold);
+  }),
+  kakizaki: () => clanMon(C.teal, (s) => {
+    s.line(8, 10, 16, 4, C.white, 2);
+    s.line(16, 4, 24, 10, C.white, 2);
+    s.line(24, 10, 16, 16, C.white, 2);
+    s.line(16, 16, 8, 10, C.white, 2);
+    s.line(10, 5, 22, 15, C.gold, 2);
+    s.line(22, 5, 10, 15, C.gold, 2);
+  }),
+  ryukyu: () => {
+    const s = base(C.red);
+    s.circle(16, 10, 8, C.gold);
+    s.circle(16, 10, 6, C.darkRed);
+    for (const [x, y] of [[16, 6], [12, 12], [20, 12]]) s.circle(x, y, 2, C.gold);
+    s.pixel(16, 10, C.gold);
+    return s;
+  },
+  ainu: () => {
+    const s = base(C.darkBlue);
+    s.rect(0, 0, FLAG_W, 2, C.cream);
+    s.rect(0, FLAG_H - 2, FLAG_W, 2, C.cream);
+    for (const x of [4, 12, 20, 28]) {
+      s.line(x - 3, 6, x, 3, C.cream, 2);
+      s.line(x, 3, x + 3, 6, C.cream, 2);
+      s.line(x - 3, 14, x, 17, C.cream, 2);
+      s.line(x, 17, x + 3, 14, C.cream, 2);
+    }
+    return s;
+  },
   joseon: () => {
     const s = base(C.gold);
     dragon(s, C.blue);
@@ -538,6 +666,12 @@ const DRAWERS = Object.freeze({
     return s;
   }
 });
+
+function clanMon(field, draw) {
+  const s = base(field);
+  draw(s);
+  return s;
+}
 
 function swallowtail(s, field) {
   for (let x = 26; x < FLAG_W; x++) {
@@ -725,6 +859,16 @@ function boar(s, cx, cy, color) {
   s.pixel(cx + 7, cy - 2, C.cream);
 }
 
+function aurochsHead(s, cx, cy, color) {
+  s.rect(cx - 4, cy - 4, 9, 9, color);
+  s.polygon([[cx - 4, cy - 3], [cx - 10, cy - 7], [cx - 7, cy]], color);
+  s.polygon([[cx + 4, cy - 3], [cx + 10, cy - 7], [cx + 7, cy]], color);
+  s.rect(cx - 3, cy + 4, 2, 4, color);
+  s.rect(cx + 2, cy + 4, 2, 4, color);
+  s.pixel(cx - 2, cy - 1, C.darkRed);
+  s.pixel(cx + 2, cy - 1, C.darkRed);
+}
+
 function coinKnot(s, cx, cy, color) {
   s.line(cx - 4, cy - 3, cx + 4, cy - 3, color, 2);
   s.line(cx - 4, cy + 3, cx + 4, cy + 3, color, 2);
@@ -827,6 +971,8 @@ function main() {
       "period-ceremonial-reconstruction": "Period ceremonial devices combined into a game identifier.",
       "period-emblem": "Contemporary state, city, or dynastic emblem rendered as a banner.",
       "documented-royal-standard": "A royal standard described in early colonial-era textual evidence.",
+      "dynastic-heraldry": "A ruling dynasty's documented emblem, adapted into a compact game banner.",
+      "period-royal-standard": "A royal standard documented for the target period.",
       "period-regional-emblem": "A period regional device used as the closest dynastic equivalent.",
       "period-banner-tradition": "A reconstruction from a documented period banner tradition.",
       "period-numismatic-emblem": "Exact-period coin imagery used where no flag survives.",

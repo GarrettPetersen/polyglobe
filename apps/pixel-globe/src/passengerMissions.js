@@ -1,6 +1,8 @@
 import {
   cityKey,
   cityLabel,
+  cargoFree,
+  factionReputation,
   isEnvoyQuest,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
@@ -24,6 +26,18 @@ import {
   religiousPassengerDistanceIsAllowed,
   religiousPassengerPlan
 } from "./religiousMissions.js";
+import {
+  COURT_ENVOY_QUEST_KIND,
+  STATUS_ENVOY_QUEST_KIND,
+  TRIBUTE_ENVOY_QUEST_KIND,
+  TRIBUTE_MISSION_REPUTATION_REQUIRED,
+  diplomaticStatusMissionPlan,
+  statusProposalText,
+  tributeCargoSpace,
+  tributeCargoSummary,
+  tributeMissionPlan
+} from "./diplomaticMissions.js";
+import { courtMatterDialogue, courtMissionPlan } from "./courtPolitics.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -138,12 +152,9 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
   const spawnChance = passengerSpawnChance(context.envoySpawnChance ?? ENVOY_SPAWN_CHANCE);
   if (spawnChance < 1 && seededFraction(`${rollKey}|spawn`) >= spawnChance) return null;
 
-  const tradeAccessTarget = tradeAccessOpeningTarget(
-    state,
-    city,
-    portCities,
-    context.simMinute ?? 0
-  );
+  const tradeAccessTarget = context.envoyKind === undefined || context.envoyKind === "friendly-envoy"
+    ? tradeAccessOpeningTarget(state, city, portCities, context.simMinute ?? 0)
+    : null;
   if (tradeAccessTarget) {
     const distanceKm = greatCircleDistanceKm(city, tradeAccessTarget.port);
     const quest = buildEnvoyQuest(
@@ -162,6 +173,81 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
     quests.passengerOffers[cityKey(city)] = quest;
     return quest;
   }
+  const diplomaticSeed = `${rollKey}|diplomatic-mission`;
+  const tributePlan = tributeMissionPlan(state, city, portCities);
+  const tributeEligible = tributePlan &&
+    factionReputation(state, city.factionId) >= TRIBUTE_MISSION_REPUTATION_REQUIRED &&
+    cargoFree(state) >= tributeCargoSpace(tributePlan.requirements);
+  if ((context.envoyKind === TRIBUTE_ENVOY_QUEST_KIND ||
+      (context.envoyKind === undefined && tributeEligible && seededFraction(`${diplomaticSeed}|tribute`) < 0.45)) &&
+      tributeEligible) {
+    const destination = tributePlan.destination;
+    const quest = buildEnvoyQuest(
+      city,
+      destination,
+      TRIBUTE_ENVOY_QUEST_KIND,
+      greatCircleDistanceKm(city, destination),
+      period,
+      context.simMinute ?? 0,
+      {
+        tributeCargoRequirements: tributePlan.requirements,
+        tributeCargoLabel: tributePlan.cargoLabel
+      }
+    );
+    attachEnvoyCharacter(quest, city, destination, context);
+    quests.passengerOffers[originKey] = quest;
+    return quest;
+  }
+  const statusPlan = diplomaticStatusMissionPlan(state, city, portCities, {
+    relationBetween: context.relationBetween,
+    seed: diplomaticSeed,
+    force: context.envoyKind === STATUS_ENVOY_QUEST_KIND
+  });
+  if ((context.envoyKind === STATUS_ENVOY_QUEST_KIND ||
+      (context.envoyKind === undefined && statusPlan && seededFraction(`${diplomaticSeed}|status`) < 0.22)) &&
+      statusPlan) {
+    const destination = statusPlan.destination;
+    const { destination: _destination, ...statusProposal } = statusPlan;
+    const quest = buildEnvoyQuest(
+      city,
+      destination,
+      STATUS_ENVOY_QUEST_KIND,
+      greatCircleDistanceKm(city, destination),
+      period,
+      context.simMinute ?? 0,
+      { statusProposal }
+    );
+    attachEnvoyCharacter(quest, city, destination, context);
+    quests.passengerOffers[originKey] = quest;
+    return quest;
+  }
+  const courtPlan = courtMissionPlan(state.relations.courts, city, portCities);
+  if ((context.envoyKind === COURT_ENVOY_QUEST_KIND ||
+      (context.envoyKind === undefined && courtPlan && seededFraction(`${diplomaticSeed}|court`) < 0.55)) &&
+      courtPlan) {
+    const destination = courtPlan.destination;
+    const quest = buildEnvoyQuest(
+      city,
+      destination,
+      COURT_ENVOY_QUEST_KIND,
+      greatCircleDistanceKm(city, destination),
+      period,
+      context.simMinute ?? 0,
+      {
+        courtCommissionKind: courtPlan.commissionKind,
+        courtMatterId: courtPlan.matter.id,
+        courtAuthorityFactionId: courtPlan.matter.authorityFactionId,
+        courtMatter: courtPlan.matter
+      }
+    );
+    attachEnvoyCharacter(quest, city, destination, context);
+    quests.passengerOffers[originKey] = quest;
+    return quest;
+  }
+  if ([TRIBUTE_ENVOY_QUEST_KIND, STATUS_ENVOY_QUEST_KIND, COURT_ENVOY_QUEST_KIND]
+    .includes(context.envoyKind)) {
+    return null;
+  }
   const missionKind = chooseEnvoyKind(`${rollKey}|kind`, context.envoyKind);
   const destination = chooseEnvoyDestination(city, portCities, missionKind, context);
   if (!destination) return null;
@@ -176,7 +262,9 @@ function attachEnvoyCharacter(quest, origin, destination, context) {
   if (typeof context.createCharacter === "function") {
     const scenario = {
       id: quest.kind,
-      expressionId: quest.kind === "friendly-envoy" ? "attentive" : "stern",
+      expressionId: ["hostile-envoy", STATUS_ENVOY_QUEST_KIND].includes(quest.kind)
+        ? "stern"
+        : "attentive",
       namePort: "origin"
     };
     const character = context.createCharacter({ quest, origin, destination, scenario });
@@ -191,7 +279,7 @@ export function pendingPassengerOfferForCity(state, city) {
   if (!state || !city) return null;
   const quests = questMemory(state);
   const offer = quests.passengerOffers[cityKey(city)];
-  if (!offer || quests.completed[offer.id]) return null;
+  if (!offer || quests.completed[offer.id] || quests.failed?.[offer.id]) return null;
   if (offer.tradeAccessPolicyId && sovereignTradeOpenToFaction(
     state,
     offer.tradeAccessPolicyId,
@@ -200,7 +288,7 @@ export function pendingPassengerOfferForCity(state, city) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
-  if (!offer.tradeAccessPolicyId && !passengerDistanceIsAllowed(offer)) {
+  if (offer.kind === "passenger" && !offer.tradeAccessPolicyId && !passengerDistanceIsAllowed(offer)) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
@@ -250,7 +338,8 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
   const originKey = cityKey(origin);
   const targetKey = cityKey(target);
   const seed = `${originKey}|${targetKey}|${kind}|${period}`;
-  const reward = 220 + Math.round(distanceKm / 24) + (hashString32(`${seed}|reward`) % 121);
+  const reward = 220 + Math.round(distanceKm / 24) + (hashString32(`${seed}|reward`) % 121) +
+    (kind === TRIBUTE_ENVOY_QUEST_KIND ? 300 : 0);
   const originRuler = rulerAtMinute(origin.factionId, simMinute);
   const targetRuler = rulerAtMinute(target.factionId, simMinute);
   if (!originRuler || !targetRuler) throw new Error("Envoy missions require sovereign origin and destination factions");
@@ -297,6 +386,16 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
       tradeAccessPolicyId: tradeAccessPolicy.id,
       tradeAccessOpeningFactionId
     } : {}),
+    ...(options.tributeCargoRequirements ? {
+      tributeCargoRequirements: options.tributeCargoRequirements,
+      tributeCargoLabel: options.tributeCargoLabel
+    } : {}),
+    ...(options.statusProposal ? { statusProposal: options.statusProposal } : {}),
+    ...(options.courtCommissionKind ? {
+      courtCommissionKind: options.courtCommissionKind,
+      courtMatterId: options.courtMatterId,
+      courtAuthorityFactionId: options.courtAuthorityFactionId
+    } : {}),
     dialogue: tradeAccessPolicy
       ? tradeAccessOpeningDialogueText(
           origin,
@@ -306,8 +405,53 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
           targetRuler,
           tradeAccessPolicy
         )
-      : envoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler)
+      : diplomaticEnvoyDialogueText(
+          kind,
+          origin,
+          target,
+          reward,
+          seed,
+          originRuler,
+          targetRuler,
+          options
+        )
   };
+}
+
+function diplomaticEnvoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler, options) {
+  if (kind === TRIBUTE_ENVOY_QUEST_KIND) {
+    const cargoText = tributeCargoSummary(options.tributeCargoRequirements);
+    return {
+      offer: `${originRuler.displayName} entrusts you with ${options.tributeCargoLabel}. Carry me and the sealed cargo to ${cityLabel(target)}, then return with the court's receipt. Payment is ${reward} db. Cargo: ${cargoText}.`,
+      underway: `The tribute remains under seal. It belongs to the court, not to us, until it is entered at ${cityLabel(target)}.`,
+      negotiationOpening: `I present ${originRuler.displayName}'s tribute and ask that it be entered faithfully in the register.`,
+      negotiation: "The tribute is accepted. Carry the receipt home.",
+      returnUnderway: `The tribute is delivered. We carry its receipt home to ${cityLabel(origin)}.`,
+      homecoming: `${originRuler.displayName} has received the court's receipt. The treasury will pay ${reward} db.`,
+      intercession: "Hold your fire! This vessel carries tribute under the seals of both courts."
+    };
+  }
+  if (kind === STATUS_ENVOY_QUEST_KIND) {
+    const proposalText = statusProposalText(options.statusProposal);
+    return {
+      offer: `${originRuler.displayName} has chosen negotiation before war. Carry me to ${cityLabel(target)} with articles concerning tribute and allegiance, then return for ${reward} db.`,
+      underway: `${proposalText} The decision belongs to rulers and councils; our task is to put the articles before them intact.`,
+      negotiationOpening: `Under ${originRuler.displayName}'s seal, I place these articles before the court: ${proposalText}`,
+      negotiation: "The court has considered the articles. Carry its answer home.",
+      returnUnderway: `The answer is sealed. Set our course back to ${cityLabel(origin)}.`,
+      homecoming: `${originRuler.displayName} has received the answer. The treasury releases ${reward} db.`,
+      intercession: "Stay your weapons! This ship carries articles of allegiance under diplomatic seal."
+    };
+  }
+  if (kind === COURT_ENVOY_QUEST_KIND) {
+    return courtMatterDialogue(options.courtMatter, {
+      origin,
+      destination: target,
+      reward,
+      rulerName: originRuler.displayName
+    });
+  }
+  return envoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler);
 }
 
 function tradeAccessOpeningTarget(state, origin, portCities, simMinute) {
@@ -536,7 +680,7 @@ function passengerDialogueText(scenarioId, origin, destination, reward, religiou
 
 function chooseEnvoyKind(seed, forcedKind) {
   if (forcedKind !== undefined) {
-    if (forcedKind !== "friendly-envoy" && forcedKind !== "hostile-envoy") {
+    if (!["friendly-envoy", "hostile-envoy"].includes(forcedKind)) {
       throw new Error(`Unknown envoy mission kind: ${forcedKind}`);
     }
     return forcedKind;

@@ -25,6 +25,7 @@ import {
   PIRATE_FACTION_ID,
   assertFactionId,
   diplomacyBetween,
+  isJapanesePolityFaction,
   migrateFactionIdTo1522
 } from "./factions.js";
 import {
@@ -1801,13 +1802,13 @@ function npcRoleForSeed(seed, originFactionId, profileSpec) {
 
 function npcShipSlugForRole(profileSpec, role, seed, factionId) {
   if (!NPC_ROLE_SET.has(role)) throw new Error(`Unknown NPC ship role: ${role}`);
-  if (factionId === "japan" && role === NPC_ROLE_WARSHIP) {
+  if (isJapanesePolityFaction(factionId) && role === NPC_ROLE_WARSHIP) {
     const roll = hashUnit(`${seed}|japanese-warship-class`);
     if (roll < 0.45) return JAPANESE_KOBAYA_SLUG;
     if (roll < 0.85) return JAPANESE_SEKIBUNE_SLUG;
     return JAPANESE_ATAKEBUNE_SLUG;
   }
-  if (factionId === "japan") {
+  if (isJapanesePolityFaction(factionId)) {
     const pool = profileSlugsForRole(profileSpec, role, factionId);
     return weightedCheapShipSlug(pool, hashString32(`${seed}|${role}|japanese-hull`));
   }
@@ -1846,7 +1847,7 @@ function npcShipSlugForRole(profileSpec, role, seed, factionId) {
 }
 
 function profileSlugsForRole(profileSpec, role, factionId = null) {
-  if (factionId === "japan") {
+  if (isJapanesePolityFaction(factionId)) {
     if (role === NPC_ROLE_WARSHIP) return JAPANESE_ARMED_SHIP_SLUGS;
     if (role === NPC_ROLE_PIRATE) return [JAPANESE_KOBAYA_SLUG, JAPANESE_SEKIBUNE_SLUG];
     if (role === NPC_ROLE_WHALER || role === NPC_ROLE_FISHERMAN || role === NPC_ROLE_MERCHANT) {
@@ -3202,7 +3203,7 @@ function isNorthAtlanticWhalingPort(port) {
 }
 
 function isJapaneseWhalingPort(port) {
-  return port.factionId === "japan" && isEastAsiaPort(port);
+  return isJapanesePolityFaction(port.factionId) && isEastAsiaPort(port);
 }
 
 function isNorthwestCoastWhalingPort(port) {

@@ -12,6 +12,7 @@ import {
   MAX_PROTECTED_ADMISSION_SLACK_PX,
   ProtectedChartStitchError,
   admitProjectedTiles,
+  chartAdmissionTileMayMove,
   planVisibleElasticTilesWithinMotion,
   resolveLocalLayoutAnchor,
   viewportElasticCorrectionSupport
@@ -345,6 +346,7 @@ import {
   isCaptureCapitalQuest,
   isCaptureCommissionQuest,
   isEnvoyQuest,
+  isWokouHuntQuest,
   loseFoodRations,
   loseCrew,
   migrateGameState,
@@ -394,6 +396,7 @@ import {
   recordFriendlyFireAgainstFaction,
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
+  recordWokouHuntVictory,
   reconcileFactionReputationAfterPlayerVassalage,
   recordPiracyAgainstFaction,
   beginIllicitTradeEnforcementCombat,
@@ -415,7 +418,8 @@ import {
   updateCartographyMemory,
   updateCircumnavigationProgress,
   updateSurvival,
-  visitPort
+  visitPort,
+  wokouHuntMissionOfferForCity
 } from "./gameState.js";
 import {
   ANIMAL_CATALOG,
@@ -664,6 +668,11 @@ import {
   recordDiplomaticPortCall,
   validateWorldDiplomacy
 } from "./worldDiplomacy.js";
+import {
+  SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
+  SUZERAINTY_KIND_TRIBUTARY,
+  SUZERAINTY_KIND_VASSAL
+} from "./suzerainty.js";
 import {
   fishingNetById,
   npcFishingNetExpectedHaul
@@ -1240,9 +1249,11 @@ import {
 } from "./foreignSettlements.js";
 import {
   CAPITAL_PEACE_TERM_ANNEXATION,
+  CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE,
   CAPITAL_PEACE_TERM_CONCESSIONS,
   CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION,
   CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
+  CAPITAL_PEACE_TERM_TRIBUTARY,
   CAPITAL_PEACE_TERM_VASSALAGE,
   PORT_CONQUEST_MIN_CREW,
   PORT_CONQUEST_NPC_LANDING_RANGE_PX,
@@ -1313,6 +1324,7 @@ import {
   papalPendingMatter,
   recordPapalCommissionDenial
 } from "./papalPolitics.js";
+import { courtActionNotice, courtMatterNotice } from "./courtPolitics.js";
 import {
   papalCommissionAcceptedText,
   papalCommissionAudienceText,
@@ -1341,6 +1353,7 @@ import {
   GINGER_GOOD_ID,
   GUNPOWDER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
+  RICE_GOOD_ID,
   addPortGoodStock,
   addWorldEconomyPort,
   connectNearbyPortMarkets,
@@ -1388,7 +1401,10 @@ import {
   restoreFirstDayNightNoticeState,
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
-import { createWorldWebGL2Renderer } from "./worldWebglRenderer.js";
+import {
+  createWorldWebGL2Renderer,
+  isWorldWebGLContextLostError
+} from "./worldWebglRenderer.js";
 import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
   SHIP_PAPER_ROW_CONTENT_INSET,
@@ -1631,6 +1647,7 @@ import {
   advanceChartReframeDialogueTrigger,
   chartDialogueRegionTags,
   chartReframeDialogueCooldownElapsed,
+  chartReframeDialoguePortraitStage,
   createChartReframeDialogueTrigger,
   formatChartReframeDialogueMessage,
   recordChartReframeDialogue,
@@ -1681,7 +1698,7 @@ import {
   resolveVisualStateReprojection
 } from "./visualStateReprojection.js";
 import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
-import { fetchStaticAsset } from "./staticAssetFetch.js";
+import { fetchStaticAsset, isTransientStaticAssetError } from "./staticAssetFetch.js";
 import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
@@ -2192,12 +2209,13 @@ const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
-const STATUS_HUD_ASSET_VERSION = "provision-icons-2";
+const STATUS_HUD_ASSET_VERSION = "provision-icons-3";
 const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
 const STATUS_HUD_DOUBLOON_URL = "assets/misc/dubloon.png";
 const STATUS_HUD_WATER_URL = "assets/misc/water.png";
 const STATUS_HUD_FOOD_URL = "assets/misc/food.png";
 const STATUS_HUD_GRAIN_URL = "assets/misc/grain.png";
+const STATUS_HUD_RICE_URL = "assets/misc/rice.png";
 const STATUS_HUD_FORAGED_FOOD_URL = "assets/misc/meat.png";
 const STATUS_HUD_FISH_URL = "assets/misc/fish.png";
 const STATUS_HUD_WINE_URL = "assets/misc/wine.png";
@@ -2389,6 +2407,8 @@ const HISTORICAL_BATTLE_PAUSE_ACTIONS = Object.freeze([
 ]);
 const AUTOSAVE_INTERVAL_MS = 30000;
 const AUTOSAVE_MAX_IDLE_DELAY_MS = 10000;
+const WORLD_GRAPHICS_RECOVERY_STORAGE_KEY = "pixel_globe_world_graphics_recovery";
+const WORLD_GRAPHICS_RECOVERY_COOLDOWN_MS = 60_000;
 const SAVE_REASON_QUEST_DECISION = "quest decision";
 const CREDITS_MARKDOWN_URL = "assets/CREDITS.md";
 let CREDITS_PANEL_W = 338;
@@ -4057,6 +4077,7 @@ async function main() {
   if (!CAPTURE_SCENARIO) {
     initializeTreasureCampaignWorld();
     ensureTreasureCampaignEncounters({ assignCaptains: false });
+    ensureWokouHuntEncounter({ assignCaptains: false });
   }
   if (CAPTURE_SCENARIO) {
     for (const encounter of CAPTURE_SCENARIO.encounters) {
@@ -4471,6 +4492,23 @@ function initializeWorldAssetStores() {
   });
 }
 
+function clearFailedWorldAssetRequests() {
+  let cleared = 0;
+  for (const store of [
+    shipSpriteAssetStore,
+    shipLightingAssetStore,
+    shipRenderLayerAssetStore,
+    rowingShipAssetStore,
+    whaleAssetStore,
+    icebergAssetStore,
+    landVehicleAssetStore,
+    worldAnimationAssetStore
+  ]) {
+    if (store) cleared += store.clearErrors();
+  }
+  return cleared;
+}
+
 async function loadWorldAnimationAsset(key) {
   if (key === WORLD_ANIMATION_ASSET.SEAGULLS) {
     const [flight, standing] = await Promise.all([
@@ -4554,6 +4592,10 @@ function loadShipRenderLayerBundle(bundleName) {
         );
       }
       return buffer;
+    });
+    promise = promise.catch((error) => {
+      shipRenderLayerBundlePromises.delete(bundleName);
+      throw error;
     });
     shipRenderLayerBundlePromises.set(bundleName, promise);
   }
@@ -5067,6 +5109,7 @@ async function loadStatusHudImages() {
     water,
     food,
     grain,
+    rice,
     foragedFood,
     fish,
     wine,
@@ -5078,6 +5121,7 @@ async function loadStatusHudImages() {
     loadAssetImage(`${STATUS_HUD_WATER_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "water status icon"),
     loadAssetImage(`${STATUS_HUD_FOOD_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "food status icon"),
     loadAssetImage(`${STATUS_HUD_GRAIN_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "grain status icon"),
+    loadAssetImage(`${STATUS_HUD_RICE_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "rice status icon"),
     loadAssetImage(
       `${STATUS_HUD_FORAGED_FOOD_URL}?v=${STATUS_HUD_ASSET_VERSION}`,
       "foraged food status icon"
@@ -5107,6 +5151,7 @@ async function loadStatusHudImages() {
   validateImageDimensions(water, "water status icon", 6, 6);
   validateImageDimensions(food, "food status icon", 6, 6);
   validateImageDimensions(grain, "grain status icon", 6, 6);
+  validateImageDimensions(rice, "rice status icon", 6, 6);
   validateImageDimensions(foragedFood, "foraged food status icon", 6, 6);
   validateImageDimensions(fish, "fish status icon", 6, 6);
   validateImageDimensions(wine, "wine status icon", 6, 6);
@@ -5118,6 +5163,7 @@ async function loadStatusHudImages() {
     water,
     food,
     grain,
+    rice,
     foragedFood,
     fish,
     wine,
@@ -5664,6 +5710,7 @@ function loop(nowMs) {
     runFrame(nowMs);
   } catch (error) {
     console.error(error);
+    if (isWorldWebGLContextLostError(error) && recoverLostWorldGraphicsContext()) return;
     if (!isRuntimeDiagnosticAssertionError(error)) {
       gameTelemetry.captureCrash(error, telemetryCrashContext());
     }
@@ -5684,6 +5731,23 @@ function loop(nowMs) {
       }
     }
   }
+}
+
+function recoverLostWorldGraphicsContext() {
+  const nowMs = Date.now();
+  const previousRecoveryMs = Number(readLocalStorage(WORLD_GRAPHICS_RECOVERY_STORAGE_KEY));
+  if (Number.isFinite(previousRecoveryMs) &&
+      nowMs - previousRecoveryMs < WORLD_GRAPHICS_RECOVERY_COOLDOWN_MS) {
+    return false;
+  }
+  try {
+    if (gameState && hasStartedVoyage) saveVoyageNow("graphics context recovery");
+    writeLocalStorage(WORLD_GRAPHICS_RECOVERY_STORAGE_KEY, String(nowMs));
+  } catch (error) {
+    console.warn("[pixel-globe] could not save before graphics recovery", error);
+  }
+  window.location.reload();
+  return true;
 }
 
 function pollControllerDuringStartup(nowMs) {
@@ -6558,6 +6622,45 @@ function updateColonizationQuest() {
 function activeTreasureCampaignGoal() {
   const goal = gameState?.memory?.campaignGoal;
   return goal?.type === CAMPAIGN_GOAL_TREASURE ? goal : null;
+}
+
+function activeWokouHuntQuest() {
+  const quest = gameState?.memory?.quests?.active;
+  return isWokouHuntQuest(quest) ? quest : null;
+}
+
+function ensureWokouHuntEncounter({ assignCaptains = true, respawnAtPort = false } = {}) {
+  const quest = activeWokouHuntQuest();
+  if (!quest || quest.stage !== "hunt" || !npcSeaRoutes) return null;
+  const existing = npcSeaRoutes.shipById.get(quest.targetShipId);
+  if (existing) return existing;
+  const strategic = configureNpcRouteEncounter(npcSeaRoutes, {
+    id: quest.targetShipId,
+    originPortId: quest.patrolTileId,
+    factionId: PIRATE_FACTION_ID,
+    role: NPC_ROLE_PIRATE,
+    shipSlug: quest.targetShipSlug,
+    replaceOnSink: false,
+    hiddenAtOrigin: respawnAtPort,
+    encounter: {
+      kind: "wokou-hunt",
+      questId: quest.id,
+      forceAttack: true,
+      challenge: "The wokou captain orders you away from their hunting waters."
+    }
+  }, weatherClockMinutes);
+  if (assignCaptains) ensureNpcShipCaptain(strategic.id);
+  return strategic;
+}
+
+function resolveWokouHuntPlayerVictory(shipId) {
+  const quest = recordWokouHuntVictory(gameState, shipId, {
+    simMinute: Math.floor(weatherClockMinutes)
+  });
+  if (!quest) return false;
+  showSurvivalNotice(`WOKOU DEFEATED - REPORT TO ${quest.originName.toUpperCase()}`, "good");
+  saveVoyageNow("defeated commissioned wokou");
+  return true;
 }
 
 function initializeTreasureCampaignWorld() {
@@ -8656,6 +8759,8 @@ function chartRecoveryDiagnosticSnapshot() {
     speedPxPerSecond: vectorLength(ship.velocity) * PIXELS_PER_RADIAN,
     fullTiltDeg: fullDrift.rotationDeg,
     visibleTiltDeg: visibleDrift.rotationDeg,
+    fullTiltSampleCount: fullDrift.sampleCount,
+    visibleTiltSampleCount: visibleDrift.sampleCount,
     rmsDistortionPx: visibleDrift.rmsDistortionPx,
     maximumDistortionPx: visibleDrift.maxDistortionPx,
     tearPx: tear.extraPx,
@@ -11676,6 +11781,16 @@ async function continueSavedVoyage() {
     }
   } catch (error) {
     console.warn("[pixel-globe] could not continue the local save", error);
+    if (isTransientStaticAssetError(error)) {
+      clearFailedWorldAssetRequests();
+      if (startMenu === menu) {
+        menu.isLoading = false;
+        menu.selectedIndex = 0;
+        menu.message = "CONNECTION FAILED - TRY AGAIN";
+      }
+      dirty = true;
+      return;
+    }
     gameTelemetry.captureCrash(error, telemetryCrashContext("save-restore"));
     localSaveResult = { status: "invalid", save: null, error };
     if (startMenu === menu) {
@@ -11758,6 +11873,7 @@ async function restoreSavedVoyage(payload) {
   weatherClockMinutes = restoredWorldClock.currentMinute;
   voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
   weatherParts = weatherClockParts(weatherClockMinutes);
+  ensureWokouHuntEncounter({ assignCaptains: false });
   refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
   activeIcebergSpawnCandidatesDay = -1;
@@ -15390,6 +15506,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     simMinute,
     sailingDistanceKm: sailingDistanceBetweenPorts
   });
+  wokouHuntMissionOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
   deliveryOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
   const openDeliveryMission = !needsLoadout &&
     deliveryMissionShouldOpenOnArrival(gameState, cityCall, accessiblePorts);
@@ -16797,7 +16914,11 @@ function settleCapitalCaptureDiplomacy(event, roll) {
       simMinute,
       "annexation"
     );
-  } else if (settlement.term === CAPITAL_PEACE_TERM_VASSALAGE) {
+  } else if ([
+    CAPITAL_PEACE_TERM_VASSALAGE,
+    CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE,
+    CAPITAL_PEACE_TERM_TRIBUTARY
+  ].includes(settlement.term)) {
     dissolveFactionDiplomaticPersonalUnions(
       gameState.relations.diplomacy,
       treaty.loserFactionId,
@@ -16810,10 +16931,15 @@ function settleCapitalCaptureDiplomacy(event, roll) {
         gameState.relations.diplomacy,
         treaty.winnerFactionId
       ),
+      kind: {
+        [CAPITAL_PEACE_TERM_VASSALAGE]: SUZERAINTY_KIND_VASSAL,
+        [CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE]: SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
+        [CAPITAL_PEACE_TERM_TRIBUTARY]: SUZERAINTY_KIND_TRIBUTARY
+      }[settlement.term],
       simMinute,
       source: "capital-peace-treaty"
     });
-    if (event.source === "player") {
+    if (event.source === "player" && settlement.term !== CAPITAL_PEACE_TERM_TRIBUTARY) {
       reconcileFactionReputationAfterPlayerVassalage(gameState, treaty.loserFactionId);
     }
   }
@@ -16878,6 +17004,20 @@ function capitalPeaceTreatyDescription(treaty) {
       ? ` It also cedes ${treatyConcessionLabel(treaty)}.`
       : "";
     return `${sovereigns}${loser.name} keeps its government as a vassal of ${factionById(principal).name}, follows its foreign policy, and grants its ships privileged trade.${concessionText}`;
+  }
+  if (treaty.term === CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE) {
+    const principal = foreignPolicyPrincipalForState(
+      gameState.relations.diplomacy,
+      treaty.winnerFactionId
+    );
+    return `${sovereigns}${loser.name} keeps its rulers and foreign policy, pays tribute to ${factionById(principal).name}, and receives its protection in defensive wars.`;
+  }
+  if (treaty.term === CAPITAL_PEACE_TERM_TRIBUTARY) {
+    const principal = foreignPolicyPrincipalForState(
+      gameState.relations.diplomacy,
+      treaty.winnerFactionId
+    );
+    return `${sovereigns}${loser.name} remains independent but agrees to pay tribute to ${factionById(principal).name}.`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_CONCESSIONS) {
     return `${sovereigns}${loser.name} remains independent but cedes ${treatyConcessionLabel(treaty)} to ${winner.name}.`;
@@ -17931,6 +18071,7 @@ function chooseDialogueOption(optionIndex) {
     if (result.marketSale) {
       spawnItemDepartureEffect(result.marketSale.good.id, purchaseIconOrigin, lastFrameMs);
     }
+    if (isWokouHuntQuest(result.acceptedQuest)) ensureWokouHuntEncounter();
     if (result.perkItemPurchase) {
       playCollectionDingSound();
       spawnIconAcquisitionEffect(
@@ -20663,7 +20804,12 @@ function chartReframeDialogueAlertSteps(selection, context) {
       throw new Error(`Chart reframe dialogue ${selection.id} has unknown replacement: ${replacement}`);
     });
     const message = renderedUiText(formatChartReframeDialogueMessage(step.message, replacements));
-    if (!counterpart) {
+    const portraitStage = chartReframeDialoguePortraitStage({
+      captain,
+      counterpart,
+      speaker
+    });
+    if (!portraitStage.rightCharacter) {
       return {
         character: speaker,
         message,
@@ -20674,11 +20820,8 @@ function chartReframeDialogueAlertSteps(selection, context) {
     if (![captain.id, counterpart.id].includes(speaker.id)) {
       throw new Error(`Chart reframe dialogue ${selection.id} has more than two portrait speakers`);
     }
-    const other = speaker.id === captain.id ? counterpart : captain;
     return pairedCharacterAlertStep({
-      leftCharacter: captain,
-      rightCharacter: other,
-      speakerCharacter: speaker,
+      ...portraitStage,
       message,
       expressionId: step.expressionId,
       animalSoundKind: step.animalSoundKind
@@ -20875,7 +21018,7 @@ function updateChartVisualRepair(nowMs) {
       polarFog,
       "polar fog",
       null,
-      severePolarDistortion ? 2 : 1,
+      severePolarDistortion ? 3 : 1,
       severePolarDistortion
         ? (id) => {
             const position = localLayout.positions.get(id);
@@ -20884,7 +21027,7 @@ function updateChartVisualRepair(nowMs) {
               polarFog,
               position.x + fogOffset.x,
               position.y + fogOffset.y
-            ) >= 0.75 ? 4 : 2;
+            ) >= 0.75 ? 8 : 2;
           }
         : null
     ) > 0) changed = true;
@@ -25513,7 +25656,9 @@ function birthdayDialogueOpportunity() {
 function updateWorldDiplomacy() {
   const diplomacy = gameState?.relations?.diplomacy;
   if (!diplomacy || weatherClockMinutes < nextGamePoliticsMinute(gameState)) return false;
-  const result = advanceGamePolitics(gameState, weatherClockMinutes);
+  const result = advanceGamePolitics(gameState, weatherClockMinutes, {
+    portCities: playerAccessiblePortCities()
+  });
   if (result.englishReformation) reconcileEnglishReformationCharacters();
   const expulsions = reconcileForeignSettlementPolitics();
   if (result.englishReformation) {
@@ -25546,6 +25691,24 @@ function updateWorldDiplomacy() {
   if (result.papalMattersOpened.length > 0) {
     showSurvivalNotice(
       papalMatterNotice(result.papalMattersOpened.at(-1)),
+      "warn",
+      "politics-news"
+    );
+    dirty = true;
+    return true;
+  }
+  if (result.courtActions.length > 0) {
+    showSurvivalNotice(
+      courtActionNotice(result.courtActions.at(-1)),
+      "warn",
+      "politics-news"
+    );
+    dirty = true;
+    return true;
+  }
+  if (result.courtMattersOpened.length > 0) {
+    showSurvivalNotice(
+      courtMatterNotice(result.courtMattersOpened.at(-1)),
       "warn",
       "politics-news"
     );
@@ -28730,6 +28893,9 @@ function continuePlayerSurrenderOutcome(npcShipId, lootSummary, context = {}) {
   const treasureEncounter = context.treasureEncounter ||
     (strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND ? { ...strategic.encounter } : null);
   const loserWasPirate = context.loserWasPirate ?? strategic.role === NPC_ROLE_PIRATE;
+  if (strategic.encounter?.kind === "wokou-hunt") {
+    resolveWokouHuntPlayerVictory(npcShipId);
+  }
   if (treasureEncounter && resolveTreasurePiratePlayerDefeat(npcShipId, treasureEncounter, {
     sunk: false,
     onComplete: () => openSurrenderPrizeDecision(npcShipId, lootSummary)
@@ -28798,6 +28964,7 @@ function handleNpcSinking(loserId, winnerId, {
   const treasureEncounter = strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
     ? { ...strategic.encounter }
     : null;
+  const wokouEncounter = strategic.encounter?.kind === "wokou-hunt";
   const playerVictory = winnerId === PLAYER_COMBAT_ID && !accidentalPlayerCollision;
   const selfDefenseResult = playerVictory
     ? recordPlayerSelfDefenseConsequences(loserId, strategic.factionId)
@@ -28848,6 +29015,11 @@ function handleNpcSinking(loserId, winnerId, {
       ensureTreasureCampaignEncounters({ respawnAtHideouts: true });
       saveVoyageNow("treasure pirate escaped destruction");
     }
+    return true;
+  }
+  if (wokouEncounter) {
+    if (playerVictory) resolveWokouHuntPlayerVictory(loserId);
+    else ensureWokouHuntEncounter({ respawnAtPort: true });
     return true;
   }
   if (playerVictory && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
@@ -33192,13 +33364,20 @@ function admitMissingLocalLayoutTiles({
   const settlementTileIds = chartAdmissionSettlementTileIds(newlyAdmittedTileIds);
   const maximumStepPxById = new Map();
   for (const id of settlementTileIds) {
+    const position = positions.get(id);
+    const newlyAdmitted = newlyAdmittedTileIds.has(id);
+    const concealed = !newlyAdmitted && chartVisualCoverFullyCoversLocalPosition(position);
+    const overlapsAuthoritativeViewport = newlyAdmitted || localLayoutPositionOverlapsViewport(
+      position,
+      LOCAL_LAYOUT_RETENTION_MARGIN_PX
+    );
     maximumStepPxById.set(
       id,
-      newlyAdmittedTileIds.has(id) ||
-        !localLayoutPositionOverlapsViewport(
-          positions.get(id),
-          CHART_REPAIR_TILE_VISUAL_RADIUS_PX
-        )
+      chartAdmissionTileMayMove({
+        newlyAdmitted,
+        concealed,
+        overlapsAuthoritativeViewport
+      })
         ? Number.POSITIVE_INFINITY
         : 1
     );
@@ -33248,12 +33427,15 @@ function chartAdmissionSettlementTileIds(newlyAdmittedTileIds) {
       }
       const position = localLayout.positions.get(neighborId);
       if (!position) continue;
-      const concealedOrOffscreen = chartVisualCoverFullyCoversLocalPosition(position) ||
-        !localLayoutPositionOverlapsViewport(
-          position,
-          CHART_REPAIR_TILE_VISUAL_RADIUS_PX
-        );
-      if (!concealedOrOffscreen) continue;
+      const concealed = chartVisualCoverFullyCoversLocalPosition(position);
+      const overlapsAuthoritativeViewport = localLayoutPositionOverlapsViewport(
+        position,
+        LOCAL_LAYOUT_RETENTION_MARGIN_PX
+      );
+      if (!chartAdmissionTileMayMove({
+        concealed,
+        overlapsAuthoritativeViewport
+      })) continue;
       tileIds.add(neighborId);
       queue.push({ id: neighborId, depth: depth + 1 });
     }
@@ -34747,7 +34929,11 @@ function questJournalEntries() {
           ? `REPORT THE CAPTURE AT ${activeQuest.originName.toUpperCase()}`
           : `CAPTURE ${activeQuest.targetName.toUpperCase()} FOR ` +
             activeQuest.originFactionName.toUpperCase()
-        : uiText("quest.sailTo", { city: cityLabelText(activeDestination) }),
+        : isWokouHuntQuest(activeQuest)
+          ? activeQuest.stage === "return"
+            ? `REPORT THE WOKOU'S DEFEAT AT ${activeQuest.originName.toUpperCase()}`
+            : `HUNT THE WOKOU NEAR ${activeQuest.patrolName.toUpperCase()}`
+          : uiText("quest.sailTo", { city: cityLabelText(activeDestination) }),
       style: QUEST_NAVIGATION_STYLE
     });
   }
@@ -35444,6 +35630,7 @@ function colonizationNavigationReason(objective) {
 
 function navigationQuestReason(quest) {
   if (isEnvoyQuest(quest)) return "DIPLOMATIC MISSION";
+  if (isWokouHuntQuest(quest)) return quest.stage === "return" ? "REPORT WOKOU DEFEAT" : "WOKOU PATROL";
   if (isCaptureCommissionQuest(quest)) {
     if (quest.stage === "return") return "REPORT CAPTURE";
     return isCaptureCapitalQuest(quest) ? "CAPTURE CAPITAL" : "CAPTURE PORT";
@@ -38218,6 +38405,14 @@ function politicsCardLineLabel(line) {
   }
   if (line.kind === "vassal") {
     return uiText(line.role === "subject" ? "politics.vassalOf" : "politics.suzerainOf");
+  }
+  if (line.kind === "autonomous-vassal") {
+    if (line.terms?.tribute) {
+      return uiText(line.role === "subject"
+        ? "politics.protectedTributaryTo"
+        : "politics.protectedTributeFrom");
+    }
+    return uiText(line.role === "subject" ? "politics.protectedBy" : "politics.protectorOf");
   }
   throw new Error(`Unknown politics dependency kind: ${line.kind}`);
 }
@@ -48231,16 +48426,18 @@ function drawSurvivalMeters() {
   const foodIconCount = remainingSupplyDayCount(status.foodDays);
   const fishRations = foodRationsForCargoQuantity(gameState.cargo[FISH_CARGO_GOOD_ID] || 0);
   const grainRations = foodRationsForCargoQuantity(gameState.cargo.grain || 0);
+  const riceRations = foodRationsForCargoQuantity(gameState.cargo[RICE_GOOD_ID] || 0);
   const foragedFoodRations = foodRationsForCargoQuantity(
     gameState.cargo[FORAGED_FOOD_GOOD_ID] || 0
   );
   const genericFoodRations = Math.max(
     0,
-    status.storedFoodRations - fishRations - grainRations - foragedFoodRations
+    status.storedFoodRations - fishRations - grainRations - riceRations - foragedFoodRations
   );
   const foodSourceIconCounts = proportionalStatusIconCounts(foodIconCount, [
     genericFoodRations,
     grainRations,
+    riceRations,
     foragedFoodRations,
     fishRations
   ]);
@@ -48348,8 +48545,9 @@ function createSurvivalHudRaster({
       [
         { icon: statusHudImages.food, count: foodSourceIconCounts[0] },
         { icon: statusHudImages.grain, count: foodSourceIconCounts[1] },
-        { icon: statusHudImages.foragedFood, count: foodSourceIconCounts[2] },
-        { icon: statusHudImages.fish, count: foodSourceIconCounts[3] }
+        { icon: statusHudImages.rice, count: foodSourceIconCounts[2] },
+        { icon: statusHudImages.foragedFood, count: foodSourceIconCounts[3] },
+        { icon: statusHudImages.fish, count: foodSourceIconCounts[4] }
       ],
       `${foodIconCount}`,
       5,

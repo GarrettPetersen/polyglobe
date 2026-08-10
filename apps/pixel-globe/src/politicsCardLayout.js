@@ -136,12 +136,16 @@ function relationshipLines(card, tokensPerLine, powerCount) {
   const lines = [];
   const dependencyGroups = new Map();
   for (const dependency of card.dependencies) {
-    const key = `${dependency.kind}:${dependency.role}`;
+    const termsKey = dependency.terms
+      ? `${dependency.terms.foreignPolicy}:${Number(dependency.terms.tribute)}:${Number(dependency.terms.mutualDefense)}:${Number(dependency.terms.offensiveWarObligation)}`
+      : "legacy";
+    const key = `${dependency.kind}:${dependency.role}:${termsKey}`;
     if (!dependencyGroups.has(key)) {
       dependencyGroups.set(key, {
         type: "dependency",
         kind: dependency.kind,
         role: dependency.role,
+        terms: dependency.terms || null,
         factionIds: []
       });
     }

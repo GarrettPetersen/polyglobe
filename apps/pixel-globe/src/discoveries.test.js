@@ -19,6 +19,7 @@ import {
   LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
   MOUNT_SHASTA_DISCOVERY_RADIUS_PX,
   MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY,
+  MOAI_DISCOVERY_ID,
   NIAGARA_FALLS_DISCOVERY_ID,
   NIAGARA_FALLS_DISCOVERY_RADIUS_PX,
   VICTORIA_FALLS_DISCOVERY_ID,
@@ -64,7 +65,7 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
     navigationMask,
     pixelsPerRadian: 2450
   });
-  assert.equal(discoveries.length, 20);
+  assert.equal(discoveries.length, 21);
   assert.equal(discoveries[0].id, GREAT_PYRAMID_DISCOVERY_ID);
   assert.equal(discoveries[1].id, LAKE_VICTORIA_DISCOVERY_ID);
   assert.equal(discoveries[1].radiusPx, LAKE_VICTORIA_DISCOVERY_RADIUS_PX);
@@ -168,6 +169,41 @@ test("waterfall discoveries require their inland approaches but remain forgiving
     atlanticCityDistancePx > niagara.radiusPx * 3,
     "Niagara Falls must not be discoverable from the Atlantic coast"
   );
+});
+
+test("the Moai occupy a dedicated Rapa Nui hex beside the village", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  earth.tiles = applyManualTerrainOverrides(earth.tiles, PRODUCTION_SUBDIVISIONS);
+  const graph = buildGeodesicGraph(PRODUCTION_SUBDIVISIONS);
+  const topology = buildWorldNavigationTopology({
+    graph,
+    earthRows: earth.tiles,
+    earthCache: earth,
+    subdivisions: PRODUCTION_SUBDIVISIONS
+  });
+  const landMask = Uint8Array.from(earth.tiles, (row) => isWaterSurfaceRow(row) ? 0 : 1);
+  const villageTileId = 141773;
+  const discoveries = buildWorldDiscoveries(graph, createDirectionIndex(graph), {
+    landMask,
+    cityTileIds: new Map([[villageTileId, true]]).keys(),
+    riverMasks: topology.riverMasks,
+    riverToWaterMasks: topology.riverToWaterMasks,
+    navigationMask: topology.reachableNavigationMask,
+    pixelsPerRadian: PRODUCTION_PIXELS_PER_RADIAN
+  });
+  const moai = discoveries.find((item) => item.id === MOAI_DISCOVERY_ID);
+
+  assert.ok(moai);
+  assert.equal(moai.spriteKey, "moai");
+  assert.equal(moai.spriteTileId, 8932);
+  assert.notEqual(moai.spriteTileId, villageTileId);
+  assert.equal(graph.neighbors[villageTileId].includes(moai.spriteTileId), false);
+  assert.ok(graph.neighbors[141771].includes(moai.spriteTileId));
+  assert.equal(earth.tiles[villageTileId].m, earth.tiles[moai.spriteTileId].m);
+  assert.equal(landMask[moai.spriteTileId], 1);
 });
 
 test("world discovery registry is unique, complete, and explicit about historicity", () => {

@@ -2,6 +2,28 @@ const DEFAULT_ATTEMPTS = 5;
 const DEFAULT_RETRY_DELAY_MS = 200;
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429]);
 
+export class StaticAssetNetworkError extends Error {
+  constructor(message, { cause = null, status = null } = {}) {
+    super(message, cause ? { cause } : undefined);
+    this.name = this.constructor.name;
+    this.code = "STATIC_ASSET_NETWORK";
+    this.status = status;
+  }
+}
+
+export function isTransientStaticAssetError(error) {
+  const visited = new Set();
+  let current = error;
+  while (current && typeof current === "object" && !visited.has(current)) {
+    if (current instanceof StaticAssetNetworkError || current.code === "STATIC_ASSET_NETWORK") {
+      return true;
+    }
+    visited.add(current);
+    current = current.cause;
+  }
+  return false;
+}
+
 export async function fetchStaticAsset(resource, {
   label,
   fetchImpl = globalThis.fetch,
@@ -32,12 +54,19 @@ export async function fetchStaticAsset(resource, {
       if (!response || typeof response.ok !== "boolean" || !Number.isInteger(response.status)) {
         throw new Error("fetch returned an invalid response");
       }
-      if (!responseIsRetryable(response) || attempt === attempts) return response;
+      if (!responseIsRetryable(response)) return response;
+      if (attempt === attempts) {
+        throw new StaticAssetNetworkError(
+          `Failed to load ${label} after ${attempts} attempts: HTTP ${response.status}`,
+          { status: response.status }
+        );
+      }
     } catch (error) {
+      if (error instanceof StaticAssetNetworkError) throw error;
       lastNetworkError = error;
       if (attempt === attempts) {
         const message = error instanceof Error ? error.message : String(error);
-        throw new Error(
+        throw new StaticAssetNetworkError(
           `Failed to load ${label} after ${attempts} attempts: ${message}`,
           { cause: error }
         );
@@ -46,7 +75,7 @@ export async function fetchStaticAsset(resource, {
     await sleep(retryDelayMs * attempt);
   }
 
-  throw new Error(
+  throw new StaticAssetNetworkError(
     `Failed to load ${label} after ${attempts} attempts`,
     { cause: lastNetworkError }
   );
