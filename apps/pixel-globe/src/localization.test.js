@@ -174,6 +174,36 @@ test("control scheme help is localized in every supported language", () => {
   }
 });
 
+test("Duel and the historical commander selector are localized everywhere", () => {
+  const keys = [
+    "start.shipBattle",
+    "historical.chooseCommander",
+    "historical.couldNotLoadPortrait",
+    "historical.scenario.lepanto-1571.mapLabel",
+    "historical.ship.galley",
+    "historical.commander.john-of-austria",
+    "historical.commander.agostino-barbarigo",
+    "historical.commander.giovanni-andrea-doria",
+    "historical.commander.ali-pasha",
+    "historical.commander.mahomet-sirocco",
+    "historical.commander.uluc-ali",
+    "historical.commander.short.john-of-austria",
+    "historical.commander.short.agostino-barbarigo",
+    "historical.commander.short.giovanni-andrea-doria",
+    "historical.commander.short.ali-pasha",
+    "historical.commander.short.mahomet-sirocco",
+    "historical.commander.short.uluc-ali"
+  ];
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    for (const key of keys) {
+      assert.ok(translate(id, key).length > 0, `${id} has an empty ${key}`);
+    }
+  }
+  assert.equal(translate(LANGUAGE_ENGLISH, "start.shipBattle"), "DUEL");
+  assert.equal(translate(LANGUAGE_JAPANESE, "start.shipBattle"), "決闘");
+  assert.equal(translate(LANGUAGE_KOREAN, "start.shipBattle"), "결투");
+});
+
 test("controller layout labels, actions, and feedback are localized everywhere", () => {
   const keys = [
     "options.keyMapping",

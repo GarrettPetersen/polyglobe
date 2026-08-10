@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -81,6 +82,45 @@ test("Lepanto records faction flags, asymmetric artillery, and an Ottoman escape
   assert.equal(scenario.map.wind.directionRad, 0);
   assert.equal(scenario.map.wind.shift.directionRad, Math.PI);
   assert.ok(scenario.map.wind.shift.completesAtSeconds < 26);
+});
+
+test("Lepanto exposes one map marker and six playable historical commanders", () => {
+  const scenario = historicalBattleScenarioById(LEPANTO_SCENARIO_ID);
+  const commanders = scenario.selection.commanders;
+  const supportingCharacters = scenario.selection.supportingCharacters;
+
+  assert.deepEqual(scenario.selection.marker, {
+    longitudeDeg: 21.25,
+    latitudeDeg: 38.2,
+    shipSlug: "galleass"
+  });
+  assert.equal(commanders.length, 6);
+  assert.deepEqual(commanders.map(({ sideId }) => sideId), [
+    HOLY_LEAGUE_SIDE_ID,
+    HOLY_LEAGUE_SIDE_ID,
+    HOLY_LEAGUE_SIDE_ID,
+    OTTOMAN_SIDE_ID,
+    OTTOMAN_SIDE_ID,
+    OTTOMAN_SIDE_ID
+  ]);
+  assert.equal(new Set(commanders.map(({ id }) => id)).size, 6);
+  assert.equal(new Set(commanders.map(({ portraitSrc }) => portraitSrc)).size, 6);
+  for (const commander of commanders) {
+    assert.equal(commander.shipSlug, "mediterranean-galley");
+    assert.equal(commander.portraitFacing, "right");
+    assert.equal(
+      existsSync(new URL(`../public/${commander.portraitSrc}`, import.meta.url)),
+      true,
+      `Missing historical commander portrait: ${commander.id}`
+    );
+  }
+  assert.deepEqual(supportingCharacters.map(({ id }) => id), ["christian-oarsman"]);
+  assert.equal(supportingCharacters[0].portraitFacing, "left");
+  assert.equal(
+    existsSync(new URL(`../public/${supportingCharacters[0].portraitSrc}`, import.meta.url)),
+    true,
+    "Missing Christian oarsman portrait"
+  );
 });
 
 test("historical scenario records are immutable", () => {

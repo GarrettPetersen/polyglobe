@@ -38,25 +38,10 @@ test("ship hull bars retain the NPC geometry below a centered sprite", () => {
 
 test("ship combat colors identify player, enemy, and friendly ships", () => {
   assert.equal(PLAYER_SHIP_COMBAT_COLOR, "#f9c22b");
-  assert.equal(
-    npcShipHullBarColor("enemy"),
-    ENEMY_SHIP_COMBAT_COLOR
-  );
-  assert.equal(
-    npcShipHullBarColor("friendly"),
-    FRIENDLY_SHIP_COMBAT_COLOR
-  );
-  assert.equal(
-    npcShipHullBarColor("ally"),
-    FRIENDLY_SHIP_COMBAT_COLOR
-  );
-});
-
-test("neutral NPC hull bars have a distinct neutral color", () => {
-  assert.equal(
-    npcShipHullBarColor(null),
-    NEUTRAL_SHIP_COMBAT_COLOR
-  );
+  assert.equal(npcShipHullBarColor("enemy"), ENEMY_SHIP_COMBAT_COLOR);
+  assert.equal(npcShipHullBarColor("friendly"), FRIENDLY_SHIP_COMBAT_COLOR);
+  assert.equal(npcShipHullBarColor("ally"), FRIENDLY_SHIP_COMBAT_COLOR);
+  assert.equal(npcShipHullBarColor(null), NEUTRAL_SHIP_COMBAT_COLOR);
 });
 
 test("ship hull bars reject malformed strength and geometry", () => {

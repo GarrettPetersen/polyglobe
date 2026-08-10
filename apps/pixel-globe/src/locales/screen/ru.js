@@ -623,7 +623,6 @@ export default Object.freeze({
   "Before sunrise, the party collected dew from canvas sheets stretched across the cold desert stones.": "Перед восходом солнца группа собирала росу с холстов, натянутых на холодные камни пустыни.",
   "Before the crew scatters, there is one truth I kept through every watch: I love you, captain.": "Прежде чем команда разбежится, есть одна истина, которую я храню каждую вахту: я люблю тебя, капитан.",
   "Before we go ashore, let me speak plainly once: you have my heart, captain. I love you.": "Прежде чем мы сойдем на берег, позвольте мне сказать прямо: мое сердце принадлежит вам, капитан. Я тебя люблю.",
-  "BEGIN BATTLE": "НАЧАТЬ БИТВУ",
   "Begin negotiations": "Начать переговоры",
   "Begin voyage": "Начать путешествие",
   "Begin with {0}: {1}. A true account earns {2} doubloons. I marked its bearing.": "Начните с {0}: {1}. Настоящий аккаунт приносит {2} дублонов. Я отметил его направление.",

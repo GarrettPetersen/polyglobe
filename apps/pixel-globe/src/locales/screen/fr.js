@@ -623,7 +623,6 @@ export default Object.freeze({
   "Before sunrise, the party collected dew from canvas sheets stretched across the cold desert stones.": "Avant le lever du soleil, le groupe récoltait la rosée sur des toiles tendues sur les pierres froides du désert.",
   "Before the crew scatters, there is one truth I kept through every watch: I love you, captain.": "Avant que l'équipage ne se disperse, il y a une vérité que j'ai gardée à chaque quart : je t'aime, capitaine.",
   "Before we go ashore, let me speak plainly once: you have my heart, captain. I love you.": "Avant de débarquer, permettez-moi de vous parler clairement une fois : vous avez mon cœur, capitaine. Je t'aime.",
-  "BEGIN BATTLE": "COMMENCER LA BATAILLE",
   "Begin negotiations": "Commencer les négociations",
   "Begin voyage": "Commencer le voyage",
   "Begin with {0}: {1}. A true account earns {2} doubloons. I marked its bearing.": "Commencez par {0} : {1}. Un vrai compte rapporte {2} doublons. J'ai marqué son relèvement.",

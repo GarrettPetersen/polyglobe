@@ -623,7 +623,6 @@ export default Object.freeze({
   "Before sunrise, the party collected dew from canvas sheets stretched across the cold desert stones.": "日出前，一行人从铺在冰冷的沙漠石头上的帆布上收集露水。",
   "Before the crew scatters, there is one truth I kept through every watch: I love you, captain.": "在船员们散去之前，我在每次值班时都坚守着一个真理：我爱你，船长。",
   "Before we go ashore, let me speak plainly once: you have my heart, captain. I love you.": "在我们上岸之前，让我坦白地说一次：你得到了我的心，船长。我爱你。",
-  "BEGIN BATTLE": "开始战斗",
   "Begin negotiations": "开始谈判",
   "Begin voyage": "开始航行",
   "Begin with {0}: {1}. A true account earns {2} doubloons. I marked its bearing.": "以 {0} 开头：{1}。真实帐户可赚取 {2} 金币。我标记了它的方位。",

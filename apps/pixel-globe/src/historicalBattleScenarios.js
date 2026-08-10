@@ -7,12 +7,76 @@ const GALLEASS_SLUG = "galleass";
 const GALLEON_SLUG = "galleon";
 const CARRACK_SLUG = "carrack";
 const FUSTA_SLUG = "fusta";
+const LEPANTO_PORTRAIT_ROOT = "assets/characters/historical-battles/lepanto";
 
 const LEPANTO_SCENARIO = scenario({
   id: LEPANTO_SCENARIO_ID,
   title: "Battle of Lepanto",
+  titleKey: "historical.scenario.lepanto-1571.title",
+  mapLabelKey: "historical.scenario.lepanto-1571.mapLabel",
   date: "7 October 1571",
   location: "Gulf of Patras",
+  selection: {
+    marker: {
+      longitudeDeg: 21.25,
+      latitudeDeg: 38.2,
+      shipSlug: GALLEASS_SLUG
+    },
+    commanders: [
+      commander(
+        "john-of-austria",
+        HOLY_LEAGUE_SIDE_ID,
+        "league-center",
+        GALLEY_SLUG,
+        `${LEPANTO_PORTRAIT_ROOT}/john-of-austria.png`
+      ),
+      commander(
+        "agostino-barbarigo",
+        HOLY_LEAGUE_SIDE_ID,
+        "league-left",
+        GALLEY_SLUG,
+        `${LEPANTO_PORTRAIT_ROOT}/agostino-barbarigo.png`
+      ),
+      commander(
+        "giovanni-andrea-doria",
+        HOLY_LEAGUE_SIDE_ID,
+        "league-right",
+        GALLEY_SLUG,
+        `${LEPANTO_PORTRAIT_ROOT}/giovanni-andrea-doria.png`
+      ),
+      commander(
+        "ali-pasha",
+        OTTOMAN_SIDE_ID,
+        "ottoman-center",
+        GALLEY_SLUG,
+        `${LEPANTO_PORTRAIT_ROOT}/ali-pasha.png`
+      ),
+      commander(
+        "mahomet-sirocco",
+        OTTOMAN_SIDE_ID,
+        "ottoman-right",
+        GALLEY_SLUG,
+        `${LEPANTO_PORTRAIT_ROOT}/mahomet-sirocco.png`
+      ),
+      commander(
+        "uluc-ali",
+        OTTOMAN_SIDE_ID,
+        "ottoman-left",
+        GALLEY_SLUG,
+        `${LEPANTO_PORTRAIT_ROOT}/uluc-ali.png`
+      )
+    ],
+    supportingCharacters: [
+      supportingCharacter(
+        "christian-oarsman",
+        OTTOMAN_SIDE_ID,
+        "historical.character.christian-oarsman",
+        "historical.dialogue.oarsmanRole",
+        `${LEPANTO_PORTRAIT_ROOT}/christian-oarsman.png`,
+        "left"
+      )
+    ]
+  },
   map: {
     id: "lepanto-gulf-of-patras",
     width: 7680,
@@ -144,7 +208,8 @@ export function historicalBattleScenarioShipCount(scenarioValue, sideId = null) 
 
 function scenario(value) {
   if (!value || typeof value !== "object") throw new Error("Historical battle scenario is required");
-  if (!value.id || !value.title || !value.date || !value.location) {
+  if (!value.id || !value.title || !value.titleKey || !value.mapLabelKey ||
+      !value.date || !value.location) {
     throw new Error("Historical battle scenario metadata is incomplete");
   }
   if (!Number.isInteger(value.map?.width) || !Number.isInteger(value.map?.height)) {
@@ -159,7 +224,39 @@ function scenario(value) {
     if (ids.has(sideValue.id)) throw new Error(`Duplicate historical battle side: ${sideValue.id}`);
     ids.add(sideValue.id);
   }
+  assertHistoricalBattleSelection(value);
   return deepFreeze(value);
+}
+
+function assertHistoricalBattleSelection(value) {
+  const marker = value.selection?.marker;
+  if (!Number.isFinite(marker?.longitudeDeg) || marker.longitudeDeg < -180 || marker.longitudeDeg > 180 ||
+      !Number.isFinite(marker?.latitudeDeg) || marker.latitudeDeg < -90 || marker.latitudeDeg > 90 ||
+      typeof marker?.shipSlug !== "string" || marker.shipSlug.length === 0) {
+    throw new Error(`Historical battle selection marker is invalid: ${value.id}`);
+  }
+  const commanders = value.selection?.commanders;
+  if (!Array.isArray(commanders) || commanders.length === 0 || commanders.length % 2 !== 0) {
+    throw new Error(`Historical battle needs an even commander roster: ${value.id}`);
+  }
+  const ids = new Set();
+  const portraitSources = new Set();
+  for (const entry of commanders) {
+    if (ids.has(entry.id)) throw new Error(`Duplicate historical commander: ${entry.id}`);
+    if (portraitSources.has(entry.portraitSrc)) {
+      throw new Error(`Duplicate historical commander portrait: ${entry.portraitSrc}`);
+    }
+    ids.add(entry.id);
+    portraitSources.add(entry.portraitSrc);
+    const sideValue = value.sides.find((candidate) => candidate.id === entry.sideId);
+    const squadronValue = sideValue?.squadrons.find((candidate) => candidate.id === entry.squadronId);
+    if (!squadronValue) {
+      throw new Error(`Historical commander squadron is missing: ${entry.id}`);
+    }
+    if (!squadronValue.shipGroups.some((group) => group.shipSlug === entry.shipSlug)) {
+      throw new Error(`Historical commander ship is absent from their squadron: ${entry.id}`);
+    }
+  }
 }
 
 function assertHistoricalWind(wind, scenarioId) {
@@ -251,6 +348,25 @@ function shipGroup(shipSlug, count, role, factionId, cannons, portableWeaponItem
     throw new Error(`Historical battle ship group has no small arms: ${shipSlug}/${factionId}`);
   }
   return { shipSlug, count, role, factionId, cannons, portableWeaponItemIds };
+}
+
+function commander(id, sideId, squadronId, shipSlug, portraitSrc) {
+  if (!id || !sideId || !squadronId || !shipSlug ||
+      typeof portraitSrc !== "string" ||
+      !portraitSrc.startsWith("assets/characters/") || !portraitSrc.endsWith(".png")) {
+    throw new Error(`Historical commander metadata is invalid: ${id}`);
+  }
+  return { id, sideId, squadronId, shipSlug, portraitSrc, portraitFacing: "right" };
+}
+
+function supportingCharacter(id, sideId, nameKey, roleKey, portraitSrc, portraitFacing) {
+  if (!id || !sideId || !nameKey || !roleKey ||
+      typeof portraitSrc !== "string" ||
+      !portraitSrc.startsWith("assets/characters/") || !portraitSrc.endsWith(".png") ||
+      !["left", "right"].includes(portraitFacing)) {
+    throw new Error(`Historical supporting character metadata is invalid: ${id}`);
+  }
+  return { id, sideId, nameKey, roleKey, portraitSrc, portraitFacing };
 }
 
 function assertScenario(value) {

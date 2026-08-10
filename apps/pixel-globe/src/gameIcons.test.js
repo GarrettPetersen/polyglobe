@@ -78,6 +78,9 @@ test("every current dialogue and start-menu action resolves to an icon", async (
     assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "node", nodeId } })], nodeId);
   }
   assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "continue-campaign" } })]);
+  assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({
+    action: { type: "continue-historical-battle-dialogue" }
+  })]);
   assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "campaign-retire" } })]);
   assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "campaign-keep-sailing" } })]);
 });

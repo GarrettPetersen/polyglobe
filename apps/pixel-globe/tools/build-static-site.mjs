@@ -226,6 +226,7 @@ function shouldCopyPublicPath(path) {
   ) {
     return false;
   }
+  if (normalized.startsWith("assets/characters/historical-battles/")) return true;
   if (normalized.startsWith("assets/characters/") && normalized.endsWith(".png")) {
     return demoPortraitFiles.has(normalized);
   }

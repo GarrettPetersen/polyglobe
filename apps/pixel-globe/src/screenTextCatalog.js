@@ -623,7 +623,6 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Before sunrise, the party collected dew from canvas sheets stretched across the cold desert stones.",
   "Before the crew scatters, there is one truth I kept through every watch: I love you, captain.",
   "Before we go ashore, let me speak plainly once: you have my heart, captain. I love you.",
-  "BEGIN BATTLE",
   "Begin negotiations",
   "Begin voyage",
   "Begin with {0}: {1}. A true account earns {2} doubloons. I marked its bearing.",

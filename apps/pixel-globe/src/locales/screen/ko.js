@@ -623,7 +623,6 @@ export default Object.freeze({
   "Before sunrise, the party collected dew from canvas sheets stretched across the cold desert stones.": "해가 뜨기 전에 일행은 차가운 사막의 돌 위에 펼쳐진 캔버스 시트에서 이슬을 모았습니다.",
   "Before the crew scatters, there is one truth I kept through every watch: I love you, captain.": "선원들이 흩어지기 전에 제가 매 근무 시간마다 지켜온 한 가지 진실은 바로 선장님, 사랑합니다.",
   "Before we go ashore, let me speak plainly once: you have my heart, captain. I love you.": "상륙하기 전에 한 번 분명히 말씀드리겠습니다. 당신은 내 마음을 갖고 계십니다, 선장님. 사랑해요.",
-  "BEGIN BATTLE": "전투 시작",
   "Begin negotiations": "협상 시작",
   "Begin voyage": "항해를 시작하다",
   "Begin with {0}: {1}. A true account earns {2} doubloons. I marked its bearing.": "{0}으로 시작하세요: {1}. 실제 계정은 {2}금화를 얻습니다. 나는 그 방향을 표시했다.",
