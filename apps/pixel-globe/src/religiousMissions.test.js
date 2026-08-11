@@ -100,6 +100,53 @@ test("Catholic ports enforce the Edict against forbidden Testaments", () => {
   assert.equal(status.canPurchaseSafePassage, false);
 });
 
+test("the September Testament visits three Catholic factors before completion", () => {
+  const origin = port(21, "Hamburg", "Germany", "denmark-norway", "northern-european");
+  const destinations = [
+    port(22, "Bremen", "Germany", "denmark-norway", "northern-european"),
+    port(23, "Amsterdam", "Netherlands", "habsburg", "northern-european"),
+    port(24, "London", "United Kingdom", "england", "northern-european"),
+    port(25, "Rouen", "France", "france", "northern-european")
+  ];
+  const excludedLutheranFactor = port(
+    26,
+    "Lubeck",
+    "Germany",
+    "denmark-norway",
+    "northern-european"
+  );
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Captain Test",
+      nationalityId: "denmark-norway",
+      religionId: "roman-catholic",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const quest = passengerOfferForCity(
+    state,
+    origin,
+    [origin, ...destinations, excludedLutheranFactor],
+    {
+      spawnChance: 1,
+      religiousMissionId: "september-testament",
+      simMinute: 0,
+      sailingDistanceKm: (left, right) => 450 + Math.abs(left.tileId - right.tileId) * 90,
+      portFactorReligionId: (candidate) => (
+        candidate.tileId === excludedLutheranFactor.tileId ? "lutheran" : "roman-catholic"
+      )
+    }
+  );
+
+  assert.equal(quest.religiousItinerary.length, 3);
+  assert.equal(new Set(quest.religiousItinerary.map(({ tileId }) => tileId)).size, 3);
+  assert.ok(quest.religiousItinerary.every(({ tileId }) => tileId !== excludedLutheranFactor.tileId));
+  assert.equal(quest.destinationTileId, quest.religiousItinerary[0].tileId);
+  assert.equal(quest.religiousDeliveryLegIndex, 0);
+  assert.match(quest.dialogue.offer, /three hidden ports/);
+});
+
 test("Christian missionary voyages use their documented 1522 routes", () => {
   const cases = [
     {

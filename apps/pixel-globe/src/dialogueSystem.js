@@ -16,11 +16,13 @@ import {
   cargoRows,
   cargoSpaceLabel,
   cargoUsed,
+  changePlayerReligion,
   cityLabel,
   completeQuest,
   createMarketUndoSnapshot,
   declineEquipmentFactorPitch,
   deliveryOfferForCity,
+  deliverReligiousMissionLeg,
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
   futurePermanentCrewFloor,
@@ -105,6 +107,7 @@ import {
   captainCanParticipateInReligiousMission,
   isReligiousPassengerQuest,
   religiousMissionIconId,
+  religiousMissionOffersLutheranConversion,
   religiousMissionParticipation
 } from "./religiousMissions.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
@@ -489,6 +492,8 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     envoyNegotiationResult: null,
     hajjUnderway: false,
     religiousParticipationUnderway: false,
+    religiousLegDelivery: null,
+    lutheranConversionPending: false,
     selectedIndex: 0,
     feedback: null
   };
@@ -501,6 +506,7 @@ export function createShipDialogueSession(
     rumorText = null,
     cartazInspection = null,
     illicitTradeInspection = null,
+    bibleInspection = null,
     listenerReligionId = null,
     pirateTreasureName = null,
     hostileHail = false
@@ -536,6 +542,16 @@ export function createShipDialogueSession(
   if (cartazInspection && illicitTradeInspection) {
     throw new Error("A ship cannot conduct two trade inspections at once");
   }
+  if (bibleInspection !== null && (
+    typeof bibleInspection !== "object" ||
+    typeof bibleInspection.questId !== "string" || bibleInspection.questId === "" ||
+    !["sympathetic", "caught"].includes(bibleInspection.outcome)
+  )) {
+    throw new Error("Ship Bible inspection requires a valid outcome");
+  }
+  if (bibleInspection && (cartazInspection || illicitTradeInspection)) {
+    throw new Error("A ship cannot conduct two trade inspections at once");
+  }
   if (listenerReligionId !== null) religionById(listenerReligionId);
   if (pirateTreasureName !== null &&
       (typeof pirateTreasureName !== "string" || pirateTreasureName.trim() === "")) {
@@ -551,6 +567,8 @@ export function createShipDialogueSession(
       ? "cartaz-inspection"
       : illicitTradeInspection
         ? "illicit-trade-inspection"
+        : bibleInspection
+          ? "bible-inspection"
         : "root",
     selectedIndex: 0,
     attackReason,
@@ -559,6 +577,7 @@ export function createShipDialogueSession(
     rumorText,
     cartazInspection,
     illicitTradeInspection,
+    bibleInspection,
     listenerReligionId,
     pirateTreasureName,
     hostileHail
@@ -750,6 +769,9 @@ function shipDialogueContentView(session, ship) {
   }
   if (session.nodeId === "illicit-trade-inspection") {
     return illicitTradeInspectionView(session, speaker);
+  }
+  if (session.nodeId === "bible-inspection") {
+    return bibleInspectionView(session, speaker);
   }
   if (session.attackReason && ship.combatGrace) {
     return {
@@ -1010,6 +1032,30 @@ function illicitTradeInspectionView(session, speaker) {
   };
 }
 
+function bibleInspectionView(session, speaker) {
+  const inspection = session.bibleInspection;
+  if (!inspection) throw new Error("Bible inspection dialogue has no enforcement terms");
+  if (inspection.outcome === "sympathetic") {
+    return {
+      speaker,
+      expressionId: "amused",
+      text: "Luther's Testaments are forbidden. Fortunately, I have read them. Close the chest, captain; my eyesight has failed.",
+      feedback: null,
+      options: [option("Thank the captain", { type: "close" })]
+    };
+  }
+  return {
+    speaker,
+    expressionId: "stern",
+    text: "Heave to. We found Luther's forbidden Testaments. Surrender the books, or answer to our guns.",
+    feedback: null,
+    options: [
+      option("Surrender the Bibles", { type: "surrender-bible-contraband" }),
+      option("Run for it", { type: "evade-bible-inspection" })
+    ]
+  };
+}
+
 function surrenderPrizeView(session, ship) {
   const presentation = surrenderPrizePresentation(session, ship);
   const candidate = shipLabelForSlug(presentation.candidateShipSlug);
@@ -1106,6 +1152,12 @@ function assertShipDialogueSubject(session, ship) {
 }
 
 function applyShipDialogueAction(session, ship, action) {
+  if (["surrender-bible-contraband", "evade-bible-inspection"].includes(action.type)) {
+    if (session.nodeId !== "bible-inspection" || session.bibleInspection?.outcome !== "caught") {
+      throw new Error(`Bible enforcement action outside a caught inspection: ${action.type}`);
+    }
+    return { closed: true, action };
+  }
   if (
     action.type === "pay-illicit-trade-fine" ||
     action.type === "surrender-illicit-trade-cargo"
@@ -2367,6 +2419,40 @@ export function passengerDialogueView(session, city, quest, gameState) {
   const roleLabel = isEnvoyQuest(quest) ? "envoy" : passengerRoleLabel(quest);
   const speaker = `${passengerName(quest)}, ${roleLabel}`;
   const expressionId = questExpressionId(quest);
+  if (session.lutheranConversionPending) {
+    if (!captainNeedsBibleFaithDecision(gameState, quest)) {
+      throw new Error("September Testament faith decision is no longer valid");
+    }
+    const currentReligionId = gameState.playerCharacter.religionId;
+    return {
+      speaker,
+      expressionId: "amused",
+      text: "Captain, you read the Bibles all the way here. Did they change your faith, or only ruin your sleep?",
+      feedback: session.feedback,
+      options: [
+        option(currentReligionId === "roman-catholic"
+          ? "Remain Roman Catholic"
+          : "Keep my present faith", {
+          type: "resolve-bible-faith",
+          religionId: currentReligionId
+        }),
+        option("Become Lutheran", {
+          type: "resolve-bible-faith",
+          religionId: "lutheran"
+        })
+      ]
+    };
+  }
+  if (session.religiousLegDelivery && !session.religiousLegDelivery.final) {
+    return {
+      speaker,
+      expressionId: "amused",
+      text: `One city supplied. ${session.religiousLegDelivery.nextDestinationName} is next. ` +
+        "The bishops have excellent roads; unfortunately for them, so do we.",
+      feedback: session.feedback,
+      options: [option("Continue the circuit", { type: "close" })]
+    };
+  }
   if (session.envoyNegotiationResult) {
     if (!isEnvoyQuest(quest)) {
       throw new Error("Passenger dialogue stored an envoy negotiation for a non-envoy quest");
@@ -2396,6 +2482,22 @@ export function passengerDialogueView(session, city, quest, gameState) {
     };
   }
   if (active?.id === quest.id && quest.destinationTileId === city.tileId) {
+    if (isMultiPortReligiousMission(quest) && !session.religiousParticipationUnderway) {
+      const legNumber = quest.religiousDeliveryLegIndex + 1;
+      return {
+        speaker,
+        expressionId: "attentive",
+        text: `${cityLabel(city)} has trusted readers waiting behind drawn shutters. ` +
+          `This is delivery ${legNumber} of ${quest.religiousItinerary.length}.`,
+        feedback: session.feedback,
+        options: [
+          option(`Deliver Testaments  ${legNumber}/${quest.religiousItinerary.length}`, {
+            type: "deliver-religious-itinerary-leg"
+          }),
+          option("Not yet", { type: "close" })
+        ]
+      };
+    }
     if (isHajjPassengerQuest(quest) && session.hajjUnderway) {
       return {
         speaker,
@@ -2469,7 +2571,10 @@ export function passengerDialogueView(session, city, quest, gameState) {
       expressionId: "attentive",
       text: isEnvoyQuest(quest) && quest.stage === "return"
         ? quest.dialogue?.returnUnderway || `I carry the answer home to ${quest.originName}.`
-        : quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
+        : isMultiPortReligiousMission(quest)
+          ? `The next bundles are bound for ${quest.destinationName}. ` +
+            `${quest.religiousItinerary.length - quest.religiousDeliveryLegIndex} deliveries remain.`
+          : quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
       feedback: session.feedback,
       options: [
         option("Leave", { type: "close" })
@@ -2552,10 +2657,40 @@ export function selectPassengerDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
+  let religiousLegDelivery = null;
+  if (action.type === "deliver-religious-itinerary-leg") {
+    religiousLegDelivery = deliverReligiousMissionLeg(gameState, city, context);
+    session.religiousLegDelivery = religiousLegDelivery;
+    session.selectedIndex = 0;
+    if (!religiousLegDelivery.final) return { closed: false, action: null, religiousLegDelivery };
+    if (captainNeedsBibleFaithDecision(gameState, quest)) {
+      session.lutheranConversionPending = true;
+      return { closed: false, action: null, religiousLegDelivery };
+    }
+    if (captainCanParticipateInReligiousMission(gameState, quest)) {
+      session.religiousParticipationUnderway = true;
+      return { closed: false, action: null, religiousLegDelivery };
+    }
+  }
+  if (action.type === "complete-passenger" && captainNeedsBibleFaithDecision(gameState, quest)) {
+    session.lutheranConversionPending = true;
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  const resolvingBibleFaith = action.type === "resolve-bible-faith";
+  if (resolvingBibleFaith && (
+    !session.lutheranConversionPending ||
+    !captainNeedsBibleFaithDecision(gameState, quest) ||
+    ![gameState.playerCharacter.religionId, "lutheran"].includes(action.religionId)
+  )) {
+    throw new Error("Bible faith decision cannot be resolved from this passenger dialogue");
+  }
   if (
     action.type === "complete-passenger" ||
     action.type === "complete-hajj" ||
-    action.type === "complete-religious-mission"
+    action.type === "complete-religious-mission" ||
+    resolvingBibleFaith ||
+    religiousLegDelivery?.final === true
   ) {
     const completingHajj = action.type === "complete-hajj";
     const completingReligiousParticipation = action.type === "complete-religious-mission";
@@ -2577,6 +2712,13 @@ export function selectPassengerDialogueOption(
       ...context,
       questId: quest.id
     });
+    const religiousConversion = resolvingBibleFaith
+      ? changePlayerReligion(gameState, action.religionId, context.simMinute ?? 0)
+      : null;
+    if (resolvingBibleFaith) {
+      gameState.memory.flags.septemberTestamentFaithDecisionMade = true;
+      session.lutheranConversionPending = false;
+    }
     const religiousMissionParticipationResult = completingReligiousParticipation
       ? religiousMissionParticipation(completed)
       : null;
@@ -2615,10 +2757,24 @@ export function selectPassengerDialogueOption(
       ...(religiousMissionParticipationResult
         ? { religiousMissionParticipation: religiousMissionParticipationResult }
         : {}),
+      ...(religiousConversion ? { religiousConversion } : {}),
+      ...(religiousLegDelivery ? { religiousLegDelivery } : {}),
       ...(missionItemGift ? { missionItemGift } : {})
     };
   }
   throw new Error(`Unknown passenger dialogue action: ${action.type}`);
+}
+
+function captainNeedsBibleFaithDecision(gameState, quest) {
+  return religiousMissionOffersLutheranConversion(quest) &&
+    typeof gameState?.playerCharacter?.religionId === "string" &&
+    gameState.playerCharacter.religionId !== "lutheran" &&
+    gameState?.memory?.flags?.septemberTestamentFaithDecisionMade !== true;
+}
+
+function isMultiPortReligiousMission(quest) {
+  return isReligiousPassengerQuest(quest) &&
+    Array.isArray(quest.religiousItinerary) && quest.religiousItinerary.length > 1;
 }
 
 function activeTravelPassengerQuest(gameState) {

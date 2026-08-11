@@ -373,11 +373,13 @@ import {
   recordPeaceTreatyAuthorityForState,
   recordPortCaptureAuthorityForState,
   reconcileCharacterForPapalAuthority,
+  resolveCatholicBibleInspection,
   buyPortugueseCartazFromInspector,
   payPortugueseCartazFine,
   payIllicitTradeFine,
   surrenderPortugueseControlledCargo,
   surrenderIllicitTradeCargo,
+  surrenderCatholicBibleContraband,
   refillFreshWaterFromShore,
   repairPlayerCargoOverflow,
   receiveDiscoveryCargo,
@@ -1349,6 +1351,7 @@ import { selectAccessibleFactionMissionPort } from "./missionPortSelection.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import { recordNpcGossipHeard, unheardNpcGossip } from "./npcGossipMemory.js";
 import { dietOfWormsGossipPerspective } from "./religiousDialogue.js";
+import { isRomanCatholicReligion } from "./religiousAttitudes.js";
 import {
   createPoliticsView,
   politicsMarqueMarker,
@@ -1585,6 +1588,7 @@ import {
 } from "./passengerMissions.js";
 import {
   isReligiousPassengerQuest,
+  religiousMissionIsCatholicContraband,
   religiousMissionTitle
 } from "./religiousMissions.js";
 import {
@@ -17205,7 +17209,8 @@ function openShipDialogue(shipCall, options = {}) {
     throw new Error(`Cannot hail missing NPC ship: ${shipCall.id}`);
   }
   const enforcementDialogue = Boolean(
-    options.attackReason || options.cartazInspection || options.illicitTradeInspection
+    options.attackReason || options.cartazInspection || options.illicitTradeInspection ||
+    options.bibleInspection
   );
   const hostileHail = !enforcementDialogue && npcShipIsHostileToPlayer(visualShip);
   const treasureGoal = activeTreasureCampaignGoal();
@@ -18172,6 +18177,14 @@ function chooseDialogueOption(optionIndex) {
       portDialogueContext()
     );
     reconcileForeignSettlementPolitics({ notify: true });
+    if (result.religiousLegDelivery) {
+      const converted = reconcilePapalAuthorityCharacters();
+      if (converted > 0) chart = null;
+      showSurvivalNotice(
+        `TESTAMENTS DELIVERED  ${result.religiousLegDelivery.legNumber}/${result.religiousLegDelivery.legCount}`,
+        "good"
+      );
+    }
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
     saveVoyageNow(SAVE_REASON_QUEST_DECISION);
@@ -18651,6 +18664,18 @@ async function acquireVikingLongship(action) {
 
 function applyShipDialogueAction(npcShipId, action) {
   const simMinute = Math.floor(weatherClockMinutes);
+  if (action.type === "surrender-bible-contraband") {
+    const questId = dialogueState?.bibleInspection?.questId;
+    surrenderCatholicBibleContraband(gameState, questId, simMinute);
+    showSurvivalNotice("BIBLES SEIZED  MISSION FAILED", "warning");
+    saveVoyageNow("surrendered forbidden Bibles");
+    return;
+  }
+  if (action.type === "evade-bible-inspection") {
+    forceIllicitTradeEnforcementCombat(npcShipId);
+    saveVoyageNow("evaded Bible inspection");
+    return;
+  }
   if (action.type === "pay-illicit-trade-fine") {
     const incidentId = dialogueState?.illicitTradeInspection?.incidentId;
     const result = payIllicitTradeFine(gameState, incidentId);
@@ -19202,6 +19227,7 @@ function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
     simMinute: Math.floor(weatherClockMinutes),
     relationBetween: currentDiplomacyBetween,
     sailingDistanceKm: sailingDistanceBetweenPorts,
+    portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
     createCharacter: createPassengerCharacterForQuest
   });
 }
@@ -25813,16 +25839,20 @@ function reconcileEnglishReformationCharacters() {
 
 function reconcilePapalAuthorityCharacters() {
   let converted = 0;
-  const convertMap = (characters) => {
+  const convertMap = (characters, { portFactors = false } = {}) => {
     if (!(characters instanceof Map)) return;
     for (const [key, character] of characters) {
-      const updated = reconcileCharacterForPapalAuthority(gameState, character);
+      const updated = reconcileCharacterForPapalAuthority(
+        gameState,
+        character,
+        portFactors ? { portTileId: key } : undefined
+      );
       if (updated === character) continue;
       characters.set(key, updated);
       converted += 1;
     }
   };
-  convertMap(portCityCharacters);
+  convertMap(portCityCharacters, { portFactors: true });
   convertMap(npcShipCaptains);
   return converted;
 }
@@ -27535,7 +27565,11 @@ function updateNpcCombat(dt) {
     }
   }
   const combatHailPending = Boolean(pendingNpcCombatHailId);
-  const illicitTradeHailOpened = !combatHailOpened && !combatHailPending && !suppressCaptureHails
+  const bibleHailOpened = !combatHailOpened && !combatHailPending && !suppressCaptureHails
+    ? maybeOpenCatholicBibleInspection(simMinute)
+    : false;
+  const illicitTradeHailOpened = !combatHailOpened && !combatHailPending &&
+      !bibleHailOpened && !suppressCaptureHails
     ? maybeOpenIllicitTradeInspection(simMinute)
     : false;
   const cartazHailOpened = !combatHailOpened && !combatHailPending &&
@@ -27554,7 +27588,7 @@ function updateNpcCombat(dt) {
           shoreBatteryUpdateAccumulator = 0;
           return updateShoreBatteryCombat(
             elapsed,
-            combatHailOpened || combatHailPending || illicitTradeHailOpened ||
+            combatHailOpened || combatHailPending || bibleHailOpened || illicitTradeHailOpened ||
               cartazHailOpened || suppressCaptureHails || overlayBlocksCombatHails,
             portEntryContext,
             playerWasInCombat
@@ -27622,6 +27656,56 @@ function updateNpcCombat(dt) {
     startCombatMusicForThreat(hostileCannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   }
   return changed;
+}
+
+function maybeOpenCatholicBibleInspection(simMinute) {
+  const quest = activeTravelMissionQuest(gameState);
+  if (
+    !quest || !religiousMissionIsCatholicContraband(quest) ||
+    gameState.activePlaySeconds < 60 ||
+    combatHailIsBlockedByOverlay() ||
+    playerHasCombatEngagement()
+  ) {
+    return false;
+  }
+  const inspectors = worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    NPC_HAIL_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )
+    .map((match) => ({
+      state: match.entry.value,
+      distance: Math.sqrt(match.distanceSquared)
+    }))
+    .filter(({ state, distance }) => {
+      const ruler = rulerAtMinute(state.factionId, simMinute);
+      return state.role === NPC_ROLE_WARSHIP && !state.combatGrace &&
+        distance <= NPC_HAIL_RADIUS_PX && ruler &&
+        isRomanCatholicReligion(ruler.religionId);
+    })
+    .sort((a, b) => a.distance - b.distance || a.state.id.localeCompare(b.state.id));
+  for (const { state } of inspectors) {
+    const character = ensureNpcShipCaptain(state.id);
+    const inspection = resolveCatholicBibleInspection(gameState, {
+      npcShipId: state.id,
+      detectionRoll: Math.random(),
+      sympathyRoll: character.religionId === "lutheran" ? 0 : Math.random()
+    });
+    if (!inspection) continue;
+    if (inspection.outcome === "clean") {
+      saveVoyageNow("passed a Bible inspection");
+      return false;
+    }
+    openShipDialogue({ id: state.id, character }, { bibleInspection: inspection });
+    saveVoyageNow(
+      inspection.outcome === "sympathetic"
+        ? "released by a sympathetic Bible inspector"
+        : "caught in a Bible inspection"
+    );
+    return true;
+  }
+  return false;
 }
 
 function maybeOpenPortugueseCartazInspection(simMinute) {

@@ -58,15 +58,19 @@ import {
   playerTradeTerms,
   portMemory,
   portEntryStatus,
+  papalAuthorityForState,
   prepareProactiveLetterOfMarque,
   purchasePerkItem,
   questStateForCity,
+  reconcileCharacterForPapalAuthority,
+  resolveCatholicBibleInspection,
   visitPort
 } from "./gameState.js";
 import { DIPLOMACY_FRIENDLY, DIPLOMACY_NEUTRAL } from "./factions.js";
 import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
+import { gameMinuteForDate } from "./rulers.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 import { WARTIME_TRADE_RESTRICTION_ID } from "./tradePolicy.js";
 import {
@@ -4201,6 +4205,249 @@ test("a captain of the relevant faith can join a religious mission for an extra 
     passengerDialogueView(outsiderSession, nanjing, quest, outsiderState)
       .options.map(({ label }) => label),
     ["Set Buddhist monk ashore  300 db", "Not yet"]
+  );
+});
+
+test("a Catholic captain chooses whether the September Testament changes their faith", () => {
+  const simMinute = gameMinuteForDate(1535, 1, 1);
+  const destination = {
+    tileId: 202,
+    city: "Bremen",
+    displayCity: "Bremen",
+    country: "Germany",
+    factionId: "denmark-norway"
+  };
+  const quest = {
+    id: "passenger-september-testament-conversion",
+    kind: "passenger",
+    originKey: "Hamburg|Germany|201",
+    originTileId: 201,
+    originName: "Hamburg",
+    originFactionId: "denmark-norway",
+    destinationKey: "Bremen|Germany|202",
+    destinationTileId: destination.tileId,
+    destinationName: destination.city,
+    destinationCountry: destination.country,
+    distanceKm: 95,
+    passenger: { name: "Greta Weiss", religionId: "lutheran" },
+    passengerReligionId: "lutheran",
+    reward: 180,
+    scenarioId: "religious-september-testament",
+    religiousMissionId: "september-testament",
+    dialogue: {
+      arrival: "Bremen's booksellers have shutters drawn and buyers waiting."
+    }
+  };
+  const catholicCaptain = {
+    name: "Isabel Duarte",
+    nationalityId: "portugal",
+    religionId: "roman-catholic",
+    expressions: ["neutral", "happy"]
+  };
+
+  const convertingState = createGameState({
+    cargoCapacity: 20,
+    startMinute: simMinute,
+    playerCharacter: catholicCaptain
+  });
+  convertingState.memory.quests.passengerActive = quest;
+  const convertingSession = createPassengerDialogueSession(destination, quest);
+  const swedishBefore = factionReputation(convertingState, "sweden");
+  const spanishBefore = factionReputation(convertingState, "spain");
+
+  assert.deepEqual(
+    selectPassengerDialogueOption(convertingSession, destination, quest, convertingState, 0),
+    { closed: false, action: null }
+  );
+  const choice = passengerDialogueView(convertingSession, destination, quest, convertingState);
+  assert.match(choice.text, /read the Bibles/);
+  assert.deepEqual(choice.options.map(({ label }) => label), [
+    "Remain Roman Catholic",
+    "Become Lutheran"
+  ]);
+  const conversion = selectPassengerDialogueOption(
+    convertingSession,
+    destination,
+    quest,
+    convertingState,
+    1,
+    { simMinute }
+  );
+  assert.equal(conversion.closed, true);
+  assert.equal(conversion.religiousConversion.religionId, "lutheran");
+  assert.equal(convertingState.playerCharacter.religionId, "lutheran");
+  assert.ok(factionReputation(convertingState, "sweden") > swedishBefore);
+  assert.ok(factionReputation(convertingState, "spain") < spanishBefore);
+  assert.equal(convertingState.memory.flags.septemberTestamentFaithDecisionMade, true);
+  assert.equal(convertingState.memory.quests.passengerActive, null);
+
+  const remainingState = createGameState({
+    cargoCapacity: 20,
+    startMinute: simMinute,
+    playerCharacter: catholicCaptain
+  });
+  remainingState.memory.quests.passengerActive = quest;
+  const remainingSession = createPassengerDialogueSession(destination, quest);
+  const remainingSwedishBefore = factionReputation(remainingState, "sweden");
+  const remainingSpanishBefore = factionReputation(remainingState, "spain");
+  selectPassengerDialogueOption(remainingSession, destination, quest, remainingState, 0);
+  const remaining = selectPassengerDialogueOption(
+    remainingSession,
+    destination,
+    quest,
+    remainingState,
+    0,
+    { simMinute }
+  );
+  assert.equal(remaining.closed, true);
+  assert.equal(remaining.religiousConversion.religionId, "roman-catholic");
+  assert.equal(remainingState.playerCharacter.religionId, "roman-catholic");
+  assert.equal(factionReputation(remainingState, "sweden"), remainingSwedishBefore);
+  assert.equal(factionReputation(remainingState, "spain"), remainingSpanishBefore);
+  assert.equal(remainingState.memory.quests.passengerActive, null);
+});
+
+test("three Testament deliveries convert factors before any captain may convert", () => {
+  const simMinute = gameMinuteForDate(1535, 1, 1);
+  const cities = [
+    { tileId: 302, city: "Bremen", country: "Germany", factionId: "denmark-norway" },
+    { tileId: 303, city: "Amsterdam", country: "Netherlands", factionId: "habsburg" },
+    { tileId: 304, city: "London", country: "United Kingdom", factionId: "england" }
+  ].map((city) => ({ ...city, displayCity: city.city }));
+  const itinerary = cities.map((city) => ({
+    key: `${city.city}|${city.country}|${city.tileId}`,
+    tileId: city.tileId,
+    name: city.city,
+    country: city.country,
+    factionId: city.factionId,
+    legDistanceKm: 600
+  }));
+  const quest = {
+    id: "passenger-september-testament-circuit",
+    kind: "passenger",
+    originKey: "Hamburg|Germany|301",
+    originTileId: 301,
+    originName: "Hamburg",
+    originFactionId: "denmark-norway",
+    destinationKey: itinerary[0].key,
+    destinationTileId: itinerary[0].tileId,
+    destinationName: itinerary[0].name,
+    destinationCountry: itinerary[0].country,
+    distanceKm: 1800,
+    passenger: { name: "Greta Weiss", religionId: "lutheran" },
+    passengerReligionId: "lutheran",
+    reward: 360,
+    scenarioId: "religious-september-testament",
+    religiousMissionId: "september-testament",
+    religiousItinerary: itinerary,
+    religiousDeliveryLegIndex: 0,
+    religiousAuthorityAppliedLegCount: 0,
+    dialogue: {}
+  };
+  const state = createGameState({
+    cargoCapacity: 20,
+    startMinute: simMinute,
+    playerCharacter: {
+      name: "Tenzin Dorje",
+      nationalityId: "habsburg",
+      religionId: "tibetan-buddhism",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  state.memory.quests.passengerActive = quest;
+  const papalBefore = papalAuthorityForState(state);
+
+  for (let index = 0; index < cities.length; index += 1) {
+    const city = cities[index];
+    const session = createPassengerDialogueSession(city, quest);
+    const arrival = passengerDialogueView(session, city, quest, state);
+    assert.match(arrival.text, new RegExp(`delivery ${index + 1} of 3`));
+    const delivery = selectPassengerDialogueOption(session, city, quest, state, 0, {
+      simMinute: simMinute + index
+    });
+    assert.equal(delivery.religiousLegDelivery.legNumber, index + 1);
+    assert.equal(papalAuthorityForState(state), papalBefore - (index + 1) * 0.8);
+    assert.equal(
+      reconcileCharacterForPapalAuthority(
+        state,
+        { name: `Factor ${index}`, religionId: "roman-catholic" },
+        { portTileId: city.tileId }
+      ).religionId,
+      "lutheran"
+    );
+    if (index < 2) {
+      assert.equal(delivery.closed, false);
+      assert.equal(state.playerCharacter.religionId, "tibetan-buddhism");
+      assert.equal(state.memory.quests.passengerActive.destinationTileId, cities[index + 1].tileId);
+    } else {
+      const choice = passengerDialogueView(session, city, quest, state);
+      assert.deepEqual(choice.options.map(({ label }) => label), [
+        "Keep my present faith",
+        "Become Lutheran"
+      ]);
+      const swedishBefore = factionReputation(state, "sweden");
+      const spanishBefore = factionReputation(state, "spain");
+      const conversion = selectPassengerDialogueOption(session, city, quest, state, 1, {
+        simMinute: simMinute + index
+      });
+      assert.equal(conversion.closed, true);
+      assert.equal(state.playerCharacter.religionId, "lutheran");
+      assert.ok(factionReputation(state, "sweden") > swedishBefore);
+      assert.ok(factionReputation(state, "spain") < spanishBefore);
+      assert.equal(state.memory.quests.passengerActive, null);
+    }
+  }
+});
+
+test("Catholic Bible inspections can pass cleanly, show sympathy, or seize the books", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  state.memory.quests.passengerActive = {
+    id: "testament-inspection-quest",
+    kind: "passenger",
+    religiousMissionId: "september-testament"
+  };
+  assert.equal(resolveCatholicBibleInspection(state, {
+    npcShipId: "clean-ship",
+    detectionRoll: 0.9,
+    sympathyRoll: 0.9
+  }).outcome, "clean");
+  assert.equal(resolveCatholicBibleInspection(state, {
+    npcShipId: "sympathetic-ship",
+    detectionRoll: 0.1,
+    sympathyRoll: 0.1
+  }).outcome, "sympathetic");
+  assert.equal(resolveCatholicBibleInspection(state, {
+    npcShipId: "caught-ship",
+    detectionRoll: 0.1,
+    sympathyRoll: 0.9
+  }).outcome, "caught");
+  assert.equal(resolveCatholicBibleInspection(state, {
+    npcShipId: "caught-ship",
+    detectionRoll: 0.1,
+    sympathyRoll: 0.9
+  }), null);
+
+  const ship = {
+    id: "sympathetic-ship",
+    slug: "brigantine",
+    character: { name: "Hans Keller" },
+    roleLabel: "Warship"
+  };
+  const sympatheticSession = createShipDialogueSession(ship, {
+    bibleInspection: { questId: "testament-inspection-quest", outcome: "sympathetic" }
+  });
+  assert.match(shipDialogueView(sympatheticSession, ship).text, /eyesight has failed/);
+  const caughtSession = createShipDialogueSession({ ...ship, id: "caught-ship" }, {
+    bibleInspection: { questId: "testament-inspection-quest", outcome: "caught" }
+  });
+  const caughtShip = { ...ship, id: "caught-ship" };
+  assert.deepEqual(shipDialogueView(caughtSession, caughtShip).options.map(({ label }) => label), [
+    "Surrender the Bibles",
+    "Run for it"
+  ]);
+  assert.equal(
+    selectShipDialogueOption(caughtSession, caughtShip, 1).action.type,
+    "evade-bible-inspection"
   );
 });
 

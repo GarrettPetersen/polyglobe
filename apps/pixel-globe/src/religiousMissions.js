@@ -140,13 +140,18 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     participantReligionIds: PROTESTANT_RELIGIONS,
     originCities: ["Hamburg", "Lubeck", "Bremen"],
     destinationCityTypes: ["northern-european"],
+    destinationReligionIds: ["roman-catholic"],
+    destinationFactorReligionId: "roman-catholic",
+    deliveryStopCount: 3,
+    preferredLegDistanceKm: 850,
     roleLabel: "bookseller",
     challengesPapalAuthority: true,
     catholicContraband: true,
+    offersLutheranConversion: true,
     preferClergy: false,
     bonusDoubloons: 110,
     offer: ({ destinationName, reward }) =>
-      `The September Testament puts the Gospel into German, but the Edict of Worms makes every chest dangerous. Carry me and these forbidden books to ${destinationName} for ${reward} db.`,
+      `The September Testament puts the Gospel into German, but the Edict of Worms makes every chest dangerous. Carry me through three hidden ports, beginning with ${destinationName}, for ${reward} db.`,
     underway: ({ destinationName }) =>
       `The title pages are buried beneath honest account books. In a Catholic harbor, the customs men may seize the lot before we reach ${destinationName}.`,
     arrival: ({ destinationName }) =>
@@ -516,6 +521,11 @@ export function religiousMissionIsCatholicContraband(quest) {
     religiousMissionById(quest.religiousMissionId).catholicContraband === true;
 }
 
+export function religiousMissionOffersLutheranConversion(quest) {
+  return isReligiousPassengerQuest(quest) &&
+    religiousMissionById(quest.religiousMissionId).offersLutheranConversion === true;
+}
+
 export function religiousMissionRoleLabel(quest) {
   return isReligiousPassengerQuest(quest)
     ? religiousMissionById(quest.religiousMissionId).roleLabel
@@ -588,6 +598,7 @@ function buildMissionPlan(mission, origin, portCities, context, rollKey, playerR
     .filter((port) => port.tileId !== origin.tileId)
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
     .filter((port) => portMatchesDestination(mission, port))
+    .filter((port) => portMatchesDestinationFactor(mission, port, context))
     .map((port) => ({
       port,
       distanceKm: passengerTravelDistanceKm(origin, port, context)
@@ -595,23 +606,34 @@ function buildMissionPlan(mission, origin, portCities, context, rollKey, playerR
     .filter(({ distanceKm }) => Number.isFinite(distanceKm) &&
       distanceKm >= mission.minimumDistanceKm &&
       distanceKm <= mission.maximumDistanceKm);
-  const eligibleDestinations = context.destinationTileId === undefined
+  const eligibleDestinations = context.destinationTileId === undefined || mission.deliveryStopCount > 1
     ? destinations
     : destinations.filter(({ port }) => port.tileId === context.destinationTileId);
   if (eligibleDestinations.length === 0) return null;
-  const destination = eligibleDestinations
-    .map((candidate) => ({
-      ...candidate,
-      score: destinationScore(mission, candidate.port, candidate.distanceKm, rollKey)
-    }))
-    .sort((left, right) => left.score - right.score || left.port.tileId - right.port.tileId)[0];
+  const itinerary = missionItinerary(
+    mission,
+    origin,
+    eligibleDestinations,
+    context,
+    rollKey
+  );
+  if (!itinerary) return null;
+  const destination = itinerary[0];
   const passengerReligionId = originReligions.includes(playerReligionId)
     ? playerReligionId
     : originReligions[hashString32(`${rollKey}|${mission.id}|passenger-faith`) % originReligions.length];
   return Object.freeze({
     mission,
     destination: destination.port,
-    distanceKm: destination.distanceKm,
+    distanceKm: itinerary.reduce((sum, stop) => sum + stop.legDistanceKm, 0),
+    itinerary: Object.freeze(itinerary.map(({ port, legDistanceKm }) => Object.freeze({
+      key: `${port.city}|${port.country || ""}|${port.tileId}`,
+      tileId: port.tileId,
+      name: cityLabel(port),
+      country: port.country || "",
+      factionId: port.factionId || null,
+      legDistanceKm: Math.round(legDistanceKm)
+    }))),
     passengerReligionId,
     scenario: mission.scenario,
     religiousMissionId: mission.id,
@@ -636,6 +658,53 @@ function portMatchesDestination(mission, port) {
   return religionIdsAtPort(port).some((religionId) => (
     mission.destinationReligionIds.includes(religionId)
   ));
+}
+
+function portMatchesDestinationFactor(mission, port, context) {
+  if (!mission.destinationFactorReligionId || typeof context.portFactorReligionId !== "function") {
+    return true;
+  }
+  return context.portFactorReligionId(port) === mission.destinationFactorReligionId;
+}
+
+function missionItinerary(mission, origin, destinations, context, rollKey) {
+  const stopCount = mission.deliveryStopCount || 1;
+  if (destinations.length < stopCount) return null;
+  const remaining = [...destinations];
+  const itinerary = [];
+  let previous = origin;
+  for (let index = 0; index < stopCount; index += 1) {
+    const requiredFirstTileId = index === 0 ? context.destinationTileId : undefined;
+    const candidates = remaining
+      .filter(({ port }) => requiredFirstTileId === undefined || port.tileId === requiredFirstTileId)
+      .map((candidate) => {
+        const legDistanceKm = index === 0
+          ? candidate.distanceKm
+          : passengerTravelDistanceKm(previous, candidate.port, context);
+        return {
+          ...candidate,
+          legDistanceKm,
+          score: itineraryStopScore(mission, candidate.port, legDistanceKm, rollKey, index)
+        };
+      })
+      .filter(({ legDistanceKm }) => Number.isFinite(legDistanceKm))
+      .sort((left, right) => left.score - right.score || left.port.tileId - right.port.tileId);
+    const selected = candidates[0];
+    if (!selected) return null;
+    itinerary.push(selected);
+    previous = selected.port;
+    remaining.splice(remaining.findIndex(({ port }) => port.tileId === selected.port.tileId), 1);
+  }
+  return itinerary;
+}
+
+function itineraryStopScore(mission, destination, distanceKm, rollKey, index) {
+  const preferredDistanceKm = mission.preferredLegDistanceKm ||
+    Math.min(2200, mission.maximumDistanceKm);
+  const distancePenalty = Math.abs(distanceKm - preferredDistanceKm) /
+    Math.max(preferredDistanceKm, 1);
+  return seededFraction(`${rollKey}|${mission.id}|stop-${index}|${destination.tileId}`) +
+    distancePenalty * 0.35;
 }
 
 function optionalListMatches(values, candidate) {
@@ -685,6 +754,15 @@ function religiousMission(spec) {
   if (!Number.isInteger(spec.bonusDoubloons) || spec.bonusDoubloons <= 0) {
     throw new Error(`Religious mission ${spec.id} needs a participation bonus`);
   }
+  const deliveryStopCount = spec.deliveryStopCount || 1;
+  if (!Number.isInteger(deliveryStopCount) || deliveryStopCount <= 0) {
+    throw new Error(`Religious mission ${spec.id} has an invalid delivery stop count`);
+  }
+  if (spec.destinationFactorReligionId) religionById(spec.destinationFactorReligionId);
+  if (spec.preferredLegDistanceKm !== undefined &&
+      (!Number.isFinite(spec.preferredLegDistanceKm) || spec.preferredLegDistanceKm <= 0)) {
+    throw new Error(`Religious mission ${spec.id} has an invalid preferred leg distance`);
+  }
   const minimumDistanceKm = spec.minimumDistanceKm || RELIGIOUS_PASSENGER_MIN_DISTANCE_KM;
   const maximumDistanceKm = spec.maximumDistanceKm || RELIGIOUS_PASSENGER_MAX_DISTANCE_KM;
   return Object.freeze({
@@ -700,6 +778,9 @@ function religiousMission(spec) {
     destinationCountries: freezeOptional(spec.destinationCountries),
     originCityTypes: freezeOptional(spec.originCityTypes),
     destinationCityTypes: freezeOptional(spec.destinationCityTypes),
+    destinationFactorReligionId: spec.destinationFactorReligionId || null,
+    deliveryStopCount,
+    preferredLegDistanceKm: spec.preferredLegDistanceKm || null,
     minimumDistanceKm,
     maximumDistanceKm,
     reputationBonus: spec.reputationBonus || 3,

@@ -101,9 +101,11 @@ import {
 } from "./worldDiplomacy.js";
 import {
   initialReligiousFactionReputation,
-  isRomanCatholicReligion
+  isRomanCatholicReligion,
+  religiousAttitude
 } from "./religiousAttitudes.js";
 import {
+  isReligiousPassengerQuest,
   religiousMissionChallengesPapalAuthority,
   religiousMissionIsCatholicContraband,
   religiousMissionTitle
@@ -1192,9 +1194,110 @@ export function papalAuthorityMultiplierForState(state) {
   return papalAuthorityResponseMultiplier(state.relations.authority);
 }
 
-export function reconcileCharacterForPapalAuthority(state, character) {
+export function reconcileCharacterForPapalAuthority(state, character, { portTileId = null } = {}) {
   assertGameState(state);
+  const forcedConversions = state.memory.flags?.lutheranFactorPortTileIds;
+  if (Number.isInteger(portTileId) && Array.isArray(forcedConversions) &&
+      forcedConversions.includes(portTileId) && character?.religionId === "roman-catholic") {
+    return Object.freeze({ ...character, religionId: "lutheran" });
+  }
   return convertCatholicFactorForPapalAuthority(character, state.relations.authority);
+}
+
+export function deliverReligiousMissionLeg(state, city, context = {}) {
+  assertGameState(state);
+  const quest = questMemory(state).passengerActive;
+  if (!quest || !isReligiousPassengerQuest(quest) ||
+      !Array.isArray(quest.religiousItinerary) || quest.religiousItinerary.length < 2) {
+    throw new Error("Religious itinerary delivery requires an active multi-port mission");
+  }
+  const simMinute = context.simMinute ?? state.survival.lastMinute;
+  assertSimulationMinute(simMinute);
+  const index = quest.religiousDeliveryLegIndex;
+  if (!Number.isInteger(index) || index < 0 || index >= quest.religiousItinerary.length) {
+    throw new Error(`Invalid religious delivery leg: ${index}`);
+  }
+  const stop = quest.religiousItinerary[index];
+  if (stop.tileId !== city.tileId || quest.destinationTileId !== city.tileId) {
+    throw new Error(`Religious delivery is due at ${stop.name}, not ${cityLabel(city)}`);
+  }
+  if ((quest.religiousAuthorityAppliedLegCount || 0) !== index) {
+    throw new Error(`Religious authority consequence is out of sequence for leg ${index + 1}`);
+  }
+  const authorityEvents = recordProtestantMissionAuthority(
+    state.relations.authority,
+    quest.originFactionId,
+    simMinute,
+    `${religiousMissionTitle(quest)}: ${stop.name}`
+  );
+  quest.religiousAuthorityAppliedLegCount = index + 1;
+  const convertedFactors = Array.isArray(state.memory.flags.lutheranFactorPortTileIds)
+    ? state.memory.flags.lutheranFactorPortTileIds
+    : [];
+  if (!convertedFactors.includes(city.tileId)) convertedFactors.push(city.tileId);
+  state.memory.flags.lutheranFactorPortTileIds = convertedFactors;
+  const final = index === quest.religiousItinerary.length - 1;
+  if (!final) {
+    const next = quest.religiousItinerary[index + 1];
+    quest.religiousDeliveryLegIndex = index + 1;
+    quest.destinationKey = next.key;
+    quest.destinationTileId = next.tileId;
+    quest.destinationName = next.name;
+    quest.destinationCountry = next.country;
+  }
+  recordDecision(state, `quest.religious-delivery.${quest.id}.${index + 1}`, 1);
+  return Object.freeze({
+    questId: quest.id,
+    legNumber: index + 1,
+    legCount: quest.religiousItinerary.length,
+    destinationName: stop.name,
+    convertedFactorTileId: city.tileId,
+    authorityEvents,
+    final,
+    nextDestinationName: final ? null : quest.religiousItinerary[index + 1].name
+  });
+}
+
+export function resolveCatholicBibleInspection(state, {
+  npcShipId,
+  detectionRoll,
+  sympathyRoll
+}) {
+  assertGameState(state);
+  if (typeof npcShipId !== "string" || npcShipId === "") {
+    throw new Error("Bible inspection requires an NPC ship id");
+  }
+  assertUnitRoll(detectionRoll, "Bible inspection detection");
+  assertUnitRoll(sympathyRoll, "Bible inspection sympathy");
+  const quest = questMemory(state).passengerActive;
+  if (!quest || !religiousMissionIsCatholicContraband(quest)) return null;
+  const inspected = Array.isArray(quest.catholicContrabandInspectedShipIds)
+    ? quest.catholicContrabandInspectedShipIds
+    : [];
+  if (inspected.includes(npcShipId)) return null;
+  inspected.push(npcShipId);
+  quest.catholicContrabandInspectedShipIds = inspected;
+  const outcome = detectionRoll >= 0.35
+    ? "clean"
+    : sympathyRoll < 0.3
+      ? "sympathetic"
+      : "caught";
+  recordDecision(state, `quest.bible-inspection.${quest.id}.${outcome}`, 1);
+  return Object.freeze({ questId: quest.id, npcShipId, outcome });
+}
+
+export function surrenderCatholicBibleContraband(state, questId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const quests = questMemory(state);
+  const quest = quests.passengerActive;
+  if (!quest || quest.id !== questId || !religiousMissionIsCatholicContraband(quest)) {
+    throw new Error("Surrendered Bibles do not match the active contraband mission");
+  }
+  quests.failed[quest.id] = { reason: "bibles-seized", simMinute };
+  quests.passengerActive = null;
+  recordDecision(state, `quest.fail.bibles-seized.${quest.id}`, 1);
+  return quest;
 }
 
 export function recordNavalAuthorityForState(state, outcome) {
@@ -3643,6 +3746,49 @@ export function adjustFactionReputation(state, factionId, delta) {
   return next;
 }
 
+export function changePlayerReligion(state, religionId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const character = state.playerCharacter;
+  if (!character?.religionId) throw new Error("Player religion change requires a captain faith");
+  const previousReligionId = character.religionId;
+  religiousAttitude(previousReligionId, religionId);
+  if (previousReligionId === religionId) {
+    return Object.freeze({
+      previousReligionId,
+      religionId,
+      reputationChanges: Object.freeze([])
+    });
+  }
+
+  state.playerCharacter = { ...character, religionId };
+  const reputationChanges = [];
+  for (const faction of FACTIONS) {
+    if (faction.id === NEUTRAL_FACTION_ID || faction.id === PIRATE_FACTION_ID) continue;
+    const ruler = rulerAtMinute(faction.id, simMinute);
+    if (!ruler) continue;
+    const oldAttitude = religiousAttitude(ruler.religionId, previousReligionId);
+    const newAttitude = religiousAttitude(ruler.religionId, religionId);
+    const intendedDelta = Math.round((newAttitude - oldAttitude) * ruler.piety);
+    if (intendedDelta === 0) continue;
+    const before = factionReputation(state, faction.id);
+    const after = adjustFactionReputation(state, faction.id, intendedDelta);
+    if (after === before) continue;
+    reputationChanges.push(Object.freeze({
+      factionId: faction.id,
+      delta: after - before,
+      before,
+      after
+    }));
+  }
+  recordDecision(state, `religion.change.${previousReligionId}.${religionId}`, 1);
+  return Object.freeze({
+    previousReligionId,
+    religionId,
+    reputationChanges: Object.freeze(reputationChanges)
+  });
+}
+
 export function reconcileFactionReputationAfterPlayerVassalage(state, factionId) {
   const current = factionReputation(state, factionId);
   if (current >= 0) return current;
@@ -5290,6 +5436,7 @@ export function reconcileQuestPortTiles(state, portCities) {
     if (!quest || typeof quest !== "object") return;
     updates += reconcileQuestEndpoint(quest, "origin", portCities);
     updates += reconcileQuestEndpoint(quest, "destination", portCities);
+    updates += reconcileReligiousItinerary(quest, portCities);
     if (isEnvoyQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
     if (isCaptureCommissionQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
     if (isWokouHuntQuest(quest)) updates += reconcileQuestEndpoint(quest, "patrol", portCities);
@@ -5572,13 +5719,19 @@ export function completeQuest(state, city, context = {}) {
       active.courtResolution.action?.notice || active.id
     );
   }
+  if (Array.isArray(active.religiousItinerary) &&
+      active.religiousAuthorityAppliedLegCount !== active.religiousItinerary.length) {
+    throw new Error(`Religious itinerary is incomplete: ${active.id}`);
+  }
   if (religiousMissionChallengesPapalAuthority(active)) {
-    recordProtestantMissionAuthority(
-      state.relations.authority,
-      active.originFactionId,
-      context.simMinute ?? state.survival.lastMinute,
-      religiousMissionTitle(active)
-    );
+    if (!Array.isArray(active.religiousItinerary)) {
+      recordProtestantMissionAuthority(
+        state.relations.authority,
+        active.originFactionId,
+        context.simMinute ?? state.survival.lastMinute,
+        religiousMissionTitle(active)
+      );
+    }
   }
   state.doubloons += active.reward;
   quests.completed[active.id] = true;
@@ -6346,6 +6499,31 @@ function reconcileQuestEndpoint(quest, endpoint, portCities) {
   if (candidates.length !== 1) return 0;
   updateQuestEndpointIdentity(quest, endpoint, candidates[0]);
   return 1;
+}
+
+function reconcileReligiousItinerary(quest, portCities) {
+  if (!Array.isArray(quest.religiousItinerary)) return 0;
+  let updates = 0;
+  const activeIndex = Number.isInteger(quest.religiousDeliveryLegIndex)
+    ? quest.religiousDeliveryLegIndex
+    : 0;
+  for (let index = 0; index < quest.religiousItinerary.length; index += 1) {
+    const stop = quest.religiousItinerary[index];
+    const port = reconciledPortReference(portCities, {
+      tileId: stop?.tileId,
+      name: stop?.name,
+      country: stop?.country
+    });
+    if (!port || port.tileId === stop.tileId) continue;
+    stop.tileId = port.tileId;
+    stop.name = cityLabel(port);
+    stop.country = port.country || "";
+    stop.factionId = port.factionId || null;
+    stop.key = cityKey(port);
+    if (index === activeIndex) updateQuestEndpointIdentity(quest, "destination", port);
+    updates += 1;
+  }
+  return updates;
 }
 
 function reconciledPortReference(portCities, { tileId, name, country = "" }) {
@@ -7143,6 +7321,12 @@ function assertCargoCapacity(cargoCapacity) {
 
 function assertSimulationMinute(simMinute) {
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid simulation minute: ${simMinute}`);
+}
+
+function assertUnitRoll(roll, label) {
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Invalid ${label} roll: ${roll}`);
+  }
 }
 
 function assertQuantity(quantity, label) {

@@ -124,6 +124,90 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Become Lutheran": Object.freeze({
+    "zh-Hans": "改信路德宗", ru: "Принять лютеранство", es: "Convertirse al luteranismo",
+    "pt-BR": "Converter-se ao luteranismo", ja: "ルター派に改宗する", de: "Lutherisch werden",
+    fr: "Se convertir au luthéranisme", pl: "Przejść na luteranizm", "zh-Hant": "改信路德宗",
+    ko: "루터교로 개종하기"
+  }),
+  "{0} deliveries remain.": Object.freeze({
+    "zh-Hans": "还有{0}次投递。", "zh-Hant": "還有{0}次投遞。",
+    ja: "あと{0}か所に届けなければなりません。", ko: "배달할 곳이 {0}곳 남았습니다."
+  }),
+  "{0} has trusted readers waiting behind drawn shutters.": Object.freeze({
+    "zh-Hans": "{0}有可信的读者在紧闭的百叶窗后等候。",
+    "zh-Hant": "{0}有可信的讀者在緊閉的百葉窗後等候。",
+    ja: "{0}では、信頼できる読者たちが閉ざした雨戸の奥で待っています。",
+    ko: "{0}에서는 믿을 만한 독자들이 닫힌 덧문 뒤에서 기다리고 있습니다."
+  }),
+  "{0} has trusted readers waiting behind drawn shutters. This is delivery {1} of {2}.": Object.freeze({
+    "zh-Hans": "{0}有可信的读者在紧闭的百叶窗后等候。这是第{1}/{2}次投递。",
+    "zh-Hant": "{0}有可信的讀者在緊閉的百葉窗後等候。這是第{1}/{2}次投遞。",
+    ja: "{0}では、信頼できる読者たちが閉ざした雨戸の奥で待っています。これは{1}/{2}か所目の配達です。",
+    ko: "{0}에서는 믿을 만한 독자들이 닫힌 덧문 뒤에서 기다리고 있습니다. 이번은 {1}/{2}번째 배달입니다."
+  }),
+  "BIBLES SEIZED MISSION FAILED": Object.freeze({
+    "zh-Hans": "《圣经》被没收 任务失败", "zh-Hant": "《聖經》被沒收 任務失敗",
+    ja: "聖書没収 任務失敗", ko: "성경 압수 임무 실패"
+  }),
+  "Continue the circuit": Object.freeze({
+    "zh-Hans": "继续送书", "zh-Hant": "繼續送書", ja: "次の街へ向かう", ko: "다음 도시로 향하기"
+  }),
+  "Deliver Testaments {0}/{1}": Object.freeze({
+    "zh-Hans": "交付《新约》 {0}/{1}", "zh-Hant": "交付《新約》 {0}/{1}",
+    ja: "新約聖書を渡す {0}/{1}", ko: "신약성서 전달 {0}/{1}"
+  }),
+  "Heave to. We found Luther's forbidden Testaments. Surrender the books, or answer to our guns.": Object.freeze({
+    "zh-Hans": "停船。我们发现了路德的禁书《新约》。交出书籍，否则就开火。",
+    "zh-Hant": "停船。我們發現了路德的禁書《新約》。交出書籍，否則就開火。",
+    ja: "停船せよ。ルターの禁制の新約聖書を見つけた。本を渡せ。さもなくば砲火で答えてもらう。",
+    ko: "정선하라. 루터의 금서인 신약성서를 찾았다. 책을 넘기지 않으면 발포하겠다."
+  }),
+  "Keep my present faith": Object.freeze({
+    "zh-Hans": "保持目前的信仰", "zh-Hant": "保持目前的信仰",
+    ja: "今の信仰を守る", ko: "현재 신앙을 지킨다"
+  }),
+  "Luther's Testaments are forbidden. Fortunately, I have read them. Close the chest, captain; my eyesight has failed.": Object.freeze({
+    "zh-Hans": "路德的《新约》是禁书。幸好我读过。把箱子关上吧，船长；看来我的眼神不太好。",
+    "zh-Hant": "路德的《新約》是禁書。幸好我讀過。把箱子關上吧，船長；看來我的眼神不太好。",
+    ja: "ルターの新約聖書は禁止されています。幸い、私も読んだことがある。箱を閉じなさい、船長。どうやら目がかすんだようだ。",
+    ko: "루터의 신약성서는 금서요. 다행히 나도 읽었소. 상자를 닫으시오, 선장. 내 눈이 침침했던 모양이군."
+  }),
+  "One city supplied. {0} is next.": Object.freeze({
+    "zh-Hans": "一座城市已收到书。下一站是{0}。", "zh-Hant": "一座城市已收到書。下一站是{0}。",
+    ja: "一つの街に届けました。次は{0}です。", ko: "한 도시에 전달했습니다. 다음은 {0}입니다."
+  }),
+  "One city supplied. {0} is next. The bishops have excellent roads; unfortunately for them, so do we.": Object.freeze({
+    "zh-Hans": "一座城市已收到书。下一站是{0}。主教们的道路修得很好；可惜我们也会走。",
+    "zh-Hant": "一座城市已收到書。下一站是{0}。主教們的道路修得很好；可惜我們也會走。",
+    ja: "一つの街に届けました。次は{0}です。司教たちは立派な道を整えています。運の悪いことに、その道は私たちも使えます。",
+    ko: "한 도시에 전달했습니다. 다음은 {0}입니다. 주교들은 훌륭한 길을 닦아 두었습니다. 불행히도 우리도 그 길을 쓸 수 있지요."
+  }),
+  "Surrender the Bibles": Object.freeze({
+    "zh-Hans": "交出《圣经》", "zh-Hant": "交出《聖經》", ja: "聖書を引き渡す", ko: "성경을 넘긴다"
+  }),
+  "TESTAMENTS DELIVERED {0}/{1}": Object.freeze({
+    "zh-Hans": "《新约》已送达 {0}/{1}", "zh-Hant": "《新約》已送達 {0}/{1}",
+    ja: "新約聖書を配達 {0}/{1}", ko: "신약성서 전달 완료 {0}/{1}"
+  }),
+  "The bishops have excellent roads; unfortunately for them, so do we.": Object.freeze({
+    "zh-Hans": "主教们的道路修得很好；可惜我们也会走。",
+    "zh-Hant": "主教們的道路修得很好；可惜我們也會走。",
+    ja: "司教たちは立派な道を整えています。運の悪いことに、その道は私たちも使えます。",
+    ko: "주교들은 훌륭한 길을 닦아 두었습니다. 불행히도 우리도 그 길을 쓸 수 있지요."
+  }),
+  "The next bundles are bound for {0}.": Object.freeze({
+    "zh-Hans": "下一批书要送往{0}。", "zh-Hant": "下一批書要送往{0}。",
+    ja: "次の包みは{0}行きです。", ko: "다음 책 꾸러미는 {0}행입니다."
+  }),
+  "The next bundles are bound for {0}. {1} deliveries remain.": Object.freeze({
+    "zh-Hans": "下一批书要送往{0}。还有{1}次投递。", "zh-Hant": "下一批書要送往{0}。還有{1}次投遞。",
+    ja: "次の包みは{0}行きです。あと{1}か所です。", ko: "다음 책 꾸러미는 {0}행입니다. 배달할 곳이 {1}곳 남았습니다."
+  }),
+  "This is delivery {0} of {1}.": Object.freeze({
+    "zh-Hans": "这是第{0}/{1}次投递。", "zh-Hant": "這是第{0}/{1}次投遞。",
+    ja: "これは{0}/{1}か所目の配達です。", ko: "이번은 {0}/{1}번째 배달입니다."
+  }),
   "{0} ship {1}": Object.freeze({
     "zh-Hans": "{0}船只：{1}", ru: "Корабль {0}: {1}", es: "Buque de {0}: {1}",
     "pt-BR": "Navio de {0}: {1}", ja: "{0}船：{1}", de: "{0}-Schiff: {1}",
@@ -142,6 +226,18 @@ const REVIEWED_OVERRIDES = Object.freeze({
     fr: "Gratification des libraires", pl: "Zapłata księgarzy", "zh-Hant": "書商酬金",
     ko: "서적상들의 사례금"
   }),
+  "Captain, you read the Bibles all the way here. Did they change your faith, or only ruin your sleep?": Object.freeze({
+    "zh-Hans": "船长，您一路都在读这些《圣经》。它们改变了您的信仰，还是只毁了您的睡眠？",
+    ru: "Капитан, вы всю дорогу читали эти Библии. Они изменили вашу веру или лишь лишили вас сна?",
+    es: "Capitán, habéis leído esas Biblias durante todo el viaje. ¿Os cambiaron la fe o solo os quitaron el sueño?",
+    "pt-BR": "Capitão, você leu essas Bíblias durante toda a viagem. Elas mudaram sua fé ou só acabaram com seu sono?",
+    ja: "船長、航海中ずっとその聖書を読んでいましたね。信仰が変わったのですか、それとも眠れなくなっただけですか？",
+    de: "Kapitän, Ihr habt die Bibeln während der ganzen Reise gelesen. Haben sie Euren Glauben verändert oder Euch nur den Schlaf geraubt?",
+    fr: "Capitaine, vous avez lu ces Bibles pendant toute la traversée. Ont-elles changé votre foi ou seulement ruiné votre sommeil ?",
+    pl: "Kapitanie, przez całą drogę czytaliście te Biblie. Zmieniły waszą wiarę czy tylko odebrały wam sen?",
+    "zh-Hant": "船長，您一路都在讀這些《聖經》。它們改變了您的信仰，還是只毀了您的睡眠？",
+    ko: "선장님, 오는 내내 그 성경들을 읽으셨군요. 신앙이 바뀐 겁니까, 아니면 잠만 설친 겁니까?"
+  }),
   "Defied {0}": Object.freeze({
     "zh-Hans": "反抗{0}", ru: "Брошен вызов: {0}", es: "Desafió a {0}",
     "pt-BR": "Desafiou {0}", ja: "{0}に背いた", de: "{0} getrotzt",
@@ -153,6 +249,12 @@ const REVIEWED_OVERRIDES = Object.freeze({
     "pt-BR": "Ajudar a distribuir os Novos Testamentos", ja: "新約聖書の配布を手伝う", de: "Beim Verteilen der Neuen Testamente helfen",
     fr: "Aider à distribuer les Nouveaux Testaments", pl: "Pomóc rozprowadzać Nowe Testamenty", "zh-Hant": "幫助分發《新約》",
     ko: "신약성서 배포 돕기"
+  }),
+  "Remain Roman Catholic": Object.freeze({
+    "zh-Hans": "保持罗马天主教信仰", ru: "Остаться католиком", es: "Conservar la fe católica romana",
+    "pt-BR": "Manter a fé católica romana", ja: "ローマ・カトリックに留まる", de: "Römisch-katholisch bleiben",
+    fr: "Garder la foi catholique romaine", pl: "Pozostać przy katolicyzmie", "zh-Hant": "保持羅馬天主教信仰",
+    ko: "로마 가톨릭에 남기"
   }),
   "The Central European frontier holds": Object.freeze({
     "zh-Hans": "中欧防线守住了", ru: "Центральноевропейский рубеж удержан", es: "El frente centroeuropeo resiste",
