@@ -71,6 +71,18 @@ test("whale tow feedback is localized in every supported language", () => {
   }
 });
 
+test("whale demographics stay in the localized hunt UI rather than captain dialogue", () => {
+  const identity = "Humpback whale, adult female";
+  const dialogue = "The beast is spent. Time to land the killing blow.";
+  for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
+    const localizedIdentity = localizeText(language, identity);
+    const localizedDialogue = localizeText(language, dialogue);
+    assert.notEqual(localizedIdentity, identity, `${language} identity`);
+    assert.notEqual(localizedDialogue, dialogue, `${language} dialogue`);
+    assert.doesNotMatch(localizedDialogue, /adult|female|male/i, language);
+  }
+});
+
 test("composed port greetings localize both the salutation and useful news", () => {
   const source = "Good morning, captain.  Pirates are close. Keep a watch posted before you cast off.";
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {

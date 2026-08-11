@@ -124,6 +124,18 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "The beast is spent. Time to land the killing blow.": Object.freeze({
+    "zh-Hans": "这头巨鲸已经力竭。是时候给予致命一击了。",
+    ru: "Зверь выбился из сил. Пора нанести смертельный удар.",
+    es: "La bestia está agotada. Es hora de asestar el golpe final.",
+    "pt-BR": "A fera está exausta. É hora de desferir o golpe final.",
+    ja: "獲物は力尽きた。とどめを刺す時だ。",
+    de: "Das Tier ist erschöpft. Zeit für den Todesstoß.",
+    fr: "La bête est à bout de forces. Il est temps de porter le coup de grâce.",
+    pl: "Bestia opadła z sił. Czas zadać śmiertelny cios.",
+    "zh-Hant": "這頭巨鯨已經力竭。是時候給予致命一擊了。",
+    ko: "고래가 기진맥진했다. 이제 결정타를 날릴 때다."
+  }),
   "{0}, female calf": Object.freeze({
     "zh-Hans": "{0}，雌性幼鲸", ru: "{0}, детёныш-самка", es: "{0}, cría hembra",
     "pt-BR": "{0}, filhote fêmea", ja: "{0}（雌の幼鯨）", de: "{0}, weibliches Jungtier",
@@ -722,9 +734,11 @@ for (const locale of LOCALES) {
   const outputPath = path.join(OUTPUT_ROOT, locale.fileName);
   const existing = await readExistingCatalog(outputPath);
   const missing = PRUNE_ONLY ? [] : SCREEN_TEXT_TEMPLATES.filter((source) => (
-    typeof existing[source] !== "string" ||
-    needsTranslationRefresh(source) ||
-    (existing[source] === source && requiresTranslatedProse(source))
+    !REVIEWED_OVERRIDES[source]?.[locale.id] && (
+      typeof existing[source] !== "string" ||
+      needsTranslationRefresh(source) ||
+      (existing[source] === source && requiresTranslatedProse(source))
+    )
   ));
   process.stdout.write(`${locale.id}: ${PRUNE_ONLY ? "pruning" : `translating ${missing.length} missing templates`}\n`);
   const translated = missing.length > 0

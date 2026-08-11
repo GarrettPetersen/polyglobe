@@ -112,6 +112,67 @@ export function stormFogStrength(intensity, enterIntensity, fullIntensity) {
   return Math.sqrt(smoothStrength);
 }
 
+export function createFogStrengthEnvelope(initialStrength = 0) {
+  validateFogStrength(initialStrength, "initial strength");
+  return { strength: initialStrength, velocity: 0 };
+}
+
+export function resetFogStrengthEnvelope(state, strength = 0) {
+  validateFogStrengthEnvelope(state);
+  validateFogStrength(strength, "reset strength");
+  state.strength = strength;
+  state.velocity = 0;
+  return state;
+}
+
+export function advanceFogStrengthEnvelope(
+  state,
+  targetStrength,
+  elapsedSeconds,
+  { riseSeconds, fallSeconds }
+) {
+  validateFogStrengthEnvelope(state);
+  validateFogStrength(targetStrength, "target strength");
+  for (const [label, value] of Object.entries({ elapsedSeconds, riseSeconds, fallSeconds })) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Fog strength envelope has invalid ${label}: ${value}`);
+    }
+  }
+  if (riseSeconds <= 0 || fallSeconds <= 0) {
+    throw new Error("Fog strength envelope requires positive rise and fall times");
+  }
+  if (elapsedSeconds === 0) return state.strength;
+
+  const smoothTime = targetStrength > state.strength ? riseSeconds : fallSeconds;
+  const omega = 2 / smoothTime;
+  const x = omega * elapsedSeconds;
+  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = state.strength - targetStrength;
+  const temporary = (state.velocity + omega * change) * elapsedSeconds;
+  state.velocity = (state.velocity - omega * temporary) * decay;
+  state.strength = targetStrength + (change + temporary) * decay;
+
+  if (Math.abs(state.strength - targetStrength) < 0.0005 && Math.abs(state.velocity) < 0.0001) {
+    state.strength = targetStrength;
+    state.velocity = 0;
+  }
+  state.strength = Math.max(0, Math.min(1, state.strength));
+  return state.strength;
+}
+
+function validateFogStrengthEnvelope(state) {
+  if (!state || !Number.isFinite(state.strength) || !Number.isFinite(state.velocity)) {
+    throw new Error("Invalid fog strength envelope state");
+  }
+  validateFogStrength(state.strength, "state strength");
+}
+
+function validateFogStrength(strength, label) {
+  if (!Number.isFinite(strength) || strength < 0 || strength > 1) {
+    throw new Error(`Fog strength envelope has invalid ${label}: ${strength}`);
+  }
+}
+
 export function fillStormEdgeFogPixels(pixels, width, height, seed = 0x464f4721) {
   if (!(pixels instanceof Uint8ClampedArray)) {
     throw new Error("Storm fog pixels must be Uint8ClampedArray data");

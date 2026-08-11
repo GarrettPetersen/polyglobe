@@ -3,6 +3,7 @@ import { PERMANENT_POLAR_CAP_LATITUDE_DEG } from "./polarChartPresentation.js";
 
 export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
 const POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG = 54;
+const POLAR_REPAIR_FOG_CLEAR_LATITUDE_DEG = 42;
 
 export function createChartRepairFog({
   nowMs,
@@ -135,10 +136,12 @@ export function polarChartFogFrame({
   // Repair pressure may carry an existing polar bank a little farther toward
   // temperate water while its concealed geometry finishes settling. It may
   // never originate in an otherwise implausible climate.
-  if (
-    polarAmount <= 0 &&
-    (repairPressure <= 0 || Math.abs(latitudeDeg) < POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG)
-  ) return null;
+  const inheritedRepairFog = repairPressure * smoothstep(
+    POLAR_REPAIR_FOG_CLEAR_LATITUDE_DEG,
+    POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG,
+    Math.abs(latitudeDeg)
+  );
+  if (polarAmount <= 0 && inheritedRepairFog <= 0) return null;
   const maximumClearRadius = Math.max(
     Math.hypot(focusX, focusY),
     Math.hypot(viewportWidth - focusX, focusY),
@@ -153,7 +156,7 @@ export function polarChartFogFrame({
   const repairMinimumClearRadius = Math.max(28, minimumDimension * 0.11);
   const minimumClearRadius = naturalMinimumClearRadius +
     (repairMinimumClearRadius - naturalMinimumClearRadius) * repairPressure;
-  const effectiveConcealment = Math.max(polarAmount, repairPressure);
+  const effectiveConcealment = Math.max(polarAmount, inheritedRepairFog);
   const clearRadius = maximumClearRadius +
     (minimumClearRadius - maximumClearRadius) * effectiveConcealment;
   return Object.freeze({

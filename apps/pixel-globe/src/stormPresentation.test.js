@@ -6,12 +6,15 @@ import {
   FIRST_STORM_DIALOGUE_WARNING,
   STORM_PASSAGE_CLEARED,
   STORM_PASSAGE_ENTERED,
+  advanceFogStrengthEnvelope,
+  createFogStrengthEnvelope,
   createStormPassageState,
   fillStormEdgeFogPixels,
   fogLayerRgba,
   firstStormDialogueKind,
   markStormClearanceDelivered,
   markStormWarningDelivered,
+  resetFogStrengthEnvelope,
   resetStormPassageState,
   stormFogStrength,
   updateStormPassage
@@ -116,6 +119,37 @@ test("storm fog fades in smoothly and reaches full strength", () => {
   const severe = stormFogStrength(0.45, 0.12, 0.6);
   assert.ok(moderate > 0.45 && moderate < severe);
   assert.equal(stormFogStrength(0.6, 0.12, 0.6), 1);
+});
+
+test("storm fog eases toward stronger and weaker weather without snapping", () => {
+  const state = createFogStrengthEnvelope();
+  const rising = [];
+  for (let i = 0; i < 120; i++) {
+    rising.push(advanceFogStrengthEnvelope(state, 1, 1 / 60, {
+      riseSeconds: 10,
+      fallSeconds: 18
+    }));
+  }
+  assert.ok(rising[0] > 0 && rising[0] < 0.001);
+  assert.ok(rising.at(-1) > rising[0] && rising.at(-1) < 1);
+
+  const beforeClearing = state.strength;
+  const firstClearingFrame = advanceFogStrengthEnvelope(state, 0, 1 / 60, {
+    riseSeconds: 10,
+    fallSeconds: 18
+  });
+  assert.ok(firstClearingFrame > 0);
+  assert.ok(Math.abs(firstClearingFrame - beforeClearing) < 0.01);
+
+  for (let i = 0; i < 60 * 90; i++) {
+    advanceFogStrengthEnvelope(state, 0, 1 / 60, {
+      riseSeconds: 10,
+      fallSeconds: 18
+    });
+  }
+  assert.equal(state.strength, 0);
+  assert.equal(state.velocity, 0);
+  assert.deepEqual(resetFogStrengthEnvelope(state, 0.5), { strength: 0.5, velocity: 0 });
 });
 
 test("fog layers use three translucent shades shared by weather effects", () => {

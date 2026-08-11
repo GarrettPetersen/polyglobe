@@ -55,6 +55,7 @@ test("notifications use additional lines instead of adding an ellipsis", () => {
 test("localized notification banners fit without truncation in every supported language", () => {
   const englishSamples = [
     "THE LINE HOLDS - PREPARE FOR THE TOW",
+    "Humpback whale, adult female",
     "POPE ADRIAN VI PROCLAIMS A CRUSADE AGAINST THE OTTOMAN EMPIRE",
     "WAITING SAFELY IN HAFNARFJORDUR",
     "STORM DAMAGE -12 HULL",

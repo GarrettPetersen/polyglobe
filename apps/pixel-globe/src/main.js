@@ -893,11 +893,14 @@ import {
   FIRST_STORM_DIALOGUE_CLEARANCE,
   FIRST_STORM_DIALOGUE_WARNING,
   STORM_PASSAGE_CLEARED,
+  advanceFogStrengthEnvelope,
+  createFogStrengthEnvelope,
   createStormPassageState,
   fillStormEdgeFogPixels,
   firstStormDialogueKind,
   markStormClearanceDelivered,
   markStormWarningDelivered,
+  resetFogStrengthEnvelope,
   resetStormPassageState,
   stormFogStrength,
   updateStormPassage
@@ -2191,6 +2194,8 @@ const STORM_SCREEN_RAIN_MARGIN_PX = 44;
 const STORM_FOG_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.45;
 const STORM_FOG_FULL_INTENSITY = 0.6;
 const STORM_FOG_BREATHE_PERIOD_MS = 7200;
+const STORM_FOG_RISE_SECONDS = 10;
+const STORM_FOG_FALL_SECONDS = 18;
 const STORM_SHIP_BOB_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.52;
 const STORM_SHIP_BOB_MAX_X_PX = 1;
 const STORM_SHIP_BOB_MAX_Y_PX = 3;
@@ -3226,6 +3231,7 @@ let demoVoyageScope = BUILD_EDITION_ID === "demo"
 let freshWaterSurfaceMask;
 let stormSystem;
 const stormPassageState = createStormPassageState();
+const stormFogStrengthEnvelope = createFogStrengthEnvelope();
 const stormWaveState = createStormWaveState();
 let overboardCrew = [];
 let riverSpriteCache = new Map();
@@ -5916,6 +5922,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     recordCapturePosition(nowMs);
   }
   if (updateChartVisualRepair(nowMs)) dirty = true;
+  if (updateStormFogPresentation(dt)) dirty = true;
   if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   if (updateStatusPersonParticles(nowMs)) dirty = true;
@@ -9295,7 +9302,7 @@ function updateCaptureWhale(sequence) {
   }
   if (captureCue("exhaust-whale", 2.2)) {
     const whale = exhaustTetheredWhale(gameState.memory.whales);
-    openCaptainAlertModal(whaleExhaustedMessage(whale), WHALE_EXHAUSTED_EXPRESSION_ID);
+    openCaptainAlertModal(whaleExhaustedMessage(), WHALE_EXHAUSTED_EXPRESSION_ID);
     emitCaptureEvent("capture-beat", { action: "exhaust-whale", speciesId: whale.speciesId });
   }
   if (captureCue("dismiss-exhausted", 3.2) && captainAlertModal) closeCaptainAlertModal();
@@ -11958,6 +11965,7 @@ function startNewVoyage() {
   }
   sailingTutorialState = createSailingTutorialState();
   resetStormPassageState(stormPassageState);
+  resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
   overboardCrew = [];
   playerBoundaryAssistContact = null;
@@ -12044,6 +12052,7 @@ async function continueSavedVoyage() {
 
 async function restoreSavedVoyage(payload) {
   resetStormPassageState(stormPassageState);
+  resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
   const {
     savedShip,
@@ -19861,7 +19870,7 @@ function updateWhales(dt, nowMs) {
       changed = true;
     } else if (event.type === "exhausted") {
       const whale = whaleById(gameState.memory.whales, event.whaleId);
-      openCaptainAlertModal(whaleExhaustedMessage(whale), WHALE_EXHAUSTED_EXPRESSION_ID);
+      openCaptainAlertModal(whaleExhaustedMessage(), WHALE_EXHAUSTED_EXPRESSION_ID);
       changed = true;
     } else if (event.type === "ice-line-break") {
       showSurvivalNotice("SEA ICE PARTED THE HARPOON LINE", "warn");
@@ -20064,8 +20073,8 @@ function whaleInteractionCall(whale) {
   };
 }
 
-function whaleExhaustedMessage(whale) {
-  return `The ${whaleDisplayLabel(whale)} is exhausted. Time to land the killing blow.`;
+function whaleExhaustedMessage() {
+  return "The beast is spent. Time to land the killing blow.";
 }
 
 function whaleBlowOriginPosition(whale) {
@@ -43716,11 +43725,7 @@ function drawChartRepairCloudBank(frame) {
 
 function drawStormEdgeFog(nowMs) {
   if (!ship) return;
-  const strength = stormFogStrength(
-    playerStormIntensity(),
-    STORM_FOG_ENTER_INTENSITY,
-    STORM_FOG_FULL_INTENSITY
-  );
+  const strength = stormFogStrengthEnvelope.strength;
   if (strength <= 0) return;
   const texture = stormEdgeFogTexture();
   const breathe = reducedMotionPreferred
@@ -43731,6 +43736,27 @@ function drawStormEdgeFog(nowMs) {
   ctx.globalAlpha = strength * breathe;
   ctx.drawImage(texture, 0, 0);
   ctx.restore();
+}
+
+function updateStormFogPresentation(elapsedSeconds) {
+  const previousStrength = stormFogStrengthEnvelope.strength;
+  const targetStrength = ship
+    ? stormFogStrength(
+        playerStormIntensity(),
+        STORM_FOG_ENTER_INTENSITY,
+        STORM_FOG_FULL_INTENSITY
+      )
+    : 0;
+  const strength = advanceFogStrengthEnvelope(
+    stormFogStrengthEnvelope,
+    targetStrength,
+    elapsedSeconds,
+    {
+      riseSeconds: STORM_FOG_RISE_SECONDS,
+      fallSeconds: STORM_FOG_FALL_SECONDS
+    }
+  );
+  return strength !== previousStrength;
 }
 
 function stormEdgeFogTexture() {

@@ -229,6 +229,24 @@ test("polar fog tightens its clear window under chart repair pressure", () => {
   }), null);
 });
 
+test("inherited polar fog clears through a latitude band instead of vanishing", () => {
+  const base = {
+    viewportWidth: 455,
+    viewportHeight: 256,
+    focusX: 227,
+    focusY: 128,
+    repairPressure: 0.8
+  };
+  const enteringReleaseBand = polarChartFogFrame({ ...base, latitudeDeg: 53 });
+  const midway = polarChartFogFrame({ ...base, latitudeDeg: 48 });
+  const clear = polarChartFogFrame({ ...base, latitudeDeg: 41 });
+
+  assert.ok(enteringReleaseBand);
+  assert.ok(midway);
+  assert.ok(enteringReleaseBand.concealment > midway.concealment);
+  assert.equal(clear, null);
+});
+
 test("polar repair pressure rises only where polar fog is climatically plausible", () => {
   const metrics = {
     drift: { rotationDeg: 12 },
