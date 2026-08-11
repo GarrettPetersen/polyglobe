@@ -9,24 +9,70 @@ export const SHORE_BATTERY_GARRISON_PER_GUN = 6;
 export const SHORE_BATTERY_CREW_PROTECTION = 65;
 export const SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE = 0.25;
 export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
+export const SHORE_BATTERY_MAX_LEVEL = 4;
+
+const SHORE_BATTERY_LEVELS = Object.freeze([
+  null,
+  Object.freeze({ level: 1, id: "outpost", label: "harbor watch", gunCount: 1 }),
+  Object.freeze({ level: 2, id: "battery", label: "shore battery", gunCount: 2 }),
+  Object.freeze({ level: 3, id: "fortress", label: "harbor fortress", gunCount: 4 }),
+  Object.freeze({ level: 4, id: "arsenal", label: "capital arsenal", gunCount: 6 })
+]);
 
 const DISABLED_UNTIL_PREFIX = "shoreBatteryDisabledUntil:";
 const DISABLED_BY_SHIP_PREFIX = "shoreBatteryDisabledByShip:";
 const WAR_WARNING_SEEN_PREFIX = "shoreBatteryWarWarningSeen:";
+const UPGRADE_LEVEL_PREFIX = "shoreBatteryUpgradeLevel:";
 
 export function shoreBatteryId(city) {
   assertCity(city);
   return `shore-battery:${city.portId || `city-${city.tileId}`}`;
 }
 
-export function shoreBatteryGunCount(city) {
+export function shoreBatteryLevel(city, flags = null) {
   assertCity(city);
-  if (city.isFactionCapital) return 4;
-  return (city.population || 0) >= 50000 ? 2 : 1;
+  if (flags !== null) assertFlags(flags);
+  const population = Number.isFinite(city.population) ? city.population : 0;
+  const baseLevel = city.isFactionCapital
+    ? population >= 100000 ? 4 : 3
+    : population >= 200000
+      ? 3
+      : population >= 50000
+        ? 2
+        : 1;
+  return Math.min(SHORE_BATTERY_MAX_LEVEL, baseLevel + readUpgradeLevel(flags, city));
 }
 
-export function shoreBatteryMayDemandToll(city) {
-  return shoreBatteryGunCount(city) >= 2;
+export function shoreBatteryTier(city, flags = null) {
+  return SHORE_BATTERY_LEVELS[shoreBatteryLevel(city, flags)];
+}
+
+export function shoreBatteryGunCount(city, flags = null) {
+  return shoreBatteryTier(city, flags).gunCount;
+}
+
+export function upgradeShoreBattery(city, flags, levels = 1) {
+  assertCity(city);
+  assertFlags(flags);
+  if (!Number.isInteger(levels) || levels <= 0) {
+    throw new Error(`Invalid shore battery upgrade increment: ${levels}`);
+  }
+  const before = shoreBatteryLevel(city, flags);
+  const base = shoreBatteryLevel(city);
+  const after = Math.min(SHORE_BATTERY_MAX_LEVEL, before + levels);
+  flags[upgradeFlagKey(city.portId || `city-${city.tileId}`)] = after - base;
+  return Object.freeze({
+    cityTileId: city.tileId,
+    cityName: city.portAlias || city.displayCity || city.city,
+    before,
+    after,
+    gunCount: SHORE_BATTERY_LEVELS[after].gunCount,
+    upgraded: after > before
+  });
+}
+
+export function shoreBatteryMayDemandToll(city, flags = null) {
+  return shoreBatteryGunCount(city, flags) >= 2;
 }
 
 export function shoreBatteryWarWarningSeen(flags, factionId) {
@@ -48,7 +94,8 @@ export function createShoreBatteryState(city, flags, simMinute) {
   assertCity(city);
   assertFlags(flags);
   assertMinute(simMinute);
-  const gunCount = shoreBatteryGunCount(city);
+  const tier = shoreBatteryTier(city, flags);
+  const gunCount = tier.gunCount;
   const maxHitPoints = gunCount * SHORE_BATTERY_HIT_POINTS_PER_GUN;
   const maxGarrison = gunCount * SHORE_BATTERY_GARRISON_PER_GUN;
   const disabledUntilMinute = readDisabledUntil(flags, city);
@@ -60,6 +107,8 @@ export function createShoreBatteryState(city, flags, simMinute) {
     portId: city.portId || `city-${city.tileId}`,
     factionId: city.factionId,
     cultureType: city.cityType || null,
+    batteryLevel: tier.level,
+    batteryTierId: tier.id,
     gunCount,
     maxHitPoints,
     maxGarrison,
@@ -316,6 +365,21 @@ function disabledByShipFlagKey(portId) {
 
 function warWarningSeenFlagKey(factionId) {
   return `${WAR_WARNING_SEEN_PREFIX}${factionId}`;
+}
+
+function upgradeFlagKey(portId) {
+  return `${UPGRADE_LEVEL_PREFIX}${portId}`;
+}
+
+function readUpgradeLevel(flags, city) {
+  if (flags === null) return 0;
+  const portId = city.portId || `city-${city.tileId}`;
+  const value = flags[upgradeFlagKey(portId)];
+  if (value === undefined) return 0;
+  if (!Number.isInteger(value) || value < 0 || value >= SHORE_BATTERY_MAX_LEVEL) {
+    throw new Error(`Invalid shore battery upgrade level for ${portId}: ${value}`);
+  }
+  return value;
 }
 
 function disableShoreBattery(state, flags, simMinute, attackerShipLabel) {

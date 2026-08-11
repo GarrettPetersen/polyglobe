@@ -38,6 +38,11 @@ import {
   tributeMissionPlan
 } from "./diplomaticMissions.js";
 import { courtMatterDialogue, courtMissionPlan } from "./courtPolitics.js";
+import {
+  eastAsianMissionDialogue,
+  eastAsianMissionPlanForCity,
+  isEastAsianMissionQuest
+} from "./eastAsianQuestlines.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -69,6 +74,30 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
   const existing = pendingPassengerOfferForCity(state, city);
   if (existing) return existing;
+
+  const eastAsianPlan = eastAsianMissionPlanForCity(state, city, portCities);
+  if (eastAsianPlan) {
+    const quest = buildEastAsianPassengerQuest(eastAsianPlan);
+    if (typeof context.createCharacter === "function") {
+      const scenario = {
+        id: eastAsianPlan.scenarioId,
+        expressionId: "attentive",
+        namePort: "origin"
+      };
+      const character = context.createCharacter({
+        quest,
+        origin: city,
+        destination: eastAsianPlan.destination,
+        scenario
+      });
+      if (character) {
+        quest.passenger = character;
+        quest.passengerName = character.name;
+      }
+    }
+    quests.passengerOffers[cityKey(city)] = quest;
+    return quest;
+  }
 
   const period = passengerRollPeriod(context.simMinute);
   const originKey = cityKey(city);
@@ -128,6 +157,9 @@ export function travelMissionOfferForCity(state, city, portCities, context = {})
   const existing = pendingPassengerOfferForCity(state, city);
   if (existing || quests.passengerActive) return existing;
   if (quests.active && quests.active.kind !== "delivery") return null;
+  if (eastAsianMissionPlanForCity(state, city, portCities)) {
+    return passengerOfferForCity(state, city, portCities, context);
+  }
   if (city?.isFactionCapital) {
     const envoy = quests.active ? null : envoyOfferForCapital(state, city, portCities, context);
     if (envoy) return envoy;
@@ -290,7 +322,8 @@ export function pendingPassengerOfferForCity(state, city) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
-  if (offer.kind === "passenger" && !offer.tradeAccessPolicyId && !passengerDistanceIsAllowed(offer)) {
+  if (offer.kind === "passenger" && !offer.tradeAccessPolicyId &&
+      !isEastAsianMissionQuest(offer) && !passengerDistanceIsAllowed(offer)) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
@@ -595,8 +628,40 @@ export function isHajjPassengerQuest(quest) {
 }
 
 export function passengerRoleLabel(quest) {
+  if (isEastAsianMissionQuest(quest)) return quest.passengerRoleLabel;
   if (isHajjPassengerQuest(quest)) return "pilgrim";
   return religiousMissionRoleLabel(quest) || "passenger";
+}
+
+function buildEastAsianPassengerQuest(plan) {
+  const origin = plan.origin;
+  const destination = plan.destination;
+  const originKey = cityKey(origin);
+  const destinationKey = cityKey(destination);
+  const sideSuffix = plan.startingFactionId ? `-${plan.startingFactionId}` : "";
+  return {
+    id: `east-asian-${plan.id}${sideSuffix}-${origin.tileId}-${destination.tileId}`,
+    kind: "passenger",
+    eastAsianMissionId: plan.id,
+    eastAsianStartingFactionId: plan.startingFactionId,
+    eastAsianRequiresOutcome: plan.requiresOutcome,
+    originKey,
+    originTileId: origin.tileId,
+    originName: cityLabel(origin),
+    originCountry: origin.country || "",
+    originFactionId: origin.factionId,
+    destinationKey,
+    destinationTileId: destination.tileId,
+    destinationName: cityLabel(destination),
+    destinationCountry: destination.country || "",
+    distanceKm: plan.distanceKm,
+    reward: plan.reward,
+    scenarioId: plan.scenarioId,
+    passengerRoleLabel: plan.roleLabel,
+    passengerName: plan.roleLabel,
+    seen: false,
+    dialogue: eastAsianMissionDialogue(plan)
+  };
 }
 
 function buildPassengerQuest(origin, destination, scenario, distanceKm, period, options = {}) {

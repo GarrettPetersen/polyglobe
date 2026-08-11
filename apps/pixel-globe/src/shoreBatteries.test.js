@@ -16,6 +16,7 @@ import {
   shoreBatteryCanFire,
   shoreBatteryDisabledNotice,
   shoreBatteryGunCount,
+  shoreBatteryLevel,
   shoreBatteryMayDemandToll,
   shoreBatteryMayReceivePlayerPortableFire,
   shoreBatteryPortableImpact,
@@ -24,6 +25,7 @@ import {
   shoreBatterySurrenderNotice,
   shoreBatteryWarWarningSeen,
   rememberShoreBatteryWarWarning,
+  upgradeShoreBattery,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 
@@ -42,6 +44,23 @@ test("capitals mount four shore guns while other important cities mount two", ()
   assert.equal(battery.maxHitPoints, 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN);
   assert.equal(shoreBatteryGunCount({ ...city, isFactionCapital: true }), 4);
   assert.equal(shoreBatteryGunCount({ ...city, population: 12000, settlementType: "village" }), 1);
+  assert.equal(shoreBatteryGunCount({ ...city, population: 160000, isFactionCapital: true }), 6);
+});
+
+test("battery upgrades persist as additive fortification levels", () => {
+  const flags = {};
+  assert.equal(shoreBatteryLevel(city, flags), 2);
+  const result = upgradeShoreBattery(city, flags);
+  assert.deepEqual(result, {
+    cityTileId: 7,
+    cityName: "Alexandria",
+    before: 2,
+    after: 3,
+    gunCount: 4,
+    upgraded: true
+  });
+  assert.equal(shoreBatteryLevel(city, flags), 3);
+  assert.equal(createShoreBatteryState(city, flags, 0).gunCount, 4);
 });
 
 test("only fortified ports demand empire-wide passage tolls", () => {

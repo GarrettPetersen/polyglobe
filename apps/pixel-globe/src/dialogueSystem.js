@@ -58,6 +58,7 @@ import {
   receiveQuestPayment,
   recordColonyAuthorityForState,
   recordTributeTheft,
+  selectEastAsianMissionOutcome,
   releaseCargoSpace,
   reserveCargoSpace,
   restoreMarketUndoSnapshot,
@@ -110,6 +111,12 @@ import {
   religiousMissionOffersLutheranConversion,
   religiousMissionParticipation
 } from "./religiousMissions.js";
+import {
+  eastAsianMissionHasOutcomes,
+  eastAsianMissionOutcomeOptions,
+  eastAsianMissionOutcomeResultText,
+  isEastAsianMissionQuest
+} from "./eastAsianQuestlines.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
   activeForeignSettlements,
@@ -2481,6 +2488,34 @@ export function passengerDialogueView(session, city, quest, gameState) {
       ]
     };
   }
+  if (active?.id === quest.id && quest.destinationTileId === city.tileId &&
+      eastAsianMissionHasOutcomes(quest)) {
+    if (quest.eastAsianOutcomeId) {
+      return {
+        speaker: `${characterName(city.character)}, local official`,
+        expressionId: "attentive",
+        text: eastAsianMissionOutcomeResultText(quest, quest.eastAsianOutcomeId),
+        feedback: session.feedback,
+        options: [
+          option(`Conclude the mission  ${quest.reward} db`, { type: "complete-passenger" }),
+          option("Not yet", { type: "close" })
+        ]
+      };
+    }
+    return {
+      speaker: `${characterName(city.character)}, local official`,
+      expressionId: "stern",
+      text: quest.dialogue?.arrival || "The court is assembled and requires your answer.",
+      feedback: session.feedback,
+      options: [
+        ...eastAsianMissionOutcomeOptions(quest).map((outcome) => option(outcome.label, {
+          type: "choose-east-asian-outcome",
+          outcomeId: outcome.id
+        })),
+        option("Not yet", { type: "close" })
+      ]
+    };
+  }
   if (active?.id === quest.id && quest.destinationTileId === city.tileId) {
     if (isMultiPortReligiousMission(quest) && !session.religiousParticipationUnderway) {
       const legNumber = quest.religiousDeliveryLegIndex + 1;
@@ -2635,6 +2670,14 @@ export function selectPassengerDialogueOption(
       throw new Error("Envoy negotiation cannot finish before the local court answers");
     }
     return { closed: true, action: null };
+  }
+  if (action.type === "choose-east-asian-outcome") {
+    if (!isEastAsianMissionQuest(quest) || quest.destinationTileId !== city.tileId) {
+      throw new Error("East Asian mission outcome is not available here");
+    }
+    selectEastAsianMissionOutcome(gameState, quest.id, action.outcomeId);
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
   }
   if (action.type === "begin-hajj") {
     if (!isHajjPassengerQuest(quest) || !muslimCaptainCanUndertakeHajj(gameState)) {

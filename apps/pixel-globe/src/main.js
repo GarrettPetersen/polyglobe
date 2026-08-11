@@ -28051,7 +28051,8 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
           hostileByWar: entryStatus.hostileByWar,
           withinWeaponRange: true,
           withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
-          tollDemandEligible: entryStatus.canPurchaseSafePassage && shoreBatteryMayDemandToll(city),
+          tollDemandEligible: entryStatus.canPurchaseSafePassage &&
+            shoreBatteryMayDemandToll(city, gameState.memory.flags),
           playerHailed: state.playerHailed,
           playerAttackActive: state.playerAttackActive,
           passageRefusalActive,

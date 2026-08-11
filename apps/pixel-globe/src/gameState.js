@@ -158,6 +158,7 @@ import {
   validateForeignSettlementExpulsionMemory
 } from "./foreignSettlements.js";
 import {
+  JOSEON_TRADE_POLICY_ID,
   MING_TRADE_POLICY_ID,
   createPersonalTradePassMemory,
   createSovereignTradeGrantMemory,
@@ -172,6 +173,18 @@ import {
   validatePersonalTradePassMemory,
   validateSovereignTradeGrantMemory
 } from "./sovereignTradeAccess.js";
+import {
+  EAST_ASIAN_MISSION_GREAT_RITES,
+  EAST_ASIAN_MISSION_NINGBO,
+  EAST_ASIAN_MISSION_PORTUGUESE_GUNS,
+  EAST_ASIAN_MISSION_RYUKYU,
+  EAST_ASIAN_MISSION_TSUSHIMA,
+  EAST_ASIAN_MISSION_YOSHIHARU,
+  isEastAsianMissionQuest,
+  removeSiblingEastAsianOffers,
+  validateMissionOutcome
+} from "./eastAsianQuestlines.js";
+import { upgradeShoreBattery } from "./shoreBatteries.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS,
@@ -5619,6 +5632,7 @@ export function acceptQuest(state, quest, context = {}) {
       acceptedMinute: context.simMinute
     });
   }
+  if (isEastAsianMissionQuest(quest)) removeSiblingEastAsianOffers(quests, quest);
   quests[passengerSlot ? "passengerActive" : "active"] = { ...quest, passenger };
   if ((quest.kind === "passenger" || isEnvoyQuest(quest)) && quest.originKey) {
     delete quests.passengerOffers[quest.originKey];
@@ -5668,6 +5682,24 @@ export function recordTributeTheft(state, theft, context = {}) {
     originPenalty: theft.originPenalty,
     suzerainPenalty: theft.suzerainPenalty
   };
+}
+
+export function selectEastAsianMissionOutcome(state, questId, outcomeId) {
+  assertGameState(state);
+  const quest = questMemory(state).passengerActive;
+  if (!quest || quest.id !== questId || !isEastAsianMissionQuest(quest)) {
+    throw new Error(`East Asian mission is not active: ${questId}`);
+  }
+  if (!quest.eastAsianRequiresOutcome) {
+    throw new Error(`East Asian mission does not accept an outcome choice: ${quest.eastAsianMissionId}`);
+  }
+  validateMissionOutcome(quest, outcomeId);
+  if (quest.eastAsianOutcomeId && quest.eastAsianOutcomeId !== outcomeId) {
+    throw new Error(`East Asian mission outcome is already fixed: ${quest.eastAsianOutcomeId}`);
+  }
+  quest.eastAsianOutcomeId = outcomeId;
+  recordDecision(state, `quest.east-asian.${quest.eastAsianMissionId}.${outcomeId}`, 1);
+  return quest;
 }
 
 export function completeQuest(state, city, context = {}) {
@@ -5722,6 +5754,9 @@ export function completeQuest(state, city, context = {}) {
   if (Array.isArray(active.religiousItinerary) &&
       active.religiousAuthorityAppliedLegCount !== active.religiousItinerary.length) {
     throw new Error(`Religious itinerary is incomplete: ${active.id}`);
+  }
+  if (isEastAsianMissionQuest(active)) {
+    active.eastAsianResolution = applyEastAsianMissionConsequences(state, active, context);
   }
   if (religiousMissionChallengesPapalAuthority(active)) {
     if (!Array.isArray(active.religiousItinerary)) {
@@ -5790,6 +5825,160 @@ export function completeQuest(state, city, context = {}) {
     pnl: null
   });
   return active;
+}
+
+function applyEastAsianMissionConsequences(state, quest, context) {
+  if (quest.eastAsianConsequencesApplied === true) return quest.eastAsianResolution;
+  if (quest.eastAsianRequiresOutcome && !quest.eastAsianOutcomeId) {
+    throw new Error(`East Asian mission requires an outcome: ${quest.eastAsianMissionId}`);
+  }
+  const simMinute = context.simMinute ?? state.survival.lastMinute;
+  assertSimulationMinute(simMinute);
+  const authorityEvents = [];
+  const diplomacyEvents = [];
+  const reputationChanges = [];
+  const tradeAccessGrants = [];
+  const batteryUpgrades = [];
+  const reputation = (factionId, amount) => {
+    adjustFactionReputation(state, factionId, amount);
+    reputationChanges.push(Object.freeze({ factionId, amount }));
+  };
+  const authority = (factionId, amount, source) => {
+    const event = adjustSovereignAuthority(state.relations.authority, factionId, amount, {
+      simMinute,
+      source,
+      detail: quest.eastAsianMissionId
+    });
+    if (event) authorityEvents.push(event);
+  };
+  const diplomacy = (factionAId, factionBId, direction) => {
+    diplomacyEvents.push(...adjustDiplomaticStance(
+      state.relations.diplomacy,
+      factionAId,
+      factionBId,
+      direction,
+      simMinute,
+      { homeFactionId: state.playerCharacter?.nationalityId || null }
+    ));
+  };
+  const grantTrade = (policyId, factionId) => {
+    if (openSovereignTradeToFaction(state, policyId, factionId)) {
+      tradeAccessGrants.push(Object.freeze({ policyId, factionId }));
+    }
+  };
+
+  if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO) {
+    const origin = quest.eastAsianStartingFactionId;
+    const rival = origin === "hosokawa" ? "ouchi" : "hosokawa";
+    if (!NINGBO_MISSION_FACTIONS.has(origin)) {
+      throw new Error(`Ningbo mission has invalid starting faction: ${origin}`);
+    }
+    reputation("ming", 3);
+    authority("ming", 0.3, "ningbo-trade-hearing");
+    if (quest.eastAsianOutcomeId === "support-origin") {
+      reputation(origin, 8);
+      reputation(rival, -3);
+      diplomacy("ming", origin, "improve");
+      authority(origin, 0.8, "ningbo-tally-recognized");
+      authority(rival, -0.5, "ningbo-tally-rejected");
+      grantTrade(MING_TRADE_POLICY_ID, origin);
+    } else if (quest.eastAsianOutcomeId === "mediate") {
+      reputation(origin, 5);
+      reputation(rival, 5);
+      reputation("ming", 3);
+      diplomacy("hosokawa", "ouchi", "improve");
+      authority("japan", 0.8, "ningbo-delegations-reconciled");
+      grantTrade(MING_TRADE_POLICY_ID, "hosokawa");
+      grantTrade(MING_TRADE_POLICY_ID, "ouchi");
+    } else if (quest.eastAsianOutcomeId === "support-rival") {
+      reputation(origin, -10);
+      reputation(rival, 8);
+      diplomacy("ming", rival, "improve");
+      authority(origin, -0.8, "ningbo-mission-defected");
+      authority(rival, 0.8, "ningbo-tally-recognized");
+      grantTrade(MING_TRADE_POLICY_ID, rival);
+    } else {
+      throw new Error(`Unhandled Ningbo mission outcome: ${quest.eastAsianOutcomeId}`);
+    }
+  } else if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_TSUSHIMA) {
+    if (quest.eastAsianOutcomeId === "renew-privileges") {
+      reputation("so", 8);
+      reputation("joseon", 3);
+      diplomacy("so", "joseon", "improve");
+      authority("so", 0.8, "tsushima-privileges-renewed");
+      grantTrade(JOSEON_TRADE_POLICY_ID, "so");
+    } else if (quest.eastAsianOutcomeId === "reform-register") {
+      reputation("so", 6);
+      reputation("joseon", 6);
+      diplomacy("so", "joseon", "improve");
+      authority("so", 0.5, "tsushima-register-reformed");
+      authority("joseon", 0.5, "japanese-envoys-registered");
+      grantTrade(JOSEON_TRADE_POLICY_ID, "so");
+    } else if (quest.eastAsianOutcomeId === "expose-false-envoys") {
+      reputation("so", -10);
+      reputation("joseon", 9);
+      diplomacy("so", "joseon", "worsen");
+      authority("so", -1, "false-envoys-exposed");
+      authority("joseon", 0.4, "false-envoys-exposed");
+    } else {
+      throw new Error(`Unhandled Tsushima mission outcome: ${quest.eastAsianOutcomeId}`);
+    }
+  } else if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {
+    if (!Array.isArray(context.portCities)) {
+      throw new Error("Portuguese guns mission completion requires the current port list");
+    }
+    for (const cityName of ["Guangzhou", "Ningbo", "Fuzhou"]) {
+      const port = findMissionPort(context.portCities, cityName);
+      batteryUpgrades.push(upgradeShoreBattery(port, state.memory.flags));
+    }
+    reputation("ming", 8);
+    authority("ming", 1.2, "portuguese-artillery-adopted");
+  } else if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_RYUKYU) {
+    reputation("ming", 5);
+    reputation("ryukyu", 7);
+    diplomacy("ming", "ryukyu", "improve");
+    authority("ming", 0.4, "ryukyu-investiture");
+    authority("ryukyu", 0.7, "royal-investiture");
+  } else if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_GREAT_RITES) {
+    reputation("ming", 7);
+    authority("ming", 0.7, "great-rites-memorial-received");
+  } else if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_YOSHIHARU) {
+    reputation("japan", 7);
+    reputation("ouchi", 4);
+    diplomacy("japan", "ouchi", "improve");
+    authority("japan", 0.9, "yoshiharu-order-obeyed");
+  } else {
+    throw new Error(`Unknown East Asian mission completion: ${quest.eastAsianMissionId}`);
+  }
+
+  const resolution = Object.freeze({
+    missionId: quest.eastAsianMissionId,
+    outcomeId: quest.eastAsianOutcomeId || null,
+    reputationChanges: Object.freeze(reputationChanges),
+    diplomacyEvents: Object.freeze(diplomacyEvents),
+    authorityEvents: Object.freeze(authorityEvents),
+    tradeAccessGrants: Object.freeze(tradeAccessGrants),
+    batteryUpgrades: Object.freeze(batteryUpgrades)
+  });
+  quest.eastAsianResolution = resolution;
+  quest.eastAsianConsequencesApplied = true;
+  return resolution;
+}
+
+const NINGBO_MISSION_FACTIONS = new Set(["hosokawa", "ouchi"]);
+
+function findMissionPort(portCities, expectedName) {
+  const normalized = normalizeMissionPortName(expectedName);
+  const port = portCities.find((candidate) => (
+    normalizeMissionPortName(candidate?.portAlias || candidate?.displayCity || candidate?.city) === normalized
+  ));
+  if (!port) throw new Error(`East Asian mission requires the placed port ${expectedName}`);
+  return port;
+}
+
+function normalizeMissionPortName(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 export function cityKey(city) {
