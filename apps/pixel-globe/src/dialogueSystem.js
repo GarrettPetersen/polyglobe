@@ -112,6 +112,7 @@ import {
   religiousMissionParticipation
 } from "./religiousMissions.js";
 import {
+  EAST_ASIAN_MISSION_NINGBO,
   eastAsianMissionHasOutcomes,
   eastAsianMissionOutcomeOptions,
   eastAsianMissionOutcomeResultText,
@@ -516,7 +517,8 @@ export function createShipDialogueSession(
     bibleInspection = null,
     listenerReligionId = null,
     pirateTreasureName = null,
-    hostileHail = false
+    hostileHail = false,
+    scriptedHail = null
   } = {}
 ) {
   if (attackReason !== null && (typeof attackReason !== "string" || attackReason.trim() === "")) {
@@ -567,6 +569,12 @@ export function createShipDialogueSession(
   if (typeof hostileHail !== "boolean") {
     throw new Error(`Ship hostile hail state must be boolean: ${hostileHail}`);
   }
+  if (scriptedHail !== null && (
+    typeof scriptedHail !== "object" ||
+    typeof scriptedHail.text !== "string" || scriptedHail.text.trim() === ""
+  )) {
+    throw new Error("Scripted ship hail requires text");
+  }
   return {
     kind: "ship",
     npcShipId: ship.id,
@@ -576,7 +584,9 @@ export function createShipDialogueSession(
         ? "illicit-trade-inspection"
         : bibleInspection
           ? "bible-inspection"
-        : "root",
+        : scriptedHail
+          ? "scripted-hail"
+          : "root",
     selectedIndex: 0,
     attackReason,
     piracyWarningAccepted: false,
@@ -587,7 +597,8 @@ export function createShipDialogueSession(
     bibleInspection,
     listenerReligionId,
     pirateTreasureName,
-    hostileHail
+    hostileHail,
+    scriptedHail
   };
 }
 
@@ -779,6 +790,15 @@ function shipDialogueContentView(session, ship) {
   }
   if (session.nodeId === "bible-inspection") {
     return bibleInspectionView(session, speaker);
+  }
+  if (session.nodeId === "scripted-hail") {
+    return {
+      speaker,
+      expressionId: "angry",
+      text: session.scriptedHail.text,
+      feedback: null,
+      options: [option("Hold your course", { type: "close" })]
+    };
   }
   if (session.attackReason && ship.combatGrace) {
     return {
@@ -2491,6 +2511,20 @@ export function passengerDialogueView(session, city, quest, gameState) {
   if (active?.id === quest.id && quest.destinationTileId === city.tileId &&
       eastAsianMissionHasOutcomes(quest)) {
     if (quest.eastAsianOutcomeId) {
+      if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO && quest.eastAsianStage === "battle") {
+        const enemy = quest.eastAsianBattleFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
+        return {
+          speaker: `${characterName(city.character)}, local official`,
+          expressionId: "stern",
+          text: `The hearing has broken down. The ${enemy} delegation is putting to sea under arms. ` +
+            "Defeat both of its ships before your own delegation is driven off.",
+          feedback: session.feedback,
+          options: [
+            option("Put to sea and fight", { type: "begin-ningbo-battle" }),
+            option("Not yet", { type: "close" })
+          ]
+        };
+      }
       return {
         speaker: `${characterName(city.character)}, local official`,
         expressionId: "attentive",
@@ -2505,7 +2539,11 @@ export function passengerDialogueView(session, city, quest, gameState) {
     return {
       speaker: `${characterName(city.character)}, local official`,
       expressionId: "stern",
-      text: quest.dialogue?.arrival || "The court is assembled and requires your answer.",
+      text: quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO
+        ? `${quest.eastAsianWonRace
+          ? `You reached Ningbo before the rival courier and earned a ${quest.eastAsianRaceBonus} db bonus. `
+          : "The rival courier reached Ningbo first. "}${quest.dialogue?.arrival || "The court requires your answer."}`
+        : quest.dialogue?.arrival || "The court is assembled and requires your answer.",
       feedback: session.feedback,
       options: [
         ...eastAsianMissionOutcomeOptions(quest).map((outcome) => option(outcome.label, {
@@ -2657,7 +2695,9 @@ export function selectPassengerDialogueOption(
   if (action.type === "open-port") return { closed: false, action: { type: "open-port" } };
   if (action.type === "accept-passenger") {
     acceptQuest(gameState, quest, context);
-    return { closed: true, action: null };
+    return quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO
+      ? { closed: true, action: null, acceptedQuest: quest }
+      : { closed: true, action: null };
   }
   if (action.type === "negotiate-envoy") {
     const negotiation = negotiateEnvoyQuest(gameState, city, context);
@@ -2675,9 +2715,19 @@ export function selectPassengerDialogueOption(
     if (!isEastAsianMissionQuest(quest) || quest.destinationTileId !== city.tileId) {
       throw new Error("East Asian mission outcome is not available here");
     }
-    selectEastAsianMissionOutcome(gameState, quest.id, action.outcomeId);
+    selectEastAsianMissionOutcome(gameState, quest.id, action.outcomeId, { ...context, city });
     session.selectedIndex = 0;
     return { closed: false, action: null };
+  }
+  if (action.type === "begin-ningbo-battle") {
+    if (
+      quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO ||
+      quest.eastAsianStage !== "battle" ||
+      quest.destinationTileId !== city.tileId
+    ) {
+      throw new Error("Ningbo battle is not ready");
+    }
+    return { closed: true, action: { type: "begin-ningbo-battle", questId: quest.id } };
   }
   if (action.type === "begin-hajj") {
     if (!isHajjPassengerQuest(quest) || !muslimCaptainCanUndertakeHajj(gameState)) {

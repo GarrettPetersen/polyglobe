@@ -39,9 +39,11 @@ import {
 } from "./diplomaticMissions.js";
 import { courtMatterDialogue, courtMissionPlan } from "./courtPolitics.js";
 import {
+  EAST_ASIAN_MISSION_NINGBO,
   eastAsianMissionDialogue,
   eastAsianMissionPlanForCity,
-  isEastAsianMissionQuest
+  isEastAsianMissionQuest,
+  ningboDelegationManifest
 } from "./eastAsianQuestlines.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
@@ -639,8 +641,9 @@ function buildEastAsianPassengerQuest(plan) {
   const originKey = cityKey(origin);
   const destinationKey = cityKey(destination);
   const sideSuffix = plan.startingFactionId ? `-${plan.startingFactionId}` : "";
+  const id = `east-asian-${plan.id}${sideSuffix}-${origin.tileId}-${destination.tileId}`;
   return {
-    id: `east-asian-${plan.id}${sideSuffix}-${origin.tileId}-${destination.tileId}`,
+    id,
     kind: "passenger",
     eastAsianMissionId: plan.id,
     eastAsianStartingFactionId: plan.startingFactionId,
@@ -660,7 +663,17 @@ function buildEastAsianPassengerQuest(plan) {
     passengerRoleLabel: plan.roleLabel,
     passengerName: plan.roleLabel,
     seen: false,
-    dialogue: eastAsianMissionDialogue(plan)
+    dialogue: eastAsianMissionDialogue(plan),
+    ...(plan.id === EAST_ASIAN_MISSION_NINGBO
+      ? {
+        eastAsianStage: "race",
+        eastAsianDelegationShips: ningboDelegationManifest(
+          id,
+          plan.delegationOrigins,
+          plan.destination.tileId
+        )
+      }
+      : {})
   };
 }
 

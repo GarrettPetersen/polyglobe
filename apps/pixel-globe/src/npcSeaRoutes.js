@@ -657,6 +657,14 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
   if (!Number.isInteger(spec.originPortId)) {
     throw new Error(`NPC route encounter requires an origin port: ${spec.id}`);
   }
+  if (spec.destinationPortId !== undefined && !Number.isInteger(spec.destinationPortId)) {
+    throw new Error(`NPC route encounter has an invalid destination port: ${spec.id}`);
+  }
+  if (spec.departureDelayMinutes !== undefined && (
+    !Number.isFinite(spec.departureDelayMinutes) || spec.departureDelayMinutes < 0
+  )) {
+    throw new Error(`NPC route encounter has an invalid departure delay: ${spec.id}`);
+  }
   assertFactionId(spec.factionId);
   if (!NPC_ROLE_SET.has(spec.role)) throw new Error(`Unknown NPC route encounter role: ${spec.role}`);
   if (spec.encounter !== undefined && (!spec.encounter || typeof spec.encounter !== "object")) {
@@ -667,6 +675,12 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
   }
   const origin = system.ports.find((port) => port.tileId === spec.originPortId);
   if (!origin) throw new Error(`NPC route encounter origin is missing: ${spec.originPortId}`);
+  const destination = spec.destinationPortId === undefined
+    ? null
+    : system.ports.find((port) => port.tileId === spec.destinationPortId);
+  if (spec.destinationPortId !== undefined && !destination) {
+    throw new Error(`NPC route encounter destination is missing: ${spec.destinationPortId}`);
+  }
   const profileSpec = Object.freeze({
     id: spec.profileId || "wide-world",
     mode: spec.mode || "interregional"
@@ -690,7 +704,16 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
     ship.specie = Math.floor(spec.specie);
   }
   if (spec.hiddenAtOrigin) enterPirateHideout(ship, clockMinutes);
-  else seedNpcShipOnRoute(system, ship, clockMinutes);
+  else if (destination) {
+    const departureMinute = clockMinutes + (spec.departureDelayMinutes || 0);
+    const route = routeBetweenPorts(system, origin, destination, ship.slug, departureMinute);
+    ship.plan = buildNpcPlan(origin, destination, route, departureMinute);
+    ship.finalDestination = destination;
+    ship.visualNavigation = {
+      vector: latLonToVector(origin.lat, origin.lon),
+      heading: headingVectorAt(origin, origin, destination)
+    };
+  } else seedNpcShipOnRoute(system, ship, clockMinutes);
   system.ships.push(ship);
   system.shipById.set(ship.id, ship);
   return ship;
@@ -1975,6 +1998,40 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     if (system.onForeignPortCall && !ship.currentPort.isFishingGround && !ship.currentPort.isWhalingGround &&
         ship.plan.endMinute >= system.contactStartMinute) {
       system.onForeignPortCall(ship.factionId, ship.currentPort.factionId, ship.plan.endMinute);
+    }
+    if (
+      ship.encounter?.holdAtDestination === true &&
+      ship.encounter.destinationPortId === ship.currentPort.tileId
+    ) {
+      const arrivalMinute = ship.plan.endMinute;
+      const lastSail = [...ship.plan.segments].reverse().find((segment) => segment.kind === "sail");
+      if (!lastSail) throw new Error(`NPC delegation route has no sailing segment: ${ship.id}`);
+      const holdProgress = ship.encounter.holdProgress ?? 0.96;
+      if (!Number.isFinite(holdProgress) || holdProgress <= 0 || holdProgress > 1) {
+        throw new Error(`NPC delegation has an invalid holding progress: ${ship.id}`);
+      }
+      const holdVectors = vectorsForRouteSegment(lastSail);
+      ship.encounter.arrivedAtMinute ??= arrivalMinute;
+      ship.finalDestination = null;
+      const heldPosition = slerpVector(holdVectors.from, holdVectors.to, holdProgress);
+      ship.visualNavigation = {
+        vector: heldPosition,
+        heading: headingVectorForVectors(heldPosition, holdVectors.from, holdVectors.to)
+      };
+      ship.plan = {
+        origin: ship.currentPort,
+        destination: ship.currentPort,
+        segments: [{
+          kind: "wait",
+          startMinute: arrivalMinute,
+          endMinute: arrivalMinute + 200 * 365 * WEATHER_MINUTES_PER_DAY
+        }],
+        startMinute: arrivalMinute,
+        endMinute: arrivalMinute + 200 * 365 * WEATHER_MINUTES_PER_DAY
+      };
+      changed = true;
+      guard++;
+      break;
     }
     if (ship.role === NPC_ROLE_PIRATE && ship.seekingHideout) ship.finalDestination = null;
     const reachedHideout = ship.role === NPC_ROLE_PIRATE &&

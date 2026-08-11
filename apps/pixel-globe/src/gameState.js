@@ -180,6 +180,8 @@ import {
   EAST_ASIAN_MISSION_RYUKYU,
   EAST_ASIAN_MISSION_TSUSHIMA,
   EAST_ASIAN_MISSION_YOSHIHARU,
+  NINGBO_DEFECTION_BRIBE,
+  NINGBO_RACE_BONUS,
   isEastAsianMissionQuest,
   removeSiblingEastAsianOffers,
   validateMissionOutcome
@@ -5684,7 +5686,27 @@ export function recordTributeTheft(state, theft, context = {}) {
   };
 }
 
-export function selectEastAsianMissionOutcome(state, questId, outcomeId) {
+export function recordNingboMissionArrival(state, questId, context = {}) {
+  assertGameState(state);
+  const quest = questMemory(state).passengerActive;
+  if (!quest || quest.id !== questId || quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) {
+    throw new Error(`Ningbo mission is not active: ${questId}`);
+  }
+  if (quest.eastAsianPlayerArrivalMinute !== undefined) return quest;
+  assertSimulationMinute(context.simMinute);
+  const rivalArrivalMinute = context.rivalArrivalMinute ?? null;
+  if (rivalArrivalMinute !== null) assertSimulationMinute(rivalArrivalMinute);
+  quest.eastAsianPlayerArrivalMinute = context.simMinute;
+  quest.eastAsianRivalArrivalMinute = rivalArrivalMinute;
+  quest.eastAsianWonRace = rivalArrivalMinute === null || context.simMinute < rivalArrivalMinute;
+  quest.eastAsianBaseReward = quest.reward;
+  quest.eastAsianRaceBonus = quest.eastAsianWonRace ? NINGBO_RACE_BONUS : 0;
+  quest.reward += quest.eastAsianRaceBonus;
+  recordDecision(state, `quest.east-asian.${EAST_ASIAN_MISSION_NINGBO}.race-${quest.eastAsianWonRace ? "won" : "lost"}`, 1);
+  return quest;
+}
+
+export function selectEastAsianMissionOutcome(state, questId, outcomeId, context = {}) {
   assertGameState(state);
   const quest = questMemory(state).passengerActive;
   if (!quest || quest.id !== questId || !isEastAsianMissionQuest(quest)) {
@@ -5697,9 +5719,87 @@ export function selectEastAsianMissionOutcome(state, questId, outcomeId) {
   if (quest.eastAsianOutcomeId && quest.eastAsianOutcomeId !== outcomeId) {
     throw new Error(`East Asian mission outcome is already fixed: ${quest.eastAsianOutcomeId}`);
   }
+  if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO) {
+    if (quest.eastAsianPlayerArrivalMinute === undefined) {
+      throw new Error("Ningbo outcome cannot be chosen before reaching Ningbo");
+    }
+    if (outcomeId === "mediate") {
+      quest.eastAsianStage = "resolved";
+    } else {
+      const origin = quest.eastAsianStartingFactionId;
+      const rival = origin === "hosokawa" ? "ouchi" : "hosokawa";
+      const enemyFactionId = outcomeId === "support-origin" ? rival : origin;
+      const ships = Array.isArray(quest.eastAsianDelegationShips)
+        ? quest.eastAsianDelegationShips
+        : [];
+      quest.eastAsianBattleFactionId = enemyFactionId;
+      const alliedFactionId = enemyFactionId === origin ? rival : origin;
+      quest.eastAsianBattleShipIds = ships
+        .filter((ship) => ship.factionId === enemyFactionId)
+        .map((ship) => ship.id);
+      quest.eastAsianAlliedShipIds = ships
+        .filter((ship) => ship.factionId === alliedFactionId)
+        .map((ship) => ship.id);
+      if (quest.eastAsianBattleShipIds.length === 0) {
+        throw new Error(`Ningbo mission has no ${enemyFactionId} delegation ships`);
+      }
+      if (quest.eastAsianAlliedShipIds.length === 0) {
+        throw new Error(`Ningbo mission has no ${alliedFactionId} allied delegation ships`);
+      }
+      quest.eastAsianDefeatedShipIds = [];
+      quest.eastAsianLostShipIds = [];
+      quest.eastAsianStage = "battle";
+      if (outcomeId === "support-rival") {
+        if (!context.city) throw new Error("Ningbo defection payment requires the current port");
+        receiveQuestPayment(
+          state,
+          context.city,
+          NINGBO_DEFECTION_BRIBE,
+          "Rival delegation's purse",
+          context
+        );
+        quest.eastAsianDefectionBribePaid = NINGBO_DEFECTION_BRIBE;
+      }
+    }
+  }
   quest.eastAsianOutcomeId = outcomeId;
   recordDecision(state, `quest.east-asian.${quest.eastAsianMissionId}.${outcomeId}`, 1);
   return quest;
+}
+
+export function recordNingboMissionShipDefeated(state, shipId) {
+  assertGameState(state);
+  const quest = questMemory(state).passengerActive;
+  if (!quest || quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO || quest.eastAsianStage !== "battle") {
+    return null;
+  }
+  if (quest.eastAsianBattleShipIds.includes(shipId)) {
+    if (!quest.eastAsianDefeatedShipIds.includes(shipId)) quest.eastAsianDefeatedShipIds.push(shipId);
+    const remaining = quest.eastAsianBattleShipIds.filter((id) => !quest.eastAsianDefeatedShipIds.includes(id));
+    if (remaining.length === 0) quest.eastAsianStage = "resolved";
+    return Object.freeze({
+      quest,
+      status: remaining.length === 0 ? "victory" : "progress",
+      remaining: Object.freeze(remaining)
+    });
+  }
+  if (quest.eastAsianAlliedShipIds.includes(shipId)) {
+    if (!quest.eastAsianLostShipIds.includes(shipId)) quest.eastAsianLostShipIds.push(shipId);
+    const remaining = quest.eastAsianAlliedShipIds.filter((id) => !quest.eastAsianLostShipIds.includes(id));
+    if (remaining.length > 0) {
+      return Object.freeze({ quest, status: "progress", remaining: Object.freeze(remaining) });
+    }
+    quest.eastAsianStage = "failed";
+    const quests = questMemory(state);
+    quests.failed[quest.id] = {
+      reason: "ningbo-delegation-defeated",
+      simMinute: state.survival.lastMinute
+    };
+    quests.passengerActive = null;
+    recordDecision(state, `quest.fail.${quest.id}.delegation-defeated`, 1);
+    return Object.freeze({ quest, status: "defeat", remaining: Object.freeze([]) });
+  }
+  return null;
 }
 
 export function completeQuest(state, city, context = {}) {
@@ -5756,6 +5856,9 @@ export function completeQuest(state, city, context = {}) {
     throw new Error(`Religious itinerary is incomplete: ${active.id}`);
   }
   if (isEastAsianMissionQuest(active)) {
+    if (active.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO && active.eastAsianStage !== "resolved") {
+      throw new Error(`Ningbo mission battle is unresolved: ${active.eastAsianStage}`);
+    }
     active.eastAsianResolution = applyEastAsianMissionConsequences(state, active, context);
   }
   if (religiousMissionChallengesPapalAuthority(active)) {
@@ -5873,11 +5976,10 @@ function applyEastAsianMissionConsequences(state, quest, context) {
     if (!NINGBO_MISSION_FACTIONS.has(origin)) {
       throw new Error(`Ningbo mission has invalid starting faction: ${origin}`);
     }
-    reputation("ming", 3);
-    authority("ming", 0.3, "ningbo-trade-hearing");
     if (quest.eastAsianOutcomeId === "support-origin") {
-      reputation(origin, 8);
-      reputation(rival, -3);
+      reputation(origin, 10);
+      reputation(rival, -8);
+      reputation("ming", -5);
       diplomacy("ming", origin, "improve");
       authority(origin, 0.8, "ningbo-tally-recognized");
       authority(rival, -0.5, "ningbo-tally-rejected");
@@ -5891,8 +5993,9 @@ function applyEastAsianMissionConsequences(state, quest, context) {
       grantTrade(MING_TRADE_POLICY_ID, "hosokawa");
       grantTrade(MING_TRADE_POLICY_ID, "ouchi");
     } else if (quest.eastAsianOutcomeId === "support-rival") {
-      reputation(origin, -10);
-      reputation(rival, 8);
+      reputation(origin, -12);
+      reputation(rival, 10);
+      reputation("ming", -5);
       diplomacy("ming", rival, "improve");
       authority(origin, -0.8, "ningbo-mission-defected");
       authority(rival, 0.8, "ningbo-tally-recognized");

@@ -404,6 +404,8 @@ import {
   recordFriendlyFireAgainstFaction,
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
+  recordNingboMissionArrival,
+  recordNingboMissionShipDefeated,
   recordWokouHuntVictory,
   reconcileFactionReputationAfterPlayerVassalage,
   recordPiracyAgainstFaction,
@@ -429,6 +431,10 @@ import {
   visitPort,
   wokouHuntMissionOfferForCity
 } from "./gameState.js";
+import {
+  EAST_ASIAN_MISSION_NINGBO,
+  ningboDelegationManifest
+} from "./eastAsianQuestlines.js";
 import {
   ANIMAL_CATALOG,
   ANIMAL_CATALOG_BY_ID,
@@ -4089,6 +4095,7 @@ async function main() {
     initializeTreasureCampaignWorld();
     ensureTreasureCampaignEncounters({ assignCaptains: false });
     ensureWokouHuntEncounter({ assignCaptains: false });
+    ensureNingboMissionEncounters({ assignCaptains: false });
   }
   if (CAPTURE_SCENARIO) {
     for (const encounter of CAPTURE_SCENARIO.encounters) {
@@ -6638,6 +6645,102 @@ function activeTreasureCampaignGoal() {
 function activeWokouHuntQuest() {
   const quest = gameState?.memory?.quests?.active;
   return isWokouHuntQuest(quest) ? quest : null;
+}
+
+function activeNingboMissionQuest() {
+  const quest = gameState?.memory?.quests?.passengerActive;
+  return quest?.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO ? quest : null;
+}
+
+function reconcileNingboDelegationManifest(quest) {
+  if (Array.isArray(quest.eastAsianDelegationShips) && quest.eastAsianDelegationShips.length === 4) {
+    return quest.eastAsianDelegationShips;
+  }
+  const delegationOrigins = {};
+  for (const factionId of ["hosokawa", "ouchi"]) {
+    const capital = portCities.find((city) => city.factionId === factionId && city.isFactionCapital === true);
+    if (!capital) throw new Error(`Ningbo mission requires a ${factionId} capital`);
+    delegationOrigins[factionId] = capital.tileId;
+  }
+  quest.eastAsianDelegationShips = ningboDelegationManifest(
+    quest.id,
+    delegationOrigins,
+    quest.destinationTileId
+  );
+  quest.eastAsianStage ||= "race";
+  return quest.eastAsianDelegationShips;
+}
+
+function ensureNingboMissionEncounters({ assignCaptains = true } = {}) {
+  const quest = activeNingboMissionQuest();
+  if (!quest || !npcSeaRoutes) return [];
+  const manifest = reconcileNingboDelegationManifest(quest);
+  const removedIds = new Set([
+    ...(quest.eastAsianDefeatedShipIds || []),
+    ...(quest.eastAsianLostShipIds || [])
+  ]);
+  const active = [];
+  for (const spec of manifest) {
+    if (removedIds.has(spec.id)) continue;
+    let strategic = npcSeaRoutes.shipById.get(spec.id);
+    if (!strategic) {
+      strategic = configureNpcRouteEncounter(npcSeaRoutes, {
+        ...spec,
+        replaceOnSink: false,
+        encounter: {
+          kind: "ningbo-delegation",
+          questId: quest.id,
+          delegationRole: spec.delegationRole,
+          destinationPortId: spec.destinationPortId,
+          holdAtDestination: true,
+          holdProgress: spec.holdProgress,
+          forceAttack: quest.eastAsianStage === "battle" &&
+            quest.eastAsianBattleShipIds?.includes(spec.id) === true
+        }
+      }, weatherClockMinutes);
+    } else if (strategic.encounter?.kind === "ningbo-delegation") {
+      strategic.encounter.forceAttack = quest.eastAsianStage === "battle" &&
+        quest.eastAsianBattleShipIds?.includes(spec.id) === true;
+    }
+    if (assignCaptains) ensureNpcShipCaptain(strategic.id);
+    active.push(strategic);
+  }
+  return active;
+}
+
+function ningboDelegationFactionLabel(factionId) {
+  if (factionId === "hosokawa") return "Hosokawa";
+  if (factionId === "ouchi") return "Ouchi";
+  throw new Error(`Unknown Ningbo delegation faction: ${factionId}`);
+}
+
+function activateNingboMissionBattle(questId) {
+  const quest = activeNingboMissionQuest();
+  if (!quest || quest.id !== questId || quest.eastAsianStage !== "battle") {
+    throw new Error(`Ningbo battle is not active: ${questId}`);
+  }
+  ensureNingboMissionEncounters();
+  showSurvivalNotice(
+    `${ningboDelegationFactionLabel(quest.eastAsianBattleFactionId).toUpperCase()} DELEGATION ENGAGED`,
+    "warning"
+  );
+  saveVoyageNow("began Ningbo delegation battle");
+}
+
+function resolveNingboDelegationShipLoss(shipId) {
+  const result = recordNingboMissionShipDefeated(gameState, shipId);
+  if (!result) return null;
+  if (result.status === "victory") {
+    showSurvivalNotice("RIVAL DELEGATION DEFEATED - RETURN TO NINGBO", "good");
+    saveVoyageNow("won Ningbo delegation battle");
+  } else if (result.status === "defeat") {
+    showSurvivalNotice("YOUR DELEGATION WAS DEFEATED - NINGBO MISSION FAILED", "warning");
+    saveVoyageNow("lost Ningbo delegation battle");
+  } else {
+    showSurvivalNotice(`NINGBO BATTLE  ${result.remaining.length} SHIP${result.remaining.length === 1 ? "" : "S"} REMAIN`, "warning");
+    saveVoyageNow("Ningbo delegation ship defeated");
+  }
+  return result;
 }
 
 function ensureWokouHuntEncounter({ assignCaptains = true, respawnAtPort = false } = {}) {
@@ -11885,6 +11988,7 @@ async function restoreSavedVoyage(payload) {
   voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
   weatherParts = weatherClockParts(weatherClockMinutes);
   ensureWokouHuntEncounter({ assignCaptains: false });
+  ensureNingboMissionEncounters({ assignCaptains: false });
   refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
   activeIcebergSpawnCandidatesDay = -1;
@@ -17109,6 +17213,27 @@ function repairPlayerShipAtPort() {
 
 function openPassengerDialogue(cityCall, quest) {
   if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
+  if (
+    quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
+    gameState.memory.quests.passengerActive?.id === quest.id &&
+    cityCall.tileId === quest.destinationTileId
+  ) {
+    ensureNingboMissionEncounters();
+    const rivalFactionId = quest.eastAsianStartingFactionId === "hosokawa" ? "ouchi" : "hosokawa";
+    const rivalCourier = quest.eastAsianDelegationShips.find((ship) => (
+      ship.factionId === rivalFactionId && ship.delegationRole === "courier"
+    ));
+    if (!rivalCourier) throw new Error("Ningbo mission has no rival courier");
+    const strategic = npcSeaRoutes.shipById.get(rivalCourier.id);
+    const rivalArrivalMinute = strategic?.encounter?.arrivedAtMinute ??
+      (strategic?.plan?.destination?.tileId === quest.destinationTileId
+        ? strategic.plan.endMinute
+        : null);
+    recordNingboMissionArrival(gameState, quest.id, {
+      simMinute: Math.floor(weatherClockMinutes),
+      rivalArrivalMinute
+    });
+  }
   markPassengerOfferSeen(gameState, quest);
   dialogueState = createPassengerDialogueSession(cityCall, quest, {
     admittedToPort: true,
@@ -17210,7 +17335,7 @@ function openShipDialogue(shipCall, options = {}) {
   }
   const enforcementDialogue = Boolean(
     options.attackReason || options.cartazInspection || options.illicitTradeInspection ||
-    options.bibleInspection
+    options.bibleInspection || options.scriptedHail
   );
   const hostileHail = !enforcementDialogue && npcShipIsHostileToPlayer(visualShip);
   const treasureGoal = activeTreasureCampaignGoal();
@@ -18185,6 +18310,9 @@ function chooseDialogueOption(optionIndex) {
         "good"
       );
     }
+    if (result.acceptedQuest?.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO) {
+      ensureNingboMissionEncounters();
+    }
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
     saveVoyageNow(SAVE_REASON_QUEST_DECISION);
@@ -18203,6 +18331,10 @@ function chooseDialogueOption(optionIndex) {
         negotiation.foreignSettlementExpulsions.length > 0 ? "warn" : "good"
       );
       saveVoyageNow("envoy negotiations");
+    }
+    if (result.action?.type === "begin-ningbo-battle") {
+      activateNingboMissionBattle(result.action.questId);
+      dialogueState.continueToPortOnClose = false;
     }
   } else if (dialogueState.kind === "ship") {
     dialogueNpcShipId = dialogueState.npcShipId;
@@ -18947,6 +19079,8 @@ function forceIllicitTradeEnforcementCombat(npcShipId) {
 function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   if (!gameState) return;
   if (npcSeaRoutes?.shipById?.get(npcShipId)?.encounter?.kind === "colonization-defense") return;
+  const ningboQuest = activeNingboMissionQuest();
+  if (ningboQuest?.eastAsianStage === "battle" && ningboQuest.eastAsianBattleShipIds.includes(npcShipId)) return;
   const state = npcVisualShips.get(npcShipId);
   const factionId = state?.factionId || npcSeaRoutes?.shipById?.get(npcShipId)?.factionId || fallbackFactionId;
   if (!factionId || factionId === PIRATE_FACTION_ID) return;
@@ -18971,6 +19105,10 @@ function recordPlayerSelfDefenseConsequences(npcShipId, fallbackFactionId = null
   if (!gameState) return null;
   const strategic = npcSeaRoutes?.shipById?.get(npcShipId);
   if (strategic?.encounter?.kind === "colonization-defense") return null;
+  const ningboQuest = activeNingboMissionQuest();
+  if (ningboQuest?.eastAsianStage === "battle" && ningboQuest.eastAsianBattleShipIds.includes(npcShipId)) {
+    return null;
+  }
   const state = npcVisualShips.get(npcShipId);
   if (state?.playerAttackRecorded) return null;
   const factionId = state?.factionId || strategic?.factionId || fallbackFactionId;
@@ -19318,6 +19456,14 @@ function dialogueShipForId(npcShipId) {
 }
 
 function playerTreatsFactionAsGreenAlly(factionId) {
+  const ningboQuest = activeNingboMissionQuest();
+  if (ningboQuest) {
+    if (ningboQuest.eastAsianStage === "battle") {
+      return ningboQuest.eastAsianBattleFactionId !== factionId &&
+        ["hosokawa", "ouchi"].includes(factionId);
+    }
+    if (ningboQuest.eastAsianStartingFactionId === factionId) return true;
+  }
   return currentDiplomacyBetween(ship.factionId, factionId) === DIPLOMACY_ALLY &&
     factionReputation(gameState, factionId) > HOSTILE_PORT_REPUTATION_THRESHOLD;
 }
@@ -20303,6 +20449,13 @@ function npcShipIsHostileToPlayer(state) {
   if (!gameState || !ship) throw new Error("NPC ship hostility requires an active voyage");
   const strategic = npcSeaRoutes?.shipById?.get(state.id);
   if (!strategic) throw new Error(`NPC ship hostility requires strategic state: ${state.id}`);
+  const ningboQuest = activeNingboMissionQuest();
+  if (
+    strategic.encounter?.kind === "ningbo-delegation" &&
+    ningboQuest?.eastAsianStage === "battle"
+  ) {
+    return ningboQuest.eastAsianBattleShipIds.includes(state.id);
+  }
   if (shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, state.id))) return true;
   if (state.combatEnemyIds?.includes(PLAYER_COMBAT_ID) || strategic.encounter?.forceAttack === true) {
     return true;
@@ -27492,6 +27645,7 @@ function updateNpcFishermenHarvest() {
 function updateNpcCombat(dt) {
   if (!ship || gameOverReason) return false;
   const simMinute = Math.floor(weatherClockMinutes);
+  if (maybeOpenNingboRivalDelegationHail()) return true;
   const portEntryContext = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.portContext",
     () => createPortEntryStatusContext(gameState, simMinute)
@@ -27499,6 +27653,7 @@ function updateNpcCombat(dt) {
   const playerWasInCombat = playerHasCombatEngagement();
   const colonizationDefenseInitiator = forceColonizationDefenseEngagements(playerWasInCombat);
   const illicitTradeEnforcementChanged = forceNearbyIllicitTradeEnforcementEngagements(simMinute);
+  const ningboBattleChanged = forceNingboMissionEngagements();
   const participantsBefore = combatParticipantIds();
   const entities = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.entities",
@@ -27527,7 +27682,7 @@ function updateNpcCombat(dt) {
       shipCombatEntryCollisionGrace.set(id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
     }
   }
-  let changed = result.changed || illicitTradeEnforcementChanged;
+  let changed = result.changed || illicitTradeEnforcementChanged || ningboBattleChanged;
   const firstPlayerEngagement = !playerWasInCombat
     ? result.startedEngagements.find((engagement) => (
         engagement.aId === PLAYER_COMBAT_ID || engagement.bId === PLAYER_COMBAT_ID
@@ -27813,6 +27968,69 @@ function combatHailIsBlockedByOverlay() {
   return Boolean(
     gameOverReason || playerIntroModal || captainAlertModal || dialogueState || menusAreOpen()
   );
+}
+
+function maybeOpenNingboRivalDelegationHail() {
+  const quest = activeNingboMissionQuest();
+  if (
+    !quest || quest.eastAsianStage !== "race" || quest.eastAsianRivalHailed === true ||
+    combatHailIsBlockedByOverlay()
+  ) {
+    return false;
+  }
+  ensureNingboMissionEncounters();
+  const rivalFactionId = quest.eastAsianStartingFactionId === "hosokawa" ? "ouchi" : "hosokawa";
+  const escort = quest.eastAsianDelegationShips.find((ship) => (
+    ship.factionId === rivalFactionId && ship.delegationRole === "escort"
+  ));
+  if (!escort) throw new Error("Ningbo mission has no rival escort");
+  const visual = npcVisualShips.get(escort.id);
+  if (!visual || !npcShipInHailRange(visual)) return false;
+  quest.eastAsianRivalHailed = true;
+  const character = ensureNpcShipCaptain(escort.id);
+  const origin = ningboDelegationFactionLabel(quest.eastAsianStartingFactionId);
+  const rival = ningboDelegationFactionLabel(rivalFactionId);
+  openShipDialogue({ id: escort.id, character }, {
+    scriptedHail: {
+      text: `Keep clear, ${origin} hireling. Ningbo will receive the ${rival} tally first. ` +
+        "Turn back, or meet us under arms after the hearing."
+    }
+  });
+  saveVoyageNow("challenged by rival Ningbo delegation");
+  return true;
+}
+
+function forceNingboMissionEngagements() {
+  const quest = activeNingboMissionQuest();
+  if (!quest || quest.eastAsianStage !== "battle") return false;
+  ensureNingboMissionEncounters();
+  const enemies = quest.eastAsianBattleShipIds
+    .map((id) => npcVisualShips.get(id))
+    .filter(Boolean);
+  const allies = quest.eastAsianAlliedShipIds
+    .map((id) => npcVisualShips.get(id))
+    .filter(Boolean);
+  let changed = false;
+  let largestBroadside = 0;
+  for (const enemy of enemies) {
+    if (enemy.combatGrace) continue;
+    if (distance2(localLayout.viewX, localLayout.viewY, enemy.x, enemy.y) <=
+        COMBAT_DETECTION_RADIUS_PX * COMBAT_DETECTION_RADIUS_PX) {
+      changed = forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, enemy.id) || changed;
+      largestBroadside = Math.max(largestBroadside, enemy.stats.cannons);
+    }
+    for (const ally of allies) {
+      if (ally.combatGrace) continue;
+      if (distance2(enemy.x, enemy.y, ally.x, ally.y) >
+          COMBAT_DETECTION_RADIUS_PX * COMBAT_DETECTION_RADIUS_PX) continue;
+      changed = forceShipEngagement(shipCombatState, ally.id, enemy.id) || changed;
+      largestBroadside = Math.max(largestBroadside, enemy.stats.cannons, ally.stats.cannons);
+    }
+  }
+  if (changed) {
+    startCombatMusicForThreat(largestBroadside >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  }
+  return changed;
 }
 
 function forceColonizationDefenseEngagements(playerWasInCombat) {
@@ -28991,6 +29209,9 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     preserveHull: options.preserveHull === true,
     retainLoot: playerWon && damageInduced
   });
+  if (strategicBeforeSurrender.encounter?.kind === "ningbo-delegation") {
+    resolveNingboDelegationShipLoss(loserId);
+  }
   if (playerWon && !damageInduced) {
     playerPrizeSummary = receivePlayerSurrenderedShipLoot(strategicBeforeSurrender, loot, rewardOrigin);
   } else if (wonByShoreBattery) {
@@ -29166,6 +29387,9 @@ function handleNpcSinking(loserId, winnerId, {
       })
     : null;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
+  if (strategic.encounter?.kind === "ningbo-delegation") {
+    resolveNingboDelegationShipLoss(loserId);
+  }
   if (accidentalPlayerCollision && !forgivenPlayerCollision) {
     const result = recordPlayerAccidentalDamagePenalty(factionId);
     accidentalCollisionRecorded = result.delta !== 0;

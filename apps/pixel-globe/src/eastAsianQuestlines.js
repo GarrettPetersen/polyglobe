@@ -6,6 +6,8 @@ export const EAST_ASIAN_MISSION_PORTUGUESE_GUNS = "captured-portuguese-guns";
 export const EAST_ASIAN_MISSION_RYUKYU = "ryukyu-investiture";
 export const EAST_ASIAN_MISSION_GREAT_RITES = "great-rites-memorial";
 export const EAST_ASIAN_MISSION_YOSHIHARU = "yoshiharu-seal";
+export const NINGBO_DEFECTION_BRIBE = 450;
+export const NINGBO_RACE_BONUS = 250;
 
 const NINGBO_FACTIONS = Object.freeze(["hosokawa", "ouchi"]);
 const ALL_MISSION_IDS = Object.freeze([
@@ -84,6 +86,43 @@ export function isEastAsianMissionQuest(quest) {
   return Boolean(quest && ALL_MISSION_IDS.includes(quest.eastAsianMissionId));
 }
 
+export function ningboDelegationManifest(questId, delegationOrigins, destinationPortId) {
+  if (typeof questId !== "string" || questId === "") throw new Error("Ningbo delegation requires a quest id");
+  if (!delegationOrigins || !Number.isInteger(destinationPortId)) {
+    throw new Error("Ningbo delegation requires both origins and Ningbo");
+  }
+  return Object.freeze(NINGBO_FACTIONS.flatMap((factionId) => {
+    const originPortId = delegationOrigins[factionId];
+    if (!Number.isInteger(originPortId)) {
+      throw new Error(`Ningbo delegation requires a ${factionId} origin`);
+    }
+    return [
+      Object.freeze({
+        id: `${questId}-${factionId}-courier`,
+        factionId,
+        role: "warship",
+        shipSlug: "japanese-kuribune",
+        originPortId,
+        destinationPortId,
+        delegationRole: "courier",
+        departureDelayMinutes: 0,
+        holdProgress: factionId === "hosokawa" ? 0.94 : 0.97
+      }),
+      Object.freeze({
+        id: `${questId}-${factionId}-escort`,
+        factionId,
+        role: "warship",
+        shipSlug: "japanese-sekibune",
+        originPortId,
+        destinationPortId,
+        delegationRole: "escort",
+        departureDelayMinutes: 30,
+        holdProgress: factionId === "hosokawa" ? 0.90 : 0.93
+      })
+    ];
+  }));
+}
+
 export function eastAsianMissionHasOutcomes(quest) {
   return isEastAsianMissionQuest(quest) && [
     EAST_ASIAN_MISSION_NINGBO,
@@ -97,9 +136,12 @@ export function eastAsianMissionOutcomeOptions(quest) {
     const origin = quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
     const rival = quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa";
     return Object.freeze([
-      Object.freeze({ id: "support-origin", label: `Press the ${origin} tally` }),
+      Object.freeze({ id: "support-origin", label: `Stand by the ${origin} delegation` }),
       Object.freeze({ id: "mediate", label: "Seek a joint hearing" }),
-      Object.freeze({ id: "support-rival", label: `Back the ${rival} delegation` })
+      Object.freeze({
+        id: "support-rival",
+        label: `Take the ${rival} purse  ${NINGBO_DEFECTION_BRIBE} db`
+      })
     ]);
   }
   if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_TSUSHIMA) {
@@ -118,12 +160,12 @@ export function eastAsianMissionOutcomeResultText(quest, outcomeId) {
     const origin = quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
     const rival = quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa";
     if (outcomeId === "support-origin") {
-      return `Ningbo accepts the ${origin} tally and turns the ${rival} delegation away. One seal has prevailed; the quarrel has not.`;
+      return `The ${rival} escort is beaten. Ningbo enters the ${origin} tally, though the Ming officials plainly resent bloodshed in their roadstead.`;
     }
     if (outcomeId === "mediate") {
       return "The shipping office enters both delegations under a single supervised register. Neither house is pleased enough to riot, which passes for triumph.";
     }
-    return `You place the ${rival} papers first. Ningbo recognizes them, while the ${origin} envoys learn exactly what a changed allegiance costs.`;
+    return `The ${origin} escort is beaten. Ningbo enters the ${rival} tally, while both the Ming officials and your former patrons remember the price of your change of allegiance.`;
   }
   if (outcomeId === "renew-privileges") {
     return "Joseon's council renews Tsushima's trading privileges, but orders every Japanese envoy entered under the Sō seal.";
@@ -158,8 +200,8 @@ export function eastAsianMissionDialogue(plan) {
     const rival = plan.startingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa";
     return Object.freeze({
       offer: `${house} merchants have a tally for the Ming trade at Ningbo. The ${rival} have sent a rival mission. Carry me there before their papers reach the shipping office.`,
-      underway: `At Ningbo, order matters as much as ink. I carry the ${house} tally; the ${rival} delegation carries ambition.`,
-      arrival: "Both Japanese delegations are already at the Ningbo shipping office. Each insists that its tally must be received first."
+      underway: `At Ningbo, order matters as much as ink. Our support ships have sailed, and so have the ${rival}. We must reach the shipping office first.`,
+      arrival: "Both tallies are before the Ningbo shipping office. The rival escorts wait offshore while the officials demand a settlement."
     });
   }
   if (plan.id === EAST_ASIAN_MISSION_TSUSHIMA) {
@@ -201,6 +243,13 @@ function ningboMissionPlan(quests, city, portCities) {
   if (!NINGBO_FACTIONS.includes(city.factionId) || city.isFactionCapital !== true) return null;
   if (missionAlreadyResolved(quests, EAST_ASIAN_MISSION_NINGBO)) return null;
   const destination = requiredPort(portCities, "Ningbo", EAST_ASIAN_MISSION_NINGBO);
+  const delegationOrigins = Object.fromEntries(NINGBO_FACTIONS.map((factionId) => {
+    const capital = portCities.find((candidate) => (
+      candidate.factionId === factionId && candidate.isFactionCapital === true
+    ));
+    if (!capital) throw new Error(`Ningbo mission requires a ${factionId} capital`);
+    return [factionId, capital.tileId];
+  }));
   return freezePlan(missionDefinition({
     id: EAST_ASIAN_MISSION_NINGBO,
     originName: displayName(city),
@@ -210,7 +259,8 @@ function ningboMissionPlan(quests, city, portCities) {
     reward: 700,
     scenarioId: "east-asian-envoy",
     requiresOutcome: true,
-    startingFactionId: city.factionId
+    startingFactionId: city.factionId,
+    delegationOrigins: Object.freeze(delegationOrigins)
   }), city, destination);
 }
 

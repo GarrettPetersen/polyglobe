@@ -1637,6 +1637,36 @@ test("routed quest pirates can respawn concealed at their hideout", () => {
   );
 });
 
+test("routed delegation encounters depart for and wait at their specified destination", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const delegation = configureNpcRouteEncounter(routes, {
+    id: "delegation:test",
+    originPortId: 8,
+    destinationPortId: 9,
+    departureDelayMinutes: 30,
+    factionId: "ming",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "small-junk",
+    replaceOnSink: false,
+    encounter: {
+      kind: "test-delegation",
+      destinationPortId: 9,
+      holdAtDestination: true
+    }
+  }, 1000);
+
+  assert.equal(delegation.plan.origin.tileId, 8);
+  assert.equal(delegation.plan.destination.tileId, 9);
+  assert.equal(delegation.plan.startMinute, 1030);
+  const arrivalMinute = delegation.plan.endMinute;
+  updateNpcSeaRouteEvents(routes, arrivalMinute + 1, [delegation.id]);
+  assert.equal(delegation.currentPort.tileId, 9);
+  assert.equal(delegation.encounter.arrivedAtMinute, arrivalMinute);
+  assert.equal(delegation.plan.segments[0].kind, "wait");
+  assert.equal(npcShipSnapshots(routes, arrivalMinute + 1).find((ship) => ship.id === delegation.id).id, delegation.id);
+});
+
 test("pirate hideouts are a deterministic invisible subset of coastal ports", () => {
   const first = createNpcSeaRouteSystem({
     ports: PORTS,

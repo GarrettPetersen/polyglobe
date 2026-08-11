@@ -155,6 +155,25 @@ test("hailing a hostile pirate offers combat without friendly gossip", () => {
   });
 });
 
+test("a scripted rival-delegation hail delivers its challenge without offering combat", () => {
+  const ship = {
+    id: "ouchi-delegation",
+    label: "Sekibune",
+    roleLabel: "Warship",
+    faction: { adjective: "Ouchi" },
+    character: { name: "Mori Takamasa" }
+  };
+  const session = createShipDialogueSession(ship, {
+    scriptedHail: { text: "Ningbo will receive our tally first. Keep clear." }
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.equal(view.expressionId, "angry");
+  assert.equal(view.text, "Ningbo will receive our tally first. Keep clear.");
+  assert.deepEqual(view.options.map((option) => option.label), ["Hold your course"]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), { closed: true, action: null });
+});
+
 test("two Zoroastrian captains recognize one another when they hail", () => {
   const ship = {
     id: "hormuz-merchant",

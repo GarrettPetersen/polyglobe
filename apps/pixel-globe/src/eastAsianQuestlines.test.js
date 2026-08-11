@@ -7,6 +7,8 @@ import {
   createGameState,
   diplomacyBetweenForState,
   factionReputation,
+  recordNingboMissionArrival,
+  recordNingboMissionShipDefeated,
   selectEastAsianMissionOutcome,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
@@ -77,6 +79,7 @@ test("Ningbo is offered by both rival houses until one side is accepted", () => 
   assert.equal(pendingPassengerOfferForCity(state, SAKAI), null);
   assert.equal(pendingPassengerOfferForCity(state, YAMAGUCHI), null);
 
+  recordNingboMissionArrival(state, hosokawa.id, { simMinute: 50, rivalArrivalMinute: 80 });
   selectEastAsianMissionOutcome(state, hosokawa.id, "mediate");
   const completed = completeQuest(state, NINGBO, { simMinute: 60 });
   assert.equal(completed.eastAsianResolution.outcomeId, "mediate");
@@ -84,6 +87,8 @@ test("Ningbo is offered by both rival houses until one side is accepted", () => 
   assert.equal(sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, "hosokawa"), true);
   assert.equal(sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, "ouchi"), true);
   assert.ok(factionReputation(state, "ming") > 0);
+  assert.equal(completed.eastAsianWonRace, true);
+  assert.equal(completed.eastAsianRaceBonus, 250);
   assert.equal(offer(state, SAKAI), null);
   assert.equal(offer(state, YAMAGUCHI), null);
 });
@@ -108,14 +113,15 @@ test("Ningbo's three outcomes are presented and resolved through normal passenge
   const quest = offer(state, SAKAI);
   acceptQuest(state, quest, { simMinute: 0 });
   const active = state.memory.quests.passengerActive;
+  recordNingboMissionArrival(state, active.id, { simMinute: 60, rivalArrivalMinute: 90 });
   const session = createPassengerDialogueSession(NINGBO, active);
 
   const choice = passengerDialogueView(session, NINGBO, active, state);
-  assert.match(choice.text, /both Japanese delegations/i);
+  assert.match(choice.text, /reached Ningbo before the rival courier/i);
   assert.deepEqual(choice.options.slice(0, 3).map((option) => option.label), [
-    "Press the Hosokawa tally",
+    "Stand by the Hosokawa delegation",
     "Seek a joint hearing",
-    "Back the Ouchi delegation"
+    "Take the Ouchi purse  450 db"
   ]);
   selectPassengerDialogueOption(session, NINGBO, active, state, 1, { simMinute: 60 });
 
@@ -127,6 +133,49 @@ test("Ningbo's three outcomes are presented and resolved through normal passenge
     portCities: PORTS
   });
   assert.equal(state.memory.quests.passengerActive, null);
+});
+
+test("Ningbo loyalty and defection require a two-ship battle with a loss condition", () => {
+  const loyalState = gameState();
+  const loyalQuest = offer(loyalState, SAKAI);
+  assert.equal(loyalQuest.eastAsianDelegationShips.length, 4);
+  acceptQuest(loyalState, loyalQuest, { simMinute: 0 });
+  const loyalActive = loyalState.memory.quests.passengerActive;
+  recordNingboMissionArrival(loyalState, loyalActive.id, { simMinute: 60, rivalArrivalMinute: 90 });
+  selectEastAsianMissionOutcome(loyalState, loyalActive.id, "support-origin");
+  assert.equal(loyalActive.eastAsianStage, "battle");
+  assert.deepEqual(
+    loyalActive.eastAsianBattleShipIds,
+    loyalActive.eastAsianDelegationShips.filter((ship) => ship.factionId === "ouchi").map((ship) => ship.id)
+  );
+  assert.throws(
+    () => completeQuest(loyalState, NINGBO, { simMinute: 70 }),
+    /battle is unresolved/i
+  );
+  assert.equal(recordNingboMissionShipDefeated(loyalState, loyalActive.eastAsianBattleShipIds[0]).status, "progress");
+  assert.equal(recordNingboMissionShipDefeated(loyalState, loyalActive.eastAsianBattleShipIds[1]).status, "victory");
+  completeQuest(loyalState, NINGBO, { simMinute: 80 });
+  assert.ok(factionReputation(loyalState, "hosokawa") > 0);
+  assert.ok(factionReputation(loyalState, "ouchi") < 0);
+  assert.ok(factionReputation(loyalState, "ming") < 0);
+
+  const defectState = gameState();
+  const defectQuest = offer(defectState, SAKAI);
+  acceptQuest(defectState, defectQuest, { simMinute: 0 });
+  const defectActive = defectState.memory.quests.passengerActive;
+  recordNingboMissionArrival(defectState, defectActive.id, { simMinute: 100, rivalArrivalMinute: 80 });
+  const startingMoney = defectState.doubloons;
+  selectEastAsianMissionOutcome(defectState, defectActive.id, "support-rival", {
+    city: NINGBO,
+    simMinute: 100
+  });
+  assert.equal(defectState.doubloons, startingMoney + 450);
+  assert.equal(defectActive.eastAsianBattleFactionId, "hosokawa");
+  const alliedIds = [...defectActive.eastAsianAlliedShipIds];
+  assert.equal(recordNingboMissionShipDefeated(defectState, alliedIds[0]).status, "progress");
+  assert.equal(recordNingboMissionShipDefeated(defectState, alliedIds[1]).status, "defeat");
+  assert.equal(defectState.memory.quests.passengerActive, null);
+  assert.equal(defectState.memory.quests.failed[defectActive.id].reason, "ningbo-delegation-defeated");
 });
 
 test("captured Portuguese guns permanently reinforce three Chinese batteries", () => {
