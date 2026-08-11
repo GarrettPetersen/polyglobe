@@ -48649,7 +48649,7 @@ function createSurvivalHudRaster({
         { icon: statusHudImages.wine, count: wineIconCount }
       ],
       `${drinkIconCount}`,
-      5,
+      0,
       13,
       width
     );
@@ -48662,7 +48662,7 @@ function createSurvivalHudRaster({
         { icon: statusHudImages.fish, count: foodSourceIconCounts[4] }
       ],
       `${foodIconCount}`,
-      5,
+      0,
       23,
       width
     );
@@ -48796,7 +48796,7 @@ function drawSurvivalPanelTitle(x, y, panelWidth) {
   const title = shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]);
   const textY = y + 3;
   const titleX = x + 5;
-  const right = x + panelWidth - SURVIVAL_VALUE_RIGHT_PAD;
+  const right = survivalHudValueRight(x, panelWidth);
   const amount = formatCompactNumber(gameState.doubloons);
   const amountWidth = measurePixelTextWidth(amount, PIXEL_FONT_LATIN_SMALL_8);
   const iconX = right - amountWidth - 2 - statusHudImages.doubloon.width;
@@ -48836,7 +48836,7 @@ function drawSurvivalCrewRow(x, y, panelWidth, travelerGroups = shipTravelerMani
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(
     `${layout.count}`,
-    x + panelWidth - SURVIVAL_VALUE_RIGHT_PAD,
+    survivalHudValueRight(x, panelWidth),
     y + SURVIVAL_CREW_ROW_Y - 1,
     {
       font: PIXEL_FONT_LATIN_SMALL_8,
@@ -48854,7 +48854,7 @@ function survivalCrewStatusLayout(
 ) {
   const peopleAboard = crewStatusCount({ crewCount, travelerGroups });
   const rowX = panelX + SURVIVAL_CREW_ROW_PAD_X;
-  const valueRight = panelX + panelWidth - SURVIVAL_VALUE_RIGHT_PAD;
+  const valueRight = survivalHudValueRight(panelX, panelWidth);
   const valueLeft = valueRight - measurePixelTextWidth(`${peopleAboard}`, PIXEL_FONT_LATIN_SMALL_8);
   const companionIds = aboardAnimalCompanionIds(gameState.memory.animalCompanions);
   const companionSpace = companionIds.reduce((total, companionId, index) => {
@@ -48963,7 +48963,7 @@ function drawStatusPersonParticles(nowMs) {
   ctx.globalAlpha = 1;
 }
 
-function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
+function drawSurvivalMeterRow(segments, value, panelX, y, panelWidth) {
   if (!Array.isArray(segments) || segments.length === 0) {
     throw new Error("Survival meter row requires icon segments");
   }
@@ -48978,7 +48978,8 @@ function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
   if (segments.some((segment) => segment.icon.width !== iconWidth)) {
     throw new Error("Survival meter row icons must share a width");
   }
-  const valueRight = SURVIVAL_PANEL_X + panelWidth - SURVIVAL_VALUE_RIGHT_PAD;
+  const x = panelX + SURVIVAL_CREW_ROW_PAD_X;
+  const valueRight = survivalHudValueRight(panelX, panelWidth);
   const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_LATIN_SMALL_8);
   const layout = statusIconRowLayout({
     count,
@@ -49004,6 +49005,10 @@ function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
     font: PIXEL_FONT_LATIN_SMALL_8,
     align: "right"
   });
+}
+
+function survivalHudValueRight(panelX, panelWidth) {
+  return panelX + panelWidth - SURVIVAL_VALUE_RIGHT_PAD;
 }
 
 function drawSurvivalNotice(nowMs) {
