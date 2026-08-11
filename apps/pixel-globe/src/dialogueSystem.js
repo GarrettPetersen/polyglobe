@@ -122,7 +122,7 @@ import {
   eastAsianMissionOutcomeResultText,
   isEastAsianMissionQuest
 } from "./eastAsianQuestlines.js";
-import { questHasDestination } from "./questItinerary.js";
+import { questDestinationStops, questHasDestination } from "./questItinerary.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
   activeForeignSettlements,
@@ -2594,7 +2594,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
   }
   if (active?.id === quest.id && questHasDestination(quest, city) &&
       quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {
-    const completedStops = quest.openItinerary?.completedTileIds?.length || 0;
+    const completedStops = quest.itinerary?.completedTileIds?.length || 0;
     const legNumber = completedStops + 1;
     const arsenalStop = completedStops === 0;
     return {
@@ -2618,15 +2618,16 @@ export function passengerDialogueView(session, city, quest, gameState) {
   }
   if (active?.id === quest.id && questHasDestination(quest, city)) {
     if (isMultiPortReligiousMission(quest) && !session.religiousParticipationUnderway) {
-      const legNumber = quest.religiousDeliveryLegIndex + 1;
+      const legNumber = quest.itinerary.completedTileIds.length + 1;
+      const legCount = quest.itinerary.stops.length;
       return {
         speaker,
         expressionId: "attentive",
         text: `${cityLabel(city)} has trusted readers waiting behind drawn shutters. ` +
-          `This is delivery ${legNumber} of ${quest.religiousItinerary.length}.`,
+          `This is delivery ${legNumber} of ${legCount}.`,
         feedback: session.feedback,
         options: [
-          option(`Deliver Testaments  ${legNumber}/${quest.religiousItinerary.length}`, {
+          option(`Deliver Testaments  ${legNumber}/${legCount}`, {
             type: "deliver-religious-itinerary-leg"
           }),
           option("Not yet", { type: "close" })
@@ -2706,15 +2707,14 @@ export function passengerDialogueView(session, city, quest, gameState) {
       expressionId: "attentive",
       text: isEnvoyQuest(quest) && quest.stage === "return"
         ? quest.dialogue?.returnUnderway || `I carry the answer home to ${quest.originName}.`
-        : quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS && quest.openItinerary
+        : quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS && quest.itinerary
           ? `The artillery plans are bound for ${joinedNames(
-            quest.openItinerary.stops
-              .filter((stop) => !quest.openItinerary.completedTileIds.includes(stop.tileId))
+            questDestinationStops(quest)
               .map((stop) => stop.name)
           )}. We may visit the remaining ports in any order.`
         : isMultiPortReligiousMission(quest)
           ? `The next bundles are bound for ${quest.destinationName}. ` +
-            `${quest.religiousItinerary.length - quest.religiousDeliveryLegIndex} deliveries remain.`
+            `${quest.itinerary.stops.length - quest.itinerary.completedTileIds.length} deliveries remain.`
           : quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
       feedback: session.feedback,
       options: [
@@ -2946,7 +2946,7 @@ function captainNeedsBibleFaithDecision(gameState, quest) {
 
 function isMultiPortReligiousMission(quest) {
   return isReligiousPassengerQuest(quest) &&
-    Array.isArray(quest.religiousItinerary) && quest.religiousItinerary.length > 1;
+    Array.isArray(quest.itinerary?.stops) && quest.itinerary.stops.length > 1;
 }
 
 function activeTravelPassengerQuest(gameState) {
@@ -2982,8 +2982,7 @@ function assertPassengerDialogueSubject(session, city, quest) {
   }
   const negotiationTarget = session.envoyNegotiationResult && quest.targetTileId === city.tileId;
   const stagedItineraryResult = Boolean(
-    (session.religiousLegDelivery && !session.religiousLegDelivery.final) ||
-    (session.eastAsianLegDelivery && !session.eastAsianLegDelivery.final)
+    session.religiousLegDelivery || session.eastAsianLegDelivery
   );
   if (quest.originTileId !== city.tileId && !questHasDestination(quest, city) &&
       !negotiationTarget && !stagedItineraryResult) {

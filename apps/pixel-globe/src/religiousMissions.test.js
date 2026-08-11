@@ -139,11 +139,11 @@ test("the September Testament visits three Catholic factors before completion", 
     }
   );
 
-  assert.equal(quest.religiousItinerary.length, 3);
-  assert.equal(new Set(quest.religiousItinerary.map(({ tileId }) => tileId)).size, 3);
-  assert.ok(quest.religiousItinerary.every(({ tileId }) => tileId !== excludedLutheranFactor.tileId));
-  assert.equal(quest.destinationTileId, quest.religiousItinerary[0].tileId);
-  assert.equal(quest.religiousDeliveryLegIndex, 0);
+  assert.equal(quest.itinerary.stops.length, 3);
+  assert.equal(new Set(quest.itinerary.stops.map(({ tileId }) => tileId)).size, 3);
+  assert.ok(quest.itinerary.stops.every(({ tileId }) => tileId !== excludedLutheranFactor.tileId));
+  assert.equal(quest.destinationTileId, quest.itinerary.stops[0].tileId);
+  assert.deepEqual(quest.itinerary.completedTileIds, []);
   assert.match(quest.dialogue.offer, /three hidden ports/);
 });
 

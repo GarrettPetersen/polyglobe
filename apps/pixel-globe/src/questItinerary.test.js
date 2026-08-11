@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  completeOpenQuestItineraryStop,
-  createOpenQuestItinerary,
+  QUEST_ITINERARY_OPEN,
+  QUEST_ITINERARY_ORDERED,
+  completeQuestItineraryStop,
+  createQuestItinerary,
+  migrateQuestItinerary,
   questDestinationStops,
   questHasDestination
 } from "./questItinerary.js";
+import { createGameState, migrateGameState } from "./gameState.js";
 
 const STOPS = Object.freeze([
   Object.freeze({ tileId: 1, name: "Arsenal" }),
@@ -15,34 +19,106 @@ const STOPS = Object.freeze([
   Object.freeze({ tileId: 4, name: "River Battery" })
 ]);
 
-test("an opening stop unlocks every remaining itinerary stop", () => {
+test("an opening stop unlocks every remaining open itinerary stop", () => {
   const quest = {
     destinationTileId: STOPS[0].tileId,
     destinationName: STOPS[0].name,
-    openItinerary: createOpenQuestItinerary(STOPS, { openingStopTileId: STOPS[0].tileId })
+    itinerary: createQuestItinerary(STOPS, {
+      mode: QUEST_ITINERARY_OPEN,
+      openingStopTileId: STOPS[0].tileId
+    })
   };
 
   assert.deepEqual(questDestinationStops(quest).map((stop) => stop.tileId), [1]);
-  completeOpenQuestItineraryStop(quest, 1);
+  completeQuestItineraryStop(quest, 1);
   assert.deepEqual(questDestinationStops(quest).map((stop) => stop.tileId), [2, 3, 4]);
   assert.equal(questHasDestination(quest, 3), true);
 
-  completeOpenQuestItineraryStop(quest, 3);
+  completeQuestItineraryStop(quest, 3);
   assert.deepEqual(questDestinationStops(quest).map((stop) => stop.tileId), [2, 4]);
-  completeOpenQuestItineraryStop(quest, 4);
-  const final = completeOpenQuestItineraryStop(quest, 2);
+  completeQuestItineraryStop(quest, 4);
+  const final = completeQuestItineraryStop(quest, 2);
   assert.equal(final.final, true);
   assert.deepEqual(questDestinationStops(quest), []);
 });
 
-test("an open itinerary rejects unavailable and duplicate stops", () => {
+test("an ordered itinerary only exposes and completes its next stop", () => {
   const quest = {
     destinationTileId: STOPS[0].tileId,
     destinationName: STOPS[0].name,
-    openItinerary: createOpenQuestItinerary(STOPS, { openingStopTileId: STOPS[0].tileId })
+    itinerary: createQuestItinerary(STOPS, { mode: QUEST_ITINERARY_ORDERED })
   };
-  assert.throws(() => completeOpenQuestItineraryStop(quest, 2), /not currently available/i);
-  completeOpenQuestItineraryStop(quest, 1);
-  completeOpenQuestItineraryStop(quest, 2);
-  assert.throws(() => completeOpenQuestItineraryStop(quest, 2), /not currently available/i);
+
+  assert.deepEqual(questDestinationStops(quest).map((stop) => stop.tileId), [1]);
+  assert.throws(() => completeQuestItineraryStop(quest, 2), /not currently available/i);
+  completeQuestItineraryStop(quest, 1);
+  assert.deepEqual(questDestinationStops(quest).map((stop) => stop.tileId), [2]);
+  assert.equal(questHasDestination(quest, 3), false);
+});
+
+test("a version 1 open itinerary migrates without losing progress", () => {
+  const quest = {
+    destinationTileId: STOPS[1].tileId,
+    destinationName: STOPS[1].name,
+    openItinerary: {
+      version: 1,
+      openingStopTileId: STOPS[0].tileId,
+      stops: STOPS.map((stop) => ({ ...stop })),
+      completedTileIds: [STOPS[0].tileId, STOPS[2].tileId]
+    }
+  };
+
+  migrateQuestItinerary(quest);
+  assert.equal(quest.openItinerary, undefined);
+  assert.equal(quest.itinerary.mode, QUEST_ITINERARY_OPEN);
+  assert.deepEqual(questDestinationStops(quest).map((stop) => stop.tileId), [2, 4]);
+});
+
+test("a legacy religious itinerary migrates as an ordered route", () => {
+  const quest = {
+    destinationTileId: STOPS[1].tileId,
+    destinationName: STOPS[1].name,
+    religiousItinerary: STOPS.map((stop) => ({ ...stop })),
+    religiousDeliveryLegIndex: 1,
+    religiousAuthorityAppliedLegCount: 1
+  };
+
+  migrateQuestItinerary(quest);
+  assert.equal(quest.religiousItinerary, undefined);
+  assert.equal(quest.itinerary.mode, QUEST_ITINERARY_ORDERED);
+  assert.deepEqual(quest.itinerary.completedTileIds, [1]);
+  assert.deepEqual(questDestinationStops(quest).map((stop) => stop.tileId), [2]);
+});
+
+test("version 66 voyages migrate every saved quest route", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  state.version = 66;
+  state.memory.quests.passengerActive = {
+    id: "legacy-testament",
+    kind: "passenger",
+    destinationTileId: 2,
+    destinationName: "North Battery",
+    religiousItinerary: STOPS.map((stop) => ({ ...stop })),
+    religiousDeliveryLegIndex: 1,
+    religiousAuthorityAppliedLegCount: 1
+  };
+  state.memory.quests.passengerOffers.legacy = {
+    id: "legacy-artillery",
+    kind: "passenger",
+    destinationTileId: 2,
+    destinationName: "North Battery",
+    openItinerary: {
+      version: 1,
+      openingStopTileId: 1,
+      stops: STOPS.map((stop) => ({ ...stop })),
+      completedTileIds: [1]
+    }
+  };
+
+  const migrated = migrateGameState(state, null);
+  assert.equal(migrated.version, 67);
+  assert.equal(migrated.memory.quests.passengerActive.itinerary.mode, QUEST_ITINERARY_ORDERED);
+  assert.equal(migrated.memory.quests.passengerOffers.legacy.itinerary.mode, QUEST_ITINERARY_OPEN);
+  assert.equal(migrated.memory.quests.passengerActive.religiousItinerary, undefined);
+  assert.equal(migrated.memory.quests.passengerOffers.legacy.openItinerary, undefined);
 });

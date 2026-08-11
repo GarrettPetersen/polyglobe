@@ -49,7 +49,11 @@ import {
   isEastAsianMissionQuest,
   ningboDelegationManifest
 } from "./eastAsianQuestlines.js";
-import { createOpenQuestItinerary } from "./questItinerary.js";
+import {
+  QUEST_ITINERARY_OPEN,
+  QUEST_ITINERARY_ORDERED,
+  createQuestItinerary
+} from "./questItinerary.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -670,14 +674,7 @@ function buildEastAsianPassengerQuest(plan) {
     dialogue: eastAsianMissionDialogue(plan),
     ...(plan.itinerary
       ? {
-        eastAsianItinerary: plan.itinerary.map((stop, index) => ({
-          key: cityKey(stop),
-          tileId: stop.tileId,
-          name: cityLabel(stop),
-          country: stop.country || "",
-          upgradesBattery: index > 0
-        })),
-        openItinerary: createOpenQuestItinerary(
+        itinerary: createQuestItinerary(
           plan.itinerary.map((stop, index) => ({
             key: cityKey(stop),
             tileId: stop.tileId,
@@ -685,7 +682,10 @@ function buildEastAsianPassengerQuest(plan) {
             country: stop.country || "",
             upgradesBattery: index > 0
           })),
-          { openingStopTileId: plan.itinerary[0].tileId }
+          {
+            mode: QUEST_ITINERARY_OPEN,
+            openingStopTileId: plan.itinerary[0].tileId
+          }
         ),
         eastAsianBatteryUpgrades: []
       }
@@ -735,9 +735,9 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period, 
       : {}),
     ...(options.religiousItinerary?.length > 1
       ? {
-        religiousItinerary: options.religiousItinerary.map((stop) => ({ ...stop })),
-        religiousDeliveryLegIndex: 0,
-        religiousAuthorityAppliedLegCount: 0
+        itinerary: createQuestItinerary(options.religiousItinerary, {
+          mode: QUEST_ITINERARY_ORDERED
+        })
       }
       : {}),
     passengerName: "Passenger",

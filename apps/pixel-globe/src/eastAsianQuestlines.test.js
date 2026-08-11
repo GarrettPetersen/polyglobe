@@ -237,11 +237,8 @@ test("an active Portuguese guns quest from an older save gains the new itinerary
   const quest = offer(state, GUANGZHOU);
   acceptQuest(state, quest, { simMinute: 0 });
   const active = state.memory.quests.passengerActive;
-  delete active.eastAsianItinerary;
-  delete active.eastAsianDeliveryLegIndex;
-  delete active.eastAsianAppliedLegCount;
   delete active.eastAsianBatteryUpgrades;
-  delete active.openItinerary;
+  delete active.itinerary;
 
   const session = createPassengerDialogueSession(NANJING, active);
   const result = selectPassengerDialogueOption(session, NANJING, active, state, 0, {
@@ -254,7 +251,7 @@ test("an active Portuguese guns quest from an older save gains the new itinerary
     "Fuzhou",
     "Guangzhou"
   ]);
-  assert.deepEqual(active.eastAsianItinerary.map((stop) => stop.name), [
+  assert.deepEqual(active.itinerary.stops.map((stop) => stop.name), [
     "Nanjing",
     "Ningbo",
     "Fuzhou",

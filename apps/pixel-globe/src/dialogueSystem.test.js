@@ -70,6 +70,7 @@ import { DIPLOMACY_FRIENDLY, DIPLOMACY_NEUTRAL } from "./factions.js";
 import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
+import { QUEST_ITINERARY_ORDERED, createQuestItinerary } from "./questItinerary.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 import { WARTIME_TRADE_RESTRICTION_ID } from "./tradePolicy.js";
@@ -4358,9 +4359,7 @@ test("three Testament deliveries convert factors before any captain may convert"
     reward: 360,
     scenarioId: "religious-september-testament",
     religiousMissionId: "september-testament",
-    religiousItinerary: itinerary,
-    religiousDeliveryLegIndex: 0,
-    religiousAuthorityAppliedLegCount: 0,
+    itinerary: createQuestItinerary(itinerary, { mode: QUEST_ITINERARY_ORDERED }),
     dialogue: {}
   };
   const state = createGameState({

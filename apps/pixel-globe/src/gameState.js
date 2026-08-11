@@ -207,11 +207,13 @@ import {
 } from "./eastAsianQuestlines.js";
 import { upgradeShoreBattery } from "./shoreBatteries.js";
 import {
-  completeOpenQuestItineraryStop,
-  createOpenQuestItinerary,
+  QUEST_ITINERARY_OPEN,
+  completeQuestItineraryStop,
+  createQuestItinerary,
+  migrateQuestItinerary,
   questDestinationStops,
   questHasDestination,
-  validateOpenQuestItinerary
+  validateQuestItinerary
 } from "./questItinerary.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
@@ -374,7 +376,7 @@ import {
 } from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 66;
+export const GAME_STATE_VERSION = 67;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -685,7 +687,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -827,9 +829,9 @@ export function migrateGameState(state, shipStats) {
         legacyPanda: legacyPandaCompanion
       }),
       quests: {
-        ...migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
+        ...migrateQuestItineraries(migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
           migrateConcurrentQuestMemory(migrateRetiredFactionReferences(state.memory?.quests))
-        )),
+        ))),
         failed: state.memory?.quests?.failed || {},
         cargoDeliveries: state.memory?.quests?.cargoDeliveries ||
           createQuestCargoDeliveryMemory(),
@@ -1028,6 +1030,21 @@ function migrateQuestCharacterSkills(quests) {
     passengerActive: migrateQuest(quests.passengerActive, "passenger-active"),
     passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
       .map(([key, quest]) => [key, migrateQuest(quest, key)]))
+  };
+}
+
+function migrateQuestItineraries(quests) {
+  if (!quests || typeof quests !== "object") return quests;
+  const migrateOffers = (offers) => Object.fromEntries(Object.entries(offers || {})
+    .map(([key, quest]) => [key, migrateQuestItinerary(quest)]));
+  return {
+    ...quests,
+    active: migrateQuestItinerary(quests.active),
+    passengerActive: migrateQuestItinerary(quests.passengerActive),
+    deliveryOffers: migrateOffers(quests.deliveryOffers),
+    passengerOffers: migrateOffers(quests.passengerOffers),
+    capturePortOffers: migrateOffers(quests.capturePortOffers),
+    courtMissionOffers: migrateOffers(quests.courtMissionOffers)
   };
 }
 
@@ -1249,53 +1266,38 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
   assertGameState(state);
   const quest = questMemory(state).passengerActive;
   if (!quest || !isReligiousPassengerQuest(quest) ||
-      !Array.isArray(quest.religiousItinerary) || quest.religiousItinerary.length < 2) {
+      !quest.itinerary || quest.itinerary.stops.length < 2) {
     throw new Error("Religious itinerary delivery requires an active multi-port mission");
   }
   const simMinute = context.simMinute ?? state.survival.lastMinute;
   assertSimulationMinute(simMinute);
-  const index = quest.religiousDeliveryLegIndex;
-  if (!Number.isInteger(index) || index < 0 || index >= quest.religiousItinerary.length) {
-    throw new Error(`Invalid religious delivery leg: ${index}`);
+  if (!questHasDestination(quest, city)) {
+    const due = questDestinationStops(quest)[0];
+    throw new Error(`Religious delivery is due at ${due?.name}, not ${cityLabel(city)}`);
   }
-  const stop = quest.religiousItinerary[index];
-  if (stop.tileId !== city.tileId || quest.destinationTileId !== city.tileId) {
-    throw new Error(`Religious delivery is due at ${stop.name}, not ${cityLabel(city)}`);
-  }
-  if ((quest.religiousAuthorityAppliedLegCount || 0) !== index) {
-    throw new Error(`Religious authority consequence is out of sequence for leg ${index + 1}`);
-  }
+  const delivery = completeQuestItineraryStop(quest, city);
+  const stop = delivery.stop;
   const authorityEvents = recordProtestantMissionAuthority(
     state.relations.authority,
     quest.originFactionId,
     simMinute,
     `${religiousMissionTitle(quest)}: ${stop.name}`
   );
-  quest.religiousAuthorityAppliedLegCount = index + 1;
   const convertedFactors = Array.isArray(state.memory.flags.lutheranFactorPortTileIds)
     ? state.memory.flags.lutheranFactorPortTileIds
     : [];
   if (!convertedFactors.includes(city.tileId)) convertedFactors.push(city.tileId);
   state.memory.flags.lutheranFactorPortTileIds = convertedFactors;
-  const final = index === quest.religiousItinerary.length - 1;
-  if (!final) {
-    const next = quest.religiousItinerary[index + 1];
-    quest.religiousDeliveryLegIndex = index + 1;
-    quest.destinationKey = next.key;
-    quest.destinationTileId = next.tileId;
-    quest.destinationName = next.name;
-    quest.destinationCountry = next.country;
-  }
-  recordDecision(state, `quest.religious-delivery.${quest.id}.${index + 1}`, 1);
+  recordDecision(state, `quest.religious-delivery.${quest.id}.${delivery.stepNumber}`, 1);
   return Object.freeze({
     questId: quest.id,
-    legNumber: index + 1,
-    legCount: quest.religiousItinerary.length,
+    legNumber: delivery.stepNumber,
+    legCount: delivery.stepCount,
     destinationName: stop.name,
     convertedFactorTileId: city.tileId,
     authorityEvents,
-    final,
-    nextDestinationName: final ? null : quest.religiousItinerary[index + 1].name
+    final: delivery.final,
+    nextDestinationName: delivery.remainingStops[0]?.name || null
   });
 }
 
@@ -1312,7 +1314,7 @@ export function deliverEastAsianMissionLeg(state, city, context = {}) {
     const available = questDestinationStops(quest).map((stop) => stop.name).join(", ");
     throw new Error(`Portuguese artillery delivery is due at ${available}, not ${cityLabel(city)}`);
   }
-  const delivery = completeOpenQuestItineraryStop(quest, city);
+  const delivery = completeQuestItineraryStop(quest, city);
   const stop = delivery.stop;
   let batteryUpgrade = null;
   if (stop.upgradesBattery) {
@@ -1333,22 +1335,17 @@ export function deliverEastAsianMissionLeg(state, city, context = {}) {
 }
 
 function ensurePortugueseGunsItinerary(quest, portCities) {
-  if (Array.isArray(quest.eastAsianItinerary)) {
-    if (quest.eastAsianItinerary.length !== PORTUGUESE_GUNS_ITINERARY_REFS.length) {
-      throw new Error(`Portuguese guns itinerary has ${quest.eastAsianItinerary.length} stops`);
+  if (quest.itinerary) {
+    if (quest.itinerary.stops.length !== PORTUGUESE_GUNS_ITINERARY_REFS.length) {
+      throw new Error(`Portuguese guns itinerary has ${quest.itinerary.stops.length} stops`);
     }
     if (!Array.isArray(quest.eastAsianBatteryUpgrades)) quest.eastAsianBatteryUpgrades = [];
-    if (!quest.openItinerary) {
-      quest.openItinerary = createOpenQuestItinerary(quest.eastAsianItinerary, {
-        openingStopTileId: quest.eastAsianItinerary[0].tileId
-      });
-    }
-    return quest.eastAsianItinerary;
+    return quest.itinerary.stops;
   }
   if (!Array.isArray(portCities)) {
     throw new Error("Portuguese guns itinerary requires the current port list");
   }
-  quest.eastAsianItinerary = PORTUGUESE_GUNS_ITINERARY_REFS.map((reference, index) => {
+  const stops = PORTUGUESE_GUNS_ITINERARY_REFS.map((reference, index) => {
     const port = requireCanonicalPort(portCities, reference, "Portuguese guns itinerary");
     return {
       key: cityKey(port),
@@ -1358,11 +1355,12 @@ function ensurePortugueseGunsItinerary(quest, portCities) {
       upgradesBattery: index > 0
     };
   });
-  quest.openItinerary = createOpenQuestItinerary(quest.eastAsianItinerary, {
-    openingStopTileId: quest.eastAsianItinerary[0].tileId
+  quest.itinerary = createQuestItinerary(stops, {
+    mode: QUEST_ITINERARY_OPEN,
+    openingStopTileId: stops[0].tileId
   });
   quest.eastAsianBatteryUpgrades = [];
-  return quest.eastAsianItinerary;
+  return stops;
 }
 
 export function resolveCatholicBibleInspection(state, {
@@ -5582,7 +5580,7 @@ export function reconcileQuestPortTiles(state, portCities) {
     if (!quest || typeof quest !== "object") return;
     updates += reconcileQuestEndpoint(quest, "origin", portCities);
     updates += reconcileQuestEndpoint(quest, "destination", portCities);
-    updates += reconcileReligiousItinerary(quest, portCities);
+    updates += reconcileQuestItinerary(quest, portCities);
     if (isEnvoyQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
     if (isCaptureCommissionQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
     if (isWokouHuntQuest(quest)) updates += reconcileQuestEndpoint(quest, "patrol", portCities);
@@ -6107,8 +6105,8 @@ export function completeQuest(state, city, context = {}) {
       active.courtResolution.action?.notice || active.id
     );
   }
-  if (Array.isArray(active.religiousItinerary) &&
-      active.religiousAuthorityAppliedLegCount !== active.religiousItinerary.length) {
+  if (isReligiousPassengerQuest(active) && active.itinerary &&
+      questDestinationStops(active).length !== 0) {
     throw new Error(`Religious itinerary is incomplete: ${active.id}`);
   }
   if (isEastAsianMissionQuest(active)) {
@@ -6116,8 +6114,7 @@ export function completeQuest(state, city, context = {}) {
       throw new Error(`Ningbo mission battle is unresolved: ${active.eastAsianStage}`);
     }
     if (active.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS && (
-      !Array.isArray(active.eastAsianItinerary) ||
-      !active.openItinerary ||
+      !active.itinerary ||
       questDestinationStops(active).length !== 0
     )) {
       throw new Error(`Portuguese artillery itinerary is incomplete: ${active.id}`);
@@ -6125,7 +6122,7 @@ export function completeQuest(state, city, context = {}) {
     active.eastAsianResolution = applyEastAsianMissionConsequences(state, active, context);
   }
   if (religiousMissionChallengesPapalAuthority(active)) {
-    if (!Array.isArray(active.religiousItinerary)) {
+    if (!active.itinerary) {
       recordProtestantMissionAuthority(
         state.relations.authority,
         active.originFactionId,
@@ -7042,14 +7039,12 @@ function reconcileQuestEndpoint(quest, endpoint, portCities) {
   return 1;
 }
 
-function reconcileReligiousItinerary(quest, portCities) {
-  if (!Array.isArray(quest.religiousItinerary)) return 0;
+function reconcileQuestItinerary(quest, portCities) {
+  if (!quest.itinerary) return 0;
   let updates = 0;
-  const activeIndex = Number.isInteger(quest.religiousDeliveryLegIndex)
-    ? quest.religiousDeliveryLegIndex
-    : 0;
-  for (let index = 0; index < quest.religiousItinerary.length; index += 1) {
-    const stop = quest.religiousItinerary[index];
+  const movedTileIds = new Map();
+  for (const stop of quest.itinerary.stops) {
+    const previousTileId = stop.tileId;
     const port = reconciledPortReference(portCities, {
       tileId: stop?.tileId,
       name: stop?.name,
@@ -7061,8 +7056,16 @@ function reconcileReligiousItinerary(quest, portCities) {
     stop.country = port.country || "";
     stop.factionId = port.factionId || null;
     stop.key = cityKey(port);
-    if (index === activeIndex) updateQuestEndpointIdentity(quest, "destination", port);
+    movedTileIds.set(previousTileId, port.tileId);
     updates += 1;
+  }
+  quest.itinerary.completedTileIds = quest.itinerary.completedTileIds
+    .map((tileId) => movedTileIds.get(tileId) ?? tileId);
+  validateQuestItinerary(quest.itinerary);
+  const next = questDestinationStops(quest)[0];
+  if (next) {
+    const destination = portCities.find((port) => port.tileId === next.tileId);
+    if (destination) updateQuestEndpointIdentity(quest, "destination", destination);
   }
   return updates;
 }
@@ -7643,7 +7646,7 @@ function assertDiplomaticQuestMemory(quests) {
     quests.passengerActive,
     ...Object.values(quests.passengerOffers || {})
   ].filter(Boolean)) {
-    if (quest.openItinerary) validateOpenQuestItinerary(quest.openItinerary);
+    if (quest.itinerary) validateQuestItinerary(quest.itinerary);
   }
 }
 
