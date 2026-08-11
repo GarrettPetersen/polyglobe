@@ -59,6 +59,9 @@ test("politics cards name each nation's capital while pirates have none", () => 
   assert.equal(politicsCard(view, "england").capital.city, "London");
   assert.equal(politicsCard(view, "japan").capital.city, "Kyoto");
   assert.equal(politicsCard(view, "pirate").capital, null);
+  assert.equal(politicsCard(view, "japan").authority.sovereign, 22);
+  assert.equal(politicsCard(view, "papal-states").authority.papal, 58);
+  assert.equal(politicsCard(view, "pirate").authority, null);
 });
 
 test("politics cards follow a restored nation's current capital", () => {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { generatePassengerCharacter } from "./characterPortraits.js";
-import { createGameState } from "./gameState.js";
+import { createGameState, portEntryStatus } from "./gameState.js";
 import {
   passengerOfferForCity,
   passengerRoleLabel
@@ -13,6 +13,7 @@ import {
   captainCanParticipateInReligiousMission,
   religiousPassengerDistanceIsAllowed,
   religiousMissionIconId,
+  religiousMissionIsCatholicContraband,
   religiousMissionParticipation,
   religiousMissionTitle
 } from "./religiousMissions.js";
@@ -31,8 +32,8 @@ const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync
 )));
 
 test("religious mission catalog broadly covers religious traditions", () => {
-  assert.equal(RELIGIOUS_MISSION_CATALOG.length, 22);
-  assert.equal(new Set(RELIGIOUS_MISSION_CATALOG.map(({ id }) => id)).size, 22);
+  assert.equal(RELIGIOUS_MISSION_CATALOG.length, 23);
+  assert.equal(new Set(RELIGIOUS_MISSION_CATALOG.map(({ id }) => id)).size, 23);
   const represented = new Set(RELIGIOUS_MISSION_CATALOG.flatMap((mission) => (
     mission.participantReligionIds
   )));
@@ -60,6 +61,43 @@ test("religious mission catalog broadly covers religious traditions", () => {
   ]) {
     assert.ok(represented.has(religionId), religionId);
   }
+});
+
+test("Reformation book missions are Catholic contraband", () => {
+  for (const missionId of ["reformation-printing", "september-testament"]) {
+    assert.equal(religiousMissionIsCatholicContraband({
+      kind: "passenger",
+      religiousMissionId: missionId
+    }), true);
+  }
+});
+
+test("Catholic ports enforce the Edict against forbidden Testaments", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Test Bookseller",
+      nationalityId: "denmark-norway",
+      religionId: "lutheran",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  state.memory.quests.passengerActive = {
+    id: "passenger-forbidden-testaments",
+    kind: "passenger",
+    originTileId: 1,
+    destinationTileId: 2,
+    destinationName: "Vienna",
+    religiousMissionId: "september-testament",
+    catholicContraband: true
+  };
+  const vienna = port(2, "Vienna", "Austria", "habsburg", "northern-european");
+  const status = portEntryStatus(state, vienna, 0);
+
+  assert.equal(status.catholicContraband, true);
+  assert.equal(status.allowed, false);
+  assert.equal(status.canAttemptDisguise, true);
+  assert.equal(status.canPurchaseSafePassage, false);
 });
 
 test("Christian missionary voyages use their documented 1522 routes", () => {

@@ -120,6 +120,8 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     destinationCityTypes: ["northern-european"],
     roleLabel: "preacher",
     preferClergy: true,
+    challengesPapalAuthority: true,
+    catholicContraband: true,
     bonusDoubloons: 90,
     offer: ({ destinationName, reward }) =>
       `Wittenberg's presses made every pulpit a frontier. I carry vernacular sermons and Scripture to ${destinationName}. Safe passage is worth ${reward} db.`,
@@ -130,6 +132,28 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     participationLabel: "Join the vernacular reading",
     participation: "Sailors and artisans read the new text in their own tongue. The gathering pays you to carry more between sympathetic ports.",
     bonusLabel: "Reformation reading"
+  }),
+  religiousMission({
+    id: "september-testament",
+    title: "The September Testament",
+    passengerReligionIds: ["lutheran"],
+    participantReligionIds: PROTESTANT_RELIGIONS,
+    originCities: ["Hamburg", "Lubeck", "Bremen"],
+    destinationCityTypes: ["northern-european"],
+    roleLabel: "bookseller",
+    challengesPapalAuthority: true,
+    catholicContraband: true,
+    preferClergy: false,
+    bonusDoubloons: 110,
+    offer: ({ destinationName, reward }) =>
+      `The September Testament puts the Gospel into German, but the Edict of Worms makes every chest dangerous. Carry me and these forbidden books to ${destinationName} for ${reward} db.`,
+    underway: ({ destinationName }) =>
+      `The title pages are buried beneath honest account books. In a Catholic harbor, the customs men may seize the lot before we reach ${destinationName}.`,
+    arrival: ({ destinationName }) =>
+      `${destinationName}'s booksellers have shutters drawn and buyers waiting. The Testaments can pass hand to hand from here.`,
+    participationLabel: "Help distribute the Testaments",
+    participation: "You carry bundles from the quay while printers and readers divide the forbidden books among trusted households.",
+    bonusLabel: "Booksellers' purse"
   }),
   religiousMission({
     id: "orthodox-icon-restoration",
@@ -482,6 +506,16 @@ export function isReligiousPassengerQuest(quest) {
   return quest?.kind === "passenger" && typeof quest.religiousMissionId === "string";
 }
 
+export function religiousMissionChallengesPapalAuthority(quest) {
+  return isReligiousPassengerQuest(quest) &&
+    religiousMissionById(quest.religiousMissionId).challengesPapalAuthority === true;
+}
+
+export function religiousMissionIsCatholicContraband(quest) {
+  return isReligiousPassengerQuest(quest) &&
+    religiousMissionById(quest.religiousMissionId).catholicContraband === true;
+}
+
 export function religiousMissionRoleLabel(quest) {
   return isReligiousPassengerQuest(quest)
     ? religiousMissionById(quest.religiousMissionId).roleLabel
@@ -669,6 +703,8 @@ function religiousMission(spec) {
     minimumDistanceKm,
     maximumDistanceKm,
     reputationBonus: spec.reputationBonus || 3,
+    challengesPapalAuthority: spec.challengesPapalAuthority === true,
+    catholicContraband: spec.catholicContraband === true,
     scenario: Object.freeze({
       id: `religious-${spec.id}`,
       expressionId: spec.preferClergy ? "attentive" : "neutral",

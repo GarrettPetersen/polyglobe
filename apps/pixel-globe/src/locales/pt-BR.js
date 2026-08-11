@@ -340,6 +340,8 @@ export default {
   "discoveries.none": "NENHUMA DESCOBERTA AINDA",
   "politics.title": "POLÍTICA",
   "politics.capital": "CAPITAL",
+  "politics.authorityShort": "AUT",
+  "politics.papalAuthorityShort": "PAPA",
   "politics.ally": "ALIADO",
   "politics.friendly": "AMIGÁVEL",
   "politics.war": "GUERRA",

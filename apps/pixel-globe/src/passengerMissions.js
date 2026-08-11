@@ -99,7 +99,8 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   );
   const quest = buildPassengerQuest(city, destination, scenario, distanceKm, period, {
     passengerReligionId: specialPlan?.passengerReligionId || null,
-    religiousMissionId: religiousPlan?.religiousMissionId || null
+    religiousMissionId: religiousPlan?.religiousMissionId || null,
+    catholicContraband: religiousPlan?.mission?.catholicContraband === true
   });
   if (typeof context.createCharacter === "function") {
     let character = context.createCharacter({ quest, origin: city, destination, scenario });
@@ -623,6 +624,9 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period, 
       : {}),
     ...(options.religiousMissionId
       ? { religiousMissionId: options.religiousMissionId }
+      : {}),
+    ...(options.catholicContraband
+      ? { catholicContraband: true }
       : {}),
     passengerName: "Passenger",
     seen: false,

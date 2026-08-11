@@ -206,6 +206,27 @@ test("an excommunication changes papal relations and records the targeted ruler"
   assert.equal(worldDiplomacyBetween(diplomacy, "papal-states", "england"), "hostile");
 });
 
+test("Papal authority multiplies pious rulers' response to a pronouncement", () => {
+  const weakPapacy = createPapalPolitics({ seedKey: "authority-response" });
+  const strongPapacy = createPapalPolitics({ seedKey: "authority-response" });
+  const weakDiplomacy = createWorldDiplomacy({ seedKey: "authority-response-weak" });
+  const strongDiplomacy = createWorldDiplomacy({ seedKey: "authority-response-strong" });
+  const weak = imposePapalAction(weakPapacy, weakDiplomacy, {
+    kind: PAPAL_ACTION_EXCOMMUNICATION,
+    targetFactionId: "france",
+    simMinute: 10,
+    papalAuthorityMultiplier: 0.01
+  });
+  const strong = imposePapalAction(strongPapacy, strongDiplomacy, {
+    kind: PAPAL_ACTION_EXCOMMUNICATION,
+    targetFactionId: "france",
+    simMinute: 10,
+    papalAuthorityMultiplier: 2
+  });
+
+  assert.ok(strong.action.respondingFactionIds.length > weak.action.respondingFactionIds.length);
+});
+
 test("the 1534 settlement converts English Catholics aboard to Anglicanism once", () => {
   const player = {
     name: "Anne Wade",

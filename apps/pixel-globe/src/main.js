@@ -365,8 +365,14 @@ import {
   prepareProactiveLetterOfMarque,
   portMemory,
   portEntryStatus,
+  papalAuthorityMultiplierForState,
   portugueseCartazInspectionStatus,
   recordPortugueseCartazInspection,
+  recordNavalAuthorityForState,
+  recordPapalMissionAuthorityForState,
+  recordPeaceTreatyAuthorityForState,
+  recordPortCaptureAuthorityForState,
+  reconcileCharacterForPapalAuthority,
   buyPortugueseCartazFromInspector,
   payPortugueseCartazFine,
   payIllicitTradeFine,
@@ -12031,6 +12037,7 @@ async function restoreSavedVoyage(payload) {
     { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
   );
   reconcileEnglishReformationCharacters();
+  reconcilePapalAuthorityCharacters();
   synchronizeTreasurePirateCaptains();
   await ensureCharacterPortraitLoaded(gameState.playerCharacter, characterExpression(gameState.playerCharacter));
   syncShipCargoFromGameState();
@@ -16271,7 +16278,15 @@ function completePapalCommissionAtRome(rome, matter) {
   const completion = completePapalCommission(
     gameState.relations.papacy,
     gameState.relations.diplomacy,
-    { simMinute: Math.floor(weatherClockMinutes) }
+    {
+      simMinute: Math.floor(weatherClockMinutes),
+      papalAuthorityMultiplier: papalAuthorityMultiplierForState(gameState)
+    }
+  );
+  recordPapalMissionAuthorityForState(
+    gameState,
+    Math.floor(weatherClockMinutes),
+    papalCommissionLabel(completion.commissionKind)
   );
   clearPapalCommissionSafePassage(completion);
   clearPapalCommissionCargoProgress(completion);
@@ -16813,6 +16828,13 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     simMinute,
     "player"
   );
+  recordPortCaptureAuthorityForState(gameState, {
+    winnerFactionId: event.newFactionId,
+    loserFactionId: event.previousFactionId,
+    cityName: event.cityName,
+    simMinute,
+    capital: Boolean(event.capitalCapturedFactionId)
+  });
   const captureMission = status.commissioned
     ? advanceCapturePortMissionAfterConquest(gameState, cityCall, event, simMinute)
     : null;
@@ -16902,6 +16924,12 @@ function settleCapitalCaptureDiplomacy(event, roll) {
       additionalConcessionCount: settlement.additionalConcessionCount
     }
   );
+  recordPeaceTreatyAuthorityForState(gameState, {
+    winnerFactionId: treaty.winnerFactionId,
+    loserFactionId: treaty.loserFactionId,
+    simMinute,
+    detail: treaty.term
+  });
   makeFactionPeaceWithAllEnemies(
     gameState.relations.diplomacy,
     treaty.loserFactionId,
@@ -16952,7 +16980,8 @@ function settleCapitalCaptureDiplomacy(event, roll) {
         : PAPAL_ACTION_EXCOMMUNICATION,
       targetFactionId: treaty.papalActionTargetFactionId,
       simMinute,
-      source: "rome-peace-treaty"
+      source: "rome-peace-treaty",
+      papalAuthorityMultiplier: papalAuthorityMultiplierForState(gameState)
     });
     if (papalResult.interruptedCommission) {
       clearPapalCommissionSafePassage(papalResult.interruptedCommission);
@@ -25160,6 +25189,13 @@ function attemptNpcPortConquest(battery, npcShipId) {
     Math.floor(weatherClockMinutes),
     `npc:${npcShipId}`
   );
+  recordPortCaptureAuthorityForState(gameState, {
+    winnerFactionId: event.newFactionId,
+    loserFactionId: event.previousFactionId,
+    cityName: event.cityName,
+    simMinute: Math.floor(weatherClockMinutes),
+    capital: Boolean(event.capitalCapturedFactionId)
+  });
   const treaty = settleCapitalCaptureDiplomacy(event, Math.random());
   clearPlayerPortAssault(gameState.memory.flags, city);
   clearPlayerPortRaid(gameState.memory.flags, city);
@@ -25670,6 +25706,10 @@ function updateWorldDiplomacy() {
     portCities: playerAccessiblePortCities()
   });
   if (result.englishReformation) reconcileEnglishReformationCharacters();
+  if (result.authorityEvents.length > 0) {
+    reconcilePapalAuthorityCharacters();
+    dirty = true;
+  }
   const expulsions = reconcileForeignSettlementPolitics();
   if (result.englishReformation) {
     showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn", "politics-news");
@@ -25725,7 +25765,9 @@ function updateWorldDiplomacy() {
     dirty = true;
     return true;
   }
-  if (result.diplomacyEvents.length === 0 && expulsions.length === 0) return false;
+  if (result.diplomacyEvents.length === 0 && expulsions.length === 0) {
+    return result.authorityEvents.length > 0;
+  }
   if (expulsions.length > 0) {
     showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn", "politics-news");
     return true;
@@ -25766,6 +25808,22 @@ function reconcileEnglishReformationCharacters() {
   caribbeanGingerPlanter = convertSingle(caribbeanGingerPlanter);
   banquetChef = convertSingle(banquetChef);
   naturalistCharacter = convertSingle(naturalistCharacter);
+  return converted;
+}
+
+function reconcilePapalAuthorityCharacters() {
+  let converted = 0;
+  const convertMap = (characters) => {
+    if (!(characters instanceof Map)) return;
+    for (const [key, character] of characters) {
+      const updated = reconcileCharacterForPapalAuthority(gameState, character);
+      if (updated === character) continue;
+      characters.set(key, updated);
+      converted += 1;
+    }
+  };
+  convertMap(portCityCharacters);
+  convertMap(npcShipCaptains);
   return converted;
 }
 
@@ -28280,6 +28338,25 @@ function combatEntityPoint(entityId) {
   return state ? { x: state.x, y: state.y } : null;
 }
 
+function combatEntitySovereignFactionId(entityId) {
+  if (entityId === null || entityId === undefined) return null;
+  if (entityId === PLAYER_COMBAT_ID) return ship?.factionId || null;
+  const battery = shoreBatteryStates.get(entityId);
+  if (battery) return battery.factionId;
+  return npcSeaRoutes?.shipById.get(entityId)?.factionId ||
+    npcVisualShips.get(entityId)?.factionId || null;
+}
+
+function recordCombatAuthorityOutcome(loserFactionId, winnerId, sunk) {
+  const winnerFactionId = combatEntitySovereignFactionId(winnerId);
+  return recordNavalAuthorityForState(gameState, {
+    winnerFactionId,
+    loserFactionId,
+    simMinute: Math.floor(weatherClockMinutes),
+    sunk
+  });
+}
+
 function combatEntityAimPoint(entityId) {
   const point = combatEntityPoint(entityId);
   if (!point || shoreBatteryStates.has(entityId)) return point;
@@ -28682,7 +28759,8 @@ function applyNpcCombatHit(ball, targetId, point) {
     applyCrewCasualtiesFromHullDamage(damage);
     const lossOutcome = resolvePlayerDamageLoss({
       sinkingReason: "Your ship was sunk in battle.",
-      crewLossReason: "The last of the crew fell in battle."
+      crewLossReason: "The last of the crew fell in battle.",
+      winnerId: ball.ownerId
     });
     if (!lossOutcome) addHullSplinterBurst(ball, point);
     return;
@@ -28753,7 +28831,8 @@ function applyPortableWeaponHitToPlayer(ball, point) {
       ship.hitPoints = Math.max(0, ship.hitPoints - rolledHullDamage);
       const lossOutcome = resolvePlayerDamageLoss({
         sinkingReason: "Your ship was sunk in battle.",
-        crewLossReason: "The last of the crew fell in battle."
+        crewLossReason: "The last of the crew fell in battle.",
+        winnerId: ball.ownerId
       });
       if (!lossOutcome) addHullSplinterBurst(ball, point);
     }
@@ -28796,6 +28875,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     throw new Error("Accidental player surrender must be damage-induced");
   }
   const playerWon = winnerId === PLAYER_COMBAT_ID;
+  recordCombatAuthorityOutcome(strategicBeforeSurrender.factionId, winnerId, false);
   const playerAttackRecorded = npcVisualShips.get(loserId)?.playerAttackRecorded === true;
   const surrenderCause = !playerWon || !damageInduced
     ? null
@@ -28969,6 +29049,7 @@ function handleNpcSinking(loserId, winnerId, {
   }
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
+  recordCombatAuthorityOutcome(strategic.factionId, winnerId, true);
   const rewardOrigin = combatEntityPoint(loserId);
   const loserWasPirate = strategic.role === NPC_ROLE_PIRATE;
   const treasureEncounter = strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND
@@ -29672,7 +29753,8 @@ function applyCombatCollisionDamage(id, amount, otherId) {
     };
     resolvePlayerDamageLoss({
       sinkingReason: "Your ship was sunk in a collision.",
-      crewLossReason: "The last of the crew died after a collision."
+      crewLossReason: "The last of the crew died after a collision.",
+      winnerId: otherId
     });
     return;
   }
@@ -29745,12 +29827,15 @@ function applyCrewCasualtiesFromHullDamage(damage) {
   return lost;
 }
 
-function resolvePlayerDamageLoss({ sinkingReason, crewLossReason }) {
+function resolvePlayerDamageLoss({ sinkingReason, crewLossReason, winnerId = null }) {
   if (!gameState?.ship || !ship) throw new Error("Player damage resolution requires an active ship");
   const outcome = playerVesselLossOutcome({
     crew: gameState.ship.crew,
     hitPoints: ship.hitPoints
   });
+  if (outcome && winnerId !== null) {
+    recordCombatAuthorityOutcome(ship.factionId, winnerId, outcome === "sunk");
+  }
   if (outcome === "sunk") {
     sinkPlayerShip(sinkingReason);
   } else if (outcome === "crew-depleted") {
@@ -38330,16 +38415,33 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
     { align: "right", color: politicsStandingColor(card.player.reputation) }
   );
   if (card.capital) {
+    const authorityText = card.authority
+      ? `${uiText("politics.authorityShort")} ${Math.round(card.authority.sovereign)}` +
+        (card.authority.papal === null
+          ? ""
+          : `  ${uiText("politics.papalAuthorityShort")} ${Math.round(card.authority.papal)}`)
+      : "";
+    const authorityWidth = authorityText
+      ? Math.min(Math.floor(rect.w * 0.44), measurePixelTextWidth(authorityText, PIXEL_FONT_SMALL_8))
+      : 0;
     drawOptionsText(
       fitPixelText(
         `${uiText("politics.capital")}: ${card.capital.city.toUpperCase()}`,
         PIXEL_FONT_SMALL_8,
-        rect.w - (titleX - rect.x) - 4
+        rect.w - (titleX - rect.x) - authorityWidth - 8
       ),
       titleX,
       headerY + layout.relationLineHeight,
       { color: PIRATE_MENU_INK_MUTED }
     );
+    if (authorityText) {
+      drawOptionsText(
+        fitPixelText(authorityText, PIXEL_FONT_SMALL_8, authorityWidth),
+        rect.x + rect.w - 4,
+        headerY + layout.relationLineHeight,
+        { align: "right", color: PIRATE_MENU_INK }
+      );
+    }
   }
 
   segment.lines.forEach((line, lineIndex) => {

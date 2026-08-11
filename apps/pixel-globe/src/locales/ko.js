@@ -340,6 +340,8 @@ export default {
   "discoveries.none": "아직 발견 없음",
   "politics.title": "국제 정세",
   "politics.capital": "수도",
+  "politics.authorityShort": "권위",
+  "politics.papalAuthorityShort": "교황",
   "politics.ally": "동맹",
   "politics.friendly": "우호",
   "politics.war": "전쟁",

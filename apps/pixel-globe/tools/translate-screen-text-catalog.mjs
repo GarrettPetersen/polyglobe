@@ -124,6 +124,96 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "{0} ship {1}": Object.freeze({
+    "zh-Hans": "{0}船只：{1}", ru: "Корабль {0}: {1}", es: "Buque de {0}: {1}",
+    "pt-BR": "Navio de {0}: {1}", ja: "{0}船：{1}", de: "{0}-Schiff: {1}",
+    fr: "Navire de {0} : {1}", pl: "Okręt {0}: {1}", "zh-Hant": "{0}船隻：{1}",
+    ko: "{0} 선박: {1}"
+  }),
+  "{0} succeeded by {1}": Object.freeze({
+    "zh-Hans": "{0}由{1}继任", ru: "После {0} престол занял {1}", es: "{0}, sucedido por {1}",
+    "pt-BR": "{0}, sucedido por {1}", ja: "{0}から{1}へ継承", de: "Auf {0} folgt {1}",
+    fr: "{0}, remplacé par {1}", pl: "Po {0} władzę obejmuje {1}", "zh-Hant": "{0}由{1}繼任",
+    ko: "{0}의 뒤를 {1}이(가) 이음"
+  }),
+  "Booksellers' purse": Object.freeze({
+    "zh-Hans": "书商酬金", ru: "Гонорар книготорговцев", es: "Recompensa de los libreros",
+    "pt-BR": "Recompensa dos livreiros", ja: "書商からの謝礼", de: "Honorar der Buchhändler",
+    fr: "Gratification des libraires", pl: "Zapłata księgarzy", "zh-Hant": "書商酬金",
+    ko: "서적상들의 사례금"
+  }),
+  "Defied {0}": Object.freeze({
+    "zh-Hans": "反抗{0}", ru: "Брошен вызов: {0}", es: "Desafió a {0}",
+    "pt-BR": "Desafiou {0}", ja: "{0}に背いた", de: "{0} getrotzt",
+    fr: "A défié {0}", pl: "Sprzeciwiono się {0}", "zh-Hant": "反抗{0}",
+    ko: "{0}에 반항함"
+  }),
+  "Help distribute the Testaments": Object.freeze({
+    "zh-Hans": "帮助分发《新约》", ru: "Помочь распространить Новый Завет", es: "Ayudar a distribuir los Nuevos Testamentos",
+    "pt-BR": "Ajudar a distribuir os Novos Testamentos", ja: "新約聖書の配布を手伝う", de: "Beim Verteilen der Neuen Testamente helfen",
+    fr: "Aider à distribuer les Nouveaux Testaments", pl: "Pomóc rozprowadzać Nowe Testamenty", "zh-Hant": "幫助分發《新約》",
+    ko: "신약성서 배포 돕기"
+  }),
+  "The Central European frontier holds": Object.freeze({
+    "zh-Hans": "中欧防线守住了", ru: "Центральноевропейский рубеж удержан", es: "El frente centroeuropeo resiste",
+    "pt-BR": "A frente da Europa Central resiste", ja: "中央ヨーロッパの戦線は持ちこたえた", de: "Die mitteleuropäische Front hält",
+    fr: "Le front d'Europe centrale tient", pl: "Front środkowoeuropejski się utrzymał", "zh-Hant": "中歐防線守住了",
+    ko: "중앙유럽 전선이 버텨냈다"
+  }),
+  "The crown assumes ecclesiastical supremacy": Object.freeze({
+    "zh-Hans": "王权取得教会最高权力", ru: "Корона принимает верховенство над церковью", es: "La Corona asume la supremacía eclesiástica",
+    "pt-BR": "A Coroa assume a supremacia eclesiástica", ja: "王権が教会の首長権を握る", de: "Die Krone übernimmt die kirchliche Oberhoheit",
+    fr: "La Couronne assume la suprématie ecclésiastique", pl: "Korona przejmuje zwierzchnictwo nad Kościołem", "zh-Hant": "王權取得教會最高權力",
+    ko: "왕권이 교회 수장권을 장악하다"
+  }),
+  "The Edict of Worms forbids Luther's books and vernacular Scripture. Turn away from {0}, or the books will be seized.": Object.freeze({
+    "zh-Hans": "沃尔姆斯敕令禁止路德的著作和本国语《圣经》。离开{0}，否则书籍将被查扣。",
+    ru: "Вормсский эдикт запрещает книги Лютера и Священное Писание на народном языке. Покиньте {0}, иначе книги будут конфискованы.",
+    es: "El Edicto de Worms prohíbe los libros de Lutero y las Escrituras en lengua vernácula. Aléjate de {0} o los libros serán confiscados.",
+    "pt-BR": "O Édito de Worms proíbe os escritos de Lutero e as Escrituras em língua vernácula. Deixe {0}, ou os livros serão apreendidos.",
+    ja: "ヴォルムス勅令はルターの著作と各国語訳聖書を禁じている。{0}から立ち去れ。さもなくば書物を没収する。",
+    de: "Das Wormser Edikt verbietet Luthers Schriften und die Bibel in der Volkssprache. Kehrt vor {0} um, sonst werden die Bücher beschlagnahmt.",
+    fr: "L'édit de Worms interdit les écrits de Luther et les Écritures en langue vernaculaire. Éloignez-vous de {0}, sinon les livres seront confisqués.",
+    pl: "Edykt wormacki zakazuje pism Lutra i Pisma Świętego w językach narodowych. Zawróć spod {0}, inaczej księgi zostaną skonfiskowane.",
+    "zh-Hant": "沃爾姆斯敕令禁止路德的著作和本國語《聖經》。離開{0}，否則書籍將被查扣。",
+    ko: "보름스 칙령은 루터의 저술과 자국어 성서를 금한다. {0}에서 물러나라. 그렇지 않으면 책을 압수하겠다."
+  }),
+  "The English crown breaks with Rome": Object.freeze({
+    "zh-Hans": "英格兰王室与罗马决裂", ru: "Английская корона порывает с Римом", es: "La Corona inglesa rompe con Roma",
+    "pt-BR": "A Coroa inglesa rompe com Roma", ja: "イングランド王権がローマと決別", de: "Die englische Krone bricht mit Rom",
+    fr: "La Couronne anglaise rompt avec Rome", pl: "Korona angielska zrywa z Rzymem", "zh-Hant": "英格蘭王室與羅馬決裂",
+    ko: "잉글랜드 왕권이 로마와 결별하다"
+  }),
+  "The Habsburg frontier collapses": Object.freeze({
+    "zh-Hans": "哈布斯堡防线崩溃", ru: "Габсбургский рубеж рушится", es: "El frente de los Habsburgo se derrumba",
+    "pt-BR": "A frente dos Habsburgos desmorona", ja: "ハプスブルクの戦線が崩壊", de: "Die habsburgische Front bricht zusammen",
+    fr: "Le front des Habsbourg s'effondre", pl: "Front habsburski się załamuje", "zh-Hant": "哈布斯堡防線崩潰",
+    ko: "합스부르크 전선이 무너지다"
+  }),
+  "The Ottoman advance is checked": Object.freeze({
+    "zh-Hans": "奥斯曼攻势受阻", ru: "Османское наступление остановлено", es: "El avance otomano queda detenido",
+    "pt-BR": "O avanço otomano é detido", ja: "オスマン軍の進撃が阻まれた", de: "Der osmanische Vormarsch wird aufgehalten",
+    fr: "L'avancée ottomane est arrêtée", pl: "Natarcie osmańskie zostaje zatrzymane", "zh-Hant": "鄂圖曼攻勢受阻",
+    ko: "오스만군의 진격이 저지되다"
+  }),
+  "The Ottoman army withdraws from Vienna": Object.freeze({
+    "zh-Hans": "奥斯曼军队撤离维也纳", ru: "Османская армия отступает от Вены", es: "El ejército otomano se retira de Viena",
+    "pt-BR": "O exército otomano se retira de Viena", ja: "オスマン軍がウィーンから撤退", de: "Das osmanische Heer zieht sich von Wien zurück",
+    fr: "L'armée ottomane se retire de Vienne", pl: "Armia osmańska wycofuje się spod Wiednia", "zh-Hant": "鄂圖曼軍隊撤離維也納",
+    ko: "오스만군이 빈에서 철수하다"
+  }),
+  "The September Testament": Object.freeze({
+    "zh-Hans": "《九月圣经》", ru: "Сентябрьский Завет", es: "El Testamento de Septiembre",
+    "pt-BR": "O Testamento de Setembro", ja: "九月聖書", de: "Das Septembertestament",
+    fr: "Le Testament de septembre", pl: "Testament wrześniowy", "zh-Hant": "《九月聖經》",
+    ko: "9월 성서"
+  }),
+  "Vienna holds against Suleiman's army": Object.freeze({
+    "zh-Hans": "维也纳挡住苏莱曼的大军", ru: "Вена устояла против армии Сулеймана", es: "Viena resiste al ejército de Solimán",
+    "pt-BR": "Viena resiste ao exército de Solimão", ja: "ウィーンがスレイマン軍を退けた", de: "Wien hält Suleimans Heer stand",
+    fr: "Vienne résiste à l'armée de Soliman", pl: "Wiedeń odpiera armię Sulejmana", "zh-Hant": "維也納擋住蘇萊曼的大軍",
+    ko: "빈이 술레이만의 군대를 막아내다"
+  }),
   "{0}'s coastal officers seek a captain to hunt the wokou reported near {1}. Sink or force their surrender, then return for {2} db. Pirates require no marque.": Object.freeze({
     ja: "{0}の沿海官は、{1}付近に出没する倭寇を討つ船長を求めている。沈めるか降伏させ、戻れば{2} DBを支払う。海賊討伐に私掠免許状は要らない。",
     "zh-Hans": "{0}的沿海官员正在征募船长，讨伐出没于{1}附近的倭寇。击沉或迫降他们，再回此地复命，赏金{2} DB。讨伐海盗无需私掠许可证。",

@@ -340,6 +340,8 @@ export default {
   "discoveries.none": "BRAK ODKRYĆ",
   "politics.title": "POLITYKA",
   "politics.capital": "STOLICA",
+  "politics.authorityShort": "AUT",
+  "politics.papalAuthorityShort": "PAPIEŻ",
   "politics.ally": "SOJUSZNIK",
   "politics.friendly": "PRZYJAZNY",
   "politics.war": "WOJNA",

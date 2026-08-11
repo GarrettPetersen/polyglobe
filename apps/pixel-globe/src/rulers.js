@@ -235,6 +235,103 @@ const RULER_FAITH_OVERRIDES = Object.freeze({
   "denmark-norway|Christian III|1534-7-4": faith("lutheran", 0.88)
 });
 
+const RULER_AUTHORITY_DEFAULTS = Object.freeze({
+  england: 74,
+  scotland: 52,
+  france: 76,
+  spain: 82,
+  portugal: 76,
+  hormuz: 38,
+  habsburg: 80,
+  hungary: 48,
+  ottoman: 88,
+  venice: 74,
+  genoa: 48,
+  "papal-states": 62,
+  hospitallers: 76,
+  ming: 68,
+  inca: 84,
+  safavid: 76,
+  muscovy: 78,
+  crimea: 60,
+  wallachia: 44,
+  moldavia: 50,
+  ragusa: 66,
+  hejaz: 58,
+  "poland-lithuania": 64,
+  sweden: 42,
+  "denmark-norway": 44,
+  songhai: 80,
+  morocco: 54,
+  ethiopia: 66,
+  vijayanagara: 88,
+  gujarat: 66,
+  bengal: 68,
+  delhi: 46,
+  ayutthaya: 74,
+  ternate: 58,
+  tidore: 60,
+  japan: 22,
+  hosokawa: 68,
+  ouchi: 66,
+  shimazu: 58,
+  so: 54,
+  shoni: 52,
+  nagao: 58,
+  ando: 56,
+  kakizaki: 48,
+  ryukyu: 76,
+  ainu: 46,
+  joseon: 78
+});
+
+const RULER_AUTHORITY_OVERRIDES = Object.freeze({
+  "england|Henry VIII|1534-11-3": 84,
+  "england|Edward VI|1547-1-28": 58,
+  "scotland|Mary|1542-12-14": 32,
+  "france|Henry II|1547-3-31": 78,
+  "spain|Philip II|1556-1-16": 86,
+  "portugal|Sebastian I|1557-6-11": 45,
+  "habsburg|Ferdinand I|1556-8-27": 72,
+  "hungary|Ferdinand I|1526-8-29": 56,
+  "ottoman|Selim II|1566-9-7": 66,
+  "venice|Andrea Gritti|1523-5-20": 82,
+  "venice|Pietro Lando|1538-12-28": 70,
+  "genoa|Antoniotto II Adorno|1522-5-31": 58,
+  "papal-states|Clement VII|1523-11-19": 48,
+  "papal-states|Paul III|1534-10-13": 72,
+  "papal-states|Julius III|1550-2-7": 58,
+  "ming|Longqing|1567-2-4": 72,
+  "inca|Huascar|1527-1-1": 54,
+  "inca|Atahualpa|1532-1-1": 68,
+  "inca|Manco Inca Yupanqui|1533-1-1": 56,
+  "safavid|Tahmasp I|1524-5-23": 52,
+  "muscovy|Ivan IV|1533-12-3": 38,
+  "crimea|Ghazi I Giray|1523-1-1": 38,
+  "crimea|Saadet I Giray|1524-1-1": 58,
+  "poland-lithuania|Sigismund II Augustus|1548-4-1": 70,
+  "sweden|Gustav I|1523-6-6": 72,
+  "sweden|Gustav I|1527-6-18": 80,
+  "denmark-norway|Frederick I|1523-1-20": 62,
+  "denmark-norway|Christian III|1534-7-4": 74,
+  "songhai|Askia Musa|1528-1-1": 44,
+  "songhai|Askia Benkan|1531-1-1": 58,
+  "songhai|Askia Ismail|1537-1-1": 52,
+  "songhai|Askia Ishaq I|1539-1-1": 64,
+  "songhai|Askia Dawud|1549-1-1": 78,
+  "vijayanagara|Achyuta Deva Raya|1529-1-1": 62,
+  "vijayanagara|Sadasiva Raya|1542-1-1": 34,
+  "delhi|Babur|1526-4-21": 84,
+  "delhi|Humayun|1530-12-26": 58,
+  "delhi|Sher Shah Suri|1540-5-17": 88,
+  "delhi|Islam Shah Suri|1545-5-22": 72,
+  "japan|Ashikaga Yoshiteru|1546-1-1": 34,
+  "hosokawa|Hosokawa Harumoto|1531-1-1": 62,
+  "ouchi|Ouchi Yoshitaka|1529-1-1": 70,
+  "nagao|Nagao Harukage|1536-1-1": 48,
+  "ryukyu|Sho Sei|1527-1-1": 62
+});
+
 const REGIONAL_GROUPS = Object.freeze([
   ["england", "scotland", "france", "spain", "portugal", "habsburg", "sweden", "denmark-norway"],
   ["habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania", "wallachia", "moldavia", "ragusa"],
@@ -382,6 +479,7 @@ function freezeTimelines(rawTimelines) {
       return Object.freeze({
         ...entry,
         ...rulerFaith,
+        authority: authorityForRuler(factionId, entry),
         factionId,
         factionName: factionById(factionId).name,
         displayName: `${entry.title} ${entry.name}`,
@@ -443,8 +541,20 @@ function validateRulerRegistry() {
       if (!Number.isFinite(entry.piety) || entry.piety < 0 || entry.piety > 1) {
         throw new Error(`Invalid ruler piety for ${entry.displayName}: ${entry.piety}`);
       }
+      if (!Number.isFinite(entry.authority) || entry.authority < 0 || entry.authority > 100) {
+        throw new Error(`Invalid ruler authority for ${entry.displayName}: ${entry.authority}`);
+      }
     }
   }
+}
+
+function authorityForRuler(factionId, entry) {
+  const overrideKey = `${factionId}|${entry.name}|${entry.year}-${entry.month}-${entry.day}`;
+  const score = RULER_AUTHORITY_OVERRIDES[overrideKey] ?? RULER_AUTHORITY_DEFAULTS[factionId];
+  if (!Number.isFinite(score) || score < 0 || score > 100) {
+    throw new Error(`Missing or invalid ruler authority for ${overrideKey}`);
+  }
+  return score;
 }
 
 function faithForRuler(factionId, entry) {

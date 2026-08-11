@@ -17,6 +17,8 @@ import {
   recentGameDiplomacyEvents,
   recentGameCourtActions,
   recentGamePapalActions,
+  sovereignAuthorityForState,
+  papalAuthorityForState,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
 import {
@@ -250,6 +252,12 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
   return Object.freeze({
     faction,
     capital: capitalByFactionId.get(faction.id) || null,
+    authority: faction.id === PIRATE_FACTION_ID
+      ? null
+      : Object.freeze({
+          sovereign: sovereignAuthorityForState(gameState, faction.id),
+          papal: faction.id === "papal-states" ? papalAuthorityForState(gameState) : null
+        }),
     ruler: ruler === null
       ? null
       : Object.freeze({

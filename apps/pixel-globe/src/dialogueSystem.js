@@ -54,6 +54,7 @@ import {
   purchaseWhaleHarpoon,
   questStateForCity,
   receiveQuestPayment,
+  recordColonyAuthorityForState,
   recordTributeTheft,
   releaseCargoSpace,
   reserveCargoSpace,
@@ -1987,6 +1988,13 @@ export function selectPortDialogueOption(
       };
     }
     establishColony(gameState.memory.colonization, minute);
+    recordColonyAuthorityForState(
+      gameState,
+      quest.target.factionId,
+      quest.target.city,
+      minute,
+      { challengesPapalAuthority: quest.history?.organizerReligionId === "reformed-protestant" }
+    );
     const defenseStarted = gameState.memory.colonization.stage === COLONIZATION_STAGE_DEFEND;
     const payment = receiveQuestPayment(
       gameState,
@@ -2821,6 +2829,8 @@ function barredPortView(city, context) {
       ? `${cityLabel(city)} has already been stripped of portable wealth. The battered harbor remains under arms until its defenses recover.`
       : attack?.commissioned && !batteryDisabled
       ? `Your commission is known. ${cityLabel(city)} has closed its gates and trained its harbor batteries on your ship.`
+      : status.catholicContraband
+      ? `The Edict of Worms forbids Luther's books and vernacular Scripture. Turn away from ${cityLabel(city)}, or the books will be seized.`
       : batteryDisabled || conquest?.playerAssaultActive
       ? `You think to take ${cityLabel(city)} with that handful? Bring fewer than ${conquest.minimumCrew} fighting hands ashore, and we will drive every one of you into the sea.`
       : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,

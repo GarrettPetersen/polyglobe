@@ -176,11 +176,13 @@ export function nextPapalPoliticsMinute(memory) {
 
 export function advancePapalPolitics(memory, diplomacy, currentMinute, {
   papalStatesActive = true,
-  playerCommissionContext = null
+  playerCommissionContext = null,
+  papalAuthorityMultiplier = 1
 } = {}) {
   validatePapalPolitics(memory);
   validateWorldDiplomacy(diplomacy);
   assertMinute(currentMinute, "papal politics current");
+  assertPapalAuthorityMultiplier(papalAuthorityMultiplier);
   if (currentMinute < memory.lastUpdateMinute) {
     throw new Error(
       `Papal politics cannot move backward: ${currentMinute} < ${memory.lastUpdateMinute}`
@@ -219,7 +221,8 @@ export function advancePapalPolitics(memory, diplomacy, currentMinute, {
         if (papalStatesActive) {
           const result = enactPapalMatter(memory, diplomacy, memory.pendingMatter, {
             simMinute: memory.pendingMatter.autonomousDecisionMinute,
-            source: "papal-policy"
+            source: "papal-policy",
+            papalAuthorityMultiplier
           });
           actions.push(result.action);
           diplomacyEvents.push(...result.diplomacyEvents);
@@ -446,10 +449,14 @@ export function advancePapalCommissionAtPort(memory, {
   return papalMatterView(memory.pendingMatter);
 }
 
-export function completePapalCommission(memory, diplomacy, { simMinute }) {
+export function completePapalCommission(memory, diplomacy, {
+  simMinute,
+  papalAuthorityMultiplier = 1
+}) {
   validatePapalPolitics(memory);
   validateWorldDiplomacy(diplomacy);
   assertMinute(simMinute, "papal commission completion");
+  assertPapalAuthorityMultiplier(papalAuthorityMultiplier);
   const matter = memory.pendingMatter;
   if (!matter || matter.status !== PAPAL_MATTER_COMMISSIONED) {
     throw new Error("No Papal commission is ready to complete");
@@ -460,7 +467,8 @@ export function completePapalCommission(memory, diplomacy, { simMinute }) {
   const result = enactPapalMatter(memory, diplomacy, matter, {
     simMinute,
     source: "player-papal-commission",
-    recommendation: matter.commission.recommendation || "firm"
+    recommendation: matter.commission.recommendation || "firm",
+    papalAuthorityMultiplier
   });
   const completion = Object.freeze({
     matterId: matter.id,
@@ -517,8 +525,10 @@ export function imposePapalAction(memory, diplomacy, {
   kind,
   targetFactionId,
   simMinute,
-  source = "rome-peace-treaty"
+  source = "rome-peace-treaty",
+  papalAuthorityMultiplier = 1
 }) {
+  assertPapalAuthorityMultiplier(papalAuthorityMultiplier);
   const interruptedCommission = memory.pendingMatter?.status === PAPAL_MATTER_COMMISSIONED
       ? Object.freeze({
         matterId: memory.pendingMatter.id,
@@ -532,7 +542,13 @@ export function imposePapalAction(memory, diplomacy, {
       })
     : null;
   if (memory.pendingMatter) memory.pendingMatter = null;
-  const result = enactPapalAction(memory, diplomacy, { kind, targetFactionId, simMinute, source });
+  const result = enactPapalAction(memory, diplomacy, {
+    kind,
+    targetFactionId,
+    simMinute,
+    source,
+    papalAuthorityMultiplier
+  });
   return Object.freeze({ ...result, interruptedCommission });
 }
 
@@ -596,7 +612,8 @@ function enactPapalAction(memory, diplomacy, {
   targetFactionId,
   simMinute,
   source,
-  logistics = null
+  logistics = null,
+  papalAuthorityMultiplier = 1
 }) {
   validatePapalPolitics(memory);
   validateWorldDiplomacy(diplomacy);
@@ -608,6 +625,7 @@ function enactPapalAction(memory, diplomacy, {
     throw new Error(`Invalid papal action target: ${targetFactionId}`);
   }
   assertMinute(simMinute, "papal action");
+  assertPapalAuthorityMultiplier(papalAuthorityMultiplier);
   if (typeof source !== "string" || source.trim() === "") {
     throw new Error("Papal action requires a source");
   }
@@ -635,7 +653,11 @@ function enactPapalAction(memory, diplomacy, {
       memory.sequence,
       `${kind}|${targetFactionId}|${faction.id}|${simMinute}`
     );
-    if (roll >= ruler.piety * pope.piety * responseStrength) continue;
+    const responseChance = Math.min(
+      1,
+      ruler.piety * pope.piety * responseStrength * papalAuthorityMultiplier
+    );
+    if (roll >= responseChance) continue;
     const events = adjustDiplomaticStance(
       diplomacy,
       faction.id,
@@ -775,9 +797,11 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
 function enactPapalMatter(memory, diplomacy, matter, {
   simMinute,
   source,
-  recommendation = "firm"
+  recommendation = "firm",
+  papalAuthorityMultiplier = 1
 }) {
   validatePapalMatter(matter);
+  assertPapalAuthorityMultiplier(papalAuthorityMultiplier);
   let actionKind = matter.actionKind;
   let targetFactionId = matter.targetFactionId;
   const diplomacyEvents = [];
@@ -842,12 +866,19 @@ function enactPapalMatter(memory, diplomacy, matter, {
     source: matter.commissionKind === PAPAL_COMMISSION_REFORM && source === "player-papal-commission"
       ? "player-papal-reform"
       : source,
-    logistics
+    logistics,
+    papalAuthorityMultiplier
   });
   return Object.freeze({
     action: result.action,
     diplomacyEvents: Object.freeze([...diplomacyEvents, ...result.diplomacyEvents])
   });
+}
+
+function assertPapalAuthorityMultiplier(multiplier) {
+  if (!Number.isFinite(multiplier) || multiplier <= 0) {
+    throw new Error(`Invalid Papal authority multiplier: ${multiplier}`);
+  }
 }
 
 function firstCatholicWarPair(memory, diplomacy, simMinute) {
