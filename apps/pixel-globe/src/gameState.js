@@ -19,8 +19,12 @@ import {
   tradeGoodById
 } from "./economy.js";
 import {
+  CANONICAL_PORTS,
+  portMatchesCanonicalReference,
+  requireCanonicalPort
+} from "./canonicalPorts.js";
+import {
   TEA_RACE_CARGO_QUANTITY,
-  TEA_RACE_DESTINATION_CITY,
   TEA_RACE_THEFT_REPUTATION,
   createTeaRaceQuest,
   isTeaRaceQuest,
@@ -5336,11 +5340,12 @@ export function wokouHuntMissionOfferForCity(state, city, portCities, context = 
   const factionId = currentSovereignCapitalFactionId(city);
   if (!["ming", "japan"].includes(factionId)) return null;
   if (factionReputation(state, factionId) < WOKOU_HUNT_REPUTATION_REQUIRED) return null;
-  const patrolNames = factionId === "ming"
-    ? ["Ningbo", "Fuzhou", "Guangzhou"]
-    : ["Nagasaki", "Yamaguchi", "Kagoshima"];
+  const patrolPorts = factionId === "ming"
+    ? [CANONICAL_PORTS.NINGBO, CANONICAL_PORTS.FUZHOU, CANONICAL_PORTS.GUANGZHOU]
+    : [CANONICAL_PORTS.NAGASAKI, CANONICAL_PORTS.YAMAGUCHI, CANONICAL_PORTS.KAGOSHIMA];
   const candidates = portCities.filter((port) => (
-    patrolNames.includes(port.displayCity || port.city) && Number.isInteger(port.tileId)
+    patrolPorts.some((reference) => portMatchesCanonicalReference(port, reference)) &&
+    Number.isInteger(port.tileId)
   ));
   if (candidates.length === 0) return null;
   const simMinute = context.simMinute ?? 0;
@@ -5474,8 +5479,7 @@ export function teaRaceOfferForCity(state, city, portCities, context = {}) {
       !sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, playerFactionId)) {
     return null;
   }
-  const destination = portCities.find((port) => cityLabel(port) === TEA_RACE_DESTINATION_CITY);
-  if (!destination) throw new Error(`Tea race destination is absent: ${TEA_RACE_DESTINATION_CITY}`);
+  const destination = requireCanonicalPort(portCities, CANONICAL_PORTS.LONDON, "Tea race");
   const id = `tea-race-${season.year}`;
   const quests = questMemory(state);
   if (quests.completed[id] || quests.failed[id] || quests.active?.id === id ||
@@ -6211,8 +6215,12 @@ function applyEastAsianMissionConsequences(state, quest, context) {
     if (!Array.isArray(context.portCities)) {
       throw new Error("Portuguese guns mission completion requires the current port list");
     }
-    for (const cityName of ["Guangzhou", "Ningbo", "Fuzhou"]) {
-      const port = findMissionPort(context.portCities, cityName);
+    for (const reference of [
+      CANONICAL_PORTS.GUANGZHOU,
+      CANONICAL_PORTS.NINGBO,
+      CANONICAL_PORTS.FUZHOU
+    ]) {
+      const port = requireCanonicalPort(context.portCities, reference, "Portuguese guns mission");
       batteryUpgrades.push(upgradeShoreBattery(port, state.memory.flags));
     }
     reputation("ming", 8);
@@ -6250,20 +6258,6 @@ function applyEastAsianMissionConsequences(state, quest, context) {
 }
 
 const NINGBO_MISSION_FACTIONS = new Set(["hosokawa", "ouchi"]);
-
-function findMissionPort(portCities, expectedName) {
-  const normalized = normalizeMissionPortName(expectedName);
-  const port = portCities.find((candidate) => (
-    normalizeMissionPortName(candidate?.portAlias || candidate?.displayCity || candidate?.city) === normalized
-  ));
-  if (!port) throw new Error(`East Asian mission requires the placed port ${expectedName}`);
-  return port;
-}
-
-function normalizeMissionPortName(value) {
-  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]/g, "");
-}
 
 export function cityKey(city) {
   return `${city.displayCity || city.city}|${city.country}|${city.tileId}`;

@@ -1,4 +1,10 @@
 import { greatCircleDistanceKm } from "./worldDistance.js";
+import {
+  CANONICAL_PORTS,
+  canonicalPortDisplayName,
+  portMatchesCanonicalReference,
+  requireCanonicalPort
+} from "./canonicalPorts.js";
 
 export const EAST_ASIAN_MISSION_NINGBO = "ningbo-tally-dispute";
 export const EAST_ASIAN_MISSION_TSUSHIMA = "tsushima-treaty-register";
@@ -22,9 +28,9 @@ const ALL_MISSION_IDS = Object.freeze([
 const FIXED_MISSIONS = Object.freeze([
   missionDefinition({
     id: EAST_ASIAN_MISSION_TSUSHIMA,
-    originName: "Tsushima Fuchu",
+    originRef: CANONICAL_PORTS.TSUSHIMA_FUCHU,
     originFactionId: "so",
-    destinationName: "Hanseong",
+    destinationRef: CANONICAL_PORTS.HANSEONG,
     roleLabel: "Sō envoy",
     reward: 520,
     scenarioId: "east-asian-envoy",
@@ -32,36 +38,36 @@ const FIXED_MISSIONS = Object.freeze([
   }),
   missionDefinition({
     id: EAST_ASIAN_MISSION_PORTUGUESE_GUNS,
-    originName: "Guangzhou",
+    originRef: CANONICAL_PORTS.GUANGZHOU,
     originFactionId: "ming",
-    destinationName: "Nanjing",
+    destinationRef: CANONICAL_PORTS.NANJING,
     roleLabel: "artillery founder",
     reward: 640,
     scenarioId: "east-asian-artillery"
   }),
   missionDefinition({
     id: EAST_ASIAN_MISSION_RYUKYU,
-    originName: "Fuzhou",
+    originRef: CANONICAL_PORTS.FUZHOU,
     originFactionId: "ming",
-    destinationName: "Naha",
+    destinationRef: CANONICAL_PORTS.NAHA,
     roleLabel: "investiture envoy",
     reward: 560,
     scenarioId: "east-asian-envoy"
   }),
   missionDefinition({
     id: EAST_ASIAN_MISSION_GREAT_RITES,
-    originName: "Nanjing",
+    originRef: CANONICAL_PORTS.NANJING,
     originFactionId: "ming",
-    destinationName: "Beijing",
+    destinationRef: CANONICAL_PORTS.BEIJING,
     roleLabel: "memorial bearer",
     reward: 600,
     scenarioId: "east-asian-scholar"
   }),
   missionDefinition({
     id: EAST_ASIAN_MISSION_YOSHIHARU,
-    originName: "Kyoto",
+    originRef: CANONICAL_PORTS.KYOTO,
     originFactionId: "japan",
-    destinationName: "Yamaguchi",
+    destinationRef: CANONICAL_PORTS.YAMAGUCHI,
     roleLabel: "shogunal messenger",
     reward: 520,
     scenarioId: "east-asian-envoy"
@@ -75,8 +81,8 @@ export function eastAsianMissionPlanForCity(state, city, portCities) {
   if (ningboPlan) return ningboPlan;
   for (const definition of FIXED_MISSIONS) {
     if (missionAlreadyResolved(quests, definition.id)) continue;
-    if (!portMatches(city, definition.originName, definition.originFactionId)) continue;
-    const destination = requiredPort(portCities, definition.destinationName, definition.id);
+    if (!portMatches(city, definition.originRef, definition.originFactionId)) continue;
+    const destination = requireCanonicalPort(portCities, definition.destinationRef, definition.id);
     return freezePlan(definition, city, destination);
   }
   return null;
@@ -242,7 +248,11 @@ export function eastAsianMissionDialogue(plan) {
 function ningboMissionPlan(quests, city, portCities) {
   if (!NINGBO_FACTIONS.includes(city.factionId) || city.isFactionCapital !== true) return null;
   if (missionAlreadyResolved(quests, EAST_ASIAN_MISSION_NINGBO)) return null;
-  const destination = requiredPort(portCities, "Ningbo", EAST_ASIAN_MISSION_NINGBO);
+  const destination = requireCanonicalPort(
+    portCities,
+    CANONICAL_PORTS.NINGBO,
+    EAST_ASIAN_MISSION_NINGBO
+  );
   const delegationOrigins = Object.fromEntries(NINGBO_FACTIONS.map((factionId) => {
     const capital = portCities.find((candidate) => (
       candidate.factionId === factionId && candidate.isFactionCapital === true
@@ -252,9 +262,8 @@ function ningboMissionPlan(quests, city, portCities) {
   }));
   return freezePlan(missionDefinition({
     id: EAST_ASIAN_MISSION_NINGBO,
-    originName: displayName(city),
     originFactionId: city.factionId,
-    destinationName: "Ningbo",
+    destinationRef: CANONICAL_PORTS.NINGBO,
     roleLabel: `${city.factionId === "hosokawa" ? "Hosokawa" : "Ouchi"} tally envoy`,
     reward: 700,
     scenarioId: "east-asian-envoy",
@@ -267,6 +276,8 @@ function ningboMissionPlan(quests, city, portCities) {
 function freezePlan(definition, origin, destination) {
   return Object.freeze({
     ...definition,
+    originName: displayName(origin),
+    destinationName: displayName(destination),
     origin,
     destination,
     distanceKm: Math.round(greatCircleDistanceKm(origin, destination))
@@ -282,28 +293,16 @@ function missionAlreadyResolved(quests, missionId) {
   ));
 }
 
-function requiredPort(portCities, expectedName, missionId) {
-  const port = portCities.find((candidate) => normalizeName(displayName(candidate)) === normalizeName(expectedName));
-  if (!port) throw new Error(`${missionId} requires the placed port ${expectedName}`);
-  return port;
-}
-
-function portMatches(city, expectedName, factionId) {
-  return city.factionId === factionId && normalizeName(displayName(city)) === normalizeName(expectedName);
+function portMatches(city, reference, factionId) {
+  return city.factionId === factionId && portMatchesCanonicalReference(city, reference);
 }
 
 function displayName(city) {
-  const value = city?.portAlias || city?.displayCity || city?.city;
-  if (typeof value !== "string" || !value.trim()) throw new Error("East Asian mission port has no display name");
-  return value.trim();
-}
-
-function normalizeName(value) {
-  return String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return canonicalPortDisplayName(city);
 }
 
 function missionDefinition(definition) {
-  if (!definition?.id || !definition.originName || !definition.destinationName || !definition.originFactionId) {
+  if (!definition?.id || !definition.destinationRef || !definition.originFactionId) {
     throw new Error("East Asian mission definition is incomplete");
   }
   return Object.freeze({ requiresOutcome: false, startingFactionId: null, ...definition });

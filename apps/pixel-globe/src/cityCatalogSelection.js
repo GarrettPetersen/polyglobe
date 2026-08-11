@@ -315,6 +315,11 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     playerHomeExcluded: true,
     marketGoods: ["fish", "timber", "salt"]
   }),
+  manualCity1522("Ningbo", "China", 29.8683, 121.544, 50000, {
+    cityType: "east-asian",
+    manualRegion: "lower-yangtze-coast",
+    marketGoods: ["rice", "silk", "tea"]
+  }),
   manualCity1522("Tsuchizaki Minato", "Japan", 39.7583, 140.0575, 3500, {
     cityType: "east-asian",
     manualRegion: "sea-of-japan",

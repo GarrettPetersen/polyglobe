@@ -40,8 +40,14 @@ const PLAYER = Object.freeze({
 const SAKAI = capital(1, "Sakai", "hosokawa", 34.58, 135.47);
 const YAMAGUCHI = capital(2, "Yamaguchi", "ouchi", 34.18, 131.47);
 const NINGBO = port(3, "Ningbo", "ming", 29.87, 121.55);
-const TSUSHIMA = capital(4, "Tsushima Fuchū", "so", 34.20, 129.29);
-const HANSEONG = capital(5, "Hanseong", "joseon", 37.57, 126.98);
+const TSUSHIMA = {
+  ...capital(4, "Tsushima Fuchu", "so", 34.20, 129.29),
+  displayCity: "Tsushima Fuchū"
+};
+const HANSEONG = {
+  ...capital(5, "Seoul", "joseon", 37.57, 126.98),
+  displayCity: "Hanseong"
+};
 const GUANGZHOU = port(6, "Guangzhou", "ming", 23.13, 113.26);
 const NANJING = port(7, "Nanjing", "ming", 32.06, 118.80);
 const FUZHOU = port(8, "Fuzhou", "ming", 26.07, 119.30);

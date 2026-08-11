@@ -1530,6 +1530,12 @@ import {
   loadCityCatalogFromCsv
 } from "./cityCatalogData.js";
 import {
+  CANONICAL_PORTS,
+  portMatchesCanonicalReference,
+  requireCanonicalPort,
+  validateCanonicalPortCatalog
+} from "./canonicalPorts.js";
+import {
   nearestTileMatching as nearestWorldTileMatching,
   placeCityCatalogOnWorld,
   placeColonizationTargetsOnWorld,
@@ -3901,6 +3907,7 @@ async function main() {
   }
   characterPortraitManifest = loadedCharacterPortraitManifest;
   portCities = portCitiesOnWorld(cityByTileId, worldPortPlacementOptions());
+  validateCanonicalPortCatalog(portCities);
   portSailingDistances = parsePortSailingDistances(loadedPortSailingDistanceData, {
     subdivisions: SUBDIVISIONS,
     earthCacheVersion: String(earth.version)
@@ -9728,8 +9735,8 @@ function stageCaptureColonization(sequence) {
   const memory = gameState.memory.colonization;
   if (!colonizationQuestView(gameState, { currentMinute: weatherClockMinutes }).target) {
     const target = colonizationTargetPlacements.find((candidate) => candidate.city === sequence.cityName);
-    const origin = portCities.find((candidate) => candidate.city === "Bordeaux" && candidate.country === "France");
-    if (!target || !origin) throw new Error("Capture colonization requires Port Royal and Bordeaux");
+    const origin = requireCanonicalPort(portCities, CANONICAL_PORTS.BORDEAUX, "Capture colonization");
+    if (!target) throw new Error("Capture colonization requires Port Royal");
     assignColonizationQuest(memory, { target, origin });
     colonizationTargetTileId = target.tileId;
     ensureColonizationOrganizer(gameState, origin);
@@ -15863,14 +15870,11 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
 }
 
 function hospitallerMaltaQuestPorts() {
-  const findPort = (city, country) => portCities.find((port) => (
-    port.city === city && port.country === country
-  )) || null;
   return {
-    rhodes: findPort("Rhodes", "Greece"),
-    rome: findPort("Rome", "Italy"),
-    malta: findPort("Birgu", "Malta"),
-    tripoli: findPort("Tripoli", "Libya")
+    rhodes: requireCanonicalPort(portCities, CANONICAL_PORTS.RHODES, "Hospitaller Malta quest"),
+    rome: requireCanonicalPort(portCities, CANONICAL_PORTS.ROME, "Hospitaller Malta quest"),
+    malta: requireCanonicalPort(portCities, CANONICAL_PORTS.BIRGU, "Hospitaller Malta quest"),
+    tripoli: requireCanonicalPort(portCities, CANONICAL_PORTS.TRIPOLI, "Hospitaller Malta quest")
   };
 }
 
@@ -16113,7 +16117,8 @@ function maybeOpenPapalCommissionPortDialogue(cityCall) {
       ? completePapalCommissionAtRome(cityCall, matter)
       : openPapalCommissionDestination(cityCall, matter, objective.destination);
   }
-  if (cityCall.factionId !== "papal-states" || cityCall.city !== "Rome" ||
+  if (cityCall.factionId !== "papal-states" ||
+      !portMatchesCanonicalReference(cityCall, CANONICAL_PORTS.ROME) ||
       matter.playerOfferStatus !== null) {
     return false;
   }
@@ -16126,7 +16131,8 @@ function maybeOpenPapalCommissionPortDialogue(cityCall) {
   );
   const nuncio = generatePapalNuncio(matter, cityCall);
   const rhodesStillHospitaller = portCities.some((port) => (
-    port.city === "Rhodes" && port.factionId === "hospitallers"
+    portMatchesCanonicalReference(port, CANONICAL_PORTS.RHODES) &&
+    port.factionId === "hospitallers"
   ));
   const steps = [
     pairedCharacterAlertStep({

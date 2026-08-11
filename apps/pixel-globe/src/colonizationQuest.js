@@ -1,4 +1,5 @@
 import { colonizationTargetForCity } from "./colonialCities.js";
+import { CANONICAL_PORTS } from "./canonicalPorts.js";
 import {
   CARGO_SPACE_TICKS_PER_UNIT,
   availableCargoTicks,
@@ -14,8 +15,8 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const COLONIZATION_QUEST_VERSION = 1;
-export const COLONIZATION_ORIGIN_CITY = "Bordeaux";
-export const COLONIZATION_ORIGIN_COUNTRY = "France";
+export const COLONIZATION_ORIGIN_CITY = CANONICAL_PORTS.BORDEAUX.city;
+export const COLONIZATION_ORIGIN_COUNTRY = CANONICAL_PORTS.BORDEAUX.country;
 export const COLONIZATION_TARGET_CITY = "Port Royal";
 export const COLONIZATION_TARGET_COUNTRY = "Canada";
 export const COLONIZATION_TARGET_PORT_ID = "colony-port-royal";

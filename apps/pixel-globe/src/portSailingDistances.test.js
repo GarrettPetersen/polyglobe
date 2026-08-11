@@ -3,6 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import {
+  CANONICAL_PORTS,
+  REQUIRED_CANONICAL_PORTS,
+  requireCanonicalPort,
+  validateCanonicalPortCatalog
+} from "./canonicalPorts.js";
 import { COLONIZATION_TARGETS } from "./colonialCities.js";
 import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
@@ -100,6 +106,8 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
   const cityByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities: cityCatalog });
   const portCities = portCitiesOnWorld(cityByTileId, placementOptions);
+  const canonicalPorts = validateCanonicalPortCatalog(portCities);
+  assert.equal(canonicalPorts.size, REQUIRED_CANONICAL_PORTS.length);
   const colonyTargets = placeColonizationTargetsOnWorld({
     ...placementOptions,
     targets: COLONIZATION_TARGETS,
@@ -107,6 +115,8 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   });
   const nagasakiVillage = portCities.find((port) => port.city === "Nagasaki" && port.country === "Japan");
   const hakata = portCities.find((port) => port.city === "Fukuoka" && port.country === "Japan");
+  const ningbo = requireCanonicalPort(portCities, CANONICAL_PORTS.NINGBO, "Production port test");
+  const hangzhou = portCities.find((port) => port.city === "Hangzhou" && port.country === "China");
   const nagasakiTarget = colonyTargets.find((target) => target.city === "Nagasaki" && target.country === "Japan");
   assert.ok(nagasakiVillage, "Nagasaki village should be a baked port");
   assert.ok(hakata, "historical Hakata should remain a baked Japanese port");
@@ -117,6 +127,11 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
     false,
     "Hakata and Nagasaki should not occupy neighboring city hexes"
   );
+  assert.ok(hangzhou, "Hangzhou should remain a dockable port");
+  const ningboNeighbor = portCities.find((port) => (
+    port.tileId !== ningbo.tileId && graph.neighbors[ningbo.tileId].includes(port.tileId)
+  ));
+  assert.equal(ningboNeighbor, undefined, "Ningbo should not neighbor another dockable port");
   assert.equal(nagasakiTarget?.tileId, nagasakiVillage.tileId);
   assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [
     ...portCities,

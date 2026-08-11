@@ -2,6 +2,7 @@ import {
   religionById,
   religionCandidatesForHome
 } from "./characterReligion.js";
+import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const RELIGIOUS_PASSENGER_SCENARIO_CHANCE = 0.45;
@@ -29,8 +30,8 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     title: "The Friar Bound West",
     passengerReligionIds: ["roman-catholic"],
     participantReligionIds: ["roman-catholic"],
-    originCities: ["Gent"],
-    destinationCities: ["Veracruz"],
+    originPorts: [CANONICAL_PORTS.GENT],
+    destinationPorts: [CANONICAL_PORTS.VERACRUZ],
     destinationReligionIds: null,
     roleLabel: "Franciscan friar",
     preferClergy: true,
@@ -51,8 +52,8 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     title: "A Dominican's Testimony",
     passengerReligionIds: ["roman-catholic"],
     participantReligionIds: ["roman-catholic"],
-    originCities: ["Seville"],
-    destinationCities: ["Santo Domingo"],
+    originPorts: [CANONICAL_PORTS.SEVILLE],
+    destinationPorts: [CANONICAL_PORTS.SANTO_DOMINGO],
     destinationReligionIds: null,
     roleLabel: "Dominican friar",
     preferClergy: true,
@@ -73,8 +74,8 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     title: "A Friar for Goa",
     passengerReligionIds: ["roman-catholic"],
     participantReligionIds: ["roman-catholic"],
-    originCities: ["Lisbon"],
-    destinationCities: ["Goa"],
+    originPorts: [CANONICAL_PORTS.LISBON],
+    destinationPorts: [CANONICAL_PORTS.GOA],
     destinationReligionIds: null,
     roleLabel: "Franciscan friar",
     preferClergy: true,
@@ -95,8 +96,8 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     title: "Letters Between Two Churches",
     passengerReligionIds: ["roman-catholic", "ethiopian-orthodox"],
     participantReligionIds: ["roman-catholic", "ethiopian-orthodox"],
-    originCities: ["Lisbon", "Massawa"],
-    destinationCities: ["Lisbon", "Massawa"],
+    originPorts: [CANONICAL_PORTS.LISBON, CANONICAL_PORTS.MASSAWA],
+    destinationPorts: [CANONICAL_PORTS.LISBON, CANONICAL_PORTS.MASSAWA],
     destinationReligionIds: null,
     roleLabel: "embassy cleric",
     preferClergy: true,
@@ -138,7 +139,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     title: "The September Testament",
     passengerReligionIds: ["lutheran"],
     participantReligionIds: PROTESTANT_RELIGIONS,
-    originCities: ["Hamburg", "Lubeck", "Bremen"],
+    originPorts: [CANONICAL_PORTS.HAMBURG, CANONICAL_PORTS.LUBECK, CANONICAL_PORTS.BREMEN],
     destinationCityTypes: ["northern-european"],
     destinationReligionIds: ["roman-catholic"],
     destinationFactorReligionId: "roman-catholic",
@@ -643,13 +644,13 @@ function buildMissionPlan(mission, origin, portCities, context, rollKey, playerR
 }
 
 function portMatchesOrigin(mission, port) {
-  return optionalListMatches(mission.originCities, port.city) &&
+  return optionalPortListMatches(mission.originPorts, port) &&
     optionalListMatches(mission.originCountries, port.country) &&
     optionalListMatches(mission.originCityTypes, port.cityType);
 }
 
 function portMatchesDestination(mission, port) {
-  if (!optionalListMatches(mission.destinationCities, port.city) ||
+  if (!optionalPortListMatches(mission.destinationPorts, port) ||
       !optionalListMatches(mission.destinationCountries, port.country) ||
       !optionalListMatches(mission.destinationCityTypes, port.cityType)) {
     return false;
@@ -772,8 +773,8 @@ function religiousMission(spec) {
     destinationReligionIds: destinationReligionIds === null
       ? null
       : Object.freeze([...destinationReligionIds]),
-    originCities: freezeOptional(spec.originCities),
-    destinationCities: freezeOptional(spec.destinationCities),
+    originPorts: freezeOptional(spec.originPorts),
+    destinationPorts: freezeOptional(spec.destinationPorts),
     originCountries: freezeOptional(spec.originCountries),
     destinationCountries: freezeOptional(spec.destinationCountries),
     originCityTypes: freezeOptional(spec.originCityTypes),
@@ -797,6 +798,12 @@ function religiousMission(spec) {
 
 function freezeOptional(values) {
   return values === undefined ? null : Object.freeze([...values]);
+}
+
+function optionalPortListMatches(references, port) {
+  return references === null || references.some((reference) => (
+    portMatchesCanonicalReference(port, reference)
+  ));
 }
 
 function normalizedChance(value, fallback) {

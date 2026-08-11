@@ -1,4 +1,9 @@
 import { gameCalendarDateAtMinute } from "./characterBiography.js";
+import {
+  CANONICAL_PORTS,
+  canonicalPortDisplayName,
+  portMatchesCanonicalReference
+} from "./canonicalPorts.js";
 import { TEA_GOOD_ID, tradeGoodById } from "./economy.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 
@@ -7,16 +12,15 @@ export const TEA_RACE_CARGO_QUANTITY = 10;
 export const TEA_RACE_FIRST_PRIZE = 10000;
 export const TEA_RACE_FINISHER_PRIZE = 2500;
 export const TEA_RACE_THEFT_REPUTATION = -40;
-export const TEA_RACE_DESTINATION_CITY = "London";
+export const TEA_RACE_DESTINATION_CITY = CANONICAL_PORTS.LONDON.city;
 
 const TEA_RACE_SEASON_START_DAY = 73;
 const TEA_RACE_SEASON_END_DAY = 181;
-const TEA_RACE_SOURCE_CITIES = new Set([
-  "Guangzhou",
-  "Fuzhou",
-  "Tsinkiang",
-  "Jinjiang",
-  "Changsha"
+const TEA_RACE_SOURCE_PORTS = Object.freeze([
+  CANONICAL_PORTS.GUANGZHOU,
+  CANONICAL_PORTS.FUZHOU,
+  CANONICAL_PORTS.JINJIANG,
+  CANONICAL_PORTS.CHANGSHA
 ]);
 const TEA_RACE_COMPETITORS = Object.freeze([
   competitor("portugal", "portuguese-carrack", 0, 0.86),
@@ -39,7 +43,9 @@ export function teaRaceSeasonAtMinute(simMinute, longitudeDeg = 0) {
 }
 
 export function isTeaRaceSourcePort(city) {
-  return city?.factionId === "ming" && TEA_RACE_SOURCE_CITIES.has(portName(city));
+  return city?.factionId === "ming" && TEA_RACE_SOURCE_PORTS.some((reference) => (
+    portMatchesCanonicalReference(city, reference)
+  ));
 }
 
 export function createTeaRaceQuest({
@@ -52,7 +58,7 @@ export function createTeaRaceQuest({
   if (!isTeaRaceSourcePort(origin)) {
     throw new Error(`Tea race requires a Ming tea port: ${portName(origin)}`);
   }
-  if (portName(destination) !== TEA_RACE_DESTINATION_CITY) {
+  if (!portMatchesCanonicalReference(destination, CANONICAL_PORTS.LONDON)) {
     throw new Error(`Tea race requires ${TEA_RACE_DESTINATION_CITY}: ${portName(destination)}`);
   }
   if (typeof originKey !== "string" || originKey === "" ||
@@ -175,5 +181,5 @@ function competitor(factionId, shipSlug, departureDelayMinutes, holdProgress) {
 }
 
 function portName(city) {
-  return city?.portAlias || city?.displayCity || city?.city || "";
+  return canonicalPortDisplayName(city);
 }

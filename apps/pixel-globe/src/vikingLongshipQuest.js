@@ -1,4 +1,5 @@
 import { deliverQuestCargoRequirement } from "./gameState.js";
+import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
 import {
   NAMED_CREW_ROLE_HISTORIAN,
   hasPermanentCrewBerth,
@@ -10,8 +11,8 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const VIKING_LONGSHIP_SLUG = "viking-longship";
-export const VIKING_LONGSHIP_PORT_CITY = "Hafnarfjordur";
-export const VIKING_LONGSHIP_PORT_COUNTRY = "Iceland";
+export const VIKING_LONGSHIP_PORT_CITY = CANONICAL_PORTS.HAFNARFJORDUR.city;
+export const VIKING_LONGSHIP_PORT_COUNTRY = CANONICAL_PORTS.HAFNARFJORDUR.country;
 export const VIKING_LONGSHIP_PRICE = 42000;
 export const VIKING_LONGSHIP_SPAWN_CHANCE = 0.2;
 export const VIKING_LONGSHIP_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
@@ -41,7 +42,7 @@ const REWARD_DISPOSITIONS = new Set([
 ]);
 
 export function isVikingLongshipQuestPort(city) {
-  return city?.city === VIKING_LONGSHIP_PORT_CITY && city?.country === VIKING_LONGSHIP_PORT_COUNTRY;
+  return portMatchesCanonicalReference(city, CANONICAL_PORTS.HAFNARFJORDUR);
 }
 
 export function maybeSpawnVikingLongshipQuest(state, city, context = {}) {

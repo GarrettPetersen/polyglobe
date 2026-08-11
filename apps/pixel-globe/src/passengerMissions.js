@@ -39,6 +39,10 @@ import {
 } from "./diplomaticMissions.js";
 import { courtMatterDialogue, courtMissionPlan } from "./courtPolitics.js";
 import {
+  CANONICAL_PORTS,
+  findCanonicalPort
+} from "./canonicalPorts.js";
+import {
   EAST_ASIAN_MISSION_NINGBO,
   eastAsianMissionDialogue,
   eastAsianMissionPlanForCity,
@@ -57,7 +61,6 @@ export const HAJJ_PASSENGER_SCENARIO_CHANCE = 0.35;
 export const HAJJ_PASSENGER_MIN_DISTANCE_KM = 300;
 export const HAJJ_PASSENGER_MAX_DISTANCE_KM = 16000;
 
-const HAJJ_DESTINATION_CITY = "jeddah";
 const HAJJ_PASSENGER_SCENARIO = Object.freeze({
   id: HAJJ_PASSENGER_SCENARIO_ID,
   expressionId: "attentive",
@@ -829,9 +832,7 @@ function choosePassengerDestination(origin, portCities, context) {
 function hajjPassengerPlan(origin, portCities, context, rollKey) {
   const forcedHajj = context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID;
   if (context.scenarioId && !forcedHajj) return null;
-  const destination = portCities.find((port) => (
-    String(port.displayCity || port.city || "").trim().toLowerCase() === HAJJ_DESTINATION_CITY
-  ));
+  const destination = findCanonicalPort(portCities, CANONICAL_PORTS.JEDDAH, "Hajj passenger mission");
   if (!destination || destination.tileId === origin.tileId) return null;
   const passengerReligionId = islamicReligionForHome(
     origin,

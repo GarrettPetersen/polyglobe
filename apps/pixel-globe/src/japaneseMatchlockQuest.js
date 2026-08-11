@@ -1,4 +1,5 @@
 import { COLONIZATION_STAGE_ESTABLISHED } from "./colonizationQuest.js";
+import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
 import {
   GUNPOWDER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
@@ -10,8 +11,8 @@ import {
 } from "./questCargoDeliveries.js";
 
 export const JAPANESE_MATCHLOCK_QUEST_VERSION = 1;
-export const JAPANESE_MATCHLOCK_WORKSHOP_CITY = "Kyoto";
-export const JAPANESE_MATCHLOCK_WORKSHOP_COUNTRY = "Japan";
+export const JAPANESE_MATCHLOCK_WORKSHOP_CITY = CANONICAL_PORTS.KYOTO.city;
+export const JAPANESE_MATCHLOCK_WORKSHOP_COUNTRY = CANONICAL_PORTS.KYOTO.country;
 export const JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY = 1.5;
 export const JAPANESE_MATCHLOCK_INITIAL_STOCK = 6;
 export const JAPANESE_MATCHLOCK_COMPLETION_REWARD = 1200;
@@ -111,14 +112,14 @@ export function japaneseMatchlockQuestMemory(state) {
 }
 
 export function isJapaneseMatchlockWorkshopCity(city) {
-  return city?.city === JAPANESE_MATCHLOCK_WORKSHOP_CITY &&
-    city?.country === JAPANESE_MATCHLOCK_WORKSHOP_COUNTRY;
+  return portMatchesCanonicalReference(city, CANONICAL_PORTS.KYOTO);
 }
 
 export function japaneseMatchlockPrerequisiteMet(state) {
   const colony = state?.memory?.colonization;
   return colony?.stage === COLONIZATION_STAGE_ESTABLISHED &&
-    colony.targetCity === "Nagasaki" && colony.targetCountry === "Japan";
+    colony.targetCity === CANONICAL_PORTS.NAGASAKI.city &&
+    colony.targetCountry === CANONICAL_PORTS.NAGASAKI.country;
 }
 
 export function maybeSpawnJapaneseMatchlockQuest(state, city, context = {}) {
