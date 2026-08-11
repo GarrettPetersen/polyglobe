@@ -49,6 +49,7 @@ import {
   isEastAsianMissionQuest,
   ningboDelegationManifest
 } from "./eastAsianQuestlines.js";
+import { createOpenQuestItinerary } from "./questItinerary.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -667,6 +668,28 @@ function buildEastAsianPassengerQuest(plan) {
     passengerName: plan.roleLabel,
     seen: false,
     dialogue: eastAsianMissionDialogue(plan),
+    ...(plan.itinerary
+      ? {
+        eastAsianItinerary: plan.itinerary.map((stop, index) => ({
+          key: cityKey(stop),
+          tileId: stop.tileId,
+          name: cityLabel(stop),
+          country: stop.country || "",
+          upgradesBattery: index > 0
+        })),
+        openItinerary: createOpenQuestItinerary(
+          plan.itinerary.map((stop, index) => ({
+            key: cityKey(stop),
+            tileId: stop.tileId,
+            name: cityLabel(stop),
+            country: stop.country || "",
+            upgradesBattery: index > 0
+          })),
+          { openingStopTileId: plan.itinerary[0].tileId }
+        ),
+        eastAsianBatteryUpgrades: []
+      }
+      : {}),
     ...(plan.id === EAST_ASIAN_MISSION_NINGBO
       ? {
         eastAsianStage: "race",

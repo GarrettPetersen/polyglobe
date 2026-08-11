@@ -441,8 +441,9 @@ test("young whales are easier player catches with proportionally smaller yields"
   assert.ok(results[1].towingSpeed < results[2].towingSpeed);
   assert.ok(results[0].yieldAmount < results[1].yieldAmount);
   assert.ok(results[1].yieldAmount < results[2].yieldAmount);
-  assert.match(results[0].label, /calf$/);
-  assert.match(results[1].label, /\(adolescent\)$/);
+  assert.match(results[0].label, /, (female|male) calf$/);
+  assert.match(results[1].label, /, adolescent (female|male)$/);
+  assert.match(results[2].label, /, adult (female|male)$/);
 });
 
 function angularDistance(a, b) {

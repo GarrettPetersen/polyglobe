@@ -1606,6 +1606,7 @@ import {
   pendingPassengerOfferForCity,
   travelMissionOfferForCity
 } from "./passengerMissions.js";
+import { questDestinationStops, questHasDestination } from "./questItinerary.js";
 import {
   isReligiousPassengerQuest,
   religiousMissionIsCatholicContraband,
@@ -2739,7 +2740,6 @@ const SFX_LIGHTNING_VOLUME = 0.72;
 const SFX_CREW_DEATH_VOLUME = 0.52;
 const SFX_WHALE_BLOW_VOLUME = 0.7;
 const SFX_WHALE_KILL_VOLUME = 0.86;
-const WHALE_EXHAUSTED_MESSAGE = "The whale is exhausted! Time to land the killing blow!";
 const WHALE_EXHAUSTED_EXPRESSION_ID = "stern";
 const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
@@ -9295,7 +9295,7 @@ function updateCaptureWhale(sequence) {
   }
   if (captureCue("exhaust-whale", 2.2)) {
     const whale = exhaustTetheredWhale(gameState.memory.whales);
-    openCaptainAlertModal(WHALE_EXHAUSTED_MESSAGE, WHALE_EXHAUSTED_EXPRESSION_ID);
+    openCaptainAlertModal(whaleExhaustedMessage(whale), WHALE_EXHAUSTED_EXPRESSION_ID);
     emitCaptureEvent("capture-beat", { action: "exhaust-whale", speciesId: whale.speciesId });
   }
   if (captureCue("dismiss-exhausted", 3.2) && captainAlertModal) closeCaptainAlertModal();
@@ -15427,9 +15427,7 @@ function openPortDialogue(cityCall) {
     ((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort)
   );
   const arrivingTravelMission = activeTravelMissionQuest(gameState);
-  if (portUnavailable &&
-      arrivingTravelMission?.destinationTileId === cityCall.tileId &&
-      shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
+  if (portUnavailable && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
     dialogueState = createPassengerDialogueSession(cityCall, arrivingTravelMission, {
       admittedToPort: false,
       continueToPortOnClose: true,
@@ -18440,6 +18438,12 @@ function chooseDialogueOption(optionIndex) {
         "good"
       );
     }
+    if (result.eastAsianLegDelivery) {
+      showSurvivalNotice(
+        `ARTILLERY CIRCUIT  ${result.eastAsianLegDelivery.legNumber}/${result.eastAsianLegDelivery.legCount}`,
+        "good"
+      );
+    }
     if (result.acceptedQuest?.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO) {
       ensureNingboMissionEncounters();
     }
@@ -19488,7 +19492,7 @@ function portPoliticalRivalTerms(city) {
 function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
   const activeMission = activeTravelMissionQuest(gameState);
   if (activeMission) {
-    return activeMission.destinationTileId === city.tileId ? activeMission : null;
+    return questHasDestination(activeMission, city) ? activeMission : null;
   }
   if (!createOffer) return pendingPassengerOfferForCity(gameState, city);
   return travelMissionOfferForCity(gameState, city, playerAccessiblePortCities(), {
@@ -19504,7 +19508,7 @@ function shouldAutoOpenPassengerDialogue(city, quest) {
   if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest))) {
     return false;
   }
-  if (quest.destinationTileId === city.tileId && activeTravelMissionQuest(gameState)?.id === quest.id) return true;
+  if (questHasDestination(quest, city) && activeTravelMissionQuest(gameState)?.id === quest.id) return true;
   return quest.originTileId === city.tileId && quest.seen !== true;
 }
 
@@ -19856,7 +19860,8 @@ function updateWhales(dt, nowMs) {
       }
       changed = true;
     } else if (event.type === "exhausted") {
-      openCaptainAlertModal(WHALE_EXHAUSTED_MESSAGE, WHALE_EXHAUSTED_EXPRESSION_ID);
+      const whale = whaleById(gameState.memory.whales, event.whaleId);
+      openCaptainAlertModal(whaleExhaustedMessage(whale), WHALE_EXHAUSTED_EXPRESSION_ID);
       changed = true;
     } else if (event.type === "ice-line-break") {
       showSurvivalNotice("SEA ICE PARTED THE HARPOON LINE", "warn");
@@ -20057,6 +20062,10 @@ function whaleInteractionCall(whale) {
     frame: headingFrameForScreenHeading(heading),
     scale: whaleLifeStageScale(whale)
   };
+}
+
+function whaleExhaustedMessage(whale) {
+  return `The ${whaleDisplayLabel(whale)} is exhausted. Time to land the killing blow.`;
 }
 
 function whaleBlowOriginPosition(whale) {
@@ -35464,7 +35473,7 @@ function questJournalEntries() {
           : "quest.mission";
     const title = isTeaRaceQuest(activeQuest) ? "NEW TEA RACE" : uiText(titleKey);
     entries.push({
-      id: `travel:${activeQuest.id}`,
+      id: `travel:${activeQuest.id}:${activeDestination.tileId}`,
       title,
       nextStep: isTeaRaceQuest(activeQuest)
         ? activeQuest.teaRaceFirstRivalArrivalMinute === undefined
@@ -36015,7 +36024,7 @@ function navigationMenuEntries() {
   }
   for (const { quest, destination: questDestination } of activeQuestDestinations()) {
     entries.push({
-      id: `quest:${quest.id}`,
+      id: `quest:${quest.id}:${questDestination.tileId}`,
       destinationName: cityLabelText(questDestination),
       reason: navigationQuestReason(quest),
       style: QUEST_NAVIGATION_STYLE,
@@ -47356,7 +47365,7 @@ function drawQuestDestinationArrow(nowMs) {
     const destinationVector = placedCityTargetVector(destination);
     const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
     drawWorldTargetArrow({
-      id: `quest:${quest.id}`,
+      id: `quest:${quest.id}:${destination.tileId}`,
       label: cityLabelText(destination),
       targetVector: destinationVector,
       localPoint: visibleCity || localPointForGlobeVector(destinationVector),
@@ -47736,16 +47745,18 @@ function activeQuestDestinations() {
   return [
     gameState.memory.quests.active,
     gameState.memory.quests.passengerActive
-  ].filter(Boolean).map((quest) => ({
+  ].filter(Boolean).flatMap((quest) => questDestinationStops(quest).map((stop) => ({
     quest,
-    destination: destinationPortForQuest(quest)
-  })).filter((entry) => entry.destination);
+    destination: destinationPortForQuestStop(stop)
+  }))).filter((entry) => entry.destination);
 }
 
-function destinationPortForQuest(quest) {
-  if (!quest?.destinationTileId) return null;
-  const destination = portCitiesByTileId?.get(quest.destinationTileId) || cityByTileId?.get(quest.destinationTileId);
-  if (!destination || !Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) return null;
+function destinationPortForQuestStop(stop) {
+  const destination = portCitiesByTileId?.get(stop.tileId) || cityByTileId?.get(stop.tileId);
+  if (!destination) throw new Error(`Quest destination is not a placed port: ${stop.name} (${stop.tileId})`);
+  if (!Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) {
+    throw new Error(`Quest destination has no coordinates: ${stop.name} (${stop.tileId})`);
+  }
   return destination;
 }
 
@@ -48761,6 +48772,12 @@ function drawInteractionButton() {
       controllerAction: "secondary"
     });
   }
+  if (["whale", "whale-cut", "whale-finish"].includes(target.kind)) {
+    drawWhaleInteractionIdentity(target, Math.min(
+      interactionButtonRect.y,
+      whaleReleaseButtonRect?.y ?? interactionButtonRect.y
+    ));
+  }
   if (controllerPromptsVisible() && activeInteractionTargets().length > 1) {
     const hintRect = {
       x: interactionButtonRect.x + interactionButtonRect.w - 62,
@@ -48778,6 +48795,28 @@ function drawInteractionButton() {
       color: PIRATE_MENU_INK
     });
   }
+}
+
+function drawWhaleInteractionIdentity(target, controlsTop) {
+  if (!target.call?.label) throw new Error("Whale interaction identity requires a label");
+  const layout = noticeTextLayout(target.call.label, Math.min(260, SCREEN_W - 12));
+  const rect = {
+    x: Math.round((SCREEN_W - layout.width) / 2),
+    y: Math.max(4, controlsTop - layout.height - 3),
+    w: layout.width,
+    h: layout.height
+  };
+  ctx.fillStyle = "rgba(25, 31, 36, 0.9)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = "#8ac0b4";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = "#d6f2e8";
+  layout.lines.forEach((line, index) => {
+    drawPixelText(line, SCREEN_W / 2, rect.y + 3 + index * layout.lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  });
 }
 
 function drawAnchorButton(nowMs) {

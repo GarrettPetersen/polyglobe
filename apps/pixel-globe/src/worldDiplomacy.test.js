@@ -31,6 +31,7 @@ import {
   worldDiplomacyBetween,
   rawWorldDiplomacyBetween
 } from "./worldDiplomacy.js";
+import { SUZERAINTY_KIND_TRIBUTARY } from "./suzerainty.js";
 
 const DAY = 24 * 60;
 
@@ -43,6 +44,19 @@ test("world diplomacy begins from the historical 1522 matrix", () => {
   assert.equal(worldDiplomacyBetween(state, "ottoman", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, PIRATE_FACTION_ID, "england"), DIPLOMACY_WAR);
   assert.ok(state.nextEventMinute >= 100 + DIPLOMACY_MIN_EVENT_DAYS * DAY);
+});
+
+test("tributary news explains who pays whom", () => {
+  assert.equal(diplomacyEventNotice({
+    id: "test-shimazu-tribute",
+    simMinute: 100,
+    kind: "vassalage",
+    factionAId: "shimazu",
+    factionBId: "japan",
+    reason: "court-policy",
+    relationshipKind: SUZERAINTY_KIND_TRIBUTARY,
+    headline: "Shimazu agrees to pay tribute to Japan."
+  }), "SHIMAZU AGREES TO PAY TRIBUTE TO JAPAN.");
 });
 
 test("integrated and autonomous subjects have distinct foreign policies", () => {

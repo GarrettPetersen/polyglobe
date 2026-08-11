@@ -22,6 +22,7 @@ import {
   createMarketUndoSnapshot,
   declineEquipmentFactorPitch,
   deliveryOfferForCity,
+  deliverEastAsianMissionLeg,
   deliverReligiousMissionLeg,
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
@@ -114,11 +115,14 @@ import {
 } from "./religiousMissions.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
+  EAST_ASIAN_MISSION_PORTUGUESE_GUNS,
+  PORTUGUESE_GUNS_STOP_COUNT,
   eastAsianMissionHasOutcomes,
   eastAsianMissionOutcomeOptions,
   eastAsianMissionOutcomeResultText,
   isEastAsianMissionQuest
 } from "./eastAsianQuestlines.js";
+import { questHasDestination } from "./questItinerary.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
   activeForeignSettlements,
@@ -2500,6 +2504,20 @@ export function passengerDialogueView(session, city, quest, gameState) {
       options: [option("Continue the circuit", { type: "close" })]
     };
   }
+  if (session.eastAsianLegDelivery && !session.eastAsianLegDelivery.final) {
+    const remaining = joinedNames(session.eastAsianLegDelivery.remainingDestinationNames);
+    return {
+      speaker,
+      expressionId: "pleased",
+      text: session.eastAsianLegDelivery.batteryUpgrade
+        ? `${session.eastAsianLegDelivery.destinationName}'s battery has its new guns. ` +
+          `The remaining plans may go to ${remaining} in any order.`
+        : `Nanjing has copied the Portuguese patterns. ` +
+          `We may now refit ${remaining} in any order.`,
+      feedback: session.feedback,
+      options: [option("Continue the artillery circuit", { type: "close" })]
+    };
+  }
   if (session.envoyNegotiationResult) {
     if (!isEnvoyQuest(quest)) {
       throw new Error("Passenger dialogue stored an envoy negotiation for a non-envoy quest");
@@ -2574,7 +2592,31 @@ export function passengerDialogueView(session, city, quest, gameState) {
       ]
     };
   }
-  if (active?.id === quest.id && quest.destinationTileId === city.tileId) {
+  if (active?.id === quest.id && questHasDestination(quest, city) &&
+      quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {
+    const completedStops = quest.openItinerary?.completedTileIds?.length || 0;
+    const legNumber = completedStops + 1;
+    const arsenalStop = completedStops === 0;
+    return {
+      speaker,
+      expressionId: "attentive",
+      text: arsenalStop
+        ? "Nanjing's founders are ready to measure the captured guns. Once the patterns are copied, we must carry them to the batteries at Ningbo, Fuzhou, and Guangzhou."
+        : `${cityLabel(city)} has a battery crew waiting for the Portuguese patterns and proof pieces. ` +
+          `${PORTUGUESE_GUNS_STOP_COUNT - legNumber} refits will remain after this one.`,
+      feedback: session.feedback,
+      options: [
+        option(
+          arsenalStop
+            ? `Unload captured guns  ${legNumber}/${PORTUGUESE_GUNS_STOP_COUNT}`
+            : `Refit ${cityLabel(city)} battery  ${legNumber}/${PORTUGUESE_GUNS_STOP_COUNT}`,
+          { type: "deliver-east-asian-itinerary-leg" }
+        ),
+        option("Not yet", { type: "close" })
+      ]
+    };
+  }
+  if (active?.id === quest.id && questHasDestination(quest, city)) {
     if (isMultiPortReligiousMission(quest) && !session.religiousParticipationUnderway) {
       const legNumber = quest.religiousDeliveryLegIndex + 1;
       return {
@@ -2664,6 +2706,12 @@ export function passengerDialogueView(session, city, quest, gameState) {
       expressionId: "attentive",
       text: isEnvoyQuest(quest) && quest.stage === "return"
         ? quest.dialogue?.returnUnderway || `I carry the answer home to ${quest.originName}.`
+        : quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS && quest.openItinerary
+          ? `The artillery plans are bound for ${joinedNames(
+            quest.openItinerary.stops
+              .filter((stop) => !quest.openItinerary.completedTileIds.includes(stop.tileId))
+              .map((stop) => stop.name)
+          )}. We may visit the remaining ports in any order.`
         : isMultiPortReligiousMission(quest)
           ? `The next bundles are bound for ${quest.destinationName}. ` +
             `${quest.religiousItinerary.length - quest.religiousDeliveryLegIndex} deliveries remain.`
@@ -2771,6 +2819,15 @@ export function selectPassengerDialogueOption(
     return { closed: false, action: null };
   }
   let religiousLegDelivery = null;
+  let eastAsianLegDelivery = null;
+  if (action.type === "deliver-east-asian-itinerary-leg") {
+    eastAsianLegDelivery = deliverEastAsianMissionLeg(gameState, city, context);
+    session.eastAsianLegDelivery = eastAsianLegDelivery;
+    session.selectedIndex = 0;
+    if (!eastAsianLegDelivery.final) {
+      return { closed: false, action: null, eastAsianLegDelivery };
+    }
+  }
   if (action.type === "deliver-religious-itinerary-leg") {
     religiousLegDelivery = deliverReligiousMissionLeg(gameState, city, context);
     session.religiousLegDelivery = religiousLegDelivery;
@@ -2803,6 +2860,7 @@ export function selectPassengerDialogueOption(
     action.type === "complete-hajj" ||
     action.type === "complete-religious-mission" ||
     resolvingBibleFaith ||
+    eastAsianLegDelivery?.final === true ||
     religiousLegDelivery?.final === true
   ) {
     const completingHajj = action.type === "complete-hajj";
@@ -2872,6 +2930,7 @@ export function selectPassengerDialogueOption(
         : {}),
       ...(religiousConversion ? { religiousConversion } : {}),
       ...(religiousLegDelivery ? { religiousLegDelivery } : {}),
+      ...(eastAsianLegDelivery ? { eastAsianLegDelivery } : {}),
       ...(missionItemGift ? { missionItemGift } : {})
     };
   }
@@ -2922,9 +2981,21 @@ function assertPassengerDialogueSubject(session, city, quest) {
     throw new Error("Dialogue passenger quest does not match active session");
   }
   const negotiationTarget = session.envoyNegotiationResult && quest.targetTileId === city.tileId;
-  if (quest.originTileId !== city.tileId && quest.destinationTileId !== city.tileId && !negotiationTarget) {
+  const stagedItineraryResult = Boolean(
+    (session.religiousLegDelivery && !session.religiousLegDelivery.final) ||
+    (session.eastAsianLegDelivery && !session.eastAsianLegDelivery.final)
+  );
+  if (quest.originTileId !== city.tileId && !questHasDestination(quest, city) &&
+      !negotiationTarget && !stagedItineraryResult) {
     throw new Error(`${cityLabel(city)} is not part of passenger quest ${quest.id}`);
   }
+}
+
+function joinedNames(names) {
+  if (!Array.isArray(names) || names.length === 0) throw new Error("Destination list is empty");
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function greetingView(session, city, gameState, context) {
@@ -5199,7 +5270,8 @@ function questView(session, city, gameState, portCities) {
       const envoy = isEnvoyQuest(questState.quest);
       const scriptedPassenger = envoy ||
         isHajjPassengerQuest(questState.quest) ||
-        isReligiousPassengerQuest(questState.quest);
+        isReligiousPassengerQuest(questState.quest) ||
+        isEastAsianMissionQuest(questState.quest);
       const roleLabel = envoy ? "envoy" : passengerRoleLabel(questState.quest);
       return {
         speaker: speakerName(city),

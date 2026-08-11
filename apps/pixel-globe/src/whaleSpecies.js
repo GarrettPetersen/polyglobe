@@ -132,11 +132,28 @@ export function whaleSpeciesForIndividual(whale) {
 }
 
 export function whaleDisplayLabel(whale) {
-  if (whale?.id === WHITE_WHALE_ID) return "White whale";
-  const speciesLabel = whaleSpeciesForIndividual(whale).label;
-  if (whale.lifeStage === WHALE_LIFE_STAGE_CALF) return `${speciesLabel} calf`;
-  if (whale.lifeStage === WHALE_LIFE_STAGE_ADOLESCENT) return `${speciesLabel} (adolescent)`;
-  if (whale.lifeStage === WHALE_LIFE_STAGE_ADULT) return speciesLabel;
+  const speciesLabel = whale?.id === WHITE_WHALE_ID
+    ? "White whale"
+    : whaleSpeciesForIndividual(whale).label;
+  const sex = whale?.sex;
+  if (sex !== "female" && sex !== "male") {
+    throw new Error(`Unknown whale sex: ${sex ?? "missing"}`);
+  }
+  if (whale.lifeStage === WHALE_LIFE_STAGE_CALF) {
+    return sex === "female"
+      ? `${speciesLabel}, female calf`
+      : `${speciesLabel}, male calf`;
+  }
+  if (whale.lifeStage === WHALE_LIFE_STAGE_ADOLESCENT) {
+    return sex === "female"
+      ? `${speciesLabel}, adolescent female`
+      : `${speciesLabel}, adolescent male`;
+  }
+  if (whale.lifeStage === WHALE_LIFE_STAGE_ADULT) {
+    return sex === "female"
+      ? `${speciesLabel}, adult female`
+      : `${speciesLabel}, adult male`;
+  }
   throw new Error(`Unknown whale life stage: ${whale?.lifeStage ?? "missing"}`);
 }
 

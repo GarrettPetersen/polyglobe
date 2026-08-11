@@ -200,11 +200,19 @@ import {
   EAST_ASIAN_MISSION_YOSHIHARU,
   NINGBO_DEFECTION_BRIBE,
   NINGBO_RACE_BONUS,
+  PORTUGUESE_GUNS_ITINERARY_REFS,
   isEastAsianMissionQuest,
   removeSiblingEastAsianOffers,
   validateMissionOutcome
 } from "./eastAsianQuestlines.js";
 import { upgradeShoreBattery } from "./shoreBatteries.js";
+import {
+  completeOpenQuestItineraryStop,
+  createOpenQuestItinerary,
+  questDestinationStops,
+  questHasDestination,
+  validateOpenQuestItinerary
+} from "./questItinerary.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS,
@@ -366,7 +374,7 @@ import {
 } from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 65;
+export const GAME_STATE_VERSION = 66;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -677,7 +685,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1289,6 +1297,72 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
     final,
     nextDestinationName: final ? null : quest.religiousItinerary[index + 1].name
   });
+}
+
+export function deliverEastAsianMissionLeg(state, city, context = {}) {
+  assertGameState(state);
+  const quest = questMemory(state).passengerActive;
+  if (!quest || quest.eastAsianMissionId !== EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {
+    throw new Error("East Asian itinerary delivery requires the Portuguese guns mission");
+  }
+  const itinerary = ensurePortugueseGunsItinerary(quest, context.portCities);
+  const simMinute = context.simMinute ?? state.survival.lastMinute;
+  assertSimulationMinute(simMinute);
+  if (!questHasDestination(quest, city)) {
+    const available = questDestinationStops(quest).map((stop) => stop.name).join(", ");
+    throw new Error(`Portuguese artillery delivery is due at ${available}, not ${cityLabel(city)}`);
+  }
+  const delivery = completeOpenQuestItineraryStop(quest, city);
+  const stop = delivery.stop;
+  let batteryUpgrade = null;
+  if (stop.upgradesBattery) {
+    batteryUpgrade = upgradeShoreBattery(city, state.memory.flags);
+    quest.eastAsianBatteryUpgrades.push(batteryUpgrade);
+  }
+  recordDecision(state, `quest.east-asian-delivery.${quest.id}.${stop.tileId}`, 1);
+  return Object.freeze({
+    questId: quest.id,
+    legNumber: delivery.stepNumber,
+    legCount: itinerary.length,
+    destinationName: stop.name,
+    batteryUpgrade,
+    final: delivery.final,
+    nextDestinationName: delivery.remainingStops[0]?.name || null,
+    remainingDestinationNames: Object.freeze(delivery.remainingStops.map((entry) => entry.name))
+  });
+}
+
+function ensurePortugueseGunsItinerary(quest, portCities) {
+  if (Array.isArray(quest.eastAsianItinerary)) {
+    if (quest.eastAsianItinerary.length !== PORTUGUESE_GUNS_ITINERARY_REFS.length) {
+      throw new Error(`Portuguese guns itinerary has ${quest.eastAsianItinerary.length} stops`);
+    }
+    if (!Array.isArray(quest.eastAsianBatteryUpgrades)) quest.eastAsianBatteryUpgrades = [];
+    if (!quest.openItinerary) {
+      quest.openItinerary = createOpenQuestItinerary(quest.eastAsianItinerary, {
+        openingStopTileId: quest.eastAsianItinerary[0].tileId
+      });
+    }
+    return quest.eastAsianItinerary;
+  }
+  if (!Array.isArray(portCities)) {
+    throw new Error("Portuguese guns itinerary requires the current port list");
+  }
+  quest.eastAsianItinerary = PORTUGUESE_GUNS_ITINERARY_REFS.map((reference, index) => {
+    const port = requireCanonicalPort(portCities, reference, "Portuguese guns itinerary");
+    return {
+      key: cityKey(port),
+      tileId: port.tileId,
+      name: cityLabel(port),
+      country: port.country || "",
+      upgradesBattery: index > 0
+    };
+  });
+  quest.openItinerary = createOpenQuestItinerary(quest.eastAsianItinerary, {
+    openingStopTileId: quest.eastAsianItinerary[0].tileId
+  });
+  quest.eastAsianBatteryUpgrades = [];
+  return quest.eastAsianItinerary;
 }
 
 export function resolveCatholicBibleInspection(state, {
@@ -6041,6 +6115,13 @@ export function completeQuest(state, city, context = {}) {
     if (active.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO && active.eastAsianStage !== "resolved") {
       throw new Error(`Ningbo mission battle is unresolved: ${active.eastAsianStage}`);
     }
+    if (active.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS && (
+      !Array.isArray(active.eastAsianItinerary) ||
+      !active.openItinerary ||
+      questDestinationStops(active).length !== 0
+    )) {
+      throw new Error(`Portuguese artillery itinerary is incomplete: ${active.id}`);
+    }
     active.eastAsianResolution = applyEastAsianMissionConsequences(state, active, context);
   }
   if (religiousMissionChallengesPapalAuthority(active)) {
@@ -6212,17 +6293,10 @@ function applyEastAsianMissionConsequences(state, quest, context) {
       throw new Error(`Unhandled Tsushima mission outcome: ${quest.eastAsianOutcomeId}`);
     }
   } else if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {
-    if (!Array.isArray(context.portCities)) {
-      throw new Error("Portuguese guns mission completion requires the current port list");
+    if (!Array.isArray(quest.eastAsianBatteryUpgrades) || quest.eastAsianBatteryUpgrades.length !== 3) {
+      throw new Error(`Portuguese guns mission requires three completed battery refits: ${quest.id}`);
     }
-    for (const reference of [
-      CANONICAL_PORTS.GUANGZHOU,
-      CANONICAL_PORTS.NINGBO,
-      CANONICAL_PORTS.FUZHOU
-    ]) {
-      const port = requireCanonicalPort(context.portCities, reference, "Portuguese guns mission");
-      batteryUpgrades.push(upgradeShoreBattery(port, state.memory.flags));
-    }
+    batteryUpgrades.push(...quest.eastAsianBatteryUpgrades);
     reputation("ming", 8);
     authority("ming", 1.2, "portuguese-artillery-adopted");
   } else if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_RYUKYU) {
@@ -7563,6 +7637,13 @@ function assertDiplomaticQuestMemory(quests) {
   }
   for (const quest of [quests.active, ...Object.values(quests.deliveryOffers || {})]) {
     if (isTeaRaceQuest(quest)) validateTeaRaceQuest(quest);
+  }
+  for (const quest of [
+    quests.active,
+    quests.passengerActive,
+    ...Object.values(quests.passengerOffers || {})
+  ].filter(Boolean)) {
+    if (quest.openItinerary) validateOpenQuestItinerary(quest.openItinerary);
   }
 }
 

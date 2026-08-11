@@ -14,6 +14,13 @@ export const EAST_ASIAN_MISSION_GREAT_RITES = "great-rites-memorial";
 export const EAST_ASIAN_MISSION_YOSHIHARU = "yoshiharu-seal";
 export const NINGBO_DEFECTION_BRIBE = 450;
 export const NINGBO_RACE_BONUS = 250;
+export const PORTUGUESE_GUNS_ITINERARY_REFS = Object.freeze([
+  CANONICAL_PORTS.NANJING,
+  CANONICAL_PORTS.NINGBO,
+  CANONICAL_PORTS.FUZHOU,
+  CANONICAL_PORTS.GUANGZHOU
+]);
+export const PORTUGUESE_GUNS_STOP_COUNT = PORTUGUESE_GUNS_ITINERARY_REFS.length;
 
 const NINGBO_FACTIONS = Object.freeze(["hosokawa", "ouchi"]);
 const ALL_MISSION_IDS = Object.freeze([
@@ -41,6 +48,7 @@ const FIXED_MISSIONS = Object.freeze([
     originRef: CANONICAL_PORTS.GUANGZHOU,
     originFactionId: "ming",
     destinationRef: CANONICAL_PORTS.NANJING,
+    itineraryRefs: PORTUGUESE_GUNS_ITINERARY_REFS,
     roleLabel: "artillery founder",
     reward: 640,
     scenarioId: "east-asian-artillery"
@@ -83,7 +91,7 @@ export function eastAsianMissionPlanForCity(state, city, portCities) {
     if (missionAlreadyResolved(quests, definition.id)) continue;
     if (!portMatches(city, definition.originRef, definition.originFactionId)) continue;
     const destination = requireCanonicalPort(portCities, definition.destinationRef, definition.id);
-    return freezePlan(definition, city, destination);
+    return freezePlan(definition, city, destination, portCities);
   }
   return null;
 }
@@ -273,14 +281,22 @@ function ningboMissionPlan(quests, city, portCities) {
   }), city, destination);
 }
 
-function freezePlan(definition, origin, destination) {
+function freezePlan(definition, origin, destination, portCities = null) {
+  const itinerary = definition.itineraryRefs
+    ? definition.itineraryRefs.map((reference) => requireCanonicalPort(
+      portCities,
+      reference,
+      `${definition.id} itinerary`
+    ))
+    : null;
   return Object.freeze({
     ...definition,
     originName: displayName(origin),
     destinationName: displayName(destination),
     origin,
     destination,
-    distanceKm: Math.round(greatCircleDistanceKm(origin, destination))
+    distanceKm: Math.round(greatCircleDistanceKm(origin, destination)),
+    ...(itinerary ? { itinerary: Object.freeze(itinerary) } : {})
   });
 }
 

@@ -231,8 +231,8 @@ test("the politics view preserves the complete newest papal headline", () => {
   assert.equal(view.latestNews.text.endsWith("..."), false);
 });
 
-test("politics news keeps the five newest dated developments", () => {
-  const recentEvents = Array.from({ length: 7 }, (_, index) => ({
+test("politics news keeps the ten newest dated developments", () => {
+  const recentEvents = Array.from({ length: 12 }, (_, index) => ({
     id: `test-politics-${index}`,
     kind: index % 2 === 0 ? "war" : "peace",
     factionAId: "england",
@@ -248,8 +248,11 @@ test("politics news keeps the five newest dated developments", () => {
   });
 
   assert.equal(history.length, POLITICS_NEWS_HISTORY_LIMIT);
-  assert.deepEqual(history.map((entry) => entry.simMinute), [160, 150, 140, 130, 120]);
-  assert.equal(history[0].text, "WAR: ENGLAND / FRANCE");
+  assert.deepEqual(
+    history.map((entry) => entry.simMinute),
+    [210, 200, 190, 180, 170, 160, 150, 140, 130, 120]
+  );
+  assert.equal(history[0].text, "PEACE: ENGLAND / FRANCE");
   assert.equal(Object.isFrozen(history), true);
   assert.equal(Object.isFrozen(history[0]), true);
 });

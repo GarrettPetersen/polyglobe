@@ -55,7 +55,7 @@ export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_WAR]: "War"
 });
 
-export const POLITICS_NEWS_HISTORY_LIMIT = 5;
+export const POLITICS_NEWS_HISTORY_LIMIT = 10;
 
 export function createPoliticsView(
   gameState,

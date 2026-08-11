@@ -599,7 +599,9 @@ export function diplomacyEventNotice(event) {
   if (event.kind === "relations-worsen") return `RELATIONS WORSEN: ${a} / ${b}`;
   if (event.kind === "alliance-war") return `ALLY JOINS WAR: ${a} / ${b}`;
   if (event.kind === "vassalage") {
-    if (event.relationshipKind === SUZERAINTY_KIND_TRIBUTARY) return `TRIBUTE: ${a} / ${b}`;
+    if (event.relationshipKind === SUZERAINTY_KIND_TRIBUTARY) {
+      return event.headline.toUpperCase();
+    }
     if (event.relationshipKind === SUZERAINTY_KIND_AUTONOMOUS_VASSAL) {
       return `PROTECTORATE: ${a} / ${b}`;
     }

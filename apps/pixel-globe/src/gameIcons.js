@@ -410,6 +410,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "complete-religious-mission": "action:quest",
   "resolve-bible-faith": "religion:christian",
   "deliver-religious-itinerary-leg": "action:quest",
+  "deliver-east-asian-itinerary-leg": "action:quest",
   "surrender-bible-contraband": "action:leave",
   "evade-bible-inspection": "action:attack",
   "negotiate-envoy": "action:letter",

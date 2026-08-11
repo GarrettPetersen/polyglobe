@@ -124,6 +124,60 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "{0}, female calf": Object.freeze({
+    "zh-Hans": "{0}，雌性幼鲸", ru: "{0}, детёныш-самка", es: "{0}, cría hembra",
+    "pt-BR": "{0}, filhote fêmea", ja: "{0}（雌の幼鯨）", de: "{0}, weibliches Jungtier",
+    fr: "{0}, baleineau femelle", pl: "{0}, młoda samica", "zh-Hant": "{0}，雌性幼鯨",
+    ko: "{0}, 암컷 새끼"
+  }),
+  "{0}, male calf": Object.freeze({
+    "zh-Hans": "{0}，雄性幼鲸", ru: "{0}, детёныш-самец", es: "{0}, cría macho",
+    "pt-BR": "{0}, filhote macho", ja: "{0}（雄の幼鯨）", de: "{0}, männliches Jungtier",
+    fr: "{0}, baleineau mâle", pl: "{0}, młody samiec", "zh-Hant": "{0}，雄性幼鯨",
+    ko: "{0}, 수컷 새끼"
+  }),
+  "{0}, adolescent female": Object.freeze({
+    "zh-Hans": "{0}，雌性亚成体", ru: "{0}, молодая самка", es: "{0}, hembra joven",
+    "pt-BR": "{0}, fêmea jovem", ja: "{0}（若い雌）", de: "{0}, heranwachsendes Weibchen",
+    fr: "{0}, jeune femelle", pl: "{0}, dorastająca samica", "zh-Hant": "{0}，雌性亞成體",
+    ko: "{0}, 어린 암컷"
+  }),
+  "{0}, adolescent male": Object.freeze({
+    "zh-Hans": "{0}，雄性亚成体", ru: "{0}, молодой самец", es: "{0}, macho joven",
+    "pt-BR": "{0}, macho jovem", ja: "{0}（若い雄）", de: "{0}, heranwachsendes Männchen",
+    fr: "{0}, jeune mâle", pl: "{0}, dorastający samiec", "zh-Hant": "{0}，雄性亞成體",
+    ko: "{0}, 어린 수컷"
+  }),
+  "{0}, adult female": Object.freeze({
+    "zh-Hans": "{0}，成年雌性", ru: "{0}, взрослая самка", es: "{0}, hembra adulta",
+    "pt-BR": "{0}, fêmea adulta", ja: "{0}（成体の雌）", de: "{0}, ausgewachsenes Weibchen",
+    fr: "{0}, femelle adulte", pl: "{0}, dorosła samica", "zh-Hant": "{0}，成年雌性",
+    ko: "{0}, 성체 암컷"
+  }),
+  "{0}, adult male": Object.freeze({
+    "zh-Hans": "{0}，成年雄性", ru: "{0}, взрослый самец", es: "{0}, macho adulto",
+    "pt-BR": "{0}, macho adulto", ja: "{0}（成体の雄）", de: "{0}, ausgewachsenes Männchen",
+    fr: "{0}, mâle adulte", pl: "{0}, dorosły samiec", "zh-Hant": "{0}，成年雄性",
+    ko: "{0}, 성체 수컷"
+  }),
+  "{0}'s battery has its new guns. The remaining plans may go to {1} in any order.": Object.freeze({
+    "zh-Hans": "{0}的炮台已装上新炮。其余图样可按任意顺序送往{1}。",
+    ja: "{0}の砲台に新しい砲を据えました。残りの図面は{1}へ、どの順番で運んでも構いません。",
+    "zh-Hant": "{0}的砲臺已裝上新砲。其餘圖樣可按任意順序送往{1}。",
+    ko: "{0} 포대에 새 대포를 설치했습니다. 남은 도면은 {1}에 원하는 순서로 전달할 수 있습니다."
+  }),
+  "Nanjing has copied the Portuguese patterns. We may now refit {0} in any order.": Object.freeze({
+    "zh-Hans": "南京已仿制葡萄牙火炮。现在可按任意顺序改装{0}。",
+    ja: "南京でポルトガル砲の図面を写し終えました。次は{0}を好きな順番で改修できます。",
+    "zh-Hant": "南京已仿製葡萄牙火砲。現在可按任意順序改裝{0}。",
+    ko: "난징에서 포르투갈 대포 도면을 복제했습니다. 이제 {0}을 원하는 순서로 개수할 수 있습니다."
+  }),
+  "The artillery plans are bound for {0}. We may visit the remaining ports in any order.": Object.freeze({
+    "zh-Hans": "火炮图样要送往{0}。其余港口可按任意顺序前往。",
+    ja: "砲術図面の届け先は{0}です。残りの港はどの順番で回っても構いません。",
+    "zh-Hant": "火砲圖樣要送往{0}。其餘港口可按任意順序前往。",
+    ko: "포술 도면은 {0}에 전달해야 합니다. 남은 항구는 원하는 순서로 방문할 수 있습니다."
+  }),
   "Become Lutheran": Object.freeze({
     "zh-Hans": "改信路德宗", ru: "Принять лютеранство", es: "Convertirse al luteranismo",
     "pt-BR": "Converter-se ao luteranismo", ja: "ルター派に改宗する", de: "Lutherisch werden",

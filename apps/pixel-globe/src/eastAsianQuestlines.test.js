@@ -29,6 +29,7 @@ import {
 } from "./dialogueSystem.js";
 import { shoreBatteryGunCount, shoreBatteryLevel } from "./shoreBatteries.js";
 import { JOSEON_TRADE_POLICY_ID, MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
+import { questDestinationStops } from "./questItinerary.js";
 
 const PLAYER = Object.freeze({
   name: "Joan Alden",
@@ -184,23 +185,81 @@ test("Ningbo loyalty and defection require a two-ship battle with a loss conditi
   assert.equal(defectState.memory.quests.failed[defectActive.id].reason, "ningbo-delegation-defeated");
 });
 
-test("captured Portuguese guns permanently reinforce three Chinese batteries", () => {
+test("captured Portuguese guns reinforce each Chinese battery only after visiting it", () => {
   const state = gameState();
   const quest = offer(state, GUANGZHOU);
   assert.equal(quest.eastAsianMissionId, EAST_ASIAN_MISSION_PORTUGUESE_GUNS);
   assert.equal(shoreBatteryGunCount(GUANGZHOU, state.memory.flags), 2);
 
   acceptQuest(state, quest, { simMinute: 0 });
-  const completed = completeQuest(state, NANJING, { simMinute: 180, portCities: PORTS });
+  const activeQuest = state.memory.quests.passengerActive;
+  const stops = [NANJING, FUZHOU, GUANGZHOU, NINGBO];
+  for (let index = 0; index < stops.length; index += 1) {
+    const city = stops[index];
+    const active = state.memory.quests.passengerActive;
+    assert.equal(questDestinationStops(active).some((stop) => stop.tileId === city.tileId), true);
+    if (index === 1) {
+      assert.deepEqual(
+        questDestinationStops(active).map((stop) => stop.name),
+        ["Ningbo", "Fuzhou", "Guangzhou"]
+      );
+    }
+    const session = createPassengerDialogueSession(city, active);
+    const view = passengerDialogueView(session, city, active, state);
+    assert.match(view.options[0].label, new RegExp(`${index + 1}/${stops.length}$`));
+    const result = selectPassengerDialogueOption(session, city, active, state, 0, {
+      simMinute: 180 + index * 60,
+      portCities: PORTS
+    });
+    assert.equal(result.eastAsianLegDelivery.legNumber, index + 1);
+    if (index === 0) {
+      assert.equal(shoreBatteryGunCount(NINGBO, state.memory.flags), 2);
+    } else {
+      assert.equal(shoreBatteryGunCount(city, state.memory.flags), 4);
+    }
+  }
+
+  const completed = activeQuest;
+  assert.equal(state.memory.quests.passengerActive, null);
 
   assert.deepEqual(
     completed.eastAsianResolution.batteryUpgrades.map((upgrade) => upgrade.cityName),
-    ["Guangzhou", "Ningbo", "Fuzhou"]
+    ["Fuzhou", "Guangzhou", "Ningbo"]
   );
   for (const city of [GUANGZHOU, NINGBO, FUZHOU]) {
     assert.equal(shoreBatteryLevel(city, state.memory.flags), 3);
     assert.equal(shoreBatteryGunCount(city, state.memory.flags), 4);
   }
+});
+
+test("an active Portuguese guns quest from an older save gains the new itinerary", () => {
+  const state = gameState();
+  const quest = offer(state, GUANGZHOU);
+  acceptQuest(state, quest, { simMinute: 0 });
+  const active = state.memory.quests.passengerActive;
+  delete active.eastAsianItinerary;
+  delete active.eastAsianDeliveryLegIndex;
+  delete active.eastAsianAppliedLegCount;
+  delete active.eastAsianBatteryUpgrades;
+  delete active.openItinerary;
+
+  const session = createPassengerDialogueSession(NANJING, active);
+  const result = selectPassengerDialogueOption(session, NANJING, active, state, 0, {
+    simMinute: 180,
+    portCities: PORTS
+  });
+
+  assert.deepEqual(result.eastAsianLegDelivery.remainingDestinationNames, [
+    "Ningbo",
+    "Fuzhou",
+    "Guangzhou"
+  ]);
+  assert.deepEqual(active.eastAsianItinerary.map((stop) => stop.name), [
+    "Nanjing",
+    "Ningbo",
+    "Fuzhou",
+    "Guangzhou"
+  ]);
 });
 
 test("the remaining commissions appear at their historical courts", () => {
