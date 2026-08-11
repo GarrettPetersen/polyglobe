@@ -406,6 +406,9 @@ import {
   recordShipMercyForFaction,
   recordNingboMissionArrival,
   recordNingboMissionShipDefeated,
+  recordTeaRaceCompetitorRemoved,
+  recordTeaRacePlayerArrival,
+  recordTeaRaceRivalArrival,
   recordWokouHuntVictory,
   reconcileFactionReputationAfterPlayerVassalage,
   recordPiracyAgainstFaction,
@@ -431,6 +434,10 @@ import {
   visitPort,
   wokouHuntMissionOfferForCity
 } from "./gameState.js";
+import {
+  TEA_RACE_CARGO_QUANTITY,
+  isTeaRaceQuest
+} from "./teaRaceQuest.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
   ningboDelegationManifest
@@ -1370,6 +1377,7 @@ import {
   GUNPOWDER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   RICE_GOOD_ID,
+  TEA_GOOD_ID,
   addPortGoodStock,
   addWorldEconomyPort,
   connectNearbyPortMarkets,
@@ -4096,6 +4104,7 @@ async function main() {
     ensureTreasureCampaignEncounters({ assignCaptains: false });
     ensureWokouHuntEncounter({ assignCaptains: false });
     ensureNingboMissionEncounters({ assignCaptains: false });
+    ensureTeaRaceEncounters({ assignCaptains: false });
   }
   if (CAPTURE_SCENARIO) {
     for (const encounter of CAPTURE_SCENARIO.encounters) {
@@ -6650,6 +6659,116 @@ function activeWokouHuntQuest() {
 function activeNingboMissionQuest() {
   const quest = gameState?.memory?.quests?.passengerActive;
   return quest?.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO ? quest : null;
+}
+
+function activeTeaRaceQuest() {
+  const quest = gameState?.memory?.quests?.active;
+  return isTeaRaceQuest(quest) ? quest : null;
+}
+
+function ensureTeaRaceEncounters({ assignCaptains = true } = {}) {
+  const quest = activeTeaRaceQuest();
+  if (!quest || !npcSeaRoutes) return [];
+  const retired = new Set(quest.teaRaceRetiredShipIds || []);
+  const active = [];
+  for (const spec of quest.teaRaceCompetitors) {
+    if (retired.has(spec.id)) continue;
+    let strategic = npcSeaRoutes.shipById.get(spec.id);
+    if (!strategic) {
+      strategic = configureNpcRouteEncounter(npcSeaRoutes, {
+        ...spec,
+        replaceOnSink: false,
+        encounter: {
+          kind: "tea-race",
+          questId: quest.id,
+          destinationPortId: spec.destinationPortId,
+          holdAtDestination: true,
+          holdProgress: spec.holdProgress
+        }
+      }, weatherClockMinutes);
+      const stored = storeNpcCargo(
+        strategic,
+        TEA_GOOD_ID,
+        TEA_RACE_CARGO_QUANTITY,
+        0,
+        "new tea race"
+      );
+      if (stored !== TEA_RACE_CARGO_QUANTITY) {
+        throw new Error(`Tea racer ${spec.id} could hold only ${stored} chests`);
+      }
+    }
+    if (assignCaptains) ensureNpcShipCaptain(strategic.id);
+    active.push(strategic);
+  }
+  return active;
+}
+
+function teaRaceRivalArrivals(quest) {
+  const retired = new Set(quest.teaRaceRetiredShipIds || []);
+  return quest.teaRaceCompetitors.flatMap((spec) => {
+    if (retired.has(spec.id)) return [];
+    const strategic = npcSeaRoutes?.shipById.get(spec.id);
+    if (!strategic) return [];
+    const arrivedAtMinute = strategic.encounter?.arrivedAtMinute ??
+      (strategic.plan?.destination?.tileId === quest.destinationTileId
+        ? strategic.plan.endMinute
+        : null);
+    return Number.isFinite(arrivedAtMinute)
+      ? [{ shipId: spec.id, arrivalMinute: arrivedAtMinute, shipSlug: spec.shipSlug }]
+      : [];
+  }).sort((a, b) => a.arrivalMinute - b.arrivalMinute || a.shipId.localeCompare(b.shipId));
+}
+
+function maybeRecordTeaRaceRivalArrival() {
+  const quest = activeTeaRaceQuest();
+  if (!quest || quest.stage !== "race" || quest.teaRaceFirstRivalArrivalMinute !== undefined) {
+    return false;
+  }
+  const first = teaRaceRivalArrivals(quest)[0];
+  if (!first || first.arrivalMinute > weatherClockMinutes) return false;
+  recordTeaRaceRivalArrival(gameState, quest.id, first.shipId, first.arrivalMinute);
+  showSurvivalNotice(
+    `${shipLabelForSlug(first.shipSlug).toUpperCase()} REACHED LONDON FIRST`,
+    "warning"
+  );
+  saveVoyageNow("rival reached London in the new tea race");
+  return true;
+}
+
+function recordTeaRaceArrivalAtPort(city) {
+  const quest = activeTeaRaceQuest();
+  if (!quest || city.tileId !== quest.destinationTileId || quest.stage !== "race") return null;
+  ensureTeaRaceEncounters();
+  const first = teaRaceRivalArrivals(quest)[0] || null;
+  if (first && first.arrivalMinute <= weatherClockMinutes) {
+    recordTeaRaceRivalArrival(gameState, quest.id, first.shipId, first.arrivalMinute);
+  }
+  const result = recordTeaRacePlayerArrival(gameState, quest.id, {
+    simMinute: Math.floor(weatherClockMinutes),
+    rivalArrivalMinute: first?.arrivalMinute ?? null,
+    rivalShipId: first?.shipId ?? null
+  });
+  saveVoyageNow(result.teaRaceWon ? "won the new tea race" : "finished the new tea race");
+  return result;
+}
+
+function removeTeaRaceShip(shipId) {
+  if (!npcSeaRoutes?.shipById.has(shipId)) return false;
+  sinkNpcShip(npcSeaRoutes, shipId, Math.floor(weatherClockMinutes));
+  clearCombatForShip(shipId);
+  npcVisualShips.delete(shipId);
+  shipCombatEntryCollisionGrace.delete(shipId);
+  npcCombatProjectiles = npcCombatProjectiles.filter(
+    (ball) => ball.ownerId !== shipId && ball.targetId !== shipId
+  );
+  return true;
+}
+
+function retireTeaRaceFleet(quest) {
+  if (!isTeaRaceQuest(quest)) return false;
+  let changed = false;
+  for (const spec of quest.teaRaceCompetitors) changed = removeTeaRaceShip(spec.id) || changed;
+  return changed;
 }
 
 function reconcileNingboDelegationManifest(quest) {
@@ -11989,6 +12108,7 @@ async function restoreSavedVoyage(payload) {
   weatherParts = weatherClockParts(weatherClockMinutes);
   ensureWokouHuntEncounter({ assignCaptains: false });
   ensureNingboMissionEncounters({ assignCaptains: false });
+  ensureTeaRaceEncounters({ assignCaptains: false });
   refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
   activeIcebergSpawnCandidatesDay = -1;
@@ -15569,6 +15689,7 @@ function rescuedTravelerAtHome(cityCall) {
 }
 
 function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk = false) {
+  recordTeaRaceArrivalAtPort(cityCall);
   const accessiblePorts = playerAccessiblePortCities();
   const drunkVariant = spriteKeyHash(
     `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
@@ -18232,6 +18353,9 @@ function chooseDialogueOption(optionIndex) {
       spawnItemDepartureEffect(result.marketSale.good.id, purchaseIconOrigin, lastFrameMs);
     }
     if (isWokouHuntQuest(result.acceptedQuest)) ensureWokouHuntEncounter();
+    if (isTeaRaceQuest(result.acceptedQuest)) ensureTeaRaceEncounters();
+    if (result.questCargoTheft?.quest) retireTeaRaceFleet(result.questCargoTheft.quest);
+    if (result.completedQuest) retireTeaRaceFleet(result.completedQuest);
     if (result.perkItemPurchase) {
       playCollectionDingSound();
       spawnIconAcquisitionEffect(
@@ -27074,7 +27198,8 @@ function updateNpcShips(dt) {
       () => advanceDistantWorldSimulationApply()
     );
   }
-  return distantChanged || scheduledChanged;
+  const teaRaceChanged = maybeRecordTeaRaceRivalArrival();
+  return distantChanged || scheduledChanged || teaRaceChanged;
 }
 
 function distantWorldRuntimeState() {
@@ -29212,6 +29337,9 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   if (strategicBeforeSurrender.encounter?.kind === "ningbo-delegation") {
     resolveNingboDelegationShipLoss(loserId);
   }
+  if (strategicBeforeSurrender.encounter?.kind === "tea-race") {
+    recordTeaRaceCompetitorRemoved(gameState, loserId);
+  }
   if (playerWon && !damageInduced) {
     playerPrizeSummary = receivePlayerSurrenderedShipLoot(strategicBeforeSurrender, loot, rewardOrigin);
   } else if (wonByShoreBattery) {
@@ -29389,6 +29517,9 @@ function handleNpcSinking(loserId, winnerId, {
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
   if (strategic.encounter?.kind === "ningbo-delegation") {
     resolveNingboDelegationShipLoss(loserId);
+  }
+  if (strategic.encounter?.kind === "tea-race") {
+    recordTeaRaceCompetitorRemoved(gameState, loserId);
   }
   if (accidentalPlayerCollision && !forgivenPlayerCollision) {
     const result = recordPlayerAccidentalDamagePenalty(factionId);
@@ -35325,10 +35456,15 @@ function questJournalEntries() {
         : isEnvoyQuest(activeQuest)
           ? "quest.diplomacy"
           : "quest.mission";
+    const title = isTeaRaceQuest(activeQuest) ? "NEW TEA RACE" : uiText(titleKey);
     entries.push({
       id: `travel:${activeQuest.id}`,
-      title: uiText(titleKey),
-      nextStep: isCaptureCommissionQuest(activeQuest)
+      title,
+      nextStep: isTeaRaceQuest(activeQuest)
+        ? activeQuest.teaRaceFirstRivalArrivalMinute === undefined
+          ? "RACE TEN TEA CHESTS TO LONDON - FIRST PRIZE 10000 DB"
+          : "FINISH THE TEA RUN TO LONDON - 2500 DB"
+        : isCaptureCommissionQuest(activeQuest)
         ? activeQuest.stage === "return"
           ? `REPORT THE CAPTURE AT ${activeQuest.originName.toUpperCase()}`
           : `CAPTURE ${activeQuest.targetName.toUpperCase()} FOR ` +
@@ -36033,6 +36169,7 @@ function colonizationNavigationReason(objective) {
 }
 
 function navigationQuestReason(quest) {
+  if (isTeaRaceQuest(quest)) return "NEW TEA RACE";
   if (isEnvoyQuest(quest)) return "DIPLOMATIC MISSION";
   if (isWokouHuntQuest(quest)) return quest.stage === "return" ? "REPORT WOKOU DEFEAT" : "WOKOU PATROL";
   if (isCaptureCommissionQuest(quest)) {

@@ -57,7 +57,7 @@ import {
   questStateForCity,
   receiveQuestPayment,
   recordColonyAuthorityForState,
-  recordTributeTheft,
+  recordQuestCargoTheft,
   selectEastAsianMissionOutcome,
   releaseCargoSpace,
   reserveCargoSpace,
@@ -65,8 +65,9 @@ import {
   restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
   sellGood,
-  tributeSaleTheftStatus
+  questCargoSaleTheftStatus
 } from "./gameState.js";
+import { isTeaRaceQuest } from "./teaRaceQuest.js";
 import { captureCapitalPoliticalContext } from "./captureCommissionDialogue.js";
 import {
   FRESH_WATER_GOOD_ID,
@@ -479,6 +480,9 @@ export function createPortArrivalDialogueSession(city, options = {}) {
 export function deliveryMissionShouldOpenOnArrival(gameState, city, portCities) {
   const state = questStateForCity(gameState, city, portCities);
   if (isCaptureCommissionQuest(state.quest) || isWokouHuntQuest(state.quest)) {
+    return state.kind === "available" || state.kind === "ready-to-complete";
+  }
+  if (isTeaRaceQuest(state.quest)) {
     return state.kind === "available" || state.kind === "ready-to-complete";
   }
   return state.quest?.kind === "delivery" &&
@@ -2294,7 +2298,7 @@ export function selectPortDialogueOption(
   }
   if (action.type === "sell" || action.type === "sell-all") {
     const quantity = action.type === "sell-all" ? action.quantity : 1;
-    const theft = tributeSaleTheftStatus(gameState, action.goodId, quantity);
+    const theft = questCargoSaleTheftStatus(gameState, action.goodId, quantity);
     if (theft) {
       session.pendingTributeTheft = { action: { ...action, quantity }, theft };
       session.nodeId = "tribute-theft-warning";
@@ -2316,18 +2320,28 @@ export function selectPortDialogueOption(
       pending.action.quantity,
       context
     );
-    const theftResult = recordTributeTheft(gameState, pending.theft, context);
+    const theftResult = recordQuestCargoTheft(gameState, pending.theft, context);
     clearMarketUndoSession(session);
     session.pendingTributeTheft = null;
     session.nodeId = "sell";
-    session.feedback = `The sealed tribute was sold. Your diplomatic mission has failed.`;
-    return { ...result, tributeTheft: theftResult };
+    session.feedback = pending.theft.kind === "tea-race"
+      ? "The entrusted tea was sold. The new-crop race has failed."
+      : "The sealed tribute was sold. Your diplomatic mission has failed.";
+    return {
+      ...result,
+      questCargoTheft: theftResult,
+      ...(pending.theft.kind === "tea-race" ? {} : { tributeTheft: theftResult })
+    };
   }
   if (action.type === "cancel-tribute-theft") {
+    const pending = session.pendingTributeTheft;
+    if (!pending) throw new Error("No entrusted cargo sale is awaiting cancellation");
     session.pendingTributeTheft = null;
     session.nodeId = "sell";
     session.selectedIndex = 0;
-    session.feedback = "The sealed tribute remains aboard.";
+    session.feedback = pending.theft.kind === "tea-race"
+      ? "The new tea remains sealed for London."
+      : "The sealed tribute remains aboard.";
     return { closed: false };
   }
   if (action.type === "undo-market") {
@@ -2357,6 +2371,8 @@ export function selectPortDialogueOption(
         : `Commission accepted. Capture ${action.quest.targetName} for ${action.quest.originFactionName}.`
       : isWokouHuntQuest(action.quest)
         ? `Commission accepted. Hunt the wokou near ${action.quest.patrolName}.`
+      : isTeaRaceQuest(action.quest)
+        ? "The race is on. Ten tea chests are aboard; beat five rival ships to London."
       : action.quest.kind === "passenger"
         ? `Accepted passage to ${action.quest.destinationName}.`
         : `Accepted delivery to ${action.quest.destinationName}.`;
@@ -2371,7 +2387,7 @@ export function selectPortDialogueOption(
           simMinute: context.simMinute ?? 0
         })
       : null;
-    const missionItemGift = quest.kind === "delivery"
+    const missionItemGift = quest.kind === "delivery" || isTeaRaceQuest(quest)
       ? null
       : maybeGrantMissionPerkItem(gameState, city, {
           missionId: quest.id,
@@ -2386,12 +2402,16 @@ export function selectPortDialogueOption(
         : `Commission fulfilled. Earned ${quest.reward} db. Standing greatly improved.`
       : quest.kind === "passenger"
         ? `${passengerName(quest)} went ashore. Earned ${quest.reward} db. Standing improved.`
+      : isTeaRaceQuest(quest)
+        ? quest.teaRaceWon
+          ? `First tea ashore. Won the race and earned ${quest.reward} db.`
+          : `Tea delivered. Earned the ${quest.reward} db finishing premium.`
         : `Delivered. Earned ${quest.reward} db. Standing improved.`;
     if (missionItemGift) session.feedback += ` Gift: ${missionItemGift.item.label}.`;
     session.nodeId = session.nextPortNodeId || "root";
     session.nextPortNodeId = null;
     session.selectedIndex = 0;
-    return { closed: false, missionItemGift, nextDeliveryOffer };
+    return { closed: false, completedQuest: quest, missionItemGift, nextDeliveryOffer };
   }
   if (action.type === "request-marque") {
     const result = grantLetterOfMarque(gameState, city, context.shipPower || 0, context);
@@ -5081,6 +5101,21 @@ function tributeTheftWarningView(session, city, gameState) {
     throw new Error("Tribute theft warning no longer matches the active mission");
   }
   const good = tradeGoodById(pending.theft.goodId);
+  if (pending.theft.kind === "tea-race") {
+    const origin = factionById(pending.theft.originFactionId).name;
+    return {
+      speaker: speakerName(city),
+      expressionId: "stern",
+      text: `Those ${good.label.toLowerCase()} chests were entrusted for the new-crop race, not given ` +
+        `to you. Selling ${pending.theft.stolenQuantity} is theft. The race will fail and your standing ` +
+        `will fall ${formatSignedReputation(pending.theft.originPenalty)} with ${origin}.`,
+      feedback: session.feedback,
+      options: [
+        option("Sell the entrusted tea", { type: "confirm-tribute-theft" }),
+        option("Keep the tea sealed", { type: "cancel-tribute-theft" })
+      ]
+    };
+  }
   const origin = factionById(pending.theft.originFactionId).name;
   const suzerain = factionById(pending.theft.suzerainFactionId).name;
   const secondPenalty = pending.theft.originFactionId === pending.theft.suzerainFactionId
@@ -5246,6 +5281,18 @@ function questView(session, city, gameState, portCities) {
     };
   }
   const quest = questState.quest;
+  if (isTeaRaceQuest(quest)) {
+    const rivalText = quest.teaRaceFirstRivalArrivalMinute === undefined
+      ? "Five rival captains are still racing west."
+      : "A rival has already reached London, but the finishing premium remains.";
+    return {
+      speaker: speakerName(city),
+      expressionId: questState.kind === "in-progress-here" ? "attentive" : "concerned",
+      text: `The ten sealed tea chests are bound for London. ${rivalText}`,
+      feedback: session.feedback,
+      options: [option("Back", { type: "node", nodeId: returnNodeId })]
+    };
+  }
   if (quest.kind === "passenger" || isEnvoyQuest(quest)) {
     return {
       speaker: speakerName(city),

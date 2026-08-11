@@ -1064,7 +1064,8 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
   assert.ok(cloveSale >= clovePurchase * 7, `Lisbon paid ${cloveSale} for cloves costing ${clovePurchase}`);
   assert.ok(spiceIslandsVoyage.expectedProfit >= 4000);
   assert.ok(spiceIslandsVoyage.expectedProfit >= strongestShortVoyage.expectedProfit * 8);
-  assert.ok(teaProfit >= 2200, `Guangzhou-London tea profit was only ${teaProfit}`);
+  assert.ok(teaProfit >= 3000, `Guangzhou-London tea profit was only ${teaProfit}`);
+  assert.ok(teaProfit < nutmegProfit, `Tea profit ${teaProfit} exceeded nutmeg ${nutmegProfit}`);
   assert.ok(nutmegProfit >= 3000, `Banda-Lisbon nutmeg profit was only ${nutmegProfit}`);
   assert.ok(cinnamonProfit >= 2500, `Colombo-Lisbon cinnamon profit was only ${cinnamonProfit}`);
 });

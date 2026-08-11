@@ -54,6 +54,7 @@ import {
   npcFishingNetExpectedHaul
 } from "./fishingNets.js";
 import { createWhaleMemory, seedWhalePopulation } from "./whaleSystem.js";
+import { TEA_RACE_CARGO_QUANTITY, teaRaceCompetitorManifest } from "./teaRaceQuest.js";
 
 const PORTS = Object.freeze([
   port(1, "Lisbon", "Portugal", "mediterranean", 38.72, -9.14, 70000, "portugal"),
@@ -1665,6 +1666,35 @@ test("routed delegation encounters depart for and wait at their specified destin
   assert.equal(delegation.encounter.arrivedAtMinute, arrivalMinute);
   assert.equal(delegation.plan.segments[0].kind, "wait");
   assert.equal(npcShipSnapshots(routes, arrivalMinute + 1).find((ship) => ship.id === delegation.id).id, delegation.id);
+});
+
+test("the annual tea race launches five distinct wind-routed merchants for London", () => {
+  const london = port(100, "London", "United Kingdom", "northern-european", 51.51, -0.13, 120000, "england");
+  const ports = [...PORTS, london];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  const manifest = teaRaceCompetitorManifest("tea-race-1522", 8, london.tileId);
+  const racers = manifest.map((spec) => {
+    const racer = configureNpcRouteEncounter(routes, {
+      ...spec,
+      replaceOnSink: false,
+      encounter: {
+        kind: "tea-race",
+        questId: "tea-race-1522",
+        destinationPortId: london.tileId,
+        holdAtDestination: true,
+        holdProgress: spec.holdProgress
+      }
+    }, 1000);
+    assert.equal(storeNpcCargo(racer, "tea", TEA_RACE_CARGO_QUANTITY, 0, "test race"), 10);
+    return racer;
+  });
+
+  assert.equal(racers.length, 5);
+  assert.equal(new Set(racers.map((ship) => ship.slug)).size, 5);
+  assert.ok(racers.every((ship) => ship.plan.destination.tileId === london.tileId));
+  assert.ok(racers.every((ship) => ship.cargo.tea === TEA_RACE_CARGO_QUANTITY));
+  assert.ok(racers.every((ship) => ship.plan.endMinute > ship.plan.startMinute));
 });
 
 test("pirate hideouts are a deterministic invisible subset of coastal ports", () => {

@@ -69,6 +69,7 @@ export const GINSENG_GOOD_ID = "ginseng";
 export const SULFUR_GOOD_ID = "sulfur";
 export const COAL_GOOD_ID = "coal";
 export const PRINTED_BOOKS_GOOD_ID = "printed-books";
+export const TEA_GOOD_ID = "tea";
 
 export const TRADE_GOODS = Object.freeze([
   good(HARDTACK_GOOD_ID, "Hardtack", 2, "food", {
@@ -145,7 +146,7 @@ export const TRADE_GOODS = Object.freeze([
   good(CLOVE_GOOD_ID, "Cloves", 180, "spice"),
   good(NUTMEG_GOOD_ID, "Nutmeg", 200, "spice"),
   good(GINGER_GOOD_ID, "Ginger", 40, "spice"),
-  good("tea", "Tea", 60, "luxury"),
+  good(TEA_GOOD_ID, "Tea", 90, "luxury"),
   good("coffee", "Coffee", 40, "luxury"),
   good("cacao", "Cacao", 35, "luxury"),
   good("dyes", "Dyes", 42, "manufactured"),

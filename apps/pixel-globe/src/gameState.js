@@ -6,6 +6,7 @@ import {
   MATCHLOCKS_GOOD_ID,
   WINE_GOOD_ID,
   WHALE_BLUBBER_GOOD_ID,
+  TEA_GOOD_ID,
   TRADE_GOODS,
   executePortPurchase,
   executePortSale,
@@ -17,6 +18,19 @@ import {
   snapshotPortTradeState,
   tradeGoodById
 } from "./economy.js";
+import {
+  TEA_RACE_CARGO_QUANTITY,
+  TEA_RACE_DESTINATION_CITY,
+  TEA_RACE_THEFT_REPUTATION,
+  createTeaRaceQuest,
+  isTeaRaceQuest,
+  isTeaRaceSourcePort,
+  teaRaceCargoHeld,
+  teaRaceEntrustedCargo,
+  teaRaceSaleTheftStatus as calculateTeaRaceSaleTheftStatus,
+  teaRaceSeasonAtMinute,
+  validateTeaRaceQuest
+} from "./teaRaceQuest.js";
 import {
   createVoyageAchievementProgress,
   migrateVoyageAchievementProgress,
@@ -5402,8 +5416,12 @@ export function deliveryOfferForCity(state, city, portCities, context = {}) {
   assertGameState(state);
   const quests = questMemory(state);
   const existing = pendingDeliveryOfferForCity(state, city);
-  if (existing || quests.active) return existing;
+  if (quests.active) return existing;
   if (pendingCapturePortMissionOfferForCity(state, city)) return null;
+
+  const teaRace = teaRaceOfferForCity(state, city, portCities, context);
+  if (teaRace) return teaRace;
+  if (existing) return existing;
 
   const offerPeriod = deliveryRollPeriod(context.simMinute);
   const onboardingIndex = quests.onboardingDeliveriesCompleted < ONBOARDING_DELIVERY_COUNT
@@ -5434,10 +5452,45 @@ export function pendingDeliveryOfferForCity(state, city) {
   const originKey = cityKey(city);
   const offer = quests.deliveryOffers[originKey];
   if (!offer) return null;
-  if (quests.completed[offer.id]) {
+  if (quests.completed[offer.id] || quests.failed[offer.id]) {
     delete quests.deliveryOffers[originKey];
     return null;
   }
+  return offer;
+}
+
+export function teaRaceOfferForCity(state, city, portCities, context = {}) {
+  assertGameState(state);
+  if (!Array.isArray(portCities)) throw new Error("Tea race offer requires the current port list");
+  if (!isTeaRaceSourcePort(city)) return null;
+  const simMinute = context.simMinute ?? 0;
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid tea race offer minute: ${simMinute}`);
+  }
+  const season = teaRaceSeasonAtMinute(simMinute, city.lon || 0);
+  if (!season.open) return null;
+  const playerFactionId = state.playerCharacter?.nationalityId;
+  if (!playerFactionId || playerFactionId === "ming" ||
+      !sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, playerFactionId)) {
+    return null;
+  }
+  const destination = portCities.find((port) => cityLabel(port) === TEA_RACE_DESTINATION_CITY);
+  if (!destination) throw new Error(`Tea race destination is absent: ${TEA_RACE_DESTINATION_CITY}`);
+  const id = `tea-race-${season.year}`;
+  const quests = questMemory(state);
+  if (quests.completed[id] || quests.failed[id] || quests.active?.id === id ||
+      Object.values(quests.deliveryOffers).some((offer) => offer?.id === id)) {
+    return null;
+  }
+  if (cargoFree(state) < TEA_RACE_CARGO_QUANTITY) return null;
+  const offer = createTeaRaceQuest({
+    origin: city,
+    destination,
+    originKey: cityKey(city),
+    destinationKey: cityKey(destination),
+    simMinute
+  });
+  quests.deliveryOffers[offer.originKey] = offer;
   return offer;
 }
 
@@ -5559,6 +5612,15 @@ export function questStateForCity(state, city, portCities) {
   const quests = questMemory(state);
   const active = quests.active;
   if (active) {
+    if (isTeaRaceQuest(active)) {
+      if (active.destinationTileId === city.tileId && active.stage === "arrived") {
+        return { kind: "ready-to-complete", quest: active };
+      }
+      if (active.originTileId === city.tileId || active.destinationTileId === city.tileId) {
+        return { kind: "in-progress-here", quest: active };
+      }
+      return { kind: "busy", quest: active };
+    }
     if (isWokouHuntQuest(active)) {
       if (active.stage === "return" && active.originTileId === city.tileId) {
         return { kind: "ready-to-complete", quest: active };
@@ -5598,12 +5660,12 @@ export function acceptQuest(state, quest, context = {}) {
     if (quests.passengerActive) {
       throw new Error("Cannot accept a passenger while another passenger is aboard");
     }
-    if (quests.active && quests.active.kind !== "delivery") {
+    if (quests.active && quests.active.kind !== "delivery" && !isTeaRaceQuest(quests.active)) {
       throw new Error(`Cannot accept a passenger during ${quests.active.kind}`);
     }
   } else {
     if (quests.active) throw new Error("Cannot accept a quest while another quest is active");
-    if (quests.passengerActive && quest.kind !== "delivery") {
+    if (quests.passengerActive && quest.kind !== "delivery" && !isTeaRaceQuest(quest)) {
       throw new Error(`Cannot accept ${quest.kind} while a passenger is aboard`);
     }
   }
@@ -5614,12 +5676,16 @@ export function acceptQuest(state, quest, context = {}) {
       { traveler: true }
     )
   } : quest.passenger;
-  if (isTributeEnvoyQuest(quest)) {
-    const requiredSpace = tributeCargoSpace(quest.tributeCargoRequirements);
+  const entrustedCargo = isTributeEnvoyQuest(quest)
+    ? quest.tributeCargoRequirements
+    : teaRaceEntrustedCargo(quest);
+  if (entrustedCargo.length > 0) {
+    const requiredSpace = tributeCargoSpace(entrustedCargo);
     if (cargoFree(state) < requiredSpace) {
-      throw new Error(`Tribute mission requires ${requiredSpace} free cargo space`);
+      throw new Error(`${isTeaRaceQuest(quest) ? "Tea race" : "Tribute mission"} requires ` +
+        `${requiredSpace} free cargo space`);
     }
-    for (const requirement of quest.tributeCargoRequirements) {
+    for (const requirement of entrustedCargo) {
       tradeGoodById(requirement.goodId);
       state.cargo[requirement.goodId] = (state.cargo[requirement.goodId] || 0) + requirement.quantity;
       state.accounts.cargoCostBasis[requirement.goodId] =
@@ -5635,11 +5701,28 @@ export function acceptQuest(state, quest, context = {}) {
     });
   }
   if (isEastAsianMissionQuest(quest)) removeSiblingEastAsianOffers(quests, quest);
-  quests[passengerSlot ? "passengerActive" : "active"] = { ...quest, passenger };
+  quests[passengerSlot ? "passengerActive" : "active"] = {
+    ...quest,
+    passenger,
+    ...(isTeaRaceQuest(quest)
+      ? {
+          teaRaceCompetitors: quest.teaRaceCompetitors.map((entry) => ({ ...entry })),
+          teaRaceCargoRequirements: quest.teaRaceCargoRequirements.map((entry) => ({ ...entry })),
+          teaRaceRetiredShipIds: [...(quest.teaRaceRetiredShipIds || [])]
+        }
+      : {})
+  };
   if ((quest.kind === "passenger" || isEnvoyQuest(quest)) && quest.originKey) {
     delete quests.passengerOffers[quest.originKey];
   }
-  if (quest.kind === "delivery" && quest.originKey) delete quests.deliveryOffers[quest.originKey];
+  if ((quest.kind === "delivery" || isTeaRaceQuest(quest)) && quest.originKey) {
+    delete quests.deliveryOffers[quest.originKey];
+  }
+  if (isTeaRaceQuest(quest)) {
+    for (const [originKey, offer] of Object.entries(quests.deliveryOffers)) {
+      if (offer?.id === quest.id) delete quests.deliveryOffers[originKey];
+    }
+  }
   if (isCaptureCommissionQuest(quest) && quest.originKey) delete quests.capturePortOffers[quest.originKey];
   if (isWokouHuntQuest(quest) && quest.originKey) delete quests.courtMissionOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
@@ -5650,6 +5733,11 @@ export function tributeSaleTheftStatus(state, goodId, quantity) {
   assertGameState(state);
   tradeGoodById(goodId);
   return calculateTributeSaleTheftStatus(state, goodId, quantity);
+}
+
+export function questCargoSaleTheftStatus(state, goodId, quantity) {
+  const tribute = tributeSaleTheftStatus(state, goodId, quantity);
+  return tribute || calculateTeaRaceSaleTheftStatus(state, goodId, quantity);
 }
 
 export function recordTributeTheft(state, theft, context = {}) {
@@ -5684,6 +5772,89 @@ export function recordTributeTheft(state, theft, context = {}) {
     originPenalty: theft.originPenalty,
     suzerainPenalty: theft.suzerainPenalty
   };
+}
+
+export function recordQuestCargoTheft(state, theft, context = {}) {
+  if (theft?.kind === "tea-race") return recordTeaRaceTheft(state, theft, context);
+  return recordTributeTheft(state, theft, context);
+}
+
+export function recordTeaRaceTheft(state, theft, context = {}) {
+  assertGameState(state);
+  const quests = questMemory(state);
+  const active = quests.active;
+  if (!theft || !isTeaRaceQuest(active) || active.id !== theft.questId) {
+    throw new Error("Tea theft does not match the active new-crop race");
+  }
+  if (theft.goodId !== TEA_GOOD_ID || !Number.isInteger(theft.stolenQuantity) ||
+      theft.stolenQuantity <= 0 || theft.stolenQuantity > TEA_RACE_CARGO_QUANTITY) {
+    throw new Error("Invalid entrusted tea quantity in theft record");
+  }
+  const standing = adjustFactionReputation(state, active.originFactionId, TEA_RACE_THEFT_REPUTATION);
+  active.teaRaceCargoStolen = true;
+  quests.failed[active.id] = {
+    reason: "tea-race-theft",
+    simMinute: context.simMinute ?? 0,
+    goodId: theft.goodId,
+    quantity: theft.stolenQuantity
+  };
+  quests.active = null;
+  recordDecision(state, `quest.fail.tea-race-theft.${active.id}`, 1);
+  return { quest: active, standing, penalty: TEA_RACE_THEFT_REPUTATION };
+}
+
+export function recordTeaRaceRivalArrival(state, questId, shipId, arrivalMinute) {
+  assertGameState(state);
+  assertSimulationMinute(arrivalMinute);
+  const quest = questMemory(state).active;
+  if (!isTeaRaceQuest(quest) || quest.id !== questId || quest.stage !== "race") return null;
+  if (!quest.teaRaceCompetitors.some((entry) => entry.id === shipId) ||
+      quest.teaRaceRetiredShipIds.includes(shipId)) {
+    return null;
+  }
+  if (quest.teaRaceFirstRivalArrivalMinute === undefined ||
+      arrivalMinute < quest.teaRaceFirstRivalArrivalMinute) {
+    quest.teaRaceFirstRivalArrivalMinute = arrivalMinute;
+    quest.teaRaceFirstRivalShipId = shipId;
+    recordDecision(state, `quest.tea-race.rival-arrived.${quest.id}`, 1);
+  }
+  return quest;
+}
+
+export function recordTeaRacePlayerArrival(state, questId, context = {}) {
+  assertGameState(state);
+  assertSimulationMinute(context.simMinute);
+  const quest = questMemory(state).active;
+  if (!isTeaRaceQuest(quest) || quest.id !== questId) {
+    throw new Error(`Tea race is not active: ${questId}`);
+  }
+  if (quest.stage === "arrived") return quest;
+  const rivalArrivalMinute = context.rivalArrivalMinute ?? quest.teaRaceFirstRivalArrivalMinute ?? null;
+  if (rivalArrivalMinute !== null) assertSimulationMinute(rivalArrivalMinute);
+  quest.teaRacePlayerArrivalMinute = context.simMinute;
+  quest.teaRaceFirstRivalArrivalMinute = rivalArrivalMinute ?? undefined;
+  quest.teaRaceFirstRivalShipId = context.rivalShipId ?? quest.teaRaceFirstRivalShipId;
+  quest.teaRaceWon = rivalArrivalMinute === null || context.simMinute < rivalArrivalMinute;
+  quest.reward = quest.teaRaceWon ? quest.firstPrize : quest.finisherPrize;
+  quest.stage = "arrived";
+  quest.completionText = quest.teaRaceWon
+    ? "No rival pennant has reached the Thames. Your chests hold London's first new tea of the year."
+    : "Another racing ship has unloaded, but the first-crop buyers still offer a finishing premium.";
+  recordDecision(state, `quest.tea-race.${quest.teaRaceWon ? "won" : "finished"}.${quest.id}`, 1);
+  return quest;
+}
+
+export function recordTeaRaceCompetitorRemoved(state, shipId) {
+  assertGameState(state);
+  const quest = questMemory(state).active;
+  if (!isTeaRaceQuest(quest) || !quest.teaRaceCompetitors.some((entry) => entry.id === shipId)) {
+    return null;
+  }
+  if (!quest.teaRaceRetiredShipIds.includes(shipId)) {
+    quest.teaRaceRetiredShipIds = [...quest.teaRaceRetiredShipIds, shipId];
+    recordDecision(state, `quest.tea-race.competitor-removed.${quest.id}.${shipId}`, 1);
+  }
+  return quest;
 }
 
 export function recordNingboMissionArrival(state, questId, context = {}) {
@@ -5829,6 +6000,13 @@ export function completeQuest(state, city, context = {}) {
   if (isWokouHuntQuest(active) && active.stage !== "return") {
     throw new Error(`Wokou commission must be won before reporting home: ${active.id}`);
   }
+  if (isTeaRaceQuest(active)) {
+    if (active.stage !== "arrived") throw new Error(`Tea race has not reached London: ${active.id}`);
+    if (!teaRaceCargoHeld(state, active)) throw new Error(`Tea race cargo is incomplete: ${active.id}`);
+    for (const requirement of active.teaRaceCargoRequirements) {
+      deliverQuestCargo(state, city, requirement.goodId, requirement.quantity, active.id, context);
+    }
+  }
   if (isCourtEnvoyQuest(active) && active.courtMatterId) {
     assertSimulationMinute(context.simMinute);
     if (!Array.isArray(context.portCities)) {
@@ -5887,6 +6065,7 @@ export function completeQuest(state, city, context = {}) {
     recordDecision(state, `reputation.mission.${assertFactionId(missionFactionId)}`, 1);
   }
   if (active.kind === "delivery" && active.factionId) recordDeliveryForFaction(state, active.factionId);
+  if (isTeaRaceQuest(active)) recordDeliveryForFaction(state, active.originFactionId);
   if (active.kind === "passenger" && active.originFactionId) {
     recordDeliveryForFaction(state, active.originFactionId);
   }
@@ -5912,7 +6091,9 @@ export function completeQuest(state, city, context = {}) {
   }
   recordLedgerEntry(state, city, context, {
     kind: "income",
-    description: active.kind === "passenger"
+    description: isTeaRaceQuest(active)
+      ? "New tea race prize"
+      : active.kind === "passenger"
       ? "Passenger fare"
       : isEnvoyQuest(active)
         ? "Diplomatic mission"
@@ -7385,6 +7566,9 @@ function assertDiplomaticQuestMemory(quests) {
     )) {
       throw new Error(`Wokou quest requires a target ship and patrol port: ${quest.id}`);
     }
+  }
+  for (const quest of [quests.active, ...Object.values(quests.deliveryOffers || {})]) {
+    if (isTeaRaceQuest(quest)) validateTeaRaceQuest(quest);
   }
 }
 

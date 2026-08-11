@@ -32,6 +32,7 @@ import {
 import { papalCommissionCargoRequirements } from "./papalPolitics.js";
 import { questCargoDeliveryProgress } from "./questCargoDeliveries.js";
 import { isTributeEnvoyQuest } from "./diplomaticMissions.js";
+import { isTeaRaceQuest } from "./teaRaceQuest.js";
 
 export const QUEST_CARGO_PROMPT_VIKING = "viking-longship";
 export const QUEST_CARGO_PROMPT_MATCHLOCKS = "japanese-matchlocks";
@@ -75,6 +76,11 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
   if (isTributeEnvoyQuest(activeQuest) && activeQuest.stage === "outbound") {
     for (const requirement of activeQuest.tributeCargoRequirements) {
       add(`tribute.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);
+    }
+  }
+  if (isTeaRaceQuest(activeQuest) && activeQuest.stage === "race") {
+    for (const requirement of activeQuest.teaRaceCargoRequirements) {
+      add(`tea-race.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);
     }
   }
 
