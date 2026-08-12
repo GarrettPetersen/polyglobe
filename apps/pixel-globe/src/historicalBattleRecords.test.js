@@ -5,7 +5,8 @@ import {
   historicalBattleRecordKey,
   readHistoricalBattleRecords,
   recordHistoricalBattleResult,
-  writeHistoricalBattleRecords
+  writeHistoricalBattleRecords,
+  writeHistoricalBattleRecordsWithRecovery
 } from "./historicalBattleRecords.js";
 
 function replay() {
@@ -52,3 +53,89 @@ test("historical battle records round trip through storage", () => {
     error: null
   });
 });
+
+test("historical battle replays use a compact persisted command encoding", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value)
+  };
+  const records = recordsWithReplayCommands(500);
+  writeHistoricalBattleRecords(records, { storage });
+  const serialized = values.get("marque-and-reprisal.historical-battle-records");
+  assert.ok(serialized.length < JSON.stringify(records).length * 0.45);
+  assert.deepEqual(readHistoricalBattleRecords({ storage }).records, records);
+});
+
+test("storage pressure drops only the replay while retaining battle results", () => {
+  const records = recordsWithReplayCommands(500);
+  const probe = memoryStorage();
+  writeHistoricalBattleRecords(records, { storage: probe });
+  const compactReplayLength = probe.getItem("marque-and-reprisal.historical-battle-records").length;
+  const storage = capacityStorage(compactReplayLength - 1);
+
+  const result = writeHistoricalBattleRecordsWithRecovery(records, { storage });
+
+  assert.equal(result.replayStored, false);
+  assert.equal(result.error.name, "QuotaExceededError");
+  assert.equal(result.records.played, 1);
+  assert.equal(result.records.victories, 1);
+  assert.equal(result.records.latestReplay, null);
+  assert.deepEqual(readHistoricalBattleRecords({ storage }).records, result.records);
+});
+
+test("legacy verbose historical battle replays still load", () => {
+  const records = recordsWithReplayCommands(2);
+  const storage = memoryStorage({
+    "marque-and-reprisal.historical-battle-records": JSON.stringify(records)
+  });
+  assert.deepEqual(readHistoricalBattleRecords({ storage }).records, records);
+});
+
+function recordsWithReplayCommands(count) {
+  const records = createHistoricalBattleRecords();
+  const value = replay();
+  value.commands = Array.from({ length: count }, (_, index) => ({
+    tick: index + 1,
+    desiredHeadingQ: index % 65536,
+    rowingRequested: index % 2 === 0,
+    rowingMode: index % 2 === 0 ? "ahead" : "idle",
+    firePort: index % 19 === 0,
+    fireStarboard: index % 23 === 0,
+    squadronOrder: index % 101 === 0 ? "advance" : null,
+    unitCommand: index % 137 === 0 ? { shipIndex: 2, action: "follow" } : null
+  }));
+  recordHistoricalBattleResult(records, {
+    scenarioId: "lepanto-1571",
+    playerSideId: "holy-league",
+    playerSquadronId: "league-center",
+    outcome: "victory",
+    enemyShipsDefeated: 140,
+    durationSeconds: 320,
+    endedAt: 1234
+  }, value);
+  return records;
+}
+
+function memoryStorage(entries = {}) {
+  const values = new Map(Object.entries(entries));
+  return {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, String(value))
+  };
+}
+
+function capacityStorage(maxCharacters) {
+  const storage = memoryStorage();
+  const setItem = storage.setItem;
+  storage.setItem = (key, value) => {
+    const serialized = String(value);
+    if (serialized.length > maxCharacters) {
+      const error = new Error(`Storage quota exceeded: ${serialized.length}/${maxCharacters}`);
+      error.name = "QuotaExceededError";
+      throw error;
+    }
+    setItem(key, serialized);
+  };
+  return storage;
+}

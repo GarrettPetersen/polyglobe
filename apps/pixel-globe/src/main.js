@@ -1921,7 +1921,7 @@ import {
   createHistoricalBattleRecords,
   readHistoricalBattleRecords,
   recordHistoricalBattleResult,
-  writeHistoricalBattleRecords
+  writeHistoricalBattleRecordsWithRecovery
 } from "./historicalBattleRecords.js";
 import {
   HISTORICAL_BATTLE_SCENARIOS,
@@ -11643,7 +11643,11 @@ function recordCompletedHistoricalBattle(battle) {
     result,
     createHistoricalBattleReplay(battle)
   );
-  writeHistoricalBattleRecords(historicalBattleRecords);
+  const persistence = writeHistoricalBattleRecordsWithRecovery(historicalBattleRecords);
+  historicalBattleRecords = persistence.records;
+  if (!persistence.replayStored) {
+    console.warn("[pixel-globe] historical battle replay omitted because browser storage is full");
+  }
   historicalBattleRecordsResult = {
     status: "ready",
     records: historicalBattleRecords,

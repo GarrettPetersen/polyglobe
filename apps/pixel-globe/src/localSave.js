@@ -1,4 +1,4 @@
-import { gameStorage } from "./gameStorage.js";
+import { gameStorage, isStorageCapacityError } from "./gameStorage.js";
 
 export const LOCAL_SAVE_STORAGE_KEY = "marque-and-reprisal.save";
 export const LOCAL_SAVE_VERSION = 1;
@@ -76,10 +76,7 @@ export function localSaveByteLength(payload, savedAt = Date.now()) {
 export function isLocalSaveCapacityError(error) {
   if (!error || typeof error !== "object") return false;
   if (error.localSaveCode === "write-verification" || error.localSaveCode === "capacity") return true;
-  return [
-    "QuotaExceededError",
-    "NS_ERROR_DOM_QUOTA_REACHED"
-  ].includes(error.name) || error.code === 22 || error.code === 1014;
+  return isStorageCapacityError(error);
 }
 
 export function readLocalSave({ storage = defaultStorage() } = {}) {

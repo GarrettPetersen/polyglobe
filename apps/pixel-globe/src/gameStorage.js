@@ -26,6 +26,14 @@ export function setGameStorageMutationHandler(handler) {
   mutationHandler = handler;
 }
 
+export function isStorageCapacityError(error) {
+  if (!error || typeof error !== "object") return false;
+  return [
+    "QuotaExceededError",
+    "NS_ERROR_DOM_QUOTA_REACHED"
+  ].includes(error.name) || error.code === 22 || error.code === 1014;
+}
+
 function browserStorage() {
   if (typeof localStorage === "undefined") throw new Error("Local storage is unavailable");
   return localStorage;

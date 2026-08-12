@@ -1,10 +1,12 @@
 import { validateHistoricalBattleReplay } from "./historicalBattle.js";
+import { gameStorage, isStorageCapacityError } from "./gameStorage.js";
 
 export const HISTORICAL_BATTLE_RECORDS_STORAGE_KEY =
   "marque-and-reprisal.historical-battle-records";
 export const HISTORICAL_BATTLE_RECORDS_VERSION = 1;
 
 const MAX_RECENT_RESULTS = 20;
+const REPLAY_COMMAND_ENCODING = "tuple-v1";
 
 export function createHistoricalBattleRecords() {
   return {
@@ -24,7 +26,7 @@ export function readHistoricalBattleRecords({ storage = defaultStorage() } = {})
   try {
     const serialized = storage.getItem(HISTORICAL_BATTLE_RECORDS_STORAGE_KEY);
     if (!serialized) return { status: "ready", records: createHistoricalBattleRecords(), error: null };
-    const records = JSON.parse(serialized);
+    const records = decodeStoredHistoricalBattleRecords(JSON.parse(serialized));
     validateHistoricalBattleRecords(records);
     return { status: "ready", records, error: null };
   } catch (error) {
@@ -34,8 +36,28 @@ export function readHistoricalBattleRecords({ storage = defaultStorage() } = {})
 
 export function writeHistoricalBattleRecords(records, { storage = defaultStorage() } = {}) {
   validateHistoricalBattleRecords(records);
-  storage.setItem(HISTORICAL_BATTLE_RECORDS_STORAGE_KEY, JSON.stringify(records));
+  storage.setItem(
+    HISTORICAL_BATTLE_RECORDS_STORAGE_KEY,
+    JSON.stringify(encodeStoredHistoricalBattleRecords(records))
+  );
   return records;
+}
+
+export function writeHistoricalBattleRecordsWithRecovery(
+  records,
+  { storage = defaultStorage() } = {}
+) {
+  validateHistoricalBattleRecords(records);
+  try {
+    writeHistoricalBattleRecords(records, { storage });
+    return Object.freeze({ records, replayStored: records.latestReplay !== null, error: null });
+  } catch (error) {
+    const normalized = asError(error);
+    if (!isStorageCapacityError(normalized) || records.latestReplay === null) throw normalized;
+    const recordsWithoutReplay = { ...records, latestReplay: null };
+    writeHistoricalBattleRecords(recordsWithoutReplay, { storage });
+    return Object.freeze({ records: recordsWithoutReplay, replayStored: false, error: normalized });
+  }
 }
 
 export function recordHistoricalBattleResult(records, result, replay) {
@@ -145,6 +167,70 @@ function asError(error) {
 }
 
 function defaultStorage() {
-  if (typeof localStorage === "undefined") throw new Error("Historical battle storage is unavailable");
-  return localStorage;
+  return gameStorage;
+}
+
+function encodeStoredHistoricalBattleRecords(records) {
+  if (records.latestReplay === null) return records;
+  const replay = records.latestReplay;
+  return {
+    ...records,
+    latestReplay: {
+      version: replay.version,
+      scenarioId: replay.scenarioId,
+      playerSideId: replay.playerSideId,
+      playerSquadronId: replay.playerSquadronId,
+      seed: replay.seed,
+      commandEncoding: REPLAY_COMMAND_ENCODING,
+      commands: replay.commands.map((command) => [
+        command.tick,
+        command.desiredHeadingQ,
+        (command.rowingRequested ? 1 : 0) |
+          (command.firePort ? 2 : 0) |
+          (command.fireStarboard ? 4 : 0),
+        command.rowingMode,
+        command.squadronOrder,
+        command.unitCommand?.shipIndex ?? null,
+        command.unitCommand?.action ?? null
+      ])
+    }
+  };
+}
+
+function decodeStoredHistoricalBattleRecords(records) {
+  const storedReplay = records?.latestReplay;
+  if (!storedReplay || storedReplay.commandEncoding === undefined) return records;
+  if (storedReplay.commandEncoding !== REPLAY_COMMAND_ENCODING ||
+      !Array.isArray(storedReplay.commands)) {
+    throw new Error(`Unsupported historical battle replay encoding: ${storedReplay.commandEncoding}`);
+  }
+  const commands = storedReplay.commands.map((tuple, index) => {
+    if (!Array.isArray(tuple) || tuple.length !== 7 ||
+        !Number.isInteger(tuple[2]) || tuple[2] < 0 || tuple[2] > 7) {
+      throw new Error(`Invalid stored historical battle command tuple: ${index}`);
+    }
+    const [
+      tick,
+      desiredHeadingQ,
+      flags,
+      rowingMode,
+      squadronOrder,
+      unitShipIndex,
+      unitAction
+    ] = tuple;
+    return {
+      tick,
+      desiredHeadingQ,
+      rowingRequested: Boolean(flags & 1),
+      rowingMode,
+      firePort: Boolean(flags & 2),
+      fireStarboard: Boolean(flags & 4),
+      squadronOrder,
+      unitCommand: unitShipIndex === null && unitAction === null
+        ? null
+        : { shipIndex: unitShipIndex, action: unitAction }
+    };
+  });
+  const { commandEncoding: _commandEncoding, ...replay } = storedReplay;
+  return { ...records, latestReplay: { ...replay, commands } };
 }
