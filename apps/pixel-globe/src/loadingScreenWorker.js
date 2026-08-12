@@ -7,9 +7,18 @@ import {
   loadingScreenForegroundLayout,
   loadingWaveOffset
 } from "./loadingScreenMotion.js";
+import {
+  hardenPixelTextAlpha,
+  pixelTextScratchRasterLayout
+} from "./pixelText.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
 const SCENE_SCALE = 2;
+const LOADING_STATUS_FONT = '8px "Loading Silkscreen"';
+const LOADING_STATUS_INSET = 4;
+const LOADING_STATUS_WAKE_GAP = 4;
+const LOADING_STATUS_WAKE_DIAMOND_SIZE = 3;
+const LOADING_STATUS_WAKE_DIAMOND_GAP = 2;
 const BASE_LAYER_URLS = Object.freeze({
   background: new URL("../assets/loading/background.png", import.meta.url).toString(),
   reflection: new URL("../assets/loading/reflection.png", import.meta.url).toString(),
@@ -23,6 +32,7 @@ let sceneContext = null;
 let foregroundCanvas = null;
 let foregroundContext = null;
 let images = null;
+let statusRaster = null;
 let reducedMotion = false;
 let animationStartedAtMs = 0;
 let animationFrameId = null;
@@ -72,8 +82,13 @@ async function start(message) {
   foregroundContext.imageSmoothingEnabled = false;
   reducedMotion = message.reducedMotion === true;
   resize(message.width, message.height);
-  images = await loadCapsuleLayers(message.titleAtlasFile);
+  const [loadedImages] = await Promise.all([
+    loadCapsuleLayers(message.titleAtlasFile),
+    loadLoadingStatusFont()
+  ]);
+  images = loadedImages;
   validateLayerDimensions(images);
+  statusRaster = createLoadingStatusRaster(message.statusText);
   animationStartedAtMs = performance.now();
   render(animationStartedAtMs);
   self.postMessage({ type: "ready" });
@@ -92,7 +107,7 @@ function resize(width, height) {
 function render(nowMs) {
   if (failed || !images) return;
   drawLoadingScene(nowMs - animationStartedAtMs);
-  drawSceneCover();
+  drawSceneCover(nowMs - animationStartedAtMs);
   if (!reducedMotion) animationFrameId = self.requestAnimationFrame(render);
 }
 
@@ -212,7 +227,7 @@ function drawScaledTitleAtlasLayer(context, image, sourceY, yOffset) {
   );
 }
 
-function drawSceneCover() {
+function drawSceneCover(elapsedMs) {
   const crop = loadingScreenCoverCrop(displayCanvas.width, displayCanvas.height);
   const foreground = loadingScreenForegroundLayout(displayCanvas.width, displayCanvas.height);
   displayContext.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
@@ -238,6 +253,117 @@ function drawSceneCover() {
     foreground.width,
     foreground.height
   );
+  drawLoadingStatus(elapsedMs);
+}
+
+function drawLoadingStatus(elapsedMs) {
+  if (!statusRaster) throw new Error("Capsule loading status raster is missing");
+  const wakeWidth = LOADING_STATUS_WAKE_DIAMOND_SIZE * 3 +
+    LOADING_STATUS_WAKE_DIAMOND_GAP * 2;
+  const totalWidth = statusRaster.width + LOADING_STATUS_WAKE_GAP + wakeWidth;
+  const x = Math.max(LOADING_STATUS_INSET, displayCanvas.width - LOADING_STATUS_INSET - totalWidth);
+  const y = Math.max(
+    LOADING_STATUS_INSET,
+    displayCanvas.height - LOADING_STATUS_INSET - statusRaster.height
+  );
+  displayContext.drawImage(statusRaster, x, y);
+  const wakeX = x + statusRaster.width + LOADING_STATUS_WAKE_GAP;
+  const wakeY = y + Math.max(0, Math.floor((statusRaster.height - 3) / 2));
+  const activeDiamond = Math.floor(elapsedMs / 300) % 3;
+  for (let index = 0; index < 3; index++) {
+    drawLoadingWakeDiamond(
+      wakeX + index * (LOADING_STATUS_WAKE_DIAMOND_SIZE + LOADING_STATUS_WAKE_DIAMOND_GAP),
+      wakeY,
+      index === activeDiamond ? "#ffd27a" : "#f3aa57"
+    );
+  }
+}
+
+function drawLoadingWakeDiamond(x, y, color) {
+  displayContext.fillStyle = "#201b2a";
+  displayContext.fillRect(x + 2, y + 1, 1, 1);
+  displayContext.fillRect(x + 1, y + 2, 3, 1);
+  displayContext.fillRect(x + 2, y + 3, 1, 1);
+  displayContext.fillStyle = color;
+  displayContext.fillRect(x + 1, y, 1, 1);
+  displayContext.fillRect(x, y + 1, 3, 1);
+  displayContext.fillRect(x + 1, y + 2, 1, 1);
+}
+
+async function loadLoadingStatusFont() {
+  if (typeof FontFace !== "function" || !self.fonts) {
+    throw new Error("Capsule loading worker requires worker font support");
+  }
+  const url = new URL("../assets/fonts/Silkscreen-Regular.ttf", import.meta.url).toString();
+  const response = await fetchStaticAsset(url, { label: "capsule status font" });
+  if (!response.ok) {
+    throw new Error(`Failed to load capsule status font: HTTP ${response.status} at ${url}`);
+  }
+  const face = new FontFace("Loading Silkscreen", await response.arrayBuffer());
+  await face.load();
+  self.fonts.add(face);
+}
+
+function createLoadingStatusRaster(text) {
+  if (typeof text !== "string" || text.trim() === "" || text.length > 64) {
+    throw new Error(`Capsule loading status text is invalid: ${text}`);
+  }
+  const metricsCanvas = new OffscreenCanvas(1, 1);
+  const metricsContext = metricsCanvas.getContext("2d");
+  if (!metricsContext) throw new Error("Capsule loading status font cannot be measured");
+  metricsContext.font = LOADING_STATUS_FONT;
+  const measuredWidth = Math.ceil(metricsContext.measureText(text).width);
+  const layout = pixelTextScratchRasterLayout(
+    LOADING_STATUS_FONT,
+    metricsContext.measureText("PIXEL 1522 gy")
+  );
+  const scratch = new OffscreenCanvas(measuredWidth + layout.padding * 2, layout.scratchHeight);
+  const scratchContext = scratch.getContext("2d", { willReadFrequently: true });
+  if (!scratchContext) throw new Error("Capsule loading status raster cannot be created");
+  scratchContext.imageSmoothingEnabled = false;
+  scratchContext.font = LOADING_STATUS_FONT;
+  scratchContext.textAlign = "left";
+  scratchContext.textBaseline = "alphabetic";
+  scratchContext.fillStyle = "#f4f0eb";
+  scratchContext.fillText(text, layout.padding, layout.baselineY);
+  const glyph = scratchContext.getImageData(
+    layout.padding,
+    layout.padding,
+    measuredWidth,
+    layout.height
+  );
+  if (hardenPixelTextAlpha(glyph.data) === 0) {
+    throw new Error(`Capsule loading status contains no visible glyphs: ${text}`);
+  }
+
+  const raster = new OffscreenCanvas(measuredWidth + 1, layout.height + 1);
+  const rasterContext = raster.getContext("2d", { willReadFrequently: true });
+  if (!rasterContext) throw new Error("Capsule loading status output cannot be created");
+  const output = rasterContext.createImageData(raster.width, raster.height);
+  for (let sourceY = 0; sourceY < layout.height; sourceY++) {
+    for (let sourceX = 0; sourceX < measuredWidth; sourceX++) {
+      const sourceOffset = (sourceY * measuredWidth + sourceX) * 4;
+      if (glyph.data[sourceOffset + 3] === 0) continue;
+      setOpaquePixel(output.data, raster.width, sourceX + 1, sourceY + 1, 32, 27, 42);
+    }
+  }
+  for (let sourceY = 0; sourceY < layout.height; sourceY++) {
+    for (let sourceX = 0; sourceX < measuredWidth; sourceX++) {
+      const sourceOffset = (sourceY * measuredWidth + sourceX) * 4;
+      if (glyph.data[sourceOffset + 3] === 0) continue;
+      setOpaquePixel(output.data, raster.width, sourceX, sourceY, 244, 240, 235);
+    }
+  }
+  rasterContext.putImageData(output, 0, 0);
+  return raster;
+}
+
+function setOpaquePixel(pixels, width, x, y, red, green, blue) {
+  const offset = (y * width + x) * 4;
+  pixels[offset] = red;
+  pixels[offset + 1] = green;
+  pixels[offset + 2] = blue;
+  pixels[offset + 3] = 255;
 }
 
 async function loadCapsuleLayers(titleAtlasFile) {

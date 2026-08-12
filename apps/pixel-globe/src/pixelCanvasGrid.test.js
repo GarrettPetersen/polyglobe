@@ -38,5 +38,7 @@ test("every runtime presentation path uses nearest-neighbor sampling", () => {
   }
 
   assert.match(loadingWorker, /displayContext\.imageSmoothingEnabled = false/);
+  assert.match(loadingWorker, /hardenPixelTextAlpha\(glyph\.data\)/);
+  assert.match(loadingWorker, /displayContext\.drawImage\(statusRaster, x, y\)/);
   assert.match(screenshots, /outputCtx\.imageSmoothingEnabled = false/);
 });

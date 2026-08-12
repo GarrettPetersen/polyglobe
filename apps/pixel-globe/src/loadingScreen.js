@@ -15,6 +15,10 @@ export function startCapsuleLoadingScreen() {
   const root = requiredElement("loading-screen", HTMLElement);
   const displayCanvas = requiredElement("loading-art", HTMLCanvasElement);
   const status = requiredElement("loading-status-text", HTMLElement);
+  const statusLabel = status.querySelector("span");
+  if (!(statusLabel instanceof HTMLElement) || statusLabel.textContent?.trim() === "") {
+    throw new Error("Capsule loading screen requires visible status text");
+  }
   const shell = root.closest(".shell");
   if (!(shell instanceof HTMLElement)) {
     throw new Error("Capsule loading screen must be inside the game shell");
@@ -61,6 +65,7 @@ export function startCapsuleLoadingScreen() {
     width: initialSize.width,
     height: initialSize.height,
     reducedMotion,
+    statusText: statusLabel.textContent.trim(),
     titleAtlasFile
   }, [offscreenCanvas]);
 
