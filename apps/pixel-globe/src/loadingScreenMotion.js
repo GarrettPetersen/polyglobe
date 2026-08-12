@@ -1,3 +1,5 @@
+import { responsiveLogicalViewport } from "./responsiveViewport.js";
+
 export const LOADING_CAPSULE_WIDTH = 1232;
 export const LOADING_CAPSULE_HEIGHT = 706;
 export const LOADING_CAPSULE_HORIZON_Y = 366;
@@ -12,10 +14,7 @@ const LOADING_SHIP_BOB_AMPLITUDE_PX = 2.5;
 export function loadingScreenRenderSize(viewportWidth, viewportHeight) {
   assertPositiveDimension(viewportWidth, "viewport width");
   assertPositiveDimension(viewportHeight, "viewport height");
-  return Object.freeze({
-    width: Math.max(1, Math.round(viewportWidth)),
-    height: Math.max(1, Math.round(viewportHeight))
-  });
+  return Object.freeze(responsiveLogicalViewport({ viewportWidth, viewportHeight }));
 }
 
 export function loadingScreenCoverCrop(

@@ -1,4 +1,5 @@
 import { loadingScreenRenderSize } from "./loadingScreenMotion.js";
+import { canvasDisplayLayout } from "./displayScaling.js";
 import { gameStorage } from "./gameStorage.js";
 import {
   currentSteamInterfaceLanguage,
@@ -53,7 +54,7 @@ export function startCapsuleLoadingScreen() {
   resizeObserver.observe(root);
   window.visualViewport?.addEventListener("resize", syncDisplayCanvasSize);
 
-  const initialSize = currentRenderSize(root);
+  const initialSize = currentRenderSize(root, displayCanvas);
   worker.postMessage({
     type: "start",
     canvas: offscreenCanvas,
@@ -93,7 +94,7 @@ export function startCapsuleLoadingScreen() {
 
   function syncDisplayCanvasSize() {
     if (lifecycle === "finished" || lifecycle === "failed") return;
-    const size = currentRenderSize(root);
+    const size = currentRenderSize(root, displayCanvas);
     worker.postMessage({ type: "resize", width: size.width, height: size.height });
   }
 
@@ -141,11 +142,23 @@ export function startCapsuleLoadingScreen() {
   }
 }
 
-function currentRenderSize(root) {
-  return loadingScreenRenderSize(
-    root.clientWidth || window.innerWidth,
-    root.clientHeight || window.innerHeight
-  );
+function currentRenderSize(root, displayCanvas = null) {
+  const viewportWidth = root.clientWidth || window.innerWidth;
+  const viewportHeight = root.clientHeight || window.innerHeight;
+  const renderSize = loadingScreenRenderSize(viewportWidth, viewportHeight);
+  if (displayCanvas) {
+    const layout = canvasDisplayLayout({
+      viewportWidth,
+      viewportHeight,
+      canvasWidth: renderSize.width,
+      canvasHeight: renderSize.height
+    });
+    displayCanvas.style.left = `${layout.left}px`;
+    displayCanvas.style.top = `${layout.top}px`;
+    displayCanvas.style.width = `${layout.width}px`;
+    displayCanvas.style.height = `${layout.height}px`;
+  }
+  return renderSize;
 }
 
 function requiredElement(id, constructor) {

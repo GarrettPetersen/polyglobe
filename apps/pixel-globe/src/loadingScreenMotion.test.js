@@ -61,11 +61,15 @@ test("loading foreground retains the existing cover alignment on landscape scree
   assert.equal(foreground.height, LOADING_CAPSULE_HEIGHT * scale);
 });
 
-test("loading screen renders at the full viewport resolution", () => {
+test("loading screen uses the same responsive logical pixel grid as gameplay", () => {
   const native = loadingScreenRenderSize(960, 540);
-  assert.deepEqual(native, { width: 960, height: 540 });
+  assert.deepEqual(native, { width: 455, height: 256 });
   const fourK = loadingScreenRenderSize(3840, 2160);
-  assert.deepEqual(fourK, { width: 3840, height: 2160 });
+  assert.deepEqual(fourK, native);
+  assert.deepEqual(
+    loadingScreenRenderSize(390, 844),
+    { width: 256, height: 554 }
+  );
 });
 
 test("ocean ripple amplitude grows toward the foreground with continuous motion", () => {
