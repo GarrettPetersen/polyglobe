@@ -736,7 +736,6 @@ for (const locale of LOCALES) {
   const missing = PRUNE_ONLY ? [] : SCREEN_TEXT_TEMPLATES.filter((source) => (
     !REVIEWED_OVERRIDES[source]?.[locale.id] && (
       typeof existing[source] !== "string" ||
-      needsTranslationRefresh(source) ||
       (existing[source] === source && requiresTranslatedProse(source))
     )
   ));
@@ -953,11 +952,6 @@ function contextualizeNauticalTerms(value) {
     .replace(/\bHELD\b/g, "UNITS HELD")
     .replace(/P\/L/g, "PROFIT OR LOSS")
     .replace(/\bBuy max\b/gi, "Buy maximum");
-}
-
-function needsTranslationRefresh(value) {
-  return SHIP_TYPE_TERMS.has(value) || DIPLOMACY_TERMS.has(value) ||
-    /\b(?:db|factor|factors|DUTY|STOCK|ABOVE WORLD|BELOW WORLD|SPACE|EACH|HELD|Buy max)\b|P\/L/i.test(value);
 }
 
 function isUppercaseDisplayText(value) {

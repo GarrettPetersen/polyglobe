@@ -1,4 +1,5 @@
 import { greatCircleDistanceKm } from "./worldDistance.js";
+import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 import {
   CANONICAL_PORTS,
   canonicalPortDisplayName,
@@ -14,6 +15,7 @@ export const EAST_ASIAN_MISSION_GREAT_RITES = "great-rites-memorial";
 export const EAST_ASIAN_MISSION_YOSHIHARU = "yoshiharu-seal";
 export const NINGBO_DEFECTION_BRIBE = 450;
 export const NINGBO_RACE_BONUS = 250;
+export const NINGBO_BRIBE_JOURNEY_EVENT_ID = "ningbo-rival-bribe";
 export const TSUSHIMA_EVIDENCE_BRIEFING_TEXT =
   "Captain, you found the second bundle beneath my register. Its names are absent from the rolls and its seals are copies. I called every paper genuine because Tsushima cannot afford Joseon's suspicion.";
 export const PORTUGUESE_GUNS_ITINERARY_REFS = Object.freeze([
@@ -229,7 +231,26 @@ export function eastAsianMissionDialogue(plan) {
     return Object.freeze({
       offer: `${house} merchants have a tally for the Ming trade at Ningbo. The ${rival} have sent a rival mission. Carry me there before their papers reach the shipping office.`,
       underway: `At Ningbo, order matters as much as ink. Our support ships have sailed, and so have the ${rival}. We must reach the shipping office first.`,
-      arrival: "Both tallies are before the Ningbo shipping office. The rival escorts wait offshore while the officials demand a settlement."
+      arrival: "Both tallies are before the Ningbo shipping office. The rival escorts wait offshore while the officials demand a settlement.",
+      journeyEvents: Object.freeze([
+        Object.freeze({
+          id: NINGBO_BRIBE_JOURNEY_EVENT_ID,
+          speakerKind: "ningbo-rival-captain",
+          trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+          expressionId: "attentive",
+          text: `Keep clear, ${house} hireling. The ${rival} tally will reach Ningbo first. Yet a prudent captain need not lose with ${house}: stand with us if the hearing turns to battle, and ${NINGBO_DEFECTION_BRIBE} db is yours.`,
+          choices: Object.freeze([
+            Object.freeze({
+              id: "accept-ningbo-bribe",
+              label: `Promise to defect for ${NINGBO_DEFECTION_BRIBE} db`
+            }),
+            Object.freeze({
+              id: "refuse-ningbo-bribe",
+              label: `Refuse; remain loyal to ${house}`
+            })
+          ])
+        })
+      ])
     });
   }
   if (plan.id === EAST_ASIAN_MISSION_TSUSHIMA) {

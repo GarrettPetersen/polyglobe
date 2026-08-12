@@ -5975,22 +5975,38 @@ export function recordNingboMissionArrival(state, questId, context = {}) {
 }
 
 export function refuseNingboMissionBribe(state, questId) {
+  return answerNingboMissionBribe(state, questId, false);
+}
+
+export function answerNingboMissionBribe(state, questId, accepted) {
   assertGameState(state);
   const quest = questMemory(state).passengerActive;
   if (!quest || quest.id !== questId || quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) {
     throw new Error(`Ningbo mission is not active: ${questId}`);
   }
-  if (quest.eastAsianPlayerArrivalMinute === undefined) {
-    throw new Error("Ningbo bribe cannot be refused before reaching Ningbo");
-  }
+  if (typeof accepted !== "boolean") throw new Error("Ningbo bribe answer must be accepted or refused");
   if (quest.eastAsianOutcomeId) {
     throw new Error(`Ningbo mission outcome is already fixed: ${quest.eastAsianOutcomeId}`);
   }
-  if (quest.eastAsianBribeRefused !== true) {
-    quest.eastAsianBribeRefused = true;
-    recordDecision(state, `quest.east-asian.${EAST_ASIAN_MISSION_NINGBO}.bribe-refused`, 1);
+  const previous = ningboMissionBribeDecision(quest);
+  const decision = accepted ? "accepted" : "refused";
+  if (previous !== null && previous !== decision) {
+    throw new Error(`Ningbo bribe was already ${previous}`);
+  }
+  if (previous === null) {
+    quest.eastAsianBribeAccepted = accepted;
+    quest.eastAsianBribeRefused = !accepted;
+    recordDecision(state, `quest.east-asian.${EAST_ASIAN_MISSION_NINGBO}.bribe-${decision}`, 1);
   }
   return quest;
+}
+
+export function ningboMissionBribeDecision(quest) {
+  if (!quest || quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) return null;
+  const accepted = quest.eastAsianBribeAccepted === true;
+  const refused = quest.eastAsianBribeRefused === true;
+  if (accepted && refused) throw new Error("Ningbo bribe cannot be both accepted and refused");
+  return accepted ? "accepted" : refused ? "refused" : null;
 }
 
 export function selectEastAsianMissionOutcome(state, questId, outcomeId, context = {}) {
@@ -6010,11 +6026,15 @@ export function selectEastAsianMissionOutcome(state, questId, outcomeId, context
     if (quest.eastAsianPlayerArrivalMinute === undefined) {
       throw new Error("Ningbo outcome cannot be chosen before reaching Ningbo");
     }
-    if (outcomeId === "support-rival" && quest.eastAsianBribeRefused === true) {
-      throw new Error("The rival delegation's bribe has already been refused");
-    }
-    if (outcomeId !== "support-rival" && quest.eastAsianBribeRefused !== true) {
+    const bribeDecision = ningboMissionBribeDecision(quest);
+    if (bribeDecision === null) {
       throw new Error("The rival delegation's bribe must be answered before the Ningbo hearing");
+    }
+    if (outcomeId === "support-rival" && bribeDecision !== "accepted") {
+      throw new Error("The rival delegation's bribe was refused");
+    }
+    if (outcomeId === "support-origin" && bribeDecision !== "refused") {
+      throw new Error("The captain promised to support the rival delegation");
     }
     if (outcomeId === "mediate") {
       quest.eastAsianStage = "resolved";

@@ -405,6 +405,8 @@ import {
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
   recordNingboMissionShipDefeated,
+  answerNingboMissionBribe,
+  ningboMissionBribeDecision,
   recordTeaRaceCompetitorRemoved,
   recordTeaRacePlayerArrival,
   recordTeaRaceRivalArrival,
@@ -439,6 +441,9 @@ import {
 } from "./teaRaceQuest.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
+  EAST_ASIAN_MISSION_TSUSHIMA,
+  NINGBO_DEFECTION_BRIBE,
+  NINGBO_BRIBE_JOURNEY_EVENT_ID,
   eastAsianMissionHasOutcomes,
   ningboDelegationManifest
 } from "./eastAsianQuestlines.js";
@@ -6637,25 +6642,75 @@ function maybeOpenCampaignGoalDepartureReminder(departureCity) {
 function maybeOpenQuestJourneyDialogueAtSea() {
   if (anchored || dialogueState || captainAlertModal || menusAreOpen() || !ship) return false;
   const questMemory = gameState?.memory?.quests;
-  const quest = [questMemory?.passengerActive, questMemory?.active]
-    .find((candidate) => Array.isArray(candidate?.dialogue?.journeyEvents)) || null;
-  if (!quest) return false;
-  const origin = tileCenterVector(quest.originTileId);
-  const destination = tileCenterVector(quest.destinationTileId);
-  const event = pendingQuestJourneyDialogue(quest, {
-    originDistance: vectorArcDistance(ship.position, origin),
-    destinationDistance: vectorArcDistance(ship.position, destination),
-    directDistance: vectorArcDistance(origin, destination)
-  });
-  if (!event) return false;
-  if (!quest.passenger?.id) {
-    throw new Error(`Quest journey dialogue requires a passenger character: ${quest.id}`);
+  for (const quest of [questMemory?.passengerActive, questMemory?.active]) {
+    if (!Array.isArray(quest?.dialogue?.journeyEvents)) continue;
+    const origin = tileCenterVector(quest.originTileId);
+    const destination = tileCenterVector(quest.destinationTileId);
+    const event = pendingQuestJourneyDialogue(quest, {
+      originDistance: vectorArcDistance(ship.position, origin),
+      destinationDistance: vectorArcDistance(ship.position, destination),
+      directDistance: vectorArcDistance(origin, destination)
+    });
+    if (!event) continue;
+    return openQuestJourneyDialogueAtSea(quest, event);
   }
-  const opened = openCharacterAlertModal(quest.passenger, uiText(event.text), event.expressionId);
+  return false;
+}
+
+function openQuestJourneyDialogueAtSea(quest, event) {
+  const character = questJourneyDialogueCharacter(quest, event);
+  if (Array.isArray(event.choices)) {
+    const opened = openCharacterChoiceAlertModal(
+      character,
+      uiText(event.text),
+      event.choices.map((choice) => ({
+        label: uiText(choice.label),
+        onSelect: () => resolveQuestJourneyDialogueChoice(quest, event, choice.id)
+      })),
+      event.expressionId,
+      { leftCharacter: gameState.playerCharacter, rightCharacter: character }
+    );
+    if (opened && event.id === NINGBO_BRIBE_JOURNEY_EVENT_ID) {
+      quest.eastAsianRivalHailed = true;
+    }
+    return opened;
+  }
+  const opened = openCharacterAlertModal(character, uiText(event.text), event.expressionId);
   if (!opened) return false;
   markQuestJourneyDialogueSeen(quest, event.id);
   saveVoyageNow("quest journey dialogue");
   return true;
+}
+
+function questJourneyDialogueCharacter(quest, event) {
+  if (event.speakerKind === undefined) {
+    if (!quest.passenger?.id) {
+      throw new Error(`Quest journey dialogue requires a passenger character: ${quest.id}`);
+    }
+    return quest.passenger;
+  }
+  if (event.speakerKind === "ningbo-rival-captain") {
+    return ensureNpcShipCaptain(ningboRivalDelegationShip(quest, "courier").id);
+  }
+  throw new Error(`Unknown quest journey dialogue speaker: ${event.speakerKind}`);
+}
+
+function resolveQuestJourneyDialogueChoice(quest, event, choiceId) {
+  if (event.id !== NINGBO_BRIBE_JOURNEY_EVENT_ID) {
+    throw new Error(`Unknown quest journey dialogue choice event: ${event.id}`);
+  }
+  if (!["accept-ningbo-bribe", "refuse-ningbo-bribe"].includes(choiceId)) {
+    throw new Error(`Unknown Ningbo bribe choice: ${choiceId}`);
+  }
+  const accepted = choiceId === "accept-ningbo-bribe";
+  answerNingboMissionBribe(gameState, quest.id, accepted);
+  markQuestJourneyDialogueSeen(quest, event.id);
+  showSurvivalNotice(
+    accepted ? `NINGBO BRIBE PROMISED  ${NINGBO_DEFECTION_BRIBE} DB` : "NINGBO BRIBE REFUSED",
+    accepted ? "warn" : "good"
+  );
+  saveVoyageNow(accepted ? "promised to defect at Ningbo" : "refused the Ningbo bribe");
+  dirty = true;
 }
 
 function updateWhiteWhaleSightingObjective() {
@@ -6703,6 +6758,22 @@ function activeWokouHuntQuest() {
 function activeNingboMissionQuest() {
   const quest = gameState?.memory?.quests?.passengerActive;
   return quest?.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO ? quest : null;
+}
+
+function ningboRivalDelegationShip(quest, delegationRole) {
+  if (quest !== activeNingboMissionQuest()) {
+    throw new Error(`Ningbo rival ship requires the active mission: ${quest?.id}`);
+  }
+  if (!["courier", "escort"].includes(delegationRole)) {
+    throw new Error(`Invalid Ningbo rival delegation role: ${delegationRole}`);
+  }
+  ensureNingboMissionEncounters();
+  const rivalFactionId = quest.eastAsianStartingFactionId === "hosokawa" ? "ouchi" : "hosokawa";
+  const rivalShip = quest.eastAsianDelegationShips.find((candidate) => (
+    candidate.factionId === rivalFactionId && candidate.delegationRole === delegationRole
+  ));
+  if (!rivalShip) throw new Error(`Ningbo mission has no rival ${delegationRole}`);
+  return rivalShip;
 }
 
 function activeTeaRaceQuest() {
@@ -15740,7 +15811,8 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   );
   const arrivingTravelMission = passengerDialogueQuestForCity(cityCall);
   if (arrivingTravelMission && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
-    const journeyEvent = pendingQuestJourneyDialogue(arrivingTravelMission, { arrived: true });
+    const pendingJourneyEvent = pendingQuestJourneyDialogue(arrivingTravelMission, { arrived: true });
+    const journeyEvent = Array.isArray(pendingJourneyEvent?.choices) ? null : pendingJourneyEvent;
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
       arrivedDrunk,
@@ -17386,12 +17458,7 @@ function createWorldPassengerDialogueSession(cityCall, quest, options = {}) {
     gameState.memory.quests.passengerActive?.id === quest.id &&
     cityCall.tileId === quest.destinationTileId
   ) {
-    ensureNingboMissionEncounters();
-    const rivalFactionId = quest.eastAsianStartingFactionId === "hosokawa" ? "ouchi" : "hosokawa";
-    const rivalCourier = quest.eastAsianDelegationShips.find((ship) => (
-      ship.factionId === rivalFactionId && ship.delegationRole === "courier"
-    ));
-    if (!rivalCourier) throw new Error("Ningbo mission has no rival courier");
+    const rivalCourier = ningboRivalDelegationShip(quest, "courier");
     const strategic = npcSeaRoutes.shipById.get(rivalCourier.id);
     const rivalArrivalMinute = strategic?.encounter?.arrivedAtMinute ??
       (strategic?.plan?.destination?.tileId === quest.destinationTileId
@@ -19670,11 +19737,19 @@ function currentDialogueSubject() {
       passenger.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
       passenger.destinationTileId === dialogueState.cityTileId &&
       !passenger.eastAsianOutcomeId &&
-      passenger.eastAsianBribeRefused !== true
+      ningboMissionBribeDecision(passenger) === null
     ) {
       const character = dialogueState.ningboRivalCharacter;
       if (!character?.id) throw new Error("Ningbo bribe dialogue lost the rival captain");
       return { character, portrait: characterExpression(character) };
+    }
+    if (
+      passenger.eastAsianMissionId === EAST_ASIAN_MISSION_TSUSHIMA &&
+      passenger.destinationTileId === dialogueState.cityTileId &&
+      !passenger.eastAsianOutcomeId &&
+      dialogueState.eastAsianHearingStage === null
+    ) {
+      return passenger;
     }
     if (
       passenger.destinationTileId === dialogueState.cityTileId &&
@@ -28193,12 +28268,8 @@ function maybeOpenNingboRivalDelegationHail() {
   ) {
     return false;
   }
-  ensureNingboMissionEncounters();
   const rivalFactionId = quest.eastAsianStartingFactionId === "hosokawa" ? "ouchi" : "hosokawa";
-  const escort = quest.eastAsianDelegationShips.find((ship) => (
-    ship.factionId === rivalFactionId && ship.delegationRole === "escort"
-  ));
-  if (!escort) throw new Error("Ningbo mission has no rival escort");
+  const escort = ningboRivalDelegationShip(quest, "escort");
   const visual = npcVisualShips.get(escort.id);
   if (!visual || !npcShipInHailRange(visual)) return false;
   quest.eastAsianRivalHailed = true;

@@ -6,6 +6,7 @@ import {
   acknowledgePlayerPortCustomsNotice,
   acceptQuest,
   adjustFactionReputation,
+  answerNingboMissionBribe,
   buyGood,
   cargoCostBasis,
   cargoFree,
@@ -37,6 +38,7 @@ import {
   letterOfMarqueStatus,
   maybeGrantMissionPerkItem,
   negotiateEnvoyQuest,
+  ningboMissionBribeDecision,
   portMemory,
   portEntryStatus,
   playerShipReplacementCargoUsed,
@@ -60,7 +62,6 @@ import {
   recordNingboMissionArrival,
   recordColonyAuthorityForState,
   recordQuestCargoTheft,
-  refuseNingboMissionBribe,
   selectEastAsianMissionOutcome,
   releaseCargoSpace,
   reserveCargoSpace,
@@ -118,6 +119,8 @@ import {
 import {
   EAST_ASIAN_MISSION_NINGBO,
   EAST_ASIAN_MISSION_PORTUGUESE_GUNS,
+  EAST_ASIAN_MISSION_TSUSHIMA,
+  NINGBO_BRIBE_JOURNEY_EVENT_ID,
   NINGBO_DEFECTION_BRIBE,
   PORTUGUESE_GUNS_STOP_COUNT,
   eastAsianMissionHasOutcomes,
@@ -516,6 +519,7 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     lutheranConversionPending: false,
     ningboRivalCharacter: options.ningboRivalCharacter || null,
     journeyEvent: options.journeyEvent || null,
+    eastAsianHearingStage: null,
     selectedIndex: 0,
     feedback: null
   };
@@ -2583,7 +2587,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
     if (
       quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
       !quest.eastAsianOutcomeId &&
-      quest.eastAsianBribeRefused !== true
+      ningboMissionBribeDecision(quest) === null
     ) {
       const rivalCharacter = session.ningboRivalCharacter;
       if (!rivalCharacter?.id || !rivalCharacter.name) {
@@ -2601,13 +2605,16 @@ export function passengerDialogueView(session, city, quest, gameState) {
           : `Our courier reached the shipping office first. ${origin} hired you, but ${rival} can pay better. Take ${NINGBO_DEFECTION_BRIBE} db, stand with us, and help drive their ships from Ningbo.`,
         feedback: session.feedback,
         options: [
-          option(`Accept ${NINGBO_DEFECTION_BRIBE} db and defect`, {
-            type: "choose-east-asian-outcome",
-            outcomeId: rivalOutcome.id
+          option(`Promise to defect for ${NINGBO_DEFECTION_BRIBE} db`, {
+            type: "answer-ningbo-bribe",
+            accepted: true
           }, {
-            detail: `Fight ${origin} for ${rival}`
+            detail: `Promise to fight ${origin} for ${rival}`
           }),
-          option("Refuse and remain loyal", { type: "refuse-ningbo-bribe" }, {
+          option("Refuse and remain loyal", {
+            type: "answer-ningbo-bribe",
+            accepted: false
+          }, {
             detail: "Then choose mediation or battle"
           })
         ]
@@ -2639,42 +2646,87 @@ export function passengerDialogueView(session, city, quest, gameState) {
         ]
       };
     }
+    if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_TSUSHIMA) {
+      if (session.eastAsianHearingStage === null) {
+        return {
+          speaker,
+          expressionId: "concerned",
+          text: "Captain, Joseon's councillors will believe the person who carried these papers. Tell them the Sō register is sound, and Tsushima keeps its trade.",
+          feedback: session.feedback,
+          options: [
+            option("Vouch for the Sō envoy", {
+              type: "choose-east-asian-outcome",
+              outcomeId: "renew-privileges"
+            }, {
+              detail: "Hide the forgeries; favor Tsushima"
+            }),
+            option("Refuse to vouch", { type: "refuse-tsushima-vouch" }, {
+              detail: "Then decide what evidence to give Joseon"
+            })
+          ]
+        };
+      }
+      if (session.eastAsianHearingStage !== "evidence") {
+        throw new Error(`Invalid Tsushima hearing stage: ${session.eastAsianHearingStage}`);
+      }
+      return {
+        speaker: `${characterName(city.character)}, local official`,
+        expressionId: "stern",
+        text: "Then speak as witness, captain. Will you submit the forged papers, or withhold them and recommend a stricter register without accusing this envoy?",
+        feedback: session.feedback,
+        options: [
+          option("Submit the forged papers", {
+            type: "choose-east-asian-outcome",
+            outcomeId: "expose-false-envoys"
+          }, {
+            detail: "Expose the envoy; favor Joseon"
+          }),
+          option("Recommend a stricter register", {
+            type: "choose-east-asian-outcome",
+            outcomeId: "reform-register"
+          }, {
+            detail: "Avoid an accusation; favor both sides"
+          })
+        ]
+      };
+    }
+    if (quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) {
+      throw new Error(`Unstaged East Asian political choice: ${quest.eastAsianMissionId}`);
+    }
+    const bribeDecision = ningboMissionBribeDecision(quest);
+    if (bribeDecision === null) throw new Error("Ningbo hearing opened before the bribe was answered");
+    const origin = quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
+    const rival = quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa";
+    const fightFor = bribeDecision === "accepted" ? rival : origin;
+    const fightAgainst = bribeDecision === "accepted" ? origin : rival;
     return {
       speaker: `${characterName(city.character)}, local official`,
       expressionId: "stern",
-      text: quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO
-        ? `${quest.eastAsianWonRace
+      text: `${quest.eastAsianWonRace
           ? `You reached Ningbo before the rival courier and earned a ${quest.eastAsianRaceBonus} db bonus. `
-          : "The rival courier reached Ningbo first. "}${quest.dialogue?.arrival || "The court requires your answer."}`
-        : quest.dialogue?.arrival || "The court is assembled and requires your answer.",
+          : "The rival courier reached Ningbo first. "}${quest.dialogue?.arrival || "The court requires your answer."} ` +
+        (bribeDecision === "accepted"
+          ? `You promised to stand with ${rival} if fighting begins.`
+          : `You refused ${rival}'s purse and remain pledged to ${origin}.`),
       feedback: session.feedback,
-      options: quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO
-        ? [
-          option("Mediate a joint tally", {
+      options: [
+        option("Mediate a joint tally", {
             type: "choose-east-asian-outcome",
             outcomeId: "mediate"
           }, {
-            detail: "No battle; favors Ming"
+            detail: bribeDecision === "accepted"
+              ? "Break the bargain; avoid battle; favor Ming"
+              : "Avoid battle; favor Ming"
           }),
-          option(`Fight for ${quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi"}`, {
+        option(`Fight for ${fightFor}`, {
             type: "choose-east-asian-outcome",
-            outcomeId: "support-origin"
+            outcomeId: bribeDecision === "accepted" ? "support-rival" : "support-origin"
           }, {
-            detail: `Attack ${quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa"}`
-          }),
-          option("Decide later", { type: "close" })
-        ]
-        : [
-          ...eastAsianMissionOutcomeOptions(quest).map((outcome) => option(
-            outcome.label,
-            {
-              type: "choose-east-asian-outcome",
-              outcomeId: outcome.id
-            },
-            { detail: outcome.detail }
-          )),
-          option("Not yet", { type: "close" })
-        ]
+            detail: bribeDecision === "accepted"
+              ? `Collect ${NINGBO_DEFECTION_BRIBE} db; attack ${fightAgainst}`
+              : `Attack ${fightAgainst}`
+          })
+      ]
     };
   }
   if (active?.id === quest.id && questHasDestination(quest, city) &&
@@ -2881,14 +2933,32 @@ export function selectPassengerDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
-  if (action.type === "refuse-ningbo-bribe") {
+  if (action.type === "answer-ningbo-bribe") {
     if (
       quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO ||
       quest.destinationTileId !== city.tileId
     ) {
       throw new Error("Ningbo bribe is not available here");
     }
-    refuseNingboMissionBribe(gameState, quest.id);
+    answerNingboMissionBribe(gameState, quest.id, action.accepted);
+    const hasBribeJourneyEvent = quest.dialogue?.journeyEvents?.some(
+      (event) => event.id === NINGBO_BRIBE_JOURNEY_EVENT_ID
+    );
+    if (hasBribeJourneyEvent && !(quest.journeyDialogueSeenIds || []).includes(NINGBO_BRIBE_JOURNEY_EVENT_ID)) {
+      markQuestJourneyDialogueSeen(quest, NINGBO_BRIBE_JOURNEY_EVENT_ID);
+    }
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "refuse-tsushima-vouch") {
+    if (
+      quest.eastAsianMissionId !== EAST_ASIAN_MISSION_TSUSHIMA ||
+      quest.destinationTileId !== city.tileId ||
+      session.eastAsianHearingStage !== null
+    ) {
+      throw new Error("Tsushima testimony cannot advance from this dialogue");
+    }
+    session.eastAsianHearingStage = "evidence";
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   acceptQuest,
+  answerNingboMissionBribe,
   completeQuest,
   createGameState,
   diplomacyBetweenForState,
@@ -20,6 +21,7 @@ import {
   EAST_ASIAN_MISSION_RYUKYU,
   EAST_ASIAN_MISSION_TSUSHIMA,
   EAST_ASIAN_MISSION_YOSHIHARU,
+  NINGBO_BRIBE_JOURNEY_EVENT_ID,
   TSUSHIMA_EVIDENCE_BRIEFING_TEXT,
   eastAsianMissionOutcomeOptions
 } from "./eastAsianQuestlines.js";
@@ -154,13 +156,22 @@ test("Tsushima briefs the captain on the forged credentials before presenting ac
 
   const session = createPassengerDialogueSession(HANSEONG, quest);
   const hearing = passengerDialogueView(session, HANSEONG, quest, state);
-  assert.match(hearing.text, /captain who carried the packet/);
+  assert.match(hearing.text, /councillors will believe the person who carried these papers/);
   assert.deepEqual(
-    hearing.options.slice(0, 3).map(({ label, detail }) => [label, detail]),
+    hearing.options.map(({ label, detail }) => [label, detail]),
     [
       ["Vouch for the Sō envoy", "Hide the forgeries; favor Tsushima"],
-      ["Urge stricter ship papers", "Avoid an accusation; favor both sides"],
-      ["Reveal the hidden forgeries", "Expose the envoy; favor Joseon"]
+      ["Refuse to vouch", "Then decide what evidence to give Joseon"]
+    ]
+  );
+  selectPassengerDialogueOption(session, HANSEONG, quest, state, 1);
+  const evidence = passengerDialogueView(session, HANSEONG, quest, state);
+  assert.match(evidence.text, /speak as witness/i);
+  assert.deepEqual(
+    evidence.options.map(({ label, detail }) => [label, detail]),
+    [
+      ["Submit the forged papers", "Expose the envoy; favor Joseon"],
+      ["Recommend a stricter register", "Avoid an accusation; favor both sides"]
     ]
   );
 });
@@ -178,8 +189,30 @@ test("Tsushima's hidden forgeries are impossible to miss before the Hanseong hea
   selectPassengerDialogueOption(session, HANSEONG, quest, state, 0);
   assert.deepEqual(quest.journeyDialogueSeenIds, [journeyEvent.id]);
   const hearing = passengerDialogueView(session, HANSEONG, quest, state);
-  assert.match(hearing.text, /captain who carried the packet/);
+  assert.match(hearing.text, /councillors will believe the person who carried these papers/);
+  assert.equal(hearing.options.length, 2);
   assert.equal(hearing.options[0].label, "Vouch for the Sō envoy");
+});
+
+test("Ningbo's rival bribe appears on the first frame closer to Ningbo than Japan", () => {
+  const state = gameState();
+  const quest = acceptQuest(state, offer(state, SAKAI), { simMinute: 0 });
+
+  assert.equal(pendingQuestJourneyDialogue(quest, {
+    originDistance: 0.49,
+    destinationDistance: 0.51,
+    directDistance: 1
+  }), null);
+  const bribe = pendingQuestJourneyDialogue(quest, {
+    originDistance: 0.51,
+    destinationDistance: 0.49,
+    directDistance: 1
+  });
+  assert.equal(bribe.id, NINGBO_BRIBE_JOURNEY_EVENT_ID);
+  assert.deepEqual(bribe.choices.map(({ id }) => id), [
+    "accept-ningbo-bribe",
+    "refuse-ningbo-bribe"
+  ]);
 });
 
 test("an automatically opened Ningbo dialogue records arrival before its choices are selected", () => {
@@ -199,7 +232,7 @@ test("an automatically opened Ningbo dialogue records arrival before its choices
   const bribe = passengerDialogueView(session, NINGBO, active, state);
   assert.equal(active.eastAsianPlayerArrivalMinute, 60);
   assert.deepEqual(bribe.options.map((option) => [option.label, option.detail]), [
-    ["Accept 450 db and defect", "Fight Hosokawa for Ouchi"],
+    ["Promise to defect for 450 db", "Promise to fight Hosokawa for Ouchi"],
     ["Refuse and remain loyal", "Then choose mediation or battle"]
   ]);
   selectPassengerDialogueOption(session, NINGBO, active, state, 1, { simMinute: 60 });
@@ -207,9 +240,8 @@ test("an automatically opened Ningbo dialogue records arrival before its choices
   const hearing = passengerDialogueView(session, NINGBO, active, state);
   assert.match(hearing.text, /reached Ningbo before the rival courier/i);
   assert.deepEqual(hearing.options.map((option) => [option.label, option.detail]), [
-    ["Mediate a joint tally", "No battle; favors Ming"],
-    ["Fight for Hosokawa", "Attack Ouchi"],
-    ["Decide later", null]
+    ["Mediate a joint tally", "Avoid battle; favor Ming"],
+    ["Fight for Hosokawa", "Attack Ouchi"]
   ]);
   selectPassengerDialogueOption(session, NINGBO, active, state, 0, { simMinute: 60 });
 
@@ -253,6 +285,7 @@ test("Ningbo loyalty and defection require a two-ship battle with a loss conditi
   acceptQuest(defectState, defectQuest, { simMinute: 0 });
   const defectActive = defectState.memory.quests.passengerActive;
   recordNingboMissionArrival(defectState, defectActive.id, { simMinute: 100, rivalArrivalMinute: 80 });
+  answerNingboMissionBribe(defectState, defectActive.id, true);
   const startingMoney = defectState.doubloons;
   selectEastAsianMissionOutcome(defectState, defectActive.id, "support-rival", {
     city: NINGBO,

@@ -1,4 +1,5 @@
 const DEFAULT_MINIMUM_LEG_FRACTION = 0.3;
+export const QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER = "destination-closer";
 
 export function pendingQuestJourneyDialogue(quest, context = {}) {
   const events = quest?.dialogue?.journeyEvents;
@@ -20,6 +21,9 @@ export function pendingQuestJourneyDialogue(quest, context = {}) {
     directDistance <= 0
   ) {
     throw new Error(`Quest journey dialogue requires route distances: ${quest.id}`);
+  }
+  if (event.trigger === QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER) {
+    return destinationDistance < originDistance ? event : null;
   }
   const originFraction = event.minimumOriginFraction ?? DEFAULT_MINIMUM_LEG_FRACTION;
   const destinationFraction = event.minimumDestinationFraction ?? DEFAULT_MINIMUM_LEG_FRACTION;
@@ -52,6 +56,24 @@ function assertJourneyDialogueEvent(event, questId) {
     event.expressionId === ""
   ) {
     throw new Error(`Invalid quest journey dialogue event: ${questId}`);
+  }
+  if (
+    event.trigger !== undefined &&
+    event.trigger !== QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER
+  ) {
+    throw new Error(`Invalid quest journey dialogue trigger: ${questId}`);
+  }
+  if (event.choices !== undefined) {
+    if (!Array.isArray(event.choices) || event.choices.length !== 2 || event.choices.some((choice) => (
+      !choice ||
+      typeof choice.id !== "string" || choice.id === "" ||
+      typeof choice.label !== "string" || choice.label === ""
+    ))) {
+      throw new Error(`Quest journey dialogue choices must be a binary decision: ${questId}`);
+    }
+    if (new Set(event.choices.map((choice) => choice.id)).size !== event.choices.length) {
+      throw new Error(`Quest journey dialogue choice ids must be unique: ${questId}`);
+    }
   }
   for (const [label, value] of [
     ["minimumOriginFraction", event.minimumOriginFraction],
