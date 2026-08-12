@@ -20,6 +20,38 @@ test("every advertised desktop platform has complete minimum requirements", () =
     }
   }
   assert.match(requirements.minimum.linux.os, /SteamOS/);
+  assert.match(requirements.minimum.macos.processor, /Rosetta 2/);
+});
+
+test("Steam launch options match the packaged desktop names", () => {
+  const applications = JSON.parse(readFileSync(
+    join(appRoot, "steam/application-settings.json"),
+    "utf8"
+  ));
+  assert.equal(applications.schemaVersion, 1);
+  for (const [edition, expected] of Object.entries({
+    full: { appId: 4516500, productName: "Marque & Reprisal" },
+    demo: { appId: 5029880, productName: "Marque & Reprisal Demo" }
+  })) {
+    const configured = applications.editions?.[edition];
+    assert.equal(configured?.appId, expected.appId);
+    assert.equal(configured?.productName, expected.productName);
+    assert.deepEqual(configured?.launchOptions, {
+      windows: {
+        executable: `${expected.productName}.exe`,
+        architecture: "x64"
+      },
+      macos: {
+        executable: `${expected.productName}.app`,
+        architecture: "x64",
+        requiresNotarization: true
+      },
+      linux: {
+        executable: expected.productName,
+        architecture: "x64"
+      }
+    });
+  }
 });
 
 test("Steam renderer bridge includes controller-safe fullscreen and quit operations", () => {

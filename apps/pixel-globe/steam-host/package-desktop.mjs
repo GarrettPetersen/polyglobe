@@ -26,6 +26,10 @@ const outputRoot = join(appRoot, "build/steam");
 const inputRoot = join(appRoot, "steam-input");
 const iconRoot = join(appRoot, "capsule_art/generated");
 const steamMacEntitlements = join(hostRoot, "entitlements/steam.darwin.plist");
+const steamApplicationSettings = JSON.parse(await readFile(
+  join(appRoot, "steam/application-settings.json"),
+  "utf8"
+));
 const args = parseArgs(process.argv.slice(2));
 const editions = args.edition === "both" ? ["full", "demo"] : [args.edition];
 const macSecurityOptions = resolveMacSecurityOptions();
@@ -38,12 +42,16 @@ for (const edition of editions) {
 
 async function packageEdition(edition) {
   const isDemo = edition === "demo";
-  const productName = isDemo ? "Marque & Reprisal Demo" : "Marque & Reprisal";
+  const applicationSettings = requireApplicationSettings(edition);
+  const productName = applicationSettings.productName;
   const gameDirectory = isDemo ? "dist-demo" : "dist";
   const gameRoot = join(appRoot, gameDirectory);
   const appId = isDemo
-    ? optionalAppId(process.env.MARQUE_STEAM_DEMO_APP_ID) || DEMO_APP_ID
-    : optionalAppId(process.env.MARQUE_STEAM_APP_ID) || FULL_GAME_APP_ID;
+    ? optionalAppId(process.env.MARQUE_STEAM_DEMO_APP_ID) || applicationSettings.appId
+    : optionalAppId(process.env.MARQUE_STEAM_APP_ID) || applicationSettings.appId;
+  const steamPlatform = steamPlatformName(args.platform);
+  const launchOption = applicationSettings.launchOptions[steamPlatform];
+  assertLaunchOption(launchOption, { edition, productName, steamPlatform });
   const temporaryRoot = await mkdtemp(join(tmpdir(), `marque-steam-${edition}-`));
   const manifestPath = join(temporaryRoot, "steam-build.json");
   const targetRoot = join(outputRoot, edition, `${args.platform}-${args.arch}`);
@@ -54,9 +62,15 @@ async function packageEdition(edition) {
       manifestPath,
       `${JSON.stringify({
         appId,
+        arch: args.arch,
         edition,
         gameDirectory,
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        launchExecutable: launchOption.executable,
+        notarized: args.notarize,
+        platform: steamPlatform,
+        productName,
+        signed: args.sign
       }, null, 2)}\n`
     );
     await rm(targetRoot, { recursive: true, force: true });
@@ -103,7 +117,13 @@ async function packageEdition(edition) {
     if (packagePaths.length !== 1) {
       throw new Error(`Expected one packaged app, received ${packagePaths.length}`);
     }
-    await verifyPackage(packagePaths[0], { appId, edition, gameDirectory, productName });
+    await verifyPackage(packagePaths[0], {
+      appId,
+      edition,
+      gameDirectory,
+      launchExecutable: launchOption.executable,
+      productName
+    });
     if (args.platform === "darwin" && args.sign) {
       const appPath = join(packagePaths[0], `${productName}.app`);
       await run("codesign", [
@@ -148,10 +168,16 @@ async function verifyPackage(packagePath, expected) {
   if (
     manifest.edition !== expected.edition ||
     manifest.gameDirectory !== expected.gameDirectory ||
-    manifest.appId !== expected.appId
+    manifest.appId !== expected.appId ||
+    manifest.launchExecutable !== expected.launchExecutable ||
+    manifest.platform !== steamPlatformName(args.platform) ||
+    manifest.arch !== args.arch ||
+    manifest.signed !== args.sign ||
+    manifest.notarized !== args.notarize
   ) {
     throw new Error(`Packaged ${expected.edition} manifest does not match its build`);
   }
+  await access(join(packagePath, expected.launchExecutable));
   const editionSource = await readFile(
     join(resourcesRoot, expected.gameDirectory, "src/buildEdition.js"),
     "utf8"
@@ -314,4 +340,44 @@ function optionalAppId(value) {
   const appId = Number(value);
   if (!Number.isInteger(appId) || appId <= 0) throw new Error(`Invalid Steam App ID: ${value}`);
   return appId;
+}
+
+function requireApplicationSettings(edition) {
+  if (steamApplicationSettings.schemaVersion !== 1) {
+    throw new Error("Unsupported Steam application settings schema");
+  }
+  const configured = steamApplicationSettings.editions?.[edition];
+  const expectedAppId = edition === "demo" ? DEMO_APP_ID : FULL_GAME_APP_ID;
+  if (!configured || configured.appId !== expectedAppId || !configured.productName) {
+    throw new Error(`Invalid Steam application settings for ${edition}`);
+  }
+  return configured;
+}
+
+function assertLaunchOption(option, { edition, productName, steamPlatform }) {
+  if (!option || option.architecture !== args.arch || !option.executable) {
+    throw new Error(`Invalid ${edition} ${steamPlatform} Steam launch option`);
+  }
+  const expectedExecutable = steamPlatform === "macos"
+    ? `${productName}.app`
+    : steamPlatform === "windows"
+      ? `${productName}.exe`
+      : productName;
+  if (option.executable !== expectedExecutable) {
+    throw new Error(
+      `${edition} ${steamPlatform} launch executable must be ${expectedExecutable}`
+    );
+  }
+  if (steamPlatform === "macos" && option.requiresNotarization && !args.notarize) {
+    console.warn(
+      `Packaged ${edition} macOS development build is not release-ready; ` +
+      "Steam upload preparation will reject it until notarized"
+    );
+  }
+}
+
+function steamPlatformName(platform) {
+  if (platform === "win32") return "windows";
+  if (platform === "darwin") return "macos";
+  return "linux";
 }

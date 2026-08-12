@@ -11,7 +11,7 @@
     },
     "macos": {
       "os": "macOS 12 Monterey",
-      "processor": "Intel Core i3 or Apple M1",
+      "processor": "Intel Core i3 or Apple M1 (via Rosetta 2)",
       "memory": "4 GB RAM",
       "graphics": "Intel HD Graphics 530, Apple M1, or equivalent",
       "storage": "1 GB available space",

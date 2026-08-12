@@ -47,6 +47,11 @@ platform's Steamworks System Requirements fields before submitting the store
 or a build for review. `npm run steam:check` fails if any advertised platform
 is missing its OS, processor, graphics, or notes fields.
 
+The Steamworks launch executables for both apps live in
+`steam/application-settings.json`. Keep all three operating systems enabled in
+Steamworks and copy these exact executable names into General Installation.
+The macOS launch target is the `.app` bundle, not the Windows `.exe`.
+
 ### macOS signing and notarization
 
 Release packages must be built on macOS with a `Developer ID Application`
@@ -78,6 +83,17 @@ and the Steam-specific macOS entitlement that permits Valve's separately signed
 `MARQUE_MAC_SIGN_IDENTITY` to the exact `Developer ID Application: ...` identity
 only when Keychain contains more than one valid signing identity. The packager
 verifies the signature and stapled ticket before accepting either package.
+`steam:prepare-upload` also rejects a merely signed macOS build: a release
+depot must come from `steam:package:mac:release` and record both signing and
+notarization in its packaged manifest.
+
+After pulling the release commit on the signing Mac, prepare just the two Mac
+depots with:
+
+```sh
+MARQUE_MAC_NOTARY_PROFILE=marque-notary npm run steam:package:mac:release
+npm run steam:prepare-upload -- --platform=macos
+```
 
 ### SteamPipe depots
 
@@ -143,28 +159,30 @@ does not commit Valve SDK files or expose Node APIs to the renderer.
    demo Depots `5029881`, `5029882`, and `5029883` the same way. All depots are
    64-bit, recorded in `steam/depots.json`, and included in the public store,
    beta, and developer packages.
-2. On full-game App `4516500`, publish the 13 Stats definitions from
+2. Under Installation > General Installation, create the Windows, macOS, and
+   Linux launch options from `steam/application-settings.json` for both apps.
+3. On full-game App `4516500`, publish the 13 Stats definitions from
    `steam/stats/catalog.json` and the 51 achievement definitions, icon pairs,
    hidden flags, and progress bindings from `steam/achievements/catalog.json`.
-3. On full-game App `4516500`, set Steam Cloud to 100 MB and 20 files per user.
+4. On full-game App `4516500`, set Steam Cloud to 100 MB and 20 files per user.
    Keep Auto-Cloud rules empty because the game uses the Remote Storage API.
    Enable developer-only Cloud during testing, save and publish the settings,
    then enable Cloud for all users after a cross-machine restore test.
-4. On demo App `5029880`, set the application type to `Demo`, associate base
+5. On demo App `5029880`, set the application type to `Demo`, associate base
    game App `4516500`, and set `Shared Cloud App ID` to `4516500`. Do not create
    Stats or achievement definitions for the demo.
-5. Upload `steam/presence/steam_presence.vdf` and publish the official Steam
+6. Upload `steam/presence/steam_presence.vdf` and publish the official Steam
    Input configuration based on `steam-input/game_actions.vdf`. Opt the
    official configuration into Any Future Devices so newly supported
    controllers inherit the generic gamepad layout.
-6. Enable the Steam Overlay for the application so screenshots and Game
+7. Enable the Steam Overlay for the application so screenshots and Game
    Recording are available.
-7. Test Xbox, PlayStation, Nintendo/Switch Pro, and Steam Deck hardware in the
+8. Test Xbox, PlayStation, Nintendo/Switch Pro, and Steam Deck hardware in the
    packaged build before selecting Full Controller Support on the store page.
    The pass must begin at the telemetry policy, reach gameplay, open and close
    every menu, toggle fullscreen, pause on controller disconnect and Steam
    Overlay activation, and quit without touching a mouse or keyboard.
-8. Enter and publish the Windows, macOS, and Linux/SteamOS minimum requirements
+9. Enter and publish the Windows, macOS, and Linux/SteamOS minimum requirements
    from `steam/store-page/system-requirements.json`. Test the Linux depot on a
    fresh SteamOS or Ubuntu machine rather than relying on cross-packaging.
 

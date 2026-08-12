@@ -7,28 +7,24 @@ const steamBuildRoot = join(appRoot, "build", "steam");
 const steamPipeRoot = join(appRoot, "build", "steampipe");
 const scriptRoot = join(steamPipeRoot, "scripts");
 const depotConfigPath = join(appRoot, "steam", "depots.json");
+const applicationSettingsPath = join(appRoot, "steam", "application-settings.json");
 const selectedPlatforms = platformSelection(argumentValue("--platform") || "all");
 const platformKey = selectedPlatforms.join("-");
 const depotConfig = JSON.parse(await readFile(depotConfigPath, "utf8"));
+const applicationSettings = JSON.parse(await readFile(applicationSettingsPath, "utf8"));
 
-const editions = Object.freeze([
-  {
-    id: "full",
-    appId: 4516500,
-    windowsDirectory: "Marque & Reprisal-win32-x64",
-    macDirectory: "Marque & Reprisal-darwin-x64",
-    macAppName: "Marque & Reprisal.app",
-    linuxDirectory: "Marque & Reprisal-linux-x64"
-  },
-  {
-    id: "demo",
-    appId: 5029880,
-    windowsDirectory: "Marque & Reprisal Demo-win32-x64",
-    macDirectory: "Marque & Reprisal Demo-darwin-x64",
-    macAppName: "Marque & Reprisal Demo.app",
-    linuxDirectory: "Marque & Reprisal Demo-linux-x64"
-  }
-]);
+if (applicationSettings.schemaVersion !== 1) {
+  throw new Error(`Unsupported Steam application settings in ${applicationSettingsPath}`);
+}
+const editions = Object.freeze(Object.entries(applicationSettings.editions).map(
+  ([id, configured]) => ({
+    ...configured,
+    id,
+    windowsDirectory: `${configured.productName}-win32-x64`,
+    macDirectory: `${configured.productName}-darwin-x64`,
+    linuxDirectory: `${configured.productName}-linux-x64`
+  })
+));
 
 await mkdir(scriptRoot, { recursive: true });
 
@@ -46,34 +42,42 @@ for (const edition of editions) {
       contentRoot: windowsRoot,
       localPath: "*",
       depotPath: ".",
-      manifestPath: join(windowsRoot, "resources", "steam-build.json")
+      manifestPath: join(windowsRoot, "resources", "steam-build.json"),
+      launchOption: edition.launchOptions.windows
     },
     macos: {
       depotId: configuredEdition.depots.macos,
       contentRoot: macRoot,
-      localPath: `${edition.macAppName}/*`,
-      depotPath: edition.macAppName,
+      localPath: `${edition.launchOptions.macos.executable}/*`,
+      depotPath: edition.launchOptions.macos.executable,
       manifestPath: join(
         macRoot,
-        edition.macAppName,
+        edition.launchOptions.macos.executable,
         "Contents",
         "Resources",
         "steam-build.json"
-      )
+      ),
+      launchOption: edition.launchOptions.macos
     },
     linux: {
       depotId: configuredEdition.depots.linux,
       contentRoot: linuxRoot,
       localPath: "*",
       depotPath: ".",
-      manifestPath: join(linuxRoot, "resources", "steam-build.json")
+      manifestPath: join(linuxRoot, "resources", "steam-build.json"),
+      launchOption: edition.launchOptions.linux
     }
   };
   const selectedDepots = [];
   for (const platform of selectedPlatforms) {
     const selected = platforms[platform];
     assertDepotId(selected.depotId, edition.id, platform);
-    const manifest = await readSteamBuildManifest(selected.manifestPath, edition);
+    const manifest = await readSteamBuildManifest(
+      selected.manifestPath,
+      edition,
+      platform,
+      selected.launchOption
+    );
     const depotFileName = `depot_build_${selected.depotId}.vdf`;
     await writeFile(
       join(scriptRoot, depotFileName),
@@ -144,18 +148,33 @@ for (const summary of summaries) {
   );
 }
 
-async function readSteamBuildManifest(path, edition) {
+async function readSteamBuildManifest(path, edition, platform, launchOption) {
   let parsed;
   try {
     parsed = JSON.parse(await readFile(path, "utf8"));
   } catch (error) {
     throw new Error(`Cannot read packaged Steam manifest ${path}: ${error.message}`);
   }
-  if (parsed.appId !== edition.appId || parsed.edition !== edition.id) {
+  if (
+    parsed.appId !== edition.appId ||
+    parsed.edition !== edition.id ||
+    parsed.platform !== platform ||
+    parsed.arch !== launchOption.architecture ||
+    parsed.launchExecutable !== launchOption.executable ||
+    parsed.productName !== edition.productName
+  ) {
     throw new Error(
       `Packaged Steam manifest mismatch at ${path}: ` +
-      `expected ${edition.id}/${edition.appId}, received ${parsed.edition}/${parsed.appId}`
+      `expected ${edition.id}/${edition.appId}/${platform}/${launchOption.executable}`
     );
+  }
+  if (platform === "macos" && launchOption.requiresNotarization) {
+    if (parsed.signed !== true || parsed.notarized !== true) {
+      throw new Error(
+        `Packaged ${edition.id} macOS depot is not signed and notarized; ` +
+        "rebuild it with npm run steam:package:mac:release"
+      );
+    }
   }
   if (typeof parsed.generatedAt !== "string" || !Number.isFinite(Date.parse(parsed.generatedAt))) {
     throw new Error(`Packaged Steam manifest has no valid generation time: ${path}`);

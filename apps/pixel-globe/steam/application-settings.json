@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "editions": {
+    "full": {
+      "appId": 4516500,
+      "productName": "Marque & Reprisal",
+      "launchOptions": {
+        "windows": {
+          "executable": "Marque & Reprisal.exe",
+          "architecture": "x64"
+        },
+        "macos": {
+          "executable": "Marque & Reprisal.app",
+          "architecture": "x64",
+          "requiresNotarization": true
+        },
+        "linux": {
+          "executable": "Marque & Reprisal",
+          "architecture": "x64"
+        }
+      }
+    },
+    "demo": {
+      "appId": 5029880,
+      "productName": "Marque & Reprisal Demo",
+      "launchOptions": {
+        "windows": {
+          "executable": "Marque & Reprisal Demo.exe",
+          "architecture": "x64"
+        },
+        "macos": {
+          "executable": "Marque & Reprisal Demo.app",
+          "architecture": "x64",
+          "requiresNotarization": true
+        },
+        "linux": {
+          "executable": "Marque & Reprisal Demo",
+          "architecture": "x64"
+        }
+      }
+    }
+  }
+}
