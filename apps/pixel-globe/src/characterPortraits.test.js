@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { PORT_PERSONALITY_IDS } from "./portDialoguePersonality.js";
+import { nearestResurrect64Hex } from "./waterLatitudePalette.js";
 
 import {
   assignNpcShipCaptains,
@@ -391,7 +392,9 @@ test("Japanese and Joseon players use their own reviewed portrait groups", () =>
         manifest: GENERATED_MANIFEST,
         usedNames: new Set()
       });
-      assert.ok(character.sourceId.startsWith(profile.expectedPrefix));
+      assert.ok(profile.factionId === "japan"
+        ? isJapanesePortraitSourceId(character.sourceId)
+        : character.sourceId.startsWith(profile.expectedPrefix));
       assert.deepEqual(character.sourceRegions, [profile.expectedRegion]);
       assert.ok(character.age >= character.minAge && character.age <= character.maxAge);
       generatedSexes.add(character.sex);
@@ -418,7 +421,7 @@ test("Japanese and Joseon factors and ship captains keep their sovereign portrai
     }
   ];
   const factors = assignPortCityCharacters(ports, GENERATED_MANIFEST, new Set());
-  assert.ok(factors.get(301).sourceId.startsWith("japanese-portrait-pack-by-openai-"));
+  assert.ok(isJapanesePortraitSourceId(factors.get(301).sourceId));
   assert.ok(factors.get(302).sourceId.startsWith("joseon-korean-portrait-pack-by-openai-"));
 
   const ships = ports.map((currentPort, index) => ({
@@ -430,7 +433,7 @@ test("Japanese and Joseon factors and ship captains keep their sovereign portrai
     currentPort: { ...currentPort, routeRegion: "east-asia" }
   }));
   const captains = assignNpcShipCaptains(ships, GENERATED_MANIFEST, new Set());
-  assert.ok(captains.get(ships[0].id).sourceId.startsWith("japanese-portrait-pack-by-openai-"));
+  assert.ok(isJapanesePortraitSourceId(captains.get(ships[0].id).sourceId));
   assert.ok(captains.get(ships[1].id).sourceId.startsWith("joseon-korean-portrait-pack-by-openai-"));
 });
 
@@ -452,6 +455,50 @@ test("generated culture packs contain sixteen native authored sprites apiece", (
     assert.ok(portraits.every((source) => source.regions.length === 1 && source.regions[0] === region));
     assert.ok(portraits.every((source) => source.expressions.length === 1));
     assert.ok(portraits.every((source) => source.expressions[0].width === 64 && source.expressions[0].height === 64));
+  }
+});
+
+test("Sengoku samurai portraits retain reviewed identity metadata and exact source cells", async () => {
+  const directory = "Sengoku Samurai Portrait Pack by Retro Diffusion";
+  const portraits = GENERATED_MANIFEST.sourceCharacters
+    .filter((source) => source.sourceDirectory === directory)
+    .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true }));
+  const expectedAgeRanges = [
+    [18, 30], [38, 55], [60, 80], [16, 26],
+    [38, 56], [42, 60], [22, 36], [60, 80],
+    [32, 50], [18, 30], [40, 58], [20, 34],
+    [15, 24], [45, 65], [18, 30], [52, 72]
+  ];
+  assert.equal(portraits.length, 16);
+  assert.deepEqual(portraits.map(({ minAge, maxAge }) => [minAge, maxAge]), expectedAgeRanges);
+  assert.ok(portraits.every((source) => source.sex === "male"));
+  assert.ok(portraits.every((source) => source.regions.length === 1 && source.regions[0] === "japan"));
+  assert.ok(portraits.every((source) => ["captain", "factor", "warrior", "noble"]
+    .every((role) => source.roles.includes(role))));
+  assert.ok(portraits.every((source) => source.selectionWeight === 2));
+  assert.ok(portraits.every((source) => source.expressions.length === 1));
+
+  const source = await loadImage(fileURLToPath(new URL(
+    "../assets-source/characters/retro-diffusion/sengoku-samurai-1522-source.png",
+    import.meta.url
+  )));
+  assert.equal(source.width, 256);
+  assert.equal(source.height, 256);
+  const sourceCanvas = createCanvas(256, 256);
+  const sourceContext = sourceCanvas.getContext("2d");
+  sourceContext.drawImage(source, 0, 0);
+
+  for (let index = 0; index < portraits.length; index += 1) {
+    const expression = portraits[index].expressions[0];
+    const output = await loadImage(join(CHARACTER_ASSET_ROOT, decodeURIComponent(expression.src.split("assets/characters/")[1])));
+    const outputCanvas = createCanvas(64, 64);
+    const outputContext = outputCanvas.getContext("2d");
+    outputContext.drawImage(output, 0, 0);
+    const actual = outputContext.getImageData(0, 0, 64, 64).data;
+    const row = Math.floor(index / 4);
+    const column = index % 4;
+    const expected = sourceContext.getImageData(column * 64, row * 64, 64, 64).data;
+    assertExactQuantizedPortrait(actual, expected, portraits[index].label);
   }
 });
 
@@ -925,7 +972,7 @@ test("return-home passenger generation can use destination culture", () => {
   assert.equal(passenger.nameCulture, "japanese");
   assert.equal(passenger.region, "japan");
   assert.deepEqual(passenger.sourceRegions, ["japan"]);
-  assert.ok(passenger.sourceId.startsWith("japanese-portrait-pack-by-openai-"));
+  assert.ok(isJapanesePortraitSourceId(passenger.sourceId));
   assert.equal("palette" in passenger, false);
 });
 
@@ -1237,4 +1284,23 @@ function opaqueComponentCount(pixels, width, height) {
     }
   }
   return count;
+}
+
+function isJapanesePortraitSourceId(sourceId) {
+  return sourceId.startsWith("japanese-portrait-pack-by-openai-")
+    || sourceId.startsWith("sengoku-samurai-portrait-pack-by-retro-diffusion-");
+}
+
+function assertExactQuantizedPortrait(actual, source, label) {
+  assert.equal(actual.length, source.length, `${label} pixel count`);
+  for (let offset = 0; offset < source.length; offset += 4) {
+    const sourceIsOpaque = source[offset + 3] >= 128;
+    assert.equal(actual[offset + 3], sourceIsOpaque ? 255 : 0, `${label} alpha at pixel ${offset / 4}`);
+    if (!sourceIsOpaque) continue;
+    const expectedHex = nearestResurrect64Hex(source[offset], source[offset + 1], source[offset + 2]);
+    const actualHex = [actual[offset], actual[offset + 1], actual[offset + 2]]
+      .map((channel) => channel.toString(16).padStart(2, "0"))
+      .join("");
+    assert.equal(actualHex, expectedHex, `${label} color at pixel ${offset / 4}`);
+  }
 }

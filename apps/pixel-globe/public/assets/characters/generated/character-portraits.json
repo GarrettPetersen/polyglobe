@@ -5504,6 +5504,486 @@
       ]
     },
     {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-1",
+      "label": "Sengoku Samurai 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 18,
+      "maxAge": 30,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-01.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-10",
+      "label": "Sengoku Samurai 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 18,
+      "maxAge": 30,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-11",
+      "label": "Sengoku Samurai 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 40,
+      "maxAge": 58,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-12",
+      "label": "Sengoku Samurai 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-13",
+      "label": "Sengoku Samurai 13",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 15,
+      "maxAge": 24,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-13.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-14",
+      "label": "Sengoku Samurai 14",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 45,
+      "maxAge": 65,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-14.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-15",
+      "label": "Sengoku Samurai 15",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 18,
+      "maxAge": 30,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-15.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-16",
+      "label": "Sengoku Samurai 16",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 52,
+      "maxAge": 72,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-16.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-2",
+      "label": "Sengoku Samurai 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-02.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-3",
+      "label": "Sengoku Samurai 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 60,
+      "maxAge": 80,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-03.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-4",
+      "label": "Sengoku Samurai 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 16,
+      "maxAge": 26,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-04.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-5",
+      "label": "Sengoku Samurai 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 38,
+      "maxAge": 56,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-05.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-6",
+      "label": "Sengoku Samurai 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 42,
+      "maxAge": 60,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-06.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-7",
+      "label": "Sengoku Samurai 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 22,
+      "maxAge": 36,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-07.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-8",
+      "label": "Sengoku Samurai 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 60,
+      "maxAge": 80,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-08.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sengoku-samurai-portrait-pack-by-retro-diffusion-sengoku-samurai-9",
+      "label": "Sengoku Samurai 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sengoku Samurai Portrait Pack by Retro Diffusion",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "factor",
+        "warrior",
+        "noble"
+      ],
+      "regions": [
+        "japan"
+      ],
+      "selectionWeight": 2,
+      "minAge": 32,
+      "maxAge": 50,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sengoku%20Samurai%20Portrait%20Pack%20by%20Retro%20Diffusion/sengoku-samurai-09.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "south-asian-portrait-pack-by-openai-south-asian-1",
       "label": "South Asian 1",
       "groupingMode": "single-portrait",

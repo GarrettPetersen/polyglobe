@@ -15,6 +15,7 @@ const individualSequencePacks = new Set([
   "Native Americain Portrait Pack by Captainskeleto",
   "Pirates Portrait Pack by Captainskeleto",
   "Polynesian Portrait Pack by OpenAI",
+  "Sengoku Samurai Portrait Pack by Retro Diffusion",
   "South Asian Portrait Pack by OpenAI",
   "Southeast Asian Portrait Pack by OpenAI",
   "Sub-Saharan African Portrait Pack by OpenAI",
@@ -36,6 +37,7 @@ const singleSexPortraitDirectories = new Map([
   ["Merchant Portrait Pack by Captainskolot", "male"],
   ["Old Villager Portrait by Captainskeleto", "male"],
   ["Old Warrior Grey Beard by Captainskolot", "male"],
+  ["Sengoku Samurai Portrait Pack by Retro Diffusion", "male"],
   ["Peasant Portrait Pack by Captainskeleto", "male"],
   ["Pirates Portrait Pack by Captainskeleto/Pirates Portrait", "male"],
   ["Ultimate Portrait Pack V1.0/Blacksmith", "male"],
@@ -414,6 +416,12 @@ const numberedPortraitAgeRanges = new Map([
     9: [62, 80], 10: [20, 34], 11: [38, 55], 12: [20, 36],
     13: [35, 50], 14: [20, 34], 15: [38, 55], 16: [20, 34]
   })],
+  ["Sengoku Samurai Portrait Pack by Retro Diffusion", numberedRanges({
+    1: [18, 30], 2: [38, 55], 3: [60, 80], 4: [16, 26],
+    5: [38, 56], 6: [42, 60], 7: [22, 36], 8: [60, 80],
+    9: [32, 50], 10: [18, 30], 11: [40, 58], 12: [20, 34],
+    13: [15, 24], 14: [45, 65], 15: [18, 30], 16: [52, 72]
+  })],
   ["Joseon Korean Portrait Pack by OpenAI", numberedRanges({
     1: [35, 50], 2: [20, 34], 3: [38, 55], 4: [20, 34],
     5: [30, 45], 6: [20, 34], 7: [58, 76], 8: [20, 34],
@@ -511,7 +519,7 @@ function walkPngFiles(root, files = []) {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     const fullPath = join(root, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === "generated") continue;
+      if (entry.name === "generated" || entry.name === "historical-battles") continue;
       walkPngFiles(fullPath, files);
       continue;
     }
@@ -818,6 +826,13 @@ function portraitMetadata(label, sourceDirectory) {
   }
   if (text.includes("japanese portrait")) {
     return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["japan"] };
+  }
+  if (text.includes("sengoku samurai")) {
+    return {
+      roles: ["captain", "factor", "warrior", "noble"],
+      regions: ["japan"],
+      selectionWeight: 2
+    };
   }
   if (text.includes("joseon korean portrait")) {
     return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["joseon"] };

@@ -10,6 +10,7 @@ import { removePortraitChromaFringe } from "../src/portraitChromaKey.js";
 
 const GRID_SIZE = 4;
 const PORTRAIT_SIZE = 64;
+const NATIVE_SHEET_SIZE = GRID_SIZE * PORTRAIT_SIZE;
 const MIN_OPAQUE_PIXELS = 500;
 const MAX_OPAQUE_PIXELS = 3500;
 
@@ -28,7 +29,7 @@ async function main() {
   const outputDir = resolve(outputArg);
   const sourceCopyPath = sourceCopyArg ? resolve(sourceCopyArg) : null;
   const sourceImage = await loadImage(sourcePath);
-  if (sourceImage.width < 512 || sourceImage.height < 512) {
+  if (sourceImage.width < NATIVE_SHEET_SIZE || sourceImage.height < NATIVE_SHEET_SIZE) {
     throw new Error(`Generated sheet is unexpectedly small: ${sourceImage.width}x${sourceImage.height}`);
   }
   if (Math.abs(sourceImage.width - sourceImage.height) > 2) {
@@ -38,7 +39,9 @@ async function main() {
   const sourceCanvas = createCanvas(sourceImage.width, sourceImage.height);
   const sourceContext = sourceCanvas.getContext("2d", { alpha: true, willReadFrequently: true });
   sourceContext.drawImage(sourceImage, 0, 0);
-  removeChromaKey(sourceContext, sourceCanvas.width, sourceCanvas.height);
+  prepareSourceTransparency(sourceContext, sourceCanvas.width, sourceCanvas.height);
+  const isNativeSheet = sourceCanvas.width === NATIVE_SHEET_SIZE
+    && sourceCanvas.height === NATIVE_SHEET_SIZE;
 
   mkdirSync(outputDir, { recursive: true });
   if (sourceCopyPath) {
@@ -63,17 +66,25 @@ async function main() {
       const context = portrait.getContext("2d", { alpha: true, willReadFrequently: true });
       context.imageSmoothingEnabled = false;
       context.clearRect(0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE);
-      context.drawImage(
-        sourceCanvas,
-        x0,
-        y0,
-        x1 - x0,
-        y1 - y0,
-        0,
-        0,
-        PORTRAIT_SIZE,
-        PORTRAIT_SIZE
-      );
+      if (isNativeSheet) {
+        context.putImageData(
+          sourceContext.getImageData(x0, y0, PORTRAIT_SIZE, PORTRAIT_SIZE),
+          0,
+          0
+        );
+      } else {
+        context.drawImage(
+          sourceCanvas,
+          x0,
+          y0,
+          x1 - x0,
+          y1 - y0,
+          0,
+          0,
+          PORTRAIT_SIZE,
+          PORTRAIT_SIZE
+        );
+      }
       cleanAndQuantizePortrait(context, index);
 
       const filename = `${slug}-${String(index + 1).padStart(2, "0")}.png`;
@@ -93,8 +104,27 @@ async function main() {
   console.log(sheetPath);
 }
 
-function removeChromaKey(context, width, height) {
+function prepareSourceTransparency(context, width, height) {
   const image = context.getImageData(0, 0, width, height);
+  let transparentPixels = 0;
+  for (let offset = 3; offset < image.data.length; offset += 4) {
+    if (image.data[offset] < 128) transparentPixels += 1;
+  }
+  if (transparentPixels / (width * height) >= 0.2) {
+    for (let offset = 0; offset < image.data.length; offset += 4) {
+      if (image.data[offset + 3] < 128) {
+        image.data[offset] = 0;
+        image.data[offset + 1] = 0;
+        image.data[offset + 2] = 0;
+        image.data[offset + 3] = 0;
+      } else {
+        image.data[offset + 3] = 255;
+      }
+    }
+    context.putImageData(image, 0, 0);
+    return;
+  }
+
   const removed = removePortraitChromaFringe(image, width, height);
   const removedShare = removed / (width * height);
   if (removedShare < 0.35 || removedShare > 0.85) {
