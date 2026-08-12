@@ -206,6 +206,39 @@ test("the Moai occupy a dedicated Rapa Nui hex beside the village", async () => 
   assert.equal(landMask[moai.spriteTileId], 1);
 });
 
+test("the Nazca Lines sit inland without overlapping the Pacific", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  earth.tiles = applyManualTerrainOverrides(earth.tiles, PRODUCTION_SUBDIVISIONS);
+  const graph = buildGeodesicGraph(PRODUCTION_SUBDIVISIONS);
+  const topology = buildWorldNavigationTopology({
+    graph,
+    earthRows: earth.tiles,
+    earthCache: earth,
+    subdivisions: PRODUCTION_SUBDIVISIONS
+  });
+  const landMask = Uint8Array.from(earth.tiles, (row) => isWaterSurfaceRow(row) ? 0 : 1);
+  const discoveries = buildWorldDiscoveries(graph, createDirectionIndex(graph), {
+    landMask,
+    cityTileIds: [],
+    riverMasks: topology.riverMasks,
+    riverToWaterMasks: topology.riverToWaterMasks,
+    navigationMask: topology.reachableNavigationMask,
+    pixelsPerRadian: PRODUCTION_PIXELS_PER_RADIAN
+  });
+  const nazca = discoveries.find((item) => item.id === "landmark-nazca-lines");
+
+  assert.ok(nazca);
+  assert.equal(earth.tiles[nazca.spriteTileId].t, "cold_desert");
+  assert.ok(graph.lonDeg[nazca.spriteTileId] > nazca.lon, "Nazca artwork must move east, inland from the coast");
+  assert.ok(
+    graph.neighbors[nazca.spriteTileId].every((tileId) => landMask[tileId]),
+    "Nazca artwork needs a complete land ring between its center and the Pacific"
+  );
+});
+
 test("world discovery registry is unique, complete, and explicit about historicity", () => {
   assert.equal(new Set(WORLD_DISCOVERY_SPECS.map((item) => item.id)).size, WORLD_DISCOVERY_SPECS.length);
   assert.equal(new Set(WORLD_DISCOVERY_SPRITE_KEYS).size, WORLD_DISCOVERY_SPRITE_KEYS.length);

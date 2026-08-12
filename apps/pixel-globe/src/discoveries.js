@@ -114,6 +114,8 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
   }),
   landmark("nazca-lines", "The Nazca Lines", "Figures drawn across the desert", -14.7390, -75.1300, 140, {
     region: "americas",
+    placementLongitudeSide: "east",
+    minimumLandNeighborRings: 1,
     captainDialogue: "Great figures scored into the desert. Who were they meant to see?"
   }),
   landmark("machu-picchu", "Machu Picchu", "The Inca citadel in the clouds", -13.1631, -72.5450, 190, {
@@ -269,6 +271,7 @@ function findDedicatedLandmarkTile(spec, originTileId, graph, placement) {
     const eligible = frontier.filter((tileId) =>
       placement.landMask[tileId] &&
       landmarkPlacementSideMatches(tileId, spec, graph) &&
+      landmarkHasLandClearance(tileId, spec, graph, placement.landMask) &&
       !tileOrNeighborsIntersect(tileId, graph, cityTileIds) &&
       !tileOrNeighborsIntersect(tileId, graph, riverTileIds)
     );
@@ -288,6 +291,30 @@ function findDedicatedLandmarkTile(spec, originTileId, graph, placement) {
     frontier = next;
   }
   throw new Error(`Could not find a dedicated land hex for ${spec.displayName}`);
+}
+
+function landmarkHasLandClearance(tileId, spec, graph, landMask) {
+  const rings = spec.minimumLandNeighborRings ?? 0;
+  if (!Number.isInteger(rings) || rings < 0) {
+    throw new Error(`Invalid minimum land-neighbor rings for ${spec.id}: ${rings}`);
+  }
+  if (rings === 0) return true;
+
+  const seen = new Set([tileId]);
+  let frontier = [tileId];
+  for (let ring = 0; ring <= rings; ring += 1) {
+    if (frontier.some((currentTileId) => !landMask[currentTileId])) return false;
+    const next = [];
+    for (const currentTileId of frontier) {
+      for (const neighborId of graph.neighbors[currentTileId]) {
+        if (seen.has(neighborId)) continue;
+        seen.add(neighborId);
+        next.push(neighborId);
+      }
+    }
+    frontier = next;
+  }
+  return true;
 }
 
 function landmarkPlacementSideMatches(tileId, spec, graph) {
