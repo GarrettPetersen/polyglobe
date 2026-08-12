@@ -295,7 +295,8 @@ async function loadLoadingStatusFont() {
     throw new Error("Capsule loading worker requires worker font support");
   }
   const url = new URL("../assets/fonts/Silkscreen-Regular.ttf", import.meta.url).toString();
-  const response = await fetchStaticAsset(url, { label: "capsule status font" });
+  const assetKind = "capsule status font";
+  const response = await fetchStaticAsset(url, { label: assetKind });
   if (!response.ok) {
     throw new Error(`Failed to load capsule status font: HTTP ${response.status} at ${url}`);
   }

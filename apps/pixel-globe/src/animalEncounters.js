@@ -269,8 +269,53 @@ function checkedRandom(random, label) {
   return value;
 }
 
+const TERRAIN_HABITAT_TAGS = Object.freeze({
+  desert: new Set(["desert", "hot_desert", "cold_desert"]),
+  forest: new Set([
+    "tropical_rainforest",
+    "tropical_monsoon",
+    "humid_subtropical",
+    "humid_subtropical_hot",
+    "oceanic",
+    "warm_summer_humid",
+    "humid_continental",
+    "humid_continental_warm",
+    "humid_continental_hot",
+    "warm_summer_continental",
+    "hot_summer_continental",
+    "subarctic",
+    "subarctic_dry_winter",
+    "subarctic_dry",
+    "subarctic_very_cold",
+    "subarctic_very_cold_dry_winter",
+    "subarctic_very_cold_dry"
+  ]),
+  grass: new Set([
+    "tropical_savanna",
+    "hot_steppe",
+    "cold_steppe",
+    "subtropical_highland"
+  ]),
+  jungle: new Set(["tropical_rainforest", "tropical_monsoon"]),
+  mountain: new Set(["subtropical_highland"]),
+  rock: new Set(["subtropical_highland", "subpolar_oceanic"]),
+  savanna: new Set(["tropical_savanna"]),
+  tundra: new Set(["tundra"]),
+  wet: new Set([
+    "tropical_rainforest",
+    "tropical_monsoon",
+    "humid_subtropical",
+    "humid_subtropical_hot",
+    "oceanic",
+    "subpolar_oceanic",
+    "warm_summer_humid"
+  ])
+});
+
 function terrainIncludes(h, ...words) {
-  return words.some((word) => h.terrain.includes(word));
+  return words.some((word) =>
+    h.terrain.includes(word) || TERRAIN_HABITAT_TAGS[word]?.has(h.terrain)
+  );
 }
 
 function longitudeIn(h, west, east) {

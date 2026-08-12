@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { buildGeodesicGraph } from "./geodesic.js";
 import {
   ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
   ANIMAL_CATALOG,
@@ -13,12 +14,15 @@ import {
   recordAnimalEncounter,
   rollAnchoredAnimalEncounter
 } from "./animalEncounters.js";
+import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
   AUTHORED_ANIMAL_REPORT_IDS,
   naturalistJournalDescriptionForAnimal,
   naturalistReportDialogueForAnimal,
   validateNaturalistReportDialogueCatalog
 } from "./naturalistAnimalDialogue.js";
+import { isWaterSurfaceRow } from "./terrainSurface.js";
+import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 
 function habitat(overrides = {}) {
   return {
@@ -72,6 +76,9 @@ const REVIEWED_COMPANION_EXPRESSIONS = Object.freeze({
     confused: 14
   })
 });
+
+const repoRoot = new URL("../../../", import.meta.url);
+let worldHabitatFixture = null;
 
 test("animal catalog is unique and every portrait is expression-ready", () => {
   assert.equal(ANIMAL_CATALOG.length, 18);
@@ -146,6 +153,45 @@ test("animals occur only in plausible native habitats", () => {
     isSurfaceIce: true
   })).map((entry) => entry.id);
   assert.deepEqual(southernIce, ["penguin"]);
+});
+
+test("pandas are encounterable from the actual Chengdu and Xian river ports", () => {
+  const { graph, rows } = actualWorldHabitatFixture();
+  const panda = ANIMAL_CATALOG_BY_ID.get("panda");
+
+  for (const [name, tileId] of [["Chengdu", 61297], ["Xian", 62627]]) {
+    assert.equal(panda.matches(habitat({
+      latitudeDeg: graph.latDeg[tileId],
+      longitudeDeg: graph.lonDeg[tileId],
+      terrain: rows[tileId].t,
+      isRiver: true
+    })), true, `${name} (${rows[tileId].t})`);
+  }
+});
+
+test("every bestiary animal has an anchor-accessible habitat in the actual world bake", () => {
+  const { graph, rows, topology } = actualWorldHabitatFixture();
+  for (const animal of ANIMAL_CATALOG) {
+    let matchingTileId = null;
+    for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+      const row = rows[tileId];
+      if (isWaterSurfaceRow(row)) continue;
+      const anchorAccessible = Boolean(topology.reachableNavigationMask[tileId]) ||
+        graph.neighbors[tileId].some((neighborId) => topology.reachableNavigationMask[neighborId]);
+      if (!anchorAccessible) continue;
+      if (!animal.matches(habitat({
+        latitudeDeg: graph.latDeg[tileId],
+        longitudeDeg: graph.lonDeg[tileId],
+        terrain: row.t,
+        isSurfaceIce: row.t === "ice" || row.t === "ice_cap",
+        isRiver: Boolean(topology.riverMasks[tileId]),
+        isLake: row.t === "lake"
+      }))) continue;
+      matchingTileId = tileId;
+      break;
+    }
+    assert.notEqual(matchingTileId, null, animal.id);
+  }
 });
 
 test("every catalog animal has geographic and terrain habitat boundaries", () => {
@@ -282,3 +328,21 @@ test("natural-history skill multipliers improve encounter odds", () => {
     rollAnchoredAnimalEncounter(skilledMemory, habitat(), 100, () => skilledRolls.shift(), 1.5)
   );
 });
+
+function actualWorldHabitatFixture() {
+  if (worldHabitatFixture) return worldHabitatFixture;
+  const earth = JSON.parse(readFileSync(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const graph = buildGeodesicGraph(7);
+  const rows = applyManualTerrainOverrides(earth.tiles, 7);
+  const topology = buildWorldNavigationTopology({
+    graph,
+    earthRows: rows,
+    earthCache: earth,
+    subdivisions: 7
+  });
+  worldHabitatFixture = { graph, rows, topology };
+  return worldHabitatFixture;
+}
