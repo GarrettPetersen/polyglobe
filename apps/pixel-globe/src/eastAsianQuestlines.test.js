@@ -20,8 +20,13 @@ import {
   EAST_ASIAN_MISSION_RYUKYU,
   EAST_ASIAN_MISSION_TSUSHIMA,
   EAST_ASIAN_MISSION_YOSHIHARU,
+  TSUSHIMA_EVIDENCE_BRIEFING_TEXT,
   eastAsianMissionOutcomeOptions
 } from "./eastAsianQuestlines.js";
+import {
+  markQuestJourneyDialogueSeen,
+  pendingQuestJourneyDialogue
+} from "./questJourneyDialogue.js";
 import { passengerOfferForCity, pendingPassengerOfferForCity } from "./passengerMissions.js";
 import {
   createPassengerDialogueSession,
@@ -122,6 +127,59 @@ test("Tsushima's treaty mission can preserve Sō access to Joseon", () => {
   assert.equal(sovereignTradeOpenToFaction(state, JOSEON_TRADE_POLICY_ID, "so"), true);
   assert.ok(factionReputation(state, "so") > 0);
   assert.ok(factionReputation(state, "joseon") > 0);
+});
+
+test("Tsushima briefs the captain on the forged credentials before presenting actionable choices", () => {
+  const state = gameState();
+  const offered = offer(state, TSUSHIMA);
+  const quest = acceptQuest(state, offered, { simMinute: 0 });
+
+  assert.equal(pendingQuestJourneyDialogue(quest, {
+    originDistance: 0.2,
+    destinationDistance: 0.8,
+    directDistance: 1
+  }), null);
+  const briefing = pendingQuestJourneyDialogue(quest, {
+    originDistance: 0.45,
+    destinationDistance: 0.55,
+    directDistance: 1
+  });
+  assert.equal(briefing.text, TSUSHIMA_EVIDENCE_BRIEFING_TEXT);
+  markQuestJourneyDialogueSeen(quest, briefing.id);
+  assert.equal(pendingQuestJourneyDialogue(quest, {
+    originDistance: 0.5,
+    destinationDistance: 0.5,
+    directDistance: 1
+  }), null);
+
+  const session = createPassengerDialogueSession(HANSEONG, quest);
+  const hearing = passengerDialogueView(session, HANSEONG, quest, state);
+  assert.match(hearing.text, /captain who carried the packet/);
+  assert.deepEqual(
+    hearing.options.slice(0, 3).map(({ label, detail }) => [label, detail]),
+    [
+      ["Vouch for the Sō envoy", "Hide the forgeries; favor Tsushima"],
+      ["Urge stricter ship papers", "Avoid an accusation; favor both sides"],
+      ["Reveal the hidden forgeries", "Expose the envoy; favor Joseon"]
+    ]
+  );
+});
+
+test("Tsushima's hidden forgeries are impossible to miss before the Hanseong hearing", () => {
+  const state = gameState();
+  const quest = acceptQuest(state, offer(state, TSUSHIMA), { simMinute: 0 });
+  const journeyEvent = pendingQuestJourneyDialogue(quest, { arrived: true });
+  const session = createPassengerDialogueSession(HANSEONG, quest, { journeyEvent });
+
+  const confession = passengerDialogueView(session, HANSEONG, quest, state);
+  assert.equal(confession.text, TSUSHIMA_EVIDENCE_BRIEFING_TEXT);
+  assert.deepEqual(confession.options.map(({ label }) => label), ["Continue"]);
+
+  selectPassengerDialogueOption(session, HANSEONG, quest, state, 0);
+  assert.deepEqual(quest.journeyDialogueSeenIds, [journeyEvent.id]);
+  const hearing = passengerDialogueView(session, HANSEONG, quest, state);
+  assert.match(hearing.text, /captain who carried the packet/);
+  assert.equal(hearing.options[0].label, "Vouch for the Sō envoy");
 });
 
 test("an automatically opened Ningbo dialogue records arrival before its choices are selected", () => {

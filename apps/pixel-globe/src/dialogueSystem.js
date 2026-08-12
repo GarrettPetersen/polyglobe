@@ -125,6 +125,7 @@ import {
   eastAsianMissionOutcomeResultText,
   isEastAsianMissionQuest
 } from "./eastAsianQuestlines.js";
+import { markQuestJourneyDialogueSeen } from "./questJourneyDialogue.js";
 import { questDestinationStops, questHasDestination } from "./questItinerary.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
@@ -514,6 +515,7 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     religiousLegDelivery: null,
     lutheranConversionPending: false,
     ningboRivalCharacter: options.ningboRivalCharacter || null,
+    journeyEvent: options.journeyEvent || null,
     selectedIndex: 0,
     feedback: null
   };
@@ -2488,6 +2490,18 @@ export function passengerDialogueView(session, city, quest, gameState) {
   const roleLabel = isEnvoyQuest(quest) ? "envoy" : passengerRoleLabel(quest);
   const speaker = `${passengerName(quest)}, ${roleLabel}`;
   const expressionId = questExpressionId(quest);
+  if (session.journeyEvent) {
+    return {
+      speaker,
+      expressionId: session.journeyEvent.expressionId,
+      text: session.journeyEvent.text,
+      feedback: session.feedback,
+      options: [option("Continue", {
+        type: "acknowledge-quest-journey-dialogue",
+        eventId: session.journeyEvent.id
+      })]
+    };
+  }
   if (session.lutheranConversionPending) {
     if (!captainNeedsBibleFaithDecision(gameState, quest)) {
       throw new Error("September Testament faith decision is no longer valid");
@@ -2651,10 +2665,14 @@ export function passengerDialogueView(session, city, quest, gameState) {
           option("Decide later", { type: "close" })
         ]
         : [
-          ...eastAsianMissionOutcomeOptions(quest).map((outcome) => option(outcome.label, {
-            type: "choose-east-asian-outcome",
-            outcomeId: outcome.id
-          })),
+          ...eastAsianMissionOutcomeOptions(quest).map((outcome) => option(
+            outcome.label,
+            {
+              type: "choose-east-asian-outcome",
+              outcomeId: outcome.id
+            },
+            { detail: outcome.detail }
+          )),
           option("Not yet", { type: "close" })
         ]
     };
@@ -2828,6 +2846,15 @@ export function selectPassengerDialogueOption(
   const action = selected.action;
   if (action.type === "close") return { closed: true, action: null };
   if (action.type === "open-port") return { closed: false, action: { type: "open-port" } };
+  if (action.type === "acknowledge-quest-journey-dialogue") {
+    if (session.journeyEvent?.id !== action.eventId) {
+      throw new Error(`Passenger dialogue lost journey event: ${action.eventId}`);
+    }
+    markQuestJourneyDialogueSeen(quest, action.eventId);
+    session.journeyEvent = null;
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
   if (action.type === "accept-passenger") {
     acceptQuest(gameState, quest, context);
     return quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO

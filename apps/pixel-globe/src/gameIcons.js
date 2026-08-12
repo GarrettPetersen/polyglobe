@@ -417,6 +417,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "negotiate-envoy": "action:letter",
   "envoy-negotiated": "action:letter",
   "finish-envoy-negotiation": "action:letter",
+  "acknowledge-quest-journey-dialogue": "action:talk",
   "continue-campaign": "action:talk",
   "continue-historical-battle-dialogue": "action:talk",
   "campaign-retire": "action:leave",

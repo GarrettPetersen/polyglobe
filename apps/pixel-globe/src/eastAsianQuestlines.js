@@ -14,6 +14,8 @@ export const EAST_ASIAN_MISSION_GREAT_RITES = "great-rites-memorial";
 export const EAST_ASIAN_MISSION_YOSHIHARU = "yoshiharu-seal";
 export const NINGBO_DEFECTION_BRIBE = 450;
 export const NINGBO_RACE_BONUS = 250;
+export const TSUSHIMA_EVIDENCE_BRIEFING_TEXT =
+  "Captain, you found the second bundle beneath my register. Its names are absent from the rolls and its seals are copies. I called every paper genuine because Tsushima cannot afford Joseon's suspicion.";
 export const PORTUGUESE_GUNS_ITINERARY_REFS = Object.freeze([
   CANONICAL_PORTS.NANJING,
   CANONICAL_PORTS.NINGBO,
@@ -160,9 +162,21 @@ export function eastAsianMissionOutcomeOptions(quest) {
   }
   if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_TSUSHIMA) {
     return Object.freeze([
-      Object.freeze({ id: "renew-privileges", label: "Renew privileges; favor Tsushima" }),
-      Object.freeze({ id: "reform-register", label: "Tighten the register; compromise" }),
-      Object.freeze({ id: "expose-false-envoys", label: "Expose forgeries; favor Joseon" })
+      Object.freeze({
+        id: "renew-privileges",
+        label: "Vouch for the Sō envoy",
+        detail: "Hide the forgeries; favor Tsushima"
+      }),
+      Object.freeze({
+        id: "reform-register",
+        label: "Urge stricter ship papers",
+        detail: "Avoid an accusation; favor both sides"
+      }),
+      Object.freeze({
+        id: "expose-false-envoys",
+        label: "Reveal the hidden forgeries",
+        detail: "Expose the envoy; favor Joseon"
+      })
     ]);
   }
   return Object.freeze([]);
@@ -182,12 +196,12 @@ export function eastAsianMissionOutcomeResultText(quest, outcomeId) {
     return `The ${origin} escort is beaten. Ningbo enters the ${rival} tally, while both the Ming officials and your former patrons remember the price of your change of allegiance.`;
   }
   if (outcomeId === "renew-privileges") {
-    return "Joseon's council renews Tsushima's trading privileges, but orders every Japanese envoy entered under the Sō seal.";
+    return "You vouch for the Sō envoy and say nothing of the hidden papers. Joseon's council renews Tsushima's trading privileges under the Sō seal.";
   }
   if (outcomeId === "reform-register") {
-    return "The Sō envoy accepts a stricter register. Joseon keeps its safeguards, and Tsushima keeps the trade on which it lives.";
+    return "You refuse to vouch for the old papers, but do not expose the envoy. Joseon accepts a stricter ship register, and Tsushima keeps its trade.";
   }
-  return "The forged credentials are laid before the council. Joseon thanks you; Tsushima will remember who opened the packet.";
+  return "You produce the hidden forgeries and show how they fail the Sō register. Joseon praises your honesty; Tsushima's envoy calls it a betrayal.";
 }
 
 export function validateMissionOutcome(quest, outcomeId) {
@@ -220,9 +234,18 @@ export function eastAsianMissionDialogue(plan) {
   }
   if (plan.id === EAST_ASIAN_MISSION_TSUSHIMA) {
     return Object.freeze({
-      offer: "Joseon's treaty grants Tsushima limited trade, but false envoys have made every seal suspect. Carry me to Hanseong with the Sō register before the privilege is withdrawn.",
-      underway: "Tsushima survives by the Korean crossing. One forged embassy can endanger a hundred honest voyages.",
-      arrival: "Joseon's councillors compare the Sō register against a pile of doubtful Japanese credentials. They ask what guarantee Tsushima will give."
+      offer: "Joseon permits Tsushima limited trade, but its councillors call our envoys frauds. These papers are genuine. Carry me and the Sō register to Hanseong before they revoke our privilege.",
+      underway: "A hidden bundle beneath the Sō register bears unlisted names and copied seals. The evidence remains locked in the captain's cabin.",
+      arrival: "Joseon's councillors question the Sō envoy's papers. They ask you, the captain who carried the packet, whether you will vouch for him or produce contrary evidence.",
+      journeyEvents: Object.freeze([
+        Object.freeze({
+          id: "tsushima-hidden-forgeries",
+          text: TSUSHIMA_EVIDENCE_BRIEFING_TEXT,
+          expressionId: "concerned",
+          minimumOriginFraction: 0.3,
+          minimumDestinationFraction: 0.3
+        })
+      ])
     });
   }
   if (plan.id === EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {

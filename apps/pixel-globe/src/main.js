@@ -443,6 +443,10 @@ import {
   ningboDelegationManifest
 } from "./eastAsianQuestlines.js";
 import {
+  markQuestJourneyDialogueSeen,
+  pendingQuestJourneyDialogue
+} from "./questJourneyDialogue.js";
+import {
   ANIMAL_CATALOG,
   ANIMAL_CATALOG_BY_ID,
   animalDialogueCharacter,
@@ -5880,6 +5884,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
+    if (maybeOpenQuestJourneyDialogueAtSea()) dirty = true;
     if (updateNavalWeapons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateFishAnimation(nowMs)) dirty = true;
@@ -6626,6 +6631,30 @@ function maybeOpenCampaignGoalDepartureReminder(departureCity) {
   const opened = openCaptainAlertModal(reminder.text, reminder.expressionId);
   if (!opened) return false;
   markCampaignGoalReminderDelivered(gameState.memory.decisions, interval);
+  return true;
+}
+
+function maybeOpenQuestJourneyDialogueAtSea() {
+  if (anchored || dialogueState || captainAlertModal || menusAreOpen() || !ship) return false;
+  const questMemory = gameState?.memory?.quests;
+  const quest = [questMemory?.passengerActive, questMemory?.active]
+    .find((candidate) => Array.isArray(candidate?.dialogue?.journeyEvents)) || null;
+  if (!quest) return false;
+  const origin = tileCenterVector(quest.originTileId);
+  const destination = tileCenterVector(quest.destinationTileId);
+  const event = pendingQuestJourneyDialogue(quest, {
+    originDistance: vectorArcDistance(ship.position, origin),
+    destinationDistance: vectorArcDistance(ship.position, destination),
+    directDistance: vectorArcDistance(origin, destination)
+  });
+  if (!event) return false;
+  if (!quest.passenger?.id) {
+    throw new Error(`Quest journey dialogue requires a passenger character: ${quest.id}`);
+  }
+  const opened = openCharacterAlertModal(quest.passenger, uiText(event.text), event.expressionId);
+  if (!opened) return false;
+  markQuestJourneyDialogueSeen(quest, event.id);
+  saveVoyageNow("quest journey dialogue");
   return true;
 }
 
@@ -15711,11 +15740,14 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   );
   const arrivingTravelMission = passengerDialogueQuestForCity(cityCall);
   if (arrivingTravelMission && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
+    const journeyEvent = pendingQuestJourneyDialogue(arrivingTravelMission, { arrived: true });
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
       arrivedDrunk,
       drunkVariant,
-      questCharacterSession: createWorldPassengerDialogueSession(cityCall, arrivingTravelMission)
+      questCharacterSession: createWorldPassengerDialogueSession(cityCall, arrivingTravelMission, {
+        ...(journeyEvent ? { journeyEvent } : {})
+      })
     });
   }
   const colonizationQuest = colonizationQuestView(gameState, {
@@ -19633,6 +19665,7 @@ function currentDialogueSubject() {
   if (dialogueState?.kind === "passenger") {
     if (dialogueState.envoyNegotiationResult) return currentDialogueCity();
     const passenger = currentDialoguePassenger();
+    if (dialogueState.journeyEvent) return passenger;
     if (
       passenger.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
       passenger.destinationTileId === dialogueState.cityTileId &&

@@ -201,6 +201,7 @@ import {
   NINGBO_DEFECTION_BRIBE,
   NINGBO_RACE_BONUS,
   PORTUGUESE_GUNS_ITINERARY_REFS,
+  eastAsianMissionDialogue,
   isEastAsianMissionQuest,
   removeSiblingEastAsianOffers,
   validateMissionOutcome
@@ -829,8 +830,10 @@ export function migrateGameState(state, shipStats) {
         legacyPanda: legacyPandaCompanion
       }),
       quests: {
-        ...migrateQuestItineraries(migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
-          migrateConcurrentQuestMemory(migrateRetiredFactionReferences(state.memory?.quests))
+        ...migrateQuestItineraries(migrateEastAsianMissionDialogue(migrateQuestCharacterSkills(
+          migrateSovereignTradeQuestReferences(
+            migrateConcurrentQuestMemory(migrateRetiredFactionReferences(state.memory?.quests))
+          )
         ))),
         failed: state.memory?.quests?.failed || {},
         cargoDeliveries: state.memory?.quests?.cargoDeliveries ||
@@ -1030,6 +1033,24 @@ function migrateQuestCharacterSkills(quests) {
     passengerActive: migrateQuest(quests.passengerActive, "passenger-active"),
     passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
       .map(([key, quest]) => [key, migrateQuest(quest, key)]))
+  };
+}
+
+function migrateEastAsianMissionDialogue(quests) {
+  if (!quests || typeof quests !== "object") return quests;
+  const migrateQuest = (quest) => isEastAsianMissionQuest(quest) ? {
+    ...quest,
+    dialogue: eastAsianMissionDialogue({
+      id: quest.eastAsianMissionId,
+      startingFactionId: quest.eastAsianStartingFactionId
+    })
+  } : quest;
+  return {
+    ...quests,
+    active: migrateQuest(quests.active),
+    passengerActive: migrateQuest(quests.passengerActive),
+    passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
+      .map(([key, quest]) => [key, migrateQuest(quest)]))
   };
 }
 
