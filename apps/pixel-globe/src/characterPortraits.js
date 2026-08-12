@@ -98,6 +98,14 @@ export function validateCharacterPortraitManifest(manifest) {
       if (expression.width !== 64 || expression.height !== 64) {
         throw new Error(`Expression ${character.id}.${expression.id} must be a native 64x64 sprite`);
       }
+      const hasAtlasX = expression.atlasX != null;
+      const hasAtlasY = expression.atlasY != null;
+      if (hasAtlasX !== hasAtlasY || (hasAtlasX && (
+        !Number.isInteger(expression.atlasX) || expression.atlasX < 0 ||
+        !Number.isInteger(expression.atlasY) || expression.atlasY < 0
+      ))) {
+        throw new Error(`Expression ${character.id}.${expression.id} has invalid atlas coordinates`);
+      }
     }
   }
 }
@@ -733,7 +741,11 @@ function assignedExpressions(source) {
     label: expression.label,
     src: expression.src,
     width: expression.width,
-    height: expression.height
+    height: expression.height,
+    ...(expression.atlasX == null ? {} : {
+      atlasX: expression.atlasX,
+      atlasY: expression.atlasY
+    })
   }));
 }
 
@@ -743,7 +755,9 @@ function sameExpressions(current, expected) {
     expression.label === expected[index].label &&
     expression.src === expected[index].src &&
     expression.width === expected[index].width &&
-    expression.height === expected[index].height
+    expression.height === expected[index].height &&
+    expression.atlasX === expected[index].atlasX &&
+    expression.atlasY === expected[index].atlasY
   ));
 }
 

@@ -25,6 +25,7 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/ui/game-icons.png",
   "assets/terrain/resurrect-64/water_deep_01_01.png",
   "assets/characters/generated/character-portraits.json",
+  "assets/characters/generated/character-portraits-atlas.png",
   "assets/vehicles/unity-ships/brigantine-32-headings.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings-sink-depth.png",

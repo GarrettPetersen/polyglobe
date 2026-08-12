@@ -17,6 +17,9 @@ const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
 const DEMO_PORTRAIT_EXPRESSION_LIMIT = 3;
 const CHARACTER_MANIFEST_PATH = "assets/characters/generated/character-portraits.json";
+const DEMO_CHARACTER_ATLAS_PATH = "assets/characters/generated/character-portraits-atlas.png";
+const CHARACTER_PORTRAIT_SIZE = 64;
+const DEMO_CHARACTER_ATLAS_COLUMNS = 24;
 const FACTION_FLAG_ATLAS_PATH = "assets/factions/flags-atlas.png";
 const FACTION_FLAG_ATLAS_COLUMNS = 8;
 const FACTION_FLAG_WIDTH = 32;
@@ -99,9 +102,6 @@ const fullCharacterManifest = JSON.parse(
 );
 const demoCharacterManifest = edition === BUILD_EDITION_DEMO
   ? createDemoCharacterManifest(fullCharacterManifest)
-  : null;
-const demoPortraitFiles = demoCharacterManifest
-  ? portraitFilesForManifest(demoCharacterManifest)
   : null;
 const buildRevision = await resolveBuildRevision();
 
@@ -228,7 +228,7 @@ function shouldCopyPublicPath(path) {
   }
   if (normalized.startsWith("assets/characters/historical-battles/")) return true;
   if (normalized.startsWith("assets/characters/") && normalized.endsWith(".png")) {
-    return demoPortraitFiles.has(normalized);
+    return false;
   }
   return true;
 }
@@ -279,21 +279,42 @@ function selectFirstDemoExpression(expressions, selected, preferredIds) {
   }
 }
 
-function portraitFilesForManifest(manifest) {
-  const paths = new Set();
-  for (const character of manifest.sourceCharacters) {
-    for (const expression of character.expressions) {
-      if (typeof expression.src !== "string" || !expression.src.startsWith("assets/characters/")) {
-        throw new Error(`Demo portrait has invalid relative source: ${expression.src}`);
-      }
-      paths.add(decodeURIComponent(expression.src));
-    }
-  }
-  return paths;
-}
-
 function normalizePath(path) {
   return path.split(sep).join("/");
+}
+
+async function buildDemoCharacterPortraitAtlas(manifest) {
+  const expressions = manifest.sourceCharacters.flatMap((character) => character.expressions);
+  const rows = Math.ceil(expressions.length / DEMO_CHARACTER_ATLAS_COLUMNS);
+  const canvas = createCanvas(
+    DEMO_CHARACTER_ATLAS_COLUMNS * CHARACTER_PORTRAIT_SIZE,
+    rows * CHARACTER_PORTRAIT_SIZE
+  );
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+
+  for (const [index, expression] of expressions.entries()) {
+    if (typeof expression.src !== "string" || !expression.src.startsWith("assets/characters/")) {
+      throw new Error(`Demo portrait has invalid relative source: ${expression.src}`);
+    }
+    const image = await loadImage(join(publicRoot, decodeURIComponent(expression.src)));
+    if (image.width !== CHARACTER_PORTRAIT_SIZE || image.height !== CHARACTER_PORTRAIT_SIZE) {
+      throw new Error(
+        `Demo portrait ${expression.src} must be ${CHARACTER_PORTRAIT_SIZE}x` +
+        `${CHARACTER_PORTRAIT_SIZE}, got ${image.width}x${image.height}`
+      );
+    }
+    const atlasX = (index % DEMO_CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_SIZE;
+    const atlasY = Math.floor(index / DEMO_CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_SIZE;
+    context.drawImage(image, atlasX, atlasY);
+    expression.src = DEMO_CHARACTER_ATLAS_PATH;
+    expression.atlasX = atlasX;
+    expression.atlasY = atlasY;
+  }
+
+  const atlasPath = join(distRoot, DEMO_CHARACTER_ATLAS_PATH);
+  await mkdir(dirname(atlasPath), { recursive: true });
+  await writeFile(atlasPath, canvas.toBuffer("image/png"));
 }
 
 async function buildDemoFactionFlagAtlas() {
@@ -477,6 +498,7 @@ for (const entry of appEntries) await copyEntry(appRoot, entry, shouldCopyAppPat
 for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
+if (demoCharacterManifest) await buildDemoCharacterPortraitAtlas(demoCharacterManifest);
 if (edition === BUILD_EDITION_DEMO) await buildDemoRowingAtlases();
 if (edition === BUILD_EDITION_DEMO) await buildDemoLandVehicleAtlases();
 

@@ -3439,6 +3439,7 @@ let gameOverState = null;
 let worldShipSinkEffects = [];
 const portraitFrameStore = createPortraitFrameStore();
 const portraitPromiseCache = new Map();
+const portraitSourcePromiseCache = new Map();
 const grayscalePortraitCanvasCache = new WeakMap();
 const dialoguePortraitToneCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
@@ -52490,8 +52491,7 @@ function dialoguePortraitImage(character, expression) {
   const displayFrame = portraitFrameStore.display(character.id, key);
   if (portraitFrameStore.has(key)) return displayFrame;
   if (!portraitPromiseCache.has(key)) {
-    const sourceUrl = `${expression.src}?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
-    const promise = loadAssetImage(sourceUrl, `portrait ${character.id}.${expression.id}`)
+    const promise = loadPortraitExpressionImage(expression, `portrait ${character.id}.${expression.id}`)
       .then((sourceImage) => {
         portraitFrameStore.store(character.id, key, bottomAlignedPortraitFrame(sourceImage));
         dirty = true;
@@ -52508,6 +52508,39 @@ function dialoguePortraitImage(character, expression) {
     portraitPromiseCache.set(key, promise);
   }
   return displayFrame;
+}
+
+function loadPortraitExpressionImage(expression, label) {
+  const sourceUrl = `${expression.src}?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
+  let sourcePromise = portraitSourcePromiseCache.get(sourceUrl);
+  if (!sourcePromise) {
+    sourcePromise = loadAssetImage(sourceUrl, label).catch((error) => {
+      portraitSourcePromiseCache.delete(sourceUrl);
+      throw error;
+    });
+    portraitSourcePromiseCache.set(sourceUrl, sourcePromise);
+  }
+  if (expression.atlasX == null) return sourcePromise;
+  return sourcePromise.then((atlas) => {
+    const frame = document.createElement("canvas");
+    frame.width = expression.width;
+    frame.height = expression.height;
+    const frameContext = frame.getContext("2d");
+    if (!frameContext) throw new Error(`Could not extract ${label} from portrait atlas`);
+    frameContext.imageSmoothingEnabled = false;
+    frameContext.drawImage(
+      atlas,
+      expression.atlasX,
+      expression.atlasY,
+      expression.width,
+      expression.height,
+      0,
+      0,
+      expression.width,
+      expression.height
+    );
+    return frame;
+  });
 }
 
 function setDiagnosticMode(enabled) {
