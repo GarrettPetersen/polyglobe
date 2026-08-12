@@ -20,6 +20,12 @@ const JAPANESE_CHARACTER = Object.freeze({
   familyName: "Tokugawa",
   nameCulture: "japanese"
 });
+const REGIONAL_JAPANESE_CHARACTER = Object.freeze({
+  name: "Ouchi Akimori",
+  givenName: "Akimori",
+  familyName: "Ouchi",
+  nameCulture: "japanese"
+});
 const KOREAN_CHARACTER = Object.freeze({
   name: "Kim Min",
   givenName: "Min",
@@ -37,6 +43,7 @@ registerPlaceProperNames(["Port Royal", "Yuquot Village", "Guatemala City"]);
 for (const character of [
   CHINESE_CHARACTER,
   JAPANESE_CHARACTER,
+  REGIONAL_JAPANESE_CHARACTER,
   KOREAN_CHARACTER,
   PORTUGUESE_CHARACTER
 ]) {
@@ -47,6 +54,7 @@ test("native East Asian character names use their native scripts and order", () 
   assert.equal(localizeCharacterProperName("zh-Hans", CHINESE_CHARACTER), "王明");
   assert.equal(localizeCharacterProperName("zh-Hant", CHINESE_CHARACTER), "王明");
   assert.equal(localizeCharacterProperName("ja", JAPANESE_CHARACTER), "徳川 家康");
+  assert.equal(localizeCharacterProperName("ja", REGIONAL_JAPANESE_CHARACTER), "大内 秋盛");
   assert.equal(localizeCharacterProperName("ko", KOREAN_CHARACTER), "김민");
 });
 

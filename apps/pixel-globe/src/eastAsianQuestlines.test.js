@@ -9,6 +9,7 @@ import {
   factionReputation,
   recordNingboMissionArrival,
   recordNingboMissionShipDefeated,
+  refuseNingboMissionBribe,
   selectEastAsianMissionOutcome,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
@@ -25,6 +26,7 @@ import { passengerOfferForCity, pendingPassengerOfferForCity } from "./passenger
 import {
   createPassengerDialogueSession,
   passengerDialogueView,
+  preparePassengerDialogueArrival,
   selectPassengerDialogueOption
 } from "./dialogueSystem.js";
 import { shoreBatteryGunCount, shoreBatteryLevel } from "./shoreBatteries.js";
@@ -38,12 +40,18 @@ const PLAYER = Object.freeze({
   expressions: ["neutral", "happy"]
 });
 
+const RIVAL_CAPTAIN = Object.freeze({
+  id: "rival-captain",
+  name: "Ouchi Muneyoshi",
+  expressions: ["neutral", "attentive"]
+});
+
 const SAKAI = capital(1, "Sakai", "hosokawa", 34.58, 135.47);
 const YAMAGUCHI = capital(2, "Yamaguchi", "ouchi", 34.18, 131.47);
 const NINGBO = port(3, "Ningbo", "ming", 29.87, 121.55);
 const TSUSHIMA = {
   ...capital(4, "Tsushima Fuchu", "so", 34.20, 129.29),
-  displayCity: "Tsushima Fuchū"
+  displayCity: "Tsushima Fuchu"
 };
 const HANSEONG = {
   ...capital(5, "Seoul", "joseon", 37.57, 126.98),
@@ -87,6 +95,7 @@ test("Ningbo is offered by both rival houses until one side is accepted", () => 
   assert.equal(pendingPassengerOfferForCity(state, YAMAGUCHI), null);
 
   recordNingboMissionArrival(state, hosokawa.id, { simMinute: 50, rivalArrivalMinute: 80 });
+  refuseNingboMissionBribe(state, hosokawa.id);
   selectEastAsianMissionOutcome(state, hosokawa.id, "mediate");
   const completed = completeQuest(state, NINGBO, { simMinute: 60 });
   assert.equal(completed.eastAsianResolution.outcomeId, "mediate");
@@ -115,22 +124,36 @@ test("Tsushima's treaty mission can preserve Sō access to Joseon", () => {
   assert.ok(factionReputation(state, "joseon") > 0);
 });
 
-test("Ningbo's three outcomes are presented and resolved through normal passenger dialogue", () => {
+test("an automatically opened Ningbo dialogue records arrival before its choices are selected", () => {
   const state = gameState();
   const quest = offer(state, SAKAI);
   acceptQuest(state, quest, { simMinute: 0 });
   const active = state.memory.quests.passengerActive;
-  recordNingboMissionArrival(state, active.id, { simMinute: 60, rivalArrivalMinute: 90 });
-  const session = createPassengerDialogueSession(NINGBO, active);
+  assert.equal(active.eastAsianPlayerArrivalMinute, undefined);
+  preparePassengerDialogueArrival(state, NINGBO, active, {
+    simMinute: 60,
+    rivalArrivalMinute: 90
+  });
+  const session = createPassengerDialogueSession(NINGBO, active, {
+    ningboRivalCharacter: RIVAL_CAPTAIN
+  });
 
-  const choice = passengerDialogueView(session, NINGBO, active, state);
-  assert.match(choice.text, /reached Ningbo before the rival courier/i);
-  assert.deepEqual(choice.options.slice(0, 3).map((option) => option.label), [
-    "Stand by the Hosokawa delegation",
-    "Seek a joint hearing",
-    "Take the Ouchi purse  450 db"
+  const bribe = passengerDialogueView(session, NINGBO, active, state);
+  assert.equal(active.eastAsianPlayerArrivalMinute, 60);
+  assert.deepEqual(bribe.options.map((option) => [option.label, option.detail]), [
+    ["Accept 450 db and defect", "Fight Hosokawa for Ouchi"],
+    ["Refuse and remain loyal", "Then choose mediation or battle"]
   ]);
   selectPassengerDialogueOption(session, NINGBO, active, state, 1, { simMinute: 60 });
+
+  const hearing = passengerDialogueView(session, NINGBO, active, state);
+  assert.match(hearing.text, /reached Ningbo before the rival courier/i);
+  assert.deepEqual(hearing.options.map((option) => [option.label, option.detail]), [
+    ["Mediate a joint tally", "No battle; favors Ming"],
+    ["Fight for Hosokawa", "Attack Ouchi"],
+    ["Decide later", null]
+  ]);
+  selectPassengerDialogueOption(session, NINGBO, active, state, 0, { simMinute: 60 });
 
   const result = passengerDialogueView(session, NINGBO, active, state);
   assert.match(result.text, /single supervised register/i);
@@ -149,6 +172,7 @@ test("Ningbo loyalty and defection require a two-ship battle with a loss conditi
   acceptQuest(loyalState, loyalQuest, { simMinute: 0 });
   const loyalActive = loyalState.memory.quests.passengerActive;
   recordNingboMissionArrival(loyalState, loyalActive.id, { simMinute: 60, rivalArrivalMinute: 90 });
+  refuseNingboMissionBribe(loyalState, loyalActive.id);
   selectEastAsianMissionOutcome(loyalState, loyalActive.id, "support-origin");
   assert.equal(loyalActive.eastAsianStage, "battle");
   assert.deepEqual(

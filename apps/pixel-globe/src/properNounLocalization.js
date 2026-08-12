@@ -88,6 +88,11 @@ const CHINESE_FAMILY_NAMES = Object.freeze({
   Wang: "王", Wu: "吴", Xu: "徐", Yang: "杨", Zhang: "张", Zhao: "赵"
 });
 const JAPANESE_GIVEN_NAMES = Object.freeze({
+  Akimori: "秋盛", Chikatsuna: "親綱", Harumichi: "晴通", Hisamori: "久盛",
+  Masatsune: "政経", Motoyasu: "元康", Muneyoshi: "宗義", Nobukata: "信方",
+  Norimasa: "憲政", Sadamitsu: "定光", Tadatsuna: "忠綱", Yoshisada: "義定",
+  Aya: "あや", Chiyo: "千代", Fuji: "ふじ", Hana: "花", Kame: "亀", Kiku: "菊",
+  Nao: "なお", Saki: "さき", Tane: "たね", Toki: "とき",
   Dosan: "道三", Harunobu: "晴信", Hideyoshi: "秀吉", Hisahide: "久秀",
   Ieyasu: "家康", Kenshin: "謙信", Motonari: "元就", Nobunaga: "信長",
   Shingen: "信玄", Takakage: "隆景", Yoshihiro: "義弘", Yukimura: "幸村",
@@ -96,9 +101,20 @@ const JAPANESE_GIVEN_NAMES = Object.freeze({
   Tama: "玉", Tora: "虎"
 });
 const JAPANESE_FAMILY_NAMES = Object.freeze({
-  Abe: "安倍", Fujiwara: "藤原", Hojo: "北条", Mori: "毛利", Oda: "織田",
-  Saito: "斎藤", Shimazu: "島津", Takeda: "武田", Tokugawa: "徳川",
-  Uesugi: "上杉", Yamamoto: "山本", Yoshida: "吉田"
+  Abe: "安倍", Ando: "安東", Arima: "有馬", Asari: "浅利", Ashikaga: "足利",
+  Atagi: "安宅", Chiba: "千葉", Fujiwara: "藤原", Goto: "五島", Harada: "原田",
+  Hata: "秦", Hino: "日野", Hironaka: "弘中", Hojo: "北条", Honjo: "本庄",
+  Hosokawa: "細川", Ijuin: "伊集院", Irobe: "色部", Ise: "伊勢", Kabayama: "樺山",
+  Kagawa: "香川", Kakizaki: "蠣崎", Kawakami: "川上", Kono: "河野", Konoe: "近衛",
+  Kozai: "香西", Kudo: "工藤", Machida: "町田", Matsuura: "松浦", Minato: "湊",
+  Miyoshi: "三好", Mori: "毛利", Nagao: "長尾", Naito: "内藤", Nakajo: "中条",
+  Nanbu: "南部", Niiro: "新納", Oda: "織田", Omura: "大村", Onodera: "小野寺",
+  Ota: "太田", Ouchi: "大内", Oura: "大浦", Ryuzoji: "龍造寺", Saito: "斎藤",
+  Sanjo: "三条", Satomi: "里見", Shimazu: "島津", Shimokuni: "下国", Shoni: "少弐",
+  So: "宗", Sugi: "杉", Sue: "陶", Takeda: "武田", Tokugawa: "徳川",
+  Toyoshima: "豊島", Tozawa: "戸沢", Uesugi: "上杉", Yamana: "山名",
+  Yamamoto: "山本", Yanagawa: "柳川", Yasuda: "安田", Yasumi: "安見",
+  Yoshida: "吉田", Yoshimi: "吉見"
 });
 const KOREAN_GIVEN_NAMES = Object.freeze({
   Dong: "동", Gyeom: "겸", Hwan: "환", Jin: "진", Jun: "준", Min: "민",

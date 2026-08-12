@@ -344,7 +344,7 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     marketGoods: ["fish", "furs", "timber"]
   }),
   manualCity1522("Tsushima Fuchu", "Japan", 34.203, 129.287, 3000, {
-    displayCity: "Tsushima Fuchū",
+    displayCity: "Tsushima Fuchu",
     cityType: "east-asian",
     manualRegion: "tsushima",
     islandSettlement: true,

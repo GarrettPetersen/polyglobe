@@ -358,6 +358,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "attack-city": "action:attack",
   "begin-ningbo-battle": "action:attack",
   "choose-east-asian-outcome": "action:talk",
+  "refuse-ningbo-bribe": "action:back",
   "attempt-restricted-illicit-trade": "action:disguise",
   attack: "action:attack",
   threaten: "action:attack",

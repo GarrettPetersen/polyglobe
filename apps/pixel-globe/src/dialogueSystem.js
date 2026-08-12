@@ -57,8 +57,10 @@ import {
   purchaseWhaleHarpoon,
   questStateForCity,
   receiveQuestPayment,
+  recordNingboMissionArrival,
   recordColonyAuthorityForState,
   recordQuestCargoTheft,
+  refuseNingboMissionBribe,
   selectEastAsianMissionOutcome,
   releaseCargoSpace,
   reserveCargoSpace,
@@ -116,6 +118,7 @@ import {
 import {
   EAST_ASIAN_MISSION_NINGBO,
   EAST_ASIAN_MISSION_PORTUGUESE_GUNS,
+  NINGBO_DEFECTION_BRIBE,
   PORTUGUESE_GUNS_STOP_COUNT,
   eastAsianMissionHasOutcomes,
   eastAsianMissionOutcomeOptions,
@@ -510,9 +513,24 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     religiousParticipationUnderway: false,
     religiousLegDelivery: null,
     lutheranConversionPending: false,
+    ningboRivalCharacter: options.ningboRivalCharacter || null,
     selectedIndex: 0,
     feedback: null
   };
+}
+
+export function preparePassengerDialogueArrival(gameState, city, quest, context = {}) {
+  if (!gameState?.memory?.quests) throw new Error("Passenger arrival requires quest memory");
+  if (!city || !Number.isInteger(city.tileId)) throw new Error("Passenger arrival requires a placed port");
+  if (!quest?.id) throw new Error("Passenger arrival requires a quest");
+  if (
+    quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
+    gameState.memory.quests.passengerActive?.id === quest.id &&
+    city.tileId === quest.destinationTileId
+  ) {
+    recordNingboMissionArrival(gameState, quest.id, context);
+  }
+  return quest;
 }
 
 export function createShipDialogueSession(
@@ -2548,6 +2566,39 @@ export function passengerDialogueView(session, city, quest, gameState) {
   }
   if (active?.id === quest.id && quest.destinationTileId === city.tileId &&
       eastAsianMissionHasOutcomes(quest)) {
+    if (
+      quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
+      !quest.eastAsianOutcomeId &&
+      quest.eastAsianBribeRefused !== true
+    ) {
+      const rivalCharacter = session.ningboRivalCharacter;
+      if (!rivalCharacter?.id || !rivalCharacter.name) {
+        throw new Error("Ningbo bribe dialogue requires the rival captain");
+      }
+      const origin = quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
+      const rival = quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa";
+      const rivalOutcome = eastAsianMissionOutcomeOptions(quest).find(({ id }) => id === "support-rival");
+      if (!rivalOutcome) throw new Error("Ningbo mission has no defection outcome");
+      return {
+        speaker: `${rivalCharacter.name}, ${rival} captain`,
+        expressionId: "attentive",
+        text: quest.eastAsianWonRace
+          ? `You beat our courier to the shipping office. ${origin} hired you, but ${rival} can pay better. Take ${NINGBO_DEFECTION_BRIBE} db, stand with us, and help drive their ships from Ningbo.`
+          : `Our courier reached the shipping office first. ${origin} hired you, but ${rival} can pay better. Take ${NINGBO_DEFECTION_BRIBE} db, stand with us, and help drive their ships from Ningbo.`,
+        feedback: session.feedback,
+        options: [
+          option(`Accept ${NINGBO_DEFECTION_BRIBE} db and defect`, {
+            type: "choose-east-asian-outcome",
+            outcomeId: rivalOutcome.id
+          }, {
+            detail: `Fight ${origin} for ${rival}`
+          }),
+          option("Refuse and remain loyal", { type: "refuse-ningbo-bribe" }, {
+            detail: "Then choose mediation or battle"
+          })
+        ]
+      };
+    }
     if (quest.eastAsianOutcomeId) {
       if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO && quest.eastAsianStage === "battle") {
         const enemy = quest.eastAsianBattleFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
@@ -2583,13 +2634,29 @@ export function passengerDialogueView(session, city, quest, gameState) {
           : "The rival courier reached Ningbo first. "}${quest.dialogue?.arrival || "The court requires your answer."}`
         : quest.dialogue?.arrival || "The court is assembled and requires your answer.",
       feedback: session.feedback,
-      options: [
-        ...eastAsianMissionOutcomeOptions(quest).map((outcome) => option(outcome.label, {
-          type: "choose-east-asian-outcome",
-          outcomeId: outcome.id
-        })),
-        option("Not yet", { type: "close" })
-      ]
+      options: quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO
+        ? [
+          option("Mediate a joint tally", {
+            type: "choose-east-asian-outcome",
+            outcomeId: "mediate"
+          }, {
+            detail: "No battle; favors Ming"
+          }),
+          option(`Fight for ${quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi"}`, {
+            type: "choose-east-asian-outcome",
+            outcomeId: "support-origin"
+          }, {
+            detail: `Attack ${quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa"}`
+          }),
+          option("Decide later", { type: "close" })
+        ]
+        : [
+          ...eastAsianMissionOutcomeOptions(quest).map((outcome) => option(outcome.label, {
+            type: "choose-east-asian-outcome",
+            outcomeId: outcome.id
+          })),
+          option("Not yet", { type: "close" })
+        ]
     };
   }
   if (active?.id === quest.id && questHasDestination(quest, city) &&
@@ -2784,6 +2851,17 @@ export function selectPassengerDialogueOption(
       throw new Error("East Asian mission outcome is not available here");
     }
     selectEastAsianMissionOutcome(gameState, quest.id, action.outcomeId, { ...context, city });
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "refuse-ningbo-bribe") {
+    if (
+      quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO ||
+      quest.destinationTileId !== city.tileId
+    ) {
+      throw new Error("Ningbo bribe is not available here");
+    }
+    refuseNingboMissionBribe(gameState, quest.id);
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }

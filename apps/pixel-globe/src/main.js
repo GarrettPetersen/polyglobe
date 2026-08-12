@@ -404,7 +404,6 @@ import {
   recordFriendlyFireAgainstFaction,
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
-  recordNingboMissionArrival,
   recordNingboMissionShipDefeated,
   recordTeaRaceCompetitorRemoved,
   recordTeaRacePlayerArrival,
@@ -440,6 +439,7 @@ import {
 } from "./teaRaceQuest.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
+  eastAsianMissionHasOutcomes,
   ningboDelegationManifest
 } from "./eastAsianQuestlines.js";
 import {
@@ -738,6 +738,7 @@ import {
   passengerDialogueView,
   portDialogueView,
   prepareDamageSurrenderDialogue,
+  preparePassengerDialogueArrival,
   prepareSurrenderPrizeDialogue,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
@@ -15437,7 +15438,7 @@ function openPortDialogue(cityCall) {
   );
   const arrivingTravelMission = activeTravelMissionQuest(gameState);
   if (portUnavailable && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
-    dialogueState = createPassengerDialogueSession(cityCall, arrivingTravelMission, {
+    dialogueState = createWorldPassengerDialogueSession(cityCall, arrivingTravelMission, {
       admittedToPort: false,
       continueToPortOnClose: true,
       nextPortNodeId: recoveryStatus && !entryStatus.hostile && !conquestStatus.canAttempt
@@ -15714,7 +15715,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       needsLoadout,
       arrivedDrunk,
       drunkVariant,
-      questCharacterSession: createPassengerDialogueSession(cityCall, arrivingTravelMission)
+      questCharacterSession: createWorldPassengerDialogueSession(cityCall, arrivingTravelMission)
     });
   }
   const colonizationQuest = colonizationQuestView(gameState, {
@@ -15865,7 +15866,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   let questCharacterSession = null;
   if (autoPassengerQuest) {
     markPassengerOfferSeen(gameState, autoPassengerQuest);
-    questCharacterSession = createPassengerDialogueSession(cityCall, autoPassengerQuest);
+    questCharacterSession = createWorldPassengerDialogueSession(cityCall, autoPassengerQuest);
   }
   return createPortArrivalDialogueSession(cityCall, {
     needsLoadout,
@@ -17345,8 +17346,9 @@ function repairPlayerShipAtPort() {
   return repaired;
 }
 
-function openPassengerDialogue(cityCall, quest) {
-  if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
+function createWorldPassengerDialogueSession(cityCall, quest, options = {}) {
+  if (!gameState) throw new Error("Cannot prepare passenger dialogue before game state is ready");
+  let ningboRivalCharacter = null;
   if (
     quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
     gameState.memory.quests.passengerActive?.id === quest.id &&
@@ -17363,13 +17365,22 @@ function openPassengerDialogue(cityCall, quest) {
       (strategic?.plan?.destination?.tileId === quest.destinationTileId
         ? strategic.plan.endMinute
         : null);
-    recordNingboMissionArrival(gameState, quest.id, {
+    preparePassengerDialogueArrival(gameState, cityCall, quest, {
       simMinute: Math.floor(weatherClockMinutes),
       rivalArrivalMinute
     });
+    ningboRivalCharacter = ensureNpcShipCaptain(rivalCourier.id);
   }
+  return createPassengerDialogueSession(cityCall, quest, {
+    ...options,
+    ...(ningboRivalCharacter ? { ningboRivalCharacter } : {})
+  });
+}
+
+function openPassengerDialogue(cityCall, quest) {
+  if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
   markPassengerOfferSeen(gameState, quest);
-  dialogueState = createPassengerDialogueSession(cityCall, quest, {
+  dialogueState = createWorldPassengerDialogueSession(cityCall, quest, {
     admittedToPort: true,
     continueToPortOnClose: true,
     nextPortNodeId: "root"
@@ -19620,9 +19631,25 @@ function currentDialogueSubject() {
   }
   if (dialogueState?.kind === "ship") return currentDialogueShip();
   if (dialogueState?.kind === "passenger") {
-    return dialogueState.envoyNegotiationResult
-      ? currentDialogueCity()
-      : currentDialoguePassenger();
+    if (dialogueState.envoyNegotiationResult) return currentDialogueCity();
+    const passenger = currentDialoguePassenger();
+    if (
+      passenger.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
+      passenger.destinationTileId === dialogueState.cityTileId &&
+      !passenger.eastAsianOutcomeId &&
+      passenger.eastAsianBribeRefused !== true
+    ) {
+      const character = dialogueState.ningboRivalCharacter;
+      if (!character?.id) throw new Error("Ningbo bribe dialogue lost the rival captain");
+      return { character, portrait: characterExpression(character) };
+    }
+    if (
+      passenger.destinationTileId === dialogueState.cityTileId &&
+      eastAsianMissionHasOutcomes(passenger)
+    ) {
+      return currentDialogueCity();
+    }
+    return passenger;
   }
   if (dialogueState?.kind === "rescued-traveler") {
     const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
@@ -19699,6 +19726,12 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
 
   if (dialogueState.kind === "passenger") {
     const passenger = currentDialoguePassenger();
+    if (
+      passenger.destinationTileId === dialogueState.cityTileId &&
+      eastAsianMissionHasOutcomes(passenger)
+    ) {
+      return dialoguePortraitPair(captain, speakerCharacter, speakerCharacter);
+    }
     const activeQuest = activeTravelMissionQuest(gameState);
     const envoyExchange = isEnvoyQuest(passenger) && (
       dialogueState.envoyNegotiationResult ||

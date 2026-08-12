@@ -150,9 +150,19 @@ const CULTURES = Object.freeze({
     "family-first"
   ),
   japanese: culture(
-    ["Dosan", "Harunobu", "Hideyoshi", "Hisahide", "Ieyasu", "Kenshin", "Motonari", "Nobunaga", "Shingen", "Takakage", "Yoshihiro", "Yukimura"],
-    ["Chacha", "Go", "Hatsu", "Jukeini", "Kicho", "Matsu", "Nene", "Oichi", "Otsuya", "Sen", "Tama", "Tora"],
-    ["Abe", "Fujiwara", "Hojo", "Mori", "Oda", "Saito", "Shimazu", "Takeda", "Tokugawa", "Uesugi", "Yamamoto", "Yoshida"],
+    ["Akimori", "Chikatsuna", "Harumichi", "Hisamori", "Masatsune", "Motoyasu", "Muneyoshi", "Nobukata", "Norimasa", "Sadamitsu", "Tadatsuna", "Yoshisada"],
+    ["Aya", "Chiyo", "Fuji", "Hana", "Kame", "Kiku", "Matsu", "Nao", "Saki", "Tane", "Toki", "Tora"],
+    [
+      "Abe", "Ando", "Arima", "Asari", "Ashikaga", "Atagi", "Chiba", "Fujiwara",
+      "Goto", "Harada", "Hata", "Hino", "Hironaka", "Hojo", "Honjo", "Hosokawa",
+      "Ijuin", "Irobe", "Ise", "Kabayama", "Kagawa", "Kakizaki", "Kawakami", "Kono",
+      "Konoe", "Kozai", "Kudo", "Machida", "Matsuura", "Minato", "Miyoshi", "Mori",
+      "Nagao", "Naito", "Nakajo", "Nanbu", "Niiro", "Oda", "Omura", "Onodera",
+      "Ota", "Ouchi", "Oura", "Ryuzoji", "Saito", "Sanjo", "Satomi", "Shimazu",
+      "Shimokuni", "Shoni", "So", "Sugi", "Sue", "Takeda", "Tokugawa", "Toyoshima",
+      "Tozawa", "Uesugi", "Yamana", "Yamamoto", "Yanagawa", "Yasuda", "Yasumi",
+      "Yoshida", "Yoshimi"
+    ],
     "family-first"
   ),
   ryukyuan: culture(
@@ -627,6 +637,33 @@ const MALUKAN_LOCATIVE_BY_CITY = new Map([
   ["gane village", "Gane"]
 ]);
 
+const JAPANESE_FAMILY_NAMES_BY_CITY = new Map([
+  ["kyoto", Object.freeze(["Ashikaga", "Hino", "Ise", "Konoe", "Sanjo", "Yamana"])],
+  ["edo", Object.freeze(["Hojo", "Ota", "Chiba", "Toyoshima", "Uesugi", "Satomi"])],
+  ["sakai", Object.freeze(["Hosokawa", "Miyoshi", "Kagawa", "Kozai", "Atagi", "Yasumi"])],
+  ["yamaguchi", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
+  ["fukuoka", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
+  ["hakata", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
+  ["kagoshima", Object.freeze(["Shimazu", "Niiro", "Ijuin", "Machida", "Kawakami", "Kabayama"])],
+  ["tsushima fuchu", Object.freeze(["So", "Yanagawa", "Hata", "Kono", "Harada"])],
+  ["nagasaki", Object.freeze(["Shoni", "Ryuzoji", "Omura", "Arima", "Matsuura", "Goto"])],
+  ["naoetsu", Object.freeze(["Nagao", "Uesugi", "Honjo", "Irobe", "Yasuda", "Nakajo"])],
+  ["tsuchizaki minato", Object.freeze(["Ando", "Asari", "Nanbu", "Tozawa", "Onodera", "Oura"])],
+  ["kaminokuni", Object.freeze(["Kakizaki", "Takeda", "Kudo", "Ando", "Shimokuni"])]
+]);
+
+const JAPANESE_FAMILY_NAMES_BY_FACTION = new Map([
+  ["japan", JAPANESE_FAMILY_NAMES_BY_CITY.get("kyoto")],
+  ["hosokawa", JAPANESE_FAMILY_NAMES_BY_CITY.get("sakai")],
+  ["ouchi", JAPANESE_FAMILY_NAMES_BY_CITY.get("yamaguchi")],
+  ["shimazu", JAPANESE_FAMILY_NAMES_BY_CITY.get("kagoshima")],
+  ["so", JAPANESE_FAMILY_NAMES_BY_CITY.get("tsushima fuchu")],
+  ["shoni", JAPANESE_FAMILY_NAMES_BY_CITY.get("nagasaki")],
+  ["nagao", JAPANESE_FAMILY_NAMES_BY_CITY.get("naoetsu")],
+  ["ando", JAPANESE_FAMILY_NAMES_BY_CITY.get("tsuchizaki minato")],
+  ["kakizaki", JAPANESE_FAMILY_NAMES_BY_CITY.get("kaminokuni")]
+]);
+
 const ISLAMIC_RELIGIONS = new Set(["sunni-islam", "shia-islam", "ibadi-islam"]);
 const SOUTH_ASIAN_NAME_CULTURES = new Set([
   "bengali",
@@ -897,6 +934,14 @@ function preferredMuhammadName({ identityKey, cultureId, gender, religionId, giv
 }
 
 function familyNamePlanForSubject(nameCulture, cultureId, subject) {
+  if (cultureId === "japanese") {
+    const cityName = normalizeName(subject.displayCity || subject.city);
+    const names = JAPANESE_FAMILY_NAMES_BY_CITY.get(cityName)
+      || JAPANESE_FAMILY_NAMES_BY_CITY.get(normalizeName(subject.city))
+      || JAPANESE_FAMILY_NAMES_BY_FACTION.get(subject.factionId)
+      || nameCulture.family;
+    return { names, preferFirst: false };
+  }
   if (cultureId !== "malukan") return { names: nameCulture.family, preferFirst: false };
   const cityName = normalizeName(subject.displayCity || subject.city);
   const localLocative = MALUKAN_LOCATIVE_BY_CITY.get(cityName)

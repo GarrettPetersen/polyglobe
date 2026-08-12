@@ -221,6 +221,42 @@ test("ports across the Old World use specific local naming traditions", () => {
   }
 });
 
+test("Japanese ports draw surnames from their local clan networks", () => {
+  const cases = [
+    [{ city: "Kyoto", country: "Japan", factionId: "japan" }, ["Ashikaga", "Hino", "Ise", "Konoe", "Sanjo", "Yamana"]],
+    [{ city: "Edo", country: "Japan", factionId: "japan" }, ["Hojo", "Ota", "Chiba", "Toyoshima", "Uesugi", "Satomi"]],
+    [{ city: "Sakai", country: "Japan", factionId: "hosokawa" }, ["Hosokawa", "Miyoshi", "Kagawa", "Kozai", "Atagi", "Yasumi"]],
+    [{ city: "Yamaguchi", country: "Japan", factionId: "ouchi" }, ["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"]],
+    [{ city: "Fukuoka", displayCity: "Hakata", country: "Japan", factionId: "ouchi" }, ["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"]],
+    [{ city: "Kagoshima", country: "Japan", factionId: "shimazu" }, ["Shimazu", "Niiro", "Ijuin", "Machida", "Kawakami", "Kabayama"]],
+    [{ city: "Tsushima Fuchu", country: "Japan", factionId: "so" }, ["So", "Yanagawa", "Hata", "Kono", "Harada"]],
+    [{ city: "Nagasaki", country: "Japan", factionId: "shoni" }, ["Shoni", "Ryuzoji", "Omura", "Arima", "Matsuura", "Goto"]],
+    [{ city: "Naoetsu", country: "Japan", factionId: "nagao" }, ["Nagao", "Uesugi", "Honjo", "Irobe", "Yasuda", "Nakajo"]],
+    [{ city: "Tsuchizaki Minato", country: "Japan", factionId: "ando" }, ["Ando", "Asari", "Nanbu", "Tozawa", "Onodera", "Oura"]],
+    [{ city: "Kaminokuni", country: "Japan", factionId: "kakizaki" }, ["Kakizaki", "Takeda", "Kudo", "Ando", "Shimokuni"]]
+  ];
+  const formerCelebrityGivenNames = new Set([
+    "Dosan", "Harunobu", "Hideyoshi", "Hisahide", "Ieyasu", "Kenshin",
+    "Motonari", "Nobunaga", "Shingen", "Takakage", "Yoshihiro", "Yukimura"
+  ]);
+
+  for (const [city, expectedFamilies] of cases) {
+    const allowedFamilies = new Set(expectedFamilies);
+    for (let index = 0; index < 96; index++) {
+      const identity = assignRegionalCharacterName({
+        identityKey: `japanese-clan-audit|${city.city}|${index}`,
+        city,
+        sex: index % 2 === 0 ? "female" : "male",
+        usedNames: new Set()
+      });
+      assert.equal(identity.nameCulture, "japanese", city.city);
+      assert.ok(allowedFamilies.has(identity.familyName), `${city.city}: ${identity.familyName}`);
+      assert.ok(!formerCelebrityGivenNames.has(identity.givenName), `${city.city}: ${identity.name}`);
+      if (city.city !== "Kaminokuni") assert.notEqual(identity.familyName, "Takeda", city.city);
+    }
+  }
+});
+
 test("Malukan characters use their home locative before regional fallbacks", () => {
   const cases = [
     [{ city: "Ternate", country: "Indonesia", factionId: "ternate" }, "Ternate", "Tidore"],

@@ -150,19 +150,19 @@ export function eastAsianMissionOutcomeOptions(quest) {
     const origin = quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
     const rival = quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa";
     return Object.freeze([
-      Object.freeze({ id: "support-origin", label: `Stand by the ${origin} delegation` }),
-      Object.freeze({ id: "mediate", label: "Seek a joint hearing" }),
+      Object.freeze({ id: "support-origin", label: `Fight for ${origin}; attack ${rival}` }),
+      Object.freeze({ id: "mediate", label: "Mediate; avoid battle and favor Ming" }),
       Object.freeze({
         id: "support-rival",
-        label: `Take the ${rival} purse  ${NINGBO_DEFECTION_BRIBE} db`
+        label: `Defect to ${rival} for ${NINGBO_DEFECTION_BRIBE} db; attack ${origin}`
       })
     ]);
   }
   if (quest.eastAsianMissionId === EAST_ASIAN_MISSION_TSUSHIMA) {
     return Object.freeze([
-      Object.freeze({ id: "renew-privileges", label: "Defend Tsushima's privileges" }),
-      Object.freeze({ id: "reform-register", label: "Accept a stricter register" }),
-      Object.freeze({ id: "expose-false-envoys", label: "Expose the false envoys" })
+      Object.freeze({ id: "renew-privileges", label: "Renew privileges; favor Tsushima" }),
+      Object.freeze({ id: "reform-register", label: "Tighten the register; compromise" }),
+      Object.freeze({ id: "expose-false-envoys", label: "Expose forgeries; favor Joseon" })
     ]);
   }
   return Object.freeze([]);

@@ -580,6 +580,17 @@ test("1522 catalog records apply completed conquests to current allegiance", asy
   assert.equal(havana.colonialFounding.type, COLONIAL_FOUNDING_SETTLER);
 });
 
+test("Japanese city display names stay within the pixel font's Latin glyph set", () => {
+  const japaneseCities = MANUAL_CITY_RECORDS_1522.filter((city) => city.country === "Japan");
+  for (const city of japaneseCities) {
+    assert.match(city.displayCity || city.city, /^[\x20-\x7e]+$/, city.city);
+  }
+  assert.equal(
+    japaneseCities.find((city) => city.city === "Tsushima Fuchu")?.displayCity,
+    "Tsushima Fuchu"
+  );
+});
+
 async function readJson(url) {
   return JSON.parse(await readFile(url, "utf8"));
 }
