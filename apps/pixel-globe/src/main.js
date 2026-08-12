@@ -452,7 +452,8 @@ import {
 import {
   createDecisionBackedQuestJourneyDialogueSubject,
   markQuestJourneyDialogueSeen,
-  pendingQuestJourneyDialogue
+  pendingQuestJourneyDialogue,
+  questJourneyDialoguePresentation
 } from "./questJourneyDialogue.js";
 import {
   ANIMAL_CATALOG,
@@ -7080,12 +7081,13 @@ function colonizationJourneyDialogueSubject() {
 
 function openQuestJourneyDialogueAtSea(quest, event) {
   const character = questJourneyDialogueCharacter(quest, event);
-  if (Array.isArray(event.choices)) {
+  const presentation = questJourneyDialoguePresentation(event, renderedUiText);
+  if (presentation.choices) {
     const opened = openCharacterChoiceAlertModal(
       character,
-      uiText(event.text),
-      event.choices.map((choice) => ({
-        label: uiText(choice.label),
+      presentation.text,
+      presentation.choices.map((choice) => ({
+        label: choice.label,
         onSelect: () => resolveQuestJourneyDialogueChoice(quest, event, choice.id)
       })),
       event.expressionId,
@@ -7096,7 +7098,7 @@ function openQuestJourneyDialogueAtSea(quest, event) {
     }
     return opened;
   }
-  const opened = openCharacterAlertModal(character, uiText(event.text), event.expressionId);
+  const opened = openCharacterAlertModal(character, presentation.text, event.expressionId);
   if (!opened) return false;
   markQuestJourneyDialogueSeen(quest, event.id);
   saveVoyageNow("quest journey dialogue");

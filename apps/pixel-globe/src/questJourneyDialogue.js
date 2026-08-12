@@ -93,6 +93,28 @@ export function markQuestJourneyDialogueSeen(quest, eventId) {
   return quest;
 }
 
+export function questJourneyDialoguePresentation(event, localizeProse) {
+  assertJourneyDialogueEvent(event, "presentation");
+  if (typeof localizeProse !== "function") {
+    throw new Error("Quest journey dialogue presentation requires a prose localizer");
+  }
+  const localizedText = localizeProse(event.text);
+  if (typeof localizedText !== "string" || localizedText.trim() === "") {
+    throw new Error(`Quest journey dialogue localized to invalid text: ${event.id}`);
+  }
+  const choices = event.choices?.map((choice) => {
+    const localizedLabel = localizeProse(choice.label);
+    if (typeof localizedLabel !== "string" || localizedLabel.trim() === "") {
+      throw new Error(`Quest journey dialogue choice localized to an invalid label: ${choice.id}`);
+    }
+    return Object.freeze({ ...choice, label: localizedLabel });
+  });
+  return Object.freeze({
+    text: localizedText,
+    choices: choices ? Object.freeze(choices) : null
+  });
+}
+
 function assertJourneyDialogueEvent(event, questId) {
   if (
     !event ||
