@@ -13,6 +13,7 @@ import {
   questCargoDeliverableQuantity,
   questCargoDeliveryProgress
 } from "./questCargoDeliveries.js";
+import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 
 export const COLONIZATION_QUEST_VERSION = 1;
 export const COLONIZATION_ORIGIN_CITY = CANONICAL_PORTS.BORDEAUX.city;
@@ -32,6 +33,7 @@ export const COLONIZATION_ORGANIZER_APPROACHED_FLAG = "colonizationOrganizerAppr
 export const COLONIZATION_SPAWN_CHANCE = 0.035;
 export const COLONIZATION_ROLL_PERIOD_MINUTES = 14 * 24 * 60;
 export const COLONIZATION_MIN_VOYAGE_DISTANCE_KM = 1200;
+export const COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID = "colonization-first-resupply";
 
 export const COLONIZATION_STAGE_FETCH = "fetch";
 export const COLONIZATION_STAGE_READY = "ready";
@@ -788,6 +790,36 @@ export function colonizationNavigationObjective(
     return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
   }
   return null;
+}
+
+export function colonizationOutboundJourneyDialogue(quest) {
+  if (!quest || quest.stage !== COLONIZATION_STAGE_OUTBOUND || !quest.target || !quest.resupply) {
+    return null;
+  }
+  return Object.freeze({
+    id: COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID,
+    trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+    expressionId: "concerned",
+    text: `Landing at ${quest.target.city} will only begin the work. Return within one year with ` +
+      `${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()} for ` +
+      `${quest.resupply.purpose}, or the settlement may fail.`
+  });
+}
+
+export function colonizationJourneyDialogueDecisionPrefix(memory) {
+  validateColonizationQuestMemory(memory);
+  if (!Number.isInteger(memory.targetTileId)) {
+    throw new Error("Colonization journey dialogue requires a selected target");
+  }
+  return `quest-journey.colonization.${memory.targetTileId}`;
+}
+
+export function colonizationOutboundJourneyDialogueSeen(memory, decisions) {
+  const prefix = colonizationJourneyDialogueDecisionPrefix(memory);
+  if (!decisions || typeof decisions !== "object" || Array.isArray(decisions)) {
+    throw new Error("Colonization journey dialogue requires decision memory");
+  }
+  return decisions[`${prefix}.${COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID}`] === true;
 }
 
 function assertMinute(value) {

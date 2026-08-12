@@ -217,6 +217,7 @@ import {
   assertColonizationFetchDelivery,
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
+  colonizationOutboundJourneyDialogueSeen,
   colonizationQuestView,
   colonizationFetchRequirementId,
   completeColonizationDefense,
@@ -4096,10 +4097,17 @@ function colonizationView(session, city, gameState, context) {
         options: [back]
       };
     }
+    const journeyBriefingSeen = colonizationOutboundJourneyDialogueSeen(
+      gameState.memory.colonization,
+      gameState.memory.decisions
+    );
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: "happy",
-      text: `${history.landing} Return within one year with ${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()} for ${quest.resupply.purpose}, or the venture may still fail.`,
+      text: journeyBriefingSeen
+        ? history.landing
+        : `${history.landing} Return within one year with ${quest.resupply.quantity} ` +
+          `${quest.resupply.goodLabel.toLowerCase()} for ${quest.resupply.purpose}, or the venture may still fail.`,
       feedback: session.feedback,
       options: [
         option(history.landingAction, { type: "land-colonists" }),

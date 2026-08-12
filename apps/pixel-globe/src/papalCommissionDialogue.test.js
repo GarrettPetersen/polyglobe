@@ -2,10 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  PAPAL_COMMISSION_ADMONITION,
   PAPAL_COMMISSION_ALMS,
+  PAPAL_COMMISSION_PEACE,
+  PAPAL_COMMISSION_REFORM,
   PAPAL_COMMISSION_RELIEF
 } from "./papalPolitics.js";
-import { papalCommissionOfferText } from "./papalCommissionDialogue.js";
+import {
+  PAPAL_COMMISSION_JOURNEY_EVENT_ID,
+  papalCommissionJourneyDialogueEvent,
+  papalCommissionOfferText
+} from "./papalCommissionDialogue.js";
 
 const RELIEF_MATTER = Object.freeze({
   commissionKind: PAPAL_COMMISSION_RELIEF,
@@ -48,3 +55,27 @@ test("Papal transport offers name their cargo and true recipient", () => {
   }, 0, { destinationName: "Lisbon" });
   assert.match(alms, /10 cargoes of grain.*poor at Lisbon/i);
 });
+
+test("Papal policy exposition moves into the outbound leg while cargo missions stay direct", () => {
+  for (const matter of [
+    commissionMatter(PAPAL_COMMISSION_ADMONITION, "france"),
+    commissionMatter(PAPAL_COMMISSION_PEACE, "france", "england"),
+    commissionMatter(PAPAL_COMMISSION_REFORM, "habsburg")
+  ]) {
+    const event = papalCommissionJourneyDialogueEvent(matter, 0);
+    assert.equal(event.id, PAPAL_COMMISSION_JOURNEY_EVENT_ID);
+    assert.equal(event.trigger, "destination-closer");
+    assert.ok(event.text.length > 70);
+  }
+  assert.equal(papalCommissionJourneyDialogueEvent(RELIEF_MATTER, 0), null);
+});
+
+function commissionMatter(commissionKind, targetFactionId, partnerFactionId = null) {
+  return {
+    commissionKind,
+    targetFactionId,
+    partnerFactionId,
+    beneficiaryFactionId: null,
+    cargoRequirements: []
+  };
+}

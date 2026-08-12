@@ -404,6 +404,9 @@ test("trade-opening envoys cover Joseon licenses and the Spanish Indies monopoly
   });
   assert.equal(joseonOffer.tradeAccessPolicyId, JOSEON_TRADE_POLICY_ID);
   assert.match(joseonOffer.dialogue.offer, /licensed trade with Joseon/);
+  assert.equal(joseonOffer.dialogue.journeyEvents[0].trigger, "destination-closer");
+  assert.match(joseonOffer.dialogue.journeyEvents[0].text, /in plain words/i);
+  assert.doesNotMatch(joseonOffer.dialogue.underway, /wording has taken months/i);
 
   const portugueseState = createGameState({
     cargoCapacity: 20,

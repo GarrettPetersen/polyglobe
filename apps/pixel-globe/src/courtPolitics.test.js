@@ -8,6 +8,7 @@ import {
   commissionCourtMatter,
   completeCourtCommission,
   createCourtPolitics,
+  courtMatterDialogue,
   deliverCourtCommission,
   migrateCourtPolitics
 } from "./courtPolitics.js";
@@ -46,6 +47,15 @@ test("player-founded colonies enter their current sovereign's administration net
   assert.equal(memory.pendingMatter.authorityFactionId, "spain");
   assert.equal(memory.pendingMatter.origin.name, "Seville");
   assert.equal(memory.pendingMatter.destination.name, "Port Royal");
+  const dialogue = courtMatterDialogue(memory.pendingMatter, {
+    origin: SEVILLE,
+    destination: PORT_ROYAL,
+    reward: 500,
+    rulerName: "Charles V"
+  });
+  assert.equal(dialogue.journeyEvents[0].trigger, "destination-closer");
+  assert.match(dialogue.journeyEvents[0].text, /bind Port Royal to the court at Seville/i);
+  assert.doesNotMatch(dialogue.underway, /held by ships/i);
 });
 
 test("overseas administration follows conquest rather than a port's founding nation", () => {

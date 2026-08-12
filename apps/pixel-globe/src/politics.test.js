@@ -56,8 +56,14 @@ test("politics cards name each nation's capital while pirates have none", () => 
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
 
-  assert.equal(politicsCard(view, "england").capital.city, "London");
-  assert.equal(politicsCard(view, "japan").capital.city, "Kyoto");
+  for (const capital of FACTION_CAPITALS_1522) {
+    assert.equal(
+      politicsCard(view, capital.factionId).capital.city,
+      capital.city,
+      `${capital.factionId} politics capital must match its playable map capital`
+    );
+  }
+  assert.equal(politicsCard(view, "nagao").capital.city, "Naoetsu");
   assert.equal(politicsCard(view, "pirate").capital, null);
   assert.equal(politicsCard(view, "japan").authority.sovereign, 22);
   assert.equal(politicsCard(view, "papal-states").authority.papal, 58);

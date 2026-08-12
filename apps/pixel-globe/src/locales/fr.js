@@ -220,6 +220,7 @@ export default {
   "aboard.captain": "CAPITAINE",
   "aboard.passenger": "PASSAGER",
   "aboard.emissary": "ÉMISSAIRE",
+  "aboard.captive": "PRISONNIER",
   "aboard.colonyLeader": "CHEF COLONIAL",
   "aboard.crewmate": "ÉQUIPIER",
   "aboard.colonist": "COLON",

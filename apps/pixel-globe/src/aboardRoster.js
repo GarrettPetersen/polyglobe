@@ -1,6 +1,7 @@
 export const ABOARD_ROLE_CAPTAIN = "captain";
 export const ABOARD_ROLE_PASSENGER = "passenger";
 export const ABOARD_ROLE_EMISSARY = "emissary";
+export const ABOARD_ROLE_CAPTIVE = "captive";
 export const ABOARD_ROLE_COLONY_LEADER = "colony-leader";
 export const ABOARD_ROLE_CREWMATE = "crewmate";
 export const ABOARD_ROLE_COLONIST = "colonist";
@@ -9,6 +10,7 @@ export const ABOARD_ROLE_ANIMAL = "animal";
 const TRAVELER_ROLE = Object.freeze({
   passenger: ABOARD_ROLE_PASSENGER,
   envoy: ABOARD_ROLE_EMISSARY,
+  captive: ABOARD_ROLE_CAPTIVE,
   settler: ABOARD_ROLE_COLONIST
 });
 
@@ -54,7 +56,7 @@ export function aboardRoster({
     if (!character || typeof character !== "object" || !character.name) {
       throw new Error("Named aboard traveler requires a character");
     }
-    if (kind !== "passenger" && kind !== "envoy") {
+    if (kind !== "passenger" && kind !== "envoy" && kind !== "captive") {
       throw new Error(`Named aboard traveler has invalid kind: ${kind}`);
     }
     consumeTraveler(remainingTravelers, kind);
@@ -82,7 +84,7 @@ export function aboardRoster({
   for (let index = 0; index < Math.max(0, genericCrewCount); index++) {
     generic.push(genericEntry(`crew:${index}`, ABOARD_ROLE_CREWMATE));
   }
-  for (const kind of ["passenger", "envoy", "settler"]) {
+  for (const kind of ["passenger", "envoy", "captive", "settler"]) {
     const count = remainingTravelers.get(kind) || 0;
     for (let index = 0; index < count; index++) {
       generic.push(genericEntry(`${kind}:${index}`, TRAVELER_ROLE[kind]));
@@ -113,10 +115,13 @@ export function aboardCharacterHomePortTileId(entry, {
     traveler?.character?.id === character.id
   ));
   if (rescuedTraveler) {
-    return requiredTileId(rescuedTraveler.homePortTileId, `${character.name} rescued traveler home port`);
+    return requiredTileId(
+      rescuedTraveler.destinationTileId ?? rescuedTraveler.homePortTileId,
+      `${character.name} rescued traveler destination`
+    );
   }
 
-  if (entry.role === ABOARD_ROLE_PASSENGER) {
+  if (entry.role === ABOARD_ROLE_PASSENGER || entry.role === ABOARD_ROLE_CAPTIVE) {
     return firstTileId([
       character.destinationPortTileId,
       activeTravelQuest?.destinationTileId,

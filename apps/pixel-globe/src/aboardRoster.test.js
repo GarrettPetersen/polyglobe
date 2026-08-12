@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ABOARD_ROLE_CAPTAIN,
   ABOARD_ROLE_ANIMAL,
+  ABOARD_ROLE_CAPTIVE,
   ABOARD_ROLE_COLONIST,
   ABOARD_ROLE_COLONY_LEADER,
   ABOARD_ROLE_CREWMATE,
@@ -100,6 +101,21 @@ test("ordinary missions and a rescued pirate captive can travel together", () =>
   });
   assert.equal(roster.named.filter((entry) => entry.role === ABOARD_ROLE_PASSENGER).length, 2);
   assert.equal(roster.count, 5);
+});
+
+test("a detained pirate is marked as a captive and resolves the authority destination", () => {
+  const captive = Object.freeze({ id: "captive", name: "Brites Pereira" });
+  const roster = aboardRoster({
+    captain,
+    crewCount: 3,
+    travelerGroups: [{ kind: "captive", count: 1 }],
+    namedTravelers: [{ kind: "captive", character: captive }]
+  });
+  const captiveEntry = roster.named.find((entry) => entry.character.id === captive.id);
+  assert.equal(captiveEntry.role, ABOARD_ROLE_CAPTIVE);
+  assert.equal(aboardCharacterHomePortTileId(captiveEntry, {
+    rescuedTravelers: [{ character: captive, homePortTileId: 21, destinationTileId: 34 }]
+  }), 34);
 });
 
 test("aboard characters resolve home ports according to their role", () => {

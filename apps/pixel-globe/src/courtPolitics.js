@@ -15,6 +15,7 @@ import {
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
 import { dependentsOf } from "./suzerainty.js";
+import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 
 export const COURT_POLITICS_VERSION = 1;
 export const COURT_MATTER_AVAILABLE = "available";
@@ -311,23 +312,33 @@ export function courtMatterDialogue(matter, { origin, destination, reward, ruler
     const purpose = mingPurpose(matter.kind);
     return Object.freeze({
       offer: `${rulerName}'s Grand Secretariat has settled upon ${purpose}. Carry me under seal to ${target}, then return with the answer. The court will pay ${reward} db.`,
-      underway: `The memorial invokes investiture, tribute, and the peace of the seas. Its force lies in the imperial seal, not in shouted threats.`,
+      underway: `The imperial memorial remains sealed. ${target} is ahead.`,
       negotiationOpening: `By imperial command, I present the court's determination concerning ${matterPolicySubject(matter)}.`,
       negotiation: `The order is entered in the register. Carry the formal reply back to ${home}.`,
       returnUnderway: `The reply is sealed. Set our course for ${home}; the court must learn whether its command was obeyed.`,
       homecoming: `The Grand Secretariat has received the reply. The treasury releases ${reward} db.`,
-      intercession: "Stand down! This vessel carries an accredited imperial commissioner."
+      intercession: "Stand down! This vessel carries an accredited imperial commissioner.",
+      journeyEvents: courtJourneyBriefing(
+        "ming-court-policy",
+        `The memorial invokes investiture, tribute, and the peace of the seas. Its force lies in the imperial seal, but whether ${target} obeys will measure that force.`,
+        "attentive"
+      )
     });
   }
   if (matter.authorityFactionId === JAPAN_FACTION_ID) {
     return Object.freeze({
       offer: `${rulerName}'s council has issued ${shogunalPurpose(matter.kind)} for ${target}. Carry me there and return with the local answer for ${reward} db.`,
-      underway: `The shogun's seal still commands respect. Whether distant houses obey promptly is another question.`,
+      underway: `The shogunal order remains sealed. ${target} is ahead.`,
       negotiationOpening: `Under the shogun's seal, I deliver this order and require the council's answer.`,
       negotiation: `The order is received. Their reply is careful, but it is a reply. Carry it back to ${home}.`,
       returnUnderway: `Kyoto must hear what was promised at ${target}, and what was conspicuously left unsaid.`,
       homecoming: `The bakufu has entered the answer in its records. Your payment is ${reward} db.`,
-      intercession: "Stand down! This vessel carries the shogun's sealed order."
+      intercession: "Stand down! This vessel carries the shogun's sealed order.",
+      journeyEvents: courtJourneyBriefing(
+        "shogunal-policy",
+        `The shogun's seal still commands respect. Whether ${target} obeys promptly, delays, or answers only in ceremony will reveal how much authority remains behind it.`,
+        "thoughtful"
+      )
     });
   }
   const institution = matter.authorityFactionId === "spain"
@@ -337,13 +348,29 @@ export function courtMatterDialogue(matter, { origin, destination, reward, ruler
       : "the royal council";
   return Object.freeze({
     offer: `${rulerName} requires ${administrationPurpose(matter.kind)} at ${target}. ${institution} will entrust the papers to you; return with the colonial officers' answer for ${reward} db.`,
-    underway: `A distant possession is held by ships, stores, accounts, and orders that actually arrive. These papers are part of the chain.`,
+    underway: `The royal dispatch remains sealed. ${target} is ahead.`,
     negotiationOpening: `I deliver the sovereign's commission. Assemble the officers of ${target} and enter it in the port register.`,
     negotiation: `The dispatch is entered and the officers' return is sealed. Carry it back to ${home}.`,
     returnUnderway: `The outpost has answered. Now ${home} must receive its accounts and petitions.`,
     homecoming: `The administration has received the colonial return. Your ${reward} db is ready.`,
-    intercession: "Stand down! This vessel carries royal dispatches and colonial returns."
+    intercession: "Stand down! This vessel carries royal dispatches and colonial returns.",
+    journeyEvents: courtJourneyBriefing(
+      "overseas-administration",
+      `A distant possession is held by ships, stores, accounts, and orders that actually arrive. These papers bind ${target} to the court at ${home}.`,
+      "attentive"
+    )
   });
+}
+
+function courtJourneyBriefing(id, text, expressionId) {
+  return Object.freeze([
+    Object.freeze({
+      id,
+      trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+      expressionId,
+      text
+    })
+  ]);
 }
 
 function chooseScheduledCourtMatter(memory, diplomacy, portCities, actionMinute) {

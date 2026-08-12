@@ -282,7 +282,7 @@ function politicsCapitals(powers, cities) {
       if (faction.id === PIRATE_FACTION_ID) continue;
       const capital = factionCapitalForId(faction.id);
       capitalByFactionId.set(faction.id, Object.freeze({
-        city: capital.seatCity,
+        city: capital.city,
         portId: null
       }));
     }
@@ -297,7 +297,7 @@ function politicsCapitals(powers, cities) {
     if (capitalByFactionId.has(factionId)) {
       throw new Error(`Politics view found two capitals for ${factionId}`);
     }
-    const cityName = city.capitalSeatName || city.displayCity || city.city;
+    const cityName = city.displayCity || city.city;
     if (typeof cityName !== "string" || cityName.trim() === "") {
       throw new Error(`Politics capital for ${factionId} has no city name`);
     }

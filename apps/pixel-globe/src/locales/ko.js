@@ -220,6 +220,7 @@ export default {
   "aboard.captain": "선장",
   "aboard.passenger": "승객",
   "aboard.emissary": "사절",
+  "aboard.captive": "포로",
   "aboard.colonyLeader": "식민단장",
   "aboard.crewmate": "선원",
   "aboard.colonist": "이주민",

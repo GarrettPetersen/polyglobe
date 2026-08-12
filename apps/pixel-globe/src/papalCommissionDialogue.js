@@ -10,6 +10,9 @@ import {
   papalCommissionLabel
 } from "./papalPolitics.js";
 import { rulerAtMinute } from "./rulers.js";
+import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
+
+export const PAPAL_COMMISSION_JOURNEY_EVENT_ID = "papal-sealed-brief";
 
 export function papalCommissionOfferText(matter, simMinute, {
   destinationName = null,
@@ -36,18 +39,44 @@ export function papalCommissionOfferText(matter, simMinute, {
   if (matter.commissionKind === PAPAL_COMMISSION_PEACE) {
     const partner = factionById(matter.partnerFactionId);
     return `${target.name} and ${partner.name} spend Christian blood against one another. ` +
-      "His Holiness would send a nuncio under your protection to seek an honorable peace.";
+      "Carry a Papal nuncio between their courts and return with both answers.";
   }
   if (matter.commissionKind === PAPAL_COMMISSION_ADMONITION) {
-    return `${ruler.displayName} has drawn grave notice in Rome. A nuncio must deliver ` +
-      "the Pope's admonition, hear the answer, and return before judgment is entered.";
+    return `${ruler.displayName} has drawn grave notice in Rome. Carry the Pope's sealed admonition ` +
+      "and return with the ruler's answer.";
   }
   if (matter.commissionKind === PAPAL_COMMISSION_REFORM) {
-    return "Adrian VI means to acknowledge abuses within the Church without yielding its authority. " +
-      "His reform brief must be carried north, answered, and returned intact.";
+    return "Adrian VI has sealed a reform brief for the northern clergy. Carry it north and return " +
+      "with their answer.";
   }
   return `${ruler.displayName} may receive a public mark of Papal favor. ` +
     "His Holiness first wants a captain whose eyes are not those of a courtier.";
+}
+
+export function papalCommissionJourneyDialogueEvent(matter, simMinute) {
+  validateMatterView(matter);
+  const ruler = rulerAtMinute(matter.targetFactionId, simMinute);
+  if (!ruler) throw new Error(`Papal journey target has no ruler: ${matter.targetFactionId}`);
+  let text = null;
+  if (matter.commissionKind === PAPAL_COMMISSION_ADMONITION) {
+    text = `The brief begins with warning, not sentence. ${ruler.displayName} may answer before ` +
+      "Rome decides whether to condemn, forgive, or demand obedience.";
+  } else if (matter.commissionKind === PAPAL_COMMISSION_PEACE) {
+    const target = factionById(matter.targetFactionId);
+    const partner = factionById(matter.partnerFactionId);
+    text = `The brief offers ${target.shortName} and ${partner.shortName} an honorable retreat from ` +
+      "their quarrel. We must hear both courts before Rome chooses where to press hardest.";
+  } else if (matter.commissionKind === PAPAL_COMMISSION_REFORM) {
+    text = "Adrian's brief admits abuses within the Church without yielding its authority. The reply " +
+      "will show whether reform can quiet the northern clergy or only sharpen the dispute.";
+  }
+  if (text === null) return null;
+  return Object.freeze({
+    id: PAPAL_COMMISSION_JOURNEY_EVENT_ID,
+    trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+    expressionId: matter.commissionKind === PAPAL_COMMISSION_ADMONITION ? "stern" : "thoughtful",
+    text
+  });
 }
 
 export function papalCommissionDenialText(eligibility) {

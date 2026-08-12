@@ -75,6 +75,7 @@ import {
 import {
   ABOARD_ROLE_ANIMAL,
   ABOARD_ROLE_CAPTAIN,
+  ABOARD_ROLE_CAPTIVE,
   ABOARD_ROLE_COLONIST,
   ABOARD_ROLE_COLONY_LEADER,
   ABOARD_ROLE_CREWMATE,
@@ -395,6 +396,7 @@ import {
   receiveCastawayShoreAid,
   receiveRescuedTravelerReunionReward,
   receiveSurrenderedLoot,
+  stealNonQuestShipPossession,
   compactPlayerLedger,
   playerLedgerLifetimeMetrics,
   playerLedgerTotalEntryCount,
@@ -448,6 +450,7 @@ import {
   ningboDelegationManifest
 } from "./eastAsianQuestlines.js";
 import {
+  createDecisionBackedQuestJourneyDialogueSubject,
   markQuestJourneyDialogueSeen,
   pendingQuestJourneyDialogue
 } from "./questJourneyDialogue.js";
@@ -524,9 +527,42 @@ import {
 } from "./namedCrew.js";
 import {
   activePirateCaptiveQuest,
+  abandonEscapedPirateCaptiveQuest,
+  confrontPirateCaptive,
   createPirateCaptiveQuest,
-  pirateCaptiveRescueAppears
+  createPirateCaptiveDialogueSession,
+  ignorePirateCaptiveWarning,
+  markPirateCaptiveRevengeSpawned,
+  advancePirateCaptiveJourneyMilestone,
+  pirateCaptiveDestination,
+  pirateCaptiveDialogueCharacter,
+  pirateCaptiveDialogueView,
+  pirateCaptiveEscapeCheckIsDue,
+  pirateCaptiveIsAboard,
+  pirateCaptiveIsDetained,
+  pirateCaptiveJourneyLegOriginTileId,
+  pirateCaptiveRevengeSpawnIsDue,
+  pirateCaptiveRescueAppears,
+  preparePirateCaptiveAuthorityHandover,
+  recapturePirateCaptive,
+  recordPirateCaptiveEscape,
+  resolvePirateCaptiveEscapeCheck,
+  resolveReformedPirateCaptive,
+  selectPirateCaptiveDialogueOption,
+  warnPirateCaptive,
+  PIRATE_CAPTIVE_EVENT_ESCAPE,
+  PIRATE_CAPTIVE_EVENT_WARNING,
+  PIRATE_CAPTIVE_KIND_FAKE_EVIL,
+  PIRATE_CAPTIVE_KIND_FAKE_REFORMED,
+  PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND,
+  PIRATE_CAPTIVE_STATE_ESCAPED
 } from "./pirateCaptiveQuest.js";
+import {
+  availableDialogueOptions,
+  conditionalDialogueOption,
+  dialogueOption
+} from "./conditionalDialogueOptions.js";
+import { perkItemById } from "./perkItems.js";
 import {
   activeCastawayQuest,
   castawayRescueAppears,
@@ -1365,6 +1401,7 @@ import {
   papalCommissionAudienceText,
   papalCommissionCompletionText,
   papalCommissionDenialText,
+  papalCommissionJourneyDialogueEvent,
   papalCommissionOfferText,
   papalCommissionRecommendationChoices
 } from "./papalCommissionDialogue.js";
@@ -1588,8 +1625,10 @@ import {
   assignColonizationQuest,
   beginColonizationExpedition,
   colonizationDefenseShipIds,
+  colonizationJourneyDialogueDecisionPrefix,
   colonizationNavigationObjective,
   colonizationOfferForCity,
+  colonizationOutboundJourneyDialogue,
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
@@ -5889,6 +5928,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
+    if (maybeAdvancePirateCaptiveJourneyAtSea()) dirty = true;
     if (maybeOpenQuestJourneyDialogueAtSea()) dirty = true;
     if (updateNavalWeapons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
@@ -6249,7 +6289,10 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
   }
   if (kind === "choice") {
     if (!Array.isArray(choices) || choices.length < 2 || choices.length > 3 || choices.some((choice) => (
-      typeof choice?.label !== "string" || choice.label.trim() === "" || typeof choice.onSelect !== "function"
+      typeof choice?.label !== "string" || choice.label.trim() === "" ||
+      typeof choice.onSelect !== "function" ||
+      (choice.iconId !== null && choice.iconId !== undefined &&
+        (typeof choice.iconId !== "string" || choice.iconId.trim() === ""))
     ))) {
       throw new Error("Character choice alert requires two or three actionable choices");
     }
@@ -6641,8 +6684,7 @@ function maybeOpenCampaignGoalDepartureReminder(departureCity) {
 
 function maybeOpenQuestJourneyDialogueAtSea() {
   if (anchored || dialogueState || captainAlertModal || menusAreOpen() || !ship) return false;
-  const questMemory = gameState?.memory?.quests;
-  for (const quest of [questMemory?.passengerActive, questMemory?.active]) {
+  for (const quest of activeQuestJourneyDialogueSubjects()) {
     if (!Array.isArray(quest?.dialogue?.journeyEvents)) continue;
     const origin = tileCenterVector(quest.originTileId);
     const destination = tileCenterVector(quest.destinationTileId);
@@ -6655,6 +6697,385 @@ function maybeOpenQuestJourneyDialogueAtSea() {
     return openQuestJourneyDialogueAtSea(quest, event);
   }
   return false;
+}
+
+function maybeAdvancePirateCaptiveJourneyAtSea() {
+  if (anchored || dialogueState || captainAlertModal || menusAreOpen() || !ship) return false;
+  const quest = activePirateCaptiveQuest(gameState);
+  if (!quest?.deception) return false;
+  if (quest.deception.state === PIRATE_CAPTIVE_STATE_ESCAPED) {
+    return Boolean(ensureEscapedPirateCaptiveEncounter());
+  }
+  if (!pirateCaptiveIsAboard(quest)) return false;
+
+  if (pirateCaptiveIsDetained(quest)) return maybeResolvePirateCaptiveEscapeCheck(quest);
+
+  const witness = pirateCaptiveJourneyWitness(quest);
+  const previousHalfwayTileId = quest.deception.halfwayTileId;
+  const legOrigin = tileCenterVector(pirateCaptiveJourneyLegOriginTileId(quest));
+  const destination = tileCenterVector(quest.homePortTileId);
+  const event = advancePirateCaptiveJourneyMilestone(quest, {
+    currentTileId: ship.tileId,
+    originDistance: vectorArcDistance(ship.position, legOrigin),
+    destinationDistance: vectorArcDistance(ship.position, destination),
+    witnessId: witness?.character?.id || null
+  });
+  if (previousHalfwayTileId !== quest.deception.halfwayTileId) {
+    saveVoyageNow("reached pirate captive journey midpoint");
+  }
+  if (event === PIRATE_CAPTIVE_EVENT_WARNING) {
+    return openPirateCaptiveWarning(quest, witness);
+  }
+  if (event === PIRATE_CAPTIVE_EVENT_ESCAPE) {
+    return resolvePirateCaptiveEscapeAtSea(quest, { mode: "ignored-warning" });
+  }
+  return previousHalfwayTileId !== quest.deception.halfwayTileId;
+}
+
+function pirateCaptiveJourneyWitness(quest) {
+  return currentAboardRoster().named.find((entry) => (
+    entry.character.id !== quest.character.id &&
+    entry.role !== ABOARD_ROLE_CAPTAIN &&
+    entry.role !== ABOARD_ROLE_CAPTIVE &&
+    entry.role !== ABOARD_ROLE_ANIMAL
+  )) || null;
+}
+
+function pirateCaptiveConfrontationWeapon() {
+  const swordIds = new Set(["longsword", "tulwar", "katana"]);
+  return Object.entries(gameState.inventory.items)
+    .filter(([, count]) => Number.isInteger(count) && count > 0)
+    .map(([itemId]) => perkItemById(itemId))
+    .filter((item) => swordIds.has(item.id) || (item.weapon && item.weapon.swivel !== true))
+    .sort((a, b) => b.tier - a.tier || b.price - a.price || a.id.localeCompare(b.id))[0] || null;
+}
+
+function openPirateCaptiveWarning(quest, witness) {
+  if (!witness?.character?.id) throw new Error("Pirate captive warning lost its witness");
+  const weapon = pirateCaptiveConfrontationWeapon();
+  const choices = availableDialogueOptions([
+    dialogueOption({
+      label: renderedUiText("Confront them"),
+      onSelect: () => resolvePirateCaptiveConfrontation(quest, null)
+    }),
+    conditionalDialogueOption(Boolean(weapon), {
+      label: renderedUiText(`Confront with ${weapon?.label || "weapon"}`),
+      iconId: weapon?.iconId || null,
+      onSelect: () => resolvePirateCaptiveConfrontation(quest, weapon)
+    }),
+    dialogueOption({
+      label: renderedUiText("Let it lie"),
+      onSelect: () => {
+        ignorePirateCaptiveWarning(quest);
+        saveVoyageNow("ignored warning about pirate captive");
+      }
+    })
+  ]);
+  const opened = openCharacterChoiceAlertModal(
+    witness.character,
+    renderedUiText(`Captain, ${quest.character.givenName} knows a pirate's habits too well. I do not think they were ever a captive.`),
+    choices,
+    "concerned",
+    { leftCharacter: gameState.playerCharacter, rightCharacter: witness.character }
+  );
+  if (!opened) return false;
+  warnPirateCaptive(quest, witness.character.id);
+  saveVoyageNow("warned about pirate captive");
+  return true;
+}
+
+function resolvePirateCaptiveConfrontation(quest, weapon) {
+  const outcome = confrontPirateCaptive(quest, {
+    weaponItemId: weapon?.id || null,
+    currentMinute: Math.floor(weatherClockMinutes)
+  });
+  if (outcome.outcome === "evil-escape") {
+    resolvePirateCaptiveEscapeAtSea(quest, { mode: "unarmed-confrontation" });
+    return;
+  }
+  if (outcome.outcome === "evil-detained") {
+    const destination = pirateCaptiveDestination(quest);
+    startCharacterAlertSequence([
+      {
+        character: quest.character,
+        message: renderedUiText(`Easy, captain. You found me out. Put the ${weapon.label} away.`),
+        expressionId: "angry",
+        leftCharacter: gameState.playerCharacter,
+        rightCharacter: quest.character
+      },
+      {
+        character: gameState.playerCharacter,
+        message: renderedUiText(`Bind their hands. The authorities in ${destination.name} have a warrant waiting.`),
+        expressionId: "stern",
+        leftCharacter: gameState.playerCharacter,
+        rightCharacter: quest.character
+      }
+    ]);
+    saveVoyageNow("detained false pirate captive");
+    return;
+  }
+  if (outcome.outcome !== "reformed-choice") {
+    throw new Error(`Unknown pirate captive confrontation outcome: ${outcome.outcome}`);
+  }
+  openReformedPirateCaptiveChoice(quest);
+}
+
+function openReformedPirateCaptiveChoice(quest) {
+  const destination = pirateCaptiveDestination(quest);
+  const opened = openCharacterChoiceAlertModal(
+    quest.character,
+    renderedUiText(`I was a pirate, captain. I lied because I want out. Take me home to ${quest.homePortName}, and I will trouble no ship again.`),
+    [
+      dialogueOption({
+        label: renderedUiText("Take them home"),
+        onSelect: () => {
+          resolveReformedPirateCaptive(quest, {
+            detain: false,
+            currentMinute: Math.floor(weatherClockMinutes)
+          });
+          saveVoyageNow("showed mercy to false pirate captive");
+        }
+      }),
+      dialogueOption({
+        label: renderedUiText("Turn them in"),
+        onSelect: () => {
+          resolveReformedPirateCaptive(quest, {
+            detain: true,
+            currentMinute: Math.floor(weatherClockMinutes)
+          });
+          const authority = pirateCaptiveDestination(quest);
+          showSurvivalNotice(`CAPTIVE BOUND FOR ${authority.name.toUpperCase()}`, "warn");
+          saveVoyageNow("detained reformed pirate captive");
+        }
+      })
+    ],
+    "concerned",
+    { leftCharacter: gameState.playerCharacter, rightCharacter: quest.character }
+  );
+  if (!opened) throw new Error(`Could not present ${destination.name} pirate captive choice`);
+}
+
+function resolvePirateCaptiveEscapeAtSea(quest, { mode, onComplete = null }) {
+  if (!["ignored-warning", "unarmed-confrontation", "night"].includes(mode)) {
+    throw new Error(`Unknown pirate captive escape mode: ${mode}`);
+  }
+  const stolen = stealNonQuestShipPossession(gameState, {
+    protectedCargoQuantities: activeQuestCargoReservedQuantities(gameState, {
+      currentMinute: Math.floor(weatherClockMinutes)
+    }),
+    selectionRoll: Math.random()
+  });
+  const escapePort = nearestNpcRoutePortToPosition(ship.position);
+  recordPirateCaptiveEscape(quest, {
+    currentMinute: Math.floor(weatherClockMinutes),
+    escapeOriginPortTileId: escapePort.tileId,
+    stolenPossession: stolen
+  });
+  syncShipCargoFromGameState();
+  const stolenText = stolen
+    ? renderedUiText(`The rowboat is gone, and so is ${stolen.label}.`)
+    : renderedUiText("The rowboat is gone. At least the hold is untouched.");
+  const steps = mode === "ignored-warning"
+    ? [
+        {
+          character: quest.character,
+          message: renderedUiText("You should have listened. Thank you for the passage, captain."),
+          expressionId: "smug",
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: quest.character
+        },
+        {
+          character: gameState.playerCharacter,
+          message: stolenText,
+          expressionId: "angry",
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: quest.character
+        }
+      ]
+    : mode === "unarmed-confrontation" ? [
+        {
+          character: quest.character,
+          message: renderedUiText("Aye, pirate. And quicker to the rowboat than you are to the truth."),
+          expressionId: "smug",
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: quest.character
+        },
+        {
+          character: gameState.playerCharacter,
+          message: stolenText,
+          expressionId: "angry",
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: quest.character
+        }
+      ] : [
+        {
+          character: gameState.playerCharacter,
+          message: renderedUiText(`${quest.character.givenName} vanished in the night. ${stolenText}`),
+          expressionId: "angry",
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: null
+        }
+      ];
+  startCharacterAlertSequence(steps, onComplete);
+  saveVoyageNow("false pirate captive escaped");
+  return true;
+}
+
+function maybeResolvePirateCaptiveEscapeCheck(quest) {
+  const simMinute = Math.floor(weatherClockMinutes);
+  if (!pirateCaptiveEscapeCheckIsDue(quest, simMinute)) return false;
+  const escaped = resolvePirateCaptiveEscapeCheck(quest, {
+    currentMinute: simMinute,
+    roll: Math.random()
+  });
+  if (!escaped) {
+    saveVoyageNow("checked captive restraints");
+    return true;
+  }
+  const questId = quest.id;
+  resolvePirateCaptiveEscapeAtSea(quest, {
+    mode: "night",
+    onComplete: quest.captiveKind !== PIRATE_CAPTIVE_KIND_FAKE_EVIL ? () => {
+      abandonEscapedPirateCaptiveQuest(gameState.memory.quests.pirateCaptive, questId);
+      saveVoyageNow("escaped captive quest ended");
+    } : null
+  });
+  return true;
+}
+
+function nearestNpcRoutePortToPosition(position) {
+  if (!npcSeaRoutes?.ports?.length) throw new Error("Pirate escape requires NPC route ports");
+  return npcSeaRoutes.ports.reduce((nearest, port) => {
+    const distance = vectorArcDistance(position, tileCenterVector(port.tileId));
+    return !nearest || distance < nearest.distance ? { port, distance } : nearest;
+  }, null).port;
+}
+
+function ensureEscapedPirateCaptiveEncounter({ assignCaptain = true } = {}) {
+  const quest = activePirateCaptiveQuest(gameState);
+  const simMinute = Math.floor(weatherClockMinutes);
+  if (!quest?.deception || !pirateCaptiveRevengeSpawnIsDue(quest, simMinute) || !npcSeaRoutes) {
+    return null;
+  }
+  const shipId = quest.deception.revengeShipId;
+  let strategic = npcSeaRoutes.shipById.get(shipId);
+  const created = !strategic;
+  if (!strategic) {
+    const originPortId = quest.deception.escapeOriginPortTileId;
+    const destinationPortId = quest.deception.wantedPortTileId === originPortId
+      ? undefined
+      : quest.deception.wantedPortTileId;
+    strategic = configureNpcRouteEncounter(npcSeaRoutes, {
+      id: shipId,
+      originPortId,
+      ...(destinationPortId === undefined ? {} : { destinationPortId }),
+      factionId: PIRATE_FACTION_ID,
+      role: NPC_ROLE_PIRATE,
+      shipSlug: "galleon",
+      replaceOnSink: false,
+      encounter: {
+        kind: PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND,
+        questId: quest.id,
+        forceAttack: true,
+        challenge: `Remember me, captain? Thank you for the passage. I have brought a galleon to return the favor.`
+      }
+    }, simMinute);
+  }
+  if (assignCaptain) {
+    if (!npcShipCaptains) npcShipCaptains = new Map();
+    npcShipCaptains.set(shipId, quest.character);
+  }
+  if (quest.deception.revengeSpawned !== true) markPirateCaptiveRevengeSpawned(quest);
+  if (created) saveVoyageNow("escaped pirate returned in a galleon");
+  return created ? strategic : null;
+}
+
+function resolveEscapedPirateCaptiveDefeat(npcShipId, { sunk, lootSummary = null }) {
+  const quest = activePirateCaptiveQuest(gameState);
+  if (!quest?.deception || quest.deception.revengeShipId !== npcShipId ||
+      quest.deception.state !== PIRATE_CAPTIVE_STATE_ESCAPED) {
+    return false;
+  }
+  recapturePirateCaptive(quest, Math.floor(weatherClockMinutes));
+  const destination = pirateCaptiveDestination(quest);
+  const completion = !sunk && lootSummary
+    ? () => openSurrenderPrizeDecision(npcShipId, lootSummary)
+    : null;
+  if (dialogueState?.kind === "ship" && dialogueState.npcShipId === npcShipId) {
+    dialogueState = null;
+    dialogueLayout = createDialogueLayoutState();
+  }
+  startCharacterAlertSequence([
+    {
+      character: quest.character,
+      message: renderedUiText("Twice caught by the same captain. I shall deny this under oath."),
+      expressionId: "angry",
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: quest.character
+    },
+    {
+      character: gameState.playerCharacter,
+      message: renderedUiText(`Tie them properly this time. We sail for the authorities in ${destination.name}.`),
+      expressionId: "stern",
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: quest.character
+    }
+  ], completion);
+  showSurvivalNotice(`PIRATE RECAPTURED - ${destination.name.toUpperCase()}`, "good");
+  saveVoyageNow("recaptured escaped pirate captive");
+  return true;
+}
+
+function activeQuestJourneyDialogueSubjects() {
+  const questMemory = gameState?.memory?.quests;
+  return [
+    questMemory?.passengerActive,
+    questMemory?.active,
+    papalCommissionJourneyDialogueSubject(),
+    colonizationJourneyDialogueSubject()
+  ].filter(Boolean);
+}
+
+function papalCommissionJourneyDialogueSubject() {
+  const pendingMatter = gameState?.relations?.papacy?.pendingMatter;
+  if (!pendingMatter || pendingMatter.status !== PAPAL_MATTER_COMMISSIONED ||
+      pendingMatter.commission?.nextStopIndex !== 0) return null;
+  const matter = gameState?.relations?.papacy
+    ? papalPendingMatter(gameState.relations.papacy)
+    : null;
+  if (!matter) return null;
+  const objective = papalCommissionObjective(gameState.relations.papacy);
+  const event = papalCommissionJourneyDialogueEvent(matter, Math.floor(weatherClockMinutes));
+  if (objective?.kind !== "destination" || !event) return null;
+  return createDecisionBackedQuestJourneyDialogueSubject({
+    id: `papal-commission-${matter.id}`,
+    originTileId: matter.commission.originTileId,
+    destinationTileId: objective.destination.tileId,
+    character: matter.commission.nuncio,
+    journeyEvents: [event],
+    decisions: gameState.memory.decisions,
+    decisionKeyPrefix: `quest-journey.papal.${matter.id}`
+  });
+}
+
+function colonizationJourneyDialogueSubject() {
+  const memory = gameState?.memory?.colonization;
+  if (!memory || memory.stage !== COLONIZATION_STAGE_OUTBOUND ||
+      (Number.isInteger(memory.approvalTileId) && memory.approvalGranted !== true)) return null;
+  const quest = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  });
+  const event = colonizationOutboundJourneyDialogue(quest);
+  if (!event) return null;
+  return createDecisionBackedQuestJourneyDialogueSubject({
+    id: `colonization-${quest.target.tileId}`,
+    originTileId: quest.origin.tileId,
+    destinationTileId: quest.target.tileId,
+    character: ensureColonizationOrganizer(gameState),
+    journeyEvents: [event],
+    decisions: gameState.memory.decisions,
+    decisionKeyPrefix: colonizationJourneyDialogueDecisionPrefix(gameState.memory.colonization)
+  });
 }
 
 function openQuestJourneyDialogueAtSea(quest, event) {
@@ -15781,24 +16202,42 @@ function createRescuedTravelerHomecomingSession(cityCall, {
   }
   const memory = rescuedTravelerMemoryForType(quest.rescueType);
   if (quest.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
-    const rewardItem = quest.familySurvived
-      ? prepareHighValueMissionPerkItem(gameState, cityCall, quest.id)
-      : null;
-    prepareRescuedTravelerHomecoming(memory, quest.id, rewardItem);
+    if (quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
+        pirateCaptiveIsDetained(quest)) {
+      preparePirateCaptiveAuthorityHandover(memory, quest.id);
+    } else {
+      const rewardItem = quest.familySurvived
+        ? prepareHighValueMissionPerkItem(gameState, cityCall, quest.id)
+        : null;
+      prepareRescuedTravelerHomecoming(memory, quest.id, rewardItem);
+    }
   }
-  return createRescuedTravelerDialogueSession(quest, {
-    phase: "homecoming",
+  const phase = quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
+    pirateCaptiveIsDetained(quest)
+    ? "authority"
+    : "homecoming";
+  const createSession = quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+    ? createPirateCaptiveDialogueSession
+    : createRescuedTravelerDialogueSession;
+  return createSession(quest, {
+    phase,
     cityTileId: cityCall.tileId,
     admittedToPort,
     continueToPortOnClose,
-    nextPortNodeId
+    nextPortNodeId,
+    ...(phase === "authority" ? { authorityCharacter: cityCall.character } : {})
   });
 }
 
 function rescuedTravelerAtHome(cityCall) {
   if (!cityCall || !Number.isInteger(cityCall.tileId)) return null;
   return activeRescuedTravelers().find((quest) => (
-    quest.homePortTileId === cityCall.tileId &&
+    (quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? pirateCaptiveDestination(quest).tileId
+      : quest.homePortTileId) === cityCall.tileId &&
+    (quest.rescueType !== RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE ||
+      quest.stage === RESCUED_TRAVELER_STAGE_HOMECOMING ||
+      pirateCaptiveIsAboard(quest)) &&
     (quest.stage === RESCUED_TRAVELER_STAGE_ABOARD || quest.stage === RESCUED_TRAVELER_STAGE_HOMECOMING)
   )) || null;
 }
@@ -16541,7 +16980,18 @@ function papalCommissionCargoList(entries) {
 function openPapalCommissionAudience(cityCall, matter, destination) {
   const finalAudience = matter.commission.nextStopIndex === matter.commission.itinerary.length - 1;
   const nuncio = matter.commission.nuncio;
+  const journeySubject = papalCommissionJourneyDialogueSubject();
+  const journeyEvent = journeySubject?.destinationTileId === cityCall.tileId
+    ? pendingQuestJourneyDialogue(journeySubject, { arrived: true })
+    : null;
   const steps = [
+    ...(journeyEvent ? [pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: nuncio,
+      speakerCharacter: nuncio,
+      expressionId: journeyEvent.expressionId,
+      message: journeyEvent.text
+    })] : []),
     pairedCharacterAlertStep({
       leftCharacter: nuncio,
       rightCharacter: cityCall.character,
@@ -16568,6 +17018,7 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
       dirty = true;
     });
     if (!opened) throw new Error("Papal commission audience could not open");
+    if (journeyEvent) markQuestJourneyDialogueSeen(journeySubject, journeyEvent.id);
     return true;
   }
   const opened = startCharacterAlertSequence(steps, () => {
@@ -16585,6 +17036,7 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
     if (!choiceOpened) throw new Error("Papal recommendation choice could not open");
   });
   if (!opened) throw new Error("Final Papal commission audience could not open");
+  if (journeyEvent) markQuestJourneyDialogueSeen(journeySubject, journeyEvent.id);
   return true;
 }
 
@@ -18636,12 +19088,9 @@ function chooseDialogueOption(optionIndex) {
     result = selectHistoricalBattleDialogueOption(dialogueState, optionIndex);
   } else if (dialogueState.kind === "rescued-traveler") {
     const { memory, quest } = activeRescuedTravelerForType(dialogueState.rescueType);
-    result = selectRescuedTravelerDialogueOption(
-      dialogueState,
-      quest,
-      memory,
-      optionIndex
-    );
+    result = quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? selectPirateCaptiveDialogueOption(dialogueState, quest, memory, optionIndex)
+      : selectRescuedTravelerDialogueOption(dialogueState, quest, memory, optionIndex);
     if (result.action?.type === "accept-rescued-traveler") {
       const aidLabels = [];
       if (quest.rescueType === RESCUED_TRAVELER_TYPE_CASTAWAY && quest.emergencyAid) {
@@ -18690,6 +19139,19 @@ function chooseDialogueOption(optionIndex) {
       playCollectionDingSound();
       showSurvivalNotice(`${quest.character.name.toUpperCase()} JOINED THE CREW`, "good");
       saveVoyageNow(`${rescuedTravelerLabel(quest).toLowerCase()} joined crew`);
+    } else if (result.action?.type === "complete-pirate-captive-handover") {
+      const city = currentDialogueCity();
+      receiveQuestPayment(
+        gameState,
+        city,
+        quest.rewardDoubloons,
+        `${quest.character.name} delivered to the authorities`,
+        { simMinute: Math.floor(weatherClockMinutes) }
+      );
+      completeRescuedTravelerQuest(memory, quest.id);
+      playCoinClinkSound();
+      showSurvivalNotice(`CAPTIVE DELIVERED  +${quest.rewardDoubloons} DB`, "good");
+      saveVoyageNow("delivered pirate captive to the authorities");
     }
   } else {
     throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
@@ -18734,7 +19196,8 @@ function chooseDialogueOption(optionIndex) {
       openSurrenderPrizeDecision(npcShipId, lootSummary);
       return;
     }
-    if (dialogueState.kind === "rescued-traveler" && dialogueState.phase === "homecoming") {
+    if (dialogueState.kind === "rescued-traveler" &&
+        ["homecoming", "authority"].includes(dialogueState.phase)) {
       const city = currentDialogueCity();
       const nextHomecoming = createRescuedTravelerHomecomingSession(city, {
         admittedToPort: dialogueState.admittedToPort === true,
@@ -19498,7 +19961,9 @@ function currentDialogueView() {
   }
   if (dialogueState.kind === "rescued-traveler") {
     const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
-    return rescuedTravelerDialogueView(dialogueState, quest);
+    return quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? pirateCaptiveDialogueView(dialogueState, quest)
+      : rescuedTravelerDialogueView(dialogueState, quest);
   }
   if (dialogueState.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
     return historicalBattleDialogueView(
@@ -19761,7 +20226,9 @@ function currentDialogueSubject() {
   }
   if (dialogueState?.kind === "rescued-traveler") {
     const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
-    const character = rescuedTravelerDialogueCharacter(dialogueState, quest);
+    const character = quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? pirateCaptiveDialogueCharacter(dialogueState, quest)
+      : rescuedTravelerDialogueCharacter(dialogueState, quest);
     return {
       ...(dialogueState.cityTileId === null ? {} : currentDialogueCity()),
       character,
@@ -19803,9 +20270,21 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
 
   if (dialogueState.kind === "rescued-traveler") {
     const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
-    const reunionExchange = dialogueState.phase === "homecoming" &&
-      quest.familySurvived &&
-      dialogueState.stepIndex <= 1;
+    if (dialogueState.phase === "authority") {
+      return dialoguePortraitPair(
+        dialogueState.authorityCharacter,
+        quest.character,
+        speakerCharacter
+      );
+    }
+    const reformedConfession = quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
+      quest.captiveKind === PIRATE_CAPTIVE_KIND_FAKE_REFORMED;
+    if (dialogueState.phase === "homecoming" && reformedConfession && dialogueState.stepIndex === 0) {
+      return dialoguePortraitPair(captain, quest.character, speakerCharacter);
+    }
+    const reunionExchange = dialogueState.phase === "homecoming" && quest.familySurvived &&
+      dialogueState.stepIndex >= (reformedConfession ? 1 : 0) &&
+      dialogueState.stepIndex <= (reformedConfession ? 3 : 1);
     if (reunionExchange) {
       return dialoguePortraitPair(quest.character, quest.familyMember, speakerCharacter);
     }
@@ -28471,6 +28950,9 @@ function attemptEnvoyIntercession(factionId, counterpart) {
 function npcCombatAttackReason(state) {
   const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
   if (encounter?.kind === "colonization-defense") return encounter.challenge;
+  if (encounter?.kind === PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND && encounter.challenge) {
+    return encounter.challenge;
+  }
   if (encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND && encounter.challenge) {
     return encounter.challenge;
   }
@@ -29581,6 +30063,10 @@ function continuePlayerSurrenderOutcome(npcShipId, lootSummary, context = {}) {
   if (strategic.encounter?.kind === "wokou-hunt") {
     resolveWokouHuntPlayerVictory(npcShipId);
   }
+  if (strategic.encounter?.kind === PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND &&
+      resolveEscapedPirateCaptiveDefeat(npcShipId, { sunk: false, lootSummary })) {
+    return;
+  }
   if (treasureEncounter && resolveTreasurePiratePlayerDefeat(npcShipId, treasureEncounter, {
     sunk: false,
     onComplete: () => openSurrenderPrizeDecision(npcShipId, lootSummary)
@@ -29651,6 +30137,7 @@ function handleNpcSinking(loserId, winnerId, {
     ? { ...strategic.encounter }
     : null;
   const wokouEncounter = strategic.encounter?.kind === "wokou-hunt";
+  const escapedCaptiveEncounter = strategic.encounter?.kind === PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND;
   const playerVictory = winnerId === PLAYER_COMBAT_ID && !accidentalPlayerCollision;
   const selfDefenseResult = playerVictory
     ? recordPlayerSelfDefenseConsequences(loserId, strategic.factionId)
@@ -29712,6 +30199,10 @@ function handleNpcSinking(loserId, winnerId, {
   if (wokouEncounter) {
     if (playerVictory) resolveWokouHuntPlayerVictory(loserId);
     else ensureWokouHuntEncounter({ respawnAtPort: true });
+    return true;
+  }
+  if (escapedCaptiveEncounter) {
+    if (playerVictory) resolveEscapedPirateCaptiveDefeat(loserId, { sunk: true });
     return true;
   }
   if (playerVictory && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
@@ -29829,6 +30320,8 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
     throw new Error(`Cannot open pirate captive dialogue while ${dialogueState.kind} dialogue is active`);
   }
   const homePort = rescuedTravelerHomePort(pirateShipId);
+  const wantedPort = pirateCaptiveWantedCapital(pirateShipId);
+  const sourceTileId = findNearestTileId(graph, directionIndex, ship.position);
   const distanceKm = EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(homePort.tileId));
   const familySurvivedRoll = Math.random();
   const captive = generatePirateCaptiveCharacter({
@@ -29850,11 +30343,14 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
     : null;
   const quest = createPirateCaptiveQuest(memory, {
     pirateShipId,
+    sourceTileId,
     homePort,
+    wantedPort,
     character: captive,
     familyMember,
     distanceKm,
-    familySurvivedRoll
+    familySurvivedRoll,
+    captiveKindRoll: Math.random()
   });
   if (!quest) return false;
   dialogueState = createRescuedTravelerDialogueSession(quest, {
@@ -29945,6 +30441,21 @@ function rescuedTravelerHomePort(identityKey) {
     throw new Error(`No European home port is available for rescued traveler ${identityKey}`);
   }
   return candidates[0].city;
+}
+
+function pirateCaptiveWantedCapital(identityKey) {
+  const candidates = playerAccessiblePortCities()
+    .filter((city) => city.factionId !== PIRATE_FACTION_ID && city.capitalOfFactionId === city.factionId)
+    .map((city) => ({
+      city,
+      distance: vectorArcDistance(ship.position, tileCenterVector(city.tileId))
+    }))
+    .sort((a, b) => a.distance - b.distance || a.city.tileId - b.city.tileId);
+  if (candidates.length === 0) {
+    throw new Error(`No lawful capital is available for pirate captive ${identityKey}`);
+  }
+  const regional = candidates.slice(0, Math.min(4, candidates.length));
+  return regional[spriteKeyHash(`${identityKey}|wanted-capital`) % regional.length].city;
 }
 
 function activeRescuedTravelers() {
@@ -35642,10 +36153,17 @@ function questJournalEntries() {
   for (const traveler of activeRescuedTravelers().filter((quest) => (
     quest.stage === RESCUED_TRAVELER_STAGE_ABOARD
   ))) {
+    const destination = traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? pirateCaptiveDestination(traveler)
+      : { tileId: traveler.homePortTileId, name: traveler.homePortName, kind: "home" };
+    if (traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
+        !pirateCaptiveIsAboard(traveler)) continue;
     entries.push({
       id: `rescued-traveler:${traveler.id}`,
       title: rescuedTravelerLabel(traveler),
-      nextStep: `SAIL TO ${traveler.homePortName.toUpperCase()}`,
+      nextStep: destination.kind === "authority"
+        ? `DELIVER THE CAPTIVE TO ${destination.name.toUpperCase()}`
+        : `SAIL TO ${destination.name.toUpperCase()}`,
       style: QUEST_NAVIGATION_STYLE
     });
   }
@@ -36182,15 +36700,22 @@ function navigationMenuEntries() {
   for (const traveler of activeRescuedTravelers().filter((quest) => (
     quest.stage === RESCUED_TRAVELER_STAGE_ABOARD
   ))) {
-    const destination = cityByTileId.get(traveler.homePortTileId) ||
-      portCities.find((city) => city.tileId === traveler.homePortTileId);
+    const objective = traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? pirateCaptiveDestination(traveler)
+      : { tileId: traveler.homePortTileId, name: traveler.homePortName, kind: "home" };
+    if (traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
+        !pirateCaptiveIsAboard(traveler)) continue;
+    const destination = cityByTileId.get(objective.tileId) ||
+      portCities.find((city) => city.tileId === objective.tileId);
     if (!destination) {
-      throw new Error(`Rescued traveler home port is missing: ${traveler.homePortTileId}`);
+      throw new Error(`Rescued traveler destination is missing: ${objective.tileId}`);
     }
     entries.push({
       id: `rescued-traveler:${traveler.id}`,
-      destinationName: traveler.homePortName,
-      reason: `RETURN ${rescuedTravelerLabel(traveler)} HOME`,
+      destinationName: objective.name,
+      reason: objective.kind === "authority"
+        ? `DELIVER ${rescuedTravelerLabel(traveler)} TO THE AUTHORITIES`
+        : `RETURN ${rescuedTravelerLabel(traveler)} HOME`,
       style: QUEST_NAVIGATION_STYLE,
       targetVector: placedCityTargetVector(destination),
       optionalWaypointId: null
@@ -37997,6 +38522,11 @@ function currentAboardRoster() {
   const namedTravelMission = activeNamedTravelMission(gameState);
   const activeQuest = namedTravelMission?.quest || null;
   const rescuedTravelers = activeRescuedTravelers();
+  const aboardRescuedTravelers = rescuedTravelers.map((traveler) => (
+    traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? { ...traveler, destinationTileId: pirateCaptiveDestination(traveler).tileId }
+      : traveler
+  ));
   const namedTravelers = [];
   if (namedTravelMission) {
     namedTravelers.push({
@@ -38018,7 +38548,14 @@ function currentAboardRoster() {
     namedTravelers.push({ kind: "envoy", character: maltaQuest.envoy });
   }
   for (const traveler of rescuedTravelers) {
-    if (traveler.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
+    if (traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE) {
+      if (pirateCaptiveIsAboard(traveler)) {
+        namedTravelers.push({
+          kind: pirateCaptiveIsDetained(traveler) ? "captive" : "passenger",
+          character: traveler.character
+        });
+      }
+    } else if (traveler.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
       namedTravelers.push({ kind: "passenger", character: traveler.character });
     }
   }
@@ -38049,7 +38586,7 @@ function currentAboardRoster() {
     goal: aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers),
     homePortName: aboardCharacterHomePortName(entry, {
       activeQuest,
-      rescuedTravelers,
+      rescuedTravelers: aboardRescuedTravelers,
       historianHomePortTileId: historianHomePort.tileId
     })
   }));
@@ -38081,7 +38618,8 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
   if (entry.role === ABOARD_ROLE_CAPTAIN) {
     return captainCharacterGoal(gameState.memory.campaignGoal);
   }
-  if (entry.role === ABOARD_ROLE_PASSENGER || entry.role === ABOARD_ROLE_EMISSARY) {
+  if (entry.role === ABOARD_ROLE_PASSENGER || entry.role === ABOARD_ROLE_EMISSARY ||
+      entry.role === ABOARD_ROLE_CAPTIVE) {
     const papalMatter = papalPendingMatter(gameState.relations.papacy);
     if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED &&
         papalMatter.commission.nuncio.id === entry.character.id) {
@@ -38103,8 +38641,14 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
         destinationName: objective.destination.city
       });
     }
-    if (rescuedTravelers.some((traveler) => entry.character.id === traveler.character?.id)) {
-      return namedCrewCharacterGoal(entry.character);
+    const rescuedTraveler = rescuedTravelers.find((traveler) => (
+      entry.character.id === traveler.character?.id
+    ));
+    if (rescuedTraveler) {
+      const destinationName = rescuedTraveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+        ? pirateCaptiveDestination(rescuedTraveler).name
+        : rescuedTraveler.homePortName;
+      return travelerCharacterGoal({ id: rescuedTraveler.id, destinationName });
     }
     return travelerCharacterGoal(activeQuest);
   }
@@ -38550,6 +39094,7 @@ function aboardRoleLabel(role) {
     [ABOARD_ROLE_CAPTAIN]: "aboard.captain",
     [ABOARD_ROLE_PASSENGER]: "aboard.passenger",
     [ABOARD_ROLE_EMISSARY]: "aboard.emissary",
+    [ABOARD_ROLE_CAPTIVE]: "aboard.captive",
     [ABOARD_ROLE_COLONY_LEADER]: "aboard.colonyLeader",
     [ABOARD_ROLE_CREWMATE]: "aboard.crewmate",
     [ABOARD_ROLE_COLONIST]: "aboard.colonist",
@@ -38563,6 +39108,7 @@ function aboardRoleColor(role) {
   if (role === ABOARD_ROLE_CAPTAIN) return PIRATE_MENU_CHART_LINE;
   if (role === ABOARD_ROLE_PASSENGER) return STATUS_PERSON_COLORS.passenger[0];
   if (role === ABOARD_ROLE_EMISSARY) return STATUS_PERSON_COLORS.envoy[0];
+  if (role === ABOARD_ROLE_CAPTIVE) return PIRATE_MENU_DANGER;
   if (role === ABOARD_ROLE_COLONY_LEADER || role === ABOARD_ROLE_COLONIST) {
     return STATUS_PERSON_COLORS.settler[0];
   }
@@ -50159,13 +50705,26 @@ function drawCaptainAlertModal(nowMs) {
     if (pages.length !== 1) throw new Error("Character choice alert text must fit on one page");
     modal.choiceRects.forEach((rect, index) => {
       drawPiratePaperInset(rect, index === modal.selectedChoiceIndex);
+      const choice = modal.choices[index];
+      const iconSize = choice.iconId ? GAME_ICON_SIZE : 0;
+      if (choice.iconId) {
+        drawGameIcon(choice.iconId, rect.x + 4, rect.y + Math.floor((rect.h - iconSize) / 2));
+      }
       ctx.fillStyle = PIRATE_MENU_INK;
-      drawPixelText(
-        fitPixelText(modal.choices[index].label.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 6),
-        rect.x + rect.w / 2,
-        controlTextY(rect),
-        { font: PIXEL_FONT_SMALL_8, align: "center" }
+      const labelX = rect.x + iconSize + 4 + (rect.w - iconSize - 4) / 2;
+      const labelLines = wrapPixelText(
+        choice.label.toUpperCase(),
+        PIXEL_FONT_SMALL_8,
+        rect.w - iconSize - 8,
+        2
       );
+      const firstLineY = rect.y + Math.floor((rect.h - labelLines.length * 8) / 2) + 1;
+      labelLines.forEach((line, lineIndex) => drawPixelText(
+        line,
+        labelX,
+        firstLineY + lineIndex * 8,
+        { font: PIXEL_FONT_SMALL_8, align: "center" }
+      ));
     });
     return;
   }

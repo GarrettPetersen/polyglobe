@@ -334,6 +334,8 @@ import {
 import {
   createPirateCaptiveQuestMemory,
   migratePirateCaptiveQuestMemory,
+  pirateCaptiveIsAboard,
+  pirateCaptiveIsDetained,
   validatePirateCaptiveQuestMemory
 } from "./pirateCaptiveQuest.js";
 import {
@@ -377,7 +379,7 @@ import {
 } from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 67;
+export const GAME_STATE_VERSION = 68;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -688,7 +690,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1785,6 +1787,8 @@ export function futurePermanentCrewFloor(state, context = {}) {
     state.memory?.quests?.castaway?.active
   ].filter((traveler) => (
     traveler?.familySurvived === false &&
+    (traveler.rescueType !== "pirate-captive" || traveler.stage === "homecoming" ||
+      pirateCaptiveIsAboard(traveler)) &&
     (traveler.stage === "aboard" || traveler.stage === "homecoming")
   )).length;
   return current + futureRecruits;
@@ -2685,8 +2689,11 @@ function shipTravelerManifestForValidatedState(state) {
     groups.push(Object.freeze({ kind: "envoy", count: 1 }));
   }
   const pirateCaptive = state.memory.quests?.pirateCaptive?.active || null;
-  if (pirateCaptive && pirateCaptive.stage === "aboard") {
-    groups.push(Object.freeze({ kind: "passenger", count: 1 }));
+  if (pirateCaptive && pirateCaptiveIsAboard(pirateCaptive)) {
+    groups.push(Object.freeze({
+      kind: pirateCaptiveIsDetained(pirateCaptive) ? "captive" : "passenger",
+      count: 1
+    }));
   }
   const castaway = state.memory.quests?.castaway?.active || null;
   if (castaway && castaway.stage === "aboard") {
@@ -2942,6 +2949,63 @@ export function cargoCostBasis(state, goodId) {
     total,
     average: quantity > 0 ? total / quantity : 0
   };
+}
+
+export function stealNonQuestShipPossession(state, {
+  protectedCargoQuantities = {},
+  protectedItemIds = [],
+  selectionRoll
+} = {}) {
+  assertGameState(state);
+  if (!protectedCargoQuantities || typeof protectedCargoQuantities !== "object" ||
+      Array.isArray(protectedCargoQuantities)) {
+    throw new Error("Ship theft requires protected cargo quantities");
+  }
+  if (!Array.isArray(protectedItemIds) || protectedItemIds.some((id) => typeof id !== "string")) {
+    throw new Error("Ship theft requires protected item ids");
+  }
+  if (!Number.isFinite(selectionRoll) || selectionRoll < 0 || selectionRoll >= 1) {
+    throw new Error(`Invalid ship theft selection roll: ${selectionRoll}`);
+  }
+  const protectedItems = new Set(protectedItemIds);
+  const candidates = [];
+  for (const [goodId, held] of Object.entries(state.cargo).sort(([a], [b]) => a.localeCompare(b))) {
+    const protectedQuantity = protectedCargoQuantities[goodId] || 0;
+    const available = Math.max(0, held - protectedQuantity);
+    if (available <= 1e-6) continue;
+    const good = goodById(goodId);
+    candidates.push(Object.freeze({
+      kind: "cargo",
+      id: good.id,
+      label: good.label,
+      quantity: Math.min(1, available)
+    }));
+  }
+  for (const [itemId, count] of Object.entries(state.inventory.items).sort(([a], [b]) => a.localeCompare(b))) {
+    if (count <= 0 || protectedItems.has(itemId)) continue;
+    const item = perkItemById(itemId);
+    if (item.rewardOnly || item.perks.cargoCapacityFlat) continue;
+    candidates.push(Object.freeze({ kind: "item", id: item.id, label: item.label, quantity: 1 }));
+  }
+  if (candidates.length === 0) return null;
+  const stolen = candidates[Math.min(candidates.length - 1, Math.floor(selectionRoll * candidates.length))];
+  if (stolen.kind === "cargo") {
+    const held = state.cargo[stolen.id];
+    const basis = cargoCostBasis(state, stolen.id);
+    const remaining = held - stolen.quantity;
+    if (remaining > 1e-6) {
+      state.cargo[stolen.id] = remaining;
+      if (basis.known) state.accounts.cargoCostBasis[stolen.id] = basis.total * remaining / held;
+    } else {
+      delete state.cargo[stolen.id];
+      delete state.accounts.cargoCostBasis[stolen.id];
+    }
+  } else {
+    delete state.inventory.items[stolen.id];
+    refreshPlayerPerkCargoCapacity(state);
+  }
+  recordDecision(state, `ship-theft.${stolen.kind}.${stolen.id}`, 1);
+  return stolen;
 }
 
 export function deliverQuestCargo(state, city, goodId, quantity, questId, context = {}) {

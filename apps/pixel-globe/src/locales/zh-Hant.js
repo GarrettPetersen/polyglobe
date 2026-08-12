@@ -220,6 +220,7 @@ export default {
   "aboard.captain": "船長",
   "aboard.passenger": "乘客",
   "aboard.emissary": "使節",
+  "aboard.captive": "俘虜",
   "aboard.colonyLeader": "殖民領隊",
   "aboard.crewmate": "船員",
   "aboard.colonist": "殖民者",

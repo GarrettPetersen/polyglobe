@@ -16,6 +16,9 @@ export const EAST_ASIAN_MISSION_YOSHIHARU = "yoshiharu-seal";
 export const NINGBO_DEFECTION_BRIBE = 450;
 export const NINGBO_RACE_BONUS = 250;
 export const NINGBO_BRIBE_JOURNEY_EVENT_ID = "ningbo-rival-bribe";
+export const PORTUGUESE_GUNS_JOURNEY_EVENT_ID = "portuguese-guns-plan";
+export const GREAT_RITES_JOURNEY_EVENT_ID = "great-rites-stakes";
+export const YOSHIHARU_JOURNEY_EVENT_ID = "yoshiharu-authority";
 export const TSUSHIMA_EVIDENCE_BRIEFING_TEXT =
   "Captain, you found the second bundle beneath my register. Its names are absent from the rolls and its seals are copies. I called every paper genuine because Tsushima cannot afford Joseon's suspicion.";
 export const PORTUGUESE_GUNS_ITINERARY_REFS = Object.freeze([
@@ -271,9 +274,17 @@ export function eastAsianMissionDialogue(plan) {
   }
   if (plan.id === EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {
     return Object.freeze({
-      offer: "We captured Portuguese breech-loading guns and the men who know their measure. Carry me, the patterns, and two proof pieces to Nanjing's arsenals.",
-      underway: "The Portuguese gun is not magic. Its advantage is a pattern that can be copied, drilled, and mounted before an enemy returns.",
-      arrival: "Nanjing's founders have measured the captured guns. Copies will reinforce the batteries at Guangzhou, Ningbo, and Fuzhou."
+      offer: "We captured Portuguese breech-loading guns. Carry me, the patterns, and two proof pieces to Nanjing's arsenals.",
+      underway: "The proof pieces remain lashed down and dry. Nanjing is ahead.",
+      arrival: "Nanjing's founders finish their measurements and issue a common pattern. The artillery circuit can begin.",
+      journeyEvents: Object.freeze([
+        Object.freeze({
+          id: PORTUGUESE_GUNS_JOURNEY_EVENT_ID,
+          trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+          expressionId: "attentive",
+          text: "The Portuguese gun is no magic. Its advantage is a pattern that can be copied and drilled. Once Nanjing measures these pieces, we must carry the plans to Guangzhou, Ningbo, and Fuzhou."
+        })
+      ])
     });
   }
   if (plan.id === EAST_ASIAN_MISSION_RYUKYU) {
@@ -285,15 +296,31 @@ export function eastAsianMissionDialogue(plan) {
   }
   if (plan.id === EAST_ASIAN_MISSION_GREAT_RITES) {
     return Object.freeze({
-      offer: "Nanjing's scholars have filled another memorial on the emperor's ancestral rites. Carry it to Beijing before the court decides that silence means consent.",
-      underway: "The memorial argues over the name of a dead father. In Beijing, that question can end a living official's career.",
-      arrival: "The Grand Secretariat enters the memorial. The Jiajing Emperor has heard one more careful objection, and remains the emperor."
+      offer: "Nanjing's scholars have prepared another memorial for the emperor. Carry it to Beijing before silence is mistaken for consent.",
+      underway: "The memorial remains sealed. Beijing is ahead.",
+      arrival: "The Grand Secretariat enters the memorial. The Jiajing Emperor has heard one more careful objection.",
+      journeyEvents: Object.freeze([
+        Object.freeze({
+          id: GREAT_RITES_JOURNEY_EVENT_ID,
+          trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+          expressionId: "concerned",
+          text: "The memorial disputes the title owed to the emperor's dead father. It sounds small at sea. In Beijing, that question can end a living official's career."
+        })
+      ])
     });
   }
   return Object.freeze({
-    offer: "Shogun Ashikaga Yoshiharu has sealed an order confirming the western sea lords' obligations. Carry it from Kyoto to Yamaguchi before private war answers first.",
-    underway: "A shogunal seal weighs almost nothing. Whether the Ouchi obey it will reveal how much authority remains behind it.",
-    arrival: "Yamaguchi receives Yoshiharu's order in public ceremony. Obedience has been recorded, however carefully its limits were worded."
+    offer: "Shogun Ashikaga Yoshiharu has sealed an order for the western sea lords. Carry it from Kyoto to Yamaguchi before private war answers first.",
+    underway: "The shogunal order remains sealed. Yamaguchi is ahead.",
+    arrival: "Yamaguchi receives Yoshiharu's order in public ceremony. Its answer is entered in the record.",
+    journeyEvents: Object.freeze([
+      Object.freeze({
+        id: YOSHIHARU_JOURNEY_EVENT_ID,
+        trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+        expressionId: "thoughtful",
+        text: "A shogunal seal weighs almost nothing. Whether the Ouchi obey it, evade it, or merely bow in public will reveal how much authority remains behind it."
+      })
+    ])
   });
 }
 

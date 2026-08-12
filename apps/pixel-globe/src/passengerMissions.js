@@ -13,6 +13,7 @@ import {
 } from "./factions.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { rulerAtMinute } from "./rulers.js";
+import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 import {
   SOVEREIGN_TRADE_ACCESS_POLICIES,
   sovereignTradePolicyById
@@ -480,12 +481,17 @@ function diplomaticEnvoyDialogueText(kind, origin, target, reward, seed, originR
     const proposalText = statusProposalText(options.statusProposal);
     return {
       offer: `${originRuler.displayName} has chosen negotiation before war. Carry me to ${cityLabel(target)} with articles concerning tribute and allegiance, then return for ${reward} db.`,
-      underway: `${proposalText} The decision belongs to rulers and councils; our task is to put the articles before them intact.`,
-      negotiationOpening: `Under ${originRuler.displayName}'s seal, I place these articles before the court: ${proposalText}`,
+      underway: `The articles remain sealed. Our audience awaits in ${cityLabel(target)}.`,
+      negotiationOpening: `Under ${originRuler.displayName}'s seal, I place these articles before the court.`,
       negotiation: "The court has considered the articles. Carry its answer home.",
       returnUnderway: `The answer is sealed. Set our course back to ${cityLabel(origin)}.`,
       homecoming: `${originRuler.displayName} has received the answer. The treasury releases ${reward} db.`,
-      intercession: "Stay your weapons! This ship carries articles of allegiance under diplomatic seal."
+      intercession: "Stay your weapons! This ship carries articles of allegiance under diplomatic seal.",
+      journeyEvents: outboundJourneyBriefing(
+        "status-articles",
+        `${proposalText} Those are the exact terms beneath the seal; the foreign court will answer them at our audience.`,
+        "attentive"
+      )
     };
   }
   if (kind === COURT_ENVOY_QUEST_KIND) {
@@ -534,13 +540,29 @@ function tradeAccessOpeningDialogueText(origin, target, reward, originRuler, tar
   const foreign = cityLabel(target);
   return {
     offer: `${originRuler.displayName} seeks ${policy.envoyPurpose}. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
-    underway: `My memorial asks ${targetRuler.displayName} to ${policy.envoyMemorial}. The wording has taken months.`,
-    negotiationOpening: `I present ${originRuler.displayName}'s memorial in friendship. We ask ${policy.envoyRequest}.`,
+    underway: `The memorial remains sealed. Our audience awaits in ${foreign}.`,
+    negotiationOpening: `I present ${originRuler.displayName}'s memorial in friendship and await the court's answer.`,
     negotiation: `${targetRuler.displayName}'s ministers accept your embassy. ${policy.envoyGrant}; carry our sealed answer home.`,
     returnUnderway: `The ${policy.permitLabel} is granted. Set our course back to ${home} so ${originRuler.displayName} can publish the accord.`,
     homecoming: `${originRuler.displayName} has received the ${policy.permitLabel}. Your ${reward} db is waiting at the treasury.`,
-    intercession: "Hold your fire! This vessel carries an accredited trade embassy between our nations."
+    intercession: "Hold your fire! This vessel carries an accredited trade embassy between our nations.",
+    journeyEvents: outboundJourneyBriefing(
+      "trade-access-memorial",
+      `The memorial asks ${targetRuler.displayName} to ${policy.envoyMemorial}. In plain words, we seek ${policy.envoyRequest}. The wording has taken months.`,
+      "thoughtful"
+    )
   };
+}
+
+function outboundJourneyBriefing(id, text, expressionId) {
+  return Object.freeze([
+    Object.freeze({
+      id,
+      trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+      expressionId,
+      text
+    })
+  ]);
 }
 
 function envoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler) {

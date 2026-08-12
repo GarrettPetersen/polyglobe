@@ -5,6 +5,7 @@ import { COLONIZATION_TARGETS, colonizationTargetForCity } from "./colonialCitie
 import {
   COLONIZATION_EXPEDITION_CARGO_UNITS,
   COLONIZATION_FETCH_STAGES,
+  COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID,
   COLONIZATION_RESUPPLY,
   COLONIZATION_RESUPPLY_DAYS,
   COLONIZATION_STAGE_AWAITING_RESUPPLY,
@@ -23,6 +24,9 @@ import {
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationNavigationObjective,
+  colonizationOutboundJourneyDialogue,
+  colonizationOutboundJourneyDialogueSeen,
+  colonizationJourneyDialogueDecisionPrefix,
   colonizationQuestView,
   colonizationShipEligibility,
   colonizationWorldRecord,
@@ -79,6 +83,21 @@ test("a colonization expedition requires three ordered paid material stages", ()
   assert.equal(memory.stage, COLONIZATION_STAGE_READY);
   assert.equal(memory.fetchStageIndex, COLONIZATION_FETCH_STAGES.length);
   assert.equal(validateColonizationQuestMemory(memory), memory);
+});
+
+test("the first resupply warning can move from landing into the outbound voyage", () => {
+  const memory = readyMemory();
+  beginColonizationExpedition(memory);
+  const quest = colonizationQuestView(questViewState(memory));
+  const event = colonizationOutboundJourneyDialogue(quest);
+  const decisions = {};
+
+  assert.equal(event.id, COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID);
+  assert.equal(event.trigger, "destination-closer");
+  assert.match(event.text, /return within one year/i);
+  assert.equal(colonizationOutboundJourneyDialogueSeen(memory, decisions), false);
+  decisions[`${colonizationJourneyDialogueDecisionPrefix(memory)}.${event.id}`] = true;
+  assert.equal(colonizationOutboundJourneyDialogueSeen(memory, decisions), true);
 });
 
 test("a spawned organizer approaches once before waiting in the port menu", () => {

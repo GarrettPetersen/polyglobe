@@ -4,16 +4,33 @@ import test from "node:test";
 import {
   PIRATE_CAPTIVE_STAGE_ABOARD,
   PIRATE_CAPTIVE_STAGE_HOMECOMING,
+  PIRATE_CAPTIVE_EVENT_ESCAPE,
+  PIRATE_CAPTIVE_EVENT_WARNING,
+  PIRATE_CAPTIVE_KIND_FAKE_EVIL,
+  PIRATE_CAPTIVE_KIND_FAKE_REFORMED,
+  PIRATE_CAPTIVE_STATE_DETAINED,
+  PIRATE_CAPTIVE_STATE_ESCAPED,
+  PIRATE_CAPTIVE_STATE_MERCY,
   acceptPirateCaptiveQuest,
   completePirateCaptiveQuest,
+  confrontPirateCaptive,
   createPirateCaptiveDialogueSession,
   createPirateCaptiveQuest,
   createPirateCaptiveQuestMemory,
   migratePirateCaptiveQuestMemory,
+  ignorePirateCaptiveWarning,
+  advancePirateCaptiveJourneyMilestone,
+  pirateCaptiveDestination,
+  pirateCaptiveKindForRoll,
+  pirateCaptiveRevengeSpawnIsDue,
   pirateCaptiveDialogueView,
   pirateCaptiveRescueAppears,
   preparePirateCaptiveHomecoming,
+  recapturePirateCaptive,
+  recordPirateCaptiveEscape,
+  resolveReformedPirateCaptive,
   selectPirateCaptiveDialogueOption,
+  warnPirateCaptive,
   validatePirateCaptiveQuestMemory
 } from "./pirateCaptiveQuest.js";
 
@@ -22,6 +39,14 @@ const homePort = Object.freeze({
   city: "Porto",
   displayCity: "Porto",
   country: "Portugal"
+});
+
+const wantedPort = Object.freeze({
+  tileId: 72,
+  city: "Lisbon",
+  displayCity: "Lisbon",
+  country: "Portugal",
+  factionId: "portugal"
 });
 
 function character(id, givenName, familyName) {
@@ -55,14 +80,17 @@ test("pirate victories use a one-in-three first rescue and one-in-fifty thereaft
   assert.equal(pirateCaptiveRescueAppears(1 / 50, 1), false);
 });
 
-function createQuest(memory, familySurvivedRoll) {
+function createQuest(memory, familySurvivedRoll, captiveKindRoll = 0.9) {
   return createPirateCaptiveQuest(memory, {
     pirateShipId: "pirate-17",
+    sourceTileId: 17,
     homePort,
+    wantedPort,
     character: captive,
     familyMember: familySurvivedRoll < 0.5 ? familyMember : null,
     distanceKm: 2300,
-    familySurvivedRoll
+    familySurvivedRoll,
+    captiveKindRoll
   });
 }
 
@@ -145,6 +173,7 @@ test("a later rare pirate captive quest can begin after one is completed", () =>
   completePirateCaptiveQuest(memory, quest.id);
   const second = createPirateCaptiveQuest(memory, {
     pirateShipId: "pirate-18",
+    sourceTileId: 18,
     homePort,
     character: captive,
     familyMember,
@@ -172,4 +201,139 @@ test("legacy pirate captive saves migrate into the shared rescue schema", () => 
   assert.equal(migrated.active.sourceId, "pirate-17");
   assert.equal(migrated.active.emergencyAid, null);
   assert.equal(migrated.active.emergencyAidReceived, false);
+  assert.equal(migrated.active.captiveKind, "real");
+  assert.equal(migrated.active.deception, null);
+});
+
+test("fake captive identities are uncommon and split between evil and reformed", () => {
+  assert.equal(pirateCaptiveKindForRoll(0.01), PIRATE_CAPTIVE_KIND_FAKE_EVIL);
+  assert.equal(pirateCaptiveKindForRoll(0.149), PIRATE_CAPTIVE_KIND_FAKE_EVIL);
+  assert.equal(pirateCaptiveKindForRoll(0.15), PIRATE_CAPTIVE_KIND_FAKE_REFORMED);
+  assert.equal(pirateCaptiveKindForRoll(0.3), "real");
+});
+
+test("a companion warns halfway and an ignored evil impostor escapes halfway through the remaining leg", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.05);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  assert.equal(advancePirateCaptiveJourneyMilestone(quest, {
+    currentTileId: 50,
+    originDistance: 6,
+    destinationDistance: 4,
+    witnessId: "passenger-1"
+  }), PIRATE_CAPTIVE_EVENT_WARNING);
+  assert.equal(quest.deception.halfwayTileId, 50);
+  warnPirateCaptive(quest, "passenger-1");
+  ignorePirateCaptiveWarning(quest);
+  assert.equal(advancePirateCaptiveJourneyMilestone(quest, {
+    currentTileId: 75,
+    originDistance: 2.6,
+    destinationDistance: 2.4,
+    witnessId: "passenger-1"
+  }), PIRATE_CAPTIVE_EVENT_ESCAPE);
+});
+
+test("an unwitnessed evil impostor still uses the two halfway milestones", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.05);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  assert.equal(advancePirateCaptiveJourneyMilestone(quest, {
+    currentTileId: 50,
+    originDistance: 4,
+    destinationDistance: 4,
+    witnessId: null
+  }), null);
+  assert.equal(quest.deception.halfwayTileId, null);
+  assert.equal(advancePirateCaptiveJourneyMilestone(quest, {
+    currentTileId: 51,
+    originDistance: 4.1,
+    destinationDistance: 3.9,
+    witnessId: null
+  }), null);
+  assert.equal(quest.deception.halfwayTileId, 51);
+  assert.equal(advancePirateCaptiveJourneyMilestone(quest, {
+    currentTileId: 75,
+    originDistance: 2.4,
+    destinationDistance: 2.5,
+    witnessId: null
+  }), null);
+  assert.equal(advancePirateCaptiveJourneyMilestone(quest, {
+    currentTileId: 76,
+    originDistance: 2.6,
+    destinationDistance: 2.4,
+    witnessId: null
+  }), PIRATE_CAPTIVE_EVENT_ESCAPE);
+});
+
+test("an armed confrontation detains an evil impostor for a preselected capital", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.05);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  warnPirateCaptive(quest, "crew-1");
+  const result = confrontPirateCaptive(quest, {
+    weaponItemId: "katana",
+    currentMinute: 3000
+  });
+  assert.equal(result.outcome, "evil-detained");
+  assert.equal(quest.deception.state, PIRATE_CAPTIVE_STATE_DETAINED);
+  assert.deepEqual(pirateCaptiveDestination(quest), {
+    tileId: wantedPort.tileId,
+    name: wantedPort.city,
+    country: wantedPort.country,
+    kind: "authority"
+  });
+});
+
+test("a reformed impostor may be shown mercy and still taken home", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.2);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  warnPirateCaptive(quest, "crew-1");
+  assert.equal(confrontPirateCaptive(quest, {
+    currentMinute: 3000
+  }).outcome, "reformed-choice");
+  resolveReformedPirateCaptive(quest, { detain: false, currentMinute: 3000 });
+  assert.equal(quest.deception.state, PIRATE_CAPTIVE_STATE_MERCY);
+  assert.equal(pirateCaptiveDestination(quest).tileId, homePort.tileId);
+});
+
+test("an escaped evil impostor returns later and can be recaptured", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.05);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  recordPirateCaptiveEscape(quest, {
+    currentMinute: 5000,
+    escapeOriginPortTileId: 81,
+    stolenPossession: { kind: "cargo", id: "wine", label: "Wine", quantity: 1 }
+  });
+  assert.equal(quest.deception.state, PIRATE_CAPTIVE_STATE_ESCAPED);
+  assert.equal(pirateCaptiveRevengeSpawnIsDue(quest, 5000), false);
+  assert.equal(pirateCaptiveRevengeSpawnIsDue(quest, 5000 + 2 * 24 * 60), true);
+  quest.deception.revengeSpawned = true;
+  recapturePirateCaptive(quest, 9000);
+  assert.equal(quest.deception.state, PIRATE_CAPTIVE_STATE_DETAINED);
+  assert.equal(quest.deception.revengeDefeated, true);
+});
+
+test("an evil impostor receives a fresh powerful return after every escape", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.05);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  recordPirateCaptiveEscape(quest, {
+    currentMinute: 5000,
+    escapeOriginPortTileId: 81
+  });
+  const firstShipId = quest.deception.revengeShipId;
+  quest.deception.revengeSpawned = true;
+  recapturePirateCaptive(quest, 9000);
+
+  recordPirateCaptiveEscape(quest, {
+    currentMinute: 11000,
+    escapeOriginPortTileId: 82
+  });
+  assert.equal(quest.deception.escapeCount, 2);
+  assert.notEqual(quest.deception.revengeShipId, firstShipId);
+  assert.equal(quest.deception.revengeSpawned, false);
+  assert.equal(quest.deception.revengeDefeated, false);
+  assert.equal(pirateCaptiveRevengeSpawnIsDue(quest, 11000 + 2 * 24 * 60), true);
 });

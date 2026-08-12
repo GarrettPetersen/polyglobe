@@ -475,7 +475,6 @@ export function markFactionCapitalsOnPorts(ports) {
     }
     port.isFactionCapital = true;
     port.capitalOfFactionId = capitalSpec.factionId;
-    port.capitalSeatName = capitalSpec.seatCity;
     capitalPorts.set(capitalSpec.factionId, port);
   }
 

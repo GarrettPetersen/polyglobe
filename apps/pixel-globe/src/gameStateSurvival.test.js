@@ -690,6 +690,7 @@ test("an accepted pirate captive is an additional named passenger and provision 
   const crewAndCaptain = state.ship.crew;
   const quest = createPirateCaptiveQuest(state.memory.quests.pirateCaptive, {
     pirateShipId: "pirate-23",
+    sourceTileId: 23,
     homePort: LONDON,
     character: pirateCaptiveTestCharacter(),
     familyMember: null,
@@ -702,6 +703,31 @@ test("an accepted pirate captive is an additional named passenger and provision 
   assert.equal(shipPeopleAboard(state), crewAndCaptain + 1);
   assert.equal(shipConsumption(state).passengers, 1);
   validateGameState(state);
+});
+
+test("version 67 pirate captive saves gain the deceptive-captive schema", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const quest = createPirateCaptiveQuest(state.memory.quests.pirateCaptive, {
+    pirateShipId: "pirate-legacy",
+    sourceTileId: 23,
+    homePort: LONDON,
+    character: pirateCaptiveTestCharacter(),
+    familyMember: null,
+    distanceKm: 1200,
+    familySurvivedRoll: 0.75
+  });
+  acceptPirateCaptiveQuest(state.memory.quests.pirateCaptive, quest.id);
+  delete quest.captiveKind;
+  delete quest.deception;
+  state.version = 67;
+
+  const migrated = migrateGameState(state, stats);
+
+  assert.equal(migrated.memory.quests.pirateCaptive.active.captiveKind, "real");
+  assert.equal(migrated.memory.quests.pirateCaptive.active.deception, null);
+  assert.equal(validateGameState(migrated), migrated);
 });
 
 test("an accepted castaway consumes provisions and can reveal emergency shore supplies", () => {

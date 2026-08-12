@@ -124,6 +124,18 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "CAPTIVE BOUND FOR {0}": Object.freeze({
+    "zh-Hans": "押送俘虏前往 {0}", ru: "ПЛЕННИК СЛЕДУЕТ В {0}", es: "CAUTIVO RUMBO A {0}",
+    "pt-BR": "CATIVO A CAMINHO DE {0}", ja: "捕虜の護送先: {0}", de: "GEFANGENER AUF DEM WEG NACH {0}",
+    fr: "PRISONNIER À LIVRER À {0}", pl: "JENIEC W DRODZE DO {0}", "zh-Hant": "押送俘虜前往 {0}",
+    ko: "포로 호송지: {0}"
+  }),
+  "CAPTIVE DELIVERED +{0} DB": Object.freeze({
+    "zh-Hans": "俘虏已移交 +{0} DB", ru: "ПЛЕННИК ПЕРЕДАН +{0} DB", es: "CAUTIVO ENTREGADO +{0} DB",
+    "pt-BR": "CATIVO ENTREGUE +{0} DB", ja: "捕虜を引き渡した +{0} DB", de: "GEFANGENER ÜBERGEBEN +{0} DB",
+    fr: "PRISONNIER LIVRÉ +{0} DB", pl: "JENIEC PRZEKAZANY +{0} DB", "zh-Hant": "俘虜已移交 +{0} DB",
+    ko: "포로 인계 +{0} DB"
+  }),
   "The beast is spent. Time to land the killing blow.": Object.freeze({
     "zh-Hans": "这头巨鲸已经力竭。是时候给予致命一击了。",
     ru: "Зверь выбился из сил. Пора нанести смертельный удар.",

@@ -1,6 +1,50 @@
 const DEFAULT_MINIMUM_LEG_FRACTION = 0.3;
 export const QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER = "destination-closer";
 
+export function questJourneyHalfwayReached({ originDistance, destinationDistance }) {
+  if (!Number.isFinite(originDistance) || originDistance < 0 ||
+      !Number.isFinite(destinationDistance) || destinationDistance < 0) {
+    throw new Error("Quest journey halfway check requires route distances");
+  }
+  return destinationDistance < originDistance;
+}
+
+export function createDecisionBackedQuestJourneyDialogueSubject({
+  id,
+  originTileId,
+  destinationTileId,
+  character,
+  journeyEvents,
+  decisions,
+  decisionKeyPrefix
+}) {
+  if (typeof id !== "string" || id === "" ||
+      !Number.isInteger(originTileId) || !Number.isInteger(destinationTileId) ||
+      !character?.id || !Array.isArray(journeyEvents) || journeyEvents.length === 0 ||
+      !decisions || typeof decisions !== "object" || Array.isArray(decisions) ||
+      typeof decisionKeyPrefix !== "string" || decisionKeyPrefix === "") {
+    throw new Error("Decision-backed quest journey dialogue is incomplete");
+  }
+  const decisionKey = (eventId) => `${decisionKeyPrefix}.${eventId}`;
+  const subject = {
+    id,
+    originTileId,
+    destinationTileId,
+    passenger: character,
+    dialogue: Object.freeze({ journeyEvents: Object.freeze([...journeyEvents]) }),
+    journeyDialogueSeenIds: journeyEvents
+      .filter((event) => decisions[decisionKey(event.id)] === true)
+      .map((event) => event.id)
+  };
+  subject.markJourneyDialogueSeen = (eventId) => {
+    decisions[decisionKey(eventId)] = true;
+    if (!subject.journeyDialogueSeenIds.includes(eventId)) {
+      subject.journeyDialogueSeenIds.push(eventId);
+    }
+  };
+  return subject;
+}
+
 export function pendingQuestJourneyDialogue(quest, context = {}) {
   const events = quest?.dialogue?.journeyEvents;
   if (events === undefined) return null;
@@ -23,7 +67,7 @@ export function pendingQuestJourneyDialogue(quest, context = {}) {
     throw new Error(`Quest journey dialogue requires route distances: ${quest.id}`);
   }
   if (event.trigger === QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER) {
-    return destinationDistance < originDistance ? event : null;
+    return questJourneyHalfwayReached({ originDistance, destinationDistance }) ? event : null;
   }
   const originFraction = event.minimumOriginFraction ?? DEFAULT_MINIMUM_LEG_FRACTION;
   const destinationFraction = event.minimumDestinationFraction ?? DEFAULT_MINIMUM_LEG_FRACTION;
@@ -39,6 +83,10 @@ export function markQuestJourneyDialogueSeen(quest, eventId) {
     ? events.find((candidate) => candidate.id === eventId)
     : null;
   if (!event) throw new Error(`Cannot mark unknown quest journey dialogue: ${eventId}`);
+  if (typeof quest.markJourneyDialogueSeen === "function") {
+    quest.markJourneyDialogueSeen(eventId);
+    return quest;
+  }
   const seenIds = new Set(quest.journeyDialogueSeenIds || []);
   seenIds.add(eventId);
   quest.journeyDialogueSeenIds = [...seenIds];

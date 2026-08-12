@@ -21,8 +21,12 @@ import {
   EAST_ASIAN_MISSION_RYUKYU,
   EAST_ASIAN_MISSION_TSUSHIMA,
   EAST_ASIAN_MISSION_YOSHIHARU,
+  GREAT_RITES_JOURNEY_EVENT_ID,
   NINGBO_BRIBE_JOURNEY_EVENT_ID,
+  PORTUGUESE_GUNS_JOURNEY_EVENT_ID,
   TSUSHIMA_EVIDENCE_BRIEFING_TEXT,
+  YOSHIHARU_JOURNEY_EVENT_ID,
+  eastAsianMissionDialogue,
   eastAsianMissionOutcomeOptions
 } from "./eastAsianQuestlines.js";
 import {
@@ -385,6 +389,22 @@ test("the remaining commissions appear at their historical courts", () => {
     assert.equal(quest.eastAsianMissionId, missionId);
     assert.equal(quest.destinationName, destinationName);
     assert.match(quest.dialogue.offer, /carry/i);
+  }
+});
+
+test("the strongest East Asian commissions move their political context into the voyage", () => {
+  const cases = [
+    [EAST_ASIAN_MISSION_PORTUGUESE_GUNS, PORTUGUESE_GUNS_JOURNEY_EVENT_ID, /copied and drilled/i],
+    [EAST_ASIAN_MISSION_GREAT_RITES, GREAT_RITES_JOURNEY_EVENT_ID, /dead father/i],
+    [EAST_ASIAN_MISSION_YOSHIHARU, YOSHIHARU_JOURNEY_EVENT_ID, /authority remains/i]
+  ];
+  for (const [id, eventId, expectedText] of cases) {
+    const dialogue = eastAsianMissionDialogue({ id });
+    assert.equal(dialogue.journeyEvents.length, 1);
+    assert.equal(dialogue.journeyEvents[0].id, eventId);
+    assert.equal(dialogue.journeyEvents[0].trigger, "destination-closer");
+    assert.match(dialogue.journeyEvents[0].text, expectedText);
+    assert.ok(dialogue.underway.length < dialogue.journeyEvents[0].text.length);
   }
 });
 
