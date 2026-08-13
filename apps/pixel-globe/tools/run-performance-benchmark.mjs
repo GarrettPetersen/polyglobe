@@ -21,21 +21,9 @@ const errors = [];
 
 try {
   await waitForServer(baseUrl, server);
-  const context = await playwright.chromium.launchPersistentContext(args.profileDir, {
-    headless: args.headless,
-    executablePath: browserExecutablePath(),
-    ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
-    viewport: { width: 480, height: 270 },
-    deviceScaleFactor: 1,
-    args: [
-      "--disable-background-timer-throttling",
-      "--disable-backgrounding-occluded-windows",
-      "--disable-renderer-backgrounding",
-      "--mute-audio"
-    ]
-  });
+  const runtime = await launchBenchmarkRuntime(playwright, args);
+  const { context, page } = runtime;
   try {
-    const page = context.pages()[0] || await context.newPage();
     let cdp = null;
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
@@ -85,6 +73,7 @@ try {
       pageReadyMs: Math.round(readyMs),
       cpuThrottle: args.cpuThrottle,
       headless: args.headless,
+      runtime: args.electron ? "electron" : "browser",
       url
     };
     await mkdir(path.dirname(args.output), { recursive: true });
@@ -95,7 +84,7 @@ try {
       throw new Error(`Benchmark FPS ${report.framesPerSecond} is below required ${args.minFps}`);
     }
   } finally {
-    await context.close();
+    await runtime.close();
   }
 } finally {
   if (server) server.kill("SIGTERM");
@@ -160,10 +149,44 @@ function printReport(report, output) {
         `${report.scene.chartVisualRepairs.swellTilesSettled} tiles, ` +
         `burden ${report.scene.chartVisualRepairs.burdenScore}`,
       `  Ready in: ${report.pageReadyMs} ms; CPU throttle: ${report.cpuThrottle}x; ` +
-        `browser: ${report.headless ? "headless" : "headed"}`,
+        `runtime: ${report.runtime}; browser: ${report.headless ? "headless" : "headed"}`,
       `  Report: ${output}`
     ].join("\n") + "\n"
   );
+}
+
+async function launchBenchmarkRuntime(loadedPlaywright, options) {
+  if (options.electron) {
+    if (options.headless) throw new Error("Electron performance benchmarks must run headed");
+    const electronApp = await loadedPlaywright._electron.launch({
+      executablePath: electronExecutablePath(),
+      args: [path.join(APP_ROOT, "tools/electron-benchmark-host.cjs")]
+    });
+    const page = await electronApp.firstWindow();
+    return {
+      context: page.context(),
+      page,
+      close: () => electronApp.close()
+    };
+  }
+  const context = await loadedPlaywright.chromium.launchPersistentContext(options.profileDir, {
+    headless: options.headless,
+    executablePath: browserExecutablePath(),
+    ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
+    viewport: { width: 480, height: 270 },
+    deviceScaleFactor: 1,
+    args: [
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+      "--mute-audio"
+    ]
+  });
+  return {
+    context,
+    page: context.pages()[0] || await context.newPage(),
+    close: () => context.close()
+  };
 }
 
 function startBenchmarkServer(port) {
@@ -223,6 +246,18 @@ function browserExecutablePath() {
   return executable;
 }
 
+function electronExecutablePath() {
+  const candidates = [
+    process.env.PIXEL_GLOBE_ELECTRON,
+    path.join(APP_ROOT, "steam-host/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"),
+    path.join(APP_ROOT, "steam-host/node_modules/electron/dist/electron.exe"),
+    path.join(APP_ROOT, "steam-host/node_modules/electron/dist/electron")
+  ].filter(Boolean);
+  const executable = candidates.find(existsSync);
+  if (!executable) throw new Error("No Electron executable is available for desktop performance benchmarking");
+  return executable;
+}
+
 function parseArgs(argv) {
   const parsed = {
     benchmark: "busy-world",
@@ -233,6 +268,7 @@ function parseArgs(argv) {
     cpuThrottle: 1,
     cpuProfile: null,
     headless: false,
+    electron: false,
     minFps: null,
     timeoutMs: 120_000,
     profileDir: path.join(APP_ROOT, "build/performance/browser-profile"),
@@ -248,6 +284,7 @@ function parseArgs(argv) {
     else if (arg === "--cpu-throttle") parsed.cpuThrottle = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--cpu-profile") parsed.cpuProfile = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));
     else if (arg === "--headless") parsed.headless = true;
+    else if (arg === "--electron") parsed.electron = true;
     else if (arg === "--min-fps") parsed.minFps = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--timeout-ms") parsed.timeoutMs = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--profile") parsed.profileDir = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));

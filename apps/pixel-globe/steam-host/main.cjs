@@ -5,6 +5,7 @@ const steamworks = require("steamworks.js");
 const { startStaticServer } = require("./staticServer.cjs");
 const { createSteamNativeApi } = require("./steamNativeApi.cjs");
 const { createSteamInputService } = require("./steamInput.cjs");
+const { createSteamInputPump } = require("./steamInputPump.cjs");
 const { updateHighWaterStats } = require("./steamStats.cjs");
 const {
   resolveDesktopConfig,
@@ -23,7 +24,7 @@ steamworks.electronEnableSteamOverlay();
 let client = null;
 let nativeApi = null;
 let steamInput = null;
-let steamInputTimer = null;
+let steamInputPump = null;
 let staticServer = null;
 
 app.whenReady().then(async () => {
@@ -54,7 +55,7 @@ app.on("before-quit", () => {
   } catch (error) {
     console.error("[steam] Steam Input shutdown failed", error);
   }
-  if (steamInputTimer) clearInterval(steamInputTimer);
+  steamInputPump?.stop();
   if (staticServer) void staticServer.close().catch((error) => console.error("[steam] server shutdown failed", error));
 });
 
@@ -85,9 +86,13 @@ async function createGameWindow(url) {
   window.on("minimize", () => sendPauseRequest(window, "minimized"));
   window.once("ready-to-show", () => window.show());
   await window.loadURL(url);
-  steamInputTimer = setInterval(() => {
-    if (!window.isDestroyed()) window.webContents.send("steam:input-frame", steamInput.snapshot());
-  }, 16);
+  steamInputPump = createSteamInputPump({
+    snapshot: () => steamInput.snapshot(),
+    publish: (frame) => {
+      if (!window.isDestroyed()) window.webContents.send("steam:input-frame", frame);
+    }
+  });
+  steamInputPump.start();
 }
 
 function installIpcHandlers() {
@@ -101,7 +106,11 @@ function installIpcHandlers() {
   ipcMain.handle("steam:set-timeline-state", (_event, state) => nativeApi.setTimelineState(state));
   ipcMain.handle("steam:add-timeline-event", (_event, event) => nativeApi.addTimelineEvent(event));
   ipcMain.handle("steam:trigger-screenshot", () => nativeApi.triggerScreenshot());
-  ipcMain.handle("steam:set-input-action-set", (_event, name) => steamInput.setActionSet(name));
+  ipcMain.handle("steam:set-input-action-set", (_event, name) => {
+    const changed = steamInput.setActionSet(name);
+    steamInputPump?.requestPoll();
+    return changed;
+  });
   ipcMain.handle("steam:toggle-fullscreen", (event) => toggleSenderFullscreen(event.sender));
   ipcMain.handle("steam:quit", () => app.quit());
 }

@@ -11,7 +11,7 @@
         },
         "macos": {
           "executable": "Marque & Reprisal.app",
-          "architecture": "x64",
+          "architecture": "universal",
           "requiresNotarization": true
         },
         "linux": {
@@ -30,7 +30,7 @@
         },
         "macos": {
           "executable": "Marque & Reprisal Demo.app",
-          "architecture": "x64",
+          "architecture": "universal",
           "requiresNotarization": true
         },
         "linux": {

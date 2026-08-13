@@ -6,7 +6,7 @@
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.cjs && node --check desktopConfig.cjs && node --check preload.cjs && node --check steamNativeApi.cjs && node --check steamStats.cjs && node --check staticServer.cjs && node ../tools/run-node-tests.mjs --discover=.",
+    "check": "node --check main.cjs && node --check desktopConfig.cjs && node --check preload.cjs && node --check steamInputPump.cjs && node --check steamNativeApi.cjs && node --check steamStats.cjs && node --check staticServer.cjs && node ../tools/run-node-tests.mjs --discover=.",
     "package": "node package-desktop.mjs"
   },
   "dependencies": {

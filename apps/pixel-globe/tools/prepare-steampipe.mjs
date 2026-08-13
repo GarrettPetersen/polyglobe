@@ -21,7 +21,7 @@ const editions = Object.freeze(Object.entries(applicationSettings.editions).map(
     ...configured,
     id,
     windowsDirectory: `${configured.productName}-win32-x64`,
-    macDirectory: `${configured.productName}-darwin-x64`,
+    macDirectory: `${configured.productName}-darwin-universal`,
     linuxDirectory: `${configured.productName}-linux-x64`
   })
 ));
@@ -32,7 +32,7 @@ const summaries = [];
 for (const edition of editions) {
   const contentRoot = join(steamBuildRoot, edition.id);
   const windowsRoot = join(contentRoot, "win32-x64", edition.windowsDirectory);
-  const macRoot = join(contentRoot, "darwin-x64", edition.macDirectory);
+  const macRoot = join(contentRoot, "darwin-universal", edition.macDirectory);
   const linuxRoot = join(contentRoot, "linux-x64", edition.linuxDirectory);
   const configuredEdition = depotConfig[edition.id];
   assertEditionConfig(configuredEdition, edition);

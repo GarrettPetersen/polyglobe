@@ -101,6 +101,9 @@ async function packageEdition(edition) {
       name: productName,
       out: targetRoot,
       overwrite: true,
+      osxUniversal: args.arch === "universal"
+        ? { x64ArchFiles: "Contents/Resources/app/node_modules/**/*.node" }
+        : undefined,
       platform: args.platform,
       prune: sourceRoot === hostRoot,
       quiet: false,
@@ -188,8 +191,12 @@ async function verifyPackage(packagePath, expected) {
   }
   await access(join(resourcesRoot, "steam-input/game_actions.vdf"));
   await access(join(resourcesRoot, "app/package.json"));
-  await access(join(resourcesRoot, "app/node_modules", targetKoffiBinary()));
-  await access(join(resourcesRoot, "app/node_modules/steamworks.js", targetSteamworksBinary()));
+  for (const binary of targetKoffiBinaries()) {
+    await access(join(resourcesRoot, "app/node_modules", binary));
+  }
+  for (const binary of targetSteamworksBinaries()) {
+    await access(join(resourcesRoot, "app/node_modules/steamworks.js", binary));
+  }
   if (args.platform === "darwin") {
     const [expectedIcon, packagedIcon] = await Promise.all([
       readFile(platformIcon("darwin")),
@@ -227,43 +234,68 @@ async function prepareHostSource(temporaryRoot) {
       !path.startsWith(`${join(hostRoot, "node_modules")}/`),
     recursive: true
   });
+  const dependencyArch = args.arch === "universal" ? "x64" : args.arch;
   console.log(`Installing production dependencies for ${args.platform} ${args.arch}...`);
   await run(
     "npm",
-    ["ci", "--ignore-scripts", "--omit=dev", `--os=${args.platform}`, `--cpu=${args.arch}`],
+    ["ci", "--ignore-scripts", "--omit=dev", `--os=${args.platform}`, `--cpu=${dependencyArch}`],
     {
       cwd: sourceRoot,
       env: {
         ...process.env,
-        npm_config_arch: args.arch,
-        npm_config_cpu: args.arch,
+        npm_config_arch: dependencyArch,
+        npm_config_cpu: dependencyArch,
         npm_config_os: args.platform,
         npm_config_platform: args.platform
       },
       maxBuffer: 32 * 1024 * 1024
     }
   );
+  if (args.arch === "universal") {
+    await run(
+      "npm",
+      [
+        "install",
+        "--force",
+        "--ignore-scripts",
+        "--omit=dev",
+        "--no-save",
+        "--package-lock=false",
+        "@koromix/koffi-darwin-arm64@3.1.2",
+        "@koromix/koffi-darwin-x64@3.1.2"
+      ],
+      { cwd: sourceRoot, maxBuffer: 32 * 1024 * 1024 }
+    );
+  }
   return sourceRoot;
 }
 
-function targetKoffiBinary() {
+function targetKoffiBinaries() {
+  if (args.arch === "universal") {
+    return ["x64", "arm64"].map(
+      (arch) => `@koromix/koffi-darwin-${arch}/darwin_${arch}/koffi.node`
+    );
+  }
   if (args.platform === "darwin") {
-    return `@koromix/koffi-darwin-${args.arch}/darwin_${args.arch}/koffi.node`;
+    return [`@koromix/koffi-darwin-${args.arch}/darwin_${args.arch}/koffi.node`];
   }
   if (args.platform === "win32") {
-    return `@koromix/koffi-win32-${args.arch}/win32_${args.arch}/koffi.node`;
+    return [`@koromix/koffi-win32-${args.arch}/win32_${args.arch}/koffi.node`];
   }
-  return `@koromix/koffi-linux-${args.arch}/linux_${args.arch}/koffi.node`;
+  return [`@koromix/koffi-linux-${args.arch}/linux_${args.arch}/koffi.node`];
 }
 
-function targetSteamworksBinary() {
+function targetSteamworksBinaries() {
+  if (args.arch === "universal") {
+    return ["x64", "arm64"].map((arch) => `dist/osx/steamworksjs.darwin-${arch}.node`);
+  }
   if (args.platform === "darwin") {
-    return `dist/osx/steamworksjs.darwin-${args.arch}.node`;
+    return [`dist/osx/steamworksjs.darwin-${args.arch}.node`];
   }
   if (args.platform === "win32") {
-    return "dist/win64/steamworksjs.win32-x64-msvc.node";
+    return ["dist/win64/steamworksjs.win32-x64-msvc.node"];
   }
-  return "dist/linux64/steamworksjs.linux-x64-gnu.node";
+  return ["dist/linux64/steamworksjs.linux-x64-gnu.node"];
 }
 
 function parseArgs(values) {
@@ -293,11 +325,14 @@ function parseArgs(values) {
   if (!["darwin", "win32", "linux"].includes(parsed.platform)) {
     throw new Error(`Invalid Electron platform: ${parsed.platform}`);
   }
-  if (!["x64", "arm64"].includes(parsed.arch)) {
+  if (!["x64", "arm64", "universal"].includes(parsed.arch)) {
     throw new Error(`Invalid Electron architecture: ${parsed.arch}`);
   }
   if (parsed.platform !== "darwin" && parsed.arch !== "x64") {
     throw new Error(`Steamworks.js only ships ${parsed.platform} x64 binaries`);
+  }
+  if (parsed.arch === "universal" && parsed.platform !== "darwin") {
+    throw new Error("Universal Electron packages are only supported on macOS");
   }
   if (parsed.sign && parsed.platform !== "darwin") {
     throw new Error("The --sign and --notarize options are only valid for macOS packages");

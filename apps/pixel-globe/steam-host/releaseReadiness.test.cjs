@@ -20,7 +20,8 @@ test("every advertised desktop platform has complete minimum requirements", () =
     }
   }
   assert.match(requirements.minimum.linux.os, /SteamOS/);
-  assert.match(requirements.minimum.macos.processor, /Rosetta 2/);
+  assert.doesNotMatch(requirements.minimum.macos.processor, /Rosetta/);
+  assert.match(requirements.minimum.macos.processor, /Apple M1/);
 });
 
 test("Steam launch options match the packaged desktop names", () => {
@@ -43,7 +44,7 @@ test("Steam launch options match the packaged desktop names", () => {
       },
       macos: {
         executable: `${expected.productName}.app`,
-        architecture: "x64",
+        architecture: "universal",
         requiresNotarization: true
       },
       linux: {

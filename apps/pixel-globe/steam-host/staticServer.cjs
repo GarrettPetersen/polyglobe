@@ -28,7 +28,7 @@ async function startStaticServer(root) {
       if (!fileStat.isFile()) throw new Error(`Static request is not a file: ${relativePath}`);
       const bytes = await readFile(filePath);
       response.writeHead(200, {
-        "Cache-Control": "no-store",
+        "Cache-Control": "public, max-age=31536000, immutable",
         "Content-Length": bytes.byteLength,
         "Content-Type": CONTENT_TYPES[extname(filePath).toLowerCase()] || "application/octet-stream"
       });
