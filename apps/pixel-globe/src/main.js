@@ -30494,9 +30494,13 @@ function maybeOpenCastawayQuest(shoreCall) {
 }
 
 function rescuedTravelerHomePort(identityKey) {
+  if (!npcSeaRoutes) throw new Error("Rescued traveler home selection requires NPC sea routes");
+  const routeRegionByTileId = new Map(
+    npcSeaRoutes.ports.map((port) => [port.tileId, port.routeRegion])
+  );
   const candidates = playerAccessiblePortCities()
     .filter((city) => city.factionId !== PIRATE_FACTION_ID)
-    .filter((city) => city.cityType === "northern-european" || city.cityType === "mediterranean")
+    .filter((city) => routeRegionByTileId.get(city.tileId) === "europe")
     .map((city) => ({
       city,
       distanceKm: EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(city.tileId)),
@@ -30533,6 +30537,24 @@ function activeRescuedTravelers() {
     activePirateCaptiveQuest(gameState),
     activeCastawayQuest(gameState)
   ].filter(Boolean);
+}
+
+function activeRescuedTravelerDestinations() {
+  const destinations = [];
+  for (const traveler of activeRescuedTravelers()) {
+    if (traveler.stage !== RESCUED_TRAVELER_STAGE_ABOARD) continue;
+    if (traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
+        !pirateCaptiveIsAboard(traveler)) continue;
+    const objective = traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+      ? pirateCaptiveDestination(traveler)
+      : { tileId: traveler.homePortTileId, name: traveler.homePortName, kind: "home" };
+    const destination = cityByTileId.get(objective.tileId) || portCitiesByTileId.get(objective.tileId);
+    if (!destination) {
+      throw new Error(`Rescued traveler destination is missing: ${objective.tileId}`);
+    }
+    destinations.push({ traveler, objective, destination });
+  }
+  return destinations;
 }
 
 function rescuedTravelerMemoryForType(rescueType) {
@@ -33316,6 +33338,7 @@ function render(nowMs) {
   }
   beginWaypointArrowFrame();
   drawQuestDestinationArrow(nowMs);
+  drawRescuedTravelerDestinationArrows(nowMs);
   drawFetchQuestDestinationArrows(nowMs);
   drawColonizationDestinationArrow(nowMs);
   drawCampaignGoalDestinationArrow(nowMs);
@@ -36221,20 +36244,13 @@ function questJournalEntries() {
     });
   }
 
-  for (const traveler of activeRescuedTravelers().filter((quest) => (
-    quest.stage === RESCUED_TRAVELER_STAGE_ABOARD
-  ))) {
-    const destination = traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
-      ? pirateCaptiveDestination(traveler)
-      : { tileId: traveler.homePortTileId, name: traveler.homePortName, kind: "home" };
-    if (traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
-        !pirateCaptiveIsAboard(traveler)) continue;
+  for (const { traveler, objective } of activeRescuedTravelerDestinations()) {
     entries.push({
       id: `rescued-traveler:${traveler.id}`,
       title: rescuedTravelerLabel(traveler),
-      nextStep: destination.kind === "authority"
-        ? `DELIVER THE CAPTIVE TO ${destination.name.toUpperCase()}`
-        : `SAIL TO ${destination.name.toUpperCase()}`,
+      nextStep: objective.kind === "authority"
+        ? `DELIVER THE CAPTIVE TO ${objective.name.toUpperCase()}`
+        : `SAIL TO ${objective.name.toUpperCase()}`,
       style: QUEST_NAVIGATION_STYLE
     });
   }
@@ -36768,19 +36784,7 @@ function navigationMenuEntries() {
     });
   }
 
-  for (const traveler of activeRescuedTravelers().filter((quest) => (
-    quest.stage === RESCUED_TRAVELER_STAGE_ABOARD
-  ))) {
-    const objective = traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
-      ? pirateCaptiveDestination(traveler)
-      : { tileId: traveler.homePortTileId, name: traveler.homePortName, kind: "home" };
-    if (traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
-        !pirateCaptiveIsAboard(traveler)) continue;
-    const destination = cityByTileId.get(objective.tileId) ||
-      portCities.find((city) => city.tileId === objective.tileId);
-    if (!destination) {
-      throw new Error(`Rescued traveler destination is missing: ${objective.tileId}`);
-    }
+  for (const { traveler, objective, destination } of activeRescuedTravelerDestinations()) {
     entries.push({
       id: `rescued-traveler:${traveler.id}`,
       destinationName: objective.name,
@@ -39001,12 +39005,10 @@ function drawAboardCharacterDetail(roster, panel) {
     ["NATIONALITY", characterNationalityLabel(character)],
     [uiText("intro.homePort"), entry.homePortName],
     ["SEX", character.sex === "female" ? "FEMALE" : "MALE"],
-    ["BORN", compact
-      ? `${characterBirthdayLabel(character)} ${character.birthDate.year}`
-      : character.birthDateLabel],
+    ...(!compact ? [["BORN", character.birthDateLabel]] : []),
     ["AGE", String(age)]
   ];
-  const rowStep = 16;
+  const rowStep = compact ? 13 : 16;
   detailRows.forEach(([label, value, iconId], index) => {
     const y = contentY + index * rowStep;
     drawOptionsText(label, detailsX, y, { color: PIRATE_MENU_INK_MUTED });
@@ -48153,6 +48155,23 @@ function drawQuestDestinationArrow(nowMs) {
       label: cityLabelText(destination),
       targetVector: destinationVector,
       localPoint: visibleCity || localPointForGlobeVector(destinationVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
+}
+
+function drawRescuedTravelerDestinationArrows(nowMs) {
+  if (!ship || !chart || !localLayout) return;
+  for (const { traveler, objective, destination } of activeRescuedTravelerDestinations()) {
+    const targetVector = placedCityTargetVector(destination);
+    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    drawWorldTargetArrow({
+      id: `rescued-traveler:${traveler.id}`,
+      label: objective.name,
+      targetVector,
+      localPoint: visibleCity || localPointForGlobeVector(targetVector),
       localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
       nowMs,
       style: QUEST_NAVIGATION_STYLE

@@ -43,6 +43,19 @@ test("religion follows the home city rather than merely the ruling faction", () 
   );
 });
 
+test("Catholic settler colonies retain their founding faith", () => {
+  assert.deepEqual(
+    religionCandidatesForHome({
+      city: "St. Augustine",
+      country: "United States of America",
+      cityType: "mediterranean",
+      factionId: "spain",
+      colonialFoundingType: "settler-colony"
+    }).map(({ id }) => id),
+    ["roman-catholic"]
+  );
+});
+
 test("distinctive 1522 religious contexts remain explicit", () => {
   const cases = [
     [{ city: "Rome", country: "Italy", cityType: "mediterranean", factionId: "papal-states" }, "roman-catholic"],

@@ -819,6 +819,7 @@ function colonizationWorldRecordUnchecked(memory) {
     portId: colonizationTargetPortId(target),
     factionId: upgraded || target.preexistingSettlement ? target.factionId : "neutral",
     foundingFactionId: target.factionId,
+    colonialFoundingType: target.type,
     colonizationQuestSite: true,
     colonizationQuestStage: memory.stage,
     hiddenSettlement: outbound,
