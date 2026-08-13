@@ -6,6 +6,7 @@ import {
   contactPushOffVelocity,
   oarPivotTurnRate,
   shipDirectionMakesForwardProgress,
+  shipPreferredTravelDirection,
   shipTurnRate,
   steerShipMomentumThroughTurn,
   updateBoundaryContactLatch
@@ -113,6 +114,54 @@ test("a moving ship bends its momentum through a turn without hitting an invisib
   assert.ok(velocityTurn > 0);
   assert.ok(velocityTurn < turn);
   assert.ok(Math.abs(velocityTurn - turn * SHIP_TURN_MOMENTUM_FOLLOW_RATIO) < 1e-12);
+});
+
+test("a sharp requested turn redirects momentum continuously across many frames", () => {
+  const frameTurn = 2 * Math.PI / 180;
+  let heading = [1, 0, 0];
+  let velocity = [0.01, 0, 0];
+  let previousVelocityDirection = 0;
+
+  for (let frame = 1; frame <= 60; frame++) {
+    const nextHeadingAngle = frame * frameTurn;
+    const nextHeading = [Math.cos(nextHeadingAngle), Math.sin(nextHeadingAngle), 0];
+    velocity = steerShipMomentumThroughTurn({
+      velocity,
+      previousHeading: heading,
+      nextHeading,
+      surfaceNormal: [0, 0, 1]
+    });
+    const velocityDirection = Math.atan2(velocity[1], velocity[0]);
+
+    assert.ok(velocityDirection > previousVelocityDirection);
+    assert.ok(velocityDirection - previousVelocityDirection < frameTurn);
+    assert.ok(Math.abs(Math.hypot(...velocity) - 0.01) < 1e-12);
+    previousVelocityDirection = velocityDirection;
+    heading = nextHeading;
+  }
+
+  assert.ok(previousVelocityDirection > Math.PI / 2);
+  assert.ok(previousVelocityDirection < 120 * Math.PI / 180);
+});
+
+test("collision recovery follows the hull during a turn instead of snapping to the final input", () => {
+  const heading = [Math.cos(Math.PI / 90), Math.sin(Math.PI / 90), 0];
+  const oppositeInput = [-1, 0, 0];
+
+  assert.deepEqual(shipPreferredTravelDirection({
+    heading,
+    movementHeading: oppositeInput
+  }), heading);
+  assert.deepEqual(shipPreferredTravelDirection({
+    heading,
+    movementHeading: oppositeInput,
+    rowingDirection: -1
+  }), heading.map((component) => -component));
+  assert.deepEqual(shipPreferredTravelDirection({
+    heading,
+    movementHeading: oppositeInput,
+    hauling: true
+  }), oppositeInput);
 });
 
 test("an oar pivot can rotate the hull without manufacturing momentum", () => {

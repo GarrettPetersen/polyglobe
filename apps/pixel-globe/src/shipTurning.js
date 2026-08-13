@@ -85,6 +85,27 @@ export function steerShipMomentumThroughTurn({
   return tangent.map((component) => component * speedScale);
 }
 
+export function shipPreferredTravelDirection({
+  heading,
+  movementHeading = null,
+  rowingDirection = 1,
+  hauling = false
+}) {
+  assertUnitVector3("Ship heading", heading);
+  if (movementHeading !== null) assertUnitVector3("Ship movement heading", movementHeading);
+  if (rowingDirection !== -1 && rowingDirection !== 0 && rowingDirection !== 1) {
+    throw new Error("Ship rowing direction must be -1, 0, or 1");
+  }
+  if (typeof hauling !== "boolean") throw new Error("Ship hauling state must be boolean");
+  if (hauling) {
+    if (!movementHeading) throw new Error("A hauling ship requires a movement heading");
+    return movementHeading.slice();
+  }
+  return rowingDirection < 0
+    ? heading.map((component) => -component)
+    : heading.slice();
+}
+
 export function updateBoundaryContactLatch({
   latchedContact,
   probedContact,

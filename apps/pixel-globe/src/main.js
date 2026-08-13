@@ -917,6 +917,7 @@ import {
   contactPushOffVelocity,
   oarPivotTurnRate,
   shipDirectionMakesForwardProgress,
+  shipPreferredTravelDirection,
   shipTurnRate,
   steerShipMomentumThroughTurn,
   updateBoundaryContactLatch
@@ -23780,7 +23781,13 @@ function updateSailing(dt) {
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
   applyShipHaulAcceleration(dt, inputHeading, haulMotionScale);
   const previousPosition = ship.position;
-  const moveResult = moveShipWithCollision(dt, inputHeading);
+  const preferredTravelHeading = shipPreferredTravelDirection({
+    heading: ship.heading,
+    movementHeading: inputHeading,
+    rowingDirection: shipRowingModeThrustDirection(ship.rowingMode),
+    hauling: haulMotionScale > 0 && Boolean(inputHeading)
+  });
+  const moveResult = moveShipWithCollision(dt, inputHeading, preferredTravelHeading);
   if (moveResult.demoBoundary) handleDemoGibraltarBoundary();
   const movedPx = vectorLength([
     ship.position[0] - previousPosition[0],
@@ -24595,27 +24602,11 @@ function limitShipSpeed(maxSpeed) {
   ship.velocity = scaleVector(ship.velocity, maxSpeed / speed);
 }
 
-function moveShipWithCollision(dt, inputHeading) {
+function moveShipWithCollision(dt, inputHeading, preferredTravelHeading = ship.heading) {
   const preferredDirection = normalizeOrNull(projectTangentVector(
-    inputHeading || ship.heading,
+    preferredTravelHeading,
     ship.position
   ));
-  const travelDirection = normalizeOrNull(projectTangentVector(ship.velocity, ship.position));
-  if (
-    inputHeading &&
-    preferredDirection &&
-    travelDirection &&
-    !tileHasOffshoreHullClearance(ship.tileId) &&
-    !shipDirectionMakesForwardProgress({
-      direction: travelDirection,
-      desiredDirection: preferredDirection
-    })
-  ) {
-    ship.velocity = scaleVector(
-      preferredDirection,
-      Math.max(vectorLength(ship.velocity), SHIP_MIN_SLIDE_SPEED_RAD)
-    );
-  }
   const step = scaleVector(ship.velocity, dt);
   if (vectorLength(step) < 1e-8) return { moved: false, collided: false, normal: null };
 
