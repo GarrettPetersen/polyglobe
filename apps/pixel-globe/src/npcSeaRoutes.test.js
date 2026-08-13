@@ -527,7 +527,7 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
 });
 
-test("every NPC ship originating in a Japanese city uses the complete local roster", () => {
+test("Japanese NPC ships use the complete local roster without joining interregional fleets", () => {
   const ports = [
     ...PORTS,
     port(40, "Kyoto", "Japan", "east-asian", 35.01, 135.77, 100000, "japan"),
@@ -543,6 +543,7 @@ test("every NPC ship originating in a Japanese city uses the complete local rost
     const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy, seedKey });
     for (const ship of routes.ships) {
       if (ship.plan?.origin?.factionId !== "japan") continue;
+      assert.equal(ship.mode, "regional", `${ship.id} joined ${ship.profileId}`);
       japaneseOrigins++;
       seenHulls.add(ship.slug);
       assert.ok(
@@ -554,6 +555,48 @@ test("every NPC ship originating in a Japanese city uses the complete local rost
 
   assert.ok(japaneseOrigins > 0);
   assert.deepEqual([...seenHulls].sort(), [...JAPANESE_SHIP_SLUGS].sort());
+});
+
+test("saved Japanese coastal ships overextended toward Gibraltar return to East Asian waters", () => {
+  const ports = [
+    ...PORTS,
+    port(40, "Kyoto", "Japan", "east-asian", 35.01, 135.77, 100000, "japan"),
+    port(41, "Nagasaki", "Japan", "east-asian", 32.75, 129.88, 30000, "japan"),
+    port(42, "Sakai", "Japan", "east-asian", 34.58, 135.47, 50000, "japan")
+  ];
+  const economy = createWorldEconomy({ ports, startMinute: 0, seedKey: "overextended-umi-bune" });
+  const routes = createNpcSeaRouteSystem({
+    ports,
+    startMinute: 0,
+    economy,
+    seedKey: "overextended-umi-bune"
+  });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships.find((ship) => ship.slug === "japanese-kuribune");
+  assert.ok(saved);
+  const lisbon = routes.ports.find((entry) => entry.city === "Lisbon");
+  const seville = routes.ports.find((entry) => entry.city === "Seville");
+  assert.ok(lisbon && seville);
+  saved.profileId = "wide-world";
+  saved.mode = "interregional";
+  saved.currentPort = { ...lisbon };
+  saved.finalDestination = null;
+  saved.plan = {
+    origin: { ...lisbon },
+    destination: { ...seville },
+    segments: [{ kind: "sail", from: { ...lisbon }, to: { ...seville }, startMinute: 0, endMinute: 60 }],
+    startMinute: 0,
+    endMinute: 60
+  };
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy, seedKey: "overextended-umi-bune" });
+
+  const restored = routes.shipById.get(saved.id);
+  assert.equal(restored.profileId, "east-asia");
+  assert.equal(restored.mode, "regional");
+  assert.ok(JAPANESE_SHIP_SLUGS.includes(restored.slug));
+  assert.ok(restored.currentPort.lon > 120);
+  assert.ok(restored.plan.destination.lon > 100);
 });
 
 test("a sparse dedicated whaling fleet hunts real whales without fishing nets", () => {

@@ -173,6 +173,24 @@ export const PIRATE_SHIP_SLUGS = Object.freeze([
   "pirate-brig",
   "galleon"
 ]);
+const INTERREGIONAL_PIRATE_SHIP_SLUGS = Object.freeze([
+  "brigantine",
+  "pirate-brig",
+  "galleon"
+]);
+const INTERREGIONAL_NPC_SHIP_SLUGS = new Set([
+  "ocean-dhow",
+  "caravel",
+  "square-rigged-caravel",
+  "brigantine",
+  "pirate-brig",
+  "carrack",
+  "fluyt",
+  "galleon",
+  "ship-of-the-line",
+  "spanish-nao",
+  "portuguese-carrack"
+]);
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_HYEOPSEON_SLUG = "joseon-hyeopseon";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
@@ -400,14 +418,14 @@ const FLEET_PROFILES = Object.freeze([
     warships: ["square-rigged-caravel", "caravel", "brigantine", "pirate-brig", "galleon"]
   }, isAtlanticPort, "regional"),
   profile("cape-trade", 44, {
-    fishers: ["fishing-lugger", "cutter", "dhow"],
+    fishers: ["ocean-dhow", "caravel", "brigantine"],
     merchants: [
-      "small-cog", "ocean-dhow", "caravel", "caravel", "brigantine", "carrack", "fluyt", "galleon"
+      "ocean-dhow", "caravel", "caravel", "brigantine", "carrack", "fluyt", "galleon"
     ],
     warships: ["caravel", "brigantine", "pirate-brig", "galleon", "ship-of-the-line"]
   }, isLongRangePort, "interregional"),
   profile("wide-world", 24, {
-    fishers: ["fishing-lugger", "cutter", "dhow"],
+    fishers: ["ocean-dhow", "caravel", "brigantine"],
     merchants: ["caravel", "caravel", "brigantine", "carrack", "fluyt", "galleon"],
     warships: ["brigantine", "pirate-brig", "galleon", "ship-of-the-line"]
   }, isWideWorldPort, "interregional")
@@ -902,6 +920,14 @@ export function restoreNpcSeaRouteSystem(
   system.routeCache.clear();
   system.edgeCostCache.clear();
   canonicalizeSavedNpcRoutePorts(system, ships);
+  const repairedOverextendedShips = repairOverextendedNpcShips(
+    system,
+    ships,
+    replacementQueue
+  );
+  if (repairedOverextendedShips > 0) {
+    console.info(`Repaired ${repairedOverextendedShips} overextended NPC ship routes`);
+  }
   const repairedRegionalRoutes = repairInvalidRegionalFishermanRoutes(system, ships);
   if (repairedRegionalRoutes > 0) {
     console.info(`Repaired ${repairedRegionalRoutes} saved regional fishing routes`);
@@ -927,6 +953,102 @@ function migrateNpcRouteFactionsTo1522(ships, replacementQueue) {
   for (const replacement of replacementQueue) {
     replacement.factionId = migrateFactionIdTo1522(replacement.factionId);
   }
+}
+
+function repairOverextendedNpcShips(system, ships, replacementQueue) {
+  const regionalProfile = fleetProfileForId("east-asia");
+  const japanesePorts = system.ports.filter((port) => (
+    isJapanesePolityFaction(port.factionId) && regionalProfile.portPredicate(port)
+  ));
+
+  let repaired = 0;
+  for (const ship of ships) {
+    if (ship.encounter) continue;
+    const profileSpec = fleetProfileForId(ship.profileId);
+    if (npcShipSupportsFleetMode(ship.slug, profileSpec.mode)) continue;
+
+    let repairedProfile = profileSpec;
+    if (JAPANESE_SHIP_SLUGS.includes(ship.slug) && japanesePorts.length > 0) {
+      repairedProfile = regionalProfile;
+      ship.currentPort = nearestJapaneseFleetPort(japanesePorts, ship.currentPort, ship.factionId);
+    } else {
+      replaceNpcShipWithProfileHull(ship, profileSpec);
+    }
+    ship.profileId = repairedProfile.id;
+    ship.mode = repairedProfile.mode;
+    ship.slugs = profileSlugsForRole(repairedProfile, ship.role, ship.factionId).slice();
+    ship.finalDestination = null;
+    ship.plan = null;
+    ship.clockOffsetMinutes = 0;
+    ship.visualNavigation = null;
+    assignNpcPlan(system, ship, system.economy.lastMinute);
+    repaired++;
+  }
+
+  for (const replacement of replacementQueue) {
+    const profileSpec = fleetProfileForId(replacement.profileId);
+    if (profileSpec.mode !== "interregional") continue;
+    const hasLocalJapaneseHull = replacement.slugs.some((slug) => (
+      JAPANESE_SHIP_SLUGS.includes(slug)
+    ));
+    if (hasLocalJapaneseHull && japanesePorts.length > 0) {
+      const previousOrigin = system.ports.find((port) => port.tileId === replacement.originPortId) ||
+        japanesePorts[0];
+      const origin = nearestJapaneseFleetPort(japanesePorts, previousOrigin, replacement.factionId);
+      replacement.profileId = regionalProfile.id;
+      replacement.slugs = profileSlugsForRole(
+        regionalProfile,
+        replacement.role,
+        replacement.factionId
+      ).slice();
+      replacement.originPortId = origin.tileId;
+    } else {
+      const compatibleSlugs = replacement.slugs.filter((slug) => (
+        npcShipSupportsFleetMode(slug, profileSpec.mode)
+      ));
+      if (compatibleSlugs.length === replacement.slugs.length) continue;
+      replacement.slugs = compatibleSlugs.length > 0
+        ? compatibleSlugs
+        : compatibleProfileSlugs(profileSpec, replacement.role, replacement.factionId);
+    }
+    repaired++;
+  }
+  return repaired;
+}
+
+function replaceNpcShipWithProfileHull(ship, profileSpec) {
+  const slugs = compatibleProfileSlugs(profileSpec, ship.role, ship.factionId);
+  const slug = weightedCheapShipSlug(slugs, hashString32(`${ship.seed}|operating-range-repair`));
+  const stats = shipStatsForSlug(slug);
+  const hullRatio = ship.hitPoints / ship.maxHitPoints;
+  ship.slug = slug;
+  ship.maxHitPoints = stats.hitPoints;
+  ship.hitPoints = Math.max(0.5, stats.hitPoints * hullRatio);
+  ship.cargoCapacity = stats.cargoCapacity;
+  ship.fishingNetId = ship.role === NPC_ROLE_FISHERMAN
+    ? npcFishingNetForSeed(ship.seed, stats.cargoCapacity).id
+    : null;
+  reconcileNpcCargoCapacity(ship, "operating-range repair");
+}
+
+function compatibleProfileSlugs(profileSpec, role, factionId) {
+  const slugs = profileSlugsForRole(profileSpec, role, factionId).filter((slug) => (
+    npcShipSupportsFleetMode(slug, profileSpec.mode)
+  ));
+  if (slugs.length === 0) {
+    throw new Error(`NPC fleet profile ${profileSpec.id} has no ${role} hull for ${profileSpec.mode} routes`);
+  }
+  return slugs;
+}
+
+function nearestJapaneseFleetPort(ports, position, factionId) {
+  const nationalPorts = isJapanesePolityFaction(factionId)
+    ? ports.filter((port) => port.factionId === factionId)
+    : [];
+  const candidates = nationalPorts.length > 0 ? nationalPorts : ports;
+  return [...candidates].sort((a, b) => (
+    distanceKm(position, a) - distanceKm(position, b) || a.tileId - b.tileId
+  ))[0];
 }
 
 function canonicalizeSavedNpcRoutePorts(system, ships) {
@@ -1637,6 +1759,7 @@ function createNpcProfileShip(system, profileSpec, pool, index, startMinute) {
   }
   const slugs = profileSlugsForRole(profileSpec, role, origin.factionId);
   const slug = npcShipSlugForRole(profileSpec, role, seed, origin.factionId);
+  assertNpcShipSupportsFleetMode(slug, profileSpec, `${profileSpec.id}-${index}`);
   const ship = createNpcShipRecord({
     id: `${profileSpec.id}-${index}`,
     factionId: role === NPC_ROLE_PIRATE ? PIRATE_FACTION_ID : origin.factionId,
@@ -1758,6 +1881,7 @@ function spawnDueNpcReplacements(system, clockMinutes) {
     if (!origin) throw new Error(`NPC replacement port is missing: ${replacement.originPortId}`);
     const slug = weightedCheapShipSlug(replacement.slugs, replacement.seed);
     const profileSpec = fleetProfileForId(replacement.profileId);
+    assertNpcShipSupportsFleetMode(slug, profileSpec, replacement.shipId);
     const ship = createNpcShipRecord({
       id: replacement.shipId,
       factionId: replacement.factionId,
@@ -1832,13 +1956,17 @@ function npcRoleForSeed(seed, originFactionId, profileSpec) {
 
 function npcShipSlugForRole(profileSpec, role, seed, factionId) {
   if (!NPC_ROLE_SET.has(role)) throw new Error(`Unknown NPC ship role: ${role}`);
-  if (isJapanesePolityFaction(factionId) && role === NPC_ROLE_WARSHIP) {
+  if (
+    profileSpec.mode === "regional" &&
+    isJapanesePolityFaction(factionId) &&
+    role === NPC_ROLE_WARSHIP
+  ) {
     const roll = hashUnit(`${seed}|japanese-warship-class`);
     if (roll < 0.45) return JAPANESE_KOBAYA_SLUG;
     if (roll < 0.85) return JAPANESE_SEKIBUNE_SLUG;
     return JAPANESE_ATAKEBUNE_SLUG;
   }
-  if (isJapanesePolityFaction(factionId)) {
+  if (profileSpec.mode === "regional" && isJapanesePolityFaction(factionId)) {
     const pool = profileSlugsForRole(profileSpec, role, factionId);
     return weightedCheapShipSlug(pool, hashString32(`${seed}|${role}|japanese-hull`));
   }
@@ -1877,7 +2005,7 @@ function npcShipSlugForRole(profileSpec, role, seed, factionId) {
 }
 
 function profileSlugsForRole(profileSpec, role, factionId = null) {
-  if (isJapanesePolityFaction(factionId)) {
+  if (profileSpec.mode === "regional" && isJapanesePolityFaction(factionId)) {
     if (role === NPC_ROLE_WARSHIP) return JAPANESE_ARMED_SHIP_SLUGS;
     if (role === NPC_ROLE_PIRATE) return [JAPANESE_KOBAYA_SLUG, JAPANESE_SEKIBUNE_SLUG];
     if (role === NPC_ROLE_WHALER || role === NPC_ROLE_FISHERMAN || role === NPC_ROLE_MERCHANT) {
@@ -1887,7 +2015,11 @@ function profileSlugsForRole(profileSpec, role, factionId = null) {
   if (factionId === "joseon" && role === NPC_ROLE_WARSHIP && profileSpec.id === "east-asia") {
     return JOSEON_WARSHIP_SLUGS;
   }
-  if (role === NPC_ROLE_PIRATE) return PIRATE_SHIP_SLUGS;
+  if (role === NPC_ROLE_PIRATE) {
+    return profileSpec.mode === "interregional"
+      ? INTERREGIONAL_PIRATE_SHIP_SLUGS
+      : PIRATE_SHIP_SLUGS;
+  }
   if (role === NPC_ROLE_WARSHIP) return profileSpec.warshipSlugs;
   if (role === NPC_ROLE_FISHERMAN) return profileSpec.fisherSlugs;
   if (role === NPC_ROLE_WHALER) return profileSpec.whalerSlugs;
@@ -1925,6 +2057,20 @@ function weightedCheapShipSlug(slugs, seed) {
 
 function npcShipExpenseScore(stats) {
   return stats.mass + stats.cargoCapacity * 0.35 + stats.cannons * 9 + stats.seaworthiness * 4;
+}
+
+function npcShipSupportsFleetMode(slug, mode) {
+  shipStatsForSlug(slug);
+  if (mode === "regional") return true;
+  if (mode === "interregional") return INTERREGIONAL_NPC_SHIP_SLUGS.has(slug);
+  throw new Error(`Unknown NPC fleet operating mode: ${mode}`);
+}
+
+function assertNpcShipSupportsFleetMode(slug, profileSpec, shipId) {
+  if (npcShipSupportsFleetMode(slug, profileSpec.mode)) return;
+  throw new Error(
+    `NPC ship ${shipId} cannot use ${slug} on ${profileSpec.mode} profile ${profileSpec.id}`
+  );
 }
 
 function assignNpcPlan(system, ship, startMinute) {
@@ -3175,6 +3321,10 @@ function directSailingEfficiency(stats, angleFromWind) {
 function rankedProfilePorts(ports, profileSpec) {
   return ports
     .filter(profileSpec.portPredicate)
+    .filter((port) => (
+      profileSpec.mode !== "interregional" ||
+      !isJapanesePolityFaction(port.factionId)
+    ))
     .sort((a, b) => b.population - a.population || portName(a).localeCompare(portName(b)))
     .slice(0, profileSpec.mode === "regional" ? 34 : 54);
 }
@@ -3441,6 +3591,13 @@ function profile(id, count, shipPools, portPredicate, mode, roleWeights = null, 
     if (total !== 100) throw new Error(`NPC fleet profile ${id} role weights total ${total}, expected 100`);
   }
   for (const slug of [...fisherSlugs, ...merchantSlugs, ...warshipSlugs]) shipStatsForSlug(slug);
+  if (mode === "interregional") {
+    for (const slug of [...fisherSlugs, ...merchantSlugs, ...warshipSlugs]) {
+      if (!npcShipSupportsFleetMode(slug, mode)) {
+        throw new Error(`NPC fleet profile ${id} cannot send ${slug} on interregional routes`);
+      }
+    }
+  }
   return Object.freeze({
     id,
     count,
