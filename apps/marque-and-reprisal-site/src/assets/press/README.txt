@@ -8,6 +8,9 @@ CONTENTS
 
 - factsheet.txt: Product facts and publication-ready descriptions.
 - developer-qa.txt: The complete developer Q&A in publication-ready text.
+- Gameplay trailer: https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-v9.mp4
+- Trailer thumbnail (JPG): https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.jpg
+- Trailer thumbnail (PNG): https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.png
 - screenshots/: 14 full-resolution 1920x1080 gameplay scenes in each of
   11 languages (154 PNG files total), using Steam-compatible language suffixes.
 - logos/: Transparent title logo, store header, and square game icon.

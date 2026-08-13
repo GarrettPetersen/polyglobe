@@ -1241,6 +1241,37 @@ html:lang(ko) .localized-press h1 {
   margin: 0 auto;
 }
 
+.press-media-grid {
+  display: grid;
+  max-width: var(--content);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px;
+  margin: 0 auto;
+}
+
+.press-video-card video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: var(--night);
+  object-fit: contain;
+}
+
+.press-media-downloads {
+  display: flex;
+  grid-row: 1 / 3;
+  grid-column: 2;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 14px;
+}
+
+.press-media-downloads a {
+  grid-row: auto;
+  grid-column: auto;
+}
+
 .press-asset-card {
   border: 1px solid rgba(226, 173, 79, 0.32);
   background: var(--night-soft);
@@ -1804,6 +1835,7 @@ html:lang(ko) .localized-press h1 {
 
   .voyage-grid,
   .press-asset-grid,
+  .press-media-grid,
   .logo-grid,
   .localized-capsule-grid {
     grid-template-columns: 1fr;
@@ -1866,6 +1898,14 @@ html:lang(ko) .localized-press h1 {
   .press-asset-card a {
     grid-row: auto;
     grid-column: auto;
+    margin-top: 8px;
+  }
+
+  .press-media-downloads {
+    display: flex;
+    grid-row: auto;
+    grid-column: auto;
+    justify-content: flex-start;
     margin-top: 8px;
   }
 

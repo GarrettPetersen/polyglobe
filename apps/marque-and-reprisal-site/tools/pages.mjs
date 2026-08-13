@@ -3,6 +3,7 @@ import {
   languages,
   localizedCapsules,
   LOCALIZED_CAPSULE_ASSET_NAMES,
+  pressMedia,
   pressCapsuleArt,
   pressLogos,
   qAndA,
@@ -26,7 +27,7 @@ import {
 
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
-const codeAssetVersion = "2026-08-04-shared-ship-lighting";
+const codeAssetVersion = "2026-08-13-press-media";
 const displayAmpersand = "<span class='display-amp' role='img' aria-label='and'></span>";
 const SCREENSHOT_UI_KEYS = Object.freeze({
   "meet-panda": "pandaShot",
@@ -36,6 +37,27 @@ const SCREENSHOT_UI_KEYS = Object.freeze({
   "sail-bosporus": "bosporusShot",
   "sail-lake-victoria": "lakeVictoriaShot"
 });
+
+function pressMediaSection() {
+  return [
+    "<section class='press-assets press-media' id='trailer' aria-labelledby='trailer-title'>",
+    "<div class='asset-heading'><div><p class='eyebrow'>Video &amp; thumbnail</p><h2 id='trailer-title'>Gameplay trailer</h2></div>",
+    "<a href='", pressMedia.trailerUrl, "' download>Download 1080p MP4</a></div>",
+    "<p class='asset-intro'>The current gameplay trailer and its 1920 × 1080 YouTube thumbnail are available for editorial use.</p>",
+    "<div class='press-media-grid'>",
+    "<article class='press-asset-card press-video-card'><video controls preload='metadata' poster='", pressMedia.thumbnailJpgUrl,
+    "' width='1920' height='1080'><source src='", pressMedia.trailerUrl, "' type='video/mp4'></video>",
+    "<div><h3>Gameplay trailer</h3><p>1920 × 1080 H.264 MP4 · 39.7 seconds</p><a href='", pressMedia.trailerUrl,
+    "' download>Download MP4</a></div></article>",
+    "<article class='press-asset-card'><a class='asset-preview' href='", pressMedia.thumbnailPngUrl,
+    "' download><img src='", pressMedia.thumbnailJpgUrl,
+    "' alt='Marque &amp; Reprisal gameplay trailer thumbnail showing a broadside against Havana' loading='lazy' width='1920' height='1080'></a>",
+    "<div><h3>Trailer thumbnail</h3><p>1920 × 1080 JPG &amp; PNG</p><span class='press-media-downloads'><a href='",
+    pressMedia.thumbnailJpgUrl, "' download>Download JPG</a><a href='", pressMedia.thumbnailPngUrl,
+    "' download>Download PNG</a></span></div></article>",
+    "</div></section>"
+  ].join("");
+}
 
 export function homePage(localeValue = "en") {
   const locale = websiteLocale(localeValue);
@@ -224,6 +246,7 @@ export function pressPage(localeValue = "en") {
     "</section>",
     "</article>",
     "</div>",
+    pressMediaSection(),
     "<section class='press-assets' id='screenshots' aria-labelledby='screenshots-title'>",
     "<div class='asset-heading'><div><p class='eyebrow'>Full resolution · localized</p><h2 id='screenshots-title'>Screenshots in ", String(screenshotLocales.length), " languages</h2></div>",
     "<a href='/downloads/marque-and-reprisal-screenshots-all-languages.zip' download>Download all ", String(screenshots.length * screenshotLocales.length), " PNGs</a></div>",
@@ -368,6 +391,7 @@ function localizedPressPage(locale) {
     "</aside><article class='press-copy'><section><p class='eyebrow'>", escapeHtml(locale.ui.aboutGame), "</p>",
     "<h2>", escapeHtml(locale.title), "</h2><p class='press-lead'>", escapeHtml(locale.intro), "</p>",
     "<ul class='press-features'>", featureList, "</ul></section></article></div>",
+    pressMediaSection(),
     "<section class='press-assets' id='screenshots'><div class='asset-heading'><div><h2>",
     escapeHtml(locale.ui.screenshotsHeading), "</h2></div><a href='/downloads/",
     escapeHtml(`marque-and-reprisal-screenshots-${locale.steamCode}.zip`), "' download>",

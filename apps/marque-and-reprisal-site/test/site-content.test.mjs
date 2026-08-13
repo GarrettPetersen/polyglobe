@@ -8,6 +8,7 @@ import {
   languages,
   localizedCapsules,
   LOCALIZED_CAPSULE_ASSET_NAMES,
+  pressMedia,
   pressCapsuleArt,
   qAndA,
   screenshotLocales,
@@ -492,15 +493,22 @@ test("code assets bypass stale browser caches", async () => {
   );
 });
 
-test("the exclusive trailer is not published by the site or press kit", async () => {
+test("the gameplay trailer and thumbnail are published as permanent press downloads", async () => {
   const buildSource = await readFile(path.join(appRoot, "tools/build.mjs"), "utf8");
   const pressReadme = await readFile(
     path.join(appRoot, "src/assets/press/README.txt"),
     "utf8"
   );
 
-  assert.doesNotMatch(homePage() + pressPage() + buildSource + pressReadme, /trailer/i);
-  await assert.rejects(
-    access(path.join(appRoot, "src/assets/video/gameplay-trailer.mp4"))
-  );
+  for (const url of Object.values(pressMedia)) {
+    assert.match(url, /^https:\/\/downloads\.marque-and-reprisal\.com\/press\//);
+    assert.ok(pressPage().includes(url));
+    assert.ok(buildSource.includes("pressMedia"));
+    assert.ok(pressReadme.includes(url));
+  }
+  assert.match(pressPage(), /<video controls preload='metadata'/);
+  assert.match(pressPage(), /Download 1080p MP4/);
+  assert.match(pressPage(), /Download JPG/);
+  assert.match(pressPage(), /Download PNG/);
+  assert.match(pressPage("ja"), /marque-and-reprisal-gameplay-trailer-v9\.mp4/);
 });

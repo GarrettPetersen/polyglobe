@@ -15,6 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   LOCALIZED_CAPSULE_ASSET_NAMES,
+  pressMedia,
   SHIP_ROSTER_ASSET_VERSION,
   localizedCapsules,
   screenshotLocales,
@@ -327,6 +328,12 @@ function localizedPressKitReadme(locale) {
     "- Shared game logos",
     `- ${locale.nativeLabel} game description`,
     "- English plain-text fact sheet",
+    "- Permanent download links for the gameplay trailer and trailer thumbnail",
+    "",
+    "PRESS MEDIA",
+    `- Gameplay trailer: ${pressMedia.trailerUrl}`,
+    `- Trailer thumbnail (JPG): ${pressMedia.thumbnailJpgUrl}`,
+    `- Trailer thumbnail (PNG): ${pressMedia.thumbnailPngUrl}`,
     "",
     "The localized website contains the approved translated game description.",
     ""
@@ -395,6 +402,7 @@ async function validateBuild() {
     "assets/fonts/pirata-one.ttf",
     "assets/fonts/pirata-one-OFL.txt",
     "assets/press/developer-qa.txt",
+    "assets/press/README.txt",
     "assets/press/capsule-art/capsule-source.aseprite",
     "assets/press/capsule-art/title-with-ship.png",
     ...shipRoster.flatMap((ship) => ["", "-light", "-shade", "-shadow"].map(

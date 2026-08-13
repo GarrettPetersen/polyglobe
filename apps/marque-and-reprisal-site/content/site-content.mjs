@@ -34,6 +34,12 @@ export const site = Object.freeze({
   aboutLead: "You are a sea captain in the year 1522, and the whole world is yours to discover in this roguelike sandbox historical sailing simulator."
 });
 
+export const pressMedia = Object.freeze({
+  trailerUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-v9.mp4",
+  thumbnailJpgUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.jpg",
+  thumbnailPngUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.png"
+});
+
 const MYSTERY_SHIP_SLUG = "viking-longship";
 export const SHIP_ROSTER_ASSET_VERSION = "2026-08-06-mediterranean-fleet";
 const SHIP_ROSTER_LIGHTING_AZIMUTH = 2;

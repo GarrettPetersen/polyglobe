@@ -19,8 +19,9 @@ npm run marque-site:deploy
 
 The build is written to `apps/marque-and-reprisal-site/dist`. The build also
 generates `downloads/marque-and-reprisal-press-kit.zip` from the fact sheet,
-logos, 154 localized full-resolution screenshots, and the aligned capsule art
-layers and Aseprite source. It packages both capsule artwork and screenshots
+gameplay-trailer and thumbnail links, logos, 154 localized full-resolution
+screenshots, and the aligned capsule art layers and Aseprite source. It packages
+both capsule artwork and screenshots
 into 11 language-specific ZIP downloads plus combined all-languages ZIPs. Each
 capsule bundle contains 13 full-resolution storefront, library, event, social,
 itch.io, and press PNG exports; each screenshot bundle contains 14 1920 × 1080
