@@ -1634,6 +1634,8 @@ import {
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
   colonizationWorldRecord,
+  colonizationWorldRecords,
+  colonizationSettlementMemories,
   completeColonizationFetchStage,
   defeatColonizationAttacker,
   isColonizationDefenseShip,
@@ -2091,6 +2093,7 @@ const SHIP_LIGHT_ELEVATION_BINS = 2;
 const SHIP_LIGHT_BIN_COUNT = SHIP_LIGHT_AZIMUTH_BINS * SHIP_LIGHT_ELEVATION_BINS;
 const SHIP_LIGHT_HIGH_ALTITUDE = 0.5;
 const SHIP_SHADOW_HALF = SHIP_SHADOW_FRAME_SIZE / 2;
+const SHIP_SHADOW_SURFACE_SAMPLE_PX = 2;
 const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
 const SHIP_COLLISION_SLIDE_SPEED_KEEP = 0.96;
 const SHIP_COLLISION_MIN_TANGENT_RATIO = 0.05;
@@ -3213,6 +3216,7 @@ let portCityCharacters;
 let vikingLongshipPortFactor = null;
 let campaignGoalContact;
 let colonizationOrganizer;
+let colonizationOrganizerQuestKey = null;
 let colonizationBaseSettlementCharacter = null;
 let japaneseMatchlockGunsmith;
 let caribbeanGingerPlanter;
@@ -7717,6 +7721,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   if (!Array.isArray(permanentNamedCrew)) throw new Error("Port character assignment requires named crew");
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
   colonizationOrganizer = null;
+  colonizationOrganizerQuestKey = null;
   colonizationBaseSettlementCharacter = null;
   japaneseMatchlockGunsmith = null;
   caribbeanGingerPlanter = null;
@@ -13195,12 +13200,10 @@ function currentAchievementSnapshot() {
   const state = gameState && hasStartedVoyage ? gameState : null;
   const ledger = state?.accounts?.ledger || [];
   const ledgerMetrics = state ? playerLedgerLifetimeMetrics(state) : null;
-  const colony = state?.memory?.colonization;
-  const colonyRecord = colony?.stage === COLONIZATION_STAGE_ESTABLISHED
-    ? colonizationWorldRecord(colony)
-    : null;
-  const foundedCityIds = colonyRecord?.playerFoundedColony
-    ? [`${colonyRecord.city}|${colonyRecord.country || ""}`]
+  const foundedCityIds = state
+    ? colonizationWorldRecords(state.memory.colonization)
+      .filter((record) => record.playerFoundedColony)
+      .map((record) => `${record.city}|${record.country || ""}`)
     : [];
   const soldGoodIds = ledgerMetrics?.soldGoodIds || [];
   const currentShipSlug = state ? ship?.stats?.slug || ship?.typeSlug || null : null;
@@ -22979,51 +22982,82 @@ function clearLocalChartTransientEffects() {
 
 function syncColonizationWorldState(state, { startMinute = weatherClockMinutes } = {}) {
   if (!state?.memory?.colonization) throw new Error("Cannot sync colonization without quest state");
+  for (const settlement of colonizationSettlementMemories(state.memory.colonization)) {
+    const binding = bindColonizationQuestSelection(state, settlement);
+    if (!binding) throw new Error("Archived colony has no world binding");
+    syncColonizationSettlementWorldState(state, settlement, binding, { startMinute, active: false });
+  }
+
   const binding = bindColonizationQuestSelection(state);
-  if (!binding) return null;
+  if (!binding) {
+    colonizationTargetTileId = null;
+    colonizationBaseSettlementCharacter = null;
+    return null;
+  }
+  if (colonizationTargetTileId !== binding.target.tileId) {
+    colonizationBaseSettlementCharacter = null;
+  }
   colonizationTargetTileId = binding.target.tileId;
   ensureColonizationOrganizer(state, binding.origin);
-  const record = colonizationWorldRecord(state.memory.colonization);
-  const existing = cityByTileId.get(colonizationTargetTileId);
+  return syncColonizationSettlementWorldState(
+    state,
+    state.memory.colonization,
+    binding,
+    { startMinute, active: true }
+  );
+}
+
+function syncColonizationSettlementWorldState(state, memory, binding, { startMinute, active }) {
+  const targetTileId = binding.target.tileId;
+  const record = colonizationWorldRecord(memory);
+  const existing = cityByTileId.get(targetTileId);
   if (!record) {
     if (binding.target.preexistingSettlement) {
-      const baseSettlement = portCitiesByTileId.get(colonizationTargetTileId);
+      const baseSettlement = portCitiesByTileId.get(targetTileId);
       if (!baseSettlement || baseSettlement.colonizationQuestSite ||
           baseSettlement.city !== binding.target.city ||
           baseSettlement.country !== binding.target.country) {
         throw new Error(`Cannot restore the original ${binding.target.city} village`);
       }
-      cityByTileId.set(colonizationTargetTileId, baseSettlement);
-      if (colonizationBaseSettlementCharacter) {
-        portCityCharacters.set(colonizationTargetTileId, colonizationBaseSettlementCharacter);
+      cityByTileId.set(targetTileId, baseSettlement);
+      if (active && colonizationBaseSettlementCharacter) {
+        portCityCharacters.set(targetTileId, colonizationBaseSettlementCharacter);
       }
       chart = null;
       dirty = true;
     } else {
-      if (existing?.colonizationQuestSite) cityByTileId.delete(colonizationTargetTileId);
-      portCityCharacters.delete(colonizationTargetTileId);
+      if (existing?.colonizationQuestSite) cityByTileId.delete(targetTileId);
+      portCityCharacters.delete(targetTileId);
     }
     return null;
   }
+  let baseSettlementCharacter = null;
   if (existing && !existing.colonizationQuestSite) {
     if (!binding.target.preexistingSettlement || existing.city !== binding.target.city ||
         existing.country !== binding.target.country || existing.settlementType !== "village") {
       throw new Error(`${binding.target.city} target tile is occupied by ${cityLabelText(existing)}`);
     }
-    colonizationBaseSettlementCharacter ||= portCityCharacters.get(existing.tileId) || null;
-    if (!colonizationBaseSettlementCharacter) {
+    baseSettlementCharacter = portCityCharacters.get(existing.tileId) || null;
+    if (!baseSettlementCharacter) {
       throw new Error(`${binding.target.city} village has no resident character`);
     }
+    if (active) colonizationBaseSettlementCharacter = baseSettlementCharacter;
   }
 
   cityByTileId.set(record.tileId, record);
   const developedPortCharacter = record.playerDevelopedPort
-    ? colonizationBaseSettlementCharacter || portCityCharacters.get(record.tileId)
+    ? baseSettlementCharacter || colonizationBaseSettlementCharacter || portCityCharacters.get(record.tileId)
     : null;
   if (record.playerDevelopedPort && !developedPortCharacter) {
     throw new Error(`${binding.target.city} developed port has no local official`);
   }
-  portCityCharacters.set(record.tileId, developedPortCharacter || colonizationOrganizer);
+  const settlementCharacter = developedPortCharacter ||
+    portCityCharacters.get(record.tileId) ||
+    (active
+      ? colonizationOrganizer
+      : createArchivedColonizationOrganizer(state, memory, binding));
+  if (!settlementCharacter) throw new Error(`${binding.target.city} colony has no resident official`);
+  portCityCharacters.set(record.tileId, settlementCharacter);
   if (![
     COLONIZATION_STAGE_DEFEND,
     COLONIZATION_STAGE_REPORT_DEFENSE,
@@ -23061,8 +23095,11 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
   return record;
 }
 
-function bindColonizationQuestSelection(state) {
-  const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
+function bindColonizationQuestSelection(state, memory = state.memory.colonization) {
+  const questState = memory === state.memory.colonization
+    ? state
+    : { ...state, memory: { ...state.memory, colonization: memory } };
+  const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
   if (!quest.target) return null;
   const target = colonizationTargetPlacements.find((candidate) => (
     candidate.city === quest.target.city && candidate.country === quest.target.country
@@ -23087,7 +23124,7 @@ function bindColonizationQuestSelection(state) {
     if (!replacement) {
       throw new Error(`Saved ${target.city} expedition has no eligible replacement origin`);
     }
-    relocateColonizationQuestOrigin(state.memory.colonization, { target, origin: replacement });
+    relocateColonizationQuestOrigin(memory, { target, origin: replacement });
     origin = replacement;
   }
   const approvalPort = quest.approval
@@ -23096,15 +23133,32 @@ function bindColonizationQuestSelection(state) {
   if (quest.approval && !approvalPort) {
     throw new Error(`Saved colony approval port is not dockable: ${quest.approval.city}`);
   }
-  assignColonizationQuest(state.memory.colonization, { target, origin, approvalPort });
+  assignColonizationQuest(memory, { target, origin, approvalPort });
   return { target, origin, approvalPort };
 }
 
+function createArchivedColonizationOrganizer(state, memory, binding) {
+  const questState = { ...state, memory: { ...state.memory, colonization: memory } };
+  const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
+  const factor = portCityCharacters.get(binding.origin.tileId);
+  if (!factor) throw new Error(`${cityLabelText(binding.origin)} has no factor for its archived colony`);
+  return generateSpecialPortCharacter({
+    identityKey: `colonial-organizer-${quest.target.city}-${quest.target.country}-${binding.origin.tileId}`,
+    port: binding.origin,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    role: "colonial-organizer",
+    religionId: quest.history.organizerReligionId,
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+}
+
 function ensureColonizationOrganizer(state, origin = null) {
-  if (colonizationOrganizer) return colonizationOrganizer;
   const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
   const organizerPort = origin || portCities.find((candidate) => candidate.tileId === quest.origin?.tileId);
   if (!quest.target || !organizerPort) throw new Error("Colonization organizer requires a selected target and origin");
+  const questKey = `${quest.target.city}|${quest.target.country}|${organizerPort.tileId}`;
+  if (colonizationOrganizer && colonizationOrganizerQuestKey === questKey) return colonizationOrganizer;
   const factor = portCityCharacters.get(organizerPort.tileId);
   if (!factor) throw new Error(`${cityLabelText(organizerPort)} has no generated port factor`);
   colonizationOrganizer = generateSpecialPortCharacter({
@@ -23116,6 +23170,7 @@ function ensureColonizationOrganizer(state, origin = null) {
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
+  colonizationOrganizerQuestKey = questKey;
   return colonizationOrganizer;
 }
 
@@ -35220,6 +35275,7 @@ function buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, activeCh
   }
   return {
     buckets,
+    candidateBuckets: new Map(),
     tileRows,
     riverPaths,
     riverConnectorWaterPoints,
@@ -45630,6 +45686,9 @@ function localNormalFromClosestPoint(px, py, cx, cy) {
 function wakeWaterCandidatesForPoint(x, y, waterIndex) {
   const bx = Math.floor(x / WAKE_WATER_BUCKET_PX);
   const by = Math.floor(y / WAKE_WATER_BUCKET_PX);
+  const cacheKey = wakeWaterBucketKey(bx, by);
+  const cached = waterIndex.candidateBuckets.get(cacheKey);
+  if (cached) return cached;
   const range = Math.ceil(WAKE_WATER_SEARCH_RADIUS_PX / WAKE_WATER_BUCKET_PX);
   const candidates = [];
   const seen = new Set();
@@ -45646,6 +45705,7 @@ function wakeWaterCandidatesForPoint(x, y, waterIndex) {
     }
   }
 
+  waterIndex.candidateBuckets.set(cacheKey, candidates);
   return candidates;
 }
 
@@ -45730,8 +45790,8 @@ function drawShipShadowWebGL(activeChart, light, offset) {
 
 function shipShadowPointHasSurface(x, y, activeChart) {
   if (!activeChart?.waterIndex) return false;
-  const roundedX = Math.round(x);
-  const roundedY = Math.round(y);
+  const roundedX = Math.round(x / SHIP_SHADOW_SURFACE_SAMPLE_PX) * SHIP_SHADOW_SURFACE_SAMPLE_PX;
+  const roundedY = Math.round(y / SHIP_SHADOW_SURFACE_SAMPLE_PX) * SHIP_SHADOW_SURFACE_SAMPLE_PX;
   const pixelKey = pixelMaskKey(roundedX, roundedY);
   let cache = shipShadowSurfacePointCache.get(activeChart);
   if (!cache || cache.weatherMaskDayIndex !== weatherMaskDayIndex) {

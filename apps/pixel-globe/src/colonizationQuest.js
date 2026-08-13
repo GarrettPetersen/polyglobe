@@ -15,7 +15,7 @@ import {
 } from "./questCargoDeliveries.js";
 import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 
-export const COLONIZATION_QUEST_VERSION = 1;
+export const COLONIZATION_QUEST_VERSION = 2;
 export const COLONIZATION_ORIGIN_CITY = CANONICAL_PORTS.BORDEAUX.city;
 export const COLONIZATION_ORIGIN_COUNTRY = CANONICAL_PORTS.BORDEAUX.country;
 export const COLONIZATION_TARGET_CITY = "Port Royal";
@@ -30,7 +30,7 @@ export const COLONIZATION_RESUPPLY_DAYS = 365;
 export const COLONIZATION_RESUPPLY_EXTENSION_DAYS_PER_UNIT = 30;
 export const COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER = 0.85;
 export const COLONIZATION_ORGANIZER_APPROACHED_FLAG = "colonizationOrganizerApproached";
-export const COLONIZATION_SPAWN_CHANCE = 0.035;
+export const COLONIZATION_SPAWN_CHANCE = 0.12;
 export const COLONIZATION_ROLL_PERIOD_MINUTES = 14 * 24 * 60;
 export const COLONIZATION_MIN_VOYAGE_DISTANCE_KM = 1200;
 export const COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID = "colonization-first-resupply";
@@ -95,11 +95,12 @@ export function createColonizationQuestMemory() {
     approvalGranted: false,
     distanceKm: null,
     offerSeen: false,
-    spawnRolls: {}
+    spawnRolls: {},
+    pastSettlements: []
   };
 }
 
-export function validateColonizationQuestMemory(memory) {
+export function validateColonizationQuestMemory(memory, { settlementRecord = false } = {}) {
   if (!memory || typeof memory !== "object" || memory.version !== COLONIZATION_QUEST_VERSION) {
     throw new Error(`Unsupported colonization quest memory: ${memory?.version ?? "missing"}`);
   }
@@ -130,6 +131,26 @@ export function validateColonizationQuestMemory(memory) {
     throw new Error("Colonization quest offer-seen flag must be boolean");
   }
   if (memory.spawnRolls !== undefined) validateSpawnRolls(memory.spawnRolls);
+  if (!Array.isArray(memory.pastSettlements)) {
+    throw new Error("Colonization quest settlement history must be an array");
+  }
+  if (settlementRecord) {
+    if (memory.pastSettlements.length !== 0) {
+      throw new Error("Archived colonization settlements cannot contain nested history");
+    }
+    if (![COLONIZATION_STAGE_FAILED, COLONIZATION_STAGE_ESTABLISHED].includes(memory.stage)) {
+      throw new Error(`Archived colonization settlement is not terminal: ${memory.stage}`);
+    }
+  } else {
+    const settlementKeys = new Set();
+    for (const settlement of memory.pastSettlements) {
+      validateColonizationQuestMemory(settlement, { settlementRecord: true });
+      const target = requiredSelectedTarget(settlement);
+      const key = colonizationTargetKey(target);
+      if (settlementKeys.has(key)) throw new Error(`Duplicate colonization settlement history: ${key}`);
+      settlementKeys.add(key);
+    }
+  }
   const approval = colonizationApprovalIdentity(memory);
   if (memory.approvalGranted !== undefined && typeof memory.approvalGranted !== "boolean") {
     throw new Error("Colonization approval flag must be boolean");
@@ -242,10 +263,58 @@ export function migrateColonizationQuestMemory(memory) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     return createColonizationQuestMemory();
   }
+  if (![1, COLONIZATION_QUEST_VERSION].includes(memory.version)) {
+    throw new Error(`Unsupported colonization quest memory: ${memory.version ?? "missing"}`);
+  }
   return validateColonizationQuestMemory({
     ...memory,
-    resupplyExtensionMinutes: memory.resupplyExtensionMinutes ?? 0
+    version: COLONIZATION_QUEST_VERSION,
+    resupplyExtensionMinutes: memory.resupplyExtensionMinutes ?? 0,
+    pastSettlements: Array.isArray(memory.pastSettlements) ? memory.pastSettlements : []
   });
+}
+
+export function prepareNextColonizationExpedition(state, memory = colonizationQuestMemory(state)) {
+  validateColonizationQuestMemory(memory);
+  if (!colonizationSelectedTarget(memory) ||
+      ![COLONIZATION_STAGE_FAILED, COLONIZATION_STAGE_ESTABLISHED].includes(memory.stage)) {
+    return false;
+  }
+
+  const settlement = colonizationSettlementSnapshot(memory);
+  const settlementKey = colonizationTargetKey(requiredSelectedTarget(settlement));
+  if (memory.pastSettlements.some((candidate) => (
+    colonizationTargetKey(requiredSelectedTarget(candidate)) === settlementKey
+  ))) {
+    throw new Error(`Colonization settlement was already archived: ${settlementKey}`);
+  }
+
+  const pastSettlements = [...memory.pastSettlements, settlement];
+  const spawnRolls = memory.spawnRolls;
+  const reset = createColonizationQuestMemory();
+  for (const key of Object.keys(memory)) delete memory[key];
+  Object.assign(memory, reset, { pastSettlements, spawnRolls });
+  if (state?.memory?.flags && typeof state.memory.flags === "object") {
+    delete state.memory.flags[COLONIZATION_ORGANIZER_APPROACHED_FLAG];
+  }
+  validateColonizationQuestMemory(memory);
+  return true;
+}
+
+export function colonizationSettlementMemories(memory) {
+  validateColonizationQuestMemory(memory);
+  return Object.freeze(memory.pastSettlements.slice());
+}
+
+function colonizationSettlementSnapshot(memory) {
+  const snapshot = {
+    ...memory,
+    spawnRolls: {},
+    pastSettlements: [],
+    defenseShipIds: [...memory.defenseShipIds],
+    defenseDefeatedShipIds: [...memory.defenseDefeatedShipIds]
+  };
+  return validateColonizationQuestMemory(snapshot, { settlementRecord: true });
 }
 
 export function assignColonizationQuest(memory, { target, origin, approvalPort = null }) {
@@ -323,11 +392,16 @@ export function relocateColonizationQuestOrigin(memory, { target, origin }) {
 export function colonizationOfferForCity(state, city, portCities, targetPlacements, context = {}) {
   const memory = colonizationQuestMemory(state);
   if (!city || !Array.isArray(portCities) || !Array.isArray(targetPlacements)) return null;
+  prepareNextColonizationExpedition(state, memory);
   const selectedTarget = colonizationSelectedTarget(memory);
   if (selectedTarget) return isColonizationQuestOrigin(memory, city) ? memory : null;
   if (memory.stage !== COLONIZATION_STAGE_FETCH || memory.fetchStageIndex !== 0) return null;
 
-  const eligibleTargets = eligibleColonizationTargetsForOrigin(city, targetPlacements);
+  const settledTargets = new Set(memory.pastSettlements.map((settlement) => (
+    colonizationTargetKey(requiredSelectedTarget(settlement))
+  )));
+  const eligibleTargets = eligibleColonizationTargetsForOrigin(city, targetPlacements)
+    .filter((target) => !settledTargets.has(colonizationTargetKey(target)));
   if (eligibleTargets.length === 0) return null;
   const period = colonizationRollPeriod(context.simMinute);
   const rollKey = `${portIdentityKey(city)}|${period}`;
@@ -684,6 +758,18 @@ export function isColonizationDefenseShip(memory, shipId) {
 
 export function colonizationWorldRecord(memory) {
   validateColonizationQuestMemory(memory);
+  return colonizationWorldRecordUnchecked(memory);
+}
+
+export function colonizationWorldRecords(memory) {
+  validateColonizationQuestMemory(memory);
+  return Object.freeze([
+    ...memory.pastSettlements.map((settlement) => colonizationWorldRecordUnchecked(settlement)),
+    colonizationWorldRecordUnchecked(memory)
+  ].filter(Boolean));
+}
+
+function colonizationWorldRecordUnchecked(memory) {
   const target = colonizationSelectedTarget(memory);
   if (!target || memory.targetTileId === null) return null;
   if ([COLONIZATION_STAGE_FETCH, COLONIZATION_STAGE_READY].includes(memory.stage)) return null;

@@ -417,6 +417,30 @@ export function quadVertices({
     throw new Error("Quad effects must be finite");
   }
 
+  const vertices = new Float32Array(FLOATS_PER_QUAD);
+  writeQuadVertices(vertices, 0, {
+    sourceRect,
+    textureWidth,
+    textureHeight,
+    destinationRect,
+    color,
+    refractionPx,
+    alphaThreshold,
+    flipX
+  });
+  return vertices;
+}
+
+function writeQuadVertices(target, offset, {
+  sourceRect,
+  textureWidth,
+  textureHeight,
+  destinationRect,
+  color,
+  refractionPx,
+  alphaThreshold,
+  flipX
+}) {
   const x0 = destinationRect.x;
   const y0 = destinationRect.y;
   const x1 = x0 + destinationRect.width;
@@ -425,20 +449,31 @@ export function quadVertices({
   const v0 = sourceRect.y / textureHeight;
   let u1 = (sourceRect.x + sourceRect.width) / textureWidth;
   const v1 = (sourceRect.y + sourceRect.height) / textureHeight;
-  if (flipX) [u0, u1] = [u1, u0];
-  const points = [
-    [x0, y0, u0, v0],
-    [x1, y0, u1, v0],
-    [x0, y1, u0, v1],
-    [x0, y1, u0, v1],
-    [x1, y0, u1, v0],
-    [x1, y1, u1, v1]
-  ];
-  return new Float32Array(points.flatMap(([x, y, u, v]) => [
-    x, y, u, v,
-    color[0], color[1], color[2], color[3],
-    refractionPx, alphaThreshold
-  ]));
+  if (flipX) {
+    const swap = u0;
+    u0 = u1;
+    u1 = swap;
+  }
+  offset = writeQuadVertex(target, offset, x0, y0, u0, v0, color, refractionPx, alphaThreshold);
+  offset = writeQuadVertex(target, offset, x1, y0, u1, v0, color, refractionPx, alphaThreshold);
+  offset = writeQuadVertex(target, offset, x0, y1, u0, v1, color, refractionPx, alphaThreshold);
+  offset = writeQuadVertex(target, offset, x0, y1, u0, v1, color, refractionPx, alphaThreshold);
+  offset = writeQuadVertex(target, offset, x1, y0, u1, v0, color, refractionPx, alphaThreshold);
+  return writeQuadVertex(target, offset, x1, y1, u1, v1, color, refractionPx, alphaThreshold);
+}
+
+function writeQuadVertex(target, offset, x, y, u, v, color, refractionPx, alphaThreshold) {
+  target[offset++] = x;
+  target[offset++] = y;
+  target[offset++] = u;
+  target[offset++] = v;
+  target[offset++] = color[0];
+  target[offset++] = color[1];
+  target[offset++] = color[2];
+  target[offset++] = color[3];
+  target[offset++] = refractionPx;
+  target[offset++] = alphaThreshold;
+  return offset;
 }
 
 export function bitMaskQuadVertices({
@@ -1102,7 +1137,7 @@ export function createWorldWebGL2Renderer({
     if (!Array.isArray(sprites)) {
       throw new Error(`Persistent atlas batch ${key} factory did not return an array`);
     }
-    const spriteVertices = sprites.map((sprite) => {
+    const spriteQuads = sprites.map((sprite) => {
       if (!sprite || !sprite.source) {
         throw new Error(`Persistent atlas batch ${key} contains a malformed sprite`);
       }
@@ -1132,33 +1167,36 @@ export function createWorldWebGL2Renderer({
       }
       return {
         pageIndex: entry.pageIndex,
-        vertices: quadVertices({
-          sourceRect: {
-            x: entry.x + local.x,
-            y: entry.y + local.y,
-            width: local.width,
-            height: local.height
-          },
-          textureWidth: atlasSize,
-          textureHeight: atlasSize,
-          destinationRect: sprite.destinationRect,
-          color: [tint[0], tint[1], tint[2], alpha],
-          refractionPx,
-          alphaThreshold,
-          flipX: Boolean(sprite.flipX)
-        })
+        sourceRect: {
+          x: entry.x + local.x,
+          y: entry.y + local.y,
+          width: local.width,
+          height: local.height
+        },
+        destinationRect: sprite.destinationRect,
+        color: [tint[0], tint[1], tint[2], alpha],
+        refractionPx,
+        alphaThreshold,
+        flipX: Boolean(sprite.flipX)
       };
     });
 
     // Texture changes require separate draws, but merging non-adjacent page
     // entries would reorder overlapping sprites and break painter ordering.
-    const groups = orderedAtlasPageRuns(spriteVertices).map(({ pageIndex, entries }) => {
-      const vertexLength = entries.reduce((total, entry) => total + entry.vertices.length, 0);
-      const vertices = new Float32Array(vertexLength);
+    const groups = orderedAtlasPageRuns(spriteQuads).map(({ pageIndex, entries }) => {
+      const vertices = new Float32Array(entries.length * FLOATS_PER_QUAD);
       let vertexOffset = 0;
       for (const entry of entries) {
-        vertices.set(entry.vertices, vertexOffset);
-        vertexOffset += entry.vertices.length;
+        vertexOffset = writeQuadVertices(vertices, vertexOffset, {
+          sourceRect: entry.sourceRect,
+          textureWidth: atlasSize,
+          textureHeight: atlasSize,
+          destinationRect: entry.destinationRect,
+          color: entry.color,
+          refractionPx: entry.refractionPx,
+          alphaThreshold: entry.alphaThreshold,
+          flipX: entry.flipX
+        });
       }
       const buffer = requiredBuffer(gl, `persistent atlas batch ${key}`);
       const vertexArray = gl.createVertexArray();
@@ -1365,21 +1403,16 @@ export function createWorldWebGL2Renderer({
     flipX
   }) {
     ensureAtlasVertexCapacity(atlasFloatCount + FLOATS_PER_QUAD);
-    const x0 = destinationRect.x;
-    const y0 = destinationRect.y;
-    const x1 = x0 + destinationRect.width;
-    const y1 = y0 + destinationRect.height;
-    let u0 = sourceRect.x / textureWidth;
-    const v0 = sourceRect.y / textureHeight;
-    let u1 = (sourceRect.x + sourceRect.width) / textureWidth;
-    const v1 = (sourceRect.y + sourceRect.height) / textureHeight;
-    if (flipX) [u0, u1] = [u1, u0];
-    appendAtlasVertex(x0, y0, u0, v0, color, refractionPx, alphaThreshold);
-    appendAtlasVertex(x1, y0, u1, v0, color, refractionPx, alphaThreshold);
-    appendAtlasVertex(x0, y1, u0, v1, color, refractionPx, alphaThreshold);
-    appendAtlasVertex(x0, y1, u0, v1, color, refractionPx, alphaThreshold);
-    appendAtlasVertex(x1, y0, u1, v0, color, refractionPx, alphaThreshold);
-    appendAtlasVertex(x1, y1, u1, v1, color, refractionPx, alphaThreshold);
+    atlasFloatCount = writeQuadVertices(atlasVertices, atlasFloatCount, {
+      sourceRect,
+      textureWidth,
+      textureHeight,
+      destinationRect,
+      color,
+      refractionPx,
+      alphaThreshold,
+      flipX
+    });
   }
 
   function ensureAtlasVertexCapacity(requiredLength) {
@@ -1389,19 +1422,6 @@ export function createWorldWebGL2Renderer({
     const next = new Float32Array(nextLength);
     next.set(atlasVertices.subarray(0, atlasFloatCount));
     atlasVertices = next;
-  }
-
-  function appendAtlasVertex(x, y, u, v, color, refractionPx, alphaThreshold) {
-    atlasVertices[atlasFloatCount++] = x;
-    atlasVertices[atlasFloatCount++] = y;
-    atlasVertices[atlasFloatCount++] = u;
-    atlasVertices[atlasFloatCount++] = v;
-    atlasVertices[atlasFloatCount++] = color[0];
-    atlasVertices[atlasFloatCount++] = color[1];
-    atlasVertices[atlasFloatCount++] = color[2];
-    atlasVertices[atlasFloatCount++] = color[3];
-    atlasVertices[atlasFloatCount++] = refractionPx;
-    atlasVertices[atlasFloatCount++] = alphaThreshold;
   }
 
   function drawTextureQuad(texture, textureWidth, textureHeight, sourceRect, destinationRect, alpha) {

@@ -116,7 +116,7 @@ test("version 66 voyages migrate every saved quest route", () => {
   };
 
   const migrated = migrateGameState(state, null);
-  assert.equal(migrated.version, 68);
+  assert.equal(migrated.version, 69);
   assert.equal(migrated.memory.quests.passengerActive.itinerary.mode, QUEST_ITINERARY_ORDERED);
   assert.equal(migrated.memory.quests.passengerOffers.legacy.itinerary.mode, QUEST_ITINERARY_OPEN);
   assert.equal(migrated.memory.quests.passengerActive.religiousItinerary, undefined);

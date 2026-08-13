@@ -30,6 +30,7 @@ import {
   colonizationQuestView,
   colonizationShipEligibility,
   colonizationWorldRecord,
+  colonizationWorldRecords,
   completeColonizationDefense,
   completeColonizationFetchStage,
   createColonizationQuestMemory,
@@ -373,6 +374,35 @@ test("timely resupply creates a discounted French city", () => {
   assert.equal(city.playerFoundedColony, true);
   assert.ok(city.purchaseDiscountMultiplier < 1);
   assert.equal(colonizationObjective(memory), null);
+});
+
+test("an established colony is archived before a later expedition is offered", () => {
+  const memory = awaitingResupplyMemory();
+  establishColony(memory, 1200);
+  const quebec = {
+    ...colonizationTargetForCity({ city: "Quebec", country: "Canada" }),
+    tileId: 124
+  };
+  const state = {
+    playerCharacter: { name: "Test Captain", identityKey: "repeat-colonization-test" },
+    memory: { colonization: memory, flags: { colonizationOrganizerApproached: true } }
+  };
+
+  const offer = colonizationOfferForCity(state, BORDEAUX, [BORDEAUX], [PORT_ROYAL, quebec], {
+    simMinute: 14 * DAY,
+    spawnChance: 1,
+    targetTileId: quebec.tileId
+  });
+
+  assert.equal(offer.targetCity, "Quebec");
+  assert.equal(memory.pastSettlements.length, 1);
+  assert.equal(memory.pastSettlements[0].targetCity, "Port Royal");
+  assert.equal(state.memory.flags.colonizationOrganizerApproached, undefined);
+  assert.deepEqual(
+    colonizationWorldRecords(memory).map((record) => record.city),
+    ["Port Royal"]
+  );
+  assert.equal(colonizationOrganizerShouldApproach(state, BORDEAUX), true);
 });
 
 test("the colony remains a navigation destination with only fractional resupply cargo", () => {
