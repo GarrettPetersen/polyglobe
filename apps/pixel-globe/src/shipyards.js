@@ -130,6 +130,11 @@ export function addWorldShipyardPort(system, port, startMinute = system?.lastMin
   return yard;
 }
 
+export function worldShipyardHasPort(system, port) {
+  assertShipyardSystem(system);
+  return system.yards.has(requiredPortId(port));
+}
+
 export function replaceWorldShipyardPort(system, port, startMinute = system?.lastMinute) {
   assertShipyardSystem(system);
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid replacement shipyard minute: ${startMinute}`);

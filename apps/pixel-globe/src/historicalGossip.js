@@ -126,7 +126,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     factionIds: ["france", "habsburg", "spain", "venice", "genoa", "papal-states"],
     requiredActiveFactionIds: ["france", "habsburg"],
     requiredRelations: [relation("france", "habsburg", [DIPLOMACY_WAR])],
-    requiredCityController: cityController("Pavia", "Italy", "habsburg"),
+    requiredCityController: cityController("Milan", "Italy", "habsburg"),
     place: "Pavia",
     report: "King Francis I has been captured after the French defeat at Pavia",
     tradeImpact: "Couriers, lenders, and armorers are all charging wartime prices.",

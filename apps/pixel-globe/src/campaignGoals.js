@@ -50,6 +50,11 @@ const CAMPAIGN_DIALOGUE_PHASE_METADATA = new Map([
       })];
     })
   )),
+  // Running voyages from the original white-whale plot used this shorter phase.
+  ["white-whale-intro", Object.freeze({
+    contactGoalType: CAMPAIGN_GOAL_WHITE_WHALE,
+    completesIntro: true
+  })],
   ["pirate-treasure-blockade", Object.freeze({
     contactGoalType: CAMPAIGN_GOAL_TREASURE,
     completesIntro: false

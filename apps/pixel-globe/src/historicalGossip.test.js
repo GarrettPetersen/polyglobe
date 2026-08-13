@@ -21,7 +21,7 @@ const VIENNA = port("Vienna", "Austria", "habsburg");
 const WORLD_CITIES = [
   RHODES,
   VIENNA,
-  port("Pavia", "Italy", "habsburg"),
+  port("Milan", "Italy", "habsburg"),
   DELHI,
   port("Buda", "Hungary", "hungary"),
   ROME,

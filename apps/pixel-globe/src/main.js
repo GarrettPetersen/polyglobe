@@ -1452,6 +1452,7 @@ import {
   TEA_GOOD_ID,
   addPortGoodStock,
   addWorldEconomyPort,
+  addWorldEconomyShipyardPort,
   advanceWorldEconomyRestorePlan,
   connectNearbyPortMarkets,
   consumePortGoodStock,
@@ -1466,6 +1467,7 @@ import {
   snapshotWorldEconomy,
   tradeGoodById,
   worldEconomyHasPort,
+  worldEconomyHasShipyardPort,
   worldEconomyPortSettlementType
 } from "./economy.js";
 import {
@@ -23335,9 +23337,15 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
   if (!worldEconomyHasPort(worldEconomy, record)) {
     addWorldEconomyPort(worldEconomy, record, startMinute);
     economyChanged = true;
-  } else if (worldEconomyPortSettlementType(worldEconomy, record) !== record.settlementType) {
-    replaceWorldEconomyPort(worldEconomy, record, startMinute);
-    economyChanged = true;
+  } else {
+    if (!worldEconomyHasShipyardPort(worldEconomy, record)) {
+      addWorldEconomyShipyardPort(worldEconomy, record, startMinute);
+      economyChanged = true;
+    }
+    if (worldEconomyPortSettlementType(worldEconomy, record) !== record.settlementType) {
+      replaceWorldEconomyPort(worldEconomy, record, startMinute);
+      economyChanged = true;
+    }
   }
   if (economyChanged) {
     connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);

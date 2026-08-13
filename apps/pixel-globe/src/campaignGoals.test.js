@@ -601,6 +601,19 @@ test("every campaign intro phase closes into a valid voyage start", () => {
   }
 });
 
+test("legacy white whale intro dialogue still starts the voyage", () => {
+  const session = createCampaignDialogueSession({
+    cityTileId: CHARACTER.homePortTileId,
+    phase: "white-whale-intro",
+    steps: [{ speaker: "contact", expressionId: "attentive", text: "BACK" }]
+  });
+
+  assert.deepEqual(selectCampaignDialogueOption(session), {
+    closed: true,
+    action: { type: "campaign-intro-complete" }
+  });
+});
+
 test("choosing retirement starts the victory ending while legacy dialogue still closes into victory", () => {
   const choiceSession = createCampaignDialogueSession({
     cityTileId: CHARACTER.homePortTileId,

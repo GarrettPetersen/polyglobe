@@ -31,6 +31,7 @@ import {
   WINE_GOOD_ID,
   addPortGoodStock,
   addWorldEconomyPort,
+  addWorldEconomyShipyardPort,
   advanceWorldEconomyRestorePlan,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
@@ -54,6 +55,7 @@ import {
   snapshotWorldEconomy,
   tradeGoodById,
   worldEconomyPortSettlementType,
+  worldEconomyHasShipyardPort,
   worldMarketPriceComparison
 } from "./economy.js";
 import {
@@ -623,6 +625,23 @@ test("a founded port joins the economy and its save snapshot", () => {
   assert.ok(portMarket(economy, colony).some((row) => row.listedForSale));
   assert.ok(snapshotWorldEconomy(economy).ports.some((entry) => entry.id === colony.tileId));
   assert.throws(() => addWorldEconomyPort(economy, colony, 500), /already exists/);
+});
+
+test("an old colony economy record can acquire its missing shipyard", () => {
+  const colony = port(99, "Port Royal", "Canada", "northern-european", 2400);
+  const economy = createWorldEconomy({
+    ports: [LONDON, colony],
+    shipyardPorts: [LONDON],
+    startMinute: 0
+  });
+
+  assert.equal(worldEconomyHasShipyardPort(economy, colony), false);
+  addWorldEconomyShipyardPort(economy, colony, 500);
+  assert.equal(worldEconomyHasShipyardPort(economy, colony), true);
+  assert.throws(
+    () => addWorldEconomyShipyardPort(economy, colony, 500),
+    /Shipyard port already exists/
+  );
 });
 
 test("developing a village replaces its economy without discarding local stock", () => {

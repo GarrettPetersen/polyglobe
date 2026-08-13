@@ -4,7 +4,8 @@ import {
   createWorldShipyards,
   replaceWorldShipyardPort,
   restoreWorldShipyards,
-  snapshotWorldShipyards
+  snapshotWorldShipyards,
+  worldShipyardHasPort
 } from "./shipyards.js";
 import { beaverSettlementProductionRate } from "./beaverEcology.js";
 import { economyRegionForCity } from "./economyRegions.js";
@@ -864,6 +865,21 @@ export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMi
   economy.portStates.set(portId, state);
   invalidateWorldMarketMedianCache(economy);
   return { port: state, shipyard: yard };
+}
+
+export function worldEconomyHasShipyardPort(economy, port) {
+  assertEconomy(economy);
+  return worldShipyardHasPort(economy.shipyards, port);
+}
+
+export function addWorldEconomyShipyardPort(economy, port, startMinute = economy?.lastMinute) {
+  assertEconomy(economy);
+  if (!Number.isFinite(startMinute)) throw new Error(`Invalid economy shipyard start minute: ${startMinute}`);
+  const portId = requiredPortId(port);
+  if (!economy.portStates.has(portId)) {
+    throw new Error(`Cannot add a shipyard without an economy port: ${portId}`);
+  }
+  return addWorldShipyardPort(economy.shipyards, port, startMinute);
 }
 
 export function replaceWorldEconomyPort(economy, port, startMinute = economy?.lastMinute) {
