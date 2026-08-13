@@ -4,13 +4,13 @@
   "music": {
     "shipBpm": 108,
     "combatBpm": 85,
-    "fightStartFrame": 692,
+    "fightStartFrame": 581,
     "crossfadeFrames": 54,
     "combatSyncAttackFrame": 27,
     "syncCutFrames": [
       67, 133, 217, 300, 350, 400, 433, 467,
-      483, 500, 517, 533, 616, 692, 751, 834,
-      877, 919, 930, 940, 951, 961, 1036, 1078
+      483, 500, 517, 533, 557, 581, 640, 723,
+      766, 808, 819, 829, 840, 850, 925, 967
     ]
   },
   "chapters": [
@@ -29,6 +29,8 @@
           "startFrame": 39,
           "durationFrames": 84,
           "audioGain": 1.2,
+          "requiredFactorPortraitSourceId": "women-black-hair-portrait-by-captainskolot-women-black-hair-portrait",
+          "requiredPlayerPortraitSourceId": "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait",
           "requiredSfx": { "kind": "coin", "minimum": 6 }
         },
         {
@@ -36,6 +38,8 @@
           "startFrame": 39,
           "durationFrames": 83,
           "audioGain": 1.2,
+          "requiredFactorPortraitSourceId": "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women",
+          "requiredPlayerPortraitSourceId": "merchant-portrait-pack-by-captainskolot-portrait-merchant",
           "requiredSfx": { "kind": "coin", "minimum": 6 }
         }
       ]
@@ -48,7 +52,6 @@
           "startFrame": 81,
           "durationFrames": 50,
           "audioGain": 1.45,
-          "muteSourceAudio": true,
           "requiredSfx": { "kind": "fishingNet", "minimum": 1 },
           "carrySfx": { "kind": "fishingNet" }
         },
@@ -57,7 +60,6 @@
           "startFrame": 81,
           "durationFrames": 50,
           "audioGain": 1.45,
-          "muteSourceAudio": true,
           "requiredSfx": { "kind": "fishingNet", "minimum": 1 },
           "carrySfx": { "kind": "fishingNet" }
         }
@@ -71,7 +73,6 @@
           "startFrame": 24,
           "durationFrames": 33,
           "audioGain": 1.45,
-          "muteSourceAudio": true,
           "requiredSfx": { "kind": "whaleHarpoon", "minimum": 1 },
           "carrySfx": { "kind": "whaleHarpoon" }
         },
@@ -80,7 +81,6 @@
           "startFrame": 96,
           "durationFrames": 34,
           "audioGain": 1.15,
-          "muteSourceAudio": true,
           "requiredSfx": { "kind": "whaleKill", "minimum": 1 },
           "carrySfx": { "kind": "whaleKill" }
         }
@@ -89,8 +89,8 @@
     {
       "heading": "Colonize",
       "clips": [
-        { "source": "colonize/trailer-colonize-found.mp4", "startFrame": 129, "durationFrames": 83 },
-        { "source": "colonize/trailer-colonize-establish.mp4", "startFrame": 129, "durationFrames": 76 }
+        { "source": "colonize/trailer-colonize-found.mp4", "startFrame": 129, "durationFrames": 24 },
+        { "source": "colonize/trailer-colonize-establish.mp4", "startFrame": 129, "durationFrames": 24 }
       ]
     },
     {
@@ -100,13 +100,23 @@
           "source": "fight/trailer-fight-turtle.mp4",
           "startFrame": 30,
           "durationFrames": 59,
-          "requiredSfx": { "kind": "cannon", "minimum": 2 }
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-atakebune",
+            "minimumHits": 1
+          }
         },
         {
           "source": "fight/trailer-fight-atlantic.mp4",
           "startFrame": 30,
           "durationFrames": 83,
-          "requiredSfx": { "kind": "cannon", "minimum": 2 }
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-spanish-galleon",
+            "minimumHits": 1
+          }
         }
       ]
     },
@@ -118,9 +128,19 @@
           "startFrame": 15,
           "durationFrames": 43,
           "audioGain": 1.1,
-          "requiredSfx": { "kind": "cannon", "minimum": 2 }
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetIdPrefix": "shore-battery:",
+            "minimumHits": 1
+          }
         },
-        { "source": "pillage/trailer-pillage-alexandria.mp4", "startFrame": 129, "durationFrames": 42 }
+        {
+          "source": "pillage/trailer-pillage-alexandria.mp4",
+          "startFrame": 129,
+          "durationFrames": 42,
+          "requiredPlayerPortraitSourceId": "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait"
+        }
       ]
     },
     {

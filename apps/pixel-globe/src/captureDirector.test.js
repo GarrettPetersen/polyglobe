@@ -9,6 +9,7 @@ import {
   automaticCaptureMode,
   captureDirectorComplete,
   captureDirectorCue,
+  captureShouldSuppressAchievementNotices,
   createAutomaticFrameStepper,
   createCaptureDirector
 } from "./captureDirector.js";
@@ -20,6 +21,21 @@ test("automatic capture requires the explicit deterministic frame pass", () => {
   assert.throws(() => automaticCaptureMode("?autocapture=audio"), /Invalid autocapture/);
   assert.throws(() => automaticCaptureMode("?autocapture=1"), /Invalid autocapture/);
   assert.throws(() => automaticCaptureMode("?autocapture=true"), /Invalid autocapture/);
+});
+
+test("automatic promotional captures suppress achievement notices", () => {
+  assert.equal(captureShouldSuppressAchievementNotices({
+    automaticFramePass: AUTOMATIC_CAPTURE_FRAME_PASS,
+    sequenceKind: "sail"
+  }), true);
+  assert.equal(captureShouldSuppressAchievementNotices({
+    automaticFramePass: null,
+    sequenceKind: "panda"
+  }), true);
+  assert.equal(captureShouldSuppressAchievementNotices({
+    automaticFramePass: null,
+    sequenceKind: "sail"
+  }), false);
 });
 
 test("capture director fires each timed cue once and completes on duration", () => {

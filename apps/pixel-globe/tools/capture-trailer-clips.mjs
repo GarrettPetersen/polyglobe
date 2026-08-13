@@ -138,7 +138,16 @@ async function recordScenario(browser, scenarioId) {
 }
 
 async function loadExistingTrailerManifest() {
-  const allTrailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-"));
+  const manifestPath = path.join(outputRoot, "manifest.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Cannot include trailer captures without an existing manifest: ${manifestPath}`);
+  }
+  const existing = JSON.parse(await readFile(manifestPath, "utf8"));
+  const existingIds = existing?.clips?.map((clip) => clip.scenarioId);
+  if (!Array.isArray(existingIds) || existingIds.some((id) => typeof id !== "string")) {
+    throw new Error(`Existing trailer manifest has invalid clip ids: ${manifestPath}`);
+  }
+  const allTrailerIds = [...new Set([...existingIds, ...scenarioIds])];
   return Promise.all(allTrailerIds.map(async (scenarioId) => {
     const category = scenarioId.split("-")[1];
     const categoryDir = path.join(outputRoot, category);
@@ -546,6 +555,13 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
         `got ${actions.length} actions and ${coins.length} cues`
       );
     }
+    const portraitEvents = sidecar.events.filter((event) => (
+      event.type === "capture-portrait" && event.data?.role === "factor"
+    ));
+    if (portraitEvents.length !== 1 ||
+        portraitEvents[0].data?.sourceId !== sequence.factorPortraitSourceId) {
+      throw new Error(`${scenarioId} did not render its reviewed factor portrait`);
+    }
   }
   if (sequence.kind === "fish" || (sequence.kind === "panda" && sequence.variant === "fish")) {
     const netSounds = sfxEvents.filter((event) => event.data?.assetPath === FEATURED_SFX.fishingNet);
@@ -581,7 +597,12 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
     const cannonEvents = sidecar.events.filter((event) => (
       event.type === "weapon-fired" && event.data?.ownerId === "player" && event.data?.weapon === "cannon"
     ));
-    if (cannonEvents.length === 0) throw new Error(`${scenarioId} fired no player cannons`);
+    if (cannonEvents.length !== 1) {
+      throw new Error(`${scenarioId} must fire exactly one player broadside; found ${cannonEvents.length}`);
+    }
+    if (cannonEvents[0].data?.side !== sequence.broadsideSide) {
+      throw new Error(`${scenarioId} fired ${cannonEvents[0].data?.side} instead of ${sequence.broadsideSide}`);
+    }
     for (const event of cannonEvents) {
       const cueCount = sfxEvents.filter((cue) => (
         cue.t === event.t && cue.data?.assetPath === FEATURED_SFX.cannon
@@ -590,6 +611,16 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
       if (cueCount < volleyCount) {
         throw new Error(`${scenarioId} has a silent cannon volley at ${event.t}ms`);
       }
+    }
+    const targetMatches = sequence.kind === "fight"
+      ? (targetId) => targetId === sequence.encounterId
+      : (targetId) => typeof targetId === "string" && targetId.startsWith("shore-battery:");
+    const playerHits = sidecar.events.filter((event) => (
+      event.type === "projectile-hit" && event.data?.ownerId === "player" &&
+      event.data?.weapon === "cannon" && targetMatches(event.data?.targetId)
+    ));
+    if (playerHits.length === 0) {
+      throw new Error(`${scenarioId} broadside did not hit its intended target`);
     }
   }
 }

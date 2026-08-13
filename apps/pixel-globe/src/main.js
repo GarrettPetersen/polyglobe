@@ -1104,6 +1104,7 @@ import {
   automaticCaptureMode,
   captureDirectorComplete,
   captureDirectorCue,
+  captureShouldSuppressAchievementNotices,
   createAutomaticFrameStepper,
   createCaptureDirector
 } from "./captureDirector.js";
@@ -9689,6 +9690,8 @@ function setupAutomaticFramePass() {
   capturePlaybackPaused = false;
   captureFrameStepper = createAutomaticFrameStepper(captureDirector.sequence.durationSeconds);
   deterministicCaptureEvents = [];
+  achievementNoticeQueue.length = 0;
+  achievementNotice = null;
   lastFrameMs = 0;
   captureDirector.lastWallClockMs = 0;
   emitCaptureEvent("capture-start", {
@@ -9750,6 +9753,7 @@ function stageCaptureSequence() {
   } else if (sequence.kind === "trade") {
     const city = captureCityByName(sequence.cityName);
     placeCapturePlayerNearTile(city.tileId);
+    stageCaptureFactorPortrait(sequence, city);
     gameState.doubloons = 12_000;
     if (sequence.variant === "sell") {
       const good = tradeGoodById(sequence.goodId);
@@ -9768,7 +9772,7 @@ function stageCaptureSequence() {
   } else if (sequence.kind === "sail") {
     stageCaptureSailing(sequence);
   } else if (sequence.kind === "fight") {
-    maximizeCaptureCombatLoadout();
+    stageCaptureFight(sequence);
   } else if (sequence.kind === "pillage") {
     stageCapturePillage(sequence);
   } else if (sequence.kind === "colonize") {
@@ -9796,6 +9800,22 @@ function stageCaptureDiscoveryMemory(sequence) {
     if (discovery.id === featuredDiscovery?.id) continue;
     recordDiscovery(gameState, discovery);
   }
+}
+
+function stageCaptureFactorPortrait(sequence, city) {
+  const previous = portCityCharacters.get(city.tileId);
+  if (!previous) throw new Error(`Capture trade port has no factor: ${sequence.cityName}`);
+  usedCharacterNames.delete(previous.name);
+  const factor = assignPortCityCharacterFromSource(
+    city,
+    sequence.factorPortraitSourceId,
+    characterPortraitManifest,
+    usedCharacterNames,
+    { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+  );
+  portCityCharacters.set(city.tileId, factor);
+  usedCharacterNames.add(factor.name);
+  chart = buildChart(camera);
 }
 
 function updateCaptureDirectorFrame(nowMs) {
@@ -9852,6 +9872,12 @@ function updateCaptureExplore(sequence, nowMs) {
 function updateCaptureTrade(sequence) {
   if (captureCue("open-market", 0.7)) {
     const cityCall = capturePortCallByName(sequence.cityName);
+    if (cityCall.character?.sourceId !== sequence.factorPortraitSourceId) {
+      throw new Error(
+        `Capture trade factor mismatch for ${sequence.cityName}: ` +
+        `${cityCall.character?.sourceId || "missing"}`
+      );
+    }
     dialogueState = createPortDialogueSession(cityCall, {
       initialNodeId: sequence.variant === "buy" ? "buy" : "sell",
       admittedToPort: true
@@ -9859,6 +9885,11 @@ function updateCaptureTrade(sequence) {
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
     ensureDialoguePortraitLoaded();
+    emitCaptureEvent("capture-portrait", {
+      role: "factor",
+      city: sequence.cityName,
+      sourceId: cityCall.character.sourceId
+    });
     emitCaptureEvent("capture-beat", { action: `market-${sequence.variant}`, city: sequence.cityName });
     dirty = true;
   }
@@ -9930,10 +9961,19 @@ function updateCaptureFight(sequence) {
     forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, target.id);
     emitCaptureEvent("capture-beat", { action: "engage-ship", targetId: target.id });
   }
-  captureDirector.steeringTarget = captureCombatOrbitTarget(target);
-  if (captureDirector.elapsedSeconds >= 1.4) {
-    fireBroadside("port");
-    fireBroadside("starboard");
+  if (captureCue("fire-broadside", 1.4)) {
+    const geometry = captureBroadsideGeometry(target.vector, sequence.broadsideSide);
+    assertCaptureBroadsideGeometry(geometry, sequence.encounterId);
+    if (!fireBroadside(sequence.broadsideSide)) {
+      throw new Error(`Capture could not fire ${sequence.broadsideSide} broadside`);
+    }
+    emitCaptureEvent("capture-beat", {
+      action: "fire-broadside",
+      side: sequence.broadsideSide,
+      targetId: sequence.encounterId,
+      targetDistancePx: Math.round(geometry.distancePx * 10) / 10,
+      targetAlignment: Math.round(geometry.alignment * 1000) / 1000
+    });
   }
 }
 
@@ -9953,9 +9993,18 @@ function updateCapturePillage(sequence) {
   if (sequence.variant === "bombard") {
     battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     if (captureCue("fire-on-port", 1.0)) {
-      fireBroadside("port");
-      fireBroadside("starboard");
-      emitCaptureEvent("capture-beat", { action: "bombard-port", city: sequence.cityName });
+      const geometry = captureBroadsideGeometry(tileCenterVector(cityCall.tileId), sequence.broadsideSide);
+      assertCaptureBroadsideGeometry(geometry, sequence.cityName);
+      if (!fireBroadside(sequence.broadsideSide)) {
+        throw new Error(`Capture could not fire on ${sequence.cityName}`);
+      }
+      emitCaptureEvent("capture-beat", {
+        action: "bombard-port",
+        city: sequence.cityName,
+        side: sequence.broadsideSide,
+        targetDistancePx: Math.round(geometry.distancePx * 10) / 10,
+        targetAlignment: Math.round(geometry.alignment * 1000) / 1000
+      });
     }
     if (captureCue("disable-battery", 2.6)) {
       damageShoreBattery(
@@ -10128,24 +10177,6 @@ function captureAutopilotHeading() {
   return normalizeTangentOrFallback(toward, ship.position, ship.heading);
 }
 
-function captureCombatOrbitTarget(target) {
-  const toward = normalizeOrNull(projectTangentVector([
-    target.vector[0] - ship.position[0],
-    target.vector[1] - ship.position[1],
-    target.vector[2] - ship.position[2]
-  ], ship.position));
-  if (!toward) return target.vector;
-  const port = normalizeOrNull(cross3(ship.position, toward));
-  if (!port) return target.vector;
-  const starboard = scaleVector(port, -1);
-  const orbitHeading = dot3(ship.heading, port) >= dot3(ship.heading, starboard) ? port : starboard;
-  return normalize3([
-    ship.position[0] + orbitHeading[0] * 0.08,
-    ship.position[1] + orbitHeading[1] * 0.08,
-    ship.position[2] + orbitHeading[2] * 0.08
-  ]);
-}
-
 function captureDiscoveryByName(name) {
   const matches = discoveryCatalog.filter((entry) => entry.displayName === name);
   if (matches.length !== 1) throw new Error(`Capture discovery ${name} matched ${matches.length} entries`);
@@ -10302,13 +10333,83 @@ function maximizeCaptureCombatLoadout() {
   syncShipCargoFromGameState();
 }
 
+function stageCaptureFight(sequence) {
+  maximizeCaptureCombatLoadout();
+  const encounters = CAPTURE_SCENARIO.encounters.filter((entry) => entry.id === sequence.encounterId);
+  if (encounters.length !== 1) {
+    throw new Error(`Capture encounter ${sequence.encounterId} matched ${encounters.length} scenarios`);
+  }
+  aimCaptureBroadsideAt(
+    latLonToDirection(encounters[0].lat, encounters[0].lon),
+    sequence.broadsideSide,
+    sequence.encounterId
+  );
+}
+
+function aimCaptureBroadsideAt(targetVector, side, targetLabel) {
+  const toward = normalizeOrNull(projectTangentVector([
+    targetVector[0] - ship.position[0],
+    targetVector[1] - ship.position[1],
+    targetVector[2] - ship.position[2]
+  ], ship.position));
+  if (!toward) throw new Error(`Capture could not aim at ${targetLabel}`);
+  const starboardHeading = normalizeOrNull(cross3(ship.position, toward));
+  if (!starboardHeading) throw new Error(`Capture could not resolve a broadside heading for ${targetLabel}`);
+  const heading = side === "starboard" ? starboardHeading : scaleVector(starboardHeading, -1);
+  ship.heading = heading;
+  ship.targetHeading = heading.slice();
+  ship.velocity = [0, 0, 0];
+  captureDirector.steeringTarget = normalize3([
+    ship.position[0] + heading[0] * 0.25,
+    ship.position[1] + heading[1] * 0.25,
+    ship.position[2] + heading[2] * 0.25
+  ]);
+  assertCaptureBroadsideGeometry(captureBroadsideGeometry(targetVector, side), targetLabel);
+}
+
+function captureBroadsideGeometry(targetVector, side) {
+  const toward = normalizeOrNull(projectTangentVector([
+    targetVector[0] - ship.position[0],
+    targetVector[1] - ship.position[1],
+    targetVector[2] - ship.position[2]
+  ], ship.position));
+  if (!toward) throw new Error("Capture broadside target overlaps the player ship");
+  const port = normalizeOrNull(cross3(ship.position, ship.heading));
+  if (!port) throw new Error("Capture broadside has no port direction");
+  const sideDirection = side === "port" ? port : scaleVector(port, -1);
+  return {
+    alignment: dot3(toward, sideDirection),
+    distancePx: vectorArcDistance(ship.position, targetVector) * PIXELS_PER_RADIAN
+  };
+}
+
+function assertCaptureBroadsideGeometry(geometry, targetLabel) {
+  if (geometry.alignment < 0.985) {
+    throw new Error(
+      `Capture broadside is not centered on ${targetLabel}: ${geometry.alignment.toFixed(3)}`
+    );
+  }
+  if (geometry.distancePx < 32 || geometry.distancePx > 62) {
+    throw new Error(
+      `Capture broadside target ${targetLabel} is ${geometry.distancePx.toFixed(1)}px away; expected 32..62`
+    );
+  }
+}
+
 function stageCapturePillage(sequence) {
   const city = captureCityByName(sequence.cityName);
-  placeCapturePlayerNearTile(city.tileId);
+  if (sequence.variant === "bombard") {
+    placeCapturePlayerForBroadsideTarget(city.tileId, sequence.cityName);
+  } else {
+    placeCapturePlayerNearTile(city.tileId);
+  }
   maximizeCaptureCombatLoadout();
   const call = capturePortCallByName(sequence.cityName);
   const battery = ensureShoreBatteryState(call);
   markPlayerPortAssault(gameState.memory.flags, call, weatherClockMinutes + WEATHER_MINUTES_PER_DAY);
+  if (sequence.variant === "bombard") {
+    aimCaptureBroadsideAt(tileCenterVector(call.tileId), sequence.broadsideSide, sequence.cityName);
+  }
   if (sequence.variant === "assault") {
     damageShoreBattery(
       battery,
@@ -10325,6 +10426,33 @@ function stageCapturePillage(sequence) {
       );
     }
   }
+}
+
+function placeCapturePlayerForBroadsideTarget(targetTileId, targetLabel) {
+  const targetVector = tileCenterVector(targetTileId);
+  const visited = new Set([targetTileId]);
+  let frontier = [targetTileId];
+  const candidates = [];
+  for (let depth = 0; depth <= 7; depth += 1) {
+    for (const tileId of frontier) {
+      if (!isShipBaseNavigableTile(tileId)) continue;
+      const distancePx = vectorArcDistance(tileCenterVector(tileId), targetVector) * PIXELS_PER_RADIAN;
+      if (distancePx >= 32 && distancePx <= 58) candidates.push({ tileId, distancePx });
+    }
+    const next = [];
+    for (const tileId of frontier) {
+      for (const neighborId of graph.neighbors[tileId] || []) {
+        if (visited.has(neighborId)) continue;
+        visited.add(neighborId);
+        next.push(neighborId);
+      }
+    }
+    frontier = next;
+  }
+  candidates.sort((a, b) => Math.abs(a.distancePx - 48) - Math.abs(b.distancePx - 48));
+  const selected = candidates[0];
+  if (!selected) throw new Error(`Capture could not find broadside water near ${targetLabel}`);
+  placeCapturePlayerOnTile(selected.tileId);
 }
 
 function stageCaptureColonization(sequence) {
@@ -13357,7 +13485,10 @@ function syncAchievementsFromGameState(event = null) {
 
 function queueAchievementNotices(entries) {
   if (!Array.isArray(entries) || entries.length === 0) return false;
-  if (CAPTURE_SCENARIO?.sequence?.kind === "panda") return false;
+  if (captureShouldSuppressAchievementNotices({
+    automaticFramePass: CAPTURE_FRAME_PASS,
+    sequenceKind: CAPTURE_SCENARIO?.sequence?.kind
+  })) return false;
   if (entries.length >= ACHIEVEMENT_NOTICE_BATCH_THRESHOLD) {
     achievementNoticeQueue.push({
       heading: `${entries.length} ACHIEVEMENTS UNLOCKED`,
@@ -26201,6 +26332,13 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     );
     addHullSplinterBurst(ball, point);
   }
+  emitCaptureEvent("projectile-hit", {
+    ownerId: ball.ownerId,
+    targetId: battery.id,
+    weapon: ball.kind || ball.weaponId,
+    damage: ball.portable ? 0 : ball.damage,
+    remainingHitPoints: battery.hitPoints
+  });
   if (hitByPlayer && disposition === FRIENDLY_FIRE_WARNING) {
     recordPlayerFriendlyFireWarning(battery.factionId);
   }

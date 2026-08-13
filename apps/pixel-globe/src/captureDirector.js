@@ -12,6 +12,11 @@ export function automaticCaptureMode(search) {
   return value;
 }
 
+export function captureShouldSuppressAchievementNotices({ automaticFramePass, sequenceKind }) {
+  if (automaticFramePass) return true;
+  return sequenceKind === "panda";
+}
+
 export function createCaptureDirector(sequence) {
   if (!sequence || typeof sequence !== "object") throw new Error("Capture director needs a sequence");
   if (!Number.isFinite(sequence.durationSeconds) || sequence.durationSeconds <= 0) {

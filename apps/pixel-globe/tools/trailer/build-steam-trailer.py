@@ -19,7 +19,7 @@ PLAN_PATH = TOOL / "steam-trailer-plan.json"
 TEMP = WORK / "render"
 OVERLAYS = TEMP / "overlays"
 SEGMENTS = TEMP / "segments"
-OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v7.mp4"
+OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v9.mp4"
 FONT_PATH = TOOL / "assets" / "PirataOne-Regular.ttf"
 TITLE_PATH = APP / "capsule_art" / "generated" / "capsule_title_with_ship_english.png"
 SAILING_MUSIC_INTRO = APP / "public" / "assets" / "music" / "ship-theme-intro.ogg"
@@ -34,6 +34,7 @@ FEATURED_SFX = {
     "whaleHarpoon": "assets/sfx/arrow-hit.ogg",
     "whaleKill": "assets/sfx/universfield-wet-squelch-impact-352302.ogg",
 }
+SFX_DURATION_CACHE = {}
 WIDTH = 1920
 HEIGHT = 1080
 FPS = 30
@@ -41,7 +42,7 @@ OUTRO_BLUR_SECONDS = 1.1
 OUTRO_TITLE_START_SECONDS = 0.25
 OUTRO_TITLE_SETTLE_SECONDS = 7 * math.pi / 18
 OUTRO_SOURCE_MAX_SECONDS = 5.0
-MINIMUM_FEATURE_CLIP_FRAMES = 30
+MINIMUM_FEATURE_CLIP_FRAMES = 24
 MINIMUM_MONTAGE_CLIP_FRAMES = 10
 
 
@@ -99,17 +100,14 @@ def render_segment(
     start,
     duration,
     output,
-    audio_gain,
-    mute_audio,
 ):
     require_file(source)
-    audio_filter = "volume=0" if mute_audio else f"volume={audio_gain},alimiter=limit=0.92"
     filters = (
         f"[0:v]trim=start={start}:duration={duration},setpts=PTS-STARTPTS,"
         f"fps={FPS},scale={WIDTH}:{HEIGHT}:flags=neighbor,setsar=1,"
         "format=yuv420p[video];"
         f"[0:a]atrim=start={start}:duration={duration},asetpts=PTS-STARTPTS,"
-        f"aresample=48000,{audio_filter},"
+        "aresample=48000,volume=0,"
         "aformat=sample_fmts=s16:channel_layouts=stereo[audio]"
     )
     run([
@@ -156,7 +154,7 @@ def render_outro_motion(source, source_start, source_duration, duration, overlay
         "format=yuv420p[video];"
         f"[0:a]atrim=start={source_start}:duration={source_duration},asetpts=PTS-STARTPTS,"
         f"atempo={playback_rate},atrim=duration={duration},"
-        "aformat=sample_fmts=s16:channel_layouts=stereo[audio]"
+        "volume=0,aformat=sample_fmts=s16:channel_layouts=stereo[audio]"
     )
     run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -209,15 +207,15 @@ def clip_sfx_events(sidecar, start, duration):
     ]
 
 
-def validate_clip_sfx(source, sidecar, start, duration, required_sfx, mute_audio):
+def validate_clip_sfx(source, sidecar, start, duration, required_sfx):
     window_sfx = clip_sfx_events(sidecar, start, duration)
     sail_deploys = [
         event for event in window_sfx
         if event.get("data", {}).get("assetPath") == SAIL_DEPLOY_SFX
     ]
-    if sail_deploys and not mute_audio:
+    if sail_deploys:
         raise RuntimeError(
-            f"Audible clip window contains the removed sail-deploy SFX: {source}"
+            f"Clip window contains the removed sail-deploy SFX: {source}"
         )
     if required_sfx is None:
         return
@@ -240,50 +238,227 @@ def validate_clip_sfx(source, sidecar, start, duration, required_sfx, mute_audio
         )
 
 
-def carried_sfx_cue(source, sidecar, start, duration, timeline_start, audio_gain, carry_sfx):
-    if carry_sfx is None:
-        return None
-    if not isinstance(carry_sfx, dict):
-        raise RuntimeError(f"carrySfx must be an object: {source}")
-    kind = carry_sfx.get("kind")
-    if kind not in FEATURED_SFX:
-        raise RuntimeError(f"Unknown carried SFX kind for {source}: {kind}")
-    matches = [
-        event for event in clip_sfx_events(sidecar, start, duration)
-        if event.get("data", {}).get("assetPath") == FEATURED_SFX[kind]
+def validate_clip_portraits(source, sidecar, clip):
+    scenario = sidecar.get("scenario")
+    if not isinstance(scenario, dict):
+        raise RuntimeError(f"Capture sidecar has no scenario object: {source}")
+    sequence = scenario.get("sequence")
+    player = scenario.get("player")
+    expected_factor = clip.get("requiredFactorPortraitSourceId")
+    if expected_factor is not None:
+        if not isinstance(expected_factor, str) or not expected_factor:
+            raise RuntimeError(f"Invalid required factor portrait source: {source}")
+        actual_factor = sequence.get("factorPortraitSourceId") if isinstance(sequence, dict) else None
+        if actual_factor != expected_factor:
+            raise RuntimeError(
+                f"{source} factor portrait is {actual_factor}; expected {expected_factor}"
+            )
+        portrait_events = [
+            event for event in sidecar["events"]
+            if event.get("type") == "capture-portrait"
+            and event.get("data", {}).get("role") == "factor"
+        ]
+        if len(portrait_events) != 1 or portrait_events[0].get("data", {}).get("sourceId") != expected_factor:
+            raise RuntimeError(f"{source} did not render the required factor portrait")
+
+    expected_player = clip.get("requiredPlayerPortraitSourceId")
+    if expected_player is not None:
+        if not isinstance(expected_player, str) or not expected_player:
+            raise RuntimeError(f"Invalid required player portrait source: {source}")
+        actual_player = player.get("characterPortraitSourceId") if isinstance(player, dict) else None
+        if actual_player != expected_player:
+            raise RuntimeError(
+                f"{source} player portrait is {actual_player}; expected {expected_player}"
+            )
+
+
+def validate_clip_broadside(source, sidecar, start, duration, required_broadside):
+    if required_broadside is None:
+        return
+    if not isinstance(required_broadside, dict):
+        raise RuntimeError(f"requiredBroadside must be an object: {source}")
+    side = required_broadside.get("side")
+    if side not in {"port", "starboard"}:
+        raise RuntimeError(f"Invalid required broadside side for {source}: {side}")
+    player_volleys = [
+        event for event in sidecar["events"]
+        if event.get("type") == "weapon-fired"
+        and event.get("data", {}).get("ownerId") == "player"
+        and event.get("data", {}).get("weapon") == "cannon"
     ]
-    if len(matches) != 1:
+    if len(player_volleys) != 1:
+        raise RuntimeError(f"{source} must contain exactly one player cannon volley; found {len(player_volleys)}")
+    volley = player_volleys[0]
+    if volley.get("data", {}).get("side") != side:
+        raise RuntimeError(f"{source} fired the wrong broadside")
+    start_ms = round(start * 1000)
+    end_ms = round((start + duration) * 1000)
+    if not start_ms <= volley.get("t", -1) < end_ms:
+        raise RuntimeError(f"{source} player broadside falls outside its edit window")
+
+    target_id = required_broadside.get("targetId")
+    target_prefix = required_broadside.get("targetIdPrefix")
+    if (target_id is None) == (target_prefix is None):
+        raise RuntimeError(f"{source} broadside needs exactly one target id or target prefix")
+    hits = []
+    for event in sidecar["events"]:
+        data = event.get("data", {})
+        if event.get("type") != "projectile-hit" or data.get("ownerId") != "player" or data.get("weapon") != "cannon":
+            continue
+        if not start_ms <= event.get("t", -1) < end_ms:
+            continue
+        event_target = data.get("targetId")
+        if target_id is not None and event_target != target_id:
+            continue
+        if target_prefix is not None and (not isinstance(event_target, str) or not event_target.startswith(target_prefix)):
+            continue
+        hits.append(event)
+    minimum_hits = required_frame_count(
+        required_broadside.get("minimumHits"),
+        f"{source} required cannon hit count",
+    )
+    if len(hits) < minimum_hits:
         raise RuntimeError(
-            f"{source} needs exactly one {kind} cue to carry across its cut; found {len(matches)}"
+            f"{source} needs at least {minimum_hits} visible player cannon hits; found {len(hits)}"
         )
-    event = matches[0]
-    data = event.get("data", {})
-    volume = required_positive_number(data.get("volume"), f"{source} carried {kind} volume")
+
+
+def sfx_duration(asset):
+    key = str(asset)
+    if key not in SFX_DURATION_CACHE:
+        SFX_DURATION_CACHE[key] = probe_duration(asset)
+    return SFX_DURATION_CACHE[key]
+
+
+def resolve_sfx_event(source, event):
+    event_time_ms = event.get("t")
+    if not isinstance(event_time_ms, (int, float)) or isinstance(event_time_ms, bool):
+        raise RuntimeError(f"Capture SFX event has no numeric timestamp: {source}")
+    if not math.isfinite(event_time_ms) or event_time_ms < 0:
+        raise RuntimeError(f"Capture SFX event has an invalid timestamp: {source}")
+    data = event.get("data")
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Capture SFX event has no data object: {source}")
+    asset_path = data.get("assetPath")
+    if not isinstance(asset_path, str) or not asset_path.startswith("assets/sfx/"):
+        raise RuntimeError(f"Capture SFX event has an invalid asset path: {source}")
+    public_root = (APP / "public").resolve()
+    asset = (public_root / asset_path).resolve()
+    try:
+        asset.relative_to(public_root)
+    except ValueError as error:
+        raise RuntimeError(f"Capture SFX asset escapes the public directory: {asset_path}") from error
+    require_file(asset)
+    volume = required_positive_number(data.get("volume"), f"{source} SFX volume")
     playback_rate = required_positive_number(
         data.get("playbackRate"),
-        f"{source} carried {kind} playback rate",
+        f"{source} SFX playback rate",
     )
     if not 0.5 <= playback_rate <= 2:
-        raise RuntimeError(f"{source} carried {kind} playback rate is unsupported: {playback_rate}")
-    asset = APP / "public" / FEATURED_SFX[kind]
-    require_file(asset)
-    cue_offset = event.get("t") / 1000 - start
-    effect_duration = probe_duration(asset) / playback_rate
-    tail_duration = cue_offset + effect_duration - duration
-    if cue_offset < 0 or cue_offset >= duration:
-        raise RuntimeError(f"{source} carried {kind} cue falls outside its edit window")
-    if tail_duration <= 0.1:
-        raise RuntimeError(f"{source} carried {kind} cue does not cross the following cut")
+        raise RuntimeError(f"{source} SFX playback rate is unsupported: {playback_rate}")
     return {
-        "kind": kind,
+        "assetPath": asset_path,
         "asset": str(asset),
-        "timelineStart": timeline_start + cue_offset,
-        "clipCut": timeline_start + duration,
-        "effectDuration": effect_duration,
-        "tailDuration": tail_duration,
-        "volume": volume * audio_gain,
+        "eventTime": event_time_ms / 1000,
+        "effectDuration": sfx_duration(asset) / playback_rate,
+        "volume": volume,
         "playbackRate": playback_rate,
     }
+
+
+def layered_sfx_cues(
+    source,
+    sidecar,
+    start,
+    duration,
+    timeline_start,
+    audio_gain,
+    carry_sfx,
+):
+    resolved_events = [
+        resolve_sfx_event(source, event)
+        for event in sidecar["events"]
+        if event.get("type") == "capture-sfx"
+    ]
+    if carry_sfx is not None:
+        if not isinstance(carry_sfx, dict):
+            raise RuntimeError(f"carrySfx must be an object: {source}")
+        kind = carry_sfx.get("kind")
+        if kind not in FEATURED_SFX:
+            raise RuntimeError(f"Unknown carried SFX kind for {source}: {kind}")
+        matches = [
+            resolved for resolved in resolved_events
+            if start <= resolved["eventTime"] < start + duration
+            and resolved["assetPath"] == FEATURED_SFX[kind]
+        ]
+        if len(matches) != 1:
+            raise RuntimeError(
+                f"{source} needs exactly one {kind} cue to cross its cut; found {len(matches)}"
+            )
+        match = matches[0]
+        tail_duration = match["eventTime"] + match["effectDuration"] - (start + duration)
+        if tail_duration <= 0.1:
+            raise RuntimeError(f"{source} {kind} cue does not cross the following cut")
+
+    cues = []
+    clip_end = start + duration
+    timeline_cut = timeline_start + duration
+    for resolved in resolved_events:
+        effect_start = resolved["eventTime"]
+        if effect_start < start or effect_start >= clip_end:
+            continue
+        cue_start = timeline_start + effect_start - start
+        cue_duration = resolved["effectDuration"]
+        cues.append({
+            **resolved,
+            "source": str(source),
+            "sourceClipStart": start,
+            "sourceClipEnd": clip_end,
+            "timelineStart": cue_start,
+            "timelineEnd": cue_start + cue_duration,
+            "clipCut": timeline_cut,
+            "volume": resolved["volume"] * audio_gain,
+            "crossesCut": cue_start + cue_duration > timeline_cut + 0.001,
+        })
+    return cues
+
+
+def render_timeline_sfx(cues, duration, output):
+    if not cues:
+        run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={duration}",
+            "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", output,
+        ])
+        return
+
+    inputs = []
+    filters = []
+    labels = []
+    for index, cue in enumerate(cues):
+        inputs.extend(["-i", cue["asset"]])
+        label = f"cue-{index}"
+        delay_ms = round(cue["timelineStart"] * 1000)
+        filters.append(
+            f"[{index}:a]aresample=48000,"
+            "aformat=sample_fmts=flt:channel_layouts=stereo,"
+            f"atempo={cue['playbackRate']},volume={cue['volume']},"
+            f"asetpts=PTS-STARTPTS,adelay=delays={delay_ms}:all=1[{label}]"
+        )
+        labels.append(f"[{label}]")
+    filters.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={duration}[silence]")
+    filters.append(
+        f"[silence]{''.join(labels)}"
+        f"amix=inputs={len(labels) + 1}:duration=first:dropout_transition=0:normalize=0,"
+        f"alimiter=limit=0.92,atrim=duration={duration}[audio]"
+    )
+    run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        *inputs,
+        "-filter_complex", ";".join(filters),
+        "-map", "[audio]", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2",
+        output,
+    ])
 
 
 def montage_boundary_frames(montage, music):
@@ -442,7 +617,7 @@ def main():
         "chapters": [],
         "montages": [],
         "timeline": [],
-        "carriedSfx": [],
+        "layeredSfx": [],
         "outro": {},
         "music": {
             "beforeFight": "ship-theme",
@@ -460,7 +635,7 @@ def main():
 
     segment_index = 0
     timeline_cursor_frame = 0
-    carried_sfx = []
+    layered_sfx = []
     final_source = None
     final_source_end = None
     for section in sections:
@@ -494,10 +669,6 @@ def main():
                 clip.get("audioGain", 1),
                 f"{source} audio gain",
             )
-            explicit_mute = clip.get("muteSourceAudio", False)
-            if not isinstance(explicit_mute, bool):
-                raise RuntimeError(f"{source} muteSourceAudio must be a boolean")
-            mute_audio = not is_chapter or explicit_mute
             source_duration = probe_duration(source)
             if start < 0 or start + duration > source_duration + 0.04:
                 raise RuntimeError(
@@ -511,9 +682,16 @@ def main():
                 start,
                 duration,
                 clip.get("requiredSfx"),
-                mute_audio,
             )
-            carry_sfx = carried_sfx_cue(
+            validate_clip_portraits(source, sidecar, clip)
+            validate_clip_broadside(
+                source,
+                sidecar,
+                start,
+                duration,
+                clip.get("requiredBroadside"),
+            )
+            clip_sfx = layered_sfx_cues(
                 source,
                 sidecar,
                 start,
@@ -522,13 +700,7 @@ def main():
                 audio_gain,
                 clip.get("carrySfx"),
             )
-            if carry_sfx and not explicit_mute:
-                raise RuntimeError(
-                    f"{source} must mute its source audio when carrying {carry_sfx['kind']} "
-                    "to avoid doubling the cue"
-                )
-            if carry_sfx:
-                carried_sfx.append(carry_sfx)
+            layered_sfx.extend(clip_sfx)
             label = heading.lower() if is_chapter else section["id"]
             segment_path = SEGMENTS / f"{segment_index:02d}-{label}.mkv"
             render_segment(
@@ -536,8 +708,6 @@ def main():
                 start,
                 duration,
                 segment_path,
-                audio_gain,
-                mute_audio,
             )
             segment_paths.append(segment_path)
             final_source = source
@@ -549,10 +719,9 @@ def main():
                 "startFrame": start_frame,
                 "durationFrames": duration_frames,
                 "audioGain": audio_gain,
-                "sourceAudioMuted": mute_audio,
+                "sourceAudioMuted": True,
+                "layeredSfxCount": len(clip_sfx),
             }
-            if carry_sfx:
-                edit_clip["carrySfx"] = carry_sfx
             edit_section["clips"].append(edit_clip)
             segment_index += 1
             timeline_cursor_frame += duration_frames
@@ -566,7 +735,7 @@ def main():
         raise RuntimeError(
             f"Rendered timeline has {timeline_cursor_frame} frames; expected {gameplay_frames}"
         )
-    edit["carriedSfx"] = carried_sfx
+    edit["layeredSfx"] = layered_sfx
 
     if final_source is None or final_source_end is None:
         raise RuntimeError("Trailer has no final frame for its outro")
@@ -620,6 +789,8 @@ def main():
         )
 
     music_path = TEMP / "music.wav"
+    sfx_path = TEMP / "sfx.wav"
+    render_timeline_sfx(layered_sfx, expected_duration, sfx_path)
     music_fade_start = max(0.0, expected_duration - 4.0)
     sailing_music_duration = fight_start_seconds + crossfade_seconds / 2
     combat_music_duration = expected_duration - fight_start_seconds + crossfade_seconds / 2
@@ -647,32 +818,12 @@ def main():
         "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", music_path,
     ])
 
-    final_inputs = ["-i", gameplay_path, "-i", music_path]
+    final_inputs = ["-i", gameplay_path, "-i", music_path, "-i", sfx_path]
     final_filter_parts = [
-        f"[0:a]aresample=48000,volume=0.82,"
-        f"afade=t=out:st={expected_duration - 1.5}:d=1.5[game-base]",
         "[1:a]aresample=48000[music]",
+        f"[2:a]aresample=48000,volume=0.82,"
+        f"afade=t=out:st={expected_duration - 1.5}:d=1.5[game]",
     ]
-    carried_labels = []
-    for index, cue in enumerate(carried_sfx):
-        final_inputs.extend(["-i", cue["asset"]])
-        input_index = index + 2
-        label = f"carried-{index}"
-        delay_ms = round(cue["timelineStart"] * 1000)
-        final_filter_parts.append(
-            f"[{input_index}:a]aresample=48000,atempo={cue['playbackRate']},"
-            f"volume={cue['volume'] * 0.82},asetpts=PTS-STARTPTS,"
-            f"adelay=delays={delay_ms}:all=1[{label}]"
-        )
-        carried_labels.append(f"[{label}]")
-    if carried_labels:
-        final_filter_parts.append(
-            f"[game-base]{''.join(carried_labels)}"
-            f"amix=inputs={len(carried_labels) + 1}:duration=first:"
-            "dropout_transition=0:normalize=0[game]"
-        )
-    else:
-        final_filter_parts.append("[game-base]anull[game]")
     final_filter_parts.append(
         "[game][music]amix=inputs=2:duration=first:dropout_transition=0,"
         "alimiter=limit=0.92,loudnorm=I=-14:TP=-1.5:LRA=9[audio]"

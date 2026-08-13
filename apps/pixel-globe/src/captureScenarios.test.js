@@ -153,14 +153,64 @@ test("fast sailing trailer shots stage distinct ships on validated beam reaches"
 });
 
 test("trading trailer shots perform a rapid run of repeated transactions", () => {
-  for (const id of ["trailer-trade-ternate", "trailer-trade-lisbon"]) {
+  const expectedPortraits = new Map([
+    [
+      "trailer-trade-ternate",
+      {
+        factor: "women-black-hair-portrait-by-captainskolot-women-black-hair-portrait",
+        player: "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait"
+      }
+    ],
+    [
+      "trailer-trade-lisbon",
+      {
+        factor: "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women",
+        player: "merchant-portrait-pack-by-captainskolot-portrait-merchant"
+      }
+    ]
+  ]);
+  for (const [id, expectedPortraitsForCapture] of expectedPortraits) {
     const capture = captureScenarioFromSearch(`?capture=${id}`);
     assert.equal(capture.sequence.transactionCount, 6);
+    assert.equal(capture.sequence.factorPortraitSourceId, expectedPortraitsForCapture.factor);
+    assert.equal(capture.player.characterPortraitSourceId, expectedPortraitsForCapture.player);
+    assert.equal(capture.player.homeCityName, "Lisbon");
+    assert.doesNotMatch(capture.sequence.factorPortraitSourceId, /openai|retro-diffusion/);
+    assert.doesNotMatch(capture.player.characterPortraitSourceId, /openai|retro-diffusion/);
   }
 
   const malformed = structuredClone(captureScenarioFromSearch("?capture=trailer-trade-ternate"));
   malformed.sequence.transactionCount = 1;
   assert.throws(() => validateCaptureScenario(malformed), /trade transaction count/);
+});
+
+test("trailer combat stages one correctly chosen broadside at useful range", () => {
+  for (const id of ["trailer-fight-turtle", "trailer-fight-atlantic", "trailer-pillage-havana"]) {
+    const capture = captureScenarioFromSearch(`?capture=${id}`);
+    assert.equal(capture.sequence.broadsideSide, "starboard");
+  }
+
+  const turtle = captureScenarioFromSearch("?capture=trailer-fight-turtle");
+  assert.ok(turtle.encounters[0].lon - turtle.player.lon > 1);
+  assert.equal(turtle.encounters[0].headingDeg, turtle.player.headingDeg);
+
+  const atlantic = captureScenarioFromSearch("?capture=trailer-fight-atlantic");
+  assert.equal(atlantic.player.lon, -29);
+  assert.ok(atlantic.encounters[0].lon < -27);
+
+  const malformed = structuredClone(turtle);
+  malformed.sequence.broadsideSide = "both";
+  assert.throws(() => validateCaptureScenario(malformed), /broadside side/);
+});
+
+test("visible trailer captain portrait is a reviewed human-made asset", () => {
+  const capture = captureScenarioFromSearch("?capture=trailer-pillage-alexandria");
+  assert.equal(
+    capture.player.characterPortraitSourceId,
+    "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait"
+  );
+  assert.equal(capture.player.homeCityName, "Venice");
+  assert.doesNotMatch(capture.player.characterPortraitSourceId, /openai|retro-diffusion/);
 });
 
 test("the Nubian pyramid trailer shot follows the Nile south instead of steering onto land", () => {

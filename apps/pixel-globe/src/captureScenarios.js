@@ -13,6 +13,15 @@ const PANDA_TRAILER_CAPTAIN_SOURCE_ID =
   "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait";
 const PANDA_TRAILER_NATURALIST_SOURCE_ID =
   "curated-historical-portraits-by-captainskolot-old-scholar";
+const TRAILER_TERNATE_FACTOR_SOURCE_ID =
+  "women-black-hair-portrait-by-captainskolot-women-black-hair-portrait";
+const TRAILER_LISBON_FACTOR_SOURCE_ID =
+  "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women";
+const TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID =
+  "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait";
+const TRAILER_TERNATE_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
+const TRAILER_LISBON_CAPTAIN_SOURCE_ID =
+  "merchant-portrait-pack-by-captainskolot-portrait-merchant";
 
 export function captureViewportFromSearch(search) {
   const value = new URLSearchParams(search).get(CAPTURE_FORMAT_QUERY_PARAM) || "shorts";
@@ -304,24 +313,32 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-trade-ternate",
     title: "Buy Cloves in Ternate",
     seed: "trailer-trade-ternate-v1",
-    player: capturePlayer("portugal", "portuguese-carrack", 0.79, 127.38, 180),
+    player: capturePlayer("portugal", "portuguese-carrack", 0.79, 127.38, 180, {
+      characterPortraitSourceId: TRAILER_TERNATE_CAPTAIN_SOURCE_ID,
+      homeCityName: "Lisbon"
+    }),
     world: captureWorld(196, 13, 10),
     sequence: trailerSequence("trade", "buy", {
       cityName: "Ternate",
       goodId: "cloves",
-      transactionCount: 6
+      transactionCount: 6,
+      factorPortraitSourceId: TRAILER_TERNATE_FACTOR_SOURCE_ID
     })
   }),
   "trailer-trade-lisbon": trailerScenario({
     id: "trailer-trade-lisbon",
     title: "Sell Cinnamon in Lisbon",
     seed: "trailer-trade-lisbon-v1",
-    player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 90),
+    player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 90, {
+      characterPortraitSourceId: TRAILER_LISBON_CAPTAIN_SOURCE_ID,
+      homeCityName: "Lisbon"
+    }),
     world: captureWorld(196, 15, 20),
     sequence: trailerSequence("trade", "sell", {
       cityName: "Lisbon",
       goodId: "cinnamon",
-      transactionCount: 6
+      transactionCount: 6,
+      factorPortraitSourceId: TRAILER_LISBON_FACTOR_SOURCE_ID
     })
   }),
   "trailer-fish-cod": trailerScenario({
@@ -533,18 +550,24 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("joseon", "joseon-turtle-ship", 34.82, 129.24, 90),
     world: captureWorld(196, 13, 20),
     diplomacy: [{ factionAId: "joseon", factionBId: "japan", relation: "war" }],
-    encounters: [captureEncounter("trailer-atakebune", "japan", "japanese-atakebune", 34.82, 129.64, 270)],
-    sequence: trailerSequence("fight", "turtle", { encounterId: "trailer-atakebune" })
+    encounters: [captureEncounter("trailer-atakebune", "japan", "japanese-atakebune", 34.82, 130.63, 90)],
+    sequence: trailerSequence("fight", "turtle", {
+      encounterId: "trailer-atakebune",
+      broadsideSide: "starboard"
+    })
   }),
   "trailer-fight-atlantic": trailerScenario({
     id: "trailer-fight-atlantic",
     title: "Carrack Broadside",
     seed: "trailer-fight-atlantic-v1",
-    player: capturePlayer("portugal", "portuguese-carrack", 36.0, -10.0, 90),
+    player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29.0, 90),
     world: captureWorld(205, 16, 10),
     diplomacy: [{ factionAId: "portugal", factionBId: "spain", relation: "war" }],
-    encounters: [captureEncounter("trailer-spanish-galleon", "spain", "galleon", 36.0, -9.55, 270)],
-    sequence: trailerSequence("fight", "atlantic", { encounterId: "trailer-spanish-galleon" })
+    encounters: [captureEncounter("trailer-spanish-galleon", "spain", "galleon", 35.7, -27.62, 90)],
+    sequence: trailerSequence("fight", "atlantic", {
+      encounterId: "trailer-spanish-galleon",
+      broadsideSide: "starboard"
+    })
   }),
   "trailer-pillage-havana": trailerScenario({
     id: "trailer-pillage-havana",
@@ -553,13 +576,19 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("england", "galleon", 23.11, -82.37, 0),
     world: captureWorld(210, 14, 40),
     diplomacy: [{ factionAId: "england", factionBId: "spain", relation: "war" }],
-    sequence: trailerSequence("pillage", "bombard", { cityName: "Havana" })
+    sequence: trailerSequence("pillage", "bombard", {
+      cityName: "Havana",
+      broadsideSide: "starboard"
+    })
   }),
   "trailer-pillage-alexandria": trailerScenario({
     id: "trailer-pillage-alexandria",
     title: "Take Alexandria",
     seed: "trailer-pillage-alexandria-v1",
-    player: capturePlayer("venice", "galleon", 31.20, 29.91, 180),
+    player: capturePlayer("venice", "galleon", 31.20, 29.91, 180, {
+      characterPortraitSourceId: TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID,
+      homeCityName: "Venice"
+    }),
     world: captureWorld(92, 11, 30),
     diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
     sequence: trailerSequence("pillage", "assault", { cityName: "Alexandria" })
@@ -840,6 +869,17 @@ function validateCaptureSequence(value) {
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
   if (value.kind === "trade") {
     integerInRange(value.transactionCount, 2, 12, "capture trade transaction count");
+    requiredString(value.factorPortraitSourceId, "capture trade factor portrait source id");
+  }
+  if (value.factorPortraitSourceId !== undefined && value.kind !== "trade") {
+    throw new Error("Capture factor portrait source requires a trade sequence");
+  }
+  if (value.kind === "fight" || (value.kind === "pillage" && value.variant === "bombard")) {
+    if (!["port", "starboard"].includes(value.broadsideSide)) {
+      throw new Error(`Invalid capture sequence broadside side: ${value.broadsideSide}`);
+    }
+  } else if (value.broadsideSide !== undefined) {
+    throw new Error("Capture broadside side requires a fight or bombardment sequence");
   }
   if (value.kind === "sail" && !["port", "starboard"].includes(value.beamSide)) {
     throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
@@ -903,8 +943,8 @@ function sailingTrailerScenario(value) {
   });
 }
 
-function capturePlayer(factionId, shipSlug, lat, lon, headingDeg) {
-  return { factionId, shipSlug, lat, lon, headingDeg, activePlaySeconds: 90 };
+function capturePlayer(factionId, shipSlug, lat, lon, headingDeg, options = {}) {
+  return { factionId, shipSlug, lat, lon, headingDeg, activePlaySeconds: 90, ...options };
 }
 
 function pandaTrailerPlayer(lat, lon, headingDeg) {
