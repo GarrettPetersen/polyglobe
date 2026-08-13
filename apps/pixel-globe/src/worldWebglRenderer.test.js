@@ -7,6 +7,7 @@ import {
   PRESENT_FRAGMENT_SHADER,
   PagedTextureAtlasAllocator,
   TextureAtlasAllocator,
+  WORLD_SCENE_VERTEX_SHADER,
   WORLD_SCENE_FRAGMENT_SHADER,
   allocateWorldSceneTexture,
   bitMaskQuadVertices,
@@ -45,6 +46,12 @@ test("underwater refraction stays anchored to sprite pixels while the camera mov
     /sourcePixelY = floor\(v_texCoord\.y \* u_textureSize\.y\)/
   );
   assert.doesNotMatch(WORLD_SCENE_FRAGMENT_SHADER, /gl_FragCoord/);
+});
+
+test("ocean swell moves whole terrain quads on the GPU pixel grid", () => {
+  assert.match(WORLD_SCENE_VERTEX_SHADER, /in vec4 a_swellPosition/);
+  assert.match(WORLD_SCENE_VERTEX_SHADER, /dot\(a_swellPosition\.xyz, u_swellPhaseAxis\)/);
+  assert.match(WORLD_SCENE_VERTEX_SHADER, /position \+= round\(u_swellFlow \* displacement\)/);
 });
 
 test("repair clouds blur only their alpha silhouettes on the logical pixel grid", () => {
@@ -145,13 +152,28 @@ test("batched quad vertices preserve painter geometry and exact UV bounds", () =
     refractionPx: 2,
     alphaThreshold: 0.1
   });
-  assert.equal(vertices.length, 60);
-  assert.deepEqual([...vertices.slice(0, 10)], [
-    10, 20, 0.5, 0.5, 0.5, 0.75, 1, 0.25, 2, 0.10000000149011612
+  assert.equal(vertices.length, 84);
+  assert.deepEqual([...vertices.slice(0, 14)], [
+    10, 20, 0.5, 0.5, 0.5, 0.75, 1, 0.25, 2, 0.10000000149011612,
+    0, 0, 0, 0
   ]);
-  assert.deepEqual([...vertices.slice(50, 60)], [
-    26, 28, 0.75, 0.75, 0.5, 0.75, 1, 0.25, 2, 0.10000000149011612
+  assert.deepEqual([...vertices.slice(70, 84)], [
+    26, 28, 0.75, 0.75, 0.5, 0.75, 1, 0.25, 2, 0.10000000149011612,
+    0, 0, 0, 0
   ]);
+});
+
+test("batched terrain quads retain one globe anchor for vertex-shader swell", () => {
+  const vertices = quadVertices({
+    sourceRect: { x: 0, y: 0, width: 8, height: 8 },
+    textureWidth: 8,
+    textureHeight: 8,
+    destinationRect: { x: 10, y: 20, width: 8, height: 8 },
+    swellPosition: [0.25, -0.5, 0.75]
+  });
+  for (let offset = 0; offset < vertices.length; offset += 14) {
+    assert.deepEqual([...vertices.slice(offset + 10, offset + 14)], [0.25, -0.5, 0.75, 1]);
+  }
 });
 
 test("batched quad vertices can mirror a sprite without changing its geometry", () => {
@@ -163,9 +185,9 @@ test("batched quad vertices can mirror a sprite without changing its geometry", 
     flipX: true
   });
   assert.equal(vertices[2], 0.75);
-  assert.equal(vertices[12], 0.25);
+  assert.equal(vertices[16], 0.25);
   assert.equal(vertices[0], 10);
-  assert.equal(vertices[10], 18);
+  assert.equal(vertices[14], 18);
 });
 
 test("bit-mask quad vertices align packed lighting and ship alpha textures", () => {

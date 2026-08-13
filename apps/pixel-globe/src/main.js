@@ -2085,6 +2085,7 @@ const BEACH_LIGHT_SPECKLE_COLOR = "rgba(255, 236, 151, 0.46)";
 const BEACH_DARK_SPECKLE_COLOR = "rgba(218, 184, 92, 0.26)";
 const BEACH_LAND_EDGE_JAG_COUNT = 4;
 const BEACH_WAVE_PERIOD_MS = 3600;
+const BEACH_WAVE_FRAME_COUNT = 16;
 const BEACH_WAVE_ADVANCE_RATIO = 0.44;
 const BEACH_WAVE_RECEDE_RATIO = 0.38;
 const BEACH_WAVE_MIN_REACH = 0.16;
@@ -2204,7 +2205,7 @@ const NPC_VISUAL_STUCK_MAX_DETOUR_PX = 36;
 const NPC_VISUAL_UPDATE_HZ = 24;
 const NPC_ROUTE_SNAPSHOT_BUCKET_COUNT = 6;
 const NPC_COMBAT_TARGETING_HZ = 6;
-const NPC_IDLE_COMBAT_TARGETING_HZ = 3;
+const NPC_IDLE_COMBAT_TARGETING_HZ = 2;
 const NPC_COMBAT_COLLISION_HZ = 4;
 const NPC_PROJECTILE_UPDATE_HZ = 30;
 const NPC_WILDLIFE_UPDATE_HZ = 2;
@@ -2218,11 +2219,11 @@ const WORLD_SPATIAL_KIND = Object.freeze({
   WHALE: "whale",
   ICEBERG: "iceberg"
 });
-// Ordinary traffic needs only a 4 Hz physics target because presentation interpolates
+// Ordinary traffic needs only a 3 Hz physics target because presentation interpolates
 // between updates. Combat, storms, and collisions remain on the 24 Hz coordinator.
-const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 6;
+const NPC_VISUAL_MOVEMENT_BUCKET_COUNT = 8;
 const NPC_VISUAL_PRESENTATION_MIN_MS = 50;
-const NPC_VISUAL_PRESENTATION_MAX_MS = 280;
+const NPC_VISUAL_PRESENTATION_MAX_MS = 400;
 const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
@@ -2274,13 +2275,13 @@ const WIND_INDICATOR_STRENGTH_LERP_PER_SECOND = 2.4;
 const WIND_INDICATOR_WARNING_LERP_PER_SECOND = 8;
 const WIND_INDICATOR_STALL_PULSE_MS = 900;
 const WATER_REDRAW_MS = 125;
-const BEACH_WAVE_REDRAW_MS = 250;
+const BEACH_WAVE_REDRAW_MS = BEACH_WAVE_PERIOD_MS / BEACH_WAVE_FRAME_COUNT;
 const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 125;
 const PRECIP_PARTICLE_REDRAW_MS = 80;
-const RAIN_PARTICLE_LIMIT = 340;
+const RAIN_PARTICLE_LIMIT = 180;
 const SNOW_PARTICLE_LIMIT = 180;
-const RAIN_PARTICLES_PER_TILE = 3;
+const RAIN_PARTICLES_PER_TILE = 2;
 const SNOW_PARTICLES_PER_TILE = 2;
 const PRECIP_PARTICLE_VIEW_MARGIN = 30;
 const SNOW_WATER_FREEZE_THRESHOLD_C = 0.5;
@@ -2290,6 +2291,11 @@ const STORM_SCREEN_RAIN_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.62;
 const STORM_SCREEN_RAIN_MAX_STREAKS = 180;
 const STORM_SCREEN_RAIN_TRAVEL_PX = 620;
 const STORM_SCREEN_RAIN_MARGIN_PX = 44;
+const ADAPTIVE_VISUAL_DENSITY_MIN = 0.3;
+const ADAPTIVE_VISUAL_DENSITY_FULL_FRAME_MS = 22;
+const ADAPTIVE_VISUAL_DENSITY_MIN_FRAME_MS = 100;
+const ADAPTIVE_VISUAL_DENSITY_FALL_RATE = 3;
+const ADAPTIVE_VISUAL_DENSITY_RISE_RATE = 0.14;
 const STORM_FOG_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.45;
 const STORM_FOG_FULL_INTENSITY = 0.6;
 const STORM_FOG_BREATHE_PERIOD_MS = 7200;
@@ -3057,6 +3063,32 @@ function createGpuWorldPrimitivePainter(offset) {
     }
   });
 }
+
+function createBatchedGpuWorldPrimitivePainter(offset) {
+  if (!Number.isFinite(offset?.x) || !Number.isFinite(offset?.y)) {
+    throw new Error("Batched GPU world primitive painter requires a finite chart offset");
+  }
+  const rects = [];
+  const appendRect = (x, y, width, height, color) => {
+    rects.push({
+      destinationRect: { x: x + offset.x, y: y + offset.y, width, height },
+      color
+    });
+  };
+  return Object.freeze({
+    rect(x, y, width, height, color) {
+      appendRect(x, y, width, height, unitRgbaForCssColor(color));
+    },
+    line(x0, y0, x1, y1, color) {
+      const rgba = unitRgbaForCssColor(color);
+      forEachPixelLine(x0, y0, x1, y1, (x, y) => appendRect(x, y, 1, 1, rgba));
+    },
+    flush() {
+      worldRenderer.drawSolidRects(rects);
+      rects.length = 0;
+    }
+  });
+}
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
@@ -3541,6 +3573,7 @@ let fatalControllerPollActive = false;
 let fatalControllerConfirmPressed = false;
 let performanceBenchmarkState = null;
 let worldRenderCount = 0;
+let worldFramePresented = false;
 let lastStatusMs = 0;
 let lastOverlayMs = 0;
 let worldSpriteAnimationTick = -1;
@@ -3551,6 +3584,7 @@ let fishAnimationDrawTick = -1;
 let precipParticleDrawTick = -1;
 let precipParticles = [];
 let precipParticleSerial = 1;
+let adaptiveVisualDensity = 1;
 let statusPersonParticles = [];
 let statusPersonParticleSerial = 1;
 let visiblePrecipitationLastRender = false;
@@ -5948,6 +5982,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   pollGamepadControls(nowMs);
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   const sessionFrameSeconds = Math.max(0, (nowMs - lastSessionFrameMs) / 1000);
+  updateAdaptiveVisualDensity(sessionFrameSeconds);
   lastFrameMs = nowMs;
   lastSessionFrameMs = nowMs;
   if (captureDirector && !capturePlaybackPaused) updateCaptureDirectorFrame(nowMs);
@@ -6074,6 +6109,31 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   }
   updatePlatformActivity();
   if (scheduleNextFrame) requestAnimationFrame(loop);
+}
+
+function updateAdaptiveVisualDensity(elapsedSeconds) {
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+    throw new Error(`Adaptive visual density received invalid elapsed time: ${elapsedSeconds}`);
+  }
+  if (document.visibilityState === "hidden" || elapsedSeconds === 0 || elapsedSeconds > 1) return;
+  const frameMs = elapsedSeconds * 1000;
+  const target = frameMs <= ADAPTIVE_VISUAL_DENSITY_FULL_FRAME_MS
+    ? 1
+    : frameMs >= ADAPTIVE_VISUAL_DENSITY_MIN_FRAME_MS
+      ? ADAPTIVE_VISUAL_DENSITY_MIN
+      : 1 - (
+        (frameMs - ADAPTIVE_VISUAL_DENSITY_FULL_FRAME_MS) /
+        (ADAPTIVE_VISUAL_DENSITY_MIN_FRAME_MS - ADAPTIVE_VISUAL_DENSITY_FULL_FRAME_MS)
+      ) * (1 - ADAPTIVE_VISUAL_DENSITY_MIN);
+  const rate = target < adaptiveVisualDensity
+    ? ADAPTIVE_VISUAL_DENSITY_FALL_RATE
+    : ADAPTIVE_VISUAL_DENSITY_RISE_RATE;
+  const blend = 1 - Math.exp(-rate * Math.min(elapsedSeconds, 0.25));
+  adaptiveVisualDensity = clamp(
+    adaptiveVisualDensity + (target - adaptiveVisualDensity) * blend,
+    ADAPTIVE_VISUAL_DENSITY_MIN,
+    1
+  );
 }
 
 function updatePlatformActivity() {
@@ -22930,19 +22990,22 @@ function currentFogCoveredChartTileCount() {
 
 function prepareNorthUpWorldBehindCover() {
   const coverIsActive = opaqueWorldCoverIsActive();
+  let reframed = false;
   if (coverIsActive && !chartReframeCoverWasActive && ship && camera && chart && localLayout) {
     if (CHART_RECOVERY_TEST_ENABLED && !chartRecoveryDiagnosticDialogueEnabled) {
       chartReframeCoverWasActive = coverIsActive;
-      return;
+      return false;
     }
     if (chartShouldReframeOnCoverOpen({
       coverIsActive,
       coverWasActive: chartReframeCoverWasActive
     })) {
       reframeWorldNorthUp("opaque screen opened");
+      reframed = true;
     }
   }
   chartReframeCoverWasActive = coverIsActive;
+  return reframed;
 }
 
 function opaqueWorldCoverIsActive() {
@@ -32852,6 +32915,7 @@ function applyResponsiveViewport(width, height) {
   if (width === SCREEN_W && height === SCREEN_H) return;
   SCREEN_W = width;
   SCREEN_H = height;
+  worldFramePresented = false;
   if (lakeBattleMode?.battle && lakeBattleMode.kind !== "historical") {
     resizeLakeBattle(lakeBattleMode.battle, width, height);
   } else if (lakeBattleMode?.kind === "historical" && lakeBattleMode.camera) {
@@ -33332,37 +33396,40 @@ function drawDayNightWorld(layers, nowMs) {
   const light = localDayNightLight();
   const variant = dayNightPaletteVariant(light);
   const swell = currentOceanSwellPresentation();
-  worldRenderer.beginFrame({
-    width: SCREEN_W,
-    height: SCREEN_H,
-    clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
-    paletteVariant: variant,
-    timeMs: nowMs
+  measurePerformanceBenchmarkStage("render.world.begin", () => {
+    worldRenderer.beginFrame({
+      width: SCREEN_W,
+      height: SCREEN_H,
+      clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
+      paletteVariant: variant,
+      timeMs: nowMs,
+      oceanSwell: swell
+    });
   });
   renderWorldLayerStack({
-    oceanGapFill: () => {
+    oceanGapFill: () => measurePerformanceBenchmarkStage("render.world.oceanGapFill", () => {
       for (const fillCalls of [layers.oceanShearFillCalls, layers.landShearFillCalls]) {
         if (fillCalls.length === 0) continue;
         drawTerrainAtlasTiles(fillCalls, layers.activeChart, layers.offset, nowMs, swell);
       }
-    },
-    connectorBase: () => {
+    }),
+    connectorBase: () => measurePerformanceBenchmarkStage("render.world.connectorBase", () => {
       drawCachedWorldLayer(
         "terrain-connectors",
         layers.connectors,
         layers.offset,
         layers.connectors.revision
       );
-    },
-    tidalWater: () => {
+    }),
+    tidalWater: () => measurePerformanceBenchmarkStage("render.world.tidalWater", () => {
       drawCachedWorldLayer(
-        "terrain-connector-waves",
+        `terrain-connector-waves:${layers.connectorWaves.frameIndex}`,
         layers.connectorWaves,
         layers.offset,
-        waterAnimationDrawTick
+        layers.connectorWaves.revision
       );
-    },
-    terrainTiles: () => {
+    }),
+    terrainTiles: () => measurePerformanceBenchmarkStage("render.world.terrainTiles", () => {
       drawTerrainAtlasTiles(
         layers.terrainCalls,
         layers.activeChart,
@@ -33370,8 +33437,8 @@ function drawDayNightWorld(layers, nowMs) {
         nowMs,
         swell
       );
-    },
-    surfaceDetails: () => {
+    }),
+    surfaceDetails: () => measurePerformanceBenchmarkStage("render.world.surfaceDetails", () => {
       drawCachedWorldLayer(
         "surface-details-static",
         layers.surface.static,
@@ -33382,42 +33449,45 @@ function drawDayNightWorld(layers, nowMs) {
         "render.terrain.surface.rivers",
         () => drawRiverSurfaceAtlas(layers.surface.static, layers.offset)
       );
-    },
-    waterEffects: () => {
+    }),
+    waterEffects: () => measurePerformanceBenchmarkStage("render.world.waterEffects", () => {
       drawWorldWaterEffects(layers.waterEffects, layers.offset, nowMs);
-    },
-    waterForeground: () => {
+    }),
+    waterForeground: () => measurePerformanceBenchmarkStage("render.world.waterForeground", () => {
       drawCachedWorldLayer(
         "water-effect-foreground",
         layers.waterForeground,
         layers.offset,
         layers.waterForeground.weatherRevision
       );
-    },
-    roads: () => {
+    }),
+    roads: () => measurePerformanceBenchmarkStage("render.world.roads", () => {
       drawCachedWorldLayer(
         "land-roads",
         layers.roads,
         layers.offset,
         layers.roads.revision
       );
-    },
-    dynamicUnderlay: () => {
+    }),
+    dynamicUnderlay: () => measurePerformanceBenchmarkStage("render.world.dynamicUnderlay", () => {
       drawGpuDynamicUnderlay(layers.dynamicWorld);
-    },
-    dynamicWorld: () => {
+    }),
+    dynamicWorld: () => measurePerformanceBenchmarkStage("render.world.dynamicWorld", () => {
       drawGpuDynamicWorld(layers.dynamicWorld);
-    }
+    })
   });
-  worldRenderer.endFrame({
-    repairCloudBlur: chartRepairBlurEffect(nowMs),
-    heatHaze: chartRepairHeatHazeEffect(nowMs)
+  measurePerformanceBenchmarkStage("render.world.end", () => {
+    worldRenderer.endFrame({
+      repairCloudBlur: chartRepairBlurEffect(nowMs),
+      heatHaze: chartRepairHeatHazeEffect(nowMs)
+    });
   });
   lastPresentedOceanSwell = {
     layout: localLayout,
     swell,
     surfaceIceRevision: surfaceIceSettledRevision
   };
+  worldFramePresented = true;
 }
 
 function drawCachedWorldLayer(key, layer, offset, revision) {
@@ -33498,25 +33568,25 @@ function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs, swell) {
     : SURFACE_ICE_TRANSITION_STAGE_COUNT + 1;
   const revision = weatherMaskDayIndex * (SURFACE_ICE_TRANSITION_STAGE_COUNT + 2) + iceStage;
   worldRenderer.drawPersistentAtlasSprites({
-    key: `${batchKey}:swell-${swell.cacheKey}`,
+    key: batchKey,
     revision,
     offset,
-    createSprites: () => terrainPersistentSprites(tileCalls, activeChart, nowMs, swell)
+    createSprites: () => terrainPersistentSprites(tileCalls, activeChart, nowMs)
   });
 }
 
-function terrainPersistentSprites(tileCalls, activeChart, nowMs, swell) {
+function terrainPersistentSprites(tileCalls, activeChart, nowMs) {
   const sprites = [];
   for (const call of tileCalls) {
     const imagesToDraw = terrainDrawImagesForTile(call, nowMs);
-    const waveOffset = oceanSwellOffsetForTile(call, activeChart, swell);
     const destinationRect = {
-      x: Math.round(call.drawSurfaceX - TILE_ART_HALF + waveOffset.x),
-      y: Math.round(call.drawSurfaceY - TILE_ART_HALF + waveOffset.y),
+      x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
+      y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
       width: TILE_ART_SIZE,
       height: TILE_ART_SIZE
     };
-    for (const source of imagesToDraw) sprites.push({ source, destinationRect });
+    const swellPosition = oceanSwellPositionForTile(call, activeChart);
+    for (const source of imagesToDraw) sprites.push({ source, destinationRect, swellPosition });
   }
   return sprites;
 }
@@ -33535,16 +33605,16 @@ function currentOceanSwellPresentation() {
   });
 }
 
-function oceanSwellOffsetForTile(call, activeChart, swell) {
+function oceanSwellPositionForTile(call, activeChart) {
   if (
     activeChart?.map ||
     !isWaterSurfaceRow(call.row) ||
     chartTileProtection?.[call.id] !== 0 ||
     tileHasSurfaceIce(call.id)
   ) {
-    return { x: 0, y: 0 };
+    return null;
   }
-  return oceanSwellOffset(swell, tileCenterVector(call.id));
+  return tileCenterVector(call.id);
 }
 
 function localDayNightLight() {
@@ -33633,7 +33703,16 @@ function render(nowMs) {
     return;
   }
   ctx = screenCtx;
-  prepareNorthUpWorldBehindCover();
+  const reframedBehindCover = prepareNorthUpWorldBehindCover();
+  if (
+    worldFramePresented &&
+    opaqueWorldCoverIsActive() &&
+    !reframedBehindCover &&
+    !gameOverReason
+  ) {
+    drawWorldInterface(nowMs);
+    return;
+  }
 
   ensureChart();
   const offset = chartOffsetPixels(chart);
@@ -33673,7 +33752,7 @@ function render(nowMs) {
         ),
         wakeCalls: measurePerformanceBenchmarkStage(
           "render.terrain.wakes",
-          () => shipWakeDrawCalls(chart)
+          () => shipWakeDrawCalls()
         )
       },
       waterForeground: measurePerformanceBenchmarkStage(
@@ -33722,6 +33801,10 @@ function render(nowMs) {
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
   });
+  drawWorldInterface(nowMs);
+}
+
+function drawWorldInterface(nowMs) {
   drawOverboardCrewLabels(nowMs);
   drawCombatBroadsideControls();
   drawSelectableInteractionOutlines(nowMs);
@@ -33792,11 +33875,27 @@ function drawGpuWorldUnderlay() {
   if (!gpuWorldUnderlay) return;
   const { activeChart, nowMs, offset, cloudCoverByTile } = gpuWorldUnderlay;
   const painter = createGpuWorldPrimitivePainter(offset);
-  drawCoralReefsWebGL(activeChart, offset);
-  drawPrecipitation(activeChart, nowMs, offset, cloudCoverByTile, painter);
-  drawNavalEffects(activeChart, painter);
-  drawSeagullsWebGL(activeChart, nowMs, offset);
-  drawWorldDiscoverySpritesWebGL(activeChart, offset);
+  measurePerformanceBenchmarkStage(
+    "render.worldUnderlay.coral",
+    () => drawCoralReefsWebGL(activeChart, offset)
+  );
+  measurePerformanceBenchmarkStage("render.worldUnderlay.precipitation", () => {
+    const precipitationPainter = createBatchedGpuWorldPrimitivePainter(offset);
+    drawPrecipitation(activeChart, nowMs, offset, cloudCoverByTile, precipitationPainter);
+    precipitationPainter.flush();
+  });
+  measurePerformanceBenchmarkStage(
+    "render.worldUnderlay.navalEffects",
+    () => drawNavalEffects(activeChart, painter)
+  );
+  measurePerformanceBenchmarkStage(
+    "render.worldUnderlay.seagulls",
+    () => drawSeagullsWebGL(activeChart, nowMs, offset)
+  );
+  measurePerformanceBenchmarkStage(
+    "render.worldUnderlay.discoveries",
+    () => drawWorldDiscoverySpritesWebGL(activeChart, offset)
+  );
 }
 
 function drawGpuDynamicUnderlay(dynamicWorld) {
@@ -33819,8 +33918,14 @@ function drawGpuDynamicUnderlay(dynamicWorld) {
     drawFishingNetAnimationWebGL(nowMs);
     drawNpcFishingNetAnimationsWebGL(nowMs);
   });
-  drawGpuShipCommands();
-  drawStormWaveEffectsWebGL(activeChart, nowMs, offset);
+  measurePerformanceBenchmarkStage(
+    "render.vessels.composite",
+    () => drawGpuShipCommands()
+  );
+  measurePerformanceBenchmarkStage(
+    "render.stormWaves",
+    () => drawStormWaveEffectsWebGL(activeChart, nowMs, offset)
+  );
 }
 
 function drawGpuDynamicWorld(dynamicWorld) {
@@ -34159,8 +34264,7 @@ function drawWorldWaterEffects(effects, offset, nowMs) {
   }
   drawFishSchoolsWebGL(effects.fishCalls, offset);
   drawFishSelectionOutlinesWebGL(effects.fishCalls, offset, nowMs);
-  for (const call of effects.wakeCalls) {
-    worldRenderer.drawSolidRect({
+  worldRenderer.drawSolidRects(effects.wakeCalls.map((call) => ({
       destinationRect: {
         x: call.x + offset.x,
         y: call.y + offset.y,
@@ -34168,8 +34272,7 @@ function drawWorldWaterEffects(effects, offset, nowMs) {
         height: 1
       },
       color: [1, 253 / 255, 231 / 255, call.alpha]
-    });
-  }
+  })));
 }
 
 function drawFishSchoolsWebGL(calls, offset) {
@@ -43346,6 +43449,7 @@ function projectDirectionFor(v, view, snap) {
 const terrainConnectorLayerCache = new WeakMap();
 const terrainConnectorDynamicLayerCache = new WeakMap();
 const terrainConnectorEntryCache = new WeakMap();
+let nextTerrainConnectorDynamicRevision = 1;
 
 function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
   const layer = terrainConnectorLayer(faceCalls, activeChart);
@@ -43376,48 +43480,47 @@ function drawTerrainConnectorDynamicDetails(targetCtx, entry, waveClockMs) {
 
 function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls = null) {
   const cacheKey = worldChartRenderCacheKey(activeChart);
-  const cached = terrainConnectorDynamicLayerCache.get(cacheKey);
   const beachWaveTick = Math.floor(waterAnimationClockMs / BEACH_WAVE_REDRAW_MS);
-  if (
-    cached?.baseLayer === baseLayer &&
-    cached.visibleFaceCalls === visibleFaceCalls &&
-    cached.beachWaveTick === beachWaveTick
-  ) return cached.layer;
-
-  const reusable = cached?.baseLayer === baseLayer && cached.visibleFaceCalls === visibleFaceCalls
-    ? cached.layer
-    : null;
-  const entries = terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls);
-  const bounds = terrainConnectorDynamicBounds(entries);
-  const canvas = reusable?.canvas || document.createElement("canvas");
-  if (!reusable) {
-    canvas.width = bounds.width;
-    canvas.height = bounds.height;
+  const frameIndex = beachWaveTick % BEACH_WAVE_FRAME_COUNT;
+  let cached = terrainConnectorDynamicLayerCache.get(cacheKey);
+  if (cached?.baseLayer !== baseLayer || cached.visibleFaceCalls !== visibleFaceCalls) {
+    const entries = terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls);
+    cached = {
+      baseLayer,
+      visibleFaceCalls,
+      entries,
+      bounds: terrainConnectorDynamicBounds(entries),
+      revision: nextTerrainConnectorDynamicRevision++,
+      frames: new Map()
+    };
+    terrainConnectorDynamicLayerCache.set(cacheKey, cached);
   }
+  const existing = cached.frames.get(frameIndex);
+  if (existing) return existing;
+
+  const { entries, bounds } = cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = bounds.width;
+  canvas.height = bounds.height;
   const layerCtx = canvas.getContext("2d");
   if (!layerCtx) throw new Error("Could not create terrain connector wave layer");
-  layerCtx.setTransform(1, 0, 0, 1, 0, 0);
-  layerCtx.clearRect(0, 0, canvas.width, canvas.height);
   layerCtx.imageSmoothingEnabled = false;
   layerCtx.translate(-bounds.x, -bounds.y);
   for (const entry of entries) {
     drawTerrainConnectorDynamicDetails(
       layerCtx,
       entry,
-      beachWaveTick * BEACH_WAVE_REDRAW_MS
+      frameIndex / BEACH_WAVE_FRAME_COUNT * BEACH_WAVE_PERIOD_MS
     );
   }
-  const layer = reusable || Object.freeze({
+  const layer = Object.freeze({
     canvas,
     x: bounds.x,
-    y: bounds.y
+    y: bounds.y,
+    frameIndex,
+    revision: cached.revision
   });
-  terrainConnectorDynamicLayerCache.set(cacheKey, {
-    baseLayer,
-    visibleFaceCalls,
-    beachWaveTick,
-    layer
-  });
+  cached.frames.set(frameIndex, layer);
   return layer;
 }
 
@@ -44856,17 +44959,44 @@ function drawPrecipitation(
   visiblePrecipitationLastRender = weatherTiles.rain.length > 0 || weatherTiles.snow.length > 0;
   syncPrecipitationParticles(weatherTiles);
 
+  const rainPresentations = new Map();
+  const snowPresentations = new Map();
   for (const particle of precipParticles) {
-    const call = weatherTiles.callsByParticleKey.get(precipParticleKey(particle.kind, particle.tileId));
-    if (!call) continue;
-    if (particle.kind === PRECIPITATION_RAIN) drawRainParticle(particle, call, nowMs, painter);
-    else drawSnowParticle(
-      particle,
-      call,
-      nowMs,
-      weatherTiles.snowStrengthByTile.get(call.id) || 0,
-      painter
-    );
+    const presentations = particle.kind === PRECIPITATION_RAIN
+      ? rainPresentations
+      : snowPresentations;
+    let presentation = presentations.get(particle.tileId);
+    if (!presentation) {
+      const call = particle.kind === PRECIPITATION_RAIN
+        ? weatherTiles.rainCallByTile.get(particle.tileId)
+        : weatherTiles.snowCallByTile.get(particle.tileId);
+      if (!call) continue;
+      const wind = windForTile(call.id);
+      presentation = particle.kind === PRECIPITATION_RAIN
+        ? {
+          call,
+          windX: Math.cos(wind.directionRad + Math.PI) * clamp(wind.strength, 0.35, 1.35)
+        }
+        : {
+          call,
+          flow: screenWindFlowVector(wind),
+          windStrength: wind.strength,
+          storminess: clamp(
+            (weatherTiles.snowStormIntensityByTile.get(call.id) || 0) /
+              STORM_ACTIVE_INTENSITY,
+            0,
+            1
+          ),
+          snowfallStrength: weatherTiles.snowStrengthByTile.get(call.id) || 0
+        };
+      presentations.set(particle.tileId, presentation);
+    }
+    if (!presentation) continue;
+    if (particle.kind === PRECIPITATION_RAIN) {
+      drawRainParticle(particle, presentation, nowMs, painter);
+    } else {
+      drawSnowParticle(particle, presentation, nowMs, painter);
+    }
   }
 }
 
@@ -44894,7 +45024,9 @@ function drawStormScreenRain(nowMs, intensity) {
   const margin = STORM_SCREEN_RAIN_MARGIN_PX;
   const spanW = SCREEN_W + margin * 2;
   const spanH = SCREEN_H + margin * 2;
-  const count = Math.round(70 + t * (STORM_SCREEN_RAIN_MAX_STREAKS - 70));
+  const count = Math.max(24, Math.round(
+    (70 + t * (STORM_SCREEN_RAIN_MAX_STREAKS - 70)) * adaptiveVisualDensity
+  ));
   const speed = 0.44 + t * 0.46;
   const daySalt = Math.imul(weatherParts.dayIndex + 1, 0x45d9f3b);
 
@@ -44921,7 +45053,7 @@ function drawStormScreenSnow(nowMs, intensity) {
   const margin = 8;
   const spanW = SCREEN_W + margin * 2;
   const spanH = SCREEN_H + margin * 2;
-  const count = Math.round(36 + t * 84);
+  const count = Math.max(16, Math.round((36 + t * 84) * adaptiveVisualDensity));
   const daySalt = Math.imul(weatherParts.dayIndex + 1, 0x534e4f57);
 
   for (let i = 0; i < count; i++) {
@@ -45225,8 +45357,10 @@ function collectPrecipitationTileCalls(activeChart, offset, cloudCoverByTile) {
   }
   const rain = [];
   const snow = [];
+  const rainCallByTile = new Map();
+  const snowCallByTile = new Map();
   const snowStrengthByTile = new Map();
-  const callsByParticleKey = new Map();
+  const snowStormIntensityByTile = new Map();
   for (const call of activeChart.tileCalls) {
     if (!tileCallNearViewport(call, offset, PRECIP_PARTICLE_VIEW_MARGIN)) continue;
     const flags = weatherFlagsForTile(call.id);
@@ -45244,14 +45378,22 @@ function collectPrecipitationTileCalls(activeChart, offset, cloudCoverByTile) {
     });
     if (kind === PRECIPITATION_RAIN) {
       rain.push(call);
-      callsByParticleKey.set(precipParticleKey(PRECIPITATION_RAIN, call.id), call);
+      rainCallByTile.set(call.id, call);
     } else if (kind === PRECIPITATION_SNOW) {
       snow.push(call);
+      snowCallByTile.set(call.id, call);
       snowStrengthByTile.set(call.id, snowfallStrength);
-      callsByParticleKey.set(precipParticleKey(PRECIPITATION_SNOW, call.id), call);
+      snowStormIntensityByTile.set(call.id, stormIntensity);
     }
   }
-  return { rain, snow, snowStrengthByTile, callsByParticleKey };
+  return {
+    rain,
+    snow,
+    rainCallByTile,
+    snowCallByTile,
+    snowStrengthByTile,
+    snowStormIntensityByTile
+  };
 }
 
 function snowfallPresentationStrengthForTile(tileId, row, cloudOpacity, stormIntensity) {
@@ -45282,16 +45424,23 @@ function syncPrecipitationParticles(weatherTiles) {
     return;
   }
 
-  const activeKeys = new Set(weatherTiles.callsByParticleKey.keys());
+  const activeRainTileIds = new Set(weatherTiles.rainCallByTile.keys());
+  const activeSnowTileIds = new Set(weatherTiles.snowCallByTile.keys());
   precipParticles = precipParticles.filter((particle) => (
-    activeKeys.has(precipParticleKey(particle.kind, particle.tileId))
+    particle.kind === PRECIPITATION_RAIN
+      ? activeRainTileIds.has(particle.tileId)
+      : activeSnowTileIds.has(particle.tileId)
   ));
   syncPrecipitationKind(PRECIPITATION_RAIN, weatherTiles.rain, RAIN_PARTICLE_LIMIT, RAIN_PARTICLES_PER_TILE);
   syncPrecipitationKind(PRECIPITATION_SNOW, weatherTiles.snow, SNOW_PARTICLE_LIMIT, SNOW_PARTICLES_PER_TILE);
 }
 
 function syncPrecipitationKind(kind, calls, limit, perTile) {
-  const target = Math.min(limit, calls.length * perTile);
+  const scaledLimit = Math.max(
+    kind === PRECIPITATION_RAIN ? 48 : 36,
+    Math.round(limit * adaptiveVisualDensity)
+  );
+  const target = Math.min(scaledLimit, calls.length * perTile);
   let count = 0;
   for (const particle of precipParticles) {
     if (particle.kind === kind) count++;
@@ -45324,6 +45473,9 @@ function makePrecipitationParticle(kind, call, serial) {
   const lifeMs = kind === PRECIPITATION_RAIN
     ? 460 + (seed & 0xff)
     : 2800 + ((seed >>> 8) & 0x5ff);
+  const alpha = kind === PRECIPITATION_RAIN
+    ? particleRange(seed, 16, 0.46, 0.72)
+    : particleRange(seed, 16, 0.72, 0.98);
   return {
     kind,
     tileId: call.id,
@@ -45332,23 +45484,22 @@ function makePrecipitationParticle(kind, call, serial) {
     phaseMs: hashInt(seed ^ 0x27d4eb2d) % lifeMs,
     offsetX: particleRange(seed, 0, -12, 12),
     offsetY: particleRange(seed, 8, -4, 4),
-    alpha: kind === PRECIPITATION_RAIN
-      ? particleRange(seed, 16, 0.46, 0.72)
-      : particleRange(seed, 16, 0.72, 0.98),
+    alpha,
+    color: kind === PRECIPITATION_RAIN
+      ? `rgba(137, 184, 205, ${alpha.toFixed(3)})`
+      : null,
     driftAmp: kind === PRECIPITATION_SNOW ? particleRange(seed, 24, 2, 5) : 0,
     wavePeriodMs: kind === PRECIPITATION_SNOW ? particleRange(hashInt(seed ^ 0x51ed270b), 0, 1400, 2600) : 0,
     wavePhase: kind === PRECIPITATION_SNOW ? particleRange(hashInt(seed ^ 0x94d049bb), 0, 0, Math.PI * 2) : 0
   };
 }
 
-function drawRainParticle(particle, call, nowMs, painter) {
+function drawRainParticle(particle, presentation, nowMs, painter) {
+  const { call, windX } = presentation;
   const progress = precipitationProgress(particle, nowMs);
-  const wind = windForTile(call.id);
-  const flowDir = wind.directionRad + Math.PI;
-  const windX = Math.cos(flowDir) * clamp(wind.strength, 0.35, 1.35);
   const x = Math.round(call.drawSurfaceX + particle.offsetX + windX * progress * 8);
   const y = Math.round(call.drawSurfaceY - 15 + particle.offsetY * 0.35 + progress * 30);
-  const color = `rgba(137, 184, 205, ${particle.alpha.toFixed(3)})`;
+  const color = particle.color;
 
   if (progress > 0.88) {
     drawRainSplash(x, y, progress, color, painter);
@@ -45369,11 +45520,9 @@ function drawRainSplash(x, y, progress, color, painter) {
   }
 }
 
-function drawSnowParticle(particle, call, nowMs, snowfallStrength, painter) {
+function drawSnowParticle(particle, presentation, nowMs, painter) {
+  const { call, flow, windStrength, storminess, snowfallStrength } = presentation;
   const progress = precipitationProgress(particle, nowMs);
-  const wind = windForTile(call.id);
-  const flow = screenWindFlowVector(wind);
-  const storminess = clamp(stormIntensityForTile(call.id) / STORM_ACTIVE_INTENSITY, 0, 1);
   const motion = snowParticleOffset({
     progress,
     elapsedMs: nowMs,
@@ -45382,7 +45531,7 @@ function drawSnowParticle(particle, call, nowMs, snowfallStrength, painter) {
     wavePeriodMs: particle.wavePeriodMs,
     windFlowX: flow.x,
     windFlowY: flow.y,
-    windTravelPx: (4 + storminess * 12) * clamp(wind.strength, 0.15, 1.2),
+    windTravelPx: (4 + storminess * 12) * clamp(windStrength, 0.15, 1.2),
     fallDistancePx: 24 + storminess * 8
   });
   const x = Math.round(call.drawSurfaceX + particle.offsetX + motion.x);
@@ -45404,10 +45553,6 @@ function precipitationProgress(particle, nowMs) {
 function particleRange(seed, shift, min, max) {
   const u = ((seed >>> shift) & 0xff) / 255;
   return min + (max - min) * u;
-}
-
-function precipParticleKey(kind, tileId) {
-  return `${kind}:${tileId}`;
 }
 
 function cloudDrawCalls(activeChart, offset) {
@@ -46035,7 +46180,7 @@ function spriteKeyHash(key) {
   return hash >>> 0;
 }
 
-function shipWakeDrawCalls(activeChart) {
+function shipWakeDrawCalls() {
   if (!ship?.wakeParticles?.length) return [];
   const calls = [];
   for (const particle of ship.wakeParticles) {
@@ -46047,14 +46192,14 @@ function shipWakeDrawCalls(activeChart) {
     const len = Math.hypot(particle.vx, particle.vy);
 
     if (particle.kind === "stern" || len <= 0.001) {
-      appendWakeFoamDot(calls, activeChart, particle, x, y, alpha);
+      appendWakeFoamDot(calls, particle, x, y, alpha);
       continue;
     }
 
     const ux = particle.vx / len;
     const uy = particle.vy / len;
     const markLength = clamp(Math.round(2 + life * 4), 2, 5);
-    appendWakeFoamMark(calls, activeChart, particle, ux, uy, markLength, alpha, life);
+    appendWakeFoamMark(calls, particle, ux, uy, markLength, alpha, life);
   }
   return calls;
 }
@@ -46065,17 +46210,17 @@ function wakeParticleAlphaBase(kind) {
   throw new Error(`Unknown wake particle kind: ${kind}`);
 }
 
-function appendWakeFoamDot(calls, activeChart, particle, x, y, alpha) {
-  appendWakeFoamPixel(calls, activeChart, x, y, alpha);
+function appendWakeFoamDot(calls, particle, x, y, alpha) {
+  appendWakeFoamPixel(calls, x, y, alpha);
   const h = wakeFoamHash(particle.seed, 0);
   if (wakeFoamUnit(h) < SHIP_WAKE_FOAM_EXTRA_CHANCE) {
     const ox = ((h >>> 11) & 1) === 0 ? -1 : 1;
     const oy = ((h >>> 12) & 1) === 0 ? 0 : (((h >>> 13) & 1) === 0 ? -1 : 1);
-    appendWakeFoamPixel(calls, activeChart, x + ox, y + oy, alpha);
+    appendWakeFoamPixel(calls, x + ox, y + oy, alpha);
   }
 }
 
-function appendWakeFoamMark(calls, activeChart, particle, ux, uy, markLength, alpha, life) {
+function appendWakeFoamMark(calls, particle, ux, uy, markLength, alpha, life) {
   const px = -uy;
   const py = ux;
   const keepChance = SHIP_WAKE_FOAM_KEEP_YOUNG + (SHIP_WAKE_FOAM_KEEP_OLD - SHIP_WAKE_FOAM_KEEP_YOUNG) * life;
@@ -46089,21 +46234,20 @@ function appendWakeFoamMark(calls, activeChart, particle, ux, uy, markLength, al
     const sideJitter = wakeFoamSideJitter(h);
     const x = Math.round(particle.x + ux * i + px * sideJitter);
     const y = Math.round(particle.y + uy * i + py * sideJitter);
-    drawn = appendWakeFoamPixel(calls, activeChart, x, y, alpha) || drawn;
+    drawn = appendWakeFoamPixel(calls, x, y, alpha) || drawn;
 
     const extraHash = wakeFoamHash(h, i);
     if (wakeFoamUnit(extraHash) < SHIP_WAKE_FOAM_EXTRA_CHANCE * (1 - life * 0.55)) {
       const extraSide = sideJitter === 0 ? (((extraHash >>> 9) & 1) === 0 ? -1 : 1) : -sideJitter;
       const extraX = Math.round(particle.x + ux * i + px * extraSide);
       const extraY = Math.round(particle.y + uy * i + py * extraSide);
-      drawn = appendWakeFoamPixel(calls, activeChart, extraX, extraY, alpha) || drawn;
+      drawn = appendWakeFoamPixel(calls, extraX, extraY, alpha) || drawn;
     }
   }
 
   if (!drawn) {
     appendWakeFoamPixel(
       calls,
-      activeChart,
       Math.round(particle.x),
       Math.round(particle.y),
       alpha
@@ -46111,8 +46255,7 @@ function appendWakeFoamMark(calls, activeChart, particle, ux, uy, markLength, al
   }
 }
 
-function appendWakeFoamPixel(calls, activeChart, x, y, alpha) {
-  if (!wakeMapPointIsWater(x, y, activeChart)) return false;
+function appendWakeFoamPixel(calls, x, y, alpha) {
   calls.push({ x, y, alpha });
   return true;
 }
@@ -47806,6 +47949,8 @@ function drawGpuShipTerrainForeground(foreground, drawCall, layers) {
     width: SHIP_SHEET_FRAME_SIZE,
     height: SHIP_SHEET_FRAME_SIZE
   };
+  const alphaMaskSource = drawCall.img;
+  const alphaMaskSourceRect = shipSheetFrameSourceRect(drawCall.frame);
   for (const occluder of foreground) {
     if (!occluder.drawLayer.image) {
       occluder.drawLayer.image = occluder.drawLayer.create();
@@ -47814,24 +47959,19 @@ function drawGpuShipTerrainForeground(foreground, drawCall, layers) {
     if (!occluder.drawLayer.image) {
       throw new Error(`Terrain foreground layer at ${occluder.x},${occluder.y} has no image`);
     }
-    for (const [alphaMaskSource, alphaMaskSourceRect] of [
-      [layers.submergedSource, layers.submergedSourceRect],
-      [layers.aboveSource, layers.aboveSourceRect]
-    ]) {
-      const intersection = terrainOccluderMaskIntersection(
-        occluder,
-        maskDestinationRect,
-        alphaMaskSourceRect
-      );
-      if (!intersection) continue;
-      worldRenderer.drawAtlasSpriteThroughAlphaMask({
-        source: occluder.drawLayer.image,
-        sourceRect: intersection.sourceRect,
-        alphaMaskSource,
-        alphaMaskSourceRect: intersection.maskSourceRect,
-        destinationRect: intersection.destinationRect
-      });
-    }
+    const intersection = terrainOccluderMaskIntersection(
+      occluder,
+      maskDestinationRect,
+      alphaMaskSourceRect
+    );
+    if (!intersection) continue;
+    worldRenderer.drawAtlasSpriteThroughAlphaMask({
+      source: occluder.drawLayer.image,
+      sourceRect: intersection.sourceRect,
+      alphaMaskSource,
+      alphaMaskSourceRect: intersection.maskSourceRect,
+      destinationRect: intersection.destinationRect
+    });
   }
 }
 
