@@ -7,6 +7,7 @@ const { test } = require("node:test");
 const {
   DEMO_APP_ID,
   FULL_GAME_APP_ID,
+  desktopProductName,
   resolveDesktopConfig,
   steamCapabilitiesForEdition
 } = require("./desktopConfig.cjs");
@@ -20,6 +21,7 @@ test("development defaults to the full game", () => {
   assert.equal(config.edition, "full");
   assert.equal(config.gameRoot, join(appRoot, "dist"));
   assert.equal(config.inputManifest, join(appRoot, "steam-input/game_actions.vdf"));
+  assert.equal(config.productName, "Marque & Reprisal");
   assert.equal(config.requireRelaunch, false);
 });
 
@@ -40,7 +42,14 @@ test("packaged demo uses Steam's launch App ID", (context) => {
   assert.equal(config.edition, "demo");
   assert.equal(config.gameRoot, join(resourcesPath, "dist-demo"));
   assert.equal(config.inputManifest, join(resourcesPath, "steam-input/game_actions.vdf"));
+  assert.equal(config.productName, "Marque & Reprisal Demo");
   assert.equal(config.requireRelaunch, true);
+});
+
+test("desktop product names are edition aware", () => {
+  assert.equal(desktopProductName("full"), "Marque & Reprisal");
+  assert.equal(desktopProductName("demo"), "Marque & Reprisal Demo");
+  assert.throws(() => desktopProductName("preview"), /Invalid Steam edition/);
 });
 
 test("packaged demo defaults to its assigned App ID", (context) => {

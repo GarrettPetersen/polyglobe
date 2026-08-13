@@ -59,6 +59,7 @@ app.on("before-quit", () => {
 });
 
 async function createGameWindow(url) {
+  const windowTitle = desktopConfig.productName;
   const window = new BrowserWindow({
     width: 1280,
     height: 720,
@@ -66,6 +67,7 @@ async function createGameWindow(url) {
     minHeight: 405,
     backgroundColor: "#101811",
     show: false,
+    title: windowTitle,
     webPreferences: {
       additionalArguments: [`--marque-steam-edition=${desktopConfig.edition}`],
       contextIsolation: true,
@@ -75,6 +77,10 @@ async function createGameWindow(url) {
     }
   });
   window.setMenuBarVisibility(false);
+  window.on("page-title-updated", (event) => {
+    event.preventDefault();
+    window.setTitle(windowTitle);
+  });
   window.on("blur", () => sendPauseRequest(window, "focus-lost"));
   window.on("minimize", () => sendPauseRequest(window, "minimized"));
   window.once("ready-to-show", () => window.show());

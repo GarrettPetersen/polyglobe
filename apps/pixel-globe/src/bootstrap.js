@@ -1,3 +1,5 @@
+import { BUILD_EDITION_ID } from "./buildEdition.js";
+import { buildDocumentTitle } from "./buildTitle.js";
 import { gameStorage, setGameStorageMutationHandler } from "./gameStorage.js";
 import {
   createPlatformCloudSync,
@@ -9,6 +11,10 @@ import {
 import { setSteamInterfaceLanguage } from "./loadingScreenLocale.js";
 
 const bridge = platformServicesAdapter(window);
+document.title = buildDocumentTitle({
+  edition: BUILD_EDITION_ID,
+  platformId: bridge?.platformId || "browser"
+});
 if (bridge) {
   const capabilities = await validatePlatformCapabilities(bridge);
   setSteamInterfaceLanguage(await currentPlatformGameLanguage(bridge));

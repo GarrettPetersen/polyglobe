@@ -49,8 +49,15 @@ function resolveDesktopConfig({
     gameRoot,
     inputManifest,
     manifestPath,
+    productName: desktopProductName(edition),
     requireRelaunch: requiredRelaunchSetting(env.MARQUE_STEAM_REQUIRE_RELAUNCH, isPackaged)
   });
+}
+
+function desktopProductName(edition) {
+  return requiredEdition(edition) === "demo"
+    ? "Marque & Reprisal Demo"
+    : "Marque & Reprisal";
 }
 
 function readOptionalManifest(path) {
@@ -127,6 +134,7 @@ function requiredRelaunchSetting(value, isPackaged) {
 module.exports = {
   DEMO_APP_ID,
   FULL_GAME_APP_ID,
+  desktopProductName,
   resolveDesktopConfig,
   steamCapabilitiesForEdition
 };
