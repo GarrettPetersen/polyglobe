@@ -124,6 +124,13 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "The hosts paid {0} db.": Object.freeze({
+    "zh-Hans": "主办方支付了 {0} DB。", ru: "Хозяева заплатили {0} DB.",
+    es: "Los anfitriones pagaron {0} DB.", "pt-BR": "Os anfitriões pagaram {0} DB.",
+    ja: "主催者から {0} DB が支払われた。", de: "Die Gastgeber zahlten {0} DB.",
+    fr: "Les hôtes ont payé {0} DB.", pl: "Gospodarze zapłacili {0} DB.",
+    "zh-Hant": "主辦方支付了 {0} DB。", ko: "주최 측에서 {0} DB를 지급했다."
+  }),
   "CAPTIVE BOUND FOR {0}": Object.freeze({
     "zh-Hans": "押送俘虏前往 {0}", ru: "ПЛЕННИК СЛЕДУЕТ В {0}", es: "CAUTIVO RUMBO A {0}",
     "pt-BR": "CATIVO A CAMINHO DE {0}", ja: "捕虜の護送先: {0}", de: "GEFANGENER AUF DEM WEG NACH {0}",

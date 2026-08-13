@@ -2376,6 +2376,13 @@ test("the banquet chef accepts ingredients across separate visits", () => {
   );
   assert.ok(completed.chefBanquetCompleted);
   assert.equal(gameState.doubloons, startingDoubloons + CHEF_QUEST_REWARD);
+  const completedView = portDialogueView(session, city, gameState, economy, [city]);
+  assert.ok(completedView.text.includes(completed.chefBanquetCompleted.event.successText));
+  assert.equal(completedView.feedback, `The hosts paid ${CHEF_QUEST_REWARD} db.`);
+  assert.equal(
+    completedView.feedback.includes(completed.chefBanquetCompleted.event.successText),
+    false
+  );
 });
 
 test("enemy port guards bar resupply and offer one risky disguise route", () => {

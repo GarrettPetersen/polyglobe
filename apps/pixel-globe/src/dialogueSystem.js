@@ -1790,7 +1790,7 @@ export function selectPortDialogueOption(
       random: context.missionGiftRandom || neverGrantMissionItem,
       context
     });
-    session.feedback = `${result.event.successText} The hosts paid ${payment.amount} db.`;
+    session.feedback = `The hosts paid ${payment.amount} db.`;
     if (missionItemGift) session.feedback += ` The chef also gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return {

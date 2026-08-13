@@ -1062,6 +1062,7 @@ test("pirate captives use expressive portraits and reunite with the same family 
   });
 
   assert.ok(captive.expressions.length > 1);
+  assert.equal(captive.religionId, "roman-catholic");
   assert.notEqual(characterExpression(captive, "crying").id, characterExpression(captive, "overjoyed").id);
   assert.equal(familyMember.familyName, captive.familyName);
   assert.notEqual(familyMember.name, captive.name);
@@ -1081,6 +1082,7 @@ test("pirate captives use expressive portraits and reunite with the same family 
     usedNames
   });
   assert.equal(castaway.role, "castaway");
+  assert.equal(castaway.religionId, "roman-catholic");
   assert.notEqual(characterExpression(castaway, "crying").id, characterExpression(castaway, "overjoyed").id);
   assert.equal(castawayFamily.familyName, castaway.familyName);
   assert.notEqual(castawayFamily.sourceId, castaway.sourceId);
