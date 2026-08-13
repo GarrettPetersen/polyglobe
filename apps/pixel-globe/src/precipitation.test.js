@@ -4,6 +4,9 @@ import {
   PRECIPITATION_RAIN,
   PRECIPITATION_SNOW,
   precipitationKindForConditions,
+  snowLandingOpacity,
+  snowParticleOffset,
+  snowfallPresentationStrength,
   snowWaveOffset
 } from "./precipitation.js";
 
@@ -31,4 +34,50 @@ test("precipitation helpers reject malformed animation state", () => {
   );
   assert.throws(() => snowWaveOffset(100, 0, -1, 2000), /amplitude/);
   assert.throws(() => snowWaveOffset(100, 0, 1, 0), /period/);
+});
+
+test("snowfall is occasional, frozen, and moisture driven", () => {
+  assert.equal(snowfallPresentationStrength({
+    snowDay: false,
+    coldWater: false,
+    cloudOpacity: 1,
+    stormIntensity: 1
+  }), 0);
+  assert.equal(snowfallPresentationStrength({
+    snowDay: true,
+    coldWater: false,
+    cloudOpacity: 0,
+    stormIntensity: 0
+  }), 0);
+  assert.ok(snowfallPresentationStrength({
+    snowDay: true,
+    coldWater: false,
+    cloudOpacity: 0.62,
+    stormIntensity: 0
+  }) > 0);
+  assert.ok(snowfallPresentationStrength({
+    snowDay: false,
+    coldWater: true,
+    cloudOpacity: 0,
+    stormIntensity: 0.9
+  }) > 0.8);
+});
+
+test("snow falls while wind advects it in both screen axes", () => {
+  const offset = snowParticleOffset({
+    progress: 0.5,
+    elapsedMs: 500,
+    phaseRad: 0,
+    waveAmplitudePx: 0,
+    wavePeriodMs: 2000,
+    windFlowX: 0.6,
+    windFlowY: 0.8,
+    windTravelPx: 10,
+    fallDistancePx: 24
+  });
+  assert.equal(offset.x, 3);
+  assert.equal(offset.y, 14.2);
+  assert.equal(snowLandingOpacity(0.5), 1);
+  assert.equal(snowLandingOpacity(1), 0);
+  assert.ok(snowLandingOpacity(0.92) > 0 && snowLandingOpacity(0.92) < 1);
 });

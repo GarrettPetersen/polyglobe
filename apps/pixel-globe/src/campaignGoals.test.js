@@ -586,6 +586,21 @@ test("the final homecoming dialogue lets the captain retire or keep sailing", ()
   });
 });
 
+test("every campaign intro phase closes into a valid voyage start", () => {
+  for (const goalType of CAMPAIGN_GOAL_TYPE_IDS) {
+    const phase = goalType === CAMPAIGN_GOAL_EXPLORER ? "intro" : `${goalType}-intro`;
+    const session = createCampaignDialogueSession({
+      cityTileId: CHARACTER.homePortTileId,
+      phase,
+      steps: [{ speaker: "contact", expressionId: "attentive", text: "Your voyage begins." }]
+    });
+    assert.deepEqual(selectCampaignDialogueOption(session), {
+      closed: true,
+      action: { type: "campaign-intro-complete" }
+    });
+  }
+});
+
 test("choosing retirement starts the victory ending while legacy dialogue still closes into victory", () => {
   const choiceSession = createCampaignDialogueSession({
     cityTileId: CHARACTER.homePortTileId,

@@ -203,7 +203,9 @@ import {
   PRECIPITATION_RAIN,
   PRECIPITATION_SNOW,
   precipitationKindForConditions,
-  snowWaveOffset
+  snowLandingOpacity,
+  snowParticleOffset,
+  snowfallPresentationStrength
 } from "./precipitation.js";
 import {
   DEFAULT_PLAYER_SHIP_SLUG,
@@ -2274,10 +2276,11 @@ const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 125;
 const PRECIP_PARTICLE_REDRAW_MS = 80;
 const RAIN_PARTICLE_LIMIT = 340;
-const SNOW_PARTICLE_LIMIT = 300;
+const SNOW_PARTICLE_LIMIT = 180;
 const RAIN_PARTICLES_PER_TILE = 3;
-const SNOW_PARTICLES_PER_TILE = 3;
+const SNOW_PARTICLES_PER_TILE = 2;
 const PRECIP_PARTICLE_VIEW_MARGIN = 30;
+const SNOW_WATER_FREEZE_THRESHOLD_C = 0.5;
 const WEATHER_DEFAULT_TIME_SCALE = DEFAULT_GAME_TIME_SCALE;
 const WEATHER_WIND_SEED = 90210;
 const STORM_SCREEN_RAIN_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.62;
@@ -6645,11 +6648,7 @@ function openCampaignGoalIntroDialogue() {
   dialogueState = createCampaignDialogueSession({
     cityTileId: goal.homePortTileId,
     steps,
-    phase: goal.type === CAMPAIGN_GOAL_FAMILY_DEBT
-      ? "family-debt-intro"
-      : goal.type === CAMPAIGN_GOAL_WHITE_WHALE
-        ? "white-whale-intro"
-        : goal.type === CAMPAIGN_GOAL_TREASURE ? "pirate-treasure-intro" : "intro"
+    phase: goal.type === CAMPAIGN_GOAL_EXPLORER ? "intro" : `${goal.type}-intro`
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -33680,12 +33679,18 @@ function render(nowMs) {
   });
 
   const shipLight = shipSunLightState();
-  const cloudCalls = measurePerformanceBenchmarkStage(
+  const { cloudCalls, cloudCoverByTile } = measurePerformanceBenchmarkStage(
     "render.cloudPrepare",
-    () => cloudDrawCalls(chart, offset)
+    () => {
+      const calls = cloudDrawCalls(chart, offset);
+      return {
+        cloudCalls: calls,
+        cloudCoverByTile: precipitationCloudCoverByTile(calls, renderTileCalls, offset)
+      };
+    }
   );
   renderedCloudSpriteCount = cloudCalls.length;
-  gpuWorldUnderlay = { activeChart: chart, nowMs, offset };
+  gpuWorldUnderlay = { activeChart: chart, nowMs, offset, cloudCoverByTile };
 
   measurePerformanceBenchmarkStage("render.vessels", () => {
     measurePerformanceBenchmarkStage(
@@ -33704,7 +33709,7 @@ function render(nowMs) {
   measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
     drawDayNightWorld(cachedWorldLayers, nowMs);
     drawChartRepairOcclusion(nowMs);
-    drawStormScreenPrecipitation(nowMs);
+    drawStormScreenPrecipitation(nowMs, cloudCoverByTile);
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
   });
@@ -33776,10 +33781,10 @@ function render(nowMs) {
 
 function drawGpuWorldUnderlay() {
   if (!gpuWorldUnderlay) return;
-  const { activeChart, nowMs, offset } = gpuWorldUnderlay;
+  const { activeChart, nowMs, offset, cloudCoverByTile } = gpuWorldUnderlay;
   const painter = createGpuWorldPrimitivePainter(offset);
   drawCoralReefsWebGL(activeChart, offset);
-  drawPrecipitation(activeChart, nowMs, offset, painter);
+  drawPrecipitation(activeChart, nowMs, offset, cloudCoverByTile, painter);
   drawNavalEffects(activeChart, painter);
   drawSeagullsWebGL(activeChart, nowMs, offset);
   drawWorldDiscoverySpritesWebGL(activeChart, offset);
@@ -44835,9 +44840,10 @@ function drawPrecipitation(
   activeChart,
   nowMs,
   offset,
+  cloudCoverByTile,
   painter = CANVAS_WORLD_PRIMITIVE_PAINTER
 ) {
-  const weatherTiles = collectPrecipitationTileCalls(activeChart, offset);
+  const weatherTiles = collectPrecipitationTileCalls(activeChart, offset, cloudCoverByTile);
   visiblePrecipitationLastRender = weatherTiles.rain.length > 0 || weatherTiles.snow.length > 0;
   syncPrecipitationParticles(weatherTiles);
 
@@ -44845,15 +44851,27 @@ function drawPrecipitation(
     const call = weatherTiles.callsByParticleKey.get(precipParticleKey(particle.kind, particle.tileId));
     if (!call) continue;
     if (particle.kind === PRECIPITATION_RAIN) drawRainParticle(particle, call, nowMs, painter);
-    else drawSnowParticle(particle, call, nowMs, painter);
+    else drawSnowParticle(
+      particle,
+      call,
+      nowMs,
+      weatherTiles.snowStrengthByTile.get(call.id) || 0,
+      painter
+    );
   }
 }
 
-function drawStormScreenPrecipitation(nowMs) {
+function drawStormScreenPrecipitation(nowMs, cloudCoverByTile) {
   if (!ship) return;
   const intensity = playerStormIntensity();
   if (intensity < STORM_SCREEN_RAIN_ENTER_INTENSITY) return;
-  if ((weatherFlagsForTile(ship.tileId) & TILE_DAY_SNOW_FALL) !== 0) {
+  const snowfallStrength = snowfallPresentationStrengthForTile(
+    ship.tileId,
+    earthById[ship.tileId],
+    cloudCoverByTile?.get(ship.tileId) || 0,
+    intensity
+  );
+  if (snowfallStrength > 0) {
     drawStormScreenSnow(nowMs, intensity);
     return;
   }
@@ -44890,30 +44908,35 @@ function drawStormScreenRain(nowMs, intensity) {
 function drawStormScreenSnow(nowMs, intensity) {
   const t = clamp((intensity - STORM_SCREEN_RAIN_ENTER_INTENSITY) / (1 - STORM_SCREEN_RAIN_ENTER_INTENSITY), 0, 1);
   const wind = windForShip();
-  const flowDir = wind.directionRad + Math.PI;
-  const windX = Math.cos(flowDir) * clamp(wind.strength, 0.15, 1.1);
+  const flow = screenWindFlowVector(wind);
   const margin = 8;
   const spanW = SCREEN_W + margin * 2;
   const spanH = SCREEN_H + margin * 2;
-  const count = Math.round(48 + t * 72);
+  const count = Math.round(36 + t * 84);
   const daySalt = Math.imul(weatherParts.dayIndex + 1, 0x534e4f57);
 
   for (let i = 0; i < count; i++) {
     const seed = hashInt(daySalt ^ Math.imul(i + 1, 0x9e3779b1));
-    const fallDurationMs = 14500 + stormRainUnit(seed, 0x1111) * 9000;
+    const fallDurationMs = 4800 + stormRainUnit(seed, 0x1111) * 4200;
     const progress = ((nowMs + stormRainUnit(seed, 0x2222) * fallDurationMs) % fallDurationMs) /
       fallDurationMs;
     const baseX = -margin + stormRainUnit(seed, 0x3333) * spanW;
     const waveAmplitude = 2 + stormRainUnit(seed, 0x4444) * 4;
     const wavePeriodMs = 1500 + stormRainUnit(seed, 0x5555) * 1800;
     const wavePhase = stormRainUnit(seed, 0x6666) * Math.PI * 2;
-    const x = Math.round(baseX + windX * progress * 14 + snowWaveOffset(
-      nowMs,
-      wavePhase,
-      waveAmplitude,
-      wavePeriodMs
-    ));
-    const y = Math.round(-margin + progress * spanH);
+    const motion = snowParticleOffset({
+      progress,
+      elapsedMs: nowMs,
+      phaseRad: wavePhase,
+      waveAmplitudePx: waveAmplitude,
+      wavePeriodMs,
+      windFlowX: flow.x,
+      windFlowY: flow.y,
+      windTravelPx: (18 + t * 38) * clamp(wind.strength, 0.2, 1.35),
+      fallDistancePx: spanH
+    });
+    const x = Math.round(wrapRange(baseX + motion.x, -margin, SCREEN_W + margin));
+    const y = Math.round(wrapRange(-margin + motion.y, -margin, SCREEN_H + margin));
     const alpha = 0.58 + t * 0.18 + stormRainUnit(seed, 0x7777) * 0.2;
     ctx.fillStyle = `rgba(251, 245, 239, ${alpha.toFixed(3)})`;
     ctx.fillRect(x, y, 1, 1);
@@ -45157,27 +45180,82 @@ function wrapRange(value, min, max) {
   return ((value - min) % span + span) % span + min;
 }
 
-function collectPrecipitationTileCalls(activeChart, offset) {
+function precipitationCloudCoverByTile(cloudCalls, candidateTiles, offset) {
+  if (!Array.isArray(cloudCalls) || !Array.isArray(candidateTiles) ||
+      !Number.isFinite(offset?.x) || !Number.isFinite(offset?.y)) {
+    throw new Error("Cloud precipitation coverage requires renderable clouds and chart tiles");
+  }
+  const coverByTile = new Map();
+  if (cloudCalls.length === 0) return coverByTile;
+  const precipitationRadiusPx = CLOUD_SPRITE_FRAME_SIZE * 0.68;
+  for (const cloud of cloudCalls) {
+    if (!Number.isInteger(cloud.tileId)) {
+      throw new Error(`Cloud precipitation source is missing a tile id: ${cloud.tileId}`);
+    }
+    for (const tile of candidateTiles) {
+      if (!tileCallNearViewport(
+        tile,
+        offset,
+        PRECIP_PARTICLE_VIEW_MARGIN + precipitationRadiusPx
+      )) continue;
+      const distance = Math.hypot(
+        tile.drawSurfaceX - cloud.anchorX,
+        tile.drawSurfaceY - cloud.anchorY
+      );
+      if (distance >= precipitationRadiusPx) continue;
+      const coverage = cloud.alpha * (1 - distance / precipitationRadiusPx);
+      coverByTile.set(tile.id, Math.max(coverByTile.get(tile.id) || 0, coverage));
+    }
+  }
+  return coverByTile;
+}
+
+function collectPrecipitationTileCalls(activeChart, offset, cloudCoverByTile) {
+  if (!(cloudCoverByTile instanceof Map)) {
+    throw new Error("Precipitation rendering requires cloud cover by tile");
+  }
   const rain = [];
   const snow = [];
+  const snowStrengthByTile = new Map();
   const callsByParticleKey = new Map();
   for (const call of activeChart.tileCalls) {
     if (!tileCallNearViewport(call, offset, PRECIP_PARTICLE_VIEW_MARGIN)) continue;
     const flags = weatherFlagsForTile(call.id);
+    const stormIntensity = stormIntensityForTile(call.id);
+    const snowfallStrength = snowfallPresentationStrengthForTile(
+      call.id,
+      call.row,
+      cloudCoverByTile.get(call.id) || 0,
+      stormIntensity
+    );
     const kind = precipitationKindForConditions({
       raining: (flags & TILE_DAY_RAIN) !== 0,
-      snowing: (flags & TILE_DAY_SNOW_FALL) !== 0,
-      storming: stormIntensityForTile(call.id) >= STORM_ACTIVE_INTENSITY * 0.72
+      snowing: snowfallStrength > 0,
+      storming: stormIntensity >= STORM_ACTIVE_INTENSITY * 0.72
     });
     if (kind === PRECIPITATION_RAIN) {
       rain.push(call);
       callsByParticleKey.set(precipParticleKey(PRECIPITATION_RAIN, call.id), call);
     } else if (kind === PRECIPITATION_SNOW) {
       snow.push(call);
+      snowStrengthByTile.set(call.id, snowfallStrength);
       callsByParticleKey.set(precipParticleKey(PRECIPITATION_SNOW, call.id), call);
     }
   }
-  return { rain, snow, callsByParticleKey };
+  return { rain, snow, snowStrengthByTile, callsByParticleKey };
+}
+
+function snowfallPresentationStrengthForTile(tileId, row, cloudOpacity, stormIntensity) {
+  const snowDay = (weatherFlagsForTile(tileId) & TILE_DAY_SNOW_FALL) !== 0;
+  const coldWater = isWaterSurfaceRow(row) &&
+    estimatedSeaSurfaceTemperatureC(graph.latDeg[tileId], weatherParts.dayIndex) <=
+      SNOW_WATER_FREEZE_THRESHOLD_C;
+  return snowfallPresentationStrength({
+    snowDay,
+    coldWater,
+    cloudOpacity: clamp(cloudOpacity, 0, 1),
+    stormIntensity: clamp(stormIntensity, 0, 1)
+  });
 }
 
 function tileCallNearViewport(call, offset, margin) {
@@ -45282,16 +45360,28 @@ function drawRainSplash(x, y, progress, color, painter) {
   }
 }
 
-function drawSnowParticle(particle, call, nowMs, painter) {
+function drawSnowParticle(particle, call, nowMs, snowfallStrength, painter) {
   const progress = precipitationProgress(particle, nowMs);
   const wind = windForTile(call.id);
-  const flowDir = wind.directionRad + Math.PI;
-  const windX = Math.cos(flowDir) * clamp(wind.strength, 0.15, 1.1);
-  const wobble = snowWaveOffset(nowMs, particle.wavePhase, particle.driftAmp, particle.wavePeriodMs);
-  const x = Math.round(call.drawSurfaceX + particle.offsetX + windX * progress * 4 + wobble);
-  const y = Math.round(call.drawSurfaceY - 13 + particle.offsetY + progress * 24);
+  const flow = screenWindFlowVector(wind);
+  const storminess = clamp(stormIntensityForTile(call.id) / STORM_ACTIVE_INTENSITY, 0, 1);
+  const motion = snowParticleOffset({
+    progress,
+    elapsedMs: nowMs,
+    phaseRad: particle.wavePhase,
+    waveAmplitudePx: particle.driftAmp * (1 + storminess * 0.35),
+    wavePeriodMs: particle.wavePeriodMs,
+    windFlowX: flow.x,
+    windFlowY: flow.y,
+    windTravelPx: (4 + storminess * 12) * clamp(wind.strength, 0.15, 1.2),
+    fallDistancePx: 24 + storminess * 8
+  });
+  const x = Math.round(call.drawSurfaceX + particle.offsetX + motion.x);
+  const y = Math.round(call.drawSurfaceY - 13 + particle.offsetY + motion.y);
 
-  const color = `rgba(251, 245, 239, ${particle.alpha.toFixed(3)})`;
+  const alpha = particle.alpha * clamp(snowfallStrength, 0.16, 1) * snowLandingOpacity(progress);
+  if (alpha <= 0.02) return;
+  const color = `rgba(251, 245, 239, ${alpha.toFixed(3)})`;
   painter.rect(x, y, 1, 1, color);
   if (((particle.seed + Math.floor(nowMs / 240)) & 15) === 0) {
     painter.rect(x + 1, y, 1, 1, color);
@@ -45432,6 +45522,7 @@ function makeCloudDrawCall(call, spec) {
   const anchorX = call.drawSurfaceX + anchor.x + Math.cos(flowDir) * drift;
   const anchorY = call.drawSurfaceY + anchor.y - Math.sin(flowDir) * drift;
   return {
+    tileId: call.id,
     seed: spec.seed,
     frameIndex: cloudSpriteFrameIndex(spec.templateIndex),
     alpha: visualState.alpha,
