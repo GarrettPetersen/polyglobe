@@ -1069,7 +1069,7 @@ export default Object.freeze({
   "DEPRIVATION": "PRIVAÇÃO",
   "Deputy Governor": "Vice-governador",
   "Deputy Governor {0}": "Vice-governador {0}",
-  "Destroy an empire by taking its capital.": "Destrua um império tomando sua capital.",
+  "Force an empire to terms by taking its capital.": "Force um império a aceitar seus termos tomando sua capital.",
   "Dexterity, memory, and a complete absence of respect for property. I shall record the first two qualities in the formal account.": "Destreza, memória e total ausência de respeito pela propriedade. Registrarei as duas primeiras qualidades no relato formal.",
   "Dhaulagiri appeared as an enormous white wall above the river gorge, its glaciers broken into blue steps. The valley made the summit seem almost impossibly near and impossibly high at once.": "Dhaulagiri apareceu como uma enorme parede branca acima do desfiladeiro do rio, com as geleiras quebradas em degraus azuis. O vale fazia com que o cume parecesse quase impossivelmente próximo e impossivelmente alto ao mesmo tempo.",
   "Dhow": "Dhow",

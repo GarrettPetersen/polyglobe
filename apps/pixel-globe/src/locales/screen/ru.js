@@ -1069,7 +1069,7 @@ export default Object.freeze({
   "DEPRIVATION": "ЛИШЕНИЕ",
   "Deputy Governor": "заместитель губернатора",
   "Deputy Governor {0}": "Заместитель губернатора {0}",
-  "Destroy an empire by taking its capital.": "Уничтожьте империю, захватив ее столицу.",
+  "Force an empire to terms by taking its capital.": "Захватите столицу империи и вынудите её принять условия мира.",
   "Dexterity, memory, and a complete absence of respect for property. I shall record the first two qualities in the formal account.": "Ловкость, память и полное отсутствие уважения к собственности. Я запишу первые два качества в формальный отчет.",
   "Dhaulagiri appeared as an enormous white wall above the river gorge, its glaciers broken into blue steps. The valley made the summit seem almost impossibly near and impossibly high at once.": "Дхаулагири выглядел как огромная белая стена над речным ущельем, ледники которого разбиты на голубые ступени. Из-за долины вершина казалась одновременно невероятно близкой и невероятно высокой.",
   "Dhow": "Dhow",

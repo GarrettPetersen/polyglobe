@@ -1069,7 +1069,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "DEPRIVATION",
   "Deputy Governor",
   "Deputy Governor {0}",
-  "Destroy an empire by taking its capital.",
+  "Force an empire to terms by taking its capital.",
   "Dexterity, memory, and a complete absence of respect for property. I shall record the first two qualities in the formal account.",
   "Dhaulagiri appeared as an enormous white wall above the river gorge, its glaciers broken into blue steps. The valley made the summit seem almost impossibly near and impossibly high at once.",
   "Dhow",

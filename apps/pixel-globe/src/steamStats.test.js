@@ -151,6 +151,7 @@ function snapshot(overrides = {}) {
     castawaysBroughtHome: 0,
     visitedPortCount: 0,
     capturedPortCount: 0,
+    capturedCapitalCount: 0,
     namedCrewCount: 0,
     specialEquipmentCount: 0,
     fullCrew: false,

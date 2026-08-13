@@ -1069,7 +1069,7 @@ export default Object.freeze({
   "DEPRIVATION": "박탈",
   "Deputy Governor": "부지사",
   "Deputy Governor {0}": "부지사 {0}",
-  "Destroy an empire by taking its capital.": "수도를 빼앗아 제국을 파괴하세요.",
+  "Force an empire to terms by taking its capital.": "수도를 점령해 제국에 강화 조건을 강요하세요.",
   "Dexterity, memory, and a complete absence of respect for property. I shall record the first two qualities in the formal account.": "손재주, 기억력, 재산에 대한 존중이 전혀 없습니다. 나는 공식적인 설명에 처음 두 가지 특성을 기록하겠습니다.",
   "Dhaulagiri appeared as an enormous white wall above the river gorge, its glaciers broken into blue steps. The valley made the summit seem almost impossibly near and impossibly high at once.": "다울라기리는 강 협곡 위에 거대한 흰색 벽으로 나타났으며, 그 빙하는 푸른 계단으로 부서졌습니다. 계곡으로 인해 정상은 거의 불가능할 정도로 가깝고 동시에 불가능할 정도로 높습니다.",
   "Dhow": "Dhow",

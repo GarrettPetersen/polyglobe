@@ -13496,6 +13496,11 @@ function currentAchievementSnapshot() {
     capturedPortCount: state
       ? state.memory.conquest.events.filter((entry) => entry.source === "player").length
       : 0,
+    capturedCapitalCount: state
+      ? state.memory.conquest.events.filter((entry) => (
+        entry.source === "player" && Boolean(entry.capitalCapturedFactionId)
+      )).length
+      : 0,
     namedCrewCount: state ? namedCrewMembers(state).length : 0,
     specialEquipmentCount: state
       ? Object.values(state.inventory.items).filter((quantity) => quantity === 1).length

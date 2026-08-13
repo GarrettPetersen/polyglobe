@@ -54,6 +54,7 @@ function snapshot(overrides = {}) {
     castawaysBroughtHome: 0,
     visitedPortCount: 0,
     capturedPortCount: 0,
+    capturedCapitalCount: 0,
     namedCrewCount: 0,
     specialEquipmentCount: 0,
     fullCrew: false,
@@ -230,6 +231,7 @@ test("same-voyage achievements unlock from accumulated progress", () => {
     soldGoodIds: ["cinnamon", "nutmeg", "pepper", "cloves", "ginger"],
     foundedCityIds: ["a", "b", "c", "d", "e"],
     collapsedFactionIds: ["portugal"],
+    capturedCapitalCount: 1,
     grossDoubloonsEarned: 1_000_000,
     vikingLongshipUnlocked: true,
     japaneseMatchlockIndustryCreated: true,
@@ -249,6 +251,24 @@ test("same-voyage achievements unlock from accumulated progress", () => {
     ACHIEVEMENT_IDS.GINGER_FARMER
   ]) assert.ok(profile.unlocked[id], id);
   assert.equal(result.newlyUnlocked.length, 18);
+});
+
+test("Conqueror rewards a player capital capture without requiring annexation", () => {
+  const profile = createAchievementProfile();
+  const progress = createVoyageAchievementProgress();
+
+  synchronizeAchievements(profile, progress, snapshot({ capturedCapitalCount: 1 }));
+
+  assert.ok(profile.unlocked[ACHIEVEMENT_IDS.CONQUEROR]);
+});
+
+test("Conqueror does not reward an unrelated faction collapse", () => {
+  const profile = createAchievementProfile();
+  const progress = createVoyageAchievementProgress();
+
+  synchronizeAchievements(profile, progress, snapshot({ collapsedFactionIds: ["hungary"] }));
+
+  assert.equal(profile.unlocked[ACHIEVEMENT_IDS.CONQUEROR], undefined);
 });
 
 test("the 51-entry catalog includes approachable voyage milestones", () => {

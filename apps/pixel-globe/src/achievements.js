@@ -78,7 +78,7 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.COLONIST, "Colonist",
     "Found five new cities in a single voyage.", "voyage", "achievement:colonist", "COLONIST"),
   achievement(ACHIEVEMENT_IDS.CONQUEROR, "Conqueror",
-    "Destroy an empire by taking its capital.", "voyage", "item:longsword", "CONQUEROR"),
+    "Force an empire to terms by taking its capital.", "voyage", "item:longsword", "CONQUEROR"),
   achievement(ACHIEVEMENT_IDS.WELL_ROUNDED, "Well Rounded",
     "Sail every ship type across any number of voyages.", "lifetime", "ship:caravel", "WELL_ROUNDED"),
   achievement(ACHIEVEMENT_IDS.HISTORY_ENTHUSIAST, "History Enthusiast",
@@ -478,7 +478,7 @@ export function synchronizeAchievements(profile, progress, snapshot, { unlockedA
     SPICE_TRADER_GOOD_IDS.every((id) => progress.soldSpiceGoodIds.includes(id)));
   unlockWhen(ACHIEVEMENT_IDS.MILLIONAIRE, progress.grossDoubloonsEarned >= 1_000_000);
   unlockWhen(ACHIEVEMENT_IDS.COLONIST, progress.foundedCityIds.length >= 5);
-  unlockWhen(ACHIEVEMENT_IDS.CONQUEROR, snapshot.collapsedFactionIds.length > 0);
+  unlockWhen(ACHIEVEMENT_IDS.CONQUEROR, snapshot.capturedCapitalCount > 0);
   unlockWhen(ACHIEVEMENT_IDS.WELL_ROUNDED,
     snapshot.shipCatalogSlugs.length > 0 &&
     snapshot.shipCatalogSlugs.every((slug) => profile.lifetime.sailedShipSlugs.includes(slug)));
@@ -750,6 +750,7 @@ function validateAchievementSnapshot(snapshot) {
     "castawaysBroughtHome",
     "visitedPortCount",
     "capturedPortCount",
+    "capturedCapitalCount",
     "namedCrewCount",
     "specialEquipmentCount"
   ]) {

@@ -1069,7 +1069,7 @@ export default Object.freeze({
   "DEPRIVATION": "剝奪",
   "Deputy Governor": "副省長",
   "Deputy Governor {0}": "副州長{0}",
-  "Destroy an empire by taking its capital.": "透過奪取首都來摧毀一個帝國。",
+  "Force an empire to terms by taking its capital.": "透過奪取首都，迫使一個帝國接受議和條件。",
   "Dexterity, memory, and a complete absence of respect for property. I shall record the first two qualities in the formal account.": "敏捷、記憶力強，而且完全不尊重財產。我將在正式的敘述中記錄前兩個特質。",
   "Dhaulagiri appeared as an enormous white wall above the river gorge, its glaciers broken into blue steps. The valley made the summit seem almost impossibly near and impossibly high at once.": "道拉吉里峰看起來就像河谷上方的一道巨大的白色牆壁，它的冰河分裂成藍色的階梯。山谷讓山頂顯得近得近乎不可思議，同時又顯得高得不可思議。",
   "Dhow": "Dhow",
