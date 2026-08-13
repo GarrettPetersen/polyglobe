@@ -509,6 +509,7 @@ import {
   validateNaturalistReportDialogueCatalog
 } from "./naturalistAnimalDialogue.js";
 import { openNextPortArrivalFollowup } from "./portArrivalQueue.js";
+import { recoveringPortBlocksArrival } from "./portEntryFlow.js";
 import {
   QUEST_CARGO_PROMPT_CHEF,
   QUEST_CARGO_PROMPT_COLONIZATION,
@@ -16167,6 +16168,12 @@ function openPortDialogue(cityCall) {
   );
   const attackStatus = playerPortAttackStatus(gameState, cityCall);
   const conquestStatus = playerPortConquestStatus(cityCall);
+  const recoveringPortBlocksEntry = recoveringPortBlocksArrival({
+    entryStatus,
+    recoveryStatus,
+    attackStatus,
+    conquestStatus
+  });
   const portUnavailable = Boolean(
     recoveryStatus || conquestStatus.playerAssaultActive || attackStatus.commissioned ||
     ((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort)
@@ -16176,7 +16183,7 @@ function openPortDialogue(cityCall) {
     dialogueState = createWorldPassengerDialogueSession(cityCall, arrivingTravelMission, {
       admittedToPort: false,
       continueToPortOnClose: true,
-      nextPortNodeId: recoveryStatus && !entryStatus.hostile && !conquestStatus.canAttempt
+      nextPortNodeId: recoveringPortBlocksEntry
         ? "recovering"
         : "barred"
     });
@@ -16200,7 +16207,7 @@ function openPortDialogue(cityCall) {
     dirty = true;
     return;
   }
-  if (recoveryStatus && !entryStatus.hostile && !conquestStatus.canAttempt) {
+  if (recoveringPortBlocksEntry) {
     dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "recovering" });
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
