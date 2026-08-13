@@ -327,7 +327,7 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before opening N
   assert.equal(diplomacyBetweenForState(gameState, "japan", "portugal"), "friendly");
   assert.equal(result.colonizationDiplomacyEvents.length, 1);
   assert.equal(result.colonizationDiplomacyEvents[0].reason, "colony-nagasaki-japan-agreement");
-  assert.match(session.feedback, /improve relations/);
+  assert.equal(session.feedback, "Permission granted. Relations improved.");
   const closing = portDialogueView(session, KYOTO, gameState, economy, ports, context);
   assert.match(closing.text, /Japanese port/);
   assert.match(closing.text, /Omura anchorage/);
@@ -401,6 +401,8 @@ test("a resupplied attacked colony pays a second reward only after the canoe def
   assert.equal(gameState.memory.colonization.stage, COLONIZATION_STAGE_ESTABLISHED);
   assert.equal(gameState.doubloons, afterResupply + history.defense.reward);
   assert.equal(reportResult.colonizationDefenseReward.amount, history.defense.reward);
+  assert.equal(session.feedback, `Defense complete. +${history.defense.reward} db.`);
+  assert.equal(session.feedback.includes(history.defense.report), false);
   assert.ok(gameState.accounts.ledger.some((entry) => entry.description === "Rio de Janeiro defense reward"));
 });
 

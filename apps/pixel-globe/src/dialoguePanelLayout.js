@@ -1,4 +1,4 @@
-import { wrapMeasuredText } from "./measuredTextLayout.js";
+import { wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 
 export function dialogueOverlayIsVisible({ dialogueActive, characterAlertActive }) {
   if (typeof dialogueActive !== "boolean" || typeof characterAlertActive !== "boolean") {
@@ -102,6 +102,11 @@ export function dialogueFeedbackSlotCount({ visibleLineCount, reservedLineCount 
     }
   }
   return Math.max(visibleLineCount, reservedLineCount);
+}
+
+export function dialogueFeedbackTextLines({ text, maxWidth, measureText }) {
+  if (text === null || text === undefined || text === "") return Object.freeze([]);
+  return Object.freeze(wrapAllMeasuredText(text, maxWidth, measureText));
 }
 
 export function dialogueOptionTextLayout({

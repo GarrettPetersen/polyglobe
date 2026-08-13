@@ -1730,8 +1730,7 @@ export function selectPortDialogueOption(
   if (action.type === "deliver-viking-material") {
     const result = deliverVikingLongshipQuestCargo(gameState, city, action.stageId, context);
     session.feedback = result.complete
-      ? `Delivered the last ${result.quantity} ${result.activeStage.goodLabel.toLowerCase()}. ` +
-        `${result.activeStage.goodLabel} requirement complete.`
+      ? `${result.activeStage.goodLabel} complete.`
       : `Delivered ${result.activeStage.goodLabel} x${result.quantity}. ` +
         `${result.remainingQuantity} still needed.`;
     const missionItemGift = result.quest.unlocked
@@ -1743,7 +1742,6 @@ export function selectPortDialogueOption(
         context
       })
       : null;
-    if (missionItemGift) session.feedback += ` Your host also gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return { closed: false, vikingLongshipDelivery: result, missionItemGift };
   }
@@ -1765,12 +1763,7 @@ export function selectPortDialogueOption(
     if (deliveries.length === 0) throw new Error("No requested chef ingredients are aboard");
     const updated = chefQuestState(gameState, city);
     if (!updated.complete) {
-      const missing = updated.ingredients
-        .filter((ingredient) => !ingredient.ready)
-        .map((ingredient) => ingredient.label)
-        .join(", ");
-      session.feedback = `Delivered ${deliveries.map((entry) => entry.good.label).join(", ")}. ` +
-        `Still need: ${missing}.`;
+      session.feedback = `Ingredients delivered: ${deliveries.length}.`;
       session.selectedIndex = 0;
       return { closed: false, chefIngredientDeliveries: deliveries };
     }
@@ -1790,7 +1783,6 @@ export function selectPortDialogueOption(
       context
     });
     session.feedback = `The hosts paid ${payment.amount} db.`;
-    if (missionItemGift) session.feedback += ` The chef also gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return {
       closed: false,
@@ -1854,7 +1846,6 @@ export function selectPortDialogueOption(
         context
       })
       : null;
-    if (missionItemGift) session.feedback += ` The gunsmith presents you with ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return {
       closed: false,
@@ -1902,9 +1893,6 @@ export function selectPortDialogueOption(
         random: context.missionGiftRandom || neverGrantMissionItem,
         context
       });
-      if (missionItemGift) {
-        session.feedback += ` The planter adds ${missionItemGift.item.label} to your reward.`;
-      }
     } else {
       session.feedback = `Delivered ${stage.goodLabel} x${delivery.quantity}. ` +
         `${delivery.remainingQuantity} still needed.`;
@@ -1942,8 +1930,7 @@ export function selectPortDialogueOption(
         `${targetName} expedition: ${stage.goodLabel}`,
         context
       );
-      session.feedback = `Delivered the last ${delivery.quantity} ` +
-        `${stage.goodLabel.toLowerCase()}. Paid ${payment.amount} db.`;
+      session.feedback = `${stage.goodLabel} complete. Paid ${payment.amount} db.`;
     } else {
       session.feedback = `Delivered ${stage.goodLabel} x${delivery.quantity}. ` +
         `${delivery.remainingQuantity} still needed.`;
@@ -2004,11 +1991,9 @@ export function selectPortDialogueOption(
       quest,
       context.simMinute ?? 0
     );
-    const approvalFeedback = quest.history.approval?.grantedFeedback ||
-      `${quest.approval.city} has granted permission to establish ${quest.target.city}.`;
     session.feedback = diplomacyEvents.length > 0
-      ? `${approvalFeedback} ${diplomacyEvents[0].headline}`
-      : approvalFeedback;
+      ? "Permission granted. Relations improved."
+      : "Permission granted.";
     session.colonizationApprovalStep = 2;
     session.selectedIndex = 0;
     return {
@@ -2044,9 +2029,7 @@ export function selectPortDialogueOption(
     }
     reserveCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID, COLONIZATION_EXPEDITION_CARGO_UNITS);
     beginColonizationExpedition(gameState.memory.colonization);
-    session.feedback = quest.approval
-      ? `The colonists, emissaries, and stores are aboard. Make first for ${quest.approval.city} to secure permission, then ${quest.target.city}.`
-      : `The colonists and their stores are aboard. ${quest.target.city} awaits.`;
+    session.feedback = "Expedition aboard.";
     session.selectedIndex = 0;
     return { closed: false, colonizationChanged: true };
   }
@@ -2058,8 +2041,7 @@ export function selectPortDialogueOption(
     }
     releaseCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID);
     landColonists(gameState.memory.colonization, context.simMinute ?? 0);
-    session.feedback = `${quest.target.city} expedition landed. Return within one year with ` +
-      `${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()}.`;
+    session.feedback = "Settlement founded.";
     session.selectedIndex = 0;
     return { closed: false, colonizationChanged: true };
   }
@@ -2085,9 +2067,8 @@ export function selectPortDialogueOption(
         delivery.quantity
       );
       const extensionDays = Math.round(extensionMinutes / (24 * 60));
-      session.feedback = `Delivered ${resupply.goodLabel} x${delivery.quantity}. ` +
-        `${delivery.remainingQuantity} still needed; these stores buy the colony ` +
-        `${extensionDays} more days.`;
+      session.feedback = `${resupply.goodLabel} x${delivery.quantity} delivered. ` +
+        `${delivery.remainingQuantity} remain. Deadline +${extensionDays} days.`;
       session.selectedIndex = 0;
       return {
         closed: false,
@@ -2115,8 +2096,8 @@ export function selectPortDialogueOption(
       context
     );
     session.feedback = defenseStarted
-      ? `${quest.target.city} has become a city. Resupply paid ${payment.amount} db, but the harbor is under attack.`
-      : `${quest.target.city} is secure. Paid ${payment.amount} db.`;
+      ? `Resupply +${payment.amount} db. Harbor under attack.`
+      : `Colony secure. +${payment.amount} db.`;
     const missionItemGift = !defenseStarted
       ? maybeGrantMissionPerkItem(gameState, city, {
         missionId: `${colonizationLedgerKey(quest.target)}.complete`,
@@ -2126,7 +2107,6 @@ export function selectPortDialogueOption(
         context
       })
       : null;
-    if (missionItemGift) session.feedback += ` The colonists press ${missionItemGift.item.label} upon you.`;
     session.selectedIndex = 0;
     return {
       closed: false,
@@ -2152,7 +2132,7 @@ export function selectPortDialogueOption(
       `${quest.target.city} defense reward`,
       context
     );
-    session.feedback = `${quest.defense.report} Paid ${payment.amount} db.`;
+    session.feedback = `Defense complete. +${payment.amount} db.`;
     const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
       missionId: `${colonizationLedgerKey(quest.target)}.defense-complete`,
       distanceKm: quest.distanceKm || 9000,
@@ -2160,7 +2140,6 @@ export function selectPortDialogueOption(
       random: context.missionGiftRandom || neverGrantMissionItem,
       context
     });
-    if (missionItemGift) session.feedback += ` The settlement gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return {
       closed: false,
@@ -2174,9 +2153,9 @@ export function selectPortDialogueOption(
     if (!context.shipStats) throw new Error("Selecting a loadout requires player ship stats");
     const result = restockShipLoadoutAtPort(gameState, city, context.shipStats, action.loadoutId, context);
     const shortages = Object.values(result.shortfalls).reduce((sum, value) => sum + value, 0);
-    session.feedback = `${result.plan.label} targets set. Crew ${gameState.ship.crew}/${result.plan.crew}, ` +
-      `guns ${gameState.ship.cannons}/${result.plan.cannons}.` + loadoutRemovalSummary(result.removed) +
-      (shortages > 0 ? " Some stores could not be fitted or afforded." : " Ship fully provisioned.");
+    session.feedback = `${result.plan.label}: ${gameState.ship.crew} crew / ` +
+      `${gameState.ship.cannons} guns.` + loadoutRemovalSummary(result.removed) +
+      (shortages > 0 ? " Stores short." : "");
     session.nodeId = "root";
     session.selectedIndex = 0;
     return { closed: false, loadoutResult: result };
@@ -2205,10 +2184,8 @@ export function selectPortDialogueOption(
       context
     );
     const shortages = Object.values(result.shortfalls).reduce((sum, value) => sum + value, 0);
-    session.feedback = `Custom targets set. Crew ${gameState.ship.crew}/${result.plan.crew}, ` +
-      `guns ${gameState.ship.cannons}/${result.plan.cannons}.` +
-      loadoutRemovalSummary(result.removed) +
-      (shortages > 0 ? " Some stores could not be fitted or afforded." : " Ship fully provisioned.");
+    session.feedback = `Custom: ${gameState.ship.crew} crew / ${gameState.ship.cannons} guns.` +
+      loadoutRemovalSummary(result.removed) + (shortages > 0 ? " Stores short." : "");
     session.nodeId = "root";
     session.selectedIndex = 0;
     return { closed: false, loadoutResult: result };
@@ -2435,7 +2412,6 @@ export function selectPortDialogueOption(
           ? `First tea ashore. Won the race and earned ${quest.reward} db.`
           : `Tea delivered. Earned the ${quest.reward} db finishing premium.`
         : `Delivered. Earned ${quest.reward} db. Standing improved.`;
-    if (missionItemGift) session.feedback += ` Gift: ${missionItemGift.item.label}.`;
     session.nodeId = session.nextPortNodeId || "root";
     session.nextPortNodeId = null;
     session.selectedIndex = 0;
@@ -5241,13 +5217,9 @@ function customLoadoutView(session, city, gameState, context) {
 
 function loadoutRemovalSummary(removed) {
   const phrases = [];
-  if (removed.food > 0) phrases.push(`${formatDisplayQuantity(removed.food)} hardtack`);
+  if (removed.food > 0) phrases.push(`${formatDisplayQuantity(removed.food)} food`);
   if (removed.water > 0) phrases.push(`${formatDisplayQuantity(removed.water)} water`);
-  const dumped = phrases.length > 0 ? ` Dumped ${phrases.join(" and ")}.` : "";
-  const reductions = [];
-  if (removed.crew > 0) reductions.push(`${removed.crew} crew`);
-  if (removed.cannons > 0) reductions.push(`${removed.cannons} guns`);
-  return dumped + (reductions.length > 0 ? ` Removed ${reductions.join(" and ")}.` : "");
+  return phrases.length > 0 ? ` Offloaded ${phrases.join(" / ")}.` : "";
 }
 
 function sellView(session, city, gameState, economy, context) {

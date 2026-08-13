@@ -1168,6 +1168,7 @@ import {
   characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
+  dialogueFeedbackTextLines,
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueOptionNavigationLayout,
@@ -51853,7 +51854,11 @@ function drawDialogueOverlay(nowMs) {
     (optionGroups.exits.length > 0 ? 1 : 0);
   const maximumPanelHeight = SCREEN_H - 13;
   let feedbackLines = view.feedback
-    ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
+    ? dialogueFeedbackTextLines({
+        text: renderedUiText(view.feedback),
+        maxWidth: bodyTextW,
+        measureText: (entry) => measureRenderedPixelTextWidth(entry, dialogueFont)
+      })
     : [];
   const feedbackSlotCount = dialogueFeedbackSlotCount({
     visibleLineCount: feedbackLines.length,

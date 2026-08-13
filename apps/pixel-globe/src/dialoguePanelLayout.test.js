@@ -5,6 +5,7 @@ import {
   characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
+  dialogueFeedbackTextLines,
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueOptionLayout,
@@ -86,6 +87,18 @@ test("reserved feedback slots keep action positions stable as messages appear", 
     () => dialogueFeedbackSlotCount({ visibleLineCount: 0.5, reservedLineCount: 2 }),
     /visibleLineCount/
   );
+});
+
+test("game-impact feedback wraps fully instead of truncating after two lines", () => {
+  const lines = dialogueFeedbackTextLines({
+    text: "Colony secure. Payment received. Standing improved.",
+    maxWidth: 18,
+    measureText: (value) => value.length
+  });
+
+  assert.deepEqual(lines, ["Colony secure.", "Payment received.", "Standing improved."]);
+  assert.ok(lines.length > 2);
+  assert.doesNotMatch(lines.join(" "), /\.\.\./);
 });
 
 test("portrait greetings use a compact content-height panel", () => {

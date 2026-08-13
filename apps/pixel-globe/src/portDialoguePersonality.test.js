@@ -144,6 +144,23 @@ test("gossipy factors report nearby new shipyard listings", () => {
   assert.equal(presentation.expressionId, "pleased");
 });
 
+test("factors pitch their own shipyard listing before referring captains elsewhere", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "austere",
+    cityName: "Lisbon",
+    localFlavor: "The harbor is busy.",
+    shipyardRumor: {
+      shipLabel: "Brigantine",
+      shipProseLabel: "brigantine",
+      portName: "Lisbon",
+      local: true
+    }
+  });
+
+  assert.match(presentation.text, /our shipyard has a new brigantine for sale/i);
+  assert.doesNotMatch(presentation.text, /for sale in/i);
+});
+
 test("compound ship names use sentence capitalization in shipyard rumors", () => {
   const presentation = portGreetingPresentationForPersonality({
     personalityId: "gossipy",

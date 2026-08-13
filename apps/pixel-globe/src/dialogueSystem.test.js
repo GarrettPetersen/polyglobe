@@ -2183,7 +2183,7 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.equal(session.nodeId, "root");
   assert.ok(result.loadoutResult.plan.totalSpace <= stats.cargoCapacity);
   assert.ok(gameState.doubloons <= before);
-  assert.match(session.feedback, /Balanced targets set/);
+  assert.match(session.feedback, /Balanced:/);
 });
 
 test("custom loadout opens a slider model and reports discarded provisions", () => {
@@ -2242,7 +2242,7 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
   assert.equal(gameState.survival.freshWater, 2);
   assert.equal(result.loadoutResult.plan.foodUnits, 1);
   assert.equal(result.loadoutResult.plan.waterUnits, 2);
-  assert.match(session.feedback, /Dumped 4 hardtack and 4 water/);
+  assert.match(session.feedback, /Offloaded 4 food \/ 4 water/);
 });
 
 test("custom loadout feedback never exposes scientific notation for fractional stores", () => {

@@ -270,7 +270,23 @@ test("nearby factors can gossip about an active shipyard listing", () => {
 
   assert.equal(rumor.portName, "Lisbon");
   assert.equal(rumor.shipSlug, lisbonYard.listing.shipSlug);
+  assert.equal(rumor.local, false);
   assert.ok(rumor.distanceKm < 400);
+});
+
+test("factors advertise their own active listing before another port's", () => {
+  const system = createWorldShipyards({ ports: [LISBON, PORTO], startMinute: 0 });
+  const lisbonYard = shipyardAtPort(system, LISBON);
+  const portoYard = shipyardAtPort(system, PORTO);
+  lisbonYard.listing = generateShipyardListing(lisbonYard, 99, 0);
+  portoYard.listing = generateShipyardListing(portoYard, 101, 0);
+
+  const rumor = shipyardRumorForPort(system, LISBON, testSailingDistanceKm);
+
+  assert.equal(rumor.portId, LISBON.tileId);
+  assert.equal(rumor.shipSlug, lisbonYard.listing.shipSlug);
+  assert.equal(rumor.distanceKm, 0);
+  assert.equal(rumor.local, true);
 });
 
 test("empty shipyards can name the nearest active vessel sale worldwide", () => {

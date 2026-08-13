@@ -241,6 +241,7 @@ function rulerRumorLine(personalityId, rumor) {
 
 function shouldTellShipyardRumor(personalityId, topic, rumor, seed) {
   if (!rumor || topic === "pirates" || topic === "storm") return false;
+  if (rumor.local === true) return true;
   if (personalityId === "gossipy") return true;
   return hashString32(`${seed}|shipyard-rumor`) % 3 === 0;
 }
@@ -250,6 +251,7 @@ function shipyardRumorLine(personalityId, rumor) {
     throw new Error("Shipyard rumor requires a prose-form ship label");
   }
   const hull = rumor.shipProseLabel;
+  if (rumor.local === true) return `Our shipyard has a new ${hull} for sale.`;
   if (personalityId === "austere") return `Shipyard report: a new ${hull} is for sale in ${rumor.portName}.`;
   if (personalityId === "enterprising") return `There is profit in news: a new ${hull} is for sale in ${rumor.portName}.`;
   if (personalityId === "reflective") return `Word travels ahead of wakes. A new ${hull} is for sale in ${rumor.portName}.`;

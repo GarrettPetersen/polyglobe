@@ -266,6 +266,10 @@ export function shipyardRumorForPort(
   if (!Number.isFinite(maxDistanceKm) || maxDistanceKm <= 0) {
     throw new Error(`Invalid shipyard gossip radius: ${maxDistanceKm}`);
   }
+  const localYard = shipyardAtPort(system, port);
+  if (localYard.listing && (!eligiblePortIds || eligiblePortIds.has(localYard.portId))) {
+    return shipyardListingNotice(localYard, localYard.listing, 0, true);
+  }
   const nearest = nearestShipyardListingForPort(system, port, sailingDistanceKm, eligiblePortIds);
   if (!nearest || nearest.distanceKm > maxDistanceKm) return null;
   return nearest;
@@ -294,14 +298,19 @@ export function nearestShipyardListingForPort(
   candidates.sort((a, b) => a.distanceKm - b.distanceKm || a.yard.portId - b.yard.portId);
   const nearest = candidates[0];
   if (!nearest) return null;
+  return shipyardListingNotice(nearest.yard, nearest.listing, nearest.distanceKm, false);
+}
+
+function shipyardListingNotice(yard, listing, distanceKm, local) {
   return Object.freeze({
-    portId: nearest.yard.portId,
-    portName: nearest.yard.portName,
-    shipSlug: nearest.listing.shipSlug,
-    shipLabel: nearest.listing.shipLabel,
-    shipProseLabel: shipLabelForProse(nearest.listing.shipSlug),
-    price: nearest.listing.price,
-    distanceKm: Math.round(nearest.distanceKm)
+    portId: yard.portId,
+    portName: yard.portName,
+    shipSlug: listing.shipSlug,
+    shipLabel: listing.shipLabel,
+    shipProseLabel: shipLabelForProse(listing.shipSlug),
+    price: listing.price,
+    distanceKm: Math.round(distanceKm),
+    local
   });
 }
 
