@@ -1,6 +1,8 @@
 import { ANIMAL_CATALOG_BY_ID, validateAnimalEncounterMemory } from "./animalEncounters.js";
+import { validateCharacterBiography } from "./characterBiography.js";
+import { validateCharacterSkillIds } from "./characterSkills.js";
 
-export const NATURALIST_QUEST_MEMORY_VERSION = 1;
+export const NATURALIST_QUEST_MEMORY_VERSION = 2;
 export const NATURALIST_REPORT_REWARD = 100;
 export const NATURALIST_COMPLETION_REWARD = 1000;
 
@@ -49,6 +51,7 @@ export function createNaturalistQuestMemory() {
   return {
     version: NATURALIST_QUEST_MEMORY_VERSION,
     portTileId: null,
+    character: null,
     met: false,
     reportedAnimalIds: [],
     completionRewarded: false
@@ -61,6 +64,9 @@ export function validateNaturalistQuestMemory(memory) {
   }
   if (memory.portTileId !== null && !Number.isInteger(memory.portTileId)) {
     throw new Error(`Invalid naturalist port tile: ${memory.portTileId}`);
+  }
+  if (memory.character !== null) {
+    validateNaturalistCharacter(memory.character, memory.portTileId);
   }
   if (typeof memory.met !== "boolean" || typeof memory.completionRewarded !== "boolean") {
     throw new Error("Naturalist quest flags must be booleans");
@@ -76,6 +82,36 @@ export function validateNaturalistQuestMemory(memory) {
     throw new Error("Naturalist completion reward was granted before the bestiary was complete");
   }
   return memory;
+}
+
+export function migrateNaturalistQuestMemory(memory) {
+  if (!memory) return createNaturalistQuestMemory();
+  if (memory.version === NATURALIST_QUEST_MEMORY_VERSION) {
+    return validateNaturalistQuestMemory(memory);
+  }
+  if (memory.version !== 1) {
+    throw new Error(`Unsupported naturalist quest memory: ${memory.version ?? "missing"}`);
+  }
+  return validateNaturalistQuestMemory({
+    ...memory,
+    version: NATURALIST_QUEST_MEMORY_VERSION,
+    character: null
+  });
+}
+
+export function naturalistQuestCharacter(memory) {
+  validateNaturalistQuestMemory(memory);
+  return memory.character;
+}
+
+export function setNaturalistQuestCharacter(memory, character) {
+  if (!memory || memory.version !== NATURALIST_QUEST_MEMORY_VERSION) {
+    throw new Error(`Unsupported naturalist quest memory: ${memory?.version ?? "missing"}`);
+  }
+  if (character !== null) validateNaturalistCharacter(character, memory.portTileId);
+  memory.character = character;
+  validateNaturalistQuestMemory(memory);
+  return memory.character;
 }
 
 export function assignNaturalistPort(memory, ports, identityKey = "naturalist") {
@@ -168,4 +204,31 @@ function validatedNaturalistCatalogIds(catalogAnimalIds) {
     }
   }
   return ids;
+}
+
+function validateNaturalistCharacter(character, portTileId) {
+  if (!Number.isInteger(portTileId)) {
+    throw new Error("Naturalist character requires an assigned port");
+  }
+  validateCharacterBiography(character);
+  validateCharacterSkillIds(character.skillIds);
+  if (typeof character.id !== "string" || character.id.trim() === "") {
+    throw new Error("Naturalist character requires an id");
+  }
+  if (typeof character.name !== "string" || character.name.trim() === "") {
+    throw new Error("Naturalist character requires a name");
+  }
+  if (typeof character.sourceId !== "string" || character.sourceId.trim() === "") {
+    throw new Error("Naturalist character requires a portrait source");
+  }
+  if (!Array.isArray(character.expressions) || character.expressions.length === 0) {
+    throw new Error("Naturalist character requires portrait expressions");
+  }
+  if (character.role !== "natural-philosopher") {
+    throw new Error(`Naturalist character has invalid role: ${character.role}`);
+  }
+  if (character.homePortTileId !== portTileId) {
+    throw new Error("Naturalist character does not belong to the naturalist port");
+  }
+  return character;
 }

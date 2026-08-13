@@ -12,10 +12,13 @@ import {
   assignNaturalistPort,
   createNaturalistQuestMemory,
   meetNaturalist,
+  migrateNaturalistQuestMemory,
+  naturalistQuestCharacter,
   naturalistQuestPresentation,
   naturalistQuestView,
   naturalistShouldApproach,
-  reportAnimalsToNaturalist
+  reportAnimalsToNaturalist,
+  setNaturalistQuestCharacter
 } from "./naturalistQuest.js";
 
 const ports = [
@@ -29,6 +32,29 @@ test("the naturalist receives one persistent non-pirate home port", () => {
   const first = assignNaturalistPort(memory, ports, "voyage-one");
   assert.ok([10, 20].includes(first));
   assert.equal(assignNaturalistPort(memory, ports.slice().reverse(), "different-key"), first);
+});
+
+test("the naturalist retains one persisted identity and portrait", () => {
+  const memory = createNaturalistQuestMemory();
+  memory.portTileId = 10;
+  const character = naturalistCharacterFixture();
+  assert.equal(setNaturalistQuestCharacter(memory, character), character);
+  assert.equal(naturalistQuestCharacter(memory), character);
+  assert.equal(naturalistQuestCharacter(structuredClone(memory)).sourceId, "portrait-naturalist-a");
+});
+
+test("legacy naturalist memory migrates without inventing a former portrait", () => {
+  const migrated = migrateNaturalistQuestMemory({
+    version: 1,
+    portTileId: 20,
+    met: true,
+    reportedAnimalIds: ["panda"],
+    completionRewarded: false
+  });
+  assert.equal(migrated.version, 2);
+  assert.equal(migrated.character, null);
+  assert.equal(migrated.portTileId, 20);
+  assert.deepEqual(migrated.reportedAnimalIds, ["panda"]);
 });
 
 test("the naturalist approaches on first meeting and whenever reports are waiting", () => {
@@ -131,3 +157,22 @@ test("animal reports pay once and the completed bestiary grants its bonus", () =
   assert.equal(naturalistQuestView(quest, animals).complete, true);
   assert.equal(reportAnimalsToNaturalist(quest, animals).reward, 0);
 });
+
+function naturalistCharacterFixture() {
+  return {
+    id: "portrait-naturalist-a-character",
+    name: "A Naturalist",
+    givenName: "A",
+    familyName: "Naturalist",
+    sourceId: "portrait-naturalist-a",
+    sex: "female",
+    age: 40,
+    birthDate: { year: 1481, month: 1, day: 1 },
+    birthDateLabel: "1 January 1481",
+    religionId: "roman-catholic",
+    expressions: [{ id: "neutral", src: "assets/characters/naturalist.png", width: 64, height: 64 }],
+    skillIds: ["natural-philosopher"],
+    role: "natural-philosopher",
+    homePortTileId: 10
+  };
+}

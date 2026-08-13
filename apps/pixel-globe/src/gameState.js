@@ -53,6 +53,8 @@ import {
 } from "./animalCompanions.js";
 import {
   createNaturalistQuestMemory,
+  migrateNaturalistQuestMemory,
+  setNaturalistQuestCharacter,
   validateNaturalistQuestMemory
 } from "./naturalistQuest.js";
 import { createBirthdayMemory, validateBirthdayMemory } from "./birthdayEvents.js";
@@ -379,7 +381,7 @@ import {
 } from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 69;
+export const GAME_STATE_VERSION = 70;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -690,7 +692,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -851,7 +853,7 @@ export function migrateGameState(state, shipStats) {
         chef: state.memory?.quests?.chef || createChefQuestMemory(),
         pirateCaptive: migratePirateCaptiveQuestMemory(state.memory?.quests?.pirateCaptive),
         castaway: migrateCastawayQuestMemory(state.memory?.quests?.castaway),
-        naturalist: state.memory?.quests?.naturalist || createNaturalistQuestMemory(),
+        naturalist: migrateNaturalistQuestMemory(state.memory?.quests?.naturalist),
         hospitallerMalta: migrateHospitallerMaltaQuestMemory(
           state.memory?.quests?.hospitallerMalta
         )
@@ -5761,6 +5763,7 @@ export function reconcileQuestPortTiles(state, portCities) {
   if (Number.isInteger(naturalist?.portTileId) &&
       !portCities.some((port) => port.tileId === naturalist.portTileId)) {
     naturalist.portTileId = null;
+    setNaturalistQuestCharacter(naturalist, null);
     updates += 1;
   }
 

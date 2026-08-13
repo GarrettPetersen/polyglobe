@@ -488,10 +488,12 @@ import {
   NATURALIST_COMPLETION_REWARD,
   assignNaturalistPort,
   meetNaturalist,
+  naturalistQuestCharacter,
   naturalistQuestPresentation,
   naturalistQuestView,
   naturalistShouldApproach,
-  reportAnimalsToNaturalist
+  reportAnimalsToNaturalist,
+  setNaturalistQuestCharacter
 } from "./naturalistQuest.js";
 import {
   naturalistJournalDescriptionForAnimal,
@@ -7773,6 +7775,12 @@ function ensureNaturalistCharacter(state, { portraitSourceId = null } = {}) {
   if (naturalistCharacter) return naturalistCharacter;
   const memory = state?.memory?.quests?.naturalist;
   if (!memory) throw new Error("Naturalist character requires quest memory");
+  const persistedCharacter = naturalistQuestCharacter(memory);
+  if (persistedCharacter) {
+    naturalistCharacter = Object.freeze(persistedCharacter);
+    usedCharacterNames.add(naturalistCharacter.name);
+    return naturalistCharacter;
+  }
   const startMinute = state.accounts?.ledger?.[0]?.simMinute ?? 0;
   const tileId = assignNaturalistPort(
     memory,
@@ -7792,6 +7800,7 @@ function ensureNaturalistCharacter(state, { portraitSourceId = null } = {}) {
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
+  setNaturalistQuestCharacter(memory, naturalistCharacter);
   return naturalistCharacter;
 }
 
@@ -10391,6 +10400,7 @@ function stageCapturePanda(sequence) {
     memory.met = true;
     memory.reportedAnimalIds = [...ANIMAL_CATALOG_BY_ID.keys()];
     memory.completionRewarded = true;
+    setNaturalistQuestCharacter(memory, null);
     naturalistCharacter = null;
     ensureNaturalistCharacter(gameState, {
       portraitSourceId: sequence.naturalistPortraitSourceId || null
@@ -26832,6 +26842,9 @@ function reconcileEnglishReformationCharacters() {
   caribbeanGingerPlanter = convertSingle(caribbeanGingerPlanter);
   banquetChef = convertSingle(banquetChef);
   naturalistCharacter = convertSingle(naturalistCharacter);
+  if (naturalistCharacter) {
+    setNaturalistQuestCharacter(gameState.memory.quests.naturalist, naturalistCharacter);
+  }
   return converted;
 }
 
