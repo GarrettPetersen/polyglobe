@@ -26,6 +26,7 @@
     "preview:character-expressions": "node tools/render-character-expression-review.mjs",
     "benchmark:busy": "node tools/run-performance-benchmark.mjs",
     "benchmark:clouds": "node tools/run-performance-benchmark.mjs --benchmark cloud-cover",
+    "benchmark:fog": "node tools/run-performance-benchmark.mjs --benchmark polar-fog",
     "benchmark:combat": "node tools/run-performance-benchmark.mjs --benchmark combat-hotspot",
     "benchmark:lepanto": "node tools/benchmark-historical-battle.mjs",
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",

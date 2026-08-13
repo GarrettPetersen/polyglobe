@@ -13,6 +13,7 @@ import {
   MAX_PROTECTED_ADMISSION_SLACK_PX,
   ProtectedChartStitchError,
   admitProjectedTiles,
+  chartAdmissionCorrectionPolicy,
   chartAdmissionTileMayMove,
   refreshOffscreenLayoutTiles,
   projectedViewportTileIds,
@@ -43,6 +44,46 @@ test("live admission never moves a retained tile that may still be visible", () 
     concealed: false,
     overlapsAuthoritativeViewport: true
   }), true);
+});
+
+test("featureless water admission can spend the whole viewport correcting north-up", () => {
+  const support = {
+    viewportTileIds: new Set([0, 1, 2]),
+    elasticTileIds: new Set([0, 1, 2]),
+    correctionActive: true
+  };
+  const policy = chartAdmissionCorrectionPolicy({
+    support,
+    protectionById: new Uint8Array([0, 0, 0]),
+    elasticityMaskById: new Uint8Array([1, 1, 1]),
+    continuityMaskById: new Uint8Array([1, 1, 1]),
+    viewportWidth: 320,
+    viewportHeight: 180
+  });
+
+  assert.equal(policy.correctElasticTilesNorthUp, true);
+  assert.equal(policy.registrationIds, support.elasticTileIds);
+  assert.equal(policy.maxElasticCorrectionPx, Math.hypot(320, 180));
+  assert.equal(policy.fullyElasticWater, true);
+});
+
+test("coastal admission keeps the bounded elastic correction used by production", () => {
+  const support = {
+    viewportTileIds: new Set([0, 1, 2]),
+    elasticTileIds: new Set([0, 1]),
+    correctionActive: true
+  };
+  const policy = chartAdmissionCorrectionPolicy({
+    support,
+    protectionById: new Uint8Array([0, 0, 255]),
+    elasticityMaskById: new Uint8Array([1, 1, 0]),
+    continuityMaskById: new Uint8Array([1, 1, 2]),
+    viewportWidth: 320,
+    viewportHeight: 180
+  });
+
+  assert.equal(policy.maxElasticCorrectionPx, MAX_ELASTIC_FRAME_CORRECTION_PX);
+  assert.equal(policy.fullyElasticWater, false);
 });
 import { predictiveAdmissionProjection } from "./chartAdmissionProjection.js";
 import { chartFaultNeedsCloudRepair } from "./chartVisualFault.js";
@@ -1814,9 +1855,18 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewY
     });
     const correctionViewportIds = support.viewportTileIds;
-    const viewportIsFullyElasticWater = [...correctionViewportIds].every((id) => (
-      protectionById[id] === 0 && terrainClassByTileId[id] === "water"
-    ));
+    const correctionPolicy = chartAdmissionCorrectionPolicy({
+      support,
+      protectionById,
+      elasticityMaskById: Uint8Array.from(
+        terrainClassByTileId,
+        (terrainClass) => terrainClass === "water" ? 1 : 0
+      ),
+      continuityMaskById,
+      viewportWidth: TRAVERSAL_SCREEN_W,
+      viewportHeight: TRAVERSAL_SCREEN_H
+    });
+    const viewportIsFullyElasticWater = correctionPolicy.fullyElasticWater;
     const visibleProtectedBefore = new Map();
     const visibleLandBefore = new Map();
     for (const [id, position] of positions.entries()) {
@@ -1865,16 +1915,10 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       neighborsById: graph.neighbors,
       protectionById,
       directProtectionComponentById,
-      registrationIds: support.correctionActive
-        ? support.elasticTileIds
-        : support.viewportTileIds,
+      registrationIds: correctionPolicy.registrationIds,
       rigidRegistrationIds: support.viewportTileIds,
-      correctElasticTilesNorthUp: support.correctionActive,
-      maxElasticCorrectionPx: support.correctionActive
-        ? viewportIsFullyElasticWater
-          ? Math.hypot(TRAVERSAL_SCREEN_W, TRAVERSAL_SCREEN_H)
-          : MAX_ELASTIC_FRAME_CORRECTION_PX
-        : 0,
+      correctElasticTilesNorthUp: correctionPolicy.correctElasticTilesNorthUp,
+      maxElasticCorrectionPx: correctionPolicy.maxElasticCorrectionPx,
       maxProtectedCorrectionPx,
       continuityMaskById,
       maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,

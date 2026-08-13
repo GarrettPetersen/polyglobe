@@ -3,6 +3,8 @@ export const BUSY_WORLD_BENCHMARK_ID = "busy-world";
 export const BUSY_WORLD_CAPTURE_SCENARIO_ID = "benchmark-busy-world";
 export const CLOUD_COVER_BENCHMARK_ID = "cloud-cover";
 export const CLOUD_COVER_CAPTURE_SCENARIO_ID = "benchmark-cloud-cover";
+export const POLAR_FOG_BENCHMARK_ID = "polar-fog";
+export const POLAR_FOG_CAPTURE_SCENARIO_ID = "diagnostic-chart-recovery-scandinavia";
 export const COMBAT_HOTSPOT_BENCHMARK_ID = "combat-hotspot";
 export const COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-combat-hotspot";
 export const NANJING_HOTSPOT_BENCHMARK_ID = "nanjing-hotspot";
@@ -17,6 +19,10 @@ const BENCHMARKS = Object.freeze({
   }),
   [CLOUD_COVER_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: CLOUD_COVER_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2
+  }),
+  [POLAR_FOG_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: POLAR_FOG_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2
   }),
   [COMBAT_HOTSPOT_BENCHMARK_ID]: Object.freeze({

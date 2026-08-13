@@ -160,6 +160,8 @@ uniform sampler2D u_palette;
 uniform sampler2D u_repairCloudMask;
 uniform bool u_grade;
 uniform bool u_repairCloudBlur;
+uniform bool u_repairCloudFullscreen;
+uniform bool u_repairCloudWideBlur;
 uniform int u_repairCloudCount;
 uniform vec3 u_repairClouds[5];
 uniform vec2 u_repairCloudMaskSize;
@@ -206,7 +208,23 @@ vec3 pixelGridBlur(ivec2 coordinate, ivec2 sceneSize) {
   return sum / 16.0;
 }
 
+vec3 pixelGridWideBlur(ivec2 coordinate, ivec2 sceneSize) {
+  vec3 sum = scenePixel(coordinate, sceneSize) * 4.0;
+  sum += scenePixel(coordinate + ivec2(-4, 0), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(4, 0), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(0, -4), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(0, 4), sceneSize) * 2.0;
+  sum += scenePixel(coordinate + ivec2(-4, -4), sceneSize);
+  sum += scenePixel(coordinate + ivec2(4, -4), sceneSize);
+  sum += scenePixel(coordinate + ivec2(-4, 4), sceneSize);
+  sum += scenePixel(coordinate + ivec2(4, 4), sceneSize);
+  return sum / 16.0;
+}
+
 float repairCloudMaskAlpha(vec2 screenPixel) {
+  if (u_repairCloudFullscreen) {
+    return texture(u_repairCloudMask, screenPixel / u_repairCloudMaskSize).a;
+  }
   float alpha = 0.0;
   for (int index = 0; index < 5; index++) {
     if (index >= u_repairCloudCount) break;
@@ -244,7 +262,10 @@ void main() {
     );
     float blur = repairCloudMaskAlpha(screenPixel) * u_repairCloudBlurStrength;
     if (blur > 0.0) {
-      source.rgb = mix(source.rgb, pixelGridBlur(sceneCoordinate, sceneSize), blur);
+      vec3 blurred = u_repairCloudWideBlur
+        ? pixelGridWideBlur(sceneCoordinate, sceneSize)
+        : pixelGridBlur(sceneCoordinate, sceneSize);
+      source.rgb = mix(source.rgb, blurred, blur);
     }
   }
   if (u_grade) source.rgb = paletteGrade(source.rgb);
@@ -684,6 +705,8 @@ export function createWorldWebGL2Renderer({
     repairCloudMask: requiredUniform(gl, presentProgram, "u_repairCloudMask"),
     grade: requiredUniform(gl, presentProgram, "u_grade"),
     repairCloudBlur: requiredUniform(gl, presentProgram, "u_repairCloudBlur"),
+    repairCloudFullscreen: requiredUniform(gl, presentProgram, "u_repairCloudFullscreen"),
+    repairCloudWideBlur: requiredUniform(gl, presentProgram, "u_repairCloudWideBlur"),
     repairCloudCount: requiredUniform(gl, presentProgram, "u_repairCloudCount"),
     repairClouds: requiredUniform(gl, presentProgram, "u_repairClouds[0]"),
     repairCloudMaskSize: requiredUniform(gl, presentProgram, "u_repairCloudMaskSize"),
@@ -772,6 +795,7 @@ export function createWorldWebGL2Renderer({
   let frameRepairCloudBlur = null;
   let frameHeatHaze = null;
   let repairCloudMaskSource = null;
+  let repairCloudMaskRevision = null;
   const repairCloudUniformData = new Float32Array(MAX_REPAIR_CLOUD_BLUR_SPRITES * 3);
   let atlasSourceCount = 0;
   let drawCalls = 0;
@@ -1463,15 +1487,21 @@ export function createWorldWebGL2Renderer({
       frameRepairCloudBlur = null;
       return;
     }
-    if (!effect || !Array.isArray(effect.clouds)) {
-      throw new Error("World repair-cloud blur requires cloud positions");
+    if (!effect || typeof effect.fullscreen !== "boolean") {
+      throw new Error("World repair blur requires an explicit mask mode");
     }
     validateCanvasSource(effect.source, "world repair-cloud mask");
-    if (!Number.isFinite(effect.spriteSize) || effect.spriteSize <= 0) {
+    if (!effect.fullscreen && (!Number.isFinite(effect.spriteSize) || effect.spriteSize <= 0)) {
       throw new Error(`World repair-cloud blur has invalid sprite size: ${effect.spriteSize}`);
     }
     validateUnitInterval(effect.strength, "world repair-cloud blur strength");
-    if (effect.clouds.length === 0 || effect.clouds.length > MAX_REPAIR_CLOUD_BLUR_SPRITES) {
+    if (!Array.isArray(effect.clouds)) {
+      throw new Error("World repair blur requires cloud positions");
+    }
+    if (
+      (!effect.fullscreen && effect.clouds.length === 0) ||
+      effect.clouds.length > MAX_REPAIR_CLOUD_BLUR_SPRITES
+    ) {
       throw new Error(`World repair-cloud blur has invalid cloud count: ${effect.clouds.length}`);
     }
     for (const cloud of effect.clouds) {
@@ -1484,7 +1514,8 @@ export function createWorldWebGL2Renderer({
         throw new Error("World repair-cloud blur received a malformed cloud");
       }
     }
-    if (repairCloudMaskSource !== effect.source) {
+    const sourceRevision = effect.sourceRevision ?? null;
+    if (repairCloudMaskSource !== effect.source || repairCloudMaskRevision !== sourceRevision) {
       gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, repairCloudMaskTexture);
       gl.texImage2D(
@@ -1496,6 +1527,7 @@ export function createWorldWebGL2Renderer({
         effect.source
       );
       repairCloudMaskSource = effect.source;
+      repairCloudMaskRevision = sourceRevision;
     }
     frameRepairCloudBlur = effect;
   }
@@ -1541,6 +1573,8 @@ export function createWorldWebGL2Renderer({
     gl.uniform1f(presentLocations.heatHazeAmplitude, haze?.amplitudePx ?? 0);
     const effect = frameRepairCloudBlur;
     gl.uniform1i(presentLocations.repairCloudBlur, effect ? 1 : 0);
+    gl.uniform1i(presentLocations.repairCloudFullscreen, effect?.fullscreen ? 1 : 0);
+    gl.uniform1i(presentLocations.repairCloudWideBlur, effect?.wide ? 1 : 0);
     gl.uniform1i(presentLocations.repairCloudCount, effect?.clouds.length ?? 0);
     repairCloudUniformData.fill(0);
     if (effect) {

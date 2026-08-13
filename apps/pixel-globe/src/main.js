@@ -12,6 +12,7 @@ import {
   MAX_PROTECTED_ADMISSION_SLACK_PX,
   ProtectedChartStitchError,
   admitProjectedTiles,
+  chartAdmissionCorrectionPolicy,
   chartAdmissionTileMayMove,
   planVisibleElasticTilesWithinMotion,
   resolveLocalLayoutAnchor,
@@ -9463,6 +9464,33 @@ function setupChartRecoveryDiagnostic() {
       return chartRecoveryDiagnosticSnapshot();
     },
     snapshot: chartRecoveryDiagnosticSnapshot,
+    advanceTravel(distancePx = 4) {
+      if (!Number.isFinite(distancePx) || distancePx <= 0 || distancePx > 640) {
+        throw new Error(`Chart recovery diagnostic travel step is invalid: ${distancePx}`);
+      }
+      const wasPaused = capturePlaybackPaused;
+      capturePlaybackPaused = true;
+      try {
+        let remainingPx = distancePx;
+        while (remainingPx > 0) {
+          const stepPx = Math.min(4, remainingPx);
+          const speedPxPerSecond = vectorLength(ship.velocity) * PIXELS_PER_RADIAN;
+          if (speedPxPerSecond <= 0) {
+            throw new Error("Chart recovery diagnostic cannot advance a stopped ship");
+          }
+          const movement = moveShipWithCollision(stepPx / speedPxPerSecond, ship.heading);
+          if (!movement.moved) {
+            throw new Error("Chart recovery diagnostic ship could not complete its movement step");
+          }
+          ensureChart();
+          remainingPx -= stepPx;
+        }
+      } finally {
+        capturePlaybackPaused = wasPaused;
+      }
+      dirty = true;
+      return chartRecoveryDiagnosticSnapshot();
+    },
     advanceDialogue() {
       if (!captainAlertModal) return false;
       closeCaptainAlertModal();
@@ -33012,7 +33040,7 @@ function drawDayNightWorld(layers, nowMs) {
     }
   });
   worldRenderer.endFrame({
-    repairCloudBlur: chartRepairCloudBlurEffect(nowMs),
+    repairCloudBlur: chartRepairBlurEffect(nowMs),
     heatHaze: chartRepairHeatHazeEffect(nowMs)
   });
   lastPresentedOceanSwell = {
@@ -34634,6 +34662,14 @@ function admitMissingLocalLayoutTiles({
     : new Set(pendingIds);
   pending.delete(admissionAnchorId);
   const correctionViewportIds = correctionSupport.viewportTileIds;
+  const correctionPolicy = chartAdmissionCorrectionPolicy({
+    support: correctionSupport,
+    protectionById: chartTileProtection,
+    elasticityMaskById: chartElasticCorrectionMask,
+    continuityMaskById: chartSurfaceContinuityMask,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H
+  });
   const liveViewportAdmissionIds = concealedAdmissionIds === null
     ? correctionViewportIds
     : new Set([...correctionViewportIds].filter((id) => !concealedAdmissionIds.has(id)));
@@ -34645,14 +34681,14 @@ function admitMissingLocalLayoutTiles({
     neighborsById: graph.neighbors,
     protectionById: chartTileProtection,
     directProtectionComponentById: chartDirectProtectionComponentByTileId,
-    registrationIds: correctionViewportIds,
+    registrationIds: correctionPolicy.registrationIds,
     rigidRegistrationIds: correctionViewportIds,
-    correctElasticTilesNorthUp: false,
-    maxElasticCorrectionPx: 0,
-    maxProtectedCorrectionPx: 0,
+    correctElasticTilesNorthUp: correctionPolicy.correctElasticTilesNorthUp,
+    maxElasticCorrectionPx: correctionPolicy.maxElasticCorrectionPx,
+    maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     continuityMaskById: chartSurfaceContinuityMask,
-    maxContinuityCorrectionPx: 0,
-    continuityCorrectionLimitsByClass: null,
+    maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+    continuityCorrectionLimitsByClass: CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS,
     protectedCorrectionViewportIds: correctionViewportIds,
     liveViewportAdmissionIds,
     recoverProtectedStitchError
@@ -44350,11 +44386,31 @@ function drawChartRepairOcclusion(nowMs) {
   }
 }
 
-function chartRepairCloudBlurEffect(nowMs) {
+function chartRepairBlurEffect(nowMs) {
+  const fogFrame = activeChartFogFrames(nowMs)
+    .filter((frame) => frame.edgeOpacity > 0)
+    .sort((a, b) => (
+      b.edgeOpacity * (SCREEN_W + SCREEN_H - b.clearRadius) -
+      a.edgeOpacity * (SCREEN_W + SCREEN_H - a.clearRadius)
+    ))[0];
+  if (fogFrame) {
+    const source = chartFogRaggedTexture(fogFrame);
+    return Object.freeze({
+      source,
+      sourceRevision: chartRepairFogMaskKey,
+      fullscreen: true,
+      wide: true,
+      strength: Math.min(1, fogFrame.edgeOpacity * 1.25),
+      spriteSize: 1,
+      clouds: []
+    });
+  }
   if (!chartRepairCloudBank || !cloudSpriteSheet) return null;
   const frame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, nowMs);
   return Object.freeze({
     source: cloudSpriteSheet,
+    fullscreen: false,
+    wide: false,
     spriteSize: CLOUD_SPRITE_FRAME_SIZE,
     strength: CHART_REPAIR_CLOUD_BLUR_STRENGTH,
     clouds: frame.clouds

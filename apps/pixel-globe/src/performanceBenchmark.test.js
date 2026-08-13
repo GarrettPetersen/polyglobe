@@ -7,6 +7,7 @@ import {
   COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
   GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
+  POLAR_FOG_CAPTURE_SCENARIO_ID,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
   recordPerformanceBenchmarkFrame,
@@ -49,6 +50,16 @@ test("cloud-cover benchmark selects the deterministic northern Aegean weather sc
   assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=cloud-cover"), {
     id: "cloud-cover",
     captureScenarioId: CLOUD_COVER_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 2
+  });
+});
+
+test("polar-fog benchmark exercises the chart fog presentation pass", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=polar-fog"), {
+    id: "polar-fog",
+    captureScenarioId: POLAR_FOG_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
     targetLandCarts: 2

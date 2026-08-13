@@ -61,6 +61,18 @@ test("repair clouds blur only their alpha silhouettes on the logical pixel grid"
   assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /textureLod|textureGrad/);
 });
 
+test("repair fog uses its full-screen mask and a wider pixel-grid Gaussian", () => {
+  assert.match(
+    PRESENT_FRAGMENT_SHADER,
+    /u_repairCloudFullscreen[\s\S]*texture\(u_repairCloudMask, screenPixel \/ u_repairCloudMaskSize\)\.a/
+  );
+  assert.match(PRESENT_FRAGMENT_SHADER, /vec3 pixelGridWideBlur\(/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /ivec2\(-4, 0\)/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /ivec2\(4, 4\)/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /return sum \/ 16\.0/);
+  assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /filter\s*:\s*blur|imageSmoothingEnabled\s*=\s*true/);
+});
+
 test("heat haze refracts the world with integer logical-pixel row offsets", () => {
   assert.match(PRESENT_FRAGMENT_SHADER, /int offsetX = int\(round\(wave \*/);
   assert.match(PRESENT_FRAGMENT_SHADER, /sceneCoordinate\.x = clamp\(sceneCoordinate\.x \+ offsetX/);

@@ -16,15 +16,16 @@ const allCases = [
   {
     id: "open-ocean-admission-only",
     scenarioId: "diagnostic-chart-recovery-ocean",
-    tiltDeg: 12,
+    tiltDeg: 6,
     speedRatio: 0.7,
-    durationSeconds: 36,
+    durationSeconds: 1,
+    deterministicTravelPx: 240,
     passiveOnly: true,
     allowDialogue: false,
-    maximumFinalTiltDeg: 5,
+    maximumFinalTiltDeg: 2.5,
     maximumFinalTearPx: 8,
-    maximumObservedTiltDeg: 13,
-    maximumObservedVisibleTiltDeg: 13,
+    maximumObservedTiltDeg: 7,
+    maximumObservedVisibleTiltDeg: 7,
     maximumObservedUnobscuredTearPx: 10,
     requireOrdinaryAdmissionOnly: true
   },
@@ -137,22 +138,32 @@ async function runDiagnosticCase(browser, baseUrl, diagnosticCase) {
       allowDialogue: diagnosticCase.allowDialogue
     });
     const samples = [{ elapsedSeconds: 0, ...initial }];
-    const startedAt = performance.now();
-    let nextSampleAt = startedAt + 1000;
-    while (performance.now() - startedAt < diagnosticCase.durationSeconds * 1000) {
-      const waitMs = Math.max(1, nextSampleAt - performance.now());
-      await page.waitForTimeout(waitMs);
-      await throwPageError(page);
-      const sample = await page.evaluate(() => {
-        const diagnostic = window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__;
-        if (diagnostic.snapshot().dialogueActive) diagnostic.advanceDialogue();
-        return diagnostic.snapshot();
-      });
+    if (Number.isFinite(diagnosticCase.deterministicTravelPx)) {
       samples.push({
-        elapsedSeconds: Math.round((performance.now() - startedAt) / 100) / 10,
-        ...sample
+        elapsedSeconds: 0.1,
+        ...await page.evaluate((distancePx) => (
+          window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__.advanceTravel(distancePx)
+        ), diagnosticCase.deterministicTravelPx)
       });
-      nextSampleAt += 1000;
+    }
+    if (!Number.isFinite(diagnosticCase.deterministicTravelPx)) {
+      const startedAt = performance.now();
+      let nextSampleAt = startedAt + 1000;
+      while (performance.now() - startedAt < diagnosticCase.durationSeconds * 1000) {
+        const waitMs = Math.max(1, nextSampleAt - performance.now());
+        await page.waitForTimeout(waitMs);
+        await throwPageError(page);
+        const sample = await page.evaluate(() => {
+          const diagnostic = window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__;
+          if (diagnostic.snapshot().dialogueActive) diagnostic.advanceDialogue();
+          return diagnostic.advanceTravel(4);
+        });
+        samples.push({
+          elapsedSeconds: Math.round((performance.now() - startedAt) / 100) / 10,
+          ...sample
+        });
+        nextSampleAt += 1000;
+      }
     }
     await throwPageError(page);
     if (errors.length > 0) {

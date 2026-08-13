@@ -14,6 +14,62 @@ const MIN_ELASTIC_CORRECTION_TILES = 3;
 // integer raster placement supplies the remaining two-pixel tolerance.
 const MAX_PROTECTED_STITCH_ERROR_PX = MAX_PROTECTED_ADMISSION_SLACK_PX * 2 + 2.1;
 
+export function chartAdmissionCorrectionPolicy({
+  support,
+  protectionById,
+  elasticityMaskById,
+  continuityMaskById,
+  viewportWidth,
+  viewportHeight,
+  waterContinuityClass = 1
+}) {
+  if (
+    !support ||
+    !(support.viewportTileIds instanceof Set) ||
+    !(support.elasticTileIds instanceof Set) ||
+    typeof support.correctionActive !== "boolean"
+  ) {
+    throw new Error("Chart admission correction policy requires elastic viewport support");
+  }
+  for (const [label, value] of Object.entries({ viewportWidth, viewportHeight })) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Chart admission correction policy has invalid ${label}: ${value}`);
+    }
+  }
+  if (!(protectionById instanceof Uint8Array)) {
+    throw new Error("Chart admission correction policy requires tile protection");
+  }
+  if (!(elasticityMaskById instanceof Uint8Array)) {
+    throw new Error("Chart admission correction policy requires an elasticity mask");
+  }
+  if (!(continuityMaskById instanceof Uint8Array)) {
+    throw new Error("Chart admission correction policy requires a continuity mask");
+  }
+  if (!Number.isInteger(waterContinuityClass) || waterContinuityClass <= 0) {
+    throw new Error(
+      `Chart admission correction policy has invalid water class: ${waterContinuityClass}`
+    );
+  }
+  const fullyElasticWater = support.viewportTileIds.size > 0 &&
+    [...support.viewportTileIds].every((id) => (
+      protectionById[id] === 0 &&
+      elasticityMaskById[id] !== 0 &&
+      continuityMaskById[id] === waterContinuityClass
+    ));
+  return Object.freeze({
+    registrationIds: support.correctionActive
+      ? support.elasticTileIds
+      : support.viewportTileIds,
+    correctElasticTilesNorthUp: support.correctionActive,
+    maxElasticCorrectionPx: support.correctionActive
+      ? fullyElasticWater
+        ? Math.hypot(viewportWidth, viewportHeight)
+        : MAX_ELASTIC_FRAME_CORRECTION_PX
+      : 0,
+    fullyElasticWater
+  });
+}
+
 export function chartAdmissionTileMayMove({
   newlyAdmitted = false,
   concealed = false,
