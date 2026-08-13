@@ -614,8 +614,7 @@ function expandSquadronShips(
 }
 
 function createSquadronState(sideValue, sideIndex, squadronValue, sideSquadronIndex) {
-  const role = squadronValue.id.includes("reserve") ? "reserve" :
-    squadronValue.id.includes("galleass") ? "vanguard" : "line";
+  const role = squadronValue.role;
   return {
     id: squadronValue.id,
     sideId: sideValue.id,

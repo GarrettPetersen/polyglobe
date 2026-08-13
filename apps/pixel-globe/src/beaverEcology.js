@@ -1,4 +1,5 @@
 import { crewScaledSuccessChance } from "./crewEffectiveness.js";
+import { TERRAIN_TRAIT, terrainHasAnyTrait } from "./terrainMetadata.js";
 
 export const BEAVER_RANGE_NORTH_AMERICA = "north-america";
 export const BEAVER_RANGE_SIBERIA = "siberia";
@@ -8,14 +9,14 @@ const CATCH_CHANCE_BY_RANGE = Object.freeze({
   [BEAVER_RANGE_SIBERIA]: 0.28
 });
 
-const UNSUITABLE_RIVER_TERRAIN = Object.freeze([
-  "desert",
-  "ice",
-  "mountain",
-  "snow",
-  "steppe",
-  "tropical",
-  "tundra"
+const UNSUITABLE_RIVER_TERRAIN_TRAITS = Object.freeze([
+  TERRAIN_TRAIT.DESERT,
+  TERRAIN_TRAIT.FROZEN,
+  TERRAIN_TRAIT.MOUNTAIN,
+  TERRAIN_TRAIT.SNOW,
+  TERRAIN_TRAIT.STEPPE,
+  TERRAIN_TRAIT.TROPICAL,
+  TERRAIN_TRAIT.TUNDRA
 ]);
 
 const BEAVER_CATCH_NARRATIVES = Object.freeze([
@@ -45,7 +46,7 @@ export function beaverRiverHabitat({ isRiver, latitudeDeg, longitudeDeg, terrain
   if (typeof isRiver !== "boolean") throw new Error("Beaver habitat requires an explicit river state");
   assertCoordinates(latitudeDeg, longitudeDeg);
   if (typeof terrain !== "string") throw new Error("Beaver habitat requires a terrain type");
-  if (!isRiver || UNSUITABLE_RIVER_TERRAIN.some((fragment) => terrain.includes(fragment))) return null;
+  if (!isRiver || terrainHasAnyTrait(terrain, UNSUITABLE_RIVER_TERRAIN_TRAITS)) return null;
   return beaverRangeForCoordinates(latitudeDeg, longitudeDeg);
 }
 

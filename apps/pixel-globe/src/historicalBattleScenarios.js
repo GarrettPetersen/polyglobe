@@ -112,7 +112,7 @@ const LEPANTO_SCENARIO = scenario({
       squadrons: [
         squadron("league-galleasses", "Galleass Vanguard", "Francesco Duodo", 20.32, 38.18, 6, [
           shipGroup(GALLEASS_SLUG, 6, "galleass", "venice", 36, ["matchlock-arquebuses"])
-        ], 3, { rowSpacingPx: 230, columnSpacingPx: 104 }),
+        ], 3, { role: "vanguard", rowSpacingPx: 230, columnSpacingPx: 104 }),
         squadron("league-left", "Left Wing", "Agostino Barbarigo", 19.95, 38.43, 53, [
           shipGroup(GALLEY_SLUG, 53, "galley", "venice", 8, ["matchlock-arquebuses"])
         ], 9, { rowSpacingPx: 42, columnSpacingPx: 64 }),
@@ -133,7 +133,7 @@ const LEPANTO_SCENARIO = scenario({
           shipGroup(GALLEY_SLUG, 5, "galley", "papal-states", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 7, "galley", "habsburg", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 3, "galley", "hospitallers", 8, ["matchlock-arquebuses"])
-        ], 8, { rowSpacingPx: 42, columnSpacingPx: 64 }),
+        ], 8, { role: "reserve", rowSpacingPx: 42, columnSpacingPx: 64 }),
         squadron("league-sailing", "Sailing Squadron", "Cesare d'Avalos", 19.78, 37.72, 26, [
           shipGroup(GALLEON_SLUG, 24, "sailing-warship", "spain", 24, ["matchlock-arquebuses"]),
           shipGroup(CARRACK_SLUG, 2, "sailing-warship", "venice", 20, ["matchlock-arquebuses"])
@@ -167,7 +167,7 @@ const LEPANTO_SCENARIO = scenario({
         squadron("ottoman-reserve", "Reserve", "Murat Dragut", 21.08, 38.17, 17, [
           shipGroup(GALLEY_SLUG, 13, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 4, "galliot", "ottoman", 2, ["composite-recurve-bows"])
-        ], 7, { rowSpacingPx: 38, columnSpacingPx: 60 })
+        ], 7, { role: "reserve", rowSpacingPx: 38, columnSpacingPx: 60 })
       ]
     })
   ]
@@ -312,6 +312,10 @@ function squadron(
   }
   if (!Number.isInteger(count) || count <= 0) throw new Error(`Invalid squadron count: ${id}`);
   if (!Number.isInteger(frontage) || frontage <= 0) throw new Error(`Invalid squadron frontage: ${id}`);
+  const role = formation.role || "line";
+  if (!["line", "reserve", "vanguard"].includes(role)) {
+    throw new Error(`Invalid historical squadron role: ${id} ${role}`);
+  }
   if (formation.rowSpacingPx !== undefined &&
       (!Number.isFinite(formation.rowSpacingPx) || formation.rowSpacingPx <= 0)) {
     throw new Error(`Invalid squadron row spacing: ${id}`);
@@ -333,7 +337,8 @@ function squadron(
     count,
     shipGroups,
     frontage,
-    ...formation
+    ...formation,
+    role
   };
 }
 

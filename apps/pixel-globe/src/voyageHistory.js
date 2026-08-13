@@ -4,6 +4,7 @@ export const VOYAGE_HISTORY_STORAGE_KEY = "marque-and-reprisal.voyage-history";
 export const VOYAGE_HISTORY_VERSION = 2;
 export const MAX_PAST_VOYAGES = 50;
 export const VOYAGE_OUTCOME_TYPES = Object.freeze(["victory", "death", "quit", "demo"]);
+const LEGACY_ABANDONED_VOYAGE_OUTCOME = "Voyage abandoned for a new expedition.";
 
 const NON_NEGATIVE_FIELDS = Object.freeze([
   "daysAtSea",
@@ -120,7 +121,7 @@ function migrateVoyageHistory(history) {
     version: VOYAGE_HISTORY_VERSION,
     records: history.records.map((record) => ({
       ...record,
-      outcomeType: typeof record.outcome === "string" && record.outcome.includes("abandoned") ? "quit" : "death",
+      outcomeType: record.outcome === LEGACY_ABANDONED_VOYAGE_OUTCOME ? "quit" : "death",
       goal: "Unknown",
       mappedPercent: 0
     }))

@@ -64,6 +64,16 @@ test("the Holy League vanguard contains the six Venetian galleasses", () => {
   assert.ok(vanguard.rowSpacingPx >= 100);
 });
 
+test("squadron tactics are explicit metadata rather than inferred from names", () => {
+  const scenario = historicalBattleScenarioById(LEPANTO_SCENARIO_ID);
+  const league = historicalBattleSideById(scenario, HOLY_LEAGUE_SIDE_ID);
+  const ottomans = historicalBattleSideById(scenario, OTTOMAN_SIDE_ID);
+  assert.equal(league.squadrons.find(({ id }) => id === "league-galleasses").role, "vanguard");
+  assert.equal(league.squadrons.find(({ id }) => id === "league-reserve").role, "reserve");
+  assert.equal(ottomans.squadrons.find(({ id }) => id === "ottoman-reserve").role, "reserve");
+  assert.equal(league.squadrons.find(({ id }) => id === "league-center").role, "line");
+});
+
 test("Lepanto records faction flags, asymmetric artillery, and an Ottoman escape", () => {
   const scenario = historicalBattleScenarioById(LEPANTO_SCENARIO_ID);
   const leagueGroups = historicalBattleSideById(scenario, HOLY_LEAGUE_SIDE_ID).squadrons

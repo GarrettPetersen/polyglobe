@@ -1,5 +1,6 @@
 import { isPermanentSeaIceRow } from "./terrainSurface.js";
 import { crewScaledSuccessChance } from "./crewEffectiveness.js";
+import { TERRAIN_TRAIT, terrainHasTrait } from "./terrainMetadata.js";
 
 export const SHORE_SCAVENGE_WATER = "water";
 export const SHORE_SCAVENGE_FOOD = "food";
@@ -187,13 +188,16 @@ export function shoreScavengeContextForTerrain(row, latitudeDeg, hasSnowGround, 
   const terrain = row.t || "";
   const permanentIce = isPermanentSeaIceRow(row) || terrain === "ice_cap";
   const polarFrozenTerrain = Math.abs(latitudeDeg) >= 60 && (
-    hasSnowGround === true || terrain.includes("snow") || terrain.includes("tundra") || terrain.includes("cold")
+    hasSnowGround === true ||
+    terrainHasTrait(terrain, TERRAIN_TRAIT.SNOW) ||
+    terrainHasTrait(terrain, TERRAIN_TRAIT.TUNDRA) ||
+    terrainHasTrait(terrain, TERRAIN_TRAIT.COLD)
   );
   if (typeof hasSurfaceIce !== "boolean") throw new Error("Shore scavenge surface ice flag must be boolean");
   const polarFrozen = permanentIce || polarFrozenTerrain || (hasSurfaceIce && Math.abs(latitudeDeg) >= 60);
   if (polarFrozen) return latitudeDeg >= 0 ? SHORE_SCAVENGE_ARCTIC : SHORE_SCAVENGE_ANTARCTIC;
   if (hasSurfaceIce) return SHORE_SCAVENGE_FROZEN;
-  if (terrain.includes("desert")) return SHORE_SCAVENGE_DESERT;
+  if (terrainHasTrait(terrain, TERRAIN_TRAIT.DESERT)) return SHORE_SCAVENGE_DESERT;
   return SHORE_SCAVENGE_TEMPERATE;
 }
 

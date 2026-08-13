@@ -1694,6 +1694,14 @@ import {
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
 import {
+  TERRAIN_RENDER_FAMILY,
+  TERRAIN_TRAIT,
+  terrainHasAnyTrait,
+  terrainHasTrait,
+  terrainRenderFamily,
+  terrainUsesGrassyHill
+} from "./terrainMetadata.js";
+import {
   isBeyondPermanentPolarCap,
   polarChartTerrainRow
 } from "./polarChartPresentation.js";
@@ -9017,10 +9025,10 @@ function sailingWindContext(nearestLand) {
     : null;
   if (nearbyLand) {
     const terrain = nearbyLand.row.t || "";
-    if (snowGroundMask?.[nearbyLand.id] || terrain.includes("ice") || terrain.includes("snow") || terrain.includes("tundra") || terrain.includes("cold")) {
+    if (snowGroundMask?.[nearbyLand.id] || terrainHasTrait(terrain, TERRAIN_TRAIT.WINTER_WIND)) {
       return SAILING_WIND_CONTEXT_WINTER;
     }
-    if (terrain.includes("desert") || terrain.includes("steppe")) {
+    if (terrainHasAnyTrait(terrain, [TERRAIN_TRAIT.DESERT, TERRAIN_TRAIT.STEPPE])) {
       return SAILING_WIND_CONTEXT_DESERT;
     }
   }
@@ -52785,12 +52793,13 @@ function faceColorFor(call) {
 
 function mountainNeighborGroundColor(row, id) {
   if (tileHasSeasonalSnowTerrain(row, id)) return terrainColorForTile(row, id);
-  const spriteKey = spriteForTerrain(row, id);
-  if (
-    spriteKey.startsWith("forest_") ||
-    spriteKey.startsWith("pine_forest_") ||
-    spriteKey.startsWith("jungle_")
-  ) {
+  const family = terrainRenderFamily(row.t || "");
+  if ([
+    TERRAIN_RENDER_FAMILY.BROADLEAF,
+    TERRAIN_RENDER_FAMILY.CONIFER,
+    TERRAIN_RENDER_FAMILY.FOREST,
+    TERRAIN_RENDER_FAMILY.TROPICAL
+  ].includes(family)) {
     return terrainSpriteColor(`grass_0${1 + (hashInt(id) % 4)}`);
   }
   return terrainColorForTile(row, id);
@@ -52859,19 +52868,28 @@ function spriteForTerrain(row, id) {
 
   if (t === "water") return waterSpriteForTile(id, row.waterDepthBand);
   if (t === "lake" || t === "beach") return `water_shallow_0${waterTextureVariantFor(id)}`;
-  if (t.includes("ice")) return "snow_01";
+  const family = terrainRenderFamily(t);
+  if (family === TERRAIN_RENDER_FAMILY.FROZEN) return "snow_01";
   if (isMountainPeakTile(id)) return snowyMountainVariant(id);
   if (t === "mountain") return mountainVariant(id);
-  if (t.includes("tundra") || t === "snow") return "snow_01";
+  if (family === TERRAIN_RENDER_FAMILY.SNOW) return "snow_01";
   if (row.e > 0.13) return "earth_stone";
   if (row.h === 1) return hillSpriteForTerrain(row, id);
   if (row.e > 0.075) return variant % 2 === 0 ? "earth_rocky" : "earth_stone";
-  if (t.includes("desert") || t.includes("steppe")) return t.includes("cold") ? "earth_stone" : sandVariant(id);
-  if (t.includes("tropical")) return variant === 0 ? "jungle_palm_01" : `jungle_dense_0${1 + (variant % 3)}`;
-  if (t.includes("subarctic") || t.includes("continental")) return variant === 0 ? "pine_forest_01" : `grass_0${1 + variant}`;
-  if (t.includes("oceanic") || t.includes("humid") || t.includes("mediterranean")) return variant === 0 ? "forest_broadleaf_01" : `grass_0${1 + variant}`;
-  if (t === "forest") return variant % 2 === 0 ? "forest_broadleaf_01" : "forest_broadleaf_02";
-  if (t === "desert") return sandVariant(id);
+  if (family === TERRAIN_RENDER_FAMILY.ARID_COLD) return "earth_stone";
+  if (family === TERRAIN_RENDER_FAMILY.ARID_WARM) return sandVariant(id);
+  if (family === TERRAIN_RENDER_FAMILY.TROPICAL) {
+    return variant === 0 ? "jungle_palm_01" : `jungle_dense_0${1 + (variant % 3)}`;
+  }
+  if (family === TERRAIN_RENDER_FAMILY.CONIFER) {
+    return variant === 0 ? "pine_forest_01" : `grass_0${1 + variant}`;
+  }
+  if (family === TERRAIN_RENDER_FAMILY.BROADLEAF) {
+    return variant === 0 ? "forest_broadleaf_01" : `grass_0${1 + variant}`;
+  }
+  if (family === TERRAIN_RENDER_FAMILY.FOREST) {
+    return variant % 2 === 0 ? "forest_broadleaf_01" : "forest_broadleaf_02";
+  }
   return `grass_0${1 + variant}`;
 }
 
@@ -52894,7 +52912,7 @@ function terrainLevel(row, id) {
   const t = row.t || "";
   if (t === "water") return -2;
   if (t === "lake" || t === "beach") return -1;
-  if (t.includes("ice")) return 0;
+  if (terrainRenderFamily(t) === TERRAIN_RENDER_FAMILY.FROZEN) return 0;
   if (isMountainPeakTile(id) || t === "mountain") return 3;
   if (row.e > 0.13) return 2;
   if (row.h === 1 || row.e > 0.075) return 1;
@@ -52912,15 +52930,7 @@ function sandVariant(id) {
 
 function hillSpriteForTerrain(row, id) {
   const terrain = row.t || "";
-  const grassy = terrain === "land" ||
-    terrain === "forest" ||
-    terrain.includes("savanna") ||
-    terrain.includes("humid") ||
-    terrain.includes("oceanic") ||
-    terrain.includes("mediterranean") ||
-    terrain.includes("continental") ||
-    terrain.includes("subarctic") ||
-    terrain.includes("highland");
+  const grassy = terrainUsesGrassyHill(terrain);
   if (grassy) return images.has("grassy_hill") ? "grassy_hill" : `grass_0${1 + (hashInt(id) % 4)}`;
   return hashInt(id) % 2 === 0 ? "earth_rocky" : "earth_stone";
 }

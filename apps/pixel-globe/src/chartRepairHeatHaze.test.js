@@ -31,7 +31,7 @@ test("heat haze stays on whole logical pixels and never becomes frantic", () => 
 
 test("heat haze is reserved for clear hot arid climates", () => {
   const sahara = {
-    terrainKind: "hot-desert",
+    terrainKind: "hot_desert",
     latitudeDeg: 27,
     raining: false,
     snowing: false,

@@ -116,6 +116,25 @@ test("version 1 voyage history is upgraded with explicit outcomes and map covera
   assert.equal(loaded.records[0].mappedPercent, 0);
 });
 
+test("version 1 voyage migration uses the exact legacy outcome rather than prose fragments", () => {
+  const storage = memoryStorage();
+  const abandoned = voyageRecord({ outcome: "Voyage abandoned for a new expedition." });
+  const misleading = voyageRecord({ outcome: "Lost near Abandoned Island." });
+  for (const record of [abandoned, misleading]) {
+    delete record.outcomeType;
+    delete record.goal;
+    delete record.mappedPercent;
+  }
+  storage.setItem(VOYAGE_HISTORY_STORAGE_KEY, JSON.stringify({
+    version: 1,
+    records: [completedRecord(abandoned, 1), completedRecord(misleading, 2)]
+  }));
+
+  const loaded = readVoyageHistory({ storage });
+  assert.equal(loaded.status, "ready");
+  assert.deepEqual(loaded.records.map(({ outcomeType }) => outcomeType), ["quit", "death"]);
+});
+
 function voyageRecord(overrides = {}) {
   return {
     captainName: "Captain Test",

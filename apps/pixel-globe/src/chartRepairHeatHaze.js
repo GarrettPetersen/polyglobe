@@ -1,4 +1,5 @@
 import { interpolateChartRepairPlan } from "./chartReframe.js";
+import { TERRAIN_TRAIT, terrainHasAnyTrait } from "./terrainMetadata.js";
 
 const HEAT_HAZE_FORMATION_DURATION_MS = 18_000;
 const HEAT_HAZE_HOLD_DURATION_MS = 24_000;
@@ -103,9 +104,8 @@ export function chartRepairHeatHazeIsPlausible({
   if (raining || snowing || stormIntensity >= 0.25 || Math.abs(latitudeDeg) > 42) {
     return false;
   }
-  const terrain = terrainKind.toLowerCase();
-  return terrain.includes("desert") || (
-    terrain.includes("steppe") && Math.abs(latitudeDeg) <= 35
+  return terrainHasAnyTrait(terrainKind, [TERRAIN_TRAIT.DESERT]) || (
+    terrainHasAnyTrait(terrainKind, [TERRAIN_TRAIT.STEPPE]) && Math.abs(latitudeDeg) <= 35
   );
 }
 

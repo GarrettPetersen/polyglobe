@@ -1,3 +1,5 @@
+import { TERRAIN_TRAIT, terrainHasAnyTrait } from "./terrainMetadata.js";
+
 export const ANIMAL_ENCOUNTER_MEMORY_VERSION = 1;
 export const ANIMAL_ENCOUNTER_ROLL_INTERVAL_MINUTES = 6 * 60;
 export const ANIMAL_ENCOUNTER_CHANCE = 0.035;
@@ -269,53 +271,8 @@ function checkedRandom(random, label) {
   return value;
 }
 
-const TERRAIN_HABITAT_TAGS = Object.freeze({
-  desert: new Set(["desert", "hot_desert", "cold_desert"]),
-  forest: new Set([
-    "tropical_rainforest",
-    "tropical_monsoon",
-    "humid_subtropical",
-    "humid_subtropical_hot",
-    "oceanic",
-    "warm_summer_humid",
-    "humid_continental",
-    "humid_continental_warm",
-    "humid_continental_hot",
-    "warm_summer_continental",
-    "hot_summer_continental",
-    "subarctic",
-    "subarctic_dry_winter",
-    "subarctic_dry",
-    "subarctic_very_cold",
-    "subarctic_very_cold_dry_winter",
-    "subarctic_very_cold_dry"
-  ]),
-  grass: new Set([
-    "tropical_savanna",
-    "hot_steppe",
-    "cold_steppe",
-    "subtropical_highland"
-  ]),
-  jungle: new Set(["tropical_rainforest", "tropical_monsoon"]),
-  mountain: new Set(["subtropical_highland"]),
-  rock: new Set(["subtropical_highland", "subpolar_oceanic"]),
-  savanna: new Set(["tropical_savanna"]),
-  tundra: new Set(["tundra"]),
-  wet: new Set([
-    "tropical_rainforest",
-    "tropical_monsoon",
-    "humid_subtropical",
-    "humid_subtropical_hot",
-    "oceanic",
-    "subpolar_oceanic",
-    "warm_summer_humid"
-  ])
-});
-
-function terrainIncludes(h, ...words) {
-  return words.some((word) =>
-    h.terrain.includes(word) || TERRAIN_HABITAT_TAGS[word]?.has(h.terrain)
-  );
+function terrainIncludes(h, ...traits) {
+  return terrainHasAnyTrait(h.terrain, traits);
 }
 
 function longitudeIn(h, west, east) {
@@ -329,12 +286,12 @@ function tigerRange(h) {
   const sumatra = h.latitudeDeg >= -6 && h.latitudeDeg <= 6 && longitudeIn(h, 95, 106);
   const javaAndBali = h.latitudeDeg >= -9 && h.latitudeDeg <= -5 && longitudeIn(h, 105, 116);
   return (caspian || mainland || sumatra || javaAndBali) &&
-    terrainIncludes(h, "forest", "jungle", "grass", "wet");
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.WET);
 }
 
 function northernWilds(h) {
   return h.latitudeDeg >= 30 && h.latitudeDeg <= 72 &&
-    terrainIncludes(h, "forest", "mountain", "rock", "tundra", "grass");
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK, TERRAIN_TRAIT.TUNDRA, TERRAIN_TRAIT.GRASS);
 }
 
 function elephantRange(h) {
@@ -343,13 +300,13 @@ function elephantRange(h) {
   const southeastAsianMainland = h.latitudeDeg >= 0 && h.latitudeDeg <= 28 && longitudeIn(h, 95, 110);
   const sunda = h.latitudeDeg >= -8 && h.latitudeDeg <= 8 && longitudeIn(h, 95, 119);
   const asia = indianSubcontinent || southeastAsianMainland || sunda;
-  return (africa || asia) && terrainIncludes(h, "grass", "forest", "jungle");
+  return (africa || asia) && terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE);
 }
 
 function rhinoRange(h) {
   const africa = h.latitudeDeg >= -35 && h.latitudeDeg <= 18 && longitudeIn(h, -15, 52);
   const asia = h.latitudeDeg >= -8 && h.latitudeDeg <= 32 && longitudeIn(h, 68, 110);
-  return (africa || asia) && terrainIncludes(h, "grass", "forest", "jungle", "wet");
+  return (africa || asia) && terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE, TERRAIN_TRAIT.WET);
 }
 
 function wetTemperateHabitat(h) {
@@ -358,37 +315,37 @@ function wetTemperateHabitat(h) {
 
 function chipmunkRange(h) {
   return h.latitudeDeg >= 20 && h.latitudeDeg <= 65 && longitudeIn(h, -170, -50) &&
-    terrainIncludes(h, "forest", "grass", "mountain");
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.MOUNTAIN);
 }
 
 function giraffeRange(h) {
   return h.latitudeDeg >= -35 && h.latitudeDeg <= 15 && longitudeIn(h, -20, 52) &&
-    terrainIncludes(h, "grass", "savanna", "desert");
+    terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.SAVANNA, TERRAIN_TRAIT.DESERT);
 }
 
 function temperateOpenHabitat(h) {
   return h.latitudeDeg >= -50 && h.latitudeDeg <= 68 && !h.isSurfaceIce &&
     !australasia(h) &&
-    terrainIncludes(h, "forest", "grass", "tundra", "mountain", "rock");
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.TUNDRA, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK);
 }
 
 function australiaRange(h) {
   return h.latitudeDeg >= -45 && h.latitudeDeg <= -10 && longitudeIn(h, 110, 155) &&
-    terrainIncludes(h, "grass", "forest", "desert", "rock");
+    terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.DESERT, TERRAIN_TRAIT.ROCK);
 }
 
 function tropicalForest(h) {
-  return Math.abs(h.latitudeDeg) <= 28 && terrainIncludes(h, "forest", "jungle");
+  return Math.abs(h.latitudeDeg) <= 28 && terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE);
 }
 
 function lionRange(h) {
   const africa = h.latitudeDeg >= -35 && h.latitudeDeg <= 22 && longitudeIn(h, -20, 52);
   const southwestAsia = h.latitudeDeg >= 12 && h.latitudeDeg <= 38 && longitudeIn(h, 30, 82);
-  return (africa || southwestAsia) && terrainIncludes(h, "grass", "savanna", "desert", "forest");
+  return (africa || southwestAsia) && terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.SAVANNA, TERRAIN_TRAIT.DESERT, TERRAIN_TRAIT.FOREST);
 }
 
 function eagleRange(h) {
-  return !h.isSurfaceIce && terrainIncludes(h, "mountain", "rock", "grass", "forest", "tundra");
+  return !h.isSurfaceIce && terrainIncludes(h, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.TUNDRA);
 }
 
 function farNorthForest(h) {
@@ -396,27 +353,27 @@ function farNorthForest(h) {
   const scandinavia = h.latitudeDeg >= 55 && h.latitudeDeg <= 72 && longitudeIn(h, 5, 32);
   const easternEurasia = h.latitudeDeg >= 48 && h.latitudeDeg <= 72 && longitudeIn(h, 20, 180);
   return (northAmerica || scandinavia || easternEurasia) &&
-    terrainIncludes(h, "forest", "tundra", "wet", "grass");
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.TUNDRA, TERRAIN_TRAIT.WET, TERRAIN_TRAIT.GRASS);
 }
 
 function africanGrassland(h) {
   return h.latitudeDeg >= -35 && h.latitudeDeg <= 15 && longitudeIn(h, -20, 52) &&
-    terrainIncludes(h, "grass", "savanna");
+    terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.SAVANNA);
 }
 
 function tropicalAmericaForest(h) {
   return h.latitudeDeg >= -25 && h.latitudeDeg <= 20 && longitudeIn(h, -90, -35) &&
-    terrainIncludes(h, "forest", "jungle");
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE);
 }
 
 function pandaRange(h) {
   return h.latitudeDeg >= 24 && h.latitudeDeg <= 36 && longitudeIn(h, 95, 112) &&
-    terrainIncludes(h, "forest", "mountain", "grass");
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.GRASS);
 }
 
 function raccoonRange(h) {
   return h.latitudeDeg >= 7 && h.latitudeDeg <= 58 && longitudeIn(h, -130, -50) &&
-    (h.isRiver || h.isLake || terrainIncludes(h, "forest", "grass", "wet", "river"));
+    (h.isRiver || h.isLake || terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.WET));
 }
 
 function penguinRange(h) {

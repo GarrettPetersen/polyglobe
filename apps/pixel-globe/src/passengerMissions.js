@@ -22,6 +22,7 @@ import { islamicReligionForHome } from "./characterReligion.js";
 import {
   isReligiousPassengerQuest,
   religiousMissionById,
+  religiousMissionByScenarioId,
   religiousMissionDialogueText,
   religiousMissionRoleLabel,
   religiousPassengerDistanceIsAllowed,
@@ -119,7 +120,7 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
     : religiousPassengerPlan(state, city, portCities, context, rollKey);
   const specialPlan = hajjPlan || religiousPlan;
   const forcedReligiousMission = context.religiousMissionId !== undefined ||
-    (typeof context.scenarioId === "string" && context.scenarioId.startsWith("religious-"));
+    religiousMissionByScenarioId(context.scenarioId) !== null;
   if ((context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID || forcedReligiousMission) && !specialPlan) {
     return null;
   }

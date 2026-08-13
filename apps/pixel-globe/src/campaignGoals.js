@@ -25,6 +25,30 @@ export const CAMPAIGN_GOAL_TYPE_IDS = Object.freeze([
   CAMPAIGN_GOAL_WHITE_WHALE,
   CAMPAIGN_GOAL_TREASURE
 ]);
+const CAMPAIGN_DIALOGUE_PHASE_SUFFIXES = Object.freeze([
+  "",
+  "intro",
+  "victory",
+  "retirement-choice",
+  "retirement-blocked",
+  "retirement"
+]);
+const CAMPAIGN_DIALOGUE_PHASE_METADATA = new Map([
+  ["intro", Object.freeze({ contactGoalType: CAMPAIGN_GOAL_EXPLORER, completesIntro: true })],
+  ...CAMPAIGN_GOAL_TYPE_IDS.flatMap((goalType) => (
+    CAMPAIGN_DIALOGUE_PHASE_SUFFIXES.map((suffix) => {
+      const phase = suffix === "" ? goalType : `${goalType}-${suffix}`;
+      return [phase, Object.freeze({
+        contactGoalType: goalType,
+        completesIntro: suffix === "intro"
+      })];
+    })
+  )),
+  ["pirate-treasure-blockade", Object.freeze({
+    contactGoalType: CAMPAIGN_GOAL_TREASURE,
+    completesIntro: false
+  })]
+]);
 export const CAMPAIGN_GOAL_BASE_SELECTION_WEIGHT = 8;
 export const CAMPAIGN_GOAL_UNDERPLAYED_BONUS_CAP = 3;
 export const CAMPAIGN_GOAL_ACTIVE = "active";
@@ -793,15 +817,17 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
   assertPerson(contactCharacter);
   const entry = session.steps[session.stepIndex];
   const speakerCharacter = campaignDialogueSpeaker(session, entry, playerCharacter, contactCharacter);
+  const phaseMetadata = campaignDialoguePhaseMetadata(session.phase);
+  const contactRole = phaseMetadata.contactGoalType === CAMPAIGN_GOAL_FAMILY_DEBT
+    ? "creditor"
+    : phaseMetadata.contactGoalType === CAMPAIGN_GOAL_WHITE_WHALE
+      ? "old whaler"
+      : phaseMetadata.contactGoalType === CAMPAIGN_GOAL_TREASURE ? "old buccaneer" : "patron";
   const role = entry.speaker === "player"
     ? "captain"
     : entry.speaker === "companion" || entry.speaker === "participant"
       ? speakerCharacter.role === "ship-animal-companion" ? "companion" : "crewmate"
-      : session.phase.startsWith("family-debt")
-      ? "creditor"
-      : session.phase.startsWith("white-whale")
-        ? "old whaler"
-        : session.phase.startsWith("pirate-treasure") ? "old buccaneer" : "patron";
+      : contactRole;
   return {
     speaker: `${speakerCharacter.name}, ${role}`,
     expressionId: entry.expressionId,
@@ -872,10 +898,16 @@ export function selectCampaignDialogueOption(session, optionIndex = session.sele
     closed: true,
     action: session.victoryOnClose
       ? { type: "campaign-victory" }
-      : session.phase === "intro" || session.phase.endsWith("-intro")
+      : campaignDialoguePhaseMetadata(session.phase).completesIntro
         ? { type: "campaign-intro-complete" }
         : null
   };
+}
+
+function campaignDialoguePhaseMetadata(phase) {
+  const metadata = CAMPAIGN_DIALOGUE_PHASE_METADATA.get(phase);
+  if (!metadata) throw new Error(`Unknown campaign dialogue phase: ${phase}`);
+  return metadata;
 }
 
 function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) {

@@ -508,6 +508,11 @@ export function religiousMissionById(missionId) {
   return mission;
 }
 
+export function religiousMissionByScenarioId(scenarioId) {
+  if (typeof scenarioId !== "string" || scenarioId === "") return null;
+  return RELIGIOUS_MISSION_CATALOG.find(({ scenario }) => scenario.id === scenarioId) || null;
+}
+
 export function isReligiousPassengerQuest(quest) {
   return quest?.kind === "passenger" && typeof quest.religiousMissionId === "string";
 }
@@ -738,8 +743,7 @@ function forcedReligiousMission(context) {
   if (context.religiousMissionId !== undefined) {
     return religiousMissionById(context.religiousMissionId);
   }
-  if (typeof context.scenarioId !== "string") return null;
-  return RELIGIOUS_MISSION_CATALOG.find(({ scenario }) => scenario.id === context.scenarioId) || null;
+  return religiousMissionByScenarioId(context.scenarioId);
 }
 
 function religiousMission(spec) {
