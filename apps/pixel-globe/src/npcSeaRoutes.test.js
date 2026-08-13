@@ -35,11 +35,13 @@ import {
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
   replaceNpcSeaRoutePort,
+  restoreNpcSurrenderContinuity,
   restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
   sinkNpcShip,
   snapshotNpcSeaRouteSystem,
   snapshotNpcSeaRouteStrategicSystem,
+  snapshotNpcSurrenderContinuity,
   storeNpcCargo,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
@@ -1462,6 +1464,26 @@ test("voluntary surrender preserves an undamaged hull", () => {
 
   assert.equal(loser.hitPoints, hullBefore);
   assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+});
+
+test("struck colors survive a compact save that rebuilds world traffic", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const loser = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT && cargoUnits(ship) > 0);
+  assert.ok(loser);
+  surrenderNpcShip(routes, loser.id, null, { retainLoot: true });
+  const continuity = snapshotNpcSurrenderContinuity(routes);
+  const savedCargo = { ...loser.cargo };
+  const savedSpecie = loser.specie;
+
+  const rebuilt = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  assert.equal(npcShipHasCombatGrace(rebuilt, loser.id), false);
+  restoreNpcSurrenderContinuity(rebuilt, continuity);
+
+  const restored = rebuilt.shipById.get(loser.id);
+  assert.equal(npcShipHasCombatGrace(rebuilt, loser.id), true);
+  assert.deepEqual(restored.cargo, savedCargo);
+  assert.equal(restored.specie, savedSpecie);
 });
 
 test("a merciful surrender leaves stores aboard until the player accepts the prize", () => {

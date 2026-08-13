@@ -778,6 +778,64 @@ export function snapshotNpcSeaRouteStrategicSystem(system) {
   return snapshot;
 }
 
+export function snapshotNpcSurrenderContinuity(system) {
+  assertSaveableNpcRouteSystem(system);
+  const surrenderedShips = system.ships.filter(shipHasCombatGrace);
+  for (const ship of surrenderedShips) {
+    if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
+        !Number.isFinite(ship.maxHitPoints) || ship.hitPoints > ship.maxHitPoints ||
+        !Number.isInteger(ship.specie) || ship.specie < 0) {
+      throw new Error(`Invalid surrendered NPC ship state: ${ship.id}`);
+    }
+    inspectNpcCargo(ship);
+  }
+  return {
+    version: 1,
+    ships: surrenderedShips.map((ship) => ({
+      id: ship.id,
+      hitPointRatio: ship.hitPoints / ship.maxHitPoints,
+      specie: ship.specie,
+      cargo: cloneJsonData(ship.cargo),
+      cargoCost: cloneJsonData(ship.cargoCost),
+      seekingHideout: ship.seekingHideout
+    }))
+  };
+}
+
+export function restoreNpcSurrenderContinuity(system, snapshot) {
+  assertSaveableNpcRouteSystem(system);
+  if (snapshot === undefined || snapshot === null) return 0;
+  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships)) {
+    throw new Error("Unsupported NPC surrender continuity data");
+  }
+  const seenIds = new Set();
+  for (const saved of snapshot.ships) {
+    if (!saved || typeof saved.id !== "string" || saved.id === "" || seenIds.has(saved.id)) {
+      throw new Error(`Invalid surrendered NPC ship id: ${saved?.id}`);
+    }
+    seenIds.add(saved.id);
+    if (!Number.isFinite(saved.hitPointRatio) || saved.hitPointRatio <= 0 || saved.hitPointRatio > 1) {
+      throw new Error(`Invalid surrendered NPC hull ratio: ${saved.id}`);
+    }
+    if (!Number.isInteger(saved.specie) || saved.specie < 0 ||
+        !saved.cargo || typeof saved.cargo !== "object" || Array.isArray(saved.cargo) ||
+        !saved.cargoCost || typeof saved.cargoCost !== "object" || Array.isArray(saved.cargoCost) ||
+        typeof saved.seekingHideout !== "boolean") {
+      throw new Error(`Invalid surrendered NPC continuity state: ${saved.id}`);
+    }
+    const ship = system.shipById.get(saved.id);
+    if (!ship) throw new Error(`Surrendered NPC ship is absent after route restore: ${saved.id}`);
+    ship.hitPoints = Math.max(1, Math.round(ship.maxHitPoints * saved.hitPointRatio));
+    ship.specie = saved.specie;
+    ship.cargo = cloneJsonData(saved.cargo);
+    ship.cargoCost = cloneJsonData(saved.cargoCost);
+    ship.seekingHideout = saved.seekingHideout;
+    ship.graceUntilPortVisit = Number.MAX_SAFE_INTEGER;
+    reconcileNpcCargoCapacity(ship, "surrender continuity restore");
+  }
+  return snapshot.ships.length;
+}
+
 export function applyNpcSeaRouteSimulationSnapshot(
   system,
   snapshot,

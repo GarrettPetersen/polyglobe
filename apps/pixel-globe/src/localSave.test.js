@@ -93,6 +93,7 @@ test("capacity recovery keeps voyage core and economy while dropping world traff
   const storage = capacityStorage(750);
   const payload = {
     ...savePayload(),
+    npcSurrenders: { version: 1, ships: [{ id: "ship-1" }] },
     landTrade: { version: 1, carts: [{ route: "x".repeat(500) }] },
     npcRoutes: { version: 2, ships: [{ plan: "y".repeat(500) }] }
   };
@@ -101,6 +102,7 @@ test("capacity recovery keeps voyage core and economy while dropping world traff
   assert.equal(result.mode, "economy");
   assert.equal(result.save.payload.gameState.version, 8);
   assert.deepEqual(result.save.payload.economy, payload.economy);
+  assert.deepEqual(result.save.payload.npcSurrenders, payload.npcSurrenders);
   assert.equal(result.save.payload.landTrade, undefined);
   assert.equal(result.save.payload.npcRoutes, undefined);
   assert.equal(readLocalSave({ storage }).status, "ready");
@@ -110,6 +112,7 @@ test("capacity recovery can preserve the voyage when all derived state is too la
   const storage = capacityStorage(520);
   const payload = {
     ...savePayload(),
+    npcSurrenders: { version: 1, ships: [{ id: "ship-1" }] },
     economy: { version: 1, ports: ["e".repeat(500)] },
     landTrade: { version: 1, carts: ["l".repeat(500)] },
     npcRoutes: { version: 2, ships: ["n".repeat(500)] }
@@ -118,6 +121,7 @@ test("capacity recovery can preserve the voyage when all derived state is too la
 
   assert.equal(result.mode, "core");
   assert.equal(result.save.payload.worldClock.currentMinute, 200);
+  assert.deepEqual(result.save.payload.npcSurrenders, payload.npcSurrenders);
   assert.equal(result.save.payload.economy, undefined);
   assert.equal(result.save.payload.landTrade, undefined);
   assert.equal(result.save.payload.npcRoutes, undefined);

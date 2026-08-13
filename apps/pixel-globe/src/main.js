@@ -844,11 +844,13 @@ import {
   npcShipSnapshots,
   replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
+  restoreNpcSurrenderContinuity,
   restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
   sinkNpcShip,
   snapshotNpcSeaRouteSystem,
   snapshotNpcSeaRouteStrategicSystem,
+  snapshotNpcSurrenderContinuity,
   storeNpcCargo,
   surrenderNpcShip,
   npcSeaRouteEventSchedule
@@ -12924,6 +12926,7 @@ async function restoreSavedVoyage(payload) {
   ensureWokouHuntEncounter({ assignCaptains: false });
   ensureNingboMissionEncounters({ assignCaptains: false });
   ensureTeaRaceEncounters({ assignCaptains: false });
+  restoreNpcSurrenderContinuity(npcSeaRoutes, payload.npcSurrenders);
   refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
   activeIcebergSpawnCandidatesDay = -1;
@@ -13386,7 +13389,8 @@ function saveVoyageNow(reason) {
       },
       firstDayNightNotices: snapshotFirstDayNightNoticeState(firstDayNightNoticeState),
       anchored,
-      survivalDamageTimers: { ...survivalDeprivationTimers }
+      survivalDamageTimers: { ...survivalDeprivationTimers },
+      npcSurrenders: snapshotNpcSurrenderContinuity(npcSeaRoutes)
     };
     if (demoVoyageScope) payload.demoVoyageScope = demoVoyageScope;
     const snapshotErrors = [];
@@ -30447,7 +30451,11 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     state.portableWeaponCooldowns = {};
   }
   retireProjectilesForSurrenderedShip(loserId);
-  if (selfDefenseResult?.delta) saveVoyageNow("defended against an attacking ship");
+  saveVoyageNow(
+    selfDefenseResult?.delta
+      ? "defended against an attacking ship"
+      : "ship struck its colors"
+  );
   if (surrenderCause) {
     openDamageSurrenderDecision(loserId, surrenderCause);
     return;
