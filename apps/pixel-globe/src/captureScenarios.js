@@ -264,6 +264,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: gibraltarHotspotBenchmarkEncounters()
   }),
+  "benchmark-naples-approach": scenario({
+    id: "benchmark-naples-approach",
+    title: "Naples Approach Performance Benchmark",
+    seed: "benchmark-naples-approach-v1",
+    player: {
+      factionId: "spain",
+      shipSlug: "caravel",
+      lat: 40.72,
+      lon: 12.15,
+      headingDeg: 90,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
   "trailer-explore-fuji": trailerScenario({
     id: "trailer-explore-fuji",
     title: "Discover Mount Fuji",

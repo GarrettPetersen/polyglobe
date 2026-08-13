@@ -2077,7 +2077,7 @@ const LAND_ROAD_DARK_COLOR = "#8f563b";
 const LAND_ROAD_WIDTH_PX = 2;
 const LAND_CART_WALK_FRAME_MS = 150;
 const VIEW_MARGIN = 58;
-const CHART_REBUILD_RADIUS_PX = 28;
+const CHART_REBUILD_RADIUS_PX = 14;
 const CHART_LOOKAHEAD_MARGIN = 96;
 const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE + CHART_LOOKAHEAD_MARGIN;
 const CHART_ADMISSION_LOOKAHEAD_PX = CHART_LOOKAHEAD_MARGIN;
@@ -3236,7 +3236,6 @@ let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
 const spriteAlphaMasks = new WeakMap();
-const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
 const stormWaveWashMaskCache = new WeakMap();
@@ -5943,8 +5942,11 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
-    if (maybeAdvancePirateCaptiveJourneyAtSea()) dirty = true;
-    if (maybeOpenQuestJourneyDialogueAtSea()) dirty = true;
+    if (measurePerformanceBenchmarkStage("quests.journey", () => {
+      const captiveChanged = maybeAdvancePirateCaptiveJourneyAtSea();
+      const dialogueChanged = maybeOpenQuestJourneyDialogueAtSea();
+      return captiveChanged || dialogueChanged;
+    })) dirty = true;
     if (updateNavalWeapons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateFishAnimation(nowMs)) dirty = true;
@@ -33865,11 +33867,17 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   const currentSurfaceLayer = surfaceDetailLayerCache.get(cacheKey);
   const cached = waterEffectForegroundLayerCache.get(cacheKey);
   if (
-    cached?.surfaceLayer === currentSurfaceLayer &&
+    cached &&
     cached?.weatherDayIndex === weatherMaskDayIndex &&
     cached?.iceRevision === surfaceIceSettledRevision &&
-    surfaceDetailLayerCoversViewport(cached, viewport, TILE_ART_SIZE)
+    surfaceDetailLayerCoversViewport(cached, viewport, TILE_ART_SIZE) &&
+    (
+      cached.chart === activeChart ||
+      waterEffectForegroundGeometryMatches(cached, activeChart)
+    )
   ) {
+    cached.chart = activeChart;
+    cached.surfaceLayer = currentSurfaceLayer;
     return cached;
   }
 
@@ -33939,13 +33947,28 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   const result = {
     ...bounds,
     canvas,
+    chart: activeChart,
     surfaceLayer: staticSurface,
+    tileCalls: calls.tileCalls,
+    riverConnectorCalls: calls.riverConnectorCalls,
+    riverGeometryKey: surfaceDetailRiverGeometryKey(activeChart, calls),
     weatherDayIndex: weatherMaskDayIndex,
     iceRevision: surfaceIceSettledRevision,
     weatherRevision: `${weatherMaskDayIndex}:${surfaceIceSettledRevision}`
   };
   waterEffectForegroundLayerCache.set(cacheKey, result);
   return result;
+}
+
+function waterEffectForegroundGeometryMatches(cached, activeChart) {
+  const currentCalls = surfaceDetailCallsForLayer({
+    tileCalls: activeChart.tileCalls,
+    riverConnectorCalls: activeChart.riverConnectorCalls,
+    layer: cached,
+    margin: TILE_ART_SIZE
+  });
+  currentCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, currentCalls);
+  return surfaceDetailCallsHaveSameGeometry(cached, currentCalls);
 }
 
 function drawCoralReefsWebGL(activeChart, offset) {
@@ -34972,7 +34995,10 @@ function buildChart(anchorCamera, positionLocks = null) {
     up: anchorCamera.up.slice()
   };
   const chartCenterTileId = findNearestTileId(graph, directionIndex, chartCamera.center);
-  let projectedVisible = collectChartTiles(chartCamera, chartCenterTileId);
+  let projectedVisible = measurePerformanceBenchmarkStage(
+    "chart.collect",
+    () => collectChartTiles(chartCamera, chartCenterTileId)
+  );
   if (positionLocks) {
     projectedVisible = retainPositionLockedProjectedTiles({
       projectedTiles: projectedVisible,
@@ -34984,8 +35010,10 @@ function buildChart(anchorCamera, positionLocks = null) {
       })
     });
   }
-  syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks);
-  cullLocalLayout(projectedVisible);
+  measurePerformanceBenchmarkStage("chart.layout", () => {
+    syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks);
+    cullLocalLayout(projectedVisible);
+  });
   const drawOffset = layoutOffsetPixels();
   const faceCalls = [];
   const riverConnectorCalls = [];
@@ -34998,116 +35026,128 @@ function buildChart(anchorCamera, positionLocks = null) {
     ? pirateHideoutPortsByTileId
     : null;
 
-  for (const item of projectedVisible) visibleSet.add(item.id);
-  for (const item of projectedVisible) {
-    const position = localLayout.positions.get(item.id);
-    if (!position) throw new Error(`Missing local layout for visible tile: ${item.id}`);
-    const sourceRow = earthById[item.id];
-    const polarEmpty = isBeyondPermanentPolarCap(graph.latDeg[item.id]);
-    const row = polarChartTerrainRow(sourceRow, graph.latDeg[item.id]);
-    const level = terrainLevel(row, item.id);
-    const surface = { x: position.x, y: position.y - level * 3 };
-    const tileCall = {
-      id: item.id,
-      x: position.x,
-      y: position.y,
-      row,
-      polarEmpty,
-      level,
-      surface,
-      drawSurfaceX: surface.x,
-      drawSurfaceY: surface.y,
-      projectedX: item.x,
-      projectedY: item.y,
-      drawLayer: terrainSpriteDrawLayer(spriteForTerrain(row, item.id)),
-      sortY: surface.y + level * 3
-    };
-    tileCalls.push(tileCall);
-    tileById.set(item.id, tileCall);
-    if (!polarEmpty) {
-      const city = cityByTileId.get(item.id);
-      if (city) citySpecs.push({ city, tileCall });
-      const pirateHideout = visiblePirateHideouts?.get(item.id);
-      if (pirateHideout) citySpecs.push({ city: pirateHideout, tileCall });
-    }
-
-    const neighbors = graph.neighbors[item.id];
-    for (const nid of neighbors) {
-      if (!visibleSet.has(nid)) continue;
-      if (nid < item.id) continue;
-      const nLayout = localLayout.positions.get(nid);
-      if (!nLayout) throw new Error(`Missing local layout for visible neighbor: ${nid}`);
-      const nPolarEmpty = isBeyondPermanentPolarCap(graph.latDeg[nid]);
-      const nrow = polarChartTerrainRow(earthById[nid], graph.latDeg[nid]);
-      const nlevel = terrainLevel(nrow, nid);
-      const nSurfaceY = nLayout.y - nlevel * 3;
-      if (!segmentNearScreen(surface.x + drawOffset.x, surface.y + drawOffset.y, nLayout.x + drawOffset.x, nSurfaceY + drawOffset.y, CHART_MARGIN)) continue;
-      faceCalls.push(makeFaceCall({
-        a: item.id,
-        b: nid,
-        ax: surface.x,
-        ay: surface.y,
-        aSortY: position.y,
-        bx: nLayout.x,
-        by: nSurfaceY,
-        bSortY: nLayout.y,
+  measurePerformanceBenchmarkStage("chart.calls", () => {
+    for (const item of projectedVisible) visibleSet.add(item.id);
+    for (const item of projectedVisible) {
+      const position = localLayout.positions.get(item.id);
+      if (!position) throw new Error(`Missing local layout for visible tile: ${item.id}`);
+      const sourceRow = earthById[item.id];
+      const polarEmpty = isBeyondPermanentPolarCap(graph.latDeg[item.id]);
+      const row = polarChartTerrainRow(sourceRow, graph.latDeg[item.id]);
+      const level = terrainLevel(row, item.id);
+      const surface = { x: position.x, y: position.y - level * 3 };
+      const tileCall = {
+        id: item.id,
+        x: position.x,
+        y: position.y,
         row,
-        nrow,
+        polarEmpty,
         level,
-        nlevel
-      }));
-      const riverConnector = polarEmpty || nPolarEmpty
-        ? null
-        : makeRiverConnectorCall({
-            a: item.id,
-            b: nid,
-            ax: surface.x,
-            ay: surface.y,
-            aSortY: position.y,
-            bx: nLayout.x,
-            by: nSurfaceY,
-            bSortY: nLayout.y,
-            row,
-            nrow,
-            level,
-            nlevel
-          });
-      if (riverConnector) riverConnectorCalls.push(riverConnector);
-    }
-  }
+        surface,
+        drawSurfaceX: surface.x,
+        drawSurfaceY: surface.y,
+        projectedX: item.x,
+        projectedY: item.y,
+        drawLayer: terrainSpriteDrawLayer(spriteForTerrain(row, item.id)),
+        sortY: surface.y + level * 3
+      };
+      tileCalls.push(tileCall);
+      tileById.set(item.id, tileCall);
+      if (!polarEmpty) {
+        const city = cityByTileId.get(item.id);
+        if (city) citySpecs.push({ city, tileCall });
+        const pirateHideout = visiblePirateHideouts?.get(item.id);
+        if (pirateHideout) citySpecs.push({ city: pirateHideout, tileCall });
+      }
 
-  faceCalls.sort(compareTerrainConnectorDrawOrder);
-  riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
-  tileCalls.sort(compareTerrainDrawCalls);
-  const oceanShearFillCalls = buildOpenOceanShearFillCalls({
-    faceCalls,
-    tileById,
-    isOpenOceanTile: (call) => call.row?.t === "water"
+      const neighbors = graph.neighbors[item.id];
+      for (const nid of neighbors) {
+        if (!visibleSet.has(nid)) continue;
+        if (nid < item.id) continue;
+        const nLayout = localLayout.positions.get(nid);
+        if (!nLayout) throw new Error(`Missing local layout for visible neighbor: ${nid}`);
+        const nPolarEmpty = isBeyondPermanentPolarCap(graph.latDeg[nid]);
+        const nrow = polarChartTerrainRow(earthById[nid], graph.latDeg[nid]);
+        const nlevel = terrainLevel(nrow, nid);
+        const nSurfaceY = nLayout.y - nlevel * 3;
+        if (!segmentNearScreen(surface.x + drawOffset.x, surface.y + drawOffset.y, nLayout.x + drawOffset.x, nSurfaceY + drawOffset.y, CHART_MARGIN)) continue;
+        faceCalls.push(makeFaceCall({
+          a: item.id,
+          b: nid,
+          ax: surface.x,
+          ay: surface.y,
+          aSortY: position.y,
+          bx: nLayout.x,
+          by: nSurfaceY,
+          bSortY: nLayout.y,
+          row,
+          nrow,
+          level,
+          nlevel
+        }));
+        const riverConnector = polarEmpty || nPolarEmpty
+          ? null
+          : makeRiverConnectorCall({
+              a: item.id,
+              b: nid,
+              ax: surface.x,
+              ay: surface.y,
+              aSortY: position.y,
+              bx: nLayout.x,
+              by: nSurfaceY,
+              bSortY: nLayout.y,
+              row,
+              nrow,
+              level,
+              nlevel
+            });
+        if (riverConnector) riverConnectorCalls.push(riverConnector);
+      }
+    }
   });
-  const landShearFillCalls = buildLandShearFillCalls({
-    faceCalls,
-    tileById,
-    isLandTile: (call) => !isWaterSurfaceRow(call.row)
+
+  let oceanShearFillCalls;
+  let landShearFillCalls;
+  let driftSampleCalls;
+  measurePerformanceBenchmarkStage("chart.sortAndFill", () => {
+    faceCalls.sort(compareTerrainConnectorDrawOrder);
+    riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
+    tileCalls.sort(compareTerrainDrawCalls);
+    oceanShearFillCalls = buildOpenOceanShearFillCalls({
+      faceCalls,
+      tileById,
+      isOpenOceanTile: (call) => call.row?.t === "water"
+    });
+    landShearFillCalls = buildLandShearFillCalls({
+      faceCalls,
+      tileById,
+      isLandTile: (call) => !isWaterSurfaceRow(call.row)
+    });
+    driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {
+      viewX: localLayout.viewX,
+      viewY: localLayout.viewY,
+      halfWidth: SCREEN_W / 2 + TILE_ART_HALF,
+      halfHeight: SCREEN_H / 2 + TILE_ART_HALF
+    });
   });
-  const driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {
-    viewX: localLayout.viewX,
-    viewY: localLayout.viewY,
-    halfWidth: SCREEN_W / 2 + TILE_ART_HALF,
-    halfHeight: SCREEN_H / 2 + TILE_ART_HALF
-  });
-  const waterIndex = buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, {
-    tileById,
-    right: chartCamera.right,
-    up: chartCamera.up
-  });
+  const waterIndex = measurePerformanceBenchmarkStage(
+    "chart.waterIndex",
+    () => buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, {
+      tileById,
+      right: chartCamera.right,
+      up: chartCamera.up
+    })
+  );
   const placementChart = {
     tileById,
     waterIndex,
     right: chartCamera.right,
     up: chartCamera.up
   };
-  for (const { city, tileCall } of citySpecs) cityCalls.push(makeCityCall(city, tileCall, placementChart));
-  cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
+  measurePerformanceBenchmarkStage("chart.cities", () => {
+    for (const { city, tileCall } of citySpecs) cityCalls.push(makeCityCall(city, tileCall, placementChart));
+    cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
+  });
   const cityCallByPortId = new Map();
   for (const call of cityCalls) {
     if (cityCallByPortId.has(call.portId)) {
@@ -35173,49 +35213,49 @@ function cityVisualOffset(city, tileCall, activeChart) {
   const cached = cityVisualOffsets.get(key);
   if (cached) return cached;
 
-  const image = cityImageForCity(city);
-  const opaquePixels = cityOpaquePixels(image);
-  const riverPixels = riverPixelsForCityPlacement(tileCall, activeChart);
+  const image = measurePerformanceBenchmarkStage(
+    "chart.cities.image",
+    () => cityImageForCity(city)
+  );
+  const cityAlphaMask = spriteAlphaMask(image);
+  const riverWater = measurePerformanceBenchmarkStage(
+    "chart.cities.riverPixels",
+    () => riverPixelsForCityPlacement(tileCall, activeChart)
+  );
   const baseSpriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF);
   const baseSpriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF);
   const preferredDirection = cityBankPreferenceVector(city);
-  const offset = selectCityVisualOffset((candidate) => {
-    let riverOverlapPixels = 0;
-    for (const pixel of opaquePixels) {
-      const x = baseSpriteX + candidate.x + pixel.x;
-      const y = baseSpriteY + candidate.y + pixel.y;
-      if (riverPixels.has(pixelMaskKey(x, y))) riverOverlapPixels++;
-    }
-    return {
-      riverOverlapPixels,
-      centerOnOpenWater: wakeMapPointIsWater(
-        tileCall.drawSurfaceX + candidate.x,
-        tileCall.drawSurfaceY + candidate.y,
-        activeChart
-      )
-    };
-  }, preferredDirection);
+  const offset = measurePerformanceBenchmarkStage("chart.cities.selectOffset", () => (
+    selectCityVisualOffset((candidate) => {
+      let riverOverlapPixels = 0;
+      for (let index = 0; index < riverWater.points.length; index += 2) {
+        const spriteX = riverWater.points[index] - baseSpriteX - candidate.x;
+        const spriteY = riverWater.points[index + 1] - baseSpriteY - candidate.y;
+        if (
+          spriteX >= 0 && spriteY >= 0 &&
+          spriteX < cityAlphaMask.width && spriteY < cityAlphaMask.height &&
+          cityAlphaMask.alpha[spriteX + spriteY * cityAlphaMask.width] > 0
+        ) riverOverlapPixels++;
+      }
+      return {
+        riverOverlapPixels,
+        centerOnOpenWater: cityPlacementCenterOnOpenWater(
+          tileCall.drawSurfaceX + candidate.x,
+          tileCall.drawSurfaceY + candidate.y,
+          tileCall,
+          activeChart,
+          riverWater.keys
+        )
+      };
+    }, preferredDirection)
+  ));
   cityVisualOffsets.set(key, offset);
   return offset;
 }
 
-function cityOpaquePixels(image) {
-  const cached = cityOpaquePixelCache.get(image);
-  if (cached) return cached;
-  const mask = spriteAlphaMask(image);
-  const pixels = [];
-  for (let y = 0; y < mask.height; y++) {
-    for (let x = 0; x < mask.width; x++) {
-      if (mask.alpha[x + y * mask.width] > 0) pixels.push({ x, y });
-    }
-  }
-  if (pixels.length === 0) throw new Error("City sprite contains no opaque pixels");
-  cityOpaquePixelCache.set(image, pixels);
-  return pixels;
-}
-
 function riverPixelsForCityPlacement(tileCall, activeChart) {
-  const pixels = new Set();
+  const keys = new Set();
+  const points = [];
   const extent = TILE_ART_HALF + CITY_VISUAL_MAX_OFFSET_PX;
   const minX = Math.floor(tileCall.drawSurfaceX - extent);
   const maxX = Math.ceil(tileCall.drawSurfaceX + extent);
@@ -35224,34 +35264,55 @@ function riverPixelsForCityPlacement(tileCall, activeChart) {
 
   for (const entry of wakeWaterCandidatesForPoint(tileCall.drawSurfaceX, tileCall.drawSurfaceY, activeChart.waterIndex)) {
     if (entry.kind === "riverConnector") {
-      for (const key of entry.waterPixels) {
-        const comma = key.indexOf(",");
-        const x = Number(key.slice(0, comma));
-        const y = Number(key.slice(comma + 1));
-        if (x >= minX && x <= maxX && y >= minY && y <= maxY) pixels.add(key);
+      const connectorPoints = activeChart.waterIndex.riverConnectorWaterPoints.get(
+        riverConnectorRasterKey(entry.call)
+      );
+      if (!connectorPoints) {
+        throw new Error(`City placement is missing river connector ${entry.call.a}:${entry.call.b}`);
+      }
+      for (let index = 0; index < connectorPoints.length; index += 2) {
+        addRiverPixel(connectorPoints[index], connectorPoints[index + 1]);
       }
       continue;
     }
     if (entry.kind !== "tile") continue;
     const mask = riverMasks?.[entry.call.id] || 0;
     if (mask === 0 || isWaterSurfaceRow(entry.call.row)) continue;
-    const sprite = riverSpriteForTile(entry.call, activeChart, mask);
-    if (!sprite) continue;
-    const alphaMask = spriteAlphaMask(sprite);
-    const originX = Math.round(entry.call.drawSurfaceX - TILE_ART_HALF);
-    const originY = Math.round(entry.call.drawSurfaceY - TILE_ART_HALF);
-    for (let y = 0; y < alphaMask.height; y++) {
-      const mapY = originY + y;
-      if (mapY < minY || mapY > maxY) continue;
-      for (let x = 0; x < alphaMask.width; x++) {
-        if (alphaMask.alpha[x + y * alphaMask.width] === 0) continue;
-        const mapX = originX + x;
-        if (mapX < minX || mapX > maxX) continue;
-        pixels.add(pixelMaskKey(mapX, mapY));
-      }
+    const points = cachedRiverTileWaterPoints(entry.call, activeChart, mask);
+    for (let index = 0; index < points.length; index += 2) {
+      addRiverPixel(points[index], points[index + 1]);
     }
   }
-  return pixels;
+  return Object.freeze({ keys, points: Int32Array.from(points) });
+
+  function addRiverPixel(mapX, mapY) {
+    if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) return;
+    const key = pixelMaskKey(mapX, mapY);
+    if (keys.has(key)) return;
+    keys.add(key);
+    points.push(mapX, mapY);
+  }
+}
+
+function cityPlacementCenterOnOpenWater(x, y, tileCall, activeChart, riverPixels) {
+  const roundedX = Math.round(x);
+  const roundedY = Math.round(y);
+  if (riverPixels.has(pixelMaskKey(roundedX, roundedY))) return true;
+
+  let nearestTile = tileCall;
+  let nearestDistanceSquared = Infinity;
+  const localTileIds = [tileCall.id, ...graph.neighbors[tileCall.id]];
+  for (const tileId of localTileIds) {
+    const call = activeChart.tileById.get(tileId);
+    if (!call) continue;
+    const dx = call.drawSurfaceX - roundedX;
+    const dy = call.drawSurfaceY - roundedY;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared >= nearestDistanceSquared) continue;
+    nearestDistanceSquared = distanceSquared;
+    nearestTile = call;
+  }
+  return isWaterSurfaceRow(nearestTile.row);
 }
 
 function buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, activeChart) {
@@ -43409,8 +43470,16 @@ function cachedLandRoadLayer(activeChart, requiredTileIds) {
   if (!(requiredTileIds instanceof Set)) {
     throw new Error("Land road layer requires tile coverage");
   }
-  const cached = landRoadLayerCache.get(activeChart);
-  if (cached && setContainsEvery(cached.tileIds, requiredTileIds)) return cached;
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const cached = landRoadLayerCache.get(cacheKey);
+  if (
+    cached &&
+    setContainsEvery(cached.tileIds, requiredTileIds) &&
+    (cached.chart === activeChart || landRoadLayerGeometryMatches(cached, activeChart))
+  ) {
+    cached.chart = activeChart;
+    return cached;
+  }
   if (!Array.isArray(activeChart?.tileCalls) || !(activeChart.tileById instanceof Map)) {
     throw new Error("Land road layer requires a complete chart");
   }
@@ -43430,6 +43499,8 @@ function cachedLandRoadLayer(activeChart, requiredTileIds) {
       if (a.polarEmpty || b.polarEmpty) continue;
       roadSegments.push({
         id: segment.id,
+        a: segment.a,
+        b: segment.b,
         path: landRoadSegmentPath(a, b, segment.a, segment.b)
       });
     }
@@ -43438,14 +43509,16 @@ function cachedLandRoadLayer(activeChart, requiredTileIds) {
     const canvas = document.createElement("canvas");
     canvas.width = 1;
     canvas.height = 1;
-    const layer = Object.freeze({
+    const layer = {
       canvas,
       x: 0,
       y: 0,
+      chart: activeChart,
       tileIds: cacheTileIds,
+      roadSegments,
       revision: `empty:${cacheTileIds.size}`
-    });
-    landRoadLayerCache.set(activeChart, layer);
+    };
+    landRoadLayerCache.set(cacheKey, layer);
     return layer;
   }
 
@@ -43480,15 +43553,33 @@ function cachedLandRoadLayer(activeChart, requiredTileIds) {
   for (const segment of roadSegments) {
     drawLandRoadSegment(roadCtx, segment.path, segment.id);
   }
-  const layer = Object.freeze({
+  const layer = {
     canvas,
     x: minX,
     y: minY,
+    chart: activeChart,
     tileIds: cacheTileIds,
+    roadSegments,
     revision: `${cacheTileIds.size}:${visibleSegmentIds.size}`
-  });
-  landRoadLayerCache.set(activeChart, layer);
+  };
+  landRoadLayerCache.set(cacheKey, layer);
   return layer;
+}
+
+function landRoadLayerGeometryMatches(cached, activeChart) {
+  if (!Array.isArray(cached.roadSegments)) return false;
+  for (const segment of cached.roadSegments) {
+    const a = activeChart.tileById.get(segment.a);
+    const b = activeChart.tileById.get(segment.b);
+    if (!a || !b || a.polarEmpty || b.polarEmpty) return false;
+    const path = landRoadSegmentPath(a, b, segment.a, segment.b);
+    if (
+      path.x0 !== segment.path.x0 || path.y0 !== segment.path.y0 ||
+      path.cx !== segment.path.cx || path.cy !== segment.path.cy ||
+      path.x1 !== segment.path.x1 || path.y1 !== segment.path.y1
+    ) return false;
+  }
+  return true;
 }
 
 function setContainsEvery(superset, subset) {

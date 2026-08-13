@@ -1937,6 +1937,7 @@ export default Object.freeze({
   "Nanjing's founders finish their measurements and issue a common pattern. The artillery circuit can begin.": "Die Gründer von Nanjing beenden ihre Messungen und geben ein gemeinsames Muster heraus. Der Artillerie-Rundgang kann beginnen.",
   "Nanjing's scholars have prepared another memorial for the emperor. Carry it to Beijing before silence is mistaken for consent.": "Nanjings Gelehrte haben ein weiteres Denkmal für den Kaiser vorbereitet. Tragen Sie es nach Peking, bevor Schweigen mit Zustimmung verwechselt wird.",
   "Nao Victoria Galleon Ship": "Nao Victoria Galeonenschiff",
+  "Naples Approach Performance Benchmark": "Leistungsbenchmark zur Anfahrt auf Neapel",
   "Native tilapia": "Heimischer Tilapia",
   "Natural history reports: {0}": "Naturhistorische Berichte: {0}",
   "Natural Philosopher": "Naturphilosoph",

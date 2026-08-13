@@ -1937,6 +1937,7 @@ export default Object.freeze({
   "Nanjing's founders finish their measurements and issue a common pattern. The artillery circuit can begin.": "Основатели Нанкина завершают измерения и выпускают общий образец. Артиллерийский обход может начаться.",
   "Nanjing's scholars have prepared another memorial for the emperor. Carry it to Beijing before silence is mistaken for consent.": "Ученые Нанкина подготовили еще один памятник императору. Несите его в Пекин, пока молчание не приняли за согласие.",
   "Nao Victoria Galleon Ship": "Корабль-галеон «Нао Виктория»",
+  "Naples Approach Performance Benchmark": "Тест производительности при подходе к Неаполю",
   "Native tilapia": "Родная тилапия",
   "Natural history reports: {0}": "Отчеты о естествознании: {0}",
   "Natural Philosopher": "Натурфилософ",

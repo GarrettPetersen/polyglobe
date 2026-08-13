@@ -7,6 +7,7 @@ import {
   COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
   GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
+  NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
   POLAR_FOG_CAPTURE_SCENARIO_ID,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
@@ -80,6 +81,16 @@ test("gibraltar-hotspot benchmark stages dense traffic in the narrow strait", ()
   assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=gibraltar-hotspot"), {
     id: "gibraltar-hotspot",
     captureScenarioId: GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 2
+  });
+});
+
+test("naples-approach benchmark crosses the port activation boundary", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=naples-approach"), {
+    id: "naples-approach",
+    captureScenarioId: NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
     targetLandCarts: 2

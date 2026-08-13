@@ -11,6 +11,8 @@ export const NANJING_HOTSPOT_BENCHMARK_ID = "nanjing-hotspot";
 export const NANJING_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-nanjing-hotspot";
 export const GIBRALTAR_HOTSPOT_BENCHMARK_ID = "gibraltar-hotspot";
 export const GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-gibraltar-hotspot";
+export const NAPLES_APPROACH_BENCHMARK_ID = "naples-approach";
+export const NAPLES_APPROACH_CAPTURE_SCENARIO_ID = "benchmark-naples-approach";
 
 const BENCHMARKS = Object.freeze({
   [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
@@ -35,6 +37,10 @@ const BENCHMARKS = Object.freeze({
   }),
   [GIBRALTAR_HOTSPOT_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2
+  }),
+  [NAPLES_APPROACH_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2
   })
 });

@@ -1937,6 +1937,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Nanjing's founders finish their measurements and issue a common pattern. The artillery circuit can begin.",
   "Nanjing's scholars have prepared another memorial for the emperor. Carry it to Beijing before silence is mistaken for consent.",
   "Nao Victoria Galleon Ship",
+  "Naples Approach Performance Benchmark",
   "Native tilapia",
   "Natural history reports: {0}",
   "Natural Philosopher",
