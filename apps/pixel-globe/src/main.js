@@ -1434,8 +1434,10 @@ import {
   TEA_GOOD_ID,
   addPortGoodStock,
   addWorldEconomyPort,
+  advanceWorldEconomyRestorePlan,
   connectNearbyPortMarkets,
   consumePortGoodStock,
+  createWorldEconomyRestorePlan,
   createWorldEconomy,
   destroyPortGoodStock,
   establishPortIndustry,
@@ -2077,7 +2079,7 @@ const LAND_ROAD_DARK_COLOR = "#8f563b";
 const LAND_ROAD_WIDTH_PX = 2;
 const LAND_CART_WALK_FRAME_MS = 150;
 const VIEW_MARGIN = 58;
-const CHART_REBUILD_RADIUS_PX = 14;
+const CHART_REBUILD_RADIUS_PX = 40;
 const CHART_LOOKAHEAD_MARGIN = 96;
 const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE + CHART_LOOKAHEAD_MARGIN;
 const CHART_ADMISSION_LOOKAHEAD_PX = CHART_LOOKAHEAD_MARGIN;
@@ -22256,11 +22258,11 @@ function repairChartTilesWithinHeatHaze(frame) {
 
   const repairedTileIds = new Set(repairPlan.keys());
   let repairedChart = null;
-  mutateChartPositionsBehindVisualCover("heat haze", (positionLocks) => {
+  mutateChartPositionsBehindVisualCover("heat haze", () => {
     for (const [id, position] of repairPlan.entries()) {
       localLayout.positions.set(id, { x: position.x, y: position.y });
     }
-    repairedChart = buildChart(camera, positionLocks);
+    repairedChart = rebuildChartFromCurrentLayout(camera);
   }, repairedTileIds);
   chart = repairedChart;
   reprojectNpcVisualPositions([...npcVisualShips.values()]);
@@ -22419,14 +22421,14 @@ function repairCoveredChartTiles({
     return [id, { x: position.x, y: position.y }];
   }));
   let repairedChart = null;
-  mutateChartPositionsBehindVisualCover(reason, (positionLocks) => {
+  mutateChartPositionsBehindVisualCover(reason, () => {
     for (const [id, position] of constrainedPositions.entries()) {
       if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
         throw new Error(`Chart repair plan ${reason} has malformed tile ${id}`);
       }
       localLayout.positions.set(id, { x: position.x, y: position.y });
     }
-    repairedChart = buildChart(camera, positionLocks);
+    repairedChart = rebuildChartFromCurrentLayout(camera);
   }, movingTileIds);
 
   chart = repairedChart;
@@ -27986,6 +27988,7 @@ function createDistantWorldApplyState(event) {
     comparableCurrent: {},
     comparableBefore: {},
     staleParts: [],
+    partRestorePlan: null,
     visualFleetChanged: false
   };
 }
@@ -27999,25 +28002,30 @@ function advanceDistantWorldSimulationApply() {
   if (!key) throw new Error(`Distant-world apply lost part ${state.partIndex}`);
 
   if (state.phase === "snapshot") {
-    state.current[key] = snapshotCurrentDistantWorldPart(key);
+    state.current[key] = measurePerformanceBenchmarkStage(
+      `npcShips.workerApply.snapshot.${key}`,
+      () => snapshotCurrentDistantWorldPart(key)
+    );
     state.phase = "compare";
     return false;
   }
   if (state.phase === "compare") {
-    const protectedNpcShipIds = new Set(result.protectedNpcShipIds);
-    state.comparableCurrent[key] = distantWorldPartWithoutNpcShips(
-      key,
-      state.current[key],
-      protectedNpcShipIds
-    );
-    state.comparableBefore[key] = distantWorldPartWithoutNpcShips(
-      key,
-      result.before[key],
-      protectedNpcShipIds
-    );
-    if (!distantWorldValuesEqual(state.comparableCurrent[key], state.comparableBefore[key])) {
-      state.staleParts.push(key);
-    }
+    measurePerformanceBenchmarkStage(`npcShips.workerApply.compare.${key}`, () => {
+      const protectedNpcShipIds = new Set(result.protectedNpcShipIds);
+      state.comparableCurrent[key] = distantWorldPartWithoutNpcShips(
+        key,
+        state.current[key],
+        protectedNpcShipIds
+      );
+      state.comparableBefore[key] = distantWorldPartWithoutNpcShips(
+        key,
+        result.before[key],
+        protectedNpcShipIds
+      );
+      if (!distantWorldValuesEqual(state.comparableCurrent[key], state.comparableBefore[key])) {
+        state.staleParts.push(key);
+      }
+    });
     state.partIndex++;
     if (state.partIndex < result.changedParts.length) {
       state.phase = "snapshot";
@@ -28039,7 +28047,11 @@ function advanceDistantWorldSimulationApply() {
   if (state.phase !== "restore") {
     throw new Error(`Unknown distant-world apply phase: ${state.phase}`);
   }
-  restoreDistantWorldPart(key, result.after[key], result.protectedNpcShipIds, state);
+  const restored = measurePerformanceBenchmarkStage(
+    `npcShips.workerApply.restore.${key}`,
+    () => advanceDistantWorldPartRestore(key, result.after[key], result.protectedNpcShipIds, state)
+  );
+  if (!restored) return false;
   state.partIndex++;
   if (state.partIndex < result.changedParts.length) return false;
   return finishDistantWorldSimulationApply(state);
@@ -28061,10 +28073,16 @@ function distantWorldPartWithoutNpcShips(key, snapshot, shipIds) {
   };
 }
 
-function restoreDistantWorldPart(key, snapshot, protectedNpcShipIds, state) {
+function advanceDistantWorldPartRestore(key, snapshot, protectedNpcShipIds, state) {
   if (key === "economy") {
-    restoreWorldEconomy(worldEconomy, snapshot, { seedKey: gameState.voyageSeed });
-    return;
+    if (!state.partRestorePlan) {
+      state.partRestorePlan = createWorldEconomyRestorePlan(worldEconomy, snapshot, {
+        seedKey: gameState.voyageSeed
+      });
+    }
+    const complete = advanceWorldEconomyRestorePlan(state.partRestorePlan);
+    if (complete) state.partRestorePlan = null;
+    return complete;
   }
   if (key === "landTrade") {
     restoreLandTradeSystem(landTradeSystem, snapshot, {
@@ -28076,14 +28094,14 @@ function restoreDistantWorldPart(key, snapshot, protectedNpcShipIds, state) {
       ),
       suzeraintyMemory: gameState.relations.diplomacy.suzerainties
     });
-    return;
+    return true;
   }
   if (key === "npcRoutes") {
     applyNpcSeaRouteSimulationSnapshot(npcSeaRoutes, snapshot, {
       preserveShipIds: protectedNpcShipIds
     });
     state.visualFleetChanged = releaseNpcVisualStatesWithoutStrategicState();
-    return;
+    return true;
   }
   throw new Error(`Cannot restore unknown distant-world part: ${key}`);
 }
@@ -35004,6 +35022,10 @@ function buildChart(anchorCamera, positionLocks = null) {
     syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks);
     cullLocalLayout(projectedVisible);
   });
+  return assembleChart(chartCamera, chartCenterTileId, projectedVisible);
+}
+
+function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
   const drawOffset = layoutOffsetPixels();
   const faceCalls = [];
   const riverConnectorCalls = [];
@@ -35161,6 +35183,32 @@ function buildChart(anchorCamera, positionLocks = null) {
     cityCalls,
     cityCallByPortId
   };
+}
+
+function rebuildChartFromCurrentLayout(anchorCamera) {
+  if (!chart || !localLayout) {
+    throw new Error("Current-layout chart rebuild requires an active chart and layout");
+  }
+  const chartCamera = {
+    center: anchorCamera.center.slice(),
+    right: anchorCamera.right.slice(),
+    up: anchorCamera.up.slice()
+  };
+  const chartCenterTileId = findNearestTileId(graph, directionIndex, chartCamera.center);
+  const projectedVisible = measurePerformanceBenchmarkStage(
+    "chart.reuseLayout",
+    () => chart.tileCalls.map((call) => {
+      const projected = projectTileCenterFor(call.id, chartCamera);
+      if (!projected) {
+        throw new Error(`Current-layout chart tile left the visible hemisphere: ${call.id}`);
+      }
+      if (!localLayout.positions.has(call.id)) {
+        throw new Error(`Current-layout chart tile has no retained position: ${call.id}`);
+      }
+      return { id: call.id, x: projected.x, y: projected.y };
+    })
+  );
+  return assembleChart(chartCamera, chartCenterTileId, projectedVisible);
 }
 
 function makeCityCall(city, tileCall, activeChart) {

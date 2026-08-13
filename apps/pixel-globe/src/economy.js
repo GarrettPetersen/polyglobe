@@ -935,51 +935,124 @@ export function snapshotWorldEconomy(economy) {
 }
 
 export function restoreWorldEconomy(economy, snapshot, { seedKey = economy?.seedKey } = {}) {
+  const plan = createWorldEconomyRestorePlan(economy, snapshot, { seedKey });
+  while (!advanceWorldEconomyRestorePlan(plan, { maxPorts: Number.MAX_SAFE_INTEGER })) {
+    // Synchronous save restoration intentionally completes every phase before returning.
+  }
+  return economy;
+}
+
+export function createWorldEconomyRestorePlan(
+  economy,
+  snapshot,
+  { seedKey = economy?.seedKey } = {}
+) {
   assertEconomy(economy);
   validateOptionalSeedKey(seedKey, "restored economy");
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ports)) {
     throw new Error("Unsupported world economy save data");
   }
   if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved economy minute");
-  for (const saved of snapshot.ports) {
-    const port = economy.portStates.get(saved.id);
-    if (!port) throw new Error(`Saved economy port is missing: ${saved.id}`);
-    if (!Number.isFinite(saved.specie) || saved.specie < 0 || !Array.isArray(saved.stocks)) {
-      throw new Error(`Invalid saved economy state for port: ${saved.id}`);
-    }
-    if (saved.targetSpecie !== undefined &&
-        (!Number.isFinite(saved.targetSpecie) || saved.targetSpecie <= 0)) {
-      throw new Error(`Invalid saved target specie for port: ${saved.id}`);
-    }
-    validateSavedIndustries(saved.industries, saved.id);
-    const savedGoodIds = new Set();
-    for (const [goodId, stock] of saved.stocks) {
-      const good = port.goods.get(goodId);
-      if (!good) throw new Error(`Saved economy good is missing: ${saved.id}/${goodId}`);
-      if (savedGoodIds.has(goodId)) throw new Error(`Duplicate saved stock: ${saved.id}/${goodId}`);
-      savedGoodIds.add(goodId);
-      normalizedEconomyStock(stock, `saved stock: ${saved.id}/${goodId}`);
-    }
+  return {
+    version: 1,
+    economy,
+    snapshot,
+    seedKey,
+    phase: "validate-ports",
+    portIndex: 0,
+    savedPortIds: new Set()
+  };
+}
+
+export function advanceWorldEconomyRestorePlan(plan, { maxPorts = 24 } = {}) {
+  assertWorldEconomyRestorePlan(plan);
+  if (!Number.isInteger(maxPorts) || maxPorts <= 0) {
+    throw new Error(`Invalid world economy restore batch size: ${maxPorts}`);
   }
-  economy.seedKey = seedKey;
-  restoreWorldShipyards(economy.shipyards, snapshot.shipyards, { seedKey });
-  for (const saved of snapshot.ports) {
-    const port = economy.portStates.get(saved.id);
-    for (const [goodId, productionPerDay] of saved.industries || []) {
-      establishIndustryAtPort(port, goodId, productionPerDay, 0);
-    }
-    for (const [goodId, stock] of saved.stocks) {
-      port.goods.get(goodId).stock = normalizedEconomyStock(
-        stock,
-        `saved stock: ${saved.id}/${goodId}`
+
+  const { economy, snapshot, seedKey } = plan;
+  if (plan.phase === "validate-ports") {
+    const end = Math.min(snapshot.ports.length, plan.portIndex + maxPorts);
+    for (; plan.portIndex < end; plan.portIndex++) {
+      validateSavedPortEconomyState(
+        economy,
+        snapshot.ports[plan.portIndex],
+        plan.savedPortIds
       );
     }
-    const savedTargetSpecie = saved.targetSpecie ?? legacyTargetSpecie(port);
-    port.specie = saved.specie * port.targetSpecie / savedTargetSpecie;
+    if (plan.portIndex < snapshot.ports.length) return false;
+    plan.phase = "restore-shipyards";
+    plan.portIndex = 0;
+    return false;
   }
-  economy.lastMinute = snapshot.lastMinute;
-  invalidateWorldMarketMedianCache(economy);
-  return economy;
+
+  if (plan.phase === "restore-shipyards") {
+    economy.seedKey = seedKey;
+    restoreWorldShipyards(economy.shipyards, snapshot.shipyards, { seedKey });
+    plan.phase = "apply-ports";
+    return false;
+  }
+
+  if (plan.phase === "apply-ports") {
+    const end = Math.min(snapshot.ports.length, plan.portIndex + maxPorts);
+    for (; plan.portIndex < end; plan.portIndex++) {
+      applySavedPortEconomyState(economy, snapshot.ports[plan.portIndex]);
+    }
+    if (plan.portIndex < snapshot.ports.length) return false;
+    economy.lastMinute = snapshot.lastMinute;
+    invalidateWorldMarketMedianCache(economy);
+    plan.phase = "complete";
+    return true;
+  }
+
+  if (plan.phase === "complete") return true;
+  throw new Error(`Unknown world economy restore phase: ${plan.phase}`);
+}
+
+function validateSavedPortEconomyState(economy, saved, savedPortIds) {
+  const port = economy.portStates.get(saved?.id);
+  if (!port) throw new Error(`Saved economy port is missing: ${saved?.id}`);
+  if (savedPortIds.has(saved.id)) throw new Error(`Duplicate saved economy port: ${saved.id}`);
+  savedPortIds.add(saved.id);
+  if (!Number.isFinite(saved.specie) || saved.specie < 0 || !Array.isArray(saved.stocks)) {
+    throw new Error(`Invalid saved economy state for port: ${saved.id}`);
+  }
+  if (saved.targetSpecie !== undefined &&
+      (!Number.isFinite(saved.targetSpecie) || saved.targetSpecie <= 0)) {
+    throw new Error(`Invalid saved target specie for port: ${saved.id}`);
+  }
+  validateSavedIndustries(saved.industries, saved.id);
+  const savedGoodIds = new Set();
+  for (const [goodId, stock] of saved.stocks) {
+    const good = port.goods.get(goodId);
+    if (!good) throw new Error(`Saved economy good is missing: ${saved.id}/${goodId}`);
+    if (savedGoodIds.has(goodId)) throw new Error(`Duplicate saved stock: ${saved.id}/${goodId}`);
+    savedGoodIds.add(goodId);
+    normalizedEconomyStock(stock, `saved stock: ${saved.id}/${goodId}`);
+  }
+}
+
+function applySavedPortEconomyState(economy, saved) {
+  const port = economy.portStates.get(saved.id);
+  for (const [goodId, productionPerDay] of saved.industries || []) {
+    establishIndustryAtPort(port, goodId, productionPerDay, 0);
+  }
+  for (const [goodId, stock] of saved.stocks) {
+    port.goods.get(goodId).stock = normalizedEconomyStock(
+      stock,
+      `saved stock: ${saved.id}/${goodId}`
+    );
+  }
+  const savedTargetSpecie = saved.targetSpecie ?? legacyTargetSpecie(port);
+  port.specie = saved.specie * port.targetSpecie / savedTargetSpecie;
+}
+
+function assertWorldEconomyRestorePlan(plan) {
+  if (!plan || plan.version !== 1 || !plan.economy || !plan.snapshot ||
+      !(plan.savedPortIds instanceof Set) || !Number.isInteger(plan.portIndex) ||
+      typeof plan.phase !== "string") {
+    throw new Error("Invalid world economy restore plan");
+  }
 }
 
 function legacyTargetSpecie(port) {

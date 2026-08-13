@@ -31,9 +31,11 @@ import {
   WINE_GOOD_ID,
   addPortGoodStock,
   addWorldEconomyPort,
+  advanceWorldEconomyRestorePlan,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
   consumePortGoodStock,
+  createWorldEconomyRestorePlan,
   createWorldEconomy,
   destroyPortGoodStock,
   establishPortIndustry,
@@ -545,6 +547,42 @@ test("a completed Kyoto workshop creates persistent matchlock production and inp
   restoreWorldEconomy(restored, snapshot);
   assert.equal(marketByGood(restored, KYOTO).get(MATCHLOCKS_GOOD_ID).productionPerDay, 1.5);
   assert.equal(establishPortIndustry(restored, KYOTO, MATCHLOCKS_GOOD_ID, 1.5).created, false);
+});
+
+test("batched economy restoration validates before applying and matches synchronous restoration", () => {
+  const ports = [KYOTO, LONDON];
+  const source = createWorldEconomy({ ports, startMinute: 0, seedKey: "restore-source" });
+  advanceWorldEconomy(source, 12 * 60);
+  const saved = snapshotWorldEconomy(source);
+  const restored = createWorldEconomy({ ports, startMinute: 0, seedKey: "restore-source" });
+  const before = snapshotWorldEconomy(restored);
+  const plan = createWorldEconomyRestorePlan(restored, saved, { seedKey: "restore-source" });
+
+  assert.equal(advanceWorldEconomyRestorePlan(plan, { maxPorts: 1 }), false);
+  assert.deepEqual(snapshotWorldEconomy(restored), before);
+  assert.equal(advanceWorldEconomyRestorePlan(plan, { maxPorts: 1 }), false);
+  assert.deepEqual(snapshotWorldEconomy(restored), before);
+  while (!advanceWorldEconomyRestorePlan(plan, { maxPorts: 1 })) {
+    // Exercise every bounded restore phase.
+  }
+
+  assert.deepEqual(snapshotWorldEconomy(restored), saved);
+});
+
+test("batched economy restoration rejects a late invalid port before mutating live state", () => {
+  const ports = [KYOTO, LONDON];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const before = snapshotWorldEconomy(economy);
+  const invalid = structuredClone(before);
+  invalid.ports[1].stocks[0][1] = -1;
+  const plan = createWorldEconomyRestorePlan(economy, invalid);
+
+  assert.equal(advanceWorldEconomyRestorePlan(plan, { maxPorts: 1 }), false);
+  assert.throws(
+    () => advanceWorldEconomyRestorePlan(plan, { maxPorts: 1 }),
+    /Invalid saved stock/
+  );
+  assert.deepEqual(snapshotWorldEconomy(economy), before);
 });
 
 test("cargo lots make spices and precious metal exceptionally valuable per hold", () => {

@@ -773,7 +773,7 @@ export function applyNpcSeaRouteSimulationSnapshot(
   }
   const existingVisualNavigation = new Map(system.ships
     .filter((ship) => ship.visualNavigation)
-    .map((ship) => [ship.id, cloneJsonData(ship.visualNavigation)]));
+    .map((ship) => [ship.id, ship.visualNavigation]));
   const preservedIds = new Set(preserveShipIds);
   const currentShipById = new Map(system.ships.map((ship) => [ship.id, ship]));
   const ships = [];
@@ -781,14 +781,19 @@ export function applyNpcSeaRouteSimulationSnapshot(
   for (const simulatedShip of snapshot.ships) {
     const ship = preservedIds.has(simulatedShip.id)
       ? currentShipById.get(simulatedShip.id)
-      : simulatedShip;
+      : {
+          ...simulatedShip,
+          cargo: { ...simulatedShip.cargo },
+          cargoCost: { ...simulatedShip.cargoCost },
+          visualNavigation: existingVisualNavigation.get(simulatedShip.id) || null
+        };
     if (!ship) continue;
-    ships.push(cloneJsonData(ship));
+    ships.push(ship);
     includedIds.add(ship.id);
   }
   for (const currentShip of system.ships) {
     if (preservedIds.has(currentShip.id) && !includedIds.has(currentShip.id)) {
-      ships.push(cloneJsonData(currentShip));
+      ships.push(currentShip);
     }
   }
   const shipById = new Map();
@@ -802,7 +807,9 @@ export function applyNpcSeaRouteSimulationSnapshot(
     }
     assertFactionId(ship.factionId);
     reconcileNpcCargoCapacity(ship, "worker simulation");
-    ship.visualNavigation = existingVisualNavigation.get(ship.id) || null;
+    if (preservedIds.has(ship.id)) {
+      ship.visualNavigation = existingVisualNavigation.get(ship.id) || null;
+    }
     shipById.set(ship.id, ship);
   }
   const danger = new Map();
@@ -814,7 +821,7 @@ export function applyNpcSeaRouteSimulationSnapshot(
   }
   system.ships = ships;
   system.shipById = shipById;
-  system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
+  system.replacementQueue = snapshot.replacementQueue;
   system.pirateHideoutDangerUntil = danger;
   return system;
 }
