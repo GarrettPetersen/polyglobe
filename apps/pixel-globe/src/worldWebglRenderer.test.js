@@ -61,15 +61,17 @@ test("repair clouds blur only their alpha silhouettes on the logical pixel grid"
   assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /textureLod|textureGrad/);
 });
 
-test("repair fog uses its full-screen mask and a wider pixel-grid Gaussian", () => {
+test("repair fog uses its full-screen mask and broad pixel-grid diffusion", () => {
   assert.match(
     PRESENT_FRAGMENT_SHADER,
     /u_repairCloudFullscreen[\s\S]*texture\(u_repairCloudMask, screenPixel \/ u_repairCloudMaskSize\)\.a/
   );
   assert.match(PRESENT_FRAGMENT_SHADER, /vec3 pixelGridWideBlur\(/);
-  assert.match(PRESENT_FRAGMENT_SHADER, /ivec2\(-4, 0\)/);
-  assert.match(PRESENT_FRAGMENT_SHADER, /ivec2\(4, 4\)/);
-  assert.match(PRESENT_FRAGMENT_SHADER, /return sum \/ 16\.0/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /sampleY = -2; sampleY <= 2/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /sampleX = -2; sampleX <= 2/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /ivec2\(sampleX, sampleY\) \* 8/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /return sum \/ 25\.0/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /smoothstep\(0\.05, 0\.6, rawBlur\)/);
   assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /filter\s*:\s*blur|imageSmoothingEnabled\s*=\s*true/);
 });
 

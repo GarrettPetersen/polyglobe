@@ -209,16 +209,16 @@ vec3 pixelGridBlur(ivec2 coordinate, ivec2 sceneSize) {
 }
 
 vec3 pixelGridWideBlur(ivec2 coordinate, ivec2 sceneSize) {
-  vec3 sum = scenePixel(coordinate, sceneSize) * 4.0;
-  sum += scenePixel(coordinate + ivec2(-4, 0), sceneSize) * 2.0;
-  sum += scenePixel(coordinate + ivec2(4, 0), sceneSize) * 2.0;
-  sum += scenePixel(coordinate + ivec2(0, -4), sceneSize) * 2.0;
-  sum += scenePixel(coordinate + ivec2(0, 4), sceneSize) * 2.0;
-  sum += scenePixel(coordinate + ivec2(-4, -4), sceneSize);
-  sum += scenePixel(coordinate + ivec2(4, -4), sceneSize);
-  sum += scenePixel(coordinate + ivec2(-4, 4), sceneSize);
-  sum += scenePixel(coordinate + ivec2(4, 4), sceneSize);
-  return sum / 16.0;
+  vec3 sum = vec3(0.0);
+  for (int sampleY = -2; sampleY <= 2; sampleY++) {
+    for (int sampleX = -2; sampleX <= 2; sampleX++) {
+      sum += scenePixel(
+        coordinate + ivec2(sampleX, sampleY) * 8,
+        sceneSize
+      );
+    }
+  }
+  return sum / 25.0;
 }
 
 float repairCloudMaskAlpha(vec2 screenPixel) {
@@ -260,7 +260,10 @@ void main() {
       float(outputCoordinate.x) + 0.5,
       float(sceneSize.y - 1 - outputCoordinate.y) + 0.5
     );
-    float blur = repairCloudMaskAlpha(screenPixel) * u_repairCloudBlurStrength;
+    float rawBlur = repairCloudMaskAlpha(screenPixel) * u_repairCloudBlurStrength;
+    float blur = u_repairCloudWideBlur
+      ? smoothstep(0.05, 0.6, rawBlur)
+      : rawBlur;
     if (blur > 0.0) {
       vec3 blurred = u_repairCloudWideBlur
         ? pixelGridWideBlur(sceneCoordinate, sceneSize)
