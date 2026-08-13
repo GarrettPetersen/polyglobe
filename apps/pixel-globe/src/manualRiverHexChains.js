@@ -107,6 +107,12 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     ],
     // Mekong/Tonle Sap approach for Angkor.
     [23399, 93282, 23390, 93245, 92992],
+    // James River and Chesapeake approach from the Jamestown colony site.
+    [73682, 18469, 73670],
+    // Potomac River from its upper tidal reach into Chesapeake Bay.
+    [18467, 73665, 73671, 73669],
+    // Hudson River from Fort Orange through New Amsterdam to the Atlantic.
+    [74307, 74785, 18750, 74787, 4714, 74847, 18765, 74845],
     // Rio de la Plata estuary from the Parana delta to the Atlantic coast.
     [6776, 106926],
     // Lower Whanganui River, a major Maori waka route, to the Tasman Sea.
@@ -152,6 +158,11 @@ export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
     // Yukon delta branches into the Bering Sea.
     { tile: 47511, edge: 3 },
     { tile: 47521, edge: 2 },
+    // Chesapeake mouths for the James and Potomac branches.
+    { tile: 73670, edge: 0 },
+    { tile: 73669, edge: 5 },
+    // Lower Hudson opens into the Atlantic south of Manhattan.
+    { tile: 74845, edge: 5 },
     // Rio de la Plata opens into the South Atlantic beside Buenos Aires.
     { tile: 106926, edge: 2 },
     // Whanganui River opens onto New Zealand's west coast.

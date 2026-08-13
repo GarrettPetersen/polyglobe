@@ -1,6 +1,7 @@
 export const KEY_BINDINGS_STORAGE_KEY = "marque-and-reprisal.key-bindings";
-export const KEY_BINDINGS_VERSION = 1;
+export const KEY_BINDINGS_VERSION = 2;
 export const KEY_BINDING_SLOT_COUNT = 2;
+export const FULLSCREEN_TOGGLE_KEY_CODE = "F11";
 
 const MODIFIER_ORDER = Object.freeze(["Ctrl", "Alt", "Shift", "Meta"]);
 
@@ -120,7 +121,7 @@ export function deserializeKeyBindings(serialized) {
   } catch (error) {
     throw new Error("Stored key bindings are not valid JSON", { cause: error });
   }
-  return validateKeyBindings(parsed);
+  return validateKeyBindings(migrateKeyBindings(parsed));
 }
 
 export function validateKeyBindings(bindings) {
@@ -210,6 +211,10 @@ export function keyActionForEvent(bindings, event) {
   const exact = keyActionForToken(current, token);
   if (exact) return exact;
   return token === event.code ? null : keyActionForToken(current, event.code);
+}
+
+export function isFullscreenToggleKey(event) {
+  return Boolean(event && (event.code === FULLSCREEN_TOGGLE_KEY_CODE || event.key === FULLSCREEN_TOGGLE_KEY_CODE));
 }
 
 export function keyActionForToken(bindings, token) {
@@ -303,7 +308,29 @@ function validateBindingToken(token) {
   if (new Set(parts).size !== parts.length || orderedModifiers.join("+") !== parts.join("+")) {
     throw new Error(`Key binding modifiers are not canonical: ${token}`);
   }
+  if (code === FULLSCREEN_TOGGLE_KEY_CODE) {
+    throw new Error(`${FULLSCREEN_TOGGLE_KEY_CODE} is reserved for fullscreen`);
+  }
   return token;
+}
+
+function migrateKeyBindings(bindings) {
+  if (!bindings || typeof bindings !== "object" || Array.isArray(bindings)) return bindings;
+  if (bindings.version !== 1) return bindings;
+  if (!bindings.actions || typeof bindings.actions !== "object" || Array.isArray(bindings.actions)) {
+    return bindings;
+  }
+  return {
+    version: KEY_BINDINGS_VERSION,
+    actions: Object.fromEntries(Object.entries(bindings.actions).map(([actionId, slots]) => [
+      actionId,
+      Array.isArray(slots)
+        ? slots.map((token) => token === FULLSCREEN_TOGGLE_KEY_CODE || token?.endsWith(`+${FULLSCREEN_TOGGLE_KEY_CODE}`)
+          ? null
+          : token)
+        : slots
+    ]))
+  };
 }
 
 function freezeActions(actions) {

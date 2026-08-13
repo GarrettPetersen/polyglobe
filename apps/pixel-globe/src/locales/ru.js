@@ -265,6 +265,7 @@ export default {
   "quest.none": "НЕТ ТЕКУЩИХ ЗАДАНИЙ",
   "quest.mainVoyage": "ГЛАВНОЕ ПЛАВАНИЕ",
   "quest.familyDebtOutstanding": "ДОЛГ {amount} В {city}",
+  "quest.mainVoyageCompleted": "ЗАВЕРШЕНО. ПРОДОЛЖАЙТЕ ПЛАВАНИЕ; ВЕРНИТЕСЬ В {city}, КОГДА РЕШИТЕ УЙТИ В ОТСТАВКУ",
   "quest.passenger": "ПАССАЖИР",
   "quest.delivery": "ДОСТАВКА",
   "quest.diplomacy": "ДИПЛОМАТИЯ",

@@ -6,6 +6,7 @@ import {
   waypointArrowEdgePoint,
   waypointArrowGeometry,
   waypointArrowMaxY,
+  waypointArrowOcclusionEdge,
   waypointPointOverlapsReservedRects
 } from "./waypointArrowUi.js";
 
@@ -66,6 +67,23 @@ test("waypoint arrows slide along the viewport edge around HUD panels", () => {
   assert.equal(waypointPointOverlapsReservedRects(bottom, reservedRects, 8), false);
   assert.ok(topLeft.x > 138 || topLeft.y > 66);
   assert.ok(bottom.x < 182 || bottom.x > 378);
+});
+
+test("an on-screen destination hidden by the HUD points from the HUD inner edge", () => {
+  const panel = { x: 0, y: 0, w: 130, h: 58 };
+  const result = waypointArrowOcclusionEdge({
+    origin: { x: 228, y: 128 },
+    target: { x: 55, y: 34 },
+    reservedRects: [panel],
+    clearance: 8
+  });
+
+  assert.ok(result);
+  assert.equal(waypointPointOverlapsReservedRects(result.point, [panel], 8), false);
+  assert.ok(result.point.y >= panel.y + panel.h + 8);
+  assert.ok(result.point.x > panel.x && result.point.x < panel.x + panel.w);
+  assert.ok(result.direction.x < 0);
+  assert.ok(result.direction.y < 0);
 });
 
 test("waypoint arrow geometry includes a generous pointer hitbox", () => {

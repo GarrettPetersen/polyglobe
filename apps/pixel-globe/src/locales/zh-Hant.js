@@ -265,6 +265,7 @@ export default {
   "quest.none": "沒有進行中的任務",
   "quest.mainVoyage": "主要航程",
   "quest.familyDebtOutstanding": "{city}尚欠{amount}",
+  "quest.mainVoyageCompleted": "已完成。繼續航行，準備好後在{city}退休",
   "quest.passenger": "乘客",
   "quest.delivery": "遞送",
   "quest.diplomacy": "外交",

@@ -265,6 +265,7 @@ export default {
   "quest.none": "진행 중인 임무 없음",
   "quest.mainVoyage": "주요 항해",
   "quest.familyDebtOutstanding": "{city} 미상환액 {amount}",
+  "quest.mainVoyageCompleted": "완료. 계속 항해하다 준비되면 {city}에서 은퇴",
   "quest.passenger": "승객",
   "quest.delivery": "배달",
   "quest.diplomacy": "외교",

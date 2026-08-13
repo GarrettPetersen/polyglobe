@@ -265,6 +265,7 @@ export default {
   "quest.none": "KEINE LAUFENDEN AUFTRÄGE",
   "quest.mainVoyage": "HAUPTREISE",
   "quest.familyDebtOutstanding": "{amount} OFFEN IN {city}",
+  "quest.mainVoyageCompleted": "ABGESCHLOSSEN. WEITERSEGELN; SPÄTER IN {city} ZUR RUHE SETZEN",
   "quest.passenger": "PASSAGIER",
   "quest.delivery": "LIEFERUNG",
   "quest.diplomacy": "DIPLOMATIE",

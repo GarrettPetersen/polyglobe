@@ -3950,7 +3950,10 @@ function colonizationView(session, city, gameState, context) {
   const organizer = characterName(city.character);
   const back = atOrigin
     ? session.colonizationArrival
-      ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+      ? option(
+          quest.stage === COLONIZATION_STAGE_OUTBOUND ? "Continue" : "Not now",
+          { type: "node", nodeId: session.nextPortNodeId || "greeting" }
+        )
       : option("Back", { type: "node", nodeId: "root" })
     : atApproval
       ? option("Continue", { type: "node", nodeId: session.nextPortNodeId || "greeting" })

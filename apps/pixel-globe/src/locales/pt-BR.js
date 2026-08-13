@@ -265,6 +265,7 @@ export default {
   "quest.none": "NENHUMA MISSÃO EM ANDAMENTO",
   "quest.mainVoyage": "VIAGEM PRINCIPAL",
   "quest.familyDebtOutstanding": "{amount} PENDENTES EM {city}",
+  "quest.mainVoyageCompleted": "CONCLUÍDA. CONTINUE NAVEGANDO; APOSENTE-SE EM {city} QUANDO QUISER",
   "quest.passenger": "PASSAGEIRO",
   "quest.delivery": "ENTREGA",
   "quest.diplomacy": "DIPLOMACIA",

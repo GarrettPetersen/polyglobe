@@ -265,6 +265,7 @@ export default {
   "quest.none": "NO HAY MISIONES EN CURSO",
   "quest.mainVoyage": "VIAJE PRINCIPAL",
   "quest.familyDebtOutstanding": "{amount} PENDIENTES EN {city}",
+  "quest.mainVoyageCompleted": "COMPLETADO. SIGUE NAVEGANDO; RETÍRATE EN {city} CUANDO QUIERAS",
   "quest.passenger": "PASAJERO",
   "quest.delivery": "ENTREGA",
   "quest.diplomacy": "DIPLOMACIA",

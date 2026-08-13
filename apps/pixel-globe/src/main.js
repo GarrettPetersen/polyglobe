@@ -65,7 +65,10 @@ import {
   quadraticBezierTangent
 } from "./pixelBezier.js";
 import { projectedRiverEdgeDirection } from "./riverEdgeProjection.js";
-import { riverConnectorRasterKey } from "./riverConnectorRasterCache.js";
+import {
+  riverConnectorRasterKey,
+  riverConnectorWaterRasterCacheKey
+} from "./riverConnectorRasterCache.js";
 import { approximateOceanRumorTileId } from "./oceanRumorSearch.js";
 import {
   CREW_STATUS_ICON_HEIGHT,
@@ -893,9 +896,11 @@ import {
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
 import {
+  chooseNpcStuckDetourCandidate,
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement,
+  npcProgressWatchShouldDetour,
   npcVisualStateIdsWithoutStrategicState,
   rankNpcEscapeDirections,
   rankNpcObstacleAvoidanceDirections
@@ -1126,6 +1131,7 @@ import {
   clearKeyBinding,
   createDefaultKeyBindings,
   createHeldKeyActions,
+  isFullscreenToggleKey,
   isSteeringKeyAction,
   keyActionDefinition,
   keyActionForEvent,
@@ -1648,12 +1654,17 @@ import {
   markColonizationOrganizerApproached,
   relocateColonizationQuestOrigin
 } from "./colonizationQuest.js";
+import {
+  colonizationDefenseSpawnNeedsRepair,
+  colonizationDefenseSpawnTileIds
+} from "./colonizationDefenseSpawns.js";
 import { formatCompactNumber } from "./compactNumber.js";
 import { EARTH_RADIUS_KM } from "./worldDistance.js";
 import {
   formatWaypointLabel,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
+  waypointArrowOcclusionEdge,
   waypointPointOverlapsReservedRects
 } from "./waypointArrowUi.js";
 import {
@@ -1695,6 +1706,7 @@ import {
   isWhaleSwimmableOceanRow,
   isWaterSurfaceRow,
   terrainRowsFormFrozenWaterBoundary,
+  terrainConnectorDrawGroup,
   terrainRowsNeedLandmassChannel,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
@@ -2074,6 +2086,7 @@ const RIVER_MOUTH_RADIUS_PX = 7;
 const RIVER_MOUTH_FLARE_START = 0.18;
 const RIVER_JOIN_MIN_LENGTH_PX = 5;
 const RIVER_SPRITE_CACHE_LIMIT = 4096;
+const RIVER_CONNECTOR_WATER_RASTER_CACHE_LIMIT = 512;
 const LAND_ROAD_COLOR = "#d3a068";
 const LAND_ROAD_DARK_COLOR = "#8f563b";
 const LAND_ROAD_WIDTH_PX = 2;
@@ -2167,6 +2180,10 @@ const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 18, 36, 54];
+const NPC_VISUAL_STUCK_WATCH_SECONDS = 6;
+const NPC_VISUAL_STUCK_MIN_PROGRESS_PX = 6;
+const NPC_VISUAL_STUCK_MIN_DETOUR_PX = 6;
+const NPC_VISUAL_STUCK_MAX_DETOUR_PX = 36;
 const NPC_VISUAL_UPDATE_HZ = 24;
 const NPC_ROUTE_SNAPSHOT_BUCKET_COUNT = 6;
 const NPC_COMBAT_TARGETING_HZ = 6;
@@ -3245,6 +3262,7 @@ const shipTerrainRiverBankCache = new Map();
 const shipTerrainRiverBankLayerCache = new WeakMap();
 const riverTileLocalWaterPointCache = new Map();
 const riverConnectorSpriteCache = new Map();
+const riverConnectorWaterRasterCache = new Map();
 const riverSurfaceBatchKeyByLayer = new WeakMap();
 let nextRiverSurfaceBatchKey = 1;
 const wavingFactionFlagAtlasCache = new Map();
@@ -3563,6 +3581,11 @@ steamPlatformBridge?.onPauseRequested(handleSteamPlatformPauseRequest);
 
 window.addEventListener("keydown", (event) => {
   noteCurrentSessionActivity();
+  if (isFullscreenToggleKey(event)) {
+    event.preventDefault();
+    if (!event.repeat) void toggleFullscreenMode();
+    return;
+  }
   if (displayedCrashReport && ["Enter", " ", "c", "C"].includes(event.key)) {
     event.preventDefault();
     if (!event.repeat) void copyDisplayedCrashReport();
@@ -7616,6 +7639,14 @@ function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
   }
   const defeated = new Set(memory.defenseDefeatedShipIds || []);
   const shipIds = colonizationDefenseShipIds(memory);
+  const spawnTileIds = colonizationDefenseSpawnTileIds({
+    graph,
+    navigationMask: oceanReachableNavigationMask,
+    targetTileId: memory.targetTileId,
+    count: shipIds.length,
+    pixelsPerRadian: PIXELS_PER_RADIAN,
+    seed: spriteKeyHash(`${gameState.voyageSeed}|${quest.target.city}|colony-defense`)
+  });
   const added = [];
   for (const [index, shipId] of shipIds.entries()) {
     if (defeated.has(shipId)) continue;
@@ -7624,14 +7655,31 @@ function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
       if (existing.encounter?.kind !== "colonization-defense") {
         throw new Error(`Colony defense ship id is occupied by ordinary traffic: ${shipId}`);
       }
-      continue;
+      const routeVector = Array.isArray(existing.visualNavigation?.vector)
+        ? existing.visualNavigation.vector
+        : latLonToDirection(existing.currentPort?.lat, existing.currentPort?.lon);
+      if (!colonizationDefenseSpawnNeedsRepair({
+        graph,
+        directionIndex,
+        navigationMask: oceanReachableNavigationMask,
+        routeVector,
+        targetTileId: memory.targetTileId,
+        pixelsPerRadian: PIXELS_PER_RADIAN
+      })) continue;
+      sinkNpcShip(npcSeaRoutes, shipId, Math.floor(weatherClockMinutes));
+      npcVisualShips.delete(shipId);
+      clearCombatForShip(shipId);
+      shipCombatEntryCollisionGrace.delete(shipId);
+      npcCombatProjectiles = npcCombatProjectiles.filter(
+        (projectile) => projectile.ownerId !== shipId && projectile.targetId !== shipId
+      );
     }
-    const bearingDeg = (28 + index * 360 / shipIds.length) % 360;
-    const spawn = colonyDefenseSpawnPoint(
-      quest.target,
-      bearingDeg,
-      24 + index % 2 * 7
-    );
+    const spawnTileId = spawnTileIds[index];
+    const spawn = {
+      lat: graph.latDeg[spawnTileId],
+      lon: graph.lonDeg[spawnTileId]
+    };
+    const headingDeg = bearingDeg(spawn.lat, spawn.lon, quest.target.lat, quest.target.lon);
     added.push(configureNpcEncounter(npcSeaRoutes, {
       id: shipId,
       factionId: NEUTRAL_FACTION_ID,
@@ -7639,7 +7687,7 @@ function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
       shipSlug: "mesoamerican-dugout-canoe",
       lat: spawn.lat,
       lon: spawn.lon,
-      headingDeg: (bearingDeg + 180) % 360,
+      headingDeg,
       cultureType: "mesoamerican",
       routeRegion: "americas",
       profileId: "mesoamerican-coast",
@@ -7658,35 +7706,19 @@ function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
     }, weatherClockMinutes));
   }
   if (assignCaptains && added.length > 0) {
-    const assignments = assignNpcShipCaptains(
-      added,
-      characterPortraitManifest,
-      usedCharacterNames,
-      { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
-    );
-    if (!npcShipCaptains) npcShipCaptains = new Map();
-    for (const [shipId, captain] of assignments) npcShipCaptains.set(shipId, captain);
+    const unassigned = added.filter((npcShip) => !npcShipCaptains?.has(npcShip.id));
+    if (unassigned.length > 0) {
+      const assignments = assignNpcShipCaptains(
+        unassigned,
+        characterPortraitManifest,
+        usedCharacterNames,
+        { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+      );
+      if (!npcShipCaptains) npcShipCaptains = new Map();
+      for (const [shipId, captain] of assignments) npcShipCaptains.set(shipId, captain);
+    }
   }
   return added;
-}
-
-function colonyDefenseSpawnPoint(target, bearingDeg, distancePx) {
-  const angularDistance = distancePx / PIXELS_PER_RADIAN;
-  const bearing = bearingDeg * Math.PI / 180;
-  const lat1 = target.lat * Math.PI / 180;
-  const lon1 = target.lon * Math.PI / 180;
-  const lat2 = Math.asin(
-    Math.sin(lat1) * Math.cos(angularDistance) +
-    Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
-  );
-  const lon2 = lon1 + Math.atan2(
-    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
-    Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
-  );
-  return {
-    lat: lat2 * 180 / Math.PI,
-    lon: ((lon2 * 180 / Math.PI + 540) % 360) - 180
-  };
 }
 
 function campaignGoalContactCharacter() {
@@ -22912,6 +22944,7 @@ function reprojectNpcVisualPositions(states) {
     clearNpcEscapeManeuver(state, true);
     clearNpcTackManeuver(state);
     clearNpcRiverRail(state);
+    clearNpcStuckRecovery(state);
     setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   }
 }
@@ -28343,6 +28376,12 @@ function createNpcVisualState(snapshot, routePoint) {
     escapeDirection: null,
     escapeRemainingPx: 0,
     escapeSide: 0,
+    stuckWatchX: placement.x,
+    stuckWatchY: placement.y,
+    stuckWatchSeconds: 0,
+    stuckDetourVector: null,
+    stuckDetourTileId: null,
+    stuckDetourAttempts: 0,
     tackSide: 0,
     tackRemainingPx: 0,
     riverRailPathKey: null,
@@ -31126,19 +31165,45 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     clearNpcEscapeManeuver(state, true);
     clearNpcTackManeuver(state);
     clearNpcRiverRail(state);
+    clearNpcStuckRecovery(state, { clearDetour: true, resetAttempts: true });
   }
   const stormNavigation = npcStormNavigation(state);
-  if (state.fishingAction && !state.combatMode && !stormNavigation) return collisionChanged;
+  if (state.fishingAction && !state.combatMode && !stormNavigation) {
+    clearNpcStuckRecovery(state, { clearDetour: true });
+    return collisionChanged;
+  }
   if (state.fishingAction) state.fishingAction = null;
-  if (stormNavigation?.anchored) return collisionChanged;
+  if (stormNavigation?.anchored) {
+    clearNpcStuckRecovery(state, { clearDetour: true });
+    return collisionChanged;
+  }
   const portAvoidance = stormNavigation ? null : npcPirateMajorPortAvoidance(state);
   const combatNavigation = stormNavigation || portAvoidance ? null : npcCombatNavigation(state);
-  const navigationPoint = stormNavigation?.routePoint || portAvoidance?.routePoint || combatNavigation?.routePoint || routePoint;
+  const localNavigationActive = Boolean(stormNavigation || portAvoidance || combatNavigation);
+  if (localNavigationActive) {
+    clearNpcStuckRecovery(state, { clearDetour: true });
+  }
+  let activeDetourPoint = localNavigationActive ? null : npcStuckDetourPoint(state);
+  if (state.stuckDetourVector && !activeDetourPoint) {
+    clearNpcStuckRecovery(state, { clearDetour: true });
+  }
+  const detourDistance = activeDetourPoint
+    ? Math.hypot(activeDetourPoint.x - state.x, activeDetourPoint.y - state.y)
+    : 0;
+  if (activeDetourPoint && detourDistance <= NPC_VISUAL_TARGET_TOLERANCE_PX) {
+    clearNpcStuckRecovery(state, { clearDetour: true });
+    activeDetourPoint = null;
+  }
+  const navigationPoint = stormNavigation?.routePoint || portAvoidance?.routePoint ||
+    combatNavigation?.routePoint || activeDetourPoint || routePoint;
 
   const dx = navigationPoint.x - state.x;
   const dy = navigationPoint.y - state.y;
   const distance = Math.hypot(dx, dy);
-  if (distance <= NPC_VISUAL_TARGET_TOLERANCE_PX) return collisionChanged;
+  if (distance <= NPC_VISUAL_TARGET_TOLERANCE_PX) {
+    clearNpcStuckRecovery(state);
+    return collisionChanged;
+  }
 
   const catchupPx = Math.min(
     Math.max(0, distance - NPC_VISUAL_TARGET_TOLERANCE_PX),
@@ -31157,11 +31222,11 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
   const routeDirection = { x: dx / distance, y: dy / distance };
   const stats = state.stats;
   const strategicRiverDirection = startNav.ok && startNav.kind === "river" &&
-    !stormNavigation && !portAvoidance && !combatNavigation
+    !stormNavigation && !portAvoidance && !combatNavigation && !activeDetourPoint
     ? tangentToScreenDirection(snapshot.routeHeading)
     : null;
   const strategicOpenWaterDirection = startNav.ok && startNav.kind !== "river" &&
-    !stormNavigation && !portAvoidance && !combatNavigation
+    !stormNavigation && !portAvoidance && !combatNavigation && !activeDetourPoint
     ? tangentToScreenDirection(snapshot.routeHeading)
     : null;
   let direction = strategicRiverDirection || (
@@ -31218,7 +31283,6 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     state.vector,
     stats.turnRateRad * dt
   );
-  const localNavigationActive = Boolean(stormNavigation || portAvoidance || combatNavigation);
   const responseSpeedPx = combatNavigation || portAvoidance
     ? npcLocalCombatResponseSpeedPx(state, collisionHeading)
     : 0;
@@ -31236,7 +31300,10 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     riverRailPx: Math.max(riverRailDistance, riverEntrancePx),
     localNavigationActive
   });
-  if (stepDistance <= 1e-4) return collisionChanged;
+  if (stepDistance <= 1e-4) {
+    clearNpcStuckRecovery(state);
+    return collisionChanged;
+  }
   const movementDirection = localNavigationActive && startNav.kind !== "river"
     ? tangentToScreenDirection(collisionHeading) || direction
     : direction;
@@ -31244,7 +31311,10 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     "npcShips.visual.movement.advance.step",
     () => moveNpcVisualShip(state, movementDirection, stepDistance, collisionHeading, dt, startNav)
   );
-  if (!move) return collisionChanged;
+  if (!move) {
+    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav);
+    return collisionChanged;
+  }
 
   state.x = move.x;
   state.y = move.y;
@@ -31254,7 +31324,85 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
   if (tack?.tacking) {
     state.tackRemainingPx = Math.max(0, state.tackRemainingPx - stepDistance);
   }
+  updateNpcStuckRecovery(state, dt, direction, collisionHeading);
   return true;
+}
+
+function npcStuckDetourPoint(state) {
+  if (!state.stuckDetourVector || !Number.isInteger(state.stuckDetourTileId)) return null;
+  return localPointForKnownTileVector(state.stuckDetourVector, state.stuckDetourTileId);
+}
+
+function updateNpcStuckRecovery(state, dt, desiredDirection, heading, startNav = null) {
+  if (!Number.isFinite(dt) || dt <= 0) return;
+  state.stuckWatchSeconds += dt;
+  const displacementPx = Math.hypot(
+    state.x - state.stuckWatchX,
+    state.y - state.stuckWatchY
+  );
+  if (state.stuckWatchSeconds < NPC_VISUAL_STUCK_WATCH_SECONDS) return;
+  const shouldDetour = npcProgressWatchShouldDetour({
+    elapsedSeconds: state.stuckWatchSeconds,
+    displacementPx,
+    windowSeconds: NPC_VISUAL_STUCK_WATCH_SECONDS,
+    minimumProgressPx: NPC_VISUAL_STUCK_MIN_PROGRESS_PX
+  });
+  state.stuckWatchX = state.x;
+  state.stuckWatchY = state.y;
+  state.stuckWatchSeconds = 0;
+  if (!shouldDetour) {
+    if (!state.stuckDetourVector) state.stuckDetourAttempts = 0;
+    return;
+  }
+  startNpcStuckDetour(state, desiredDirection, heading, startNav);
+}
+
+function startNpcStuckDetour(state, desiredDirection, heading, startNav = null) {
+  const navigation = startNav ||
+    shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+  if (!navigation.ok) return false;
+  const candidates = rankNpcObstacleAvoidanceDirections({
+    desiredDirection,
+    currentDirection: tangentToScreenDirection(state.heading) || desiredDirection,
+    clearDistanceFor: (candidateDirection) => (
+      npcEscapeCandidateClearDistance(state, candidateDirection, heading, navigation)
+    ),
+    preferredSide: state.escapeSide
+  });
+  const candidate = chooseNpcStuckDetourCandidate({
+    identity: state.id,
+    attempt: state.stuckDetourAttempts,
+    candidates,
+    minimumClearDistancePx: NPC_VISUAL_STUCK_MIN_DETOUR_PX,
+    maximumDetourDistancePx: NPC_VISUAL_STUCK_MAX_DETOUR_PX
+  });
+  state.stuckDetourAttempts++;
+  if (!candidate) return false;
+  const trace = traceNpcVisualStep(
+    state,
+    candidate.direction,
+    candidate.distance,
+    heading,
+    navigation
+  );
+  if (!trace.placement || trace.clearDistance < NPC_VISUAL_STUCK_MIN_DETOUR_PX) return false;
+  state.stuckDetourVector = trace.placement.vector.slice();
+  state.stuckDetourTileId = trace.placement.tileId;
+  clearNpcEscapeManeuver(state, true);
+  clearNpcTackManeuver(state);
+  clearNpcRiverRail(state);
+  return true;
+}
+
+function clearNpcStuckRecovery(state, { clearDetour = false, resetAttempts = false } = {}) {
+  state.stuckWatchX = state.x;
+  state.stuckWatchY = state.y;
+  state.stuckWatchSeconds = 0;
+  if (clearDetour) {
+    state.stuckDetourVector = null;
+    state.stuckDetourTileId = null;
+  }
+  if (resetAttempts) state.stuckDetourAttempts = 0;
 }
 
 function npcLocalCombatResponseSpeedPx(state, heading) {
@@ -35122,25 +35270,40 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
   let landShearFillCalls;
   let driftSampleCalls;
   measurePerformanceBenchmarkStage("chart.sortAndFill", () => {
-    faceCalls.sort(compareTerrainConnectorDrawOrder);
-    riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
-    tileCalls.sort(compareTerrainDrawCalls);
-    oceanShearFillCalls = buildOpenOceanShearFillCalls({
-      faceCalls,
-      tileById,
-      isOpenOceanTile: (call) => call.row?.t === "water"
+    measurePerformanceBenchmarkStage("chart.sort.faceCalls", () => {
+      faceCalls.sort(compareTerrainConnectorDrawOrder);
     });
-    landShearFillCalls = buildLandShearFillCalls({
-      faceCalls,
-      tileById,
-      isLandTile: (call) => !isWaterSurfaceRow(call.row)
+    measurePerformanceBenchmarkStage("chart.sort.riverConnectorCalls", () => {
+      riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
     });
-    driftSampleCalls = selectRepresentativeChartDriftCalls(tileCalls, {
-      viewX: localLayout.viewX,
-      viewY: localLayout.viewY,
-      halfWidth: SCREEN_W / 2 + TILE_ART_HALF,
-      halfHeight: SCREEN_H / 2 + TILE_ART_HALF
+    measurePerformanceBenchmarkStage("chart.sort.tileCalls", () => {
+      tileCalls.sort(compareTerrainDrawCalls);
     });
+    oceanShearFillCalls = measurePerformanceBenchmarkStage(
+      "chart.fill.openOcean",
+      () => buildOpenOceanShearFillCalls({
+        faceCalls,
+        tileById,
+        isOpenOceanTile: (call) => call.row?.t === "water"
+      })
+    );
+    landShearFillCalls = measurePerformanceBenchmarkStage(
+      "chart.fill.land",
+      () => buildLandShearFillCalls({
+        faceCalls,
+        tileById,
+        isLandTile: (call) => !isWaterSurfaceRow(call.row)
+      })
+    );
+    driftSampleCalls = measurePerformanceBenchmarkStage(
+      "chart.driftSamples",
+      () => selectRepresentativeChartDriftCalls(tileCalls, {
+        viewX: localLayout.viewX,
+        viewY: localLayout.viewY,
+        halfWidth: SCREEN_W / 2 + TILE_ART_HALF,
+        halfHeight: SCREEN_H / 2 + TILE_ART_HALF
+      })
+    );
   });
   const waterIndex = measurePerformanceBenchmarkStage(
     "chart.waterIndex",
@@ -35359,78 +35522,86 @@ function buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, activeCh
   const riverPaths = new Map();
   const riverConnectorWaterPoints = new Map();
   const riverTileWaterPoints = new Map();
-  for (const [drawOrder, call] of tileCalls.entries()) {
-    addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
-      kind: "tile",
-      drawOrder,
-      call
-    });
-    addWakeWaterTileIndexCall(tileRows, call.drawSurfaceX, call.drawSurfaceY, call);
-  }
-
-  for (const call of faceCalls) {
-    if (!isLandmassChannelFace(call)) continue;
-    const geometry = terrainConnectorGeometry(call, activeChart);
-    if (!geometry) continue;
-    const raster = terrainConnectorAlphaRaster(call, geometry);
-    addWakeWaterIndexBox(buckets, {
-      minX: raster.x,
-      maxX: raster.x + raster.width - 1,
-      minY: raster.y,
-      maxY: raster.y + raster.height - 1
-    }, {
-      kind: "landmassChannel",
-      call,
-      waterTileId: landmassChannelWaterTileId(call, activeChart),
-      raster
-    });
-  }
-
-  for (const call of riverConnectorCalls) {
-    const geometry = riverConnectorGeometry(call, activeChart);
-    if (!geometry) {
-      // Elastic chart placement can temporarily collapse adjacent river endpoints
-      // onto the same pixel. There is then no visible span to index or render.
-      riverConnectorWaterPoints.set(riverConnectorRasterKey(call), new Int32Array());
-      continue;
+  measurePerformanceBenchmarkStage("chart.waterIndex.tiles", () => {
+    for (const [drawOrder, call] of tileCalls.entries()) {
+      addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
+        kind: "tile",
+        drawOrder,
+        call
+      });
+      addWakeWaterTileIndexCall(tileRows, call.drawSurfaceX, call.drawSurfaceY, call);
     }
-    const { path } = geometry;
-    const waterRaster = riverConnectorWaterRaster(call, geometry);
-    addWakeWaterIndexBox(buckets, {
-      minX: Math.min(path.x0, path.cx, path.x1, geometry.a.x, geometry.b.x) - WAKE_RIVER_RADIUS_PX,
-      maxX: Math.max(path.x0, path.cx, path.x1, geometry.a.x, geometry.b.x) + WAKE_RIVER_RADIUS_PX,
-      minY: Math.min(path.y0, path.cy, path.y1, geometry.a.y, geometry.b.y) - WAKE_RIVER_RADIUS_PX,
-      maxY: Math.max(path.y0, path.cy, path.y1, geometry.a.y, geometry.b.y) + WAKE_RIVER_RADIUS_PX
-    }, {
-      kind: "riverConnector",
-      call,
-      geometry,
-      path,
-      waterPixels: waterRaster.keys
-    });
-    riverConnectorWaterPoints.set(riverConnectorRasterKey(call), waterRaster.points);
-    riverPaths.set(`connector:${call.a}:${call.b}`, Object.freeze({
-      path,
-      pathOffsetX: 0,
-      pathOffsetY: 0,
-      tileId: call.a,
-      mouth: Boolean(call.aMouth || call.bMouth)
-    }));
-  }
-  for (const call of tileCalls) {
-    const mask = riverMasks?.[call.id] || 0;
-    if (mask === 0) continue;
-    const geometry = riverNavigationPathsForTile(call, activeChart, mask);
-    for (let pathIndex = 0; pathIndex < geometry.paths.length; pathIndex++) {
-      riverPaths.set(`tile:${call.id}:${pathIndex}`, Object.freeze({
-        path: geometry.paths[pathIndex],
-        pathOffsetX: geometry.pathOffsetX,
-        pathOffsetY: geometry.pathOffsetY,
-        tileId: call.id,
-        mouth: false
+  });
+
+  measurePerformanceBenchmarkStage("chart.waterIndex.landChannels", () => {
+    for (const call of faceCalls) {
+      if (!isLandmassChannelFace(call)) continue;
+      const geometry = terrainConnectorGeometry(call, activeChart);
+      if (!geometry) continue;
+      const raster = terrainConnectorAlphaRaster(call, geometry);
+      addWakeWaterIndexBox(buckets, {
+        minX: raster.x,
+        maxX: raster.x + raster.width - 1,
+        minY: raster.y,
+        maxY: raster.y + raster.height - 1
+      }, {
+        kind: "landmassChannel",
+        call,
+        waterTileId: landmassChannelWaterTileId(call, activeChart),
+        raster
+      });
+    }
+  });
+
+  measurePerformanceBenchmarkStage("chart.waterIndex.riverConnectors", () => {
+    for (const call of riverConnectorCalls) {
+      const geometry = riverConnectorGeometry(call, activeChart);
+      if (!geometry) {
+        // Elastic chart placement can temporarily collapse adjacent river endpoints
+        // onto the same pixel. There is then no visible span to index or render.
+        riverConnectorWaterPoints.set(riverConnectorRasterKey(call), new Int32Array());
+        continue;
+      }
+      const { path } = geometry;
+      const waterRaster = riverConnectorWaterRaster(call, geometry);
+      addWakeWaterIndexBox(buckets, {
+        minX: Math.min(path.x0, path.cx, path.x1, geometry.a.x, geometry.b.x) - WAKE_RIVER_RADIUS_PX,
+        maxX: Math.max(path.x0, path.cx, path.x1, geometry.a.x, geometry.b.x) + WAKE_RIVER_RADIUS_PX,
+        minY: Math.min(path.y0, path.cy, path.y1, geometry.a.y, geometry.b.y) - WAKE_RIVER_RADIUS_PX,
+        maxY: Math.max(path.y0, path.cy, path.y1, geometry.a.y, geometry.b.y) + WAKE_RIVER_RADIUS_PX
+      }, {
+        kind: "riverConnector",
+        call,
+        geometry,
+        path,
+        waterPixels: waterRaster.keys
+      });
+      riverConnectorWaterPoints.set(riverConnectorRasterKey(call), waterRaster.points);
+      riverPaths.set(`connector:${call.a}:${call.b}`, Object.freeze({
+        path,
+        pathOffsetX: 0,
+        pathOffsetY: 0,
+        tileId: call.a,
+        mouth: Boolean(call.aMouth || call.bMouth)
       }));
     }
-  }
+  });
+  measurePerformanceBenchmarkStage("chart.waterIndex.riverTiles", () => {
+    for (const call of tileCalls) {
+      const mask = riverMasks?.[call.id] || 0;
+      if (mask === 0) continue;
+      const geometry = riverNavigationPathsForTile(call, activeChart, mask);
+      for (let pathIndex = 0; pathIndex < geometry.paths.length; pathIndex++) {
+        riverPaths.set(`tile:${call.id}:${pathIndex}`, Object.freeze({
+          path: geometry.paths[pathIndex],
+          pathOffsetX: geometry.pathOffsetX,
+          pathOffsetY: geometry.pathOffsetY,
+          tileId: call.id,
+          mouth: false
+        }));
+      }
+    }
+  });
   return {
     buckets,
     candidateBuckets: new Map(),
@@ -35484,7 +35655,7 @@ function wakeWaterBucketKey(x, y) {
 
 function makeFaceCall(call) {
   const aOwnsFace = call.aSortY <= call.bSortY;
-  return {
+  const result = {
     ...call,
     ownerId: aOwnsFace ? call.a : call.b,
     ownerRow: aOwnsFace ? call.row : call.nrow,
@@ -35492,6 +35663,8 @@ function makeFaceCall(call) {
     otherLevel: aOwnsFace ? call.nlevel : call.level,
     sortY: Math.max(call.aSortY, call.bSortY)
   };
+  result.drawGroup = terrainConnectorDrawGroup(result);
+  return result;
 }
 
 function makeRiverConnectorCall(call) {
@@ -36292,7 +36465,11 @@ function questJournalEntries() {
     const navigation = campaignDestination
       ? campaignNavigationMenuEntry(campaignDestination)
       : null;
-    const familyDebtSummary = campaignGoal.type === CAMPAIGN_GOAL_FAMILY_DEBT
+    const completedSummary = campaignGoal.status === CAMPAIGN_GOAL_COMPLETE
+      ? uiText("quest.mainVoyageCompleted", { city: cityLabelText(campaignGoalHomeCity()) })
+      : null;
+    const familyDebtSummary = campaignGoal.status !== CAMPAIGN_GOAL_COMPLETE &&
+        campaignGoal.type === CAMPAIGN_GOAL_FAMILY_DEBT
       ? uiText("quest.familyDebtOutstanding", {
           amount: `${formatCompactNumber(Math.ceil(familyDebtPayoffProjection(
             campaignGoal,
@@ -36304,7 +36481,7 @@ function questJournalEntries() {
     entries.push({
       id: "campaign",
       title: `${uiText("quest.mainVoyage")} - ${presentation.label.toUpperCase()}`,
-      nextStep: familyDebtSummary || (navigation
+      nextStep: completedSummary || familyDebtSummary || (navigation
         ? uiText("quest.actionAt", {
             action: renderedUiText(navigation.reason),
             city: navigation.destinationName
@@ -36473,10 +36650,7 @@ function colonizationJournalEntry(quest) {
             city: quest.approval.city
           });
     } else {
-      nextStep = uiText("quest.actionAt", {
-        action: uiText("navigation.foundColony"),
-        city: quest.target.city
-      });
+      nextStep = uiText("quest.sailTo", { city: quest.target.city });
     }
   } else if (quest.stage === "awaiting-resupply") {
     nextStep = fetchQuestJournalStep({
@@ -43856,6 +44030,9 @@ function riverConnectorSpriteDrawCall(call, activeChart) {
 }
 
 function riverConnectorWaterRaster(call, geometry) {
+  const key = riverConnectorWaterRasterCacheKey(call, geometry);
+  const cached = riverConnectorWaterRasterCache.get(key);
+  if (cached) return cached;
   const points = collectUniqueRasterPoints((visit) => {
     visitRiverConnectorWaterPixels(call, geometry, visit);
   });
@@ -43863,7 +44040,12 @@ function riverConnectorWaterRaster(call, geometry) {
   for (let index = 0; index < points.length; index += 2) {
     keys.add(pixelMaskKey(points[index], points[index + 1]));
   }
-  return Object.freeze({ keys, points });
+  const raster = Object.freeze({ keys, points });
+  if (riverConnectorWaterRasterCache.size >= RIVER_CONNECTOR_WATER_RASTER_CACHE_LIMIT) {
+    riverConnectorWaterRasterCache.clear();
+  }
+  riverConnectorWaterRasterCache.set(key, raster);
+  return raster;
 }
 
 function collectUniqueRasterPoints(rasterize) {
@@ -48589,14 +48771,40 @@ function drawWorldTargetArrow({
       x: Math.round(localPoint.x + offset.x),
       y: Math.round(localPoint.y + offset.y + localYOffset)
     };
-    if (
-      pointWithinWaypointBounds(point, QUEST_ARROW_EDGE_MARGIN_PX, SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX) &&
-      !waypointPointOverlapsReservedRects(point, reservedRects, reservedClearance)
-    ) {
+    const pointIsOnScreen = pointWithinWaypointBounds(
+      point,
+      QUEST_ARROW_EDGE_MARGIN_PX,
+      SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX
+    );
+    if (pointIsOnScreen && !waypointPointOverlapsReservedRects(point, reservedRects, reservedClearance)) {
       const direction = { x: 0, y: 1 };
       const hitRect = drawQuestArrowGlyph(point, direction, nowMs, style);
       registerWaypointArrow({ id, label, targetVector, point, direction, hitRect });
       return;
+    }
+    if (pointIsOnScreen) {
+      const occlusion = waypointArrowOcclusionEdge({
+        origin: { x: SCREEN_W / 2, y: SCREEN_H / 2 },
+        target: point,
+        reservedRects,
+        clearance: reservedClearance
+      });
+      if (occlusion && pointWithinWaypointBounds(
+        occlusion.point,
+        QUEST_ARROW_EDGE_MARGIN_PX,
+        SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX
+      )) {
+        const hitRect = drawQuestArrowGlyph(occlusion.point, occlusion.direction, nowMs, style);
+        registerWaypointArrow({
+          id,
+          label,
+          targetVector,
+          point: occlusion.point,
+          direction: occlusion.direction,
+          hitRect
+        });
+        return;
+      }
     }
   }
   const tangent = normalizeOrNull(projectTangentVector(targetVector, ship.position));

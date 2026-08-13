@@ -112,6 +112,21 @@ test("family debt journal summaries localize the live amount and home port", () 
   }
 });
 
+test("completed main voyages direct every language toward eventual retirement", () => {
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    const summary = translate(id, "quest.mainVoyageCompleted", { city: "London" });
+    assert.match(summary, /London/);
+    assert.doesNotMatch(summary, /\{city\}/);
+    if (id !== LANGUAGE_ENGLISH) {
+      assert.notEqual(
+        summary,
+        translate(LANGUAGE_ENGLISH, "quest.mainVoyageCompleted", { city: "London" }),
+        `${id} retained the English completed-voyage summary`
+      );
+    }
+  }
+});
+
 test("the Great Barrier Reef discovery and patron exchange are localized everywhere", () => {
   const keys = [
     "discovery.greatBarrierReef.name",

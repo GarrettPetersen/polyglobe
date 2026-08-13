@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  chooseNpcStuckDetourCandidate,
   chooseNpcEscapeDirection,
   chooseNpcObstacleAvoidanceDirection,
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement,
+  npcProgressWatchShouldDetour,
   npcVisualStateIdsWithoutStrategicState,
   rankNpcEscapeDirections
 } from "./npcVisualNavigation.js";
@@ -128,6 +130,71 @@ test("NPC obstacle navigation can reverse out of an enclosed shoreline", () => {
 
   assert.ok(avoidance);
   assert.ok(avoidance.direction.x < -0.95);
+});
+
+test("NPC progress watchdog waits for sustained failure to move", () => {
+  assert.equal(npcProgressWatchShouldDetour({
+    elapsedSeconds: 5.9,
+    displacementPx: 0,
+    windowSeconds: 6,
+    minimumProgressPx: 3
+  }), false);
+  assert.equal(npcProgressWatchShouldDetour({
+    elapsedSeconds: 6,
+    displacementPx: 2.9,
+    windowSeconds: 6,
+    minimumProgressPx: 3
+  }), true);
+  assert.equal(npcProgressWatchShouldDetour({
+    elapsedSeconds: 6,
+    displacementPx: 3,
+    windowSeconds: 6,
+    minimumProgressPx: 3
+  }), false);
+});
+
+test("stuck NPC detours commit away from the failed direct route", () => {
+  const candidates = [
+    {
+      direction: { x: 1, y: 0.1 },
+      clearDistance: 54,
+      routeAlignment: 0.99,
+      side: 1
+    },
+    {
+      direction: { x: 0, y: 1 },
+      clearDistance: 36,
+      routeAlignment: 0,
+      side: 1
+    },
+    {
+      direction: { x: 0, y: -1 },
+      clearDistance: 24,
+      routeAlignment: 0,
+      side: -1
+    }
+  ];
+  const first = chooseNpcStuckDetourCandidate({
+    identity: "merchant-1",
+    attempt: 0,
+    candidates,
+    minimumClearDistancePx: 6,
+    maximumDetourDistancePx: 36
+  });
+  const second = chooseNpcStuckDetourCandidate({
+    identity: "merchant-1",
+    attempt: 1,
+    candidates,
+    minimumClearDistancePx: 6,
+    maximumDetourDistancePx: 36
+  });
+
+  assert.ok(first);
+  assert.ok(second);
+  assert.ok(first.routeAlignment <= 0.8);
+  assert.ok(second.routeAlignment <= 0.8);
+  assert.notDeepEqual(first.direction, second.direction);
+  assert.ok(first.distance <= 36);
 });
 
 test("NPC sailing uses a direct course outside the upwind no-go angle", () => {

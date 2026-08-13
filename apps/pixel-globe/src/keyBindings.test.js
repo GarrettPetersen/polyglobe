@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   KEY_ACTION,
   KEY_ACTION_DEFINITIONS,
+  KEY_BINDINGS_VERSION,
   KEY_BINDINGS_STORAGE_KEY,
   clearKeyBinding,
   createDefaultKeyBindings,
@@ -12,6 +13,7 @@ import {
   keyActionForEvent,
   keyBindingLabel,
   keyboardBindingToken,
+  isFullscreenToggleKey,
   loadKeyBindings,
   rebindKey,
   saveKeyBindings,
@@ -72,6 +74,23 @@ test("bindings serialize strictly and persist through Web Storage", () => {
   assert.deepEqual(deserializeKeyBindings(serializeKeyBindings(rebound)), rebound);
   assert.throws(() => deserializeKeyBindings("not-json"), /not valid JSON/);
   assert.throws(() => validateKeyBindings({ version: 999, actions: {} }), /Unsupported/);
+});
+
+test("F11 is reserved for fullscreen and removed from legacy custom bindings", () => {
+  assert.equal(isFullscreenToggleKey(event("F11")), true);
+  assert.equal(isFullscreenToggleKey({ key: "F11", code: "" }), true);
+  assert.equal(isFullscreenToggleKey(event("F10")), false);
+  assert.throws(
+    () => rebindKey(createDefaultKeyBindings(), KEY_ACTION.POLITICS, 0, "F11"),
+    /reserved for fullscreen/
+  );
+
+  const legacy = createDefaultKeyBindings();
+  const actions = Object.fromEntries(Object.entries(legacy.actions).map(([id, slots]) => [id, [...slots]]));
+  actions[KEY_ACTION.POLITICS][0] = "F11";
+  const migrated = deserializeKeyBindings(JSON.stringify({ version: 1, actions }));
+  assert.equal(migrated.version, KEY_BINDINGS_VERSION);
+  assert.deepEqual(migrated.actions[KEY_ACTION.POLITICS], [null, null]);
 });
 
 test("physical key chords and labels are canonical", () => {

@@ -54,10 +54,14 @@ export function terrainRowsFormFrozenWaterBoundary(rowA, rowB) {
 }
 
 export function compareTerrainConnectorDrawOrder(a, b) {
-  const waterConnectorOrder = Number(
-    terrainRowsNeedBeach(a.row, a.nrow) || terrainRowsNeedLandmassChannel(a.row, a.nrow)
-  ) - Number(
-    terrainRowsNeedBeach(b.row, b.nrow) || terrainRowsNeedLandmassChannel(b.row, b.nrow)
-  );
+  const waterConnectorOrder = terrainConnectorDrawGroup(a) - terrainConnectorDrawGroup(b);
   return waterConnectorOrder || a.sortY - b.sortY || a.a - b.a || a.b - b.b;
+}
+
+export function terrainConnectorDrawGroup(call) {
+  if (call?.drawGroup === 0 || call?.drawGroup === 1) return call.drawGroup;
+  return Number(
+    terrainRowsNeedBeach(call?.row, call?.nrow) ||
+    terrainRowsNeedLandmassChannel(call?.row, call?.nrow)
+  );
 }

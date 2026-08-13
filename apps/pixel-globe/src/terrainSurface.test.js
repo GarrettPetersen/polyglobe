@@ -9,6 +9,7 @@ import {
   isWhaleOpenSurfaceRow,
   isWhaleSwimmableOceanRow,
   isWaterSurfaceRow,
+  terrainConnectorDrawGroup,
   terrainRowsFormFrozenWaterBoundary,
   terrainRowsNeedLandmassChannel,
   terrainRowsNeedBeach
@@ -21,6 +22,12 @@ test("coastal connectors draw over other connector overlaps", () => {
     [coast, inland].sort(compareTerrainConnectorDrawOrder),
     [inland, coast]
   );
+});
+
+test("terrain connector draw groups can be cached on immutable calls", () => {
+  assert.equal(terrainConnectorDrawGroup({ row: { t: "land" }, nrow: { t: "forest" } }), 0);
+  assert.equal(terrainConnectorDrawGroup({ row: { t: "water" }, nrow: { t: "land" } }), 1);
+  assert.equal(terrainConnectorDrawGroup({ drawGroup: 1 }), 1);
 });
 
 test("shared coastal-water terrain remains navigable water", () => {

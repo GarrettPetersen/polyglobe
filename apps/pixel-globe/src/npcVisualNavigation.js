@@ -100,6 +100,76 @@ export function rankNpcObstacleAvoidanceDirections({
   });
 }
 
+export function npcProgressWatchShouldDetour({
+  elapsedSeconds,
+  displacementPx,
+  windowSeconds,
+  minimumProgressPx
+}) {
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+    throw new Error(`Invalid NPC progress-watch elapsed time: ${elapsedSeconds}`);
+  }
+  if (!Number.isFinite(displacementPx) || displacementPx < 0) {
+    throw new Error(`Invalid NPC progress-watch displacement: ${displacementPx}`);
+  }
+  if (!Number.isFinite(windowSeconds) || windowSeconds <= 0) {
+    throw new Error(`Invalid NPC progress-watch window: ${windowSeconds}`);
+  }
+  if (!Number.isFinite(minimumProgressPx) || minimumProgressPx < 0) {
+    throw new Error(`Invalid NPC progress-watch threshold: ${minimumProgressPx}`);
+  }
+  return elapsedSeconds >= windowSeconds && displacementPx < minimumProgressPx;
+}
+
+export function chooseNpcStuckDetourCandidate({
+  identity,
+  attempt,
+  candidates,
+  minimumClearDistancePx,
+  maximumDetourDistancePx,
+  maximumDirectAlignment = 0.8
+}) {
+  if (typeof identity !== "string" || identity.length === 0) {
+    throw new Error("NPC stuck detour requires a ship identity");
+  }
+  if (!Number.isInteger(attempt) || attempt < 0) {
+    throw new Error(`Invalid NPC stuck-detour attempt: ${attempt}`);
+  }
+  if (!Array.isArray(candidates)) {
+    throw new Error("NPC stuck detour requires candidate routes");
+  }
+  if (!Number.isFinite(minimumClearDistancePx) || minimumClearDistancePx <= 0) {
+    throw new Error(`Invalid NPC stuck-detour minimum distance: ${minimumClearDistancePx}`);
+  }
+  if (!Number.isFinite(maximumDetourDistancePx) ||
+      maximumDetourDistancePx < minimumClearDistancePx) {
+    throw new Error(`Invalid NPC stuck-detour maximum distance: ${maximumDetourDistancePx}`);
+  }
+  if (!Number.isFinite(maximumDirectAlignment) ||
+      maximumDirectAlignment < -1 || maximumDirectAlignment > 1) {
+    throw new Error(`Invalid NPC stuck-detour alignment limit: ${maximumDirectAlignment}`);
+  }
+
+  const reachable = candidates.filter((candidate) => (
+    normalize2(candidate?.direction) &&
+    Number.isFinite(candidate.clearDistance) &&
+    candidate.clearDistance >= minimumClearDistancePx &&
+    Number.isFinite(candidate.routeAlignment)
+  ));
+  if (reachable.length === 0) return null;
+  const committedDetours = reachable.filter((candidate) => (
+    candidate.routeAlignment <= maximumDirectAlignment
+  ));
+  const pool = committedDetours.length > 0 ? committedDetours : reachable;
+  const index = (hashString32(identity) + attempt) % pool.length;
+  const candidate = pool[index];
+  return {
+    ...candidate,
+    direction: normalize2(candidate.direction),
+    distance: Math.min(maximumDetourDistancePx, candidate.clearDistance)
+  };
+}
+
 export function chooseNpcSailingDirection({
   desiredDirection,
   windFlowDirection,
@@ -293,6 +363,15 @@ function turnSide(from, to) {
   const cross = from.x * to.y - from.y * to.x;
   if (Math.abs(cross) <= 1e-8) return 0;
   return Math.sign(cross);
+}
+
+function hashString32(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 function clamp(value, min, max) {

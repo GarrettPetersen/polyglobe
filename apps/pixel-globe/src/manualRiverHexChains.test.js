@@ -247,6 +247,29 @@ test("the Whanganui River opens into the Tasman Sea", async () => {
   assert.equal(reachable[mouthTileId], 1);
 });
 
+test("the James, Potomac, and Hudson have short independent Atlantic navigation", async () => {
+  const { earth, graph, masks, reachable } = await buildManualRiverFixture();
+  const rivers = [
+    { name: "James", head: 73682, mouth: 73670, edge: 0, water: 4642 },
+    { name: "Potomac", head: 18467, mouth: 73669, edge: 5, water: 4642 },
+    { name: "Hudson", head: 74307, mouth: 74845, edge: 5, water: 4716 }
+  ];
+
+  for (const river of rivers) {
+    assert.equal(riverTilesConnected(graph, masks, river.head, river.mouth), true, `${river.name} chain`);
+    assert.equal(graph.edgeNeighbors[river.mouth][river.edge], river.water, `${river.name} mouth`);
+    assert.equal(earth.tiles[river.water].t, "water", `${river.name} must open to ocean water`);
+    assert.equal(riverEdgeSet(masks, river.mouth, river.edge), true, `${river.name} mouth edge`);
+    assert.equal(reachable[river.head], 1, `${river.name} head must be ocean reachable`);
+  }
+
+  assert.equal(
+    riverTilesConnected(graph, masks, 73682, 19555),
+    false,
+    "the Chesapeake rivers must not join the Mississippi basin"
+  );
+});
+
 test("all of Lake Malawi reaches the Indian Ocean through the Shire River", async () => {
   const { earth, graph, reachable } = await buildManualRiverFixture();
   const lakeCenterline = [

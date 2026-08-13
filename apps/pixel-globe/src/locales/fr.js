@@ -265,6 +265,7 @@ export default {
   "quest.none": "AUCUNE QUÊTE EN COURS",
   "quest.mainVoyage": "VOYAGE PRINCIPAL",
   "quest.familyDebtOutstanding": "{amount} RESTANT À {city}",
+  "quest.mainVoyageCompleted": "ACCOMPLI. CONTINUEZ À NAVIGUER; PRENEZ VOTRE RETRAITE À {city} QUAND VOUS VOUDREZ",
   "quest.passenger": "PASSAGER",
   "quest.delivery": "LIVRAISON",
   "quest.diplomacy": "DIPLOMATIE",

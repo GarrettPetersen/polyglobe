@@ -82,6 +82,46 @@ export function waypointPointOverlapsReservedRects(point, reservedRects, clearan
   );
 }
 
+export function waypointArrowOcclusionEdge({
+  origin,
+  target,
+  reservedRects,
+  clearance = 0
+}) {
+  assertPoint(origin, "occlusion origin");
+  assertPoint(target, "occlusion target");
+  assertNonNegative(clearance, "reserved clearance");
+  if (!Array.isArray(reservedRects)) throw new Error("Waypoint reserved rectangles must be an array");
+  const direction = normalizeDirection({ x: target.x - origin.x, y: target.y - origin.y });
+  const inflatedRects = reservedRects.map((rect, index) => inflateReservedRect(rect, clearance, index));
+  let nearest = null;
+  for (const [rectIndex, rect] of inflatedRects.entries()) {
+    const t = segmentRectangleEntry(origin, target, rect);
+    if (t === null || t <= 0 || t > 1) continue;
+    if (!nearest || t < nearest.t) nearest = { t, rectIndex };
+  }
+  if (!nearest) return null;
+
+  const edge = {
+    x: origin.x + (target.x - origin.x) * nearest.t,
+    y: origin.y + (target.y - origin.y) * nearest.t
+  };
+  let point = {
+    x: Math.round(edge.x - direction.x),
+    y: Math.round(edge.y - direction.y)
+  };
+  for (let step = 1; step <= 4 && pointOverlapsRects(point, inflatedRects); step += 1) {
+    point = {
+      x: Math.round(edge.x - direction.x * (step + 1)),
+      y: Math.round(edge.y - direction.y * (step + 1))
+    };
+  }
+  if (pointOverlapsRects(point, inflatedRects)) {
+    throw new Error(`Waypoint cannot clear reserved rectangle ${nearest.rectIndex}`);
+  }
+  return { point, direction };
+}
+
 export function waypointArrowGeometry({
   point,
   direction,
@@ -201,6 +241,27 @@ function pointOverlapsRects(point, rects) {
 
 function pointDistanceSquared(a, b) {
   return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+}
+
+function segmentRectangleEntry(origin, target, rect) {
+  const delta = { x: target.x - origin.x, y: target.y - origin.y };
+  let minimum = 0;
+  let maximum = 1;
+  for (const [start, change, low, high] of [
+    [origin.x, delta.x, rect.x, rect.x + rect.w],
+    [origin.y, delta.y, rect.y, rect.y + rect.h]
+  ]) {
+    if (Math.abs(change) <= 1e-9) {
+      if (start < low || start > high) return null;
+      continue;
+    }
+    const first = (low - start) / change;
+    const second = (high - start) / change;
+    minimum = Math.max(minimum, Math.min(first, second));
+    maximum = Math.min(maximum, Math.max(first, second));
+    if (minimum > maximum) return null;
+  }
+  return minimum;
 }
 
 function assertPoint(point, label) {

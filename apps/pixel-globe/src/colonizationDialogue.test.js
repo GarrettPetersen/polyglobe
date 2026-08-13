@@ -122,6 +122,25 @@ test("the colonial organizer approaches before first-port business", () => {
   assert.equal(colonizationOrganizerShouldApproach(gameState, BORDEAUX), true);
 });
 
+test("a colony departure confirmation does not say not now after embarkation", () => {
+  const shipStats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
+  assignColonizationQuest(gameState.memory.colonization, { target: PORT_ROYAL, origin: BORDEAUX });
+  for (const stage of COLONIZATION_FETCH_STAGES) {
+    completeColonizationFetchStage(gameState.memory.colonization, stage.id);
+  }
+  const economy = createWorldEconomy({ ports: [BORDEAUX], startMinute: 0 });
+  const session = createPortArrivalDialogueSession(BORDEAUX, {
+    colonizationApproach: true,
+    needsLoadout: true
+  });
+  const context = { simMinute: 1000, shipStats };
+
+  chooseAction(session, BORDEAUX, gameState, economy, [BORDEAUX], context, "embark-colonists");
+  const underway = portDialogueView(session, BORDEAUX, gameState, economy, [BORDEAUX], context);
+  assert.deepEqual(underway.options.map((option) => option.label), ["Continue"]);
+});
+
 test("the colonial organizer accepts carried resupply during the founding visit", () => {
   const shipStats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
