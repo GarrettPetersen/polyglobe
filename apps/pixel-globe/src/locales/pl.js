@@ -279,7 +279,6 @@ export default {
   "quest.acquireFor": "{city}: ZDOBĄDŹ {held}/{quantity} {good}",
   "quest.bringTo": "{city}: DOSTARCZ {quantity} {good}",
   "quest.returnToEmbark": "WRÓĆ DO {city}, BY ZAOKRĘTOWAĆ WYPRAWĘ",
-  "quest.leaveAndReturn": "OPUŚĆ {city}; WRÓĆ Z {quantity} {good}",
   "quest.defeatAt": "POKONAJ {count} {enemy} POD {city}",
   "quest.claimAt": "ODBIERZ DRAKKAR W {city}",
   "quest.buyAt": "KUP DRAKKAR W {city}",

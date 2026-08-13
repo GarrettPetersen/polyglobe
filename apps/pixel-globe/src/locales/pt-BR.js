@@ -279,7 +279,6 @@ export default {
   "quest.acquireFor": "{city}: OBTER {held}/{quantity} {good}",
   "quest.bringTo": "{city}: LEVAR {quantity} {good}",
   "quest.returnToEmbark": "VOLTAR A {city} PARA EMBARCAR",
-  "quest.leaveAndReturn": "DEIXAR {city}; VOLTAR COM {quantity} {good}",
   "quest.defeatAt": "DERROTAR {count} {enemy} EM {city}",
   "quest.claimAt": "RECEBER O DRACAR EM {city}",
   "quest.buyAt": "COMPRAR O DRACAR EM {city}",

@@ -37,7 +37,7 @@ export function fetchQuestRequirements({
           routeReady: colonization.approvalCargoReady
         }));
       }
-    } else if (colonization.stage === "awaiting-resupply" && colonization.leftSinceFounding) {
+    } else if (colonization.stage === "awaiting-resupply") {
       requirements.push(requirement({
         id: `colonization:resupply:${colonization.resupply.goodId}`,
         questId: "colonization",

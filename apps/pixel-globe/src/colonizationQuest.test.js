@@ -5,7 +5,6 @@ import { COLONIZATION_TARGETS, colonizationTargetForCity } from "./colonialCitie
 import {
   COLONIZATION_EXPEDITION_CARGO_UNITS,
   COLONIZATION_FETCH_STAGES,
-  COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID,
   COLONIZATION_RESUPPLY,
   COLONIZATION_RESUPPLY_DAYS,
   COLONIZATION_STAGE_AWAITING_RESUPPLY,
@@ -24,9 +23,6 @@ import {
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationNavigationObjective,
-  colonizationOutboundJourneyDialogue,
-  colonizationOutboundJourneyDialogueSeen,
-  colonizationJourneyDialogueDecisionPrefix,
   colonizationQuestView,
   colonizationShipEligibility,
   colonizationWorldRecord,
@@ -84,21 +80,6 @@ test("a colonization expedition requires three ordered paid material stages", ()
   assert.equal(memory.stage, COLONIZATION_STAGE_READY);
   assert.equal(memory.fetchStageIndex, COLONIZATION_FETCH_STAGES.length);
   assert.equal(validateColonizationQuestMemory(memory), memory);
-});
-
-test("the first resupply warning can move from landing into the outbound voyage", () => {
-  const memory = readyMemory();
-  beginColonizationExpedition(memory);
-  const quest = colonizationQuestView(questViewState(memory));
-  const event = colonizationOutboundJourneyDialogue(quest);
-  const decisions = {};
-
-  assert.equal(event.id, COLONIZATION_OUTBOUND_JOURNEY_EVENT_ID);
-  assert.equal(event.trigger, "destination-closer");
-  assert.match(event.text, /return within one year/i);
-  assert.equal(colonizationOutboundJourneyDialogueSeen(memory, decisions), false);
-  decisions[`${colonizationJourneyDialogueDecisionPrefix(memory)}.${event.id}`] = true;
-  assert.equal(colonizationOutboundJourneyDialogueSeen(memory, decisions), true);
 });
 
 test("a spawned organizer approaches once before waiting in the port menu", () => {
@@ -342,7 +323,7 @@ test("only capacious ocean-going ships can carry the colonists", () => {
   );
 });
 
-test("landing creates a village and a one-year resupply objective after departure", () => {
+test("landing creates a village and an immediate one-year resupply objective", () => {
   const memory = readyMemory();
   beginColonizationExpedition(memory);
   assert.equal(memory.stage, COLONIZATION_STAGE_OUTBOUND);
@@ -353,8 +334,8 @@ test("landing creates a village and a one-year resupply objective after departur
   assert.equal(memory.stage, COLONIZATION_STAGE_AWAITING_RESUPPLY);
   assert.equal(memory.resupplyDeadlineMinute, 1000 + COLONIZATION_RESUPPLY_DAYS * DAY);
   assert.equal(colonizationWorldRecord(memory).settlementType, "village");
-  assert.equal(colonizationObjective(memory), null);
-  assert.throws(() => assertColonizationResupplyDelivery(memory, 1001), /must leave/);
+  assert.equal(colonizationObjective(memory).kind, "resupply-colony");
+  assert.equal(assertColonizationResupplyDelivery(memory, 1001), COLONIZATION_RESUPPLY);
 
   assert.equal(advanceColonizationQuest(memory, 1001, { awayFromColony: true }), true);
   assert.equal(colonizationObjective(memory).kind, "resupply-colony");

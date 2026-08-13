@@ -122,7 +122,7 @@ test("the colonial organizer approaches before first-port business", () => {
   assert.equal(colonizationOrganizerShouldApproach(gameState, BORDEAUX), true);
 });
 
-test("the colonial organizer runs the paid expedition through a permanent founded port", () => {
+test("the colonial organizer accepts carried resupply during the founding visit", () => {
   const shipStats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
   assignColonizationQuest(gameState.memory.colonization, { target: PORT_ROYAL, origin: BORDEAUX });
@@ -160,15 +160,27 @@ test("the colonial organizer runs the paid expedition through a permanent founde
   chooseAction(originSession, BORDEAUX, gameState, economy, ports, context, "embark-colonists");
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 24);
 
+  gameState.cargo[COLONIZATION_RESUPPLY.goodId] = 11.5;
+  gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 0;
   const site = { ...colonizationWorldRecord(gameState.memory.colonization), character: CHARACTER };
   const siteSession = createPortDialogueSession(site, { initialNodeId: "colonization" });
   chooseAction(siteSession, site, gameState, economy, ports, context, "land-colonists");
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 0);
 
-  advanceColonizationQuest(gameState.memory.colonization, 1001, { awayFromColony: true });
   const originalDeadline = gameState.memory.colonization.resupplyDeadlineMinute;
-  gameState.cargo[COLONIZATION_RESUPPLY.goodId] = 11.5;
-  gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 0;
+  const foundingVisit = portDialogueView(
+    siteSession,
+    site,
+    gameState,
+    economy,
+    ports,
+    context
+  );
+  const foundingDeliveryOption = foundingVisit.options.find(
+    (entry) => entry.action.type === "deliver-colony-resupply"
+  );
+  assert.ok(foundingDeliveryOption);
+  assert.equal(foundingDeliveryOption.disabled, false);
   const partialResupply = chooseAction(
     siteSession,
     site,

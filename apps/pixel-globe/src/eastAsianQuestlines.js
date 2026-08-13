@@ -282,7 +282,7 @@ export function eastAsianMissionDialogue(plan) {
           id: PORTUGUESE_GUNS_JOURNEY_EVENT_ID,
           trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
           expressionId: "attentive",
-          text: "The Portuguese gun is no magic. Its advantage is a pattern that can be copied and drilled. Once Nanjing measures these pieces, we must carry the plans to Guangzhou, Ningbo, and Fuzhou."
+          text: "The Portuguese gun is not magic. Nanjing's founders can copy the pattern, then teach the battery crews to serve it. Afterward, we must carry the plans to Guangzhou, Ningbo, and Fuzhou."
         })
       ])
     });

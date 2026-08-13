@@ -279,7 +279,6 @@ export default {
   "quest.acquireFor": "{city} : OBTENIR {held}/{quantity} {good}",
   "quest.bringTo": "{city} : APPORTER {quantity} {good}",
   "quest.returnToEmbark": "RETOURNER À {city} POUR EMBARQUER",
-  "quest.leaveAndReturn": "QUITTER {city}, REVENIR AVEC {quantity} {good}",
   "quest.defeatAt": "VAINCRE {count} {enemy} À {city}",
   "quest.claimAt": "RÉCUPÉRER LE DRAKKAR À {city}",
   "quest.buyAt": "ACHETER LE DRAKKAR À {city}",

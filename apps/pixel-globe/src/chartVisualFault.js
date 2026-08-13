@@ -29,6 +29,7 @@ export function measureVisibleTerrainTear({
   }
 
   let worst = null;
+  let worstNonWater = null;
   for (const face of faceCalls) {
     const a = tileById.get(face.a);
     const b = tileById.get(face.b);
@@ -56,23 +57,33 @@ export function measureVisibleTerrainTear({
     }
     const signedExtraPx = actualDistance - projectedDistance;
     const extraPx = Math.abs(signedExtraPx);
-    if (worst !== null && extraPx <= worst.extraPx) continue;
-    worst = Object.freeze({
+    const candidate = {
       extraPx,
       signedExtraPx,
       tileIds: Object.freeze([a.id, b.id]),
       surface: aSurface === bSurface ? aSurface : "coast",
       screenX: (ax + bx) / 2,
       screenY: (ay + by) / 2
-    });
+    };
+    if (worst === null || extraPx > worst.extraPx) worst = candidate;
+    if (
+      candidate.surface !== "water" &&
+      (worstNonWater === null || extraPx > worstNonWater.extraPx)
+    ) {
+      worstNonWater = candidate;
+    }
   }
-  return worst ?? Object.freeze({
+  const empty = {
     extraPx: 0,
     signedExtraPx: 0,
     tileIds: Object.freeze([]),
     surface: null,
     screenX: viewportWidth / 2,
     screenY: viewportHeight / 2
+  };
+  return Object.freeze({
+    ...(worst ?? empty),
+    nonWater: Object.freeze(worstNonWater ?? empty)
   });
 }
 

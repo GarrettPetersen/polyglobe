@@ -30,6 +30,8 @@ test("visible adjacent terrain reports excess spacing but ignores offscreen faul
   assert.equal(result.extraPx, 12);
   assert.deepEqual(result.tileIds, [0, 1]);
   assert.equal(result.surface, "water");
+  assert.equal(result.nonWater.extraPx, 0);
+  assert.equal(result.nonWater.surface, null);
 });
 
 test("coastal gaps participate in tear detection", () => {
@@ -65,6 +67,28 @@ test("compressed navigable spacing participates in tear detection", () => {
   assert.equal(result.extraPx, 12);
   assert.equal(result.signedExtraPx, -12);
   assert.equal(result.surface, "water");
+});
+
+test("open-ocean elasticity does not hide or impersonate a structural tear", () => {
+  const result = measureVisibleTerrainTear({
+    faceCalls: [{ a: 0, b: 1 }, { a: 2, b: 3 }],
+    tileById: new Map([
+      [0, tile(0, 10, 10, 10, 10, "water")],
+      [1, tile(1, 70, 10, 30, 10, "water")],
+      [2, tile(2, 10, 40, 10, 40, "land")],
+      [3, tile(3, 42, 40, 30, 40, "water")]
+    ]),
+    offset: { x: 0, y: 0 },
+    viewportWidth: 100,
+    viewportHeight: 60,
+    surfaceForTile: (entry) => entry.surface
+  });
+
+  assert.equal(result.extraPx, 40);
+  assert.equal(result.surface, "water");
+  assert.equal(result.nonWater.extraPx, 12);
+  assert.equal(result.nonWater.surface, "coast");
+  assert.deepEqual(result.nonWater.tileIds, [2, 3]);
 });
 
 test("large tilt, distortion, or visible tear requests cloud repair", () => {

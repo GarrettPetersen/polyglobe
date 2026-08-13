@@ -185,7 +185,6 @@ export function questCargoDeliveryPromptsAtPort(state, city, { currentMinute = 0
       colonization.approvalCargoDeliverable) ||
     (colonization.stage === COLONIZATION_STAGE_AWAITING_RESUPPLY &&
       isColonizationQuestTarget(state.memory.colonization, city) &&
-      colonization.leftSinceFounding &&
       !colonization.deadlineExpired &&
       colonization.resupply.deliverable > 0);
   add(QUEST_CARGO_PROMPT_COLONIZATION, colonizationDelivery);

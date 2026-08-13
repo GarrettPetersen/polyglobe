@@ -1627,10 +1627,8 @@ import {
   assignColonizationQuest,
   beginColonizationExpedition,
   colonizationDefenseShipIds,
-  colonizationJourneyDialogueDecisionPrefix,
   colonizationNavigationObjective,
   colonizationOfferForCity,
-  colonizationOutboundJourneyDialogue,
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
@@ -6912,7 +6910,7 @@ function resolvePirateCaptiveEscapeAtSea(quest, { mode, onComplete = null }) {
     : mode === "unarmed-confrontation" ? [
         {
           character: quest.character,
-          message: renderedUiText("Aye, pirate. And quicker to the rowboat than you are to the truth."),
+          message: renderedUiText("Aye, I am. And I am quicker to the rowboat than you are to the truth."),
           expressionId: "smug",
           leftCharacter: gameState.playerCharacter,
           rightCharacter: quest.character
@@ -7048,8 +7046,7 @@ function activeQuestJourneyDialogueSubjects() {
   return [
     questMemory?.passengerActive,
     questMemory?.active,
-    papalCommissionJourneyDialogueSubject(),
-    colonizationJourneyDialogueSubject()
+    papalCommissionJourneyDialogueSubject()
   ].filter(Boolean);
 }
 
@@ -7072,26 +7069,6 @@ function papalCommissionJourneyDialogueSubject() {
     journeyEvents: [event],
     decisions: gameState.memory.decisions,
     decisionKeyPrefix: `quest-journey.papal.${matter.id}`
-  });
-}
-
-function colonizationJourneyDialogueSubject() {
-  const memory = gameState?.memory?.colonization;
-  if (!memory || memory.stage !== COLONIZATION_STAGE_OUTBOUND ||
-      (Number.isInteger(memory.approvalTileId) && memory.approvalGranted !== true)) return null;
-  const quest = colonizationQuestView(gameState, {
-    currentMinute: Math.max(0, weatherClockMinutes)
-  });
-  const event = colonizationOutboundJourneyDialogue(quest);
-  if (!event) return null;
-  return createDecisionBackedQuestJourneyDialogueSubject({
-    id: `colonization-${quest.target.tileId}`,
-    originTileId: quest.origin.tileId,
-    destinationTileId: quest.target.tileId,
-    character: ensureColonizationOrganizer(gameState),
-    journeyEvents: [event],
-    decisions: gameState.memory.decisions,
-    decisionKeyPrefix: colonizationJourneyDialogueDecisionPrefix(gameState.memory.colonization)
   });
 }
 
@@ -21694,7 +21671,7 @@ function maybeOpenChartReframeDialogue(nowMs) {
 
   const advanced = advanceChartReframeDialogueTrigger(chartReframeDialogueTrigger, {
     drift: chartVisibleNorthUpDrift,
-    terrainTear: chartDiagnosticTerrainTear,
+    terrainTear: chartDiagnosticTerrainTear.nonWater ?? chartDiagnosticTerrainTear,
     nowMs
   });
   chartReframeDialogueTrigger = advanced.trigger;
@@ -36441,18 +36418,12 @@ function colonizationJournalEntry(quest) {
       });
     }
   } else if (quest.stage === "awaiting-resupply") {
-    nextStep = quest.leftSinceFounding
-      ? fetchQuestJournalStep({
-          held: quest.resupplyHeld,
-          quantity: quest.resupply.remaining,
-          goodLabel: quest.resupply.goodLabel,
-          destination: quest.target
-        })
-      : uiText("quest.leaveAndReturn", {
-          city: quest.target.city,
-          quantity: quest.resupply.quantity,
-          good: renderedUiText(quest.resupply.goodLabel)
-        });
+    nextStep = fetchQuestJournalStep({
+      held: quest.resupplyHeld,
+      quantity: quest.resupply.remaining,
+      goodLabel: quest.resupply.goodLabel,
+      destination: quest.target
+    });
   } else if (quest.stage === COLONIZATION_STAGE_DEFEND) {
     nextStep = uiText("quest.defeatAt", {
       count: quest.defenseRemaining,

@@ -279,7 +279,6 @@ export default {
   "quest.acquireFor": "為{city}取得{good} {held}/{quantity}",
   "quest.bringTo": "把{quantity}份{good}帶到{city}",
   "quest.returnToEmbark": "返回{city}讓遠征隊登船",
-  "quest.leaveAndReturn": "離開{city}；帶{quantity}份{good}返回",
   "quest.defeatAt": "在{city}擊敗{count}艘{enemy}船",
   "quest.claimAt": "在{city}領取長船",
   "quest.buyAt": "在{city}購買長船",

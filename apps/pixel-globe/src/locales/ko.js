@@ -279,7 +279,6 @@ export default {
   "quest.acquireFor": "{city}용 {good} {held}/{quantity} 확보",
   "quest.bringTo": "{good} {quantity}개를 {city}에 전달",
   "quest.returnToEmbark": "원정대 승선을 위해 {city}로 귀환",
-  "quest.leaveAndReturn": "{city}를 떠난 뒤 {good} {quantity}개와 귀환",
   "quest.defeatAt": "{city}에서 {enemy} {count}척 격파",
   "quest.claimAt": "{city}에서 롱십 수령",
   "quest.buyAt": "{city}에서 롱십 구매",

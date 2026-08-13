@@ -217,7 +217,6 @@ import {
   assertColonizationFetchDelivery,
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
-  colonizationOutboundJourneyDialogueSeen,
   colonizationQuestView,
   colonizationFetchRequirementId,
   completeColonizationDefense,
@@ -4097,17 +4096,10 @@ function colonizationView(session, city, gameState, context) {
         options: [back]
       };
     }
-    const journeyBriefingSeen = colonizationOutboundJourneyDialogueSeen(
-      gameState.memory.colonization,
-      gameState.memory.decisions
-    );
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: "happy",
-      text: journeyBriefingSeen
-        ? history.landing
-        : `${history.landing} Return within one year with ${quest.resupply.quantity} ` +
-          `${quest.resupply.goodLabel.toLowerCase()} for ${quest.resupply.purpose}, or the venture may still fail.`,
+      text: history.landing,
       feedback: session.feedback,
       options: [
         option(history.landingAction, { type: "land-colonists" }),
@@ -4126,12 +4118,11 @@ function colonizationView(session, city, gameState, context) {
         options: [back]
       };
     }
-    const canDeliver = quest.leftSinceFounding &&
-      quest.resupply.deliverable > 0 &&
+    const canDeliver = quest.resupply.deliverable > 0 &&
       !quest.deadlineExpired;
     const deadlineText = quest.leftSinceFounding
       ? history.resupply.returned
-      : `${history.resupply.waiting} Sail away, find ${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()}, and return before one year has passed.`;
+      : `${history.resupply.waiting} The colony needs ${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()} before one year has passed.`;
     return {
       speaker: `${organizer}, ${history.settlementLeaderRole}`,
       expressionId: canDeliver ? "happy" : "concerned",
@@ -4147,10 +4138,8 @@ function colonizationView(session, city, gameState, context) {
           type: "deliver-colony-resupply"
         }, {
           disabled: !canDeliver,
-          disabledReason: !quest.leftSinceFounding
-            ? "You must first leave the colony and return."
-            : `Still need ${quest.resupply.remaining} ` +
-              `${quest.resupply.goodLabel.toLowerCase()}; hold has ${quest.resupplyHeld}.`
+          disabledReason: `Still need ${quest.resupply.remaining} ` +
+            `${quest.resupply.goodLabel.toLowerCase()}; hold has ${quest.resupplyHeld}.`
         }),
         back
       ]

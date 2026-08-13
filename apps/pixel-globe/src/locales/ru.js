@@ -279,7 +279,6 @@ export default {
   "quest.acquireFor": "{city}: ДОБЫТЬ {held}/{quantity} {good}",
   "quest.bringTo": "{city}: ДОСТАВИТЬ {quantity} {good}",
   "quest.returnToEmbark": "ВЕРНУТЬСЯ В {city} ЗА ЭКСПЕДИЦИЕЙ",
-  "quest.leaveAndReturn": "ПОКИНУТЬ {city}; ВЕРНУТЬСЯ С {quantity} {good}",
   "quest.defeatAt": "ПОБЕДИТЬ {count} {enemy} У {city}",
   "quest.claimAt": "ЗАБРАТЬ ДРАККАР В {city}",
   "quest.buyAt": "КУПИТЬ ДРАККАР В {city}",

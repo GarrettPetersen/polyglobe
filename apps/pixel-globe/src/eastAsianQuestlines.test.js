@@ -394,7 +394,7 @@ test("the remaining commissions appear at their historical courts", () => {
 
 test("the strongest East Asian commissions move their political context into the voyage", () => {
   const cases = [
-    [EAST_ASIAN_MISSION_PORTUGUESE_GUNS, PORTUGUESE_GUNS_JOURNEY_EVENT_ID, /copied and drilled/i],
+    [EAST_ASIAN_MISSION_PORTUGUESE_GUNS, PORTUGUESE_GUNS_JOURNEY_EVENT_ID, /copy the pattern.*battery crews/i],
     [EAST_ASIAN_MISSION_GREAT_RITES, GREAT_RITES_JOURNEY_EVENT_ID, /dead father/i],
     [EAST_ASIAN_MISSION_YOSHIHARU, YOSHIHARU_JOURNEY_EVENT_ID, /authority remains/i]
   ];

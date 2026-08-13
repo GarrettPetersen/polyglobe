@@ -14,7 +14,6 @@ import { colonizationTargetForCity } from "./colonialCities.js";
 import {
   COLONIZATION_FETCH_STAGES,
   COLONIZATION_RESUPPLY,
-  advanceColonizationQuest,
   assignColonizationQuest,
   beginColonizationExpedition,
   completeColonizationFetchStage,
@@ -112,7 +111,7 @@ test("ports identify every quest giver who can accept cargo aboard", () => {
   assert.deepEqual(questCargoDeliveryPromptsAtPort(state, HAFNARFJORDUR), []);
 });
 
-test("colony resupply cargo is protected and offered immediately on return", () => {
+test("colony resupply cargo is protected and offered immediately after landing", () => {
   const state = game();
   assignColonizationQuest(state.memory.colonization, { target: PORT_ROYAL, origin: BORDEAUX });
   for (const stage of COLONIZATION_FETCH_STAGES) {
@@ -120,7 +119,6 @@ test("colony resupply cargo is protected and offered immediately on return", () 
   }
   beginColonizationExpedition(state.memory.colonization);
   landColonists(state.memory.colonization, 1000);
-  advanceColonizationQuest(state.memory.colonization, 1100, { awayFromColony: true });
   state.cargo[COLONIZATION_RESUPPLY.goodId] = 1;
 
   assert.equal(

@@ -279,7 +279,6 @@ export default {
   "quest.acquireFor": "{city}: {held}/{quantity} {good} BESORGEN",
   "quest.bringTo": "{city}: {quantity} {good} BRINGEN",
   "quest.returnToEmbark": "ZUM EINSCHIFFEN NACH {city} ZURÜCK",
-  "quest.leaveAndReturn": "{city} VERLASSEN; MIT {quantity} {good} ZURÜCK",
   "quest.defeatAt": "{count} {enemy} BEI {city} BESIEGEN",
   "quest.claimAt": "LANGSCHIFF IN {city} ABHOLEN",
   "quest.buyAt": "LANGSCHIFF IN {city} KAUFEN",
