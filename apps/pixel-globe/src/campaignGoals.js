@@ -25,6 +25,12 @@ export const CAMPAIGN_GOAL_TYPE_IDS = Object.freeze([
   CAMPAIGN_GOAL_WHITE_WHALE,
   CAMPAIGN_GOAL_TREASURE
 ]);
+const CAMPAIGN_GOAL_INTRO_PHASE_BY_TYPE = Object.freeze({
+  [CAMPAIGN_GOAL_EXPLORER]: "intro",
+  [CAMPAIGN_GOAL_FAMILY_DEBT]: "family-debt-intro",
+  [CAMPAIGN_GOAL_WHITE_WHALE]: "white-whale-revenge-intro",
+  [CAMPAIGN_GOAL_TREASURE]: "pirate-treasure-intro"
+});
 const CAMPAIGN_DIALOGUE_PHASE_SUFFIXES = Object.freeze([
   "",
   "intro",
@@ -63,6 +69,12 @@ export const FAMILY_DEBT_RETURN_BUFFER_DAYS = 30;
 export const CAMPAIGN_DESTINATION_DISCOVERY = "discovery";
 export const CAMPAIGN_DESTINATION_HOME = "home";
 export const CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING = "white-whale-sighting";
+
+export function campaignGoalIntroPhase(goalType) {
+  const phase = CAMPAIGN_GOAL_INTRO_PHASE_BY_TYPE[goalType];
+  if (!phase) throw new Error(`Unknown campaign goal intro phase: ${goalType}`);
+  return phase;
+}
 export const CAMPAIGN_DESTINATION_TREASURE_PIRATE = "treasure-pirate";
 export const CAMPAIGN_DESTINATION_TREASURE_ISLAND = "treasure-island";
 

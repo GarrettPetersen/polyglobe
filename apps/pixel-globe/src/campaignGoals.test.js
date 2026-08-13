@@ -15,6 +15,7 @@ import {
   FAMILY_DEBT_PROTECTED_PURSE,
   FAMILY_DEBT_RETURN_BUFFER_DAYS,
   campaignGoalDestination,
+  campaignGoalIntroPhase,
   campaignDialogueView,
   campaignGoalIntroSteps,
   campaignGoalPresentation,
@@ -588,11 +589,10 @@ test("the final homecoming dialogue lets the captain retire or keep sailing", ()
 
 test("every campaign intro phase closes into a valid voyage start", () => {
   for (const goalType of CAMPAIGN_GOAL_TYPE_IDS) {
-    const phase = goalType === CAMPAIGN_GOAL_EXPLORER ? "intro" : `${goalType}-intro`;
     const session = createCampaignDialogueSession({
       cityTileId: CHARACTER.homePortTileId,
-      phase,
-      steps: [{ speaker: "contact", expressionId: "attentive", text: "Your voyage begins." }]
+      phase: campaignGoalIntroPhase(goalType),
+      steps: [{ speaker: "contact", expressionId: "attentive", text: "BACK" }]
     });
     assert.deepEqual(selectCampaignDialogueOption(session), {
       closed: true,

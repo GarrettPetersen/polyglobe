@@ -703,6 +703,7 @@ import {
   campaignGoalDestinations,
   campaignDialogueCharacter,
   campaignDialogueView,
+  campaignGoalIntroPhase,
   campaignGoalIntroSteps,
   campaignGoalLabel,
   campaignGoalPresentation,
@@ -6648,7 +6649,7 @@ function openCampaignGoalIntroDialogue() {
   dialogueState = createCampaignDialogueSession({
     cityTileId: goal.homePortTileId,
     steps,
-    phase: goal.type === CAMPAIGN_GOAL_EXPLORER ? "intro" : `${goal.type}-intro`
+    phase: campaignGoalIntroPhase(goal.type)
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
