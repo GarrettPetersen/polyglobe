@@ -72,6 +72,21 @@ const allCases = [
     maximumObservedVisibleTiltDeg: 21,
     maximumObservedUnobscuredTearPx: 10,
     requireFogCoveredTileMovement: true
+  },
+  {
+    id: "scotland-to-arctic-norway-coverage",
+    scenarioId: "diagnostic-chart-coverage-norwegian-sea",
+    tiltDeg: 0,
+    speedRatio: 0.4,
+    durationSeconds: 1,
+    deterministicTravelPx: 240,
+    passiveOnly: false,
+    allowDialogue: false,
+    maximumFinalTiltDeg: 5,
+    maximumFinalTearPx: 10,
+    maximumObservedTiltDeg: 6,
+    maximumObservedVisibleTiltDeg: 6,
+    maximumObservedUnobscuredTearPx: 10
   }
 ];
 const cases = args.caseId === null
@@ -179,6 +194,10 @@ async function runDiagnosticCase(browser, baseUrl, diagnosticCase) {
       final,
       minimumAbsoluteTiltDeg: Math.min(...samples.map((sample) => Math.abs(sample.fullTiltDeg))),
       maximumTearPx: Math.max(...samples.map((sample) => sample.tearPx)),
+      maximumViewportEdgeGapPx: Math.max(...samples.map((sample) => sample.viewportEdgeGapPx)),
+      maximumViewportInteriorGapPx: Math.max(
+        ...samples.map((sample) => sample.viewportInteriorGapPx)
+      ),
       samples,
       failures
     };
@@ -191,6 +210,22 @@ function validateCase(diagnosticCase, samples) {
   const initial = samples[0];
   const final = samples.at(-1);
   const failures = [];
+  const maximumViewportEdgeGapPx = Math.max(...samples.map((sample) => (
+    sample.viewportEdgeGapPx
+  )));
+  if (maximumViewportEdgeGapPx > 4) {
+    failures.push(
+      `left ${maximumViewportEdgeGapPx.toFixed(2)}px of an uncovered viewport edge`
+    );
+  }
+  const maximumViewportInteriorGapPx = Math.max(...samples.map((sample) => (
+    sample.viewportInteriorGapPx
+  )));
+  if (maximumViewportInteriorGapPx > 72) {
+    failures.push(
+      `left a ${maximumViewportInteriorGapPx.toFixed(2)}px interior terrain void`
+    );
+  }
   if (Math.abs(initial.fullTiltDeg) < diagnosticCase.tiltDeg * 0.7) {
     failures.push(
       `tilt injection produced only ${initial.fullTiltDeg.toFixed(2)} degrees`
@@ -299,6 +334,7 @@ function printReport(report, output) {
     process.stdout.write(
       `${entry.id}: tilt ${entry.initial.fullTiltDeg.toFixed(2)} -> ` +
         `${entry.final.fullTiltDeg.toFixed(2)} deg, tear ${entry.final.tearPx.toFixed(2)}px, ` +
+        `void ${entry.maximumViewportInteriorGapPx.toFixed(2)}px, ` +
         `position ${entry.final.latitudeDeg.toFixed(2)},${entry.final.longitudeDeg.toFixed(2)}, ` +
         `${entry.failures.length === 0 ? "PASS" : "FAIL"}\n`
     );

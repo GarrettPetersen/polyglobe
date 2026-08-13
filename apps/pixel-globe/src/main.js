@@ -20,6 +20,11 @@ import {
 } from "./localLayoutAdmission.js";
 import { predictiveAdmissionProjection } from "./chartAdmissionProjection.js";
 import {
+  chartTerrainCoverageBounds,
+  chartViewportEdgeCoverage,
+  measureChartViewportTileCoverage
+} from "./chartViewportCoverage.js";
+import {
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
   surfaceDetailCallsHaveSameGeometry,
@@ -2099,6 +2104,9 @@ const CHART_LOOKAHEAD_MARGIN = 96;
 const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE + CHART_LOOKAHEAD_MARGIN;
 const CHART_ADMISSION_LOOKAHEAD_PX = CHART_LOOKAHEAD_MARGIN;
 const MAX_CHART_TILES = 5200;
+const CHART_VIEWPORT_EDGE_GAP_LIMIT_PX = 4;
+const CHART_VIEWPORT_VOID_DISTANCE_LIMIT_PX = TILE_ART_SIZE * 2;
+const CHART_VIEWPORT_COVERAGE_SAMPLE_SPACING_PX = 48;
 const START_LAT_DEG = 41.98;
 const START_LON_DEG = 18.91;
 const SHIP_SHEET_FRAME_SIZE = SHIP_SPRITE_FRAME_SIZE;
@@ -3494,6 +3502,7 @@ let chartDiagnosticTerrainTear = chartWorstVisibleTerrainTear;
 let chartReframeCoverWasActive = false;
 let chartDriftMeasuredAtMs = -Infinity;
 const CHART_DRIFT_MEASURE_INTERVAL_MS = 500;
+let chartViewportCoverageRepairPending = false;
 let chartRepairCloudBank = null;
 let chartRepairFog = null;
 let chartRepairHeatHaze = null;
@@ -9565,6 +9574,7 @@ function chartRecoveryDiagnosticSnapshot() {
   const visibleDrift = measureCurrentUnobscuredChartNorthUpDrift();
   const tear = measureCurrentVisibleTerrainTear();
   const unobscuredTear = measureCurrentUnobscuredTerrainTear();
+  const viewportCoverage = currentChartViewportCoverage(chart, true);
   const tearTargets = exactNorthUpProjectedPositions(new Set(tear.tileIds));
   const tearDetails = tear.tileIds.map((id) => {
     const call = chart.tileById.get(id);
@@ -9607,6 +9617,9 @@ function chartRecoveryDiagnosticSnapshot() {
     tearTileIds: Object.freeze(tear.tileIds.slice()),
     tearScreenX: tear.screenX,
     tearScreenY: tear.screenY,
+    viewportEdgeGapPx: viewportCoverage.edge.maximumGapPx,
+    viewportInteriorGapPx: viewportCoverage.interior.maximumNearestTileDistancePx,
+    viewportTerrainTileCount: viewportCoverage.viewportTileCount,
     tearDetails: Object.freeze(tearDetails),
     distanceTravelledPx: chartRecoveryDiagnosticStartPosition
       ? Math.acos(clamp(
@@ -21662,7 +21675,61 @@ function measureChartDriftAtInterval(nowMs) {
   measureCurrentChartNorthUpDrift();
   chartVisibleNorthUpDrift = measureCurrentUnobscuredChartNorthUpDrift();
   chartDiagnosticTerrainTear = measureCurrentUnobscuredTerrainTear();
+  inspectChartViewportCoverage();
   return chartVisibleNorthUpDrift;
+}
+
+function inspectChartViewportCoverage() {
+  if (!chart || !localLayout || !ship) return null;
+  const coverage = currentChartViewportCoverage(chart, true);
+  if (
+    coverage.edge.maximumGapPx <= CHART_VIEWPORT_EDGE_GAP_LIMIT_PX &&
+    coverage.interior.maximumNearestTileDistancePx <= CHART_VIEWPORT_VOID_DISTANCE_LIMIT_PX
+  ) return coverage;
+
+  chartViewportCoverageRepairPending = true;
+  const latitudeDeg = latitudeDegForDirection(ship.position).toFixed(2);
+  const longitudeDeg = longitudeDegForDirection(ship.position).toFixed(2);
+  reportRuntimeDiagnosticAssertion(
+    `World chart left part of the viewport without terrain near ${latitudeDeg},${longitudeDeg}: ` +
+      `${coverage.edge.maximumGapPx.toFixed(1)}px ${coverage.edge.edge} edge gap, ` +
+      `${coverage.interior.maximumNearestTileDistancePx.toFixed(1)}px nearest-tile gap at ` +
+      `${coverage.interior.screenX},${coverage.interior.screenY}; ` +
+      `${coverage.viewportTileCount} visible of ${chart.tileCalls.length} chart tiles, ` +
+      `viewport ${SCREEN_W}x${SCREEN_H}`,
+    "chart-viewport-uncovered"
+  );
+  return coverage;
+}
+
+function currentChartViewportCoverage(activeChart, sampleInterior = false) {
+  if (!activeChart || !localLayout) {
+    throw new Error("Chart viewport coverage requires an active chart and local layout");
+  }
+  const offset = layoutOffsetPixels();
+  const edge = chartViewportEdgeCoverage({
+    bounds: activeChart.terrainCoverageBounds,
+    offset,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H
+  });
+  const sampledTileCalls = sampleInterior
+    ? renderCallWindow(activeChart, offset).tileCalls
+    : activeChart.tileCalls;
+  const interior = sampleInterior
+    ? measureChartViewportTileCoverage({
+        tileCalls: sampledTileCalls,
+        offset,
+        viewportWidth: SCREEN_W,
+        viewportHeight: SCREEN_H,
+        sampleSpacingPx: CHART_VIEWPORT_COVERAGE_SAMPLE_SPACING_PX
+      })
+    : null;
+  const viewportTileCount = sampledTileCalls.reduce(
+    (count, call) => count + (chartTileCallNearViewport(call, offset) ? 1 : 0),
+    0
+  );
+  return Object.freeze({ edge, interior, viewportTileCount });
 }
 
 function measureCurrentChartNorthUpDrift() {
@@ -34540,8 +34607,51 @@ function worldDiscoveryLocalPoint(discovery, activeChart) {
 }
 
 function ensureChart() {
-  if (!chart || !chart.visibleSet.has(centerTileId) || !localLayout.positions.has(centerTileId) || chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX) {
+  const edgeCoverage = chart && localLayout
+    ? currentChartViewportCoverage(chart).edge
+    : null;
+  const viewportOutranChart = edgeCoverage &&
+    edgeCoverage.maximumGapPx > CHART_VIEWPORT_EDGE_GAP_LIMIT_PX;
+  if (viewportOutranChart) {
+    chartViewportCoverageRepairPending = true;
+    const location = ship
+      ? `${latitudeDegForDirection(ship.position).toFixed(2)},` +
+        `${longitudeDegForDirection(ship.position).toFixed(2)}`
+      : "unknown";
+    reportRuntimeDiagnosticAssertion(
+      `World chart viewport outran terrain by ${edgeCoverage.maximumGapPx.toFixed(1)}px ` +
+        `at the ${edgeCoverage.edge} edge near ${location}; viewport ${SCREEN_W}x${SCREEN_H}, ` +
+        `${chart.tileCalls.length} chart tiles`,
+      "chart-viewport-uncovered"
+    );
+  }
+  if (
+    !chart ||
+    chartViewportCoverageRepairPending ||
+    !chart.visibleSet.has(centerTileId) ||
+    !localLayout.positions.has(centerTileId) ||
+    chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX
+  ) {
+    const coverageRepairWasPending = chartViewportCoverageRepairPending;
+    chartViewportCoverageRepairPending = false;
     chart = buildChart(camera);
+    if (coverageRepairWasPending) recoverPersistentlyUncoveredViewport();
+    return true;
+  }
+  return false;
+}
+
+function recoverPersistentlyUncoveredViewport() {
+  const coverage = currentChartViewportCoverage(chart, true);
+  const remainsUncovered =
+    coverage.edge.maximumGapPx > CHART_VIEWPORT_EDGE_GAP_LIMIT_PX ||
+    coverage.interior.maximumNearestTileDistancePx > CHART_VIEWPORT_VOID_DISTANCE_LIMIT_PX;
+  if (!remainsUncovered) return false;
+
+  chartViewportCoverageRepairPending = true;
+  const reframed = reframeWorldNorthUp("uncovered viewport recovery", { allowUncovered: true });
+  if (reframed) {
+    chartViewportCoverageRepairPending = false;
     return true;
   }
   return false;
@@ -35481,6 +35591,7 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
     landShearFillCalls,
     riverConnectorCalls,
     tileCalls,
+    terrainCoverageBounds: chartTerrainCoverageBounds(tileCalls, TILE_ART_HALF),
     driftSampleCalls,
     cityCalls,
     cityCallByPortId

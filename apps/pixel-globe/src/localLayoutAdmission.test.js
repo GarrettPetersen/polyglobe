@@ -151,6 +151,7 @@ function reportChartBenchmark(label, result) {
       ? result.maxLandEdgeGapDetails
       : undefined,
     missingVisibleLandNeighbors: result.missingVisibleLandNeighbors,
+    maxViewportCoverageGapPx: result.maxViewportCoverageGapPx,
     visibleProtectedRedraws: result.visibleProtectedRedraws,
     visibleLandRedraws: result.visibleLandRedraws,
     repairDemand: result.repairDemand
@@ -1449,6 +1450,39 @@ test("an east-to-west Scandinavia traversal escalates concealed repair before ge
   assertTraversalRepairBurden(result, "Scandinavian crossing", 45);
 });
 
+test("a northbound Scotland-to-Arctic-Norway voyage never outruns drawn terrain", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [55.9, -4.3],
+        [58.0, -2.0],
+        [60.0, 1.5],
+        [62.0, 4.5],
+        [64.0, 6.0],
+        [66.0, 10.0],
+        [68.0, 14.0],
+        [70.0, 19.0],
+        [71.5, 25.0],
+        [73.0, 30.0]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("scotland-arctic-norway", result);
+
+  assert.ok(
+    result.maxViewportCoverageGapPx <= 36,
+    `Northbound chart left ${result.maxViewportCoverageGapPx.toFixed(2)}px of empty viewport ` +
+      `near ${JSON.stringify(result.maxViewportCoverageGapDetails)}`
+  );
+  assert.equal(result.missingVisibleLandNeighbors, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+});
+
 test("a south-to-north Argentina coastal traversal cannot tear adjacent land", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
@@ -1767,6 +1801,8 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let missingVisibleLandNeighbors = 0;
   let firstMissingVisibleLandNeighbor = null;
   let maxVisibleProtectedAdmissionShiftPx = 0;
+  let maxViewportCoverageGapPx = 0;
+  let maxViewportCoverageGapDetails = null;
   let visibleProtectedRedraws = 0;
   let visibleLandRedraws = 0;
   let protectedEdgeSamples = 0;
@@ -1801,6 +1837,15 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       step < route.length - 1 &&
       distanceSinceBuildPx < TRAVERSAL_REBUILD_DISTANCE_PX
     ) {
+      const coverage = measureTraversalViewportCoverage(positions, viewX, viewY);
+      if (coverage.gapPx > maxViewportCoverageGapPx) {
+        maxViewportCoverageGapPx = coverage.gapPx;
+        maxViewportCoverageGapDetails = {
+          step,
+          location: directionLocation(direction),
+          ...coverage
+        };
+      }
       continue;
     }
     distanceSinceBuildPx = 0;
@@ -2158,6 +2203,15 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         visibleLandRedraws++;
       }
     }
+    const coverage = measureTraversalViewportCoverage(positions, viewX, viewY);
+    if (coverage.gapPx > maxViewportCoverageGapPx) {
+      maxViewportCoverageGapPx = coverage.gapPx;
+      maxViewportCoverageGapDetails = {
+        step,
+        location: directionLocation(direction),
+        ...coverage
+      };
+    }
     const visiblePositions = new Map();
     const visibleProtectedPositions = new Map();
     let visibleProtectedTiles = 0;
@@ -2370,12 +2424,46 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     missingVisibleLandNeighbors,
     firstMissingVisibleLandNeighbor,
     maxVisibleProtectedAdmissionShiftPx,
+    maxViewportCoverageGapPx,
+    maxViewportCoverageGapDetails,
     visibleProtectedRedraws,
     visibleLandRedraws,
     protectedEdgeSamples,
     rotationSamples,
     repairDemand: finishTraversalRepairDemand(repairDemand)
   };
+}
+
+function measureTraversalViewportCoverage(positions, viewX, viewY) {
+  if (positions.size === 0) return { gapPx: Number.POSITIVE_INFINITY, screenX: 0, screenY: 0 };
+  const samples = [
+    [0, 0],
+    [TRAVERSAL_SCREEN_W / 2, 0],
+    [TRAVERSAL_SCREEN_W, 0],
+    [0, TRAVERSAL_SCREEN_H / 2],
+    [TRAVERSAL_SCREEN_W / 2, TRAVERSAL_SCREEN_H / 2],
+    [TRAVERSAL_SCREEN_W, TRAVERSAL_SCREEN_H / 2],
+    [0, TRAVERSAL_SCREEN_H],
+    [TRAVERSAL_SCREEN_W / 2, TRAVERSAL_SCREEN_H],
+    [TRAVERSAL_SCREEN_W, TRAVERSAL_SCREEN_H]
+  ];
+  let gapPx = 0;
+  let worst = samples[0];
+  for (const [screenX, screenY] of samples) {
+    const localX = viewX - TRAVERSAL_SCREEN_W / 2 + screenX;
+    const localY = viewY - TRAVERSAL_SCREEN_H / 2 + screenY;
+    let nearestDistancePx = Number.POSITIVE_INFINITY;
+    for (const position of positions.values()) {
+      nearestDistancePx = Math.min(
+        nearestDistancePx,
+        Math.hypot(position.x - localX, position.y - localY)
+      );
+    }
+    if (nearestDistancePx <= gapPx) continue;
+    gapPx = nearestDistancePx;
+    worst = [screenX, screenY];
+  }
+  return { gapPx, screenX: worst[0], screenY: worst[1] };
 }
 
 

@@ -130,6 +130,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: []
   }),
+  "diagnostic-chart-coverage-norwegian-sea": scenario({
+    id: "diagnostic-chart-coverage-norwegian-sea",
+    title: "chart-coverage-norwegian-sea",
+    seed: "diagnostic-chart-coverage-norwegian-sea-v1",
+    player: {
+      factionId: "scotland",
+      shipSlug: "fishing-lugger",
+      lat: 58,
+      lon: -3,
+      headingDeg: 90,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 13, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
   "turtle-ship-war": scenario({
     id: "turtle-ship-war",
     title: "Turtle Ship versus Atakebune",
