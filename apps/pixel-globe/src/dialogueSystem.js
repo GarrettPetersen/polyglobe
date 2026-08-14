@@ -220,6 +220,7 @@ import {
   beginColonizationExpedition,
   colonizationQuestView,
   colonizationFetchRequirementId,
+  colonizationOriginCanHostExiledSponsor,
   completeColonizationDefense,
   completeColonizationFetchStage,
   establishColony,
@@ -3992,9 +3993,13 @@ function colonizationView(session, city, gameState, context) {
   if (quest.stage === COLONIZATION_STAGE_FETCH) {
     if (!atOrigin) throw new Error(`${targetName} site exists before its expedition departed`);
     const stage = quest.fetchStage;
+    const exileIntroduction = colonizationOriginCanHostExiledSponsor(city, quest.target)
+      ? `${factionNounPhrase(quest.target.originFactionId, { sentenceStart: true })} has lost its last port, but loyal servants have not abandoned the flag. This expedition can keep our cause alive overseas until fortune turns.`
+      : null;
     const introduction = session.colonizationArrival && quest.fetchStageIndex === 0
       ? [
           "Captain, a word before you see the factor.",
+          exileIntroduction,
           history.pitch,
           history.organizerReligionId && gameState.playerCharacter?.religionId
             ? protestantColonistReception({

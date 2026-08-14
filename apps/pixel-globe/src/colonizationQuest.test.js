@@ -19,8 +19,10 @@ import {
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
   colonizationFetchRequirementId,
+  colonizationGovernmentInExileFactionId,
   colonizationObjective,
   colonizationOfferForCity,
+  colonizationOriginCanHostExiledSponsor,
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationNavigationObjective,
@@ -41,6 +43,11 @@ import {
   relocateColonizationQuestOrigin,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
+import {
+  applyPortConquestOwnership,
+  createPortConquestMemory,
+  restoreCollapsedFactionAtCities
+} from "./portConquest.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 const DAY = 24 * 60;
@@ -317,7 +324,7 @@ test("a pre-departure expedition office follows its sponsor after the origin is 
     colonizationFetchRequirementId(PORT_ROYAL, firstStage)
   ] = firstStage.quantity;
   completeColonizationFetchStage(memory, firstStage.id);
-  const capturedBordeaux = { ...BORDEAUX, factionId: "england" };
+  const capturedBordeaux = { ...BORDEAUX, factionId: "england", foundingFactionId: "france" };
   const marseille = {
     tileId: 11,
     city: "Marseille",
@@ -344,7 +351,7 @@ test("a pre-departure expedition office follows its sponsor after the origin is 
   );
 });
 
-test("a pre-departure expedition cancels cleanly when its sponsor has no port left", () => {
+test("a pre-departure expedition becomes a government-in-exile project when its sponsor has no port left", () => {
   const memory = readyMemory();
   const state = questViewState(memory);
   state.memory.flags = { colonizationOrganizerApproached: true };
@@ -356,16 +363,20 @@ test("a pre-departure expedition cancels cleanly when its sponsor has no port le
 
   const result = reconcileColonizationQuestOriginAfterConquest(
     state,
-    [{ ...BORDEAUX, factionId: "england" }]
+    [{ ...BORDEAUX, factionId: "england", foundingFactionId: "france" }]
   );
 
-  assert.equal(result.kind, "cancelled");
-  assert.equal(result.target.city, "Port Royal");
-  assert.equal(memory.targetCity, null);
-  assert.equal(memory.originCity, null);
-  assert.equal(memory.stage, "fetch");
-  assert.deepEqual(state.memory.quests.cargoDeliveries, {});
-  assert.equal(state.memory.flags.colonizationOrganizerApproached, undefined);
+  assert.equal(result, null);
+  assert.equal(memory.targetCity, "Port Royal");
+  assert.equal(memory.originCity, "Bordeaux");
+  assert.equal(memory.stage, COLONIZATION_STAGE_READY);
+  assert.equal(state.memory.flags.colonizationOrganizerApproached, true);
+  for (const stage of COLONIZATION_FETCH_STAGES) {
+    assert.equal(
+      state.memory.quests.cargoDeliveries[colonizationFetchRequirementId(PORT_ROYAL, stage)],
+      stage.quantity
+    );
+  }
 });
 
 test("capturing the origin cannot recall an expedition that is already at sea", () => {
@@ -376,7 +387,7 @@ test("capturing the origin cannot recall an expedition that is already at sea", 
   assert.equal(
     reconcileColonizationQuestOriginAfterConquest(
       state,
-      [{ ...BORDEAUX, factionId: "england" }]
+      [{ ...BORDEAUX, factionId: "england", foundingFactionId: "france" }]
     ),
     null
   );
@@ -385,23 +396,58 @@ test("capturing the origin cannot recall an expedition that is already at sea", 
   assert.doesNotThrow(() => (
     assignColonizationQuest(memory, {
       target: PORT_ROYAL,
-      origin: { ...BORDEAUX, factionId: "england" }
+      origin: { ...BORDEAUX, factionId: "england", foundingFactionId: "france" }
     })
   ));
   landColonists(memory, 1000);
   establishColony(memory, 1001);
   assert.equal(memory.stage, COLONIZATION_STAGE_ESTABLISHED);
   assert.equal(colonizationWorldRecord(memory).factionId, "france");
+  assert.equal(colonizationGovernmentInExileFactionId(memory, ["france"]), "france");
+  assert.equal(colonizationGovernmentInExileFactionId(memory, []), null);
   assert.equal(
     reconcileColonizationQuestOriginAfterConquest(
       state,
-      [{ ...BORDEAUX, factionId: "england" }]
+      [{ ...BORDEAUX, factionId: "england", foundingFactionId: "france" }]
     ),
     null
   );
 });
 
-test("a conquered port cannot offer its former ruler's colony expedition", () => {
+test("an established exile colony restores its sponsor without returning the annexed homeland", () => {
+  const memory = readyMemory();
+  beginColonizationExpedition(memory);
+  landColonists(memory, 1000);
+  establishColony(memory, 1001);
+  const colony = colonizationWorldRecord(memory);
+  const capturedBordeaux = {
+    ...BORDEAUX,
+    factionId: "england",
+    foundingFactionId: "france"
+  };
+  const conquest = createPortConquestMemory();
+  conquest.collapsedFactionIds.push("france");
+  conquest.portFactionOverrides["city-10"] = "england";
+
+  const restoredFactionId = colonizationGovernmentInExileFactionId(
+    memory,
+    conquest.collapsedFactionIds
+  );
+  restoreCollapsedFactionAtCities(conquest, [colony], {
+    factionId: restoredFactionId,
+    capitalCity: colony,
+    simMinute: 1001,
+    source: "colonial-government-in-exile"
+  });
+  applyPortConquestOwnership(conquest, [capturedBordeaux, colony]);
+
+  assert.equal(capturedBordeaux.factionId, "england");
+  assert.equal(colony.factionId, "france");
+  assert.equal(colony.capitalOfFactionId, "france");
+  assert.deepEqual(conquest.collapsedFactionIds, []);
+});
+
+test("a conquered founding port can offer its former ruler's colony expedition in exile", () => {
   const state = {
     playerCharacter: { identityKey: "conquered-colony-origin" },
     memory: {
@@ -410,12 +456,44 @@ test("a conquered port cannot offer its former ruler's colony expedition", () =>
       quests: { cargoDeliveries: {} }
     }
   };
-  const capturedBordeaux = { ...BORDEAUX, factionId: "england" };
+  const capturedBordeaux = { ...BORDEAUX, factionId: "england", foundingFactionId: "france" };
+
+  assert.equal(colonizationOriginCanHostExiledSponsor(capturedBordeaux, PORT_ROYAL), true);
+  assert.notEqual(colonizationOfferForCity(
+    state,
+    capturedBordeaux,
+    [capturedBordeaux],
+    [PORT_ROYAL],
+    { simMinute: 14 * DAY, spawnChance: 1 }
+  ), null);
+  assert.equal(state.memory.colonization.originCity, "Bordeaux");
+  assert.equal(state.memory.colonization.targetCity, "Port Royal");
+});
+
+test("a conquered founding port defers to any surviving sponsor port", () => {
+  const state = {
+    playerCharacter: { identityKey: "surviving-colony-sponsor" },
+    memory: {
+      colonization: createColonizationQuestMemory(),
+      flags: {},
+      quests: { cargoDeliveries: {} }
+    }
+  };
+  const capturedBordeaux = { ...BORDEAUX, factionId: "england", foundingFactionId: "france" };
+  const marseille = {
+    tileId: 11,
+    city: "Marseille",
+    country: "France",
+    factionId: "france",
+    foundingFactionId: "france",
+    lat: 43.3,
+    lon: 5.37
+  };
 
   assert.equal(colonizationOfferForCity(
     state,
     capturedBordeaux,
-    [capturedBordeaux],
+    [capturedBordeaux, marseille],
     [PORT_ROYAL],
     { simMinute: 14 * DAY, spawnChance: 1 }
   ), null);

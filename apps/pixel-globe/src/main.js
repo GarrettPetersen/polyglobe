@@ -1668,8 +1668,10 @@ import {
   assignColonizationQuest,
   beginColonizationExpedition,
   colonizationDefenseShipIds,
+  colonizationGovernmentInExileFactionId,
   colonizationNavigationObjective,
   colonizationOfferForCity,
+  colonizationOriginCanHostExiledSponsor,
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
   colonizationWorldRecord,
@@ -13773,11 +13775,8 @@ function applyCurrentPortConquestOwnership({
     const targetName = colonizationOriginChange.target.city.toUpperCase();
     const previousCity = colonizationOriginChange.previousOrigin.city.toUpperCase();
     showSurvivalNotice(
-      colonizationOriginChange.kind === "relocated"
-        ? `${targetName} EXPEDITION OFFICE MOVED FROM ${previousCity} TO ` +
-          `${colonizationOriginChange.origin.city.toUpperCase()} AFTER THE PORT CHANGED HANDS`
-        : `${targetName} EXPEDITION CANCELLED AFTER ${previousCity} FELL; ` +
-          "NO SPONSOR PORT REMAINS",
+      `${targetName} EXPEDITION OFFICE MOVED FROM ${previousCity} TO ` +
+        `${colonizationOriginChange.origin.city.toUpperCase()} AFTER THE PORT CHANGED HANDS`,
       "warn"
     );
   }
@@ -23484,6 +23483,18 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
 function syncColonizationSettlementWorldState(state, memory, binding, { startMinute, active }) {
   const targetTileId = binding.target.tileId;
   const record = colonizationWorldRecord(memory);
+  const restoredFactionId = colonizationGovernmentInExileFactionId(
+    memory,
+    state.memory.conquest.collapsedFactionIds
+  );
+  if (record && restoredFactionId) {
+    restoreCollapsedFactionAtCities(state.memory.conquest, [record], {
+      factionId: restoredFactionId,
+      capitalCity: record,
+      simMinute: startMinute,
+      source: "colonial-government-in-exile"
+    });
+  }
   if (record) applyPortConquestOwnership(state.memory.conquest, [record]);
   const existing = cityByTileId.get(targetTileId);
   if (!record) {
@@ -23580,8 +23591,7 @@ function bindColonizationQuestSelection(state, memory = state.memory.colonizatio
   const questState = memory === state.memory.colonization
     ? state
     : { ...state, memory: { ...state.memory, colonization: memory } };
-  const originChange = reconcileColonizationQuestOriginAfterConquest(questState, portCities);
-  if (originChange?.kind === "cancelled") return null;
+  reconcileColonizationQuestOriginAfterConquest(questState, portCities);
   const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
   if (!quest.target) return null;
   const target = colonizationTargetPlacements.find((candidate) => (
@@ -23611,9 +23621,10 @@ function createArchivedColonizationOrganizer(state, memory, binding) {
   const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
   const factor = portCityCharacters.get(binding.origin.tileId);
   if (!factor) throw new Error(`${cityLabelText(binding.origin)} has no factor for its archived colony`);
+  const identityPort = colonizationOrganizerIdentityPort(quest, binding.origin);
   return generateSpecialPortCharacter({
     identityKey: `colonial-organizer-${quest.target.city}-${quest.target.country}-${binding.origin.tileId}`,
-    port: binding.origin,
+    port: identityPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "colonial-organizer",
     religionId: quest.history.organizerReligionId,
@@ -23630,9 +23641,10 @@ function ensureColonizationOrganizer(state, origin = null) {
   if (colonizationOrganizer && colonizationOrganizerQuestKey === questKey) return colonizationOrganizer;
   const factor = portCityCharacters.get(organizerPort.tileId);
   if (!factor) throw new Error(`${cityLabelText(organizerPort)} has no generated port factor`);
+  const identityPort = colonizationOrganizerIdentityPort(quest, organizerPort);
   colonizationOrganizer = generateSpecialPortCharacter({
     identityKey: `colonial-organizer-${quest.target.city}-${quest.target.country}-${organizerPort.tileId}`,
-    port: organizerPort,
+    port: identityPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "colonial-organizer",
     religionId: quest.history.organizerReligionId,
@@ -23641,6 +23653,12 @@ function ensureColonizationOrganizer(state, origin = null) {
   });
   colonizationOrganizerQuestKey = questKey;
   return colonizationOrganizer;
+}
+
+function colonizationOrganizerIdentityPort(quest, port) {
+  return colonizationOriginCanHostExiledSponsor(port, quest.target)
+    ? { ...port, factionId: quest.target.originFactionId }
+    : port;
 }
 
 function japaneseMatchlockWorkshopPort() {

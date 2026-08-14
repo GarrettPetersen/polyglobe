@@ -314,7 +314,12 @@ function colonizationSettlementSnapshot(memory) {
   return validateColonizationQuestMemory(snapshot, { settlementRecord: true });
 }
 
-export function assignColonizationQuest(memory, { target, origin, approvalPort = null }) {
+export function assignColonizationQuest(memory, {
+  target,
+  origin,
+  approvalPort = null,
+  allowExiledSponsor = false
+}) {
   validateColonizationQuestMemory(memory);
   validateQuestTarget(target);
   validateQuestOrigin(origin);
@@ -322,7 +327,9 @@ export function assignColonizationQuest(memory, { target, origin, approvalPort =
   const selectedOrigin = colonizationOriginIdentity(memory);
   const rebindingExistingQuest = selectedTarget !== null && selectedOrigin !== null;
   if (!rebindingExistingQuest || [COLONIZATION_STAGE_FETCH, COLONIZATION_STAGE_READY].includes(memory.stage)) {
-    assertColonizationOriginCanSponsorTarget(origin, target);
+    assertColonizationOriginCanHostTarget(origin, target, {
+      allowExiledSponsor: allowExiledSponsor || rebindingExistingQuest
+    });
   }
   if (target.approvalFactionId) {
     validateQuestOrigin(approvalPort);
@@ -372,6 +379,18 @@ export function colonizationOriginCanSponsorTarget(origin, target) {
   );
 }
 
+export function colonizationOriginCanHostExiledSponsor(origin, target) {
+  return Boolean(
+    origin?.foundingFactionId &&
+    target?.originFactionId === origin.foundingFactionId &&
+    origin.factionId !== target.originFactionId &&
+    (!target.originCountry || target.originCountry === origin.country) &&
+    target.waterAccess !== "inland" &&
+    Number.isInteger(target.tileId) &&
+    greatCircleDistanceKm(origin, target) >= COLONIZATION_MIN_VOYAGE_DISTANCE_KM
+  );
+}
+
 export function relocateColonizationQuestOrigin(memory, { target, origin }) {
   validateColonizationQuestMemory(memory);
   validateQuestTarget(target);
@@ -380,7 +399,7 @@ export function relocateColonizationQuestOrigin(memory, { target, origin }) {
   if (selectedTarget.city !== target.city || selectedTarget.country !== target.country) {
     throw new Error(`Cannot relocate ${selectedTarget.city} expedition as ${target.city}`);
   }
-  assertColonizationOriginCanSponsorTarget(origin, target);
+  assertColonizationOriginCanHostTarget(origin, target);
   memory.originTileId = origin.tileId;
   memory.originCity = origin.city;
   memory.originCountry = origin.country;
@@ -416,23 +435,8 @@ export function reconcileColonizationQuestOriginAfterConquest(state, portCities)
       })
     });
   }
-
-  clearCancelledColonizationCargoProgress(state, target);
-  const pastSettlements = memory.pastSettlements;
-  const spawnRolls = memory.spawnRolls;
-  const reset = createColonizationQuestMemory();
-  for (const key of Object.keys(memory)) delete memory[key];
-  Object.assign(memory, reset, { pastSettlements, spawnRolls });
-  if (state.memory.flags && typeof state.memory.flags === "object") {
-    delete state.memory.flags[COLONIZATION_ORGANIZER_APPROACHED_FLAG];
-  }
-  validateColonizationQuestMemory(memory);
-  return Object.freeze({
-    kind: "cancelled",
-    target: Object.freeze({ city: target.city, country: target.country }),
-    previousOrigin,
-    origin: null
-  });
+  if (currentOrigin && colonizationOriginCanHostExiledSponsor(currentOrigin, target)) return null;
+  throw new Error(`Colonization expedition origin disappeared after conquest: ${previousOrigin?.city || "unknown"}`);
 }
 
 export function colonizationOfferForCity(state, city, portCities, targetPlacements, context = {}) {
@@ -446,7 +450,7 @@ export function colonizationOfferForCity(state, city, portCities, targetPlacemen
   const settledTargets = new Set(memory.pastSettlements.map((settlement) => (
     colonizationTargetKey(requiredSelectedTarget(settlement))
   )));
-  const eligibleTargets = eligibleColonizationTargetsForOrigin(city, targetPlacements)
+  const eligibleTargets = eligibleColonizationTargetsForOrigin(city, targetPlacements, { portCities })
     .filter((target) => !settledTargets.has(colonizationTargetKey(target)));
   if (eligibleTargets.length === 0) return null;
   const period = colonizationRollPeriod(context.simMinute);
@@ -464,15 +468,44 @@ export function colonizationOfferForCity(state, city, portCities, targetPlacemen
     ? chooseApprovalPort(target, portCities, context)
     : null;
   if (target.approvalFactionId && !approvalPort) return null;
-  assignColonizationQuest(memory, { target, origin: city, approvalPort });
+  assignColonizationQuest(memory, {
+    target,
+    origin: city,
+    approvalPort,
+    allowExiledSponsor: colonizationOriginCanHostExiledSponsor(city, target)
+  });
   return memory;
 }
 
-export function eligibleColonizationTargetsForOrigin(city, targetPlacements) {
+export function eligibleColonizationTargetsForOrigin(city, targetPlacements, { portCities = null } = {}) {
   if (!city?.factionId || !Array.isArray(targetPlacements)) return Object.freeze([]);
+  if (portCities !== null && !Array.isArray(portCities)) {
+    throw new Error("Colonization target eligibility requires a port list");
+  }
+  const activeSponsorFactionIds = portCities === null
+    ? null
+    : new Set(portCities.map((port) => port?.factionId).filter(nonEmptyString));
   return Object.freeze(targetPlacements
-    .filter((target) => colonizationOriginCanSponsorTarget(city, target))
+    .filter((target) => (
+      colonizationOriginCanSponsorTarget(city, target) ||
+      (activeSponsorFactionIds !== null &&
+        !activeSponsorFactionIds.has(target.originFactionId) &&
+        colonizationOriginCanHostExiledSponsor(city, target))
+    ))
     .sort((a, b) => colonizationTargetKey(a).localeCompare(colonizationTargetKey(b))));
+}
+
+export function colonizationGovernmentInExileFactionId(memory, collapsedFactionIds) {
+  validateColonizationQuestMemory(memory);
+  if (!Array.isArray(collapsedFactionIds)) {
+    throw new Error("Colonization government-in-exile check requires collapsed factions");
+  }
+  if (memory.stage !== COLONIZATION_STAGE_ESTABLISHED) return null;
+  const target = colonizationSelectedTarget(memory);
+  if (!target || target.factionId !== target.originFactionId) return null;
+  return collapsedFactionIds.includes(target.originFactionId)
+    ? target.originFactionId
+    : null;
 }
 
 export function isColonizationQuestOrigin(memory, city) {
@@ -1090,16 +1123,17 @@ function validateQuestOrigin(origin) {
   }
 }
 
-function assertColonizationOriginCanSponsorTarget(origin, target) {
-  if (target.originFactionId !== origin.factionId) {
+function assertColonizationOriginCanHostTarget(origin, target, { allowExiledSponsor = false } = {}) {
+  if (colonizationOriginCanSponsorTarget(origin, target)) return;
+  if (allowExiledSponsor && colonizationOriginCanHostExiledSponsor(origin, target)) return;
+  const sponsorFactionId = allowExiledSponsor ? origin.foundingFactionId : origin.factionId;
+  if (target.originFactionId !== sponsorFactionId) {
     throw new Error(`${origin.city} cannot sponsor a ${target.originFactionId} colony mission`);
   }
   if (target.originCountry && target.originCountry !== origin.country) {
     throw new Error(`${target.city} expedition must leave from ${target.originCountry}`);
   }
-  if (!colonizationOriginCanSponsorTarget(origin, target)) {
-    throw new Error(`${origin.city} cannot reach the ${target.city} colonization target`);
-  }
+  throw new Error(`${origin.city} cannot reach the ${target.city} colonization target`);
 }
 
 function validateSpawnRolls(rolls) {
@@ -1201,17 +1235,6 @@ function colonizationReplacementOriginOrder(a, b, target, previousOrigin) {
     : target;
   const distanceDifference = greatCircleDistanceKm(reference, a) - greatCircleDistanceKm(reference, b);
   return distanceDifference || portIdentityKey(a).localeCompare(portIdentityKey(b));
-}
-
-function clearCancelledColonizationCargoProgress(state, target) {
-  const deliveries = state?.memory?.quests?.cargoDeliveries;
-  if (!deliveries || typeof deliveries !== "object" || Array.isArray(deliveries)) {
-    throw new Error("Cancelling a colonization expedition requires quest cargo memory");
-  }
-  const history = colonizationHistoryForTarget(target);
-  for (const stage of history.fetchStages) {
-    delete deliveries[colonizationFetchRequirementId(target, stage)];
-  }
 }
 
 function seededFraction(value) {
