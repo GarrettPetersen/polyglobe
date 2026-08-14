@@ -92,6 +92,8 @@ export default Object.freeze({
   "{0} envoy: {1}": "{0} 特使：{1}",
   "{0} Every cask was already full.": "{0} 每個木桶都已經滿了。",
   "{0} EXCOMMUNICATED BY {1}": "{0} 被 {1} 開除",
+  "{0} EXPEDITION CANCELLED AFTER {1} FELL; NO SPONSOR PORT REMAINS": "{0} 探險活動在 {1} 墜落後取消；沒有保留贊助商端口",
+  "{0} EXPEDITION OFFICE MOVED FROM {1} TO {2} AFTER THE PORT CHANGED HANDS": "港口轉手後，{0} 遠徵辦公室從 {1} 遷至 {2}",
   "{0} FAMILY REUNITED +{1} DB": "{0} 家庭團聚 +{1} DB",
   "{0} first for permission, then {1}": "首先 {0} 取得許可，然後 {1}",
   "{0} fitted for {1} db.": "{0} 適用於 {1} DB。",

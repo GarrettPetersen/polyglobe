@@ -318,17 +318,20 @@ export function assignColonizationQuest(memory, { target, origin, approvalPort =
   validateColonizationQuestMemory(memory);
   validateQuestTarget(target);
   validateQuestOrigin(origin);
-  assertColonizationOriginCanSponsorTarget(origin, target);
+  const selectedTarget = colonizationSelectedTarget(memory);
+  const selectedOrigin = colonizationOriginIdentity(memory);
+  const rebindingExistingQuest = selectedTarget !== null && selectedOrigin !== null;
+  if (!rebindingExistingQuest || [COLONIZATION_STAGE_FETCH, COLONIZATION_STAGE_READY].includes(memory.stage)) {
+    assertColonizationOriginCanSponsorTarget(origin, target);
+  }
   if (target.approvalFactionId) {
     validateQuestOrigin(approvalPort);
-    if (approvalPort.factionId !== target.approvalFactionId) {
+    if (!rebindingExistingQuest && approvalPort.factionId !== target.approvalFactionId) {
       throw new Error(`${target.city} requires approval from ${target.approvalFactionId}`);
     }
   } else if (approvalPort) {
     throw new Error(`${target.city} does not require a government approval stop`);
   }
-  const selectedTarget = colonizationSelectedTarget(memory);
-  const selectedOrigin = colonizationOriginIdentity(memory);
   if (selectedTarget && (
     selectedTarget.city !== target.city || selectedTarget.country !== target.country
   )) {
@@ -384,6 +387,52 @@ export function relocateColonizationQuestOrigin(memory, { target, origin }) {
   memory.distanceKm = greatCircleDistanceKm(origin, target);
   validateColonizationQuestMemory(memory);
   return memory;
+}
+
+export function reconcileColonizationQuestOriginAfterConquest(state, portCities) {
+  const memory = colonizationQuestMemory(state);
+  if (!Array.isArray(portCities)) throw new Error("Colonization origin reconciliation requires ports");
+  const target = selectedTargetView(memory);
+  if (!target || ![COLONIZATION_STAGE_FETCH, COLONIZATION_STAGE_READY].includes(memory.stage)) {
+    return null;
+  }
+  const previousOrigin = colonizationOriginIdentity(memory);
+  const currentOrigin = portCities.find((city) => portMatchesIdentity(city, previousOrigin)) || null;
+  if (currentOrigin && colonizationOriginCanSponsorTarget(currentOrigin, target)) return null;
+
+  const replacement = portCities
+    .filter((city) => colonizationOriginCanSponsorTarget(city, target))
+    .sort((a, b) => colonizationReplacementOriginOrder(a, b, target, currentOrigin))[0] || null;
+  if (replacement) {
+    relocateColonizationQuestOrigin(memory, { target, origin: replacement });
+    return Object.freeze({
+      kind: "relocated",
+      target: Object.freeze({ city: target.city, country: target.country }),
+      previousOrigin,
+      origin: Object.freeze({
+        tileId: replacement.tileId,
+        city: replacement.city,
+        country: replacement.country
+      })
+    });
+  }
+
+  clearCancelledColonizationCargoProgress(state, target);
+  const pastSettlements = memory.pastSettlements;
+  const spawnRolls = memory.spawnRolls;
+  const reset = createColonizationQuestMemory();
+  for (const key of Object.keys(memory)) delete memory[key];
+  Object.assign(memory, reset, { pastSettlements, spawnRolls });
+  if (state.memory.flags && typeof state.memory.flags === "object") {
+    delete state.memory.flags[COLONIZATION_ORGANIZER_APPROACHED_FLAG];
+  }
+  validateColonizationQuestMemory(memory);
+  return Object.freeze({
+    kind: "cancelled",
+    target: Object.freeze({ city: target.city, country: target.country }),
+    previousOrigin,
+    origin: null
+  });
 }
 
 export function colonizationOfferForCity(state, city, portCities, targetPlacements, context = {}) {
@@ -1133,6 +1182,36 @@ function colonizationTargetKey(target) {
 
 function portIdentityKey(city) {
   return `${city.city}|${city.country}|${city.tileId}`;
+}
+
+function portMatchesIdentity(city, identity) {
+  return Boolean(identity && (
+    city?.tileId === identity.tileId ||
+    (city?.city === identity.city && city?.country === identity.country)
+  ));
+}
+
+function colonizationReplacementOriginOrder(a, b, target, previousOrigin) {
+  const capitalDifference =
+    Number(b.capitalOfFactionId === target.originFactionId) -
+    Number(a.capitalOfFactionId === target.originFactionId);
+  if (capitalDifference !== 0) return capitalDifference;
+  const reference = previousOrigin && Number.isFinite(previousOrigin.lat) && Number.isFinite(previousOrigin.lon)
+    ? previousOrigin
+    : target;
+  const distanceDifference = greatCircleDistanceKm(reference, a) - greatCircleDistanceKm(reference, b);
+  return distanceDifference || portIdentityKey(a).localeCompare(portIdentityKey(b));
+}
+
+function clearCancelledColonizationCargoProgress(state, target) {
+  const deliveries = state?.memory?.quests?.cargoDeliveries;
+  if (!deliveries || typeof deliveries !== "object" || Array.isArray(deliveries)) {
+    throw new Error("Cancelling a colonization expedition requires quest cargo memory");
+  }
+  const history = colonizationHistoryForTarget(target);
+  for (const stage of history.fetchStages) {
+    delete deliveries[colonizationFetchRequirementId(target, stage)];
+  }
 }
 
 function seededFraction(value) {

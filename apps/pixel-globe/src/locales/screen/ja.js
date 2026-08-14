@@ -92,6 +92,8 @@ export default Object.freeze({
   "{0} envoy: {1}": "{0} 特使: {1}",
   "{0} Every cask was already full.": "{0} どの樽もすでに満杯でした。",
   "{0} EXCOMMUNICATED BY {1}": "{0} によって {1} から排除されました",
+  "{0} EXPEDITION CANCELLED AFTER {1} FELL; NO SPONSOR PORT REMAINS": "{0} 遠征は {1} が墜落したためキャンセルされました。スポンサーポートは残りません",
+  "{0} EXPEDITION OFFICE MOVED FROM {1} TO {2} AFTER THE PORT CHANGED HANDS": "{0} 港の変更により遠征事務所が {1} から {2} に移動しました",
   "{0} FAMILY REUNITED +{1} DB": "{0} 家族再会 +{1} DB",
   "{0} first for permission, then {1}": "最初に {0} で許可を求め、次に {1} を求めます。",
   "{0} fitted for {1} db.": "{0} は {1} DB に適合しました。",

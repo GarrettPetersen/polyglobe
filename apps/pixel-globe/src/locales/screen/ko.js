@@ -92,6 +92,8 @@ export default Object.freeze({
   "{0} envoy: {1}": "{0} 특사: {1}",
   "{0} Every cask was already full.": "{0} 모든 통이 이미 가득 찼습니다.",
   "{0} EXCOMMUNICATED BY {1}": "{0} {1}에 의해 추방됨",
+  "{0} EXPEDITION CANCELLED AFTER {1} FELL; NO SPONSOR PORT REMAINS": "{0} {1} 추락 후 탐험이 취소되었습니다. 스폰서 포트가 남아 있지 않습니다",
+  "{0} EXPEDITION OFFICE MOVED FROM {1} TO {2} AFTER THE PORT CHANGED HANDS": "{0} 탐험 사무소가 항구 주인이 바뀐 후 {1}에서 {2}로 이전했습니다.",
   "{0} FAMILY REUNITED +{1} DB": "{0} 가족 재회 +{1} DB",
   "{0} first for permission, then {1}": "{0} 먼저 권한을 받은 다음 {1}",
   "{0} fitted for {1} db.": "{0}은 {1} DB에 적합합니다.",

@@ -1656,6 +1656,7 @@ import {
 import {
   COLONIZATION_CARGO_RESERVATION_ID,
   COLONIZATION_FETCH_STAGES,
+  COLONIZATION_ORGANIZER_APPROACHED_FLAG,
   COLONIZATION_RESUPPLY,
   COLONIZATION_STAGE_DEFEND,
   COLONIZATION_STAGE_ESTABLISHED,
@@ -1669,7 +1670,6 @@ import {
   colonizationDefenseShipIds,
   colonizationNavigationObjective,
   colonizationOfferForCity,
-  colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
   colonizationWorldRecord,
@@ -1682,7 +1682,7 @@ import {
   isColonizationQuestTarget,
   landColonists,
   markColonizationOrganizerApproached,
-  relocateColonizationQuestOrigin
+  reconcileColonizationQuestOriginAfterConquest
 } from "./colonizationQuest.js";
 import {
   colonizationDefenseSpawnNeedsRepair,
@@ -13760,6 +13760,27 @@ function applyCurrentPortConquestOwnership({
   if (!gameState?.memory?.conquest) throw new Error("Cannot apply port ownership without conquest state");
   const allCities = [...cityByTileId.values()];
   applyPortConquestOwnership(gameState.memory.conquest, allCities);
+  const dockablePortTileIds = new Set(portCities.map((city) => city.tileId));
+  const currentPorts = allCities.filter((city) => dockablePortTileIds.has(city.tileId));
+  const colonizationOriginChange = reconcileColonizationQuestOriginAfterConquest(
+    gameState,
+    currentPorts
+  );
+  if (colonizationOriginChange) {
+    colonizationOrganizer = null;
+    colonizationOrganizerQuestKey = null;
+    delete gameState.memory.flags[COLONIZATION_ORGANIZER_APPROACHED_FLAG];
+    const targetName = colonizationOriginChange.target.city.toUpperCase();
+    const previousCity = colonizationOriginChange.previousOrigin.city.toUpperCase();
+    showSurvivalNotice(
+      colonizationOriginChange.kind === "relocated"
+        ? `${targetName} EXPEDITION OFFICE MOVED FROM ${previousCity} TO ` +
+          `${colonizationOriginChange.origin.city.toUpperCase()} AFTER THE PORT CHANGED HANDS`
+        : `${targetName} EXPEDITION CANCELLED AFTER ${previousCity} FELL; ` +
+          "NO SPONSOR PORT REMAINS",
+      "warn"
+    );
+  }
   const cityStateByTileId = new Map(allCities.map((city) => [city.tileId, city]));
   for (const city of chart?.cityCalls || []) {
     const cityState = cityStateByTileId.get(city.tileId);
@@ -23463,6 +23484,7 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
 function syncColonizationSettlementWorldState(state, memory, binding, { startMinute, active }) {
   const targetTileId = binding.target.tileId;
   const record = colonizationWorldRecord(memory);
+  if (record) applyPortConquestOwnership(state.memory.conquest, [record]);
   const existing = cityByTileId.get(targetTileId);
   if (!record) {
     if (binding.target.preexistingSettlement) {
@@ -23558,6 +23580,8 @@ function bindColonizationQuestSelection(state, memory = state.memory.colonizatio
   const questState = memory === state.memory.colonization
     ? state
     : { ...state, memory: { ...state.memory, colonization: memory } };
+  const originChange = reconcileColonizationQuestOriginAfterConquest(questState, portCities);
+  if (originChange?.kind === "cancelled") return null;
   const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
   if (!quest.target) return null;
   const target = colonizationTargetPlacements.find((candidate) => (
@@ -23572,20 +23596,6 @@ function bindColonizationQuestSelection(state, memory = state.memory.colonizatio
       : candidate.city === quest.origin?.city && candidate.country === quest.origin?.country
   ));
   if (!origin) throw new Error(`Saved colony origin is not a dockable port: ${quest.origin?.city || "unknown"}`);
-  if (!colonizationOriginCanSponsorTarget(origin, target)) {
-    const replacement = portCities
-      .filter((candidate) => colonizationOriginCanSponsorTarget(candidate, target))
-      .sort((a, b) => (
-        a.city.localeCompare(b.city) ||
-        a.country.localeCompare(b.country) ||
-        a.tileId - b.tileId
-      ))[0];
-    if (!replacement) {
-      throw new Error(`Saved ${target.city} expedition has no eligible replacement origin`);
-    }
-    relocateColonizationQuestOrigin(memory, { target, origin: replacement });
-    origin = replacement;
-  }
   const approvalPort = quest.approval
     ? portCities.find((candidate) => candidate.tileId === quest.approval.tileId)
     : null;

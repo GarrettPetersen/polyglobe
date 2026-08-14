@@ -92,6 +92,8 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "{0} envoy: {1}",
   "{0} Every cask was already full.",
   "{0} EXCOMMUNICATED BY {1}",
+  "{0} EXPEDITION CANCELLED AFTER {1} FELL; NO SPONSOR PORT REMAINS",
+  "{0} EXPEDITION OFFICE MOVED FROM {1} TO {2} AFTER THE PORT CHANGED HANDS",
   "{0} FAMILY REUNITED +{1} DB",
   "{0} first for permission, then {1}",
   "{0} fitted for {1} db.",

@@ -92,6 +92,8 @@ export default Object.freeze({
   "{0} envoy: {1}": "{0} wysłannik: {1}",
   "{0} Every cask was already full.": "{0} Każda beczka była już pełna.",
   "{0} EXCOMMUNICATED BY {1}": "{0} WYEKSKOMUNIKOWANY PRZEZ {1}",
+  "{0} EXPEDITION CANCELLED AFTER {1} FELL; NO SPONSOR PORT REMAINS": "{0} WYPRAWA ODWOŁANA PO UPADKU {1}; NIE POZOSTAŁO ŻADNEGO PORTU SPONSORÓW",
+  "{0} EXPEDITION OFFICE MOVED FROM {1} TO {2} AFTER THE PORT CHANGED HANDS": "{0} BIURO WYPRAWY PRZENIESIONE Z {1} DO {2} PO ZMIANIE PORTU",
   "{0} FAMILY REUNITED +{1} DB": "{0} PONOWNE POŁĄCZENIE RODZINY +{1} DB",
   "{0} first for permission, then {1}": "{0} najpierw o pozwolenie, a następnie {1}",
   "{0} fitted for {1} db.": "{0} dopasowany do {1} DB.",
