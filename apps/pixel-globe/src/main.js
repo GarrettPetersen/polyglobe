@@ -353,6 +353,7 @@ import {
   grantGuaranteedMissionPerkItem,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
+  privateeringAuthorityIssuerIdsAgainst,
   initializeProvisionalShipLoadout,
   sovereignTradeOpenToFaction,
   isCaptureCapitalQuest,
@@ -20706,8 +20707,12 @@ function dialogueShipForId(npcShipId) {
   const emergencyAid = shipEmergencyAidNeed(gameState, npcShip.id, {
     allied: alliedToPlayer
   });
+  const privateeringIssuerIds = privateeringAuthorityIssuerIdsAgainst(gameState, npcShip.factionId);
+  const privateeringIssuerAdjective = privateeringIssuerIds.length > 0
+    ? factionById(privateeringIssuerIds[0]).adjective
+    : null;
   const playerAttackIsPiracy = !encounter && npcShip.factionId !== PIRATE_FACTION_ID &&
-    !hasPrivateeringAuthorityAgainst(gameState, npcShip.factionId);
+    privateeringIssuerIds.length === 0;
   const stormStatus = visualState?.stormMode === "anchored"
     ? "We are anchored until the storm passes."
     : visualState?.stormMode === "seeking"
@@ -20738,6 +20743,7 @@ function dialogueShipForId(npcShipId) {
     alliedToPlayer,
     canOfferEmergencyAid: !enemy && emergencyAid.available,
     playerAttackIsPiracy,
+    privateeringIssuerAdjective,
     willOfferSurrender: npcShouldOfferSurrender(npcCombatEntity(visualState), playerCombatEntity()),
     character
   };
@@ -52854,13 +52860,13 @@ function drawDialogueOverlay(nowMs) {
     drawPixelText(line, textX, y, { font: dialogueFont });
     y += dialogueLineHeight;
   }
-  ctx.fillStyle = PIRATE_MENU_INK;
+  ctx.fillStyle = dialogueTextToneColor(view.bodyTone, PIRATE_MENU_INK);
   for (const line of bodyLines) {
     drawPixelText(line, textX, y, { font: dialogueFont });
     y += dialogueLineHeight;
   }
   if (view.feedback) {
-    ctx.fillStyle = PIRATE_MENU_SUCCESS;
+    ctx.fillStyle = dialogueTextToneColor(view.feedbackTone, PIRATE_MENU_SUCCESS);
     for (const line of feedbackLines) {
       drawPixelText(line, textX, y, { font: dialogueFont });
       y += dialogueLineHeight;
@@ -52869,6 +52875,15 @@ function drawDialogueOverlay(nowMs) {
 
   const optionX = textX;
   drawDialogueOptions(view, optionX, safeOptions.y, optionW, optionBottom, dialogueFont);
+}
+
+function dialogueTextToneColor(tone, fallback) {
+  if (tone === undefined || tone === null) return fallback;
+  if (tone === "danger") return PIRATE_MENU_DANGER;
+  if (tone === "success") return PIRATE_MENU_SUCCESS;
+  if (tone === "muted") return PIRATE_MENU_INK_MUTED;
+  if (tone === "ink") return PIRATE_MENU_INK;
+  throw new Error(`Unknown dialogue text tone: ${tone}`);
 }
 
 function drawCustomLoadoutDialogueOverlay(dialogueView) {

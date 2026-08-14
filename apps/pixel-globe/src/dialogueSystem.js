@@ -866,6 +866,7 @@ function shipDialogueContentView(session, ship) {
       speaker,
       expressionId: "angry",
       text: "Without a letter of marque, this is an act of piracy.",
+      bodyTone: "danger",
       feedback: null,
       options: [
         option("Back down", { type: "close" }),
@@ -944,11 +945,13 @@ function shipDialogueContentView(session, ship) {
     };
   }
   if (session.nodeId === "defiance") {
+    const attackLegality = shipAttackLegalityNotice(ship);
     return {
       speaker,
       expressionId: "angry",
       text: "You will have no easy prize from us. Stand off.",
-      feedback: null,
+      feedback: attackLegality?.text || null,
+      feedbackTone: attackLegality?.tone,
       options: [
         option("Attack", { type: "attack" }),
         option("Back down", { type: "close" })
@@ -969,6 +972,7 @@ function shipDialogueContentView(session, ship) {
   }
   if (session.nodeId !== "root") throw new Error(`Unknown ship dialogue node: ${session.nodeId}`);
   if (session.hostileHail) {
+    const attackLegality = shipAttackLegalityNotice(ship);
     return {
       speaker,
       expressionId: "angry",
@@ -977,7 +981,8 @@ function shipDialogueContentView(session, ship) {
           ? `Captain ${session.pirateTreasureName}'s treasure is aboard. Heave to, or we will take it by force.`
           : "Heave to. Your cargo or your life."
         : "Stand off. Our guns are trained on you.",
-      feedback: null,
+      feedback: attackLegality?.text || null,
+      feedbackTone: attackLegality?.tone,
       options: [
         option("Attack", { type: "attack" }),
         option("Leave", { type: "close" })
@@ -1014,11 +1019,15 @@ function shipDialogueContentView(session, ship) {
       : role === "Warship"
         ? "attentive"
         : "neutral";
+  const attackLegality = !ship.combatGrace && !ship.inCombatWithPlayer
+    ? shipAttackLegalityNotice(ship)
+    : null;
   return {
     speaker,
     expressionId,
     text: `${greeting}${storm}${voyage}${cargo}${workingGear}`,
-    feedback: null,
+    feedback: attackLegality?.text || null,
+    feedbackTone: attackLegality?.tone,
     options: [
       ...(ship.canOfferEmergencyAid
         ? [option("Ask for provisions", { type: "receive-aid" })]
@@ -1029,6 +1038,29 @@ function shipDialogueContentView(session, ship) {
       option("Leave", { type: "close" })
     ]
   };
+}
+
+function shipAttackLegalityNotice(ship) {
+  const issuer = ship.privateeringIssuerAdjective;
+  if (issuer !== null && issuer !== undefined && (typeof issuer !== "string" || issuer.trim() === "")) {
+    throw new Error(`Invalid privateering authority issuer for ship: ${ship.id}`);
+  }
+  if (ship.playerAttackIsPiracy === true && issuer) {
+    throw new Error(`Ship attack cannot be piracy and authorized by ${issuer}: ${ship.id}`);
+  }
+  if (issuer) {
+    return {
+      text: `Your ${issuer} letter of marque makes this attack legal.`,
+      tone: "success"
+    };
+  }
+  if (ship.playerAttackIsPiracy === true) {
+    return {
+      text: "Without a letter of marque, this attack would be illegal piracy.",
+      tone: "danger"
+    };
+  }
+  return null;
 }
 
 function shipDialogueVesselLabel(ship) {
@@ -3355,6 +3387,7 @@ function cityAttackView(session, city, gameState, context) {
     speaker: gameState.playerCharacter.name,
     expressionId: "stern",
     text,
+    bodyTone: attack.piracy ? "danger" : undefined,
     feedback: null,
     options: [
       option(attack.piracy ? "Attack city anyway" : "Attack city", { type: "attack-city" }),
@@ -5339,6 +5372,7 @@ function tributeTheftWarningView(session, city, gameState) {
       text: `Those ${good.label.toLowerCase()} chests were entrusted for the new-crop race, not given ` +
         `to you. Selling ${pending.theft.stolenQuantity} is theft. The race will fail and your standing ` +
         `will fall ${formatSignedReputation(pending.theft.originPenalty)} with ${origin}.`,
+      bodyTone: "danger",
       feedback: session.feedback,
       options: [
         option("Sell the entrusted tea", { type: "confirm-tribute-theft" }),
@@ -5357,6 +5391,7 @@ function tributeTheftWarningView(session, city, gameState) {
     text: `Those ${good.label.toLowerCase()} are sealed tribute, not your cargo. Selling ` +
       `${pending.theft.stolenQuantity} is theft from the court. Your mission will fail and your standing ` +
       `will fall ${formatSignedReputation(pending.theft.originPenalty)} with ${origin}${secondPenalty}.`,
+    bodyTone: "danger",
     feedback: session.feedback,
     options: [
       option(`Sell the sealed ${good.label.toLowerCase()}`, { type: "confirm-tribute-theft" }),

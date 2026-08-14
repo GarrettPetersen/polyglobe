@@ -4453,15 +4453,22 @@ export function hasLetterOfMarqueFrom(state, factionId) {
   return Boolean(state.relations.lettersOfMarque[id]);
 }
 
-export function hasPrivateeringAuthorityAgainst(state, targetFactionId) {
+export function privateeringAuthorityIssuerIdsAgainst(state, targetFactionId) {
   assertGameState(state);
   const targetId = assertFactionId(targetFactionId);
-  if (targetId === NEUTRAL_FACTION_ID || targetId === PIRATE_FACTION_ID) return false;
+  if (targetId === NEUTRAL_FACTION_ID || targetId === PIRATE_FACTION_ID) return [];
+  const issuerIds = [];
   for (const issuerId of Object.keys(state.relations.lettersOfMarque)) {
     assertFactionId(issuerId);
-    if (worldDiplomacyBetween(state.relations.diplomacy, issuerId, targetId) === DIPLOMACY_WAR) return true;
+    if (worldDiplomacyBetween(state.relations.diplomacy, issuerId, targetId) === DIPLOMACY_WAR) {
+      issuerIds.push(issuerId);
+    }
   }
-  return false;
+  return issuerIds;
+}
+
+export function hasPrivateeringAuthorityAgainst(state, targetFactionId) {
+  return privateeringAuthorityIssuerIdsAgainst(state, targetFactionId).length > 0;
 }
 
 export function letterOfMarqueStatus(state, city, shipPower = 0) {

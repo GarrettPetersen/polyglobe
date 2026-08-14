@@ -39,6 +39,7 @@ import {
   hasLetterOfMarqueFrom,
   hasPersonalTradePass,
   hasPrivateeringAuthorityAgainst,
+  privateeringAuthorityIssuerIdsAgainst,
   issuePersonalTradePass,
   letterOfMarqueStatus,
   migrateGameState,
@@ -740,7 +741,9 @@ test("a letter of marque authorizes privateering against the issuer's war enemie
   grantLetterOfMarque(state, LONDON_CAPITAL, LETTER_OF_MARQUE_POWER_REQUIRED);
 
   assert.equal(hasPrivateeringAuthorityAgainst(state, "france"), true);
+  assert.deepEqual(privateeringAuthorityIssuerIdsAgainst(state, "france"), ["england"]);
   assert.equal(hasPrivateeringAuthorityAgainst(state, "spain"), false);
+  assert.deepEqual(privateeringAuthorityIssuerIdsAgainst(state, "spain"), []);
   assert.equal(hasPrivateeringAuthorityAgainst(state, "pirate"), false);
 
   makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200 * 24 * 60);

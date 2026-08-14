@@ -132,6 +132,30 @@ test("hailing an NPC ship identifies the captain by name", () => {
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
 });
 
+test("ship hails preview whether an attack is legal under a letter of marque", () => {
+  const authorizedShip = {
+    id: "french-prize",
+    label: "Caravel",
+    character: { name: "Claude Martin" },
+    playerAttackIsPiracy: false,
+    privateeringIssuerAdjective: "Spanish"
+  };
+  const authorized = shipDialogueView(createShipDialogueSession(authorizedShip), authorizedShip);
+  assert.equal(authorized.feedback, "Your Spanish letter of marque makes this attack legal.");
+  assert.equal(authorized.feedbackTone, "success");
+
+  const unlicensedShip = {
+    id: "illegal-prize",
+    label: "Caravel",
+    character: { name: "Claude Martin" },
+    playerAttackIsPiracy: true,
+    privateeringIssuerAdjective: null
+  };
+  const unlicensed = shipDialogueView(createShipDialogueSession(unlicensedShip), unlicensedShip);
+  assert.equal(unlicensed.feedback, "Without a letter of marque, this attack would be illegal piracy.");
+  assert.equal(unlicensed.feedbackTone, "danger");
+});
+
 test("hailing a hostile pirate offers combat without friendly gossip", () => {
   const ship = {
     id: "pirate-felucca",
@@ -780,6 +804,7 @@ test("piracy warning lets the player back out before a hostile demand", () => {
   const warning = shipDialogueView(backingOutSession, ship);
   assert.equal(warning.expressionId, "angry");
   assert.equal(warning.text, "Without a letter of marque, this is an act of piracy.");
+  assert.equal(warning.bodyTone, "danger");
   assert.deepEqual(warning.options.map((option) => option.label), [
     "Back down",
     "Demand surrender anyway"
