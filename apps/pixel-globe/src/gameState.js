@@ -222,9 +222,11 @@ import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS,
   PORTUGUESE_CROWN_SPICE_GOOD_IDS,
+  PORTUGUESE_CROWN_SPICE_POLICY,
   PORTUGUESE_FACTION_ID,
   customsTerms,
   evaluateTradeAccess,
+  evaluatePortugueseCrownSpiceAccess,
   isPortugueseEstadoPort,
   portugueseCartazFee,
   portugueseCartazFine,
@@ -4573,6 +4575,9 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   const tradeFactionId = tradeReputationFactionId(city);
   if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
   const terms = playerTradeTerms(state, city, goodId, context);
+  if (!terms.allowed) {
+    throw new Error(`${cityLabel(city)} official market requires a valid Portuguese cartaz for ${row.good.label}`);
+  }
   const total = quotePortSale(economy, city, goodId, quantity, terms.purchaseMultiplier);
   if (state.doubloons < total) {
     throw new Error(`Not enough doubloons to buy ${quantity} ${row.good.label}`);
@@ -4621,6 +4626,9 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   }
   if (held < quantity) throw new Error(`Cannot sell ${quantity} ${row.good.label}; hold has ${held}`);
   const terms = playerTradeTerms(state, city, goodId, context);
+  if (!terms.allowed) {
+    throw new Error(`${cityLabel(city)} official market requires a valid Portuguese cartaz for ${row.good.label}`);
+  }
   const total = quotePortPurchase(economy, city, goodId, quantity, terms.saleMultiplier);
   if (maximumPortPurchaseQuantity(economy, city, goodId, quantity, terms.saleMultiplier) < quantity) {
     throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
@@ -4750,6 +4758,14 @@ export function playerTradeTerms(state, city, goodId, context = {}) {
   const reputation = state.relations.factionReputation[portFactionId] || 0;
   const perks = gameStatePerkTotals(state);
   const access = playerTradeAccess(state, city, context);
+  const crownSpiceAccess = playerPortugueseCrownSpiceAccess(
+    state,
+    city,
+    goodId,
+    context,
+    access
+  );
+  const illicit = access.illicit || crownSpiceAccess.illicit;
   const terms = tradeTerms({
     port: city,
     traderFactionId,
@@ -4766,17 +4782,50 @@ export function playerTradeTerms(state, city, goodId, context = {}) {
       traderFactionId,
       portFactionId
     ),
-    illicit: access.illicit,
+    illicit,
     purchaseDiscountMultiplier: portPurchasePriceMultiplier(city),
     purchaseBargainMultiplier: perks.tradePurchaseMultiplier,
     saleBargainMultiplier: perks.tradeSaleMultiplier
   });
   return Object.freeze({
     ...terms,
-    allowed: access.allowed,
-    accessPolicyId: access.policyId,
-    enforcementFactionId: access.policy?.hostFactionId || access.portFactionId,
-    illicitMarketReputationPenalty: access.policy?.illicitMarketReputationPenalty || 0
+    allowed: access.allowed && crownSpiceAccess.allowed,
+    accessPolicyId: crownSpiceAccess.illicit
+      ? crownSpiceAccess.policyId
+      : access.policyId,
+    enforcementFactionId: crownSpiceAccess.illicit
+      ? PORTUGUESE_CROWN_SPICE_POLICY.hostFactionId
+      : access.policy?.hostFactionId || access.portFactionId,
+    illicitMarketReputationPenalty: crownSpiceAccess.illicit
+      ? PORTUGUESE_CROWN_SPICE_POLICY.illicitMarketReputationPenalty
+      : access.policy?.illicitMarketReputationPenalty || 0,
+    crownSpiceAccess
+  });
+}
+
+export function playerPortugueseCrownSpiceAccess(
+  state,
+  city,
+  goodId,
+  context = {},
+  resolvedPortAccess = null
+) {
+  assertGameState(state);
+  tradeGoodById(goodId);
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const portAccess = resolvedPortAccess || playerTradeAccess(state, city, context);
+  const estadoPort = isPortugueseEstadoPort(city, state.relations.foreignSettlementExpulsions);
+  const cartazValid = !estadoPort || traderFactionId === PORTUGUESE_FACTION_ID ||
+    state.relations.portugueseCartaz.untilMinute > (context.simMinute ?? 0);
+  return evaluatePortugueseCrownSpiceAccess({
+    port: city,
+    traderFactionId,
+    foreignSettlementExpulsions: state.relations.foreignSettlementExpulsions,
+    goodId,
+    cartazValid,
+    illicitAccessPolicyId: context.illicitTradeAccessPolicyId ?? null,
+    otherIllicitAccess: portAccess.illicit,
+    disguisedEntry: context.disguisedEntry === true
   });
 }
 

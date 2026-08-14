@@ -10,12 +10,14 @@ import {
 } from "./factions.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
+  PORTUGUESE_CROWN_SPICE_POLICY_ID,
   PORTUGUESE_CROWN_SPICE_GOOD_IDS,
   TRADE_POLICY_REGIMES,
   WARTIME_TRADE_RESTRICTION_ID,
   customsTerms,
   customsRateForRelation,
   evaluateTradeAccess,
+  evaluatePortugueseCrownSpiceAccess,
   isPortugueseEstadoPort,
   portugueseCartazFee,
   portugueseCartazFine,
@@ -46,6 +48,13 @@ const CALICUT = Object.freeze({
   city: "Calicut",
   country: "India",
   factionId: "vijayanagara"
+});
+const COLOMBO = Object.freeze({
+  tileId: 4,
+  city: "Colombo",
+  country: "Sri Lanka",
+  factionId: "neutral",
+  foreignSettlements: [foreignSettlementById("portuguese-colombo")]
 });
 
 test("diplomatic customs span ally through hostile while domestic trade is duty free", () => {
@@ -197,6 +206,7 @@ test("customs status can be explained without inventing a commodity transaction"
 
 test("Portuguese Estado ports levy crown-controlled spices without taxing independent ports", () => {
   assert.equal(isPortugueseEstadoPort(GOA), true);
+  assert.equal(isPortugueseEstadoPort(COLOMBO), true);
   assert.equal(isPortugueseEstadoPort(LISBON), false);
   assert.equal(isPortugueseEstadoPort({
     tileId: 8,
@@ -226,6 +236,57 @@ test("Portuguese Estado ports levy crown-controlled spices without taxing indepe
   });
   assert.equal(independentPepper.crownMonopoly, false);
   assert.equal(independentPepper.purchaseMultiplier, 1.05);
+});
+
+test("Portuguese factors require cartaz papers for official crown-spice trade", () => {
+  const blocked = evaluatePortugueseCrownSpiceAccess({
+    port: COLOMBO,
+    traderFactionId: "england",
+    goodId: "cinnamon",
+    cartazValid: false
+  });
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.restricted, true);
+  assert.equal(blocked.policyId, PORTUGUESE_CROWN_SPICE_POLICY_ID);
+
+  const ordinary = evaluatePortugueseCrownSpiceAccess({
+    port: COLOMBO,
+    traderFactionId: "england",
+    goodId: "grain",
+    cartazValid: false
+  });
+  assert.equal(ordinary.allowed, true);
+  assert.equal(ordinary.restricted, false);
+
+  const licensed = evaluatePortugueseCrownSpiceAccess({
+    port: COLOMBO,
+    traderFactionId: "england",
+    goodId: "cinnamon",
+    cartazValid: true
+  });
+  assert.equal(licensed.allowed, true);
+  assert.equal(licensed.lawful, true);
+
+  const illicit = evaluatePortugueseCrownSpiceAccess({
+    port: COLOMBO,
+    traderFactionId: "england",
+    goodId: "cinnamon",
+    cartazValid: false,
+    illicitAccessPolicyId: PORTUGUESE_CROWN_SPICE_POLICY_ID
+  });
+  assert.equal(illicit.allowed, true);
+  assert.equal(illicit.illicit, true);
+
+  const disguised = evaluatePortugueseCrownSpiceAccess({
+    port: COLOMBO,
+    traderFactionId: "england",
+    goodId: "cinnamon",
+    cartazValid: false,
+    disguisedEntry: true
+  });
+  assert.equal(disguised.allowed, true);
+  assert.equal(disguised.lawful, false);
+  assert.equal(disguised.illicit, true);
 });
 
 test("war blocks ordinary commerce while illicit access and disguise remain explicit exceptions", () => {

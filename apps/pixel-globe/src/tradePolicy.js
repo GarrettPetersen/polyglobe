@@ -45,14 +45,31 @@ export const PORTUGUESE_CROWN_SPICE_GOOD_IDS = Object.freeze([
   "nutmeg"
 ]);
 
+export const PORTUGUESE_CROWN_SPICE_POLICY_ID = "portuguese-crown-spices";
+export const PORTUGUESE_CROWN_SPICE_POLICY = Object.freeze({
+  id: PORTUGUESE_CROWN_SPICE_POLICY_ID,
+  label: "Portuguese crown spice monopoly",
+  kind: "commodity-access",
+  hostFactionId: PORTUGUESE_FACTION_ID,
+  appliesTo: "portuguese-estado-ports",
+  illicitMarketSuccessChance: 0.5,
+  illicitMarketReputationPenalty: 10,
+  closedMarketText: "The Portuguese factor will not deal in Crown spices without a valid cartaz."
+});
+
 const PORTUGUESE_CROWN_SPICE_SET = new Set(PORTUGUESE_CROWN_SPICE_GOOD_IDS);
 const PORTUGUESE_ESTADO_PORT_KEYS = new Set([
   portKey("Goa", "India"),
   portKey("Hormuz", "Iran"),
   portKey("Malacca", "Malaysia"),
   portKey("Muscat", "Oman"),
+  portKey("Calicut", "India"),
+  portKey("Cochin", "India"),
+  portKey("Colombo", "Sri Lanka"),
+  portKey("Quilon", "India"),
   portKey("Sofala", "Mozambique"),
-  portKey("Mozambique", "Mozambique")
+  portKey("Mozambique", "Mozambique"),
+  portKey("Ternate", "Indonesia")
 ]);
 
 const PORTUGUESE_CARTAZ_ENFORCEMENT_ZONES = Object.freeze([
@@ -87,12 +104,7 @@ export const TRADE_POLICY_REGIMES = Object.freeze([
     kind: "maritime-permit",
     appliesTo: "estado-da-india-waters"
   }),
-  Object.freeze({
-    id: "portuguese-crown-spices",
-    label: "Portuguese crown spice monopoly",
-    kind: "commodity-monopoly",
-    appliesTo: "portuguese-estado-ports"
-  })
+  PORTUGUESE_CROWN_SPICE_POLICY
 ]);
 
 export function evaluateTradeAccess({
@@ -425,6 +437,50 @@ export function isPortugueseEstadoPort(port, foreignSettlementExpulsions = null)
 
 export function isPortugueseCrownSpice(goodId) {
   return PORTUGUESE_CROWN_SPICE_SET.has(goodId);
+}
+
+export function evaluatePortugueseCrownSpiceAccess({
+  port,
+  traderFactionId,
+  foreignSettlementExpulsions = null,
+  goodId,
+  cartazValid,
+  illicitAccessPolicyId = null,
+  otherIllicitAccess = false,
+  disguisedEntry = false
+}) {
+  assertTradePolicyPort(port);
+  const traderId = assertFactionId(traderFactionId);
+  if (typeof goodId !== "string" || goodId === "") {
+    throw new Error(`Invalid Portuguese crown-spice good: ${goodId}`);
+  }
+  if (typeof cartazValid !== "boolean") throw new Error(`Invalid cartaz validity: ${cartazValid}`);
+  if (typeof otherIllicitAccess !== "boolean") {
+    throw new Error(`Invalid other illicit trade access: ${otherIllicitAccess}`);
+  }
+  if (typeof disguisedEntry !== "boolean") throw new Error(`Invalid disguised entry: ${disguisedEntry}`);
+  const controlled = isPortugueseCrownSpice(goodId) &&
+    isPortugueseEstadoPort(port, foreignSettlementExpulsions);
+  const exempt = traderId === PORTUGUESE_FACTION_ID;
+  const restricted = controlled && !exempt && !cartazValid;
+  const illicit = restricted && (
+    disguisedEntry ||
+    otherIllicitAccess ||
+    illicitAccessPolicyId === PORTUGUESE_CROWN_SPICE_POLICY_ID
+  );
+  return Object.freeze({
+    allowed: !restricted || illicit,
+    restricted,
+    lawful: !restricted,
+    illicit,
+    exempt,
+    controlled,
+    policyId: restricted ? PORTUGUESE_CROWN_SPICE_POLICY_ID : null,
+    policy: restricted ? PORTUGUESE_CROWN_SPICE_POLICY : null,
+    portFactionId: port.factionId || NEUTRAL_FACTION_ID,
+    traderFactionId: traderId,
+    reason: restricted ? "portuguese-crown-spice-monopoly" : null
+  });
 }
 
 export function portugueseCartazRequired({ traderFactionId, latitudeDeg, longitudeDeg }) {

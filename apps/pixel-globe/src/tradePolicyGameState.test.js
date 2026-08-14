@@ -5,6 +5,7 @@ import {
   GAME_STATE_VERSION,
   acknowledgePlayerPortCustomsNotice,
   adjustFactionReputation,
+  buyGood,
   buyPortugueseCartazFromInspector,
   createGameState,
   migrateGameState,
@@ -16,6 +17,8 @@ import {
   surrenderPortugueseControlledCargo,
   validateGameState
 } from "./gameState.js";
+import { createWorldEconomy } from "./economy.js";
+import { foreignSettlementById } from "./foreignSettlements.js";
 
 const PLAYER = Object.freeze({
   name: "Joan Alden",
@@ -30,6 +33,17 @@ const GOA = Object.freeze({
   country: "India",
   factionId: "portugal"
 });
+const COLOMBO = Object.freeze({
+  tileId: 155810,
+  portId: "city-155810",
+  city: "Colombo",
+  displayCity: "Colombo",
+  country: "Sri Lanka",
+  cityType: "south-asian",
+  population: 12000,
+  factionId: "neutral",
+  foreignSettlements: [foreignSettlementById("portuguese-colombo")]
+});
 
 test("a Portuguese cartaz is purchased once and remains valid for ninety days", () => {
   const state = createGameState({ cargoCapacity: 30, playerCharacter: PLAYER });
@@ -42,6 +56,20 @@ test("a Portuguese cartaz is purchased once and remains valid for ninety days", 
   assert.equal(purchased.untilMinute, 100 + 90 * 1440);
   assert.equal(portugueseCartazStatus(state, GOA, 101).valid, true);
   validateGameState(state);
+});
+
+test("Colombo cannot sell Crown cinnamon through the official market without a cartaz", () => {
+  const state = createGameState({ cargoCapacity: 30, playerCharacter: PLAYER });
+  const economy = createWorldEconomy({ ports: [COLOMBO], startMinute: 0 });
+  assert.throws(
+    () => buyGood(state, economy, COLOMBO, "cinnamon", 1, { simMinute: 100 }),
+    /requires a valid Portuguese cartaz/
+  );
+  purchasePortugueseCartaz(state, COLOMBO, 100);
+  assert.equal(
+    buyGood(state, economy, COLOMBO, "cinnamon", 1, { simMinute: 101 }).quantity,
+    1
+  );
 });
 
 test("factors remember a customs notice until its displayed rate changes", () => {

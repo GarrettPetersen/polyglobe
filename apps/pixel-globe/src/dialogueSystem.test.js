@@ -73,7 +73,10 @@ import { createShipComparisonView } from "./shipInfo.js";
 import { QUEST_ITINERARY_ORDERED, createQuestItinerary } from "./questItinerary.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
-import { WARTIME_TRADE_RESTRICTION_ID } from "./tradePolicy.js";
+import {
+  PORTUGUESE_CROWN_SPICE_POLICY_ID,
+  WARTIME_TRADE_RESTRICTION_ID
+} from "./tradePolicy.js";
 import {
   VIKING_LONGSHIP_FETCH_STAGES,
   VIKING_LONGSHIP_PORT_CITY,
@@ -1069,6 +1072,163 @@ test("a foreign settlement is explained by the factor and supplies its resident 
   assert.match(expelledGreeting.text, /Portuguese residents expelled/i);
   assert.doesNotMatch(expelledGreeting.text, /Portuguese masons are raising/i);
   assert.equal(playerTradeTerms(gameState, city, "cloves").customsRate, 0.1);
+});
+
+test("Colombo offers cartaz papers before opening its official cinnamon market", () => {
+  const city = withForeignSettlements1522({
+    tileId: 155810,
+    city: "Colombo",
+    displayCity: "Colombo",
+    country: "Sri Lanka",
+    cityType: "south-asian",
+    population: 12000,
+    factionId: "neutral",
+    character: { name: "Dinesh Jayawardena", personalityId: "shrewd" }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const context = { simMinute: 100, random: () => 0.1, shipStats: shipStatsForSlug("brigantine") };
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.ok(view.options.some((entry) => entry.label === "Portuguese cartaz"));
+  const buyGoodsIndex = view.options.findIndex((entry) => entry.label === "Buy goods");
+  selectPortDialogueOption(session, city, gameState, economy, [city], buyGoodsIndex, context);
+
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(session.nodeId, "portuguese-cartaz-market-offer");
+  assert.match(view.text, /will not deal in Crown spices without a valid cartaz/);
+  assert.match(view.text, /cinnamon/);
+  const declineIndex = view.options.findIndex((entry) => entry.label === "Not now");
+  selectPortDialogueOption(session, city, gameState, economy, [city], declineIndex, context);
+
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.ok(view.options.some((entry) => entry.label === "Seek illicit market"));
+  const ordinaryIndex = view.options.findIndex((entry) => entry.label === "Browse ordinary goods");
+  selectPortDialogueOption(session, city, gameState, economy, [city], ordinaryIndex, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const cinnamon = view.options.find((entry) => entry.action.goodId === "cinnamon");
+  assert.equal(cinnamon.disabled, true);
+  assert.match(cinnamon.disabledReason, /valid Portuguese cartaz/);
+  const ordinary = view.options.find((entry) => entry.action.type === "buy" &&
+    entry.action.goodId !== "cinnamon" && !entry.disabled);
+  assert.ok(ordinary);
+
+  const licensedSession = createPortDialogueSession(city, {
+    initialNodeId: "root",
+    admittedToPort: true
+  });
+  view = portDialogueView(licensedSession, city, gameState, economy, [city], context);
+  selectPortDialogueOption(
+    licensedSession,
+    city,
+    gameState,
+    economy,
+    [city],
+    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    context
+  );
+  view = portDialogueView(licensedSession, city, gameState, economy, [city], context);
+  const cartazIndex = view.options.findIndex((entry) => entry.label.startsWith("Buy cartaz"));
+  const cartazResult = selectPortDialogueOption(
+    licensedSession,
+    city,
+    gameState,
+    economy,
+    [city],
+    cartazIndex,
+    context
+  );
+  assert.equal(cartazResult.cartazPurchase.valid, true);
+  assert.equal(licensedSession.nodeId, "buy");
+  view = portDialogueView(licensedSession, city, gameState, economy, [city], context);
+  assert.equal(view.options.find((entry) => (
+    entry.action.type === "buy" && entry.action.goodId === "cinnamon"
+  )).disabled, false);
+});
+
+test("Colombo smugglers sell cinnamon under the existing illicit-trade enforcement policy", () => {
+  const city = withForeignSettlements1522({
+    tileId: 155810,
+    city: "Colombo",
+    displayCity: "Colombo",
+    country: "Sri Lanka",
+    cityType: "south-asian",
+    population: 12000,
+    factionId: "neutral",
+    character: { name: "Dinesh Jayawardena", personalityId: "shrewd" }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const context = { simMinute: 100, random: () => 0.1, shipStats: shipStatsForSlug("brigantine") };
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    context
+  );
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    view.options.findIndex((entry) => entry.label === "Not now"),
+    context
+  );
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const result = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    view.options.findIndex((entry) => entry.label === "Seek illicit market"),
+    context
+  );
+  assert.equal(result.illicitMarketAccessPolicyId, PORTUGUESE_CROWN_SPICE_POLICY_ID);
+  assert.equal(session.nodeId, "buy");
+
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const cinnamonIndex = view.options.findIndex((entry) => (
+    entry.action.type === "buy" && entry.action.goodId === "cinnamon"
+  ));
+  assert.ok(cinnamonIndex >= 0);
+  assert.equal(view.options[cinnamonIndex].disabled, false);
+  const purchase = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    cinnamonIndex,
+    context
+  );
+  assert.equal(purchase.marketPurchase.tradeTerms.illicit, true);
+  assert.equal(purchase.marketPurchase.tradeTerms.accessPolicyId, PORTUGUESE_CROWN_SPICE_POLICY_ID);
+  assert.equal(session.illicitTradeVisit.enforcementFactionId, "portugal");
+  assert.equal(session.illicitTradeVisit.purchasedCargo.cinnamon, 1);
 });
 
 test("buying the final unit disables its stable market row instead of moving later goods", () => {

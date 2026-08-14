@@ -48,6 +48,7 @@ import {
   personalTradePassStatuses,
   playerPortCustomsNotice,
   playerPortAttackStatus,
+  playerPortugueseCrownSpiceAccess,
   playerWhaleHarpoon,
   playerTradeAccess,
   playerTradeTerms,
@@ -254,6 +255,8 @@ import {
 } from "./caribbeanGingerQuest.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
+  PORTUGUESE_CROWN_SPICE_GOOD_IDS,
+  PORTUGUESE_CROWN_SPICE_POLICY_ID,
   isPortugueseEstadoPort,
   resolveRestrictedIllicitMarketAttempt
 } from "./tradePolicy.js";
@@ -330,6 +333,8 @@ export function createPortDialogueSession(city, options = {}) {
     illicitTradeAccessPolicyId: options.illicitTradeAccessPolicyId || null,
     illicitTradeAttemptedPolicyId: options.illicitTradeAttemptedPolicyId || null,
     illicitTradeVisit: copyIllicitTradeVisit(options.illicitTradeVisit || null),
+    portugueseCartazMarketNodeId: null,
+    portugueseCartazMarketOfferDeclined: false,
     nextPortNodeId: options.nextPortNodeId || null,
     postDrunkNodeId: options.postDrunkNodeId || null,
     drunkVariant: options.drunkVariant || 0,
@@ -1396,6 +1401,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "portuguese-cartaz") {
     return portugueseCartazView(session, city, gameState, context);
   }
+  if (session.nodeId === "portuguese-cartaz-market-offer") {
+    return portugueseCartazMarketOfferView(session, city, gameState, economy, context);
+  }
+  if (session.nodeId === "portuguese-cartaz-market-declined") {
+    return portugueseCartazMarketDeclinedView(session, city, gameState, economy, context);
+  }
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
   if (session.nodeId === "quest-cargo-tip") return questCargoTipView(session, city);
@@ -1543,10 +1554,24 @@ export function selectPortDialogueOption(
       session.nextPortNodeId = null;
     }
     if (action.nodeId === "buy") {
+      if (shouldOfferPortugueseCartazForMarket(session, city, gameState, economy, "buy", context)) {
+        session.portugueseCartazMarketNodeId = "buy";
+        session.nodeId = "portuguese-cartaz-market-offer";
+        session.selectedIndex = 0;
+        session.feedback = null;
+        return { closed: false };
+      }
       session.marketPurchases = {};
       beginMarketUndoSession(session, "buy", gameState, economy, city);
     }
     if (action.nodeId === "sell") {
+      if (shouldOfferPortugueseCartazForMarket(session, city, gameState, economy, "sell", context)) {
+        session.portugueseCartazMarketNodeId = "sell";
+        session.nodeId = "portuguese-cartaz-market-offer";
+        session.selectedIndex = 0;
+        session.feedback = null;
+        return { closed: false };
+      }
       session.marketSales = 0;
       beginMarketUndoSession(session, "sell", gameState, economy, city);
     }
@@ -1727,20 +1752,49 @@ export function selectPortDialogueOption(
     if (session.illicitTradeAttemptedPolicyId === policy.id) {
       throw new Error(`${policy.label} illicit market may only be approached once per port visit`);
     }
-    session.illicitTradeAttemptedPolicyId = policy.id;
-    if (resolveRestrictedIllicitMarketAttempt(currentAccess, context.random())) {
-      session.illicitTradeAccessPolicyId = policy.id;
-      session.feedback = "A discreet broker agrees to handle your cargo until you leave port.";
-    } else {
-      adjustFactionReputation(
-        gameState,
-        policy.hostFactionId,
-        -policy.illicitMarketReputationPenalty
-      );
-      const faction = factionById(policy.hostFactionId);
-      session.feedback = `The broker reports you to the harbor watch. ${faction.adjective} standing fell.`;
-    }
+    applyIllicitMarketAttempt(session, gameState, currentAccess, context.random());
     session.selectedIndex = 0;
+    return {
+      closed: false,
+      illicitMarketAccessPolicyId: session.illicitTradeAccessPolicyId
+    };
+  }
+  if (action.type === "decline-portuguese-cartaz-market") {
+    requirePortugueseCartazMarketNode(session);
+    session.portugueseCartazMarketOfferDeclined = true;
+    session.nodeId = "portuguese-cartaz-market-declined";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "continue-portuguese-cartaz-market") {
+    const marketNodeId = requirePortugueseCartazMarketNode(session);
+    enterPortMarketNode(session, marketNodeId, gameState, economy, city);
+    return { closed: false };
+  }
+  if (action.type === "attempt-portuguese-cartaz-illicit-market") {
+    if (typeof context.random !== "function") {
+      throw new Error("Portuguese illicit spice market attempt requires a random source");
+    }
+    const marketNodeId = requirePortugueseCartazMarketNode(session);
+    const goodId = portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId)[0];
+    if (!goodId) throw new Error("Portuguese illicit spice market has no controlled cargo");
+    const access = playerPortugueseCrownSpiceAccess(
+      gameState,
+      city,
+      goodId,
+      tradeContext(session, context)
+    );
+    if (access.policyId !== PORTUGUESE_CROWN_SPICE_POLICY_ID || access.allowed) {
+      throw new Error("Portuguese illicit spice market no longer requires a cartaz");
+    }
+    applyIllicitMarketAttempt(session, gameState, access, context.random());
+    if (session.illicitTradeAccessPolicyId === PORTUGUESE_CROWN_SPICE_POLICY_ID) {
+      enterPortMarketNode(session, marketNodeId, gameState, economy, city, { preserveFeedback: true });
+    } else {
+      session.nodeId = "portuguese-cartaz-market-declined";
+      session.selectedIndex = 0;
+    }
     return {
       closed: false,
       illicitMarketAccessPolicyId: session.illicitTradeAccessPolicyId
@@ -2227,6 +2281,10 @@ export function selectPortDialogueOption(
   if (action.type === "purchase-portuguese-cartaz") {
     const result = purchasePortugueseCartaz(gameState, city, context.simMinute ?? 0);
     session.feedback = `Cartaz issued for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days.`;
+    if (session.portugueseCartazMarketNodeId) {
+      const marketNodeId = requirePortugueseCartazMarketNode(session);
+      enterPortMarketNode(session, marketNodeId, gameState, economy, city, { preserveFeedback: true });
+    }
     session.selectedIndex = 0;
     return { closed: false, cartazPurchase: result };
   }
@@ -3424,11 +3482,14 @@ function rootView(session, city, gameState, economy, context) {
   const market = portEconomySummary(economy, city);
   const pirateHideout = city.isPirateHideout === true;
   const tradeAccess = playerPortTradeAccess(session, city, gameState, context);
+  const cartazIllicitMarket = session.illicitTradeAccessPolicyId ===
+    PORTUGUESE_CROWN_SPICE_POLICY_ID;
+  const illicitMarket = tradeAccess.illicit || cartazIllicitMarket;
   const activeQuest = gameState.memory.quests?.active || null;
   const canCompleteQuest = activeQuest?.destinationTileId === city.tileId;
   const options = [
     ...(tradeAccess.allowed
-      ? [option(pirateHideout ? "Buy doubtful goods" : tradeAccess.illicit ? "Buy illicit goods" : "Buy goods", {
+      ? [option(pirateHideout ? "Buy doubtful goods" : illicitMarket ? "Buy illicit goods" : "Buy goods", {
         type: "node",
         nodeId: "buy"
       })]
@@ -3452,7 +3513,7 @@ function rootView(session, city, gameState, economy, context) {
       })]
       : []),
     ...(tradeAccess.allowed
-      ? [option(pirateHideout ? "Fence cargo" : tradeAccess.illicit ? "Sell cargo illicitly" : "Sell cargo", {
+      ? [option(pirateHideout ? "Fence cargo" : illicitMarket ? "Sell cargo illicitly" : "Sell cargo", {
         type: "node",
         nodeId: "sell"
       })]
@@ -3556,7 +3617,7 @@ function rootView(session, city, gameState, economy, context) {
     ? tradeAccess.policy
       ? `${tradeAccess.policy.closedMarketText} Water, provisions, and ordinary harbor services remain available.`
       : "Wartime orders close this market to enemy cargo."
-    : tradeAccess.illicit
+    : illicitMarket
     ? `Keep your market business discreet. Market specie: ${market.specie} db.`
     : tradeAccess.personalTradePass
     ? `Your ${tradeAccess.policy.permitLabel} is in order. The customs officers admit your cargo. Market specie: ${market.specie} db.`
@@ -3637,6 +3698,84 @@ function tradeContext(session, context) {
   };
 }
 
+function shouldOfferPortugueseCartazForMarket(
+  session,
+  city,
+  gameState,
+  economy,
+  marketNodeId,
+  context
+) {
+  if (session.disguisedEntry || session.portugueseCartazMarketOfferDeclined) return false;
+  if (session.illicitTradeAccessPolicyId === PORTUGUESE_CROWN_SPICE_POLICY_ID) return false;
+  if (!isPortugueseEstadoPort(city, gameState.relations.foreignSettlementExpulsions)) return false;
+  const status = portugueseCartazStatus(
+    gameState,
+    city,
+    context.simMinute ?? 0,
+    context.shipStats?.cargoCapacity ?? gameState.cargoCapacity
+  );
+  return !status.exempt && !status.valid &&
+    portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId).length > 0;
+}
+
+function portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId) {
+  if (marketNodeId === "buy") {
+    const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+    return PORTUGUESE_CROWN_SPICE_GOOD_IDS.filter((goodId) => (market.get(goodId)?.stock || 0) >= 1);
+  }
+  if (marketNodeId === "sell") {
+    return PORTUGUESE_CROWN_SPICE_GOOD_IDS.filter((goodId) => (gameState.cargo[goodId] || 0) >= 1);
+  }
+  throw new Error(`Portuguese cartaz market requires buy or sell, received ${marketNodeId}`);
+}
+
+function requirePortugueseCartazMarketNode(session) {
+  if (session.portugueseCartazMarketNodeId !== "buy" &&
+      session.portugueseCartazMarketNodeId !== "sell") {
+    throw new Error("Portuguese cartaz market offer has no market destination");
+  }
+  return session.portugueseCartazMarketNodeId;
+}
+
+function enterPortMarketNode(session, marketNodeId, gameState, economy, city, options = {}) {
+  if (marketNodeId === "buy") {
+    session.marketPurchases = {};
+  } else if (marketNodeId === "sell") {
+    session.marketSales = 0;
+  } else {
+    throw new Error(`Cannot enter unknown port market node: ${marketNodeId}`);
+  }
+  beginMarketUndoSession(session, marketNodeId, gameState, economy, city);
+  session.nodeId = marketNodeId;
+  session.selectedIndex = 0;
+  if (options.preserveFeedback !== true) session.feedback = null;
+}
+
+function applyIllicitMarketAttempt(session, gameState, access, roll) {
+  const policy = access?.policy;
+  if (!policy || access.policyId !== policy.id || access.allowed) {
+    throw new Error("Illicit market attempt requires a current closed-market policy");
+  }
+  if (session.illicitTradeAttemptedPolicyId === policy.id) {
+    throw new Error(`${policy.label} illicit market may only be approached once per port visit`);
+  }
+  session.illicitTradeAttemptedPolicyId = policy.id;
+  if (resolveRestrictedIllicitMarketAttempt(access, roll)) {
+    session.illicitTradeAccessPolicyId = policy.id;
+    session.feedback = "A discreet broker agrees to handle your cargo until you leave port.";
+    return true;
+  }
+  adjustFactionReputation(
+    gameState,
+    policy.hostFactionId,
+    -policy.illicitMarketReputationPenalty
+  );
+  const faction = factionById(policy.hostFactionId);
+  session.feedback = `The broker reports you to the harbor watch. ${faction.adjective} standing fell.`;
+  return false;
+}
+
 function portugueseCartazView(session, city, gameState, context) {
   const simMinute = context.simMinute ?? 0;
   const status = portugueseCartazStatus(
@@ -3665,6 +3804,55 @@ function portugueseCartazView(session, city, gameState, context) {
           disabledReason: "Not enough doubloons."
         })]
         : []),
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function portugueseCartazMarketOfferView(session, city, gameState, economy, context) {
+  const marketNodeId = requirePortugueseCartazMarketNode(session);
+  const goodIds = portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId);
+  if (goodIds.length === 0) throw new Error("Portuguese cartaz offer has no controlled spices");
+  const spiceLabels = goodIds.map((goodId) => tradeGoodById(goodId).label.toLowerCase()).join(", ");
+  const status = portugueseCartazStatus(
+    gameState,
+    city,
+    context.simMinute ?? 0,
+    context.shipStats?.cargoCapacity ?? gameState.cargoCapacity
+  );
+  return {
+    speaker: speakerName(city),
+    expressionId: "attentive",
+    text: `The Portuguese factor will not deal in Crown spices without a valid cartaz. That includes ${spiceLabels} here. I can issue your vessel papers for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days.`,
+    feedback: session.feedback,
+    options: [
+      ...(status.fee !== null
+        ? [option(`Buy cartaz  ${status.fee} db`, { type: "purchase-portuguese-cartaz" }, {
+          disabled: !status.canPurchase,
+          disabledReason: "Not enough doubloons."
+        })]
+        : []),
+      option("Not now", { type: "decline-portuguese-cartaz-market" })
+    ]
+  };
+}
+
+function portugueseCartazMarketDeclinedView(session, city, gameState, economy) {
+  const marketNodeId = requirePortugueseCartazMarketNode(session);
+  const goodIds = portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId);
+  if (goodIds.length === 0) throw new Error("Portuguese cartaz refusal has no controlled spices");
+  return {
+    speaker: speakerName(city),
+    expressionId: feedbackExpressionId(session.feedback),
+    text: "Then the Crown warehouse remains closed. You may trade ordinary goods openly, or seek a smuggler beyond the customs quay.",
+    feedback: session.feedback,
+    options: [
+      ...(session.illicitTradeAttemptedPolicyId !== PORTUGUESE_CROWN_SPICE_POLICY_ID
+        ? [option("Seek illicit market", { type: "attempt-portuguese-cartaz-illicit-market" })]
+        : []),
+      option("Browse ordinary goods", { type: "continue-portuguese-cartaz-market" }, {
+        iconId: marketNodeId === "buy" ? "action:buy" : "action:sell"
+      }),
       option("Back", { type: "node", nodeId: "root" })
     ]
   };
@@ -4643,6 +4831,8 @@ function buyView(session, city, gameState, economy, context) {
       const displayedPrice = quotePortSale(economy, city, row.good.id, 1, terms.purchaseMultiplier);
       const comparison = worldMarketPriceComparison(economy, city, row.good.id, "buy");
       const freeSpace = cargoFreeForGood(gameState, row.good.id);
+      const cartazBlocked = !terms.allowed &&
+        terms.crownSpiceAccess?.reason === "portuguese-crown-spice-monopoly";
       const outOfStock = row.stock < 1;
       const cannotAfford = gameState.doubloons < displayedPrice;
       const cannotFit = freeSpace < totalSize;
@@ -4663,7 +4853,9 @@ function buyView(session, city, gameState, economy, context) {
       const maximumPrice = maximumQuantity > 0
         ? quotePortSale(economy, city, row.good.id, maximumQuantity, terms.purchaseMultiplier)
         : 0;
-      const disabledReason = outOfStock
+      const disabledReason = cartazBlocked
+        ? "A valid Portuguese cartaz is required for Crown spices."
+        : outOfStock
         ? `No ${row.good.label.toLowerCase()} remaining.`
         : cannotAfford
           ? "Not enough doubloons."
@@ -4675,7 +4867,7 @@ function buyView(session, city, gameState, economy, context) {
         option(`Buy 1 ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
           detail: `${tradeTermsDetail(terms, "buy")}  ${worldPriceIndicator(comparison)}  ${marketStockIndicator(row.stock)}`,
           rowId,
-          disabled: outOfStock || cannotAfford || cannotFit,
+          disabled: cartazBlocked || outOfStock || cannotAfford || cannotFit,
           disabledReason
         }),
         option(`Buy max x${maximumQuantity}  ${maximumPrice} db`, {
@@ -4685,7 +4877,7 @@ function buyView(session, city, gameState, economy, context) {
         }, {
           detail: `${marketCargoSpaceIndicator(totalSize)}  ${marketStockIndicator(row.stock)}`,
           rowId,
-          disabled: maximumQuantity <= 1,
+          disabled: cartazBlocked || maximumQuantity <= 1,
           disabledReason: disabledReason || "Only one unit fits or is affordable; use Buy 1."
         })
       ];
@@ -5279,6 +5471,8 @@ function sellView(session, city, gameState, economy, context) {
     const row = market.get(goodId);
     if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${goodId}`);
     const terms = playerTradeTerms(gameState, city, goodId, tradeContext(session, context));
+    const cartazBlocked = !terms.allowed &&
+      terms.crownSpiceAccess?.reason === "portuguese-crown-spice-monopoly";
     const price = quotePortPurchase(economy, city, goodId, 1, terms.saleMultiplier);
     const basis = cargoCostBasis(gameState, goodId);
     const pnlLabel = basis.known ? signedDoubloons(price - basis.average) : "--";
@@ -5303,7 +5497,9 @@ function sellView(session, city, gameState, economy, context) {
     const fullPnl = basis.known && heldLots > 0
       ? signedDoubloons(fullSalePrice - basis.total * heldLots / quantity)
       : "--";
-    const disabledReason = soldOut
+    const disabledReason = cartazBlocked
+        ? "A valid Portuguese cartaz is required for Crown spices."
+        : soldOut
         ? `No ${good.label.toLowerCase()} remaining.`
         : marketOutOfSpecie
           ? "The market is out of specie."
@@ -5316,7 +5512,7 @@ function sellView(session, city, gameState, economy, context) {
       }, {
         detail: `${tradeTermsDetail(terms, "sell")}  ${worldPriceIndicator(comparison)}  ${marketProfitIndicator(pnlLabel)}  ${marketHeldIndicator(heldLots)}`,
         rowId,
-        disabled: soldOut || marketOutOfSpecie,
+        disabled: cartazBlocked || soldOut || marketOutOfSpecie,
         disabledReason
       }),
       option(`Sell all x${heldLots}  ${fullSalePrice} db`, {
@@ -5326,7 +5522,7 @@ function sellView(session, city, gameState, economy, context) {
       }, {
         detail: `TOTAL P/L ${fullPnl}  HELD ${heldLots}`,
         rowId,
-        disabled: !marketCanBuyAll,
+        disabled: cartazBlocked || !marketCanBuyAll,
         disabledReason: disabledReason || "The market cannot afford the whole lot."
       })
     ];
