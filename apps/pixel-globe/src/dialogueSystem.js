@@ -880,11 +880,13 @@ function shipDialogueContentView(session, ship) {
     };
   }
   if (session.nodeId === "surrender-offer") {
+    const prizeLegality = shipPrizeLegalityNotice(session, ship);
     return {
       speaker,
       expressionId: "afraid",
       text: "We cannot outrun or outfight you. Spare the crew, and we will surrender our cargo and coin.",
-      feedback: null,
+      feedback: prizeLegality?.text || null,
+      feedbackTone: prizeLegality?.tone,
       options: [
         option("Accept surrender", { type: "surrender" }),
         option("Refuse and attack", { type: "attack" })
@@ -916,13 +918,15 @@ function shipDialogueContentView(session, ship) {
   }
   if (session.nodeId === "damage-surrender-choice") {
     const accidental = session.surrenderCause === "accidental";
+    const prizeLegality = shipPrizeLegalityNotice(session, ship);
     return {
       speaker,
       expressionId: "afraid",
       text: accidental
         ? "Our colors are struck. If that blow was unintended, say so and let us make for port."
         : "Enough. Our colors are struck. Will you take us as a prize, or let us go?",
-      feedback: null,
+      feedback: prizeLegality?.text || null,
+      feedbackTone: prizeLegality?.tone,
       options: [
         option("Accept surrender", { type: "accept-damage-surrender" }),
         option(accidental ? "Apologize and release" : "Show mercy and release", {
@@ -1046,10 +1050,7 @@ function shipDialogueContentView(session, ship) {
 }
 
 function shipAttackLegalityNotice(ship) {
-  const issuer = ship.privateeringIssuerAdjective;
-  if (issuer !== null && issuer !== undefined && (typeof issuer !== "string" || issuer.trim() === "")) {
-    throw new Error(`Invalid privateering authority issuer for ship: ${ship.id}`);
-  }
+  const issuer = shipPrivateeringIssuer(ship);
   if (ship.playerAttackIsPiracy === true && issuer) {
     throw new Error(`Ship attack cannot be piracy and authorized by ${issuer}: ${ship.id}`);
   }
@@ -1066,6 +1067,46 @@ function shipAttackLegalityNotice(ship) {
     };
   }
   return null;
+}
+
+function shipPrizeLegalityNotice(session, ship) {
+  if (session.surrenderCause === "self-defense") {
+    return {
+      text: "This vessel attacked you. Taking it as a prize is lawful.",
+      tone: "success"
+    };
+  }
+  const issuer = shipPrivateeringIssuer(ship);
+  if (ship.playerAttackIsPiracy === true && issuer) {
+    throw new Error(`Ship prize cannot be piracy and authorized by ${issuer}: ${ship.id}`);
+  }
+  if (issuer) {
+    return {
+      text: `Your ${issuer} letter of marque makes this a lawful prize.`,
+      tone: "success"
+    };
+  }
+  if (ship.playerAttackIsPiracy === true) {
+    return {
+      text: "Taking this vessel as a prize would be piracy.",
+      tone: "danger"
+    };
+  }
+  if (ship.playerAttackIsPiracy === false) {
+    return {
+      text: "Taking this vessel as a prize is lawful.",
+      tone: "success"
+    };
+  }
+  return null;
+}
+
+function shipPrivateeringIssuer(ship) {
+  const issuer = ship.privateeringIssuerAdjective;
+  if (issuer !== null && issuer !== undefined && (typeof issuer !== "string" || issuer.trim() === "")) {
+    throw new Error(`Invalid privateering authority issuer for ship: ${ship.id}`);
+  }
+  return issuer || null;
 }
 
 function shipDialogueVesselLabel(ship) {

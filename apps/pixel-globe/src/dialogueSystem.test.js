@@ -702,6 +702,8 @@ test("a damage-induced surrender can be accepted or mercifully released", () => 
   const choice = shipDialogueView(accidental, ship);
 
   assert.match(choice.text, /unintended/i);
+  assert.equal(choice.feedback, "Taking this vessel as a prize would be piracy.");
+  assert.equal(choice.feedbackTone, "danger");
   assert.deepEqual(choice.options.map((entry) => entry.label), [
     "Accept surrender",
     "Apologize and release"
@@ -720,7 +722,10 @@ test("a damage-induced surrender can be accepted or mercifully released", () => 
   });
 
   const defensive = prepareDamageSurrenderDialogue(null, ship, { cause: "self-defense" });
-  assert.deepEqual(shipDialogueView(defensive, ship).options.map((entry) => entry.label), [
+  const defensiveChoice = shipDialogueView(defensive, ship);
+  assert.equal(defensiveChoice.feedback, "This vessel attacked you. Taking it as a prize is lawful.");
+  assert.equal(defensiveChoice.feedbackTone, "success");
+  assert.deepEqual(defensiveChoice.options.map((entry) => entry.label), [
     "Accept surrender",
     "Show mercy and release"
   ]);
@@ -728,6 +733,26 @@ test("a damage-induced surrender can be accepted or mercifully released", () => 
     closed: false,
     action: { type: "accept-damage-surrender" }
   });
+});
+
+test("a letter of marque identifies a lawful surrendered prize", () => {
+  const ship = {
+    id: "french-privateer-prize",
+    slug: "small-cog",
+    hitPoints: 1,
+    maxHitPoints: 7,
+    roleLabel: "Merchant",
+    faction: { adjective: "French" },
+    character: { name: "Jeanne Martin" },
+    combatGrace: true,
+    playerAttackIsPiracy: false,
+    privateeringIssuerAdjective: "Spanish"
+  };
+  const session = prepareDamageSurrenderDialogue(null, ship, { cause: "deliberate" });
+  const choice = shipDialogueView(session, ship);
+
+  assert.equal(choice.feedback, "Your Spanish letter of marque makes this a lawful prize.");
+  assert.equal(choice.feedbackTone, "success");
 });
 
 test("a surrendered prize cannot replace the player with a hold that is too small", () => {

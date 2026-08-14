@@ -124,6 +124,54 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Taking this vessel as a prize is lawful.": Object.freeze({
+    "zh-Hans": "将这艘船作为战利船扣押是合法的。",
+    ru: "Взять это судно в качестве приза законно.",
+    es: "Tomar este buque como presa es legal.",
+    "pt-BR": "Tomar esta embarcação como presa é legal.",
+    ja: "この船を拿捕して戦利船とするのは合法です。",
+    de: "Dieses Schiff als Prise zu nehmen ist rechtmäßig.",
+    fr: "La prise de ce navire est légale.",
+    pl: "Zajęcie tego statku jako pryzu jest zgodne z prawem.",
+    "zh-Hant": "將這艘船作為戰利船扣押是合法的。",
+    ko: "이 배를 나포선으로 취하는 것은 합법입니다."
+  }),
+  "Taking this vessel as a prize would be piracy.": Object.freeze({
+    "zh-Hans": "扣押这艘船作为战利船将构成海盗行为。",
+    ru: "Взять это судно в качестве приза было бы пиратством.",
+    es: "Tomar este buque como presa sería piratería.",
+    "pt-BR": "Tomar esta embarcação como presa seria pirataria.",
+    ja: "この船を戦利船として拿捕すれば海賊行為になります。",
+    de: "Dieses Schiff als Prise zu nehmen wäre Piraterie.",
+    fr: "La prise de ce navire constituerait un acte de piraterie.",
+    pl: "Zajęcie tego statku jako pryzu byłoby piractwem.",
+    "zh-Hant": "扣押這艘船作為戰利船將構成海盜行為。",
+    ko: "이 배를 나포선으로 취하면 해적 행위가 됩니다."
+  }),
+  "This vessel attacked you. Taking it as a prize is lawful.": Object.freeze({
+    "zh-Hans": "这艘船先向你发动攻击。将其作为战利船扣押是合法的。",
+    ru: "Это судно атаковало вас. Взять его в качестве приза законно.",
+    es: "Este buque te atacó. Tomarlo como presa es legal.",
+    "pt-BR": "Esta embarcação atacou você. Tomá-la como presa é legal.",
+    ja: "この船が先に攻撃しました。戦利船として拿捕するのは合法です。",
+    de: "Dieses Schiff hat Euch angegriffen. Es als Prise zu nehmen ist rechtmäßig.",
+    fr: "Ce navire vous a attaqué. Sa prise est légale.",
+    pl: "Ten statek was zaatakował. Zajęcie go jako pryzu jest zgodne z prawem.",
+    "zh-Hant": "這艘船先向你發動攻擊。將其作為戰利船扣押是合法的。",
+    ko: "이 배가 먼저 공격했습니다. 나포선으로 취하는 것은 합법입니다."
+  }),
+  "Your {0} letter of marque makes this a lawful prize.": Object.freeze({
+    "zh-Hans": "你的{0}私掠许可证使这艘船成为合法战利船。",
+    ru: "Каперская грамота ({0}) делает это судно законным призом.",
+    es: "Tu patente de corso {0} hace de este buque una presa legítima.",
+    "pt-BR": "Sua carta de corso {0} torna esta embarcação uma presa legítima.",
+    ja: "{0}の私掠免許状により、この船は合法的な戦利船となります。",
+    de: "Der Kaperbrief Eures Auftraggebers ({0}) macht dieses Schiff zu einer rechtmäßigen Prise.",
+    fr: "Votre lettre de marque {0} fait de ce navire une prise légitime.",
+    pl: "Wasz list kaperski ({0}) czyni ten statek legalnym pryzem.",
+    "zh-Hant": "你的{0}私掠許可證使這艘船成為合法戰利船。",
+    ko: "{0} 사략 허가장에 따라 이 배는 합법적인 나포선입니다."
+  }),
   "The hosts paid {0} db.": Object.freeze({
     "zh-Hans": "主办方支付了 {0} DB。", ru: "Хозяева заплатили {0} DB.",
     es: "Los anfitriones pagaron {0} DB.", "pt-BR": "Os anfitriões pagaram {0} DB.",
