@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   CHART_REFRAME_DIALOGUES,
   CHART_REFRAME_DIALOGUE_CATASTROPHIC_CONFIRMATION_MS,
+  CHART_REFRAME_DIALOGUE_CATASTROPHIC_REPAIR_STALL_MS,
   CHART_REFRAME_DIALOGUE_CONFIRMATION_MS,
+  CHART_REFRAME_DIALOGUE_REPAIR_STALL_MS,
   advanceChartReframeDialogueTrigger,
   chartDialogueRegionTags,
   chartReframeDialogueCooldownElapsed,
@@ -117,6 +119,71 @@ test("catastrophic chart faults use the shorter confirmation period", () => {
   });
   assert.equal(ready.ready, true);
   assert.equal(ready.severity, "catastrophic");
+});
+
+test("an active visual repair suppresses banter while severe faults keep improving", () => {
+  let result = advanceChartReframeDialogueTrigger(createChartReframeDialogueTrigger(), {
+    ...fault({ rotationDeg: 16 }),
+    nowMs: 1_000,
+    correctiveEffectActive: true
+  });
+  for (const [elapsedMs, rotationDeg] of [[7_000, 15], [14_000, 14.2], [21_000, 13.4]]) {
+    result = advanceChartReframeDialogueTrigger(result.trigger, {
+      ...fault({ rotationDeg }),
+      nowMs: 1_000 + elapsedMs,
+      correctiveEffectActive: true
+    });
+    assert.equal(result.ready, false);
+  }
+});
+
+test("banter remains a last resort when an active visual repair stalls", () => {
+  const catastrophic = fault({ rotationDeg: 16 });
+  const catastrophicStart = advanceChartReframeDialogueTrigger(createChartReframeDialogueTrigger(), {
+    ...catastrophic,
+    nowMs: 1_000,
+    correctiveEffectActive: true
+  });
+  const catastrophicReady = advanceChartReframeDialogueTrigger(catastrophicStart.trigger, {
+    ...catastrophic,
+    nowMs: 1_000 + CHART_REFRAME_DIALOGUE_CATASTROPHIC_REPAIR_STALL_MS,
+    correctiveEffectActive: true
+  });
+  assert.equal(catastrophicReady.ready, true);
+
+  const severe = fault({ rotationDeg: 9 });
+  const severeStart = advanceChartReframeDialogueTrigger(createChartReframeDialogueTrigger(), {
+    ...severe,
+    nowMs: 1_000,
+    correctiveEffectActive: true
+  });
+  const severeReady = advanceChartReframeDialogueTrigger(severeStart.trigger, {
+    ...severe,
+    nowMs: 1_000 + CHART_REFRAME_DIALOGUE_REPAIR_STALL_MS,
+    correctiveEffectActive: true
+  });
+  assert.equal(severeReady.ready, true);
+});
+
+test("ending a corrective effect starts a fresh unassisted confirmation window", () => {
+  const catastrophic = fault({ rotationDeg: 16 });
+  const repairing = advanceChartReframeDialogueTrigger(createChartReframeDialogueTrigger(), {
+    ...catastrophic,
+    nowMs: 1_000,
+    correctiveEffectActive: true
+  });
+  const unassisted = advanceChartReframeDialogueTrigger(repairing.trigger, {
+    ...catastrophic,
+    nowMs: 10_000,
+    correctiveEffectActive: false
+  });
+  assert.equal(unassisted.ready, false);
+  const ready = advanceChartReframeDialogueTrigger(unassisted.trigger, {
+    ...catastrophic,
+    nowMs: 10_000 + CHART_REFRAME_DIALOGUE_CATASTROPHIC_CONFIRMATION_MS,
+    correctiveEffectActive: false
+  });
+  assert.equal(ready.ready, true);
 });
 
 test("recent ports are unique, bounded, and available to templates", () => {

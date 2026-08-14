@@ -3,6 +3,10 @@ export const CHART_REFRAME_DIALOGUE_COOLDOWN_MINUTES = 21 * 24 * 60;
 export const CHART_REFRAME_DIALOGUE_CATASTROPHIC_COOLDOWN_MINUTES = 3 * 24 * 60;
 export const CHART_REFRAME_DIALOGUE_CONFIRMATION_MS = 20_000;
 export const CHART_REFRAME_DIALOGUE_CATASTROPHIC_CONFIRMATION_MS = 6_000;
+export const CHART_REFRAME_DIALOGUE_REPAIR_STALL_MS = 30_000;
+export const CHART_REFRAME_DIALOGUE_CATASTROPHIC_REPAIR_STALL_MS = 15_000;
+
+const CHART_REFRAME_DIALOGUE_MATERIAL_PROGRESS = 0.04;
 
 export function chartReframeDialoguePortraitStage({ captain, counterpart = null, speaker }) {
   for (const [label, character] of Object.entries({ captain, speaker })) {
@@ -112,23 +116,57 @@ export function recordChartReframePortVisit(memory, tileId) {
 }
 
 export function createChartReframeDialogueTrigger() {
-  return { key: null, sinceMs: null };
+  return {
+    key: null,
+    sinceMs: null,
+    correctiveEffectActive: false,
+    bestMagnitude: null,
+    lastProgressMs: null
+  };
 }
 
-export function advanceChartReframeDialogueTrigger(trigger, { drift, terrainTear, nowMs }) {
+export function advanceChartReframeDialogueTrigger(trigger, {
+  drift,
+  terrainTear,
+  nowMs,
+  correctiveEffectActive = false
+}) {
   validateTrigger(trigger);
   validateFaultMetrics(drift, terrainTear, nowMs);
+  if (typeof correctiveEffectActive !== "boolean") {
+    throw new Error("Chart reframe dialogue correction state must be boolean");
+  }
   const severity = chartReframeDialogueFaultSeverity(drift, terrainTear);
   if (severity === "none") return Object.freeze({ trigger: createChartReframeDialogueTrigger(), ready: false, severity });
-  const key = severity;
-  const sinceMs = trigger.key === key && trigger.sinceMs !== null ? trigger.sinceMs : nowMs;
-  const next = { key, sinceMs };
-  const confirmationMs = severity === "catastrophic"
-    ? CHART_REFRAME_DIALOGUE_CATASTROPHIC_CONFIRMATION_MS
-    : CHART_REFRAME_DIALOGUE_CONFIRMATION_MS;
+  const magnitude = chartReframeDialogueFaultMagnitude(drift, terrainTear);
+  const sameEpisode = trigger.key === severity &&
+    trigger.sinceMs !== null &&
+    trigger.correctiveEffectActive === correctiveEffectActive;
+  const sinceMs = sameEpisode ? trigger.sinceMs : nowMs;
+  let bestMagnitude = sameEpisode ? trigger.bestMagnitude : magnitude;
+  let lastProgressMs = sameEpisode ? trigger.lastProgressMs : nowMs;
+  if (sameEpisode && magnitude <= bestMagnitude - CHART_REFRAME_DIALOGUE_MATERIAL_PROGRESS) {
+    bestMagnitude = magnitude;
+    lastProgressMs = nowMs;
+  }
+  const next = {
+    key: severity,
+    sinceMs,
+    correctiveEffectActive,
+    bestMagnitude,
+    lastProgressMs
+  };
+  const confirmationMs = correctiveEffectActive
+    ? (severity === "catastrophic"
+      ? CHART_REFRAME_DIALOGUE_CATASTROPHIC_REPAIR_STALL_MS
+      : CHART_REFRAME_DIALOGUE_REPAIR_STALL_MS)
+    : (severity === "catastrophic"
+      ? CHART_REFRAME_DIALOGUE_CATASTROPHIC_CONFIRMATION_MS
+      : CHART_REFRAME_DIALOGUE_CONFIRMATION_MS);
+  const confirmationStartMs = correctiveEffectActive ? lastProgressMs : sinceMs;
   return Object.freeze({
     trigger: next,
-    ready: nowMs - sinceMs >= confirmationMs,
+    ready: nowMs - confirmationStartMs >= confirmationMs,
     severity
   });
 }
@@ -148,6 +186,15 @@ export function chartReframeDialogueFaultSeverity(drift, terrainTear) {
     terrainTear.extraPx >= 18
   ) return "severe";
   return "none";
+}
+
+function chartReframeDialogueFaultMagnitude(drift, terrainTear) {
+  return Math.max(
+    Math.abs(drift.rotationDeg) / 8,
+    drift.rmsDistortionPx / 12,
+    drift.maxDistortionPx / 26,
+    terrainTear.extraPx / 18
+  );
 }
 
 export function chartReframeDialogueCooldownElapsed(memory, currentMinute, severity = "severe") {
@@ -493,7 +540,12 @@ function validateStringArray(value, label, maximumLength) {
 
 function validateTrigger(trigger) {
   if (!trigger || ![null, "severe", "catastrophic"].includes(trigger.key) ||
-      (trigger.sinceMs !== null && (!Number.isFinite(trigger.sinceMs) || trigger.sinceMs < 0))) {
+      (trigger.sinceMs !== null && (!Number.isFinite(trigger.sinceMs) || trigger.sinceMs < 0)) ||
+      typeof trigger.correctiveEffectActive !== "boolean" ||
+      (trigger.bestMagnitude !== null &&
+        (!Number.isFinite(trigger.bestMagnitude) || trigger.bestMagnitude < 0)) ||
+      (trigger.lastProgressMs !== null &&
+        (!Number.isFinite(trigger.lastProgressMs) || trigger.lastProgressMs < 0))) {
     throw new Error("Chart reframe dialogue has invalid trigger state");
   }
 }

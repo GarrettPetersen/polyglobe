@@ -22350,11 +22350,11 @@ function maybeOpenChartReframeDialogue(nowMs) {
   const advanced = advanceChartReframeDialogueTrigger(chartReframeDialogueTrigger, {
     drift: chartVisibleNorthUpDrift,
     terrainTear: chartDiagnosticTerrainTear.nonWater ?? chartDiagnosticTerrainTear,
-    nowMs
+    nowMs,
+    correctiveEffectActive
   });
   chartReframeDialogueTrigger = advanced.trigger;
-  if ((correctiveEffectActive && advanced.severity !== "catastrophic") ||
-      !advanced.ready || nowMs < chartReframeDialogueSessionCooldownUntilMs) {
+  if (!advanced.ready || nowMs < chartReframeDialogueSessionCooldownUntilMs) {
     return false;
   }
 
