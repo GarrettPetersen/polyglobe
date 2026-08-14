@@ -1510,6 +1510,7 @@ import {
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
 import {
+  TextureAtlasAllocator,
   createWorldWebGL2Renderer,
   isWorldWebGLContextLostError
 } from "./worldWebglRenderer.js";
@@ -33493,12 +33494,7 @@ function drawDayNightWorld(layers, nowMs) {
       );
     }),
     tidalWater: () => measurePerformanceBenchmarkStage("render.world.tidalWater", () => {
-      drawCachedWorldLayer(
-        `terrain-connector-waves:${layers.connectorWaves.frameIndex}`,
-        layers.connectorWaves,
-        layers.offset,
-        layers.connectorWaves.revision
-      );
+      drawTerrainConnectorWaveAtlas(layers.connectorWaves, layers.offset);
     }),
     terrainTiles: () => measurePerformanceBenchmarkStage("render.world.terrainTiles", () => {
       drawTerrainAtlasTiles(
@@ -33575,6 +33571,19 @@ function drawCachedWorldLayer(key, layer, offset, revision) {
       width: layer.canvas.width,
       height: layer.canvas.height
     }
+  });
+}
+
+function drawTerrainConnectorWaveAtlas(layer, offset) {
+  if (!layer?.canvas || !Array.isArray(layer.sprites)) {
+    throw new Error("Cannot draw malformed terrain connector wave atlas");
+  }
+  worldRenderer.drawChunkSprites({
+    key: `terrain-connector-waves:${layer.frameIndex}`,
+    source: layer.canvas,
+    revision: layer.revision,
+    sprites: layer.sprites,
+    offset
   });
 }
 
@@ -43520,6 +43529,8 @@ function projectDirectionFor(v, view, snap) {
 const terrainConnectorLayerCache = new WeakMap();
 const terrainConnectorDynamicLayerCache = new WeakMap();
 const terrainConnectorEntryCache = new WeakMap();
+const TERRAIN_CONNECTOR_WAVE_ATLAS_MAX_WIDTH = 512;
+const TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING = 1;
 let nextTerrainConnectorDynamicRevision = 1;
 
 function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
@@ -43542,11 +43553,30 @@ function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
   for (const entry of layer.entries) drawTerrainConnectorDynamicDetails(ctx, entry, options.waveClockMs);
 }
 
-function drawTerrainConnectorDynamicDetails(targetCtx, entry, waveClockMs) {
+function drawTerrainConnectorDynamicDetails(
+  targetCtx,
+  entry,
+  waveClockMs,
+  offsetX = 0,
+  offsetY = 0
+) {
   if (!isCoastFace(entry.call)) return;
   const { call, geometry } = entry;
   const { ax, ay, bx, by, mx, my, nx, ny, width } = geometry;
-  drawBeachWave(targetCtx, call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs);
+  drawBeachWave(
+    targetCtx,
+    call,
+    ax + offsetX,
+    ay + offsetY,
+    mx + offsetX,
+    my + offsetY,
+    bx + offsetX,
+    by + offsetY,
+    nx,
+    ny,
+    width,
+    waveClockMs
+  );
 }
 
 function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls = null) {
@@ -43570,18 +43600,20 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
   if (existing) return existing;
 
   const { entries, bounds } = cached;
+  const atlas = terrainConnectorDynamicAtlasLayout(entries);
   const canvas = document.createElement("canvas");
-  canvas.width = bounds.width;
-  canvas.height = bounds.height;
+  canvas.width = atlas.width;
+  canvas.height = atlas.height;
   const layerCtx = canvas.getContext("2d");
   if (!layerCtx) throw new Error("Could not create terrain connector wave layer");
   layerCtx.imageSmoothingEnabled = false;
-  layerCtx.translate(-bounds.x, -bounds.y);
-  for (const entry of entries) {
+  for (const sprite of atlas.sprites) {
     drawTerrainConnectorDynamicDetails(
       layerCtx,
-      entry,
-      frameIndex / BEACH_WAVE_FRAME_COUNT * BEACH_WAVE_PERIOD_MS
+      sprite.entry,
+      frameIndex / BEACH_WAVE_FRAME_COUNT * BEACH_WAVE_PERIOD_MS,
+      sprite.sourceRect.x - sprite.destinationRect.x,
+      sprite.sourceRect.y - sprite.destinationRect.y
     );
   }
   const layer = Object.freeze({
@@ -43589,10 +43621,51 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
     x: bounds.x,
     y: bounds.y,
     frameIndex,
-    revision: cached.revision
+    revision: cached.revision,
+    sprites: Object.freeze(atlas.sprites.map(({ sourceRect, destinationRect }) => Object.freeze({
+      sourceRect: Object.freeze(sourceRect),
+      destinationRect: Object.freeze(destinationRect)
+    })))
   });
   cached.frames.set(frameIndex, layer);
   return layer;
+}
+
+function terrainConnectorDynamicAtlasLayout(entries) {
+  if (!Array.isArray(entries)) throw new Error("Terrain connector wave atlas requires entries");
+  if (entries.length === 0) return { width: 1, height: 1, sprites: [] };
+  const boundsByEntry = entries.map((entry) => ({
+    entry,
+    bounds: terrainConnectorDynamicBounds([entry])
+  }));
+  const maximumHeight = boundsByEntry.reduce(
+    (sum, { bounds }) => sum + bounds.height + TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING,
+    TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING
+  );
+  const allocator = new TextureAtlasAllocator(
+    TERRAIN_CONNECTOR_WAVE_ATLAS_MAX_WIDTH,
+    maximumHeight,
+    TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING
+  );
+  const sprites = [];
+  let usedWidth = 1;
+  let usedHeight = 1;
+  for (const { entry, bounds } of boundsByEntry) {
+    const sourceRect = allocator.allocate(bounds.width, bounds.height);
+    usedWidth = Math.max(usedWidth, sourceRect.x + sourceRect.width + TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING);
+    usedHeight = Math.max(usedHeight, sourceRect.y + sourceRect.height + TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING);
+    sprites.push({
+      entry,
+      sourceRect,
+      destinationRect: {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height
+      }
+    });
+  }
+  return { width: usedWidth, height: usedHeight, sprites };
 }
 
 function terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls) {

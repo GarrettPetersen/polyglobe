@@ -1032,6 +1032,54 @@ export function createWorldWebGL2Renderer({
     );
   }
 
+  function drawChunkSprites({
+    key,
+    source,
+    revision = 0,
+    sprites,
+    offset = { x: 0, y: 0 }
+  }) {
+    flushBatches();
+    if (typeof key !== "string" || key.length === 0) {
+      throw new Error("World chunk sprites require a cache key");
+    }
+    validateCanvasSource(source, `world chunk sprites ${key}`);
+    if (!Array.isArray(sprites)) {
+      throw new Error(`World chunk sprites ${key} require sprite rectangles`);
+    }
+    if (!offset || !Number.isFinite(offset.x) || !Number.isFinite(offset.y)) {
+      throw new Error(`World chunk sprites ${key} require a finite offset`);
+    }
+    if (sprites.length === 0) return;
+
+    const width = source.width || source.naturalWidth;
+    const height = source.height || source.naturalHeight;
+    const texture = residentChunkTexture(key, source, revision, width, height);
+    const vertices = new Float32Array(sprites.length * FLOATS_PER_QUAD);
+    let vertexOffset = 0;
+    for (const sprite of sprites) {
+      const sourceRect = sprite?.sourceRect;
+      const destinationRect = sprite?.destinationRect;
+      validateRect(sourceRect, `world chunk sprites ${key} source`);
+      validateRect(destinationRect, `world chunk sprites ${key} destination`);
+      if (sourceRect.x + sourceRect.width > width || sourceRect.y + sourceRect.height > height) {
+        throw new Error(`World chunk sprites ${key} source rectangle exceeds its texture`);
+      }
+      vertexOffset = writeQuadVertices(vertices, vertexOffset, {
+        sourceRect,
+        textureWidth: width,
+        textureHeight: height,
+        destinationRect,
+        color: [1, 1, 1, 1],
+        refractionPx: 0,
+        alphaThreshold: 0,
+        flipX: false,
+        swellPosition: null
+      });
+    }
+    drawVertices(texture, width, height, vertices, offset);
+  }
+
   function residentChunkTexture(key, source, revision, width, height) {
     let entry = chunkTextures.get(key);
     const needsUpload = !entry || entry.source !== source ||
@@ -1553,10 +1601,19 @@ export function createWorldWebGL2Renderer({
     }));
   }
 
-  function drawVertices(texture, textureWidth, textureHeight, vertices) {
+  function drawVertices(
+    texture,
+    textureWidth,
+    textureHeight,
+    vertices,
+    translation = { x: 0, y: 0 }
+  ) {
     if (!(vertices instanceof Float32Array) ||
         vertices.length % FLOATS_PER_VERTEX !== 0) {
       throw new Error("World renderer received malformed vertices");
+    }
+    if (!translation || !Number.isFinite(translation.x) || !Number.isFinite(translation.y)) {
+      throw new Error("World renderer received malformed vertex translation");
     }
     gl.useProgram(sceneProgram);
     gl.bindVertexArray(sceneVertexArray);
@@ -1564,7 +1621,7 @@ export function createWorldWebGL2Renderer({
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniform2f(sceneLocations.resolution, sceneWidth, sceneHeight);
-    gl.uniform2f(sceneLocations.translation, 0, 0);
+    gl.uniform2f(sceneLocations.translation, translation.x, translation.y);
     gl.uniform2f(sceneLocations.textureSize, textureWidth, textureHeight);
     gl.uniform1f(sceneLocations.time, frameTimeMs);
     const requiredBytes = vertices.byteLength;
@@ -1755,6 +1812,7 @@ export function createWorldWebGL2Renderer({
     canvas,
     beginFrame,
     drawChunk,
+    drawChunkSprites,
     drawAtlasSprite,
     drawAtlasSpriteThroughAlphaMask,
     drawBitMaskSprite,
