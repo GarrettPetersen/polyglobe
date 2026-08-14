@@ -39467,7 +39467,16 @@ function drawDiscoveriesMenu() {
       const sprite = discoveriesMenu.tab === "animals"
         ? animalDiscoveryPortrait(entry)
         : discoverySpriteImage(entry);
-      if (sprite) {
+      const menuIconId = discoveriesMenu.tab === "wonders"
+        ? discoveryMenuIconId(entry)
+        : null;
+      if (menuIconId) {
+        drawGameIcon(
+          menuIconId,
+          listX + Math.floor((32 - GAME_ICON_SIZE) / 2),
+          y + Math.floor((32 - GAME_ICON_SIZE) / 2)
+        );
+      } else if (sprite) {
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(sprite, listX, y, 32, 32);
       } else {
@@ -39557,7 +39566,13 @@ function drawDiscoveryDetail(panel) {
   const left = panel.x + 13;
   const right = panel.x + panel.w - 13;
   const spriteY = panel.y + 34;
-  if (view.sprite) {
+  if (view.menuIconId) {
+    drawGameIcon(
+      view.menuIconId,
+      left + Math.floor((view.spriteSize - GAME_ICON_SIZE) / 2),
+      spriteY + Math.floor((view.spriteSize - GAME_ICON_SIZE) / 2)
+    );
+  } else if (view.sprite) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(view.sprite, left, spriteY, view.spriteSize, view.spriteSize);
   } else {
@@ -39692,6 +39707,7 @@ function currentDiscoveryDetailView() {
       displayName: discovery.displayName,
       summary: discovery.detail || "",
       account: explorerJournalDescriptionForDiscovery(discovery),
+      menuIconId: discoveryMenuIconId(discovery),
       sprite: discoverySpriteImage(discovery),
       spriteSize: 32,
       placeholderColor: discoveryKindColor(discovery.kind)
@@ -39709,6 +39725,7 @@ function currentDiscoveryDetailView() {
     displayName: animal.displayName,
     summary: animal.detail,
     account: naturalistJournalDescriptionForAnimal(animal),
+    menuIconId: null,
     sprite: animalDiscoveryPortrait(animal),
     spriteSize: 64,
     placeholderColor: PIRATE_MENU_CHART_LINE
@@ -39729,6 +39746,12 @@ function discoverySpriteImage(entry) {
   const image = worldDiscoveryImages.get(spriteKey);
   if (!image) throw new Error(`Missing discovered wonder image: ${spriteKey}`);
   return image;
+}
+
+function discoveryMenuIconId(entry) {
+  const discovery = discoveryCatalogById.get(entry.id);
+  if (!discovery) throw new Error(`Discovered entry is missing from the catalog: ${entry.id}`);
+  return discovery.menuIconId || null;
 }
 
 function drawDiscoveryProgressRow(x, y, label, value, fraction, color, availableWidth, compact) {

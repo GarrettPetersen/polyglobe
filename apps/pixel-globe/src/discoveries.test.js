@@ -103,6 +103,7 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.equal(reef.underwater, true);
   assert.equal(navigationMask[reef.spriteTileId], 1);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.kind, "achievement");
+  assert.equal(CIRCUMNAVIGATION_DISCOVERY.menuIconId, "achievement:magellan");
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.countsTowardExplorerGoal, true);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.explorerLeadAssignable, false);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.explorerRewardDoubloons, 3000);

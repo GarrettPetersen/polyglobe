@@ -185,6 +185,7 @@ export const CIRCUMNAVIGATION_DISCOVERY = Object.freeze({
   id: CIRCUMNAVIGATION_DISCOVERY_ID,
   kind: "achievement",
   displayName: "Circumnavigated the Globe",
+  menuIconId: "achievement:magellan",
   countsTowardExplorerGoal: true,
   explorerLeadAssignable: false,
   explorerRewardDoubloons: 3000,
