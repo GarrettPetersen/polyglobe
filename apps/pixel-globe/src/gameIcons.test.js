@@ -152,6 +152,14 @@ test("generic fish cargo uses the native-size herring art", () => {
   });
 });
 
+test("pikes and blades use a melee weapon rather than a firearm icon", () => {
+  assert.deepEqual(GAME_ICON_SOURCES["good:arms"], {
+    packId: "pirate",
+    entry: "PNG/Transperent/Icon5.png",
+    crop: null
+  });
+});
+
 test("grain, rice, and scavenged food use full-size cargo art", async () => {
   assert.deepEqual(GAME_ICON_SOURCES["good:grain"], {
     packId: "keifoo",

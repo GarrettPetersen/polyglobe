@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-46";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-47";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -104,7 +104,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:beeswax": glionox(678),
   "good:naval-stores": glionox(680),
   "good:sulfur": glionox(721),
-  "good:arms": pirate(34),
+  "good:arms": pirate(5),
   "good:linen-cloth": paperOutlined(glionox(785)),
   "good:wool-cloth": glionox(581),
   "good:cotton-cloth": glionox(582),
