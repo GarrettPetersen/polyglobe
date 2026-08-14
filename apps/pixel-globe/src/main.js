@@ -5982,7 +5982,9 @@ function recoverLostWorldGraphicsContext() {
     return false;
   }
   try {
-    if (gameState && hasStartedVoyage) saveVoyageNow("graphics context recovery");
+    if (gameState && hasStartedVoyage) {
+      saveVoyageNow("graphics context recovery", { includeWorldTraffic: true });
+    }
     writeLocalStorage(WORLD_GRAPHICS_RECOVERY_STORAGE_KEY, String(nowMs));
   } catch (error) {
     console.warn("[pixel-globe] could not save before graphics recovery", error);
@@ -12875,7 +12877,7 @@ function startNewVoyage() {
   gameTelemetry.recordVoyageStart(gameState, { force: true });
   closeStartMenu();
   revealMinimapFromChart(chart, chartOffsetPixels(chart));
-  saveVoyageNow("new voyage");
+  saveVoyageNow("new voyage", { includeWorldTraffic: true });
 }
 
 function archiveSavedVoyageBeforeStartingOver() {
@@ -12913,7 +12915,7 @@ async function continueSavedVoyage() {
     gameTelemetry.recordVoyageStart(gameState);
     closeStartMenu();
     revealMinimapFromChart(chart, chartOffsetPixels(chart));
-    saveVoyageNow("continued voyage");
+    saveVoyageNow("continued voyage", { includeWorldTraffic: true });
     if (restoration.grandfatheredWorldwideDemo) {
       showSurvivalNotice("WORLDWIDE VOYAGE GRANDFATHERED", "good");
     } else if (restoration.recoveredDerivedSystems.length > 0) {
@@ -13464,7 +13466,7 @@ function cancelPeriodicAutosave() {
   periodicAutosaveDueMs = null;
 }
 
-function saveVoyageNow(reason, { includeWorldTraffic = true } = {}) {
+function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
   cancelPeriodicAutosave();
   if (CAPTURE_SCENARIO) return true;
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
@@ -14197,7 +14199,9 @@ function returnToStartMenuFromOptions() {
     closeOptionsMenu();
     return true;
   }
-  if (hasStartedVoyage && !saveVoyageNow("returned to start menu")) {
+  if (hasStartedVoyage && !saveVoyageNow("returned to start menu", {
+    includeWorldTraffic: true
+  })) {
     optionsMenu.returnError = "SAVE FAILED - TRY AGAIN";
     dirty = true;
     return false;
@@ -23921,6 +23925,8 @@ function initialShipHeading(position) {
 
 function updateSailing(dt) {
   if (!ship || !camera) return false;
+  if (!chart?.waterIndex) ensureChart();
+  if (!chart?.waterIndex) throw new Error("Sailing requires an indexed chart");
   const recoveredFromDemoEscape = recoverEscapedDemoShip();
   const effectiveStats = currentPlayerEffectiveShipStats();
   const input = inputCommandForShip();
@@ -33180,7 +33186,9 @@ function handleFullscreenChange() {
 
 function handleFullscreenVisibilityChange() {
   fitCanvasToDisplay();
-  if (document.visibilityState === "hidden") saveVoyageNow("page hidden");
+  if (document.visibilityState === "hidden") {
+    saveVoyageNow("page hidden", { includeWorldTraffic: true });
+  }
   else ensureGameAudioStarted();
 }
 
