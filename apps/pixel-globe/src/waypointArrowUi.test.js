@@ -5,28 +5,21 @@ import {
   formatWaypointLabel,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
-  waypointArrowMaxY,
-  waypointArrowOcclusionEdge,
   waypointPointOverlapsReservedRects
 } from "./waypointArrowUi.js";
 
 test("bottom waypoint arrows stop above reserved action controls", () => {
-  const maxY = waypointArrowMaxY({
-    screenHeight: 256,
-    margin: 15,
-    controlRects: [{ x: 150, y: 191, w: 156, h: 28 }],
-    gap: 4
-  });
-  assert.equal(maxY, 187);
+  const control = { x: 150, y: 220, w: 156, h: 36 };
   assert.deepEqual(
     waypointArrowEdgePoint({
       direction: { x: 0, y: 1 },
       screenWidth: 455,
       screenHeight: 256,
       margin: 15,
-      maxY
+      reservedRects: [control],
+      clearance: 4
     }),
-    { x: 228, y: 187 }
+    { x: 228, y: 215 }
   );
 });
 
@@ -99,21 +92,47 @@ test("waypoint arrows slide along stacked anchor dock and fish controls", () => 
   assert.ok(leftBearing.x < rightBearing.x);
 });
 
+test("waypoint perimeter detours remain continuous across a bearing sweep", () => {
+  const bottomControls = [
+    { x: 103, y: 223, w: 88, h: 28 },
+    { x: 195, y: 223, w: 156, h: 28 },
+    { x: 150, y: 191, w: 156, h: 28 }
+  ];
+  let previous = null;
+  let maximumJump = 0;
+  for (let degrees = 25; degrees <= 155; degrees += 0.25) {
+    const angle = degrees * Math.PI / 180;
+    const point = waypointArrowEdgePoint({
+      direction: { x: Math.cos(angle), y: Math.sin(angle) },
+      screenWidth: 455,
+      screenHeight: 256,
+      margin: 15,
+      reservedRects: bottomControls,
+      clearance: 11
+    });
+    if (previous) maximumJump = Math.max(maximumJump, Math.hypot(
+      point.x - previous.x,
+      point.y - previous.y
+    ));
+    previous = point;
+  }
+  assert.ok(maximumJump <= 4, `waypoint track jumped ${maximumJump.toFixed(2)}px`);
+});
+
 test("an on-screen destination hidden by the HUD points from the HUD inner edge", () => {
   const panel = { x: 0, y: 0, w: 130, h: 58 };
-  const result = waypointArrowOcclusionEdge({
-    origin: { x: 228, y: 128 },
-    target: { x: 55, y: 34 },
+  const point = waypointArrowEdgePoint({
+    direction: { x: 55 - 228, y: 34 - 128 },
+    screenWidth: 455,
+    screenHeight: 256,
+    margin: 15,
     reservedRects: [panel],
     clearance: 8
   });
 
-  assert.ok(result);
-  assert.equal(waypointPointOverlapsReservedRects(result.point, [panel], 8), false);
-  assert.ok(result.point.y >= panel.y + panel.h + 8);
-  assert.ok(result.point.x > panel.x && result.point.x < panel.x + panel.w);
-  assert.ok(result.direction.x < 0);
-  assert.ok(result.direction.y < 0);
+  assert.equal(waypointPointOverlapsReservedRects(point, [panel], 8), false);
+  assert.ok(point.y >= panel.y + panel.h + 8);
+  assert.ok(point.x > panel.x && point.x < panel.x + panel.w);
 });
 
 test("waypoint arrow geometry includes a generous pointer hitbox", () => {
@@ -149,13 +168,4 @@ test("waypoint geometry and labels reject malformed input", () => {
   );
   assert.throws(() => formatWaypointLabel("", 100), /destination name/);
   assert.throws(() => formatWaypointLabel("Cairo", -1), /non-negative distance/);
-  assert.throws(
-    () => waypointArrowMaxY({
-      screenHeight: 256,
-      margin: 15,
-      controlRects: [{}],
-      gap: 4
-    }),
-    /finite top edge/
-  );
 });

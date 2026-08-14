@@ -1705,7 +1705,6 @@ import {
   formatWaypointLabel,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
-  waypointArrowOcclusionEdge,
   waypointPointOverlapsReservedRects
 } from "./waypointArrowUi.js";
 import {
@@ -49843,28 +49842,22 @@ function drawWorldTargetArrow({
       return;
     }
     if (pointIsOnScreen) {
-      const occlusion = waypointArrowOcclusionEdge({
-        origin: { x: SCREEN_W / 2, y: SCREEN_H / 2 },
-        target: point,
+      const direction = normalizeOrNull({
+        x: point.x - SCREEN_W / 2,
+        y: point.y - SCREEN_H / 2
+      });
+      if (!direction) return;
+      const trackPoint = waypointArrowEdgePoint({
+        direction,
+        screenWidth: SCREEN_W,
+        screenHeight: SCREEN_H,
+        margin: QUEST_ARROW_EDGE_MARGIN_PX,
         reservedRects,
         clearance: reservedClearance
       });
-      if (occlusion && pointWithinWaypointBounds(
-        occlusion.point,
-        QUEST_ARROW_EDGE_MARGIN_PX,
-        SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX
-      )) {
-        const hitRect = drawQuestArrowGlyph(occlusion.point, occlusion.direction, nowMs, style);
-        registerWaypointArrow({
-          id,
-          label,
-          targetVector,
-          point: occlusion.point,
-          direction: occlusion.direction,
-          hitRect
-        });
-        return;
-      }
+      const hitRect = drawQuestArrowGlyph(trackPoint, direction, nowMs, style);
+      registerWaypointArrow({ id, label, targetVector, point: trackPoint, direction, hitRect });
+      return;
     }
   }
   const tangent = normalizeOrNull(projectTangentVector(targetVector, ship.position));

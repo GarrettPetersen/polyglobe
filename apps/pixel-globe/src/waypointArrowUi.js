@@ -1,3 +1,6 @@
+const WAYPOINT_TRACK_CACHE_LIMIT = 24;
+const waypointTrackCache = new Map();
+
 export function waypointArrowEdgePoint({
   direction,
   screenWidth,
@@ -37,13 +40,20 @@ export function waypointArrowEdgePoint({
     x: Math.round(centerX + dir.x * distance),
     y: Math.round(centerY + dir.y * distance)
   };
-  const occlusion = waypointArrowOcclusionEdge({
-    origin: { x: centerX, y: centerY },
-    target: initialPoint,
-    reservedRects,
-    clearance
+  if (reservedRects.length === 0) return initialPoint;
+  const inflatedRects = reservedRects.map((rect, index) => inflateReservedRect(rect, clearance, index));
+  const track = waypointPerimeterTrack({
+    minX,
+    maxX,
+    minY,
+    maxY: boundedMaxY,
+    inflatedRects
   });
-  return occlusion?.point ?? initialPoint;
+  const trackPoint = track.get(pointKey(initialPoint));
+  if (!trackPoint) {
+    throw new Error(`Waypoint perimeter track has no point for ${initialPoint.x},${initialPoint.y}`);
+  }
+  return trackPoint;
 }
 
 export function waypointPointOverlapsReservedRects(point, reservedRects, clearance = 0) {
@@ -54,46 +64,6 @@ export function waypointPointOverlapsReservedRects(point, reservedRects, clearan
     point,
     reservedRects.map((rect, index) => inflateReservedRect(rect, clearance, index))
   );
-}
-
-export function waypointArrowOcclusionEdge({
-  origin,
-  target,
-  reservedRects,
-  clearance = 0
-}) {
-  assertPoint(origin, "occlusion origin");
-  assertPoint(target, "occlusion target");
-  assertNonNegative(clearance, "reserved clearance");
-  if (!Array.isArray(reservedRects)) throw new Error("Waypoint reserved rectangles must be an array");
-  const direction = normalizeDirection({ x: target.x - origin.x, y: target.y - origin.y });
-  const inflatedRects = reservedRects.map((rect, index) => inflateReservedRect(rect, clearance, index));
-  let nearest = null;
-  for (const [rectIndex, rect] of inflatedRects.entries()) {
-    const t = segmentRectangleEntry(origin, target, rect);
-    if (t === null || t <= 0 || t > 1) continue;
-    if (!nearest || t < nearest.t) nearest = { t, rectIndex };
-  }
-  if (!nearest) return null;
-
-  const edge = {
-    x: origin.x + (target.x - origin.x) * nearest.t,
-    y: origin.y + (target.y - origin.y) * nearest.t
-  };
-  let point = {
-    x: Math.round(edge.x - direction.x),
-    y: Math.round(edge.y - direction.y)
-  };
-  for (let step = 1; step <= 4 && pointOverlapsRects(point, inflatedRects); step += 1) {
-    point = {
-      x: Math.round(edge.x - direction.x * (step + 1)),
-      y: Math.round(edge.y - direction.y * (step + 1))
-    };
-  }
-  if (pointOverlapsRects(point, inflatedRects)) {
-    throw new Error(`Waypoint cannot clear reserved rectangle ${nearest.rectIndex}`);
-  }
-  return { point, direction };
 }
 
 export function waypointArrowGeometry({
@@ -141,26 +111,6 @@ export function waypointArrowGeometry({
       h: maxY - minY + 1
     }
   };
-}
-
-export function waypointArrowMaxY({
-  screenHeight,
-  margin,
-  controlRects,
-  gap
-}) {
-  assertPositive(screenHeight, "screen height");
-  assertNonNegative(margin, "edge margin");
-  assertNonNegative(gap, "control gap");
-  if (!Array.isArray(controlRects)) throw new Error("Waypoint control rectangles must be an array");
-  let maxY = screenHeight - margin;
-  for (const rect of controlRects) {
-    if (!Number.isFinite(rect?.y)) {
-      throw new Error("Waypoint control rectangle requires a finite top edge");
-    }
-    maxY = Math.min(maxY, Math.round(rect.y - gap));
-  }
-  return Math.max(margin, maxY);
 }
 
 export function formatWaypointLabel(name, distanceKm) {
@@ -213,25 +163,193 @@ function pointOverlapsRects(point, rects) {
   ));
 }
 
-function segmentRectangleEntry(origin, target, rect) {
-  const delta = { x: target.x - origin.x, y: target.y - origin.y };
-  let minimum = 0;
-  let maximum = 1;
-  for (const [start, change, low, high] of [
-    [origin.x, delta.x, rect.x, rect.x + rect.w],
-    [origin.y, delta.y, rect.y, rect.y + rect.h]
-  ]) {
-    if (Math.abs(change) <= 1e-9) {
-      if (start < low || start > high) return null;
+function waypointPerimeterTrack({ minX, maxX, minY, maxY, inflatedRects }) {
+  const key = [
+    minX,
+    maxX,
+    minY,
+    maxY,
+    ...inflatedRects.flatMap((rect) => [rect.x, rect.y, rect.w, rect.h])
+  ].join("|");
+  const cached = waypointTrackCache.get(key);
+  if (cached) return cached;
+
+  const width = maxX - minX + 1;
+  const height = maxY - minY + 1;
+  const cellCount = width * height;
+  const blocked = new Uint8Array(cellCount);
+  for (const rect of inflatedRects) {
+    const firstX = Math.max(0, Math.ceil(rect.x) - minX);
+    const lastX = Math.min(width - 1, Math.floor(rect.x + rect.w) - minX);
+    const firstY = Math.max(0, Math.ceil(rect.y) - minY);
+    const lastY = Math.min(height - 1, Math.floor(rect.y + rect.h) - minY);
+    if (lastX < firstX || lastY < firstY) continue;
+    for (let localY = firstY; localY <= lastY; localY += 1) {
+      blocked.fill(1, localY * width + firstX, localY * width + lastX + 1);
+    }
+  }
+
+  const centerX = Math.round((minX + maxX) / 2) - minX;
+  const centerY = Math.round((minY + maxY) / 2) - minY;
+  const centerIndex = centerY * width + centerX;
+  if (blocked[centerIndex] === 1) {
+    throw new Error("Waypoint UI blocks the center of the navigable viewport");
+  }
+  const boundary = waypointTrackBoundary({
+    blocked,
+    width,
+    height,
+    inflatedRects,
+    minX,
+    minY
+  });
+  const basePoints = rectanglePerimeterPoints({ minX, maxX, minY, maxY });
+  const baseSafe = basePoints.map((point) => blocked[localPointIndex(point, minX, minY, width)] === 0);
+  const firstSafeIndex = baseSafe.indexOf(true);
+  if (firstSafeIndex < 0) throw new Error("Waypoint UI occupies the complete viewport perimeter");
+
+  const mappedPoints = Array(basePoints.length);
+  mappedPoints[firstSafeIndex] = basePoints[firstSafeIndex];
+  let traversed = 1;
+  let index = (firstSafeIndex + 1) % basePoints.length;
+  while (traversed < basePoints.length) {
+    if (baseSafe[index]) {
+      mappedPoints[index] = basePoints[index];
+      index = (index + 1) % basePoints.length;
+      traversed += 1;
       continue;
     }
-    const first = (low - start) / change;
-    const second = (high - start) / change;
-    minimum = Math.max(minimum, Math.min(first, second));
-    maximum = Math.min(maximum, Math.max(first, second));
-    if (minimum > maximum) return null;
+    const runIndices = [];
+    while (traversed < basePoints.length && !baseSafe[index]) {
+      runIndices.push(index);
+      index = (index + 1) % basePoints.length;
+      traversed += 1;
+    }
+    const previousIndex = (runIndices[0] - 1 + basePoints.length) % basePoints.length;
+    const nextIndex = index;
+    const detour = shortestWaypointBoundaryPath({
+      boundary,
+      width,
+      height,
+      startIndex: localPointIndex(basePoints[previousIndex], minX, minY, width),
+      endIndex: localPointIndex(basePoints[nextIndex], minX, minY, width)
+    });
+    for (let runOffset = 0; runOffset < runIndices.length; runOffset += 1) {
+      const pathIndex = Math.round(
+        (runOffset + 1) / (runIndices.length + 1) * (detour.length - 1)
+      );
+      mappedPoints[runIndices[runOffset]] = globalPointForIndex(
+        detour[pathIndex],
+        minX,
+        minY,
+        width
+      );
+    }
   }
-  return minimum;
+
+  const track = new Map(basePoints.map((point, baseIndex) => [
+    pointKey(point),
+    Object.freeze(mappedPoints[baseIndex])
+  ]));
+  waypointTrackCache.set(key, track);
+  while (waypointTrackCache.size > WAYPOINT_TRACK_CACHE_LIMIT) {
+    waypointTrackCache.delete(waypointTrackCache.keys().next().value);
+  }
+  return track;
+}
+
+function waypointTrackBoundary({ blocked, width, height, inflatedRects, minX, minY }) {
+  const boundary = new Uint8Array(blocked.length);
+  for (let x = 0; x < width; x += 1) {
+    if (blocked[x] === 0) boundary[x] = 1;
+    const bottom = (height - 1) * width + x;
+    if (blocked[bottom] === 0) boundary[bottom] = 1;
+  }
+  for (let y = 1; y + 1 < height; y += 1) {
+    const left = y * width;
+    const right = left + width - 1;
+    if (blocked[left] === 0) boundary[left] = 1;
+    if (blocked[right] === 0) boundary[right] = 1;
+  }
+  for (const rect of inflatedRects) {
+    const firstX = Math.max(0, Math.ceil(rect.x) - minX - 1);
+    const lastX = Math.min(width - 1, Math.floor(rect.x + rect.w) - minX + 1);
+    const firstY = Math.max(0, Math.ceil(rect.y) - minY - 1);
+    const lastY = Math.min(height - 1, Math.floor(rect.y + rect.h) - minY + 1);
+    for (let y = firstY; y <= lastY; y += 1) {
+      for (let x = firstX; x <= lastX; x += 1) {
+        const index = y * width + x;
+        if (blocked[index] === 1) continue;
+        if (
+          (x > 0 && blocked[index - 1] === 1) ||
+          (x + 1 < width && blocked[index + 1] === 1) ||
+          (y > 0 && blocked[index - width] === 1) ||
+          (y + 1 < height && blocked[index + width] === 1)
+        ) boundary[index] = 1;
+      }
+    }
+  }
+  return boundary;
+}
+
+function shortestWaypointBoundaryPath({ boundary, width, height, startIndex, endIndex }) {
+  if (boundary[startIndex] !== 1 || boundary[endIndex] !== 1) {
+    throw new Error("Waypoint detour anchors must lie on the safe viewport boundary");
+  }
+  const parents = new Int32Array(boundary.length);
+  parents.fill(-2);
+  const queue = new Int32Array(boundary.length);
+  let head = 0;
+  let tail = 0;
+  parents[startIndex] = -1;
+  queue[tail++] = startIndex;
+  while (head < tail && parents[endIndex] === -2) {
+    const index = queue[head++];
+    const x = index % width;
+    const y = Math.floor(index / width);
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        if (
+          (dx === 0 && dy === 0) || x + dx < 0 || x + dx >= width ||
+          y + dy < 0 || y + dy >= height
+        ) continue;
+        const neighbor = index + dy * width + dx;
+        if (boundary[neighbor] !== 1 || parents[neighbor] !== -2) continue;
+        parents[neighbor] = index;
+        queue[tail++] = neighbor;
+      }
+    }
+  }
+  if (parents[endIndex] === -2) {
+    throw new Error("Waypoint UI leaves no continuous perimeter detour");
+  }
+  const reversed = [];
+  for (let index = endIndex; index >= 0; index = parents[index]) reversed.push(index);
+  return reversed.reverse();
+}
+
+function rectanglePerimeterPoints({ minX, maxX, minY, maxY }) {
+  const points = [];
+  for (let x = minX; x <= maxX; x += 1) points.push({ x, y: minY });
+  for (let y = minY + 1; y <= maxY; y += 1) points.push({ x: maxX, y });
+  for (let x = maxX - 1; x >= minX; x -= 1) points.push({ x, y: maxY });
+  for (let y = maxY - 1; y > minY; y -= 1) points.push({ x: minX, y });
+  return points;
+}
+
+function localPointIndex(point, minX, minY, width) {
+  return (point.y - minY) * width + point.x - minX;
+}
+
+function globalPointForIndex(index, minX, minY, width) {
+  return {
+    x: minX + index % width,
+    y: minY + Math.floor(index / width)
+  };
+}
+
+function pointKey(point) {
+  return `${point.x},${point.y}`;
 }
 
 function assertPoint(point, label) {
