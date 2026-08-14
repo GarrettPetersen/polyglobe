@@ -108,6 +108,29 @@ test("capacity recovery keeps voyage core and economy while dropping world traff
   assert.equal(readLocalSave({ storage }).status, "ready");
 });
 
+test("background saves can skip immediate reparsing while retaining exact persisted data", () => {
+  const storage = memoryStorage();
+  const payload = savePayload();
+  const result = writeLocalSaveWithRecovery(payload, {
+    storage,
+    savedAt: 123456,
+    materializeSave: false
+  });
+
+  assert.equal(result.mode, "economy");
+  assert.equal(result.save, null);
+  const loaded = readLocalSave({ storage });
+  assert.equal(loaded.status, "ready");
+  assert.deepEqual(loaded.save.payload, payload);
+});
+
+test("save materialization options fail loudly when malformed", () => {
+  assert.throws(
+    () => writeLocalSaveWithRecovery(savePayload(), { materializeSave: "no" }),
+    /materialization option must be boolean/
+  );
+});
+
 test("capacity recovery can preserve the voyage when all derived state is too large", () => {
   const storage = capacityStorage(520);
   const payload = {

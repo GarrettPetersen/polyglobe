@@ -10,7 +10,10 @@ export function writeLocalSave(payload, { storage = defaultStorage(), savedAt = 
   return writeLocalSaveAttempt(payload, { storage, savedAt }).save;
 }
 
-function writeLocalSaveAttempt(payload, { storage, savedAt }) {
+function writeLocalSaveAttempt(payload, { storage, savedAt, materializeSave = true }) {
+  if (typeof materializeSave !== "boolean") {
+    throw new Error("Local save materialization option must be boolean");
+  }
   const save = createLocalSave(payload, savedAt);
   const serialized = JSON.stringify(save);
   storage.setItem(LOCAL_SAVE_STORAGE_KEY, serialized);
@@ -22,6 +25,12 @@ function writeLocalSaveAttempt(payload, { storage, savedAt }) {
       serializedByteLength(serialized)
     );
   }
+  if (!materializeSave) {
+    return {
+      save: null,
+      byteLength: serializedByteLength(serialized)
+    };
+  }
   const persisted = JSON.parse(persistedSerialized);
   validateLocalSave(persisted);
   return {
@@ -32,15 +41,22 @@ function writeLocalSaveAttempt(payload, { storage, savedAt }) {
 
 export function writeLocalSaveWithRecovery(
   payload,
-  { storage = defaultStorage(), savedAt = Date.now() } = {}
+  { storage = defaultStorage(), savedAt = Date.now(), materializeSave = true } = {}
 ) {
+  if (typeof materializeSave !== "boolean") {
+    throw new Error("Local save materialization option must be boolean");
+  }
   const candidates = localSaveCandidates(payload);
   const attempts = [];
   let capacityError = null;
 
   for (const candidate of candidates) {
     try {
-      const write = writeLocalSaveAttempt(candidate.payload, { storage, savedAt });
+      const write = writeLocalSaveAttempt(candidate.payload, {
+        storage,
+        savedAt,
+        materializeSave
+      });
       return {
         save: write.save,
         mode: candidate.mode,

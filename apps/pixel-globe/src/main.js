@@ -13505,9 +13505,12 @@ function saveVoyageNow(reason, { includeWorldTraffic = true } = {}) {
         snapshotNpcSeaRouteSystem(npcSeaRoutes)
       ));
     }
-    const write = writeLocalSaveWithRecovery(payload);
-    const save = write.save;
-    localSaveResult = { status: "ready", save, error: null };
+    const materializeSave = includeWorldTraffic || localSaveResult.status !== "ready" ||
+      Boolean(savePersistenceWarning);
+    const write = writeLocalSaveWithRecovery(payload, { materializeSave });
+    if (write.save) {
+      localSaveResult = { status: "ready", save: write.save, error: null };
+    }
     const previousFailure = savePersistenceWarning;
     savePersistenceWarning = null;
     if (previousFailure) showSurvivalNotice("SAVE RESTORED", "good");
@@ -36215,6 +36218,9 @@ function buildMinimap() {
   return {
     ...buildMinimapRaster(MINIMAP_W, MINIMAP_H, true),
     seenTiles: new Uint8Array(graph.tileCount),
+    packedSeenTiles: new Uint8Array(Math.ceil(graph.tileCount / 8)),
+    packedSeenTilesBase64: "",
+    packedSeenTileCount: 0,
     seenTileCount: 0,
     tileProjectedX,
     tileProjectedY,
@@ -36359,6 +36365,7 @@ function revealMinimapTile(tileId) {
     return false;
   }
   minimap.seenTiles[tileId] = 1;
+  minimap.packedSeenTiles[tileId >> 3] |= 1 << (tileId & 7);
   minimap.seenTileCount += 1;
   minimap.rasterRevision += 1;
 
@@ -36593,17 +36600,30 @@ function paintMinimapPixel(raster, pixel) {
 
 function syncCartographyToGameState() {
   if (!gameState || !minimap) return;
-  const packed = new Uint8Array(Math.ceil(minimap.seenTiles.length / 8));
-  for (let tileId = 0; tileId < minimap.seenTiles.length; tileId++) {
-    if (minimap.seenTiles[tileId] !== 0) packed[tileId >> 3] |= 1 << (tileId & 7);
+  const expectedBytes = Math.ceil(minimap.seenTiles.length / 8);
+  if (minimap.packedSeenTiles.length !== expectedBytes) {
+    throw new Error(
+      `Packed cartography mask has ${minimap.packedSeenTiles.length} bytes; expected ${expectedBytes}`
+    );
   }
-  updateCartographyMemory(gameState, bytesToBase64(packed), minimap.seenTileCount);
+  if (minimap.packedSeenTileCount !== minimap.seenTileCount) {
+    minimap.packedSeenTilesBase64 = bytesToBase64(minimap.packedSeenTiles);
+    minimap.packedSeenTileCount = minimap.seenTileCount;
+  }
+  updateCartographyMemory(
+    gameState,
+    minimap.packedSeenTilesBase64,
+    minimap.seenTileCount
+  );
 }
 
 function restoreCartographyFromGameState() {
   if (!gameState || !minimap) throw new Error("Cannot restore cartography before game state and minimap exist");
   const memory = gameState.memory.cartography;
   minimap.seenTiles.fill(0);
+  minimap.packedSeenTiles.fill(0);
+  minimap.packedSeenTilesBase64 = "";
+  minimap.packedSeenTileCount = 0;
   minimap.revealedPixels.fill(0);
   minimap.pixelLandWeights.fill(0);
   minimap.pixelTileCounts.fill(0);
@@ -36626,12 +36646,15 @@ function restoreCartographyFromGameState() {
   if (packed.length !== expectedBytes) {
     throw new Error(`Cartography tile mask has ${packed.length} bytes; expected ${expectedBytes}`);
   }
+  minimap.packedSeenTiles.set(packed);
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
     if ((packed[tileId >> 3] & (1 << (tileId & 7))) !== 0) revealMinimapTile(tileId);
   }
   if (minimap.seenTileCount !== memory.seenTileCount) {
     throw new Error(`Cartography count mismatch: mask=${minimap.seenTileCount} state=${memory.seenTileCount}`);
   }
+  minimap.packedSeenTilesBase64 = memory.seenTilesBase64;
+  minimap.packedSeenTileCount = minimap.seenTileCount;
   refreshMinimapViewport();
 }
 
