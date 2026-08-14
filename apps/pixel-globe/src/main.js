@@ -1694,7 +1694,7 @@ import {
   colonizationDefenseSpawnTileIds
 } from "./colonizationDefenseSpawns.js";
 import { formatCompactNumber } from "./compactNumber.js";
-import { EARTH_RADIUS_KM } from "./worldDistance.js";
+import { EARTH_RADIUS_KM, initialBearingDeg } from "./worldDistance.js";
 import {
   formatWaypointLabel,
   waypointArrowEdgePoint,
@@ -7780,8 +7780,8 @@ function treasureAmbushSpawnPoints(count) {
     throw new Error(`Home port has only ${candidates.length} navigable pirate ambush positions`);
   }
   candidates.sort((a, b) => {
-    const bearingA = bearingDeg(home.lat, home.lon, graph.latDeg[a], graph.lonDeg[a]);
-    const bearingB = bearingDeg(home.lat, home.lon, graph.latDeg[b], graph.lonDeg[b]);
+    const bearingA = initialBearingDeg(home, { lat: graph.latDeg[a], lon: graph.lonDeg[a] });
+    const bearingB = initialBearingDeg(home, { lat: graph.latDeg[b], lon: graph.lonDeg[b] });
     return bearingA - bearingB || a - b;
   });
   const rotation = spriteKeyHash(`${gameState.voyageSeed}|treasure-ambush`) % candidates.length;
@@ -7791,19 +7791,12 @@ function treasureAmbushSpawnPoints(count) {
     return {
       lat: graph.latDeg[tileId],
       lon: graph.lonDeg[tileId],
-      headingDeg: bearingDeg(graph.latDeg[tileId], graph.lonDeg[tileId], home.lat, home.lon)
+      headingDeg: initialBearingDeg(
+        { lat: graph.latDeg[tileId], lon: graph.lonDeg[tileId] },
+        home
+      )
     };
   });
-}
-
-function bearingDeg(fromLatDeg, fromLonDeg, toLatDeg, toLonDeg) {
-  const fromLat = fromLatDeg * DEG_TO_RAD;
-  const toLat = toLatDeg * DEG_TO_RAD;
-  const deltaLon = (toLonDeg - fromLonDeg) * DEG_TO_RAD;
-  const y = Math.sin(deltaLon) * Math.cos(toLat);
-  const x = Math.cos(fromLat) * Math.sin(toLat) -
-    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLon);
-  return (Math.atan2(y, x) * RAD_TO_DEG + 360) % 360;
 }
 
 function ensureColonizationDefenseEncounter({
@@ -7865,7 +7858,7 @@ function ensureColonizationDefenseEncounter({
       lat: graph.latDeg[spawnTileId],
       lon: graph.lonDeg[spawnTileId]
     };
-    const headingDeg = bearingDeg(spawn.lat, spawn.lon, quest.target.lat, quest.target.lon);
+    const headingDeg = initialBearingDeg(spawn, quest.target);
     added.push(configureNpcEncounter(npcSeaRoutes, {
       id: shipId,
       factionId: NEUTRAL_FACTION_ID,
