@@ -83,6 +83,7 @@
     "render:unity-ship": "node tools/render-sail-ship-sprites.mjs --unity-ship",
     "render:unity-ship-side-views": "node tools/render-sail-ship-sprites.mjs --unity-fleet-side-views",
     "render:ship-waterline-review": "node tools/render-sail-ship-sprites.mjs --waterline-review",
+    "render:ship-projectile-silhouettes": "node tools/bake-ship-projectile-silhouettes.mjs",
     "analyze:ship-raster-noise": "node tools/score-ship-raster-noise.mjs",
     "render:faction-flags": "node tools/render-faction-flags.mjs",
     "render:ship-menu-icons": "node tools/build-ship-menu-icons.mjs",

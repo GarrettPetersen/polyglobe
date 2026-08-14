@@ -55,6 +55,57 @@ test("ships outside the swept path are not hit", () => {
   ), null);
 });
 
+test("a cannonball crossing the projected ship silhouette hits even while its sea-plane arc is high", () => {
+  const footprint = [
+    { x: 40, y: -2 },
+    { x: 60, y: -2 },
+    { x: 60, y: 2 },
+    { x: 40, y: 2 }
+  ];
+  const hit = firstNavalProjectileHit(
+    { x: 0, y: 10, z: 10 },
+    { x: 100, y: 10, z: 10 },
+    [{
+      id: "rigged-ship",
+      x: 50,
+      y: 0,
+      footprint,
+      projectileSilhouette: footprint
+    }]
+  );
+
+  assert.equal(hit.target.id, "rigged-ship");
+  assert.equal(hit.fraction, 0.4);
+  assert.deepEqual({ x: hit.x, y: hit.y }, { x: 40, y: 0 });
+});
+
+test("projectile height never prevents a waterline footprint crossing from hitting", () => {
+  const hit = firstNavalProjectileHit(
+    { x: 0, y: 0, z: 20 },
+    { x: 100, y: 0, z: 20 },
+    [{
+      id: "waterline-crossing",
+      x: 50,
+      y: 0,
+      footprint: [
+        { x: 40, y: -2 },
+        { x: 60, y: -2 },
+        { x: 60, y: 2 },
+        { x: 40, y: 2 }
+      ],
+      projectileSilhouette: [
+        { x: 40, y: -22 },
+        { x: 60, y: -22 },
+        { x: 60, y: 2 },
+        { x: 40, y: 2 }
+      ]
+    }]
+  );
+
+  assert.equal(hit.target.id, "waterline-crossing");
+  assert.equal(hit.fraction, 0.4);
+});
+
 test("portable weapons stay locked to their selected enemy while full cannons can hit bystanders", () => {
   assert.equal(navalProjectileMayHitBystanders({ kind: "cannon" }), true);
   assert.equal(navalProjectileMayHitBystanders({ kind: "cannon", portable: false }), true);

@@ -451,6 +451,47 @@ test("a cannonball damages the first ship crossed before its endpoint", () => {
   )));
 });
 
+test("a close Royal Foundry shot crossing the rendered rig damages the ship", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: "caravel",
+    playerCannonEquipmentId: "royal-foundry-battery"
+  });
+  const frame = shipFootprintFrame(
+    TEST_SHIP_FOOTPRINTS.get(battle.enemy.slug),
+    lakeBattleHeadingVector(battle.enemy)
+  );
+  const hullBottom = Math.max(...frame.polygon.map((point) => point.y));
+  const initialHitPoints = battle.enemy.hitPoints;
+  battle.enemy.cooldowns.port = 100;
+  battle.enemy.cooldowns.starboard = 100;
+  battle.projectiles = [{
+    id: 1001,
+    ownerId: LAKE_BATTLE_PLAYER_ID,
+    targetId: null,
+    kind: "cannon",
+    startX: battle.enemy.x - 30,
+    startY: battle.enemy.y + hullBottom + 3,
+    targetX: battle.enemy.x + 30,
+    targetY: battle.enemy.y + hullBottom + 3,
+    age: 0,
+    duration: 0.6,
+    arcHeight: hullBottom + 3,
+    damage: 1.58,
+    seed: 3
+  }];
+
+  for (let step = 0; step < 6 && battle.enemy.hitPoints === initialHitPoints; step++) {
+    updateLakeBattle(battle, 0.1, {});
+  }
+
+  assert.equal(battle.enemy.hitPoints, initialHitPoints - 1.58);
+  assert.equal(battle.projectiles.length, 0);
+  assert.equal(battle.hullSplinterBursts.length, 1);
+});
+
 test("the turtle ship shell can reject a cannon hit in lake combat", () => {
   const battle = createLakeBattle({
     width: 455,

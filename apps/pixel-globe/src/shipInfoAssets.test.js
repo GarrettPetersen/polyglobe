@@ -231,6 +231,10 @@ test("every roster ship has a hull footprint for every sprite heading", async ()
     assert.equal(frames.length, SHIP_SPRITE_HEADINGS, `${slug} heading footprint count`);
     assert.ok(frames.every((frame) => frame.polygon.length >= 3), `${slug} polygon geometry`);
     assert.ok(frames.every((frame) => frame.samples.length >= 3), `${slug} terrain samples`);
+    assert.ok(
+      frames.every((frame) => frame.projectilePolygon.length >= 3),
+      `${slug} projectile silhouette geometry`
+    );
   }
 });
 

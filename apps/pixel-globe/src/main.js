@@ -1337,6 +1337,7 @@ import {
   shipFootprintFrame,
   shipFootprintPerimeterSamples,
   shipFootprintRadius,
+  translatedShipProjectileSilhouette,
   translatedShipFootprint,
   validateShipFootprintBake,
   validateShipFootprintFrames
@@ -1928,7 +1929,8 @@ import { projectileHullDamage } from "./navalCombatResolution.js";
 import {
   firstNavalProjectileHit,
   navalProjectileMayHitBystanders,
-  navalProjectilePoint
+  navalProjectilePoint,
+  navalProjectileScreenPoint
 } from "./navalProjectile.js";
 import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
 import {
@@ -2369,7 +2371,8 @@ const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-3";
 const VEHICLE_ASSET_VERSION = "jong-holk-1";
 const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
-const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
+const SHIP_HULL_FOOTPRINTS_URL =
+  "assets/vehicles/unity-ships/hull-footprints.json?v=projectile-silhouette-1";
 const SHIP_FLAG_ANCHORS_URL = `assets/vehicles/unity-ships/flag-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_RENDER_LAYERS_URL =
   `assets/vehicles/ship-render-layers/manifest.json?v=${VEHICLE_ASSET_VERSION}`;
@@ -26671,7 +26674,7 @@ function resolvePlayerCannonPathHit(ball, previousAge) {
         id: state.id,
         x: state.x,
         y: state.y,
-        footprint: combatShipFootprint(state.id)
+        ...combatShipProjectileShape(state.id)
       });
       continue;
     }
@@ -27118,9 +27121,10 @@ function drawNavalProjectile(
   }
   drawCannonTrail(projectile, painter);
   const projectileSize = projectile.projectileSize || CANNONBALL_SIZE_PX;
+  const screenPoint = navalProjectileScreenPoint(point);
   painter.rect(
-    Math.round(point.x) - Math.floor(projectileSize / 2),
-    Math.round(point.y - point.z) - Math.floor(projectileSize / 2),
+    Math.round(screenPoint.x) - Math.floor(projectileSize / 2),
+    Math.round(screenPoint.y) - Math.floor(projectileSize / 2),
     projectileSize,
     projectileSize,
     "rgba(18, 14, 12, 0.95)"
@@ -27187,11 +27191,11 @@ function drawArrowProjectile(projectile, point, painter) {
   if (length <= 1e-6) return;
   const ux = dx / length;
   const uy = dy / length;
-  const y = point.y - point.z;
+  const screenPoint = navalProjectileScreenPoint(point);
   for (let i = 0; i < ARROW_LINE_LENGTH_PX; i++) {
     painter.rect(
-      Math.round(point.x - ux * i),
-      Math.round(y - uy * i),
+      Math.round(screenPoint.x - ux * i),
+      Math.round(screenPoint.y - uy * i),
       1,
       1,
       projectile.incendiary && i < 2 ? "rgba(249, 194, 43, 0.98)" : "rgba(255, 255, 255, 0.96)"
@@ -27199,8 +27203,8 @@ function drawArrowProjectile(projectile, point, painter) {
   }
   if (projectile.incendiary) {
     const flicker = (Math.floor(projectile.age * 24) + projectile.seed) % 3;
-    const flameX = Math.round(point.x - ux * (ARROW_LINE_LENGTH_PX + flicker));
-    const flameY = Math.round(y - uy * (ARROW_LINE_LENGTH_PX + flicker));
+    const flameX = Math.round(screenPoint.x - ux * (ARROW_LINE_LENGTH_PX + flicker));
+    const flameY = Math.round(screenPoint.y - uy * (ARROW_LINE_LENGTH_PX + flicker));
     painter.rect(flameX, flameY, 1, 1, "rgba(239, 125, 37, 0.9)");
     painter.rect(flameX - Math.round(uy), flameY + Math.round(ux), 1, 1, "rgba(249, 194, 43, 0.72)");
   }
@@ -27216,10 +27220,11 @@ function drawCannonTrail(ball, painter) {
   for (let i = trailLength; i >= 1; i--) {
     const trailAge = Math.max(0, ball.age - i / Math.max(speedPx, 1));
     const trailPoint = cannonBallPoint(ball, trailAge);
+    const trailScreenPoint = navalProjectileScreenPoint(trailPoint);
     const alpha = 0.08 + (trailLength - i) / trailLength * 0.18;
     painter.rect(
-      Math.round(trailPoint.x),
-      Math.round(trailPoint.y - trailPoint.z),
+      Math.round(trailScreenPoint.x),
+      Math.round(trailScreenPoint.y),
       1,
       1,
       `rgba(18, 14, 12, ${alpha.toFixed(3)})`
@@ -30528,7 +30533,7 @@ function resolveNpcCannonPathHit(ball, previousAge) {
       id,
       x: entry.x,
       y: entry.y,
-      footprint: combatShipFootprint(id)
+      ...combatShipProjectileShape(id)
     });
   }
   const hit = firstNavalProjectileHit(
@@ -30562,17 +30567,34 @@ function resolveNpcCombatImpact(ball) {
 }
 
 function combatShipFootprint(id) {
+  const placement = combatShipFramePlacement(id);
+  return translatedShipFootprint(placement.frame, placement.x, placement.y);
+}
+
+function combatShipProjectileShape(id) {
+  const placement = combatShipFramePlacement(id);
+  return {
+    footprint: translatedShipFootprint(placement.frame, placement.x, placement.y),
+    projectileSilhouette: translatedShipProjectileSilhouette(
+      placement.frame,
+      placement.x,
+      placement.y
+    )
+  };
+}
+
+function combatShipFramePlacement(id) {
   if (id === PLAYER_COMBAT_ID) {
     if (!ship || !localLayout) throw new Error("Player hull footprint requires an active drawn ship");
     const heading = shipScreenHeading();
     const frame = shipFootprintFrame(requiredShipFootprints(ship.typeSlug), heading);
-    return translatedShipFootprint(frame, localLayout.viewX, localLayout.viewY);
+    return { frame, x: localLayout.viewX, y: localLayout.viewY };
   }
   const state = npcVisualShips.get(id);
   if (!state) throw new Error(`Cannot resolve hull footprint for unknown NPC ship: ${id}`);
   const heading = npcShipScreenHeading(state.heading);
   const frame = shipFootprintFrame(requiredShipFootprints(state.slug), heading);
-  return translatedShipFootprint(frame, state.x, state.y);
+  return { frame, x: state.x, y: state.y };
 }
 
 function applyNpcCombatHit(ball, targetId, point) {
@@ -41365,10 +41387,7 @@ function drawHistoricalBattleArenaBoundary(map) {
 function drawHistoricalBattleProjectiles(battle) {
   for (const projectile of battle.projectiles) {
     const worldPoint = navalProjectilePoint(projectile);
-    const screenPoint = historicalBattleWorldToScreen({
-      x: worldPoint.x,
-      y: worldPoint.y - worldPoint.z
-    });
+    const screenPoint = historicalBattleWorldToScreen(navalProjectileScreenPoint(worldPoint));
     if (screenPoint.x < -2 || screenPoint.x > SCREEN_W + 2 ||
         screenPoint.y < -2 || screenPoint.y > SCREEN_H + 2) continue;
     drawNavalProjectile(projectile, worldPoint, HISTORICAL_BATTLE_EFFECT_PAINTER);

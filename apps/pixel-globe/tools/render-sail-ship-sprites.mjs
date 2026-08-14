@@ -46,6 +46,10 @@ import {
   validateShipStatsForSlugs
 } from "../src/shipStats.js";
 import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
+import {
+  convexPolygonHull,
+  shipProjectileSilhouetteFromAlpha
+} from "../src/shipFootprint.js";
 import { simplifySpanishNaoTextureColor } from "../src/spanishNaoTexture.js";
 import {
   fustaHullColor,
@@ -1405,8 +1409,18 @@ function makeWakeAnchors(frames, waterlineY, waterlineBand = wakeWaterlineBand) 
   return frames.map((frame, frameIndex) => makeWakeAnchor(frame, frameIndex, waterlineY, waterlineBand));
 }
 
-function makeHullFootprints(frames, waterlineY, waterlineBand = footprintWaterlineBand) {
-  return frames.map((frame, frameIndex) => makeHullFootprint(frame, frameIndex, waterlineY, waterlineBand));
+function makeHullFootprints(frames, waterlineY, waterlineBand = footprintWaterlineBand, projectileFrames = frames) {
+  if (frames.length !== projectileFrames.length) {
+    throw new Error("Ship hull footprints and projectile silhouettes need matching headings");
+  }
+  return frames.map((frame, frameIndex) => ({
+    ...makeHullFootprint(frame, frameIndex, waterlineY, waterlineBand),
+    projectilePolygon: shipProjectileSilhouetteFromAlpha(
+      projectileFrames[frameIndex].alpha,
+      frameSize,
+      frameSize
+    )
+  }));
 }
 
 function makeHullFootprint(frame, frameIndex, waterlineY, waterlineBand) {
@@ -1424,7 +1438,7 @@ function makeHullFootprint(frame, frameIndex, waterlineY, waterlineBand) {
       });
     }
   }
-  const polygon = convexHull(points).map((point) => ({
+  const polygon = convexPolygonHull(points).map((point) => ({
     x: Number(point.x.toFixed(2)),
     y: Number(point.y.toFixed(2))
   }));
@@ -1453,30 +1467,6 @@ function visibleWaterlineBand(frame, frameIndex, waterlineY, requestedBand) {
     Math.floor((visibleWaterlineDistances.length - 1) * 0.12)
   ];
   return Math.max(requestedBand, visibleBand + 1e-6);
-}
-
-function convexHull(points) {
-  const unique = [...new Map(points.map((point) => [`${point.x},${point.y}`, point])).values()]
-    .sort((a, b) => a.x - b.x || a.y - b.y);
-  if (unique.length < 3) return unique;
-  const lower = [];
-  for (const point of unique) {
-    while (lower.length >= 2 && hullTurn(lower.at(-2), lower.at(-1), point) <= 0) lower.pop();
-    lower.push(point);
-  }
-  const upper = [];
-  for (let i = unique.length - 1; i >= 0; i--) {
-    const point = unique[i];
-    while (upper.length >= 2 && hullTurn(upper.at(-2), upper.at(-1), point) <= 0) upper.pop();
-    upper.push(point);
-  }
-  lower.pop();
-  upper.pop();
-  return [...lower, ...upper];
-}
-
-function hullTurn(a, b, c) {
-  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
 function polygonArea(polygon) {
@@ -2119,7 +2109,12 @@ async function renderShipSpriteSet(config) {
     exactModelHeight: config.exactSinkDepth === true
   });
   const wakeAnchors = makeWakeAnchors(frames, waterlineY, config.wakeWaterlineBand);
-  const hullFootprints = makeHullFootprints(footprintFrames, waterlineY, config.footprintWaterlineBand);
+  const hullFootprints = makeHullFootprints(
+    footprintFrames,
+    waterlineY,
+    config.footprintWaterlineBand,
+    frames
+  );
 
   const lightDirections = makeLightingDirections();
   const selfShadowMaps = config.skipSelfShadowMaps

@@ -1,5 +1,6 @@
 const perimeterSamplesByFrame = new WeakMap();
 const radiusByFrame = new WeakMap();
+const projectileRadiusByFrame = new WeakMap();
 
 export function validateShipFootprintBake(bake, expectedFrameSize, expectedHeadings, requiredSlugs) {
   if (!bake || bake.frameSize !== expectedFrameSize || bake.headings !== expectedHeadings) {
@@ -10,7 +11,9 @@ export function validateShipFootprintBake(bake, expectedFrameSize, expectedHeadi
   }
   const bySlug = new Map();
   for (const [slug, frames] of Object.entries(bake.ships)) {
-    bySlug.set(slug, validateShipFootprintFrames(slug, frames, expectedHeadings));
+    bySlug.set(slug, validateShipFootprintFrames(slug, frames, expectedHeadings, {
+      requireProjectileSilhouette: true
+    }));
   }
   for (const slug of requiredSlugs) {
     if (!bySlug.has(slug)) throw new Error(`Ship hull footprint bake is missing: ${slug}`);
@@ -18,11 +21,13 @@ export function validateShipFootprintBake(bake, expectedFrameSize, expectedHeadi
   return bySlug;
 }
 
-export function validateShipFootprintFrames(slug, frames, expectedHeadings) {
+export function validateShipFootprintFrames(slug, frames, expectedHeadings, options = {}) {
   if (!Array.isArray(frames) || frames.length !== expectedHeadings) {
     throw new Error(`Ship ${slug} must have ${expectedHeadings} hull footprint frames`);
   }
-  return Object.freeze(frames.map((frame, index) => validateShipFootprintFrame(slug, index, frame)));
+  return Object.freeze(frames.map((frame, index) => (
+    validateShipFootprintFrame(slug, index, frame, options)
+  )));
 }
 
 export function shipFootprintFrame(frames, heading) {
@@ -37,6 +42,65 @@ export function translatedShipFootprint(frame, x, y) {
   validateFrame(frame);
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Ship footprint translation must be finite");
   return frame.polygon.map((point) => ({ x: x + point.x, y: y + point.y }));
+}
+
+export function translatedShipProjectileSilhouette(frame, x, y) {
+  validateFrame(frame);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error("Ship projectile silhouette translation must be finite");
+  }
+  const polygon = frame.projectilePolygon || frame.polygon;
+  return polygon.map((point) => ({ x: x + point.x, y: y + point.y }));
+}
+
+export function shipProjectileSilhouetteFromAlpha(alpha, width, height) {
+  if (!alpha || typeof alpha.length !== "number") {
+    throw new Error("Ship projectile silhouette requires alpha pixels");
+  }
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw new Error(`Invalid ship projectile silhouette dimensions: ${width}x${height}`);
+  }
+  if (alpha.length !== width * height) {
+    throw new Error(`Ship projectile silhouette alpha length ${alpha.length} does not match ${width}x${height}`);
+  }
+  const points = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!alpha[x + y * width]) continue;
+      points.push({
+        x: x + 0.5 - width / 2,
+        y: y + 0.5 - height / 2
+      });
+    }
+  }
+  const polygon = convexPolygonHull(points).map((point) => ({
+    x: Number(point.x.toFixed(2)),
+    y: Number(point.y.toFixed(2))
+  }));
+  if (polygon.length < 3) throw new Error("Ship projectile silhouette has fewer than three points");
+  return polygon;
+}
+
+export function convexPolygonHull(points) {
+  if (!Array.isArray(points)) throw new Error("Convex hull points must be an array");
+  for (const point of points) validatePoint(point, "convex hull point");
+  const unique = [...new Map(points.map((point) => [`${point.x},${point.y}`, point])).values()]
+    .sort((a, b) => a.x - b.x || a.y - b.y);
+  if (unique.length < 3) return unique;
+  const lower = [];
+  for (const point of unique) {
+    while (lower.length >= 2 && hullTurn(lower.at(-2), lower.at(-1), point) <= 0) lower.pop();
+    lower.push(point);
+  }
+  const upper = [];
+  for (let i = unique.length - 1; i >= 0; i--) {
+    const point = unique[i];
+    while (upper.length >= 2 && hullTurn(upper.at(-2), upper.at(-1), point) <= 0) upper.pop();
+    upper.push(point);
+  }
+  lower.pop();
+  upper.pop();
+  return [...lower, ...upper];
 }
 
 export function shipFootprintPerimeterSamples(frame, maximumStep = 2) {
@@ -168,6 +232,18 @@ export function shipFootprintRadius(frame) {
   return radius;
 }
 
+export function shipProjectileSilhouetteRadius(frame) {
+  validateFrame(frame);
+  const cached = projectileRadiusByFrame.get(frame);
+  if (cached !== undefined) return cached;
+  let radius = 0;
+  for (const point of frame.projectilePolygon || frame.polygon) {
+    radius = Math.max(radius, Math.hypot(point.x, point.y));
+  }
+  projectileRadiusByFrame.set(frame, radius);
+  return radius;
+}
+
 export function shipFootprintCenter(frame) {
   validateFrame(frame);
   return polygonCenter(frame.polygon);
@@ -178,23 +254,31 @@ export function shipFootprintPolygonCenter(polygon) {
   return polygonCenter(polygon);
 }
 
-function validateShipFootprintFrame(slug, index, frame) {
+function validateShipFootprintFrame(slug, index, frame, { requireProjectileSilhouette = false } = {}) {
   try {
-    validateFrame(frame);
+    validateFrame(frame, requireProjectileSilhouette);
   } catch (error) {
     throw new Error(`Invalid hull footprint for ${slug} frame ${index}: ${error.message}`);
   }
+  const projectilePolygon = frame.projectilePolygon || frame.polygon;
   return Object.freeze({
     polygon: Object.freeze(frame.polygon.map(freezePoint)),
-    samples: Object.freeze(frame.samples.map(freezePoint))
+    samples: Object.freeze(frame.samples.map(freezePoint)),
+    projectilePolygon: Object.freeze(projectilePolygon.map(freezePoint))
   });
 }
 
-function validateFrame(frame) {
+function validateFrame(frame, requireProjectileSilhouette = false) {
   if (!frame || typeof frame !== "object") throw new Error("frame is missing");
   validatePolygon(frame.polygon, "polygon");
   if (!Array.isArray(frame.samples) || frame.samples.length < 3) throw new Error("samples are missing");
   for (const point of frame.samples) validatePoint(point, "sample");
+  if (requireProjectileSilhouette && !Array.isArray(frame.projectilePolygon)) {
+    throw new Error("projectile silhouette is missing");
+  }
+  if (frame.projectilePolygon !== undefined) {
+    validatePolygon(frame.projectilePolygon, "projectile silhouette");
+  }
 }
 
 function validatePolygon(polygon, label) {
@@ -237,6 +321,10 @@ function segmentIntersectionFraction(a, b, c, d) {
   const t = (qx * sy - qy * sx) / denominator;
   const u = (qx * ry - qy * rx) / denominator;
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? t : null;
+}
+
+function hullTurn(a, b, c) {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
 function pointOnSegment(point, a, b) {

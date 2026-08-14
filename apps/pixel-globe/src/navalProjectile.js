@@ -17,17 +17,34 @@ export function navalProjectileMayHitBystanders(projectile) {
   return projectile.portable !== true;
 }
 
+export function navalProjectileScreenPoint(point) {
+  validatePoint(point, "screen projection");
+  if (point.z !== undefined && !Number.isFinite(point.z)) {
+    throw new Error(`Invalid naval projectile screen projection height: ${point.z}`);
+  }
+  return {
+    x: point.x,
+    y: point.y - (point.z || 0)
+  };
+}
+
 export function firstNavalProjectileHit(start, end, targets) {
   validatePoint(start, "start");
   validatePoint(end, "end");
   if (!Array.isArray(targets)) throw new Error("Naval projectile targets must be an array");
 
   let firstHit = null;
+  const screenStart = navalProjectileScreenPoint(start);
+  const screenEnd = navalProjectileScreenPoint(end);
   for (const target of targets) {
     validateTarget(target);
-    const hit = target.footprint
+    const planeHit = target.footprint
       ? firstSegmentShipFootprintHit(start, end, target.footprint)
       : segmentCircleEntry(start, end, target);
+    const projectedHit = target.projectileSilhouette
+      ? firstSegmentShipFootprintHit(screenStart, screenEnd, target.projectileSilhouette)
+      : null;
+    const hit = earlierHit(planeHit, projectedHit);
     if (!hit || (firstHit && hit.fraction >= firstHit.fraction)) continue;
     firstHit = {
       target,
@@ -35,6 +52,12 @@ export function firstNavalProjectileHit(start, end, targets) {
     };
   }
   return firstHit;
+}
+
+function earlierHit(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return a.fraction <= b.fraction ? a : b;
 }
 
 function segmentCircleEntry(start, end, target) {
@@ -103,7 +126,12 @@ function validateTarget(target) {
 }
 
 function validTargetShape(target) {
-  if (Array.isArray(target.footprint)) return target.footprint.length >= 3;
+  if (Array.isArray(target.footprint)) {
+    return target.footprint.length >= 3 && (
+      target.projectileSilhouette === undefined ||
+      (Array.isArray(target.projectileSilhouette) && target.projectileSilhouette.length >= 3)
+    );
+  }
   return Number.isFinite(target.radius) && target.radius > 0;
 }
 

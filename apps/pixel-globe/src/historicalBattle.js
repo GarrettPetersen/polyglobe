@@ -29,6 +29,8 @@ import { broadsideHullEdgeDistance } from "./broadsideControls.js";
 import {
   shipFootprintFrame,
   shipFootprintRadius,
+  shipProjectileSilhouetteRadius,
+  translatedShipProjectileSilhouette,
   translatedShipFootprint
 } from "./shipFootprint.js";
 import {
@@ -1087,6 +1089,16 @@ function historicalShipWorldFootprint(state, ship) {
   }));
 }
 
+function historicalShipWorldProjectileSilhouette(state, ship) {
+  const frames = state.shipFootprints?.get?.(ship.shipSlug);
+  if (!frames) return historicalShipWorldFootprint(state, ship);
+  const frame = shipFootprintFrame(frames, {
+    x: Math.cos(ship.headingRad),
+    y: Math.sin(ship.headingRad)
+  });
+  return translatedShipProjectileSilhouette(frame, ship.x, ship.y);
+}
+
 function initializeHistoricalShipCollisionRadii(state) {
   const radiusBySlug = new Map();
   let maximumRadius = 0;
@@ -1095,7 +1107,11 @@ function initializeHistoricalShipCollisionRadii(state) {
     if (radius === undefined) {
       const frames = state.shipFootprints?.get?.(ship.shipSlug);
       if (frames) {
-        radius = frames.reduce((maximum, frame) => Math.max(maximum, shipFootprintRadius(frame)), 0);
+        radius = frames.reduce((maximum, frame) => Math.max(
+          maximum,
+          shipFootprintRadius(frame),
+          shipProjectileSilhouetteRadius(frame)
+        ), 0);
       } else {
         const halfLength = ship.role === "galleass" ? 10 : 8;
         const halfWidth = ship.role === "galleass" ? 5 : 3;
@@ -1379,7 +1395,8 @@ function firstHistoricalProjectileHit(state, projectile, start, end) {
       x: ship.x,
       y: ship.y,
       shipIndex,
-      footprint: historicalShipWorldFootprint(state, ship)
+      footprint: historicalShipWorldFootprint(state, ship),
+      projectileSilhouette: historicalShipWorldProjectileSilhouette(state, ship)
     });
   }
   return firstNavalProjectileHit(start, end, targets);

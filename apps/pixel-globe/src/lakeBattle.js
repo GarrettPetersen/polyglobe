@@ -31,6 +31,7 @@ import {
   shipFootprintCenter,
   shipFootprintFrame,
   shipFootprintRadius,
+  translatedShipProjectileSilhouette,
   translatedShipFootprint
 } from "./shipFootprint.js";
 import {
@@ -883,7 +884,10 @@ function updateProjectiles(state, dt) {
               ...lakeBattleCombatantPoint(target),
               ...(lakeBattleCombatantIsCity(target)
                 ? { radius: lakeBattleCombatantHitRadius(target) }
-                : { footprint: lakeBattleShipWorldFootprint(state, target) })
+                : {
+                    footprint: lakeBattleShipWorldFootprint(state, target),
+                    projectileSilhouette: lakeBattleShipWorldProjectileSilhouette(state, target)
+                  })
             }]
           )
         : null;
@@ -1143,6 +1147,11 @@ function lakeBattleShipFootprintFrame(state, ship) {
 function lakeBattleShipWorldFootprint(state, ship) {
   const point = lakeBattleCombatantPoint(ship);
   return translatedShipFootprint(lakeBattleShipFootprintFrame(state, ship), point.x, point.y);
+}
+
+function lakeBattleShipWorldProjectileSilhouette(state, ship) {
+  const point = lakeBattleCombatantPoint(ship);
+  return translatedShipProjectileSilhouette(lakeBattleShipFootprintFrame(state, ship), point.x, point.y);
 }
 
 function lakeBattleCombatantAimPoint(state, combatant) {
