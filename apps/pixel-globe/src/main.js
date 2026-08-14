@@ -1042,10 +1042,10 @@ import {
 } from "./captainChartMap.js";
 import {
   POLITICS_DEPENDENCY_TEXT_COLOR,
+  politicsCardEntries,
+  politicsCardEntriesPage,
   politicsCardGridLayout,
-  politicsRelationTextColor,
-  politicsCardSegments,
-  politicsCardSegmentsPage
+  politicsRelationTextColor
 } from "./politicsCardLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import { oceanSwellOffset, oceanSwellState } from "./oceanSwell.js";
@@ -40603,16 +40603,15 @@ function drawPoliticsMenu() {
     { align: "center", color: PIRATE_MENU_INK_MUTED }
   );
 
-  pagination.page.segments.forEach((segment, index) => {
-    const column = index % pagination.layout.columns;
-    const row = Math.floor(index / pagination.layout.columns);
-    drawPoliticsCountryCard(segment, view, {
+  pagination.page.entries.forEach((entry) => {
+    drawPoliticsCountryCard(entry, view, {
       x: panel.x + pagination.layout.panelPadX +
-        column * (pagination.layout.cardWidth + pagination.layout.cardGap),
+        entry.column * (pagination.layout.cardWidth + pagination.layout.cardGap),
       y: panel.y + pagination.layout.contentTop +
-        row * (pagination.layout.cardHeight + pagination.layout.cardGap),
+        entry.row * (pagination.layout.cardHeight + pagination.layout.cardGap),
       w: pagination.layout.cardWidth,
-      h: pagination.layout.cardHeight
+      h: pagination.layout.cardHeight * entry.rowSpan +
+        pagination.layout.cardGap * (entry.rowSpan - 1)
     }, pagination.layout);
   });
 
@@ -40658,14 +40657,18 @@ function politicsCardPagination(view, panel = captainNotebookPagePanel({
     pagerHeight: UI_PAGER_BUTTON_H,
     newsHeight
   });
-  const segments = politicsCardSegments(view.cards, {
+  const entries = politicsCardEntries(view.cards, {
     tokensPerLine: layout.tokensPerLine,
     maxRelationLines: layout.maxRelationLines,
+    maxRowSpan: layout.rows,
     powerCount: view.powers.length
   });
   return {
     layout,
-    page: politicsCardSegmentsPage(segments, politicsMenu.page, layout.cardsPerPage)
+    page: politicsCardEntriesPage(entries, politicsMenu.page, {
+      columns: layout.columns,
+      rows: layout.rows
+    })
   };
 }
 
@@ -40821,9 +40824,9 @@ function drawPoliticsNewsDetail(view, panel) {
   );
 }
 
-function drawPoliticsCountryCard(segment, view, rect, layout) {
+function drawPoliticsCountryCard(entry, view, rect, layout) {
   drawPiratePaperInset(rect);
-  const card = segment.card;
+  const card = entry.card;
   const headerY = rect.y + 3;
   drawPoliticsFlag(card.faction.id, rect.x + 4, rect.y + 3, 20, 13);
   const status = `${uiText("politics.you")} ${card.player.scoreLabel} ${politicsTradeCode(card.player.trade)}`;
@@ -40831,9 +40834,6 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
   const marqueMarker = politicsMarqueMarker(card.player);
   const marqueWidth = marqueMarker ? 9 : 0;
   const titleX = rect.x + 28 + marqueWidth;
-  const titleSuffix = segment.segmentCount > 1
-    ? ` ${segment.segmentIndex + 1}/${segment.segmentCount}`
-    : "";
   if (marqueMarker) {
     drawOptionsText(marqueMarker, rect.x + 28, headerY, {
       color: PIRATE_MENU_INK
@@ -40841,7 +40841,7 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
   }
   drawOptionsText(
     fitPixelText(
-      `${card.faction.shortName.toUpperCase()}${titleSuffix}`,
+      card.faction.shortName.toUpperCase(),
       PIXEL_FONT_SMALL_8,
       rect.w - 32 - statusWidth - marqueWidth
     ),
@@ -40885,7 +40885,7 @@ function drawPoliticsCountryCard(segment, view, rect, layout) {
     }
   }
 
-  segment.lines.forEach((line, lineIndex) => {
+  entry.lines.forEach((line, lineIndex) => {
     const y = rect.y + layout.headerHeight + lineIndex * layout.relationLineHeight;
     const label = politicsCardLineLabel(line);
     const color = line.type === "relationship"

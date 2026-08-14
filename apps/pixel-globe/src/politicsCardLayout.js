@@ -57,11 +57,19 @@ export function politicsCardGridLayout({
     Math.floor((cardWidth - 8 - CARD_LABEL_WIDTH) / CARD_TOKEN_WIDTH)
   );
   const headerHeight = Math.max(26, lineHeight * 2 + 4);
-  const cardHeight = headerHeight + CARD_RELATION_LINES * lineHeight + 4;
+  let maxRelationLines = CARD_RELATION_LINES;
+  let cardHeight = headerHeight + maxRelationLines * lineHeight + 4;
   const contentHeight = panelHeight - CONTENT_TOP - pagerHeight - 8 - newsHeight;
   const rows = Math.max(1, Math.floor((contentHeight + CARD_GAP) / (cardHeight + CARD_GAP)));
   if (cardHeight > contentHeight) {
     throw new Error(`Politics country card does not fit panel: ${cardHeight} > ${contentHeight}`);
+  }
+  if (rows === 1) {
+    maxRelationLines = Math.max(
+      CARD_RELATION_LINES,
+      Math.floor((contentHeight - headerHeight - 4) / lineHeight)
+    );
+    cardHeight = headerHeight + maxRelationLines * lineHeight + 4;
   }
 
   return Object.freeze({
@@ -70,7 +78,7 @@ export function politicsCardGridLayout({
     contentTop: CONTENT_TOP,
     columns,
     rows,
-    cardsPerPage: columns * rows,
+    slotsPerPage: columns * rows,
     cardWidth,
     cardHeight,
     headerHeight,
@@ -78,16 +86,17 @@ export function politicsCardGridLayout({
     relationLabelWidth: CARD_LABEL_WIDTH,
     relationTokenWidth: CARD_TOKEN_WIDTH,
     tokensPerLine,
-    maxRelationLines: CARD_RELATION_LINES
+    maxRelationLines
   });
 }
 
-export function politicsCardSegments(cards, {
+export function politicsCardEntries(cards, {
   tokensPerLine,
   maxRelationLines,
+  maxRowSpan,
   powerCount
 }) {
-  if (!Array.isArray(cards)) throw new Error("Politics card segments require cards");
+  if (!Array.isArray(cards)) throw new Error("Politics card entries require cards");
   if (!Number.isInteger(tokensPerLine) || tokensPerLine <= 0) {
     throw new Error(`Politics card tokens per line must be positive: ${tokensPerLine}`);
   }
@@ -97,36 +106,87 @@ export function politicsCardSegments(cards, {
   if (!Number.isInteger(powerCount) || powerCount <= 0) {
     throw new Error(`Politics card power count must be positive: ${powerCount}`);
   }
+  if (!Number.isInteger(maxRowSpan) || maxRowSpan <= 0) {
+    throw new Error(`Politics card row span must be positive: ${maxRowSpan}`);
+  }
 
-  return Object.freeze(cards.flatMap((card) => {
+  return Object.freeze(cards.map((card) => {
     const lines = relationshipLines(card, tokensPerLine, powerCount);
-    const segmentCount = Math.max(1, Math.ceil(lines.length / maxRelationLines));
-    return Array.from({ length: segmentCount }, (_unused, segmentIndex) => Object.freeze({
+    const rowSpan = Math.max(1, Math.ceil(lines.length / maxRelationLines));
+    if (rowSpan > maxRowSpan) {
+      throw new Error(
+        `Politics country card needs ${rowSpan} rows but only ${maxRowSpan} fit: ${card.faction?.id || "unknown"}`
+      );
+    }
+    return Object.freeze({
       card,
-      segmentIndex,
-      segmentCount,
-      lines: Object.freeze(lines.slice(
-        segmentIndex * maxRelationLines,
-        (segmentIndex + 1) * maxRelationLines
-      ))
-    }));
+      rowSpan,
+      lines: Object.freeze(lines)
+    });
   }));
 }
 
-export function politicsCardSegmentsPage(segments, page, cardsPerPage) {
-  if (!Array.isArray(segments)) throw new Error("Invalid politics card segments");
+export function politicsCardEntriesPage(entries, page, { columns, rows }) {
+  if (!Array.isArray(entries)) throw new Error("Invalid politics card entries");
   if (!Number.isInteger(page)) throw new Error(`Invalid politics page: ${page}`);
-  if (!Number.isInteger(cardsPerPage) || cardsPerPage <= 0) {
-    throw new Error(`Invalid politics cards per page: ${cardsPerPage}`);
+  if (!Number.isInteger(columns) || columns <= 0 || !Number.isInteger(rows) || rows <= 0) {
+    throw new Error(`Invalid politics card grid: ${columns}x${rows}`);
   }
-  const pageCount = Math.max(1, Math.ceil(segments.length / cardsPerPage));
+  const packedPages = packPoliticsCardPages(entries, columns, rows);
+  const pageCount = packedPages.length;
   const normalizedPage = clampMenuIndex(page, pageCount);
-  const start = normalizedPage * cardsPerPage;
   return Object.freeze({
     page: normalizedPage,
     pageCount,
-    segments: Object.freeze(segments.slice(start, start + cardsPerPage))
+    entries: packedPages[normalizedPage]
   });
+}
+
+function packPoliticsCardPages(entries, columns, rows) {
+  if (entries.length === 0) return Object.freeze([Object.freeze([])]);
+  const pages = [];
+  let occupancy = emptyGrid(columns, rows);
+  let pageEntries = [];
+
+  for (const entry of entries) {
+    if (!Number.isInteger(entry.rowSpan) || entry.rowSpan <= 0 || entry.rowSpan > rows) {
+      throw new Error(`Politics card cannot fit grid row span: ${entry.rowSpan}`);
+    }
+    let slot = firstPoliticsCardSlot(occupancy, columns, rows, entry.rowSpan);
+    if (!slot) {
+      pages.push(Object.freeze(pageEntries));
+      occupancy = emptyGrid(columns, rows);
+      pageEntries = [];
+      slot = firstPoliticsCardSlot(occupancy, columns, rows, entry.rowSpan);
+    }
+    if (!slot) throw new Error(`Politics card could not be packed: ${entry.card?.faction?.id || "unknown"}`);
+    for (let row = slot.row; row < slot.row + entry.rowSpan; row += 1) {
+      occupancy[row][slot.column] = true;
+    }
+    pageEntries.push(Object.freeze({ ...entry, ...slot }));
+  }
+  if (pageEntries.length > 0) pages.push(Object.freeze(pageEntries));
+  return Object.freeze(pages);
+}
+
+function emptyGrid(columns, rows) {
+  return Array.from({ length: rows }, () => Array(columns).fill(false));
+}
+
+function firstPoliticsCardSlot(occupancy, columns, rows, rowSpan) {
+  for (let row = 0; row <= rows - rowSpan; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      let free = true;
+      for (let occupiedRow = row; occupiedRow < row + rowSpan; occupiedRow += 1) {
+        if (occupancy[occupiedRow][column]) {
+          free = false;
+          break;
+        }
+      }
+      if (free) return Object.freeze({ row, column });
+    }
+  }
+  return null;
 }
 
 function relationshipLines(card, tokensPerLine, powerCount) {

@@ -3,10 +3,10 @@ import test from "node:test";
 
 import {
   POLITICS_DEPENDENCY_TEXT_COLOR,
+  politicsCardEntries,
+  politicsCardEntriesPage,
   politicsCardGridLayout,
-  politicsRelationTextColor,
-  politicsCardSegments,
-  politicsCardSegmentsPage
+  politicsRelationTextColor
 } from "./politicsCardLayout.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
@@ -21,7 +21,7 @@ test("politics cards form a two-by-two desktop grid without crowding the footer"
 
   assert.equal(layout.columns, 2);
   assert.equal(layout.rows, 2);
-  assert.equal(layout.cardsPerPage, 4);
+  assert.equal(layout.slotsPerPage, 4);
   assert.equal(layout.cardWidth, 206);
   assert.equal(layout.cardHeight, 74);
   assert.equal(layout.headerHeight, 26);
@@ -48,13 +48,15 @@ test("politics cards become a single compact column and respect taller localized
 
   assert.equal(compact.columns, 1);
   assert.equal(compact.rows, 2);
-  assert.equal(compact.cardsPerPage, 2);
+  assert.equal(compact.slotsPerPage, 2);
   assert.equal(localized.columns, 2);
   assert.equal(localized.rows, 1);
-  assert.equal(localized.cardsPerPage, 2);
+  assert.equal(localized.slotsPerPage, 2);
+  assert.equal(localized.maxRelationLines, 8);
+  assert.equal(localized.cardHeight, 148);
 });
 
-test("politics card segments preserve every relationship and compress universal pirate wars", () => {
+test("politics card entries preserve every relationship and compress universal pirate wars", () => {
   const portugal = card({
     dependencies: [{ kind: "vassal", role: "suzerain", factionId: "hormuz" }],
     relationships: [
@@ -66,41 +68,43 @@ test("politics card segments preserve every relationship and compress universal 
   const pirates = card({
     relationships: [relationship("war", ids("p", 31))]
   });
-  const segments = politicsCardSegments([portugal, pirates], {
+  const entries = politicsCardEntries([portugal, pirates], {
     tokensPerLine: 7,
     maxRelationLines: 5,
+    maxRowSpan: 2,
     powerCount: 32
   });
 
-  assert.equal(segments.length, 2);
-  assert.equal(segments[0].lines.length, 5);
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].lines.length, 5);
   assert.deepEqual(
-    segments[0].lines.flatMap((line) => line.factionIds),
+    entries[0].lines.flatMap((line) => line.factionIds),
     ["hormuz", ...ids("w", 7), "tidore", ...ids("f", 9)]
   );
-  assert.equal(segments[1].lines.length, 1);
-  assert.equal(segments[1].lines[0].allPowers, true);
+  assert.equal(entries[1].lines.length, 1);
+  assert.equal(entries[1].lines[0].allPowers, true);
 });
 
-test("politics card segments keep tribute-paying and non-paying protected subjects distinct", () => {
+test("politics cards keep tribute-paying and non-paying protected subjects distinct", () => {
   const ottoman = card({
     dependencies: [
       dependency("autonomous-vassal", "suzerain", "wallachia", { tribute: true }),
       dependency("autonomous-vassal", "suzerain", "crimea", { tribute: false })
     ]
   });
-  const [segment] = politicsCardSegments([ottoman], {
+  const [entry] = politicsCardEntries([ottoman], {
     tokensPerLine: 4,
     maxRelationLines: 4,
+    maxRowSpan: 2,
     powerCount: 8
   });
 
-  assert.equal(segment.lines.length, 2);
-  assert.deepEqual(segment.lines.map((line) => line.factionIds), [["wallachia"], ["crimea"]]);
-  assert.deepEqual(segment.lines.map((line) => line.terms.tribute), [true, false]);
+  assert.equal(entry.lines.length, 2);
+  assert.deepEqual(entry.lines.map((line) => line.factionIds), [["wallachia"], ["crimea"]]);
+  assert.deepEqual(entry.lines.map((line) => line.terms.tribute), [true, false]);
 });
 
-test("an unusually entangled country continues onto another card without dropping ties", () => {
+test("an unusually entangled country grows into one double-height card", () => {
   const tangled = card({
     relationships: [
       relationship("war", ids("w", 8)),
@@ -109,28 +113,45 @@ test("an unusually entangled country continues onto another card without droppin
       relationship("friendly", ids("f", 8))
     ]
   });
-  const segments = politicsCardSegments([tangled], {
+  const entries = politicsCardEntries([tangled], {
     tokensPerLine: 4,
     maxRelationLines: 5,
+    maxRowSpan: 2,
     powerCount: 40
   });
 
-  assert.equal(segments.length, 2);
-  assert.equal(segments[0].segmentCount, 2);
-  assert.equal(segments[1].segmentIndex, 1);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].rowSpan, 2);
   assert.deepEqual(
-    segments.flatMap((segment) => segment.lines).flatMap((line) => line.factionIds),
+    entries[0].lines.flatMap((line) => line.factionIds),
     [...ids("w", 8), ...ids("h", 8), ...ids("a", 8), ...ids("f", 8)]
   );
 });
 
-test("politics card pagination clamps to its final page", () => {
-  const segments = Array.from({ length: 9 }, (_unused, index) => ({ index }));
-  const page = politicsCardSegmentsPage(segments, 8, 4);
+test("politics card pagination packs tall cards and clamps to its final page", () => {
+  const entries = [
+    { card: { faction: { id: "tall" } }, rowSpan: 2, lines: [] },
+    ...Array.from({ length: 4 }, (_unused, index) => ({
+      card: { faction: { id: `short-${index}` } },
+      rowSpan: 1,
+      lines: []
+    }))
+  ];
+  const firstPage = politicsCardEntriesPage(entries, 0, { columns: 2, rows: 2 });
+  const page = politicsCardEntriesPage(entries, 8, { columns: 2, rows: 2 });
 
-  assert.equal(page.page, 2);
-  assert.equal(page.pageCount, 3);
-  assert.deepEqual(page.segments, [{ index: 8 }]);
+  assert.equal(firstPage.entries.length, 3);
+  assert.deepEqual(
+    firstPage.entries.map(({ row, column, rowSpan }) => ({ row, column, rowSpan })),
+    [
+      { row: 0, column: 0, rowSpan: 2 },
+      { row: 0, column: 1, rowSpan: 1 },
+      { row: 1, column: 1, rowSpan: 1 }
+    ]
+  );
+  assert.equal(page.page, 1);
+  assert.equal(page.pageCount, 2);
+  assert.equal(page.entries.length, 2);
 });
 
 test("politics relationship labels use distinct dark Resurrect inks", () => {
