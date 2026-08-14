@@ -1,5 +1,6 @@
 import { colonizationTargetForCity } from "./colonialCities.js";
 import { CANONICAL_PORTS } from "./canonicalPorts.js";
+import { cityIsInEurope } from "./cityCatalogData.js";
 import {
   CARGO_SPACE_TICKS_PER_UNIT,
   availableCargoTicks,
@@ -370,6 +371,7 @@ export function assignColonizationQuest(memory, {
 
 export function colonizationOriginCanSponsorTarget(origin, target) {
   return Boolean(
+    cityIsInEurope(origin) &&
     origin?.factionId &&
     target?.originFactionId === origin.factionId &&
     (!target.originCountry || target.originCountry === origin.country) &&
@@ -381,6 +383,7 @@ export function colonizationOriginCanSponsorTarget(origin, target) {
 
 export function colonizationOriginCanHostExiledSponsor(origin, target) {
   return Boolean(
+    cityIsInEurope(origin) &&
     origin?.foundingFactionId &&
     target?.originFactionId === origin.foundingFactionId &&
     origin.factionId !== target.originFactionId &&
@@ -391,7 +394,11 @@ export function colonizationOriginCanHostExiledSponsor(origin, target) {
   );
 }
 
-export function relocateColonizationQuestOrigin(memory, { target, origin }) {
+export function relocateColonizationQuestOrigin(memory, {
+  target,
+  origin,
+  allowExiledSponsor = false
+}) {
   validateColonizationQuestMemory(memory);
   validateQuestTarget(target);
   validateQuestOrigin(origin);
@@ -399,7 +406,7 @@ export function relocateColonizationQuestOrigin(memory, { target, origin }) {
   if (selectedTarget.city !== target.city || selectedTarget.country !== target.country) {
     throw new Error(`Cannot relocate ${selectedTarget.city} expedition as ${target.city}`);
   }
-  assertColonizationOriginCanHostTarget(origin, target);
+  assertColonizationOriginCanHostTarget(origin, target, { allowExiledSponsor });
   memory.originTileId = origin.tileId;
   memory.originCity = origin.city;
   memory.originCountry = origin.country;
@@ -436,6 +443,26 @@ export function reconcileColonizationQuestOriginAfterConquest(state, portCities)
     });
   }
   if (currentOrigin && colonizationOriginCanHostExiledSponsor(currentOrigin, target)) return null;
+  const exileReplacement = portCities
+    .filter((city) => colonizationOriginCanHostExiledSponsor(city, target))
+    .sort((a, b) => colonizationReplacementOriginOrder(a, b, target, currentOrigin))[0] || null;
+  if (exileReplacement) {
+    relocateColonizationQuestOrigin(memory, {
+      target,
+      origin: exileReplacement,
+      allowExiledSponsor: true
+    });
+    return Object.freeze({
+      kind: "government-in-exile",
+      target: Object.freeze({ city: target.city, country: target.country }),
+      previousOrigin,
+      origin: Object.freeze({
+        tileId: exileReplacement.tileId,
+        city: exileReplacement.city,
+        country: exileReplacement.country
+      })
+    });
+  }
   throw new Error(`Colonization expedition origin disappeared after conquest: ${previousOrigin?.city || "unknown"}`);
 }
 
@@ -482,14 +509,17 @@ export function eligibleColonizationTargetsForOrigin(city, targetPlacements, { p
   if (portCities !== null && !Array.isArray(portCities)) {
     throw new Error("Colonization target eligibility requires a port list");
   }
-  const activeSponsorFactionIds = portCities === null
+  const activeMetropolitanSponsorFactionIds = portCities === null
     ? null
-    : new Set(portCities.map((port) => port?.factionId).filter(nonEmptyString));
+    : new Set(portCities
+      .filter(cityIsInEurope)
+      .map((port) => port?.factionId)
+      .filter(nonEmptyString));
   return Object.freeze(targetPlacements
     .filter((target) => (
       colonizationOriginCanSponsorTarget(city, target) ||
-      (activeSponsorFactionIds !== null &&
-        !activeSponsorFactionIds.has(target.originFactionId) &&
+      (activeMetropolitanSponsorFactionIds !== null &&
+        !activeMetropolitanSponsorFactionIds.has(target.originFactionId) &&
         colonizationOriginCanHostExiledSponsor(city, target))
     ))
     .sort((a, b) => colonizationTargetKey(a).localeCompare(colonizationTargetKey(b))));

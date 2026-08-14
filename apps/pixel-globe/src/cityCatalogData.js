@@ -102,6 +102,25 @@ const NORTHERN_EUROPEAN = new Set([
   "Austria", "Belgium", "Denmark", "France", "Germany", "Hungary", "Iceland", "Ireland", "Lithuania", "Netherlands",
   "Norway", "Poland", "Russian Federation", "Sweden", "Ukraine", "United Kingdom"
 ]);
+const EUROPEAN_CITY_COUNTRIES = new Set([
+  ...MEDITERRANEAN,
+  ...NORTHERN_EUROPEAN,
+  "Belarus",
+  "Bosnia and Herzegovina",
+  "Croatia",
+  "Czech Republic",
+  "Estonia",
+  "Finland",
+  "Latvia",
+  "Luxembourg",
+  "Malta",
+  "Moldova",
+  "Montenegro",
+  "North Macedonia",
+  "Slovakia",
+  "Slovenia",
+  "Switzerland"
+]);
 const ISLAMIC_DESERT = new Set([
   "Afghanistan", "Algeria", "Armenia", "Egypt", "Georgia", "Iran", "Iraq", "Israel", "Kyrgyzstan", "Lebanon", "Libya",
   "Mauritania", "Morocco", "Oman", "Saudi Arabia", "Sudan", "Sumer", "Syria", "Syria/Turkey", "Tunisia", "Turkey",
@@ -388,6 +407,10 @@ export function cityTypeForCity(country, lat, lon) {
   if (ISLAMIC_DESERT.has(country)) return "islamic-desert";
   if (SUB_SAHARAN.has(country)) return "sub-saharan";
   throw new Error(`No city type art bucket for city country: ${country}`);
+}
+
+export function cityIsInEurope(city) {
+  return Boolean(city && EUROPEAN_CITY_COUNTRIES.has(city.country));
 }
 
 export function cityArtKeyForCity(city) {

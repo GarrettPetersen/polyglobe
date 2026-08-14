@@ -63,6 +63,13 @@ const PORT_ROYAL = Object.freeze({
   ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
   tileId: 123
 });
+const SPONSOR_COUNTRY_BY_FACTION = Object.freeze({
+  england: "United Kingdom",
+  france: "France",
+  habsburg: "Netherlands",
+  portugal: "Portugal",
+  spain: "Spain"
+});
 
 test("an unspawned colonization quest has no target-specific cargo progress", () => {
   const view = colonizationQuestView(questViewState(createColonizationQuestMemory()));
@@ -119,7 +126,7 @@ test("all water-accessible colony sites can enter a constrained sailing offer po
     const origin = {
       tileId: 9000,
       city: "Sponsor Port",
-      country: target.originCountry || "Sponsor Realm",
+      country: target.originCountry || SPONSOR_COUNTRY_BY_FACTION[target.originFactionId],
       factionId: target.originFactionId,
       lat: -target.lat,
       lon: ((target.lon + 540) % 360) - 180
@@ -169,6 +176,111 @@ test("colonization offers roll infrequently, persist after being seen, and selec
     spawnChance: 1
   }), offer);
   assert.equal(colonizationOrganizerShouldApproach(state, BORDEAUX), false);
+});
+
+test("an overseas colony cannot sponsor another colonial expedition", () => {
+  const stJohns = {
+    ...colonizationTargetForCity({ city: "St. John's", country: "Canada" }),
+    tileId: 124
+  };
+  const jamestown = {
+    tileId: 125,
+    city: "Jamestown",
+    country: "United States of America",
+    factionId: "england",
+    foundingFactionId: "england",
+    lat: 37.21,
+    lon: -76.78
+  };
+  const london = {
+    tileId: 126,
+    city: "London",
+    country: "United Kingdom",
+    factionId: "england",
+    foundingFactionId: "england",
+    lat: 51.51,
+    lon: -0.13
+  };
+  const state = {
+    playerCharacter: { identityKey: "metropolitan-colony-origin" },
+    memory: {
+      colonization: createColonizationQuestMemory(),
+      flags: {},
+      quests: { cargoDeliveries: {} }
+    }
+  };
+
+  assert.equal(colonizationOriginCanSponsorTarget(jamestown, stJohns), false);
+  assert.equal(colonizationOfferForCity(
+    state,
+    jamestown,
+    [jamestown, london],
+    [stJohns],
+    { simMinute: 14 * DAY, spawnChance: 1 }
+  ), null);
+  assert.notEqual(colonizationOfferForCity(
+    state,
+    london,
+    [jamestown, london],
+    [stJohns],
+    { simMinute: 14 * DAY, spawnChance: 1, targetTileId: stJohns.tileId }
+  ), null);
+  assert.equal(state.memory.colonization.originCity, "London");
+});
+
+test("old overseas-origin saves relocate to Europe and overseas territory does not block exile sponsorship", () => {
+  const stJohns = {
+    ...colonizationTargetForCity({ city: "St. John's", country: "Canada" }),
+    tileId: 124
+  };
+  const jamestown = {
+    tileId: 125,
+    city: "Jamestown",
+    country: "United States of America",
+    factionId: "england",
+    foundingFactionId: "england",
+    lat: 37.21,
+    lon: -76.78
+  };
+  const london = {
+    tileId: 126,
+    city: "London",
+    country: "United Kingdom",
+    factionId: "england",
+    foundingFactionId: "england",
+    lat: 51.51,
+    lon: -0.13
+  };
+  const memory = createColonizationQuestMemory();
+  assignColonizationQuest(memory, { target: stJohns, origin: london });
+  memory.originTileId = jamestown.tileId;
+  memory.originCity = jamestown.city;
+  memory.originCountry = jamestown.country;
+
+  const relocated = reconcileColonizationQuestOriginAfterConquest(
+    questViewState(memory),
+    [jamestown, london]
+  );
+  assert.equal(relocated.kind, "relocated");
+  assert.equal(memory.originCity, "London");
+
+  const exileState = {
+    playerCharacter: { identityKey: "overseas-only-england" },
+    memory: {
+      colonization: createColonizationQuestMemory(),
+      flags: {},
+      quests: { cargoDeliveries: {} }
+    }
+  };
+  const capturedLondon = { ...london, factionId: "france" };
+  assert.notEqual(colonizationOfferForCity(
+    exileState,
+    capturedLondon,
+    [jamestown, capturedLondon],
+    [stJohns],
+    { simMinute: 14 * DAY, spawnChance: 1, targetTileId: stJohns.tileId }
+  ), null);
+  assert.equal(exileState.memory.colonization.originCity, "London");
 });
 
 test("existing Port Royal quest saves bind to the generalized quest model", () => {
