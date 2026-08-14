@@ -49886,7 +49886,8 @@ function currentWaypointArrowReservedRects() {
   const reservedRects = [
     anchorButtonRect,
     scavengeButtonRect,
-    interactionButtonRect
+    interactionButtonRect,
+    whaleReleaseButtonRect
   ].filter(Boolean);
   if (portWaitButtonRect) reservedRects.push(portWaitButtonRect);
   if (gameState && ship && !gameOverReason) {

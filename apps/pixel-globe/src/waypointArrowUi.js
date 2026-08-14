@@ -37,39 +37,13 @@ export function waypointArrowEdgePoint({
     x: Math.round(centerX + dir.x * distance),
     y: Math.round(centerY + dir.y * distance)
   };
-  const inflatedRects = reservedRects.map((rect, index) => inflateReservedRect(rect, clearance, index));
-  if (!pointOverlapsRects(initialPoint, inflatedRects)) return initialPoint;
-
-  const edgeCandidates = [
-    { x: minX, y: minY },
-    { x: maxX, y: minY },
-    { x: minX, y: boundedMaxY },
-    { x: maxX, y: boundedMaxY }
-  ];
-  for (const rect of inflatedRects) {
-    const beforeX = Math.floor(rect.x) - 1;
-    const afterX = Math.ceil(rect.x + rect.w) + 1;
-    const beforeY = Math.floor(rect.y) - 1;
-    const afterY = Math.ceil(rect.y + rect.h) + 1;
-    edgeCandidates.push(
-      { x: beforeX, y: minY },
-      { x: afterX, y: minY },
-      { x: beforeX, y: boundedMaxY },
-      { x: afterX, y: boundedMaxY },
-      { x: minX, y: beforeY },
-      { x: minX, y: afterY },
-      { x: maxX, y: beforeY },
-      { x: maxX, y: afterY }
-    );
-  }
-  const validCandidates = edgeCandidates
-    .filter((point) => point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= boundedMaxY)
-    .filter((point) => !pointOverlapsRects(point, inflatedRects))
-    .sort((a, b) => pointDistanceSquared(a, initialPoint) - pointDistanceSquared(b, initialPoint));
-  if (validCandidates.length === 0) {
-    throw new Error("Waypoint arrow viewport edge is fully occupied by reserved UI");
-  }
-  return validCandidates[0];
+  const occlusion = waypointArrowOcclusionEdge({
+    origin: { x: centerX, y: centerY },
+    target: initialPoint,
+    reservedRects,
+    clearance
+  });
+  return occlusion?.point ?? initialPoint;
 }
 
 export function waypointPointOverlapsReservedRects(point, reservedRects, clearance = 0) {
@@ -237,10 +211,6 @@ function pointOverlapsRects(point, rects) {
     point.y >= rect.y &&
     point.y <= rect.y + rect.h
   ));
-}
-
-function pointDistanceSquared(a, b) {
-  return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 }
 
 function segmentRectangleEntry(origin, target, rect) {

@@ -42,7 +42,7 @@ test("diagonal waypoint arrows still choose the first reachable safe edge", () =
   assert.ok(point.x < 440);
 });
 
-test("waypoint arrows slide along the viewport edge around HUD panels", () => {
+test("waypoint arrows treat HUD panels as inner viewport edges", () => {
   const reservedRects = [
     { x: 0, y: 0, w: 130, h: 58 },
     { x: 190, y: 220, w: 180, h: 36 }
@@ -66,7 +66,37 @@ test("waypoint arrows slide along the viewport edge around HUD panels", () => {
   assert.equal(waypointPointOverlapsReservedRects(topLeft, reservedRects, 8), false);
   assert.equal(waypointPointOverlapsReservedRects(bottom, reservedRects, 8), false);
   assert.ok(topLeft.x > 138 || topLeft.y > 66);
-  assert.ok(bottom.x < 182 || bottom.x > 378);
+  assert.ok(bottom.y < 212);
+});
+
+test("waypoint arrows slide along stacked anchor dock and fish controls", () => {
+  const bottomControls = [
+    { x: 103, y: 223, w: 88, h: 28 },
+    { x: 195, y: 223, w: 156, h: 28 },
+    { x: 150, y: 191, w: 156, h: 28 }
+  ];
+  const leftBearing = waypointArrowEdgePoint({
+    direction: { x: -0.12, y: 1 },
+    screenWidth: 455,
+    screenHeight: 256,
+    margin: 15,
+    reservedRects: bottomControls,
+    clearance: 11
+  });
+  const rightBearing = waypointArrowEdgePoint({
+    direction: { x: 0.12, y: 1 },
+    screenWidth: 455,
+    screenHeight: 256,
+    margin: 15,
+    reservedRects: bottomControls,
+    clearance: 11
+  });
+
+  assert.equal(waypointPointOverlapsReservedRects(leftBearing, bottomControls, 11), false);
+  assert.equal(waypointPointOverlapsReservedRects(rightBearing, bottomControls, 11), false);
+  assert.ok(leftBearing.y < 180);
+  assert.ok(rightBearing.y < 180);
+  assert.ok(leftBearing.x < rightBearing.x);
 });
 
 test("an on-screen destination hidden by the HUD points from the HUD inner edge", () => {
