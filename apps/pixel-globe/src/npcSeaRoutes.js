@@ -88,6 +88,7 @@ const NPC_ROUTE_HOP_MAX_DAYS = 19;
 const NPC_ROUTE_HOP_MAX_KM = 1650;
 const NPC_MIN_TRIP_DISTANCE_KM = 180;
 const NPC_ROUTE_MIN_DURATION_DAYS = 0.45;
+const NPC_ENCOUNTER_SETTLEMENT_PLAN_LIMIT = 96;
 const PIRATE_HIDEOUT_PORT_FRACTION = 0.06;
 const PIRATE_HIDEOUT_MIN_COUNT = 2;
 const PIRATE_HIDEOUT_MAX_COUNT = 14;
@@ -1441,7 +1442,11 @@ export function npcSeaRouteEventSchedule(system) {
         throw new Error(`Hidden NPC pirate unexpectedly has a route plan: ${ship.id}`);
       }
       const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
-      const minute = Math.max(ship.hiddenUntilMinute, dangerUntil);
+      const minute = Math.max(
+        0,
+        ship.hiddenUntilMinute - ship.clockOffsetMinutes,
+        dangerUntil
+      );
       if (!Number.isFinite(minute) || minute < 0) {
         throw new Error(`NPC pirate has an invalid hideout release minute: ${ship.id}`);
       }
@@ -1453,7 +1458,7 @@ export function npcSeaRouteEventSchedule(system) {
     }
     events.push(Object.freeze({
       id: ship.id,
-      minute: ship.plan.endMinute
+      minute: Math.max(0, ship.plan.endMinute - ship.clockOffsetMinutes)
     }));
   }
   for (const replacement of system.replacementQueue) {
@@ -2197,9 +2202,13 @@ function seedNpcShipOnRoute(system, ship, startMinute) {
 }
 
 function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
+  if (!Number.isInteger(maxPlans) || maxPlans < 1) {
+    throw new Error(`Invalid NPC route settlement limit: ${maxPlans}`);
+  }
   if (ship.hiddenAtHideout) {
     const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
-    if (clockMinutes < ship.hiddenUntilMinute || clockMinutes < dangerUntil) return false;
+    const effectiveDangerUntil = dangerUntil + ship.clockOffsetMinutes;
+    if (clockMinutes < ship.hiddenUntilMinute || clockMinutes < effectiveDangerUntil) return false;
     ship.hiddenAtHideout = false;
     ship.hiddenUntilMinute = 0;
     ship.seekingHideout = false;
@@ -2215,7 +2224,10 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   }
   let changed = false;
   let guard = 0;
-  while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < maxPlans) {
+  const detailedPlanLimit = ship.encounter
+    ? Math.max(maxPlans, NPC_ENCOUNTER_SETTLEMENT_PLAN_LIMIT)
+    : maxPlans;
+  while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < detailedPlanLimit) {
     ship.currentPort = ship.plan.destination;
     ship.portVisits += 1;
     if (system.onForeignPortCall && !ship.currentPort.isFishingGround && !ship.currentPort.isWhalingGround &&
@@ -2297,8 +2309,22 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     changed = true;
     guard++;
   }
-  if (guard >= maxPlans) throw new Error(`NPC ship ${ship.id} could not settle route updates`);
+  if (ship.plan && clockMinutes >= ship.plan.endMinute) {
+    if (ship.encounter) {
+      throw new Error(`NPC encounter ship ${ship.id} could not settle route updates`);
+    }
+    rebaseStaleNpcShipPlan(system, ship, clockMinutes);
+    changed = true;
+  }
   return changed;
+}
+
+function rebaseStaleNpcShipPlan(system, ship, clockMinutes) {
+  assignNpcPlan(system, ship, clockMinutes);
+  if (!ship.plan || ship.plan.startMinute !== clockMinutes || ship.plan.endMinute <= clockMinutes) {
+    throw new Error(`NPC ship ${ship.id} could not rebase its stale route plan`);
+  }
+  ship.visualNavigation = null;
 }
 
 function chooseNpcDestination(system, ship, origin) {

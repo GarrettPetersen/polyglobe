@@ -245,6 +245,57 @@ test("initial fleet phasing never reports diplomatic contacts before the voyage 
   assert.ok(calls.every((call) => call.minute >= startMinute));
 });
 
+test("offscreen NPC routes settle exact and oversized catch-up windows without crashing", () => {
+  const createRoutes = () => {
+    const economy = createWorldEconomy({
+      ports: PORTS,
+      startMinute: 0,
+      seedKey: "route-catch-up"
+    });
+    return createNpcSeaRouteSystem({
+      ports: PORTS,
+      startMinute: 0,
+      economy,
+      seedKey: "route-catch-up"
+    });
+  };
+  const reference = createRoutes();
+  const referenceShip = reference.ships.find((ship) => (
+    ship.profileId === "mediterranean" &&
+    ship.role === NPC_ROLE_MERCHANT &&
+    !ship.encounter &&
+    !ship.hiddenAtHideout
+  ));
+  assert.ok(referenceShip);
+
+  let twelfthArrivalMinute = null;
+  let twentiethArrivalMinute = null;
+  for (let arrival = 1; arrival <= 20; arrival++) {
+    const arrivalMinute = referenceShip.plan.endMinute;
+    updateNpcSeaRouteEvents(reference, arrivalMinute, [referenceShip.id]);
+    if (arrival === 12) twelfthArrivalMinute = arrivalMinute;
+    if (arrival === 20) twentiethArrivalMinute = arrivalMinute;
+  }
+
+  const exact = createRoutes();
+  const exactShip = exact.shipById.get(referenceShip.id);
+  const initialPortVisits = exactShip.portVisits;
+  assert.doesNotThrow(() => (
+    updateNpcSeaRouteEvents(exact, twelfthArrivalMinute, [exactShip.id])
+  ));
+  assert.equal(exactShip.portVisits, initialPortVisits + 12);
+  assert.ok(exactShip.plan.endMinute > twelfthArrivalMinute);
+
+  const stale = createRoutes();
+  const staleShip = stale.shipById.get(referenceShip.id);
+  assert.doesNotThrow(() => (
+    updateNpcSeaRouteEvents(stale, twentiethArrivalMinute, [staleShip.id])
+  ));
+  assert.equal(staleShip.portVisits, initialPortVisits + 12);
+  assert.equal(staleShip.plan.startMinute, twentiethArrivalMinute);
+  assert.ok(staleShip.plan.endMinute > twentiethArrivalMinute);
+});
+
 test("eastbound Malacca routes go around the Malay Peninsula through Singapore", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
@@ -1014,6 +1065,24 @@ test("visual navigation does not replace an NPC ship's strategic route target", 
   assert.notDeepEqual(after.routeVector, visualPosition);
 });
 
+test("NPC event scheduling converts adjusted ship clocks back to the world clock", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const ship = routes.ships.find((candidate) => (
+    candidate.plan?.segments.some((segment) => segment.kind === "sail") &&
+    !candidate.hiddenAtHideout
+  ));
+  assert.ok(ship);
+  ship.clockOffsetMinutes = 240;
+
+  const scheduled = npcSeaRouteEventSchedule(routes).find((event) => event.id === ship.id);
+  assert.equal(scheduled.minute, Math.max(0, ship.plan.endMinute - 240));
+
+  const visitsBefore = ship.portVisits;
+  updateNpcSeaRouteEvents(routes, scheduled.minute, [ship.id]);
+  assert.equal(ship.portVisits, visitsBefore + 1);
+});
+
 test("worker simulation updates distant ships while preserving visible ships", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
@@ -1088,6 +1157,7 @@ test("NPC route snapshots preserve planless pirates hidden at a hideout", () => 
   pirate.plan = null;
   pirate.hiddenAtHideout = true;
   pirate.hiddenUntilMinute = 5000;
+  pirate.clockOffsetMinutes = 120;
 
   const snapshot = snapshotNpcSeaRouteSystem(routes);
   restoreNpcSeaRouteSystem(routes, snapshot, { economy });
@@ -1098,8 +1168,12 @@ test("NPC route snapshots preserve planless pirates hidden at a hideout", () => 
   assert.equal(restored.currentPort.tileId, hideout.tileId);
   assert.deepEqual(
     npcSeaRouteEventSchedule(routes).find((event) => event.id === restored.id),
-    { id: restored.id, minute: restored.hiddenUntilMinute }
+    { id: restored.id, minute: restored.hiddenUntilMinute - restored.clockOffsetMinutes }
   );
+  updateNpcSeaRouteEvents(routes, 4879, [restored.id]);
+  assert.equal(restored.hiddenAtHideout, true);
+  updateNpcSeaRouteEvents(routes, 4880, [restored.id]);
+  assert.equal(restored.hiddenAtHideout, false);
 });
 
 test("saved routes retain generated fishing grounds that leave the current top set", () => {
