@@ -1,10 +1,13 @@
 export const PERSISTENT_LOW_FRAME_RATE_THRESHOLD_FPS = 20;
 export const PERSISTENT_LOW_FRAME_RATE_DURATION_MS = 20_000;
+export const CRITICAL_LOW_FRAME_RATE_THRESHOLD_FPS = 10;
+export const CRITICAL_LOW_FRAME_RATE_DURATION_MS = 6_000;
 
 const SAMPLE_BUCKET_MS = 1_000;
 const PROFILE_TRIGGER_WINDOW_MS = 3_000;
 const PROFILE_TRIGGER_FPS = 24;
 const REPORT_RECENCY_WINDOW_MS = 5_000;
+const CRITICAL_REPORT_RECENCY_WINDOW_MS = 3_000;
 const RECOVERY_FPS = 28;
 const MAX_FRAME_GAP_MS = 2_500;
 const MAX_STAGE_COUNT = 5;
@@ -73,7 +76,7 @@ export function beginPersistentLowFrameRateFrame(monitor, nowMs, { eligible = tr
     monitor.bucketFrames = 0;
     trimBuckets(monitor);
     updateProfilingState(monitor);
-    monitor.reportPending = sustainedLowFrameRate(monitor);
+    monitor.reportPending = criticalLowFrameRate(monitor) || sustainedLowFrameRate(monitor);
   }
   return monitor.profiling;
 }
@@ -124,6 +127,17 @@ function sustainedLowFrameRate(monitor) {
   if (full.durationMs < monitor.durationMs || full.fps >= monitor.thresholdFps) return false;
   const recent = bucketRate(monitor.buckets, REPORT_RECENCY_WINDOW_MS);
   return recent.durationMs >= REPORT_RECENCY_WINDOW_MS && recent.fps < monitor.thresholdFps;
+}
+
+function criticalLowFrameRate(monitor) {
+  const full = bucketRate(monitor.buckets, CRITICAL_LOW_FRAME_RATE_DURATION_MS);
+  if (full.durationMs < CRITICAL_LOW_FRAME_RATE_DURATION_MS ||
+      full.fps >= CRITICAL_LOW_FRAME_RATE_THRESHOLD_FPS) {
+    return false;
+  }
+  const recent = bucketRate(monitor.buckets, CRITICAL_REPORT_RECENCY_WINDOW_MS);
+  return recent.durationMs >= CRITICAL_REPORT_RECENCY_WINDOW_MS &&
+    recent.fps < CRITICAL_LOW_FRAME_RATE_THRESHOLD_FPS;
 }
 
 function buildReport(monitor) {

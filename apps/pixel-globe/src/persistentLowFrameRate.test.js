@@ -48,6 +48,36 @@ test("brief frame-rate drops recover without a report", () => {
   assert.equal(monitor.profiling, false);
 });
 
+test("single-digit frame rate reports after a shorter critical window", () => {
+  const monitor = createPersistentLowFrameRateMonitor();
+  let report = null;
+  for (let nowMs = 0; nowMs <= 8_000; nowMs += 125) {
+    const profiling = beginPersistentLowFrameRateFrame(monitor, nowMs);
+    if (profiling) recordPersistentLowFrameRateStage(monitor, "render", 90);
+    report ||= finishPersistentLowFrameRateFrame(monitor, profiling ? 105 : 0);
+  }
+  assert.ok(report);
+  assert.equal(report.framesPerSecond, 8);
+  assert.equal(report.durationSeconds, 6);
+  assert.equal(report.stages[0].name, "render");
+});
+
+test("a brief single-digit hitch does not consume the build report", () => {
+  const monitor = createPersistentLowFrameRateMonitor();
+  let report = null;
+  let nowMs = 0;
+  for (; nowMs <= 4_000; nowMs += 125) {
+    const profiling = beginPersistentLowFrameRateFrame(monitor, nowMs);
+    report ||= finishPersistentLowFrameRateFrame(monitor, profiling ? 80 : 0);
+  }
+  for (; nowMs <= 12_000; nowMs += 1000 / 60) {
+    const profiling = beginPersistentLowFrameRateFrame(monitor, nowMs);
+    report ||= finishPersistentLowFrameRateFrame(monitor, profiling ? 8 : 0);
+  }
+  assert.equal(report, null);
+  assert.equal(monitor.reported, false);
+});
+
 test("hidden or suspended frames reset the incident window", () => {
   const monitor = createPersistentLowFrameRateMonitor();
   let report = null;
