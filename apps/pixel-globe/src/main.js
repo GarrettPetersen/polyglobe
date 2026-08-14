@@ -45,6 +45,10 @@ import {
   pixelMaskKey
 } from "./pixelWaterMask.js";
 import { createSpatialHash } from "./spatialHash.js";
+import {
+  createStaticPointIndex,
+  forEachStaticPointInRadius
+} from "./staticPointIndex.js";
 import { createFixedRateScheduler } from "./fixedRateScheduler.js";
 import {
   activeSessionFrameSeconds,
@@ -1238,7 +1242,8 @@ import {
   handleRuntimeDiagnosticAssertion,
   isRuntimeDiagnosticAssertionError,
   loadDiagnosticMode,
-  persistDiagnosticMode
+  persistDiagnosticMode,
+  reportRuntimeDiagnostic
 } from "./diagnosticMode.js";
 import { copyCrashReport, formatCrashReport } from "./crashReport.js";
 import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
@@ -2134,7 +2139,7 @@ const CHART_LOOKAHEAD_MARGIN = 96;
 const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE + CHART_LOOKAHEAD_MARGIN;
 const CHART_ADMISSION_LOOKAHEAD_PX = CHART_LOOKAHEAD_MARGIN;
 const MAX_CHART_TILES = 5200;
-const CHART_VIEWPORT_EDGE_GAP_LIMIT_PX = 4;
+const CHART_VIEWPORT_EDGE_GAP_LIMIT_PX = 8;
 const CHART_VIEWPORT_VOID_DISTANCE_LIMIT_PX = TILE_ART_SIZE * 2;
 const CHART_VIEWPORT_COVERAGE_SAMPLE_SPACING_PX = 48;
 const START_LAT_DEG = 41.98;
@@ -3401,6 +3406,7 @@ let snowGroundMask;
 let cloudSpriteSheet;
 let cloudAssemblyFrames;
 let cloudDrawCallCache = null;
+let precipitationCloudCoverCache = null;
 let cloudWindCacheDayIndex = -1;
 let cloudWindSubsolarLatDeg = 0;
 const cloudWindCache = new Map();
@@ -22044,24 +22050,15 @@ function measureChartDriftAtInterval(nowMs) {
 function inspectChartViewportCoverage() {
   if (!chart || !localLayout || !ship) return null;
   const coverage = currentChartViewportCoverage(chart, true);
-  if (
-    coverage.edge.maximumGapPx <= CHART_VIEWPORT_EDGE_GAP_LIMIT_PX &&
-    coverage.interior.maximumNearestTileDistancePx <= CHART_VIEWPORT_VOID_DISTANCE_LIMIT_PX
-  ) return coverage;
+  if (chartViewportCoverageIsComplete(coverage)) return coverage;
 
   chartViewportCoverageRepairPending = true;
-  const latitudeDeg = latitudeDegForDirection(ship.position).toFixed(2);
-  const longitudeDeg = longitudeDegForDirection(ship.position).toFixed(2);
-  reportRuntimeDiagnosticAssertion(
-    `World chart left part of the viewport without terrain near ${latitudeDeg},${longitudeDeg}: ` +
-      `${coverage.edge.maximumGapPx.toFixed(1)}px ${coverage.edge.edge} edge gap, ` +
-      `${coverage.interior.maximumNearestTileDistancePx.toFixed(1)}px nearest-tile gap at ` +
-      `${coverage.interior.screenX},${coverage.interior.screenY}; ` +
-      `${coverage.viewportTileCount} visible of ${chart.tileCalls.length} chart tiles, ` +
-      `viewport ${SCREEN_W}x${SCREEN_H}`,
-    "chart-viewport-uncovered"
-  );
   return coverage;
+}
+
+function chartViewportCoverageIsComplete(coverage) {
+  return coverage.edge.maximumGapPx <= CHART_VIEWPORT_EDGE_GAP_LIMIT_PX &&
+    coverage.interior.maximumNearestTileDistancePx <= CHART_VIEWPORT_VOID_DISTANCE_LIMIT_PX;
 }
 
 function currentChartViewportCoverage(activeChart, sampleInterior = false) {
@@ -22169,7 +22166,7 @@ function measureCurrentUnobscuredTerrainTear() {
     return chartWorstVisibleTerrainTear;
   }
   const offset = layoutOffsetPixels();
-  const faceCalls = chart.faceCalls.filter((face) => {
+  const faceCalls = renderCallWindow(chart, offset).faceCalls.filter((face) => {
     const a = chart.tileById.get(face.a);
     const b = chart.tileById.get(face.b);
     if (!a || !b) return false;
@@ -22199,10 +22196,11 @@ function measureCurrentVisibleTerrainTear() {
     });
     return chartWorstVisibleTerrainTear;
   }
+  const offset = layoutOffsetPixels();
   chartWorstVisibleTerrainTear = measureVisibleTerrainTear({
-    faceCalls: chart.faceCalls,
+    faceCalls: renderCallWindow(chart, offset).faceCalls,
     tileById: chart.tileById,
-    offset: layoutOffsetPixels(),
+    offset,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     surfaceForTile: (call) => isWaterSurfaceRow(call.row) ? "water" : "land"
@@ -34115,7 +34113,7 @@ function render(nowMs) {
       const calls = cloudDrawCalls(chart, offset);
       return {
         cloudCalls: calls,
-        cloudCoverByTile: precipitationCloudCoverByTile(calls, renderTileCalls, offset)
+        cloudCoverByTile: precipitationCloudCoverByTile(calls, renderTileCalls)
       };
     }
   );
@@ -35071,16 +35069,6 @@ function ensureChart() {
     edgeCoverage.maximumGapPx > CHART_VIEWPORT_EDGE_GAP_LIMIT_PX;
   if (viewportOutranChart) {
     chartViewportCoverageRepairPending = true;
-    const location = ship
-      ? `${latitudeDegForDirection(ship.position).toFixed(2)},` +
-        `${longitudeDegForDirection(ship.position).toFixed(2)}`
-      : "unknown";
-    reportRuntimeDiagnosticAssertion(
-      `World chart viewport outran terrain by ${edgeCoverage.maximumGapPx.toFixed(1)}px ` +
-        `at the ${edgeCoverage.edge} edge near ${location}; viewport ${SCREEN_W}x${SCREEN_H}, ` +
-        `${chart.tileCalls.length} chart tiles`,
-      "chart-viewport-uncovered"
-    );
   }
   if (
     !chart ||
@@ -35099,19 +35087,39 @@ function ensureChart() {
 }
 
 function recoverPersistentlyUncoveredViewport() {
-  const coverage = currentChartViewportCoverage(chart, true);
-  const remainsUncovered =
-    coverage.edge.maximumGapPx > CHART_VIEWPORT_EDGE_GAP_LIMIT_PX ||
-    coverage.interior.maximumNearestTileDistancePx > CHART_VIEWPORT_VOID_DISTANCE_LIMIT_PX;
-  if (!remainsUncovered) return false;
+  let coverage = currentChartViewportCoverage(chart, true);
+  if (chartViewportCoverageIsComplete(coverage)) return false;
 
   chartViewportCoverageRepairPending = true;
   const reframed = reframeWorldNorthUp("uncovered viewport recovery", { allowUncovered: true });
   if (reframed) {
-    chartViewportCoverageRepairPending = false;
-    return true;
+    coverage = currentChartViewportCoverage(chart, true);
+    if (chartViewportCoverageIsComplete(coverage)) {
+      chartViewportCoverageRepairPending = false;
+      return true;
+    }
   }
+  reportPersistentlyUncoveredViewport(coverage);
   return false;
+}
+
+function reportPersistentlyUncoveredViewport(coverage) {
+  const latitudeDeg = ship ? latitudeDegForDirection(ship.position).toFixed(2) : "unknown";
+  const longitudeDeg = ship ? longitudeDegForDirection(ship.position).toFixed(2) : "unknown";
+  reportRuntimeDiagnostic(
+    `World chart left part of the viewport without terrain near ${latitudeDeg},${longitudeDeg}: ` +
+      `${coverage.edge.maximumGapPx.toFixed(1)}px ${coverage.edge.edge} edge gap, ` +
+      `${coverage.interior.maximumNearestTileDistancePx.toFixed(1)}px nearest-tile gap at ` +
+      `${coverage.interior.screenX},${coverage.interior.screenY}; ` +
+      `${coverage.viewportTileCount} visible of ${chart.tileCalls.length} chart tiles, ` +
+      `viewport ${SCREEN_W}x${SCREEN_H}`,
+    "chart-viewport-uncovered",
+    (error, options) => gameTelemetry.captureDiagnostic(
+      error,
+      telemetryCrashContext("chart-repair"),
+      options
+    )
+  );
 }
 
 function gameStateHasDiscovery(state, discoveryId) {
@@ -45747,33 +45755,39 @@ function wrapRange(value, min, max) {
   return ((value - min) % span + span) % span + min;
 }
 
-function precipitationCloudCoverByTile(cloudCalls, candidateTiles, offset) {
-  if (!Array.isArray(cloudCalls) || !Array.isArray(candidateTiles) ||
-      !Number.isFinite(offset?.x) || !Number.isFinite(offset?.y)) {
+function precipitationCloudCoverByTile(cloudCalls, candidateTiles) {
+  if (!Array.isArray(cloudCalls) || !Array.isArray(candidateTiles)) {
     throw new Error("Cloud precipitation coverage requires renderable clouds and chart tiles");
   }
+  if (
+    precipitationCloudCoverCache?.cloudCalls === cloudCalls &&
+    precipitationCloudCoverCache.candidateTiles === candidateTiles
+  ) return precipitationCloudCoverCache.coverByTile;
+
   const coverByTile = new Map();
-  if (cloudCalls.length === 0) return coverByTile;
   const precipitationRadiusPx = CLOUD_SPRITE_FRAME_SIZE * 0.68;
+  const tileIndex = createStaticPointIndex(candidateTiles, {
+    cellSize: precipitationRadiusPx,
+    pointForEntry: (tile) => ({ x: tile?.drawSurfaceX, y: tile?.drawSurfaceY })
+  });
   for (const cloud of cloudCalls) {
     if (!Number.isInteger(cloud.tileId)) {
       throw new Error(`Cloud precipitation source is missing a tile id: ${cloud.tileId}`);
     }
-    for (const tile of candidateTiles) {
-      if (!tileCallNearViewport(
-        tile,
-        offset,
-        PRECIP_PARTICLE_VIEW_MARGIN + precipitationRadiusPx
-      )) continue;
-      const distance = Math.hypot(
-        tile.drawSurfaceX - cloud.anchorX,
-        tile.drawSurfaceY - cloud.anchorY
-      );
-      if (distance >= precipitationRadiusPx) continue;
-      const coverage = cloud.alpha * (1 - distance / precipitationRadiusPx);
-      coverByTile.set(tile.id, Math.max(coverByTile.get(tile.id) || 0, coverage));
-    }
+    forEachStaticPointInRadius(
+      tileIndex,
+      cloud.anchorX,
+      cloud.anchorY,
+      precipitationRadiusPx,
+      (point, distanceSquared) => {
+        const tile = point.entry;
+        const distance = Math.sqrt(distanceSquared);
+        const coverage = cloud.alpha * (1 - distance / precipitationRadiusPx);
+        coverByTile.set(tile.id, Math.max(coverByTile.get(tile.id) || 0, coverage));
+      }
+    );
   }
+  precipitationCloudCoverCache = { cloudCalls, candidateTiles, coverByTile };
   return coverByTile;
 }
 
@@ -47516,14 +47530,14 @@ function hexToRgb(hex) {
 }
 
 function drawSeagullsWebGL(activeChart, nowMs, offset) {
-  const untexturedCalls = seagullDrawCalls(activeChart, nowMs, null);
-  if (untexturedCalls.length === 0) return;
   const assets = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS);
+  const calls = seagullDrawCalls(activeChart, nowMs, assets);
+  if (calls.length === 0) return;
   if (!assets) {
     queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS, "visible seagulls");
     return;
   }
-  for (const call of seagullDrawCalls(activeChart, nowMs, assets)) {
+  for (const call of calls) {
     if (!call.img) continue;
     worldRenderer.drawAtlasSprite({
       source: call.img,

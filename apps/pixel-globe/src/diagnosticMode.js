@@ -31,6 +31,12 @@ export function handleRuntimeDiagnosticAssertion({
   diagnosticMode,
   report
 }) {
+  const error = reportRuntimeDiagnostic(message, diagnosticKey, report);
+  if (diagnosticMode) throw error;
+  return false;
+}
+
+export function reportRuntimeDiagnostic(message, diagnosticKey, report) {
   if (typeof report !== "function") {
     throw new Error("Runtime diagnostic assertion requires a reporter");
   }
@@ -39,8 +45,7 @@ export function handleRuntimeDiagnosticAssertion({
     key: diagnosticKey,
     cooldownMs: RUNTIME_ASSERTION_DIAGNOSTIC_COOLDOWN_MS
   });
-  if (diagnosticMode) throw error;
-  return false;
+  return error;
 }
 
 export function isRuntimeDiagnosticAssertionError(error) {

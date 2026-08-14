@@ -8,7 +8,8 @@ import {
   handleRuntimeDiagnosticAssertion,
   isRuntimeDiagnosticAssertionError,
   loadDiagnosticMode,
-  persistDiagnosticMode
+  persistDiagnosticMode,
+  reportRuntimeDiagnostic
 } from "./diagnosticMode.js";
 
 test("diagnostic mode is disabled for existing installations and persists independently of saves", () => {
@@ -60,4 +61,21 @@ test("runtime assertions remain loud in diagnostic mode", () => {
     return true;
   });
   assert.equal(reported, true);
+});
+
+test("recoverable diagnostics report without becoming blocking assertions", () => {
+  const reports = [];
+  const error = reportRuntimeDiagnostic(
+    "chart repair could not cover the viewport",
+    "chart-viewport-uncovered",
+    (reportedError, options) => reports.push({ reportedError, options })
+  );
+
+  assert.equal(error.message, "chart repair could not cover the viewport");
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].reportedError, error);
+  assert.deepEqual(reports[0].options, {
+    key: "chart-viewport-uncovered",
+    cooldownMs: RUNTIME_ASSERTION_DIAGNOSTIC_COOLDOWN_MS
+  });
 });

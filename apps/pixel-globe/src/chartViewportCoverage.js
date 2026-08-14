@@ -1,3 +1,5 @@
+import { createStaticPointIndex, nearestStaticPoint } from "./staticPointIndex.js";
+
 function requireFinitePositive(value, label) {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`Chart viewport coverage requires positive ${label}: ${value}`);
@@ -84,23 +86,17 @@ export function measureChartViewportTileCoverage({
 
   const xSamples = viewportSamples(viewportWidth, sampleSpacingPx);
   const ySamples = viewportSamples(viewportHeight, sampleSpacingPx);
+  const tileIndex = createStaticPointIndex(tileCalls, {
+    cellSize: sampleSpacingPx,
+    pointForEntry: (call) => ({ x: call?.drawSurfaceX, y: call?.drawSurfaceY })
+  });
   let maximumNearestTileDistancePx = 0;
   let worstX = 0;
   let worstY = 0;
   for (const screenY of ySamples) {
     for (const screenX of xSamples) {
-      let nearestTileDistancePx = Number.POSITIVE_INFINITY;
-      for (const call of tileCalls) {
-        const tileX = call.drawSurfaceX + offset.x;
-        const tileY = call.drawSurfaceY + offset.y;
-        if (!Number.isFinite(tileX) || !Number.isFinite(tileY)) {
-          throw new Error(`Chart viewport sampling found malformed tile ${call?.id ?? "unknown"}`);
-        }
-        nearestTileDistancePx = Math.min(
-          nearestTileDistancePx,
-          Math.hypot(tileX - screenX, tileY - screenY)
-        );
-      }
+      const nearest = nearestStaticPoint(tileIndex, screenX - offset.x, screenY - offset.y);
+      const nearestTileDistancePx = Math.sqrt(nearest.distanceSquared);
       if (nearestTileDistancePx <= maximumNearestTileDistancePx) continue;
       maximumNearestTileDistancePx = nearestTileDistancePx;
       worstX = screenX;
