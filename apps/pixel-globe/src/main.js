@@ -841,6 +841,7 @@ import {
   npcSeaRouteHasPort,
   npcSeaRoutePortSettlementType,
   npcShipHasCombatGrace,
+  npcShipIdsAddedSinceSimulationSnapshot,
   npcShipSnapshots,
   replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
@@ -1687,6 +1688,8 @@ import {
   reconcileColonizationQuestOriginAfterConquest
 } from "./colonizationQuest.js";
 import {
+  COLONIZATION_DEFENSE_MAX_SPAWN_DISTANCE_PX,
+  colonizationDefensePresence,
   colonizationDefenseSpawnNeedsRepair,
   colonizationDefenseSpawnTileIds
 } from "./colonizationDefenseSpawns.js";
@@ -2222,6 +2225,8 @@ const NPC_VISUAL_STUCK_MIN_DETOUR_PX = 6;
 const NPC_VISUAL_STUCK_MAX_DETOUR_PX = 36;
 const NPC_VISUAL_UPDATE_HZ = 24;
 const NPC_ROUTE_SNAPSHOT_BUCKET_COUNT = 6;
+const COLONIZATION_DEFENSE_VISIBILITY_CHECK_INTERVAL_MS = 1000;
+const COLONIZATION_DEFENSE_VISIBILITY_GRACE_MS = 6000;
 const NPC_COMBAT_TARGETING_HZ = 6;
 const NPC_IDLE_COMBAT_TARGETING_HZ = 2;
 const NPC_COMBAT_COLLISION_HZ = 4;
@@ -3274,6 +3279,7 @@ let npcCombatSplashes = [];
 let cannonSmokeBursts = [];
 let hullSplinterBursts = [];
 let npcVisualMovementBucket = 0;
+let colonizationDefenseVisibilityWatch = null;
 let shoreBatteryUpdateAccumulator = 0;
 let whaleSimulationAccumulator = 0;
 let whaleBackgroundMovementBucket = 0;
@@ -7800,7 +7806,13 @@ function bearingDeg(fromLatDeg, fromLonDeg, toLatDeg, toLonDeg) {
   return (Math.atan2(y, x) * RAD_TO_DEG + 360) % 360;
 }
 
-function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
+function ensureColonizationDefenseEncounter({
+  assignCaptains = true,
+  forceRespawnShipIds = new Set()
+} = {}) {
+  if (!(forceRespawnShipIds instanceof Set)) {
+    throw new Error("Forced colony-defense respawns require a ship id set");
+  }
   const memory = gameState?.memory?.colonization;
   if (!memory || memory.stage !== COLONIZATION_STAGE_DEFEND || !npcSeaRoutes) return [];
   const quest = colonizationQuestView(gameState, {
@@ -7809,6 +7821,7 @@ function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
   if (!quest.target || !quest.defense) {
     throw new Error("Active colony defense has no target or historical encounter");
   }
+  queueShipVisualAssets("mesoamerican-dugout-canoe", "colony defense");
   const defeated = new Set(memory.defenseDefeatedShipIds || []);
   const shipIds = colonizationDefenseShipIds(memory);
   const spawnTileIds = colonizationDefenseSpawnTileIds({
@@ -7830,13 +7843,14 @@ function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
       const routeVector = Array.isArray(existing.visualNavigation?.vector)
         ? existing.visualNavigation.vector
         : latLonToDirection(existing.currentPort?.lat, existing.currentPort?.lon);
-      if (!colonizationDefenseSpawnNeedsRepair({
+      if (!forceRespawnShipIds.has(shipId) && !colonizationDefenseSpawnNeedsRepair({
         graph,
         directionIndex,
         navigationMask: oceanReachableNavigationMask,
         routeVector,
         targetTileId: memory.targetTileId,
-        pixelsPerRadian: PIXELS_PER_RADIAN
+        pixelsPerRadian: PIXELS_PER_RADIAN,
+        maxDistancePx: COLONIZATION_DEFENSE_MAX_SPAWN_DISTANCE_PX + 8
       })) continue;
       sinkNpcShip(npcSeaRoutes, shipId, Math.floor(weatherClockMinutes));
       npcVisualShips.delete(shipId);
@@ -7890,7 +7904,136 @@ function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
       for (const [shipId, captain] of assignments) npcShipCaptains.set(shipId, captain);
     }
   }
+  if (added.length > 0) npcVisualSnapshotCache.reset();
   return added;
+}
+
+function createColonizationDefenseVisibilityWatch() {
+  return {
+    key: null,
+    verifiedKey: null,
+    checkedAtMs: -Infinity,
+    missingSinceMs: null,
+    missingStrategicShipIds: [],
+    repairAttempted: false
+  };
+}
+
+function resetColonizationDefenseVisibilityWatch() {
+  colonizationDefenseVisibilityWatch = null;
+}
+
+function inspectColonizationDefenseVisibility(nowMs) {
+  const memory = gameState?.memory?.colonization;
+  if (!memory || memory.stage !== COLONIZATION_STAGE_DEFEND) {
+    resetColonizationDefenseVisibilityWatch();
+    return false;
+  }
+  colonizationDefenseVisibilityWatch ||= createColonizationDefenseVisibilityWatch();
+  if (dialogueState || menusAreOpen() || !chart || !localLayout || !ship || !npcSeaRoutes) {
+    return false;
+  }
+  if (nowMs - colonizationDefenseVisibilityWatch.checkedAtMs <
+      COLONIZATION_DEFENSE_VISIBILITY_CHECK_INTERVAL_MS) {
+    return false;
+  }
+  colonizationDefenseVisibilityWatch.checkedAtMs = nowMs;
+  const targetPoint = localPointForKnownTileVector(
+    tileCenterVector(memory.targetTileId),
+    memory.targetTileId
+  );
+  if (!targetPoint) return false;
+  const offset = chartOffsetPixels(chart);
+  if (!pointNearScreen({ x: targetPoint.x + offset.x, y: targetPoint.y + offset.y }, 24)) {
+    return false;
+  }
+
+  const expectedShipIds = colonizationDefenseShipIds(memory);
+  const presenceFor = () => colonizationDefensePresence({
+    shipIds: expectedShipIds,
+    defeatedShipIds: memory.defenseDefeatedShipIds || [],
+    strategicShipIds: expectedShipIds.filter((shipId) => npcSeaRoutes.shipById.has(shipId)),
+    visibleShipIds: expectedShipIds.filter((shipId) => npcVisualShips.has(shipId))
+  });
+  let presence = presenceFor();
+  if (presence.remainingShipIds.length === 0) {
+    resetColonizationDefenseVisibilityWatch();
+    return false;
+  }
+
+  let changed = false;
+  const missingStrategicShipIds = [...presence.missingStrategicShipIds];
+  if (missingStrategicShipIds.length > 0) {
+    colonizationDefenseVisibilityWatch.missingStrategicShipIds = [...new Set([
+      ...colonizationDefenseVisibilityWatch.missingStrategicShipIds,
+      ...missingStrategicShipIds
+    ])];
+    ensureColonizationDefenseEncounter();
+    presence = presenceFor();
+    changed = true;
+  }
+  const watchKey = `${memory.targetTileId}|${expectedShipIds.join(",")}`;
+  if (colonizationDefenseVisibilityWatch.verifiedKey === watchKey) return changed;
+  const visibleCount = presence.remainingShipIds.length - presence.missingVisibleShipIds.length;
+  if (visibleCount > 0) {
+    if (colonizationDefenseVisibilityWatch.missingStrategicShipIds.length > 0) {
+      reportMissingColonizationDefenseAttackers(
+        memory,
+        presence,
+        colonizationDefenseVisibilityWatch.missingStrategicShipIds,
+        "were absent from the strategic fleet"
+      );
+    }
+    colonizationDefenseVisibilityWatch.key = watchKey;
+    colonizationDefenseVisibilityWatch.verifiedKey = watchKey;
+    colonizationDefenseVisibilityWatch.missingSinceMs = null;
+    colonizationDefenseVisibilityWatch.missingStrategicShipIds = [];
+    return changed;
+  }
+
+  if (colonizationDefenseVisibilityWatch.key !== watchKey) {
+    colonizationDefenseVisibilityWatch.key = watchKey;
+    colonizationDefenseVisibilityWatch.missingSinceMs = nowMs;
+    colonizationDefenseVisibilityWatch.repairAttempted = false;
+    return changed;
+  }
+  if (colonizationDefenseVisibilityWatch.missingSinceMs === null) {
+    colonizationDefenseVisibilityWatch.missingSinceMs = nowMs;
+    return changed;
+  }
+  if (nowMs - colonizationDefenseVisibilityWatch.missingSinceMs <
+      COLONIZATION_DEFENSE_VISIBILITY_GRACE_MS) {
+    return changed;
+  }
+  if (colonizationDefenseVisibilityWatch.repairAttempted) return changed;
+
+  reportMissingColonizationDefenseAttackers(
+    memory,
+    presence,
+    colonizationDefenseVisibilityWatch.missingStrategicShipIds,
+    "did not become visible after the defense dialogue"
+  );
+  ensureColonizationDefenseEncounter({
+    forceRespawnShipIds: new Set(presence.missingVisibleShipIds)
+  });
+  colonizationDefenseVisibilityWatch.repairAttempted = true;
+  colonizationDefenseVisibilityWatch.missingSinceMs = nowMs;
+  return true;
+}
+
+function reportMissingColonizationDefenseAttackers(memory, presence, missingStrategicShipIds, reason) {
+  const quest = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  });
+  const visibleCount = presence.remainingShipIds.length - presence.missingVisibleShipIds.length;
+  reportRuntimeDiagnosticAssertion(
+    `Colony defense attackers missing at ${quest.target?.city || memory.targetTileId}: ` +
+      `announced ${presence.remainingShipIds.length}, visible ${visibleCount}; ${reason}; ` +
+      `missing strategic [${missingStrategicShipIds.join(", ")}], ` +
+      `missing visible [${presence.missingVisibleShipIds.join(", ")}], ` +
+      `target tile ${memory.targetTileId}, viewport ${SCREEN_W}x${SCREEN_H}`,
+    "colonization-defense-missing"
+  );
 }
 
 function campaignGoalContactCharacter() {
@@ -13130,6 +13273,7 @@ async function restoreSavedVoyage(payload) {
   gameOverState = null;
   npcVisualShips.clear();
   npcVisualSnapshotCache.reset();
+  resetColonizationDefenseVisibilityWatch();
   shoreBatteryStates.clear();
   npcVisualMovementBucket = 0;
   shoreBatteryUpdateAccumulator = 0;
@@ -28430,7 +28574,7 @@ function distantWorldRuntimeState() {
   return {
     relations,
     sovereignAccess,
-    protectedNpcShipIds: [...npcVisualShips.keys()],
+    protectedNpcShipIds: currentDistantWorldProtectedNpcShipIds(),
     foreignSettlementExpulsions: gameState.relations.foreignSettlementExpulsions,
     suzeraintyMemory: gameState.relations.diplomacy.suzerainties,
     player: {
@@ -28438,6 +28582,16 @@ function distantWorldRuntimeState() {
       lon: longitudeDegForDirection(ship.position)
     }
   };
+}
+
+function currentDistantWorldProtectedNpcShipIds(baseShipIds = [], baselineSnapshot = null) {
+  const protectedIds = new Set([...baseShipIds, ...npcVisualShips.keys()]);
+  if (baselineSnapshot) {
+    for (const shipId of npcShipIdsAddedSinceSimulationSnapshot(npcSeaRoutes, baselineSnapshot)) {
+      protectedIds.add(shipId);
+    }
+  }
+  return [...protectedIds];
 }
 
 function createDistantWorldApplyState(event) {
@@ -28481,7 +28635,12 @@ function advanceDistantWorldSimulationApply() {
   }
   if (state.phase === "compare") {
     measurePerformanceBenchmarkStage(`npcShips.workerApply.compare.${key}`, () => {
-      const protectedNpcShipIds = new Set(result.protectedNpcShipIds);
+      const protectedNpcShipIds = new Set(
+        currentDistantWorldProtectedNpcShipIds(
+          result.protectedNpcShipIds,
+          key === "npcRoutes" ? result.before.npcRoutes : null
+        )
+      );
       state.comparableCurrent[key] = distantWorldPartWithoutNpcShips(
         key,
         state.current[key],
@@ -28519,7 +28678,15 @@ function advanceDistantWorldSimulationApply() {
   }
   const restored = measurePerformanceBenchmarkStage(
     `npcShips.workerApply.restore.${key}`,
-    () => advanceDistantWorldPartRestore(key, result.after[key], result.protectedNpcShipIds, state)
+    () => advanceDistantWorldPartRestore(
+      key,
+      result.after[key],
+      currentDistantWorldProtectedNpcShipIds(
+        result.protectedNpcShipIds,
+        key === "npcRoutes" ? result.before.npcRoutes : null
+      ),
+      state
+    )
   );
   if (!restored) return false;
   state.partIndex++;
@@ -28765,7 +28932,7 @@ function updateNpcVisualShips(dt) {
   refreshWorldSpatialFastEntries();
   npcVisualMovementBucket =
     (npcVisualMovementBucket + 1) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
-  return changed;
+  return inspectColonizationDefenseVisibility(lastFrameMs) || changed;
 }
 
 function createNpcVisualState(snapshot, routePoint) {

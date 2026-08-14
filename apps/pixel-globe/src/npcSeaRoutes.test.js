@@ -32,6 +32,7 @@ import {
   routeBetweenPorts,
   npcSeaRouteEventSchedule,
   npcShipHasCombatGrace,
+  npcShipIdsAddedSinceSimulationSnapshot,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
   replaceNpcSeaRoutePort,
@@ -1031,6 +1032,36 @@ test("worker simulation updates distant ships while preserving visible ships", (
   assert.equal(routes.shipById.get(protectedShip.id).hitPoints, protectedShip.hitPoints);
   assert.deepEqual(routes.shipById.get(protectedShip.id).visualNavigation.vector, [1, 0, 0]);
   assert.equal(routes.shipById.get(distantShip.id).specie, simulatedDistantShip.specie);
+});
+
+test("worker simulation cannot overwrite a scripted encounter added after its snapshot", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  const encounter = configureNpcEncounter(routes, {
+    id: "colony-defense:late-worker-race",
+    factionId: "neutral",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "mesoamerican-dugout-canoe",
+    lat: 45.5,
+    lon: -73.6,
+    headingDeg: 90,
+    cultureType: "mesoamerican",
+    routeRegion: "americas",
+    specie: 0,
+    replaceOnSink: false,
+    encounter: { kind: "colonization-defense", forceAttack: true }
+  }, 1000);
+  const protectedIds = [
+    routes.ships[0].id,
+    ...npcShipIdsAddedSinceSimulationSnapshot(routes, snapshot)
+  ];
+
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshot, { preserveShipIds: protectedIds });
+
+  assert.strictEqual(routes.shipById.get(encounter.id), encounter);
+  assert.ok(protectedIds.includes(encounter.id));
+  assert.equal(new Set(protectedIds).size, protectedIds.length);
 });
 
 test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {

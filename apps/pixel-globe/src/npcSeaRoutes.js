@@ -1542,6 +1542,18 @@ export function npcShipSnapshots(system, clockMinutes) {
     .filter(Boolean);
 }
 
+export function npcShipIdsAddedSinceSimulationSnapshot(system, snapshot) {
+  assertSaveableNpcRouteSystem(system);
+  if (!snapshot || snapshot.version !== NPC_SEA_ROUTE_SNAPSHOT_VERSION ||
+      !Array.isArray(snapshot.ships)) {
+    throw new Error("NPC simulation baseline requires a strategic route snapshot");
+  }
+  const baselineIds = new Set(snapshot.ships.map((ship) => ship.id));
+  return Object.freeze(system.ships
+    .filter((ship) => !baselineIds.has(ship.id))
+    .map((ship) => ship.id));
+}
+
 export function createNpcShipSnapshotCache({ bucketCount = 6 } = {}) {
   if (!Number.isInteger(bucketCount) || bucketCount <= 0) {
     throw new Error(`Invalid NPC snapshot bucket count: ${bucketCount}`);

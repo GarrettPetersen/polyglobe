@@ -1,5 +1,8 @@
 import { findNearestTileId } from "./geodesic.js";
 
+export const COLONIZATION_DEFENSE_MIN_SPAWN_DISTANCE_PX = 18;
+export const COLONIZATION_DEFENSE_MAX_SPAWN_DISTANCE_PX = 48;
+
 export function colonizationDefenseSpawnTileIds({
   graph,
   navigationMask,
@@ -7,8 +10,8 @@ export function colonizationDefenseSpawnTileIds({
   count,
   pixelsPerRadian,
   seed = 0,
-  minDistancePx = 18,
-  maxDistancePx = 72
+  minDistancePx = COLONIZATION_DEFENSE_MIN_SPAWN_DISTANCE_PX,
+  maxDistancePx = COLONIZATION_DEFENSE_MAX_SPAWN_DISTANCE_PX
 }) {
   assertGraph(graph);
   if (!(navigationMask instanceof Uint8Array) || navigationMask.length !== graph.tileCount) {
@@ -61,6 +64,31 @@ export function colonizationDefenseSpawnTileIds({
   )));
 }
 
+export function colonizationDefensePresence({
+  shipIds,
+  defeatedShipIds = [],
+  strategicShipIds,
+  visibleShipIds
+}) {
+  const expected = validatedShipIdSet(shipIds, "expected");
+  const defeated = validatedShipIdSet(defeatedShipIds, "defeated");
+  const strategic = validatedShipIdSet(strategicShipIds, "strategic");
+  const visible = validatedShipIdSet(visibleShipIds, "visible");
+  for (const shipId of defeated) {
+    if (!expected.has(shipId)) throw new Error(`Unknown defeated colony-defense ship: ${shipId}`);
+  }
+  const remainingShipIds = [...expected].filter((shipId) => !defeated.has(shipId));
+  return Object.freeze({
+    remainingShipIds: Object.freeze(remainingShipIds),
+    missingStrategicShipIds: Object.freeze(
+      remainingShipIds.filter((shipId) => !strategic.has(shipId))
+    ),
+    missingVisibleShipIds: Object.freeze(
+      remainingShipIds.filter((shipId) => !visible.has(shipId))
+    )
+  });
+}
+
 export function colonizationDefenseSpawnNeedsRepair({
   graph,
   directionIndex,
@@ -100,6 +128,17 @@ function assertGraph(graph) {
       !(graph.centers instanceof Float32Array) || graph.centers.length !== graph.tileCount * 3) {
     throw new Error("Colony defense spawns require a geodesic graph");
   }
+}
+
+function validatedShipIdSet(value, label) {
+  if (!Array.isArray(value) || value.some((shipId) => (
+    typeof shipId !== "string" || shipId.trim() === ""
+  ))) {
+    throw new Error(`Colony-defense ${label} ships require string ids`);
+  }
+  const ids = new Set(value);
+  if (ids.size !== value.length) throw new Error(`Duplicate colony-defense ${label} ship id`);
+  return ids;
 }
 
 function centerVector(graph, tileId) {
