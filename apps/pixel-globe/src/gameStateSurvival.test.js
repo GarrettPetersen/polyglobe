@@ -6,6 +6,7 @@ import {
   FORAGED_FOOD_GOOD_ID,
   FRESH_WATER_GOOD_ID,
   RICE_GOOD_ID,
+  TRADE_GOODS,
   WINE_GOOD_ID,
   createWorldEconomy
 } from "./economy.js";
@@ -919,6 +920,29 @@ test("starting provisions and port auto-provisioning use hardtack cargo", () => 
   assert.ok(state.accounts.ledger.some((entry) => entry.description.startsWith("Take on Hardtack")));
 });
 
+test("edible trade goods never satisfy automatic hardtack provisioning", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const stats = shipStatsForSlug("ketch");
+  const edibleTradeGoods = TRADE_GOODS.filter((good) => (
+    good.category === "food" && good.id !== "hardtack"
+  ));
+
+  for (const edible of edibleTradeGoods) {
+    const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+    initializeProvisionalShipLoadout(state, stats);
+    delete state.cargo.hardtack;
+    delete state.accounts.cargoCostBasis.hardtack;
+    state.cargo[edible.id] = 1;
+    state.accounts.cargoCostBasis[edible.id] = edible.basePrice;
+
+    const bought = autoProvisionHardtackAtPort(state, economy, LONDON, { simMinute: 120 });
+
+    assert.ok(bought.rations > 0, `${edible.id} suppressed hardtack provisioning`);
+    assert.equal(state.cargo[edible.id], 1);
+    assert.ok((state.cargo.hardtack || 0) > 0);
+  }
+});
+
 test("ports automatically fill water casks without using cargo space", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.survival.freshWater = 0;
@@ -1024,6 +1048,7 @@ test("consumed loadout provisions remain reserved against ordinary trade cargo",
   state.accounts.cargoCostBasis.cloves = 0;
   assert.equal(cargoFree(state), 0);
   assert.throws(() => buyGood(state, economy, LONDON, "timber", 1), /Not enough cargo space/);
+  assert.throws(() => buyGood(state, economy, LONDON, "grain", 1), /Not enough cargo space/);
   assert.equal(buyGood(state, economy, LONDON, "hardtack", 1).quantity, 1);
   assert.equal(cargoFree(state), 0);
 });
@@ -1060,21 +1085,23 @@ test("passenger provisions report the same trade capacity that the market enforc
   const before = cargoHoldStatus(state);
   assert.equal(before.physicalUsed, 1014 / 12);
   assert.equal(before.physicalWholeUnits, 85);
-  assert.equal(before.reservedForLoadout, 4);
-  assert.equal(before.freeForTrade, 1.5);
-  assert.equal(before.freeWholeUnits, 1);
-  assert.equal(before.committedWholeUnits, 89);
+  assert.equal(before.reservedForLoadout, 65 / 12);
+  assert.equal(before.freeForTrade, 1 / 12);
+  assert.equal(before.freeWholeUnits, 0);
+  assert.equal(before.committedWholeUnits, 90);
 
   const result = restockCustomShipLoadoutAtPort(state, LONDON, stats, state.ship.loadoutTargets, {
     simMinute: 240
   });
   const after = cargoHoldStatus(state);
-  assert.equal(result.additions.water, 4.5);
-  assert.equal(state.survival.freshWater, 35);
+  assert.equal(result.additions.food, 53 / 12);
+  assert.equal(result.additions.water, 1.5);
+  assert.equal(state.cargo.hardtack, 24);
+  assert.equal(state.survival.freshWater, 32);
   assert.equal(after.reservedForLoadout, 0);
   assert.equal(after.freeForTrade, before.freeForTrade);
   assert.equal(after.committedWholeUnits, before.committedWholeUnits);
-  assert.ok(survivalStatus(state).drinkDays > 19);
+  assert.ok(survivalStatus(state).drinkDays > 17.5);
 });
 
 test("port restocking dumps excess water and fills constrained stores evenly", () => {
@@ -1100,7 +1127,7 @@ test("port restocking dumps excess water and fills constrained stores evenly", (
   assert.equal(cargoFree(state), 0);
 });
 
-test("edible trade cargo does not suppress automatic water refills", () => {
+test("edible trade cargo satisfies neither hardtack nor water loadout targets", () => {
   const stats = shipStatsForSlug("ketch");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
@@ -1113,9 +1140,10 @@ test("edible trade cargo does not suppress automatic water refills", () => {
   assert.equal(cargoUsed(state), 44);
   const result = restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 240 });
 
-  assert.equal(result.additions.food, 0);
-  assert.equal(result.additions.water, 16);
-  assert.equal(state.survival.freshWater, 16);
+  assert.ok(result.additions.food > 0);
+  assert.ok(result.additions.water > 0);
+  assert.equal(state.cargo.hardtack, result.additions.food);
+  assert.equal(state.survival.freshWater, result.additions.water);
   assert.equal(cargoUsed(state), 60);
 });
 

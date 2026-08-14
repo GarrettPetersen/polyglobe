@@ -2234,7 +2234,7 @@ function cargoHoldStatusForValidatedState(state) {
 
 export function cargoFreeForGood(state, goodId) {
   const good = tradeGoodById(goodId);
-  return good.category === "food" ? provisionCargoFree(state, "food") : cargoFree(state);
+  return good.id === HARDTACK_GOOD_ID ? provisionCargoFree(state, "food") : cargoFree(state);
 }
 
 export function cargoQuantityCapacityForGood(state, goodId) {
@@ -2759,7 +2759,8 @@ export function autoProvisionHardtackAtPort(state, economy, city, context = {}) 
   const status = survivalStatus(state);
   const targetDays = state.ship?.loadoutTargets?.foodDays || FOOD_TARGET_DAYS;
   const targetRations = Math.ceil(targetDays * status.consumers.foodConsumers);
-  const neededRations = Math.max(0, Math.ceil(targetRations - status.foodRations));
+  const hardtackRations = foodRationsForCargoQuantity(state.cargo[HARDTACK_GOOD_ID] || 0);
+  const neededRations = Math.max(0, targetRations - hardtackRations);
   if (neededRations <= 0) return { good, quantity: 0, rations: 0, price: 0 };
   const freeRations = Math.floor(
     (cargoFreeForGood(state, good.id) + 1e-8) * FOOD_RATIONS_PER_HOLD_UNIT / good.unitSize
@@ -6531,7 +6532,7 @@ function restockBalancedProvisions(state, plan, hardtack) {
   let spent = 0;
   const additions = { food: 0, water: 0 };
   const missingFoodRations = Math.max(0, Math.round(
-    (targets.food - provisionFoodUnits(state)) * FOOD_RATIONS_PER_HOLD_UNIT / hardtack.unitSize
+    (targets.food - loadoutHardtackUnits(state)) * FOOD_RATIONS_PER_HOLD_UNIT / hardtack.unitSize
   ));
   const affordableRations = affordableHardtackRations(hardtack, missingFoodRations, state.doubloons);
   const freeFoodRations = Math.floor(
@@ -6594,7 +6595,7 @@ function shipStoresSnapshot(state) {
   return {
     crew: state.ship?.crew || 0,
     cannons: state.ship?.cannons || 0,
-    food: provisionFoodUnits(state),
+    food: loadoutHardtackUnits(state),
     water: state.survival.freshWater
   };
 }
@@ -6604,7 +6605,7 @@ function loadoutShortfalls(state, plan) {
   return {
     crew: Math.max(0, plan.crew - state.ship.crew),
     cannons: Math.max(0, plan.cannons - state.ship.cannons),
-    food: Math.max(0, targets.food - provisionFoodUnits(state)),
+    food: Math.max(0, targets.food - loadoutHardtackUnits(state)),
     water: Math.max(0, targets.water - state.survival.freshWater)
   };
 }
@@ -6613,7 +6614,7 @@ function loadoutRestockProvisionTargets(state, plan) {
   const allocation = loadoutProvisionAllocation(state, plan);
   const protectedFood = Math.max(
     allocation.foodUnits,
-    Math.min(provisionFoodUnits(state), allocation.availableSpace)
+    Math.min(loadoutHardtackUnits(state), allocation.availableSpace)
   );
   return {
     food: protectedFood,
@@ -6669,7 +6670,7 @@ function loadoutProvisionReservation(state) {
   if (!plan) return { missingFood: 0, missingWater: 0 };
   const allocation = loadoutProvisionAllocation(state, plan);
   return {
-    missingFood: Math.max(0, allocation.foodUnits - provisionFoodUnits(state)),
+    missingFood: Math.max(0, allocation.foodUnits - loadoutHardtackUnits(state)),
     missingWater: Math.max(0, allocation.waterUnits - freshWaterHoldUnits(state.survival.freshWater))
   };
 }
@@ -6683,7 +6684,8 @@ function loadoutProvisionAllocation(state, plan) {
   if (plan.storesSpace !== plan.foodUnits + plan.waterUnits) {
     throw new Error("Ship loadout provision targets do not match their reserved store space");
   }
-  const actualProvisionSpace = provisionFoodUnits(state) + freshWaterHoldUnits(state.survival.freshWater);
+  const actualProvisionSpace = loadoutHardtackUnits(state) +
+    freshWaterHoldUnits(state.survival.freshWater);
   const provisionSpaceAlreadyAboard = Math.min(actualProvisionSpace, plan.storesSpace);
   const nonProvisionSpace = cargoUnitsFromTicks(
     cargoUsedTicksForValidatedState(state)
@@ -6699,8 +6701,9 @@ function loadoutProvisionAllocation(state, plan) {
   };
 }
 
-function provisionFoodUnits(state) {
-  return edibleCargoRows(state).reduce((total, row) => total + row.good.unitSize * row.quantity, 0);
+function loadoutHardtackUnits(state) {
+  const hardtack = tradeGoodById(HARDTACK_GOOD_ID);
+  return hardtack.unitSize * (state.cargo[HARDTACK_GOOD_ID] || 0);
 }
 
 function addFoodRations(state, goodId, rations, costBasis) {
