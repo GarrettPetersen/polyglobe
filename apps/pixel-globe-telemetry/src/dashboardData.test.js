@@ -38,7 +38,10 @@ test("dashboard crash reports are newest first", () => {
 test("dashboard performance incidents are newest first and grouped by actionable context", () => {
   const query = dashboardQueries(7).performanceIssues;
   assert.match(query, /WHERE blob1 = 'low_fps'/);
-  assert.match(query, /GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage/);
+  assert.match(
+    query,
+    /GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage,\s*stage_summary, scene_summary/
+  );
   assert.match(query, /ORDER BY last_seen DESC, affected_installations DESC/);
 });
 

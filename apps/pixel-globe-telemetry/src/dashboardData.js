@@ -181,8 +181,8 @@ export function dashboardQueries(windowDays, crashCursor = null) {
     performanceIssues: `
       SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
         blob17 AS screen, blob8 AS main_quest, blob10 AS ship,
-        blob9 AS dominant_stage, any(blob11) AS stage_summary,
-        any(blob12) AS scene_summary,
+        blob9 AS dominant_stage, blob11 AS stage_summary,
+        blob12 AS scene_summary,
         round(avg(double2), 1) AS average_fps,
         round(avg(double4), 1) AS average_p95_frame_ms,
         round(avg(double7), 1) AS average_p95_cpu_ms,
@@ -192,7 +192,8 @@ export function dashboardQueries(windowDays, crashCursor = null) {
         min(timestamp) AS first_seen, max(timestamp) AS last_seen
       FROM ${DATASET}
       WHERE blob1 = 'low_fps' AND ${where}
-      GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage
+      GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage,
+        stage_summary, scene_summary
       ORDER BY last_seen DESC, affected_installations DESC
       LIMIT 40
     `,
