@@ -1,7 +1,9 @@
 import {
   analyticsCursorTimestamp,
   normalizeCrashCursor,
-  readCrashCursor
+  normalizePerformanceCursor,
+  readCrashCursor,
+  readPerformanceCursor
 } from "./crashCursor.js";
 
 const DATASET = "marque_and_reprisal_game_events";
@@ -17,18 +19,28 @@ export async function fetchDashboardSnapshot(env, windowDays, {
   if (typeof fetchImpl !== "function") throw new Error("Dashboard analytics requires fetch");
   const accountId = requiredSecret(env.ANALYTICS_ACCOUNT_ID, "ANALYTICS_ACCOUNT_ID");
   const apiToken = requiredSecret(env.ANALYTICS_API_TOKEN, "ANALYTICS_API_TOKEN");
-  const crashCursor = await readCrashCursor(env);
-  const queries = dashboardQueries(days, crashCursor);
+  const [crashCursor, performanceCursor] = await Promise.all([
+    readCrashCursor(env),
+    readPerformanceCursor(env)
+  ]);
+  const queries = dashboardQueries(days, crashCursor, performanceCursor);
   const entries = await Promise.all(Object.entries(queries).map(async ([name, sql]) => {
     const rows = await queryAnalyticsEngine({ accountId, apiToken, sql, fetchImpl });
     return [name, rows];
   }));
-  return buildDashboardSnapshot(days, Object.fromEntries(entries), generatedAt, crashCursor);
+  return buildDashboardSnapshot(
+    days,
+    Object.fromEntries(entries),
+    generatedAt,
+    crashCursor,
+    performanceCursor
+  );
 }
 
-export function dashboardQueries(windowDays, crashCursor = null) {
+export function dashboardQueries(windowDays, crashCursor = null, performanceCursor = null) {
   const days = validateDashboardWindow(windowDays);
-  const cursor = analyticsCursorTimestamp(crashCursor);
+  const crashCursorTimestamp = analyticsCursorTimestamp(crashCursor);
+  const performanceCursorTimestamp = analyticsCursorTimestamp(performanceCursor);
   const where = `
     blob4 != 'deployment-check'
     AND timestamp > NOW() - INTERVAL '${days}' DAY
@@ -178,7 +190,51 @@ export function dashboardQueries(windowDays, crashCursor = null) {
       ORDER BY sessions DESC
       LIMIT 40
     `,
-    performanceIssues: `
+    performanceStatus: `
+      SELECT
+        round(SUM(_sample_interval * if(
+          timestamp > toDateTime('${performanceCursorTimestamp}'), 1, 0
+        ))) AS active_reports,
+        round(SUM(_sample_interval * if(
+          timestamp <= toDateTime('${performanceCursorTimestamp}'), 1, 0
+        ))) AS historical_reports
+      FROM ${DATASET}
+      WHERE blob1 IN ('low_fps', 'freeze') AND ${where}
+    `,
+    performanceIssues: lowFrameRateGroupsQuery(
+      where,
+      `timestamp > toDateTime('${performanceCursorTimestamp}')`
+    ),
+    freezeIssues: freezeGroupsQuery(
+      where,
+      `timestamp > toDateTime('${performanceCursorTimestamp}')`
+    ),
+    fixedPerformanceIssues: lowFrameRateGroupsQuery(
+      where,
+      `timestamp <= toDateTime('${performanceCursorTimestamp}')`
+    ),
+    fixedFreezeIssues: freezeGroupsQuery(
+      where,
+      `timestamp <= toDateTime('${performanceCursorTimestamp}')`
+    ),
+    crashStatus: `
+      SELECT
+        round(SUM(_sample_interval * if(
+          timestamp > toDateTime('${crashCursorTimestamp}'), 1, 0
+        ))) AS active_reports,
+        round(SUM(_sample_interval * if(
+          timestamp <= toDateTime('${crashCursorTimestamp}'), 1, 0
+        ))) AS historical_reports
+      FROM ${DATASET}
+      WHERE blob1 = 'crash' AND ${where}
+    `,
+    crashes: crashGroupsQuery(where, `timestamp > toDateTime('${crashCursorTimestamp}')`),
+    fixedCrashes: crashGroupsQuery(where, `timestamp <= toDateTime('${crashCursorTimestamp}')`)
+  });
+}
+
+function lowFrameRateGroupsQuery(where, cursorCondition) {
+  return `
       SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
         blob17 AS screen, blob8 AS main_quest, blob10 AS ship,
         blob9 AS dominant_stage, blob11 AS stage_summary,
@@ -191,13 +247,16 @@ export function dashboardQueries(windowDays, crashCursor = null) {
         count() AS reports, count(DISTINCT index1) AS affected_installations,
         min(timestamp) AS first_seen, max(timestamp) AS last_seen
       FROM ${DATASET}
-      WHERE blob1 = 'low_fps' AND ${where}
+      WHERE blob1 = 'low_fps' AND ${cursorCondition} AND ${where}
       GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage,
         stage_summary, scene_summary
       ORDER BY last_seen DESC, affected_installations DESC
       LIMIT 40
-    `,
-    freezeIssues: `
+    `;
+}
+
+function freezeGroupsQuery(where, cursorCondition) {
+  return `
       SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
         blob17 AS screen, blob8 AS main_quest, blob10 AS ship,
         blob9 AS cause, blob11 AS recent_work, blob12 AS scene_summary,
@@ -208,26 +267,12 @@ export function dashboardQueries(windowDays, crashCursor = null) {
         count() AS reports, count(DISTINCT index1) AS affected_installations,
         min(timestamp) AS first_seen, max(timestamp) AS last_seen
       FROM ${DATASET}
-      WHERE blob1 = 'freeze' AND ${where}
+      WHERE blob1 = 'freeze' AND ${cursorCondition} AND ${where}
       GROUP BY revision, channel, platform, screen, main_quest, ship, cause,
         recent_work, scene_summary
       ORDER BY last_seen DESC, affected_installations DESC
       LIMIT 40
-    `,
-    crashStatus: `
-      SELECT
-        round(SUM(_sample_interval * if(
-          timestamp > toDateTime('${cursor}'), 1, 0
-        ))) AS active_reports,
-        round(SUM(_sample_interval * if(
-          timestamp <= toDateTime('${cursor}'), 1, 0
-        ))) AS historical_reports
-      FROM ${DATASET}
-      WHERE blob1 = 'crash' AND ${where}
-    `,
-    crashes: crashGroupsQuery(where, `timestamp > toDateTime('${cursor}')`),
-    fixedCrashes: crashGroupsQuery(where, `timestamp <= toDateTime('${cursor}')`)
-  });
+    `;
 }
 
 function crashGroupsQuery(where, cursorCondition) {
@@ -249,11 +294,17 @@ export function buildDashboardSnapshot(
   windowDays,
   results,
   generatedAt = new Date().toISOString(),
-  crashCursor = null
+  crashCursor = null,
+  performanceCursor = null
 ) {
   const days = validateDashboardWindow(windowDays);
   const normalizedCrashCursor = normalizeCrashCursor(crashCursor);
-  for (const name of Object.keys(dashboardQueries(days, normalizedCrashCursor))) {
+  const normalizedPerformanceCursor = normalizePerformanceCursor(performanceCursor);
+  for (const name of Object.keys(dashboardQueries(
+    days,
+    normalizedCrashCursor,
+    normalizedPerformanceCursor
+  ))) {
     if (!Array.isArray(results?.[name])) throw new Error(`Missing dashboard query result: ${name}`);
   }
   const totalsRow = results.totals[0] || {};
@@ -292,8 +343,9 @@ export function buildDashboardSnapshot(
     "piracy", "diplomacy", "side_quests", "animals", "panda", "penguin", "raccoon"
   ];
   const crashStatusRow = results.crashStatus[0] || {};
+  const performanceStatusRow = results.performanceStatus[0] || {};
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: requiredString(generatedAt, "generatedAt"),
     windowDays: days,
     totals,
@@ -301,6 +353,11 @@ export function buildDashboardSnapshot(
       allFixedAt: normalizedCrashCursor,
       activeReports: nonnegativeNumber(crashStatusRow.active_reports),
       historicalReports: nonnegativeNumber(crashStatusRow.historical_reports)
+    },
+    performanceCursor: {
+      allFixedAt: normalizedPerformanceCursor,
+      activeReports: nonnegativeNumber(performanceStatusRow.active_reports),
+      historicalReports: nonnegativeNumber(performanceStatusRow.historical_reports)
     },
     playtime,
     daily: results.daily.map((row) => ({
@@ -361,7 +418,17 @@ export function buildDashboardSnapshot(
       revision: requiredString(row.revision, "revision"),
       sessions: nonnegativeNumber(row.sessions)
     })),
-    performanceIssues: results.performanceIssues.map((row) => ({
+    performanceIssues: normalizeLowFrameRateRows(results.performanceIssues),
+    freezeIssues: normalizeFreezeRows(results.freezeIssues),
+    fixedPerformanceIssues: normalizeLowFrameRateRows(results.fixedPerformanceIssues),
+    fixedFreezeIssues: normalizeFreezeRows(results.fixedFreezeIssues),
+    crashes: normalizeCrashRows(results.crashes),
+    fixedCrashes: normalizeCrashRows(results.fixedCrashes)
+  };
+}
+
+function normalizeLowFrameRateRows(rows) {
+  return rows.map((row) => ({
       revision: requiredString(row.revision, "performance revision"),
       channel: requiredString(row.channel, "performance channel"),
       platform: requiredString(row.platform, "performance platform"),
@@ -380,8 +447,11 @@ export function buildDashboardSnapshot(
       affectedInstallations: nonnegativeNumber(row.affected_installations),
       firstSeen: requiredString(row.first_seen, "performance first seen"),
       lastSeen: requiredString(row.last_seen, "performance last seen")
-    })),
-    freezeIssues: results.freezeIssues.map((row) => ({
+    }));
+}
+
+function normalizeFreezeRows(rows) {
+  return rows.map((row) => ({
       revision: requiredString(row.revision, "freeze revision"),
       channel: requiredString(row.channel, "freeze channel"),
       platform: requiredString(row.platform, "freeze platform"),
@@ -399,10 +469,7 @@ export function buildDashboardSnapshot(
       affectedInstallations: nonnegativeNumber(row.affected_installations),
       firstSeen: requiredString(row.first_seen, "freeze first seen"),
       lastSeen: requiredString(row.last_seen, "freeze last seen")
-    })),
-    crashes: normalizeCrashRows(results.crashes),
-    fixedCrashes: normalizeCrashRows(results.fixedCrashes)
-  };
+    }));
 }
 
 function normalizeCrashRows(rows) {

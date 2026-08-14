@@ -25,3 +25,8 @@ test("pre-cursor crash reports live in a collapsed disclosure", () => {
   assert.match(html, /id="fixed-crash-list"/);
   assert.match(css, /\.fixed-crashes/);
 });
+
+test("pre-cursor performance incidents live in a collapsed disclosure", () => {
+  assert.match(html, /<details id="fixed-performance"[^>]*hidden>/);
+  assert.match(html, /id="fixed-performance-list"/);
+});

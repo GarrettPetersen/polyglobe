@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   readRemoteCrashCursor,
+  readRemotePerformanceCursor,
   TELEMETRY_STATE_NAMESPACE_TITLE,
-  writeRemoteCrashCursor
+  writeRemoteCrashCursor,
+  writeRemotePerformanceCursor
 } from "./cloudflareKv.mjs";
 
 const environment = Object.freeze({
@@ -43,4 +45,28 @@ test("the operator tools fail loudly when cursor storage is absent", async () =>
     () => readRemoteCrashCursor({ environment, fetchImpl }),
     /Missing Cloudflare KV namespace/
   );
+});
+
+test("performance cursor operations use their own KV key", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.includes("?per_page=100")) {
+      return Response.json({
+        success: true,
+        result: [{ id: "namespace-id", title: TELEMETRY_STATE_NAMESPACE_TITLE }]
+      });
+    }
+    if (options.method === "PUT") return Response.json({ success: true });
+    return new Response("2026-08-05T14:00:00.000Z");
+  };
+
+  await readRemotePerformanceCursor({ environment, fetchImpl });
+  await writeRemotePerformanceCursor("2026-08-05T15:00:00Z", { environment, fetchImpl });
+
+  const valueRequests = requests.filter((request) => request.url.includes("/values/"));
+  assert.equal(valueRequests.length, 2);
+  assert.equal(valueRequests.every((request) => (
+    request.url.includes("performance%2Fall-fixed-at")
+  )), true);
 });

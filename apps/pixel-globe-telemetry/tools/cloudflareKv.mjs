@@ -2,28 +2,57 @@ import { cloudflareEnvironment } from "./cloudflareEnvironment.mjs";
 
 import {
   CRASH_CURSOR_KEY,
-  normalizeCrashCursor
+  PERFORMANCE_CURSOR_KEY,
+  normalizeCrashCursor,
+  normalizePerformanceCursor
 } from "../src/crashCursor.js";
 
 export const TELEMETRY_STATE_NAMESPACE_TITLE = "marque-and-reprisal-telemetry-state";
 
 export async function readRemoteCrashCursor(options = {}) {
+  return readRemoteCursor(CRASH_CURSOR_KEY, normalizeCrashCursor, "crash", options);
+}
+
+export async function readRemotePerformanceCursor(options = {}) {
+  return readRemoteCursor(
+    PERFORMANCE_CURSOR_KEY,
+    normalizePerformanceCursor,
+    "performance",
+    options
+  );
+}
+
+async function readRemoteCursor(key, normalize, label, options) {
   const client = await cloudflareKvClient(options);
   const response = await client.fetchImpl(
-    `${client.namespaceEndpoint}/values/${encodeURIComponent(CRASH_CURSOR_KEY)}`,
+    `${client.namespaceEndpoint}/values/${encodeURIComponent(key)}`,
     { headers: client.headers }
   );
   if (response.status === 404) return null;
-  if (!response.ok) throw await cloudflareApiError(response, "read telemetry crash cursor");
-  return normalizeCrashCursor(await response.text());
+  if (!response.ok) throw await cloudflareApiError(response, `read telemetry ${label} cursor`);
+  return normalize(await response.text());
 }
 
 export async function writeRemoteCrashCursor(value, options = {}) {
-  const cursor = normalizeCrashCursor(value);
-  if (cursor === null) throw new Error("Cannot write an empty telemetry crash cursor");
+  return writeRemoteCursor(CRASH_CURSOR_KEY, value, normalizeCrashCursor, "crash", options);
+}
+
+export async function writeRemotePerformanceCursor(value, options = {}) {
+  return writeRemoteCursor(
+    PERFORMANCE_CURSOR_KEY,
+    value,
+    normalizePerformanceCursor,
+    "performance",
+    options
+  );
+}
+
+async function writeRemoteCursor(key, value, normalize, label, options) {
+  const cursor = normalize(value);
+  if (cursor === null) throw new Error(`Cannot write an empty telemetry ${label} cursor`);
   const client = await cloudflareKvClient(options);
   const response = await client.fetchImpl(
-    `${client.namespaceEndpoint}/values/${encodeURIComponent(CRASH_CURSOR_KEY)}`,
+    `${client.namespaceEndpoint}/values/${encodeURIComponent(key)}`,
     {
       method: "PUT",
       headers: {
@@ -33,7 +62,7 @@ export async function writeRemoteCrashCursor(value, options = {}) {
       body: cursor
     }
   );
-  if (!response.ok) throw await cloudflareApiError(response, "write telemetry crash cursor");
+  if (!response.ok) throw await cloudflareApiError(response, `write telemetry ${label} cursor`);
   return cursor;
 }
 

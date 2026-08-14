@@ -56,7 +56,13 @@ function renderDashboard(data) {
   renderStarts(data.starts);
   renderChannels(data.channels);
   renderEnvironments(data.environments);
-  renderPerformanceIssues(data.performanceIssues || [], data.freezeIssues || []);
+  renderPerformanceIssues(
+    data.performanceIssues || [],
+    data.freezeIssues || [],
+    data.fixedPerformanceIssues || [],
+    data.fixedFreezeIssues || [],
+    data.performanceCursor
+  );
   renderCrashes(data.crashes, data.fixedCrashes, data.crashCursor);
 }
 
@@ -382,21 +388,47 @@ function renderEnvironments(rows) {
   }
 }
 
-function renderPerformanceIssues(rows, freezeRows) {
+function renderPerformanceIssues(rows, freezeRows, fixedRows, fixedFreezeRows, cursor) {
   const target = document.querySelector("#performance-list");
+  const fixedSection = document.querySelector("#fixed-performance");
+  const fixedTarget = document.querySelector("#fixed-performance-list");
   target.replaceChildren();
-  const incidentCount = [...rows, ...freezeRows]
-    .reduce((sum, row) => sum + row.affectedInstallations, 0);
+  fixedTarget.replaceChildren();
+  const incidentCount = cursor?.activeReports ?? [...rows, ...freezeRows]
+    .reduce((sum, row) => sum + row.reports, 0);
   setText(
     "performance-summary",
-    incidentCount === 0
-      ? "No frame-health reports"
-      : `${compact(incidentCount)} installation/build incidents`
+    cursor?.allFixedAt
+      ? `${compact(incidentCount)} reports since last fix pass`
+      : incidentCount === 0
+        ? "No frame-health reports"
+        : `${compact(incidentCount)} performance reports`
   );
   if (rows.length === 0 && freezeRows.length === 0) {
-    target.append(emptyState("No persistent low frame rate or foreground freeze reported in this period."));
-    return;
+    target.append(emptyState(cursor?.allFixedAt
+      ? `No performance incidents reported since ${formatDateTime(cursor.allFixedAt)}.`
+      : "No persistent low frame rate or foreground freeze reported in this period."));
+  } else {
+    renderPerformanceCards(target, rows, freezeRows);
   }
+  const showHistory = Boolean(cursor?.allFixedAt) &&
+    (fixedRows.length > 0 || fixedFreezeRows.length > 0 || cursor.historicalReports > 0);
+  fixedSection.hidden = !showHistory;
+  fixedSection.open = false;
+  if (!showHistory) return;
+  setText(
+    "fixed-performance-summary",
+    `${compact(cursor.historicalReports)} earlier reports through ` +
+      `${formatDateTime(cursor.allFixedAt)} (collapsed)`
+  );
+  if (fixedRows.length === 0 && fixedFreezeRows.length === 0) {
+    fixedTarget.append(emptyState("No earlier performance groups in this reporting window."));
+  } else {
+    renderPerformanceCards(fixedTarget, fixedRows, fixedFreezeRows);
+  }
+}
+
+function renderPerformanceCards(target, rows, freezeRows) {
   for (const row of freezeRows) target.append(freezeIssueCard(row));
   for (const row of rows) {
     const card = element("article", "performance-card");

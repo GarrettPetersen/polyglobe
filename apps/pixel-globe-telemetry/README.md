@@ -35,6 +35,8 @@ npm run crashes -- --hours 24
 npm run crashes -- --days 7 --format json
 npm run crashes:new
 npm run crashes:mark-fixed
+npm run performance:new
+npm run performance:mark-fixed
 ```
 
 Run `configure-secret` once after the first deployment, and again only when rotating
@@ -73,6 +75,12 @@ npm run --silent pixel-globe-telemetry:crashes:mark-fixed
 Crashes arriving while fixes are underway remain after the cursor and appear in the
 next pass. The dashboard keeps post-cursor reports open and moves reports at or before
 the cursor into a collapsed history section.
+
+Performance incidents use an independent cursor with the same read-then-advance
+discipline. Read unresolved low-frame-rate and foreground-freeze reports with
+`npm run performance:new`, address or classify every returned incident, then run
+`npm run performance:mark-fixed`. The dashboard keeps earlier performance reports
+in their own collapsed history so old builds do not obscure new regressions.
 
 ## Dashboard
 

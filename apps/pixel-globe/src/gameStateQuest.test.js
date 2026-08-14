@@ -326,6 +326,37 @@ test("a capital-only power can receive the only possible capture commission", ()
   assert.equal(offer.enemyPortsLost, 0);
 });
 
+test("an active colonization expedition does not suppress a capital capture commission", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  state.memory.colonization.stage = "fetch";
+  state.memory.colonization.targetTileId = 99;
+  state.memory.colonization.targetCity = "Jamestown";
+  state.memory.colonization.targetCountry = "United States of America";
+  state.memory.colonization.originTileId = LONDON.tileId;
+  state.memory.colonization.originCity = LONDON.city;
+  state.memory.colonization.originCountry = LONDON.country;
+  state.memory.colonization.distanceKm = 5900;
+  state.memory.colonization.offerSeen = true;
+
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, PARIS], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 520
+  });
+
+  assert.equal(offer.kind, "capture-capital");
+  assert.equal(offer.targetTileId, PARIS.tileId);
+  assert.equal(state.memory.colonization.stage, "fetch");
+});
+
 test("capture commissions require guns, a full landing company, and a letter of marque", () => {
   const stats = shipStatsForSlug("large-junk");
   const state = createGameState({

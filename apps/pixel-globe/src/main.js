@@ -16816,6 +16816,11 @@ function rescuedTravelerAtHome(cityCall) {
 function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk = false) {
   recordTeaRaceArrivalAtPort(cityCall);
   const accessiblePorts = playerAccessiblePortCities();
+  const simMinute = Math.floor(weatherClockMinutes);
+  capturePortMissionOfferForCity(gameState, cityCall, accessiblePorts, {
+    simMinute,
+    sailingDistanceKm: sailingDistanceBetweenPorts
+  });
   const drunkVariant = spriteKeyHash(
     `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
   );
@@ -16867,11 +16872,6 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       colonizationApproach: true
     });
   }
-  const simMinute = Math.floor(weatherClockMinutes);
-  capturePortMissionOfferForCity(gameState, cityCall, accessiblePorts, {
-    simMinute,
-    sailingDistanceKm: sailingDistanceBetweenPorts
-  });
   wokouHuntMissionOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
   deliveryOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
   const openDeliveryMission = !needsLoadout &&

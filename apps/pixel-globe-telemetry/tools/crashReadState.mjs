@@ -1,26 +1,44 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-const STATE_URL = new URL("../.wrangler/crash-report-read-at.json", import.meta.url);
+const REPORT_KINDS = Object.freeze(["crash", "performance"]);
 
 export async function rememberCrashReportRead({ readAt, previousCursor }) {
+  return rememberTelemetryReportRead("crash", { readAt, previousCursor });
+}
+
+export async function rememberPerformanceReportRead({ readAt, previousCursor }) {
+  return rememberTelemetryReportRead("performance", { readAt, previousCursor });
+}
+
+async function rememberTelemetryReportRead(kind, { readAt, previousCursor }) {
+  validateReportKind(kind);
   const state = {
-    readAt: requiredTimestamp(readAt, "crash report read time"),
+    readAt: requiredTimestamp(readAt, `${kind} report read time`),
     previousCursor: previousCursor === null
       ? null
-      : requiredTimestamp(previousCursor, "previous crash cursor")
+      : requiredTimestamp(previousCursor, `previous ${kind} cursor`)
   };
   await mkdir(new URL("../.wrangler/", import.meta.url), { recursive: true });
-  await writeFile(STATE_URL, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  await writeFile(stateUrl(kind), `${JSON.stringify(state, null, 2)}\n`, "utf8");
   return state;
 }
 
 export async function readRememberedCrashReport() {
+  return readRememberedTelemetryReport("crash");
+}
+
+export async function readRememberedPerformanceReport() {
+  return readRememberedTelemetryReport("performance");
+}
+
+async function readRememberedTelemetryReport(kind) {
+  validateReportKind(kind);
   let text;
   try {
-    text = await readFile(STATE_URL, "utf8");
+    text = await readFile(stateUrl(kind), "utf8");
   } catch (error) {
     if (error?.code === "ENOENT") {
-      throw new Error("No post-cursor crash report has been read; run crashes:new first");
+      throw new Error(`No post-cursor ${kind} report has been read; run ${kind}:new first`);
     }
     throw error;
   }
@@ -31,11 +49,19 @@ export async function readRememberedCrashReport() {
     throw new Error("Remembered crash report state is invalid JSON");
   }
   return {
-    readAt: requiredTimestamp(state?.readAt, "remembered crash report read time"),
+    readAt: requiredTimestamp(state?.readAt, `remembered ${kind} report read time`),
     previousCursor: state?.previousCursor === null
       ? null
-      : requiredTimestamp(state?.previousCursor, "remembered previous crash cursor")
+      : requiredTimestamp(state?.previousCursor, `remembered previous ${kind} cursor`)
   };
+}
+
+function stateUrl(kind) {
+  return new URL(`../.wrangler/${kind}-report-read-at.json`, import.meta.url);
+}
+
+function validateReportKind(kind) {
+  if (!REPORT_KINDS.includes(kind)) throw new Error(`Unknown telemetry report kind: ${kind}`);
 }
 
 function requiredTimestamp(value, label) {
