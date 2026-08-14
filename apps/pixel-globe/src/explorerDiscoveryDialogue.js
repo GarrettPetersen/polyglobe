@@ -144,7 +144,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
   ),
   "Mount Shasta": exchange(
     "Shasta rises by itself above the forests, a broad volcanic cone with a smaller shoulder beside it. Snowfields catch the light long after the lower country has gone dark.",
-    "An isolated peak becomes compass, calendar, and landmark for everyone around it. Ask what changes when the snow retreats; local knowledge can add seasons to our chart."
+    "An isolated peak becomes compass, calendar, and landmark. Ask the people beneath it when the snow retreats; their answer will add seasons to our chart."
   ),
   "Grand Teton": exchange(
     "The Grand Teton leaps from the valley without a screen of foothills, all sharp granite and snow-filled gullies. Its summit is a narrow point among a row of jagged neighbors.",

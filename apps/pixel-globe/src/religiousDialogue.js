@@ -45,8 +45,8 @@ const SHARED_GREETING_LINES = Object.freeze({
   "kami-buddhist": "May the kami guard your wake. It is good to meet another who knows the same shrines.",
   "andean-traditional": "May the powers of mountain and sun watch your road. You honor the same world I do.",
   "mesoamerican-traditional": "May sun and rain favor your road. It is good to meet another who knows the old rites.",
-  "north-american-traditional": "May you travel in right relation with the waters and shores. Our ways are known to one another.",
-  "american-traditional": "May you travel in right relation with the waters and shores. Our ways are known to one another.",
+  "north-american-traditional": "May the waters bear you kindly, and every shore receive you in peace.",
+  "american-traditional": "May the waters bear you kindly, and every shore receive you in peace.",
   "african-traditional": "May the ancestors keep your road. It is good to meet one who remembers as I do.",
   "polynesian-traditional": "May sea and ancestors carry you safely. It is good to meet another who knows their guidance.",
   "austronesian-traditional": "May sea and ancestors carry you safely. It is good to meet another who knows their guidance."

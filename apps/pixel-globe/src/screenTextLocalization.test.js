@@ -29,6 +29,20 @@ test("ordinary screen text stays concise enough to read instead of skip", () => 
   assert.deepEqual(overlong, []);
 });
 
+test("historical dialogue avoids present-day institutional framing", () => {
+  const modernPhrases = [
+    /\bIndigenous\b/i,
+    /\bNative land rights\b/i,
+    /\bright relation\b/i,
+    /\benslaved people\b/i,
+    /\bNative and Dutch geographies\b/i
+  ];
+  const violations = screenTextTemplates().filter((template) => (
+    modernPhrases.some((phrase) => phrase.test(template))
+  ));
+  assert.deepEqual(violations, []);
+});
+
 test("prose-form ship labels retain their localized vessel names", () => {
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     assert.equal(

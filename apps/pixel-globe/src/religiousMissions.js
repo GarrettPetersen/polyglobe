@@ -64,8 +64,8 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     underway: () =>
       "A cross cannot excuse a chain. If our preaching depends upon terror, then it condemns the preacher before it persuades a single soul.",
     arrival: ({ destinationName }) =>
-      `${destinationName}'s Dominicans have called colonists, officials, and Indigenous witnesses to hear the testimony in public.`,
-    participationLabel: "Stand against forced conversion",
+      `${destinationName}'s Dominicans have called colonists, officials, and Indian witnesses to hear the testimony in public.`,
+    participationLabel: "Witness the friars' protest",
     participation: "You confirm that the papers crossed safely as the Dominicans denounce forced labor and baptism. Sympathetic parishioners reward you.",
     bonusLabel: "Dominican supporters' purse"
   }),

@@ -9,7 +9,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "royal surveyor",
     settlementLeaderRole: "governor of the City of Kings",
     basis: "Pizarro founded the City of Kings in 1535 on Taulichusco's lands in the Rimac valley.",
-    pitch: "Pizarro chose the cultivated Rimac valley, ruled by curaca Taulichusco, for his City of Kings. This is conquest, not an empty shore.",
+    pitch: "Pizarro chose the cultivated Rimac valley, ruled by curaca Taulichusco, for his City of Kings. The city must be taken and planted upon inhabited ground.",
     fetch: [
       stage("survey-camp", "linen-cloth", 6, "field tents, map cases, and the first chapel", "The survey party must work between the river and the old roads. Bring"),
       stage("city-grid", "timber", 8, "stakes, bridgework, and frames around the new plaza", "The plaza has been measured over the existing settlement. Its grid now needs"),
@@ -128,7 +128,7 @@ const HISTORIES = Object.freeze([
       stage("florida-grain", "grain", 12, "colonists, sailors, and the first planting season", "Eight hundred people cannot live from a military chest. Add")
     ],
     ready: "Menendez calls the plan San Agustin, a permanent Spanish town where earlier Florida ventures failed.",
-    departed: "Families, soldiers, clergy, free Africans, and enslaved Africans crowd the decks of the Florida expedition.",
+    departed: "Families, soldiers, clergy, and Africans both free and slave crowd the decks of the Florida expedition.",
     landing: "Matanzas Bay gives us a defensible harbor. We will lay out San Agustin here while the army turns north toward Fort Caroline.",
     landingAction: "Found San Agustin",
     resupply: resupply("grain", 12, "a large garrison and town in an uncertain food landscape", "San Agustin needs grain before storms or war cut off the harbor.", "The planned town survives, but its soldiers and families have consumed the first stores.", "The granary is secure; San Agustin can remain a town rather than another abandoned camp."),
@@ -137,19 +137,19 @@ const HISTORIES = Object.freeze([
   history("Caracas", "Venezuela", {
     sponsorRole: "captain of the Venezuela expedition",
     settlementLeaderRole: "alcalde of Santiago de Leon",
-    basis: "Diego de Losada founded Santiago de Leon de Caracas in 1567 after earlier settlements failed amid Indigenous resistance.",
+    basis: "Diego de Losada founded Santiago de Leon de Caracas in 1567 after Caracas and allied peoples defeated earlier settlements.",
     pitch: "Earlier Spanish footholds in Caracas failed. Losada proposes a new city, though Caracas and allied peoples have shown that a charter cannot secure the valley.",
     fetch: [
       stage("caracas-frames", "timber", 8, "houses, a stockade, and the road from the coast", "The valley settlement must be defensible and connected to its landing place. Bring"),
       stage("caracas-tools", "iron", 6, "tools, gates, and farming implements", "The street grid is easy to draw and hard to build. It requires"),
       stage("caracas-provisions", "grain", 10, "seed and provisions that do not depend on seizure from local fields", "The valley's inhabitants owe this expedition nothing. Carry our own")
     ],
-    ready: "The charter says Santiago de Leon; the valley keeps the Indigenous name Caracas.",
+    ready: "The charter says Santiago de Leon; every guide still calls the valley Caracas.",
     departed: "The expedition sails knowing two earlier attempts did not hold this valley.",
     landing: "The coast road climbs toward the Caracas valley. We will establish Santiago de Leon there, under the same resistance that defeated earlier foundations.",
     landingAction: "Establish Santiago de Leon",
     resupply: resupply("grain", 12, "a settlement still unable to feed itself securely", "Caracas needs grain before another lean season isolates the valley.", "The town grid holds, but farms beyond it remain exposed and uncertain.", "The grain has arrived; Santiago de Leon has survived another year."),
-    established: "Santiago de Leon de Caracas now holds the valley, though its Indigenous name has already proved stronger than the one in the charter."
+    established: "Santiago de Leon de Caracas now holds the valley, and the Indian name Caracas has already outlasted the one in the charter."
   }),
   history("Manila", "Philippines", {
     sponsorRole: "agent of Legazpi",
@@ -203,12 +203,12 @@ const HISTORIES = Object.freeze([
       stage("luanda-arms", "arms", 6, "soldiers campaigning inland from the coast", "Novais carries more soldiers than families. Equip them with"),
       stage("luanda-powder", "gunpowder", 6, "the shore guns and inland campaigns", "The final request makes the sponsors' intentions plain:")
     ],
-    ready: "No honest captain can mistake this for an innocent town-building venture; Luanda's charter is bound to conquest and human captivity.",
+    ready: "The charter makes no secret of its design: conquest inland, captives for the market, and a fortress above the bay.",
     departed: "One hundred families and hundreds of soldiers sail together, an imbalance that says more than the charter does.",
     landing: "The bay offers a strong anchorage and the heights a fortress site. Sao Paulo de Luanda will begin here, with all the violence its sponsors intend.",
     landingAction: "Establish Sao Paulo de Luanda",
     resupply: resupply("grain", 12, "families and soldiers before local harvests are secured", "Luanda needs grain for a population built around a garrison rather than farms.", "The fort dominates the bay, but its crowded settlement cannot yet feed itself.", "The grain has arrived; the bridgehead will not collapse from its own poor planning."),
-    established: "Sao Paulo de Luanda has become Portugal's fortified Angolan port. Its Atlantic wealth is inseparable from warfare and the traffic in enslaved people."
+    established: "Sao Paulo de Luanda has become Portugal's fortified Angolan port. Its Atlantic wealth comes from inland war and the slave trade."
   }),
   history("Buenos Aires", "Argentina", {
     sponsorRole: "agent of Juan de Garay",
@@ -269,7 +269,7 @@ const HISTORIES = Object.freeze([
     fetch: [
       stage("james-fort", "timber", 10, "the triangular fort, storehouse, and river landing", "The company values defense before health. Its island fort needs"),
       stage("virginia-tools", "iron", 6, "axes, farming tools, nails, and experimental industries", "Gentlemen searching for treasure will still need to cut wood and plant. Bring"),
-      stage("virginia-grain", "grain", 14, "food and seed that do not depend on Powhatan stores", "The company has packed too many mouths and too little food. Correct that with")
+      stage("virginia-grain", "grain", 14, "food and seed that do not depend on Powhatan stores", "The Company expects the savages along the James to feed English gentlemen. Carry our own")
     ],
     ready: "The investors call the passengers adventurers, but most have never farmed and the company expects the colony to find profit immediately.",
     departed: "Company gentlemen, laborers, and soldiers are aboard, still debating whether gold or a passage lies beyond the James.",
@@ -286,24 +286,24 @@ const HISTORIES = Object.freeze([
       challenge: "The English take more fields with every season. Opechancanough has ordered your settlements struck. Leave the James, or we attack!",
       report: "The Powhatan attack broke off. Jamestown survives, but English expansion has made a wider war inevitable. The Virginia Company pays the bounty."
     }),
-    established: "Jamestown has survived disease, hunger, and conflict long enough to become permanent. The Virginia Company has its foothold, at a human cost its pamphlets will not advertise."
+    established: "Jamestown has survived disease, hunger, and war long enough to become permanent. The Company's pamphlets boast of the fort; its graveyard keeps the truer account."
   }),
   history("Quebec", "Canada", {
     sponsorRole: "agent of de Monts and Champlain",
     settlementLeaderRole: "commandant of Quebec",
     basis: "Champlain founded Quebec in 1608 as a fortified fur-trade post where the St. Lawrence narrows, within alliances with Innu, Algonquin, and Wendat peoples.",
-    pitch: "Champlain wants a permanent Habitation where the St. Lawrence narrows. The post will depend on the fur trade and on French alliances with Innu, Algonquin, and Wendat partners.",
+    pitch: "Champlain wants a permanent Habitation where the St. Lawrence narrows. The post will depend on the fur trade and on French alliances with the Innu, Algonquin, and Wendat.",
     fetch: [
       stage("quebec-habitation", "timber", 10, "the Habitation, palisade, storehouse, and river wharf", "The narrow river can be watched from a compact fortified post. Bring"),
-      stage("fur-trade-goods", "wool-cloth", 8, "trade with Indigenous partners and winter clothing", "A fur post without respectable exchange goods will destroy its own alliances. Supply"),
+      stage("fur-trade-goods", "wool-cloth", 8, "trade with Innu, Algonquin, and Wendat allies and winter clothing", "A fur post without respectable exchange goods will destroy its own alliances. Supply"),
       stage("quebec-tools", "iron", 6, "axes, nails, farming tools, and ship repairs", "The Habitation must repair itself through a northern winter. Finish with")
     ],
-    ready: "The post is both warehouse and alliance: French survival upriver will rest on Indigenous trade, diplomacy, and geographic knowledge.",
+    ready: "The post is both warehouse and alliance: French survival upriver will rest on trade and friendship with the savages, and on their knowledge of the rivers.",
     departed: "Champlain's workers and factors sail for the place where the great river narrows.",
     landing: "The high ground commands the narrows called Quebec. We will build the Habitation here and enter an alliance system far older than this fort.",
     landingAction: "Build the Quebec Habitation",
     resupply: resupply("grain", 12, "the Habitation after its deadly first winter", "Quebec needs grain before ice closes the St. Lawrence.", "The post survived, but scurvy and cold have left too few hands for a confident harvest.", "The grain is inside the Habitation before freeze-up."),
-    established: "Quebec now anchors New France at the river narrows, sustained by shipping, fur trade, and its Indigenous alliances."
+    established: "Quebec now anchors New France at the river narrows, sustained by shipping, fur trade, and alliances with the Innu, Algonquin, and Wendat."
   }),
   history("St. George's", "Bermuda", {
     sponsorRole: "Virginia Company island promoter",
@@ -330,15 +330,15 @@ const HISTORIES = Object.freeze([
     pitch: "The old Fort Nassau was damaged by floods. The West India Company wants a stronger post at the head of Hudson navigation, where Mahican and Mohawk trade routes meet the river.",
     fetch: [
       stage("orange-stockade", "timber", 10, "a flood-conscious stockade, warehouse, and river dock", "The first Dutch fort sat too low and the river punished it. Bring"),
-      stage("orange-trade", "wool-cloth", 8, "honest exchange in the beaver trade", "The Company's whole calculation rests on Indigenous trade. Its factors need"),
+      stage("orange-trade", "wool-cloth", 8, "honest exchange in the beaver trade", "The Company's whole calculation rests on Mahican and Mohawk trade. Its factors need"),
       stage("orange-goods", "glassware", 4, "durable, visible trade goods for the upriver market", "A bare fort cannot command commerce. Complete the factor's stock with")
     ],
     ready: "Fort Orange is a company warehouse before it is a town, built to gather beaver pelts at the river's inland terminus.",
     departed: "Walloon families, soldiers, and Company factors sail together, though the factors have counted every chest twice.",
     landing: "This bank sits above the worst floods and below the great carrying routes. We will build Fort Orange as a place of contact and commerce with Mahican and Mohawk traders.",
     landingAction: "Build Fort Orange",
-    resupply: resupply("wool-cloth", 8, "the exchange stock needed for the fur trade", "Fort Orange needs trade cloth before the next upriver rendezvous.", "The fort is sound, but its warehouse is nearly empty and Indigenous traders will not accept Company promises.", "The trade cloth is shelved; Fort Orange can meet its partners with goods in hand."),
-    established: "Fort Orange now gathers pelts at the head of Hudson navigation, a Dutch company post whose survival depends on Indigenous trade networks."
+    resupply: resupply("wool-cloth", 8, "the exchange stock needed for the fur trade", "Fort Orange needs trade cloth before the next upriver rendezvous.", "The fort is sound, but its warehouse is nearly empty and Mahican and Mohawk traders will not accept Company promises.", "The trade cloth is shelved; Fort Orange can meet its trading partners with goods in hand."),
+    established: "Fort Orange now gathers pelts at the head of Hudson navigation, a Dutch company post whose survival depends on Mahican and Mohawk trade."
   }),
   history("Plymouth", "United States of America", {
     organizerReligionId: "reformed-protestant",
@@ -349,14 +349,14 @@ const HISTORIES = Object.freeze([
     fetch: [
       stage("plymouth-houses", "timber", 8, "common houses, roofs, and a defensive platform", "The congregation can write a compact aboard ship; it cannot sleep under parchment. Bring"),
       stage("plymouth-clothing", "wool-cloth", 8, "blankets and clothes for a New England winter", "The first winter will begin before proper houses are ready. Supply"),
-      stage("plymouth-seed", "grain", 12, "food and seed while unfamiliar crops are learned", "No colony should presume that local people will feed it. Carry")
+      stage("plymouth-seed", "grain", 12, "food and seed while unfamiliar crops are learned", "The congregation cannot presume upon Wampanoag corn. Carry")
     ],
     ready: "These are families and religious dissenters rather than a company garrison, though hunger will judge their ideals as sternly as any soldier.",
     departed: "The congregation is aboard, drafting rules for a community whose landing place they have not yet seen.",
-    landing: "This is Patuxet, a Wampanoag town emptied by epidemic, not untouched wilderness. If Plymouth survives here, it will owe much to Wampanoag knowledge and political choices.",
+    landing: "This is Patuxet, a Wampanoag town emptied by pestilence. If Plymouth survives here, it will owe much to Wampanoag corn, counsel, and alliance.",
     landingAction: "Settle at Patuxet",
     resupply: resupply("grain", 14, "survivors of the first winter and the next planting", "Plymouth needs grain after a winter that spared very few households.", "The settlement stands among the cleared fields of Patuxet, but illness and hunger have taken a terrible share.", "The grain has arrived; the survivors can plant without immediately consuming their seed."),
-    established: "Plymouth has endured at Patuxet through Wampanoag assistance and an uneasy alliance, not through providence or English preparation alone."
+    established: "Plymouth has endured at Patuxet through Wampanoag aid and an uneasy alliance; English stores alone would not have saved it."
   }),
   history("New Amsterdam", "United States of America", {
     organizerReligionId: "reformed-protestant",
@@ -374,13 +374,13 @@ const HISTORIES = Object.freeze([
     landing: "The southern tip controls both the harbor and the Hudson. We will build Fort Amsterdam here, but any lasting town must negotiate its presence with the Lenape.",
     landingAction: "Build Fort Amsterdam",
     resupply: resupply("wool-cloth", 8, "the fur trade and the new harbor market", "New Amsterdam needs trade cloth before its factors lose the upriver business.", "The fort commands the harbor, but commerce is slowing as its exchange stock empties.", "The cloth is in the Company warehouse; ships and pelts are moving again."),
-    established: "New Amsterdam now governs New Netherland from Manhattan, a company fort growing into a diverse Atlantic trading town."
+    established: "New Amsterdam now governs New Netherland from Manhattan, its quays crowded with Dutch, Walloon, African, and foreign merchants."
   }),
   history("Bridgetown", "Barbados", {
     sponsorRole: "agent of the Earl of Carlisle",
     settlementLeaderRole: "governor at Bridgetown",
     basis: "English settlement at Bridgetown began in 1628 at Carlisle Bay; its early organic street plan preceded the later sugar-slavery economy.",
-    pitch: "Carlisle's agents want a harbor at Carlisle Bay. Barbados now grows cotton and tobacco; its sugar economy and brutal expansion of slavery lie ahead.",
+    pitch: "Carlisle's agents want a harbor at Carlisle Bay. Barbados grows cotton and tobacco, and its planters already search for a richer staple.",
     fetch: [
       stage("carlisle-wharf", "timber", 8, "a wharf, houses, and storm-secured warehouses", "The natural bay needs a working town behind it. Bring"),
       stage("barbados-tools", "iron", 6, "farming tools, cranes, and boat repairs", "An island colony must repair what it cannot quickly import. Supply"),
@@ -391,7 +391,7 @@ const HISTORIES = Object.freeze([
     landing: "Carlisle Bay is the best roadstead on the island. We will establish the town that sailors are already calling the Bridge.",
     landingAction: "Settle Bridgetown",
     resupply: resupply("grain", 12, "the island's first crowded planting seasons", "Bridgetown needs food while planters gamble on export crops.", "Cotton and tobacco occupy the promoters, but neither feeds a hungry harbor town.", "The grain is unloaded; Bridgetown has time to learn what this island can sustain."),
-    established: "Bridgetown now anchors English Barbados at Carlisle Bay. Its port is prospering, while the plantation system around it is becoming harsher and more dependent on coerced labor."
+    established: "Bridgetown now anchors English Barbados at Carlisle Bay. Its port prospers while plantations spread and demand ever more bond labor."
   }),
   history("Boston", "United States of America", {
     organizerReligionId: "reformed-protestant",
@@ -406,7 +406,7 @@ const HISTORIES = Object.freeze([
     ],
     ready: "The Puritans mean Boston to be both a working harbor and a visible godly commonwealth, watched by the world and by one another.",
     departed: "The fleet carries whole congregations, livestock, tools, and very firm opinions about the society they intend to build.",
-    landing: "Shawmut's spring solves the water crisis that plagued Charlestown. We will establish Boston on this narrow peninsula, within the homeland of Massachusett people.",
+    landing: "Shawmut's spring solves the water crisis that plagued Charlestown. We will establish Boston on this narrow peninsula in the country of the Massachusett.",
     landingAction: "Settle Boston at Shawmut",
     resupply: resupply("grain", 14, "a large migration through its first New England winter", "Boston needs grain; the Winthrop fleet arrived faster than its farms could grow.", "The spring is sound and the meetinghouse is busy, but too many new households share too small a harvest.", "The grain is ashore; Boston's first winter need not empty the town."),
     established: "Boston now occupies the Shawmut peninsula, a Puritan harbor and government center built around the spring that drew the fleet across the river."
@@ -414,26 +414,26 @@ const HISTORIES = Object.freeze([
   history("Trois-Rivieres", "Canada", {
     sponsorRole: "agent of Champlain",
     settlementLeaderRole: "commandant of Trois-Rivieres",
-    basis: "Champlain sent Laviolette in 1634 to build a fortified post at the Saint-Maurice confluence, already a longstanding Indigenous fur-trade rendezvous.",
-    pitch: "Champlain wants Laviolette to fortify the Saint-Maurice confluence. Indigenous traders already use it for the fur rendezvous.",
+    basis: "Champlain sent Laviolette in 1634 to build a fortified post at the Saint-Maurice confluence, already a longstanding Indian fur-trade rendezvous.",
+    pitch: "Champlain wants Laviolette to fortify the Saint-Maurice confluence. Algonquin and Innu traders already gather there for the fur trade.",
     fetch: [
       stage("three-rivers-fort", "timber", 10, "a palisade, house, store, and raised river landing", "The elevated Platon overlooks both river approaches. Build it with"),
-      stage("three-rivers-trade", "wool-cloth", 8, "the annual Indigenous fur rendezvous", "A post at an old meeting place must arrive ready to exchange, not merely command. Bring"),
+      stage("three-rivers-trade", "wool-cloth", 8, "the annual Algonquin and Innu fur rendezvous", "A post at an old meeting place must arrive ready to exchange, not merely command. Bring"),
       stage("three-rivers-tools", "iron", 5, "fort fittings, axes, and repairs", "The small garrison and its artisans will be far from Quebec's workshops. Supply")
     ],
-    ready: "The expedition includes artisans, soldiers, and Jesuits, but the post's economic life will come from the annual Indigenous trade gathering.",
+    ready: "The expedition includes artisans, soldiers, and Jesuits, but the post will live by the annual trade of the savages.",
     departed: "Laviolette's small company sails upriver with a warehouse packed more carefully than its chapel.",
     landing: "The Saint-Maurice appears as three rivers among the islands. We will raise the fortified trading post above this established rendezvous.",
     landingAction: "Build Fort Trois-Rivieres",
     resupply: resupply("wool-cloth", 8, "the next annual fur-trade rendezvous", "Trois-Rivieres needs trade cloth before the spring gathering.", "The fort survived fire and rebuilding, but its exchange stock is nearly gone.", "The warehouse is ready for the rendezvous at the three rivers."),
-    established: "Trois-Rivieres has become a permanent fortified fur post at the Saint-Maurice confluence, linking French shipping to Indigenous trade routes."
+    established: "Trois-Rivieres has become a permanent fortified fur post at the Saint-Maurice confluence, linking French shipping to Algonquin and Innu trade routes."
   }),
   history("Hartford", "United States of America", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "Connecticut congregation organizer",
     settlementLeaderRole: "magistrate at Hartford",
     basis: "Thomas Hooker's congregation moved from crowded Massachusetts to Saukiog on the Connecticut River, near an earlier Dutch trading fort.",
-    pitch: "Hooker's congregation finds Massachusetts too restrictive. They plan Saukiog on the Connecticut, amid Saukiog and Wangunk communities.",
+    pitch: "Hooker's congregation finds Massachusetts too restrictive. They plan a town at Saukiog on the Connecticut, among Saukiog and Wangunk villages.",
     fetch: [
       stage("connecticut-houses", "timber", 8, "homes, meetinghouse, barns, and river boats", "A whole congregation and its cattle need more than a trading camp. Bring"),
       stage("connecticut-tools", "iron", 6, "ploughs, axes, nails, and mill parts", "The river meadows can feed a town if settlers arrive prepared to work them. Supply"),
@@ -441,17 +441,17 @@ const HISTORIES = Object.freeze([
     ],
     ready: "The settlers expect to walk much of the way with their cattle while the heaviest stores travel by water.",
     departed: "Families and livestock move toward the Connecticut while your ship carries the cargo no muddy trail can bear.",
-    landing: "This is Saukiog, already part of Native and Dutch geographies. We will establish the English river town nearby rather than pretend the valley begins with us.",
+    landing: "This is Saukiog, on Indian paths and just beyond the Dutch fort. We will plant the English river town beside it.",
     landingAction: "Settle Hartford at Saukiog",
     resupply: resupply("grain", 12, "the congregation until its river farms mature", "Hartford needs grain while its new meadows are fenced and planted.", "The cattle have pasture and the houses have roofs, but the first crop remains thin.", "The grain is stored; the river congregation can survive to its own harvest."),
-    established: "Hartford has become an English farming town on the Connecticut, beside older Native routes and just beyond the Dutch post."
+    established: "Hartford has become an English farming town on the Connecticut, beside the old Indian paths and just beyond the Dutch post."
   }),
   history("Providence", "United States of America", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "friend of Roger Williams",
     settlementLeaderRole: "steward of Providence",
     basis: "Roger Williams founded Providence in 1636 after banishment, negotiating land use with Narragansett sachems Canonicus and Miantonomi.",
-    pitch: "Banished for defending liberty of conscience and Native land rights, Roger Williams seeks a settlement beyond Massachusetts.",
+    pitch: "Banished for liberty of conscience and for denying that the Crown may grant Indian land without purchase, Roger Williams seeks refuge beyond Massachusetts.",
     fetch: [
       stage("providence-houses", "timber", 8, "simple houses along the Moshassuck and a common landing", "The refuge begins with only a few companions beside a freshwater spring. Bring"),
       stage("narragansett-trade", "wool-cloth", 8, "the continuing exchange promised to Narragansett sachems", "Williams's relationship with Canonicus and Miantonomi must be sustained with useful goods. Supply"),
@@ -492,9 +492,9 @@ const HISTORIES = Object.freeze([
       stage("hotel-dieu", "linen-cloth", 8, "bandages, bedding, and the first Hotel-Dieu", "Jeanne Mance will not let the hospital be an afterthought. Supply"),
       stage("ville-marie-tools", "iron", 6, "fort fittings, farming tools, and hospital instruments", "The mission's piety will be tested by practical shortages. Add")
     ],
-    ready: "The company is small and its aim openly missionary, at a strategic place already important to Indigenous travel and trade.",
+    ready: "The company is small and openly missionary, at a place where Indian roads and river trade already meet.",
     departed: "Maisonneuve guards the arms while Jeanne Mance guards the hospital chests; neither trusts the other's cargo to stay dry.",
-    landing: "Montreal Island commands the meeting of river routes. We will raise Ville-Marie here as mission, fort, and hospital, within a contested Indigenous world.",
+    landing: "Montreal Island commands the meeting of river routes. We will raise Ville-Marie here as mission, fort, and hospital amid the wars of the St. Lawrence nations.",
     landingAction: "Found Ville-Marie",
     resupply: resupply("linen-cloth", 8, "the Hotel-Dieu and the settlement's wounded and sick", "Ville-Marie needs linen for Jeanne Mance's hospital.", "The fort remains exposed and the hospital has used every clean length of cloth.", "The linen is in the Hotel-Dieu; Mance can keep treating the settlement."),
     defense: defense({
@@ -519,12 +519,12 @@ const HISTORIES = Object.freeze([
       stage("carolina-arms", "arms", 6, "the southernmost English garrison", "The Proprietors' grand port begins as a small exposed camp. Equip it with"),
       stage("carolina-seed", "grain", 14, "food and seed while unfamiliar Carolina crops are tested", "Local Cusabo assistance may save the settlement, but it must carry its own provisions. Add")
     ],
-    ready: "The expedition includes free settlers, indentured servants, and enslaved people; Barbados has already shaped the social order the Proprietors mean to transplant.",
+    ready: "The expedition includes free settlers, indentured servants, and slaves from Barbados; the Proprietors mean to plant Carolina in the Barbadian fashion.",
     departed: "After losing ships to storms, the surviving Carolina company approaches the coast with fewer stores than its charter imagined.",
     landing: "This is Kayawah, where Cusabo people already live and travel. We will fortify Albemarle Point as Charles Towne, with Spanish Florida close enough to keep watchmen awake.",
     landingAction: "Fortify Charles Towne",
     resupply: resupply("grain", 14, "settlers whose first crops have failed", "Charles Towne needs grain after poor first harvests.", "Cusabo food and support have kept the settlement alive, but the Proprietors' own crops have disappointed them.", "The grain is secure; Charles Towne has survived its weakest season."),
-    established: "Charles Towne now anchors Carolina as a fortified port. Its prosperity is already tied to Barbados, plantation expansion, and enslaved labor."
+    established: "Charles Towne now anchors Carolina as a fortified port. Its prosperity is already tied to Barbados, spreading plantations, and slave labor."
   }),
   history("Philadelphia", "United States of America", {
     organizerReligionId: "quaker",
