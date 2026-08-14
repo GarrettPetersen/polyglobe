@@ -27,10 +27,11 @@ export function snowWaveOffset(elapsedMs, phaseRad, amplitudePx, periodMs) {
 export function snowfallPresentationStrength({
   snowDay,
   coldWater,
+  snowCoveredGround = false,
   cloudOpacity,
   stormIntensity
 }) {
-  for (const [label, value] of Object.entries({ snowDay, coldWater })) {
+  for (const [label, value] of Object.entries({ snowDay, coldWater, snowCoveredGround })) {
     if (typeof value !== "boolean") {
       throw new Error(`Snowfall ${label} flag must be boolean: ${value}`);
     }
@@ -40,10 +41,14 @@ export function snowfallPresentationStrength({
       throw new Error(`Snowfall ${label} must be within 0..1: ${value}`);
     }
   }
-  if (!snowDay && !coldWater) return 0;
+  if (!snowDay && !coldWater && !snowCoveredGround) return 0;
 
   const stormMoisture = Math.max(0, (stormIntensity - 0.28) / 0.62);
-  const moisture = Math.max(cloudOpacity, stormMoisture);
+  // A baked snow day already represents local precipitation. Decorative cloud
+  // sprites are sparse by design, so they may deepen snowfall but must not be
+  // required for the first flakes to appear.
+  const snowDayMoisture = snowDay ? 0.32 : 0;
+  const moisture = Math.max(snowDayMoisture, cloudOpacity, stormMoisture);
   if (moisture <= 0.08) return 0;
   return Math.min(1, (moisture - 0.08) / 0.72);
 }

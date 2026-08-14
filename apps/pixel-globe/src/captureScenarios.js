@@ -122,7 +122,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
       factionId: "denmark-norway",
       shipSlug: "viking-longship",
       lat: 68,
-      lon: 8,
+      lon: 4,
       headingDeg: 205,
       activePlaySeconds: 90
     },

@@ -36,31 +36,40 @@ test("precipitation helpers reject malformed animation state", () => {
   assert.throws(() => snowWaveOffset(100, 0, 1, 0), /period/);
 });
 
-test("snowfall is occasional, frozen, and moisture driven", () => {
+test("baked snow days always show gentle flakes and deepen with moisture", () => {
   assert.equal(snowfallPresentationStrength({
     snowDay: false,
     coldWater: false,
     cloudOpacity: 1,
     stormIntensity: 1
   }), 0);
-  assert.equal(snowfallPresentationStrength({
+  const drySnowDay = snowfallPresentationStrength({
     snowDay: true,
     coldWater: false,
     cloudOpacity: 0,
     stormIntensity: 0
-  }), 0);
-  assert.ok(snowfallPresentationStrength({
+  });
+  assert.ok(drySnowDay > 0);
+  const cloudySnowDay = snowfallPresentationStrength({
     snowDay: true,
     coldWater: false,
     cloudOpacity: 0.62,
     stormIntensity: 0
-  }) > 0);
+  });
+  assert.ok(cloudySnowDay > drySnowDay);
   assert.ok(snowfallPresentationStrength({
     snowDay: false,
     coldWater: true,
     cloudOpacity: 0,
     stormIntensity: 0.9
   }) > 0.8);
+  assert.ok(snowfallPresentationStrength({
+    snowDay: false,
+    coldWater: false,
+    snowCoveredGround: true,
+    cloudOpacity: 0.5,
+    stormIntensity: 0
+  }) > 0);
 });
 
 test("snow falls while wind advects it in both screen axes", () => {

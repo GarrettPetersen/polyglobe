@@ -1,4 +1,7 @@
-import { exactNorthUpLayoutPosition } from "./chartReframe.js";
+import {
+  exactNorthUpLayoutPosition,
+  planChartSettlementTowardTargets
+} from "./chartReframe.js";
 
 function assertFinitePoint(point, label) {
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
@@ -1055,8 +1058,59 @@ export function admitProjectedTiles({
     defaultMaximumSlackPx: maxContinuityCorrectionPx,
     maximumSlackPxByClass: continuityCorrectionLimitsByClass
   });
+  settlePendingContinuityEdgeLengths({
+    positions,
+    projectedById,
+    pendingIds: pending,
+    neighborsById,
+    continuityMaskById,
+    defaultMaximumSlackPx: maxContinuityCorrectionPx,
+    maximumSlackPxByClass: continuityCorrectionLimitsByClass
+  });
 
   return admitted;
+}
+
+function settlePendingContinuityEdgeLengths({
+  positions,
+  projectedById,
+  pendingIds,
+  neighborsById,
+  continuityMaskById,
+  defaultMaximumSlackPx,
+  maximumSlackPxByClass
+}) {
+  if (continuityMaskById === null || pendingIds.length === 0) return;
+  const pendingSet = new Set(pendingIds.filter((id) => continuityMaskById[id] !== 0));
+  if (pendingSet.size === 0) return;
+  const topologyIds = new Set(pendingSet);
+  for (const id of pendingSet) {
+    for (const neighborId of neighborsById[id]) {
+      if (positions.has(neighborId) && projectedById.has(neighborId)) {
+        topologyIds.add(neighborId);
+      }
+    }
+  }
+  const referencePositions = new Map(
+    [...topologyIds].map((id) => [id, projectedById.get(id)])
+  );
+  const targetsById = new Map(
+    [...pendingSet].map((id) => [id, positions.get(id)])
+  );
+  const waterSlackPx = maximumSlackPxByClass?.get(1) ?? defaultMaximumSlackPx;
+  const landSlackPx = maximumSlackPxByClass?.get(2) ?? defaultMaximumSlackPx;
+  const settlement = planChartSettlementTowardTargets({
+    positions,
+    targetsById,
+    tileIds: pendingSet,
+    maximumStepPx: Number.POSITIVE_INFINITY,
+    referencePositions,
+    neighborsById,
+    surfaceMaskById: continuityMaskById,
+    landSlackPx,
+    waterSlackPx
+  });
+  for (const [id, position] of settlement.settledPositions) positions.set(id, position);
 }
 
 function reconcilePendingContinuityEdges({

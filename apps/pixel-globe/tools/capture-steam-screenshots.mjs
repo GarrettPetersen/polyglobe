@@ -10,11 +10,14 @@ import {
 import {
   STEAM_SCREENSHOT_HEIGHT,
   STEAM_SCREENSHOT_LANGUAGES,
+  STEAM_SCREENSHOT_LOGICAL_HEIGHT,
+  STEAM_SCREENSHOT_LOGICAL_WIDTH,
   STEAM_SCREENSHOT_SHOTS,
   STEAM_SCREENSHOT_WIDTH,
   steamScreenshotFileName
 } from "./steam-screenshot-catalog.mjs";
 import { localizeText } from "../src/localization.js";
+import { integerPixelScaleForDimensions } from "../src/screenshotExport.js";
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
@@ -76,7 +79,7 @@ function steamScreenshotManifest(manifestShots, manifestLanguages) {
   return {
     version: 1,
     dimensions: { width: STEAM_SCREENSHOT_WIDTH, height: STEAM_SCREENSHOT_HEIGHT },
-    captureMethod: "deterministic-frame-step",
+    captureMethod: "deterministic-logical-canvas",
     languages: manifestLanguages.map(({ id, label, nativeLabel, steamCode }) => ({
       id,
       label,
@@ -185,13 +188,15 @@ async function captureLocalizedScreenshots(browser, shot) {
       error: window.__PIXEL_GLOBE_CAPTURE_ERROR__ || null,
       language: document.documentElement.lang,
       frameCount: window.__PIXEL_GLOBE_CAPTURE_TOTAL_FRAMES__,
-      canSwitchLanguage: typeof window.__PIXEL_GLOBE_CAPTURE_SET_LANGUAGE__ === "function"
+      canSwitchLanguage: typeof window.__PIXEL_GLOBE_CAPTURE_SET_LANGUAGE__ === "function",
+      canExportScreenshot: typeof window.__PIXEL_GLOBE_CAPTURE_SCREENSHOT__ === "function"
     }));
     if (state.error) throw new Error(state.error);
     if (state.language !== languages[0].id) {
       throw new Error(`Expected locale ${languages[0].id}, game loaded ${state.language}`);
     }
     if (!state.canSwitchLanguage) throw new Error("Capture language switch is unavailable");
+    if (!state.canExportScreenshot) throw new Error("Pixel-perfect screenshot export is unavailable");
     if (!Number.isInteger(state.frameCount) || shot.frameIndex >= state.frameCount) {
       throw new Error(`${shot.id} cannot capture frame ${shot.frameIndex}/${state.frameCount}`);
     }
@@ -226,11 +231,18 @@ async function captureLocalizedScreenshots(browser, shot) {
       }
       const fileName = steamScreenshotFileName(shot, language);
       const outputPath = path.join(outputRoot, fileName);
-      await page.locator("#view").screenshot({
-        path: outputPath,
-        type: "png",
-        animations: "disabled"
+      const scale = integerPixelScaleForDimensions({
+        sourceWidth: STEAM_SCREENSHOT_LOGICAL_WIDTH,
+        sourceHeight: STEAM_SCREENSHOT_LOGICAL_HEIGHT,
+        targetWidth: STEAM_SCREENSHOT_WIDTH,
+        targetHeight: STEAM_SCREENSHOT_HEIGHT
       });
+      const capture = await page.evaluate(
+        (pixelScale) => window.__PIXEL_GLOBE_CAPTURE_SCREENSHOT__(pixelScale),
+        scale
+      );
+      assertPixelPerfectCapture(capture, scale, fileName);
+      await writeFile(outputPath, pngDataUrlBytes(capture.dataUrl));
       const dimensions = pngDimensions(await readFile(outputPath));
       if (dimensions.width !== STEAM_SCREENSHOT_WIDTH || dimensions.height !== STEAM_SCREENSHOT_HEIGHT) {
         throw new Error(
@@ -241,8 +253,9 @@ async function captureLocalizedScreenshots(browser, shot) {
       shotResults.push({ fileName, ...dimensions });
       process.stdout.write(`  ${language.steamCode}\n`);
     }
-    if (errors.length > 0) {
-      throw new Error(`Browser errors while capturing ${shot.id}:\n${errors.join("\n")}`);
+    const actionableErrors = errors.filter((message) => !isIgnorableStillCaptureBrowserError(message));
+    if (actionableErrors.length > 0) {
+      throw new Error(`Browser errors while capturing ${shot.id}:\n${actionableErrors.join("\n")}`);
     }
     return shotResults;
   } catch (error) {
@@ -254,12 +267,38 @@ async function captureLocalizedScreenshots(browser, shot) {
   }
 }
 
+function isIgnorableStillCaptureBrowserError(message) {
+  return /^The AudioContext encountered an error from the audio device or the WebAudio renderer\.?$/.test(
+    String(message).trim()
+  );
+}
+
+function assertPixelPerfectCapture(capture, scale, fileName) {
+  if (
+    capture?.logicalWidth !== STEAM_SCREENSHOT_LOGICAL_WIDTH ||
+    capture?.logicalHeight !== STEAM_SCREENSHOT_LOGICAL_HEIGHT ||
+    capture?.width !== STEAM_SCREENSHOT_WIDTH ||
+    capture?.height !== STEAM_SCREENSHOT_HEIGHT ||
+    capture?.scale !== scale
+  ) {
+    throw new Error(`${fileName} returned malformed pixel-perfect capture geometry`);
+  }
+}
+
+function pngDataUrlBytes(dataUrl) {
+  const prefix = "data:image/png;base64,";
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith(prefix)) {
+    throw new Error("Pixel-perfect screenshot export did not return a PNG data URL");
+  }
+  return Buffer.from(dataUrl.slice(prefix.length), "base64");
+}
+
 function isSubstantiveEnglishScreenText(value) {
   if (typeof value !== "string" || !/\s/.test(value)) return false;
   if (/MARQUE-AND-REPRISAL\.COM/i.test(value)) return false;
   if (/\b(?:Dogica|Galmuri11)\b/.test(value)) return false;
   const englishGrammarWords = new Set([
-    "a", "an", "and", "are", "at", "can", "could", "for", "from", "has", "have",
+    "and", "are", "at", "can", "could", "for", "from", "has", "have",
     "in", "into", "is", "of", "on", "our", "should", "that", "the", "this", "to",
     "was", "we", "were", "will", "with", "you", "your"
   ]);

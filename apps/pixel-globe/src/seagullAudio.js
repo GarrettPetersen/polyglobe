@@ -23,7 +23,11 @@ export function seagullScreenPresence(calls, {
     if (!Number.isFinite(call?.x) || !Number.isFinite(call?.y)) {
       throw new Error("Seagull audio draw call requires finite coordinates");
     }
-    visiblePresence += spriteScreenPresence(call.x, call.y, {
+    const visibility = call.visibility ?? 1;
+    if (!Number.isFinite(visibility) || visibility < 0 || visibility > 1) {
+      throw new Error(`Seagull audio visibility must be within 0..1: ${visibility}`);
+    }
+    visiblePresence += visibility * spriteScreenPresence(call.x, call.y, {
       screenWidth,
       screenHeight,
       spriteSize,

@@ -95,6 +95,111 @@ test("unified chart settlement respects a concealed tile's pixel budget", () => 
   assert.deepEqual(result.settledPositions.get(2), { x: 39, y: 0 });
 });
 
+test("unified chart settlement rotates an intact neighbor mesh toward north-up", () => {
+  const targetsById = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 12, y: 21 }],
+    [3, { x: -12, y: 21 }],
+    [4, { x: -24, y: 0 }],
+    [5, { x: -12, y: -21 }],
+    [6, { x: 12, y: -21 }]
+  ]);
+  const angle = 12 * Math.PI / 180;
+  const positions = new Map([...targetsById].map(([id, point]) => [id, {
+    x: Math.round(point.x * Math.cos(angle) - point.y * Math.sin(angle)),
+    y: Math.round(point.x * Math.sin(angle) + point.y * Math.cos(angle))
+  }]));
+  const neighborsById = [
+    [1, 2, 3, 4, 5, 6],
+    [0, 2, 6],
+    [0, 1, 3],
+    [0, 2, 4],
+    [0, 3, 5],
+    [0, 4, 6],
+    [0, 5, 1]
+  ];
+  const before = [...positions].reduce((sum, [id, point]) => {
+    const target = targetsById.get(id);
+    return sum + Math.hypot(point.x - target.x, point.y - target.y);
+  }, 0);
+  const result = planChartSettlementTowardTargets({
+    positions,
+    targetsById,
+    tileIds: new Set(targetsById.keys()),
+    maximumStepPx: 8,
+    referencePositions: targetsById,
+    neighborsById,
+    surfaceMaskById: new Uint8Array(7).fill(2),
+    landSlackPx: 3,
+    waterSlackPx: 6
+  });
+  const after = [...positions].reduce((sum, [id, point]) => {
+    const settled = result.settledPositions.get(id) ?? point;
+    const target = targetsById.get(id);
+    return sum + Math.hypot(settled.x - target.x, settled.y - target.y);
+  }, 0);
+
+  assert.ok(after < before * 0.3, `expected ${after.toFixed(2)} to improve ${before.toFixed(2)}`);
+  assert.ok(result.worstEdge.errorPx <= result.worstEdge.allowedErrorPx + 1);
+});
+
+test("small covered moves unwind tilt away from a fixed navigation patch", () => {
+  const tileCount = 12;
+  const targetsById = new Map(Array.from({ length: tileCount }, (_, id) => [
+    id,
+    { x: id * 24, y: 0 }
+  ]));
+  const angle = 12 * Math.PI / 180;
+  const positions = new Map([...targetsById].map(([id, point]) => [id, {
+    x: Math.round(point.x * Math.cos(angle)),
+    y: Math.round(point.x * Math.sin(angle))
+  }]));
+  const neighborsById = Array.from({ length: tileCount }, (_, id) => [
+    ...(id > 0 ? [id - 1] : []),
+    ...(id + 1 < tileCount ? [id + 1] : [])
+  ]);
+  const fixedPosition = { ...positions.get(1) };
+  const movableIds = new Set(Array.from({ length: tileCount - 2 }, (_, index) => index + 2));
+  const initialFarError = Math.hypot(
+    positions.get(tileCount - 1).x - targetsById.get(tileCount - 1).x,
+    positions.get(tileCount - 1).y - targetsById.get(tileCount - 1).y
+  );
+
+  for (let pass = 0; pass < 30; pass++) {
+    const result = planChartSettlementTowardTargets({
+      positions,
+      targetsById,
+      tileIds: movableIds,
+      maximumStepPx: 2,
+      referencePositions: targetsById,
+      neighborsById,
+      surfaceMaskById: new Uint8Array(tileCount).fill(1),
+      landSlackPx: 3,
+      waterSlackPx: 6,
+      incrementalRepair: true
+    });
+    for (const [id, point] of result.settledPositions) positions.set(id, point);
+  }
+
+  const farPosition = positions.get(tileCount - 1);
+  const farTarget = targetsById.get(tileCount - 1);
+  const finalFarError = Math.hypot(
+    farPosition.x - farTarget.x,
+    farPosition.y - farTarget.y
+  );
+  assert.deepEqual(positions.get(1), fixedPosition);
+  assert.ok(
+    finalFarError < initialFarError * 0.2,
+    `expected iterative correction ${finalFarError.toFixed(2)} to improve ${initialFarError.toFixed(2)}`
+  );
+  for (let id = 0; id + 1 < tileCount; id++) {
+    const a = positions.get(id);
+    const b = positions.get(id + 1);
+    assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - 24) <= 6.1);
+  }
+});
+
 test("an exact hidden reframe discards prior tears and follows fresh projection", () => {
   const layout = createExactNorthUpLayout([
     { id: 10, x: 120, y: 80 },

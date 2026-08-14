@@ -1126,7 +1126,7 @@ import {
   createAutomaticFrameStepper,
   createCaptureDirector
 } from "./captureDirector.js";
-import { saveShareScreenshot } from "./screenshotExport.js";
+import { createShareScreenshotCanvas, saveShareScreenshot } from "./screenshotExport.js";
 import { gameStorage } from "./gameStorage.js";
 import {
   TELEMETRY_CONSENT_GRANTED,
@@ -1808,6 +1808,7 @@ import {
 import {
   CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX,
   chartFaultNeedsCloudRepair,
+  chartRotationNeedsFullCloudRepair,
   measureVisibleTerrainTear,
   terrainTearNeedsRepair
 } from "./chartVisualFault.js";
@@ -3510,6 +3511,8 @@ let chartRecoveryDiagnosticDialogueEnabled = true;
 let chartRecoveryDiagnosticExactReframes = [];
 let chartRecoveryDiagnosticStartPosition = null;
 let chartRecoveryDiagnosticCoveredTileMoves = [];
+let chartRecoveryDiagnosticCoveredTileApplications = 0;
+let chartRecoveryDiagnosticManualNowMs = 0;
 let chartRecoveryDiagnosticAdmissions = [];
 let chartRecoveryDiagnosticRepairPasses = [];
 let lastAutosaveMs = 0;
@@ -3583,6 +3586,8 @@ let polarChartRepairPressureUpdatedAtMs = null;
 let chartRepairCooldownUntilMs = -Infinity;
 let chartRepairPendingConfirmation = null;
 let polarFogNextTileRepairAtMs = 0;
+const pendingCoveredChartRepairPositions = new Map();
+const pendingCoveredNpcRepairIds = new Set();
 let chartVisualRepairStats = createChartVisualRepairStats();
 let chartReframeDialogueTrigger = createChartReframeDialogueTrigger();
 let chartReframeDialogueSessionCooldownUntilMs = -Infinity;
@@ -3622,6 +3627,7 @@ let statusPersonParticles = [];
 let statusPersonParticleSerial = 1;
 let visiblePrecipitationLastRender = false;
 let seagulls = [];
+let lastRenderedSeagullScreenCalls = Object.freeze([]);
 let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
 const consumedLandedSeagullIds = new Set();
@@ -9380,19 +9386,24 @@ function sailingWindContext(nearestLand) {
 }
 
 function seagullAmbientPresence() {
-  if (!chart || !animalImages) return 0;
-  const offset = chartOffsetPixels(chart);
-  const calls = seagullDrawCalls(chart, lastFrameMs).map((call) => ({
-    x: call.x + offset.x,
-    y: call.y + offset.y
-  }));
+  if (lastRenderedSeagullScreenCalls.length === 0) return 0;
+  const fogFrames = activeChartFogFrames();
+  const calls = lastRenderedSeagullScreenCalls.map((call) => {
+    const centerX = call.x + SEAGULL_FRAME_SIZE / 2;
+    const centerY = call.y + SEAGULL_FRAME_SIZE / 2;
+    let visibility = 1;
+    for (const frame of fogFrames) {
+      visibility *= 1 - chartFogPixelDensity(frame, centerX, centerY);
+    }
+    return { ...call, visibility: clamp(visibility, 0, 1) };
+  });
   return seagullScreenPresence(calls, {
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     spriteSize: SEAGULL_FRAME_SIZE,
     fadeMargin: SEAGULL_AUDIO_FADE_MARGIN_PX,
     fullPresenceCount: SEAGULL_AUDIO_FULL_PRESENCE_COUNT
-  }) > 0 ? 1 : 0;
+  });
 }
 
 function shoreProximity(nearestLand) {
@@ -9794,8 +9805,11 @@ function setupChartRecoveryDiagnostic() {
       chartRecoveryDiagnosticExactReframes = [];
       chartRecoveryDiagnosticStartPosition = ship.position.slice();
       chartRecoveryDiagnosticCoveredTileMoves = [];
+      chartRecoveryDiagnosticCoveredTileApplications = 0;
+      chartRecoveryDiagnosticManualNowMs = lastFrameMs;
       chartRecoveryDiagnosticAdmissions = [];
       chartRecoveryDiagnosticRepairPasses = [];
+      if (!allowDialogue) dismissChartRecoveryDiagnosticDialogues();
       capturePlaybackPaused = false;
       dirty = true;
       return chartRecoveryDiagnosticSnapshot();
@@ -9810,6 +9824,9 @@ function setupChartRecoveryDiagnostic() {
       try {
         let remainingPx = distancePx;
         while (remainingPx > 0) {
+          if (!chartRecoveryDiagnosticDialogueEnabled) {
+            dismissChartRecoveryDiagnosticDialogues();
+          }
           const stepPx = Math.min(4, remainingPx);
           const speedPxPerSecond = vectorLength(ship.velocity) * PIXELS_PER_RADIAN;
           if (speedPxPerSecond <= 0) {
@@ -9820,6 +9837,12 @@ function setupChartRecoveryDiagnostic() {
             throw new Error("Chart recovery diagnostic ship could not complete its movement step");
           }
           ensureChart();
+          if (!chartRecoveryDiagnosticPassiveOnly) {
+            advanceChartRecoveryDiagnosticVisualRepair(1000);
+          }
+          if (!chartRecoveryDiagnosticDialogueEnabled) {
+            dismissChartRecoveryDiagnosticDialogues();
+          }
           remainingPx -= stepPx;
         }
       } finally {
@@ -9835,6 +9858,37 @@ function setupChartRecoveryDiagnostic() {
     }
   });
   window.__PIXEL_GLOBE_CHART_RECOVERY_READY__ = true;
+}
+
+function dismissChartRecoveryDiagnosticDialogues() {
+  for (let dismissed = 0; captainAlertModal && dismissed < 32; dismissed++) {
+    closeCaptainAlertModal();
+  }
+  if (captainAlertModal) {
+    throw new Error("Chart recovery diagnostic could not drain queued dialogue");
+  }
+}
+
+function advanceChartRecoveryDiagnosticVisualRepair(elapsedMs) {
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) {
+    throw new Error(`Chart recovery diagnostic elapsed time is invalid: ${elapsedMs}`);
+  }
+  const realLastFrameMs = lastFrameMs;
+  chartRecoveryDiagnosticManualNowMs = Math.max(
+    chartRecoveryDiagnosticManualNowMs,
+    realLastFrameMs
+  ) + elapsedMs;
+  lastFrameMs = chartRecoveryDiagnosticManualNowMs;
+  try {
+    const chartRepairCheckIsDue = lastFrameMs - chartDriftMeasuredAtMs >=
+      CHART_DRIFT_MEASURE_INTERVAL_MS;
+    const drift = measureChartDriftAtInterval(lastFrameMs);
+    if (chartRepairCheckIsDue) maybeStartChartVisualRepair(lastFrameMs, drift);
+    updateChartVisualRepair(lastFrameMs);
+    ensureChart();
+  } finally {
+    lastFrameMs = realLastFrameMs;
+  }
 }
 
 function injectChartRecoveryDiagnosticTilt(tiltDeg) {
@@ -9861,6 +9915,8 @@ function injectChartRecoveryDiagnosticTilt(tiltDeg) {
   chartRepairSwellUntilMs = -Infinity;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = -Infinity;
+  pendingCoveredChartRepairPositions.clear();
+  pendingCoveredNpcRepairIds.clear();
   polarChartRepairPressure = 0;
   polarChartRepairPressureUpdatedAtMs = null;
   chartReframeDialogueTrigger = createChartReframeDialogueTrigger();
@@ -9942,6 +9998,8 @@ function chartRecoveryDiagnosticSnapshot() {
     dialogueEnabled: chartRecoveryDiagnosticDialogueEnabled,
     exactReframes: Object.freeze(chartRecoveryDiagnosticExactReframes.slice()),
     coveredTileMoves: Object.freeze(chartRecoveryDiagnosticCoveredTileMoves.slice()),
+    coveredTileApplications: chartRecoveryDiagnosticCoveredTileApplications,
+    pendingCoveredTileRepairs: pendingCoveredChartRepairPositions.size,
     admissions: Object.freeze(chartRecoveryDiagnosticAdmissions.slice()),
     repairPasses: Object.freeze(chartRecoveryDiagnosticRepairPasses.slice()),
     dialogueActive: Boolean(captainAlertModal),
@@ -10020,7 +10078,24 @@ function setupAutomaticFramePass() {
   window.__PIXEL_GLOBE_CAPTURE_TOTAL_FRAMES__ = captureFrameStepper.totalFrames;
   window.__PIXEL_GLOBE_CAPTURE_STEP__ = stepAutomaticCaptureFrame;
   window.__PIXEL_GLOBE_CAPTURE_SET_LANGUAGE__ = rerenderAutomaticCaptureLanguage;
+  window.__PIXEL_GLOBE_CAPTURE_SCREENSHOT__ = captureAutomaticFrameScreenshot;
   window.__PIXEL_GLOBE_CAPTURE_READY__ = true;
+}
+
+function captureAutomaticFrameScreenshot(scale) {
+  if (!CAPTURE_FRAME_PASS) {
+    throw new Error("Pixel-perfect frame export is unavailable outside the automatic capture pass");
+  }
+  const logicalCanvas = compositePresentationCanvas();
+  const output = createShareScreenshotCanvas(logicalCanvas, { scale });
+  return Object.freeze({
+    dataUrl: output.toDataURL("image/png"),
+    logicalWidth: logicalCanvas.width,
+    logicalHeight: logicalCanvas.height,
+    width: output.width,
+    height: output.height,
+    scale
+  });
 }
 
 function rerenderAutomaticCaptureLanguage(language) {
@@ -22265,6 +22340,7 @@ function maybeOpenChartReframeDialogue(nowMs) {
     chartRepairFog ||
     chartRepairHeatHaze ||
     chartRepairPendingConfirmation ||
+    currentPolarChartFogFrame() ||
     nowMs < chartRepairSwellUntilMs
   );
   if (!chartReframeDialogueOpportunityIsSafe(nowMs)) {
@@ -22448,8 +22524,11 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   // tightening until those hidden tiles actually settle north-up.
   updatePolarChartRepairPressure(chartNorthUpDrift, terrainTear, nowMs);
   const distortionSurface = chartSurfaceAtScreenPoint(chartWorstDistortionPoint);
-  const swellRepairAvailable = chartViewportIsFullyElasticOpenOcean() ||
-    chartFaultCanUseOceanSwell(drift, terrainTear);
+  const fullyElasticOpenOcean = chartViewportIsFullyElasticOpenOcean();
+  const swellRepairAvailable = fullyElasticOpenOcean || (
+    !chartRotationNeedsFullCloudRepair(drift) &&
+    chartFaultCanUseOceanSwell(drift, terrainTear)
+  );
   if (
     swellRepairAvailable &&
     chartFaultNeedsCloudRepair({ drift, terrainTear })
@@ -22623,7 +22702,7 @@ function updateChartVisualRepair(nowMs) {
       polarFog,
       "polar fog",
       null,
-      severePolarDistortion ? 3 : 1,
+      severePolarDistortion ? 2 : 1,
       severePolarDistortion
         ? (id) => {
             const position = localLayout.positions.get(id);
@@ -22632,7 +22711,7 @@ function updateChartVisualRepair(nowMs) {
               polarFog,
               position.x + fogOffset.x,
               position.y + fogOffset.y
-            ) >= 0.75 ? 8 : 2;
+            ) >= 0.75 ? 2 : 1;
           }
         : null
     ) > 0) changed = true;
@@ -22769,7 +22848,7 @@ function updatePolarChartRepairPressure(drift, terrainTear, nowMs) {
   const latitudeDeg = ship ? Math.abs(latitudeDegForDirection(ship.position)) : 0;
   const elapsedSeconds = polarChartRepairPressureUpdatedAtMs === null
     ? 0
-    : clamp((nowMs - polarChartRepairPressureUpdatedAtMs) / 1000, 0, 1);
+    : clamp((nowMs - polarChartRepairPressureUpdatedAtMs) / 1000, 0, 5);
   polarChartRepairPressureUpdatedAtMs = nowMs;
   polarChartRepairPressure = nextPolarChartRepairPressure({
     currentPressure: polarChartRepairPressure,
@@ -22830,37 +22909,11 @@ function chartVisualCoverFullyCoversLocalPosition(
 
 function repairChartTilesWithinHeatHaze(frame) {
   if (!ship || !camera || !chart || !localLayout || !frame.repairReady) return 0;
-  const offset = layoutOffsetPixels();
-  const tileIds = new Set();
-  for (const [id, position] of localLayout.positions.entries()) {
-    if (id === ship.tileId || id === centerTileId) continue;
-    if (!localLayoutPositionOverlapsViewport(position, CHART_REPAIR_TILE_VISUAL_RADIUS_PX)) {
-      continue;
-    }
-    if (chartRepairHeatHazePixelOffset(frame, position.y + offset.y) === 0) continue;
-    tileIds.add(id);
-  }
-  if (tileIds.size === 0) return 0;
-  const { settledPositions: repairPlan } = planNorthUpChartSettlement({
-    tileIds,
+  return repairCoveredChartTiles({
+    reason: "heat haze",
+    fullyCoversCircle: (_x, y) => chartRepairHeatHazePixelOffset(frame, y) !== 0,
     maximumStepPx: 1
-  });
-  if (repairPlan.size === 0) return 0;
-
-  const repairedTileIds = new Set(repairPlan.keys());
-  let repairedChart = null;
-  mutateChartPositionsBehindVisualCover("heat haze", () => {
-    for (const [id, position] of repairPlan.entries()) {
-      localLayout.positions.set(id, { x: position.x, y: position.y });
-    }
-    repairedChart = rebuildChartFromCurrentLayout(camera);
-  }, repairedTileIds);
-  chart = repairedChart;
-  reprojectNpcVisualPositions([...npcVisualShips.values()]);
-  invalidateFishSchoolRenderCaches();
-  chartNorthUpDrift = measureCurrentChartNorthUpDrift();
-  dirty = true;
-  return repairPlan.size;
+  }).movedTileIds.length;
 }
 
 function repairFogCoveredChartTiles(
@@ -22962,6 +23015,7 @@ function repairCoveredChartTiles({
     throw new Error(`Covered chart repair ${reason} requires a pixel-step function`);
   }
   const offset = layoutOffsetPixels();
+  const clearNavigationIds = chartRepairClearNavigationIds();
   const hiddenNpcStates = [...npcVisualShips.values()].filter((state) => (
     fullyCoversCircle(
       state.x + offset.x,
@@ -22971,7 +23025,8 @@ function repairCoveredChartTiles({
   ));
   const removedIds = [];
   for (const [id, position] of localLayout.positions.entries()) {
-    if (id === ship.tileId || id === centerTileId) continue;
+    if (clearNavigationIds.has(id)) continue;
+    if (pendingCoveredChartRepairPositions.has(id)) continue;
     if (!shouldRepairTile(id)) continue;
     if (!localLayoutPositionOverlapsViewport(
       position,
@@ -23006,32 +23061,28 @@ function repairCoveredChartTiles({
   if (movedTileIds.length === 0) {
     return { movedTileIds, completedTileIds: [...completedTileIds] };
   }
-  const movingTileIds = new Set(movedTileIds);
   const previousPositions = new Map(movedTileIds.map((id) => {
     const position = localLayout.positions.get(id);
     return [id, { x: position.x, y: position.y }];
   }));
-  let repairedChart = null;
-  mutateChartPositionsBehindVisualCover(reason, () => {
-    for (const [id, position] of constrainedPositions.entries()) {
-      if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
-        throw new Error(`Chart repair plan ${reason} has malformed tile ${id}`);
-      }
-      localLayout.positions.set(id, { x: position.x, y: position.y });
+  for (const [id, position] of constrainedPositions.entries()) {
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      throw new Error(`Chart repair plan ${reason} has malformed tile ${id}`);
     }
-    repairedChart = rebuildChartFromCurrentLayout(camera);
-  }, movingTileIds);
-
-  chart = repairedChart;
-  const persistedMovedTileIds = movedTileIds.filter((id) => {
-    const previous = previousPositions.get(id);
-    const current = localLayout.positions.get(id);
-    return Boolean(current && (current.x !== previous.x || current.y !== previous.y));
-  });
-  if (CHART_RECOVERY_TEST_ENABLED && persistedMovedTileIds.length > 0) {
-    for (const id of persistedMovedTileIds) {
+    pendingCoveredChartRepairPositions.set(id, Object.freeze({
+      position: Object.freeze({ x: position.x, y: position.y }),
+      reason
+    }));
+  }
+  for (const state of hiddenNpcStates) pendingCoveredNpcRepairIds.add(state.id);
+  // Coalesce the whole covered group into one ordinary chart rebuild. Dense
+  // polar fog usually reaches the exact target in this pass, avoiding the old
+  // expensive pattern of rebuilding once per one-pixel repair tick.
+  chartViewportCoverageRepairPending = true;
+  if (CHART_RECOVERY_TEST_ENABLED && movedTileIds.length > 0) {
+    for (const id of movedTileIds) {
       const previous = previousPositions.get(id);
-      const current = localLayout.positions.get(id);
+      const current = constrainedPositions.get(id);
       const target = effectiveRepairPlan.get(id);
       chartRecoveryDiagnosticCoveredTileMoves.push(Object.freeze({
         reason,
@@ -23054,32 +23105,27 @@ function repairCoveredChartTiles({
       );
     }
   }
-  if (hiddenNpcStates.length > 0) reprojectNpcVisualPositions(hiddenNpcStates);
-  invalidateFishSchoolRenderCaches();
-  chartNorthUpDrift = measureCurrentChartNorthUpDrift();
   if (CHART_RECOVERY_TEST_ENABLED) {
     chartRecoveryDiagnosticRepairPasses.push(Object.freeze({
       reason,
-      movedTileCount: persistedMovedTileIds.length,
+      movedTileCount: movedTileIds.length,
       before: diagnosticBefore,
-      after: Object.freeze({
-        tiltDeg: chartNorthUpDrift.rotationDeg,
-        tearPx: measureCurrentVisibleTerrainTear().extraPx
-      })
+      after: diagnosticBefore,
+      staged: true
     }));
     if (chartRecoveryDiagnosticRepairPasses.length > 100) {
       chartRecoveryDiagnosticRepairPasses.shift();
     }
   }
   console.info(
-    `[pixel-globe] chart repaired behind ${reason}: ` +
-      `${persistedMovedTileIds.length} hidden tiles, ${hiddenNpcStates.length} hidden NPC ships`
+    `[pixel-globe] chart repair staged behind ${reason}: ` +
+      `${movedTileIds.length} hidden tiles, ${hiddenNpcStates.length} hidden NPC ships`
   );
   dirty = true;
   return {
-    movedTileIds: persistedMovedTileIds,
-    completedTileIds: persistedMovedTileIds.filter((id) => {
-      const position = localLayout.positions.get(id);
+    movedTileIds,
+    completedTileIds: movedTileIds.filter((id) => {
+      const position = constrainedPositions.get(id);
       const target = effectiveRepairPlan.get(id);
       return position?.x === target?.x && position?.y === target?.y;
     })
@@ -23146,7 +23192,8 @@ function planNorthUpChartSettlement({
     neighborsById: graph.neighbors,
     surfaceMaskById: chartSurfaceContinuityMask,
     landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
-    waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2
+    waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2,
+    incrementalRepair: true
   });
   return Object.freeze({ ...settlement, targetsById });
 }
@@ -23186,14 +23233,17 @@ function chartViewportIsFullyElasticOpenOcean() {
 function currentChartVisualFaultNeedsRepair() {
   chartNorthUpDrift = measureCurrentChartNorthUpDrift();
   const terrainTear = measureCurrentVisibleTerrainTear();
+  const fullyElasticOpenOcean = chartViewportIsFullyElasticOpenOcean();
   return chooseChartVisualRepair({
     drift: chartNorthUpDrift,
     terrainTear,
     distortionPoint: chartWorstDistortionPoint,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
-    swellRepairAvailable: chartViewportIsFullyElasticOpenOcean() ||
-      chartFaultCanUseOceanSwell(chartNorthUpDrift, terrainTear),
+    swellRepairAvailable: fullyElasticOpenOcean || (
+      !chartRotationNeedsFullCloudRepair(chartNorthUpDrift) &&
+      chartFaultCanUseOceanSwell(chartNorthUpDrift, terrainTear)
+    ),
     distortionSurface: chartSurfaceAtScreenPoint(chartWorstDistortionPoint)
   }).kind !== "none";
 }
@@ -23419,8 +23469,9 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   chartRepairFog = null;
   chartRepairHeatHaze = null;
   chartRepairSwellUntilMs = -Infinity;
-  polarChartRepairPressure = 0;
-  polarChartRepairPressureUpdatedAtMs = null;
+  // Keep the displayed polar bank continuous through the hidden reframe. Its
+  // pressure can relax naturally after the rebuilt chart is already north-up.
+  polarChartRepairPressureUpdatedAtMs = lastFrameMs;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = lastFrameMs + CHART_REPAIR_WEATHER_COOLDOWN_MS;
   clearLocalChartTransientEffects();
@@ -23575,8 +23626,11 @@ function clearLocalChartTransientEffects() {
   cannonSmokeBursts = [];
   hullSplinterBursts = [];
   precipParticles = [];
+  pendingCoveredChartRepairPositions.clear();
+  pendingCoveredNpcRepairIds.clear();
   visiblePrecipitationLastRender = false;
   seagulls = [];
+  lastRenderedSeagullScreenCalls = Object.freeze([]);
   seagullNextSpawnMs = lastFrameMs + SEAGULL_SPAWN_CHECK_MS;
   worldShipSinkEffects = [];
   whaleKillEffects = [];
@@ -34050,6 +34104,7 @@ function render(nowMs) {
     !reframedBehindCover &&
     !gameOverReason
   ) {
+    drawChartRepairOcclusion(nowMs);
     drawWorldInterface(nowMs);
     return;
   }
@@ -35357,7 +35412,13 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
   if (positionLocks !== null && !(positionLocks instanceof Map)) {
     throw new Error("Local layout synchronization requires position locks as a map");
   }
-  const visibleAuthoritativePositions = captureVisibleAuthoritativeTilePositions();
+  const applicableCoveredRepairs = positionLocks === null
+    ? applicablePendingCoveredChartRepairs()
+    : new Map();
+  const visibleAuthoritativePositions = captureVisibleAuthoritativeTilePositions(
+    new Set(applicableCoveredRepairs.keys())
+  );
+  applyPendingCoveredChartRepairs(applicableCoveredRepairs);
   const admissionContext = createLocalLayoutAdmissionContext({
     positions: localLayout.positions,
     projectedVisible,
@@ -35451,11 +35512,85 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
 }
 
+function applicablePendingCoveredChartRepairs() {
+  const applicable = new Map();
+  for (const [id, repair] of pendingCoveredChartRepairPositions) {
+    const current = localLayout.positions.get(id);
+    if (!current) {
+      pendingCoveredChartRepairPositions.delete(id);
+      continue;
+    }
+    if (pendingChartRepairRemainsCovered(current, repair.reason) ||
+        !localLayoutPositionOverlapsViewport(current, LOCAL_LAYOUT_RETENTION_MARGIN_PX)) {
+      applicable.set(id, repair);
+    }
+  }
+  return applicable;
+}
+
+function pendingChartRepairRemainsCovered(position, reason) {
+  const screenX = position.x + SCREEN_W / 2 - localLayout.viewX;
+  const screenY = position.y + SCREEN_H / 2 - localLayout.viewY;
+  if (reason.includes("fog")) {
+    return activeChartFogFrames().some((frame) => chartFogConcealsCircleForRepair(
+      frame,
+      screenX,
+      screenY,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    ));
+  }
+  if (reason.includes("cloud") && chartRepairCloudBank) {
+    return chartRepairCloudMostlyCoversCircle(
+      chartRepairCloudBankFrame(chartRepairCloudBank.animation, lastFrameMs),
+      screenX,
+      screenY,
+      CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+    );
+  }
+  if (reason === "heat haze" && chartRepairHeatHaze) {
+    return chartRepairHeatHazePixelOffset(
+      chartRepairHeatHazeFrame(
+        chartRepairHeatHaze.animation,
+        lastFrameMs,
+        chartRepairHeatHaze.release
+      ),
+      screenY
+    ) !== 0;
+  }
+  return false;
+}
+
+function applyPendingCoveredChartRepairs(applicable) {
+  if (!(applicable instanceof Map)) {
+    throw new Error("Pending covered chart repairs must be a map");
+  }
+  if (applicable.size === 0) return 0;
+  for (const [id, repair] of applicable) {
+    localLayout.positions.set(id, {
+      x: repair.position.x,
+      y: repair.position.y
+    });
+    pendingCoveredChartRepairPositions.delete(id);
+  }
+  if (CHART_RECOVERY_TEST_ENABLED) {
+    chartRecoveryDiagnosticCoveredTileApplications += applicable.size;
+  }
+  const hiddenNpcStates = [...pendingCoveredNpcRepairIds]
+    .map((id) => npcVisualShips.get(id))
+    .filter(Boolean);
+  pendingCoveredNpcRepairIds.clear();
+  if (hiddenNpcStates.length > 0) reprojectNpcVisualPositions(hiddenNpcStates);
+  invalidateFishSchoolRenderCaches();
+  return applicable.size;
+}
+
 function fogConcealedAdmissionIds(admissionContext) {
   const fogFrames = activeChartFogFrames();
   if (fogFrames.length === 0) return null;
+  const clearNavigationIds = chartRepairClearNavigationIds();
   const concealed = new Set();
   for (const [id, projected] of admissionContext.admissionProjectedById) {
+    if (clearNavigationIds.has(id)) continue;
     if (fogFrames.some((frame) => chartFogConcealsCircleForRepair(
       frame,
       projected.x,
@@ -35464,6 +35599,11 @@ function fogConcealedAdmissionIds(admissionContext) {
     ))) concealed.add(id);
   }
   return concealed;
+}
+
+function chartRepairClearNavigationIds() {
+  if (!ship || !graph?.neighbors?.[ship.tileId]) return new Set();
+  return new Set([ship.tileId, ...graph.neighbors[ship.tileId]]);
 }
 
 function exactNorthUpProjectedPositions(tileIds) {
@@ -35555,17 +35695,26 @@ function admitMissingLocalLayoutTiles({
     : new Set(pendingIds);
   pending.delete(admissionAnchorId);
   const correctionViewportIds = correctionSupport.viewportTileIds;
+  const liveViewportAdmissionIds = concealedAdmissionIds === null
+    ? correctionViewportIds
+    : new Set([...correctionViewportIds].filter((id) => !concealedAdmissionIds.has(id)));
+  const liveCorrectionSupport = concealedAdmissionIds === null
+    ? correctionSupport
+    : {
+        ...correctionSupport,
+        viewportTileIds: liveViewportAdmissionIds,
+        elasticTileIds: new Set([...correctionSupport.elasticTileIds].filter((id) => (
+          liveViewportAdmissionIds.has(id)
+        )))
+      };
   const correctionPolicy = chartAdmissionCorrectionPolicy({
-    support: correctionSupport,
+    support: liveCorrectionSupport,
     protectionById: chartTileProtection,
     elasticityMaskById: chartElasticCorrectionMask,
     continuityMaskById: chartSurfaceContinuityMask,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H
   });
-  const liveViewportAdmissionIds = concealedAdmissionIds === null
-    ? correctionViewportIds
-    : new Set([...correctionViewportIds].filter((id) => !concealedAdmissionIds.has(id)));
   const admitted = admitProjectedTiles({
     positions,
     projectedById: admissionProjectedById,
@@ -35575,14 +35724,14 @@ function admitMissingLocalLayoutTiles({
     protectionById: chartTileProtection,
     directProtectionComponentById: chartDirectProtectionComponentByTileId,
     registrationIds: correctionPolicy.registrationIds,
-    rigidRegistrationIds: correctionViewportIds,
+    rigidRegistrationIds: liveViewportAdmissionIds,
     correctElasticTilesNorthUp: correctionPolicy.correctElasticTilesNorthUp,
     maxElasticCorrectionPx: correctionPolicy.maxElasticCorrectionPx,
     maxProtectedCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     continuityMaskById: chartSurfaceContinuityMask,
     maxContinuityCorrectionPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     continuityCorrectionLimitsByClass: CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS,
-    protectedCorrectionViewportIds: correctionViewportIds,
+    protectedCorrectionViewportIds: liveViewportAdmissionIds,
     liveViewportAdmissionIds,
     recoverProtectedStitchError
   });
@@ -36061,32 +36210,6 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
     cityCalls,
     cityCallByPortId
   };
-}
-
-function rebuildChartFromCurrentLayout(anchorCamera) {
-  if (!chart || !localLayout) {
-    throw new Error("Current-layout chart rebuild requires an active chart and layout");
-  }
-  const chartCamera = {
-    center: anchorCamera.center.slice(),
-    right: anchorCamera.right.slice(),
-    up: anchorCamera.up.slice()
-  };
-  const chartCenterTileId = findNearestTileId(graph, directionIndex, chartCamera.center);
-  const projectedVisible = measurePerformanceBenchmarkStage(
-    "chart.reuseLayout",
-    () => chart.tileCalls.map((call) => {
-      const projected = projectTileCenterFor(call.id, chartCamera);
-      if (!projected) {
-        throw new Error(`Current-layout chart tile left the visible hemisphere: ${call.id}`);
-      }
-      if (!localLayout.positions.has(call.id)) {
-        throw new Error(`Current-layout chart tile has no retained position: ${call.id}`);
-      }
-      return { id: call.id, x: projected.x, y: projected.y };
-    })
-  );
-  return assembleChart(chartCamera, chartCenterTileId, projectedVisible);
 }
 
 function makeCityCall(city, tileCall, activeChart) {
@@ -45844,6 +45967,7 @@ function snowfallPresentationStrengthForTile(tileId, row, cloudOpacity, stormInt
   return snowfallPresentationStrength({
     snowDay,
     coldWater,
+    snowCoveredGround: snowGroundMask?.[tileId] === 1,
     cloudOpacity: clamp(cloudOpacity, 0, 1),
     stormIntensity: clamp(stormIntensity, 0, 1)
   });
@@ -47532,11 +47656,19 @@ function hexToRgb(hex) {
 function drawSeagullsWebGL(activeChart, nowMs, offset) {
   const assets = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS);
   const calls = seagullDrawCalls(activeChart, nowMs, assets);
-  if (calls.length === 0) return;
+  if (calls.length === 0) {
+    lastRenderedSeagullScreenCalls = Object.freeze([]);
+    return;
+  }
   if (!assets) {
+    lastRenderedSeagullScreenCalls = Object.freeze([]);
     queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS, "visible seagulls");
     return;
   }
+  lastRenderedSeagullScreenCalls = Object.freeze(calls.map((call) => Object.freeze({
+    x: call.x + offset.x,
+    y: call.y + offset.y
+  })));
   for (const call of calls) {
     if (!call.img) continue;
     worldRenderer.drawAtlasSprite({

@@ -71,13 +71,16 @@ export function chooseChartVisualRepair({
     return Object.freeze({ kind: "none" });
   }
 
-  if (rotation && !tear) {
+  if (polarFogCoversFault) return Object.freeze({ kind: "polar-fog", fault });
+  // Rotation is a frame-wide fault even when one stretched edge happens to be
+  // the largest local symptom. A local cloud can mend that edge while leaving
+  // the rest of the chart badly tilted, so cover the full affected frame.
+  if (rotation) {
     return Object.freeze({
       kind: heatHazeAvailable ? "heat-haze" : "full-cloud",
       fault: Object.freeze(fault)
     });
   }
-  if (polarFogCoversFault) return Object.freeze({ kind: "polar-fog", fault });
 
   const distanceFromPlayer = Math.hypot(
     fault.x - viewportWidth / 2,

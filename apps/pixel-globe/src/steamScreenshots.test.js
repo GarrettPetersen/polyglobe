@@ -5,6 +5,8 @@ import { SUPPORTED_LANGUAGES } from "./localization.js";
 import {
   STEAM_SCREENSHOT_HEIGHT,
   STEAM_SCREENSHOT_LANGUAGES,
+  STEAM_SCREENSHOT_LOGICAL_HEIGHT,
+  STEAM_SCREENSHOT_LOGICAL_WIDTH,
   STEAM_SCREENSHOT_SHOTS,
   STEAM_SCREENSHOT_WIDTH,
   steamScreenshotFileName
@@ -13,6 +15,8 @@ import {
 test("Steam screenshots cover every supported interface language", () => {
   assert.equal(STEAM_SCREENSHOT_WIDTH, 1920);
   assert.equal(STEAM_SCREENSHOT_HEIGHT, 1080);
+  assert.equal(STEAM_SCREENSHOT_WIDTH / STEAM_SCREENSHOT_LOGICAL_WIDTH, 4);
+  assert.equal(STEAM_SCREENSHOT_HEIGHT / STEAM_SCREENSHOT_LOGICAL_HEIGHT, 4);
   assert.deepEqual(
     STEAM_SCREENSHOT_LANGUAGES.map(({ id }) => id),
     SUPPORTED_LANGUAGES.map(({ id }) => id)

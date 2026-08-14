@@ -28,8 +28,10 @@ npm run capture:steam-screenshots -- --manifest-only
 ```
 
 Use `--base-url` for a different local server. The script steps the deterministic capture
-scenarios to the catalogued frame, verifies the active locale, captures at exact Steam resolution,
-and writes `manifest.json`.
+scenarios to the catalogued frame, verifies the active locale, exports the game's logical canvas,
+and scales it to Steam resolution by an exact integer with smoothing disabled. It never captures a
+CSS-scaled browser element, so every game pixel remains a uniform `4x4` output block. The script
+then writes `manifest.json`.
 
 Each filename ends with Steam's language code: `english`, `schinese`, `russian`, `spanish`,
 `brazilian`, `japanese`, `german`, `french`, `polish`, `tchinese`, or `koreana`.

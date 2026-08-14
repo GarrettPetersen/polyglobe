@@ -220,6 +220,26 @@ test("polar fog tightens its clear window under chart repair pressure", () => {
 
   assert.ok(repairing.clearRadius < ordinary.clearRadius - 75);
   assert.ok(repairing.clearRadius < 30);
+  assert.equal(
+    chartFogConcealsCircleForRepair(
+      repairing,
+      repairing.focusX + 21,
+      repairing.focusY,
+      12
+    ),
+    false,
+    "maximum polar fog must preserve the immediate navigation ring"
+  );
+  assert.equal(
+    chartFogConcealsCircleForRepair(
+      repairing,
+      repairing.focusX + 52,
+      repairing.focusY,
+      12
+    ),
+    true,
+    "maximum polar fog must free geometry beyond the navigation ring"
+  );
   assert.equal(repairing.polarAmount, ordinary.polarAmount);
   assert.equal(repairing.repairPressure, 1);
   assert.equal(polarChartFogFrame({

@@ -115,7 +115,8 @@ export function planChartSettlementTowardTargets({
   neighborsById,
   surfaceMaskById,
   landSlackPx = 3,
-  waterSlackPx = 6
+  waterSlackPx = 6,
+  incrementalRepair = false
 }) {
   if (!(positions instanceof Map) || !(targetsById instanceof Map) ||
       !(tileIds instanceof Set) || !(referencePositions instanceof Map)) {
@@ -127,6 +128,9 @@ export function planChartSettlementTowardTargets({
   }
   if (maximumStepPxById !== null && !(maximumStepPxById instanceof Map)) {
     throw new Error("Unified chart settlement per-tile steps must be a map");
+  }
+  if (typeof incrementalRepair !== "boolean") {
+    throw new Error("Unified chart settlement incremental-repair flag must be boolean");
   }
   if (!Array.isArray(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
     throw new Error("Unified chart settlement requires chart topology");
@@ -165,6 +169,9 @@ export function planChartSettlementTowardTargets({
   const working = new Map([...positions].map(([id, position]) => (
     [id, { x: position.x, y: position.y }]
   )));
+  for (const [id, target] of boundedTargets) {
+    working.set(id, { x: target.x, y: target.y });
+  }
   const edges = chartSettlementEdges({
     movableIds,
     movableSet,
@@ -176,46 +183,75 @@ export function planChartSettlementTowardTargets({
     waterSlackPx
   });
 
-  for (let iteration = 0; iteration < 16; iteration++) {
-    const orderedIds = iteration % 2 === 0 ? movableIds : [...movableIds].reverse();
-    for (const id of orderedIds) {
-      const point = working.get(id);
-      const target = boundedTargets.get(id);
-      point.x += (target.x - point.x) * 0.35;
-      point.y += (target.y - point.y) * 0.35;
-      clampChartSettlementPoint({
-        point,
-        original: originalPositions.get(id),
-        maximumStepPx: chartSettlementStepForId({
-          id,
-          maximumStepPx,
-          maximumStepPxById
-        })
-      });
-    }
-    relaxChartSettlementEdges({
+  const maximumBoundaryRejectionPasses = Math.min(12, movableIds.length);
+  if (!incrementalRepair) {
+    // New tile patches can begin with large internal discontinuities. They need
+    // a complete constraint solve before joining the retained chart.
+    relaxChartSettlementUntilStable({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumStepPx,
+      maximumStepPxById
+    });
+    rejectUnsafeChartSettlementBoundaries({
       working,
       originalPositions,
       movableSet,
       edges,
       maximumStepPx,
       maximumStepPxById,
-      reverse: iteration % 2 === 1
+      maximumPasses: maximumBoundaryRejectionPasses,
+      relaxAfterRejection: true
     });
-  }
-  // Finish with constraint-only passes so target attraction cannot leave the
-  // final frame with a boundary violation.
-  for (let iteration = 0; iteration < 64; iteration++) {
-    const maximumViolationPx = relaxChartSettlementEdges({
+    relaxChartSettlementUntilStable({
       working,
       originalPositions,
       movableSet,
       edges,
       maximumStepPx,
       maximumStepPxById,
-      reverse: iteration % 2 === 1
+      bothMovableOnly: true
     });
-    if (maximumViolationPx < 0.05) break;
+    rejectUnsafeChartSettlementBoundaries({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumStepPx,
+      maximumStepPxById,
+      maximumPasses: maximumBoundaryRejectionPasses,
+      relaxAfterRejection: true
+    });
+  } else {
+    // Weather repair moves are only one or two pixels. Reject an unsafe move
+    // at the clear boundary and propagate that rejection through immediate
+    // neighbors; no whole-chart force solve is needed for such a small step.
+    rejectUnsafeChartSettlementBoundaries({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumPasses: maximumBoundaryRejectionPasses
+    });
+    relaxChartSettlementUntilStable({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumStepPx,
+      maximumStepPxById,
+      maximumIterations: 6,
+      bothMovableOnly: true
+    });
+    rejectUnsafeChartSettlementBoundaries({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumPasses: maximumBoundaryRejectionPasses
+    });
   }
 
   const settledPositions = new Map();
@@ -249,10 +285,7 @@ export function planChartSettlementTowardTargets({
   for (const edge of edges) {
     const a = settledPositions.get(edge.id) ?? positions.get(edge.id);
     const b = settledPositions.get(edge.neighborId) ?? positions.get(edge.neighborId);
-    const errorPx = Math.hypot(
-      b.x - a.x - edge.expectedDx,
-      b.y - a.y - edge.expectedDy
-    );
+    const errorPx = Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - edge.expectedLength);
     if (worstEdge && worstEdge.errorPx >= errorPx) continue;
     worstEdge = Object.freeze({
       tileId: edge.id,
@@ -283,18 +316,108 @@ function chartSettlementEdges({
       if (!positions.has(neighborId) || !referencePositions.has(neighborId)) continue;
       const reference = referencePositions.get(id);
       const referenceNeighbor = referencePositions.get(neighborId);
+      const original = positions.get(id);
+      const originalNeighbor = positions.get(neighborId);
+      const expectedLength = Math.hypot(
+        referenceNeighbor.x - reference.x,
+        referenceNeighbor.y - reference.y
+      );
+      const allowedError = surfaceMaskById[id] === 1 && surfaceMaskById[neighborId] === 1
+        ? waterSlackPx
+        : landSlackPx;
       edges.push(Object.freeze({
         id,
         neighborId,
         expectedDx: referenceNeighbor.x - reference.x,
         expectedDy: referenceNeighbor.y - reference.y,
-        allowedError: surfaceMaskById[id] === 1 && surfaceMaskById[neighborId] === 1
-          ? waterSlackPx
-          : landSlackPx
+        expectedLength,
+        allowedError,
+        maximumBoundaryError: Math.max(
+          allowedError,
+          Math.abs(Math.hypot(
+            originalNeighbor.x - original.x,
+            originalNeighbor.y - original.y
+          ) - expectedLength)
+        )
       }));
     }
   }
   return edges;
+}
+
+function unsafeChartSettlementBoundaryIds({ working, movableSet, edges }) {
+  const unsafeIds = new Set();
+  for (const edge of edges) {
+    const aMovable = movableSet.has(edge.id);
+    const bMovable = movableSet.has(edge.neighborId);
+    if (aMovable === bMovable) continue;
+    const a = working.get(edge.id);
+    const b = working.get(edge.neighborId);
+    const error = Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - edge.expectedLength);
+    if (error <= edge.maximumBoundaryError + 0.05) continue;
+    unsafeIds.add(aMovable ? edge.id : edge.neighborId);
+  }
+  return unsafeIds;
+}
+
+function rejectUnsafeChartSettlementBoundaries({
+  working,
+  originalPositions,
+  movableSet,
+  edges,
+  maximumStepPx = 1,
+  maximumStepPxById = null,
+  maximumPasses,
+  relaxAfterRejection = false
+}) {
+  for (let rejectionPass = 0; rejectionPass < maximumPasses; rejectionPass++) {
+    const rejectedIds = unsafeChartSettlementBoundaryIds({
+      working,
+      movableSet,
+      edges
+    });
+    if (rejectedIds.size === 0) return;
+    for (const id of rejectedIds) {
+      movableSet.delete(id);
+      const original = originalPositions.get(id);
+      working.set(id, { x: original.x, y: original.y });
+    }
+    if (relaxAfterRejection) {
+      relaxChartSettlementUntilStable({
+        working,
+        originalPositions,
+        movableSet,
+        edges,
+        maximumStepPx,
+        maximumStepPxById
+      });
+    }
+  }
+}
+
+function relaxChartSettlementUntilStable({
+  working,
+  originalPositions,
+  movableSet,
+  edges,
+  maximumStepPx,
+  maximumStepPxById,
+  maximumIterations = 64,
+  bothMovableOnly = false
+}) {
+  for (let iteration = 0; iteration < maximumIterations; iteration++) {
+    const maximumViolationPx = relaxChartSettlementEdges({
+      working,
+      originalPositions,
+      movableSet,
+      edges,
+      maximumStepPx,
+      maximumStepPxById,
+      reverse: iteration % 2 === 1,
+      bothMovableOnly
+    });
+    if (maximumViolationPx < 0.05) return;
+  }
 }
 
 function relaxChartSettlementEdges({
@@ -304,27 +427,37 @@ function relaxChartSettlementEdges({
   edges,
   maximumStepPx,
   maximumStepPxById,
-  reverse
+  reverse,
+  bothMovableOnly = false
 }) {
   let maximumViolationPx = 0;
   for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
     const edge = edges[reverse ? edges.length - edgeIndex - 1 : edgeIndex];
     const a = working.get(edge.id);
     const b = working.get(edge.neighborId);
-    const errorX = b.x - a.x - edge.expectedDx;
-    const errorY = b.y - a.y - edge.expectedDy;
-    const error = Math.hypot(errorX, errorY);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const distance = Math.hypot(dx, dy);
+    const signedError = distance - edge.expectedLength;
+    const error = Math.abs(signedError);
     if (error <= edge.allowedError + 1e-9) continue;
-    maximumViolationPx = Math.max(maximumViolationPx, error - edge.allowedError);
-    const correctionScale = (error - edge.allowedError) / error;
     const aMovable = movableSet.has(edge.id);
     const bMovable = movableSet.has(edge.neighborId);
+    if (bothMovableOnly && (!aMovable || !bMovable)) continue;
+    maximumViolationPx = Math.max(maximumViolationPx, error - edge.allowedError);
+    const directionX = distance > 1e-9
+      ? dx / distance
+      : edge.expectedDx / edge.expectedLength;
+    const directionY = distance > 1e-9
+      ? dy / distance
+      : edge.expectedDy / edge.expectedLength;
+    const correction = Math.sign(signedError) * (error - edge.allowedError);
     if (!aMovable && !bMovable) continue;
     const aShare = aMovable && bMovable ? 0.5 : aMovable ? 1 : 0;
     const bShare = aMovable && bMovable ? 0.5 : bMovable ? 1 : 0;
     if (aShare > 0) {
-      a.x += errorX * correctionScale * aShare;
-      a.y += errorY * correctionScale * aShare;
+      a.x += directionX * correction * aShare;
+      a.y += directionY * correction * aShare;
       clampChartSettlementPoint({
         point: a,
         original: originalPositions.get(edge.id),
@@ -336,8 +469,8 @@ function relaxChartSettlementEdges({
       });
     }
     if (bShare > 0) {
-      b.x -= errorX * correctionScale * bShare;
-      b.y -= errorY * correctionScale * bShare;
+      b.x -= directionX * correction * bShare;
+      b.y -= directionY * correction * bShare;
       clampChartSettlementPoint({
         point: b,
         original: originalPositions.get(edge.neighborId),

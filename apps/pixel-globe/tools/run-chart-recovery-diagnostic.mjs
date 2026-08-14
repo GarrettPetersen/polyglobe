@@ -49,6 +49,7 @@ const allCases = [
     tiltDeg: 0,
     speedRatio: 0.25,
     durationSeconds: 40,
+    deterministicTravelPx: 160,
     passiveOnly: false,
     allowDialogue: false,
     maximumFinalTiltDeg: 5,
@@ -64,6 +65,7 @@ const allCases = [
     tiltDeg: 12,
     speedRatio: 0.25,
     durationSeconds: 40,
+    deterministicTravelPx: 160,
     passiveOnly: false,
     allowDialogue: false,
     maximumFinalTiltDeg: 5,
@@ -164,17 +166,27 @@ async function runDiagnosticCase(browser, baseUrl, diagnosticCase) {
     if (!Number.isFinite(diagnosticCase.deterministicTravelPx)) {
       const startedAt = performance.now();
       let nextSampleAt = startedAt + 1000;
+      let requestedTravelPx = 0;
       while (performance.now() - startedAt < diagnosticCase.durationSeconds * 1000) {
         const waitMs = Math.max(1, nextSampleAt - performance.now());
         await page.waitForTimeout(waitMs);
         await throwPageError(page);
-        const sample = await page.evaluate(() => {
+        const elapsedSeconds = (performance.now() - startedAt) / 1000;
+        const targetTravelPx = Math.min(
+          diagnosticCase.durationSeconds * 4,
+          Math.floor(elapsedSeconds) * 4
+        );
+        const travelThisSamplePx = Math.max(0, targetTravelPx - requestedTravelPx);
+        const sample = await page.evaluate((distancePx) => {
           const diagnostic = window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__;
           if (diagnostic.snapshot().dialogueActive) diagnostic.advanceDialogue();
-          return diagnostic.advanceTravel(4);
-        });
+          return distancePx > 0
+            ? diagnostic.advanceTravel(distancePx)
+            : diagnostic.snapshot();
+        }, travelThisSamplePx);
+        requestedTravelPx += travelThisSamplePx;
         samples.push({
-          elapsedSeconds: Math.round((performance.now() - startedAt) / 100) / 10,
+          elapsedSeconds: Math.round(elapsedSeconds * 10) / 10,
           ...sample
         });
         nextSampleAt += 1000;
@@ -231,9 +243,9 @@ function validateCase(diagnosticCase, samples) {
       `tilt injection produced only ${initial.fullTiltDeg.toFixed(2)} degrees`
     );
   }
-  if (Math.abs(final.fullTiltDeg) > diagnosticCase.maximumFinalTiltDeg) {
+  if (Math.abs(final.visibleTiltDeg) > diagnosticCase.maximumFinalTiltDeg) {
     failures.push(
-      `finished at ${final.fullTiltDeg.toFixed(2)} degrees; ` +
+      `finished at ${final.visibleTiltDeg.toFixed(2)} visible degrees; ` +
         `limit ${diagnosticCase.maximumFinalTiltDeg}`
     );
   }
@@ -292,7 +304,10 @@ function validateCase(diagnosticCase, samples) {
   if (diagnosticCase.requireFogCoveredTileMovement) {
     const fogMoves = final.coveredTileMoves.filter((move) => move.reason.includes("fog"));
     if (fogMoves.length === 0) {
-      failures.push("recorded no persisted fog-covered tile movement");
+      failures.push("staged no fog-covered tile movement");
+    }
+    if (final.coveredTileApplications === 0) {
+      failures.push("applied no covered tile movement to the live chart");
     }
   }
   if (diagnosticCase.requireOrdinaryAdmissionOnly) {
@@ -333,7 +348,9 @@ function printReport(report, output) {
   for (const entry of report.cases) {
     process.stdout.write(
       `${entry.id}: tilt ${entry.initial.fullTiltDeg.toFixed(2)} -> ` +
-        `${entry.final.fullTiltDeg.toFixed(2)} deg, tear ${entry.final.tearPx.toFixed(2)}px, ` +
+        `${entry.final.visibleTiltDeg.toFixed(2)} visible deg ` +
+        `(${entry.final.fullTiltDeg.toFixed(2)} including concealed margin), ` +
+        `tear ${entry.final.unobscuredTearPx.toFixed(2)}px, ` +
         `void ${entry.maximumViewportInteriorGapPx.toFixed(2)}px, ` +
         `position ${entry.final.latitudeDeg.toFixed(2)},${entry.final.longitudeDeg.toFixed(2)}, ` +
         `${entry.failures.length === 0 ? "PASS" : "FAIL"}\n`

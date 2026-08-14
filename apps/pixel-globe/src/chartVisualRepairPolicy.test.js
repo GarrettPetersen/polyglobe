@@ -27,12 +27,21 @@ test("elastic open ocean leaves correction to the swell", () => {
   }), "none");
 });
 
-test("protected-water faults use weather when swell repair is unavailable", () => {
+test("frame-wide rotation uses frame-wide weather when swell repair is unavailable", () => {
   assert.equal(repairKind({
     drift: { ...calm, rotationDeg: 20, maxDistortionPx: 40 },
     terrainTear: { extraPx: 40, surface: "water", screenX: 430, screenY: 20 },
     distortionSurface: "water"
-  }), "closing-fog");
+  }), "full-cloud");
+});
+
+test("existing polar fog takes priority over a new general weather effect", () => {
+  assert.equal(repairKind({
+    drift: { ...calm, rotationDeg: 20, maxDistortionPx: 40 },
+    terrainTear: { extraPx: 40, surface: "land", screenX: 430, screenY: 20 },
+    distortionSurface: "land",
+    polarFogCoversFault: true
+  }), "polar-fog");
 });
 
 test("large sustained-looking land rotation targets a sparse cloud repair group", () => {

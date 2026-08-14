@@ -4,8 +4,30 @@ import test from "node:test";
 import {
   SHARE_SCREENSHOT_SCALE,
   createShareScreenshotCanvas,
+  integerPixelScaleForDimensions,
   shareScreenshotFilename
 } from "./screenshotExport.js";
+
+test("Steam-sized exports use one exact integer scale on both axes", () => {
+  assert.equal(integerPixelScaleForDimensions({
+    sourceWidth: 480,
+    sourceHeight: 270,
+    targetWidth: 1920,
+    targetHeight: 1080
+  }), 4);
+  assert.throws(() => integerPixelScaleForDimensions({
+    sourceWidth: 455,
+    sourceHeight: 256,
+    targetWidth: 1920,
+    targetHeight: 1080
+  }), /not an integer multiple/);
+  assert.throws(() => integerPixelScaleForDimensions({
+    sourceWidth: 480,
+    sourceHeight: 270,
+    targetWidth: 1920,
+    targetHeight: 810
+  }), /differs by axis/);
+});
 
 test("share screenshots upscale the logical canvas five times without smoothing", () => {
   const drawCalls = [];

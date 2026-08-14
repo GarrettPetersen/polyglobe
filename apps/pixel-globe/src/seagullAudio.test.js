@@ -42,3 +42,16 @@ test("only visible birds contribute to flock volume", () => {
     /finite coordinates/
   );
 });
+
+test("fog visibility attenuates or silences individual seagulls", () => {
+  const clear = seagullScreenPresence([{ x: 200, y: 100, visibility: 1 }], OPTIONS);
+  const hazy = seagullScreenPresence([{ x: 200, y: 100, visibility: 0.25 }], OPTIONS);
+  const hidden = seagullScreenPresence([{ x: 200, y: 100, visibility: 0 }], OPTIONS);
+  assert.ok(clear > hazy);
+  assert.ok(hazy > hidden);
+  assert.equal(hidden, 0);
+  assert.throws(
+    () => seagullScreenPresence([{ x: 0, y: 0, visibility: 2 }], OPTIONS),
+    /visibility/
+  );
+});

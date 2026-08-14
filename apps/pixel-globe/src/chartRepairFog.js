@@ -153,6 +153,9 @@ export function polarChartFogFrame({
   // Under severe chart pressure, polar fog acts like a tighter camera crop:
   // only the ship's immediate navigational neighborhood remains fixed while
   // the concealed ring converges on the exact north-up projection.
+  // Keep the ship tile and its six immediate neighbors visible. That tiny
+  // rigid patch is enough for navigation, while every tile beyond it can
+  // settle iteratively as it enters the fog.
   const repairMinimumClearRadius = Math.max(28, minimumDimension * 0.11);
   const minimumClearRadius = naturalMinimumClearRadius +
     (repairMinimumClearRadius - naturalMinimumClearRadius) * repairPressure;
@@ -229,7 +232,7 @@ export function nextPolarChartRepairPressure({
     throw new Error(`Polar chart repair pressure elapsed time cannot be negative: ${elapsedSeconds}`);
   }
   const ratePerSecond = target > effectiveCurrentPressure
-    ? severeDistortion ? 0.024 : 0.014
+    ? severeDistortion ? 0.045 : 0.014
     : 0.01;
   const maximumStep = ratePerSecond * elapsedSeconds;
   return effectiveCurrentPressure + Math.max(

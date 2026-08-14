@@ -2,6 +2,38 @@ import { downloadBlob } from "./browserDownload.js";
 
 export const SHARE_SCREENSHOT_SCALE = 5;
 
+export function integerPixelScaleForDimensions({
+  sourceWidth,
+  sourceHeight,
+  targetWidth,
+  targetHeight
+}) {
+  for (const [label, value] of Object.entries({
+    sourceWidth,
+    sourceHeight,
+    targetWidth,
+    targetHeight
+  })) {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new Error(`Pixel-perfect screenshot requires a positive integer ${label}: ${value}`);
+    }
+  }
+  if (targetWidth % sourceWidth !== 0 || targetHeight % sourceHeight !== 0) {
+    throw new Error(
+      `Pixel-perfect screenshot target ${targetWidth}x${targetHeight} is not an integer multiple of ` +
+      `${sourceWidth}x${sourceHeight}`
+    );
+  }
+  const widthScale = targetWidth / sourceWidth;
+  const heightScale = targetHeight / sourceHeight;
+  if (widthScale !== heightScale) {
+    throw new Error(
+      `Pixel-perfect screenshot scale differs by axis: ${widthScale}x${heightScale}`
+    );
+  }
+  return widthScale;
+}
+
 export function createShareScreenshotCanvas(sourceCanvas, options = {}) {
   validateSourceCanvas(sourceCanvas);
   const scale = options.scale ?? SHARE_SCREENSHOT_SCALE;

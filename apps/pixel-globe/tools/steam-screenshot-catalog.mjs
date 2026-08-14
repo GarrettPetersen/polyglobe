@@ -1,10 +1,12 @@
 import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
-import { captureScenarioFromSearch } from "../src/captureScenarios.js";
+import { CAPTURE_VIEWPORTS, captureScenarioFromSearch } from "../src/captureScenarios.js";
 import { SUPPORTED_LANGUAGES } from "../src/localization.js";
 import { loadingCapsuleTitleSteamCode } from "../src/loadingScreenLocale.js";
 
 export const STEAM_SCREENSHOT_WIDTH = 1920;
 export const STEAM_SCREENSHOT_HEIGHT = 1080;
+export const STEAM_SCREENSHOT_LOGICAL_WIDTH = CAPTURE_VIEWPORTS.steam.width;
+export const STEAM_SCREENSHOT_LOGICAL_HEIGHT = CAPTURE_VIEWPORTS.steam.height;
 
 export const STEAM_SCREENSHOT_LANGUAGES = Object.freeze(
   SUPPORTED_LANGUAGES.map(({ id, label, nativeLabel }) => Object.freeze({
