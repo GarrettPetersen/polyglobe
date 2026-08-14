@@ -2172,6 +2172,80 @@ test("held-cargo price advice does not recommend a loss-making destination", () 
   assert.equal(session.nodeId, "root");
 });
 
+test("quest cargo advice prefers a nearby stocked market over a distant producer", () => {
+  const hafnarfjordur = {
+    tileId: 109,
+    city: VIKING_LONGSHIP_PORT_CITY,
+    country: "Iceland"
+  };
+  const london = {
+    tileId: 110,
+    city: "London",
+    country: "England",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000
+  };
+  const bristol = {
+    tileId: 111,
+    city: "Bristol",
+    country: "England",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 51.45,
+    lon: -2.59,
+    population: 20000
+  };
+  const sakai = {
+    tileId: 112,
+    city: "Sakai",
+    country: "Japan",
+    factionId: "neutral",
+    cityType: "east-asian",
+    lat: 34.57,
+    lon: 135.48,
+    population: 50000
+  };
+  const ports = [london, bristol, sakai];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const londonWool = economy.portStates.get(london.tileId).goods.get("wool");
+  const bristolWool = economy.portStates.get(bristol.tileId).goods.get("wool");
+  const sakaiWool = economy.portStates.get(sakai.tileId).goods.get("wool");
+  londonWool.stock = 0;
+  bristolWool.stock = 5;
+  bristolWool.productionPerDay = 0;
+  sakaiWool.stock = 20;
+  sakaiWool.productionPerDay = 2;
+
+  const shipStats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
+  maybeSpawnVikingLongshipQuest(gameState, hafnarfjordur, {
+    spawnChance: 1,
+    simMinute: 0
+  });
+
+  assert.deepEqual(bestQuestCargoSource({
+    originCity: london,
+    gameState,
+    economy,
+    portCities: ports,
+    simMinute: 100,
+    sailingDistanceKm: testSailingDistances([
+      [london, bristol, 190],
+      [london, sakai, 20500]
+    ]),
+    random: () => 0
+  }), {
+    goodId: "wool",
+    goodLabel: "Wool",
+    destinationTileId: bristol.tileId,
+    destinationName: "Bristol",
+    distanceKm: 190
+  });
+});
+
 test("held-cargo price advice prefers a distant profit over a nearby loss", () => {
   const origin = {
     tileId: 207,

@@ -5070,8 +5070,8 @@ export function bestQuestCargoSource({
       });
     }
     sources.sort((left, right) => (
-      Number(right.productionPerDay > 0) - Number(left.productionPerDay > 0) ||
       left.distanceKm - right.distanceKm ||
+      Number(right.productionPerDay > 0) - Number(left.productionPerDay > 0) ||
       right.stock - left.stock ||
       left.destination.tileId - right.destination.tileId
     ));
