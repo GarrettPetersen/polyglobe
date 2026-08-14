@@ -99,13 +99,10 @@ export function cargoCrateStatusLayout({
       y: panelY + crateTop + row * rowPitch
     });
   });
-  const drawEntries = Object.freeze(Array.from({ length: rowCount }, (_entry, row) => {
-    const rowEntries = entries.filter((entry) => entry.row === row);
-    return [
-      ...rowEntries.filter((entry) => !entry.full),
-      ...rowEntries.filter((entry) => entry.full)
-    ];
-  }).flat());
+  const drawEntries = Object.freeze([
+    ...entries.filter((entry) => !entry.full),
+    ...entries.filter((entry) => entry.full)
+  ]);
   const panelHeight = crateTop + iconSize + (rowCount - 1) * rowPitch + panelBottomPadding;
 
   return Object.freeze({

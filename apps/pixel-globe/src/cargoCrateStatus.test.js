@@ -41,12 +41,20 @@ test("the 520-unit Urca packs touching crates into rows without widening the HUD
   assert.ok(
     Math.max(...layout.drawEntries
       .map((entry, drawIndex) => ({ entry, drawIndex }))
-      .filter(({ entry }) => entry.row === 0)
+      .filter(({ entry }) => !entry.full)
       .map(({ drawIndex }) => drawIndex)) <
     Math.min(...layout.drawEntries
       .map((entry, drawIndex) => ({ entry, drawIndex }))
-      .filter(({ entry }) => entry.row === 1)
+      .filter(({ entry }) => entry.full)
       .map(({ drawIndex }) => drawIndex))
+  );
+  assert.ok(
+    layout.drawEntries.findIndex((entry) => entry.index === 324) <
+    layout.drawEntries.findIndex((entry) => entry.index === 325)
+  );
+  assert.ok(
+    layout.drawEntries.findIndex((entry) => entry.index === 64) <
+    layout.drawEntries.findIndex((entry) => entry.index === 65)
   );
   assert.ok(layout.entries.every((entry) => Number.isInteger(entry.x) && Number.isInteger(entry.y)));
 });
