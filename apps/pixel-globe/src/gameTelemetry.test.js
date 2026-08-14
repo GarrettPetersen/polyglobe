@@ -6,11 +6,13 @@ import {
   TELEMETRY_CONSENT_GRANTED,
   TELEMETRY_CONSENT_STORAGE_KEY,
   TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY,
+  TELEMETRY_FREEZE_SIGNATURES_STORAGE_KEY,
   TELEMETRY_INSTALLATION_STORAGE_KEY,
   TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY,
   TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY,
   TELEMETRY_QUEUE_STORAGE_KEY,
   createGameTelemetry,
+  freezeTelemetryPayload,
   lowFrameRateTelemetryPayload,
   telemetryRuntimeChannel,
   voyageStartTelemetryPayload,
@@ -325,6 +327,54 @@ test("low frame rate payloads reject unbounded or unactionable data", () => {
       viewportWidth: 0
     }),
     /viewport width/
+  );
+});
+
+test("foreground freezes report once per build, screen, and cause", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "frozen-device"
+  });
+  const events = [];
+  const telemetry = createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      events.push(...JSON.parse(options.body).events);
+      return successfulResponse();
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `freeze-event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: { ...metadata(), revision: "freeze-build" }
+  });
+  telemetry.start();
+  await nextTask();
+  const report = freezeReport();
+  const context = lowFrameRateContext();
+
+  assert.equal(telemetry.recordFreeze(report, context), true);
+  assert.equal(telemetry.recordFreeze(report, context), false);
+  assert.equal(telemetry.recordFreeze(report, { ...context, screen: "anchored" }), true);
+  await nextTask();
+
+  const freezes = events.filter((event) => event.type === "freeze");
+  assert.equal(freezes.length, 2);
+  assert.equal(freezes[0].payload.gapMs, 1_850);
+  assert.equal(freezes[0].payload.recentWork, "save.periodic");
+  assert.equal(storage.values.has(TELEMETRY_FREEZE_SIGNATURES_STORAGE_KEY), true);
+});
+
+test("freeze payloads reject background-scale gaps and incomplete scene context", () => {
+  assert.throws(
+    () => freezeTelemetryPayload({ ...freezeReport(), gapMs: 60_000 }, lowFrameRateContext()),
+    /freeze frame gap/
+  );
+  assert.throws(
+    () => freezeTelemetryPayload(freezeReport(), { ...lowFrameRateContext(), viewportHeight: 0 }),
+    /viewport height/
   );
 });
 
@@ -795,6 +845,17 @@ function lowFrameRateReport() {
       { name: "render", meanMs: 50, maxMs: 95 },
       { name: "npcShips", meanMs: 20, maxMs: 35 }
     ]
+  };
+}
+
+function freezeReport() {
+  return {
+    gapMs: 1_850,
+    previousFrameCpuMs: 15,
+    schedulerDelayMs: 1_835,
+    cause: "save.periodic",
+    recentWork: "save.periodic",
+    recentWorkMs: 1_720
   };
 }
 

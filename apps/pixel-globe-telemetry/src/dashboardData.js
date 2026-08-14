@@ -197,6 +197,23 @@ export function dashboardQueries(windowDays, crashCursor = null) {
       ORDER BY last_seen DESC, affected_installations DESC
       LIMIT 40
     `,
+    freezeIssues: `
+      SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
+        blob17 AS screen, blob8 AS main_quest, blob10 AS ship,
+        blob9 AS cause, blob11 AS recent_work, blob12 AS scene_summary,
+        round(avg(double2), 1) AS average_gap_ms,
+        round(avg(double3), 1) AS average_cpu_ms,
+        round(avg(double4), 1) AS average_scheduler_delay_ms,
+        round(avg(double5), 1) AS average_recent_work_ms,
+        count() AS reports, count(DISTINCT index1) AS affected_installations,
+        min(timestamp) AS first_seen, max(timestamp) AS last_seen
+      FROM ${DATASET}
+      WHERE blob1 = 'freeze' AND ${where}
+      GROUP BY revision, channel, platform, screen, main_quest, ship, cause,
+        recent_work, scene_summary
+      ORDER BY last_seen DESC, affected_installations DESC
+      LIMIT 40
+    `,
     crashStatus: `
       SELECT
         round(SUM(_sample_interval * if(
@@ -363,6 +380,25 @@ export function buildDashboardSnapshot(
       affectedInstallations: nonnegativeNumber(row.affected_installations),
       firstSeen: requiredString(row.first_seen, "performance first seen"),
       lastSeen: requiredString(row.last_seen, "performance last seen")
+    })),
+    freezeIssues: results.freezeIssues.map((row) => ({
+      revision: requiredString(row.revision, "freeze revision"),
+      channel: requiredString(row.channel, "freeze channel"),
+      platform: requiredString(row.platform, "freeze platform"),
+      screen: requiredString(row.screen, "freeze screen"),
+      mainQuest: requiredString(row.main_quest, "freeze main quest"),
+      ship: requiredString(row.ship, "freeze ship"),
+      cause: requiredString(row.cause, "freeze cause"),
+      recentWork: requiredString(row.recent_work, "freeze recent work"),
+      sceneSummary: requiredString(row.scene_summary, "freeze scene summary"),
+      averageGapMs: nonnegativeNumber(row.average_gap_ms),
+      averageCpuMs: nonnegativeNumber(row.average_cpu_ms),
+      averageSchedulerDelayMs: nonnegativeNumber(row.average_scheduler_delay_ms),
+      averageRecentWorkMs: nonnegativeNumber(row.average_recent_work_ms),
+      reports: nonnegativeNumber(row.reports),
+      affectedInstallations: nonnegativeNumber(row.affected_installations),
+      firstSeen: requiredString(row.first_seen, "freeze first seen"),
+      lastSeen: requiredString(row.last_seen, "freeze last seen")
     })),
     crashes: normalizeCrashRows(results.crashes),
     fixedCrashes: normalizeCrashRows(results.fixedCrashes)

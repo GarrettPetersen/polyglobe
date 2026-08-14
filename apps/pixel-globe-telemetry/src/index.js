@@ -12,7 +12,8 @@ const EVENT_TYPES = new Set([
   "voyage_end",
   "crash",
   "diagnostic",
-  "low_fps"
+  "low_fps",
+  "freeze"
 ]);
 const ROUTINE_EVENT_TYPES = new Set([
   "session_start",
@@ -201,6 +202,7 @@ function validatePayload(type, payload) {
     };
   }
   if (type === "low_fps") return validateLowFrameRatePayload(payload, samplingWeight);
+  if (type === "freeze") return validateFreezePayload(payload, samplingWeight);
   if (type === "voyage_start") return validateVoyageStartPayload(payload, samplingWeight);
   if (type === "voyage_end") return validateVoyagePayload(payload, samplingWeight);
   throw new TelemetryRequestError("invalid_event_type", 400);
@@ -234,6 +236,31 @@ function validateLowFrameRatePayload(payload, samplingWeight) {
     cpuTimeMaxMs: numberInRange(payload.cpuTimeMaxMs, 0, 10_000),
     longFramePercent: numberInRange(payload.longFramePercent, 0, 100),
     stages,
+    screen: shortString(payload.screen, 80),
+    mainQuest: shortString(payload.mainQuest, 80),
+    ship: shortString(payload.ship, 80),
+    viewportWidth: integerInRange(payload.viewportWidth, 1, 10_000),
+    viewportHeight: integerInRange(payload.viewportHeight, 1, 10_000),
+    adaptiveVisualDensity: numberInRange(payload.adaptiveVisualDensity, 0, 1),
+    chartTiles: integerInRange(payload.chartTiles, 0, 100_000),
+    visibleNpcShips: integerInRange(payload.visibleNpcShips, 0, 10_000),
+    cloudSprites: integerInRange(payload.cloudSprites, 0, 100_000),
+    precipitationParticles: integerInRange(payload.precipitationParticles, 0, 1_000_000),
+    gpuDrawCalls: integerInRange(payload.gpuDrawCalls, 0, 1_000_000),
+    hardwareConcurrency: integerInRange(payload.hardwareConcurrency, 0, 1_024),
+    deviceMemoryGb: numberInRange(payload.deviceMemoryGb, 0, 1_024)
+  };
+}
+
+function validateFreezePayload(payload, samplingWeight) {
+  return {
+    samplingWeight,
+    gapMs: numberInRange(payload.gapMs, 1_000, 30_000),
+    previousFrameCpuMs: numberInRange(payload.previousFrameCpuMs, 0, 30_000),
+    schedulerDelayMs: numberInRange(payload.schedulerDelayMs, 0, 30_000),
+    cause: shortString(payload.cause, 80),
+    recentWork: shortString(payload.recentWork, 80),
+    recentWorkMs: numberInRange(payload.recentWorkMs, 0, 30_000),
     screen: shortString(payload.screen, 80),
     mainQuest: shortString(payload.mainQuest, 80),
     ship: shortString(payload.ship, 80),
@@ -394,6 +421,48 @@ function eventDataColumns(type, payload, failureFingerprint) {
         payload.chartTiles,
         payload.visibleNpcShips,
         payload.gpuDrawCalls
+      ]
+    };
+  }
+  if (type === "freeze") {
+    const sceneSummary = [
+      `viewport=${payload.viewportWidth}x${payload.viewportHeight}`,
+      `density=${payload.adaptiveVisualDensity}`,
+      `chart=${payload.chartTiles}`,
+      `npc=${payload.visibleNpcShips}`,
+      `clouds=${payload.cloudSprites}`,
+      `precip=${payload.precipitationParticles}`,
+      `draws=${payload.gpuDrawCalls}`,
+      `cores=${payload.hardwareConcurrency}`,
+      `memory=${payload.deviceMemoryGb}`
+    ].join(";");
+    return {
+      blobs: [
+        payload.mainQuest,
+        payload.cause,
+        payload.ship,
+        payload.recentWork,
+        sceneSummary,
+        "",
+        "",
+        "",
+        "",
+        payload.screen
+      ],
+      doubles: [
+        payload.gapMs,
+        payload.previousFrameCpuMs,
+        payload.schedulerDelayMs,
+        payload.recentWorkMs,
+        payload.adaptiveVisualDensity,
+        payload.chartTiles,
+        payload.visibleNpcShips,
+        payload.cloudSprites,
+        payload.precipitationParticles,
+        payload.gpuDrawCalls,
+        payload.hardwareConcurrency,
+        payload.deviceMemoryGb,
+        0
       ]
     };
   }

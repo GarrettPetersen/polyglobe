@@ -1226,6 +1226,13 @@ import {
   recordPersistentLowFrameRateStage
 } from "./persistentLowFrameRate.js";
 import {
+  beginMainThreadFreezeFrame,
+  createMainThreadFreezeMonitor,
+  finishMainThreadFreezeFrame,
+  recordMainThreadWork,
+  suspendMainThreadFreezeMonitor
+} from "./mainThreadFreeze.js";
+import {
   handleRuntimeDiagnosticAssertion,
   isRuntimeDiagnosticAssertionError,
   loadDiagnosticMode,
@@ -3578,6 +3585,7 @@ const sessionActivityState = createSessionActivityState(lastFrameMs);
 let diagnosticModeEnabled = loadDiagnosticMode(gameStorage);
 const frameRateMeter = createFrameRateMeter();
 const persistentLowFrameRateMonitor = createPersistentLowFrameRateMonitor();
+const mainThreadFreezeMonitor = createMainThreadFreezeMonitor();
 let displayedCrashReport = null;
 let fatalControllerPollActive = false;
 let fatalControllerConfirmPressed = false;
@@ -5886,6 +5894,13 @@ function easeInOut(t) {
 }
 
 function loop(nowMs) {
+  const frameCallbackStartedAtMs = performance.now();
+  const freezeReport = beginMainThreadFreezeFrame(mainThreadFreezeMonitor, nowMs, {
+    eligible: mainThreadFreezeTelemetryIsEligible()
+  });
+  if (freezeReport) {
+    gameTelemetry.recordFreeze(freezeReport, lowFrameRateTelemetryContext());
+  }
   const cadence = advanceFrameCadence({
     nowMs,
     nextFrameMs: nextGameFrameMs,
@@ -5893,6 +5908,10 @@ function loop(nowMs) {
   });
   nextGameFrameMs = cadence.nextFrameMs;
   if (!cadence.run) {
+    finishMainThreadFreezeFrame(
+      mainThreadFreezeMonitor,
+      performance.now() - frameCallbackStartedAtMs
+    );
     requestAnimationFrame(loop);
     return;
   }
@@ -5935,7 +5954,17 @@ function loop(nowMs) {
     if (lowFrameRateReport) {
       gameTelemetry.recordLowFrameRate(lowFrameRateReport, lowFrameRateTelemetryContext());
     }
+    finishMainThreadFreezeFrame(
+      mainThreadFreezeMonitor,
+      performance.now() - frameCallbackStartedAtMs
+    );
   }
+}
+
+function mainThreadFreezeTelemetryIsEligible() {
+  return !CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK && regularGameLoopStarted &&
+    !displayedCrashReport && document.visibilityState === "visible" &&
+    (typeof document.hasFocus !== "function" || document.hasFocus());
 }
 
 function persistentLowFrameRateTelemetryIsEligible() {
@@ -6267,6 +6296,9 @@ function measurePerformanceBenchmarkStage(name, callback) {
     }
     if (lowFrameRateProfiling) {
       recordPersistentLowFrameRateStage(persistentLowFrameRateMonitor, name, durationMs);
+      if (durationMs >= 100) {
+        recordMainThreadWork(mainThreadFreezeMonitor, name, durationMs, performance.now());
+      }
     }
   }
 }
@@ -13216,29 +13248,34 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     landTradeSystem = createLandTrade();
   }
 
-  const economyBeforeNpcRestore = snapshotWorldEconomy(worldEconomy);
-  const npcRoutesResult = restoreOrRecreateDerivedSaveState({
-    label: "NPC sea routes",
-    current: npcSeaRoutes,
-    recreate: () => {
-      restoreWorldEconomy(worldEconomy, economyBeforeNpcRestore, { seedKey });
-      return createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
-    },
-    restore: (candidate) => restoreNpcSeaRouteSystem(candidate, payload.npcRoutes, {
-      economy: worldEconomy,
-      fishState: restoredGameState,
-      whaleMemory: restoredGameState.memory.whales,
-      seedKey,
-      relationBetween: currentDiplomacyBetween,
-      foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
-      sovereignTradeOpenToFaction: (policyId, factionId) => (
-        sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
-      ),
-      suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
-    })
-  });
-  npcSeaRoutes = npcRoutesResult.value;
-  recordDerivedSaveRecovery(recovered, "NPC sea routes", npcRoutesResult.error);
+  if (payload.npcRoutes) {
+    const economyBeforeNpcRestore = snapshotWorldEconomy(worldEconomy);
+    const npcRoutesResult = restoreOrRecreateDerivedSaveState({
+      label: "NPC sea routes",
+      current: npcSeaRoutes,
+      recreate: () => {
+        restoreWorldEconomy(worldEconomy, economyBeforeNpcRestore, { seedKey });
+        return createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
+      },
+      restore: (candidate) => restoreNpcSeaRouteSystem(candidate, payload.npcRoutes, {
+        economy: worldEconomy,
+        fishState: restoredGameState,
+        whaleMemory: restoredGameState.memory.whales,
+        seedKey,
+        relationBetween: currentDiplomacyBetween,
+        foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+        sovereignTradeOpenToFaction: (policyId, factionId) => (
+          sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+        ),
+        suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
+      })
+    });
+    npcSeaRoutes = npcRoutesResult.value;
+    recordDerivedSaveRecovery(recovered, "NPC sea routes", npcRoutesResult.error);
+  } else {
+    console.info("[pixel-globe] seeding NPC sea routes at the saved economy minute");
+    npcSeaRoutes = createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
+  }
   return Object.freeze(recovered);
 }
 
@@ -13395,7 +13432,7 @@ function schedulePeriodicAutosave(nowMs = performance.now()) {
       return;
     }
     periodicAutosaveDueMs = null;
-    saveVoyageNow("periodic autosave");
+    saveVoyageNow("periodic autosave", { includeWorldTraffic: false });
   };
   queuePeriodicAutosaveCallback(callback);
 }
@@ -13427,10 +13464,14 @@ function cancelPeriodicAutosave() {
   periodicAutosaveDueMs = null;
 }
 
-function saveVoyageNow(reason) {
+function saveVoyageNow(reason, { includeWorldTraffic = true } = {}) {
   cancelPeriodicAutosave();
   if (CAPTURE_SCENARIO) return true;
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
+  if (typeof includeWorldTraffic !== "boolean") {
+    throw new Error("Save voyage world-traffic option must be boolean");
+  }
+  const saveStartedAtMs = performance.now();
   try {
     repairLivePlayerCargoOverflow(`before save: ${reason}`);
     const ledgerCompaction = compactPlayerLedger(gameState);
@@ -13456,19 +13497,21 @@ function saveVoyageNow(reason) {
     addOptionalSaveSnapshot(payload, snapshotErrors, "economy", "world economy", () => (
       snapshotWorldEconomy(worldEconomy)
     ));
-    addOptionalSaveSnapshot(payload, snapshotErrors, "landTrade", "land trade", () => (
-      snapshotLandTradeSystem(landTradeSystem)
-    ));
-    addOptionalSaveSnapshot(payload, snapshotErrors, "npcRoutes", "NPC sea routes", () => (
-      snapshotNpcSeaRouteSystem(npcSeaRoutes)
-    ));
+    if (includeWorldTraffic) {
+      addOptionalSaveSnapshot(payload, snapshotErrors, "landTrade", "land trade", () => (
+        snapshotLandTradeSystem(landTradeSystem)
+      ));
+      addOptionalSaveSnapshot(payload, snapshotErrors, "npcRoutes", "NPC sea routes", () => (
+        snapshotNpcSeaRouteSystem(npcSeaRoutes)
+      ));
+    }
     const write = writeLocalSaveWithRecovery(payload);
     const save = write.save;
     localSaveResult = { status: "ready", save, error: null };
     const previousFailure = savePersistenceWarning;
     savePersistenceWarning = null;
     if (previousFailure) showSurvivalNotice("SAVE RESTORED", "good");
-    if (write.mode !== LOCAL_SAVE_MODE_FULL || snapshotErrors.length > 0) {
+    if ((includeWorldTraffic && write.mode !== LOCAL_SAVE_MODE_FULL) || snapshotErrors.length > 0) {
       console.warn(
         `[pixel-globe] saved voyage in ${write.mode} mode; reconstructible world traffic will rebuild on load`,
         { snapshotErrors, attempts: write.attempts }
@@ -13494,6 +13537,17 @@ function saveVoyageNow(reason) {
     showSurvivalNotice(savePersistenceWarning.text, "warn");
     dirty = true;
     return false;
+  } finally {
+    const completedAtMs = performance.now();
+    const durationMs = completedAtMs - saveStartedAtMs;
+    if (durationMs >= 100) {
+      recordMainThreadWork(
+        mainThreadFreezeMonitor,
+        reason === "periodic autosave" ? "save.periodic" : "save.event",
+        durationMs,
+        completedAtMs
+      );
+    }
   }
 }
 
@@ -24374,6 +24428,7 @@ function noteCurrentSessionActivity(nowMs = performance.now()) {
 
 function resetSessionFrameClock() {
   lastSessionFrameMs = performance.now();
+  suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
   if (document.visibilityState === "hidden") {
     clearSessionHeldControls();
     pauseActiveSteamGameplay("hidden");
@@ -24381,6 +24436,7 @@ function resetSessionFrameClock() {
 }
 
 function handleWindowBlur() {
+  suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
   clearSessionHeldControls();
   pauseActiveSteamGameplay("focus-lost");
 }
@@ -24389,6 +24445,7 @@ function handleSteamPlatformPauseRequest(reason) {
   if (typeof reason !== "string" || reason.length === 0) {
     throw new Error("Steam pause request has no reason");
   }
+  suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
   clearSessionHeldControls();
   pauseActiveSteamGameplay(reason);
 }

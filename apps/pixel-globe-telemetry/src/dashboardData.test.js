@@ -36,13 +36,20 @@ test("dashboard crash reports are newest first", () => {
 });
 
 test("dashboard performance incidents are newest first and grouped by actionable context", () => {
-  const query = dashboardQueries(7).performanceIssues;
+  const queries = dashboardQueries(7);
+  const query = queries.performanceIssues;
   assert.match(query, /WHERE blob1 = 'low_fps'/);
   assert.match(
     query,
     /GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage,\s*stage_summary, scene_summary/
   );
   assert.match(query, /ORDER BY last_seen DESC, affected_installations DESC/);
+  assert.match(queries.freezeIssues, /WHERE blob1 = 'freeze'/);
+  assert.match(
+    queries.freezeIssues,
+    /GROUP BY revision, channel, platform, screen, main_quest, ship, cause,\s*recent_work, scene_summary/
+  );
+  assert.match(queries.freezeIssues, /ORDER BY last_seen DESC, affected_installations DESC/);
 });
 
 test("dashboard crash reports split at the all-fixed cursor", () => {
@@ -160,6 +167,25 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       first_seen: "2026-07-25 10:00:00.000",
       last_seen: "2026-07-25 11:00:00.000"
     }],
+    freezeIssues: [{
+      revision: "abc123",
+      channel: "web-prototype",
+      platform: "browser",
+      screen: "sailing",
+      main_quest: "explorer",
+      ship: "caravel",
+      cause: "save.periodic",
+      recent_work: "save.periodic",
+      scene_summary: "viewport=416x280;density=0.3;chart=171;npc=17;draws=42",
+      average_gap_ms: 1850,
+      average_cpu_ms: 15,
+      average_scheduler_delay_ms: 1835,
+      average_recent_work_ms: 1720,
+      reports: 1,
+      affected_installations: 1,
+      first_seen: "2026-07-25 10:30:00.000",
+      last_seen: "2026-07-25 10:30:00.000"
+    }],
     crashStatus: [{ active_reports: 2, historical_reports: 3 }],
     crashes: [{
       fingerprint: "fingerprint",
@@ -217,6 +243,25 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     affectedInstallations: 2,
     firstSeen: "2026-07-25 10:00:00.000",
     lastSeen: "2026-07-25 11:00:00.000"
+  });
+  assert.deepEqual(snapshot.freezeIssues[0], {
+    revision: "abc123",
+    channel: "web-prototype",
+    platform: "browser",
+    screen: "sailing",
+    mainQuest: "explorer",
+    ship: "caravel",
+    cause: "save.periodic",
+    recentWork: "save.periodic",
+    sceneSummary: "viewport=416x280;density=0.3;chart=171;npc=17;draws=42",
+    averageGapMs: 1850,
+    averageCpuMs: 15,
+    averageSchedulerDelayMs: 1835,
+    averageRecentWorkMs: 1720,
+    reports: 1,
+    affectedInstallations: 1,
+    firstSeen: "2026-07-25 10:30:00.000",
+    lastSeen: "2026-07-25 10:30:00.000"
   });
   assert.deepEqual(snapshot.playtime, {
     measuredSince: "2026-08-05T05:38:00Z",

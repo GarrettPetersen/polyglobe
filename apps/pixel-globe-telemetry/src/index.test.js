@@ -90,6 +90,35 @@ test("persistent low frame rate reports reject malformed stage profiles", async 
   });
 });
 
+test("foreground freeze reports retain timing, cause, and scene context", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("freeze", freezePayload())]), environment(points));
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+  assert.equal(points[0].blobs[0], "freeze");
+  assert.equal(points[0].blobs[7], "explorer");
+  assert.equal(points[0].blobs[8], "save.periodic");
+  assert.equal(points[0].blobs[9], "caravel");
+  assert.equal(points[0].blobs[10], "save.periodic");
+  assert.match(points[0].blobs[11], /viewport=416x280;.*npc=17;.*draws=42/);
+  assert.deepEqual(points[0].doubles.slice(1, 5), [1850, 15, 1835, 1720]);
+});
+
+test("foreground freeze reports reject background-scale gaps", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("freeze", {
+    ...freezePayload(),
+    gapMs: 60_000
+  })]), environment(points));
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 0);
+  assert.deepEqual(await response.json(), {
+    accepted: 0,
+    rejected: 1,
+    errors: [{ eventId: "event-1", error: "invalid_number" }]
+  });
+});
+
 test("full-collection weights and batch sizes are enforced", async () => {
   const points = [];
   const accepted = await worker.fetch(requestFor([event("session_start", {
@@ -290,6 +319,31 @@ function lowFrameRatePayload() {
       { name: "render", meanMs: 50, maxMs: 95 },
       { name: "npcShips", meanMs: 20, maxMs: 35 }
     ],
+    screen: "sailing",
+    mainQuest: "explorer",
+    ship: "caravel",
+    viewportWidth: 416,
+    viewportHeight: 280,
+    adaptiveVisualDensity: 0.3,
+    chartTiles: 171,
+    visibleNpcShips: 17,
+    cloudSprites: 8,
+    precipitationParticles: 12,
+    gpuDrawCalls: 42,
+    hardwareConcurrency: 4,
+    deviceMemoryGb: 8
+  };
+}
+
+function freezePayload() {
+  return {
+    samplingWeight: 1,
+    gapMs: 1850,
+    previousFrameCpuMs: 15,
+    schedulerDelayMs: 1835,
+    cause: "save.periodic",
+    recentWork: "save.periodic",
+    recentWorkMs: 1720,
     screen: "sailing",
     mainQuest: "explorer",
     ship: "caravel",

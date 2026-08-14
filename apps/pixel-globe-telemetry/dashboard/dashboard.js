@@ -56,7 +56,7 @@ function renderDashboard(data) {
   renderStarts(data.starts);
   renderChannels(data.channels);
   renderEnvironments(data.environments);
-  renderPerformanceIssues(data.performanceIssues || []);
+  renderPerformanceIssues(data.performanceIssues || [], data.freezeIssues || []);
   renderCrashes(data.crashes, data.fixedCrashes, data.crashCursor);
 }
 
@@ -382,19 +382,22 @@ function renderEnvironments(rows) {
   }
 }
 
-function renderPerformanceIssues(rows) {
+function renderPerformanceIssues(rows, freezeRows) {
   const target = document.querySelector("#performance-list");
   target.replaceChildren();
+  const incidentCount = [...rows, ...freezeRows]
+    .reduce((sum, row) => sum + row.affectedInstallations, 0);
   setText(
     "performance-summary",
-    rows.length === 0
-      ? "No sustained low-frame-rate reports"
-      : `${compact(rows.reduce((sum, row) => sum + row.affectedInstallations, 0))} installation/build incidents`
+    incidentCount === 0
+      ? "No frame-health reports"
+      : `${compact(incidentCount)} installation/build incidents`
   );
-  if (rows.length === 0) {
-    target.append(emptyState("No persistent low frame rate reported in this period."));
+  if (rows.length === 0 && freezeRows.length === 0) {
+    target.append(emptyState("No persistent low frame rate or foreground freeze reported in this period."));
     return;
   }
+  for (const row of freezeRows) target.append(freezeIssueCard(row));
   for (const row of rows) {
     const card = element("article", "performance-card");
     const heading = document.createElement("h3");
@@ -419,6 +422,31 @@ function renderPerformanceIssues(rows) {
     card.append(copy, count);
     target.append(card);
   }
+}
+
+function freezeIssueCard(row) {
+  const card = element("article", "performance-card");
+  const heading = document.createElement("h3");
+  heading.textContent = `${preciseDuration(row.averageGapMs / 1000)} freeze in ` +
+    `${titleCase(row.screen)} (${titleCase(row.cause)})`;
+  const context = document.createElement("p");
+  context.textContent = `${row.channel} / ${row.platform} / ${row.revision.slice(0, 10)} | ` +
+    `${titleCase(row.mainQuest)} / ${titleCase(row.ship)} | ` +
+    `CPU ${numberFormat.format(row.averageCpuMs)} ms, ` +
+    `scheduler delay ${numberFormat.format(row.averageSchedulerDelayMs)} ms | ` +
+    `${row.affectedInstallations} installation${row.affectedInstallations === 1 ? "" : "s"} | ` +
+    `last ${formatDateTime(row.lastSeen)}`;
+  const profile = document.createElement("p");
+  profile.className = "performance-profile";
+  profile.textContent = `Recent work ${titleCase(row.recentWork)} ` +
+    `(${numberFormat.format(row.averageRecentWorkMs)} ms) | Scene ${row.sceneSummary}`;
+  const count = element("strong", "performance-count");
+  count.textContent = compact(row.reports);
+  count.title = `${row.reports} reports`;
+  const copy = document.createElement("div");
+  copy.append(heading, context, profile);
+  card.append(copy, count);
+  return card;
 }
 
 function renderCrashes(rows, fixedRows, cursor) {

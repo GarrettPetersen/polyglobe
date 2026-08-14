@@ -11,6 +11,8 @@ export const TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY =
   "marque-and-reprisal.telemetry-diagnostic-cooldowns";
 export const TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY =
   "marque-and-reprisal.telemetry-low-frame-rate-builds";
+export const TELEMETRY_FREEZE_SIGNATURES_STORAGE_KEY =
+  "marque-and-reprisal.telemetry-freeze-signatures";
 
 export const TELEMETRY_CONSENT_UNKNOWN = "unknown";
 export const TELEMETRY_CONSENT_GRANTED = "granted";
@@ -124,6 +126,7 @@ export function createGameTelemetry({
       removeStorage(storage, TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY);
+      removeStorage(storage, TELEMETRY_FREEZE_SIGNATURES_STORAGE_KEY);
       return consent;
     }
     installationId = readOrCreateInstallationId(storage, randomId, now);
@@ -247,6 +250,27 @@ export function createGameTelemetry({
     return true;
   }
 
+  function recordFreeze(report, context = {}) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || installationId === null) return false;
+    const payload = freezeTelemetryPayload(report, context);
+    const buildRevision = requiredShortString(metadata.revision, "freeze build revision");
+    const signature = `${buildRevision}|${payload.screen}|${payload.cause}`;
+    const reportedSignatures = readReportedFreezeSignatures(storage);
+    if (reportedSignatures.includes(signature)) return false;
+    if (sessionId === null) sessionId = randomId();
+    if (!enqueueEvent("freeze", { ...payload, samplingWeight: TELEMETRY_EVENT_WEIGHT })) {
+      return false;
+    }
+    reportedSignatures.push(signature);
+    writeStorage(
+      storage,
+      TELEMETRY_FREEZE_SIGNATURES_STORAGE_KEY,
+      JSON.stringify(reportedSignatures.slice(-48))
+    );
+    void flush();
+    return true;
+  }
+
   function enqueueEvent(type, payload) {
     if (!installationId || !sessionId) return false;
     queue.push({
@@ -344,6 +368,7 @@ export function createGameTelemetry({
     captureCrash,
     captureDiagnostic,
     recordLowFrameRate,
+    recordFreeze,
     flush
   });
 }
@@ -465,6 +490,43 @@ export function lowFrameRateTelemetryPayload(report, context = {}) {
   };
 }
 
+export function freezeTelemetryPayload(report, context = {}) {
+  if (!report || typeof report !== "object") {
+    throw new Error("Freeze telemetry requires an actionable report");
+  }
+  return {
+    gapMs: boundedNumber(report.gapMs, 1_000, 30_000, "freeze frame gap"),
+    previousFrameCpuMs: boundedNumber(
+      report.previousFrameCpuMs,
+      0,
+      30_000,
+      "freeze previous-frame CPU"
+    ),
+    schedulerDelayMs: boundedNumber(report.schedulerDelayMs, 0, 30_000, "freeze scheduler delay"),
+    cause: requiredShortString(report.cause, "freeze cause"),
+    recentWork: requiredShortString(report.recentWork, "freeze recent work"),
+    recentWorkMs: boundedNumber(report.recentWorkMs, 0, 30_000, "freeze recent-work duration"),
+    screen: requiredShortString(context.screen || "unknown", "freeze screen"),
+    mainQuest: requiredShortString(context.mainQuest || "none", "freeze main quest"),
+    ship: requiredShortString(context.ship || "none", "freeze ship"),
+    viewportWidth: boundedInteger(context.viewportWidth, 1, 10_000, "viewport width"),
+    viewportHeight: boundedInteger(context.viewportHeight, 1, 10_000, "viewport height"),
+    adaptiveVisualDensity: boundedNumber(context.adaptiveVisualDensity, 0, 1, "adaptive visual density"),
+    chartTiles: boundedInteger(context.chartTiles, 0, 100_000, "chart tile count"),
+    visibleNpcShips: boundedInteger(context.visibleNpcShips, 0, 10_000, "visible NPC ships"),
+    cloudSprites: boundedInteger(context.cloudSprites, 0, 100_000, "cloud sprite count"),
+    precipitationParticles: boundedInteger(
+      context.precipitationParticles,
+      0,
+      1_000_000,
+      "precipitation particle count"
+    ),
+    gpuDrawCalls: boundedInteger(context.gpuDrawCalls, 0, 1_000_000, "GPU draw calls"),
+    hardwareConcurrency: boundedInteger(context.hardwareConcurrency, 0, 1_024, "hardware concurrency"),
+    deviceMemoryGb: boundedNumber(context.deviceMemoryGb, 0, 1_024, "device memory")
+  };
+}
+
 function animalCompanionWasAcquired(state, companionId) {
   const status = state.memory?.animalCompanions?.byId?.[companionId]?.status;
   return status === "aboard" || status === "with-naturalist";
@@ -564,6 +626,21 @@ function readReportedLowFrameRateBuilds(storage) {
     )))].slice(-24);
   } catch {
     removeStorage(storage, TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY);
+    return [];
+  }
+}
+
+function readReportedFreezeSignatures(storage) {
+  const serialized = readStorage(storage, TELEMETRY_FREEZE_SIGNATURES_STORAGE_KEY);
+  if (!serialized) return [];
+  try {
+    const parsed = JSON.parse(serialized);
+    if (!Array.isArray(parsed)) throw new Error("Freeze signatures must be an array");
+    return [...new Set(parsed.filter((signature) => (
+      typeof signature === "string" && signature.length > 0 && signature.length <= 300
+    )))].slice(-48);
+  } catch {
+    removeStorage(storage, TELEMETRY_FREEZE_SIGNATURES_STORAGE_KEY);
     return [];
   }
 }
