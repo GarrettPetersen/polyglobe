@@ -834,6 +834,43 @@ test("ship dialogue rejects a different NPC ship", () => {
   );
 });
 
+test("captured ports greet the player under their current sovereign", () => {
+  const ceuta = {
+    tileId: 102,
+    city: "Ceuta",
+    displayCity: "Ceuta",
+    country: "Morocco",
+    cityType: "mediterranean",
+    population: 12000,
+    foundingFactionId: "portugal",
+    factionId: "ottoman",
+    character: { name: "Diogo Mendes", personalityId: "vigilant" }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: [ceuta], startMinute: 0 });
+  const greeting = portDialogueView(
+    createPortDialogueSession(ceuta),
+    ceuta,
+    gameState,
+    economy,
+    [ceuta],
+    {}
+  );
+
+  assert.match(greeting.text, /The Ottoman Empire now rules Ceuta/);
+
+  ceuta.factionId = "portugal";
+  const unchangedGreeting = portDialogueView(
+    createPortDialogueSession(ceuta),
+    ceuta,
+    gameState,
+    economy,
+    [ceuta],
+    {}
+  );
+  assert.doesNotMatch(unchangedGreeting.text, /now rules Ceuta/);
+});
+
 test("port dialogue exposes live market specie, stock, and prices", () => {
   const city = {
     tileId: 1,

@@ -93,6 +93,7 @@ import {
   DIPLOMACY_FRIENDLY,
   DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL,
+  NEUTRAL_FACTION_ID,
   factionById,
   factionNounPhrase
 } from "./factions.js";
@@ -3204,7 +3205,8 @@ function greetingView(session, city, gameState, context) {
   const drunkMemoryRemark = rememberedDrunkFactorLine(session, memory);
   const settlementRemark = foreignSettlementFactorLine(city, gameState);
   const suzerainRemark = vassalPortEntryLine(context.portEntryStatus);
-  const remarks = [drunkMemoryRemark, settlementRemark, suzerainRemark, greeting.text].filter(Boolean);
+  const sovereigntyRemark = changedPortSovereigntyLine(city);
+  const remarks = [drunkMemoryRemark, settlementRemark, suzerainRemark, sovereigntyRemark, greeting.text].filter(Boolean);
   return {
     speaker: speakerName(city),
     expressionId: greeting.expressionId,
@@ -3212,6 +3214,12 @@ function greetingView(session, city, gameState, context) {
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: "root" })]
   };
+}
+
+function changedPortSovereigntyLine(city) {
+  if (!city.foundingFactionId || !city.factionId || city.foundingFactionId === city.factionId) return null;
+  if (city.factionId === NEUTRAL_FACTION_ID) return null;
+  return `${factionNounPhrase(city.factionId, { sentenceStart: true })} now rules ${cityLabel(city)}. A new ruler always means new contracts.`;
 }
 
 function vassalPortEntryLine(status) {
