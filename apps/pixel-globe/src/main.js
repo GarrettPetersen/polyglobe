@@ -1220,6 +1220,12 @@ import {
   sampleFrameRate
 } from "./frameRateMeter.js";
 import {
+  beginPersistentLowFrameRateFrame,
+  createPersistentLowFrameRateMonitor,
+  finishPersistentLowFrameRateFrame,
+  recordPersistentLowFrameRateStage
+} from "./persistentLowFrameRate.js";
+import {
   handleRuntimeDiagnosticAssertion,
   isRuntimeDiagnosticAssertionError,
   loadDiagnosticMode,
@@ -3570,6 +3576,7 @@ let regularGameLoopStarted = false;
 const sessionActivityState = createSessionActivityState(lastFrameMs);
 let diagnosticModeEnabled = loadDiagnosticMode(gameStorage);
 const frameRateMeter = createFrameRateMeter();
+const persistentLowFrameRateMonitor = createPersistentLowFrameRateMonitor();
 let displayedCrashReport = null;
 let fatalControllerPollActive = false;
 let fatalControllerConfirmPressed = false;
@@ -5888,7 +5895,13 @@ function loop(nowMs) {
     requestAnimationFrame(loop);
     return;
   }
-  const benchmarkCpuStartMs = performanceBenchmarkState ? performance.now() : 0;
+  const lowFrameRateProfiling = beginPersistentLowFrameRateFrame(
+    persistentLowFrameRateMonitor,
+    nowMs,
+    { eligible: persistentLowFrameRateTelemetryIsEligible() }
+  );
+  const measureFrameCpu = Boolean(performanceBenchmarkState || lowFrameRateProfiling);
+  const frameCpuStartMs = measureFrameCpu ? performance.now() : 0;
   try {
     runFrame(nowMs);
   } catch (error) {
@@ -5903,9 +5916,10 @@ function loop(nowMs) {
     if (PERFORMANCE_BENCHMARK) setPerformanceBenchmarkDomStatus({ error: error instanceof Error ? error.message : String(error) });
     drawFatalError(error, "Prototype runtime failure");
   } finally {
+    const frameCpuMs = measureFrameCpu ? performance.now() - frameCpuStartMs : 0;
     if (performanceBenchmarkState) {
       try {
-        updatePerformanceBenchmark(nowMs, performance.now() - benchmarkCpuStartMs);
+        updatePerformanceBenchmark(nowMs, frameCpuMs);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.__PIXEL_GLOBE_CAPTURE_ERROR__ = message;
@@ -5913,7 +5927,21 @@ function loop(nowMs) {
         console.error(error);
       }
     }
+    const lowFrameRateReport = finishPersistentLowFrameRateFrame(
+      persistentLowFrameRateMonitor,
+      lowFrameRateProfiling ? frameCpuMs : 0
+    );
+    if (lowFrameRateReport) {
+      gameTelemetry.recordLowFrameRate(lowFrameRateReport, lowFrameRateTelemetryContext());
+    }
   }
+}
+
+function persistentLowFrameRateTelemetryIsEligible() {
+  return !CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK && regularGameLoopStarted &&
+    hasStartedVoyage && !gameOverReason && !displayedCrashReport &&
+    document.visibilityState === "visible" &&
+    (typeof document.hasFocus !== "function" || document.hasFocus());
 }
 
 function recoverLostWorldGraphicsContext() {
@@ -5969,6 +5997,25 @@ function telemetryCrashContext(screenOverride = null) {
   };
 }
 
+function lowFrameRateTelemetryContext() {
+  const rendererStats = worldRenderer.stats();
+  return {
+    ...telemetryCrashContext(),
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    adaptiveVisualDensity,
+    chartTiles: chart?.tileCalls?.length || 0,
+    visibleNpcShips: npcVisualShips.size,
+    cloudSprites: renderedCloudSpriteCount,
+    precipitationParticles: precipParticles.length,
+    gpuDrawCalls: rendererStats.drawCalls,
+    hardwareConcurrency: Number.isInteger(navigator.hardwareConcurrency)
+      ? navigator.hardwareConcurrency
+      : 0,
+    deviceMemoryGb: Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : 0
+  };
+}
+
 function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {}) {
   if (pendingWorldAssetError) {
     const error = pendingWorldAssetError;
@@ -5990,10 +6037,13 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (captureDirector && !capturePlaybackPaused) updateCaptureDirectorFrame(nowMs);
   if (lakeBattleMode) {
     updateWaterAnimation(nowMs);
-    updateLakeBattleModeFrame(dt, nowMs);
+    measurePerformanceBenchmarkStage(
+      "battle",
+      () => updateLakeBattleModeFrame(dt, nowMs)
+    );
     updateMusicContext(nowMs);
     dirty = false;
-    render(nowMs);
+    measurePerformanceBenchmarkStage("render", () => render(nowMs));
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
     updatePlatformActivity();
@@ -6203,12 +6253,20 @@ function publishPlatformTimelineEvent(event) {
 }
 
 function measurePerformanceBenchmarkStage(name, callback) {
-  if (!performanceBenchmarkState) return callback();
+  const benchmarkActive = Boolean(performanceBenchmarkState);
+  const lowFrameRateProfiling = persistentLowFrameRateMonitor.profiling;
+  if (!benchmarkActive && !lowFrameRateProfiling) return callback();
   const startedAtMs = performance.now();
   try {
     return callback();
   } finally {
-    recordPerformanceBenchmarkStage(performanceBenchmarkState, name, performance.now() - startedAtMs);
+    const durationMs = performance.now() - startedAtMs;
+    if (benchmarkActive) {
+      recordPerformanceBenchmarkStage(performanceBenchmarkState, name, durationMs);
+    }
+    if (lowFrameRateProfiling) {
+      recordPersistentLowFrameRateStage(persistentLowFrameRateMonitor, name, durationMs);
+    }
   }
 }
 

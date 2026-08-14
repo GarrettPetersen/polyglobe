@@ -178,6 +178,24 @@ export function dashboardQueries(windowDays, crashCursor = null) {
       ORDER BY sessions DESC
       LIMIT 40
     `,
+    performanceIssues: `
+      SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
+        blob17 AS screen, blob8 AS main_quest, blob10 AS ship,
+        blob9 AS dominant_stage, any(blob11) AS stage_summary,
+        any(blob12) AS scene_summary,
+        round(avg(double2), 1) AS average_fps,
+        round(avg(double4), 1) AS average_p95_frame_ms,
+        round(avg(double7), 1) AS average_p95_cpu_ms,
+        round(avg(double9), 1) AS average_long_frame_percent,
+        round(avg(double10), 1) AS average_duration_seconds,
+        count() AS reports, count(DISTINCT index1) AS affected_installations,
+        min(timestamp) AS first_seen, max(timestamp) AS last_seen
+      FROM ${DATASET}
+      WHERE blob1 = 'low_fps' AND ${where}
+      GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage
+      ORDER BY last_seen DESC, affected_installations DESC
+      LIMIT 40
+    `,
     crashStatus: `
       SELECT
         round(SUM(_sample_interval * if(
@@ -324,6 +342,26 @@ export function buildDashboardSnapshot(
       locale: requiredString(row.locale, "locale"),
       revision: requiredString(row.revision, "revision"),
       sessions: nonnegativeNumber(row.sessions)
+    })),
+    performanceIssues: results.performanceIssues.map((row) => ({
+      revision: requiredString(row.revision, "performance revision"),
+      channel: requiredString(row.channel, "performance channel"),
+      platform: requiredString(row.platform, "performance platform"),
+      screen: requiredString(row.screen, "performance screen"),
+      mainQuest: requiredString(row.main_quest, "performance main quest"),
+      ship: requiredString(row.ship, "performance ship"),
+      dominantStage: requiredString(row.dominant_stage, "performance dominant stage"),
+      stageSummary: requiredString(row.stage_summary, "performance stage summary"),
+      sceneSummary: requiredString(row.scene_summary, "performance scene summary"),
+      averageFps: nonnegativeNumber(row.average_fps),
+      averageP95FrameMs: nonnegativeNumber(row.average_p95_frame_ms),
+      averageP95CpuMs: nonnegativeNumber(row.average_p95_cpu_ms),
+      averageLongFramePercent: nonnegativeNumber(row.average_long_frame_percent),
+      averageDurationSeconds: nonnegativeNumber(row.average_duration_seconds),
+      reports: nonnegativeNumber(row.reports),
+      affectedInstallations: nonnegativeNumber(row.affected_installations),
+      firstSeen: requiredString(row.first_seen, "performance first seen"),
+      lastSeen: requiredString(row.last_seen, "performance last seen")
     })),
     crashes: normalizeCrashRows(results.crashes),
     fixedCrashes: normalizeCrashRows(results.fixedCrashes)

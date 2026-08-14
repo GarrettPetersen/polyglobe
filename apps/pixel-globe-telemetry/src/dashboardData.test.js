@@ -35,6 +35,13 @@ test("dashboard crash reports are newest first", () => {
   );
 });
 
+test("dashboard performance incidents are newest first and grouped by actionable context", () => {
+  const query = dashboardQueries(7).performanceIssues;
+  assert.match(query, /WHERE blob1 = 'low_fps'/);
+  assert.match(query, /GROUP BY revision, channel, platform, screen, main_quest, ship, dominant_stage/);
+  assert.match(query, /ORDER BY last_seen DESC, affected_installations DESC/);
+});
+
 test("dashboard crash reports split at the all-fixed cursor", () => {
   const queries = dashboardQueries(7, "2026-08-05T12:34:56.000Z");
   assert.match(queries.crashes, /timestamp > toDateTime\('2026-08-05 12:34:56'\)/);
@@ -130,6 +137,26 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       revision: "abc123",
       sessions: 300
     }],
+    performanceIssues: [{
+      revision: "abc123",
+      channel: "web-prototype",
+      platform: "browser",
+      screen: "sailing",
+      main_quest: "explorer",
+      ship: "caravel",
+      dominant_stage: "render",
+      stage_summary: "render:50/95,npcShips:20/35",
+      scene_summary: "viewport=416x280;samples=204;density=0.3;chart=171;npc=17;draws=42",
+      average_fps: 10,
+      average_p95_frame_ms: 120,
+      average_p95_cpu_ms: 100,
+      average_long_frame_percent: 95,
+      average_duration_seconds: 20.4,
+      reports: 2,
+      affected_installations: 2,
+      first_seen: "2026-07-25 10:00:00.000",
+      last_seen: "2026-07-25 11:00:00.000"
+    }],
     crashStatus: [{ active_reports: 2, historical_reports: 3 }],
     crashes: [{
       fingerprint: "fingerprint",
@@ -168,6 +195,26 @@ test("dashboard snapshots normalize aggregate query rows", () => {
   });
   assert.equal(snapshot.crashes[0].message, "Boom");
   assert.equal(snapshot.fixedCrashes[0].message, "Old boom");
+  assert.deepEqual(snapshot.performanceIssues[0], {
+    revision: "abc123",
+    channel: "web-prototype",
+    platform: "browser",
+    screen: "sailing",
+    mainQuest: "explorer",
+    ship: "caravel",
+    dominantStage: "render",
+    stageSummary: "render:50/95,npcShips:20/35",
+    sceneSummary: "viewport=416x280;samples=204;density=0.3;chart=171;npc=17;draws=42",
+    averageFps: 10,
+    averageP95FrameMs: 120,
+    averageP95CpuMs: 100,
+    averageLongFramePercent: 95,
+    averageDurationSeconds: 20.4,
+    reports: 2,
+    affectedInstallations: 2,
+    firstSeen: "2026-07-25 10:00:00.000",
+    lastSeen: "2026-07-25 11:00:00.000"
+  });
   assert.deepEqual(snapshot.playtime, {
     measuredSince: "2026-08-05T05:38:00Z",
     sessions: 400,

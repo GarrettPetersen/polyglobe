@@ -9,6 +9,8 @@ export const TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY =
   "marque-and-reprisal.telemetry-last-voyage-start";
 export const TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY =
   "marque-and-reprisal.telemetry-diagnostic-cooldowns";
+export const TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY =
+  "marque-and-reprisal.telemetry-low-frame-rate-builds";
 
 export const TELEMETRY_CONSENT_UNKNOWN = "unknown";
 export const TELEMETRY_CONSENT_GRANTED = "granted";
@@ -121,6 +123,7 @@ export function createGameTelemetry({
       removeStorage(storage, TELEMETRY_QUEUE_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY);
       removeStorage(storage, TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY);
+      removeStorage(storage, TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY);
       return consent;
     }
     installationId = readOrCreateInstallationId(storage, randomId, now);
@@ -224,6 +227,26 @@ export function createGameTelemetry({
     return true;
   }
 
+  function recordLowFrameRate(report, context = {}) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || installationId === null) return false;
+    const buildRevision = requiredShortString(metadata.revision, "low-frame-rate build revision");
+    const reportedBuilds = readReportedLowFrameRateBuilds(storage);
+    if (reportedBuilds.includes(buildRevision)) return false;
+    if (sessionId === null) sessionId = randomId();
+    const payload = lowFrameRateTelemetryPayload(report, context);
+    if (!enqueueEvent("low_fps", { ...payload, samplingWeight: TELEMETRY_EVENT_WEIGHT })) {
+      return false;
+    }
+    reportedBuilds.push(buildRevision);
+    writeStorage(
+      storage,
+      TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY,
+      JSON.stringify(reportedBuilds.slice(-24))
+    );
+    void flush();
+    return true;
+  }
+
   function enqueueEvent(type, payload) {
     if (!installationId || !sessionId) return false;
     queue.push({
@@ -320,6 +343,7 @@ export function createGameTelemetry({
     recordVoyage,
     captureCrash,
     captureDiagnostic,
+    recordLowFrameRate,
     flush
   });
 }
@@ -385,6 +409,59 @@ export function voyageStartTelemetryPayload(state) {
   return {
     profileVersion,
     ...payload
+  };
+}
+
+export function lowFrameRateTelemetryPayload(report, context = {}) {
+  if (!report || typeof report !== "object" || !Array.isArray(report.stages) ||
+      report.stages.length < 1 || report.stages.length > 5) {
+    throw new Error("Low-frame-rate telemetry requires an actionable report");
+  }
+  const stages = report.stages.map((stage) => ({
+    name: requiredShortString(stage?.name, "low-frame-rate stage"),
+    meanMs: boundedNumber(stage?.meanMs, 0, 10_000, "low-frame-rate stage mean"),
+    maxMs: boundedNumber(stage?.maxMs, 0, 10_000, "low-frame-rate stage maximum")
+  }));
+  return {
+    durationSeconds: boundedNumber(report.durationSeconds, 5, 180, "low-frame-rate duration"),
+    sampledFrames: boundedInteger(report.sampledFrames, 1, 100_000, "low-frame-rate samples"),
+    framesPerSecond: boundedNumber(report.framesPerSecond, 0.1, 240, "low frame rate"),
+    frameTimeP50Ms: boundedNumber(report.frameTimeMs?.p50, 0, 10_000, "frame-time p50"),
+    frameTimeP95Ms: boundedNumber(report.frameTimeMs?.p95, 0, 10_000, "frame-time p95"),
+    frameTimeMaxMs: boundedNumber(report.frameTimeMs?.max, 0, 10_000, "frame-time maximum"),
+    cpuTimeMeanMs: boundedNumber(report.cpuTimeMs?.mean, 0, 10_000, "CPU-time mean"),
+    cpuTimeP95Ms: boundedNumber(report.cpuTimeMs?.p95, 0, 10_000, "CPU-time p95"),
+    cpuTimeMaxMs: boundedNumber(report.cpuTimeMs?.max, 0, 10_000, "CPU-time maximum"),
+    longFramePercent: boundedNumber(report.longFramePercent, 0, 100, "long-frame percent"),
+    stages,
+    screen: requiredShortString(context.screen || "unknown", "low-frame-rate screen"),
+    mainQuest: requiredShortString(context.mainQuest || "none", "low-frame-rate main quest"),
+    ship: requiredShortString(context.ship || "none", "low-frame-rate ship"),
+    viewportWidth: boundedInteger(context.viewportWidth, 1, 10_000, "viewport width"),
+    viewportHeight: boundedInteger(context.viewportHeight, 1, 10_000, "viewport height"),
+    adaptiveVisualDensity: boundedNumber(
+      context.adaptiveVisualDensity,
+      0,
+      1,
+      "adaptive visual density"
+    ),
+    chartTiles: boundedInteger(context.chartTiles, 0, 100_000, "chart tile count"),
+    visibleNpcShips: boundedInteger(context.visibleNpcShips, 0, 10_000, "visible NPC ships"),
+    cloudSprites: boundedInteger(context.cloudSprites, 0, 100_000, "cloud sprite count"),
+    precipitationParticles: boundedInteger(
+      context.precipitationParticles,
+      0,
+      1_000_000,
+      "precipitation particle count"
+    ),
+    gpuDrawCalls: boundedInteger(context.gpuDrawCalls, 0, 1_000_000, "GPU draw calls"),
+    hardwareConcurrency: boundedInteger(
+      context.hardwareConcurrency,
+      0,
+      1_024,
+      "hardware concurrency"
+    ),
+    deviceMemoryGb: boundedNumber(context.deviceMemoryGb, 0, 1_024, "device memory")
   };
 }
 
@@ -476,6 +553,21 @@ function readDiagnosticCooldowns(storage, currentTime) {
   }
 }
 
+function readReportedLowFrameRateBuilds(storage) {
+  const serialized = readStorage(storage, TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY);
+  if (!serialized) return [];
+  try {
+    const parsed = JSON.parse(serialized);
+    if (!Array.isArray(parsed)) throw new Error("Low-frame-rate builds must be an array");
+    return [...new Set(parsed.filter((revision) => (
+      typeof revision === "string" && revision.length > 0 && revision.length <= 160
+    )))].slice(-24);
+  } catch {
+    removeStorage(storage, TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY);
+    return [];
+  }
+}
+
 function writeDiagnosticCooldowns(storage, cooldowns) {
   const entries = [...cooldowns.entries()]
     .sort((a, b) => a[1] - b[1])
@@ -555,6 +647,20 @@ function finiteNumber(value, label) {
 
 function nonNegativeNumber(value, label) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}: ${value}`);
+  return value;
+}
+
+function boundedNumber(value, minimum, maximum, label) {
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
+  return value;
+}
+
+function boundedInteger(value, minimum, maximum, label) {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
   return value;
 }
 

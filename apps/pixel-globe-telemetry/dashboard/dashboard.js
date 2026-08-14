@@ -56,6 +56,7 @@ function renderDashboard(data) {
   renderStarts(data.starts);
   renderChannels(data.channels);
   renderEnvironments(data.environments);
+  renderPerformanceIssues(data.performanceIssues || []);
   renderCrashes(data.crashes, data.fixedCrashes, data.crashCursor);
 }
 
@@ -378,6 +379,45 @@ function renderEnvironments(rows) {
       row.revision.slice(0, 10),
       compact(row.sessions)
     ]));
+  }
+}
+
+function renderPerformanceIssues(rows) {
+  const target = document.querySelector("#performance-list");
+  target.replaceChildren();
+  setText(
+    "performance-summary",
+    rows.length === 0
+      ? "No sustained low-frame-rate reports"
+      : `${compact(rows.reduce((sum, row) => sum + row.affectedInstallations, 0))} installation/build incidents`
+  );
+  if (rows.length === 0) {
+    target.append(emptyState("No persistent low frame rate reported in this period."));
+    return;
+  }
+  for (const row of rows) {
+    const card = element("article", "performance-card");
+    const heading = document.createElement("h3");
+    heading.textContent = `${numberFormat.format(row.averageFps)} FPS in ` +
+      `${titleCase(row.screen)} (${titleCase(row.dominantStage)})`;
+    const context = document.createElement("p");
+    context.textContent = `${row.channel} / ${row.platform} / ${row.revision.slice(0, 10)} | ` +
+      `${titleCase(row.mainQuest)} / ${titleCase(row.ship)} | ` +
+      `p95 frame ${numberFormat.format(row.averageP95FrameMs)} ms, ` +
+      `CPU ${numberFormat.format(row.averageP95CpuMs)} ms, ` +
+      `${numberFormat.format(row.averageLongFramePercent)}% long frames | ` +
+      `${row.affectedInstallations} installation${row.affectedInstallations === 1 ? "" : "s"} | ` +
+      `last ${formatDateTime(row.lastSeen)}`;
+    const profile = document.createElement("p");
+    profile.className = "performance-profile";
+    profile.textContent = `Stages ${row.stageSummary} | Scene ${row.sceneSummary}`;
+    const count = element("strong", "performance-count");
+    count.textContent = compact(row.reports);
+    count.title = `${row.reports} reports`;
+    const copy = document.createElement("div");
+    copy.append(heading, context, profile);
+    card.append(copy, count);
+    target.append(card);
   }
 }
 

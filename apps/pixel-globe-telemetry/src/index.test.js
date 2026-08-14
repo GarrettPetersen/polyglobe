@@ -61,6 +61,35 @@ test("nonfatal diagnostics are stored separately from crashes", async () => {
   assert.match(points[0].blobs[12], /^[a-f0-9]{64}$/);
 });
 
+test("persistent low frame rate reports retain actionable stage and scene context", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("low_fps", lowFrameRatePayload())]), environment(points));
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+  assert.equal(points[0].blobs[0], "low_fps");
+  assert.equal(points[0].blobs[7], "explorer");
+  assert.equal(points[0].blobs[8], "render");
+  assert.equal(points[0].blobs[9], "caravel");
+  assert.match(points[0].blobs[10], /^render:50\/95,npcShips:20\/35$/);
+  assert.match(points[0].blobs[11], /viewport=416x280;.*npc=17;.*draws=42/);
+  assert.deepEqual(points[0].doubles.slice(1, 10), [10, 100, 120, 180, 82, 100, 145, 95, 20.4]);
+});
+
+test("persistent low frame rate reports reject malformed stage profiles", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("low_fps", {
+    ...lowFrameRatePayload(),
+    stages: []
+  })]), environment(points));
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 0);
+  assert.deepEqual(await response.json(), {
+    accepted: 0,
+    rejected: 1,
+    errors: [{ eventId: "event-1", error: "invalid_low_fps_stages" }]
+  });
+});
+
 test("full-collection weights and batch sizes are enforced", async () => {
   const points = [];
   const accepted = await worker.fetch(requestFor([event("session_start", {
@@ -241,6 +270,39 @@ function voyagePayload(overrides) {
     coloniesFounded: 0,
     spicesSold: 0,
     ...overrides
+  };
+}
+
+function lowFrameRatePayload() {
+  return {
+    samplingWeight: 1,
+    durationSeconds: 20.4,
+    sampledFrames: 204,
+    framesPerSecond: 10,
+    frameTimeP50Ms: 100,
+    frameTimeP95Ms: 120,
+    frameTimeMaxMs: 180,
+    cpuTimeMeanMs: 82,
+    cpuTimeP95Ms: 100,
+    cpuTimeMaxMs: 145,
+    longFramePercent: 95,
+    stages: [
+      { name: "render", meanMs: 50, maxMs: 95 },
+      { name: "npcShips", meanMs: 20, maxMs: 35 }
+    ],
+    screen: "sailing",
+    mainQuest: "explorer",
+    ship: "caravel",
+    viewportWidth: 416,
+    viewportHeight: 280,
+    adaptiveVisualDensity: 0.3,
+    chartTiles: 171,
+    visibleNpcShips: 17,
+    cloudSprites: 8,
+    precipitationParticles: 12,
+    gpuDrawCalls: 42,
+    hardwareConcurrency: 4,
+    deviceMemoryGb: 8
   };
 }
 

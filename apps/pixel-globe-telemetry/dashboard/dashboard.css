@@ -241,6 +241,7 @@ main {
 
 .starts-panel,
 .channels-panel,
+.performance-panel,
 .crashes-panel {
   grid-column: 1 / -1;
 }
@@ -420,9 +421,44 @@ tbody tr:hover {
   text-align: center;
 }
 
-.crash-list {
+.crash-list,
+.performance-list {
   display: grid;
   gap: 9px;
+}
+
+.performance-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 18px;
+  padding: 11px 12px;
+  border-left: 4px solid var(--gold);
+  background: rgba(215, 189, 131, 0.38);
+}
+
+.performance-card h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.performance-card p {
+  overflow-wrap: anywhere;
+  margin-bottom: 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.performance-card .performance-profile {
+  margin-top: 4px;
+  color: var(--ink);
+}
+
+.performance-count {
+  color: var(--gold);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .fixed-crashes {

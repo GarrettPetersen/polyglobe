@@ -8,8 +8,10 @@ import {
   TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY,
   TELEMETRY_INSTALLATION_STORAGE_KEY,
   TELEMETRY_LAST_VOYAGE_START_STORAGE_KEY,
+  TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY,
   TELEMETRY_QUEUE_STORAGE_KEY,
   createGameTelemetry,
+  lowFrameRateTelemetryPayload,
   telemetryRuntimeChannel,
   voyageStartTelemetryPayload,
   voyageTelemetryPayload
@@ -259,6 +261,71 @@ test("protected stitch diagnostics use one persisted installation-wide cooldown"
     .filter((entry) => entry.type === "diagnostic");
   assert.equal(diagnostics.length, 2);
   assert.equal(storage.values.has(TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY), true);
+});
+
+test("persistent low frame rate reports once per installation and build", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "slow-device"
+  });
+  const events = [];
+  const createTelemetry = (revision) => createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      events.push(...JSON.parse(options.body).events);
+      return successfulResponse();
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `${revision}-event-${++serial}`;
+    })(),
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: { ...metadata(), revision }
+  });
+  const context = lowFrameRateContext();
+  const report = lowFrameRateReport();
+
+  const first = createTelemetry("slow-build-a");
+  first.start();
+  await nextTask();
+  assert.equal(first.recordLowFrameRate(report, context), true);
+  assert.equal(first.recordLowFrameRate(report, context), false);
+  await nextTask();
+
+  const reloaded = createTelemetry("slow-build-a");
+  reloaded.start();
+  await nextTask();
+  assert.equal(reloaded.recordLowFrameRate(report, context), false);
+
+  const newBuild = createTelemetry("slow-build-b");
+  newBuild.start();
+  await nextTask();
+  assert.equal(newBuild.recordLowFrameRate(report, context), true);
+  await nextTask();
+
+  const reports = events.filter((event) => event.type === "low_fps");
+  assert.equal(reports.length, 2);
+  assert.deepEqual(
+    JSON.parse(storage.values.get(TELEMETRY_LOW_FRAME_RATE_BUILDS_STORAGE_KEY)),
+    ["slow-build-a", "slow-build-b"]
+  );
+  assert.equal(reports[0].payload.stages[0].name, "render");
+  assert.equal(reports[0].payload.visibleNpcShips, 17);
+});
+
+test("low frame rate payloads reject unbounded or unactionable data", () => {
+  assert.throws(
+    () => lowFrameRateTelemetryPayload({ ...lowFrameRateReport(), stages: [] }, lowFrameRateContext()),
+    /actionable report/
+  );
+  assert.throws(
+    () => lowFrameRateTelemetryPayload(lowFrameRateReport(), {
+      ...lowFrameRateContext(),
+      viewportWidth: 0
+    }),
+    /viewport width/
+  );
 });
 
 test("a consenting installation retries an offline crash alongside its next routine session", async () => {
@@ -714,6 +781,39 @@ function voyageStartState() {
   };
   captureVoyageStartProfile(state);
   return state;
+}
+
+function lowFrameRateReport() {
+  return {
+    durationSeconds: 20.4,
+    sampledFrames: 204,
+    framesPerSecond: 10,
+    frameTimeMs: { p50: 100, p95: 120, max: 180 },
+    cpuTimeMs: { mean: 82, p95: 100, max: 145 },
+    longFramePercent: 95,
+    stages: [
+      { name: "render", meanMs: 50, maxMs: 95 },
+      { name: "npcShips", meanMs: 20, maxMs: 35 }
+    ]
+  };
+}
+
+function lowFrameRateContext() {
+  return {
+    screen: "sailing",
+    mainQuest: "explorer",
+    ship: "caravel",
+    viewportWidth: 416,
+    viewportHeight: 280,
+    adaptiveVisualDensity: 0.3,
+    chartTiles: 171,
+    visibleNpcShips: 17,
+    cloudSprites: 8,
+    precipitationParticles: 12,
+    gpuDrawCalls: 42,
+    hardwareConcurrency: 4,
+    deviceMemoryGb: 8
+  };
 }
 
 function successfulResponse(body = { accepted: 1, rejected: 0, errors: [] }) {

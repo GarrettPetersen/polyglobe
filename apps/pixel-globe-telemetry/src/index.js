@@ -11,7 +11,8 @@ const EVENT_TYPES = new Set([
   "voyage_start",
   "voyage_end",
   "crash",
-  "diagnostic"
+  "diagnostic",
+  "low_fps"
 ]);
 const ROUTINE_EVENT_TYPES = new Set([
   "session_start",
@@ -199,9 +200,54 @@ function validatePayload(type, payload) {
       ship: shortString(payload.ship, 80)
     };
   }
+  if (type === "low_fps") return validateLowFrameRatePayload(payload, samplingWeight);
   if (type === "voyage_start") return validateVoyageStartPayload(payload, samplingWeight);
   if (type === "voyage_end") return validateVoyagePayload(payload, samplingWeight);
   throw new TelemetryRequestError("invalid_event_type", 400);
+}
+
+function validateLowFrameRatePayload(payload, samplingWeight) {
+  if (!Array.isArray(payload.stages) || payload.stages.length < 1 || payload.stages.length > 5) {
+    throw new TelemetryRequestError("invalid_low_fps_stages", 400);
+  }
+  const stages = payload.stages.map((stage) => {
+    if (!plainObject(stage)) throw new TelemetryRequestError("invalid_low_fps_stages", 400);
+    return {
+      name: shortString(stage.name, 80),
+      meanMs: numberInRange(stage.meanMs, 0, 10_000),
+      maxMs: numberInRange(stage.maxMs, 0, 10_000)
+    };
+  });
+  if (new Set(stages.map((stage) => stage.name)).size !== stages.length) {
+    throw new TelemetryRequestError("invalid_low_fps_stages", 400);
+  }
+  return {
+    samplingWeight,
+    durationSeconds: numberInRange(payload.durationSeconds, 5, 180),
+    sampledFrames: integerInRange(payload.sampledFrames, 1, 100_000),
+    framesPerSecond: numberInRange(payload.framesPerSecond, 0.1, 240),
+    frameTimeP50Ms: numberInRange(payload.frameTimeP50Ms, 0, 10_000),
+    frameTimeP95Ms: numberInRange(payload.frameTimeP95Ms, 0, 10_000),
+    frameTimeMaxMs: numberInRange(payload.frameTimeMaxMs, 0, 10_000),
+    cpuTimeMeanMs: numberInRange(payload.cpuTimeMeanMs, 0, 10_000),
+    cpuTimeP95Ms: numberInRange(payload.cpuTimeP95Ms, 0, 10_000),
+    cpuTimeMaxMs: numberInRange(payload.cpuTimeMaxMs, 0, 10_000),
+    longFramePercent: numberInRange(payload.longFramePercent, 0, 100),
+    stages,
+    screen: shortString(payload.screen, 80),
+    mainQuest: shortString(payload.mainQuest, 80),
+    ship: shortString(payload.ship, 80),
+    viewportWidth: integerInRange(payload.viewportWidth, 1, 10_000),
+    viewportHeight: integerInRange(payload.viewportHeight, 1, 10_000),
+    adaptiveVisualDensity: numberInRange(payload.adaptiveVisualDensity, 0, 1),
+    chartTiles: integerInRange(payload.chartTiles, 0, 100_000),
+    visibleNpcShips: integerInRange(payload.visibleNpcShips, 0, 10_000),
+    cloudSprites: integerInRange(payload.cloudSprites, 0, 100_000),
+    precipitationParticles: integerInRange(payload.precipitationParticles, 0, 1_000_000),
+    gpuDrawCalls: integerInRange(payload.gpuDrawCalls, 0, 1_000_000),
+    hardwareConcurrency: integerInRange(payload.hardwareConcurrency, 0, 1_024),
+    deviceMemoryGb: numberInRange(payload.deviceMemoryGb, 0, 1_024)
+  };
 }
 
 function validateVoyageStartPayload(payload, samplingWeight) {
@@ -305,6 +351,52 @@ function toDataPoint(event, installationHash, failureFingerprint) {
 }
 
 function eventDataColumns(type, payload, failureFingerprint) {
+  if (type === "low_fps") {
+    const stageSummary = payload.stages
+      .map((stage) => `${stage.name}:${stage.meanMs}/${stage.maxMs}`)
+      .join(",");
+    const sceneSummary = [
+      `viewport=${payload.viewportWidth}x${payload.viewportHeight}`,
+      `samples=${payload.sampledFrames}`,
+      `density=${payload.adaptiveVisualDensity}`,
+      `chart=${payload.chartTiles}`,
+      `npc=${payload.visibleNpcShips}`,
+      `clouds=${payload.cloudSprites}`,
+      `precip=${payload.precipitationParticles}`,
+      `draws=${payload.gpuDrawCalls}`,
+      `cores=${payload.hardwareConcurrency}`,
+      `memory=${payload.deviceMemoryGb}`
+    ].join(";");
+    return {
+      blobs: [
+        payload.mainQuest,
+        payload.stages[0].name,
+        payload.ship,
+        stageSummary,
+        sceneSummary,
+        "",
+        "",
+        "",
+        "",
+        payload.screen
+      ],
+      doubles: [
+        payload.framesPerSecond,
+        payload.frameTimeP50Ms,
+        payload.frameTimeP95Ms,
+        payload.frameTimeMaxMs,
+        payload.cpuTimeMeanMs,
+        payload.cpuTimeP95Ms,
+        payload.cpuTimeMaxMs,
+        payload.longFramePercent,
+        payload.durationSeconds,
+        payload.adaptiveVisualDensity,
+        payload.chartTiles,
+        payload.visibleNpcShips,
+        payload.gpuDrawCalls
+      ]
+    };
+  }
   if (type === "voyage_start") {
     return {
       blobs: [
