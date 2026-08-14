@@ -45,6 +45,40 @@ test("unified chart settlement pulls a torn adjacent pair back together", () => 
   assert.ok(result.worstEdge.errorPx <= result.worstEdge.allowedErrorPx + 1);
 });
 
+test("full patch settlement cannot grandfather a newly admitted tear", () => {
+  const positions = new Map([
+    [1, { x: 200, y: 0 }],
+    [2, { x: 24, y: 0 }]
+  ]);
+  const referencePositions = new Map([
+    [1, { x: 0, y: 0 }],
+    [2, { x: 24, y: 0 }]
+  ]);
+  const result = planChartSettlementTowardTargets({
+    positions,
+    targetsById: new Map([[2, { x: 24, y: 0 }]]),
+    tileIds: new Set([2]),
+    maximumStepPx: Number.POSITIVE_INFINITY,
+    referencePositions,
+    neighborsById: [[], [2], [1]],
+    surfaceMaskById: Uint8Array.from([0, 2, 2]),
+    landSlackPx: 3,
+    waterSlackPx: 6,
+    incrementalRepair: false
+  });
+  const retained = positions.get(1);
+  const admitted = result.settledPositions.get(2) ?? positions.get(2);
+
+  assert.deepEqual(retained, { x: 200, y: 0 });
+  assert.ok(
+    Math.abs(Math.hypot(admitted.x - retained.x, admitted.y - retained.y) - 24) <= 3,
+    `newly admitted edge remained ${Math.hypot(
+      admitted.x - retained.x,
+      admitted.y - retained.y
+    ).toFixed(2)}px long`
+  );
+});
+
 test("unified chart settlement pushes compressed adjacent tiles apart", () => {
   const positions = new Map([
     [1, { x: 0, y: 0 }],

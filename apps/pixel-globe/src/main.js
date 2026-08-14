@@ -23057,7 +23057,8 @@ function repairCoveredChartTiles({
   } = planNorthUpChartSettlement({
     tileIds: repairableTileIds,
     maximumStepPx,
-    maximumStepPxById
+    maximumStepPxById,
+    incrementalRepair: true
   });
   const movedTileIds = [...constrainedPositions.keys()];
   if (movedTileIds.length === 0) {
@@ -23162,10 +23163,14 @@ function planConcealedChartTileRepairs(tileIds) {
 function planNorthUpChartSettlement({
   tileIds,
   maximumStepPx,
-  maximumStepPxById = null
+  maximumStepPxById = null,
+  incrementalRepair
 }) {
   if (!(tileIds instanceof Set)) {
     throw new Error("North-up chart settlement requires tile ids as a set");
+  }
+  if (typeof incrementalRepair !== "boolean") {
+    throw new Error("North-up chart settlement requires an explicit repair mode");
   }
   if (!localLayout || tileIds.size === 0) {
     return Object.freeze({
@@ -23195,7 +23200,7 @@ function planNorthUpChartSettlement({
     surfaceMaskById: chartSurfaceContinuityMask,
     landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2,
-    incrementalRepair: true
+    incrementalRepair
   });
   return Object.freeze({ ...settlement, targetsById });
 }
@@ -35499,7 +35504,8 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
       });
     const { settledPositions: settlement } = planNorthUpChartSettlement({
       tileIds: new Set(proposedPositions.keys()),
-      maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
+      maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
+      incrementalRepair: true
     });
     const settledTileCount = mutateChartPositionsBehindVisualCover("ocean swell", () => {
       for (const [id, position] of settlement) {
@@ -35784,7 +35790,11 @@ function admitMissingLocalLayoutTiles({
   const { settledPositions, worstEdge: solverWorstEdge } = planNorthUpChartSettlement({
     tileIds: settlementTileIds,
     maximumStepPx: 1,
-    maximumStepPxById
+    maximumStepPxById,
+    // New patches must meet absolute topology constraints before they become
+    // authoritative. Incremental weather repair intentionally preserves an
+    // existing boundary error and therefore cannot safely admit new coasts.
+    incrementalRepair: false
   });
   for (const [id, position] of settledPositions) {
     positions.set(id, { x: position.x, y: position.y });

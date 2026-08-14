@@ -138,6 +138,8 @@ function reportChartBenchmark(label, result) {
     polarFogRepairPasses: result.polarFogRepairPasses,
     polarFogTilesSettled: result.polarFogTilesSettled,
     maxPolarFogRepairPressure: result.maxPolarFogRepairPressure,
+    stepsWithoutProtectedCoast: result.stepsWithoutProtectedCoast,
+    stepsWithProtectedCoast: result.stepsWithProtectedCoast,
     maxRotationDeg: result.maxRotationDeg,
     maxRotationStep: result.maxRotationStep,
     maxRotationLocation: result.maxRotationLocation,
@@ -1395,6 +1397,56 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
       )).join("/")})`
   );
   assertTraversalRepairBurden(result, "Mediterranean crossing", 25);
+});
+
+test("a Cape-to-Portugal Atlantic loop reaches Madeira with an intact coast", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [-34.0, 18.4],
+        [-35.0, 5.0],
+        [-32.0, -15.0],
+        [-24.0, -32.0],
+        [-8.0, -40.0],
+        [8.0, -38.0],
+        [22.0, -29.0],
+        [31.5, -20.0],
+        [32.65, -16.9],
+        [36.0, -12.0],
+        [38.72, -9.14]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: false
+    }
+  );
+  reportChartBenchmark("cape-atlantic-portugal", result);
+
+  assert.ok(
+    result.stepsWithoutProtectedCoast >= 20,
+    `Atlantic loop sampled too little elastic open water ` +
+      `(${result.stepsWithoutProtectedCoast} open-water chart builds)`
+  );
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxProtectedEdgeErrorPx <= MAX_VISIBLE_PROTECTED_EDGE_LENGTH_ERROR_PX,
+    `Cape-to-Portugal coast opened by ${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
+      `${JSON.stringify(result.maxProtectedEdgeDetails)}`
+  );
+  assert.ok(
+    result.maxPostAdmissionLandEdgeGapPx <= MAX_VISIBLE_PROTECTED_EDGE_LENGTH_ERROR_PX,
+    `Cape-to-Portugal admission opened a ${result.maxPostAdmissionLandEdgeGapPx.toFixed(2)}px ` +
+      `land gap at ${JSON.stringify(result.maxPostAdmissionLandEdgeGapDetails)}`
+  );
+  assert.ok(
+    Math.abs(result.finalProtectedRotationDeg) <= 4,
+    `Portugal coast finished at ${result.finalProtectedRotationDeg.toFixed(2)} degrees of tilt`
+  );
+  assertLandTraversalIsContinuous(result, "Cape-to-Portugal Atlantic loop");
 });
 
 test("an east-to-west Scandinavia traversal escalates concealed repair before geometry fails", () => {
