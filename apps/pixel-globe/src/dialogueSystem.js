@@ -3831,7 +3831,7 @@ function portugueseCartazView(session, city, gameState, context) {
   const text = status.valid
     ? `Your Portuguese cartaz is valid for ${remainingDays} more day${remainingDays === 1 ? "" : "s"}. It prevents Estado da India inspections, but local customs still apply.`
     : status.fee === null
-      ? "The Estado da India will not issue a cartaz while relations remain hostile. Sailing its guarded routes without one risks inspection, fines, or seizure of controlled spices."
+      ? portugueseCartazRefusalText()
       : `A ${status.fee} doubloon cartaz licenses this vessel for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days under Estado da India patrols. Customs and spice levies still apply.`;
   return {
     speaker: speakerName(city),
@@ -3861,6 +3861,13 @@ function portugueseCartazMarketOfferView(session, city, gameState, economy, cont
     context.simMinute ?? 0,
     context.shipStats?.cargoCapacity ?? gameState.cargoCapacity
   );
+  if (status.fee === null) {
+    return {
+      ...portugueseCartazMarketDeclinedView(session, city, gameState, economy),
+      expressionId: "stern",
+      text: portugueseCartazRefusalText()
+    };
+  }
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
@@ -3876,6 +3883,10 @@ function portugueseCartazMarketOfferView(session, city, gameState, economy, cont
       option("Not now", { type: "decline-portuguese-cartaz-market" })
     ]
   };
+}
+
+function portugueseCartazRefusalText() {
+  return "The Estado da India will not issue a cartaz while relations remain hostile. Sailing its guarded routes without one risks inspection, fines, or seizure of controlled spices.";
 }
 
 function portugueseCartazMarketDeclinedView(session, city, gameState, economy) {

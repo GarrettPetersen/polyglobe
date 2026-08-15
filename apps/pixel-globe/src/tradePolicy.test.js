@@ -437,7 +437,13 @@ test("cartaz rules cover guarded Estado routes and reward good relations", () =>
     relation: DIPLOMACY_NEUTRAL,
     cargoCapacity: 40
   });
+  const hostile = portugueseCartazFee({
+    traderFactionId: "england",
+    relation: DIPLOMACY_HOSTILE,
+    cargoCapacity: 40
+  });
   assert.ok(allied < neutral);
+  assert.ok(hostile > neutral);
   assert.equal(portugueseCartazFee({
     traderFactionId: "ottoman",
     relation: DIPLOMACY_WAR,

@@ -499,12 +499,14 @@ export function portugueseCartazFee({ traderFactionId, relation, cargoCapacity }
     throw new Error(`Invalid cartaz cargo capacity: ${cargoCapacity}`);
   }
   if (traderId === PORTUGUESE_FACTION_ID) return 0;
-  if (relation === DIPLOMACY_WAR || relation === DIPLOMACY_HOSTILE) return null;
+  if (relation === DIPLOMACY_WAR) return null;
   const relationMultiplier = relation === DIPLOMACY_ALLY
     ? 0.5
     : relation === DIPLOMACY_FRIENDLY
       ? 0.75
-      : 1;
+      : relation === DIPLOMACY_HOSTILE
+        ? 1.5
+        : 1;
   return roundToNearestTen((80 + cargoCapacity * 1.8) * relationMultiplier);
 }
 

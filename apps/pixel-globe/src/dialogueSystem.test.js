@@ -66,7 +66,12 @@ import {
   resolveCatholicBibleInspection,
   visitPort
 } from "./gameState.js";
-import { DIPLOMACY_FRIENDLY, DIPLOMACY_NEUTRAL } from "./factions.js";
+import {
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
+  DIPLOMACY_NEUTRAL,
+  DIPLOMACY_WAR
+} from "./factions.js";
 import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
@@ -1177,6 +1182,65 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
   assert.equal(view.options.find((entry) => (
     entry.action.type === "buy" && entry.action.goodId === "cinnamon"
   )).disabled, false);
+});
+
+test("Colombo offers costly cartaz papers to hostile captains and a clear refusal during war", () => {
+  const city = withForeignSettlements1522({
+    tileId: 155810,
+    city: "Colombo",
+    displayCity: "Colombo",
+    country: "Sri Lanka",
+    cityType: "south-asian",
+    population: 12000,
+    factionId: "neutral",
+    character: { name: "Dinesh Jayawardena", personalityId: "shrewd" }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    doubloons: 1000,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const context = { simMinute: 100, random: () => 0.1, shipStats: shipStatsForSlug("brigantine") };
+  const pairKey = diplomacyPairKey("england", "portugal");
+  gameState.relations.diplomacy.overrides[pairKey] = DIPLOMACY_HOSTILE;
+
+  let session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    context
+  );
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.ok(view.options.some((entry) => entry.label.startsWith("Buy cartaz")));
+  assert.ok(view.options.some((entry) => entry.label === "Not now"));
+
+  gameState.relations.diplomacy.overrides[pairKey] = DIPLOMACY_WAR;
+  session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    context
+  );
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.doesNotMatch(view.text, /I can issue your vessel papers/);
+  assert.ok(view.options.some((entry) => entry.label === "Seek illicit market"));
+  assert.ok(view.options.some((entry) => entry.label === "Browse ordinary goods"));
+  assert.equal(view.options.some((entry) => entry.label === "Not now"), false);
 });
 
 test("Colombo smugglers sell cinnamon under the existing illicit-trade enforcement policy", () => {
