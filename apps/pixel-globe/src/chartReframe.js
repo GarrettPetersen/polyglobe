@@ -444,7 +444,6 @@ function relaxChartSettlementEdges({
     const aMovable = movableSet.has(edge.id);
     const bMovable = movableSet.has(edge.neighborId);
     if (bothMovableOnly && (!aMovable || !bMovable)) continue;
-    maximumViolationPx = Math.max(maximumViolationPx, error - edge.allowedError);
     const directionX = distance > 1e-9
       ? dx / distance
       : edge.expectedDx / edge.expectedLength;
@@ -453,6 +452,7 @@ function relaxChartSettlementEdges({
       : edge.expectedDy / edge.expectedLength;
     const correction = Math.sign(signedError) * (error - edge.allowedError);
     if (!aMovable && !bMovable) continue;
+    maximumViolationPx = Math.max(maximumViolationPx, error - edge.allowedError);
     const aShare = aMovable && bMovable ? 0.5 : aMovable ? 1 : 0;
     const bShare = aMovable && bMovable ? 0.5 : bMovable ? 1 : 0;
     if (aShare > 0) {

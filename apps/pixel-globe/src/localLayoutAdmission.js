@@ -843,6 +843,7 @@ export function admitProjectedTiles({
   continuityCorrectionLimitsByClass = null,
   protectedCorrectionViewportIds = null,
   liveViewportAdmissionIds = null,
+  finalizeContinuityEdges = true,
   recoverProtectedStitchError = null
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
@@ -910,6 +911,9 @@ export function admitProjectedTiles({
   }
   if (liveViewportAdmissionIds !== null && !(liveViewportAdmissionIds instanceof Set)) {
     throw new Error("Live viewport admission ids must be a set");
+  }
+  if (typeof finalizeContinuityEdges !== "boolean") {
+    throw new Error("Local layout continuity finalization flag must be boolean");
   }
   if (
     recoverProtectedStitchError !== null &&
@@ -1047,26 +1051,28 @@ export function admitProjectedTiles({
     continuityPositions.set(id, point);
     admitted++;
   }
-  reconcilePendingContinuityEdges({
-    positions,
-    projectedById,
-    pendingIds: pending,
-    neighborsById,
-    protectionById,
-    continuityMaskById,
-    registeredFrame,
-    defaultMaximumSlackPx: maxContinuityCorrectionPx,
-    maximumSlackPxByClass: continuityCorrectionLimitsByClass
-  });
-  settlePendingContinuityEdgeLengths({
-    positions,
-    projectedById,
-    pendingIds: pending,
-    neighborsById,
-    continuityMaskById,
-    defaultMaximumSlackPx: maxContinuityCorrectionPx,
-    maximumSlackPxByClass: continuityCorrectionLimitsByClass
-  });
+  if (finalizeContinuityEdges) {
+    reconcilePendingContinuityEdges({
+      positions,
+      projectedById,
+      pendingIds: pending,
+      neighborsById,
+      protectionById,
+      continuityMaskById,
+      registeredFrame,
+      defaultMaximumSlackPx: maxContinuityCorrectionPx,
+      maximumSlackPxByClass: continuityCorrectionLimitsByClass
+    });
+    settlePendingContinuityEdgeLengths({
+      positions,
+      projectedById,
+      pendingIds: pending,
+      neighborsById,
+      continuityMaskById,
+      defaultMaximumSlackPx: maxContinuityCorrectionPx,
+      maximumSlackPxByClass: continuityCorrectionLimitsByClass
+    });
+  }
 
   return admitted;
 }
@@ -1519,6 +1525,7 @@ export function refreshOffscreenLayoutTiles({
   viewportWidth,
   viewportHeight,
   tileVisualRadius,
+  refreshMarginPx = Number.POSITIVE_INFINITY,
   anchorId,
   viewX = viewportWidth / 2,
   viewY = viewportHeight / 2
@@ -1530,6 +1537,12 @@ export function refreshOffscreenLayoutTiles({
     throw new Error(`Offscreen chart refresh requires a retained anchor: ${anchorId}`);
   }
   assertFinitePoint({ x: viewX, y: viewY }, "Offscreen chart view position");
+  if (
+    refreshMarginPx !== Number.POSITIVE_INFINITY &&
+    (!Number.isFinite(refreshMarginPx) || refreshMarginPx < 0)
+  ) {
+    throw new Error(`Offscreen chart refresh margin must be non-negative: ${refreshMarginPx}`);
+  }
   // Validate every projected tile before mutating the retained layout.
   projectedViewportTileIds({
     projectedTiles,
@@ -1554,6 +1567,24 @@ export function refreshOffscreenLayoutTiles({
         viewportHeight,
         tileVisualRadius
       ))
+    ) {
+      continue;
+    }
+    const refreshRadius = tileVisualRadius + refreshMarginPx;
+    if (
+      refreshMarginPx !== Number.POSITIVE_INFINITY &&
+      (!screenPosition || !projectedTileOverlapsViewport(
+          screenPosition,
+          viewportWidth,
+          viewportHeight,
+          refreshRadius
+        )) &&
+      !projectedTileOverlapsViewport(
+        tile,
+        viewportWidth,
+        viewportHeight,
+        refreshRadius
+      )
     ) {
       continue;
     }

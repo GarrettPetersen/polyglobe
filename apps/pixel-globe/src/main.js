@@ -35959,17 +35959,18 @@ function createLocalLayoutAdmissionContext({
     viewY: localLayout.viewY
   });
   if (refreshOffscreenTiles) {
-    refreshOffscreenLayoutTiles({
+    measurePerformanceBenchmarkStage("chart.layout.refresh", () => refreshOffscreenLayoutTiles({
       positions,
       projectedTiles: projectedVisible,
       protectionById: chartTileProtection,
       viewportWidth: SCREEN_W,
       viewportHeight: SCREEN_H,
       tileVisualRadius: LOCAL_LAYOUT_RETENTION_MARGIN_PX,
+      refreshMarginPx: CHART_ADMISSION_LOOKAHEAD_PX,
       anchorId: admissionAnchorId,
       viewX: localLayout.viewX,
       viewY: localLayout.viewY
-    });
+    }));
   }
   const correctionSupport = viewportElasticCorrectionSupport({
     projectedTiles: projectedVisible,
@@ -36049,7 +36050,7 @@ function admitMissingLocalLayoutTiles({
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H
   });
-  const admitted = admitProjectedTiles({
+  const admitted = measurePerformanceBenchmarkStage("chart.layout.admit", () => admitProjectedTiles({
     positions,
     projectedById: admissionProjectedById,
     pendingIds: pending,
@@ -36067,8 +36068,10 @@ function admitMissingLocalLayoutTiles({
     continuityCorrectionLimitsByClass: CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS,
     protectedCorrectionViewportIds: liveViewportAdmissionIds,
     liveViewportAdmissionIds,
+    // The unified settlement directly below finalizes this same topology.
+    finalizeContinuityEdges: false,
     recoverProtectedStitchError
-  });
+  }));
   const newlyAdmittedTileIds = new Set([...pending].filter((id) => positions.has(id)));
   const seedAudit = CHART_RECOVERY_TEST_ENABLED
     ? maximumNorthUpEdgeLengthError(newlyAdmittedTileIds)
@@ -36094,15 +36097,18 @@ function admitMissingLocalLayoutTiles({
         : 1
     );
   }
-  const { settledPositions, worstEdge: solverWorstEdge } = planNorthUpChartSettlement({
-    tileIds: settlementTileIds,
-    maximumStepPx: 1,
-    maximumStepPxById,
-    // New patches must meet absolute topology constraints before they become
-    // authoritative. Incremental weather repair intentionally preserves an
-    // existing boundary error and therefore cannot safely admit new coasts.
-    incrementalRepair: false
-  });
+  const { settledPositions, worstEdge: solverWorstEdge } = measurePerformanceBenchmarkStage(
+    "chart.layout.settle",
+    () => planNorthUpChartSettlement({
+      tileIds: settlementTileIds,
+      maximumStepPx: 1,
+      maximumStepPxById,
+      // New patches must meet absolute topology constraints before they become
+      // authoritative. Incremental weather repair intentionally preserves an
+      // existing boundary error and therefore cannot safely admit new coasts.
+      incrementalRepair: false
+    })
+  );
   for (const [id, position] of settledPositions) {
     positions.set(id, { x: position.x, y: position.y });
   }

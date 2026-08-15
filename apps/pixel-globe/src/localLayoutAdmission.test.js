@@ -1228,6 +1228,37 @@ test("offscreen eviction can retain a connector endpoint beyond the tile sprite 
   assert.deepEqual(positions.get(1), { x: -30, y: 50 });
 });
 
+test("offscreen refresh solves only the approach band around the viewport", () => {
+  const positions = new Map([
+    [0, { x: 50, y: 50 }],
+    [1, { x: 240, y: 50 }],
+    [2, { x: 240, y: 50 }],
+    [3, { x: 120, y: 50 }]
+  ]);
+  const projectedTiles = [
+    { id: 0, x: 50, y: 50 },
+    { id: 1, x: 240, y: 50 },
+    { id: 2, x: 120, y: 50 },
+    { id: 3, x: 240, y: 50 }
+  ];
+
+  const discarded = refreshOffscreenLayoutTiles({
+    positions,
+    projectedTiles,
+    protectionById: new Uint8Array(4),
+    viewportWidth: 100,
+    viewportHeight: 100,
+    tileVisualRadius: 10,
+    refreshMarginPx: 24,
+    anchorId: 0
+  });
+
+  assert.equal(discarded, 2);
+  assert.equal(positions.has(1), true, "distant cached tile was needlessly refreshed");
+  assert.equal(positions.has(2), false, "projected approach tile was not refreshed");
+  assert.equal(positions.has(3), false, "drawn approach tile was not refreshed");
+});
+
 test("the offscreen preload margin cannot steer the visible frame fit", () => {
   const positions = new Map([
     [0, { x: 0, y: 0 }],
@@ -2056,6 +2087,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
         TEST_CONTINUITY_CORRECTION_LIMITS_BY_CLASS,
       protectedCorrectionViewportIds: correctionViewportIds,
       liveViewportAdmissionIds: correctionViewportIds,
+      finalizeContinuityEdges: false,
       recoverProtectedStitchError: () => true
     };
     if (maxProtectedCorrectionPx > 0) {
