@@ -1704,6 +1704,7 @@ import { formatCompactNumber } from "./compactNumber.js";
 import { EARTH_RADIUS_KM, initialBearingDeg } from "./worldDistance.js";
 import {
   formatWaypointLabel,
+  waypointArrowDirectionFromCenter,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
   waypointPointOverlapsReservedRects
@@ -49894,9 +49895,10 @@ function drawWorldTargetArrow({
       return;
     }
     if (pointIsOnScreen) {
-      const direction = normalizeOrNull({
-        x: point.x - SCREEN_W / 2,
-        y: point.y - SCREEN_H / 2
+      const direction = waypointArrowDirectionFromCenter({
+        point,
+        screenWidth: SCREEN_W,
+        screenHeight: SCREEN_H
       });
       if (!direction) return;
       const trackPoint = waypointArrowEdgePoint({

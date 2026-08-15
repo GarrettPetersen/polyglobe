@@ -1,6 +1,22 @@
 const WAYPOINT_TRACK_CACHE_LIMIT = 24;
 const waypointTrackCache = new Map();
 
+export function waypointArrowDirectionFromCenter({ point, screenWidth, screenHeight }) {
+  assertPoint(point, "target point");
+  assertPositive(screenWidth, "screen width");
+  assertPositive(screenHeight, "screen height");
+  const direction = {
+    x: point.x - screenWidth / 2,
+    y: point.y - screenHeight / 2
+  };
+  const length = Math.hypot(direction.x, direction.y);
+  if (length <= 1e-9) return null;
+  return {
+    x: direction.x / length,
+    y: direction.y / length
+  };
+}
+
 export function waypointArrowEdgePoint({
   direction,
   screenWidth,

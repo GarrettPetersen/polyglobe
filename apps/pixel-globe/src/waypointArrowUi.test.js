@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   formatWaypointLabel,
+  waypointArrowDirectionFromCenter,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
   waypointPointOverlapsReservedRects
@@ -121,8 +122,14 @@ test("waypoint perimeter detours remain continuous across a bearing sweep", () =
 
 test("an on-screen destination hidden by the HUD points from the HUD inner edge", () => {
   const panel = { x: 0, y: 0, w: 130, h: 58 };
+  const destination = { x: 55, y: 34 };
+  const direction = waypointArrowDirectionFromCenter({
+    point: destination,
+    screenWidth: 455,
+    screenHeight: 256
+  });
   const point = waypointArrowEdgePoint({
-    direction: { x: 55 - 228, y: 34 - 128 },
+    direction,
     screenWidth: 455,
     screenHeight: 256,
     margin: 15,
@@ -133,6 +140,22 @@ test("an on-screen destination hidden by the HUD points from the HUD inner edge"
   assert.equal(waypointPointOverlapsReservedRects(point, [panel], 8), false);
   assert.ok(point.y >= panel.y + panel.h + 8);
   assert.ok(point.x > panel.x && point.x < panel.x + panel.w);
+});
+
+test("covered waypoint direction uses finite two-dimensional coordinates", () => {
+  const direction = waypointArrowDirectionFromCenter({
+    point: { x: 55, y: 34 },
+    screenWidth: 455,
+    screenHeight: 256
+  });
+  assert.ok(Number.isFinite(direction.x));
+  assert.ok(Number.isFinite(direction.y));
+  assert.ok(Math.abs(Math.hypot(direction.x, direction.y) - 1) < 1e-9);
+  assert.equal(waypointArrowDirectionFromCenter({
+    point: { x: 227.5, y: 128 },
+    screenWidth: 455,
+    screenHeight: 256
+  }), null);
 });
 
 test("waypoint arrow geometry includes a generous pointer hitbox", () => {
