@@ -34,6 +34,7 @@ const ISTANBUL = port(11, "Istanbul", "islamic-desert", 180000, 41.01, 28.98, "o
 const MALACCA = port(12, "Malacca", "southeast-asian", 45000, 2.19, 102.25, "neutral");
 const GOA = port(13, "Goa", "south-asian", 75000, 15.49, 73.83, "portugal");
 const CHANCHAN = port(14, "Chanchan", "andean", 25000, -8.106, -79.075, "inca");
+const LAHORE = port(15, "Lahore", "south-asian", 80000, 31.55, 74.34, "delhi");
 
 test("new-build listings are uncommon but available across a useful share of ports", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
@@ -223,6 +224,25 @@ test("Southeast Asian shipyards build the complete regional Malay fleet", () => 
   assert.equal(shipConstructionPrice("penjajap"), 7000);
   assert.equal(shipConstructionPrice("lancaran"), 18000);
   assert.equal(shipConstructionPrice("royal-lancaran"), 42000);
+});
+
+test("South Asian shipyards build Indian Ocean vessels rather than Chinese junks", () => {
+  const system = createWorldShipyards({ ports: [LAHORE], startMinute: 0 });
+  const yard = shipyardAtPort(system, LAHORE);
+  const hulls = generatedHulls(yard, 800);
+
+  assert.equal([...hulls].some((slug) => slug.includes("junk")), false);
+  assert.equal(hulls.has("dhow"), true);
+  assert.equal(hulls.has("ocean-dhow"), true);
+
+  yard.buildNumber = 12;
+  yard.listing = {
+    ...generateShipyardListing(yard, yard.buildNumber, 0),
+    shipSlug: "large-junk",
+    shipLabel: "Large Junk"
+  };
+  restoreWorldShipyards(system, snapshotWorldShipyards(system));
+  assert.equal(shipyardAtPort(system, LAHORE).listing.shipSlug.includes("junk"), false);
 });
 
 test("every player start region offers an affordable second ship", () => {

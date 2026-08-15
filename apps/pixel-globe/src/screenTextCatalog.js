@@ -1604,7 +1604,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Is that creature part of the crew, or merely the most successful pirate aboard?",
   "Is the weather always this contrary back in {0}?",
   "ISSUER",
-  "It also cedes {0}.",
+  "It also recognizes the loss of {0} in the treaty.",
   "It can see leagues of country from up there. A useful talent in a navigator.",
   "It carries its young in a pouch. A sensible arrangement, though poor for cargo capacity.",
   "It catches fish without a net and looks unbearably pleased with itself.",

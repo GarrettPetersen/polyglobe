@@ -1604,7 +1604,7 @@ export default Object.freeze({
   "Is that creature part of the crew, or merely the most successful pirate aboard?": "Является ли это существо частью команды или просто самым успешным пиратом на борту?",
   "Is the weather always this contrary back in {0}?": "В {0} погода всегда такая противоречивая?",
   "ISSUER": "ЭМИТЕНТ",
-  "It also cedes {0}.": "Он также уступает {0}.",
+  "It also recognizes the loss of {0} in the treaty.": "Договор также закрепляет потерю {0}.",
   "It can see leagues of country from up there. A useful talent in a navigator.": "Отсюда видно целые лиги страны. Полезный талант штурмана.",
   "It carries its young in a pouch. A sensible arrangement, though poor for cargo capacity.": "Детенышей он носит в сумке. Разумное расположение, хотя и плохое для грузоподъемности.",
   "It catches fish without a net and looks unbearably pleased with itself.": "Он ловит рыбу без сети и выглядит невыносимо довольным собой.",

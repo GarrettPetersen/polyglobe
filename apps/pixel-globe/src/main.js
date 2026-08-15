@@ -18701,7 +18701,7 @@ function capitalPeaceTreatyDescription(treaty) {
     );
     const concessionCount = treatyConcessionCityIds(treaty).length;
     const concessionText = concessionCount > 0
-      ? ` It also cedes ${treatyConcessionLabel(treaty)}.`
+      ? ` It also recognizes the loss of ${treatyConcessionLabel(treaty)} in the treaty.`
       : "";
     return `${sovereigns}${loser.name} keeps its government as a vassal of ${factionById(principal).name}, follows its foreign policy, and grants its ships privileged trade.${concessionText}`;
   }

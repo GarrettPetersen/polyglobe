@@ -211,6 +211,39 @@ test("capturing a large-state capital restores it under a vassalage settlement",
   assert.equal(memory.collapsedFactionIds.includes("portugal"), false);
 });
 
+test("vassalage recognizes an earlier occupation without transferring the city again", () => {
+  const memory = createPortConquestMemory();
+  const hormuz = city({
+    tileId: 50,
+    portId: "hormuz",
+    city: "Hormuz",
+    factionId: "hormuz",
+    isFactionCapital: true,
+    capitalOfFactionId: "hormuz"
+  });
+  const muscat = city({
+    tileId: 51,
+    portId: "muscat",
+    city: "Muscat",
+    factionId: "hormuz"
+  });
+  recordPortCapture(memory, muscat, "ottoman", 300, "player");
+  const capitalEvent = recordPortCapture(memory, hormuz, "ottoman", 400, "player");
+
+  const treaty = settleCapitalPeaceTreaty(
+    memory,
+    [hormuz, muscat],
+    capitalEvent,
+    CAPITAL_PEACE_TERM_VASSALAGE,
+    400
+  );
+
+  assert.deepEqual(treaty.concessionCityNames, ["Muscat"]);
+  assert.equal(effectivePortFactionId(memory, muscat), "ottoman");
+  assert.equal(effectivePortFactionId(memory, hormuz), "hormuz");
+  assert.equal(memory.events.length, 2, "the treaty must not record a second capture of Muscat");
+});
+
 test("inland cities count against annexation even when the defeated power has few ports", () => {
   const memory = createPortConquestMemory();
   const capital = city({ isFactionCapital: true, capitalOfFactionId: "portugal" });

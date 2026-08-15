@@ -1604,7 +1604,7 @@ export default Object.freeze({
   "Is that creature part of the crew, or merely the most successful pirate aboard?": "那個生物是船員的一部分，還是只是船上最成功的海盜？",
   "Is the weather always this contrary back in {0}?": "{0} 的天氣總是這樣相反嗎？",
   "ISSUER": "發行人",
-  "It also cedes {0}.": "它也放棄了 {0}。",
+  "It also recognizes the loss of {0} in the treaty.": "條約亦確認其失去{0}。",
   "It can see leagues of country from up there. A useful talent in a navigator.": "從那裡它可以看到數個國家的聯盟。航海家中有用的天賦。",
   "It carries its young in a pouch. A sensible arrangement, though poor for cargo capacity.": "它把幼崽裝在袋子裡。這是一個明智的安排，儘管貨運能力較差。",
   "It catches fish without a net and looks unbearably pleased with itself.": "它不用網捕魚，看起來得意洋洋。",

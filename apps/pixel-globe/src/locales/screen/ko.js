@@ -1604,7 +1604,7 @@ export default Object.freeze({
   "Is that creature part of the crew, or merely the most successful pirate aboard?": "그 생물은 선원의 일부인가요, 아니면 단지 가장 성공적인 해적인가요?",
   "Is the weather always this contrary back in {0}?": "{0} 날씨가 항상 이렇게 반대인가요?",
   "ISSUER": "발급자",
-  "It also cedes {0}.": "또한 {0}을 양도합니다.",
+  "It also recognizes the loss of {0} in the treaty.": "또한 조약에서 {0}의 상실을 인정합니다.",
   "It can see leagues of country from up there. A useful talent in a navigator.": "저 위에서는 국가별 리그를 볼 수 있습니다. 네비게이터에게 유용한 재능입니다.",
   "It carries its young in a pouch. A sensible arrangement, though poor for cargo capacity.": "새끼를 주머니에 담아 가지고 다닙니다. 화물 용량에 비해 열악하지만 합리적인 배치입니다.",
   "It catches fish without a net and looks unbearably pleased with itself.": "그물 없이도 물고기를 잡는 모습은 참을 수 없을 정도로 기뻐하는 모습이다.",

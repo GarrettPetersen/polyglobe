@@ -1604,7 +1604,7 @@ export default Object.freeze({
   "Is that creature part of the crew, or merely the most successful pirate aboard?": "¿Es esa criatura parte de la tripulación o simplemente el pirata más exitoso a bordo?",
   "Is the weather always this contrary back in {0}?": "¿El clima siempre es tan contrario en {0}?",
   "ISSUER": "EMISOR",
-  "It also cedes {0}.": "También cede {0}.",
+  "It also recognizes the loss of {0} in the treaty.": "También reconoce en el tratado la pérdida de {0}.",
   "It can see leagues of country from up there. A useful talent in a navigator.": "Puede ver leguas de países desde allí arriba. Un talento útil en un navegante.",
   "It carries its young in a pouch. A sensible arrangement, though poor for cargo capacity.": "Lleva a sus crías en una bolsa. Una disposición sensata, aunque deficiente en términos de capacidad de carga.",
   "It catches fish without a net and looks unbearably pleased with itself.": "Pesca sin red y parece insoportablemente satisfecho de sí mismo.",

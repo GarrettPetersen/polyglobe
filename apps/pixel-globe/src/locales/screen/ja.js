@@ -1604,7 +1604,7 @@ export default Object.freeze({
   "Is that creature part of the crew, or merely the most successful pirate aboard?": "その生き物は乗組員の一員ですか、それとも単に乗組員として最も成功した海賊ですか?",
   "Is the weather always this contrary back in {0}?": "{0} ではいつも天気が逆なのでしょうか?",
   "ISSUER": "発行者",
-  "It also cedes {0}.": "また、{0} も譲渡します。",
+  "It also recognizes the loss of {0} in the treaty.": "また、条約で {0} の喪失を認めます。",
   "It can see leagues of country from up there. A useful talent in a navigator.": "そこからは各国のリーグを見ることができます。ナビゲーターとして重宝される才能。",
   "It carries its young in a pouch. A sensible arrangement, though poor for cargo capacity.": "袋の中に子供を入れて運んでいます。賢明な配置ではあるが、積載量の割には貧弱だ。",
   "It catches fish without a net and looks unbearably pleased with itself.": "網を使わずに魚を捕まえて、たまらなくうれしそうです。",
