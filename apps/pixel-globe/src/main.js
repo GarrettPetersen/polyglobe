@@ -1686,6 +1686,7 @@ import {
   colonizationDefenseShipIds,
   colonizationAftermathAtSite,
   colonizationAftermathForPort,
+  colonizationAftermathReportPort,
   colonizationAftermathView,
   colonizationGovernmentInExileFactionId,
   colonizationNavigationObjective,
@@ -1700,6 +1701,8 @@ import {
   completeColonizationAftermath,
   completeColonizationFetchStage,
   defeatColonizationAttacker,
+  discoverableColonizationAftermath,
+  discoverColonizationAftermath,
   isColonizationDefenseShip,
   isColonizationQuestApproval,
   isColonizationQuestTarget,
@@ -6180,6 +6183,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateCampaignGoalReturnReminder()) dirty = true;
     if (updateWhiteWhaleSightingObjective()) dirty = true;
     if (updateColonizationQuest()) dirty = true;
+    if (maybeDiscoverMissingColonizationAftermath()) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
@@ -7422,6 +7426,31 @@ function updateColonizationQuest() {
     : memory.stage === COLONIZATION_STAGE_FAILED
     ? `${targetName} colony failed`
     : `departed ${targetName} colony`);
+  return true;
+}
+
+function maybeDiscoverMissingColonizationAftermath() {
+  if (!gameState?.memory?.colonization || !ship || gameOverReason || dialogueState ||
+      captainAlertModal || portWaitState) {
+    return false;
+  }
+  const aftermath = colonizationAftermathView(gameState.memory.colonization);
+  if (aftermath?.stage !== COLONIZATION_AFTERMATH_MISSING) return false;
+  const targetVector = tileCenterVector(aftermath.target.tileId);
+  const distancePx = Math.acos(clamp(dot3(ship.position, targetVector), -1, 1)) * PIXELS_PER_RADIAN;
+  if (!discoverableColonizationAftermath(gameState.memory.colonization, distancePx)) return false;
+  const reportPort = colonizationAftermathReportPort(gameState.memory.colonization, portCities);
+  if (!reportPort) return false;
+  const message = `Roanoke? It is gone! We will search the shore and carry word to ${reportPort.city}.`;
+  if (!openCaptainAlertModal(message, "concerned")) return false;
+  discoverColonizationAftermath(
+    gameState.memory.colonization,
+    aftermath.target,
+    reportPort,
+    Math.floor(weatherClockMinutes)
+  );
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  saveVoyageNow("discovered the abandoned Roanoke colony");
   return true;
 }
 

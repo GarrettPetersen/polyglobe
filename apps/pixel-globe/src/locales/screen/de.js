@@ -2425,6 +2425,7 @@ export default Object.freeze({
   "Roanoke needs grain before another poor harvest turns trade into desperation.": "Roanoke braucht Getreide, bevor eine weitere schlechte Ernte den Handel in Verzweiflung stürzen lässt.",
   "Roanoke remains silent. I have gathered all the clues this shore will yield; England must see them.": "Roanoke bleibt stumm. Ich habe alle Hinweise gesammelt, die dieses Ufer liefern wird; England muss sie sehen.",
   "ROANOKE REPORT DELIVERED +{0} DB": "ROANOKE-BERICHT GELIEFERT +{0} DB",
+  "Roanoke? It is gone! We will search the shore and carry word to {0}.": "Roanoke? Es ist verschwunden! Wir durchsuchen das Ufer und bringen die Nachricht nach {0}.",
   "ROLE": "ROLLE",
   "Roman Catholic": "Römisch-katholisch",
   "Rome": "Rom",

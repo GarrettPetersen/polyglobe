@@ -2425,6 +2425,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Roanoke needs grain before another poor harvest turns trade into desperation.",
   "Roanoke remains silent. I have gathered all the clues this shore will yield; England must see them.",
   "ROANOKE REPORT DELIVERED +{0} DB",
+  "Roanoke? It is gone! We will search the shore and carry word to {0}.",
   "ROLE",
   "Roman Catholic",
   "Rome",

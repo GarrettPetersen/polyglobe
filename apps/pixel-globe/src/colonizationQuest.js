@@ -48,6 +48,7 @@ export const COLONIZATION_AFTERMATH_INVESTIGATING = "investigating";
 export const COLONIZATION_AFTERMATH_REPORTING = "reporting";
 export const COLONIZATION_AFTERMATH_COMPLETE = "complete";
 export const ROANOKE_DISAPPEARANCE_DAYS = 2 * 365;
+export const ROANOKE_SPONTANEOUS_DISCOVERY_RADIUS_PX = 68;
 export const ROANOKE_CLUES_ITEM_ID = "roanoke-clues";
 export const ROANOKE_INVESTIGATION_REWARD = 2000;
 
@@ -914,32 +915,72 @@ export function advanceColonizationAftermaths(
 
 export function colonizationAftermathForPort(memory, city) {
   validateColonizationQuestMemory(memory);
-  if (!colonizationAftermathEnglishPort(city)) return null;
   const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
     candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING ||
     candidate.aftermath?.stage === COLONIZATION_AFTERMATH_REPORTING
   ));
-  return settlement ? colonizationAftermathViewForSettlement(settlement) : null;
+  if (!settlement || !colonizationAftermathReportPortEligible(city, colonizationAftermathTarget(settlement))) {
+    return null;
+  }
+  return colonizationAftermathViewForSettlement(settlement);
 }
 
 export function commissionColonizationAftermath(memory, city, currentMinute) {
   validateColonizationQuestMemory(memory);
   assertMinute(currentMinute);
-  if (!colonizationAftermathEnglishPort(city)) {
-    throw new Error("The Roanoke investigation must be commissioned in an English port");
-  }
   const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
     candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING
   ));
   if (!settlement) throw new Error("No missing colony is awaiting an investigation");
-  const aftermath = settlement.aftermath;
-  aftermath.stage = COLONIZATION_AFTERMATH_INVESTIGATING;
-  aftermath.offeredMinute = currentMinute;
-  aftermath.reportTileId = city.tileId;
-  aftermath.reportCity = city.city;
-  aftermath.reportCountry = city.country;
+  if (!colonizationAftermathReportPortEligible(city, colonizationAftermathTarget(settlement))) {
+    throw new Error("The Roanoke investigation must be commissioned in a European English port");
+  }
+  return beginColonizationAftermathInvestigation(memory, settlement, city, currentMinute);
+}
+
+export function discoverableColonizationAftermath(memory, distancePx) {
   validateColonizationQuestMemory(memory);
+  if (!Number.isFinite(distancePx) || distancePx < 0) {
+    throw new Error(`Invalid missing-colony discovery distance: ${distancePx}`);
+  }
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING
+  ));
+  if (!settlement || distancePx > ROANOKE_SPONTANEOUS_DISCOVERY_RADIUS_PX) return null;
   return colonizationAftermathViewForSettlement(settlement);
+}
+
+export function colonizationAftermathReportPort(memory, portCities) {
+  validateColonizationQuestMemory(memory);
+  if (!Array.isArray(portCities)) throw new Error("Roanoke report-port selection requires ports");
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING
+  ));
+  if (!settlement) return null;
+  const target = colonizationAftermathTarget(settlement);
+  return portCities
+    .filter((city) => colonizationAftermathReportPortEligible(city, target))
+    .sort((a, b) => (
+      Number(b.tileId === settlement.originTileId) - Number(a.tileId === settlement.originTileId) ||
+      Number(b.capitalOfFactionId === target.originFactionId) -
+        Number(a.capitalOfFactionId === target.originFactionId) ||
+      greatCircleDistanceKm(a, target) - greatCircleDistanceKm(b, target) ||
+      portIdentityKey(a).localeCompare(portIdentityKey(b))
+    ))[0] || null;
+}
+
+export function discoverColonizationAftermath(memory, city, reportCity, currentMinute) {
+  validateColonizationQuestMemory(memory);
+  assertMinute(currentMinute);
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.targetTileId === city?.tileId &&
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING
+  ));
+  if (!settlement) throw new Error("No missing colony can be discovered at this site");
+  if (!colonizationAftermathReportPortEligible(reportCity, colonizationAftermathTarget(settlement))) {
+    throw new Error("The Roanoke investigation needs a European English report port");
+  }
+  return beginColonizationAftermathInvestigation(memory, settlement, reportCity, currentMinute);
 }
 
 export function colonizationAftermathAtSite(memory, city) {
@@ -973,13 +1014,13 @@ export function inspectColonizationAftermath(memory, city, currentMinute) {
 export function completeColonizationAftermath(memory, city, currentMinute) {
   validateColonizationQuestMemory(memory);
   assertMinute(currentMinute);
-  if (!colonizationAftermathEnglishPort(city)) {
-    throw new Error("Roanoke's clues must be delivered to an English port");
-  }
   const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
     candidate.aftermath?.stage === COLONIZATION_AFTERMATH_REPORTING
   ));
   if (!settlement) throw new Error("No Roanoke clues are awaiting delivery");
+  if (!colonizationAftermathReportPortEligible(city, colonizationAftermathTarget(settlement))) {
+    throw new Error("Roanoke's clues must be delivered to a European English port");
+  }
   settlement.aftermath.stage = COLONIZATION_AFTERMATH_COMPLETE;
   settlement.aftermath.reportedMinute = currentMinute;
   validateColonizationQuestMemory(memory);
@@ -1234,11 +1275,15 @@ function colonizationAllSettlementRecords(memory) {
 }
 
 function colonizationAftermathViewForSettlement(settlement) {
-  const target = requiredSelectedTarget(settlement);
+  const target = colonizationAftermathTarget(settlement);
   return Object.freeze({
     ...settlement.aftermath,
-    target: Object.freeze({ ...target, tileId: settlement.targetTileId })
+    target: Object.freeze(target)
   });
+}
+
+function colonizationAftermathTarget(settlement) {
+  return { ...requiredSelectedTarget(settlement), tileId: settlement.targetTileId };
 }
 
 function colonizationAftermathObjective(memory) {
@@ -1253,13 +1298,24 @@ function colonizationAftermathObjective(memory) {
   return { tileId: settlement.aftermath.reportTileId, kind: "report-lost-colony" };
 }
 
-function colonizationAftermathEnglishPort(city) {
+function beginColonizationAftermathInvestigation(memory, settlement, reportCity, currentMinute) {
+  const aftermath = settlement.aftermath;
+  aftermath.stage = COLONIZATION_AFTERMATH_INVESTIGATING;
+  aftermath.offeredMinute = currentMinute;
+  aftermath.reportTileId = reportCity.tileId;
+  aftermath.reportCity = reportCity.city;
+  aftermath.reportCountry = reportCity.country;
+  validateColonizationQuestMemory(memory);
+  return colonizationAftermathViewForSettlement(settlement);
+}
+
+function colonizationAftermathReportPortEligible(city, target) {
   return Boolean(
-    city?.factionId === "england" &&
-    Number.isInteger(city.tileId) &&
+    Number.isInteger(city?.tileId) &&
     nonEmptyString(city.city) &&
     nonEmptyString(city.country) &&
-    cityIsInEurope(city)
+    cityIsInEurope(city) &&
+    (city.factionId === target.originFactionId || colonizationOriginCanHostExiledSponsor(city, target))
   );
 }
 

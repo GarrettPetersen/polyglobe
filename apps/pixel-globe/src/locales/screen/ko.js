@@ -2425,6 +2425,7 @@ export default Object.freeze({
   "Roanoke needs grain before another poor harvest turns trade into desperation.": "Roanoke는 또 다른 흉작이 무역을 절망으로 바꾸기 전에 곡물이 필요합니다.",
   "Roanoke remains silent. I have gathered all the clues this shore will yield; England must see them.": "로어노크는 침묵을 지켰다. 나는 이 해안에서 얻을 수 있는 모든 단서를 모았습니다. 영국은 그들을 꼭 봐야 합니다.",
   "ROANOKE REPORT DELIVERED +{0} DB": "ROANOKE 보고서 전달됨 +{0} DB",
+  "Roanoke? It is gone! We will search the shore and carry word to {0}.": "로어노크가 사라졌어! 해안을 수색하고 {0}에 소식을 전하자.",
   "ROLE": "역할",
   "Roman Catholic": "로마 카톨릭",
   "Rome": "로마",

@@ -21,6 +21,7 @@ import {
   COLONIZATION_STAGE_READY,
   ROANOKE_CLUES_ITEM_ID,
   ROANOKE_DISAPPEARANCE_DAYS,
+  ROANOKE_SPONTANEOUS_DISCOVERY_RADIUS_PX,
   advanceColonizationAftermaths,
   advanceColonizationQuest,
   assignColonizationQuest,
@@ -29,6 +30,7 @@ import {
   colonizationFetchRequirementId,
   colonizationAftermathAtSite,
   colonizationAftermathForPort,
+  colonizationAftermathReportPort,
   colonizationAftermathView,
   colonizationGovernmentInExileFactionId,
   colonizationObjective,
@@ -47,6 +49,8 @@ import {
   completeColonizationFetchStage,
   createColonizationQuestMemory,
   defeatColonizationAttacker,
+  discoverableColonizationAftermath,
+  discoverColonizationAftermath,
   eligibleColonizationTargetsForOrigin,
   establishColony,
   grantColonizationApproval,
@@ -779,6 +783,55 @@ test("Roanoke is available from 1522 and becomes a lost-colony investigation two
   assert.equal(roanokeCluesAboard(offer), false);
   assert.equal(colonizationObjective(offer), null);
   assert.equal(shipItemRows(gameState).some((row) => row.id === ROANOKE_CLUES_ITEM_ID), false);
+});
+
+test("approaching missing Roanoke commissions the existing investigation without a port visit", () => {
+  const memory = createColonizationQuestMemory();
+  assignColonizationQuest(memory, { target: ROANOKE, origin: LONDON });
+  for (const stage of colonizationQuestView(questViewState(memory)).history.fetchStages) {
+    completeColonizationFetchStage(memory, stage.id);
+  }
+  beginColonizationExpedition(memory);
+  landColonists(memory, 1000);
+  advanceColonizationQuest(memory, 1100, { awayFromColony: true });
+  establishColony(memory, 1200);
+  advanceColonizationAftermaths(memory, memory.aftermath.dueMinute + 1, {
+    isTileVisible: () => false
+  });
+
+  assert.equal(
+    discoverableColonizationAftermath(memory, ROANOKE_SPONTANEOUS_DISCOVERY_RADIUS_PX + 0.1),
+    null
+  );
+  const nearby = discoverableColonizationAftermath(
+    memory,
+    ROANOKE_SPONTANEOUS_DISCOVERY_RADIUS_PX
+  );
+  assert.equal(nearby.stage, COLONIZATION_AFTERMATH_MISSING);
+
+  const jamestown = {
+    tileId: 125,
+    city: "Jamestown",
+    country: "United States of America",
+    factionId: "england",
+    lat: 37.21,
+    lon: -76.78
+  };
+  const reportPort = colonizationAftermathReportPort(memory, [jamestown, LONDON]);
+  assert.equal(reportPort, LONDON, "an overseas English colony cannot receive the report");
+
+  const investigation = discoverColonizationAftermath(
+    memory,
+    nearby.target,
+    reportPort,
+    memory.aftermath.dueMinute + 2
+  );
+  assert.equal(investigation.stage, COLONIZATION_AFTERMATH_INVESTIGATING);
+  assert.equal(investigation.reportCity, "London");
+  assert.deepEqual(colonizationObjective(memory), {
+    tileId: ROANOKE.tileId,
+    kind: "investigate-lost-colony"
+  });
 });
 
 test("an established colony is archived before a later expedition is offered", () => {

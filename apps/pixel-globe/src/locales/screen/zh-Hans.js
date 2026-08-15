@@ -2425,6 +2425,7 @@ export default Object.freeze({
   "Roanoke needs grain before another poor harvest turns trade into desperation.": "罗阿诺克需要粮食，以免再次歉收导致贸易陷入绝望。",
   "Roanoke remains silent. I have gathered all the clues this shore will yield; England must see them.": "罗阿诺克保持沉默。我已经收集了这片海岸所能提供的所有线索；英格兰必须看到他们。",
   "ROANOKE REPORT DELIVERED +{0} DB": "罗阿诺克报告已发送 +{0} DB",
+  "Roanoke? It is gone! We will search the shore and carry word to {0}.": "罗阿诺克？不见了！我们要搜查海岸，把消息带到{0}。",
   "ROLE": "角色",
   "Roman Catholic": "罗马天主教",
   "Rome": "罗马",
