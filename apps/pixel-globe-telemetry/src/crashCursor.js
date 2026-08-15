@@ -1,5 +1,6 @@
 export const CRASH_CURSOR_KEY = "crashes/all-fixed-at";
 export const PERFORMANCE_CURSOR_KEY = "performance/all-fixed-at";
+export const MAP_INTEGRITY_CURSOR_KEY = "map-integrity/all-fixed-at";
 
 export async function readCrashCursor(env) {
   return readTelemetryCursor(env, CRASH_CURSOR_KEY, "crash");
@@ -7,6 +8,10 @@ export async function readCrashCursor(env) {
 
 export async function readPerformanceCursor(env) {
   return readTelemetryCursor(env, PERFORMANCE_CURSOR_KEY, "performance");
+}
+
+export async function readMapIntegrityCursor(env) {
+  return readTelemetryCursor(env, MAP_INTEGRITY_CURSOR_KEY, "map integrity");
 }
 
 async function readTelemetryCursor(env, key, label) {
@@ -22,6 +27,10 @@ export function normalizeCrashCursor(value) {
 
 export function normalizePerformanceCursor(value) {
   return normalizeTelemetryCursor(value, "performance");
+}
+
+export function normalizeMapIntegrityCursor(value) {
+  return normalizeTelemetryCursor(value, "map integrity");
 }
 
 function normalizeTelemetryCursor(value, label) {

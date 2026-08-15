@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   analyticsCursorTimestamp,
   normalizeCrashCursor,
+  normalizeMapIntegrityCursor,
   normalizePerformanceCursor,
   readCrashCursor,
+  readMapIntegrityCursor,
   readPerformanceCursor
 } from "./crashCursor.js";
 
@@ -28,6 +30,10 @@ test("crash cursors normalize to unambiguous UTC timestamps", () => {
     () => normalizePerformanceCursor("eventually"),
     /Invalid telemetry performance cursor/
   );
+  assert.equal(
+    normalizeMapIntegrityCursor("2026-08-05 14:00:00Z"),
+    "2026-08-05T14:00:00.000Z"
+  );
 });
 
 test("crash cursors are read from the shared telemetry state", async () => {
@@ -49,4 +55,18 @@ test("performance cursors use an independent shared telemetry key", async () => 
   });
   assert.equal(cursor, "2026-08-05T13:00:00.000Z");
   assert.deepEqual(reads, ["performance/all-fixed-at"]);
+});
+
+test("map integrity cursors use an independent shared telemetry key", async () => {
+  const reads = [];
+  const cursor = await readMapIntegrityCursor({
+    TELEMETRY_STATE: {
+      get: async (key) => {
+        reads.push(key);
+        return "2026-08-05T14:00:00.000Z";
+      }
+    }
+  });
+  assert.equal(cursor, "2026-08-05T14:00:00.000Z");
+  assert.deepEqual(reads, ["map-integrity/all-fixed-at"]);
 });

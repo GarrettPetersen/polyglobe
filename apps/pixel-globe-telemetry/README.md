@@ -38,6 +38,7 @@ npm run crashes:mark-fixed
 npm run performance:new
 npm run performance:mark-fixed
 npm run map-integrity
+npm run map-integrity:mark-fixed
 ```
 
 Run `configure-secret` once after the first deployment, and again only when rotating
@@ -85,7 +86,10 @@ in their own collapsed history so old builds do not obscure new regressions.
 
 Map integrity diagnostics have their own dashboard feed. Run `npm run map-integrity`
 to retrieve persistent tilt, distortion, terrain-spacing, and viewport-coverage
-incidents together with older chart assertions, newest first.
+incidents together with chart assertions observed after the map integrity cursor.
+After resolving or classifying the returned incidents, run
+`npm run map-integrity:mark-fixed`; earlier reports remain available in the
+dashboard's collapsed history.
 
 ## Dashboard
 

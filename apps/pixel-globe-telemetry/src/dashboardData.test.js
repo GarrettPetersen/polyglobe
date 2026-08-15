@@ -44,6 +44,19 @@ test("dashboard surfaces persistent chart diagnostics without treating them as c
   assert.match(query, /ORDER BY last_seen DESC, affected_installations DESC/);
 });
 
+test("dashboard map incidents split at their independent all-fixed cursor", () => {
+  const queries = dashboardQueries(
+    7,
+    "2026-08-05T12:00:00.000Z",
+    "2026-08-05T12:30:00.000Z",
+    "2026-08-05T13:00:00.000Z"
+  );
+  assert.match(queries.mapIntegrityIssues, /timestamp > toDateTime\('2026-08-05 13:00:00'\)/);
+  assert.match(queries.fixedMapIntegrityIssues, /timestamp <= toDateTime\('2026-08-05 13:00:00'\)/);
+  assert.match(queries.mapIntegrityStatus, /AS active_reports/);
+  assert.match(queries.mapIntegrityStatus, /AS historical_reports/);
+});
+
 test("dashboard performance incidents are newest first and grouped by actionable context", () => {
   const queries = dashboardQueries(7);
   const query = queries.performanceIssues;
@@ -211,6 +224,7 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     }],
     fixedPerformanceIssues: [],
     fixedFreezeIssues: [],
+    mapIntegrityStatus: [{ active_reports: 1, historical_reports: 10 }],
     mapIntegrityIssues: [{
       revision: "abc123",
       channel: "web-prototype",
@@ -223,6 +237,7 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       first_seen: "2026-07-25 10:45:00.000",
       last_seen: "2026-07-25 10:45:00.000"
     }],
+    fixedMapIntegrityIssues: [],
     performanceStatus: [{ active_reports: 3, historical_reports: 4 }],
     crashStatus: [{ active_reports: 2, historical_reports: 3 }],
     crashes: [{
@@ -254,7 +269,8 @@ test("dashboard snapshots normalize aggregate query rows", () => {
   },
   "2026-07-25T12:00:00.000Z",
   "2026-07-25T11:30:00.000Z",
-  "2026-07-25T11:45:00.000Z");
+  "2026-07-25T11:45:00.000Z",
+  "2026-07-25T11:50:00.000Z");
   assert.equal(snapshot.totals.averageSessionMinutes, 3.8);
   assert.equal(snapshot.totals.voyageStarts, 180);
   assert.equal(snapshot.totals.crashesPerThousandSessions, 5);
@@ -267,6 +283,11 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     allFixedAt: "2026-07-25T11:45:00.000Z",
     activeReports: 3,
     historicalReports: 4
+  });
+  assert.deepEqual(snapshot.mapIntegrityCursor, {
+    allFixedAt: "2026-07-25T11:50:00.000Z",
+    activeReports: 1,
+    historicalReports: 10
   });
   assert.equal(snapshot.crashes[0].message, "Boom");
   assert.equal(snapshot.fixedCrashes[0].message, "Old boom");

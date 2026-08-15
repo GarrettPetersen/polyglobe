@@ -3,9 +3,11 @@ import test from "node:test";
 
 import {
   readRemoteCrashCursor,
+  readRemoteMapIntegrityCursor,
   readRemotePerformanceCursor,
   TELEMETRY_STATE_NAMESPACE_TITLE,
   writeRemoteCrashCursor,
+  writeRemoteMapIntegrityCursor,
   writeRemotePerformanceCursor
 } from "./cloudflareKv.mjs";
 
@@ -68,5 +70,29 @@ test("performance cursor operations use their own KV key", async () => {
   assert.equal(valueRequests.length, 2);
   assert.equal(valueRequests.every((request) => (
     request.url.includes("performance%2Fall-fixed-at")
+  )), true);
+});
+
+test("map integrity cursor operations use their own KV key", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.includes("?per_page=100")) {
+      return Response.json({
+        success: true,
+        result: [{ id: "namespace-id", title: TELEMETRY_STATE_NAMESPACE_TITLE }]
+      });
+    }
+    if (options.method === "PUT") return Response.json({ success: true });
+    return new Response("2026-08-05T16:00:00.000Z");
+  };
+
+  await readRemoteMapIntegrityCursor({ environment, fetchImpl });
+  await writeRemoteMapIntegrityCursor("2026-08-05T17:00:00Z", { environment, fetchImpl });
+
+  const valueRequests = requests.filter((request) => request.url.includes("/values/"));
+  assert.equal(valueRequests.length, 2);
+  assert.equal(valueRequests.every((request) => (
+    request.url.includes("map-integrity%2Fall-fixed-at")
   )), true);
 });

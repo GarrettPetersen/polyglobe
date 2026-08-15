@@ -1,8 +1,10 @@
 import {
   analyticsCursorTimestamp,
   normalizeCrashCursor,
+  normalizeMapIntegrityCursor,
   normalizePerformanceCursor,
   readCrashCursor,
+  readMapIntegrityCursor,
   readPerformanceCursor
 } from "./crashCursor.js";
 
@@ -19,11 +21,12 @@ export async function fetchDashboardSnapshot(env, windowDays, {
   if (typeof fetchImpl !== "function") throw new Error("Dashboard analytics requires fetch");
   const accountId = requiredSecret(env.ANALYTICS_ACCOUNT_ID, "ANALYTICS_ACCOUNT_ID");
   const apiToken = requiredSecret(env.ANALYTICS_API_TOKEN, "ANALYTICS_API_TOKEN");
-  const [crashCursor, performanceCursor] = await Promise.all([
+  const [crashCursor, performanceCursor, mapIntegrityCursor] = await Promise.all([
     readCrashCursor(env),
-    readPerformanceCursor(env)
+    readPerformanceCursor(env),
+    readMapIntegrityCursor(env)
   ]);
-  const queries = dashboardQueries(days, crashCursor, performanceCursor);
+  const queries = dashboardQueries(days, crashCursor, performanceCursor, mapIntegrityCursor);
   const entries = await Promise.all(Object.entries(queries).map(async ([name, sql]) => {
     const rows = await queryAnalyticsEngine({ accountId, apiToken, sql, fetchImpl });
     return [name, rows];
@@ -33,14 +36,21 @@ export async function fetchDashboardSnapshot(env, windowDays, {
     Object.fromEntries(entries),
     generatedAt,
     crashCursor,
-    performanceCursor
+    performanceCursor,
+    mapIntegrityCursor
   );
 }
 
-export function dashboardQueries(windowDays, crashCursor = null, performanceCursor = null) {
+export function dashboardQueries(
+  windowDays,
+  crashCursor = null,
+  performanceCursor = null,
+  mapIntegrityCursor = null
+) {
   const days = validateDashboardWindow(windowDays);
   const crashCursorTimestamp = analyticsCursorTimestamp(crashCursor);
   const performanceCursorTimestamp = analyticsCursorTimestamp(performanceCursor);
+  const mapIntegrityCursorTimestamp = analyticsCursorTimestamp(mapIntegrityCursor);
   const where = `
     blob4 != 'deployment-check'
     AND timestamp > NOW() - INTERVAL '${days}' DAY
@@ -217,7 +227,15 @@ export function dashboardQueries(windowDays, crashCursor = null, performanceCurs
       where,
       `timestamp <= toDateTime('${performanceCursorTimestamp}')`
     ),
-    mapIntegrityIssues: mapIntegrityGroupsQuery(where),
+    mapIntegrityStatus: mapIntegrityStatusQuery(where, mapIntegrityCursorTimestamp),
+    mapIntegrityIssues: mapIntegrityGroupsQuery(
+      where,
+      `timestamp > toDateTime('${mapIntegrityCursorTimestamp}')`
+    ),
+    fixedMapIntegrityIssues: mapIntegrityGroupsQuery(
+      where,
+      `timestamp <= toDateTime('${mapIntegrityCursorTimestamp}')`
+    ),
     crashStatus: `
       SELECT
         round(SUM(_sample_interval * if(
@@ -234,7 +252,21 @@ export function dashboardQueries(windowDays, crashCursor = null, performanceCurs
   });
 }
 
-function mapIntegrityGroupsQuery(where) {
+function mapIntegrityStatusQuery(where, cursorTimestamp) {
+  return `
+      SELECT
+        round(SUM(_sample_interval * if(
+          timestamp > toDateTime('${cursorTimestamp}'), 1, 0
+        ))) AS active_reports,
+        round(SUM(_sample_interval * if(
+          timestamp <= toDateTime('${cursorTimestamp}'), 1, 0
+        ))) AS historical_reports
+      FROM ${DATASET}
+      WHERE ${mapIntegrityEventCondition()} AND ${where}
+    `;
+}
+
+function mapIntegrityGroupsQuery(where, cursorCondition) {
   return `
       SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
         blob17 AS screen, blob14 AS diagnostic_name,
@@ -242,15 +274,19 @@ function mapIntegrityGroupsQuery(where) {
         count() AS reports, count(DISTINCT index1) AS affected_installations,
         min(timestamp) AS first_seen, max(timestamp) AS last_seen
       FROM ${DATASET}
-      WHERE blob1 = 'diagnostic' AND (
-        position('ChartIntegrity' IN blob14) = 1 OR
-        blob17 IN ('chart-repair', 'chart-stitch-recovered') OR
-        (blob17 = 'runtime-assertion' AND position('chart' IN lowerUTF8(blob15)) > 0)
-      ) AND ${where}
+      WHERE ${mapIntegrityEventCondition()} AND ${cursorCondition} AND ${where}
       GROUP BY revision, channel, platform, screen, diagnostic_name
       ORDER BY last_seen DESC, affected_installations DESC
       LIMIT 60
     `;
+}
+
+function mapIntegrityEventCondition() {
+  return `blob1 = 'diagnostic' AND (
+        position('ChartIntegrity' IN blob14) = 1 OR
+        blob17 IN ('chart-repair', 'chart-stitch-recovered') OR
+        (blob17 = 'runtime-assertion' AND position('chart' IN lowerUTF8(blob15)) > 0)
+      )`;
 }
 
 function lowFrameRateGroupsQuery(where, cursorCondition) {
@@ -315,15 +351,18 @@ export function buildDashboardSnapshot(
   results,
   generatedAt = new Date().toISOString(),
   crashCursor = null,
-  performanceCursor = null
+  performanceCursor = null,
+  mapIntegrityCursor = null
 ) {
   const days = validateDashboardWindow(windowDays);
   const normalizedCrashCursor = normalizeCrashCursor(crashCursor);
   const normalizedPerformanceCursor = normalizePerformanceCursor(performanceCursor);
+  const normalizedMapIntegrityCursor = normalizeMapIntegrityCursor(mapIntegrityCursor);
   for (const name of Object.keys(dashboardQueries(
     days,
     normalizedCrashCursor,
-    normalizedPerformanceCursor
+    normalizedPerformanceCursor,
+    normalizedMapIntegrityCursor
   ))) {
     if (!Array.isArray(results?.[name])) throw new Error(`Missing dashboard query result: ${name}`);
   }
@@ -364,6 +403,7 @@ export function buildDashboardSnapshot(
   ];
   const crashStatusRow = results.crashStatus[0] || {};
   const performanceStatusRow = results.performanceStatus[0] || {};
+  const mapIntegrityStatusRow = results.mapIntegrityStatus[0] || {};
   return {
     schemaVersion: 3,
     generatedAt: requiredString(generatedAt, "generatedAt"),
@@ -378,6 +418,11 @@ export function buildDashboardSnapshot(
       allFixedAt: normalizedPerformanceCursor,
       activeReports: nonnegativeNumber(performanceStatusRow.active_reports),
       historicalReports: nonnegativeNumber(performanceStatusRow.historical_reports)
+    },
+    mapIntegrityCursor: {
+      allFixedAt: normalizedMapIntegrityCursor,
+      activeReports: nonnegativeNumber(mapIntegrityStatusRow.active_reports),
+      historicalReports: nonnegativeNumber(mapIntegrityStatusRow.historical_reports)
     },
     playtime,
     daily: results.daily.map((row) => ({
@@ -443,6 +488,7 @@ export function buildDashboardSnapshot(
     fixedPerformanceIssues: normalizeLowFrameRateRows(results.fixedPerformanceIssues),
     fixedFreezeIssues: normalizeFreezeRows(results.fixedFreezeIssues),
     mapIntegrityIssues: normalizeMapIntegrityRows(results.mapIntegrityIssues),
+    fixedMapIntegrityIssues: normalizeMapIntegrityRows(results.fixedMapIntegrityIssues),
     crashes: normalizeCrashRows(results.crashes),
     fixedCrashes: normalizeCrashRows(results.fixedCrashes)
   };

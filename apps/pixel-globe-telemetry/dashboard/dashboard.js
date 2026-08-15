@@ -63,7 +63,11 @@ function renderDashboard(data) {
     data.fixedFreezeIssues || [],
     data.performanceCursor
   );
-  renderMapIntegrityIssues(data.mapIntegrityIssues || []);
+  renderMapIntegrityIssues(
+    data.mapIntegrityIssues || [],
+    data.fixedMapIntegrityIssues || [],
+    data.mapIntegrityCursor
+  );
   renderCrashes(data.crashes, data.fixedCrashes, data.crashCursor);
 }
 
@@ -515,20 +519,45 @@ function renderCrashes(rows, fixedRows, cursor) {
   }
 }
 
-function renderMapIntegrityIssues(rows) {
+function renderMapIntegrityIssues(rows, fixedRows, cursor) {
   const target = document.querySelector("#map-integrity-list");
+  const fixedSection = document.querySelector("#fixed-map-integrity");
+  const fixedTarget = document.querySelector("#fixed-map-integrity-list");
   target.replaceChildren();
-  const reportCount = rows.reduce((sum, row) => sum + row.reports, 0);
-  setText(
-    "map-integrity-summary",
-    reportCount === 0 ? "No map faults" : `${compact(reportCount)} diagnostic reports`
-  );
+  fixedTarget.replaceChildren();
+  setText("map-integrity-summary", cursor?.allFixedAt
+    ? `${compact(cursor.activeReports)} reports since last fix pass`
+    : `${compact(cursor?.activeReports || 0)} diagnostic reports`);
   if (rows.length === 0) {
-    target.append(emptyState("No persistent distortion or chart-integrity failure in this period."));
-    return;
+    target.append(emptyState(cursor?.allFixedAt
+      ? `No map faults reported since ${formatDateTime(cursor.allFixedAt)}.`
+      : "No persistent distortion or chart-integrity failure in this period."));
+  } else {
+    renderMapIntegrityCards(target, rows, false);
   }
+  const showHistory = Boolean(cursor?.allFixedAt) &&
+    (fixedRows.length > 0 || cursor.historicalReports > 0);
+  fixedSection.hidden = !showHistory;
+  fixedSection.open = false;
+  if (!showHistory) return;
+  setText(
+    "fixed-map-integrity-summary",
+    `${compact(cursor.historicalReports)} earlier reports through ` +
+      `${formatDateTime(cursor.allFixedAt)} (collapsed)`
+  );
+  if (fixedRows.length === 0) {
+    fixedTarget.append(emptyState("No earlier map fault groups in this reporting window."));
+  } else {
+    renderMapIntegrityCards(fixedTarget, fixedRows, true);
+  }
+}
+
+function renderMapIntegrityCards(target, rows, fixed) {
   for (const row of rows) {
-    const card = element("article", "crash-card map-integrity-card");
+    const card = element(
+      "article",
+      `crash-card map-integrity-card${fixed ? " fixed" : ""}`
+    );
     const copy = document.createElement("div");
     const heading = document.createElement("h3");
     heading.textContent = `${titleCase(row.diagnosticName)}: ${row.message || "(no message)"}`;

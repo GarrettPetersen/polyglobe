@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/index.js && node --check src/dashboard.js && node --check src/dashboardData.js && node --check src/crashCursor.js && node --check dashboard/dashboard.js && node --check tools/report.mjs && node --check tools/crashes.mjs && node --check tools/markCrashesFixed.mjs && node --check tools/performanceIncidents.mjs && node --check tools/mapIntegrityIncidents.mjs && node --check tools/markPerformanceFixed.mjs && node --check tools/configure-dashboard.mjs && node --check tools/verify-dashboard.mjs && node --check tools/verify-deployment.mjs && node --test",
+    "check": "node --check src/index.js && node --check src/dashboard.js && node --check src/dashboardData.js && node --check src/crashCursor.js && node --check dashboard/dashboard.js && node --check tools/report.mjs && node --check tools/crashes.mjs && node --check tools/markCrashesFixed.mjs && node --check tools/performanceIncidents.mjs && node --check tools/mapIntegrityIncidents.mjs && node --check tools/markMapIntegrityFixed.mjs && node --check tools/markPerformanceFixed.mjs && node --check tools/configure-dashboard.mjs && node --check tools/verify-dashboard.mjs && node --check tools/verify-deployment.mjs && node --test",
     "deploy": "node tools/deploy.mjs",
     "configure-secret": "node tools/configure-secret.mjs",
     "configure-dashboard": "node tools/configure-dashboard.mjs",
@@ -15,6 +15,7 @@
     "crashes:mark-fixed": "node tools/markCrashesFixed.mjs",
     "performance:new": "node tools/performanceIncidents.mjs",
     "map-integrity": "node tools/mapIntegrityIncidents.mjs",
+    "map-integrity:mark-fixed": "node tools/markMapIntegrityFixed.mjs",
     "performance:mark-fixed": "node tools/markPerformanceFixed.mjs"
   },
   "devDependencies": {

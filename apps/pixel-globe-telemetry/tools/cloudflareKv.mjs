@@ -2,8 +2,10 @@ import { cloudflareEnvironment } from "./cloudflareEnvironment.mjs";
 
 import {
   CRASH_CURSOR_KEY,
+  MAP_INTEGRITY_CURSOR_KEY,
   PERFORMANCE_CURSOR_KEY,
   normalizeCrashCursor,
+  normalizeMapIntegrityCursor,
   normalizePerformanceCursor
 } from "../src/crashCursor.js";
 
@@ -18,6 +20,15 @@ export async function readRemotePerformanceCursor(options = {}) {
     PERFORMANCE_CURSOR_KEY,
     normalizePerformanceCursor,
     "performance",
+    options
+  );
+}
+
+export async function readRemoteMapIntegrityCursor(options = {}) {
+  return readRemoteCursor(
+    MAP_INTEGRITY_CURSOR_KEY,
+    normalizeMapIntegrityCursor,
+    "map integrity",
     options
   );
 }
@@ -43,6 +54,16 @@ export async function writeRemotePerformanceCursor(value, options = {}) {
     value,
     normalizePerformanceCursor,
     "performance",
+    options
+  );
+}
+
+export async function writeRemoteMapIntegrityCursor(value, options = {}) {
+  return writeRemoteCursor(
+    MAP_INTEGRITY_CURSOR_KEY,
+    value,
+    normalizeMapIntegrityCursor,
+    "map integrity",
     options
   );
 }

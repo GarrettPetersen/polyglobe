@@ -14,6 +14,8 @@ test("map integrity diagnostics have a dedicated dashboard feed", () => {
   assert.match(html, /<article class="panel map-integrity-panel">/);
   assert.match(html, /id="map-integrity-list"/);
   assert.match(css, /\.map-integrity-card/);
+  assert.match(html, /<details id="fixed-map-integrity"[^>]*hidden>/);
+  assert.match(html, /id="fixed-map-integrity-list"/);
 });
 
 test("persistent performance incidents have a full-width dashboard feed", () => {
