@@ -5,6 +5,11 @@ import { COLONIZATION_TARGETS, colonizationTargetForCity } from "./colonialCitie
 import {
   COLONIZATION_EXPEDITION_CARGO_UNITS,
   COLONIZATION_FETCH_STAGES,
+  COLONIZATION_AFTERMATH_COMPLETE,
+  COLONIZATION_AFTERMATH_INVESTIGATING,
+  COLONIZATION_AFTERMATH_MISSING,
+  COLONIZATION_AFTERMATH_REPORTING,
+  COLONIZATION_AFTERMATH_WAITING,
   COLONIZATION_RESUPPLY,
   COLONIZATION_RESUPPLY_DAYS,
   COLONIZATION_STAGE_AWAITING_RESUPPLY,
@@ -14,11 +19,17 @@ import {
   COLONIZATION_STAGE_OUTBOUND,
   COLONIZATION_STAGE_REPORT_DEFENSE,
   COLONIZATION_STAGE_READY,
+  ROANOKE_CLUES_ITEM_ID,
+  ROANOKE_DISAPPEARANCE_DAYS,
+  advanceColonizationAftermaths,
   advanceColonizationQuest,
   assignColonizationQuest,
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
   colonizationFetchRequirementId,
+  colonizationAftermathAtSite,
+  colonizationAftermathForPort,
+  colonizationAftermathView,
   colonizationGovernmentInExileFactionId,
   colonizationObjective,
   colonizationOfferForCity,
@@ -30,6 +41,8 @@ import {
   colonizationShipEligibility,
   colonizationWorldRecord,
   colonizationWorldRecords,
+  commissionColonizationAftermath,
+  completeColonizationAftermath,
   completeColonizationDefense,
   completeColonizationFetchStage,
   createColonizationQuestMemory,
@@ -41,8 +54,11 @@ import {
   markColonizationOrganizerApproached,
   reconcileColonizationQuestOriginAfterConquest,
   relocateColonizationQuestOrigin,
+  inspectColonizationAftermath,
+  roanokeCluesAboard,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
+import { createGameState, shipItemRows } from "./gameState.js";
 import {
   applyPortConquestOwnership,
   createPortConquestMemory,
@@ -62,6 +78,18 @@ const BORDEAUX = Object.freeze({
 const PORT_ROYAL = Object.freeze({
   ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
   tileId: 123
+});
+const ROANOKE = Object.freeze({
+  ...colonizationTargetForCity({ city: "Roanoke", country: "United States of America" }),
+  tileId: 124
+});
+const LONDON = Object.freeze({
+  tileId: 11,
+  city: "London",
+  country: "United Kingdom",
+  factionId: "england",
+  lat: 51.51,
+  lon: -0.13
 });
 const SPONSOR_COUNTRY_BY_FACTION = Object.freeze({
   england: "United Kingdom",
@@ -119,8 +147,8 @@ test("all water-accessible colony sites can enter a constrained sailing offer po
     .map((target, index) => ({ ...target, tileId: 1000 + index }));
   const inlandTargets = COLONIZATION_TARGETS.filter((target) => target.waterAccess === "inland");
 
-  assert.equal(COLONIZATION_TARGETS.length, 35);
-  assert.equal(sailingTargets.length, 29);
+  assert.equal(COLONIZATION_TARGETS.length, 36);
+  assert.equal(sailingTargets.length, 30);
   assert.equal(inlandTargets.length, 6);
   for (const target of sailingTargets) {
     const origin = {
@@ -662,6 +690,95 @@ test("timely resupply creates a discounted French city", () => {
   assert.equal(city.playerFoundedColony, true);
   assert.ok(city.purchaseDiscountMultiplier < 1);
   assert.equal(colonizationObjective(memory), null);
+});
+
+test("Roanoke is available from 1522 and becomes a lost-colony investigation two years after founding", () => {
+  const state = {
+    playerCharacter: { identityKey: "roanoke-1522" },
+    memory: {
+      colonization: createColonizationQuestMemory(),
+      flags: {},
+      quests: { cargoDeliveries: {} }
+    }
+  };
+  const offer = colonizationOfferForCity(state, LONDON, [LONDON], [ROANOKE], {
+    simMinute: 14 * DAY,
+    spawnChance: 1,
+    targetTileId: ROANOKE.tileId
+  });
+  assert.equal(offer.targetCity, "Roanoke");
+
+  for (const stage of colonizationQuestView(state).history.fetchStages) {
+    completeColonizationFetchStage(offer, stage.id);
+  }
+  beginColonizationExpedition(offer);
+  landColonists(offer, 1000);
+  advanceColonizationQuest(offer, 1100, { awayFromColony: true });
+  establishColony(offer, 1200);
+  assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_WAITING);
+  assert.equal(
+    offer.aftermath.dueMinute,
+    1200 + ROANOKE_DISAPPEARANCE_DAYS * DAY
+  );
+
+  assert.deepEqual(advanceColonizationAftermaths(offer, offer.aftermath.dueMinute, {
+    isTileVisible: () => true
+  }), []);
+  assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_WAITING);
+
+  const disappearance = advanceColonizationAftermaths(offer, offer.aftermath.dueMinute + 1, {
+    isTileVisible: () => false
+  });
+  assert.equal(disappearance.length, 1);
+  assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_MISSING);
+  assert.equal(colonizationWorldRecord(offer).hiddenSettlement, true);
+  assert.equal(colonizationAftermathForPort(offer, {
+    tileId: 12,
+    city: "Jamestown",
+    country: "United States of America",
+    factionId: "england",
+    lat: 37.21,
+    lon: -76.78
+  }), null, "an overseas English port cannot commission the search");
+  assert.equal(colonizationAftermathForPort(offer, LONDON).stage, COLONIZATION_AFTERMATH_MISSING);
+
+  commissionColonizationAftermath(offer, LONDON, offer.aftermath.dueMinute + 2);
+  assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_INVESTIGATING);
+  assert.deepEqual(colonizationObjective(offer), {
+    tileId: ROANOKE.tileId,
+    kind: "investigate-lost-colony"
+  });
+  const abandoned = colonizationWorldRecord(offer);
+  assert.equal(abandoned.hiddenSettlement, false);
+  assert.equal(abandoned.colonyAbandoned, true);
+  assert.equal(abandoned.requiredTradePort, false);
+  assert.equal(abandoned.factionId, "neutral");
+  assert.equal(colonizationAftermathAtSite(offer, abandoned).stage, COLONIZATION_AFTERMATH_INVESTIGATING);
+
+  inspectColonizationAftermath(offer, abandoned, offer.aftermath.dueMinute + 3);
+  assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_REPORTING);
+  assert.equal(roanokeCluesAboard(offer), true);
+  assert.deepEqual(colonizationObjective(offer), {
+    tileId: LONDON.tileId,
+    kind: "report-lost-colony"
+  });
+  assert.equal(colonizationAftermathView(offer).reportCity, "London");
+
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Test Captain", nationalityId: "england", expressions: ["neutral"] }
+  });
+  gameState.memory.colonization = offer;
+  const clue = shipItemRows(gameState).find((row) => row.id === ROANOKE_CLUES_ITEM_ID);
+  assert.equal(clue.label, "Roanoke Clues");
+  assert.equal(clue.questItem, true);
+  assert.equal(clue.discardable, false);
+
+  completeColonizationAftermath(offer, LONDON, offer.aftermath.dueMinute + 4);
+  assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_COMPLETE);
+  assert.equal(roanokeCluesAboard(offer), false);
+  assert.equal(colonizationObjective(offer), null);
+  assert.equal(shipItemRows(gameState).some((row) => row.id === ROANOKE_CLUES_ITEM_ID), false);
 });
 
 test("an established colony is archived before a later expedition is offered", () => {

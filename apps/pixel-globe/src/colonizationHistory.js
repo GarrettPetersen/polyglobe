@@ -244,6 +244,23 @@ const HISTORIES = Object.freeze([
     resupply: resupply("salt", 12, "another full cod-curing season", "St. John's needs salt before the cod fleets arrive.", "The winter crew survived, but the spring fishery will overwhelm the salt store.", "The curing sheds are supplied; this season's cod can cross the Atlantic."),
     established: "St. John's now has permanent stores and winter residents serving a fishery that was international long before England claimed it."
   }),
+  history("Roanoke", "United States of America", {
+    sponsorRole: "agent of Sir Walter Raleigh",
+    settlementLeaderRole: "governor of the Cittie of Ralegh",
+    basis: "John White's 1587 colony settled on Roanoke Island after an earlier military colony failed; war with Spain delayed relief until 1590, when the settlement was found abandoned.",
+    pitch: "Raleigh has a patent for Virginia and means to plant families, not another hungry garrison. Roanoke offers a known harbor, though the Chesapeake was the intended destination.",
+    fetch: [
+      stage("raleigh-houses", "timber", 10, "houses, a palisade, boats, and store sheds", "The old fort cannot shelter a colony of families. Bring"),
+      stage("raleigh-tools", "iron", 6, "axes, nails, farming tools, and repairs beyond easy resupply", "Virginia is too far from an English smithy for careless planning. Supply"),
+      stage("raleigh-stores", "grain", 14, "food and seed that do not depend on Algonquian stores", "The first colony made enemies while demanding food. This one must carry its own")
+    ],
+    ready: "Men, women, and children are ready to sail under John White's governorship. Raleigh calls the settlement the Cittie of Ralegh.",
+    departed: "The Roanoke settlers are aboard with families, tools, and more confidence than provisions ever seem to justify.",
+    landing: "The old earthworks remain on Roanoke Island. We will rebuild here, honor our friendship with the people of Croatoan Island, and pray England remembers to send relief.",
+    landingAction: "Plant the Cittie of Ralegh",
+    resupply: resupply("grain", 14, "the colony while its first fields and alliances are tested", "Roanoke needs grain before another poor harvest turns trade into desperation.", "The houses stand, but drought and old quarrels have made food uncertain throughout the sounds.", "The grain is stored. Roanoke has time to plant, trade, and choose its future."),
+    established: "The Cittie of Ralegh has survived its first season on Roanoke Island. Its families now wait for the next sail from England."
+  }),
   history("Port Royal", "Canada", {
     sponsorRole: "Acadian colonial organizer",
     settlementLeaderRole: "governor of Port Royal",

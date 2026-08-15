@@ -325,6 +325,14 @@ export const COLONIZATION_TARGETS = Object.freeze([
     datasetFirstPopulation: 2000,
     datasetSource: "manual_override_canada_ports"
   }),
+  colonizationTarget("Roanoke", "United States of America", 35.9358, -75.7085, COLONIAL_FOUNDING_SETTLER, 1587, "england", {
+    label: "English Roanoke Island colony",
+    region: "virginia",
+    waterAccess: "island",
+    aftermathId: "roanoke-lost-colony",
+    datasetFirstYear: null,
+    datasetSource: "manual-colonization-target"
+  }),
   colonizationTarget("Port Royal", "Canada", 44.741944, -65.515556, COLONIAL_FOUNDING_SETTLER, 1605, "france", {
     label: "French Acadian colony",
     region: "acadia",
@@ -529,6 +537,10 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     throw new Error(`New colonization target cannot have an existing population: ${city}`);
   }
   const cityType = details.cityType || colonizationCityType(type, factionId, country);
+  const aftermathId = details.aftermathId ?? null;
+  if (aftermathId !== null && !/^[a-z0-9][a-z0-9-]*$/.test(aftermathId)) {
+    throw new Error(`Invalid colonization aftermath id: ${city}`);
+  }
   return Object.freeze({
     city,
     country,
@@ -542,6 +554,7 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     preexistingPopulation,
     originFactionId: details.originFactionId || factionId,
     originCountry: details.originCountry || null,
+    aftermathId,
     approvalFactionId: details.approvalFactionId || null,
     approvalCargo: colonizationApprovalCargo(details.approvalCargo),
     initialImports: colonizationInitialImports(details.initialImports),

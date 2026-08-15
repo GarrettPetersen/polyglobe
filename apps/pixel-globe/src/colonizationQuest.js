@@ -15,7 +15,7 @@ import {
   questCargoDeliveryProgress
 } from "./questCargoDeliveries.js";
 
-export const COLONIZATION_QUEST_VERSION = 2;
+export const COLONIZATION_QUEST_VERSION = 3;
 export const COLONIZATION_ORIGIN_CITY = CANONICAL_PORTS.BORDEAUX.city;
 export const COLONIZATION_ORIGIN_COUNTRY = CANONICAL_PORTS.BORDEAUX.country;
 export const COLONIZATION_TARGET_CITY = "Port Royal";
@@ -41,8 +41,24 @@ export const COLONIZATION_STAGE_DEFEND = "defend-colony";
 export const COLONIZATION_STAGE_REPORT_DEFENSE = "report-defense";
 export const COLONIZATION_STAGE_FAILED = "failed";
 export const COLONIZATION_STAGE_ESTABLISHED = "established";
+export const COLONIZATION_AFTERMATH_ROANOKE = "roanoke-lost-colony";
+export const COLONIZATION_AFTERMATH_WAITING = "waiting";
+export const COLONIZATION_AFTERMATH_MISSING = "missing";
+export const COLONIZATION_AFTERMATH_INVESTIGATING = "investigating";
+export const COLONIZATION_AFTERMATH_REPORTING = "reporting";
+export const COLONIZATION_AFTERMATH_COMPLETE = "complete";
+export const ROANOKE_DISAPPEARANCE_DAYS = 2 * 365;
+export const ROANOKE_CLUES_ITEM_ID = "roanoke-clues";
+export const ROANOKE_INVESTIGATION_REWARD = 2000;
 
 const MINUTES_PER_DAY = 24 * 60;
+const COLONIZATION_AFTERMATH_STAGES = new Set([
+  COLONIZATION_AFTERMATH_WAITING,
+  COLONIZATION_AFTERMATH_MISSING,
+  COLONIZATION_AFTERMATH_INVESTIGATING,
+  COLONIZATION_AFTERMATH_REPORTING,
+  COLONIZATION_AFTERMATH_COMPLETE
+]);
 const STAGES = new Set([
   COLONIZATION_STAGE_FETCH,
   COLONIZATION_STAGE_READY,
@@ -82,6 +98,7 @@ export function createColonizationQuestMemory() {
     defenseCompletedMinute: null,
     defenseShipIds: [],
     defenseDefeatedShipIds: [],
+    aftermath: null,
     targetCity: null,
     targetCountry: null,
     originTileId: null,
@@ -104,6 +121,7 @@ export function validateColonizationQuestMemory(memory, { settlementRecord = fal
   }
   if (!STAGES.has(memory.stage)) throw new Error(`Invalid colonization quest stage: ${memory.stage}`);
   const selectedTarget = colonizationSelectedTarget(memory);
+  validateColonizationAftermath(memory, selectedTarget);
   const history = selectedTarget ? colonizationHistoryForTarget(selectedTarget) : null;
   const fetchStages = history
     ? history.fetchStages
@@ -261,15 +279,22 @@ export function migrateColonizationQuestMemory(memory) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     return createColonizationQuestMemory();
   }
-  if (![1, COLONIZATION_QUEST_VERSION].includes(memory.version)) {
+  if (![1, 2, COLONIZATION_QUEST_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported colonization quest memory: ${memory.version ?? "missing"}`);
   }
-  return validateColonizationQuestMemory({
+  return validateColonizationQuestMemory(migrateColonizationQuestRecord(memory));
+}
+
+function migrateColonizationQuestRecord(memory) {
+  return {
     ...memory,
     version: COLONIZATION_QUEST_VERSION,
     resupplyExtensionMinutes: memory.resupplyExtensionMinutes ?? 0,
-    pastSettlements: Array.isArray(memory.pastSettlements) ? memory.pastSettlements : []
-  });
+    aftermath: memory.aftermath ?? null,
+    pastSettlements: Array.isArray(memory.pastSettlements)
+      ? memory.pastSettlements.map(migrateColonizationQuestRecord)
+      : []
+  };
 }
 
 export function prepareNextColonizationExpedition(state, memory = colonizationQuestMemory(state)) {
@@ -823,6 +848,7 @@ export function establishColony(memory, currentMinute) {
   } else {
     memory.stage = COLONIZATION_STAGE_ESTABLISHED;
     memory.establishedMinute = currentMinute;
+    initializeColonizationAftermath(memory, target, currentMinute);
   }
   validateColonizationQuestMemory(memory);
   return memory;
@@ -851,8 +877,128 @@ export function completeColonizationDefense(memory, currentMinute) {
   }
   memory.stage = COLONIZATION_STAGE_ESTABLISHED;
   memory.establishedMinute = currentMinute;
+  initializeColonizationAftermath(memory, requiredSelectedTarget(memory), currentMinute);
   validateColonizationQuestMemory(memory);
   return memory;
+}
+
+export function advanceColonizationAftermaths(
+  memory,
+  currentMinute,
+  { isTileVisible = () => false } = {}
+) {
+  validateColonizationQuestMemory(memory);
+  assertMinute(currentMinute);
+  if (typeof isTileVisible !== "function") {
+    throw new Error("Colonization aftermath advance requires a tile visibility function");
+  }
+  const events = [];
+  for (const settlement of colonizationAllSettlementRecords(memory)) {
+    const aftermath = settlement.aftermath;
+    if (!aftermath || aftermath.stage !== COLONIZATION_AFTERMATH_WAITING ||
+        currentMinute < aftermath.dueMinute || isTileVisible(settlement.targetTileId)) {
+      continue;
+    }
+    aftermath.stage = COLONIZATION_AFTERMATH_MISSING;
+    aftermath.disappearedMinute = currentMinute;
+    events.push(Object.freeze({
+      kind: "colony-disappeared",
+      aftermathId: aftermath.id,
+      city: settlement.targetCity,
+      tileId: settlement.targetTileId
+    }));
+  }
+  validateColonizationQuestMemory(memory);
+  return Object.freeze(events);
+}
+
+export function colonizationAftermathForPort(memory, city) {
+  validateColonizationQuestMemory(memory);
+  if (!colonizationAftermathEnglishPort(city)) return null;
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING ||
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_REPORTING
+  ));
+  return settlement ? colonizationAftermathViewForSettlement(settlement) : null;
+}
+
+export function commissionColonizationAftermath(memory, city, currentMinute) {
+  validateColonizationQuestMemory(memory);
+  assertMinute(currentMinute);
+  if (!colonizationAftermathEnglishPort(city)) {
+    throw new Error("The Roanoke investigation must be commissioned in an English port");
+  }
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING
+  ));
+  if (!settlement) throw new Error("No missing colony is awaiting an investigation");
+  const aftermath = settlement.aftermath;
+  aftermath.stage = COLONIZATION_AFTERMATH_INVESTIGATING;
+  aftermath.offeredMinute = currentMinute;
+  aftermath.reportTileId = city.tileId;
+  aftermath.reportCity = city.city;
+  aftermath.reportCountry = city.country;
+  validateColonizationQuestMemory(memory);
+  return colonizationAftermathViewForSettlement(settlement);
+}
+
+export function colonizationAftermathAtSite(memory, city) {
+  validateColonizationQuestMemory(memory);
+  if (!Number.isInteger(city?.tileId)) return null;
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.targetTileId === city.tileId &&
+    [
+      COLONIZATION_AFTERMATH_INVESTIGATING,
+      COLONIZATION_AFTERMATH_REPORTING,
+      COLONIZATION_AFTERMATH_COMPLETE
+    ].includes(candidate.aftermath?.stage)
+  ));
+  return settlement ? colonizationAftermathViewForSettlement(settlement) : null;
+}
+
+export function inspectColonizationAftermath(memory, city, currentMinute) {
+  validateColonizationQuestMemory(memory);
+  assertMinute(currentMinute);
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.targetTileId === city?.tileId &&
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_INVESTIGATING
+  ));
+  if (!settlement) throw new Error("No colony investigation is active at this site");
+  settlement.aftermath.stage = COLONIZATION_AFTERMATH_REPORTING;
+  settlement.aftermath.inspectedMinute = currentMinute;
+  validateColonizationQuestMemory(memory);
+  return colonizationAftermathViewForSettlement(settlement);
+}
+
+export function completeColonizationAftermath(memory, city, currentMinute) {
+  validateColonizationQuestMemory(memory);
+  assertMinute(currentMinute);
+  if (!colonizationAftermathEnglishPort(city)) {
+    throw new Error("Roanoke's clues must be delivered to an English port");
+  }
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_REPORTING
+  ));
+  if (!settlement) throw new Error("No Roanoke clues are awaiting delivery");
+  settlement.aftermath.stage = COLONIZATION_AFTERMATH_COMPLETE;
+  settlement.aftermath.reportedMinute = currentMinute;
+  validateColonizationQuestMemory(memory);
+  return colonizationAftermathViewForSettlement(settlement);
+}
+
+export function colonizationAftermathView(memory) {
+  validateColonizationQuestMemory(memory);
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    candidate.aftermath && candidate.aftermath.stage !== COLONIZATION_AFTERMATH_WAITING
+  ));
+  return settlement ? colonizationAftermathViewForSettlement(settlement) : null;
+}
+
+export function roanokeCluesAboard(memory) {
+  return colonizationAllSettlementRecords(validateColonizationQuestMemory(memory)).some((settlement) => (
+    settlement.aftermath?.id === COLONIZATION_AFTERMATH_ROANOKE &&
+    settlement.aftermath.stage === COLONIZATION_AFTERMATH_REPORTING
+  ));
 }
 
 export function colonizationDefenseShipIds(memory) {
@@ -886,6 +1032,13 @@ function colonizationWorldRecordUnchecked(memory) {
     COLONIZATION_STAGE_FAILED
   ].includes(memory.stage)) return null;
   const established = memory.stage === COLONIZATION_STAGE_ESTABLISHED;
+  const aftermathStage = memory.aftermath?.stage || null;
+  const missing = aftermathStage === COLONIZATION_AFTERMATH_MISSING;
+  const abandoned = [
+    COLONIZATION_AFTERMATH_INVESTIGATING,
+    COLONIZATION_AFTERMATH_REPORTING,
+    COLONIZATION_AFTERMATH_COMPLETE
+  ].includes(aftermathStage);
   const upgraded = established || [
     COLONIZATION_STAGE_DEFEND,
     COLONIZATION_STAGE_REPORT_DEFENSE
@@ -895,7 +1048,9 @@ function colonizationWorldRecordUnchecked(memory) {
   return {
     cityId: colonizationTargetKey(target),
     city: target.city,
-    displayCity: upgraded
+    displayCity: abandoned
+      ? `${target.city} Abandoned Colony`
+      : upgraded
       ? target.city
       : failed
         ? `${target.city} Ruins`
@@ -909,7 +1064,9 @@ function colonizationWorldRecordUnchecked(memory) {
     lon: target.lon,
     year: target.canFoundFromYear,
     historicalFoundingYear: target.year,
-    population: upgraded
+    population: abandoned
+      ? 1
+      : upgraded
       ? 2400
       : failed
         ? 1
@@ -918,25 +1075,27 @@ function colonizationWorldRecordUnchecked(memory) {
           : 120,
     cityType: target.cityType,
     economyRegion: target.economyRegion,
-    settlementType: upgraded ? "city" : "village",
+    settlementType: upgraded && !abandoned ? "city" : "village",
     coastalIntent: true,
     lakeIntent: false,
-    requiredTradePort: upgraded,
+    requiredTradePort: upgraded && !abandoned && !missing,
     playerHomeExcluded: true,
     tileId: memory.targetTileId,
     portId: colonizationTargetPortId(target),
-    factionId: upgraded || target.preexistingSettlement ? target.factionId : "neutral",
+    factionId: abandoned ? "neutral" : upgraded || target.preexistingSettlement ? target.factionId : "neutral",
     foundingFactionId: target.factionId,
     colonialFoundingType: target.type,
     colonizationQuestSite: true,
     colonizationQuestStage: memory.stage,
-    hiddenSettlement: outbound,
+    colonizationAftermathStage: aftermathStage,
+    hiddenSettlement: outbound || missing,
+    colonyAbandoned: abandoned,
     colonyBurning: failed,
-    playerFoundedColony: upgraded && !target.preexistingSettlement,
-    playerDevelopedPort: upgraded && target.preexistingSettlement,
-    purchaseDiscountMultiplier: upgraded ? COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER : 1,
-    initialImports: upgraded ? target.initialImports : [],
-    foreignSettlements: established
+    playerFoundedColony: upgraded && !abandoned && !target.preexistingSettlement,
+    playerDevelopedPort: upgraded && !abandoned && target.preexistingSettlement,
+    purchaseDiscountMultiplier: upgraded && !abandoned ? COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER : 1,
+    initialImports: upgraded && !abandoned ? target.initialImports : [],
+    foreignSettlements: established && !abandoned
       ? foreignSettlementsByIds(target.foreignSettlementIds)
       : []
   };
@@ -944,6 +1103,8 @@ function colonizationWorldRecordUnchecked(memory) {
 
 export function colonizationObjective(memory) {
   validateColonizationQuestMemory(memory);
+  const aftermathObjective = colonizationAftermathObjective(memory);
+  if (aftermathObjective) return aftermathObjective;
   if (memory.targetTileId === null) return null;
   if (memory.stage === COLONIZATION_STAGE_OUTBOUND) {
     const approval = colonizationApprovalIdentity(memory);
@@ -985,6 +1146,121 @@ export function colonizationNavigationObjective(
     return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
   }
   return null;
+}
+
+function initializeColonizationAftermath(memory, target, establishedMinute) {
+  if (!target.aftermathId) return null;
+  if (target.aftermathId !== COLONIZATION_AFTERMATH_ROANOKE) {
+    throw new Error(`Unknown colonization aftermath: ${target.aftermathId}`);
+  }
+  if (memory.aftermath !== null) {
+    throw new Error(`${target.city} already has a colonization aftermath`);
+  }
+  memory.aftermath = {
+    id: target.aftermathId,
+    stage: COLONIZATION_AFTERMATH_WAITING,
+    dueMinute: establishedMinute + ROANOKE_DISAPPEARANCE_DAYS * MINUTES_PER_DAY,
+    disappearedMinute: null,
+    offeredMinute: null,
+    inspectedMinute: null,
+    reportedMinute: null,
+    reportTileId: null,
+    reportCity: null,
+    reportCountry: null
+  };
+  return memory.aftermath;
+}
+
+function validateColonizationAftermath(memory, target) {
+  const aftermath = memory.aftermath;
+  if (aftermath === null || aftermath === undefined) {
+    if (target?.aftermathId && memory.stage === COLONIZATION_STAGE_ESTABLISHED) {
+      throw new Error(`${target.city} established without its historical aftermath`);
+    }
+    return null;
+  }
+  if (!target?.aftermathId || aftermath.id !== target.aftermathId) {
+    throw new Error(`Colonization aftermath does not match ${target?.city || "an unselected target"}`);
+  }
+  if (aftermath.id !== COLONIZATION_AFTERMATH_ROANOKE) {
+    throw new Error(`Unknown colonization aftermath: ${aftermath.id}`);
+  }
+  if (memory.stage !== COLONIZATION_STAGE_ESTABLISHED) {
+    throw new Error(`${target.city} aftermath requires an established colony`);
+  }
+  if (!COLONIZATION_AFTERMATH_STAGES.has(aftermath.stage)) {
+    throw new Error(`Invalid colonization aftermath stage: ${aftermath.stage}`);
+  }
+  for (const key of [
+    "dueMinute",
+    "disappearedMinute",
+    "offeredMinute",
+    "inspectedMinute",
+    "reportedMinute"
+  ]) {
+    if (aftermath[key] !== null && (!Number.isFinite(aftermath[key]) || aftermath[key] < 0)) {
+      throw new Error(`Invalid colonization aftermath ${key}: ${aftermath[key]}`);
+    }
+  }
+  if (!Number.isFinite(aftermath.dueMinute) || aftermath.dueMinute <= memory.establishedMinute) {
+    throw new Error(`Invalid ${target.city} disappearance minute`);
+  }
+  const missingOrLater = aftermath.stage !== COLONIZATION_AFTERMATH_WAITING;
+  if (missingOrLater !== (aftermath.disappearedMinute !== null)) {
+    throw new Error(`${target.city} disappearance timestamp does not match its aftermath stage`);
+  }
+  const commissioned = [
+    COLONIZATION_AFTERMATH_INVESTIGATING,
+    COLONIZATION_AFTERMATH_REPORTING,
+    COLONIZATION_AFTERMATH_COMPLETE
+  ].includes(aftermath.stage);
+  const reportIdentityComplete = Number.isInteger(aftermath.reportTileId) && aftermath.reportTileId >= 0 &&
+    nonEmptyString(aftermath.reportCity) && nonEmptyString(aftermath.reportCountry);
+  if (commissioned !== (aftermath.offeredMinute !== null) || commissioned !== reportIdentityComplete) {
+    throw new Error(`${target.city} investigation commission is incomplete`);
+  }
+  const inspected = [COLONIZATION_AFTERMATH_REPORTING, COLONIZATION_AFTERMATH_COMPLETE].includes(aftermath.stage);
+  if (inspected !== (aftermath.inspectedMinute !== null)) {
+    throw new Error(`${target.city} inspection timestamp does not match its aftermath stage`);
+  }
+  if ((aftermath.stage === COLONIZATION_AFTERMATH_COMPLETE) !== (aftermath.reportedMinute !== null)) {
+    throw new Error(`${target.city} report timestamp does not match its aftermath stage`);
+  }
+  return aftermath;
+}
+
+function colonizationAllSettlementRecords(memory) {
+  return [...memory.pastSettlements, ...(colonizationSelectedTarget(memory) ? [memory] : [])];
+}
+
+function colonizationAftermathViewForSettlement(settlement) {
+  const target = requiredSelectedTarget(settlement);
+  return Object.freeze({
+    ...settlement.aftermath,
+    target: Object.freeze({ ...target, tileId: settlement.targetTileId })
+  });
+}
+
+function colonizationAftermathObjective(memory) {
+  const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
+    [COLONIZATION_AFTERMATH_INVESTIGATING, COLONIZATION_AFTERMATH_REPORTING]
+      .includes(candidate.aftermath?.stage)
+  ));
+  if (!settlement) return null;
+  if (settlement.aftermath.stage === COLONIZATION_AFTERMATH_INVESTIGATING) {
+    return { tileId: settlement.targetTileId, kind: "investigate-lost-colony" };
+  }
+  return { tileId: settlement.aftermath.reportTileId, kind: "report-lost-colony" };
+}
+
+function colonizationAftermathEnglishPort(city) {
+  return Boolean(
+    city?.factionId === "england" &&
+    Number.isInteger(city.tileId) &&
+    nonEmptyString(city.city) &&
+    nonEmptyString(city.country) &&
+    cityIsInEurope(city)
+  );
 }
 
 function assertMinute(value) {

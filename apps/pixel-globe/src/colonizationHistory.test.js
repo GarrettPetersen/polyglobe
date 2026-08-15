@@ -28,6 +28,7 @@ const HISTORICAL_MARKERS = Object.freeze({
   Luanda: /Paulo Dias de Novais|Mbundu|enslaved/,
   "Buenos Aires": /Juan de Garay|Asuncion|refound/,
   "St. John's": /Humphrey Gilbert|seasonal fishery|cod/,
+  Roanoke: /John White|Cittie of Ralegh|Croatoan/,
   "Port Royal": /Saint Croix|Mi'kmaq|Order of Good Cheer/,
   Jamestown: /Virginia Company|Powhatan|brackish/,
   Quebec: /Champlain|St. Lawrence|Innu/,
@@ -49,7 +50,7 @@ const HISTORICAL_MARKERS = Object.freeze({
 test("every sailing colony target has a distinct complete historical quest profile", () => {
   const sailingTargets = COLONIZATION_TARGETS.filter((target) => target.waterAccess !== "inland");
 
-  assert.equal(sailingTargets.length, 29);
+  assert.equal(sailingTargets.length, 30);
   assert.equal(colonizationHistoryEntries().length, sailingTargets.length);
   assert.equal(Object.keys(HISTORICAL_MARKERS).length, sailingTargets.length);
 

@@ -1986,15 +1986,20 @@ function chooseNpcReplacementPort(system, ship) {
   }
   const profileSpec = fleetProfileForId(ship.profileId);
   let candidates = system.ports.filter((port) => (
+    npcRoutePortAcceptsTraffic(port) &&
     !port.isFishingGround &&
     port.factionId === ship.factionId &&
     profileSpec.portPredicate(port)
   ));
   if (candidates.length === 0) {
-    candidates = system.ports.filter((port) => !port.isFishingGround && port.factionId === ship.factionId);
+    candidates = system.ports.filter((port) => (
+      npcRoutePortAcceptsTraffic(port) && !port.isFishingGround && port.factionId === ship.factionId
+    ));
   }
   if (candidates.length === 0) {
-    candidates = system.ports.filter((port) => !port.isFishingGround && port.factionId === NEUTRAL_FACTION_ID);
+    candidates = system.ports.filter((port) => (
+      npcRoutePortAcceptsTraffic(port) && !port.isFishingGround && port.factionId === NEUTRAL_FACTION_ID
+    ));
   }
   if (candidates.length === 0) throw new Error(`No replacement shipyard for NPC ship ${ship.id}`);
   return [...candidates].sort((a, b) => (
@@ -2333,6 +2338,7 @@ function chooseNpcDestination(system, ship, origin) {
   const profileSpec = fleetProfileForId(ship.profileId);
   const seed = hashString32(`${ship.seed}|${origin.tileId}|dest`);
   const candidates = system.ports
+    .filter(npcRoutePortAcceptsTraffic)
     .filter((port) => !samePort(port, origin))
     .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
@@ -2384,6 +2390,7 @@ function chooseWhalerSalePort(system, ship, origin) {
   const quantity = Math.max(1, ship.cargo[WHALE_BLUBBER_GOOD_ID] || ship.cargoCapacity);
   const seed = hashString32(`${ship.seed}|${origin.tileId}|blubber-sale`);
   const candidates = system.ports
+    .filter(npcRoutePortAcceptsTraffic)
     .filter((port) => !samePort(port, origin))
     .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter(profileSpec.portPredicate)
@@ -2464,6 +2471,7 @@ function chooseFishermanSalePort(system, ship, origin, quantity) {
   const seed = hashString32(`${ship.seed}|${origin.tileId}|fish-sale`);
   const profileSpec = fleetProfileForId(ship.profileId);
   const candidates = system.ports
+    .filter(npcRoutePortAcceptsTraffic)
     .filter((port) => !samePort(port, origin))
     .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => (
@@ -3461,6 +3469,10 @@ function longRangePairAllowed(a, b) {
 
 function isAnyUsablePort(port) {
   return Number.isFinite(port.lat) && Number.isFinite(port.lon) && Number.isFinite(port.population);
+}
+
+function npcRoutePortAcceptsTraffic(port) {
+  return isAnyUsablePort(port) && port.hiddenSettlement !== true && port.colonyAbandoned !== true;
 }
 
 function normalizeNpcRoutePort(port) {

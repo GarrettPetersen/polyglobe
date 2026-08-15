@@ -1497,6 +1497,7 @@ import {
   questCargoDeliverableQuantity,
   questCargoDeliveryProgress
 } from "./questCargoDeliveries.js";
+import { questSiteArrivalCandidate } from "./questSiteArrival.js";
 import {
   darkerResurrect64Hex,
   waterDepthIndexForSpriteKey,
@@ -1664,7 +1665,12 @@ import {
 import {
   COLONIZATION_CARGO_RESERVATION_ID,
   COLONIZATION_FETCH_STAGES,
+  COLONIZATION_AFTERMATH_COMPLETE,
+  COLONIZATION_AFTERMATH_INVESTIGATING,
+  COLONIZATION_AFTERMATH_MISSING,
+  COLONIZATION_AFTERMATH_REPORTING,
   COLONIZATION_ORGANIZER_APPROACHED_FLAG,
+  ROANOKE_INVESTIGATION_REWARD,
   COLONIZATION_RESUPPLY,
   COLONIZATION_STAGE_DEFEND,
   COLONIZATION_STAGE_ESTABLISHED,
@@ -1673,9 +1679,13 @@ import {
   COLONIZATION_STAGE_REPORT_DEFENSE,
   COLONIZATION_STAGE_READY,
   advanceColonizationQuest,
+  advanceColonizationAftermaths,
   assignColonizationQuest,
   beginColonizationExpedition,
   colonizationDefenseShipIds,
+  colonizationAftermathAtSite,
+  colonizationAftermathForPort,
+  colonizationAftermathView,
   colonizationGovernmentInExileFactionId,
   colonizationNavigationObjective,
   colonizationOfferForCity,
@@ -1685,11 +1695,14 @@ import {
   colonizationWorldRecord,
   colonizationWorldRecords,
   colonizationSettlementMemories,
+  commissionColonizationAftermath,
+  completeColonizationAftermath,
   completeColonizationFetchStage,
   defeatColonizationAttacker,
   isColonizationDefenseShip,
   isColonizationQuestApproval,
   isColonizationQuestTarget,
+  inspectColonizationAftermath,
   landColonists,
   markColonizationOrganizerApproached,
   reconcileColonizationQuestOriginAfterConquest
@@ -6142,6 +6155,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
+    if (maybeAutoAnchorAtNonPortQuestSite()) dirty = true;
     if (measurePerformanceBenchmarkStage("quests.journey", () => {
       const captiveChanged = maybeAdvancePirateCaptiveJourneyAtSea();
       const dialogueChanged = maybeOpenQuestJourneyDialogueAtSea();
@@ -7384,21 +7398,36 @@ function updateWhiteWhaleSightingObjective() {
 
 function updateColonizationQuest() {
   const memory = gameState?.memory?.colonization;
-  if (!memory || !ship || !Number.isInteger(memory.targetTileId)) return false;
-  const targetVector = tileCenterVector(memory.targetTileId);
-  const distancePx = Math.acos(clamp(dot3(ship.position, targetVector), -1, 1)) * PIXELS_PER_RADIAN;
-  const changed = advanceColonizationQuest(memory, weatherClockMinutes, {
-    awayFromColony: distancePx >= COLONY_DEPARTURE_DISTANCE_PX
+  if (!memory || !ship) return false;
+  let questChanged = false;
+  if (Number.isInteger(memory.targetTileId)) {
+    const targetVector = tileCenterVector(memory.targetTileId);
+    const distancePx = Math.acos(clamp(dot3(ship.position, targetVector), -1, 1)) * PIXELS_PER_RADIAN;
+    questChanged = advanceColonizationQuest(memory, weatherClockMinutes, {
+      awayFromColony: distancePx >= COLONY_DEPARTURE_DISTANCE_PX
+    });
+  }
+  const aftermathEvents = advanceColonizationAftermaths(memory, weatherClockMinutes, {
+    isTileVisible: colonizationTileIsVisible
   });
-  if (!changed) return false;
+  if (!questChanged && aftermathEvents.length === 0) return false;
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   const targetName = colonizationQuestView(gameState, {
     currentMinute: Math.max(0, weatherClockMinutes)
   }).target?.city || "colony";
-  saveVoyageNow(memory.stage === COLONIZATION_STAGE_FAILED
+  saveVoyageNow(aftermathEvents.length > 0
+    ? `${aftermathEvents[0].city} colony disappeared`
+    : memory.stage === COLONIZATION_STAGE_FAILED
     ? `${targetName} colony failed`
     : `departed ${targetName} colony`);
   return true;
+}
+
+function colonizationTileIsVisible(tileId) {
+  const call = chart?.cityCalls?.find((candidate) => candidate.tileId === tileId);
+  return Boolean(call &&
+    call.x >= -TILE_ART_HALF && call.x <= SCREEN_W + TILE_ART_HALF &&
+    call.y >= -TILE_ART_HALF && call.y <= SCREEN_H + TILE_ART_HALF);
 }
 
 function activeTreasureCampaignGoal() {
@@ -16637,6 +16666,8 @@ function openPortDialogue(cityCall) {
   clearPortNavigationWaypointsAt(gameState, cityCall.tileId);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
+  const colonyAftermath = colonizationAftermathAtSite(gameState.memory.colonization, cityCall);
+  if (colonyAftermath && openColonizationAftermathSiteDialogue(cityCall, colonyAftermath)) return;
   if (isColonizationQuestTarget(gameState.memory.colonization, cityCall) &&
       cityCall.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
     dialogueState = createPortDialogueSession(cityCall, {
@@ -16771,6 +16802,40 @@ function openPortDialogue(cityCall) {
   dirty = true;
 }
 
+function openColonizationAftermathSiteDialogue(cityCall, aftermath) {
+  if (aftermath.stage === COLONIZATION_AFTERMATH_INVESTIGATING) {
+    const captain = gameState.playerCharacter;
+    const opened = startCharacterAlertSequence([
+      {
+        character: captain,
+        expressionId: "thoughtful",
+        message: "No smoke. No voices. The houses were taken down carefully, not burned."
+      },
+      {
+        character: captain,
+        expressionId: "stern",
+        message: "The word CROATOAN is cut into the palisade, with no cross of distress. I will take a rubbing and careful notes back to England."
+      }
+    ], () => {
+      showSurvivalNotice("ROANOKE CLUES ACQUIRED", "good");
+      saveVoyageNow("investigated the abandoned Roanoke colony");
+      dirty = true;
+    });
+    if (!opened) return false;
+    inspectColonizationAftermath(
+      gameState.memory.colonization,
+      cityCall,
+      Math.floor(weatherClockMinutes)
+    );
+    syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+    return true;
+  }
+  const message = aftermath.stage === COLONIZATION_AFTERMATH_REPORTING
+    ? "Roanoke remains silent. I have gathered all the clues this shore will yield; England must see them."
+    : "The empty earthworks remain, but Roanoke has surrendered no final answer.";
+  return openCaptainAlertModal(message, "thoughtful");
+}
+
 function withPortArrivalGossip(session, cityCall) {
   if (session.kind !== "port" || !portSessionWillShowGreeting(session)) return session;
   const simMinute = Math.floor(weatherClockMinutes);
@@ -16850,6 +16915,7 @@ function continuePortArrivalDialogues() {
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
+    () => maybeOpenColonizationAftermathPortDialogue(cityCall),
     () => activePapalCommissionObjectiveIsAt(cityCall) &&
       maybeOpenPapalCommissionPortDialogue(cityCall),
     () => maybeOpenHospitallerMaltaQuestPortDialogue(cityCall),
@@ -16861,6 +16927,78 @@ function continuePortArrivalDialogues() {
     ),
     () => openPendingDiscoveryPortDialogue()
   ]);
+}
+
+function maybeOpenColonizationAftermathPortDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.rumorText !== null) {
+    return false;
+  }
+  const aftermath = colonizationAftermathForPort(gameState.memory.colonization, cityCall);
+  if (!aftermath) return false;
+  const factor = cityCall.character;
+  const captain = gameState.playerCharacter;
+  if (aftermath.stage === COLONIZATION_AFTERMATH_MISSING) {
+    const opened = startCharacterAlertSequence([
+      pairedCharacterAlertStep({
+        leftCharacter: factor,
+        rightCharacter: captain,
+        speakerCharacter: factor,
+        expressionId: "sad",
+        message: "The colony we planted at Roanoke has sent no word in two years. Sail there and learn what became of its people."
+      }),
+      pairedCharacterAlertStep({
+        leftCharacter: factor,
+        rightCharacter: captain,
+        speakerCharacter: captain,
+        expressionId: "stern",
+        message: "An abandoned settlement leaves a larger wake than a thriving one. I will search Roanoke."
+      })
+    ]);
+    if (!opened) return false;
+    commissionColonizationAftermath(
+      gameState.memory.colonization,
+      cityCall,
+      Math.floor(weatherClockMinutes)
+    );
+    syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+    saveVoyageNow("accepted the Roanoke investigation");
+    return true;
+  }
+  if (aftermath.stage !== COLONIZATION_AFTERMATH_REPORTING) return false;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: factor,
+      rightCharacter: captain,
+      speakerCharacter: captain,
+      expressionId: "thoughtful",
+      message: "No bodies, no sign of hurried flight. The houses were dismantled, and the word CROATOAN was carved as a destination."
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: factor,
+      rightCharacter: captain,
+      speakerCharacter: factor,
+      expressionId: "thoughtful",
+      message: "Then the honest report is the hardest one: Roanoke is gone, and its people's fate remains unknown."
+    })
+  ], () => {
+    showSurvivalNotice(`ROANOKE REPORT DELIVERED  +${ROANOKE_INVESTIGATION_REWARD} DB`, "good");
+  });
+  if (!opened) return false;
+  completeColonizationAftermath(
+    gameState.memory.colonization,
+    cityCall,
+    Math.floor(weatherClockMinutes)
+  );
+  receiveQuestPayment(
+    gameState,
+    cityCall,
+    ROANOKE_INVESTIGATION_REWARD,
+    "Delivered the Roanoke clues to England",
+    portDialogueContext()
+  );
+  playCoinClinkSound();
+  saveVoyageNow("delivered the Roanoke clues");
+  return true;
 }
 
 function maybeOpenQuestCargoDeliveryDialogue(cityCall) {
@@ -19009,6 +19147,32 @@ function toggleAnchor({ findCastaway = true } = {}) {
   stopShipMotion();
   if (!maybeRecoverCampaignTreasureAtAnchor()) saveVoyageNow("dropped anchor");
   dirty = true;
+  return true;
+}
+
+function maybeAutoAnchorAtNonPortQuestSite() {
+  if (!ship || anchored || portWaitState || gameOverReason || dialogueState || captainAlertModal ||
+      menusAreOpen() || playerHasCombatEngagement() || !chart || !localLayout) {
+    return false;
+  }
+
+  const treasureGoal = activeTreasureCampaignGoal();
+  const treasureTileId = treasureGoal && treasureCampaignPhase(treasureGoal) === "find-treasure"
+    ? treasureGoal.treasureTileId
+    : null;
+  const arrival = questSiteArrivalCandidate({
+    colonizationObjective: activeColonizationObjective(),
+    cityCalls: chart.cityCalls || [],
+    portCallIsInRange: portCallInInteractionRange,
+    treasureTileId,
+    nearestShoreTileId: treasureTileId === null ? null : nearestScavengeShoreCall()?.id ?? null
+  });
+  if (!arrival) return false;
+  if (arrival.kind === "treasure") return toggleAnchor();
+  anchored = true;
+  initialAnimalEncounterRollPending = false;
+  stopShipMotion();
+  openPortDialogue(arrival.call);
   return true;
 }
 
@@ -21597,12 +21761,16 @@ function applyWhaleTowAcceleration(dt) {
 function activePortCalls() {
   if (!chart || !localLayout) return [];
   const currentTileId = ship?.tileId ?? centerTileId;
-  const currentPortCalls = (chart.cityCalls || []).filter((call) => call.tileId === currentTileId && call.character);
+  const currentPortCalls = (chart.cityCalls || []).filter((call) => (
+    call.tileId === currentTileId && call.character && !call.hiddenSettlement
+  ));
   if (currentPortCalls.length > 0) {
     currentPortCalls.sort((a, b) => Number(b.isPirateHideout) - Number(a.isPirateHideout) || a.tileId - b.tileId);
   }
   const nearbyCalls = (chart.cityCalls || [])
-    .filter((call) => call.tileId !== currentTileId && portCallInInteractionRange(call))
+    .filter((call) => (
+      call.tileId !== currentTileId && !call.hiddenSettlement && portCallInInteractionRange(call)
+    ))
     .sort((a, b) => (
       distance2(localLayout.viewX, localLayout.viewY, a.interactionX, a.interactionY) -
         distance2(localLayout.viewX, localLayout.viewY, b.interactionX, b.interactionY) ||
@@ -23835,6 +24003,17 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
       : createArchivedColonizationOrganizer(state, memory, binding));
   if (!settlementCharacter) throw new Error(`${binding.target.city} colony has no resident official`);
   portCityCharacters.set(record.tileId, settlementCharacter);
+  if (record.hiddenSettlement || record.colonyAbandoned) {
+    const portIndex = portCities.findIndex((city) => city.tileId === record.tileId);
+    if (portIndex >= 0) portCities.splice(portIndex, 1);
+    portCitiesByTileId.delete(record.tileId);
+    if (npcSeaRoutes && npcSeaRouteHasPort(npcSeaRoutes, record)) {
+      replaceNpcSeaRoutePort(npcSeaRoutes, record);
+    }
+    chart = null;
+    dirty = true;
+    return record;
+  }
   if (![
     COLONIZATION_STAGE_DEFEND,
     COLONIZATION_STAGE_REPORT_DEFENSE,
@@ -37550,6 +37729,10 @@ function questJournalEntries() {
   });
   const colonyEntry = colonizationJournalEntry(colonization);
   if (colonyEntry) entries.push(colonyEntry);
+  const colonyAftermathEntry = colonizationAftermathJournalEntry(
+    colonizationAftermathView(gameState.memory.colonization)
+  );
+  if (colonyAftermathEntry) entries.push(colonyAftermathEntry);
 
   const vikingPort = vikingLongshipQuestPort();
   const viking = vikingPort ? vikingLongshipQuestState(gameState, vikingPort) : null;
@@ -37652,6 +37835,23 @@ function colonizationJournalEntry(quest) {
     nextStep,
     style: COLONIZATION_NAVIGATION_STYLE
   } : null;
+}
+
+function colonizationAftermathJournalEntry(aftermath) {
+  if (!aftermath || ![
+    COLONIZATION_AFTERMATH_INVESTIGATING,
+    COLONIZATION_AFTERMATH_REPORTING
+  ].includes(aftermath.stage)) {
+    return null;
+  }
+  return {
+    id: "roanoke-investigation",
+    title: "The Lost Colony",
+    nextStep: aftermath.stage === COLONIZATION_AFTERMATH_INVESTIGATING
+      ? "SEARCH THE ABANDONED COLONY AT ROANOKE"
+      : `DELIVER THE ROANOKE CLUES TO ${aftermath.reportCity.toUpperCase()}`,
+    style: COLONIZATION_NAVIGATION_STYLE
+  };
 }
 
 function vikingLongshipJournalEntry(quest, port) {
@@ -38173,6 +38373,17 @@ function fetchQuestWorldDestination(fetchTarget) {
 }
 
 function colonizationObjectiveDestination(state, objective) {
+  if (objective.kind === "investigate-lost-colony") {
+    const site = colonizationWorldRecords(state.memory.colonization)
+      .find((record) => record.tileId === objective.tileId);
+    if (!site) throw new Error("Lost colony investigation has no abandoned site");
+    return site;
+  }
+  if (objective.kind === "report-lost-colony") {
+    const port = portCitiesByTileId.get(objective.tileId) || cityByTileId.get(objective.tileId);
+    if (!port) throw new Error("Lost colony report has no English destination port");
+    return port;
+  }
   if (objective.kind === "deliver-colony-materials") {
     const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
     if (!quest.origin || quest.origin.tileId !== objective.tileId) {
@@ -38198,6 +38409,8 @@ function colonizationObjectiveDestination(state, objective) {
 }
 
 function colonizationNavigationReason(objective) {
+  if (objective.kind === "investigate-lost-colony") return "SEARCH THE LOST COLONY";
+  if (objective.kind === "report-lost-colony") return "DELIVER THE ROANOKE CLUES";
   if (objective.kind === "deliver-colony-materials") return uiText("navigation.deliverColonyMaterials");
   if (objective.kind === "negotiate-colony") return uiText("navigation.securePermission");
   if (objective.kind === "develop-port") return uiText("navigation.openTradingPort");
