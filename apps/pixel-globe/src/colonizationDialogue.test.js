@@ -413,16 +413,22 @@ test("every sailing colony renders its own history through the complete dialogue
   for (const [index, canonicalTarget] of targets.entries()) {
     const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
     const target = { ...canonicalTarget, tileId: 1000 + index };
+    const sponsorCountry = target.originCountry || {
+      england: "England",
+      france: "France",
+      portugal: "Portugal",
+      spain: "Spain"
+    }[target.originFactionId];
     const origin = {
       ...BORDEAUX,
       tileId: 2000 + index,
       portId: `origin-${index}`,
       city: `Sponsor Port ${index}`,
       displayCity: `Sponsor Port ${index}`,
-      country: target.originCountry || `Sponsor Realm ${index}`,
+      country: sponsorCountry,
       factionId: target.originFactionId,
-      lat: -target.lat,
-      lon: target.lon > 0 ? target.lon - 160 : target.lon + 160
+      lat: BORDEAUX.lat,
+      lon: BORDEAUX.lon
     };
     const approval = target.approvalFactionId
       ? {

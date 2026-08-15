@@ -4,7 +4,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
-import { CITY_IMAGE_KEYS, cityArtKeyForCity } from "./cityCatalogData.js";
+import {
+  CITY_IMAGE_KEYS,
+  cityArtKeyForCity,
+  cityIsInEurope,
+  cityTypeForCity
+} from "./cityCatalogData.js";
 const cityArtRoot = join(dirname(fileURLToPath(import.meta.url)), "../public/assets/buildings/city-types");
 
 test("the shared village placeholder is a nonblank transparent 36px sprite", async () => {
@@ -42,6 +47,13 @@ test("substantial northern Native American settlements use their own city art", 
     settlementType: "city"
   }), "mesoamerican");
   await assertNonblankTransparentCitySprite("city-native-american.png");
+});
+
+test("historical British countries remain European without inventing the United Kingdom", () => {
+  for (const country of ["England", "Scotland", "Wales"]) {
+    assert.equal(cityIsInEurope({ country }), true);
+    assert.equal(cityTypeForCity(country, 52, -2), "northern-european");
+  }
 });
 
 async function assertNonblankTransparentCitySprite(filename) {

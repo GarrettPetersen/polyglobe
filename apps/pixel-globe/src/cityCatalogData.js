@@ -99,8 +99,8 @@ const MEDITERRANEAN = new Set([
   "Albania", "Bulgaria", "Cyprus", "Greece", "Italy", "Portugal", "Romania", "Serbia", "Spain"
 ]);
 const NORTHERN_EUROPEAN = new Set([
-  "Austria", "Belgium", "Denmark", "France", "Germany", "Hungary", "Iceland", "Ireland", "Lithuania", "Netherlands",
-  "Norway", "Poland", "Russian Federation", "Sweden", "Ukraine", "United Kingdom"
+  "Austria", "Belgium", "Denmark", "England", "France", "Germany", "Hungary", "Iceland", "Ireland", "Lithuania",
+  "Netherlands", "Norway", "Poland", "Russian Federation", "Scotland", "Sweden", "Ukraine", "United Kingdom", "Wales"
 ]);
 const EUROPEAN_CITY_COUNTRIES = new Set([
   ...MEDITERRANEAN,
