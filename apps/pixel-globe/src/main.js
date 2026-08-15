@@ -15,6 +15,7 @@ import {
   chartAdmissionCorrectionPolicy,
   chartAdmissionTileMayMove,
   planVisibleElasticTilesWithinMotion,
+  refreshOffscreenLayoutTiles,
   resolveLocalLayoutAnchor,
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
@@ -1851,6 +1852,7 @@ import {
   chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
   chartFogPixelDensity,
+  chartRepairPressureDrift,
   chartRepairFogFrame,
   chartRepairFogWindPresence,
   createChartFogMaskField,
@@ -9875,18 +9877,24 @@ function setupChartRecoveryDiagnostic() {
       chartRecoveryDiagnosticStartPosition = ship.position.slice();
       chartRecoveryDiagnosticCoveredTileMoves = [];
       chartRecoveryDiagnosticCoveredTileApplications = 0;
-      chartRecoveryDiagnosticManualNowMs = lastFrameMs;
+      chartRecoveryDiagnosticManualNowMs = Math.max(lastFrameMs, performance.now());
       chartRecoveryDiagnosticAdmissions = [];
       chartRecoveryDiagnosticRepairPasses = [];
       if (!allowDialogue) dismissChartRecoveryDiagnosticDialogues();
-      capturePlaybackPaused = false;
+      // The recovery harness owns both movement and repair time. Letting the
+      // ordinary frame loop advance the ship between explicit samples made an
+      // otherwise seeded diagnostic depend on browser scheduling.
+      capturePlaybackPaused = true;
       dirty = true;
       return chartRecoveryDiagnosticSnapshot();
     },
     snapshot: chartRecoveryDiagnosticSnapshot,
-    advanceTravel(distancePx = 4) {
+    advanceTravel(distancePx = 4, elapsedMs = distancePx * 250) {
       if (!Number.isFinite(distancePx) || distancePx <= 0 || distancePx > 640) {
         throw new Error(`Chart recovery diagnostic travel step is invalid: ${distancePx}`);
+      }
+      if (!Number.isFinite(elapsedMs) || elapsedMs <= 0 || elapsedMs > 120_000) {
+        throw new Error(`Chart recovery diagnostic elapsed time is invalid: ${elapsedMs}`);
       }
       const wasPaused = capturePlaybackPaused;
       capturePlaybackPaused = true;
@@ -9905,11 +9913,12 @@ function setupChartRecoveryDiagnostic() {
           if (!movement.moved) {
             throw new Error("Chart recovery diagnostic ship could not complete its movement step");
           }
-          ensureChart();
+          const stepElapsedMs = elapsedMs * stepPx / distancePx;
           if (chartRecoveryDiagnosticPassiveOnly) {
-            advanceChartRecoveryDiagnosticIntegritySample(500);
+            ensureChart();
+            advanceChartRecoveryDiagnosticIntegritySample(stepElapsedMs);
           } else {
-            advanceChartRecoveryDiagnosticVisualRepair(1000);
+            advanceChartRecoveryDiagnosticVisualRepair(stepElapsedMs);
           }
           if (!chartRecoveryDiagnosticDialogueEnabled) {
             dismissChartRecoveryDiagnosticDialogues();
@@ -9960,12 +9969,19 @@ function advanceChartRecoveryDiagnosticVisualRepair(elapsedMs) {
     throw new Error(`Chart recovery diagnostic elapsed time is invalid: ${elapsedMs}`);
   }
   const realLastFrameMs = lastFrameMs;
+  const previouslyPresentedSwell = currentOceanSwellPresentation();
   chartRecoveryDiagnosticManualNowMs = Math.max(
     chartRecoveryDiagnosticManualNowMs,
     realLastFrameMs
   ) + elapsedMs;
   lastFrameMs = chartRecoveryDiagnosticManualNowMs;
   try {
+    lastPresentedOceanSwell = {
+      layout: localLayout,
+      swell: previouslyPresentedSwell,
+      surfaceIceRevision: surfaceIceSettledRevision
+    };
+    updateWaterAnimation(lastFrameMs);
     const chartRepairCheckIsDue = lastFrameMs - chartDriftMeasuredAtMs >=
       CHART_DRIFT_MEASURE_INTERVAL_MS;
     const drift = measureChartDriftAtInterval(lastFrameMs);
@@ -10061,6 +10077,10 @@ function chartRecoveryDiagnosticSnapshot() {
     maximumDistortionPx: visibleDrift.maxDistortionPx,
     tearPx: tear.extraPx,
     unobscuredTearPx: unobscuredTear.extraPx,
+    terrainTearPx: tear.nonWater.extraPx,
+    waterTearPx: tear.water.extraPx,
+    unobscuredTerrainTearPx: unobscuredTear.nonWater.extraPx,
+    unobscuredWaterTearPx: unobscuredTear.water.extraPx,
     tearSignedExtraPx: tear.signedExtraPx,
     tearSurface: tear.surface,
     tearTileIds: Object.freeze(tear.tileIds.slice()),
@@ -10078,7 +10098,7 @@ function chartRecoveryDiagnosticSnapshot() {
         )) * PIXELS_PER_RADIAN
       : 0,
     polarFogPressure: polarChartRepairPressure,
-    swellActive: performance.now() < chartRepairSwellUntilMs,
+    swellActive: lastFrameMs < chartRepairSwellUntilMs,
     fogActive: Boolean(currentPolarChartFogFrame() || chartRepairFog),
     cloudActive: Boolean(chartRepairCloudBank),
     heatHazeActive: Boolean(chartRepairHeatHaze),
@@ -22778,10 +22798,14 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   ) return false;
 
   const terrainTear = measureCurrentVisibleTerrainTear();
-  // Fog may conceal the worst geometry before it has repaired it. Keep its
-  // pressure tied to the complete drawn chart so the clear window continues
-  // tightening until those hidden tiles actually settle north-up.
-  updatePolarChartRepairPressure(chartNorthUpDrift, terrainTear, nowMs);
+  // Fog may conceal the worst geometry before it has repaired it, while the
+  // clear center can remain worse than the hidden margin. Keep pressure tied
+  // to whichever view is farther from north-up until both have settled.
+  updatePolarChartRepairPressure(
+    chartRepairPressureDrift(drift, chartNorthUpDrift),
+    terrainTear,
+    nowMs
+  );
   const distortionSurface = chartSurfaceAtScreenPoint(chartWorstDistortionPoint);
   const fullyElasticOpenOcean = chartViewportIsFullyElasticOpenOcean();
   const swellRepairAvailable = fullyElasticOpenOcean || (
@@ -35716,7 +35740,8 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
   const admissionContext = createLocalLayoutAdmissionContext({
     positions: localLayout.positions,
     projectedVisible,
-    chartCenterTileId
+    chartCenterTileId,
+    refreshOffscreenTiles: positionLocks === null
   });
   const { projectedById, admissionAnchorId, correctionSupport } = admissionContext;
   const previousPresentation = lastPresentedOceanSwell?.layout === localLayout
@@ -35919,7 +35944,8 @@ function exactNorthUpProjectedPositions(tileIds) {
 function createLocalLayoutAdmissionContext({
   positions,
   projectedVisible,
-  chartCenterTileId
+  chartCenterTileId,
+  refreshOffscreenTiles = true
 }) {
   if (!(positions instanceof Map)) {
     throw new Error("Local layout admission context requires positions as a map");
@@ -35932,6 +35958,19 @@ function createLocalLayoutAdmissionContext({
     viewX: localLayout.viewX,
     viewY: localLayout.viewY
   });
+  if (refreshOffscreenTiles) {
+    refreshOffscreenLayoutTiles({
+      positions,
+      projectedTiles: projectedVisible,
+      protectionById: chartTileProtection,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H,
+      tileVisualRadius: LOCAL_LAYOUT_RETENTION_MARGIN_PX,
+      anchorId: admissionAnchorId,
+      viewX: localLayout.viewX,
+      viewY: localLayout.viewY
+    });
+  }
   const correctionSupport = viewportElasticCorrectionSupport({
     projectedTiles: projectedVisible,
     protectionById: chartTileProtection,

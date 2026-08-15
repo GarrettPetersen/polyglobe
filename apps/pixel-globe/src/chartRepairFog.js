@@ -241,6 +241,20 @@ export function nextPolarChartRepairPressure({
   );
 }
 
+export function chartRepairPressureDrift(visibleDrift, completeDrift) {
+  if (!visibleDrift || !completeDrift) {
+    throw new Error("Chart repair pressure requires visible and complete drift metrics");
+  }
+  for (const [label, drift] of Object.entries({ visibleDrift, completeDrift })) {
+    if (!Number.isFinite(drift.rotationDeg)) {
+      throw new Error(`Chart repair pressure has invalid ${label} rotation`);
+    }
+  }
+  return Math.abs(visibleDrift.rotationDeg) >= Math.abs(completeDrift.rotationDeg)
+    ? visibleDrift
+    : completeDrift;
+}
+
 export function chartFogObscuresCircle(frame, x, y, radius = 0) {
   if (!frame) return false;
   for (const [label, value] of Object.entries({ x, y, radius })) {

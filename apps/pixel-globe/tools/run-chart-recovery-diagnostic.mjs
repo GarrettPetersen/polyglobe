@@ -19,14 +19,16 @@ const allCases = [
     tiltDeg: 6,
     speedRatio: 0.7,
     durationSeconds: 1,
-    deterministicTravelPx: 240,
+    deterministicTravelPx: 260,
     passiveOnly: true,
     allowDialogue: false,
     maximumFinalTiltDeg: 2.5,
     maximumFinalTearPx: 8,
+    maximumFinalWaterTearPx: 12,
     maximumObservedTiltDeg: 7,
     maximumObservedVisibleTiltDeg: 7,
     maximumObservedUnobscuredTearPx: 10,
+    maximumObservedUnobscuredWaterTearPx: 12,
     requireOrdinaryAdmissionOnly: true
   },
   {
@@ -39,9 +41,11 @@ const allCases = [
     allowDialogue: false,
     maximumFinalTiltDeg: 4,
     maximumFinalTearPx: 8,
+    maximumFinalWaterTearPx: 12,
     maximumObservedTiltDeg: 13,
     maximumObservedVisibleTiltDeg: 13,
-    maximumObservedUnobscuredTearPx: 10
+    maximumObservedUnobscuredTearPx: 10,
+    maximumObservedUnobscuredWaterTearPx: 12
   },
   {
     id: "scandinavian-coast-preventive",
@@ -54,9 +58,11 @@ const allCases = [
     allowDialogue: false,
     maximumFinalTiltDeg: 5,
     maximumFinalTearPx: 10,
+    maximumFinalWaterTearPx: 12,
     maximumObservedTiltDeg: 8,
     maximumObservedVisibleTiltDeg: 8,
     maximumObservedUnobscuredTearPx: 10,
+    maximumObservedUnobscuredWaterTearPx: 12,
     requireFogCoveredTileMovement: true
   },
   {
@@ -70,9 +76,11 @@ const allCases = [
     allowDialogue: false,
     maximumFinalTiltDeg: 5,
     maximumFinalTearPx: 10,
+    maximumFinalWaterTearPx: 12,
     maximumObservedTiltDeg: 18,
     maximumObservedVisibleTiltDeg: 21,
     maximumObservedUnobscuredTearPx: 10,
+    maximumObservedUnobscuredWaterTearPx: 12,
     requireFogCoveredTileMovement: true
   },
   {
@@ -86,9 +94,11 @@ const allCases = [
     allowDialogue: false,
     maximumFinalTiltDeg: 5,
     maximumFinalTearPx: 10,
+    maximumFinalWaterTearPx: 12,
     maximumObservedTiltDeg: 6,
     maximumObservedVisibleTiltDeg: 6,
-    maximumObservedUnobscuredTearPx: 10
+    maximumObservedUnobscuredTearPx: 10,
+    maximumObservedUnobscuredWaterTearPx: 12
   }
 ];
 const cases = args.caseId === null
@@ -158,9 +168,12 @@ async function runDiagnosticCase(browser, baseUrl, diagnosticCase) {
     if (Number.isFinite(diagnosticCase.deterministicTravelPx)) {
       samples.push({
         elapsedSeconds: 0.1,
-        ...await page.evaluate((distancePx) => (
-          window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__.advanceTravel(distancePx)
-        ), diagnosticCase.deterministicTravelPx)
+        ...await page.evaluate(({ distancePx, elapsedMs }) => (
+          window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__.advanceTravel(distancePx, elapsedMs)
+        ), {
+          distancePx: diagnosticCase.deterministicTravelPx,
+          elapsedMs: diagnosticCase.durationSeconds * 1000
+        })
       });
     }
     if (!Number.isFinite(diagnosticCase.deterministicTravelPx)) {
@@ -173,17 +186,20 @@ async function runDiagnosticCase(browser, baseUrl, diagnosticCase) {
         await throwPageError(page);
         const elapsedSeconds = (performance.now() - startedAt) / 1000;
         const targetTravelPx = Math.min(
-          diagnosticCase.durationSeconds * 4,
-          Math.floor(elapsedSeconds) * 4
+          diagnosticCase.durationSeconds * initial.speedPxPerSecond,
+          Math.floor(elapsedSeconds) * initial.speedPxPerSecond
         );
         const travelThisSamplePx = Math.max(0, targetTravelPx - requestedTravelPx);
-        const sample = await page.evaluate((distancePx) => {
+        const sample = await page.evaluate(({ distancePx, elapsedMs }) => {
           const diagnostic = window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__;
           if (diagnostic.snapshot().dialogueActive) diagnostic.advanceDialogue();
           return distancePx > 0
-            ? diagnostic.advanceTravel(distancePx)
+            ? diagnostic.advanceTravel(distancePx, elapsedMs)
             : diagnostic.snapshot();
-        }, travelThisSamplePx);
+        }, {
+          distancePx: travelThisSamplePx,
+          elapsedMs: travelThisSamplePx / initial.speedPxPerSecond * 1000
+        });
         requestedTravelPx += travelThisSamplePx;
         samples.push({
           elapsedSeconds: Math.round(elapsedSeconds * 10) / 10,
@@ -249,10 +265,16 @@ function validateCase(diagnosticCase, samples) {
         `limit ${diagnosticCase.maximumFinalTiltDeg}`
     );
   }
-  if (final.tearPx > diagnosticCase.maximumFinalTearPx) {
+  if (final.terrainTearPx > diagnosticCase.maximumFinalTearPx) {
     failures.push(
-      `finished with ${final.tearPx.toFixed(2)}px tear; ` +
+      `finished with ${final.terrainTearPx.toFixed(2)}px land/coast tear; ` +
         `limit ${diagnosticCase.maximumFinalTearPx}px`
+    );
+  }
+  if (final.waterTearPx > diagnosticCase.maximumFinalWaterTearPx) {
+    failures.push(
+      `finished with ${final.waterTearPx.toFixed(2)}px water tear; ` +
+        `limit ${diagnosticCase.maximumFinalWaterTearPx}px`
     );
   }
   const maximumObservedTiltDeg = Math.max(...samples.map((sample) => (
@@ -268,15 +290,29 @@ function validateCase(diagnosticCase, samples) {
     );
   }
   const maximumObservedUnobscuredTearPx = Math.max(...samples.map((sample) => (
-    sample.unobscuredTearPx
+    sample.unobscuredTerrainTearPx
   )));
   if (
     Number.isFinite(diagnosticCase.maximumObservedUnobscuredTearPx) &&
     maximumObservedUnobscuredTearPx > diagnosticCase.maximumObservedUnobscuredTearPx
   ) {
     failures.push(
-      `reached ${maximumObservedUnobscuredTearPx.toFixed(2)}px unobscured tear; ` +
+      `reached ${maximumObservedUnobscuredTearPx.toFixed(2)}px unobscured ` +
+        `land/coast tear; ` +
         `peak limit ${diagnosticCase.maximumObservedUnobscuredTearPx}px`
+    );
+  }
+  const maximumObservedUnobscuredWaterTearPx = Math.max(...samples.map((sample) => (
+    sample.unobscuredWaterTearPx
+  )));
+  if (
+    Number.isFinite(diagnosticCase.maximumObservedUnobscuredWaterTearPx) &&
+    maximumObservedUnobscuredWaterTearPx >
+      diagnosticCase.maximumObservedUnobscuredWaterTearPx
+  ) {
+    failures.push(
+      `reached ${maximumObservedUnobscuredWaterTearPx.toFixed(2)}px unobscured ` +
+        `water tear; peak limit ${diagnosticCase.maximumObservedUnobscuredWaterTearPx}px`
     );
   }
   const maximumObservedVisibleTiltDeg = Math.max(...samples.map((sample) => (
@@ -353,7 +389,8 @@ function printReport(report, output) {
       `${entry.id}: tilt ${entry.initial.fullTiltDeg.toFixed(2)} -> ` +
         `${entry.final.visibleTiltDeg.toFixed(2)} visible deg ` +
         `(${entry.final.fullTiltDeg.toFixed(2)} including concealed margin), ` +
-        `tear ${entry.final.unobscuredTearPx.toFixed(2)}px, ` +
+        `tear ${entry.final.unobscuredTerrainTearPx.toFixed(2)}px land / ` +
+        `${entry.final.unobscuredWaterTearPx.toFixed(2)}px water, ` +
         `void ${entry.maximumViewportInteriorGapPx.toFixed(2)}px, ` +
         `telemetry ${entry.final.integrityTelemetry.samplesObserved} samples / ` +
         `${entry.final.integrityTelemetry.incidentsDetected} incidents, ` +

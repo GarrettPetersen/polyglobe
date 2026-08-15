@@ -5,6 +5,7 @@ import {
   chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
   chartFogPixelDensity,
+  chartRepairPressureDrift,
   chartRepairFogFrame,
   chartRepairFogWindPresence,
   createChartFogMaskField,
@@ -299,6 +300,16 @@ test("polar repair pressure rises only where polar fog is climatically plausible
     drift: { rotationDeg: 0 },
     terrainTear: { extraPx: 0, compressionPx: 0 }
   }), 0.495);
+});
+
+test("polar repair pressure follows whichever chart view is more tilted", () => {
+  const visible = { rotationDeg: -8, scope: "visible" };
+  const complete = { rotationDeg: 3, scope: "complete" };
+  assert.equal(chartRepairPressureDrift(visible, complete), visible);
+  assert.equal(chartRepairPressureDrift(
+    { rotationDeg: -2 },
+    { rotationDeg: 5 }
+  ).rotationDeg, 5);
 });
 
 test("fog permits gradual repair in its visible band before full concealment", () => {
