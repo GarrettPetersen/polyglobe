@@ -27,7 +27,7 @@ Read these sources before changing capture behavior:
 - `apps/pixel-globe/src/captureRecorder.js`
 - `apps/pixel-globe/tools/shorts/build_short.py`
 
-Add a named, disposable scenario to `CAPTURE_SCENARIOS` when an existing one does not stage the requested feature. Configure the player ship, faction, location, heading, clock, time scale, diplomacy, and nearby encounters explicitly. Never read or write the normal voyage save in capture mode.
+Add a named, disposable scenario to `CAPTURE_SCENARIOS` when an existing one does not stage the requested feature. Configure the player ship, faction, location, heading, clock, time scale, diplomacy, and nearby encounters explicitly. Never read or write the normal voyage save in capture mode. A capture scenario may stage state and inputs, but it must not introduce capture-only rendering, layouts, dialogue presentation, or other visuals that differ from the real game.
 
 Use a stable descriptive ID such as `turtle-ship-war`. Validate all referenced factions and ships at module load. Add focused tests to `captureScenarios.test.js` for any new validation or scenario behavior. Fail loudly for unknown or malformed scenario data; never fall back to a generic game.
 
@@ -83,6 +83,8 @@ The editor must use native real-time gameplay clips, quiet game SFX under narrat
 ## Review And Revise
 
 Inspect the generated `final.edit.json` and rendered MP4. Use screenshots from the opening, middle, caption-heavy moments, major event payoffs, and final seconds. Listen for narration clarity, abrupt SFX, silence, and clipped audio.
+
+Every shot must preserve the real game's normal presentation. Dialogue, menus, HUD elements, and their backgrounds must look exactly as they do during ordinary play; never substitute capture-only or editor-created visuals. If a capture looks different from the real game, reject it and recapture through the normal rendering path.
 
 Revise the edit decision list when semantic matching chose a weak moment, a cut hides the action, or the same event is reused. Keep every source interval within the take and cover the narration continuously. Rebuild without changing source footage:
 

@@ -1422,11 +1422,13 @@ import {
 import {
   PAPAL_COMMISSION_PEACE,
   PAPAL_COMMISSION_RELIEF,
+  PAPAL_ACTION_CRUSADE,
   PAPAL_ACTION_EXCOMMUNICATION,
   PAPAL_ACTION_FAVOUR,
   PAPAL_MATTER_COMMISSIONED,
   acceptPapalCommission,
   advancePapalCommissionAtPort,
+  advancePapalPolitics,
   completePapalCommission,
   convertEnglishCatholicCharacter,
   declinePapalCommission,
@@ -1703,6 +1705,7 @@ import {
   defeatColonizationAttacker,
   discoverableColonizationAftermath,
   discoverColonizationAftermath,
+  establishColony,
   isColonizationDefenseShip,
   isColonizationQuestApproval,
   isColonizationQuestTarget,
@@ -1737,6 +1740,7 @@ import {
 import { questDestinationStops, questHasDestination } from "./questItinerary.js";
 import {
   isReligiousPassengerQuest,
+  religiousMissionById,
   religiousMissionIsCatholicContraband,
   religiousMissionTitle
 } from "./religiousMissions.js";
@@ -10312,6 +10316,8 @@ function stageCaptureSequence() {
     stageCaptureSurvival(sequence);
   } else if (sequence.kind === "panda") {
     stageCapturePanda(sequence);
+  } else if (sequence.kind === "papal") {
+    stageCapturePapal(sequence);
   } else {
     throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
   }
@@ -10367,6 +10373,7 @@ function updateCaptureDirectorFrame(nowMs) {
   else if (sequence.kind === "colonize") updateCaptureColonization(sequence);
   else if (sequence.kind === "survive") updateCaptureSurvival(sequence);
   else if (sequence.kind === "panda") updateCapturePanda(sequence);
+  else if (sequence.kind === "papal") updateCapturePapal(sequence);
   else throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
 
   if (!captureDirector.stopping && captureDirectorComplete(captureDirector)) {
@@ -10562,28 +10569,94 @@ function updateCapturePillage(sequence) {
 }
 
 function updateCaptureColonization(sequence) {
-  if (captureCue("open-colony", 2.2)) openPortDialogue(capturePortCallByName(sequence.cityName));
-  if (captureCue("complete-colony-action", 2.3)) {
+  if (sequence.variant === "offer") {
+    if (captureCue("open-colony-offer", 0.8)) {
+      openCaptureColonizationDialogue(sequence.originCityName);
+      emitCaptureEvent("capture-beat", {
+        action: "propose-colonial-expedition",
+        city: sequence.cityName,
+        originCity: sequence.originCityName
+      });
+    }
+    return;
+  }
+  if (sequence.variant === "embark") {
+    if (captureCue("open-colony-embark", 0.8)) openCaptureColonizationDialogue(sequence.originCityName);
+    if (captureCue("embark-colonists", 5.0)) {
+      captureChooseDialogueAction("embark-colonists");
+      emitCaptureEvent("capture-beat", {
+        action: "embark-colonists",
+        city: sequence.cityName,
+        originCity: sequence.originCityName
+      });
+    }
+    return;
+  }
+  if (sequence.variant === "deadline") {
+    if (captureCue("open-colony-deadline", 0.8)) {
+      openCaptureColonizationDialogue(sequence.cityName);
+      emitCaptureEvent("capture-beat", { action: "show-colony-deadline", city: sequence.cityName });
+    }
+    return;
+  }
+  if (sequence.variant === "defend") {
+    if (captureCue("defend-colony", 0.1)) {
+      emitCaptureEvent("capture-beat", {
+        action: "defend-colony",
+        city: sequence.cityName,
+        attackerCount: colonizationQuestView(gameState, {
+          currentMinute: Math.floor(weatherClockMinutes)
+        }).defenseRemaining
+      });
+    }
+    return;
+  }
+  if (sequence.variant === "city") {
+    if (captureCue("open-established-colony", 0.8)) {
+      openCapturePortNode(sequence.cityName, "root");
+      emitCaptureEvent("capture-beat", { action: "visit-established-colony", city: sequence.cityName });
+    }
+    if (captureCue("browse-established-colony-market", 6.0)) captureChooseDialogueNode("buy");
+    return;
+  }
+  if (captureCue("open-colony", 1.0)) openCaptureColonizationDialogue(sequence.cityName);
+  if (captureCue("complete-colony-action", 4.5)) {
     const actionType = sequence.variant === "found" ? "land-colonists" : "deliver-colony-resupply";
     captureChooseDialogueAction(actionType);
     playSoundEffect(soundEffects?.discoverySuccess, 0.68, 1);
     emitCaptureEvent("capture-beat", { action: actionType, city: sequence.cityName });
   }
-  if (captureCue("reveal-colony", 4.3)) {
-    if (captainAlertModal) closeCaptainAlertModal();
-    if (dialogueState) closeDialogue();
-  }
+  if (captureCue("close-colony-result", 6.5) && captainAlertModal) closeCaptainAlertModal();
+}
+
+function openCaptureColonizationDialogue(cityName) {
+  openCapturePortNode(cityName, "colonization");
+}
+
+function openCapturePortNode(cityName, nodeId) {
+  const cityCall = capturePortCallByName(cityName);
+  dialogueState = createPortDialogueSession(cityCall, {
+    initialNodeId: nodeId,
+    admittedToPort: true
+  });
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
 }
 
 function updateCaptureSurvival(sequence) {
-  if (sequence.variant === "lightning") {
+  if (sequence.variant === "lightning" || sequence.variant === "lightning-sinking") {
     if (captureCue("clear-warning", 0.8) && captainAlertModal) closeCaptainAlertModal();
     if (captureCue("lightning-strike", 1.7)) {
       if (!triggerStormShipStrike(stormShipStrikeState, lastFrameMs)) {
         throw new Error("Capture lightning strike was still on cooldown");
       }
-      const damage = Math.max(1, Math.round(ship.maxHitPoints * 0.16));
-      ship.hitPoints = Math.max(1, ship.hitPoints - damage);
+      const sinking = sequence.variant === "lightning-sinking";
+      const damage = sinking
+        ? ship.hitPoints
+        : Math.max(1, Math.round(ship.maxHitPoints * 0.16));
+      ship.hitPoints = sinking ? 0 : Math.max(1, ship.hitPoints - damage);
       stormDamageNotice = {
         damage,
         intensity: 0.96,
@@ -10595,9 +10668,25 @@ function updateCaptureSurvival(sequence) {
         remainingHitPoints: ship.hitPoints
       });
       emitCaptureEvent("capture-beat", { action: "lightning-strike" });
+      if (sinking) sinkPlayerShip("Your ship foundered in the storm.");
       dirty = true;
     }
     if (captureCue("steady-after-strike", 6.0) && captainAlertModal) closeCaptainAlertModal();
+    return;
+  }
+  if (sequence.variant === "overboard-rescue") {
+    if (captureCue("storm-wave", 0.1)) {
+      emitCaptureEvent("capture-beat", { action: "storm-wave" });
+    }
+    if (overboardCrew.length > 0 && captureDirector.elapsedSeconds >= 4.2) {
+      captureDirector.steeringTarget = overboardCrew[0].position;
+      if (captureCue("recover-overboard-crew", 4.2)) {
+        emitCaptureEvent("capture-beat", { action: "recover-overboard-crew" });
+      }
+    }
+    if (captureDirector.elapsedSeconds >= 16 && overboardCrew.length > 0) {
+      throw new Error(`Capture failed to recover ${overboardCrew.length} sailors`);
+    }
     return;
   }
   if (captureCue("out-of-water", 0.3)) {
@@ -10686,6 +10775,104 @@ function updateCapturePanda(sequence) {
     return;
   }
   throw new Error(`Unknown panda capture variant: ${sequence.variant}`);
+}
+
+function updateCapturePapal(sequence) {
+  if (sequence.variant === "rome") {
+    if (captureCue("papal-rome-sailing", 0.1)) {
+      emitCaptureEvent("capture-beat", { action: "sail-past-rome", city: sequence.cityName });
+    }
+    if (captureCue("open-papal-politics", 3.4)) {
+      openCapturePoliticsFactionPage("papal-states");
+      emitCaptureEvent("capture-beat", { action: "show-papal-states-politics" });
+    }
+    if (captureCue("close-papal-politics", 8.8)) closePoliticsMenu();
+    return;
+  }
+  if (sequence.variant === "actions") {
+    if (captureCue("open-papal-actions", 0.6)) {
+      openCapturePoliticsFactionPage("papal-states");
+      emitCaptureEvent("capture-beat", { action: "show-papal-decrees" });
+    }
+    if (captureCue("open-papal-news", 4.5)) {
+      openPoliticsNewsFeed();
+      emitCaptureEvent("capture-beat", { action: "show-papal-news" });
+    }
+    if (captureCue("close-papal-news", 10.8)) closePoliticsMenu();
+    return;
+  }
+  if (sequence.variant === "nuncio") {
+    if (captureCue("open-papal-commission", 0.8)) {
+      const rome = capturePortCallByName(sequence.cityName);
+      if (!maybeOpenPapalCommissionPortDialogue(rome, {
+        nuncioPortraitSourceId: sequence.nuncioPortraitSourceId
+      })) {
+        throw new Error("Papal capture could not open the nuncio's commission");
+      }
+      emitCaptureEvent("capture-beat", { action: "receive-papal-commission", city: sequence.cityName });
+    }
+    if (captureCue("papal-offer-read", 5.2)) closeRequiredCaptureAlert("papal-offer-read");
+    if (captureCue("accept-papal-commission", 6.0)) {
+      if (captainAlertModal?.kind !== "choice") {
+        throw new Error("Papal capture commission choice did not open");
+      }
+      activateCaptainAlertChoice();
+      emitCaptureEvent("capture-beat", { action: "accept-papal-commission" });
+    }
+    for (const [cueId, atSeconds] of [
+      ["papal-captain-answer-read", 9.4],
+      ["papal-nuncio-brief-read", 12.6],
+      ["papal-safe-passage-read", 15.8]
+    ]) {
+      if (captureCue(cueId, atSeconds)) closeRequiredCaptureAlert(cueId);
+    }
+    return;
+  }
+  if (sequence.variant === "bibles") {
+    if (captureCue("open-september-testament", 0.8)) {
+      const mission = religiousMissionById("september-testament");
+      const bookseller = captureDirector.papalBookseller;
+      if (!bookseller) throw new Error("Papal Bible capture has no bookseller");
+      const values = { destinationName: sequence.destinationName, reward: 450 };
+      const opened = startCharacterAlertSequence([
+        pairedCharacterAlertStep({
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: bookseller,
+          speakerCharacter: bookseller,
+          expressionId: "pleased",
+          message: mission.offer(values)
+        }),
+        pairedCharacterAlertStep({
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: bookseller,
+          speakerCharacter: bookseller,
+          expressionId: "stern",
+          message: mission.underway(values)
+        })
+      ]);
+      if (!opened) throw new Error("Papal Bible capture could not open the mission dialogue");
+      emitCaptureEvent("capture-beat", {
+        action: "smuggle-september-testament",
+        destination: sequence.destinationName
+      });
+    }
+    if (captureCue("testament-offer-read", 8.5)) closeRequiredCaptureAlert("testament-offer-read");
+    if (captureCue("testament-underway-read", 16.5)) closeRequiredCaptureAlert("testament-underway-read");
+    return;
+  }
+  throw new Error(`Unknown Papal capture variant: ${sequence.variant}`);
+}
+
+function openCapturePoliticsFactionPage(factionId) {
+  openPoliticsMenu();
+  const view = currentPoliticsView();
+  for (let page = 0; page < view.cards.length; page += 1) {
+    politicsMenu.page = page;
+    const pagination = politicsCardPagination(view);
+    if (pagination.page.entries.some((entry) => entry.card.faction.id === factionId)) return;
+    if (page + 1 >= pagination.page.pageCount) break;
+  }
+  throw new Error(`Capture politics menu has no page for ${factionId}`);
 }
 
 function closeRequiredCaptureAlert(cueId) {
@@ -10988,30 +11175,61 @@ function placeCapturePlayerForBroadsideTarget(targetTileId, targetLabel) {
 
 function stageCaptureColonization(sequence) {
   const memory = gameState.memory.colonization;
-  if (!colonizationQuestView(gameState, { currentMinute: weatherClockMinutes }).target) {
-    const target = colonizationTargetPlacements.find((candidate) => candidate.city === sequence.cityName);
-    const origin = requireCanonicalPort(portCities, CANONICAL_PORTS.BORDEAUX, "Capture colonization");
-    if (!target) throw new Error("Capture colonization requires Port Royal");
-    assignColonizationQuest(memory, { target, origin });
-    colonizationTargetTileId = target.tileId;
-    ensureColonizationOrganizer(gameState, origin);
+  const target = colonizationTargetPlacements.find((candidate) => candidate.city === sequence.cityName);
+  if (!target) throw new Error(`Capture colonization target is unavailable: ${sequence.cityName}`);
+  const origin = sequence.originCityName
+    ? captureCityByName(sequence.originCityName)
+    : requireCanonicalPort(portCities, CANONICAL_PORTS.BORDEAUX, "Capture colonization");
+  assignColonizationQuest(memory, { target, origin });
+  colonizationTargetTileId = target.tileId;
+  ensureColonizationOrganizer(gameState, origin, {
+    portraitSourceId: sequence.organizerPortraitSourceId || null
+  });
+
+  if (sequence.variant !== "offer") {
+    while (memory.stage !== COLONIZATION_STAGE_READY) {
+      const quest = colonizationQuestView(gameState, { currentMinute: weatherClockMinutes });
+      if (!quest.fetchStage) {
+        throw new Error(`Capture colonization fetch setup ended at ${memory.stage}`);
+      }
+      completeColonizationFetchStage(memory, quest.fetchStage.id);
+    }
   }
-  for (const stage of COLONIZATION_FETCH_STAGES) completeColonizationFetchStage(memory, stage.id);
-  if (memory.stage !== COLONIZATION_STAGE_READY) {
-    throw new Error(`Capture colonization fetch setup ended at ${memory.stage}`);
+
+  if (sequence.variant === "offer" || sequence.variant === "embark") {
+    syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+    placeCapturePlayerNearTile(origin.tileId);
+    stopShipMotion();
+    syncShipCargoFromGameState();
+    return;
   }
+
   reserveCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID, 24);
   beginColonizationExpedition(memory);
-  if (sequence.variant === "establish") {
+  if (["deadline", "resupply", "establish", "defend", "city"].includes(sequence.variant)) {
     releaseCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID);
     landColonists(memory, Math.floor(weatherClockMinutes) - WEATHER_MINUTES_PER_DAY * 30);
-    advanceColonizationQuest(memory, Math.floor(weatherClockMinutes), { awayFromColony: true });
-    gameState.cargo[COLONIZATION_RESUPPLY.goodId] = COLONIZATION_RESUPPLY.quantity;
-    gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 120;
+    if (sequence.variant !== "deadline") {
+      advanceColonizationQuest(memory, Math.floor(weatherClockMinutes), { awayFromColony: true });
+    }
   }
+  if (["resupply", "establish"].includes(sequence.variant)) {
+    const quest = colonizationQuestView(gameState, { currentMinute: weatherClockMinutes });
+    gameState.cargo[quest.resupply.goodId] = quest.resupply.quantity;
+    gameState.accounts.cargoCostBasis[quest.resupply.goodId] = 120;
+  }
+  if (["defend", "city"].includes(sequence.variant)) {
+    establishColony(memory, Math.floor(weatherClockMinutes));
+  }
+
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   placeCapturePlayerNearTile(memory.targetTileId);
-  steerCapturePlayerIntoClearWater(memory.targetTileId);
+  if (sequence.variant === "defend") {
+    steerCapturePlayerIntoClearWater(memory.targetTileId);
+    ensureColonizationDefenseEncounter({ assignCaptains: false });
+  } else {
+    stopShipMotion();
+  }
   syncShipCargoFromGameState();
 }
 
@@ -11049,12 +11267,23 @@ function steerCapturePlayerIntoClearWater(tileId) {
 }
 
 function stageCaptureSurvival(sequence) {
-  if (sequence.variant === "lightning") {
+  if (sequence.variant === "lightning" || sequence.variant === "lightning-sinking") {
     captureDirector.steeringTarget = normalize3([
       ship.position[0] + ship.heading[0] * 0.1,
       ship.position[1] + ship.heading[1] * 0.1,
       ship.position[2] + ship.heading[2] * 0.1
     ]);
+    if (sequence.variant === "lightning-sinking") ship.hitPoints = 1;
+    return;
+  }
+  if (sequence.variant === "overboard-rescue") {
+    captureDirector.steeringTarget = null;
+    ship.velocity = [0, 0, 0];
+    gameState.ship.crew = gameState.ship.crewCapacity;
+    gameState.memory.flags[FIRST_STORM_WARNING_SHOWN_FLAG] = true;
+    gameState.memory.flags[FIRST_STORM_CLEARANCE_SHOWN_FLAG] = true;
+    gameState.memory.flags[STORM_OVERBOARD_EXPLAINED_FLAG] = true;
+    syncShipCargoFromGameState();
     return;
   }
   gameState.survival.freshWater = 0;
@@ -11105,6 +11334,66 @@ function stageCapturePanda(sequence) {
   throw new Error(`Unknown panda capture staging variant: ${sequence.variant}`);
 }
 
+function stageCapturePapal(sequence) {
+  const city = captureCityByName(sequence.cityName);
+  placeCapturePlayerNearTile(city.tileId);
+  if (sequence.variant === "rome") {
+    stageCaptureSailing(sequence);
+    return;
+  }
+  stopShipMotion();
+  if (sequence.variant === "actions") {
+    const simMinute = Math.floor(weatherClockMinutes);
+    const papacy = gameState.relations.papacy;
+    papacy.pendingMatter = null;
+    for (const action of [
+      { kind: PAPAL_ACTION_FAVOUR, targetFactionId: "spain", simMinute: simMinute - 120 },
+      { kind: PAPAL_ACTION_CRUSADE, targetFactionId: "ottoman", simMinute: simMinute - 60 },
+      { kind: PAPAL_ACTION_EXCOMMUNICATION, targetFactionId: "england", simMinute }
+    ]) {
+      imposePapalAction(papacy, gameState.relations.diplomacy, {
+        ...action,
+        source: "papal-capture",
+        papalAuthorityMultiplier: 0.01
+      });
+    }
+    return;
+  }
+  if (sequence.variant === "nuncio") {
+    adjustFactionReputation(gameState, "papal-states", 50);
+    const papacy = gameState.relations.papacy;
+    papacy.pendingMatter = null;
+    papacy.nextActionMinute = Math.floor(weatherClockMinutes);
+    const result = advancePapalPolitics(
+      papacy,
+      gameState.relations.diplomacy,
+      Math.floor(weatherClockMinutes)
+    );
+    if (result.mattersOpened.length !== 1 || !papalPendingMatter(papacy)) {
+      throw new Error("Papal capture could not stage a commission");
+    }
+    return;
+  }
+  if (sequence.variant === "bibles") {
+    const factor = portCityCharacters.get(city.tileId);
+    if (!factor) throw new Error(`${sequence.cityName} has no factor for the Bible capture`);
+    const bookseller = generateSpecialPortCharacter({
+      identityKey: `papal-capture-bookseller|${city.tileId}`,
+      port: city,
+      excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
+      portraitSourceId: sequence.booksellerPortraitSourceId,
+      role: "bookseller",
+      religionId: "lutheran",
+      manifest: characterPortraitManifest,
+      usedNames: usedCharacterNames
+    });
+    usedCharacterNames.add(bookseller.name);
+    captureDirector.papalBookseller = bookseller;
+    return;
+  }
+  throw new Error(`Unknown Papal capture staging variant: ${sequence.variant}`);
+}
+
 function stageCapturePandaAboard() {
   if (!gameState.memory.animals.encountered.panda) {
     if (!recordAnimalEncounter(gameState.memory.animals, "panda")) {
@@ -11139,6 +11428,16 @@ function captureChooseDialogueAction(actionType) {
   const view = currentDialogueView();
   const index = view.options.findIndex((entry) => entry.action?.type === actionType && !entry.disabled);
   if (index < 0) throw new Error(`Capture dialogue has no enabled ${actionType} action`);
+  chooseDialogueOption(index);
+}
+
+function captureChooseDialogueNode(nodeId) {
+  if (!dialogueState) throw new Error(`Capture dialogue closed before node ${nodeId}`);
+  const view = currentDialogueView();
+  const index = view.options.findIndex((entry) => (
+    entry.action?.type === "node" && entry.action.nodeId === nodeId && !entry.disabled
+  ));
+  if (index < 0) throw new Error(`Capture dialogue has no enabled node ${nodeId}`);
   chooseDialogueOption(index);
 }
 
@@ -17558,7 +17857,7 @@ function completeHospitallerMaltaMissionAtRome(rome, memory) {
   return true;
 }
 
-function maybeOpenPapalCommissionPortDialogue(cityCall) {
+function maybeOpenPapalCommissionPortDialogue(cityCall, { nuncioPortraitSourceId = null } = {}) {
   const matter = papalPendingMatter(gameState.relations.papacy);
   if (!matter) return false;
   if (matter.status === PAPAL_MATTER_COMMISSIONED) {
@@ -17580,7 +17879,7 @@ function maybeOpenPapalCommissionPortDialogue(cityCall) {
     gameState.relations.diplomacy,
     papalPlayerEligibilityContext()
   );
-  const nuncio = generatePapalNuncio(matter, cityCall);
+  const nuncio = generatePapalNuncio(matter, cityCall, { portraitSourceId: nuncioPortraitSourceId });
   const rhodesStillHospitaller = portCities.some((port) => (
     portMatchesCanonicalReference(port, CANONICAL_PORTS.RHODES) &&
     port.factionId === "hospitallers"
@@ -17645,13 +17944,14 @@ function papalPlayerEligibilityContext() {
   };
 }
 
-function generatePapalNuncio(matter, rome) {
+function generatePapalNuncio(matter, rome, { portraitSourceId = null } = {}) {
   const factor = portCityCharacters.get(rome.tileId);
   if (!factor) throw new Error("Rome has no factor for the Papal commission");
   return generateSpecialPortCharacter({
     identityKey: `papal-nuncio|${matter.id}|${rome.tileId}`,
     port: rome,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
+    portraitSourceId,
     role: "papal-nuncio",
     religionId: "roman-catholic",
     manifest: characterPortraitManifest,
@@ -24156,7 +24456,7 @@ function createArchivedColonizationOrganizer(state, memory, binding) {
   });
 }
 
-function ensureColonizationOrganizer(state, origin = null) {
+function ensureColonizationOrganizer(state, origin = null, { portraitSourceId = null } = {}) {
   const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
   const organizerPort = origin || portCities.find((candidate) => candidate.tileId === quest.origin?.tileId);
   if (!quest.target || !organizerPort) throw new Error("Colonization organizer requires a selected target and origin");
@@ -24169,6 +24469,7 @@ function ensureColonizationOrganizer(state, origin = null) {
     identityKey: `colonial-organizer-${quest.target.city}-${quest.target.country}-${organizerPort.tileId}`,
     port: identityPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    portraitSourceId,
     role: "colonial-organizer",
     religionId: quest.history.organizerReligionId,
     manifest: characterPortraitManifest,
@@ -28097,12 +28398,14 @@ function updateStormWaveHazard(dt) {
   const eligible = !anchored && !portWaitState && !gameOverReason &&
     !captainAlertModal && !dialogueState && isShipOpenWaterTile(ship.tileId);
   const flow = currentOceanSwellPresentation().flow;
+  const scriptedCapture = captureUsesScriptedStormWave();
   const transition = updateStormWaveState(stormWaveState, {
     dt,
     intensity,
     eligible,
     flow,
-    immediate: DEBUG_STORM_WAVE_ENABLED
+    random: scriptedCapture ? () => 0 : Math.random,
+    immediate: DEBUG_STORM_WAVE_ENABLED || scriptedCapture
   });
   if (transition.impact) resolveStormWaveImpact(transition.impact);
   const swimmersChanged = updateOverboardCrew(dt);
@@ -28120,6 +28423,9 @@ function updateStormWaveHazard(dt) {
 }
 
 function resolveStormWaveImpact(impact) {
+  const scriptedCapture = captureUsesScriptedStormWave();
+  let scriptedRollIndex = 0;
+  const scriptedRolls = [0, 0.999];
   const availableOverboardSlots = Math.max(0, OVERBOARD_MAX_ACTIVE_CREW - overboardCrew.length);
   const effectiveStats = currentPlayerEffectiveShipStats();
   const count = availableOverboardSlots === 0
@@ -28128,13 +28434,16 @@ function resolveStormWaveImpact(impact) {
       crew: gameState.ship.crew,
       seaworthiness: clamp(Math.round(effectiveStats.seaworthiness), 1, 10),
       intensity: impact.intensity,
-      random: DEBUG_STORM_WAVE_ENABLED ? () => 0 : Math.random
+      random: scriptedCapture
+        ? () => scriptedRolls[Math.min(scriptedRollIndex++, scriptedRolls.length - 1)]
+        : DEBUG_STORM_WAVE_ENABLED ? () => 0 : Math.random
     }));
   playStormWaveCrashSound(impact, count);
   if (count <= 0) return;
 
   const removed = sweepCrewOverboard(count, impact);
   overboardCrew.push(...removed);
+  emitCaptureEvent("capture-beat", { action: "crew-swept-overboard", count });
   ship.woundedCrew = Math.min(ship.woundedCrew || 0, Math.max(0, gameState.ship.crew - 1));
   syncShipCargoFromGameState();
   if (gameState.memory.flags[STORM_OVERBOARD_EXPLAINED_FLAG] !== true) {
@@ -28239,6 +28548,7 @@ function updateOverboardCrew(dt) {
     syncShipCargoFromGameState();
     if (rescued.length > 0) {
       playCollectionDingSound();
+      emitCaptureEvent("capture-beat", { action: "crew-recovered", count: rescued.length });
       showSurvivalNotice(uiText(
         rescued.length === 1 ? "storm.manOverboardRecoveredOne" : "storm.manOverboardRecoveredMany",
         { count: rescued.length }
@@ -28276,7 +28586,13 @@ function recordDrownedCrewMember(entry) {
 function captureUsesScriptedShipLightning() {
   return CAPTURE_AUTOMATIC &&
     captureDirector?.sequence.kind === "survive" &&
-    captureDirector.sequence.variant === "lightning";
+    ["lightning", "lightning-sinking"].includes(captureDirector.sequence.variant);
+}
+
+function captureUsesScriptedStormWave() {
+  return CAPTURE_AUTOMATIC &&
+    captureDirector?.sequence.kind === "survive" &&
+    captureDirector.sequence.variant === "overboard-rescue";
 }
 
 function stormCaptainAlertMessage(intensity) {
@@ -34605,10 +34921,10 @@ function drawWorldInterface(nowMs) {
   drawStormLightningFlash(nowMs);
   if (telemetryConsentModal) drawTelemetryConsentModal();
   if (diagnosticModeEnabled) drawFrameRateOverlay();
-  if (CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
+  if (CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK && !CAPTURE_FRAME_PASS) {
     screenCtx.save();
     screenCtx.globalCompositeOperation = "destination-over";
-    screenCtx.drawImage(worldRenderer.canvas, 0, 0);
+    screenCtx.drawImage(worldRenderer.captureFrameCanvas(), 0, 0);
     screenCtx.restore();
   }
 }
@@ -54700,7 +55016,8 @@ function weatherSamplingCache(simMinute) {
 }
 
 function playerStormIntensity() {
-  if (captureDirector?.sequence.kind === "survive" && captureDirector.sequence.variant === "lightning") {
+  if (captureDirector?.sequence.kind === "survive" &&
+      ["lightning", "lightning-sinking", "overboard-rescue"].includes(captureDirector.sequence.variant)) {
     return 0.96;
   }
   return ship ? stormIntensityForTile(ship.tileId) : 0;

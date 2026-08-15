@@ -22,6 +22,42 @@ const TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID =
 const TRAILER_TERNATE_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
 const TRAILER_LISBON_CAPTAIN_SOURCE_ID =
   "merchant-portrait-pack-by-captainskolot-portrait-merchant";
+const PAPAL_SHORT_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
+const PAPAL_SHORT_NUNCIO_SOURCE_ID =
+  "curated-historical-portraits-by-captainskolot-old-scholar";
+const PAPAL_SHORT_BOOKSELLER_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
+const PAPAL_SHORT_ROME_CITY = "Rome";
+const PAPAL_SHORT_HAMBURG_CITY = "Hamburg";
+const PAPAL_SHORT_HOME_PORT = "Seville";
+const PAPAL_SHORT_BIBLE_DESTINATION = "Antwerp";
+const PAPAL_SHORT_SCENE_ROME = "The Papal States at Rome";
+const PAPAL_SHORT_SCENE_ACTIONS = "Papal Decrees and Diplomacy";
+const PAPAL_SHORT_SCENE_NUNCIO = "Accept a Papal Nuncio's Commission";
+const PAPAL_SHORT_SCENE_BIBLES = "Smuggle the September Testament";
+const PAPAL_SHORT_SCENE_NUNCIO_ROUTE = "Carry a Papal Nuncio through the Aegean";
+const PAPAL_SHORT_SCENE_BIBLE_ROUTE = "Smuggle Bibles through the North Sea";
+const COLONY_SHORT_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
+const COLONY_SHORT_ORGANIZER_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
+const COLONY_SHORT_PORT_ROYAL = "Port Royal";
+const COLONY_SHORT_BORDEAUX = "Bordeaux";
+const COLONY_SHORT_BUENOS_AIRES = "Buenos Aires";
+const COLONY_SHORT_SEVILLE = "Seville";
+const COLONY_SHORT_JAMESTOWN = "Jamestown";
+const COLONY_SHORT_LONDON = "London";
+const COLONY_SHORT_RECIFE = "Recife";
+const COLONY_SHORT_RIO = "Rio de Janeiro";
+const COLONY_SHORT_LISBON = "Lisbon";
+const COLONY_SHORT_MANILA = "Manila";
+const COLONY_SHORT_SCENE_OFFER_CAPTURE = "A Colonial Expedition Is Proposed in Bordeaux";
+const COLONY_SHORT_SCENE_EMBARK = "Colonists Embark at Bordeaux";
+const COLONY_SHORT_SCENE_OUTBOUND = "A Spanish Colonial Expedition Leaves Europe";
+const COLONY_SHORT_SCENE_ATLANTIC = "An English Colonial Expedition Crosses the North Atlantic";
+const COLONY_SHORT_SCENE_ACADIA = "Colonists Reach Acadia";
+const COLONY_SHORT_SCENE_FOUND = "Found Buenos Aires";
+const COLONY_SHORT_SCENE_DEADLINE_CAPTURE = "Jamestown Awaits Grain";
+const COLONY_SHORT_SCENE_RESUPPLY = "Resupply Recife";
+const COLONY_SHORT_SCENE_DEFENSE = "Defend Rio de Janeiro from War Canoes";
+const COLONY_SHORT_SCENE_CITY = "Manila Becomes a Permanent City";
 
 export function captureViewportFromSearch(search) {
   const value = new URLSearchParams(search).get(CAPTURE_FORMAT_QUERY_PARAM) || "shorts";
@@ -649,6 +685,157 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(220, 15, 0),
     sequence: trailerSequence("colonize", "establish", { cityName: "Port Royal" })
   }),
+  "short-colony-offer": trailerScenario({
+    id: "short-colony-offer",
+    title: COLONY_SHORT_SCENE_OFFER_CAPTURE,
+    seed: "short-colony-offer-v1",
+    player: capturePlayer("france", "carrack", 44.84, -1.26, 15, {
+      characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COLONY_SHORT_BORDEAUX
+    }),
+    world: captureWorld(176, 9, 45),
+    sequence: trailerSequence("colonize", "offer", {
+      durationSeconds: 14,
+      cityName: COLONY_SHORT_PORT_ROYAL,
+      originCityName: COLONY_SHORT_BORDEAUX,
+      organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
+    })
+  }),
+  "short-colony-embark": trailerScenario({
+    id: "short-colony-embark",
+    title: COLONY_SHORT_SCENE_EMBARK,
+    seed: "short-colony-embark-v1",
+    player: capturePlayer("france", "carrack", 44.84, -1.26, 15, {
+      characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COLONY_SHORT_BORDEAUX
+    }),
+    world: captureWorld(176, 10, 30),
+    sequence: trailerSequence("colonize", "embark", {
+      durationSeconds: 12,
+      cityName: COLONY_SHORT_PORT_ROYAL,
+      originCityName: COLONY_SHORT_BORDEAUX,
+      organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
+    })
+  }),
+  "short-colony-sail-outbound": sailingTrailerScenario({
+    id: "short-colony-sail-outbound",
+    title: COLONY_SHORT_SCENE_OUTBOUND,
+    seed: "short-colony-sail-outbound-v2",
+    factionId: "spain",
+    shipSlug: "galleon",
+    lat: 31,
+    lon: -20,
+    day: 176,
+    hour: 11,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "short-colony-sail-atlantic": sailingTrailerScenario({
+    id: "short-colony-sail-atlantic",
+    title: COLONY_SHORT_SCENE_ATLANTIC,
+    seed: "short-colony-sail-atlantic-v1",
+    factionId: "england",
+    shipSlug: "brigantine",
+    lat: 42,
+    lon: -38,
+    day: 180,
+    hour: 13,
+    minute: 15,
+    beamSide: "port"
+  }),
+  "short-colony-sail-acadia": sailingTrailerScenario({
+    id: "short-colony-sail-acadia",
+    title: COLONY_SHORT_SCENE_ACADIA,
+    seed: "short-colony-sail-acadia-v1",
+    factionId: "france",
+    shipSlug: "carrack",
+    lat: 44.2,
+    lon: -62.2,
+    day: 184,
+    hour: 16,
+    minute: 10,
+    beamSide: "starboard"
+  }),
+  "short-colony-found": trailerScenario({
+    id: "short-colony-found",
+    title: COLONY_SHORT_SCENE_FOUND,
+    seed: "short-colony-found-v1",
+    player: capturePlayer("spain", "galleon", -34.61, -58.38, 45, {
+      characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COLONY_SHORT_SEVILLE
+    }),
+    world: captureWorld(184, 16, 35),
+    sequence: trailerSequence("colonize", "found", {
+      durationSeconds: 12,
+      cityName: COLONY_SHORT_BUENOS_AIRES,
+      originCityName: COLONY_SHORT_SEVILLE,
+      organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
+    })
+  }),
+  "short-colony-deadline": trailerScenario({
+    id: "short-colony-deadline",
+    title: COLONY_SHORT_SCENE_DEADLINE_CAPTURE,
+    seed: "short-colony-deadline-v2",
+    player: capturePlayer("england", "brigantine", 37.21, -76.78, 315, {
+      characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COLONY_SHORT_LONDON
+    }),
+    world: captureWorld(214, 16, 15),
+    sequence: trailerSequence("colonize", "deadline", {
+      durationSeconds: 12,
+      cityName: COLONY_SHORT_JAMESTOWN,
+      originCityName: COLONY_SHORT_LONDON,
+      organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
+    })
+  }),
+  "short-colony-resupply": trailerScenario({
+    id: "short-colony-resupply",
+    title: COLONY_SHORT_SCENE_RESUPPLY,
+    seed: "short-colony-resupply-v1",
+    player: capturePlayer("portugal", "portuguese-carrack", -8.05, -34.88, 315, {
+      characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COLONY_SHORT_LISBON
+    }),
+    world: captureWorld(220, 15, 0),
+    sequence: trailerSequence("colonize", "resupply", {
+      durationSeconds: 12,
+      cityName: COLONY_SHORT_RECIFE,
+      originCityName: COLONY_SHORT_LISBON,
+      organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
+    })
+  }),
+  "short-colony-defense": trailerScenario({
+    id: "short-colony-defense",
+    title: COLONY_SHORT_SCENE_DEFENSE,
+    seed: "short-colony-defense-v1",
+    player: capturePlayer("portugal", "galleon", -22.9, -43.21, 90, {
+      characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COLONY_SHORT_LISBON
+    }),
+    world: captureWorld(238, 12, 20),
+    sequence: trailerSequence("colonize", "defend", {
+      durationSeconds: 16,
+      cityName: COLONY_SHORT_RIO,
+      originCityName: COLONY_SHORT_LISBON,
+      organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
+    })
+  }),
+  "short-colony-city": trailerScenario({
+    id: "short-colony-city",
+    title: COLONY_SHORT_SCENE_CITY,
+    seed: "short-colony-city-v1",
+    player: capturePlayer("spain", "galleon", 14.58, 121, 315, {
+      characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COLONY_SHORT_SEVILLE
+    }),
+    world: captureWorld(240, 14, 20),
+    sequence: trailerSequence("colonize", "city", {
+      durationSeconds: 14,
+      cityName: COLONY_SHORT_MANILA,
+      originCityName: COLONY_SHORT_SEVILLE,
+      organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
+    })
+  }),
   "trailer-survive-lightning": trailerScenario({
     id: "trailer-survive-lightning",
     title: "Survive a Lightning Strike",
@@ -656,6 +843,48 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("england", "brigantine", 49.0, -18.0, 70),
     world: captureWorld(285, 21, 10),
     sequence: trailerSequence("survive", "lightning")
+  }),
+  "short-storm-lightning-sinking": trailerScenario({
+    id: "short-storm-lightning-sinking",
+    title: "A Small Ship Founders in a Storm",
+    seed: "short-storm-lightning-sinking-v1",
+    player: capturePlayer("england", "fishing-lugger", 49.0, -18.0, 70),
+    world: captureWorld(285, 21, 10),
+    sequence: trailerSequence("survive", "lightning-sinking", { durationSeconds: 8 })
+  }),
+  "short-storm-sail-fishing-lugger": sailingTrailerScenario({
+    id: "short-storm-sail-fishing-lugger",
+    title: "A Fishing Lugger in the North Atlantic",
+    seed: "short-storm-sail-fishing-lugger-v1",
+    factionId: "scotland",
+    shipSlug: "fishing-lugger",
+    lat: 57.5,
+    lon: -12.0,
+    day: 196,
+    hour: 13,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "short-storm-sail-mediterranean-galley": sailingTrailerScenario({
+    id: "short-storm-sail-mediterranean-galley",
+    title: "A Mediterranean Galley at Sea",
+    seed: "short-storm-sail-mediterranean-galley-v1",
+    factionId: "ottoman",
+    shipSlug: "mediterranean-galley",
+    lat: 33.0,
+    lon: 20.0,
+    day: 196,
+    hour: 14,
+    minute: 10,
+    beamSide: "port"
+  }),
+  "short-storm-overboard-rescue": trailerScenario({
+    id: "short-storm-overboard-rescue",
+    title: "Recover Crew Swept Overboard",
+    seed: "short-storm-overboard-rescue-v1",
+    player: capturePlayer("ottoman", "mediterranean-galley", 25.0, -40.0, 90),
+    world: captureWorld(285, 14, 10),
+    sequence: trailerSequence("survive", "overboard-rescue", { durationSeconds: 18 })
   }),
   "trailer-survive-dehydration": trailerScenario({
     id: "trailer-survive-dehydration",
@@ -797,6 +1026,92 @@ const CAPTURE_SCENARIOS = Object.freeze({
       durationSeconds: 4.5,
       beamSide: "starboard"
     })
+  }),
+  "trailer-papal-rome": trailerScenario({
+    id: "trailer-papal-rome",
+    title: PAPAL_SHORT_SCENE_ROME,
+    seed: "trailer-papal-rome-v1",
+    player: capturePlayer("spain", "caravel", 41.68, 12.18, 25, {
+      characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: PAPAL_SHORT_HOME_PORT
+    }),
+    world: captureWorld(196, 10, 20),
+    sequence: trailerSequence("papal", "rome", {
+      durationSeconds: 12,
+      cityName: PAPAL_SHORT_ROME_CITY,
+      beamSide: "starboard"
+    })
+  }),
+  "trailer-papal-actions": trailerScenario({
+    id: "trailer-papal-actions",
+    title: PAPAL_SHORT_SCENE_ACTIONS,
+    seed: "trailer-papal-actions-v1",
+    player: capturePlayer("spain", "caravel", 41.68, 12.18, 25, {
+      characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: PAPAL_SHORT_HOME_PORT
+    }),
+    world: captureWorld(196, 11, 5),
+    sequence: trailerSequence("papal", "actions", {
+      durationSeconds: 12,
+      cityName: PAPAL_SHORT_ROME_CITY
+    })
+  }),
+  "trailer-papal-nuncio-route": sailingTrailerScenario({
+    id: "trailer-papal-nuncio-route",
+    title: PAPAL_SHORT_SCENE_NUNCIO_ROUTE,
+    seed: "trailer-papal-nuncio-route-v1",
+    factionId: "spain",
+    shipSlug: "xebec",
+    lat: 32,
+    lon: 20,
+    day: 184,
+    hour: 8,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "trailer-papal-nuncio": trailerScenario({
+    id: "trailer-papal-nuncio",
+    title: PAPAL_SHORT_SCENE_NUNCIO,
+    seed: "trailer-papal-nuncio-v1",
+    player: capturePlayer("spain", "caravel", 41.68, 12.18, 25, {
+      characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: PAPAL_SHORT_HOME_PORT
+    }),
+    world: captureWorld(196, 12, 10),
+    sequence: trailerSequence("papal", "nuncio", {
+      durationSeconds: 18,
+      cityName: PAPAL_SHORT_ROME_CITY,
+      nuncioPortraitSourceId: PAPAL_SHORT_NUNCIO_SOURCE_ID
+    })
+  }),
+  "trailer-papal-bible-route": sailingTrailerScenario({
+    id: "trailer-papal-bible-route",
+    title: PAPAL_SHORT_SCENE_BIBLE_ROUTE,
+    seed: "trailer-papal-bible-route-v1",
+    factionId: "england",
+    shipSlug: "small-cog",
+    lat: 54,
+    lon: 4,
+    day: 196,
+    hour: 15,
+    minute: 20,
+    beamSide: "port"
+  }),
+  "trailer-papal-bibles": trailerScenario({
+    id: "trailer-papal-bibles",
+    title: PAPAL_SHORT_SCENE_BIBLES,
+    seed: "trailer-papal-bibles-v1",
+    player: capturePlayer("spain", "caravel", 53.54, 9.76, 305, {
+      characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: PAPAL_SHORT_HOME_PORT
+    }),
+    world: captureWorld(196, 13, 15),
+    sequence: trailerSequence("papal", "bibles", {
+      durationSeconds: 18,
+      cityName: PAPAL_SHORT_HAMBURG_CITY,
+      destinationName: PAPAL_SHORT_BIBLE_DESTINATION,
+      booksellerPortraitSourceId: PAPAL_SHORT_BOOKSELLER_SOURCE_ID
+    })
   })
 });
 
@@ -889,7 +1204,7 @@ export function validateCaptureScenario(value) {
 
 function validateCaptureSequence(value) {
   if (!value || typeof value !== "object") throw new Error("Capture sequence must be an object");
-  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda"].includes(value.kind)) {
+  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal"].includes(value.kind)) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
@@ -904,7 +1219,8 @@ function validateCaptureSequence(value) {
     pillage: ["cityName"],
     colonize: ["cityName"],
     survive: [],
-    panda: []
+    panda: [],
+    papal: ["cityName"]
   };
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
   if (value.kind === "trade") {
@@ -923,6 +1239,10 @@ function validateCaptureSequence(value) {
   }
   if (value.kind === "sail" && !["port", "starboard"].includes(value.beamSide)) {
     throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
+  }
+  if (value.kind === "survive" &&
+      !["lightning", "lightning-sinking", "dehydration", "overboard-rescue"].includes(value.variant)) {
+    throw new Error(`Invalid survival capture variant: ${value.variant}`);
   }
   if (value.kind === "panda") {
     if (!["encounter", "sail", "fish", "port-reaction", "naturalist"].includes(value.variant)) {
@@ -943,6 +1263,36 @@ function validateCaptureSequence(value) {
     if (value.variant === "sail" && value.pandaAboard !== undefined &&
         typeof value.pandaAboard !== "boolean") {
       throw new Error("Panda capture aboard state must be boolean");
+    }
+  }
+  if (value.kind === "colonize") {
+    if (!["offer", "embark", "found", "deadline", "resupply", "establish", "defend", "city"].includes(value.variant)) {
+      throw new Error(`Invalid colonization capture variant: ${value.variant}`);
+    }
+    if (value.originCityName !== undefined) {
+      requiredString(value.originCityName, "colonization capture origin city name");
+    }
+    if (value.organizerPortraitSourceId !== undefined) {
+      requiredString(value.organizerPortraitSourceId, "colonization capture organizer portrait source id");
+    }
+    if (["offer", "embark", "deadline", "defend", "city"].includes(value.variant)) {
+      requiredString(value.originCityName, "colonization capture origin city name");
+      requiredString(value.organizerPortraitSourceId, "colonization capture organizer portrait source id");
+    }
+  }
+  if (value.kind === "papal") {
+    if (!["rome", "actions", "nuncio", "bibles"].includes(value.variant)) {
+      throw new Error(`Invalid Papal capture variant: ${value.variant}`);
+    }
+    if (value.variant === "rome" && !["port", "starboard"].includes(value.beamSide)) {
+      throw new Error(`Invalid Papal capture beam side: ${value.beamSide}`);
+    }
+    if (value.variant === "nuncio") {
+      requiredString(value.nuncioPortraitSourceId, "Papal capture nuncio portrait source id");
+    }
+    if (value.variant === "bibles") {
+      requiredString(value.destinationName, "Papal capture Bible destination name");
+      requiredString(value.booksellerPortraitSourceId, "Papal capture bookseller portrait source id");
     }
   }
   if (value.sailingTarget !== undefined) {

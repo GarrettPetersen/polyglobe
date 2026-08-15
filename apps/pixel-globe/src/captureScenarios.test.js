@@ -103,7 +103,9 @@ test("Naples benchmark approaches the port from open Tyrrhenian water", () => {
 
 test("the general trailer roster includes feature pairs and eight fast sailing shots", () => {
   const trailerIds = captureScenarioIds().filter((id) => (
-    id.startsWith("trailer-") && captureScenarioFromSearch(`?capture=${id}`).sequence.kind !== "panda"
+    id.startsWith("trailer-") &&
+    !id.startsWith("trailer-papal-") &&
+    !["panda", "papal"].includes(captureScenarioFromSearch(`?capture=${id}`).sequence.kind)
   ));
   assert.equal(trailerIds.length, 24);
   const counts = new Map();
@@ -123,6 +125,103 @@ test("the general trailer roster includes feature pairs and eight fast sailing s
     colonize: 2,
     survive: 2
   });
+});
+
+test("the storm-wave Short stages a real sinking and a modal-free overboard rescue", () => {
+  const sinking = captureScenarioFromSearch("?capture=short-storm-lightning-sinking");
+  assert.equal(sinking.player.shipSlug, "fishing-lugger");
+  assert.equal(sinking.sequence.kind, "survive");
+  assert.equal(sinking.sequence.variant, "lightning-sinking");
+
+  const lugger = captureScenarioFromSearch("?capture=short-storm-sail-fishing-lugger");
+  assert.equal(lugger.player.shipSlug, "fishing-lugger");
+  assert.equal(lugger.sequence.kind, "sail");
+
+  const galley = captureScenarioFromSearch("?capture=short-storm-sail-mediterranean-galley");
+  assert.equal(galley.player.shipSlug, "mediterranean-galley");
+  assert.equal(galley.sequence.kind, "sail");
+
+  const rescue = captureScenarioFromSearch("?capture=short-storm-overboard-rescue");
+  assert.equal(rescue.player.shipSlug, "mediterranean-galley");
+  assert.equal(rescue.sequence.kind, "survive");
+  assert.equal(rescue.sequence.variant, "overboard-rescue");
+  assert.ok(rescue.sequence.durationSeconds >= 15);
+
+  const malformed = structuredClone(rescue);
+  malformed.sequence.variant = "mystery-wave";
+  assert.throws(() => validateCaptureScenario(malformed), /survival capture variant/);
+});
+
+test("the Papal Short stages varied sailing, Rome, policy, a nuncio, and the September Testament", () => {
+  const ids = captureScenarioIds().filter((id) => id.startsWith("trailer-papal-"));
+  assert.deepEqual(ids, [
+    "trailer-papal-rome",
+    "trailer-papal-actions",
+    "trailer-papal-nuncio-route",
+    "trailer-papal-nuncio",
+    "trailer-papal-bible-route",
+    "trailer-papal-bibles"
+  ]);
+  const storyCaptures = ids
+    .map((id) => captureScenarioFromSearch(`?capture=${id}`))
+    .filter((capture) => capture.sequence.kind === "papal");
+  assert.deepEqual(storyCaptures.map((capture) => capture.sequence.variant), [
+    "rome",
+    "actions",
+    "nuncio",
+    "bibles"
+  ]);
+  assert.equal(storyCaptures.reduce((sum, capture) => sum + capture.sequence.durationSeconds, 0), 60);
+  assert.ok(storyCaptures.every((capture) => capture.player.characterPortraitSourceId.includes("captainskeleto")));
+  assert.doesNotMatch(storyCaptures[2].sequence.nuncioPortraitSourceId, /openai|retro-diffusion/);
+  assert.doesNotMatch(storyCaptures[3].sequence.booksellerPortraitSourceId, /openai|retro-diffusion/);
+  const routeCaptures = ids
+    .map((id) => captureScenarioFromSearch(`?capture=${id}`))
+    .filter((capture) => capture.sequence.kind === "sail");
+  assert.deepEqual(routeCaptures.map((capture) => capture.player.shipSlug), ["xebec", "small-cog"]);
+  assert.deepEqual(routeCaptures.map((capture) => capture.sequence.beamSide), ["starboard", "port"]);
+});
+
+test("the colony Short crosses several oceans and shows six distinct colonial sites", () => {
+  const ids = captureScenarioIds().filter((id) => id.startsWith("short-colony-"));
+  assert.deepEqual(ids, [
+    "short-colony-offer",
+    "short-colony-embark",
+    "short-colony-sail-outbound",
+    "short-colony-sail-atlantic",
+    "short-colony-sail-acadia",
+    "short-colony-found",
+    "short-colony-deadline",
+    "short-colony-resupply",
+    "short-colony-defense",
+    "short-colony-city"
+  ]);
+  const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
+  const colonyCaptures = captures.filter((capture) => capture.sequence.kind === "colonize");
+  assert.deepEqual(colonyCaptures.map((capture) => capture.sequence.variant), [
+    "offer",
+    "embark",
+    "found",
+    "deadline",
+    "resupply",
+    "defend",
+    "city"
+  ]);
+  assert.deepEqual([...new Set(colonyCaptures.map((capture) => capture.sequence.cityName))], [
+    "Port Royal",
+    "Buenos Aires",
+    "Jamestown",
+    "Recife",
+    "Rio de Janeiro",
+    "Manila"
+  ]);
+  assert.ok(new Set(captures.map((capture) => capture.player.factionId)).size >= 4);
+  assert.ok(new Set(captures.map((capture) => capture.player.shipSlug)).size >= 4);
+  assert.ok(captures.every((capture) => capture.world.hour >= 9 && capture.world.hour <= 16));
+  assert.ok(colonyCaptures.every((capture) => (
+    !/openai|retro-diffusion/.test(capture.player.characterPortraitSourceId) &&
+    !/openai|retro-diffusion/.test(capture.sequence.organizerPortraitSourceId)
+  )));
 });
 
 test("the landscape panda trailer has new b-roll, encounter, fishing, reactions, and naturalist scenes", () => {

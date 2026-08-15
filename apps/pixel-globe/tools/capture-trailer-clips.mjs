@@ -246,7 +246,12 @@ async function recordFramePass(browser, scenarioId, categoryDir, frameDir) {
     if (!Number.isInteger(frameCount) || frameCount < 2) {
       throw new Error(`${scenarioId} exposed invalid frame total: ${frameCount}`);
     }
-    const canvas = page.locator("#view");
+    const canExportScreenshot = await page.evaluate(() => (
+      typeof window.__PIXEL_GLOBE_CAPTURE_SCREENSHOT__ === "function"
+    ));
+    if (!canExportScreenshot) {
+      throw new Error(`${scenarioId} has no pixel-perfect presentation export`);
+    }
     for (let index = 0; index < frameCount; index += 1) {
       const frame = await page.evaluate((frameIndex) => (
         window.__PIXEL_GLOBE_CAPTURE_STEP__(frameIndex)
@@ -256,7 +261,9 @@ async function recordFramePass(browser, scenarioId, categoryDir, frameDir) {
         throw new Error(`${scenarioId} returned malformed deterministic frame ${index}`);
       }
       const framePath = canvasFramePath(frameDir, index);
-      await canvas.screenshot({ path: framePath, type: "png", animations: "disabled" });
+      const capture = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_SCREENSHOT__(1));
+      assertPixelPerfectCapture(capture, scenarioId, index, captureFormat);
+      await writeFile(framePath, pngDataUrlBytes(capture.dataUrl));
       validateCapturedFrame(await readFile(framePath), index, captureFormat);
       if ((index + 1) % AUTOMATIC_CAPTURE_FRAME_RATE === 0) {
         process.stdout.write(`  ${scenarioId}: frames ${index + 1}/${frameCount}\n`);
@@ -286,6 +293,35 @@ function validateCapturedFrame(data, index, format) {
       `${format.logicalWidth}x${format.logicalHeight}`
     );
   }
+}
+
+function assertPixelPerfectCapture(capture, scenarioId, frameIndex, format) {
+  if (
+    capture?.logicalWidth !== format.logicalWidth ||
+    capture?.logicalHeight !== format.logicalHeight ||
+    capture?.width !== format.logicalWidth ||
+    capture?.height !== format.logicalHeight ||
+    capture?.scale !== 1
+  ) {
+    throw new Error(
+      `${scenarioId} returned malformed presentation frame ${frameIndex}: ` +
+      JSON.stringify(capture && {
+        logicalWidth: capture.logicalWidth,
+        logicalHeight: capture.logicalHeight,
+        width: capture.width,
+        height: capture.height,
+        scale: capture.scale
+      })
+    );
+  }
+}
+
+function pngDataUrlBytes(dataUrl) {
+  const prefix = "data:image/png;base64,";
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith(prefix)) {
+    throw new Error("Pixel-perfect presentation export did not return a PNG data URL");
+  }
+  return Buffer.from(dataUrl.slice(prefix.length), "base64");
 }
 
 function captureUrl(scenarioId) {
@@ -632,7 +668,7 @@ function captureSequenceMustBeSilent(sequence) {
 function captureSequenceAllowsSilence(sequence) {
   return captureSequenceMustBeSilent(sequence) || (
     sequence.kind === "panda" && ["sail", "port-reaction", "naturalist"].includes(sequence.variant)
-  );
+  ) || sequence.kind === "papal" || sequence.kind === "colonize";
 }
 
 function parseArgs(argv) {
