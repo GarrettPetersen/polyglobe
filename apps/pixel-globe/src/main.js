@@ -40610,7 +40610,8 @@ function drawPoliticsMenu() {
         entry.column * (pagination.layout.cardWidth + pagination.layout.cardGap),
       y: panel.y + pagination.layout.contentTop +
         entry.row * (pagination.layout.cardHeight + pagination.layout.cardGap),
-      w: pagination.layout.cardWidth,
+      w: pagination.layout.cardWidth * entry.columnSpan +
+        pagination.layout.cardGap * (entry.columnSpan - 1),
       h: pagination.layout.cardHeight * entry.rowSpan +
         pagination.layout.cardGap * (entry.rowSpan - 1)
     }, pagination.layout);
@@ -40660,8 +40661,9 @@ function politicsCardPagination(view, panel = captainNotebookPagePanel({
   });
   const entries = politicsCardEntries(view.cards, {
     tokensPerLine: layout.tokensPerLine,
-    maxRelationLines: layout.maxRelationLines,
-    maxRowSpan: layout.rows,
+    fullWidthTokensPerLine: layout.fullWidthTokensPerLine,
+    maxColumnSpan: layout.columns,
+    relationLineCapacities: layout.relationLineCapacities,
     powerCount: view.powers.length
   });
   return {

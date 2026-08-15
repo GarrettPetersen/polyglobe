@@ -26,7 +26,9 @@ test("politics cards form a two-by-two desktop grid without crowding the footer"
   assert.equal(layout.cardHeight, 74);
   assert.equal(layout.headerHeight, 26);
   assert.equal(layout.maxRelationLines, 4);
+  assert.deepEqual(layout.relationLineCapacities, [4, 11]);
   assert.equal(layout.tokensPerLine, 5);
+  assert.equal(layout.fullWidthTokensPerLine, 14);
   assert.equal(layout.relationTokenWidth, 24);
 });
 
@@ -53,6 +55,7 @@ test("politics cards become a single compact column and respect taller localized
   assert.equal(localized.rows, 1);
   assert.equal(localized.slotsPerPage, 2);
   assert.equal(localized.maxRelationLines, 8);
+  assert.deepEqual(localized.relationLineCapacities, [8]);
   assert.equal(localized.cardHeight, 148);
 });
 
@@ -70,8 +73,9 @@ test("politics card entries preserve every relationship and compress universal p
   });
   const entries = politicsCardEntries([portugal, pirates], {
     tokensPerLine: 7,
-    maxRelationLines: 5,
-    maxRowSpan: 2,
+    fullWidthTokensPerLine: 15,
+    maxColumnSpan: 2,
+    relationLineCapacities: [5, 12],
     powerCount: 32
   });
 
@@ -94,8 +98,9 @@ test("politics cards keep tribute-paying and non-paying protected subjects disti
   });
   const [entry] = politicsCardEntries([ottoman], {
     tokensPerLine: 4,
-    maxRelationLines: 4,
-    maxRowSpan: 2,
+    fullWidthTokensPerLine: 10,
+    maxColumnSpan: 2,
+    relationLineCapacities: [4, 11],
     powerCount: 8
   });
 
@@ -115,8 +120,9 @@ test("an unusually entangled country grows into one double-height card", () => {
   });
   const entries = politicsCardEntries([tangled], {
     tokensPerLine: 4,
-    maxRelationLines: 5,
-    maxRowSpan: 2,
+    fullWidthTokensPerLine: 10,
+    maxColumnSpan: 2,
+    relationLineCapacities: [5, 12],
     powerCount: 40
   });
 
@@ -126,6 +132,60 @@ test("an unusually entangled country grows into one double-height card", () => {
     entries[0].lines.flatMap((line) => line.factionIds),
     [...ids("w", 8), ...ids("h", 8), ...ids("a", 8), ...ids("f", 8)]
   );
+});
+
+test("a dense country uses the header space freed by a double-height card", () => {
+  const ottoman = card({
+    dependencies: Array.from({ length: 6 }, (_unused, index) =>
+      dependency("autonomous-vassal", "suzerain", `subject-${index}`, {
+        tribute: index % 2 === 0,
+        mutualDefense: index % 3 !== 0
+      })),
+    relationships: [
+      relationship("war", ["war-0"]),
+      relationship("hostile", ["hostile-0"]),
+      relationship("ally", ["ally-0"])
+    ]
+  });
+  const [entry] = politicsCardEntries([ottoman], {
+    tokensPerLine: 4,
+    fullWidthTokensPerLine: 10,
+    maxColumnSpan: 2,
+    relationLineCapacities: [4, 11],
+    powerCount: 20
+  });
+
+  assert.equal(entry.lines.length, 7);
+  assert.equal(entry.rowSpan, 2);
+});
+
+test("an exceptionally connected country expands across the full page", () => {
+  const connected = card({
+    relationships: [
+      relationship("war", ids("w", 15)),
+      relationship("hostile", ids("h", 15)),
+      relationship("ally", ids("a", 15)),
+      relationship("friendly", ids("f", 15))
+    ]
+  });
+  const [entry] = politicsCardEntries([connected], {
+    tokensPerLine: 4,
+    fullWidthTokensPerLine: 10,
+    maxColumnSpan: 2,
+    relationLineCapacities: [4, 11],
+    powerCount: 80
+  });
+
+  assert.equal(entry.lines.length, 8);
+  assert.equal(entry.columnSpan, 2);
+  assert.equal(entry.rowSpan, 2);
+  const pages = politicsCardEntriesPage([
+    entry,
+    { card: { faction: { id: "next" } }, rowSpan: 1, columnSpan: 1, lines: [] }
+  ], 0, { columns: 2, rows: 2 });
+  assert.equal(pages.pageCount, 2);
+  assert.equal(pages.entries.length, 1);
+  assert.equal(pages.entries[0].columnSpan, 2);
 });
 
 test("politics card pagination packs tall cards and clamps to its final page", () => {
