@@ -6,8 +6,14 @@ const css = await readFile(new URL("../dashboard/dashboard.css", import.meta.url
 const html = await readFile(new URL("../dashboard/index.html", import.meta.url), "utf8");
 
 test("voyage starts occupy a full dashboard row", () => {
-  assert.match(css, /\.starts-panel,\s*\.channels-panel,\s*\.performance-panel,\s*\.crashes-panel\s*{\s*grid-column:\s*1\s*\/\s*-1;/);
+  assert.match(css, /\.starts-panel,\s*\.channels-panel,\s*\.performance-panel,\s*\.map-integrity-panel,\s*\.crashes-panel\s*{\s*grid-column:\s*1\s*\/\s*-1;/);
   assert.match(html, /<article class="panel starts-panel">/);
+});
+
+test("map integrity diagnostics have a dedicated dashboard feed", () => {
+  assert.match(html, /<article class="panel map-integrity-panel">/);
+  assert.match(html, /id="map-integrity-list"/);
+  assert.match(css, /\.map-integrity-card/);
 });
 
 test("persistent performance incidents have a full-width dashboard feed", () => {

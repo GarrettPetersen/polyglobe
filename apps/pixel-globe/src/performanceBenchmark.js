@@ -51,6 +51,9 @@ const FRAME_BUDGET_MS = 1000 / 60;
 const MIN_MEASURED_FRAMES = 4;
 const DEFAULT_WARMUP_SECONDS = 2;
 const DEFAULT_DURATION_SECONDS = 8;
+export const CHART_INTEGRITY_TELEMETRY_MEAN_BUDGET_MS = 0.25;
+export const CHART_INTEGRITY_TELEMETRY_P95_BUDGET_MS = 1;
+export const CHART_INTEGRITY_TELEMETRY_MAX_SAMPLES_PER_SECOND = 2.5;
 
 export function performanceBenchmarkFromSearch(search) {
   const params = new URLSearchParams(search);
@@ -171,6 +174,40 @@ export function recordPerformanceBenchmarkFrame(state, frameAtMs, cpuMs, renderC
     scene: Object.freeze({ ...resolvedScene })
   });
   return state.result;
+}
+
+export function assertChartIntegrityTelemetryBenchmarkBudget(report) {
+  const timing = report?.stages?.["chart.integrityTelemetry"];
+  if (!timing || !Number.isInteger(timing.count) || timing.count < 1) {
+    throw new Error(
+      "Performance benchmark did not sample chart integrity telemetry; blockers " +
+      JSON.stringify(report?.scene?.simulationBlockers || {})
+    );
+  }
+  if (timing.mean > CHART_INTEGRITY_TELEMETRY_MEAN_BUDGET_MS) {
+    throw new Error(
+      `Chart integrity telemetry mean ${timing.mean}ms exceeds ` +
+      `${CHART_INTEGRITY_TELEMETRY_MEAN_BUDGET_MS}ms budget`
+    );
+  }
+  if (timing.p95 > CHART_INTEGRITY_TELEMETRY_P95_BUDGET_MS) {
+    throw new Error(
+      `Chart integrity telemetry p95 ${timing.p95}ms exceeds ` +
+      `${CHART_INTEGRITY_TELEMETRY_P95_BUDGET_MS}ms budget`
+    );
+  }
+  const durationSeconds = report?.durationSeconds;
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error("Performance benchmark is missing its measured duration");
+  }
+  const samplesPerSecond = timing.count / durationSeconds;
+  if (samplesPerSecond > CHART_INTEGRITY_TELEMETRY_MAX_SAMPLES_PER_SECOND) {
+    throw new Error(
+      `Chart integrity telemetry sampled ${samplesPerSecond.toFixed(2)} times per second; ` +
+      `limit ${CHART_INTEGRITY_TELEMETRY_MAX_SAMPLES_PER_SECOND}`
+    );
+  }
+  return timing;
 }
 
 function distribution(values) {

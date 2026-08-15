@@ -37,6 +37,7 @@ npm run crashes:new
 npm run crashes:mark-fixed
 npm run performance:new
 npm run performance:mark-fixed
+npm run map-integrity
 ```
 
 Run `configure-secret` once after the first deployment, and again only when rotating
@@ -81,6 +82,10 @@ discipline. Read unresolved low-frame-rate and foreground-freeze reports with
 `npm run performance:new`, address or classify every returned incident, then run
 `npm run performance:mark-fixed`. The dashboard keeps earlier performance reports
 in their own collapsed history so old builds do not obscure new regressions.
+
+Map integrity diagnostics have their own dashboard feed. Run `npm run map-integrity`
+to retrieve persistent tilt, distortion, terrain-spacing, and viewport-coverage
+incidents together with older chart assertions, newest first.
 
 ## Dashboard
 

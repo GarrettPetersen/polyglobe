@@ -1814,6 +1814,12 @@ import {
   terrainTearNeedsRepair
 } from "./chartVisualFault.js";
 import {
+  chartIntegrityIncidentError,
+  chartIntegrityTelemetryStats,
+  createChartIntegrityTelemetryMonitor,
+  observeChartIntegrityTelemetry
+} from "./chartIntegrityTelemetry.js";
+import {
   advanceChartWeatherRepairConfirmation,
   chooseChartVisualRepair
 } from "./chartVisualRepairPolicy.js";
@@ -3567,7 +3573,7 @@ let centerTileId = 0;
 let chartNorthUpDrift = measureChartNorthUpDrift([]);
 let chartVisibleNorthUpDrift = chartNorthUpDrift;
 let chartWorstDistortionPoint = Object.freeze({ x: SCREEN_W / 2, y: SCREEN_H / 2 });
-let chartWorstVisibleTerrainTear = Object.freeze({
+const chartEmptyTerrainTear = Object.freeze({
   extraPx: 0,
   signedExtraPx: 0,
   tileIds: Object.freeze([]),
@@ -3575,7 +3581,13 @@ let chartWorstVisibleTerrainTear = Object.freeze({
   screenX: SCREEN_W / 2,
   screenY: SCREEN_H / 2
 });
+let chartWorstVisibleTerrainTear = Object.freeze({
+  ...chartEmptyTerrainTear,
+  nonWater: chartEmptyTerrainTear,
+  water: chartEmptyTerrainTear
+});
 let chartDiagnosticTerrainTear = chartWorstVisibleTerrainTear;
+let chartDiagnosticViewportCoverage = null;
 let chartReframeCoverWasActive = false;
 let chartDriftMeasuredAtMs = -Infinity;
 const CHART_DRIFT_MEASURE_INTERVAL_MS = 500;
@@ -3592,6 +3604,7 @@ let polarFogNextTileRepairAtMs = 0;
 const pendingCoveredChartRepairPositions = new Map();
 const pendingCoveredNpcRepairIds = new Set();
 let chartVisualRepairStats = createChartVisualRepairStats();
+let chartIntegrityTelemetryMonitor = createChartIntegrityTelemetryMonitor();
 let chartReframeDialogueTrigger = createChartReframeDialogueTrigger();
 let chartReframeDialogueSessionCooldownUntilMs = -Infinity;
 let playerWindState = null;
@@ -6161,6 +6174,12 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       () => measureChartDriftAtInterval(nowMs)
     );
     if (chartRepairCheckIsDue && maybeStartChartVisualRepair(nowMs, chartDrift)) dirty = true;
+    if (chartRepairCheckIsDue) {
+      measurePerformanceBenchmarkStage(
+        "chart.integrityTelemetry",
+        () => sampleChartIntegrityTelemetry(nowMs)
+      );
+    }
     if (chartRepairCheckIsDue && maybeOpenChartReframeDialogue(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("icebergs", () => updateIcebergs(dt))) dirty = true;
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
@@ -9654,8 +9673,15 @@ function setupPerformanceBenchmark() {
   captainAlertModal = null;
   dialogueState = null;
   dialogueShipMotionPause = null;
+  gameState.memory.flags.oarTutorialShown = true;
+  gameState.memory.flags.sailingBasicsTutorialShown = true;
+  gameState.memory.flags.tackingTutorialShown = true;
+  // Keep deterministic render benchmarks from ending early on a seeded polar collision.
+  gameState.memory.icebergs.individuals = [];
   resetDistantWorldWorkerSchedule();
   chartVisualRepairStats = createChartVisualRepairStats();
+  chartIntegrityTelemetryMonitor = createChartIntegrityTelemetryMonitor();
+  chartDriftMeasuredAtMs = -Infinity;
   lastFrameMs = performance.now();
   performanceBenchmarkState = createPerformanceBenchmarkState(PERFORMANCE_BENCHMARK, lastFrameMs);
   performanceBenchmarkState.stagedCartCount = stagedCartCount;
@@ -9739,6 +9765,17 @@ function performanceBenchmarkSceneSnapshot(state) {
     chartVisualRepairs: Object.freeze({
       ...chartVisualRepairStats,
       ...chartVisualRepairBurden(chartVisualRepairStats)
+    }),
+    chartIntegrityTelemetry: chartIntegrityTelemetryStats(chartIntegrityTelemetryMonitor),
+    simulationBlockers: Object.freeze({
+      capturePlaybackPaused: Boolean(capturePlaybackPaused),
+      menusOpen: menusAreOpen(),
+      dialogueActive: Boolean(dialogueState),
+      characterAlertActive: Boolean(captainAlertModal),
+      playerIntroActive: Boolean(playerIntroModal),
+      gameOver: gameOverReason || null,
+      goldTreasureActive: Boolean(goldTreasureSequence),
+      surfaceIceEntrapmentActive
     }),
     gpuRenderer: worldRenderer.stats()
   };
@@ -9840,7 +9877,9 @@ function setupChartRecoveryDiagnostic() {
             throw new Error("Chart recovery diagnostic ship could not complete its movement step");
           }
           ensureChart();
-          if (!chartRecoveryDiagnosticPassiveOnly) {
+          if (chartRecoveryDiagnosticPassiveOnly) {
+            advanceChartRecoveryDiagnosticIntegritySample(500);
+          } else {
             advanceChartRecoveryDiagnosticVisualRepair(1000);
           }
           if (!chartRecoveryDiagnosticDialogueEnabled) {
@@ -9872,6 +9911,21 @@ function dismissChartRecoveryDiagnosticDialogues() {
   }
 }
 
+function advanceChartRecoveryDiagnosticIntegritySample(elapsedMs) {
+  const realLastFrameMs = lastFrameMs;
+  chartRecoveryDiagnosticManualNowMs = Math.max(
+    chartRecoveryDiagnosticManualNowMs,
+    realLastFrameMs
+  ) + elapsedMs;
+  lastFrameMs = chartRecoveryDiagnosticManualNowMs;
+  try {
+    measureChartDriftAtInterval(lastFrameMs);
+    sampleChartIntegrityTelemetry(lastFrameMs);
+  } finally {
+    lastFrameMs = realLastFrameMs;
+  }
+}
+
 function advanceChartRecoveryDiagnosticVisualRepair(elapsedMs) {
   if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) {
     throw new Error(`Chart recovery diagnostic elapsed time is invalid: ${elapsedMs}`);
@@ -9887,6 +9941,7 @@ function advanceChartRecoveryDiagnosticVisualRepair(elapsedMs) {
       CHART_DRIFT_MEASURE_INTERVAL_MS;
     const drift = measureChartDriftAtInterval(lastFrameMs);
     if (chartRepairCheckIsDue) maybeStartChartVisualRepair(lastFrameMs, drift);
+    if (chartRepairCheckIsDue) sampleChartIntegrityTelemetry(lastFrameMs);
     updateChartVisualRepair(lastFrameMs);
     ensureChart();
   } finally {
@@ -9924,9 +9979,11 @@ function injectChartRecoveryDiagnosticTilt(tiltDeg) {
   polarChartRepairPressureUpdatedAtMs = null;
   chartReframeDialogueTrigger = createChartReframeDialogueTrigger();
   chartVisualRepairStats = createChartVisualRepairStats();
+  chartIntegrityTelemetryMonitor = createChartIntegrityTelemetryMonitor();
   chart = buildChart(camera, positionLocks);
   chartDriftMeasuredAtMs = -Infinity;
   measureChartDriftAtInterval(performance.now());
+  sampleChartIntegrityTelemetry(performance.now());
 }
 
 function chartRecoveryDiagnosticSnapshot() {
@@ -10007,7 +10064,8 @@ function chartRecoveryDiagnosticSnapshot() {
     repairPasses: Object.freeze(chartRecoveryDiagnosticRepairPasses.slice()),
     dialogueActive: Boolean(captainAlertModal),
     activeCoverKinds: Object.freeze(activeOpaqueWorldCoverKinds()),
-    repairs: Object.freeze({ ...chartVisualRepairStats })
+    repairs: Object.freeze({ ...chartVisualRepairStats }),
+    integrityTelemetry: chartIntegrityTelemetryStats(chartIntegrityTelemetryMonitor)
   });
 }
 
@@ -22121,8 +22179,41 @@ function measureChartDriftAtInterval(nowMs) {
   measureCurrentChartNorthUpDrift();
   chartVisibleNorthUpDrift = measureCurrentUnobscuredChartNorthUpDrift();
   chartDiagnosticTerrainTear = measureCurrentUnobscuredTerrainTear();
-  inspectChartViewportCoverage();
+  chartDiagnosticViewportCoverage = inspectChartViewportCoverage();
   return chartVisibleNorthUpDrift;
+}
+
+function sampleChartIntegrityTelemetry(nowMs) {
+  if (!chartDiagnosticViewportCoverage || !ship || !chart) return null;
+  const incident = observeChartIntegrityTelemetry(chartIntegrityTelemetryMonitor, {
+    nowMs,
+    drift: chartVisibleNorthUpDrift,
+    terrainTear: chartDiagnosticTerrainTear.nonWater ?? chartDiagnosticTerrainTear,
+    waterTear: chartDiagnosticTerrainTear.water ?? chartEmptyTerrainTear,
+    coverage: chartDiagnosticViewportCoverage,
+    repairKind: currentChartIntegrityRepairKind(nowMs)
+  });
+  if (!incident || CAPTURE_SCENARIO || PERFORMANCE_BENCHMARK) return incident;
+
+  const error = chartIntegrityIncidentError(incident);
+  error.message += `; location ${latitudeDegForDirection(ship.position).toFixed(2)},` +
+    `${longitudeDegForDirection(ship.position).toFixed(2)}; center ${centerTileId}; ` +
+    `ship tile ${ship.tileId}; viewport ${SCREEN_W}x${SCREEN_H}; chart ${chart.tileCalls.length}`;
+  gameTelemetry.captureDiagnostic(error, telemetryCrashContext(), {
+    key: `chart-integrity:${BUILD_REVISION}:${incident.category}:${incident.severity}`,
+    cooldownMs: 365 * 24 * 60 * 60_000
+  });
+  return incident;
+}
+
+function currentChartIntegrityRepairKind(nowMs) {
+  if (chartRepairCloudBank) return "cloud-bank";
+  if (chartRepairFog) return "closing-fog";
+  if (chartRepairHeatHaze) return "heat-haze";
+  if (currentPolarChartFogFrame()) return "polar-fog";
+  if (nowMs < chartRepairSwellUntilMs) return "ocean-swell";
+  if (chartRepairPendingConfirmation) return "pending";
+  return "none";
 }
 
 function inspectChartViewportCoverage() {
@@ -22265,12 +22356,9 @@ function measureCurrentUnobscuredTerrainTear() {
 function measureCurrentVisibleTerrainTear() {
   if (!chart || !localLayout) {
     chartWorstVisibleTerrainTear = Object.freeze({
-      extraPx: 0,
-      signedExtraPx: 0,
-      tileIds: Object.freeze([]),
-      surface: null,
-      screenX: SCREEN_W / 2,
-      screenY: SCREEN_H / 2
+      ...chartEmptyTerrainTear,
+      nonWater: chartEmptyTerrainTear,
+      water: chartEmptyTerrainTear
     });
     return chartWorstVisibleTerrainTear;
   }

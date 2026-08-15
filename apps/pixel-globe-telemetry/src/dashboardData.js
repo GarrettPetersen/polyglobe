@@ -217,6 +217,7 @@ export function dashboardQueries(windowDays, crashCursor = null, performanceCurs
       where,
       `timestamp <= toDateTime('${performanceCursorTimestamp}')`
     ),
+    mapIntegrityIssues: mapIntegrityGroupsQuery(where),
     crashStatus: `
       SELECT
         round(SUM(_sample_interval * if(
@@ -231,6 +232,25 @@ export function dashboardQueries(windowDays, crashCursor = null, performanceCurs
     crashes: crashGroupsQuery(where, `timestamp > toDateTime('${crashCursorTimestamp}')`),
     fixedCrashes: crashGroupsQuery(where, `timestamp <= toDateTime('${crashCursorTimestamp}')`)
   });
+}
+
+function mapIntegrityGroupsQuery(where) {
+  return `
+      SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
+        blob17 AS screen, blob14 AS diagnostic_name,
+        argMax(blob15, timestamp) AS message,
+        count() AS reports, count(DISTINCT index1) AS affected_installations,
+        min(timestamp) AS first_seen, max(timestamp) AS last_seen
+      FROM ${DATASET}
+      WHERE blob1 = 'diagnostic' AND (
+        position('ChartIntegrity' IN blob14) = 1 OR
+        blob17 IN ('chart-repair', 'chart-stitch-recovered') OR
+        (blob17 = 'runtime-assertion' AND position('chart' IN lowerUTF8(blob15)) > 0)
+      ) AND ${where}
+      GROUP BY revision, channel, platform, screen, diagnostic_name
+      ORDER BY last_seen DESC, affected_installations DESC
+      LIMIT 60
+    `;
 }
 
 function lowFrameRateGroupsQuery(where, cursorCondition) {
@@ -422,9 +442,25 @@ export function buildDashboardSnapshot(
     freezeIssues: normalizeFreezeRows(results.freezeIssues),
     fixedPerformanceIssues: normalizeLowFrameRateRows(results.fixedPerformanceIssues),
     fixedFreezeIssues: normalizeFreezeRows(results.fixedFreezeIssues),
+    mapIntegrityIssues: normalizeMapIntegrityRows(results.mapIntegrityIssues),
     crashes: normalizeCrashRows(results.crashes),
     fixedCrashes: normalizeCrashRows(results.fixedCrashes)
   };
+}
+
+function normalizeMapIntegrityRows(rows) {
+  return rows.map((row) => ({
+    revision: requiredString(row.revision, "map integrity revision"),
+    channel: requiredString(row.channel, "map integrity channel"),
+    platform: requiredString(row.platform, "map integrity platform"),
+    screen: requiredString(row.screen, "map integrity screen"),
+    diagnosticName: requiredString(row.diagnostic_name, "map integrity diagnostic"),
+    message: optionalString(row.message),
+    reports: nonnegativeNumber(row.reports),
+    affectedInstallations: nonnegativeNumber(row.affected_installations),
+    firstSeen: requiredString(row.first_seen, "map integrity first seen"),
+    lastSeen: requiredString(row.last_seen, "map integrity last seen")
+  }));
 }
 
 function normalizeLowFrameRateRows(rows) {

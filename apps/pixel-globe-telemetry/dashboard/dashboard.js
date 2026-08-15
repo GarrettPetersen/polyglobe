@@ -63,6 +63,7 @@ function renderDashboard(data) {
     data.fixedFreezeIssues || [],
     data.performanceCursor
   );
+  renderMapIntegrityIssues(data.mapIntegrityIssues || []);
   renderCrashes(data.crashes, data.fixedCrashes, data.crashCursor);
 }
 
@@ -511,6 +512,36 @@ function renderCrashes(rows, fixedRows, cursor) {
     fixedTarget.append(emptyState("No earlier crash groups in this reporting window."));
   } else {
     renderCrashCards(fixedTarget, fixedRows, true);
+  }
+}
+
+function renderMapIntegrityIssues(rows) {
+  const target = document.querySelector("#map-integrity-list");
+  target.replaceChildren();
+  const reportCount = rows.reduce((sum, row) => sum + row.reports, 0);
+  setText(
+    "map-integrity-summary",
+    reportCount === 0 ? "No map faults" : `${compact(reportCount)} diagnostic reports`
+  );
+  if (rows.length === 0) {
+    target.append(emptyState("No persistent distortion or chart-integrity failure in this period."));
+    return;
+  }
+  for (const row of rows) {
+    const card = element("article", "crash-card map-integrity-card");
+    const copy = document.createElement("div");
+    const heading = document.createElement("h3");
+    heading.textContent = `${titleCase(row.diagnosticName)}: ${row.message || "(no message)"}`;
+    const detail = document.createElement("p");
+    detail.textContent = `${row.channel} / ${row.platform} / ${row.screen} / ` +
+      `${row.revision.slice(0, 10)} | ${row.affectedInstallations} installation` +
+      `${row.affectedInstallations === 1 ? "" : "s"} | last ${formatDateTime(row.lastSeen)}`;
+    copy.append(heading, detail);
+    const count = element("strong", "crash-count");
+    count.textContent = compact(row.reports);
+    count.title = `${row.reports} reports`;
+    card.append(copy, count);
+    target.append(card);
   }
 }
 

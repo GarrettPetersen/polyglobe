@@ -242,6 +242,7 @@ main {
 .starts-panel,
 .channels-panel,
 .performance-panel,
+.map-integrity-panel,
 .crashes-panel {
   grid-column: 1 / -1;
 }
@@ -490,6 +491,14 @@ tbody tr:hover {
 .crash-card.fixed {
   border-left-color: var(--rule);
   opacity: 0.76;
+}
+
+.map-integrity-card {
+  border-left-color: var(--sea);
+}
+
+.map-integrity-card .crash-count {
+  color: var(--sea);
 }
 
 .crash-card.fixed .crash-count {

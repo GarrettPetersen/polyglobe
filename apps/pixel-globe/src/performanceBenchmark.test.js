@@ -9,6 +9,7 @@ import {
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
   POLAR_FOG_CAPTURE_SCENARIO_ID,
+  assertChartIntegrityTelemetryBenchmarkBudget,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
   recordPerformanceBenchmarkFrame,
@@ -125,6 +126,37 @@ test("benchmark report includes frame percentiles and skipped frame estimates", 
   assert.equal(result.longFrames.over33Ms, 1);
   assert.equal(result.estimatedSkippedFrames, 1);
   assert.deepEqual(result.scene, { ships: 12 });
+});
+
+test("benchmark enforces a sub-millisecond chart telemetry budget", () => {
+  assert.deepEqual(assertChartIntegrityTelemetryBenchmarkBudget({
+    durationSeconds: 8,
+    stages: {
+      "chart.integrityTelemetry": { count: 16, mean: 0.04, p95: 0.1 }
+    }
+  }), { count: 16, mean: 0.04, p95: 0.1 });
+  assert.throws(
+    () => assertChartIntegrityTelemetryBenchmarkBudget({ stages: {} }),
+    /did not sample/
+  );
+  assert.throws(
+    () => assertChartIntegrityTelemetryBenchmarkBudget({
+      durationSeconds: 8,
+      stages: {
+        "chart.integrityTelemetry": { count: 16, mean: 0.3, p95: 0.4 }
+      }
+    }),
+    /mean 0\.3ms exceeds/
+  );
+  assert.throws(
+    () => assertChartIntegrityTelemetryBenchmarkBudget({
+      durationSeconds: 8,
+      stages: {
+        "chart.integrityTelemetry": { count: 80, mean: 0.04, p95: 0.1 }
+      }
+    }),
+    /sampled 10\.00 times per second/
+  );
 });
 
 test("benchmark evaluates a lazy scene snapshot only when measurement completes", () => {

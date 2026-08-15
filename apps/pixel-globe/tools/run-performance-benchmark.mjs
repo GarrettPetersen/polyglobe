@@ -8,6 +8,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import {
   PERFORMANCE_BENCHMARK_IDS,
+  assertChartIntegrityTelemetryBenchmarkBudget,
   performanceBenchmarkFromSearch
 } from "../src/performanceBenchmark.js";
 
@@ -78,6 +79,7 @@ try {
     };
     await mkdir(path.dirname(args.output), { recursive: true });
     await writeFile(args.output, `${JSON.stringify(report, null, 2)}\n`);
+    assertChartIntegrityTelemetryBenchmarkBudget(report);
     printReport(report, args.output);
     if (args.cpuProfile) process.stdout.write(`  CPU profile: ${args.cpuProfile}\n`);
     if (args.minFps !== null && report.framesPerSecond < args.minFps) {
@@ -129,6 +131,10 @@ function printReport(report, output) {
       `  Long frames: ${report.longFrames.over20Ms} >20 ms, ${report.longFrames.over33Ms} >33 ms, ` +
         `${report.longFrames.over50Ms} >50 ms`,
       `  Estimated skipped frames: ${report.estimatedSkippedFrames}`,
+      `  Chart telemetry: ${report.stages["chart.integrityTelemetry"].mean} ms mean, ` +
+        `${report.stages["chart.integrityTelemetry"].p95} ms p95 across ` +
+        `${report.stages["chart.integrityTelemetry"].count} samples; ` +
+        `${report.scene.chartIntegrityTelemetry.incidentsDetected} incidents`,
       `  Chart repairs: ${report.scene.chartVisualRepairs.cloudBanksStarted} cloud banks, ` +
         `${report.scene.chartVisualRepairs.partialCloudBanksStarted} partial, ` +
         `${report.scene.chartVisualRepairs.cloudBankSecondsScheduled.toFixed(1)} cloud-seconds, ` +

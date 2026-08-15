@@ -35,6 +35,15 @@ test("dashboard crash reports are newest first", () => {
   );
 });
 
+test("dashboard surfaces persistent chart diagnostics without treating them as crashes", () => {
+  const query = dashboardQueries(7).mapIntegrityIssues;
+  assert.match(query, /WHERE blob1 = 'diagnostic'/);
+  assert.match(query, /position\('ChartIntegrity' IN blob14\) = 1/);
+  assert.match(query, /position\('chart' IN lowerUTF8\(blob15\)\) > 0/);
+  assert.match(query, /chart-stitch-recovered/);
+  assert.match(query, /ORDER BY last_seen DESC, affected_installations DESC/);
+});
+
 test("dashboard performance incidents are newest first and grouped by actionable context", () => {
   const queries = dashboardQueries(7);
   const query = queries.performanceIssues;
@@ -202,6 +211,18 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     }],
     fixedPerformanceIssues: [],
     fixedFreezeIssues: [],
+    mapIntegrityIssues: [{
+      revision: "abc123",
+      channel: "web-prototype",
+      platform: "browser",
+      screen: "sailing",
+      diagnostic_name: "ChartIntegrityTilt",
+      message: "catastrophic tilt persisted 3000ms",
+      reports: 1,
+      affected_installations: 1,
+      first_seen: "2026-07-25 10:45:00.000",
+      last_seen: "2026-07-25 10:45:00.000"
+    }],
     performanceStatus: [{ active_reports: 3, historical_reports: 4 }],
     crashStatus: [{ active_reports: 2, historical_reports: 3 }],
     crashes: [{
@@ -249,6 +270,18 @@ test("dashboard snapshots normalize aggregate query rows", () => {
   });
   assert.equal(snapshot.crashes[0].message, "Boom");
   assert.equal(snapshot.fixedCrashes[0].message, "Old boom");
+  assert.deepEqual(snapshot.mapIntegrityIssues[0], {
+    revision: "abc123",
+    channel: "web-prototype",
+    platform: "browser",
+    screen: "sailing",
+    diagnosticName: "ChartIntegrityTilt",
+    message: "catastrophic tilt persisted 3000ms",
+    reports: 1,
+    affectedInstallations: 1,
+    firstSeen: "2026-07-25 10:45:00.000",
+    lastSeen: "2026-07-25 10:45:00.000"
+  });
   assert.deepEqual(snapshot.performanceIssues[0], {
     revision: "abc123",
     channel: "web-prototype",

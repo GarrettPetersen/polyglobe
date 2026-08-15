@@ -294,6 +294,9 @@ function validateCase(diagnosticCase, samples) {
   if (final.distanceTravelledPx < 80) {
     failures.push("ship did not travel far enough to exercise live tile admission");
   }
+  if (final.integrityTelemetry.samplesObserved < 2) {
+    failures.push("chart integrity telemetry did not observe the moving diagnostic");
+  }
   const oversizedMoves = final.coveredTileMoves.filter((move) => (
     Math.abs(move.toX - move.fromX) > move.maximumStepPx ||
       Math.abs(move.toY - move.fromY) > move.maximumStepPx
@@ -352,6 +355,8 @@ function printReport(report, output) {
         `(${entry.final.fullTiltDeg.toFixed(2)} including concealed margin), ` +
         `tear ${entry.final.unobscuredTearPx.toFixed(2)}px, ` +
         `void ${entry.maximumViewportInteriorGapPx.toFixed(2)}px, ` +
+        `telemetry ${entry.final.integrityTelemetry.samplesObserved} samples / ` +
+        `${entry.final.integrityTelemetry.incidentsDetected} incidents, ` +
         `position ${entry.final.latitudeDeg.toFixed(2)},${entry.final.longitudeDeg.toFixed(2)}, ` +
         `${entry.failures.length === 0 ? "PASS" : "FAIL"}\n`
     );
