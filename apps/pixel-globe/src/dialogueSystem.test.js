@@ -45,6 +45,8 @@ import {
   acceptQuest,
   adjustFactionReputation,
   attemptPortDisguise,
+  cargoFree,
+  cargoHoldStatus,
   cargoUsed,
   capturePortMissionOfferForCity,
   createGameState,
@@ -63,6 +65,7 @@ import {
   purchasePerkItem,
   questStateForCity,
   reconcileCharacterForPapalAuthority,
+  restockShipLoadoutAtPort,
   resolveCatholicBibleInspection,
   visitPort
 } from "./gameState.js";
@@ -1449,6 +1452,50 @@ test("edible cargo market rows show remaining sale clicks instead of rations", (
   selectPortDialogueOption(session, city, gameState, economy, [city], fishIndex, { simMinute: 10 });
   const after = portDialogueView(session, city, gameState, economy, [city]);
   assert.match(after.options[fishIndex].detail, /HELD 4$/);
+});
+
+test("market capacity explains provision space reserved by the selected loadout", () => {
+  const city = {
+    tileId: 109,
+    city: "London",
+    displayCity: "London",
+    country: "England",
+    cityType: "northern-european",
+    population: 50000,
+    character: { name: "Thomas More", personalityId: "shrewd" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  restockShipLoadoutAtPort(gameState, city, stats, "balanced", { simMinute: 0 });
+  const tradeSpace = cargoFree(gameState);
+
+  delete gameState.cargo.hardtack;
+  delete gameState.accounts.cargoCostBasis.hardtack;
+  gameState.survival.freshWater = 0;
+  gameState.cargo.fish = tradeSpace + 1;
+  gameState.accounts.cargoCostBasis.fish = tradeSpace + 1;
+
+  const sellSession = createPortDialogueSession(city, { initialNodeId: "sell" });
+  let view = portDialogueView(sellSession, city, gameState, economy, [city]);
+  const fishIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell" && entry.action.goodId === "fish"
+  ));
+  assert.ok(fishIndex >= 0);
+  selectPortDialogueOption(sellSession, city, gameState, economy, [city], fishIndex, {
+    simMinute: 1
+  });
+
+  const hold = cargoHoldStatus(gameState);
+  assert.ok(hold.physicalWholeUnits < hold.capacity);
+  assert.equal(hold.freeWholeUnits, 0);
+  const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  view = portDialogueView(buySession, city, gameState, economy, [city]);
+  const blockedPurchase = view.options.find((entry) => entry.action.type === "buy");
+  assert.ok(blockedPurchase);
+  assert.equal(blockedPurchase.disabled, true);
+  assert.match(blockedPurchase.disabledReason, /^Needs \d+ cargo spaces; 0 free after loadout\.$/);
 });
 
 test("port menus pin Back and Leave Port after their ordinary actions", () => {

@@ -1958,6 +1958,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Need {0} more doubloons.",
   "Need {0}.",
   "NEED FISHING NET",
+  "Needs {0} cargo spaces; {1} free after loadout.",
   "Needs {0} cargo spaces; {1} free.",
   "NET CAME UP EMPTY",
   "Neutral",

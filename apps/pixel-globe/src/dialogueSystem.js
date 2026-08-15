@@ -4912,7 +4912,9 @@ function buyView(session, city, gameState, economy, context) {
         : cannotAfford
           ? "Not enough doubloons."
           : cannotFit
-            ? `Needs ${totalSize} cargo spaces; ${hold.freeWholeUnits} free.`
+            ? hold.reservedForLoadout > 0
+              ? `Needs ${totalSize} cargo spaces; ${hold.freeWholeUnits} free after loadout.`
+              : `Needs ${totalSize} cargo spaces; ${hold.freeWholeUnits} free.`
             : null;
       const rowId = `market-${row.good.id}`;
       return [
