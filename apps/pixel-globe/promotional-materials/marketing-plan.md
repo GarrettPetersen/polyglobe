@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **August 4, 2026**.
+Last updated: **August 13, 2026**.
 
 ## Store and build
 
@@ -8,23 +8,17 @@ Last updated: **August 4, 2026**.
   - Status: Launched.
   - Store page: https://store.steampowered.com/app/4516500/Marque__Reprisal/
 
-- [ ] **Get the demo build on Steam**
-  - Last confirmed status: Demo store presence and build were submitted to
-    Valve on July 30 and were in review. The private review status still needs
-    to be checked in Steamworks; the public store page had no demo button on
-    August 4.
-  - Valve says build reviews normally take 3–5 business days and recommends
-    allowing at least 7 business days. Do not escalate before August 10 unless
-    Valve sends feedback first.
+- [ ] **Make the approved Steam demo public**
+  - Status: Valve approved the demo page and build. The associated demo has
+    been marked ready in Steamworks, but the public launch and logged-out
+    install flow still need to be completed and verified.
   - Steam App: `5029880`.
   - The demo has no timer and retains the full feature set, but its voyages are
     centered on the family-debt quest and limited to the Mediterranean, Black
     Sea and connected rivers.
 
-- [ ] **Get the full build on Steam**
-  - Last confirmed status: Main-game store presence is approved; the build
-    submitted on July 30 was in Valve review. The current private review status
-    still needs to be checked in Steamworks.
+- [x] **Get the full build approved on Steam**
+  - Status: Valve approved the corrected full build on August 13.
   - Keep the build private until release, apart from keys provided for coverage
     and testing.
 
@@ -34,17 +28,92 @@ Last updated: **August 4, 2026**.
 
 ## Trailer
 
-- [ ] **Launch the trailer as an IGN exclusive**
-  - Status: Garrett sent the IGN pitch before August 2; no response has arrived yet.
-  - Keep the trailer unlisted while IGN considers the pitch.
-  - Monitor both the inbox and IGN's published coverage because a response is not
-    guaranteed before publication.
-  - Send one concise follow-up on August 5 or 6. If there is still no response
-    within 48 hours, treat the silence as a pass and move to the public trailer
-    launch. Do not leave the campaign stalled indefinitely.
+- [x] **End the IGN exclusivity wait and launch with a trailer on Steam**
+  - The campaign is no longer holding the trailer for an exclusive.
+  - Steam has a trailer, and the current 39.7-second gameplay trailer and
+    thumbnail are available in the press kit.
 
-- [ ] **Immediately add the trailer to the Steam page**
-  - Add it as soon as the IGN exclusive is published or the exclusivity window is otherwise over.
+- [ ] **Publish the current trailer cut publicly on YouTube**
+  - Confirm that YouTube and Steam both use the final recut rather than an older
+    draft.
+  - Link the public upload from the website and future press pitches.
+
+## BiteMe Games checklist audit
+
+Checked **August 13, 2026** against BiteMe Games' public
+[Steam Store Page Checklist](https://bmg.yt/steampage) and
+[Steam Demo Checklist](https://bmg.yt/demo).
+These are useful QA lists, not Steam requirements. Apply the recommendations
+that remove friction or make the game easier to understand; do not change the
+game merely to tick every box.
+
+### Already covered
+
+- [x] The public Steam page has a clear genre, goal and player verbs in its
+  short description.
+- [x] The page has a gameplay trailer, 14 gameplay screenshots with the UI
+  visible, 20 tags, 11 localized store languages, a website and a press kit.
+- [x] The current trailer is within BiteMe's recommended 30–50-second range.
+- [x] The demo is also available on itch.io.
+
+### Complete before the public demo beat
+
+- [ ] **Run a clean-install demo onboarding and exit-path QA pass.**
+  - Confirm there are no crashes, blockers or dead ends.
+  - Put the core sailing loop in front of a new player within the first three
+    minutes; avoid an opening lore dump.
+  - Confirm the main menu, pause menu, settings and tutorial/control prompts all
+    work with mouse, keyboard and controller.
+  - Test `Shift+Tab`: opening the Steam Overlay should pause the game.
+  - Test a non-QWERTY keyboard layout and make sure no required input can
+    soft-lock the player.
+  - Make Quit behave like Quit. Do not force-open Steam or a browser as the
+    price of leaving the game.
+  - Give the demo a clear endpoint even though it has no timer.
+
+- [ ] **Add a low-friction wishlist call to action.**
+  - Put a Steam wishlist button in the demo's main menu and at its natural
+    endpoint. Use the Steam Overlay when available and a UTM-tagged fallback
+    link when it is not.
+  - Do not interrupt normal play or hijack the Quit button with the call to
+    action.
+
+- [ ] **Make support and community destinations easy to find.**
+  - Link Steam Discussions or another support channel from the main menu.
+  - Add the public YouTube channel once the final trailer is live.
+  - Create a Discord only if Garrett wants to maintain and moderate it; an
+    unattended server is not a checklist win.
+
+- [ ] **Run one final store-asset audit.**
+  - Confirm every capsule follows Valve's current template, preserves the
+    artwork's aspect ratio, has strong contrast and contains no copy other than
+    the game title.
+  - Confirm the first screenshot immediately communicates globe sailing, the
+    main mechanic, and the real in-game HUD.
+  - Confirm the trailer cold-open shows four or five distinct highlights in
+    the first 15 seconds, individual shots stay under roughly six seconds, and
+    the final five to eight seconds have a clear Steam call to action.
+  - Confirm the Steam developer/publisher link leads to an Iron Pagoda developer
+    homepage and follow the game's Steam Community discussion board.
+
+- [ ] **Give selected creators advance access one to two weeks before the
+  coordinated public demo beat.**
+  - Prefer full-build review keys because they provide more to show. If the full
+    build is not approved in time, use demo release-state override keys for the
+    highest-priority creators.
+  - Do not mass-send all 2,837 contacts before measuring the first batches.
+
+### Recommendations not adopted automatically
+
+- Keep the substantial localized About This Game section. Do not cut it to an
+  arbitrary character count while it is doing useful work explaining a complex
+  game; judge it by store-page conversion data.
+- Treat animated menus, button squish, randomized sound pitch, every frame-cap
+  option and every display-mode variant as product-polish suggestions. Add them
+  when playtesting or packaged-build QA identifies a real problem, not solely
+  because they appear on a generic checklist.
+- Do not add Discord, extra social accounts or more store languages without a
+  plan to support them well.
 
 ## Japanese press outreach
 
@@ -116,9 +185,29 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 
 ## Public promotion
 
-- [ ] Prepare the coordinated Steam-demo launch package before Valve approval.
+- [x] Prepare the GamesPress demo-launch release.
+  - The email-ready plain-text release is in
+    [gamespress-demo-launch-release.txt](gamespress-demo-launch-release.txt).
+  - GamesPress accepts free submissions at `inbox@gamespress.com`. Put the
+    release in the email body or attach it as plain text, attach publication
+    images separately, and link the full press kit. Do not send a PDF.
+  - Send only after the Steam demo is publicly playable and its install flow
+    has been verified. Replace the release-date placeholder immediately before
+    sending.
+  - Attach the five selected English gameplay screenshots and transparent logo
+    listed in the release file.
+
+- [ ] Submit the demo-launch release to GamesPress.
+  - Treat publication as useful press infrastructure rather than guaranteed
+    editorial coverage. Record the published GamesPress URL and any resulting
+    enquiries or coverage.
+
+- [ ] Prepare the coordinated Steam-demo launch package before making the demo public.
   - Draft the Steam announcement, X post, subreddit-specific posts, Japanese
     press update and first creator email batch now.
+  - Use the current final trailer as the demo-release video, or make a short
+    demo-specific cut only if its end card needs a clearer **Play the demo**
+    call to action.
   - Publish them only after the Steam demo is live and its install flow has been
     verified from a logged-out account.
 
@@ -334,11 +423,12 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ## Current critical path
 
-In parallel now: start the IGF submission; set up the authenticated campaign
-sender; prepare the demo-launch package and UTM links; verify the first 25–50
-creator contacts.
+In parallel now: complete the BiteMe demo-onboarding and store-asset audit; add
+the in-demo wishlist call to action; start the IGF submission; set up the
+authenticated campaign sender; finish the demo-launch package and UTM links;
+verify the first 25–50 creator contacts.
 
-Valve approves demo and main builds → launch and verify Steam demo → IGN responds
-or its August follow-up window closes → publish trailer on YouTube and Steam →
-verify Steam integration → send the first streamer-key batch → prepare October
-Next Fest → release decision
+Generate and test full-build review keys → give selected creators advance access
+→ make the approved demo public and verify its logged-out install flow → publish
+the coordinated demo-launch package and GamesPress release → measure store
+conversion and creator results → prepare October Next Fest → release decision

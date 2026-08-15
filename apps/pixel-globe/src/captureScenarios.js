@@ -96,7 +96,31 @@ const CAPTURE_SCENARIOS = Object.freeze({
     encounters: [],
     icebergs: [
       { variantId: "iceberg-large", lat: 55, lon: -39.98, headingDeg: 210 }
-    ]
+    ],
+    sequence: trailerSequence("sail", "beam-reach", {
+      durationSeconds: 9,
+      beamSide: "port"
+    })
+  }),
+  "five-weeks-arctic-ice": scenario({
+    id: "five-weeks-arctic-ice",
+    title: "Large Iceberg",
+    seed: "five-weeks-arctic-ice-v1",
+    player: {
+      factionId: "denmark-norway",
+      shipSlug: "viking-longship",
+      lat: 64.95,
+      lon: -59.47,
+      headingDeg: 90,
+      activePlaySeconds: 60
+    },
+    world: { day: 15, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: [],
+    sequence: trailerSequence("sail", "beam-reach", {
+      durationSeconds: 9,
+      beamSide: "starboard"
+    })
   }),
   "diagnostic-chart-recovery-ocean": scenario({
     id: "diagnostic-chart-recovery-ocean",
