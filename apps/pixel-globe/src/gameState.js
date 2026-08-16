@@ -3385,17 +3385,19 @@ export function prepareHighValueMissionPerkItem(state, city, missionId) {
     throw new Error("High-value mission item preparation requires a mission id");
   }
   const existingItemId = state.memory.missionItemGifts[missionId];
-  if (existingItemId) return perkItemById(existingItemId);
-  if (existingItemId === null) {
-    throw new Error(`High-value mission item was previously exhausted: ${missionId}`);
+  if (existingItemId) {
+    const existingItem = perkItemById(existingItemId);
+    if ((state.inventory.items[existingItem.id] || 0) === 0) return existingItem;
+    state.memory.missionItemGifts[missionId] = null;
+    return null;
   }
+  if (existingItemId === null) return null;
   const item = highValueMissionGiftItem({
     city,
     identityKey: `${missionId}|${state.playerCharacter?.id || state.playerCharacter?.name || "captain"}`,
     ownedItemIds: Object.keys(state.inventory.items).filter((id) => state.inventory.items[id] > 0)
   });
-  if (!item) throw new Error("No unowned high-value item remains for rescued traveler reunion");
-  state.memory.missionItemGifts[missionId] = item.id;
+  state.memory.missionItemGifts[missionId] = item?.id || null;
   return item;
 }
 
@@ -3413,16 +3415,22 @@ export function receiveRescuedTravelerReunionReward(state, city, {
   if (!Number.isInteger(rewardDoubloons) || rewardDoubloons <= 0) {
     throw new Error(`Invalid rescued traveler doubloon reward: ${rewardDoubloons}`);
   }
-  const item = perkItemById(itemId);
-  if (state.memory.missionItemGifts[missionId] !== item.id) {
-    throw new Error(`Rescued traveler reward item was not prepared: ${item.id}`);
+  if (itemId !== null && typeof itemId !== "string") {
+    throw new Error(`Invalid rescued traveler reward item: ${itemId}`);
   }
-  if ((state.inventory.items[item.id] || 0) > 0) {
+  const item = itemId === null ? null : perkItemById(itemId);
+  if (!Object.prototype.hasOwnProperty.call(state.memory.missionItemGifts, missionId) ||
+      state.memory.missionItemGifts[missionId] !== itemId) {
+    throw new Error(`Rescued traveler reward item was not prepared: ${itemId || "cash-only"}`);
+  }
+  if (item && (state.inventory.items[item.id] || 0) > 0) {
     throw new Error(`Rescued traveler reward item is already aboard: ${item.label}`);
   }
   state.doubloons += rewardDoubloons;
-  state.inventory.items[item.id] = 1;
-  refreshPlayerPerkCargoCapacity(state);
+  if (item) {
+    state.inventory.items[item.id] = 1;
+    refreshPlayerPerkCargoCapacity(state);
+  }
   recordLedgerEntry(state, city, context, {
     kind: "quest",
     description: `Reunited rescued traveler with family in ${cityLabel(city)}`,
@@ -3432,15 +3440,17 @@ export function receiveRescuedTravelerReunionReward(state, city, {
     costBasis: null,
     pnl: null
   });
-  recordLedgerEntry(state, city, context, {
-    kind: "quest",
-    description: `Family gift: ${item.label}`,
-    goodId: null,
-    quantity: 1,
-    amount: 0,
-    costBasis: 0,
-    pnl: null
-  });
+  if (item) {
+    recordLedgerEntry(state, city, context, {
+      kind: "quest",
+      description: `Family gift: ${item.label}`,
+      goodId: null,
+      quantity: 1,
+      amount: 0,
+      costBasis: 0,
+      pnl: null
+    });
+  }
   return { rewardDoubloons, item };
 }
 

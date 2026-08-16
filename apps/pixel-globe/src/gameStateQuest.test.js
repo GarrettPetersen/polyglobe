@@ -19,9 +19,13 @@ import {
   deliveryQuestForCity,
   factionReputation,
   isCaptureCapitalQuest,
+  prepareHighValueMissionPerkItem,
   questStateForCity,
+  receiveRescuedTravelerReunionReward,
+  refreshPlayerPerkCargoCapacity,
   reconcileQuestPortTiles
 } from "./gameState.js";
+import { PERK_ITEMS } from "./perkItems.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 const PLAYER = {
@@ -140,6 +144,44 @@ test("completed package deliveries increase faction standing", () => {
 
   assert.equal(factionReputation(state, "portugal"), before + DELIVERY_REPUTATION_GAIN);
   assert.equal(state.memory.decisions["reputation.mission.portugal"], 1);
+});
+
+test("rescued traveler reunions remain cash-payable after every perk item is owned", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  for (const item of PERK_ITEMS) state.inventory.items[item.id] = 1;
+  refreshPlayerPerkCargoCapacity(state);
+
+  const missionId = "pirate-captive:test:complete-catalog";
+  assert.equal(prepareHighValueMissionPerkItem(state, LONDON, missionId), null);
+  assert.equal(prepareHighValueMissionPerkItem(state, LONDON, missionId), null);
+  assert.equal(state.memory.missionItemGifts[missionId], null);
+
+  const before = state.doubloons;
+  const reward = receiveRescuedTravelerReunionReward(state, LONDON, {
+    missionId,
+    rewardDoubloons: 1200,
+    itemId: null,
+    context: { simMinute: 100 }
+  });
+  assert.deepEqual(reward, { rewardDoubloons: 1200, item: null });
+  assert.equal(state.doubloons, before + 1200);
+  assert.equal(
+    state.accounts.ledger.some((entry) => entry.description.startsWith("Family gift:")),
+    false
+  );
+});
+
+test("an interrupted reunion does not promise a unique item acquired in the meantime", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const missionId = "pirate-captive:test:reserved-item-collision";
+  const reserved = prepareHighValueMissionPerkItem(state, LONDON, missionId);
+  assert.ok(reserved);
+
+  state.inventory.items[reserved.id] = 1;
+  refreshPlayerPerkCargoCapacity(state);
+
+  assert.equal(prepareHighValueMissionPerkItem(state, LONDON, missionId), null);
+  assert.equal(state.memory.missionItemGifts[missionId], null);
 });
 
 test("saved jobs rebind to corrected coastal port tiles", () => {

@@ -17634,6 +17634,11 @@ function createRescuedTravelerHomecomingSession(cityCall, {
         : null;
       prepareRescuedTravelerHomecoming(memory, quest.id, rewardItem);
     }
+  } else if (quest.familySurvived && !(
+    quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE && pirateCaptiveIsDetained(quest)
+  )) {
+    const rewardItem = prepareHighValueMissionPerkItem(gameState, cityCall, quest.id);
+    prepareRescuedTravelerHomecoming(memory, quest.id, rewardItem);
   }
   const phase = quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
     pirateCaptiveIsDetained(quest)
@@ -20573,7 +20578,7 @@ function chooseDialogueOption(optionIndex) {
       completeRescuedTravelerQuest(memory, quest.id);
       syncShipCargoFromGameState();
       playCoinClinkSound();
-      presentMissionItemGift({ item: reward.item }, null, null);
+      if (reward.item) presentMissionItemGift({ item: reward.item }, null, null);
       showSurvivalNotice(`${rescuedTravelerLabel(quest)} FAMILY REUNITED  +${reward.rewardDoubloons} DB`, "good");
       saveVoyageNow(`reunited ${rescuedTravelerLabel(quest).toLowerCase()} with family`);
     } else if (result.action?.type === "recruit-rescued-traveler") {

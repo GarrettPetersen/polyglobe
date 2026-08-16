@@ -124,6 +124,30 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Captain, you brought our prodigal home. Please accept {0} doubloons.": Object.freeze({
+    "zh-Hans": "船长，你把我们家这位浪子带回来了。请收下 {0} 枚达布隆。",
+    ru: "Капитан, вы вернули домой нашего заблудшего родича. Примите {0} дублонов.",
+    es: "Capitán, ha traído de vuelta a nuestro familiar pródigo. Acepte {0} doblones.",
+    "pt-BR": "Capitão, você trouxe nosso familiar pródigo de volta. Aceite {0} dobrões.",
+    ja: "船長、放蕩者だった身内を連れ帰ってくださいました。{0} ダブロンをお受け取りください。",
+    de: "Kapitän, Ihr habt unser verlorenes Familienmitglied heimgebracht. Nehmt bitte {0} Dublonen an.",
+    fr: "Capitaine, vous avez ramené notre enfant prodigue. Acceptez ces {0} doublons.",
+    pl: "Kapitanie, sprowadziliście do domu naszego marnotrawnego krewniaka. Przyjmijcie {0} dublonów.",
+    "zh-Hant": "船長，你把我們家這位浪子帶回來了。請收下 {0} 枚達布隆。",
+    ko: "선장님, 방탕했던 우리 가족을 집으로 데려와 주셨습니다. {0} 더블룬을 받아 주십시오."
+  }),
+  "Captain, you restored our family. Please accept {0} doubloons with our everlasting gratitude.": Object.freeze({
+    "zh-Hans": "船长，你让我们一家团聚。请收下 {0} 枚达布隆，谨表我们永远的感激。",
+    ru: "Капитан, вы воссоединили нашу семью. Примите {0} дублонов в знак нашей вечной благодарности.",
+    es: "Capitán, ha reunido a nuestra familia. Acepte {0} doblones con nuestra eterna gratitud.",
+    "pt-BR": "Capitão, você reuniu nossa família. Aceite {0} dobrões com nossa eterna gratidão.",
+    ja: "船長、私たち家族を再び結び合わせてくださいました。永遠の感謝を込めて、{0} ダブロンをお受け取りください。",
+    de: "Kapitän, Ihr habt unsere Familie wiedervereint. Nehmt als Zeichen unserer ewigen Dankbarkeit {0} Dublonen an.",
+    fr: "Capitaine, vous avez réuni notre famille. Acceptez ces {0} doublons avec notre éternelle gratitude.",
+    pl: "Kapitanie, zjednoczyliście naszą rodzinę. Przyjmijcie {0} dublonów wraz z naszą wieczną wdzięcznością.",
+    "zh-Hant": "船長，你讓我們一家團聚。請收下 {0} 枚達布隆，謹表我們永遠的感激。",
+    ko: "선장님, 우리 가족을 다시 만나게 해 주셨습니다. 영원한 감사의 뜻으로 {0} 더블룬을 받아 주십시오."
+  }),
   "Taking this vessel as a prize is lawful.": Object.freeze({
     "zh-Hans": "将这艘船作为战利船扣押是合法的。",
     ru: "Взять это судно в качестве приза законно.",

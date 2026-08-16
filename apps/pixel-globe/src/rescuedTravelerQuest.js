@@ -157,19 +157,23 @@ export function declineRescuedTravelerQuest(memory, questId) {
 
 export function prepareRescuedTravelerHomecoming(memory, questId, rewardItem) {
   const quest = requiredActiveQuest(memory, questId);
-  if (quest.stage !== RESCUED_TRAVELER_STAGE_ABOARD) {
+  const revisingPreparedReward = quest.stage === RESCUED_TRAVELER_STAGE_HOMECOMING &&
+    quest.familySurvived;
+  if (quest.stage !== RESCUED_TRAVELER_STAGE_ABOARD && !revisingPreparedReward) {
     throw new Error(`Cannot prepare rescued traveler homecoming from stage ${quest.stage}`);
   }
   if (quest.familySurvived) {
-    if (!rewardItem || typeof rewardItem.id !== "string" || typeof rewardItem.label !== "string") {
-      throw new Error("Rescued traveler reunion requires a high-value reward item");
+    if (rewardItem !== null && (
+      typeof rewardItem?.id !== "string" || typeof rewardItem?.label !== "string"
+    )) {
+      throw new Error("Rescued traveler reunion reward item must be an item or null");
     }
-    quest.rewardItemId = rewardItem.id;
-    quest.rewardItemLabel = rewardItem.label;
+    quest.rewardItemId = rewardItem?.id || null;
+    quest.rewardItemLabel = rewardItem?.label || null;
   } else if (rewardItem !== null) {
     throw new Error("Rescued traveler lost-family homecoming cannot prepare a reward item");
   }
-  quest.stage = RESCUED_TRAVELER_STAGE_HOMECOMING;
+  if (!revisingPreparedReward) quest.stage = RESCUED_TRAVELER_STAGE_HOMECOMING;
   validateRescuedTravelerQuest(quest);
   return quest;
 }
@@ -372,7 +376,9 @@ function rescuedTravelerReunionView(session, quest) {
       speaker: quest.familyMember.name,
       character: quest.familyMember,
       expressionId: "happy",
-      text: `Captain, you restored our family. Please accept ${quest.rewardDoubloons} doubloons and ${quest.rewardItemLabel} with our everlasting gratitude.`,
+      text: quest.rewardItemLabel
+        ? `Captain, you restored our family. Please accept ${quest.rewardDoubloons} doubloons and ${quest.rewardItemLabel} with our everlasting gratitude.`
+        : `Captain, you restored our family. Please accept ${quest.rewardDoubloons} doubloons with our everlasting gratitude.`,
       options: [option("Continue", "continue-rescued-traveler-homecoming")]
     };
   }
@@ -465,9 +471,12 @@ function validateRescuedTravelerQuest(quest) {
     throw new Error("Rescued traveler received emergency aid that was never offered");
   }
   if (quest.stage === RESCUED_TRAVELER_STAGE_HOMECOMING && quest.familySurvived) {
-    if (typeof quest.rewardItemId !== "string" || quest.rewardItemId === "" ||
-        typeof quest.rewardItemLabel !== "string" || quest.rewardItemLabel === "") {
-      throw new Error("Rescued traveler reunion is missing its reward item");
+    const hasRewardItem = quest.rewardItemId !== null || quest.rewardItemLabel !== null;
+    if (hasRewardItem && (
+      typeof quest.rewardItemId !== "string" || quest.rewardItemId === "" ||
+      typeof quest.rewardItemLabel !== "string" || quest.rewardItemLabel === ""
+    )) {
+      throw new Error("Rescued traveler reunion reward item is incomplete");
     }
   } else if ((quest.rewardItemId !== null || quest.rewardItemLabel !== null) &&
       quest.stage !== RESCUED_TRAVELER_STAGE_HOMECOMING) {

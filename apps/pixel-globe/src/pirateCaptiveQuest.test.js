@@ -144,6 +144,41 @@ test("a surviving family shares a surname and gives money plus a high-value item
   assert.equal(memory.completedCount, 1);
 });
 
+test("a surviving family can complete a repeat rescue with a cash-only reward", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.1);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  preparePirateCaptiveHomecoming(memory, quest.id, null);
+  assert.equal(quest.stage, PIRATE_CAPTIVE_STAGE_HOMECOMING);
+  assert.equal(quest.rewardItemId, null);
+
+  const session = createPirateCaptiveDialogueSession(quest, {
+    phase: "homecoming",
+    cityTileId: homePort.tileId,
+    admittedToPort: true
+  });
+  selectPirateCaptiveDialogueOption(session, quest, memory, 0);
+  selectPirateCaptiveDialogueOption(session, quest, memory, 0);
+  const reward = pirateCaptiveDialogueView(session, quest);
+  assert.match(reward.text, new RegExp(String(quest.rewardDoubloons)));
+  assert.doesNotMatch(reward.text, /null|undefined| and with/i);
+});
+
+test("a prepared reunion can explicitly revise an unavailable item to cash-only", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.1);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  preparePirateCaptiveHomecoming(memory, quest.id, {
+    id: "lead-sheathing",
+    label: "Lead Hull Sheathing"
+  });
+
+  preparePirateCaptiveHomecoming(memory, quest.id, null);
+  assert.equal(quest.stage, PIRATE_CAPTIVE_STAGE_HOMECOMING);
+  assert.equal(quest.rewardItemId, null);
+  assert.equal(quest.rewardItemLabel, null);
+});
+
 test("a captive whose family was lost asks to remain as permanent crew", () => {
   const memory = createPirateCaptiveQuestMemory();
   const quest = createQuest(memory, 0.5);

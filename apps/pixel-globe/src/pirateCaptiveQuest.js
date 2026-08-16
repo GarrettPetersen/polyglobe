@@ -563,7 +563,10 @@ function reformedHomecomingView(session, quest) {
       return view(quest.character, "overjoyed", "I came home by a crooked road. I intend to walk straight from here.", "Continue", "continue-rescued-traveler-homecoming");
     }
     if (session.stepIndex === confessionOffset + 2) {
-      return view(quest.familyMember, "happy", `Captain, you brought our prodigal home. Please accept ${quest.rewardDoubloons} doubloons and ${quest.rewardItemLabel}.`, "Continue", "continue-rescued-traveler-homecoming");
+      const text = quest.rewardItemLabel
+        ? `Captain, you brought our prodigal home. Please accept ${quest.rewardDoubloons} doubloons and ${quest.rewardItemLabel}.`
+        : `Captain, you brought our prodigal home. Please accept ${quest.rewardDoubloons} doubloons.`;
+      return view(quest.familyMember, "happy", text, "Continue", "continue-rescued-traveler-homecoming");
     }
     if (session.stepIndex === confessionOffset + 3) {
       return view(quest.character, "happy", "Farewell, captain. I am retiring from piracy before it ruins my retirement.", "Farewell", "complete-rescued-traveler-reunion");
