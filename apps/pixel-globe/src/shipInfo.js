@@ -21,6 +21,7 @@ import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 import { clampMenuIndex } from "./menuNavigation.js";
 import { effectivePlayerShipStats } from "./playerPerks.js";
 import { sovereignTradePolicyById } from "./sovereignTradeAccess.js";
+import { isTreatyOfMadridQuest } from "./treatyOfMadridMission.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
 export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
@@ -445,7 +446,9 @@ function activeQuestPaper(quest) {
     const envoyName = quest.passenger?.name || quest.passengerName || "Envoy";
     return {
       kind: quest.kind,
-      title: `${quest.kind === "friendly-envoy" ? "Friendly" : "Hostile"} envoy: ${envoyName}`,
+      title: isTreatyOfMadridQuest(quest)
+        ? `Treaty of Madrid: ${envoyName}`
+        : `${quest.kind === "friendly-envoy" ? "Friendly" : "Hostile"} envoy: ${envoyName}`,
       issuer: factionById(quest.originFactionId).name,
       route: quest.stage === "return"
         ? `${quest.targetName || "Foreign court"} -> ${quest.originName || "Home court"}`

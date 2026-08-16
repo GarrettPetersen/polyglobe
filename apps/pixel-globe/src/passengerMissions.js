@@ -56,6 +56,12 @@ import {
   QUEST_ITINERARY_ORDERED,
   createQuestItinerary
 } from "./questItinerary.js";
+import {
+  TREATY_OF_MADRID_MISSION_ID,
+  isTreatyOfMadridQuest,
+  treatyOfMadridMissionPlanForCity,
+  treatyOfMadridOfferStillValid
+} from "./treatyOfMadridMission.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -84,6 +90,16 @@ export const PASSENGER_SCENARIOS = Object.freeze([
 export function passengerOfferForCity(state, city, portCities, context = {}) {
   const quests = questMemory(state);
   if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
+  const treatyPlan = quests.active
+    ? null
+    : treatyOfMadridMissionPlanForCity(state, city, portCities, context);
+  if (treatyPlan) {
+    const existing = pendingPassengerOfferForCity(state, city);
+    if (isTreatyOfMadridQuest(existing)) return existing;
+    const quest = buildTreatyOfMadridQuest(treatyPlan, context);
+    quests.passengerOffers[cityKey(city)] = quest;
+    return quest;
+  }
   const existing = pendingPassengerOfferForCity(state, city);
   if (existing) return existing;
 
@@ -166,6 +182,9 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
 
 export function travelMissionOfferForCity(state, city, portCities, context = {}) {
   const quests = questMemory(state);
+  if (!quests.active && treatyOfMadridMissionPlanForCity(state, city, portCities, context)) {
+    return passengerOfferForCity(state, city, portCities, context);
+  }
   const existing = pendingPassengerOfferForCity(state, city);
   if (existing || quests.passengerActive) return existing;
   if (quests.active && quests.active.kind !== "delivery") return null;
@@ -326,6 +345,10 @@ export function pendingPassengerOfferForCity(state, city) {
   const quests = questMemory(state);
   const offer = quests.passengerOffers[cityKey(city)];
   if (!offer || quests.completed[offer.id] || quests.failed?.[offer.id]) return null;
+  if (!treatyOfMadridOfferStillValid(state, offer)) {
+    delete quests.passengerOffers[cityKey(city)];
+    return null;
+  }
   if (offer.tradeAccessPolicyId && sovereignTradeOpenToFaction(
     state,
     offer.tradeAccessPolicyId,
@@ -385,8 +408,10 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
   const originKey = cityKey(origin);
   const targetKey = cityKey(target);
   const seed = `${originKey}|${targetKey}|${kind}|${period}`;
-  const reward = 220 + Math.round(distanceKm / 24) + (hashString32(`${seed}|reward`) % 121) +
-    (kind === TRIBUTE_ENVOY_QUEST_KIND ? 300 : 0);
+  const reward = options.reward ?? (
+    220 + Math.round(distanceKm / 24) + (hashString32(`${seed}|reward`) % 121) +
+    (kind === TRIBUTE_ENVOY_QUEST_KIND ? 300 : 0)
+  );
   const originRuler = rulerAtMinute(origin.factionId, simMinute);
   const targetRuler = rulerAtMinute(target.factionId, simMinute);
   if (!originRuler || !targetRuler) throw new Error("Envoy missions require sovereign origin and destination factions");
@@ -405,7 +430,7 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
     throw new Error(`Trade-opening envoy target does not host ${tradeAccessPolicy.id}`);
   }
   return {
-    id: `${kind}-${origin.tileId}-${target.tileId}-${hashString32(seed).toString(36)}`,
+    id: options.id || `${kind}-${origin.tileId}-${target.tileId}-${hashString32(seed).toString(36)}`,
     kind,
     stage: "outbound",
     originKey,
@@ -443,7 +468,7 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
       courtMatterId: options.courtMatterId,
       courtAuthorityFactionId: options.courtAuthorityFactionId
     } : {}),
-    dialogue: tradeAccessPolicy
+    dialogue: options.dialogue || (tradeAccessPolicy
       ? tradeAccessOpeningDialogueText(
           origin,
           target,
@@ -462,7 +487,31 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
           targetRuler,
           options
         )
+    )
   };
+}
+
+function buildTreatyOfMadridQuest(plan, context) {
+  const period = passengerRollPeriod(context.simMinute);
+  const quest = buildEnvoyQuest(
+    plan.origin,
+    plan.destination,
+    "friendly-envoy",
+    plan.distanceKm,
+    period,
+    context.simMinute ?? 0,
+    {
+      id: TREATY_OF_MADRID_MISSION_ID,
+      reward: plan.reward,
+      dialogue: plan.dialogue
+    }
+  );
+  quest.treatyOfMadridMissionId = TREATY_OF_MADRID_MISSION_ID;
+  quest.treatyOfMadridSide = plan.side;
+  quest.passengerRoleLabel = plan.roleLabel;
+  quest.envoyCount = plan.envoyCount;
+  attachEnvoyCharacter(quest, plan.origin, plan.destination, context);
+  return quest;
 }
 
 function diplomaticEnvoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler, options) {
@@ -662,6 +711,8 @@ export function isHajjPassengerQuest(quest) {
 
 export function passengerRoleLabel(quest) {
   if (isEastAsianMissionQuest(quest)) return quest.passengerRoleLabel;
+  if (isTreatyOfMadridQuest(quest)) return quest.passengerRoleLabel;
+  if (isEnvoyQuest(quest)) return "envoy";
   if (isHajjPassengerQuest(quest)) return "pilgrim";
   return religiousMissionRoleLabel(quest) || "passenger";
 }

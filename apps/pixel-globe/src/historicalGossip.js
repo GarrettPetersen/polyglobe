@@ -292,6 +292,20 @@ export function recentHistoricalGossipForPort(city, simMinute, worldState) {
   return null;
 }
 
+export function historicalEventOccurred(eventId, simMinute, worldState) {
+  if (typeof eventId !== "string" || eventId.trim() === "") {
+    throw new Error("Historical event lookup requires an id");
+  }
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid historical event minute: ${simMinute}`);
+  }
+  const event = HISTORICAL_GOSSIP_EVENTS.find((candidate) => candidate.id === eventId);
+  if (!event) throw new Error(`Unknown historical event: ${eventId}`);
+  if (simMinute < event.fromMinute) return false;
+  validateHistoricalWorldState(worldState);
+  return historicalWorldRequirementsMet(event, worldState);
+}
+
 function historicalEvent({
   id,
   date,

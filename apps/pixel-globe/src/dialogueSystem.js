@@ -2735,7 +2735,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
     : questMemory.passengerActive ||
       (questMemory.active?.kind === "delivery" ? null : questMemory.active) ||
       null;
-  const roleLabel = isEnvoyQuest(quest) ? "envoy" : passengerRoleLabel(quest);
+  const roleLabel = passengerRoleLabel(quest);
   const speaker = `${passengerName(quest)}, ${roleLabel}`;
   const expressionId = questExpressionId(quest);
   if (session.journeyEvent) {
@@ -3120,7 +3120,9 @@ function passengerDialogueContentView(session, city, quest, gameState) {
     text: `${quest.dialogue?.offer || `I need passage to ${quest.destinationName}. I can pay ${quest.reward} db on arrival.`} Distance ${formatDistanceKm(quest.distanceKm)}.`,
     feedback: session.feedback,
     options: [
-      option(`${isEnvoyQuest(quest) ? "Carry envoy" : `Take ${roleLabel}`} to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
+      option(`${isEnvoyQuest(quest)
+        ? quest.envoyCount > 1 ? "Carry delegation" : "Carry envoy"
+        : `Take ${roleLabel}`} to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
         detail: formatDistanceKm(quest.distanceKm)
       }),
       option("Decline", { type: "open-port" })

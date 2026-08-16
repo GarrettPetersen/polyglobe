@@ -212,6 +212,12 @@ import {
   removeSiblingEastAsianOffers,
   validateMissionOutcome
 } from "./eastAsianQuestlines.js";
+import {
+  completeTreatyOfMadridMission,
+  isTreatyOfMadridQuest,
+  removeSiblingTreatyOfMadridOffers,
+  treatyOfMadridOfferStillValid
+} from "./treatyOfMadridMission.js";
 import { upgradeShoreBattery } from "./shoreBatteries.js";
 import {
   QUEST_ITINERARY_OPEN,
@@ -2789,7 +2795,13 @@ function travelerManifestCount(groups) {
 function activeQuestTravelerGroup(quest) {
   if (!quest) return null;
   if (quest.kind === "passenger") return Object.freeze({ kind: "passenger", count: 1 });
-  if (isEnvoyQuest(quest)) return Object.freeze({ kind: "envoy", count: 1 });
+  if (isEnvoyQuest(quest)) {
+    const count = quest.envoyCount ?? 1;
+    if (!Number.isInteger(count) || count <= 0) {
+      throw new Error(`Invalid envoy count: ${count}`);
+    }
+    return Object.freeze({ kind: "envoy", count });
+  }
   const count = quest.passengerCount ?? quest.passengers?.length ?? 0;
   if (!Number.isInteger(count) || count < 0) {
     throw new Error(`Invalid quest passenger count: ${count}`);
@@ -3842,7 +3854,9 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
   let events = [];
   let statusResolution = null;
   let tributeCargo = null;
-  if (isTributeEnvoyQuest(active)) {
+  if (isTreatyOfMadridQuest(active)) {
+    events = [];
+  } else if (isTributeEnvoyQuest(active)) {
     if (!tributeCargoHeld(state, active)) {
       throw new Error(`Sealed tribute cargo is missing for ${active.id}`);
     }
@@ -6072,6 +6086,7 @@ export function acceptQuest(state, quest, context = {}) {
     });
   }
   if (isEastAsianMissionQuest(quest)) removeSiblingEastAsianOffers(quests, quest);
+  if (isTreatyOfMadridQuest(quest)) removeSiblingTreatyOfMadridOffers(quests, quest);
   quests[passengerSlot ? "passengerActive" : "active"] = {
     ...quest,
     passenger,
@@ -6461,6 +6476,13 @@ export function completeQuest(state, city, context = {}) {
     }
     active.eastAsianResolution = applyEastAsianMissionConsequences(state, active, context);
   }
+  if (isTreatyOfMadridQuest(active) && !active.envoyWorldResolution) {
+    active.treatyOfMadridResolution = completeTreatyOfMadridMission(
+      state,
+      active,
+      context.simMinute ?? state.survival.lastMinute
+    );
+  }
   if (religiousMissionChallengesPapalAuthority(active)) {
     if (!active.itinerary) {
       recordProtestantMissionAuthority(
@@ -6523,7 +6545,9 @@ export function completeQuest(state, city, context = {}) {
       : active.kind === "passenger"
       ? "Passenger fare"
       : isEnvoyQuest(active)
-        ? "Diplomatic mission"
+        ? isTreatyOfMadridQuest(active)
+          ? "Treaty of Madrid mission"
+          : "Diplomatic mission"
         : isCaptureCommissionQuest(active)
           ? active.captureCommissionResolution
             ? `Recalled crown commission: ${active.targetName}`
@@ -7461,7 +7485,8 @@ function removeInvalidatedQuestOffers(state, portCities, events) {
     if (!isEnvoyQuest(offer)) return true;
     const origin = portsByTileId.get(offer.originTileId);
     const target = portsByTileId.get(offer.targetTileId);
-    return origin?.factionId === offer.originFactionId && target?.factionId === offer.targetFactionId;
+    return origin?.factionId === offer.originFactionId && target?.factionId === offer.targetFactionId &&
+      treatyOfMadridOfferStillValid(state, offer);
   }, "envoy-offer-invalidated", events);
   pruneOfferMap(quests.deliveryOffers, (offer) => {
     if (isTeaRaceQuest(offer)) {

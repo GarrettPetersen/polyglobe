@@ -1763,6 +1763,11 @@ import {
   pendingPassengerOfferForCity,
   travelMissionOfferForCity
 } from "./passengerMissions.js";
+import {
+  isTreatyOfMadridQuest,
+  treatyOfMadridJournalStep,
+  treatyOfMadridJournalTitle
+} from "./treatyOfMadridMission.js";
 import { questDestinationStops, questHasDestination } from "./questItinerary.js";
 import {
   isReligiousPassengerQuest,
@@ -22082,6 +22087,7 @@ function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
   if (!createOffer) return pendingPassengerOfferForCity(gameState, city);
   return travelMissionOfferForCity(gameState, city, playerAccessiblePortCities(), {
     simMinute: Math.floor(weatherClockMinutes),
+    historicalWorldState: historicalGossipWorldState(),
     relationBetween: currentDiplomacyBetween,
     sailingDistanceKm: sailingDistanceBetweenPorts,
     portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
@@ -38985,7 +38991,11 @@ function questJournalEntries() {
         : isEnvoyQuest(activeQuest)
           ? "quest.diplomacy"
           : "quest.mission";
-    const title = isTeaRaceQuest(activeQuest) ? "NEW TEA RACE" : uiText(titleKey);
+    const title = isTeaRaceQuest(activeQuest)
+      ? "NEW TEA RACE"
+      : isTreatyOfMadridQuest(activeQuest)
+        ? treatyOfMadridJournalTitle(activeQuest)
+        : uiText(titleKey);
     entries.push({
       id: `travel:${activeQuest.id}:${activeDestination.tileId}`,
       title,
@@ -38993,16 +39003,18 @@ function questJournalEntries() {
         ? activeQuest.teaRaceFirstRivalArrivalMinute === undefined
           ? "RACE TEN TEA CHESTS TO LONDON - FIRST PRIZE 10000 DB"
           : "FINISH THE TEA RUN TO LONDON - 2500 DB"
-        : isCaptureCommissionQuest(activeQuest)
-        ? activeQuest.stage === "return"
-          ? `REPORT THE CAPTURE AT ${activeQuest.originName.toUpperCase()}`
-          : `CAPTURE ${activeQuest.targetName.toUpperCase()} FOR ` +
-            activeQuest.originFactionName.toUpperCase()
-        : isWokouHuntQuest(activeQuest)
-          ? activeQuest.stage === "return"
-            ? `REPORT THE WOKOU'S DEFEAT AT ${activeQuest.originName.toUpperCase()}`
-            : `HUNT THE WOKOU NEAR ${activeQuest.patrolName.toUpperCase()}`
-          : uiText("quest.sailTo", { city: cityLabelText(activeDestination) }),
+        : isTreatyOfMadridQuest(activeQuest)
+          ? treatyOfMadridJournalStep(activeQuest)
+          : isCaptureCommissionQuest(activeQuest)
+            ? activeQuest.stage === "return"
+              ? `REPORT THE CAPTURE AT ${activeQuest.originName.toUpperCase()}`
+              : `CAPTURE ${activeQuest.targetName.toUpperCase()} FOR ` +
+                activeQuest.originFactionName.toUpperCase()
+            : isWokouHuntQuest(activeQuest)
+              ? activeQuest.stage === "return"
+                ? `REPORT THE WOKOU'S DEFEAT AT ${activeQuest.originName.toUpperCase()}`
+                : `HUNT THE WOKOU NEAR ${activeQuest.patrolName.toUpperCase()}`
+              : uiText("quest.sailTo", { city: cityLabelText(activeDestination) }),
       style: QUEST_NAVIGATION_STYLE
     });
   }
@@ -39733,6 +39745,7 @@ function colonizationNavigationReason(objective) {
 
 function navigationQuestReason(quest) {
   if (isTeaRaceQuest(quest)) return "NEW TEA RACE";
+  if (isTreatyOfMadridQuest(quest)) return "TREATY OF MADRID";
   if (isEnvoyQuest(quest)) return "DIPLOMATIC MISSION";
   if (isWokouHuntQuest(quest)) return quest.stage === "return" ? "REPORT WOKOU DEFEAT" : "WOKOU PATROL";
   if (isCaptureCommissionQuest(quest)) {
