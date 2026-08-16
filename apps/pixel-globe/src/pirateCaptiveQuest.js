@@ -36,6 +36,8 @@ export const PIRATE_CAPTIVE_EVENT_WARNING = "warning";
 export const PIRATE_CAPTIVE_EVENT_ESCAPE = "escape";
 
 export const PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND = "escaped-fake-captive";
+export const PIRATE_CAPTIVE_REVENGE_CHALLENGE =
+  "Remember me, captain? Thank you for the passage. I have brought a galleon to return the favor.";
 export const PIRATE_CAPTIVE_REVENGE_DELAY_MINUTES = 2 * 24 * 60;
 export const PIRATE_CAPTIVE_ESCAPE_CHECK_INTERVAL_MINUTES = 24 * 60;
 export const PIRATE_CAPTIVE_ESCAPE_CHANCE_PER_CHECK = 0.006;

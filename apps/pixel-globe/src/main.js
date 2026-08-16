@@ -548,6 +548,7 @@ import {
   removeNamedCrewMember
 } from "./namedCrew.js";
 import {
+  acceptPirateCaptiveQuest,
   activePirateCaptiveQuest,
   abandonEscapedPirateCaptiveQuest,
   confrontPirateCaptive,
@@ -576,6 +577,7 @@ import {
   PIRATE_CAPTIVE_EVENT_WARNING,
   PIRATE_CAPTIVE_KIND_FAKE_EVIL,
   PIRATE_CAPTIVE_KIND_FAKE_REFORMED,
+  PIRATE_CAPTIVE_REVENGE_CHALLENGE,
   PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND,
   PIRATE_CAPTIVE_STATE_ESCAPED
 } from "./pirateCaptiveQuest.js";
@@ -586,6 +588,7 @@ import {
 } from "./conditionalDialogueOptions.js";
 import { perkItemById } from "./perkItems.js";
 import {
+  acceptCastawayQuest,
   activeCastawayQuest,
   castawayRescueAppears,
   createCastawayQuest,
@@ -7259,7 +7262,7 @@ function ensureEscapedPirateCaptiveEncounter({ assignCaptain = true } = {}) {
         kind: PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND,
         questId: quest.id,
         forceAttack: true,
-        challenge: `Remember me, captain? Thank you for the passage. I have brought a galleon to return the favor.`
+        challenge: PIRATE_CAPTIVE_REVENGE_CHALLENGE
       }
     }, simMinute);
   }
@@ -10328,6 +10331,8 @@ function stageCaptureSequence() {
     stageCaptureLoadout(sequence);
   } else if (sequence.kind === "religion") {
     stageCaptureReligion(sequence);
+  } else if (sequence.kind === "companions") {
+    stageCaptureCompanions(sequence);
   } else {
     throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
   }
@@ -10386,6 +10391,7 @@ function updateCaptureDirectorFrame(nowMs) {
   else if (sequence.kind === "papal") updateCapturePapal(sequence);
   else if (sequence.kind === "loadout") updateCaptureLoadout(sequence);
   else if (sequence.kind === "religion") updateCaptureReligion(sequence);
+  else if (sequence.kind === "companions") updateCaptureCompanions(sequence);
   else throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
 
   if (!captureDirector.stopping && captureDirectorComplete(captureDirector)) {
@@ -10658,6 +10664,67 @@ function openCapturePortNode(cityName, nodeId) {
 }
 
 function updateCaptureSurvival(sequence) {
+  if (sequence.variant === "wine-emergency") {
+    if (captureCue("issue-wine", 0.8)) {
+      if (!openCrewAlertModal(wineEmergencyDialogue(), "concerned")) {
+        throw new Error("Wine emergency capture could not open the captain dialogue");
+      }
+      emitCaptureEvent("capture-beat", { action: "issue-wine-to-crew" });
+    }
+    if (captureCue("wine-day", 6.5)) {
+      closeRequiredCaptureAlert("wine-emergency-read");
+      if (!openCrewAlertModal(drunkenWineDialogue(1), "happy")) {
+        throw new Error("Wine emergency capture could not open the drunken captain dialogue");
+      }
+      emitCaptureEvent("capture-beat", { action: "crew-drinks-wine" });
+    }
+    if (captureCue("close-wine-day", 11.5)) {
+      closeRequiredCaptureAlert("wine-day-read");
+    }
+    return;
+  }
+  if (sequence.variant === "drunk-arrival") {
+    if (captureCue("open-drunk-arrival", 0.8)) {
+      const cityCall = capturePortCallByName(sequence.cityName);
+      dialogueState = createPortDialogueSession(cityCall, {
+        initialNodeId: "drunk-captain",
+        postDrunkNodeId: "greeting",
+        drunkVariant: 1,
+        admittedToPort: true
+      });
+      dialogueLayout = createDialogueLayoutState();
+      stopShipForDialogue();
+      ensureDialoguePortraitLoaded();
+      emitCaptureEvent("capture-beat", { action: "arrive-drunk", city: sequence.cityName });
+      dirty = true;
+    }
+    if (captureCue("factor-notices", 6.2)) {
+      captureChooseDialogueAction("node");
+      emitCaptureEvent("capture-beat", { action: "factor-notices-drunk-captain" });
+    }
+    if (captureCue("close-drunk-arrival", 13.8)) dismissCaptureOverlays();
+    return;
+  }
+  if (sequence.variant === "remembered-arrival") {
+    if (captureCue("open-remembered-arrival", 0.8)) {
+      const cityCall = capturePortCallByName(sequence.cityName);
+      dialogueState = createPortDialogueSession(cityCall, {
+        initialNodeId: "greeting",
+        drunkVariant: 1,
+        admittedToPort: true
+      });
+      dialogueLayout = createDialogueLayoutState();
+      stopShipForDialogue();
+      ensureDialoguePortraitLoaded();
+      emitCaptureEvent("capture-beat", {
+        action: "factor-remembers-drunk-arrival",
+        city: sequence.cityName
+      });
+      dirty = true;
+    }
+    if (captureCue("close-remembered-arrival", 10.5)) dismissCaptureOverlays();
+    return;
+  }
   if (sequence.variant === "lightning" || sequence.variant === "lightning-sinking") {
     if (captureCue("clear-warning", 0.8) && captainAlertModal) closeCaptainAlertModal();
     if (captureCue("lightning-strike", 1.7)) {
@@ -10961,6 +11028,163 @@ function updateCaptureReligion(sequence) {
     return;
   }
   throw new Error(`Unknown religion capture variant: ${sequence.variant}`);
+}
+
+function updateCaptureCompanions(sequence) {
+  const quest = captureDirector.companionQuest;
+  if (!quest) throw new Error(`Companions capture ${sequence.variant} has no staged quest`);
+
+  if (sequence.variant === "passenger-offer" || sequence.variant === "passenger-arrival") {
+    if (captureCue("open-passenger", 0.8)) {
+      const cityName = sequence.variant === "passenger-offer"
+        ? sequence.originCityName
+        : sequence.destinationCityName;
+      openPassengerDialogue(capturePortCallByName(cityName), quest);
+      emitCaptureEvent("capture-portrait", {
+        role: "passenger",
+        sourceId: quest.passenger.sourceId
+      });
+      emitCaptureEvent("capture-beat", {
+        action: sequence.variant,
+        origin: sequence.originCityName,
+        destination: sequence.destinationCityName
+      });
+    }
+    if (captureCue("resolve-passenger", 8.0)) {
+      captureChooseDialogueAction(
+        sequence.variant === "passenger-offer" ? "accept-passenger" : "complete-passenger"
+      );
+    }
+    return;
+  }
+
+  if (sequence.variant === "castaway-offer" || sequence.variant === "pirate-offer") {
+    if (captureCue("open-rescue-offer", 0.8)) {
+      dialogueState = createRescuedTravelerDialogueSession(quest, { phase: "offer" });
+      dialogueLayout = createDialogueLayoutState();
+      stopShipForDialogue();
+      ensureDialoguePortraitLoaded();
+      emitCaptureEvent("capture-portrait", {
+        role: sequence.variant === "castaway-offer" ? "castaway" : "pirate-captive",
+        sourceId: quest.character.sourceId
+      });
+      emitCaptureEvent("capture-beat", { action: sequence.variant });
+      dirty = true;
+    }
+    if (captureCue("accept-rescue", 7.0)) {
+      captureChooseDialogueAction("accept-rescued-traveler");
+    }
+    if (captureCue("finish-rescue", 11.2)) {
+      captureChooseDialogueAction("finish-rescued-traveler-offer");
+    }
+    return;
+  }
+
+  if (sequence.variant === "castaway-reunion") {
+    if (captureCue("open-castaway-reunion", 0.8)) {
+      openCaptureRescuedTravelerHomecoming(quest);
+      emitCaptureEvent("capture-beat", { action: "castaway-family-reunion" });
+    }
+    for (const [cueId, atSeconds] of [
+      ["reunion-family", 4.5],
+      ["reunion-castaway", 8.2],
+      ["reunion-reward", 12.0]
+    ]) {
+      if (captureCue(cueId, atSeconds)) {
+        captureChooseDialogueAction("continue-rescued-traveler-homecoming");
+      }
+    }
+    return;
+  }
+
+  if (sequence.variant === "castaway-recruit") {
+    if (captureCue("open-lost-family", 0.8)) {
+      openCaptureRescuedTravelerHomecoming(quest);
+      emitCaptureEvent("capture-beat", { action: "castaway-lost-family" });
+    }
+    if (captureCue("ask-to-stay", 5.4)) {
+      captureChooseDialogueAction("continue-rescued-traveler-homecoming");
+    }
+    if (captureCue("welcome-aboard", 10.5)) {
+      captureChooseDialogueAction("recruit-rescued-traveler");
+      emitCaptureEvent("capture-beat", { action: "castaway-joins-crew" });
+    }
+    return;
+  }
+
+  if (sequence.variant === "pirate-escape") {
+    if (captureCue("pirate-betrays", 0.8)) {
+      resolvePirateCaptiveEscapeAtSea(quest, { mode: "ignored-warning" });
+      emitCaptureEvent("capture-beat", { action: "pirate-captive-betrays-captain" });
+    }
+    if (captureCue("pirate-escape-reply", 6.0)) {
+      closeRequiredCaptureAlert("pirate-betrayal-read");
+    }
+    if (captureCue("close-pirate-escape", 11.3)) {
+      closeRequiredCaptureAlert("pirate-escape-reply-read");
+    }
+    return;
+  }
+
+  if (sequence.variant === "pirate-revenge") {
+    const target = npcVisualShips.get(sequence.encounterId);
+    if (captureCue("revenge-challenge", 0.8)) {
+      if (!target) throw new Error("Companions revenge capture has no galleon in view");
+      if (!startCharacterAlertSequence([{
+        character: quest.character,
+        message: renderedUiText(PIRATE_CAPTIVE_REVENGE_CHALLENGE),
+        expressionId: "smug",
+        leftCharacter: gameState.playerCharacter,
+        rightCharacter: quest.character
+      }])) {
+        throw new Error("Companions revenge capture could not open the pirate challenge");
+      }
+      emitCaptureEvent("capture-beat", { action: "escaped-pirate-returns-in-galleon" });
+    }
+    if (captureCue("close-revenge-challenge", 5.8)) {
+      dismissCaptureOverlays();
+    }
+    if (captureCue("engage-revenge-galleon", 6.4)) {
+      if (!target) throw new Error("Companions revenge galleon disappeared before engagement");
+      forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, target.id);
+    }
+    if (captureCue("fire-on-revenge-galleon", 7.1)) {
+      if (!target) throw new Error("Companions revenge galleon disappeared before the broadside");
+      dismissCaptureOverlays();
+      aimCaptureBroadsideAt(target.vector, sequence.broadsideSide, sequence.encounterId);
+      const geometry = captureBroadsideGeometry(target.vector, sequence.broadsideSide);
+      assertCaptureBroadsideGeometry(geometry, sequence.encounterId);
+      if (!fireBroadside(sequence.broadsideSide)) {
+        throw new Error("Companions revenge capture could not fire its broadside");
+      }
+      emitCaptureEvent("capture-beat", {
+        action: "fire-on-revenge-galleon",
+        side: sequence.broadsideSide,
+        targetDistancePx: Math.round(geometry.distancePx * 10) / 10
+      });
+    }
+    return;
+  }
+
+  throw new Error(`Unknown companions capture variant: ${sequence.variant}`);
+}
+
+function openCaptureRescuedTravelerHomecoming(quest) {
+  const home = capturePortCallByName(quest.homePortName);
+  dialogueState = createRescuedTravelerDialogueSession(quest, {
+    phase: "homecoming",
+    cityTileId: home.tileId,
+    admittedToPort: true
+  });
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  emitCaptureEvent("capture-portrait", {
+    role: "rescued-traveler",
+    sourceId: quest.character.sourceId,
+    familySourceId: quest.familyMember?.sourceId || null
+  });
+  dirty = true;
 }
 
 function highlightCaptureLoadoutOption(loadoutId) {
@@ -11402,6 +11626,37 @@ function steerCapturePlayerIntoClearWater(tileId) {
 }
 
 function stageCaptureSurvival(sequence) {
+  if (sequence.variant === "wine-emergency") {
+    captureDirector.steeringTarget = normalize3([
+      ship.position[0] + ship.heading[0] * 0.25,
+      ship.position[1] + ship.heading[1] * 0.25,
+      ship.position[2] + ship.heading[2] * 0.25
+    ]);
+    gameState.survival.freshWater = 0;
+    gameState.survival.wineOnlyMinutes = WEATHER_MINUTES_PER_DAY;
+    gameState.survival.wineEmergencyActive = true;
+    gameState.cargo.wine = 12;
+    syncShipCargoFromGameState();
+    return;
+  }
+  if (sequence.variant === "drunk-arrival") {
+    const city = captureCityByName(sequence.cityName);
+    placeCapturePlayerNearTile(city.tileId);
+    stopShipMotion();
+    gameState.survival.wineOnlyMinutes = WEATHER_MINUTES_PER_DAY;
+    gameState.survival.wineEmergencyActive = true;
+    visitPort(gameState, city, Math.floor(weatherClockMinutes), { arrivedDrunk: true });
+    return;
+  }
+  if (sequence.variant === "remembered-arrival") {
+    const cityCall = capturePortCallByName(sequence.cityName);
+    placeCapturePlayerNearTile(cityCall.tileId);
+    stopShipMotion();
+    const simMinute = Math.floor(weatherClockMinutes);
+    visitPort(gameState, cityCall, simMinute - 2 * WEATHER_MINUTES_PER_DAY, { arrivedDrunk: true });
+    visitPort(gameState, cityCall, simMinute, { arrivedDrunk: false });
+    return;
+  }
   if (sequence.variant === "lightning" || sequence.variant === "lightning-sinking") {
     captureDirector.steeringTarget = normalize3([
       ship.position[0] + ship.heading[0] * 0.1,
@@ -11616,6 +11871,142 @@ function stageCaptureReligion(sequence) {
   }
   placeCapturePlayerNearTile(city.tileId);
   stopShipMotion();
+}
+
+function stageCaptureCompanions(sequence) {
+  if (sequence.variant === "passenger-offer" || sequence.variant === "passenger-arrival") {
+    const origin = captureCityByName(sequence.originCityName);
+    const destination = captureCityByName(sequence.destinationCityName);
+    const quest = passengerOfferForCity(
+      gameState,
+      origin,
+      playerAccessiblePortCities(),
+      {
+        destinationTileId: destination.tileId,
+        spawnChance: 1,
+        simMinute: Math.floor(weatherClockMinutes),
+        sailingDistanceKm: sailingDistanceBetweenPorts,
+        createCharacter: createPassengerCharacterForQuest
+      }
+    );
+    if (!quest || quest.destinationTileId !== destination.tileId) {
+      throw new Error(
+        `Companions capture could not create ${sequence.originCityName} to ` +
+        `${sequence.destinationCityName} passenger mission`
+      );
+    }
+    captureDirector.companionQuest = quest;
+    if (sequence.variant === "passenger-arrival") {
+      acceptQuest(gameState, quest, { simMinute: Math.floor(weatherClockMinutes) });
+      placeCapturePlayerNearTile(destination.tileId);
+    } else {
+      placeCapturePlayerNearTile(origin.tileId);
+    }
+    stopShipMotion();
+    return;
+  }
+
+  const home = captureCityByName(sequence.homeCityName);
+  if (sequence.variant.startsWith("castaway-")) {
+    const identityKey = `companions-${sequence.variant}`;
+    const familySurvived = sequence.variant !== "castaway-recruit";
+    const castaway = generateCastawayCharacter({
+      identityKey,
+      homePort: home,
+      excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+      manifest: characterPortraitManifest,
+      usedNames: usedCharacterNames
+    });
+    const familyMember = familySurvived
+      ? generateCastawayFamilyMember({
+          identityKey,
+          castaway,
+          homePort: home,
+          excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+          manifest: characterPortraitManifest,
+          usedNames: usedCharacterNames
+        })
+      : null;
+    const memory = gameState.memory.quests.castaway;
+    const quest = createCastawayQuest(memory, {
+      shoreId: identityKey,
+      homePort: home,
+      character: castaway,
+      familyMember,
+      distanceKm: 2200,
+      familySurvivedRoll: familySurvived ? 0.25 : 0.75,
+      emergencyAid: null
+    });
+    if (!quest) throw new Error(`Companions capture could not create ${sequence.variant}`);
+    captureDirector.companionQuest = quest;
+    if (sequence.variant === "castaway-offer") {
+      stopShipMotion();
+      return;
+    }
+    acceptCastawayQuest(memory, quest.id);
+    const rewardItem = familySurvived
+      ? prepareHighValueMissionPerkItem(gameState, home, quest.id)
+      : null;
+    prepareRescuedTravelerHomecoming(memory, quest.id, rewardItem);
+    placeCapturePlayerNearTile(home.tileId);
+    stopShipMotion();
+    return;
+  }
+
+  const wantedPort = captureCityByName(sequence.wantedCityName);
+  const sourceId = "companions-pirate-ship";
+  const captive = generatePirateCaptiveCharacter({
+    identityKey: sourceId,
+    homePort: home,
+    excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  const memory = gameState.memory.quests.pirateCaptive;
+  const quest = createPirateCaptiveQuest(memory, {
+    pirateShipId: sourceId,
+    sourceTileId: ship.tileId,
+    homePort: home,
+    wantedPort,
+    character: captive,
+    familyMember: null,
+    distanceKm: 2200,
+    familySurvivedRoll: 0.75,
+    captiveKindRoll: 0.05
+  });
+  if (!quest) throw new Error(`Companions capture could not create ${sequence.variant}`);
+  captureDirector.companionQuest = quest;
+  if (sequence.variant === "pirate-offer") {
+    stopShipMotion();
+    return;
+  }
+
+  acceptPirateCaptiveQuest(memory, quest.id);
+  warnPirateCaptive(quest, gameState.playerCharacter.id);
+  ignorePirateCaptiveWarning(quest);
+  if (sequence.variant === "pirate-escape") {
+    stageCaptureSailing({ beamSide: "starboard" });
+    return;
+  }
+  if (sequence.variant === "pirate-revenge") {
+    const escapedAtMinute = Math.max(
+      0,
+      Math.floor(weatherClockMinutes) - 2 * WEATHER_MINUTES_PER_DAY
+    );
+    recordPirateCaptiveEscape(quest, {
+      currentMinute: escapedAtMinute,
+      escapeOriginPortTileId: home.tileId
+    });
+    if (quest.deception.revengeShipId !== sequence.encounterId) {
+      throw new Error(
+        `Companions revenge ship mismatch: ${quest.deception.revengeShipId}/${sequence.encounterId}`
+      );
+    }
+    npcShipCaptains.set(sequence.encounterId, quest.character);
+    stageCaptureFight(sequence);
+    return;
+  }
+  throw new Error(`Unknown companions capture staging variant: ${sequence.variant}`);
 }
 
 function stageCapturePandaAboard() {

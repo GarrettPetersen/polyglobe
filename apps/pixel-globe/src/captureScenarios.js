@@ -61,6 +61,31 @@ const COLONY_SHORT_SCENE_DEFENSE = "Defend Rio de Janeiro from War Canoes";
 const COLONY_SHORT_SCENE_CITY = "Manila Becomes a Permanent City";
 const LOADOUT_SHORT_CAPTAIN_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
 const LOADOUT_SHORT_PORT = "Lisbon";
+const TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
+const TRADE_GOODS_SHORT_FACTOR_SOURCE_ID = TRAILER_TERNATE_FACTOR_SOURCE_ID;
+const TRADE_GOODS_SHORT_ALEXANDRIA = "Alexandria";
+const TRADE_GOODS_SHORT_BORDEAUX = COLONY_SHORT_BORDEAUX;
+const TRADE_GOODS_SHORT_TITLE_GRAIN = "The Crew Can Eat Trade Grain";
+const TRADE_GOODS_SHORT_TITLE_WINE = "Wine Is a Drinkable Trade Good";
+const TRADE_GOODS_SHORT_TITLE_RIVER = "Fishing a River";
+const TRADE_GOODS_SHORT_TITLE_LAKE = "Fishing a Lake";
+const TRADE_GOODS_SHORT_TITLE_EMERGENCY = "The Water Casks Are Dry";
+const TRADE_GOODS_SHORT_TITLE_DRUNK = "The Factor Notices a Drunk Arrival";
+const TRADE_GOODS_SHORT_TITLE_REMEMBERED = "The Factor Remembers Last Time";
+const COMPANIONS_SHORT_CAPTAIN_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
+const COMPANIONS_SHORT_LONDON = "London";
+const COMPANIONS_SHORT_HOME = "Lisbon";
+const COMPANIONS_SHORT_WANTED_PORT = "Seville";
+const COMPANIONS_SHORT_REVENGE_SHIP_ID =
+  "companions-pirate-ship:false-captive-revenge:1";
+const COMPANIONS_SHORT_SCENE_PASSENGER = "Take a Passenger from London to Lisbon";
+const COMPANIONS_SHORT_TITLE_PASSENGER_ARRIVAL = "Deliver a Passenger to Lisbon";
+const COMPANIONS_SHORT_SCENE_CASTAWAY = "Find a Castaway at a Remote Shore";
+const COMPANIONS_SHORT_TITLE_CASTAWAY_REUNION = "Reunite a Castaway with Family";
+const COMPANIONS_SHORT_TITLE_CASTAWAY_RECRUIT = "A Castaway Joins the Crew";
+const COMPANIONS_SHORT_SCENE_CAPTIVE = "Rescue a Captive from a Pirate Ship";
+const COMPANIONS_SHORT_TITLE_PIRATE_ESCAPE = "The Pirate Captive Escapes";
+const COMPANIONS_SHORT_TITLE_PIRATE_REVENGE = "The Escaped Pirate Returns in a Galleon";
 const RELIGION_SHORT_EUROPEAN_CAPTAIN_SOURCE_ID =
   "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait";
 const RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID =
@@ -945,6 +970,227 @@ const CAPTURE_SCENARIOS = Object.freeze({
       cityName: LOADOUT_SHORT_PORT
     })
   }),
+  "short-trade-goods-grain": trailerScenario({
+    id: "short-trade-goods-grain",
+    title: TRADE_GOODS_SHORT_TITLE_GRAIN,
+    seed: "short-trade-goods-grain-v1",
+    player: capturePlayer("ottoman", "felucca", 31.2, 29.91, 180, {
+      characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
+      homeCityName: RELIGION_SHORT_CITY_THESSALONIKI
+    }),
+    world: captureWorld(196, 14, 5),
+    sequence: trailerSequence("trade", "sell", {
+      durationSeconds: 9,
+      cityName: TRADE_GOODS_SHORT_ALEXANDRIA,
+      goodId: "grain",
+      transactionCount: 3,
+      factorPortraitSourceId: TRADE_GOODS_SHORT_FACTOR_SOURCE_ID
+    })
+  }),
+  "short-trade-goods-wine": trailerScenario({
+    id: "short-trade-goods-wine",
+    title: TRADE_GOODS_SHORT_TITLE_WINE,
+    seed: "short-trade-goods-wine-v1",
+    player: capturePlayer("france", "brigantine", 45.7, -1.1, 90, {
+      characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: TRADE_GOODS_SHORT_BORDEAUX
+    }),
+    world: captureWorld(196, 15, 20),
+    sequence: trailerSequence("trade", "sell", {
+      durationSeconds: 9,
+      cityName: TRADE_GOODS_SHORT_BORDEAUX,
+      goodId: "wine",
+      transactionCount: 3,
+      factorPortraitSourceId: TRADE_GOODS_SHORT_FACTOR_SOURCE_ID
+    })
+  }),
+  "short-trade-goods-river-fishing": trailerScenario({
+    id: "short-trade-goods-river-fishing",
+    title: TRADE_GOODS_SHORT_TITLE_RIVER,
+    seed: "short-trade-goods-river-fishing-v1",
+    player: capturePlayer("neutral", "mesoamerican-dugout-canoe", 48, -123, 25),
+    world: captureWorld(280, 11, 15),
+    sequence: trailerSequence("fish", "river", { durationSeconds: 10 })
+  }),
+  "short-trade-goods-lake-fishing": trailerScenario({
+    id: "short-trade-goods-lake-fishing",
+    title: TRADE_GOODS_SHORT_TITLE_LAKE,
+    seed: "short-trade-goods-lake-fishing-v1",
+    player: capturePlayer("neutral", "mesoamerican-dugout-canoe", 45, -84, 210),
+    world: captureWorld(196, 12, 10),
+    sequence: trailerSequence("fish", "lake", { durationSeconds: 10 })
+  }),
+  "short-trade-goods-wine-emergency": trailerScenario({
+    id: "short-trade-goods-wine-emergency",
+    title: TRADE_GOODS_SHORT_TITLE_EMERGENCY,
+    seed: "short-trade-goods-wine-emergency-v1",
+    player: capturePlayer("portugal", "caravel", 33, -24, 90, {
+      characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: LOADOUT_SHORT_PORT
+    }),
+    world: captureWorld(210, 13, 20),
+    sequence: trailerSequence("survive", "wine-emergency", { durationSeconds: 13 })
+  }),
+  "short-trade-goods-drunk-arrival": trailerScenario({
+    id: "short-trade-goods-drunk-arrival",
+    title: TRADE_GOODS_SHORT_TITLE_DRUNK,
+    seed: "short-trade-goods-drunk-arrival-v1",
+    player: capturePlayer("france", "brigantine", 45.7, -1.1, 90, {
+      characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: TRADE_GOODS_SHORT_BORDEAUX
+    }),
+    world: captureWorld(210, 15, 10),
+    sequence: trailerSequence("survive", "drunk-arrival", {
+      durationSeconds: 16,
+      cityName: TRADE_GOODS_SHORT_BORDEAUX
+    })
+  }),
+  "short-trade-goods-remembered-arrival": trailerScenario({
+    id: "short-trade-goods-remembered-arrival",
+    title: TRADE_GOODS_SHORT_TITLE_REMEMBERED,
+    seed: "short-trade-goods-remembered-arrival-v1",
+    player: capturePlayer("france", "brigantine", 45.7, -1.1, 90, {
+      characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: TRADE_GOODS_SHORT_BORDEAUX
+    }),
+    world: captureWorld(214, 12, 10),
+    sequence: trailerSequence("survive", "remembered-arrival", {
+      durationSeconds: 12,
+      cityName: TRADE_GOODS_SHORT_BORDEAUX
+    })
+  }),
+  "short-companions-passenger-offer": trailerScenario({
+    id: "short-companions-passenger-offer",
+    title: COMPANIONS_SHORT_SCENE_PASSENGER,
+    seed: "short-companions-passenger-offer-v1",
+    player: capturePlayer("england", "brigantine", 51.5, 0.1, 90, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_LONDON
+    }),
+    world: captureWorld(196, 11, 20),
+    sequence: trailerSequence("companions", "passenger-offer", {
+      durationSeconds: 12,
+      originCityName: COMPANIONS_SHORT_LONDON,
+      destinationCityName: COMPANIONS_SHORT_HOME
+    })
+  }),
+  "short-companions-passenger-arrival": trailerScenario({
+    id: "short-companions-passenger-arrival",
+    title: COMPANIONS_SHORT_TITLE_PASSENGER_ARRIVAL,
+    seed: "short-companions-passenger-arrival-v1",
+    player: capturePlayer("england", "brigantine", 49.3, 0.2, 180, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_LONDON
+    }),
+    world: captureWorld(198, 15, 10),
+    sequence: trailerSequence("companions", "passenger-arrival", {
+      durationSeconds: 12,
+      originCityName: COMPANIONS_SHORT_LONDON,
+      destinationCityName: COMPANIONS_SHORT_HOME
+    })
+  }),
+  "short-companions-castaway-offer": trailerScenario({
+    id: "short-companions-castaway-offer",
+    title: COMPANIONS_SHORT_SCENE_CASTAWAY,
+    seed: "short-companions-castaway-offer-v1",
+    player: capturePlayer("portugal", "caravel", 46.8, -53.2, 225, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_HOME
+    }),
+    world: captureWorld(196, 13, 20),
+    sequence: trailerSequence("companions", "castaway-offer", {
+      durationSeconds: 13,
+      homeCityName: COMPANIONS_SHORT_HOME
+    })
+  }),
+  "short-companions-castaway-reunion": trailerScenario({
+    id: "short-companions-castaway-reunion",
+    title: COMPANIONS_SHORT_TITLE_CASTAWAY_REUNION,
+    seed: "short-companions-castaway-reunion-v1",
+    player: capturePlayer("portugal", "caravel", 38.72, -9.14, 45, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_HOME
+    }),
+    world: captureWorld(202, 15, 20),
+    sequence: trailerSequence("companions", "castaway-reunion", {
+      durationSeconds: 19,
+      homeCityName: COMPANIONS_SHORT_HOME
+    })
+  }),
+  "short-companions-castaway-recruit": trailerScenario({
+    id: "short-companions-castaway-recruit",
+    title: COMPANIONS_SHORT_TITLE_CASTAWAY_RECRUIT,
+    seed: "short-companions-castaway-recruit-v1",
+    player: capturePlayer("portugal", "caravel", 38.72, -9.14, 45, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_HOME
+    }),
+    world: captureWorld(205, 16, 10),
+    sequence: trailerSequence("companions", "castaway-recruit", {
+      durationSeconds: 15,
+      homeCityName: COMPANIONS_SHORT_HOME
+    })
+  }),
+  "short-companions-pirate-offer": trailerScenario({
+    id: "short-companions-pirate-offer",
+    title: COMPANIONS_SHORT_SCENE_CAPTIVE,
+    seed: "short-companions-pirate-offer-v1",
+    player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29, 90, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_HOME
+    }),
+    world: captureWorld(205, 14, 10),
+    sequence: trailerSequence("companions", "pirate-offer", {
+      durationSeconds: 13,
+      homeCityName: COMPANIONS_SHORT_HOME,
+      wantedCityName: COMPANIONS_SHORT_WANTED_PORT
+    })
+  }),
+  "short-companions-pirate-escape": trailerScenario({
+    id: "short-companions-pirate-escape",
+    title: COMPANIONS_SHORT_TITLE_PIRATE_ESCAPE,
+    seed: "short-companions-pirate-escape-v1",
+    player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29, 90, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_HOME
+    }),
+    world: captureWorld(206, 15, 10),
+    sequence: trailerSequence("companions", "pirate-escape", {
+      durationSeconds: 14,
+      homeCityName: COMPANIONS_SHORT_HOME,
+      wantedCityName: COMPANIONS_SHORT_WANTED_PORT
+    })
+  }),
+  "short-companions-pirate-revenge": trailerScenario({
+    id: "short-companions-pirate-revenge",
+    title: COMPANIONS_SHORT_TITLE_PIRATE_REVENGE,
+    seed: "short-companions-pirate-revenge-v1",
+    player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29, 90, {
+      characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: COMPANIONS_SHORT_HOME
+    }),
+    world: captureWorld(209, 16, 10),
+    encounters: [
+      {
+        ...captureEncounter(
+          COMPANIONS_SHORT_REVENGE_SHIP_ID,
+          "pirate",
+          "galleon",
+          35.7,
+          -27.62,
+          90
+        ),
+        role: "pirate"
+      }
+    ],
+    sequence: trailerSequence("companions", "pirate-revenge", {
+      durationSeconds: 15,
+      homeCityName: COMPANIONS_SHORT_HOME,
+      wantedCityName: COMPANIONS_SHORT_WANTED_PORT,
+      encounterId: COMPANIONS_SHORT_REVENGE_SHIP_ID,
+      broadsideSide: "starboard"
+    })
+  }),
   "short-religion-portuguese-profile": trailerScenario({
     id: "short-religion-portuguese-profile",
     title: RELIGION_SHORT_TITLE_CATHOLIC,
@@ -1370,7 +1616,7 @@ export function validateCaptureScenario(value) {
 
 function validateCaptureSequence(value) {
   if (!value || typeof value !== "object") throw new Error("Capture sequence must be an object");
-  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal", "loadout", "religion"].includes(value.kind)) {
+  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal", "loadout", "religion", "companions"].includes(value.kind)) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
@@ -1388,7 +1634,8 @@ function validateCaptureSequence(value) {
     panda: [],
     papal: ["cityName"],
     loadout: ["cityName"],
-    religion: ["cityName"]
+    religion: ["cityName"],
+    companions: []
   };
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
   if (value.kind === "trade") {
@@ -1398,19 +1645,23 @@ function validateCaptureSequence(value) {
   if (value.factorPortraitSourceId !== undefined && value.kind !== "trade") {
     throw new Error("Capture factor portrait source requires a trade sequence");
   }
-  if (value.kind === "fight" || (value.kind === "pillage" && value.variant === "bombard")) {
+  if (value.kind === "fight" || (value.kind === "pillage" && value.variant === "bombard") ||
+      (value.kind === "companions" && value.variant === "pirate-revenge")) {
     if (!["port", "starboard"].includes(value.broadsideSide)) {
       throw new Error(`Invalid capture sequence broadside side: ${value.broadsideSide}`);
     }
   } else if (value.broadsideSide !== undefined) {
-    throw new Error("Capture broadside side requires a fight or bombardment sequence");
+    throw new Error("Capture broadside side requires a fight, bombardment, or revenge sequence");
   }
   if (value.kind === "sail" && !["port", "starboard"].includes(value.beamSide)) {
     throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
   }
   if (value.kind === "survive" &&
-      !["lightning", "lightning-sinking", "dehydration", "deprivation-death", "overboard-rescue"].includes(value.variant)) {
+      !["lightning", "lightning-sinking", "dehydration", "deprivation-death", "overboard-rescue", "wine-emergency", "drunk-arrival", "remembered-arrival"].includes(value.variant)) {
     throw new Error(`Invalid survival capture variant: ${value.variant}`);
+  }
+  if (value.kind === "survive" && ["drunk-arrival", "remembered-arrival"].includes(value.variant)) {
+    requiredString(value.cityName, "drunk arrival capture city name");
   }
   if (value.kind === "loadout" && !["presets", "custom"].includes(value.variant)) {
     throw new Error(`Invalid loadout capture variant: ${value.variant}`);
@@ -1425,6 +1676,36 @@ function validateCaptureSequence(value) {
     }
     if (value.variant === "mission") {
       requiredString(value.religiousMissionId, "religion capture mission id");
+    }
+  }
+  if (value.kind === "companions") {
+    const variants = [
+      "passenger-offer",
+      "passenger-arrival",
+      "castaway-offer",
+      "castaway-reunion",
+      "castaway-recruit",
+      "pirate-offer",
+      "pirate-escape",
+      "pirate-revenge"
+    ];
+    if (!variants.includes(value.variant)) {
+      throw new Error(`Invalid companions capture variant: ${value.variant}`);
+    }
+    if (value.variant.startsWith("passenger-")) {
+      requiredString(value.originCityName, "companions capture passenger origin city name");
+      requiredString(value.destinationCityName, "companions capture passenger destination city name");
+    } else {
+      requiredString(value.homeCityName, "companions capture home city name");
+    }
+    if (value.variant.startsWith("pirate-")) {
+      requiredString(value.wantedCityName, "companions capture wanted city name");
+    }
+    if (value.variant === "pirate-revenge") {
+      requiredString(value.encounterId, "companions capture revenge ship id");
+      if (!["port", "starboard"].includes(value.broadsideSide)) {
+        throw new Error(`Invalid companions capture broadside side: ${value.broadsideSide}`);
+      }
     }
   }
   if (value.kind === "panda") {

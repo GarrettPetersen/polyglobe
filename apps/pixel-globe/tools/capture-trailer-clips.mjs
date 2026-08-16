@@ -668,8 +668,12 @@ function captureSequenceMustBeSilent(sequence) {
 function captureSequenceAllowsSilence(sequence) {
   return captureSequenceMustBeSilent(sequence) || (
     sequence.kind === "panda" && ["sail", "port-reaction", "naturalist"].includes(sequence.variant)
+  ) || (
+    sequence.kind === "survive" &&
+      ["wine-emergency", "drunk-arrival", "remembered-arrival"].includes(sequence.variant)
   ) || sequence.kind === "papal" || sequence.kind === "colonize" ||
-    sequence.kind === "loadout" || sequence.kind === "religion";
+    sequence.kind === "loadout" || sequence.kind === "religion" ||
+    sequence.kind === "companions";
 }
 
 function parseArgs(argv) {
