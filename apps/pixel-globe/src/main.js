@@ -1832,8 +1832,8 @@ import {
 } from "./chartReframeDialogue.js";
 import {
   CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX,
+  chartFaultCanRelyOnSwell,
   chartFaultNeedsCloudRepair,
-  chartRotationNeedsFullCloudRepair,
   measureVisibleTerrainTear,
   terrainTearNeedsRepair
 } from "./chartVisualFault.js";
@@ -23361,10 +23361,11 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   );
   const distortionSurface = chartSurfaceAtScreenPoint(chartWorstDistortionPoint);
   const fullyElasticOpenOcean = chartViewportIsFullyElasticOpenOcean();
-  const swellRepairAvailable = fullyElasticOpenOcean || (
-    !chartRotationNeedsFullCloudRepair(drift) &&
-    chartFaultCanUseOceanSwell(drift, terrainTear)
-  );
+  const swellRepairAvailable = chartFaultCanRelyOnSwell({
+    drift,
+    fullyElasticOpenOcean,
+    localWaterFault: chartFaultHasLocalElasticWaterTarget(terrainTear)
+  });
   if (
     swellRepairAvailable &&
     chartFaultNeedsCloudRepair({ drift, terrainTear })
@@ -24081,15 +24082,16 @@ function currentChartVisualFaultNeedsRepair() {
     distortionPoint: chartWorstDistortionPoint,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
-    swellRepairAvailable: fullyElasticOpenOcean || (
-      !chartRotationNeedsFullCloudRepair(chartNorthUpDrift) &&
-      chartFaultCanUseOceanSwell(chartNorthUpDrift, terrainTear)
-    ),
+    swellRepairAvailable: chartFaultCanRelyOnSwell({
+      drift: chartNorthUpDrift,
+      fullyElasticOpenOcean,
+      localWaterFault: chartFaultHasLocalElasticWaterTarget(terrainTear)
+    }),
     distortionSurface: chartSurfaceAtScreenPoint(chartWorstDistortionPoint)
   }).kind !== "none";
 }
 
-function chartFaultCanUseOceanSwell(drift, terrainTear) {
+function chartFaultHasLocalElasticWaterTarget(terrainTear) {
   if (
     !chart || !localLayout ||
     (terrainTearNeedsRepair(terrainTear) && terrainTear.surface !== "water")

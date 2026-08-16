@@ -100,6 +100,19 @@ export function chartFaultNeedsCloudRepair({ drift, terrainTear }) {
   return chartDriftNeedsCloudRepair(drift) || terrainTearNeedsRepair(terrainTear);
 }
 
+export function chartFaultCanRelyOnSwell({
+  drift,
+  fullyElasticOpenOcean,
+  localWaterFault
+}) {
+  if (!drift || typeof fullyElasticOpenOcean !== "boolean" ||
+      typeof localWaterFault !== "boolean") {
+    throw new Error("Chart swell repair policy requires drift and explicit water states");
+  }
+  if (fullyElasticOpenOcean) return true;
+  return localWaterFault && !chartDriftNeedsCloudRepair(drift);
+}
+
 export function chartDriftNeedsCloudRepair(drift) {
   if (!drift) throw new Error("Chart drift repair requires drift metrics");
   return chartRotationNeedsFullCloudRepair(drift) || chartDistortionNeedsRepair(drift);

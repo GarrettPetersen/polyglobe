@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX,
   CHART_CLOUD_REPAIR_RMS_PX,
+  chartFaultCanRelyOnSwell,
   chartDriftNeedsCloudRepair,
   chartDistortionNeedsRepair,
   chartFaultNeedsCloudRepair,
@@ -113,6 +114,29 @@ test("large tilt, distortion, or visible tear requests cloud repair", () => {
     terrainTear: { extraPx: CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX }
   }), true);
   assert.equal(terrainTearNeedsRepair({ extraPx: CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX }), true);
+});
+
+test("a local water swell cannot claim broad archipelago distortion", () => {
+  const aleutianDistortion = {
+    rotationDeg: 0.39,
+    rmsDistortionPx: 24.42,
+    maxDistortionPx: 32.96
+  };
+  assert.equal(chartFaultCanRelyOnSwell({
+    drift: aleutianDistortion,
+    fullyElasticOpenOcean: false,
+    localWaterFault: true
+  }), false);
+  assert.equal(chartFaultCanRelyOnSwell({
+    drift: aleutianDistortion,
+    fullyElasticOpenOcean: true,
+    localWaterFault: true
+  }), true);
+  assert.equal(chartFaultCanRelyOnSwell({
+    drift: { rotationDeg: 0, rmsDistortionPx: 0, maxDistortionPx: 0 },
+    fullyElasticOpenOcean: false,
+    localWaterFault: true
+  }), true);
 });
 
 function tile(id, x, y, projectedX, projectedY, surface) {
