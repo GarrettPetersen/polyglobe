@@ -2243,7 +2243,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       const maximumStepPxById = new Map(
         [...polarFogRepair.concealed].map((id) => [
           id,
-          polarFogRepair.dense.has(id) ? 4 : 1
+          polarFogRepair.dense.has(id) ? Number.POSITIVE_INFINITY : 1
         ])
       );
       const repair = settleTraversalTilesTowardNorthUp({
@@ -2286,26 +2286,28 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       viewX,
       viewY
     });
-    const visualRepairSelection = recordTraversalRepairDemand(repairDemand, {
-      drift: {
-        rotationDeg: visualRepairFrame.rotationDeg,
-        rmsDistortionPx: visualRepairFrame.rmsError,
-        maxDistortionPx: visualRepairFrame.maxErrorPx
-      },
-      terrainTear: visualRepairTear,
-      distortionPoint: traversalScreenPosition(
-        visualRepairVisiblePositions.get(visualRepairFrame.maxErrorTileId),
-        viewX,
-        viewY
-      ),
-      distortionSurface: terrainClassByTileId[visualRepairFrame.maxErrorTileId],
-      swellRepairAvailable: viewportIsFullyElasticWater || (
-        !chartRotationNeedsFullCloudRepair(visualRepairFrame) &&
-        visualRepairTear.surface === "water" &&
-        visualRepairTear.tileIds.every((id) => protectionById[id] === 0)
-      ),
-      elasticTileCount: support.elasticTileIds.size
-    });
+    const visualRepairSelection = concealedRepairIds.size > 0
+      ? { kind: "none", repair: null }
+      : recordTraversalRepairDemand(repairDemand, {
+        drift: {
+          rotationDeg: visualRepairFrame.rotationDeg,
+          rmsDistortionPx: visualRepairFrame.rmsError,
+          maxDistortionPx: visualRepairFrame.maxErrorPx
+        },
+        terrainTear: visualRepairTear,
+        distortionPoint: traversalScreenPosition(
+          visualRepairVisiblePositions.get(visualRepairFrame.maxErrorTileId),
+          viewX,
+          viewY
+        ),
+        distortionSurface: terrainClassByTileId[visualRepairFrame.maxErrorTileId],
+        swellRepairAvailable: viewportIsFullyElasticWater || (
+          !chartRotationNeedsFullCloudRepair(visualRepairFrame) &&
+          visualRepairTear.surface === "water" &&
+          visualRepairTear.tileIds.every((id) => protectionById[id] === 0)
+        ),
+        elasticTileCount: support.elasticTileIds.size
+      });
     if (applyVisualRepairs && visualRepairSelection.kind !== "none") {
       const movedTileIds = applyTraversalVisualRepair({
         kind: visualRepairSelection.kind,

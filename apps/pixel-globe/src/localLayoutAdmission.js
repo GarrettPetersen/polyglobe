@@ -1069,6 +1069,7 @@ export function admitProjectedTiles({
       pendingIds: pending,
       neighborsById,
       continuityMaskById,
+      registeredFrame,
       defaultMaximumSlackPx: maxContinuityCorrectionPx,
       maximumSlackPxByClass: continuityCorrectionLimitsByClass
     });
@@ -1083,6 +1084,7 @@ function settlePendingContinuityEdgeLengths({
   pendingIds,
   neighborsById,
   continuityMaskById,
+  registeredFrame,
   defaultMaximumSlackPx,
   maximumSlackPxByClass
 }) {
@@ -1098,7 +1100,10 @@ function settlePendingContinuityEdgeLengths({
     }
   }
   const referencePositions = new Map(
-    [...topologyIds].map((id) => [id, projectedById.get(id)])
+    [...topologyIds].map((id) => [
+      id,
+      registeredPoint(projectedById.get(id), registeredFrame)
+    ])
   );
   const targetsById = new Map(
     [...pendingSet].map((id) => [id, positions.get(id)])

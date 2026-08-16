@@ -2419,7 +2419,7 @@ const CHART_REPAIR_WEATHER_COOLDOWN_MS = 120_000;
 const CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS = 120;
 const CHART_REPAIR_CLOUD_SPEED_SCALE = 0.22;
 const CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND = 7;
-const CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS = 240;
+const CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS = 600;
 const CHART_REPAIR_HEAT_HAZE_TILE_SCAN_INTERVAL_MS = 900;
 const CHART_REPAIR_TILE_VISUAL_RADIUS_PX = TILE_ART_HALF + 3;
 const CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS = new Map([
@@ -3647,6 +3647,13 @@ let chartReframeCoverWasActive = false;
 let chartDriftMeasuredAtMs = -Infinity;
 const CHART_DRIFT_MEASURE_INTERVAL_MS = 500;
 let chartViewportCoverageRepairPending = false;
+const chartRebuildReasonCounts = {
+  missingChart: 0,
+  concealedRepair: 0,
+  viewportCoverage: 0,
+  missingCenter: 0,
+  projectionTravel: 0
+};
 let chartRepairCloudBank = null;
 let chartRepairFog = null;
 let chartRepairHeatHaze = null;
@@ -9848,6 +9855,7 @@ function performanceBenchmarkSceneSnapshot(state) {
       0
     ),
     chartFaces: chart.faceCalls.length,
+    chartRebuildReasons: Object.freeze({ ...chartRebuildReasonCounts }),
     chartDrift: Object.freeze({ ...chartNorthUpDrift }),
     playerLatitudeDeg: Math.round(latitudeDegForDirection(ship.position) * 100) / 100,
     visibleCities: chart.cityCalls.length,
@@ -23925,6 +23933,13 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   }
   const polarFog = currentPolarChartFogFrame();
   if (chartRepairCloudBank || chartRepairFog || chartRepairHeatHaze) return false;
+  if (polarFog && chartFaultNeedsCloudRepair({ drift, terrainTear })) {
+    // Tighten and use the already-present polar bank. Summoning a second
+    // atmospheric cover over it is visually noisy and cannot expose any
+    // additional repairable terrain.
+    chartRepairPendingConfirmation = null;
+    return false;
+  }
 
   let candidate = chooseChartVisualRepair({
     drift,
@@ -23971,7 +23986,12 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       heatHazeAvailable
     });
   }
-  if (candidate.kind !== "polar-fog" && nowMs < chartRepairCooldownUntilMs) {
+  const immediateRepair = candidate.confirmationMs === 0;
+  if (
+    candidate.kind !== "polar-fog" &&
+    !immediateRepair &&
+    nowMs < chartRepairCooldownUntilMs
+  ) {
     chartRepairPendingConfirmation = null;
     return false;
   }
@@ -24081,23 +24101,27 @@ function updateChartVisualRepair(nowMs) {
     nowMs >= polarFogNextTileRepairAtMs
   ) {
     polarFogNextTileRepairAtMs = nowMs + CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS;
-    const severePolarDistortion = Math.abs(chartNorthUpDrift.rotationDeg) > 8 ||
-      chartWorstVisibleTerrainTear.extraPx > 10;
+    const severePolarDistortion = currentChartRepairIsSevere();
     const fogOffset = layoutOffsetPixels();
     if (repairFogCoveredChartTiles(
       polarFog,
       "polar fog",
       null,
-      severePolarDistortion ? 2 : 1,
+      severePolarDistortion ? 4 : 1,
       severePolarDistortion
         ? (id) => {
             const position = localLayout.positions.get(id);
             if (!position) return 1;
-            return chartFogPixelDensity(
+            const screenX = position.x + fogOffset.x;
+            const screenY = position.y + fogOffset.y;
+            const density = chartFogPixelDensity(polarFog, screenX, screenY);
+            if (chartFogObscuresCircle(
               polarFog,
-              position.x + fogOffset.x,
-              position.y + fogOffset.y
-            ) >= 0.75 ? 2 : 1;
+              screenX,
+              screenY,
+              CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+            )) return Number.POSITIVE_INFINITY;
+            return density >= 0.75 ? 4 : density >= 0.5 ? 2 : 1;
           }
         : null
     ) > 0) changed = true;
@@ -24143,10 +24167,28 @@ function updateChartVisualRepair(nowMs) {
       nowMs >= state.nextTileRepairAtMs
     ) {
       state.nextTileRepairAtMs = nowMs + CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS;
+      const severeFogDistortion = currentChartRepairIsSevere();
       const repairedCount = repairFogCoveredChartTiles(
         frame,
         "closing fog",
-        state.repairedTileIds
+        state.repairedTileIds,
+        severeFogDistortion ? 4 : 1,
+        severeFogDistortion
+          ? (id) => {
+              const position = localLayout.positions.get(id);
+              if (!position) return 1;
+              const screenX = position.x + SCREEN_W / 2 - localLayout.viewX;
+              const screenY = position.y + SCREEN_H / 2 - localLayout.viewY;
+              const density = chartFogPixelDensity(frame, screenX, screenY);
+              if (chartFogObscuresCircle(
+                frame,
+                screenX,
+                screenY,
+                CHART_REPAIR_TILE_VISUAL_RADIUS_PX
+              )) return Number.POSITIVE_INFINITY;
+              return density >= 0.75 ? 4 : density >= 0.5 ? 2 : 1;
+            }
+          : null
       );
       state.repairedCount += repairedCount;
       if (repairedCount > 0 && !currentChartVisualFaultNeedsRepair()) {
@@ -24191,6 +24233,13 @@ function updateChartVisualRepair(nowMs) {
     changed = true;
   }
   return changed;
+}
+
+function currentChartRepairIsSevere() {
+  return Math.abs(chartNorthUpDrift.rotationDeg) > 8 ||
+    chartNorthUpDrift.rmsDistortionPx > 10 ||
+    chartNorthUpDrift.maxDistortionPx > 24 ||
+    chartWorstVisibleTerrainTear.extraPx > 10;
 }
 
 function chartRepairHeatHazeIsPlausibleAt(fault) {
@@ -24427,7 +24476,6 @@ function repairCoveredChartTiles({
   }
   if (removedIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
 
-  const concealedTileIds = new Set(removedIds);
   const repairableIds = removedIds.filter((id) => repairPlan === null || repairPlan.has(id));
   if (repairableIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
   const repairableTileIds = new Set(repairableIds);
@@ -24615,7 +24663,8 @@ function chartViewportIsFullyElasticOpenOcean() {
   ));
   return visibleCalls.length > 0 && visibleCalls.every((call) => (
     isWaterSurfaceRow(call.row) &&
-    !tileHasSurfaceIce(call.id) &&
+    !tileHasSurfaceIce(call.id)
+  )) && visibleCalls.some((call) => (
     chartTileProtection[call.id] === 0 &&
     chartElasticCorrectionMask[call.id] !== 0
   ));
@@ -36632,6 +36681,8 @@ function worldDiscoveryLocalPoint(discovery, activeChart) {
 }
 
 function ensureChart() {
+  const concealedRepairIsPending = pendingCoveredChartRepairPositions.size > 0 &&
+    applicablePendingCoveredChartRepairs().size > 0;
   const edgeCoverage = chart && localLayout
     ? currentChartViewportCoverage(chart).edge
     : null;
@@ -36640,13 +36691,24 @@ function ensureChart() {
   if (viewportOutranChart) {
     chartViewportCoverageRepairPending = true;
   }
+  const missingCenter = Boolean(
+    chart && (!chart.visibleSet.has(centerTileId) || !localLayout.positions.has(centerTileId))
+  );
+  const projectionTravelled = Boolean(
+    chart && chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX
+  );
   if (
     !chart ||
+    concealedRepairIsPending ||
     chartViewportCoverageRepairPending ||
-    !chart.visibleSet.has(centerTileId) ||
-    !localLayout.positions.has(centerTileId) ||
-    chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX
+    missingCenter ||
+    projectionTravelled
   ) {
+    if (!chart) chartRebuildReasonCounts.missingChart++;
+    if (concealedRepairIsPending) chartRebuildReasonCounts.concealedRepair++;
+    if (chartViewportCoverageRepairPending) chartRebuildReasonCounts.viewportCoverage++;
+    if (missingCenter) chartRebuildReasonCounts.missingCenter++;
+    if (projectionTravelled) chartRebuildReasonCounts.projectionTravel++;
     const coverageRepairWasPending = chartViewportCoverageRepairPending;
     chartViewportCoverageRepairPending = false;
     chart = buildChart(camera);
@@ -37040,6 +37102,11 @@ function applicablePendingCoveredChartRepairs() {
     if (pendingChartRepairRemainsCovered(current, repair.reason) ||
         !localLayoutPositionOverlapsViewport(current, LOCAL_LAYOUT_RETENTION_MARGIN_PX)) {
       applicable.set(id, repair);
+    } else {
+      // A staged position is tied to the cover and camera frame that hid it.
+      // Once exposed, it must be discarded rather than forcing a rebuild on
+      // every frame while waiting for obsolete cover to return.
+      pendingCoveredChartRepairPositions.delete(id);
     }
   }
   return applicable;
@@ -37119,8 +37186,11 @@ function fogConcealedAdmissionIds(admissionContext) {
 }
 
 function chartRepairClearNavigationIds() {
-  if (!ship || !graph?.neighbors?.[ship.tileId]) return new Set();
-  return new Set([ship.tileId, ...graph.neighbors[ship.tileId]]);
+  if (!ship) return new Set();
+  // The player's own tile remains authoritative for navigation. Neighboring
+  // tiles are protected by the cover predicate only while they are actually
+  // visible; dense fog is allowed to settle a covered neighbor.
+  return new Set([ship.tileId]);
 }
 
 function exactNorthUpProjectedPositions(tileIds) {

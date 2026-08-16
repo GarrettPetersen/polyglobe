@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CHART_SEVERE_REPAIR_CONFIRMATION_MS,
   CHART_WEATHER_REPAIR_CONFIRMATION_MS,
   advanceChartWeatherRepairConfirmation,
   chooseChartVisualRepair
@@ -157,7 +158,63 @@ test("weather persistence does not accumulate across unrelated fault locations",
   assert.equal(moved.pending.startedAtMs, CHART_WEATHER_REPAIR_CONFIRMATION_MS);
 });
 
+test("catastrophic structural faults start repair immediately", () => {
+  const candidate = repairCandidate({
+    drift: calm,
+    terrainTear: { extraPx: 114, surface: "coast", screenX: 430, screenY: 20 }
+  });
+  const result = advanceChartWeatherRepairConfirmation({
+    pending: null,
+    candidate,
+    nowMs: 100
+  });
+  assert.equal(candidate.confirmationMs, 0);
+  assert.equal(result.repair, candidate);
+});
+
+test("broad distortion keeps one confirmation window when its worst point moves", () => {
+  const firstCandidate = repairCandidate({
+    drift: { ...calm, rmsDistortionPx: 14, maxDistortionPx: 17 },
+    terrainTear: attachedTerrain,
+    distortionSurface: "land"
+  });
+  const first = advanceChartWeatherRepairConfirmation({
+    pending: null,
+    candidate: firstCandidate,
+    nowMs: 0
+  });
+  const movedCandidate = {
+    ...firstCandidate,
+    fault: { ...firstCandidate.fault, x: 20, y: 220 }
+  };
+  const confirmed = advanceChartWeatherRepairConfirmation({
+    pending: first.pending,
+    candidate: movedCandidate,
+    nowMs: CHART_SEVERE_REPAIR_CONFIRMATION_MS
+  });
+  assert.equal(firstCandidate.frameWide, true);
+  assert.equal(confirmed.repair, movedCandidate);
+});
+
 function repairKind({
+  drift,
+  terrainTear,
+  polarFogCoversFault = false,
+  swellRepairAvailable = false,
+  distortionSurface = "land",
+  heatHazeAvailable = false
+}) {
+  return repairCandidate({
+    drift,
+    terrainTear,
+    polarFogCoversFault,
+    swellRepairAvailable,
+    distortionSurface,
+    heatHazeAvailable
+  }).kind;
+}
+
+function repairCandidate({
   drift,
   terrainTear,
   polarFogCoversFault = false,
@@ -174,5 +231,5 @@ function repairKind({
     distortionSurface,
     polarFogCoversFault,
     heatHazeAvailable
-  }).kind;
+  });
 }

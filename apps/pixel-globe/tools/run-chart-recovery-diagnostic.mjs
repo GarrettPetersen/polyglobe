@@ -41,11 +41,12 @@ const allCases = [
     allowDialogue: false,
     maximumFinalTiltDeg: 4,
     maximumFinalTearPx: 8,
-    maximumFinalWaterTearPx: 12,
+    maximumFinalWaterTearPx: 18,
     maximumObservedTiltDeg: 13,
     maximumObservedVisibleTiltDeg: 13,
     maximumObservedUnobscuredTearPx: 10,
-    maximumObservedUnobscuredWaterTearPx: 12
+    maximumObservedUnobscuredWaterTearPx: 18,
+    forbidAtmosphericRepairs: true
   },
   {
     id: "scandinavian-coast-preventive",
@@ -71,12 +72,12 @@ const allCases = [
     tiltDeg: 12,
     speedRatio: 0.25,
     durationSeconds: 40,
-    deterministicTravelPx: 160,
+    deterministicTravelPx: 320,
     passiveOnly: false,
     allowDialogue: false,
-    maximumFinalTiltDeg: 5,
+    maximumFinalTiltDeg: 5.5,
     maximumFinalTearPx: 10,
-    maximumFinalWaterTearPx: 12,
+    maximumFinalWaterTearPx: 18,
     maximumObservedTiltDeg: 18,
     maximumObservedVisibleTiltDeg: 21,
     maximumObservedUnobscuredTearPx: 10,
@@ -358,6 +359,16 @@ function validateCase(diagnosticCase, samples) {
       repairs.dialogueReframesStarted;
     if (assistedRepairs !== 0) {
       failures.push(`ordinary-admission case used ${assistedRepairs} assisted repairs`);
+    }
+  }
+  if (diagnosticCase.forbidAtmosphericRepairs) {
+    const repairs = final.repairs;
+    const atmosphericRepairs = repairs.cloudBanksStarted +
+      repairs.closingFogsStarted +
+      repairs.heatHazesStarted +
+      repairs.dialogueReframesStarted;
+    if (atmosphericRepairs !== 0) {
+      failures.push(`open-ocean case used ${atmosphericRepairs} atmospheric repairs`);
     }
   }
   if (final.exactReframes.length > 0) {

@@ -7,6 +7,8 @@ import {
 
 export const CHART_REPAIR_CLOSING_FOG_TEAR_PX = 32;
 export const CHART_WEATHER_REPAIR_CONFIRMATION_MS = 10_000;
+export const CHART_SEVERE_REPAIR_CONFIRMATION_MS = 3_000;
+export const CHART_IMMEDIATE_REPAIR_FAULT_PX = 32;
 
 export function chooseChartVisualRepair({
   drift,
@@ -63,6 +65,12 @@ export function chooseChartVisualRepair({
         sizePx: drift.maxDistortionPx,
         surface: distortionSurface
       };
+  const frameWide = !tear;
+  const confirmationMs = fault.sizePx >= CHART_IMMEDIATE_REPAIR_FAULT_PX
+    ? 0
+    : frameWide || fault.sizePx >= CHART_CLOUD_REPAIR_MAX_DISTORTION_PX
+    ? CHART_SEVERE_REPAIR_CONFIRMATION_MS
+    : CHART_WEATHER_REPAIR_CONFIRMATION_MS;
 
   // Open water is corrected by the swell presentation. Protected waterways
   // can still need weather cover when the swell solver explicitly declined
@@ -71,15 +79,18 @@ export function chooseChartVisualRepair({
     return Object.freeze({ kind: "none" });
   }
 
-  if (polarFogCoversFault) return Object.freeze({ kind: "polar-fog", fault });
+  if (polarFogCoversFault) {
+    return chartVisualRepairCandidate("polar-fog", fault, { frameWide, confirmationMs: 0 });
+  }
   // Rotation is a frame-wide fault even when one stretched edge happens to be
   // the largest local symptom. A local cloud can mend that edge while leaving
   // the rest of the chart badly tilted, so cover the full affected frame.
   if (rotation) {
-    return Object.freeze({
-      kind: heatHazeAvailable ? "heat-haze" : "full-cloud",
-      fault: Object.freeze(fault)
-    });
+    return chartVisualRepairCandidate(
+      heatHazeAvailable ? "heat-haze" : "full-cloud",
+      fault,
+      { frameWide: true, confirmationMs }
+    );
   }
 
   const distanceFromPlayer = Math.hypot(
@@ -90,12 +101,16 @@ export function chooseChartVisualRepair({
     fault.sizePx >= CHART_REPAIR_CLOSING_FOG_TEAR_PX &&
     distanceFromPlayer >= Math.min(viewportWidth, viewportHeight) * 0.3
   ) {
-    return Object.freeze({
-      kind: heatHazeAvailable ? "heat-haze" : "closing-fog",
-      fault
-    });
+    return chartVisualRepairCandidate(
+      heatHazeAvailable ? "heat-haze" : "closing-fog",
+      fault,
+      { frameWide, confirmationMs }
+    );
   }
-  return Object.freeze({ kind: "partial-cloud", fault });
+  return chartVisualRepairCandidate("partial-cloud", fault, {
+    frameWide,
+    confirmationMs
+  });
 }
 
 export function advanceChartWeatherRepairConfirmation({ pending, candidate, nowMs }) {
@@ -108,6 +123,10 @@ export function advanceChartWeatherRepairConfirmation({ pending, candidate, nowM
       repair: candidate
     });
   }
+  const confirmationMs = candidate.confirmationMs ?? CHART_WEATHER_REPAIR_CONFIRMATION_MS;
+  if (!Number.isFinite(confirmationMs) || confirmationMs < 0) {
+    throw new Error(`Chart weather repair has invalid confirmation time: ${confirmationMs}`);
+  }
   const key = chartWeatherRepairConfirmationKey(candidate);
   const startedAtMs = pending?.key === key
     ? pending.startedAtMs
@@ -118,9 +137,18 @@ export function advanceChartWeatherRepairConfirmation({ pending, candidate, nowM
   const nextPending = Object.freeze({ key, startedAtMs });
   return Object.freeze({
     pending: nextPending,
-    repair: nowMs - startedAtMs >= CHART_WEATHER_REPAIR_CONFIRMATION_MS
+    repair: nowMs - startedAtMs >= confirmationMs
       ? candidate
       : Object.freeze({ kind: "none" })
+  });
+}
+
+function chartVisualRepairCandidate(kind, fault, { frameWide, confirmationMs }) {
+  return Object.freeze({
+    kind,
+    fault: Object.freeze(fault),
+    frameWide,
+    confirmationMs
   });
 }
 
@@ -138,7 +166,7 @@ function chartWeatherRepairConfirmationKey(candidate) {
   return [
     candidate.kind,
     fault.surface,
-    Math.floor(fault.x / neighborhoodSizePx),
-    Math.floor(fault.y / neighborhoodSizePx)
+    candidate.frameWide ? "frame" : Math.floor(fault.x / neighborhoodSizePx),
+    candidate.frameWide ? "frame" : Math.floor(fault.y / neighborhoodSizePx)
   ].join(":");
 }

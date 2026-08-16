@@ -194,7 +194,7 @@ test("polar fog preserves a clear navigable center and hides the chart edge", ()
   });
 
   assert.ok(fog);
-  assert.ok(fog.clearRadius >= 100 && fog.clearRadius <= 112);
+  assert.ok(fog.clearRadius >= 48 && fog.clearRadius <= 54);
   assert.equal(chartFogObscuresCircle(fog, 227, 128, 12), false);
   assert.equal(chartFogObscuresCircle(fog, 10, 10, 12), true);
   assert.equal(chartFogConcealsCircleForRepair(fog, 227, 128, 12), false);
@@ -224,22 +224,22 @@ test("polar fog tightens its clear window under chart repair pressure", () => {
   assert.equal(
     chartFogConcealsCircleForRepair(
       repairing,
-      repairing.focusX + 21,
+      repairing.focusX + 8,
       repairing.focusY,
       12
     ),
     false,
-    "maximum polar fog must preserve the immediate navigation ring"
+    "maximum polar fog must preserve the ship's immediate visual center"
   );
   assert.equal(
     chartFogConcealsCircleForRepair(
       repairing,
-      repairing.focusX + 52,
+      repairing.focusX + 24,
       repairing.focusY,
       12
     ),
     true,
-    "maximum polar fog must free geometry beyond the navigation ring"
+    "maximum polar fog must free covered neighboring geometry"
   );
   assert.equal(repairing.polarAmount, ordinary.polarAmount);
   assert.equal(repairing.repairPressure, 1);

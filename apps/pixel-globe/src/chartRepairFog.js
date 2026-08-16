@@ -149,14 +149,13 @@ export function polarChartFogFrame({
     Math.hypot(viewportWidth - focusX, viewportHeight - focusY)
   ) + 30;
   const minimumDimension = Math.min(viewportWidth, viewportHeight);
-  const naturalMinimumClearRadius = Math.max(62, minimumDimension * 0.43);
-  // Under severe chart pressure, polar fog acts like a tighter camera crop:
-  // only the ship's immediate navigational neighborhood remains fixed while
-  // the concealed ring converges on the exact north-up projection.
-  // Keep the ship tile and its six immediate neighbors visible. That tiny
-  // rigid patch is enough for navigation, while every tile beyond it can
-  // settle iteratively as it enters the fog.
-  const repairMinimumClearRadius = Math.max(28, minimumDimension * 0.11);
+  const naturalMinimumClearRadius = Math.max(48, minimumDimension * 0.2);
+  // Under severe chart pressure, polar fog acts like a tighter camera crop.
+  // Keep the ship itself clear, but let the fog band cover and settle its
+  // neighboring tiles. Locking the whole seven-hex neighborhood propagates
+  // the entering frame forever as the ship crosses from one neighbor to the
+  // next.
+  const repairMinimumClearRadius = Math.max(10, minimumDimension * 0.04);
   const minimumClearRadius = naturalMinimumClearRadius +
     (repairMinimumClearRadius - naturalMinimumClearRadius) * repairPressure;
   const effectiveConcealment = Math.max(polarAmount, inheritedRepairFog);
