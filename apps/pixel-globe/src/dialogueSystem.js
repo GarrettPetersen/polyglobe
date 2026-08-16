@@ -166,6 +166,7 @@ import { cannonReloadWorkRate } from "./navalWeapons.js";
 import { crewWorkMultiplier } from "./crewEffectiveness.js";
 import { formatDisplayQuantity } from "./displayNumber.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
+import { validateDialogueDecision } from "./dialogueDecisionValidation.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import { portArrivalPresentation } from "./portArrivalFlavor.js";
@@ -1436,7 +1437,9 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
 
-  return withPortExitFooter(portDialogueNodeView(session, city, gameState, economy, portCities, context));
+  const view = portDialogueNodeView(session, city, gameState, economy, portCities, context);
+  validateDialogueDecision(view, session.nodeId);
+  return withPortExitFooter(view);
 }
 
 export function dialogueBackOptionIndex(view) {
@@ -2717,6 +2720,11 @@ export function selectPortDialogueOption(
 }
 
 export function passengerDialogueView(session, city, quest, gameState) {
+  const view = passengerDialogueContentView(session, city, quest, gameState);
+  return validateDialogueDecision(view, quest?.id || session.questId);
+}
+
+function passengerDialogueContentView(session, city, quest, gameState) {
   assertPassengerDialogueSubject(session, city, quest);
   const questMemory = gameState?.memory?.quests || {};
   const active = isEnvoyQuest(quest)
