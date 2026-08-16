@@ -19569,8 +19569,9 @@ function completePlayerPortConquest(
   if (conquistadorCapture) {
     openCharacterAlertModal(
       ensureConquistadorQuestGiver(gameState),
-      `${conquestMessage} Trujillo is ours. I march inland at dawn. Return here in one year; ` +
-        "if fortune and steel hold, your share will be waiting.",
+      `Trujillo is ours. Keep the ${prize.amount} doubloons from the assault. ` +
+        "Have the notary record every chest. I march for Cuzco at dawn. Return in one year; " +
+        "God willing, your share will come from an empire.",
       "happy"
     );
   } else {

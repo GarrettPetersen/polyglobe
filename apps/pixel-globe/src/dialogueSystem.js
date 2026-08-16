@@ -4605,7 +4605,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: "attentive",
-      text: "The Crown's charter runs farther than its soldiers. Provision my company, carry us to Chan Chan, break its batteries, and raise the Spanish flag. The coast is the gate to the Inca Empire.",
+      text: "Gold has come north from Peru. I mean to follow it south. The Crown licenses me to conquer at my own cost. Provision my company and break Chan Chan's batteries. God and His Majesty may judge the rest.",
       feedback: session.feedback,
       options: [
         option("Accept the commission", { type: "accept-conquistador-expedition" }),
@@ -4628,7 +4628,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: deliverable > 0 ? "pleased" : "attentive",
-      text: `An army marches on stores, even when it calls itself an expedition. Bring ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}. I will pay ${stage.reward} doubloons when the order is complete.` +
+      text: `God and the King may bless an expedition, Captain, but neither fills its holds. Bring ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}. I will pay ${stage.reward} doubloons when the order is complete, weighed before my notary.` +
         (progress.deliveredQuantity > 0
           ? ` You have delivered ${progress.deliveredQuantity} of ${stage.quantity}.`
           : ""),
@@ -4658,7 +4658,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: eligibility.eligible ? "happy" : "concerned",
-      text: "The stores are packed. Chan Chan is the coastward gate. Silence its batteries, land the company, and take the city for Spain." +
+      text: "The notary copied our commission, the chaplain blessed the standard, and every man counted his share twice. Chan Chan is the door. Silence its batteries, land my company, and raise Spain's flag." +
         (missing.length > 0 ? ` Your ship still needs ${missing.join(", ")}.` : " We can sail on your word."),
       feedback: session.feedback,
       options: [
@@ -4676,7 +4676,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: "determined",
-      text: "The company is aboard and the commission bears the royal seal. Take Chan Chan; the conquest will be lawful in Spain's name.",
+      text: "The royal seal is in my chest, the cross at our head, and the company aboard. Take me to Chan Chan. Offer them Spain's peace once; if they refuse it, let the guns speak next.",
       feedback: session.feedback,
       options: [back]
     };
@@ -4687,7 +4687,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: "determined",
-      text: `Trujillo holds. My columns are moving inland while the Inca court rallies what remains. Return in ${quest.daysUntilReward} day${quest.daysUntilReward === 1 ? "" : "s"}; if fortune and steel hold, your share will be waiting.`,
+      text: `Trujillo holds, and a conquered coast is worth ten promises made in Panama. I march for Cuzco at dawn. Return in ${quest.daysUntilReward} day${quest.daysUntilReward === 1 ? "" : "s"}; God willing, your share will be weighed here.`,
       feedback: session.feedback,
       options: [back]
     };
@@ -4698,7 +4698,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: "happy",
-      text: "A year has passed. The inland roads answer to Spain, and the royal accountants have finally admitted that your share exists.",
+      text: "A year ago they called this empire untouchable. Now Cuzco answers to the Crown, and even the royal accountants have surrendered. You kept faith with me, Captain. Here is the share I promised.",
       feedback: session.feedback,
       options: [
         option(`Claim ${quest.reward.toLocaleString("en-US")} db`, {
@@ -4714,7 +4714,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: "happy",
-      text: "Your share is paid, Captain. Spain has an empire in the Andes; you have a purse heavy enough to remember it by.",
+      text: "Your gold is weighed and witnessed, Captain. Spend it loudly enough that Panama remembers who opened Peru.",
       feedback: session.feedback,
       options: [back]
     };

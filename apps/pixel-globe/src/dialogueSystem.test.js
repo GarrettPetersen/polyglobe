@@ -121,7 +121,10 @@ import {
 } from "./caribbeanGingerQuest.js";
 import {
   CONQUISTADOR_FETCH_STAGES,
-  CONQUISTADOR_STAGE_CAPTURE
+  CONQUISTADOR_STAGE_CAMPAIGN,
+  CONQUISTADOR_STAGE_CAPTURE,
+  CONQUISTADOR_STAGE_COMPLETE,
+  CONQUISTADOR_STAGE_REWARD_READY
 } from "./conquistadorQuest.js";
 import {
   CHEF_QUEST_REWARD,
@@ -4410,6 +4413,7 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   selectPortDialogueOption(session, panama, gameState, economy, ports, speakerIndex, context);
 
   view = portDialogueView(session, panama, gameState, economy, ports, context);
+  assert.match(view.text, /Crown licenses me.*God and His Majesty/s);
   const acceptIndex = view.options.findIndex(
     (entry) => entry.action.type === "accept-conquistador-expedition"
   );
@@ -4419,6 +4423,7 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   for (const stage of CONQUISTADOR_FETCH_STAGES) {
     gameState.cargo[stage.goodId] = stage.quantity;
     view = portDialogueView(session, panama, gameState, economy, ports, context);
+    assert.match(view.text, /God and the King.*my notary/s);
     const deliveryIndex = view.options.findIndex(
       (entry) => entry.action.type === "deliver-conquistador-material"
     );
@@ -4427,6 +4432,7 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   }
 
   view = portDialogueView(session, panama, gameState, economy, ports, context);
+  assert.match(view.text, /notary.*chaplain.*every man counted his share/s);
   const embarkIndex = view.options.findIndex(
     (entry) => entry.action.type === "begin-conquistador-expedition"
   );
@@ -4442,6 +4448,36 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   );
   assert.equal(gameState.memory.quests.conquistador.stage, CONQUISTADOR_STAGE_CAPTURE);
   assert.ok(embarked.conquistadorDiplomacyEvents.length > 0);
+
+  view = portDialogueView(session, panama, gameState, economy, ports, context);
+  assert.match(view.text, /royal seal.*cross.*Spain's peace/s);
+
+  const memory = gameState.memory.quests.conquistador;
+  memory.stage = CONQUISTADOR_STAGE_CAMPAIGN;
+  memory.capturedAtMinute = 100;
+  memory.rewardReadyMinute = 2000;
+  chanChan.displayCity = "Trujillo";
+  const trujilloSession = createPortDialogueSession(chanChan, { initialNodeId: "conquistador" });
+  view = portDialogueView(trujilloSession, chanChan, gameState, economy, ports, {
+    ...context,
+    simMinute: 500
+  });
+  assert.match(view.text, /conquered coast.*Cuzco.*God willing/s);
+
+  memory.stage = CONQUISTADOR_STAGE_REWARD_READY;
+  view = portDialogueView(trujilloSession, chanChan, gameState, economy, ports, {
+    ...context,
+    simMinute: 2000
+  });
+  assert.match(view.text, /Cuzco answers to the Crown.*kept faith/s);
+
+  memory.stage = CONQUISTADOR_STAGE_COMPLETE;
+  memory.completedAtMinute = 2000;
+  view = portDialogueView(trujilloSession, chanChan, gameState, economy, ports, {
+    ...context,
+    simMinute: 2001
+  });
+  assert.match(view.text, /weighed and witnessed.*Panama remembers/s);
 });
 
 function conquestQuestCity(tileId, city, country, lat, lon, factionId, characterName) {
