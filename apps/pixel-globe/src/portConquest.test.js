@@ -40,11 +40,17 @@ function city(overrides = {}) {
   };
 }
 
-test("landing marines requires a large hull and at least 36 active crew", () => {
+test("landing marines requires a large hull and at least 36 fighting hands", () => {
   const base = { city: city(), batteryDisabled: true, attackerFactionId: "england" };
   assert.equal(portConquestStatus({ ...base, crew: 35, crewCapacity: 54 }).canAttempt, false);
   assert.equal(portConquestStatus({ ...base, crew: 35, crewCapacity: 35 }).canAttempt, false);
   assert.equal(portConquestStatus({ ...base, crew: 36, crewCapacity: 36 }).canAttempt, true);
+  assert.equal(portConquestStatus({
+    ...base,
+    crew: 12,
+    crewCapacity: 36,
+    auxiliaryTroops: 24
+  }).canAttempt, true);
   assert.equal(PORT_CONQUEST_MIN_CREW, 36);
 });
 
@@ -61,9 +67,40 @@ test("capitals resist conquest more strongly and inflict heavier losses", () => 
   });
   assert.ok(capital.successChance < ordinary.successChance);
   assert.ok(capital.failureCrewLossMin > ordinary.failureCrewLossMin);
-  assert.deepEqual(resolvePortConquest(ordinary, 0, 0), { success: true, crewLost: 0 });
+  assert.deepEqual(resolvePortConquest(ordinary, 0, 0), {
+    success: true,
+    crewLost: 0,
+    auxiliaryLost: 0,
+    totalLost: 0
+  });
   assert.equal(resolvePortConquest(capital, 0.99, 0.99).crewLost, capital.failureCrewLossMax);
   assert.ok(npcPortConquestChance(city({ isFactionCapital: true })) < npcPortConquestChance(city()));
+});
+
+test("auxiliary troops improve assault odds and absorb the first casualties", () => {
+  const ordinary = portConquestStatus({
+    city: city({ population: 25000 }),
+    batteryDisabled: true,
+    crew: 36,
+    crewCapacity: 54,
+    attackerFactionId: "spain"
+  });
+  const supported = portConquestStatus({
+    city: city({ population: 25000 }),
+    batteryDisabled: true,
+    crew: 36,
+    crewCapacity: 54,
+    attackerFactionId: "spain",
+    auxiliaryTroops: 24,
+    assaultChanceBonus: 0.3
+  });
+  assert.ok(supported.successChance > 0.8);
+  assert.ok(supported.successChance > ordinary.successChance);
+  const defeat = resolvePortConquest(supported, 0.99, 0);
+  assert.equal(defeat.success, false);
+  assert.equal(defeat.totalLost, supported.failureCrewLossMin);
+  assert.equal(defeat.auxiliaryLost, Math.min(24, defeat.totalLost));
+  assert.equal(defeat.crewLost, Math.max(0, defeat.totalLost - 24));
 });
 
 test("assault success falls logarithmically with population but keeps a viable floor", () => {

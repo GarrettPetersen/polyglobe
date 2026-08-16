@@ -403,6 +403,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "accept-conquistador-expedition": "action:quest",
   "deliver-conquistador-material": "action:quest",
   "begin-conquistador-expedition": "action:attack",
+  "replenish-conquistador-company": "action:passenger",
   "claim-conquistador-reward": "action:buy",
   "advance-colony-negotiation": "action:talk",
   "grant-colony-permission": "action:letter",

@@ -110,12 +110,14 @@ export function portConquestStatus({
   crew,
   crewCapacity,
   attackerFactionId,
-  assaultChanceBonus = 0
+  assaultChanceBonus = 0,
+  auxiliaryTroops = 0
 }) {
   assertCity(city);
   assertFactionId(attackerFactionId);
   assertCrew(crew, "crew");
   assertCrew(crewCapacity, "crew capacity");
+  assertCrew(auxiliaryTroops, "auxiliary troops");
   if (crew > crewCapacity) throw new Error("Port conquest crew exceeds ship capacity");
   if (!Number.isFinite(assaultChanceBonus) || assaultChanceBonus < 0 || assaultChanceBonus > 0.5) {
     throw new Error(`Invalid port assault chance bonus: ${assaultChanceBonus}`);
@@ -123,10 +125,11 @@ export function portConquestStatus({
 
   const alreadyOwned = city.factionId === attackerFactionId;
   const largeWarship = crewCapacity >= PORT_CONQUEST_MIN_CREW;
-  const enoughCrew = crew >= PORT_CONQUEST_MIN_CREW;
+  const landingForce = crew + auxiliaryTroops;
+  const enoughCrew = landingForce >= PORT_CONQUEST_MIN_CREW;
   const canAttempt = !alreadyOwned && batteryDisabled === true && largeWarship && enoughCrew;
   const capital = city.isFactionCapital === true;
-  const crewAdvantage = Math.max(0, crew - PORT_CONQUEST_MIN_CREW);
+  const crewAdvantage = Math.max(0, landingForce - PORT_CONQUEST_MIN_CREW);
   const population = Math.max(1000, Number(city.population || 1000));
   if (!Number.isFinite(population)) throw new Error(`Invalid conquest port population: ${city.population}`);
   const populationPenalty = clamp((Math.log10(population) - 3.3) * 0.08, 0, 0.16);
@@ -138,8 +141,8 @@ export function portConquestStatus({
   );
   const successChance = clamp(baseSuccessChance + assaultChanceBonus, 0, 0.9);
   const lossRange = capital
-    ? crewLossRange(crew, 0.42, 0.66)
-    : crewLossRange(crew, 0.27, 0.48);
+    ? crewLossRange(landingForce, 0.42, 0.66)
+    : crewLossRange(landingForce, 0.27, 0.48);
 
   return {
     canAttempt,
@@ -149,6 +152,8 @@ export function portConquestStatus({
     enoughCrew,
     capital,
     minimumCrew: PORT_CONQUEST_MIN_CREW,
+    landingForce,
+    auxiliaryTroops,
     populationPenalty,
     assaultChanceBonus,
     successChance,
@@ -163,12 +168,19 @@ export function resolvePortConquest(status, successRoll, casualtyRoll) {
   assertRoll(successRoll, "success");
   assertRoll(casualtyRoll, "casualty");
   if (successRoll < status.successChance) {
-    return { success: true, crewLost: 0 };
+    return { success: true, crewLost: 0, auxiliaryLost: 0, totalLost: 0 };
   }
   const span = status.failureCrewLossMax - status.failureCrewLossMin + 1;
+  const totalLost = status.failureCrewLossMin + Math.min(
+    span - 1,
+    Math.floor(casualtyRoll * span)
+  );
+  const auxiliaryLost = Math.min(status.auxiliaryTroops || 0, totalLost);
   return {
     success: false,
-    crewLost: status.failureCrewLossMin + Math.min(span - 1, Math.floor(casualtyRoll * span))
+    crewLost: totalLost - auxiliaryLost,
+    auxiliaryLost,
+    totalLost
   };
 }
 

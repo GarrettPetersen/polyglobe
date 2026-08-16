@@ -11,7 +11,7 @@ import {
 } from "./portConquest.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 
-export const CONQUISTADOR_QUEST_VERSION = 1;
+export const CONQUISTADOR_QUEST_VERSION = 2;
 export const CONQUISTADOR_QUEST_ID = "spanish-conquest-of-the-inca";
 export const CONQUISTADOR_STAGE_DORMANT = "dormant";
 export const CONQUISTADOR_STAGE_FETCH = "fetch";
@@ -24,6 +24,9 @@ export const CONQUISTADOR_REWARD_DOUBLOONS = 20000;
 export const CONQUISTADOR_CAMPAIGN_DAYS = 365;
 export const CONQUISTADOR_ORIGIN_FACTION_ID = "spain";
 export const CONQUISTADOR_TARGET_FACTION_ID = "inca";
+export const CONQUISTADOR_COMPANY_MAX_STRENGTH = 24;
+export const CONQUISTADOR_FIRST_ASSAULT_BONUS = 0.3;
+export const CONQUISTADOR_RETRY_ASSAULT_BONUS = 0.08;
 
 const MINUTES_PER_DAY = 24 * 60;
 const CONQUISTADOR_CAMPAIGN_MINUTES = CONQUISTADOR_CAMPAIGN_DAYS * MINUTES_PER_DAY;
@@ -55,6 +58,9 @@ export function createConquistadorQuestMemory() {
     originTileId: null,
     targetTileId: null,
     fetchStageIndex: 0,
+    companyStrength: 0,
+    companyNeedsReplenishment: false,
+    failedAssaults: 0,
     capturedAtMinute: null,
     rewardReadyMinute: null,
     transferSchedule: [],
@@ -65,12 +71,23 @@ export function createConquistadorQuestMemory() {
 
 export function migrateConquistadorQuestMemory(memory) {
   if (memory === undefined || memory === null) return createConquistadorQuestMemory();
-  if (memory.version !== CONQUISTADOR_QUEST_VERSION) {
+  if (![1, CONQUISTADOR_QUEST_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported conquistador quest version: ${memory.version ?? "missing"}`);
   }
+  const migratedCompany = memory.version === 1
+    ? {
+        companyStrength: memory.stage === CONQUISTADOR_STAGE_CAPTURE
+          ? CONQUISTADOR_COMPANY_MAX_STRENGTH
+          : 0,
+        companyNeedsReplenishment: false,
+        failedAssaults: 0
+      }
+    : {};
   return validateConquistadorQuestMemory({
     ...createConquistadorQuestMemory(),
     ...memory,
+    ...migratedCompany,
+    version: CONQUISTADOR_QUEST_VERSION,
     transferSchedule: [...(memory.transferSchedule || [])],
     transferredTileIds: [...(memory.transferredTileIds || [])]
   });
@@ -90,6 +107,16 @@ export function validateConquistadorQuestMemory(memory) {
   if (!Number.isInteger(memory.fetchStageIndex) || memory.fetchStageIndex < 0 ||
       memory.fetchStageIndex > CONQUISTADOR_FETCH_STAGES.length) {
     throw new Error(`Invalid conquistador fetch stage index: ${memory.fetchStageIndex}`);
+  }
+  if (!Number.isInteger(memory.companyStrength) || memory.companyStrength < 0 ||
+      memory.companyStrength > CONQUISTADOR_COMPANY_MAX_STRENGTH) {
+    throw new Error(`Invalid conquistador company strength: ${memory.companyStrength}`);
+  }
+  if (typeof memory.companyNeedsReplenishment !== "boolean") {
+    throw new Error("Conquistador company replenishment flag must be boolean");
+  }
+  if (!Number.isInteger(memory.failedAssaults) || memory.failedAssaults < 0) {
+    throw new Error(`Invalid conquistador failed assault count: ${memory.failedAssaults}`);
   }
   assertOptionalMinute(memory.capturedAtMinute, "capture");
   assertOptionalMinute(memory.rewardReadyMinute, "reward");
@@ -128,6 +155,13 @@ export function validateConquistadorQuestMemory(memory) {
     if (memory.capturedAtMinute === null || memory.rewardReadyMinute === null) {
       throw new Error("Conquistador aftermath requires capture and reward dates");
     }
+  }
+  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE &&
+      (memory.companyStrength !== 0 || memory.companyNeedsReplenishment)) {
+    throw new Error("Conquistador company can only remain embarked during the capture stage");
+  }
+  if (memory.companyNeedsReplenishment && memory.companyStrength >= CONQUISTADOR_COMPANY_MAX_STRENGTH) {
+    throw new Error("A full conquistador company cannot need replenishment");
   }
   return memory;
 }
@@ -228,7 +262,82 @@ export function beginConquistadorExpedition(memory, eligibility) {
   }
   if (!eligibility?.eligible) throw new Error("Conquistador expedition requires a conquest-capable ship");
   memory.stage = CONQUISTADOR_STAGE_CAPTURE;
+  memory.companyStrength = CONQUISTADOR_COMPANY_MAX_STRENGTH;
+  memory.companyNeedsReplenishment = false;
   return validateConquistadorQuestMemory(memory);
+}
+
+export function conquistadorCompanyAssaultStatus(memory, city) {
+  validateConquistadorQuestMemory(memory);
+  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE || city?.tileId !== memory.targetTileId) return null;
+  const assaultChanceBonus = Math.min(
+    0.46,
+    CONQUISTADOR_FIRST_ASSAULT_BONUS + memory.failedAssaults * CONQUISTADOR_RETRY_ASSAULT_BONUS
+  );
+  return Object.freeze({
+    strength: memory.companyStrength,
+    maximumStrength: CONQUISTADOR_COMPANY_MAX_STRENGTH,
+    needsReplenishment: memory.companyNeedsReplenishment,
+    ready: memory.companyStrength > 0 && !memory.companyNeedsReplenishment,
+    failedAssaults: memory.failedAssaults,
+    attemptNumber: memory.failedAssaults + 1,
+    assaultChanceBonus
+  });
+}
+
+export function recordConquistadorAssaultFailure(memory, companyCasualties) {
+  validateConquistadorQuestMemory(memory);
+  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE) {
+    throw new Error("Conquistador assault failure requires an active expedition");
+  }
+  if (!Number.isInteger(companyCasualties) || companyCasualties <= 0 ||
+      companyCasualties > memory.companyStrength) {
+    throw new Error(`Invalid conquistador company casualties: ${companyCasualties}`);
+  }
+  memory.companyStrength -= companyCasualties;
+  memory.companyNeedsReplenishment = true;
+  memory.failedAssaults += 1;
+  validateConquistadorQuestMemory(memory);
+  return Object.freeze({
+    casualties: companyCasualties,
+    remaining: memory.companyStrength,
+    failedAssaults: memory.failedAssaults
+  });
+}
+
+export function conquistadorCompanyReplenishmentPolicy(memory, portCities) {
+  validateConquistadorQuestMemory(memory);
+  if (!Array.isArray(portCities) || portCities.length === 0) {
+    throw new Error("Conquistador replenishment policy requires the port catalog");
+  }
+  const spanishPortsRemain = portCities.some(
+    (port) => port?.factionId === CONQUISTADOR_ORIGIN_FACTION_ID
+  );
+  return Object.freeze({
+    spanishPortsRemain,
+    exileBaseTileId: spanishPortsRemain ? null : memory.originTileId
+  });
+}
+
+export function isConquistadorCompanyReplenishmentPort(memory, city, portCities) {
+  validateConquistadorQuestMemory(memory);
+  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE || !memory.companyNeedsReplenishment) return false;
+  const policy = conquistadorCompanyReplenishmentPolicy(memory, portCities);
+  return policy.spanishPortsRemain
+    ? city?.factionId === CONQUISTADOR_ORIGIN_FACTION_ID
+    : city?.tileId === policy.exileBaseTileId;
+}
+
+export function replenishConquistadorCompany(memory, city, portCities) {
+  if (!isConquistadorCompanyReplenishmentPort(memory, city, portCities)) {
+    throw new Error("Conquistador company can only replenish at a Spanish port or its exile base");
+  }
+  const added = CONQUISTADOR_COMPANY_MAX_STRENGTH - memory.companyStrength;
+  if (added <= 0) throw new Error("Conquistador company has no missing soldiers");
+  memory.companyStrength = CONQUISTADOR_COMPANY_MAX_STRENGTH;
+  memory.companyNeedsReplenishment = false;
+  validateConquistadorQuestMemory(memory);
+  return Object.freeze({ added, strength: memory.companyStrength });
 }
 
 export function conquistadorCommissionedCaptureFactionId(memory, city) {
@@ -248,6 +357,8 @@ export function recordConquistadorTargetCapture(memory, conquestMemory, cities, 
   const target = cities.find((city) => city.tileId === memory.targetTileId);
   if (!target) throw new Error(`Conquistador target city is missing: ${memory.targetTileId}`);
   memory.stage = CONQUISTADOR_STAGE_CAMPAIGN;
+  memory.companyStrength = 0;
+  memory.companyNeedsReplenishment = false;
   memory.capturedAtMinute = simMinute;
   memory.rewardReadyMinute = simMinute + CONQUISTADOR_CAMPAIGN_MINUTES;
   const candidates = cities
@@ -352,7 +463,8 @@ export function conquistadorQuestShouldAppearAtCity(memory, city, portCities) {
   }
   if ([CONQUISTADOR_STAGE_FETCH, CONQUISTADOR_STAGE_READY,
     CONQUISTADOR_STAGE_CAPTURE].includes(memory.stage)) {
-    return isConquistadorQuestOrigin(memory, city);
+    return isConquistadorQuestOrigin(memory, city) ||
+      isConquistadorCompanyReplenishmentPort(memory, city, portCities);
   }
   if ([CONQUISTADOR_STAGE_CAMPAIGN, CONQUISTADOR_STAGE_REWARD_READY].includes(memory.stage)) {
     return isConquistadorQuestTarget(memory, city);
@@ -363,6 +475,7 @@ export function conquistadorQuestShouldAppearAtCity(memory, city, portCities) {
 export function conquistadorQuestDestination(memory, portCities, currentMinute) {
   const view = conquistadorQuestView(memory, portCities, currentMinute);
   if ([CONQUISTADOR_STAGE_FETCH, CONQUISTADOR_STAGE_READY].includes(view.stage)) return view.origin;
+  if (view.stage === CONQUISTADOR_STAGE_CAPTURE && view.companyNeedsReplenishment) return null;
   if ([CONQUISTADOR_STAGE_CAPTURE, CONQUISTADOR_STAGE_CAMPAIGN,
     CONQUISTADOR_STAGE_REWARD_READY].includes(view.stage)) return view.target;
   return null;

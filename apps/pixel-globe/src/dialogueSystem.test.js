@@ -124,7 +124,8 @@ import {
   CONQUISTADOR_STAGE_CAMPAIGN,
   CONQUISTADOR_STAGE_CAPTURE,
   CONQUISTADOR_STAGE_COMPLETE,
-  CONQUISTADOR_STAGE_REWARD_READY
+  CONQUISTADOR_STAGE_REWARD_READY,
+  recordConquistadorAssaultFailure
 } from "./conquistadorQuest.js";
 import {
   CHEF_QUEST_REWARD,
@@ -4398,7 +4399,16 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
     "inca",
     "Titu Cusi"
   );
-  const ports = [panama, chanChan, cuzco];
+  const cartagena = conquestQuestCity(
+    137226,
+    "Cartagena",
+    "Colombia",
+    10.391,
+    -75.479,
+    "spain",
+    "Juan de la Cosa"
+  );
+  const ports = [panama, chanChan, cuzco, cartagena];
   const stats = shipStatsForSlug("galleon");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   gameState.ship.cannons = 8;
@@ -4453,7 +4463,35 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   assert.match(view.text, /royal seal.*cross.*Spain's peace/s);
 
   const memory = gameState.memory.quests.conquistador;
+  recordConquistadorAssaultFailure(memory, 18);
+  const replenishmentSession = createPortDialogueSession(cartagena, {
+    initialNodeId: "conquistador",
+    nextPortNodeId: "root",
+    admittedToPort: true
+  });
+  replenishmentSession.conquistadorArrival = true;
+  view = portDialogueView(replenishmentSession, cartagena, gameState, economy, ports, context);
+  assert.match(view.text, /royal commission.*replace the fallen.*first one taught us/s);
+  const replenishIndex = view.options.findIndex(
+    (entry) => entry.action.type === "replenish-conquistador-company"
+  );
+  assert.equal(view.options[replenishIndex].disabled, false);
+  const replenished = selectPortDialogueOption(
+    replenishmentSession,
+    cartagena,
+    gameState,
+    economy,
+    ports,
+    replenishIndex,
+    context
+  );
+  assert.equal(replenished.conquistadorReplenishment.added, 18);
+  view = portDialogueView(replenishmentSession, cartagena, gameState, economy, ports, context);
+  assert.match(view.text, /ranks are full again.*Take us south/s);
+
   memory.stage = CONQUISTADOR_STAGE_CAMPAIGN;
+  memory.companyStrength = 0;
+  memory.companyNeedsReplenishment = false;
   memory.capturedAtMinute = 100;
   memory.rewardReadyMinute = 2000;
   chanChan.displayCity = "Trujillo";

@@ -1403,11 +1403,15 @@ import {
   CONQUISTADOR_STAGE_FETCH,
   CONQUISTADOR_STAGE_READY,
   CONQUISTADOR_STAGE_REWARD_READY,
+  conquistadorCompanyAssaultStatus,
+  conquistadorCompanyReplenishmentPolicy,
   conquistadorFetchRequirementId,
+  isConquistadorCompanyReplenishmentPort,
   conquistadorQuestDestination,
   conquistadorQuestShouldAppearAtCity,
   conquistadorQuestView,
   isConquistadorQuestOrigin,
+  recordConquistadorAssaultFailure,
   recordConquistadorTargetCapture
 } from "./conquistadorQuest.js";
 import {
@@ -17901,6 +17905,7 @@ function continuePortArrivalDialogues() {
   }
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
+    () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
     () => maybeOpenColonizationAftermathPortDialogue(cityCall),
@@ -17915,6 +17920,26 @@ function continuePortArrivalDialogues() {
     ),
     () => openPendingDiscoveryPortDialogue()
   ]);
+}
+
+function maybeOpenConquistadorReplenishmentDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.rumorText !== null ||
+      dialogueState.conquistadorReplenishmentApproached === true) {
+    return false;
+  }
+  const memory = gameState.memory.quests.conquistador;
+  if (!isConquistadorCompanyReplenishmentPort(memory, cityCall, portCities)) return false;
+  ensureConquistadorQuestGiver(gameState);
+  dialogueState.conquistadorReplenishmentApproached = true;
+  dialogueState.conquistadorArrival = true;
+  dialogueState.nextPortNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = "conquistador";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
 }
 
 function maybeOpenConquistadorRewardDialogue(cityCall) {
@@ -19411,20 +19436,31 @@ function playerPortConquestStatus(cityCall) {
   const battery = ensureShoreBatteryState(cityCall);
   const simMinute = Math.floor(weatherClockMinutes);
   const attackStatus = playerPortAttackStatus(gameState, cityCall);
-  const assaultChanceBonus = currentPlayerPerkTotals().assaultChanceBonus;
+  const company = conquistadorCompanyAssaultStatus(
+    gameState.memory.quests.conquistador,
+    cityCall
+  );
+  const assaultChanceBonus = Math.min(
+    0.5,
+    currentPlayerPerkTotals().assaultChanceBonus +
+      (company?.ready ? company.assaultChanceBonus : 0)
+  );
   const conquest = portConquestStatus({
     city: cityCall,
     batteryDisabled: shoreBatteryIsDisabled(battery, simMinute),
     crew: gameState.ship.crew,
     crewCapacity: gameState.ship.crewCapacity,
     attackerFactionId: attackStatus.assaultFactionId,
-    assaultChanceBonus
+    assaultChanceBonus,
+    auxiliaryTroops: company?.ready ? company.strength : 0
   });
   const playerRaidActive = playerPortRaidIsActive(gameState.memory.flags, cityCall, simMinute);
   return {
     ...conquest,
     ...attackStatus,
-    canAttempt: attackStatus.available && conquest.canAttempt && !playerRaidActive,
+    canAttempt: attackStatus.available && conquest.canAttempt && !playerRaidActive &&
+      (company === null || company.ready),
+    conquistadorCompany: company,
     playerRaidActive,
     playerAssaultActive: playerPortAssaultIsActive(
       gameState.memory.flags,
@@ -19439,17 +19475,49 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   const status = playerPortConquestStatus(cityCall);
   const outcome = resolvePortConquest(status, random(), random());
   if (!outcome.success) {
+    const companyFailure = status.conquistadorCompany
+      ? recordConquistadorAssaultFailure(
+          gameState.memory.quests.conquistador,
+          outcome.auxiliaryLost
+        )
+      : null;
     const lost = loseCrew(gameState, outcome.crewLost);
     presentCrewLoss(lost);
-    const namedDeathPresented = presentPendingNamedCrewDeathNotice();
+    const namedDeathPresented = companyFailure ? false : presentPendingNamedCrewDeathNotice();
     syncShipCargoFromGameState();
     closeDialogue();
-    showSurvivalNotice(`${lost} MARINES LOST`, "warn");
+    showSurvivalNotice(
+      companyFailure
+        ? `${companyFailure.casualties} CONQUISTADORS / ${lost} CREW LOST`
+        : `${lost} MARINES LOST`,
+      "warn"
+    );
     if (gameState.ship.crew <= 0) {
       endPlayerVoyage(
         `The landing force was destroyed during the assault on ${cityLabelText(cityCall)}.`,
         { sinkShip: false, outcomeType: "death" }
       );
+    } else if (companyFailure) {
+      const adelantado = ensureConquistadorQuestGiver(gameState);
+      const replenishmentPolicy = conquistadorCompanyReplenishmentPolicy(
+        gameState.memory.quests.conquistador,
+        portCities
+      );
+      const opened = startCharacterAlertSequence([
+        pairedCharacterAlertStep({
+          leftCharacter: gameState.playerCharacter,
+          rightCharacter: adelantado,
+          speakerCharacter: adelantado,
+          expressionId: "stern",
+          message: replenishmentPolicy.spanishPortsRemain
+            ? `They threw us back, Captain. We lost ${companyFailure.casualties} soldiers. Put into a Spanish port so I can find replacements before another assault.`
+            : `They threw us back, Captain. We lost ${companyFailure.casualties} soldiers. Spain has no ports, so take me to our old base at Panama. I will raise replacements there.`
+        })
+      ]);
+      if (!opened && !PERFORMANCE_BENCHMARK) {
+        throw new Error("Conquistador defeat could not open Pizarro's replenishment warning");
+      }
+      saveVoyageNow("conquistador assault repelled");
     } else if (!namedDeathPresented) {
       openCaptainAlertModal(
         `${cityLabelText(cityCall)} repelled the landing. We lost ${lost} crew in the fighting.`,
@@ -38877,7 +38945,14 @@ function questJournalEntries() {
     } else if (conquistador.stage === CONQUISTADOR_STAGE_READY) {
       nextStep = "EMBARK THE EXPEDITION AT PANAMA CITY";
     } else if (conquistador.stage === CONQUISTADOR_STAGE_CAPTURE) {
-      nextStep = "STORM CHAN CHAN FOR SPAIN";
+      nextStep = conquistador.companyNeedsReplenishment
+        ? (conquistadorCompanyReplenishmentPolicy(
+            gameState.memory.quests.conquistador,
+            portCities
+          ).spanishPortsRemain
+          ? "REFORM PIZARRO'S COMPANY AT A SPANISH PORT"
+          : "REFORM PIZARRO'S COMPANY AT PANAMA CITY")
+        : `STORM CHAN CHAN FOR SPAIN - ATTEMPT ${conquistador.failedAssaults + 1}`;
     } else if (conquistador.stage === CONQUISTADOR_STAGE_CAMPAIGN) {
       nextStep = `RETURN TO TRUJILLO IN ${conquistador.daysUntilReward} DAYS`;
     } else if (conquistador.stage === CONQUISTADOR_STAGE_REWARD_READY) {

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   CONQUISTADOR_CAMPAIGN_DAYS,
+  CONQUISTADOR_COMPANY_MAX_STRENGTH,
   CONQUISTADOR_FETCH_STAGES,
   CONQUISTADOR_REWARD_DOUBLOONS,
   CONQUISTADOR_STAGE_CAMPAIGN,
@@ -16,10 +17,16 @@ import {
   beginConquistadorExpedition,
   completeConquistadorFetchStage,
   completeConquistadorQuest,
+  conquistadorCompanyAssaultStatus,
+  conquistadorCompanyReplenishmentPolicy,
   conquistadorCommissionedCaptureFactionId,
   conquistadorFetchRequirementId,
   conquistadorQuestAvailable,
   createConquistadorQuestMemory,
+  isConquistadorCompanyReplenishmentPort,
+  migrateConquistadorQuestMemory,
+  recordConquistadorAssaultFailure,
+  replenishConquistadorCompany,
   recordConquistadorTargetCapture
 } from "./conquistadorQuest.js";
 import {
@@ -122,17 +129,89 @@ test("capturing Chan Chan renames Trujillo and advances inland conquest over one
   assert.equal(origin.factionId, "spain");
 });
 
-test("version 72 voyages gain a dormant conquistador campaign and city-name overrides", () => {
+test("Pizarro's company starts favored, learns from defeats, and reforms at Spanish ports", () => {
+  const ports = questPorts();
+  const memory = createConquistadorQuestMemory();
+  acceptConquistadorQuest(memory, ports);
+  for (const stage of CONQUISTADOR_FETCH_STAGES) completeConquistadorFetchStage(memory, stage.id);
+  beginConquistadorExpedition(memory, { eligible: true });
+
+  const first = conquistadorCompanyAssaultStatus(memory, ports[1]);
+  assert.equal(first.strength, CONQUISTADOR_COMPANY_MAX_STRENGTH);
+  assert.equal(first.attemptNumber, 1);
+  assert.equal(first.assaultChanceBonus, 0.3);
+  assert.equal(first.ready, true);
+
+  const defeat = recordConquistadorAssaultFailure(memory, 18);
+  assert.equal(defeat.remaining, 6);
+  const waiting = conquistadorCompanyAssaultStatus(memory, ports[1]);
+  assert.equal(waiting.ready, false);
+  assert.equal(waiting.attemptNumber, 2);
+  assert.equal(waiting.assaultChanceBonus, 0.38);
+  assert.throws(
+    () => replenishConquistadorCompany(memory, ports[1], ports),
+    /Spanish port or its exile base/
+  );
+
+  const panama = ports[0];
+  const replenishment = replenishConquistadorCompany(memory, panama, ports);
+  assert.equal(replenishment.added, 18);
+  assert.equal(conquistadorCompanyAssaultStatus(memory, ports[1]).ready, true);
+
+  recordConquistadorAssaultFailure(memory, 20);
+  replenishConquistadorCompany(memory, panama, ports);
+  const third = conquistadorCompanyAssaultStatus(memory, ports[1]);
+  assert.equal(third.attemptNumber, 3);
+  assert.ok(Math.abs(third.assaultChanceBonus - 0.46) < 0.000001);
+});
+
+test("version 1 active expeditions migrate with a full company", () => {
+  const ports = questPorts();
+  const memory = createConquistadorQuestMemory();
+  acceptConquistadorQuest(memory, ports);
+  for (const stage of CONQUISTADOR_FETCH_STAGES) completeConquistadorFetchStage(memory, stage.id);
+  beginConquistadorExpedition(memory, { eligible: true });
+  const legacy = structuredClone(memory);
+  legacy.version = 1;
+  delete legacy.companyStrength;
+  delete legacy.companyNeedsReplenishment;
+  delete legacy.failedAssaults;
+
+  const migrated = migrateConquistadorQuestMemory(legacy);
+  assert.equal(migrated.companyStrength, CONQUISTADOR_COMPANY_MAX_STRENGTH);
+  assert.equal(migrated.companyNeedsReplenishment, false);
+  assert.equal(migrated.failedAssaults, 0);
+});
+
+test("an annexed Spain leaves Panama as the expedition's exile replenishment base", () => {
+  const ports = questPorts();
+  const memory = createConquistadorQuestMemory();
+  acceptConquistadorQuest(memory, ports);
+  for (const stage of CONQUISTADOR_FETCH_STAGES) completeConquistadorFetchStage(memory, stage.id);
+  beginConquistadorExpedition(memory, { eligible: true });
+  recordConquistadorAssaultFailure(memory, 12);
+  ports[0].factionId = "portugal";
+
+  const policy = conquistadorCompanyReplenishmentPolicy(memory, ports);
+  assert.equal(policy.spanishPortsRemain, false);
+  assert.equal(policy.exileBaseTileId, ports[0].tileId);
+  assert.equal(isConquistadorCompanyReplenishmentPort(memory, ports[0], ports), true);
+  assert.equal(isConquistadorCompanyReplenishmentPort(memory, ports[1], ports), false);
+  assert.equal(replenishConquistadorCompany(memory, ports[0], ports).added, 12);
+});
+
+test("version 73 voyages gain conquistador company state", () => {
   const saved = createGameState({ cargoCapacity: 20 });
-  saved.version = 72;
-  delete saved.memory.quests.conquistador;
-  delete saved.memory.conquest.cityDisplayNameOverrides;
+  saved.version = 73;
+  saved.memory.quests.conquistador.version = 1;
+  delete saved.memory.quests.conquistador.companyStrength;
+  delete saved.memory.quests.conquistador.companyNeedsReplenishment;
+  delete saved.memory.quests.conquistador.failedAssaults;
 
   const restored = migrateGameState(saved, null);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.memory.quests.conquistador, createConquistadorQuestMemory());
-  assert.deepEqual(restored.memory.conquest.cityDisplayNameOverrides, {});
 });
 
 function questPorts() {

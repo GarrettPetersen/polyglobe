@@ -252,11 +252,14 @@ import {
   completeConquistadorFetchStage,
   completeConquistadorQuest,
   conquistadorFetchRequirementId,
+  conquistadorCompanyReplenishmentPolicy,
+  isConquistadorCompanyReplenishmentPort,
   conquistadorQuestShouldAppearAtCity,
   conquistadorQuestView,
   isConquistadorQuestOrigin,
   isConquistadorQuestTarget,
-  markConquistadorOfferSeen
+  markConquistadorOfferSeen,
+  replenishConquistadorCompany
 } from "./conquistadorQuest.js";
 import {
   questCargoDeliverableQuantity,
@@ -2167,6 +2170,21 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, conquistadorChanged: true, conquistadorDiplomacyEvents: events };
   }
+  if (action.type === "replenish-conquistador-company") {
+    const replenishment = replenishConquistadorCompany(
+      gameState.memory.quests.conquistador,
+      city,
+      portCities
+    );
+    session.conquistadorCompanyReplenished = true;
+    session.feedback = `${replenishment.added} replacements have joined the expedition.`;
+    session.selectedIndex = 0;
+    return {
+      closed: false,
+      conquistadorChanged: true,
+      conquistadorReplenishment: replenishment
+    };
+  }
   if (action.type === "claim-conquistador-reward") {
     const memory = gameState.memory.quests.conquistador;
     completeConquistadorQuest(memory, context.simMinute ?? 0);
@@ -3570,6 +3588,8 @@ function barredPortView(city, context) {
       ? `Your commission is known. ${cityLabel(city)} has closed its gates and trained its harbor batteries on your ship.`
       : status.catholicContraband
       ? `The Edict of Worms forbids Luther's books and vernacular Scripture. Turn away from ${cityLabel(city)}, or the books will be seized.`
+      : conquest?.conquistadorCompany?.needsReplenishment
+      ? "Your adelantado's soldiers are spent. Find replacements under the Spanish flag before you waste the survivors against our walls."
       : batteryDisabled || conquest?.playerAssaultActive
       ? `You think to take ${cityLabel(city)} with that handful? Bring fewer than ${conquest.minimumCrew} fighting hands ashore, and we will drive every one of you into the sea.`
       : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
@@ -4592,13 +4612,40 @@ function conquistadorView(session, city, gameState, portCities, context) {
   });
   const atOrigin = isConquistadorQuestOrigin(memory, city);
   const atTarget = isConquistadorQuestTarget(memory, city);
-  if (!atOrigin && !atTarget) {
-    throw new Error("Conquistador dialogue opened outside Panama City or Trujillo");
+  const atReplenishmentPort = isConquistadorCompanyReplenishmentPort(memory, city, portCities);
+  const replenishmentPolicy = conquistadorCompanyReplenishmentPolicy(memory, portCities);
+  if (!atOrigin && !atTarget && !atReplenishmentPort && !session.conquistadorCompanyReplenished) {
+    throw new Error("Conquistador dialogue opened outside an expedition port");
   }
   const speaker = `${characterName(city.character)}, adelantado`;
   const back = session.conquistadorArrival
     ? option("Continue", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
     : option("Back", { type: "node", nodeId: "root" });
+
+  if (session.conquistadorCompanyReplenished) {
+    return {
+      speaker,
+      expressionId: "determined",
+      text: "The ranks are full again. The men know where Chan Chan is strong now, which is worth more than another dozen boasts. Take us south.",
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  if (atReplenishmentPort) {
+    return {
+      speaker,
+      expressionId: "stern",
+      text: replenishmentPolicy.spanishPortsRemain
+        ? "The walls bloodied us, but the royal commission still carries weight. Give me this harbor until dawn. I will replace the fallen, and the next assault will begin with what the first one taught us."
+        : "Spain has lost her ports, not every Spaniard his appetite for Peru. Panama remembers our compact. Give me until dawn to replace the fallen; we will carry the Crown in our own chests.",
+      feedback: session.feedback,
+      options: [
+        option("Re-form the expedition", { type: "replenish-conquistador-company" }),
+        back
+      ]
+    };
+  }
 
   if (quest.stage === CONQUISTADOR_STAGE_DORMANT) {
     if (!atOrigin || !quest.available) throw new Error("Unavailable conquistador offer was opened");

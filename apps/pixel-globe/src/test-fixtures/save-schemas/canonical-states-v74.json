@@ -1,0 +1,3180 @@
+{
+  "gameStateVersion": 74,
+  "states": [
+    {
+      "campaignGoalType": "explorer",
+      "state": {
+        "version": 74,
+        "voyageSeed": "save-schema-explorer",
+        "voyageStartProfile": null,
+        "activePlaySeconds": 0,
+        "playerCharacter": {
+          "id": "save-schema-captain",
+          "name": "Schema Captain",
+          "givenName": "Schema",
+          "familyName": "Captain",
+          "gender": "female",
+          "sex": "female",
+          "nameCulture": "english",
+          "nationalityId": "england",
+          "homePortTileId": 1,
+          "homePortName": "London",
+          "religionId": "roman-catholic",
+          "expressions": [
+            "neutral",
+            "happy"
+          ],
+          "skillIds": [
+            "master-gunner"
+          ]
+        },
+        "doubloons": 360,
+        "cargoCapacity": 115,
+        "cargo": {},
+        "namedCrew": [],
+        "ship": {
+          "slug": "brigantine",
+          "loadoutId": null,
+          "loadoutTargets": null,
+          "crew": 0,
+          "crewCapacity": 23,
+          "cannons": 0,
+          "cannonCapacity": 14,
+          "baseCargoCapacity": 115,
+          "mass": 155
+        },
+        "survival": {
+          "freshWater": 0,
+          "freshWaterCapacity": 1,
+          "foodRationDebt": 0,
+          "wineOnlyMinutes": 0,
+          "wineEmergencyActive": false,
+          "lastMinute": 123456
+        },
+        "inventory": {
+          "items": {
+            "english-longbows": 1
+          },
+          "fishingNetId": "basic-cast-net",
+          "cannonEquipmentId": "standard-ordnance",
+          "whaleHarpoonId": null
+        },
+        "accounts": {
+          "cargoCostBasis": {},
+          "realizedPnl": 0,
+          "nextEntryId": 2,
+          "ledger": [
+            {
+              "id": 1,
+              "kind": "opening",
+              "simMinute": 123456,
+              "location": "Aboard",
+              "country": "",
+              "description": "Opening balance",
+              "goodId": null,
+              "quantity": 0,
+              "amount": 360,
+              "balance": 360,
+              "costBasis": null,
+              "pnl": null
+            }
+          ]
+        },
+        "relations": {
+          "factionReputation": {
+            "neutral": 0,
+            "pirate": -100,
+            "england": 8,
+            "scotland": 6,
+            "france": -3,
+            "spain": 9,
+            "portugal": 8,
+            "hormuz": -3,
+            "habsburg": 13,
+            "hungary": 6,
+            "ottoman": -6,
+            "venice": 2,
+            "genoa": 4,
+            "papal-states": 4,
+            "hospitallers": 7,
+            "ming": 1,
+            "inca": 2,
+            "safavid": -4,
+            "muscovy": -1,
+            "crimea": -4,
+            "wallachia": 1,
+            "moldavia": 0,
+            "ragusa": 4,
+            "hejaz": -5,
+            "poland-lithuania": 7,
+            "sweden": 3,
+            "denmark-norway": 4,
+            "songhai": -5,
+            "morocco": -2,
+            "ethiopia": 2,
+            "vijayanagara": 1,
+            "gujarat": -3,
+            "bengal": -4,
+            "delhi": -3,
+            "mughal": -3,
+            "ayutthaya": 2,
+            "ternate": -5,
+            "tidore": -2,
+            "japan": 1,
+            "hosokawa": 1,
+            "ouchi": -2,
+            "shimazu": -1,
+            "so": 1,
+            "shoni": 1,
+            "nagao": 2,
+            "ando": -1,
+            "kakizaki": 2,
+            "ryukyu": -2,
+            "ainu": -1,
+            "joseon": 0
+          },
+          "lettersOfMarque": {},
+          "safePassageUntilMinute": {},
+          "safePassageRefusalUntilMinute": {},
+          "tradeAccessGrants": {
+            "ming-maritime-prohibition": [
+              "joseon",
+              "ryukyu"
+            ],
+            "joseon-licensed-trade": [
+              "japan",
+              "ming"
+            ],
+            "spanish-indies-monopoly": []
+          },
+          "personalTradePasses": {},
+          "portugueseCartaz": {
+            "issuedMinute": null,
+            "untilMinute": 0,
+            "issuedAtPortId": null,
+            "graceUntilMinute": 0,
+            "inspectedShipUntilMinute": {}
+          },
+          "foreignSettlementExpulsions": {
+            "version": 1,
+            "revision": 0,
+            "byId": {}
+          },
+          "diplomacy": {
+            "version": 7,
+            "seed": 528697311,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextEventMinute": 331001,
+            "overrides": {},
+            "pairLastChangedMinute": {},
+            "contacts": {},
+            "suzerainties": {
+              "byVassalId": {
+                "spain": {
+                  "vassalFactionId": "spain",
+                  "suzerainFactionId": "habsburg",
+                  "kind": "personal-union",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hormuz": {
+                  "vassalFactionId": "hormuz",
+                  "suzerainFactionId": "portugal",
+                  "kind": "vassal",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "crimea": {
+                  "vassalFactionId": "crimea",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "wallachia": {
+                  "vassalFactionId": "wallachia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "moldavia": {
+                  "vassalFactionId": "moldavia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hejaz": {
+                  "vassalFactionId": "hejaz",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ragusa": {
+                  "vassalFactionId": "ragusa",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "joseon": {
+                  "vassalFactionId": "joseon",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ryukyu": {
+                  "vassalFactionId": "ryukyu",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hosokawa": {
+                  "vassalFactionId": "hosokawa",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ouchi": {
+                  "vassalFactionId": "ouchi",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shimazu": {
+                  "vassalFactionId": "shimazu",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "so": {
+                  "vassalFactionId": "so",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shoni": {
+                  "vassalFactionId": "shoni",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "nagao": {
+                  "vassalFactionId": "nagao",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ando": {
+                  "vassalFactionId": "ando",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "kakizaki": {
+                  "vassalFactionId": "kakizaki",
+                  "suzerainFactionId": "ando",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                }
+              },
+              "history": []
+            },
+            "history": []
+          },
+          "papacy": {
+            "version": 3,
+            "seed": 236580596,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 761376,
+            "englishReformationApplied": false,
+            "excommunications": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "courts": {
+            "version": 1,
+            "seed": 650926541,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 414336,
+            "portServiceMinutes": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "authority": {
+            "version": 1,
+            "seed": 660927412,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextSubjectReviewMinute": 312873,
+            "scores": {
+              "england": 74,
+              "scotland": 52,
+              "france": 76,
+              "spain": 82,
+              "portugal": 76,
+              "hormuz": 38,
+              "habsburg": 80,
+              "hungary": 48,
+              "ottoman": 88,
+              "venice": 74,
+              "genoa": 48,
+              "papal-states": 62,
+              "hospitallers": 76,
+              "ming": 68,
+              "inca": 84,
+              "safavid": 76,
+              "muscovy": 78,
+              "crimea": 60,
+              "wallachia": 44,
+              "moldavia": 50,
+              "ragusa": 66,
+              "hejaz": 58,
+              "poland-lithuania": 64,
+              "sweden": 42,
+              "denmark-norway": 44,
+              "songhai": 80,
+              "morocco": 54,
+              "ethiopia": 66,
+              "vijayanagara": 88,
+              "gujarat": 66,
+              "bengal": 68,
+              "delhi": 46,
+              "mughal": 72,
+              "ayutthaya": 74,
+              "ternate": 58,
+              "tidore": 60,
+              "japan": 22,
+              "hosokawa": 68,
+              "ouchi": 66,
+              "shimazu": 58,
+              "so": 54,
+              "shoni": 52,
+              "nagao": 58,
+              "ando": 56,
+              "kakizaki": 48,
+              "ryukyu": 76,
+              "ainu": 46,
+              "joseon": 78
+            },
+            "papal": 58,
+            "englishReformationApplied": false,
+            "viennaSiegeApplied": false,
+            "history": []
+          }
+        },
+        "memory": {
+          "visitedPorts": {},
+          "decisions": {},
+          "flags": {},
+          "discoveries": {},
+          "discoveryOrder": [],
+          "animals": {
+            "version": 1,
+            "encountered": {},
+            "encounterOrder": [],
+            "nextRollMinute": 0
+          },
+          "animalCompanions": {
+            "version": 1,
+            "byId": {
+              "panda": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "raccoon": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "penguin": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              }
+            },
+            "introductionKeys": []
+          },
+          "pendingDiscoveryPortDialogueIds": [],
+          "namedCrewDeathNotices": [],
+          "birthdays": {
+            "version": 1,
+            "lastObservedDateKey": null,
+            "pendingEvents": [],
+            "celebratedEventIds": []
+          },
+          "specialEquipmentOffers": {
+            "version": 1,
+            "byPort": {}
+          },
+          "illicitTradeEnforcement": {
+            "nextIncidentId": 1,
+            "incidents": []
+          },
+          "chartReframeDialogue": {
+            "version": 1,
+            "shownIds": [],
+            "recentIds": [],
+            "recentCategories": [],
+            "recentPortTileIds": [],
+            "lastShownMinute": null,
+            "shownCount": 0
+          },
+          "navigation": {
+            "lastLongitudeDeg": null,
+            "cumulativeLongitudeDeg": 0,
+            "minimumCumulativeLongitudeDeg": 0,
+            "maximumCumulativeLongitudeDeg": 0,
+            "optionalWaypoints": []
+          },
+          "quests": {
+            "active": null,
+            "passengerActive": null,
+            "completed": {},
+            "failed": {},
+            "onboardingDeliveriesCompleted": 0,
+            "deliveryOffers": {},
+            "deliveryRolls": {},
+            "capturePortOffers": {},
+            "capturePortRolls": {},
+            "courtMissionOffers": {},
+            "courtMissionRolls": {},
+            "passengerOffers": {},
+            "passengerRolls": {},
+            "vikingLongshipRolls": {},
+            "cargoDeliveries": {},
+            "japaneseMatchlocks": {
+              "version": 1,
+              "stage": "locked",
+              "fetchStageIndex": 0,
+              "workshopTileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "caribbeanGinger": {
+              "version": 1,
+              "stage": "locked",
+              "cultivationTileId": null,
+              "cultivationCity": null,
+              "cultivationCountry": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "chef": {
+              "version": 1,
+              "stage": "locked",
+              "portTileId": null,
+              "portCity": null,
+              "portCountry": null,
+              "ingredientGoodIds": [],
+              "eventProfileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "pirateCaptive": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "castaway": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "naturalist": {
+              "version": 2,
+              "portTileId": null,
+              "character": null,
+              "met": false,
+              "reportedAnimalIds": [],
+              "completionRewarded": false
+            },
+            "hospitallerMalta": {
+              "version": 1,
+              "stage": "locked",
+              "activatedMinute": null,
+              "acceptedMinute": null,
+              "grantedMinute": null,
+              "completedMinute": null,
+              "rome": null,
+              "malta": null,
+              "grantorFactionId": null,
+              "grantorCapital": null,
+              "grantedCities": [],
+              "envoy": null
+            },
+            "conquistador": {
+              "version": 2,
+              "stage": "dormant",
+              "offerSeen": false,
+              "originTileId": null,
+              "targetTileId": null,
+              "fetchStageIndex": 0,
+              "companyStrength": 0,
+              "companyNeedsReplenishment": false,
+              "failedAssaults": 0,
+              "capturedAtMinute": null,
+              "rewardReadyMinute": null,
+              "transferSchedule": [],
+              "transferredTileIds": [],
+              "completedAtMinute": null
+            }
+          },
+          "cargoReservations": {},
+          "missionItemGifts": {},
+          "colonization": {
+            "version": 3,
+            "stage": "fetch",
+            "fetchStageIndex": 0,
+            "targetTileId": null,
+            "foundedMinute": null,
+            "resupplyDeadlineMinute": null,
+            "resupplyExtensionMinutes": 0,
+            "leftSinceFounding": false,
+            "failedMinute": null,
+            "establishedMinute": null,
+            "defenseStartedMinute": null,
+            "defenseCompletedMinute": null,
+            "defenseShipIds": [],
+            "defenseDefeatedShipIds": [],
+            "aftermath": null,
+            "targetCity": null,
+            "targetCountry": null,
+            "originTileId": null,
+            "originCity": null,
+            "originCountry": null,
+            "approvalTileId": null,
+            "approvalCity": null,
+            "approvalCountry": null,
+            "approvalGranted": false,
+            "distanceKm": null,
+            "offerSeen": false,
+            "spawnRolls": {},
+            "pastSettlements": []
+          },
+          "conquest": {
+            "portFactionOverrides": {},
+            "cityDisplayNameOverrides": {},
+            "factionCapitalOverrides": {},
+            "collapsedFactionIds": [
+              "mughal"
+            ],
+            "factionSuccessors": {},
+            "treaties": [],
+            "events": []
+          },
+          "achievements": {
+            "version": 2,
+            "soldSpiceGoodIds": [],
+            "foundedCityIds": [],
+            "sailedShipSlugs": [],
+            "grossDoubloonsEarned": 0,
+            "whiteWhaleKilled": false,
+            "arrivedInPortDrunk": false,
+            "married": false,
+            "defeatedShipCount": 0,
+            "whalesKilled": 0,
+            "survivedLightningStrike": false
+          },
+          "whales": {
+            "version": 2,
+            "nextId": 1,
+            "individuals": [],
+            "activeHunt": null,
+            "lastEcologyMinute": null
+          },
+          "icebergs": {
+            "version": 1,
+            "nextId": 1,
+            "individuals": [],
+            "lastAdvanceMinute": null,
+            "lastSpawnMinute": null
+          },
+          "campaignGoal": {
+            "version": 1,
+            "type": "explorer",
+            "status": "active",
+            "homePortTileId": 1,
+            "introSeen": false,
+            "endingVariant": 1,
+            "reportedDiscoveryIds": [],
+            "currentLeadDiscoveryId": null,
+            "totalWonderCount": 0
+          },
+          "cartography": {
+            "seenTilesBase64": "",
+            "seenTileCount": 0
+          }
+        }
+      }
+    },
+    {
+      "campaignGoalType": "family-debt",
+      "state": {
+        "version": 74,
+        "voyageSeed": "save-schema-family-debt",
+        "voyageStartProfile": null,
+        "activePlaySeconds": 0,
+        "playerCharacter": {
+          "id": "save-schema-captain",
+          "name": "Schema Captain",
+          "givenName": "Schema",
+          "familyName": "Captain",
+          "gender": "female",
+          "sex": "female",
+          "nameCulture": "english",
+          "nationalityId": "england",
+          "homePortTileId": 1,
+          "homePortName": "London",
+          "religionId": "roman-catholic",
+          "expressions": [
+            "neutral",
+            "happy"
+          ],
+          "skillIds": [
+            "master-gunner"
+          ]
+        },
+        "doubloons": 360,
+        "cargoCapacity": 115,
+        "cargo": {},
+        "namedCrew": [],
+        "ship": {
+          "slug": "brigantine",
+          "loadoutId": null,
+          "loadoutTargets": null,
+          "crew": 0,
+          "crewCapacity": 23,
+          "cannons": 0,
+          "cannonCapacity": 14,
+          "baseCargoCapacity": 115,
+          "mass": 155
+        },
+        "survival": {
+          "freshWater": 0,
+          "freshWaterCapacity": 1,
+          "foodRationDebt": 0,
+          "wineOnlyMinutes": 0,
+          "wineEmergencyActive": false,
+          "lastMinute": 123456
+        },
+        "inventory": {
+          "items": {
+            "english-longbows": 1
+          },
+          "fishingNetId": "basic-cast-net",
+          "cannonEquipmentId": "standard-ordnance",
+          "whaleHarpoonId": null
+        },
+        "accounts": {
+          "cargoCostBasis": {},
+          "realizedPnl": 0,
+          "nextEntryId": 2,
+          "ledger": [
+            {
+              "id": 1,
+              "kind": "opening",
+              "simMinute": 123456,
+              "location": "Aboard",
+              "country": "",
+              "description": "Opening balance",
+              "goodId": null,
+              "quantity": 0,
+              "amount": 360,
+              "balance": 360,
+              "costBasis": null,
+              "pnl": null
+            }
+          ]
+        },
+        "relations": {
+          "factionReputation": {
+            "neutral": 0,
+            "pirate": -100,
+            "england": 8,
+            "scotland": 7,
+            "france": -5,
+            "spain": 12,
+            "portugal": 6,
+            "hormuz": -2,
+            "habsburg": 11,
+            "hungary": 6,
+            "ottoman": -5,
+            "venice": 3,
+            "genoa": 5,
+            "papal-states": 4,
+            "hospitallers": 6,
+            "ming": -2,
+            "inca": 0,
+            "safavid": -2,
+            "muscovy": -1,
+            "crimea": -5,
+            "wallachia": -2,
+            "moldavia": -2,
+            "ragusa": 7,
+            "hejaz": -6,
+            "poland-lithuania": 3,
+            "sweden": 6,
+            "denmark-norway": 6,
+            "songhai": -5,
+            "morocco": -3,
+            "ethiopia": -1,
+            "vijayanagara": 2,
+            "gujarat": -3,
+            "bengal": -3,
+            "delhi": -5,
+            "mughal": -3,
+            "ayutthaya": 0,
+            "ternate": -3,
+            "tidore": -4,
+            "japan": -2,
+            "hosokawa": -2,
+            "ouchi": 0,
+            "shimazu": 2,
+            "so": 2,
+            "shoni": 2,
+            "nagao": -2,
+            "ando": 1,
+            "kakizaki": 1,
+            "ryukyu": 1,
+            "ainu": 1,
+            "joseon": -2
+          },
+          "lettersOfMarque": {},
+          "safePassageUntilMinute": {},
+          "safePassageRefusalUntilMinute": {},
+          "tradeAccessGrants": {
+            "ming-maritime-prohibition": [
+              "joseon",
+              "ryukyu"
+            ],
+            "joseon-licensed-trade": [
+              "japan",
+              "ming"
+            ],
+            "spanish-indies-monopoly": []
+          },
+          "personalTradePasses": {},
+          "portugueseCartaz": {
+            "issuedMinute": null,
+            "untilMinute": 0,
+            "issuedAtPortId": null,
+            "graceUntilMinute": 0,
+            "inspectedShipUntilMinute": {}
+          },
+          "foreignSettlementExpulsions": {
+            "version": 1,
+            "revision": 0,
+            "byId": {}
+          },
+          "diplomacy": {
+            "version": 7,
+            "seed": 3645256305,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextEventMinute": 245688,
+            "overrides": {},
+            "pairLastChangedMinute": {},
+            "contacts": {},
+            "suzerainties": {
+              "byVassalId": {
+                "spain": {
+                  "vassalFactionId": "spain",
+                  "suzerainFactionId": "habsburg",
+                  "kind": "personal-union",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hormuz": {
+                  "vassalFactionId": "hormuz",
+                  "suzerainFactionId": "portugal",
+                  "kind": "vassal",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "crimea": {
+                  "vassalFactionId": "crimea",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "wallachia": {
+                  "vassalFactionId": "wallachia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "moldavia": {
+                  "vassalFactionId": "moldavia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hejaz": {
+                  "vassalFactionId": "hejaz",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ragusa": {
+                  "vassalFactionId": "ragusa",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "joseon": {
+                  "vassalFactionId": "joseon",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ryukyu": {
+                  "vassalFactionId": "ryukyu",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hosokawa": {
+                  "vassalFactionId": "hosokawa",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ouchi": {
+                  "vassalFactionId": "ouchi",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shimazu": {
+                  "vassalFactionId": "shimazu",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "so": {
+                  "vassalFactionId": "so",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shoni": {
+                  "vassalFactionId": "shoni",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "nagao": {
+                  "vassalFactionId": "nagao",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ando": {
+                  "vassalFactionId": "ando",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "kakizaki": {
+                  "vassalFactionId": "kakizaki",
+                  "suzerainFactionId": "ando",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                }
+              },
+              "history": []
+            },
+            "history": []
+          },
+          "papacy": {
+            "version": 3,
+            "seed": 4276605933,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 751296,
+            "englishReformationApplied": false,
+            "excommunications": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "courts": {
+            "version": 1,
+            "seed": 2676947352,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 464736,
+            "portServiceMinutes": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "authority": {
+            "version": 1,
+            "seed": 2617933207,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextSubjectReviewMinute": 370309,
+            "scores": {
+              "england": 74,
+              "scotland": 52,
+              "france": 76,
+              "spain": 82,
+              "portugal": 76,
+              "hormuz": 38,
+              "habsburg": 80,
+              "hungary": 48,
+              "ottoman": 88,
+              "venice": 74,
+              "genoa": 48,
+              "papal-states": 62,
+              "hospitallers": 76,
+              "ming": 68,
+              "inca": 84,
+              "safavid": 76,
+              "muscovy": 78,
+              "crimea": 60,
+              "wallachia": 44,
+              "moldavia": 50,
+              "ragusa": 66,
+              "hejaz": 58,
+              "poland-lithuania": 64,
+              "sweden": 42,
+              "denmark-norway": 44,
+              "songhai": 80,
+              "morocco": 54,
+              "ethiopia": 66,
+              "vijayanagara": 88,
+              "gujarat": 66,
+              "bengal": 68,
+              "delhi": 46,
+              "mughal": 72,
+              "ayutthaya": 74,
+              "ternate": 58,
+              "tidore": 60,
+              "japan": 22,
+              "hosokawa": 68,
+              "ouchi": 66,
+              "shimazu": 58,
+              "so": 54,
+              "shoni": 52,
+              "nagao": 58,
+              "ando": 56,
+              "kakizaki": 48,
+              "ryukyu": 76,
+              "ainu": 46,
+              "joseon": 78
+            },
+            "papal": 58,
+            "englishReformationApplied": false,
+            "viennaSiegeApplied": false,
+            "history": []
+          }
+        },
+        "memory": {
+          "visitedPorts": {},
+          "decisions": {},
+          "flags": {},
+          "discoveries": {},
+          "discoveryOrder": [],
+          "animals": {
+            "version": 1,
+            "encountered": {},
+            "encounterOrder": [],
+            "nextRollMinute": 0
+          },
+          "animalCompanions": {
+            "version": 1,
+            "byId": {
+              "panda": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "raccoon": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "penguin": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              }
+            },
+            "introductionKeys": []
+          },
+          "pendingDiscoveryPortDialogueIds": [],
+          "namedCrewDeathNotices": [],
+          "birthdays": {
+            "version": 1,
+            "lastObservedDateKey": null,
+            "pendingEvents": [],
+            "celebratedEventIds": []
+          },
+          "specialEquipmentOffers": {
+            "version": 1,
+            "byPort": {}
+          },
+          "illicitTradeEnforcement": {
+            "nextIncidentId": 1,
+            "incidents": []
+          },
+          "chartReframeDialogue": {
+            "version": 1,
+            "shownIds": [],
+            "recentIds": [],
+            "recentCategories": [],
+            "recentPortTileIds": [],
+            "lastShownMinute": null,
+            "shownCount": 0
+          },
+          "navigation": {
+            "lastLongitudeDeg": null,
+            "cumulativeLongitudeDeg": 0,
+            "minimumCumulativeLongitudeDeg": 0,
+            "maximumCumulativeLongitudeDeg": 0,
+            "optionalWaypoints": []
+          },
+          "quests": {
+            "active": null,
+            "passengerActive": null,
+            "completed": {},
+            "failed": {},
+            "onboardingDeliveriesCompleted": 0,
+            "deliveryOffers": {},
+            "deliveryRolls": {},
+            "capturePortOffers": {},
+            "capturePortRolls": {},
+            "courtMissionOffers": {},
+            "courtMissionRolls": {},
+            "passengerOffers": {},
+            "passengerRolls": {},
+            "vikingLongshipRolls": {},
+            "cargoDeliveries": {},
+            "japaneseMatchlocks": {
+              "version": 1,
+              "stage": "locked",
+              "fetchStageIndex": 0,
+              "workshopTileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "caribbeanGinger": {
+              "version": 1,
+              "stage": "locked",
+              "cultivationTileId": null,
+              "cultivationCity": null,
+              "cultivationCountry": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "chef": {
+              "version": 1,
+              "stage": "locked",
+              "portTileId": null,
+              "portCity": null,
+              "portCountry": null,
+              "ingredientGoodIds": [],
+              "eventProfileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "pirateCaptive": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "castaway": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "naturalist": {
+              "version": 2,
+              "portTileId": null,
+              "character": null,
+              "met": false,
+              "reportedAnimalIds": [],
+              "completionRewarded": false
+            },
+            "hospitallerMalta": {
+              "version": 1,
+              "stage": "locked",
+              "activatedMinute": null,
+              "acceptedMinute": null,
+              "grantedMinute": null,
+              "completedMinute": null,
+              "rome": null,
+              "malta": null,
+              "grantorFactionId": null,
+              "grantorCapital": null,
+              "grantedCities": [],
+              "envoy": null
+            },
+            "conquistador": {
+              "version": 2,
+              "stage": "dormant",
+              "offerSeen": false,
+              "originTileId": null,
+              "targetTileId": null,
+              "fetchStageIndex": 0,
+              "companyStrength": 0,
+              "companyNeedsReplenishment": false,
+              "failedAssaults": 0,
+              "capturedAtMinute": null,
+              "rewardReadyMinute": null,
+              "transferSchedule": [],
+              "transferredTileIds": [],
+              "completedAtMinute": null
+            }
+          },
+          "cargoReservations": {},
+          "missionItemGifts": {},
+          "colonization": {
+            "version": 3,
+            "stage": "fetch",
+            "fetchStageIndex": 0,
+            "targetTileId": null,
+            "foundedMinute": null,
+            "resupplyDeadlineMinute": null,
+            "resupplyExtensionMinutes": 0,
+            "leftSinceFounding": false,
+            "failedMinute": null,
+            "establishedMinute": null,
+            "defenseStartedMinute": null,
+            "defenseCompletedMinute": null,
+            "defenseShipIds": [],
+            "defenseDefeatedShipIds": [],
+            "aftermath": null,
+            "targetCity": null,
+            "targetCountry": null,
+            "originTileId": null,
+            "originCity": null,
+            "originCountry": null,
+            "approvalTileId": null,
+            "approvalCity": null,
+            "approvalCountry": null,
+            "approvalGranted": false,
+            "distanceKm": null,
+            "offerSeen": false,
+            "spawnRolls": {},
+            "pastSettlements": []
+          },
+          "conquest": {
+            "portFactionOverrides": {},
+            "cityDisplayNameOverrides": {},
+            "factionCapitalOverrides": {},
+            "collapsedFactionIds": [
+              "mughal"
+            ],
+            "factionSuccessors": {},
+            "treaties": [],
+            "events": []
+          },
+          "achievements": {
+            "version": 2,
+            "soldSpiceGoodIds": [],
+            "foundedCityIds": [],
+            "sailedShipSlugs": [],
+            "grossDoubloonsEarned": 0,
+            "whiteWhaleKilled": false,
+            "arrivedInPortDrunk": false,
+            "married": false,
+            "defeatedShipCount": 0,
+            "whalesKilled": 0,
+            "survivedLightningStrike": false
+          },
+          "whales": {
+            "version": 2,
+            "nextId": 1,
+            "individuals": [],
+            "activeHunt": null,
+            "lastEcologyMinute": null
+          },
+          "icebergs": {
+            "version": 1,
+            "nextId": 1,
+            "individuals": [],
+            "lastAdvanceMinute": null,
+            "lastSpawnMinute": null
+          },
+          "campaignGoal": {
+            "version": 1,
+            "type": "family-debt",
+            "status": "active",
+            "homePortTileId": 1,
+            "introSeen": false,
+            "endingVariant": 1,
+            "debtBalance": 100000,
+            "annualInterestRate": 0.1,
+            "lastAccruedMinute": 123456,
+            "protectedPurse": 100,
+            "totalPaid": 0
+          },
+          "cartography": {
+            "seenTilesBase64": "",
+            "seenTileCount": 0
+          }
+        }
+      }
+    },
+    {
+      "campaignGoalType": "white-whale-revenge",
+      "state": {
+        "version": 74,
+        "voyageSeed": "save-schema-white-whale-revenge",
+        "voyageStartProfile": null,
+        "activePlaySeconds": 0,
+        "playerCharacter": {
+          "id": "save-schema-captain",
+          "name": "Schema Captain",
+          "givenName": "Schema",
+          "familyName": "Captain",
+          "gender": "female",
+          "sex": "female",
+          "nameCulture": "english",
+          "nationalityId": "england",
+          "homePortTileId": 1,
+          "homePortName": "London",
+          "religionId": "roman-catholic",
+          "expressions": [
+            "neutral",
+            "happy"
+          ],
+          "skillIds": [
+            "master-gunner"
+          ]
+        },
+        "doubloons": 360,
+        "cargoCapacity": 115,
+        "cargo": {},
+        "namedCrew": [],
+        "ship": {
+          "slug": "brigantine",
+          "loadoutId": null,
+          "loadoutTargets": null,
+          "crew": 0,
+          "crewCapacity": 23,
+          "cannons": 0,
+          "cannonCapacity": 14,
+          "baseCargoCapacity": 115,
+          "mass": 155
+        },
+        "survival": {
+          "freshWater": 0,
+          "freshWaterCapacity": 1,
+          "foodRationDebt": 0,
+          "wineOnlyMinutes": 0,
+          "wineEmergencyActive": false,
+          "lastMinute": 123456
+        },
+        "inventory": {
+          "items": {
+            "english-longbows": 1
+          },
+          "fishingNetId": "basic-cast-net",
+          "cannonEquipmentId": "standard-ordnance",
+          "whaleHarpoonId": "ash-shaft-harpoon"
+        },
+        "accounts": {
+          "cargoCostBasis": {},
+          "realizedPnl": 0,
+          "nextEntryId": 2,
+          "ledger": [
+            {
+              "id": 1,
+              "kind": "opening",
+              "simMinute": 123456,
+              "location": "Aboard",
+              "country": "",
+              "description": "Opening balance",
+              "goodId": null,
+              "quantity": 0,
+              "amount": 360,
+              "balance": 360,
+              "costBasis": null,
+              "pnl": null
+            }
+          ]
+        },
+        "relations": {
+          "factionReputation": {
+            "neutral": 0,
+            "pirate": -100,
+            "england": 8,
+            "scotland": 4,
+            "france": -4,
+            "spain": 10,
+            "portugal": 7,
+            "hormuz": -1,
+            "habsburg": 13,
+            "hungary": 7,
+            "ottoman": -4,
+            "venice": 4,
+            "genoa": 5,
+            "papal-states": 8,
+            "hospitallers": 5,
+            "ming": -2,
+            "inca": -2,
+            "safavid": -4,
+            "muscovy": -3,
+            "crimea": -2,
+            "wallachia": -2,
+            "moldavia": -1,
+            "ragusa": 5,
+            "hejaz": -5,
+            "poland-lithuania": 4,
+            "sweden": 5,
+            "denmark-norway": 6,
+            "songhai": -5,
+            "morocco": -1,
+            "ethiopia": -2,
+            "vijayanagara": 1,
+            "gujarat": -3,
+            "bengal": -4,
+            "delhi": -2,
+            "mughal": -1,
+            "ayutthaya": -2,
+            "ternate": -3,
+            "tidore": -1,
+            "japan": 0,
+            "hosokawa": 1,
+            "ouchi": -2,
+            "shimazu": 2,
+            "so": -2,
+            "shoni": -1,
+            "nagao": -2,
+            "ando": -2,
+            "kakizaki": -1,
+            "ryukyu": -2,
+            "ainu": -1,
+            "joseon": 1
+          },
+          "lettersOfMarque": {},
+          "safePassageUntilMinute": {},
+          "safePassageRefusalUntilMinute": {},
+          "tradeAccessGrants": {
+            "ming-maritime-prohibition": [
+              "joseon",
+              "ryukyu"
+            ],
+            "joseon-licensed-trade": [
+              "japan",
+              "ming"
+            ],
+            "spanish-indies-monopoly": []
+          },
+          "personalTradePasses": {},
+          "portugueseCartaz": {
+            "issuedMinute": null,
+            "untilMinute": 0,
+            "issuedAtPortId": null,
+            "graceUntilMinute": 0,
+            "inspectedShipUntilMinute": {}
+          },
+          "foreignSettlementExpulsions": {
+            "version": 1,
+            "revision": 0,
+            "byId": {}
+          },
+          "diplomacy": {
+            "version": 7,
+            "seed": 1341666441,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextEventMinute": 290594,
+            "overrides": {},
+            "pairLastChangedMinute": {},
+            "contacts": {},
+            "suzerainties": {
+              "byVassalId": {
+                "spain": {
+                  "vassalFactionId": "spain",
+                  "suzerainFactionId": "habsburg",
+                  "kind": "personal-union",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hormuz": {
+                  "vassalFactionId": "hormuz",
+                  "suzerainFactionId": "portugal",
+                  "kind": "vassal",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "crimea": {
+                  "vassalFactionId": "crimea",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "wallachia": {
+                  "vassalFactionId": "wallachia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "moldavia": {
+                  "vassalFactionId": "moldavia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hejaz": {
+                  "vassalFactionId": "hejaz",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ragusa": {
+                  "vassalFactionId": "ragusa",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "joseon": {
+                  "vassalFactionId": "joseon",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ryukyu": {
+                  "vassalFactionId": "ryukyu",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hosokawa": {
+                  "vassalFactionId": "hosokawa",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ouchi": {
+                  "vassalFactionId": "ouchi",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shimazu": {
+                  "vassalFactionId": "shimazu",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "so": {
+                  "vassalFactionId": "so",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shoni": {
+                  "vassalFactionId": "shoni",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "nagao": {
+                  "vassalFactionId": "nagao",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ando": {
+                  "vassalFactionId": "ando",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "kakizaki": {
+                  "vassalFactionId": "kakizaki",
+                  "suzerainFactionId": "ando",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                }
+              },
+              "history": []
+            },
+            "history": []
+          },
+          "papacy": {
+            "version": 3,
+            "seed": 3144381809,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 696576,
+            "englishReformationApplied": false,
+            "excommunications": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "courts": {
+            "version": 1,
+            "seed": 986223332,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 368256,
+            "portServiceMinutes": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "authority": {
+            "version": 1,
+            "seed": 2255708603,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextSubjectReviewMinute": 345783,
+            "scores": {
+              "england": 74,
+              "scotland": 52,
+              "france": 76,
+              "spain": 82,
+              "portugal": 76,
+              "hormuz": 38,
+              "habsburg": 80,
+              "hungary": 48,
+              "ottoman": 88,
+              "venice": 74,
+              "genoa": 48,
+              "papal-states": 62,
+              "hospitallers": 76,
+              "ming": 68,
+              "inca": 84,
+              "safavid": 76,
+              "muscovy": 78,
+              "crimea": 60,
+              "wallachia": 44,
+              "moldavia": 50,
+              "ragusa": 66,
+              "hejaz": 58,
+              "poland-lithuania": 64,
+              "sweden": 42,
+              "denmark-norway": 44,
+              "songhai": 80,
+              "morocco": 54,
+              "ethiopia": 66,
+              "vijayanagara": 88,
+              "gujarat": 66,
+              "bengal": 68,
+              "delhi": 46,
+              "mughal": 72,
+              "ayutthaya": 74,
+              "ternate": 58,
+              "tidore": 60,
+              "japan": 22,
+              "hosokawa": 68,
+              "ouchi": 66,
+              "shimazu": 58,
+              "so": 54,
+              "shoni": 52,
+              "nagao": 58,
+              "ando": 56,
+              "kakizaki": 48,
+              "ryukyu": 76,
+              "ainu": 46,
+              "joseon": 78
+            },
+            "papal": 58,
+            "englishReformationApplied": false,
+            "viennaSiegeApplied": false,
+            "history": []
+          }
+        },
+        "memory": {
+          "visitedPorts": {},
+          "decisions": {},
+          "flags": {},
+          "discoveries": {},
+          "discoveryOrder": [],
+          "animals": {
+            "version": 1,
+            "encountered": {},
+            "encounterOrder": [],
+            "nextRollMinute": 0
+          },
+          "animalCompanions": {
+            "version": 1,
+            "byId": {
+              "panda": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "raccoon": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "penguin": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              }
+            },
+            "introductionKeys": []
+          },
+          "pendingDiscoveryPortDialogueIds": [],
+          "namedCrewDeathNotices": [],
+          "birthdays": {
+            "version": 1,
+            "lastObservedDateKey": null,
+            "pendingEvents": [],
+            "celebratedEventIds": []
+          },
+          "specialEquipmentOffers": {
+            "version": 1,
+            "byPort": {}
+          },
+          "illicitTradeEnforcement": {
+            "nextIncidentId": 1,
+            "incidents": []
+          },
+          "chartReframeDialogue": {
+            "version": 1,
+            "shownIds": [],
+            "recentIds": [],
+            "recentCategories": [],
+            "recentPortTileIds": [],
+            "lastShownMinute": null,
+            "shownCount": 0
+          },
+          "navigation": {
+            "lastLongitudeDeg": null,
+            "cumulativeLongitudeDeg": 0,
+            "minimumCumulativeLongitudeDeg": 0,
+            "maximumCumulativeLongitudeDeg": 0,
+            "optionalWaypoints": []
+          },
+          "quests": {
+            "active": null,
+            "passengerActive": null,
+            "completed": {},
+            "failed": {},
+            "onboardingDeliveriesCompleted": 0,
+            "deliveryOffers": {},
+            "deliveryRolls": {},
+            "capturePortOffers": {},
+            "capturePortRolls": {},
+            "courtMissionOffers": {},
+            "courtMissionRolls": {},
+            "passengerOffers": {},
+            "passengerRolls": {},
+            "vikingLongshipRolls": {},
+            "cargoDeliveries": {},
+            "japaneseMatchlocks": {
+              "version": 1,
+              "stage": "locked",
+              "fetchStageIndex": 0,
+              "workshopTileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "caribbeanGinger": {
+              "version": 1,
+              "stage": "locked",
+              "cultivationTileId": null,
+              "cultivationCity": null,
+              "cultivationCountry": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "chef": {
+              "version": 1,
+              "stage": "locked",
+              "portTileId": null,
+              "portCity": null,
+              "portCountry": null,
+              "ingredientGoodIds": [],
+              "eventProfileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "pirateCaptive": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "castaway": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "naturalist": {
+              "version": 2,
+              "portTileId": null,
+              "character": null,
+              "met": false,
+              "reportedAnimalIds": [],
+              "completionRewarded": false
+            },
+            "hospitallerMalta": {
+              "version": 1,
+              "stage": "locked",
+              "activatedMinute": null,
+              "acceptedMinute": null,
+              "grantedMinute": null,
+              "completedMinute": null,
+              "rome": null,
+              "malta": null,
+              "grantorFactionId": null,
+              "grantorCapital": null,
+              "grantedCities": [],
+              "envoy": null
+            },
+            "conquistador": {
+              "version": 2,
+              "stage": "dormant",
+              "offerSeen": false,
+              "originTileId": null,
+              "targetTileId": null,
+              "fetchStageIndex": 0,
+              "companyStrength": 0,
+              "companyNeedsReplenishment": false,
+              "failedAssaults": 0,
+              "capturedAtMinute": null,
+              "rewardReadyMinute": null,
+              "transferSchedule": [],
+              "transferredTileIds": [],
+              "completedAtMinute": null
+            }
+          },
+          "cargoReservations": {},
+          "missionItemGifts": {},
+          "colonization": {
+            "version": 3,
+            "stage": "fetch",
+            "fetchStageIndex": 0,
+            "targetTileId": null,
+            "foundedMinute": null,
+            "resupplyDeadlineMinute": null,
+            "resupplyExtensionMinutes": 0,
+            "leftSinceFounding": false,
+            "failedMinute": null,
+            "establishedMinute": null,
+            "defenseStartedMinute": null,
+            "defenseCompletedMinute": null,
+            "defenseShipIds": [],
+            "defenseDefeatedShipIds": [],
+            "aftermath": null,
+            "targetCity": null,
+            "targetCountry": null,
+            "originTileId": null,
+            "originCity": null,
+            "originCountry": null,
+            "approvalTileId": null,
+            "approvalCity": null,
+            "approvalCountry": null,
+            "approvalGranted": false,
+            "distanceKm": null,
+            "offerSeen": false,
+            "spawnRolls": {},
+            "pastSettlements": []
+          },
+          "conquest": {
+            "portFactionOverrides": {},
+            "cityDisplayNameOverrides": {},
+            "factionCapitalOverrides": {},
+            "collapsedFactionIds": [
+              "mughal"
+            ],
+            "factionSuccessors": {},
+            "treaties": [],
+            "events": []
+          },
+          "achievements": {
+            "version": 2,
+            "soldSpiceGoodIds": [],
+            "foundedCityIds": [],
+            "sailedShipSlugs": [],
+            "grossDoubloonsEarned": 0,
+            "whiteWhaleKilled": false,
+            "arrivedInPortDrunk": false,
+            "married": false,
+            "defeatedShipCount": 0,
+            "whalesKilled": 0,
+            "survivedLightningStrike": false
+          },
+          "whales": {
+            "version": 2,
+            "nextId": 1,
+            "individuals": [],
+            "activeHunt": null,
+            "lastEcologyMinute": null
+          },
+          "icebergs": {
+            "version": 1,
+            "nextId": 1,
+            "individuals": [],
+            "lastAdvanceMinute": null,
+            "lastSpawnMinute": null
+          },
+          "campaignGoal": {
+            "version": 1,
+            "type": "white-whale-revenge",
+            "status": "active",
+            "homePortTileId": 1,
+            "introSeen": false,
+            "endingVariant": 1,
+            "whiteWhaleId": "white-whale",
+            "whiteWhaleKilled": false,
+            "whiteWhaleKilledMinute": null,
+            "sighting": null,
+            "checkedInteractionIds": []
+          },
+          "cartography": {
+            "seenTilesBase64": "",
+            "seenTileCount": 0
+          }
+        }
+      }
+    },
+    {
+      "campaignGoalType": "pirate-treasure",
+      "state": {
+        "version": 74,
+        "voyageSeed": "save-schema-pirate-treasure",
+        "voyageStartProfile": null,
+        "activePlaySeconds": 0,
+        "playerCharacter": {
+          "id": "save-schema-captain",
+          "name": "Schema Captain",
+          "givenName": "Schema",
+          "familyName": "Captain",
+          "gender": "female",
+          "sex": "female",
+          "nameCulture": "english",
+          "nationalityId": "england",
+          "homePortTileId": 1,
+          "homePortName": "London",
+          "religionId": "roman-catholic",
+          "expressions": [
+            "neutral",
+            "happy"
+          ],
+          "skillIds": [
+            "master-gunner"
+          ]
+        },
+        "doubloons": 360,
+        "cargoCapacity": 115,
+        "cargo": {},
+        "namedCrew": [],
+        "ship": {
+          "slug": "brigantine",
+          "loadoutId": null,
+          "loadoutTargets": null,
+          "crew": 0,
+          "crewCapacity": 23,
+          "cannons": 0,
+          "cannonCapacity": 14,
+          "baseCargoCapacity": 115,
+          "mass": 155
+        },
+        "survival": {
+          "freshWater": 0,
+          "freshWaterCapacity": 1,
+          "foodRationDebt": 0,
+          "wineOnlyMinutes": 0,
+          "wineEmergencyActive": false,
+          "lastMinute": 123456
+        },
+        "inventory": {
+          "items": {
+            "english-longbows": 1
+          },
+          "fishingNetId": "basic-cast-net",
+          "cannonEquipmentId": "standard-ordnance",
+          "whaleHarpoonId": null
+        },
+        "accounts": {
+          "cargoCostBasis": {},
+          "realizedPnl": 0,
+          "nextEntryId": 2,
+          "ledger": [
+            {
+              "id": 1,
+              "kind": "opening",
+              "simMinute": 123456,
+              "location": "Aboard",
+              "country": "",
+              "description": "Opening balance",
+              "goodId": null,
+              "quantity": 0,
+              "amount": 360,
+              "balance": 360,
+              "costBasis": null,
+              "pnl": null
+            }
+          ]
+        },
+        "relations": {
+          "factionReputation": {
+            "neutral": 0,
+            "pirate": -100,
+            "england": 8,
+            "scotland": 5,
+            "france": -5,
+            "spain": 11,
+            "portugal": 9,
+            "hormuz": -3,
+            "habsburg": 11,
+            "hungary": 6,
+            "ottoman": -3,
+            "venice": 4,
+            "genoa": 4,
+            "papal-states": 8,
+            "hospitallers": 8,
+            "ming": -2,
+            "inca": 0,
+            "safavid": -2,
+            "muscovy": -2,
+            "crimea": -1,
+            "wallachia": -2,
+            "moldavia": -2,
+            "ragusa": 3,
+            "hejaz": -3,
+            "poland-lithuania": 3,
+            "sweden": 5,
+            "denmark-norway": 3,
+            "songhai": -1,
+            "morocco": -1,
+            "ethiopia": 2,
+            "vijayanagara": 0,
+            "gujarat": -5,
+            "bengal": -4,
+            "delhi": -2,
+            "mughal": -1,
+            "ayutthaya": 1,
+            "ternate": -3,
+            "tidore": -5,
+            "japan": 2,
+            "hosokawa": -1,
+            "ouchi": -1,
+            "shimazu": 1,
+            "so": 1,
+            "shoni": 2,
+            "nagao": 2,
+            "ando": 0,
+            "kakizaki": 2,
+            "ryukyu": 2,
+            "ainu": -2,
+            "joseon": 1
+          },
+          "lettersOfMarque": {},
+          "safePassageUntilMinute": {},
+          "safePassageRefusalUntilMinute": {},
+          "tradeAccessGrants": {
+            "ming-maritime-prohibition": [
+              "joseon",
+              "ryukyu"
+            ],
+            "joseon-licensed-trade": [
+              "japan",
+              "ming"
+            ],
+            "spanish-indies-monopoly": []
+          },
+          "personalTradePasses": {},
+          "portugueseCartaz": {
+            "issuedMinute": null,
+            "untilMinute": 0,
+            "issuedAtPortId": null,
+            "graceUntilMinute": 0,
+            "inspectedShipUntilMinute": {}
+          },
+          "foreignSettlementExpulsions": {
+            "version": 1,
+            "revision": 0,
+            "byId": {}
+          },
+          "diplomacy": {
+            "version": 7,
+            "seed": 516516668,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextEventMinute": 297181,
+            "overrides": {},
+            "pairLastChangedMinute": {},
+            "contacts": {},
+            "suzerainties": {
+              "byVassalId": {
+                "spain": {
+                  "vassalFactionId": "spain",
+                  "suzerainFactionId": "habsburg",
+                  "kind": "personal-union",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hormuz": {
+                  "vassalFactionId": "hormuz",
+                  "suzerainFactionId": "portugal",
+                  "kind": "vassal",
+                  "terms": {
+                    "foreignPolicy": "shared",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "crimea": {
+                  "vassalFactionId": "crimea",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": true,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "wallachia": {
+                  "vassalFactionId": "wallachia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "moldavia": {
+                  "vassalFactionId": "moldavia",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hejaz": {
+                  "vassalFactionId": "hejaz",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": true,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": true
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ragusa": {
+                  "vassalFactionId": "ragusa",
+                  "suzerainFactionId": "ottoman",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "joseon": {
+                  "vassalFactionId": "joseon",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ryukyu": {
+                  "vassalFactionId": "ryukyu",
+                  "suzerainFactionId": "ming",
+                  "kind": "tributary",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": true,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.02,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "hosokawa": {
+                  "vassalFactionId": "hosokawa",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ouchi": {
+                  "vassalFactionId": "ouchi",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shimazu": {
+                  "vassalFactionId": "shimazu",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "so": {
+                  "vassalFactionId": "so",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "shoni": {
+                  "vassalFactionId": "shoni",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "nagao": {
+                  "vassalFactionId": "nagao",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "ando": {
+                  "vassalFactionId": "ando",
+                  "suzerainFactionId": "japan",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                },
+                "kakizaki": {
+                  "vassalFactionId": "kakizaki",
+                  "suzerainFactionId": "ando",
+                  "kind": "autonomous-vassal",
+                  "terms": {
+                    "foreignPolicy": "independent",
+                    "tribute": false,
+                    "mutualDefense": false,
+                    "offensiveWarObligation": false,
+                    "suzerainCustomsRate": 0.02,
+                    "subjectCustomsRate": 0.05,
+                    "sovereignMarketAccess": false
+                  },
+                  "establishedMinute": 123456,
+                  "source": "historical-1522"
+                }
+              },
+              "history": []
+            },
+            "history": []
+          },
+          "papacy": {
+            "version": 3,
+            "seed": 2551997644,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 787296,
+            "englishReformationApplied": false,
+            "excommunications": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "courts": {
+            "version": 1,
+            "seed": 2748157333,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextActionMinute": 435936,
+            "portServiceMinutes": {},
+            "history": [],
+            "pendingMatter": null
+          },
+          "authority": {
+            "version": 1,
+            "seed": 1668577132,
+            "sequence": 0,
+            "startMinute": 123456,
+            "lastUpdateMinute": 123456,
+            "nextSubjectReviewMinute": 331535,
+            "scores": {
+              "england": 74,
+              "scotland": 52,
+              "france": 76,
+              "spain": 82,
+              "portugal": 76,
+              "hormuz": 38,
+              "habsburg": 80,
+              "hungary": 48,
+              "ottoman": 88,
+              "venice": 74,
+              "genoa": 48,
+              "papal-states": 62,
+              "hospitallers": 76,
+              "ming": 68,
+              "inca": 84,
+              "safavid": 76,
+              "muscovy": 78,
+              "crimea": 60,
+              "wallachia": 44,
+              "moldavia": 50,
+              "ragusa": 66,
+              "hejaz": 58,
+              "poland-lithuania": 64,
+              "sweden": 42,
+              "denmark-norway": 44,
+              "songhai": 80,
+              "morocco": 54,
+              "ethiopia": 66,
+              "vijayanagara": 88,
+              "gujarat": 66,
+              "bengal": 68,
+              "delhi": 46,
+              "mughal": 72,
+              "ayutthaya": 74,
+              "ternate": 58,
+              "tidore": 60,
+              "japan": 22,
+              "hosokawa": 68,
+              "ouchi": 66,
+              "shimazu": 58,
+              "so": 54,
+              "shoni": 52,
+              "nagao": 58,
+              "ando": 56,
+              "kakizaki": 48,
+              "ryukyu": 76,
+              "ainu": 46,
+              "joseon": 78
+            },
+            "papal": 58,
+            "englishReformationApplied": false,
+            "viennaSiegeApplied": false,
+            "history": []
+          }
+        },
+        "memory": {
+          "visitedPorts": {},
+          "decisions": {},
+          "flags": {},
+          "discoveries": {},
+          "discoveryOrder": [],
+          "animals": {
+            "version": 1,
+            "encountered": {},
+            "encounterOrder": [],
+            "nextRollMinute": 0
+          },
+          "animalCompanions": {
+            "version": 1,
+            "byId": {
+              "panda": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "raccoon": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              },
+              "penguin": {
+                "status": "unmet",
+                "joinedMinute": null,
+                "naturalistOffer": "unresolved",
+                "npcReactionKeys": [],
+                "restrictedFoodRationDebt": 0
+              }
+            },
+            "introductionKeys": []
+          },
+          "pendingDiscoveryPortDialogueIds": [],
+          "namedCrewDeathNotices": [],
+          "birthdays": {
+            "version": 1,
+            "lastObservedDateKey": null,
+            "pendingEvents": [],
+            "celebratedEventIds": []
+          },
+          "specialEquipmentOffers": {
+            "version": 1,
+            "byPort": {}
+          },
+          "illicitTradeEnforcement": {
+            "nextIncidentId": 1,
+            "incidents": []
+          },
+          "chartReframeDialogue": {
+            "version": 1,
+            "shownIds": [],
+            "recentIds": [],
+            "recentCategories": [],
+            "recentPortTileIds": [],
+            "lastShownMinute": null,
+            "shownCount": 0
+          },
+          "navigation": {
+            "lastLongitudeDeg": null,
+            "cumulativeLongitudeDeg": 0,
+            "minimumCumulativeLongitudeDeg": 0,
+            "maximumCumulativeLongitudeDeg": 0,
+            "optionalWaypoints": []
+          },
+          "quests": {
+            "active": null,
+            "passengerActive": null,
+            "completed": {},
+            "failed": {},
+            "onboardingDeliveriesCompleted": 0,
+            "deliveryOffers": {},
+            "deliveryRolls": {},
+            "capturePortOffers": {},
+            "capturePortRolls": {},
+            "courtMissionOffers": {},
+            "courtMissionRolls": {},
+            "passengerOffers": {},
+            "passengerRolls": {},
+            "vikingLongshipRolls": {},
+            "cargoDeliveries": {},
+            "japaneseMatchlocks": {
+              "version": 1,
+              "stage": "locked",
+              "fetchStageIndex": 0,
+              "workshopTileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "caribbeanGinger": {
+              "version": 1,
+              "stage": "locked",
+              "cultivationTileId": null,
+              "cultivationCity": null,
+              "cultivationCountry": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "chef": {
+              "version": 1,
+              "stage": "locked",
+              "portTileId": null,
+              "portCity": null,
+              "portCountry": null,
+              "ingredientGoodIds": [],
+              "eventProfileId": null,
+              "offerSeen": false,
+              "completedMinute": null,
+              "spawnRolls": {}
+            },
+            "pirateCaptive": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "castaway": {
+              "version": 1,
+              "active": null,
+              "completedCount": 0,
+              "declinedCount": 0
+            },
+            "naturalist": {
+              "version": 2,
+              "portTileId": null,
+              "character": null,
+              "met": false,
+              "reportedAnimalIds": [],
+              "completionRewarded": false
+            },
+            "hospitallerMalta": {
+              "version": 1,
+              "stage": "locked",
+              "activatedMinute": null,
+              "acceptedMinute": null,
+              "grantedMinute": null,
+              "completedMinute": null,
+              "rome": null,
+              "malta": null,
+              "grantorFactionId": null,
+              "grantorCapital": null,
+              "grantedCities": [],
+              "envoy": null
+            },
+            "conquistador": {
+              "version": 2,
+              "stage": "dormant",
+              "offerSeen": false,
+              "originTileId": null,
+              "targetTileId": null,
+              "fetchStageIndex": 0,
+              "companyStrength": 0,
+              "companyNeedsReplenishment": false,
+              "failedAssaults": 0,
+              "capturedAtMinute": null,
+              "rewardReadyMinute": null,
+              "transferSchedule": [],
+              "transferredTileIds": [],
+              "completedAtMinute": null
+            }
+          },
+          "cargoReservations": {},
+          "missionItemGifts": {},
+          "colonization": {
+            "version": 3,
+            "stage": "fetch",
+            "fetchStageIndex": 0,
+            "targetTileId": null,
+            "foundedMinute": null,
+            "resupplyDeadlineMinute": null,
+            "resupplyExtensionMinutes": 0,
+            "leftSinceFounding": false,
+            "failedMinute": null,
+            "establishedMinute": null,
+            "defenseStartedMinute": null,
+            "defenseCompletedMinute": null,
+            "defenseShipIds": [],
+            "defenseDefeatedShipIds": [],
+            "aftermath": null,
+            "targetCity": null,
+            "targetCountry": null,
+            "originTileId": null,
+            "originCity": null,
+            "originCountry": null,
+            "approvalTileId": null,
+            "approvalCity": null,
+            "approvalCountry": null,
+            "approvalGranted": false,
+            "distanceKm": null,
+            "offerSeen": false,
+            "spawnRolls": {},
+            "pastSettlements": []
+          },
+          "conquest": {
+            "portFactionOverrides": {},
+            "cityDisplayNameOverrides": {},
+            "factionCapitalOverrides": {},
+            "collapsedFactionIds": [
+              "mughal"
+            ],
+            "factionSuccessors": {},
+            "treaties": [],
+            "events": []
+          },
+          "achievements": {
+            "version": 2,
+            "soldSpiceGoodIds": [],
+            "foundedCityIds": [],
+            "sailedShipSlugs": [],
+            "grossDoubloonsEarned": 0,
+            "whiteWhaleKilled": false,
+            "arrivedInPortDrunk": false,
+            "married": false,
+            "defeatedShipCount": 0,
+            "whalesKilled": 0,
+            "survivedLightningStrike": false
+          },
+          "whales": {
+            "version": 2,
+            "nextId": 1,
+            "individuals": [],
+            "activeHunt": null,
+            "lastEcologyMinute": null
+          },
+          "icebergs": {
+            "version": 1,
+            "nextId": 1,
+            "individuals": [],
+            "lastAdvanceMinute": null,
+            "lastSpawnMinute": null
+          },
+          "campaignGoal": {
+            "version": 1,
+            "type": "pirate-treasure",
+            "status": "active",
+            "homePortTileId": 1,
+            "introSeen": false,
+            "endingVariant": 1,
+            "treasureCaptainName": "Obadiah Sparrow",
+            "treasureTileId": null,
+            "mapPirates": [],
+            "acquiredMapPiecePirateIds": [],
+            "pirateHints": [],
+            "checkedTreasureInteractionIds": [],
+            "treasureRecovered": false,
+            "treasureRecoveredMinute": null,
+            "ambushStarted": false,
+            "ambushDefeatedPirateIds": []
+          },
+          "cartography": {
+            "seenTilesBase64": "",
+            "seenTileCount": 0
+          }
+        }
+      }
+    }
+  ]
+}
