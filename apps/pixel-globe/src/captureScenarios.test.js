@@ -152,6 +152,65 @@ test("the storm-wave Short stages a real sinking and a modal-free overboard resc
   assert.throws(() => validateCaptureScenario(malformed), /survival capture variant/);
 });
 
+test("the loadout Short stages deprivation, the four presets, and the optional custom editor", () => {
+  const deprivation = captureScenarioFromSearch("?capture=short-loadout-deprivation");
+  assert.equal(deprivation.sequence.kind, "survive");
+  assert.equal(deprivation.sequence.variant, "deprivation-death");
+  assert.equal(deprivation.player.homeCityName, "Lisbon");
+
+  const presets = captureScenarioFromSearch("?capture=short-loadout-presets");
+  assert.equal(presets.sequence.kind, "loadout");
+  assert.equal(presets.sequence.variant, "presets");
+  assert.equal(presets.sequence.cityName, "Lisbon");
+
+  const custom = captureScenarioFromSearch("?capture=short-loadout-custom");
+  assert.equal(custom.sequence.kind, "loadout");
+  assert.equal(custom.sequence.variant, "custom");
+  assert.equal(custom.player.shipSlug, "portuguese-carrack");
+  assert.doesNotMatch(custom.player.characterPortraitSourceId, /openai|retro-diffusion/);
+
+  const malformed = structuredClone(custom);
+  malformed.sequence.variant = "automatic";
+  assert.throws(() => validateCaptureScenario(malformed), /loadout capture variant/);
+});
+
+test("the religion Short stages Old World origins, faith profiles, the Hajj, and another faith mission", () => {
+  const ids = captureScenarioIds().filter((id) => id.startsWith("short-religion-"));
+  assert.deepEqual(ids, [
+    "short-religion-portuguese-profile",
+    "short-religion-great-lakes-canoe",
+    "short-religion-ottoman-profile",
+    "short-religion-orthodox-profile",
+    "short-religion-lutheran-profile",
+    "short-religion-hajj",
+    "short-religion-jewish-mission"
+  ]);
+  const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
+  assert.deepEqual(
+    captures.filter((capture) => capture.sequence.kind === "religion")
+      .map((capture) => capture.sequence.variant),
+    ["profile", "profile", "profile", "profile", "hajj", "mission"]
+  );
+  assert.equal(captures[1].player.shipSlug, "mesoamerican-dugout-canoe");
+  assert.equal(captures[1].sequence.kind, "sail");
+  assert.deepEqual(
+    captures.filter((capture) => capture.sequence.variant === "profile")
+      .map((capture) => capture.player.religionId),
+    ["roman-catholic", "sunni-islam", "eastern-orthodox", "lutheran"]
+  );
+  assert.equal(captures[5].sequence.originCityName, "Aden");
+  assert.equal(captures[5].sequence.cityName, "Jeddah");
+  assert.equal(captures[5].sequence.passengerHomeCityName, "Thessaloniki");
+  assert.equal(captures[6].sequence.religiousMissionId, "jewish-responsum");
+  assert.ok(captures
+    .filter((capture) => capture.player.characterPortraitSourceId)
+    .every((capture) => !/openai|retro-diffusion/.test(capture.player.characterPortraitSourceId)));
+
+  const malformed = structuredClone(captures[5]);
+  malformed.sequence.variant = "sermon";
+  assert.throws(() => validateCaptureScenario(malformed), /religion capture variant/);
+});
+
 test("the Papal Short stages varied sailing, Rome, policy, a nuncio, and the September Testament", () => {
   const ids = captureScenarioIds().filter((id) => id.startsWith("trailer-papal-"));
   assert.deepEqual(ids, [

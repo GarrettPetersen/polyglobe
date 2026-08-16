@@ -86,6 +86,8 @@ Inspect the generated `final.edit.json` and rendered MP4. Use screenshots from t
 
 Every shot must preserve the real game's normal presentation. Dialogue, menus, HUD elements, and their backgrounds must look exactly as they do during ordinary play; never substitute capture-only or editor-created visuals. If a capture looks different from the real game, reject it and recapture through the normal rendering path.
 
+Show competent navigation. Never use footage where the player ship pushes into land or other impassable terrain; steer a clean course or replace the shot.
+
 Revise the edit decision list when semantic matching chose a weak moment, a cut hides the action, or the same event is reused. Keep every source interval within the take and cover the narration continuously. Rebuild without changing source footage:
 
 ```sh

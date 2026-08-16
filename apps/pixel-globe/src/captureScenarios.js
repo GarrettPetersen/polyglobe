@@ -1,4 +1,5 @@
 import { factionById } from "./factions.js";
+import { religionById } from "./characterReligion.js";
 import { ICEBERG_VARIANTS } from "./icebergSystem.js";
 import { NPC_SHIP_SLUGS } from "./npcSeaRoutes.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -58,6 +59,25 @@ const COLONY_SHORT_SCENE_DEADLINE_CAPTURE = "Jamestown Awaits Grain";
 const COLONY_SHORT_SCENE_RESUPPLY = "Resupply Recife";
 const COLONY_SHORT_SCENE_DEFENSE = "Defend Rio de Janeiro from War Canoes";
 const COLONY_SHORT_SCENE_CITY = "Manila Becomes a Permanent City";
+const LOADOUT_SHORT_CAPTAIN_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
+const LOADOUT_SHORT_PORT = "Lisbon";
+const RELIGION_SHORT_EUROPEAN_CAPTAIN_SOURCE_ID =
+  "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait";
+const RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID =
+  "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard";
+const RELIGION_SHORT_CITY_ADEN = "Aden";
+const RELIGION_SHORT_CITY_HAMBURG = "Hamburg";
+const RELIGION_SHORT_CITY_JEDDAH = "Jeddah";
+const RELIGION_SHORT_CITY_KHOLMOGORY = "Kholmogory";
+const RELIGION_SHORT_CITY_KRAKOW = "Krakow";
+const RELIGION_SHORT_CITY_LISBON = "Lisbon";
+const RELIGION_SHORT_CITY_THESSALONIKI = "Thessaloniki";
+const RELIGION_SHORT_TITLE_CATHOLIC = "A Portuguese Catholic Captain";
+const RELIGION_SHORT_TITLE_CANOE = "A Dugout Canoe in the Great Lakes";
+const RELIGION_SHORT_TITLE_HAJJ = "Undertake the Hajj with a Pilgrim";
+const RELIGION_SHORT_TITLE_LUTHERAN = "A Lutheran Captain in 1522";
+const RELIGION_SHORT_TITLE_ORTHODOX = "A Muscovite Orthodox Captain";
+const RELIGION_SHORT_TITLE_SUNNI = "An Ottoman Sunni Captain";
 
 export function captureViewportFromSearch(search) {
   const value = new URLSearchParams(search).get(CAPTURE_FORMAT_QUERY_PARAM) || "shorts";
@@ -846,7 +866,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
   }),
   "short-storm-lightning-sinking": trailerScenario({
     id: "short-storm-lightning-sinking",
-    title: "A Small Ship Founders in a Storm",
+    title: "Lightning struck the ship during a storm.",
     seed: "short-storm-lightning-sinking-v1",
     player: capturePlayer("england", "fishing-lugger", 49.0, -18.0, 70),
     world: captureWorld(285, 21, 10),
@@ -854,7 +874,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
   }),
   "short-storm-sail-fishing-lugger": sailingTrailerScenario({
     id: "short-storm-sail-fishing-lugger",
-    title: "A Fishing Lugger in the North Atlantic",
+    title: "Sailing ship",
     seed: "short-storm-sail-fishing-lugger-v1",
     factionId: "scotland",
     shipSlug: "fishing-lugger",
@@ -867,7 +887,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
   }),
   "short-storm-sail-mediterranean-galley": sailingTrailerScenario({
     id: "short-storm-sail-mediterranean-galley",
-    title: "A Mediterranean Galley at Sea",
+    title: "Sailing ship",
     seed: "short-storm-sail-mediterranean-galley-v1",
     factionId: "ottoman",
     shipSlug: "mediterranean-galley",
@@ -880,11 +900,156 @@ const CAPTURE_SCENARIOS = Object.freeze({
   }),
   "short-storm-overboard-rescue": trailerScenario({
     id: "short-storm-overboard-rescue",
-    title: "Recover Crew Swept Overboard",
+    title: "Sailing ship",
     seed: "short-storm-overboard-rescue-v1",
     player: capturePlayer("ottoman", "mediterranean-galley", 25.0, -40.0, 90),
     world: captureWorld(285, 14, 10),
     sequence: trailerSequence("survive", "overboard-rescue", { durationSeconds: 18 })
+  }),
+  "short-loadout-deprivation": trailerScenario({
+    id: "short-loadout-deprivation",
+    title: "NO FRESH WATER",
+    seed: "short-loadout-deprivation-v1",
+    player: capturePlayer("portugal", "caravel", 18.5, -39.5, 90, {
+      characterPortraitSourceId: LOADOUT_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: LOADOUT_SHORT_PORT
+    }),
+    world: captureWorld(130, 12, 20, 180),
+    sequence: trailerSequence("survive", "deprivation-death", { durationSeconds: 12 })
+  }),
+  "short-loadout-presets": trailerScenario({
+    id: "short-loadout-presets",
+    title: "Choose the targets we should automatically restore whenever you dock.",
+    seed: "short-loadout-presets-v1",
+    player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 45, {
+      characterPortraitSourceId: LOADOUT_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: LOADOUT_SHORT_PORT
+    }),
+    world: captureWorld(196, 13, 10),
+    sequence: trailerSequence("loadout", "presets", {
+      durationSeconds: 16,
+      cityName: LOADOUT_SHORT_PORT
+    })
+  }),
+  "short-loadout-custom": trailerScenario({
+    id: "short-loadout-custom",
+    title: "Set crew, guns, and stores. Extra hands improve field work and gun loading. Smaller stores dump excess provisions without refund.",
+    seed: "short-loadout-custom-v1",
+    player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 45, {
+      characterPortraitSourceId: LOADOUT_SHORT_CAPTAIN_SOURCE_ID,
+      homeCityName: LOADOUT_SHORT_PORT
+    }),
+    world: captureWorld(196, 14, 10),
+    sequence: trailerSequence("loadout", "custom", {
+      durationSeconds: 18,
+      cityName: LOADOUT_SHORT_PORT
+    })
+  }),
+  "short-religion-portuguese-profile": trailerScenario({
+    id: "short-religion-portuguese-profile",
+    title: RELIGION_SHORT_TITLE_CATHOLIC,
+    seed: "short-religion-portuguese-profile-v1",
+    player: capturePlayer("portugal", "caravel", 38.72, -9.14, 45, {
+      characterPortraitSourceId: RELIGION_SHORT_EUROPEAN_CAPTAIN_SOURCE_ID,
+      homeCityName: RELIGION_SHORT_CITY_LISBON,
+      religionId: "roman-catholic"
+    }),
+    world: captureWorld(196, 11, 20),
+    sequence: trailerSequence("religion", "profile", {
+      durationSeconds: 10,
+      cityName: RELIGION_SHORT_CITY_LISBON
+    })
+  }),
+  "short-religion-great-lakes-canoe": sailingTrailerScenario({
+    id: "short-religion-great-lakes-canoe",
+    title: RELIGION_SHORT_TITLE_CANOE,
+    seed: "short-religion-great-lakes-canoe-v1",
+    factionId: "neutral",
+    shipSlug: "mesoamerican-dugout-canoe",
+    lat: 44.7,
+    lon: -82.5,
+    day: 196,
+    hour: 12,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "short-religion-ottoman-profile": trailerScenario({
+    id: "short-religion-ottoman-profile",
+    title: RELIGION_SHORT_TITLE_SUNNI,
+    seed: "short-religion-ottoman-profile-v1",
+    player: capturePlayer("ottoman", "felucca", 40.64, 22.94, 120, {
+      characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
+      homeCityName: RELIGION_SHORT_CITY_THESSALONIKI,
+      religionId: "sunni-islam"
+    }),
+    world: captureWorld(196, 12, 10),
+    sequence: trailerSequence("religion", "profile", {
+      durationSeconds: 10,
+      cityName: RELIGION_SHORT_CITY_THESSALONIKI
+    })
+  }),
+  "short-religion-orthodox-profile": trailerScenario({
+    id: "short-religion-orthodox-profile",
+    title: RELIGION_SHORT_TITLE_ORTHODOX,
+    seed: "short-religion-orthodox-profile-v1",
+    player: capturePlayer("muscovy", "small-cog", 64.225, 41.65, 210, {
+      characterPortraitSourceId: RELIGION_SHORT_EUROPEAN_CAPTAIN_SOURCE_ID,
+      homeCityName: RELIGION_SHORT_CITY_KHOLMOGORY,
+      religionId: "eastern-orthodox"
+    }),
+    world: captureWorld(196, 13, 5),
+    sequence: trailerSequence("religion", "profile", {
+      durationSeconds: 10,
+      cityName: RELIGION_SHORT_CITY_KHOLMOGORY
+    })
+  }),
+  "short-religion-lutheran-profile": trailerScenario({
+    id: "short-religion-lutheran-profile",
+    title: RELIGION_SHORT_TITLE_LUTHERAN,
+    seed: "short-religion-lutheran-profile-v1",
+    player: capturePlayer("denmark-norway", "small-cog", 53.54, 9.76, 305, {
+      characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
+      homeCityName: RELIGION_SHORT_CITY_HAMBURG,
+      religionId: "lutheran"
+    }),
+    world: captureWorld(196, 14, 15),
+    sequence: trailerSequence("religion", "profile", {
+      durationSeconds: 10,
+      cityName: RELIGION_SHORT_CITY_HAMBURG
+    })
+  }),
+  "short-religion-hajj": trailerScenario({
+    id: "short-religion-hajj",
+    title: RELIGION_SHORT_TITLE_HAJJ,
+    seed: "short-religion-hajj-v1",
+    player: capturePlayer("ottoman", "dhow", 21.49, 39.18, 315, {
+      characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
+      homeCityName: RELIGION_SHORT_CITY_THESSALONIKI,
+      religionId: "sunni-islam"
+    }),
+    world: captureWorld(196, 15, 10),
+    sequence: trailerSequence("religion", "hajj", {
+      durationSeconds: 16,
+      cityName: RELIGION_SHORT_CITY_JEDDAH,
+      originCityName: RELIGION_SHORT_CITY_ADEN,
+      passengerHomeCityName: RELIGION_SHORT_CITY_THESSALONIKI
+    })
+  }),
+  "short-religion-jewish-mission": trailerScenario({
+    id: "short-religion-jewish-mission",
+    title: "A Question for the Rabbis",
+    seed: "short-religion-jewish-mission-v1",
+    player: capturePlayer("poland-lithuania", "small-cog", 50.06, 19.94, 90, {
+      characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
+      homeCityName: RELIGION_SHORT_CITY_KRAKOW,
+      religionId: "judaism"
+    }),
+    world: captureWorld(196, 10, 40),
+    sequence: trailerSequence("religion", "mission", {
+      durationSeconds: 14,
+      cityName: RELIGION_SHORT_CITY_KRAKOW,
+      religiousMissionId: "jewish-responsum"
+    })
   }),
   "trailer-survive-dehydration": trailerScenario({
     id: "trailer-survive-dehydration",
@@ -1149,6 +1314,7 @@ export function validateCaptureScenario(value) {
   if (value.player.homeCityName !== undefined) {
     requiredString(value.player.homeCityName, "capture player home city name");
   }
+  if (value.player.religionId !== undefined) religionById(value.player.religionId);
   numberInRange(value.player.activePlaySeconds, 0, 86400, "capture active play seconds");
   if (!value.world || typeof value.world !== "object") throw new Error("Capture scenario needs world settings");
   integerInRange(value.world.day, 1, 365, "capture day");
@@ -1204,7 +1370,7 @@ export function validateCaptureScenario(value) {
 
 function validateCaptureSequence(value) {
   if (!value || typeof value !== "object") throw new Error("Capture sequence must be an object");
-  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal"].includes(value.kind)) {
+  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal", "loadout", "religion"].includes(value.kind)) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
@@ -1220,7 +1386,9 @@ function validateCaptureSequence(value) {
     colonize: ["cityName"],
     survive: [],
     panda: [],
-    papal: ["cityName"]
+    papal: ["cityName"],
+    loadout: ["cityName"],
+    religion: ["cityName"]
   };
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
   if (value.kind === "trade") {
@@ -1241,8 +1409,23 @@ function validateCaptureSequence(value) {
     throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
   }
   if (value.kind === "survive" &&
-      !["lightning", "lightning-sinking", "dehydration", "overboard-rescue"].includes(value.variant)) {
+      !["lightning", "lightning-sinking", "dehydration", "deprivation-death", "overboard-rescue"].includes(value.variant)) {
     throw new Error(`Invalid survival capture variant: ${value.variant}`);
+  }
+  if (value.kind === "loadout" && !["presets", "custom"].includes(value.variant)) {
+    throw new Error(`Invalid loadout capture variant: ${value.variant}`);
+  }
+  if (value.kind === "religion") {
+    if (!["profile", "hajj", "mission"].includes(value.variant)) {
+      throw new Error(`Invalid religion capture variant: ${value.variant}`);
+    }
+    if (value.variant === "hajj") {
+      requiredString(value.originCityName, "religion capture Hajj origin city name");
+      requiredString(value.passengerHomeCityName, "religion capture Hajj passenger home city name");
+    }
+    if (value.variant === "mission") {
+      requiredString(value.religiousMissionId, "religion capture mission id");
+    }
   }
   if (value.kind === "panda") {
     if (!["encounter", "sail", "fish", "port-reaction", "naturalist"].includes(value.variant)) {

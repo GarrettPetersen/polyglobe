@@ -425,6 +425,7 @@ import {
   recordShipMercyForFaction,
   recordNingboMissionShipDefeated,
   answerNingboMissionBribe,
+  acceptQuest,
   ningboMissionBribeDecision,
   recordTeaRaceCompetitorRemoved,
   recordTeaRacePlayerArrival,
@@ -1730,9 +1731,11 @@ import {
   waypointPointOverlapsReservedRects
 } from "./waypointArrowUi.js";
 import {
+  HAJJ_PASSENGER_SCENARIO_ID,
   activeNamedTravelMission,
   activeTravelMissionQuest,
   markPassengerOfferSeen,
+  passengerOfferForCity,
   passengerQuestById,
   pendingPassengerOfferForCity,
   travelMissionOfferForCity
@@ -9666,7 +9669,10 @@ function capturePlayerCharacter(character, scenarioValue) {
     nationalityId: faction.id,
     nationalityName: faction.name,
     nationalityAdjective: faction.adjective,
-    homePortRealmName: faction.name
+    homePortRealmName: faction.name,
+    ...(scenarioValue.player.religionId
+      ? { religionId: scenarioValue.player.religionId }
+      : {})
   });
 }
 
@@ -10318,6 +10324,10 @@ function stageCaptureSequence() {
     stageCapturePanda(sequence);
   } else if (sequence.kind === "papal") {
     stageCapturePapal(sequence);
+  } else if (sequence.kind === "loadout") {
+    stageCaptureLoadout(sequence);
+  } else if (sequence.kind === "religion") {
+    stageCaptureReligion(sequence);
   } else {
     throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
   }
@@ -10374,6 +10384,8 @@ function updateCaptureDirectorFrame(nowMs) {
   else if (sequence.kind === "survive") updateCaptureSurvival(sequence);
   else if (sequence.kind === "panda") updateCapturePanda(sequence);
   else if (sequence.kind === "papal") updateCapturePapal(sequence);
+  else if (sequence.kind === "loadout") updateCaptureLoadout(sequence);
+  else if (sequence.kind === "religion") updateCaptureReligion(sequence);
   else throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
 
   if (!captureDirector.stopping && captureDirectorComplete(captureDirector)) {
@@ -10689,6 +10701,21 @@ function updateCaptureSurvival(sequence) {
     }
     return;
   }
+  if (sequence.variant === "deprivation-death") {
+    if (captureCue("deprivation-warning", 0.3)) {
+      showSurvivalNotice("NO FRESH WATER", "warn");
+      playSoundEffect(soundEffects?.scavengeFailure, 0.55, 0.9);
+      emitCaptureEvent("capture-beat", { action: "provisions-empty" });
+    }
+    if (captureCue("last-crew-member-dies", 4.6)) {
+      endPlayerVoyage("The crew succumbed to thirst and starvation.", {
+        sinkShip: false,
+        outcomeType: "death"
+      });
+      emitCaptureEvent("capture-beat", { action: "deprivation-ended-run" });
+    }
+    return;
+  }
   if (captureCue("out-of-water", 0.3)) {
     showSurvivalNotice("NO FRESH WATER", "warn");
     playSoundEffect(soundEffects?.scavengeFailure, 0.55, 0.9);
@@ -10861,6 +10888,114 @@ function updateCapturePapal(sequence) {
     return;
   }
   throw new Error(`Unknown Papal capture variant: ${sequence.variant}`);
+}
+
+function updateCaptureLoadout(sequence) {
+  if (captureCue("open-loadout", 0.6)) {
+    openCapturePortNode(sequence.cityName, "loadout");
+    emitCaptureEvent("capture-beat", { action: "open-loadout-presets", city: sequence.cityName });
+  }
+  if (sequence.variant === "presets") {
+    for (const [index, preset] of ["long-haul", "short-haul", "combat", "balanced", "custom"].entries()) {
+      if (!captureCue(`highlight-${preset}`, 1.2 + index * 2.8)) continue;
+      highlightCaptureLoadoutOption(preset);
+      emitCaptureEvent("capture-beat", { action: "highlight-loadout", loadoutId: preset });
+    }
+    return;
+  }
+  if (sequence.variant === "custom") {
+    if (captureCue("open-custom-loadout", 2.6)) {
+      captureChooseDialogueAction("open-custom-loadout");
+      emitCaptureEvent("capture-beat", { action: "open-custom-loadout" });
+    }
+    for (const [index, field] of ["crew", "cannons", "foodUnits", "waterUnits"].entries()) {
+      if (!captureCue(`adjust-custom-${field}`, 5.0 + index * 2.7)) continue;
+      adjustCaptureCustomLoadoutField(field, index % 2 === 0 ? 0.28 : 0.78);
+      emitCaptureEvent("capture-beat", { action: "adjust-custom-loadout", field });
+    }
+    return;
+  }
+  throw new Error(`Unknown loadout capture variant: ${sequence.variant}`);
+}
+
+function updateCaptureReligion(sequence) {
+  if (sequence.variant === "profile") {
+    if (captureCue("show-captain-faith", 0.1)) {
+      emitCaptureEvent("capture-beat", {
+        action: "show-captain-faith",
+        city: sequence.cityName,
+        religionId: gameState.playerCharacter.religionId
+      });
+    }
+    return;
+  }
+  if (sequence.variant === "hajj") {
+    if (captureCue("open-hajj-arrival", 0.8)) {
+      openPassengerDialogue(
+        capturePortCallByName(sequence.cityName),
+        captureDirector.religionQuest
+      );
+      emitCaptureEvent("capture-beat", {
+        action: "arrive-for-hajj",
+        city: sequence.cityName
+      });
+    }
+    if (captureCue("undertake-hajj", 7.8)) {
+      captureChooseDialogueAction("begin-hajj");
+      emitCaptureEvent("capture-beat", { action: "undertake-hajj" });
+    }
+    return;
+  }
+  if (sequence.variant === "mission") {
+    if (captureCue("open-religious-mission", 0.8)) {
+      openPassengerDialogue(
+        capturePortCallByName(sequence.cityName),
+        captureDirector.religionQuest
+      );
+      emitCaptureEvent("capture-beat", {
+        action: "offer-religious-mission",
+        missionId: sequence.religiousMissionId,
+        city: sequence.cityName
+      });
+    }
+    return;
+  }
+  throw new Error(`Unknown religion capture variant: ${sequence.variant}`);
+}
+
+function highlightCaptureLoadoutOption(loadoutId) {
+  if (!dialogueState || dialogueState.nodeId !== "loadout") {
+    throw new Error(`Capture cannot highlight ${loadoutId} outside the loadout menu`);
+  }
+  const view = currentDialogueView();
+  const index = view.options.findIndex((entry) => (
+    loadoutId === "custom"
+      ? entry.action?.type === "open-custom-loadout"
+      : entry.action?.type === "select-loadout" && entry.action.loadoutId === loadoutId
+  ));
+  if (index < 0) throw new Error(`Capture loadout menu has no ${loadoutId} option`);
+  dialogueState.selectedIndex = index;
+  dirty = true;
+}
+
+function adjustCaptureCustomLoadoutField(key, ratio) {
+  if (!dialogueState || dialogueState.nodeId !== "custom-loadout") {
+    throw new Error(`Capture cannot adjust ${key} outside the custom loadout editor`);
+  }
+  const view = currentDialogueView();
+  const index = view.presentation.fields.findIndex((field) => field.key === key);
+  if (index < 0) throw new Error(`Capture custom loadout has no ${key} field`);
+  const field = view.presentation.fields[index];
+  const value = field.bounds.min + Math.round((field.bounds.max - field.bounds.min) * ratio);
+  dialogueState.customLoadoutFieldIndex = index;
+  setPortCustomLoadoutValue(
+    dialogueState,
+    portDialogueContext().shipStats,
+    key,
+    value,
+    permanentCrewFloor(gameState)
+  );
+  dirty = true;
 }
 
 function openCapturePoliticsFactionPage(factionId) {
@@ -11286,6 +11421,18 @@ function stageCaptureSurvival(sequence) {
     syncShipCargoFromGameState();
     return;
   }
+  if (sequence.variant === "deprivation-death") {
+    captureDirector.steeringTarget = normalize3([
+      ship.position[0] + ship.heading[0] * 0.25,
+      ship.position[1] + ship.heading[1] * 0.25,
+      ship.position[2] + ship.heading[2] * 0.25
+    ]);
+    gameState.survival.freshWater = 0;
+    delete gameState.cargo.hardtack;
+    gameState.ship.crew = 1;
+    syncShipCargoFromGameState();
+    return;
+  }
   gameState.survival.freshWater = 0;
   gameState.ship.crew = Math.min(6, gameState.ship.crewCapacity);
   survivalDeprivationTimers.waterNextMinute = weatherClockMinutes + SURVIVAL_DEHYDRATION_INTERVAL_MINUTES;
@@ -11392,6 +11539,83 @@ function stageCapturePapal(sequence) {
     return;
   }
   throw new Error(`Unknown Papal capture staging variant: ${sequence.variant}`);
+}
+
+function stageCaptureLoadout(sequence) {
+  const city = captureCityByName(sequence.cityName);
+  placeCapturePlayerNearTile(city.tileId);
+  stopShipMotion();
+  gameState.doubloons = 12_000;
+  gameState.ship.loadoutId = null;
+  syncShipCargoFromGameState();
+}
+
+function stageCaptureReligion(sequence) {
+  const city = captureCityByName(sequence.cityName);
+  if (sequence.variant === "profile") {
+    placeCapturePlayerNearTile(city.tileId);
+    stopShipMotion();
+    openAboardMenu();
+    const captain = currentAboardRoster().named.find((entry) => entry.role === ABOARD_ROLE_CAPTAIN);
+    if (!captain) throw new Error("Religion capture has no captain in the aboard roster");
+    aboardMenu.selectedNamedId = captain.id;
+    aboardMenu.focusedNamedId = captain.id;
+    dirty = true;
+    return;
+  }
+
+  const origin = sequence.variant === "hajj"
+    ? captureCityByName(sequence.originCityName)
+    : city;
+  const createCapturePassengerCharacter = sequence.variant === "hajj"
+    ? ({ quest: passengerQuest, destination, scenario }) => generatePassengerCharacter({
+        identityKey: passengerQuest.id,
+        originPort: captureCityByName(sequence.passengerHomeCityName),
+        destinationPort: destination,
+        scenarioId: scenario.id,
+        namePortPreference: scenario.namePort,
+        religionId: passengerQuest.passengerReligionId || null,
+        preferClergy: scenario.preferClergy === true,
+        excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+        manifest: characterPortraitManifest,
+        usedNames: usedCharacterNames
+      })
+    : createPassengerCharacterForQuest;
+  const quest = passengerOfferForCity(
+    gameState,
+    origin,
+    playerAccessiblePortCities(),
+    {
+      spawnChance: 1,
+      simMinute: Math.floor(weatherClockMinutes),
+      sailingDistanceKm: sailingDistanceBetweenPorts,
+      portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
+      createCharacter: createCapturePassengerCharacter,
+      ...(sequence.variant === "hajj"
+        ? { scenarioId: HAJJ_PASSENGER_SCENARIO_ID, hajjScenarioChance: 1 }
+        : { religiousMissionId: sequence.religiousMissionId, religiousScenarioChance: 1 })
+    }
+  );
+  if (!quest) {
+    throw new Error(
+      `Religion capture could not create ${sequence.variant} quest at ${sequence.cityName}`
+    );
+  }
+  if (sequence.variant === "hajj") {
+    const acceptedQuest = acceptQuest(gameState, quest, {
+      simMinute: Math.floor(weatherClockMinutes)
+    });
+    if (acceptedQuest.destinationTileId !== city.tileId) {
+      throw new Error(
+        `Religion capture Hajj destination is ${acceptedQuest.destinationName}, expected ${sequence.cityName}`
+      );
+    }
+    captureDirector.religionQuest = acceptedQuest;
+  } else {
+    captureDirector.religionQuest = quest;
+  }
+  placeCapturePlayerNearTile(city.tileId);
+  stopShipMotion();
 }
 
 function stageCapturePandaAboard() {
