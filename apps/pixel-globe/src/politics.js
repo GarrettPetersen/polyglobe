@@ -7,7 +7,8 @@ import {
   FACTIONS,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
-  factionCapitalForId
+  factionCapitalForId,
+  factionExistsIn1522
 } from "./factions.js";
 import {
   diplomacyBetweenForState,
@@ -68,7 +69,7 @@ export function createPoliticsView(
   }
   const powers = politicalPowers(gameState);
   const powerById = new Map(powers.map((power) => [power.id, power]));
-  const capitalByFactionId = politicsCapitals(powers, cities);
+  const capitalByFactionId = politicsCapitals(gameState, powers, cities);
   const cards = powers.map((faction) => politicsCard(
     gameState,
     faction,
@@ -168,7 +169,11 @@ export function politicalPowers(gameState = null) {
   const collapsed = new Set(gameState?.memory?.conquest?.collapsedFactionIds || []);
   const suzerainties = gameState?.relations?.diplomacy?.suzerainties || null;
   return FACTIONS
-    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID && !collapsed.has(faction.id))
+    .filter((faction) => (
+      faction.id !== NEUTRAL_FACTION_ID &&
+      !collapsed.has(faction.id) &&
+      (gameState !== null || faction.emergent !== true)
+    ))
     .map((faction) => {
       const relationship = suzerainties
         ? suzeraintyForVassal(suzerainties, faction.id)
@@ -275,15 +280,15 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
   });
 }
 
-function politicsCapitals(powers, cities) {
+function politicsCapitals(gameState, powers, cities) {
   const capitalByFactionId = new Map();
   if (cities === null) {
     for (const faction of powers) {
       if (faction.id === PIRATE_FACTION_ID) continue;
-      const capital = factionCapitalForId(faction.id);
+      const capital = politicsHistoricalCapital(gameState, faction.id);
       capitalByFactionId.set(faction.id, Object.freeze({
         city: capital.city,
-        portId: null
+        portId: capital.portId
       }));
     }
     return capitalByFactionId;
@@ -311,6 +316,23 @@ function politicsCapitals(powers, cities) {
     throw new Error(`Politics view has no current capital for ${faction.id}`);
   }
   return capitalByFactionId;
+}
+
+function politicsHistoricalCapital(gameState, factionId) {
+  if (factionExistsIn1522(factionId)) {
+    return Object.freeze({ city: factionCapitalForId(factionId).city, portId: null });
+  }
+  const predecessors = Object.entries(gameState.memory.conquest.factionSuccessors)
+    .filter(([, successorFactionId]) => successorFactionId === factionId)
+    .map(([predecessorFactionId]) => predecessorFactionId);
+  if (predecessors.length !== 1) {
+    throw new Error(`Politics view cannot resolve the historical capital for ${factionId}`);
+  }
+  const capital = factionCapitalForId(predecessors[0]);
+  return Object.freeze({
+    city: capital.city,
+    portId: gameState.memory.conquest.factionCapitalOverrides[factionId] || null
+  });
 }
 
 function politicsDependencies(faction, powerById) {

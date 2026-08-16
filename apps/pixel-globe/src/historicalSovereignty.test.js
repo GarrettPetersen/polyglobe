@@ -1,0 +1,118 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { FACTIONS } from "./factions.js";
+import {
+  FIRST_BATTLE_OF_PANIPAT_MINUTE,
+  MUGHAL_SUCCESSION_FLAG,
+  advanceHistoricalSovereignty,
+  nextHistoricalSovereigntyMinute
+} from "./historicalSovereignty.js";
+import {
+  applyPortConquestOwnership,
+  createPortConquestMemory
+} from "./portConquest.js";
+import {
+  createSovereignAuthority,
+  sovereignAuthorityScore
+} from "./sovereignAuthority.js";
+import {
+  createWorldDiplomacy,
+  rawWorldDiplomacyBetween
+} from "./worldDiplomacy.js";
+
+test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
+  const state = historicalState("delhi");
+  const ports = historicalPorts();
+  state.memory.conquest.portFactionOverrides.lahore = "portugal";
+  state.relations.diplomacy.overrides["bengal|delhi"] = "friendly";
+  state.relations.factionReputation.delhi = 27;
+  state.relations.lettersOfMarque.delhi = { factionId: "delhi", simMinute: 10 };
+  state.relations.safePassageUntilMinute.delhi = 500;
+
+  assert.equal(nextHistoricalSovereigntyMinute(state), FIRST_BATTLE_OF_PANIPAT_MINUTE);
+  assert.deepEqual(advanceHistoricalSovereignty(
+    state,
+    FIRST_BATTLE_OF_PANIPAT_MINUTE - 1,
+    { portCities: ports }
+  ), []);
+  const [transition] = advanceHistoricalSovereignty(
+    state,
+    FIRST_BATTLE_OF_PANIPAT_MINUTE,
+    { portCities: ports }
+  );
+
+  assert.equal(transition.playerFactionChanged, true);
+  assert.equal(state.playerCharacter.nationalityId, "mughal");
+  assert.equal(state.memory.flags[MUGHAL_SUCCESSION_FLAG], "completed");
+  assert.equal(nextHistoricalSovereigntyMinute(state), Infinity);
+  assert.ok(state.memory.conquest.collapsedFactionIds.includes("delhi"));
+  assert.ok(!state.memory.conquest.collapsedFactionIds.includes("mughal"));
+  assert.equal(state.memory.conquest.factionSuccessors.delhi, "mughal");
+  applyPortConquestOwnership(state.memory.conquest, ports);
+  assert.equal(ports[0].factionId, "mughal");
+  assert.equal(ports[0].capitalOfFactionId, "mughal");
+  assert.equal(ports[1].factionId, "mughal");
+  assert.equal(ports[2].factionId, "portugal", "third-party conquest must survive Panipat");
+  assert.equal(rawWorldDiplomacyBetween(state.relations.diplomacy, "mughal", "bengal"), "friendly");
+  assert.equal(state.relations.factionReputation.mughal, 27);
+  assert.equal(state.relations.lettersOfMarque.mughal.factionId, "mughal");
+  assert.equal(state.relations.lettersOfMarque.delhi, undefined);
+  assert.equal(state.relations.safePassageUntilMinute.mughal, 500);
+  assert.equal(sovereignAuthorityScore(state.relations.authority, "mughal"), 80);
+  assert.equal(state.relations.diplomacy.history[0].kind, "succession");
+});
+
+test("Panipat does not overwrite a divergent campaign where Delhi already fell", () => {
+  const state = historicalState("portugal");
+  const ports = historicalPorts();
+  state.memory.conquest.portFactionOverrides.delhi = "portugal";
+
+  assert.deepEqual(advanceHistoricalSovereignty(
+    state,
+    FIRST_BATTLE_OF_PANIPAT_MINUTE + 100,
+    { portCities: ports }
+  ), []);
+  assert.equal(state.memory.flags[MUGHAL_SUCCESSION_FLAG], "averted");
+  assert.ok(state.memory.conquest.collapsedFactionIds.includes("mughal"));
+  assert.ok(!state.memory.conquest.collapsedFactionIds.includes("delhi"));
+});
+
+function historicalState(playerFactionId) {
+  return {
+    playerCharacter: Object.freeze({ nationalityId: playerFactionId }),
+    memory: {
+      flags: {},
+      conquest: createPortConquestMemory()
+    },
+    relations: {
+      diplomacy: createWorldDiplomacy({ seedKey: "panipat" }),
+      authority: createSovereignAuthority({ seedKey: "panipat" }),
+      factionReputation: Object.fromEntries(FACTIONS.map(({ id }) => [id, 0])),
+      lettersOfMarque: {},
+      safePassageUntilMinute: {},
+      safePassageRefusalUntilMinute: {}
+    }
+  };
+}
+
+function historicalPorts() {
+  return [
+    city(1, "delhi", "Delhi", "India", { capitalOfFactionId: "delhi" }),
+    city(2, "jaunpur", "Jaunpur", "India"),
+    city(3, "lahore", "Lahore", "Pakistan")
+  ];
+}
+
+function city(tileId, portId, cityName, country, details = {}) {
+  return {
+    tileId,
+    portId,
+    city: cityName,
+    displayCity: cityName,
+    country,
+    factionId: "delhi",
+    isFactionCapital: details.capitalOfFactionId === "delhi",
+    capitalOfFactionId: details.capitalOfFactionId || null
+  };
+}

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { FACTIONS, FACTION_CAPITALS_1522, NEUTRAL_FACTION_ID } from "./factions.js";
+import {
+  FACTIONS,
+  FACTION_CAPITALS_1522,
+  NEUTRAL_FACTION_ID,
+  factionExistsIn1522
+} from "./factions.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
@@ -43,13 +48,28 @@ test("politics cards cover every non-neutral power including pirates", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
   const expectedIds = FACTIONS
-    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID)
+    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID && factionExistsIn1522(faction.id))
     .map((faction) => faction.id);
 
   assert.deepEqual(view.powers.map((faction) => faction.id), expectedIds);
   assert.equal(view.cards.length, expectedIds.length);
   assert.equal(view.cards[0].faction.id, PLAYER.nationalityId);
   assert.equal(view.cards.at(-1).faction.id, "pirate");
+});
+
+test("politics replaces the Delhi Sultanate with Mughal rule after Panipat", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.memory.conquest.collapsedFactionIds = state.memory.conquest.collapsedFactionIds
+    .filter((factionId) => factionId !== "mughal");
+  state.memory.conquest.collapsedFactionIds.push("delhi");
+  state.memory.conquest.factionSuccessors.delhi = "mughal";
+  state.memory.conquest.factionCapitalOverrides.mughal = "delhi";
+
+  const view = createPoliticsView(state);
+
+  assert.equal(view.powers.some((faction) => faction.id === "delhi"), false);
+  assert.equal(politicsCard(view, "mughal").capital.city, "Delhi");
+  assert.equal(politicsCard(view, "mughal").capital.portId, "delhi");
 });
 
 test("politics cards name each nation's capital while pirates have none", () => {

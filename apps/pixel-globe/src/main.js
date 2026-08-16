@@ -2440,7 +2440,7 @@ const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
 const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
 const STATUS_PERSON_PARTICLE_LIMIT = 320;
 const COLONY_DEPARTURE_DISTANCE_PX = 90;
-const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-4";
+const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-5";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
 const FACTION_FLAG_ATLAS_COLUMNS = 8;
@@ -15064,12 +15064,16 @@ function applyCurrentPortConquestOwnership({
     applyNpcConquestOwnership(
       npcSeaRoutes,
       portFactionByTileId,
-      new Set(gameState.memory.conquest.collapsedFactionIds)
+      new Set(gameState.memory.conquest.collapsedFactionIds),
+      new Map(Object.entries(gameState.memory.conquest.factionSuccessors))
     );
     for (const state of npcVisualShips.values()) {
       const strategic = npcSeaRoutes.shipById.get(state.id);
       if (strategic) state.factionId = strategic.factionId;
     }
+  }
+  if (ship) {
+    ship.factionId = gameState.memory.conquest.factionSuccessors[ship.factionId] || ship.factionId;
   }
   shoreBatteryStates.clear();
   shoreBatteryUpdateAccumulator = 0;
@@ -28657,6 +28661,20 @@ function updateWorldDiplomacy() {
   if (result.authorityEvents.length > 0) {
     reconcilePapalAuthorityCharacters();
     dirty = true;
+  }
+  if (result.historicalTransitions.length > 0) {
+    const transition = result.historicalTransitions.at(-1);
+    applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
+    showSurvivalNotice(uiText("status.mughalsTakeDelhi"), "warn", "politics-news");
+    if (transition.playerFactionChanged) {
+      openCharacterAlertModal(
+        gameState.playerCharacter,
+        uiText("dialogue.mughalSuccessionPlayer"),
+        "thoughtful"
+      );
+    }
+    dirty = true;
+    return true;
   }
   const expulsions = reconcileForeignSettlementPolitics();
   if (result.englishReformation) {

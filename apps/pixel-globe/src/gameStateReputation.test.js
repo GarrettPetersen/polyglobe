@@ -375,10 +375,31 @@ test("version 11 voyages gain empty persistent port conquest state", () => {
   assert.deepEqual(restored.memory.conquest, {
     portFactionOverrides: {},
     factionCapitalOverrides: {},
-    collapsedFactionIds: [],
+    collapsedFactionIds: ["mughal"],
+    factionSuccessors: {},
     treaties: [],
     events: []
   });
+});
+
+test("version 71 voyages gain a dormant Mughal succession without changing live rule", () => {
+  const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  saved.version = 71;
+  delete saved.memory.conquest.factionSuccessors;
+  saved.memory.conquest.collapsedFactionIds = saved.memory.conquest.collapsedFactionIds
+    .filter((factionId) => factionId !== "mughal");
+  delete saved.relations.factionReputation.mughal;
+  delete saved.relations.authority.scores.mughal;
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.deepEqual(restored.memory.conquest.factionSuccessors, {});
+  assert.equal(restored.memory.conquest.collapsedFactionIds.includes("mughal"), true);
+  assert.equal(restored.memory.conquest.collapsedFactionIds.includes("delhi"), false);
+  assert.equal(restored.relations.factionReputation.mughal, 0);
+  assert.equal(restored.relations.authority.scores.mughal, 72);
+  validateGameState(restored);
 });
 
 test("version 54 Hospitaller voyages gain the Malta quest without changing nationality", () => {
@@ -426,7 +447,7 @@ test("version 21 voyages retire Aztec faction references into Spanish Mexico", (
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.equal(restored.relations.safePassageUntilMinute.spain, 5000);
   assert.equal(restored.memory.conquest.portFactionOverrides["city-99"], "spain");
-  assert.deepEqual(restored.memory.conquest.collapsedFactionIds, []);
+  assert.deepEqual(restored.memory.conquest.collapsedFactionIds, ["mughal"]);
   assert.equal(JSON.stringify(restored).includes("aztec"), false);
 });
 

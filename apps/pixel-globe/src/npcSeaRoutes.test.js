@@ -489,6 +489,28 @@ test("a collapsed empire loses its NPC fleet and captured port ownership", () =>
   assert.equal(routes.ships.some((ship) => ship.factionId === "portugal"), false);
 });
 
+test("a succeeded empire transfers its active and replacement fleets", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const activeShip = routes.ships[0];
+  activeShip.factionId = "delhi";
+  routes.replacementQueue.push({
+    shipId: "lodi-replacement",
+    factionId: "delhi",
+    readyMinute: 100
+  });
+
+  applyNpcConquestOwnership(
+    routes,
+    new Map(PORTS.map((entry) => [entry.tileId, entry.factionId])),
+    new Set(["delhi"]),
+    new Map([["delhi", "mughal"]])
+  );
+
+  assert.equal(activeShip.factionId, "mughal");
+  assert.equal(routes.replacementQueue.at(-1).factionId, "mughal");
+});
+
 test("NPC merchants carry finite cargo and realize profits over repeated port calls", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

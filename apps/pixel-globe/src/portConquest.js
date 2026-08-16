@@ -1,4 +1,4 @@
-import { NEUTRAL_FACTION_ID, assertFactionId } from "./factions.js";
+import { FACTIONS, NEUTRAL_FACTION_ID, assertFactionId } from "./factions.js";
 import { rulerAtMinute } from "./rulers.js";
 import { isChristianReligion } from "./religiousAttitudes.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
@@ -35,7 +35,8 @@ export function createPortConquestMemory() {
   return {
     portFactionOverrides: {},
     factionCapitalOverrides: {},
-    collapsedFactionIds: [],
+    collapsedFactionIds: FACTIONS.filter((faction) => faction.emergent === true).map((faction) => faction.id),
+    factionSuccessors: {},
     treaties: [],
     events: []
   };
@@ -73,6 +74,17 @@ export function validatePortConquestMemory(memory) {
     if (factionId === NEUTRAL_FACTION_ID) throw new Error("Neutral cannot be a collapsed empire");
     if (collapsed.has(factionId)) throw new Error(`Duplicate collapsed faction: ${factionId}`);
     collapsed.add(factionId);
+  }
+  if (!memory.factionSuccessors || typeof memory.factionSuccessors !== "object" ||
+      Array.isArray(memory.factionSuccessors)) {
+    throw new Error("Faction successor registry must be an object");
+  }
+  for (const [predecessorFactionId, successorFactionId] of Object.entries(memory.factionSuccessors)) {
+    assertFactionId(predecessorFactionId);
+    assertFactionId(successorFactionId);
+    if (predecessorFactionId === successorFactionId) {
+      throw new Error(`Faction cannot succeed itself: ${predecessorFactionId}`);
+    }
   }
   if (!Array.isArray(memory.treaties) || memory.treaties.length > PORT_CONQUEST_TREATY_LIMIT) {
     throw new Error("Invalid conquest peace treaties");
@@ -568,6 +580,72 @@ export function restoreCollapsedFactionAtCities(memory, cities, {
   }
   validatePortConquestMemory(memory);
   return event;
+}
+
+export function replaceFactionAtControlledCities(memory, cities, {
+  predecessorFactionId,
+  successorFactionId,
+  capitalCity,
+  simMinute,
+  source
+}) {
+  validatePortConquestMemory(memory);
+  assertFactionId(predecessorFactionId);
+  assertFactionId(successorFactionId);
+  if (predecessorFactionId === successorFactionId) {
+    throw new Error("Faction succession requires two different factions");
+  }
+  if (!Array.isArray(cities) || cities.length === 0) {
+    throw new Error("Faction succession requires a city list");
+  }
+  for (const city of cities) assertCity(city);
+  assertCity(capitalCity);
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid faction succession minute: ${simMinute}`);
+  }
+  if (typeof source !== "string" || source.trim() === "") {
+    throw new Error("Faction succession source is required");
+  }
+  if (effectivePortFactionId(memory, capitalCity) !== predecessorFactionId) {
+    throw new Error(`Faction succession capital is not controlled by ${predecessorFactionId}`);
+  }
+  if (!memory.collapsedFactionIds.includes(successorFactionId)) {
+    throw new Error(`Faction succession requires inactive successor: ${successorFactionId}`);
+  }
+  const controlledCities = cities.filter((city) => (
+    effectivePortFactionId(memory, city) === predecessorFactionId
+  ));
+  if (controlledCities.length === 0) {
+    throw new Error(`Faction succession found no ${predecessorFactionId} cities`);
+  }
+
+  for (const city of controlledCities) {
+    memory.portFactionOverrides[portConquestPortId(city)] = successorFactionId;
+  }
+  if (!memory.collapsedFactionIds.includes(predecessorFactionId)) {
+    memory.collapsedFactionIds.push(predecessorFactionId);
+  }
+  memory.collapsedFactionIds = memory.collapsedFactionIds.filter((id) => id !== successorFactionId);
+  delete memory.factionCapitalOverrides[predecessorFactionId];
+  const capitalPortId = portConquestPortId(capitalCity);
+  memory.factionCapitalOverrides[successorFactionId] = capitalPortId;
+  memory.factionSuccessors[predecessorFactionId] = successorFactionId;
+  const event = {
+    id: `succession-${simMinute}-${predecessorFactionId}-${successorFactionId}`,
+    kind: "faction-succession",
+    predecessorFactionId,
+    successorFactionId,
+    capitalPortId,
+    cityPortIds: controlledCities.map(portConquestPortId),
+    simMinute,
+    source
+  };
+  memory.events.push(event);
+  if (memory.events.length > PORT_CONQUEST_EVENT_LIMIT) {
+    memory.events.splice(0, memory.events.length - PORT_CONQUEST_EVENT_LIMIT);
+  }
+  validatePortConquestMemory(memory);
+  return Object.freeze(event);
 }
 
 export function portConquestPortId(city) {

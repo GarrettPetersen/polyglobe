@@ -1284,18 +1284,29 @@ function isSavedEncounterPoint(destination) {
     destination.lon >= -180 && destination.lon <= 180;
 }
 
-export function applyNpcConquestOwnership(system, portFactionByTileId, collapsedFactionIds) {
+export function applyNpcConquestOwnership(
+  system,
+  portFactionByTileId,
+  collapsedFactionIds,
+  factionSuccessors = new Map()
+) {
   assertSaveableNpcRouteSystem(system);
   if (!(portFactionByTileId instanceof Map)) throw new Error("NPC conquest ownership requires a port faction map");
   if (!(collapsedFactionIds instanceof Set)) throw new Error("NPC conquest ownership requires collapsed factions");
+  if (!(factionSuccessors instanceof Map)) throw new Error("NPC conquest ownership requires a successor map");
   for (const [tileId, factionId] of portFactionByTileId) {
     if (!Number.isInteger(tileId)) throw new Error(`Invalid conquered port tile: ${tileId}`);
     assertFactionId(factionId);
   }
   for (const factionId of collapsedFactionIds) assertFactionId(factionId);
+  for (const [predecessorFactionId, successorFactionId] of factionSuccessors) {
+    assertFactionId(predecessorFactionId);
+    assertFactionId(successorFactionId);
+  }
 
   for (const port of system.ports) synchronizeNpcPortFaction(port, portFactionByTileId);
   for (const ship of system.ships) {
+    ship.factionId = factionSuccessors.get(ship.factionId) || ship.factionId;
     if (collapsedFactionIds.has(ship.factionId)) ship.factionId = NEUTRAL_FACTION_ID;
     synchronizeNpcPortFaction(ship.currentPort, portFactionByTileId);
     synchronizeNpcPortFaction(ship.finalDestination, portFactionByTileId);
@@ -1303,6 +1314,7 @@ export function applyNpcConquestOwnership(system, portFactionByTileId, collapsed
     synchronizeNpcPortFaction(ship.plan?.destination, portFactionByTileId);
   }
   for (const replacement of system.replacementQueue) {
+    replacement.factionId = factionSuccessors.get(replacement.factionId) || replacement.factionId;
     if (collapsedFactionIds.has(replacement.factionId)) replacement.factionId = NEUTRAL_FACTION_ID;
   }
   system.routeCache.clear();

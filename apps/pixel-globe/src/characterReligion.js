@@ -471,7 +471,7 @@ function southAsianReligionCandidates({ city, factionId }) {
     );
   }
   if (factionId === "bengal") return choices(["hinduism", 3], ["sunni-islam", 2]);
-  if (factionId === "delhi") return choices(["hinduism", 3], ["sunni-islam", 2]);
+  if (["delhi", "mughal"].includes(factionId)) return choices(["hinduism", 3], ["sunni-islam", 2]);
   if (["amber", "jodhpur", "ujjain"].includes(city)) {
     return choices(["hinduism", 4], ["jainism", 1]);
   }

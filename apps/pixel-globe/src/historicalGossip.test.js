@@ -39,8 +39,14 @@ test("German ports begin with local gossip about the Diet of Worms", () => {
 });
 
 test("historical gossip follows its region and expires", () => {
-  const state = worldState();
-  const panipatNews = recentHistoricalGossipForPort(DELHI, gameMinuteForDate(1526, 6, 1), state);
+  const mughalDelhi = { ...DELHI, factionId: "mughal" };
+  const state = worldState(replaceWorldCity(DELHI, mughalDelhi));
+  state.collapsedFactionIds.push("delhi");
+  const panipatNews = recentHistoricalGossipForPort(
+    mughalDelhi,
+    gameMinuteForDate(1526, 6, 1),
+    state
+  );
   const distantNews = recentHistoricalGossipForPort(KYOTO, gameMinuteForDate(1526, 6, 1), state);
 
   assert.equal(panipatNews.id, "first-battle-of-panipat");

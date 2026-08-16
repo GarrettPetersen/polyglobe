@@ -588,7 +588,7 @@ test("an established exile colony restores its sponsor without returning the ann
   assert.equal(capturedBordeaux.factionId, "england");
   assert.equal(colony.factionId, "france");
   assert.equal(colony.capitalOfFactionId, "france");
-  assert.deepEqual(conquest.collapsedFactionIds, []);
+  assert.deepEqual(conquest.collapsedFactionIds, ["mughal"]);
 });
 
 test("a conquered founding port can offer its former ruler's colony expedition in exile", () => {

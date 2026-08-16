@@ -19,7 +19,7 @@ const EUROPEAN_FACTIONS = new Set([
   "venice", "genoa", "papal-states", "muscovy", "poland-lithuania", "sweden",
   "denmark-norway"
 ]);
-const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi"]);
+const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi", "mughal"]);
 
 export const HAJJ_PILGRIMAGE_PERK_ITEM_ID = "zamzam-flask";
 
@@ -207,7 +207,7 @@ function portHasRegion(city, region) {
   if (region === "europe") return EUROPEAN_FACTIONS.has(city.factionId);
   if (region === "england") return city.factionId === "england" || city.factionId === "scotland";
   if (region === "islamic") {
-    return ["ottoman", "crimea", "morocco", "safavid", "hormuz", "gujarat", "delhi", "bengal"]
+    return ["ottoman", "crimea", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"]
       .includes(city.factionId) || city.cityType === "islamic-desert";
   }
   if (region === "east-asia") {

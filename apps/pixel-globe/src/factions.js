@@ -50,6 +50,9 @@ export const FACTIONS = Object.freeze([
   faction("gujarat", "Gujarat Sultanate", "Gujarat", "Gujarati", "sultanate"),
   faction("bengal", "Bengal Sultanate", "Bengal", "Bengali", "sultanate"),
   faction("delhi", "Delhi Sultanate", "Delhi", "Delhi", "sultanate"),
+  faction("mughal", "Mughal Empire", "Mughal Empire", "Mughal", "empire", "the", {
+    emergent: true
+  }),
   faction("ayutthaya", "Ayutthaya Kingdom", "Ayutthaya", "Ayutthayan", "kingdom"),
   faction("ternate", "Sultanate of Ternate", "Ternate", "Ternatan", "sultanate"),
   faction("tidore", "Sultanate of Tidore", "Tidore", "Tidorese", "sultanate"),
@@ -436,6 +439,10 @@ export function factionHasFlag(factionId) {
   return factionId !== NEUTRAL_FACTION_ID;
 }
 
+export function factionExistsIn1522(factionId) {
+  return factionById(factionId).emergent !== true;
+}
+
 export function factionCapitalForId(factionId) {
   assertFactionId(factionId);
   const capitalSpec = FACTION_CAPITALS_BY_ID.get(factionId);
@@ -506,12 +513,15 @@ export function factionIdForCity1522(city) {
   return COUNTRY_FACTIONS.get(city.country.trim()) || NEUTRAL_FACTION_ID;
 }
 
-function faction(id, name, shortName, adjective, kind, article = null) {
+function faction(id, name, shortName, adjective, kind, article = null, details = {}) {
   for (const [label, value] of Object.entries({ id, name, shortName, adjective, kind })) {
     if (!nonEmptyString(value)) throw new Error(`Faction has no ${label}: ${id || "missing"}`);
   }
   if (article !== null && article !== "the") throw new Error(`Invalid faction article: ${id}=${article}`);
-  return Object.freeze({ id, name, shortName, adjective, kind, article });
+  if (details.emergent !== undefined && typeof details.emergent !== "boolean") {
+    throw new Error(`Invalid emergent faction marker: ${id}`);
+  }
+  return Object.freeze({ id, name, shortName, adjective, kind, article, emergent: details.emergent === true });
 }
 
 function capital(factionId, city, country, details = {}) {
@@ -595,7 +605,11 @@ function validateCityFactionRules() {
 
 function validateFactionCapitalRules() {
   const expectedFactionIds = FACTIONS
-    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID && faction.id !== PIRATE_FACTION_ID)
+    .filter((faction) => (
+      faction.id !== NEUTRAL_FACTION_ID &&
+      faction.id !== PIRATE_FACTION_ID &&
+      faction.emergent !== true
+    ))
     .map((faction) => faction.id)
     .sort();
   const capitalFactionIds = FACTION_CAPITALS_1522.map((capitalSpec) => capitalSpec.factionId).sort();

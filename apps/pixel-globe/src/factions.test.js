@@ -16,6 +16,7 @@ import {
   factionCapitalCityRecords1522,
   factionCapitalForCity,
   factionCapitalForId,
+  factionExistsIn1522,
   factionHasFlag,
   factionIdForCity1522,
   factionNounPhrase,
@@ -186,7 +187,10 @@ test("the defeated Aztec Empire is not a sovereign power in 1522", () => {
 
 test("every sovereign faction has one declared water-accessible capital", () => {
   const sovereignFactionIds = FACTIONS
-    .filter((faction) => ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(faction.id))
+    .filter((faction) => (
+      ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(faction.id) &&
+      factionExistsIn1522(faction.id)
+    ))
     .map((faction) => faction.id)
     .sort();
 

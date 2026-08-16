@@ -78,7 +78,11 @@ export function migrateSovereignAuthority(memory, {
   if (memory === undefined || memory === null) {
     return createSovereignAuthority({ startMinute, seedKey });
   }
-  return validateSovereignAuthority(memory);
+  const scores = Object.fromEntries(SOVEREIGN_FACTIONS.map(({ id }) => [
+    id,
+    memory.scores?.[id] ?? rulerAtMinute(id, startMinute).authority
+  ]));
+  return validateSovereignAuthority({ ...memory, scores });
 }
 
 export function validateSovereignAuthority(memory) {

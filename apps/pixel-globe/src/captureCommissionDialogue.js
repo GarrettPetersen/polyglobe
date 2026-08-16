@@ -38,6 +38,7 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
   gujarat: "The Gujarati court still draws wealth and shipping through Cambay and the western Indian Ocean.",
   bengal: "The Bengali court still commands the Ganges delta, its textile towns, and a crowded river fleet.",
   delhi: "The Delhi court still claims the tribute and military roads of northern India.",
+  mughal: "Babur's new court means to bind northern India's roads and rivers to Delhi.",
   ayutthaya: "The Ayutthayan court still commands the river capital, rice country, and Gulf trade.",
   ternate: "The Ternatan court still commands clove islands whose harvest can finance another fleet.",
   tidore: "The Tidorese court still commands clove islands and alliances across the eastern archipelago.",

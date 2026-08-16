@@ -118,11 +118,12 @@ const RAW_RULER_TIMELINES = Object.freeze({
     yearRuler(1533, "Ghiyasuddin Mahmud Shah", "Sultan")
   ],
   delhi: [
-    ruler(1522, 1, 1, "Ibrahim Lodi", "Sultan"),
-    ruler(1526, 4, 21, "Babur", "Emperor"),
-    ruler(1530, 12, 26, "Humayun", "Emperor"),
-    ruler(1540, 5, 17, "Sher Shah Suri", "Sultan"),
-    ruler(1545, 5, 22, "Islam Shah Suri", "Sultan")
+    ruler(1522, 1, 1, "Ibrahim Lodi", "Sultan")
+  ],
+  mughal: [
+    ruler(1522, 1, 1, "Babur", "Padishah"),
+    ruler(1530, 12, 26, "Humayun", "Padishah"),
+    ruler(1556, 2, 14, "Akbar", "Padishah")
   ],
   ayutthaya: [
     ruler(1522, 1, 1, "Ramathibodi II", "King"),
@@ -211,6 +212,7 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
   gujarat: faith("sunni-islam", 0.78),
   bengal: faith("sunni-islam", 0.78),
   delhi: faith("sunni-islam", 0.82),
+  mughal: faith("sunni-islam", 0.76),
   ayutthaya: faith("theravada-buddhism", 0.89),
   ternate: faith("sunni-islam", 0.82),
   tidore: faith("sunni-islam", 0.82),
@@ -268,6 +270,7 @@ const RULER_AUTHORITY_DEFAULTS = Object.freeze({
   gujarat: 66,
   bengal: 68,
   delhi: 46,
+  mughal: 72,
   ayutthaya: 74,
   ternate: 58,
   tidore: 60,
@@ -321,10 +324,8 @@ const RULER_AUTHORITY_OVERRIDES = Object.freeze({
   "songhai|Askia Dawud|1549-1-1": 78,
   "vijayanagara|Achyuta Deva Raya|1529-1-1": 62,
   "vijayanagara|Sadasiva Raya|1542-1-1": 34,
-  "delhi|Babur|1526-4-21": 84,
-  "delhi|Humayun|1530-12-26": 58,
-  "delhi|Sher Shah Suri|1540-5-17": 88,
-  "delhi|Islam Shah Suri|1545-5-22": 72,
+  "mughal|Humayun|1530-12-26": 58,
+  "mughal|Akbar|1556-2-14": 92,
   "japan|Ashikaga Yoshiteru|1546-1-1": 34,
   "hosokawa|Hosokawa Harumoto|1531-1-1": 62,
   "ouchi|Ouchi Yoshitaka|1529-1-1": 70,
@@ -339,7 +340,7 @@ const REGIONAL_GROUPS = Object.freeze([
   ["muscovy", "crimea", "poland-lithuania", "sweden", "denmark-norway", "habsburg", "hungary", "ottoman"],
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],
-  ["vijayanagara", "gujarat", "bengal", "delhi", "portugal", "safavid"],
+  ["vijayanagara", "gujarat", "bengal", "delhi", "mughal", "portugal", "safavid"],
   ["ayutthaya", "ming", "bengal", "portugal", "spain", "ternate", "tidore"],
   [
     "ming", "japan", "hosokawa", "ouchi", "shimazu", "so", "shoni", "nagao",

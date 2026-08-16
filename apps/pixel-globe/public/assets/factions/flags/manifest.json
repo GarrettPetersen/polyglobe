@@ -14,6 +14,7 @@
     "period-emblem": "Contemporary state, city, or dynastic emblem rendered as a banner.",
     "documented-royal-standard": "A royal standard described in early colonial-era textual evidence.",
     "dynastic-heraldry": "A ruling dynasty's documented emblem, adapted into a compact game banner.",
+    "dynastic-seal-reconstruction": "A documented dynastic seal adapted into an explicit game-facing banner reconstruction.",
     "period-royal-standard": "A traditional royal standard rather than a national flag.",
     "period-regional-emblem": "A period regional device used as the closest dynastic equivalent.",
     "period-banner-tradition": "A reconstruction from a documented period banner tradition.",
@@ -547,6 +548,26 @@
         {
           "label": "Delhi Sultanate flag traditions",
           "url": "https://en.wikipedia.org/wiki/Delhi_Sultanate"
+        }
+      ]
+    },
+    {
+      "id": "mughal",
+      "factionName": "Mughal Empire",
+      "width": 32,
+      "height": 20,
+      "file": "mughal.png",
+      "evidence": "dynastic-seal-reconstruction",
+      "representation": "Babur's dynastic seal standard",
+      "accuracyNote": "No secure rectangular Mughal state flag survives from Babur's reign. This green-and-gold field is an explicit game-facing reconstruction around Babur's documented 1527 genealogical seal: his name in a central circle, ringed by his Timurid ancestors.",
+      "sources": [
+        {
+          "label": "Babur's dynastic seal, 1527",
+          "url": "https://commons.wikimedia.org/wiki/File:Detail_of_Babur%27s_dynastic_seal,_from_a_Mughal_land_grant_dating_from_August_1527.jpg"
+        },
+        {
+          "label": "Babur's Timurid lineage in the Baburnama",
+          "url": "https://www.metmuseum.org/art/collection/search/451958"
         }
       ]
     },

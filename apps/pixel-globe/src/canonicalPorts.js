@@ -15,6 +15,7 @@ export const CANONICAL_PORTS = Object.freeze({
   BORDEAUX: canonicalPort("bordeaux", "Bordeaux", "France"),
   BREMEN: canonicalPort("bremen", "Bremen", "Germany"),
   CHANGSHA: canonicalPort("changsha", "Changsha", "China"),
+  DELHI: canonicalPort("delhi", "Delhi", "India"),
   FUZHOU: canonicalPort("fuzhou", "Fuzhou", "China"),
   GENT: canonicalPort("gent", "Gent", "Belgium"),
   GOA: canonicalPort("goa", "Goa", "India"),

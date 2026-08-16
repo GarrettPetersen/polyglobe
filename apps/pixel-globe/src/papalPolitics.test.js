@@ -239,10 +239,21 @@ test("the 1534 settlement converts English Catholics aboard to Anglicanism once"
     playerCharacter: player,
     voyageSeed: "english-reformation"
   });
-  const result = advanceGamePolitics(state, ENGLISH_REFORMATION_MINUTE);
+  const portCities = [{
+    tileId: 1,
+    portId: "delhi",
+    city: "Delhi",
+    country: "India",
+    lat: 28.61,
+    lon: 77.21,
+    factionId: "delhi",
+    isFactionCapital: true,
+    capitalOfFactionId: "delhi"
+  }];
+  const result = advanceGamePolitics(state, ENGLISH_REFORMATION_MINUTE, { portCities });
   assert.equal(result.englishReformation, true);
   assert.equal(state.playerCharacter.religionId, "anglican");
-  const repeated = advanceGamePolitics(state, ENGLISH_REFORMATION_MINUTE + 1);
+  const repeated = advanceGamePolitics(state, ENGLISH_REFORMATION_MINUTE + 1, { portCities });
   assert.equal(repeated.englishReformation, false);
 });
 

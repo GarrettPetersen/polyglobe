@@ -13,6 +13,7 @@ import {
 import {
   createSuzeraintyMemory,
   defensivePartnersOf,
+  dependentsOf,
   directSuzeraintyBetween,
   establishSuzerainty,
   foreignPolicyPrincipal,
@@ -63,7 +64,8 @@ const DIPLOMACY_INTRODUCED_FACTION_IDS = Object.freeze([
   "shoni",
   "nagao",
   "ando",
-  "kakizaki"
+  "kakizaki",
+  "mughal"
 ]);
 
 export function createWorldDiplomacy({ startMinute = 0, seedKey = "world" } = {}) {
@@ -520,6 +522,74 @@ export function releaseDiplomaticVassal(state, {
   return event;
 }
 
+export function succeedDiplomaticFaction(state, {
+  predecessorFactionId,
+  successorFactionId,
+  simMinute,
+  source = "dynastic-succession",
+  headline
+}) {
+  validateWorldDiplomacy(state);
+  assertSovereignPair(predecessorFactionId, successorFactionId);
+  assertMinute(simMinute, "diplomatic succession minute");
+  if (typeof source !== "string" || source.trim() === "") {
+    throw new Error("Diplomatic succession source is required");
+  }
+  if (typeof headline !== "string" || headline.trim() === "") {
+    throw new Error("Diplomatic succession headline is required");
+  }
+
+  const inheritedRelations = new Map();
+  for (const faction of SOVEREIGN_FACTIONS) {
+    if ([predecessorFactionId, successorFactionId].includes(faction.id)) continue;
+    inheritedRelations.set(faction.id, rawWorldDiplomacyBetween(state, predecessorFactionId, faction.id));
+  }
+  const ownSuzerainty = state.suzerainties.byVassalId[predecessorFactionId] || null;
+  const inheritedDependents = dependentsOf(state.suzerainties, predecessorFactionId);
+  releaseFactionSuzerainties(state.suzerainties, predecessorFactionId, simMinute, source);
+  if (ownSuzerainty && ownSuzerainty.suzerainFactionId !== successorFactionId) {
+    establishSuzerainty(state.suzerainties, {
+      vassalFactionId: successorFactionId,
+      suzerainFactionId: ownSuzerainty.suzerainFactionId,
+      kind: ownSuzerainty.kind,
+      termOverrides: ownSuzerainty.terms,
+      simMinute,
+      source
+    });
+  }
+  for (const dependent of inheritedDependents) {
+    if (dependent.vassalFactionId === successorFactionId) continue;
+    establishSuzerainty(state.suzerainties, {
+      vassalFactionId: dependent.vassalFactionId,
+      suzerainFactionId: successorFactionId,
+      kind: dependent.kind,
+      termOverrides: dependent.terms,
+      simMinute,
+      source
+    });
+  }
+
+  for (const [otherFactionId, relation] of inheritedRelations) {
+    setDynamicRelation(state, successorFactionId, otherFactionId, relation, simMinute);
+    const predecessorContact = state.contacts[diplomacyPairKey(predecessorFactionId, otherFactionId)];
+    if (predecessorContact) {
+      state.contacts[diplomacyPairKey(successorFactionId, otherFactionId)] = { ...predecessorContact };
+    }
+  }
+  const event = diplomacyEvent({
+    state,
+    simMinute,
+    kind: "succession",
+    factionAId: successorFactionId,
+    factionBId: predecessorFactionId,
+    reason: source,
+    headline
+  });
+  recordDiplomacyEvents(state, [event]);
+  validateWorldDiplomacy(state);
+  return Object.freeze(event);
+}
+
 function suzeraintyHeadline(kind, subjectId, suzerainId) {
   if (kind === SUZERAINTY_KIND_PERSONAL_UNION) {
     return `${factionName(subjectId)} enters a personal union with ${factionName(suzerainId)}.`;
@@ -592,6 +662,7 @@ export function diplomacyEventNotice(event) {
   validateDiplomacyEvent(event);
   const a = factionShortName(event.factionAId).toUpperCase();
   const b = factionShortName(event.factionBId).toUpperCase();
+  if (event.kind === "succession") return "MUGHALS TAKE DELHI";
   if (event.kind === "peace") return `PEACE: ${a} / ${b}`;
   if (event.kind === "alliance") return `ALLIANCE: ${a} / ${b}`;
   if (event.kind === "alliance-ended") return `ALLIANCE ENDS: ${a} / ${b}`;
@@ -859,7 +930,8 @@ function validateDiplomacyEvent(event) {
     "vassalage",
     "rebellion",
     "independence",
-    "union-dissolved"
+    "union-dissolved",
+    "succession"
   ].includes(event.kind)) {
     throw new Error(`Invalid diplomacy history event kind: ${event.kind}`);
   }

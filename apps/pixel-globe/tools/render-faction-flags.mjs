@@ -138,6 +138,10 @@ const RESEARCH = Object.freeze([
   research("delhi", "reconstruction", "Lodi black standard with coin roundel", "No secure Lodi banner was found. Black references the Abbasid standard tradition reported for Delhi, while the gold roundel is adapted from sultanic coin calligraphy.", [
     source("Delhi Sultanate flag traditions", "https://en.wikipedia.org/wiki/Delhi_Sultanate")
   ]),
+  research("mughal", "dynastic-seal-reconstruction", "Babur's dynastic seal standard", "No secure rectangular Mughal state flag survives from Babur's reign. This green-and-gold field is an explicit game-facing reconstruction around Babur's documented 1527 genealogical seal: his name in a central circle, ringed by his Timurid ancestors.", [
+    source("Babur's dynastic seal, 1527", "https://commons.wikimedia.org/wiki/File:Detail_of_Babur%27s_dynastic_seal,_from_a_Mughal_land_grant_dating_from_August_1527.jpg"),
+    source("Babur's Timurid lineage in the Baburnama", "https://www.metmuseum.org/art/collection/search/451958")
+  ]),
   research("ayutthaya", "later-traditional-ensign", "Plain red Siamese ensign", "Ayutthaya had no documented national flag in 1522. Plain red is the earliest recorded Siamese ensign, but the evidence begins under Narai in the later seventeenth century.", [
     source("Thai Fine Arts Department flag history", "https://www.finearts.go.th/storage/contents/2024/01/file/01sb4xTcSwsVGZ2fRvQiH76sPzDyOyZmmCdFB2yG.pdf")
   ]),
@@ -548,6 +552,18 @@ const DRAWERS = Object.freeze({
     s.circle(16, 10, 7, C.gold);
     s.circle(16, 10, 5, C.black);
     coinKnot(s, 16, 10, C.gold);
+    return s;
+  },
+  mughal: () => {
+    const s = base(C.darkGreen);
+    s.rect(0, 0, FLAG_W, 2, C.gold);
+    s.rect(0, FLAG_H - 2, FLAG_W, 2, C.gold);
+    for (const [x, y] of [[16, 4], [21, 5], [24, 9], [22, 14], [16, 16], [10, 14], [8, 9], [11, 5]]) {
+      s.circle(x, y, 2, C.paleGold);
+    }
+    s.circle(16, 10, 5, C.gold);
+    s.circle(16, 10, 3, C.darkRed);
+    coinKnot(s, 16, 10, C.paleGold);
     return s;
   },
   ayutthaya: () => base(C.red),
@@ -972,6 +988,7 @@ function main() {
       "period-emblem": "Contemporary state, city, or dynastic emblem rendered as a banner.",
       "documented-royal-standard": "A royal standard described in early colonial-era textual evidence.",
       "dynastic-heraldry": "A ruling dynasty's documented emblem, adapted into a compact game banner.",
+      "dynastic-seal-reconstruction": "A documented dynastic seal adapted into an explicit game-facing banner reconstruction.",
       "period-royal-standard": "A royal standard documented for the target period.",
       "period-regional-emblem": "A period regional device used as the closest dynastic equivalent.",
       "period-banner-tradition": "A reconstruction from a documented period banner tradition.",
