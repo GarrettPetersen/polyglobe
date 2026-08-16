@@ -3,6 +3,40 @@ export const CHART_CLOUD_REPAIR_RMS_PX = 6;
 export const CHART_CLOUD_REPAIR_MAX_DISTORTION_PX = 14;
 export const CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX = 8;
 
+export function nearestChartSurfaceAtPoint({ tileCalls, offset, point, surfaceForTile }) {
+  if (!Array.isArray(tileCalls) || typeof surfaceForTile !== "function") {
+    throw new Error("Chart surface lookup requires tile calls and a surface classifier");
+  }
+  for (const [label, value] of Object.entries({
+    offsetX: offset?.x,
+    offsetY: offset?.y,
+    pointX: point?.x,
+    pointY: point?.y
+  })) {
+    if (!Number.isFinite(value)) throw new Error(`Chart surface lookup has invalid ${label}: ${value}`);
+  }
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const call of tileCalls) {
+    if (!Number.isFinite(call?.x) || !Number.isFinite(call?.y)) {
+      throw new Error(`Chart surface lookup has an invalid tile center: ${call?.id}`);
+    }
+    const distance = Math.hypot(
+      call.x + offset.x - point.x,
+      call.y + offset.y - point.y
+    );
+    if (distance >= nearestDistance) continue;
+    nearest = call;
+    nearestDistance = distance;
+  }
+  if (!nearest) return null;
+  const surface = surfaceForTile(nearest);
+  if (!["land", "water"].includes(surface)) {
+    throw new Error(`Chart surface lookup classified tile ${nearest.id} as ${surface}`);
+  }
+  return surface;
+}
+
 export function measureVisibleTerrainTear({
   faceCalls,
   tileById,

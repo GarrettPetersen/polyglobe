@@ -166,12 +166,6 @@ export function planChartSettlementTowardTargets({
           )
       }];
   }));
-  const working = new Map([...positions].map(([id, position]) => (
-    [id, { x: position.x, y: position.y }]
-  )));
-  for (const [id, target] of boundedTargets) {
-    working.set(id, { x: target.x, y: target.y });
-  }
   const edges = chartSettlementEdges({
     movableIds,
     movableSet,
@@ -182,6 +176,18 @@ export function planChartSettlementTowardTargets({
     landSlackPx,
     waterSlackPx
   });
+  const workingIds = new Set(movableIds);
+  for (const edge of edges) {
+    workingIds.add(edge.id);
+    workingIds.add(edge.neighborId);
+  }
+  const working = new Map([...workingIds].map((id) => {
+    const position = positions.get(id);
+    return [id, { x: position.x, y: position.y }];
+  }));
+  for (const [id, target] of boundedTargets) {
+    working.set(id, { x: target.x, y: target.y });
+  }
 
   const maximumBoundaryRejectionPasses = Math.min(12, movableIds.length);
   if (!incrementalRepair) {

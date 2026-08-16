@@ -148,6 +148,13 @@ test("benchmark enforces a sub-millisecond chart telemetry budget", () => {
     }),
     /mean 0\.3ms exceeds/
   );
+  assert.deepEqual(assertChartIntegrityTelemetryBenchmarkBudget({
+    cpuThrottle: 4,
+    durationSeconds: 8,
+    stages: {
+      "chart.integrityTelemetry": { count: 16, mean: 0.3, p95: 1.2 }
+    }
+  }), { count: 16, mean: 0.3, p95: 1.2 });
   assert.throws(
     () => assertChartIntegrityTelemetryBenchmarkBudget({
       durationSeconds: 8,

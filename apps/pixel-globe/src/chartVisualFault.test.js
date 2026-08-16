@@ -9,8 +9,22 @@ import {
   chartFaultNeedsCloudRepair,
   chartRotationNeedsFullCloudRepair,
   measureVisibleTerrainTear,
+  nearestChartSurfaceAtPoint,
   terrainTearNeedsRepair
 } from "./chartVisualFault.js";
+
+test("chart distortion samples resolve by tile centers rather than sprite anchors", () => {
+  const tileCalls = [
+    { id: 1, x: 120, y: 80, drawSurfaceX: 300, drawSurfaceY: 300, surface: "water" },
+    { id: 2, x: 220, y: 80, drawSurfaceX: 120, drawSurfaceY: 80, surface: "land" }
+  ];
+  assert.equal(nearestChartSurfaceAtPoint({
+    tileCalls,
+    offset: { x: 5, y: -3 },
+    point: { x: 125, y: 77 },
+    surfaceForTile: (call) => call.surface
+  }), "water");
+});
 
 test("visible adjacent terrain reports excess spacing but ignores offscreen faults", () => {
   const tileById = new Map([

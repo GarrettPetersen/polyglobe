@@ -44,9 +44,12 @@ export function beginMainThreadFreezeFrame(monitor, nowMs, { eligible = true } =
     MIN_ATTRIBUTABLE_WORK_MS,
     gapMs * 0.2
   ) ? recentWork : null;
-  const cause = attributedWork?.name || (
-    previousFrameCpuMs >= gapMs * 0.5 ? "frame-work" : "frame-pacing"
-  );
+  const frameWork = previousFrameCpuMs >= gapMs * 0.5;
+  // A long scheduler delay with no measured work is the browser, OS, or a
+  // suspended VM withholding the animation callback. It is not an actionable
+  // game freeze and reporting it obscures the frames that actually ran long.
+  if (!attributedWork && !frameWork) return null;
+  const cause = attributedWork?.name || "frame-work";
   return Object.freeze({
     gapMs: round(gapMs),
     previousFrameCpuMs: round(previousFrameCpuMs),

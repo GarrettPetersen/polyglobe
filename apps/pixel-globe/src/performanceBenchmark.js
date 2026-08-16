@@ -184,16 +184,22 @@ export function assertChartIntegrityTelemetryBenchmarkBudget(report) {
       JSON.stringify(report?.scene?.simulationBlockers || {})
     );
   }
-  if (timing.mean > CHART_INTEGRITY_TELEMETRY_MEAN_BUDGET_MS) {
+  const cpuScale = report?.cpuThrottle ?? 1;
+  if (!Number.isFinite(cpuScale) || cpuScale < 1) {
+    throw new Error(`Performance benchmark has invalid CPU throttle: ${cpuScale}`);
+  }
+  const meanBudgetMs = CHART_INTEGRITY_TELEMETRY_MEAN_BUDGET_MS * cpuScale;
+  const p95BudgetMs = CHART_INTEGRITY_TELEMETRY_P95_BUDGET_MS * cpuScale;
+  if (timing.mean > meanBudgetMs) {
     throw new Error(
       `Chart integrity telemetry mean ${timing.mean}ms exceeds ` +
-      `${CHART_INTEGRITY_TELEMETRY_MEAN_BUDGET_MS}ms budget`
+      `${meanBudgetMs}ms budget`
     );
   }
-  if (timing.p95 > CHART_INTEGRITY_TELEMETRY_P95_BUDGET_MS) {
+  if (timing.p95 > p95BudgetMs) {
     throw new Error(
       `Chart integrity telemetry p95 ${timing.p95}ms exceeds ` +
-      `${CHART_INTEGRITY_TELEMETRY_P95_BUDGET_MS}ms budget`
+      `${p95BudgetMs}ms budget`
     );
   }
   const durationSeconds = report?.durationSeconds;

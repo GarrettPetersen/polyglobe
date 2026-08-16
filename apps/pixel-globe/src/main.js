@@ -1838,6 +1838,7 @@ import {
   chartFaultCanRelyOnSwell,
   chartFaultNeedsCloudRepair,
   measureVisibleTerrainTear,
+  nearestChartSurfaceAtPoint,
   terrainTearNeedsRepair
 } from "./chartVisualFault.js";
 import {
@@ -6360,7 +6361,8 @@ function publishPlatformTimelineEvent(event) {
 function measurePerformanceBenchmarkStage(name, callback) {
   const benchmarkActive = Boolean(performanceBenchmarkState);
   const lowFrameRateProfiling = persistentLowFrameRateMonitor.profiling;
-  if (!benchmarkActive && !lowFrameRateProfiling) return callback();
+  const freezeProfiling = mainThreadFreezeTelemetryIsEligible();
+  if (!benchmarkActive && !lowFrameRateProfiling && !freezeProfiling) return callback();
   const startedAtMs = performance.now();
   try {
     return callback();
@@ -6371,9 +6373,9 @@ function measurePerformanceBenchmarkStage(name, callback) {
     }
     if (lowFrameRateProfiling) {
       recordPersistentLowFrameRateStage(persistentLowFrameRateMonitor, name, durationMs);
-      if (durationMs >= 100) {
-        recordMainThreadWork(mainThreadFreezeMonitor, name, durationMs, performance.now());
-      }
+    }
+    if (freezeProfiling && durationMs >= 100) {
+      recordMainThreadWork(mainThreadFreezeMonitor, name, durationMs, performance.now());
     }
   }
 }
@@ -23516,20 +23518,12 @@ function chartSurfaceAtScreenPoint(point) {
     throw new Error("Chart surface lookup requires a screen point");
   }
   if (!chart) return null;
-  const offset = layoutOffsetPixels();
-  let nearest = null;
-  let nearestDistance = Infinity;
-  for (const call of chart.tileCalls) {
-    const distance = Math.hypot(
-      call.drawSurfaceX + offset.x - point.x,
-      call.drawSurfaceY + offset.y - point.y
-    );
-    if (distance >= nearestDistance) continue;
-    nearest = call;
-    nearestDistance = distance;
-  }
-  if (!nearest || nearestDistance > TILE_ART_SIZE) return null;
-  return isWaterSurfaceRow(nearest.row) ? "water" : "land";
+  return nearestChartSurfaceAtPoint({
+    tileCalls: chart.tileCalls,
+    offset: layoutOffsetPixels(),
+    point,
+    surfaceForTile: (call) => isWaterSurfaceRow(call.row) ? "water" : "land"
+  });
 }
 
 function nearestChartRepairTarget(fault) {
@@ -31073,6 +31067,12 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
 
   for (const city of chart.cityCalls || []) {
     if (!city.character || !factionHasFlag(city.factionId)) continue;
+    // A colony becomes visible before it becomes a dockable, supplied port.
+    // Its local official and flag must not implicitly commission a battery.
+    if (!portCitiesByTileId.has(city.tileId)) continue;
+    if (!worldEconomyHasPort(worldEconomy, city)) {
+      throw new Error(`Dockable shore battery port has no economy: ${city.tileId}`);
+    }
     const point = { x: city.x, y: city.y - 2 };
     if (!pointNearScreen(
       { x: point.x + chartOffset.x, y: point.y + chartOffset.y },
@@ -37106,7 +37106,7 @@ function chartAdmissionSettlementTileIds(newlyAdmittedTileIds) {
   }
   const tileIds = new Set(newlyAdmittedTileIds);
   const queue = [...newlyAdmittedTileIds].map((id) => ({ id, depth: 0 }));
-  const maximumSupportDepth = 6;
+  const maximumSupportDepth = 3;
   for (let head = 0; head < queue.length; head++) {
     const { id, depth } = queue[head];
     if (depth >= maximumSupportDepth) continue;

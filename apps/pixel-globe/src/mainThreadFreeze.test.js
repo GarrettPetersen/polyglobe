@@ -9,7 +9,7 @@ import {
   suspendMainThreadFreezeMonitor
 } from "./mainThreadFreeze.js";
 
-test("a foreground frame gap reports whether work or pacing froze the game", () => {
+test("a foreground frame gap reports measured frame work", () => {
   const monitor = createMainThreadFreezeMonitor();
   assert.equal(beginMainThreadFreezeFrame(monitor, 100), null);
   finishMainThreadFreezeFrame(monitor, 1_200);
@@ -19,6 +19,14 @@ test("a foreground frame gap reports whether work or pacing froze the game", () 
   assert.equal(report.previousFrameCpuMs, 1_200);
   assert.equal(report.schedulerDelayMs, 100);
   assert.equal(report.cause, "frame-work");
+});
+
+test("browser scheduling gaps without measured work are not game freezes", () => {
+  const monitor = createMainThreadFreezeMonitor();
+  assert.equal(beginMainThreadFreezeFrame(monitor, 100), null);
+  finishMainThreadFreezeFrame(monitor, 14);
+
+  assert.equal(beginMainThreadFreezeFrame(monitor, 3_169), null);
 });
 
 test("named synchronous work attributes a freeze outside the animation callback", () => {

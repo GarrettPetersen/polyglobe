@@ -2694,7 +2694,7 @@ function traversalAdmissionSettlementTileIds({
 }) {
   const tileIds = new Set(newlyAdmittedTileIds);
   const queue = [...newlyAdmittedTileIds].map((id) => ({ id, depth: 0 }));
-  const maximumSupportDepth = 6;
+  const maximumSupportDepth = 3;
   for (let head = 0; head < queue.length; head++) {
     const { id, depth } = queue[head];
     if (depth >= maximumSupportDepth) continue;
