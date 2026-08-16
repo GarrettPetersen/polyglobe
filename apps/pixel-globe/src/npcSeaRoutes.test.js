@@ -58,6 +58,7 @@ import {
 } from "./fishingNets.js";
 import { createWhaleMemory, seedWhalePopulation } from "./whaleSystem.js";
 import { TEA_RACE_CARGO_QUANTITY, teaRaceCompetitorManifest } from "./teaRaceQuest.js";
+import { MUGHAL_EXPANSION_WARSHIP_TARGET } from "./factionExpansion.js";
 
 const PORTS = Object.freeze([
   port(1, "Lisbon", "Portugal", "mediterranean", 38.72, -9.14, 70000, "portugal"),
@@ -509,6 +510,50 @@ test("a succeeded empire transfers its active and replacement fleets", () => {
 
   assert.equal(activeShip.factionId, "mughal");
   assert.equal(routes.replacementQueue.at(-1).factionId, "mughal");
+});
+
+test("Mughal succession launches a persistent regional war flotilla", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    relationBetween: (factionAId, factionBId) => (
+      new Set([factionAId, factionBId]).has("mughal") &&
+      new Set([factionAId, factionBId]).has("bengal")
+        ? DIPLOMACY_WAR
+        : diplomacyBetween(factionAId, factionBId)
+    )
+  });
+  const factionByTileId = new Map(PORTS.map((entry) => [
+    entry.tileId,
+    entry.tileId === 5 ? "mughal" : entry.tileId === 6 ? "bengal" : entry.factionId
+  ]));
+
+  applyNpcConquestOwnership(
+    routes,
+    factionByTileId,
+    new Set(["delhi"]),
+    new Map([["delhi", "mughal"]])
+  );
+
+  const flotilla = routes.ships.filter((ship) => ship.id.startsWith("mughal-expansion-warship-"));
+  assert.equal(flotilla.length, MUGHAL_EXPANSION_WARSHIP_TARGET);
+  assert.ok(flotilla.every((ship) => ship.factionId === "mughal"));
+  assert.ok(flotilla.every((ship) => ship.role === NPC_ROLE_WARSHIP));
+  assert.ok(flotilla.every((ship) => ship.profileId === "indian-ocean"));
+  assert.ok(flotilla.every((ship) => ship.plan?.destination?.factionId === "bengal"));
+
+  applyNpcConquestOwnership(
+    routes,
+    factionByTileId,
+    new Set(["delhi"]),
+    new Map([["delhi", "mughal"]])
+  );
+  assert.equal(
+    routes.ships.filter((ship) => ship.id.startsWith("mughal-expansion-warship-")).length,
+    MUGHAL_EXPANSION_WARSHIP_TARGET
+  );
 });
 
 test("NPC merchants carry finite cargo and realize profits over repeated port calls", () => {

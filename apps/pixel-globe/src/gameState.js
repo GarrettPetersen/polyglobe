@@ -74,6 +74,10 @@ import {
   migrateFactionIdTo1522
 } from "./factions.js";
 import {
+  factionConquestCommissionChance,
+  factionExpansionTargetPriority
+} from "./factionExpansion.js";
+import {
   CANNON_RESTOCK_COST,
   CREW_HIRE_COST,
   CUSTOM_LOADOUT_ID,
@@ -5368,7 +5372,8 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
     city,
     portCities,
     context.sailingDistanceKm,
-    issuerFactionId
+    issuerFactionId,
+    simMinute
   );
   if (!candidate) return null;
 
@@ -5377,7 +5382,7 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
   if (quests.capturePortRolls[rollKey]) return null;
   quests.capturePortRolls[rollKey] = true;
   pruneQuestRolls(quests.capturePortRolls);
-  const spawnChance = capturePortMissionSpawnChance(context.spawnChance);
+  const spawnChance = capturePortMissionSpawnChance(context.spawnChance, issuerFactionId);
   const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
   if (spawnChance < 1 &&
       seededFraction(`${state.voyageSeed}|${identityKey}|${rollKey}|capture-commission`) >= spawnChance) {
@@ -5535,7 +5540,14 @@ export function advanceCapturePortMissionAfterConquest(state, city, event, simMi
   return quest;
 }
 
-function capturePortMissionTarget(state, origin, portCities, sailingDistanceKm, issuerFactionId) {
+function capturePortMissionTarget(
+  state,
+  origin,
+  portCities,
+  sailingDistanceKm,
+  issuerFactionId,
+  simMinute
+) {
   const eligiblePorts = portCities
     .filter((port) => (
       port.tileId !== origin.tileId &&
@@ -5558,10 +5570,16 @@ function capturePortMissionTarget(state, origin, portCities, sailingDistanceKm, 
     .map((candidate) => ({
       ...candidate,
       ...captureCapitalDefeatStatus(portCities, candidate.port.factionId),
+      expansionPriority: factionExpansionTargetPriority(
+        issuerFactionId,
+        candidate.port.factionId,
+        simMinute
+      ),
       kind: CAPTURE_CAPITAL_MISSION_KIND
     }))
     .filter((candidate) => candidate.mostlyDefeated)
     .sort((a, b) => (
+      b.expansionPriority - a.expansionPriority ||
       a.distanceKm - b.distanceKm ||
       cityKey(a.port).localeCompare(cityKey(b.port))
     ));
@@ -5576,12 +5594,18 @@ function capturePortMissionTarget(state, origin, portCities, sailingDistanceKm, 
     ))
     .map((candidate) => ({
       ...candidate,
+      expansionPriority: factionExpansionTargetPriority(
+        issuerFactionId,
+        candidate.port.factionId,
+        simMinute
+      ),
       kind: CAPTURE_PORT_MISSION_KIND,
       originalPortCount: null,
       remainingPortCount: null,
       lostOriginalPortCount: null
     }))
     .sort((a, b) => (
+      b.expansionPriority - a.expansionPriority ||
       a.distanceKm - b.distanceKm ||
       cityKey(a.port).localeCompare(cityKey(b.port))
     ));
@@ -5628,8 +5652,11 @@ function capturePortMissionReward(target, distanceKm, kind) {
   return Math.round((2500 + distanceReward + garrisonReward) / 250) * 250;
 }
 
-function capturePortMissionSpawnChance(value) {
-  const chance = value ?? CAPTURE_PORT_MISSION_SPAWN_CHANCE;
+function capturePortMissionSpawnChance(value, issuerFactionId) {
+  const chance = value ?? factionConquestCommissionChance(
+    issuerFactionId,
+    CAPTURE_PORT_MISSION_SPAWN_CHANCE
+  );
   if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
     throw new Error(`Invalid capture-port mission spawn chance: ${chance}`);
   }

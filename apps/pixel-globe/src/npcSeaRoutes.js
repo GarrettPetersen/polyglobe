@@ -21,6 +21,7 @@ import {
 } from "./shipStats.js";
 import { HYBRID_ROUTE_PROGRESS_FLOOR } from "./shipPropulsion.js";
 import {
+  DIPLOMACY_WAR,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   assertFactionId,
@@ -69,6 +70,10 @@ import {
   suzeraintyTradePrivilege,
   validateSuzeraintyMemory
 } from "./suzerainty.js";
+import {
+  factionExpansionTargetPriority,
+  factionExpansionWarshipTarget
+} from "./factionExpansion.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -1317,9 +1322,53 @@ export function applyNpcConquestOwnership(
     replacement.factionId = factionSuccessors.get(replacement.factionId) || replacement.factionId;
     if (collapsedFactionIds.has(replacement.factionId)) replacement.factionId = NEUTRAL_FACTION_ID;
   }
+  synchronizeExpansionistWarshipFleets(system, system.economy.lastMinute, collapsedFactionIds);
   system.routeCache.clear();
   system.edgeCostCache.clear();
   return system;
+}
+
+function synchronizeExpansionistWarshipFleets(system, startMinute, collapsedFactionIds) {
+  const factionIds = [...new Set(system.ports.map((port) => port.factionId))];
+  const reservedIds = new Set([
+    ...system.ships.map((ship) => ship.id),
+    ...system.replacementQueue.map((replacement) => replacement.shipId)
+  ]);
+  let added = 0;
+  for (const factionId of factionIds) {
+    const target = factionExpansionWarshipTarget(factionId);
+    if (target === 0 || collapsedFactionIds.has(factionId)) continue;
+    const profileSpec = fleetProfileForId("indian-ocean");
+    const pool = rankedProfilePorts(
+      system.ports.filter((port) => port.factionId === factionId),
+      profileSpec
+    );
+    if (pool.length === 0) continue;
+    for (let index = 0; index < target; index++) {
+      const id = `${factionId}-expansion-warship-${index}`;
+      if (reservedIds.has(id)) continue;
+      const seed = hashString32(npcSeedKey(system, `${id}|npc`));
+      const origin = pool[index % pool.length];
+      const slugs = profileSlugsForRole(profileSpec, NPC_ROLE_WARSHIP, factionId);
+      const slug = npcShipSlugForRole(profileSpec, NPC_ROLE_WARSHIP, seed, factionId);
+      const ship = createNpcShipRecord({
+        id,
+        factionId,
+        role: NPC_ROLE_WARSHIP,
+        profileSpec,
+        slugs,
+        slug,
+        seed,
+        origin
+      });
+      seedNpcShipOnRoute(system, ship, startMinute);
+      system.ships.push(ship);
+      system.shipById.set(ship.id, ship);
+      reservedIds.add(id);
+      added++;
+    }
+  }
+  return added;
 }
 
 function synchronizeNpcPortFaction(port, portFactionByTileId) {
@@ -2647,7 +2696,15 @@ function npcDestinationEconomicScore(system, ship, origin, destination) {
     const targetDistance = ship.role === NPC_ROLE_WARSHIP ? 850 : 1250;
     const patrolFit = 1 / (1 + Math.abs(distanceKm(origin, destination) - targetDistance));
     const variation = destinationRank(origin, destination, ship.seed) / 0xffffffff;
-    return patrolFit * 1000 - variation * 0.05;
+    const expansionPriority = ship.role === NPC_ROLE_WARSHIP &&
+      system.relationBetween(ship.factionId, destination.factionId) === DIPLOMACY_WAR
+      ? factionExpansionTargetPriority(
+          ship.factionId,
+          destination.factionId,
+          system.economy.lastMinute
+        )
+      : 0;
+    return expansionPriority * 2500 + patrolFit * 1000 - variation * 0.05;
   }
   if (npcCargoUnits(ship) > 0) {
     const saleValue = cargoSaleValue(

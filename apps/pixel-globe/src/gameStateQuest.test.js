@@ -29,6 +29,7 @@ import {
 } from "./gameState.js";
 import { PERK_ITEMS } from "./perkItems.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { gameMinuteForDate } from "./rulers.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -445,6 +446,38 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
     reputationBefore + CAPTURE_PORT_MISSION_REPUTATION_GAIN
   );
   assert.equal(state.memory.quests.active, null);
+});
+
+test("Mughal conquest commissions prefer historical expansion fronts over the nearest war", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.mughal = { factionId: "mughal", simMinute: 0 };
+  state.relations.diplomacy.overrides["bengal|mughal"] = "war";
+  state.relations.diplomacy.overrides["gujarat|mughal"] = "war";
+  const agra = {
+    ...port(30, "Agra", "India", "south-asian", "mughal", 27.18, 78.02),
+    isFactionCapital: true,
+    capitalOfFactionId: "mughal"
+  };
+  const patna = port(31, "Patna", "India", "south-asian", "bengal", 25.61, 85.14);
+  const surat = port(32, "Surat", "India", "south-asian", "gujarat", 21.17, 72.83);
+
+  const offer = capturePortMissionOfferForCity(state, agra, [agra, patna, surat], {
+    simMinute: gameMinuteForDate(1535, 1, 1),
+    spawnChance: 1,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === patna.tileId ? 900 : 200
+  });
+
+  assert.equal(offer.kind, "capture-port");
+  assert.equal(offer.originFactionId, "mughal");
+  assert.equal(offer.targetFactionId, "bengal");
+  assert.equal(offer.targetTileId, patna.tileId);
 });
 
 test("a mostly defeated enemy can trigger a distinct war-ending capital commission", () => {

@@ -28,6 +28,7 @@ import {
   suzerainForFaction,
   validateSuzeraintyMemory
 } from "./suzerainty.js";
+import { factionDiplomaticAggressionMultiplier } from "./factionExpansion.js";
 
 export const WORLD_DIPLOMACY_VERSION = 7;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
@@ -712,12 +713,18 @@ function chooseDiplomacyEvent(state, eventMinute, influence) {
       const contact = state.contacts[diplomacyPairKey(factionAId, factionBId)];
       if (!contact) continue;
       const interactionWeight = 1 + Math.min(2, Math.log2(contact.portCalls + 1) * 0.25);
+      const aggressionMultiplier = factionDiplomaticAggressionMultiplier(
+        factionAId,
+        factionBId,
+        eventMinute
+      );
       if (relation !== DIPLOMACY_ALLY) {
         candidates.push({
           direction: "improve",
           factionAId,
           factionBId,
           weight: 0.1 * interactionWeight * (relation === DIPLOMACY_WAR ? peaceBalance : 1) *
+            (relation === DIPLOMACY_WAR ? 1 : 1 / Math.sqrt(aggressionMultiplier)) *
             playerDiplomacyBias(influence, factionAId, factionBId, "peace")
         });
       }
@@ -727,6 +734,7 @@ function chooseDiplomacyEvent(state, eventMinute, influence) {
           factionAId,
           factionBId,
           weight: 0.1 * interactionWeight * (relation === DIPLOMACY_HOSTILE ? warBalance : 1) *
+            aggressionMultiplier *
             playerDiplomacyBias(influence, factionAId, factionBId, "war")
         });
       }

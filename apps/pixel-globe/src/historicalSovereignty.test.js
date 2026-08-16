@@ -18,6 +18,7 @@ import {
 } from "./sovereignAuthority.js";
 import {
   createWorldDiplomacy,
+  diplomaticContactBetween,
   rawWorldDiplomacyBetween
 } from "./worldDiplomacy.js";
 
@@ -55,6 +56,7 @@ test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
   assert.equal(ports[1].factionId, "mughal");
   assert.equal(ports[3].factionId, "portugal", "third-party conquest must survive Panipat");
   assert.equal(rawWorldDiplomacyBetween(state.relations.diplomacy, "mughal", "bengal"), "friendly");
+  assert.equal(diplomaticContactBetween(state.relations.diplomacy, "mughal", "bengal").portCalls, 1);
   assert.equal(state.relations.factionReputation.mughal, 27);
   assert.equal(state.relations.lettersOfMarque.mughal.factionId, "mughal");
   assert.equal(state.relations.lettersOfMarque.delhi, undefined);

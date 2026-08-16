@@ -2,7 +2,7 @@ import { CANONICAL_PORTS, requireCanonicalPort } from "./canonicalPorts.js";
 import { effectivePortFactionId, replaceFactionAtControlledCities } from "./portConquest.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { adjustSovereignAuthority } from "./sovereignAuthority.js";
-import { succeedDiplomaticFaction } from "./worldDiplomacy.js";
+import { recordDiplomaticPortCall, succeedDiplomaticFaction } from "./worldDiplomacy.js";
 
 export const FIRST_BATTLE_OF_PANIPAT_MINUTE = gameMinuteForDate(1526, 4, 21);
 export const MUGHAL_SUCCESSION_FLAG = "historicalSovereignty:first-battle-of-panipat";
@@ -58,6 +58,12 @@ export function advanceHistoricalSovereignty(state, currentMinute, { portCities 
     source: PANIPAT_SOURCE,
     headline: "Babur defeats Ibrahim Lodi at Panipat and founds the Mughal Empire at Agra."
   });
+  recordDiplomaticPortCall(
+    state.relations.diplomacy,
+    MUGHAL_FACTION_ID,
+    "bengal",
+    FIRST_BATTLE_OF_PANIPAT_MINUTE
+  );
   const authorityEvent = adjustSovereignAuthority(state.relations.authority, MUGHAL_FACTION_ID, 8, {
     simMinute: FIRST_BATTLE_OF_PANIPAT_MINUTE,
     source: PANIPAT_SOURCE,
