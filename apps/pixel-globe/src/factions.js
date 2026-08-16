@@ -127,7 +127,7 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("vijayanagara", "Rajahmundry", "India"),
   capital("gujarat", "Cambay", "India"),
   capital("bengal", "Gauda", "India"),
-  capital("delhi", "Delhi", "India"),
+  capital("delhi", "Agra", "India"),
   capital("ayutthaya", "Ayutthaya", "Thailand"),
   capital("ternate", "Ternate", "Indonesia"),
   capital("tidore", "Tidore", "Indonesia"),
@@ -355,7 +355,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
     "Gauda", "Patna", "Pandua", "Kamarupa", "Kamtapur", "Nadiya", "Tamralipti"
   ], "bengal"),
   ...cityRulesForCountry("India", [
-    "Delhi", "Kanauji", "Jaunpur", "Lahore", "Multan"
+    "Agra", "Delhi", "Kanauji", "Jaunpur", "Lahore", "Multan"
   ], "delhi"),
   cityRule("Lahore", "Pakistan", "delhi"),
   cityRule("Multan", "Pakistan", "delhi"),

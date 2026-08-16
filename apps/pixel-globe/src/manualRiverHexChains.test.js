@@ -41,6 +41,7 @@ const MANUAL_CITY_RIVER_CONNECTIONS = Object.freeze([
   { city: "Kiev", lat: 50.45466, lon: 30.5238, tileId: 99609 },
   { city: "Smolensk", lat: 54.7818, lon: 32.0401, tileId: 99530 },
   { city: "Lahore", lat: 31.54972, lon: 74.34361, tileId: 24284 },
+  { city: "Agra", lat: 27.18333, lon: 78.01667, tileId: 154941 },
   { city: "Diyarbakir", lat: 37.914411, lon: 40.230628, tileId: 102394 },
   { city: "Edirne", lat: 41.681808, lon: 26.562269, tileId: 98639 },
   { city: "Plovdiv", lat: 42.15, lon: 24.75, tileId: 98850 },

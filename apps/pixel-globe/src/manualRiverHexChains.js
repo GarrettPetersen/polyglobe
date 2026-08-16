@@ -39,6 +39,7 @@ export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
       97934, 1559, 97487, 24456, 97492, 97529, 97543, 97544, 97541,
       6159, 97510, 24463, 97514,
     ]),
+    Agra: Object.freeze([154941, 96794, 24277, 96798]),
     Diyarbakir: Object.freeze([102394, 102396, 102393, 25686, 102651, 25747]),
     Edirne: Object.freeze([98639, 98637, 1580, 98819]),
     Plovdiv: Object.freeze([98850, 98643, 24745, 98639]),

@@ -397,7 +397,7 @@ import {
 } from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 74;
+export const GAME_STATE_VERSION = 75;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -709,7 +709,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1112,7 +1112,31 @@ function migrateConquestFactionReferences(memory) {
     peaceTreatyId: event.peaceTreatyId || null,
     collapsedFactionId: event.collapsedFactionId === "aztec" ? null : event.collapsedFactionId
   }));
+  migrateAddedAgraOwnership(migrated);
   return migrated;
+}
+
+function migrateAddedAgraOwnership(conquest) {
+  const firstSuccessor = conquest.factionSuccessors.delhi;
+  if (!firstSuccessor) return conquest;
+
+  let currentFactionId = firstSuccessor;
+  const visited = new Set(["delhi"]);
+  while (conquest.factionSuccessors[currentFactionId]) {
+    if (visited.has(currentFactionId)) {
+      throw new Error(`Faction succession cycle while adding Agra: ${currentFactionId}`);
+    }
+    visited.add(currentFactionId);
+    currentFactionId = conquest.factionSuccessors[currentFactionId];
+  }
+  conquest.portFactionOverrides[CANONICAL_PORTS.AGRA.id] = currentFactionId;
+
+  const legacyDelhiCapitalPortId = "city-24278";
+  if (currentFactionId === "mughal" &&
+      conquest.factionCapitalOverrides.mughal === legacyDelhiCapitalPortId) {
+    conquest.factionCapitalOverrides.mughal = CANONICAL_PORTS.AGRA.id;
+  }
+  return conquest;
 }
 
 export function addPortNavigationWaypoint(state, { destinationTileId, destinationName, reason }) {

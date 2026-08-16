@@ -124,6 +124,70 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Agra": Object.freeze({
+    "zh-Hans": "阿格拉", ru: "Агра", es: "Agra", "pt-BR": "Agra", ja: "アーグラ",
+    de: "Agra", fr: "Agra", pl: "Agra", "zh-Hant": "阿格拉", ko: "아그라"
+  }),
+  "Babur defeats Ibrahim Lodi at Panipat and founds the Mughal Empire at Agra.": Object.freeze({
+    "zh-Hans": "巴布尔在帕尼帕特击败易卜拉欣·洛迪，并在阿格拉建立莫卧儿帝国。",
+    ru: "Бабур побеждает Ибрагима Лоди при Панипате и основывает Империю Великих Моголов в Агре.",
+    es: "Babur derrota a Ibrahim Lodi en Panipat y funda el Imperio mogol en Agra.",
+    "pt-BR": "Babur derrota Ibrahim Lodi em Panipat e funda o Império Mughal em Agra.",
+    ja: "バーブルはパーニーパットでイブラヒム・ロディを破り、アーグラにムガル帝国を建国した。",
+    de: "Babur besiegt Ibrahim Lodi bei Panipat und gründet das Mogulreich in Agra.",
+    fr: "Babur bat Ibrahim Lodi à Panipat et fonde l’Empire moghol à Agra.",
+    pl: "Babur pokonuje Ibrahima Lodiego pod Panipatem i zakłada Imperium Mogołów w Agrze.",
+    "zh-Hant": "巴布爾在帕尼帕特擊敗易卜拉欣·洛迪，並在阿格拉建立蒙兀兒帝國。",
+    ko: "바부르는 파니파트에서 이브라힘 로디를 물리치고 아그라에 무굴 제국을 세운다."
+  }),
+  "Babur's victory at Panipat establishes Mughal rule from Agra.": Object.freeze({
+    "zh-Hans": "巴布尔在帕尼帕特的胜利确立了以阿格拉为中心的莫卧儿统治。",
+    ru: "Победа Бабура при Панипате утверждает власть Великих Моголов из Агры.",
+    es: "La victoria de Babur en Panipat establece el gobierno mogol desde Agra.",
+    "pt-BR": "A vitória de Babur em Panipat estabelece o domínio Mughal a partir de Agra.",
+    ja: "パーニーパットでのバーブルの勝利により、アーグラを拠点とするムガル帝国の支配が確立された。",
+    de: "Baburs Sieg bei Panipat begründet die Mogulherrschaft von Agra aus.",
+    fr: "La victoire de Babur à Panipat établit le pouvoir moghol depuis Agra.",
+    pl: "Zwycięstwo Babura pod Panipatem ustanawia rządy Mogołów z Agry.",
+    "zh-Hant": "巴布爾在帕尼帕特的勝利確立了以阿格拉為中心的蒙兀兒統治。",
+    ko: "파니파트에서 거둔 바부르의 승리는 아그라를 중심으로 무굴 통치를 확립한다."
+  }),
+  "The Lodi court at Agra still claims the tribute and military roads of northern India.": Object.freeze({
+    "zh-Hans": "阿格拉的洛迪宫廷仍声称对北印度的贡赋与军道拥有权利。",
+    ru: "Двор Лоди в Агре по-прежнему притязает на дань и военные дороги Северной Индии.",
+    es: "La corte de los Lodi en Agra aún reclama los tributos y caminos militares del norte de la India.",
+    "pt-BR": "A corte Lodi em Agra ainda reivindica os tributos e as estradas militares do norte da Índia.",
+    ja: "アーグラのローディー朝廷は、今なお北インドの貢納と軍道への支配を主張している。",
+    de: "Der Lodi-Hof in Agra beansprucht noch immer die Tribute und Heerstraßen Nordindiens.",
+    fr: "La cour des Lodi à Agra revendique toujours les tributs et les routes militaires du nord de l’Inde.",
+    pl: "Dwór Lodich w Agrze nadal rości sobie prawa do danin i szlaków wojskowych północnych Indii.",
+    "zh-Hant": "阿格拉的洛迪宮廷仍聲稱對北印度的貢賦與軍道擁有權利。",
+    ko: "아그라의 로디 조정은 여전히 북인도의 공물과 군사 도로에 대한 권리를 주장한다."
+  }),
+  "Babur's new court means to bind northern India's roads and rivers to Agra.": Object.freeze({
+    "zh-Hans": "巴布尔的新朝廷意在把北印度的道路与河流都系于阿格拉。",
+    ru: "Новый двор Бабура намерен связать дороги и реки Северной Индии с Агрой.",
+    es: "La nueva corte de Babur pretende vincular los caminos y ríos del norte de la India con Agra.",
+    "pt-BR": "A nova corte de Babur pretende ligar as estradas e os rios do norte da Índia a Agra.",
+    ja: "バーブルの新たな宮廷は、北インドの道と河川をアーグラへ結びつけようとしている。",
+    de: "Baburs neuer Hof will Nordindiens Straßen und Flüsse an Agra binden.",
+    fr: "La nouvelle cour de Babur entend relier les routes et les fleuves du nord de l’Inde à Agra.",
+    pl: "Nowy dwór Babura zamierza związać drogi i rzeki północnych Indii z Agrą.",
+    "zh-Hant": "巴布爾的新朝廷意在把北印度的道路與河流都繫於阿格拉。",
+    ko: "바부르의 새 조정은 북인도의 도로와 강을 아그라에 잇고자 한다."
+  }),
+  "Babur has won a new empire, but its maps still end where caravan reports begin. Bring Agra a captain's account of the seas.": Object.freeze({
+    "zh-Hans": "巴布尔赢得了一个新帝国，但它的地图仍止于商队传闻。把一位船长对海洋的见闻带到阿格拉。",
+    ru: "Бабур завоевал новую империю, но её карты всё ещё кончаются там, где начинаются рассказы караванщиков. Доставьте в Агру морской отчёт капитана.",
+    es: "Babur ha conquistado un nuevo imperio, pero sus mapas aún terminan donde comienzan los relatos de las caravanas. Lleva a Agra el informe marítimo de un capitán.",
+    "pt-BR": "Babur conquistou um novo império, mas seus mapas ainda terminam onde começam os relatos das caravanas. Leve a Agra o relato marítimo de um capitão.",
+    ja: "バーブルは新たな帝国を勝ち取ったが、その地図はまだ隊商の報告が始まる所で終わっている。海を知る船長の記録をアーグラへ届けよ。",
+    de: "Babur hat ein neues Reich erobert, doch seine Karten enden noch immer dort, wo die Berichte der Karawanen beginnen. Bringt den Bericht eines Kapitäns über die Meere nach Agra.",
+    fr: "Babur a conquis un nouvel empire, mais ses cartes s’arrêtent encore là où commencent les récits des caravanes. Apportez à Agra le témoignage maritime d’un capitaine.",
+    pl: "Babur zdobył nowe imperium, ale jego mapy wciąż kończą się tam, gdzie zaczynają się opowieści karawan. Dostarcz do Agry kapitańską relację o morzach.",
+    "zh-Hant": "巴布爾贏得了一個新帝國，但它的地圖仍止於商隊傳聞。把一位船長對海洋的見聞帶到阿格拉。",
+    ko: "바부르는 새 제국을 얻었지만, 그 지도는 아직 대상의 전언이 시작되는 곳에서 끝난다. 바다를 아는 선장의 기록을 아그라로 가져가라."
+  }),
   "Captain, you brought our prodigal home. Please accept {0} doubloons.": Object.freeze({
     "zh-Hans": "船长，你把我们家这位浪子带回来了。请收下 {0} 枚达布隆。",
     ru: "Капитан, вы вернули домой нашего заблудшего родича. Примите {0} дублонов.",

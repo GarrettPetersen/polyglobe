@@ -53,7 +53,7 @@ test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
   assert.equal(ports[0].factionId, "mughal");
   assert.equal(ports[0].capitalOfFactionId, "mughal");
   assert.equal(ports[1].factionId, "mughal");
-  assert.equal(ports[2].factionId, "portugal", "third-party conquest must survive Panipat");
+  assert.equal(ports[3].factionId, "portugal", "third-party conquest must survive Panipat");
   assert.equal(rawWorldDiplomacyBetween(state.relations.diplomacy, "mughal", "bengal"), "friendly");
   assert.equal(state.relations.factionReputation.mughal, 27);
   assert.equal(state.relations.lettersOfMarque.mughal.factionId, "mughal");
@@ -63,10 +63,10 @@ test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
   assert.equal(state.relations.diplomacy.history[0].kind, "succession");
 });
 
-test("Panipat does not overwrite a divergent campaign where Delhi already fell", () => {
+test("Panipat does not overwrite a divergent campaign where Agra already fell", () => {
   const state = historicalState("portugal");
   const ports = historicalPorts();
-  state.memory.conquest.portFactionOverrides.delhi = "portugal";
+  state.memory.conquest.portFactionOverrides.agra = "portugal";
 
   assert.deepEqual(advanceHistoricalSovereignty(
     state,
@@ -98,9 +98,10 @@ function historicalState(playerFactionId) {
 
 function historicalPorts() {
   return [
-    city(1, "delhi", "Delhi", "India", { capitalOfFactionId: "delhi" }),
-    city(2, "jaunpur", "Jaunpur", "India"),
-    city(3, "lahore", "Lahore", "Pakistan")
+    city(1, "agra", "Agra", "India", { capitalOfFactionId: "delhi" }),
+    city(2, "delhi", "Delhi", "India"),
+    city(3, "jaunpur", "Jaunpur", "India"),
+    city(4, "lahore", "Lahore", "Pakistan")
   ];
 }
 

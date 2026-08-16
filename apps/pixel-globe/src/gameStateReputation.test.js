@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createWorldEconomy } from "./economy.js";
+import { CANONICAL_PORTS } from "./canonicalPorts.js";
 import {
   ENEMY_FACTION_START_REPUTATION,
   FACTION_SAFE_PASSAGE_DAYS,
@@ -400,6 +401,23 @@ test("version 71 voyages gain a dormant Mughal succession without changing live 
   assert.equal(restored.memory.conquest.collapsedFactionIds.includes("delhi"), false);
   assert.equal(restored.relations.factionReputation.mughal, 0);
   assert.equal(restored.relations.authority.scores.mughal, 72);
+  validateGameState(restored);
+});
+
+test("post-Panipat saves gain Agra as their inherited Mughal capital", () => {
+  const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  saved.version = 74;
+  saved.memory.conquest.collapsedFactionIds = saved.memory.conquest.collapsedFactionIds
+    .filter((factionId) => factionId !== "mughal");
+  saved.memory.conquest.collapsedFactionIds.push("delhi");
+  saved.memory.conquest.factionSuccessors.delhi = "mughal";
+  saved.memory.conquest.portFactionOverrides["city-24278"] = "mughal";
+  saved.memory.conquest.factionCapitalOverrides.mughal = "city-24278";
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.memory.conquest.portFactionOverrides[CANONICAL_PORTS.AGRA.id], "mughal");
+  assert.equal(restored.memory.conquest.factionCapitalOverrides.mughal, CANONICAL_PORTS.AGRA.id);
   validateGameState(restored);
 });
 

@@ -176,6 +176,11 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "south-asian",
     manualRegion: "ceylon"
   }),
+  manualCity1522("Agra", "India", 27.18333, 78.01667, 100000, {
+    portId: "agra",
+    cityType: "south-asian",
+    manualRegion: "north-india"
+  }),
   manualCity1522("Rhodes", "Greece", 36.434, 28.217, 12000, {
     cityType: "mediterranean",
     manualRegion: "eastern-mediterranean",

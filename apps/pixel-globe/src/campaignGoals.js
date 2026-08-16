@@ -1362,7 +1362,7 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   gujarat: "Diu hears every sea language, while Portuguese cannon tries to decide which routes remain open. A chart is another kind of defense.",
   bengal: "Portuguese sails have reached Chittagong, bringing maps as uncertain as their intentions. We should know more than our visitors.",
   delhi: "Caravans describe oceans beyond Gujarat and Bengal, each story altered by ten merchants. I want one witness.",
-  mughal: "Babur has won a new empire, but its maps still end where caravan reports begin. Bring Delhi a captain's account of the seas.",
+  mughal: "Babur has won a new empire, but its maps still end where caravan reports begin. Bring Agra a captain's account of the seas.",
   ayutthaya: "The Portuguese arrived after taking Malacca and now speak of seas beyond Africa. I would hear the world without their interpreter.",
   ternate: "Portuguese stone rises beside our clove groves while Castilian sails favor Tidore. I want a Ternatan account of the world both crowns claim.",
   tidore: "Castilian survivors reached our island with tales of an ocean beyond the Moluccas, while Portugal arms Ternate. I want a Tidorese account no foreign crown can keep from us.",

@@ -225,6 +225,8 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const glasgow = ports.find((city) => city.city === "Glasgow" && city.country === "United Kingdom");
   const incaPorts = ports.filter((city) => city.factionId === "inca");
   const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
+  const agra = ports.find((city) => city.city === "Agra" && city.country === "India");
+  const delhi = ports.find((city) => city.city === "Delhi" && city.country === "India");
   const edo = ports.find((city) => city.city === "Edo" && city.country === "Japan");
   const nagasaki = ports.find((city) => city.city === "Nagasaki" && city.country === "Japan");
   const sakai = ports.find((city) => city.city === "Sakai" && city.country === "Japan");
@@ -282,6 +284,13 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(glasgow.factionId, "scotland");
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
   assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
+  assert.ok(agra, "Agra should be a dockable Yamuna capital");
+  assert.equal(agra.tileId, 154941);
+  assert.equal(agra.portId, "agra");
+  assert.equal(agra.factionId, "delhi");
+  assert.equal(agra.declaredCapitalFactionId, "delhi");
+  assert.ok(delhi, "Delhi should remain a separate Yamuna city");
+  assert.equal(delhi.declaredCapitalFactionId, null);
   assert.ok(sakai, "Sakai should replace nearby landlocked Nara as the Osaka Bay port");
   assert.equal(
     selected.some((city) => city.city === "Nara City" && city.country === "Japan"),
@@ -661,6 +670,7 @@ function buildCityRecords1522(csv) {
       coastalIntent: manualSpec.coastalIntent,
       lakeIntent: manualSpec.lakeIntent,
       requiredTradePort: Boolean(manualSpec.requiredTradePort),
+      portId: manualSpec.portId || null,
       manualRegion: manualSpec.manualRegion || null,
       settlementType: manualSpec.settlementType || "city",
       islandSettlement: Boolean(manualSpec.islandSettlement),

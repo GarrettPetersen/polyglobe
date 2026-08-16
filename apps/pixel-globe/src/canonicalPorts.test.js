@@ -30,11 +30,12 @@ test("canonical port references resolve by stable city and country rather than d
 
 test("canonical port validation rejects missing, duplicate, and unregistered references", () => {
   const ports = REQUIRED_CANONICAL_PORTS.map((reference, tileId) => ({ ...reference, tileId }));
+  const portsWithoutBeijing = ports.filter((port) => port.id !== CANONICAL_PORTS.BEIJING.id);
   assert.throws(
-    () => validateCanonicalPortCatalog(ports.slice(1)),
+    () => validateCanonicalPortCatalog(portsWithoutBeijing),
     /requires exactly one dockable canonical port/
   );
-  assert.equal(findCanonicalPort(ports.slice(1), CANONICAL_PORTS.BEIJING), null);
+  assert.equal(findCanonicalPort(portsWithoutBeijing, CANONICAL_PORTS.BEIJING), null);
   assert.throws(
     () => validateCanonicalPortCatalog([...ports, { ...CANONICAL_PORTS.LONDON, tileId: 999 }]),
     /London.*found 2/

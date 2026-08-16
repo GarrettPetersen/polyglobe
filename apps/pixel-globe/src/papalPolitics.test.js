@@ -241,11 +241,11 @@ test("the 1534 settlement converts English Catholics aboard to Anglicanism once"
   });
   const portCities = [{
     tileId: 1,
-    portId: "delhi",
-    city: "Delhi",
+    portId: "agra",
+    city: "Agra",
     country: "India",
-    lat: 28.61,
-    lon: 77.21,
+    lat: 27.18,
+    lon: 78.02,
     factionId: "delhi",
     isFactionCapital: true,
     capitalOfFactionId: "delhi"

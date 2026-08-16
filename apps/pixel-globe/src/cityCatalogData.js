@@ -224,6 +224,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
       coastalIntent: manualSpec.coastalIntent,
       lakeIntent: manualSpec.lakeIntent,
       requiredTradePort: Boolean(manualSpec.requiredTradePort),
+      portId: manualSpec.portId || null,
       manualRegion: manualSpec.manualRegion || null,
       npcInterregionalTradeExcluded: Boolean(manualSpec.npcInterregionalTradeExcluded),
       settlementType: manualSpec.settlementType || "city",

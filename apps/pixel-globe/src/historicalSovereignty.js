@@ -31,14 +31,14 @@ export function advanceHistoricalSovereignty(state, currentMinute, { portCities 
     return Object.freeze([]);
   }
 
-  const delhi = requireCanonicalPort(
+  const agra = requireCanonicalPort(
     portCities,
-    CANONICAL_PORTS.DELHI,
+    CANONICAL_PORTS.AGRA,
     "First Battle of Panipat"
   );
   const conquest = state.memory.conquest;
   const delhiStillRules = !conquest.collapsedFactionIds.includes(DELHI_FACTION_ID) &&
-    effectivePortFactionId(conquest, delhi) === DELHI_FACTION_ID;
+    effectivePortFactionId(conquest, agra) === DELHI_FACTION_ID;
   if (!delhiStillRules) {
     state.memory.flags[MUGHAL_SUCCESSION_FLAG] = "averted";
     return Object.freeze([]);
@@ -47,7 +47,7 @@ export function advanceHistoricalSovereignty(state, currentMinute, { portCities 
   const conquestEvent = replaceFactionAtControlledCities(conquest, portCities, {
     predecessorFactionId: DELHI_FACTION_ID,
     successorFactionId: MUGHAL_FACTION_ID,
-    capitalCity: delhi,
+    capitalCity: agra,
     simMinute: FIRST_BATTLE_OF_PANIPAT_MINUTE,
     source: PANIPAT_SOURCE
   });
@@ -56,12 +56,12 @@ export function advanceHistoricalSovereignty(state, currentMinute, { portCities 
     successorFactionId: MUGHAL_FACTION_ID,
     simMinute: FIRST_BATTLE_OF_PANIPAT_MINUTE,
     source: PANIPAT_SOURCE,
-    headline: "Babur defeats Ibrahim Lodi at Panipat and founds the Mughal Empire in Delhi."
+    headline: "Babur defeats Ibrahim Lodi at Panipat and founds the Mughal Empire at Agra."
   });
   const authorityEvent = adjustSovereignAuthority(state.relations.authority, MUGHAL_FACTION_ID, 8, {
     simMinute: FIRST_BATTLE_OF_PANIPAT_MINUTE,
     source: PANIPAT_SOURCE,
-    detail: "Babur's victory at Panipat establishes Mughal rule in Delhi."
+    detail: "Babur's victory at Panipat establishes Mughal rule from Agra."
   });
   inheritPlayerRelations(state.relations, DELHI_FACTION_ID, MUGHAL_FACTION_ID);
   const playerFactionChanged = state.playerCharacter?.nationalityId === DELHI_FACTION_ID;

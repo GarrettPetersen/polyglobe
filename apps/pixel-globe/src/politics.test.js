@@ -63,13 +63,13 @@ test("politics replaces the Delhi Sultanate with Mughal rule after Panipat", () 
     .filter((factionId) => factionId !== "mughal");
   state.memory.conquest.collapsedFactionIds.push("delhi");
   state.memory.conquest.factionSuccessors.delhi = "mughal";
-  state.memory.conquest.factionCapitalOverrides.mughal = "delhi";
+  state.memory.conquest.factionCapitalOverrides.mughal = "agra";
 
   const view = createPoliticsView(state);
 
   assert.equal(view.powers.some((faction) => faction.id === "delhi"), false);
-  assert.equal(politicsCard(view, "mughal").capital.city, "Delhi");
-  assert.equal(politicsCard(view, "mughal").capital.portId, "delhi");
+  assert.equal(politicsCard(view, "mughal").capital.city, "Agra");
+  assert.equal(politicsCard(view, "mughal").capital.portId, "agra");
 });
 
 test("politics cards name each nation's capital while pirates have none", () => {

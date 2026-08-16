@@ -10,6 +10,7 @@ function canonicalPort(id, city, country) {
 }
 
 export const CANONICAL_PORTS = Object.freeze({
+  AGRA: canonicalPort("agra", "Agra", "India"),
   BEIJING: canonicalPort("beijing", "Beijing", "China"),
   BIRGU: canonicalPort("birgu", "Birgu", "Malta"),
   BORDEAUX: canonicalPort("bordeaux", "Bordeaux", "France"),
