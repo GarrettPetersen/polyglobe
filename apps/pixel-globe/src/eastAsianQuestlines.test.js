@@ -27,6 +27,7 @@ import {
   TSUSHIMA_EVIDENCE_BRIEFING_TEXT,
   YOSHIHARU_JOURNEY_EVENT_ID,
   eastAsianMissionDialogue,
+  eastAsianMissionPlanForCity,
   eastAsianMissionOutcomeOptions
 } from "./eastAsianQuestlines.js";
 import {
@@ -118,6 +119,23 @@ test("Ningbo is offered by both rival houses until one side is accepted", () => 
   assert.equal(completed.eastAsianRaceBonus, 250);
   assert.equal(offer(state, SAKAI), null);
   assert.equal(offer(state, YAMAGUCHI), null);
+});
+
+test("the Ningbo race is not offered after either delegation loses its capital", () => {
+  const state = gameState();
+  const capturedYamaguchi = {
+    ...YAMAGUCHI,
+    factionId: "hosokawa",
+    isFactionCapital: false,
+    capitalOfFactionId: null
+  };
+
+  assert.equal(
+    eastAsianMissionPlanForCity(state, SAKAI, PORTS.map((city) => (
+      city.tileId === YAMAGUCHI.tileId ? capturedYamaguchi : city
+    ))),
+    null
+  );
 });
 
 test("Tsushima's treaty mission can preserve Sō access to Joseon", () => {

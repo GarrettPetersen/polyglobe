@@ -417,7 +417,7 @@ import {
   compactPlayerLedger,
   playerLedgerLifetimeMetrics,
   playerLedgerTotalEntryCount,
-  reconcileQuestPortTiles,
+  reconcileQuestWorldAssumptions,
   recordAttackAgainstFaction,
   recordDiscovery,
   recordFriendlyFireAgainstFaction,
@@ -1427,6 +1427,7 @@ import {
   hospitallerMaltaQuestObjective,
   maybeActivateHospitallerMaltaQuest,
   recordHospitallerMaltaGrant,
+  reconcileHospitallerMaltaPetition,
   relocateHospitallerCaptainHome,
   resetHospitallerMaltaPetition
 } from "./hospitallerMaltaQuest.js";
@@ -14304,7 +14305,6 @@ async function restoreSavedVoyage(payload) {
       ? gameState.memory.flags.sailingBasicsElapsedSeconds
       : EARLY_SAILING_HELP_WINDOW_SECONDS
   });
-  reconcileQuestPortTiles(gameState, portCities);
   shipImage = assets.image;
   shipSinkDepthImage = assets.sinkDepthImage;
   shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
@@ -15063,6 +15063,7 @@ function applyCurrentPortConquestOwnership({
     gameState,
     currentPorts
   );
+  reconcileQuestWorldAssumptions(gameState, currentPorts);
   if (colonizationOriginChange) {
     colonizationOrganizer = null;
     colonizationOrganizerQuestKey = null;
@@ -18336,10 +18337,12 @@ function refreshHospitallerMaltaQuestState() {
     malta: ports.malta,
     simMinute: Math.max(0, Math.floor(weatherClockMinutes))
   });
-  if (memory.stage === HOSPITALLER_MALTA_STAGE_PETITION &&
-      ports.malta.factionId !== HOSPITALLER_MALTA_GRANTOR_FACTION_ID) {
-    resetHospitallerMaltaPetition(memory);
-    return true;
+  if (memory.stage === HOSPITALLER_MALTA_STAGE_PETITION) {
+    const result = reconcileHospitallerMaltaPetition(memory, {
+      malta: ports.malta,
+      grantorCapital: hospitallerMaltaGrantorCapital()
+    });
+    if (result) return true;
   }
   return changed;
 }
@@ -28844,6 +28847,12 @@ function updateWorldDiplomacy() {
   }
   if (result.historicalTransitions.length > 0 || conquistadorAdvanced) {
     applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
+  } else {
+    const questReconciliation = reconcileQuestWorldAssumptions(
+      gameState,
+      playerAccessiblePortCities()
+    );
+    if (questReconciliation.events.length > 0) dirty = true;
   }
   if (conquistadorAdvanced) {
     saveVoyageNow("conquistador campaign advanced");

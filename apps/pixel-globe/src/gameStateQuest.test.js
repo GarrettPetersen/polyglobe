@@ -18,12 +18,14 @@ import {
   deliveryOfferForCity,
   deliveryQuestForCity,
   factionReputation,
+  grantGuaranteedMissionPerkItem,
   isCaptureCapitalQuest,
   prepareHighValueMissionPerkItem,
   questStateForCity,
   receiveRescuedTravelerReunionReward,
   refreshPlayerPerkCargoCapacity,
-  reconcileQuestPortTiles
+  reconcileQuestPortTiles,
+  reconcileQuestWorldAssumptions
 } from "./gameState.js";
 import { PERK_ITEMS } from "./perkItems.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -163,7 +165,7 @@ test("rescued traveler reunions remain cash-payable after every perk item is own
     itemId: null,
     context: { simMinute: 100 }
   });
-  assert.deepEqual(reward, { rewardDoubloons: 1200, item: null });
+  assert.deepEqual(reward, { rewardDoubloons: 1200, item: null, itemAlreadyOwned: false });
   assert.equal(state.doubloons, before + 1200);
   assert.equal(
     state.accounts.ledger.some((entry) => entry.description.startsWith("Family gift:")),
@@ -184,6 +186,61 @@ test("an interrupted reunion does not promise a unique item acquired in the mean
   assert.equal(state.memory.missionItemGifts[missionId], null);
 });
 
+test("guaranteed quest rewards remain idempotent when the player already owns the item", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const item = PERK_ITEMS[0];
+  state.inventory.items[item.id] = 1;
+  refreshPlayerPerkCargoCapacity(state);
+
+  const reward = grantGuaranteedMissionPerkItem(state, LONDON, {
+    missionId: "quest-reward-already-owned",
+    itemId: item.id,
+    context: { simMinute: 100 }
+  });
+
+  assert.equal(reward.item.id, item.id);
+  assert.equal(reward.alreadyResolved, true);
+  assert.equal(state.inventory.items[item.id], 1);
+});
+
+test("an old guaranteed reward keeps its reserved item when the quest definition changes", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const missionId = "quest-reward-definition-change";
+  const previousItem = PERK_ITEMS[1];
+  state.memory.missionItemGifts[missionId] = previousItem.id;
+
+  const reward = grantGuaranteedMissionPerkItem(state, LONDON, {
+    missionId,
+    itemId: PERK_ITEMS[0].id,
+    context: { simMinute: 100 }
+  });
+
+  assert.equal(reward.item.id, previousItem.id);
+  assert.equal(state.inventory.items[previousItem.id], 1);
+  assert.equal(state.inventory.items[PERK_ITEMS[0].id] || 0, 0);
+});
+
+test("an interrupted reunion still pays cash when its promised item is now owned", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const missionId = "pirate-captive:test:stale-promised-item";
+  const promised = prepareHighValueMissionPerkItem(state, LONDON, missionId);
+  state.inventory.items[promised.id] = 1;
+  refreshPlayerPerkCargoCapacity(state);
+
+  const before = state.doubloons;
+  const reward = receiveRescuedTravelerReunionReward(state, LONDON, {
+    missionId,
+    rewardDoubloons: 1200,
+    itemId: promised.id,
+    context: { simMinute: 100 }
+  });
+
+  assert.equal(reward.item, null);
+  assert.equal(reward.itemAlreadyOwned, true);
+  assert.equal(state.doubloons, before + 1200);
+  assert.equal(state.inventory.items[promised.id], 1);
+});
+
 test("saved jobs rebind to corrected coastal port tiles", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const oldLisbon = { ...LISBON, tileId: 101 };
@@ -198,6 +255,139 @@ test("saved jobs rebind to corrected coastal port tiles", () => {
   assert.equal(state.memory.quests.active.destinationKey, `Porto|Portugal|${PORTO.tileId}`);
 
   completeQuest(state, PORTO, { simMinute: 100 });
+  assert.equal(state.memory.quests.active, null);
+});
+
+test("stable destination tiles absorb city renames without stranding active work", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO]);
+  acceptQuest(state, quest);
+  const renamedPorto = { ...PORTO, displayCity: "Portus Cale", factionId: "spain" };
+
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, renamedPorto]), 1);
+  assert.equal(state.memory.quests.active.destinationName, "Portus Cale");
+  assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
+  completeQuest(state, renamedPorto, { simMinute: 100 });
+  assert.equal(state.memory.quests.active, null);
+});
+
+test("an allied capture recalls an active commission instead of leaving an impossible target", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, PARIS], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: (origin, destination) => destination.tileId === CALAIS.tileId ? 180 : 500
+  });
+  acceptQuest(state, offer);
+  const capturedCalais = { ...CALAIS, factionId: "england", foundingFactionId: "france" };
+  const beforeReputation = factionReputation(state, "england");
+
+  const result = reconcileQuestWorldAssumptions(state, [LONDON, capturedCalais, PARIS]);
+  const active = state.memory.quests.active;
+  assert.equal(active.stage, "return");
+  assert.equal(active.captureCommissionResolution, "secured-by-allies");
+  assert.equal(active.destinationTileId, LONDON.tileId);
+  assert.ok(active.reward < active.originalReward);
+  assert.equal(result.events.some((event) => event.type === "capture-commission-recalled"), true);
+
+  completeQuest(state, LONDON, { simMinute: 100 });
+  assert.equal(factionReputation(state, "england"), beforeReputation);
+});
+
+test("a fallen issuing court recalls its capture order through the original office", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, PARIS], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 180
+  });
+  acceptQuest(state, offer);
+  const capturedLondon = { ...LONDON, factionId: "france", foundingFactionId: "england" };
+
+  reconcileQuestWorldAssumptions(state, [capturedLondon, CALAIS, PARIS]);
+
+  assert.equal(state.memory.quests.active.stage, "return");
+  assert.equal(state.memory.quests.active.captureCommissionResolution, "issuer-fallen");
+  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
+  completeQuest(state, capturedLondon, { simMinute: 100 });
+  assert.equal(state.memory.quests.active, null);
+});
+
+test("pending political offers disappear when conquest invalidates their premise", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  state.ship.crew = 36;
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, PARIS], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 180
+  });
+  assert.ok(offer);
+
+  const capturedTarget = { ...CALAIS, factionId: "england", foundingFactionId: "france" };
+  const result = reconcileQuestWorldAssumptions(state, [LONDON, capturedTarget, PARIS]);
+
+  assert.deepEqual(state.memory.quests.capturePortOffers, {});
+  assert.equal(result.events.some((event) => event.type === "capture-offer-invalidated"), true);
+});
+
+test("an embassy follows a displaced court and returns safely if that court has no port", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.memory.quests.active = {
+    id: "friendly-envoy-displaced-court",
+    kind: "friendly-envoy",
+    stage: "outbound",
+    originKey: `London|United Kingdom|${LONDON.tileId}`,
+    originTileId: LONDON.tileId,
+    originName: LONDON.city,
+    originCountry: LONDON.country,
+    originFactionId: "england",
+    targetKey: `Calais|France|${CALAIS.tileId}`,
+    targetTileId: CALAIS.tileId,
+    targetName: CALAIS.city,
+    targetCountry: CALAIS.country,
+    targetFactionId: "france",
+    destinationKey: `Calais|France|${CALAIS.tileId}`,
+    destinationTileId: CALAIS.tileId,
+    destinationName: CALAIS.city,
+    destinationCountry: CALAIS.country,
+    reward: 600,
+    dialogue: {}
+  };
+  const capturedCalais = { ...CALAIS, factionId: "england", foundingFactionId: "france" };
+
+  reconcileQuestWorldAssumptions(state, [LONDON, capturedCalais, PARIS]);
+  assert.equal(state.memory.quests.active.targetTileId, PARIS.tileId);
+  assert.equal(state.memory.quests.active.stage, "outbound");
+
+  reconcileQuestWorldAssumptions(state, [LONDON, capturedCalais]);
+  assert.equal(state.memory.quests.active.stage, "return");
+  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
+  assert.equal(state.memory.quests.active.envoyWorldResolution, "target-court-fallen");
+  assert.equal(state.memory.quests.active.reward, 300);
+  completeQuest(state, LONDON, { simMinute: 100 });
   assert.equal(state.memory.quests.active, null);
 });
 

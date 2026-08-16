@@ -3324,15 +3324,13 @@ export function grantGuaranteedMissionPerkItem(state, city, {
   if (typeof missionId !== "string" || missionId.trim() === "") {
     throw new Error("Guaranteed mission item requires a mission id");
   }
-  const item = perkItemById(itemId);
+  const requestedItem = perkItemById(itemId);
   const memory = state.memory.missionItemGifts;
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     throw new Error("Game state requires mission item gift memory");
   }
   const existingItemId = memory[missionId];
-  if (existingItemId && existingItemId !== item.id) {
-    throw new Error(`Mission item was already resolved as ${existingItemId}: ${missionId}`);
-  }
+  const item = existingItemId ? perkItemById(existingItemId) : requestedItem;
   memory[missionId] = item.id;
   if ((state.inventory.items[item.id] || 0) > 0) {
     return { item, guaranteed: true, alreadyResolved: true };
@@ -3449,14 +3447,13 @@ export function receiveRescuedTravelerReunionReward(state, city, {
   if (itemId !== null && typeof itemId !== "string") {
     throw new Error(`Invalid rescued traveler reward item: ${itemId}`);
   }
-  const item = itemId === null ? null : perkItemById(itemId);
+  const promisedItem = itemId === null ? null : perkItemById(itemId);
   if (!Object.prototype.hasOwnProperty.call(state.memory.missionItemGifts, missionId) ||
       state.memory.missionItemGifts[missionId] !== itemId) {
     throw new Error(`Rescued traveler reward item was not prepared: ${itemId || "cash-only"}`);
   }
-  if (item && (state.inventory.items[item.id] || 0) > 0) {
-    throw new Error(`Rescued traveler reward item is already aboard: ${item.label}`);
-  }
+  const itemAlreadyOwned = Boolean(promisedItem && (state.inventory.items[promisedItem.id] || 0) > 0);
+  const item = itemAlreadyOwned ? null : promisedItem;
   state.doubloons += rewardDoubloons;
   if (item) {
     state.inventory.items[item.id] = 1;
@@ -3482,7 +3479,7 @@ export function receiveRescuedTravelerReunionReward(state, city, {
       pnl: null
     });
   }
-  return { rewardDoubloons, item };
+  return { rewardDoubloons, item, itemAlreadyOwned };
 }
 
 export function playerPerkTotals(state) {
@@ -5808,6 +5805,12 @@ export function reconcileQuestPortTiles(state, portCities) {
     courtOffers[offer?.originKey || storedKey] = offer;
   }
   quests.courtMissionOffers = courtOffers;
+  const captureOffers = {};
+  for (const [storedKey, offer] of Object.entries(quests.capturePortOffers)) {
+    reconcile(offer);
+    captureOffers[offer?.originKey || storedKey] = offer;
+  }
+  quests.capturePortOffers = captureOffers;
 
   const reconciledWaypoints = [];
   for (const waypoint of state.memory.navigation.optionalWaypoints) {
@@ -5815,8 +5818,12 @@ export function reconcileQuestPortTiles(state, portCities) {
       tileId: waypoint.destinationTileId,
       name: waypoint.destinationName
     });
-    if (destination && destination.tileId !== waypoint.destinationTileId) {
+    if (destination && (
+      destination.tileId !== waypoint.destinationTileId ||
+      cityLabel(destination) !== waypoint.destinationName
+    )) {
       waypoint.destinationTileId = destination.tileId;
+      waypoint.destinationName = cityLabel(destination);
       waypoint.id = `port:${destination.tileId}`;
       updates += 1;
     }
@@ -5831,8 +5838,14 @@ export function reconcileQuestPortTiles(state, portCities) {
     name: state.playerCharacter?.homePortName,
     country: state.playerCharacter?.homePortCountry
   });
-  if (playerHome && playerHome.tileId !== state.playerCharacter.homePortTileId) {
+  if (playerHome && (
+    playerHome.tileId !== state.playerCharacter.homePortTileId ||
+    cityLabel(playerHome) !== state.playerCharacter.homePortName ||
+    (playerHome.country || "") !== state.playerCharacter.homePortCountry
+  )) {
     state.playerCharacter.homePortTileId = playerHome.tileId;
+    state.playerCharacter.homePortName = cityLabel(playerHome);
+    state.playerCharacter.homePortCountry = playerHome.country || "";
     if (state.memory.campaignGoal) state.memory.campaignGoal.homePortTileId = playerHome.tileId;
     updates += 1;
   }
@@ -5844,8 +5857,14 @@ export function reconcileQuestPortTiles(state, portCities) {
       name: traveler?.homePortName,
       country: traveler?.homePortCountry
     });
-    if (home && home.tileId !== traveler.homePortTileId) {
+    if (home && (
+      home.tileId !== traveler.homePortTileId ||
+      cityLabel(home) !== traveler.homePortName ||
+      (home.country || "") !== traveler.homePortCountry
+    )) {
       traveler.homePortTileId = home.tileId;
+      traveler.homePortName = cityLabel(home);
+      traveler.homePortCountry = home.country || "";
       updates += 1;
     }
   }
@@ -5856,8 +5875,14 @@ export function reconcileQuestPortTiles(state, portCities) {
     name: chef?.portCity,
     country: chef?.portCountry
   });
-  if (chefPort && chefPort.tileId !== chef.portTileId) {
+  if (chefPort && (
+    chefPort.tileId !== chef.portTileId ||
+    cityLabel(chefPort) !== chef.portCity ||
+    (chefPort.country || "") !== chef.portCountry
+  )) {
     chef.portTileId = chefPort.tileId;
+    chef.portCity = cityLabel(chefPort);
+    chef.portCountry = chefPort.country || "";
     updates += 1;
   }
 
@@ -5868,10 +5893,33 @@ export function reconcileQuestPortTiles(state, portCities) {
       name: colonization?.[`${endpoint}City`],
       country: colonization?.[`${endpoint}Country`]
     });
-    if (port && port.tileId !== colonization[`${endpoint}TileId`]) {
+    if (port && (
+      port.tileId !== colonization[`${endpoint}TileId`] ||
+      cityLabel(port) !== colonization[`${endpoint}City`] ||
+      (port.country || "") !== colonization[`${endpoint}Country`]
+    )) {
       colonization[`${endpoint}TileId`] = port.tileId;
+      colonization[`${endpoint}City`] = cityLabel(port);
+      colonization[`${endpoint}Country`] = port.country || "";
       updates += 1;
     }
+  }
+
+  const ginger = quests.caribbeanGinger;
+  const gingerPort = reconciledPortReference(portCities, {
+    tileId: ginger?.cultivationTileId,
+    name: ginger?.cultivationCity,
+    country: ginger?.cultivationCountry
+  });
+  if (gingerPort && (
+    gingerPort.tileId !== ginger.cultivationTileId ||
+    cityLabel(gingerPort) !== ginger.cultivationCity ||
+    (gingerPort.country || "") !== ginger.cultivationCountry
+  )) {
+    ginger.cultivationTileId = gingerPort.tileId;
+    ginger.cultivationCity = cityLabel(gingerPort);
+    ginger.cultivationCountry = gingerPort.country || "";
+    updates += 1;
   }
 
   const naturalist = quests.naturalist;
@@ -5884,6 +5932,26 @@ export function reconcileQuestPortTiles(state, portCities) {
 
   assertGameState(state);
   return updates;
+}
+
+export function reconcileQuestWorldAssumptions(state, portCities) {
+  assertGameState(state);
+  if (!Array.isArray(portCities)) throw new Error("Quest world reconciliation requires a port list");
+  const endpointUpdates = reconcileQuestPortTiles(state, portCities);
+  const quests = questMemory(state);
+  const events = [];
+
+  removeInvalidatedQuestOffers(state, portCities, events);
+  const active = quests.active;
+  if (isCaptureCommissionQuest(active)) {
+    reconcileActiveCaptureCommission(state, active, portCities, events);
+  } else if (isEnvoyQuest(active)) {
+    reconcileActiveEnvoyMission(active, portCities, events);
+  } else if (isWokouHuntQuest(active) && active.stage === "return") {
+    relocateReturningCommission(active, portCities, events);
+  }
+
+  return Object.freeze({ endpointUpdates, events: Object.freeze(events) });
 }
 
 export function questStateForCity(state, city, portCities) {
@@ -6379,6 +6447,9 @@ export function completeQuest(state, city, context = {}) {
       );
     }
   }
+  if (active.envoyWorldResolution && isTributeEnvoyQuest(active) && !active.tributeDelivered) {
+    returnRecalledTributeCargo(state, active);
+  }
   state.doubloons += active.reward;
   quests.completed[active.id] = true;
   quests[activeSlot] = null;
@@ -6404,11 +6475,13 @@ export function completeQuest(state, city, context = {}) {
     recordDecision(state, `reputation.envoy.${active.originFactionId}`, 1);
   }
   if (isCaptureCommissionQuest(active)) {
-    const reputationGain = isCaptureCapitalQuest(active)
-      ? CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN
-      : CAPTURE_PORT_MISSION_REPUTATION_GAIN;
-    adjustFactionReputation(state, active.originFactionId, reputationGain);
-    recordDecision(state, `reputation.${active.kind}.${active.originFactionId}`, 1);
+    if (!active.captureCommissionResolution) {
+      const reputationGain = isCaptureCapitalQuest(active)
+        ? CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN
+        : CAPTURE_PORT_MISSION_REPUTATION_GAIN;
+      adjustFactionReputation(state, active.originFactionId, reputationGain);
+      recordDecision(state, `reputation.${active.kind}.${active.originFactionId}`, 1);
+    }
   }
   if (isWokouHuntQuest(active)) {
     adjustFactionReputation(state, active.originFactionId, WOKOU_HUNT_REPUTATION_GAIN);
@@ -6428,7 +6501,9 @@ export function completeQuest(state, city, context = {}) {
       : isEnvoyQuest(active)
         ? "Diplomatic mission"
         : isCaptureCommissionQuest(active)
-          ? `Crown commission: captured ${active.targetName}`
+          ? active.captureCommissionResolution
+            ? `Recalled crown commission: ${active.targetName}`
+            : `Crown commission: captured ${active.targetName}`
           : isWokouHuntQuest(active)
             ? "Wokou suppression commission"
             : "Delivery reward",
@@ -7266,12 +7341,13 @@ function reconcileQuestEndpoint(quest, endpoint, portCities) {
   const name = quest[nameField];
   if (typeof name !== "string" || name === "") return 0;
 
-  const current = portCities.find((port) => (
-    port.tileId === quest[tileField] && cityLabel(port) === name
-  ));
+  const current = portCities.find((port) => port.tileId === quest[tileField]);
   if (current) {
+    const changed = quest[nameField] !== cityLabel(current) ||
+      quest[countryField] !== (current.country || "") ||
+      quest[keyField] !== cityKey(current);
     updateQuestEndpointIdentity(quest, endpoint, current);
-    return 0;
+    return Number(changed);
   }
 
   const keyCountry = quest[keyField]?.split("|")[1] || "";
@@ -7300,13 +7376,17 @@ function reconcileQuestItinerary(quest, portCities) {
       name: stop?.name,
       country: stop?.country
     });
-    if (!port || port.tileId === stop.tileId) continue;
+    if (!port) continue;
+    const changed = port.tileId !== stop.tileId || stop.name !== cityLabel(port) ||
+      stop.country !== (port.country || "") || stop.factionId !== (port.factionId || null) ||
+      stop.key !== cityKey(port);
+    if (!changed) continue;
     stop.tileId = port.tileId;
     stop.name = cityLabel(port);
     stop.country = port.country || "";
     stop.factionId = port.factionId || null;
     stop.key = cityKey(port);
-    movedTileIds.set(previousTileId, port.tileId);
+    if (previousTileId !== port.tileId) movedTileIds.set(previousTileId, port.tileId);
     updates += 1;
   }
   quest.itinerary.completedTileIds = quest.itinerary.completedTileIds
@@ -7322,9 +7402,7 @@ function reconcileQuestItinerary(quest, portCities) {
 
 function reconciledPortReference(portCities, { tileId, name, country = "" }) {
   if (typeof name !== "string" || name.trim() === "") return null;
-  const current = portCities.find((port) => (
-    port.tileId === tileId && cityLabel(port) === name
-  ));
+  const current = portCities.find((port) => port.tileId === tileId);
   if (current) return current;
   let candidates = portCities.filter((port) => cityLabel(port) === name);
   if (country) candidates = candidates.filter((port) => port.country === country);
@@ -7339,6 +7417,169 @@ function updateQuestEndpointIdentity(quest, endpoint, port) {
   if (endpoint === "origin" && quest.kind === "passenger" && !quest.originFactionId) {
     quest.originFactionId = port.factionId;
   }
+}
+
+function removeInvalidatedQuestOffers(state, portCities, events) {
+  const quests = questMemory(state);
+  const portsByTileId = new Map(portCities.map((port) => [port.tileId, port]));
+  pruneOfferMap(quests.capturePortOffers, (offer) => {
+    const origin = portsByTileId.get(offer?.originTileId);
+    const target = portsByTileId.get(offer?.targetTileId);
+    return isCaptureCommissionQuest(offer) && origin?.factionId === offer.originFactionId &&
+      target?.factionId === offer.targetFactionId &&
+      diplomacyBetweenForState(state, offer.originFactionId, offer.targetFactionId) === DIPLOMACY_WAR;
+  }, "capture-offer-invalidated", events);
+  pruneOfferMap(quests.courtMissionOffers, (offer) => {
+    const origin = portsByTileId.get(offer?.originTileId);
+    return !isWokouHuntQuest(offer) || origin?.factionId === offer.originFactionId;
+  }, "court-offer-invalidated", events);
+  pruneOfferMap(quests.passengerOffers, (offer) => {
+    if (!isEnvoyQuest(offer)) return true;
+    const origin = portsByTileId.get(offer.originTileId);
+    const target = portsByTileId.get(offer.targetTileId);
+    return origin?.factionId === offer.originFactionId && target?.factionId === offer.targetFactionId;
+  }, "envoy-offer-invalidated", events);
+  pruneOfferMap(quests.deliveryOffers, (offer) => {
+    if (isTeaRaceQuest(offer)) {
+      const origin = portsByTileId.get(offer.originTileId);
+      const destination = portsByTileId.get(offer.destinationTileId);
+      return origin?.factionId === "ming" && Boolean(destination);
+    }
+    if (offer?.kind !== "delivery") return true;
+    const origin = portsByTileId.get(offer.originTileId);
+    const destination = portsByTileId.get(offer.destinationTileId);
+    if (!origin || !destination || origin.factionId !== destination.factionId) return false;
+    offer.factionId = origin.factionId;
+    return true;
+  }, "delivery-offer-invalidated", events);
+}
+
+function pruneOfferMap(offers, valid, type, events) {
+  for (const [key, offer] of Object.entries(offers)) {
+    if (valid(offer)) continue;
+    delete offers[key];
+    events.push(Object.freeze({ type, questId: offer?.id || null }));
+  }
+}
+
+function reconcileActiveCaptureCommission(state, quest, portCities, events) {
+  if (quest.stage === "return") {
+    relocateReturningCommission(quest, portCities, events);
+    return;
+  }
+  if (quest.stage !== "capture") return;
+  const target = portCities.find((port) => port.tileId === quest.targetTileId) || null;
+  const issuingCourtSurvives = portCities.some((port) => port.factionId === quest.originFactionId);
+  const targetStillEnemy = target?.factionId === quest.targetFactionId;
+  const warContinues = targetStillEnemy &&
+    diplomacyBetweenForState(state, quest.originFactionId, quest.targetFactionId) === DIPLOMACY_WAR;
+  if (warContinues && issuingCourtSurvives) return;
+
+  const originalReward = quest.originalReward ?? quest.reward;
+  quest.originalReward = originalReward;
+  quest.reward = Math.max(250, Math.round(originalReward * 0.2 / 50) * 50);
+  quest.captureCommissionResolution = !issuingCourtSurvives
+    ? "issuer-fallen"
+    : target?.factionId === quest.originFactionId
+      ? "secured-by-allies"
+      : targetStillEnemy ? "peace-signed" : "target-changed-hands";
+  quest.stage = "return";
+  quest.destinationKey = quest.originKey;
+  quest.destinationTileId = quest.originTileId;
+  quest.destinationName = quest.originName;
+  quest.destinationCountry = quest.originCountry;
+  relocateReturningCommission(quest, portCities, events);
+  events.push(Object.freeze({
+    type: "capture-commission-recalled",
+    questId: quest.id,
+    reason: quest.captureCommissionResolution
+  }));
+}
+
+function reconcileActiveEnvoyMission(quest, portCities, events) {
+  if (quest.stage === "return") {
+    relocateReturningCommission(quest, portCities, events);
+    return;
+  }
+  if (quest.stage !== "outbound") return;
+  const target = portCities.find((port) => port.tileId === quest.targetTileId) || null;
+  if (target?.factionId === quest.targetFactionId) return;
+  const replacement = preferredFactionPort(portCities, quest.targetFactionId);
+  if (replacement) {
+    updateQuestEndpointIdentity(quest, "target", replacement);
+    updateQuestEndpointIdentity(quest, "destination", replacement);
+    events.push(Object.freeze({
+      type: "envoy-court-relocated",
+      questId: quest.id,
+      destinationTileId: replacement.tileId
+    }));
+    return;
+  }
+
+  quest.envoyWorldResolution = "target-court-fallen";
+  quest.originalReward = quest.originalReward ?? quest.reward;
+  quest.reward = Math.max(100, Math.round(quest.originalReward * 0.5 / 25) * 25);
+  quest.stage = "return";
+  quest.destinationKey = quest.originKey;
+  quest.destinationTileId = quest.originTileId;
+  quest.destinationName = quest.originName;
+  quest.destinationCountry = quest.originCountry;
+  if (quest.dialogue) {
+    quest.dialogue.returnUnderway = "The court we were sent to has fallen. We must return the sealed papers and entrusted cargo.";
+    quest.dialogue.homecoming = "The embassy could not be heard, but you brought the envoy and seals home safely. The treasury will pay the voyage's retainer.";
+  }
+  relocateReturningCommission(quest, portCities, events);
+  events.push(Object.freeze({ type: "envoy-recalled", questId: quest.id }));
+}
+
+function relocateReturningCommission(quest, portCities, events) {
+  const current = portCities.find((port) => port.tileId === quest.originTileId) || null;
+  if (current?.factionId === quest.originFactionId) {
+    updateQuestEndpointIdentity(quest, "destination", current);
+    return;
+  }
+  const replacement = preferredFactionPort(portCities, quest.originFactionId);
+  if (!replacement) return;
+  updateQuestEndpointIdentity(quest, "origin", replacement);
+  updateQuestEndpointIdentity(quest, "destination", replacement);
+  events.push(Object.freeze({
+    type: "commission-office-relocated",
+    questId: quest.id,
+    destinationTileId: replacement.tileId
+  }));
+}
+
+function preferredFactionPort(portCities, factionId) {
+  return portCities
+    .filter((port) => port.factionId === factionId)
+    .sort((left, right) => (
+      Number(right.capitalOfFactionId === factionId) - Number(left.capitalOfFactionId === factionId) ||
+      Number(right.population || 0) - Number(left.population || 0) ||
+      cityKey(left).localeCompare(cityKey(right))
+    ))[0] || null;
+}
+
+function returnRecalledTributeCargo(state, quest) {
+  const missing = [];
+  for (const requirement of quest.tributeCargoRequirements) {
+    const held = state.cargo[requirement.goodId] || 0;
+    const returned = Math.min(held, requirement.quantity);
+    if (returned < requirement.quantity) {
+      missing.push(Object.freeze({
+        goodId: requirement.goodId,
+        quantity: requirement.quantity - returned
+      }));
+    }
+    if (returned <= 0) continue;
+    state.cargo[requirement.goodId] = held - returned;
+    if (state.cargo[requirement.goodId] <= 0) {
+      delete state.cargo[requirement.goodId];
+      delete state.accounts.cargoCostBasis[requirement.goodId];
+    }
+  }
+  quest.tributeReturned = missing.length === 0;
+  quest.recalledTributeMissing = missing;
+  if (missing.length > 0) quest.reward = 0;
 }
 
 function deliveryRegionKey(city) {

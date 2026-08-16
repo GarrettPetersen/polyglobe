@@ -121,9 +121,8 @@ export function maybeSpawnChefQuest(state, city, context = {}) {
 export function chefQuestState(state, city) {
   const memory = chefQuestMemory(state);
   if (memory.stage === CHEF_QUEST_STAGE_LOCKED || city?.tileId !== memory.portTileId) return null;
-  if ((city.displayCity || city.city) !== memory.portCity || city.country !== memory.portCountry) {
-    throw new Error(`Chef quest port changed from ${memory.portCity}`);
-  }
+  memory.portCity = city.displayCity || city.city;
+  memory.portCountry = city.country;
   if (city.settlementType === "village" && memory.eventProfileId === "guild-banquet") {
     memory.eventProfileId = chefEventProfileForPort(city).id;
   }

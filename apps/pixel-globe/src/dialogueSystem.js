@@ -6169,6 +6169,9 @@ function wokouHuntQuestView(session, questState, returnNodeId) {
     };
   }
   if (questState.kind === "ready-to-complete") {
+    if (quest.captureCommissionResolution) {
+      return recalledCaptureCommissionView(session, quest, back);
+    }
     return {
       speaker: `${quest.originRulerName}'s coastal commissioner`,
       expressionId: "pleased",
@@ -6221,6 +6224,9 @@ function capturePortQuestView(session, questState, returnNodeId) {
     };
   }
   if (questState.kind === "ready-to-complete") {
+    if (quest.captureCommissionResolution) {
+      return recalledCaptureCommissionView(session, quest, back);
+    }
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "pleased",
@@ -6250,10 +6256,34 @@ function capturePortQuestView(session, questState, returnNodeId) {
     speaker: `${quest.originRulerName}'s war secretary`,
     expressionId: "stern",
     text: quest.stage === "return"
-      ? `${quest.targetName} is taken. Carry the victory dispatches back to ${quest.originName}; the crown's debt must be settled there.`
+      ? quest.captureCommissionResolution
+        ? `The commission for ${quest.targetName} has been recalled. Return to ${quest.originName} to close the account.`
+        : `${quest.targetName} is taken. Carry the victory dispatches back to ${quest.originName}; the crown's debt must be settled there.`
       : `Your commission is to seize ${quest.targetName} from ${quest.targetFactionNoun}. Other business must wait upon that service.`,
     feedback: session.feedback,
     options: [back]
+  };
+}
+
+function recalledCaptureCommissionView(session, quest, back) {
+  const text = quest.captureCommissionResolution === "secured-by-allies"
+    ? `${quest.targetName} was secured by allied forces. The commission is recalled, but the treasury will pay ${quest.reward.toLocaleString("en-US")} doubloons for your preparations.`
+    : quest.captureCommissionResolution === "peace-signed"
+      ? `Peace was signed before you could take ${quest.targetName}. The commission is recalled, but the treasury will pay ${quest.reward.toLocaleString("en-US")} doubloons for your preparations.`
+      : quest.captureCommissionResolution === "issuer-fallen"
+        ? `The court that issued the commission has fallen. Its remaining officers will honor ${quest.reward.toLocaleString("en-US")} doubloons of your retainer and close the account.`
+        : `${quest.targetName} changed hands, leaving no lawful target. The treasury will pay ${quest.reward.toLocaleString("en-US")} doubloons for your preparations.`;
+  return {
+    speaker: `${quest.originRulerName}'s war secretary`,
+    expressionId: "attentive",
+    text,
+    feedback: session.feedback,
+    options: [
+      option(`Close recalled commission  ${quest.reward.toLocaleString("en-US")} db`, {
+        type: "complete-quest"
+      }),
+      back
+    ]
   };
 }
 
@@ -6284,6 +6314,9 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
     };
   }
   if (questState.kind === "ready-to-complete") {
+    if (quest.captureCommissionResolution) {
+      return recalledCaptureCommissionView(session, quest, back);
+    }
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "pleased",
@@ -6313,7 +6346,9 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
     speaker: `${quest.originRulerName}'s war secretary`,
     expressionId: "stern",
     text: quest.stage === "return"
-      ? `${quest.targetName} has submitted and peace is signed. Carry the final dispatches to ${quest.originName}.`
+      ? quest.captureCommissionResolution
+        ? `The final commission for ${quest.targetName} has been recalled. Return to ${quest.originName} to close the account.`
+        : `${quest.targetName} has submitted and peace is signed. Carry the final dispatches to ${quest.originName}.`
       : `The enemy is nearly spent. Your final commission is to take ${quest.targetName} and end the war.`,
     feedback: session.feedback,
     options: [back]

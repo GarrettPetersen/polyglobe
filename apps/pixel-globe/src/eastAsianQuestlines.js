@@ -336,9 +336,9 @@ function ningboMissionPlan(quests, city, portCities) {
     const capital = portCities.find((candidate) => (
       candidate.factionId === factionId && candidate.isFactionCapital === true
     ));
-    if (!capital) throw new Error(`Ningbo mission requires a ${factionId} capital`);
-    return [factionId, capital.tileId];
+    return [factionId, capital?.tileId ?? null];
   }));
+  if (Object.values(delegationOrigins).some((tileId) => !Number.isInteger(tileId))) return null;
   return freezePlan(missionDefinition({
     id: EAST_ASIAN_MISSION_NINGBO,
     originFactionId: city.factionId,

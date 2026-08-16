@@ -489,6 +489,18 @@ export function reconcileColonizationQuestOriginAfterConquest(state, portCities)
       })
     });
   }
+  if (currentOrigin) {
+    return Object.freeze({
+      kind: "government-in-exile",
+      target: Object.freeze({ city: target.city, country: target.country }),
+      previousOrigin,
+      origin: Object.freeze({
+        tileId: currentOrigin.tileId,
+        city: currentOrigin.city,
+        country: currentOrigin.country
+      })
+    });
+  }
   throw new Error(`Colonization expedition origin disappeared after conquest: ${previousOrigin?.city || "unknown"}`);
 }
 

@@ -57,6 +57,22 @@ test("delivering ginger establishes one validated persistent Caribbean industry"
   assert.equal(caribbeanGingerQuestState(state, HAVANA), null);
 });
 
+test("ginger cultivation survives a port rename and change of government", () => {
+  const state = createGameState({ cargoCapacity: 50 });
+  maybeSpawnCaribbeanGingerQuest(state, HAVANA, { spawnChance: 1, simMinute: 0 });
+  const changedHavana = {
+    ...HAVANA,
+    displayCity: "San Cristobal de la Habana",
+    country: "New Spain",
+    factionId: "spain"
+  };
+
+  const quest = caribbeanGingerQuestState(state, changedHavana);
+  assert.equal(quest.cultivationPort.city, "San Cristobal de la Habana");
+  assert.equal(quest.cultivationPort.country, "New Spain");
+  assert.equal(caribbeanGingerQuestPort(state, [changedHavana]), changedHavana);
+});
+
 test("version 22 saves migrate with a locked Caribbean ginger quest", () => {
   const legacy = structuredClone(createGameState({ cargoCapacity: 50 }));
   legacy.version = 22;

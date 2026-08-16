@@ -139,6 +139,22 @@ test("active village chef quests migrate away from the urban guild banquet", () 
   assert.match(restoredQuest.event.eventLabel, /longhouses/);
 });
 
+test("a renamed or conquered host port keeps its chef quest", () => {
+  const state = game();
+  maybeSpawnChefQuest(state, city, { simMinute: 0, spawnChance: 1 });
+  const changedCity = {
+    ...city,
+    displayCity: "Constantinople",
+    country: "Rumelia",
+    factionId: "venice"
+  };
+
+  const quest = chefQuestState(state, changedCity);
+  assert.equal(quest.port.city, "Constantinople");
+  assert.equal(quest.port.country, "Rumelia");
+  assert.match(chefQuestJournalText(quest), /Constantinople/);
+});
+
 test("chef missions do not spawn without a permanent berth, while active missions continue", () => {
   const oneBerthStats = { ...stats, slug: "one-berth-test", crewCapacity: 1 };
   const fullState = createGameState({ cargoCapacity: oneBerthStats.cargoCapacity, shipStats: oneBerthStats });

@@ -186,6 +186,29 @@ export function resetHospitallerMaltaPetition(memory) {
   return true;
 }
 
+export function reconcileHospitallerMaltaPetition(memory, { malta, grantorCapital }) {
+  validateHospitallerMaltaQuestMemory(memory);
+  if (memory.stage !== HOSPITALLER_MALTA_STAGE_PETITION) return null;
+  if (malta?.factionId !== HOSPITALLER_MALTA_GRANTOR_FACTION_ID ||
+      grantorCapital?.factionId !== HOSPITALLER_MALTA_GRANTOR_FACTION_ID) {
+    resetHospitallerMaltaPetition(memory);
+    return Object.freeze({ kind: "recalled" });
+  }
+  const previousCapital = memory.grantorCapital;
+  if (previousCapital.tileId === grantorCapital.tileId &&
+      previousCapital.city === grantorCapital.city &&
+      previousCapital.country === grantorCapital.country) {
+    return null;
+  }
+  memory.grantorCapital = portReference(grantorCapital);
+  validateHospitallerMaltaQuestMemory(memory);
+  return Object.freeze({
+    kind: "relocated",
+    previousCapital: Object.freeze({ ...previousCapital }),
+    grantorCapital: Object.freeze({ ...memory.grantorCapital })
+  });
+}
+
 export function recordHospitallerMaltaGrant(memory, { grantedCities, simMinute }) {
   validateHospitallerMaltaQuestMemory(memory);
   if (memory.stage !== HOSPITALLER_MALTA_STAGE_PETITION) {

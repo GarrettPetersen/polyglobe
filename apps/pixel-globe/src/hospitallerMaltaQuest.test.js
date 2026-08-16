@@ -12,6 +12,7 @@ import {
   hospitallerMaltaQuestObjective,
   maybeActivateHospitallerMaltaQuest,
   recordHospitallerMaltaGrant,
+  reconcileHospitallerMaltaPetition,
   relocateHospitallerCaptainHome
 } from "./hospitallerMaltaQuest.js";
 
@@ -91,4 +92,31 @@ test("restoration moves a Hospitaller captain's home without changing nationalit
   assert.equal(state.playerCharacter.nationalityId, "hospitallers");
   assert.equal(state.playerCharacter.homePortName, "Birgu");
   assert.equal(state.memory.campaignGoal.homePortTileId, MALTA.tileId);
+});
+
+test("a Malta petition follows a displaced Spanish court instead of stranding its envoy", () => {
+  const memory = createHospitallerMaltaQuestMemory();
+  maybeActivateHospitallerMaltaQuest(memory, {
+    playerFactionId: "hospitallers",
+    collapsedFactionIds: ["hospitallers"],
+    rhodes: RHODES,
+    rome: ROME,
+    malta: MALTA,
+    simMinute: 100
+  });
+  acceptHospitallerMaltaPetition(memory, {
+    grantorFactionId: "spain",
+    grantorCapital: SEVILLE,
+    envoy: ENVOY,
+    simMinute: 200
+  });
+  const toledo = { tileId: 6, city: "Toledo", country: "Spain", factionId: "spain" };
+
+  const result = reconcileHospitallerMaltaPetition(memory, {
+    malta: MALTA,
+    grantorCapital: toledo
+  });
+
+  assert.equal(result.kind, "relocated");
+  assert.equal(hospitallerMaltaQuestObjective(memory).destination.tileId, toledo.tileId);
 });

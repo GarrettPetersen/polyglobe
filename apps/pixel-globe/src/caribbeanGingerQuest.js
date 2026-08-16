@@ -215,10 +215,11 @@ export function caribbeanGingerRequirementId() {
 }
 
 function assertCultivationPort(memory, city) {
-  if (city.tileId !== memory.cultivationTileId || city.city !== memory.cultivationCity ||
-      city.country !== memory.cultivationCountry) {
-    throw new Error(`Caribbean ginger cultivation port changed from ${memory.cultivationCity}`);
+  if (city.tileId !== memory.cultivationTileId) {
+    throw new Error(`Caribbean ginger cultivation is bound to tile ${memory.cultivationTileId}`);
   }
+  memory.cultivationCity = city.displayCity || city.city;
+  memory.cultivationCountry = city.country;
 }
 
 function validateSpawnRolls(rolls) {

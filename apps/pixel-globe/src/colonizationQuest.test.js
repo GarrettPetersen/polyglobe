@@ -523,6 +523,21 @@ test("a pre-departure expedition becomes a government-in-exile project when its 
   }
 });
 
+test("an old expedition without founding-faction metadata remains at its captured office", () => {
+  const memory = readyMemory();
+  const capturedBordeaux = { ...BORDEAUX, factionId: "england" };
+  delete capturedBordeaux.foundingFactionId;
+
+  const result = reconcileColonizationQuestOriginAfterConquest(
+    questViewState(memory),
+    [capturedBordeaux]
+  );
+
+  assert.equal(result.kind, "government-in-exile");
+  assert.equal(result.origin.tileId, BORDEAUX.tileId);
+  assert.equal(memory.stage, COLONIZATION_STAGE_READY);
+});
+
 test("capturing the origin cannot recall an expedition that is already at sea", () => {
   const memory = readyMemory();
   beginColonizationExpedition(memory);
