@@ -522,6 +522,7 @@ import { recoveringPortBlocksArrival } from "./portEntryFlow.js";
 import {
   QUEST_CARGO_PROMPT_CHEF,
   QUEST_CARGO_PROMPT_COLONIZATION,
+  QUEST_CARGO_PROMPT_CONQUISTADOR,
   QUEST_CARGO_PROMPT_GINGER,
   QUEST_CARGO_PROMPT_MATCHLOCKS,
   QUEST_CARGO_PROMPT_VIKING,
@@ -1395,6 +1396,20 @@ import {
   restoreCollapsedFactionAtCities,
   settleCapitalPeaceTreaty
 } from "./portConquest.js";
+import {
+  CONQUISTADOR_QUEST_ID,
+  CONQUISTADOR_STAGE_CAMPAIGN,
+  CONQUISTADOR_STAGE_CAPTURE,
+  CONQUISTADOR_STAGE_FETCH,
+  CONQUISTADOR_STAGE_READY,
+  CONQUISTADOR_STAGE_REWARD_READY,
+  conquistadorFetchRequirementId,
+  conquistadorQuestDestination,
+  conquistadorQuestShouldAppearAtCity,
+  conquistadorQuestView,
+  isConquistadorQuestOrigin,
+  recordConquistadorTargetCapture
+} from "./conquistadorQuest.js";
 import {
   HOSPITALLER_FACTION_ID,
   HOSPITALLER_MALTA_GRANTOR_FACTION_ID,
@@ -3356,6 +3371,7 @@ let vikingLongshipPortFactor = null;
 let campaignGoalContact;
 let colonizationOrganizer;
 let colonizationOrganizerQuestKey = null;
+let conquistadorQuestGiver;
 let colonizationBaseSettlementCharacter = null;
 let japaneseMatchlockGunsmith;
 let caribbeanGingerPlanter;
@@ -8153,6 +8169,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
   colonizationOrganizer = null;
   colonizationOrganizerQuestKey = null;
+  conquistadorQuestGiver = null;
   colonizationBaseSettlementCharacter = null;
   japaneseMatchlockGunsmith = null;
   caribbeanGingerPlanter = null;
@@ -15085,6 +15102,7 @@ function applyCurrentPortConquestOwnership({
 function factionSyncCity(city, canonicalCity) {
   city.foundingFactionId = city.foundingFactionId || city.factionId;
   city.factionId = canonicalCity.factionId;
+  city.displayCity = canonicalCity.displayCity || canonicalCity.city;
   city.capitalOfFactionId = canonicalCity.capitalOfFactionId || null;
   city.isFactionCapital = canonicalCity.isFactionCapital === true;
 }
@@ -17883,6 +17901,7 @@ function continuePortArrivalDialogues() {
   }
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
+    () => maybeOpenConquistadorRewardDialogue(cityCall),
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
     () => maybeOpenColonizationAftermathPortDialogue(cityCall),
     () => activePapalCommissionObjectiveIsAt(cityCall) &&
@@ -17896,6 +17915,27 @@ function continuePortArrivalDialogues() {
     ),
     () => openPendingDiscoveryPortDialogue()
   ]);
+}
+
+function maybeOpenConquistadorRewardDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.rumorText !== null ||
+      dialogueState.conquistadorRewardApproached === true) {
+    return false;
+  }
+  const memory = gameState.memory.quests.conquistador;
+  if (memory.stage !== CONQUISTADOR_STAGE_REWARD_READY) return false;
+  const destination = activeConquistadorDestination();
+  if (!destination || destination.tileId !== cityCall.tileId) return false;
+  ensureConquistadorQuestGiver(gameState);
+  dialogueState.conquistadorRewardApproached = true;
+  dialogueState.nextPortNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = "conquistador";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
 }
 
 function maybeOpenColonizationAftermathPortDialogue(cityCall) {
@@ -17994,6 +18034,8 @@ function maybeOpenQuestCargoDeliveryDialogue(cityCall) {
   } else if (prompt.id === QUEST_CARGO_PROMPT_CHEF) {
     ensureBanquetChef(gameState, cityCall);
     markChefQuestOfferSeen(gameState);
+  } else if (prompt.id === QUEST_CARGO_PROMPT_CONQUISTADOR) {
+    ensureConquistadorQuestGiver(gameState);
   } else if (prompt.id !== QUEST_CARGO_PROMPT_COLONIZATION) {
     throw new Error(`Unknown quest cargo delivery prompt: ${prompt.id}`);
   }
@@ -19463,17 +19505,34 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   const captureMission = status.commissioned
     ? advanceCapturePortMissionAfterConquest(gameState, cityCall, event, simMinute)
     : null;
+  const conquistadorCapture = gameState.memory.quests.conquistador.stage === CONQUISTADOR_STAGE_CAPTURE &&
+    gameState.memory.quests.conquistador.targetTileId === cityCall.tileId
+    ? recordConquistadorTargetCapture(
+        gameState.memory.quests.conquistador,
+        gameState.memory.conquest,
+        [...cityByTileId.values()],
+        event,
+        simMinute
+      )
+    : null;
   if (event.capitalCapturedFactionId) {
     closeDialogue();
     const treaty = settleCapitalCaptureDiplomacy(event, Math.random());
-    completePlayerPortConquest(cityCall, event, prize, treaty, captureMission);
+    completePlayerPortConquest(cityCall, event, prize, treaty, captureMission, conquistadorCapture);
     return true;
   }
-  completePlayerPortConquest(cityCall, event, prize, null, captureMission);
+  completePlayerPortConquest(cityCall, event, prize, null, captureMission, conquistadorCapture);
   return true;
 }
 
-function completePlayerPortConquest(cityCall, event, prize, treaty, captureMission = null) {
+function completePlayerPortConquest(
+  cityCall,
+  event,
+  prize,
+  treaty,
+  captureMission = null,
+  conquistadorCapture = null
+) {
   const newFaction = factionById(event.newFactionId);
   clearPlayerPortAssault(gameState.memory.flags, cityCall);
   clearPlayerPortRaid(gameState.memory.flags, cityCall);
@@ -19482,7 +19541,7 @@ function completePlayerPortConquest(cityCall, event, prize, treaty, captureMissi
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
   const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
   if (!capturedCity) throw new Error(`Captured port disappeared: ${event.portId}`);
-  const playerRetainsPort = capturedCity.factionId === ship.factionId;
+  const playerRetainsPort = !conquistadorCapture && capturedCity.factionId === ship.factionId;
   if (playerRetainsPort) {
     const needsLoadout = admitPlayerToPort(capturedCity);
     dialogueState = createPortArrivalDialogueSession(capturedCity, { needsLoadout });
@@ -19504,12 +19563,19 @@ function completePlayerPortConquest(cityCall, event, prize, treaty, captureMissi
       : `${cityLabelText(capturedCity).toUpperCase()} CAPTURED  +${prize.amount} DB`,
     "good"
   );
-  openCaptainAlertModal(
-    `${cityLabelText(capturedCity)} has surrendered. The captured treasury yields ` +
-      `${prize.amount} doubloons.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}` +
-      commissionText,
-    "happy"
-  );
+  const conquestMessage = `${cityLabelText(capturedCity)} has surrendered. The captured treasury yields ` +
+    `${prize.amount} doubloons.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}` +
+    commissionText;
+  if (conquistadorCapture) {
+    openCharacterAlertModal(
+      ensureConquistadorQuestGiver(gameState),
+      `${conquestMessage} Trujillo is ours. I march inland at dawn. Return here in one year; ` +
+        "if fortune and steel hold, your share will be waiting.",
+      "happy"
+    );
+  } else {
+    openCaptainAlertModal(conquestMessage, "happy");
+  }
   publishPlatformTimelineEvent({
     title: treaty
       ? `${cityLabelText(capturedCity)} peace treaty`
@@ -21735,6 +21801,14 @@ function currentDialogueCity() {
           portrait: characterExpression(character)
         };
       }
+      if (dialogueState.nodeId === "conquistador") {
+        const character = ensureConquistadorQuestGiver(gameState);
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
+      }
       if (dialogueState.nodeId !== "colonization") {
         if (dialogueState.nodeId !== "drunk-captain") return portCall;
         const character = gameState.playerCharacter;
@@ -21766,6 +21840,8 @@ function currentDialogueCity() {
         ? ensureBanquetChef(gameState, city)
       : dialogueState.nodeId === "colonization"
         ? currentColonizationDialogueCharacter(city)
+      : dialogueState.nodeId === "conquistador"
+        ? ensureConquistadorQuestGiver(gameState)
         : null;
   const character = questCharacter || portCityCharacters?.get(city.tileId);
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
@@ -21840,6 +21916,7 @@ function portDialogueContext() {
     random: Math.random,
     missionGiftRandom: Math.random,
     portCities: accessiblePorts,
+    cities: [...cityByTileId.values()],
     simMinute,
     dayIndex: weatherParts.dayIndex,
     localHour: city ? weatherLocalHour(simMinute, graph.lonDeg[city.tileId]) : null,
@@ -25103,6 +25180,28 @@ function colonizationOrganizerIdentityPort(quest, port) {
   return colonizationOriginCanHostExiledSponsor(port, quest.target)
     ? { ...port, factionId: quest.target.originFactionId }
     : port;
+}
+
+function ensureConquistadorQuestGiver(state) {
+  if (conquistadorQuestGiver) return conquistadorQuestGiver;
+  const quest = conquistadorQuestView(
+    state.memory.quests.conquistador,
+    portCities,
+    Math.max(0, weatherClockMinutes)
+  );
+  const origin = quest.origin;
+  const factor = portCityCharacters.get(origin.tileId);
+  if (!factor) throw new Error(`${cityLabelText(origin)} has no factor for the conquistador expedition`);
+  conquistadorQuestGiver = generateSpecialPortCharacter({
+    identityKey: `conquistador-adelantado-${origin.tileId}`,
+    port: { ...origin, factionId: "spain" },
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    role: "adelantado",
+    religionId: "roman-catholic",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  return conquistadorQuestGiver;
 }
 
 function japaneseMatchlockWorkshopPort() {
@@ -28655,16 +28754,34 @@ function updateWorldDiplomacy() {
   const diplomacy = gameState?.relations?.diplomacy;
   if (!diplomacy || weatherClockMinutes < nextGamePoliticsMinute(gameState)) return false;
   const result = advanceGamePolitics(gameState, weatherClockMinutes, {
-    portCities: playerAccessiblePortCities()
+    portCities: playerAccessiblePortCities(),
+    cities: [...cityByTileId.values()]
   });
   if (result.englishReformation) reconcileEnglishReformationCharacters();
   if (result.authorityEvents.length > 0) {
     reconcilePapalAuthorityCharacters();
     dirty = true;
   }
+  const conquistadorAdvanced = result.conquistadorTransfers.length > 0 ||
+    result.conquistadorRewardReady;
+  for (const event of result.conquistadorTransfers) {
+    recordPortCaptureAuthorityForState(gameState, {
+      winnerFactionId: event.newFactionId,
+      loserFactionId: event.previousFactionId,
+      cityName: event.cityName,
+      simMinute: event.simMinute,
+      capital: Boolean(event.capitalCapturedFactionId)
+    });
+  }
+  if (result.historicalTransitions.length > 0 || conquistadorAdvanced) {
+    applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
+  }
+  if (conquistadorAdvanced) {
+    saveVoyageNow("conquistador campaign advanced");
+    dirty = true;
+  }
   if (result.historicalTransitions.length > 0) {
     const transition = result.historicalTransitions.at(-1);
-    applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
     showSurvivalNotice(uiText("status.mughalsTakeDelhi"), "warn", "politics-news");
     if (transition.playerFactionChanged) {
       openCharacterAlertModal(
@@ -28674,6 +28791,17 @@ function updateWorldDiplomacy() {
       );
     }
     dirty = true;
+    return true;
+  }
+  if (conquistadorAdvanced) {
+    const latest = result.conquistadorTransfers.at(-1);
+    showSurvivalNotice(
+      result.conquistadorRewardReady
+        ? "THE CONQUEST'S SPOILS AWAIT AT TRUJILLO"
+        : `${latest.cityName.toUpperCase()} FALLS TO THE SPANISH COLUMNS`,
+      "warn",
+      "politics-news"
+    );
     return true;
   }
   const expulsions = reconcileForeignSettlementPolitics();
@@ -38619,6 +38747,19 @@ function currentFetchQuestRequirements() {
   const japaneseMatchlockPort = japaneseMatchlockWorkshopPort();
   const caribbeanGingerPort = currentCaribbeanGingerPort(gameState);
   const chefPort = chefQuestJournalPort(gameState);
+  const conquistador = conquistadorQuestView(
+    gameState.memory.quests.conquistador,
+    portCities,
+    Math.max(0, weatherClockMinutes),
+    { cargo: gameState.cargo }
+  );
+  const conquistadorProgress = conquistador.fetchStage
+    ? questCargoDeliveryProgress(
+        gameState,
+        conquistadorFetchRequirementId(conquistador.fetchStage),
+        conquistador.fetchStage.quantity
+      )
+    : null;
   return fetchQuestRequirements({
     colonization: colonizationQuestView(gameState, {
       currentMinute: Math.max(0, weatherClockMinutes)
@@ -38634,7 +38775,10 @@ function currentFetchQuestRequirements() {
       : null,
     caribbeanGingerPort,
     chef: chefPort ? chefQuestState(gameState, chefPort) : null,
-    chefPort
+    chefPort,
+    conquistador: conquistador.fetchStage
+      ? { ...conquistador, delivered: conquistadorProgress.deliveredQuantity }
+      : null
   });
 }
 
@@ -38709,6 +38853,41 @@ function questJournalEntries() {
         : maltaQuest.stage === HOSPITALLER_MALTA_STAGE_PETITION
           ? `PETITION THE SPANISH COURT AT ${maltaObjective.destination.city.toUpperCase()}`
           : "REPORT THE GRANT OF MALTA IN ROME",
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
+
+  const conquistador = conquistadorQuestView(
+    gameState.memory.quests.conquistador,
+    portCities,
+    Math.max(0, weatherClockMinutes),
+    { cargo: gameState.cargo }
+  );
+  if (!["dormant", "complete"].includes(conquistador.stage)) {
+    let nextStep;
+    if (conquistador.stage === CONQUISTADOR_STAGE_FETCH) {
+      const stage = conquistador.fetchStage;
+      const progress = questCargoDeliveryProgress(
+        gameState,
+        conquistadorFetchRequirementId(stage),
+        stage.quantity
+      );
+      nextStep = `DELIVER ${progress.remainingQuantity} ${stage.goodLabel.toUpperCase()} TO PANAMA CITY`;
+    } else if (conquistador.stage === CONQUISTADOR_STAGE_READY) {
+      nextStep = "EMBARK THE EXPEDITION AT PANAMA CITY";
+    } else if (conquistador.stage === CONQUISTADOR_STAGE_CAPTURE) {
+      nextStep = "STORM CHAN CHAN FOR SPAIN";
+    } else if (conquistador.stage === CONQUISTADOR_STAGE_CAMPAIGN) {
+      nextStep = `RETURN TO TRUJILLO IN ${conquistador.daysUntilReward} DAYS`;
+    } else if (conquistador.stage === CONQUISTADOR_STAGE_REWARD_READY) {
+      nextStep = "CLAIM YOUR SHARE AT TRUJILLO";
+    } else {
+      throw new Error(`Unknown conquistador journal stage: ${conquistador.stage}`);
+    }
+    entries.push({
+      id: CONQUISTADOR_QUEST_ID,
+      title: "CONQUEST OF TAWANTINSUYU",
+      nextStep,
       style: QUEST_NAVIGATION_STYLE
     });
   }
@@ -39284,6 +39463,17 @@ function navigationMenuEntries() {
       optionalWaypointId: null
     });
   }
+  const conquistadorDestination = activeConquistadorDestination();
+  if (conquistadorDestination) {
+    entries.push({
+      id: CONQUISTADOR_QUEST_ID,
+      destinationName: cityLabelText(conquistadorDestination),
+      reason: "SPANISH CONQUEST OF THE INCA",
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: placedCityTargetVector(conquistadorDestination),
+      optionalWaypointId: null
+    });
+  }
   for (const { quest, destination: questDestination } of activeQuestDestinations()) {
     entries.push({
       id: `quest:${quest.id}:${questDestination.tileId}`,
@@ -39323,7 +39513,7 @@ function navigationMenuEntries() {
   }
 
   for (const fetchTarget of currentReadyFetchQuestDestinations()) {
-    if (fetchTarget.questId === "colonization") continue;
+    if (["colonization", "conquistador"].includes(fetchTarget.questId)) continue;
     const destination = fetchQuestWorldDestination(fetchTarget);
     entries.push({
       id: `fetch:${fetchTarget.id}`,
@@ -39383,6 +39573,9 @@ function fetchQuestNavigationReason(fetchTarget) {
   }
   if (fetchTarget.questId === "banquet-chef") {
     return uiText("navigation.deliveryMission");
+  }
+  if (fetchTarget.questId === "conquistador") {
+    return "DELIVER EXPEDITION SUPPLIES";
   }
   throw new Error(`Unknown fetch quest navigation reason: ${fetchTarget.questId}`);
 }
@@ -50966,6 +51159,29 @@ function drawQuestDestinationArrow(nowMs) {
       style: QUEST_NAVIGATION_STYLE
     });
   }
+  const conquistadorDestination = activeConquistadorDestination();
+  if (conquistadorDestination) {
+    const targetVector = placedCityTargetVector(conquistadorDestination);
+    const visibleCity = chart.cityCalls?.find((call) => call.tileId === conquistadorDestination.tileId);
+    drawWorldTargetArrow({
+      id: CONQUISTADOR_QUEST_ID,
+      label: cityLabelText(conquistadorDestination),
+      targetVector,
+      localPoint: visibleCity || localPointForGlobeVector(targetVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
+}
+
+function activeConquistadorDestination() {
+  if (!gameState) return null;
+  return conquistadorQuestDestination(
+    gameState.memory.quests.conquistador,
+    portCities,
+    Math.max(0, weatherClockMinutes)
+  );
 }
 
 function drawRescuedTravelerDestinationArrows(nowMs) {
@@ -51179,7 +51395,7 @@ function drawColonizationDestinationArrow(nowMs) {
 function drawFetchQuestDestinationArrows(nowMs) {
   if (!ship || !chart || !localLayout || !gameState) return;
   for (const fetchTarget of currentReadyFetchQuestDestinations()) {
-    if (fetchTarget.questId === "colonization") continue;
+    if (["colonization", "conquistador"].includes(fetchTarget.questId)) continue;
     const destination = fetchQuestWorldDestination(fetchTarget);
     const targetVector = placedCityTargetVector(destination);
     const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);

@@ -33,12 +33,18 @@ import { papalCommissionCargoRequirements } from "./papalPolitics.js";
 import { questCargoDeliveryProgress } from "./questCargoDeliveries.js";
 import { isTributeEnvoyQuest } from "./diplomaticMissions.js";
 import { isTeaRaceQuest } from "./teaRaceQuest.js";
+import {
+  CONQUISTADOR_FETCH_STAGES,
+  CONQUISTADOR_STAGE_FETCH,
+  conquistadorFetchRequirementId
+} from "./conquistadorQuest.js";
 
 export const QUEST_CARGO_PROMPT_VIKING = "viking-longship";
 export const QUEST_CARGO_PROMPT_MATCHLOCKS = "japanese-matchlocks";
 export const QUEST_CARGO_PROMPT_GINGER = "caribbean-ginger";
 export const QUEST_CARGO_PROMPT_CHEF = "chef-quest";
 export const QUEST_CARGO_PROMPT_COLONIZATION = "colonization";
+export const QUEST_CARGO_PROMPT_CONQUISTADOR = "conquistador";
 
 const PROMPT_PRESENTATION = Object.freeze({
   [QUEST_CARGO_PROMPT_VIKING]: Object.freeze({
@@ -60,6 +66,10 @@ const PROMPT_PRESENTATION = Object.freeze({
   [QUEST_CARGO_PROMPT_COLONIZATION]: Object.freeze({
     nodeId: "colonization",
     arrivalFlag: "colonizationArrival"
+  }),
+  [QUEST_CARGO_PROMPT_CONQUISTADOR]: Object.freeze({
+    nodeId: "conquistador",
+    arrivalFlag: "conquistadorArrival"
   })
 });
 
@@ -144,6 +154,17 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
     );
   }
 
+  const conquistador = state.memory.quests.conquistador;
+  if (conquistador.stage === CONQUISTADOR_STAGE_FETCH) {
+    const stage = CONQUISTADOR_FETCH_STAGES[conquistador.fetchStageIndex];
+    const progress = questCargoDeliveryProgress(
+      state,
+      conquistadorFetchRequirementId(stage),
+      stage.quantity
+    );
+    add(`conquistador.${stage.id}`, stage.goodId, progress.remainingQuantity);
+  }
+
   for (const requirement of papalCommissionCargoRequirements(state.relations.papacy)) {
     const progress = questCargoDeliveryProgress(state, requirement.id, requirement.quantity);
     add(requirement.id, requirement.goodId, progress.remainingQuantity);
@@ -188,6 +209,20 @@ export function questCargoDeliveryPromptsAtPort(state, city, { currentMinute = 0
       !colonization.deadlineExpired &&
       colonization.resupply.deliverable > 0);
   add(QUEST_CARGO_PROMPT_COLONIZATION, colonizationDelivery);
+
+  const conquistador = state.memory.quests.conquistador;
+  if (conquistador.stage === CONQUISTADOR_STAGE_FETCH && city.tileId === conquistador.originTileId) {
+    const stage = CONQUISTADOR_FETCH_STAGES[conquistador.fetchStageIndex];
+    const progress = questCargoDeliveryProgress(
+      state,
+      conquistadorFetchRequirementId(stage),
+      stage.quantity
+    );
+    add(
+      QUEST_CARGO_PROMPT_CONQUISTADOR,
+      (state.cargo[stage.goodId] || 0) > 0 && progress.remainingQuantity > 0
+    );
+  }
 
   return Object.freeze(promptIds.map((id) => Object.freeze({ id, ...PROMPT_PRESENTATION[id] })));
 }

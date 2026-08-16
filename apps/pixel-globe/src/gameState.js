@@ -267,6 +267,14 @@ import {
   migrateHospitallerMaltaQuestMemory,
   validateHospitallerMaltaQuestMemory
 } from "./hospitallerMaltaQuest.js";
+import {
+  advanceConquistadorCampaign,
+  conquistadorCommissionedCaptureFactionId,
+  createConquistadorQuestMemory,
+  migrateConquistadorQuestMemory,
+  nextConquistadorQuestMinute,
+  validateConquistadorQuestMemory
+} from "./conquistadorQuest.js";
 import { rulerAtMinute } from "./rulers.js";
 import {
   advanceSovereignAuthority,
@@ -389,7 +397,7 @@ import {
 } from "./chartReframeDialogue.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 72;
+export const GAME_STATE_VERSION = 73;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -667,7 +675,8 @@ export function createGameState({
         pirateCaptive: createPirateCaptiveQuestMemory(),
         castaway: createCastawayQuestMemory(),
         naturalist: createNaturalistQuestMemory(),
-        hospitallerMalta: createHospitallerMaltaQuestMemory()
+        hospitallerMalta: createHospitallerMaltaQuestMemory(),
+        conquistador: createConquistadorQuestMemory()
       },
       cargoReservations: {},
       missionItemGifts: {},
@@ -700,7 +709,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -864,7 +873,8 @@ export function migrateGameState(state, shipStats) {
         naturalist: migrateNaturalistQuestMemory(state.memory?.quests?.naturalist),
         hospitallerMalta: migrateHospitallerMaltaQuestMemory(
           state.memory?.quests?.hospitallerMalta
-        )
+        ),
+        conquistador: migrateConquistadorQuestMemory(state.memory?.quests?.conquistador)
       },
       navigation: {
         ...legacyNavigation,
@@ -1188,11 +1198,12 @@ export function nextGamePoliticsMinute(state) {
     nextPapalPoliticsMinute(state.relations.papacy),
     nextCourtPoliticsMinute(state.relations.courts),
     nextSovereignAuthorityMinute(state.relations.authority),
-    nextHistoricalSovereigntyMinute(state)
+    nextHistoricalSovereigntyMinute(state),
+    nextConquistadorQuestMinute(state.memory.quests.conquistador)
   );
 }
 
-export function advanceGamePolitics(state, currentMinute, { portCities = [] } = {}) {
+export function advanceGamePolitics(state, currentMinute, { portCities = [], cities = portCities } = {}) {
   assertGameState(state);
   assertSimulationMinute(currentMinute);
   const historicalTransitions = advanceHistoricalSovereignty(state, currentMinute, { portCities });
@@ -1220,6 +1231,12 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [] } = 
     state.relations.diplomacy,
     currentMinute,
     playerWorldDiplomacyInfluence(state)
+  );
+  const conquistador = advanceConquistadorCampaign(
+    state.memory.quests.conquistador,
+    state.memory.conquest,
+    cities,
+    currentMinute
   );
   let englishReformationConversions = 0;
   if (papal.englishReformation) {
@@ -1254,6 +1271,8 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [] } = 
     courtActions: courts.actions,
     courtMattersOpened: courts.mattersOpened,
     authorityEvents: authority.authorityEvents,
+    conquistadorTransfers: conquistador.transfers,
+    conquistadorRewardReady: conquistador.rewardReady,
     historicalTransitions,
     englishReformation: papal.englishReformation,
     englishReformationConversions
@@ -5388,6 +5407,11 @@ export function commissionedPortCaptureFactionId(state, city) {
   if (!city || !Number.isInteger(city.tileId)) {
     throw new Error("Commissioned port capture requires a target city");
   }
+  const conquistadorFactionId = conquistadorCommissionedCaptureFactionId(
+    questMemory(state).conquistador,
+    city
+  );
+  if (conquistadorFactionId) return conquistadorFactionId;
   const quest = questMemory(state).active;
   if (!isCaptureCommissionQuest(quest) || quest.stage !== "capture" ||
       quest.targetTileId !== city.tileId) return null;
@@ -7601,6 +7625,7 @@ function assertGameState(state) {
   validateCastawayQuestMemory(state.memory.quests?.castaway);
   validateNaturalistQuestMemory(state.memory.quests?.naturalist);
   validateHospitallerMaltaQuestMemory(state.memory.quests?.hospitallerMalta);
+  validateConquistadorQuestMemory(state.memory.quests?.conquistador);
   validateColonizationQuestMemory(state.memory.colonization);
   validatePortConquestMemory(state.memory.conquest);
   validateVoyageAchievementProgress(state.memory.achievements);

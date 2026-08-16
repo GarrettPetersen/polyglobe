@@ -374,6 +374,7 @@ test("version 11 voyages gain empty persistent port conquest state", () => {
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.memory.conquest, {
     portFactionOverrides: {},
+    cityDisplayNameOverrides: {},
     factionCapitalOverrides: {},
     collapsedFactionIds: ["mughal"],
     factionSuccessors: {},

@@ -34,6 +34,7 @@ const PLAYER_RAID_FLAG_PREFIX = "playerPortRaidedUntil:";
 export function createPortConquestMemory() {
   return {
     portFactionOverrides: {},
+    cityDisplayNameOverrides: {},
     factionCapitalOverrides: {},
     collapsedFactionIds: FACTIONS.filter((faction) => faction.emergent === true).map((faction) => faction.id),
     factionSuccessors: {},
@@ -53,6 +54,15 @@ export function validatePortConquestMemory(memory) {
   for (const [portId, factionId] of Object.entries(memory.portFactionOverrides)) {
     if (portId.trim() === "") throw new Error("Port conquest override has an empty port id");
     assertFactionId(factionId);
+  }
+  if (!memory.cityDisplayNameOverrides || typeof memory.cityDisplayNameOverrides !== "object" ||
+      Array.isArray(memory.cityDisplayNameOverrides)) {
+    throw new Error("Conquest city display-name overrides must be an object");
+  }
+  for (const [portId, displayName] of Object.entries(memory.cityDisplayNameOverrides)) {
+    if (portId.trim() === "" || typeof displayName !== "string" || displayName.trim() === "") {
+      throw new Error(`Invalid conquest city display-name override: ${portId}`);
+    }
   }
   if (!memory.factionCapitalOverrides ||
       typeof memory.factionCapitalOverrides !== "object" ||
@@ -514,11 +524,15 @@ export function applyPortConquestOwnership(memory, ports) {
   for (const city of ports) {
     assertCity(city);
     city.foundingFactionId = city.foundingFactionId || city.factionId;
+    if (!("foundingDisplayCity" in city)) {
+      city.foundingDisplayCity = city.displayCity || city.city;
+    }
     if (!("foundingCapitalOfFactionId" in city)) {
       city.foundingCapitalOfFactionId = city.capitalOfFactionId || null;
     }
     city.factionId = effectivePortFactionId(memory, city);
     const portId = portConquestPortId(city);
+    city.displayCity = memory.cityDisplayNameOverrides[portId] || city.foundingDisplayCity;
     const overrideCapitalFactionId = capitalFactionByPortId.get(portId) || null;
     const foundingCapitalFactionId = city.foundingCapitalOfFactionId;
     const foundingCapitalWasMoved = foundingCapitalFactionId !== null &&
@@ -530,6 +544,54 @@ export function applyPortConquestOwnership(memory, ports) {
     city.isFactionCapital = city.capitalOfFactionId !== null;
   }
   return ports;
+}
+
+export function recordCityDisplayName(memory, city, displayName) {
+  validatePortConquestMemory(memory);
+  assertCity(city);
+  if (typeof displayName !== "string" || displayName.trim() === "") {
+    throw new Error("Conquest city display name must be non-empty");
+  }
+  memory.cityDisplayNameOverrides[portConquestPortId(city)] = displayName.trim();
+  return displayName.trim();
+}
+
+export function markFactionCollapsedByConquest(memory, {
+  factionId,
+  successorFactionId,
+  simMinute,
+  source
+}) {
+  validatePortConquestMemory(memory);
+  assertFactionId(factionId);
+  assertFactionId(successorFactionId);
+  if (factionId === successorFactionId || factionId === NEUTRAL_FACTION_ID) {
+    throw new Error("Conquest collapse requires distinct sovereign factions");
+  }
+  if (!Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`Invalid conquest collapse minute: ${simMinute}`);
+  }
+  if (typeof source !== "string" || source.trim() === "") {
+    throw new Error("Conquest collapse source is required");
+  }
+  if (memory.collapsedFactionIds.includes(factionId)) return null;
+  memory.collapsedFactionIds.push(factionId);
+  memory.factionSuccessors[factionId] = successorFactionId;
+  delete memory.factionCapitalOverrides[factionId];
+  const event = {
+    id: `collapse-${simMinute}-${factionId}`,
+    kind: "faction-collapse",
+    factionId,
+    successorFactionId,
+    simMinute,
+    source
+  };
+  memory.events.push(event);
+  if (memory.events.length > PORT_CONQUEST_EVENT_LIMIT) {
+    memory.events.splice(0, memory.events.length - PORT_CONQUEST_EVENT_LIMIT);
+  }
+  validatePortConquestMemory(memory);
+  return Object.freeze(event);
 }
 
 export function restoreCollapsedFactionAtCities(memory, cities, {

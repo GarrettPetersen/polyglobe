@@ -7,7 +7,8 @@ export function fetchQuestRequirements({
   viking = null,
   vikingPort = null,
   chef = null,
-  chefPort = null
+  chefPort = null,
+  conquistador = null
 } = {}) {
   const requirements = [];
 
@@ -103,6 +104,18 @@ export function fetchQuestRequirements({
         destination: chefPort
       }));
     }
+  }
+
+  if (conquistador?.fetchStage && conquistador.origin) {
+    requirements.push(requirement({
+      id: `conquistador:${conquistador.fetchStage.id}`,
+      questId: "conquistador",
+      stageId: conquistador.fetchStage.id,
+      good: conquistador.fetchStage,
+      held: conquistador.held,
+      delivered: conquistador.delivered,
+      destination: conquistador.origin
+    }));
   }
 
   return Object.freeze(requirements);

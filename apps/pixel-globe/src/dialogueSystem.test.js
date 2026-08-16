@@ -120,6 +120,10 @@ import {
   maybeSpawnCaribbeanGingerQuest
 } from "./caribbeanGingerQuest.js";
 import {
+  CONQUISTADOR_FETCH_STAGES,
+  CONQUISTADOR_STAGE_CAPTURE
+} from "./conquistadorQuest.js";
+import {
   CHEF_QUEST_REWARD,
   completeChefBanquet,
   maybeSpawnChefQuest
@@ -4362,6 +4366,98 @@ test("a Caribbean planter pays for ginger roots and establishes local production
   assert.equal(market.get(GINGER_GOOD_ID).productionPerDay, 1.25);
   assert.ok(market.get(GINGER_GOOD_ID).listedForSale);
 });
+
+test("Panama dialogue commissions, provisions, and embarks the Inca expedition", () => {
+  const panama = conquestQuestCity(
+    137225,
+    "Panama City",
+    "Panama",
+    8.9824,
+    -79.5199,
+    "spain",
+    "Hernando de Soto"
+  );
+  const chanChan = conquestQuestCity(
+    134664,
+    "Chanchan",
+    "Peru",
+    -8.106,
+    -79.0745,
+    "inca",
+    "Cusi Yupanqui"
+  );
+  const cuzco = conquestQuestCity(
+    134185,
+    "Cuzco",
+    "Peru",
+    -13.5319,
+    -71.9675,
+    "inca",
+    "Titu Cusi"
+  );
+  const ports = [panama, chanChan, cuzco];
+  const stats = shipStatsForSlug("galleon");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.ship.cannons = 8;
+  gameState.ship.crew = 36;
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const context = { portCities: ports, simMinute: 100 };
+  const session = createPortDialogueSession(panama, { initialNodeId: "root" });
+
+  let view = portDialogueView(session, panama, gameState, economy, ports, context);
+  const speakerIndex = view.options.findIndex((entry) => entry.action.nodeId === "conquistador");
+  assert.ok(speakerIndex >= 0);
+  selectPortDialogueOption(session, panama, gameState, economy, ports, speakerIndex, context);
+
+  view = portDialogueView(session, panama, gameState, economy, ports, context);
+  const acceptIndex = view.options.findIndex(
+    (entry) => entry.action.type === "accept-conquistador-expedition"
+  );
+  assert.equal(view.options[acceptIndex].disabled, false);
+  selectPortDialogueOption(session, panama, gameState, economy, ports, acceptIndex, context);
+
+  for (const stage of CONQUISTADOR_FETCH_STAGES) {
+    gameState.cargo[stage.goodId] = stage.quantity;
+    view = portDialogueView(session, panama, gameState, economy, ports, context);
+    const deliveryIndex = view.options.findIndex(
+      (entry) => entry.action.type === "deliver-conquistador-material"
+    );
+    assert.equal(dialogueOptionIconId(view.options[deliveryIndex]), `good:${stage.goodId}`);
+    selectPortDialogueOption(session, panama, gameState, economy, ports, deliveryIndex, context);
+  }
+
+  view = portDialogueView(session, panama, gameState, economy, ports, context);
+  const embarkIndex = view.options.findIndex(
+    (entry) => entry.action.type === "begin-conquistador-expedition"
+  );
+  assert.equal(view.options[embarkIndex].disabled, false);
+  const embarked = selectPortDialogueOption(
+    session,
+    panama,
+    gameState,
+    economy,
+    ports,
+    embarkIndex,
+    context
+  );
+  assert.equal(gameState.memory.quests.conquistador.stage, CONQUISTADOR_STAGE_CAPTURE);
+  assert.ok(embarked.conquistadorDiplomacyEvents.length > 0);
+});
+
+function conquestQuestCity(tileId, city, country, lat, lon, factionId, characterName) {
+  return {
+    tileId,
+    city,
+    displayCity: city,
+    country,
+    lat,
+    lon,
+    factionId,
+    cityType: "andean",
+    population: 25000,
+    character: { name: characterName, personalityId: "bold" }
+  };
+}
 
 function establishNagasakiQuest(gameState, kyoto) {
   const target = {

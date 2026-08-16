@@ -17,6 +17,7 @@ import {
   cargoRows,
   cargoSpaceLabel,
   cargoUsed,
+  capturePortMissionEligibility,
   changePlayerReligion,
   cityLabel,
   completeQuest,
@@ -98,7 +99,11 @@ import {
   factionById,
   factionNounPhrase
 } from "./factions.js";
-import { adjustDiplomaticStance, worldDiplomacyBetween } from "./worldDiplomacy.js";
+import {
+  adjustDiplomaticStance,
+  declareDiplomaticWar,
+  worldDiplomacyBetween
+} from "./worldDiplomacy.js";
 import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import {
@@ -233,6 +238,30 @@ import {
   landColonists,
   markColonizationOrganizerApproached
 } from "./colonizationQuest.js";
+import {
+  CONQUISTADOR_ORIGIN_FACTION_ID,
+  CONQUISTADOR_STAGE_CAMPAIGN,
+  CONQUISTADOR_STAGE_CAPTURE,
+  CONQUISTADOR_STAGE_COMPLETE,
+  CONQUISTADOR_STAGE_DORMANT,
+  CONQUISTADOR_STAGE_FETCH,
+  CONQUISTADOR_STAGE_READY,
+  CONQUISTADOR_STAGE_REWARD_READY,
+  acceptConquistadorQuest,
+  beginConquistadorExpedition,
+  completeConquistadorFetchStage,
+  completeConquistadorQuest,
+  conquistadorFetchRequirementId,
+  conquistadorQuestShouldAppearAtCity,
+  conquistadorQuestView,
+  isConquistadorQuestOrigin,
+  isConquistadorQuestTarget,
+  markConquistadorOfferSeen
+} from "./conquistadorQuest.js";
+import {
+  questCargoDeliverableQuantity,
+  questCargoDeliveryProgress
+} from "./questCargoDeliveries.js";
 import {
   JAPANESE_MATCHLOCK_COMPLETION_REWARD,
   JAPANESE_MATCHLOCK_INITIAL_STOCK,
@@ -1491,6 +1520,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "chef-quest") return chefQuestView(session, city, gameState);
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
+  if (session.nodeId === "conquistador") {
+    return conquistadorView(session, city, gameState, portCities, context);
+  }
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
@@ -1617,6 +1649,7 @@ export function selectPortDialogueOption(
       beginMarketUndoSession(session, "sell", gameState, economy, city);
     }
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
+    if (action.nodeId === "conquistador") markConquistadorOfferSeen(gameState.memory.quests.conquistador);
     if (action.nodeId === "city-attack") {
       session.cityAttackReturnNodeId = action.returnNodeId || "root";
     }
@@ -2071,6 +2104,82 @@ export function selectPortDialogueOption(
       colonizationDelivery: delivery,
       colonizationPayment: payment
     };
+  }
+  if (action.type === "accept-conquistador-expedition") {
+    acceptConquistadorQuest(gameState.memory.quests.conquistador, portCities);
+    session.feedback = "The expedition is commissioned. The supply lists are open.";
+    session.selectedIndex = 0;
+    return { closed: false, conquistadorChanged: true };
+  }
+  if (action.type === "deliver-conquistador-material") {
+    const view = conquistadorQuestView(
+      gameState.memory.quests.conquistador,
+      portCities,
+      context.simMinute ?? 0,
+      { cargo: gameState.cargo }
+    );
+    const stage = view.fetchStage;
+    if (!stage || stage.id !== action.stageId) {
+      throw new Error(`Conquistador supply stage mismatch: ${action.stageId}`);
+    }
+    const delivery = deliverQuestCargoRequirement(
+      gameState,
+      city,
+      stage.goodId,
+      stage.quantity,
+      conquistadorFetchRequirementId(stage),
+      context
+    );
+    let payment = null;
+    if (delivery.complete) {
+      completeConquistadorFetchStage(gameState.memory.quests.conquistador, stage.id);
+      payment = receiveQuestPayment(
+        gameState,
+        city,
+        stage.reward,
+        `Inca expedition: ${stage.goodLabel}`,
+        context
+      );
+      session.feedback = `${stage.goodLabel} complete. Paid ${payment.amount} db.`;
+    } else {
+      session.feedback = `Delivered ${stage.goodLabel} x${delivery.quantity}. ` +
+        `${delivery.remainingQuantity} still needed.`;
+    }
+    session.selectedIndex = 0;
+    return {
+      closed: false,
+      conquistadorChanged: true,
+      conquistadorDelivery: delivery,
+      conquistadorPayment: payment
+    };
+  }
+  if (action.type === "begin-conquistador-expedition") {
+    const eligibility = capturePortMissionEligibility(gameState);
+    beginConquistadorExpedition(gameState.memory.quests.conquistador, eligibility);
+    const events = declareDiplomaticWar(
+      gameState.relations.diplomacy,
+      CONQUISTADOR_ORIGIN_FACTION_ID,
+      "inca",
+      context.simMinute ?? 0,
+      { eventReason: "conquistador-expedition" }
+    );
+    session.feedback = "The company is aboard. Chan Chan is marked on the chart.";
+    session.selectedIndex = 0;
+    return { closed: false, conquistadorChanged: true, conquistadorDiplomacyEvents: events };
+  }
+  if (action.type === "claim-conquistador-reward") {
+    const memory = gameState.memory.quests.conquistador;
+    completeConquistadorQuest(memory, context.simMinute ?? 0);
+    const payment = receiveQuestPayment(
+      gameState,
+      city,
+      action.reward,
+      "Share of the conquest of Tawantinsuyu",
+      context
+    );
+    session.feedback = `The Crown's chest pays ${payment.amount.toLocaleString("en-US")} db.`;
+    session.selectedIndex = 0;
+    return { closed: false, conquistadorChanged: true, conquistadorPayment: payment };
   }
   if (action.type === "advance-colony-negotiation") {
     if (session.colonizationApprovalStep !== 0) {
@@ -3598,6 +3707,16 @@ function rootView(session, city, gameState, economy, context) {
       nodeId: "colonization"
     }));
   }
+  if (!session.disguisedEntry && conquistadorQuestShouldAppearAtCity(
+    gameState.memory.quests.conquistador,
+    city,
+    context.portCities
+  )) {
+    options.splice(4, 0, option("Speak with the adelantado", {
+      type: "node",
+      nodeId: "conquistador"
+    }));
+  }
   if (context.passengerOffer && !session.disguisedEntry && !pirateHideout) {
     options.splice(2, 0, option(`Speak with ${passengerName(context.passengerOffer)}`, {
       type: "open-passenger",
@@ -4461,6 +4580,147 @@ function colonizationView(session, city, gameState, context) {
   }
 
   throw new Error(`Unknown colonization quest stage: ${quest.stage}`);
+}
+
+function conquistadorView(session, city, gameState, portCities, context) {
+  const memory = gameState.memory.quests.conquistador;
+  const currentMinute = context.simMinute ?? 0;
+  const eligibility = capturePortMissionEligibility(gameState);
+  const quest = conquistadorQuestView(memory, portCities, currentMinute, {
+    cargo: gameState.cargo,
+    eligibility
+  });
+  const atOrigin = isConquistadorQuestOrigin(memory, city);
+  const atTarget = isConquistadorQuestTarget(memory, city);
+  if (!atOrigin && !atTarget) {
+    throw new Error("Conquistador dialogue opened outside Panama City or Trujillo");
+  }
+  const speaker = `${characterName(city.character)}, adelantado`;
+  const back = session.conquistadorArrival
+    ? option("Continue", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    : option("Back", { type: "node", nodeId: "root" });
+
+  if (quest.stage === CONQUISTADOR_STAGE_DORMANT) {
+    if (!atOrigin || !quest.available) throw new Error("Unavailable conquistador offer was opened");
+    return {
+      speaker,
+      expressionId: "attentive",
+      text: "The Crown's charter runs farther than its soldiers. Provision my company, carry us to Chan Chan, break its batteries, and raise the Spanish flag. The coast is the gate to the Inca Empire.",
+      feedback: session.feedback,
+      options: [
+        option("Accept the commission", { type: "accept-conquistador-expedition" }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === CONQUISTADOR_STAGE_FETCH) {
+    if (!atOrigin) throw new Error("Conquistador supplies are not being gathered in Panama City");
+    const stage = quest.fetchStage;
+    const requirementId = conquistadorFetchRequirementId(stage);
+    const progress = questCargoDeliveryProgress(gameState, requirementId, stage.quantity);
+    const deliverable = questCargoDeliverableQuantity(
+      gameState,
+      requirementId,
+      stage.quantity,
+      quest.held
+    );
+    return {
+      speaker,
+      expressionId: deliverable > 0 ? "pleased" : "attentive",
+      text: `An army marches on stores, even when it calls itself an expedition. Bring ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}. I will pay ${stage.reward} doubloons when the order is complete.` +
+        (progress.deliveredQuantity > 0
+          ? ` You have delivered ${progress.deliveredQuantity} of ${stage.quantity}.`
+          : ""),
+      feedback: session.feedback,
+      options: [
+        option(deliveryOptionLabel(stage.goodLabel, deliverable), {
+          type: "deliver-conquistador-material",
+          stageId: stage.id,
+          goodId: stage.goodId
+        }, {
+          disabled: deliverable <= 0,
+          disabledReason: `Still need ${progress.remainingQuantity} ${stage.goodLabel.toLowerCase()}; ` +
+            `hold has ${quest.held}.`
+        }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === CONQUISTADOR_STAGE_READY) {
+    if (!atOrigin) throw new Error("Prepared conquistador company is not in Panama City");
+    const missing = [
+      !eligibility.cannonArmed ? `${eligibility.minimumCannons} cannons` : null,
+      !eligibility.largeWarship ? `room for ${eligibility.minimumCrew} crew` : null,
+      !eligibility.enoughCrew ? `${eligibility.minimumCrew} crew aboard` : null
+    ].filter(Boolean);
+    return {
+      speaker,
+      expressionId: eligibility.eligible ? "happy" : "concerned",
+      text: "The stores are packed. Chan Chan is the coastward gate. Silence its batteries, land the company, and take the city for Spain." +
+        (missing.length > 0 ? ` Your ship still needs ${missing.join(", ")}.` : " We can sail on your word."),
+      feedback: session.feedback,
+      options: [
+        option("Embark the conquistadors", { type: "begin-conquistador-expedition" }, {
+          disabled: !eligibility.eligible,
+          disabledReason: missing.length > 0 ? `Need ${missing.join(", ")}.` : null
+        }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === CONQUISTADOR_STAGE_CAPTURE) {
+    if (!atOrigin) throw new Error("Conquistador capture briefing opened outside Panama City");
+    return {
+      speaker,
+      expressionId: "determined",
+      text: "The company is aboard and the commission bears the royal seal. Take Chan Chan; the conquest will be lawful in Spain's name.",
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  if (quest.stage === CONQUISTADOR_STAGE_CAMPAIGN) {
+    if (!atTarget) throw new Error("Conquistador campaign report opened outside Trujillo");
+    return {
+      speaker,
+      expressionId: "determined",
+      text: `Trujillo holds. My columns are moving inland while the Inca court rallies what remains. Return in ${quest.daysUntilReward} day${quest.daysUntilReward === 1 ? "" : "s"}; if fortune and steel hold, your share will be waiting.`,
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  if (quest.stage === CONQUISTADOR_STAGE_REWARD_READY) {
+    if (!atTarget) throw new Error("Conquistador reward opened outside Trujillo");
+    return {
+      speaker,
+      expressionId: "happy",
+      text: "A year has passed. The inland roads answer to Spain, and the royal accountants have finally admitted that your share exists.",
+      feedback: session.feedback,
+      options: [
+        option(`Claim ${quest.reward.toLocaleString("en-US")} db`, {
+          type: "claim-conquistador-reward",
+          reward: quest.reward
+        }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === CONQUISTADOR_STAGE_COMPLETE) {
+    return {
+      speaker,
+      expressionId: "happy",
+      text: "Your share is paid, Captain. Spain has an empire in the Andes; you have a purse heavy enough to remember it by.",
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  throw new Error(`Unknown conquistador quest stage: ${quest.stage}`);
 }
 
 function equipmentView(session, city, gameState, economy) {
