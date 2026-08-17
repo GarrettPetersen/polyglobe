@@ -17,6 +17,7 @@ export const POLITICS_MENU_BENCHMARK_ID = "politics-menu";
 export const POLITICS_MENU_CAPTURE_SCENARIO_ID = BUSY_WORLD_CAPTURE_SCENARIO_ID;
 export const PAUSED_ABOARD_BENCHMARK_ID = "paused-aboard";
 export const PAUSED_DIALOGUE_BENCHMARK_ID = "paused-dialogue";
+export const PAUSED_START_MENU_BENCHMARK_ID = "paused-start-menu";
 
 const BENCHMARKS = Object.freeze({
   [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
@@ -52,21 +53,32 @@ const BENCHMARKS = Object.freeze({
     targetLandCarts: 2,
     initialScreen: "politics",
     forceRenderEveryFrame: true,
-    requiresChartIntegrityTelemetry: false
+    requiresChartIntegrityTelemetry: false,
+    requiresPausedOverlayBudget: true
   }),
   [PAUSED_ABOARD_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2,
     initialScreen: "aboard",
     forceRenderEveryFrame: true,
-    requiresChartIntegrityTelemetry: false
+    requiresChartIntegrityTelemetry: false,
+    requiresPausedOverlayBudget: true
   }),
   [PAUSED_DIALOGUE_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2,
     initialScreen: "port-dialogue",
     forceRenderEveryFrame: true,
-    requiresChartIntegrityTelemetry: false
+    requiresChartIntegrityTelemetry: false,
+    requiresPausedOverlayBudget: true
+  }),
+  [PAUSED_START_MENU_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2,
+    initialScreen: "start-menu",
+    forceRenderEveryFrame: true,
+    requiresChartIntegrityTelemetry: false,
+    requiresPausedOverlayBudget: true
   })
 });
 
@@ -79,6 +91,9 @@ const DEFAULT_DURATION_SECONDS = 8;
 export const CHART_INTEGRITY_TELEMETRY_MEAN_BUDGET_MS = 0.25;
 export const CHART_INTEGRITY_TELEMETRY_P95_BUDGET_MS = 1;
 export const CHART_INTEGRITY_TELEMETRY_MAX_SAMPLES_PER_SECOND = 2.5;
+export const PAUSED_OVERLAY_CPU_P95_BUDGET_MS = 10;
+export const PAUSED_OVERLAY_CPU_MAX_BUDGET_MS = 300;
+export const PAUSED_OVERLAY_FRAME_MAX_BUDGET_MS = 350;
 
 export function performanceBenchmarkFromSearch(search) {
   const params = new URLSearchParams(search);
@@ -102,6 +117,12 @@ export function performanceBenchmarkRequiresChartIntegrityTelemetry(id) {
   const definition = BENCHMARKS[id];
   if (!definition) throw new Error(`Unknown performance benchmark: ${id}`);
   return definition.requiresChartIntegrityTelemetry !== false;
+}
+
+export function performanceBenchmarkRequiresPausedOverlayBudget(id) {
+  const definition = BENCHMARKS[id];
+  if (!definition) throw new Error(`Unknown performance benchmark: ${id}`);
+  return definition.requiresPausedOverlayBudget === true;
 }
 
 export function createPerformanceBenchmarkState(config, startedAtMs) {
@@ -248,6 +269,40 @@ export function assertChartIntegrityTelemetryBenchmarkBudget(report) {
     );
   }
   return timing;
+}
+
+export function assertPausedOverlayBenchmarkBudget(report) {
+  if (!performanceBenchmarkRequiresPausedOverlayBudget(report?.id)) {
+    throw new Error(`Performance benchmark is not a paused overlay: ${report?.id}`);
+  }
+  const cpuScale = report?.cpuThrottle ?? 1;
+  if (!Number.isFinite(cpuScale) || cpuScale < 1) {
+    throw new Error(`Performance benchmark has invalid CPU throttle: ${cpuScale}`);
+  }
+  const cpu = report?.cpuTimeMs;
+  const frame = report?.frameTimeMs;
+  if (!cpu || !frame) throw new Error("Paused overlay benchmark is missing frame timing data");
+  const budgets = {
+    cpuP95: PAUSED_OVERLAY_CPU_P95_BUDGET_MS * cpuScale,
+    cpuMax: PAUSED_OVERLAY_CPU_MAX_BUDGET_MS * cpuScale,
+    frameMax: PAUSED_OVERLAY_FRAME_MAX_BUDGET_MS * cpuScale
+  };
+  if (cpu.p95 > budgets.cpuP95) {
+    throw new Error(`Paused overlay CPU p95 ${cpu.p95}ms exceeds ${budgets.cpuP95}ms budget`);
+  }
+  if (cpu.max > budgets.cpuMax) {
+    throw new Error(`Paused overlay CPU max ${cpu.max}ms exceeds ${budgets.cpuMax}ms budget`);
+  }
+  if (frame.max > budgets.frameMax) {
+    throw new Error(`Paused overlay frame max ${frame.max}ms exceeds ${budgets.frameMax}ms budget`);
+  }
+  for (const stageName of ["render.terrain", "render.gradeAndStorm"]) {
+    const count = report?.stages?.[stageName]?.count || 0;
+    if (count > 1) {
+      throw new Error(`Paused overlay repeated ${stageName} ${count} times`);
+    }
+  }
+  return Object.freeze({ cpu, frame, budgets });
 }
 
 function distribution(values) {

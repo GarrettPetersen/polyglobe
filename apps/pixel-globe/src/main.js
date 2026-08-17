@@ -477,6 +477,7 @@ import {
   createDecisionBackedQuestJourneyDialogueSubject,
   markQuestJourneyDialogueSeen,
   pendingQuestJourneyDialogue,
+  questJourneyDialogueCharacter,
   questJourneyDialoguePresentation
 } from "./questJourneyDialogue.js";
 import {
@@ -1856,6 +1857,8 @@ import {
 import {
   chartReframeCoverIsOpaque,
   chartShouldReframeOnCoverOpen,
+  coldCoveredWorldDefersFullRender,
+  coveredWorldPreparationIsRequired,
   gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
 import {
@@ -7403,7 +7406,11 @@ function papalCommissionJourneyDialogueSubject() {
 }
 
 function openQuestJourneyDialogueAtSea(quest, event) {
-  const character = questJourneyDialogueCharacter(quest, event);
+  const character = questJourneyDialogueCharacter(quest, event, {
+    resolveNingboRivalCaptain: () => (
+      ensureNpcShipCaptain(ningboRivalDelegationShip(quest, "courier").id)
+    )
+  });
   const presentation = questJourneyDialoguePresentation(event, renderedUiText);
   if (presentation.choices) {
     const opened = openCharacterChoiceAlertModal(
@@ -7426,19 +7433,6 @@ function openQuestJourneyDialogueAtSea(quest, event) {
   markQuestJourneyDialogueSeen(quest, event.id);
   saveVoyageNow("quest journey dialogue");
   return true;
-}
-
-function questJourneyDialogueCharacter(quest, event) {
-  if (event.speakerKind === undefined) {
-    if (!quest.passenger?.id) {
-      throw new Error(`Quest journey dialogue requires a passenger character: ${quest.id}`);
-    }
-    return quest.passenger;
-  }
-  if (event.speakerKind === "ningbo-rival-captain") {
-    return ensureNpcShipCaptain(ningboRivalDelegationShip(quest, "courier").id);
-  }
-  throw new Error(`Unknown quest journey dialogue speaker: ${event.speakerKind}`);
 }
 
 function resolveQuestJourneyDialogueChoice(quest, event, choiceId) {
@@ -9818,6 +9812,9 @@ function setupPerformanceBenchmark() {
   gameState.memory.flags.tackingTutorialShown = true;
   if (PERFORMANCE_BENCHMARK.initialScreen === "politics") openPoliticsMenu();
   else if (PERFORMANCE_BENCHMARK.initialScreen === "aboard") openAboardMenu();
+  else if (PERFORMANCE_BENCHMARK.initialScreen === "start-menu") {
+    startMenu = createStartMenuState();
+  }
   else if (PERFORMANCE_BENCHMARK.initialScreen === "port-dialogue") {
     const cityCall = chart.cityCalls.find((call) => call.character);
     if (!cityCall) throw new Error("Paused dialogue benchmark has no nearby port");
@@ -36125,6 +36122,16 @@ function render(nowMs) {
   ctx = screenCtx;
   const reframedBehindCover = prepareNorthUpWorldBehindCover();
   const coverIsActive = opaqueWorldCoverIsActive();
+  if (coldCoveredWorldDefersFullRender({
+    worldFramePresented,
+    coverIsActive,
+    reframePending: chartReframePendingBehindCover,
+    gameOver: Boolean(gameOverReason)
+  })) {
+    drawChartRepairOcclusion(nowMs);
+    drawWorldInterface(nowMs);
+    return;
+  }
   if (
     worldFramePresented &&
     !coverIsActive &&
@@ -36147,13 +36154,11 @@ function render(nowMs) {
     drawWorldInterface(nowMs);
     return;
   }
-  if (
-    worldFramePresented &&
-    coverIsActive &&
-    chartWorldRenderPendingBehindCover &&
-    !gameOverReason &&
-    !advanceCoveredWorldRenderPreparation(nowMs)
-  ) {
+  if (coveredWorldPreparationIsRequired({
+    coverIsActive,
+    renderPending: chartWorldRenderPendingBehindCover,
+    gameOver: Boolean(gameOverReason)
+  }) && !advanceCoveredWorldRenderPreparation(nowMs)) {
     drawChartRepairOcclusion(nowMs);
     drawWorldInterface(nowMs);
     return;
@@ -36315,7 +36320,9 @@ function drawWorldInterface(nowMs) {
   if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
   if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal(nowMs);
-  if (startMenu) drawStartMenu(nowMs);
+  if (startMenu) {
+    measurePerformanceBenchmarkStage("render.startMenu", () => drawStartMenu(nowMs));
+  }
   if (pastVoyagesMenu.isOpen) {
     measurePerformanceBenchmarkStage("render.pastVoyages", drawPastVoyagesMenu);
   }

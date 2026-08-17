@@ -10,12 +10,15 @@ import {
   NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
   PAUSED_ABOARD_BENCHMARK_ID,
   PAUSED_DIALOGUE_BENCHMARK_ID,
+  PAUSED_START_MENU_BENCHMARK_ID,
   POLAR_FOG_CAPTURE_SCENARIO_ID,
   POLITICS_MENU_CAPTURE_SCENARIO_ID,
   assertChartIntegrityTelemetryBenchmarkBudget,
+  assertPausedOverlayBenchmarkBudget,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
   performanceBenchmarkRequiresChartIntegrityTelemetry,
+  performanceBenchmarkRequiresPausedOverlayBudget,
   recordPerformanceBenchmarkFrame,
   recordPerformanceBenchmarkStage
 } from "./performanceBenchmark.js";
@@ -136,12 +139,15 @@ test("politics-menu benchmark forces the paused screen to repaint", () => {
   });
   assert.equal(performanceBenchmarkRequiresChartIntegrityTelemetry("politics-menu"), false);
   assert.equal(performanceBenchmarkRequiresChartIntegrityTelemetry("busy-world"), true);
+  assert.equal(performanceBenchmarkRequiresPausedOverlayBudget("politics-menu"), true);
+  assert.equal(performanceBenchmarkRequiresPausedOverlayBudget("busy-world"), false);
 });
 
 test("paused menu benchmarks force otherwise idle overlays to repaint", () => {
   for (const [id, initialScreen] of [
     [PAUSED_ABOARD_BENCHMARK_ID, "aboard"],
-    [PAUSED_DIALOGUE_BENCHMARK_ID, "port-dialogue"]
+    [PAUSED_DIALOGUE_BENCHMARK_ID, "port-dialogue"],
+    [PAUSED_START_MENU_BENCHMARK_ID, "start-menu"]
   ]) {
     const config = performanceBenchmarkFromSearch(`?benchmark=${id}`);
     assert.equal(config.initialScreen, initialScreen);
@@ -216,6 +222,40 @@ test("benchmark enforces a sub-millisecond chart telemetry budget", () => {
     }),
     /sampled 10\.00 times per second/
   );
+});
+
+test("paused overlay benchmark rejects repeated world rendering and multi-second stalls", () => {
+  const report = {
+    id: PAUSED_START_MENU_BENCHMARK_ID,
+    cpuThrottle: 1,
+    cpuTimeMs: { p95: 4, max: 180 },
+    frameTimeMs: { max: 220 },
+    stages: {
+      "render.terrain": { count: 1 },
+      "render.gradeAndStorm": { count: 1 }
+    }
+  };
+  assert.equal(assertPausedOverlayBenchmarkBudget(report).budgets.cpuMax, 300);
+  assert.throws(
+    () => assertPausedOverlayBenchmarkBudget({
+      ...report,
+      cpuTimeMs: { p95: 4, max: 1658 }
+    }),
+    /CPU max 1658ms exceeds/
+  );
+  assert.throws(
+    () => assertPausedOverlayBenchmarkBudget({
+      ...report,
+      stages: { "render.gradeAndStorm": { count: 379 } }
+    }),
+    /repeated render\.gradeAndStorm 379 times/
+  );
+  assert.doesNotThrow(() => assertPausedOverlayBenchmarkBudget({
+    ...report,
+    cpuThrottle: 4,
+    cpuTimeMs: { p95: 30, max: 900 },
+    frameTimeMs: { max: 1200 }
+  }));
 });
 
 test("benchmark evaluates a lazy scene snapshot only when measurement completes", () => {

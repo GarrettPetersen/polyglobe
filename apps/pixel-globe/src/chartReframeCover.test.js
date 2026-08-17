@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   chartReframeCoverIsOpaque,
   chartShouldReframeOnCoverOpen,
+  coldCoveredWorldDefersFullRender,
+  coveredWorldPreparationIsRequired,
   gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
 
@@ -58,4 +60,43 @@ test("a sinking voyage only becomes opaque cover after the ship animation", () =
     elapsedMs: 0,
     sinkDurationMs: 0
   }), true);
+});
+
+test("a cold opaque menu defers its first full world render", () => {
+  assert.equal(coldCoveredWorldDefersFullRender({
+    worldFramePresented: false,
+    coverIsActive: true,
+    reframePending: true,
+    gameOver: false
+  }), true);
+  assert.equal(coldCoveredWorldDefersFullRender({
+    worldFramePresented: true,
+    coverIsActive: true,
+    reframePending: true,
+    gameOver: false
+  }), false);
+  assert.equal(coldCoveredWorldDefersFullRender({
+    worldFramePresented: false,
+    coverIsActive: false,
+    reframePending: true,
+    gameOver: false
+  }), false);
+});
+
+test("covered preparation runs before or after the first world frame exists", () => {
+  assert.equal(coveredWorldPreparationIsRequired({
+    coverIsActive: true,
+    renderPending: true,
+    gameOver: false
+  }), true);
+  assert.equal(coveredWorldPreparationIsRequired({
+    coverIsActive: true,
+    renderPending: false,
+    gameOver: false
+  }), false);
+  assert.equal(coveredWorldPreparationIsRequired({
+    coverIsActive: true,
+    renderPending: true,
+    gameOver: true
+  }), false);
 });

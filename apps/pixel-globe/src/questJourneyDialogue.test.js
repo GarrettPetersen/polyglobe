@@ -4,10 +4,14 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  QUEST_JOURNEY_SPEAKER_NINGBO_RIVAL_CAPTAIN,
+  QUEST_JOURNEY_SPEAKER_PASSENGER,
+  QUEST_JOURNEY_SPEAKER_KINDS,
   QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
   createDecisionBackedQuestJourneyDialogueSubject,
   markQuestJourneyDialogueSeen,
   pendingQuestJourneyDialogue,
+  questJourneyDialogueCharacter,
   questJourneyDialoguePresentation
 } from "./questJourneyDialogue.js";
 
@@ -73,13 +77,72 @@ test("journey dialogue localizes authored prose and choice labels through one pr
   assert.equal(Object.isFrozen(presentation.choices), true);
 });
 
+test("every supported journey speaker resolves before an at-sea event can open", () => {
+  const passenger = { id: "envoy-1", name: "The Envoy" };
+  const quest = { id: "treaty", passenger };
+  const passengerEvent = {
+    id: "terms",
+    speakerKind: QUEST_JOURNEY_SPEAKER_PASSENGER,
+    expressionId: "concerned",
+    text: "The articles are under seal."
+  };
+  assert.strictEqual(questJourneyDialogueCharacter(quest, passengerEvent), passenger);
+  assert.strictEqual(
+    questJourneyDialogueCharacter(quest, { ...passengerEvent, speakerKind: undefined }),
+    passenger
+  );
+
+  const rival = { id: "rival-captain", name: "The Rival Captain" };
+  const rivalEvent = {
+    ...passengerEvent,
+    speakerKind: QUEST_JOURNEY_SPEAKER_NINGBO_RIVAL_CAPTAIN
+  };
+  const expectedByKind = new Map([
+    [QUEST_JOURNEY_SPEAKER_PASSENGER, passenger],
+    [QUEST_JOURNEY_SPEAKER_NINGBO_RIVAL_CAPTAIN, rival]
+  ]);
+  assert.equal(expectedByKind.size, QUEST_JOURNEY_SPEAKER_KINDS.length);
+  for (const speakerKind of QUEST_JOURNEY_SPEAKER_KINDS) {
+    assert.strictEqual(questJourneyDialogueCharacter(quest, {
+      ...rivalEvent,
+      speakerKind
+    }, {
+      resolveNingboRivalCaptain: () => rival
+    }), expectedByKind.get(speakerKind));
+  }
+  assert.throws(
+    () => questJourneyDialogueCharacter(quest, rivalEvent),
+    /requires a Ningbo rival captain resolver/
+  );
+});
+
+test("unknown journey speaker kinds fail during event validation", () => {
+  const quest = {
+    id: "invalid-speaker",
+    passenger: { id: "envoy-1" },
+    dialogue: {
+      journeyEvents: [{
+        id: "bad-speaker",
+        speakerKind: "unimplemented-speaker",
+        expressionId: "concerned",
+        text: "This must never reach production."
+      }]
+    },
+    journeyDialogueSeenIds: []
+  };
+  assert.throws(
+    () => pendingQuestJourneyDialogue(quest, { arrived: true }),
+    /Invalid quest journey dialogue speaker/
+  );
+});
+
 test("the sailing journey-dialogue opener cannot send authored prose to key localization", () => {
   const mainSource = fs.readFileSync(
     fileURLToPath(new URL("./main.js", import.meta.url)),
     "utf8"
   );
   const opener = mainSource.match(
-    /function openQuestJourneyDialogueAtSea\([\s\S]*?\n}\n\nfunction questJourneyDialogueCharacter/
+    /function openQuestJourneyDialogueAtSea\([\s\S]*?\n}\n\nfunction resolveQuestJourneyDialogueChoice/
   )?.[0];
   assert.ok(opener, "Could not inspect the sailing journey-dialogue opener");
   assert.match(opener, /questJourneyDialoguePresentation\(event, renderedUiText\)/);

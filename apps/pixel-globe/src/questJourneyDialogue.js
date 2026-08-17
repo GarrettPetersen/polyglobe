@@ -1,5 +1,11 @@
 const DEFAULT_MINIMUM_LEG_FRACTION = 0.3;
 export const QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER = "destination-closer";
+export const QUEST_JOURNEY_SPEAKER_PASSENGER = "quest-passenger";
+export const QUEST_JOURNEY_SPEAKER_NINGBO_RIVAL_CAPTAIN = "ningbo-rival-captain";
+export const QUEST_JOURNEY_SPEAKER_KINDS = Object.freeze([
+  QUEST_JOURNEY_SPEAKER_PASSENGER,
+  QUEST_JOURNEY_SPEAKER_NINGBO_RIVAL_CAPTAIN
+]);
 
 export function questJourneyHalfwayReached({ originDistance, destinationDistance }) {
   if (!Number.isFinite(originDistance) || originDistance < 0 ||
@@ -115,6 +121,30 @@ export function questJourneyDialoguePresentation(event, localizeProse) {
   });
 }
 
+export function questJourneyDialogueCharacter(quest, event, {
+  resolveNingboRivalCaptain = null
+} = {}) {
+  assertJourneyDialogueEvent(event, quest?.id || "speaker");
+  const speakerKind = event.speakerKind ?? QUEST_JOURNEY_SPEAKER_PASSENGER;
+  if (speakerKind === QUEST_JOURNEY_SPEAKER_PASSENGER) {
+    if (!quest?.passenger?.id) {
+      throw new Error(`Quest journey dialogue requires a passenger character: ${quest?.id}`);
+    }
+    return quest.passenger;
+  }
+  if (speakerKind === QUEST_JOURNEY_SPEAKER_NINGBO_RIVAL_CAPTAIN) {
+    if (typeof resolveNingboRivalCaptain !== "function") {
+      throw new Error(`Quest journey dialogue requires a Ningbo rival captain resolver: ${quest?.id}`);
+    }
+    const character = resolveNingboRivalCaptain(quest, event);
+    if (!character?.id) {
+      throw new Error(`Quest journey dialogue resolved an invalid Ningbo rival captain: ${quest?.id}`);
+    }
+    return character;
+  }
+  throw new Error(`Unknown quest journey dialogue speaker: ${speakerKind}`);
+}
+
 function assertJourneyDialogueEvent(event, questId) {
   if (
     !event ||
@@ -132,6 +162,12 @@ function assertJourneyDialogueEvent(event, questId) {
     event.trigger !== QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER
   ) {
     throw new Error(`Invalid quest journey dialogue trigger: ${questId}`);
+  }
+  if (
+    event.speakerKind !== undefined &&
+    !QUEST_JOURNEY_SPEAKER_KINDS.includes(event.speakerKind)
+  ) {
+    throw new Error(`Invalid quest journey dialogue speaker: ${questId}`);
   }
   if (event.choices !== undefined) {
     if (!Array.isArray(event.choices) || event.choices.length !== 2 || event.choices.some((choice) => (

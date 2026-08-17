@@ -9,8 +9,10 @@ import { fileURLToPath } from "node:url";
 import {
   PERFORMANCE_BENCHMARK_IDS,
   assertChartIntegrityTelemetryBenchmarkBudget,
+  assertPausedOverlayBenchmarkBudget,
   performanceBenchmarkFromSearch,
-  performanceBenchmarkRequiresChartIntegrityTelemetry
+  performanceBenchmarkRequiresChartIntegrityTelemetry,
+  performanceBenchmarkRequiresPausedOverlayBudget
 } from "../src/performanceBenchmark.js";
 
 const require = createRequire(import.meta.url);
@@ -82,6 +84,9 @@ try {
     await writeFile(args.output, `${JSON.stringify(report, null, 2)}\n`);
     if (performanceBenchmarkRequiresChartIntegrityTelemetry(report.id)) {
       assertChartIntegrityTelemetryBenchmarkBudget(report);
+    }
+    if (performanceBenchmarkRequiresPausedOverlayBudget(report.id)) {
+      assertPausedOverlayBenchmarkBudget(report);
     }
     printReport(report, args.output);
     if (args.cpuProfile) process.stdout.write(`  CPU profile: ${args.cpuProfile}\n`);

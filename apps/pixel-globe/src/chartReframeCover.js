@@ -59,3 +59,35 @@ export function chartShouldReframeOnCoverOpen({
   }
   return coverIsActive && !coverWasActive;
 }
+
+export function coldCoveredWorldDefersFullRender({
+  worldFramePresented,
+  coverIsActive,
+  reframePending,
+  gameOver
+}) {
+  assertCoveredWorldRenderFlags({
+    worldFramePresented,
+    coverIsActive,
+    reframePending,
+    gameOver
+  });
+  return !worldFramePresented && coverIsActive && reframePending && !gameOver;
+}
+
+export function coveredWorldPreparationIsRequired({
+  coverIsActive,
+  renderPending,
+  gameOver
+}) {
+  assertCoveredWorldRenderFlags({ coverIsActive, renderPending, gameOver });
+  return coverIsActive && renderPending && !gameOver;
+}
+
+function assertCoveredWorldRenderFlags(flags) {
+  for (const [label, value] of Object.entries(flags)) {
+    if (typeof value !== "boolean") {
+      throw new Error(`Covered world render policy requires boolean ${label}`);
+    }
+  }
+}
