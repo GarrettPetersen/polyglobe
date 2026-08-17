@@ -57,6 +57,13 @@ import {
   noteSessionActivity
 } from "./sessionActivity.js";
 import { advanceFrameCadence } from "./frameCadence.js";
+import {
+  cachedPausedView,
+  capturePausedView,
+  clearPausedView,
+  createPausedViewCache,
+  currentPausedView
+} from "./pausedViewCache.js";
 import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
 import {
   distantWorldValuesEqual,
@@ -3532,6 +3539,7 @@ let playerPerkTotalsCache = null;
 let playerEffectiveShipStatsCache = null;
 let playerNavalWeaponCache = null;
 let dialogueState = null;
+const dialogueViewCache = createPausedViewCache("Dialogue");
 let dialogueShipMotionPause = null;
 let dialogueLayout = createDialogueLayoutState();
 let startMenu = null;
@@ -6492,6 +6500,7 @@ function createTelemetryConsentModalState() {
 function createCaptainMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Captain chart"),
     selectedIndex: 0,
     hoverPoint: null,
     buttonRect: null,
@@ -6521,6 +6530,7 @@ function createCaptainMenuState() {
 function createAboardMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Aboard roster"),
     selectedNamedId: null,
     focusedNamedId: null,
     scrollY: 0,
@@ -6574,6 +6584,7 @@ function startMenuActions() {
 function createCreditsMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Credits"),
     page: 0,
     panelRect: null,
     closeButtonRect: null,
@@ -6585,6 +6596,7 @@ function createCreditsMenuState() {
 function createPastVoyagesMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Past voyages"),
     page: 0,
     panelRect: null,
     closeButtonRect: null,
@@ -8413,6 +8425,7 @@ function animalNoiseProfile(kind) {
 function createDiscoveriesMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Discoveries"),
     tab: "wonders",
     page: 0,
     entrySelectedIndex: 0,
@@ -8436,6 +8449,7 @@ function createDiscoveriesMenuState() {
 function createAchievementsMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Achievements"),
     page: 0,
     panelRect: null,
     closeButtonRect: null,
@@ -8447,6 +8461,7 @@ function createAchievementsMenuState() {
 function createShipInfoMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Ship information"),
     view: "vessel",
     cargoPage: 0,
     ledgerPage: 0,
@@ -8496,6 +8511,7 @@ function createPoliticsMenuState() {
 function createNavigationMenuState() {
   return {
     isOpen: false,
+    viewCache: createPausedViewCache("Navigation"),
     page: 0,
     selectedIndex: 0,
     panelRect: null,
@@ -9801,6 +9817,12 @@ function setupPerformanceBenchmark() {
   gameState.memory.flags.sailingBasicsTutorialShown = true;
   gameState.memory.flags.tackingTutorialShown = true;
   if (PERFORMANCE_BENCHMARK.initialScreen === "politics") openPoliticsMenu();
+  else if (PERFORMANCE_BENCHMARK.initialScreen === "aboard") openAboardMenu();
+  else if (PERFORMANCE_BENCHMARK.initialScreen === "port-dialogue") {
+    const cityCall = chart.cityCalls.find((call) => call.character);
+    if (!cityCall) throw new Error("Paused dialogue benchmark has no nearby port");
+    openPortDialogue(cityCall);
+  }
   // Keep deterministic render benchmarks from ending early on a seeded polar collision.
   gameState.memory.icebergs.individuals = [];
   resetDistantWorldWorkerSchedule();
@@ -11400,6 +11422,7 @@ function adjustCaptureCustomLoadoutField(key, ratio) {
     value,
     permanentCrewFloor(gameState)
   );
+  invalidateDialogueView();
   dirty = true;
 }
 
@@ -12526,6 +12549,7 @@ function openShipInfoMenu() {
   closeAchievementsMenu();
   closePoliticsMenu();
   closeNavigationMenu();
+  capturePausedView(shipInfoMenu.viewCache, gameState, () => createShipInfoView(ship, gameState));
   shipInfoMenu.isOpen = true;
   shipInfoMenu.view = "vessel";
   shipInfoMenu.cargoPage = 0;
@@ -12557,6 +12581,7 @@ function openShipInfoMenu() {
 
 function closeShipInfoMenu() {
   shipInfoMenu.isOpen = false;
+  clearPausedView(shipInfoMenu.viewCache);
   canvas.style.cursor = "default";
   shipInfoMenu.closeButtonRect = null;
   shipInfoMenu.vesselTabRect = null;
@@ -12633,7 +12658,7 @@ function stepShipInfoPage(direction) {
     dirty = true;
     return;
   }
-  const view = createShipInfoView(ship, gameState);
+  const view = currentShipInfoView();
   if (shipInfoMenu.view === "papers") {
     const page = shipPapersPage(view, shipInfoMenu.papersPage + direction, shipPapersRowsPerPage());
     shipInfoMenu.papersPage = page.page;
@@ -12703,7 +12728,7 @@ function setShipInfoView(view) {
 
 function stepShipPaperSelection(direction) {
   if (!Number.isInteger(direction) || direction === 0) throw new Error(`Invalid inventory selection direction: ${direction}`);
-  const view = createShipInfoView(ship, gameState);
+  const view = currentShipInfoView();
   if (view.papers.length === 0) return;
   const rowsPerPage = shipPapersRowsPerPage();
   const page = shipPapersPage(view, shipInfoMenu.papersPage, rowsPerPage);
@@ -12726,7 +12751,7 @@ function stepShipPaperSelection(direction) {
 }
 
 function openSelectedShipPaperDetail() {
-  const view = createShipInfoView(ship, gameState);
+  const view = currentShipInfoView();
   if (view.papers.length === 0) return;
   const rowsPerPage = shipPapersRowsPerPage();
   const index = shipInfoMenu.papersPage * rowsPerPage + shipInfoMenu.paperSelectedIndex;
@@ -15443,6 +15468,7 @@ function openCreditsMenu() {
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
+  capturePausedView(creditsMenu.viewCache, creditsMenu, creditsDisplayLines);
   creditsMenu.isOpen = true;
   creditsMenu.page = 0;
   keys.clear();
@@ -15454,6 +15480,7 @@ function openPastVoyagesMenu() {
   closeOptionsMenu();
   closeCreditsMenu();
   closeAchievementsMenu();
+  capturePausedView(pastVoyagesMenu.viewCache, pastVoyagesMenu, buildPastVoyagesMenuView);
   pastVoyagesMenu.isOpen = true;
   pastVoyagesMenu.page = 0;
   keys.clear();
@@ -15463,6 +15490,7 @@ function openPastVoyagesMenu() {
 
 function closePastVoyagesMenu() {
   pastVoyagesMenu.isOpen = false;
+  clearPausedView(pastVoyagesMenu.viewCache);
   pastVoyagesMenu.panelRect = null;
   pastVoyagesMenu.closeButtonRect = null;
   pastVoyagesMenu.previousPageRect = null;
@@ -15471,7 +15499,7 @@ function closePastVoyagesMenu() {
 }
 
 function pastVoyagesPageCount() {
-  return voyageHistoryResult.records.length + 1;
+  return currentPausedView(pastVoyagesMenu.viewCache, pastVoyagesMenu).records.length + 1;
 }
 
 function stepPastVoyagesPage(direction) {
@@ -15482,6 +15510,7 @@ function stepPastVoyagesPage(direction) {
 
 function closeCreditsMenu() {
   creditsMenu.isOpen = false;
+  clearPausedView(creditsMenu.viewCache);
   creditsMenu.panelRect = null;
   creditsMenu.closeButtonRect = null;
   creditsMenu.previousPageRect = null;
@@ -15490,7 +15519,8 @@ function closeCreditsMenu() {
 }
 
 function creditsPageCount() {
-  return Math.max(1, Math.ceil(creditsDisplayLines().length / CREDITS_LINES_PER_PAGE));
+  const lines = currentPausedView(creditsMenu.viewCache, creditsMenu);
+  return Math.max(1, Math.ceil(lines.length / CREDITS_LINES_PER_PAGE));
 }
 
 function stepCreditsPage(direction) {
@@ -15526,6 +15556,7 @@ function openDiscoveriesMenu() {
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
+  capturePausedView(discoveriesMenu.viewCache, gameState, buildDiscoveriesMenuView);
   discoveriesMenu.isOpen = true;
   discoveriesMenu.tab = discoveriesMenu.tab || "wonders";
   discoveriesMenu.page = 0;
@@ -15545,8 +15576,9 @@ function openAchievementsMenu(achievementId = null) {
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
-  achievementsMenu.isOpen = true;
   if (gameState && achievementProfile) syncAchievementsFromGameState();
+  capturePausedView(achievementsMenu.viewCache, achievementsMenu, buildAchievementsMenuView);
+  achievementsMenu.isOpen = true;
   achievementsMenu.page = achievementId === null
     ? 0
     : achievementCatalogPageForId(
@@ -15561,6 +15593,7 @@ function openAchievementsMenu(achievementId = null) {
 
 function closeAchievementsMenu() {
   achievementsMenu.isOpen = false;
+  clearPausedView(achievementsMenu.viewCache);
   achievementsMenu.panelRect = null;
   achievementsMenu.closeButtonRect = null;
   achievementsMenu.previousPageRect = null;
@@ -15570,6 +15603,7 @@ function closeAchievementsMenu() {
 
 function closeDiscoveriesMenu() {
   discoveriesMenu.isOpen = false;
+  clearPausedView(discoveriesMenu.viewCache);
   closeDiscoveryDetail();
   discoveriesMenu.panelRect = null;
   discoveriesMenu.closeButtonRect = null;
@@ -15629,6 +15663,7 @@ function openNavigationMenu() {
   closeAchievementsMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
+  capturePausedView(navigationMenu.viewCache, gameState, navigationMenuEntries);
   navigationMenu.isOpen = true;
   navigationMenu.page = 0;
   navigationMenu.selectedIndex = 0;
@@ -15641,6 +15676,7 @@ function openNavigationMenu() {
 
 function closeNavigationMenu() {
   navigationMenu.isOpen = false;
+  clearPausedView(navigationMenu.viewCache);
   navigationMenu.panelRect = null;
   navigationMenu.closeButtonRect = null;
   navigationMenu.rowRects = [];
@@ -15736,7 +15772,7 @@ function handleAboardMenuKeyDown(event) {
     return;
   }
   if (event.key === "End") {
-    focusAboardCharacterAtIndex(currentAboardRoster().named.length - 1);
+    focusAboardCharacterAtIndex(currentAboardMenuRoster().named.length - 1);
     return;
   }
   if (["PageUp", "PageDown"].includes(event.key)) {
@@ -15944,6 +15980,7 @@ function openCaptainMenu() {
   closeNavigationMenu();
   closeAboardMenu();
   closeCreditsMenu();
+  capturePausedView(captainMenu.viewCache, gameState, buildCaptainChartView);
   captainMenu.isOpen = true;
   captainMenu.selectedIndex = 0;
   captainMenu.itemRects = [];
@@ -15964,6 +16001,7 @@ function openAboardMenu() {
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
+  const roster = capturePausedView(aboardMenu.viewCache, gameState, currentAboardRoster);
   aboardMenu.isOpen = true;
   aboardMenu.selectedNamedId = null;
   aboardMenu.scrollY = 0;
@@ -15972,7 +16010,6 @@ function openAboardMenu() {
   aboardMenu.scrollDownRect = null;
   aboardMenu.backButtonRect = null;
   aboardMenu.namedEntryRects = [];
-  const roster = currentAboardRoster();
   if (roster.named.length === 0) throw new Error("Aboard roster has no named characters");
   aboardMenu.focusedNamedId = roster.named[0].id;
   for (const entry of roster.named) {
@@ -15985,6 +16022,7 @@ function openAboardMenu() {
 
 function closeAboardMenu() {
   aboardMenu.isOpen = false;
+  clearPausedView(aboardMenu.viewCache);
   aboardMenu.selectedNamedId = null;
   aboardMenu.focusedNamedId = null;
   aboardMenu.panelRect = null;
@@ -15998,6 +16036,7 @@ function closeAboardMenu() {
 
 function closeCaptainMenu() {
   captainMenu.isOpen = false;
+  clearPausedView(captainMenu.viewCache);
   captainMenu.panelRect = null;
   captainMenu.closeButtonRect = null;
   captainMenu.itemRects = [];
@@ -17260,7 +17299,7 @@ function updateAboardMenuSelectionFromPoint(point) {
 
 function openFocusedAboardCharacter() {
   if (!aboardMenu.focusedNamedId) throw new Error("Aboard character focus is missing");
-  const roster = currentAboardRoster();
+  const roster = currentAboardMenuRoster();
   if (!roster.named.some((entry) => entry.id === aboardMenu.focusedNamedId)) {
     throw new Error("Focused aboard character is no longer present: " + aboardMenu.focusedNamedId);
   }
@@ -17270,7 +17309,7 @@ function openFocusedAboardCharacter() {
 }
 
 function stepAboardCharacterFocus(direction) {
-  const roster = currentAboardRoster();
+  const roster = currentAboardMenuRoster();
   const layout = aboardRosterLayout(roster, aboardMenuBodyWidth());
   const currentIndex = Math.max(
     0,
@@ -17286,7 +17325,7 @@ function stepAboardCharacterFocus(direction) {
 }
 
 function focusAboardCharacterAtIndex(index, suppliedLayout = null) {
-  const roster = currentAboardRoster();
+  const roster = currentAboardMenuRoster();
   const layout = suppliedLayout || aboardRosterLayout(roster, aboardMenuBodyWidth());
   const entry = layout.named[index];
   if (!entry) throw new Error("Cannot focus aboard character index: " + index);
@@ -17488,10 +17527,10 @@ function switchDiscoveriesTab(tab) {
 }
 
 function currentDiscoveryEntries() {
-  if (!gameState) throw new Error("Discoveries require an active voyage");
+  const view = currentPausedView(discoveriesMenu.viewCache, gameState);
   return discoveriesMenu.tab === "animals"
-    ? encounteredAnimalEntries(gameState.memory.animals)
-    : discoveredEntries(gameState);
+    ? view.animalEntries
+    : view.wonderEntries;
 }
 
 function stepDiscoveryEntrySelection(direction) {
@@ -17790,6 +17829,7 @@ function handleCustomLoadoutKeyDown(event) {
     dialogueState.nodeId = "loadout";
     dialogueState.selectedIndex = 0;
     dialogueState.feedback = null;
+    invalidateDialogueView();
     invalidateDialogueOptionGeometry();
     dirty = true;
     return;
@@ -17814,6 +17854,7 @@ function handleCustomLoadoutKeyDown(event) {
       field.value + (event.key === "ArrowRight" ? 1 : -1),
       permanentCrewFloor(gameState)
     );
+    invalidateDialogueView();
     dirty = true;
     return;
   }
@@ -17830,6 +17871,7 @@ function setCustomLoadoutFromPoint(entry, point) {
     value,
     permanentCrewFloor(gameState)
   );
+  invalidateDialogueView();
   dirty = true;
 }
 
@@ -21177,6 +21219,7 @@ function closeDialogue() {
     );
   }
   dialogueState = null;
+  clearPausedView(dialogueViewCache);
   dialogueLayout = createDialogueLayoutState();
   if (wasPortDialogue) {
     combatMusicUntilMs = 0;
@@ -21190,6 +21233,15 @@ function closeDialogue() {
 }
 
 function chooseDialogueOption(optionIndex) {
+  invalidateDialogueView();
+  try {
+    return applyDialogueOption(optionIndex);
+  } finally {
+    invalidateDialogueView();
+  }
+}
+
+function applyDialogueOption(optionIndex) {
   let result;
   let dialogueNpcShipId = null;
   let missionGiftCharacter = null;
@@ -21647,11 +21699,13 @@ async function purchaseShipyardShip(action) {
   const listing = yard.listing;
   if (!listing || listing.id !== action.listingId || listing.shipSlug !== action.shipSlug) {
     session.feedback = "That vessel is no longer available.";
+    invalidateDialogueView();
     dirty = true;
     return;
   }
   shipyardPurchaseListingId = listing.id;
   session.feedback = "The shipwrights are readying the vessel for inspection.";
+  invalidateDialogueView();
   dirty = true;
   try {
     const stats = shipStatsForSlug(listing.shipSlug);
@@ -21715,6 +21769,7 @@ async function purchaseShipyardShip(action) {
     session.feedback = error instanceof Error ? error.message : "The ship purchase failed.";
   } finally {
     shipyardPurchaseListingId = null;
+    invalidateDialogueView();
     dirty = true;
   }
 }
@@ -21748,6 +21803,7 @@ async function acquireVikingLongship(action) {
   }
   vikingLongshipAcquisitionPending = true;
   session.feedback = "The enthusiast is readying the longship for inspection.";
+  invalidateDialogueView();
   dirty = true;
   try {
     const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
@@ -21803,6 +21859,7 @@ async function acquireVikingLongship(action) {
     session.feedback = error instanceof Error ? error.message : "The longship acquisition failed.";
   } finally {
     vikingLongshipAcquisitionPending = false;
+    invalidateDialogueView();
     dirty = true;
   }
 }
@@ -21973,6 +22030,7 @@ async function captureSurrenderedShip(npcShipId) {
   }
   surrenderedShipCapturePendingId = npcShipId;
   session.feedback = "Your prize crew are transferring command.";
+  invalidateDialogueView();
   dirty = true;
   try {
     const stats = shipStatsForSlug(candidateSlug);
@@ -22043,6 +22101,7 @@ async function captureSurrenderedShip(npcShipId) {
     }
   } finally {
     surrenderedShipCapturePendingId = null;
+    invalidateDialogueView();
     dirty = true;
   }
 }
@@ -22230,7 +22289,16 @@ function chartPortCallById(portId) {
   return chart.cityCallByPortId.get(portId) || null;
 }
 
+function invalidateDialogueView() {
+  clearPausedView(dialogueViewCache);
+}
+
 function currentDialogueView() {
+  if (!dialogueState) throw new Error("Dialogue view requested without an active session");
+  return cachedPausedView(dialogueViewCache, dialogueState, buildCurrentDialogueView);
+}
+
+function buildCurrentDialogueView() {
   if (dialogueState.kind === "port") {
     return portDialogueView(
       dialogueState,
@@ -36222,24 +36290,44 @@ function drawWorldInterface(nowMs) {
   if (dialogueOverlayIsVisible({
     dialogueActive: Boolean(dialogueState),
     characterAlertActive: Boolean(captainAlertModal)
-  })) drawDialogueOverlay(nowMs);
+  })) {
+    measurePerformanceBenchmarkStage("render.dialogue", () => drawDialogueOverlay(nowMs));
+  }
   drawCaptainMenuButton();
-  if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
-  if (shipInfoMenu.isOpen) drawShipInfoMenu();
+  if (discoveriesMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.discoveries", drawDiscoveriesMenu);
+  }
+  if (shipInfoMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.shipInfo", drawShipInfoMenu);
+  }
   if (politicsMenu.isOpen) {
     measurePerformanceBenchmarkStage("render.politics", () => drawPoliticsMenu());
   }
-  if (navigationMenu.isOpen) drawNavigationMenu();
-  if (aboardMenu.isOpen) drawAboardMenu();
-  if (captainMenu.isOpen && !captainChildMenuIsOpen()) drawCaptainMenu(nowMs);
+  if (navigationMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.navigation", drawNavigationMenu);
+  }
+  if (aboardMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.aboard", drawAboardMenu);
+  }
+  if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
+    measurePerformanceBenchmarkStage("render.captain", () => drawCaptainMenu(nowMs));
+  }
   if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
   if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal(nowMs);
   if (startMenu) drawStartMenu(nowMs);
-  if (pastVoyagesMenu.isOpen) drawPastVoyagesMenu();
-  if (achievementsMenu.isOpen) drawAchievementsMenu();
-  if (creditsMenu.isOpen) drawCreditsMenu();
-  if (optionsMenu.isOpen) drawOptionsMenu();
+  if (pastVoyagesMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.pastVoyages", drawPastVoyagesMenu);
+  }
+  if (achievementsMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.achievements", drawAchievementsMenu);
+  }
+  if (creditsMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.credits", drawCreditsMenu);
+  }
+  if (optionsMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.options", drawOptionsMenu);
+  }
   if (captainMenu.isOpen) drawCaptainNotebookChrome();
   drawItemAcquisitionEffects(nowMs);
   drawAchievementNotice(nowMs);
@@ -39771,9 +39859,27 @@ function fetchQuestJournalStep({ held, quantity, goodLabel, destination }) {
     : uiText("quest.acquireFor", replacements);
 }
 
+function buildCaptainChartView() {
+  return {
+    journalEntries: questJournalEntries(),
+    journalLinesByWidth: new Map()
+  };
+}
+
+function refreshCaptainChartView() {
+  if (!captainMenu.isOpen) return false;
+  capturePausedView(captainMenu.viewCache, gameState, buildCaptainChartView);
+  return true;
+}
+
 function drawCaptainChart(panel, nowMs) {
-  const journal = questJournalEntries();
-  const journalLines = questJournalDisplayLines(journal, panel.w - 43);
+  const view = currentPausedView(captainMenu.viewCache, gameState);
+  const journalWidth = panel.w - 43;
+  let journalLines = view.journalLinesByWidth.get(journalWidth);
+  if (!journalLines) {
+    journalLines = questJournalDisplayLines(view.journalEntries, journalWidth);
+    view.journalLinesByWidth.set(journalWidth, journalLines);
+  }
   const mapW = panel.w - 24;
   const mapX = panel.x + 12;
   const header = captainChartHeaderLayout({
@@ -40416,7 +40522,7 @@ function placedCityTargetVector(city) {
 }
 
 function navigationMenuPage() {
-  const entries = navigationMenuEntries();
+  const entries = currentPausedView(navigationMenu.viewCache, gameState);
   const pageCount = Math.max(1, Math.ceil(entries.length / NAVIGATION_MENU_PAGE_SIZE));
   navigationMenu.page = clamp(navigationMenu.page, 0, pageCount - 1);
   const start = navigationMenu.page * NAVIGATION_MENU_PAGE_SIZE;
@@ -40441,6 +40547,8 @@ function removeSelectedNavigationWaypoint() {
   }
   if (selectedWaypointArrowId === entry.id) selectedWaypointArrowId = null;
   saveVoyageNow("removed optional navigation waypoint");
+  capturePausedView(navigationMenu.viewCache, gameState, navigationMenuEntries);
+  refreshCaptainChartView();
   const updatedPage = navigationMenuPage();
   navigationMenu.selectedIndex = clamp(
     navigationMenu.selectedIndex,
@@ -40561,7 +40669,7 @@ function drawShipInfoMenu() {
     w: SHIP_INFO_PANEL_W,
     h: SHIP_INFO_PANEL_H
   });
-  const view = createShipInfoView(ship, gameState);
+  const view = currentShipInfoView();
   const cargoPage = shipInfoCargoPage(
     view,
     shipInfoMenu.cargoPage,
@@ -40743,6 +40851,11 @@ function drawShipInfoMenu() {
     shipInfoMenu.nextPageRect = null;
   }
   ctx.restore();
+}
+
+function currentShipInfoView() {
+  if (!shipInfoMenu.isOpen) throw new Error("Ship information view requested while its menu is closed");
+  return currentPausedView(shipInfoMenu.viewCache, gameState);
 }
 
 function drawNotebookShipVessel(panel, view, cargoPage) {
@@ -41565,6 +41678,21 @@ function drawShipInfoArrowButton(rect, label, hovered) {
   });
 }
 
+function buildDiscoveriesMenuView() {
+  if (!gameState) throw new Error("Discoveries require an active voyage");
+  const naturalist = naturalistQuestViewForBuild();
+  const naturalistPresentation = naturalistQuestPresentation(
+    naturalist,
+    currentVoyageContentEditionId()
+  );
+  return {
+    wonderEntries: discoveredEntries(gameState),
+    animalEntries: encounteredAnimalEntries(gameState.memory.animals),
+    mappedFraction: minimap ? minimap.seenTileCount / graph.tileCount : 0,
+    naturalistSummary: naturalistPresentation.reportSummary
+  };
+}
+
 function drawDiscoveriesMenu() {
   const panel = discoveriesPanelRect();
   const panelX = panel.x;
@@ -41604,12 +41732,13 @@ function drawDiscoveriesMenu() {
     );
   }
 
-  const wonderEntries = discoveredEntries(gameState);
-  const animalEntries = encounteredAnimalEntries(gameState.memory.animals);
+  const view = currentPausedView(discoveriesMenu.viewCache, gameState);
+  const wonderEntries = view.wonderEntries;
+  const animalEntries = view.animalEntries;
   const entries = discoveriesMenu.tab === "animals" ? animalEntries : wonderEntries;
   const total = discoveriesMenu.tab === "animals" ? ANIMAL_CATALOG.length : discoveryCatalog.length;
   const foundFraction = total > 0 ? entries.length / total : 0;
-  const mappedFraction = minimap ? minimap.seenTileCount / graph.tileCount : 0;
+  const mappedFraction = view.mappedFraction;
   const progressWidth = panel.w - 24;
   drawDiscoveryProgressRow(
     panelX + 12,
@@ -41633,15 +41762,8 @@ function drawDiscoveriesMenu() {
       false
     );
   } else {
-    const naturalist = naturalistQuestViewForBuild();
-    const naturalistPresentation = naturalistQuestPresentation(
-      naturalist,
-      currentVoyageContentEditionId()
-    );
     const naturalistLines = wrapPixelTextAll(
-      naturalist.met
-        ? naturalistPresentation.reportSummary
-        : "A NATURAL PHILOSOPHER MAY VALUE THESE NOTES",
+      view.naturalistSummary,
       PIXEL_FONT_SMALL_8,
       panel.w - 24
     ).slice(0, 2);
@@ -42071,6 +42193,11 @@ function currentAboardRoster() {
   return Object.freeze({ ...roster, named: Object.freeze(named) });
 }
 
+function currentAboardMenuRoster() {
+  if (!aboardMenu.isOpen) throw new Error("Aboard roster requested while its menu is closed");
+  return currentPausedView(aboardMenu.viewCache, gameState);
+}
+
 function aboardCharacterHomePortName(entry, {
   activeQuest,
   rescuedTravelers,
@@ -42166,7 +42293,7 @@ function aboardCharacterWithBiography(character) {
 }
 
 function drawAboardMenu() {
-  const roster = currentAboardRoster();
+  const roster = currentAboardMenuRoster();
   const panelW = Math.min(ABOARD_MENU_PANEL_W, SCREEN_W - 12);
   const panelH = Math.min(ABOARD_MENU_PANEL_H, SCREEN_H - 12);
   const panel = captainNotebookPagePanel({
@@ -42593,7 +42720,33 @@ function aboardRoleColor(role) {
   throw new Error(`Unknown aboard role color: ${role}`);
 }
 
+function buildAchievementsMenuView() {
+  if (!achievementProfile) return { available: false, entries: [], unlockedCount: 0 };
+  const voyageProgress = gameState && hasStartedVoyage
+    ? gameState.memory.achievements
+    : createVoyageAchievementProgress();
+  const snapshot = currentAchievementSnapshot();
+  return {
+    available: true,
+    unlockedCount: Object.keys(achievementProfile.unlocked).length,
+    entries: orderedAchievementCatalog(achievementProfile).map((entry) => {
+      const progress = achievementProgress(
+        achievementProfile,
+        voyageProgress,
+        snapshot,
+        entry.id
+      );
+      return {
+        entry,
+        progress,
+        presentation: achievementPresentation(entry, progress.unlocked)
+      };
+    })
+  };
+}
+
 function drawAchievementsMenu() {
+  const view = currentPausedView(achievementsMenu.viewCache, achievementsMenu);
   const panel = captainNotebookPagePanel({
     x: Math.floor((SCREEN_W - ACHIEVEMENTS_PANEL_W) / 2),
     y: Math.floor((SCREEN_H - ACHIEVEMENTS_PANEL_H) / 2),
@@ -42611,7 +42764,7 @@ function drawAchievementsMenu() {
     color: PIRATE_MENU_INK
   });
 
-  if (!achievementProfile) {
+  if (!view.available) {
     const message = wrapPixelText(
       "ACHIEVEMENT PROFILE COULD NOT BE READ",
       PIXEL_FONT_DIALOGUE_8,
@@ -42630,30 +42783,22 @@ function drawAchievementsMenu() {
     return;
   }
 
-  const unlockedCount = Object.keys(achievementProfile.unlocked).length;
   drawOptionsText(
-    `UNLOCKED ${unlockedCount}/${ACHIEVEMENT_CATALOG.length}`,
+    `UNLOCKED ${view.unlockedCount}/${ACHIEVEMENT_CATALOG.length}`,
     panel.x + 12,
     panel.y + 29,
     { color: PIRATE_MENU_INK_MUTED }
   );
-  const orderedAchievements = orderedAchievementCatalog(achievementProfile);
-  const pageCount = Math.max(1, Math.ceil(orderedAchievements.length / ACHIEVEMENTS_PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(view.entries.length / ACHIEVEMENTS_PAGE_SIZE));
   achievementsMenu.page = clamp(achievementsMenu.page, 0, pageCount - 1);
   const pageStart = achievementsMenu.page * ACHIEVEMENTS_PAGE_SIZE;
-  const entries = orderedAchievements.slice(pageStart, pageStart + ACHIEVEMENTS_PAGE_SIZE);
-  const voyageProgress = gameState && hasStartedVoyage
-    ? gameState.memory.achievements
-    : createVoyageAchievementProgress();
-  const snapshot = currentAchievementSnapshot();
+  const entries = view.entries.slice(pageStart, pageStart + ACHIEVEMENTS_PAGE_SIZE);
   const listX = panel.x + 10;
   const listY = panel.y + 43;
   const rowW = panel.w - 20;
   const rowH = 39;
 
-  entries.forEach((entry, index) => {
-    const progress = achievementProgress(achievementProfile, voyageProgress, snapshot, entry.id);
-    const presentation = achievementPresentation(entry, progress.unlocked);
+  entries.forEach(({ entry, progress, presentation }, index) => {
     const concealed = presentation.concealed;
     const row = { x: listX, y: listY + index * rowH, w: rowW, h: rowH - 2 };
     ctx.fillStyle = progress.unlocked ? "#dec99e" : PIRATE_MENU_PAPER_INSET;
@@ -44910,8 +45055,17 @@ function drawPirateHudButton(rect, highlighted = false) {
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 }
 
+function buildPastVoyagesMenuView() {
+  const records = voyageHistoryResult.records.slice();
+  return {
+    records,
+    summary: voyageHistorySummary(records)
+  };
+}
+
 function drawPastVoyagesMenu() {
-  const records = voyageHistoryResult.records;
+  const view = currentPausedView(pastVoyagesMenu.viewCache, pastVoyagesMenu);
+  const records = view.records;
   const pageCount = records.length + 1;
   pastVoyagesMenu.page = clamp(pastVoyagesMenu.page, 0, pageCount - 1);
   const panel = {
@@ -44942,7 +45096,7 @@ function drawPastVoyagesMenu() {
     pointInRect(optionsMenu.hoverPoint, pastVoyagesMenu.closeButtonRect)
   );
 
-  if (pastVoyagesMenu.page === 0) drawPastVoyagesSummaryPage(panel, records);
+  if (pastVoyagesMenu.page === 0) drawPastVoyagesSummaryPage(panel, records, view.summary);
   else drawPastVoyageRecordPage(panel, records[pastVoyagesMenu.page - 1], records.length - pastVoyagesMenu.page + 1);
 
   const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
@@ -44975,7 +45129,7 @@ function drawPastVoyagesMenu() {
   ctx.restore();
 }
 
-function drawPastVoyagesSummaryPage(panel, records) {
+function drawPastVoyagesSummaryPage(panel, records, summary) {
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("PAST VOYAGES", panel.x + panel.w / 2, panel.y + 10, {
     font: PIXEL_FONT_DIALOGUE_8,
@@ -44985,7 +45139,6 @@ function drawPastVoyagesSummaryPage(panel, records) {
     align: "center",
     color: PIRATE_MENU_CHART_LINE
   });
-  const summary = voyageHistorySummary(records);
   drawPastVoyageRows(panel, [
     ["VOYAGES", summary.voyages],
     ["TOTAL DAYS", summary.totalDays],
@@ -45072,7 +45225,7 @@ function drawCreditsMenu() {
     w: CREDITS_PANEL_W,
     h: CREDITS_PANEL_H
   };
-  const lines = creditsDisplayLines();
+  const lines = currentPausedView(creditsMenu.viewCache, creditsMenu);
   const pageCount = Math.max(1, Math.ceil(lines.length / CREDITS_LINES_PER_PAGE));
   creditsMenu.page = clamp(creditsMenu.page, 0, pageCount - 1);
   const start = creditsMenu.page * CREDITS_LINES_PER_PAGE;

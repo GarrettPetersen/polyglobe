@@ -8,6 +8,8 @@ import {
   GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
+  PAUSED_ABOARD_BENCHMARK_ID,
+  PAUSED_DIALOGUE_BENCHMARK_ID,
   POLAR_FOG_CAPTURE_SCENARIO_ID,
   POLITICS_MENU_CAPTURE_SCENARIO_ID,
   assertChartIntegrityTelemetryBenchmarkBudget,
@@ -134,6 +136,18 @@ test("politics-menu benchmark forces the paused screen to repaint", () => {
   });
   assert.equal(performanceBenchmarkRequiresChartIntegrityTelemetry("politics-menu"), false);
   assert.equal(performanceBenchmarkRequiresChartIntegrityTelemetry("busy-world"), true);
+});
+
+test("paused menu benchmarks force otherwise idle overlays to repaint", () => {
+  for (const [id, initialScreen] of [
+    [PAUSED_ABOARD_BENCHMARK_ID, "aboard"],
+    [PAUSED_DIALOGUE_BENCHMARK_ID, "port-dialogue"]
+  ]) {
+    const config = performanceBenchmarkFromSearch(`?benchmark=${id}`);
+    assert.equal(config.initialScreen, initialScreen);
+    assert.equal(config.forceRenderEveryFrame, true);
+    assert.equal(config.requiresChartIntegrityTelemetry, false);
+  }
 });
 
 test("benchmark report includes frame percentiles and skipped frame estimates", () => {

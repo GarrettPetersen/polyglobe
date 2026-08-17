@@ -34,6 +34,8 @@
     "benchmark:gibraltar": "node tools/run-performance-benchmark.mjs --benchmark gibraltar-hotspot",
     "benchmark:naples": "node tools/run-performance-benchmark.mjs --benchmark naples-approach",
     "benchmark:politics": "node tools/run-performance-benchmark.mjs --benchmark politics-menu",
+    "benchmark:paused:aboard": "node tools/run-performance-benchmark.mjs --benchmark paused-aboard",
+    "benchmark:paused:dialogue": "node tools/run-performance-benchmark.mjs --benchmark paused-dialogue",
     "benchmark:chart": "PIXEL_GLOBE_PRINT_CHART_BENCHMARK=1 node --test --test-name-pattern='moving Lisbon|Mediterranean crossing|Cape-to-Portugal|Scandinavia traversal|Argentina coastal|Smolensk' src/localLayoutAdmission.test.js",
     "diagnostic:chart-recovery": "node tools/run-chart-recovery-diagnostic.mjs",
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",

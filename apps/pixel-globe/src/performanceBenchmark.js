@@ -15,6 +15,8 @@ export const NAPLES_APPROACH_BENCHMARK_ID = "naples-approach";
 export const NAPLES_APPROACH_CAPTURE_SCENARIO_ID = "benchmark-naples-approach";
 export const POLITICS_MENU_BENCHMARK_ID = "politics-menu";
 export const POLITICS_MENU_CAPTURE_SCENARIO_ID = BUSY_WORLD_CAPTURE_SCENARIO_ID;
+export const PAUSED_ABOARD_BENCHMARK_ID = "paused-aboard";
+export const PAUSED_DIALOGUE_BENCHMARK_ID = "paused-dialogue";
 
 const BENCHMARKS = Object.freeze({
   [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
@@ -49,6 +51,20 @@ const BENCHMARKS = Object.freeze({
     captureScenarioId: POLITICS_MENU_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2,
     initialScreen: "politics",
+    forceRenderEveryFrame: true,
+    requiresChartIntegrityTelemetry: false
+  }),
+  [PAUSED_ABOARD_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2,
+    initialScreen: "aboard",
+    forceRenderEveryFrame: true,
+    requiresChartIntegrityTelemetry: false
+  }),
+  [PAUSED_DIALOGUE_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2,
+    initialScreen: "port-dialogue",
     forceRenderEveryFrame: true,
     requiresChartIntegrityTelemetry: false
   })
