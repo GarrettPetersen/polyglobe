@@ -1916,6 +1916,10 @@ import {
   partitionVisualStateReprojections,
   resolveVisualStateReprojection
 } from "./visualStateReprojection.js";
+import {
+  advanceIncrementalRowJob,
+  createIncrementalRowJob
+} from "./incrementalRowJob.js";
 import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset, isTransientStaticAssetError } from "./staticAssetFetch.js";
 import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
@@ -2707,6 +2711,7 @@ const MINIMAP_W = 80;
 const MINIMAP_H = 26;
 const MINIMAP_MAX_LAT_DEG = 72;
 const CAPTAIN_CHART_SAMPLE_OFFSETS = Object.freeze([0.5]);
+const CAPTAIN_CHART_RASTER_FRAME_BUDGET_MS = 4;
 let MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 let MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
 const MINIMAP_UNKNOWN_COLOR = [74, 66, 55];
@@ -3651,6 +3656,10 @@ let chartWorstVisibleTerrainTear = Object.freeze({
 let chartDiagnosticTerrainTear = chartWorstVisibleTerrainTear;
 let chartDiagnosticViewportCoverage = null;
 let chartReframeCoverWasActive = false;
+let chartReframePendingBehindCover = false;
+let chartWorldRenderPendingBehindCover = false;
+let chartWorldFramePreparedBehindCover = false;
+let chartWorldRenderPreparationBehindCover = null;
 let chartDriftMeasuredAtMs = -Infinity;
 const CHART_DRIFT_MEASURE_INTERVAL_MS = 500;
 let chartViewportCoverageRepairPending = false;
@@ -25051,18 +25060,38 @@ function currentFogCoveredChartTileCount() {
 function prepareNorthUpWorldBehindCover() {
   const coverIsActive = opaqueWorldCoverIsActive();
   let reframed = false;
-  if (coverIsActive && !chartReframeCoverWasActive && ship && camera && chart && localLayout) {
-    if (CHART_RECOVERY_TEST_ENABLED && !chartRecoveryDiagnosticDialogueEnabled) {
-      chartReframeCoverWasActive = coverIsActive;
-      return false;
+  const coverOpened = coverIsActive && !chartReframeCoverWasActive;
+  if (!coverIsActive) {
+    chartReframePendingBehindCover = false;
+    chartWorldRenderPendingBehindCover = false;
+    chartWorldRenderPreparationBehindCover = null;
+  } else if (coverOpened) {
+    chartReframePendingBehindCover = false;
+    chartWorldRenderPendingBehindCover = false;
+    chartWorldFramePreparedBehindCover = worldFramePresented;
+    chartWorldRenderPreparationBehindCover = null;
+    if (
+      ship && camera && chart && localLayout &&
+      !(CHART_RECOVERY_TEST_ENABLED && !chartRecoveryDiagnosticDialogueEnabled) &&
+      chartShouldReframeOnCoverOpen({
+        coverIsActive,
+        coverWasActive: chartReframeCoverWasActive
+      })
+    ) {
+      // Paint the newly opened screen before doing the hidden world rebuild.
+      // This keeps menu input responsive even when a large chart needs a full
+      // north-up reset.
+      chartReframePendingBehindCover = true;
+      chartWorldFramePreparedBehindCover = false;
+      dirty = true;
     }
-    if (chartShouldReframeOnCoverOpen({
-      coverIsActive,
-      coverWasActive: chartReframeCoverWasActive
-    })) {
-      reframeWorldNorthUp("opaque screen opened");
-      reframed = true;
-    }
+  } else if (chartReframePendingBehindCover) {
+    chartReframePendingBehindCover = false;
+    reframed = reframeWorldNorthUp("opaque screen opened");
+    chartWorldRenderPendingBehindCover = reframed;
+    chartWorldFramePreparedBehindCover = !reframed && worldFramePresented;
+    chartWorldRenderPreparationBehindCover = null;
+    dirty = true;
   }
   chartReframeCoverWasActive = coverIsActive;
   return reframed;
@@ -35929,6 +35958,79 @@ function normalizeLonDeg(lonDeg) {
   return ((((lonDeg + 180) % 360) + 360) % 360) - 180;
 }
 
+function advanceCoveredWorldRenderPreparation(nowMs) {
+  if (!chartWorldRenderPendingBehindCover) return true;
+  if (!opaqueWorldCoverIsActive()) {
+    chartWorldRenderPreparationBehindCover = null;
+    return true;
+  }
+  if (!chartWorldRenderPreparationBehindCover) {
+    const offset = chartOffsetPixels(chart);
+    chartWorldRenderPreparationBehindCover = {
+      chart,
+      offset,
+      renderWindow: renderCallWindow(chart, offset),
+      connectors: null,
+      connectorBuild: null,
+      stage: 0
+    };
+  }
+  const preparation = chartWorldRenderPreparationBehindCover;
+  if (preparation.chart !== chart) {
+    throw new Error("Covered world preparation outlived its north-up chart");
+  }
+  const { renderWindow } = preparation;
+  switch (preparation.stage) {
+    case 0: {
+      if (!preparation.connectorBuild) {
+        preparation.connectorBuild = createTerrainConnectorLayerBuild(chart.faceCalls, chart);
+      }
+      const connectorsComplete = measurePerformanceBenchmarkStage(
+        "render.coverPreparation.connectors",
+        () => advanceTerrainConnectorLayerBuild(preparation.connectorBuild, 5)
+      );
+      if (!connectorsComplete) {
+        dirty = true;
+        return false;
+      }
+      preparation.connectors = preparation.connectorBuild.layer;
+      break;
+    }
+    case 1:
+      measurePerformanceBenchmarkStage(
+        "render.coverPreparation.surface",
+        () => surfaceDetailLayer(chart, preparation.offset)
+      );
+      break;
+    case 2:
+      measurePerformanceBenchmarkStage(
+        "render.coverPreparation.waterForeground",
+        () => waterEffectForegroundLayer(chart, preparation.offset, preparation.connectors)
+      );
+      break;
+    case 3:
+      measurePerformanceBenchmarkStage(
+        "render.coverPreparation.roads",
+        () => cachedLandRoadLayer(chart, renderWindow.tileIds)
+      );
+      break;
+    case 4:
+      measurePerformanceBenchmarkStage(
+        "render.coverPreparation.fish",
+        () => fishSchoolDrawCalls(chart, nowMs, renderWindow.tileCalls)
+      );
+      break;
+    default:
+      throw new Error(`Unknown covered world preparation stage: ${preparation.stage}`);
+  }
+  preparation.stage += 1;
+  if (preparation.stage < 5) {
+    dirty = true;
+    return false;
+  }
+  return true;
+}
+
 function smoothstep(edge0, edge1, x) {
   if (edge0 === edge1) return x < edge0 ? 0 : 1;
   return easeInOut((x - edge0) / (edge1 - edge0));
@@ -35952,11 +36054,35 @@ function render(nowMs) {
   }
   ctx = screenCtx;
   const reframedBehindCover = prepareNorthUpWorldBehindCover();
+  const coverIsActive = opaqueWorldCoverIsActive();
   if (
     worldFramePresented &&
-    opaqueWorldCoverIsActive() &&
-    !reframedBehindCover &&
+    !coverIsActive &&
+    chartWorldFramePreparedBehindCover &&
     !gameOverReason
+  ) {
+    chartWorldFramePreparedBehindCover = false;
+    dirty = true;
+    drawChartRepairOcclusion(nowMs);
+    drawWorldInterface(nowMs);
+    return;
+  }
+  if (
+    worldFramePresented &&
+    coverIsActive &&
+    (!chartWorldRenderPendingBehindCover || reframedBehindCover) &&
+    !gameOverReason
+  ) {
+    drawChartRepairOcclusion(nowMs);
+    drawWorldInterface(nowMs);
+    return;
+  }
+  if (
+    worldFramePresented &&
+    coverIsActive &&
+    chartWorldRenderPendingBehindCover &&
+    !gameOverReason &&
+    !advanceCoveredWorldRenderPreparation(nowMs)
   ) {
     drawChartRepairOcclusion(nowMs);
     drawWorldInterface(nowMs);
@@ -36050,6 +36176,11 @@ function render(nowMs) {
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
   });
+  if (coverIsActive && chartWorldRenderPendingBehindCover) {
+    chartWorldRenderPendingBehindCover = false;
+    chartWorldFramePreparedBehindCover = true;
+    chartWorldRenderPreparationBehindCover = null;
+  }
   drawWorldInterface(nowMs);
 }
 
@@ -38482,7 +38613,8 @@ function buildMinimapRaster(width, height, {
     sampleOffsets,
     sourceRevision: -1,
     renderedViewport: null,
-    renderedViewportKey: ""
+    renderedViewportKey: "",
+    pendingRender: null
   };
 }
 
@@ -38663,6 +38795,17 @@ function ensureMinimapRaster(raster, viewport) {
 }
 
 function renderMinimapRaster(raster, viewport) {
+  beginMinimapRasterRender(raster, viewport, Math.floor(raster.height / 2));
+  while (raster.pendingRender) {
+    const row = raster.pendingRender.rowJob.rows[raster.pendingRender.rowJob.nextIndex++];
+    renderMinimapRasterRow(raster, raster.pendingRender.viewport, row);
+    if (raster.pendingRender.rowJob.nextIndex >= raster.pendingRender.rowJob.rows.length) {
+      completeMinimapRasterRender(raster);
+    }
+  }
+}
+
+function beginMinimapRasterRender(raster, viewport, focusRow) {
   raster.revealedPixels.fill(0);
   raster.pixelLandWeights.fill(0);
   raster.pixelTileCounts.fill(0);
@@ -38672,50 +38815,71 @@ function renderMinimapRaster(raster, viewport) {
   raster.renderedViewportKey = minimapViewportRenderKey(viewport);
   if (!viewport) {
     raster.sourceRevision = minimap.rasterRevision;
-    return;
+    raster.pendingRender = null;
+    return false;
   }
+  raster.pendingRender = {
+    sourceRevision: minimap.rasterRevision,
+    viewport,
+    viewportKey: raster.renderedViewportKey,
+    rowJob: createIncrementalRowJob(raster.height, focusRow)
+  };
+  return true;
+}
 
-  for (let y = 0; y < raster.height; y++) {
-    for (let x = 0; x < raster.width; x++) {
-      const pixel = x + y * raster.width;
-      for (const sampleY of raster.sampleOffsets) {
-        for (const sampleX of raster.sampleOffsets) {
-          const projected = minimapViewportSample({
-            viewport,
-            pixelX: x,
-            pixelY: y,
-            sampleX,
-            sampleY,
-            worldWidth: MINIMAP_W,
-            pixelWidth: raster.width,
-            pixelHeight: raster.height
-          });
-          const latitudeDeg = minimapUnprojectLatitude(projected.y, MINIMAP_MAX_LAT_DEG, MINIMAP_H);
-          const longitudeDeg = minimapUnprojectLongitude(projected.x, MINIMAP_W);
-          const tileId = findNearestTileId(graph, directionIndex, latLonToDirection(latitudeDeg, longitudeDeg));
-          raster.pixelLandWeights[pixel] += minimapLandWeight(
-            earthById[tileId],
-            (riverMasks?.[tileId] || 0) !== 0
-          );
-          raster.pixelTileCounts[pixel] += 1;
-          if (minimap.seenTiles[tileId] !== 0) raster.revealedPixels[pixel] = 1;
-          if (raster.sampledPixelsByTile) {
-            let sampledPixels = raster.sampledPixelsByTile.get(tileId);
-            if (!sampledPixels) {
-              sampledPixels = [];
-              raster.sampledPixelsByTile.set(tileId, sampledPixels);
-            }
-            if (sampledPixels[sampledPixels.length - 1] !== pixel) sampledPixels.push(pixel);
+function renderMinimapRasterRow(raster, viewport, y) {
+  if (!Number.isInteger(y) || y < 0 || y >= raster.height) {
+    throw new Error(`Invalid minimap raster row: ${y}`);
+  }
+  for (let x = 0; x < raster.width; x++) {
+    const pixel = x + y * raster.width;
+    for (const sampleY of raster.sampleOffsets) {
+      for (const sampleX of raster.sampleOffsets) {
+        const projected = minimapViewportSample({
+          viewport,
+          pixelX: x,
+          pixelY: y,
+          sampleX,
+          sampleY,
+          worldWidth: MINIMAP_W,
+          pixelWidth: raster.width,
+          pixelHeight: raster.height
+        });
+        const latitudeDeg = minimapUnprojectLatitude(projected.y, MINIMAP_MAX_LAT_DEG, MINIMAP_H);
+        const longitudeDeg = minimapUnprojectLongitude(projected.x, MINIMAP_W);
+        const tileId = findNearestTileId(graph, directionIndex, latLonToDirection(latitudeDeg, longitudeDeg));
+        raster.pixelLandWeights[pixel] += minimapLandWeight(
+          earthById[tileId],
+          (riverMasks?.[tileId] || 0) !== 0
+        );
+        raster.pixelTileCounts[pixel] += 1;
+        if (minimap.seenTiles[tileId] !== 0) raster.revealedPixels[pixel] = 1;
+        if (raster.sampledPixelsByTile) {
+          let sampledPixels = raster.sampledPixelsByTile.get(tileId);
+          if (!sampledPixels) {
+            sampledPixels = [];
+            raster.sampledPixelsByTile.set(tileId, sampledPixels);
           }
+          if (sampledPixels[sampledPixels.length - 1] !== pixel) sampledPixels.push(pixel);
         }
       }
-      if (raster.pixelTileCounts[pixel] !== raster.sampleOffsets.length ** 2) {
-        throw new Error(`Incomplete minimap sampling at pixel ${pixel}`);
-      }
-      paintMinimapPixel(raster, pixel);
     }
+    if (raster.pixelTileCounts[pixel] !== raster.sampleOffsets.length ** 2) {
+      throw new Error(`Incomplete minimap sampling at pixel ${pixel}`);
+    }
+    paintMinimapPixel(raster, pixel);
   }
-  raster.sourceRevision = minimap.rasterRevision;
+}
+
+function completeMinimapRasterRender(raster) {
+  const pending = raster.pendingRender;
+  if (!pending || pending.rowJob.nextIndex < pending.rowJob.rows.length) {
+    throw new Error("Cannot complete an unfinished minimap raster");
+  }
+  raster.sourceRevision = pending.sourceRevision;
+  raster.renderedViewport = pending.viewport;
+  raster.renderedViewportKey = pending.viewportKey;
+  raster.pendingRender = null;
 }
 
 function minimapViewportRenderKey(viewport) {
@@ -39881,7 +40045,40 @@ function nativeCaptainChartMinimap(width, height, viewport) {
       sampleOffsets: CAPTAIN_CHART_SAMPLE_OFFSETS
     });
   }
-  ensureMinimapRaster(captainChartMinimap, viewport);
+  const viewportKey = minimapViewportRenderKey(viewport);
+  const pending = captainChartMinimap.pendingRender;
+  const renderIsCurrent = captainChartMinimap.sourceRevision === minimap.rasterRevision &&
+    captainChartMinimap.renderedViewportKey === viewportKey;
+  const pendingIsCurrent = pending?.sourceRevision === minimap.rasterRevision &&
+    pending.viewportKey === viewportKey;
+  if (!renderIsCurrent && !pendingIsCurrent) {
+    captainChartMinimap.renderedViewport = viewport;
+    const focus = minimapPixelForTile(centerTileId, captainChartMinimap);
+    beginMinimapRasterRender(
+      captainChartMinimap,
+      viewport,
+      focus?.y ?? Math.floor(height / 2)
+    );
+    if (
+      minimap.sourceRevision === minimap.rasterRevision &&
+      minimap.renderedViewportKey === viewportKey
+    ) {
+      captainChartMinimap.ctx.imageSmoothingEnabled = false;
+      captainChartMinimap.ctx.drawImage(minimap.canvas, 0, 0, width, height);
+    }
+  }
+  if (captainChartMinimap.pendingRender) {
+    const result = advanceIncrementalRowJob(captainChartMinimap.pendingRender.rowJob, {
+      budgetMs: CAPTAIN_CHART_RASTER_FRAME_BUDGET_MS,
+      renderRow: (row) => renderMinimapRasterRow(
+        captainChartMinimap,
+        captainChartMinimap.pendingRender.viewport,
+        row
+      )
+    });
+    if (result.complete) completeMinimapRasterRender(captainChartMinimap);
+    else dirty = true;
+  }
   return captainChartMinimap;
 }
 
@@ -46197,6 +46394,12 @@ function drawTerrainConnectorLayer(layer, viewportBounds = null) {
 }
 
 function terrainConnectorLayer(faceCalls, activeChart) {
+  const build = createTerrainConnectorLayerBuild(faceCalls, activeChart);
+  while (!build.complete) advanceTerrainConnectorLayerBuild(build, Infinity);
+  return build.layer;
+}
+
+function createTerrainConnectorLayerBuild(faceCalls, activeChart) {
   if (!Array.isArray(faceCalls)) throw new Error("Terrain connector layer requires face calls");
   if (!activeChart || typeof activeChart !== "object") throw new Error("Terrain connector layer requires a chart");
   const dayKey = Math.floor(weatherClockMinutes / (24 * 60));
@@ -46210,7 +46413,9 @@ function terrainConnectorLayer(faceCalls, activeChart) {
     terrainConnectorEntryCache.set(cacheKey, entryCache);
   }
   if (cached?.revision === revision) {
-    if (!currentWorldChart && cached.faceCalls === faceCalls) return cached;
+    if (!currentWorldChart && cached.faceCalls === faceCalls) {
+      return { complete: true, layer: cached };
+    }
     if (currentWorldChart) {
       const offset = chartOffsetPixels(activeChart);
       const viewport = {
@@ -46224,11 +46429,10 @@ function terrainConnectorLayer(faceCalls, activeChart) {
         y: cached.y,
         width: cached.canvas.width,
         height: cached.canvas.height
-      }, viewport, TILE_ART_SIZE)) return cached;
+      }, viewport, TILE_ART_SIZE)) return { complete: true, layer: cached };
     }
   }
 
-  const entries = [];
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -46252,80 +46456,160 @@ function terrainConnectorLayer(faceCalls, activeChart) {
     maxX = bounds.x + bounds.width - 1;
     maxY = bounds.y + bounds.height - 1;
   }
-  for (const call of faceCalls) {
-    if (currentWorldChart && (
-      Math.max(call.ax, call.bx) < minX - TILE_ART_SIZE ||
-      Math.min(call.ax, call.bx) > maxX + TILE_ART_SIZE ||
-      Math.max(call.ay, call.by) < minY - TILE_ART_SIZE ||
-      Math.min(call.ay, call.by) > maxY + TILE_ART_SIZE
-    )) continue;
-    const entryKey = `${Math.min(call.a, call.b)}:${Math.max(call.a, call.b)}`;
-    const entryRevision = terrainConnectorEntryRevision(call, activeChart, revision);
-    const previous = entryCache.get(entryKey);
-    let entry;
-    if (previous?.revision === entryRevision) {
-      entry = { ...previous.entry, call };
-    } else {
-      const geometry = terrainConnectorGeometry(call, activeChart);
-      if (!geometry) continue;
-      const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
-      entry = {
-        call,
-        geometry,
-        color: faceColorFor(call),
-        spans: terrainConnectorRasterSpans(geometry.polygon, seed)
-      };
-      entryCache.set(entryKey, { revision: entryRevision, entry });
-    }
-    const { spans } = entry;
-    if (!currentWorldChart) {
-      for (const span of spans) {
-        minX = Math.min(minX, span.x);
-        minY = Math.min(minY, span.y);
-        maxX = Math.max(maxX, span.x + span.width - 1);
-        maxY = Math.max(maxY, span.y);
-      }
-    }
-    entries.push(entry);
+  return {
+    complete: false,
+    layer: null,
+    phase: "entries",
+    faceCalls,
+    activeChart,
+    dayKey,
+    revision,
+    cacheKey,
+    currentWorldChart,
+    entryCache,
+    entries: [],
+    index: 0,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    canvas: null,
+    layerCtx: null
+  };
+}
+
+function advanceTerrainConnectorLayerBuild(build, budgetMs) {
+  if (!build || typeof build !== "object" || typeof build.complete !== "boolean") {
+    throw new Error("Terrain connector build is malformed");
   }
-  if (entries.length === 0) throw new Error("Terrain connector layer has no drawable faces");
-  if (!currentWorldChart) {
+  if ((!Number.isFinite(budgetMs) && budgetMs !== Infinity) || budgetMs <= 0) {
+    throw new Error(`Invalid terrain connector build budget: ${budgetMs}`);
+  }
+  if (build.complete) return true;
+  const startedAt = performance.now();
+  let workUnits = 0;
+  const hasBudget = () => (
+    workUnits === 0 || budgetMs === Infinity || performance.now() - startedAt < budgetMs
+  );
+  while (!build.complete && hasBudget()) {
+    if (build.phase === "entries") {
+      if (build.index >= build.faceCalls.length) {
+        prepareTerrainConnectorLayerCanvas(build);
+        continue;
+      }
+      appendTerrainConnectorLayerEntry(build, build.faceCalls[build.index++]);
+      workUnits += 1;
+      continue;
+    }
+    if (build.phase === "spans") {
+      if (build.index >= build.entries.length) {
+        build.phase = "details";
+        build.index = 0;
+        build.layerCtx.save();
+        build.layerCtx.translate(-build.minX, -build.minY);
+        continue;
+      }
+      const entry = build.entries[build.index++];
+      build.layerCtx.fillStyle = entry.color;
+      for (const span of entry.spans) {
+        build.layerCtx.fillRect(
+          span.x - build.minX,
+          span.y - build.minY,
+          span.width,
+          1
+        );
+      }
+      workUnits += 1;
+      continue;
+    }
+    if (build.phase === "details") {
+      if (build.index >= build.entries.length) {
+        completeTerrainConnectorLayerBuild(build);
+        continue;
+      }
+      drawTerrainConnectorStaticDetails(build.layerCtx, build.entries[build.index++]);
+      workUnits += 1;
+      continue;
+    }
+    throw new Error(`Unknown terrain connector build phase: ${build.phase}`);
+  }
+  return build.complete;
+}
+
+function appendTerrainConnectorLayerEntry(build, call) {
+  if (build.currentWorldChart && (
+    Math.max(call.ax, call.bx) < build.minX - TILE_ART_SIZE ||
+    Math.min(call.ax, call.bx) > build.maxX + TILE_ART_SIZE ||
+    Math.max(call.ay, call.by) < build.minY - TILE_ART_SIZE ||
+    Math.min(call.ay, call.by) > build.maxY + TILE_ART_SIZE
+  )) return;
+  const entryKey = `${Math.min(call.a, call.b)}:${Math.max(call.a, call.b)}`;
+  const entryRevision = terrainConnectorEntryRevision(call, build.activeChart, build.revision);
+  const previous = build.entryCache.get(entryKey);
+  let entry;
+  if (previous?.revision === entryRevision) {
+    entry = { ...previous.entry, call };
+  } else {
+    const geometry = terrainConnectorGeometry(call, build.activeChart);
+    if (!geometry) return;
+    const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
+    entry = {
+      call,
+      geometry,
+      color: faceColorFor(call),
+      spans: terrainConnectorRasterSpans(geometry.polygon, seed)
+    };
+    build.entryCache.set(entryKey, { revision: entryRevision, entry });
+  }
+  if (!build.currentWorldChart) {
+    for (const span of entry.spans) {
+      build.minX = Math.min(build.minX, span.x);
+      build.minY = Math.min(build.minY, span.y);
+      build.maxX = Math.max(build.maxX, span.x + span.width - 1);
+      build.maxY = Math.max(build.maxY, span.y);
+    }
+  }
+  build.entries.push(entry);
+}
+
+function prepareTerrainConnectorLayerCanvas(build) {
+  if (build.entries.length === 0) throw new Error("Terrain connector layer has no drawable faces");
+  if (!build.currentWorldChart) {
     const detailPadding = 3;
-    minX -= detailPadding;
-    minY -= detailPadding;
-    maxX += detailPadding;
-    maxY += detailPadding;
+    build.minX -= detailPadding;
+    build.minY -= detailPadding;
+    build.maxX += detailPadding;
+    build.maxY += detailPadding;
   }
 
   const canvas = document.createElement("canvas");
-  canvas.width = maxX - minX + 1;
-  canvas.height = maxY - minY + 1;
+  canvas.width = build.maxX - build.minX + 1;
+  canvas.height = build.maxY - build.minY + 1;
   const layerCtx = canvas.getContext("2d");
   if (!layerCtx) throw new Error("Could not create terrain connector layer context");
   layerCtx.imageSmoothingEnabled = false;
-  for (const entry of entries) {
-    layerCtx.fillStyle = entry.color;
-    for (const span of entry.spans) {
-      layerCtx.fillRect(span.x - minX, span.y - minY, span.width, 1);
-    }
-  }
-  layerCtx.save();
-  layerCtx.translate(-minX, -minY);
-  for (const entry of entries) drawTerrainConnectorStaticDetails(layerCtx, entry);
-  layerCtx.restore();
+  build.canvas = canvas;
+  build.layerCtx = layerCtx;
+  build.phase = "spans";
+  build.index = 0;
+}
 
+function completeTerrainConnectorLayerBuild(build) {
+  build.layerCtx.restore();
   const layer = {
-    dayKey,
-    revision,
-    faceCalls,
-    entries,
-    entryByCall: new Map(entries.map((entry) => [entry.call, entry])),
-    canvas,
-    x: minX,
-    y: minY
+    dayKey: build.dayKey,
+    revision: build.revision,
+    faceCalls: build.faceCalls,
+    entries: build.entries,
+    entryByCall: new Map(build.entries.map((entry) => [entry.call, entry])),
+    canvas: build.canvas,
+    x: build.minX,
+    y: build.minY
   };
-  terrainConnectorLayerCache.set(cacheKey, layer);
-  return layer;
+  terrainConnectorLayerCache.set(build.cacheKey, layer);
+  build.layer = layer;
+  build.complete = true;
+  build.phase = "complete";
 }
 
 function terrainConnectorEntryRevision(call, activeChart, weatherRevision) {
