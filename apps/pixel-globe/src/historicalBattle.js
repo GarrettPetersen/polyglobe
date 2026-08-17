@@ -52,6 +52,7 @@ import {
 } from "./shipPropulsion.js";
 import { shipHullResistsDamage, shipStatsForSlug } from "./shipStats.js";
 import { oarPivotTurnRate, shipTurnRate } from "./shipTurning.js";
+import { chooseNpcObstacleAvoidanceDirection } from "./npcVisualNavigation.js";
 import {
   historicalBattleScenarioById,
   historicalBattleSideById,
@@ -84,6 +85,11 @@ const FRIENDLY_AVOIDANCE_RADIUS_PX = 48;
 const TARGET_PRESSURE_DISTANCE_PX = 26;
 const HISTORICAL_WAKE_SIMULATION_RADIUS_PX = 520;
 const HISTORICAL_WAKE_PARTICLE_LIMIT = 72;
+const HISTORICAL_NAVIGATION_DECISION_TICKS = 4;
+const HISTORICAL_NAVIGATION_ENTER_CLEARANCE_PX = 104;
+const HISTORICAL_NAVIGATION_REJOIN_CLEARANCE_PX = 148;
+const HISTORICAL_NAVIGATION_REJOIN_DECISIONS = 3;
+const HISTORICAL_NAVIGATION_PROBE_DISTANCES_PX = Object.freeze([16, 32, 56, 80, 104, 148, 204]);
 const CANNON_RANGE_PX = 74;
 const CANNON_SPEED_PX = 88;
 const CANNON_ARC_HEIGHT_PX = 13;
@@ -605,6 +611,11 @@ function expandSquadronShips(
         collisionCooldownSeconds: 0,
         rowing: false,
         rowingMode: SHIP_ROWING_MODE_IDLE,
+        navigationCourseRad: normalizeAngle(sideValue.headingRad),
+        navigationDecisionTick: squadronState.globalIndex % HISTORICAL_NAVIGATION_DECISION_TICKS,
+        shoreAvoidanceActive: false,
+        shoreAvoidanceSide: 0,
+        shoreAvoidanceClearDecisions: 0,
         wake: [],
         lastWakePoint: null,
         wakeSeedCounter: 0,
@@ -741,6 +752,14 @@ function updateShipMotion(state, command) {
     }
     if (speedCapPx !== 0) {
       desiredHeading = avoidFriendlyCollisionHeading(state, index, desiredHeading);
+      if (!ship.playerControlled && isSquadronLeader(state, index)) {
+        desiredHeading = updateHistoricalBattleNavigationCourse(
+          state.map,
+          ship,
+          state.tick,
+          desiredHeading
+        );
+      }
     }
     const wakeEnabled = ship.playerControlled || (
       player?.active &&
@@ -907,12 +926,132 @@ function moveShipWithStandardPropulsion(
     return;
   }
   ship.speedPx *= 0.28;
-  ship.headingRad = turnToward(
-    ship.headingRad,
-    Math.atan2(state.map.height / 2 - ship.y, state.map.width / 2 - ship.x),
-    turnRate * dt * 1.5
-  );
   updateHistoricalShipWake(ship, dt, wakeEnabled);
+}
+
+export function updateHistoricalBattleNavigationCourse(map, ship, tick, desiredHeadingRad) {
+  if (!Number.isInteger(tick) || tick < 0) {
+    throw new Error(`Invalid historical battle navigation tick: ${tick}`);
+  }
+  if ((tick + ship.navigationDecisionTick) % HISTORICAL_NAVIGATION_DECISION_TICKS !== 0) {
+    return ship.navigationCourseRad;
+  }
+  const clearancePx = ship.role === "galleass" ? 10 : 7;
+  const desiredDirection = {
+    x: Math.cos(desiredHeadingRad),
+    y: Math.sin(desiredHeadingRad)
+  };
+  const directClearDistancePx = historicalBattleDirectionClearDistance(
+    map,
+    ship.x,
+    ship.y,
+    desiredDirection,
+    clearancePx
+  );
+  if (ship.shoreAvoidanceActive) {
+    ship.shoreAvoidanceClearDecisions =
+      directClearDistancePx >= HISTORICAL_NAVIGATION_REJOIN_CLEARANCE_PX
+        ? ship.shoreAvoidanceClearDecisions + 1
+        : 0;
+    if (ship.shoreAvoidanceClearDecisions >= HISTORICAL_NAVIGATION_REJOIN_DECISIONS) {
+      ship.shoreAvoidanceActive = false;
+      ship.shoreAvoidanceSide = 0;
+      ship.shoreAvoidanceClearDecisions = 0;
+    }
+  } else if (directClearDistancePx < HISTORICAL_NAVIGATION_ENTER_CLEARANCE_PX) {
+    ship.shoreAvoidanceActive = true;
+    ship.shoreAvoidanceClearDecisions = 0;
+  }
+  if (!ship.shoreAvoidanceActive) {
+    ship.navigationCourseRad = desiredHeadingRad;
+    return ship.navigationCourseRad;
+  }
+  const course = historicalBattleNavigableCourse(map, {
+    x: ship.x,
+    y: ship.y,
+    desiredHeadingRad,
+    currentHeadingRad: ship.headingRad,
+    clearancePx,
+    preferredSide: ship.shoreAvoidanceSide || (ship.squadronIndex % 2 === 0 ? -1 : 1),
+    forceAvoidance: true
+  });
+  if (course.side !== 0) ship.shoreAvoidanceSide = course.side;
+  ship.navigationCourseRad = course.headingRad;
+  return ship.navigationCourseRad;
+}
+
+export function historicalBattleNavigableCourse(map, {
+  x,
+  y,
+  desiredHeadingRad,
+  currentHeadingRad,
+  clearancePx,
+  preferredSide = 0,
+  forceAvoidance = false
+}) {
+  if (![x, y, desiredHeadingRad, currentHeadingRad, clearancePx, preferredSide].every(Number.isFinite) ||
+      clearancePx < 0 || Math.abs(preferredSide) > 1) {
+    throw new Error("Historical battle navigation requires finite position, heading, and clearance");
+  }
+  const desiredDirection = {
+    x: Math.cos(desiredHeadingRad),
+    y: Math.sin(desiredHeadingRad)
+  };
+  const directClearDistancePx = historicalBattleDirectionClearDistance(
+    map,
+    x,
+    y,
+    desiredDirection,
+    clearancePx
+  );
+  if (!forceAvoidance && directClearDistancePx >= HISTORICAL_NAVIGATION_ENTER_CLEARANCE_PX) {
+    return Object.freeze({
+      headingRad: normalizeAngle(desiredHeadingRad),
+      side: 0,
+      clearDistancePx: directClearDistancePx
+    });
+  }
+  const avoidance = chooseNpcObstacleAvoidanceDirection({
+    desiredDirection,
+    currentDirection: {
+      x: Math.cos(currentHeadingRad),
+      y: Math.sin(currentHeadingRad)
+    },
+    clearDistanceFor: (direction) => historicalBattleDirectionClearDistance(
+      map,
+      x,
+      y,
+      direction,
+      clearancePx
+    ),
+    preferredSide
+  });
+  if (!avoidance) {
+    return Object.freeze({
+      headingRad: normalizeAngle(currentHeadingRad),
+      side: Math.sign(preferredSide),
+      clearDistancePx: 0
+    });
+  }
+  return Object.freeze({
+    headingRad: normalizeAngle(Math.atan2(avoidance.direction.y, avoidance.direction.x)),
+    side: avoidance.side,
+    clearDistancePx: avoidance.clearDistance
+  });
+}
+
+function historicalBattleDirectionClearDistance(map, x, y, direction, clearancePx) {
+  let clearDistancePx = 0;
+  for (const distancePx of HISTORICAL_NAVIGATION_PROBE_DISTANCES_PX) {
+    if (!historicalBattleMapWaterAt(
+      map,
+      x + direction.x * distancePx,
+      y + direction.y * distancePx,
+      clearancePx
+    )) break;
+    clearDistancePx = distancePx;
+  }
+  return clearDistancePx;
 }
 
 function updateHistoricalShipWake(ship, dt, wakeEnabled) {

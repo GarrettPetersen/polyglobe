@@ -163,6 +163,22 @@ export function historicalBattleMapPolygons(map) {
   return Object.freeze(map.landPolygons.map((polygon) => polygon[0]));
 }
 
+export function historicalBattleMinimapLandMask(map, width, height) {
+  assertMap(map);
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new Error(`Invalid historical battle minimap dimensions: ${width}x${height}`);
+  }
+  const mask = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const worldY = (y + 0.5) / height * map.height;
+    for (let x = 0; x < width; x++) {
+      const worldX = (x + 0.5) / width * map.width;
+      if (!historicalBattleMapWaterAt(map, worldX, worldY)) mask[x + y * width] = 1;
+    }
+  }
+  return mask;
+}
+
 function pointIsWater(map, x, y) {
   if (x < 0 || x >= map.width || y < 0 || y >= map.height) return false;
   for (let index = 0; index < map.landPolygons.length; index++) {

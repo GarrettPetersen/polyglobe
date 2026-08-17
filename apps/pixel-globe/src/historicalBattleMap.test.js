@@ -6,7 +6,8 @@ import {
   createHistoricalBattleMap,
   historicalBattleMapPointForLonLat,
   historicalBattleMapPolygons,
-  historicalBattleMapWaterAt
+  historicalBattleMapWaterAt,
+  historicalBattleMinimapLandMask
 } from "./historicalBattleMap.js";
 
 test("the real Lepanto field has a broad navigable gulf, islands, and solid shores", () => {
@@ -37,4 +38,22 @@ test("authored shore clearance rejects ships that only have their center in wate
   assert.equal(historicalBattleMapWaterAt(map, coastalWater.x, coastalWater.y), true);
   assert.equal(historicalBattleMapWaterAt(map, coastalWater.x, coastalWater.y, 12), false);
   assert.equal(historicalBattleMapWaterAt(map, openWater.x, openWater.y, 8), true);
+});
+
+test("the Lepanto minimap distinguishes the gulf from its islands and mainland", () => {
+  const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
+  const width = 192;
+  const height = 148;
+  const landMask = historicalBattleMinimapLandMask(map, width, height);
+  const maskAt = (longitudeDeg, latitudeDeg) => {
+    const point = historicalBattleMapPointForLonLat(map, longitudeDeg, latitudeDeg);
+    const x = Math.min(width - 1, Math.floor(point.x / map.width * width));
+    const y = Math.min(height - 1, Math.floor(point.y / map.height * height));
+    return landMask[x + y * width];
+  };
+
+  assert.equal(maskAt(20.15, 38.20), 0, "Ionian Sea should read as water");
+  assert.equal(maskAt(21.10, 38.20), 0, "Gulf of Patras should read as water");
+  assert.equal(maskAt(20.55, 38.20), 1, "Cephalonia should read as land");
+  assert.equal(maskAt(21.70, 37.85), 1, "Peloponnese should read as land");
 });

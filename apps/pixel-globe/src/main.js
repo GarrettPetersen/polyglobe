@@ -2108,7 +2108,10 @@ import {
   historicalBattleMenuPanelRect,
   stepHistoricalBattleCommanderIndex
 } from "./historicalBattleMenu.js";
-import { historicalBattleMapWaterAt } from "./historicalBattleMap.js";
+import {
+  historicalBattleMapWaterAt,
+  historicalBattleMinimapLandMask
+} from "./historicalBattleMap.js";
 import { LAKE_BATTLE_HEX_ROW_SPACING } from "./lakeBattleMap.js";
 import { flatBattleWakeDrawCalls } from "./flatBattleWake.js";
 import {
@@ -3562,6 +3565,7 @@ let lakeBattleMode = null;
 let lakeBattleTerrainChart = null;
 let lakeBattleTerrainChartKey = "";
 const historicalBattleTerrainWindowCache = new WeakMap();
+const historicalBattleMinimapTerrainCache = new WeakMap();
 const lakeBattleShipAssets = new Map();
 const lakeBattleShipAssetPromises = new Map();
 const historicalBattlePortraitImages = new Map();
@@ -44191,8 +44195,13 @@ function drawHistoricalBattleMinimap(battle) {
   const height = Math.max(42, Math.round(width * battle.map.height / battle.map.width));
   const x = SCREEN_W - width - 5;
   const y = SCREEN_H - height - 5;
-  ctx.fillStyle = "rgba(21, 29, 32, 0.84)";
-  ctx.fillRect(x, y, width, height);
+  const terrainWidth = width - 2;
+  const terrainHeight = height - 2;
+  ctx.drawImage(
+    historicalBattleMinimapTerrainCanvas(battle.map, terrainWidth, terrainHeight),
+    x + 1,
+    y + 1
+  );
   ctx.strokeStyle = "#9babb2";
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
   for (const shipState of battle.ships) {
@@ -44211,6 +44220,40 @@ function drawHistoricalBattleMinimap(battle) {
     Math.max(3, Math.round(SCREEN_W / battle.map.width * width)),
     Math.max(3, Math.round(SCREEN_H / battle.map.height * height))
   );
+}
+
+function historicalBattleMinimapTerrainCanvas(map, width, height) {
+  let cachedBySize = historicalBattleMinimapTerrainCache.get(map);
+  if (!cachedBySize) {
+    cachedBySize = new Map();
+    historicalBattleMinimapTerrainCache.set(map, cachedBySize);
+  }
+  const key = `${width}x${height}`;
+  const cached = cachedBySize.get(key);
+  if (cached) return cached;
+  const terrainCanvas = document.createElement("canvas");
+  terrainCanvas.width = width;
+  terrainCanvas.height = height;
+  const terrainCtx = terrainCanvas.getContext("2d");
+  if (!terrainCtx) throw new Error("Could not create historical battle minimap terrain canvas");
+  terrainCtx.imageSmoothingEnabled = false;
+  terrainCtx.fillStyle = "#1f3650";
+  terrainCtx.fillRect(0, 0, width, height);
+  terrainCtx.fillStyle = "#76834a";
+  const landMask = historicalBattleMinimapLandMask(map, width, height);
+  for (let row = 0; row < height; row++) {
+    let runStart = -1;
+    for (let column = 0; column <= width; column++) {
+      const land = column < width && landMask[column + row * width] !== 0;
+      if (land && runStart < 0) runStart = column;
+      if (!land && runStart >= 0) {
+        terrainCtx.fillRect(runStart, row, column - runStart, 1);
+        runStart = -1;
+      }
+    }
+  }
+  cachedBySize.set(key, terrainCanvas);
+  return terrainCanvas;
 }
 
 function drawHistoricalBattleBroadsideControls(battle) {

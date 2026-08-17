@@ -10,6 +10,7 @@ import {
   createHistoricalBattleReplay,
   drainHistoricalBattleEvents,
   historicalBattleInterpolatedShipPose,
+  historicalBattleNavigableCourse,
   historicalBattlePlayerShip,
   historicalBattleSideSummary,
   historicalBattleSnapshot,
@@ -18,8 +19,13 @@ import {
   historicalBattleWindAt,
   historicalBattleWindFlowDirection,
   updateHistoricalBattle,
+  updateHistoricalBattleNavigationCourse,
   updateHistoricalBattleReplay
 } from "./historicalBattle.js";
+import {
+  historicalBattleMapPointForLonLat,
+  historicalBattleMapWaterAt
+} from "./historicalBattleMap.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
 import { validateShipWakeAnchors } from "./shipWakeAnchors.js";
 import { SHIP_ROWING_MODE_PIVOT_PORT } from "./shipRowingAnimation.js";
@@ -117,6 +123,80 @@ test("the separated fleets suffer no losses or collisions before first contact",
     openingEvents.some((event) => ["collision", "fire", "hit", "sunk", "surrendered"].includes(event.type)),
     false
   );
+});
+
+test("fleet navigation chooses a clear course around Cephalonia", () => {
+  const battle = createBattle();
+  const start = historicalBattleMapPointForLonLat(battle.map, 20.30, 38.20);
+  assert.equal(historicalBattleMapWaterAt(battle.map, start.x, start.y, 7), true);
+  assert.equal(historicalBattleMapWaterAt(battle.map, start.x + 104, start.y, 7), false);
+
+  const course = historicalBattleNavigableCourse(battle.map, {
+    x: start.x,
+    y: start.y,
+    desiredHeadingRad: 0,
+    currentHeadingRad: 0,
+    clearancePx: 7,
+    preferredSide: 1
+  });
+  const turn = Math.atan2(Math.sin(course.headingRad), Math.cos(course.headingRad));
+  assert.ok(Math.abs(turn) >= Math.PI / 6, `course only turned ${turn.toFixed(3)} radians`);
+  assert.ok(course.clearDistancePx >= 104);
+  assert.equal(
+    historicalBattleMapWaterAt(
+      battle.map,
+      start.x + Math.cos(course.headingRad) * course.clearDistancePx,
+      start.y + Math.sin(course.headingRad) * course.clearDistancePx,
+      7
+    ),
+    true
+  );
+});
+
+test("a committed fleet course rounds Cephalonia instead of pressing into its shore", () => {
+  const battle = createBattle();
+  const start = historicalBattleMapPointForLonLat(battle.map, 20.30, 38.20);
+  const destination = historicalBattleMapPointForLonLat(battle.map, 20.90, 38.20);
+  const navigator = {
+    role: "galley",
+    x: start.x,
+    y: start.y,
+    headingRad: 0,
+    squadronIndex: 1,
+    navigationCourseRad: 0,
+    navigationDecisionTick: 0,
+    shoreAvoidanceActive: false,
+    shoreAvoidanceSide: 0,
+    shoreAvoidanceClearDecisions: 0
+  };
+  let maximumCrossTrackPx = 0;
+  for (let tick = 0; tick < 1600 && navigator.x < destination.x; tick++) {
+    const desiredHeadingRad = Math.atan2(
+      destination.y - navigator.y,
+      destination.x - navigator.x
+    );
+    const course = updateHistoricalBattleNavigationCourse(
+      battle.map,
+      navigator,
+      tick,
+      desiredHeadingRad
+    );
+    const turn = Math.atan2(
+      Math.sin(course - navigator.headingRad),
+      Math.cos(course - navigator.headingRad)
+    );
+    navigator.headingRad += Math.max(-0.08, Math.min(0.08, turn));
+    const nextX = navigator.x + Math.cos(navigator.headingRad) * 4;
+    const nextY = navigator.y + Math.sin(navigator.headingRad) * 4;
+    if (historicalBattleMapWaterAt(battle.map, nextX, nextY, 7)) {
+      navigator.x = nextX;
+      navigator.y = nextY;
+    }
+    maximumCrossTrackPx = Math.max(maximumCrossTrackPx, Math.abs(navigator.y - start.y));
+  }
+
+  assert.ok(navigator.x >= destination.x, "fleet course never passed the island");
+  assert.ok(maximumCrossTrackPx > 180, "fleet course did not visibly round the island");
 });
 
 test("portable fire events retain the weapon identity needed by shared audio", () => {
