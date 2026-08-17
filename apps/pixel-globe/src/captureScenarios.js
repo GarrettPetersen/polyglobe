@@ -536,11 +536,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
   "trailer-sail-brigantine": sailingTrailerScenario({
     id: "trailer-sail-brigantine",
     title: "Brigantine on a Beam Reach",
-    seed: "trailer-sail-brigantine-v1",
+    seed: "trailer-sail-brigantine-v2",
     factionId: "england",
     shipSlug: "brigantine",
-    lat: 43,
-    lon: -32,
+    lat: 40,
+    lon: -50,
     day: 218,
     hour: 15,
     minute: 40,
@@ -663,6 +663,87 @@ const CAPTURE_SCENARIOS = Object.freeze({
     minute: 0,
     timeScale: 1,
     beamSide: "starboard"
+  }),
+  "short-datasets-panama": sailingTrailerScenario({
+    id: "short-datasets-panama",
+    title: "Sailing ship",
+    seed: "short-datasets-panama-v3",
+    factionId: "spain",
+    shipSlug: "caravel",
+    lat: 7.0,
+    lon: -79.65,
+    day: 64,
+    hour: 11,
+    minute: 20,
+    timeScale: 1,
+    beamSide: "port"
+  }),
+  "short-datasets-gibraltar": sailingTrailerScenario({
+    id: "short-datasets-gibraltar",
+    title: "Sailing ship",
+    seed: "short-datasets-gibraltar-v1",
+    factionId: "spain",
+    shipSlug: "caravel",
+    lat: 35.94,
+    lon: -5.75,
+    day: 196,
+    hour: 11,
+    minute: 20,
+    timeScale: 1,
+    beamSide: "starboard"
+  }),
+  "short-upwind-voyage": upwindSailingScenario({
+    id: "short-upwind-voyage",
+    seed: "short-upwind-voyage-v10",
+    factionId: "portugal",
+    shipSlug: "caravel",
+    lat: 15,
+    lon: -24,
+    day: 196,
+    hour: 10,
+    minute: 20,
+    variant: "upwind-voyage",
+    cityName: "Ribeira Grande",
+    durationSeconds: 37
+  }),
+  "short-upwind-turtle-ship": upwindSailingScenario({
+    id: "short-upwind-turtle-ship",
+    seed: "short-upwind-turtle-ship-v1",
+    factionId: "joseon",
+    shipSlug: "joseon-turtle-ship",
+    lat: 32,
+    lon: 128,
+    day: 60,
+    hour: 3,
+    minute: 40,
+    variant: "row-upwind",
+    durationSeconds: 6
+  }),
+  "short-upwind-galley": upwindSailingScenario({
+    id: "short-upwind-galley",
+    seed: "short-upwind-galley-v2",
+    factionId: "ottoman",
+    shipSlug: "mediterranean-galley",
+    lat: -20,
+    lon: -25,
+    day: 140,
+    hour: 12,
+    minute: 20,
+    variant: "row-upwind",
+    durationSeconds: 6
+  }),
+  "short-upwind-galleass": upwindSailingScenario({
+    id: "short-upwind-galleass",
+    seed: "short-upwind-galleass-v2",
+    factionId: "venice",
+    shipSlug: "galleass",
+    lat: -30,
+    lon: -20,
+    day: 110,
+    hour: 11,
+    minute: 0,
+    variant: "row-upwind",
+    durationSeconds: 6
   }),
   "trailer-fight-turtle": trailerScenario({
     id: "trailer-fight-turtle",
@@ -1620,7 +1701,8 @@ function validateCaptureSequence(value) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
-  numberInRange(value.durationSeconds, 3, 30, "capture sequence duration");
+  const maximumDuration = value.kind === "sail" && value.variant === "upwind-voyage" ? 40 : 30;
+  numberInRange(value.durationSeconds, 3, maximumDuration, "capture sequence duration");
   const requiredByKind = {
     explore: ["discoveryName"],
     trade: ["cityName", "goodId"],
@@ -1653,8 +1735,29 @@ function validateCaptureSequence(value) {
   } else if (value.broadsideSide !== undefined) {
     throw new Error("Capture broadside side requires a fight, bombardment, or revenge sequence");
   }
-  if (value.kind === "sail" && !["port", "starboard"].includes(value.beamSide)) {
-    throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
+  if (value.kind === "sail") {
+    if (!["beam-reach", "upwind-voyage", "row-upwind"].includes(value.variant)) {
+      throw new Error(`Invalid sailing capture variant: ${value.variant}`);
+    }
+    if (value.variant === "beam-reach" && !["port", "starboard"].includes(value.beamSide)) {
+      throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
+    }
+    if (value.variant !== "beam-reach" && value.beamSide !== undefined) {
+      throw new Error("Capture beam side requires a beam-reach sailing sequence");
+    }
+    if (value.variant === "upwind-voyage") {
+      requiredString(value.cityName, "capture upwind destination city name");
+    } else if (value.cityName !== undefined) {
+      throw new Error("Capture sailing city requires the upwind-voyage variant");
+    }
+    if (["upwind-voyage", "row-upwind"].includes(value.variant) &&
+        value.requireOpenWaterCourse !== true) {
+      throw new Error("Upwind capture sequences must require an open-water course");
+    }
+    if (value.requireOpenWaterCourse !== undefined &&
+        typeof value.requireOpenWaterCourse !== "boolean") {
+      throw new Error("Capture open-water course requirement must be boolean");
+    }
   }
   if (value.kind === "survive" &&
       !["lightning", "lightning-sinking", "dehydration", "deprivation-death", "overboard-rescue", "wine-emergency", "drunk-arrival", "remembered-arrival"].includes(value.variant)) {
@@ -1792,7 +1895,23 @@ function sailingTrailerScenario(value) {
     world: captureWorld(value.day, value.hour, value.minute, value.timeScale),
     sequence: trailerSequence("sail", "beam-reach", {
       durationSeconds: 6,
-      beamSide: value.beamSide
+      beamSide: value.beamSide,
+      requireOpenWaterCourse: true
+    })
+  });
+}
+
+function upwindSailingScenario(value) {
+  return trailerScenario({
+    id: value.id,
+    title: "Sailing ship",
+    seed: value.seed,
+    player: capturePlayer(value.factionId, value.shipSlug, value.lat, value.lon, 0),
+    world: captureWorld(value.day, value.hour, value.minute, 1),
+    sequence: trailerSequence("sail", value.variant, {
+      durationSeconds: value.durationSeconds,
+      cityName: value.cityName,
+      requireOpenWaterCourse: true
     })
   });
 }

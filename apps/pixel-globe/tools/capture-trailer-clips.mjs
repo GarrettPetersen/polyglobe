@@ -545,15 +545,7 @@ function verifySidecar(sidecar, scenarioId, format) {
   if (!types.has("capture-beat")) throw new Error(`${scenarioId} sidecar has no capture beats`);
   verifyFeaturedSfx(sidecar, scenarioId);
   if (sidecar.scenario.sequence.kind === "sail") {
-    const beamReach = sidecar.events.find((event) => (
-      event.type === "capture-beat" && event.data?.action === "beam-reach"
-    ));
-    if (!beamReach || Math.abs(beamReach.data.angleFromWindDeg - 90) > 2 ||
-        beamReach.data.attainableSpeedRatio < 0.9) {
-      throw new Error(
-        `${scenarioId} did not hold a fast beam reach: ${JSON.stringify(beamReach?.data || null)}`
-      );
-    }
+    verifySailingCapture(sidecar, scenarioId);
   }
   const captureStart = sidecar.events.find((event) => event.type === "capture-start");
   const viewport = captureStart?.data?.viewport;
@@ -569,6 +561,61 @@ function verifySidecar(sidecar, scenarioId, format) {
       `${AUTOMATIC_CAPTURE_FRAME_RATE}`
     );
   }
+}
+
+function verifySailingCapture(sidecar, scenarioId) {
+  const sequence = sidecar.scenario.sequence;
+  const beat = (action) => sidecar.events.find((event) => (
+    event.type === "capture-beat" && event.data?.action === action
+  ));
+  if (sequence.variant === "beam-reach") {
+    const beamReach = beat("beam-reach");
+    if (!beamReach || Math.abs(beamReach.data.angleFromWindDeg - 90) > 2 ||
+        beamReach.data.attainableSpeedRatio < 0.9) {
+      throw new Error(
+        `${scenarioId} did not hold a fast beam reach: ${JSON.stringify(beamReach?.data || null)}`
+      );
+    }
+    return;
+  }
+  if (sequence.variant === "upwind-voyage") {
+    const routeBeat = beat("upwind-voyage-route");
+    const callout = routeBeat?.data?.callout;
+    if (!routeBeat || callout?.city?.name !== sequence.cityName ||
+        !Number.isFinite(callout?.city?.x) || !Number.isFinite(callout?.city?.y) ||
+        !Number.isFinite(callout?.wind?.screenX) || !Number.isFinite(callout?.wind?.screenY) ||
+        callout?.route?.upwindAlignment < 0.85 || callout?.route?.screenY > -0.45) {
+      throw new Error(
+        `${scenarioId} did not stage a portrait-safe real-city upwind route: ` +
+        `${JSON.stringify(routeBeat?.data || null)}`
+      );
+    }
+    const closeHauled = beat("close-hauled");
+    const tacks = sidecar.events.filter((event) => (
+      event.type === "capture-beat" && event.data?.action === "tack"
+    ));
+    const arrival = beat("arrive-city");
+    if (!closeHauled || tacks.length < 1 || !arrival ||
+        arrival.data?.cityName !== sequence.cityName ||
+        arrival.data?.interactionDistancePx > 34) {
+      throw new Error(
+        `${scenarioId} did not complete one coherent upwind city voyage: ` +
+        `${JSON.stringify({ closeHauled, tackCount: tacks.length, arrival })}`
+      );
+    }
+    return;
+  }
+  if (sequence.variant === "row-upwind") {
+    const rowUpwind = beat("row-upwind");
+    if (!rowUpwind || rowUpwind.data.angleFromWindDeg > 2 ||
+        rowUpwind.data.attainableSpeedRatio < 0.7) {
+      throw new Error(
+        `${scenarioId} did not row directly upwind: ${JSON.stringify(rowUpwind?.data || null)}`
+      );
+    }
+    return;
+  }
+  throw new Error(`${scenarioId} has an unsupported sailing variant: ${sequence.variant}`);
 }
 
 function verifyFeaturedSfx(sidecar, scenarioId) {

@@ -10533,16 +10533,144 @@ function updateCaptureWhale(sequence) {
 
 function updateCaptureSailing(sequence) {
   dismissCaptureOverlays();
-  if (!captureCue("beam-reach", 0.1)) return;
-  const performance = captureBeamReachPerformance();
+  if (sequence.variant === "beam-reach") {
+    if (!captureCue("beam-reach", 0.1)) return;
+    emitCaptureSailingBeat("beam-reach", { beamSide: sequence.beamSide });
+    return;
+  }
+  if (sequence.variant === "upwind-voyage") {
+    if (captureCue("upwind-voyage-route", 0.1)) {
+      emitCaptureSailingBeat("upwind-voyage-route", {
+        cityName: sequence.cityName,
+        callout: captureUpwindVoyageCalloutData(sequence)
+      });
+    }
+    if (captureCue("first-close-hauled-leg", 18.16)) {
+      setCaptureUpwindVoyageTack(1, sequence.cityName, false);
+    }
+    const voyage = captureDirector.upwindVoyage;
+    if (captureDirector.elapsedSeconds > 18.16 && voyage?.tackSide) {
+      const signedCrossTrackPx = Math.asin(clamp(
+        dot3(ship.position, voyage.crosswind),
+        -1,
+        1
+      )) * PIXELS_PER_RADIAN;
+      const crossedLaneEdge = voyage.tackSide === 1
+        ? signedCrossTrackPx >= voyage.halfLaneWidthPx
+        : signedCrossTrackPx <= -voyage.halfLaneWidthPx;
+      if (crossedLaneEdge && captureDirector.elapsedSeconds - voyage.lastTackSeconds >= 2) {
+        setCaptureUpwindVoyageTack(-voyage.tackSide, sequence.cityName, true);
+      }
+    }
+    if (captureDirector.elapsedSeconds > 18.16 && !captureDirector.upwindVoyageArrived) {
+      const cityCall = capturePortCallByName(sequence.cityName);
+      if (portCallInInteractionRange(cityCall)) {
+        captureDirector.upwindVoyageArrived = true;
+        captureDirector.steeringTarget = null;
+        ship.targetHeading = ship.heading.slice();
+        ship.velocity = [0, 0, 0];
+        emitCaptureSailingBeat("arrive-city", {
+          cityName: sequence.cityName,
+          interactionDistancePx: Math.round(Math.sqrt(distance2(
+            localLayout.viewX,
+            localLayout.viewY,
+            cityCall.interactionX,
+            cityCall.interactionY
+          )) * 10) / 10
+        });
+      }
+    }
+    return;
+  }
+  if (sequence.variant === "row-upwind") {
+    if (!captureCue("row-upwind", 0.1)) return;
+    emitCaptureSailingBeat("row-upwind", { rowingMode: ship.rowingMode });
+    return;
+  }
+  throw new Error(`Unknown sailing capture variant: ${sequence.variant}`);
+}
+
+function setCaptureUpwindVoyageTack(side, cityName, isTack) {
+  const voyage = captureDirector?.upwindVoyage;
+  if (!voyage) throw new Error("Capture upwind voyage has no staged corridor");
+  const previousSide = voyage.tackSide;
+  const nextHeading = captureCloseHauledHeading(side);
+  voyage.tackSide = side;
+  voyage.lastTackSeconds = captureDirector.elapsedSeconds;
+  ship.targetHeading = nextHeading.slice();
+  captureDirector.steeringTarget = captureSailingTarget(nextHeading);
+  emitCaptureSailingBeat(isTack ? "tack" : "close-hauled", {
+    fromSide: previousSide === null ? null : previousSide === 1 ? "starboard" : "port",
+    toSide: side === 1 ? "starboard" : "port",
+    cityName
+  });
+}
+
+function emitCaptureSailingBeat(action, details) {
+  const performance = captureSailingPerformance();
   emitCaptureEvent("capture-beat", {
-    action: "beam-reach",
+    action,
     shipSlug: ship.typeSlug,
-    beamSide: sequence.beamSide,
+    ...details,
     angleFromWindDeg: Math.round(performance.angleFromWindDeg * 10) / 10,
     attainableSpeedRatio: Math.round(performance.attainableSpeedRatio * 1000) / 1000,
     hullTopSpeedRatio: Math.round(performance.hullTopSpeedRatio * 1000) / 1000
   });
+}
+
+function captureUpwindVoyageCalloutData(sequence) {
+  const cityCall = capturePortCallByName(sequence.cityName);
+  const offset = chartOffsetPixels(chart);
+  const cityLabel = cityLabelBoxes(chart.cityCalls, chart)
+    .find((entry) => entry.call.tileId === cityCall.tileId);
+  if (!cityLabel) throw new Error(`Capture could not place the ${sequence.cityName} label`);
+  const flowDirectionRad = windIndicatorTarget().flowDirectionRad;
+  const wind = {
+    x: Math.cos(flowDirectionRad),
+    y: -Math.sin(flowDirectionRad)
+  };
+  const player = { x: SCREEN_W / 2, y: SCREEN_H / 2 };
+  const city = {
+    x: cityCall.x + offset.x,
+    y: cityCall.y + offset.y
+  };
+  const routeLength = Math.hypot(city.x - player.x, city.y - player.y);
+  if (routeLength <= 1) throw new Error(`Capture ${sequence.cityName} route has zero screen length`);
+  const route = {
+    x: (city.x - player.x) / routeLength,
+    y: (city.y - player.y) / routeLength
+  };
+  const upwindAlignment = route.x * -wind.x + route.y * -wind.y;
+  if (upwindAlignment < 0.85) {
+    throw new Error(
+      `Capture ${sequence.cityName} is not visibly upwind: ${upwindAlignment.toFixed(3)}`
+    );
+  }
+  return {
+    city: {
+      name: sequence.cityName,
+      x: Math.round(city.x),
+      y: Math.round(city.y),
+      labelBox: {
+        x: Math.round(cityLabel.box.x + offset.x),
+        y: Math.round(cityLabel.box.y + offset.y),
+        width: cityLabel.box.w,
+        height: cityLabel.box.h
+      }
+    },
+    player,
+    wind: {
+      flowDirectionRad: Math.round(flowDirectionRad * 1000000) / 1000000,
+      screenX: Math.round(wind.x * 1000000) / 1000000,
+      screenY: Math.round(wind.y * 1000000) / 1000000
+    },
+    route: {
+      screenX: Math.round(route.x * 1000000) / 1000000,
+      screenY: Math.round(route.y * 1000000) / 1000000,
+      distancePx: Math.round(routeLength * 10) / 10,
+      upwindAlignment: Math.round(upwindAlignment * 1000) / 1000
+    }
+  };
 }
 
 function updateCaptureFight(sequence) {
@@ -11387,24 +11515,169 @@ function stageCaptureWhale(sequence) {
 }
 
 function stageCaptureSailing(sequence) {
+  if (sequence.variant === "upwind-voyage") {
+    const city = captureCityByName(sequence.cityName);
+    placeCapturePlayerForUpwindVoyage(city);
+    const cityPosition = tileCenterVector(city.tileId);
+    const towardCity = normalizeOrNull(projectTangentVector([
+      cityPosition[0] - ship.position[0],
+      cityPosition[1] - ship.position[1],
+      cityPosition[2] - ship.position[2]
+    ], ship.position));
+    if (!towardCity) throw new Error(`Capture could not define a route to ${sequence.cityName}`);
+    const crosswind = normalizeOrNull(cross3(ship.position, towardCity));
+    if (!crosswind) throw new Error(`Capture could not define a tacking corridor to ${sequence.cityName}`);
+    captureDirector.upwindVoyage = {
+      crosswind,
+      halfLaneWidthPx: 5,
+      tackSide: null,
+      lastTackSeconds: -Infinity
+    };
+  }
   const windFlow = windFlowVectorAtShip(windForShip());
-  const starboardBeam = normalizeOrNull(cross3(ship.position, windFlow));
-  if (!starboardBeam) throw new Error("Capture beam reach could not resolve a sailing heading");
-  const beamHeading = sequence.beamSide === "starboard"
-    ? starboardBeam
-    : scaleVector(starboardBeam, -1);
-  ship.heading = beamHeading;
-  ship.targetHeading = beamHeading.slice();
-  const performance = captureBeamReachPerformance();
-  ship.velocity = scaleVector(beamHeading, performance.attainableSpeedRad * 0.96);
-  captureDirector.steeringTarget = normalize3([
-    ship.position[0] + beamHeading[0] * 0.4,
-    ship.position[1] + beamHeading[1] * 0.4,
-    ship.position[2] + beamHeading[2] * 0.4
+  let heading;
+  let speedRatio;
+  if (sequence.variant === "beam-reach") {
+    const starboardBeam = normalizeOrNull(cross3(ship.position, windFlow));
+    if (!starboardBeam) throw new Error("Capture beam reach could not resolve a sailing heading");
+    heading = sequence.beamSide === "starboard"
+      ? starboardBeam
+      : scaleVector(starboardBeam, -1);
+    speedRatio = 0.96;
+  } else if (sequence.variant === "upwind-voyage") {
+    const city = captureCityByName(sequence.cityName);
+    const towardCity = normalizeOrNull(projectTangentVector([
+      tileCenterVector(city.tileId)[0] - ship.position[0],
+      tileCenterVector(city.tileId)[1] - ship.position[1],
+      tileCenterVector(city.tileId)[2] - ship.position[2]
+    ], ship.position));
+    if (!towardCity) throw new Error(`Capture could not steer toward ${sequence.cityName}`);
+    const upwindAlignment = dot3(towardCity, scaleVector(windFlow, -1));
+    if (upwindAlignment < 0.85) {
+      throw new Error(
+        `Capture ${sequence.cityName} course is not upwind: ${upwindAlignment.toFixed(3)}`
+      );
+    }
+    heading = towardCity;
+    speedRatio = 0.08;
+  } else if (sequence.variant === "row-upwind") {
+    gameState.ship.crew = gameState.ship.crewCapacity;
+    const requestedRations = gameState.ship.crewCapacity * 6;
+    const addedRations = stowForagedFood(gameState, requestedRations);
+    if (addedRations < gameState.ship.crewCapacity * 4) {
+      throw new Error(
+        `Capture oared ship could provision only ${addedRations}/${requestedRations} food rations`
+      );
+    }
+    syncShipCargoFromGameState();
+    heading = scaleVector(windFlow, -1);
+    speedRatio = 0.82;
+  } else {
+    throw new Error(`Unknown sailing capture variant: ${sequence.variant}`);
+  }
+  ship.heading = heading;
+  ship.targetHeading = heading.slice();
+  const performance = captureSailingPerformance();
+  ship.velocity = sequence.variant === "upwind-voyage"
+    ? [0, 0, 0]
+    : scaleVector(heading, performance.attainableSpeedRad * speedRatio);
+  captureDirector.steeringTarget = captureSailingTarget(heading);
+}
+
+function placeCapturePlayerForUpwindVoyage(city) {
+  const cityPosition = tileCenterVector(city.tileId);
+  const visited = new Set([city.tileId]);
+  let frontier = [city.tileId];
+  const candidates = [];
+  let openWaterCount = 0;
+  let bestRejectedAlignment = -Infinity;
+  let nearestOpenWaterDistancePx = Infinity;
+  let farthestOpenWaterDistancePx = 0;
+  for (let depth = 0; depth <= 48; depth += 1) {
+    for (const tileId of frontier) {
+      if (!isShipBaseNavigableTile(tileId) || !tileHasOffshoreHullClearance(tileId)) continue;
+      const position = tileCenterVector(tileId);
+      const distancePx = vectorArcDistance(position, cityPosition) * PIXELS_PER_RADIAN;
+      openWaterCount += 1;
+      nearestOpenWaterDistancePx = Math.min(nearestOpenWaterDistancePx, distancePx);
+      farthestOpenWaterDistancePx = Math.max(farthestOpenWaterDistancePx, distancePx);
+      if (distancePx < 120 || distancePx > 132) continue;
+      const candidateCamera = northUpCamera(position);
+      const wind = windForTile(tileId);
+      const flowDirectionRad = wind.directionRad + Math.PI;
+      const windFlow = normalizeTangentOrFallback([
+        candidateCamera.right[0] * Math.cos(flowDirectionRad) +
+          candidateCamera.up[0] * Math.sin(flowDirectionRad),
+        candidateCamera.right[1] * Math.cos(flowDirectionRad) +
+          candidateCamera.up[1] * Math.sin(flowDirectionRad),
+        candidateCamera.right[2] * Math.cos(flowDirectionRad) +
+          candidateCamera.up[2] * Math.sin(flowDirectionRad)
+      ], position, WORLD_NORTH);
+      const towardCity = normalizeOrNull(projectTangentVector([
+        cityPosition[0] - position[0],
+        cityPosition[1] - position[1],
+        cityPosition[2] - position[2]
+      ], position));
+      if (!towardCity) continue;
+      const upwindAlignment = dot3(towardCity, scaleVector(windFlow, -1));
+      bestRejectedAlignment = Math.max(bestRejectedAlignment, upwindAlignment);
+      if (upwindAlignment < 0.9) continue;
+      const routeScreenX = dot3(towardCity, candidateCamera.right);
+      const routeScreenY = -dot3(towardCity, candidateCamera.up);
+      if (routeScreenY > -0.45 || Math.abs(routeScreenX) > 0.9) continue;
+      const score = Math.abs(distancePx - 126) + (1 - upwindAlignment) * 70 +
+        Math.abs(routeScreenX) * 45;
+      candidates.push({ tileId, distancePx, upwindAlignment, routeScreenX, routeScreenY, score });
+    }
+    const next = [];
+    for (const tileId of frontier) {
+      for (const neighborId of graph.neighbors[tileId] || []) {
+        if (visited.has(neighborId)) continue;
+        visited.add(neighborId);
+        next.push(neighborId);
+      }
+    }
+    frontier = next;
+  }
+  candidates.sort((a, b) => a.score - b.score || a.tileId - b.tileId);
+  const selected = candidates[0];
+  if (!selected) {
+    throw new Error(
+      `Capture could not find a portrait-safe open-water approach to ${cityLabelText(city)}; ` +
+      `open=${openWaterCount}, distance=${nearestOpenWaterDistancePx.toFixed(1)}..` +
+      `${farthestOpenWaterDistancePx.toFixed(1)}px, best alignment=` +
+      `${Number.isFinite(bestRejectedAlignment) ? bestRejectedAlignment.toFixed(3) : "none"}`
+    );
+  }
+  placeCapturePlayerOnTile(selected.tileId);
+  if (!capturePortCallByName(cityLabelText(city))) {
+    throw new Error(`Capture destination ${cityLabelText(city)} is not visible`);
+  }
+}
+
+function captureCloseHauledHeading(side) {
+  if (![1, -1].includes(side)) throw new Error(`Invalid capture tack side: ${side}`);
+  const windFlow = windFlowVectorAtShip(windForShip());
+  const upwind = scaleVector(windFlow, -1);
+  const starboardCrosswind = normalizeOrNull(cross3(ship.position, upwind));
+  if (!starboardCrosswind) throw new Error("Capture tack could not resolve a crosswind heading");
+  const closeHauledAngle = 55 * Math.PI / 180;
+  return normalizeTangentOrFallback([
+    upwind[0] * Math.cos(closeHauledAngle) + starboardCrosswind[0] * Math.sin(closeHauledAngle) * side,
+    upwind[1] * Math.cos(closeHauledAngle) + starboardCrosswind[1] * Math.sin(closeHauledAngle) * side,
+    upwind[2] * Math.cos(closeHauledAngle) + starboardCrosswind[2] * Math.sin(closeHauledAngle) * side
+  ], ship.position, ship.heading);
+}
+
+function captureSailingTarget(heading) {
+  return normalize3([
+    ship.position[0] + heading[0] * 0.4,
+    ship.position[1] + heading[1] * 0.4,
+    ship.position[2] + heading[2] * 0.4
   ]);
 }
 
-function captureBeamReachPerformance() {
+function captureSailingPerformance() {
   const stats = currentPlayerEffectiveShipStats();
   const wind = windForShip();
   const windFlow = windFlowVectorAtShip(wind);
@@ -25668,6 +25941,13 @@ function updateSailing(dt) {
     hauling: haulMotionScale > 0 && Boolean(inputHeading)
   });
   const moveResult = moveShipWithCollision(dt, inputHeading, preferredTravelHeading);
+  if (CAPTURE_FRAME_PASS && captureDirector?.sequence?.requireOpenWaterCourse && moveResult.collided) {
+    throw new Error(
+      `Capture ${CAPTURE_SCENARIO.id} ship contacted terrain at ` +
+      `${latitudeDegForDirection(ship.position).toFixed(4)},` +
+      `${longitudeDegForDirection(ship.position).toFixed(4)}`
+    );
+  }
   if (moveResult.demoBoundary) handleDemoGibraltarBoundary();
   const movedPx = vectorLength([
     ship.position[0] - previousPosition[0],

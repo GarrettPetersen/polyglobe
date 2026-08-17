@@ -152,6 +152,32 @@ test("the storm-wave Short stages a real sinking and a modal-free overboard resc
   assert.throws(() => validateCaptureScenario(malformed), /survival capture variant/);
 });
 
+test("the upwind Short stages one cohesive city voyage and three oared exceptions", () => {
+  const ids = captureScenarioIds().filter((id) => id.startsWith("short-upwind-"));
+  assert.deepEqual(ids, [
+    "short-upwind-voyage",
+    "short-upwind-turtle-ship",
+    "short-upwind-galley",
+    "short-upwind-galleass"
+  ]);
+  const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
+  assert.equal(captures[0].player.shipSlug, "caravel");
+  assert.equal(captures[0].sequence.variant, "upwind-voyage");
+  assert.equal(captures[0].sequence.cityName, "Ribeira Grande");
+  assert.equal(captures[0].sequence.durationSeconds, 37);
+  assert.deepEqual(
+    captures.slice(1).map((capture) => capture.player.shipSlug),
+    ["joseon-turtle-ship", "mediterranean-galley", "galleass"]
+  );
+  assert.ok(captures.every((capture) => capture.sequence.requireOpenWaterCourse));
+  assert.ok(captures.slice(1).every((capture) => capture.sequence.variant === "row-upwind"));
+
+  const malformed = structuredClone(captures[0]);
+  malformed.sequence.variant = "motor-upwind";
+  malformed.sequence.durationSeconds = 30;
+  assert.throws(() => validateCaptureScenario(malformed), /sailing capture variant/);
+});
+
 test("the loadout Short stages deprivation, the four presets, and the optional custom editor", () => {
   const deprivation = captureScenarioFromSearch("?capture=short-loadout-deprivation");
   assert.equal(deprivation.sequence.kind, "survive");
