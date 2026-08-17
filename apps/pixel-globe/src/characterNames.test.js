@@ -165,6 +165,7 @@ test("ports across the Old World use specific local naming traditions", () => {
     ["Samarkand", "Uzbekistan", "neutral", "centralAsian"],
     ["Kashi", "China", "ming", "centralAsian"],
     ["Herat", "Afghanistan", "safavid", "persian"],
+    ["Baghdad", "Iraq", "safavid", "arabic"],
     ["Kilwa", "Tanzania", "neutral", "swahili"],
     ["Zanzibar", "Tanzania", "neutral", "swahili"],
     ["Mogadishu", "Somalia", "neutral", "somali"],

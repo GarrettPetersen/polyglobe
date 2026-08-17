@@ -538,6 +538,7 @@ const CITY_CULTURES = new Map([
   ["ceuta", "portuguese"],
   ["algiers", "arabic"],
   ["tripoli", "arabic"],
+  ["baghdad", "arabic"],
   ["birgu", "italian"],
   ["syracuse", "italian"],
   ["ragusa", "slavic"],

@@ -226,6 +226,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const incaPorts = ports.filter((city) => city.factionId === "inca");
   const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
   const agra = ports.find((city) => city.city === "Agra" && city.country === "India");
+  const baghdad = ports.find((city) => city.city === "Baghdad" && city.country === "Iraq");
   const delhi = ports.find((city) => city.city === "Delhi" && city.country === "India");
   const edo = ports.find((city) => city.city === "Edo" && city.country === "Japan");
   const nagasaki = ports.find((city) => city.city === "Nagasaki" && city.country === "Japan");
@@ -288,6 +289,11 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(agra.tileId, 154941);
   assert.equal(agra.portId, "agra");
   assert.equal(agra.factionId, "delhi");
+  assert.ok(baghdad, "Baghdad should be a dockable city on the Tigris");
+  assert.equal(baghdad.tileId, 102672);
+  assert.equal(baghdad.factionId, "safavid");
+  assert.equal(baghdad.settlementType, "city");
+  assert.equal(baghdad.marketGoods, null, "Baghdad should offer a full city market");
   assert.equal(agra.declaredCapitalFactionId, "delhi");
   assert.ok(delhi, "Delhi should remain a separate Yamuna city");
   assert.equal(delhi.declaredCapitalFactionId, null);

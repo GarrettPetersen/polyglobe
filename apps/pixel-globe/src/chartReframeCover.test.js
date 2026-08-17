@@ -5,6 +5,7 @@ import {
   chartReframeCoverIsOpaque,
   chartShouldReframeOnCoverOpen,
   coldCoveredWorldDefersFullRender,
+  coveredWorldPreparationNeedsRestart,
   coveredWorldPreparationIsRequired,
   gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
@@ -99,4 +100,12 @@ test("covered preparation runs before or after the first world frame exists", ()
     renderPending: true,
     gameOver: true
   }), false);
+});
+
+test("covered preparation restarts after its chart is replaced", () => {
+  const firstChart = {};
+  const replacementChart = {};
+  assert.equal(coveredWorldPreparationNeedsRestart(null, firstChart), true);
+  assert.equal(coveredWorldPreparationNeedsRestart({ chart: firstChart }, firstChart), false);
+  assert.equal(coveredWorldPreparationNeedsRestart({ chart: firstChart }, replacementChart), true);
 });

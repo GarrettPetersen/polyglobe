@@ -62,6 +62,7 @@ test("distinctive 1522 religious contexts remain explicit", () => {
     [{ city: "Rhodes", country: "Greece", cityType: "mediterranean", factionId: "hospitallers" }, "roman-catholic"],
     [{ city: "Moscow", country: "Russian Federation", cityType: "northern-european", factionId: "muscovy" }, "eastern-orthodox"],
     [{ city: "Tabriz", country: "Iran", cityType: "islamic-desert", factionId: "safavid" }, "shia-islam"],
+    [{ city: "Baghdad", country: "Iraq", cityType: "islamic-desert", factionId: "safavid" }, "sunni-islam"],
     [{ city: "Muscat", country: "Oman", cityType: "islamic-desert", factionId: "portugal" }, "ibadi-islam"],
     [{ city: "Kyoto", country: "Japan", cityType: "east-asian", factionId: "japan" }, "kami-buddhist"],
     [{ city: "Ayutthaya", country: "Thailand", cityType: "southeast-asian", factionId: "ayutthaya" }, "theravada-buddhism"],
@@ -72,6 +73,15 @@ test("distinctive 1522 religious contexts remain explicit", () => {
   for (const [homePort, expected] of cases) {
     assert.equal(religionCandidatesForHome(homePort)[0].id, expected, homePort.city);
   }
+  assert.deepEqual(
+    religionCandidatesForHome({
+      city: "Baghdad",
+      country: "Iraq",
+      cityType: "islamic-desert",
+      factionId: "safavid"
+    }).map(({ id }) => id),
+    ["sunni-islam", "shia-islam", "judaism"]
+  );
   assert.deepEqual(
     religionCandidatesForHome({
       city: "Rhodes",

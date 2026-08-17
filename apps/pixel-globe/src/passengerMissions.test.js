@@ -67,6 +67,7 @@ const VENETIAN_ISTANBUL = withForeignSettlements1522(
 );
 const ACEH = port(13, "Aceh", "Indonesia", "southeast-asian", "neutral", 5.55, 95.32);
 const JEDDAH = port(14, "Jeddah", "Saudi Arabia", "islamic-desert", "ottoman", 21.54, 39.17);
+const BAGHDAD = port(15, "Baghdad", "Iraq", "islamic-desert", "safavid", 33.34, 44.4);
 
 for (const capital of [
   LISBON,
@@ -106,6 +107,20 @@ test("passenger missions spawn as persistent medium-distance offers", () => {
     simMinute: 0
   }), offer);
   assert.equal(offer.seen, true);
+});
+
+test("Baghdad participates in ordinary city work", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const offer = passengerOfferForCity(state, BAGHDAD, [BAGHDAD, ISTANBUL], {
+    spawnChance: 1,
+    simMinute: 0,
+    destinationTileId: ISTANBUL.tileId,
+    scenarioId: "patron-papers"
+  });
+
+  assert.ok(offer);
+  assert.equal(offer.originName, "Baghdad");
+  assert.equal(offer.destinationName, "Istanbul");
 });
 
 test("Muslim ports can offer long-distance Hajj passage to Jeddah", () => {

@@ -85,4 +85,11 @@ test("baked land roads use adjacent, passable land tiles and connect Aleppo west
     return roads.cityByTileId.get(otherTileId).name;
   });
   assert.ok(aleppoNeighbors.includes("Antioch"), aleppoNeighbors.join(", "));
+
+  const baghdad = roads.cities.find((city) => city.name === "Baghdad");
+  assert.ok(baghdad, "Baghdad road city");
+  assert.ok(
+    roads.neighborRoutesByCityTileId.get(baghdad.tileId)?.length > 0,
+    "Baghdad should join the Mesopotamian overland network"
+  );
 });

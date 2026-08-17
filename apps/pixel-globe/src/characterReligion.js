@@ -304,6 +304,9 @@ export function religionCandidatesForHome(homePort) {
     return choices(["african-traditional", 1]);
   }
 
+  if (city === "baghdad") {
+    return choices(["sunni-islam", 5], ["shia-islam", 3], ["judaism", 1]);
+  }
   if (factionId === "safavid") {
     if (["kerman", "yazd"].includes(city)) {
       return choices(["shia-islam", 5], ["sunni-islam", 1], ["zoroastrianism", 2]);

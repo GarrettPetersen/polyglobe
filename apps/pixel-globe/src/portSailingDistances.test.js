@@ -153,6 +153,7 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   const lisbon = requiredEndpoint(bake, "Lisbon");
   const tombouctou = requiredEndpoint(bake, "Timbuktu");
   const gao = requiredEndpoint(bake, "Gao");
+  const baghdad = requiredEndpoint(bake, "Baghdad");
   const tombouctouPort = portCities.find((port) => port.city === "Tombouctou");
   if (!tombouctouPort) throw new Error("Tombouctou must remain a dockable port city");
   const tombouctouAccess = portAccessTileIds(placementOptions, tombouctouPort.tileId);
@@ -160,6 +161,7 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   assert.ok(portSailingDistanceKm(bake, kholmogory, salerno) > 0);
   assert.ok(portSailingDistanceKm(bake, tombouctou, lisbon) > 0, "Timbuktu must remain reachable through the Niger");
   assert.ok(portSailingDistanceKm(bake, gao, lisbon) > 0, "Gao must remain reachable through the Niger");
+  assert.ok(portSailingDistanceKm(bake, baghdad, lisbon) > 0, "Baghdad must reach the sea through the Tigris");
   assert.equal(
     tombouctouAccess.some((tileId) => (navigation.riverMasks[tileId] || 0) !== 0),
     true,

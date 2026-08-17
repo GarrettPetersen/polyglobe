@@ -581,6 +581,7 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Alexandria", ["cotton-cloth"]),
   specialty("Istanbul", ["carpets", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
   specialty("Tabriz", ["carpets", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
+  specialty("Baghdad", ["grain", "cotton-cloth", "carpets"]),
   specialty("Cairo", ["artwork"]),
   specialty("Goa", ["pepper", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
   specialty("Colombo", [CINNAMON_GOOD_ID]),

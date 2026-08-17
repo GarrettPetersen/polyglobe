@@ -2,6 +2,12 @@ import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 const DARDANELLES_HEX_CHAIN = Object.freeze([98820, 98676, 98678, 24757]);
 const BOSPORUS_HEX_CHAIN = Object.freeze([98682, 6233, 98694, 98704]);
+const LOWER_MESOPOTAMIAN_RIVER_HEX_CHAIN = Object.freeze([
+  25744, 102657, 25746, 102649, 102644, 102643, 102672, 102484,
+  102485, 102491, 102490, 102478, 102480, 102477, 102230, 102232,
+  25649,
+]);
+const BAGHDAD_TIGRIS_HEX_CHAIN = Object.freeze(LOWER_MESOPOTAMIAN_RIVER_HEX_CHAIN.slice(6));
 
 export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze({
@@ -40,6 +46,7 @@ export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
       6159, 97510, 24463, 97514,
     ]),
     Agra: Object.freeze([154941, 96794, 24277, 96798]),
+    Baghdad: BAGHDAD_TIGRIS_HEX_CHAIN,
     Diyarbakir: Object.freeze([102394, 102396, 102393, 25686, 102651, 25747]),
     Edirne: Object.freeze([98639, 98637, 1580, 98819]),
     Plovdiv: Object.freeze([98850, 98643, 24745, 98639]),
@@ -69,11 +76,7 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     // Seine connector from Paris through Rouen to the Channel.
     [161197, 161199, 40316, 161207],
     // Lower Euphrates/Tigris and Shatt al-Arab connector to the Persian Gulf.
-    [
-      25744, 102657, 25746, 102649, 102644, 102643, 102672, 102484,
-      102485, 102491, 102490, 102478, 102480, 102477, 102230, 102232,
-      25649,
-    ],
+    LOWER_MESOPOTAMIAN_RIVER_HEX_CHAIN,
     // Upper Tigris connector so Nineveh joins the Mesopotamian river route.
     [25747, 102654, 6479, 102646, 102647, 102644],
     // Karun/Karkheh approach from Susa into the lower Gulf river route.

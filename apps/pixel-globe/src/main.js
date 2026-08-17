@@ -1862,6 +1862,7 @@ import {
   chartReframeCoverIsOpaque,
   chartShouldReframeOnCoverOpen,
   coldCoveredWorldDefersFullRender,
+  coveredWorldPreparationNeedsRestart,
   coveredWorldPreparationIsRequired,
   gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
@@ -36036,7 +36037,8 @@ function advanceCoveredWorldRenderPreparation(nowMs) {
     chartWorldRenderPreparationBehindCover = null;
     return true;
   }
-  if (!chartWorldRenderPreparationBehindCover) {
+  if (!chart) ensureChart();
+  if (coveredWorldPreparationNeedsRestart(chartWorldRenderPreparationBehindCover, chart)) {
     const offset = chartOffsetPixels(chart);
     chartWorldRenderPreparationBehindCover = {
       chart,
@@ -36048,9 +36050,6 @@ function advanceCoveredWorldRenderPreparation(nowMs) {
     };
   }
   const preparation = chartWorldRenderPreparationBehindCover;
-  if (preparation.chart !== chart) {
-    throw new Error("Covered world preparation outlived its north-up chart");
-  }
   const { renderWindow } = preparation;
   switch (preparation.stage) {
     case 0: {

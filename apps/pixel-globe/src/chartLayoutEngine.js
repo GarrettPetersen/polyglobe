@@ -58,7 +58,11 @@ export function planChartLayoutTransaction({
   if (!(referencePositions instanceof Map)) {
     throw new Error("Chart layout reference-position provider must return a map");
   }
-  assertFiniteChartPositions(referencePositions, topologyIds, "reference");
+  assertFiniteChartPositions(
+    referencePositions,
+    new Set(referencePositions.keys()),
+    "reference"
+  );
 
   const suppliedTargets = targetPositionsById ?? referencePositions;
   const targetsById = new Map();

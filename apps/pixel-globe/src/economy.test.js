@@ -145,6 +145,21 @@ test("city catalog presents historical Hakata without changing its stable source
   );
 });
 
+test("Baghdad is a Safavid Mesopotamian entrepot with a full market", () => {
+  const baghdad = CITY_CATALOG.find((city) => city.city === "Baghdad" && city.country === "Iraq");
+  assert.ok(baghdad);
+  assert.equal(baghdad.factionId, "safavid");
+  assert.equal(baghdad.cityType, "islamic-desert");
+  assert.equal(baghdad.economyRegion, "islamic-desert");
+  assert.equal(baghdad.marketGoods, null);
+
+  const economy = createWorldEconomy({ ports: [{ ...baghdad, tileId: 102672 }], startMinute: 0 });
+  const market = new Map(portMarket(economy, { ...baghdad, tileId: 102672 }).map((row) => [row.good.id, row]));
+  for (const goodId of ["grain", "cotton-cloth", "carpets"]) {
+    assert.ok(market.get(goodId).productionPerDay > 0, `${goodId} should be produced in Baghdad`);
+  }
+});
+
 test("voyage seeds vary initial markets while remaining deterministic", () => {
   const first = createWorldEconomy({
     ports: [LONDON, GOA, TERNATE],

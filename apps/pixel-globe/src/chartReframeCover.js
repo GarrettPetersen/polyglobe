@@ -84,6 +84,16 @@ export function coveredWorldPreparationIsRequired({
   return coverIsActive && renderPending && !gameOver;
 }
 
+export function coveredWorldPreparationNeedsRestart(preparation, activeChart) {
+  if (!activeChart || typeof activeChart !== "object") {
+    throw new Error("Covered world preparation requires an active chart");
+  }
+  if (preparation !== null && typeof preparation !== "object") {
+    throw new Error("Covered world preparation state must be an object or null");
+  }
+  return preparation === null || preparation.chart !== activeChart;
+}
+
 function assertCoveredWorldRenderFlags(flags) {
   for (const [label, value] of Object.entries(flags)) {
     if (typeof value !== "boolean") {

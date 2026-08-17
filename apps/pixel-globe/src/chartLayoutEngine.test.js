@@ -78,6 +78,29 @@ test("chart transactions omit positioned neighbors outside the caller's referenc
   assert.deepEqual([...result.referencePositions.keys()].sort(), [0, 1]);
 });
 
+test("chart transactions leave an unprojectable target fixed", () => {
+  const positions = new Map([
+    [0, { x: 0, y: 0 }],
+    [1, { x: 24, y: 0 }],
+    [2, { x: 48, y: 0 }]
+  ]);
+  const result = planChartLayoutTransaction({
+    positions,
+    tileIds: new Set([1, 2]),
+    neighborsById: [[1], [0, 2], [1]],
+    surfaceMaskById: new Uint8Array([2, 2, 2]),
+    referencePositionsForIds: () => new Map([
+      [0, { x: 0, y: 0 }],
+      [1, { x: 24, y: 8 }]
+    ]),
+    maximumStepPx: Number.POSITIVE_INFINITY
+  });
+
+  assert.deepEqual(result.targetsById.get(1), { x: 24, y: 8 });
+  assert.equal(result.targetsById.has(2), false);
+  assert.equal(result.settledPositions.has(2), false);
+});
+
 test("covered repair queues discard exposed stale work and apply concealed work once", () => {
   const queue = createCoveredChartRepairQueue();
   const positions = new Map([
