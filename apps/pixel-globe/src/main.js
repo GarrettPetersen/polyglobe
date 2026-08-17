@@ -36395,7 +36395,6 @@ function drawWorldInterface(nowMs) {
 function drawGpuWorldUnderlay() {
   if (!gpuWorldUnderlay) return;
   const { activeChart, nowMs, offset, cloudCoverByTile } = gpuWorldUnderlay;
-  const painter = createGpuWorldPrimitivePainter(offset);
   measurePerformanceBenchmarkStage(
     "render.worldUnderlay.coral",
     () => drawCoralReefsWebGL(activeChart, offset)
@@ -36405,10 +36404,11 @@ function drawGpuWorldUnderlay() {
     drawPrecipitation(activeChart, nowMs, offset, cloudCoverByTile, precipitationPainter);
     precipitationPainter.flush();
   });
-  measurePerformanceBenchmarkStage(
-    "render.worldUnderlay.navalEffects",
-    () => drawNavalEffects(activeChart, painter)
-  );
+  measurePerformanceBenchmarkStage("render.worldUnderlay.navalEffects", () => {
+    const navalPainter = createBatchedGpuWorldPrimitivePainter(offset);
+    drawNavalEffects(activeChart, navalPainter);
+    navalPainter.flush();
+  });
   measurePerformanceBenchmarkStage(
     "render.worldUnderlay.seagulls",
     () => drawSeagullsWebGL(activeChart, nowMs, offset)
@@ -36454,9 +36454,10 @@ function drawGpuDynamicWorld(dynamicWorld) {
   const { activeChart, nowMs, offset, shipLight, cloudCalls, renderTileIds } = dynamicWorld;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawCitySpritesWebGL(activeChart, offset, nowMs);
-    const painter = createGpuWorldPrimitivePainter(offset);
+    const painter = createBatchedGpuWorldPrimitivePainter(offset);
     drawHullSplinterBursts(hullSplinterBursts, painter);
     drawCannonSmokeBursts(cannonSmokeBursts, painter, CANNON_SMOKE_LAYER_FRONT);
+    painter.flush();
   });
   measurePerformanceBenchmarkStage("render.clouds", () => {
     drawCloudLayerWebGL(cloudCalls, offset);
@@ -47402,9 +47403,10 @@ function drawGpuPointMask(points, x, y, color, allowedPoints = null) {
   if (allowedPoints !== null && !(allowedPoints instanceof Set)) {
     throw new Error("GPU directional lighting pixel filter must be a Set or null");
   }
+  const rects = [];
   for (const point of points) {
     if (allowedPoints !== null && !allowedPoints.has(point)) continue;
-    worldRenderer.drawSolidRect({
+    rects.push({
       destinationRect: {
         x: x + (point & 0xff),
         y: y + (point >> 8),
@@ -47414,6 +47416,7 @@ function drawGpuPointMask(points, x, y, color, allowedPoints = null) {
       color
     });
   }
+  worldRenderer.drawSolidRects(rects);
 }
 
 function landVehicleDrawCall(activeChart, member) {
@@ -51226,16 +51229,14 @@ function drawGpuNpcAnchorMarker(call) {
   const x = call.x + SHIP_SHEET_FRAME_SIZE - 10;
   const y = call.y + SHIP_SHEET_FRAME_SIZE - 11;
   const color = unitRgbaForCssColor("rgba(199, 220, 208, 0.92)");
-  for (const destinationRect of [
+  worldRenderer.drawSolidRects([
     { x: x + 2, y, width: 1, height: 6 },
     { x, y: y + 2, width: 5, height: 1 },
     { x, y: y + 5, width: 2, height: 1 },
     { x: x + 3, y: y + 5, width: 2, height: 1 },
     { x, y: y + 4, width: 1, height: 2 },
     { x: x + 4, y: y + 4, width: 1, height: 2 }
-  ]) {
-    worldRenderer.drawSolidRect({ destinationRect, color });
-  }
+  ].map((destinationRect) => ({ destinationRect, color })));
 }
 
 function shipForegroundTerrainDrawOrder(activeChart) {
