@@ -449,7 +449,8 @@ test("cartaz rules cover guarded Estado routes and reward good relations", () =>
     relation: DIPLOMACY_WAR,
     cargoCapacity: 40
   }), null);
-  assert.equal(portugueseCartazFine(neutral), neutral * 2);
+  assert.equal(portugueseCartazFine(neutral), neutral * 3);
+  assert.ok(portugueseCartazFine(neutral) > hostile);
 });
 
 test("special trade restrictions live in one explicit policy registry", () => {

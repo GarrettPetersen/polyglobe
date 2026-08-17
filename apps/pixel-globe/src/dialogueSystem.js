@@ -1159,16 +1159,10 @@ function portugueseCartazInspectionView(session, speaker) {
   return {
     speaker,
     expressionId: "stern",
-    text: "Heave to for the Estado da India. Your vessel carries no valid Portuguese cartaz. " +
-      "Purchase a license, settle the fine, surrender controlled spice cargo, or answer to our guns.",
+    text: "By order of the Estado da India, heave to. Your vessel carries no valid Portuguese cartaz. " +
+      "At sea, it is too late to buy a license. Pay the Crown's fine, surrender controlled spice cargo, or fight.",
     feedback: null,
     options: [
-      ...(inspection.permitFee !== null
-        ? [option(`Buy cartaz  ${inspection.permitFee} db`, { type: "buy-cartaz-at-sea" }, {
-          disabled: !inspection.canAffordPermit,
-          disabledReason: "Not enough doubloons."
-        })]
-        : []),
       option(`Pay fine  ${inspection.fine} db`, { type: "pay-cartaz-fine" }, {
         disabled: !inspection.canAffordFine,
         disabledReason: "Not enough doubloons."
@@ -1346,7 +1340,6 @@ function applyShipDialogueAction(session, ship, action) {
     return { closed: true, action };
   }
   if (
-    action.type === "buy-cartaz-at-sea" ||
     action.type === "pay-cartaz-fine" ||
     action.type === "surrender-cartaz-cargo"
   ) {

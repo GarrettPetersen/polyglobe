@@ -5051,26 +5051,15 @@ export function portugueseCartazInspectionStatus(
   const valid = traderFactionId === PORTUGUESE_FACTION_ID || memory.untilMinute > simMinute ||
     memory.graceUntilMinute > simMinute;
   const recentlyInspected = (memory.inspectedShipUntilMinute[npcShipId] || 0) > simMinute;
-  const permitFee = portugueseCartazFee({
-    traderFactionId,
-    relation,
-    cargoCapacity: state.cargoCapacity
-  });
-  const neutralPermitFee = portugueseCartazFee({
-    traderFactionId,
-    relation: DIPLOMACY_NEUTRAL,
-    cargoCapacity: state.cargoCapacity
-  });
+  const fine = portugueseCartazEnforcementFine(state);
   const controlledCargo = portugueseControlledCargo(state.cargo);
   return Object.freeze({
     required,
     valid,
     recentlyInspected,
     relation,
-    permitFee,
-    fine: portugueseCartazFine(neutralPermitFee),
-    canAffordPermit: permitFee !== null && state.doubloons >= permitFee,
-    canAffordFine: state.doubloons >= portugueseCartazFine(neutralPermitFee),
+    fine,
+    canAffordFine: state.doubloons >= fine,
     controlledCargo: Object.freeze(controlledCargo),
     controlledCargoQuantity: Object.values(controlledCargo).reduce((sum, value) => sum + value, 0)
   });
@@ -5086,31 +5075,29 @@ export function recordPortugueseCartazInspection(state, npcShipId, simMinute) {
     PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS * 24 * 60;
 }
 
-export function buyPortugueseCartazFromInspector(state, npcShipId, simMinute, fee) {
+export function payPortugueseCartazFine(state, npcShipId, simMinute) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
-  if (!Number.isInteger(fee) || fee <= 0) throw new Error(`Invalid inspector cartaz fee: ${fee}`);
-  if (state.doubloons < fee) throw new Error(`Not enough doubloons for a ${fee} db cartaz`);
-  state.doubloons -= fee;
-  state.relations.portugueseCartaz.issuedMinute = simMinute;
-  state.relations.portugueseCartaz.untilMinute = simMinute +
-    PORTUGUESE_CARTAZ_DURATION_DAYS * 24 * 60;
-  state.relations.portugueseCartaz.issuedAtPortId = `inspection:${npcShipId}`;
-  state.relations.portugueseCartaz.graceUntilMinute = 0;
-  recordDecision(state, "trade.portuguese-cartaz.inspection-purchase", 1);
-  return Object.freeze({ fee, untilMinute: state.relations.portugueseCartaz.untilMinute });
-}
-
-export function payPortugueseCartazFine(state, npcShipId, simMinute, fine) {
-  assertGameState(state);
-  assertSimulationMinute(simMinute);
-  if (!Number.isInteger(fine) || fine <= 0) throw new Error(`Invalid cartaz fine: ${fine}`);
+  const fine = portugueseCartazEnforcementFine(state);
   if (state.doubloons < fine) throw new Error(`Not enough doubloons to pay a ${fine} db fine`);
   state.doubloons -= fine;
   state.relations.portugueseCartaz.graceUntilMinute = simMinute + 7 * 24 * 60;
   recordDecision(state, "trade.portuguese-cartaz.fine", 1);
   recordPortugueseCartazInspection(state, npcShipId, simMinute);
   return Object.freeze({ fine, graceUntilMinute: state.relations.portugueseCartaz.graceUntilMinute });
+}
+
+function portugueseCartazEnforcementFine(state) {
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const neutralPermitFee = portugueseCartazFee({
+    traderFactionId,
+    relation: DIPLOMACY_NEUTRAL,
+    cargoCapacity: state.cargoCapacity
+  });
+  if (!Number.isInteger(neutralPermitFee) || neutralPermitFee <= 0) {
+    throw new Error(`Cartaz enforcement requires a foreign vessel permit fee: ${neutralPermitFee}`);
+  }
+  return portugueseCartazFine(neutralPermitFee);
 }
 
 export function surrenderPortugueseControlledCargo(state, npcShipId, simMinute) {

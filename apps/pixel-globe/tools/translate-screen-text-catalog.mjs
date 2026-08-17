@@ -124,6 +124,18 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "By order of the Estado da India, heave to. Your vessel carries no valid Portuguese cartaz. At sea, it is too late to buy a license. Pay the Crown's fine, surrender controlled spice cargo, or fight.": Object.freeze({
+    "zh-Hans": "奉葡属印度之命，停船！你的船没有有效的葡萄牙卡塔兹。在海上已来不及购买许可证。缴纳王室罚金、交出管制香料，或开战。",
+    ru: "Лечь в дрейф по приказу Estado da Índia! На вашем судне нет действующего португальского картаза. В море покупать лицензию уже поздно. Заплатите штраф Короне, сдайте подконтрольный груз пряностей или сражайтесь.",
+    es: "¡Póngase al pairo por orden del Estado da Índia! Su nave no lleva un cartaz portugués válido. En el mar ya es demasiado tarde para comprar una licencia. Pague la multa de la Corona, entregue las especias controladas o luche.",
+    "pt-BR": "Pare, por ordem do Estado da Índia! Seu navio não leva um cartaz português válido. No mar já é tarde demais para comprar uma licença. Pague a multa da Coroa, entregue a carga de especiarias controladas ou lute.",
+    ja: "エスタード・ダ・インディアの命令だ、停船せよ！ 貴船には有効なポルトガルのカルタスがない。海上ではもう許可証は買えない。王室の罰金を払うか、規制香料を引き渡すか、戦え。",
+    de: "Beidrehen auf Befehl des Estado da Índia! Ihr Schiff führt keinen gültigen portugiesischen Cartaz. Auf See ist es zu spät, eine Lizenz zu kaufen. Zahlen Sie die Strafe der Krone, übergeben Sie die kontrollierte Gewürzladung oder kämpfen Sie.",
+    fr: "Mettez en panne sur ordre de l’Estado da Índia ! Votre navire n’a pas de cartaz portugais valide. En mer, il est trop tard pour acheter un permis. Payez l’amende de la Couronne, livrez les épices contrôlées ou combattez.",
+    pl: "Położyć się w dryf, z rozkazu Estado da Índia! Wasz statek nie ma ważnego portugalskiego kartazu. Na morzu jest już za późno na zakup licencji. Zapłaćcie grzywnę Korony, oddajcie kontrolowany ładunek przypraw albo walczcie.",
+    "zh-Hant": "奉葡屬印度之命，停船！你的船沒有有效的葡萄牙卡塔茲。在海上已來不及購買許可證。繳納王室罰金、交出管制香料，或開戰。",
+    ko: "에스타두 다 인디아의 명령이다. 정선하라! 귀선에는 유효한 포르투갈 카르타즈가 없다. 해상에서는 이미 허가증을 살 수 없다. 왕실의 벌금을 내거나, 통제 향신료를 넘기거나, 싸워라."
+  }),
   "Ribeira Grande": Object.freeze({
     "zh-Hans": "里贝拉格兰德", ru: "Рибейра-Гранде", es: "Ribeira Grande",
     "pt-BR": "Ribeira Grande", ja: "リベイラ・グランデ", de: "Ribeira Grande",

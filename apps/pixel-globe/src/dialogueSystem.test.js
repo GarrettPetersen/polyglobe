@@ -259,9 +259,7 @@ test("Portuguese patrols present explicit cartaz enforcement choices", () => {
   };
   const session = createShipDialogueSession(ship, {
     cartazInspection: {
-      permitFee: 140,
-      fine: 280,
-      canAffordPermit: true,
+      fine: 420,
       canAffordFine: true,
       controlledCargo: { pepper: 2 },
       controlledCargoQuantity: 2
@@ -270,13 +268,13 @@ test("Portuguese patrols present explicit cartaz enforcement choices", () => {
   const view = shipDialogueView(session, ship);
 
   assert.match(view.text, /Estado da India/);
+  assert.match(view.text, /too late to buy a license/);
   assert.deepEqual(view.options.map((entry) => entry.label), [
-    "Buy cartaz  140 db",
-    "Pay fine  280 db",
+    "Pay fine  420 db",
     "Surrender controlled cargo",
     "Run for it"
   ]);
-  assert.deepEqual(selectShipDialogueOption(session, ship, 3), {
+  assert.deepEqual(selectShipDialogueOption(session, ship, 2), {
     closed: true,
     action: { type: "attack", cartazEvasion: true }
   });

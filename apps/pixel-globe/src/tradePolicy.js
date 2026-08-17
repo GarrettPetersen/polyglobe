@@ -17,7 +17,7 @@ import { activeForeignSettlements } from "./foreignSettlements.js";
 
 export const PORTUGUESE_FACTION_ID = "portugal";
 export const PORTUGUESE_CARTAZ_DURATION_DAYS = 90;
-export const PORTUGUESE_CARTAZ_FINE_MULTIPLIER = 2;
+export const PORTUGUESE_CARTAZ_FINE_MULTIPLIER = 3;
 export const PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS = 2;
 export const WARTIME_TRADE_RESTRICTION_ID = "wartime-trade-restriction";
 

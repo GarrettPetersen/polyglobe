@@ -392,7 +392,6 @@ import {
   recordPortCaptureAuthorityForState,
   reconcileCharacterForPapalAuthority,
   resolveCatholicBibleInspection,
-  buyPortugueseCartazFromInspector,
   payPortugueseCartazFine,
   payIllicitTradeFine,
   surrenderPortugueseControlledCargo,
@@ -21834,17 +21833,8 @@ function applyShipDialogueAction(npcShipId, action) {
     saveVoyageNow("evaded illicit trade inspection");
     return;
   }
-  if (action.type === "buy-cartaz-at-sea") {
-    const fee = dialogueState?.cartazInspection?.permitFee;
-    const result = buyPortugueseCartazFromInspector(gameState, npcShipId, simMinute, fee);
-    playCoinClinkSound();
-    showSurvivalNotice(`PORTUGUESE CARTAZ  ${result.fee} DB`, "good");
-    saveVoyageNow("purchased Portuguese cartaz at sea");
-    return;
-  }
   if (action.type === "pay-cartaz-fine") {
-    const fine = dialogueState?.cartazInspection?.fine;
-    payPortugueseCartazFine(gameState, npcShipId, simMinute, fine);
+    const { fine } = payPortugueseCartazFine(gameState, npcShipId, simMinute);
     playCoinClinkSound();
     showSurvivalNotice(`CARTAZ FINE  ${fine} DB`, "warning");
     saveVoyageNow("paid Portuguese cartaz fine");

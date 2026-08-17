@@ -382,7 +382,6 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "decline-portuguese-cartaz-market": "action:back",
   "continue-portuguese-cartaz-market": "action:buy",
   "attempt-portuguese-cartaz-illicit-market": "action:disguise",
-  "buy-cartaz-at-sea": "action:letter",
   "pay-cartaz-fine": "action:buy",
   "surrender-cartaz-cargo": "action:surrender",
   "evade-cartaz-inspection": "action:attack",

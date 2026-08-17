@@ -6,7 +6,6 @@ import {
   acknowledgePlayerPortCustomsNotice,
   adjustFactionReputation,
   buyGood,
-  buyPortugueseCartazFromInspector,
   createGameState,
   migrateGameState,
   payPortugueseCartazFine,
@@ -116,26 +115,25 @@ test("an unlicensed ship in Estado waters can settle or surrender an inspection"
   }).valid, true);
 });
 
-test("inspection purchases and fines alter the purse and provide enforcement grace", () => {
-  const purchaseState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const purchased = buyPortugueseCartazFromInspector(
-    purchaseState,
-    "portuguese-patrol-1",
-    200,
-    80
-  );
-  assert.equal(purchaseState.doubloons, 280);
-  assert.equal(purchased.untilMinute, 200 + 90 * 1440);
-
+test("inspection fines are punitive and provide grace without issuing a cartaz", () => {
   const fineState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const settled = payPortugueseCartazFine(
-    fineState,
-    "portuguese-patrol-1",
-    200,
-    120
-  );
-  assert.equal(fineState.doubloons, 240);
+  const inspection = portugueseCartazInspectionStatus(fineState, {
+    npcShipId: "portuguese-patrol-1",
+    simMinute: 200,
+    latitudeDeg: 15,
+    longitudeDeg: 74
+  });
+  const lawfulFee = portugueseCartazStatus(fineState, GOA, 200).fee;
+  assert.ok(inspection.fine > lawfulFee);
+  assert.equal(Object.hasOwn(inspection, "permitFee"), false);
+  assert.equal(Object.hasOwn(inspection, "canAffordPermit"), false);
+  const before = fineState.doubloons;
+  const settled = payPortugueseCartazFine(fineState, "portuguese-patrol-1", 200);
+  assert.equal(fineState.doubloons, before - inspection.fine);
+  assert.equal(settled.fine, inspection.fine);
   assert.equal(settled.graceUntilMinute, 200 + 7 * 1440);
+  assert.equal(fineState.relations.portugueseCartaz.untilMinute, 0);
+  assert.equal(fineState.relations.portugueseCartaz.issuedAtPortId, null);
 });
 
 test("version 38 voyages gain empty cartaz memory without losing their voyage", () => {
