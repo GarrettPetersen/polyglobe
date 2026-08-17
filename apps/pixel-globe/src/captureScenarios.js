@@ -410,6 +410,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: []
   }),
+  "benchmark-patagonia-chart": scenario({
+    id: "benchmark-patagonia-chart",
+    title: "Round Earth B-Roll: Cape Horn",
+    seed: "benchmark-patagonia-chart-v1",
+    player: {
+      factionId: "spain",
+      shipSlug: "galleon",
+      lat: -52.2,
+      lon: -74.33,
+      headingDeg: 0,
+      activePlaySeconds: 90
+    },
+    world: { day: 232, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
   "trailer-explore-fuji": trailerScenario({
     id: "trailer-explore-fuji",
     title: "Discover Mount Fuji",

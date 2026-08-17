@@ -205,3 +205,22 @@ test("surface detail cache invalidates when river shapes change inside stable ti
 
   assert.equal(surfaceDetailCallsHaveSameGeometry(cached, current), false);
 });
+
+test("surface detail cache ignores moving tiles that cannot affect its layer", () => {
+  const land = { id: 1, drawSurfaceX: 40, drawSurfaceY: 40, surface: "land" };
+  const water = { id: 2, drawSurfaceX: 70, drawSurfaceY: 40, surface: "water" };
+  const args = {
+    riverConnectorCalls: [],
+    layer: { x: 0, y: 0, width: 120, height: 80 },
+    margin: 0,
+    tileCallFilter: (call) => call.surface === "land"
+  };
+  const cached = surfaceDetailCallsForLayer({ ...args, tileCalls: [land, water] });
+  const moved = surfaceDetailCallsForLayer({
+    ...args,
+    tileCalls: [land, { ...water, drawSurfaceX: 64 }]
+  });
+
+  assert.deepEqual(cached.tileCalls, [land]);
+  assert.equal(surfaceDetailCallsHaveSameGeometry(cached, moved), true);
+});

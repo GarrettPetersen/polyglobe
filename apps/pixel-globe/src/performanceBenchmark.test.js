@@ -8,6 +8,7 @@ import {
   GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
+  PATAGONIA_CHART_CAPTURE_SCENARIO_ID,
   PAUSED_ABOARD_BENCHMARK_ID,
   PAUSED_DIALOGUE_BENCHMARK_ID,
   PAUSED_START_MENU_BENCHMARK_ID,
@@ -120,6 +121,19 @@ test("naples-approach benchmark crosses the port activation boundary", () => {
     warmupSeconds: 2,
     durationSeconds: 8,
     targetLandCarts: 2,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
+  });
+});
+
+test("patagonia-chart benchmark reproduces the reported coast and vessel", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=patagonia-chart"), {
+    id: "patagonia-chart",
+    captureScenarioId: PATAGONIA_CHART_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 0,
     initialScreen: null,
     forceRenderEveryFrame: false,
     requiresChartIntegrityTelemetry: true

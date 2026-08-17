@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { cityCatalogId, loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import { createForeignSettlementExpulsionMemory, withForeignSettlements1522 } from "./foreignSettlements.js";
-import { HISTORICAL_GOSSIP_EVENTS, recentHistoricalGossipForPort } from "./historicalGossip.js";
+import {
+  HISTORICAL_GOSSIP_EVENTS,
+  recentHistoricalGossipForPort,
+  validateHistoricalGossipCityCatalog
+} from "./historicalGossip.js";
 import { createPapalPolitics } from "./papalPolitics.js";
 import { gameMinuteForDate } from "./rulers.js";
 import {
@@ -28,6 +34,13 @@ const WORLD_CITIES = [
   port("Ayutthaya", "Thailand", "ayutthaya"),
   withForeignSettlements1522(port("Ternate", "Indonesia", "ternate"))
 ];
+const PRODUCTION_CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
+  new URL(
+    "../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
+    import.meta.url
+  ),
+  "utf8"
+));
 
 test("German ports begin with local gossip about the Diet of Worms", () => {
   const state = worldState();
@@ -109,8 +122,21 @@ test("historical gossip registry is unique and chronological", () => {
   assert.ok(HISTORICAL_GOSSIP_EVENTS.every((event) => event.untilMinute > event.fromMinute));
 });
 
+test("historical gossip city references resolve against stable production identities", () => {
+  assert.equal(validateHistoricalGossipCityCatalog(PRODUCTION_CITY_CATALOG), true);
+});
+
+test("the Buda controller check uses Budapest's stable identity", () => {
+  const simMinute = gameMinuteForDate(1526, 9, 1);
+  const state = worldState();
+  declareDiplomaticWar(state.diplomacy, "hungary", "ottoman", simMinute - 1);
+
+  assert.equal(recentHistoricalGossipForPort(VIENNA, simMinute, state).id, "battle-of-mohacs");
+});
+
 function port(city, country, factionId) {
-  return { city, country, factionId };
+  const sourceCity = city === "Buda" ? "Budapest" : city;
+  return { city: sourceCity, cityId: cityCatalogId(sourceCity, country), country, factionId };
 }
 
 function worldState(worldCities = WORLD_CITIES) {

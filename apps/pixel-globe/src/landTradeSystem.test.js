@@ -264,6 +264,23 @@ test("benchmark traffic staging places the requested carts on visible road segme
   assert.ok(visible.every((cart) => cart.segmentT >= 0 && cart.segmentT <= 1));
 });
 
+test("benchmark traffic staging accepts a water-only scene with no carts", () => {
+  const roads = syntheticRoads();
+  const economy = createWorldEconomy({
+    ports: [LONDON, ANTIOCH, ALEPPO],
+    shipyardPorts: [LONDON],
+    startMinute: 0
+  });
+  const system = createLandTradeSystem({
+    roads,
+    economy,
+    cities: [LONDON, ANTIOCH, ALEPPO],
+    startMinute: 0
+  });
+
+  assert.equal(stageVisibleLandCartTraffic(system, new Set(), 50, 0), 0);
+});
+
 test("Inca roads use llama caravans until colonial horses arrive", () => {
   const nativeA = { ...city(21, "Native A", "andean", 10000), factionId: "inca" };
   const nativeB = { ...city(22, "Native B", "andean", 12000), factionId: "inca" };

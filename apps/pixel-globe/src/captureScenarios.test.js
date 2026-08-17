@@ -36,6 +36,7 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.ok(captureScenarioIds().includes("benchmark-combat-hotspot"));
   assert.ok(captureScenarioIds().includes("benchmark-gibraltar-hotspot"));
   assert.ok(captureScenarioIds().includes("benchmark-naples-approach"));
+  assert.ok(captureScenarioIds().includes("benchmark-patagonia-chart"));
   assert.equal(captureScenarioFromSearch(""), null);
   assert.equal(captureScenarioFromSearch("?capture=turtle-ship-war").player.factionId, "joseon");
   assert.throws(() => captureScenarioFromSearch("?capture=missing"), /Unknown capture scenario/);
@@ -98,6 +99,15 @@ test("Naples benchmark approaches the port from open Tyrrhenian water", () => {
   assert.equal(scenario.player.lat, 40.72);
   assert.equal(scenario.player.lon, 12.15);
   assert.equal(scenario.player.headingDeg, 90);
+  assert.deepEqual(scenario.encounters, []);
+});
+
+test("Patagonia benchmark reproduces the reported fjord-side chart scene", () => {
+  const scenario = captureScenarioFromSearch("?capture=benchmark-patagonia-chart");
+  assert.equal(scenario.player.lat, -52.2);
+  assert.equal(scenario.player.lon, -74.33);
+  assert.equal(scenario.player.shipSlug, "galleon");
+  assert.equal(scenario.world.day, 232);
   assert.deepEqual(scenario.encounters, []);
 });
 

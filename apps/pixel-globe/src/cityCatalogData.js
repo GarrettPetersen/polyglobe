@@ -163,7 +163,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
     if (population <= 0) continue;
     if (!cityDatasetRecordAllowedIn1522(city, country)) continue;
 
-    const cityId = normalizeCityKey(city, country);
+    const cityId = cityCatalogId(city, country);
     const observations = observationsByCity.get(cityId) || [];
     observations.push({ cityId, city, country, lat, lon, year, population, coastalIntent, lakeIntent });
     observationsByCity.set(cityId, observations);
@@ -205,7 +205,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
 function ensureManualCityRecords(bestByCity, targetYear) {
   for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
     if (manualSpec.year > targetYear) continue;
-    const cityId = normalizeCityKey(manualSpec.city, manualSpec.country);
+    const cityId = cityCatalogId(manualSpec.city, manualSpec.country);
     const baseCityRecord = {
       cityId,
       city: manualSpec.city,
@@ -250,7 +250,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
 
 function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
   for (const capitalSpec of factionCapitalCityRecords1522()) {
-    const cityId = normalizeCityKey(capitalSpec.city, capitalSpec.country);
+    const cityId = cityCatalogId(capitalSpec.city, capitalSpec.country);
     if (bestByCity.has(cityId)) continue;
     const baseCityRecord = {
       cityId,
@@ -281,7 +281,7 @@ function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
 function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
   const included = new Set(cities.map((city) => city.cityId));
   for (const capitalSpec of FACTION_CAPITALS_1522) {
-    const cityId = normalizeCityKey(capitalSpec.city, capitalSpec.country);
+    const cityId = cityCatalogId(capitalSpec.city, capitalSpec.country);
     if (included.has(cityId)) continue;
     const city = bestByCity.get(cityId);
     if (!city) throw new Error(`No city catalog record for faction capital: ${capitalSpec.city}, ${capitalSpec.country}`);
@@ -296,7 +296,7 @@ function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
 function ensureManualCitiesInCityCatalog(cities, bestByCity) {
   const included = new Set(cities.map((city) => city.cityId));
   for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
-    const cityId = normalizeCityKey(manualSpec.city, manualSpec.country);
+    const cityId = cityCatalogId(manualSpec.city, manualSpec.country);
     if (included.has(cityId)) continue;
     const city = bestByCity.get(cityId);
     if (!city) throw new Error(`No city catalog record for manual city: ${manualSpec.city}, ${manualSpec.country}`);
@@ -377,19 +377,25 @@ function optionalCsvBoolean(row, index) {
   return value === "1" || value === "true" || value === "yes";
 }
 
-function normalizeCityKey(city, country) {
+export function cityCatalogId(city, country) {
+  if (typeof city !== "string" || city.trim() === "") {
+    throw new Error("City catalog id requires a city");
+  }
+  if (typeof country !== "string" || country.trim() === "") {
+    throw new Error("City catalog id requires a country");
+  }
   return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
 }
 
 function cityDisplayName(city, country, targetYear, fallback = city) {
-  const rules = CITY_DISPLAY_NAME_OVERRIDES.get(normalizeCityKey(city, country));
+  const rules = CITY_DISPLAY_NAME_OVERRIDES.get(cityCatalogId(city, country));
   if (!rules) return fallback;
   const rule = rules.find((item) => targetYear <= item.throughYear);
   return rule?.displayCity || fallback;
 }
 
 function cityPlacementOverride(city, country) {
-  return CITY_PLACEMENT_OVERRIDES_1522.get(normalizeCityKey(city, country)) || {};
+  return CITY_PLACEMENT_OVERRIDES_1522.get(cityCatalogId(city, country)) || {};
 }
 
 export function cityTypeForCity(country, lat, lon) {

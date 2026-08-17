@@ -162,11 +162,12 @@ function chartWeatherRepairConfirmationKey(candidate) {
   ) {
     throw new Error(`Chart weather repair ${candidate.kind} requires a terrain fault`);
   }
+  if (candidate.frameWide) return `${candidate.kind}:frame`;
   const neighborhoodSizePx = 96;
   return [
     candidate.kind,
     fault.surface,
-    candidate.frameWide ? "frame" : Math.floor(fault.x / neighborhoodSizePx),
-    candidate.frameWide ? "frame" : Math.floor(fault.y / neighborhoodSizePx)
+    Math.floor(fault.x / neighborhoodSizePx),
+    Math.floor(fault.y / neighborhoodSizePx)
   ].join(":");
 }

@@ -249,9 +249,10 @@ export function stageVisibleLandCartTraffic(system, visibleTileIds, simMinute, t
   assertLandTradeSystem(system);
   if (!(visibleTileIds instanceof Set)) throw new Error("Staged land carts require a visible tile-id set");
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid staged land-cart minute: ${simMinute}`);
-  if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > MAX_VISIBLE_LAND_CARTS) {
+  if (!Number.isInteger(targetCount) || targetCount < 0 || targetCount > MAX_VISIBLE_LAND_CARTS) {
     throw new Error(`Invalid staged visible land-cart count: ${targetCount}`);
   }
+  if (targetCount === 0) return 0;
   const placements = visibleRoutePlacements(system.activeRoutes, visibleTileIds);
   if (placements.length === 0) throw new Error("Benchmark view contains no visible land-road segments");
   if (system.carts.length < targetCount) {

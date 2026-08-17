@@ -36,7 +36,8 @@ export function surfaceDetailCallsForLayer({
   tileCalls,
   riverConnectorCalls,
   layer,
-  margin
+  margin,
+  tileCallFilter = null
 }) {
   if (!Array.isArray(tileCalls)) throw new Error("Surface detail tile calls must be an array");
   if (!Array.isArray(riverConnectorCalls)) {
@@ -44,6 +45,9 @@ export function surfaceDetailCallsForLayer({
   }
   validateLayerBounds(layer);
   validateNonNegativeFinite(margin, "surface detail call margin");
+  if (tileCallFilter !== null && typeof tileCallFilter !== "function") {
+    throw new Error("Surface detail tile filter must be a function");
+  }
 
   const bounds = {
     minX: layer.x,
@@ -52,11 +56,9 @@ export function surfaceDetailCallsForLayer({
     maxY: layer.y + layer.height
   };
   return {
-    tileCalls: tileCalls.filter((call) => pointNearBounds(
-      call.drawSurfaceX,
-      call.drawSurfaceY,
-      bounds,
-      margin
+    tileCalls: tileCalls.filter((call) => (
+      (tileCallFilter === null || tileCallFilter(call)) &&
+      pointNearBounds(call.drawSurfaceX, call.drawSurfaceY, bounds, margin)
     )),
     riverConnectorCalls: riverConnectorCalls.filter((call) => segmentNearBounds(
       call.ax,

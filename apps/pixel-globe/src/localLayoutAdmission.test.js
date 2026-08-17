@@ -1667,6 +1667,50 @@ test("a south-to-north Argentina coastal traversal cannot tear adjacent land", (
   assertTraversalRepairBurden(result, "Argentina crossing", 30);
 });
 
+test("a western Patagonia fjord traversal repairs broad distortion without stalling", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [-35.0, -95.0],
+        [-42.0, -84.0],
+        [-49.0, -78.0],
+        [-53.5, -75.5],
+        [-55.0, -70.0],
+        [-52.2, -74.33],
+        [-49.0, -75.2],
+        [-45.0, -74.8],
+        [-41.0, -73.8]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("western-patagonia", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRotationDeg <= 6,
+    `Western Patagonia chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
+  );
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Western Patagonia chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxProtectedEdgeErrorPx <= MAX_VISIBLE_PROTECTED_EDGE_LENGTH_ERROR_PX,
+    `Western Patagonia protected edge opened by ` +
+      `${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
+      `${JSON.stringify(result.maxProtectedEdgeDetails)}`
+  );
+  assertLandTraversalIsContinuous(result, "Western Patagonia crossing");
+  assertTraversalRepairBurden(result, "Western Patagonia crossing", 35);
+});
+
 test("a moving river voyage to Smolensk cannot tear visible land", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,

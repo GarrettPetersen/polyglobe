@@ -196,6 +196,33 @@ test("broad distortion keeps one confirmation window when its worst point moves"
   assert.equal(confirmed.repair, movedCandidate);
 });
 
+test("broad distortion keeps one confirmation window when its sampled surface changes", () => {
+  const landCandidate = repairCandidate({
+    drift: { ...calm, rmsDistortionPx: 20.4, maxDistortionPx: 22.5 },
+    terrainTear: attachedTerrain,
+    distortionSurface: "land"
+  });
+  const first = advanceChartWeatherRepairConfirmation({
+    pending: null,
+    candidate: landCandidate,
+    nowMs: 0
+  });
+  const coastCandidate = repairCandidate({
+    drift: { ...calm, rmsDistortionPx: 20.4, maxDistortionPx: 22.5 },
+    terrainTear: attachedTerrain,
+    distortionSurface: "coast"
+  });
+  const confirmed = advanceChartWeatherRepairConfirmation({
+    pending: first.pending,
+    candidate: coastCandidate,
+    nowMs: CHART_SEVERE_REPAIR_CONFIRMATION_MS
+  });
+
+  assert.equal(landCandidate.frameWide, true);
+  assert.equal(coastCandidate.frameWide, true);
+  assert.equal(confirmed.repair, coastCandidate);
+});
+
 function repairKind({
   drift,
   terrainTear,

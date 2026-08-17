@@ -33,6 +33,7 @@
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
     "benchmark:gibraltar": "node tools/run-performance-benchmark.mjs --benchmark gibraltar-hotspot",
     "benchmark:naples": "node tools/run-performance-benchmark.mjs --benchmark naples-approach",
+    "benchmark:patagonia": "node tools/run-performance-benchmark.mjs --benchmark patagonia-chart",
     "benchmark:politics": "node tools/run-performance-benchmark.mjs --benchmark politics-menu",
     "benchmark:paused:aboard": "node tools/run-performance-benchmark.mjs --benchmark paused-aboard",
     "benchmark:paused:dialogue": "node tools/run-performance-benchmark.mjs --benchmark paused-dialogue",

@@ -1490,7 +1490,10 @@ import {
   recentPapalGossipForPort
 } from "./papalGossip.js";
 import { selectAccessibleFactionMissionPort } from "./missionPortSelection.js";
-import { recentHistoricalGossipForPort } from "./historicalGossip.js";
+import {
+  recentHistoricalGossipForPort,
+  validateHistoricalGossipCityCatalog
+} from "./historicalGossip.js";
 import { recordNpcGossipHeard, unheardNpcGossip } from "./npcGossipMemory.js";
 import { dietOfWormsGossipPerspective } from "./religiousDialogue.js";
 import { isRomanCatholicReligion } from "./religiousAttitudes.js";
@@ -4192,6 +4195,7 @@ async function main() {
   characterPortraitManifest = loadedCharacterPortraitManifest;
   portCities = portCitiesOnWorld(cityByTileId, worldPortPlacementOptions());
   validateCanonicalPortCatalog(portCities);
+  validateHistoricalGossipCityCatalog([...cityByTileId.values()]);
   portSailingDistances = parsePortSailingDistances(loadedPortSailingDistanceData, {
     subdivisions: SUBDIVISIONS,
     earthCacheVersion: String(earth.version)
@@ -36527,13 +36531,15 @@ function cachedSurfaceDetailGeometryMatchesChart(cached, activeChart, viewport) 
     tileCalls: cached.tileCalls,
     riverConnectorCalls: cached.riverConnectorCalls,
     layer: viewportLayer,
-    margin: TILE_ART_SIZE
+    margin: TILE_ART_SIZE,
+    tileCallFilter: staticSurfaceDetailTileCallAffectsLayer
   });
   const currentCalls = surfaceDetailCallsForLayer({
     tileCalls: activeChart.tileCalls,
     riverConnectorCalls: activeChart.riverConnectorCalls,
     layer: viewportLayer,
-    margin: TILE_ART_SIZE
+    margin: TILE_ART_SIZE,
+    tileCallFilter: staticSurfaceDetailTileCallAffectsLayer
   });
   cachedCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(
     cached.sourceChart,
@@ -36593,7 +36599,8 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
       tileCalls: activeChart.tileCalls,
       riverConnectorCalls: activeChart.riverConnectorCalls,
       layer: layerBounds,
-      margin: TILE_ART_SIZE
+      margin: TILE_ART_SIZE,
+      tileCallFilter: staticSurfaceDetailTileCallAffectsLayer
     })
   );
   const riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, calls);
@@ -36870,14 +36877,10 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
     tileCalls: activeChart.tileCalls,
     riverConnectorCalls: activeChart.riverConnectorCalls,
     layer: bounds,
-    margin: TILE_ART_SIZE
+    margin: TILE_ART_SIZE,
+    tileCallFilter: waterForegroundTileCallAffectsLayer
   });
-  const tileCalls = calls.tileCalls.filter((call) => {
-    const frozenWater = isPermanentSeaIceRow(call.row) || tileHasSurfaceIce(call.id);
-    if (isWaterSurfaceRow(call.row) && !frozenWater) return false;
-    return true;
-  });
-  for (const call of tileCalls) {
+  for (const call of calls.tileCalls) {
     drawTile(layerCtx, call, activeChart);
     drawWeatherSurface(call, layerCtx);
     drawIceSurface(call, layerCtx);
@@ -36891,7 +36894,7 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   ctx = layerCtx;
   try {
     layerCtx.globalCompositeOperation = "destination-out";
-    for (const call of tileCalls) drawRiver(call, activeChart);
+    for (const call of calls.tileCalls) drawRiver(call, activeChart);
     for (const call of calls.riverConnectorCalls) drawRiverConnectorRaster(call, activeChart);
     layerCtx.globalCompositeOperation = "source-over";
     drawRiverBankPixels(staticSurface.riverBankPixels);
@@ -36921,10 +36924,24 @@ function waterEffectForegroundGeometryMatches(cached, activeChart) {
     tileCalls: activeChart.tileCalls,
     riverConnectorCalls: activeChart.riverConnectorCalls,
     layer: cached,
-    margin: TILE_ART_SIZE
+    margin: TILE_ART_SIZE,
+    tileCallFilter: waterForegroundTileCallAffectsLayer
   });
   currentCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, currentCalls);
   return surfaceDetailCallsHaveSameGeometry(cached, currentCalls);
+}
+
+function staticSurfaceDetailTileCallAffectsLayer(call) {
+  return !isWaterSurfaceRow(call.row) ||
+    isPermanentSeaIceRow(call.row) ||
+    tileHasSurfaceIce(call.id) ||
+    graph.isPentagon[call.id] === 1;
+}
+
+function waterForegroundTileCallAffectsLayer(call) {
+  return !isWaterSurfaceRow(call.row) ||
+    isPermanentSeaIceRow(call.row) ||
+    tileHasSurfaceIce(call.id);
 }
 
 function drawCoralReefsWebGL(activeChart, offset) {

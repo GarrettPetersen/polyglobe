@@ -6,6 +6,7 @@ import {
   DIPLOMACY_WAR,
   factionById
 } from "./factions.js";
+import { cityCatalogId } from "./cityCatalogData.js";
 import {
   activeForeignSettlements,
   foreignSettlementById,
@@ -153,7 +154,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     factionIds: ["hungary", "habsburg", "ottoman", "poland-lithuania"],
     requiredActiveFactionIds: ["hungary", "ottoman"],
     requiredRelations: [relation("hungary", "ottoman", [DIPLOMACY_WAR])],
-    requiredCityController: cityController("Buda", "Hungary", "hungary"),
+    requiredCityController: cityController("Budapest", "Hungary", "hungary", "Buda"),
     place: "Mohacs",
     report: "the Hungarian army has been shattered at Mohacs and King Louis II is dead",
     tradeImpact: "Danube traffic is nervous, and every border fortress wants provisions.",
@@ -466,20 +467,22 @@ function tradeIsOpen(requirement, worldState) {
 
 function foreignSettlementIsActive(settlementId, worldState) {
   const settlement = foreignSettlementById(settlementId);
-  const matches = worldState.worldCities.filter((city) => (
-    city?.city === settlement.city && city?.country === settlement.country
-  ));
-  if (matches.length !== 1) {
-    throw new Error(
-      `Historical gossip requires exactly one ${settlement.city}, ${settlement.country}; found ${matches.length}`
-    );
-  }
+  const matches = historicalCityMatches(
+    worldState.worldCities,
+    cityCatalogId(settlement.city, settlement.country),
+    `${settlement.city}, ${settlement.country}`
+  );
   return activeForeignSettlements(matches[0], worldState.foreignSettlementExpulsions)
     .some((entry) => entry.id === settlementId);
 }
 
-function cityController(city, country, factionId) {
-  const requirement = Object.freeze({ city, country, factionId });
+function cityController(city, country, factionId, displayCity = city) {
+  const requirement = Object.freeze({
+    cityId: cityCatalogId(city, country),
+    displayCity,
+    country,
+    factionId
+  });
   validateCityController(requirement);
   return requirement;
 }
@@ -488,7 +491,7 @@ function validateCityController(requirement) {
   if (!requirement || typeof requirement !== "object") {
     throw new Error("Historical gossip city controller must be an object");
   }
-  for (const key of ["city", "country"]) {
+  for (const key of ["cityId", "displayCity", "country"]) {
     if (typeof requirement[key] !== "string" || requirement[key].trim() === "") {
       throw new Error(`Historical gossip city controller requires ${key}`);
     }
@@ -498,15 +501,58 @@ function validateCityController(requirement) {
 
 function cityControllerRequirementMet(requirement, worldCities) {
   if (requirement === null) return true;
-  const matches = worldCities.filter((city) => (
-    city?.city === requirement.city && city?.country === requirement.country
-  ));
+  const matches = historicalCityMatches(
+    worldCities,
+    requirement.cityId,
+    `${requirement.displayCity}, ${requirement.country}`
+  );
+  return matches[0].factionId === requirement.factionId;
+}
+
+export function validateHistoricalGossipCityCatalog(worldCities) {
+  if (!Array.isArray(worldCities)) {
+    throw new Error("Historical gossip city audit requires the world city catalog");
+  }
+  for (const event of HISTORICAL_GOSSIP_EVENTS) {
+    if (event.requiredCityController) {
+      historicalCityMatches(
+        worldCities,
+        event.requiredCityController.cityId,
+        `${event.requiredCityController.displayCity}, ${event.requiredCityController.country}`
+      );
+    }
+    if (event.requiredForeignSettlementId) {
+      const settlement = foreignSettlementById(event.requiredForeignSettlementId);
+      historicalCityMatches(
+        worldCities,
+        cityCatalogId(settlement.city, settlement.country),
+        `${settlement.city}, ${settlement.country}`
+      );
+    }
+  }
+  return true;
+}
+
+function historicalCityMatches(worldCities, cityId, label) {
+  const matches = worldCities.filter((city) => historicalWorldCityId(city) === cityId);
   if (matches.length !== 1) {
+    throw new Error(`Historical gossip requires exactly one ${label}; found ${matches.length}`);
+  }
+  return matches;
+}
+
+function historicalWorldCityId(city) {
+  if (!city || typeof city !== "object") {
+    throw new Error("Historical gossip world city must be an object");
+  }
+  const derivedId = cityCatalogId(city.city, city.country);
+  if (city.cityId !== undefined && city.cityId !== derivedId) {
     throw new Error(
-      `Historical gossip requires exactly one ${requirement.city}, ${requirement.country}; found ${matches.length}`
+      `Historical gossip world city id mismatch for ${city.city}, ${city.country}: ` +
+        `${city.cityId} != ${derivedId}`
     );
   }
-  return matches[0].factionId === requirement.factionId;
+  return derivedId;
 }
 
 function historicalMinuteForDate(date, label) {

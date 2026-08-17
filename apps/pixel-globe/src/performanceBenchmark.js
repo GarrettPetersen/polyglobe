@@ -13,6 +13,8 @@ export const GIBRALTAR_HOTSPOT_BENCHMARK_ID = "gibraltar-hotspot";
 export const GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-gibraltar-hotspot";
 export const NAPLES_APPROACH_BENCHMARK_ID = "naples-approach";
 export const NAPLES_APPROACH_CAPTURE_SCENARIO_ID = "benchmark-naples-approach";
+export const PATAGONIA_CHART_BENCHMARK_ID = "patagonia-chart";
+export const PATAGONIA_CHART_CAPTURE_SCENARIO_ID = "benchmark-patagonia-chart";
 export const POLITICS_MENU_BENCHMARK_ID = "politics-menu";
 export const POLITICS_MENU_CAPTURE_SCENARIO_ID = BUSY_WORLD_CAPTURE_SCENARIO_ID;
 export const PAUSED_ABOARD_BENCHMARK_ID = "paused-aboard";
@@ -47,6 +49,10 @@ const BENCHMARKS = Object.freeze({
   [NAPLES_APPROACH_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2
+  }),
+  [PATAGONIA_CHART_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: PATAGONIA_CHART_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 0
   }),
   [POLITICS_MENU_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: POLITICS_MENU_CAPTURE_SCENARIO_ID,
