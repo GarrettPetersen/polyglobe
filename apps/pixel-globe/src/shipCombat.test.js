@@ -9,6 +9,8 @@ import {
   PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX,
   PLAYER_NPC_ATTACK_GRACE_SECONDS,
   PIRATE_PLAYER_DETECTION_RADIUS_PX,
+  QUEST_ATTACKER_DISENGAGE_RADIUS_PX,
+  QUEST_ATTACKER_HUNT_RADIUS_PX,
   WARSHIP_PIRATE_DISENGAGE_RADIUS_PX,
   WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX,
   combatantsShareEnemy,
@@ -345,6 +347,30 @@ test("quest attackers press their attack even when badly outmatched", () => {
 
   const result = updateShipCombatState(state, [player, canoe], () => "neutral");
   assert.equal(result.intents.get(canoe.id).mode, COMBAT_MODE_ATTACK);
+});
+
+test("quest attackers hunt the player across the visible battle area", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "merchant", "england", 0, 0, 100, 20);
+  const attacker = ship(
+    "quest-attacker",
+    "warship",
+    "neutral",
+    QUEST_ATTACKER_HUNT_RADIUS_PX - 1,
+    0,
+    20,
+    2
+  );
+  attacker.forceAttack = true;
+
+  const hunted = updateShipCombatState(state, [player, attacker], () => "neutral");
+  assert.equal(hunted.engagementCount, 1);
+  assert.equal(hunted.intents.get(attacker.id).mode, COMBAT_MODE_ATTACK);
+  assert.equal(hunted.intents.get(attacker.id).targetId, player.id);
+
+  attacker.x = QUEST_ATTACKER_DISENGAGE_RADIUS_PX + 1;
+  const escaped = updateShipCombatState(state, [player, attacker], () => "neutral");
+  assert.equal(escaped.engagementCount, 0);
 });
 
 test("player combat allegiance distinguishes enemies, allies, and neutral ships", () => {

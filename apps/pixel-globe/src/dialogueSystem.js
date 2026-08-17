@@ -2954,8 +2954,8 @@ function passengerDialogueContentView(session, city, quest, gameState) {
       speaker: `${characterName(city.character)}, local official`,
       expressionId: "stern",
       text: `${quest.eastAsianWonRace
-          ? `You reached Ningbo before the rival courier and earned a ${quest.eastAsianRaceBonus} db bonus. `
-          : "The rival courier reached Ningbo first. "}${quest.dialogue?.arrival || "The court requires your answer."} ` +
+          ? `Captain, your courier reached my office first; the ${quest.eastAsianRaceBonus} db purse is yours. `
+          : "Captain, the rival courier reached my office first. "}${quest.dialogue?.arrival || "I require your answer."} ` +
         (bribeDecision === "accepted"
           ? `You promised to stand with ${rival} if fighting begins.`
           : `You refused ${rival}'s purse and remain pledged to ${origin}.`),

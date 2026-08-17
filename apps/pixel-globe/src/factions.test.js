@@ -42,6 +42,7 @@ test("every faction separates its noun and adjective forms", () => {
   const ternate = FACTIONS.find((faction) => faction.id === "ternate");
   const tidore = FACTIONS.find((faction) => faction.id === "tidore");
   const hospitallers = FACTIONS.find((faction) => faction.id === "hospitallers");
+  const japan = FACTIONS.find((faction) => faction.id === "japan");
   assert.equal(portugal.shortName, "Portugal");
   assert.equal(portugal.adjective, "Portuguese");
   assert.equal(morocco.shortName, "Morocco");
@@ -52,6 +53,9 @@ test("every faction separates its noun and adjective forms", () => {
   assert.equal(tidore.adjective, "Tidorese");
   assert.equal(hospitallers.shortName, "Knights Hospitaller");
   assert.equal(hospitallers.adjective, "Hospitaller");
+  assert.equal(japan.name, "Ashikaga Shogunate");
+  assert.equal(japan.shortName, "Japan");
+  assert.equal(japan.adjective, "Japanese");
   assert.equal(factionNounPhrase("portugal"), "Portugal");
   assert.equal(factionNounPhrase("morocco"), "Morocco");
   assert.equal(factionNounPhrase("ottoman"), "the Ottoman Empire");

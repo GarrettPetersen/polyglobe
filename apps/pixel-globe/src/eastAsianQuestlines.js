@@ -144,6 +144,70 @@ export function ningboDelegationManifest(questId, delegationOrigins, destination
   }));
 }
 
+export function ningboMissionWaypointShips(quest) {
+  if (quest?.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) return Object.freeze([]);
+  const ships = Array.isArray(quest.eastAsianDelegationShips)
+    ? quest.eastAsianDelegationShips
+    : [];
+  const removedIds = new Set([
+    ...(quest.eastAsianDefeatedShipIds || []),
+    ...(quest.eastAsianLostShipIds || [])
+  ]);
+  const stage = quest.eastAsianStage || "race";
+  let targetIds = null;
+  let targetFactionId = null;
+  if (stage === "race") {
+    targetFactionId = quest.eastAsianStartingFactionId === "hosokawa" ? "ouchi" : "hosokawa";
+  } else if (stage === "battle") {
+    targetIds = new Set(quest.eastAsianBattleShipIds || []);
+  } else {
+    return Object.freeze([]);
+  }
+  return Object.freeze(ships.filter((ship) => (
+    !removedIds.has(ship.id) &&
+    (targetIds ? targetIds.has(ship.id) : ship.factionId === targetFactionId)
+  )));
+}
+
+export function ningboMissionJournalPresentation(quest) {
+  if (quest?.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) {
+    throw new Error(`Ningbo journal requires the tally mission: ${quest?.id}`);
+  }
+  const origin = quest.eastAsianStartingFactionId === "hosokawa" ? "Hosokawa" : "Ouchi";
+  const rival = quest.eastAsianStartingFactionId === "hosokawa" ? "Ouchi" : "Hosokawa";
+  const stage = quest.eastAsianStage || "race";
+  if (stage === "race") {
+    return Object.freeze({
+      title: "RACE TO NINGBO",
+      summary: `BEAT THE ${rival.toUpperCase()} DELEGATION TO NINGBO`
+    });
+  }
+  if (stage === "battle") {
+    const defeated = new Set(quest.eastAsianDefeatedShipIds || []);
+    const remaining = (quest.eastAsianBattleShipIds || []).filter((id) => !defeated.has(id)).length;
+    const enemy = quest.eastAsianBattleFactionId === "hosokawa" ? "HOSOKAWA" : "OUCHI";
+    return Object.freeze({
+      title: "BATTLE OFF NINGBO",
+      summary: remaining === 1
+        ? `DEFEAT 1 ${enemy} SHIP OFF NINGBO`
+        : `DEFEAT ${remaining} ${enemy} SHIPS OFF NINGBO`
+    });
+  }
+  if (stage === "resolved") {
+    return Object.freeze({
+      title: "NINGBO TRADE DISPUTE",
+      summary: "RETURN TO THE SHIPPING OFFICE AT NINGBO"
+    });
+  }
+  if (stage === "failed") {
+    return Object.freeze({
+      title: "NINGBO TRADE DISPUTE",
+      summary: `${origin.toUpperCase()} DELEGATION DEFEATED`
+    });
+  }
+  throw new Error(`Unknown Ningbo mission stage: ${stage}`);
+}
+
 export function eastAsianMissionHasOutcomes(quest) {
   return isEastAsianMissionQuest(quest) && [
     EAST_ASIAN_MISSION_NINGBO,
@@ -234,7 +298,7 @@ export function eastAsianMissionDialogue(plan) {
     return Object.freeze({
       offer: `${house} merchants have a tally for the Ming trade at Ningbo. The ${rival} have sent a rival mission. Carry me there before their papers reach the shipping office.`,
       underway: `At Ningbo, order matters as much as ink. Our support ships have sailed, and so have the ${rival}. We must reach the shipping office first.`,
-      arrival: "Both tallies are before the Ningbo shipping office. The rival escorts wait offshore while the officials demand a settlement.",
+      arrival: "Both houses have laid their tallies before me, and their escorts are waiting outside the harbor. I can enter a joint register, or you may settle the quarrel at sea.",
       journeyEvents: Object.freeze([
         Object.freeze({
           id: NINGBO_BRIBE_JOURNEY_EVENT_ID,

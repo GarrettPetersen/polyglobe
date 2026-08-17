@@ -56,7 +56,7 @@ export const FACTIONS = Object.freeze([
   faction("ayutthaya", "Ayutthaya Kingdom", "Ayutthaya", "Ayutthayan", "kingdom"),
   faction("ternate", "Sultanate of Ternate", "Ternate", "Ternatan", "sultanate"),
   faction("tidore", "Sultanate of Tidore", "Tidore", "Tidorese", "sultanate"),
-  faction("japan", "Ashikaga Japan", "Japan", "Japanese", "shogunate"),
+  faction("japan", "Ashikaga Shogunate", "Japan", "Japanese", "shogunate"),
   faction("hosokawa", "Hosokawa House", "Hosokawa", "Hosokawa", "daimyo"),
   faction("ouchi", "Ouchi House", "Ouchi", "Ouchi", "daimyo"),
   faction("shimazu", "Shimazu House", "Shimazu", "Shimazu", "daimyo"),

@@ -463,7 +463,8 @@ import {
 } from "./gameState.js";
 import {
   TEA_RACE_CARGO_QUANTITY,
-  isTeaRaceQuest
+  isTeaRaceQuest,
+  teaRaceWaypointShips
 } from "./teaRaceQuest.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
@@ -471,7 +472,9 @@ import {
   NINGBO_DEFECTION_BRIBE,
   NINGBO_BRIBE_JOURNEY_EVENT_ID,
   eastAsianMissionHasOutcomes,
-  ningboDelegationManifest
+  ningboDelegationManifest,
+  ningboMissionJournalPresentation,
+  ningboMissionWaypointShips
 } from "./eastAsianQuestlines.js";
 import {
   createDecisionBackedQuestJourneyDialogueSubject,
@@ -860,6 +863,7 @@ import {
   npcSeaRoutePortSettlementType,
   npcShipHasCombatGrace,
   npcShipIdsAddedSinceSimulationSnapshot,
+  npcShipSnapshotForId,
   npcShipSnapshots,
   replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
@@ -867,6 +871,7 @@ import {
   restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
   sinkNpcShip,
+  stageNpcRouteEncounterAtDestination,
   snapshotNpcSeaRouteSystem,
   snapshotNpcSeaRouteStrategicSystem,
   snapshotNpcSurrenderContinuity,
@@ -7730,6 +7735,30 @@ function ensureNingboMissionEncounters({ assignCaptains = true } = {}) {
     active.push(strategic);
   }
   return active;
+}
+
+function stageNingboMissionFleetAtDestination(quest) {
+  if (quest !== activeNingboMissionQuest()) {
+    throw new Error(`Cannot stage an inactive Ningbo mission: ${quest?.id}`);
+  }
+  let changed = false;
+  for (const strategic of ensureNingboMissionEncounters()) {
+    const holdProgress = strategic.encounter.delegationRole === "courier"
+      ? 0.988
+      : 0.978;
+    const staged = stageNpcRouteEncounterAtDestination(
+      npcSeaRoutes,
+      strategic.id,
+      Math.floor(weatherClockMinutes),
+      { holdProgress }
+    );
+    if (!staged) continue;
+    const visualState = npcVisualShips.get(strategic.id);
+    if (visualState) discardNpcVisualState(visualState);
+    changed = true;
+  }
+  if (changed) npcVisualSnapshotCache.reset();
+  return changed;
 }
 
 function ningboDelegationFactionLabel(factionId) {
@@ -20240,6 +20269,7 @@ function createWorldPassengerDialogueSession(cityCall, quest, options = {}) {
       simMinute: Math.floor(weatherClockMinutes),
       rivalArrivalMinute
     });
+    stageNingboMissionFleetAtDestination(quest);
     ningboRivalCharacter = ensureNpcShipCaptain(rivalCourier.id);
   }
   return createPassengerDialogueSession(cityCall, quest, {
@@ -31518,11 +31548,8 @@ function forceNingboMissionEngagements() {
   let largestBroadside = 0;
   for (const enemy of enemies) {
     if (enemy.combatGrace) continue;
-    if (distance2(localLayout.viewX, localLayout.viewY, enemy.x, enemy.y) <=
-        COMBAT_DETECTION_RADIUS_PX * COMBAT_DETECTION_RADIUS_PX) {
-      changed = forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, enemy.id) || changed;
-      largestBroadside = Math.max(largestBroadside, enemy.stats.cannons);
-    }
+    changed = forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, enemy.id) || changed;
+    largestBroadside = Math.max(largestBroadside, enemy.stats.cannons);
     for (const ally of allies) {
       if (ally.combatGrace) continue;
       if (distance2(enemy.x, enemy.y, ally.x, ally.y) >
@@ -34849,11 +34876,17 @@ function npcVisualStateIsOutside(state, offset, margin) {
 }
 
 function releaseNpcVisualState(state) {
-  clearCombatForShip(state.id);
-  npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== state.id && ball.targetId !== state.id);
   if (npcSeaRoutes?.shipById?.has(state.id)) {
     releaseNpcShipVisualNavigation(npcSeaRoutes, state.id, weatherClockMinutes, state.vector);
   }
+  discardNpcVisualState(state);
+}
+
+function discardNpcVisualState(state) {
+  clearCombatForShip(state.id);
+  npcCombatProjectiles = npcCombatProjectiles.filter(
+    (ball) => ball.ownerId !== state.id && ball.targetId !== state.id
+  );
   npcVisualShips.delete(state.id);
 }
 
@@ -36288,6 +36321,7 @@ function drawWorldInterface(nowMs) {
   }
   beginWaypointArrowFrame();
   drawQuestDestinationArrow(nowMs);
+  drawQuestShipArrows(nowMs);
   drawRescuedTravelerDestinationArrows(nowMs);
   drawFetchQuestDestinationArrows(nowMs);
   drawColonizationDestinationArrow(nowMs);
@@ -39630,6 +39664,9 @@ function questJournalEntries() {
   }
 
   for (const { quest: activeQuest, destination: activeDestination } of activeQuestDestinations()) {
+    const ningboPresentation = activeQuest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO
+      ? ningboMissionJournalPresentation(activeQuest)
+      : null;
     const titleKey = activeQuest.kind === "passenger"
       ? "quest.passenger"
       : activeQuest.kind === "delivery"
@@ -39637,7 +39674,9 @@ function questJournalEntries() {
         : isEnvoyQuest(activeQuest)
           ? "quest.diplomacy"
           : "quest.mission";
-    const title = isTeaRaceQuest(activeQuest)
+    const title = ningboPresentation
+      ? renderedUiText(ningboPresentation.title)
+      : isTeaRaceQuest(activeQuest)
       ? "NEW TEA RACE"
       : isTreatyOfMadridQuest(activeQuest)
         ? treatyOfMadridJournalTitle(activeQuest)
@@ -39645,7 +39684,9 @@ function questJournalEntries() {
     entries.push({
       id: `travel:${activeQuest.id}:${activeDestination.tileId}`,
       title,
-      nextStep: isTeaRaceQuest(activeQuest)
+      nextStep: ningboPresentation
+        ? renderedUiText(ningboPresentation.summary)
+        : isTeaRaceQuest(activeQuest)
         ? activeQuest.teaRaceFirstRivalArrivalMinute === undefined
           ? "RACE TEN TEA CHESTS TO LONDON - FIRST PRIZE 10000 DB"
           : "FINISH THE TEA RUN TO LONDON - 2500 DB"
@@ -52124,6 +52165,54 @@ function drawQuestDestinationArrow(nowMs) {
       style: QUEST_NAVIGATION_STYLE
     });
   }
+}
+
+function drawQuestShipArrows(nowMs) {
+  if (!ship || !chart || !localLayout || !npcSeaRoutes) return;
+  const ningboQuest = activeNingboMissionQuest();
+  if (ningboQuest) {
+    for (const spec of ningboMissionWaypointShips(ningboQuest)) {
+      drawQuestShipArrow(spec, {
+        idPrefix: "ningbo",
+        label: ningboDelegationWaypointLabel(spec),
+        nowMs
+      });
+    }
+  }
+  const teaRaceQuest = activeTeaRaceQuest();
+  if (teaRaceQuest) {
+    for (const spec of teaRaceWaypointShips(teaRaceQuest)) {
+      drawQuestShipArrow(spec, {
+        idPrefix: "tea-race",
+        label: `${factionById(spec.factionId).adjective} racing ship`,
+        nowMs
+      });
+    }
+  }
+}
+
+function ningboDelegationWaypointLabel(spec) {
+  const faction = ningboDelegationFactionLabel(spec.factionId);
+  if (spec.delegationRole === "courier") return `${faction} courier`;
+  if (spec.delegationRole === "escort") return `${faction} escort`;
+  throw new Error(`Unknown Ningbo delegation role: ${spec.delegationRole}`);
+}
+
+function drawQuestShipArrow(spec, { idPrefix, label, nowMs }) {
+  const snapshot = npcShipSnapshotForId(npcSeaRoutes, spec.id, weatherClockMinutes);
+  if (!snapshot || snapshot.hidden || !snapshot.routeVector) return;
+  const visualState = npcVisualShips.get(spec.id);
+  drawWorldTargetArrow({
+    id: `${idPrefix}:${spec.id}`,
+    label: renderedUiText(label),
+    targetVector: snapshot.routeVector,
+    localPoint: visualState
+      ? visualPresentationPoint(visualState, nowMs)
+      : localPointForGlobeVector(snapshot.routeVector),
+    localYOffset: -10,
+    nowMs,
+    style: QUEST_NAVIGATION_STYLE
+  });
 }
 
 function activeConquistadorDestination() {

@@ -746,6 +746,47 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
   return ship;
 }
 
+export function stageNpcRouteEncounterAtDestination(
+  system,
+  shipId,
+  clockMinutes,
+  { holdProgress = null } = {}
+) {
+  assertSaveableNpcRouteSystem(system);
+  if (!Number.isFinite(clockMinutes) || clockMinutes < 0) {
+    throw new Error(`Invalid NPC encounter staging clock: ${clockMinutes}`);
+  }
+  const ship = requiredNpcShip(system, shipId);
+  const destinationPortId = ship.encounter?.destinationPortId;
+  if (ship.encounter?.holdAtDestination !== true || !Number.isInteger(destinationPortId)) {
+    throw new Error(`NPC encounter cannot be staged at a destination: ${shipId}`);
+  }
+  const destination = system.ports.find((port) => port.tileId === destinationPortId);
+  if (!destination) throw new Error(`NPC encounter destination is missing: ${destinationPortId}`);
+  if (holdProgress !== null &&
+      (!Number.isFinite(holdProgress) || holdProgress <= 0 || holdProgress > 1)) {
+    throw new Error(`Invalid NPC encounter staging progress: ${shipId}`);
+  }
+  if (
+    ship.currentPort?.tileId === destinationPortId &&
+    ship.plan?.segments?.length === 1 &&
+    ship.plan.segments[0].kind === "wait"
+  ) {
+    if (holdProgress === null || holdProgress === ship.encounter.holdProgress) return false;
+    repositionHeldNpcRouteEncounter(ship, destination, holdProgress);
+    return true;
+  }
+  const lastSail = [...(ship.plan?.segments || [])]
+    .reverse()
+    .find((segment) => segment.kind === "sail");
+  if (!lastSail) throw new Error(`NPC delegation route has no sailing segment: ${ship.id}`);
+  if (holdProgress !== null) ship.encounter.holdProgress = holdProgress;
+  ship.currentPort = destination;
+  ship.portVisits += 1;
+  holdNpcRouteEncounterAtDestination(ship, destination, clockMinutes, lastSail);
+  return true;
+}
+
 function capturePoint(lat, lon, label, { routeRegion = "wide-world", cityType = "northern-european" } = {}) {
   if (!Number.isFinite(lat) || lat < -89.999 || lat > 89.999) {
     throw new Error(`Invalid capture encounter latitude: ${lat}`);
@@ -1612,6 +1653,18 @@ export function npcShipSnapshots(system, clockMinutes) {
     .filter(Boolean);
 }
 
+export function npcShipSnapshotForId(system, shipId, clockMinutes) {
+  assertSaveableNpcRouteSystem(system);
+  if (typeof shipId !== "string" || shipId === "") {
+    throw new Error("NPC ship snapshot requires an id");
+  }
+  if (!Number.isFinite(clockMinutes) || clockMinutes < 0) {
+    throw new Error(`Invalid NPC snapshot clock: ${clockMinutes}`);
+  }
+  const ship = system.shipById.get(shipId);
+  return ship ? npcShipSnapshot(ship, npcEffectiveClock(ship, clockMinutes)) : null;
+}
+
 export function npcShipIdsAddedSinceSimulationSnapshot(system, snapshot) {
   assertSaveableNpcRouteSystem(system);
   if (!snapshot || snapshot.version !== NPC_SEA_ROUTE_SNAPSHOT_VERSION ||
@@ -2311,29 +2364,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       const arrivalMinute = ship.plan.endMinute;
       const lastSail = [...ship.plan.segments].reverse().find((segment) => segment.kind === "sail");
       if (!lastSail) throw new Error(`NPC delegation route has no sailing segment: ${ship.id}`);
-      const holdProgress = ship.encounter.holdProgress ?? 0.96;
-      if (!Number.isFinite(holdProgress) || holdProgress <= 0 || holdProgress > 1) {
-        throw new Error(`NPC delegation has an invalid holding progress: ${ship.id}`);
-      }
-      const holdVectors = vectorsForRouteSegment(lastSail);
-      ship.encounter.arrivedAtMinute ??= arrivalMinute;
-      ship.finalDestination = null;
-      const heldPosition = slerpVector(holdVectors.from, holdVectors.to, holdProgress);
-      ship.visualNavigation = {
-        vector: heldPosition,
-        heading: headingVectorForVectors(heldPosition, holdVectors.from, holdVectors.to)
-      };
-      ship.plan = {
-        origin: ship.currentPort,
-        destination: ship.currentPort,
-        segments: [{
-          kind: "wait",
-          startMinute: arrivalMinute,
-          endMinute: arrivalMinute + 200 * 365 * WEATHER_MINUTES_PER_DAY
-        }],
-        startMinute: arrivalMinute,
-        endMinute: arrivalMinute + 200 * 365 * WEATHER_MINUTES_PER_DAY
-      };
+      holdNpcRouteEncounterAtDestination(ship, ship.currentPort, arrivalMinute, lastSail);
       changed = true;
       guard++;
       break;
@@ -2387,6 +2418,71 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     changed = true;
   }
   return changed;
+}
+
+function holdNpcRouteEncounterAtDestination(ship, destination, arrivalMinute, lastSail) {
+  const holdProgress = ship.encounter?.holdProgress ?? 0.96;
+  if (!Number.isFinite(holdProgress) || holdProgress <= 0 || holdProgress > 1) {
+    throw new Error(`NPC delegation has an invalid holding progress: ${ship.id}`);
+  }
+  const holdVectors = vectorsForRouteSegment(lastSail);
+  ship.encounter.holdApproachVectors = {
+    from: [...holdVectors.from],
+    to: [...holdVectors.to]
+  };
+  const heldPosition = slerpVector(holdVectors.from, holdVectors.to, holdProgress);
+  const waitEndMinute = arrivalMinute + 200 * 365 * WEATHER_MINUTES_PER_DAY;
+  ship.encounter.arrivedAtMinute ??= arrivalMinute;
+  ship.finalDestination = null;
+  ship.visualNavigation = {
+    vector: heldPosition,
+    heading: headingVectorForVectors(heldPosition, holdVectors.from, holdVectors.to)
+  };
+  ship.plan = {
+    origin: destination,
+    destination,
+    segments: [{
+      kind: "wait",
+      startMinute: arrivalMinute,
+      endMinute: waitEndMinute
+    }],
+    startMinute: arrivalMinute,
+    endMinute: waitEndMinute
+  };
+}
+
+function repositionHeldNpcRouteEncounter(ship, destination, holdProgress) {
+  const previousProgress = ship.encounter.holdProgress ?? 0.96;
+  const savedApproach = ship.encounter.holdApproachVectors;
+  let holdVectors;
+  let effectiveProgress;
+  if (savedApproach?.from && savedApproach?.to) {
+    holdVectors = savedApproach;
+    effectiveProgress = holdProgress;
+  } else {
+    const currentVector = ship.visualNavigation?.vector;
+    if (!Array.isArray(currentVector) || currentVector.length !== 3) {
+      throw new Error(`Held NPC encounter is missing its visual position: ${ship.id}`);
+    }
+    holdVectors = {
+      from: currentVector,
+      to: latLonToVector(destination.lat, destination.lon)
+    };
+    const remainingProgress = Math.max(1e-6, 1 - previousProgress);
+    effectiveProgress = Math.max(0, Math.min(1,
+      (holdProgress - previousProgress) / remainingProgress
+    ));
+    ship.encounter.holdApproachVectors = {
+      from: [...holdVectors.from],
+      to: [...holdVectors.to]
+    };
+  }
+  const heldPosition = slerpVector(holdVectors.from, holdVectors.to, effectiveProgress);
+  ship.encounter.holdProgress = holdProgress;
+  ship.visualNavigation = {
+    vector: heldPosition,
+    heading: headingVectorForVectors(heldPosition, holdVectors.from, holdVectors.to)
+  };
 }
 
 function rebaseStaleNpcShipPlan(system, ship, clockMinutes) {

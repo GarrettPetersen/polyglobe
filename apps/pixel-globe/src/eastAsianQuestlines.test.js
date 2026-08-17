@@ -28,7 +28,9 @@ import {
   YOSHIHARU_JOURNEY_EVENT_ID,
   eastAsianMissionDialogue,
   eastAsianMissionPlanForCity,
-  eastAsianMissionOutcomeOptions
+  eastAsianMissionOutcomeOptions,
+  ningboMissionJournalPresentation,
+  ningboMissionWaypointShips
 } from "./eastAsianQuestlines.js";
 import {
   markQuestJourneyDialogueSeen,
@@ -260,7 +262,8 @@ test("an automatically opened Ningbo dialogue records arrival before its choices
   selectPassengerDialogueOption(session, NINGBO, active, state, 1, { simMinute: 60 });
 
   const hearing = passengerDialogueView(session, NINGBO, active, state);
-  assert.match(hearing.text, /reached Ningbo before the rival courier/i);
+  assert.match(hearing.text, /courier reached my office first/i);
+  assert.match(hearing.text, /escorts are waiting outside the harbor/i);
   assert.deepEqual(hearing.options.map((option) => [option.label, option.detail]), [
     ["Mediate a joint tally", "Avoid battle; favor Ming"],
     ["Fight for Hosokawa", "Attack Ouchi"]
@@ -320,6 +323,44 @@ test("Ningbo loyalty and defection require a two-ship battle with a loss conditi
   assert.equal(recordNingboMissionShipDefeated(defectState, alliedIds[1]).status, "defeat");
   assert.equal(defectState.memory.quests.passengerActive, null);
   assert.equal(defectState.memory.quests.failed[defectActive.id].reason, "ningbo-delegation-defeated");
+});
+
+test("Ningbo journal copy and ship waypoints follow the race and battle stages", () => {
+  const state = gameState();
+  const quest = acceptQuest(state, offer(state, SAKAI), { simMinute: 0 });
+  const rivalIds = quest.eastAsianDelegationShips
+    .filter((ship) => ship.factionId === "ouchi")
+    .map((ship) => ship.id);
+
+  assert.deepEqual(
+    ningboMissionWaypointShips(quest).map((ship) => ship.id),
+    rivalIds
+  );
+  assert.deepEqual(ningboMissionJournalPresentation(quest), {
+    title: "RACE TO NINGBO",
+    summary: "BEAT THE OUCHI DELEGATION TO NINGBO"
+  });
+
+  recordNingboMissionArrival(state, quest.id, { simMinute: 60, rivalArrivalMinute: 90 });
+  refuseNingboMissionBribe(state, quest.id);
+  selectEastAsianMissionOutcome(state, quest.id, "support-origin");
+  assert.deepEqual(
+    ningboMissionWaypointShips(quest).map((ship) => ship.id),
+    quest.eastAsianBattleShipIds
+  );
+  assert.deepEqual(ningboMissionJournalPresentation(quest), {
+    title: "BATTLE OFF NINGBO",
+    summary: "DEFEAT 2 OUCHI SHIPS OFF NINGBO"
+  });
+
+  recordNingboMissionShipDefeated(state, quest.eastAsianBattleShipIds[0]);
+  assert.equal(ningboMissionJournalPresentation(quest).summary, "DEFEAT 1 OUCHI SHIP OFF NINGBO");
+  recordNingboMissionShipDefeated(state, quest.eastAsianBattleShipIds[1]);
+  assert.deepEqual(ningboMissionWaypointShips(quest), []);
+  assert.equal(
+    ningboMissionJournalPresentation(quest).summary,
+    "RETURN TO THE SHIPPING OFFICE AT NINGBO"
+  );
 });
 
 test("captured Portuguese guns reinforce each Chinese battery only after visiting it", () => {

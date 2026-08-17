@@ -9,6 +9,7 @@ import {
   factionReputation,
   openSovereignTradeToFaction,
   questCargoSaleTheftStatus,
+  recordTeaRaceCompetitorRemoved,
   recordTeaRacePlayerArrival,
   recordTeaRaceTheft,
   teaRaceOfferForCity
@@ -25,7 +26,8 @@ import {
   TEA_RACE_CARGO_QUANTITY,
   TEA_RACE_FIRST_PRIZE,
   TEA_RACE_FINISHER_PRIZE,
-  isTeaRaceQuest
+  isTeaRaceQuest,
+  teaRaceWaypointShips
 } from "./teaRaceQuest.js";
 
 const PLAYER = Object.freeze({
@@ -159,6 +161,30 @@ test("the first-crop race can return next year but never twice in one season", (
     spawnChance: 0
   });
   assert.equal(next.id, "tea-race-1523");
+});
+
+test("tea race waypoints follow every active competitor and omit retired ships", () => {
+  const state = raceStateWithOpenTrade();
+  const spring = gameMinuteForDate(1522, 4, 15);
+  const quest = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
+  acceptQuest(state, quest, { simMinute: spring });
+  const active = state.memory.quests.active;
+
+  assert.deepEqual(
+    teaRaceWaypointShips(active).map((ship) => ship.id),
+    active.teaRaceCompetitors.map((ship) => ship.id)
+  );
+  recordTeaRaceCompetitorRemoved(state, active.teaRaceCompetitors[1].id);
+  assert.equal(
+    teaRaceWaypointShips(active).some((ship) => ship.id === active.teaRaceCompetitors[1].id),
+    false
+  );
+  recordTeaRacePlayerArrival(state, active.id, {
+    simMinute: spring + 100,
+    rivalArrivalMinute: spring + 101,
+    rivalShipId: active.teaRaceCompetitors[0].id
+  });
+  assert.deepEqual(teaRaceWaypointShips(active), []);
 });
 
 function raceState() {

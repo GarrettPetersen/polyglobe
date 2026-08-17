@@ -119,6 +119,12 @@ export function teaRaceCompetitorManifest(questId, originPortId, destinationPort
   })));
 }
 
+export function teaRaceWaypointShips(quest) {
+  if (!isTeaRaceQuest(quest) || quest.stage !== "race") return Object.freeze([]);
+  const retiredIds = new Set(quest.teaRaceRetiredShipIds || []);
+  return Object.freeze(quest.teaRaceCompetitors.filter((ship) => !retiredIds.has(ship.id)));
+}
+
 export function teaRaceEntrustedCargo(quest) {
   if (!isTeaRaceQuest(quest)) return Object.freeze([]);
   return quest.teaRaceCargoRequirements;

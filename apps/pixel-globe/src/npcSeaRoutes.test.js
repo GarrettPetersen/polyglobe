@@ -33,6 +33,7 @@ import {
   npcSeaRouteEventSchedule,
   npcShipHasCombatGrace,
   npcShipIdsAddedSinceSimulationSnapshot,
+  npcShipSnapshotForId,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
   replaceNpcSeaRoutePort,
@@ -40,6 +41,7 @@ import {
   restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
   sinkNpcShip,
+  stageNpcRouteEncounterAtDestination,
   snapshotNpcSeaRouteSystem,
   snapshotNpcSeaRouteStrategicSystem,
   snapshotNpcSurrenderContinuity,
@@ -1911,7 +1913,63 @@ test("routed delegation encounters depart for and wait at their specified destin
   assert.equal(delegation.currentPort.tileId, 9);
   assert.equal(delegation.encounter.arrivedAtMinute, arrivalMinute);
   assert.equal(delegation.plan.segments[0].kind, "wait");
-  assert.equal(npcShipSnapshots(routes, arrivalMinute + 1).find((ship) => ship.id === delegation.id).id, delegation.id);
+  const naturallyHeld = npcShipSnapshotForId(routes, delegation.id, arrivalMinute + 1);
+  assert.equal(naturallyHeld.id, delegation.id);
+  assert.equal(stageNpcRouteEncounterAtDestination(
+    routes,
+    delegation.id,
+    arrivalMinute + 2,
+    { holdProgress: 0.99 }
+  ), true);
+  assert.notDeepEqual(
+    npcShipSnapshotForId(routes, delegation.id, arrivalMinute + 2).routeVector,
+    naturallyHeld.routeVector
+  );
+  assert.equal(delegation.encounter.holdProgress, 0.99);
+  assert.equal(stageNpcRouteEncounterAtDestination(
+    routes,
+    delegation.id,
+    arrivalMinute + 3,
+    { holdProgress: 0.99 }
+  ), false);
+});
+
+test("routed delegations can be assembled at their hearing without waiting for the route clock", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const delegation = configureNpcRouteEncounter(routes, {
+    id: "delegation:staged",
+    originPortId: 8,
+    destinationPortId: 9,
+    factionId: "ming",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "small-junk",
+    replaceOnSink: false,
+    encounter: {
+      kind: "test-delegation",
+      destinationPortId: 9,
+      holdAtDestination: true,
+      holdProgress: 0.93
+    }
+  }, 1000);
+  const naturalArrivalMinute = delegation.plan.endMinute;
+
+  assert.ok(naturalArrivalMinute > 1100);
+  assert.equal(stageNpcRouteEncounterAtDestination(
+    routes,
+    delegation.id,
+    1100,
+    { holdProgress: 0.98 }
+  ), true);
+  assert.equal(delegation.currentPort.tileId, 9);
+  assert.equal(delegation.encounter.arrivedAtMinute, 1100);
+  assert.equal(delegation.plan.segments[0].kind, "wait");
+  const held = npcShipSnapshotForId(routes, delegation.id, 1100);
+  assert.equal(held.id, delegation.id);
+  assert.match(held.routeKey, /^held:/);
+  assert.equal(delegation.encounter.holdProgress, 0.98);
+  assert.equal(stageNpcRouteEncounterAtDestination(routes, delegation.id, 1101), false);
+  assert.deepEqual(npcShipSnapshotForId(routes, delegation.id, 1101).routeVector, held.routeVector);
 });
 
 test("the annual tea race launches five distinct wind-routed merchants for London", () => {

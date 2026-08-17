@@ -24,6 +24,8 @@ export const WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX = 138;
 export const WARSHIP_PIRATE_DISENGAGE_RADIUS_PX = 190;
 export const PLAYER_ALLY_REINFORCEMENT_RADIUS_PX = 170;
 export const PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX = 220;
+export const QUEST_ATTACKER_HUNT_RADIUS_PX = 220;
+export const QUEST_ATTACKER_DISENGAGE_RADIUS_PX = 280;
 export const PLAYER_ALLY_MIN_REINFORCEMENT_CANNONS = 4;
 export const PLAYER_NPC_ATTACK_GRACE_SECONDS = 60;
 export const COMBAT_MODE_ATTACK = "attack";
@@ -54,13 +56,26 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
     if (!a || !b || a.combatGrace || b.combatGrace ||
-        (!engagement.playerInitiated && playerSafePassageApplies(a, b) &&
+        (!engagement.playerInitiated && !forcedPlayerAttackApplies(a, b) &&
+          playerSafePassageApplies(a, b) &&
           !playerPersonalHostilityApplies(a, b)) ||
         (!engagement.playerInitiated && !entitiesAreEnemies(a, b, relationBetween)) ||
         playerEnteredPortEndsEngagement(a, b) ||
         !withinDistance(a, b, engagementDisengageRadius(engagement, a, b))) {
       state.engagements.delete(key);
       changed = true;
+    }
+  }
+
+  const player = byId.get(PLAYER_COMBAT_ID);
+  if (player) {
+    for (const npc of entities) {
+      if (npc.id === PLAYER_COMBAT_ID || npc.forceAttack !== true ||
+          !withinDistance(player, npc, QUEST_ATTACKER_HUNT_RADIUS_PX) ||
+          !validatedShipsTriggerCombat(player, npc, relationBetween)) {
+        continue;
+      }
+      if (startCombatEngagement(state, player, npc, startedEngagements)) changed = true;
     }
   }
 
@@ -74,12 +89,7 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
       const b = entities[candidateIndex];
       if (!withinDistance(a, b, combatDetectionRadius(a, b)) ||
           !validatedShipsTriggerCombat(a, b, relationBetween)) continue;
-      const key = engagementKey(a.id, b.id);
-      if (state.engagements.has(key)) continue;
-      const engagement = { aId: a.id, bId: b.id };
-      state.engagements.set(key, engagement);
-      startedEngagements.push(engagement);
-      changed = true;
+      if (startCombatEngagement(state, a, b, startedEngagements)) changed = true;
     }
   }
 
@@ -120,6 +130,15 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     });
   }
   return { changed, intents, engagementCount: state.engagements.size, startedEngagements };
+}
+
+function startCombatEngagement(state, a, b, startedEngagements) {
+  const key = engagementKey(a.id, b.id);
+  if (state.engagements.has(key)) return false;
+  const engagement = { aId: a.id, bId: b.id };
+  state.engagements.set(key, engagement);
+  startedEngagements.push(engagement);
+  return true;
 }
 
 function appendEnemy(enemiesById, entityId, enemy) {
@@ -174,7 +193,9 @@ function validatedShipsTriggerCombat(a, b, relationBetween) {
   if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {
     const player = a.id === PLAYER_COMBAT_ID ? a : b;
     const npc = a.id === PLAYER_COMBAT_ID ? b : a;
-    if (playerSafePassageApplies(player, npc) && !playerPersonalHostilityApplies(player, npc)) {
+    if (playerSafePassageApplies(player, npc) &&
+        !playerPersonalHostilityApplies(player, npc) &&
+        npc.forceAttack !== true) {
       return false;
     }
     if (player.npcAttackProtected) return false;
@@ -195,9 +216,16 @@ function validatedShipsTriggerCombat(a, b, relationBetween) {
 }
 
 function entitiesAreEnemies(a, b, relationBetween) {
+  if (forcedPlayerAttackApplies(a, b)) return true;
   return playerPersonalHostilityApplies(a, b) ||
     (a.factionId !== b.factionId &&
       relationBetween(a.factionId, b.factionId) === DIPLOMACY_WAR);
+}
+
+function forcedPlayerAttackApplies(a, b) {
+  if (a.id !== PLAYER_COMBAT_ID && b.id !== PLAYER_COMBAT_ID) return false;
+  const npc = a.id === PLAYER_COMBAT_ID ? b : a;
+  return npc.forceAttack === true;
 }
 
 function playerPersonalHostilityApplies(a, b) {
@@ -252,6 +280,7 @@ function combatDisengageRadius(a, b) {
 }
 
 function engagementDisengageRadius(engagement, a, b) {
+  if (forcedPlayerAttackApplies(a, b)) return QUEST_ATTACKER_DISENGAGE_RADIUS_PX;
   return engagement.alliedReinforcement === true
     ? PLAYER_ALLY_REINFORCEMENT_TARGET_RADIUS_PX
     : combatDisengageRadius(a, b);
