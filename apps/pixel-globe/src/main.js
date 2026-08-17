@@ -1889,6 +1889,7 @@ import {
   chartRepairCloudBankFrame,
   chartRepairCloudMayMostlyCoverCircle,
   chartRepairCloudMostlyCoversCircle,
+  chartRepairCloudTileStepPx,
   createChartRepairCloudBank,
   slowedChartRepairCloudSpeed
 } from "./chartRepairCloudBank.js";
@@ -2705,6 +2706,7 @@ const CUSTOM_LOADOUT_FIELD_COLORS = Object.freeze({
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
 const MINIMAP_MAX_LAT_DEG = 72;
+const CAPTAIN_CHART_SAMPLE_OFFSETS = Object.freeze([0.5]);
 let MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 let MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
 const MINIMAP_UNKNOWN_COLOR = [74, 66, 55];
@@ -24403,11 +24405,27 @@ function updateChartVisualRepair(nowMs) {
     const frame = chartRepairCloudBankFrame(state.animation, nowMs);
     if (nowMs >= state.nextTileRepairAtMs || frame.finished) {
       state.nextTileRepairAtMs = nowMs + CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS;
+      const severeCloudDistortion = currentChartRepairIsSevere();
+      const cloudOffset = layoutOffsetPixels();
       const repairedCount = repairCloudCoveredChartTiles(
         frame,
         state.mode === "local" ? "local cloud bank" : "cloud bank",
         state.repairedTileIds,
-        state.repairPlan
+        state.repairPlan,
+        severeCloudDistortion ? 4 : 1,
+        severeCloudDistortion
+          ? (id) => {
+              const position = localLayout.positions.get(id);
+              if (!position) return 1;
+              return chartRepairCloudTileStepPx(
+                frame,
+                position.x + cloudOffset.x,
+                position.y + cloudOffset.y,
+                CHART_REPAIR_TILE_VISUAL_RADIUS_PX,
+                severeCloudDistortion
+              );
+            }
+          : null
       );
       state.repairedCount += repairedCount;
     }
@@ -24653,7 +24671,14 @@ function repairFogCoveredChartTiles(
   return movedCount;
 }
 
-function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan) {
+function repairCloudCoveredChartTiles(
+  frame,
+  reason,
+  repairedTileIds,
+  repairPlan,
+  maximumStepPx = 1,
+  maximumStepPxForTile = null
+) {
   if (!(repairedTileIds instanceof Set)) {
     throw new Error(`Chart cloud repair ${reason} requires a repaired tile set`);
   }
@@ -24682,7 +24707,8 @@ function repairCloudCoveredChartTiles(frame, reason, repairedTileIds, repairPlan
     ),
     shouldRepairTile: (id) => repairPlan.has(id),
     repairPlan,
-    maximumStepPx: 1
+    maximumStepPx,
+    maximumStepPxForTile
   });
   for (const id of repair.completedTileIds) repairedTileIds.add(id);
   chartVisualRepairStats.cloudTilesReplaced += repair.completedTileIds.length;
@@ -38408,7 +38434,7 @@ function buildMinimap() {
   }
 
   return {
-    ...buildMinimapRaster(MINIMAP_W, MINIMAP_H, true),
+    ...buildMinimapRaster(MINIMAP_W, MINIMAP_H, { trackSampledTiles: true }),
     seenTiles: new Uint8Array(graph.tileCount),
     packedSeenTiles: new Uint8Array(Math.ceil(graph.tileCount / 8)),
     packedSeenTilesBase64: "",
@@ -38426,9 +38452,16 @@ function buildMinimap() {
   };
 }
 
-function buildMinimapRaster(width, height, trackSampledTiles = false) {
+function buildMinimapRaster(width, height, {
+  trackSampledTiles = false,
+  sampleOffsets = MINIMAP_SAMPLE_OFFSETS
+} = {}) {
   if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
     throw new Error(`Invalid minimap raster dimensions: ${width}x${height}`);
+  }
+  if (!Array.isArray(sampleOffsets) || sampleOffsets.length === 0 ||
+      sampleOffsets.some((offset) => !Number.isFinite(offset) || offset <= 0 || offset >= 1)) {
+    throw new Error("Minimap raster requires sample offsets between zero and one");
   }
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -38446,6 +38479,7 @@ function buildMinimapRaster(width, height, trackSampledTiles = false) {
     pixelLandWeights: new Float32Array(width * height),
     pixelTileCounts: new Uint16Array(width * height),
     sampledPixelsByTile: trackSampledTiles ? new Map() : null,
+    sampleOffsets,
     sourceRevision: -1,
     renderedViewport: null,
     renderedViewportKey: ""
@@ -38465,8 +38499,8 @@ function historicalBattleWorldMapImage() {
   for (let y = 0; y < raster.height; y++) {
     for (let x = 0; x < raster.width; x++) {
       const pixel = x + y * raster.width;
-      for (const sampleY of MINIMAP_SAMPLE_OFFSETS) {
-        for (const sampleX of MINIMAP_SAMPLE_OFFSETS) {
+      for (const sampleY of raster.sampleOffsets) {
+        for (const sampleX of raster.sampleOffsets) {
           const longitudeDeg = -180 + (x + sampleX) / raster.width * 360;
           const latitudeDeg = MINIMAP_MAX_LAT_DEG -
             (y + sampleY) / raster.height * MINIMAP_MAX_LAT_DEG * 2;
@@ -38644,8 +38678,8 @@ function renderMinimapRaster(raster, viewport) {
   for (let y = 0; y < raster.height; y++) {
     for (let x = 0; x < raster.width; x++) {
       const pixel = x + y * raster.width;
-      for (const sampleY of MINIMAP_SAMPLE_OFFSETS) {
-        for (const sampleX of MINIMAP_SAMPLE_OFFSETS) {
+      for (const sampleY of raster.sampleOffsets) {
+        for (const sampleX of raster.sampleOffsets) {
           const projected = minimapViewportSample({
             viewport,
             pixelX: x,
@@ -38675,7 +38709,7 @@ function renderMinimapRaster(raster, viewport) {
           }
         }
       }
-      if (raster.pixelTileCounts[pixel] !== MINIMAP_SAMPLE_OFFSETS.length ** 2) {
+      if (raster.pixelTileCounts[pixel] !== raster.sampleOffsets.length ** 2) {
         throw new Error(`Incomplete minimap sampling at pixel ${pixel}`);
       }
       paintMinimapPixel(raster, pixel);
@@ -39266,13 +39300,16 @@ function questJournalEntries() {
     });
   }
 
-  const conquistador = conquistadorQuestView(
-    gameState.memory.quests.conquistador,
-    portCities,
-    Math.max(0, weatherClockMinutes),
-    { cargo: gameState.cargo }
-  );
-  if (!["dormant", "complete"].includes(conquistador.stage)) {
+  const conquistadorMemory = gameState.memory.quests.conquistador;
+  const conquistador = ["dormant", "complete"].includes(conquistadorMemory.stage)
+    ? null
+    : conquistadorQuestView(
+        conquistadorMemory,
+        portCities,
+        Math.max(0, weatherClockMinutes),
+        { cargo: gameState.cargo }
+      );
+  if (conquistador) {
     let nextStep;
     if (conquistador.stage === CONQUISTADOR_STAGE_FETCH) {
       const stage = conquistador.fetchStage;
@@ -39840,7 +39877,9 @@ function drawCaptainMapPanButton(rect, directionX, directionY) {
 function nativeCaptainChartMinimap(width, height, viewport) {
   if (!captainChartMinimap ||
       captainChartMinimap.width !== width || captainChartMinimap.height !== height) {
-    captainChartMinimap = buildMinimapRaster(width, height);
+    captainChartMinimap = buildMinimapRaster(width, height, {
+      sampleOffsets: CAPTAIN_CHART_SAMPLE_OFFSETS
+    });
   }
   ensureMinimapRaster(captainChartMinimap, viewport);
   return captainChartMinimap;

@@ -1547,6 +1547,49 @@ test("an east-to-west Scandinavia traversal escalates concealed repair before ge
   assertTraversalRepairBurden(result, "Scandinavian crossing", 45);
 });
 
+test("a Scandinavia traversal into the Baltic reaches Gotland without distortion", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [64.2, 41.7],
+        [68.0, 39.0],
+        [71.2, 26.0],
+        [71.5, 18.0],
+        [69.0, 8.5],
+        [63.0, 5.0],
+        [58.0, 2.0],
+        [56.0, 7.0],
+        [55.5, 11.0],
+        [56.0, 15.0],
+        [57.0, 18.0],
+        [58.15, 20.64],
+        [59.5, 24.0],
+        [59.8, 29.0]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("scandinavia-baltic", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Baltic chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxProtectedEdgeErrorPx <= MAX_VISIBLE_PROTECTED_EDGE_LENGTH_ERROR_PX,
+    `Baltic protected edge opened by ${result.maxProtectedEdgeErrorPx.toFixed(2)}px at ` +
+      `${JSON.stringify(result.maxProtectedEdgeDetails)}`
+  );
+  assertLandTraversalIsContinuous(result, "Scandinavia-to-Baltic crossing");
+});
+
 test("a northbound Scotland-to-Arctic-Norway voyage never outruns drawn terrain", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,

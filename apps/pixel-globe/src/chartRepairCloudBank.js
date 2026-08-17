@@ -140,6 +140,17 @@ export function chartRepairCloudMostlyCoversCircle(frame, x, y, radius = 0) {
   ));
 }
 
+export function chartRepairCloudTileStepPx(frame, x, y, radius, severeDistortion) {
+  if (typeof severeDistortion !== "boolean") {
+    throw new Error("Chart cloud repair severity must be boolean");
+  }
+  validateCloudCoveragePoint(x, y, radius, "repair step");
+  if (!severeDistortion) return 1;
+  return chartRepairCloudFullyCoversCircle(frame, x, y, radius)
+    ? Number.POSITIVE_INFINITY
+    : 4;
+}
+
 export function chartRepairCloudMayFullyCoverCircle(bank, x, y, radius = 0) {
   if (!bank) return false;
   validateCloudCoveragePoint(x, y, radius, "path");

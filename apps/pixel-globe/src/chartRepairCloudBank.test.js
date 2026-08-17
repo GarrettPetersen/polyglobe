@@ -8,6 +8,7 @@ import {
   chartRepairCloudMayFullyCoverCircle,
   chartRepairCloudMayMostlyCoverCircle,
   chartRepairCloudMostlyCoversCircle,
+  chartRepairCloudTileStepPx,
   createChartRepairCloudBank,
   slowedChartRepairCloudSpeed
 } from "./chartRepairCloudBank.js";
@@ -129,6 +130,16 @@ test("a mostly covered tile may settle gradually before full cloud cover", () =>
   assert.equal(chartRepairCloudMostlyCoversCircle(frame, 100, 80, 18), true);
   assert.equal(chartRepairCloudFullyCoversCircle(frame, 100, 80, 18), false);
   assert.equal(chartRepairCloudMayMostlyCoverCircle(bank, 220, 100, 18), true);
+  assert.equal(chartRepairCloudTileStepPx(frame, 100, 80, 18, false), 1);
+  assert.equal(chartRepairCloudTileStepPx(frame, 100, 80, 18, true), 4);
+  assert.equal(
+    chartRepairCloudTileStepPx(frame, 80, 80, 18, true),
+    Number.POSITIVE_INFINITY
+  );
+  assert.throws(
+    () => chartRepairCloudTileStepPx(frame, 80, 80, 18, "yes"),
+    /severity must be boolean/
+  );
 });
 
 test("a sparse cloud group leaves most of the viewport uncovered", () => {
