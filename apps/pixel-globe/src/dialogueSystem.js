@@ -49,6 +49,7 @@ import {
   personalTradePassStatuses,
   playerPortCustomsNotice,
   playerPortAttackStatus,
+  privateeringAuthorityIssuerIdsAgainst,
   playerPortugueseCrownSpiceAccess,
   playerWhaleHarpoon,
   playerTradeAccess,
@@ -1083,23 +1084,36 @@ function shipDialogueContentView(session, ship) {
 }
 
 function shipAttackLegalityNotice(ship) {
-  const issuer = shipPrivateeringIssuer(ship);
-  if (ship.playerAttackIsPiracy === true && issuer) {
-    throw new Error(`Ship attack cannot be piracy and authorized by ${issuer}: ${ship.id}`);
+  return attackLegalityNotice({
+    piracy: ship.playerAttackIsPiracy === true,
+    issuerAdjective: shipPrivateeringIssuer(ship),
+    subjectId: ship.id
+  });
+}
+
+function attackLegalityNotice({ piracy, issuerAdjective, subjectId }) {
+  if (piracy && issuerAdjective) {
+    throw new Error(`Attack cannot be piracy and authorized by ${issuerAdjective}: ${subjectId}`);
   }
-  if (issuer) {
+  if (issuerAdjective) {
     return {
-      text: `Your ${issuer} letter of marque makes this attack legal.`,
+      text: `Your ${issuerAdjective} letter of marque makes this attack legal.`,
+      detail: `Legal - ${issuerAdjective} letter of marque`,
       tone: "success"
     };
   }
-  if (ship.playerAttackIsPiracy === true) {
+  if (piracy) {
     return {
       text: "Without a letter of marque, this attack would be illegal piracy.",
+      detail: "Piracy",
       tone: "danger"
     };
   }
-  return null;
+  return {
+    text: null,
+    detail: "Legal attack",
+    tone: "success"
+  };
 }
 
 function shipPrizeLegalityNotice(session, ship) {
@@ -1462,7 +1476,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "drunk-factor") return drunkFactorArrivalView(session, city, gameState);
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
   if (session.nodeId === "recovering") return recoveringPortView(city, context);
-  if (session.nodeId === "barred") return barredPortView(city, context);
+  if (session.nodeId === "barred") return barredPortView(city, gameState, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
   if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
@@ -3536,7 +3550,7 @@ function pirateHideoutGreetingView(city, memory, context) {
   };
 }
 
-function barredPortView(city, context) {
+function barredPortView(city, gameState, context) {
   const status = context.portEntryStatus;
   const conquest = context.portConquestStatus || null;
   const attack = context.portAttackStatus || null;
@@ -3567,7 +3581,7 @@ function barredPortView(city, context) {
     ));
   }
   if (attack?.available && !batteryDisabled && !conquest?.playerAssaultActive) {
-    options.push(option("Attack city", {
+    options.push(portAttackOption(city, gameState, attack, {
       type: "node",
       nodeId: "city-attack",
       returnNodeId: "barred"
@@ -3625,6 +3639,22 @@ function cityAttackView(session, city, gameState, context) {
       option("Back", { type: "node", nodeId: session.cityAttackReturnNodeId || "root" })
     ]
   };
+}
+
+function portAttackOption(city, gameState, attack, action) {
+  const issuerIds = privateeringAuthorityIssuerIdsAgainst(gameState, attack.targetFactionId);
+  if (attack.privateeringAuthority !== (issuerIds.length > 0)) {
+    throw new Error(`Port attack authority is inconsistent for ${cityLabel(city)}`);
+  }
+  const notice = attackLegalityNotice({
+    piracy: attack.piracy,
+    issuerAdjective: issuerIds.length > 0 ? factionById(issuerIds[0]).adjective : null,
+    subjectId: String(city.tileId)
+  });
+  return option("Attack city", action, {
+    detail: notice.detail,
+    detailTone: notice.tone
+  });
 }
 
 function disguiseSuccessView(session, city) {
@@ -3784,7 +3814,12 @@ function rootView(session, city, gameState, economy, context) {
   }
   const attack = context.portAttackStatus || null;
   if (attack?.available) {
-    options.push(option("Attack city", { type: "node", nodeId: "city-attack" }));
+    options.push(portAttackOption(
+      city,
+      gameState,
+      attack,
+      { type: "node", nodeId: "city-attack" }
+    ));
   }
   options.push(
     option("Cargo ledger", { type: "node", nodeId: "cargo" }),
@@ -6459,6 +6494,7 @@ function option(label, action, details = {}) {
     iconId: details.iconId || null,
     rowId: details.rowId || null
   };
+  if (details.detailTone !== undefined) entry.detailTone = details.detailTone;
   if (details.placement !== undefined) entry.placement = details.placement;
   return entry;
 }

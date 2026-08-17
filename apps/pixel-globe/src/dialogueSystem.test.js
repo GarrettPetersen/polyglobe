@@ -2926,6 +2926,8 @@ test("a friendly foreign port warns before a piratical city attack", () => {
   const root = portDialogueView(session, city, gameState, economy, [city], context);
   const attackIndex = root.options.findIndex((entry) => entry.label === "Attack city");
   assert.ok(attackIndex >= 0);
+  assert.equal(root.options[attackIndex].detail, "Piracy");
+  assert.equal(root.options[attackIndex].detailTone, "danger");
   selectPortDialogueOption(session, city, gameState, economy, [city], attackIndex, context);
   const warning = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(warning.text, /attacking Lisbon is piracy/i);
@@ -2935,6 +2937,32 @@ test("a friendly foreign port warns before a piratical city attack", () => {
     selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
     { closed: false, action: { type: "attack-city" } }
   );
+});
+
+test("a port attack button identifies the letter of marque that makes it legal", () => {
+  const city = {
+    tileId: 131,
+    city: "Rhodes",
+    displayCity: "Rhodes",
+    country: "Rhodes",
+    cityType: "mediterranean",
+    factionId: "hospitallers",
+    population: 18000,
+    character: { name: "Pierre de Villiers" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Li Wei", nationalityId: "ming", expressions: ["neutral"] }
+  });
+  gameState.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const context = { portAttackStatus: playerPortAttackStatus(gameState, city) };
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const attack = root.options.find((entry) => entry.label === "Attack city");
+  assert.ok(attack);
+  assert.equal(attack.detail, "Legal - Ottoman letter of marque");
+  assert.equal(attack.detailTone, "success");
 });
 
 test("a friendly capture-commission target closes its harbor and engages", () => {
@@ -2970,6 +2998,8 @@ test("a friendly capture-commission target closes its harbor and engages", () =>
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(view.text, /commission is known/i);
   assert.deepEqual(view.options.map((entry) => entry.label), ["Attack city", "Leave"]);
+  assert.equal(view.options[0].detail, "Legal attack");
+  assert.equal(view.options[0].detailTone, "success");
 });
 
 test("an unauthorized marine landing pillages instead of annexing", () => {

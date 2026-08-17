@@ -56454,7 +56454,9 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
     );
   }
   if (textLayout.detailLines.length > 0) {
-    ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
+    ctx.fillStyle = option.disabled
+      ? PIRATE_MENU_INK_MUTED
+      : dialogueTextToneColor(option.detailTone, PIRATE_MENU_CHART_LINE);
     const detailY = rect.y + 4 + textLayout.labelLines.length * labelLineHeight;
     for (let lineIndex = 0; lineIndex < textLayout.detailLines.length; lineIndex++) {
       drawPixelText(
