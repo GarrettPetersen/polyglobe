@@ -1716,9 +1716,9 @@ export function receiveTreasureCargo(state, {
 }
 
 export function updateCircumnavigationProgress(state, longitudeDeg) {
-  assertGameState(state);
+  const navigation = state?.memory?.navigation;
+  assertCircumnavigationNavigation(navigation);
   if (!Number.isFinite(longitudeDeg)) throw new Error(`Invalid navigation longitude: ${longitudeDeg}`);
-  const navigation = state.memory.navigation;
   if (navigation.lastLongitudeDeg === null) {
     navigation.lastLongitudeDeg = longitudeDeg;
     return false;
@@ -1737,6 +1737,27 @@ export function updateCircumnavigationProgress(state, longitudeDeg) {
   );
   return navigation.maximumCumulativeLongitudeDeg - navigation.minimumCumulativeLongitudeDeg >=
     360 - CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG;
+}
+
+function assertCircumnavigationNavigation(navigation) {
+  if (!navigation || typeof navigation !== "object") {
+    throw new Error("Circumnavigation progress requires navigation memory");
+  }
+  const values = [
+    navigation.cumulativeLongitudeDeg,
+    navigation.minimumCumulativeLongitudeDeg,
+    navigation.maximumCumulativeLongitudeDeg
+  ];
+  if (values.some((value) => !Number.isFinite(value))) {
+    throw new Error("Circumnavigation progress requires finite cumulative longitudes");
+  }
+  if (navigation.lastLongitudeDeg !== null && !Number.isFinite(navigation.lastLongitudeDeg)) {
+    throw new Error(`Invalid last navigation longitude: ${navigation.lastLongitudeDeg}`);
+  }
+  if (navigation.minimumCumulativeLongitudeDeg > navigation.cumulativeLongitudeDeg ||
+      navigation.maximumCumulativeLongitudeDeg < navigation.cumulativeLongitudeDeg) {
+    throw new Error("Circumnavigation progress has inconsistent longitude bounds");
+  }
 }
 
 export function setCargoCapacity(state, cargoCapacity) {
@@ -2015,7 +2036,7 @@ function namedCrewDepartures(state, memberIds = []) {
 }
 
 export function cargoUsedTicks(state) {
-  assertGameState(state);
+  assertShipResourceState(state);
   return cargoUsedTicksForValidatedState(state);
 }
 
@@ -2257,7 +2278,7 @@ export function receiveQuestPayment(state, city, amount, description, context = 
 }
 
 export function cargoFreeTicks(state) {
-  assertGameState(state);
+  assertShipResourceState(state);
   return cargoFreeTicksForValidatedState(state);
 }
 
@@ -2276,7 +2297,7 @@ export function cargoFree(state) {
 }
 
 export function cargoHoldStatus(state) {
-  assertGameState(state);
+  assertShipResourceState(state);
   return cargoHoldStatusForValidatedState(state);
 }
 
@@ -2307,7 +2328,7 @@ export function cargoFreeForGood(state, goodId) {
 }
 
 export function cargoQuantityCapacityForGood(state, goodId) {
-  assertGameState(state);
+  assertShipResourceState(state);
   const good = tradeGoodById(goodId);
   const availableSpace = cargoFreeForGood(state, goodId);
   const availableTicks = availableCargoTicks(Math.max(0, availableSpace));
@@ -2315,7 +2336,7 @@ export function cargoQuantityCapacityForGood(state, goodId) {
 }
 
 function physicalCargoQuantityCapacityForGood(state, goodId) {
-  assertGameState(state);
+  assertShipResourceState(state);
   const good = tradeGoodById(goodId);
   return Math.floor(physicalCargoFreeTicks(state) / (good.unitSize * CARGO_SPACE_TICKS_PER_UNIT));
 }
@@ -2378,12 +2399,12 @@ export function cargoSpaceLabel(space) {
 }
 
 export function survivalStatus(state) {
-  assertGameState(state);
+  assertShipResourceState(state);
   return survivalStatusForValidatedState(state);
 }
 
 export function shipHudStatus(state) {
-  assertGameState(state);
+  assertShipResourceState(state);
   return Object.freeze({
     survival: survivalStatusForValidatedState(state),
     cargo: cargoHoldStatusForValidatedState(state),
@@ -2691,7 +2712,7 @@ export function playerVesselLossOutcome({ crew, hitPoints }) {
 }
 
 export function shipConsumption(state) {
-  assertGameState(state);
+  assertShipResourceState(state);
   return shipConsumptionForValidatedState(state);
 }
 
@@ -2741,7 +2762,7 @@ function shipConsumptionForValidatedState(state) {
 }
 
 export function shipTravelerManifest(state) {
-  assertGameState(state);
+  assertShipResourceState(state);
   return shipTravelerManifestForValidatedState(state);
 }
 
@@ -7848,6 +7869,33 @@ function assertOptionalNavigationWaypoint(waypoint) {
   }
   if (typeof waypoint.reason !== "string" || waypoint.reason.trim() === "") {
     throw new Error("Optional navigation waypoint requires a reason");
+  }
+}
+
+function assertShipResourceState(state) {
+  if (!state || typeof state !== "object") throw new Error("Missing game state");
+  assertCargoCapacity(state.cargoCapacity);
+  if (!state.cargo || typeof state.cargo !== "object" || Array.isArray(state.cargo)) {
+    throw new Error("Game state cargo must be an object");
+  }
+  assertCargoState(state.cargo);
+  ensureSurvivalState(state);
+  if (state.ship !== null && state.ship !== undefined) assertPlayerShipState(state.ship);
+  if (!state.memory || typeof state.memory !== "object") {
+    throw new Error("Game state memory must be an object");
+  }
+  assertCargoReservations(state.memory.cargoReservations);
+  if (!state.memory.quests || typeof state.memory.quests !== "object") {
+    throw new Error("Game state ship resources require quest memory");
+  }
+  if (!state.memory.colonization || typeof state.memory.colonization !== "object") {
+    throw new Error("Game state ship resources require colonization memory");
+  }
+  if (!state.memory.animalCompanions || typeof state.memory.animalCompanions !== "object") {
+    throw new Error("Game state ship resources require animal companion memory");
+  }
+  if (!state.relations?.papacy || typeof state.relations.papacy !== "object") {
+    throw new Error("Game state ship resources require Papal relations");
   }
 }
 

@@ -2454,6 +2454,7 @@ export default Object.freeze({
   "Rhodes is lost behind us. At Birgu we shall raise the eight-pointed cross again, and make a fortress of our exile.": "로즈는 우리 뒤에서 길을 잃었습니다. 비르구에서 우리는 다시 팔각 십자가를 세우고 우리 유배의 요새를 만들 것이다.",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders.": "로즈는 여전히 오스만 바다 앞에 서 있지만, 용기를 내어 수비수들에게 먹이를 줄 수는 없습니다.",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders. Carry {0} and a Papal nuncio to {1}.": "로즈는 여전히 오스만 바다 앞에 서 있지만, 용기를 내어 수비수들에게 먹이를 줄 수는 없습니다. {0}과 교황 대사를 {1}로 데려가세요.",
+  "Ribeira Grande": "리베이라그란데",
   "RIGHT": "오른쪽",
   "Ring; your presence will show that the Order yet lives.": "링; 당신의 존재는 기사단이 아직 살아 있다는 것을 보여줄 것입니다.",
   "ritual envoy": "의례사절",

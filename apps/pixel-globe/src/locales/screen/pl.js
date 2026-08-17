@@ -2454,6 +2454,7 @@ export default Object.freeze({
   "Rhodes is lost behind us. At Birgu we shall raise the eight-pointed cross again, and make a fortress of our exile.": "Rodos jest za nami stracony. W Birgu ponownie wzniesiemy ośmioramienny krzyż i z naszego wygnania uczynimy fortecę.",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders.": "Rodos wciąż stoi przed Morzem Osmańskim, ale odwaga nie może nakarmić jego obrońców.",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders. Carry {0} and a Papal nuncio to {1}.": "Rodos wciąż stoi przed Morzem Osmańskim, ale odwaga nie może nakarmić jego obrońców. Przewieź {0} i nuncjusza papieskiego do {1}.",
+  "Ribeira Grande": "Ribeira Grande",
   "RIGHT": "PRAWO",
   "Ring; your presence will show that the Order yet lives.": "Pierścień; Twoja obecność pokaże, że Zakon jeszcze żyje.",
   "ritual envoy": "wysłannik rytualny",

@@ -473,6 +473,11 @@ export function conquistadorQuestShouldAppearAtCity(memory, city, portCities) {
 }
 
 export function conquistadorQuestDestination(memory, portCities, currentMinute) {
+  validateConquistadorQuestMemory(memory);
+  assertMinute(currentMinute, "conquistador destination");
+  if (memory.stage === CONQUISTADOR_STAGE_DORMANT || memory.stage === CONQUISTADOR_STAGE_COMPLETE) {
+    return null;
+  }
   const view = conquistadorQuestView(memory, portCities, currentMinute);
   if ([CONQUISTADOR_STAGE_FETCH, CONQUISTADOR_STAGE_READY].includes(view.stage)) return view.origin;
   if (view.stage === CONQUISTADOR_STAGE_CAPTURE && view.companyNeedsReplenishment) return null;

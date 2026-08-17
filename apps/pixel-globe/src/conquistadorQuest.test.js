@@ -22,6 +22,7 @@ import {
   conquistadorCommissionedCaptureFactionId,
   conquistadorFetchRequirementId,
   conquistadorQuestAvailable,
+  conquistadorQuestDestination,
   createConquistadorQuestMemory,
   isConquistadorCompanyReplenishmentPort,
   migrateConquistadorQuestMemory,
@@ -44,6 +45,10 @@ import {
 } from "./portConquest.js";
 
 const DAY = 24 * 60;
+
+test("a dormant conquistador quest has no destination and does not scan the port catalog", () => {
+  assert.equal(conquistadorQuestDestination(createConquistadorQuestMemory(), [], 0), null);
+});
 
 test("the Spanish expedition gathers partially delivered supplies before commissioning Chan Chan", () => {
   const ports = questPorts();

@@ -56,6 +56,8 @@ export const REQUIRED_CANONICAL_PORTS = Object.freeze(Object.values(CANONICAL_PO
 
 const referencesById = new Map();
 const referencesByIdentity = new Map();
+const validatedCatalogs = new WeakMap();
+const identityCache = new WeakMap();
 for (const reference of REQUIRED_CANONICAL_PORTS) {
   const identity = canonicalPortIdentity(reference);
   if (referencesById.has(reference.id)) {
@@ -73,7 +75,11 @@ export function canonicalPortIdentity(port) {
       typeof port?.country !== "string" || port.country.trim() === "") {
     throw new Error("Canonical port identity requires a city and country");
   }
-  return `${normalizeIdentityPart(port.city)}|${normalizeIdentityPart(port.country)}`;
+  const cached = identityCache.get(port);
+  if (cached?.city === port.city && cached.country === port.country) return cached.identity;
+  const identity = `${normalizeIdentityPart(port.city)}|${normalizeIdentityPart(port.country)}`;
+  identityCache.set(port, { city: port.city, country: port.country, identity });
+  return identity;
 }
 
 export function portMatchesCanonicalReference(port, reference) {
@@ -84,6 +90,12 @@ export function portMatchesCanonicalReference(port, reference) {
 export function requireCanonicalPort(portCities, reference, context = "game system") {
   if (!Array.isArray(portCities)) throw new Error(`${context} requires the dockable port catalog`);
   assertCanonicalReference(reference);
+  const validated = validatedCatalogs.get(portCities);
+  if (validated) {
+    const port = validated.get(reference.id);
+    if (!port) throw new Error(`${context} is missing validated canonical port ${reference.city}`);
+    return port;
+  }
   const matches = portCities.filter((port) => portMatchesCanonicalReference(port, reference));
   if (matches.length !== 1) {
     throw new Error(
@@ -97,6 +109,8 @@ export function requireCanonicalPort(portCities, reference, context = "game syst
 export function findCanonicalPort(portCities, reference, context = "game system") {
   if (!Array.isArray(portCities)) throw new Error(`${context} requires the dockable port catalog`);
   assertCanonicalReference(reference);
+  const validated = validatedCatalogs.get(portCities);
+  if (validated) return validated.get(reference.id) || null;
   const matches = portCities.filter((port) => portMatchesCanonicalReference(port, reference));
   if (matches.length > 1) {
     throw new Error(
@@ -112,6 +126,7 @@ export function validateCanonicalPortCatalog(portCities) {
   for (const reference of REQUIRED_CANONICAL_PORTS) {
     resolved.set(reference.id, requireCanonicalPort(portCities, reference, "Canonical port registry"));
   }
+  validatedCatalogs.set(portCities, resolved);
   return resolved;
 }
 

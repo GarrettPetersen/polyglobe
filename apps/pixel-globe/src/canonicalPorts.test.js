@@ -20,6 +20,10 @@ test("canonical port references resolve by stable city and country rather than d
   }));
   const resolved = validateCanonicalPortCatalog(ports);
   assert.equal(resolved.size, REQUIRED_CANONICAL_PORTS.length);
+  assert.equal(
+    requireCanonicalPort(ports, CANONICAL_PORTS.HANSEONG, "Cached canonical port test"),
+    resolved.get("hanseong")
+  );
   assert.equal(canonicalPortDisplayName(resolved.get("hanseong")), "Hanseong");
   assert.equal(
     portMatchesCanonicalReference(resolved.get("hanseong"), CANONICAL_PORTS.HANSEONG),

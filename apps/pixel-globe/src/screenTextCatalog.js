@@ -2454,6 +2454,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Rhodes is lost behind us. At Birgu we shall raise the eight-pointed cross again, and make a fortress of our exile.",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders.",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders. Carry {0} and a Papal nuncio to {1}.",
+  "Ribeira Grande",
   "RIGHT",
   "Ring; your presence will show that the Order yet lives.",
   "ritual envoy",

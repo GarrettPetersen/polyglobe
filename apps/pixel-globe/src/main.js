@@ -25585,7 +25585,11 @@ function ensureConquistadorQuestGiver(state) {
 }
 
 function japaneseMatchlockWorkshopPort() {
-  return portCities.find(isJapaneseMatchlockWorkshopCity) || null;
+  return requireCanonicalPort(
+    portCities,
+    CANONICAL_PORTS.KYOTO,
+    "Japanese matchlock workshop"
+  );
 }
 
 function ensureJapaneseMatchlockGunsmith(state) {
@@ -39136,7 +39140,11 @@ function drawItemAcquisitionEffects(nowMs) {
 }
 
 function vikingLongshipQuestPort() {
-  return portCities.find((city) => isVikingLongshipQuestPort(city)) || null;
+  return requireCanonicalPort(
+    portCities,
+    CANONICAL_PORTS.HAFNARFJORDUR,
+    "Viking longship quest"
+  );
 }
 
 function currentFetchQuestRequirements() {
@@ -39145,13 +39153,16 @@ function currentFetchQuestRequirements() {
   const japaneseMatchlockPort = japaneseMatchlockWorkshopPort();
   const caribbeanGingerPort = currentCaribbeanGingerPort(gameState);
   const chefPort = chefQuestJournalPort(gameState);
-  const conquistador = conquistadorQuestView(
-    gameState.memory.quests.conquistador,
-    portCities,
-    Math.max(0, weatherClockMinutes),
-    { cargo: gameState.cargo }
-  );
-  const conquistadorProgress = conquistador.fetchStage
+  const conquistadorMemory = gameState.memory.quests.conquistador;
+  const conquistador = conquistadorMemory.stage === CONQUISTADOR_STAGE_FETCH
+    ? conquistadorQuestView(
+        conquistadorMemory,
+        portCities,
+        Math.max(0, weatherClockMinutes),
+        { cargo: gameState.cargo }
+      )
+    : null;
+  const conquistadorProgress = conquistador?.fetchStage
     ? questCargoDeliveryProgress(
         gameState,
         conquistadorFetchRequirementId(conquistador.fetchStage),
@@ -39174,7 +39185,7 @@ function currentFetchQuestRequirements() {
     caribbeanGingerPort,
     chef: chefPort ? chefQuestState(gameState, chefPort) : null,
     chefPort,
-    conquistador: conquistador.fetchStage
+    conquistador: conquistador?.fetchStage
       ? { ...conquistador, delivered: conquistadorProgress.deliveredQuantity }
       : null
   });

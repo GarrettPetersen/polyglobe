@@ -2454,6 +2454,7 @@ export default Object.freeze({
   "Rhodes is lost behind us. At Birgu we shall raise the eight-pointed cross again, and make a fortress of our exile.": "羅德迷失在我們身後。在比爾古，我們將再次舉起八角十字架，為我們的流亡者建造一座堡壘。",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders.": "羅德島仍然矗立在奧斯曼海前，但勇氣無法滿足其守衛者的需求。",
   "Rhodes still stands before the Ottoman sea, but courage cannot feed its defenders. Carry {0} and a Papal nuncio to {1}.": "羅德島仍然矗立在奧斯曼海前，但勇氣無法滿足其守衛者的需求。將{0}和教宗大使帶到{1}。",
+  "Ribeira Grande": "里貝拉格蘭德",
   "RIGHT": "右",
   "Ring; your presence will show that the Order yet lives.": "環；你的存在將表明教團仍然存在。",
   "ritual envoy": "禮使",

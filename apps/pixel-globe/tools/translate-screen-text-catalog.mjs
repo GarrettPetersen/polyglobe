@@ -124,6 +124,12 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Ribeira Grande": Object.freeze({
+    "zh-Hans": "里贝拉格兰德", ru: "Рибейра-Гранде", es: "Ribeira Grande",
+    "pt-BR": "Ribeira Grande", ja: "リベイラ・グランデ", de: "Ribeira Grande",
+    fr: "Ribeira Grande", pl: "Ribeira Grande", "zh-Hant": "里貝拉格蘭德",
+    ko: "리베이라그란데"
+  }),
   "Agra": Object.freeze({
     "zh-Hans": "阿格拉", ru: "Агра", es: "Agra", "pt-BR": "Agra", ja: "アーグラ",
     de: "Agra", fr: "Agra", pl: "Agra", "zh-Hant": "阿格拉", ko: "아그라"
