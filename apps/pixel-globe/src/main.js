@@ -1838,10 +1838,15 @@ import {
   createExactNorthUpRepairPlan,
   measureChartNorthUpDrift,
   northUpProjectionIsStable,
-  planChartSettlementTowardTargets,
   retainPositionLockedProjectedTiles,
   selectRepresentativeChartDriftCalls
 } from "./chartReframe.js";
+import {
+  chartRebuildRequest,
+  createChartRebuildTracker,
+  createCoveredChartRepairQueue,
+  planChartLayoutTransaction
+} from "./chartLayoutEngine.js";
 import {
   chartReframeCoverIsOpaque,
   chartShouldReframeOnCoverOpen,
@@ -3647,13 +3652,7 @@ let chartReframeCoverWasActive = false;
 let chartDriftMeasuredAtMs = -Infinity;
 const CHART_DRIFT_MEASURE_INTERVAL_MS = 500;
 let chartViewportCoverageRepairPending = false;
-const chartRebuildReasonCounts = {
-  missingChart: 0,
-  concealedRepair: 0,
-  viewportCoverage: 0,
-  missingCenter: 0,
-  projectionTravel: 0
-};
+const chartRebuildTracker = createChartRebuildTracker();
 let chartRepairCloudBank = null;
 let chartRepairFog = null;
 let chartRepairHeatHaze = null;
@@ -3663,7 +3662,7 @@ let polarChartRepairPressureUpdatedAtMs = null;
 let chartRepairCooldownUntilMs = -Infinity;
 let chartRepairPendingConfirmation = null;
 let polarFogNextTileRepairAtMs = 0;
-const pendingCoveredChartRepairPositions = new Map();
+const coveredChartRepairQueue = createCoveredChartRepairQueue();
 const pendingCoveredNpcRepairIds = new Set();
 let chartVisualRepairStats = createChartVisualRepairStats();
 let chartIntegrityTelemetryMonitor = createChartIntegrityTelemetryMonitor();
@@ -9855,7 +9854,7 @@ function performanceBenchmarkSceneSnapshot(state) {
       0
     ),
     chartFaces: chart.faceCalls.length,
-    chartRebuildReasons: Object.freeze({ ...chartRebuildReasonCounts }),
+    chartRebuildReasons: chartRebuildTracker.snapshot(),
     chartDrift: Object.freeze({ ...chartNorthUpDrift }),
     playerLatitudeDeg: Math.round(latitudeDegForDirection(ship.position) * 100) / 100,
     visibleCities: chart.cityCalls.length,
@@ -10097,7 +10096,7 @@ function injectChartRecoveryDiagnosticTilt(tiltDeg) {
   chartRepairSwellUntilMs = -Infinity;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = -Infinity;
-  pendingCoveredChartRepairPositions.clear();
+  coveredChartRepairQueue.clear();
   pendingCoveredNpcRepairIds.clear();
   polarChartRepairPressure = 0;
   polarChartRepairPressureUpdatedAtMs = null;
@@ -10187,7 +10186,7 @@ function chartRecoveryDiagnosticSnapshot() {
     exactReframes: Object.freeze(chartRecoveryDiagnosticExactReframes.slice()),
     coveredTileMoves: Object.freeze(chartRecoveryDiagnosticCoveredTileMoves.slice()),
     coveredTileApplications: chartRecoveryDiagnosticCoveredTileApplications,
-    pendingCoveredTileRepairs: pendingCoveredChartRepairPositions.size,
+    pendingCoveredTileRepairs: coveredChartRepairQueue.size,
     admissions: Object.freeze(chartRecoveryDiagnosticAdmissions.slice()),
     repairPasses: Object.freeze(chartRecoveryDiagnosticRepairPasses.slice()),
     dialogueActive: Boolean(captainAlertModal),
@@ -24461,7 +24460,7 @@ function repairCoveredChartTiles({
   const removedIds = [];
   for (const [id, position] of localLayout.positions.entries()) {
     if (clearNavigationIds.has(id)) continue;
-    if (pendingCoveredChartRepairPositions.has(id)) continue;
+    if (coveredChartRepairQueue.has(id)) continue;
     if (!shouldRepairTile(id)) continue;
     if (!localLayoutPositionOverlapsViewport(
       position,
@@ -24500,15 +24499,7 @@ function repairCoveredChartTiles({
     const position = localLayout.positions.get(id);
     return [id, { x: position.x, y: position.y }];
   }));
-  for (const [id, position] of constrainedPositions.entries()) {
-    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
-      throw new Error(`Chart repair plan ${reason} has malformed tile ${id}`);
-    }
-    pendingCoveredChartRepairPositions.set(id, Object.freeze({
-      position: Object.freeze({ x: position.x, y: position.y }),
-      reason
-    }));
-  }
+  coveredChartRepairQueue.stage(constrainedPositions, reason);
   for (const state of hiddenNpcStates) pendingCoveredNpcRepairIds.add(state.id);
   // Coalesce the whole covered group into one ordinary chart rebuild. Dense
   // polar fog usually reaches the exact target in this pass, avoiding the old
@@ -24611,30 +24602,19 @@ function planNorthUpChartSettlement({
       targetsById: new Map()
     });
   }
-  const topologyIds = new Set(tileIds);
-  for (const id of [...topologyIds]) {
-    for (const neighborId of graph.neighbors[id]) {
-      if (localLayout.positions.has(neighborId)) topologyIds.add(neighborId);
-    }
-  }
-  const referencePositions = exactNorthUpLayoutTargets(topologyIds);
-  const targetsById = new Map(
-    [...referencePositions].filter(([id]) => tileIds.has(id) && id !== centerTileId)
-  );
-  const settlement = planChartSettlementTowardTargets({
+  return planChartLayoutTransaction({
     positions: localLayout.positions,
-    targetsById,
     tileIds,
-    maximumStepPx,
-    maximumStepPxById,
-    referencePositions,
     neighborsById: graph.neighbors,
     surfaceMaskById: chartSurfaceContinuityMask,
+    referencePositionsForIds: (ids) => exactNorthUpLayoutTargets(ids),
+    excludedTargetIds: new Set([centerTileId]),
+    maximumStepPx,
+    maximumStepPxById,
     landSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX,
     waterSlackPx: MAX_PROTECTED_ADMISSION_SLACK_PX * 2,
     incrementalRepair
   });
-  return Object.freeze({ ...settlement, targetsById });
 }
 
 function exactNorthUpLayoutTargets(tileIds, excludedTileId = null) {
@@ -25067,7 +25047,7 @@ function clearLocalChartTransientEffects() {
   cannonSmokeBursts = [];
   hullSplinterBursts = [];
   precipParticles = [];
-  pendingCoveredChartRepairPositions.clear();
+  coveredChartRepairQueue.clear();
   pendingCoveredNpcRepairIds.clear();
   visiblePrecipitationLastRender = false;
   seagulls = [];
@@ -36681,8 +36661,8 @@ function worldDiscoveryLocalPoint(discovery, activeChart) {
 }
 
 function ensureChart() {
-  const concealedRepairIsPending = pendingCoveredChartRepairPositions.size > 0 &&
-    applicablePendingCoveredChartRepairs().size > 0;
+  const concealedRepairIsPending = coveredChartRepairQueue.size > 0 &&
+    collectApplicableCoveredChartRepairs().size > 0;
   const edgeCoverage = chart && localLayout
     ? currentChartViewportCoverage(chart).edge
     : null;
@@ -36697,18 +36677,17 @@ function ensureChart() {
   const projectionTravelled = Boolean(
     chart && chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX
   );
-  if (
-    !chart ||
-    concealedRepairIsPending ||
-    chartViewportCoverageRepairPending ||
-    missingCenter ||
-    projectionTravelled
-  ) {
-    if (!chart) chartRebuildReasonCounts.missingChart++;
-    if (concealedRepairIsPending) chartRebuildReasonCounts.concealedRepair++;
-    if (chartViewportCoverageRepairPending) chartRebuildReasonCounts.viewportCoverage++;
-    if (missingCenter) chartRebuildReasonCounts.missingCenter++;
-    if (projectionTravelled) chartRebuildReasonCounts.projectionTravel++;
+  const shouldRebuild = !chart || concealedRepairIsPending ||
+    chartViewportCoverageRepairPending || missingCenter || projectionTravelled;
+  if (shouldRebuild) {
+    const rebuildRequest = chartRebuildRequest({
+      missingChart: !chart,
+      concealedRepair: concealedRepairIsPending,
+      viewportCoverage: chartViewportCoverageRepairPending,
+      missingCenter,
+      projectionTravel: projectionTravelled
+    });
+    chartRebuildTracker.record(rebuildRequest);
     const coverageRepairWasPending = chartViewportCoverageRepairPending;
     chartViewportCoverageRepairPending = false;
     chart = buildChart(camera);
@@ -36990,7 +36969,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
     throw new Error("Local layout synchronization requires position locks as a map");
   }
   const applicableCoveredRepairs = positionLocks === null
-    ? applicablePendingCoveredChartRepairs()
+    ? collectApplicableCoveredChartRepairs()
     : new Map();
   const visibleAuthoritativePositions = captureVisibleAuthoritativeTilePositions(
     new Set(applicableCoveredRepairs.keys())
@@ -37091,25 +37070,16 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
   assertVisibleAuthoritativeTilePositionsUnchanged(visibleAuthoritativePositions);
 }
 
-function applicablePendingCoveredChartRepairs() {
-  const applicable = new Map();
-  for (const [id, repair] of pendingCoveredChartRepairPositions) {
-    const current = localLayout.positions.get(id);
-    if (!current) {
-      pendingCoveredChartRepairPositions.delete(id);
-      continue;
-    }
-    if (pendingChartRepairRemainsCovered(current, repair.reason) ||
-        !localLayoutPositionOverlapsViewport(current, LOCAL_LAYOUT_RETENTION_MARGIN_PX)) {
-      applicable.set(id, repair);
-    } else {
-      // A staged position is tied to the cover and camera frame that hid it.
-      // Once exposed, it must be discarded rather than forcing a rebuild on
-      // every frame while waiting for obsolete cover to return.
-      pendingCoveredChartRepairPositions.delete(id);
-    }
-  }
-  return applicable;
+function collectApplicableCoveredChartRepairs() {
+  if (!localLayout) return new Map();
+  return coveredChartRepairQueue.collectApplicable({
+    positions: localLayout.positions,
+    remainsCovered: pendingChartRepairRemainsCovered,
+    overlapsViewport: (position) => localLayoutPositionOverlapsViewport(
+      position,
+      LOCAL_LAYOUT_RETENTION_MARGIN_PX
+    )
+  });
 }
 
 function pendingChartRepairRemainsCovered(position, reason) {
@@ -37149,15 +37119,9 @@ function applyPendingCoveredChartRepairs(applicable) {
     throw new Error("Pending covered chart repairs must be a map");
   }
   if (applicable.size === 0) return 0;
-  for (const [id, repair] of applicable) {
-    localLayout.positions.set(id, {
-      x: repair.position.x,
-      y: repair.position.y
-    });
-    pendingCoveredChartRepairPositions.delete(id);
-  }
+  const appliedCount = coveredChartRepairQueue.apply(localLayout.positions, applicable);
   if (CHART_RECOVERY_TEST_ENABLED) {
-    chartRecoveryDiagnosticCoveredTileApplications += applicable.size;
+    chartRecoveryDiagnosticCoveredTileApplications += appliedCount;
   }
   const hiddenNpcStates = [...pendingCoveredNpcRepairIds]
     .map((id) => npcVisualShips.get(id))
@@ -37165,7 +37129,7 @@ function applyPendingCoveredChartRepairs(applicable) {
   pendingCoveredNpcRepairIds.clear();
   if (hiddenNpcStates.length > 0) reprojectNpcVisualPositions(hiddenNpcStates);
   invalidateFishSchoolRenderCaches();
-  return applicable.size;
+  return appliedCount;
 }
 
 function fogConcealedAdmissionIds(admissionContext) {

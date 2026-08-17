@@ -1,7 +1,5 @@
-import {
-  exactNorthUpLayoutPosition,
-  planChartSettlementTowardTargets
-} from "./chartReframe.js";
+import { exactNorthUpLayoutPosition } from "./chartReframe.js";
+import { planChartLayoutTransaction } from "./chartLayoutEngine.js";
 
 function assertFinitePoint(point, label) {
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
@@ -1091,33 +1089,25 @@ function settlePendingContinuityEdgeLengths({
   if (continuityMaskById === null || pendingIds.length === 0) return;
   const pendingSet = new Set(pendingIds.filter((id) => continuityMaskById[id] !== 0));
   if (pendingSet.size === 0) return;
-  const topologyIds = new Set(pendingSet);
-  for (const id of pendingSet) {
-    for (const neighborId of neighborsById[id]) {
-      if (positions.has(neighborId) && projectedById.has(neighborId)) {
-        topologyIds.add(neighborId);
-      }
-    }
-  }
-  const referencePositions = new Map(
-    [...topologyIds].map((id) => [
-      id,
-      registeredPoint(projectedById.get(id), registeredFrame)
-    ])
-  );
   const targetsById = new Map(
     [...pendingSet].map((id) => [id, positions.get(id)])
   );
   const waterSlackPx = maximumSlackPxByClass?.get(1) ?? defaultMaximumSlackPx;
   const landSlackPx = maximumSlackPxByClass?.get(2) ?? defaultMaximumSlackPx;
-  const settlement = planChartSettlementTowardTargets({
+  const settlement = planChartLayoutTransaction({
     positions,
-    targetsById,
     tileIds: pendingSet,
-    maximumStepPx: Number.POSITIVE_INFINITY,
-    referencePositions,
     neighborsById,
     surfaceMaskById: continuityMaskById,
+    referencePositionsForIds: (ids) => new Map(
+      [...ids].map((id) => [
+        id,
+        registeredPoint(projectedById.get(id), registeredFrame)
+      ])
+    ),
+    topologyIncludesId: (id) => projectedById.has(id),
+    targetPositionsById: targetsById,
+    maximumStepPx: Number.POSITIVE_INFINITY,
     landSlackPx,
     waterSlackPx
   });
