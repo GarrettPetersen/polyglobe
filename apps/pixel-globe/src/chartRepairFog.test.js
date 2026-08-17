@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CHART_FOG_REDRAW_CONCEALMENT,
+  CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY,
   chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
   chartFogPixelDensity,
   chartRepairPressureDrift,
   chartRepairFogFrame,
+  chartRepairFogOverlayOpacity,
   chartRepairFogWindPresence,
   createChartFogMaskField,
   createChartRepairFog,
@@ -137,6 +139,20 @@ test("repair fog shares the storm fog layers and never hides the world completel
   assert.ok(colors.size >= 3);
   assert.equal(maximumAlpha, 208);
   assert.ok(maximumAlpha < 255);
+  const effectiveMaximumAlpha = maximumAlpha / 255 * chartRepairFogOverlayOpacity(frame);
+  assert.ok(effectiveMaximumAlpha < 0.6);
+  assert.ok(1 - effectiveMaximumAlpha > 0.4);
+});
+
+test("repair concealment can reach full strength without drawing an opaque veil", () => {
+  assert.equal(
+    chartRepairFogOverlayOpacity({ edgeOpacity: 1 }),
+    CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY
+  );
+  assert.throws(
+    () => chartRepairFogOverlayOpacity({ edgeOpacity: 1.01 }),
+    /invalid opacity/
+  );
 });
 
 test("repair fog can clear early after an outer-ring repair is sufficient", () => {

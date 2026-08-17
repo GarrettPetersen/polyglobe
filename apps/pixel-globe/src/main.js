@@ -1914,6 +1914,7 @@ import {
   chartFogPixelDensity,
   chartRepairPressureDrift,
   chartRepairFogFrame,
+  chartRepairFogOverlayOpacity,
   chartRepairFogWindPresence,
   createChartFogMaskField,
   createChartRepairFog,
@@ -48239,7 +48240,7 @@ function drawChartFogFrame(frame) {
   if (!frame || frame.edgeOpacity <= 0) return;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha = frame.edgeOpacity;
+  ctx.globalAlpha = chartRepairFogOverlayOpacity(frame);
   ctx.drawImage(chartFogRaggedTexture(frame), 0, 0, SCREEN_W, SCREEN_H);
   ctx.restore();
 }

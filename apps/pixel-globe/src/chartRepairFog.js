@@ -2,6 +2,7 @@ import { fogLayerRgba } from "./stormPresentation.js";
 import { PERMANENT_POLAR_CAP_LATITUDE_DEG } from "./polarChartPresentation.js";
 
 export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
+export const CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY = 0.72;
 const POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG = 54;
 const POLAR_REPAIR_FOG_CLEAR_LATITUDE_DEG = 42;
 
@@ -105,6 +106,16 @@ export function chartRepairFogWindPresence(frame) {
     throw new Error(`Chart repair fog wind has invalid concealment: ${frame.concealment}`);
   }
   return smoothstep(0.06, 1, frame.concealment);
+}
+
+export function chartRepairFogOverlayOpacity(frame) {
+  if (!frame || !Number.isFinite(frame.edgeOpacity)) {
+    throw new Error("Chart repair fog overlay requires a valid fog frame");
+  }
+  if (frame.edgeOpacity < 0 || frame.edgeOpacity > 1) {
+    throw new Error(`Chart repair fog overlay has invalid opacity: ${frame.edgeOpacity}`);
+  }
+  return frame.edgeOpacity * CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY;
 }
 
 export function polarChartFogFrame({
